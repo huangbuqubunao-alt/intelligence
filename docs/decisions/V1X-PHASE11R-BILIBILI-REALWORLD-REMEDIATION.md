@@ -171,3 +171,31 @@ rejected.
 - `RISK_CONTROLLED` no longer implies "this creator is private". Any stored
   `health` written before this change may still read `ACCESS_DENIED`; the next
   honest check rewrites it. No history was rewritten by hand.
+## 11. What the product must never say again
+
+A withdrawn capability that is still described as working is the same defect in
+three different places, so all three are closed the same way:
+
+- The Following list called a stored creator "Monitoring new videos". It now
+  reports that continuous creator tracking is unavailable.
+- The import dialog offered "Follow a creator" during the moment before the
+  service had answered. The entry point is now rendered only once the service
+  has confirmed it, so nothing is offered and then taken away.
+- The Backup panel rendered the service's own English message, which put
+  backend prose into the Chinese UI and hid *what* was still running. Readiness
+  is now assembled from the structured reason codes the service already returns.
+
+## 12. One definition of a live Source Run
+
+"Which Source Run states still hold live execution" had been written out as a
+literal SQL list in three places, so the definition this record changes could
+drift from the call sites that decide whether a Source still holds authority.
+It now lives once, as `SOURCE_RUN_ACTIVE_STATES` in `source_run`, and the
+Backup quiescence gate, the active-manual-run reuse in `state`, and the
+Following projection all derive from it.
+
+## 13. Independent revalidation is still required
+
+This task validated its own fixes. The OpenCode recon harness and an owner-led
+real-world pass must be rerun against this candidate before any pilot. See
+`docs/validation/phase11r/` for the Phase 11R evidence this task produced.

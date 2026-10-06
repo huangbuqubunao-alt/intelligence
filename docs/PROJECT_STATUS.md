@@ -952,3 +952,46 @@ All 20 protected worktrees and failed Phase 9/9R records remain unchanged;
 production ASR qualification and Deep Analysis route remain NONE. No main merge,
 push, PR or deployment. Fresh acceptance and limitations:
 `docs/validation/phase10b/ACCEPTANCE.md`.
+
+## V1.x Phase 11R — real-world Bilibili capability corrected (2026-10-06)
+
+Dedicated `deepseek/phase11r-bilibili-realworld-remediation` worktree, base
+`a81b8e90a662eab72dda28fdc2140362649d9544`. Phase 11's architecture is
+unchanged; what changed is which of its claims the real provider supports.
+
+**Bilibili creator Following is withdrawn from normal pilot UX.** A bounded,
+public, cookie-free probe was refused on every fair attempt (0/3 accepted, raw
+`-412 request was banned`), matching the independent recon's 0/10. The
+withdrawal is enforced at the product boundary: follow endpoints answer `409`
+without contacting the provider or creating a source, Check Now reports
+`CAPABILITY_UNAVAILABLE`, stale checks record the same instead of silently
+asking, and the UI only offers the entry point once the service confirms it.
+Stored creator rows, Content and Evidence are preserved untouched and stay
+readable. The library mechanism deliberately still works; re-enabling is one
+constant.
+
+**Bilibili public captions remain unavailable.** A second independent bounded
+sample confirmed 0/8. No transcript, Summary or Evidence is fabricated, and no
+ASR fallback exists. Public video metadata works, 8/8.
+
+**Backup no longer deadlocks.** A settled `NEEDS_ATTENTION` run that holds no
+live child and no open distillation checkpoint no longer blocks Backup; active
+states still do, and corrupt state still fails closed. The state machine now
+allows `NEEDS_ATTENTION → CANCELLED | FAILED` so a run can be resolved, and a
+retry still creates a new run rather than rewriting failed history.
+
+**Refusals are classified by what they mean.** HTTP 412 and `-352/-412/-509`
+are `RISK_CONTROLLED`, not "you do not have access". Response bounds moved from
+an unjustified 256 KiB to 512 KiB, measured against real responses (largest
+observed 371 359 bytes, which the old bound rejected outright).
+
+Schema stays 34. No migration, no new or upgraded dependency, no ASR or Deep
+Analysis change. Final backend 3,594 passed and one skip; frontend 189 passed
+with typecheck and production build clean; browser 31/31 across zh-CN and en at
+320/768/1024/1440. The paused Codex Phase 12 worktree, the Phase 11 source
+worktree and the recon worktree are byte-for-byte unchanged.
+
+This is self-validation only. Independent online revalidation is still required
+before any pilot. Decision record:
+`docs/decisions/V1X-PHASE11R-BILIBILI-REALWORLD-REMEDIATION.md`; evidence
+index: `docs/validation/phase11r/README.md`.
