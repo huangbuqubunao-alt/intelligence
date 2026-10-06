@@ -31,6 +31,7 @@ from .evidence_translation import (
     EvidenceTranslator,
 )
 from .research_lite import RESEARCH_AUTHORITY_TABLES, ResearchLiteService
+from .source_run import SOURCE_RUN_ACTIVE_STATES
 from .state import SQLiteStateRepository
 
 FORMAT_NAME = "intelligence-core-backup"
@@ -52,10 +53,10 @@ _TERMINAL_JOBS = {"SUCCEEDED", "FAILED_FINAL"}
 _TERMINAL_PROVIDER_CALLS = {"SUCCEEDED", "FAILED_FINAL"}
 _TERMINAL_DISPATCH = {"SUCCESS_DURABLY_RECORDED", "FAILED_KNOWN"}
 _TERMINAL_SOURCE_RUNS = {"COMPLETED", "FAILED", "CANCELLED"}
-# Only a state that still holds live execution blocks a data-protection
-# operation.  A settled NEEDS_ATTENTION run holds no worker and no checkpoint in
-# flight; whether it also holds resumable authority is decided per run below.
-_ACTIVE_SOURCE_RUN_STATES = {"QUEUED", "RUNNING", "WAITING", "PARTIAL"}
+# The live-execution states are defined once in source_run so this quiescence
+# gate and every other "is this run still working?" caller cannot drift apart.
+# A settled NEEDS_ATTENTION run is decided per run by _is_settled_attention_source_run.
+_ACTIVE_SOURCE_RUN_STATES = frozenset(state.value for state in SOURCE_RUN_ACTIVE_STATES)
 _TERMINAL_SOURCE_RUN_CHILDREN = {"COMPLETED", "SKIPPED", "FAILED", "AMBIGUOUS"}
 _AMBIGUOUS_DISTILLATION_OUTCOMES = {
     "TRANSPORT_OUTCOME_UNKNOWN": {1},

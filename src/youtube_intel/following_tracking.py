@@ -24,6 +24,7 @@ from youtube_intel.providers.bilibili_creator import (
     normalize_creator,
 )
 from youtube_intel.source_authority import read_managed, verify_source
+from youtube_intel.source_run import SOURCE_RUN_ACTIVE_STATES
 from youtube_intel.state import (
     SourceSubscriptionRecord,
     SQLiteStateRepository,
@@ -36,6 +37,17 @@ CHECK_SECONDS = 180.0
 COOLDOWN = timedelta(minutes=15)
 LEASE = timedelta(minutes=10)
 _CHECK_SLOT = threading.BoundedSemaphore(1)
+# Derived from the single definition of "a Source Run still holds live
+# execution", so this projection can never disagree with the Backup gate.
+_ACTIVE_SOURCE_RUN_STATES = tuple(
+    state.value for state in sorted(SOURCE_RUN_ACTIVE_STATES, key=lambda item: item.value)
+)
+_ACTIVE_SOURCE_RUN_SQL = (
+    "SELECT 1 FROM source_checks WHERE source_id=? AND status='RUNNING' UNION ALL "
+    "SELECT 1 FROM source_runs WHERE source_id=? AND state IN ("
+    + ",".join("?" for _ in _ACTIVE_SOURCE_RUN_STATES)
+    + ") LIMIT 1"
+)
 _HEALTH = {"NETWORK_UNAVAILABLE": "OFFLINE", "METADATA_FAILED": "PROVIDER_ERROR",
            "RESPONSE_TOO_LARGE": "PROVIDER_ERROR", "SOURCE_UNTRUSTED": "STATE_INVALID"}
 
@@ -173,7 +185,10 @@ class FollowingTrackingService:
                 return {"health": "STATE_INVALID", "coverage": "CHECK_INCOMPLETE", "update_count": 0, "pending_count": 0}
             counts = connection.execute("SELECT SUM(baseline=0),SUM(enrollment='PENDING'),SUM(enrollment IN ('UNSUPPORTED','UNAVAILABLE')),SUM(enrollment='ENROLLED') FROM source_observations WHERE source_id=?", (source_id,)).fetchone()
             processing = connection.execute("SELECT COUNT(*) FROM source_video_links l JOIN content_source_snapshots c ON c.content_id=l.video_id WHERE l.source_id=? AND c.status!='READY'", (source_id,)).fetchone()[0]
-            active = connection.execute("SELECT 1 FROM source_checks WHERE source_id=? AND status='RUNNING' UNION ALL SELECT 1 FROM source_runs WHERE source_id=? AND state IN ('QUEUED','RUNNING','WAITING','PARTIAL') LIMIT 1", (source_id, source_id)).fetchone() is not None
+            active = connection.execute(
+                _ACTIVE_SOURCE_RUN_SQL,
+                (source_id, source_id, *_ACTIVE_SOURCE_RUN_STATES),
+            ).fetchone() is not None
             return {**dict(row), "discovered_count": counts[0] or 0, "pending_count": counts[1] or 0,
                     "unavailable_count": counts[2] or 0, "update_count": counts[3] or 0, "checking": active, "processing_count": processing}
 
