@@ -162,7 +162,7 @@ test("a withdrawn creator is never advertised as monitoring in the Following lis
 
 test("the creator entry point is never shown before the service confirms it", async () => {
   localStorage.setItem("yia.ui-language", "en");
-  let releaseSettings: (() => void) | null = null;
+  let releaseSettings!: () => void;
   vi.stubGlobal("fetch", vi.fn(async (url: string) => {
     if (url.endsWith("/settings")) {
       await new Promise<void>((resolve) => { releaseSettings = resolve; });
@@ -175,6 +175,6 @@ test("the creator entry point is never shown before the service confirms it", as
   // turn out to be unavailable.
   expect(screen.queryByRole("button", { name: "Follow a creator" })).toBeNull();
   expect(screen.getByRole("status").textContent).toContain("Checking whether this is available");
-  releaseSettings?.();
+  releaseSettings();
   expect(await screen.findByText("Continuous Bilibili creator tracking is currently unavailable. You can still add public Bilibili videos.")).toBeTruthy();
 });

@@ -3137,12 +3137,39 @@ type BackupRestoreStatus = {
   last_restore?: { state: string; message: string } | null;
 };
 
+const backupReasonCopy: Record<string, string> = {
+  SOURCE_RUN_ACTIVE: "a Source Run is still working",
+  DISTILLATION_ACTIVE: "a distillation is still running",
+  JOBS_ACTIVE: "a background job is still running",
+  PROVIDER_CALL_UNRESOLVED: "a provider call has an unresolved outcome",
+  PROVIDER_DISPATCH_UNRESOLVED: "a provider dispatch has an unresolved outcome",
+  RESTORE_PENDING: "a restore is pending",
+};
+
 function byteSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+/**
+ * Why Backup is or is not available, built from the structured reason codes the
+ * service returns. The service's own message is English engineering prose, so
+ * rendering it would put untranslated backend text into the Chinese UI — and
+ * would also hide *what* is still running. Each fragment is translated on its
+ * own because the sentence is assembled here.
+ */
+function backupReadiness(status: BackupRestoreStatus | null) {
+  if (!status) return { lead: "Checking whether core data is safe to back up…", items: [] as string[] };
+  if (status.restore_pending) return { lead: "A restore is pending. Intelligence restarts before processing resumes.", items: [] as string[] };
+  if (status.ready) return { lead: "Core data is quiescent and ready for backup.", items: [] as string[] };
+  const items = status.reasons
+    .map((reason) => backupReasonCopy[reason])
+    .filter((value): value is string => value !== undefined);
+  return items.length
+    ? { lead: "Backup is unavailable while these are still running:", items }
+    : { lead: "Backup is unavailable while other work is still in flight.", items: [] as string[] };
+}
 function BackupRestorePanel() {
   const { t } = useUiLanguage();
   const [status, setStatus] = useState<BackupRestoreStatus | null>(null);
@@ -3289,10 +3316,14 @@ function BackupRestorePanel() {
     </dl>
   );
 
+  const readiness = backupReadiness(status);
   return (
     <Panel title="Backup and Restore">
       <p>{t("Backups include Intelligence core data and persisted settings. External Vault content, credentials, and model files are excluded.")}</p>
-      <p className="hint" role="status">{t(status?.message ?? "Checking whether core data is safe to back up…")}</p>
+      <p className="hint" role="status">
+        {t(readiness.lead)}
+        {readiness.items.length > 0 && ` ${readiness.items.map((item) => t(item)).join(" ")}`}
+      </p>
       <div className="button-row">
         <button type="button" onClick={createBackup} disabled={busy || !status?.ready}>
           {t(busy ? "Working…" : "Create Backup")}
