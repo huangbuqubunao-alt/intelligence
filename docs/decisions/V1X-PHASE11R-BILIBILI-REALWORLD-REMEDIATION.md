@@ -96,6 +96,22 @@ remains `MODEL_NOT_QUALIFIED` and production Deep Analysis remains `NONE`.
 A public video with metadata but no caption still imports, and is stored as
 `CAPTION_UNAVAILABLE` — visible, counted, and honestly described.
 
+**The machine-readable contract has to agree with that.** The `/settings`
+projection published `bilibili.public_captions.available = true`, which claims a
+capability the compliant path has never demonstrated (0 of 8 sampled public
+videos returned a caption; an independent revalidation saw 0 of 10). An
+`available: true` flag now has to mean a capability production can reasonably
+claim, so the projection reports `available: false` with the structured code
+`PUBLIC_CAPTIONS_NOT_OBSERVED`.
+
+This is the current capability state, not a removal. The caption parser and
+acquisition path are untouched, a trusted public caption still yields transcript
+→ Summary → Evidence, and no migration was introduced. `video_ingestion` remains
+`available: true`, so nothing may read this flag as "Bilibili import itself is
+unavailable". No consumer of the flag exists in the product today; the change
+makes the published contract stop overclaiming before anything starts reading
+it.
+
 ## 5. Decision P0-02 — A settled run that asks for attention is not "active forever"
 
 Phase 11 backed up behind any source run that was not terminal. A run that
@@ -123,9 +139,22 @@ run that asked for attention must be able to finish its lifecycle.
 | --- | --- | --- |
 | `HTTP 412` / `-352` / `-412` / `-509` | `RISK_CONTROLLED` | 429 |
 | `HTTP 429` / `-799` | `RATE_LIMITED` | 429 |
-| `HTTP 401` / `403` | `ACCESS_DENIED` | 403 |
+| `HTTP 401` / `403` / `-403` / `-101` / `-111` | `ACCESS_DENIED` | 403 |
 | `62002`, `62004`, `410002` | `VIDEO_UNAVAILABLE` | 404 |
-| `-404` / `-40003` | `NOT_FOUND` | 404 |
+| `-404` | `NOT_FOUND` | 404 |
+| any other provider code | `METADATA_FAILED` | 502 |
+
+The table lists what the provider adapter actually classifies
+(`_api_data` in `src/youtube_intel/providers/bilibili.py`), not codes that might
+one day be observed. An earlier revision of this record also claimed `-40003` to
+`NOT_FOUND`. No compliant sample ever produced that code, no captured response
+in the repository contains it, and no test asserts it, so the claim was
+unsupported and has been removed rather than implemented: inventing a mapping to
+make prose true would report a refusal the provider never made. An unrecognised
+code therefore falls through to `METADATA_FAILED`, which is the honest answer —
+a refusal whose meaning has not been established is not silently reported as a
+missing video. `-40003` stays deferred until a real observation exists to
+classify.
 
 Back-off follows the meaning: risk control and rate limiting cool the provider
 down for 15 minutes, because re-asking sooner only deepens the refusal. A plain

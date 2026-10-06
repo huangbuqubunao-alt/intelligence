@@ -434,6 +434,12 @@ small, .hint, .muted {
 .status {
   display: inline-flex;
   min-height: 22px;
+  /* A resolved status is a localized sentence, not a token: its length is a
+     property of the interface language and cannot be fixed in advance.  The
+     pill therefore stays inside the width it is offered and wraps instead of
+     forcing the narrow layout to scroll sideways or be clipped by a parent. */
+  max-width: 100%;
+  min-width: 0;
   align-items: center;
   border: 1px solid;
   border-radius: 999px;
@@ -442,7 +448,8 @@ small, .hint, .muted {
   font-weight: 750;
   letter-spacing: 0.01em;
   line-height: 1.3;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .status-success {
   border-color: rgba(69, 189, 131, 0.32);
@@ -829,15 +836,21 @@ td small {
 }
 .list-row {
   display: flex;
+  /* A long localized status drops to its own line at narrow widths rather than
+     squeezing the title and being clipped by .compact-list's overflow. */
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
+  gap: 6px 14px;
   border: 0;
   border-bottom: 1px solid var(--border);
   background: transparent;
   color: var(--text);
   padding: 11px;
   text-align: left;
+}
+.list-row > span {
+  min-width: 0;
 }
 .list-row:last-child {
   border-bottom: 0;
@@ -878,11 +891,17 @@ td small {
 }
 .reading-meta {
   display: flex;
+  /* Same reason as .list-row: the meta line carries a localized status, so at a
+     narrow width it stacks instead of pushing the document sideways. */
+  flex-wrap: wrap;
   align-items: center;
   gap: 9px;
   margin-bottom: 18px;
   color: var(--text-muted);
   font-size: 12px;
+}
+.reading-meta > * {
+  min-width: 0;
 }
 .transcript-copy, .weekly-copy {
   color: #d8dde5;

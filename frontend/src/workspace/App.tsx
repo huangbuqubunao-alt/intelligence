@@ -444,6 +444,25 @@ function Status({ value, label }: { value: string; label?: string }) {
       : "neutral";
   return <span className={`status status-${tone}`}>{label ? t(label) : t(statusLabel(value))}</span>;
 }
+/**
+ * Bilibili and Local Content states carry their own wording, so each is
+ * projected through its own copy.  The enum decides the tone and the resolved
+ * label is the only text shown — the same contract Creator Following already
+ * uses, and the reason a backend sentence is never de-CamelCased into a
+ * language the user did not choose.
+ */
+function contentStatus(provider: string | undefined, status: string, label?: string) {
+  return {
+    value: status,
+    label:
+      label ??
+      (provider === "LOCAL"
+        ? localStatus(status)
+        : provider === "BILIBILI"
+          ? bilibiliStatus(status)
+          : undefined),
+  };
+}
 function Panel({ title, children }: { title: string; children: ReactNode }) {
   const { t } = useUiLanguage();
   return (
@@ -1466,7 +1485,7 @@ function ContentPage(
               <strong>{item.title ?? item.video_id}</strong>
               <small>{item.provider === "LOCAL" ? t("Local") : item.provider === "BILIBILI" ? `${t("Bilibili")} · ${item.channel_name ?? ""}` : item.channel_name} · {humanDate(item.provider === "BILIBILI" ? item.published_at : item.imported_at ?? item.published_at)}</small>
             </span>
-            <Status value={item.provider === "LOCAL" ? localStatus(item.processing_status) : item.provider === "BILIBILI" ? bilibiliStatus(item.processing_status) : item.processing_status} />
+            <Status {...contentStatus(item.provider, item.processing_status)} />
           </button>
         ))}
       </div>
@@ -1506,12 +1525,22 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
   const visibleHistory = data.history.filter((event) =>
     event.type === "JOB_STATUS" || !event.type
   );
+  // The offline transcription job owns the displayed state once it has one, so
+  // a run in progress is not summarised by the snapshot status behind it.
+  const readingStatus = isLocalMedia && transcriptionStatus
+    ? { value: transcriptionStatus, label: transcriptionCopy(transcriptionStatus) }
+    : contentStatus(
+        data.video.provider,
+        isLocalMedia && data.video.processing_status === "TRANSCRIPTION_UNAVAILABLE"
+          ? "IMPORTED"
+          : data.video.processing_status,
+      );
   return (
     <div className="dashboard-stack">
       <button className="button button-ghost" onClick={onClose}>{t("Back to Content")}</button>
       <Panel title={data.video.title ?? data.video.video_id}>
         <div className={`reading-meta${isLocalMedia || isBilibili ? " local-media-meta" : ""}`}>
-          <Status value={isLocalMedia && transcriptionStatus ? transcriptionCopy(transcriptionStatus) : data.video.provider === "LOCAL" ? localStatus(isLocalMedia && data.video.processing_status === "TRANSCRIPTION_UNAVAILABLE" ? "IMPORTED" : data.video.processing_status) : isBilibili ? bilibiliStatus(data.video.processing_status) : data.video.processing_status} />
+          <Status {...readingStatus} />
           <span>{data.video.provider === "LOCAL" ? t("Local") : isBilibili ? `${t("Bilibili")} · ${data.video.channel_name ?? ""}` : data.video.channel_name} · {humanDate(isBilibili ? data.video.published_at : data.video.imported_at ?? data.video.published_at)}</span>
           {data.video.media_kind && <span>{t(({TEXT:"Text",AUDIO:"Audio",VIDEO:"Video"} as Record<string,string>)[data.video.media_kind])}{isBilibili ? "" : ` · ${data.video.format}`}</span>}
           {data.video.source_language && <span>{t("Source language")}: {data.video.source_language === "und" ? t("Language unavailable") : data.video.source_language}</span>}
@@ -1535,7 +1564,7 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
             : <div className="transcript-copy">{transcript.text}</div>
           : isLocalMedia || isBilibili ? null : (
             <div className="semantic-state state-neutral">
-              <Status value={data.video.provider === "LOCAL" ? localStatus(transcript.status) : transcript.status} />
+              <Status {...contentStatus(data.video.provider, transcript.status)} />
               <p>{t(({
                 TRANSCRIPTION_UNAVAILABLE: "Media snapshots are saved. A provisioned offline transcription adapter is required for transcript, Summary and Evidence; nothing is sent to a cloud service.",
                 TRANSCRIPTION_FAILED: "Local transcription failed",
@@ -2427,8 +2456,9 @@ function Sources(
                         label={source.tracking?.checking ? "Checking…" : trackingCopy(source.tracking?.health ?? "BASELINE_PENDING")}
                       />
                     : <Status
-                        value={source.provider === "BILIBILI" ? bilibiliStatus(source.last_error?.code ?? "IMPORTED") : source.last_error?.code ??
-                          (source.enabled ? "ENABLED" : "DISABLED")}
+                        {...(source.provider === "BILIBILI"
+                          ? contentStatus("BILIBILI", source.last_error?.code ?? "IMPORTED")
+                          : { value: source.last_error?.code ?? (source.enabled ? "ENABLED" : "DISABLED"), label: undefined })}
                       />}
                   {source.provider === "LOCAL" ? <button className="button button-secondary" onClick={() => { setAddProvider("LOCAL"); setAdding(true); }}>{t("Import files")}</button> : <a
                     href={source.canonical_url}

@@ -180,6 +180,7 @@ const chinese: Record<string, string> = {
   "This media file is malformed, has a mismatched format or exceeds two hours.": "媒体文件损坏、格式与扩展名不符，或时长超过两小时。",
   "Choose text up to 2 MiB or media up to 64 MiB.": "请选择不超过 2 MiB 的文本或不超过 64 MiB 的媒体文件。",
   "The imported snapshot failed verification. Existing Evidence is unavailable.": "已导入的快照未通过验证，现有证据暂不可用。",
+  "This Content is in a state that cannot be explained yet.": "此内容当前处于应用尚无法解释的状态。",
   "The selected file could not be imported. Try again after checking local storage.": "所选文件未能导入，请检查本地存储后重试。",
   "Media snapshots are saved. A provisioned offline transcription adapter is required for transcript, Summary and Evidence; nothing is sent to a cloud service.": "媒体快照已保存。转录、摘要与证据需要已配置的离线转写适配器；不会向云服务发送任何内容。",
   "These are original source excerpts, selected deterministically without a model or new interpretation.": "这些是确定性选取的原始来源摘录，没有调用模型，也没有生成新的解释。",

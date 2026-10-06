@@ -363,6 +363,48 @@ def test_settings_reports_the_truthful_bilibili_capability(tmp_path: Path) -> No
     assert capability["creator_following"]["message"]
 
 
+def test_settings_does_not_claim_a_public_caption_capability(tmp_path: Path) -> None:
+    """Every bounded compliant sample returned zero public captions.
+
+    ``available`` has to mean a capability the compliant production path can
+    reasonably claim.  It cannot, so the projection says so with a structured
+    code instead of asserting an untested capability.
+    """
+
+    application, _repo, _fixture, _tracker = _creator_api(tmp_path)
+
+    status, body = application.handle("GET", "/api/v1/settings")
+
+    assert status == 200
+    captions = body["bilibili"]["public_captions"]
+    assert captions["available"] is False
+    assert captions["code"] == "PUBLIC_CAPTIONS_NOT_OBSERVED"
+    assert captions["note"]
+
+
+def test_withdrawing_the_caption_capability_leaves_bilibili_import_available(
+    tmp_path: Path,
+) -> None:
+    """The caption flag reports one capability, never the whole provider.
+
+    Nothing may read ``public_captions.available is False`` as "Bilibili import
+    itself is unavailable".
+    """
+
+    application, _repo, _fixture, _tracker = _creator_api(tmp_path)
+
+    settings = application.handle("GET", "/api/v1/settings")[1]
+    assert settings["bilibili"]["public_captions"]["available"] is False
+    assert settings["bilibili"]["video_ingestion"]["available"] is True
+    status, body = application.handle(
+        "POST",
+        "/api/v1/bilibili/imports",
+        json.dumps({"input": "https://www.bilibili.com/video/BV1UeHe6YEVM/"}).encode(),
+    )
+
+    assert status == 201, (status, body)
+
+
 def test_manual_public_bilibili_ingestion_still_works_with_creator_following_withdrawn(
     tmp_path: Path,
 ) -> None:

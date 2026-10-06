@@ -167,11 +167,16 @@ _BILIBILI_CAPABILITY: dict[str, object] = {
         else CREATOR_FOLLOWING_UNAVAILABLE_MESSAGE,
     },
     "public_captions": {
-        "available": True,
-        "code": "PUBLIC_CAPTION_ATTEMPTED",
-        "note": "A caption exists only when the provider exposes a public one. "
-        "Bilibili usually exposes none without a signed-in session, which the "
-        "product never uses; without a trusted caption there is no transcript, "
+        # Truthful current state, not a removal of the caption path.  Every
+        # bounded compliant sample so far returned zero public captions, so this
+        # must not claim the capability.  A trusted public caption still yields
+        # transcript -> Summary -> Evidence; without one the Content stays
+        # metadata-only and nothing is fabricated.
+        "available": False,
+        "code": "PUBLIC_CAPTIONS_NOT_OBSERVED",
+        "note": "No trusted public Bilibili caption has been observed on the "
+        "compliant no-login path, so this capability is not claimed. Metadata "
+        "import is unaffected; without a trusted caption there is no transcript, "
         "Summary or Evidence.",
     },
 }

@@ -13,8 +13,35 @@ const errorCopy: Record<string, string> = {
   LOCAL_IMPORT_BUSY: "Another local import is processing. Try again shortly.",
   LOCAL_SOURCE_UNTRUSTED: "The imported snapshot failed verification. Existing Evidence is unavailable.",
 };
+/**
+ * Local processing states carry their own wording, so each one resolves to a
+ * sentence the user can act on.  A stored snapshot that no longer verifies has
+ * its own copy: the interface states that its Evidence is unavailable instead
+ * of naming a backend code the user cannot act on.
+ */
+const statusCopy: Record<string, string> = {
+  RUNNING: "Transcribing…",
+  PENDING: "Awaiting transcription",
+  MODEL_MISSING: "Local model is missing",
+  INTERRUPTED: "Transcription was interrupted",
+  READY: "Ready",
+  IMPORTED: "Imported",
+  UNAVAILABLE: "Unavailable",
+  NOT_PROCESSED: "Not processed",
+  TRANSCRIPTION_UNAVAILABLE: "Local transcription is unavailable",
+  TRANSCRIPTION_FAILED: "Local transcription failed",
+  FAILED: "Import failed",
+  SOURCE_UNAVAILABLE: "Source verification failed",
+  SOURCE_UNTRUSTED: "The imported snapshot failed verification. Existing Evidence is unavailable.",
+  LOCAL_SOURCE_UNTRUSTED: "The imported snapshot failed verification. Existing Evidence is unavailable.",
+};
+/**
+ * A code with no honest equivalent is reported as an unknown state rather than
+ * displayed as the raw enum, so backend vocabulary never reaches the interface
+ * and never has to be de-CamelCased into a sentence nobody chose.
+ */
 export function localStatus(status: string) {
-  return ({ RUNNING: "Transcribing…", PENDING: "Awaiting transcription", MODEL_MISSING: "Local model is missing", INTERRUPTED: "Transcription was interrupted", READY: "Ready", IMPORTED: "Imported", TRANSCRIPTION_UNAVAILABLE: "Local transcription is unavailable", TRANSCRIPTION_FAILED: "Local transcription failed", FAILED: "Import failed", SOURCE_UNAVAILABLE: "Source verification failed" } as Record<string, string>)[status] ?? status;
+  return statusCopy[status] ?? "This Content is in a state that cannot be explained yet.";
 }
 
 type Result = { content_id: string; filename: string; status: string; duplicate: boolean };
