@@ -7,6 +7,7 @@ import socketserver
 import ssl
 import subprocess
 import threading
+import time
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -55,7 +56,17 @@ def certificates(tmp_path_factory):
 
 
 @contextmanager
-def tunnel(certificates, *, cert="valid", status=200, body=None, connect_status=200):
+def tunnel(
+    certificates,
+    *,
+    cert="valid",
+    status=200,
+    body=None,
+    connect_status=200,
+    connect_delay=0,
+    length_delta=0,
+    encoding="identity",
+):
     seen = {"connect": [], "requests": [], "sni": []}
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.load_cert_chain(*map(str, certificates[cert]))
@@ -78,7 +89,7 @@ def tunnel(certificates, *, cert="valid", status=200, body=None, connect_status=
                         else PAGE
                     )
                     stream.sendall(
-                        f"HTTP/1.1 {status} Test\r\nContent-Length: {len(payload)}\r\nLocation: https://attacker.example/\r\nConnection: close\r\n\r\n".encode()
+                        f"HTTP/1.1 {status} Test\r\nContent-Length: {len(payload) + length_delta}\r\nContent-Encoding: {encoding}\r\nLocation: https://attacker.example/\r\nConnection: close\r\n\r\n".encode()
                         + payload
                     )
             except (OSError, ssl.SSLError):
@@ -95,6 +106,7 @@ def tunnel(certificates, *, cert="valid", status=200, body=None, connect_status=
                 b"CONNECT www.youtube.com:443 HTTP/1.0",
                 b"CONNECT www.youtube.com:443 HTTP/1.1",
             )
+            time.sleep(connect_delay)
             self.request.sendall(f"HTTP/1.1 {connect_status} Test\r\n\r\n".encode())
             if connect_status != 200:
                 return
@@ -282,6 +294,7 @@ def test_no_system_proxy_retains_validated_pinned_direct(monkeypatch):
             return self
 
         status = 200
+        length = None
 
         def getheader(self, name, default):
             return default
@@ -550,3 +563,65 @@ def test_response_deadline_is_enforced_and_connection_closed(monkeypatch):
     with pytest.raises(TrackingError, match="NETWORK_UNAVAILABLE"):
         net.channel_feed(CHANNEL)
     assert connection.closed
+
+
+def test_os_proxy_hostname_resolution_accepts_trusted_loopback(monkeypatch):
+    calls = []
+
+    def resolve(host, port, *, type):
+        calls.append((host, port))
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", port))]
+
+    monkeypatch.setattr(net.socket, "getaddrinfo", resolve)
+    assert net._proxy_address(net._SystemProxy("os-proxy.local", 9999)) == "127.0.0.1"
+    assert calls == [("os-proxy.local", 9999)]
+
+
+def test_os_proxy_hostname_resolution_is_bounded(monkeypatch):
+    release = threading.Event()
+    finished = threading.Event()
+
+    def blocked(*args, **kwargs):
+        release.wait(2)
+        finished.set()
+        raise OSError("private system detail")
+
+    monkeypatch.setattr(net.socket, "getaddrinfo", blocked)
+    monkeypatch.setattr(net, "_PROXY_DNS_TIMEOUT", 0.02)
+    try:
+        with pytest.raises(TrackingError, match="NETWORK_UNAVAILABLE"):
+            net._proxy_address(net._SystemProxy("os-proxy.local", 9999))
+    finally:
+        release.set()
+        assert finished.wait(1)
+
+
+@pytest.mark.parametrize("address", ["0.0.0.0", "::", "224.0.0.1", "255.255.255.255"])
+def test_invalid_os_proxy_endpoint_is_not_contacted(address):
+    with pytest.raises(TrackingError, match="NETWORK_UNAVAILABLE"):
+        net._proxy_address(net._SystemProxy(address, 9999))
+
+
+def test_stalled_connect_is_bounded(monkeypatch, certificates):
+    monkeypatch.setattr(net, "_TIMEOUT", 0.02)
+    with tunnel(certificates, connect_status=407, connect_delay=0.1) as (url, seen):
+        monkeypatch.setattr(net, "_macos_proxy_url", lambda: url)
+        with pytest.raises(TrackingError, match="NETWORK_UNAVAILABLE"):
+            net.channel_feed(CHANNEL)
+        assert not seen["requests"]
+
+
+def test_truncated_http_response_is_network_failure(monkeypatch, certificates):
+    trust(monkeypatch, certificates)
+    with tunnel(certificates, length_delta=1) as (url, seen):
+        monkeypatch.setattr(net, "_macos_proxy_url", lambda: url)
+        with pytest.raises(TrackingError, match="NETWORK_UNAVAILABLE"):
+            net.channel_feed(CHANNEL)
+
+
+def test_compressed_response_cannot_evade_byte_bound(monkeypatch, certificates):
+    trust(monkeypatch, certificates)
+    with tunnel(certificates, encoding="gzip") as (url, seen):
+        monkeypatch.setattr(net, "_macos_proxy_url", lambda: url)
+        with pytest.raises(TrackingError, match="METADATA_FAILED"):
+            net.channel_feed(CHANNEL)

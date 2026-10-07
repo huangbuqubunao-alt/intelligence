@@ -49,3 +49,11 @@ matching. This is architecture evidence, not a real product baseline claim.
 Validation: ephemeral loopback CONNECT + test CA for approved hostname, real TLS
 handshake and rejection, route transitions, provider/authority tests, zh/en retry
 and 320px/desktop browser checks, regressions, bounded real product API acceptance.
+
+Self-review remediation: trusted proxy endpoint DNS has a one-second wait and
+at most two outstanding resolver workers; literal IP proxies skip DNS. No
+YouTube DNS occurs in CONNECT routing. Reject unspecified/multicast endpoints.
+Sockets use ten-second timeouts and response reads have a ten-second request
+budget; connection stages are bounded by socket timeouts rather than a claimed
+single ten-second total connect deadline. HTTP Content-Length truncation is
+NETWORK_UNAVAILABLE, never accepted as a complete metadata/feed response.

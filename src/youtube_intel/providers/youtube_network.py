@@ -8,9 +8,12 @@ from __future__ import annotations
 import http.client
 import importlib
 import ipaddress
+import queue
 import re
+import socket
 import ssl
 import sys
+import threading
 import time
 from dataclasses import dataclass
 from urllib.parse import urlsplit
@@ -20,6 +23,8 @@ from youtube_intel.providers.bilibili import _PinnedHTTPS, public_addresses
 
 _HOST = "www.youtube.com"
 _TIMEOUT = 10.0
+_PROXY_DNS_TIMEOUT = 1.0
+_PROXY_DNS_SLOTS = threading.BoundedSemaphore(2)
 
 
 @dataclass(frozen=True, repr=False)
@@ -77,12 +82,60 @@ def _current_proxy() -> _SystemProxy | None:
         raise TrackingError("NETWORK_UNAVAILABLE") from None
 
 
+def _proxy_address(proxy: _SystemProxy) -> str:
+    """Bound DNS of a trusted OS endpoint; never resolve the tunnel destination."""
+    try:
+        address = ipaddress.ip_address(proxy.host)
+    except ValueError:
+        slots = _PROXY_DNS_SLOTS
+        if not slots.acquire(blocking=False):
+            raise TrackingError("NETWORK_UNAVAILABLE")
+        result: queue.Queue[str | None] = queue.Queue(maxsize=1)
+
+        def resolve() -> None:
+            value = None
+            try:
+                rows = socket.getaddrinfo(
+                    proxy.host, proxy.port, type=socket.SOCK_STREAM
+                )
+                if 0 < len(rows) <= 512:
+                    value = str(rows[0][4][0])
+            except OSError:
+                pass
+            finally:
+                result.put(value)
+                slots.release()
+
+        threading.Thread(
+            target=resolve, daemon=True, name="youtube-system-proxy-dns"
+        ).start()
+        try:
+            value = result.get(timeout=_PROXY_DNS_TIMEOUT)
+            if value is None:
+                raise ValueError()
+            address = ipaddress.ip_address(value)
+        except (queue.Empty, ValueError):
+            raise TrackingError("NETWORK_UNAVAILABLE") from None
+    if (
+        address.is_unspecified
+        or address.is_multicast
+        or str(address) == "255.255.255.255"
+    ):
+        raise TrackingError("NETWORK_UNAVAILABLE")
+    # Private/loopback addresses are legitimate OS proxy endpoints, not public
+    # content destinations. This does not change public_addresses' policy.
+    return str(address)
+
+
 def _connection() -> http.client.HTTPSConnection:
     proxy = _current_proxy()
     if proxy is None:
         return _PinnedHTTPS(_HOST, public_addresses(_HOST)[0])
     connection = http.client.HTTPSConnection(
-        proxy.host, proxy.port, timeout=_TIMEOUT, context=ssl.create_default_context()
+        _proxy_address(proxy),
+        proxy.port,
+        timeout=_TIMEOUT,
+        context=ssl.create_default_context(),
     )
     # HTTPSConnection verifies _tunnel_host, not proxy.host; no local YouTube DNS.
     connection.set_tunnel(_HOST, 443)
@@ -127,6 +180,8 @@ def _get(path: str, limit: int) -> bytes:
                 connection.sock.settimeout(remaining)
             chunk = response.read1(min(16384, limit + 1 - len(body)))
             if not chunk:
+                if response.length not in (None, 0):
+                    raise TrackingError("NETWORK_UNAVAILABLE")
                 return bytes(body)
             body.extend(chunk)
             if len(body) > limit:
