@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Deterministic new-item replay; not a claim of a live NASA upload. -->
+<feed xmlns="http://www.w3.org/2005/Atom"
+      xmlns:yt="http://www.youtube.com/xml/schemas/2015">
+  <yt:channelId>LA_DiR1FfKNvjuUpBHmylQ</yt:channelId>
+  <title>NASA fixture</title>
+  <entry>
+    <yt:videoId>newvideo001</yt:videoId>
+    <yt:channelId>UCLA_DiR1FfKNvjuUpBHmylQ</yt:channelId>
+    <title>New fixture observation</title>
+    <published>2026-10-04T01:00:01+00:00</published>
+  </entry>
+  <entry>
+    <yt:videoId>oldvideo001</yt:videoId>
+    <yt:channelId>UCLA_DiR1FfKNvjuUpBHmylQ</yt:channelId>
+    <title>Historical fixture observation</title>
+    <published>2026-09-24T00:00:00+00:00</published>
+  </entry>
+</feed>

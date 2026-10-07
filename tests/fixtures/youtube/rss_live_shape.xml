@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Minimal synthetic entries with NASA's real identity representation observed
+     by independent live validation: feed omits UC; entries retain canonical UC. -->
+<feed xmlns="http://www.w3.org/2005/Atom"
+      xmlns:yt="http://www.youtube.com/xml/schemas/2015">
+  <id>yt:channel:LA_DiR1FfKNvjuUpBHmylQ</id>
+  <yt:channelId>LA_DiR1FfKNvjuUpBHmylQ</yt:channelId>
+  <title>NASA fixture</title>
+  <entry>
+    <id>yt:video:oldvideo001</id>
+    <yt:videoId>oldvideo001</yt:videoId>
+    <yt:channelId>UCLA_DiR1FfKNvjuUpBHmylQ</yt:channelId>
+    <title>Historical fixture observation</title>
+    <published>2026-09-24T00:00:00+00:00</published>
+  </entry>
+</feed>

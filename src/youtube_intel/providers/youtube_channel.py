@@ -165,13 +165,19 @@ class YouTubeFollowingProvider:
     def enumerate(self, identity: SourceIdentity, *, initial: bool, next_page: int,
                   known: tuple[Candidate, ...], verified_at: datetime | None) -> Enumeration:
         from xml.etree import ElementTree as ET
+        canonical_channel(identity.channel_id, identity.name)
         raw = public_operation(lambda: self._fetch(identity.channel_id))
         if not isinstance(raw, bytes) or not 0 < len(raw) <= MAX_FEED or b'<!DOCTYPE' in raw.upper() or b'<!ENTITY' in raw.upper():
             raise TrackingError('METADATA_FAILED')
         try:
             root = ET.fromstring(raw)
             ns = {'atom': 'http://www.w3.org/2005/Atom', 'yt': 'http://www.youtube.com/xml/schemas/2015'}
-            if root.tag != '{' + ns['atom'] + '}feed' or root.findtext('yt:channelId', namespaces=ns) != identity.channel_id:
+            feed_channel_id = root.findtext('yt:channelId', namespaces=ns)
+            # Real YouTube Atom feed IDs omit UC; entry IDs remain canonical.
+            # Retain the exact full form supported by historical fixtures.
+            if feed_channel_id is not None and not CHANNEL_ID.fullmatch(feed_channel_id):
+                feed_channel_id = 'UC' + feed_channel_id
+            if root.tag != '{' + ns['atom'] + '}feed' or feed_channel_id != identity.channel_id:
                 raise ValueError()
             entries = YouTubeRssSourceProvider()._parse_feed(raw, expected_channel_id=identity.channel_id)
             if len(entries) > MAX_ENTRIES:
