@@ -215,3 +215,51 @@ def test_bilibili_evidence_cannot_bind_another_content(tmp_path: Path) -> None:
     with pytest.raises((IntegrityConflict, ValueError)):
         repo.create_evidence_with_text_binding(evidence, binding, now=NOW)
     assert repo.get_evidence(evidence.evidence_id) is None
+
+
+@pytest.mark.parametrize(
+    ("failure", "expected_status", "expected_code"),
+    [
+        ("RISK_CONTROLLED", 429, "BILIBILI_RISK_CONTROLLED"),
+        ("RATE_LIMITED", 429, "BILIBILI_RATE_LIMITED"),
+        ("ACCESS_DENIED", 403, "BILIBILI_ACCESS_DENIED"),
+        ("NOT_FOUND", 404, "BILIBILI_NOT_FOUND"),
+        ("NETWORK_UNAVAILABLE", 503, "BILIBILI_NETWORK_UNAVAILABLE"),
+        ("INVALID_INPUT", 422, "BILIBILI_INVALID_INPUT"),
+    ],
+)
+def test_public_refusal_is_reported_as_its_true_category(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure: str,
+    expected_status: int,
+    expected_code: str,
+) -> None:
+    """A provider refusal must not be laundered into a generic client error.
+
+    Phase 11R measured the real provider refusing public requests with
+    ``-412 request was banned``. Telling the user "access denied" describes a
+    different problem and invites the wrong next action, so each code keeps its
+    own truthful HTTP status.
+    """
+    from youtube_intel.local_api import ApiError, LocalApiApplication
+    from youtube_intel.orchestration_service import ProductOrchestrationService
+
+    repo, provider, fixture = setup(tmp_path)
+    app = LocalApiApplication(
+        repo,
+        ProductOrchestrationService(repo),
+        data_root=tmp_path / "data",
+        bilibili_adapter=provider.adapter,
+        now=lambda: NOW,
+    )
+
+    def refuse(url: str, maximum: int) -> bytes:
+        raise BilibiliError(failure)
+
+    monkeypatch.setattr(provider.adapter, "fetch", refuse)
+    with pytest.raises(ApiError) as rejected:
+        app.handle("POST", "/api/v1/bilibili/imports", json.dumps({"input": BV}).encode())
+    assert rejected.value.status == expected_status
+    assert rejected.value.code == expected_code
+    assert not repo.list_videos(), "a refusal must not admit Content"

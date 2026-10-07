@@ -2664,3 +2664,21 @@ test.each([
   await waitFor(() => expect(requests).toContain(`/api/v1${path}`));
   expect(within(screen.getByRole("navigation", { name: "Primary navigation" })).getAllByRole("button")).toHaveLength(6);
 });
+
+test("Chinese Backup explains a block in Chinese instead of the backend English message", async () => {
+  localStorage.removeItem("yia.ui-language");
+  const defaultFetch = globalThis.fetch;
+  vi.stubGlobal("fetch", vi.fn((path: string, init?: RequestInit) => path.endsWith("/backup-restore/status")
+    ? response({ status: {
+      ready: false, reasons: ["SOURCE_RUN_ACTIVE"], restore_pending: false, last_restore: null,
+      // The service still returns English prose; the UI must not render it.
+      message: "Backup is unavailable because: A Following Source Run is active.",
+    } })
+    : defaultFetch(path, init)));
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "设置" }));
+  const status = await screen.findByRole("status");
+  expect(status.textContent).toContain("有一个采集任务仍在执行");
+  expect(status.textContent).not.toContain("Source Run is active");
+  expect(status.textContent).not.toMatch(/[A-Za-z]{4,}\s+[A-Za-z]{4,}/);
+});

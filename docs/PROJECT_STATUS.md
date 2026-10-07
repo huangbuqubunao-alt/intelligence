@@ -952,3 +952,103 @@ All 20 protected worktrees and failed Phase 9/9R records remain unchanged;
 production ASR qualification and Deep Analysis route remain NONE. No main merge,
 push, PR or deployment. Fresh acceptance and limitations:
 `docs/validation/phase10b/ACCEPTANCE.md`.
+
+## V1.x Phase 11R — real-world Bilibili capability corrected (2026-10-06)
+
+Dedicated `deepseek/phase11r-bilibili-realworld-remediation` worktree, base
+`a81b8e90a662eab72dda28fdc2140362649d9544`. Phase 11's architecture is
+unchanged; what changed is which of its claims the real provider supports.
+
+**Bilibili creator Following is withdrawn from normal pilot UX.** A bounded,
+public, cookie-free probe was refused on every fair attempt (0/3 accepted, raw
+`-412 request was banned`), matching the independent recon's 0/10. The
+withdrawal is enforced at the product boundary: follow endpoints answer `409`
+without contacting the provider or creating a source, Check Now reports
+`CAPABILITY_UNAVAILABLE`, stale checks record the same instead of silently
+asking, and the UI only offers the entry point once the service confirms it.
+Stored creator rows, Content and Evidence are preserved untouched and stay
+readable. The library mechanism deliberately still works; re-enabling is one
+constant.
+
+**Bilibili public captions remain unavailable.** A second independent bounded
+sample confirmed 0/8. No transcript, Summary or Evidence is fabricated, and no
+ASR fallback exists. Public video metadata works, 8/8.
+
+**Backup no longer deadlocks.** A settled `NEEDS_ATTENTION` run that holds no
+live child and no open distillation checkpoint no longer blocks Backup; active
+states still do, and corrupt state still fails closed. The state machine now
+allows `NEEDS_ATTENTION → CANCELLED | FAILED` so a run can be resolved, and a
+retry still creates a new run rather than rewriting failed history.
+
+**Refusals are classified by what they mean.** HTTP 412 and `-352/-412/-509`
+are `RISK_CONTROLLED`, not "you do not have access". Response bounds moved from
+an unjustified 256 KiB to 512 KiB, measured against real responses (largest
+observed 371 359 bytes, which the old bound rejected outright).
+
+Schema stays 34. No migration, no new or upgraded dependency, no ASR or Deep
+Analysis change. Final backend 3,594 passed and one skip; frontend 189 passed
+with typecheck and production build clean; browser 31/31 across zh-CN and en at
+320/768/1024/1440. The paused Codex Phase 12 worktree, the Phase 11 source
+worktree and the recon worktree are byte-for-byte unchanged.
+
+This is self-validation only. Independent online revalidation is still required
+before any pilot. Decision record:
+`docs/decisions/V1X-PHASE11R-BILIBILI-REALWORLD-REMEDIATION.md`; evidence
+index: `docs/validation/phase11r/README.md`.
+
+## V1.x Phase 11R.1 — final polish + capability truthfulness (2026-10-06)
+
+Dedicated `deepseek/phase11r1-bilibili-final-polish` worktree, base
+`e0841854adfe51dafcded7d1adbf3519c335cba2` (the accepted Phase 11R HEAD). An
+independent revalidation returned `READY_FOR_OWNER_PILOT_REVALIDATION` with 0
+remaining P0 and 1 remaining P1 (F-01) plus two in-scope P2s. No product
+feature was added and Phase 12 was not resumed.
+
+**A stored source that no longer verifies is now reported in the user's own
+language.** `Status` already had a two-parameter contract — the enum decides the
+tone, an already-resolved sentence is what gets shown — and Creator Following
+already used it. Every non-creator Content branch instead passed the resolved
+sentence as the *enum*, so `statusLabel()` ran it through the de-CamelCasing
+fallback and the Chinese interface displayed
+`"The stored bilibili source failed verification. its evidence is unavailable."`
+`localStatus()` had the same defect through `?? status`, which showed the raw
+`LOCAL_SOURCE_UNTRUSTED` enum. Both branches now pass the resolved label, and an
+unrecognised state is reported as an unknown state rather than backend
+vocabulary. No English-string substitution was added.
+
+**A localized status no longer breaks the 320 px layout.** `.status` used
+`white-space: nowrap`, so one long sentence forced roughly 98 px of horizontal
+overflow. Status prose is now allowed to wrap inside the width it is offered,
+which is what `DESIGN.md` already required ("at 320, 768, 1024 and 1440 pixels
+all content must wrap without horizontal overflow"). Measured: the pill wraps to
+two lines at 320 px and stays a single line at its unchanged intrinsic 395 px
+from 768 px upward, so no desktop layout moved.
+
+**The public-caption contract stopped overclaiming.** `/settings` published
+`bilibili.public_captions.available = true` although no compliant sample has ever
+returned a caption (0/8 in Phase 11R, 0/10 in revalidation). It now reports
+`available: false` with the structured code `PUBLIC_CAPTIONS_NOT_OBSERVED`. This
+is the current capability state, not a removal: the caption parser and
+acquisition path are untouched, a trusted caption still yields transcript →
+Summary → Evidence, and no migration was introduced. `video_ingestion` stays
+`available: true`, so manual Bilibili import remains enabled.
+
+**The `-40003` decision record now matches the code.** It claimed
+`-40003 → NOT_FOUND`, but `-40003` never existed in any implementation, test or
+captured observation. Inventing a mapping to make prose true would report a
+refusal the provider never made, so the decision record was corrected instead,
+the actually-implemented `-403/-101/-111` access denials were added, and the
+honest unknown-code fallthrough (`METADATA_FAILED`, 502) is now documented.
+
+Schema stays 34 with no migration. Full backend 3,596 passed and one skip;
+frontend 196 passed with typecheck and production build clean; browser 8
+scenarios across zh-CN and en at 320/768/1024/1440 covering untrusted Bilibili,
+untrusted Local, no-caption Bilibili, the withdrawn creator Following state and
+Backup readiness in both quiescent and blocked states. Ruff, strict mypy,
+compileall and the SQLite quick/integrity/foreign-key checks are clean. The
+paused Codex Phase 12 worktree is byte-for-byte unchanged.
+
+This is still self-validation. Independent revalidation is required before any
+pilot. Decision record:
+`docs/decisions/V1X-PHASE11R-BILIBILI-REALWORLD-REMEDIATION.md`; handoff:
+`handoffs/V1X-PHASE11R1-FINAL-POLISH.md`.

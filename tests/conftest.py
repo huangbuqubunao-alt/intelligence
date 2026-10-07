@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -25,6 +25,27 @@ def isolated_credential_store(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(MacOSKeychainCredentialStore, "_libraries", unavailable)
     monkeypatch.setattr(MacOSKeychainCredentialStore, "get", lambda self: None)
+
+
+@pytest.fixture(autouse=True)
+def isolated_provider_cooldown() -> Iterator[None]:
+    """Keep the shared provider back-off out of unrelated tests.
+
+    ``providers.bilibili`` holds one process-wide cooldown so that a
+    risk-controlled provider is genuinely left alone.  A test that exercises a
+    refusal arms that shared clock, which would otherwise leak into whichever
+    test runs next and make an unrelated request fail for a reason that has
+    nothing to do with it.  Each test starts with no cooldown; tests that assert
+    the back-off still see it armed inside their own body.
+    """
+    from youtube_intel.providers import bilibili
+
+    original = bilibili._RATE_UNTIL
+    bilibili._RATE_UNTIL = 0.0
+    try:
+        yield
+    finally:
+        bilibili._RATE_UNTIL = original
 
 
 def _load_module(name: str) -> Any:

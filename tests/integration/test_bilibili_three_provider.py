@@ -56,6 +56,7 @@ def test_creator_discovered_content_uses_mixed_research_and_intelligence_authori
     fixture = creator.CreatorFixture()
     publisher = BilibiliContentProvider(repo, tmp_path / "data", adapter=BilibiliAdapter(fetch=fixture.fetch), now=lambda: fixture.now)
     tracker = FollowingTrackingService(repo, publisher, now=lambda: fixture.now)
+    tracker.providers["BILIBILI"].available = True  # Historical provider fixture only.
     source = tracker.follow("123")
     fixture.items.insert(0, (creator.NEW, fixture.now + timedelta(seconds=1)))
     fixture.tick()

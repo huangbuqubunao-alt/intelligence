@@ -15,7 +15,8 @@ try {
   await page.goto(base+'#Following');
   const filter=page.getByLabel(t('Following filter','筛选关注'));
   await filter.selectOption('updates');
-  for(const id of ['youtube-channel-UC0000000000000000000000','bilibili-creator-123'])await page.locator(`[data-source-id="${id}"]`).waitFor();
+  await page.locator('[data-source-id="youtube-channel-UC0000000000000000000000"]').waitFor();
+  assert.equal(await page.locator('[data-source-id="bilibili-creator-123"]').count(),0);
   await filter.selectOption('attention');
   for(const id of ['youtube-channel-UC0000000000000000000000','bilibili-creator-123'])await page.locator(`[data-source-id="${id}"]`).waitFor();
   await filter.selectOption('insights');assert.equal(await page.locator('.source-row').count(),0);
@@ -26,6 +27,7 @@ try {
    await page.locator(`[data-source-id="${id}"] .source-select`).click();
    let dialog=page.getByRole('dialog',{name:kind==='channel'?t('Channel Following','频道关注'):t('Creator Following','UP 主关注')});
    await dialog.getByRole('button',{name:t('Check Now','立即检查'),exact:true}).waitFor();
+   if(kind==='creator'){assert.equal(await dialog.getByRole('button',{name:t('Check Now','立即检查'),exact:true}).isDisabled(),true);await dialog.getByText(t('Continuous creator tracking is currently unavailable','持续关注 UP 主暂不可用'),{exact:true}).waitFor();}
    await dialog.getByRole('button',{name:t('Pause monitoring','暂停监测'),exact:true}).click();
    await dialog.getByRole('button',{name:t('Resume monitoring','继续关注'),exact:true}).waitFor();
    await dialog.getByRole('button',{name:t('Close','关闭'),exact:true}).click();
@@ -42,5 +44,5 @@ try {
   scenarios.push({language,width:320,providers:['YOUTUBE','BILIBILI'],filters:['all','updates','attention','insights','paused'],shared_detail:true,pause_blocks_check:true,resume_preserves_frontier:true});await page.close();
  }
  assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
- writeFileSync(new URL('../docs/validation/phase12/shared-ui-browser.json',import.meta.url),JSON.stringify({scenarios,errors,external},null,2)+'\n');console.log('2 bilingual cross-provider detail/filter flows passed');
+ writeFileSync(new URL('../docs/validation/phase12-resume/shared-ui-browser.json',import.meta.url),JSON.stringify({scenarios,errors,external},null,2)+'\n');console.log('2 bilingual cross-provider detail/filter flows passed');
 } finally {await browser.close();}

@@ -5,6 +5,12 @@ import { BilibiliImport } from "./BilibiliImport";
 import { UiLanguageProvider } from "./uiLanguage";
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+
+// The dialog passively reads /settings once so it can hide an unavailable
+// creator entry point. These assertions are about provider requests, so the
+// capability read is not counted as one.
+const providerCalls = (fetch: ReturnType<typeof vi.fn>) =>
+  fetch.mock.calls.filter(call => !String(call[0]).endsWith("/settings"));
 it("imports only the supplied public video and exposes truthful no-caption Content", async () => {
   localStorage.setItem("yia.ui-language", "en");
   const fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ import: {
@@ -13,12 +19,12 @@ it("imports only the supplied public video and exposes truthful no-caption Conte
   vi.stubGlobal("fetch", fetch);
   render(<UiLanguageProvider><BilibiliImport onClose={() => {}} onSaved={() => {}} onProvider={() => {}} /></UiLanguageProvider>);
   await userEvent.type(screen.getByLabelText("Bilibili video URL or BV id"), "BV1xx411c7mD");
-  expect(fetch).not.toHaveBeenCalled();
+  expect(providerCalls(fetch)).toHaveLength(0);
   await userEvent.click(screen.getByRole("button", { name: "Import public video" }));
   await screen.findByText("Public captions are unavailable");
   expect(screen.getByRole("link", { name: "Open Content" }).getAttribute("href")).toBe("#Content/bilibili-BV1xx411c7mD");
-  expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ input: "BV1xx411c7mD" });
-  expect(fetch.mock.calls[0][0]).toBe("/api/v1/bilibili/imports");
+  expect(JSON.parse(providerCalls(fetch)[0][1].body)).toEqual({ input: "BV1xx411c7mD" });
+  expect(providerCalls(fetch)[0][0]).toBe("/api/v1/bilibili/imports");
   expect(screen.getByText(/Summary and Evidence require trusted captions/)).toBeTruthy();
 });
 it("localizes access denial and permits a bounded user retry", async () => {
@@ -30,6 +36,6 @@ it("localizes access denial and permits a bounded user retry", async () => {
   await userEvent.click(screen.getByRole("button", { name: "导入公开视频" }));
   expect((await screen.findByRole("alert")).textContent).toContain("无法公开访问");
   expect(screen.queryByText("RAW BACKEND ENGLISH")).toBeNull();
-  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(providerCalls(fetch)).toHaveLength(1);
   expect(screen.getByRole("button", { name: "导入公开视频" }).hasAttribute("disabled")).toBe(false);
 });

@@ -247,6 +247,14 @@ def main():
         youtube=provider,
         now=fixture.now,
     )
+    # Seed retained Phase 11 authority with a historical fixture only. Runtime
+    # capability stays withdrawn; the browser cannot create/check a creator.
+    if repo.get_source_subscription("bilibili-creator-123") is None:
+        tracker.providers["BILIBILI"].available = True
+        fixture.bili.items.insert(0, (creator.NEW, youtube.NOW - timedelta(days=1)))
+        tracker.follow("123")
+        tracker.publisher.import_input(creator.NEW)
+        tracker.providers["BILIBILI"].available = False
     # Existing manual YouTube import, using the accepted ordinary ingestion path.
     info = root / "fixture.json"
     if not info.exists():

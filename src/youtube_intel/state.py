@@ -36,6 +36,7 @@ from youtube_intel.orchestration import (
     SourceType,
 )
 from youtube_intel.source_run import (
+    SOURCE_RUN_ACTIVE_STATES,
     SOURCE_RUN_CHECKPOINT_ORDER,
     SourceRunAttentionReason,
     SourceRunCheckpoint,
@@ -1633,6 +1634,16 @@ def _immediate_transaction(connection: sqlite3.Connection) -> Iterator[None]:
         raise
     else:
         connection.commit()
+
+
+#: Reusing an active manual run must recognise exactly the states that still
+#: hold live execution, taken from the single definition rather than a copy.
+_ACTIVE_SOURCE_RUN_STATES = tuple(
+    state.value for state in sorted(SOURCE_RUN_ACTIVE_STATES, key=lambda item: item.value)
+)
+_ACTIVE_SOURCE_RUN_PARAMS = {
+    f"active_state_{index}": value for index, value in enumerate(_ACTIVE_SOURCE_RUN_STATES)
+}
 
 
 class SQLiteStateRepository:
@@ -5845,9 +5856,16 @@ class SQLiteStateRepository:
                 if reuse_active_manual:
                     active = connection.execute(
                         "SELECT * FROM source_runs WHERE source_id = :source_id "
-                        "AND state IN ('QUEUED', 'RUNNING', 'WAITING', 'PARTIAL') "
-                        "ORDER BY created_at ASC, run_id ASC LIMIT 1",
-                        {"source_id": run.source_id},
+                        "AND state IN ({}) "
+                        "ORDER BY created_at ASC, run_id ASC LIMIT 1".format(
+                            ",".join(
+                                f":{name}" for name in _ACTIVE_SOURCE_RUN_PARAMS
+                            )
+                        ),
+                        {
+                            "source_id": run.source_id,
+                            **_ACTIVE_SOURCE_RUN_PARAMS,
+                        },
                     ).fetchone()
                     if active is not None:
                         return self._source_run_from_row(active)

@@ -175,6 +175,7 @@ def youtube_setup(tmp_path, monkeypatch):
         youtube=provider,
         now=lambda: fixture.now,
     )
+    tracker.providers["BILIBILI"].available = True  # Historical coexistence fixture only.
     return repo, tracker, fixture, runtime
 
 
@@ -729,6 +730,7 @@ def test_pause_cancels_queued_tracking_run_without_blocking_backup(
 
 
 def test_stale_lifecycle_check_is_bounded_fair_across_providers(tmp_path, monkeypatch):
+    monkeypatch.setattr("youtube_intel.local_api.CREATOR_FOLLOWING_AVAILABLE", True)  # Fixture availability.
     from youtube_intel.local_api import LocalApiApplication
     from youtube_intel.orchestration_service import ProductOrchestrationService
     from youtube_intel.providers.bilibili import BilibiliAdapter

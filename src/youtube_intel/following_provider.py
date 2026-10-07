@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Protocol
 
 from youtube_intel.bilibili_content import BilibiliContentProvider
-from youtube_intel.providers.bilibili import BilibiliError
+from youtube_intel.providers.bilibili import CREATOR_FOLLOWING_AVAILABLE, BilibiliError
 from youtube_intel.providers.bilibili_creator import PAGE_SIZE, normalize_creator
 
 
@@ -52,6 +52,7 @@ class FollowingProvider(Protocol):
 
 class BilibiliFollowingProvider:
     provider = 'BILIBILI'
+    available = CREATOR_FOLLOWING_AVAILABLE
 
     def __init__(self, publisher: BilibiliContentProvider) -> None:
         self.publisher = publisher

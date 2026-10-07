@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 const base='http://127.0.0.1:5713/', root=new URL('../.var/phase12/browser/',import.meta.url).pathname;
 const info=JSON.parse(readFileSync(join(root,'fixture.json'))), offline=process.env.YIA_PHASE12_OFFLINE==='1';
-const evidence=new URL('../docs/validation/phase12/',import.meta.url).pathname;
+const evidence=new URL('../docs/validation/phase12-resume/',import.meta.url).pathname;
 mkdirSync(evidence,{recursive:true});mkdirSync(join(root,'screenshots'),{recursive:true});
 const browser=await chromium.launch({executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true});
 const errors=[],external=[],scenarios=[];
@@ -32,12 +32,12 @@ try{
    await dialog.getByRole('button',{name:t('Follow channel','关注频道'),exact:true}).click();await dialog.getByRole('button',{name:t('Done','完成'),exact:true}).click();
    assert.equal((await get('videos')).videos.length,before);assert.equal((await get('sources/'+id)).source.tracking.update_count,0);
    await page.goto(base+'#Content/'+old);await page.getByRole('button',{name:t('Follow this channel','关注此频道'),exact:true}).click();await page.getByText(t('Channel followed. Check Following for its starting point and source health.','已关注频道，请在关注详情中查看跟踪起点和来源状态。'),{exact:true}).waitFor();assert.equal((await get('sources')).sources.filter(s=>s.source_id===id).length,1);
-   if(i===0)await post('sources/creators',{input:'123'});
+   if(i===0){const denied=await page.request.post(base+'api/v1/sources/creators',{headers:{Origin:base.slice(0,-1),'X-YIA-Request':'local-ui'},data:{input:'456'}});assert.equal(denied.status(),409);assert.equal((await denied.json()).error.code,'BILIBILI_CREATOR_TRACKING_UNAVAILABLE');}
    await advance(false);dialog=await detail();await dialog.getByRole('button',{name:t('Check Now','立即检查'),exact:true}).click();await waitSource(id,s=>Boolean(s.tracking.baseline_at)&&!s.tracking.checking);assert.equal((await get('sources/'+id)).source.tracking.update_count,0);await noOverflow();await dialog.getByRole('button',{name:t('Close','关闭'),exact:true}).click();
    await advance(true);dialog=await detail();await dialog.getByRole('button',{name:t('Check Now','立即检查'),exact:true}).click();await waitSource(id,s=>s.tracking.update_count===2&&!s.tracking.checking);await dialog.getByRole('link',{name:new RegExp(missing)}).waitFor();await noOverflow();await page.screenshot({path:join(root,'screenshots',`${language}-${width}-following.png`),fullPage:true});
    await dialog.getByRole('button',{name:t('Pause monitoring','暂停监测'),exact:true}).click();await dialog.getByRole('button',{name:t('Resume monitoring','继续关注'),exact:true}).waitFor();assert.equal((await get('sources/'+id)).source.enabled,false);await dialog.getByRole('button',{name:t('Resume monitoring','继续关注'),exact:true}).click();await dialog.getByRole('button',{name:t('Pause monitoring','暂停监测'),exact:true}).waitFor();await dialog.getByRole('button',{name:t('Close','关闭'),exact:true}).click();
    const filter=page.getByLabel(t('Following filter','筛选关注'));await filter.selectOption('updates');assert.ok(await page.getByText('YouTube channel '+i,{exact:true}).count());await filter.selectOption('attention');assert.ok(await page.getByText('YouTube channel '+i,{exact:true}).count());await filter.selectOption('all');
-   await post('sources/bilibili-creator-123/check',{command_id:crypto.randomUUID()});await waitSource('bilibili-creator-123',s=>s.tracking.update_count===1&&!s.tracking.checking);
+   const withdrawn=await post('sources/bilibili-creator-123/check',{command_id:crypto.randomUUID()});assert.equal(withdrawn.status,'CAPABILITY_UNAVAILABLE');assert.equal((await get('sources/bilibili-creator-123')).source.tracking.update_count,0);
   }else{
    const before=(await get('sources/'+id)).source;await advance(false);const dialog=await detail();await dialog.getByRole('button',{name:t('Check Now','立即检查'),exact:true}).click();await waitSource(id,s=>s.tracking.health==='OFFLINE'&&!s.tracking.checking);await dialog.getByText(t('Unable to connect. Your last successful check is preserved.','暂时无法连接，已保留上次成功检查的状态。'),{exact:true}).waitFor();const after=(await get('sources/'+id)).source;assert.equal(after.last_success_at,before.last_success_at);assert.equal(after.tracking.verified_at,before.tracking.verified_at);assert.equal(after.tracking.update_count,2);await noOverflow();await dialog.getByRole('button',{name:t('Close','关闭'),exact:true}).click();
   }

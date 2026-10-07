@@ -1,4 +1,4 @@
-import { CreatorFollowForm, CreatorFollowingDetail, FollowCreatorFromContent, Tracking, trackingCopy } from "./CreatorFollowing";
+import { CreatorFollowForm, CreatorFollowingDetail, FollowCreatorFromContent, Tracking, trackingCopy, useCreatorFollowingCapability } from "./CreatorFollowing";
 import { BilibiliImport, BilibiliCaptionStatus, bilibiliStatus } from "./BilibiliImport";
 import { LocalImport, localStatus } from "./LocalImport";
 import { LocalTranscription, transcriptionCopy } from "./LocalTranscription";
@@ -426,7 +426,12 @@ function statusLabel(value: string) {
       (letter) => letter.toUpperCase(),
     );
 }
-function Status({ value }: { value: string }) {
+/**
+ * `value` decides the tone and is looked up as an enum. `label` is for text that
+ * is already a sentence: without it, a ready-made phrase would be de-CamelCased
+ * and lowercased into something the user never sees in any other language.
+ */
+function Status({ value, label }: { value: string; label?: string }) {
   const { t } = useUiLanguage();
   const upper = value.toUpperCase();
   const tone =
@@ -437,7 +442,26 @@ function Status({ value }: { value: string }) {
           .test(upper)
       ? "warning"
       : "neutral";
-  return <span className={`status status-${tone}`}>{t(statusLabel(value))}</span>;
+  return <span className={`status status-${tone}`}>{label ? t(label) : t(statusLabel(value))}</span>;
+}
+/**
+ * Bilibili and Local Content states carry their own wording, so each is
+ * projected through its own copy.  The enum decides the tone and the resolved
+ * label is the only text shown — the same contract Creator Following already
+ * uses, and the reason a backend sentence is never de-CamelCased into a
+ * language the user did not choose.
+ */
+function contentStatus(provider: string | undefined, status: string, label?: string) {
+  return {
+    value: status,
+    label:
+      label ??
+      (provider === "LOCAL"
+        ? localStatus(status)
+        : provider === "BILIBILI"
+          ? bilibiliStatus(status)
+          : undefined),
+  };
 }
 function Panel({ title, children }: { title: string; children: ReactNode }) {
   const { t } = useUiLanguage();
@@ -618,6 +642,22 @@ function attentionCopy(reason: string | null) {
 function sourceLabel(source: Source) {
   return source.display_name || source.friendly_name || source.channel_id ||
     source.video_id || "YouTube Source";
+}
+/**
+ * What this Source is actually doing. A capability the service has withdrawn is
+ * never described as "monitoring", because the word would be a claim the
+ * product cannot keep.
+ */
+function sourceSummary(source: Source, creatorFollowingWithdrawn: boolean) {
+  if (source.provider === "LOCAL") return "Explicit imports only";
+  // A creator is a creator whatever provider it belongs to, so this is checked
+  // before the manual-video wording below.
+  if (source.tracking || source.source_type === "CREATOR") {
+    if (source.provider === "BILIBILI" && creatorFollowingWithdrawn) return "Continuous creator tracking is currently unavailable";
+    return source.enabled ? "Monitoring new videos" : "Monitoring is paused";
+  }
+  if (source.provider === "BILIBILI" || source.source_type === "VIDEO_URL") return "Manually imported video";
+  return source.enabled ? "Monitoring new videos" : "Monitoring is paused";
 }
 function timestamp(value: number) {
   const seconds = Math.max(0, Math.floor(value / 1000));
@@ -1121,7 +1161,7 @@ function Workspace() {
         <div className="brand">
           <Logo className="brand-logo" />
           <div>
-            <strong>Intelligence</strong>
+            <strong>{t("Intelligence")}</strong>
             <small>{t("Local-first workspace")}</small>
           </div>
         </div>
@@ -1445,7 +1485,7 @@ function ContentPage(
               <strong>{item.title ?? item.video_id}</strong>
               <small>{item.provider === "LOCAL" ? t("Local") : item.provider === "BILIBILI" ? `${t("Bilibili")} · ${item.channel_name ?? ""}` : item.channel_name} · {humanDate(item.provider === "BILIBILI" ? item.published_at : item.imported_at ?? item.published_at)}</small>
             </span>
-            <Status value={item.provider === "LOCAL" ? localStatus(item.processing_status) : item.provider === "BILIBILI" ? bilibiliStatus(item.processing_status) : item.processing_status} />
+            <Status {...contentStatus(item.provider, item.processing_status)} />
           </button>
         ))}
       </div>
@@ -1457,6 +1497,7 @@ function ContentPage(
     );
 }
 function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }) {
+  const creatorCapability = useCreatorFollowingCapability();
   const { t } = useUiLanguage();
   const [refresh, setRefresh] = useState(0);
   const { data, error } = useRemote<ContentDetail>(`/videos/${id}`, refresh);
@@ -1484,12 +1525,22 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
   const visibleHistory = data.history.filter((event) =>
     event.type === "JOB_STATUS" || !event.type
   );
+  // The offline transcription job owns the displayed state once it has one, so
+  // a run in progress is not summarised by the snapshot status behind it.
+  const readingStatus = isLocalMedia && transcriptionStatus
+    ? { value: transcriptionStatus, label: transcriptionCopy(transcriptionStatus) }
+    : contentStatus(
+        data.video.provider,
+        isLocalMedia && data.video.processing_status === "TRANSCRIPTION_UNAVAILABLE"
+          ? "IMPORTED"
+          : data.video.processing_status,
+      );
   return (
     <div className="dashboard-stack">
       <button className="button button-ghost" onClick={onClose}>{t("Back to Content")}</button>
       <Panel title={data.video.title ?? data.video.video_id}>
         <div className={`reading-meta${isLocalMedia || isBilibili ? " local-media-meta" : ""}`}>
-          <Status value={isLocalMedia && transcriptionStatus ? transcriptionCopy(transcriptionStatus) : data.video.provider === "LOCAL" ? localStatus(isLocalMedia && data.video.processing_status === "TRANSCRIPTION_UNAVAILABLE" ? "IMPORTED" : data.video.processing_status) : isBilibili ? bilibiliStatus(data.video.processing_status) : data.video.processing_status} />
+          <Status {...readingStatus} />
           <span>{data.video.provider === "LOCAL" ? t("Local") : isBilibili ? `${t("Bilibili")} · ${data.video.channel_name ?? ""}` : data.video.channel_name} · {humanDate(isBilibili ? data.video.published_at : data.video.imported_at ?? data.video.published_at)}</span>
           {data.video.media_kind && <span>{t(({TEXT:"Text",AUDIO:"Audio",VIDEO:"Video"} as Record<string,string>)[data.video.media_kind])}{isBilibili ? "" : ` · ${data.video.format}`}</span>}
           {data.video.source_language && <span>{t("Source language")}: {data.video.source_language === "und" ? t("Language unavailable") : data.video.source_language}</span>}
@@ -1503,7 +1554,7 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
           )
           : null}
       </Panel>
-      {isBilibili && data.video.processing_status !== "SOURCE_UNAVAILABLE" && <FollowCreatorFromContent id={id} />}
+      {isBilibili && data.video.processing_status !== "SOURCE_UNAVAILABLE" && <FollowCreatorFromContent id={id} capability={creatorCapability} />}
       {data.video.provider === "YOUTUBE" && data.video.channel_id && /^UC[A-Za-z0-9_-]{22}$/.test(data.video.channel_id) && <FollowCreatorFromContent id={id} provider="YOUTUBE" />}
       <Panel title={data.video.provider === "LOCAL" && data.video.media_kind === "TEXT" ? "Source text" : "Transcript"}>
         {isBilibili && <BilibiliCaptionStatus id={id} status={data.video.processing_status} onCompleted={() => { setRefresh(value => value + 1); setEvidenceRefresh(value => value + 1); }} />}
@@ -1514,7 +1565,7 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
             : <div className="transcript-copy">{transcript.text}</div>
           : isLocalMedia || isBilibili ? null : (
             <div className="semantic-state state-neutral">
-              <Status value={data.video.provider === "LOCAL" ? localStatus(transcript.status) : transcript.status} />
+              <Status {...contentStatus(data.video.provider, transcript.status)} />
               <p>{t(({
                 TRANSCRIPTION_UNAVAILABLE: "Media snapshots are saved. A provisioned offline transcription adapter is required for transcript, Summary and Evidence; nothing is sent to a cloud service.",
                 TRANSCRIPTION_FAILED: "Local transcription failed",
@@ -2358,10 +2409,14 @@ function Sources(
     return () => window.removeEventListener("focus", check);
   }, []);
   const [addProvider, setAddProvider] = useState<"YOUTUBE" | "LOCAL" | "BILIBILI">("YOUTUBE");
+  const creatorCapability = useCreatorFollowingCapability();
+  const creatorFollowingWithdrawn = creatorCapability.known &&
+    creatorCapability.capability !== null && !creatorCapability.capability.available;
   if (error) return <ErrorState error={error} />;
   if (!data) return <Empty>Loading Sources…</Empty>;
   return (
     <>
+      {creatorFollowingWithdrawn && <p className="hint" role="status">{t("Continuous Bilibili creator tracking is currently unavailable. You can still add public Bilibili videos.")}</p>}
       <div className="page-actions">
         <button
           className="button button-primary"
@@ -2380,7 +2435,7 @@ function Sources(
             </select></label>
             {data.sources.filter(source => !source.tracking_parent_source_ids?.length).filter(source => filter === "all" || (filter === "updates" && (source.tracking?.update_count ?? 0) > 0)
               || (filter === "insights" && (source.insight_count ?? 0) > 0)
-              || (filter === "attention" && Boolean(source.last_error || (source.tracking?.pending_count ?? 0) > 0 || (source.tracking?.processing_count ?? 0) > 0 || (source.tracking?.unavailable_count ?? 0) > 0))
+              || (filter === "attention" && Boolean((source.provider === "BILIBILI" && source.tracking && creatorFollowingWithdrawn) || source.last_error || (source.tracking?.pending_count ?? 0) > 0 || (source.tracking?.processing_count ?? 0) > 0 || (source.tracking?.unavailable_count ?? 0) > 0))
               || (filter === "paused" && !source.enabled)).map((source) => (
               <div className="list-row source-row" key={source.source_id} data-source-id={source.source_id}>
                 <button
@@ -2391,15 +2446,21 @@ function Sources(
                   <span>
                     <strong>{source.provider === "LOCAL" ? t("Local library") : sourceLabel(source)}</strong>
                     <small>
-                      {t(source.provider === "LOCAL" ? "Explicit imports only" : source.source_type === "CREATOR" ? source.enabled ? "Monitoring new videos" : "Monitoring is paused" : source.provider === "BILIBILI" || source.source_type === "VIDEO_URL" ? "Manually imported video" : source.enabled ? "Monitoring new videos" : "Monitoring is paused")} · {source.provider === "LOCAL" ? t("Local") : source.provider === "BILIBILI" ? t("Bilibili") : "YouTube"}
+                      {t(sourceSummary(source, creatorFollowingWithdrawn))} · {source.provider === "LOCAL" ? t("Local") : source.provider === "BILIBILI" ? t("Bilibili") : "YouTube"}
                     </small>
                   </span>
                 </button>
                 <div className="source-actions">
-                  <Status
-                    value={source.tracking ? source.tracking?.checking ? "Checking…" : trackingCopy(source.tracking?.health ?? "BASELINE_PENDING") : source.provider === "BILIBILI" ? bilibiliStatus(source.last_error?.code ?? "IMPORTED") : source.last_error?.code ??
-                      (source.enabled ? "ENABLED" : "DISABLED")}
-                  />
+                  {source.tracking
+                    ? <Status
+                        value={source.tracking?.checking ? "RUNNING" : source.tracking?.health ?? "BASELINE_PENDING"}
+                        label={source.tracking?.checking ? "Checking…" : trackingCopy(source.tracking?.health ?? "BASELINE_PENDING")}
+                      />
+                    : <Status
+                        {...(source.provider === "BILIBILI"
+                          ? contentStatus("BILIBILI", source.last_error?.code ?? "IMPORTED")
+                          : { value: source.last_error?.code ?? (source.enabled ? "ENABLED" : "DISABLED"), label: undefined })}
+                      />}
                   {source.provider === "LOCAL" ? <button className="button button-secondary" onClick={() => { setAddProvider("LOCAL"); setAdding(true); }}>{t("Import files")}</button> : <a
                     href={source.canonical_url}
                     target="_blank"
@@ -2778,6 +2839,7 @@ function SourceDetail(
   },
 ) {
   const { t } = useUiLanguage();
+  const creatorCapability = useCreatorFollowingCapability();
   const [refresh, setRefresh] = useState(0);
   const { data, error } = useRemote<
     {
@@ -2808,7 +2870,7 @@ function SourceDetail(
   }, [data]);
   if (error) return <ErrorState error={error} />;
   if (!data) return <Empty>Loading Source…</Empty>;
-  if (data.source.tracking) return <CreatorFollowingDetail id={id} onClose={onClose} onRefresh={onRefresh} />;
+  if (data.source.tracking) return <CreatorFollowingDetail id={id} capability={creatorCapability} onClose={onClose} onRefresh={onRefresh} />;
   if (data.source.provider === "BILIBILI") return <div className="overlay"><section className="modal local-import" role="dialog" aria-modal="true" aria-label={t("Bilibili")}>
     <div className="modal-head"><h2>{sourceLabel(data.source)}</h2><button className="button button-ghost" onClick={onClose}>{t("Close")}</button></div>
     <p>{t("This Following contains one imported video. Creator monitoring is not enabled.")}</p>
@@ -3115,12 +3177,39 @@ type BackupRestoreStatus = {
   last_restore?: { state: string; message: string } | null;
 };
 
+const backupReasonCopy: Record<string, string> = {
+  SOURCE_RUN_ACTIVE: "a Source Run is still working",
+  DISTILLATION_ACTIVE: "a distillation is still running",
+  JOBS_ACTIVE: "a background job is still running",
+  PROVIDER_CALL_UNRESOLVED: "a provider call has an unresolved outcome",
+  PROVIDER_DISPATCH_UNRESOLVED: "a provider dispatch has an unresolved outcome",
+  RESTORE_PENDING: "a restore is pending",
+};
+
 function byteSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+/**
+ * Why Backup is or is not available, built from the structured reason codes the
+ * service returns. The service's own message is English engineering prose, so
+ * rendering it would put untranslated backend text into the Chinese UI — and
+ * would also hide *what* is still running. Each fragment is translated on its
+ * own because the sentence is assembled here.
+ */
+function backupReadiness(status: BackupRestoreStatus | null) {
+  if (!status) return { lead: "Checking whether core data is safe to back up…", items: [] as string[] };
+  if (status.restore_pending) return { lead: "A restore is pending. Intelligence restarts before processing resumes.", items: [] as string[] };
+  if (status.ready) return { lead: "Core data is quiescent and ready for backup.", items: [] as string[] };
+  const items = status.reasons
+    .map((reason) => backupReasonCopy[reason])
+    .filter((value): value is string => value !== undefined);
+  return items.length
+    ? { lead: "Backup is unavailable while these are still running:", items }
+    : { lead: "Backup is unavailable while other work is still in flight.", items: [] as string[] };
+}
 function BackupRestorePanel() {
   const { t } = useUiLanguage();
   const [status, setStatus] = useState<BackupRestoreStatus | null>(null);
@@ -3267,10 +3356,14 @@ function BackupRestorePanel() {
     </dl>
   );
 
+  const readiness = backupReadiness(status);
   return (
     <Panel title="Backup and Restore">
       <p>{t("Backups include Intelligence core data and persisted settings. External Vault content, credentials, and model files are excluded.")}</p>
-      <p className="hint" role="status">{t(status?.message ?? "Checking whether core data is safe to back up…")}</p>
+      <p className="hint" role="status">
+        {t(readiness.lead)}
+        {readiness.items.length > 0 && ` ${readiness.items.map((item) => t(item)).join(" ")}`}
+      </p>
       <div className="button-row">
         <button type="button" onClick={createBackup} disabled={busy || !status?.ready}>
           {t(busy ? "Working…" : "Create Backup")}
