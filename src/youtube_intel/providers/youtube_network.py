@@ -19,10 +19,17 @@ from dataclasses import dataclass
 from urllib.parse import urlsplit
 
 from youtube_intel.following_provider import TrackingError
-from youtube_intel.providers.bilibili import _PinnedHTTPS, public_addresses
+from youtube_intel.providers.bilibili import (
+    BilibiliError,
+    _PinnedHTTPS,
+    public_addresses,
+)
 
 _HOST = "www.youtube.com"
 _TIMEOUT = 10.0
+# Only the up-to-4-MiB alias HTML gets a separate absolute body budget.
+# Each blocking read still has the transport's ten-second timeout.
+_PAGE_BODY_TIMEOUT = 45.0
 _PROXY_DNS_TIMEOUT = 1.0
 _PROXY_DNS_SLOTS = threading.BoundedSemaphore(2)
 
@@ -130,7 +137,15 @@ def _proxy_address(proxy: _SystemProxy) -> str:
 def _connection() -> http.client.HTTPSConnection:
     proxy = _current_proxy()
     if proxy is None:
-        return _PinnedHTTPS(_HOST, public_addresses(_HOST)[0])
+        try:
+            addresses = public_addresses(_HOST)
+        except BilibiliError:
+            # No provider request has occurred: unsafe/unusable DNS means the
+            # local direct route is unavailable, not a provider refusal.
+            raise TrackingError("NETWORK_UNAVAILABLE") from None
+        if not addresses:
+            raise TrackingError("NETWORK_UNAVAILABLE")
+        return _PinnedHTTPS(_HOST, addresses[0])
     connection = http.client.HTTPSConnection(
         _proxy_address(proxy),
         proxy.port,
@@ -142,7 +157,7 @@ def _connection() -> http.client.HTTPSConnection:
     return connection
 
 
-def _get(path: str, limit: int) -> bytes:
+def _get(path: str, limit: int, *, body_timeout: float | None = None) -> bytes:
     connection: http.client.HTTPSConnection | None = None
     deadline = time.monotonic() + _TIMEOUT
     try:
@@ -155,6 +170,9 @@ def _get(path: str, limit: int) -> bytes:
                 "Accept-Encoding": "identity",
             },
         )
+        # HTTP/1.x Connection: close can detach this socket from the connection
+        # after headers; the response still owns it until its body is consumed.
+        request_socket = connection.sock
         if connection.sock is not None:
             connection.sock.settimeout(max(0.001, deadline - time.monotonic()))
         response = connection.getresponse()
@@ -171,13 +189,19 @@ def _get(path: str, limit: int) -> bytes:
             )
         if response.getheader("Content-Encoding", "identity") != "identity":
             raise TrackingError("METADATA_FAILED")
+        body_socket = request_socket if body_timeout is not None else connection.sock
+        if body_timeout is not None:
+            now = time.monotonic()
+            if now >= deadline:
+                raise TrackingError("NETWORK_UNAVAILABLE")
+            deadline = now + body_timeout
         body = bytearray()
         while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise TrackingError("NETWORK_UNAVAILABLE")
-            if connection.sock is not None:
-                connection.sock.settimeout(remaining)
+            if body_socket is not None and response.length != 0:
+                body_socket.settimeout(min(_TIMEOUT, remaining))
             chunk = response.read1(min(16384, limit + 1 - len(body)))
             if not chunk:
                 if response.length not in (None, 0):
@@ -199,7 +223,7 @@ def channel_page(alias: str) -> bytes:
 
     value = channel_input(alias)
     path = "/channel/" + value if CHANNEL_ID.fullmatch(value) else "/" + value
-    return _get(path, 4 * 1024 * 1024)
+    return _get(path, 4 * 1024 * 1024, body_timeout=_PAGE_BODY_TIMEOUT)
 
 
 def channel_feed(channel_id: str) -> bytes:

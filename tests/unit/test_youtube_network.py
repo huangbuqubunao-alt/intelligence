@@ -66,6 +66,8 @@ def tunnel(
     connect_delay=0,
     length_delta=0,
     encoding="identity",
+    chunk_delay=0,
+    chunk_size=16384,
 ):
     seen = {"connect": [], "requests": [], "sni": []}
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
@@ -88,10 +90,14 @@ def tunnel(
                         if b"/feeds/" in request
                         else PAGE
                     )
-                    stream.sendall(
-                        f"HTTP/1.1 {status} Test\r\nContent-Length: {len(payload) + length_delta}\r\nContent-Encoding: {encoding}\r\nLocation: https://attacker.example/\r\nConnection: close\r\n\r\n".encode()
-                        + payload
-                    )
+                    header = f"HTTP/1.1 {status} Test\r\nContent-Length: {len(payload) + length_delta}\r\nContent-Encoding: {encoding}\r\nLocation: https://attacker.example/\r\nConnection: close\r\n\r\n".encode()
+                    if chunk_delay:
+                        stream.sendall(header)
+                        for offset in range(0, len(payload), chunk_size):
+                            time.sleep(chunk_delay)
+                            stream.sendall(payload[offset:offset + chunk_size])
+                    else:
+                        stream.sendall(header + payload)
             except (OSError, ssl.SSLError):
                 pass  # Expected for certificate/hostname rejection.
 
