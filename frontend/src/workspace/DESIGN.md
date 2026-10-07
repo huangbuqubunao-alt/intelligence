@@ -118,3 +118,19 @@ media without a provisioned offline transcriber shows truthful unavailable statu
 Text Evidence and Research use line ranges; timed media retains actual positions.
 Provider labels are visible, original text is escaped plain text, and absolute
 paths never appear in product presentation.
+
+## YouTube channel Following
+
+Phase 12 reuses CreatorFollowing's form and detail for public YouTube channels.
+Add keeps one-video import distinct from channel follow. A channel cannot enter
+through the one-video form. Explain a bounded baseline that imports zero history.
+Provider-scoped canonical identity is invisible implementation authority; show
+channel name, provenance, last complete check and truthful health. Handle/name
+changes reuse the same source. Content offers Follow this channel from trusted
+metadata. Existing filters, Check Now, pause/resume and ordinary linked Content
+work identically across providers. Timed public captions use the shared transcript
+view. Do not offer local acoustic transcription for missing YouTube captions.
+
+Following rows label ordinary VIDEO_URL entries as manually imported videos,
+so a video import sharing a channel display name remains distinguishable from a
+tracked channel. Update/insight/attention/paused filters use actual shared state.

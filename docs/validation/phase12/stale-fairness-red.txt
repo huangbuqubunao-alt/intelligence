@@ -1,0 +1,42 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________ test_stale_lifecycle_check_is_bounded_fair_across_providers __________
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-909/test_stale_lifecycle_check_is_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10c89c830>
+
+    def test_stale_lifecycle_check_is_bounded_fair_across_providers(tmp_path, monkeypatch):
+        from youtube_intel.local_api import LocalApiApplication
+        from youtube_intel.orchestration_service import ProductOrchestrationService
+        from youtube_intel.providers.bilibili import BilibiliAdapter
+        from youtube_intel.providers.youtube_channel import canonical_channel
+        repo, tracker, fixture, runtime = youtube_setup(tmp_path, monkeypatch)
+        bili = _load_module('test_creator_following').CreatorFixture()
+        tracker.publisher.adapter = BilibiliAdapter(fetch=bili.fetch)
+        bs = tracker.follow('123')
+        tracker.providers['YOUTUBE']._resolve = lambda alias: canonical_channel(alias, 'Public channel')
+        ys = []
+        for letter in 'abcd':
+            fixture.now += timedelta(minutes=1)
+            ys.append(tracker.follow('UC'+letter*22, provider='YOUTUBE'))
+        fixture.tick()
+        bili.now = fixture.now
+        for source in ys:
+            repo.update_source_subscription(source.source_id, enabled=True, now=fixture.now)
+        app = LocalApiApplication(repo, ProductOrchestrationService(repo, source_tracking=tracker, now=lambda: fixture.now),
+                                  source_tracking=tracker, data_root=runtime._data_root, now=lambda: fixture.now)
+        status, result = app.handle('POST','/api/v1/sources/check-stale',b'{}')
+        assert status == 202
+        assert len(result['checks']) == 3
+>       assert repo.get_source_subscription(bs.source_id).last_checked_at == fixture.now
+E       AssertionError: assert datetime.datetime(2026, 10, 4, 0, 0, tzinfo=datetime.timezone.utc) == datetime.datetime(2026, 10, 4, 1, 4, tzinfo=datetime.timezone.utc)
+E        +  where datetime.datetime(2026, 10, 4, 0, 0, tzinfo=datetime.timezone.utc) = SourceSubscriptionRecord(source_id='bilibili-creator-123', source_type=<SourceType.CREATOR: 'CREATOR'>, canonical_url=...time.timezone.utc), updated_at=datetime.datetime(2026, 10, 4, 0, 0, tzinfo=datetime.timezone.utc), provider='BILIBILI').last_checked_at
+E        +    where SourceSubscriptionRecord(source_id='bilibili-creator-123', source_type=<SourceType.CREATOR: 'CREATOR'>, canonical_url=...time.timezone.utc), updated_at=datetime.datetime(2026, 10, 4, 0, 0, tzinfo=datetime.timezone.utc), provider='BILIBILI') = get_source_subscription('bilibili-creator-123')
+E        +      where get_source_subscription = <youtube_intel.state.SQLiteStateRepository object at 0x10caae210>.get_source_subscription
+E        +      and   'bilibili-creator-123' = SourceSubscriptionRecord(source_id='bilibili-creator-123', source_type=<SourceType.CREATOR: 'CREATOR'>, canonical_url=...time.timezone.utc), updated_at=datetime.datetime(2026, 10, 4, 0, 0, tzinfo=datetime.timezone.utc), provider='BILIBILI').source_id
+E        +  and   datetime.datetime(2026, 10, 4, 1, 4, tzinfo=datetime.timezone.utc) = <test_youtube_following.YouTubeFixture object at 0x10caacf20>.now
+
+tests/integration/test_youtube_following.py:754: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_youtube_following.py::test_stale_lifecycle_check_is_bounded_fair_across_providers
+1 failed in 1.49s

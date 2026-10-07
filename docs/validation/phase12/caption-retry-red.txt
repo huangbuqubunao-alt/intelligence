@@ -1,0 +1,28 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______ test_initial_caption_network_retry_remains_durable_and_recovers ________
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-896/test_initial_caption_network_r0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10b2c0380>
+
+    def test_initial_caption_network_retry_remains_durable_and_recovers(tmp_path, monkeypatch):
+        from youtube_intel.discovery import AdapterError
+        from youtube_intel.domain import AppError, ErrorCode
+        repo, tracker, fixture, runtime = youtube_setup(tmp_path, monkeypatch)
+        source = tracker.follow(CHANNEL, provider='YOUTUBE')
+        adapter = runtime._dependencies.subtitle_adapter_factory()
+        original = adapter.enumerate_tracks
+        def offline(video_id):
+            raise AdapterError(AppError(code=ErrorCode.TRANSIENT_NETWORK, message='Public caption network unavailable', retryable=True, retry_after_seconds=1))
+        adapter.enumerate_tracks = offline
+        fixture.publish(NEW)
+>       assert tracker.check(source.source_id) == 'OFFLINE'
+E       AssertionError: assert 'COMPLETE' == 'OFFLINE'
+E         
+E         - OFFLINE
+E         + COMPLETE
+
+tests/integration/test_youtube_following.py:608: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_youtube_following.py::test_initial_caption_network_retry_remains_durable_and_recovers
+1 failed in 2.75s

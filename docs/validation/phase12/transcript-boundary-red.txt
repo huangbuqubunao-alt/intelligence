@@ -1,0 +1,75 @@
+..........................F............................................. [100%]
+=================================== FAILURES ===================================
+________ test_mixed_provider_backup_restore_research_delta_and_database ________
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-889/test_mixed_provider_backup_res0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10d5e35f0>
+
+    def test_mixed_provider_backup_restore_research_delta_and_database(
+        tmp_path, monkeypatch
+    ):
+        from youtube_intel.backup_restore import BackupRestoreService
+        from youtube_intel.following_tracking import verify_tracking
+        from youtube_intel.local_content import LocalContentProvider
+        from youtube_intel.providers.bilibili import BilibiliAdapter
+        from youtube_intel.research_contract import ResearchRequest
+        from youtube_intel.research_lite import ResearchLiteService
+    
+        repo, tracker, fixture, runtime = youtube_setup(tmp_path, monkeypatch)
+        bili = _load_module("test_creator_following").CreatorFixture()
+        tracker.publisher.adapter = BilibiliAdapter(fetch=bili.fetch)
+        yt = tracker.follow("@public", provider="YOUTUBE")
+        bs = tracker.follow("123")
+        fixture.publish(NEW)
+        bili.items.insert(0, ("BV1xx411c7mE", NOW + timedelta(seconds=1)))
+        bili.now = fixture.now
+        assert tracker.check(yt.source_id) == "COMPLETE"
+        assert tracker.check(bs.source_id) == "COMPLETE"
+        local = LocalContentProvider(
+            repo, runtime._data_root, now=lambda: fixture.now
+        ).import_bytes("Sentence1 local.md", b"Sentence1 local public evidence.\n")
+        research = ResearchLiteService(repo, now=lambda: fixture.now)
+        packet = research.assemble(
+            ResearchRequest(
+                question="sentence1 public",
+                content_ids=[NEW, "bilibili-BV1xx411c7mE", local.content_id],
+            ), output_language="en"
+        )
+        assert {item.provider for item in packet.packet.evidence} == {
+            "YOUTUBE",
+            "BILIBILI",
+            "LOCAL",
+        }
+        before = {id: tracker.projection(id) for id in (yt.source_id, bs.source_id)}
+        backup = BackupRestoreService(
+            database=repo._database_path, data_root=runtime._data_root
+        )
+>       result = backup.create_backup()
+                 ^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_youtube_following.py:350: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <youtube_intel.backup_restore.BackupRestoreService object at 0x10d5e9f10>
+
+    def create_backup(self) -> BackupResult:
+        if self.restore_pending:
+            raise BackupRestoreError("A Restore is already pending restart.")
+        self._ensure_control_root()
+        backup_id = uuid.uuid4().hex
+        temp_path = self.backup_root / f".{backup_id}.tmp"
+        published_path = self.backup_root / f"{backup_id}.zip"
+        snapshot_path = self.backup_root / f".{backup_id}.sqlite"
+        try:
+            with self._live_transaction() as connection:
+                reasons = self._quiescence_reasons(connection)
+                if reasons:
+>                   raise BackupRestoreError(
+                        "Backup is temporarily unavailable: " + ", ".join(reasons)
+                    )
+E                   youtube_intel.backup_restore.BackupRestoreError: Backup is temporarily unavailable: JOBS_ACTIVE
+
+src/youtube_intel/backup_restore.py:222: BackupRestoreError
+=========================== short test summary info ============================
+FAILED tests/integration/test_youtube_following.py::test_mixed_provider_backup_restore_research_delta_and_database
+1 failed, 71 passed in 36.96s

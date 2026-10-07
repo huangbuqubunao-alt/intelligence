@@ -1,0 +1,28 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______ test_invalid_video_metadata_preserves_pending_and_truthful_health _______
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-915/test_invalid_video_metadata_pr0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x109584f20>
+
+    def test_invalid_video_metadata_preserves_pending_and_truthful_health(tmp_path, monkeypatch):
+        repo, tracker, fixture, _ = youtube_setup(tmp_path, monkeypatch)
+        source = tracker.follow(CHANNEL, provider="YOUTUBE")
+        trusted_success = repo.get_source_subscription(source.source_id).last_success_at
+        fixture.publish(NEW)
+        fetch = fixture.fetch
+    
+        def invalid(video_id):
+            raise TrackingError("METADATA_FAILED")
+    
+        fixture.fetch = invalid
+>       assert tracker.check(source.source_id) == "PROVIDER_ERROR"
+E       AssertionError: assert 'COMPLETE' == 'PROVIDER_ERROR'
+E         
+E         - PROVIDER_ERROR
+E         + COMPLETE
+
+tests/integration/test_youtube_following.py:809: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_youtube_following.py::test_invalid_video_metadata_preserves_pending_and_truthful_health
+1 failed, 49 deselected in 0.90s

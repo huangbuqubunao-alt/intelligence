@@ -1,0 +1,45 @@
+
+> youtube-intel-workspace@0.1.0 test
+> vitest run
+
+
+ RUN  v2.1.9 /Users/hua/Documents/yia-worktrees/v1x-youtube-following/frontend
+
+ ✓ src/workspace/CreatorFollowing.test.tsx (6 tests) 238ms
+ ✓ src/workspace/KnowledgeDelta.test.tsx (7 tests) 264ms
+ ✓ src/workspace/LocalImport.test.tsx (3 tests) 327ms
+ ✓ src/workspace/BilibiliImport.test.tsx (2 tests) 399ms
+ ✓ src/workspace/LocalTranscription.test.tsx (7 tests) 423ms
+ ✓ src/workspace/ResearchDiff.test.tsx (15 tests) 433ms
+ ✓ src/workspace/Research.test.tsx (18 tests) 681ms
+stderr | src/workspace/App.test.tsx > Chinese Following explains discovery-only state and the insight processing choice
+Warning: An update to SourceForm inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at SourceForm (/Users/hua/Documents/yia-worktrees/v1x-youtube-following/frontend/src/workspace/App.tsx:3740:23)
+    at div
+    at SourceDetail (/Users/hua/Documents/yia-worktrees/v1x-youtube-following/frontend/src/workspace/App.tsx:4461:25)
+    at Sources (/Users/hua/Documents/yia-worktrees/v1x-youtube-following/frontend/src/workspace/App.tsx:3478:20)
+    at main
+    at div
+    at Workspace (/Users/hua/Documents/yia-worktrees/v1x-youtube-following/frontend/src/workspace/App.tsx:1105:40)
+    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/v1x-youtube-following/frontend/src/workspace/uiLanguage.tsx:889:31)
+    at App
+
+ ✓ src/workspace/App.test.tsx (94 tests) 2647ms
+ ✓ src/demo-v1/App.test.tsx (32 tests) 2716ms
+   ✓ pre-freeze path A keeps 18 Followings findable by group, filter and search 461ms
+   ✓ revision 3 paths F and G mock safe backup restore and Obsidian publishing 365ms
+
+ Test Files  9 passed (9)
+      Tests  184 passed (184)
+   Start at  00:49:13
+   Duration  4.52s (transform 1.28s, setup 0ms, collect 5.11s, tests 8.13s, environment 6.98s, prepare 878ms)
+

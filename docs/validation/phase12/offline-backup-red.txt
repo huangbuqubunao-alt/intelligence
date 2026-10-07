@@ -1,0 +1,74 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_ test_failed_bounded_tracking_run_is_terminal_and_backups_work_offline[YOUTUBE] _
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-902/test_failed_bounded_tracking_r0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1095c8b00>
+provider = 'YOUTUBE'
+
+    @pytest.mark.parametrize('provider', ['YOUTUBE','BILIBILI'])
+    def test_failed_bounded_tracking_run_is_terminal_and_backups_work_offline(tmp_path, monkeypatch, provider):
+        from youtube_intel.backup_restore import BackupRestoreService
+        from youtube_intel.providers.bilibili import BilibiliAdapter
+        from youtube_intel.runtime_composition import RuntimeSourceRunIngestion
+        from youtube_intel.source_run import SourceRunPriority, SourceRunState
+        repo, tracker, fixture, runtime = youtube_setup(tmp_path, monkeypatch)
+        bili = _load_module('test_creator_following').CreatorFixture()
+        tracker.publisher.adapter = BilibiliAdapter(fetch=bili.fetch)
+        source = tracker.follow(CHANNEL if provider=='YOUTUBE' else '123',provider=provider)
+        before = tracker.projection(source.source_id)['verified_at']
+        fixture.tick();bili.now=fixture.now
+        fixture.failure=bili.failure='NETWORK_UNAVAILABLE'
+        support=_load_module('test_task024_processing_orchestration')
+        transport=support._Transport(available=False)
+        orchestration=support._orchestrator(repo,transport)
+        orchestration._now=lambda:fixture.now
+        orchestration._ingestion=RuntimeSourceRunIngestion(runtime,orchestration._source_policy,tracker)
+        run=orchestration.enqueue_manual_check_now(source_id=source.source_id,command_id='offline-tracked',priority=SourceRunPriority.P0)
+>       assert orchestration.resume(run.run_id).state is SourceRunState.FAILED
+E       AssertionError: assert <SourceRunState.NEEDS_ATTENTION: 'NEEDS_ATTENTION'> is <SourceRunState.FAILED: 'FAILED'>
+E        +  where <SourceRunState.NEEDS_ATTENTION: 'NEEDS_ATTENTION'> = SourceRunRecord(run_id='source-run:c4167c734c24e0f37cec45e7658281d76cb9b812f6dc63db1a0c6b1f0a24a3ac', source_id='youtu... 4, 1, 0, tzinfo=datetime.timezone.utc), updated_at=datetime.datetime(2026, 10, 4, 1, 0, tzinfo=datetime.timezone.utc)).state
+E        +    where SourceRunRecord(run_id='source-run:c4167c734c24e0f37cec45e7658281d76cb9b812f6dc63db1a0c6b1f0a24a3ac', source_id='youtu... 4, 1, 0, tzinfo=datetime.timezone.utc), updated_at=datetime.datetime(2026, 10, 4, 1, 0, tzinfo=datetime.timezone.utc)) = resume('source-run:c4167c734c24e0f37cec45e7658281d76cb9b812f6dc63db1a0c6b1f0a24a3ac')
+E        +      where resume = <youtube_intel.processing_orchestrator.DurableProcessingOrchestrator object at 0x1097cf140>.resume
+E        +      and   'source-run:c4167c734c24e0f37cec45e7658281d76cb9b812f6dc63db1a0c6b1f0a24a3ac' = SourceRunRecord(run_id='source-run:c4167c734c24e0f37cec45e7658281d76cb9b812f6dc63db1a0c6b1f0a24a3ac', source_id='youtu... 4, 1, 0, tzinfo=datetime.timezone.utc), updated_at=datetime.datetime(2026, 10, 4, 1, 0, tzinfo=datetime.timezone.utc)).run_id
+E        +  and   <SourceRunState.FAILED: 'FAILED'> = <enum 'SourceRunState'>.FAILED
+
+tests/integration/test_youtube_following.py:672: AssertionError
+_ test_failed_bounded_tracking_run_is_terminal_and_backups_work_offline[BILIBILI] _
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-902/test_failed_bounded_tracking_r1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x109813e00>
+provider = 'BILIBILI'
+
+    @pytest.mark.parametrize('provider', ['YOUTUBE','BILIBILI'])
+    def test_failed_bounded_tracking_run_is_terminal_and_backups_work_offline(tmp_path, monkeypatch, provider):
+        from youtube_intel.backup_restore import BackupRestoreService
+        from youtube_intel.providers.bilibili import BilibiliAdapter
+        from youtube_intel.runtime_composition import RuntimeSourceRunIngestion
+        from youtube_intel.source_run import SourceRunPriority, SourceRunState
+        repo, tracker, fixture, runtime = youtube_setup(tmp_path, monkeypatch)
+        bili = _load_module('test_creator_following').CreatorFixture()
+        tracker.publisher.adapter = BilibiliAdapter(fetch=bili.fetch)
+        source = tracker.follow(CHANNEL if provider=='YOUTUBE' else '123',provider=provider)
+        before = tracker.projection(source.source_id)['verified_at']
+        fixture.tick();bili.now=fixture.now
+        fixture.failure=bili.failure='NETWORK_UNAVAILABLE'
+        support=_load_module('test_task024_processing_orchestration')
+        transport=support._Transport(available=False)
+        orchestration=support._orchestrator(repo,transport)
+        orchestration._now=lambda:fixture.now
+        orchestration._ingestion=RuntimeSourceRunIngestion(runtime,orchestration._source_policy,tracker)
+        run=orchestration.enqueue_manual_check_now(source_id=source.source_id,command_id='offline-tracked',priority=SourceRunPriority.P0)
+>       assert orchestration.resume(run.run_id).state is SourceRunState.FAILED
+E       AssertionError: assert <SourceRunState.NEEDS_ATTENTION: 'NEEDS_ATTENTION'> is <SourceRunState.FAILED: 'FAILED'>
+E        +  where <SourceRunState.NEEDS_ATTENTION: 'NEEDS_ATTENTION'> = SourceRunRecord(run_id='source-run:279214257cb421fcbed51962fa77d67bba526a5952a8ea1ca1b16827d5647670', source_id='bilib... 4, 1, 0, tzinfo=datetime.timezone.utc), updated_at=datetime.datetime(2026, 10, 4, 1, 0, tzinfo=datetime.timezone.utc)).state
+E        +    where SourceRunRecord(run_id='source-run:279214257cb421fcbed51962fa77d67bba526a5952a8ea1ca1b16827d5647670', source_id='bilib... 4, 1, 0, tzinfo=datetime.timezone.utc), updated_at=datetime.datetime(2026, 10, 4, 1, 0, tzinfo=datetime.timezone.utc)) = resume('source-run:279214257cb421fcbed51962fa77d67bba526a5952a8ea1ca1b16827d5647670')
+E        +      where resume = <youtube_intel.processing_orchestrator.DurableProcessingOrchestrator object at 0x109874f80>.resume
+E        +      and   'source-run:279214257cb421fcbed51962fa77d67bba526a5952a8ea1ca1b16827d5647670' = SourceRunRecord(run_id='source-run:279214257cb421fcbed51962fa77d67bba526a5952a8ea1ca1b16827d5647670', source_id='bilib... 4, 1, 0, tzinfo=datetime.timezone.utc), updated_at=datetime.datetime(2026, 10, 4, 1, 0, tzinfo=datetime.timezone.utc)).run_id
+E        +  and   <SourceRunState.FAILED: 'FAILED'> = <enum 'SourceRunState'>.FAILED
+
+tests/integration/test_youtube_following.py:672: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_youtube_following.py::test_failed_bounded_tracking_run_is_terminal_and_backups_work_offline[YOUTUBE]
+FAILED tests/integration/test_youtube_following.py::test_failed_bounded_tracking_run_is_terminal_and_backups_work_offline[BILIBILI]
+2 failed in 2.06s

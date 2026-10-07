@@ -1,0 +1,42 @@
+{
+  "scenarios": [
+    {
+      "language": "zh-CN",
+      "width": 320,
+      "providers": [
+        "YOUTUBE",
+        "BILIBILI"
+      ],
+      "filters": [
+        "all",
+        "updates",
+        "attention",
+        "insights",
+        "paused"
+      ],
+      "shared_detail": true,
+      "pause_blocks_check": true,
+      "resume_preserves_frontier": true
+    },
+    {
+      "language": "en",
+      "width": 320,
+      "providers": [
+        "YOUTUBE",
+        "BILIBILI"
+      ],
+      "filters": [
+        "all",
+        "updates",
+        "attention",
+        "insights",
+        "paused"
+      ],
+      "shared_detail": true,
+      "pause_blocks_check": true,
+      "resume_preserves_frontier": true
+    }
+  ],
+  "errors": [],
+  "external": []
+}

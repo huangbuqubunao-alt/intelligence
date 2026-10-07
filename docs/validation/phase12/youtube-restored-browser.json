@@ -1,0 +1,54 @@
+{
+  "scenarios": [
+    {
+      "language": "zh-CN",
+      "width": 320,
+      "offline": true,
+      "source": "youtube-channel-UC0000000000000000000000"
+    },
+    {
+      "language": "zh-CN",
+      "width": 768,
+      "offline": true,
+      "source": "youtube-channel-UC0000000000000000000001"
+    },
+    {
+      "language": "zh-CN",
+      "width": 1024,
+      "offline": true,
+      "source": "youtube-channel-UC0000000000000000000002"
+    },
+    {
+      "language": "zh-CN",
+      "width": 1440,
+      "offline": true,
+      "source": "youtube-channel-UC0000000000000000000003"
+    },
+    {
+      "language": "en",
+      "width": 320,
+      "offline": true,
+      "source": "youtube-channel-UC0000000000000000000004"
+    },
+    {
+      "language": "en",
+      "width": 768,
+      "offline": true,
+      "source": "youtube-channel-UC0000000000000000000005"
+    },
+    {
+      "language": "en",
+      "width": 1024,
+      "offline": true,
+      "source": "youtube-channel-UC0000000000000000000006"
+    },
+    {
+      "language": "en",
+      "width": 1440,
+      "offline": true,
+      "source": "youtube-channel-UC0000000000000000000007"
+    }
+  ],
+  "errors": [],
+  "external": []
+}

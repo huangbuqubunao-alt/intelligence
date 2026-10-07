@@ -1,0 +1,124 @@
+{
+  "baseline": "a81b8e90a662eab72dda28fdc2140362649d9544",
+  "reviewed_code_head": "4d0cb5e5de450272cb5653fe4988dc393b98e4c2",
+  "files": [
+    {
+      "path": "frontend/src/workspace/App.tsx",
+      "sha256": "c5737cac15ff3342a9b3784de2008b9cf91611568773e3b28f46ca9ff9b1ff83",
+      "reviewed": true
+    },
+    {
+      "path": "frontend/src/workspace/CreatorFollowing.test.tsx",
+      "sha256": "f5e79b12c08506db9ee795366b828d7353ed4c4bbee98f29162e247985f6b7bc",
+      "reviewed": true
+    },
+    {
+      "path": "frontend/src/workspace/CreatorFollowing.tsx",
+      "sha256": "bc72a947eebbb9dd8b21dcf1af3dd0a96823c0ccdecd877c5e5e4285ca32d339",
+      "reviewed": true
+    },
+    {
+      "path": "frontend/src/workspace/uiLanguage.tsx",
+      "sha256": "1acf9875ce29288f7536506150a20e6c881b577344407a5ded5326ad8167376d",
+      "reviewed": true
+    },
+    {
+      "path": "frontend/youtube-following-shared.e2e.mjs",
+      "sha256": "d17b0fc6905bf487d8f0e2be95e9beeac1e47e5f570e7deeacaa02057788117b",
+      "reviewed": true
+    },
+    {
+      "path": "frontend/youtube-following.e2e.mjs",
+      "sha256": "80a8a752fff7e8405df3ee79fe215305412e888baff9672a42380e2d9f101447",
+      "reviewed": true
+    },
+    {
+      "path": "src/youtube_intel/following_provider.py",
+      "sha256": "d358484b1c70465a037afa960195adc45903de930678cc58a6dc3af8b015217c",
+      "reviewed": true
+    },
+    {
+      "path": "src/youtube_intel/following_tracking.py",
+      "sha256": "9241c54a6a83ed0c1c1c1b7397e3d0cf0de3462494cd7fd8bd9fbf82d6f18af1",
+      "reviewed": true
+    },
+    {
+      "path": "src/youtube_intel/local_api.py",
+      "sha256": "0e9bce5863972d4c9451c56dc933755f171c1fd3500464e16cc96d3127401fd7",
+      "reviewed": true
+    },
+    {
+      "path": "src/youtube_intel/orchestration_service.py",
+      "sha256": "9600429cbf607af172bf5b849b44c9369a759c5f13799659ba33b8a8b77c8839",
+      "reviewed": true
+    },
+    {
+      "path": "src/youtube_intel/pipeline.py",
+      "sha256": "6212092fbd6c8e471f748788e5d4cce0cb1906e472d3c69bd83abd71534d6d3e",
+      "reviewed": true
+    },
+    {
+      "path": "src/youtube_intel/processing_orchestrator.py",
+      "sha256": "0e1b79e785eb2ecc2f3c5730832f22c25b6fc8f7643cc9602c383a3ad7572756",
+      "reviewed": true
+    },
+    {
+      "path": "src/youtube_intel/providers/youtube_channel.py",
+      "sha256": "c66ff0c934bdb7a8274613e43c51a40f9595ea186d598c8eb981e2b350e8db32",
+      "reviewed": true
+    },
+    {
+      "path": "src/youtube_intel/runtime.py",
+      "sha256": "5d458e6bba5eb64e414aa880c4abe6756c68f9eaad9cada30aa6043ada93e552",
+      "reviewed": true
+    },
+    {
+      "path": "src/youtube_intel/runtime_composition.py",
+      "sha256": "3337e96b910f99df33f06161bfedc4ab5753e25ecec39c99cb4c475999a115bb",
+      "reviewed": true
+    },
+    {
+      "path": "src/youtube_intel/state.py",
+      "sha256": "99d3aaed472211af2e0f1500bba501b919aca3513c9750b204f5102ffd8d01f9",
+      "reviewed": true
+    },
+    {
+      "path": "tests/e2e/youtube_following_fixture_server.py",
+      "sha256": "c7707b7f467821f4a410df1611f779f00e8c192bc054f07e3bfb95fc323b0246",
+      "reviewed": true
+    },
+    {
+      "path": "tests/integration/test_youtube_following.py",
+      "sha256": "eabd2c9f854793955430370f18af458b9ab49af9daaeee61f5142df045e392d2",
+      "reviewed": true
+    }
+  ],
+  "review_axes": [
+    "correctness",
+    "architecture",
+    "security",
+    "performance",
+    "product"
+  ],
+  "findings_remaining": {
+    "P0": 0,
+    "P1": 0,
+    "material_phase12_P2": 0
+  },
+  "no_dependency_toolchain_secrets_config_or_historical_migration_changes": true,
+  "shared_source_runs_and_tracking_authority": true,
+  "no_new_primary_navigation": true,
+  "no_acoustic_or_deep_analysis_execution_route_added": true,
+  "remediations": [
+    "transcript-only scheduling boundary",
+    "truthful last-success on partial checks",
+    "timed YouTube caption presentation",
+    "durable initial caption retry",
+    "stable channel id validation",
+    "terminal offline checks and paused run cancellation",
+    "fair bounded stale source scheduling",
+    "bounded browser progress synchronization",
+    "date-only metadata with verified precise feed time",
+    "truthful nonterminal enrollment errors"
+  ]
+}

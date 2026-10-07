@@ -1,0 +1,37 @@
+F.                                                                       [100%]
+=================================== FAILURES ===================================
+________ test_feed_publication_disambiguates_date_only_metadata[False] _________
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-912/test_feed_publication_disambig0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10878ac60>
+older_day = False
+
+    @pytest.mark.parametrize("older_day", [False, True])
+    def test_feed_publication_disambiguates_date_only_metadata(tmp_path, monkeypatch, older_day):
+        repo, tracker, fixture, _ = youtube_setup(tmp_path, monkeypatch)
+        source = tracker.follow(CHANNEL, provider="YOUTUBE")
+        fixture.publish(NEW)
+        fetch = fixture.fetch
+    
+        def date_only(video_id):
+            metadata = fetch(video_id)
+            return metadata.model_copy(update={
+                "published_at": NOW - timedelta(days=int(older_day))
+            })
+    
+        fixture.fetch = date_only
+        assert tracker.check(source.source_id) == "COMPLETE"
+        if older_day:
+            assert repo.list_videos() == ()
+            assert tracker.projection(source.source_id)["update_count"] == 0
+        else:
+>           assert [video.video_id for video in repo.list_videos()] == [NEW]
+E           AssertionError: assert [] == ['newvideo001']
+E             
+E             Right contains one more item: 'newvideo001'
+E             Use -v to get more diff
+
+tests/integration/test_youtube_following.py:793: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_youtube_following.py::test_feed_publication_disambiguates_date_only_metadata[False]
+1 failed, 1 passed, 47 deselected in 1.18s

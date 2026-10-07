@@ -1,0 +1,6 @@
+{
+  "cookies": false,
+  "credentials": false,
+  "bypass": false,
+  "unavailable": "NETWORK_UNAVAILABLE"
+}

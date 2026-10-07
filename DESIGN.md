@@ -79,3 +79,18 @@ no provider request; no active polling or acoustic fallback is offered. Ready
 authority has no refresh control. Long untrusted title and caption text renders as
 plain text and wraps at every supported viewport. Labels and failures use the
 existing Chinese and English UI dictionary; caption language stays independent.
+
+## Continuous Following across providers
+
+YouTube channel and Bilibili creator use one Following list, filter and detail
+interaction. Provider is provenance. YouTube Add distinguishes one video from
+“关注一个频道 / Follow a channel”; channel following explains “from now on” and
+never offers implicit historical backfill. Trusted Content offers “关注此频道 /
+Follow this channel”. Channel titles and handles are presentation aliases;
+canonical channel identity governs deduplication.
+
+Both providers share Check Now, pause/resume, last complete successful check,
+health and ordinary discovered Content. Missing captions retain honest transcript
+and Summary/Evidence states, without offering an acoustic fallback. Render trusted
+timed YouTube captions using the existing transcript view. Preserve all six primary
+navigation buttons, bilingual labels, wrapping and 320–1440px layouts.
