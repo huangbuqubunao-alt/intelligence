@@ -4,6 +4,8 @@ export type UiLanguage = "zh-CN" | "en";
 
 const storageKey = "yia.ui-language";
 const chinese: Record<string, string> = {
+  "Retry": "重试",
+  "Unable to connect to YouTube. Check your network or VPN and try again.": "无法连接 YouTube。请检查网络或 VPN 后重试。",
   "Follow a channel": "关注一个频道",
   "Follow channel": "关注频道",
   "Follow this channel": "关注此频道",

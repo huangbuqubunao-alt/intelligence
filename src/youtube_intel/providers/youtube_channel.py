@@ -7,9 +7,8 @@ import time
 import unicodedata
 from collections.abc import Callable
 from datetime import datetime
+from html.parser import HTMLParser
 from urllib.parse import urlsplit
-
-import yt_dlp  # type: ignore[import-untyped]
 
 from youtube_intel.discovery import AdapterError, YouTubeRssSourceProvider
 from youtube_intel.following_provider import (
@@ -20,10 +19,8 @@ from youtube_intel.following_provider import (
 )
 from youtube_intel.providers.bilibili import (
     BilibiliError,
-    _PinnedHTTPS,
-    public_addresses,
 )
-from youtube_intel.providers.youtube import _build_ydl_opts
+from youtube_intel.providers.youtube_network import channel_feed, channel_page
 
 CHANNEL_ID = re.compile(r'UC[A-Za-z0-9_-]{22}\Z')
 VIDEO_ID = re.compile(r'[A-Za-z0-9_-]{11}\Z')
@@ -103,33 +100,35 @@ def public_operation(operation: Callable[[], object]) -> object:
 
 
 def _feed(channel_id: str) -> bytes:
-    canonical_channel(channel_id)
-    host = 'www.youtube.com'
-    connection = _PinnedHTTPS(host, public_addresses(host)[0])
-    deadline = time.monotonic() + 10
-    try:
-        connection.request('GET', '/feeds/videos.xml?channel_id=' + channel_id,
-                           headers={'User-Agent': 'YIA-PublicContent/1.0', 'Accept-Encoding': 'identity'})
-        response = connection.getresponse()
-        if response.status != 200:
-            raise TrackingError({429: 'RATE_LIMITED', 401: 'ACCESS_DENIED', 403: 'ACCESS_DENIED', 404: 'NOT_FOUND'}.get(response.status, 'NETWORK_UNAVAILABLE' if response.status >= 500 else 'METADATA_FAILED'))
-        if response.getheader('Content-Encoding', 'identity') != 'identity':
-            raise TrackingError('METADATA_FAILED')
-        body = bytearray()
-        while True:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise TrackingError('NETWORK_UNAVAILABLE')
-            if connection.sock is not None:
-                connection.sock.settimeout(remaining)
-            chunk = response.read1(min(16384, MAX_FEED + 1 - len(body)))
-            if not chunk:
-                return bytes(body)
-            body.extend(chunk)
-            if len(body) > MAX_FEED:
-                raise TrackingError('RESPONSE_TOO_LARGE')
-    finally:
-        connection.close()
+    return channel_feed(channel_id)
+
+
+class _ChannelMetadata(HTMLParser):
+    """Only public page identity metadata, never executable/content URLs."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.identities: set[str] = set()
+        self.name = ""
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        values = dict(attrs)
+        identity_url = None
+        if tag == "link" and values.get("rel") == "canonical":
+            identity_url = values.get("href")
+        elif tag == "meta" and values.get("property") == "og:url":
+            identity_url = values.get("content")
+        if identity_url is not None:
+            parsed = urlsplit(identity_url)
+            if (parsed.scheme != "https" or parsed.netloc != "www.youtube.com"
+                    or parsed.query or parsed.fragment
+                    or not parsed.path.startswith("/channel/")):
+                raise TrackingError("METADATA_FAILED")
+            self.identities.add(canonical_channel(parsed.path[9:]).channel_id)
+        if tag == "meta" and values.get("itemprop") in {"identifier", "channelId"}:
+            self.identities.add(canonical_channel(values.get("content") or "").channel_id)
+        if tag == "meta" and values.get("property") == "og:title":
+            self.name = values.get("content") or ""
 
 
 class YouTubeFollowingProvider:
@@ -141,15 +140,16 @@ class YouTubeFollowingProvider:
         self._resolve: Callable[[str], SourceIdentity] = self._resolve_public
 
     def _resolve_public(self, alias: str) -> SourceIdentity:
-        url = 'https://www.youtube.com/' + (alias if alias.startswith('@') else 'channel/' + alias)
-        opts = _build_ydl_opts(socket_timeout=10)
-        opts.update(noplaylist=False, extract_flat=True, playlistend=1, lazy_playlist=True,
-                    retries=0, extractor_retries=0, fragment_retries=0, proxy='')
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            info = ydl.extract_info(url + '/videos', download=False)
-        if not isinstance(info, dict):
-            raise TrackingError('METADATA_FAILED')
-        channel = canonical_channel(info.get('channel_id') or info.get('id') or '', info.get('channel') or info.get('uploader') or info.get('title') or '')
+        raw = channel_page(alias)
+        metadata = _ChannelMetadata()
+        try:
+            metadata.feed(raw.decode("utf-8"))
+            metadata.close()
+        except (UnicodeError, ValueError):
+            raise TrackingError("METADATA_FAILED") from None
+        if len(metadata.identities) != 1:
+            raise TrackingError("METADATA_FAILED")
+        channel = canonical_channel(next(iter(metadata.identities)), metadata.name)
         if CHANNEL_ID.fullmatch(alias) and channel.channel_id != alias:
             raise TrackingError('SOURCE_UNTRUSTED')
         return channel

@@ -51,7 +51,9 @@ const withdrawn = (state: CreatorFollowingCapabilityState) =>
  * the user can act on. An unknown value is reported as unknown rather than
  * smoothed into a reassuring phrase.
  */
-export const trackingCopy = (health: string) => ({
+export const trackingCopy = (health: string, provider?: string) => provider === "YOUTUBE" && ["OFFLINE", "NETWORK_UNAVAILABLE"].includes(health)
+  ? "Unable to connect to YouTube. Check your network or VPN and try again."
+  : ({
   HEALTHY: "Source checks are working",
   BASELINE_PENDING: "Waiting to establish the starting point",
   OFFLINE: "Unable to connect. Your last successful check is preserved.",
@@ -99,15 +101,16 @@ export function CreatorFollowForm({ capability: suppliedCapability, onSaved, pro
     {!saved && <form onSubmit={async event => {
       event.preventDefault(); if (busy) return; setBusy(true); setMessage(null);
       try {
-        await post(youtube ? "/sources/channels" : "/sources/creators", { input: input.trim() });
+        const result = await post<{ source?: { tracking?: Tracking } }>(youtube ? "/sources/channels" : "/sources/creators", { input: input.trim() });
+        if (youtube && result.source?.tracking?.health === "OFFLINE") setMessage(trackingCopy("OFFLINE", provider));
         setSaved(true);
       } catch (error) {
         const code = error instanceof ApiRequestError ? error.code.replace(/^(BILIBILI|YOUTUBE)_/, "") : "OFFLINE";
-        setMessage(code === "INVALID_INPUT" ? (youtube ? "Enter an HTTPS YouTube channel URL, @handle or channel id." : "Enter an HTTPS Bilibili creator profile URL or numeric creator id.") : trackingCopy(code));
+        setMessage(code === "INVALID_INPUT" ? (youtube ? "Enter an HTTPS YouTube channel URL, @handle or channel id." : "Enter an HTTPS Bilibili creator profile URL or numeric creator id.") : trackingCopy(code, provider));
       } finally { setBusy(false); }
     }}>
       <label className="field">{t(youtube ? "Channel URL, @handle or channel id" : "Creator profile URL or numeric id")}<input autoFocus maxLength={2048} value={input} disabled={busy} onChange={event => setInput(event.target.value)} placeholder={youtube ? "https://www.youtube.com/@channel" : "https://space.bilibili.com/123"} /></label>
-      <button className="button button-primary" disabled={busy || !input.trim()}>{t(busy ? "Establishing tracking…" : youtube ? "Follow channel" : "Follow creator")}</button>
+      <button className="button button-primary" disabled={busy || !input.trim()}>{t(busy ? "Establishing tracking…" : youtube && message ? "Retry" : youtube ? "Follow channel" : "Follow creator")}</button>
     </form>}
     {busy && <p role="status">{t("Establishing tracking…")}</p>}
     {message && <p role="alert">{t(message)}</p>}
@@ -134,7 +137,7 @@ export function FollowCreatorFromContent({ id, capability: suppliedCapability, p
       try { await post(`/videos/${id}/follow-${youtube ? "channel" : "creator"}`, {}); setMessage(youtube ? "Channel followed. Check Following for its starting point and source health." : "Creator followed. Check the Following detail for its starting point and source health."); }
       catch (error) {
         const code = error instanceof ApiRequestError ? error.code.replace(/^(BILIBILI|YOUTUBE)_/, "") : "PROVIDER_ERROR";
-        setMessage(trackingCopy(code));
+        setMessage(trackingCopy(code, youtube ? "YOUTUBE" : "BILIBILI"));
       }
       finally { setBusy(false); }
     }}>{t(busy ? "Establishing tracking…" : youtube ? "Follow this channel" : "Follow this creator")}</button>
@@ -180,7 +183,7 @@ export function CreatorFollowingDetail({ id, capability, onClose, onRefresh }: {
     if (checkRun) {
       const run = data.source_runs.find(item => item.run_id === checkRun);
       if (run && !ACTIVE_STATES.includes(run.state)) {
-        setMessage(trackingCopy(data.source.tracking.health));
+        setMessage(trackingCopy(data.source.tracking.health, data.source.provider));
         setNotice(null); setCheckRun(null);
       }
     } else if (!isActive(data) && notice) setMessage(notice);
@@ -206,7 +209,7 @@ export function CreatorFollowingDetail({ id, capability, onClose, onRefresh }: {
       <p>{t(source.provider === "YOUTUBE" ? "YouTube" : "Bilibili")} · {off ? t("Continuous creator tracking is currently unavailable") : source.enabled ? t("Monitoring new videos") : t("Monitoring is paused")}</p>
       <a href={source.canonical_url} target="_blank" rel="noreferrer">{t("Open Source")}</a>
       <dl className="creator-tracking">
-        <dt>{t(off ? "Last recorded source health" : "Source health")}</dt><dd>{t(trackingCopy(source.tracking.health))}</dd>
+        <dt>{t(off ? "Last recorded source health" : "Source health")}</dt><dd>{t(trackingCopy(source.tracking.health, source.provider))}</dd>
         <dt>{t("Starting point established")}</dt><dd>{baselineEstablished ? t("Yes") : t("No, no successful check has completed yet")}</dd>
         <dt>{t("Last checked")}</dt><dd>{source.last_checked_at ? new Date(source.last_checked_at).toLocaleString() : t("Not checked yet")}</dd>
         <dt>{t("Last successful check")}</dt><dd>{source.last_success_at ? new Date(source.last_success_at).toLocaleString() : t("Not checked yet")}</dd>
@@ -223,11 +226,11 @@ export function CreatorFollowingDetail({ id, capability, onClose, onRefresh }: {
             const result = await post<{ source_run?: { run_id: string }; message?: string; status?: string }>(`/sources/${id}/check`, { command_id: crypto.randomUUID() });
             if (result.status === "CAPABILITY_UNAVAILABLE") setNotice(trackingCopy("CAPABILITY_UNAVAILABLE"));
             else if (result.source_run) { setCheckRun(result.source_run.run_id); setMessage("Checking…"); }
-            else setNotice(trackingCopy(result.message ?? "HEALTHY"));
+            else setNotice(trackingCopy(result.message ?? "HEALTHY", source.provider));
             setRevision(value => value + 1); onRefresh();
           } catch { setMessage("The source could not be checked. Try again later."); }
           finally { setBusy(false); }
-        }}>{t(busy || active || source.tracking.checking ? "Checking…" : coolingDown ? "Cooling down" : "Check Now")}</button>
+        }}>{t(busy || active || source.tracking.checking ? "Checking…" : coolingDown ? "Cooling down" : source.provider === "YOUTUBE" && source.tracking.health === "OFFLINE" ? "Retry" : "Check Now")}</button>
         <button className="button button-secondary" disabled={busy} onClick={async () => {
           setBusy(true); setMessage(null); setNotice(null); setCheckRun(null);
           try {

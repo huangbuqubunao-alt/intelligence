@@ -234,7 +234,7 @@ test('Check Now replaces its running notice with the settled truthful outcome', 
   render(<UiLanguageProvider><CreatorFollowingDetail id="youtube-channel-test" capability={withdrawn} onClose={() => {}} onRefresh={() => {}} /></UiLanguageProvider>);
   fireEvent.click(await screen.findByRole('button', { name: 'Check Now' }));
   await waitFor(() => expect(screen.queryByText('Checking…')).toBeNull());
-  expect(screen.getAllByText('Unable to connect. Your last successful check is preserved.').length).toBeGreaterThan(0);
+  expect(screen.getAllByText('Unable to connect to YouTube. Check your network or VPN and try again.').length).toBeGreaterThan(0);
   expect(screen.queryByText('Continuous creator tracking is currently unavailable')).toBeNull();
 });
 
@@ -260,4 +260,45 @@ test('channel cooldown displays the next eligible retry and preserves a truthful
   expect(screen.getByText('Next eligible check')).toBeTruthy();
   expect(screen.getByText('No, no successful check has completed yet')).toBeTruthy();
   expect(screen.queryByText('Yes')).toBeNull();
+});
+
+for (const language of ["en", "zh-CN"] as const) {
+  test(`YouTube network failure is actionable and Retry preserves input in ${language}`, async () => {
+    localStorage.setItem("yia.ui-language", language);
+    let attempt = 0;
+    const fetch = vi.fn(async (url: string) => {
+      if (url.endsWith("/settings")) return { ok: true, json: async () => ({ youtube: { channel_following: { available: true } } }) };
+      attempt++;
+      return attempt === 1
+        ? { ok: false, json: async () => ({ error: { code: "YOUTUBE_NETWORK_UNAVAILABLE", message: "CONNECT 127.0.0.1:9999 errno Fake-IP socket timeout" } }) }
+        : { ok: true, json: async () => ({ source: {} }) };
+    });
+    vi.stubGlobal("fetch", fetch);
+    const { CreatorFollowForm } = await import("./CreatorFollowing");
+    render(<UiLanguageProvider><CreatorFollowForm provider="YOUTUBE" capability={available} onSaved={() => {}} /></UiLanguageProvider>);
+    const input = screen.getByRole("textbox");
+    fireEvent.change(input, { target: { value: "@NASA" } });
+    fireEvent.click(screen.getByRole("button", { name: language === "en" ? "Follow channel" : "关注频道" }));
+    expect((await screen.findByRole("alert")).textContent).toBe(language === "en"
+      ? "Unable to connect to YouTube. Check your network or VPN and try again."
+      : "无法连接 YouTube。请检查网络或 VPN 后重试。");
+    expect(document.body.textContent).not.toMatch(/127\.0\.0\.1|CONNECT|errno|Fake-IP|socket/);
+    expect((input as HTMLInputElement).value).toBe("@NASA");
+    fireEvent.click(screen.getByRole("button", { name: language === "en" ? "Retry" : "重试" }));
+    await screen.findByText(language === "en" ? "Channel followed. Check Following for its starting point and source health." : "已关注频道，请在关注详情中查看跟踪起点和来源状态。");
+    expect(attempt).toBe(2);
+  });
+}
+
+test("created YouTube source with failed baseline still shows actionable network failure", async () => {
+  localStorage.setItem("yia.ui-language", "en");
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => ({ ok: true, json: async () => url.endsWith("/settings")
+    ? { youtube: { channel_following: { available: true } } }
+    : { source: { tracking: { health: "OFFLINE", baseline_at: null } } } })));
+  const { CreatorFollowForm } = await import("./CreatorFollowing");
+  render(<UiLanguageProvider><CreatorFollowForm provider="YOUTUBE" capability={available} onSaved={() => {}} /></UiLanguageProvider>);
+  fireEvent.change(screen.getByRole("textbox"), { target: { value: "@NASA" } });
+  fireEvent.click(screen.getByRole("button", { name: "Follow channel" }));
+  expect((await screen.findByRole("alert")).textContent).toBe("Unable to connect to YouTube. Check your network or VPN and try again.");
+  expect(screen.queryByText("Yes")).toBeNull();
 });

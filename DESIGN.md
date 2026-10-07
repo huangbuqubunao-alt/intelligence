@@ -104,3 +104,14 @@ Stored Bilibili sources and Content stay readable. Do not offer creator enrollme
 or active checks. Distinguish current capability from last recorded source health.
 Check Now shows its running and settled outcome, cooldown and next eligible check.
 A cooldown timestamp is eligibility, not a promised background schedule.
+
+## Phase 12 automatic YouTube network compatibility
+
+YouTube Following has no network settings or transport selector. Use the current
+macOS network automatically. An offline add/check shows “无法连接 YouTube。请检查
+网络或 VPN 后重试。” / “Unable to connect to YouTube. Check your network or VPN
+and try again.” Keep input and an explicit Retry on add failure; stored offline
+channels offer Retry when eligible. A created source is distinct from a successful
+baseline: show the offline message even when creation succeeded but the initial
+feed check failed. Preserve existing modal/button styles and wrapping at 320px.
+Never render backend socket, proxy or resolver details.

@@ -355,6 +355,11 @@ class FollowingTrackingService:
             with self.repository._connect() as connection:
                 connection.execute("BEGIN IMMEDIATE")
                 connection.execute("UPDATE source_tracking_state SET health=? WHERE source_id=?", (health, source_id))
+                if source.provider == "YOUTUBE" and code == "NETWORK_UNAVAILABLE":
+                    # A failed network attempt is not a successful provider check.
+                    # Permit a bounded user retry after VPN/network changes.
+                    connection.execute("UPDATE source_tracking_state SET next_check_at=? WHERE source_id=?",
+                                       (format_utc_datetime(now + timedelta(seconds=5)), source_id))
                 connection.execute("UPDATE source_checks SET status='FAILED',finished_at=?,result_category=?,discovered_identities_json=? WHERE check_id=?", (format_utc_datetime(self.now()), health, json.dumps(discovered), check_id))
                 connection.execute("UPDATE source_subscriptions SET last_checked_at=?,last_error_code=?,last_error_message=NULL,updated_at=? WHERE source_id=?", (stamp, health, stamp, source_id))
             return health

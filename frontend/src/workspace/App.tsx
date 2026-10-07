@@ -2454,7 +2454,7 @@ function Sources(
                   {source.tracking
                     ? <Status
                         value={source.provider === "BILIBILI" && creatorFollowingWithdrawn ? "CAPABILITY_UNAVAILABLE" : source.tracking?.checking ? "RUNNING" : source.tracking?.health ?? "BASELINE_PENDING"}
-                        label={source.provider === "BILIBILI" && creatorFollowingWithdrawn ? "Continuous creator tracking is currently unavailable" : source.tracking?.checking ? "Checking…" : trackingCopy(source.tracking?.health ?? "BASELINE_PENDING")}
+                        label={source.provider === "BILIBILI" && creatorFollowingWithdrawn ? "Continuous creator tracking is currently unavailable" : source.tracking?.checking ? "Checking…" : trackingCopy(source.tracking?.health ?? "BASELINE_PENDING", source.provider)}
                       />
                     : <Status
                         {...(source.provider === "BILIBILI"
