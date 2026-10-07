@@ -152,4 +152,3 @@ This ensures that you're testing the behavior the user would see in the browser.
       Tests  207 passed (207)
    Start at  23:23:09
    Duration  4.45s (transform 1.11s, setup 0ms, collect 5.15s, tests 8.61s, environment 7.93s, prepare 972ms)
-

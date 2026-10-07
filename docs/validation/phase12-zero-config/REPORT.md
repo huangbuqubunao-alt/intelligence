@@ -45,7 +45,7 @@ merge, push, PR, Phase 13 or Phase 14.
 39. **Deferred P2/P3:** PAC/SOCKS-only discovery, authenticated proxy support, other-OS system proxy discovery and broader acquisition transport are outside this V1 contract. Existing finer parser-error taxonomy/provider availability considerations remain follow-up topics. No advanced network UI or Phase 13/14 started.
 40. **Protected fingerprints after:** [after](protected-after.json) equals before, byte-for-byte combined artifact SHA-256 unchanged; [six-tree equality proof](protected-equality.json). Existing dirt preserved; zero writes to protected trees.
 41. **Final HEAD:** final evidence-seal commit containing this report; exact SHA recorded in the final response and task-owned final-state.json. Final product HEAD `e15a3a3143de72d0dfc20382a9f57ff155ebc0e1`; no product delta follows it.
-42. **Commits:** `16fe53d` hermetic inherited Bilibili tests; `d4d0d8c` automatic routing/alias/feed/UX/tests; `45b3fc5` DNS bounds/truncation; `e15a3a3` accurate cooldown copy; final scoped evidence seal. Final branch clean.
+42. **Commits:** `16fe53d` hermetic inherited Bilibili tests; `d4d0d8c` automatic routing/alias/feed/UX/tests; `45b3fc5` DNS bounds/truncation; `e15a3a3` accurate cooldown copy; `7aa52fd` scoped evidence seal; final documentation whitespace cleanup. Final branch clean.
 43. **Final verdict:** complete, real baselines validated, security boundaries and accepted candidates preserved; final checks supported by external test/browser/API/database/fingerprint evidence.
 44. **Recommended next action:** retain this clean local candidate for the project's adoption decision. No main merge, push, PR or next phase performed. Run an ordinary Check Now after cooldown if later observation is desired.
 
