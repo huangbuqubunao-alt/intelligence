@@ -1,0 +1,72 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_______________________ test_real_feed_shape_enumerates ________________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10b9150a0>
+
+    def test_real_feed_shape_enumerates(monkeypatch):
+        monkeypatch.setattr(
+            "youtube_intel.providers.youtube_channel.public_operation", lambda op: op()
+        )
+        provider = YouTubeFollowingProvider()
+        provider._fetch = lambda channel: RAW
+>       result = provider.enumerate(
+            canonical_channel(CHANNEL), initial=True, next_page=1, known=(), verified_at=None
+        )
+
+tests/integration/test_phase12_live_feed.py:22:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <youtube_intel.providers.youtube_channel.YouTubeFollowingProvider object at 0x10a984620>
+identity = SourceIdentity(provider='YOUTUBE', kind='CHANNEL', channel_id='UCLA_DiR1FfKNvjuUpBHmylQ', source_id='youtube-channel-U...juUpBHmylQ', canonical_url='https://www.youtube.com/channel/UCLA_DiR1FfKNvjuUpBHmylQ', name='UCLA_DiR1FfKNvjuUpBHmylQ')
+initial = True, next_page = 1, known = (), verified_at = None
+
+    def enumerate(self, identity: SourceIdentity, *, initial: bool, next_page: int,
+                  known: tuple[Candidate, ...], verified_at: datetime | None) -> Enumeration:
+        from xml.etree import ElementTree as ET
+        raw = public_operation(lambda: self._fetch(identity.channel_id))
+        if not isinstance(raw, bytes) or not 0 < len(raw) <= MAX_FEED or b'<!DOCTYPE' in raw.upper() or b'<!ENTITY' in raw.upper():
+            raise TrackingError('METADATA_FAILED')
+        try:
+            root = ET.fromstring(raw)
+            ns = {'atom': 'http://www.w3.org/2005/Atom', 'yt': 'http://www.youtube.com/xml/schemas/2015'}
+            if root.tag != '{' + ns['atom'] + '}feed' or root.findtext('yt:channelId', namespaces=ns) != identity.channel_id:
+                raise ValueError()
+            entries = YouTubeRssSourceProvider()._parse_feed(raw, expected_channel_id=identity.channel_id)
+            if len(entries) > MAX_ENTRIES:
+                raise ValueError()
+            items: dict[str, Candidate] = {}
+            for entry in entries:
+                if not VIDEO_ID.fullmatch(entry.video_id):
+                    raise ValueError()
+                item = Candidate(entry.video_id, entry.published_at)
+                if item.identity in items and items[item.identity] != item:
+                    raise ValueError()
+                items[item.identity] = item
+            name = root.findtext('atom:title', namespaces=ns) or identity.name
+            canonical_channel(identity.channel_id, name)
+        except (ValueError, ET.ParseError, AdapterError):
+>           raise TrackingError('METADATA_FAILED') from None
+E           youtube_intel.following_provider.TrackingError: METADATA_FAILED
+
+src/youtube_intel/providers/youtube_channel.py:190: TrackingError
+__________ test_real_feed_shape_establishes_baseline_without_history ___________
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-995/test_real_feed_shape_establish0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10beba960>
+
+    def test_real_feed_shape_establishes_baseline_without_history(tmp_path, monkeypatch):
+        support = _load_module("test_youtube_following")
+        monkeypatch.setattr(support, "CHANNEL", CHANNEL)
+        repo, tracker, fixture, runtime = support.youtube_setup(tmp_path, monkeypatch)
+        tracker.providers["YOUTUBE"]._fetch = lambda channel: RAW
+        source = tracker.follow(CHANNEL, provider="YOUTUBE")
+        state = tracker.projection(source.source_id)
+>       assert state["baseline_at"] is not None
+E       assert None is not None
+
+tests/integration/test_phase12_live_feed.py:36: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_phase12_live_feed.py::test_real_feed_shape_enumerates
+FAILED tests/integration/test_phase12_live_feed.py::test_real_feed_shape_establishes_baseline_without_history
+2 failed in 1.42s

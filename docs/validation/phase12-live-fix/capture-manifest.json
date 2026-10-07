@@ -1,0 +1,132 @@
+{
+  "protected-start.json": {
+    "raw_sha256": "0d6ad649c44aaeaae8eeb1aa48d9b846266c7aa3656e2bd018c1413881653d71",
+    "raw_path": "/tmp/intelligence-phase12-live-fix/protected-start.json",
+    "committed_sha256": "0d6ad649c44aaeaae8eeb1aa48d9b846266c7aa3656e2bd018c1413881653d71"
+  },
+  "pre-fix-state.json": {
+    "raw_sha256": "5b5b7c215cc15b42a5bc2dd43f4f4bd9de00ce54749b447be64e0ed3bfe79161",
+    "raw_path": "/tmp/intelligence-phase12-live-fix/pre-fix-state.json",
+    "committed_sha256": "5b5b7c215cc15b42a5bc2dd43f4f4bd9de00ce54749b447be64e0ed3bfe79161"
+  },
+  "pre-fix-tests.txt": {
+    "raw_sha256": "73c81d2cf27c291a44a7819366e67a19eea27586f734330e6faa803d21eb9541",
+    "raw_path": "/tmp/intelligence-phase12-live-fix/pre-fix-tests.txt",
+    "committed_sha256": "ab48a2b4b05f79eaf120ff9c3d900ec8fcd2a329917b7150dff56ce130b147aa"
+  },
+  "focused-live.txt": {
+    "raw_sha256": "b98ab55bf24da41f5efd5d8540afb7baaa8bd5acc8a0bc118995dd113a7a2d68",
+    "raw_path": "/tmp/intelligence-phase12-live-fix/focused-live.txt",
+    "committed_sha256": "b98ab55bf24da41f5efd5d8540afb7baaa8bd5acc8a0bc118995dd113a7a2d68"
+  },
+  "phase12-focused.txt": {
+    "raw_sha256": "778b5e38eecff893638c9bd5bf3a51922f55a2bbc0a849b09bb4852da02b82b9",
+    "raw_path": "/tmp/intelligence-phase12-live-fix/phase12-focused.txt",
+    "committed_sha256": "778b5e38eecff893638c9bd5bf3a51922f55a2bbc0a849b09bb4852da02b82b9"
+  },
+  "phase11r1-authority.txt": {
+    "raw_sha256": "14fbdd37dde18babd134cfe19f6e134d419ba14cc9f4b759e854d16d2b347928",
+    "raw_path": "/tmp/intelligence-phase12-live-fix/phase11r1-authority.txt",
+    "committed_sha256": "14fbdd37dde18babd134cfe19f6e134d419ba14cc9f4b759e854d16d2b347928"
+  },
+  "named-regressions.txt": {
+    "raw_sha256": "5b37a8d8661c3dbf799f77475c2c5efd835bdd1dc4b8d4b0d20c60ab0493f063",
+    "raw_path": "/tmp/intelligence-phase12-live-fix/named-regressions.txt",
+    "committed_sha256": "5b37a8d8661c3dbf799f77475c2c5efd835bdd1dc4b8d4b0d20c60ab0493f063"
+  },
+  "frontend-tests.txt": {
+    "raw_sha256": "e1090ef21ebb06d9ece99a1c48bac2deaf1866bbf882c68fa12f0bdb139dcbab",
+    "raw_path": "/tmp/intelligence-phase12-live-fix/frontend-tests.txt",
+    "committed_sha256": "e076837f1babee9fd00b6b72340571fac6d04810b156595146083774989d57fd"
+  },
+  "frontend-typecheck.txt": {
+    "raw_sha256": "0073b777d6b85b5e4d2ac79b723aeebbde034ccb34fcc14bd2f0666746071629",
+    "raw_path": "/tmp/intelligence-phase12-live-fix/frontend-typecheck.txt",
+    "committed_sha256": "c622f9726fb50c3dff1164e20824b72f67492778bed5cae2055914dfe2ffc1f5"
+  },
+  "frontend-build.txt": {
+    "raw_sha256": "205df7d930d28a846decdbf6b03b8c6f6d49e08c328ee7071b3ec5628e3fe65f",
+    "raw_path": "/tmp/intelligence-phase12-live-fix/frontend-build.txt",
+    "committed_sha256": "205df7d930d28a846decdbf6b03b8c6f6d49e08c328ee7071b3ec5628e3fe65f"
+  },
+  "ruff-repository.txt": {
+    "raw_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    "raw_path": "/tmp/intelligence-phase12-live-fix/ruff-repository.txt",
+    "committed_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+  },
+  "mypy-final.txt": {
+    "raw_sha256": "6831fc6cc3fadc3ffb75f82f00a6f72a83dc9b745693986c191a5c8f9ff31bd6",
+    "raw_path": "/tmp/intelligence-phase12-live-fix/mypy-final.txt",
+    "committed_sha256": "6831fc6cc3fadc3ffb75f82f00a6f72a83dc9b745693986c191a5c8f9ff31bd6"
+  },
+  "database-restore.json": {
+    "raw_sha256": "1a3b46d55a31bfb8fb9216c8919e17a8c2a8d9cdd96539ee2ac3a87f9b22989d",
+    "raw_path": "/tmp/intelligence-phase12-live-fix/database-restore.json",
+    "committed_sha256": "1a3b46d55a31bfb8fb9216c8919e17a8c2a8d9cdd96539ee2ac3a87f9b22989d"
+  },
+  "database-failure-restore.json": {
+    "raw_sha256": "aab464da0eae0419a799d04df2a9b9933924490da4a5d1495c96757a186a7b00",
+    "raw_path": "/tmp/intelligence-phase12-live-fix/database-failure-restore.json",
+    "committed_sha256": "aab464da0eae0419a799d04df2a9b9933924490da4a5d1495c96757a186a7b00"
+  },
+  "database-extra.json": {
+    "raw_sha256": "72167a0a32c692fd15493ec65f585842d2d1b9aeb983a17522c11b4ed7fe12f7",
+    "raw_path": "/tmp/intelligence-phase12-live-fix/database-extra.json",
+    "committed_sha256": "72167a0a32c692fd15493ec65f585842d2d1b9aeb983a17522c11b4ed7fe12f7"
+  },
+  "realistic-run-backup.json": {
+    "raw_sha256": "6493768a83d61af291f95429607fed1befba19bb3e4459c70246b648773d7f23",
+    "raw_path": "/tmp/intelligence-phase12-live-fix/realistic-run-backup.json",
+    "committed_sha256": "6493768a83d61af291f95429607fed1befba19bb3e4459c70246b648773d7f23"
+  },
+  "browser-smoke.json": {
+    "raw_sha256": "e8991d7895cdc7350568423a213b527f8e9a16754e79592ba288692b7e1af761",
+    "raw_path": "/tmp/intelligence-phase12-live-fix/browser-smoke.json",
+    "committed_sha256": "e8991d7895cdc7350568423a213b527f8e9a16754e79592ba288692b7e1af761"
+  },
+  "browser-checks.json": {
+    "raw_sha256": "870b925de5a8222a788d755e5ec7861a1af27523fc6ff053831a9d943c6b1537",
+    "raw_path": "/tmp/intelligence-phase12-live-fix/browser-checks.json",
+    "committed_sha256": "870b925de5a8222a788d755e5ec7861a1af27523fc6ff053831a9d943c6b1537"
+  },
+  "browser-320.png": {
+    "raw_sha256": "dcb21b204ebf932b4d63b4f026c63116d675224f280f89b0c33761ca5ed92c48",
+    "raw_path": "/tmp/intelligence-phase12-live-fix/browser-320.png",
+    "committed_sha256": "dcb21b204ebf932b4d63b4f026c63116d675224f280f89b0c33761ca5ed92c48"
+  },
+  "full-backend.txt": {
+    "raw_path": "/tmp/intelligence-phase12-live-fix/full-backend.txt",
+    "raw_sha256": "6ec96833ef050d9135ca0318ba7af769e6ae95b63a47a1ee2e6fb069c7e2ef1e",
+    "committed_sha256": "6ec96833ef050d9135ca0318ba7af769e6ae95b63a47a1ee2e6fb069c7e2ef1e"
+  },
+  "post-review-retest.txt": {
+    "raw_path": "/tmp/intelligence-phase12-live-fix/post-review-retest.txt",
+    "raw_sha256": "398a7880a0632555ab37126eb2fed90c5f080f118c66d00cd63e79b55be5b029",
+    "committed_sha256": "398a7880a0632555ab37126eb2fed90c5f080f118c66d00cd63e79b55be5b029"
+  },
+  "ruff-final-repository.txt": {
+    "raw_path": "/tmp/intelligence-phase12-live-fix/ruff-final-repository.txt",
+    "raw_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    "committed_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+  },
+  "mypy-fresh.txt": {
+    "raw_path": "/tmp/intelligence-phase12-live-fix/mypy-fresh.txt",
+    "raw_sha256": "6831fc6cc3fadc3ffb75f82f00a6f72a83dc9b745693986c191a5c8f9ff31bd6",
+    "committed_sha256": "6831fc6cc3fadc3ffb75f82f00a6f72a83dc9b745693986c191a5c8f9ff31bd6"
+  },
+  "live-public-youtube.json": {
+    "raw_path": "/tmp/intelligence-phase12-live-fix/live-public-youtube.json",
+    "raw_sha256": "41d40f7a2532d38abe504aaa696eb729eb02ae7d3f6236fde9bebc38190059d7",
+    "committed_sha256": "41d40f7a2532d38abe504aaa696eb729eb02ae7d3f6236fde9bebc38190059d7"
+  },
+  "live-product-feed-diagnostic.json": {
+    "raw_path": "/tmp/intelligence-phase12-live-fix/live-product-feed-diagnostic.json",
+    "raw_sha256": "c27b78fecb554588e34429c25160b308fce57b1b859238e586d7541961fbd49c",
+    "committed_sha256": "c27b78fecb554588e34429c25160b308fce57b1b859238e586d7541961fbd49c"
+  },
+  "final-retest.txt": {
+    "raw_path": "/tmp/intelligence-phase12-live-fix/final-retest.txt",
+    "raw_sha256": "ba975e0f691310a2f7828ee40ac848244b5c4c7f5d3baab68d3223a7520188b8",
+    "committed_sha256": "ba975e0f691310a2f7828ee40ac848244b5c4c7f5d3baab68d3223a7520188b8"
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "candidate": "d0679d50b3a7a0f2e8a3006fdab8ccc268614a18",
+  "exceptions": [
+    {
+      "exception": "ValueError",
+      "message": "",
+      "file": "/Users/hua/Documents/yia-worktrees/phase12-live-fix/src/youtube_intel/providers/youtube_channel.py",
+      "line": 175
+    },
+    {
+      "exception": "TrackingError",
+      "message": "METADATA_FAILED",
+      "file": "/Users/hua/Documents/yia-worktrees/phase12-live-fix/src/youtube_intel/providers/youtube_channel.py",
+      "line": 190
+    }
+  ],
+  "code": "METADATA_FAILED",
+  "source_exists": true,
+  "tracking": {
+    "source_id": "youtube-channel-UCLA_DiR1FfKNvjuUpBHmylQ",
+    "contract": "source-tracking-v1",
+    "followed_at": "2026-10-04T00:00:00.000000Z",
+    "baseline_at": null,
+    "verified_at": null,
+    "latest_published_at": null,
+    "next_page": 1,
+    "coverage": "BASELINE_PENDING",
+    "health": "PROVIDER_ERROR",
+    "next_check_at": "2026-10-04T00:15:00.000000Z"
+  },
+  "observations": [],
+  "checks": [
+    {
+      "check_id": "d7a1df6c-1dd9-487e-bde9-19a919300374",
+      "source_id": "youtube-channel-UCLA_DiR1FfKNvjuUpBHmylQ",
+      "started_at": "2026-10-04T00:00:00.000000Z",
+      "finished_at": "2026-10-04T00:00:00.000000Z",
+      "status": "FAILED",
+      "result_category": "PROVIDER_ERROR",
+      "discovered_identities_json": "[]",
+      "complete": 0
+    }
+  ],
+  "content_count": 0,
+  "last_success_at": null
+}

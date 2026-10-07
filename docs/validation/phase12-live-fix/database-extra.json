@@ -1,0 +1,49 @@
+{
+  "schema": 34,
+  "issues": {
+    "duplicate_channels": [],
+    "duplicate_content": [],
+    "orphan_observations": [],
+    "orphan_enrollments": [],
+    "active_checks": [],
+    "active_runs": [],
+    "false_baseline": []
+  },
+  "observations": [
+    {
+      "source_id": "youtube-channel-UCLA_DiR1FfKNvjuUpBHmylQ",
+      "canonical_identity": "oldvideo001",
+      "published_at": "2026-09-24T00:00:00.000000Z",
+      "observed_at": "2026-10-04T00:00:00.000000Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UCLA_DiR1FfKNvjuUpBHmylQ",
+      "canonical_identity": "newvideo001",
+      "published_at": "2026-10-04T01:00:01.000000Z",
+      "observed_at": "2026-10-04T02:00:00.000000Z",
+      "baseline": 0,
+      "enrollment": "ENROLLED",
+      "content_id": "newvideo001",
+      "error_code": null
+    }
+  ],
+  "tracking": [
+    {
+      "source_id": "youtube-channel-UCLA_DiR1FfKNvjuUpBHmylQ",
+      "contract": "source-tracking-v1",
+      "followed_at": "2026-10-04T00:00:00.000000Z",
+      "baseline_at": "2026-10-04T00:00:00.000000Z",
+      "verified_at": "2026-10-04T04:00:00.000000Z",
+      "latest_published_at": "2026-10-04T01:00:01.000000Z",
+      "next_page": 1,
+      "coverage": "COMPLETE",
+      "health": "HEALTHY",
+      "next_check_at": "2026-10-04T04:15:00.000000Z"
+    }
+  ],
+  "content_count": 1
+}

@@ -1,0 +1,47 @@
+{
+  "attempts": [
+    {
+      "kind": "REAL",
+      "input": "@NASA",
+      "started_at": "2026-10-07T13:34:27.344451+00:00",
+      "status": 503,
+      "result": {
+        "error": {
+          "code": "YOUTUBE_NETWORK_UNAVAILABLE",
+          "message": "The public source could not be followed."
+        }
+      }
+    },
+    {
+      "kind": "REAL",
+      "input": "@GoogleDevelopers",
+      "started_at": "2026-10-07T13:34:47.465132+00:00",
+      "status": 503,
+      "result": {
+        "error": {
+          "code": "YOUTUBE_NETWORK_UNAVAILABLE",
+          "message": "The public source could not be followed."
+        }
+      }
+    }
+  ],
+  "database_health": {
+    "quick_check": [
+      [
+        "ok"
+      ]
+    ],
+    "integrity_check": [
+      [
+        "ok"
+      ]
+    ],
+    "foreign_key_check": []
+  },
+  "backup_created": true,
+  "historical_content_count": 0,
+  "cookies": false,
+  "login": false,
+  "models": false,
+  "real_success_claimed": false
+}

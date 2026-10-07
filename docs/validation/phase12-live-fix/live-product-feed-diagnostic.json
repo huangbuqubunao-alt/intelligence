@@ -1,0 +1,29 @@
+{
+  "kind": "REAL production-feed transport diagnostic; not a source baseline pass",
+  "attempts": [
+    {
+      "channel_id": "UCLA_DiR1FfKNvjuUpBHmylQ",
+      "started_at": "2026-10-07T13:35:41.251674+00:00",
+      "transport": "unchanged YouTubeFollowingProvider default _feed / pinned direct HTTPS",
+      "diagnostic_only": true,
+      "source_or_baseline_created": false,
+      "success": false,
+      "error_code": "NETWORK_UNAVAILABLE",
+      "elapsed_seconds": 10.029
+    },
+    {
+      "channel_id": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
+      "started_at": "2026-10-07T13:35:51.281218+00:00",
+      "transport": "unchanged YouTubeFollowingProvider default _feed / pinned direct HTTPS",
+      "diagnostic_only": true,
+      "source_or_baseline_created": false,
+      "success": false,
+      "error_code": "NETWORK_UNAVAILABLE",
+      "elapsed_seconds": 10.016
+    }
+  ],
+  "proxy_override": false,
+  "cookies": false,
+  "login": false,
+  "bytes_injected": false
+}

@@ -1,0 +1,23 @@
+{
+  "exact_equality": true,
+  "worktrees": [
+    "/Users/hua/Documents/yia-worktrees/v1x-youtube-following",
+    "/Users/hua/Documents/yia-worktrees/v1x-youtube-following-resume",
+    "/Users/hua/Documents/yia-worktrees/phase12-live-validation",
+    "/Users/hua/Documents/yia-worktrees/m13-dogfood"
+  ],
+  "compared_fields": [
+    "path",
+    "branch",
+    "head",
+    "status",
+    "tracked_diff_sha256",
+    "cached_diff_sha256",
+    "index_sha256",
+    "untracked_paths",
+    "untracked_sha256"
+  ],
+  "original_start_json_sha256": "0d6ad649c44aaeaae8eeb1aa48d9b846266c7aa3656e2bd018c1413881653d71",
+  "start_and_final_artifact_bytes_identical": true,
+  "artifact_sha256": "0d6ad649c44aaeaae8eeb1aa48d9b846266c7aa3656e2bd018c1413881653d71"
+}

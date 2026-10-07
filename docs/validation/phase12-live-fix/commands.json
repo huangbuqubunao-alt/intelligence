@@ -1,0 +1,47 @@
+{
+  "commands": {
+    "new_regressions": "PYTHONPATH=src /Users/hua/youtube-intel/.venv/bin/python -m pytest -q tests/integration/test_phase12_live_feed.py",
+    "phase12_focused": "Same Python -m pytest -q: test_phase12_live_feed, test_youtube_following, test_phase12_resume_acceptance, test_discovery, test_discovery_adapter, test_backup_restore, test_creator_following",
+    "phase11r1_authority": "Same Python -m pytest -q: test_phase11r_source_run_quiescence, test_phase12_resume_acceptance, test_bilibili_provider, test_acoustic_remediation, test_acoustic_qualification, test_bilibili_content, test_task019_trusted_intelligence_read, test_task023_topic_timeline",
+    "integrated_named": "Same Python -m pytest -q with all 39 paths in docs/validation/phase12-resume/named-regression-files.json",
+    "full_backend": "PYTHONPATH=src /Users/hua/youtube-intel/.venv/bin/python -m pytest -q (one full run)",
+    "frontend": [
+      "npm test -- --run",
+      "npm run typecheck (tsc -b --pretty false)",
+      "npm run build (tsc -b && vite build)"
+    ],
+    "static": [
+      "PYTHONPATH=src same Python -m ruff check .",
+      "PYTHONPATH=src same Python -m mypy --strict src",
+      "same Python -m compileall -q src tests scripts",
+      "git diff --check"
+    ],
+    "database": "Same Python scripts/validate_phase12_resume_database.py .var/phase12/<isolated-root> --restore; supplemental duplicate/channel/observation/enrollment audit",
+    "live": "PYTHONPATH=src same Python scripts/validate_phase12_public_youtube.py (unchanged actual default provider/transport)"
+  },
+  "dependency_use": "Read existing installed Python environment and copy existing frontend dependency bytes into ignored remediation node_modules. No install/update or lockfile/toolchain change.",
+  "harness_setup_corrections": [
+    {
+      "command": "Copy frontend dependencies from frontend cwd",
+      "error": "cp: frontend/node_modules: No such file or directory",
+      "fix": "Use node_modules relative to the actual frontend cwd."
+    },
+    {
+      "command": "Standalone replay setup with relative root",
+      "file": "src/youtube_intel/config.py:807",
+      "error": "vault_root must be an absolute path",
+      "fix": "Use a new isolated absolute Path.resolve() root."
+    },
+    {
+      "command": "Supplemental SQLite duplicate channel audit",
+      "error": "sqlite3.OperationalError: no such column: is_tracked",
+      "fix": "Join source_tracking_state to select tracked sources; is_tracked is a domain property, not a schema column."
+    },
+    {
+      "command": "Construct fixture runtime on already populated root",
+      "file": "tests/integration/test_runtime_composition.py:340",
+      "error": "FileExistsError: config directory exists",
+      "fix": "Use a fresh isolated run-drill root; preserve the populated restore DB."
+    }
+  ]
+}

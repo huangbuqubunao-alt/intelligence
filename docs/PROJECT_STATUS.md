@@ -1,5 +1,22 @@
 # YouTube Intelligence Agent 项目状态
 
+2026-10-07 Phase 12 live P0 remediation supersedes the earlier local completion
+claim below. Independent real YouTube validation rejected `d0679d50` because
+feed-level Atom channel IDs omit `UC`, while canonical source and entry IDs
+retain it. That candidate is not an accepted Phase 12 final baseline and must
+not be adopted on main. The isolated `codex/phase12-live-fix` candidate corrects
+only this identity representation comparison, retaining strict membership,
+schema 34 and network/security boundaries. See the remediation task and
+`validation/phase12-live-fix/` for deterministic and live gate evidence.
+Phase 13/14 and main adoption remain frozen pending independent revalidation.
+Remediation validation: 67 new regressions, 231 focused, 192 Phase 11R.1,
+744 integrated and 3,717 full-backend tests passed; frontend 204/typecheck/build,
+static and schema-34 integrity/restore checks passed. Both real product-path
+channel attempts and both default pinned-feed diagnostics were network-blocked;
+no real baseline/frontier was fabricated. The new candidate is ready for
+independent live revalidation, not online-qualified. Protected-worktree
+fingerprints match exactly. See `validation/phase12-live-fix/REPORT.md`.
+
 2026-10-07 Phase 12 本地完成：`codex/phase12-resume` 保留暂停工作并语义整合
 已在线验收的 Phase 11R.1 `8ebdf282`，schema 34 不变。统一 Following 与公开
 YouTube 频道跟踪的确定性、前后端、浏览器、重启及离线 Backup/Restore 门禁通过，
