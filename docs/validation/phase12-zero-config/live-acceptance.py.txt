@@ -1,0 +1,91 @@
+"""Bounded REAL product API acceptance, isolated persistent data, no network setup."""
+import argparse
+import json
+from datetime import UTC, datetime
+from pathlib import Path
+
+from youtube_intel.backup_restore import BackupRestoreService
+from youtube_intel.bilibili_content import BilibiliContentProvider
+from youtube_intel.following_tracking import FollowingTrackingService
+from youtube_intel.local_api import ApiError, LocalApiApplication
+from youtube_intel.orchestration_service import ProductOrchestrationService
+from youtube_intel.providers.youtube_channel import YouTubeFollowingProvider
+from youtube_intel.providers.youtube_network import _current_proxy
+from youtube_intel.state import SQLiteStateRepository
+
+
+def compose(root):
+    repo = SQLiteStateRepository(root / 'state.sqlite')
+    repo.initialize(now=datetime.now(UTC))
+    data = root / 'data'
+    data.mkdir(exist_ok=True)
+    tracker = FollowingTrackingService(repo, BilibiliContentProvider(repo, data), youtube=YouTubeFollowingProvider())
+    backup = BackupRestoreService(database=root / 'state.sqlite', data_root=data)
+    app = LocalApiApplication(repo, ProductOrchestrationService(repo, source_tracking=tracker), source_tracking=tracker, data_root=data, backup_restore_service=backup)
+    return repo, tracker, app, backup
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--restart', action='store_true')
+    args = parser.parse_args()
+    evidence = Path('/Users/hua/Documents/phase12-zero-config-evidence')
+    root = Path('.var/phase12/zero-config-live').resolve()
+    assert root.is_relative_to(Path.cwd().resolve() / '.var/phase12')
+    root.mkdir(parents=True, exist_ok=True)
+    repo, tracker, app, backup = compose(root)
+    if args.restart:
+        before = json.loads((evidence / 'real-youtube.json').read_text())
+        results = []
+        for attempt in before['attempts']:
+            if 'source_detail' not in attempt:
+                continue
+            source_id = attempt['source_detail']['source']['source_id']
+            _, detail = app.handle('GET', '/api/v1/sources/' + source_id)
+            assert detail['source'] == attempt['source_detail']['source']
+            results.append({'source_id': source_id, 'complete_source_authority_equal': True, 'tracking': detail['source']['tracking']})
+        assert len(repo.list_videos()) == before['historical_content_count'] == 0
+        output = {'kind': 'REAL_FRESH_PROCESS_RESTART', 'results': results, 'historical_content_count': 0}
+        (evidence / 'real-restart.json').write_text(json.dumps(output, indent=2))
+        print(json.dumps(output, indent=2))
+        return
+    proxy = _current_proxy()
+    output = {'kind': 'REAL', 'network': {'platform': 'macOS', 'authority': 'SystemConfiguration', 'system_https_proxy_enabled': proxy is not None, 'route_kind': 'SYSTEM_NETWORK' if proxy is not None else 'DIRECT', 'manual_configuration': False}, 'attempts': [], 'cookies': False, 'login': False, 'models': False}
+    for handle in ('@NASA', '@GoogleDevelopers'):
+        attempt = {'handle': handle, 'started_at': datetime.now(UTC).isoformat()}
+        try:
+            status, result = app.handle('POST', '/api/v1/sources/channels', json.dumps({'input': handle}).encode())
+        except ApiError as error:
+            status, result = error.status, {'error': {'code': error.code}}
+        attempt.update(status=int(status), result=result)
+        if status == 200:
+            source_id = result['source']['source_id']
+            _, detail = app.handle('GET', '/api/v1/sources/' + source_id)
+            attempt['source_detail'] = detail
+            attempt['canonical_channel_id'] = detail['source']['channel_id']
+            attempt['baseline_succeeded'] = bool(detail['source']['tracking']['baseline_at']) and detail['source']['tracking']['health'] == 'HEALTHY'
+            # Honor the existing production eligibility time; do not override it.
+            state = tracker.projection(source_id)
+            if datetime.fromisoformat(state['next_check_at'].replace('Z', '+00:00')) <= datetime.now(UTC):
+                attempt['second_check'] = app.handle('POST', '/api/v1/sources/' + source_id + '/check', b'{"command_id":"bounded-real-second"}')[1]
+            else:
+                attempt['second_check'] = 'NOT_ELIGIBLE_COOLDOWN_PRESERVED'
+        output['attempts'].append(attempt)
+        (evidence / 'real-youtube.json').write_text(json.dumps(output, indent=2, default=str))
+        if any(code in result.get('error', {}).get('code', '') for code in ('RATE_LIMITED', 'ACCESS_DENIED', 'RISK_CONTROLLED')):
+            break
+    with repo._connect() as connection:
+        output['schema'] = connection.execute('PRAGMA user_version').fetchone()[0]
+        output['database_health'] = {name: [list(row) for row in connection.execute('PRAGMA ' + name)] for name in ('quick_check', 'integrity_check', 'foreign_key_check')}
+        output['active_checks'] = connection.execute("SELECT count(*) FROM source_checks WHERE status='RUNNING'").fetchone()[0]
+        output['observations'] = [dict(row) for row in connection.execute('SELECT * FROM source_observations ORDER BY source_id,canonical_identity')]
+    output['historical_content_count'] = len(repo.list_videos())
+    assert output['historical_content_count'] == 0 and output['active_checks'] == 0 and output['schema'] == 34
+    output['backup_ready'] = backup.readiness()['ready']
+    assert output['backup_ready']
+    (evidence / 'real-youtube.json').write_text(json.dumps(output, indent=2, default=str))
+    print(json.dumps({'attempts': [{key: value for key, value in attempt.items() if key not in ('result', 'source_detail')} for attempt in output['attempts']], 'network': output['network'], 'schema': output['schema'], 'historical_content_count': output['historical_content_count']}, indent=2))
+
+
+if __name__ == '__main__':
+    main()

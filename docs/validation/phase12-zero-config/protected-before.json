@@ -1,0 +1,38 @@
+{
+  "v1x-youtube-following": {
+    "sha256": "692ee70645c73e90107440f08c3d5c96439d9f2bb3c5dc4d2c29d60bc37386dc",
+    "files": 5985,
+    "head": "4d0cb5e5de450272cb5653fe4988dc393b98e4c2",
+    "status": " M DESIGN.md\n M frontend/src/workspace/DESIGN.md\n?? docs/decisions/V1X-PHASE12-UNIFIED-CONTINUOUS-FOLLOWING.md\n?? docs/validation/phase12/\n?? tasks/V1X-PHASE12.md\n"
+  },
+  "v1x-youtube-following-resume": {
+    "sha256": "1c6d68dfc5b262dba6074ccbfa3d857373f8c7d8ba17f05bac70aa6a9579abfc",
+    "files": 5666,
+    "head": "d0679d50b3a7a0f2e8a3006fdab8ccc268614a18",
+    "status": ""
+  },
+  "phase12-live-fix": {
+    "sha256": "49d91a539ff8614a303e8ab868c25ba75fe6f4448d7e5485c3a7090db7d3ea97",
+    "files": 5556,
+    "head": "ab591a250f818059cb027314b87173e56c097e2a",
+    "status": ""
+  },
+  "phase12-live-validation": {
+    "sha256": "796b052b46e0d4e9b4910575ed985f1a2f63b0f3f428b3b1a621b2d8d87b0bb9",
+    "files": 1511,
+    "head": "d0679d50b3a7a0f2e8a3006fdab8ccc268614a18",
+    "status": ""
+  },
+  "phase12-fixed-candidate-validation": {
+    "sha256": "f6151fd6a115b0a474d03d5d727675562a73a28af4d97d4f71c75de90116fbf4",
+    "files": 1572,
+    "head": "ab591a250f818059cb027314b87173e56c097e2a",
+    "status": ""
+  },
+  "m13-dogfood": {
+    "sha256": "87d83160b8ee4c979fe81a8b8b7a8e52f16d2d19ad87f33552c91bf31b25dcaa",
+    "files": 31162,
+    "head": "e228294f705401b0200439076c3378b78f9c9d84",
+    "status": " M docs/M13_7_DAY_DOGFOOD.md\n M frontend/m13-preday2.e2e.mjs\n M frontend/src/workspace/App.test.tsx\n M frontend/src/workspace/App.tsx\n M frontend/src/workspace/styles.css\n M frontend/src/workspace/uiLanguage.tsx\n M src/youtube_intel/backup_restore.py\n M src/youtube_intel/local_api.py\n M src/youtube_intel/runtime.py\n M src/youtube_intel/runtime_composition.py\n M src/youtube_intel/state.py\n M tests/integration/test_deep_analysis_persistence.py\n M tests/integration/test_provider_dispatch_crash_recovery.py\n M tests/integration/test_state_store.py\n M tests/integration/test_task016c_phase_h2c_lineage_schema.py\n M tests/integration/test_task018_domain_persistence.py\n M tests/integration/test_task018a_claim_classification.py\n M tests/integration/test_task018b_timed_evidence.py\n M tests/integration/test_task020_preference_feedback.py\n M tests/integration/test_task021_source_policy_filtering.py\n M tests/integration/test_task022_personalized_distillation.py\n M tests/integration/test_task022b_verified_outbound_input.py\n M tests/integration/test_task023_topic_timeline.py\n M tests/integration/test_task023a_source_run_persistence.py\n M tests/integration/test_task023b_distillation_reservation.py\n M tests/integration/test_task024_processing_orchestration.py\n M tests/integration/test_task025_weekly_foundation.py\n M tests/integration/test_task025a_saved_intelligence.py\n M tests/unit/test_backup_restore.py\n M tests/unit/test_evidence_translation.py\n?? frontend/m13-day2-settings.e2e.mjs\n?? frontend/node_modules\n?? src/youtube_intel/migrations/029_add_v1_model_configuration.sql\n?? src/youtube_intel/model_configuration.py\n?? tests/unit/test_model_configuration.py\n"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "kind": "DETERMINISTIC_UI_WITH_REAL_LOCAL_API_RETRY",
+  "results": [
+    {
+      "language": "zh-CN",
+      "width": 320,
+      "retry": true,
+      "overflow": false,
+      "unexpectedErrors": []
+    },
+    {
+      "language": "zh-CN",
+      "width": 1440,
+      "retry": true,
+      "overflow": false,
+      "unexpectedErrors": []
+    },
+    {
+      "language": "en",
+      "width": 320,
+      "retry": true,
+      "overflow": false,
+      "unexpectedErrors": []
+    },
+    {
+      "language": "en",
+      "width": 1440,
+      "retry": true,
+      "overflow": false,
+      "unexpectedErrors": []
+    }
+  ]
+}

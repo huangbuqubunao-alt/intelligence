@@ -1,0 +1,23 @@
+import json,os,subprocess,sys,time
+from pathlib import Path
+p=Path('/Users/hua/Documents/phase12-zero-config-evidence')
+python='/Users/hua/youtube-intel/.venv/bin/python'
+suites=[('phase12',['tests/integration/test_phase12_live_feed.py','tests/integration/test_youtube_following.py','tests/integration/test_phase12_resume_acceptance.py','tests/unit/test_discovery.py','tests/integration/test_discovery_adapter.py','tests/unit/test_backup_restore.py','tests/integration/test_creator_following.py']),('parser',['tests/integration/test_phase12_live_feed.py']),('phase11r1',['tests/integration/test_phase11r_source_run_quiescence.py','tests/integration/test_phase12_resume_acceptance.py','tests/unit/test_bilibili_provider.py','tests/unit/test_acoustic_remediation.py','tests/unit/test_acoustic_qualification.py','tests/integration/test_bilibili_content.py','tests/integration/test_task019_trusted_intelligence_read.py','tests/integration/test_task023_topic_timeline.py']),('manual-youtube',['tests/integration/test_runtime_composition.py','tests/integration/test_verified_timed_transcript.py','tests/integration/test_subtitle_provider.py','tests/integration/test_discovery_adapter.py']),('local',['tests/integration/test_local_content_provider.py','tests/integration/test_local_content_adversarial.py']),('bilibili-manual',['tests/integration/test_bilibili_content.py','tests/integration/test_bilibili_three_provider.py','tests/unit/test_bilibili_provider.py']),('backup',['tests/unit/test_backup_restore.py','tests/integration/test_research_backup_restore.py','tests/integration/test_v1x_phase1b_backup_restore.py']),('integrated',json.loads(Path('docs/validation/phase12-resume/named-regression-files.json').read_text()))]
+# Resolve historical suite display names to exact present files, never skip a check.
+all_files=list(Path('tests').rglob('test_*.py'))
+for name,files in suites:
+ for i,f in enumerate(files):
+  if not Path(f).exists():
+   matches=[q for q in all_files if q.name==Path(f).name]
+   if len(matches)!=1: raise RuntimeError(f'No unique suite path: {f}')
+   files[i]=str(matches[0])
+results=[]
+for name,files in suites:
+ command=[python,'-m','pytest','-q',*files]
+ start=time.monotonic()
+ with (p/(name+'.txt')).open('w') as log:
+  result=subprocess.run(command,env={**os.environ,'PYTHONPATH':'src'},stdout=log,stderr=subprocess.STDOUT)
+ entry={'suite':name,'command':command,'exit_code':result.returncode,'seconds':round(time.monotonic()-start,2)}
+ results.append(entry);(p/'regressions.json').write_text(json.dumps(results,indent=2))
+ print(json.dumps(entry),flush=True)
+ if result.returncode: sys.exit(result.returncode)

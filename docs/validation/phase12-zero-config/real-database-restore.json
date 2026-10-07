@@ -1,0 +1,524 @@
+{
+  "kind": "FIXTURE/REPLAY",
+  "before": {
+    "schema": 34,
+    "pragmas": {
+      "quick_check": [
+        [
+          "ok"
+        ]
+      ],
+      "integrity_check": [
+        [
+          "ok"
+        ]
+      ],
+      "foreign_key_check": []
+    },
+    "issues": {
+      "duplicate_sources": [],
+      "duplicate_content": [],
+      "orphan_links": [],
+      "orphan_checks": [],
+      "orphan_runs": [],
+      "false_baseline_success": [],
+      "active_checks": [],
+      "active_runs": []
+    },
+    "tracked_sources": [
+      "youtube-channel-UCLA_DiR1FfKNvjuUpBHmylQ",
+      "youtube-channel-UC_x5XG1OV2P6uZZ5FSM9Ttw"
+    ],
+    "source_states": [
+      {
+        "source_id": "youtube-channel-UCLA_DiR1FfKNvjuUpBHmylQ",
+        "provider": "YOUTUBE",
+        "enabled": 1,
+        "baseline_at": "2026-10-07T15:25:27.463721Z",
+        "verified_at": "2026-10-07T15:25:27.463721Z",
+        "health": "HEALTHY"
+      },
+      {
+        "source_id": "youtube-channel-UC_x5XG1OV2P6uZZ5FSM9Ttw",
+        "provider": "YOUTUBE",
+        "enabled": 1,
+        "baseline_at": "2026-10-07T15:25:33.041552Z",
+        "verified_at": "2026-10-07T15:25:33.041552Z",
+        "health": "HEALTHY"
+      }
+    ],
+    "table_sha256": {
+      "artifacts": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "automation_runs": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "automation_schedules": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "brief_item_evidence": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "brief_item_markers": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "brief_items": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "channel_cursors": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "content_source_snapshots": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "current_content_summaries": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "deep_analysis_evidence": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "deep_analysis_persisted_results": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "dependency_edges": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_cards": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_cloud_authorizations": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_cloud_response_failures": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_execution_checkpoints": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_moonshot_cloud_authorizations": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_moonshot_unidentified_http_responses": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_no_new_intelligence_results": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_openai_cloud_authorizations": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_openai_unidentified_http_responses": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_resource_usage": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_unidentified_http_responses": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "evidence": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "evidence_source_ranges": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "evidence_text_bindings": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "evidence_translation_presentations": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "feedback_events": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "global_model_preferences": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "global_user_settings": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "intelligence_revision_evidence": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "intelligence_revisions": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "intelligence_state_history": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "intelligences": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "job_attempts": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "jobs": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "manual_analyze_overrides": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "preference_state_events": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "preferences": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "provider_calls": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "provider_dispatch_states": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reports": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "research_items": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "research_results": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "saved_intelligences": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "schema_migrations": "77d59c4af6ffb7c435cf92f3395754a3f66d75041adc049788b36223cdb02ebf",
+      "source_checks": "ef981ed8b8e679d9f0770bae1622073adc0d86cf54014de17f5d0ae5d1732f8e",
+      "source_observations": "5485197df7b7418d831c865990c23119c28a37899da66a221f8534829c8ea686",
+      "source_policy_current": "6b2ab80af02efd9414af431399751c02c35bc530666373209ac90bc19067fc04",
+      "source_policy_revisions": "4abeaac1a0c31b2fb93218964c928d7d61820789ddc33b29e5c0d462a264a7ba",
+      "source_run_checkpoint_events": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "source_run_state_events": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "source_run_video_execution_events": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "source_run_video_executions": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "source_runs": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "source_subscriptions": "a807938a320294b1aba02719222345347b0476f0c32bb9b53dacb27c01a60c01",
+      "source_tracking_state": "7080f010e6bf82b041798a32e2fec1d1b5b334d80b8b3ce44ad1b00fdc9d7744",
+      "source_video_filter_decisions": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "source_video_links": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "timed_transcript_cues": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "timed_transcripts": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "topic_membership_evidence": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "topic_memberships": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "topic_relations": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "topic_timeline_event_memberships": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "topic_timeline_events": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "topics": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "videos": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "weekly_brief_preference_projections": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "weekly_briefs": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "table_counts": {
+      "artifacts": 0,
+      "automation_runs": 0,
+      "automation_schedules": 0,
+      "brief_item_evidence": 0,
+      "brief_item_markers": 0,
+      "brief_items": 0,
+      "channel_cursors": 0,
+      "content_source_snapshots": 0,
+      "current_content_summaries": 0,
+      "deep_analysis_evidence": 0,
+      "deep_analysis_persisted_results": 0,
+      "dependency_edges": 0,
+      "distillation_cards": 0,
+      "distillation_cloud_authorizations": 0,
+      "distillation_cloud_response_failures": 0,
+      "distillation_execution_checkpoints": 0,
+      "distillation_moonshot_cloud_authorizations": 0,
+      "distillation_moonshot_unidentified_http_responses": 0,
+      "distillation_no_new_intelligence_results": 0,
+      "distillation_openai_cloud_authorizations": 0,
+      "distillation_openai_unidentified_http_responses": 0,
+      "distillation_resource_usage": 0,
+      "distillation_unidentified_http_responses": 0,
+      "evidence": 0,
+      "evidence_source_ranges": 0,
+      "evidence_text_bindings": 0,
+      "evidence_translation_presentations": 0,
+      "feedback_events": 0,
+      "global_model_preferences": 0,
+      "global_user_settings": 0,
+      "intelligence_revision_evidence": 0,
+      "intelligence_revisions": 0,
+      "intelligence_state_history": 0,
+      "intelligences": 0,
+      "job_attempts": 0,
+      "jobs": 0,
+      "manual_analyze_overrides": 0,
+      "preference_state_events": 0,
+      "preferences": 0,
+      "provider_calls": 0,
+      "provider_dispatch_states": 0,
+      "reports": 0,
+      "research_items": 0,
+      "research_results": 0,
+      "saved_intelligences": 0,
+      "schema_migrations": 33,
+      "source_checks": 2,
+      "source_observations": 30,
+      "source_policy_current": 1,
+      "source_policy_revisions": 1,
+      "source_run_checkpoint_events": 0,
+      "source_run_state_events": 0,
+      "source_run_video_execution_events": 0,
+      "source_run_video_executions": 0,
+      "source_runs": 0,
+      "source_subscriptions": 2,
+      "source_tracking_state": 2,
+      "source_video_filter_decisions": 0,
+      "source_video_links": 0,
+      "timed_transcript_cues": 0,
+      "timed_transcripts": 0,
+      "topic_membership_evidence": 0,
+      "topic_memberships": 0,
+      "topic_relations": 0,
+      "topic_timeline_event_memberships": 0,
+      "topic_timeline_events": 0,
+      "topics": 0,
+      "videos": 0,
+      "weekly_brief_preference_projections": 0,
+      "weekly_briefs": 0
+    }
+  },
+  "provider_network_used": false,
+  "after": {
+    "schema": 34,
+    "pragmas": {
+      "quick_check": [
+        [
+          "ok"
+        ]
+      ],
+      "integrity_check": [
+        [
+          "ok"
+        ]
+      ],
+      "foreign_key_check": []
+    },
+    "issues": {
+      "duplicate_sources": [],
+      "duplicate_content": [],
+      "orphan_links": [],
+      "orphan_checks": [],
+      "orphan_runs": [],
+      "false_baseline_success": [],
+      "active_checks": [],
+      "active_runs": []
+    },
+    "tracked_sources": [
+      "youtube-channel-UCLA_DiR1FfKNvjuUpBHmylQ",
+      "youtube-channel-UC_x5XG1OV2P6uZZ5FSM9Ttw"
+    ],
+    "source_states": [
+      {
+        "source_id": "youtube-channel-UCLA_DiR1FfKNvjuUpBHmylQ",
+        "provider": "YOUTUBE",
+        "enabled": 1,
+        "baseline_at": "2026-10-07T15:25:27.463721Z",
+        "verified_at": "2026-10-07T15:25:27.463721Z",
+        "health": "HEALTHY"
+      },
+      {
+        "source_id": "youtube-channel-UC_x5XG1OV2P6uZZ5FSM9Ttw",
+        "provider": "YOUTUBE",
+        "enabled": 1,
+        "baseline_at": "2026-10-07T15:25:33.041552Z",
+        "verified_at": "2026-10-07T15:25:33.041552Z",
+        "health": "HEALTHY"
+      }
+    ],
+    "table_sha256": {
+      "artifacts": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "automation_runs": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "automation_schedules": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "brief_item_evidence": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "brief_item_markers": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "brief_items": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "channel_cursors": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "content_source_snapshots": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "current_content_summaries": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "deep_analysis_evidence": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "deep_analysis_persisted_results": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "dependency_edges": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_cards": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_cloud_authorizations": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_cloud_response_failures": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_execution_checkpoints": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_moonshot_cloud_authorizations": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_moonshot_unidentified_http_responses": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_no_new_intelligence_results": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_openai_cloud_authorizations": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_openai_unidentified_http_responses": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_resource_usage": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_unidentified_http_responses": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "evidence": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "evidence_source_ranges": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "evidence_text_bindings": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "evidence_translation_presentations": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "feedback_events": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "global_model_preferences": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "global_user_settings": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "intelligence_revision_evidence": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "intelligence_revisions": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "intelligence_state_history": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "intelligences": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "job_attempts": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "jobs": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "manual_analyze_overrides": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "preference_state_events": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "preferences": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "provider_calls": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "provider_dispatch_states": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reports": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "research_items": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "research_results": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "saved_intelligences": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "schema_migrations": "77d59c4af6ffb7c435cf92f3395754a3f66d75041adc049788b36223cdb02ebf",
+      "source_checks": "ef981ed8b8e679d9f0770bae1622073adc0d86cf54014de17f5d0ae5d1732f8e",
+      "source_observations": "5485197df7b7418d831c865990c23119c28a37899da66a221f8534829c8ea686",
+      "source_policy_current": "6b2ab80af02efd9414af431399751c02c35bc530666373209ac90bc19067fc04",
+      "source_policy_revisions": "4abeaac1a0c31b2fb93218964c928d7d61820789ddc33b29e5c0d462a264a7ba",
+      "source_run_checkpoint_events": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "source_run_state_events": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "source_run_video_execution_events": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "source_run_video_executions": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "source_runs": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "source_subscriptions": "a807938a320294b1aba02719222345347b0476f0c32bb9b53dacb27c01a60c01",
+      "source_tracking_state": "7080f010e6bf82b041798a32e2fec1d1b5b334d80b8b3ce44ad1b00fdc9d7744",
+      "source_video_filter_decisions": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "source_video_links": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "timed_transcript_cues": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "timed_transcripts": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "topic_membership_evidence": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "topic_memberships": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "topic_relations": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "topic_timeline_event_memberships": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "topic_timeline_events": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "topics": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "videos": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "weekly_brief_preference_projections": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "weekly_briefs": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "table_counts": {
+      "artifacts": 0,
+      "automation_runs": 0,
+      "automation_schedules": 0,
+      "brief_item_evidence": 0,
+      "brief_item_markers": 0,
+      "brief_items": 0,
+      "channel_cursors": 0,
+      "content_source_snapshots": 0,
+      "current_content_summaries": 0,
+      "deep_analysis_evidence": 0,
+      "deep_analysis_persisted_results": 0,
+      "dependency_edges": 0,
+      "distillation_cards": 0,
+      "distillation_cloud_authorizations": 0,
+      "distillation_cloud_response_failures": 0,
+      "distillation_execution_checkpoints": 0,
+      "distillation_moonshot_cloud_authorizations": 0,
+      "distillation_moonshot_unidentified_http_responses": 0,
+      "distillation_no_new_intelligence_results": 0,
+      "distillation_openai_cloud_authorizations": 0,
+      "distillation_openai_unidentified_http_responses": 0,
+      "distillation_resource_usage": 0,
+      "distillation_unidentified_http_responses": 0,
+      "evidence": 0,
+      "evidence_source_ranges": 0,
+      "evidence_text_bindings": 0,
+      "evidence_translation_presentations": 0,
+      "feedback_events": 0,
+      "global_model_preferences": 0,
+      "global_user_settings": 0,
+      "intelligence_revision_evidence": 0,
+      "intelligence_revisions": 0,
+      "intelligence_state_history": 0,
+      "intelligences": 0,
+      "job_attempts": 0,
+      "jobs": 0,
+      "manual_analyze_overrides": 0,
+      "preference_state_events": 0,
+      "preferences": 0,
+      "provider_calls": 0,
+      "provider_dispatch_states": 0,
+      "reports": 0,
+      "research_items": 0,
+      "research_results": 0,
+      "saved_intelligences": 0,
+      "schema_migrations": 33,
+      "source_checks": 2,
+      "source_observations": 30,
+      "source_policy_current": 1,
+      "source_policy_revisions": 1,
+      "source_run_checkpoint_events": 0,
+      "source_run_state_events": 0,
+      "source_run_video_execution_events": 0,
+      "source_run_video_executions": 0,
+      "source_runs": 0,
+      "source_subscriptions": 2,
+      "source_tracking_state": 2,
+      "source_video_filter_decisions": 0,
+      "source_video_links": 0,
+      "timed_transcript_cues": 0,
+      "timed_transcripts": 0,
+      "topic_membership_evidence": 0,
+      "topic_memberships": 0,
+      "topic_relations": 0,
+      "topic_timeline_event_memberships": 0,
+      "topic_timeline_events": 0,
+      "topics": 0,
+      "videos": 0,
+      "weekly_brief_preference_projections": 0,
+      "weekly_briefs": 0
+    }
+  },
+  "all_authority_tables_exactly_restored": true,
+  "backup_id": "3b31afc1bd624db193d5c022c73d9a10",
+  "unchanged_historical_migrations": [
+    {
+      "path": "src/youtube_intel/migrations/001_initial.sql",
+      "sha256": "10bd726fe24da8328de6603ef91dd2d51a1262403be7c2f927c0477cd2693006"
+    },
+    {
+      "path": "src/youtube_intel/migrations/002_add_scoring_lineage.sql",
+      "sha256": "d9bf30af20fd21334bd927cb5cbcbdfff94ac1ebc37eb4a001124109cc530651"
+    },
+    {
+      "path": "src/youtube_intel/migrations/003_add_deep_analysis_persistence.sql",
+      "sha256": "f61d5d276fac30ef1dbbabdc6c4b0809b797eb84bee06a1723d81ec48b8b1bfe"
+    },
+    {
+      "path": "src/youtube_intel/migrations/004_add_provider_dispatch_state.sql",
+      "sha256": "d69a700ae74d407472ed3267e964bb98b5e938b390abb355147112b553fe80b2"
+    },
+    {
+      "path": "src/youtube_intel/migrations/005_add_product_orchestration.sql",
+      "sha256": "43b4815fc20c5e748b3c547278e3a3e821549b4e59083d0e376fae49f90ba856"
+    },
+    {
+      "path": "src/youtube_intel/migrations/006_add_intelligence_domain.sql",
+      "sha256": "76441661565c24865cf696ae152e383647849f891fb7aa3c0239f14487052747"
+    },
+    {
+      "path": "src/youtube_intel/migrations/007_add_intelligence_claim_classification.sql",
+      "sha256": "4deeb04653dee15a91a5474e8276ddaac583ef4b5ed96a83fbb868ab51a35d4a"
+    },
+    {
+      "path": "src/youtube_intel/migrations/008_add_preference_feedback.sql",
+      "sha256": "4bb91b42a5aabd7b03a161df456194a6d1699ce07b8fd3e8a7a1208560349a2a"
+    },
+    {
+      "path": "src/youtube_intel/migrations/009_add_source_policy_filtering.sql",
+      "sha256": "9c29bc524cceee7100f79076248309e879187fe53719a8b867aac37906be06bf"
+    },
+    {
+      "path": "src/youtube_intel/migrations/010_add_personalized_distillation.sql",
+      "sha256": "9ceceed92fb2bf66e505ac2b8cd9d72789665781f78d5775f5546aa8f37422ba"
+    },
+    {
+      "path": "src/youtube_intel/migrations/011_add_topic_timeline.sql",
+      "sha256": "6cc596c0d633491b99aee49491d9e65397cd2b020677051e7a46c96e2448544d"
+    },
+    {
+      "path": "src/youtube_intel/migrations/012_add_source_run_orchestration.sql",
+      "sha256": "8e25d4a338d1b916d81c4c45d5549544ca0d8df4d8901670aa6676161dbbac31"
+    },
+    {
+      "path": "src/youtube_intel/migrations/013_add_weekly_brief_foundation.sql",
+      "sha256": "b723560ac98c385d5d7ad4ea96cd8128e508ea2ecc64dd0dc39f177f09f79106"
+    },
+    {
+      "path": "src/youtube_intel/migrations/014_add_saved_intelligence.sql",
+      "sha256": "ffb8c422187024cc524bf347eb267c425ae6f0909f564b069abd6332343a723f"
+    },
+    {
+      "path": "src/youtube_intel/migrations/015_add_timed_transcript_evidence_bindings.sql",
+      "sha256": "905b8c53becc209d0b0eb5c5d35b20a0df4407a9b9d23e2aa917d321fd962cb1"
+    },
+    {
+      "path": "src/youtube_intel/migrations/016_add_ambiguous_resource_ledger_outcome.sql",
+      "sha256": "28010bcf4ef6434bea4fba004d56e7fea13ef4c79b3a578e08582bfd8319efb4"
+    },
+    {
+      "path": "src/youtube_intel/migrations/017_add_current_content_summary.sql",
+      "sha256": "fe65ec05858496bfd20698fe175d6094ce515bd0bedb3f021da0cb6d74e9e83b"
+    },
+    {
+      "path": "src/youtube_intel/migrations/018_add_global_output_language.sql",
+      "sha256": "2bb28aac01ef6fc01ba4b9ca28c1c71a05ae1ac490e5b19a4a86f16efd0e2450"
+    },
+    {
+      "path": "src/youtube_intel/migrations/019_add_evidence_excerpt_stance.sql",
+      "sha256": "1f919d4df548f93d8041a5cce83497e7e75e41befe9a42c20a11c03c3c4b29a3"
+    },
+    {
+      "path": "src/youtube_intel/migrations/020_add_no_new_intelligence_result.sql",
+      "sha256": "1efe64f3cc5e71b368cdb799d3c6e030f713a5c916629e5aa74fd4ac43963385"
+    },
+    {
+      "path": "src/youtube_intel/migrations/021_seal_distillation_output_language.sql",
+      "sha256": "acf5f87d1fdc48f9fc59cbfd11849c09922304fef5cf0a4fb2e8aaa813bf3a99"
+    },
+    {
+      "path": "src/youtube_intel/migrations/022_bind_current_local_summary.sql",
+      "sha256": "dac02d5e412885806ea6924fa64b61de97a516fcbcddae02b8e58f74dabd9749"
+    },
+    {
+      "path": "src/youtube_intel/migrations/023_add_evidence_translation_presentation.sql",
+      "sha256": "d5210a4acc095791866ed87321707ff5d0f153bdc10e203022ce8c8b13c71551"
+    },
+    {
+      "path": "src/youtube_intel/migrations/024_bind_current_summary_to_content.sql",
+      "sha256": "fdd536abfee507774d827b4c1d62b67ab87c01ce87f54aa996ab99d8878d2472"
+    },
+    {
+      "path": "src/youtube_intel/migrations/025_add_explicit_cloud_execution_audit.sql",
+      "sha256": "0691295d155355a62f381163e8474568b395f748e4e6a4aa143c745fdbe9e33c"
+    },
+    {
+      "path": "src/youtube_intel/migrations/026_add_openai_cloud_execution_audit.sql",
+      "sha256": "d4c30d9876ca50ea8dbec3bc5e1b20667c2a6a0afab898ce7e60e4761c03c3f5"
+    },
+    {
+      "path": "src/youtube_intel/migrations/027_add_moonshot_cloud_execution_audit.sql",
+      "sha256": "7d6ff329c454b92b0b0a5239f6e68d21baf45d8c0546992297c5e528f8ac35c8"
+    },
+    {
+      "path": "src/youtube_intel/migrations/028_add_cloud_response_failure_ledger.sql",
+      "sha256": "b153085add7db4a0e50e65ac98ee09c02f8dce2d8560da249d9ff0393e300a01"
+    },
+    {
+      "path": "src/youtube_intel/migrations/030_add_deep_analysis_durable_evidence.sql",
+      "sha256": "46008eb71f44dcba34d5f009367bde73372f97c99c0f1f7b488722a9ef83ac87"
+    },
+    {
+      "path": "src/youtube_intel/migrations/031_add_research_lite.sql",
+      "sha256": "081ec3347bc202226cb9978f11ce3a89281076e3178d2e8793a2ba969df9b672"
+    },
+    {
+      "path": "src/youtube_intel/migrations/032_add_source_provider_authority.sql",
+      "sha256": "4d6d9abc32f4613d05594d11f263b6125f9d4358d8344a82db48a1111008a3f7"
+    },
+    {
+      "path": "src/youtube_intel/migrations/033_add_bilibili_provider.sql",
+      "sha256": "29954ea802aa9a5d620d43703d62d83e2003d9e5c9b26d9073aca80cd80e13dd"
+    },
+    {
+      "path": "src/youtube_intel/migrations/034_add_source_tracking.sql",
+      "sha256": "8e0b2b525217c1dd32657d641529df4ac3aae4096e82b8f683279ce2a5c813da"
+    }
+  ]
+}

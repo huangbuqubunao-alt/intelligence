@@ -1,0 +1,43 @@
+import assert from 'node:assert/strict';
+import { writeFileSync } from 'node:fs';
+import { chromium } from '../../../../frontend/node_modules/playwright-core/index.mjs';
+const base='http://127.0.0.1:5726/';
+const evidence='/Users/hua/Documents/phase12-zero-config-evidence/';
+const browser=await chromium.launch({executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true});
+const results=[];
+try {
+ let index=0;
+ for(const language of ['zh-CN','en']) for(const width of [320,1440]) {
+  const t=(en,zh)=>language==='en'?en:zh;
+  const page=await browser.newPage({viewport:{width,height:1000}});
+  const errors=[];page.on('pageerror',e=>errors.push(String(e)));
+  page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
+  await page.addInitScript(lang=>localStorage.setItem('yia.ui-language',lang),language);
+  let attempts=0;
+  await page.route('**/api/v1/sources/channels',async route=> {
+    if(++attempts===1) await route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:{code:'YOUTUBE_NETWORK_UNAVAILABLE',message:'CONNECT 127.0.0.1:9999 socket Fake-IP errno'}})});
+    else await route.continue();
+  });
+  await page.goto(base+'#Following');
+  await page.getByRole('button',{name:t('Add Source','添加关注'),exact:true}).first().click();
+  const dialog=page.getByRole('dialog');
+  await dialog.getByRole('button',{name:t('Follow a channel','关注一个频道'),exact:true}).click();
+  await dialog.getByLabel(t('Channel URL, @handle or channel id','频道链接、@用户名或频道 ID')).fill('@public'+index++);
+  await dialog.getByRole('button',{name:t('Follow channel','关注频道'),exact:true}).click();
+  const alert=dialog.getByRole('alert');
+  await alert.waitFor();
+  assert.equal(await alert.innerText(),t('Unable to connect to YouTube. Check your network or VPN and try again.','无法连接 YouTube。请检查网络或 VPN 后重试。'));
+  assert.doesNotMatch(await dialog.innerText(),/CONNECT|127\.0\.0\.1|socket|Fake-IP|errno/);
+  const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth);assert.equal(overflow,false);
+  await page.screenshot({path:evidence+`network-${language}-${width}.png`,fullPage:true});
+  await dialog.getByRole('button',{name:t('Retry','重试'),exact:true}).click();
+  await dialog.getByRole('button',{name:t('Done','完成'),exact:true}).waitFor();
+  assert.equal(attempts,2);
+  // A handled HTTP 503 is an expected browser console network diagnostic.
+  assert.ok(errors.every(e=>e.includes('503')));
+  results.push({language,width,retry:true,overflow,unexpectedErrors:errors.filter(e=>!e.includes('503'))});
+  await page.close();
+ }
+ writeFileSync(evidence+'browser-network.json',JSON.stringify({kind:'DETERMINISTIC_UI_WITH_REAL_LOCAL_API_RETRY',results},null,2));
+ console.log('Four bilingual 320px/desktop network-failure and Retry scenarios passed');
+} finally {await browser.close();}

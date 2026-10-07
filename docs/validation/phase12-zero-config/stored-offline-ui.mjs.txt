@@ -1,0 +1,38 @@
+import assert from 'node:assert/strict';
+import { writeFileSync } from 'node:fs';
+import { chromium } from '../../../../frontend/node_modules/playwright-core/index.mjs';
+const base='http://127.0.0.1:5726/';
+const browser=await chromium.launch({executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true});
+const results=[];
+try {
+ let index=0;
+ for(const language of ['zh-CN','en'])for(const width of [320,1440]){
+  const page=await browser.newPage({viewport:{width,height:1000}}), i=index++, id='youtube-channel-UC'+String(i).padStart(22,'0');
+  const t=(en,zh)=>language==='en'?en:zh;
+  await page.addInitScript(lang=>localStorage.setItem('yia.ui-language',lang),language);
+  const post=async(path,data)=>{const r=await page.request.post(base+'api/v1/'+path,{headers:{Origin:base.slice(0,-1),'X-YIA-Request':'local-ui'},data});assert.ok(r.ok(),await r.text());return r.json();};
+  await post('fixture/failure',{index:i,offline:true});
+  await page.goto(base+'#Following');
+  await page.getByRole('button',{name:t('Add Source','添加关注'),exact:true}).first().click();
+  let dialog=page.getByRole('dialog');
+  await dialog.getByRole('button',{name:t('Follow a channel','关注一个频道'),exact:true}).click();
+  await dialog.getByLabel(t('Channel URL, @handle or channel id','频道链接、@用户名或频道 ID')).fill('@public'+i);
+  await dialog.getByRole('button',{name:t('Follow channel','关注频道'),exact:true}).click();
+  const message=t('Unable to connect to YouTube. Check your network or VPN and try again.','无法连接 YouTube。请检查网络或 VPN 后重试。');
+  await dialog.getByRole('alert').waitFor();assert.equal(await dialog.getByRole('alert').innerText(),message);
+  await dialog.getByRole('button',{name:t('Done','完成'),exact:true}).click();
+  await page.locator(`[data-source-id="${id}"] .source-select`).click();dialog=page.getByRole('dialog');
+  await dialog.getByText(message,{exact:true}).waitFor();
+  await dialog.getByText(t('No, no successful check has completed yet','否，尚无成功完成的检查'),{exact:true}).waitFor();
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+  await page.screenshot({path:'/Users/hua/Documents/phase12-zero-config-evidence/stored-offline-'+language+'-'+width+'.png',fullPage:true});
+  await post('fixture/failure',{index:i,offline:false});
+  await post('fixture/advance',{index:i,publish:false}); // Synthetic clock only; no production cooldown bypass.
+  await page.getByRole('button',{name:t('Retry','重试'),exact:true}).waitFor();
+  await page.getByRole('button',{name:t('Retry','重试'),exact:true}).click();
+  await page.getByText(t('Source checks are working','来源检查正常'),{exact:true}).first().waitFor();
+  results.push({language,width,sourceCreatedButBaselineAbsent:true,actionableOffline:true,eligibleRetrySucceeded:true});
+  await page.close();
+ }
+ writeFileSync('/Users/hua/Documents/phase12-zero-config-evidence/browser-stored-offline.json',JSON.stringify({kind:'DETERMINISTIC_REAL_LOCAL_API_SOURCE_RUN',results},null,2));console.log('Four stored-source failed-baseline and eligible Retry UI scenarios passed');
+}finally{await browser.close();}

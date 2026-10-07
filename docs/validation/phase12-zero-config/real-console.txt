@@ -1,0 +1,29 @@
+{
+  "attempts": [
+    {
+      "handle": "@NASA",
+      "started_at": "2026-10-07T15:25:24.187872+00:00",
+      "status": 200,
+      "canonical_channel_id": "UCLA_DiR1FfKNvjuUpBHmylQ",
+      "baseline_succeeded": true,
+      "second_check": "NOT_ELIGIBLE_COOLDOWN_PRESERVED"
+    },
+    {
+      "handle": "@GoogleDevelopers",
+      "started_at": "2026-10-07T15:25:29.802982+00:00",
+      "status": 200,
+      "canonical_channel_id": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
+      "baseline_succeeded": true,
+      "second_check": "NOT_ELIGIBLE_COOLDOWN_PRESERVED"
+    }
+  ],
+  "network": {
+    "platform": "macOS",
+    "authority": "SystemConfiguration",
+    "system_https_proxy_enabled": true,
+    "route_kind": "SYSTEM_NETWORK",
+    "manual_configuration": false
+  },
+  "schema": 34,
+  "historical_content_count": 0
+}

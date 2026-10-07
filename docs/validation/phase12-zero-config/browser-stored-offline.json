@@ -1,0 +1,33 @@
+{
+  "kind": "DETERMINISTIC_REAL_LOCAL_API_SOURCE_RUN",
+  "results": [
+    {
+      "language": "zh-CN",
+      "width": 320,
+      "sourceCreatedButBaselineAbsent": true,
+      "actionableOffline": true,
+      "eligibleRetrySucceeded": true
+    },
+    {
+      "language": "zh-CN",
+      "width": 1440,
+      "sourceCreatedButBaselineAbsent": true,
+      "actionableOffline": true,
+      "eligibleRetrySucceeded": true
+    },
+    {
+      "language": "en",
+      "width": 320,
+      "sourceCreatedButBaselineAbsent": true,
+      "actionableOffline": true,
+      "eligibleRetrySucceeded": true
+    },
+    {
+      "language": "en",
+      "width": 1440,
+      "sourceCreatedButBaselineAbsent": true,
+      "actionableOffline": true,
+      "eligibleRetrySucceeded": true
+    }
+  ]
+}

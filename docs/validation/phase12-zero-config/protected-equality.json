@@ -1,0 +1,11 @@
+{
+  "equal": true,
+  "per_worktree": {
+    "v1x-youtube-following": true,
+    "v1x-youtube-following-resume": true,
+    "phase12-live-fix": true,
+    "phase12-live-validation": true,
+    "phase12-fixed-candidate-validation": true,
+    "m13-dogfood": true
+  }
+}
