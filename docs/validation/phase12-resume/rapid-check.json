@@ -1,0 +1,30 @@
+{
+  "kind": "FIXTURE/REPLAY",
+  "results": [
+    {
+      "source": "youtube-channel-UC0000000000000000000000",
+      "commands": 12,
+      "new_runs": 1,
+      "frontier_preserved": true,
+      "last_success_preserved": true,
+      "updates_preserved": true,
+      "health": "OFFLINE"
+    },
+    {
+      "source": "bilibili-creator-123",
+      "commands": 12,
+      "new_runs": 0,
+      "frontier_preserved": true,
+      "last_success_preserved": true,
+      "updates_preserved": true,
+      "health": "HEALTHY"
+    }
+  ],
+  "backup_readiness": {
+    "ready": true,
+    "reasons": [],
+    "message": "Core data is quiescent and ready for backup.",
+    "restore_pending": false,
+    "last_restore": null
+  }
+}

@@ -1,0 +1,106 @@
+{
+  "fixture": true,
+  "scenarios": [
+    {
+      "language": "zh-CN",
+      "width": 320,
+      "states": [
+        "SOURCE_UNTRUSTED bilibili",
+        "LOCAL_SOURCE_UNTRUSTED local",
+        "CAPTION_UNAVAILABLE bilibili",
+        "creator following withdrawn",
+        "backup ready",
+        "backup blocked"
+      ]
+    },
+    {
+      "language": "zh-CN",
+      "width": 768,
+      "states": [
+        "SOURCE_UNTRUSTED bilibili",
+        "LOCAL_SOURCE_UNTRUSTED local",
+        "CAPTION_UNAVAILABLE bilibili",
+        "creator following withdrawn",
+        "backup ready",
+        "backup blocked"
+      ]
+    },
+    {
+      "language": "zh-CN",
+      "width": 1024,
+      "states": [
+        "SOURCE_UNTRUSTED bilibili",
+        "LOCAL_SOURCE_UNTRUSTED local",
+        "CAPTION_UNAVAILABLE bilibili",
+        "creator following withdrawn",
+        "backup ready",
+        "backup blocked"
+      ]
+    },
+    {
+      "language": "zh-CN",
+      "width": 1440,
+      "states": [
+        "SOURCE_UNTRUSTED bilibili",
+        "LOCAL_SOURCE_UNTRUSTED local",
+        "CAPTION_UNAVAILABLE bilibili",
+        "creator following withdrawn",
+        "backup ready",
+        "backup blocked"
+      ]
+    },
+    {
+      "language": "en",
+      "width": 320,
+      "states": [
+        "SOURCE_UNTRUSTED bilibili",
+        "LOCAL_SOURCE_UNTRUSTED local",
+        "CAPTION_UNAVAILABLE bilibili",
+        "creator following withdrawn",
+        "backup ready",
+        "backup blocked"
+      ]
+    },
+    {
+      "language": "en",
+      "width": 768,
+      "states": [
+        "SOURCE_UNTRUSTED bilibili",
+        "LOCAL_SOURCE_UNTRUSTED local",
+        "CAPTION_UNAVAILABLE bilibili",
+        "creator following withdrawn",
+        "backup ready",
+        "backup blocked"
+      ]
+    },
+    {
+      "language": "en",
+      "width": 1024,
+      "states": [
+        "SOURCE_UNTRUSTED bilibili",
+        "LOCAL_SOURCE_UNTRUSTED local",
+        "CAPTION_UNAVAILABLE bilibili",
+        "creator following withdrawn",
+        "backup ready",
+        "backup blocked"
+      ]
+    },
+    {
+      "language": "en",
+      "width": 1440,
+      "states": [
+        "SOURCE_UNTRUSTED bilibili",
+        "LOCAL_SOURCE_UNTRUSTED local",
+        "CAPTION_UNAVAILABLE bilibili",
+        "creator following withdrawn",
+        "backup ready",
+        "backup blocked"
+      ]
+    }
+  ],
+  "errors": [],
+  "external": [],
+  "overflow": 0,
+  "offenders": [],
+  "rawVocabularyLeaks": 0
+}

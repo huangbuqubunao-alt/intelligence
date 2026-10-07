@@ -1,0 +1,17 @@
+{
+  "exact_entire_fingerprint_equal": true,
+  "fields": {
+    "worktree": true,
+    "branch": true,
+    "HEAD": true,
+    "status_porcelain_uall": true,
+    "tracked_diff_sha256": true,
+    "cached_diff_sha256": true,
+    "index_sha256": true,
+    "untracked": true,
+    "recent_commits": true,
+    "reflog": true
+  },
+  "individual_untracked_files_unchanged": 35,
+  "frozen_source_writes": 0
+}

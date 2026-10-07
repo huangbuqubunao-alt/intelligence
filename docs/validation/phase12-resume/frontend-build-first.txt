@@ -1,0 +1,13 @@
+
+> youtube-intel-workspace@0.1.0 build
+> tsc -b && vite build
+
+vite v5.4.19 building for production...
+transforming...
+✓ 47 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.43 kB │ gzip:   0.30 kB
+dist/assets/index-D3Smu3Qz.css   27.74 kB │ gzip:   5.95 kB
+dist/assets/index-DKhaPpGp.js   357.24 kB │ gzip: 115.71 kB
+✓ built in 478ms

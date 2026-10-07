@@ -1,0 +1,31 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_creator_discovered_content_uses_mixed_research_and_intelligence_authority _
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-989/test_creator_discovered_conten0')
+
+    def test_creator_discovered_content_uses_mixed_research_and_intelligence_authority(tmp_path: Path) -> None:
+        from youtube_intel.following_tracking import FollowingTrackingService
+        creator = _load_module("test_creator_following")
+        repo, _, content_ids = seed_three(tmp_path)
+        fixture = creator.CreatorFixture()
+        publisher = BilibiliContentProvider(repo, tmp_path / "data", adapter=BilibiliAdapter(fetch=fixture.fetch), now=lambda: fixture.now)
+        tracker = FollowingTrackingService(repo, publisher, now=lambda: fixture.now)
+>       source = tracker.follow("123")
+                 ^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_bilibili_three_provider.py:59:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <youtube_intel.following_tracking.FollowingTrackingService object at 0x10cf147a0>
+value = '123', provider = 'BILIBILI'
+
+    def follow(self, value: str, *, provider: str = "BILIBILI") -> SourceSubscriptionRecord:
+        if not getattr(self.providers[provider], "available", True):
+>           raise TrackingError("CREATOR_TRACKING_UNAVAILABLE")
+E           youtube_intel.following_provider.TrackingError: CREATOR_TRACKING_UNAVAILABLE
+
+src/youtube_intel/following_tracking.py:199: TrackingError
+=========================== short test summary info ============================
+FAILED tests/integration/test_bilibili_three_provider.py::test_creator_discovered_content_uses_mixed_research_and_intelligence_authority
+1 failed in 0.97s

@@ -1,0 +1,650 @@
+{
+  "kind": "FIXTURE/REPLAY",
+  "before": {
+    "schema": 34,
+    "pragmas": {
+      "quick_check": [
+        [
+          "ok"
+        ]
+      ],
+      "integrity_check": [
+        [
+          "ok"
+        ]
+      ],
+      "foreign_key_check": []
+    },
+    "issues": {
+      "duplicate_sources": [],
+      "duplicate_content": [],
+      "orphan_links": [],
+      "orphan_checks": [],
+      "orphan_runs": [],
+      "false_baseline_success": [],
+      "active_checks": [],
+      "active_runs": []
+    },
+    "tracked_sources": [
+      "bilibili-creator-123",
+      "youtube-channel-UC0000000000000000000000",
+      "youtube-channel-UC0000000000000000000001",
+      "youtube-channel-UC0000000000000000000002",
+      "youtube-channel-UC0000000000000000000003",
+      "youtube-channel-UC0000000000000000000004",
+      "youtube-channel-UC0000000000000000000005",
+      "youtube-channel-UC0000000000000000000006",
+      "youtube-channel-UC0000000000000000000007"
+    ],
+    "source_states": [
+      {
+        "source_id": "bilibili-creator-123",
+        "provider": "BILIBILI",
+        "enabled": 1,
+        "baseline_at": "2026-10-04T00:00:00.000000Z",
+        "verified_at": "2026-10-04T00:00:00.000000Z",
+        "health": "HEALTHY"
+      },
+      {
+        "source_id": "youtube-channel-UC0000000000000000000000",
+        "provider": "YOUTUBE",
+        "enabled": 0,
+        "baseline_at": "2026-10-04T00:20:00.000000Z",
+        "verified_at": "2026-10-04T05:20:00.000000Z",
+        "health": "OFFLINE"
+      },
+      {
+        "source_id": "youtube-channel-UC0000000000000000000001",
+        "provider": "YOUTUBE",
+        "enabled": 1,
+        "baseline_at": "2026-10-04T00:40:00.000000Z",
+        "verified_at": "2026-10-04T05:20:00.000000Z",
+        "health": "OFFLINE"
+      },
+      {
+        "source_id": "youtube-channel-UC0000000000000000000002",
+        "provider": "YOUTUBE",
+        "enabled": 1,
+        "baseline_at": "2026-10-04T01:20:00.000000Z",
+        "verified_at": "2026-10-04T05:20:00.000000Z",
+        "health": "OFFLINE"
+      },
+      {
+        "source_id": "youtube-channel-UC0000000000000000000003",
+        "provider": "YOUTUBE",
+        "enabled": 1,
+        "baseline_at": "2026-10-04T02:00:00.000000Z",
+        "verified_at": "2026-10-04T05:20:00.000000Z",
+        "health": "OFFLINE"
+      },
+      {
+        "source_id": "youtube-channel-UC0000000000000000000004",
+        "provider": "YOUTUBE",
+        "enabled": 1,
+        "baseline_at": "2026-10-04T02:40:00.000000Z",
+        "verified_at": "2026-10-04T05:20:00.000000Z",
+        "health": "OFFLINE"
+      },
+      {
+        "source_id": "youtube-channel-UC0000000000000000000005",
+        "provider": "YOUTUBE",
+        "enabled": 1,
+        "baseline_at": "2026-10-04T03:40:00.000000Z",
+        "verified_at": "2026-10-04T05:20:00.000000Z",
+        "health": "OFFLINE"
+      },
+      {
+        "source_id": "youtube-channel-UC0000000000000000000006",
+        "provider": "YOUTUBE",
+        "enabled": 1,
+        "baseline_at": "2026-10-04T04:20:00.000000Z",
+        "verified_at": "2026-10-04T05:20:00.000000Z",
+        "health": "OFFLINE"
+      },
+      {
+        "source_id": "youtube-channel-UC0000000000000000000007",
+        "provider": "YOUTUBE",
+        "enabled": 1,
+        "baseline_at": "2026-10-04T05:00:00.000000Z",
+        "verified_at": "2026-10-04T05:20:00.000000Z",
+        "health": "OFFLINE"
+      }
+    ],
+    "table_sha256": {
+      "artifacts": "ff577360c5502c9f6ffe0c81d18c6cee6620ec9244ff785c112b355948fab0e0",
+      "automation_runs": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "automation_schedules": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "brief_item_evidence": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "brief_item_markers": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "brief_items": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "channel_cursors": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "content_source_snapshots": "07fe8c410c1306c3f789c5d198cc744b4fa51ba3881a3107b0bbfb19353a56fb",
+      "current_content_summaries": "f9f54a481410366e0c0a668243df422aa4d4c538c736907af2e18bd5c5f00237",
+      "deep_analysis_evidence": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "deep_analysis_persisted_results": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "dependency_edges": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_cards": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_cloud_authorizations": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_cloud_response_failures": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_execution_checkpoints": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_moonshot_cloud_authorizations": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_moonshot_unidentified_http_responses": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_no_new_intelligence_results": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_openai_cloud_authorizations": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_openai_unidentified_http_responses": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_resource_usage": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_unidentified_http_responses": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "evidence": "819d8540aad9382bf824e4c575e4dccd416e9fa721921535d2b7df9e4371d93f",
+      "evidence_source_ranges": "6d9760b1fee8c4c0aebefa2ad324380822a3b9b7ba904203ce7941d13f0a0cc7",
+      "evidence_text_bindings": "4e3dd00fa777abd19071a162bc395960708a5a17d2e4dbda359cf89f747c1fa8",
+      "evidence_translation_presentations": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "feedback_events": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "global_model_preferences": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "global_user_settings": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "intelligence_revision_evidence": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "intelligence_revisions": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "intelligence_state_history": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "intelligences": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "job_attempts": "88f33e754f20b17bf9aaa9cc5010dd288d6bb393c2d9ab7328759f6ac9de7df4",
+      "jobs": "f208767f4d34f40a02b9ff2d38a0385c50284ee7a56830e1daf228039562f079",
+      "manual_analyze_overrides": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "preference_state_events": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "preferences": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "provider_calls": "b6c8125aa96ad6b4cb9cbeba4a7faba74277e0c48731a150ddd38762edc8e524",
+      "provider_dispatch_states": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reports": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "research_items": "2b5e92ccb9383cb7ea7a2d04fe1762390b2d6b7449738dda41d98d7d04e974b9",
+      "research_results": "588cf36e0ac8fb2076297e7f1d2e3abf2e27c5afe29f8dc5fdb0e5d9fd2ee902",
+      "saved_intelligences": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "schema_migrations": "237dc6caaa86ab7eb7e5ec5ff48dd314f8f3b16f4dac6e0e36e868b97e38bace",
+      "source_checks": "bef1e9d86ecf6e2da12d40633183debdb14d8bae54f051edb946093adf70ecd5",
+      "source_observations": "a5ca903f74c1023582e27e397220802c37868e7b7fd20ebb57f68bf54500372c",
+      "source_policy_current": "6b2ab80af02efd9414af431399751c02c35bc530666373209ac90bc19067fc04",
+      "source_policy_revisions": "4abeaac1a0c31b2fb93218964c928d7d61820789ddc33b29e5c0d462a264a7ba",
+      "source_run_checkpoint_events": "9c9e2c96f94a72e70da67e143334b544bedbadcfe08dc83893d1b439bdda0059",
+      "source_run_state_events": "aebbd0a8fb1f334a63b1ef5d92434a43250eef8fb399816dea192f1d761d69b3",
+      "source_run_video_execution_events": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "source_run_video_executions": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "source_runs": "ab715172aa7dee8a29c8858f56acf9745c9925aae9373498b593e2a7c4cdde44",
+      "source_subscriptions": "13fb175fe83cf590f9abe42017d1843608ca4b9a941fc9fda346770d4fd0fb2a",
+      "source_tracking_state": "5b5e6ba7a5fd631ec3f615c3d11ce9cb2f4c4a4442e3526641917e360d41fd64",
+      "source_video_filter_decisions": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "source_video_links": "778c12e3e59b23a663ce32696bf2f29dc519e4d3f2ec42b58ab7f11fb656f706",
+      "timed_transcript_cues": "cda875ab2d282314548ae0b7ff180629b39afab5b4b29b24d1d291df46931c02",
+      "timed_transcripts": "5b21ce90470d253e02ad2e48d63c82feef9e0c9b3465935ce5895e91ee75c8da",
+      "topic_membership_evidence": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "topic_memberships": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "topic_relations": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "topic_timeline_event_memberships": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "topic_timeline_events": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "topics": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "videos": "ae7be59532f11a695b61fa79e40f73ca8c5f205c1dcf1eb51edc31e905b259ed",
+      "weekly_brief_preference_projections": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "weekly_briefs": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "table_counts": {
+      "artifacts": 56,
+      "automation_runs": 0,
+      "automation_schedules": 0,
+      "brief_item_evidence": 0,
+      "brief_item_markers": 0,
+      "brief_items": 0,
+      "channel_cursors": 0,
+      "content_source_snapshots": 2,
+      "current_content_summaries": 18,
+      "deep_analysis_evidence": 0,
+      "deep_analysis_persisted_results": 0,
+      "dependency_edges": 0,
+      "distillation_cards": 0,
+      "distillation_cloud_authorizations": 0,
+      "distillation_cloud_response_failures": 0,
+      "distillation_execution_checkpoints": 0,
+      "distillation_moonshot_cloud_authorizations": 0,
+      "distillation_moonshot_unidentified_http_responses": 0,
+      "distillation_no_new_intelligence_results": 0,
+      "distillation_openai_cloud_authorizations": 0,
+      "distillation_openai_unidentified_http_responses": 0,
+      "distillation_resource_usage": 0,
+      "distillation_unidentified_http_responses": 0,
+      "evidence": 36,
+      "evidence_source_ranges": 1,
+      "evidence_text_bindings": 35,
+      "evidence_translation_presentations": 0,
+      "feedback_events": 0,
+      "global_model_preferences": 0,
+      "global_user_settings": 0,
+      "intelligence_revision_evidence": 0,
+      "intelligence_revisions": 0,
+      "intelligence_state_history": 0,
+      "intelligences": 0,
+      "job_attempts": 32,
+      "jobs": 32,
+      "manual_analyze_overrides": 0,
+      "preference_state_events": 0,
+      "preferences": 0,
+      "provider_calls": 24,
+      "provider_dispatch_states": 0,
+      "reports": 0,
+      "research_items": 8,
+      "research_results": 24,
+      "saved_intelligences": 0,
+      "schema_migrations": 33,
+      "source_checks": 117,
+      "source_observations": 26,
+      "source_policy_current": 1,
+      "source_policy_revisions": 1,
+      "source_run_checkpoint_events": 482,
+      "source_run_state_events": 333,
+      "source_run_video_execution_events": 0,
+      "source_run_video_executions": 0,
+      "source_runs": 111,
+      "source_subscriptions": 19,
+      "source_tracking_state": 9,
+      "source_video_filter_decisions": 0,
+      "source_video_links": 26,
+      "timed_transcript_cues": 50,
+      "timed_transcripts": 17,
+      "topic_membership_evidence": 0,
+      "topic_memberships": 0,
+      "topic_relations": 0,
+      "topic_timeline_event_memberships": 0,
+      "topic_timeline_events": 0,
+      "topics": 0,
+      "videos": 26,
+      "weekly_brief_preference_projections": 0,
+      "weekly_briefs": 0
+    }
+  },
+  "provider_network_used": false,
+  "after": {
+    "schema": 34,
+    "pragmas": {
+      "quick_check": [
+        [
+          "ok"
+        ]
+      ],
+      "integrity_check": [
+        [
+          "ok"
+        ]
+      ],
+      "foreign_key_check": []
+    },
+    "issues": {
+      "duplicate_sources": [],
+      "duplicate_content": [],
+      "orphan_links": [],
+      "orphan_checks": [],
+      "orphan_runs": [],
+      "false_baseline_success": [],
+      "active_checks": [],
+      "active_runs": []
+    },
+    "tracked_sources": [
+      "bilibili-creator-123",
+      "youtube-channel-UC0000000000000000000000",
+      "youtube-channel-UC0000000000000000000001",
+      "youtube-channel-UC0000000000000000000002",
+      "youtube-channel-UC0000000000000000000003",
+      "youtube-channel-UC0000000000000000000004",
+      "youtube-channel-UC0000000000000000000005",
+      "youtube-channel-UC0000000000000000000006",
+      "youtube-channel-UC0000000000000000000007"
+    ],
+    "source_states": [
+      {
+        "source_id": "bilibili-creator-123",
+        "provider": "BILIBILI",
+        "enabled": 1,
+        "baseline_at": "2026-10-04T00:00:00.000000Z",
+        "verified_at": "2026-10-04T00:00:00.000000Z",
+        "health": "HEALTHY"
+      },
+      {
+        "source_id": "youtube-channel-UC0000000000000000000000",
+        "provider": "YOUTUBE",
+        "enabled": 0,
+        "baseline_at": "2026-10-04T00:20:00.000000Z",
+        "verified_at": "2026-10-04T05:20:00.000000Z",
+        "health": "OFFLINE"
+      },
+      {
+        "source_id": "youtube-channel-UC0000000000000000000001",
+        "provider": "YOUTUBE",
+        "enabled": 1,
+        "baseline_at": "2026-10-04T00:40:00.000000Z",
+        "verified_at": "2026-10-04T05:20:00.000000Z",
+        "health": "OFFLINE"
+      },
+      {
+        "source_id": "youtube-channel-UC0000000000000000000002",
+        "provider": "YOUTUBE",
+        "enabled": 1,
+        "baseline_at": "2026-10-04T01:20:00.000000Z",
+        "verified_at": "2026-10-04T05:20:00.000000Z",
+        "health": "OFFLINE"
+      },
+      {
+        "source_id": "youtube-channel-UC0000000000000000000003",
+        "provider": "YOUTUBE",
+        "enabled": 1,
+        "baseline_at": "2026-10-04T02:00:00.000000Z",
+        "verified_at": "2026-10-04T05:20:00.000000Z",
+        "health": "OFFLINE"
+      },
+      {
+        "source_id": "youtube-channel-UC0000000000000000000004",
+        "provider": "YOUTUBE",
+        "enabled": 1,
+        "baseline_at": "2026-10-04T02:40:00.000000Z",
+        "verified_at": "2026-10-04T05:20:00.000000Z",
+        "health": "OFFLINE"
+      },
+      {
+        "source_id": "youtube-channel-UC0000000000000000000005",
+        "provider": "YOUTUBE",
+        "enabled": 1,
+        "baseline_at": "2026-10-04T03:40:00.000000Z",
+        "verified_at": "2026-10-04T05:20:00.000000Z",
+        "health": "OFFLINE"
+      },
+      {
+        "source_id": "youtube-channel-UC0000000000000000000006",
+        "provider": "YOUTUBE",
+        "enabled": 1,
+        "baseline_at": "2026-10-04T04:20:00.000000Z",
+        "verified_at": "2026-10-04T05:20:00.000000Z",
+        "health": "OFFLINE"
+      },
+      {
+        "source_id": "youtube-channel-UC0000000000000000000007",
+        "provider": "YOUTUBE",
+        "enabled": 1,
+        "baseline_at": "2026-10-04T05:00:00.000000Z",
+        "verified_at": "2026-10-04T05:20:00.000000Z",
+        "health": "OFFLINE"
+      }
+    ],
+    "table_sha256": {
+      "artifacts": "ff577360c5502c9f6ffe0c81d18c6cee6620ec9244ff785c112b355948fab0e0",
+      "automation_runs": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "automation_schedules": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "brief_item_evidence": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "brief_item_markers": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "brief_items": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "channel_cursors": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "content_source_snapshots": "07fe8c410c1306c3f789c5d198cc744b4fa51ba3881a3107b0bbfb19353a56fb",
+      "current_content_summaries": "f9f54a481410366e0c0a668243df422aa4d4c538c736907af2e18bd5c5f00237",
+      "deep_analysis_evidence": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "deep_analysis_persisted_results": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "dependency_edges": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_cards": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_cloud_authorizations": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_cloud_response_failures": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_execution_checkpoints": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_moonshot_cloud_authorizations": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_moonshot_unidentified_http_responses": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_no_new_intelligence_results": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_openai_cloud_authorizations": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_openai_unidentified_http_responses": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_resource_usage": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "distillation_unidentified_http_responses": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "evidence": "819d8540aad9382bf824e4c575e4dccd416e9fa721921535d2b7df9e4371d93f",
+      "evidence_source_ranges": "6d9760b1fee8c4c0aebefa2ad324380822a3b9b7ba904203ce7941d13f0a0cc7",
+      "evidence_text_bindings": "4e3dd00fa777abd19071a162bc395960708a5a17d2e4dbda359cf89f747c1fa8",
+      "evidence_translation_presentations": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "feedback_events": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "global_model_preferences": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "global_user_settings": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "intelligence_revision_evidence": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "intelligence_revisions": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "intelligence_state_history": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "intelligences": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "job_attempts": "88f33e754f20b17bf9aaa9cc5010dd288d6bb393c2d9ab7328759f6ac9de7df4",
+      "jobs": "f208767f4d34f40a02b9ff2d38a0385c50284ee7a56830e1daf228039562f079",
+      "manual_analyze_overrides": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "preference_state_events": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "preferences": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "provider_calls": "b6c8125aa96ad6b4cb9cbeba4a7faba74277e0c48731a150ddd38762edc8e524",
+      "provider_dispatch_states": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "reports": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "research_items": "2b5e92ccb9383cb7ea7a2d04fe1762390b2d6b7449738dda41d98d7d04e974b9",
+      "research_results": "588cf36e0ac8fb2076297e7f1d2e3abf2e27c5afe29f8dc5fdb0e5d9fd2ee902",
+      "saved_intelligences": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "schema_migrations": "237dc6caaa86ab7eb7e5ec5ff48dd314f8f3b16f4dac6e0e36e868b97e38bace",
+      "source_checks": "bef1e9d86ecf6e2da12d40633183debdb14d8bae54f051edb946093adf70ecd5",
+      "source_observations": "a5ca903f74c1023582e27e397220802c37868e7b7fd20ebb57f68bf54500372c",
+      "source_policy_current": "6b2ab80af02efd9414af431399751c02c35bc530666373209ac90bc19067fc04",
+      "source_policy_revisions": "4abeaac1a0c31b2fb93218964c928d7d61820789ddc33b29e5c0d462a264a7ba",
+      "source_run_checkpoint_events": "9c9e2c96f94a72e70da67e143334b544bedbadcfe08dc83893d1b439bdda0059",
+      "source_run_state_events": "aebbd0a8fb1f334a63b1ef5d92434a43250eef8fb399816dea192f1d761d69b3",
+      "source_run_video_execution_events": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "source_run_video_executions": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "source_runs": "ab715172aa7dee8a29c8858f56acf9745c9925aae9373498b593e2a7c4cdde44",
+      "source_subscriptions": "13fb175fe83cf590f9abe42017d1843608ca4b9a941fc9fda346770d4fd0fb2a",
+      "source_tracking_state": "5b5e6ba7a5fd631ec3f615c3d11ce9cb2f4c4a4442e3526641917e360d41fd64",
+      "source_video_filter_decisions": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "source_video_links": "778c12e3e59b23a663ce32696bf2f29dc519e4d3f2ec42b58ab7f11fb656f706",
+      "timed_transcript_cues": "cda875ab2d282314548ae0b7ff180629b39afab5b4b29b24d1d291df46931c02",
+      "timed_transcripts": "5b21ce90470d253e02ad2e48d63c82feef9e0c9b3465935ce5895e91ee75c8da",
+      "topic_membership_evidence": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "topic_memberships": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "topic_relations": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "topic_timeline_event_memberships": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "topic_timeline_events": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "topics": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "videos": "ae7be59532f11a695b61fa79e40f73ca8c5f205c1dcf1eb51edc31e905b259ed",
+      "weekly_brief_preference_projections": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "weekly_briefs": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    "table_counts": {
+      "artifacts": 56,
+      "automation_runs": 0,
+      "automation_schedules": 0,
+      "brief_item_evidence": 0,
+      "brief_item_markers": 0,
+      "brief_items": 0,
+      "channel_cursors": 0,
+      "content_source_snapshots": 2,
+      "current_content_summaries": 18,
+      "deep_analysis_evidence": 0,
+      "deep_analysis_persisted_results": 0,
+      "dependency_edges": 0,
+      "distillation_cards": 0,
+      "distillation_cloud_authorizations": 0,
+      "distillation_cloud_response_failures": 0,
+      "distillation_execution_checkpoints": 0,
+      "distillation_moonshot_cloud_authorizations": 0,
+      "distillation_moonshot_unidentified_http_responses": 0,
+      "distillation_no_new_intelligence_results": 0,
+      "distillation_openai_cloud_authorizations": 0,
+      "distillation_openai_unidentified_http_responses": 0,
+      "distillation_resource_usage": 0,
+      "distillation_unidentified_http_responses": 0,
+      "evidence": 36,
+      "evidence_source_ranges": 1,
+      "evidence_text_bindings": 35,
+      "evidence_translation_presentations": 0,
+      "feedback_events": 0,
+      "global_model_preferences": 0,
+      "global_user_settings": 0,
+      "intelligence_revision_evidence": 0,
+      "intelligence_revisions": 0,
+      "intelligence_state_history": 0,
+      "intelligences": 0,
+      "job_attempts": 32,
+      "jobs": 32,
+      "manual_analyze_overrides": 0,
+      "preference_state_events": 0,
+      "preferences": 0,
+      "provider_calls": 24,
+      "provider_dispatch_states": 0,
+      "reports": 0,
+      "research_items": 8,
+      "research_results": 24,
+      "saved_intelligences": 0,
+      "schema_migrations": 33,
+      "source_checks": 117,
+      "source_observations": 26,
+      "source_policy_current": 1,
+      "source_policy_revisions": 1,
+      "source_run_checkpoint_events": 482,
+      "source_run_state_events": 333,
+      "source_run_video_execution_events": 0,
+      "source_run_video_executions": 0,
+      "source_runs": 111,
+      "source_subscriptions": 19,
+      "source_tracking_state": 9,
+      "source_video_filter_decisions": 0,
+      "source_video_links": 26,
+      "timed_transcript_cues": 50,
+      "timed_transcripts": 17,
+      "topic_membership_evidence": 0,
+      "topic_memberships": 0,
+      "topic_relations": 0,
+      "topic_timeline_event_memberships": 0,
+      "topic_timeline_events": 0,
+      "topics": 0,
+      "videos": 26,
+      "weekly_brief_preference_projections": 0,
+      "weekly_briefs": 0
+    }
+  },
+  "all_authority_tables_exactly_restored": true,
+  "backup_id": "4ac1aa7769a448f496ea143a2dd027be",
+  "unchanged_historical_migrations": [
+    {
+      "path": "src/youtube_intel/migrations/001_initial.sql",
+      "sha256": "10bd726fe24da8328de6603ef91dd2d51a1262403be7c2f927c0477cd2693006"
+    },
+    {
+      "path": "src/youtube_intel/migrations/002_add_scoring_lineage.sql",
+      "sha256": "d9bf30af20fd21334bd927cb5cbcbdfff94ac1ebc37eb4a001124109cc530651"
+    },
+    {
+      "path": "src/youtube_intel/migrations/003_add_deep_analysis_persistence.sql",
+      "sha256": "f61d5d276fac30ef1dbbabdc6c4b0809b797eb84bee06a1723d81ec48b8b1bfe"
+    },
+    {
+      "path": "src/youtube_intel/migrations/004_add_provider_dispatch_state.sql",
+      "sha256": "d69a700ae74d407472ed3267e964bb98b5e938b390abb355147112b553fe80b2"
+    },
+    {
+      "path": "src/youtube_intel/migrations/005_add_product_orchestration.sql",
+      "sha256": "43b4815fc20c5e748b3c547278e3a3e821549b4e59083d0e376fae49f90ba856"
+    },
+    {
+      "path": "src/youtube_intel/migrations/006_add_intelligence_domain.sql",
+      "sha256": "76441661565c24865cf696ae152e383647849f891fb7aa3c0239f14487052747"
+    },
+    {
+      "path": "src/youtube_intel/migrations/007_add_intelligence_claim_classification.sql",
+      "sha256": "4deeb04653dee15a91a5474e8276ddaac583ef4b5ed96a83fbb868ab51a35d4a"
+    },
+    {
+      "path": "src/youtube_intel/migrations/008_add_preference_feedback.sql",
+      "sha256": "4bb91b42a5aabd7b03a161df456194a6d1699ce07b8fd3e8a7a1208560349a2a"
+    },
+    {
+      "path": "src/youtube_intel/migrations/009_add_source_policy_filtering.sql",
+      "sha256": "9c29bc524cceee7100f79076248309e879187fe53719a8b867aac37906be06bf"
+    },
+    {
+      "path": "src/youtube_intel/migrations/010_add_personalized_distillation.sql",
+      "sha256": "9ceceed92fb2bf66e505ac2b8cd9d72789665781f78d5775f5546aa8f37422ba"
+    },
+    {
+      "path": "src/youtube_intel/migrations/011_add_topic_timeline.sql",
+      "sha256": "6cc596c0d633491b99aee49491d9e65397cd2b020677051e7a46c96e2448544d"
+    },
+    {
+      "path": "src/youtube_intel/migrations/012_add_source_run_orchestration.sql",
+      "sha256": "8e25d4a338d1b916d81c4c45d5549544ca0d8df4d8901670aa6676161dbbac31"
+    },
+    {
+      "path": "src/youtube_intel/migrations/013_add_weekly_brief_foundation.sql",
+      "sha256": "b723560ac98c385d5d7ad4ea96cd8128e508ea2ecc64dd0dc39f177f09f79106"
+    },
+    {
+      "path": "src/youtube_intel/migrations/014_add_saved_intelligence.sql",
+      "sha256": "ffb8c422187024cc524bf347eb267c425ae6f0909f564b069abd6332343a723f"
+    },
+    {
+      "path": "src/youtube_intel/migrations/015_add_timed_transcript_evidence_bindings.sql",
+      "sha256": "905b8c53becc209d0b0eb5c5d35b20a0df4407a9b9d23e2aa917d321fd962cb1"
+    },
+    {
+      "path": "src/youtube_intel/migrations/016_add_ambiguous_resource_ledger_outcome.sql",
+      "sha256": "28010bcf4ef6434bea4fba004d56e7fea13ef4c79b3a578e08582bfd8319efb4"
+    },
+    {
+      "path": "src/youtube_intel/migrations/017_add_current_content_summary.sql",
+      "sha256": "fe65ec05858496bfd20698fe175d6094ce515bd0bedb3f021da0cb6d74e9e83b"
+    },
+    {
+      "path": "src/youtube_intel/migrations/018_add_global_output_language.sql",
+      "sha256": "2bb28aac01ef6fc01ba4b9ca28c1c71a05ae1ac490e5b19a4a86f16efd0e2450"
+    },
+    {
+      "path": "src/youtube_intel/migrations/019_add_evidence_excerpt_stance.sql",
+      "sha256": "1f919d4df548f93d8041a5cce83497e7e75e41befe9a42c20a11c03c3c4b29a3"
+    },
+    {
+      "path": "src/youtube_intel/migrations/020_add_no_new_intelligence_result.sql",
+      "sha256": "1efe64f3cc5e71b368cdb799d3c6e030f713a5c916629e5aa74fd4ac43963385"
+    },
+    {
+      "path": "src/youtube_intel/migrations/021_seal_distillation_output_language.sql",
+      "sha256": "acf5f87d1fdc48f9fc59cbfd11849c09922304fef5cf0a4fb2e8aaa813bf3a99"
+    },
+    {
+      "path": "src/youtube_intel/migrations/022_bind_current_local_summary.sql",
+      "sha256": "dac02d5e412885806ea6924fa64b61de97a516fcbcddae02b8e58f74dabd9749"
+    },
+    {
+      "path": "src/youtube_intel/migrations/023_add_evidence_translation_presentation.sql",
+      "sha256": "d5210a4acc095791866ed87321707ff5d0f153bdc10e203022ce8c8b13c71551"
+    },
+    {
+      "path": "src/youtube_intel/migrations/024_bind_current_summary_to_content.sql",
+      "sha256": "fdd536abfee507774d827b4c1d62b67ab87c01ce87f54aa996ab99d8878d2472"
+    },
+    {
+      "path": "src/youtube_intel/migrations/025_add_explicit_cloud_execution_audit.sql",
+      "sha256": "0691295d155355a62f381163e8474568b395f748e4e6a4aa143c745fdbe9e33c"
+    },
+    {
+      "path": "src/youtube_intel/migrations/026_add_openai_cloud_execution_audit.sql",
+      "sha256": "d4c30d9876ca50ea8dbec3bc5e1b20667c2a6a0afab898ce7e60e4761c03c3f5"
+    },
+    {
+      "path": "src/youtube_intel/migrations/027_add_moonshot_cloud_execution_audit.sql",
+      "sha256": "7d6ff329c454b92b0b0a5239f6e68d21baf45d8c0546992297c5e528f8ac35c8"
+    },
+    {
+      "path": "src/youtube_intel/migrations/028_add_cloud_response_failure_ledger.sql",
+      "sha256": "b153085add7db4a0e50e65ac98ee09c02f8dce2d8560da249d9ff0393e300a01"
+    },
+    {
+      "path": "src/youtube_intel/migrations/030_add_deep_analysis_durable_evidence.sql",
+      "sha256": "46008eb71f44dcba34d5f009367bde73372f97c99c0f1f7b488722a9ef83ac87"
+    },
+    {
+      "path": "src/youtube_intel/migrations/031_add_research_lite.sql",
+      "sha256": "081ec3347bc202226cb9978f11ce3a89281076e3178d2e8793a2ba969df9b672"
+    },
+    {
+      "path": "src/youtube_intel/migrations/032_add_source_provider_authority.sql",
+      "sha256": "4d6d9abc32f4613d05594d11f263b6125f9d4358d8344a82db48a1111008a3f7"
+    },
+    {
+      "path": "src/youtube_intel/migrations/033_add_bilibili_provider.sql",
+      "sha256": "29954ea802aa9a5d620d43703d62d83e2003d9e5c9b26d9073aca80cd80e13dd"
+    },
+    {
+      "path": "src/youtube_intel/migrations/034_add_source_tracking.sql",
+      "sha256": "8e0b2b525217c1dd32657d641529df4ac3aae4096e82b8f683279ce2a5c813da"
+    }
+  ]
+}

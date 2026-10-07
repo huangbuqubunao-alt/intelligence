@@ -1,0 +1,2 @@
+src/youtube_intel/local_api.py:763: error: Incompatible types in assignment (expression has type "SourceSubscriptionRecord | None", variable has type "SourceSubscriptionRecord")  [assignment]
+Found 1 error in 1 file (checked 96 source files)

@@ -1,0 +1,83 @@
+{
+  "implementation_HEAD": "e48da8ca0cf8b7d06e60f15cfa0929b5cb73950d",
+  "schema": 34,
+  "focused_passed": 203,
+  "named_regressions_passed": 744,
+  "backend": {
+    "passed": 3650,
+    "skipped": 1,
+    "warnings": 2,
+    "seconds": 734.02,
+    "skip": "Explicitly provisioned canonical o200k asset unavailable; inherited test, no asset download."
+  },
+  "frontend": {
+    "passed": 204,
+    "files": 11,
+    "typecheck": "PASS",
+    "production_build": "PASS",
+    "unit_warning": "React act warning in SourceForm unit fixture; real browser console error lists are empty."
+  },
+  "browser": {
+    "languages": [
+      "zh-CN",
+      "en"
+    ],
+    "widths": [
+      320,
+      768,
+      1024,
+      1440
+    ],
+    "online_fixture_flows": 8,
+    "restart_offline_flows": 8,
+    "restored_offline_flows": 8,
+    "shared_flows": 2,
+    "cooldown_flows": 8,
+    "status_projection_flows": 8,
+    "paused_restored_resume_flows": 1,
+    "console_errors": 0,
+    "horizontal_overflow": 0
+  },
+  "database": {
+    "all_70_authority_tables_exactly_restored": true,
+    "paused_state_exactly_restored": true,
+    "provider_network_for_restore": false,
+    "quick_check": "ok",
+    "integrity_check": "ok",
+    "foreign_key_check": [],
+    "migration_files_unchanged": 33
+  },
+  "static": {
+    "ruff": "PASS",
+    "strict_mypy": "PASS, 96 source files",
+    "compileall": "PASS",
+    "design_lints": "PASS, zero findings",
+    "scoped_diff_check": "PASS"
+  },
+  "real_public_youtube": {
+    "attempts": 2,
+    "channels": [
+      "@NASA",
+      "@GoogleDevelopers"
+    ],
+    "result": "YOUTUBE_NETWORK_UNAVAILABLE, HTTP 503",
+    "successful_live_baseline_claimed": false,
+    "new_live_upload_claimed": false
+  },
+  "remaining_P0": [],
+  "remaining_P1": [],
+  "boundaries": {
+    "bilibili_creator_following": false,
+    "bilibili_public_captions": false,
+    "manual_bilibili_video": true,
+    "acoustic_ASR": "NONE",
+    "large_v3_turbo": "MODEL_NOT_QUALIFIED",
+    "production_deep_analysis": "NONE",
+    "new_migrations": 0,
+    "dependency_changes": 0,
+    "new_background_scheduler": false,
+    "new_provider": false
+  },
+  "review": "fresh-final-review.json",
+  "frozen_final_gate": "final-fingerprint.json and frozen-unchanged.json"
+}

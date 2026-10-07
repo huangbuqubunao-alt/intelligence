@@ -1,0 +1,9 @@
+{
+  "kind": "FIXTURE/REPLAY",
+  "paused_state_restored": true,
+  "resume_preserves_frontier": true,
+  "resume_preserves_content_count": true,
+  "language": "zh-CN",
+  "width": 320,
+  "errors": []
+}

@@ -1,0 +1,13 @@
+{"port": 5712, "offline": true}
+Traceback (most recent call last):
+  File "/Users/hua/Documents/yia-worktrees/v1x-youtube-following-resume/tests/e2e/youtube_following_fixture_server.py", line 345, in <module>
+    main()
+  File "/Users/hua/Documents/yia-worktrees/v1x-youtube-following-resume/tests/e2e/youtube_following_fixture_server.py", line 333, in main
+    server.serve_forever()
+  File "/Users/hua/.local/share/uv/python/cpython-3.12-macos-aarch64-none/lib/python3.12/socketserver.py", line 235, in serve_forever
+    ready = selector.select(poll_interval)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/hua/.local/share/uv/python/cpython-3.12-macos-aarch64-none/lib/python3.12/selectors.py", line 415, in select
+    fd_event_list = self._selector.poll(timeout)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt

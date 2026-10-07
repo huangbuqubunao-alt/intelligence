@@ -1,0 +1,91 @@
+F.F.                                                                     [100%]
+=================================== FAILURES ===================================
+_____________ test_public_youtube_api_survives_bilibili_withdrawal _____________
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-987/test_public_youtube_api_surviv0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10cf90860>
+
+    def test_public_youtube_api_survives_bilibili_withdrawal(tmp_path, monkeypatch):
+        youtube, repo, tracker, fixture, runtime, bili, stored, app = setup(tmp_path, monkeypatch)
+        calls = len(bili.calls)
+        status, settings = app.handle("GET", "/api/v1/settings")
+        assert status == 200
+        assert settings["bilibili"]["creator_following"]["available"] is False
+        assert settings["bilibili"]["public_captions"]["available"] is False
+        assert settings["bilibili"]["video_ingestion"]["available"] is True
+        assert settings["youtube"]["channel_following"]["available"] is True
+        status, body = app.handle("POST", "/api/v1/sources/channels", b'{"input":"@public"}')
+        assert status == 200
+        source_id = body["source"]["source_id"]
+        assert body["source"]["tracking"]["baseline_at"] is not None
+        assert repo.list_videos() == ()
+        fixture.tick()
+        status, body = app.handle("POST", f"/api/v1/sources/{source_id}/check", b'{"command_id":"youtube-check"}')
+        assert status == 200 and body["message"] == "COMPLETE"
+        before = tracker.projection(stored.source_id)
+        status, body = app.handle("POST", f"/api/v1/sources/{stored.source_id}/check", b'{"command_id":"withdrawn-check"}')
+        assert status == 200 and body["status"] == "CAPABILITY_UNAVAILABLE"
+        assert tracker.projection(stored.source_id) == before
+        assert len(bili.calls) == calls
+>       status, body = app.handle("POST", "/api/v1/sources/creators", b'{"input":"456"}')
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_phase12_resume_acceptance.py:56:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <youtube_intel.local_api.LocalApiApplication object at 0x10cf93170>
+method = 'POST', path = '/api/v1/sources/creators', body = b'{"input":"456"}'
+
+    def handle(
+        self, method: str, path: str, body: bytes = b""
+    ) -> tuple[int, dict[str, object]]:
+        route = urlparse(path).path.rstrip("/") or "/"
+        try:
+            creator_from_content = re.fullmatch(r"/api/v1/videos/([^/]+)/follow-(creator|channel)", route)
+            following_provider = "YOUTUBE" if route == "/api/v1/sources/channels" or (creator_from_content and creator_from_content[2] == "channel") else "BILIBILI"
+            if method == "POST" and (route in {"/api/v1/sources/creators", "/api/v1/sources/channels"} or creator_from_content):
+                if self._source_tracking is None:
+                    raise ApiError(HTTPStatus.CONFLICT, "TRACKING_UNAVAILABLE", "Source storage is unavailable.")
+                data = self._body(body)
+                self._only_keys(data, set() if creator_from_content else {"input"})
+                if following_provider == "BILIBILI" and not CREATOR_FOLLOWING_AVAILABLE:
+                    # The capability is withdrawn, so no provider request is made,
+                    # no source row is created, and nothing is silently scheduled.
+>                   raise ApiError(
+                        HTTPStatus.CONFLICT,
+                        "BILIBILI_" + CREATOR_FOLLOWING_CODE,
+                        CREATOR_FOLLOWING_UNAVAILABLE_MESSAGE,
+                    )
+E                   youtube_intel.local_api.ApiError: Continuous Bilibili creator tracking is currently unavailable. You can still add public Bilibili videos.
+
+src/youtube_intel/local_api.py:741: ApiError
+________ test_withdrawal_blocks_direct_and_previously_queued_execution _________
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-987/test_withdrawal_blocks_direct_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10cf90920>
+
+    def test_withdrawal_blocks_direct_and_previously_queued_execution(tmp_path, monkeypatch):
+        youtube, repo, tracker, fixture, runtime, bili, stored, app = setup(tmp_path, monkeypatch)
+        fixture.tick()
+        calls = len(bili.calls)
+        assert tracker.check(stored.source_id) == "CAPABILITY_UNAVAILABLE"
+        try:
+            tracker.follow("456")
+        except TrackingError as error:
+            assert error.code == "CREATOR_TRACKING_UNAVAILABLE"
+        else:
+            raise AssertionError("A withdrawn provider cannot create a live Following")
+        runs = _load_module("test_task024_processing_orchestration")
+        orchestrator = runs._orchestrator(repo, runs._Transport(available=False))
+        orchestrator._now = lambda: fixture.now
+        orchestrator._ingestion = RuntimeSourceRunIngestion(runtime, orchestrator._source_policy, tracker)
+        run = orchestrator.enqueue_manual_check_now(source_id=stored.source_id, command_id="pre-withdrawal-queued")
+>       outcome = orchestrator.run_once(run_id=run.run_id)
+                  ^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'DurableProcessingOrchestrator' object has no attribute 'run_once'
+
+tests/integration/test_phase12_resume_acceptance.py:100: AttributeError
+=========================== short test summary info ============================
+FAILED tests/integration/test_phase12_resume_acceptance.py::test_public_youtube_api_survives_bilibili_withdrawal
+FAILED tests/integration/test_phase12_resume_acceptance.py::test_withdrawal_blocks_direct_and_previously_queued_execution
+2 failed, 2 passed in 2.48s

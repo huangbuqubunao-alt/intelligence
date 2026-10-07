@@ -1,0 +1,188 @@
+{
+  "worktree": "/Users/hua/Documents/yia-worktrees/v1x-youtube-following",
+  "branch": "chatgpt/v1x-youtube-following",
+  "HEAD": "4d0cb5e5de450272cb5653fe4988dc393b98e4c2",
+  "status_porcelain_uall": " M DESIGN.md\n M frontend/src/workspace/DESIGN.md\n?? docs/decisions/V1X-PHASE12-UNIFIED-CONTINUOUS-FOLLOWING.md\n?? docs/validation/phase12/ADVERSARIAL.md\n?? docs/validation/phase12/REVIEW.md\n?? docs/validation/phase12/async-predicate-probe.txt\n?? docs/validation/phase12/caption-retry-red.txt\n?? docs/validation/phase12/database-restore.json\n?? docs/validation/phase12/date-only-red.txt\n?? docs/validation/phase12/design-root.json\n?? docs/validation/phase12/design-workspace.json\n?? docs/validation/phase12/detail-final-320.png\n?? docs/validation/phase12/en-1440-caption.png\n?? docs/validation/phase12/enrollment-error-red.txt\n?? docs/validation/phase12/final-code-review.json\n?? docs/validation/phase12/focused-tests.txt\n?? docs/validation/phase12/frontend-build.txt\n?? docs/validation/phase12/frontend-tests.txt\n?? docs/validation/phase12/frontend-typecheck.txt\n?? docs/validation/phase12/full-backend.txt\n?? docs/validation/phase12/live-public-youtube.json\n?? docs/validation/phase12/mypy.txt\n?? docs/validation/phase12/offline-backup-red.txt\n?? docs/validation/phase12/offline-zh-CN-320-caption.png\n?? docs/validation/phase12/phase-regressions.txt\n?? docs/validation/phase12/portable-provenance-proof.json\n?? docs/validation/phase12/protected-worktrees.json\n?? docs/validation/phase12/rapid-check-browser.json\n?? docs/validation/phase12/ruff.txt\n?? docs/validation/phase12/shared-ui-browser.json\n?? docs/validation/phase12/stale-fairness-red.txt\n?? docs/validation/phase12/transcript-boundary-red.txt\n?? docs/validation/phase12/youtube-browser.json\n?? docs/validation/phase12/youtube-offline-browser.json\n?? docs/validation/phase12/youtube-restored-browser.json\n?? docs/validation/phase12/zh-CN-320-following.png\n?? tasks/V1X-PHASE12.md\n",
+  "tracked_diff_sha256": "bf5a6531fa25026579770803093ada8a48a8b6333f369073efc10485c9df2401",
+  "cached_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "index_sha256": "9ddf22aae0c313cfa3b4fc0d5bd6c1e46a7229160d75bc0fab9d28b3b6692da2",
+  "untracked": [
+    {
+      "path": "docs/decisions/V1X-PHASE12-UNIFIED-CONTINUOUS-FOLLOWING.md",
+      "sha256": "4fe7725a10c576d16fda3bcbc3afc7a082697e34d623e2e53b887a20e40b1c7e",
+      "size": 10273
+    },
+    {
+      "path": "docs/validation/phase12/ADVERSARIAL.md",
+      "sha256": "070b67ab90945b8d9a08739b7d9c0ddb85904bc3dcd374be0733f4dc4f659ec1",
+      "size": 5367
+    },
+    {
+      "path": "docs/validation/phase12/REVIEW.md",
+      "sha256": "d63118505093c76a29d871134b7b03f57f7266e38b885e62b1b33b2bd2a8950c",
+      "size": 8816
+    },
+    {
+      "path": "docs/validation/phase12/async-predicate-probe.txt",
+      "sha256": "bf500f67863403221a6ebc8941c2766150bbf955fcae147ea77afe6c33031eb7",
+      "size": 35
+    },
+    {
+      "path": "docs/validation/phase12/caption-retry-red.txt",
+      "sha256": "a863ed897e6e7d0610a290d38fc82bebb59daf1f862213d2eef8386e1fc3cb90",
+      "size": 1627
+    },
+    {
+      "path": "docs/validation/phase12/database-restore.json",
+      "sha256": "760e9dcf934b99771229ef2c392104d84b1ee89553c8c7f262017b2d74ee51fc",
+      "size": 5484
+    },
+    {
+      "path": "docs/validation/phase12/date-only-red.txt",
+      "sha256": "8452adfbbcd7cac45d4ee3b609211a20290f188e368f6e2fcb468602f8f21a5f",
+      "size": 1832
+    },
+    {
+      "path": "docs/validation/phase12/design-root.json",
+      "sha256": "79bffc77eb42b79f98f758ae06e0fc43a7040222a6298f5d8719e193489a2cd2",
+      "size": 92
+    },
+    {
+      "path": "docs/validation/phase12/design-workspace.json",
+      "sha256": "79bffc77eb42b79f98f758ae06e0fc43a7040222a6298f5d8719e193489a2cd2",
+      "size": 92
+    },
+    {
+      "path": "docs/validation/phase12/detail-final-320.png",
+      "sha256": "b69595c864074ab062a1ba9d58005be1d55173f7115570de3627323f74a00433",
+      "size": 185190
+    },
+    {
+      "path": "docs/validation/phase12/en-1440-caption.png",
+      "sha256": "da539c364800357abb770d524947d28ed01f8fe8af9ce8cf1768cd418e59f7c7",
+      "size": 327459
+    },
+    {
+      "path": "docs/validation/phase12/enrollment-error-red.txt",
+      "sha256": "2fa1c8c679f2985351dc32c13ea48ad04432b6c7eeed30de6dad47b984c01222",
+      "size": 1441
+    },
+    {
+      "path": "docs/validation/phase12/final-code-review.json",
+      "sha256": "b4be750a59035c347a12c12997a8065873b135fa0aef7cc1524929b6401258f8",
+      "size": 4230
+    },
+    {
+      "path": "docs/validation/phase12/focused-tests.txt",
+      "sha256": "6f31b1f9fd860701e1d0dae265a37794a8e5a768ab87a5d04597651a64158c59",
+      "size": 181
+    },
+    {
+      "path": "docs/validation/phase12/frontend-build.txt",
+      "sha256": "caeba5476135383cdecd7ab395fec207183ed9395ab3552162393b56fd719f80",
+      "size": 395
+    },
+    {
+      "path": "docs/validation/phase12/frontend-tests.txt",
+      "sha256": "1dd0861a8223327ace568ff1b4b242b5b693b822d7f185d4db37865ba384fa6b",
+      "size": 2148
+    },
+    {
+      "path": "docs/validation/phase12/frontend-typecheck.txt",
+      "sha256": "0073b777d6b85b5e4d2ac79b723aeebbde034ccb34fcc14bd2f0666746071629",
+      "size": 68
+    },
+    {
+      "path": "docs/validation/phase12/full-backend.txt",
+      "sha256": "9d28b366f399f7f82c024d6014827cad664f17f64d7d4944c1a102ad2e826bba",
+      "size": 5158
+    },
+    {
+      "path": "docs/validation/phase12/live-public-youtube.json",
+      "sha256": "b0ca6238afdd605c287a6eb5ef9d33c5648ab3b5af420e846f18d68d44530590",
+      "size": 105
+    },
+    {
+      "path": "docs/validation/phase12/mypy.txt",
+      "sha256": "6831fc6cc3fadc3ffb75f82f00a6f72a83dc9b745693986c191a5c8f9ff31bd6",
+      "size": 44
+    },
+    {
+      "path": "docs/validation/phase12/offline-backup-red.txt",
+      "sha256": "26f1c7378e6c912c92b56bb8f3d3247b3ced93a7c0909d7aa2aac1692415b7f2",
+      "size": 7013
+    },
+    {
+      "path": "docs/validation/phase12/offline-zh-CN-320-caption.png",
+      "sha256": "86774957319714f0773196009018393838af27fc14b571c5066279133b498df8",
+      "size": 314369
+    },
+    {
+      "path": "docs/validation/phase12/phase-regressions.txt",
+      "sha256": "b424a1d86452df87bc1e72f25a2bde01a8b2713aee568d16266f6bf8d5fc9ea7",
+      "size": 992
+    },
+    {
+      "path": "docs/validation/phase12/portable-provenance-proof.json",
+      "sha256": "191aaee4239a1480de728d21b895a6959ce00678af7b090c4421be2eecebc463",
+      "size": 275
+    },
+    {
+      "path": "docs/validation/phase12/protected-worktrees.json",
+      "sha256": "d3939e4a350a2021884271334f32d7b1cf8dcfd35028675db04bd83e91a68b29",
+      "size": 4461
+    },
+    {
+      "path": "docs/validation/phase12/rapid-check-browser.json",
+      "sha256": "c17e0cbdf7880c2f150a7f5320b49e5d4a022e58737d36a46c22706d10fd83e6",
+      "size": 354
+    },
+    {
+      "path": "docs/validation/phase12/ruff.txt",
+      "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "size": 19
+    },
+    {
+      "path": "docs/validation/phase12/shared-ui-browser.json",
+      "sha256": "2e2b0d979b1d4f02022b2aabbf9ed0da08ecda2a23a541acc4a44eba15454b97",
+      "size": 757
+    },
+    {
+      "path": "docs/validation/phase12/stale-fairness-red.txt",
+      "sha256": "6c73265d9d41a551cff6012d00e2bcb9f672f192d9cac39e8592ea0163a683f0",
+      "size": 3707
+    },
+    {
+      "path": "docs/validation/phase12/transcript-boundary-red.txt",
+      "sha256": "4009b66bbe14f574e129c39d8123b87139b057b03ca7fa3e9f28dec0e3b8e8f6",
+      "size": 3811
+    },
+    {
+      "path": "docs/validation/phase12/youtube-browser.json",
+      "sha256": "9eaf7bb894053f43e6691c72a024dc55867bce5bc8d65a02c733736afe65819e",
+      "size": 1193
+    },
+    {
+      "path": "docs/validation/phase12/youtube-offline-browser.json",
+      "sha256": "462f20a5657d6f7e7ead1120c6d6470cdf9d5c1f8cf6fd25191b0fca01858f72",
+      "size": 1185
+    },
+    {
+      "path": "docs/validation/phase12/youtube-restored-browser.json",
+      "sha256": "462f20a5657d6f7e7ead1120c6d6470cdf9d5c1f8cf6fd25191b0fca01858f72",
+      "size": 1185
+    },
+    {
+      "path": "docs/validation/phase12/zh-CN-320-following.png",
+      "sha256": "334c28c92f1e5e8f4a1044d1d8ed1f0ee16f3425611cdabc5644c6e893ae1358",
+      "size": 119395
+    },
+    {
+      "path": "tasks/V1X-PHASE12.md",
+      "sha256": "aeb367b64858ba4f19c2749432f9e9ba2ed4522a3b42e0377d4d18d51415fba3",
+      "size": 1412
+    }
+  ],
+  "recent_commits": "4d0cb5e5de450272cb5653fe4988dc393b98e4c2 fix: preserve truthful YouTube enrollment and precise feed publication authority\nacbc09b2f821c60c157ce7c6017dc551228fccca fix: schedule oldest due Following sources fairly across providers\nd2dea624ad1f3bf813b2dfeede886908f2f4d653 feat: expose channel following in the shared bilingual Following UI\nb53e6f9948e72778573af2828c988533b4bbe3a4 feat: track public YouTube channels through shared Following authority\na81b8e90a662eab72dda28fdc2140362649d9544 docs: seal fresh Phase 11 acceptance and clean validation artifacts\nae4b447495245bf96159e8afb576de5dcbbd1c92 test: complete Phase 11 acceptance and portable tracking verification\n0153cf8ef0d08e8492683deb2d2287767c061b74 fix: group discovered Content under Following and verify publication authority\n38aa2a93b457626b5f9678c5a1e7b72be3c28173 fix: verify portable creator relationships against Content uploader authority\n497ec1fd92db9207924c9d44499e009fbf34a627 feat: expose bilingual creator Following and truthful update controls\nb56baf6e08f3b8b7685f895bc6f1429c7e03738a fix: align runtime doctor and exact migration lineage with schema 34\n6b4c1758c1b7284ce15b8d41420a0f8b79072677 feat: persist incremental creator Following and reuse source-run ingestion\n348ba2e94ecd3428b5ee7de15930d982051d05e9 feat: define public creator identity and bounded provider contracts\nbda7e3eeeaf7f71ab243a82bd75dc4995825d06b docs: normalize validation log whitespace for clean acceptance diff\n5abff7af77f1274551c1148211ba65b6802ca4c3 docs: record full Phase 10B acceptance and regression evidence\n1cc9abcd44074ca078dcfbc2c3cc5f81ed5bd3f6 feat: integrate bilingual Bilibili import and shared reading UX\n",
+  "reflog": "4d0cb5e5de450272cb5653fe4988dc393b98e4c2 commit: fix: preserve truthful YouTube enrollment and precise feed publication authority\nacbc09b2f821c60c157ce7c6017dc551228fccca commit: fix: schedule oldest due Following sources fairly across providers\nd2dea624ad1f3bf813b2dfeede886908f2f4d653 commit: feat: expose channel following in the shared bilingual Following UI\nb53e6f9948e72778573af2828c988533b4bbe3a4 commit: feat: track public YouTube channels through shared Following authority\na81b8e90a662eab72dda28fdc2140362649d9544 reset: moving to HEAD\na81b8e90a662eab72dda28fdc2140362649d9544 \n"
+}

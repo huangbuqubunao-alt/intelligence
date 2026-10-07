@@ -1,0 +1,122 @@
+{
+  "reviewed_implementation_HEAD": "e48da8ca0cf8b7d06e60f15cfa0929b5cb73950d",
+  "phase11r1_ancestor": true,
+  "checkpoint_tracked_diff_sha256": "bf5a6531fa25026579770803093ada8a48a8b6333f369073efc10485c9df2401",
+  "checkpoint_untracked_files_exact": 35,
+  "code_files": [
+    {
+      "path": "frontend/phase12-resume-rapid.e2e.mjs",
+      "sha256": "619be235c5e0e5a860401ad0d4564455191c638c496c753c9551eec17fb21f13"
+    },
+    {
+      "path": "frontend/src/workspace/App.tsx",
+      "sha256": "b5d11b5c422161f786818d9e0733a51f82112c89aeff9dda4bd720c5735971f9"
+    },
+    {
+      "path": "frontend/src/workspace/CreatorFollowing.test.tsx",
+      "sha256": "9e9c84449c4019d2ddc5bc9808a62291b6e952350bbe17a02d1b73c9c145ac9f"
+    },
+    {
+      "path": "frontend/src/workspace/CreatorFollowing.tsx",
+      "sha256": "0d5d6e6cf17da6257d00ab5b35f49153b066e9e593be21f4ec122369cc7dee92"
+    },
+    {
+      "path": "frontend/src/workspace/uiLanguage.tsx",
+      "sha256": "dae7ceb68e786e49473636c9e9b264b293bd006cb38c7e24b7ce0dd20ab9f0e2"
+    },
+    {
+      "path": "frontend/youtube-following-shared.e2e.mjs",
+      "sha256": "48bd78b4c0e96adca943675502d6755fb2b996eab1c687cf47ed7220b7b9e5d7"
+    },
+    {
+      "path": "frontend/youtube-following.e2e.mjs",
+      "sha256": "c3105297291f790cd33878c735fdfc1b84c815f144beea497ac8cd31e442e603"
+    },
+    {
+      "path": "scripts/validate_phase12_public_youtube.py",
+      "sha256": "fb4ff85f3dae26111d1b173fe1bab138ee90beeb96c7afc203d47561990e0715"
+    },
+    {
+      "path": "scripts/validate_phase12_resume_database.py",
+      "sha256": "e72f74206e34f37769cb1da2d42a88e879cb1e2fd46f72c5f2917d374bc5ea66"
+    },
+    {
+      "path": "src/youtube_intel/following_provider.py",
+      "sha256": "f9ccf02382ad3c1468bccf3ba8f0c61b967acfbb2b2ca5d5c13393e630b5291d"
+    },
+    {
+      "path": "src/youtube_intel/following_tracking.py",
+      "sha256": "c79875456c0e144336c27065e35fdb8043c9883f0870e2cf3c7eb19164539f68"
+    },
+    {
+      "path": "src/youtube_intel/local_api.py",
+      "sha256": "3482d5377dcc67cc5d051fccbab4dd7409757e658e7955ea5e74f48c6003e405"
+    },
+    {
+      "path": "src/youtube_intel/orchestration_service.py",
+      "sha256": "9600429cbf607af172bf5b849b44c9369a759c5f13799659ba33b8a8b77c8839"
+    },
+    {
+      "path": "src/youtube_intel/pipeline.py",
+      "sha256": "6212092fbd6c8e471f748788e5d4cce0cb1906e472d3c69bd83abd71534d6d3e"
+    },
+    {
+      "path": "src/youtube_intel/processing_orchestrator.py",
+      "sha256": "0e1b79e785eb2ecc2f3c5730832f22c25b6fc8f7643cc9602c383a3ad7572756"
+    },
+    {
+      "path": "src/youtube_intel/providers/youtube_channel.py",
+      "sha256": "c66ff0c934bdb7a8274613e43c51a40f9595ea186d598c8eb981e2b350e8db32"
+    },
+    {
+      "path": "src/youtube_intel/runtime.py",
+      "sha256": "5d458e6bba5eb64e414aa880c4abe6756c68f9eaad9cada30aa6043ada93e552"
+    },
+    {
+      "path": "src/youtube_intel/runtime_composition.py",
+      "sha256": "3337e96b910f99df33f06161bfedc4ab5753e25ecec39c99cb4c475999a115bb"
+    },
+    {
+      "path": "src/youtube_intel/state.py",
+      "sha256": "2f629147da1e7e0c1a38c0307212a8b812cb6ef8a9b8b75e0b4a771ccb9a92b2"
+    },
+    {
+      "path": "tests/e2e/youtube_following_fixture_server.py",
+      "sha256": "23375e0e23e797bc84d8a3eb0480ad821986c93d98bba2ef719f0e34ca6415ea"
+    },
+    {
+      "path": "tests/integration/test_bilibili_three_provider.py",
+      "sha256": "3ce095ee9f0cc28807abd35162032aa77557736476455e851aa971d5635b17f6"
+    },
+    {
+      "path": "tests/integration/test_creator_following.py",
+      "sha256": "f412ba13d90c4e09c1751c3b504d5bba9b2d08a1806e9e16f40486652f5ecc9d"
+    },
+    {
+      "path": "tests/integration/test_phase11r_source_run_quiescence.py",
+      "sha256": "394272792807143081cd2687496f9858900d618510d06950242bbda1d4a93ed3"
+    },
+    {
+      "path": "tests/integration/test_phase12_resume_acceptance.py",
+      "sha256": "9297597ce5c82ebdf747e62188c47b56b1550f5ecf506a5038a293b266357d01"
+    },
+    {
+      "path": "tests/integration/test_youtube_following.py",
+      "sha256": "f4b771a998e35a6afe45a2be7cb5823f7eab89cf42cd1d64cbe110930c6571c2"
+    }
+  ],
+  "passes": {
+    "preservation": "All WIP bytes retained in 97d2a73; 35 untracked hashes and tracked patch match. Final original fingerprint is an independent final gate.",
+    "integration": "Both histories preserved by merge 23a4f85. Bilibili/Backup/run-state/DNS/status CSS baseline files match 8ebdf282 exactly. Four conflicts resolved semantically.",
+    "product": "Durable canonical channels, truthful zero-history baseline, bounded overlap discovery, pending retries, unified Content, cooldown, pause/resume, restart and exact offline restore verified.",
+    "boundary": "No migration, dependency, cloud/ASR/Deep Analysis, new provider, daemon/scheduler, broad formatting or original-worktree mutation."
+  },
+  "remaining_P0": [],
+  "remaining_P1": [],
+  "limitations": [
+    "Successful live YouTube resolution/baseline unproven in this network environment: two bounded real attempts returned YOUTUBE_NETWORK_UNAVAILABLE.",
+    "Inherited explicit canonical o200k provisioning test skip; no asset download.",
+    "Physical power-loss not simulated; no stronger exactly-once claim.",
+    "Original raw paused failure logs retain their whitespace bytes. Scoped resume and working diff checks pass."
+  ]
+}

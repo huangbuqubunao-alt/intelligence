@@ -1,5 +1,14 @@
 # YouTube Intelligence Agent 项目状态
 
+2026-10-07 Phase 12 本地完成：`codex/phase12-resume` 保留暂停工作并语义整合
+已在线验收的 Phase 11R.1 `8ebdf282`，schema 34 不变。统一 Following 与公开
+YouTube 频道跟踪的确定性、前后端、浏览器、重启及离线 Backup/Restore 门禁通过，
+原冻结 worktree 保持不变。两次真实公开 YouTube 请求均为网络不可用，未宣称真实
+baseline 成功；新增视频转移由明确标注的 fixture/replay 验证。Bilibili Creator
+Following/public captions 继续不可用；生产 ASR/Deep Analysis 为 NONE。
+详见 [本次验收证据](validation/phase12-resume/README.md)。此状态仅为本地 Phase 12
+完成，不改变发行治理，也不授权 push、main 合并、Phase 13 或 Phase 14。
+
 2026-10-03 本地候选状态：V1.x Advanced Intelligence 里程碑闭合与 M13 补救整合，
 见 [闭合记录](milestones/V1X_ADVANCED_INTELLIGENCE_CLOSURE.md)。候选分支为
 `chatgpt/v1x-milestone-closure`，不是已更新的 main，也不是发行。

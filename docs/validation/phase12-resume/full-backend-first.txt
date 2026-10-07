@@ -1,0 +1,54 @@
+..................................................................F..... [  1%]
+........................................................................ [  3%]
+........................................................................ [  5%]
+........................................................................ [  7%]
+........................................................................ [  9%]
+........................................................................ [ 11%]
+........................................................................ [ 13%]
+........................................................................ [ 15%]
+........................................................................ [ 17%]
+........................................................................ [ 19%]
+........................................................................ [ 21%]
+........................................................................ [ 23%]
+........................................................................ [ 25%]
+........................................................................ [ 27%]
+........................................................................ [ 29%]
+........................................................................ [ 31%]
+........................................................................ [ 33%]
+........................................................................ [ 35%]
+........................................................................ [ 37%]
+........................................................................ [ 39%]
+.............................................................
+=================================== FAILURES ===================================
+_ test_creator_discovered_content_uses_mixed_research_and_intelligence_authority _
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-986/test_creator_discovered_conten0')
+
+    def test_creator_discovered_content_uses_mixed_research_and_intelligence_authority(tmp_path: Path) -> None:
+        from youtube_intel.following_tracking import FollowingTrackingService
+        creator = _load_module("test_creator_following")
+        repo, _, content_ids = seed_three(tmp_path)
+        fixture = creator.CreatorFixture()
+        publisher = BilibiliContentProvider(repo, tmp_path / "data", adapter=BilibiliAdapter(fetch=fixture.fetch), now=lambda: fixture.now)
+        tracker = FollowingTrackingService(repo, publisher, now=lambda: fixture.now)
+>       source = tracker.follow("123")
+                 ^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_bilibili_three_provider.py:59:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <youtube_intel.following_tracking.FollowingTrackingService object at 0x114531790>
+value = '123', provider = 'BILIBILI'
+
+    def follow(self, value: str, *, provider: str = "BILIBILI") -> SourceSubscriptionRecord:
+        if not getattr(self.providers[provider], "available", True):
+>           raise TrackingError("CREATOR_TRACKING_UNAVAILABLE")
+E           youtube_intel.following_provider.TrackingError: CREATOR_TRACKING_UNAVAILABLE
+
+src/youtube_intel/following_tracking.py:199: TrackingError
+=========================== short test summary info ============================
+FAILED tests/integration/test_bilibili_three_provider.py::test_creator_discovered_content_uses_mixed_research_and_intelligence_authority
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! KeyboardInterrupt !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+/Users/hua/.local/share/uv/python/cpython-3.12-macos-aarch64-none/lib/python3.12/pathlib.py:1311: KeyboardInterrupt
+(to show a full traceback on KeyboardInterrupt use --full-trace)
+1 failed, 1500 passed in 489.68s (0:08:09)

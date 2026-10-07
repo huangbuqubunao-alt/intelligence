@@ -1,0 +1,21 @@
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
++ actual - expected
+
++ '2026-10-04T05:20:00.000000Z'
+- '2026-10-04T05:00:00.000000Z'
+                 ^
+
+    at file:///Users/hua/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/youtube-following-shared.e2e.mjs:41:71 {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: '2026-10-04T05:20:00.000000Z',
+  expected: '2026-10-04T05:00:00.000000Z',
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v22.22.3

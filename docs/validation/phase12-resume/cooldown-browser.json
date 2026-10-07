@@ -1,0 +1,63 @@
+{
+  "kind": "FIXTURE/REPLAY",
+  "ui_clock_matches_fixture_backend_clock": true,
+  "scenarios": [
+    {
+      "language": "zh-CN",
+      "width": 320,
+      "cooldown": true,
+      "check_disabled": true,
+      "next_eligible_visible": true
+    },
+    {
+      "language": "zh-CN",
+      "width": 768,
+      "cooldown": true,
+      "check_disabled": true,
+      "next_eligible_visible": true
+    },
+    {
+      "language": "zh-CN",
+      "width": 1024,
+      "cooldown": true,
+      "check_disabled": true,
+      "next_eligible_visible": true
+    },
+    {
+      "language": "zh-CN",
+      "width": 1440,
+      "cooldown": true,
+      "check_disabled": true,
+      "next_eligible_visible": true
+    },
+    {
+      "language": "en",
+      "width": 320,
+      "cooldown": true,
+      "check_disabled": true,
+      "next_eligible_visible": true
+    },
+    {
+      "language": "en",
+      "width": 768,
+      "cooldown": true,
+      "check_disabled": true,
+      "next_eligible_visible": true
+    },
+    {
+      "language": "en",
+      "width": 1024,
+      "cooldown": true,
+      "check_disabled": true,
+      "next_eligible_visible": true
+    },
+    {
+      "language": "en",
+      "width": 1440,
+      "cooldown": true,
+      "check_disabled": true,
+      "next_eligible_visible": true
+    }
+  ],
+  "errors": []
+}
