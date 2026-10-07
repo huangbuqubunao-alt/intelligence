@@ -41,7 +41,7 @@ def snapshot(root):
             rows = sorted(tuple(row) for row in connection.execute('SELECT * FROM "' + table + '"')) if table == "schema_migrations" else sorted(repr(tuple(row)) for row in connection.execute('SELECT * FROM "' + table + '"'))
             digests[table] = hashlib.sha256(repr(rows).encode()).hexdigest()
             counts[table] = len(rows)
-        return {"schema": connection.execute("PRAGMA user_version").fetchone()[0], "pragmas": health, "issues": issues, "tracked_sources": tracked, "table_sha256": digests, "table_counts": counts}
+        return {"schema": connection.execute("PRAGMA user_version").fetchone()[0], "pragmas": health, "issues": issues, "tracked_sources": tracked, "source_states": [dict(row) for row in connection.execute("SELECT s.source_id,s.provider,s.enabled,t.baseline_at,t.verified_at,t.health FROM source_subscriptions s JOIN source_tracking_state t USING(source_id) ORDER BY s.source_id")], "table_sha256": digests, "table_counts": counts}
 
 
 def main():
