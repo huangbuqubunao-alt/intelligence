@@ -235,6 +235,7 @@ test('Check Now replaces its running notice with the settled truthful outcome', 
   fireEvent.click(await screen.findByRole('button', { name: 'Check Now' }));
   await waitFor(() => expect(screen.queryByText('Checking…')).toBeNull());
   expect(screen.getAllByText('Unable to connect to YouTube. Check your network or VPN and try again.').length).toBeGreaterThan(0);
+  expect(screen.getByText("Existing videos are not imported. Successful checks have a 15-minute cooldown.")).toBeTruthy();
   expect(screen.queryByText('Continuous creator tracking is currently unavailable')).toBeNull();
 });
 

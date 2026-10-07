@@ -218,7 +218,7 @@ export function CreatorFollowingDetail({ id, capability, onClose, onRefresh }: {
         <dt>{t("Waiting for Content acquisition")}</dt><dd>{source.tracking.pending_count}</dd>
         <dt>{t("Videos that could not be imported")}</dt><dd>{source.tracking.unavailable_count ?? 0}</dd>
       </dl>
-      {!off && <p className="hint">{t("Existing videos are not imported. Updates are checked while the app is running, with a 15-minute cooldown.")}</p>}
+      {!off && <p className="hint">{t(source.provider === "YOUTUBE" ? "Existing videos are not imported. Successful checks have a 15-minute cooldown." : "Existing videos are not imported. Updates are checked while the app is running, with a 15-minute cooldown.")}</p>}
       <div className="button-row">
         <button className="button button-primary" disabled={busy || (source.provider !== "YOUTUBE" && !capability.known) || off || !source.enabled || source.tracking.checking || active || coolingDown} onClick={async () => {
           setBusy(true); setMessage(null); setNotice(null); setCheckRun(null);

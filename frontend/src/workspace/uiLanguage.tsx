@@ -4,6 +4,7 @@ export type UiLanguage = "zh-CN" | "en";
 
 const storageKey = "yia.ui-language";
 const chinese: Record<string, string> = {
+  "Existing videos are not imported. Successful checks have a 15-minute cooldown.": "不会导入已有视频。成功检查后需等待 15 分钟再检查。",
   "Retry": "重试",
   "Unable to connect to YouTube. Check your network or VPN and try again.": "无法连接 YouTube。请检查网络或 VPN 后重试。",
   "Follow a channel": "关注一个频道",
