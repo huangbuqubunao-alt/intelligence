@@ -1,0 +1,50 @@
+[
+  {
+    "check": "ruff",
+    "command": [
+      "/Users/hua/youtube-intel/.venv/bin/python",
+      "-m",
+      "ruff",
+      "check",
+      "src",
+      "tests"
+    ],
+    "exit_code": 0,
+    "seconds": 0.082
+  },
+  {
+    "check": "mypy",
+    "command": [
+      "/Users/hua/youtube-intel/.venv/bin/python",
+      "-m",
+      "mypy",
+      "--strict",
+      "src"
+    ],
+    "exit_code": 0,
+    "seconds": 0.29
+  },
+  {
+    "check": "compileall",
+    "command": [
+      "/Users/hua/youtube-intel/.venv/bin/python",
+      "-m",
+      "compileall",
+      "-q",
+      "src",
+      "tests"
+    ],
+    "exit_code": 0,
+    "seconds": 0.074
+  },
+  {
+    "check": "diff-check",
+    "command": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "exit_code": 0,
+    "seconds": 0.022
+  }
+]

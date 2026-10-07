@@ -1,0 +1,55 @@
+[
+  {
+    "alias": "@NASA",
+    "round": 1,
+    "at": "2026-10-07T17:17:00.776290+00:00",
+    "result": "SUCCESS",
+    "bytes": 1799954,
+    "channel_id": "UCLA_DiR1FfKNvjuUpBHmylQ",
+    "seconds": 3.17
+  },
+  {
+    "alias": "@GoogleDevelopers",
+    "round": 1,
+    "at": "2026-10-07T17:17:08.951442+00:00",
+    "result": "SUCCESS",
+    "bytes": 1668810,
+    "channel_id": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
+    "seconds": 5.377
+  },
+  {
+    "alias": "@NASA",
+    "round": 2,
+    "at": "2026-10-07T17:17:19.333873+00:00",
+    "result": "FAILURE",
+    "code": "NETWORK_UNAVAILABLE",
+    "seconds": 10.001
+  },
+  {
+    "alias": "@GoogleDevelopers",
+    "round": 2,
+    "at": "2026-10-07T17:17:34.340734+00:00",
+    "result": "SUCCESS",
+    "bytes": 1685643,
+    "channel_id": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
+    "seconds": 6.092
+  },
+  {
+    "alias": "@NASA",
+    "round": 3,
+    "at": "2026-10-07T17:17:45.438427+00:00",
+    "result": "SUCCESS",
+    "bytes": 1813096,
+    "channel_id": "UCLA_DiR1FfKNvjuUpBHmylQ",
+    "seconds": 4.567
+  },
+  {
+    "alias": "@GoogleDevelopers",
+    "round": 3,
+    "at": "2026-10-07T17:17:55.005806+00:00",
+    "result": "SUCCESS",
+    "bytes": 1668851,
+    "channel_id": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
+    "seconds": 4.443
+  }
+]

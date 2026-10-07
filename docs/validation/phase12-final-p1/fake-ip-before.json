@@ -1,0 +1,9 @@
+{
+  "base": "bdd30cc37dcd9f956c3a9c6185ad12433c08ef8f",
+  "system_proxy_absent": true,
+  "dns_fake_ip": true,
+  "globally_public": false,
+  "code": "ACCESS_DENIED",
+  "cooldown_seconds": 900.0,
+  "connections": 0
+}

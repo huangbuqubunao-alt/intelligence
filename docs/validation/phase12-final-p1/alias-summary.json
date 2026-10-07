@@ -1,0 +1,131 @@
+{
+  "alias-before": {
+    "@NASA": {
+      "attempts": 3,
+      "successes": 2,
+      "failures": [
+        {
+          "alias": "@NASA",
+          "round": 2,
+          "at": "2026-10-07T17:17:19.333873+00:00",
+          "result": "FAILURE",
+          "code": "NETWORK_UNAVAILABLE",
+          "seconds": 10.001
+        }
+      ],
+      "seconds": [
+        3.17,
+        10.001,
+        4.567
+      ],
+      "bytes": [
+        1799954,
+        null,
+        1813096
+      ]
+    },
+    "@GoogleDevelopers": {
+      "attempts": 3,
+      "successes": 3,
+      "failures": [],
+      "seconds": [
+        5.377,
+        6.092,
+        4.443
+      ],
+      "bytes": [
+        1668810,
+        1685643,
+        1668851
+      ]
+    }
+  },
+  "alias-after": {
+    "@NASA": {
+      "attempts": 6,
+      "successes": 6,
+      "failures": [],
+      "seconds": [
+        3.609,
+        4.963,
+        4.695,
+        5.213,
+        16.981,
+        6.064
+      ],
+      "bytes": [
+        1806432,
+        1811754,
+        1807876,
+        1804939,
+        1806279,
+        1808653
+      ]
+    },
+    "@GoogleDevelopers": {
+      "attempts": 6,
+      "successes": 6,
+      "failures": [],
+      "seconds": [
+        4.752,
+        10.984,
+        6.796,
+        3.201,
+        3.678,
+        5.341
+      ],
+      "bytes": [
+        1654816,
+        1671345,
+        1668375,
+        1667017,
+        1666947,
+        1684865
+      ]
+    }
+  },
+  "alias-final": {
+    "@NASA": {
+      "attempts": 6,
+      "successes": 6,
+      "failures": [],
+      "seconds": [
+        5.608,
+        5.308,
+        4.407,
+        15.556,
+        5.39,
+        2.937
+      ],
+      "bytes": [
+        1809717,
+        1809197,
+        1809295,
+        1813524,
+        1807080,
+        1811061
+      ]
+    },
+    "@GoogleDevelopers": {
+      "attempts": 6,
+      "successes": 6,
+      "failures": [],
+      "seconds": [
+        15.874,
+        6.217,
+        7.759,
+        5.151,
+        4.274,
+        5.076
+      ],
+      "bytes": [
+        1671920,
+        1666366,
+        1666664,
+        1673994,
+        1667910,
+        1672188
+      ]
+    }
+  }
+}

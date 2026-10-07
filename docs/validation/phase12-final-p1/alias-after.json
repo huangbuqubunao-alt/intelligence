@@ -1,0 +1,110 @@
+[
+  {
+    "alias": "@NASA",
+    "round": 1,
+    "at": "2026-10-07T17:20:04.348972+00:00",
+    "result": "SUCCESS",
+    "bytes": 1806432,
+    "channel_id": "UCLA_DiR1FfKNvjuUpBHmylQ",
+    "seconds": 3.609
+  },
+  {
+    "alias": "@GoogleDevelopers",
+    "round": 1,
+    "at": "2026-10-07T17:20:12.963391+00:00",
+    "result": "SUCCESS",
+    "bytes": 1654816,
+    "channel_id": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
+    "seconds": 4.752
+  },
+  {
+    "alias": "@NASA",
+    "round": 2,
+    "at": "2026-10-07T17:20:22.718043+00:00",
+    "result": "SUCCESS",
+    "bytes": 1811754,
+    "channel_id": "UCLA_DiR1FfKNvjuUpBHmylQ",
+    "seconds": 4.963
+  },
+  {
+    "alias": "@GoogleDevelopers",
+    "round": 2,
+    "at": "2026-10-07T17:20:32.686382+00:00",
+    "result": "SUCCESS",
+    "bytes": 1671345,
+    "channel_id": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
+    "seconds": 10.984
+  },
+  {
+    "alias": "@NASA",
+    "round": 3,
+    "at": "2026-10-07T17:20:48.673057+00:00",
+    "result": "SUCCESS",
+    "bytes": 1807876,
+    "channel_id": "UCLA_DiR1FfKNvjuUpBHmylQ",
+    "seconds": 4.695
+  },
+  {
+    "alias": "@GoogleDevelopers",
+    "round": 3,
+    "at": "2026-10-07T17:20:58.371109+00:00",
+    "result": "SUCCESS",
+    "bytes": 1668375,
+    "channel_id": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
+    "seconds": 6.796
+  },
+  {
+    "alias": "@NASA",
+    "round": 4,
+    "at": "2026-10-07T17:21:10.172055+00:00",
+    "result": "SUCCESS",
+    "bytes": 1804939,
+    "channel_id": "UCLA_DiR1FfKNvjuUpBHmylQ",
+    "seconds": 5.213
+  },
+  {
+    "alias": "@GoogleDevelopers",
+    "round": 4,
+    "at": "2026-10-07T17:21:20.387811+00:00",
+    "result": "SUCCESS",
+    "bytes": 1667017,
+    "channel_id": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
+    "seconds": 3.201
+  },
+  {
+    "alias": "@NASA",
+    "round": 5,
+    "at": "2026-10-07T17:21:28.594006+00:00",
+    "result": "SUCCESS",
+    "bytes": 1806279,
+    "channel_id": "UCLA_DiR1FfKNvjuUpBHmylQ",
+    "seconds": 16.981
+  },
+  {
+    "alias": "@GoogleDevelopers",
+    "round": 5,
+    "at": "2026-10-07T17:21:50.580493+00:00",
+    "result": "SUCCESS",
+    "bytes": 1666947,
+    "channel_id": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
+    "seconds": 3.678
+  },
+  {
+    "alias": "@NASA",
+    "round": 6,
+    "at": "2026-10-07T17:21:59.263993+00:00",
+    "result": "SUCCESS",
+    "bytes": 1808653,
+    "channel_id": "UCLA_DiR1FfKNvjuUpBHmylQ",
+    "seconds": 6.064
+  },
+  {
+    "alias": "@GoogleDevelopers",
+    "round": 6,
+    "at": "2026-10-07T17:22:10.333602+00:00",
+    "result": "SUCCESS",
+    "bytes": 1684865,
+    "channel_id": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
+    "seconds": 5.341
+  }
+]

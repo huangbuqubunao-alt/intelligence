@@ -1,0 +1,542 @@
+{
+  "kind": "REAL",
+  "network": {
+    "platform": "macOS",
+    "authority": "SystemConfiguration",
+    "system_https_proxy_enabled": true,
+    "route_kind": "SYSTEM_NETWORK",
+    "manual_configuration": false
+  },
+  "attempts": [
+    {
+      "handle": "@NASA",
+      "started_at": "2026-10-07T17:24:22.709018+00:00",
+      "status": 200,
+      "result": {
+        "source": {
+          "source_id": "youtube-channel-UCLA_DiR1FfKNvjuUpBHmylQ",
+          "provider": "YOUTUBE",
+          "source_type": "CHANNEL",
+          "canonical_url": "https://www.youtube.com/channel/UCLA_DiR1FfKNvjuUpBHmylQ",
+          "channel_id": "UCLA_DiR1FfKNvjuUpBHmylQ",
+          "video_id": null,
+          "display_name": "NASA",
+          "enabled": true,
+          "processing_policy": "DISCOVER_ONLY",
+          "last_checked_at": "2026-10-07T17:24:29.048742Z",
+          "last_success_at": "2026-10-07T17:24:29.048742Z",
+          "last_error": null,
+          "created_at": "2026-10-07T17:24:29.027937Z",
+          "updated_at": "2026-10-07T17:24:29.048742Z",
+          "tracking": {
+            "source_id": "youtube-channel-UCLA_DiR1FfKNvjuUpBHmylQ",
+            "contract": "source-tracking-v1",
+            "followed_at": "2026-10-07T17:24:29.027937Z",
+            "baseline_at": "2026-10-07T17:24:29.048742Z",
+            "verified_at": "2026-10-07T17:24:29.048742Z",
+            "latest_published_at": "2026-10-07T12:32:13.000000Z",
+            "next_page": 1,
+            "coverage": "COMPLETE",
+            "health": "HEALTHY",
+            "next_check_at": "2026-10-07T17:39:29.048742Z",
+            "discovered_count": 0,
+            "pending_count": 0,
+            "unavailable_count": 0,
+            "update_count": 0,
+            "checking": false,
+            "processing_count": 0
+          },
+          "tracking_parent_source_ids": [],
+          "insight_count": 0,
+          "friendly_name": "NASA"
+        }
+      },
+      "source_detail": {
+        "source": {
+          "source_id": "youtube-channel-UCLA_DiR1FfKNvjuUpBHmylQ",
+          "provider": "YOUTUBE",
+          "source_type": "CHANNEL",
+          "canonical_url": "https://www.youtube.com/channel/UCLA_DiR1FfKNvjuUpBHmylQ",
+          "channel_id": "UCLA_DiR1FfKNvjuUpBHmylQ",
+          "video_id": null,
+          "display_name": "NASA",
+          "enabled": true,
+          "processing_policy": "DISCOVER_ONLY",
+          "last_checked_at": "2026-10-07T17:24:29.048742Z",
+          "last_success_at": "2026-10-07T17:24:29.048742Z",
+          "last_error": null,
+          "created_at": "2026-10-07T17:24:29.027937Z",
+          "updated_at": "2026-10-07T17:24:29.048742Z",
+          "tracking": {
+            "source_id": "youtube-channel-UCLA_DiR1FfKNvjuUpBHmylQ",
+            "contract": "source-tracking-v1",
+            "followed_at": "2026-10-07T17:24:29.027937Z",
+            "baseline_at": "2026-10-07T17:24:29.048742Z",
+            "verified_at": "2026-10-07T17:24:29.048742Z",
+            "latest_published_at": "2026-10-07T12:32:13.000000Z",
+            "next_page": 1,
+            "coverage": "COMPLETE",
+            "health": "HEALTHY",
+            "next_check_at": "2026-10-07T17:39:29.048742Z",
+            "discovered_count": 0,
+            "pending_count": 0,
+            "unavailable_count": 0,
+            "update_count": 0,
+            "checking": false,
+            "processing_count": 0
+          },
+          "tracking_parent_source_ids": [],
+          "insight_count": 0,
+          "friendly_name": "NASA"
+        },
+        "policy": {
+          "source_id": "youtube-channel-UCLA_DiR1FfKNvjuUpBHmylQ",
+          "initial_history_count": 5,
+          "per_run_max_new_videos": 5,
+          "focus_rules": [],
+          "ignore_rules": [],
+          "distillation_style": "BALANCED",
+          "global_revision_id": "source-policy:global:bootstrap",
+          "source_policy_revision_id": null
+        },
+        "policy_modes": {
+          "focus": "INHERIT",
+          "ignore": "INHERIT",
+          "style": "INHERIT"
+        },
+        "schedules": [],
+        "recent_videos": [],
+        "source_runs": []
+      },
+      "canonical_channel_id": "UCLA_DiR1FfKNvjuUpBHmylQ",
+      "baseline_succeeded": true,
+      "second_check": "NOT_ELIGIBLE_COOLDOWN_PRESERVED"
+    },
+    {
+      "handle": "@GoogleDevelopers",
+      "started_at": "2026-10-07T17:24:31.018581+00:00",
+      "status": 200,
+      "result": {
+        "source": {
+          "source_id": "youtube-channel-UC_x5XG1OV2P6uZZ5FSM9Ttw",
+          "provider": "YOUTUBE",
+          "source_type": "CHANNEL",
+          "canonical_url": "https://www.youtube.com/channel/UC_x5XG1OV2P6uZZ5FSM9Ttw",
+          "channel_id": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
+          "video_id": null,
+          "display_name": "Google for Developers",
+          "enabled": true,
+          "processing_policy": "DISCOVER_ONLY",
+          "last_checked_at": "2026-10-07T17:24:38.614451Z",
+          "last_success_at": "2026-10-07T17:24:38.614451Z",
+          "last_error": null,
+          "created_at": "2026-10-07T17:24:38.593859Z",
+          "updated_at": "2026-10-07T17:24:38.614451Z",
+          "tracking": {
+            "source_id": "youtube-channel-UC_x5XG1OV2P6uZZ5FSM9Ttw",
+            "contract": "source-tracking-v1",
+            "followed_at": "2026-10-07T17:24:38.593859Z",
+            "baseline_at": "2026-10-07T17:24:38.614451Z",
+            "verified_at": "2026-10-07T17:24:38.614451Z",
+            "latest_published_at": "2026-10-07T16:00:07.000000Z",
+            "next_page": 1,
+            "coverage": "COMPLETE",
+            "health": "HEALTHY",
+            "next_check_at": "2026-10-07T17:39:38.614451Z",
+            "discovered_count": 0,
+            "pending_count": 0,
+            "unavailable_count": 0,
+            "update_count": 0,
+            "checking": false,
+            "processing_count": 0
+          },
+          "tracking_parent_source_ids": [],
+          "insight_count": 0,
+          "friendly_name": "Google for Developers"
+        }
+      },
+      "source_detail": {
+        "source": {
+          "source_id": "youtube-channel-UC_x5XG1OV2P6uZZ5FSM9Ttw",
+          "provider": "YOUTUBE",
+          "source_type": "CHANNEL",
+          "canonical_url": "https://www.youtube.com/channel/UC_x5XG1OV2P6uZZ5FSM9Ttw",
+          "channel_id": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
+          "video_id": null,
+          "display_name": "Google for Developers",
+          "enabled": true,
+          "processing_policy": "DISCOVER_ONLY",
+          "last_checked_at": "2026-10-07T17:24:38.614451Z",
+          "last_success_at": "2026-10-07T17:24:38.614451Z",
+          "last_error": null,
+          "created_at": "2026-10-07T17:24:38.593859Z",
+          "updated_at": "2026-10-07T17:24:38.614451Z",
+          "tracking": {
+            "source_id": "youtube-channel-UC_x5XG1OV2P6uZZ5FSM9Ttw",
+            "contract": "source-tracking-v1",
+            "followed_at": "2026-10-07T17:24:38.593859Z",
+            "baseline_at": "2026-10-07T17:24:38.614451Z",
+            "verified_at": "2026-10-07T17:24:38.614451Z",
+            "latest_published_at": "2026-10-07T16:00:07.000000Z",
+            "next_page": 1,
+            "coverage": "COMPLETE",
+            "health": "HEALTHY",
+            "next_check_at": "2026-10-07T17:39:38.614451Z",
+            "discovered_count": 0,
+            "pending_count": 0,
+            "unavailable_count": 0,
+            "update_count": 0,
+            "checking": false,
+            "processing_count": 0
+          },
+          "tracking_parent_source_ids": [],
+          "insight_count": 0,
+          "friendly_name": "Google for Developers"
+        },
+        "policy": {
+          "source_id": "youtube-channel-UC_x5XG1OV2P6uZZ5FSM9Ttw",
+          "initial_history_count": 5,
+          "per_run_max_new_videos": 5,
+          "focus_rules": [],
+          "ignore_rules": [],
+          "distillation_style": "BALANCED",
+          "global_revision_id": "source-policy:global:bootstrap",
+          "source_policy_revision_id": null
+        },
+        "policy_modes": {
+          "focus": "INHERIT",
+          "ignore": "INHERIT",
+          "style": "INHERIT"
+        },
+        "schedules": [],
+        "recent_videos": [],
+        "source_runs": []
+      },
+      "canonical_channel_id": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
+      "baseline_succeeded": true,
+      "second_check": "NOT_ELIGIBLE_COOLDOWN_PRESERVED"
+    }
+  ],
+  "cookies": false,
+  "login": false,
+  "models": false,
+  "schema": 34,
+  "database_health": {
+    "quick_check": [
+      [
+        "ok"
+      ]
+    ],
+    "integrity_check": [
+      [
+        "ok"
+      ]
+    ],
+    "foreign_key_check": []
+  },
+  "active_checks": 0,
+  "observations": [
+    {
+      "source_id": "youtube-channel-UCLA_DiR1FfKNvjuUpBHmylQ",
+      "canonical_identity": "-62C9R_41Sc",
+      "published_at": "2026-10-05T23:21:46.000000Z",
+      "observed_at": "2026-10-07T17:24:29.048742Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UCLA_DiR1FfKNvjuUpBHmylQ",
+      "canonical_identity": "7ZiUbT1-djA",
+      "published_at": "2026-10-01T15:53:01.000000Z",
+      "observed_at": "2026-10-07T17:24:29.048742Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UCLA_DiR1FfKNvjuUpBHmylQ",
+      "canonical_identity": "ErAqN6gXqZQ",
+      "published_at": "2026-09-30T18:48:20.000000Z",
+      "observed_at": "2026-10-07T17:24:29.048742Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UCLA_DiR1FfKNvjuUpBHmylQ",
+      "canonical_identity": "FCCJRyhxZSo",
+      "published_at": "2026-10-02T02:02:18.000000Z",
+      "observed_at": "2026-10-07T17:24:29.048742Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UCLA_DiR1FfKNvjuUpBHmylQ",
+      "canonical_identity": "IoL51xLkMSY",
+      "published_at": "2026-10-06T19:25:56.000000Z",
+      "observed_at": "2026-10-07T17:24:29.048742Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UCLA_DiR1FfKNvjuUpBHmylQ",
+      "canonical_identity": "JB5HKi8Pxqs",
+      "published_at": "2026-10-07T10:40:46.000000Z",
+      "observed_at": "2026-10-07T17:24:29.048742Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UCLA_DiR1FfKNvjuUpBHmylQ",
+      "canonical_identity": "QSJVOZOUmek",
+      "published_at": "2026-10-01T18:03:15.000000Z",
+      "observed_at": "2026-10-07T17:24:29.048742Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UCLA_DiR1FfKNvjuUpBHmylQ",
+      "canonical_identity": "RU6gEobXVHA",
+      "published_at": "2026-10-04T14:33:39.000000Z",
+      "observed_at": "2026-10-07T17:24:29.048742Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UCLA_DiR1FfKNvjuUpBHmylQ",
+      "canonical_identity": "aujP8wuMTMI",
+      "published_at": "2026-09-16T19:17:40.000000Z",
+      "observed_at": "2026-10-07T17:24:29.048742Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UCLA_DiR1FfKNvjuUpBHmylQ",
+      "canonical_identity": "cCpf0BOjlLE",
+      "published_at": "2026-09-16T13:49:16.000000Z",
+      "observed_at": "2026-10-07T17:24:29.048742Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UCLA_DiR1FfKNvjuUpBHmylQ",
+      "canonical_identity": "dGSqblvgLIE",
+      "published_at": "2026-10-07T12:32:13.000000Z",
+      "observed_at": "2026-10-07T17:24:29.048742Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UCLA_DiR1FfKNvjuUpBHmylQ",
+      "canonical_identity": "j9epFget1W8",
+      "published_at": "2026-09-28T20:03:03.000000Z",
+      "observed_at": "2026-10-07T17:24:29.048742Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UCLA_DiR1FfKNvjuUpBHmylQ",
+      "canonical_identity": "mlfzT_nD6GE",
+      "published_at": "2026-09-30T22:59:34.000000Z",
+      "observed_at": "2026-10-07T17:24:29.048742Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UCLA_DiR1FfKNvjuUpBHmylQ",
+      "canonical_identity": "v03RjDNwG1o",
+      "published_at": "2026-09-19T13:54:40.000000Z",
+      "observed_at": "2026-10-07T17:24:29.048742Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UCLA_DiR1FfKNvjuUpBHmylQ",
+      "canonical_identity": "x6p9Ri0DlNE",
+      "published_at": "2026-10-05T19:37:15.000000Z",
+      "observed_at": "2026-10-07T17:24:29.048742Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UC_x5XG1OV2P6uZZ5FSM9Ttw",
+      "canonical_identity": "-G431WC_-RM",
+      "published_at": "2026-09-24T23:02:25.000000Z",
+      "observed_at": "2026-10-07T17:24:38.614451Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UC_x5XG1OV2P6uZZ5FSM9Ttw",
+      "canonical_identity": "3CyW24Pkz4o",
+      "published_at": "2026-09-15T17:04:04.000000Z",
+      "observed_at": "2026-10-07T17:24:38.614451Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UC_x5XG1OV2P6uZZ5FSM9Ttw",
+      "canonical_identity": "4oxA9o_OmWo",
+      "published_at": "2026-09-21T23:00:36.000000Z",
+      "observed_at": "2026-10-07T17:24:38.614451Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UC_x5XG1OV2P6uZZ5FSM9Ttw",
+      "canonical_identity": "8Xv5BLnXzgI",
+      "published_at": "2026-10-01T23:00:21.000000Z",
+      "observed_at": "2026-10-07T17:24:38.614451Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UC_x5XG1OV2P6uZZ5FSM9Ttw",
+      "canonical_identity": "CBzLIKfWpdg",
+      "published_at": "2026-09-04T19:00:35.000000Z",
+      "observed_at": "2026-10-07T17:24:38.614451Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UC_x5XG1OV2P6uZZ5FSM9Ttw",
+      "canonical_identity": "FVkp6tc2rNY",
+      "published_at": "2026-09-15T19:00:17.000000Z",
+      "observed_at": "2026-10-07T17:24:38.614451Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UC_x5XG1OV2P6uZZ5FSM9Ttw",
+      "canonical_identity": "HyfhaGNVKUA",
+      "published_at": "2026-09-01T23:00:14.000000Z",
+      "observed_at": "2026-10-07T17:24:38.614451Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UC_x5XG1OV2P6uZZ5FSM9Ttw",
+      "canonical_identity": "M1q063UD-gw",
+      "published_at": "2026-09-11T19:30:14.000000Z",
+      "observed_at": "2026-10-07T17:24:38.614451Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UC_x5XG1OV2P6uZZ5FSM9Ttw",
+      "canonical_identity": "Rnz9mOyxk0k",
+      "published_at": "2026-10-01T19:00:13.000000Z",
+      "observed_at": "2026-10-07T17:24:38.614451Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UC_x5XG1OV2P6uZZ5FSM9Ttw",
+      "canonical_identity": "YDCB8Bk1OBE",
+      "published_at": "2026-09-22T23:00:10.000000Z",
+      "observed_at": "2026-10-07T17:24:38.614451Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UC_x5XG1OV2P6uZZ5FSM9Ttw",
+      "canonical_identity": "anPsS6huQk0",
+      "published_at": "2026-10-06T16:10:20.000000Z",
+      "observed_at": "2026-10-07T17:24:38.614451Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UC_x5XG1OV2P6uZZ5FSM9Ttw",
+      "canonical_identity": "lTQHImoeuEY",
+      "published_at": "2026-10-06T23:00:23.000000Z",
+      "observed_at": "2026-10-07T17:24:38.614451Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UC_x5XG1OV2P6uZZ5FSM9Ttw",
+      "canonical_identity": "pijSNA-hWkg",
+      "published_at": "2026-10-07T16:00:07.000000Z",
+      "observed_at": "2026-10-07T17:24:38.614451Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UC_x5XG1OV2P6uZZ5FSM9Ttw",
+      "canonical_identity": "s82Ho5HdltE",
+      "published_at": "2026-09-25T16:00:04.000000Z",
+      "observed_at": "2026-10-07T17:24:38.614451Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UC_x5XG1OV2P6uZZ5FSM9Ttw",
+      "canonical_identity": "ytjgy30Cono",
+      "published_at": "2026-09-01T17:00:12.000000Z",
+      "observed_at": "2026-10-07T17:24:38.614451Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    }
+  ],
+  "historical_content_count": 0,
+  "backup_ready": true
+}

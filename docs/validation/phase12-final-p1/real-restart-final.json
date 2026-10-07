@@ -1,0 +1,50 @@
+{
+  "kind": "REAL_FRESH_PROCESS_RESTART",
+  "results": [
+    {
+      "source_id": "youtube-channel-UCLA_DiR1FfKNvjuUpBHmylQ",
+      "complete_source_authority_equal": true,
+      "tracking": {
+        "source_id": "youtube-channel-UCLA_DiR1FfKNvjuUpBHmylQ",
+        "contract": "source-tracking-v1",
+        "followed_at": "2026-10-07T17:24:29.027937Z",
+        "baseline_at": "2026-10-07T17:24:29.048742Z",
+        "verified_at": "2026-10-07T17:24:29.048742Z",
+        "latest_published_at": "2026-10-07T12:32:13.000000Z",
+        "next_page": 1,
+        "coverage": "COMPLETE",
+        "health": "HEALTHY",
+        "next_check_at": "2026-10-07T17:39:29.048742Z",
+        "discovered_count": 0,
+        "pending_count": 0,
+        "unavailable_count": 0,
+        "update_count": 0,
+        "checking": false,
+        "processing_count": 0
+      }
+    },
+    {
+      "source_id": "youtube-channel-UC_x5XG1OV2P6uZZ5FSM9Ttw",
+      "complete_source_authority_equal": true,
+      "tracking": {
+        "source_id": "youtube-channel-UC_x5XG1OV2P6uZZ5FSM9Ttw",
+        "contract": "source-tracking-v1",
+        "followed_at": "2026-10-07T17:24:38.593859Z",
+        "baseline_at": "2026-10-07T17:24:38.614451Z",
+        "verified_at": "2026-10-07T17:24:38.614451Z",
+        "latest_published_at": "2026-10-07T16:00:07.000000Z",
+        "next_page": 1,
+        "coverage": "COMPLETE",
+        "health": "HEALTHY",
+        "next_check_at": "2026-10-07T17:39:38.614451Z",
+        "discovered_count": 0,
+        "pending_count": 0,
+        "unavailable_count": 0,
+        "update_count": 0,
+        "checking": false,
+        "processing_count": 0
+      }
+    }
+  ],
+  "historical_content_count": 0
+}

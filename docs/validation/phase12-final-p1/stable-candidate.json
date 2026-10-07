@@ -1,0 +1,10 @@
+{
+  "starting_head": "bdd30cc37dcd9f956c3a9c6185ad12433c08ef8f",
+  "production_file": "src/youtube_intel/providers/youtube_network.py",
+  "production_sha256": "71373ce7f8fe5dfb5093c1637c3416e3eacce7d3c7b15f4280ce2e8bb102216a",
+  "new_regressions": "tests/unit/test_youtube_final_p1.py",
+  "new_regressions_sha256": "188a3864d17f6441f0538d9fb7381d62249159c22ddcc56d14514be8e3044de9",
+  "scope": "two accepted Phase 12 P1 defects only",
+  "dependencies_changed": false,
+  "schema_changed": false
+}

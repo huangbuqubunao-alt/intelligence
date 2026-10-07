@@ -1,0 +1,414 @@
+FF..F....FFFFFFFF...                                                     [100%]
+=================================== FAILURES ===================================
+___ test_progressing_alias_body_can_finish_after_original_ten_seconds[@NASA] ___
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10a75bce0>
+alias = '@NASA'
+
+    @pytest.mark.parametrize("alias", ["@NASA", CHANNEL])
+    def test_progressing_alias_body_can_finish_after_original_ten_seconds(monkeypatch, alias):
+        body = PAGE + b" " * (128 * 1024)
+        clock, connection = transport(monkeypatch, body=body, delay=3)
+>       assert net.channel_page(alias) == body
+               ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/unit/test_youtube_final_p1.py:90:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/youtube_intel/providers/youtube_network.py:202: in channel_page
+    return _get(path, 4 * 1024 * 1024)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+path = '/@NASA', limit = 4194304
+
+    def _get(path: str, limit: int) -> bytes:
+        connection: http.client.HTTPSConnection | None = None
+        deadline = time.monotonic() + _TIMEOUT
+        try:
+            connection = _connection()
+            connection.request(
+                "GET",
+                path,
+                headers={
+                    "User-Agent": "YIA-PublicContent/1.0",
+                    "Accept-Encoding": "identity",
+                },
+            )
+            if connection.sock is not None:
+                connection.sock.settimeout(max(0.001, deadline - time.monotonic()))
+            response = connection.getresponse()
+            if response.status != 200:
+                # Redirects are never followed, even to an approved hostname.
+                raise TrackingError(
+                    {
+                        429: "RATE_LIMITED",
+                        401: "ACCESS_DENIED",
+                        403: "ACCESS_DENIED",
+                        404: "NOT_FOUND",
+                        407: "NETWORK_UNAVAILABLE",
+                    }.get(response.status, "METADATA_FAILED")
+                )
+            if response.getheader("Content-Encoding", "identity") != "identity":
+                raise TrackingError("METADATA_FAILED")
+            body = bytearray()
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TrackingError("NETWORK_UNAVAILABLE")
+                if connection.sock is not None:
+                    connection.sock.settimeout(remaining)
+                chunk = response.read1(min(16384, limit + 1 - len(body)))
+                if not chunk:
+                    if response.length not in (None, 0):
+                        raise TrackingError("NETWORK_UNAVAILABLE")
+                    return bytes(body)
+                body.extend(chunk)
+                if len(body) > limit:
+                    raise TrackingError("RESPONSE_TOO_LARGE")
+        except (OSError, http.client.HTTPException):
+            # CONNECT refusal/407 and final certificate/hostname failure are network errors.
+>           raise TrackingError("NETWORK_UNAVAILABLE") from None
+E           youtube_intel.following_provider.TrackingError: NETWORK_UNAVAILABLE
+
+src/youtube_intel/providers/youtube_network.py:191: TrackingError
+_ test_progressing_alias_body_can_finish_after_original_ten_seconds[UCLA_DiR1FfKNvjuUpBHmylQ] _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10a75a720>
+alias = 'UCLA_DiR1FfKNvjuUpBHmylQ'
+
+    @pytest.mark.parametrize("alias", ["@NASA", CHANNEL])
+    def test_progressing_alias_body_can_finish_after_original_ten_seconds(monkeypatch, alias):
+        body = PAGE + b" " * (128 * 1024)
+        clock, connection = transport(monkeypatch, body=body, delay=3)
+>       assert net.channel_page(alias) == body
+               ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/unit/test_youtube_final_p1.py:90:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/youtube_intel/providers/youtube_network.py:202: in channel_page
+    return _get(path, 4 * 1024 * 1024)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+path = '/channel/UCLA_DiR1FfKNvjuUpBHmylQ', limit = 4194304
+
+    def _get(path: str, limit: int) -> bytes:
+        connection: http.client.HTTPSConnection | None = None
+        deadline = time.monotonic() + _TIMEOUT
+        try:
+            connection = _connection()
+            connection.request(
+                "GET",
+                path,
+                headers={
+                    "User-Agent": "YIA-PublicContent/1.0",
+                    "Accept-Encoding": "identity",
+                },
+            )
+            if connection.sock is not None:
+                connection.sock.settimeout(max(0.001, deadline - time.monotonic()))
+            response = connection.getresponse()
+            if response.status != 200:
+                # Redirects are never followed, even to an approved hostname.
+                raise TrackingError(
+                    {
+                        429: "RATE_LIMITED",
+                        401: "ACCESS_DENIED",
+                        403: "ACCESS_DENIED",
+                        404: "NOT_FOUND",
+                        407: "NETWORK_UNAVAILABLE",
+                    }.get(response.status, "METADATA_FAILED")
+                )
+            if response.getheader("Content-Encoding", "identity") != "identity":
+                raise TrackingError("METADATA_FAILED")
+            body = bytearray()
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TrackingError("NETWORK_UNAVAILABLE")
+                if connection.sock is not None:
+                    connection.sock.settimeout(remaining)
+                chunk = response.read1(min(16384, limit + 1 - len(body)))
+                if not chunk:
+                    if response.length not in (None, 0):
+                        raise TrackingError("NETWORK_UNAVAILABLE")
+                    return bytes(body)
+                body.extend(chunk)
+                if len(body) > limit:
+                    raise TrackingError("RESPONSE_TOO_LARGE")
+        except (OSError, http.client.HTTPException):
+            # CONNECT refusal/407 and final certificate/hostname failure are network errors.
+>           raise TrackingError("NETWORK_UNAVAILABLE") from None
+E           youtube_intel.following_provider.TrackingError: NETWORK_UNAVAILABLE
+
+src/youtube_intel/providers/youtube_network.py:191: TrackingError
+___________ test_progress_does_not_extend_alias_absolute_body_budget ___________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10a76d130>
+
+    def test_progress_does_not_extend_alias_absolute_body_budget(monkeypatch):
+        clock, connection = transport(monkeypatch, body=b" " * (128 * 1024), delay=9)
+        with pytest.raises(TrackingError, match="NETWORK_UNAVAILABLE"):
+            net.channel_page("@NASA")
+>       assert clock.now == 47  # two seconds of headers, then 45 seconds of body.
+        ^^^^^^^^^^^^^^^^^^^^^^
+E       assert 10.0 == 47
+E        +  where 10.0 = <test_youtube_final_p1.Clock object at 0x10a76d220>.now
+
+tests/unit/test_youtube_final_p1.py:109: AssertionError
+__________ test_failed_alias_body_writes_nothing_and_retry_baselines ___________
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-1031/test_failed_alias_body_writes_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10a76df10>
+
+    def test_failed_alias_body_writes_nothing_and_retry_baselines(tmp_path, monkeypatch):
+        repo, tracker, app = product(tmp_path, monkeypatch)
+        clock, stalled = transport(monkeypatch, delay=11)
+        with pytest.raises(ApiError) as failure:
+            follow(app, "@NASA")
+        assert failure.value.code == "YOUTUBE_NETWORK_UNAVAILABLE"
+        assert stalled.closed and yt._RATE_UNTIL == 0
+        assert_empty(repo)
+        clock.now += 1
+        network = _load_module("test_youtube_network")
+        connections = []
+
+        def connect():
+            body = PAGE + b" " * (128 * 1024) if not connections else network.FEED
+            connection = Connection(clock, body=body, delay=3)
+            connections.append(connection)
+            return connection
+
+        monkeypatch.setattr(net, "_connection", connect)
+>       status, result = follow(app, "@NASA")
+                         ^^^^^^^^^^^^^^^^^^^^
+
+tests/unit/test_youtube_final_p1.py:192:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests/unit/test_youtube_final_p1.py:162: in follow
+    return app.handle("POST", "/api/v1/sources/channels", json.dumps({"input": alias}).encode())
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <youtube_intel.local_api.LocalApiApplication object at 0x10b823230>
+method = 'POST', path = '/api/v1/sources/channels', body = b'{"input": "@NASA"}'
+
+    def handle(
+        self, method: str, path: str, body: bytes = b""
+    ) -> tuple[int, dict[str, object]]:
+        route = urlparse(path).path.rstrip("/") or "/"
+        try:
+            creator_from_content = re.fullmatch(r"/api/v1/videos/([^/]+)/follow-(creator|channel)", route)
+            following_provider = "YOUTUBE" if route == "/api/v1/sources/channels" or (creator_from_content and creator_from_content[2] == "channel") else "BILIBILI"
+            if method == "POST" and (route in {"/api/v1/sources/creators", "/api/v1/sources/channels"} or creator_from_content):
+                if self._source_tracking is None:
+                    raise ApiError(HTTPStatus.CONFLICT, "TRACKING_UNAVAILABLE", "Source storage is unavailable.")
+                data = self._body(body)
+                self._only_keys(data, set() if creator_from_content else {"input"})
+                if following_provider == "BILIBILI" and not CREATOR_FOLLOWING_AVAILABLE:
+                    # The capability is withdrawn, so no provider request is made,
+                    # no source row is created, and nothing is silently scheduled.
+                    raise ApiError(
+                        HTTPStatus.CONFLICT,
+                        "BILIBILI_" + CREATOR_FOLLOWING_CODE,
+                        CREATOR_FOLLOWING_UNAVAILABLE_MESSAGE,
+                    )
+                try:
+                    source = self._source_tracking.follow_content(creator_from_content[1], provider=following_provider) if creator_from_content else self._source_tracking.follow(self._string(data, "input", required=True) or "", provider=following_provider)
+                except (BilibiliError, TrackingError) as error:
+>                   raise ApiError(_BILIBILI_ERROR_STATUS.get(error.code, HTTPStatus.UNPROCESSABLE_ENTITY), following_provider + "_" + error.code, "The public source could not be followed.") from None
+E                   youtube_intel.local_api.ApiError: The public source could not be followed.
+
+src/youtube_intel/local_api.py:749: ApiError
+_ test_unusable_direct_dns_fails_closed_without_provider_cooldown[addresses0] __
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10968df10>
+addresses = ['198.18.0.12']
+
+    @pytest.mark.parametrize("addresses", [
+        ["198.18.0.12"], ["127.0.0.1"], ["10.0.0.1"], ["::1"],
+        ["8.8.8.8", "198.18.0.12"], [],
+    ])
+    def test_unusable_direct_dns_fails_closed_without_provider_cooldown(monkeypatch, addresses):
+        monkeypatch.setattr(net, "_macos_proxy_url", lambda: None)
+        monkeypatch.setattr(net.socket, "getaddrinfo", lambda *a, **k: [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, 443)) for ip in addresses
+        ])
+        monkeypatch.setattr(net, "_PinnedHTTPS", lambda *a: pytest.fail("unsafe DNS reached socket"))
+        monkeypatch.setattr(yt, "_NEXT", 0)
+        monkeypatch.setattr(yt, "_RATE_UNTIL", 0)
+        with pytest.raises(TrackingError) as failure:
+            yt.YouTubeFollowingProvider().resolve("@NASA")
+>       assert failure.value.code == "NETWORK_UNAVAILABLE"
+E       AssertionError: assert 'ACCESS_DENIED' == 'NETWORK_UNAVAILABLE'
+E
+E         - NETWORK_UNAVAILABLE
+E         + ACCESS_DENIED
+
+tests/unit/test_youtube_final_p1.py:215: AssertionError
+_ test_unusable_direct_dns_fails_closed_without_provider_cooldown[addresses1] __
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10968f560>
+addresses = ['127.0.0.1']
+
+    @pytest.mark.parametrize("addresses", [
+        ["198.18.0.12"], ["127.0.0.1"], ["10.0.0.1"], ["::1"],
+        ["8.8.8.8", "198.18.0.12"], [],
+    ])
+    def test_unusable_direct_dns_fails_closed_without_provider_cooldown(monkeypatch, addresses):
+        monkeypatch.setattr(net, "_macos_proxy_url", lambda: None)
+        monkeypatch.setattr(net.socket, "getaddrinfo", lambda *a, **k: [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, 443)) for ip in addresses
+        ])
+        monkeypatch.setattr(net, "_PinnedHTTPS", lambda *a: pytest.fail("unsafe DNS reached socket"))
+        monkeypatch.setattr(yt, "_NEXT", 0)
+        monkeypatch.setattr(yt, "_RATE_UNTIL", 0)
+        with pytest.raises(TrackingError) as failure:
+            yt.YouTubeFollowingProvider().resolve("@NASA")
+>       assert failure.value.code == "NETWORK_UNAVAILABLE"
+E       AssertionError: assert 'ACCESS_DENIED' == 'NETWORK_UNAVAILABLE'
+E
+E         - NETWORK_UNAVAILABLE
+E         + ACCESS_DENIED
+
+tests/unit/test_youtube_final_p1.py:215: AssertionError
+_ test_unusable_direct_dns_fails_closed_without_provider_cooldown[addresses2] __
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10b8462d0>
+addresses = ['10.0.0.1']
+
+    @pytest.mark.parametrize("addresses", [
+        ["198.18.0.12"], ["127.0.0.1"], ["10.0.0.1"], ["::1"],
+        ["8.8.8.8", "198.18.0.12"], [],
+    ])
+    def test_unusable_direct_dns_fails_closed_without_provider_cooldown(monkeypatch, addresses):
+        monkeypatch.setattr(net, "_macos_proxy_url", lambda: None)
+        monkeypatch.setattr(net.socket, "getaddrinfo", lambda *a, **k: [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, 443)) for ip in addresses
+        ])
+        monkeypatch.setattr(net, "_PinnedHTTPS", lambda *a: pytest.fail("unsafe DNS reached socket"))
+        monkeypatch.setattr(yt, "_NEXT", 0)
+        monkeypatch.setattr(yt, "_RATE_UNTIL", 0)
+        with pytest.raises(TrackingError) as failure:
+            yt.YouTubeFollowingProvider().resolve("@NASA")
+>       assert failure.value.code == "NETWORK_UNAVAILABLE"
+E       AssertionError: assert 'ACCESS_DENIED' == 'NETWORK_UNAVAILABLE'
+E
+E         - NETWORK_UNAVAILABLE
+E         + ACCESS_DENIED
+
+tests/unit/test_youtube_final_p1.py:215: AssertionError
+_ test_unusable_direct_dns_fails_closed_without_provider_cooldown[addresses3] __
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10b847050>
+addresses = ['::1']
+
+    @pytest.mark.parametrize("addresses", [
+        ["198.18.0.12"], ["127.0.0.1"], ["10.0.0.1"], ["::1"],
+        ["8.8.8.8", "198.18.0.12"], [],
+    ])
+    def test_unusable_direct_dns_fails_closed_without_provider_cooldown(monkeypatch, addresses):
+        monkeypatch.setattr(net, "_macos_proxy_url", lambda: None)
+        monkeypatch.setattr(net.socket, "getaddrinfo", lambda *a, **k: [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, 443)) for ip in addresses
+        ])
+        monkeypatch.setattr(net, "_PinnedHTTPS", lambda *a: pytest.fail("unsafe DNS reached socket"))
+        monkeypatch.setattr(yt, "_NEXT", 0)
+        monkeypatch.setattr(yt, "_RATE_UNTIL", 0)
+        with pytest.raises(TrackingError) as failure:
+            yt.YouTubeFollowingProvider().resolve("@NASA")
+>       assert failure.value.code == "NETWORK_UNAVAILABLE"
+E       AssertionError: assert 'ACCESS_DENIED' == 'NETWORK_UNAVAILABLE'
+E
+E         - NETWORK_UNAVAILABLE
+E         + ACCESS_DENIED
+
+tests/unit/test_youtube_final_p1.py:215: AssertionError
+_ test_unusable_direct_dns_fails_closed_without_provider_cooldown[addresses4] __
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10b847c20>
+addresses = ['8.8.8.8', '198.18.0.12']
+
+    @pytest.mark.parametrize("addresses", [
+        ["198.18.0.12"], ["127.0.0.1"], ["10.0.0.1"], ["::1"],
+        ["8.8.8.8", "198.18.0.12"], [],
+    ])
+    def test_unusable_direct_dns_fails_closed_without_provider_cooldown(monkeypatch, addresses):
+        monkeypatch.setattr(net, "_macos_proxy_url", lambda: None)
+        monkeypatch.setattr(net.socket, "getaddrinfo", lambda *a, **k: [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, 443)) for ip in addresses
+        ])
+        monkeypatch.setattr(net, "_PinnedHTTPS", lambda *a: pytest.fail("unsafe DNS reached socket"))
+        monkeypatch.setattr(yt, "_NEXT", 0)
+        monkeypatch.setattr(yt, "_RATE_UNTIL", 0)
+        with pytest.raises(TrackingError) as failure:
+            yt.YouTubeFollowingProvider().resolve("@NASA")
+>       assert failure.value.code == "NETWORK_UNAVAILABLE"
+E       AssertionError: assert 'ACCESS_DENIED' == 'NETWORK_UNAVAILABLE'
+E
+E         - NETWORK_UNAVAILABLE
+E         + ACCESS_DENIED
+
+tests/unit/test_youtube_final_p1.py:215: AssertionError
+_ test_unusable_direct_dns_fails_closed_without_provider_cooldown[addresses5] __
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10b848920>
+addresses = []
+
+    @pytest.mark.parametrize("addresses", [
+        ["198.18.0.12"], ["127.0.0.1"], ["10.0.0.1"], ["::1"],
+        ["8.8.8.8", "198.18.0.12"], [],
+    ])
+    def test_unusable_direct_dns_fails_closed_without_provider_cooldown(monkeypatch, addresses):
+        monkeypatch.setattr(net, "_macos_proxy_url", lambda: None)
+        monkeypatch.setattr(net.socket, "getaddrinfo", lambda *a, **k: [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, 443)) for ip in addresses
+        ])
+        monkeypatch.setattr(net, "_PinnedHTTPS", lambda *a: pytest.fail("unsafe DNS reached socket"))
+        monkeypatch.setattr(yt, "_NEXT", 0)
+        monkeypatch.setattr(yt, "_RATE_UNTIL", 0)
+        with pytest.raises(TrackingError) as failure:
+            yt.YouTubeFollowingProvider().resolve("@NASA")
+>       assert failure.value.code == "NETWORK_UNAVAILABLE"
+E       AssertionError: assert 'METADATA_FAILED' == 'NETWORK_UNAVAILABLE'
+E
+E         - NETWORK_UNAVAILABLE
+E         + METADATA_FAILED
+
+tests/unit/test_youtube_final_p1.py:215: AssertionError
+______ test_fake_ip_api_failure_then_system_route_recovers_both_channels _______
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-1031/test_fake_ip_api_failure_then_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10b848560>
+
+    def test_fake_ip_api_failure_then_system_route_recovers_both_channels(tmp_path, monkeypatch):
+        repo, tracker, app = product(tmp_path, monkeypatch)
+        network = _load_module("test_youtube_network")
+        state = {"proxy": None}
+        monkeypatch.setattr(net, "_current_proxy", lambda: state["proxy"])
+        monkeypatch.setattr(net.socket, "getaddrinfo", lambda *a, **k: [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("198.18.0.12", 443))
+        ])
+        monkeypatch.setattr(net, "_PinnedHTTPS", lambda *a: pytest.fail("Fake-IP connected"))
+        with pytest.raises(ApiError) as failure:
+            follow(app, "@NASA")
+>       assert failure.value.code == "YOUTUBE_NETWORK_UNAVAILABLE"
+E       AssertionError: assert 'YOUTUBE_ACCESS_DENIED' == 'YOUTUBE_NETWORK_UNAVAILABLE'
+E
+E         - YOUTUBE_NETWORK_UNAVAILABLE
+E         + YOUTUBE_ACCESS_DENIED
+
+tests/unit/test_youtube_final_p1.py:233: AssertionError
+=========================== short test summary info ============================
+FAILED tests/unit/test_youtube_final_p1.py::test_progressing_alias_body_can_finish_after_original_ten_seconds[@NASA]
+FAILED tests/unit/test_youtube_final_p1.py::test_progressing_alias_body_can_finish_after_original_ten_seconds[UCLA_DiR1FfKNvjuUpBHmylQ]
+FAILED tests/unit/test_youtube_final_p1.py::test_progress_does_not_extend_alias_absolute_body_budget
+FAILED tests/unit/test_youtube_final_p1.py::test_failed_alias_body_writes_nothing_and_retry_baselines
+FAILED tests/unit/test_youtube_final_p1.py::test_unusable_direct_dns_fails_closed_without_provider_cooldown[addresses0]
+FAILED tests/unit/test_youtube_final_p1.py::test_unusable_direct_dns_fails_closed_without_provider_cooldown[addresses1]
+FAILED tests/unit/test_youtube_final_p1.py::test_unusable_direct_dns_fails_closed_without_provider_cooldown[addresses2]
+FAILED tests/unit/test_youtube_final_p1.py::test_unusable_direct_dns_fails_closed_without_provider_cooldown[addresses3]
+FAILED tests/unit/test_youtube_final_p1.py::test_unusable_direct_dns_fails_closed_without_provider_cooldown[addresses4]
+FAILED tests/unit/test_youtube_final_p1.py::test_unusable_direct_dns_fails_closed_without_provider_cooldown[addresses5]
+FAILED tests/unit/test_youtube_final_p1.py::test_fake_ip_api_failure_then_system_route_recovers_both_channels
+11 failed, 9 passed in 1.33s
