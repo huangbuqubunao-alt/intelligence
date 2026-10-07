@@ -269,6 +269,7 @@ def _creator_api(tmp_path: Path) -> tuple[LocalApiApplication, SQLiteStateReposi
         ProductOrchestrationService(repo, now=lambda: fixture.now),
         data_root=tmp_path / "data",
         source_tracking=tracker,
+        bilibili_adapter=tracker.publisher.adapter,
         now=lambda: fixture.now,
     )
     return application, repo, fixture, tracker
@@ -394,7 +395,8 @@ def test_withdrawing_the_caption_capability_leaves_bilibili_import_available(
     itself is unavailable".
     """
 
-    application, _repo, _fixture, _tracker = _creator_api(tmp_path)
+    application, _repo, fixture, _tracker = _creator_api(tmp_path)
+    fixture.items.append(("BV1UeHe6YEVM", NOW - timedelta(days=100)))
 
     settings = application.handle("GET", "/api/v1/settings")[1]
     assert settings["bilibili"]["public_captions"]["available"] is False
@@ -413,7 +415,8 @@ def test_manual_public_bilibili_ingestion_still_works_with_creator_following_wit
 ) -> None:
     """The pilot path must survive the withdrawal."""
 
-    application, repo, _fixture, _tracker = _creator_api(tmp_path)
+    application, repo, fixture, _tracker = _creator_api(tmp_path)
+    fixture.items.append(("BV1UeHe6YEVM", NOW - timedelta(days=100)))
 
     status, body = application.handle(
         "POST",
