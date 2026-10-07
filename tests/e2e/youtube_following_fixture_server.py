@@ -110,7 +110,7 @@ class Fixture:
 
     def feed(self, channel_id):
         self.requests.append("feed:" + channel_id)
-        if self.offline:
+        if self.offline or channel_id in self.state.get("failed_feeds", []):
             raise TrackingError("NETWORK_UNAVAILABLE")
         return next(
             channel.feed(channel_id)
@@ -160,6 +160,17 @@ class Fixture:
 
 class App(LocalApiApplication):
     def handle(self, method, path, body=b""):
+        if method == "POST" and path == "/api/v1/fixture/failure":
+            data = json.loads(body)
+            channel_id = self.fixture.channels[data["index"]].metadata_channel
+            failed = set(self.fixture.state.get("failed_feeds", []))
+            if data["offline"]:
+                failed.add(channel_id)
+            else:
+                failed.discard(channel_id)
+            self.fixture.state["failed_feeds"] = sorted(failed)
+            self.fixture.save()
+            return 200, {"failed_feeds": sorted(failed)}
         if method == "POST" and path == "/api/v1/fixture/advance":
             data = json.loads(body)
             self.fixture.state["now"] = (

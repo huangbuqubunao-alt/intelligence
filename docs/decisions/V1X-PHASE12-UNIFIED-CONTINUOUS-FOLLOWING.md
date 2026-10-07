@@ -158,3 +158,29 @@ Nonterminal metadata/acquisition failures retain PENDING and propagate source
 health failure, without manufacturing a successful check or last-success timestamp.
 Only explicitly unsupported/unavailable individual items become terminal
 observations. A subsequent bounded check recovers the same pending identity.
+
+## 2026-10-07 resume and baseline precedence
+
+The owner-authorized resume preserves the complete paused state at 4d0cb5e5 and
+its dirty/untracked WIP in checkpoint 97d2a73, then semantically merges validated
+Phase 11R.1 8ebdf282 from shared ancestor a81b8e9. The earlier Bilibili availability
+statements in this historical decision do not reactivate its live capability.
+
+Bilibili Creator Following is WITHDRAWN. Generic architecture, stored identities,
+observations, relationships and history remain valid. API enrollment/manual/stale
+checks and the production tracking provider gate prevent live creator requests,
+including previously queued work. Tests explicitly enable only injected historical
+provider fixtures to verify retained architecture; production availability stays
+false. Public captions also remain unclaimed; manual public videos remain available.
+
+The single active Source Run definition and settled NEEDS_ATTENTION Backup rules
+come from 11R.1. YouTube provider slots and fair due-source order come from Phase 12.
+Withdrawn creators cannot consume the three live stale-check admission slots.
+Settings projects YouTube channel capability separately from Bilibili capability.
+Current unavailable status is separate from preserved historical health.
+
+No migration, dependency, model, cloud route, provider, daemon or scheduler is added.
+UI cooldown expiry only refreshes read-only detail. Bounded public NASA and Google
+Developers handle attempts returned NETWORK_UNAVAILABLE; successful real baseline
+is not claimed. Deterministic provider replay separately validates enrollment and
+restart/offline/restore. Fresh evidence is in docs/validation/phase12-resume.

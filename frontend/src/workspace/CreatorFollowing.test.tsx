@@ -183,7 +183,7 @@ test.each([['en', 'Follow channel', 'Channel URL, @handle or channel id'], ['zh-
   const { CreatorFollowForm } = await import('./CreatorFollowing');
   localStorage.setItem('yia.ui-language', language);
   const requests: string[] = [];
-  vi.stubGlobal('fetch', vi.fn(async (url: string) => { requests.push(url); return { ok: true, json: async () => ({ source: {} }) }; }));
+  vi.stubGlobal('fetch', vi.fn(async (url: string) => { requests.push(url); return { ok: true, json: async () => url.endsWith('/settings') ? { youtube: { channel_following: { available: true, code: 'PUBLIC_CHANNEL_FOLLOWING' } } } : ({ source: {} }) }; }));
   render(<UiLanguageProvider><CreatorFollowForm provider="YOUTUBE" onSaved={() => {}} /></UiLanguageProvider>);
   fireEvent.change(await screen.findByLabelText(label), { target: { value: 'https://youtube.com/@public' } });
   fireEvent.click(screen.getByRole('button', { name: action }));
@@ -192,7 +192,7 @@ test.each([['en', 'Follow channel', 'Channel URL, @handle or channel id'], ['zh-
 
 test('YouTube Content follow sends only trusted Content identity', async () => {
   localStorage.setItem('yia.ui-language', 'en');
-  const fetch = vi.fn(async (_url: string, _options?: RequestInit) => ({ ok: true, json: async () => ({ source: {} }) }));
+  const fetch = vi.fn(async (_url: string, _options?: RequestInit) => ({ ok: true, json: async () => _url.endsWith('/settings') ? { youtube: { channel_following: { available: true, code: 'PUBLIC_CHANNEL_FOLLOWING' } } } : ({ source: {} }) }));
   vi.stubGlobal('fetch', fetch);
   render(<UiLanguageProvider><FollowCreatorFromContent provider="YOUTUBE" id="aaaaaaaaaaa" /></UiLanguageProvider>);
   await waitFor(() => expect((screen.getByRole('button', { name: 'Follow this channel' }) as HTMLButtonElement).disabled).toBe(false));
@@ -236,4 +236,28 @@ test('Check Now replaces its running notice with the settled truthful outcome', 
   await waitFor(() => expect(screen.queryByText('Checking…')).toBeNull());
   expect(screen.getAllByText('Unable to connect. Your last successful check is preserved.').length).toBeGreaterThan(0);
   expect(screen.queryByText('Continuous creator tracking is currently unavailable')).toBeNull();
+});
+
+test.each([null, { available: false, code: 'CHANNEL_TRACKING_UNAVAILABLE' }])('YouTube capability cannot be silently assumed: %j', async (capability) => {
+  localStorage.setItem('yia.ui-language', 'zh-CN');
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ youtube: { channel_following: capability } }) })));
+  const { CreatorFollowForm } = await import('./CreatorFollowing');
+  render(<UiLanguageProvider><CreatorFollowForm provider="YOUTUBE" onSaved={() => {}} /></UiLanguageProvider>);
+  await screen.findByText('频道关注暂不可用，已保存的内容仍然保留。');
+  expect(screen.queryByRole('button', { name: '关注频道' })).toBeNull();
+  expect(screen.queryByText(/Bilibili|UP 主/)).toBeNull();
+});
+
+test('channel cooldown displays the next eligible retry and preserves a truthful baseline', async () => {
+  localStorage.setItem('yia.ui-language', 'en');
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ source: {
+    provider: 'YOUTUBE', source_id: 'youtube-channel-test', display_name: 'Public channel', enabled: true,
+    canonical_url: 'https://www.youtube.com/channel/test', last_checked_at: null, last_success_at: null,
+    tracking: { health: 'OFFLINE', coverage: 'BASELINE_PENDING', next_check_at: new Date(Date.now() + 900000).toISOString(), baseline_at: null, update_count: 0, pending_count: 0 },
+  }, recent_videos: [], source_runs: [] }) })));
+  render(<UiLanguageProvider><CreatorFollowingDetail id="youtube-channel-test" capability={withdrawn} onClose={() => {}} onRefresh={() => {}} /></UiLanguageProvider>);
+  expect((await screen.findByRole('button', { name: 'Cooling down' }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.getByText('Next eligible check')).toBeTruthy();
+  expect(screen.getByText('No, no successful check has completed yet')).toBeTruthy();
+  expect(screen.queryByText('Yes')).toBeNull();
 });

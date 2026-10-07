@@ -2453,8 +2453,8 @@ function Sources(
                 <div className="source-actions">
                   {source.tracking
                     ? <Status
-                        value={source.tracking?.checking ? "RUNNING" : source.tracking?.health ?? "BASELINE_PENDING"}
-                        label={source.tracking?.checking ? "Checking…" : trackingCopy(source.tracking?.health ?? "BASELINE_PENDING")}
+                        value={source.provider === "BILIBILI" && creatorFollowingWithdrawn ? "CAPABILITY_UNAVAILABLE" : source.tracking?.checking ? "RUNNING" : source.tracking?.health ?? "BASELINE_PENDING"}
+                        label={source.provider === "BILIBILI" && creatorFollowingWithdrawn ? "Continuous creator tracking is currently unavailable" : source.tracking?.checking ? "Checking…" : trackingCopy(source.tracking?.health ?? "BASELINE_PENDING")}
                       />
                     : <Status
                         {...(source.provider === "BILIBILI"

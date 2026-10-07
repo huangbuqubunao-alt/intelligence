@@ -94,3 +94,13 @@ health and ordinary discovered Content. Missing captions retain honest transcrip
 and Summary/Evidence states, without offering an acoustic fallback. Render trusted
 timed YouTube captions using the existing transcript view. Preserve all six primary
 navigation buttons, bilingual labels, wrapping and 320–1440px layouts.
+
+## Phase 12 resume capability authority
+
+The validated Phase 11R.1 baseline supersedes the historical Bilibili creator
+availability descriptions above. YouTube channel Following remains available
+through the shared tracking UI; Bilibili creator Following remains withdrawn.
+Stored Bilibili sources and Content stay readable. Do not offer creator enrollment
+or active checks. Distinguish current capability from last recorded source health.
+Check Now shows its running and settled outcome, cooldown and next eligible check.
+A cooldown timestamp is eligibility, not a promised background schedule.

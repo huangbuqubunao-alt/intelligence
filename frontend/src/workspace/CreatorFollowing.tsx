@@ -92,6 +92,7 @@ export function CreatorFollowForm({ capability: suppliedCapability, onSaved, pro
   const [message, setMessage] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   if (!capability.known) return <p role="status">{t("Checking whether this is available…")}</p>;
+  if (youtube && capability.known && capability.capability?.available !== true) return <p role="status">{t("Channel following is currently unavailable. Stored Content is preserved.")}</p>;
   if (withdrawn(capability)) return <UnavailableNotice state={capability} creator={false} />;
   return <>
     <p>{t("Follow from now on. Newly published public videos enter Content automatically while the app is running. Existing videos are not imported.")}</p>
@@ -123,6 +124,7 @@ export function FollowCreatorFromContent({ id, capability: suppliedCapability, p
   const { t } = useUiLanguage();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  if (youtube && capability.known && capability.capability?.available !== true) return <button className="button button-secondary" disabled>{t("Channel following is currently unavailable. Stored Content is preserved.")}</button>;
   if (withdrawn(capability)) return <div className="button-row">
     <button className="button button-secondary" disabled>{t("Continuous creator tracking is currently unavailable")}</button>
   </div>;
@@ -204,11 +206,11 @@ export function CreatorFollowingDetail({ id, capability, onClose, onRefresh }: {
       <p>{t(source.provider === "YOUTUBE" ? "YouTube" : "Bilibili")} · {off ? t("Continuous creator tracking is currently unavailable") : source.enabled ? t("Monitoring new videos") : t("Monitoring is paused")}</p>
       <a href={source.canonical_url} target="_blank" rel="noreferrer">{t("Open Source")}</a>
       <dl className="creator-tracking">
-        <dt>{t("Source health")}</dt><dd>{t(trackingCopy(source.tracking.health))}</dd>
+        <dt>{t(off ? "Last recorded source health" : "Source health")}</dt><dd>{t(trackingCopy(source.tracking.health))}</dd>
         <dt>{t("Starting point established")}</dt><dd>{baselineEstablished ? t("Yes") : t("No, no successful check has completed yet")}</dd>
         <dt>{t("Last checked")}</dt><dd>{source.last_checked_at ? new Date(source.last_checked_at).toLocaleString() : t("Not checked yet")}</dd>
         <dt>{t("Last successful check")}</dt><dd>{source.last_success_at ? new Date(source.last_success_at).toLocaleString() : t("Not checked yet")}</dd>
-        <dt>{t("Next automatic check")}</dt><dd>{!source.enabled ? t("Paused") : off ? t("None while this capability is unavailable") : coolingDown ? cooldownUntil.toLocaleString() : t("Not scheduled")}</dd>
+        <dt>{t("Next eligible check")}</dt><dd>{!source.enabled ? t("Paused") : off ? t("None while this capability is unavailable") : coolingDown ? cooldownUntil.toLocaleString() : t("Not scheduled")}</dd>
         <dt>{t("Discovered Content since following")}</dt><dd>{source.tracking.update_count}</dd>
         <dt>{t("Waiting for Content acquisition")}</dt><dd>{source.tracking.pending_count}</dd>
         <dt>{t("Videos that could not be imported")}</dt><dd>{source.tracking.unavailable_count ?? 0}</dd>

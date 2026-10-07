@@ -134,3 +134,12 @@ view. Do not offer local acoustic transcription for missing YouTube captions.
 Following rows label ordinary VIDEO_URL entries as manually imported videos,
 so a video import sharing a channel display name remains distinguishable from a
 tracked channel. Update/insight/attention/paused filters use actual shared state.
+
+## Validated baseline integrated into Phase 12
+
+Bilibili creator Following is withdrawn under Phase 11R.1. Keep stored detail and
+pause/resume preferences, but show unavailable current capability and disable
+Check Now and creator enrollment. Historical source health is labeled as recorded
+history. YouTube uses the same tracking form/detail and its own capability; Bilibili
+withdrawal must not disable channels. A check's running notice is replaced by its
+settled health. Show the next eligible check without implying a scheduled daemon.

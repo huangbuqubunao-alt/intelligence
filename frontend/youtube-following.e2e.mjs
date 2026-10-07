@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { chromium } from 'playwright-core';
-const base='http://127.0.0.1:5713/', root=new URL('../.var/phase12/browser/',import.meta.url).pathname;
+const base='http://127.0.0.1:5713/', root=process.env.YIA_PHASE12_ROOT ?? new URL('../.var/phase12/browser/',import.meta.url).pathname;
 const info=JSON.parse(readFileSync(join(root,'fixture.json'))), offline=process.env.YIA_PHASE12_OFFLINE==='1';
 const evidence=new URL('../docs/validation/phase12-resume/',import.meta.url).pathname;
 mkdirSync(evidence,{recursive:true});mkdirSync(join(root,'screenshots'),{recursive:true});
@@ -26,11 +26,13 @@ try{
   await page.goto(base+'#Home');await page.locator('.knowledge-delta').waitFor();assert.equal(await page.locator('.sidebar-nav button').count(),6);
   if(!offline){
    const before=(await get('videos')).videos.length;
+   if(i===0)await post('fixture/failure',{index:0,offline:true});
    await following();await page.getByRole('button',{name:t('Add Source','添加关注'),exact:true}).first().click();let dialog=page.getByRole('dialog');
    await dialog.getByLabel(t('Source URL','来源链接')).fill('https://youtube.com/@public'+i);await dialog.getByRole('button',{name:t('Add Source','添加关注'),exact:true}).click();await dialog.getByText(t('Use Follow a channel to follow from now on without importing existing videos.','请选择“关注一个频道”，从现在开始关注，不导入已有视频。'),{exact:true}).waitFor();
    await dialog.getByRole('button',{name:t('Follow a channel','关注一个频道'),exact:true}).click();await dialog.getByLabel(t('Channel URL, @handle or channel id','频道链接、@用户名或频道 ID')).fill('https://youtube.com/@public'+i);
    await dialog.getByRole('button',{name:t('Follow channel','关注频道'),exact:true}).click();await dialog.getByRole('button',{name:t('Done','完成'),exact:true}).click();
    assert.equal((await get('videos')).videos.length,before);assert.equal((await get('sources/'+id)).source.tracking.update_count,0);
+   if(i===0){const failed=(await get('sources/'+id)).source;assert.equal(failed.tracking.health,'OFFLINE');assert.equal(failed.tracking.baseline_at,null);assert.equal(failed.last_success_at,null);const failedDialog=await detail();await failedDialog.getByText(t('No, no successful check has completed yet','否，尚无成功完成的检查'),{exact:true}).waitFor();await noOverflow();await failedDialog.getByRole('button',{name:t('Close','关闭'),exact:true}).click();await post('fixture/failure',{index:0,offline:false});}
    await page.goto(base+'#Content/'+old);await page.getByRole('button',{name:t('Follow this channel','关注此频道'),exact:true}).click();await page.getByText(t('Channel followed. Check Following for its starting point and source health.','已关注频道，请在关注详情中查看跟踪起点和来源状态。'),{exact:true}).waitFor();assert.equal((await get('sources')).sources.filter(s=>s.source_id===id).length,1);
    if(i===0){const denied=await page.request.post(base+'api/v1/sources/creators',{headers:{Origin:base.slice(0,-1),'X-YIA-Request':'local-ui'},data:{input:'456'}});assert.equal(denied.status(),409);assert.equal((await denied.json()).error.code,'BILIBILI_CREATOR_TRACKING_UNAVAILABLE');}
    await advance(false);dialog=await detail();await dialog.getByRole('button',{name:t('Check Now','立即检查'),exact:true}).click();await waitSource(id,s=>Boolean(s.tracking.baseline_at)&&!s.tracking.checking);assert.equal((await get('sources/'+id)).source.tracking.update_count,0);await noOverflow();await dialog.getByRole('button',{name:t('Close','关闭'),exact:true}).click();

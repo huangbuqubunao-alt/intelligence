@@ -12,7 +12,9 @@ try {
   page.on('console',m=>{if(['error','warning'].includes(m.type()))errors.push(m.text());});
   page.on('request',r=>{if(!r.url().startsWith(base))external.push(r.url());});
   await page.addInitScript(lang=>localStorage.setItem('yia.ui-language',lang),language);
-  await page.goto(base+'#Following');
+  const staleResponse=page.waitForResponse(r=>r.url().endsWith('/api/v1/sources/check-stale')&&r.status()===202);
+  await page.goto(base+'#Following');await staleResponse;
+  for(let attempt=0;attempt<60;attempt++){const response=await page.request.get(base+'api/v1/sources');const sources=(await response.json()).sources;if(sources.every(s=>!s.tracking?.checking))break;if(attempt===59)assert.fail('Lifecycle checks did not settle');await page.waitForTimeout(500);}
   const filter=page.getByLabel(t('Following filter','筛选关注'));
   await filter.selectOption('updates');
   await page.locator('[data-source-id="youtube-channel-UC0000000000000000000000"]').waitFor();
@@ -27,7 +29,7 @@ try {
    await page.locator(`[data-source-id="${id}"] .source-select`).click();
    let dialog=page.getByRole('dialog',{name:kind==='channel'?t('Channel Following','频道关注'):t('Creator Following','UP 主关注')});
    await dialog.getByRole('button',{name:t('Check Now','立即检查'),exact:true}).waitFor();
-   if(kind==='creator'){assert.equal(await dialog.getByRole('button',{name:t('Check Now','立即检查'),exact:true}).isDisabled(),true);await dialog.getByText(t('Continuous creator tracking is currently unavailable','持续关注 UP 主暂不可用'),{exact:true}).waitFor();}
+   if(kind==='creator'){assert.equal(await dialog.getByRole('button',{name:t('Check Now','立即检查'),exact:true}).isDisabled(),true);await dialog.getByText(t('Continuous creator tracking is currently unavailable','UP 主持续关注当前暂不可用'),{exact:true}).waitFor();}
    await dialog.getByRole('button',{name:t('Pause monitoring','暂停监测'),exact:true}).click();
    await dialog.getByRole('button',{name:t('Resume monitoring','继续关注'),exact:true}).waitFor();
    await dialog.getByRole('button',{name:t('Close','关闭'),exact:true}).click();
