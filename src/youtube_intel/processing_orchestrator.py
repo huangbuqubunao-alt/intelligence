@@ -114,9 +114,8 @@ class PersistedSourceRunDiscovery:
 
     def discover(self, source_id: str) -> tuple[MetadataFilterCandidate, ...]:
         source = self._repository.get_source_subscription(source_id)
-        if source is not None and is_tracked(self._repository, source.source_id):
-            # Public captions already use ordinary extractive Summary/Evidence.
-            # Discovery does not authorize an unqualified model or cloud dispatch.
+        if source is not None and source.processing_policy.value == "DISCOVER_ONLY":
+            # Content-only processing never enters relevance/model orchestration.
             return ()
         return tuple(
             MetadataFilterCandidate(

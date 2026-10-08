@@ -44,6 +44,8 @@ def channel_input(value: str) -> str:
         if url.scheme != 'https' or url.netloc.lower() not in {'youtube.com', 'www.youtube.com'} or url.query or url.fragment:
             raise ValueError()
         path = url.path.rstrip('/')
+        if path.rsplit('/', 1)[-1] in {'videos', 'shorts', 'streams', 'playlists', 'about', 'featured'}:
+            path = path.rsplit('/', 1)[0]
         if path.startswith('/channel/') and CHANNEL_ID.fullmatch(path[9:]):
             return path[9:]
         if path.startswith('/@') and HANDLE.fullmatch(path[1:]):

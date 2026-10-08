@@ -86,7 +86,7 @@ def verify_tracking(connection: sqlite3.Connection, source_id: str | None = None
         identity = source_identity(row["provider"], str(row["channel_id"]), row["display_name"] or "")
         if ((((row["provider"] == "BILIBILI" or row["source_id"].startswith("youtube-channel-")) and row["source_id"] != identity.source_id) or row["source_type"] != identity.kind)
             or row["canonical_url"] != identity.canonical_url or row["contract"] != "source-tracking-v1"
-            or row["processing_policy"] != ProcessingPolicy.DISCOVER_ONLY.value):
+            or row["processing_policy"] not in ({ProcessingPolicy.DISCOVER_ONLY.value, ProcessingPolicy.STANDARD_INTELLIGENCE.value} if row["provider"] == "YOUTUBE" else {ProcessingPolicy.DISCOVER_ONLY.value})):
             raise ValueError("tracking identity is corrupt")
         followed = _stamp(row["followed_at"])
         if followed < _stamp(row["created_at"]):

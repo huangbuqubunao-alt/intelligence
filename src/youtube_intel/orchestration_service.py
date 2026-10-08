@@ -129,7 +129,7 @@ class ProductOrchestrationService:
     ) -> SourceSubscriptionRecord | None:
         from youtube_intel.following_tracking import is_tracked
         source = self._repository.get_source_subscription(source_id)
-        if source is not None and is_tracked(self._repository, source.source_id) and processing_policy not in {None, ProcessingPolicy.DISCOVER_ONLY}:
+        if source is not None and is_tracked(self._repository, source.source_id) and processing_policy not in ({None, ProcessingPolicy.DISCOVER_ONLY, ProcessingPolicy.STANDARD_INTELLIGENCE} if source.provider == "YOUTUBE" else {None, ProcessingPolicy.DISCOVER_ONLY}):
             raise ValueError("Creator Following uses public Content acquisition only")
         if processing_policy is ProcessingPolicy.FULL_INTELLIGENCE:
             validate_policy(processing_policy, deep_analysis_eligible=False)

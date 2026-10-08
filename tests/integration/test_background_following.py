@@ -498,7 +498,7 @@ def test_shutdown_waits_for_the_current_bounded_check(tmp_path, monkeypatch):
 def test_invalid_tracking_authority_cannot_create_an_admission_hot_loop(tmp_path, monkeypatch):
     composition, fixture, source = setup_runtime(tmp_path, monkeypatch)
     with composition.repository._connect() as connection:
-        connection.execute("UPDATE source_subscriptions SET processing_policy='STANDARD_INTELLIGENCE' WHERE source_id=?", (source.source_id,))
+        connection.execute("UPDATE source_subscriptions SET processing_policy='FULL_INTELLIGENCE' WHERE source_id=?", (source.source_id,))
     fixture.now += timedelta(minutes=16)
     assert composition.worker.run_once().state is SourceRunState.FAILED
     assert composition.worker.scheduler.wait_seconds() is None

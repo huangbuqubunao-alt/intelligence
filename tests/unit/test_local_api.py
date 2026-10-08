@@ -349,7 +349,7 @@ def test_manual_check_is_explicitly_blocked_by_runtime_guard(tmp_path: Path) -> 
         "/api/v1/sources",
         json.dumps(
             {
-                "url": "https://youtube.com/channel/UC1234567890123456789012",
+                "url": "https://youtu.be/abcdefghijk",
                 "processing_policy": "DISCOVER_ONLY",
             }
         ).encode(),

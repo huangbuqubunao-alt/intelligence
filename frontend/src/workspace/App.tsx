@@ -1,3 +1,4 @@
+import { AddEntry } from "./AddEntry";
 import { CreatorFollowForm, CreatorFollowingDetail, FollowCreatorFromContent, Tracking, trackingCopy, useCreatorFollowingCapability } from "./CreatorFollowing";
 import { BilibiliImport, BilibiliCaptionStatus, bilibiliStatus } from "./BilibiliImport";
 import { LocalImport, localStatus } from "./LocalImport";
@@ -142,6 +143,9 @@ type ResourceUsage = {
 };
 type ContentItem = {
   provider?: "YOUTUBE" | "LOCAL" | "BILIBILI";
+  work_kind?: string;
+  source_id?: string;
+  processing_job?: { status: string; stage: string; retry_at: string | null; error_code: string | null } | null;
   filename?: string;
   media_kind?: string;
   format?: string;
@@ -366,6 +370,11 @@ function useRemote<T>(path: string, refresh = 0) {
 }
 function statusLabel(value: string) {
   const labels: Record<string, string> = {
+    FETCHING: "Getting content…",
+    READING_CAPTIONS: "Reading captions…",
+    ORGANIZING: "Organizing content…",
+    ORGANIZED: "Completed",
+    RETRY_PENDING: "Will retry later",
     AVAILABLE: "Available",
     UNAVAILABLE: "Unavailable",
     ENABLED: "Monitoring on",
@@ -402,7 +411,7 @@ function statusLabel(value: string) {
     DISCOVERED: "Discovered",
     METADATA_READY: "Metadata ready",
     DEFERRED: "Deferred",
-    TRANSCRIPT_READY: "Transcript ready",
+    TRANSCRIPT_READY: "Organizing content…",
     SCORED: "Scored",
     LOW_VALUE_READY: "Low-value content",
     ANALYSIS_READY: "Analysis ready",
@@ -640,8 +649,8 @@ function attentionCopy(reason: string | null) {
 }
 
 function sourceLabel(source: Source) {
-  return source.display_name || source.friendly_name || source.channel_id ||
-    source.video_id || "YouTube Source";
+  const handle = /\/(@[^/]+)/.exec(source.canonical_url)?.[1];
+  return source.friendly_name || source.display_name || handle || source.channel_id || source.video_id || source.canonical_url;
 }
 /**
  * What this Source is actually doing. A capability the service has withdrawn is
@@ -650,6 +659,7 @@ function sourceLabel(source: Source) {
  */
 function sourceSummary(source: Source, creatorFollowingWithdrawn: boolean) {
   if (source.provider === "LOCAL") return "Explicit imports only";
+  if (source.source_type === "CHANNEL" && !source.tracking) return "Legacy channel needs attention. Re-add explicitly to establish tracking; its history is preserved.";
   // A creator is a creator whatever provider it belongs to, so this is checked
   // before the manual-video wording below.
   if (source.tracking || source.source_type === "CREATOR") {
@@ -1464,7 +1474,13 @@ function ContentPage(
   },
 ) {
   const { t } = useUiLanguage();
-  const list = useRemote<{ videos: ContentItem[] }>("/videos", refresh);
+  const [revision, setRevision] = useState(0);
+  const list = useRemote<{ videos: ContentItem[] }>("/videos", refresh + revision);
+  useEffect(() => {
+    if (!list.data?.videos.some(item => ["WAITING", "FETCHING", "READING_CAPTIONS", "ORGANIZING", "TRANSCRIPT_READY", "RETRY_PENDING", "RUNNING", "PENDING"].includes(item.processing_status))) return;
+    const timer = setTimeout(() => setRevision(value => value + 1), 2000);
+    return () => clearTimeout(timer);
+  }, [list.data]);
   const [selected, setSelected] = useState<string | null>(targetVideoId ?? null);
   useEffect(() => {
     if (targetVideoId) setSelected(targetVideoId);
@@ -1518,8 +1534,14 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
   } | null>(null);
   const [cloudBusy, setCloudBusy] = useState(false);
   const [cloudError, setCloudError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!data || !["WAITING", "FETCHING", "READING_CAPTIONS", "ORGANIZING", "TRANSCRIPT_READY", "RETRY_PENDING", "RUNNING", "PENDING"].includes(data.video.processing_status)) return;
+    const timer = setTimeout(() => setRefresh(value => value + 1), 2000);
+    return () => clearTimeout(timer);
+  }, [data]);
   if (error) return <ErrorState error={error} />;
   if (!data) return <Empty>Loading Content detail…</Empty>;
+  if (data.video.work_kind) return <div className="dashboard-stack"><button className="button button-ghost" onClick={onClose}>{t("Back to Content")}</button><Panel title={data.video.title ?? id}><Status {...contentStatus(data.video.provider, data.video.processing_status)} /><p>{t("Import accepted. Processing and any required attention appear in Content.")}</p><a href={data.video.source_url ?? undefined} target="_blank" rel="noreferrer">{t("Open original source")}</a><button className="button button-secondary" onClick={async () => { try { await post(`/sources/${data.video.source_id}/check`, { command_id: commandId() }); setRefresh(value => value + 1); } catch { setCloudError("The source could not be checked. Try again later."); } }}>{t("Retry")}</button>{cloudError && <p role="alert">{t(cloudError)}</p>}</Panel></div>;
   const transcript = data.transcript;
   const isBilibili = data.video.provider === "BILIBILI";
   const isLocalMedia = data.video.provider === "LOCAL" && data.video.media_kind !== "TEXT";
@@ -2400,6 +2422,8 @@ function Sources(
   const [selected, setSelected] = useState<string | null>(targetSourceId ?? null);
   const [adding, setAdding] = useState(false);
   const [filter, setFilter] = useState("all");
+  const [rowBusy, setRowBusy] = useState<string | null>(null);
+  const [rowMessage, setRowMessage] = useState<string | null>(null);
   useEffect(() => {
     if (!data?.sources.some(source => source.tracking?.checking)) return;
     const timer = setTimeout(onRefresh, 2000);
@@ -2427,6 +2451,7 @@ function Sources(
           {t("Add Source")}
         </button>
       </div>
+      {rowMessage && <p role="status" aria-live="polite">{t(rowMessage)}</p>}
       {data.sources.length
         ? (
           <div className="source-list">
@@ -2437,7 +2462,7 @@ function Sources(
             </select></label>
             {data.sources.filter(source => !source.tracking_parent_source_ids?.length).filter(source => filter === "all" || (filter === "updates" && (source.tracking?.update_count ?? 0) > 0)
               || (filter === "insights" && (source.insight_count ?? 0) > 0)
-              || (filter === "attention" && Boolean((source.provider === "BILIBILI" && source.tracking && creatorFollowingWithdrawn) || source.last_error || (source.tracking?.pending_count ?? 0) > 0 || (source.tracking?.processing_count ?? 0) > 0 || (source.tracking?.unavailable_count ?? 0) > 0))
+              || (filter === "attention" && Boolean((source.source_type === "CHANNEL" && !source.tracking) || (source.provider === "BILIBILI" && source.tracking && creatorFollowingWithdrawn) || source.last_error || (source.tracking?.pending_count ?? 0) > 0 || (source.tracking?.processing_count ?? 0) > 0 || (source.tracking?.unavailable_count ?? 0) > 0))
               || (filter === "paused" && !source.enabled)).map((source) => (
               <div className="list-row source-row" key={source.source_id} data-source-id={source.source_id}>
                 <button
@@ -2453,10 +2478,16 @@ function Sources(
                   </span>
                 </button>
                 <div className="source-actions">
-                  {source.tracking
+                  {source.tracking && <button className="button button-secondary" disabled={rowBusy !== null} onClick={async () => {
+                    setRowBusy(source.source_id); setRowMessage(null);
+                    try { await patch(`/sources/${source.source_id}`, { enabled: !source.enabled }); setRowMessage(source.enabled ? "Following paused. Existing content is preserved." : "Following resumed. New content will be checked while the app is running."); onRefresh(); }
+                    catch { setRowMessage("The source could not be checked. Try again later."); }
+                    finally { setRowBusy(null); }
+                  }}>{t(rowBusy === source.source_id ? "Saving…" : source.enabled ? "Pause following" : "Resume following")}</button>}
+                  {source.source_type === "CHANNEL" && !source.tracking ? <Status value="NEEDS_ATTENTION" /> : source.tracking
                     ? <Status
-                        value={source.provider === "BILIBILI" && creatorFollowingWithdrawn ? "CAPABILITY_UNAVAILABLE" : source.tracking?.checking ? "RUNNING" : source.tracking?.health ?? "BASELINE_PENDING"}
-                        label={source.provider === "BILIBILI" && creatorFollowingWithdrawn ? "Continuous creator tracking is currently unavailable" : source.tracking?.checking ? "Checking…" : trackingCopy(source.tracking?.health ?? "BASELINE_PENDING", source.provider)}
+                        value={!source.enabled ? "PAUSED" : source.provider === "BILIBILI" && creatorFollowingWithdrawn ? "CAPABILITY_UNAVAILABLE" : source.tracking?.checking ? "RUNNING" : source.tracking?.health ?? "BASELINE_PENDING"}
+                        label={!source.enabled ? "Monitoring is paused" : source.provider === "BILIBILI" && creatorFollowingWithdrawn ? "Continuous creator tracking is currently unavailable" : source.tracking?.checking ? "Checking…" : trackingCopy(source.tracking?.health ?? "BASELINE_PENDING", source.provider)}
                       />
                     : <Status
                         {...(source.provider === "BILIBILI"
@@ -2512,7 +2543,10 @@ function Sources(
 function ruleList(value: string) {
   return value.split(/[,，]/).map((item) => item.trim()).filter(Boolean);
 }
-function SourceForm(
+function SourceForm(props: Parameters<typeof ExistingSourceForm>[0]) {
+  return props.source ? <ExistingSourceForm {...props} /> : <AddEntry onClose={props.onClose} onSaved={props.onSaved} initialLocal={props.initialProvider === "LOCAL"} />;
+}
+function ExistingSourceForm(
   { onClose, onSaved, source, policy, policyModes, schedules, initialProvider = "YOUTUBE" }: {
     initialProvider?: "YOUTUBE" | "LOCAL" | "BILIBILI";
     onClose: () => void;
@@ -2873,6 +2907,11 @@ function SourceDetail(
   if (error) return <ErrorState error={error} />;
   if (!data) return <Empty>Loading Source…</Empty>;
   if (data.source.tracking) return <CreatorFollowingDetail id={id} capability={creatorCapability} onClose={onClose} onRefresh={onRefresh} />;
+  if (data.source.source_type === "CHANNEL" && !data.source.tracking) return <div className="overlay"><section className="modal local-import" role="dialog" aria-modal="true" aria-label={sourceLabel(data.source)}>
+    <div className="modal-head"><h2>{sourceLabel(data.source)}</h2><button className="button button-ghost" aria-label={t("Close")} onClick={onClose}>{t("Close")}</button></div>
+    <p role="status">{t("Legacy channel needs attention. Re-add explicitly to establish tracking; its history is preserved.")}</p>
+    <a href={data.source.canonical_url} target="_blank" rel="noreferrer">{t("Open Source")}</a>
+  </section></div>;
   if (data.source.provider === "BILIBILI") return <div className="overlay"><section className="modal local-import" role="dialog" aria-modal="true" aria-label={t("Bilibili")}>
     <div className="modal-head"><h2>{sourceLabel(data.source)}</h2><button className="button button-ghost" onClick={onClose}>{t("Close")}</button></div>
     <p>{t("This Following contains one imported video. Creator monitoring is not enabled.")}</p>

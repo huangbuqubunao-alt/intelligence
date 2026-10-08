@@ -281,6 +281,7 @@ def _source_dto(source: SourceSubscriptionRecord) -> dict[str, object]:
         "display_name": source.display_name,
         "enabled": source.enabled,
         "processing_policy": source.processing_policy.value,
+        "processing_mode": source.processing_policy.product_mode,
         "last_checked_at": _timestamp(source.last_checked_at),
         "last_success_at": _timestamp(source.last_success_at),
         "last_error": None
@@ -734,7 +735,7 @@ class LocalApiApplication:
                 if self._source_tracking is None:
                     raise ApiError(HTTPStatus.CONFLICT, "TRACKING_UNAVAILABLE", "Source storage is unavailable.")
                 data = self._body(body)
-                self._only_keys(data, set() if creator_from_content else {"input"})
+                self._only_keys(data, set() if creator_from_content else {"input", "processing_mode"})
                 if following_provider == "BILIBILI" and not CREATOR_FOLLOWING_AVAILABLE:
                     # The capability is withdrawn, so no provider request is made,
                     # no source row is created, and nothing is silently scheduled.
@@ -747,6 +748,11 @@ class LocalApiApplication:
                     source = self._source_tracking.follow_content(creator_from_content[1], provider=following_provider) if creator_from_content else self._source_tracking.follow(self._string(data, "input", required=True) or "", provider=following_provider)
                 except (BilibiliError, TrackingError) as error:
                     raise ApiError(_BILIBILI_ERROR_STATUS.get(error.code, HTTPStatus.UNPROCESSABLE_ENTITY), following_provider + "_" + error.code, "The public source could not be followed.") from None
+                if not creator_from_content and following_provider == "YOUTUBE":
+                    mode = ProcessingPolicy.from_product_mode(self._string(data, "processing_mode") or "ORGANIZE_CONTENT")
+                    updated = self._service.update_source(source.source_id, processing_policy=mode)
+                    assert updated is not None
+                    source = updated
                 if self._source_run_wakeup is not None:
                     self._source_run_wakeup()
                 return HTTPStatus.OK, {"source": self._source_projection(source)}
@@ -1349,14 +1355,30 @@ class LocalApiApplication:
                     ),
                 )
                 return HTTPStatus.OK, {"policy": _source_policy_dto(source_policy)}
+            if method == "POST" and route == "/api/v1/sources/import":
+                self._only_keys(data, {"url", "command_id"})
+                from youtube_intel.orchestration import normalize_source_url
+                url = self._string(data, "url", required=True) or ""
+                if normalize_source_url(url).source_type is not SourceType.VIDEO_URL:
+                    raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY, "YOUTUBE_INVALID_INPUT", "Paste a single video link, or use channel following.")
+                source = self._service.add_source(url=url, processing_policy=ProcessingPolicy.DISCOVER_ONLY)
+                import_run = self._service.check_source(source.source_id, command_id=self._string(data, "command_id", required=True))
+                if self._source_run_wakeup is not None:
+                    self._source_run_wakeup()
+                return HTTPStatus.ACCEPTED, {"source": self._source_projection(source), "source_run": None if import_run.source_run is None else _source_run_dto(import_run.source_run)}
             if method == "POST" and route == "/api/v1/sources":
                 processing_policy = ProcessingPolicy(
                     self._string(data, "processing_policy", required=True) or ""
                 )
-                source = self._service.add_source(
-                    url=self._string(data, "url", required=True) or "",
-                    processing_policy=processing_policy,
-                )
+                from youtube_intel.orchestration import normalize_source_url
+                source_url = self._string(data, "url", required=True) or ""
+                if normalize_source_url(source_url).source_type is SourceType.CHANNEL:
+                    if self._source_tracking is None:
+                        raise ApiError(HTTPStatus.CONFLICT, "TRACKING_UNAVAILABLE", "Channel following is unavailable; no unresolved source was created.")
+                    source = self._source_tracking.follow(source_url, provider="YOUTUBE")
+                    source = self._service.update_source(source.source_id, processing_policy=processing_policy) or source
+                else:
+                    source = self._service.add_source(url=source_url, processing_policy=processing_policy)
                 return HTTPStatus.CREATED, {"source": _source_dto(source)}
             source_policy_prefix = "/api/v1/sources/"
             if (
@@ -1678,6 +1700,29 @@ class LocalApiApplication:
             raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Backup and Restore is unavailable.")
         return self._backup_restore_service
 
+    def _pending_content_work(self) -> list[dict[str, object]]:
+        """Real durable video import/discovery identities; never baseline history."""
+        with self._repository._connect() as connection:
+            rows = connection.execute(
+                "SELECT s.source_id,s.video_id,s.canonical_url,s.created_at,NULL AS enrollment FROM source_subscriptions s LEFT JOIN videos v ON v.video_id=s.video_id WHERE s.provider='YOUTUBE' AND s.source_type='VIDEO_URL' AND v.video_id IS NULL "
+                "UNION ALL SELECT o.source_id,o.canonical_identity,'https://www.youtube.com/watch?v='||o.canonical_identity,o.observed_at,o.enrollment FROM source_observations o JOIN source_subscriptions s USING(source_id) LEFT JOIN videos v ON v.video_id=o.canonical_identity WHERE s.provider='YOUTUBE' AND o.baseline=0 AND v.video_id IS NULL LIMIT 100"
+            ).fetchall()
+        runs = self._repository.list_source_runs()
+        items: dict[str, dict[str, object]] = {}
+        for row in rows:
+            video_id = row["video_id"]
+            if re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id or "") is None:
+                continue
+            own_runs = [run for run in runs if run.source_id == row["source_id"]]
+            latest = own_runs[-1] if own_runs else None
+            state = "WAITING"
+            if row["enrollment"] in {"UNSUPPORTED", "UNAVAILABLE"} or (latest and latest.state.value in {"FAILED", "NEEDS_ATTENTION", "AMBIGUOUS"}):
+                state = "NEEDS_ATTENTION"
+            elif latest and latest.state.value == "RUNNING":
+                state = "FETCHING"
+            items[video_id] = {"video_id": video_id, "provider": "YOUTUBE", "title": row["canonical_url"], "source_url": row["canonical_url"], "channel_id": None, "channel_name": None, "published_at": None, "last_updated": row["created_at"], "processing_status": state, "work_kind": "DURABLE_CONTENT_IDENTITY", "source_id": row["source_id"]}
+        return list(items.values())
+
     def _video_dto_with_deep_analysis(self, video: VideoRecord) -> dict[str, object]:
         """Project a Content row with its truthful Deep Analysis availability.
 
@@ -1711,6 +1756,13 @@ class LocalApiApplication:
                     projection["processing_status"] = "TRANSCRIPTION_FAILED" if state == "FAILED" else state
             except OfflineError:
                 projection["processing_status"] = "SOURCE_UNAVAILABLE"
+        if video.provider == "YOUTUBE":
+            job = self._repository.latest_video_job(video.video_id)
+            projection["processing_job"] = None if job is None else {"status": job.status.value, "stage": job.target_stage.value if job.target_stage is not None else None, "retry_at": _timestamp(job.available_at), "error_code": job.last_error_code}
+            if job is not None and job.status.value in {"PENDING", "RUNNING", "RETRY_PENDING", "FAILED_FINAL"}:
+                projection["processing_status"] = "RETRY_PENDING" if job.status.value == "RETRY_PENDING" else "FAILED" if job.status.value == "FAILED_FINAL" else "READING_CAPTIONS" if job.target_stage is not None and job.target_stage.value == "TRANSCRIPT" else "FETCHING"
+            elif self._repository.current_local_summary_pointer(video.video_id) is not None:
+                projection["processing_status"] = "ORGANIZED"
         return projection
 
     def _require_transcription(self) -> LocalTranscriptionJobs:
@@ -1990,7 +2042,7 @@ class LocalApiApplication:
                 "videos": [
                     self._video_dto_with_deep_analysis(video)
                     for video in self._repository.list_videos()
-                ]
+                ] + self._pending_content_work()
             }
         if route == "/api/v1/deep-analysis/capability":
             return {"capability": self._require_deep_analysis().capability_report()}
@@ -2031,6 +2083,9 @@ class LocalApiApplication:
         if route.startswith("/api/v1/videos/"):
             video = self._repository.get_video(route.rsplit("/", 1)[1])
             if video is None:
+                pending = next((item for item in self._pending_content_work() if item["video_id"] == route.rsplit("/", 1)[1]), None)
+                if pending is not None:
+                    return {"video": pending, "transcript": {"status": "NOT_AVAILABLE"}, "note": {"v2": {"status": "UNAVAILABLE"}}, "scoring": {"status": "NOT_AVAILABLE"}, "intelligence_result": _distillation_execution_dto(None), "history": [], "cloud_intelligence_available": False}
                 raise ApiError(
                     HTTPStatus.NOT_FOUND, "NOT_FOUND", "Video was not found."
                 )
@@ -2503,11 +2558,12 @@ class LocalApiApplication:
         friendly_name = source.display_name
         if friendly_name is None:
             videos = self._repository.list_source_videos(source.source_id, limit=1)
-            if videos and videos[0].channel_name:
-                friendly_name = videos[0].channel_name
+            if videos:
+                friendly_name = videos[0].title if source.video_id is not None else videos[0].channel_name
         projection["friendly_name"] = (
-            friendly_name or source.channel_id or source.video_id
+            friendly_name or (urlparse(source.canonical_url).path.split("/")[1] if "/@" in source.canonical_url else None) or source.channel_id or source.video_id
         )
+        projection["needs_attention"] = source.source_type.value == "CHANNEL" and not projection["tracking"]
         return projection
 
     def _intelligence_list(self, *, limit: int) -> list[dict[str, object]]:

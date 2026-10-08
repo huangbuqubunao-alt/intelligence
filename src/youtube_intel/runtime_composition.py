@@ -92,10 +92,14 @@ class RuntimeSourceRunIngestion:
             return
         policy = self._source_policy.effective_policy(source_id)
         try:
-            self._runtime.ingest_source_to_transcript(
+            video_ids = self._runtime.ingest_source_to_transcript(
                 source_id,
                 limit=policy.per_run_max_new_videos,
             )
+            from youtube_intel.extractive_summary import ExtractiveSummaryService
+            for video_id in video_ids:
+                if self._runtime._repository.get_verified_timed_transcript(video_id=video_id) is not None and self._runtime._repository.current_local_summary_pointer(video_id) is None:
+                    ExtractiveSummaryService(self._runtime._repository, self._runtime._data_root).create(video_id, now=datetime.now(UTC))
         except Exception as error:
             if isinstance(error, SourceRunDiscoveryError):
                 raise

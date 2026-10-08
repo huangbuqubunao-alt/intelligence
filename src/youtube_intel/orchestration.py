@@ -26,6 +26,14 @@ class ProcessingPolicy(str, Enum):
     STANDARD_INTELLIGENCE = "STANDARD_INTELLIGENCE"
     FULL_INTELLIGENCE = "FULL_INTELLIGENCE"
 
+    @classmethod
+    def from_product_mode(cls, value: str) -> ProcessingPolicy:
+        return cls({"ORGANIZE_CONTENT": "DISCOVER_ONLY", "EXTRACT_INTELLIGENCE": "STANDARD_INTELLIGENCE"}.get(value, value))
+
+    @property
+    def product_mode(self) -> str:
+        return "ORGANIZE_CONTENT" if self is ProcessingPolicy.DISCOVER_ONLY else "EXTRACT_INTELLIGENCE"
+
     @property
     def deep_analysis_requested(self) -> bool:
         return self is ProcessingPolicy.FULL_INTELLIGENCE
@@ -74,6 +82,10 @@ def normalize_source_url(value: str) -> NormalizedSource:
     raw = value.strip()
     if len(raw) > 2048 or not raw:
         raise SourceNormalizationError("a non-empty YouTube URL is required")
+    if _HANDLE.fullmatch(raw):
+        raw = "https://www.youtube.com/" + raw
+    elif _CHANNEL_ID.fullmatch(raw):
+        raw = "https://www.youtube.com/channel/" + raw
     parsed = urlparse(raw)
     if parsed.scheme != "https" or parsed.netloc.lower() not in {
         "www.youtube.com",
@@ -84,6 +96,8 @@ def normalize_source_url(value: str) -> NormalizedSource:
         raise SourceNormalizationError("only explicit HTTPS YouTube URLs are supported")
     host = parsed.netloc.lower()
     path = parsed.path.rstrip("/")
+    if path.rsplit("/", 1)[-1] in {"videos", "shorts", "streams", "playlists", "about", "featured"} and (path.startswith("/@") or path.startswith("/channel/")):
+        path = path.rsplit("/", 1)[0]
     if host == "youtu.be":
         video_id = path.lstrip("/")
         if _VIDEO_ID.fullmatch(video_id):
