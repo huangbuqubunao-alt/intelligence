@@ -211,7 +211,7 @@ class ProductOrchestrationService:
             )
         if is_tracked(self._repository, source.source_id):
             from youtube_intel.following_tracking import tracking_due
-            if not tracking_due(self._repository, source_id, self._now()):
+            if not tracking_due(self._repository, source_id, self._now(), manual=not automatic):
                 return SourceCheckResult(AutomationRunStatus.BLOCKED, "COOLDOWN")
             if self._source_run_submitter is None:
                 if self._source_tracking is None:

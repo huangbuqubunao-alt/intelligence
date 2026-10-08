@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import threading
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -27,7 +28,7 @@ from youtube_intel.distillation import (
     PersonalizedDistillationService,
 )
 from youtube_intel.evidence_translation import EvidenceTranslationPresentationService
-from youtube_intel.following_scheduler import FollowingScheduler
+from youtube_intel.following_scheduler import AUTOMATIC_CHECK_PREFIX, FollowingScheduler
 from youtube_intel.following_tracking import FollowingTrackingService, is_tracked
 from youtube_intel.local_api import LocalApiApplication
 from youtube_intel.model_settings import (
@@ -74,7 +75,15 @@ class RuntimeSourceRunIngestion:
         if source is not None and is_tracked(self._runtime._repository, source.source_id):
             if self._source_tracking is None:
                 raise SourceRunDiscoveryError("Source tracking is unavailable")
-            category = self._source_tracking.check(source_id)
+            # The persisted command identity owns automatic origin even after
+            # process recovery; no thread-local or scheduler job is authority.
+            with self._runtime._repository._connect() as connection:
+                active = connection.execute(
+                    "SELECT manual_command_id FROM source_runs WHERE source_id=? AND state='RUNNING'",
+                    (source_id,),
+                ).fetchall()
+            automatic = any(str(row[0]).startswith(AUTOMATIC_CHECK_PREFIX) for row in active)
+            category = self._source_tracking.check(source_id, automatic=automatic)
             if category not in {"COMPLETE", "UPDATE_GAP", "COOLDOWN"}:
                 raise SourceRunDiscoveryError("Source check did not complete")
             return
@@ -118,12 +127,15 @@ class DurableSourceRunWorker:
         *,
         poll_seconds: float = 0.5,
         scheduler: FollowingScheduler | None = None,
+        backup_restore: BackupRestoreService | None = None,
     ) -> None:
         if poll_seconds <= 0:
             raise ValueError("worker poll interval must be positive")
         self._orchestrator = orchestrator
         self._poll_seconds = poll_seconds
         self.scheduler = scheduler
+        self.backup_restore = backup_restore
+        self._execution = threading.Lock()
         self._wake = threading.Event()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -131,6 +143,7 @@ class DurableSourceRunWorker:
     def start(self) -> None:
         if self._thread is not None:
             return
+        self._stop.clear()
         self._thread = threading.Thread(
             target=self._run,
             name="youtube-intel-source-runs",
@@ -142,9 +155,19 @@ class DurableSourceRunWorker:
         self._wake.set()
 
     def run_once(self) -> SourceRunRecord | None:
-        if self.scheduler is not None:
-            self.scheduler.admit_due()
-        return self._orchestrator.resume_next()
+        if not self._execution.acquire(blocking=False):
+            return None
+        try:
+            gate = (nullcontext(True) if self.backup_restore is None
+                    else self.backup_restore.background_work())
+            with gate as allowed:
+                if not allowed or self._stop.is_set():
+                    return None
+                if self.scheduler is not None:
+                    self.scheduler.admit_due()
+                return self._orchestrator.resume_next()
+        finally:
+            self._execution.release()
 
     def stop(self) -> None:
         self._stop.set()
@@ -173,7 +196,8 @@ class DurableSourceRunWorker:
                 continue
             if result is not None:
                 continue
-            self._wake.wait(None if self.scheduler is None else self.scheduler.wait_seconds())
+            protected = self.backup_restore is not None and not self.backup_restore.background_allowed
+            self._wake.wait(None if self.scheduler is None or protected else self.scheduler.wait_seconds())
 
 
 @dataclass(frozen=True, slots=True)
@@ -304,8 +328,10 @@ def build_local_source_run_runtime(
         now=now_fn,
     )
     worker = DurableSourceRunWorker(
-        orchestrator, scheduler=FollowingScheduler(source_tracking, product, now=now_fn)
+        orchestrator, scheduler=FollowingScheduler(source_tracking, product, now=now_fn),
+        backup_restore=backup_restore,
     )
+    backup_restore.bind_background_wakeup(worker.notify)
     reader = AuthoritativeScoringReader(
         repository=repository,
         data_root=data_root,

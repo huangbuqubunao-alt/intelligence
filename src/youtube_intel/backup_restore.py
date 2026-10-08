@@ -14,6 +14,8 @@ import stat
 import threading
 import uuid
 import zipfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from importlib.metadata import PackageNotFoundError
@@ -158,6 +160,10 @@ class BackupRestoreService:
         self._restart_requested = False
         self._staged_lock = threading.RLock()
         self._staged: dict[str, tuple[str, str]] = {}
+        self._background_lock = threading.RLock()
+        self._background_suspended = 0
+        self._background_active = 0
+        self._background_wakeup: Callable[[], None] | None = None
         self._ensure_control_root()
         if not self.marker_path.exists():
             self._cleanup_unconfirmed_staging()
@@ -189,6 +195,42 @@ class BackupRestoreService:
 
     def request_restart(self) -> None:
         self._restart_requested = True
+
+    def bind_background_wakeup(self, wakeup: Callable[[], None]) -> None:
+        self._background_wakeup = wakeup
+
+    @property
+    def background_allowed(self) -> bool:
+        with self._background_lock:
+            return not self._background_suspended and not self.restore_pending and not self.restart_requested
+
+    @contextmanager
+    def background_work(self) -> Iterator[bool]:
+        """Atomically admit work against protected archive/restore windows."""
+        with self._background_lock:
+            allowed = self.background_allowed
+            if allowed:
+                self._background_active += 1
+        try:
+            yield allowed
+        finally:
+            if allowed:
+                with self._background_lock:
+                    self._background_active -= 1
+
+    @contextmanager
+    def _protect_background(self) -> Iterator[None]:
+        # Existing active work remains visible to the quiescence check; do not
+        # wait holding SQLite while that work needs SQLite to settle.
+        with self._background_lock:
+            self._background_suspended += 1
+        try:
+            yield
+        finally:
+            with self._background_lock:
+                self._background_suspended -= 1
+            if self._background_wakeup is not None:
+                self._background_wakeup()
 
     def readiness(self) -> dict[str, object]:
         try:
@@ -293,7 +335,7 @@ class BackupRestoreService:
         return path, file_name
 
     def stage_restore(self, archive_bytes: bytes) -> RestorePreview:
-        with self._staged_lock:
+        with self._protect_background(), self._staged_lock:
             if self.restore_pending or self._staged:
                 raise BackupRestoreError("A Restore is already staged or pending restart.")
             if not archive_bytes or len(archive_bytes) > MAX_ARCHIVE_BYTES:
@@ -327,7 +369,7 @@ class BackupRestoreService:
                 raise
 
     def cancel_restore(self, restore_id: str) -> bool:
-        with self._staged_lock:
+        with self._protect_background(), self._staged_lock:
             if not _ID.fullmatch(restore_id) or self.restore_pending or restore_id not in self._staged:
                 return False
             stage_dir = self.staging_root / restore_id
@@ -338,7 +380,7 @@ class BackupRestoreService:
             return True
 
     def confirm_restore(self, restore_id: str) -> dict[str, object]:
-        with self._staged_lock:
+        with self._protect_background(), self._staged_lock:
             if not _ID.fullmatch(restore_id) or self.restore_pending:
                 raise BackupRestoreError("Restore confirmation is no longer valid.")
             inspected = self._staged.get(restore_id)
@@ -1144,6 +1186,9 @@ class BackupRestoreService:
         self, connection: sqlite3.Connection, *, repository: SQLiteStateRepository | None = None
     ) -> list[str]:
         reasons: list[str] = []
+        with self._background_lock:
+            if self._background_active:
+                reasons.append("SOURCE_RUN_ACTIVE")
         repository = repository or SQLiteStateRepository(self.database)
         if connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='source_checks'").fetchone() is not None:
             if connection.execute("SELECT 1 FROM source_checks WHERE status='RUNNING' LIMIT 1").fetchone() is not None:
@@ -1437,17 +1482,26 @@ class BackupRestoreService:
 
         class Transaction:
             def __enter__(self) -> sqlite3.Connection:
-                self.connection = sqlite3.connect(service.database, timeout=1, isolation_level=None)
-                self.connection.row_factory = sqlite3.Row
-                self.connection.execute("PRAGMA foreign_keys=ON")
-                self.connection.execute("BEGIN IMMEDIATE")
-                return self.connection
+                self.protection = service._protect_background()
+                self.protection.__enter__()
+                try:
+                    self.connection = sqlite3.connect(service.database, timeout=1, isolation_level=None)
+                    self.connection.row_factory = sqlite3.Row
+                    self.connection.execute("PRAGMA foreign_keys=ON")
+                    self.connection.execute("BEGIN IMMEDIATE")
+                    return self.connection
+                except BaseException:
+                    if hasattr(self, "connection"):
+                        self.connection.close()
+                    self.protection.__exit__(None, None, None)
+                    raise
 
             def __exit__(self, *_: object) -> None:
                 try:
                     self.connection.execute("ROLLBACK")
                 finally:
                     self.connection.close()
+                    self.protection.__exit__(None, None, None)
 
         return Transaction()
 

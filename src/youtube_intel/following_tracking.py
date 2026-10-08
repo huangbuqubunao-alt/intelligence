@@ -131,12 +131,15 @@ def verify_tracking(connection: sqlite3.Connection, source_id: str | None = None
                     raise ValueError("tracking check discovery is absent")
 
 
-def tracking_due(repository: SQLiteStateRepository, source_id: str, now: datetime) -> bool:
+def tracking_due(repository: SQLiteStateRepository, source_id: str, now: datetime,
+                 *, manual: bool = False) -> bool:
     with repository._connect() as connection:
-        row = connection.execute("SELECT next_check_at FROM source_tracking_state WHERE source_id=?", (source_id,)).fetchone()
+        row = connection.execute("SELECT t.next_check_at,t.health,s.last_checked_at FROM source_tracking_state t JOIN source_subscriptions s USING(source_id) WHERE source_id=?", (source_id,)).fetchone()
         if row is None:
             return False
         try:
+            if manual and row["health"] == "OFFLINE" and row["last_checked_at"] is not None:
+                return _stamp(row["last_checked_at"]) + timedelta(seconds=5) <= now
             return _stamp(row[0]) <= now
         except (TypeError, ValueError):
             # Let the normal check reject invalid state; never replace it.
@@ -258,7 +261,7 @@ class FollowingTrackingService:
             return {**dict(row), "discovered_count": counts[0] or 0, "pending_count": counts[1] or 0,
                     "unavailable_count": counts[2] or 0, "update_count": counts[3] or 0, "checking": active, "processing_count": processing}
 
-    def check(self, source_id: str) -> str:
+    def check(self, source_id: str, *, automatic: bool = False) -> str:
         source = self.repository.get_source_subscription(source_id)
         if source is None or source.provider not in _CHECK_SLOTS:
             raise TrackingError("SOURCE_UNTRUSTED")
@@ -268,11 +271,11 @@ class FollowingTrackingService:
         if not slot.acquire(blocking=False):
             return "BUSY"
         try:
-            return self._check(source_id)
+            return self._check(source_id, automatic=automatic)
         finally:
             slot.release()
 
-    def _check(self, source_id: str) -> str:
+    def _check(self, source_id: str, *, automatic: bool = False) -> str:
         source = self.repository.get_source_subscription(source_id)
         if source is None or not is_tracked(self.repository, source_id):
             raise BilibiliError("SOURCE_UNTRUSTED")
@@ -283,6 +286,8 @@ class FollowingTrackingService:
         check_id = str(uuid4())
         with self.repository._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
+            if not connection.execute("SELECT enabled FROM source_subscriptions WHERE source_id=?", (source_id,)).fetchone()[0]:
+                return "PAUSED"
             try:
                 verify_tracking(connection, source_id, repository=self.repository)
             except (ValueError, KeyError, TypeError, OSError):
@@ -295,7 +300,12 @@ class FollowingTrackingService:
                                (stamp, source_id, format_utc_datetime(now - LEASE)))
             if connection.execute("SELECT 1 FROM source_checks WHERE source_id=? AND status='RUNNING'", (source_id,)).fetchone():
                 return "BUSY"
-            if _stamp(state["next_check_at"]) > now:
+            manual_network_retry = (
+                not automatic and state["health"] == "OFFLINE"
+                and source.last_checked_at is not None
+                and source.last_checked_at + timedelta(seconds=5) <= now
+            )
+            if _stamp(state["next_check_at"]) > now and not manual_network_retry:
                 return "COOLDOWN"
             connection.execute("INSERT INTO source_checks(check_id,source_id,started_at,status) VALUES(?,?,?,'RUNNING')", (check_id, source_id, stamp))
             connection.execute("UPDATE source_tracking_state SET next_check_at=? WHERE source_id=?", (format_utc_datetime(now + COOLDOWN), source_id))
@@ -344,6 +354,9 @@ class FollowingTrackingService:
             self._enroll(source_id, identity, deadline, _stamp(state["followed_at"]))
             with self.repository._connect() as connection:
                 connection.execute("BEGIN IMMEDIATE")
+                if automatic:
+                    connection.execute("UPDATE source_tracking_state SET next_check_at=? WHERE source_id=?",
+                                       (format_utc_datetime(self.now() + COOLDOWN), source_id))
                 if complete:
                     connection.execute("UPDATE source_subscriptions SET last_success_at=? WHERE source_id=?", (stamp, source_id))
                 connection.execute("UPDATE source_checks SET status='SUCCEEDED',finished_at=?,result_category=?,discovered_identities_json=?,complete=? WHERE check_id=?",
@@ -355,7 +368,22 @@ class FollowingTrackingService:
             with self.repository._connect() as connection:
                 connection.execute("BEGIN IMMEDIATE")
                 connection.execute("UPDATE source_tracking_state SET health=? WHERE source_id=?", (health, source_id))
-                if source.provider == "YOUTUBE" and code == "NETWORK_UNAVAILABLE":
+                if automatic:
+                    previous = connection.execute(
+                        "SELECT status,result_category FROM source_checks WHERE source_id=? AND check_id!=? ORDER BY started_at DESC,check_id DESC LIMIT 8",
+                        (source_id, check_id),
+                    ).fetchall()
+                    consecutive = 0
+                    for receipt in previous:
+                        if receipt["status"] != "FAILED" or receipt["result_category"] != health:
+                            break
+                        consecutive += 1
+                    base, maximum = ((60, 3600) if health == "OFFLINE" else
+                                     (900, 14400) if health == "RATE_LIMITED" else (3600, 86400))
+                    delay = min(maximum, base * 2 ** consecutive)
+                    connection.execute("UPDATE source_tracking_state SET next_check_at=? WHERE source_id=?",
+                                       (format_utc_datetime(self.now() + timedelta(seconds=delay)), source_id))
+                elif source.provider == "YOUTUBE" and code == "NETWORK_UNAVAILABLE":
                     # A failed network attempt is not a successful provider check.
                     # Permit a bounded user retry after VPN/network changes.
                     connection.execute("UPDATE source_tracking_state SET next_check_at=? WHERE source_id=?",
