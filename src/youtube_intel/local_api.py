@@ -747,6 +747,8 @@ class LocalApiApplication:
                     source = self._source_tracking.follow_content(creator_from_content[1], provider=following_provider) if creator_from_content else self._source_tracking.follow(self._string(data, "input", required=True) or "", provider=following_provider)
                 except (BilibiliError, TrackingError) as error:
                     raise ApiError(_BILIBILI_ERROR_STATUS.get(error.code, HTTPStatus.UNPROCESSABLE_ENTITY), following_provider + "_" + error.code, "The public source could not be followed.") from None
+                if self._source_run_wakeup is not None:
+                    self._source_run_wakeup()
                 return HTTPStatus.OK, {"source": self._source_projection(source)}
             if method == "POST" and route == "/api/v1/sources/check-stale":
                 self._only_keys(self._body(body), set())
@@ -1506,6 +1508,8 @@ class LocalApiApplication:
                     raise ApiError(
                         HTTPStatus.NOT_FOUND, "NOT_FOUND", "Source was not found."
                     )
+                if self._source_run_wakeup is not None:
+                    self._source_run_wakeup()
                 return HTTPStatus.OK, {"source": _source_dto(updated_source)}
             if (
                 method == "POST"

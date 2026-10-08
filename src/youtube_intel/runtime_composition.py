@@ -27,6 +27,7 @@ from youtube_intel.distillation import (
     PersonalizedDistillationService,
 )
 from youtube_intel.evidence_translation import EvidenceTranslationPresentationService
+from youtube_intel.following_scheduler import FollowingScheduler
 from youtube_intel.following_tracking import FollowingTrackingService, is_tracked
 from youtube_intel.local_api import LocalApiApplication
 from youtube_intel.model_settings import (
@@ -116,11 +117,13 @@ class DurableSourceRunWorker:
         orchestrator: DurableProcessingOrchestrator,
         *,
         poll_seconds: float = 0.5,
+        scheduler: FollowingScheduler | None = None,
     ) -> None:
         if poll_seconds <= 0:
             raise ValueError("worker poll interval must be positive")
         self._orchestrator = orchestrator
         self._poll_seconds = poll_seconds
+        self.scheduler = scheduler
         self._wake = threading.Event()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -139,6 +142,8 @@ class DurableSourceRunWorker:
         self._wake.set()
 
     def run_once(self) -> SourceRunRecord | None:
+        if self.scheduler is not None:
+            self.scheduler.admit_due()
         return self._orchestrator.resume_next()
 
     def stop(self) -> None:
@@ -146,7 +151,7 @@ class DurableSourceRunWorker:
         self._wake.set()
         thread = self._thread
         if thread is not None:
-            thread.join(timeout=5)
+            thread.join()
         self._thread = None
 
     def _run(self) -> None:
@@ -158,16 +163,17 @@ class DurableSourceRunWorker:
             except Exception:
                 continue
         while not self._stop.is_set():
+            # Clear before reading durable work, so a notification during that
+            # read/execution remains set and cannot be lost before the wait.
+            self._wake.clear()
             try:
                 result = self.run_once()
             except Exception:
-                self._wake.wait(self._poll_seconds)
-                self._wake.clear()
+                self._wake.wait(max(60.0, self._poll_seconds))
                 continue
             if result is not None:
                 continue
-            self._wake.wait(self._poll_seconds)
-            self._wake.clear()
+            self._wake.wait(None if self.scheduler is None else self.scheduler.wait_seconds())
 
 
 @dataclass(frozen=True, slots=True)
@@ -297,7 +303,9 @@ def build_local_source_run_runtime(
         source_tracking=source_tracking,
         now=now_fn,
     )
-    worker = DurableSourceRunWorker(orchestrator)
+    worker = DurableSourceRunWorker(
+        orchestrator, scheduler=FollowingScheduler(source_tracking, product, now=now_fn)
+    )
     reader = AuthoritativeScoringReader(
         repository=repository,
         data_root=data_root,

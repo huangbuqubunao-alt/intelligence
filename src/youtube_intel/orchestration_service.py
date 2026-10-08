@@ -196,7 +196,8 @@ class ProductOrchestrationService:
         )
 
     def check_source(
-        self, source_id: str, *, command_id: str | None = None
+        self, source_id: str, *, command_id: str | None = None,
+        automatic: bool = False,
     ) -> SourceCheckResult:
         from youtube_intel.following_tracking import is_tracked
         source = self._repository.get_source_subscription(source_id)
@@ -226,7 +227,7 @@ class ProductOrchestrationService:
             run = self._source_run_submitter.enqueue_manual_check_now(
                 source_id=source.source_id,
                 command_id=command_id,
-                priority=SourceRunPriority.P0,
+                priority=SourceRunPriority.P1 if automatic else SourceRunPriority.P0,
             )
             return SourceCheckResult(
                 AutomationRunStatus.SUCCEEDED,
