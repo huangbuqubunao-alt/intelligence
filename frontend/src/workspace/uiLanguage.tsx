@@ -4,6 +4,22 @@ export type UiLanguage = "zh-CN" | "en";
 
 const storageKey = "yia.ui-language";
 const chinese: Record<string, string> = {
+  "Keep up with what matters to you.": "持续关注你关心的内容。",
+  "Understand new content quickly.": "快速看懂新内容。",
+  "Start with a link or a local file.": "从一个链接或本地文件开始。",
+  "Follow useful sources, read clear summaries, and build knowledge over time.": "持续关注、快速看懂、长期积累。",
+  "Keep watching": "持续关注",
+  "Understand quickly": "快速看懂",
+  "Build knowledge": "长期积累",
+  "Follow YouTube channels from now on.": "从现在开始关注 YouTube 频道。",
+  "Save content with readable summaries and source references.": "保存内容，阅读摘要并核对原文。",
+  "Choose what deserves a closer look, whenever you are ready.": "准备好时，再选择值得深入提炼的内容。",
+  "Content can be organized without cloud Intelligence. Some videos have no available captions.": "整理内容无需云端洞察模型。部分视频可能没有可用字幕。",
+  "Paste a YouTube video or channel link, import a public Bilibili video, or choose local files.": "粘贴 YouTube 视频或频道链接，导入 Bilibili 公开视频，或选择本地文件。",
+  "Channels follow future uploads. Video links and local files are one-time imports. Bilibili creator following is unavailable.": "频道会持续关注新发布内容。视频链接和本地文件仅导入一次。暂不支持 Bilibili UP 主持续关注。",
+  "Skip for now": "暂时跳过",
+  "Add something": "添加内容",
+
   "Existing videos are not imported. Successful checks have a 15-minute cooldown.": "不会导入已有视频。成功检查后需等待 15 分钟再检查。",
   "Retry": "重试",
   "Unable to connect to YouTube. Check your network or VPN and try again.": "无法连接 YouTube。请检查网络或 VPN 后重试。",

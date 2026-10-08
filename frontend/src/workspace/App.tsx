@@ -6,7 +6,7 @@ import { ChangeEvent, FormEvent, ReactNode, useEffect, useRef, useState } from "
 import { ApiRequestError, api, patch, post, put, uploadZip } from "../api/client";
 import { ModelSettings } from "./ModelSettings";
 import { Logo } from "./Logo";
-import { FirstRunOnboarding } from "./Onboarding";
+import { FirstRunOnboarding, completeOnboarding, onboardingCompleted } from "./Onboarding";
 import { DeltaTarget, KnowledgeDelta } from "./KnowledgeDelta";
 import { Research } from "./Research";
 import { savedLanguage, UiLanguageProvider, useUiLanguage } from "./uiLanguage";
@@ -1241,6 +1241,8 @@ function Dashboard(
       operations?: { source_count?: number };
     }
   >("/dashboard", refresh);
+  const [onboardingDone, setOnboardingDone] = useState(onboardingCompleted);
+  const finishOnboarding = () => { completeOnboarding(); setOnboardingDone(true); };
   if (error) return <ErrorState error={error} />;
   if (!data) return <Empty>Loading Home…</Empty>;
   const intelligence = (data.intelligence ?? []).filter((item) =>
@@ -1251,8 +1253,8 @@ function Dashboard(
     hasWeeklyHistory = (data.weekly_v1 ?? []).length > 0;
   const isFreshLibrary = data.operations?.source_count === 0 &&
     !intelligence.length && !topics.length && !hasWeeklyHistory && !attention.length;
-  if (isFreshLibrary) {
-    return <FirstRunOnboarding onAddFollowing={() => navigate("Following")} />;
+  if (isFreshLibrary && !onboardingDone) {
+    return <FirstRunOnboarding onSkip={finishOnboarding} onAddFollowing={() => { finishOnboarding(); navigate("Following"); }} />;
   }
   if (!intelligence.length && !topics.length && !attention.length) {
     return (

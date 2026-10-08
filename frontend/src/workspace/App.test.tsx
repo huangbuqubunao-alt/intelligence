@@ -132,6 +132,7 @@ const response = (value: object) =>
   Promise.resolve({ ok: true, json: async () => value });
 
 beforeEach(() => {
+  localStorage.removeItem("intelligence.onboarding.completed.v1");
   location.hash = "";
   localStorage.setItem("yia.ui-language", "en");
   vi.stubGlobal(
@@ -1215,62 +1216,53 @@ test("an empty Dashboard explains the next useful step in ordinary language", as
   expect(screen.getByRole("button", { name: "Add Following" })).toBeTruthy();
 });
 
-test("fresh onboarding explains local-first processing and keeps its sample UI-only", async () => {
+test("fresh onboarding explains local processing, multiple sources and remembers completion with an empty library", async () => {
   const fetchMock = vi.fn((input: string, init?: RequestInit) => {
-    if (input.endsWith("/dashboard")) {
-      return response({
-        intelligence: [],
-        pinned_topics: [],
-        weekly_v1: [],
-        needs_attention: [],
-        operations: { source_count: 0 },
-      });
-    }
+    if (input.endsWith("/dashboard")) return response({ intelligence: [], pinned_topics: [], weekly_v1: [], needs_attention: [], operations: { source_count: 0 } });
     if (input.endsWith("/sources")) return response({ sources: [] });
     return response({});
   });
   vi.stubGlobal("fetch", fetchMock);
-
-  render(<App />);
+  const view = render(<App />);
   expect(await screen.findByText("FIRST RUN · 1 / 3")).toBeTruthy();
-  expect(screen.getByText("Turn what you follow into traceable knowledge.")).toBeTruthy();
-  const productConcepts = document.querySelector(".onboarding-value-grid");
-  for (const concept of ["Following", "Content", "Intelligence"]) {
-    expect(productConcepts?.textContent).toContain(concept);
-  }
+  expect(screen.getByText("Keep up with what matters to you.")).toBeTruthy();
+  const concepts = document.querySelector(".onboarding-value-grid");
+  for (const concept of ["Keep watching", "Understand quickly", "Build knowledge"]) expect(concepts?.textContent).toContain(concept);
+  expect(concepts?.textContent).not.toMatch(/Evidence|Topic/);
   fireEvent.click(screen.getByRole("button", { name: "Continue" }));
   expect(await screen.findByText("FIRST RUN · 2 / 3")).toBeTruthy();
-  expect(screen.getByText("Recommended")).toBeTruthy();
-  expect(screen.getByText(
-    "Use local capability first. Never make a paid cloud call unless you explicitly opt in.",
-  )).toBeTruthy();
-  expect(screen.getByText(/instead of silently falling back/)).toBeTruthy();
-  expect(screen.getByText("SYNTHETIC SAMPLE")).toBeTruthy();
-  expect(screen.getByText(
-    "UI-only example · not written to your library · no network or model call",
-  )).toBeTruthy();
-  const sample = screen.getByLabelText("Synthetic sample experience");
-  for (const stage of ["Content", "Summary", "Evidence · supporting", "Intelligence", "Topic"]) {
-    expect(within(sample).getByText(stage)).toBeTruthy();
-  }
+  expect(screen.getByText("Local-first processing")).toBeTruthy();
+  expect(screen.getByText("Use local capability first. Never make a paid cloud call unless you explicitly opt in.")).toBeTruthy();
+  expect(screen.getByText("Content can be organized without cloud Intelligence. Some videos have no available captions.")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Continue" }));
   expect(await screen.findByText("FIRST RUN · 3 / 3")).toBeTruthy();
-  expect(screen.getByText("Local-first processing")).toBeTruthy();
-  expect(screen.getByText(/public YouTube source is processed locally first/i))
-    .toBeTruthy();
-  expect(screen.getByText(/can take a little time/i)).toBeTruthy();
-  expect(screen.getByText(/pauses and explains why/i)).toBeTruthy();
-  expect(screen.getByText(/will not silently switch to a cloud model/i))
-    .toBeTruthy();
+  expect(screen.getByText("Paste a YouTube video or channel link, import a public Bilibili video, or choose local files.")).toBeTruthy();
+  expect(screen.getByText(/Bilibili creator following is unavailable/)).toBeTruthy();
   expect(screen.queryByText(/Runtime qualification is separate/)).toBeNull();
-  expect(screen.queryByText(/production Following configuration path/))
-    .toBeNull();
-  expect(fetchMock.mock.calls.some(([, init]) =>
-    ["POST", "PUT", "PATCH", "DELETE"].includes(init?.method ?? "GET")
-  )).toBe(false);
-
-  fireEvent.click(screen.getByRole("button", { name: "Add first Following" }));
+  expect(screen.queryByText(/production Following configuration path/)).toBeNull();
+  expect(fetchMock.mock.calls.some(([, init]) => ["POST", "PUT", "PATCH", "DELETE"].includes(init?.method ?? "GET"))).toBe(false);
+  fireEvent.click(screen.getByRole("button", { name: "Add something" }));
   expect(await screen.findByText(/Set up your first Source/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Home" }));
+  expect(await screen.findByText("No important new intelligence yet.")).toBeTruthy();
+  expect(screen.queryByText(/FIRST RUN/)).toBeNull();
+  view.unmount(); location.hash = "Home";
+  render(<App />);
+  expect(await screen.findByText("No important new intelligence yet.")).toBeTruthy();
+  expect(screen.queryByText(/FIRST RUN/)).toBeNull();
+});
+
+test("skipping onboarding persists without creating Content or invoking a model", async () => {
+  const fetchMock = vi.fn((input: string, _init?: RequestInit) => input.endsWith("/dashboard")
+    ? response({ intelligence: [], pinned_topics: [], weekly_v1: [], needs_attention: [], operations: { source_count: 0 } }) : response({}));
+  vi.stubGlobal("fetch", fetchMock);
+  const view = render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: "Skip for now" }));
+  expect(await screen.findByText("No important new intelligence yet.")).toBeTruthy();
+  view.unmount(); render(<App />);
+  expect(await screen.findByText("No important new intelligence yet.")).toBeTruthy();
+  expect(screen.queryByText(/FIRST RUN/)).toBeNull();
+  expect(fetchMock.mock.calls.every(([, init]) => !(init as RequestInit | undefined)?.method)).toBe(true);
 });
 
 test("historical Weekly data does not show a Brief or trigger first-run onboarding", async () => {
