@@ -1,0 +1,136 @@
+...F.FFF.F                                                               [100%]
+=================================== FAILURES ===================================
+_ test_automatic_failures_back_off_without_fabricating_frontier[NETWORK_UNAVAILABLE-60] _
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-1058/test_automatic_failures_back_o0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x106da8770>
+failure = 'NETWORK_UNAVAILABLE', minimum = 60
+
+    @pytest.mark.parametrize("failure,minimum", [
+        ("NETWORK_UNAVAILABLE", 60), ("RATE_LIMITED", 900),
+        ("METADATA_FAILED", 3600), ("RESPONSE_TOO_LARGE", 3600),
+    ])
+    def test_automatic_failures_back_off_without_fabricating_frontier(
+        tmp_path, monkeypatch, failure, minimum
+    ):
+        composition, fixture, source = setup_runtime(tmp_path, monkeypatch)
+        tracker = composition.application._source_tracking
+        before = tracker.projection(source.source_id)
+        fixture.now += timedelta(minutes=16)
+        fixture.failure = failure
+        run = composition.worker.run_once()
+        assert run.state is SourceRunState.FAILED
+        after = tracker.projection(source.source_id)
+        assert after["verified_at"] == before["verified_at"]
+        assert after["latest_published_at"] == before["latest_published_at"]
+>       assert (_stamp(after["next_check_at"]) - fixture.now).total_seconds() >= minimum
+E       AssertionError: assert 5.0 >= 60
+E        +  where 5.0 = <built-in method total_seconds of datetime.timedelta object at 0x108e09410>()
+E        +    where <built-in method total_seconds of datetime.timedelta object at 0x108e09410> = (datetime.datetime(2026, 10, 4, 0, 16, 5, tzinfo=datetime.timezone.utc) - datetime.datetime(2026, 10, 4, 0, 16, tzinfo=datetime.timezone.utc)).total_seconds
+E        +      where datetime.datetime(2026, 10, 4, 0, 16, 5, tzinfo=datetime.timezone.utc) = _stamp('2026-10-04T00:16:05.000000Z')
+E        +      and   datetime.datetime(2026, 10, 4, 0, 16, tzinfo=datetime.timezone.utc) = <test_youtube_following.YouTubeFixture object at 0x108ddf200>.now
+
+tests/integration/test_background_following.py:95: AssertionError
+_ test_automatic_failures_back_off_without_fabricating_frontier[METADATA_FAILED-3600] _
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-1058/test_automatic_failures_back_o2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x108e1d070>
+failure = 'METADATA_FAILED', minimum = 3600
+
+    @pytest.mark.parametrize("failure,minimum", [
+        ("NETWORK_UNAVAILABLE", 60), ("RATE_LIMITED", 900),
+        ("METADATA_FAILED", 3600), ("RESPONSE_TOO_LARGE", 3600),
+    ])
+    def test_automatic_failures_back_off_without_fabricating_frontier(
+        tmp_path, monkeypatch, failure, minimum
+    ):
+        composition, fixture, source = setup_runtime(tmp_path, monkeypatch)
+        tracker = composition.application._source_tracking
+        before = tracker.projection(source.source_id)
+        fixture.now += timedelta(minutes=16)
+        fixture.failure = failure
+        run = composition.worker.run_once()
+        assert run.state is SourceRunState.FAILED
+        after = tracker.projection(source.source_id)
+        assert after["verified_at"] == before["verified_at"]
+        assert after["latest_published_at"] == before["latest_published_at"]
+>       assert (_stamp(after["next_check_at"]) - fixture.now).total_seconds() >= minimum
+E       AssertionError: assert 900.0 >= 3600
+E        +  where 900.0 = <built-in method total_seconds of datetime.timedelta object at 0x108e1e430>()
+E        +    where <built-in method total_seconds of datetime.timedelta object at 0x108e1e430> = (datetime.datetime(2026, 10, 4, 0, 31, tzinfo=datetime.timezone.utc) - datetime.datetime(2026, 10, 4, 0, 16, tzinfo=datetime.timezone.utc)).total_seconds
+E        +      where datetime.datetime(2026, 10, 4, 0, 31, tzinfo=datetime.timezone.utc) = _stamp('2026-10-04T00:31:00.000000Z')
+E        +      and   datetime.datetime(2026, 10, 4, 0, 16, tzinfo=datetime.timezone.utc) = <test_youtube_following.YouTubeFixture object at 0x108e1ea20>.now
+
+tests/integration/test_background_following.py:95: AssertionError
+_ test_automatic_failures_back_off_without_fabricating_frontier[RESPONSE_TOO_LARGE-3600] _
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-1058/test_automatic_failures_back_o3')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x108e1cad0>
+failure = 'RESPONSE_TOO_LARGE', minimum = 3600
+
+    @pytest.mark.parametrize("failure,minimum", [
+        ("NETWORK_UNAVAILABLE", 60), ("RATE_LIMITED", 900),
+        ("METADATA_FAILED", 3600), ("RESPONSE_TOO_LARGE", 3600),
+    ])
+    def test_automatic_failures_back_off_without_fabricating_frontier(
+        tmp_path, monkeypatch, failure, minimum
+    ):
+        composition, fixture, source = setup_runtime(tmp_path, monkeypatch)
+        tracker = composition.application._source_tracking
+        before = tracker.projection(source.source_id)
+        fixture.now += timedelta(minutes=16)
+        fixture.failure = failure
+        run = composition.worker.run_once()
+        assert run.state is SourceRunState.FAILED
+        after = tracker.projection(source.source_id)
+        assert after["verified_at"] == before["verified_at"]
+        assert after["latest_published_at"] == before["latest_published_at"]
+>       assert (_stamp(after["next_check_at"]) - fixture.now).total_seconds() >= minimum
+E       AssertionError: assert 900.0 >= 3600
+E        +  where 900.0 = <built-in method total_seconds of datetime.timedelta object at 0x108e1d8c0>()
+E        +    where <built-in method total_seconds of datetime.timedelta object at 0x108e1d8c0> = (datetime.datetime(2026, 10, 4, 0, 31, tzinfo=datetime.timezone.utc) - datetime.datetime(2026, 10, 4, 0, 16, tzinfo=datetime.timezone.utc)).total_seconds
+E        +      where datetime.datetime(2026, 10, 4, 0, 31, tzinfo=datetime.timezone.utc) = _stamp('2026-10-04T00:31:00.000000Z')
+E        +      and   datetime.datetime(2026, 10, 4, 0, 16, tzinfo=datetime.timezone.utc) = <test_youtube_following.YouTubeFixture object at 0x108e1e630>.now
+
+tests/integration/test_background_following.py:95: AssertionError
+___________ test_network_backoff_grows_and_recovery_needs_no_restart ___________
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-1058/test_network_backoff_grows_and0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x106dd8bf0>
+
+    def test_network_backoff_grows_and_recovery_needs_no_restart(tmp_path, monkeypatch):
+        composition, fixture, source = setup_runtime(tmp_path, monkeypatch)
+        tracker = composition.application._source_tracking
+        fixture.now += timedelta(minutes=16)
+        fixture.failure = "NETWORK_UNAVAILABLE"
+        assert composition.worker.run_once().state is SourceRunState.FAILED
+        first_due = _stamp(tracker.projection(source.source_id)["next_check_at"])
+        fixture.now = first_due
+        assert composition.worker.run_once().state is SourceRunState.FAILED
+        second_due = _stamp(tracker.projection(source.source_id)["next_check_at"])
+>       assert second_due - fixture.now >= timedelta(minutes=2)
+E       assert (datetime.datetime(2026, 10, 4, 0, 16, 10, tzinfo=datetime.timezone.utc) - datetime.datetime(2026, 10, 4, 0, 16, 5, tzinfo=datetime.timezone.utc)) >= datetime.timedelta(seconds=120)
+E        +  where datetime.datetime(2026, 10, 4, 0, 16, 5, tzinfo=datetime.timezone.utc) = <test_youtube_following.YouTubeFixture object at 0x106dd8dd0>.now
+E        +  and   datetime.timedelta(seconds=120) = timedelta(minutes=2)
+
+tests/integration/test_background_following.py:110: AssertionError
+__________ test_protected_backup_window_does_not_admit_automatic_work __________
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-1058/test_protected_backup_window_d0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x108e1ce00>
+
+    def test_protected_backup_window_does_not_admit_automatic_work(tmp_path, monkeypatch):
+        composition, fixture, _ = setup_runtime(tmp_path, monkeypatch)
+        fixture.now += timedelta(minutes=16)
+>       with composition.backup_restore._protect_background():
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'BackupRestoreService' object has no attribute '_protect_background'
+
+tests/integration/test_background_following.py:137: AttributeError
+=========================== short test summary info ============================
+FAILED tests/integration/test_background_following.py::test_automatic_failures_back_off_without_fabricating_frontier[NETWORK_UNAVAILABLE-60]
+FAILED tests/integration/test_background_following.py::test_automatic_failures_back_off_without_fabricating_frontier[METADATA_FAILED-3600]
+FAILED tests/integration/test_background_following.py::test_automatic_failures_back_off_without_fabricating_frontier[RESPONSE_TOO_LARGE-3600]
+FAILED tests/integration/test_background_following.py::test_network_backoff_grows_and_recovery_needs_no_restart
+FAILED tests/integration/test_background_following.py::test_protected_backup_window_does_not_admit_automatic_work
+5 failed, 5 passed in 5.46s

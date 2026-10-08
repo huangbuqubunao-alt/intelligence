@@ -1,0 +1,28 @@
+{
+  "observation_epoch": 1791436091.805281,
+  "owner": [
+    "29566   0.0   0:00.61 /Users/hua/youtube-intel/.venv/bin/python /tmp/intelligence-phase13-evidence/dogfood_server.py /tmp/intelligence-phase13-evidence/dogfood-runtime"
+  ],
+  "schedules": [
+    {
+      "source_id": "youtube-channel-UCLA_DiR1FfKNvjuUpBHmylQ",
+      "enabled": 1,
+      "health": "NOT_FOUND",
+      "next_check_at": "2026-10-08T05:55:35.488608Z"
+    },
+    {
+      "source_id": "youtube-channel-UC_x5XG1OV2P6uZZ5FSM9Ttw",
+      "enabled": 0,
+      "health": "NOT_FOUND",
+      "next_check_at": "2026-10-08T04:49:24.938817Z"
+    }
+  ],
+  "counts": {
+    "source_runs": 3,
+    "source_checks": 5,
+    "videos": 0,
+    "distillation_execution_checkpoints": 0
+  },
+  "idle_cpu_percent_observed": "0.0",
+  "note": "one live backend owner; idle deadline wait, no source execution or model work"
+}

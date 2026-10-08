@@ -1,0 +1,60 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+_____ test_invalid_tracking_authority_cannot_create_an_admission_hot_loop ______
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-1066/test_invalid_tracking_authorit0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x108f5dcd0>
+
+    def test_invalid_tracking_authority_cannot_create_an_admission_hot_loop(tmp_path, monkeypatch):
+        composition, fixture, source = setup_runtime(tmp_path, monkeypatch)
+        with composition.repository._connect() as connection:
+            connection.execute("UPDATE source_subscriptions SET processing_policy='STANDARD_INTELLIGENCE' WHERE source_id=?", (source.source_id,))
+        fixture.now += timedelta(minutes=16)
+        assert composition.worker.run_once().state is SourceRunState.FAILED
+>       assert composition.worker.scheduler.wait_seconds() is None
+E       assert 0.0 is None
+E        +  where 0.0 = wait_seconds()
+E        +    where wait_seconds = <youtube_intel.following_scheduler.FollowingScheduler object at 0x108f8e390>.wait_seconds
+E        +      where <youtube_intel.following_scheduler.FollowingScheduler object at 0x108f8e390> = <youtube_intel.runtime_composition.DurableSourceRunWorker object at 0x108f8dfd0>.scheduler
+E        +        where <youtube_intel.runtime_composition.DurableSourceRunWorker object at 0x108f8dfd0> = LocalSourceRunRuntime(repository=<youtube_intel.state.SQLiteStateRepository object at 0x108f26150>, runtime=<youtube_i...ation object at 0x108f8eba0>, backup_restore=<youtube_intel.backup_restore.BackupRestoreService object at 0x106f05160>).worker
+
+tests/integration/test_background_following.py:408: AssertionError
+___ test_local_processing_exception_settles_run_and_schedules_bounded_retry ____
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-1066/test_local_processing_exceptio0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x108f8e2d0>
+
+    def test_local_processing_exception_settles_run_and_schedules_bounded_retry(tmp_path, monkeypatch):
+        composition, fixture, source = setup_runtime(tmp_path, monkeypatch)
+        fixture.now += timedelta(minutes=16)
+
+        def failed(source_id):
+            raise RuntimeError("local processing failed")
+
+        monkeypatch.setattr(composition.orchestrator._ingestion, "ingest", failed)
+>       assert composition.worker.run_once().state is SourceRunState.FAILED
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_background_following.py:421:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/youtube_intel/runtime_composition.py:170: in run_once
+    return self._orchestrator.resume_next()
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/youtube_intel/processing_orchestrator.py:261: in resume_next
+    return None if not queued else self.resume(queued[0].run_id)
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/youtube_intel/processing_orchestrator.py:315: in resume
+    self._ingestion.ingest(run.source_id)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+source_id = 'youtube-channel-UCaaaaaaaaaaaaaaaaaaaaaa'
+
+    def failed(source_id):
+>       raise RuntimeError("local processing failed")
+E       RuntimeError: local processing failed
+
+tests/integration/test_background_following.py:418: RuntimeError
+=========================== short test summary info ============================
+FAILED tests/integration/test_background_following.py::test_invalid_tracking_authority_cannot_create_an_admission_hot_loop
+FAILED tests/integration/test_background_following.py::test_local_processing_exception_settles_run_and_schedules_bounded_retry
+2 failed, 28 deselected in 1.31s

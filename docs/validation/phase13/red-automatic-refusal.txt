@@ -1,0 +1,73 @@
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+___ test_lifecycle_refresh_cannot_bypass_automatic_refusal[RISK_CONTROLLED] ____
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-1088/test_lifecycle_refresh_cannot_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10abbda30>
+failure = 'RISK_CONTROLLED'
+
+    @pytest.mark.parametrize("failure", ["RISK_CONTROLLED", "SOURCE_UNTRUSTED", "ACCESS_DENIED"])
+    def test_lifecycle_refresh_cannot_bypass_automatic_refusal(tmp_path, monkeypatch, failure):
+        composition, fixture, source = setup_runtime(tmp_path, monkeypatch)
+        fixture.now += timedelta(minutes=16)
+        fixture.failure = failure
+        assert composition.worker.run_once().state is SourceRunState.FAILED
+        fixture.now += timedelta(days=2)
+        before = composition.repository.list_source_runs()
+        assert composition.application.handle("POST", "/api/v1/sources/check-stale", b'{}')[0] == 202
+>       assert composition.repository.list_source_runs() == before
+E       AssertionError: assert (SourceRunRec...imezone.utc))) == (SourceRunRec...mezone.utc)),)
+E
+E         Left contains one more item: SourceRunRecord(run_id='source-run:b8ff2927c6253e2013479f54cb6c1b752e22b969f6268f81bbb65657cda82b46', source_id='youtu..., 0, 16, tzinfo=datetime.timezone.utc), updated_at=datetime.datetime(2026, 10, 6, 0, 16, tzinfo=datetime.timezone.utc))
+E         Use -v to get more diff
+
+tests/integration/test_background_following.py:150: AssertionError
+___ test_lifecycle_refresh_cannot_bypass_automatic_refusal[SOURCE_UNTRUSTED] ___
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-1088/test_lifecycle_refresh_cannot_1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10abe6870>
+failure = 'SOURCE_UNTRUSTED'
+
+    @pytest.mark.parametrize("failure", ["RISK_CONTROLLED", "SOURCE_UNTRUSTED", "ACCESS_DENIED"])
+    def test_lifecycle_refresh_cannot_bypass_automatic_refusal(tmp_path, monkeypatch, failure):
+        composition, fixture, source = setup_runtime(tmp_path, monkeypatch)
+        fixture.now += timedelta(minutes=16)
+        fixture.failure = failure
+        assert composition.worker.run_once().state is SourceRunState.FAILED
+        fixture.now += timedelta(days=2)
+        before = composition.repository.list_source_runs()
+        assert composition.application.handle("POST", "/api/v1/sources/check-stale", b'{}')[0] == 202
+>       assert composition.repository.list_source_runs() == before
+E       AssertionError: assert (SourceRunRec...imezone.utc))) == (SourceRunRec...mezone.utc)),)
+E
+E         Left contains one more item: SourceRunRecord(run_id='source-run:b8ff2927c6253e2013479f54cb6c1b752e22b969f6268f81bbb65657cda82b46', source_id='youtu..., 0, 16, tzinfo=datetime.timezone.utc), updated_at=datetime.datetime(2026, 10, 6, 0, 16, tzinfo=datetime.timezone.utc))
+E         Use -v to get more diff
+
+tests/integration/test_background_following.py:150: AssertionError
+____ test_lifecycle_refresh_cannot_bypass_automatic_refusal[ACCESS_DENIED] _____
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-1088/test_lifecycle_refresh_cannot_2')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10ac0bfb0>
+failure = 'ACCESS_DENIED'
+
+    @pytest.mark.parametrize("failure", ["RISK_CONTROLLED", "SOURCE_UNTRUSTED", "ACCESS_DENIED"])
+    def test_lifecycle_refresh_cannot_bypass_automatic_refusal(tmp_path, monkeypatch, failure):
+        composition, fixture, source = setup_runtime(tmp_path, monkeypatch)
+        fixture.now += timedelta(minutes=16)
+        fixture.failure = failure
+        assert composition.worker.run_once().state is SourceRunState.FAILED
+        fixture.now += timedelta(days=2)
+        before = composition.repository.list_source_runs()
+        assert composition.application.handle("POST", "/api/v1/sources/check-stale", b'{}')[0] == 202
+>       assert composition.repository.list_source_runs() == before
+E       AssertionError: assert (SourceRunRec...imezone.utc))) == (SourceRunRec...mezone.utc)),)
+E
+E         Left contains one more item: SourceRunRecord(run_id='source-run:b8ff2927c6253e2013479f54cb6c1b752e22b969f6268f81bbb65657cda82b46', source_id='youtu..., 0, 16, tzinfo=datetime.timezone.utc), updated_at=datetime.datetime(2026, 10, 6, 0, 16, tzinfo=datetime.timezone.utc))
+E         Use -v to get more diff
+
+tests/integration/test_background_following.py:150: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_background_following.py::test_lifecycle_refresh_cannot_bypass_automatic_refusal[RISK_CONTROLLED]
+FAILED tests/integration/test_background_following.py::test_lifecycle_refresh_cannot_bypass_automatic_refusal[SOURCE_UNTRUSTED]
+FAILED tests/integration/test_background_following.py::test_lifecycle_refresh_cannot_bypass_automatic_refusal[ACCESS_DENIED]
+3 failed, 36 deselected in 1.91s

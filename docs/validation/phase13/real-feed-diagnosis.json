@@ -1,0 +1,8 @@
+{
+  "operation": "bounded NASA feed diagnosis",
+  "channel_id": "UCLA_DiR1FfKNvjuUpBHmylQ",
+  "result": "failure",
+  "exception_type": "TrackingError",
+  "error": "NOT_FOUND",
+  "seconds": 1.72
+}

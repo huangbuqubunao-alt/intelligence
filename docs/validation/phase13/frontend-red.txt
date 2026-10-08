@@ -1,0 +1,507 @@
+
+> youtube-intel-workspace@0.1.0 test
+> vitest run --run src/workspace/CreatorFollowing.test.tsx
+
+
+ RUN  v2.1.9 /Users/hua/Documents/yia-worktrees/phase13-background-following/frontend
+
+ ❯ src/workspace/CreatorFollowing.test.tsx (22 tests | 1 failed) 1449ms
+   × manual network retry is available while automatic retry remains backed off 1020ms
+     → Unable to find role="button" and name "Retry"
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"overlay"[39m
+    [36m>[39m
+      [36m<section[39m
+        [33maria-label[39m=[32m"Channel Following"[39m
+        [33maria-modal[39m=[32m"true"[39m
+        [33mclass[39m=[32m"modal local-import"[39m
+        [33mrole[39m=[32m"dialog"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"modal-head"[39m
+        [36m>[39m
+          [36m<h2>[39m
+            [0mPublic channel[0m
+          [36m</h2>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"button button-ghost"[39m
+          [36m>[39m
+            [0mClose[0m
+          [36m</button>[39m
+        [36m</div>[39m
+        [36m<p>[39m
+          [0mYouTube[0m
+          [0m · [0m
+          [0mMonitoring new videos[0m
+        [36m</p>[39m
+        [36m<a[39m
+          [33mhref[39m=[32m"https://www.youtube.com/channel/test"[39m
+          [33mrel[39m=[32m"noreferrer"[39m
+          [33mtarget[39m=[32m"_blank"[39m
+        [36m>[39m
+          [0mOpen Source[0m
+        [36m</a>[39m
+        [36m<dl[39m
+          [33mclass[39m=[32m"creator-tracking"[39m
+        [36m>[39m
+          [36m<dt>[39m
+            [0mSource health[0m
+          [36m</dt>[39m
+          [36m<dd>[39m
+            [0mUnable to connect to YouTube. Check your network or VPN and try again.[0m
+          [36m</dd>[39m
+          [36m<dt>[39m
+            [0mStarting point established[0m
+          [36m</dt>[39m
+          [36m<dd>[39m
+            [0mNo, no successful check has completed yet[0m
+          [36m</dd>[39m
+          [36m<dt>[39m
+            [0mLast checked[0m
+          [36m</dt>[39m
+          [36m<dd>[39m
+            [0m10/8/2026, 12:18:50 PM[0m
+          [36m</dd>[39m
+          [36m<dt>[39m
+            [0mLast successful check[0m
+          [36m</dt>[39m
+          [36m<dd>[39m
+            [0mNot checked yet[0m
+          [36m</dd>[39m
+          [36m<dt>[39m
+            [0mNext eligible check[0m
+          [36m</dt>[39m
+          [36m<dd>[39m
+            [0m10/8/2026, 12:19:56 PM[0m
+          [36m</dd>[39m
+          [36m<dt>[39m
+            [0mDiscovered Content since following[0m
+          [36m</dt>[39m
+          [36m<dd>[39m
+            [0m0[0m
+          [36m</dd>[39m
+          [36m<dt>[39m
+            [0mWaiting for Content acquisition[0m
+          [36m</dt>[39m
+          [36m<dd>[39m
+            [0m0[0m
+          [36m</dd>[39m
+          [36m<dt>[39m
+            [0mVideos that could not be imported[0m
+          [36m</dt>[39m
+          [36m<dd>[39m
+            [0m0[0m
+          [36m</dd>[39m
+        [36m</dl>[39m
+        [36m<p[39m
+          [33mclass[39m=[32m"hint"[39m
+        [36m>[39m
+          [0mExisting videos are not imported. Successful checks have a 15-minute cooldown.[0m
+        [36m</p>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"button-row"[39m
+        [36m>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"button button-primary"[39m
+            [33mdisabled[39m=[32m""[39m
+          [36m>[39m
+            [0mCooling down[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"button button-secondary"[39m
+          [36m>[39m
+            [0mPause monitoring[0m
+          [36m</button>[39m
+        [36m</div>[39m
+        [36m<h3>[39m
+          [0mDiscovered Content[0m
+        [36m</h3>[39m
+        [36m<p>[39m
+          [0mNo new public videos have been discovered yet.[0m
+        [36m</p>[39m
+      [36m</section>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"overlay"[39m
+    [36m>[39m
+      [36m<section[39m
+        [33maria-label[39m=[32m"Channel Following"[39m
+        [33maria-modal[39m=[32m"true"[39m
+        [33mclass[39m=[32m"modal local-import"[39m
+        [33mrole[39m=[32m"dialog"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"modal-head"[39m
+        [36m>[39m
+          [36m<h2>[39m
+            [0mPublic channel[0m
+          [36m</h2>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"button button-ghost"[39m
+          [36m>[39m
+            [0mClose[0m
+          [36m</button>[39m
+        [36m</div>[39m
+        [36m<p>[39m
+          [0mYouTube[0m
+          [0m · [0m
+          [0mMonitoring new videos[0m
+        [36m</p>[39m
+        [36m<a[39m
+          [33mhref[39m=[32m"https://www.youtube.com/channel/test"[39m
+          [33mrel[39m=[32m"noreferrer"[39m
+          [33mtarget[39m=[32m"_blank"[39m
+        [36m>[39m
+          [0mOpen Source[0m
+        [36m</a>[39m
+        [36m<dl[39m
+          [33mclass[39m=[32m"creator-tracking"[39m
+        [36m>[39m
+          [36m<dt>[39m
+            [0mSource health[0m
+          [36m</dt>[39m
+          [36m<dd>[39m
+            [0mUnable to connect to YouTube. Check your network or VPN and try again.[0m
+          [36m</dd>[39m
+          [36m<dt>[39m
+            [0mStarting point established[0m
+          [36m</dt>[39m
+          [36m<dd>[39m
+            [0mNo, no successful check has completed yet[0m
+          [36m</dd>[39m
+          [36m<dt>[39m
+            [0mLast checked[0m
+          [36m</dt>[39m
+          [36m<dd>[39m
+            [0m10/8/2026, 12:18:50 PM[0m
+          [36m</dd>[39m
+          [36m<dt>[39m
+            [0mLast successful check[0m
+          [36m</dt>[39m
+          [36m<dd>[39m
+            [0mNot checked yet[0m
+          [36m</dd>[39m
+          [36m<dt>[39m
+            [0mNext eligible check[0m
+          [36m</dt>[39m
+          [36m<dd>[39m
+            [0m10/8/2026, 12:19:56 PM[0m
+          [36m</dd>[39m
+          [36m<dt>[39m
+            [0mDiscovered Content since following[0m
+          [36m</dt>[39m
+          [36m<dd>[39m
+            [0m0[0m
+          [36m</dd>[39m
+          [36m<dt>[39m
+            [0mWaiting for Content acquisition[0m
+          [36m</dt>[39m
+          [36m<dd>[39m
+            [0m0[0m
+          [36m</dd>[39m
+          [36m<dt>[39m
+            [0mVideos that could not be imported[0m
+          [36m</dt>[39m
+          [36m<dd>[39m
+            [0m0[0m
+          [36m</dd>[39m
+        [36m</dl>[39m
+        [36m<p[39m
+          [33mclass[39m=[32m"hint"[39m
+        [36m>[39m
+          [0mExisting videos are not imported. Successful checks have a 15-minute cooldown.[0m
+        [36m</p>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"button-row"[39m
+        [36m>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"button button-primary"[39m
+            [33mdisabled[39m=[32m""[39m
+          [36m>[39m
+            [0mCooling down[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"button button-secondary"[39m
+          [36m>[39m
+            [0mPause monitoring[0m
+          [36m</button>[39m
+        [36m</div>[39m
+        [36m<h3>[39m
+          [0mDiscovered Content[0m
+        [36m</h3>[39m
+        [36m<p>[39m
+          [0mNo new public videos have been discovered yet.[0m
+        [36m</p>[39m
+      [36m</section>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/workspace/CreatorFollowing.test.tsx > manual network retry is available while automatic retry remains backed off
+TestingLibraryElementError: Unable to find role="button" and name "Retry"
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"overlay"[39m
+    [36m>[39m
+      [36m<section[39m
+        [33maria-label[39m=[32m"Channel Following"[39m
+        [33maria-modal[39m=[32m"true"[39m
+        [33mclass[39m=[32m"modal local-import"[39m
+        [33mrole[39m=[32m"dialog"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"modal-head"[39m
+        [36m>[39m
+          [36m<h2>[39m
+            [0mPublic channel[0m
+          [36m</h2>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"button button-ghost"[39m
+          [36m>[39m
+            [0mClose[0m
+          [36m</button>[39m
+        [36m</div>[39m
+        [36m<p>[39m
+          [0mYouTube[0m
+          [0m · [0m
+          [0mMonitoring new videos[0m
+        [36m</p>[39m
+        [36m<a[39m
+          [33mhref[39m=[32m"https://www.youtube.com/channel/test"[39m
+          [33mrel[39m=[32m"noreferrer"[39m
+          [33mtarget[39m=[32m"_blank"[39m
+        [36m>[39m
+          [0mOpen Source[0m
+        [36m</a>[39m
+        [36m<dl[39m
+          [33mclass[39m=[32m"creator-tracking"[39m
+        [36m>[39m
+          [36m<dt>[39m
+            [0mSource health[0m
+          [36m</dt>[39m
+          [36m<dd>[39m
+            [0mUnable to connect to YouTube. Check your network or VPN and try again.[0m
+          [36m</dd>[39m
+          [36m<dt>[39m
+            [0mStarting point established[0m
+          [36m</dt>[39m
+          [36m<dd>[39m
+            [0mNo, no successful check has completed yet[0m
+          [36m</dd>[39m
+          [36m<dt>[39m
+            [0mLast checked[0m
+          [36m</dt>[39m
+          [36m<dd>[39m
+            [0m10/8/2026, 12:18:50 PM[0m
+          [36m</dd>[39m
+          [36m<dt>[39m
+            [0mLast successful check[0m
+          [36m</dt>[39m
+          [36m<dd>[39m
+            [0mNot checked yet[0m
+          [36m</dd>[39m
+          [36m<dt>[39m
+            [0mNext eligible check[0m
+          [36m</dt>[39m
+          [36m<dd>[39m
+            [0m10/8/2026, 12:19:56 PM[0m
+          [36m</dd>[39m
+          [36m<dt>[39m
+            [0mDiscovered Content since following[0m
+          [36m</dt>[39m
+          [36m<dd>[39m
+            [0m0[0m
+          [36m</dd>[39m
+          [36m<dt>[39m
+            [0mWaiting for Content acquisition[0m
+          [36m</dt>[39m
+          [36m<dd>[39m
+            [0m0[0m
+          [36m</dd>[39m
+          [36m<dt>[39m
+            [0mVideos that could not be imported[0m
+          [36m</dt>[39m
+          [36m<dd>[39m
+            [0m0[0m
+          [36m</dd>[39m
+        [36m</dl>[39m
+        [36m<p[39m
+          [33mclass[39m=[32m"hint"[39m
+        [36m>[39m
+          [0mExisting videos are not imported. Successful checks have a 15-minute cooldown.[0m
+        [36m</p>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"button-row"[39m
+        [36m>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"button button-primary"[39m
+            [33mdisabled[39m=[32m""[39m
+          [36m>[39m
+            [0mCooling down[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"button button-secondary"[39m
+          [36m>[39m
+            [0mPause monitoring[0m
+          [36m</button>[39m
+        [36m</div>[39m
+        [36m<h3>[39m
+          [0mDiscovered Content[0m
+        [36m</h3>[39m
+        [36m<p>[39m
+          [0mNo new public videos have been discovered yet.[0m
+        [36m</p>[39m
+      [36m</section>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"overlay"[39m
+    [36m>[39m
+      [36m<section[39m
+        [33maria-label[39m=[32m"Channel Following"[39m
+        [33maria-modal[39m=[32m"true"[39m
+        [33mclass[39m=[32m"modal local-import"[39m
+        [33mrole[39m=[32m"dialog"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"modal-head"[39m
+        [36m>[39m
+          [36m<h2>[39m
+            [0mPublic channel[0m
+          [36m</h2>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"button button-ghost"[39m
+          [36m>[39m
+            [0mClose[0m
+          [36m</button>[39m
+        [36m</div>[39m
+        [36m<p>[39m
+          [0mYouTube[0m
+          [0m · [0m
+          [0mMonitoring new videos[0m
+        [36m</p>[39m
+        [36m<a[39m
+          [33mhref[39m=[32m"https://www.youtube.com/channel/test"[39m
+          [33mrel[39m=[32m"noreferrer"[39m
+          [33mtarget[39m=[32m"_blank"[39m
+        [36m>[39m
+          [0mOpen Source[0m
+        [36m</a>[39m
+        [36m<dl[39m
+          [33mclass[39m=[32m"creator-tracking"[39m
+        [36m>[39m
+          [36m<dt>[39m
+            [0mSource health[0m
+          [36m</dt>[39m
+          [36m<dd>[39m
+            [0mUnable to connect to YouTube. Check your network or VPN and try again.[0m
+          [36m</dd>[39m
+          [36m<dt>[39m
+            [0mStarting point established[0m
+          [36m</dt>[39m
+          [36m<dd>[39m
+            [0mNo, no successful check has completed yet[0m
+          [36m</dd>[39m
+          [36m<dt>[39m
+            [0mLast checked[0m
+          [36m</dt>[39m
+          [36m<dd>[39m
+            [0m10/8/2026, 12:18:50 PM[0m
+          [36m</dd>[39m
+          [36m<dt>[39m
+            [0mLast successful check[0m
+          [36m</dt>[39m
+          [36m<dd>[39m
+            [0mNot checked yet[0m
+          [36m</dd>[39m
+          [36m<dt>[39m
+            [0mNext eligible check[0m
+          [36m</dt>[39m
+          [36m<dd>[39m
+            [0m10/8/2026, 12:19:56 PM[0m
+          [36m</dd>[39m
+          [36m<dt>[39m
+            [0mDiscovered Content since following[0m
+          [36m</dt>[39m
+          [36m<dd>[39m
+            [0m0[0m
+          [36m</dd>[39m
+          [36m<dt>[39m
+            [0mWaiting for Content acquisition[0m
+          [36m</dt>[39m
+          [36m<dd>[39m
+            [0m0[0m
+          [36m</dd>[39m
+          [36m<dt>[39m
+            [0mVideos that could not be imported[0m
+          [36m</dt>[39m
+          [36m<dd>[39m
+            [0m0[0m
+          [36m</dd>[39m
+        [36m</dl>[39m
+        [36m<p[39m
+          [33mclass[39m=[32m"hint"[39m
+        [36m>[39m
+          [0mExisting videos are not imported. Successful checks have a 15-minute cooldown.[0m
+        [36m</p>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"button-row"[39m
+        [36m>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"button button-primary"[39m
+            [33mdisabled[39m=[32m""[39m
+          [36m>[39m
+            [0mCooling down[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"button button-secondary"[39m
+          [36m>[39m
+            [0mPause monitoring[0m
+          [36m</button>[39m
+        [36m</div>[39m
+        [36m<h3>[39m
+          [0mDiscovered Content[0m
+        [36m</h3>[39m
+        [36m<p>[39m
+          [0mNo new public videos have been discovered yet.[0m
+        [36m</p>[39m
+      [36m</section>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+ ❯ waitForWrapper node_modules/@testing-library/dom/dist/wait-for.js:163:27
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:86:33
+ ❯ src/workspace/CreatorFollowing.test.tsx:274:24
+    272|   }, recent_videos: [], source_runs: [] }) })));
+    273|   render(<UiLanguageProvider><CreatorFollowingDetail id="youtube-chann…
+    274|   expect((await screen.findByRole('button', { name: 'Retry' }) as HTML…
+       |                        ^
+    275|   expect(screen.getByText('Next automatic check')).toBeTruthy();
+    276| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 21 passed (22)
+   Start at  12:18:55
+   Duration  2.20s (transform 241ms, setup 0ms, collect 184ms, tests 1.45s, environment 329ms, prepare 48ms)

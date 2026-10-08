@@ -1,0 +1,13 @@
+{
+  "pwd": "/Users/hua/Documents/yia-worktrees/v1x-local-main",
+  "top_level": "/Users/hua/Documents/yia-worktrees/v1x-local-main",
+  "branch": "main",
+  "head": "404d0a76ef022647f242e295a87b7ed18c3b0667",
+  "status": "",
+  "origin_main": "404d0a76ef022647f242e295a87b7ed18c3b0667",
+  "validated_code_head": "850baf7c197ece2c5970f699a561dd9424232ba3",
+  "main_is_ancestor": true,
+  "adoption_performed": false,
+  "push_performed": false,
+  "reason": "Required successful real NASA feed/baseline/check acceptance remains blocked; unchanged accepted-main feed also returns NOT_FOUND."
+}

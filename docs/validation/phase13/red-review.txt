@@ -1,0 +1,28 @@
+F.                                                                       [100%]
+=================================== FAILURES ===================================
+_______ test_busy_provider_defers_automatic_work_instead_of_hot_looping ________
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-1063/test_busy_provider_defers_auto0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10b39b560>
+
+    def test_busy_provider_defers_automatic_work_instead_of_hot_looping(tmp_path, monkeypatch):
+        from youtube_intel.following_tracking import _CHECK_SLOTS
+
+        composition, fixture, source = setup_runtime(tmp_path, monkeypatch)
+        fixture.now += timedelta(minutes=16)
+        slot = _CHECK_SLOTS["YOUTUBE"]
+        assert slot.acquire(blocking=False)
+        try:
+            assert composition.worker.run_once().state is SourceRunState.FAILED
+        finally:
+            slot.release()
+        due = _stamp(composition.application._source_tracking.projection(source.source_id)["next_check_at"])
+>       assert due - fixture.now >= timedelta(minutes=1)
+E       assert (datetime.datetime(2026, 10, 4, 0, 15, tzinfo=datetime.timezone.utc) - datetime.datetime(2026, 10, 4, 0, 16, tzinfo=datetime.timezone.utc)) >= datetime.timedelta(seconds=60)
+E        +  where datetime.datetime(2026, 10, 4, 0, 16, tzinfo=datetime.timezone.utc) = <test_youtube_following.YouTubeFixture object at 0x10b39b740>.now
+E        +  and   datetime.timedelta(seconds=60) = timedelta(minutes=1)
+
+tests/integration/test_background_following.py:264: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_background_following.py::test_busy_provider_defers_automatic_work_instead_of_hot_looping
+1 failed, 1 passed, 17 deselected in 1.72s

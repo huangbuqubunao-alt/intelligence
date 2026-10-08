@@ -1,0 +1,71 @@
+{
+  "scenarios": [
+    {
+      "language": "en",
+      "width": 320,
+      "real_sources_loaded": true,
+      "automatic_status": true,
+      "offline_manual_retry_enabled": true,
+      "no_horizontal_overflow": true
+    },
+    {
+      "language": "en",
+      "width": 768,
+      "real_sources_loaded": true,
+      "automatic_status": true,
+      "offline_manual_retry_enabled": true,
+      "no_horizontal_overflow": true
+    },
+    {
+      "language": "en",
+      "width": 1024,
+      "real_sources_loaded": true,
+      "automatic_status": true,
+      "offline_manual_retry_enabled": true,
+      "no_horizontal_overflow": true
+    },
+    {
+      "language": "en",
+      "width": 1440,
+      "real_sources_loaded": true,
+      "automatic_status": true,
+      "offline_manual_retry_enabled": true,
+      "no_horizontal_overflow": true
+    },
+    {
+      "language": "zh-CN",
+      "width": 320,
+      "real_sources_loaded": true,
+      "automatic_status": true,
+      "offline_manual_retry_enabled": true,
+      "no_horizontal_overflow": true
+    },
+    {
+      "language": "zh-CN",
+      "width": 768,
+      "real_sources_loaded": true,
+      "automatic_status": true,
+      "offline_manual_retry_enabled": true,
+      "no_horizontal_overflow": true
+    },
+    {
+      "language": "zh-CN",
+      "width": 1024,
+      "real_sources_loaded": true,
+      "automatic_status": true,
+      "offline_manual_retry_enabled": true,
+      "no_horizontal_overflow": true
+    },
+    {
+      "language": "zh-CN",
+      "width": 1440,
+      "real_sources_loaded": true,
+      "automatic_status": true,
+      "offline_manual_retry_enabled": true,
+      "no_horizontal_overflow": true
+    }
+  ],
+  "pause_resume": true,
+  "errors": [],
+  "external": []
+}

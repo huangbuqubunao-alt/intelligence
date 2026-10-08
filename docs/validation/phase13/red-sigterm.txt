@@ -1,0 +1,71 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__________ test_serve_api_sigterm_drains_active_tracking_before_exit ___________
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-1069/test_serve_api_sigterm_drains_0')
+
+    def test_serve_api_sigterm_drains_active_tracking_before_exit(tmp_path):
+        support = _load_module("test_runtime_composition")
+        project = support._project(tmp_path)
+        with socket.socket() as reservation:
+            reservation.bind(("127.0.0.1", 0))
+            port = reservation.getsockname()[1]
+        script = project / "shutdown_probe.py"
+        script.write_text('''
+    import sys, time
+    from pathlib import Path
+    from datetime import UTC, datetime, timedelta
+    import youtube_intel.runtime_composition as composition
+    from youtube_intel.providers.youtube_channel import canonical_channel
+    from youtube_intel.cli import main
+    original = composition.build_local_source_run_runtime
+    root = Path(sys.argv[1])
+    class NoCredentials:
+        def get(self): return None
+        def set(self, value): raise AssertionError('credentials are not used')
+        def delete(self): raise AssertionError('credentials are not used')
+    def build(**kwargs):
+        kwargs['credential_store'] = NoCredentials()
+        result = original(**kwargs)
+        tracker = result.application._source_tracking
+        provider = tracker.providers['YOUTUBE']
+        channel = 'UC' + 'a' * 22
+        provider._resolve = lambda value: canonical_channel(channel, 'Shutdown channel')
+        def feed(channel):
+            return ('<feed xmlns="http://www.w3.org/2005/Atom" xmlns:yt="http://www.youtube.com/xml/schemas/2015"><yt:channelId>' + channel + '</yt:channelId></feed>').encode()
+        provider._fetch = feed
+        source = tracker.follow(channel, provider='YOUTUBE')
+        with result.repository._connect() as connection:
+            connection.execute('UPDATE source_tracking_state SET next_check_at=? WHERE source_id=?', ((datetime.now(UTC)-timedelta(seconds=1)).isoformat(), source.source_id))
+        def slow(channel):
+            (root/'check-started').write_text('active')
+            time.sleep(1)
+            return feed(channel)
+        provider._fetch = slow
+        return result
+    composition.build_local_source_run_runtime = build
+    raise SystemExit(main(['--project-root',str(root),'serve-api','--database',str(root/'state.sqlite'),'--port',sys.argv[2]]))
+    ''')
+        root = Path(__file__).resolve().parents[2]
+        env = dict(os.environ, PYTHONPATH=str(root / "src"))
+        process = subprocess.Popen(
+            [sys.executable, str(script), str(project), str(port)], env=env,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+        )
+        try:
+            deadline = time.monotonic() + 10
+            while not (project / "check-started").exists() and time.monotonic() < deadline:
+                assert process.poll() is None
+                time.sleep(0.01)
+            assert (project / "check-started").exists()
+            process.terminate()
+            output = process.communicate(timeout=10)[0]
+>           assert process.returncode == 0, output
+E           AssertionError:
+E           assert -15 == 0
+E            +  where -15 = <Popen: returncode: -15 args: ['/Users/hua/youtube-intel/.venv/bin/python', ...>.returncode
+
+tests/integration/test_background_following.py:508: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_background_following.py::test_serve_api_sigterm_drains_active_tracking_before_exit
+1 failed, 30 deselected in 2.20s

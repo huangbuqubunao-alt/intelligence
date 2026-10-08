@@ -1,0 +1,14 @@
+[
+  {
+    "language": "en",
+    "width": 320,
+    "create_enabled": true,
+    "quiescent": true
+  },
+  {
+    "language": "zh-CN",
+    "width": 320,
+    "create_enabled": true,
+    "quiescent": true
+  }
+]

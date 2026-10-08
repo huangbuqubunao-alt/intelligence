@@ -1,0 +1,31 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___________ test_idle_schedule_read_does_not_make_backup_unavailable ___________
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-1082/test_idle_schedule_read_does_n0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10b2c6840>
+
+    def test_idle_schedule_read_does_not_make_backup_unavailable(tmp_path, monkeypatch):
+        composition, _, _ = setup_runtime(tmp_path, monkeypatch)
+        entered, release = threading.Event(), threading.Event()
+        scheduler = composition.worker.scheduler
+        eligible = scheduler._eligible
+
+        def slow_read():
+            entered.set()
+            assert release.wait(5)
+            return eligible()
+
+        monkeypatch.setattr(scheduler, "_eligible", slow_read)
+        results = []
+        thread = threading.Thread(target=lambda: results.append(composition.worker.run_once()))
+        thread.start()
+        try:
+            assert entered.wait(5)
+>           assert composition.backup_restore.readiness()["ready"] is True
+E           assert False is True
+
+tests/integration/test_background_following.py:172: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_background_following.py::test_idle_schedule_read_does_not_make_backup_unavailable
+1 failed, 33 deselected in 1.71s

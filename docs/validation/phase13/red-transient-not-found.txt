@@ -1,0 +1,24 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__________ test_transient_not_found_recovers_on_later_automatic_check __________
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-1086/test_transient_not_found_recov0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10cb4e2a0>
+
+    def test_transient_not_found_recovers_on_later_automatic_check(tmp_path, monkeypatch):
+        composition, fixture, source = setup_runtime(tmp_path, monkeypatch)
+        fixture.now += timedelta(minutes=16)
+        fixture.failure = "NOT_FOUND"
+        assert composition.worker.run_once().state is SourceRunState.FAILED
+        tracker = composition.application._source_tracking
+        state = tracker.projection(source.source_id)
+        fixture.now = _stamp(state["next_check_at"])
+        fixture.failure = None
+>       assert composition.worker.run_once().state is SourceRunState.COMPLETED
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'NoneType' object has no attribute 'state'
+
+tests/integration/test_background_following.py:137: AttributeError
+=========================== short test summary info ============================
+FAILED tests/integration/test_background_following.py::test_transient_not_found_recovers_on_later_automatic_check
+1 failed, 34 deselected in 1.15s

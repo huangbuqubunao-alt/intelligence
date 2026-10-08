@@ -1,0 +1,17 @@
+{
+  "validated_implementation_head": "850baf7c197ece2c5970f699a561dd9424232ba3",
+  "files_sha256": {
+    "frontend/src/workspace/CreatorFollowing.test.tsx": "81e66894f3e10488c860b6d0a509f7f3c4bab4e1e9f7be8f95736e74f28e7478",
+    "frontend/src/workspace/CreatorFollowing.tsx": "6149ff9ebe1675102dc860414c1934e7b9a8de22eff47570d0686b5b6f91d818",
+    "frontend/src/workspace/uiLanguage.tsx": "b0e74db00564d08fe8712b6cbfc2d251e8879cc4951de617dcc44d394772f534",
+    "src/youtube_intel/backup_restore.py": "0d702131c7f9b0e6c8d103cde65749e47bfc0f87dc7ec46c37f39bbbc576c56a",
+    "src/youtube_intel/cli.py": "f0144da93a7e1ee0105e2ac40d2d132a07f77bcf9ad5d7481de3f399c10f5b1e",
+    "src/youtube_intel/following_scheduler.py": "957b3945af4624a57b24f077ec5dbd8f2c2cbdc8df3768e01c32232753a77a15",
+    "src/youtube_intel/following_tracking.py": "3f8764dfc77c5fd2dbc773240a906b450a6f4be92c1b243e199f3b5994ebef94",
+    "src/youtube_intel/local_api.py": "9729eca189377d66d20aee4032fc99c02611ba155492e84c85cfe51fc30a374e",
+    "src/youtube_intel/orchestration_service.py": "5534169777042e8b908b4fddd96c8b5bcbb8d1150ff869f6b52fe6ef67101dc0",
+    "src/youtube_intel/runtime_composition.py": "745a55f8c2c15e5ad246237e0849214be8cbca5fe1fc9c53ea5f48309258a3cf",
+    "tests/integration/test_background_following.py": "5dc6e0deaefa29e2cdec93e5b25b9dac179eff0fb9b8f6c1366cf66ee3316877"
+  },
+  "full_suite": "3843 passed; inherited canonical tokenizer skip; 2 fixture warnings"
+}

@@ -1,0 +1,25 @@
+.F                                                                       [100%]
+=================================== FAILURES ===================================
+__________ test_synchronous_tracking_seam_preserves_automatic_backoff __________
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-1079/test_synchronous_tracking_seam0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1092a20c0>
+
+    def test_synchronous_tracking_seam_preserves_automatic_backoff(tmp_path, monkeypatch):
+        composition, fixture, source = setup_runtime(tmp_path, monkeypatch)
+        composition.product._source_run_submitter = None
+        fixture.now += timedelta(minutes=16)
+        fixture.failure = "NETWORK_UNAVAILABLE"
+        composition.worker.scheduler.admit_due()
+        state = composition.application._source_tracking.projection(source.source_id)
+        assert state["health"] == "OFFLINE"
+>       assert _stamp(state["next_check_at"]) - fixture.now >= timedelta(minutes=1)
+E       AssertionError: assert (datetime.datetime(2026, 10, 4, 0, 16, 5, tzinfo=datetime.timezone.utc) - datetime.datetime(2026, 10, 4, 0, 16, tzinfo=datetime.timezone.utc)) >= datetime.timedelta(seconds=60)
+E        +  where datetime.datetime(2026, 10, 4, 0, 16, 5, tzinfo=datetime.timezone.utc) = _stamp('2026-10-04T00:16:05.000000Z')
+E        +  and   datetime.datetime(2026, 10, 4, 0, 16, tzinfo=datetime.timezone.utc) = <test_youtube_following.YouTubeFixture object at 0x1093c5ac0>.now
+E        +  and   datetime.timedelta(seconds=60) = timedelta(minutes=1)
+
+tests/integration/test_background_following.py:318: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_background_following.py::test_synchronous_tracking_seam_preserves_automatic_backoff
+1 failed, 1 passed, 31 deselected in 1.73s

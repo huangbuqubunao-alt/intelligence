@@ -1,0 +1,36 @@
+F.F                                                                      [100%]
+=================================== FAILURES ===================================
+_______________ test_due_following_is_checked_without_a_ui_event _______________
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-1056/test_due_following_is_checked_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10b620ec0>
+
+    def test_due_following_is_checked_without_a_ui_event(tmp_path, monkeypatch):
+        composition, fixture, source = setup_runtime(tmp_path, monkeypatch)
+        fixture.now += timedelta(minutes=16)
+        run = composition.worker.run_once()
+>       assert run is not None and run.state is SourceRunState.COMPLETED
+E       assert (None is not None)
+
+tests/integration/test_background_following.py:51: AssertionError
+_______________ test_pause_and_resume_reenter_durable_scheduling _______________
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-1056/test_pause_and_resume_reenter_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10b6621b0>
+
+    def test_pause_and_resume_reenter_durable_scheduling(tmp_path, monkeypatch):
+        composition, fixture, source = setup_runtime(tmp_path, monkeypatch)
+        fixture.now += timedelta(minutes=16)
+        composition.product.update_source(source.source_id, enabled=False)
+        assert composition.worker.run_once() is None
+        assert len(fixture.calls) == 1
+        composition.product.update_source(source.source_id, enabled=True)
+>       assert composition.worker.run_once().state is SourceRunState.COMPLETED
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'NoneType' object has no attribute 'state'
+
+tests/integration/test_background_following.py:71: AttributeError
+=========================== short test summary info ============================
+FAILED tests/integration/test_background_following.py::test_due_following_is_checked_without_a_ui_event
+FAILED tests/integration/test_background_following.py::test_pause_and_resume_reenter_durable_scheduling
+2 failed, 1 passed in 1.23s

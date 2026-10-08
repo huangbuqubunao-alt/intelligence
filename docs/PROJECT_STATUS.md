@@ -1,5 +1,20 @@
 # YouTube Intelligence Agent 项目状态
 
+2026-10-08 Phase 13 automatic background Following candidate: implementation and
+self-review fixes are isolated on `codex/phase13-background-following`, based on
+accepted Phase 12 main `404d0a76ef022647f242e295a87b7ed18c3b0667`. The current owner
+continuous goal authorizes sole-executor validation and conditional ff-only main
+adoption/push. This supersedes historical no-Phase-13 workflow restrictions below.
+Schema 34, frozen transport/parser, withdrawn Bilibili capabilities and no hidden
+model work are preserved. Final deterministic/regression/runtime evidence is in
+[Phase 13 validation](validation/phase13/REPORT.md). Current live gate is blocked:
+NASA/Google public aliases resolve, but feeds return NOT_FOUND through the normal
+Mac system proxy; bounded candidate/accepted-main comparison reproduces the same
+result. No successful baseline/frontier is fabricated. Main adoption/completion
+and the post-adoption dogfood freeze require successful real acceptance. Phase 14
+is NOT STARTED; no new feature phase is authorized. After acceptance/adoption the
+next activity is real-user daily usage/pilot. Historical records follow unchanged.
+
 2026-10-07 Phase 12 live P0 remediation supersedes the earlier local completion
 claim below. Independent real YouTube validation rejected `d0679d50` because
 feed-level Atom channel IDs omit `UC`, while canonical source and entry IDs
