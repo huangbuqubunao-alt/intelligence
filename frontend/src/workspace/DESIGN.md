@@ -5,6 +5,12 @@ source: styles.css
 
 # Workspace design reference
 
+Phase 13 uses the same Following detail: next automatic check and explicit retry
+eligibility are separate facts. Background backoff does not hide manual network
+recovery. Automatic checks operate while the backend runs, including with the
+browser window closed. Preserve bilingual wrapping and the existing buttons;
+add no scheduler controls, navigation, or notification platform.
+
 Phase 10B adds Bilibili to Following Add and the existing shared Content/Research
 surfaces. Manual video import never implies creator following. Public captions
 retain original text/language/timing; no-caption Content explains unavailable

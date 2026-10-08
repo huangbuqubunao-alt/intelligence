@@ -9,6 +9,20 @@ import { UiLanguageProvider } from "./uiLanguage";
 
 afterEach(() => { vi.unstubAllGlobals(); localStorage.clear(); });
 
+test.each(["NOT_FOUND", "RISK_CONTROLLED"])("automatic deadline is truthful for %s", async (health) => {
+  localStorage.setItem("yia.ui-language", "en");
+  const next = new Date(Date.now() + 3600000).toISOString();
+  vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => ({
+    source: {
+      provider: "YOUTUBE", source_id: "youtube-channel-test", display_name: "Channel", enabled: true,
+      tracking: { health, coverage: "BASELINE_PENDING", next_check_at: next, update_count: 0, pending_count: 0 },
+    }, recent_videos: [], source_runs: [],
+  }) })));
+  render(<UiLanguageProvider><CreatorFollowingDetail id="youtube-channel-test" capability={available} onClose={() => {}} onRefresh={() => {}} /></UiLanguageProvider>);
+  const label = await screen.findByText("Next automatic check");
+  expect(label.nextElementSibling?.textContent).toBe(health === "NOT_FOUND" ? new Date(next).toLocaleString() : "Needs Attention");
+});
+
 const available: CreatorFollowingCapabilityState = {
   known: true, capability: { available: true, code: "CREATOR_FOLLOWING_AVAILABLE" },
 };
@@ -261,6 +275,18 @@ test('channel cooldown displays the next eligible retry and preserves a truthful
   expect(screen.getByText('Next eligible check')).toBeTruthy();
   expect(screen.getByText('No, no successful check has completed yet')).toBeTruthy();
   expect(screen.queryByText('Yes')).toBeNull();
+});
+
+test('manual network retry is available while automatic retry remains backed off', async () => {
+  localStorage.setItem('yia.ui-language', 'en');
+  vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ source: {
+    provider: 'YOUTUBE', source_id: 'youtube-channel-test', display_name: 'Public channel', enabled: true,
+    canonical_url: 'https://www.youtube.com/channel/test', last_checked_at: new Date(Date.now() - 6000).toISOString(), last_success_at: null,
+    tracking: { health: 'OFFLINE', coverage: 'BASELINE_PENDING', next_check_at: new Date(Date.now() + 60000).toISOString(), manual_check_at: new Date(Date.now() - 1000).toISOString(), update_count: 0, pending_count: 0 },
+  }, recent_videos: [], source_runs: [] }) })));
+  render(<UiLanguageProvider><CreatorFollowingDetail id="youtube-channel-test" capability={withdrawn} onClose={() => {}} onRefresh={() => {}} /></UiLanguageProvider>);
+  expect((await screen.findByRole('button', { name: 'Retry' }) as HTMLButtonElement).disabled).toBe(false);
+  expect(screen.getByText('Next automatic check')).toBeTruthy();
 });
 
 for (const language of ["en", "zh-CN"] as const) {

@@ -46,7 +46,7 @@ feature development frozen for real-user daily usage. Phase 14 is not started.
 ## Scope and reuse
 
 Expected product changes: following_tracking.py, one following_scheduler.py,
-runtime_composition.py, orchestration_service.py, local_api.py,
+runtime_composition.py, cli.py, orchestration_service.py, local_api.py,
 backup_restore.py, focused tests and Phase 13 decision/validation/handoff docs.
 UI changes only if truthful existing status requires them; DESIGN.md is the
 existing design reference. No settings console, notifications, new provider,

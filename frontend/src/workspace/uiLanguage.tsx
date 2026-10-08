@@ -16,6 +16,8 @@ const chinese: Record<string, string> = {
   "Use Follow a channel to follow from now on without importing existing videos.": "请选择“关注一个频道”，从现在开始关注，不导入已有视频。",
   "Last recorded source health": "上次记录的来源状态",
   "Next eligible check": "下次可检查时间",
+  "Due for a check": "等待检查",
+  "Updates are checked automatically while the app is running.": "应用运行时会自动检查更新。",
   "Channel following is currently unavailable. Stored Content is preserved.": "频道关注暂不可用，已保存的内容仍然保留。",
   "Channel Following": "频道关注",
   "YouTube source type": "YouTube 来源类型",

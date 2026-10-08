@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import argparse
+import signal
 import sqlite3
 import sys
+import threading
 import time
 from pathlib import Path
+from types import FrameType
 from typing import NoReturn, Sequence
 from uuid import uuid4
 
@@ -133,6 +136,7 @@ def main(
                 return ExitCode.USAGE_OR_CONFIGURATION
             project_root = _project_root(args.project_root)
             config = _load_config(project_root, args.settings, args.channels)
+            stop_requested = False
             while True:
                 composition = build_local_source_run_runtime(
                     config=config,
@@ -143,13 +147,26 @@ def main(
                     composition.application,
                     port=args.port,
                 )
+                def request_stop(signum: int, frame: FrameType | None) -> None:
+                    nonlocal stop_requested
+                    stop_requested = True
+                    # HTTPServer.shutdown must run outside serve_forever's
+                    # thread. The normal finally then drains the owning worker.
+                    threading.Thread(target=server.shutdown, daemon=True).start()
+
+                previous_handlers = {
+                    sig: signal.signal(sig, request_stop)
+                    for sig in (signal.SIGTERM, signal.SIGINT)
+                } if threading.current_thread() is threading.main_thread() else {}
                 composition.worker.start()
                 try:
                     server.serve_forever()
                 finally:
                     server.server_close()
                     composition.worker.stop()
-                if not composition.backup_restore.restart_requested:
+                    for sig, handler in previous_handlers.items():
+                        signal.signal(sig, handler)
+                if stop_requested or not composition.backup_restore.restart_requested:
                     break
             return ExitCode.OK
         project_root = _project_root(args.project_root)

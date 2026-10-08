@@ -216,7 +216,7 @@ class ProductOrchestrationService:
             if self._source_run_submitter is None:
                 if self._source_tracking is None:
                     return SourceCheckResult(AutomationRunStatus.BLOCKED, "CHECK_UNAVAILABLE")
-                category = self._source_tracking.check(source_id)
+                category = self._source_tracking.check(source_id, automatic=automatic)
                 return SourceCheckResult(
                     AutomationRunStatus.SUCCEEDED if category in {"COMPLETE", "UPDATE_GAP"} else AutomationRunStatus.BLOCKED,
                     category,

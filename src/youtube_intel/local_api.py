@@ -769,7 +769,12 @@ class LocalApiApplication:
                             unavailable.append("CAPABILITY_UNAVAILABLE")
                         continue
                     if tracking_due(self._repository, source_id, self._now()):
-                        result = self._service.check_source(source_id, command_id="stale:" + source_id + ":" + self._now().isoformat())
+                        from youtube_intel.following_scheduler import (
+                            AUTOMATIC_CHECK_PREFIX,
+                        )
+                        with self._repository._connect() as connection:
+                            due = connection.execute("SELECT next_check_at FROM source_tracking_state WHERE source_id=?", (source_id,)).fetchone()[0]
+                        result = self._service.check_source(source_id, command_id=AUTOMATIC_CHECK_PREFIX + source_id + ":" + due, automatic=True)
                         results.append(result.status.value)
                 if self._source_run_wakeup is not None:
                     self._source_run_wakeup()

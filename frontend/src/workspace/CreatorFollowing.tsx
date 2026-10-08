@@ -4,7 +4,7 @@ import { useUiLanguage } from "./uiLanguage";
 
 export type Tracking = {
   health: string; coverage: string; verified_at?: string | null;
-  baseline_at?: string | null; next_check_at?: string;
+  baseline_at?: string | null; next_check_at?: string; manual_check_at?: string;
   update_count: number; pending_count: number; unavailable_count?: number;
   checking?: boolean; processing_count?: number;
 };
@@ -189,7 +189,7 @@ export function CreatorFollowingDetail({ id, capability, onClose, onRefresh }: {
     } else if (!isActive(data) && notice) setMessage(notice);
   }, [data, notice, checkRun]);
   useEffect(() => {
-    const retryAt = data?.source.tracking.next_check_at;
+    const retryAt = data?.source.tracking.manual_check_at ?? data?.source.tracking.next_check_at;
     if (!retryAt) return;
     const remaining = new Date(retryAt).getTime() - Date.now();
     if (!Number.isFinite(remaining) || remaining <= 0) return;
@@ -200,8 +200,11 @@ export function CreatorFollowingDetail({ id, capability, onClose, onRefresh }: {
   const active = isActive(data);
   const off = source?.provider !== "YOUTUBE" && withdrawn(capability);
   const baselineEstablished = Boolean(source?.tracking.baseline_at ?? source?.tracking.verified_at);
-  const cooldownUntil = source?.tracking.next_check_at ? new Date(source.tracking.next_check_at) : null;
+  const manualCheckAt = source?.tracking.manual_check_at ?? source?.tracking.next_check_at;
+  const cooldownUntil = manualCheckAt ? new Date(manualCheckAt) : null;
   const coolingDown = cooldownUntil !== null && cooldownUntil.getTime() - Date.now() > 0;
+  const automaticCheckAt = source?.tracking.next_check_at ? new Date(source.tracking.next_check_at) : null;
+  const needsAttention = ["STATE_INVALID", "RISK_CONTROLLED", "ACCESS_DENIED"].includes(source?.tracking.health ?? "");
   return <div className="overlay"><section className="modal local-import" role="dialog" aria-modal="true" aria-label={t(source?.provider === "YOUTUBE" ? "Channel Following" : "Creator Following")}>
     <div className="modal-head"><h2>{source?.display_name ?? t(source?.provider === "YOUTUBE" ? "Channel Following" : "Creator Following")}</h2><button className="button button-ghost" onClick={onClose}>{t("Close")}</button></div>
     {off && <UnavailableNotice state={capability} creator />}
@@ -214,11 +217,13 @@ export function CreatorFollowingDetail({ id, capability, onClose, onRefresh }: {
         <dt>{t("Last checked")}</dt><dd>{source.last_checked_at ? new Date(source.last_checked_at).toLocaleString() : t("Not checked yet")}</dd>
         <dt>{t("Last successful check")}</dt><dd>{source.last_success_at ? new Date(source.last_success_at).toLocaleString() : t("Not checked yet")}</dd>
         <dt>{t("Next eligible check")}</dt><dd>{!source.enabled ? t("Paused") : off ? t("None while this capability is unavailable") : coolingDown ? cooldownUntil.toLocaleString() : t("Not scheduled")}</dd>
+        <dt>{t("Next automatic check")}</dt><dd>{!source.enabled ? t("Paused") : off ? t("None while this capability is unavailable") : needsAttention ? t("Needs Attention") : automaticCheckAt && automaticCheckAt.getTime() > Date.now() ? automaticCheckAt.toLocaleString() : t("Due for a check")}</dd>
         <dt>{t("Discovered Content since following")}</dt><dd>{source.tracking.update_count}</dd>
         <dt>{t("Waiting for Content acquisition")}</dt><dd>{source.tracking.pending_count}</dd>
         <dt>{t("Videos that could not be imported")}</dt><dd>{source.tracking.unavailable_count ?? 0}</dd>
       </dl>
       {!off && <p className="hint">{t(source.provider === "YOUTUBE" ? "Existing videos are not imported. Successful checks have a 15-minute cooldown." : "Existing videos are not imported. Updates are checked while the app is running, with a 15-minute cooldown.")}</p>}
+      {!off && <p className="hint">{t("Updates are checked automatically while the app is running.")}</p>}
       <div className="button-row">
         <button className="button button-primary" disabled={busy || (source.provider !== "YOUTUBE" && !capability.known) || off || !source.enabled || source.tracking.checking || active || coolingDown} onClick={async () => {
           setBusy(true); setMessage(null); setNotice(null); setCheckRun(null);

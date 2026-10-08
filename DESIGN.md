@@ -5,6 +5,13 @@ version: 1
 
 # Intelligence workspace
 
+Phase 13 keeps the existing Following detail and controls. Show the next
+automatic check separately from explicit retry eligibility; background network
+backoff must not disable the accepted five-second user retry. Healthy tracking
+requires no settings. Checking, paused and attention remain ordinary localized
+states. The backend owns scheduling while it runs; no scheduler administration
+surface or OS service installation is introduced.
+
 ## Design intent
 
 A quiet, local knowledge workspace. Follow the existing Following, Content,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import threading
 from contextlib import nullcontext
 from dataclasses import dataclass
@@ -53,7 +54,7 @@ from youtube_intel.scoring import AuthoritativeScoringReader
 from youtube_intel.source_policy import (
     SourcePolicyApplicationService,
 )
-from youtube_intel.source_run import SourceRunRecord
+from youtube_intel.source_run import SourceRunRecord, SourceRunState, SourceRunTrigger
 from youtube_intel.state import SQLiteStateRepository
 
 
@@ -84,6 +85,8 @@ class RuntimeSourceRunIngestion:
                 ).fetchall()
             automatic = any(str(row[0]).startswith(AUTOMATIC_CHECK_PREFIX) for row in active)
             category = self._source_tracking.check(source_id, automatic=automatic)
+            if automatic and category == "BUSY":
+                self._source_tracking.defer_automatic(source_id)
             if category not in {"COMPLETE", "UPDATE_GAP", "COOLDOWN"}:
                 raise SourceRunDiscoveryError("Source check did not complete")
             return
@@ -158,6 +161,12 @@ class DurableSourceRunWorker:
         if not self._execution.acquire(blocking=False):
             return None
         try:
+            # An idle authority read is not active source work. Actual due
+            # admission/execution still rechecks the protected Backup gate.
+            if not self._orchestrator.queued_runs(limit=1) and (
+                self.scheduler is None or self.scheduler.wait_seconds() != 0
+            ):
+                return None
             gate = (nullcontext(True) if self.backup_restore is None
                     else self.backup_restore.background_work())
             with gate as allowed:
@@ -165,7 +174,20 @@ class DurableSourceRunWorker:
                     return None
                 if self.scheduler is not None:
                     self.scheduler.admit_due()
-                return self._orchestrator.resume_next()
+                queued = self._orchestrator.queued_runs(limit=1)
+                if not queued:
+                    return None
+                run = queued[0]
+                try:
+                    return self._orchestrator.resume(run.run_id)
+                except Exception:
+                    if (self.scheduler is None or run.trigger is SourceRunTrigger.MANUAL_ANALYZE_VIDEO
+                            or not is_tracked(self.scheduler.tracking.repository, run.source_id)):
+                        raise
+                    self.scheduler.tracking.settle_local_failure(run.source_id)
+                    return self.scheduler.tracking.repository.transition_source_run(
+                        run.run_id, to_state=SourceRunState.FAILED, now=self.scheduler.now()
+                    )
         finally:
             self._execution.release()
 
@@ -178,13 +200,8 @@ class DurableSourceRunWorker:
         self._thread = None
 
     def _run(self) -> None:
-        for interrupted in self._orchestrator.interrupted_runs():
-            if self._stop.is_set():
-                return
-            try:
-                self._orchestrator.resume(interrupted.run_id)
-            except Exception:
-                continue
+        # resume_next already reloads RUNNING work alongside the durable queue;
+        # recovery must use the same execution and Backup/Restore gate.
         while not self._stop.is_set():
             # Clear before reading durable work, so a notification during that
             # read/execution remains set and cannot be lost before the wait.
@@ -192,12 +209,18 @@ class DurableSourceRunWorker:
             try:
                 result = self.run_once()
             except Exception:
+                logging.getLogger(__name__).error("Source worker failed safely; retry deferred.")
                 self._wake.wait(max(60.0, self._poll_seconds))
                 continue
             if result is not None:
                 continue
-            protected = self.backup_restore is not None and not self.backup_restore.background_allowed
-            self._wake.wait(None if self.scheduler is None or protected else self.scheduler.wait_seconds())
+            try:
+                protected = self.backup_restore is not None and not self.backup_restore.background_allowed
+                wait = None if self.scheduler is None or protected else self.scheduler.wait_seconds()
+            except Exception:
+                logging.getLogger(__name__).error("Following schedule authority unavailable; retry deferred.")
+                wait = 60.0
+            self._wake.wait(wait)
 
 
 @dataclass(frozen=True, slots=True)

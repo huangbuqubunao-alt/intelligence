@@ -6,6 +6,7 @@ from collections.abc import Callable
 from datetime import datetime
 
 from youtube_intel.following_tracking import (
+    AUTOMATIC_REFUSAL_HEALTH,
     FollowingTrackingService,
     _stamp,
 )
@@ -39,10 +40,10 @@ class FollowingScheduler:
                 "SELECT s.source_id,s.provider,t.next_check_at FROM "
                 "source_tracking_state t JOIN source_subscriptions s USING(source_id) "
                 "WHERE s.enabled=1 AND t.health NOT IN "
-                "('STATE_INVALID','RISK_CONTROLLED','ACCESS_DENIED','NOT_FOUND') "
+                "(" + ",".join("?" for _ in AUTOMATIC_REFUSAL_HEALTH) + ") "
                 "AND NOT EXISTS(SELECT 1 FROM source_runs r WHERE r.source_id=s.source_id "
                 "AND r.state IN (" + ",".join("?" for _ in states) + "))",
-                states,
+                (*sorted(AUTOMATIC_REFUSAL_HEALTH), *states),
             ).fetchall()
         eligible = []
         for row in rows:

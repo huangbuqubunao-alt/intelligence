@@ -46,6 +46,7 @@ MAX_ENROLLMENTS = 5
 CHECK_SECONDS = 180.0
 COOLDOWN = timedelta(minutes=15)
 LEASE = timedelta(minutes=10)
+AUTOMATIC_REFUSAL_HEALTH = frozenset({"STATE_INVALID", "RISK_CONTROLLED", "ACCESS_DENIED"})
 _CHECK_SLOTS = {provider: threading.BoundedSemaphore(1) for provider in ("BILIBILI", "YOUTUBE")}
 # Derived from the single definition of "a Source Run still holds live
 # execution", so this projection can never disagree with the Backup gate.
@@ -136,6 +137,8 @@ def tracking_due(repository: SQLiteStateRepository, source_id: str, now: datetim
     with repository._connect() as connection:
         row = connection.execute("SELECT t.next_check_at,t.health,s.last_checked_at FROM source_tracking_state t JOIN source_subscriptions s USING(source_id) WHERE source_id=?", (source_id,)).fetchone()
         if row is None:
+            return False
+        if not manual and row["health"] in AUTOMATIC_REFUSAL_HEALTH:
             return False
         try:
             if manual and row["health"] == "OFFLINE" and row["last_checked_at"] is not None:
@@ -258,8 +261,32 @@ class FollowingTrackingService:
                 _ACTIVE_SOURCE_RUN_SQL,
                 (source_id, source_id, *_ACTIVE_SOURCE_RUN_STATES),
             ).fetchone() is not None
+            source = connection.execute("SELECT last_checked_at FROM source_subscriptions WHERE source_id=?", (source_id,)).fetchone()
+            manual_check_at = row["next_check_at"]
+            if row["health"] == "OFFLINE" and source[0] is not None:
+                manual_check_at = format_utc_datetime(_stamp(source[0]) + timedelta(seconds=5))
             return {**dict(row), "discovered_count": counts[0] or 0, "pending_count": counts[1] or 0,
-                    "unavailable_count": counts[2] or 0, "update_count": counts[3] or 0, "checking": active, "processing_count": processing}
+                    "unavailable_count": counts[2] or 0, "update_count": counts[3] or 0, "checking": active, "processing_count": processing,
+                    "manual_check_at": manual_check_at}
+
+    def defer_automatic(self, source_id: str) -> None:
+        """Slot contention is neither a check nor success; retry later durably."""
+        with self.repository._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute("SELECT next_check_at FROM source_tracking_state WHERE source_id=?", (source_id,)).fetchone()
+            if row is not None:
+                due = max(_stamp(row[0]), self.now() + timedelta(minutes=1))
+                connection.execute("UPDATE source_tracking_state SET next_check_at=? WHERE source_id=?", (format_utc_datetime(due), source_id))
+
+    def settle_local_failure(self, source_id: str) -> None:
+        """Settle an owning worker's local failure without advancing frontier."""
+        stamp = format_utc_datetime(self.now())
+        with self.repository._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            verify_tracking(connection, source_id, repository=self.repository)
+            connection.execute("UPDATE source_checks SET status='FAILED',finished_at=?,result_category='LOCAL_PROCESSING_FAILED' WHERE source_id=? AND status='RUNNING'", (stamp, source_id))
+            connection.execute("UPDATE source_tracking_state SET health='PROVIDER_ERROR',next_check_at=? WHERE source_id=?", (format_utc_datetime(self.now() + timedelta(hours=1)), source_id))
+            connection.execute("UPDATE source_subscriptions SET last_checked_at=?,last_error_code='PROVIDER_ERROR',last_error_message=NULL WHERE source_id=?", (stamp, source_id))
 
     def check(self, source_id: str, *, automatic: bool = False) -> str:
         source = self.repository.get_source_subscription(source_id)
@@ -292,10 +319,13 @@ class FollowingTrackingService:
                 verify_tracking(connection, source_id, repository=self.repository)
             except (ValueError, KeyError, TypeError, OSError):
                 connection.execute("UPDATE source_subscriptions SET last_checked_at=?,last_error_code='STATE_INVALID' WHERE source_id=?", (stamp, source_id))
+                connection.execute("UPDATE source_tracking_state SET health='STATE_INVALID' WHERE source_id=?", (source_id,))
                 return "STATE_INVALID"
             state = connection.execute("SELECT * FROM source_tracking_state WHERE source_id=?", (source_id,)).fetchone()
             if state is None:
                 raise BilibiliError("SOURCE_UNTRUSTED")
+            if automatic and state["health"] in AUTOMATIC_REFUSAL_HEALTH:
+                return str(state["health"])
             connection.execute("UPDATE source_checks SET status='INTERRUPTED',finished_at=?,result_category='INTERRUPTED' WHERE source_id=? AND status='RUNNING' AND started_at<=?",
                                (stamp, source_id, format_utc_datetime(now - LEASE)))
             if connection.execute("SELECT 1 FROM source_checks WHERE source_id=? AND status='RUNNING'", (source_id,)).fetchone():
