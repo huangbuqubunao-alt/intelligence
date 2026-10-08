@@ -1,0 +1,50 @@
+{
+  "v1x-youtube-following": {
+    "head": "4d0cb5e5de450272cb5653fe4988dc393b98e4c2",
+    "status": " M DESIGN.md\n M frontend/src/workspace/DESIGN.md\n?? docs/decisions/V1X-PHASE12-UNIFIED-CONTINUOUS-FOLLOWING.md\n?? docs/validation/phase12/ADVERSARIAL.md\n?? docs/validation/phase12/REVIEW.md\n?? docs/validation/phase12/async-predicate-probe.txt\n?? docs/validation/phase12/caption-retry-red.txt\n?? docs/validation/phase12/database-restore.json\n?? docs/validation/phase12/date-only-red.txt\n?? docs/validation/phase12/design-root.json\n?? docs/validation/phase12/design-workspace.json\n?? docs/validation/phase12/detail-final-320.png\n?? docs/validation/phase12/en-1440-caption.png\n?? docs/validation/phase12/enrollment-error-red.txt\n?? docs/validation/phase12/final-code-review.json\n?? docs/validation/phase12/focused-tests.txt\n?? docs/validation/phase12/frontend-build.txt\n?? docs/validation/phase12/frontend-tests.txt\n?? docs/validation/phase12/frontend-typecheck.txt\n?? docs/validation/phase12/full-backend.txt\n?? docs/validation/phase12/live-public-youtube.json\n?? docs/validation/phase12/mypy.txt\n?? docs/validation/phase12/offline-backup-red.txt\n?? docs/validation/phase12/offline-zh-CN-320-caption.png\n?? docs/validation/phase12/phase-regressions.txt\n?? docs/validation/phase12/portable-provenance-proof.json\n?? docs/validation/phase12/protected-worktrees.json\n?? docs/validation/phase12/rapid-check-browser.json\n?? docs/validation/phase12/ruff.txt\n?? docs/validation/phase12/shared-ui-browser.json\n?? docs/validation/phase12/stale-fairness-red.txt\n?? docs/validation/phase12/transcript-boundary-red.txt\n?? docs/validation/phase12/youtube-browser.json\n?? docs/validation/phase12/youtube-offline-browser.json\n?? docs/validation/phase12/youtube-restored-browser.json\n?? docs/validation/phase12/zh-CN-320-following.png\n?? tasks/V1X-PHASE12.md\n",
+    "diff_sha256": "bf5a6531fa25026579770803093ada8a48a8b6333f369073efc10485c9df2401",
+    "cached_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "v1x-youtube-following-resume": {
+    "head": "d0679d50b3a7a0f2e8a3006fdab8ccc268614a18",
+    "status": "",
+    "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "cached_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "phase12-live-fix": {
+    "head": "ab591a250f818059cb027314b87173e56c097e2a",
+    "status": "",
+    "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "cached_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "phase12-live-validation": {
+    "head": "d0679d50b3a7a0f2e8a3006fdab8ccc268614a18",
+    "status": "",
+    "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "cached_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "phase12-fixed-candidate-validation": {
+    "head": "ab591a250f818059cb027314b87173e56c097e2a",
+    "status": "",
+    "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "cached_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "phase12-zero-config-network": {
+    "head": "bdd30cc37dcd9f956c3a9c6185ad12433c08ef8f",
+    "status": "",
+    "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "cached_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "phase12-final-p1-remediation": {
+    "head": "404d0a76ef022647f242e295a87b7ed18c3b0667",
+    "status": "",
+    "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "cached_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "m13-dogfood": {
+    "head": "e228294f705401b0200439076c3378b78f9c9d84",
+    "status": " M docs/M13_7_DAY_DOGFOOD.md\n M frontend/m13-preday2.e2e.mjs\n M frontend/src/workspace/App.test.tsx\n M frontend/src/workspace/App.tsx\n M frontend/src/workspace/styles.css\n M frontend/src/workspace/uiLanguage.tsx\n M src/youtube_intel/backup_restore.py\n M src/youtube_intel/local_api.py\n M src/youtube_intel/runtime.py\n M src/youtube_intel/runtime_composition.py\n M src/youtube_intel/state.py\n M tests/integration/test_deep_analysis_persistence.py\n M tests/integration/test_provider_dispatch_crash_recovery.py\n M tests/integration/test_state_store.py\n M tests/integration/test_task016c_phase_h2c_lineage_schema.py\n M tests/integration/test_task018_domain_persistence.py\n M tests/integration/test_task018a_claim_classification.py\n M tests/integration/test_task018b_timed_evidence.py\n M tests/integration/test_task020_preference_feedback.py\n M tests/integration/test_task021_source_policy_filtering.py\n M tests/integration/test_task022_personalized_distillation.py\n M tests/integration/test_task022b_verified_outbound_input.py\n M tests/integration/test_task023_topic_timeline.py\n M tests/integration/test_task023a_source_run_persistence.py\n M tests/integration/test_task023b_distillation_reservation.py\n M tests/integration/test_task024_processing_orchestration.py\n M tests/integration/test_task025_weekly_foundation.py\n M tests/integration/test_task025a_saved_intelligence.py\n M tests/unit/test_backup_restore.py\n M tests/unit/test_evidence_translation.py\n?? frontend/m13-day2-settings.e2e.mjs\n?? frontend/node_modules\n?? src/youtube_intel/migrations/029_add_v1_model_configuration.sql\n?? src/youtube_intel/model_configuration.py\n?? tests/unit/test_model_configuration.py\n",
+    "diff_sha256": "75e720ea3e96d659f259aef256bde0cc73ded747b86eb7aa7c223216597f501b",
+    "cached_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

@@ -1,6 +1,7 @@
 """Local private-stage launcher; no installer, launchd or public packaging."""
 
 import argparse
+import hashlib
 import json
 import os
 import signal
@@ -11,6 +12,64 @@ from pathlib import Path
 from urllib.request import urlopen
 
 import yaml
+
+
+def build_identity(project: Path) -> dict[str, str]:
+    """Bind installed UI bytes to revision and actual source, including dirty work."""
+    revision = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=project, capture_output=True,
+        text=True, check=True,
+    ).stdout.strip()
+    digest = hashlib.sha256()
+    frontend = project / "frontend"
+    paths = []
+    for directory, directories, files in os.walk(frontend):
+        directories[:] = sorted(name for name in directories if name not in {"node_modules", "dist", ".git"})
+        paths.extend(Path(directory) / name for name in files)
+    for path in sorted(paths):
+        relative = path.relative_to(frontend)
+        if relative.parts[0] in {"src", "public"} or path.suffix in {".ts", ".tsx", ".css", ".html", ".json", ".mjs"}:
+            digest.update(str(relative).encode() + b"\0" + path.read_bytes() + b"\0")
+    return {"revision": revision, "source_sha256": digest.hexdigest()}
+
+
+def build_assets(project: Path) -> dict[str, str]:
+    dist = project / "frontend" / "dist"
+    return {
+        str(path.relative_to(dist)): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in sorted(dist.rglob("*"))
+        if path.is_file() and path.name != "build-provenance.json"
+    }
+
+
+def current_build(project: Path, identity: dict[str, str]) -> bool:
+    try:
+        manifest = json.loads((project / "frontend/dist/build-provenance.json").read_text())
+        assets = build_assets(project)
+        return manifest["identity"] == identity and "index.html" in assets and manifest["assets"] == assets
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+
+
+def prepare_frontend(project: Path) -> dict[str, str]:
+    identity = build_identity(project)
+    if current_build(project, identity):
+        return identity
+    if not (project / "frontend/node_modules/.bin/vite").exists():
+        raise RuntimeError("Intelligence cannot prepare its current interface: installed frontend tools are missing. Restore the application runtime and reopen Intelligence.")
+    try:
+        subprocess.run(["npm", "run", "build"], cwd=project / "frontend", check=True)
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise RuntimeError("Intelligence could not prepare its current interface. Inspect the launcher build error and reopen; an older interface will not be served.") from error
+    if build_identity(project) != identity:
+        raise RuntimeError("Application source changed while preparing the interface. Reopen Intelligence to rebuild it.")
+    assets = build_assets(project)
+    if "index.html" not in assets:
+        raise RuntimeError("The interface build did not produce index.html. Reopen Intelligence after correcting the build error.")
+    (project / "frontend/dist/build-provenance.json").write_text(
+        json.dumps({"identity": identity, "assets": assets}, sort_keys=True) + "\n"
+    )
+    return identity
 
 
 def prepare_workspace(project: Path) -> Path:
@@ -31,10 +90,12 @@ def prepare_workspace(project: Path) -> Path:
 
 
 def launch(project: Path, *, open_browser: bool = True) -> str:
+    identity = prepare_frontend(project)
     root = prepare_workspace(project)
     url = "http://127.0.0.1:5488/"
     pid_file = root / "launcher.json"
     if pid_file.exists():
+        receipt = json.loads(pid_file.read_text())
         try:
             with urlopen("http://127.0.0.1:5489/api/v1/system", timeout=2) as response:
                 healthy = json.load(response)["runtime"]["demo_data"] is False
@@ -42,13 +103,19 @@ def launch(project: Path, *, open_browser: bool = True) -> str:
                 healthy = healthy and response.status == 200
         except OSError:
             healthy = False
-        if healthy:
+        if healthy and receipt.get("build_identity") == identity:
             if open_browser:
                 subprocess.run(["/usr/bin/open", url], check=True)
             return url
+        if healthy:
+            stop(project)
+            for _ in range(50):
+                if all(subprocess.run(["/bin/ps", "-p", str(pid)], capture_output=True, check=False).returncode != 0 for pid in receipt["pids"]):
+                    break
+                time.sleep(0.1)
         # Removing a stale launcher receipt cannot remove any library authority.
         # Port checks below still refuse to replace any running process.
-        pid_file.unlink()
+        pid_file.unlink(missing_ok=True)
     for port in (5488, 5489):
         with socket.socket() as probe:
             probe.bind(("127.0.0.1", port))
@@ -88,7 +155,7 @@ def launch(project: Path, *, open_browser: bool = True) -> str:
                 process.terminate()
                 process.wait(timeout=5)
         raise
-    pid_file.write_text(json.dumps({"pids": [process.pid for process in processes], "url": url}))
+    pid_file.write_text(json.dumps({"pids": [process.pid for process in processes], "url": url, "build_identity": identity}))
     if open_browser:
         subprocess.run(["/usr/bin/open", url], check=True)
     return url
@@ -98,12 +165,16 @@ def stop(project: Path) -> None:
     receipt = project / ".var" / "owner" / "launcher.json"
     if not receipt.exists():
         return
+    pids = []
     for pid in json.loads(receipt.read_text())["pids"]:
         command = subprocess.run(["/bin/ps", "-p", str(pid), "-o", "command="], capture_output=True, text=True, check=False)
         if command.returncode == 0:
             if str(project) not in command.stdout:
                 raise RuntimeError("A launcher process identity changed; no process was stopped.")
-            os.kill(pid, signal.SIGTERM)
+            pids.append(pid)
+    # Verify every identity before stopping any process.
+    for pid in pids:
+        os.kill(pid, signal.SIGTERM)
     receipt.unlink()
 
 

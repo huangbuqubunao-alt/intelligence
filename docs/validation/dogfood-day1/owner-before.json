@@ -1,0 +1,8 @@
+{
+  "files": {
+    "state.sqlite3": "0d51cefb3e312bb2b3b3bf46a07b9c0614ec1fab500e773979034d0b6c119b83",
+    "state.sqlite3-wal": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "state.sqlite3-shm": "fd4c9fda9cd3f9ae7c962b0ddf37232294d55580e1aa165aa06129b8549389eb"
+  },
+  "consistent_physical_copy": true
+}
