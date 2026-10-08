@@ -1273,6 +1273,18 @@ class RuntimeOperations(Operations):
             raise ValueError("authoritative scoring language is unsupported")
         return language
 
+    def _intelligence_output_language(self, video_id: str) -> ScoringOutputLanguage:
+        """Organized Content needs no fabricated Scoring result for analysis."""
+        pointer = self._repository.current_local_summary_pointer(video_id)
+        artifact = None if pointer is None else self._repository.get_artifact(pointer.artifact_id)
+        if artifact is not None and artifact.provider == "extractive-source":
+            from youtube_intel.extractive_summary import ExtractiveSummaryService
+
+            ExtractiveSummaryService(self._repository, self._data_root).read(video_id, artifact.artifact_id)
+            # The reservation seals this preference before any model dispatch.
+            return self._output_language_service.effective().value
+        return self._downstream_output_language(video_id)
+
     @classmethod
     def validate_persisted_analysis_pointer(
         cls,
@@ -2794,7 +2806,7 @@ def _database_check(path: Path) -> DoctorCheck:
         with sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True) as connection:
             integrity = connection.execute("PRAGMA integrity_check").fetchone()
             version = int(connection.execute("PRAGMA user_version").fetchone()[0])
-        if integrity != ("ok",) or version != 34:
+        if integrity != ("ok",) or version != 35:
             raise sqlite3.DatabaseError
     except (OSError, sqlite3.Error):
         return DoctorCheck("SQLite", "FAIL", "state database is invalid.", True)

@@ -1746,6 +1746,7 @@ class SQLiteStateRepository:
             "032_add_source_provider_authority.sql",
             "033_add_bilibili_provider.sql",
             "034_add_source_tracking.sql",
+            "035_align_no_new_canonical_evidence.sql",
         )
         migrations: list[_Migration] = []
         for name in names:
@@ -9374,6 +9375,7 @@ class SQLiteStateRepository:
         video_id: str,
         selected_provider: str,
         selected_model: str,
+        reason: str | None = None,
     ) -> DistillationExecutionRecord | None:
         """Find the sole pre-dispatch reservation without consulting mutable preferences."""
         connection = self._connect()
@@ -9383,6 +9385,7 @@ class SQLiteStateRepository:
                 "WHERE source_id = :source_id AND video_id = :video_id "
                 "AND selected_provider = :selected_provider "
                 "AND selected_model = :selected_model AND status = 'PENDING' "
+                "AND (:reason IS NULL OR reason = :reason) "
                 "AND budget_state = 'RESERVED_NOT_DISPATCHED' "
                 "AND invocation_count = 0 ORDER BY created_at DESC LIMIT 1",
                 {
@@ -9390,6 +9393,7 @@ class SQLiteStateRepository:
                     "video_id": video_id,
                     "selected_provider": selected_provider,
                     "selected_model": selected_model,
+                    "reason": reason,
                 },
             ).fetchone()
             return None if row is None else self._distillation_execution_from_row(row)
@@ -10233,11 +10237,15 @@ class SQLiteStateRepository:
                     "SELECT 1 FROM source_subscriptions AS source "
                     "JOIN source_video_links AS link ON link.source_id = source.source_id "
                     "JOIN videos AS video ON video.video_id = link.video_id "
-                    "WHERE source.source_id = :source_id AND source.enabled = 1 "
+                    "WHERE source.source_id = :source_id "
+                    "AND (source.enabled = 1 OR (:manual_content = 1 AND video.provider = 'YOUTUBE' "
+                    "AND EXISTS (SELECT 1 FROM current_content_summaries AS summary "
+                    "WHERE summary.video_id = video.video_id AND summary.analysis_artifact_id IS NOT NULL))) "
                     "AND video.video_id = :video_id AND video.availability = :availability",
                     {
                         "source_id": str(checkpoint["source_id"]),
                         "video_id": str(checkpoint["video_id"]),
+                        "manual_content": int(re.fullmatch(r"MANUAL_CONTENT:[A-Za-z0-9._:-]{1,80}", str(checkpoint["reason"])) is not None),
                         "availability": Availability.PUBLIC.value,
                     },
                 ).fetchone()
@@ -10251,6 +10259,7 @@ class SQLiteStateRepository:
                     "ON artifacts.artifact_id = evidence.artifact_id "
                     "WHERE evidence.video_id = :video_id "
                     "AND evidence.availability = :availability "
+                    "AND evidence.lineage_kind = 'ORIGINAL_TRANSCRIPT' "
                     "AND artifacts.video_id = :video_id "
                     "AND artifacts.deleted_at IS NULL "
                     "AND artifacts.kind = :artifact_kind "

@@ -668,7 +668,7 @@ def _normal_nvidia_authorization(
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 34
+    assert repository.initialize(now=NOW).version == 35
     return repository
 
 
@@ -1020,7 +1020,7 @@ def test_successful_no_new_intelligence_is_durable_and_non_redispatchable(
     assert usage.actual_model == "deterministic-v1"
 
     restarted = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert restarted.initialize(now=NOW).version == 34
+    assert restarted.initialize(now=NOW).version == 35
     persisted = restarted.get_distillation_execution("exec-no-new")
     assert persisted is not None
     assert persisted.status == "SUCCEEDED_NO_NEW_INTELLIGENCE"
@@ -1689,7 +1689,7 @@ def test_fresh_database_reaches_current_schema_with_integrated_schema(tmp_path: 
 
     connection = repository._connect()
     try:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 34
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 35
         migrations = tuple(
             row["name"]
             for row in connection.execute("SELECT name FROM schema_migrations ORDER BY version")
@@ -1703,7 +1703,7 @@ def test_fresh_database_reaches_current_schema_with_integrated_schema(tmp_path: 
     finally:
         connection.close()
 
-    assert migrations[-19:] == (
+    assert migrations[-20:] == (
         "015_add_timed_transcript_evidence_bindings.sql",
         "016_add_ambiguous_resource_ledger_outcome.sql",
         "017_add_current_content_summary.sql",
@@ -1723,6 +1723,7 @@ def test_fresh_database_reaches_current_schema_with_integrated_schema(tmp_path: 
         "032_add_source_provider_authority.sql",
         "033_add_bilibili_provider.sql",
         "034_add_source_tracking.sql",
+        "035_align_no_new_canonical_evidence.sql",
     )
     assert "topics" in tables
     with repository._connect() as connection:
@@ -1944,8 +1945,8 @@ def test_v026_to_v028_preserves_nvidia_and_openai_audit_history(
         )
 
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 34
-    assert upgraded.initialize(now=NOW).version == 34
+    assert upgraded.initialize(now=NOW).version == 35
+    assert upgraded.initialize(now=NOW).version == 35
     with upgraded._connect() as connection:
         assert tuple(
             tuple(row)
@@ -2023,7 +2024,7 @@ def test_v009_upgrade_preserves_existing_product_data(tmp_path: Path, monkeypatc
     monkeypatch.undo()
 
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 34
+    assert upgraded.initialize(now=NOW).version == 35
     assert upgraded.get_source_subscription(source_id) is not None
     assert upgraded.get_preference(preference.preference_id) == preference
     assert upgraded.get_intelligence("preserved-intelligence") is not None
@@ -2086,7 +2087,7 @@ def test_v015_upgrade_preserves_ledger_rows_constraints_and_immutability(
     monkeypatch.undo()
 
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 34
+    assert upgraded.initialize(now=NOW).version == 35
     connection = upgraded._connect()
     try:
         after_row = tuple(
@@ -2278,7 +2279,7 @@ def test_v018_legacy_null_stance_keeps_old_card_hash_readable(
 
     monkeypatch.undo()
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 34
+    assert upgraded.initialize(now=NOW).version == 35
     relations = upgraded.list_intelligence_revision_evidence_relations(
         "legacy-revision-v18"
     )
@@ -3262,7 +3263,7 @@ def test_openai_consent_is_bound_to_one_execution_and_complete_15_evidence_input
     assert calls[0][1] == "synthetic-openai-secret"
 
     restarted = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert restarted.initialize(now=NOW).version == 34
+    assert restarted.initialize(now=NOW).version == 35
     assert restarted.get_cloud_execution_authorization(reservation.execution_id) == consent
     assert restarted.get_distillation_resource_usage(reservation.execution_id) == ledger
     assert service.continue_qualification_reserved_distillation(reservation.execution_id) == result
@@ -3324,7 +3325,7 @@ def test_openai_known_response_and_ambiguous_transport_accounting_are_distinct(
     assert calls == 1
 
     reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert reopened.initialize(now=NOW).version == 34
+    assert reopened.initialize(now=NOW).version == 35
     assert reopened.get_distillation_resource_usage(reservation.execution_id) == ledger
     replay = service.continue_qualification_reserved_distillation(reservation.execution_id)
     assert replay == result
@@ -3503,7 +3504,7 @@ def test_moonshot_k2_6_consent_positive_zero_and_restart_are_exactly_once(
     assert len(calls) == 1
 
     restarted_repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert restarted_repository.initialize(now=NOW).version == 34
+    assert restarted_repository.initialize(now=NOW).version == 35
     restarted = _service(restarted_repository, transport)  # type: ignore[arg-type]
     assert restarted.continue_qualification_reserved_distillation(
         reservation.execution_id
@@ -3799,7 +3800,7 @@ def test_moonshot_known_response_and_unknown_transport_accounting_are_distinct(
         assert calls == 1
 
         restarted_repository = SQLiteStateRepository(scoped / "state.sqlite3")
-        assert restarted_repository.initialize(now=NOW).version == 34
+        assert restarted_repository.initialize(now=NOW).version == 35
         restarted = _service(restarted_repository, transport)  # type: ignore[arg-type]
         assert restarted.continue_qualification_reserved_distillation(
             reservation.execution_id
@@ -3871,7 +3872,7 @@ def test_known_cloud_http_errors_keep_status_and_never_become_ambiguous(
     assert calls == 1
 
     restarted = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert restarted.initialize(now=NOW).version == 34
+    assert restarted.initialize(now=NOW).version == 35
     assert restarted.get_distillation_resource_usage(reservation.execution_id) == usage
     assert _service(restarted, transport).continue_qualification_reserved_distillation(
         reservation.execution_id
@@ -4146,7 +4147,7 @@ def test_moonshot_incomplete_stream_is_ambiguous_and_never_retried(
     assert calls == 1
 
     restarted_repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert restarted_repository.initialize(now=NOW).version == 34
+    assert restarted_repository.initialize(now=NOW).version == 35
     restarted = _service(restarted_repository, transport)  # type: ignore[arg-type]
     assert restarted.continue_qualification_reserved_distillation(
         reservation.execution_id
@@ -4321,7 +4322,7 @@ def test_v028_preserves_v027_moonshot_identity_unknown_history(
         )
 
     monkeypatch.setattr(legacy, "_load_migrations", lambda: migrations)
-    assert legacy.initialize(now=NOW).version == 34
+    assert legacy.initialize(now=NOW).version == 35
     with legacy._connect() as connection:
         assert tuple(
             connection.execute(
@@ -4379,7 +4380,7 @@ def test_definite_cloud_http_response_without_model_is_not_ambiguous(
     assert ledger.cost_microunits is None
     assert ledger in repository.list_distillation_resource_usage()
     reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert reopened.initialize(now=NOW).version == 34
+    assert reopened.initialize(now=NOW).version == 35
     assert reopened.get_distillation_resource_usage(reservation.execution_id) == ledger
     replay = _service(reopened, transport).continue_reserved_distillation(reservation.execution_id)  # type: ignore[arg-type]
     assert replay == first

@@ -31,7 +31,7 @@ NOW = datetime(2026, 9, 12, 9, 0, tzinfo=UTC)
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 34
+    assert repository.initialize(now=NOW).version == 35
     return repository
 
 
@@ -108,7 +108,7 @@ def test_v014_upgrade_reaches_v19_without_backfilling_legacy_evidence(
         )
     finally:
         connection.close()
-    assert repository.initialize(now=NOW).version == 34
+    assert repository.initialize(now=NOW).version == 35
     assert repository.resolve_verified_evidence_text(evidence.evidence_id) is None
 
 

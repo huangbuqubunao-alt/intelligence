@@ -68,7 +68,7 @@ export function BilibiliImport({ onClose, onSaved, onProvider }: {
     <p>{t("Import one public Bilibili video. This does not follow its creator. No account or cookies are needed.")}</p>
     {!result && <form onSubmit={event => { event.preventDefault(); void submit(); }}>
       <label className="field">{t("Bilibili video URL or BV id")}<input autoFocus aria-label={t("Bilibili video URL or BV id")} value={input} maxLength={2048} disabled={busy} onChange={event => setInput(event.target.value)} placeholder="https://www.bilibili.com/video/BV…/" /></label>
-      <p className="hint">{t("Only public metadata and available timed captions are retrieved. Captions keep their original text and language.")}</p>
+      <p className="hint">{t("Bilibili public captions are currently unavailable. Imports save public metadata only; no speech transcription or creator following.")}</p>
       <button className="button button-primary" disabled={busy || !input.trim()}>{t(busy ? "Importing public video…" : "Import public video")}</button>
     </form>}
     {error && <p role="alert" className="form-error">{t(error)}</p>}
@@ -96,7 +96,7 @@ export function BilibiliCaptionStatus({ id, status, onCompleted }: { id: string;
   };
   return <div className="semantic-state state-neutral" aria-live="polite">
     <p>{t(status === "READY" ? "These are stored original Bilibili timed captions. Reading them does not contact Bilibili." : noCaptionCopy)}</p>
-    {status !== "READY" && <><p>{t(bilibiliStatus(status))}</p><button className="button button-secondary" disabled={busy || status === "SOURCE_UNAVAILABLE"} onClick={() => void retry()}>{t(busy ? "Checking public captions…" : "Retry public captions")}</button></>}
+    {status !== "READY" && <><p>{t(bilibiliStatus(status))}</p><p className="hint">{t("Public Bilibili captions are currently unavailable. This import saves video information only.")}</p><button className="button button-secondary" disabled={true} onClick={() => void retry()}>{t(busy ? "Checking public captions…" : "Retry public captions")}</button></>}
     {error && <p role="alert">{t(error)}</p>}
   </div>;
 }

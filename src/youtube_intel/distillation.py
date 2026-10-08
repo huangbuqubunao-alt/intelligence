@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import secrets
 import time
 import urllib.error
@@ -2294,6 +2295,7 @@ class PersonalizedDistillationService:
     _RESERVED_NOT_DISPATCHED = "RESERVED_NOT_DISPATCHED"
     _DISPATCH_CLAIMED = "DISPATCH_CLAIMED"
     _RESERVATION_REASON = "SOURCE_RUN_PERSONALIZED_DISTILLATION"
+    _MANUAL_CONTENT_PREFIX = "MANUAL_CONTENT:"
     _RESERVATION_USE_CASE = "PERSONALIZED_INTELLIGENCE"
 
     def __init__(
@@ -2475,17 +2477,22 @@ class PersonalizedDistillationService:
         output_language: ScoringOutputLanguage,
         verified_input_hash: str,
         cloud_request_profile_version: str | None = None,
+        reason: str | None = None,
     ) -> str:
         canonical = json.dumps(
             {
                 "evidence_ids": evidence_ids,
                 **(
-                    {"local_prompt_version": OllamaLocalDistillationTransport._PROMPT_VERSION}
+                    {
+                        "local_prompt_version": OllamaLocalDistillationTransport._PROMPT_VERSION
+                    }
                     if selected_provider == "ollama"
                     else {}
                 ),
                 **(
-                    {"cloud_prompt_version": NvidiaNimCloudDistillationTransport._PROMPT_VERSION}
+                    {
+                        "cloud_prompt_version": NvidiaNimCloudDistillationTransport._PROMPT_VERSION
+                    }
                     if selected_provider == _NVIDIA_NIM_PROVIDER
                     else {}
                 ),
@@ -2509,7 +2516,7 @@ class PersonalizedDistillationService:
                     == (_MOONSHOT_K26_PROVIDER, _MOONSHOT_K26_MODEL)
                     else {}
                 ),
-                "reason": PersonalizedDistillationService._RESERVATION_REASON,
+                "reason": reason or PersonalizedDistillationService._RESERVATION_REASON,
                 "selected_model": selected_model,
                 "selected_provider": selected_provider,
                 "output_language": output_language,
@@ -2552,8 +2559,13 @@ class PersonalizedDistillationService:
         return canonical
 
     def _reserved_command(
-        self, *, source_id: str, video_id: str, evidence_ids: tuple[str, ...],
+        self,
+        *,
+        source_id: str,
+        video_id: str,
+        evidence_ids: tuple[str, ...],
         output_language: ScoringOutputLanguage,
+        reason: str | None = None,
     ) -> tuple[DistillationCommand, VerifiedDistillationInput]:
         if output_language not in {"zh-CN", "en"}:
             raise ValueError("distillation output language is unsupported")
@@ -2562,7 +2574,7 @@ class PersonalizedDistillationService:
             source_id=source_id,
             video_id=video_id,
             evidence_ids=evidence_ids,
-            reason=self._RESERVATION_REASON,
+            reason=reason or self._RESERVATION_REASON,
             use_case=self._RESERVATION_USE_CASE,
             selected_provider=self._selected_provider,
             selected_model=self._selected_model,
@@ -2581,6 +2593,7 @@ class PersonalizedDistillationService:
                     selected_model=self._selected_model,
                     output_language=output_language,
                     verified_input_hash=verified_input.semantic_hash,
+                    reason=reason,
                     cloud_request_profile_version=(
                         getattr(self._transport, "_REQUEST_PROFILE_VERSION", None)
                         if self._selected_provider == _MOONSHOT_K26_PROVIDER
@@ -2607,7 +2620,12 @@ class PersonalizedDistillationService:
         )
 
     def reserve_distillation_execution(
-        self, *, source_id: str, video_id: str, evidence_ids: tuple[str, ...]
+        self,
+        *,
+        source_id: str,
+        video_id: str,
+        evidence_ids: tuple[str, ...],
+        manual_command_id: str | None = None,
     ) -> DistillationReservation:
         """Mint the sole canonical execution identity before any dispatch exists.
 
@@ -2615,6 +2633,15 @@ class PersonalizedDistillationService:
         transcript evidence set.  That lets a later process rebuild and verify
         the exact command from m010/Evidence persistence rather than memory.
         """
+        reason = self._RESERVATION_REASON
+        if manual_command_id is not None:
+            if re.fullmatch(r"[A-Za-z0-9._:-]{1,80}", manual_command_id) is None:
+                raise ValueError("manual Content command identity is invalid")
+            if not self._manual_content_ready(source_id, video_id):
+                raise ValueError(
+                    "manual Content requires completed trusted source material"
+                )
+            reason = self._MANUAL_CONTENT_PREFIX + manual_command_id
         canonical_evidence = self._canonical_reservation_evidence(
             video_id=video_id, evidence_ids=evidence_ids
         )
@@ -2623,6 +2650,7 @@ class PersonalizedDistillationService:
             video_id=video_id,
             selected_provider=self._selected_provider,
             selected_model=self._selected_model,
+            reason=reason,
         )
         if existing_reservation is not None:
             language = existing_reservation.output_language
@@ -2635,13 +2663,14 @@ class PersonalizedDistillationService:
                 video_id=video_id,
                 evidence_ids=canonical_evidence,
                 output_language=cast(ScoringOutputLanguage, language),
+                reason=reason,
             )
             if not self._same_execution_identity(existing_reservation, command):
                 raise StateStoreError("distillation reservation identity conflicts")
             return DistillationReservation(
-            execution_id=existing_reservation.execution_id,
-            source_id=existing_reservation.source_id,
-            video_id=existing_reservation.video_id,
+                execution_id=existing_reservation.execution_id,
+                source_id=existing_reservation.source_id,
+                video_id=existing_reservation.video_id,
             )
         output_language_value = self._output_language_for_video(video_id)
         if output_language_value not in {"zh-CN", "en"}:
@@ -2652,19 +2681,22 @@ class PersonalizedDistillationService:
             source_id=source_id,
             video_id=video_id,
             evidence_ids=canonical_evidence,
-            reason=self._RESERVATION_REASON,
+            reason=reason,
             use_case=self._RESERVATION_USE_CASE,
             selected_provider=self._selected_provider,
             selected_model=self._selected_model,
             output_language=output_language,
         )
-        if not self._eligible(provisional):
+        if manual_command_id is None and not self._eligible(provisional):
             raise ValueError("reservation source/video is not eligible")
         if not self._legal_evidence(provisional):
             raise ValueError("reservation evidence is not legal")
         command, _ = self._reserved_command(
-            source_id=source_id, video_id=video_id, evidence_ids=canonical_evidence,
+            source_id=source_id,
+            video_id=video_id,
+            evidence_ids=canonical_evidence,
             output_language=output_language,
+            reason=reason,
         )
         existing = self._repository.get_distillation_execution(command.execution_id)
         if existing is None:
@@ -2692,20 +2724,24 @@ class PersonalizedDistillationService:
                         video_id=video_id,
                         selected_provider=self._selected_provider,
                         selected_model=self._selected_model,
+                        reason=reason,
                     )
                     if raced is not None and raced.output_language in {"zh-CN", "en"}:
                         command, _ = self._reserved_command(
                             source_id=source_id,
                             video_id=video_id,
                             evidence_ids=canonical_evidence,
+                            reason=reason,
                             output_language=cast(
                                 ScoringOutputLanguage, raced.output_language
                             ),
                         )
-                        existing = self._repository.get_distillation_execution(command.execution_id)
+                        existing = self._repository.get_distillation_execution(
+                            command.execution_id
+                        )
         if existing is None or not self._same_execution_identity(existing, command):
             raise StateStoreError("distillation reservation identity conflicts")
-        if not (
+        if manual_command_id is None and not (
             existing.status == "PENDING"
             and existing.budget_state == self._RESERVED_NOT_DISPATCHED
             and existing.invocation_count == 0
@@ -3121,16 +3157,29 @@ class PersonalizedDistillationService:
             or record.selected_model != self._selected_model
             or record.output_language not in {"zh-CN", "en"}
         ):
-            raise ValueError("reserved execution model identity does not match TASK-022 transport")
-        evidence_ids = self._repository.list_canonical_coverage_evidence_ids(record.video_id)
+            raise ValueError(
+                "reserved execution model identity does not match TASK-022 transport"
+            )
+        if (
+            record.reason != self._RESERVATION_REASON
+            and re.fullmatch(r"MANUAL_CONTENT:[A-Za-z0-9._:-]{1,80}", record.reason)
+            is None
+        ):
+            raise ValueError("reserved execution reason is invalid")
+        evidence_ids = self._repository.list_canonical_coverage_evidence_ids(
+            record.video_id
+        )
         command, verified_input = self._reserved_command(
             source_id=record.source_id,
             video_id=record.video_id,
             evidence_ids=evidence_ids,
             output_language=cast(ScoringOutputLanguage, record.output_language),
+            reason=record.reason,
         )
         if not self._same_execution_identity(record, command):
-            raise StateStoreError("reserved execution context is not persistently reconstructible")
+            raise StateStoreError(
+                "reserved execution context is not persistently reconstructible"
+            )
         return command, verified_input
 
     def _close_claimed_reservation_as_ambiguous(
@@ -3281,11 +3330,38 @@ class PersonalizedDistillationService:
             return self._recover_reserved_execution(projection.execution_id)
         return self._dispatch_and_admit(projection, verified_input, decision)
 
+    def _manual_content_ready(self, source_id: str, video_id: str) -> bool:
+        source = self._repository.get_source_subscription(source_id)
+        video = self._repository.get_video(video_id)
+        return bool(
+            source is not None
+            and video is not None
+            and video.provider == "YOUTUBE"
+            and video.availability is Availability.PUBLIC
+            and self._repository.source_has_video(source_id, video_id)
+            and self._repository.get_verified_timed_transcript(video_id=video_id) is not None
+            and self._repository.current_local_summary_pointer(video_id) is not None
+        )
+
     def _eligible(self, command: DistillationCommand) -> bool:
         source = self._repository.get_source_subscription(command.source_id)
-        if source is None or not source.enabled:
+        if source is None:
             return False
-        decision = self._repository.current_filter_decision(command.source_id, command.video_id)
+        if (
+            re.fullmatch(r"MANUAL_CONTENT:[A-Za-z0-9._:-]{1,80}", command.reason)
+            is not None
+        ):
+            record = self._repository.get_distillation_execution(command.execution_id)
+            return bool(
+                record is not None
+                and self._same_execution_identity(record, command)
+                and self._manual_content_ready(command.source_id, command.video_id)
+            )
+        if not source.enabled:
+            return False
+        decision = self._repository.current_filter_decision(
+            command.source_id, command.video_id
+        )
         return decision is not None and decision.outcome is FilterOutcome.RELEVANT
 
     def _legal_evidence(self, command: DistillationCommand) -> bool:

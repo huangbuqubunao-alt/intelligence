@@ -49,6 +49,7 @@ export function ModelSettings({ credential, preference, onSaved, message, setMes
   return <section className="panel" aria-label={t("Model configuration")}>
     <h2>{t("Model configuration")}</h2>
     <p className="hint">{t("Configured, reachable, qualified and production eligible are separate states. Settings cannot qualify a model.")}</p>
+    <details><summary>{t("Experimental candidate preferences")}</summary>
     <h3>{t("Local model candidates")}</h3>
     <p>{t(reachable ? "Local model discovery is reachable." : "Local model discovery is unavailable. Existing library data remains readable.")}</p>
     <label className="field">{t("Discovered candidate")}
@@ -63,6 +64,7 @@ export function ModelSettings({ credential, preference, onSaved, message, setMes
       <button type="button" disabled={busy || !models.some(model => model.model === candidate)} onClick={() => void run("candidate")}>{t("Save candidate preference")}</button>
     </div>
     <p className="hint">{t("This preference changes neither the configured Scoring/Summary model nor reviewed Deep Analysis qualification.")}</p>
+    </details>
     <h3>{t("Cloud Intelligence credential")}</h3>
     <p>Moonshot / kimi-k2.6 · {t("Video Distillation only")}</p>
     <p>{t(credential?.source === "KEYCHAIN" ? "Configured in macOS Keychain" : credential?.source === "ENVIRONMENT" ? "Using development environment variable" : credential?.source === "UNAVAILABLE" ? "System credential store is unavailable." : "Not configured")}</p>

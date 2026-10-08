@@ -70,3 +70,37 @@ def test_identity_is_content_based_including_dirty_source(tmp_path: Path) -> Non
         after = launcher.build_identity(root)
         (root / 'frontend/dist/index.html').write_text('build output')
         assert launcher.build_identity(root) == after
+
+
+def test_healthy_launcher_receipt_only_reused_for_current_identity(tmp_path: Path) -> None:
+    from io import BytesIO
+    root = workspace(tmp_path)
+    owner = root / '.var/owner'
+    owner.mkdir(parents=True)
+    identity = {'revision': 'accepted-main', 'source_sha256': 'source'}
+    (owner / 'launcher.json').write_text(json.dumps({'pids': [123, 456], 'build_identity': identity}))
+    class Response(BytesIO):
+        status = 200
+    def get(url, **kwargs):
+        return Response(b'{"runtime":{"demo_data":false}}' if '/api/' in url else b'current interface')
+    with patch.object(launcher, 'prepare_frontend', return_value=identity), patch.object(launcher, 'prepare_workspace', return_value=owner), patch.object(launcher, 'urlopen', side_effect=get), patch.object(launcher.subprocess, 'Popen') as start:
+        assert launcher.launch(root, open_browser=False) == 'http://127.0.0.1:5488/'
+        start.assert_not_called()
+
+
+def test_healthy_old_launcher_cannot_be_reused_when_revision_changes(tmp_path: Path) -> None:
+    from io import BytesIO
+    root = workspace(tmp_path)
+    owner = root / '.var/owner'
+    owner.mkdir(parents=True)
+    (owner / 'launcher.json').write_text(json.dumps({'pids': [], 'build_identity': {'revision': 'october3'}}))
+    class Response(BytesIO):
+        status = 200
+    def get(url, **kwargs):
+        return Response(b'{"runtime":{"demo_data":false}}' if '/api/' in url else b'old interface')
+    with patch.object(launcher, 'prepare_frontend', return_value={'revision': 'adopted-main'}), patch.object(launcher, 'prepare_workspace', return_value=owner), patch.object(launcher, 'urlopen', side_effect=get), patch.object(launcher, 'stop') as stop, patch.object(launcher.socket, 'socket'):
+        # A fresh process cannot start in the unprepared fixture. It must never
+        # succeed by reusing a healthy but stale receipt.
+        with pytest.raises(RuntimeError, match='prepared'):
+            launcher.launch(root, open_browser=False)
+        stop.assert_called_once_with(root)

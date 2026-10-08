@@ -147,7 +147,7 @@ export function FollowCreatorFromContent({ id, capability: suppliedCapability, p
 
 type Detail = {
   source: { provider?: string; source_id: string; display_name: string | null; canonical_url: string; enabled: boolean;
-    last_checked_at: string | null; last_success_at: string | null; last_error_code?: string | null; tracking: Tracking };
+    processing_mode?: "ORGANIZE_CONTENT" | "EXTRACT_INTELLIGENCE"; last_checked_at: string | null; last_success_at: string | null; last_error_code?: string | null; tracking: Tracking };
   recent_videos: { video_id: string; title: string | null; processing_status: string }[];
   source_runs: { run_id?: string; state: string }[];
 };
@@ -210,6 +210,14 @@ export function CreatorFollowingDetail({ id, capability, onClose, onRefresh }: {
     {off && <UnavailableNotice state={capability} creator />}
     {source && <>
       <p>{t(source.provider === "YOUTUBE" ? "YouTube" : "Bilibili")} · {off ? t("Continuous creator tracking is currently unavailable") : source.enabled ? t("Monitoring new videos") : t("Monitoring is paused")}</p>
+      {source.provider === "YOUTUBE" && <label className="field">{t("When new content is found")}
+        <select aria-label={t("When new content is found")} value={source.processing_mode ?? "ORGANIZE_CONTENT"} disabled={busy} onChange={async event => {
+          setBusy(true); setMessage(null);
+          try { await patch(`/sources/${id}`, { processing_policy: event.target.value === "ORGANIZE_CONTENT" ? "DISCOVER_ONLY" : "STANDARD_INTELLIGENCE" }); setRevision(value => value + 1); onRefresh(); setNotice("Saved"); }
+          catch { setMessage("The source could not be checked. Try again later."); }
+          finally { setBusy(false); }
+        }}><option value="ORGANIZE_CONTENT">{t("Organize content")}</option><option value="EXTRACT_INTELLIGENCE">{t("Also extract Intelligence")}</option></select>
+      </label>}
       <a href={source.canonical_url} target="_blank" rel="noreferrer">{t("Open Source")}</a>
       <dl className="creator-tracking">
         <dt>{t(off ? "Last recorded source health" : "Source health")}</dt><dd>{t(trackingCopy(source.tracking.health, source.provider))}</dd>

@@ -129,6 +129,9 @@ class PersistedSourceRunDiscovery:
                 video_type=VideoType.STANDARD,
             )
             for video in self._repository.list_source_videos(source_id, limit=100)
+            if not is_tracked(self._repository, source_id)
+            or (self._repository.get_verified_timed_transcript(video_id=video.video_id) is not None
+                and self._repository.current_local_summary_pointer(video.video_id) is not None)
         )
 
 

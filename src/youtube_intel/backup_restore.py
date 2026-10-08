@@ -38,7 +38,7 @@ from .state import SQLiteStateRepository
 
 FORMAT_NAME = "intelligence-core-backup"
 FORMAT_VERSION = 1
-LATEST_SCHEMA_VERSION = 34
+LATEST_SCHEMA_VERSION = 35
 MAX_ARCHIVE_BYTES = 512 * 1024 * 1024
 MAX_ARCHIVE_FILES = 10_002
 MAX_MEMBER_BYTES = 512 * 1024 * 1024
@@ -843,7 +843,7 @@ class BackupRestoreService:
             raise BackupRestoreError("Backup manifest fields are incomplete or unsupported.")
         if manifest.get("format") != FORMAT_NAME or manifest.get("format_version") != FORMAT_VERSION:
             raise BackupRestoreError("Backup format is incompatible.")
-        if manifest.get("schema_version") != LATEST_SCHEMA_VERSION:
+        if manifest.get("schema_version") not in {34, LATEST_SCHEMA_VERSION}:
             raise BackupRestoreError("Backup database schema is incompatible.")
         if not isinstance(manifest.get("application_version"), str) or not isinstance(
             manifest.get("created_at"), str
@@ -1041,7 +1041,7 @@ class BackupRestoreService:
         if not _REQUIRED_TABLES <= tables:
             raise BackupRestoreError("SQLite database is missing required Intelligence tables.")
         version_row = connection.execute("PRAGMA user_version").fetchone()
-        if version_row is None or int(version_row[0]) != LATEST_SCHEMA_VERSION:
+        if version_row is None or int(version_row[0]) not in {34, LATEST_SCHEMA_VERSION}:
             raise BackupRestoreError("SQLite database schema is not compatible with this version.")
         for table in tables:
             quoted = table.replace('"', '""')
@@ -1049,8 +1049,8 @@ class BackupRestoreService:
                 if _SECRET_COLUMN.search(str(column[1])):
                     raise BackupRestoreError("Database schema contains a credential-like field; backup is disabled.")
         repository = SQLiteStateRepository(self.database)
-        migrations = repository._load_migrations()
-        if not migrations or migrations[-1].version != LATEST_SCHEMA_VERSION:
+        migrations = tuple(item for item in repository._load_migrations() if item.version <= int(version_row[0]))
+        if not migrations or migrations[-1].version != int(version_row[0]):
             raise BackupRestoreError("Application migration lineage is inconsistent.")
         try:
             history = repository._verify_history(connection, migrations)

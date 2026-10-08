@@ -663,14 +663,15 @@ def test_migration34_failure_is_atomic_and_upgrade_preserves_bilibili_authority(
     imported = publisher.import_input(BV)
     before = repo.get_verified_timed_transcript(video_id=imported.content_id)
     evidence = repo.list_evidence_for_presentation(imported.content_id)
-    broken = replace(migrations[-1], sql=migrations[-1].sql + "\nCREATE TABLE invalid_syntax(;", checksum="f" * 64)
+    migration34 = next(migration for migration in migrations if migration.version == 34)
+    broken = replace(migration34, sql=migration34.sql + "\nCREATE TABLE invalid_syntax(;", checksum="f" * 64)
     monkeypatch.setattr(repo, "_load_migrations", lambda: (*old, broken))
     with pytest.raises(MigrationError, match="failed to apply migration 34"):
         repo.initialize(now=NOW)
     assert repo.schema_version().version == 33
     assert repo.get_verified_timed_transcript(video_id=imported.content_id) == before
     monkeypatch.setattr(repo, "_load_migrations", lambda: migrations)
-    assert repo.initialize(now=NOW).version == 34
+    assert repo.initialize(now=NOW).version == 35
     assert repo.get_verified_timed_transcript(video_id=imported.content_id) == before
     assert repo.list_evidence_for_presentation(imported.content_id) == evidence
 

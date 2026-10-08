@@ -142,6 +142,19 @@ class ModelSettingsService:
     def delete_credential(self) -> None:
         self._store.delete()
 
+    def runtime_status(self, model: str, expected_digest: str) -> dict[str, object]:
+        """Read-only discovery validates the configured identity; never infer or pull."""
+        try:
+            payload = self._tags_fetch()
+            if not isinstance(payload, dict) or not isinstance(payload.get("models"), list):
+                raise ValueError("Invalid local model discovery response")
+            models = payload["models"]
+            installed = next((item for item in models if isinstance(item, dict) and item.get("name") == model), None)
+            valid = installed is not None and isinstance(installed.get("digest"), str) and installed.get("digest") in {expected_digest, expected_digest.removeprefix("sha256:")}
+            return {"model": model, "status": "READY" if valid else "DIGEST_MISMATCH" if installed else "NOT_INSTALLED", "installed": installed is not None, "digest_valid": valid}
+        except (OSError, ValueError, UnicodeError):
+            return {"model": model, "status": "UNREACHABLE", "installed": False, "digest_valid": False}
+
     def discovered_models(self) -> dict[str, object]:
         try:
             payload = self._tags_fetch()

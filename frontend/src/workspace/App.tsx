@@ -164,6 +164,7 @@ type ContentItem = {
 type ContentDetail = {
   video: ContentItem;
   cloud_intelligence_available?: boolean;
+  manual_intelligence_eligible?: boolean;
   transcript: {
     timed_segments?: { start_ms: number; end_ms: number; text: string }[];
     status: string;
@@ -375,6 +376,7 @@ function statusLabel(value: string) {
     ORGANIZING: "Organizing content…",
     ORGANIZED: "Completed",
     RETRY_PENDING: "Will retry later",
+    RETRY_REQUIRED: "Retry needed",
     AVAILABLE: "Available",
     UNAVAILABLE: "Unavailable",
     ENABLED: "Monitoring on",
@@ -580,8 +582,13 @@ export function intelligenceValidationCopy(state: string) {
 }
 export function intelligenceResultCopy(status: string) {
   return ({
+    WAITING: "Analysis is waiting for interest rules or another prerequisite. Organized Content remains available.",
+    DEFERRED: "Analysis is waiting for interest rules or another prerequisite. Organized Content remains available.",
+    NEEDS_ATTENTION: "Analysis needs attention. Review the Content processing history and retry when ready.",
+    FAILED: "Analysis needs attention. Review the Content processing history and retry when ready.",
     NOT_PROCESSED: "This Content has not been processed for Intelligence yet.",
     PENDING: "Analysis has not reached a trusted terminal result.",
+    WAITING_CONTENT: "Intelligence is waiting for readable Content and trusted source references.",
     WAITING_MODEL: "The current local model cannot reliably create high-quality Intelligence. Your Summary and original Evidence remain available. Cloud Intelligence requires a separate review and explicit authorization.",
     WAITING_BUDGET: "Analysis is waiting for approved budget or resources. Review Settings and the Content processing history.",
     REJECTED_INELIGIBLE: "This Content was not eligible for this Intelligence run. Review the Content processing history for the recorded reason.",
@@ -1360,7 +1367,7 @@ function IntelligencePage(
   const { t } = useUiLanguage();
   const [view, setView] = useState<"Current" | "Saved">("Current");
   const [revision, setRevision] = useState(0);
-  const current = useRemote<{ intelligence: Intelligence[] }>(
+  const current = useRemote<{ intelligence: Intelligence[]; activity?: { video_id: string; title: string; status: string }[] }>(
     "/intelligence",
     refresh + revision,
   );
@@ -1392,6 +1399,12 @@ function IntelligencePage(
           </button>
         ))}
       </div>
+      {view === "Current" && current.data?.activity?.length ? <Panel title="Analysis activity">
+        {current.data.activity.map(item => <article className="metadata-row" key={`${item.video_id}:${item.status}`}>
+          <div><strong>{item.title}</strong><p>{t(intelligenceResultCopy(item.status))}</p>
+            <button className="button button-secondary" onClick={() => openContent(item.video_id)}>{t("Open Content")}</button></div>
+        </article>)}
+      </Panel> : null}
       {view === "Current" && (!current.data
         ? <Empty>Loading verified Intelligence…</Empty>
         : currentAvailable.length
@@ -1404,7 +1417,7 @@ function IntelligencePage(
             onOpenContent={openContent}
           />
         ))
-        : <Empty>No verified Intelligence yet.</Empty>)}
+        : current.data.activity?.length ? null : <Empty>No verified Intelligence yet.</Empty>)}
       {view === "Saved" && (!saved.data
         ? <Empty>Loading saved Intelligence…</Empty>
         : saved.data.saved.length
@@ -1534,6 +1547,8 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
   } | null>(null);
   const [cloudBusy, setCloudBusy] = useState(false);
   const [cloudError, setCloudError] = useState<string | null>(null);
+  const [retryBusy, setRetryBusy] = useState(false);
+  const [retryFeedback, setRetryFeedback] = useState<string | null>(null);
   useEffect(() => {
     if (!data || !["WAITING", "FETCHING", "READING_CAPTIONS", "ORGANIZING", "TRANSCRIPT_READY", "RETRY_PENDING", "RUNNING", "PENDING"].includes(data.video.processing_status)) return;
     const timer = setTimeout(() => setRefresh(value => value + 1), 2000);
@@ -1578,6 +1593,7 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
           )
           : null}
       </Panel>
+      {data.video.source_id && ["RETRY_REQUIRED", "FAILED"].includes(data.video.processing_status) && <Panel title="Processing needs attention"><p>{t("Processing needs attention. Retry this Content when the connection is available.")}</p><button className="button button-secondary" disabled={retryBusy} onClick={async () => { setRetryBusy(true); setRetryFeedback(null); try { await post(`/sources/${data.video.source_id}/check`, { command_id: commandId() }); setRetryFeedback("Retry accepted. Processing status will update here."); setRefresh(value => value + 1); } catch { setRetryFeedback("The source could not be checked. Try again later."); } finally { setRetryBusy(false); } }}>{t(retryBusy ? "Retrying…" : "Retry")}</button>{retryFeedback && <p role="status">{t(retryFeedback)}</p>}</Panel>}
       {isBilibili && data.video.processing_status !== "SOURCE_UNAVAILABLE" && <FollowCreatorFromContent id={id} capability={creatorCapability} />}
       {data.video.provider === "YOUTUBE" && data.video.channel_id && /^UC[A-Za-z0-9_-]{22}$/.test(data.video.channel_id) && <FollowCreatorFromContent id={id} provider="YOUTUBE" />}
       <Panel title={data.video.provider === "LOCAL" && data.video.media_kind === "TEXT" ? "Source text" : "Transcript"}>
@@ -1682,6 +1698,16 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
         <div className="semantic-state state-neutral">
           <Status value={data.intelligence_result.status} />
           <p>{t(intelligenceResultCopy(data.intelligence_result.status))}</p>
+          {data.manual_intelligence_eligible && <div className="button-row">
+            <button type="button" className="button button-primary" disabled={cloudBusy} onClick={async () => {
+              setCloudBusy(true); setCloudError(null);
+              try { await post(`/videos/${id}/intelligence`, { command_id: commandId() }); setRefresh(value => value + 1); }
+              catch { setCloudError(t("Intelligence could not start. Check model readiness and try again.")); }
+              finally { setCloudBusy(false); }
+            }}>{t(cloudBusy ? "Considering Content…" : "Extract Intelligence")}</button>
+            <p className="hint">{t("Uses qualified local processing when available. Cloud processing requires a separate review and explicit authorization.")}</p>
+          </div>}
+          {cloudError ? <p role="alert">{cloudError}</p> : null}
           {data.intelligence_result.status === "WAITING_MODEL" && data.cloud_intelligence_available === false
             ? <p>{t("Cloud Intelligence is currently unavailable because the provider or its runtime credential is unavailable. Existing Summary and Evidence remain usable.")}</p>
             : null}
@@ -1719,7 +1745,7 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
                                 setCloudError(null);
                                 try {
                                   const response = await post<{ review: NonNullable<typeof cloudReview> }>(
-                                    `/videos/${id}/cloud-intelligence/review`, {},
+                                    `/videos/${id}/cloud-intelligence/review`, data.manual_intelligence_eligible ? { command_id: commandId() } : {},
                                   );
                                   setCloudReview(response.review);
                                 } catch (reason) {
@@ -2440,6 +2466,7 @@ function Sources(
     creatorCapability.capability !== null && !creatorCapability.capability.available;
   if (error) return <ErrorState error={error} />;
   if (!data) return <Empty>Loading Sources…</Empty>;
+  const followingSources = data.sources.filter(source => source.source_type !== "VIDEO_URL");
   return (
     <>
       {creatorFollowingWithdrawn && <p className="hint" role="status">{t("Continuous Bilibili creator tracking is currently unavailable. You can still add public Bilibili videos.")}</p>}
@@ -2452,7 +2479,7 @@ function Sources(
         </button>
       </div>
       {rowMessage && <p role="status" aria-live="polite">{t(rowMessage)}</p>}
-      {data.sources.length
+      {followingSources.length
         ? (
           <div className="source-list">
             <label className="field">{t("Following filter")}<select value={filter} onChange={event => setFilter(event.target.value)}>
@@ -2460,7 +2487,7 @@ function Sources(
               <option value="insights">{t("Produces new insights")}</option><option value="attention">{t("Needs attention")}</option>
               <option value="paused">{t("Paused")}</option>
             </select></label>
-            {data.sources.filter(source => !source.tracking_parent_source_ids?.length).filter(source => filter === "all" || (filter === "updates" && (source.tracking?.update_count ?? 0) > 0)
+            {followingSources.filter(source => !source.tracking_parent_source_ids?.length).filter(source => filter === "all" || (filter === "updates" && (source.tracking?.update_count ?? 0) > 0)
               || (filter === "insights" && (source.insight_count ?? 0) > 0)
               || (filter === "attention" && Boolean((source.source_type === "CHANNEL" && !source.tracking) || (source.provider === "BILIBILI" && source.tracking && creatorFollowingWithdrawn) || source.last_error || (source.tracking?.pending_count ?? 0) > 0 || (source.tracking?.processing_count ?? 0) > 0 || (source.tracking?.unavailable_count ?? 0) > 0))
               || (filter === "paused" && !source.enabled)).map((source) => (
@@ -2546,7 +2573,7 @@ function ruleList(value: string) {
 function SourceForm(props: Parameters<typeof ExistingSourceForm>[0]) {
   return props.source ? <ExistingSourceForm {...props} /> : <AddEntry onClose={props.onClose} onSaved={props.onSaved} initialLocal={props.initialProvider === "LOCAL"} />;
 }
-function ExistingSourceForm(
+export function ExistingSourceForm(
   { onClose, onSaved, source, policy, policyModes, schedules, initialProvider = "YOUTUBE" }: {
     initialProvider?: "YOUTUBE" | "LOCAL" | "BILIBILI";
     onClose: () => void;
@@ -2674,7 +2701,7 @@ function ExistingSourceForm(
           <button className="button button-secondary" aria-pressed={youtubeMode === "video"} onClick={() => setYoutubeMode("video")}>{t("Add one video")}</button>
           <button className="button button-secondary" aria-pressed={youtubeMode === "channel"} onClick={() => setYoutubeMode("channel")}>{t("Follow a channel")}</button>
         </div>}
-        {!source && youtubeMode === "channel" ? <CreatorFollowForm provider="YOUTUBE" onSaved={onSaved} /> : <form onSubmit={submit}>
+        {!source && youtubeMode === "channel" ? <CreatorFollowForm provider="YOUTUBE" onSaved={onSaved} /> : <form onSubmit={submit}><details><summary>{t("Advanced source configuration")}</summary>
           <label className="field">
             {t("Source URL")}<input
               aria-label={t("Source URL")}
@@ -2845,6 +2872,7 @@ function ExistingSourceForm(
               )
               : null}
           </Panel>
+          </details>
           {error && <ErrorState error={error} />}
           <div className="modal-actions">
             <button
@@ -3498,6 +3526,7 @@ function GlobalInterests({ policy, onSaved }: { policy: SourcePolicy; onSaved: (
   const [focus, setFocus] = useState(policy.focus_rules.join(", "));
   const [ignore, setIgnore] = useState(policy.ignore_rules.join(", "));
   const [style, setStyle] = useState(policy.distillation_style);
+  const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const save = async () => {
@@ -3512,6 +3541,7 @@ function GlobalInterests({ policy, onSaved }: { policy: SourcePolicy; onSaved: (
         ignore_rules: ruleList(ignore),
         distillation_style: style,
       });
+      setEditing(false);
       onSaved();
     } catch {
       setError(t("Preferences could not be saved."));
@@ -3521,6 +3551,7 @@ function GlobalInterests({ policy, onSaved }: { policy: SourcePolicy; onSaved: (
   };
   return <Panel title="My interests">
     <p className="hint">{t("These are defaults for future insight selection. A Following can use them or set its own focus. Summaries remain faithful to source content; existing insights and Topics do not change.")}</p>
+    {!editing ? <><p>{t("What I focus on")}: {policy.focus_rules.join(", ") || t("Not set")}</p><button className="button button-secondary" onClick={() => setEditing(true)}>{t("Edit interests")}</button></> : <>
     <label className="field">{t("What I focus on")}
       <input aria-label={t("What I focus on")} value={focus} onChange={(event) => setFocus(event.target.value)} placeholder={t("For example: AI Agent, language models, commercialization")} />
     </label>
@@ -3534,7 +3565,7 @@ function GlobalInterests({ policy, onSaved }: { policy: SourcePolicy; onSaved: (
       </select>
     </label>
     <button type="button" className="button button-primary" disabled={busy} onClick={save}>{t(busy ? "Saving…" : "Save preferences")}</button>
-    {error ? <p className="form-error" role="alert">{error}</p> : null}
+    {error ? <p className="form-error" role="alert">{error}</p> : null}</>}
   </Panel>;
 }
 
@@ -3543,6 +3574,9 @@ function Settings({ refresh }: { refresh: number }) {
   const { language, setLanguage, t } = useUiLanguage();
   const [revision, setRevision] = useState(0);
   const [savingLanguage, setSavingLanguage] = useState(false);
+  const [editingLanguage, setEditingLanguage] = useState(false);
+  const [interfaceDraft, setInterfaceDraft] = useState(language);
+  const [outputDraft, setOutputDraft] = useState<"zh-CN" | "en">("zh-CN");
   const [languageError, setLanguageError] = useState<string | null>(null);
   const settings = useRemote<{
     general: {
@@ -3552,6 +3586,8 @@ function Settings({ refresh }: { refresh: number }) {
       output_language_updated_at: string | null;
     };
     providers: ProviderStatus[];
+    runtime_local_model?: { model: string | null; status: string; installed?: boolean; digest_valid?: boolean };
+    content_processing?: { status: string; requires_cloud: boolean };
     cloud_credential?: { configured: boolean; source: string };
     model_preference?: { desired_provider: string | null; desired_model: string | null };
   }>(
@@ -3597,6 +3633,8 @@ function Settings({ refresh }: { refresh: number }) {
     setLanguageError(null);
     try {
       await put("/settings/output-language", { output_language: value });
+      setLanguage(interfaceDraft);
+      setEditingLanguage(false);
       setRevision((current) => current + 1);
     } catch (reason) {
       setLanguageError(
@@ -3610,49 +3648,29 @@ function Settings({ refresh }: { refresh: number }) {
   };
   return (
     <div className="settings-stack">
-      <Panel title="Editable preferences">
-        <label className="field">
-          {t("Interface language")}
-          <select
-            aria-label={t("Interface language")}
-            value={language}
-            onChange={(event) => setLanguage(event.target.value as "zh-CN" | "en")}
-          >
-            <option value="zh-CN">{t("Simplified Chinese")}</option>
-            <option value="en">English</option>
-          </select>
-        </label>
-        <p>{t("Changes navigation and controls only. Original source text is unchanged.")}</p>
-        <p className="hint">{t("Saved in this browser profile across app restarts; this interface preference is not included in a core-data Backup.")}</p>
-      </Panel>
-      <Panel title="Output language">
-        <label className="field">
-          {t("Preferred output language")}
-          <select
-            aria-label={t("Preferred output language")}
-            value={settings.data.general.output_language}
-            disabled={savingLanguage}
-            onChange={(event) =>
-              saveLanguage(event.target.value as "zh-CN" | "en")}
-          >
-            <option value="zh-CN">{t("Chinese (Simplified)")}</option>
-            <option value="en">English</option>
-          </select>
-        </label>
-        <p>
-          {t("New processing batches use this language for generated output. Existing Summary, Evidence, Intelligence, Topic, and historical records stay unchanged.")}
-        </p>
-        <p className="hint">
-          {settings.data.general.output_language_source === "USER_PREFERENCE"
-            ? t("Saved locally on this Mac.")
-            : t("Using the app default until you choose a preference.")}
-        </p>
-        {languageError ? <p className="form-error">{languageError}</p> : null}
+      <Panel title="Language">
+        {!editingLanguage ? <>
+          <p>{t("Interface language")}: {language === "zh-CN" ? "中文" : "English"} · {t("Generated output")}: {settings.data.general.output_language === "zh-CN" ? "中文" : "English"}</p>
+          <button className="button button-secondary" onClick={() => { setInterfaceDraft(language); setOutputDraft(settings.data!.general.output_language); setEditingLanguage(true); }}>{t("Edit language")}</button>
+        </> : <>
+          <label className="field">{t("Interface language")}<select aria-label={t("Interface language")} value={interfaceDraft} disabled={savingLanguage} onChange={event => setInterfaceDraft(event.target.value as "zh-CN" | "en")}><option value="zh-CN">中文</option><option value="en">English</option></select></label>
+          <label className="field">{t("Preferred output language")}<select aria-label={t("Preferred output language")} value={outputDraft} disabled={savingLanguage} onChange={event => setOutputDraft(event.target.value as "zh-CN" | "en")}><option value="zh-CN">中文</option><option value="en">English</option></select></label>
+          <button className="button button-primary" disabled={savingLanguage} onClick={() => void saveLanguage(outputDraft)}>{t(savingLanguage ? "Saving…" : "Save language")}</button>
+        </>}
+        <p className="hint">{t("Source language is detected automatically. Language choices apply to future output; existing content is preserved.")}</p>
+        {languageError ? <p className="form-error" role="alert">{languageError}</p> : null}
       </Panel>
       <GlobalInterests key={JSON.stringify(globalPolicy)} policy={globalPolicy} onSaved={() => setRevision(current => current + 1)} />
-      <Panel title="Source language">
-        <p>{t("Detected from each Content and its transcript. Original transcript and Evidence remain the provenance authority; this is not a global language preference.")}</p>
+      <Panel title="Models and processing">
+        <h3>{t("Content processing")}</h3><p>{t("Ready. Content is saved and organized locally when source text or captions are available. Cloud Intelligence is optional.")}</p>
+        <h3>{t("Currently used local model")}</h3><p>{settings.data.runtime_local_model?.model ?? localFoundation?.model ?? t("Not configured")} · {t(settings.data.runtime_local_model?.status === "READY" ? "Installed and ready" : "Readiness needs attention")}</p>
+        <p className="hint">{t("Scoring and model-based Summary use this runtime configuration. Candidate preferences in Advanced do not change it.")}</p>
+        <h3>{t("Intelligence")}</h3><p>{t(videoDistillation?.production_eligible ? "Optional cloud analysis is available after your authorization for each request." : videoDistillation?.credential_status === "BLOCKED" ? "Cloud Intelligence needs a credential and authorization. Content processing remains usable." : "Configure a qualified Intelligence model. Content processing remains usable.")}</p>
+        <details><summary>{t("Cloud setup and model details")}</summary><ModelSettings message={modelMessage} setMessage={setModelMessage} credential={settings.data.cloud_credential} preference={settings.data.model_preference} onSaved={() => setRevision(current => current + 1)} /></details>
       </Panel>
+      <BackupRestorePanel />
+      <Panel title="Data and privacy (read-only)"><p>{t("Local-first means local persistence by default. Credential values are never shown.")}</p></Panel>
+      <details className="settings-advanced"><summary>{t("Advanced and diagnostics")}</summary>
       <Panel title="Preference history (read-only)">
         <p className="hint">
           {t("Explicit means you directly chose it. Derived means the app inferred it from feedback. Temporary means it is used only until its expiry.")}
@@ -3684,7 +3702,6 @@ function Settings({ refresh }: { refresh: number }) {
             : `Default for Followings without their own configuration: initial history ${globalPolicy.initial_history_count}, per-run limit ${globalPolicy.per_run_max_new_videos}, ${STYLES.find(([value]) => value === globalPolicy.distillation_style)?.[1] ?? "Balanced"} style.`}
         </p>
       </Panel>
-      <ModelSettings message={modelMessage} setMessage={setModelMessage} credential={settings.data.cloud_credential} preference={settings.data.model_preference} onSaved={() => setRevision(current => current + 1)} />
       <Panel title="Models and cost (read-only)">
         <div className="capability-grid">
           {localFoundation && (
@@ -3782,12 +3799,7 @@ function Settings({ refresh }: { refresh: number }) {
             </Empty>
           )}
       </Panel>
-      <BackupRestorePanel />
-      <Panel title="Data and privacy (read-only)">
-        <p>
-          {t("Local-first means local persistence by default. Credential values are never shown.")}
-        </p>
-      </Panel>
+      </details>
     </div>
   );
 }

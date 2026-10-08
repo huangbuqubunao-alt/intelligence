@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import secrets
 import threading
 from contextlib import nullcontext
 from dataclasses import dataclass
@@ -91,13 +92,32 @@ class RuntimeSourceRunIngestion:
                 raise SourceRunDiscoveryError("Source check did not complete")
             return
         policy = self._source_policy.effective_policy(source_id)
+        if source is not None and source.video_id is not None and source.processing_policy.value == "DISCOVER_ONLY":
+            failed = self._runtime._repository.latest_video_job(source.video_id)
+            if (failed is not None and failed.status.value == "FAILED_FINAL"
+                and failed.target_stage is not None and failed.target_stage.value in {"METADATA", "TRANSCRIPT"}
+                and failed.last_error_code not in {"CAPABILITY_UNAVAILABLE", "TRUST_INTEGRITY_INVALID"}):
+                # This is an explicit one-time source check, with the same trust
+                # exclusions as normal retry, bounded strictly to Content stages.
+                from youtube_intel.runtime import _utcnow
+
+                now = _utcnow()
+                self._runtime._repository.rerun_job(failed.job_id, new_job_id="content-retry-" + secrets.token_hex(16), available_at=now, now=now)
         try:
             video_ids = self._runtime.ingest_source_to_transcript(
                 source_id,
                 limit=policy.per_run_max_new_videos,
             )
             from youtube_intel.extractive_summary import ExtractiveSummaryService
-            for video_id in video_ids:
+            # New Content-only imports organize without changing the established
+            # scoring/Summary pipeline of legacy STANDARD_INTELLIGENCE sources.
+            content_only = source is not None and source.processing_policy.value == "DISCOVER_ONLY"
+            for video_id in video_ids if content_only else ():
+                job = self._runtime._repository.latest_video_job(video_id)
+                if job is not None and job.status.value in {"RETRY_PENDING", "FAILED_FINAL"}:
+                    # A one-time import has no Following scheduler. Retain a
+                    # durable attention outcome and expose explicit retry.
+                    raise SourceRunDiscoveryError("Content processing needs attention")
                 if self._runtime._repository.get_verified_timed_transcript(video_id=video_id) is not None and self._runtime._repository.current_local_summary_pointer(video_id) is None:
                     ExtractiveSummaryService(self._runtime._repository, self._runtime._data_root).create(video_id, now=datetime.now(UTC))
         except Exception as error:
@@ -113,6 +133,31 @@ class RuntimeSourceRunPreparation:
         self._runtime = runtime
 
     def prepare(self, video_id: str) -> bool:
+        pointer = self._runtime._repository.current_local_summary_pointer(video_id)
+        if (
+            pointer is not None
+            and self._runtime._repository.get_verified_timed_transcript(
+                video_id=video_id
+            )
+            is not None
+        ):
+            from youtube_intel.extractive_summary import ExtractiveSummaryService
+
+            artifact = self._runtime._repository.get_artifact(pointer.artifact_id)
+            if artifact is not None and artifact.provider == "extractive-source":
+                try:
+                    ExtractiveSummaryService(
+                        self._runtime._repository, self._runtime._data_root
+                    ).read(video_id, pointer.artifact_id)
+                    return True
+                except (ValueError, OSError):
+                    return False
+        if any(is_tracked(self._runtime._repository, source.source_id)
+               and self._runtime._repository.source_has_video(source.source_id, video_id)
+               for source in self._runtime._repository.list_source_subscriptions()):
+            # Optional analysis must never substitute a full pipeline for missing
+            # trusted Content. The tracked Content preparation owns that work.
+            return False
         outcome = self._runtime.process(video=video_id, resume=True)
         return not outcome.failed
 
@@ -302,7 +347,7 @@ def build_local_source_run_runtime(
         transport,
         ProductionDistillationBudget(),
         now=now_fn,
-        output_language_for_video=runtime._downstream_output_language,
+        output_language_for_video=runtime._intelligence_output_language,
     )
     # One independently reviewed K2.6 qualification passed. The UI still
     # requires a separate consent for each normal cloud execution.
@@ -328,7 +373,7 @@ def build_local_source_run_runtime(
         )
         return PersonalizedDistillationService(
             repository, source_policy, cloud_transport, ProductionDistillationBudget(),
-            now=now_fn, output_language_for_video=runtime._downstream_output_language,
+            now=now_fn, output_language_for_video=runtime._intelligence_output_language,
         )
 
     cloud_distillation = cloud_service()
@@ -403,6 +448,8 @@ def build_local_source_run_runtime(
         source_run_wakeup=worker.notify,
         source_tracking=source_tracking,
         local_distillation_available=transport.available,
+        runtime_model=config.settings.local_scoring.model,
+        runtime_model_digest=config.settings.local_scoring.expected_model_digest,
         analysis_reader=runtime._load_analysis,
         evidence_translation_service=evidence_translation,
         backup_restore_service=backup_restore,

@@ -15,6 +15,7 @@ test("Chinese Settings edits global interests through existing authority", async
   }));
   render(<App />);
   fireEvent.click(screen.getByRole("button", { name: "设置" }));
+  fireEvent.click(await screen.findByRole("button", { name: "编辑兴趣" }));
   fireEvent.change(await screen.findByLabelText("我重点关注"), { target: { value: "AI Agent，大模型" } });
   fireEvent.change(screen.getByLabelText("少看／忽略"), { target: { value: "重复新闻" } });
   fireEvent.click(screen.getByRole("button", { name: "保存偏好" }));
@@ -56,6 +57,7 @@ test("Chinese interest validation never displays raw backend prose", async () =>
     : defaultFetch(path, init)));
   render(<App />);
   fireEvent.click(screen.getByRole("button", { name: "设置" }));
+  fireEvent.click(await screen.findByRole("button", { name: "编辑兴趣" }));
   fireEvent.click(await screen.findByRole("button", { name: "保存偏好" }));
   expect((await screen.findByRole("alert")).textContent).toContain("偏好未能保存");
   expect(screen.queryByText("Backend validation failed.")).toBeNull();
@@ -411,14 +413,18 @@ test("UI language defaults to Chinese and a saved English choice survives remoun
   const first = render(<App />);
   expect(screen.getByRole("button", { name: "关注" })).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "设置" }));
+  fireEvent.click(await screen.findByRole("button", { name: "编辑语言" }));
   const uiLanguage = await screen.findByLabelText("界面语言");
   expect((uiLanguage as HTMLSelectElement).value).toBe("zh-CN");
   fireEvent.change(uiLanguage, { target: { value: "en" } });
+  fireEvent.click(screen.getByRole("button", { name: "保存语言" }));
+  await screen.findByRole("button", { name: "Following" });
   expect(screen.getByRole("button", { name: "Following" })).toBeTruthy();
   expect(localStorage.getItem("yia.ui-language")).toBe("en");
   first.unmount();
   render(<App />);
   expect(screen.getByRole("button", { name: "Settings" })).toBeTruthy();
+  fireEvent.click(await screen.findByRole("button", { name: "Edit language" }));
   expect((await screen.findByLabelText("Interface language") as HTMLSelectElement).value).toBe("en");
 });
 
@@ -426,10 +432,11 @@ test("Chinese Settings separates editable languages from factual and read-only s
   localStorage.removeItem("yia.ui-language");
   render(<App />);
   fireEvent.click(screen.getByRole("button", { name: "设置" }));
+  fireEvent.click(await screen.findByRole("button", { name: "编辑语言" }));
   expect((await screen.findByLabelText("界面语言") as HTMLSelectElement).value).toBe("zh-CN");
   expect((screen.getByLabelText("默认输出语言") as HTMLSelectElement).value).toBe("zh-CN");
   expect(screen.queryByLabelText("来源语言")).toBeNull();
-  expect(screen.getByText(/原始字幕和证据始终是溯源依据/)).toBeTruthy();
+  expect(screen.getByText(/来源语言自动识别/)).toBeTruthy();
   expect(screen.getByText("偏好记录（只读）")).toBeTruthy();
   expect(screen.getByText("来源策略（此处只读）")).toBeTruthy();
   expect(screen.getByText("模型与费用（只读）")).toBeTruthy();
@@ -966,12 +973,16 @@ test("Settings persists output language for future processing without rewriting 
 
   const view = render(<App />);
   fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+  expect(screen.queryByLabelText("Preferred output language")).toBeNull();
+  fireEvent.click(await screen.findByRole("button", { name: "Edit language" }));
   const select = await screen.findByLabelText("Preferred output language");
   expect((select as HTMLSelectElement).value).toBe("zh-CN");
   expect((screen.getByLabelText("Interface language") as HTMLSelectElement).value).toBe("en");
-  expect(screen.getByText(/New processing batches use this language/)).toBeTruthy();
-  expect(screen.getByText(/historical records stay unchanged/)).toBeTruthy();
+  expect(screen.getByText(/Language choices apply to future output/)).toBeTruthy();
+  expect(screen.getByText(/existing content is preserved/)).toBeTruthy();
   fireEvent.change(select, { target: { value: "en" } });
+  expect(fetchMock.mock.calls.some(([, init]) => init?.method === "PUT")).toBe(false);
+  fireEvent.click(screen.getByRole("button", { name: "Save language" }));
   await waitFor(() =>
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/settings/output-language",
@@ -981,16 +992,13 @@ test("Settings persists output language for future processing without rewriting 
       }),
     )
   );
-  await waitFor(() =>
-    expect(
-      (screen.getByLabelText("Preferred output language") as HTMLSelectElement)
-        .value,
-    ).toBe("en")
-  );
-  expect(screen.getByText("Saved locally on this Mac.")).toBeTruthy();
+  await screen.findByRole("button", { name: "Edit language" });
+  expect(screen.queryByLabelText("Preferred output language")).toBeNull();
+  expect(screen.getByText(/Generated output: English/)).toBeTruthy();
   view.unmount();
   render(<App />);
   fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Edit language" }));
   expect((await screen.findByLabelText("Preferred output language") as HTMLSelectElement).value).toBe("en");
   expect((screen.getByLabelText("Interface language") as HTMLSelectElement).value).toBe("en");
 });
@@ -1439,7 +1447,9 @@ test("Settings preserves preference provenance and renders unknown resource valu
 test("Settings presents Kimi scope truthfully and keeps provider mechanics collapsed", async () => {
   render(<App />);
   fireEvent.click(screen.getByRole("button", { name: "Settings" }));
-  expect(await screen.findByRole("heading", { name: "Intelligence" })).toBeTruthy();
+  const primaryModels = (await screen.findByText("Models and processing")).closest("section")!;
+  expect(within(primaryModels).getByRole("heading", { name: "Intelligence", level: 3 })).toBeTruthy();
+  expect(screen.getByText("Advanced and diagnostics").parentElement?.hasAttribute("open")).toBe(false);
   expect(screen.getByText("Qualified for V1 video analysis. Each cloud execution requires your separate consent."))
     .toBeTruthy();
   expect(screen.getByText("Deep Analysis is unavailable.")).toBeTruthy();
@@ -2547,4 +2557,38 @@ test("Chinese Backup explains a block in Chinese instead of the backend English 
   expect(status.textContent).toContain("有一个采集任务仍在执行");
   expect(status.textContent).not.toContain("Source Run is active");
   expect(status.textContent).not.toMatch(/[A-Za-z]{4,}\s+[A-Za-z]{4,}/);
+});
+
+
+test("one-time video imports do not become continuous Following rows", async () => {
+  const original = globalThis.fetch;
+  vi.stubGlobal("fetch", vi.fn((path: string, init?: RequestInit) => path.endsWith("/sources")
+    ? response({ sources: [{ source_id: "one-time", source_type: "VIDEO_URL", display_name: "Imported video title", canonical_url: "https://youtu.be/abcdefghijk", enabled: true, processing_policy: "DISCOVER_ONLY", last_error: null }] }) : original(path, init)));
+  render(<App />); fireEvent.click(screen.getByRole("button", { name: "Following" }));
+  await screen.findAllByRole("button", { name: "Add Source" });
+  await waitFor(() => expect(screen.queryByText("Imported video title")).toBeNull());
+});
+
+test("one-time Content retry remains visible and polls accepted durable work to completion", async () => {
+  location.hash = "Content/video-1";
+  let accepted = false;
+  let reads = 0;
+  const original = globalThis.fetch;
+  vi.stubGlobal("fetch", vi.fn((path: string, init?: RequestInit) => {
+    if (path.endsWith("/sources/import-source/check") && init?.method === "POST") {
+      accepted = true;
+      return response({ source_run: { run_id: "retry-run", state: "QUEUED" } });
+    }
+    if (path.endsWith("/videos/video-1")) {
+      const status = !accepted ? "RETRY_REQUIRED" : ++reads === 1 ? "WAITING" : "ORGANIZED";
+      return response({ ...daVideoDetail, video: { ...daVideoDetail.video, provider: "YOUTUBE", source_id: "import-source", processing_status: status } });
+    }
+    return original(path, init);
+  }));
+  render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: /^Retry$/ }));
+  expect(await screen.findByText("Retry accepted. Processing status will update here.")).toBeTruthy();
+  await waitFor(() => expect(screen.queryByRole("button", { name: /^Retry$/ })).toBeNull());
+  await waitFor(() => expect(reads).toBeGreaterThan(1), { timeout: 4000 });
+  expect(await screen.findByText("Completed", { exact: true })).toBeTruthy();
 });

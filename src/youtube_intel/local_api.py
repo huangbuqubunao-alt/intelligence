@@ -48,7 +48,7 @@ from youtube_intel.evidence_translation import (
 from youtube_intel.extractive_summary import PROVIDER as EXTRACTIVE_PROVIDER
 from youtube_intel.extractive_summary import ExtractiveSummaryService
 from youtube_intel.following_provider import TrackingError
-from youtube_intel.following_tracking import FollowingTrackingService
+from youtube_intel.following_tracking import FollowingTrackingService, is_tracked
 from youtube_intel.intelligence_read import (
     AuthoritativeIntelligenceReader,
     IntelligenceReadRejected,
@@ -546,6 +546,8 @@ class LocalApiApplication:
         transcription_jobs: LocalTranscriptionJobs | None = None,
         bilibili_adapter: BilibiliAdapter | None = None,
         source_tracking: FollowingTrackingService | None = None,
+        runtime_model: str | None = None,
+        runtime_model_digest: str | None = None,
     ) -> None:
         self._repository = repository
         self._service = service
@@ -559,6 +561,8 @@ class LocalApiApplication:
         self._cloud_intelligence_qualified = cloud_intelligence_qualified
         self._cloud_credential_available = cloud_credential_available
         self._model_settings = model_settings
+        self._runtime_model = runtime_model
+        self._runtime_model_digest = runtime_model_digest
         self._refresh_cloud_distillation = refresh_cloud_distillation
         self._processing_orchestrator = processing_orchestrator
         self._intelligence_reader = AuthoritativeIntelligenceReader(repository)
@@ -736,6 +740,7 @@ class LocalApiApplication:
                     raise ApiError(HTTPStatus.CONFLICT, "TRACKING_UNAVAILABLE", "Source storage is unavailable.")
                 data = self._body(body)
                 self._only_keys(data, set() if creator_from_content else {"input", "processing_mode"})
+                mode = ProcessingPolicy.from_product_mode(self._string(data, "processing_mode") or "ORGANIZE_CONTENT")
                 if following_provider == "BILIBILI" and not CREATOR_FOLLOWING_AVAILABLE:
                     # The capability is withdrawn, so no provider request is made,
                     # no source row is created, and nothing is silently scheduled.
@@ -749,7 +754,6 @@ class LocalApiApplication:
                 except (BilibiliError, TrackingError) as error:
                     raise ApiError(_BILIBILI_ERROR_STATUS.get(error.code, HTTPStatus.UNPROCESSABLE_ENTITY), following_provider + "_" + error.code, "The public source could not be followed.") from None
                 if not creator_from_content and following_provider == "YOUTUBE":
-                    mode = ProcessingPolicy.from_product_mode(self._string(data, "processing_mode") or "ORGANIZE_CONTENT")
                     updated = self._service.update_source(source.source_id, processing_policy=mode)
                     assert updated is not None
                     source = updated
@@ -881,6 +885,24 @@ class LocalApiApplication:
                 except DeepAnalysisPublishError as rejection:
                     raise ApiError(HTTPStatus.CONFLICT, rejection.code, "Deep Analysis could not be published to Obsidian.") from None
                 return HTTPStatus.OK, {"publish": published}
+            if method == "POST" and re.fullmatch(r"/api/v1/videos/[^/]+/intelligence", route):
+                self._only_keys(data, {"command_id"})
+                video_id = route.split("/")[4]
+                source_id = self._manual_content_source(video_id)
+                if source_id is None or self._distillation_service is None:
+                    raise ApiError(HTTPStatus.CONFLICT, "CONTENT_NOT_READY", "Finish organizing this Content before extracting Intelligence.")
+                command_id = self._string(data, "command_id", required=True) or ""
+                reservation = self._distillation_service.reserve_distillation_execution(
+                    source_id=source_id, video_id=video_id,
+                    evidence_ids=self._repository.list_canonical_coverage_evidence_ids(video_id),
+                    manual_command_id=command_id,
+                )
+                # This service is the local route. Cloud review/authorization is
+                # a separate explicit command and is never an automatic fallback.
+                self._distillation_service.continue_reserved_distillation(reservation.execution_id)
+                return HTTPStatus.ACCEPTED, {"execution": _distillation_execution_dto(
+                    self._repository.get_distillation_execution(reservation.execution_id)
+                )}
             cloud_prefix = "/api/v1/videos/"
             if method == "POST" and route.startswith(cloud_prefix) and (
                 route.endswith("/cloud-intelligence/review")
@@ -899,8 +921,10 @@ class LocalApiApplication:
                 if not video_id or self._repository.get_video(video_id) is None:
                     raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Video was not found.")
                 if route.endswith("/cloud-intelligence/review"):
-                    self._only_keys(data, set())
-                    candidates = tuple(
+                    self._only_keys(data, {"command_id"})
+                    manual_command_id = self._string(data, "command_id")
+                    manual_source = self._manual_content_source(video_id) if manual_command_id else None
+                    candidates = (manual_source,) if manual_source else tuple(
                         source.source_id for source in self._repository.list_source_subscriptions()
                         if source.enabled and self._repository.source_has_video(source.source_id, video_id)
                         and (
@@ -915,6 +939,7 @@ class LocalApiApplication:
                     reservation = self._cloud_distillation_service.reserve_distillation_execution(
                         source_id=sorted(candidates)[0], video_id=video_id,
                         evidence_ids=cloud_evidence_ids,
+                        manual_command_id=manual_command_id,
                     )
                     return HTTPStatus.CREATED, {
                         "review": self._cloud_distillation_service.review_reserved_cloud_execution(
@@ -1723,6 +1748,46 @@ class LocalApiApplication:
             items[video_id] = {"video_id": video_id, "provider": "YOUTUBE", "title": row["canonical_url"], "source_url": row["canonical_url"], "channel_id": None, "channel_name": None, "published_at": None, "last_updated": row["created_at"], "processing_status": state, "work_kind": "DURABLE_CONTENT_IDENTITY", "source_id": row["source_id"]}
         return list(items.values())
 
+    def _manual_content_source(self, video_id: str) -> str | None:
+        video = self._repository.get_video(video_id)
+        note = self._note_projection(video_id).get("v2")
+        if video is None or video.provider != "YOUTUBE" or not isinstance(note, dict) or note.get("status") != "AVAILABLE":
+            return None
+        if self._repository.get_verified_timed_transcript(video_id=video_id) is None:
+            return None
+        return next((source.source_id for source in self._repository.list_source_subscriptions()
+                     if self._repository.source_has_video(source.source_id, video_id)), None)
+
+    def _intelligence_activity(self) -> list[dict[str, object]]:
+        activity: list[dict[str, object]] = []
+        for video in self._repository.list_videos(limit=100):
+            execution = self._repository.latest_distillation_execution_for_video(video.video_id)
+            if execution is not None and execution.status != "SUCCEEDED":
+                activity.append({"video_id": video.video_id, "title": video.title,
+                                 **_distillation_execution_dto(execution)})
+        # A relevance/preparation wait can precede a distillation reservation.
+        seen = {item["video_id"] for item in activity}
+        for run in self._repository.list_source_runs():
+            source = self._repository.get_source_subscription(run.source_id)
+            if source is None or source.processing_policy != "STANDARD_INTELLIGENCE":
+                continue
+            for child in self._repository.list_source_run_children(run.run_id):
+                if child.video_id in seen or child.distillation_execution_id is not None:
+                    continue
+                child_video = self._repository.get_video(child.video_id)
+                if child_video is not None and child.state.value not in {"COMPLETED", "SKIPPED"}:
+                    activity.append({"video_id": child_video.video_id, "title": child_video.title,
+                                     "status": child.state.value})
+                    seen.add(child.video_id)
+        for source in self._repository.list_source_subscriptions():
+            if source.processing_policy != "STANDARD_INTELLIGENCE" or not is_tracked(self._repository, source.source_id):
+                continue
+            for video in self._repository.list_source_videos(source.source_id, limit=100):
+                if video.video_id not in seen and self._repository.latest_distillation_execution_for_video(video.video_id) is None and self._manual_content_source(video.video_id) is None:
+                    activity.append({"video_id": video.video_id, "title": video.title, "status": "WAITING_CONTENT"})
+                    seen.add(video.video_id)
+        return activity
+
     def _video_dto_with_deep_analysis(self, video: VideoRecord) -> dict[str, object]:
         """Project a Content row with its truthful Deep Analysis availability.
 
@@ -1757,12 +1822,22 @@ class LocalApiApplication:
             except OfflineError:
                 projection["processing_status"] = "SOURCE_UNAVAILABLE"
         if video.provider == "YOUTUBE":
+            retry_sources = tuple(source for source in self._repository.list_source_subscriptions()
+                                  if source.enabled and source.source_type.value == "VIDEO_URL"
+                                  and source.video_id == video.video_id)
+            if retry_sources:
+                projection["source_id"] = retry_sources[0].source_id
             job = self._repository.latest_video_job(video.video_id)
             projection["processing_job"] = None if job is None else {"status": job.status.value, "stage": job.target_stage.value if job.target_stage is not None else None, "retry_at": _timestamp(job.available_at), "error_code": job.last_error_code}
             if job is not None and job.status.value in {"PENDING", "RUNNING", "RETRY_PENDING", "FAILED_FINAL"}:
-                projection["processing_status"] = "RETRY_PENDING" if job.status.value == "RETRY_PENDING" else "FAILED" if job.status.value == "FAILED_FINAL" else "READING_CAPTIONS" if job.target_stage is not None and job.target_stage.value == "TRANSCRIPT" else "FETCHING"
+                projection["processing_status"] = ("RETRY_REQUIRED" if retry_sources else "RETRY_PENDING") if job.status.value == "RETRY_PENDING" else "FAILED" if job.status.value == "FAILED_FINAL" else "READING_CAPTIONS" if job.target_stage is not None and job.target_stage.value == "TRANSCRIPT" else "FETCHING"
             elif self._repository.current_local_summary_pointer(video.video_id) is not None:
-                projection["processing_status"] = "ORGANIZED"
+                summary = self._note_projection(video.video_id).get("v2")
+                projection["processing_status"] = "ORGANIZED" if isinstance(summary, dict) and summary.get("status") == "AVAILABLE" else "NEEDS_ATTENTION"
+            if retry_sources and any(run.source_id == retry_sources[0].source_id
+                                     and run.state.value in {"QUEUED", "RUNNING"}
+                                     for run in self._repository.list_source_runs()):
+                projection["processing_status"] = "WAITING"
         return projection
 
     def _require_transcription(self) -> LocalTranscriptionJobs:
@@ -1958,7 +2033,7 @@ class LocalApiApplication:
                 },
             }
         if route == "/api/v1/intelligence":
-            return {"intelligence": self._intelligence_list(limit=100)}
+            return {"intelligence": self._intelligence_list(limit=100), "activity": self._intelligence_activity()}
         if route == "/api/v1/sources":
             return {
                 "sources": [
@@ -2099,6 +2174,7 @@ class LocalApiApplication:
                         video.video_id
                     )
                 ),
+                "manual_intelligence_eligible": self._manual_content_source(video.video_id) is not None,
                 "cloud_intelligence_available": (
                     video.provider == "YOUTUBE" and self._cloud_intelligence_qualified and self._cloud_credential_available
                 ),
@@ -2157,9 +2233,15 @@ class LocalApiApplication:
         if route == "/api/v1/settings":
             preference = self._repository.get_global_model_preference()
             language = self._output_language_service.effective()
+            local_model_status = (
+                self._model_settings.runtime_status(self._runtime_model, self._runtime_model_digest)
+                if self._model_settings is not None and self._runtime_model is not None and self._runtime_model_digest is not None
+                else {"model": self._runtime_model, "status": "UNKNOWN"}
+            )
             return {
                 "processing_defaults": {
-                    "policy": ProcessingPolicy.STANDARD_INTELLIGENCE.value
+                    "policy": ProcessingPolicy.DISCOVER_ONLY.value,
+                    "processing_mode": "ORGANIZE_CONTENT"
                 },
                 "general": {
                     "timezone": self._timezone,
@@ -2177,12 +2259,14 @@ class LocalApiApplication:
                     else preference.desired_model,
                     "active_production_default": None,
                 },
+                "runtime_local_model": local_model_status,
+                "content_processing": {"status": "READY", "method": "EXTRACTIVE_SOURCE", "requires_cloud": False},
                 "providers": [
                     asdict(item)
                     for item in provider_model_statuses(
                         None if preference is None else preference.desired_provider,
                         None if preference is None else preference.desired_model,
-                        local_runtime_available=self._local_distillation_available,
+                        local_runtime_available=(local_model_status["status"] == "READY") if self._runtime_model else self._local_distillation_available,
                         moonshot_qualified=self._cloud_intelligence_qualified,
                         moonshot_credential_available=self._cloud_credential_available,
                     )

@@ -126,3 +126,27 @@ def test_credential_store_failure_is_redacted_and_environment_is_preserved(monke
     monkeypatch.delenv("MOONSHOT_API_KEY")
     assert settings.credential_status() == {"configured": False, "source": "UNAVAILABLE"}
     assert settings.credential() == ""
+
+
+@pytest.mark.parametrize('digest,status', [('sha256:' + 'a' * 64, 'READY'), ('a' * 64, 'READY'), ('sha256:' + 'b' * 64, 'DIGEST_MISMATCH')])
+def test_runtime_readiness_uses_configured_model_and_digest_not_candidate(digest, status):
+    class NoCredentials:
+        def get(self): return None
+    service = ModelSettingsService(NoCredentials(), tags_fetch=lambda: {'models': [{'name': 'qwen3:8b', 'digest': digest}, {'name': 'candidate:7b', 'digest': 'wrong'}]})
+    assert service.runtime_status('qwen3:8b', 'sha256:' + 'a' * 64)['status'] == status
+    assert service.runtime_status('missing:1b', 'sha256:' + 'a' * 64)['status'] == 'NOT_INSTALLED'
+
+
+@pytest.mark.parametrize("payload", [None, {}, {"models": None}, {"models": 3}, {"models": "invalid"}])
+def test_runtime_model_readiness_fails_closed_on_malformed_discovery(payload):
+    settings = ModelSettingsService(MemoryStore(), tags_fetch=lambda: payload)
+    assert settings.runtime_status("qwen3:8b", "a" * 64) == {
+        "model": "qwen3:8b", "status": "UNREACHABLE", "installed": False, "digest_valid": False,
+    }
+
+
+def test_runtime_readiness_rejects_untrusted_digest_shape():
+    settings = ModelSettingsService(MemoryStore(), tags_fetch=lambda: {"models": [{"name": "qwen3:8b", "digest": []}]})
+    status = settings.runtime_status("qwen3:8b", "a" * 64)
+    assert status["status"] == "DIGEST_MISMATCH"
+    assert status["digest_valid"] is False
