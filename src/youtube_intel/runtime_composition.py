@@ -94,6 +94,10 @@ class RuntimeSourceRunIngestion:
         policy = self._source_policy.effective_policy(source_id)
         if source is not None and source.video_id is not None and source.processing_policy.value == "DISCOVER_ONLY":
             failed = self._runtime._repository.latest_video_job(source.video_id)
+            if failed is not None and failed.status.value == "FAILED_FINAL" and failed.last_error_code in {"CAPABILITY_UNAVAILABLE", "TRUST_INTEGRITY_INVALID"}:
+                # Do not let the ordinary planner create a fresh job that
+                # bypasses the existing non-retryable trust/capability terminal.
+                raise SourceRunDiscoveryError("Content cannot be safely retried")
             if (failed is not None and failed.status.value == "FAILED_FINAL"
                 and failed.target_stage is not None and failed.target_stage.value in {"METADATA", "TRANSCRIPT"}
                 and failed.last_error_code not in {"CAPABILITY_UNAVAILABLE", "TRUST_INTEGRITY_INVALID"}):

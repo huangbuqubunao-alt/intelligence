@@ -259,3 +259,46 @@ def test_corrupt_summary_remains_real_content_and_needs_attention(tmp_path):
     assert detail["manual_intelligence_eligible"] is False
     assert repo.get_video(video_id) is not None
     assert transport.calls == 0
+
+
+@pytest.mark.parametrize("code", ["TRUST_INTEGRITY_INVALID", "CAPABILITY_UNAVAILABLE"])
+def test_content_retry_cannot_bypass_non_retryable_terminals(tmp_path, monkeypatch, code):
+    from datetime import timedelta
+
+    from youtube_intel.config import load_app_config
+    from youtube_intel.domain import AppError, ErrorCode
+    from youtube_intel.runtime import RuntimeDependencies, RuntimeOperations
+    from youtube_intel.runtime_composition import RuntimeSourceRunIngestion
+    from youtube_intel.source_run import SourceRunState
+    from youtube_intel.transcripts import TranscriptError
+
+    support = _load_module("test_runtime_composition")
+    pipeline = _load_module("test_task024_processing_orchestration")
+    current = support.NOW
+    monkeypatch.setattr("youtube_intel.runtime._utcnow", lambda: current)
+    class Failed(support._TimedSubtitleAdapter):
+        def enumerate_tracks(self, video_id):
+            raise TranscriptError(AppError(code=ErrorCode(code), message="controlled terminal", retryable=False))
+    def denied():
+        pytest.fail("Non-retryable Content must not contact providers again")
+    project = support._project(tmp_path)
+    runtime = RuntimeOperations(config=load_app_config(project / "config/channels.yaml", project / "config/settings.yaml"), project_root=project,
+        dependencies=RuntimeDependencies(discovery_source=support._DiscoverySource(), metadata_provider=support._MetadataProvider(), subtitle_adapter_factory=Failed, scoring_provider_factory=denied, analysis_provider_factory=denied, quality_judge_provider_factory=denied))
+    repo = runtime._repository
+    orchestrator = pipeline._orchestrator(repo, pipeline._Transport(available=False))
+    orchestrator._now = lambda: current
+    orchestrator._ingestion = RuntimeSourceRunIngestion(runtime, orchestrator._source_policy)
+    product = ProductOrchestrationService(repo, source_run_submitter=orchestrator, now=lambda: current)
+    source = product.add_source(url=f"https://youtu.be/{support.VIDEO_ID}", processing_policy=ProcessingPolicy.DISCOVER_ONLY)
+    first = product.check_source(source.source_id, command_id="terminal-first").source_run
+    assert orchestrator.resume(first.run_id).state is SourceRunState.NEEDS_ATTENTION
+    terminal = repo.latest_video_job(support.VIDEO_ID)
+    assert terminal.last_error_code == code and terminal.status.value == "FAILED_FINAL"
+    runtime._dependencies = replace(runtime._dependencies, subtitle_adapter_factory=denied)
+    current += timedelta(seconds=10)
+    second = product.check_source(source.source_id, command_id="terminal-retry").source_run
+    assert orchestrator.resume(second.run_id).state is SourceRunState.NEEDS_ATTENTION
+    assert repo.latest_video_job(support.VIDEO_ID) == terminal
+    assert repo.current_local_summary_pointer(support.VIDEO_ID) is None
+    app = LocalApiApplication(repo, product, data_root=runtime._data_root)
+    assert app.handle("GET", f"/api/v1/videos/{support.VIDEO_ID}")[1]["video"]["retry_allowed"] is False

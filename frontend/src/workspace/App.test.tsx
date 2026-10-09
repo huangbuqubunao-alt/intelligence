@@ -2592,3 +2592,21 @@ test("one-time Content retry remains visible and polls accepted durable work to 
   await waitFor(() => expect(reads).toBeGreaterThan(1), { timeout: 4000 });
   expect(await screen.findByText("Completed", { exact: true })).toBeTruthy();
 });
+
+test.each(["en", "zh-CN"])("%s non-retryable Content explains the prerequisite and disables retry semantically", async (language) => {
+  localStorage.setItem("yia.ui-language", language);
+  location.hash = "Content/video-1";
+  const original = globalThis.fetch;
+  const mutations: string[] = [];
+  vi.stubGlobal("fetch", vi.fn((path: string, init?: RequestInit) => {
+    if (init?.method === "POST") mutations.push(path);
+    if (path.endsWith("/videos/video-1")) return response({ ...daVideoDetail, video: { ...daVideoDetail.video, provider: "YOUTUBE", source_id: "import-source", processing_status: "FAILED", retry_allowed: false } });
+    return original(path, init);
+  }));
+  render(<App />);
+  const retry = await screen.findByRole("button", { name: language === "en" ? /^Retry$/ : /^重试$/ });
+  expect(retry.hasAttribute("disabled")).toBe(true);
+  expect(screen.getByText(language === "en" ? "This Content needs source or processing readiness review before it can be processed again." : "此内容需要先核对来源或处理就绪状态，才能再次处理。")).toBeTruthy();
+  fireEvent.click(retry);
+  expect(mutations).toEqual([]);
+});

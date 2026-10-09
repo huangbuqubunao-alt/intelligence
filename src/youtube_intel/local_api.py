@@ -1829,6 +1829,7 @@ class LocalApiApplication:
                 projection["source_id"] = retry_sources[0].source_id
             job = self._repository.latest_video_job(video.video_id)
             projection["processing_job"] = None if job is None else {"status": job.status.value, "stage": job.target_stage.value if job.target_stage is not None else None, "retry_at": _timestamp(job.available_at), "error_code": job.last_error_code}
+            projection["retry_allowed"] = not (job is not None and job.status.value == "FAILED_FINAL" and job.last_error_code in {"CAPABILITY_UNAVAILABLE", "TRUST_INTEGRITY_INVALID"})
             if job is not None and job.status.value in {"PENDING", "RUNNING", "RETRY_PENDING", "FAILED_FINAL"}:
                 projection["processing_status"] = ("RETRY_REQUIRED" if retry_sources else "RETRY_PENDING") if job.status.value == "RETRY_PENDING" else "FAILED" if job.status.value == "FAILED_FINAL" else "READING_CAPTIONS" if job.target_stage is not None and job.target_stage.value == "TRANSCRIPT" else "FETCHING"
             elif self._repository.current_local_summary_pointer(video.video_id) is not None:
