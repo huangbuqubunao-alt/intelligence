@@ -1,0 +1,10 @@
+{
+  "unchanged_from_starting_main": true,
+  "files": [
+    "docs/validation/phase13/fingerprint-protected.py",
+    "docs/validation/phase13/real-automatic-check.py",
+    "docs/validation/phase13/restart-probe.py",
+    "docs/validation/phase13/restore-runtime-validation.py"
+  ],
+  "finding_summary": "[*] 8 fixable with the `--fix` option."
+}

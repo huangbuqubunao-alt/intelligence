@@ -1,9 +1,10 @@
 {
   "backend": {
-    "passed": 3892,
+    "passed": 3896,
     "skipped": 1,
     "warnings": 2,
-    "command": "PYTHONPATH=src .venv/bin/python -m pytest -q"
+    "command": "PYTHONPATH=src .venv/bin/python -m pytest -q",
+    "seconds": 763.78
   },
   "frontend": {
     "passed": 248,
@@ -27,5 +28,8 @@
     "39 pre-existing archived Phase13 validation-script lint findings",
     "Public-provider availability outside application control"
   ],
-  "phase14": "not started"
+  "phase14": "not started",
+  "prior_backend_passed": 3892,
+  "launcher_focused": 11,
+  "independent_final_launcher_review": "APPROVE, no P0/P1"
 }

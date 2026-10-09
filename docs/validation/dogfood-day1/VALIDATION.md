@@ -9,7 +9,7 @@ The post-adoption launcher restart correction below remains in this same goal.
 
 | Check | Result |
 | --- | --- |
-| `PYTHONPATH=src .venv/bin/python -m pytest -q` | 3892 passed, 1 existing optional-asset skip, 2 fixture warnings; 775.31s |
+| `PYTHONPATH=src .venv/bin/python -m pytest -q` | 3896 passed, 1 existing optional-asset skip, 2 fixture warnings; 763.78s |
 | Focused final backend | 45 passed; 21.93s |
 | Independent review regressions | 283 passed; includes reservations, trusted orchestration, Phase 12/13 and backup |
 | Frontend complete suite | 248 passed, 16 files |
@@ -143,5 +143,9 @@ refusal permits bind, while a live listener or unexpected error/timeout fails
 closed with an actionable launcher error. No unrelated process is stopped.
 Eleven focused tests pass, including real TIME_WAIT, loopback/wildcard listener
 refusal and timeout fail-closed coverage. Fresh independent review approves the
-correction with no P0/P1. Ruff, strict mypy and diff checks pass. A fresh full
-backend rerun after this final code freeze is required before re-adoption.
+correction with no P0/P1. Ruff, strict mypy and diff checks pass. The final code freeze `f8c5688` passed a fresh full backend rerun: 3896 passed,
+1 existing optional-asset skip, 2 fixture warnings in 763.78s. This follow-up
+evidence commit changes no application code. The original 3892-pass result is
+retained in backend-final.txt; backend-launcher-final.txt contains the final
+acceptance run. Frontend source is unchanged from its 248-pass/typecheck/build
+acceptance. Final compileall and diff checks also pass before re-adoption.
