@@ -339,7 +339,8 @@ class LocalContentProvider(SourceContentPublisher):
                     maximum=maximum, cancelled=cancelled, progress=progress) as staged:
                 if cancelled():
                     raise LocalImportError("LOCAL_IMPORT_CANCELLED")
-                return self._import_staged(name, extension, staged, cancelled=cancelled)
+                return self._import_staged(name, extension, staged, cancelled=cancelled,
+                                          return_saved_on_processing_failure=True)
         except InterruptedError:
             raise LocalImportError("LOCAL_IMPORT_CANCELLED") from None
         except TimeoutError:
@@ -375,6 +376,7 @@ class LocalContentProvider(SourceContentPublisher):
     def _import_staged(
         self, name: str, extension: str, staged: StagedFile,
         *, cancelled: Callable[[], bool] | None = None,
+        return_saved_on_processing_failure: bool = False,
     ) -> LocalImportResult:
         kind = FORMATS[extension]
         text = decode_text(read_managed(staged.root, staged.name, maximum=MAX_TEXT_BYTES)) if kind == "TEXT" else None
@@ -407,6 +409,8 @@ class LocalContentProvider(SourceContentPublisher):
                         try:
                             self._finish_summary(content_id, now, existing["language"])
                         except Exception:
+                            if not return_saved_on_processing_failure:
+                                raise
                             return self._saved_processing_failure(content_id, True)
                     return LocalImportResult(
                         content_id, existing["filename"], existing["status"], True
@@ -502,6 +506,8 @@ class LocalContentProvider(SourceContentPublisher):
             try:
                 self._persist_source_result(content_id, text, transcript, digest, duration, language, now)
             except Exception:
+                if not return_saved_on_processing_failure:
+                    raise
                 return self._saved_processing_failure(content_id, existing is not None)
         else:
             try:
@@ -511,6 +517,8 @@ class LocalContentProvider(SourceContentPublisher):
                         (status, content_id),
                     )
             except Exception:
+                if not return_saved_on_processing_failure:
+                    raise
                 return self._saved_processing_failure(content_id, existing is not None)
         return LocalImportResult(content_id, name, status, existing is not None)
 

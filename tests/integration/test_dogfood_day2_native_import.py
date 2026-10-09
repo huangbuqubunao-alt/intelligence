@@ -432,3 +432,34 @@ def test_saved_native_media_remains_visible_when_status_update_fails(workspace, 
         assert item["import"]["content_id"] == repo.list_videos()[0].video_id
     finally:
         service.shutdown()
+
+
+def test_native_saved_status_never_promotes_interrupted_evidence_transaction(workspace, monkeypatch):
+    _, repo, provider, source = workspace
+    original = provider._text_evidence
+    def interrupted(*args, **kwargs):
+        original(*args, **kwargs)
+        raise RuntimeError("isolated interruption before READY")
+    monkeypatch.setattr(provider, "_text_evidence", interrupted)
+    service, key = selected(provider, source)
+    try:
+        service.confirm(key, ORIGIN)
+        item = settled(service, key, ("COMPLETE",))["files"][0]
+        content_id = item["import"]["content_id"]
+        assert item["phase"] == "SAVED" and item["import"]["status"] == "IMPORTED"
+        assert item["processing_error_code"] == "LOCAL_PROCESSING_UNAVAILABLE"
+        assert not repo.list_evidence_for_presentation(content_id)
+        with repo._connect() as connection:
+            assert connection.execute("SELECT count(*) FROM evidence").fetchone()[0] == 0
+            assert connection.execute("SELECT status FROM content_source_snapshots").fetchone()[0] == "IMPORTED"
+        monkeypatch.setattr(provider, "_text_evidence", original)
+        key = service.choose(ORIGIN)["job_id"]
+        assert settled(service, key)["state"] == "SELECTED"
+        service.confirm(key, ORIGIN)
+        retried = settled(service, key, ("COMPLETE",))["files"][0]
+        assert retried["import"]["status"] == "READY" and retried["import"]["duplicate"]
+        assert retried["import"]["content_id"] == content_id
+        assert repo.resolve_verified_evidence_text(repo.list_evidence_for_presentation(content_id)[0])
+        assert len(repo.list_videos()) == 1
+    finally:
+        service.shutdown()
