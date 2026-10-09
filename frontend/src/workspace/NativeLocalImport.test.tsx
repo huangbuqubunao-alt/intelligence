@@ -93,3 +93,11 @@ it("shows and opens committed work outside the modal", async () => {
   await userEvent.click(await screen.findByRole("button", { name: `Open Content: ${file.filename}` }));
   expect(onImported).toHaveBeenCalledWith("background-content");
 });
+
+it("reports an independent duration error after the modal closes", async () => {
+  view();
+  cleanup();
+  job = { ...job, state: "COMPLETE", files: [{ ...file, phase: "FAILED", error_code: "LOCAL_MEDIA_TOO_LONG" }] };
+  render(<UiLanguageProvider><NativeImportActivity onOpen={vi.fn()} errors={{ LOCAL_MEDIA_TOO_LONG: "This media exceeds the two-hour duration limit. Choose a shorter recording." }} /></UiLanguageProvider>);
+  expect((await screen.findByRole("alert")).textContent).toContain("two-hour duration limit");
+});

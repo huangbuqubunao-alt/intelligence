@@ -330,3 +330,103 @@ def test_native_live_stage_cannot_be_removed_by_startup_cleanup(workspace):
             source_authority.cleanup_abandoned_imports(root / "stage")
             assert pending.path.exists()
     assert not list((root / "stage").iterdir())
+
+
+@pytest.mark.parametrize("eligible", [True, False])
+def test_automatic_processing_waits_for_check_and_requires_offline_qualification(http_native, monkeypatch, eligible):
+    _, app, _ = http_native
+    calls = []
+    class Jobs:
+        checks = 0
+        def capability(self):
+            self.checks += 1
+            return {"checking": self.checks == 1, "state": "READY", "production_eligible": eligible, "execution_identity": "offline-qualified-only"}
+        def start(self, content_id, identity):
+            calls.append((content_id, identity))
+    jobs = Jobs()
+    monkeypatch.setattr(app, "_require_transcription", lambda: jobs)
+    app._native_import.process_saved("test-content")
+    assert calls == ([("test-content", "offline-qualified-only")] if eligible else [])
+
+
+def test_cancelled_native_picker_is_reported_as_cancellation(workspace):
+    _, _, provider, _ = workspace
+    def picker(cancelled):
+        while not cancelled():
+            time.sleep(0.01)
+        raise LocalImportError("LOCAL_IMPORT_CANCELLED")
+    service = NativeImportService(provider, origins=(ORIGIN,), picker=picker)
+    try:
+        key = service.choose(ORIGIN)["job_id"]
+        service.cancel(key, ORIGIN)
+        result = settled(service, key, ("CANCELLED",))
+        assert result["error_code"] is None
+        assert not provider.repository.list_videos()
+    finally:
+        service.shutdown()
+
+
+def test_saved_content_and_evidence_survive_summary_failure_and_duplicate_retry(workspace, monkeypatch):
+    _, repo, provider, source = workspace
+    def failed_summary(*_):
+        raise OSError("isolated post-admission summary failure")
+    monkeypatch.setattr(provider, "_finish_summary", failed_summary)
+    service, key = selected(provider, source)
+    try:
+        service.confirm(key, ORIGIN)
+        item = settled(service, key, ("COMPLETE",))["files"][0]
+        assert item["phase"] == "SAVED" and item["error_code"] is None
+        assert item["processing_error_code"] == "LOCAL_PROCESSING_UNAVAILABLE"
+        content_id = item["import"]["content_id"]
+        assert item["import"]["status"] == "READY"
+        assert repo.resolve_verified_evidence_text(repo.list_evidence_for_presentation(content_id)[0])
+        second = service.choose(ORIGIN)["job_id"]
+        assert settled(service, second)["state"] == "SELECTED"
+        service.confirm(second, ORIGIN)
+        repeated = settled(service, second, ("COMPLETE",))["files"][0]
+        assert repeated["phase"] == "SAVED" and repeated["import"]["duplicate"]
+        assert repeated["import"]["content_id"] == content_id
+        assert repeated["processing_error_code"] == "LOCAL_PROCESSING_UNAVAILABLE"
+        assert len(repo.list_videos()) == 1
+    finally:
+        service.shutdown()
+
+
+def test_saved_native_media_remains_visible_when_status_update_fails(workspace, monkeypatch):
+    import sqlite3
+    from contextlib import contextmanager
+
+    from youtube_intel import local_content
+    root, repo, provider, _ = workspace
+    source = root / "status-fault.mp4"
+    source.write_bytes(b"isolated media-validation seam")
+    monkeypatch.setattr(local_content, "probe_media", lambda *_: 1.0)
+    original = repo._connect
+    failed = []
+    class Connection:
+        def __init__(self, actual):
+            self.actual = actual
+        def __getattr__(self, name):
+            return getattr(self.actual, name)
+        def execute(self, sql, *args):
+            if sql.startswith("UPDATE content_source_snapshots SET status=?") and not failed:
+                failed.append(True)
+                raise sqlite3.OperationalError("isolated status write failure")
+            return self.actual.execute(sql, *args)
+    @contextmanager
+    def connect():
+        with original() as actual:
+            yield Connection(actual)
+    monkeypatch.setattr(repo, "_connect", connect)
+    service, key = selected(provider, source)
+    try:
+        service.confirm(key, ORIGIN)
+        item = settled(service, key, ("COMPLETE",))["files"][0]
+        assert failed
+        assert item["phase"] == "SAVED" and item["error_code"] is None
+        assert item["processing_error_code"] == "LOCAL_PROCESSING_UNAVAILABLE"
+        assert item["import"]["status"] == "IMPORTED"
+        assert len(repo.list_videos()) == 1
+        assert item["import"]["content_id"] == repo.list_videos()[0]["video_id"]
+    finally:
+        service.shutdown()

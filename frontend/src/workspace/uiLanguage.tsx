@@ -16,7 +16,7 @@ const chinese: Record<string, string> = {
   "Continue in background": "在后台继续",
   "Selection cancelled. No new Content was added.": "已取消选择，未添加新内容。",
   "File saved. Local transcription status appears in Content.": "文件已保存。本地转写状态会显示在内容中。",
-  "File saved. Automatic processing could not start; check its status in Content.": "文件已保存，自动处理未能启动，请在内容中查看状态。",
+  "File saved. Further processing could not complete; check its status in Content.": "文件已保存，后续处理未能完成，请在内容中查看状态。",
   "Local imports": "本地导入",
   "Import failed. Reopen local import to choose the file again.": "导入失败。请重新打开本地导入并再次选择文件。",
   "The macOS file selector could not complete. Reopen it and choose files again.": "macOS 文件选择器未能完成。请重新打开并再次选择文件。",

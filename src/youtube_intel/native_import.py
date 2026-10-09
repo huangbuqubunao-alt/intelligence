@@ -209,7 +209,10 @@ class NativeImportService:
             for grant in grants:
                 grant.source.close()
             with self._lock:
-                job.state, job.error = "FAILED", error.code if isinstance(error, LocalImportError) else "LOCAL_NATIVE_PICKER_FAILED"
+                if isinstance(error, LocalImportError) and error.code == "LOCAL_IMPORT_CANCELLED":
+                    job.state, job.error = "CANCELLED", None
+                else:
+                    job.state, job.error = "FAILED", error.code if isinstance(error, LocalImportError) else "LOCAL_NATIVE_PICKER_FAILED"
 
     def _job(self, job_id: str, origin: str) -> NativeJob:
         self._expire()
@@ -261,6 +264,7 @@ class NativeImportService:
                                     cancelled=job.cancelled.is_set, progress=progress)
                         with self._lock:
                             view.result, view.phase = result.as_dict(), "SAVED"
+                            view.processing_error = result.processing_error_code
                         if self.process_saved and result.status != "READY":
                             try:
                                 self.process_saved(result.content_id)

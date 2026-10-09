@@ -264,3 +264,16 @@ with stage_stream(Path(sys.argv[1]), io.BytesIO(b'private attempt'), 15, maximum
             child.wait(timeout=5)
         child.stdin.close()
         child.stdout.close()
+
+
+def test_backup_admission_counts_actual_database_pages_in_addition_to_data(provider, monkeypatch):
+    from youtube_intel import backup_restore
+    with provider.repository._connect() as connection:
+        database_bytes = connection.execute("PRAGMA page_count").fetchone()[0] * connection.execute("PRAGMA page_size").fetchone()[0]
+    assert database_bytes > 0
+    # Scaled boundary, actual database pages: DATA alone would fit four bytes.
+    monkeypatch.setattr(backup_restore, "MAX_TOTAL_BYTES", 1024 ** 3 + database_bytes + 3)
+    with pytest.raises(LocalImportError, match="LOCAL_BACKUP_CAPACITY_EXCEEDED"):
+        provider.import_bytes("notes.txt", b"four")
+    assert not provider.repository.list_videos()
+    assert not list((provider.data_root / ".imports").iterdir())

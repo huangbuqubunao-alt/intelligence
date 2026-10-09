@@ -21,7 +21,7 @@ function FileState({ file, errors }: { file: NativeFileState; errors?: Record<st
     {file.phase === "COPYING" && file.byte_count > 0 && <><p>{Math.floor(file.loaded / file.byte_count * 100)}%</p><progress aria-label={t("Copy progress")} value={file.loaded} max={file.byte_count} /></>}
     {file.error_code && <p role="alert" className="form-error">{t(errors?.[file.error_code] ?? "The selected file could not be imported. Try again after checking local storage.")}</p>}
     {file.import && <p>{t(file.import.status === "READY" ? "Ready" : "File saved. Local transcription status appears in Content.")}{file.import.duplicate ? ` · ${t("Already imported")}` : ""}</p>}
-    {file.processing_error_code && <p>{t("File saved. Automatic processing could not start; check its status in Content.")}</p>}
+    {file.processing_error_code && <p>{t("File saved. Further processing could not complete; check its status in Content.")}</p>}
   </li>;
 }
 
@@ -91,7 +91,7 @@ export function NativeLocalImport({ available, onClose, onSaved, onImported, onY
 }
 
 /** Pending work is visible outside the modal while the rest of the app works. */
-export function NativeImportActivity({ onOpen }: { onOpen: (id: string) => void }) {
+export function NativeImportActivity({ onOpen, errors }: { onOpen: (id: string) => void; errors?: Record<string, string> }) {
   const { t } = useUiLanguage();
   const [jobs, setJobs] = useState<NativeJob[]>([]);
   useEffect(() => {
@@ -111,7 +111,7 @@ export function NativeImportActivity({ onOpen }: { onOpen: (id: string) => void 
   }, []);
   const visible = jobs.filter(job => job.state === "IMPORTING" || job.state === "FAILED" || job.state === "COMPLETE");
   return visible.length ? <section className="panel" aria-label={t("Local imports")}><h2>{t("Local imports")}</h2>
-    {visible.map(job => <div key={job.job_id}>{job.error_code && <p role="alert">{t("Import failed. Reopen local import to choose the file again.")}</p>}<ul className="local-file-list">{job.files.map((file, index) => <FileState key={index} file={file} />)}</ul>
+    {visible.map(job => <div key={job.job_id}>{job.error_code && <p role="alert">{t(errors?.[job.error_code] ?? "Import failed. Reopen local import to choose the file again.")}</p>}<ul className="local-file-list">{job.files.map((file, index) => <FileState key={index} file={file} errors={errors} />)}</ul>
       {job.files.filter(file => file.import).map((file, index) => <button key={index} className="button button-secondary" onClick={() => onOpen(file.import!.content_id)}>{t("Open Content")}: {file.filename}</button>)}
     </div>)}
   </section> : null;

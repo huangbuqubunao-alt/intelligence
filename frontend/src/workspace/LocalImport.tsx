@@ -5,7 +5,7 @@ import { useUiLanguage } from "./uiLanguage";
 
 const displayFilename = (name: string) => name.split(/[\\/]/).pop()?.replace(/[\p{Cc}\p{Cf}\p{Cs}]/gu, "").slice(0, 240) || "file";
 const formats = new Set(["txt", "md", "mp3", "m4a", "wav", "mp4", "mov", "m4v"]);
-const errorCopy: Record<string, string> = {
+export const localImportErrors: Record<string, string> = {
   LOCAL_UNSUPPORTED_FORMAT: "This file type is not supported. Choose TXT, MD, MP3, M4A, WAV, MP4, MOV or M4V.",
   LOCAL_INVALID_TEXT: "This text file must contain valid UTF-8 text without binary data.",
   LOCAL_INVALID_MEDIA: "This media file is malformed or has a mismatched format.",
@@ -84,9 +84,9 @@ export function LocalImport({ onClose, onSaved, onImported, onYouTube, onBilibil
   const done = () => results.length && onImported ? onImported(results[0].content_id) : results.length ? onSaved() : onClose();
   const validate = (file: File) => {
     const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
-    if (!formats.has(ext)) return errorCopy.LOCAL_UNSUPPORTED_FORMAT;
-    if (!file.size) return errorCopy.LOCAL_EMPTY_FILE;
-    if (file.size > (ext === "txt" || ext === "md" ? 2 * 1024 * 1024 : 2 * 1024 * 1024 * 1024)) return errorCopy.LOCAL_FILE_TOO_LARGE;
+    if (!formats.has(ext)) return localImportErrors.LOCAL_UNSUPPORTED_FORMAT;
+    if (!file.size) return localImportErrors.LOCAL_EMPTY_FILE;
+    if (file.size > (ext === "txt" || ext === "md" ? 2 * 1024 * 1024 : 2 * 1024 * 1024 * 1024)) return localImportErrors.LOCAL_FILE_TOO_LARGE;
     return null;
   };
   const confirm = async (selected = files) => {
@@ -106,7 +106,7 @@ export function LocalImport({ onClose, onSaved, onImported, onYouTube, onBilibil
         setResults(values => [...values, response.import]);
       } catch (reason) {
         failed.push(file);
-        const message = signal.aborted ? errorCopy.LOCAL_IMPORT_CANCELLED : reason instanceof ApiRequestError ? errorCopy[reason.code] : null;
+        const message = signal.aborted ? localImportErrors.LOCAL_IMPORT_CANCELLED : reason instanceof ApiRequestError ? localImportErrors[reason.code] : null;
         setErrors(values => [...values, { filename: displayFilename(file.name), message: message ?? "The selected file could not be imported. Try again after checking local storage." }]);
       }
     }
@@ -115,7 +115,7 @@ export function LocalImport({ onClose, onSaved, onImported, onYouTube, onBilibil
     // Only committed success navigates. Mixed batches keep per-file outcomes visible.
     if (!failed.length && !selectionErrors.length && accepted.length && onImported) onImported((results[0] ?? accepted[0]).content_id);
   };
-  if (nativeMac) return <NativeLocalImport available={nativeAvailable} onClose={onClose} onSaved={onSaved} onImported={onImported} onYouTube={onYouTube} onBilibili={onBilibili} errors={errorCopy} />;
+  if (nativeMac) return <NativeLocalImport available={nativeAvailable} onClose={onClose} onSaved={onSaved} onImported={onImported} onYouTube={onYouTube} onBilibili={onBilibili} errors={localImportErrors} />;
   return <div className="overlay"><section className="modal local-import" role="dialog" aria-modal="true" aria-labelledby="local-import-title">
     <div className="modal-head"><h2 id="local-import-title">{t("Add local files")}</h2><button className="button button-ghost" disabled={busy} onClick={finished ? done : onClose}>{t(finished ? "Done" : "Cancel")}</button></div>
     {!finished && <div className="button-row" aria-label={t("Source provider")}><button className="button button-secondary" disabled={busy} onClick={onYouTube}>YouTube</button><button className="button button-primary" aria-pressed="true" disabled={busy}>{t("Local files")}</button>{onBilibili && <button className="button button-secondary" disabled={busy} onClick={onBilibili}>{t("Bilibili")}</button>}</div>}

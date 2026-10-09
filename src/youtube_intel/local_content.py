@@ -95,9 +95,10 @@ class LocalImportResult:
     filename: str
     status: str
     duplicate: bool
+    processing_error_code: str | None = None
 
     def as_dict(self) -> dict[str, object]:
-        return {
+        result: dict[str, object] = {
             "content_id": self.content_id,
             "filename": self.filename,
             "status": self.status,
@@ -105,6 +106,9 @@ class LocalImportResult:
             "source_id": LOCAL_SOURCE_ID,
             "provider": "LOCAL",
         }
+        if self.processing_error_code:
+            result["processing_error_code"] = self.processing_error_code
+        return result
 
 
 def decode_text(payload: bytes) -> str:
@@ -355,8 +359,10 @@ class LocalContentProvider(SourceContentPublisher):
         )
         with self.repository._connect() as connection:
             paths = [row[0] for row in connection.execute("SELECT DISTINCT relative_path FROM artifacts WHERE storage_root='DATA' AND deleted_at IS NULL")]
-        # Keep 1 GiB headroom for SQLite, manifests and subsequent transcripts.
-        total = incoming
+            database_size = int(connection.execute("PRAGMA page_count").fetchone()[0]) * int(connection.execute("PRAGMA page_size").fetchone()[0])
+        # Include transaction-visible SQLite pages (including WAL), then retain
+        # 1 GiB for subsequent transcripts, admission rows and archive metadata.
+        total = incoming + database_size
         for relative in paths:
             try:
                 with open_managed(self.data_root, relative, maximum=MAX_DATA_FILE_BYTES) as source:
@@ -398,7 +404,10 @@ class LocalContentProvider(SourceContentPublisher):
                     raise LocalImportError("LOCAL_SOURCE_UNTRUSTED")
                 if existing["status"] != "IMPORTED":
                     if existing["status"] == "READY":
-                        self._finish_summary(content_id, now, existing["language"])
+                        try:
+                            self._finish_summary(content_id, now, existing["language"])
+                        except Exception:
+                            return self._saved_processing_failure(content_id, True)
                     return LocalImportResult(
                         content_id, existing["filename"], existing["status"], True
                     )
@@ -490,14 +499,30 @@ class LocalContentProvider(SourceContentPublisher):
                 except Exception:
                     status = "TRANSCRIPTION_FAILED"
         if status == "READY" and text is not None:
-            self._persist_source_result(content_id, text, transcript, digest, duration, language, now)
+            try:
+                self._persist_source_result(content_id, text, transcript, digest, duration, language, now)
+            except Exception:
+                return self._saved_processing_failure(content_id, existing is not None)
         else:
-            with self.repository._connect() as connection:
-                connection.execute(
-                    "UPDATE content_source_snapshots SET status=? WHERE content_id=?",
-                    (status, content_id),
-                )
+            try:
+                with self.repository._connect() as connection:
+                    connection.execute(
+                        "UPDATE content_source_snapshots SET status=? WHERE content_id=?",
+                        (status, content_id),
+                    )
+            except Exception:
+                return self._saved_processing_failure(content_id, existing is not None)
         return LocalImportResult(content_id, name, status, existing is not None)
+
+    def _saved_processing_failure(self, content_id: str, duplicate: bool) -> LocalImportResult:
+        # Admission is already committed. Never report a lost file because a
+        # later transcript/summary publication failed, but re-verify authority.
+        with self.repository._connect() as connection:
+            source = verify_source(self.repository, connection, content_id)
+            if source is None:
+                raise LocalImportError("LOCAL_SOURCE_UNTRUSTED")
+            return LocalImportResult(content_id, source["filename"], source["status"], duplicate,
+                                     "LOCAL_PROCESSING_UNAVAILABLE")
 
     def accept_transcript(self, content_id: str, transcript: MediaTranscript) -> None:
         """Reuse Phase 7 authority publication; never replace a trusted success."""
