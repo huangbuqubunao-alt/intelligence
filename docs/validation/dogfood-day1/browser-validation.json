@@ -1,0 +1,59 @@
+{
+  "scenarios": [
+    {
+      "language": "en",
+      "width": 320,
+      "settings_compact": true,
+      "no_overflow": true
+    },
+    {
+      "language": "en",
+      "width": 1440,
+      "settings_compact": true,
+      "no_overflow": true
+    },
+    {
+      "language": "en",
+      "width": 320,
+      "channel_videos_recognized": true,
+      "default_content_only": true,
+      "one_add_entry": true
+    },
+    {
+      "language": "en",
+      "width": 1440,
+      "channel_videos_recognized": true,
+      "default_content_only": true,
+      "one_add_entry": true
+    },
+    {
+      "language": "zh-CN",
+      "width": 320,
+      "settings_compact": true,
+      "no_overflow": true
+    },
+    {
+      "language": "zh-CN",
+      "width": 1440,
+      "settings_compact": true,
+      "no_overflow": true
+    },
+    {
+      "language": "zh-CN",
+      "width": 320,
+      "channel_videos_recognized": true,
+      "default_content_only": true,
+      "one_add_entry": true
+    },
+    {
+      "language": "zh-CN",
+      "width": 1440,
+      "channel_videos_recognized": true,
+      "default_content_only": true,
+      "one_add_entry": true
+    }
+  ],
+  "local_imports": 2,
+  "errors": [],
+  "external": []
+}

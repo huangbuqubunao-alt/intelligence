@@ -1,0 +1,30 @@
+{
+  "results": [
+    {
+      "language": "en",
+      "manual_wait_visible": true,
+      "pause_resume_without_dialog": true,
+      "real_source_name": true
+    },
+    {
+      "language": "en",
+      "owner_copy_legacy_visible": true,
+      "explicit_needs_attention": true,
+      "no_silent_tracking": true,
+      "accessible_close": true
+    },
+    {
+      "language": "zh-CN",
+      "manual_wait_visible": true,
+      "pause_resume_without_dialog": true,
+      "real_source_name": true
+    },
+    {
+      "language": "zh-CN",
+      "owner_copy_legacy_visible": true,
+      "explicit_needs_attention": true,
+      "no_silent_tracking": true,
+      "accessible_close": true
+    }
+  ]
+}

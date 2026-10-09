@@ -1,0 +1,806 @@
+{
+  "settings": [
+    200,
+    {
+      "processing_defaults": {
+        "policy": "DISCOVER_ONLY",
+        "processing_mode": "ORGANIZE_CONTENT"
+      },
+      "general": {
+        "timezone": "Asia/Shanghai",
+        "output_language": "zh-CN",
+        "output_language_source": "BOOTSTRAP_DEFAULT",
+        "output_language_updated_at": null
+      },
+      "cloud_credential": {
+        "configured": false,
+        "source": "NONE"
+      },
+      "model_preference": {
+        "desired_provider": null,
+        "desired_model": null,
+        "active_production_default": null
+      },
+      "runtime_local_model": {
+        "model": "qwen3:8b",
+        "status": "READY",
+        "installed": true,
+        "digest_valid": true
+      },
+      "content_processing": {
+        "status": "READY",
+        "method": "EXTRACTIVE_SOURCE",
+        "requires_cloud": false
+      },
+      "providers": [
+        {
+          "provider": "Local",
+          "model": "qwen3:8b",
+          "configured": false,
+          "credential_status": "NOT_REQUIRED",
+          "adapter_available": true,
+          "qualification_status": "INTELLIGENCE_UNQUALIFIED",
+          "authorized": false,
+          "production_eligible": false,
+          "scope": "SCORING_SUMMARY_ONLY",
+          "reason": "Local Scoring and Summary are available; this model is not qualified for Intelligence."
+        },
+        {
+          "provider": "moonshot",
+          "model": "kimi-k2.6",
+          "configured": false,
+          "credential_status": "BLOCKED",
+          "adapter_available": true,
+          "qualification_status": "QUALIFIED",
+          "authorized": false,
+          "production_eligible": false,
+          "scope": "V1_VIDEO_DISTILLATION_ONLY",
+          "reason": "Cloud Intelligence requires qualification and an available backend credential."
+        },
+        {
+          "provider": "NVIDIA NIM",
+          "model": "moonshotai/kimi-k3",
+          "configured": false,
+          "credential_status": "BLOCKED",
+          "adapter_available": true,
+          "qualification_status": "M12_REQUALIFICATION_REQUIRED",
+          "authorized": false,
+          "production_eligible": false,
+          "scope": "NONE",
+          "reason": "Cloud Intelligence requires current quality qualification, an available backend credential, and explicit user consent."
+        },
+        {
+          "provider": "OpenAI",
+          "model": null,
+          "configured": false,
+          "credential_status": "BLOCKED",
+          "adapter_available": true,
+          "qualification_status": "UNQUALIFIED",
+          "authorized": false,
+          "production_eligible": false,
+          "scope": "NONE",
+          "reason": "Not approved for production use."
+        }
+      ],
+      "bilibili": {
+        "provider": "BILIBILI",
+        "video_ingestion": {
+          "available": true,
+          "code": "PUBLIC_VIDEO_INGESTION_AVAILABLE"
+        },
+        "creator_following": {
+          "available": false,
+          "code": "CREATOR_TRACKING_UNAVAILABLE",
+          "endpoint": "/x/space/arc/search",
+          "message": "Continuous Bilibili creator tracking is currently unavailable. You can still add public Bilibili videos."
+        },
+        "public_captions": {
+          "available": false,
+          "code": "PUBLIC_CAPTIONS_NOT_OBSERVED",
+          "note": "No trusted public Bilibili caption has been observed on the compliant no-login path, so this capability is not claimed. Metadata import is unaffected; without a trusted caption there is no transcript, Summary or Evidence."
+        }
+      },
+      "youtube": {
+        "channel_following": {
+          "available": true,
+          "code": "PUBLIC_CHANNEL_FOLLOWING"
+        }
+      }
+    }
+  ],
+  "youtube_video": [
+    202,
+    {
+      "source": {
+        "source_id": "9fb4b61d-09c9-49e5-a387-05a37ff4dbc5",
+        "provider": "YOUTUBE",
+        "source_type": "VIDEO_URL",
+        "canonical_url": "https://www.youtube.com/watch?v=aircAruvnKk",
+        "channel_id": null,
+        "video_id": "aircAruvnKk",
+        "display_name": null,
+        "enabled": true,
+        "processing_policy": "DISCOVER_ONLY",
+        "processing_mode": "ORGANIZE_CONTENT",
+        "last_checked_at": "2026-10-08T17:07:10.385102Z",
+        "last_success_at": "2026-10-08T17:07:10.385102Z",
+        "last_error": null,
+        "created_at": "2026-10-08T17:06:51.730650Z",
+        "updated_at": "2026-10-08T17:07:10.385102Z",
+        "tracking": null,
+        "tracking_parent_source_ids": [],
+        "insight_count": 0,
+        "friendly_name": "But what is a neural network? | Deep learning chapter 1",
+        "needs_attention": false
+      },
+      "source_run": {
+        "run_id": "source-run:cbed0eea1eef768273965d654695734a7410dfd718692a4a6f813726b51a17fd",
+        "source_id": "9fb4b61d-09c9-49e5-a387-05a37ff4dbc5",
+        "trigger": "MANUAL_CHECK_NOW",
+        "trigger_reference": "day1-real-video",
+        "priority": "P0",
+        "state": "COMPLETED",
+        "attention_reason": null,
+        "automation_run_id": null,
+        "manual_command_id": "day1-real-video",
+        "manual_analyze_override_id": null,
+        "created_at": "2026-10-08T17:06:51.747519Z",
+        "updated_at": "2026-10-08T17:07:10.416823Z"
+      }
+    }
+  ],
+  "content_immediate": [
+    200,
+    {
+      "videos": [
+        {
+          "video_id": "bilibili-BV1GJ411x7h7",
+          "provider": "BILIBILI",
+          "channel_id": null,
+          "channel_name": "索尼音乐中国",
+          "title": "【官方 MV】Never Gonna Give You Up - Rick Astley",
+          "source_url": "https://www.bilibili.com/video/BV1GJ411x7h7/",
+          "published_at": "2019-12-31T23:43:23.000000Z",
+          "processing_status": "CAPTION_UNAVAILABLE",
+          "scoring": {
+            "status": "NOT_AVAILABLE"
+          },
+          "note": {
+            "status": "UNAVAILABLE"
+          },
+          "deep_analysis": {
+            "status": "NOT_QUALIFIED",
+            "reason": "No Deep Analysis model is currently qualified. Deep Analysis is unavailable; Summary and Evidence remain usable."
+          },
+          "last_updated": "2026-10-08T17:07:12.965015Z",
+          "filename": "【官方 MV】Never Gonna Give You Up - Rick Astley",
+          "media_kind": "VIDEO",
+          "format": ".json",
+          "imported_at": "2026-10-08T17:07:12.965015Z",
+          "source_language": null,
+          "duration_seconds": 213.0,
+          "uploader_id": "486906719"
+        },
+        {
+          "video_id": "aircAruvnKk",
+          "provider": "YOUTUBE",
+          "channel_id": "UCYO_jab_esuFRV4b17AJtAw",
+          "channel_name": "3Blue1Brown",
+          "title": "But what is a neural network? | Deep learning chapter 1",
+          "source_url": "https://www.youtube.com/watch?v=aircAruvnKk",
+          "published_at": "2017-10-05T15:11:25Z",
+          "processing_status": "ORGANIZED",
+          "scoring": {
+            "status": "NOT_AVAILABLE"
+          },
+          "note": {
+            "status": "UNAVAILABLE"
+          },
+          "deep_analysis": {
+            "status": "NOT_QUALIFIED",
+            "reason": "No Deep Analysis model is currently qualified. Deep Analysis is unavailable; Summary and Evidence remain usable."
+          },
+          "last_updated": "2026-10-08T17:06:58.826521Z",
+          "source_id": "9fb4b61d-09c9-49e5-a387-05a37ff4dbc5",
+          "processing_job": {
+            "status": "SUCCEEDED",
+            "stage": "TRANSCRIPT",
+            "retry_at": "2026-10-08T17:06:51.877558Z",
+            "error_code": null
+          },
+          "retry_allowed": true
+        }
+      ]
+    }
+  ],
+  "youtube_channel_handle": [
+    200,
+    {
+      "source": {
+        "source_id": "youtube-channel-UCYO_jab_esuFRV4b17AJtAw",
+        "provider": "YOUTUBE",
+        "source_type": "CHANNEL",
+        "canonical_url": "https://www.youtube.com/channel/UCYO_jab_esuFRV4b17AJtAw",
+        "channel_id": "UCYO_jab_esuFRV4b17AJtAw",
+        "video_id": null,
+        "display_name": "3Blue1Brown",
+        "enabled": true,
+        "processing_policy": "DISCOVER_ONLY",
+        "processing_mode": "ORGANIZE_CONTENT",
+        "last_checked_at": "2026-10-09T01:06:19.785338Z",
+        "last_success_at": "2026-10-09T01:06:19.785338Z",
+        "last_error": null,
+        "created_at": "2026-10-08T17:07:11.641212Z",
+        "updated_at": "2026-10-09T01:09:45.520829Z",
+        "tracking": {
+          "source_id": "youtube-channel-UCYO_jab_esuFRV4b17AJtAw",
+          "contract": "source-tracking-v1",
+          "followed_at": "2026-10-08T17:07:11.641212Z",
+          "baseline_at": "2026-10-08T17:07:11.663065Z",
+          "verified_at": "2026-10-09T01:06:19.785338Z",
+          "latest_published_at": "2026-09-25T13:35:02.000000Z",
+          "next_page": 1,
+          "coverage": "COMPLETE",
+          "health": "HEALTHY",
+          "next_check_at": "2026-10-09T01:21:20.856922Z",
+          "discovered_count": 0,
+          "pending_count": 0,
+          "unavailable_count": 0,
+          "update_count": 0,
+          "checking": false,
+          "processing_count": 0,
+          "manual_check_at": "2026-10-09T01:21:20.856922Z"
+        },
+        "tracking_parent_source_ids": [],
+        "insight_count": 0,
+        "friendly_name": "3Blue1Brown",
+        "needs_attention": false
+      }
+    }
+  ],
+  "pause": [
+    200,
+    {
+      "source": {
+        "source_id": "youtube-channel-UCYO_jab_esuFRV4b17AJtAw",
+        "provider": "YOUTUBE",
+        "source_type": "CHANNEL",
+        "canonical_url": "https://www.youtube.com/channel/UCYO_jab_esuFRV4b17AJtAw",
+        "channel_id": "UCYO_jab_esuFRV4b17AJtAw",
+        "video_id": null,
+        "display_name": "3Blue1Brown",
+        "enabled": false,
+        "processing_policy": "DISCOVER_ONLY",
+        "processing_mode": "ORGANIZE_CONTENT",
+        "last_checked_at": "2026-10-09T01:06:19.785338Z",
+        "last_success_at": "2026-10-09T01:06:19.785338Z",
+        "last_error": null,
+        "created_at": "2026-10-08T17:07:11.641212Z",
+        "updated_at": "2026-10-09T01:09:45.598858Z"
+      }
+    }
+  ],
+  "resume": [
+    200,
+    {
+      "source": {
+        "source_id": "youtube-channel-UCYO_jab_esuFRV4b17AJtAw",
+        "provider": "YOUTUBE",
+        "source_type": "CHANNEL",
+        "canonical_url": "https://www.youtube.com/channel/UCYO_jab_esuFRV4b17AJtAw",
+        "channel_id": "UCYO_jab_esuFRV4b17AJtAw",
+        "video_id": null,
+        "display_name": "3Blue1Brown",
+        "enabled": true,
+        "processing_policy": "DISCOVER_ONLY",
+        "processing_mode": "ORGANIZE_CONTENT",
+        "last_checked_at": "2026-10-09T01:06:19.785338Z",
+        "last_success_at": "2026-10-09T01:06:19.785338Z",
+        "last_error": null,
+        "created_at": "2026-10-08T17:07:11.641212Z",
+        "updated_at": "2026-10-09T01:09:45.636691Z"
+      }
+    }
+  ],
+  "tracking_authority": {
+    "source_id": "youtube-channel-UCYO_jab_esuFRV4b17AJtAw",
+    "contract": "source-tracking-v1",
+    "followed_at": "2026-10-08T17:07:11.641212Z",
+    "baseline_at": "2026-10-08T17:07:11.663065Z",
+    "verified_at": "2026-10-09T01:06:19.785338Z",
+    "latest_published_at": "2026-09-25T13:35:02.000000Z",
+    "next_page": 1,
+    "coverage": "COMPLETE",
+    "health": "HEALTHY",
+    "next_check_at": "2026-10-09T01:21:20.856922Z"
+  },
+  "baseline_observations": [
+    {
+      "source_id": "youtube-channel-UCYO_jab_esuFRV4b17AJtAw",
+      "canonical_identity": "-7etvZSBxlk",
+      "published_at": "2026-06-12T13:22:02.000000Z",
+      "observed_at": "2026-10-08T17:07:11.663065Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UCYO_jab_esuFRV4b17AJtAw",
+      "canonical_identity": "4h5BEALuh44",
+      "published_at": "2026-03-25T20:59:04.000000Z",
+      "observed_at": "2026-10-08T17:07:11.663065Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UCYO_jab_esuFRV4b17AJtAw",
+      "canonical_identity": "6XPlmCDNLNc",
+      "published_at": "2026-07-24T15:05:39.000000Z",
+      "observed_at": "2026-10-08T17:07:11.663065Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UCYO_jab_esuFRV4b17AJtAw",
+      "canonical_identity": "7L_eTem1SQ4",
+      "published_at": "2026-06-10T13:26:34.000000Z",
+      "observed_at": "2026-10-08T17:07:11.663065Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UCYO_jab_esuFRV4b17AJtAw",
+      "canonical_identity": "GlYgs6v2YfU",
+      "published_at": "2026-07-16T11:56:04.000000Z",
+      "observed_at": "2026-10-08T17:07:11.663065Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UCYO_jab_esuFRV4b17AJtAw",
+      "canonical_identity": "Nbwv5wHQoj0",
+      "published_at": "2026-09-18T17:12:53.000000Z",
+      "observed_at": "2026-10-08T17:07:11.663065Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UCYO_jab_esuFRV4b17AJtAw",
+      "canonical_identity": "QLu_ZsRc_G0",
+      "published_at": "2026-04-16T16:08:21.000000Z",
+      "observed_at": "2026-10-08T17:07:11.663065Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UCYO_jab_esuFRV4b17AJtAw",
+      "canonical_identity": "Y7ImxZ_YhJk",
+      "published_at": "2026-03-27T20:56:02.000000Z",
+      "observed_at": "2026-10-08T17:07:11.663065Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UCYO_jab_esuFRV4b17AJtAw",
+      "canonical_identity": "ZHXt0-_gSj4",
+      "published_at": "2026-05-21T21:49:47.000000Z",
+      "observed_at": "2026-10-08T17:07:11.663065Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UCYO_jab_esuFRV4b17AJtAw",
+      "canonical_identity": "ausLKMojXaY",
+      "published_at": "2026-09-25T13:35:02.000000Z",
+      "observed_at": "2026-10-08T17:07:11.663065Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UCYO_jab_esuFRV4b17AJtAw",
+      "canonical_identity": "bRQEWPA832A",
+      "published_at": "2026-09-18T17:14:08.000000Z",
+      "observed_at": "2026-10-08T17:07:11.663065Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UCYO_jab_esuFRV4b17AJtAw",
+      "canonical_identity": "l6DKRf-fAAM",
+      "published_at": "2026-06-07T11:49:51.000000Z",
+      "observed_at": "2026-10-08T17:07:11.663065Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UCYO_jab_esuFRV4b17AJtAw",
+      "canonical_identity": "ldxFjLJ3rVY",
+      "published_at": "2026-03-22T12:59:00.000000Z",
+      "observed_at": "2026-10-08T17:07:11.663065Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UCYO_jab_esuFRV4b17AJtAw",
+      "canonical_identity": "rYyJm1tD3d0",
+      "published_at": "2026-08-18T14:54:17.000000Z",
+      "observed_at": "2026-10-08T17:07:11.663065Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    },
+    {
+      "source_id": "youtube-channel-UCYO_jab_esuFRV4b17AJtAw",
+      "canonical_identity": "wGffBCfrAsE",
+      "published_at": "2026-06-16T18:04:05.000000Z",
+      "observed_at": "2026-10-08T17:07:11.663065Z",
+      "baseline": 1,
+      "enrollment": "BASELINE",
+      "content_id": null,
+      "error_code": null
+    }
+  ],
+  "channel_content_count": 0,
+  "bilibili_video": [
+    200,
+    {
+      "import": {
+        "content_id": "bilibili-BV1GJ411x7h7",
+        "video_id": "bilibili-BV1GJ411x7h7",
+        "provider": "BILIBILI",
+        "processing_status": "CAPTION_UNAVAILABLE",
+        "reused": true
+      }
+    }
+  ],
+  "sources_final": [
+    200,
+    {
+      "sources": [
+        {
+          "source_id": "bilibili-video-BV1GJ411x7h7",
+          "provider": "BILIBILI",
+          "source_type": "VIDEO_URL",
+          "canonical_url": "https://www.bilibili.com/video/BV1GJ411x7h7/",
+          "channel_id": null,
+          "video_id": "bilibili-BV1GJ411x7h7",
+          "display_name": "【官方 MV】Never Gonna Give You Up - Rick Astley",
+          "enabled": true,
+          "processing_policy": "DISCOVER_ONLY",
+          "processing_mode": "ORGANIZE_CONTENT",
+          "last_checked_at": "2026-10-08T17:07:12.965015Z",
+          "last_success_at": "2026-10-08T17:07:12.965015Z",
+          "last_error": {
+            "code": "CAPTION_UNAVAILABLE",
+            "message": null
+          },
+          "created_at": "2026-10-08T17:07:12.965015Z",
+          "updated_at": "2026-10-08T17:07:13.461652Z",
+          "tracking": null,
+          "tracking_parent_source_ids": [],
+          "insight_count": 0,
+          "friendly_name": "【官方 MV】Never Gonna Give You Up - Rick Astley",
+          "needs_attention": false
+        },
+        {
+          "source_id": "youtube-channel-UCYO_jab_esuFRV4b17AJtAw",
+          "provider": "YOUTUBE",
+          "source_type": "CHANNEL",
+          "canonical_url": "https://www.youtube.com/channel/UCYO_jab_esuFRV4b17AJtAw",
+          "channel_id": "UCYO_jab_esuFRV4b17AJtAw",
+          "video_id": null,
+          "display_name": "3Blue1Brown",
+          "enabled": true,
+          "processing_policy": "DISCOVER_ONLY",
+          "processing_mode": "ORGANIZE_CONTENT",
+          "last_checked_at": "2026-10-09T01:06:19.785338Z",
+          "last_success_at": "2026-10-09T01:06:19.785338Z",
+          "last_error": null,
+          "created_at": "2026-10-08T17:07:11.641212Z",
+          "updated_at": "2026-10-09T01:09:45.636691Z",
+          "tracking": {
+            "source_id": "youtube-channel-UCYO_jab_esuFRV4b17AJtAw",
+            "contract": "source-tracking-v1",
+            "followed_at": "2026-10-08T17:07:11.641212Z",
+            "baseline_at": "2026-10-08T17:07:11.663065Z",
+            "verified_at": "2026-10-09T01:06:19.785338Z",
+            "latest_published_at": "2026-09-25T13:35:02.000000Z",
+            "next_page": 1,
+            "coverage": "COMPLETE",
+            "health": "HEALTHY",
+            "next_check_at": "2026-10-09T01:21:20.856922Z",
+            "discovered_count": 0,
+            "pending_count": 0,
+            "unavailable_count": 0,
+            "update_count": 0,
+            "checking": false,
+            "processing_count": 0,
+            "manual_check_at": "2026-10-09T01:21:20.856922Z"
+          },
+          "tracking_parent_source_ids": [],
+          "insight_count": 0,
+          "friendly_name": "3Blue1Brown",
+          "needs_attention": false
+        },
+        {
+          "source_id": "9fb4b61d-09c9-49e5-a387-05a37ff4dbc5",
+          "provider": "YOUTUBE",
+          "source_type": "VIDEO_URL",
+          "canonical_url": "https://www.youtube.com/watch?v=aircAruvnKk",
+          "channel_id": null,
+          "video_id": "aircAruvnKk",
+          "display_name": null,
+          "enabled": true,
+          "processing_policy": "DISCOVER_ONLY",
+          "processing_mode": "ORGANIZE_CONTENT",
+          "last_checked_at": "2026-10-08T17:07:10.385102Z",
+          "last_success_at": "2026-10-08T17:07:10.385102Z",
+          "last_error": null,
+          "created_at": "2026-10-08T17:06:51.730650Z",
+          "updated_at": "2026-10-08T17:07:10.385102Z",
+          "tracking": null,
+          "tracking_parent_source_ids": [],
+          "insight_count": 0,
+          "friendly_name": "But what is a neural network? | Deep learning chapter 1",
+          "needs_attention": false
+        }
+      ]
+    }
+  ],
+  "content_final": [
+    200,
+    {
+      "videos": [
+        {
+          "video_id": "bilibili-BV1GJ411x7h7",
+          "provider": "BILIBILI",
+          "channel_id": null,
+          "channel_name": "索尼音乐中国",
+          "title": "【官方 MV】Never Gonna Give You Up - Rick Astley",
+          "source_url": "https://www.bilibili.com/video/BV1GJ411x7h7/",
+          "published_at": "2019-12-31T23:43:23.000000Z",
+          "processing_status": "CAPTION_UNAVAILABLE",
+          "scoring": {
+            "status": "NOT_AVAILABLE"
+          },
+          "note": {
+            "status": "UNAVAILABLE"
+          },
+          "deep_analysis": {
+            "status": "NOT_QUALIFIED",
+            "reason": "No Deep Analysis model is currently qualified. Deep Analysis is unavailable; Summary and Evidence remain usable."
+          },
+          "last_updated": "2026-10-08T17:07:12.965015Z",
+          "filename": "【官方 MV】Never Gonna Give You Up - Rick Astley",
+          "media_kind": "VIDEO",
+          "format": ".json",
+          "imported_at": "2026-10-08T17:07:12.965015Z",
+          "source_language": null,
+          "duration_seconds": 213.0,
+          "uploader_id": "486906719"
+        },
+        {
+          "video_id": "aircAruvnKk",
+          "provider": "YOUTUBE",
+          "channel_id": "UCYO_jab_esuFRV4b17AJtAw",
+          "channel_name": "3Blue1Brown",
+          "title": "But what is a neural network? | Deep learning chapter 1",
+          "source_url": "https://www.youtube.com/watch?v=aircAruvnKk",
+          "published_at": "2017-10-05T15:11:25Z",
+          "processing_status": "ORGANIZED",
+          "scoring": {
+            "status": "NOT_AVAILABLE"
+          },
+          "note": {
+            "status": "UNAVAILABLE"
+          },
+          "deep_analysis": {
+            "status": "NOT_QUALIFIED",
+            "reason": "No Deep Analysis model is currently qualified. Deep Analysis is unavailable; Summary and Evidence remain usable."
+          },
+          "last_updated": "2026-10-08T17:06:58.826521Z",
+          "source_id": "9fb4b61d-09c9-49e5-a387-05a37ff4dbc5",
+          "processing_job": {
+            "status": "SUCCEEDED",
+            "stage": "TRANSCRIPT",
+            "retry_at": "2026-10-08T17:06:51.877558Z",
+            "error_code": null
+          },
+          "retry_allowed": true
+        }
+      ]
+    }
+  ],
+  "manual_intelligence": [
+    202,
+    {
+      "execution": {
+        "status": "WAITING_MODEL",
+        "execution_id": "distillation:reservation:v3:ba6e03d63abbd0f42acaf3fe2e30b380d2e34fc7f412bea9ecf31a47a41452bd",
+        "output_language": "zh-CN",
+        "has_new_intelligence": null,
+        "intelligence_id": null,
+        "revision_id": null,
+        "updated_at": "2026-10-08T17:07:14.619748Z"
+      }
+    }
+  ],
+  "youtube_completed_detail": [
+    200,
+    {
+      "video": {
+        "video_id": "aircAruvnKk",
+        "provider": "YOUTUBE",
+        "channel_id": "UCYO_jab_esuFRV4b17AJtAw",
+        "channel_name": "3Blue1Brown",
+        "title": "But what is a neural network? | Deep learning chapter 1",
+        "source_url": "https://www.youtube.com/watch?v=aircAruvnKk",
+        "published_at": "2017-10-05T15:11:25Z",
+        "processing_status": "ORGANIZED",
+        "scoring": {
+          "status": "NOT_AVAILABLE"
+        },
+        "note": {
+          "status": "UNAVAILABLE"
+        },
+        "deep_analysis": {
+          "status": "NOT_QUALIFIED",
+          "reason": "No Deep Analysis model is currently qualified. Deep Analysis is unavailable; Summary and Evidence remain usable."
+        },
+        "last_updated": "2026-10-08T17:06:58.826521Z",
+        "source_id": "9fb4b61d-09c9-49e5-a387-05a37ff4dbc5",
+        "processing_job": {
+          "status": "SUCCEEDED",
+          "stage": "TRANSCRIPT",
+          "retry_at": "2026-10-08T17:06:51.877558Z",
+          "error_code": null
+        },
+        "retry_allowed": true
+      },
+      "scoring": {
+        "status": "NOT_AVAILABLE",
+        "reason": "No verified scoring result is available for this video."
+      },
+      "transcript": {
+        "status": "AVAILABLE",
+        "characters": 5303,
+        "sha256": "edf4e024d8f13b26e28c04a0248dc222788ade2217c3d8119baeb0c782579508",
+        "timed_segment_count": 231
+      },
+      "note": {
+        "v2": {
+          "status": "AVAILABLE",
+          "summary_characters": 500,
+          "summary_sha256": "a3c2c4e5995226cf417e42568e1c9f0bd422ef4099943ec56e057ac3e0687329",
+          "evidence_reference_count": 6,
+          "key_point_count": 0
+        }
+      },
+      "intelligence_result": {
+        "status": "WAITING_MODEL",
+        "execution_id": "distillation:reservation:v3:ba6e03d63abbd0f42acaf3fe2e30b380d2e34fc7f412bea9ecf31a47a41452bd",
+        "output_language": "zh-CN",
+        "has_new_intelligence": null,
+        "intelligence_id": null,
+        "revision_id": null,
+        "updated_at": "2026-10-08T17:07:14.619748Z"
+      },
+      "manual_intelligence_eligible": true,
+      "cloud_intelligence_available": false,
+      "history": [
+        {
+          "timestamp": "2026-10-08T17:06:58.826521Z",
+          "type": "JOB_STATUS",
+          "status": "SUCCEEDED",
+          "summary": "TRANSCRIPT processing is SUCCEEDED.",
+          "code": null,
+          "context": {
+            "stage": "TRANSCRIPT"
+          }
+        },
+        {
+          "timestamp": "2026-10-08T17:06:58.826521Z",
+          "type": "ATTEMPT",
+          "status": "SUCCEEDED",
+          "summary": "Attempt 1 for TRANSCRIPT was recorded.",
+          "code": null,
+          "context": {
+            "stage": "TRANSCRIPT"
+          }
+        },
+        {
+          "timestamp": "2026-10-08T17:06:58.769490Z",
+          "type": "JOB_STATUS",
+          "status": "SUCCEEDED",
+          "summary": "METADATA processing is SUCCEEDED.",
+          "code": null,
+          "context": {
+            "stage": "METADATA"
+          }
+        },
+        {
+          "timestamp": "2026-10-08T17:06:58.769490Z",
+          "type": "ATTEMPT",
+          "status": "SUCCEEDED",
+          "summary": "Attempt 1 for METADATA was recorded.",
+          "code": null,
+          "context": {
+            "stage": "METADATA"
+          }
+        },
+        {
+          "timestamp": "2026-10-08T17:06:51.877558Z",
+          "type": "JOB_CREATED",
+          "status": "PENDING",
+          "summary": "METADATA processing was queued.",
+          "code": null,
+          "context": {
+            "stage": "METADATA"
+          }
+        },
+        {
+          "timestamp": "2026-10-08T17:06:51.877558Z",
+          "type": "JOB_CREATED",
+          "status": "PENDING",
+          "summary": "TRANSCRIPT processing was queued.",
+          "code": null,
+          "context": {
+            "stage": "TRANSCRIPT"
+          }
+        }
+      ]
+    }
+  ],
+  "intelligence_final": [
+    200,
+    {
+      "intelligence": [],
+      "activity": [
+        {
+          "video_id": "aircAruvnKk",
+          "title": "But what is a neural network? | Deep learning chapter 1",
+          "status": "WAITING_MODEL",
+          "execution_id": "distillation:reservation:v3:ba6e03d63abbd0f42acaf3fe2e30b380d2e34fc7f412bea9ecf31a47a41452bd",
+          "output_language": "zh-CN",
+          "has_new_intelligence": null,
+          "intelligence_id": null,
+          "revision_id": null,
+          "updated_at": "2026-10-08T17:07:14.619748Z"
+        }
+      ]
+    }
+  ],
+  "topics_final": [
+    200,
+    {
+      "topics": []
+    }
+  ],
+  "manual_invocation_count": 0
+}

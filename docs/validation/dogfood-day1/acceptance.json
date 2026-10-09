@@ -1,0 +1,31 @@
+{
+  "backend": {
+    "passed": 3892,
+    "skipped": 1,
+    "warnings": 2,
+    "command": "PYTHONPATH=src .venv/bin/python -m pytest -q"
+  },
+  "frontend": {
+    "passed": 248,
+    "files": 16
+  },
+  "focused_backend": 45,
+  "independent_regressions": 283,
+  "typecheck": "passed",
+  "build": "passed",
+  "strict_mypy": {
+    "result": "passed",
+    "source_files": 98
+  },
+  "ruff_scope": "src scripts tests docs/validation/dogfood-day1",
+  "ruff": "passed",
+  "compileall": "passed",
+  "diff_check": "passed",
+  "remaining_P0": 0,
+  "remaining_P1": 0,
+  "deferred": [
+    "39 pre-existing archived Phase13 validation-script lint findings",
+    "Public-provider availability outside application control"
+  ],
+  "phase14": "not started"
+}
