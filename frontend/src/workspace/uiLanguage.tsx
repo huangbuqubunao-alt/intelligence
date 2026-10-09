@@ -4,6 +4,11 @@ export type UiLanguage = "zh-CN" | "en";
 
 const storageKey = "yia.ui-language";
 const chinese: Record<string, string> = {
+  "Language, interests, processing, and your data.": "语言、兴趣、内容处理和你的数据。",
+  "Open Following to check your saved sources or add something new. Content is organized first; generating Intelligence is optional.": "打开关注，检查已保存的来源或添加新内容。系统先整理内容；是否进一步生成洞察，由你选择。",
+  "Paste a YouTube or Bilibili video link, follow a YouTube channel, or import a local file.": "粘贴 YouTube 或 Bilibili 视频链接，持续关注 YouTube 频道，或导入本地文件。",
+  "No Content yet. Add a video link, follow a YouTube channel, or import a local file.": "暂无内容。添加视频链接，持续关注 YouTube 频道，或导入本地文件。",
+  "Follow a YouTube channel to watch for new content. You can also import a single YouTube or Bilibili video, or a local file.": "持续关注 YouTube 频道，留意后续新内容。也可以单次导入 YouTube 或 Bilibili 视频，或本地文件。",
   "Bilibili public captions are currently unavailable. Imports save public metadata only; no speech transcription or creator following.": "Bilibili 公共字幕暂不可用。目前仅导入公开视频元信息，不进行语音转录或 UP 主持续关注。",
   "Advanced source configuration": "高级来源配置",
   "Analysis activity": "洞察处理进度",

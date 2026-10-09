@@ -1,0 +1,40 @@
+{
+  "results": [
+    {
+      "language": "en",
+      "width": 320,
+      "truthful_saved_source": true,
+      "no_false_tracking_claim": true,
+      "no_onboarding_replay": true,
+      "GET_only": true,
+      "no_overflow": true
+    },
+    {
+      "language": "en",
+      "width": 1440,
+      "truthful_saved_source": true,
+      "no_false_tracking_claim": true,
+      "no_onboarding_replay": true,
+      "GET_only": true,
+      "no_overflow": true
+    },
+    {
+      "language": "zh-CN",
+      "width": 320,
+      "truthful_saved_source": true,
+      "no_false_tracking_claim": true,
+      "no_onboarding_replay": true,
+      "GET_only": true,
+      "no_overflow": true
+    },
+    {
+      "language": "zh-CN",
+      "width": 1440,
+      "truthful_saved_source": true,
+      "no_false_tracking_claim": true,
+      "no_onboarding_replay": true,
+      "GET_only": true,
+      "no_overflow": true
+    }
+  ]
+}

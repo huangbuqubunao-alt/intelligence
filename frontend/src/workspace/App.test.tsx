@@ -1220,8 +1220,8 @@ test("an empty Dashboard explains the next useful step in ordinary language", as
   render(<App />);
   expect(await screen.findByText("No important new intelligence yet."))
     .toBeTruthy();
-  expect(screen.getByText(/Add a Following to start monitoring/)).toBeTruthy();
-  expect(screen.getByRole("button", { name: "Add Following" })).toBeTruthy();
+  expect(screen.getByText(/Paste a YouTube or Bilibili video link/)).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Add Source" })).toBeTruthy();
 });
 
 test("fresh onboarding explains local processing, multiple sources and remembers completion with an empty library", async () => {
@@ -2626,4 +2626,33 @@ test.each([
   render(<App />);
   expect(await screen.findByText(label, { exact: true })).toBeTruthy();
   expect(screen.queryByText(status, { exact: true })).toBeNull();
+});
+
+test.each(["en", "zh-CN"])("%s saved unresolved Source never implies active Following on Home", async language => {
+  localStorage.setItem("yia.ui-language", language);
+  location.hash = "Home";
+  const original = globalThis.fetch;
+  const fetchMock = vi.fn((path: string, init?: RequestInit) => path.endsWith("/dashboard")
+    ? response({ intelligence: [], pinned_topics: [], weekly_v1: [], needs_attention: [], operations: { source_count: 1 } })
+    : original(path, init));
+  vi.stubGlobal("fetch", fetchMock);
+  render(<App />);
+  expect(await screen.findByText(language === "en"
+    ? "Open Following to check your saved sources or add something new. Content is organized first; generating Intelligence is optional."
+    : "打开关注，检查已保存的来源或添加新内容。系统先整理内容；是否进一步生成洞察，由你选择。", { exact: true })).toBeTruthy();
+  expect(screen.queryByText(/You have a Following|你已添加关注/)).toBeNull();
+  expect(screen.queryByText(/FIRST RUN/)).toBeNull();
+  expect(fetchMock.mock.calls.every(([, init]) => !init?.method || init.method === "GET")).toBe(true);
+});
+
+test.each(["en", "zh-CN"])("%s empty Content explains single-content and local entry without internal demo prose", async language => {
+  localStorage.setItem("yia.ui-language", language);
+  location.hash = "Content";
+  const original = globalThis.fetch;
+  vi.stubGlobal("fetch", vi.fn((path: string, init?: RequestInit) => path.endsWith("/videos") ? response({ videos: [] }) : original(path, init)));
+  render(<App />);
+  expect(await screen.findByText(language === "en"
+    ? "No Content yet. Add a video link, follow a YouTube channel, or import a local file."
+    : "暂无内容。添加视频链接，持续关注 YouTube 频道，或导入本地文件。", { exact: true })).toBeTruthy();
+  expect(screen.queryByText(/Demo fixtures/)).toBeNull();
 });

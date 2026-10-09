@@ -12,7 +12,7 @@ The post-adoption launcher restart correction below remains in this same goal.
 | `PYTHONPATH=src .venv/bin/python -m pytest -q` | 3896 passed, 1 existing optional-asset skip, 2 fixture warnings; 763.78s |
 | Focused final backend | 45 passed; 21.93s |
 | Independent review regressions | 283 passed; includes reservations, trusted orchestration, Phase 12/13 and backup |
-| Frontend complete suite | 248 passed, 16 files |
+| Frontend complete suite | 252 passed, 16 files |
 | `npm run typecheck -- --pretty false` | passed (`tsc -b`) |
 | `npm run build` | passed, production assets generated |
 | Strict mypy | passed, 98 source files |
@@ -149,3 +149,26 @@ evidence commit changes no application code. The original 3892-pass result is
 retained in backend-final.txt; backend-launcher-final.txt contains the final
 acceptance run. Frontend source is unchanged from its 248-pass/typecheck/build
 acceptance. Final compileall and diff checks also pass before re-adoption.
+
+
+## Final real-owner Home copy review
+
+The adopted owner Home rendered successfully, but its old empty-state copy
+claimed that any saved Source was active Following. The preserved unresolved
+Day 1 Source disproved that claim. Final candidate-only copy correction now
+says saved sources, directs users to inspect Following, and explains that
+Intelligence is optional. Zero-source Home, empty Content and empty Following
+show supported channel/single-video/local entries; internal Demo and resource
+truth prose is removed. No handler, policy, model, consent or persistence
+behavior changed. Four new en/zh tests cover this distinction and GET-only
+rendering while existing assertions retain specific replacement checks.
+
+Fresh complete frontend verification: 252 passed in 16 files, typecheck and
+production build passed. Fresh independent review approves with no P0/P1.
+`browser-owner-home.json` and four screenshots prove the final UI against the
+owner database COPY at 320px and 1440px in both languages, no false tracking
+claim, no full-onboarding replay, no overflow and GET-only requests. Backend
+source and launcher are unchanged from the final 3896-pass acceptance run;
+that result remains valid. Final re-adoption/relaunch then checks the real
+owner using HTTP GET only. The original frontend acceptance is preserved;
+frontend-owner-final/typecheck/build files contain the final results.

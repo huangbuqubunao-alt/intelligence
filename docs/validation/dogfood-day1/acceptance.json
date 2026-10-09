@@ -7,7 +7,7 @@
     "seconds": 763.78
   },
   "frontend": {
-    "passed": 248,
+    "passed": 252,
     "files": 16
   },
   "focused_backend": 45,
@@ -31,5 +31,7 @@
   "phase14": "not started",
   "prior_backend_passed": 3892,
   "launcher_focused": 11,
-  "independent_final_launcher_review": "APPROVE, no P0/P1"
+  "independent_final_launcher_review": "APPROVE, no P0/P1",
+  "prior_frontend_passed": 248,
+  "independent_final_frontend_review": "APPROVE, no P0/P1"
 }

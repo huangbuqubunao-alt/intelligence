@@ -305,7 +305,7 @@ const subtitles: Record<Page, string> = {
   Intelligence: "Revisable, evidence-linked judgments worth tracking.",
   Topics: "Current understanding built from related Intelligence.",
   Research: "Inspect a question within selected local library Content.",
-  Settings: "Language, model readiness, resource truth, and data control.",
+  Settings: "Language, interests, processing, and your data.",
 };
 const commandId = () =>
   `ui:${Date.now()}:${Math.random().toString(36).slice(2)}`;
@@ -1287,14 +1287,14 @@ function Dashboard(
         <Panel title="No important new intelligence yet.">
           <p>
             {t((data.operations?.source_count ?? 0) > 0
-              ? "You have a Following, but no admitted Intelligence yet. Open Following to see whether it has been checked and what processing level it uses."
-              : "Add a Following to start monitoring videos that matter. New conclusions will appear here with their Evidence.")}
+              ? "Open Following to check your saved sources or add something new. Content is organized first; generating Intelligence is optional."
+              : "Paste a YouTube or Bilibili video link, follow a YouTube channel, or import a local file.")}
           </p>
           <button
             className="button button-primary"
             onClick={() => navigate("Following")}
           >
-            {t((data.operations?.source_count ?? 0) > 0 ? "Review Following" : "Add Following")}
+            {t((data.operations?.source_count ?? 0) > 0 ? "Review Following" : "Add Source")}
           </button>
         </Panel>
       </div>
@@ -1531,7 +1531,7 @@ function ContentPage(
     )
     : (
       <Empty>
-        No Content yet. Add a Following and ingested items will appear here without mixing in Demo fixtures.
+        No Content yet. Add a video link, follow a YouTube channel, or import a local file.
       </Empty>
     );
 }
@@ -2545,7 +2545,7 @@ function Sources(
           <Empty>
             <strong>{t("Set up your first Source")}</strong>
             <p>
-              {t("Add a YouTube Source to monitor new videos, extract insights when Evidence is sufficient, and keep Evidence inspectable.")}
+              {t("Follow a YouTube channel to watch for new content. You can also import a single YouTube or Bilibili video, or a local file.")}
             </p>
             <button
               className="button button-primary"
