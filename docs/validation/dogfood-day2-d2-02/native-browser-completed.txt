@@ -1,0 +1,4 @@
+Completed browser runner: exit code 0.
+REAL_NATIVE_BROWSER_2_GIB_ZERO_UPLOAD_D2_01_PASSED
+Structured assertions/evidence: browser-native-import.json; no page errors.
+Raw native-browser-final.txt retains interrupted concurrent runner output.

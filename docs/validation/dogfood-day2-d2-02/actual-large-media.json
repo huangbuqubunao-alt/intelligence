@@ -1,0 +1,100 @@
+{
+  "real_media": "ffmpeg one-second MP4 with valid sparse free atom; full bytes transferred",
+  "actual_sizes": [
+    2147483647,
+    2147483648
+  ],
+  "asr": "not called; deterministic timed-cue fixture for Evidence",
+  "steps": [
+    {
+      "stage": "HTTP import 2147483647",
+      "seconds": 6.313,
+      "python_peak_delta_bytes": 4223073,
+      "process_peak_rss_bytes": 74301440
+    },
+    {
+      "stage": "snapshot SHA256 2147483647",
+      "seconds": 1.07,
+      "python_peak_delta_bytes": 2104868,
+      "process_peak_rss_bytes": 74301440
+    },
+    {
+      "stage": "normal Content read 2147483647",
+      "seconds": 2.217,
+      "python_peak_delta_bytes": 2147853,
+      "process_peak_rss_bytes": 74301440
+    },
+    {
+      "stage": "duplicate HTTP import 2147483647",
+      "seconds": 4.83,
+      "python_peak_delta_bytes": 4221192,
+      "process_peak_rss_bytes": 74301440
+    },
+    {
+      "stage": "HTTP import 2147483648",
+      "seconds": 4.404,
+      "python_peak_delta_bytes": 4221415,
+      "process_peak_rss_bytes": 74301440
+    },
+    {
+      "stage": "snapshot SHA256 2147483648",
+      "seconds": 1.102,
+      "python_peak_delta_bytes": 2104852,
+      "process_peak_rss_bytes": 74301440
+    },
+    {
+      "stage": "normal Content read 2147483648",
+      "seconds": 2.25,
+      "python_peak_delta_bytes": 2141515,
+      "process_peak_rss_bytes": 74301440
+    },
+    {
+      "stage": "duplicate HTTP import 2147483648",
+      "seconds": 3.812,
+      "python_peak_delta_bytes": 4220844,
+      "process_peak_rss_bytes": 74301440
+    },
+    {
+      "stage": "accept deterministic timed Evidence",
+      "seconds": 8.521,
+      "python_peak_delta_bytes": 2146515,
+      "process_peak_rss_bytes": 75431936
+    },
+    {
+      "stage": "HTTP create ZIP64 backup",
+      "seconds": 12.251,
+      "python_peak_delta_bytes": 2444256,
+      "process_peak_rss_bytes": 79052800
+    },
+    {
+      "stage": "HTTP stream backup download",
+      "seconds": 2.293,
+      "python_peak_delta_bytes": 4231543,
+      "process_peak_rss_bytes": 79052800
+    },
+    {
+      "stage": "HTTP stream restore stage",
+      "seconds": 20.499,
+      "python_peak_delta_bytes": 4221520,
+      "process_peak_rss_bytes": 79052800
+    },
+    {
+      "stage": "HTTP confirm restore",
+      "seconds": 11.896,
+      "python_peak_delta_bytes": 2212088,
+      "process_peak_rss_bytes": 79052800
+    },
+    {
+      "stage": "restart-boundary restore activation",
+      "seconds": 45.354,
+      "python_peak_delta_bytes": 2201431,
+      "process_peak_rss_bytes": 79052800
+    },
+    {
+      "stage": "restored normal Content read",
+      "seconds": 11.762,
+      "python_peak_delta_bytes": 2136157,
+      "process_peak_rss_bytes": 79052800
+    }
+  ]
+}

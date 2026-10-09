@@ -1,0 +1,27 @@
+{"stage": "HTTP import 2147483647", "seconds": 4.427, "python_peak_delta_bytes": 4223095, "process_peak_rss_bytes": 71303168}
+{"stage": "snapshot SHA256 2147483647", "seconds": 1.079, "python_peak_delta_bytes": 2104852, "process_peak_rss_bytes": 71303168}
+{"stage": "normal Content read 2147483647", "seconds": 2.23, "python_peak_delta_bytes": 2147809, "process_peak_rss_bytes": 71303168}
+{"stage": "duplicate HTTP import 2147483647", "seconds": 4.805, "python_peak_delta_bytes": 4221148, "process_peak_rss_bytes": 71303168}
+{"stage": "HTTP import 2147483648", "seconds": 3.372, "python_peak_delta_bytes": 4221703, "process_peak_rss_bytes": 71303168}
+{"stage": "snapshot SHA256 2147483648", "seconds": 1.07, "python_peak_delta_bytes": 2104852, "process_peak_rss_bytes": 71303168}
+{"stage": "normal Content read 2147483648", "seconds": 2.187, "python_peak_delta_bytes": 2141387, "process_peak_rss_bytes": 71303168}
+{"stage": "duplicate HTTP import 2147483648", "seconds": 3.419, "python_peak_delta_bytes": 4220756, "process_peak_rss_bytes": 71303168}
+{"stage": "accept deterministic timed Evidence", "seconds": 7.617, "python_peak_delta_bytes": 2146733, "process_peak_rss_bytes": 71303168}
+{"stage": "HTTP create ZIP64 backup", "seconds": 10.784, "python_peak_delta_bytes": 2444051, "process_peak_rss_bytes": 71303168}
+{"stage": "HTTP stream backup download", "seconds": 3.738, "python_peak_delta_bytes": 4231543, "process_peak_rss_bytes": 71303168}
+{"stage": "HTTP stream restore stage", "seconds": 18.884, "python_peak_delta_bytes": 4221432, "process_peak_rss_bytes": 71303168}
+Traceback (most recent call last):
+  File "/Users/hua/Documents/yia-worktrees/dogfood-day2-large-import/tests/scripts/dogfood_day2_large_media.py", line 176, in <module>
+  File "/Users/hua/Documents/yia-worktrees/dogfood-day2-large-import/tests/scripts/dogfood_day2_large_media.py", line 152, in main
+    measure("restart-boundary restore activation", recovery.recover_and_apply_pending_restore, evidence)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/hua/Documents/yia-worktrees/dogfood-day2-large-import/tests/scripts/dogfood_day2_large_media.py", line 93, in measure
+    current, peak = tracemalloc.get_traced_memory()
+             ^^^^^^^^
+  File "/Users/hua/Documents/yia-worktrees/dogfood-day2-large-import/tests/scripts/dogfood_day2_large_media.py", line 152, in <lambda>
+    measure("restart-boundary restore activation", recovery.recover_and_apply_pending_restore, evidence)
+                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/hua/Documents/yia-worktrees/dogfood-day2-large-import/tests/scripts/dogfood_day2_large_media.py", line 65, in post
+    connection.close()
+           ^^^^^^^^^^^^
+AssertionError: (202, {'restore': {'pending': True, 'restart_required': True, 'restore_id': '7f7de868f9254b50a86463bf9c819727', 'message': 'Restore is ready and will apply before processing resumes.'}})

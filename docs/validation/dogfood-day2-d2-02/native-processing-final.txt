@@ -1,0 +1,24 @@
+................................EE                                       [100%]
+==================================== ERRORS ====================================
+_ ERROR at setup of test_automatic_processing_waits_for_check_and_requires_offline_qualification[True] _
+file /Users/hua/Documents/yia-worktrees/dogfood-day2-large-import/tests/integration/test_dogfood_day2_native_import.py, line 335
+  @pytest.mark.parametrize("eligible", [True, False])
+  def test_automatic_processing_waits_for_check_and_requires_offline_qualification(native_server, monkeypatch, eligible):
+E       fixture 'native_server' not found
+>       available fixtures: admitted_artifact, admitted_artifact_bundle, anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, http_native, isolated_credential_store, isolated_provider_cooldown, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, workspace
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/Users/hua/Documents/yia-worktrees/dogfood-day2-large-import/tests/integration/test_dogfood_day2_native_import.py:335
+_ ERROR at setup of test_automatic_processing_waits_for_check_and_requires_offline_qualification[False] _
+file /Users/hua/Documents/yia-worktrees/dogfood-day2-large-import/tests/integration/test_dogfood_day2_native_import.py, line 335
+  @pytest.mark.parametrize("eligible", [True, False])
+  def test_automatic_processing_waits_for_check_and_requires_offline_qualification(native_server, monkeypatch, eligible):
+E       fixture 'native_server' not found
+>       available fixtures: admitted_artifact, admitted_artifact_bundle, anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, doctest_namespace, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, http_native, isolated_credential_store, isolated_provider_cooldown, monkeypatch, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, subtests, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, workspace
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/Users/hua/Documents/yia-worktrees/dogfood-day2-large-import/tests/integration/test_dogfood_day2_native_import.py:335
+=========================== short test summary info ============================
+ERROR tests/integration/test_dogfood_day2_native_import.py::test_automatic_processing_waits_for_check_and_requires_offline_qualification[True]
+ERROR tests/integration/test_dogfood_day2_native_import.py::test_automatic_processing_waits_for_check_and_requires_offline_qualification[False]
+32 passed, 2 errors in 16.97s

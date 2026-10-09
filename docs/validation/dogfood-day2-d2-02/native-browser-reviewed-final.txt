@@ -1,0 +1,4 @@
+REAL_NATIVE_BROWSER_PICKER_READY {
+  fixture: '/Users/hua/Documents/yia-worktrees/dogfood-day2-large-import/.var/d2-02/ui-native-fixture/two-gib.mp4'
+}
+REAL_NATIVE_BROWSER_2_GIB_ZERO_UPLOAD_D2_01_PASSED

@@ -1,0 +1,44 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______ test_saved_native_media_remains_visible_when_status_update_fails _______
+
+workspace = (PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-92/test_saved_native_media_r...ate/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-92/test_saved_native_media_remain0/notes.md'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10bea82f0>
+
+    def test_saved_native_media_remains_visible_when_status_update_fails(workspace, monkeypatch):
+        import sqlite3
+        from contextlib import contextmanager
+
+        from youtube_intel import local_content
+        root, repo, provider, _ = workspace
+        source = root / "status-fault.mp4"
+        source.write_bytes(b"isolated media-validation seam")
+        monkeypatch.setattr(local_content, "probe_media", lambda *_: 1.0)
+        original = repo._connect
+        failed = []
+        class Connection:
+            def __init__(self, actual):
+                self.actual = actual
+            def __getattr__(self, name):
+                return getattr(self.actual, name)
+            def execute(self, sql, *args):
+                if sql.startswith("UPDATE content_source_snapshots SET status=?") and not failed:
+                    failed.append(True)
+                    raise sqlite3.OperationalError("isolated status write failure")
+                return self.actual.execute(sql, *args)
+        @contextmanager
+        def connect(**options):
+            with original(**options) as actual:
+                yield Connection(actual)
+        monkeypatch.setattr(repo, "_connect", connect)
+        service, key = selected(provider, source)
+        try:
+            service.confirm(key, ORIGIN)
+            item = settled(service, key, ("COMPLETE",))["files"][0]
+>           assert failed
+E           assert []
+
+tests/integration/test_dogfood_day2_native_import.py:425: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_dogfood_day2_native_import.py::test_saved_native_media_remains_visible_when_status_update_fails
+1 failed in 0.62s

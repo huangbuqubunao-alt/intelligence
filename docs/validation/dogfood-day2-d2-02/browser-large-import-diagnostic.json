@@ -1,0 +1,50 @@
+{
+  "scenarios": [
+    {
+      "filename": "small.mp4",
+      "language": "en",
+      "bytes": null,
+      "status": "TRANSCRIPTION_UNAVAILABLE",
+      "nativeChooser": "actual Chromium filechooser event with local path; OS dialog not manually driven",
+      "focusRefresh": "preserved",
+      "successNavigation": "http://127.0.0.1:5598/#Content",
+      "reload": "passed"
+    },
+    {
+      "filename": "over64.mp4",
+      "language": "zh-CN",
+      "bytes": null,
+      "status": "TRANSCRIPTION_UNAVAILABLE",
+      "nativeChooser": "actual Chromium filechooser event with local path; OS dialog not manually driven",
+      "focusRefresh": "preserved",
+      "successNavigation": "http://127.0.0.1:5598/#Content",
+      "reload": "passed"
+    },
+    {
+      "filename": "two-gib.mp4",
+      "language": "en",
+      "bytes": 2147483648,
+      "status": "TRANSCRIPTION_UNAVAILABLE",
+      "nativeChooser": "actual Chromium filechooser event with local path; OS dialog not manually driven",
+      "focusRefresh": "preserved",
+      "successNavigation": "http://127.0.0.1:5598/#Content",
+      "reload": "passed"
+    },
+    {
+      "filename": "notes.md",
+      "language": "en",
+      "bytes": null,
+      "status": "READY",
+      "nativeChooser": "actual Chromium filechooser event with local path; OS dialog not manually driven",
+      "focusRefresh": "preserved",
+      "successNavigation": "http://127.0.0.1:5598/#Content",
+      "reload": "passed"
+    }
+  ],
+  "errors": [],
+  "failedResponses": [],
+  "external": [],
+  "serverMemory": {
+    "process_peak_rss_bytes": 88342528
+  }
+}

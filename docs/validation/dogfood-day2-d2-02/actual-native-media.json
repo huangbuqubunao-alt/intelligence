@@ -1,0 +1,89 @@
+{
+  "real_native_selection": true,
+  "actual_bytes": 2147483648,
+  "source": "real ffmpeg 1-second MP4 + valid sparse free atom; all source bytes hashed",
+  "http_file_upload_bytes": 0,
+  "native_control_request_bytes": 2,
+  "accepted_seconds": 0.0021453329973155633,
+  "saved_seconds": 6.649511374998838,
+  "clones": [
+    {
+      "cloned": true,
+      "seconds": 0.000356707998435013
+    },
+    {
+      "cloned": true,
+      "seconds": 0.00030166699434630573
+    },
+    {
+      "cloned": true,
+      "seconds": 0.0003591249987948686
+    }
+  ],
+  "original_edit_move_delete_independence": "passed",
+  "fallback": "real 2 GiB stream copy; unsupported-volume response forced; chooser substituted only in explicitly labelled later cases",
+  "backup_restore_content_evidence_hash": "passed",
+  "actual_asr": false,
+  "steps": [
+    {
+      "stage": "real AppKit selection + native 2 GiB clone admission",
+      "seconds": 60.499,
+      "python_peak_delta_bytes": 2227962,
+      "process_peak_rss_bytes": 67469312
+    },
+    {
+      "stage": "native duplicate: test-only selection seam",
+      "seconds": 2.811,
+      "python_peak_delta_bytes": 2175377,
+      "process_peak_rss_bytes": 67633152
+    },
+    {
+      "stage": "actual 2 GiB native stream fallback: test-only selection/unsupported clone seam",
+      "seconds": 3.8,
+      "python_peak_delta_bytes": 3229443,
+      "process_peak_rss_bytes": 67633152
+    },
+    {
+      "stage": "actual 2 GiB - 1 native clone: test-only selection seam",
+      "seconds": 6.731,
+      "python_peak_delta_bytes": 2180350,
+      "process_peak_rss_bytes": 67633152
+    },
+    {
+      "stage": "accept deterministic Evidence, no actual ASR",
+      "seconds": 8.504,
+      "python_peak_delta_bytes": 2144110,
+      "process_peak_rss_bytes": 67633152
+    },
+    {
+      "stage": "native snapshot ZIP64 backup",
+      "seconds": 11.831,
+      "python_peak_delta_bytes": 2454389,
+      "process_peak_rss_bytes": 67633152
+    },
+    {
+      "stage": "stream backup download",
+      "seconds": 2.569,
+      "python_peak_delta_bytes": 4230885,
+      "process_peak_rss_bytes": 67633152
+    },
+    {
+      "stage": "stream restore stage",
+      "seconds": 20.182,
+      "python_peak_delta_bytes": 4221119,
+      "process_peak_rss_bytes": 67633152
+    },
+    {
+      "stage": "confirm restore",
+      "seconds": 12.413,
+      "python_peak_delta_bytes": 2211816,
+      "process_peak_rss_bytes": 67633152
+    },
+    {
+      "stage": "restart restore activation",
+      "seconds": 46.341,
+      "python_peak_delta_bytes": 2199019,
+      "process_peak_rss_bytes": 67633152
+    }
+  ]
+}

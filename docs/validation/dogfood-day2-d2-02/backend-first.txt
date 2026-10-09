@@ -1,0 +1,424 @@
+........................................................................ [  1%]
+........................................................................ [  3%]
+........................................................................ [  5%]
+........................................................................ [  7%]
+........................................................................ [  9%]
+........................................................................ [ 11%]
+........................................................................ [ 12%]
+........................................................................ [ 14%]
+........................................................................ [ 16%]
+..............................F......................................... [ 18%]
+........................................................................ [ 20%]
+........................................................................ [ 22%]
+........................................................................ [ 23%]
+........................................................................ [ 25%]
+............................................F.......FF.................. [ 27%]
+..................................................F..................... [ 29%]
+.........................................F.............................. [ 31%]
+............................F........................................... [ 33%]
+..................................................F..................... [ 34%]
+F....................................................................... [ 36%]
+.....F.................................................................. [ 38%]
+........................................................................ [ 40%]
+........................................................................ [ 42%]
+........................................................................ [ 44%]
+........................................................................ [ 45%]
+........................................................................ [ 47%]
+........................................................................ [ 49%]
+........................................................................ [ 51%]
+........................................................................ [ 53%]
+........................................................................ [ 55%]
+........................................................................ [ 56%]
+........................................................................ [ 58%]
+........................................................................ [ 60%]
+........................................................................ [ 62%]
+............................s........................................... [ 64%]
+........................................................................ [ 66%]
+........................................................................ [ 68%]
+........................................................................ [ 69%]
+........................................................................ [ 71%]
+........................................................................ [ 73%]
+........................................................................ [ 75%]
+........................................................................ [ 77%]
+........................................................................ [ 79%]
+........................................................................ [ 80%]
+........................................................................ [ 82%]
+........................................................................ [ 84%]
+........................................................................ [ 86%]
+........................................................................ [ 88%]
+........................................................................ [ 90%]
+........................................................................ [ 91%]
+........................................................................ [ 93%]
+........................................................................ [ 95%]
+........................................................................ [ 97%]
+........................................................................ [ 99%]
+............................                                             [100%]
+=================================== FAILURES ===================================
+_________ test_initialize_is_repeatable_and_records_packaged_checksum __________
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-62/test_initialize_is_repeatable_0')
+
+    def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) -> None:
+        path = _database_path(tmp_path)
+        repository = SQLiteStateRepository(path)
+
+        first = repository.initialize(now=NOW)
+        second = repository.initialize(now=NOW)
+
+        sql = (
+            resources.files("youtube_intel")
+            .joinpath("migrations", "036_expand_local_media_snapshot_limit.sql")
+            .read_bytes()
+        )
+        assert first == second
+>       assert first.version == 36
+E       AssertionError: assert 36 == 35
+E        +  where 36 = SchemaVersion(version=36, name='036_expand_local_media_snapshot_limit.sql', checksum='17749be10beb7f0fca10c565361269975bd570e5fbf41935e13e679fb8bd0bfe', applied_at=datetime.datetime(2026, 7, 15, 8, 30, tzinfo=datetime.timezone.utc)).version
+
+tests/integration/test_state_store.py:841: AssertionError
+___________ test_v1_database_upgrades_through_v24_with_exact_history ___________
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-62/test_v1_database_upgrades_thro0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x115cd6750>
+
+    def test_v1_database_upgrades_through_v24_with_exact_history(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        path = _database_path(tmp_path)
+        repository = _initialized_repository(tmp_path, monkeypatch)
+        with _raw_connection(path) as connection:
+            assert connection.execute("PRAGMA user_version").fetchone()[0] == 1
+            _seed_video(connection)
+            _seed_job(connection, job_id="legacy-job")
+
+        version = repository.initialize(now=NOW + td(hours=1))
+
+        assert version.version == 36
+>       assert version.name == "036_expand_local_media_snapshot_limit.sql"
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: assert '036_expand_l...hot_limit.sql' == '035_align_no..._evidence.sql'
+E
+E         - 035_align_no_new_canonical_evidence.sql
+E         + 036_expand_local_media_snapshot_limit.sql
+
+tests/integration/test_task016c_phase_h2c_lineage_schema.py:146: AssertionError
+_________________ test_unsupported_schema_versions_fail_closed _________________
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-62/test_unsupported_schema_versio0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x1159c1400>
+
+
+    def test_unsupported_schema_versions_fail_closed(
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        path = _database_path(tmp_path)
+        repository = SQLiteStateRepository(path)
+        repository.initialize(now=NOW)
+
+        # A database claiming an unknown newer migration fails closed.
+>       with _raw_connection(path) as connection:
+E       sqlite3.IntegrityError: UNIQUE constraint failed: schema_migrations.version
+
+tests/integration/test_task016c_phase_h2c_lineage_schema.py:392: IntegrityError
+____________ test_doctor_database_check_accepts_exactly_version_35 _____________
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-62/test_doctor_database_check_acc0')
+
+
+    def test_doctor_database_check_accepts_exactly_version_35(tmp_path: Path) -> None:
+        path = _database_path(tmp_path)
+        repository = SQLiteStateRepository(path)
+>       repository.initialize(now=NOW)
+E       AssertionError: assert 'FAIL' == 'PASS'
+E
+E         - PASS
+E         + FAIL
+
+tests/integration/test_task016c_phase_h2c_lineage_schema.py:415: AssertionError
+__________ test_fresh_database_applies_m006_with_exact_domain_schema ___________
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-62/test_fresh_database_applies_m00')
+
+    def test_fresh_database_applies_m006_with_exact_domain_schema(tmp_path: Path) -> None:
+        repository = SQLiteStateRepository(_database_path(tmp_path))
+
+        version = repository.initialize(now=NOW)
+
+>       assert (version.version, version.name) == (
+            35,
+            "035_align_no_new_canonical_evidence.sql",
+        )
+E       AssertionError: assert (36, '036_exp...ot_limit.sql') == (35, '035_ali...evidence.sql')
+E
+E         At index 0 diff: 36 != 35
+E         Use -v to get more diff
+
+tests/integration/test_task018_domain_persistence.py:141: AssertionError
+________ test_fresh_database_reaches_current_schema_and_preserves_m013 _________
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-62/test_fresh_database_reaches_cu0')
+
+    def test_fresh_database_reaches_current_schema_and_preserves_m013(tmp_path: Path) -> None:
+        repository = _repository(tmp_path)
+        connection = repository._connect()
+        try:
+            assert connection.execute("PRAGMA user_version").fetchone()[0] == 36
+            migrations = tuple(
+                row["name"]
+                for row in connection.execute(
+                    "SELECT name FROM schema_migrations ORDER BY version"
+                )
+            )
+        finally:
+            connection.close()
+>       assert migrations[-20:] == (
+            "015_add_timed_transcript_evidence_bindings.sql",
+            "016_add_ambiguous_resource_ledger_outcome.sql",
+            "017_add_current_content_summary.sql",
+            "018_add_global_output_language.sql",
+            "019_add_evidence_excerpt_stance.sql",
+            "020_add_no_new_intelligence_result.sql",
+            "021_seal_distillation_output_language.sql",
+            "022_bind_current_local_summary.sql",
+            "023_add_evidence_translation_presentation.sql",
+            "024_bind_current_summary_to_content.sql",
+            "025_add_explicit_cloud_execution_audit.sql",
+            "026_add_openai_cloud_execution_audit.sql",
+            "027_add_moonshot_cloud_execution_audit.sql",
+            "028_add_cloud_response_failure_ledger.sql",
+            "030_add_deep_analysis_durable_evidence.sql",
+            "031_add_research_lite.sql",
+            "032_add_source_provider_authority.sql",
+            "033_add_bilibili_provider.sql",
+            "034_add_source_tracking.sql",
+            "035_align_no_new_canonical_evidence.sql",
+            "036_expand_local_media_snapshot_limit.sql",
+        )
+E       AssertionError: assert ('016_add_amb...age.sql', ...) == ('015_add_tim...ult.sql', ...)
+E
+E         At index 0 diff: '016_add_ambiguous_resource_ledger_outcome.sql' != '015_add_timed_transcript_evidence_bindings.sql'
+E         Use -v to get more diff
+
+tests/integration/test_task021_source_policy_filtering.py:116: AssertionError
+______ test_fresh_database_reaches_current_schema_with_integrated_schema _______
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-62/test_fresh_database_reaches_cu1')
+
+    def test_fresh_database_reaches_current_schema_with_integrated_schema(tmp_path: Path) -> None:
+        repository = _repository(tmp_path)
+
+        connection = repository._connect()
+        try:
+            assert connection.execute("PRAGMA user_version").fetchone()[0] == 36
+            migrations = tuple(
+                row["name"]
+                for row in connection.execute("SELECT name FROM schema_migrations ORDER BY version")
+            )
+            tables = {
+                row["name"]
+                for row in connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                )
+            }
+        finally:
+            connection.close()
+
+>       assert migrations[-20:] == (
+            "015_add_timed_transcript_evidence_bindings.sql",
+            "016_add_ambiguous_resource_ledger_outcome.sql",
+            "017_add_current_content_summary.sql",
+            "018_add_global_output_language.sql",
+            "019_add_evidence_excerpt_stance.sql",
+            "020_add_no_new_intelligence_result.sql",
+            "021_seal_distillation_output_language.sql",
+            "022_bind_current_local_summary.sql",
+            "023_add_evidence_translation_presentation.sql",
+            "024_bind_current_summary_to_content.sql",
+            "025_add_explicit_cloud_execution_audit.sql",
+            "026_add_openai_cloud_execution_audit.sql",
+            "027_add_moonshot_cloud_execution_audit.sql",
+            "028_add_cloud_response_failure_ledger.sql",
+            "030_add_deep_analysis_durable_evidence.sql",
+            "031_add_research_lite.sql",
+            "032_add_source_provider_authority.sql",
+            "033_add_bilibili_provider.sql",
+            "034_add_source_tracking.sql",
+            "035_align_no_new_canonical_evidence.sql",
+            "036_expand_local_media_snapshot_limit.sql",
+        )
+E       AssertionError: assert ('016_add_amb...age.sql', ...) == ('015_add_tim...ult.sql', ...)
+E
+E         At index 0 diff: '016_add_ambiguous_resource_ledger_outcome.sql' != '015_add_timed_transcript_evidence_bindings.sql'
+E         Use -v to get more diff
+
+tests/integration/test_task022_personalized_distillation.py:1706: AssertionError
+______ test_topic_contract_remains_available_with_m013_weekly_foundation _______
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-62/test_topic_contract_remains_av0')
+
+    def test_topic_contract_remains_available_with_m013_weekly_foundation(tmp_path: Path) -> None:
+        repository = _repository(tmp_path)
+
+        connection = repository._connect()
+        try:
+            assert connection.execute("PRAGMA user_version").fetchone()[0] == 36
+            migrations = tuple(
+                row["name"]
+                for row in connection.execute("SELECT name FROM schema_migrations ORDER BY version")
+            )
+            tables = {
+                row["name"]
+                for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+            }
+        finally:
+            connection.close()
+
+>       assert migrations[-20:] == (
+            "015_add_timed_transcript_evidence_bindings.sql",
+            "016_add_ambiguous_resource_ledger_outcome.sql",
+            "017_add_current_content_summary.sql",
+            "018_add_global_output_language.sql",
+            "019_add_evidence_excerpt_stance.sql",
+            "020_add_no_new_intelligence_result.sql",
+            "021_seal_distillation_output_language.sql",
+            "022_bind_current_local_summary.sql",
+            "023_add_evidence_translation_presentation.sql",
+            "024_bind_current_summary_to_content.sql",
+            "025_add_explicit_cloud_execution_audit.sql",
+            "026_add_openai_cloud_execution_audit.sql",
+            "027_add_moonshot_cloud_execution_audit.sql",
+            "028_add_cloud_response_failure_ledger.sql",
+            "030_add_deep_analysis_durable_evidence.sql",
+            "031_add_research_lite.sql",
+            "032_add_source_provider_authority.sql",
+            "033_add_bilibili_provider.sql",
+            "034_add_source_tracking.sql",
+            "035_align_no_new_canonical_evidence.sql",
+            "036_expand_local_media_snapshot_limit.sql",
+        )
+E       AssertionError: assert ('016_add_amb...age.sql', ...) == ('015_add_tim...ult.sql', ...)
+E
+E         At index 0 diff: '016_add_ambiguous_resource_ledger_outcome.sql' != '015_add_timed_transcript_evidence_bindings.sql'
+E         Use -v to get more diff
+
+tests/integration/test_task023_topic_timeline.py:214: AssertionError
+______ test_m013_fresh_database_preserves_empty_source_runs_and_weeklies _______
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-62/test_m013_fresh_database_prese0')
+
+    def test_m013_fresh_database_preserves_empty_source_runs_and_weeklies(tmp_path: Path) -> None:
+        repository = _repository(tmp_path)
+
+        connection = repository._connect()
+        try:
+            assert connection.execute("PRAGMA user_version").fetchone()[0] == 36
+            migrations = tuple(
+                row["name"]
+                for row in connection.execute("SELECT name FROM schema_migrations ORDER BY version")
+            )
+            tables = {
+                str(row["name"])
+                for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+            }
+            assert connection.execute("SELECT COUNT(*) FROM source_runs").fetchone()[0] == 0
+        finally:
+            connection.close()
+
+>       assert migrations[-20:] == (
+            "015_add_timed_transcript_evidence_bindings.sql",
+            "016_add_ambiguous_resource_ledger_outcome.sql",
+            "017_add_current_content_summary.sql",
+            "018_add_global_output_language.sql",
+            "019_add_evidence_excerpt_stance.sql",
+            "020_add_no_new_intelligence_result.sql",
+            "021_seal_distillation_output_language.sql",
+            "022_bind_current_local_summary.sql",
+            "023_add_evidence_translation_presentation.sql",
+            "024_bind_current_summary_to_content.sql",
+            "025_add_explicit_cloud_execution_audit.sql",
+            "026_add_openai_cloud_execution_audit.sql",
+            "027_add_moonshot_cloud_execution_audit.sql",
+            "028_add_cloud_response_failure_ledger.sql",
+            "030_add_deep_analysis_durable_evidence.sql",
+            "031_add_research_lite.sql",
+            "032_add_source_provider_authority.sql",
+            "033_add_bilibili_provider.sql",
+            "034_add_source_tracking.sql",
+            "035_align_no_new_canonical_evidence.sql",
+            "036_expand_local_media_snapshot_limit.sql",
+        )
+E       AssertionError: assert ('016_add_amb...age.sql', ...) == ('015_add_tim...ult.sql', ...)
+E
+E         At index 0 diff: '016_add_ambiguous_resource_ledger_outcome.sql' != '015_add_timed_transcript_evidence_bindings.sql'
+E         Use -v to get more diff
+
+tests/integration/test_task023a_source_run_persistence.py:203: AssertionError
+__________________ test_fresh_m014_creates_empty_saved_state ___________________
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-62/test_fresh_m014_creates_empty_0')
+
+    def test_fresh_m014_creates_empty_saved_state(tmp_path: Path) -> None:
+        repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
+        assert repository.initialize(now=NOW).version == 36
+        connection = repository._connect()
+        try:
+            assert connection.execute("SELECT * FROM saved_intelligences").fetchall() == []
+            assert connection.execute("PRAGMA user_version").fetchone()[0] == 36
+            names = [
+                row[0]
+                for row in connection.execute(
+                    "SELECT name FROM schema_migrations ORDER BY version"
+                )
+            ]
+>           assert names[-20:] == [
+                "015_add_timed_transcript_evidence_bindings.sql",
+                "016_add_ambiguous_resource_ledger_outcome.sql",
+                "017_add_current_content_summary.sql",
+                "018_add_global_output_language.sql",
+                "019_add_evidence_excerpt_stance.sql",
+                "020_add_no_new_intelligence_result.sql",
+                "021_seal_distillation_output_language.sql",
+                "022_bind_current_local_summary.sql",
+                "023_add_evidence_translation_presentation.sql",
+                "024_bind_current_summary_to_content.sql",
+                "025_add_explicit_cloud_execution_audit.sql",
+                "026_add_openai_cloud_execution_audit.sql",
+                "027_add_moonshot_cloud_execution_audit.sql",
+                "028_add_cloud_response_failure_ledger.sql",
+                "030_add_deep_analysis_durable_evidence.sql",
+                "031_add_research_lite.sql",
+                "032_add_source_provider_authority.sql",
+                "033_add_bilibili_provider.sql",
+                "034_add_source_tracking.sql",
+                "035_align_no_new_canonical_evidence.sql",
+            "036_expand_local_media_snapshot_limit.sql",
+            ]
+E           AssertionError: assert ['016_add_amb...age.sql', ...] == ['015_add_tim...ult.sql', ...]
+E
+E             At index 0 diff: '016_add_ambiguous_resource_ledger_outcome.sql' != '015_add_timed_transcript_evidence_bindings.sql'
+E             Use -v to get more diff
+
+tests/integration/test_task025a_saved_intelligence.py:50: AssertionError
+=============================== warnings summary ===============================
+tests/unit/test_backup_restore.py::test_invalid_backup_never_changes_live_data[duplicate-path]
+  /Users/hua/.local/share/uv/python/cpython-3.12-macos-aarch64-none/lib/python3.12/zipfile/__init__.py:1611: UserWarning: Duplicate name: 'data/transcripts/video-1.txt'
+    return self._open_to_write(zinfo, force_zip64=force_zip64)
+
+tests/unit/test_task016c_domain_contracts.py::test_model_construct_bypass_is_revalidated
+  /Users/hua/Documents/yia-worktrees/dogfood-day2-large-import/.venv/lib/python3.12/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:
+    PydanticSerializationUnexpectedValue(Expected `enum` - serialized value may not be as expected [field_name='status', input_value='REJECT', input_type=str])
+    return self.__pydantic_serializer__.to_python(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_state_store.py::test_initialize_is_repeatable_and_records_packaged_checksum
+FAILED tests/integration/test_task016c_phase_h2c_lineage_schema.py::test_v1_database_upgrades_through_v24_with_exact_history
+FAILED tests/integration/test_task016c_phase_h2c_lineage_schema.py::test_unsupported_schema_versions_fail_closed
+FAILED tests/integration/test_task016c_phase_h2c_lineage_schema.py::test_doctor_database_check_accepts_exactly_version_35
+FAILED tests/integration/test_task018_domain_persistence.py::test_fresh_database_applies_m006_with_exact_domain_schema
+FAILED tests/integration/test_task021_source_policy_filtering.py::test_fresh_database_reaches_current_schema_and_preserves_m013
+FAILED tests/integration/test_task022_personalized_distillation.py::test_fresh_database_reaches_current_schema_with_integrated_schema
+FAILED tests/integration/test_task023_topic_timeline.py::test_topic_contract_remains_available_with_m013_weekly_foundation
+FAILED tests/integration/test_task023a_source_run_persistence.py::test_m013_fresh_database_preserves_empty_source_runs_and_weeklies
+FAILED tests/integration/test_task025a_saved_intelligence.py::test_fresh_m014_creates_empty_saved_state
+10 failed, 3905 passed, 1 skipped, 2 warnings in 831.79s (0:13:51)

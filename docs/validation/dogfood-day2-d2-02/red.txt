@@ -1,0 +1,16 @@
+
+==================================== ERRORS ====================================
+_____ ERROR collecting tests/integration/test_dogfood_day2_large_import.py _____
+ImportError while importing test module '/Users/hua/Documents/yia-worktrees/dogfood-day2-large-import/tests/integration/test_dogfood_day2_large_import.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+../../../.local/share/uv/python/cpython-3.12-macos-aarch64-none/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_dogfood_day2_large_import.py:12: in <module>
+    from youtube_intel.source_authority import MAX_MEDIA_BYTES, MAX_TEXT_BYTES, hash_managed
+E   ImportError: cannot import name 'hash_managed' from 'youtube_intel.source_authority' (/Users/hua/Documents/yia-worktrees/v1x-local-main/src/youtube_intel/source_authority.py)
+=========================== short test summary info ============================
+ERROR tests/integration/test_dogfood_day2_large_import.py
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+1 error in 0.22s

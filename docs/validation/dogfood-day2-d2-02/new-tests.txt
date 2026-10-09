@@ -1,0 +1,58 @@
+.......................FFF....                                           [100%]
+=================================== FAILURES ===================================
+__________________ test_stream_route_remains_post_only[PATCH] __________________
+
+server = (<http.server.ThreadingHTTPServer object at 0x10c21bf20>, <youtube_intel.local_api.LocalApiApplication object at 0x10c...th('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-65/test_stream_route_remains_post0'))
+method = 'PATCH'
+
+    @pytest.mark.parametrize("method", ["PATCH", "PUT", "DELETE"])
+    def test_stream_route_remains_post_only(server, method):
+        service, app, _ = server
+        request = connection(service, method)
+        request.send(b"text")
+>       assert request.getresponse().status == 404
+E       assert 400 == 404
+E        +  where 400 = <http.client.HTTPResponse object at 0x10c03ffa0>.status
+E        +    where <http.client.HTTPResponse object at 0x10c03ffa0> = getresponse()
+E        +      where getresponse = <http.client.HTTPConnection object at 0x10c21a060>.getresponse
+
+tests/integration/test_dogfood_day2_stream_http.py:108: AssertionError
+___________________ test_stream_route_remains_post_only[PUT] ___________________
+
+server = (<http.server.ThreadingHTTPServer object at 0x10c219130>, <youtube_intel.local_api.LocalApiApplication object at 0x10c...th('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-65/test_stream_route_remains_post1'))
+method = 'PUT'
+
+    @pytest.mark.parametrize("method", ["PATCH", "PUT", "DELETE"])
+    def test_stream_route_remains_post_only(server, method):
+        service, app, _ = server
+        request = connection(service, method)
+        request.send(b"text")
+>       assert request.getresponse().status == 404
+E       assert 400 == 404
+E        +  where 400 = <http.client.HTTPResponse object at 0x10c2488b0>.status
+E        +    where <http.client.HTTPResponse object at 0x10c2488b0> = getresponse()
+E        +      where getresponse = <http.client.HTTPConnection object at 0x10c219340>.getresponse
+
+tests/integration/test_dogfood_day2_stream_http.py:108: AssertionError
+_________________ test_stream_route_remains_post_only[DELETE] __________________
+
+server = (<http.server.ThreadingHTTPServer object at 0x10c248f20>, <youtube_intel.local_api.LocalApiApplication object at 0x10c...th('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-65/test_stream_route_remains_post2'))
+method = 'DELETE'
+
+    @pytest.mark.parametrize("method", ["PATCH", "PUT", "DELETE"])
+    def test_stream_route_remains_post_only(server, method):
+        service, app, _ = server
+        request = connection(service, method)
+        request.send(b"text")
+>       assert request.getresponse().status == 404
+E       assert 400 == 404
+E        +  where 400 = <http.client.HTTPResponse object at 0x10c24a230>.status
+E        +    where <http.client.HTTPResponse object at 0x10c24a230> = getresponse()
+E        +      where getresponse = <http.client.HTTPConnection object at 0x10c2483e0>.getresponse
+
+tests/integration/test_dogfood_day2_stream_http.py:108: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_dogfood_day2_stream_http.py::test_stream_route_remains_post_only[PATCH]
+FAILED tests/integration/test_dogfood_day2_stream_http.py::test_stream_route_remains_post_only[PUT]
+FAILED tests/integration/test_dogfood_day2_stream_http.py::test_stream_route_remains_post_only[DELETE]
+3 failed, 27 passed in 11.45s

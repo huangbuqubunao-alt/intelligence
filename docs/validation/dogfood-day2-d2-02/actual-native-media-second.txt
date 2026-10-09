@@ -1,0 +1,19 @@
+REAL_NATIVE_PICKER_FILE /private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/intelligence-d2-02-native-1tihmzd0/native-two-gib.mp4
+Traceback (most recent call last):
+  File "/Users/hua/Documents/yia-worktrees/dogfood-day2-large-import/tests/scripts/dogfood_day2_native_media.py", line 170, in <module>
+    main()
+  File "/Users/hua/Documents/yia-worktrees/dogfood-day2-large-import/tests/scripts/dogfood_day2_native_media.py", line 94, in main
+    imported = measure("real AppKit selection + native 2 GiB clone admission", lambda: native_add(server, service), evidence)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/hua/Documents/yia-worktrees/dogfood-day2-large-import/tests/scripts/dogfood_day2_large_media.py", line 92, in measure
+    result = action()
+             ^^^^^^^^
+  File "/Users/hua/Documents/yia-worktrees/dogfood-day2-large-import/tests/scripts/dogfood_day2_native_media.py", line 94, in <lambda>
+    imported = measure("real AppKit selection + native 2 GiB clone admission", lambda: native_add(server, service), evidence)
+                                                                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/hua/Documents/yia-worktrees/dogfood-day2-large-import/tests/scripts/dogfood_day2_native_media.py", line 54, in native_add
+    wait(server, key, {"SELECTED"})
+  File "/Users/hua/Documents/yia-worktrees/dogfood-day2-large-import/tests/scripts/dogfood_day2_native_media.py", line 46, in wait
+    assert job["state"] not in {"FAILED", "CANCELLED"}, job
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: {'job_id': 'bnI_cGQUxul0yObMrrNr8jHDLu66ZCiURUL56sAVPlw', 'state': 'CANCELLED', 'files': [], 'error_code': None}

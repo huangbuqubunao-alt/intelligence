@@ -1,0 +1,61 @@
+........................................................................ [ 61%]
+F............................................                            [100%]
+=================================== FAILURES ===================================
+________________ test_managed_symlink_is_never_source_authority ________________
+
+local = <youtube_intel.local_content.LocalContentProvider object at 0x10a399ac0>
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-61/test_managed_symlink_is_never_0')
+
+    def test_managed_symlink_is_never_source_authority(local, tmp_path):
+        local.data_root.mkdir()
+        (local.data_root / "transcripts").symlink_to(tmp_path, target_is_directory=True)
+        with pytest.raises(OSError):
+>           local.import_bytes("selected.txt", b"Canonical source material.\n")
+
+tests/integration/test_local_content_adversarial.py:260:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/youtube_intel/local_content.py:264: in import_bytes
+    return self.import_stream(filename, io.BytesIO(payload), len(payload))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <youtube_intel.local_content.LocalContentProvider object at 0x10a399ac0>
+filename = 'selected.txt', stream = <_io.BytesIO object at 0x10a781a30>
+length = 27, cancelled = None
+
+    def import_stream(
+        self, filename: str, stream: BinaryIO, length: int,
+        *, cancelled: Callable[[], bool] | None = None,
+    ) -> LocalImportResult:
+        name = safe_filename(filename)
+        extension = Path(name).suffix.lower()
+        if extension not in FORMATS:
+            raise LocalImportError("LOCAL_UNSUPPORTED_FORMAT")
+        maximum = MAX_TEXT_BYTES if FORMATS[extension] == "TEXT" else MAX_MEDIA_BYTES
+        if length == 0:
+            raise LocalImportError("LOCAL_EMPTY_FILE")
+        if not 0 < length <= maximum:
+            raise LocalImportError("LOCAL_FILE_TOO_LARGE")
+        try:
+            with _IMPORT_LOCK, stage_stream(self.data_root / ".imports", stream, length, maximum=maximum) as staged:
+                if cancelled and cancelled():
+                    raise LocalImportError("LOCAL_IMPORT_CANCELLED")
+                return self._import_staged(name, extension, staged, cancelled=cancelled)
+        except TimeoutError:
+            raise LocalImportError("LOCAL_IMPORT_TIMEOUT") from None
+        except EOFError:
+            raise LocalImportError("LOCAL_IMPORT_INTERRUPTED") from None
+        except OSError as error:
+>           raise LocalImportError("LOCAL_DISK_SPACE_INSUFFICIENT" if error.errno == errno.ENOSPC else "LOCAL_FILE_UNREADABLE") from None
+E           youtube_intel.local_content.LocalImportError: LOCAL_FILE_UNREADABLE
+
+src/youtube_intel/local_content.py:289: LocalImportError
+=============================== warnings summary ===============================
+tests/unit/test_backup_restore.py::test_invalid_backup_never_changes_live_data[duplicate-path]
+  /Users/hua/.local/share/uv/python/cpython-3.12-macos-aarch64-none/lib/python3.12/zipfile/__init__.py:1611: UserWarning: Duplicate name: 'data/transcripts/video-1.txt'
+    return self._open_to_write(zinfo, force_zip64=force_zip64)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/test_local_content_adversarial.py::test_managed_symlink_is_never_source_authority
+1 failed, 116 passed, 1 warning in 42.17s

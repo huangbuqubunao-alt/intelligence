@@ -1,0 +1,489 @@
+{
+  "actualBytes": 2147483648,
+  "realAppKitPicker": true,
+  "nativeHttpFileBytes": 0,
+  "secondsIncludingUiPollAndFixtureProbeDelay": 13.179,
+  "snapshotMethod": "APFS_CLONE",
+  "selectionSurvivesFocus": true,
+  "contentNavigation": "http://127.0.0.1:5598/#Content",
+  "processingStatus": "TRANSCRIPTION_UNAVAILABLE",
+  "requests": [
+    {
+      "url": "http://127.0.0.1:5598/api/v1/sources/check-stale",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/sources/check-stale",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s/confirm",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/picks/wu196MNCLDGgFKjoH3PnAMsYEDr67FUETIoJ2pxxb2s",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5598/api/v1/local/native/jobs",
+      "body": "{}"
+    }
+  ],
+  "errors": []
+}

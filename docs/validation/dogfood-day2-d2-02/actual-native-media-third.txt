@@ -1,0 +1,33 @@
+REAL_NATIVE_PICKER_FILE /private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/intelligence-d2-02-native-n005sklz/native-two-gib.mp4
+{"stage": "real AppKit selection + native 2 GiB clone admission", "seconds": 28.702, "python_peak_delta_bytes": 2214917, "process_peak_rss_bytes": 63717376}
+{"stage": "native duplicate: test-only selection seam", "seconds": 2.626, "python_peak_delta_bytes": 2177262, "process_peak_rss_bytes": 63717376}
+{"stage": "actual 2 GiB native stream fallback: test-only selection/unsupported clone seam", "seconds": 5.39, "python_peak_delta_bytes": 3231609, "process_peak_rss_bytes": 63717376}
+{"stage": "actual 2 GiB - 1 native clone: test-only selection seam", "seconds": 3.638, "python_peak_delta_bytes": 2184337, "process_peak_rss_bytes": 63717376}
+{"stage": "accept deterministic Evidence, no actual ASR", "seconds": 7.854, "python_peak_delta_bytes": 2129172, "process_peak_rss_bytes": 63717376}
+{"stage": "native snapshot ZIP64 backup", "seconds": 10.686, "python_peak_delta_bytes": 2475804, "process_peak_rss_bytes": 67731456}
+{"stage": "stream backup download", "seconds": 2.514, "python_peak_delta_bytes": 4230860, "process_peak_rss_bytes": 73728000}
+{"stage": "stream restore stage", "seconds": 19.388, "python_peak_delta_bytes": 4220933, "process_peak_rss_bytes": 73728000}
+{"stage": "confirm restore", "seconds": 12.225, "python_peak_delta_bytes": 2212020, "process_peak_rss_bytes": 73728000}
+{"stage": "restart restore activation", "seconds": 45.598, "python_peak_delta_bytes": 2199285, "process_peak_rss_bytes": 73728000}
+Traceback (most recent call last):
+  File "/Users/hua/Documents/yia-worktrees/dogfood-day2-large-import/tests/scripts/dogfood_day2_native_media.py", line 170, in <module>
+    source_authority.clone_descriptor = original_clone
+^^
+  File "/Users/hua/Documents/yia-worktrees/dogfood-day2-large-import/tests/scripts/dogfood_day2_native_media.py", line 153, in main
+    assert target.resolve_verified_evidence_text(eid) == original_evidence
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/hua/Documents/yia-worktrees/dogfood-day2-large-import/tests/scripts/dogfood_day2_large_media.py", line 72, in get
+    response = connection.getresponse()
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/hua/.local/share/uv/python/cpython-3.12-macos-aarch64-none/lib/python3.12/http/client.py", line 1430, in getresponse
+    response.begin()
+  File "/Users/hua/.local/share/uv/python/cpython-3.12-macos-aarch64-none/lib/python3.12/http/client.py", line 331, in begin
+    version, status, reason = self._read_status()
+                              ^^^^^^^^^^^^^^^^^^^
+  File "/Users/hua/.local/share/uv/python/cpython-3.12-macos-aarch64-none/lib/python3.12/http/client.py", line 292, in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/hua/.local/share/uv/python/cpython-3.12-macos-aarch64-none/lib/python3.12/socket.py", line 720, in readinto
+    return self._sock.recv_into(b)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt

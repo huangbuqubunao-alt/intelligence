@@ -1,0 +1,22 @@
+..............................................................F......... [ 39%]
+........................................................................ [ 79%]
+.....................................                                    [100%]
+=================================== FAILURES ===================================
+____________ test_doctor_database_check_accepts_exactly_version_36 _____________
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-66/test_doctor_database_check_acc0')
+
+    def test_doctor_database_check_accepts_exactly_version_36(tmp_path: Path) -> None:
+        path = _database_path(tmp_path)
+        repository = SQLiteStateRepository(path)
+        repository.initialize(now=NOW)
+>       assert _database_check(path).status == "PASS"
+E       AssertionError: assert 'FAIL' == 'PASS'
+E
+E         - PASS
+E         + FAIL
+
+tests/integration/test_task016c_phase_h2c_lineage_schema.py:416: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_task016c_phase_h2c_lineage_schema.py::test_doctor_database_check_accepts_exactly_version_36
+1 failed, 180 passed in 58.62s
