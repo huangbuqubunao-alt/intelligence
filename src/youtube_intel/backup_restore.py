@@ -21,7 +21,7 @@ from datetime import UTC, datetime
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as package_version
 from pathlib import Path, PurePosixPath
-from typing import Any, Callable, cast
+from typing import Any, BinaryIO, Callable, cast
 
 from .content_summary_read import (
     AuthoritativeContentSummaryReader,
@@ -33,17 +33,25 @@ from .evidence_translation import (
     EvidenceTranslator,
 )
 from .research_lite import RESEARCH_AUTHORITY_TABLES, ResearchLiteService
+from .source_authority import (
+    BytesReader,
+    ChunkReader,
+    managed_directory,
+    open_managed,
+    require_space,
+    stage_stream,
+)
 from .source_run import SOURCE_RUN_ACTIVE_STATES
 from .state import SQLiteStateRepository
 
 FORMAT_NAME = "intelligence-core-backup"
 FORMAT_VERSION = 1
-LATEST_SCHEMA_VERSION = 35
-MAX_ARCHIVE_BYTES = 512 * 1024 * 1024
+LATEST_SCHEMA_VERSION = 36
+MAX_ARCHIVE_BYTES = 8 * 1024 * 1024 * 1024
 MAX_ARCHIVE_FILES = 10_002
-MAX_MEMBER_BYTES = 512 * 1024 * 1024
-MAX_DATA_FILE_BYTES = 256 * 1024 * 1024
-MAX_TOTAL_BYTES = 2 * 1024 * 1024 * 1024
+MAX_MEMBER_BYTES = 2 * 1024 * 1024 * 1024
+MAX_DATA_FILE_BYTES = 2 * 1024 * 1024 * 1024
+MAX_TOTAL_BYTES = 8 * 1024 * 1024 * 1024
 _ID = re.compile(r"^[a-f0-9]{32}$")
 _SHA256 = re.compile(r"^[a-f0-9]{64}$")
 _BACKUP_FILE_NAME = re.compile(r"^Intelligence-Backup-\d{4}-\d{2}-\d{2}\.zip$")
@@ -131,6 +139,27 @@ class RestorePreview:
     preview: dict[str, Any]
 
 
+
+class _BoundedZipReader:
+    def __init__(self, stream: BinaryIO) -> None:
+        self.stream = stream
+
+    def read(self, size: int = -1) -> bytes:
+        remaining = os.fstat(self.stream.fileno()).st_size - self.stream.tell()
+        actual = remaining if size < 0 else min(size, remaining)
+        if actual > 16 * 1024 * 1024:
+            raise BackupRestoreError("Backup ZIP metadata exceeds the supported size.")
+        return self.stream.read(size)
+
+    def seek(self, offset: int, whence: int = 0) -> int:
+        return self.stream.seek(offset, whence)
+
+    def tell(self) -> int:
+        return self.stream.tell()
+
+    def seekable(self) -> bool:
+        return True
+
 class BackupRestoreService:
     """Owns private archive/staging paths and operates only on core DATA/SQLite."""
 
@@ -163,6 +192,7 @@ class BackupRestoreService:
         self._background_lock = threading.RLock()
         self._background_suspended = 0
         self._background_active = 0
+        self._native_import_active = 0
         self._background_wakeup: Callable[[], None] | None = None
         self._ensure_control_root()
         if not self.marker_path.exists():
@@ -205,18 +235,27 @@ class BackupRestoreService:
             return not self._background_suspended and not self.restore_pending and not self.restart_requested
 
     @contextmanager
-    def background_work(self) -> Iterator[bool]:
+    def background_work(self, *, native_import: bool = False) -> Iterator[bool]:
         """Atomically admit work against protected archive/restore windows."""
         with self._background_lock:
             allowed = self.background_allowed
             if allowed:
                 self._background_active += 1
+                if native_import:
+                    self._native_import_active += 1
         try:
             yield allowed
         finally:
             if allowed:
                 with self._background_lock:
                     self._background_active -= 1
+                    if native_import:
+                        self._native_import_active -= 1
+
+    def _require_native_import_idle(self) -> None:
+        with self._background_lock:
+            if self._native_import_active:
+                raise BackupRestoreError("A local snapshot is being created. Wait for its import before Restore.")
 
     @contextmanager
     def _protect_background(self) -> Iterator[None]:
@@ -271,6 +310,11 @@ class BackupRestoreService:
                     )
                 self._verify_core_database(connection)
                 artifacts = self._live_artifacts(connection)
+                total = sum(record["size_bytes"] for record in artifacts.values())
+                database_size = int(connection.execute("PRAGMA page_count").fetchone()[0]) * int(connection.execute("PRAGMA page_size").fetchone()[0])
+                if total + database_size + 16 * 1024 * 1024 > MAX_TOTAL_BYTES:
+                    raise BackupRestoreError("Core data exceeds the supported aggregate backup size.")
+                self._require_disk_space(self.backup_root, total + 2 * database_size + 64 * 1024 * 1024)
                 self._snapshot_database(snapshot_path)
                 snapshot = sqlite3.connect(snapshot_path)
                 snapshot.row_factory = sqlite3.Row
@@ -278,6 +322,7 @@ class BackupRestoreService:
                     integrity = snapshot.execute("PRAGMA integrity_check").fetchone()
                     if integrity is None or integrity[0] != "ok":
                         raise BackupRestoreError("SQLite snapshot failed integrity_check.")
+                    self._require_disk_space(self.backup_root, total + snapshot_path.stat().st_size + 64 * 1024 * 1024)
                     manifest = self._manifest(snapshot, snapshot_path, artifacts)
                     self._validate_snapshot_authority(
                         snapshot,
@@ -335,37 +380,41 @@ class BackupRestoreService:
         return path, file_name
 
     def stage_restore(self, archive_bytes: bytes) -> RestorePreview:
+        return self.stage_restore_stream(BytesReader(archive_bytes), len(archive_bytes))
+
+    def stage_restore_stream(self, source: ChunkReader, length: int, *, cancelled: Callable[[], bool] | None = None) -> RestorePreview:
         with self._protect_background(), self._staged_lock:
+            self._require_native_import_idle()
             if self.restore_pending or self._staged:
                 raise BackupRestoreError("A Restore is already staged or pending restart.")
-            if not archive_bytes or len(archive_bytes) > MAX_ARCHIVE_BYTES:
+            if not 0 < length <= MAX_ARCHIVE_BYTES:
                 raise BackupRestoreError("Backup archive size is outside the supported limit.")
-            archive_hash = hashlib.sha256(archive_bytes).hexdigest()
             restore_id = uuid.uuid4().hex
             stage_dir = self.staging_root / restore_id
             stage_dir.mkdir(mode=0o700)
             archive_path = stage_dir / "selected.zip"
-            self._write_exclusive(archive_path, archive_bytes)
             try:
-                manifest = self._extract_and_validate(archive_bytes, stage_dir)
+                with stage_stream(stage_dir, source, length, maximum=MAX_ARCHIVE_BYTES) as staged:
+                    archive_hash = staged.digest
+                    staged.publish(stage_dir, "selected.zip")
+                with self._read_archive_identity(archive_path, archive_hash) as archive:
+                    manifest = self._extract_and_validate(archive, stage_dir)
+                if cancelled and cancelled():
+                    raise BackupRestoreError("Restore upload was cancelled before staging completed.")
                 manifest_hash = hashlib.sha256(self._manifest_bytes(manifest)).hexdigest()
                 marker = {
-                    "version": 1,
-                    "state": "STAGED",
-                    "restore_id": restore_id,
-                    "archive_sha256": archive_hash,
-                    "manifest_sha256": manifest_hash,
+                    "version": 1, "state": "STAGED", "restore_id": restore_id,
+                    "archive_sha256": archive_hash, "manifest_sha256": manifest_hash,
                     "created_at": self._utc_now(),
                 }
                 self._write_json(stage_dir / "stage.json", marker)
                 self._staged[restore_id] = (archive_hash, manifest_hash)
-                return RestorePreview(
-                    restore_id=restore_id,
-                    archive_sha256=archive_hash,
-                    preview=self._public_preview(manifest),
-                )
-            except Exception:
+                return RestorePreview(restore_id=restore_id, archive_sha256=archive_hash,
+                                      preview=self._public_preview(manifest))
+            except Exception as error:
                 shutil.rmtree(stage_dir, ignore_errors=True)
+                if isinstance(error, (OSError, EOFError, ValueError)) and not isinstance(error, BackupRestoreError):
+                    raise BackupRestoreError("Restore upload failed: insufficient disk space, timeout, incomplete or unsafe archive.") from error
                 raise
 
     def cancel_restore(self, restore_id: str) -> bool:
@@ -381,6 +430,7 @@ class BackupRestoreService:
 
     def confirm_restore(self, restore_id: str) -> dict[str, object]:
         with self._protect_background(), self._staged_lock:
+            self._require_native_import_idle()
             if not _ID.fullmatch(restore_id) or self.restore_pending:
                 raise BackupRestoreError("Restore confirmation is no longer valid.")
             inspected = self._staged.get(restore_id)
@@ -398,10 +448,8 @@ class BackupRestoreService:
             ):
                 raise BackupRestoreError("Inspected backup staging is unavailable.")
             archive_path = stage_dir / "selected.zip"
-            archive_bytes = self._read_archive_identity(archive_path, inspected[0])
-            manifest = self._extract_and_validate(
-                archive_bytes, stage_dir, clear_existing=False
-            )
+            with self._read_archive_identity(archive_path, inspected[0]) as archive:
+                manifest = self._extract_and_validate(archive, stage_dir, clear_existing=False)
             if hashlib.sha256(self._manifest_bytes(manifest)).hexdigest() != inspected[1]:
                 raise BackupRestoreError("Inspected manifest changed after staging.")
             marker = {
@@ -500,10 +548,8 @@ class BackupRestoreService:
             or stage_state.get("manifest_sha256") != marker.get("manifest_sha256")
         ):
             raise BackupRestoreError("Restore archive identity changed after inspection.")
-        archive_bytes = self._read_archive_identity(
-            archive_path, str(marker.get("archive_sha256"))
-        )
-        manifest = self._extract_and_validate(archive_bytes, stage_dir, clear_existing=False)
+        with self._read_archive_identity(archive_path, str(marker.get("archive_sha256"))) as archive:
+            manifest = self._extract_and_validate(archive, stage_dir, clear_existing=False)
         if hashlib.sha256(self._manifest_bytes(manifest)).hexdigest() != marker.get("manifest_sha256"):
             raise BackupRestoreError("Restore manifest identity changed after inspection.")
         return manifest
@@ -563,6 +609,13 @@ class BackupRestoreService:
     def _copy_staged_pair(self, stage_dir: Path, new_db: Path, new_data: Path) -> None:
         database_source = stage_dir / "database" / "state.sqlite"
         data_source = stage_dir / "data"
+        required = database_source.stat().st_size + sum(p.stat().st_size for p in data_source.rglob("*") if p.is_file())
+        database_bytes = database_source.stat().st_size
+        if self.database.parent.stat().st_dev == self.data_root.parent.stat().st_dev:
+            self._require_disk_space(self.database.parent, required)
+        else:
+            self._require_disk_space(self.database.parent, database_bytes)
+            self._require_disk_space(self.data_root.parent, required - database_bytes)
         self._copy_file_exclusive(database_source, new_db)
         self._copy_tree_allowlisted(data_source, new_data)
 
@@ -688,12 +741,10 @@ class BackupRestoreService:
             raise BackupRestoreError("Restore rollback path has an unsupported file type.")
 
     def _extract_and_validate(
-        self, archive_bytes: bytes, stage_dir: Path, *, clear_existing: bool = True
+        self, archive_stream: BinaryIO, stage_dir: Path, *, clear_existing: bool = True
     ) -> dict[str, Any]:
-        if len(archive_bytes) > MAX_ARCHIVE_BYTES:
-            raise BackupRestoreError("Backup archive exceeds the supported size.")
         try:
-            archive = zipfile.ZipFile(__import__("io").BytesIO(archive_bytes))
+            archive = zipfile.ZipFile(archive_stream)
         except (OSError, zipfile.BadZipFile) as error:
             raise BackupRestoreError("Backup archive is invalid or truncated.") from error
         with archive:
@@ -725,10 +776,10 @@ class BackupRestoreService:
                     raise BackupRestoreError("Backup archive has an unsafe compression ratio.")
             if "manifest.json" not in names or "database/state.sqlite" not in names:
                 raise BackupRestoreError("Backup archive is missing required entries.")
+            if archive.getinfo("manifest.json").file_size > 16 * 1024 * 1024:
+                raise BackupRestoreError("Backup manifest exceeds the supported size.")
             try:
                 raw_manifest = archive.read("manifest.json")
-                if len(raw_manifest) > 16 * 1024 * 1024:
-                    raise BackupRestoreError("Backup manifest exceeds the supported size.")
                 manifest = json.loads(raw_manifest.decode("utf-8"), parse_constant=self._reject_json_constant)
             except (UnicodeError, ValueError, KeyError) as error:
                 raise BackupRestoreError("Backup manifest is invalid.") from error
@@ -741,6 +792,7 @@ class BackupRestoreService:
             if names != expected_names:
                 raise BackupRestoreError("Backup archive contains missing or unexpected files.")
             if clear_existing:
+                self._require_disk_space(stage_dir, total)
                 (stage_dir / "database").mkdir(mode=0o700)
                 (stage_dir / "data").mkdir(mode=0o700)
             database_file = stage_dir / "database" / "state.sqlite"
@@ -843,7 +895,7 @@ class BackupRestoreService:
             raise BackupRestoreError("Backup manifest fields are incomplete or unsupported.")
         if manifest.get("format") != FORMAT_NAME or manifest.get("format_version") != FORMAT_VERSION:
             raise BackupRestoreError("Backup format is incompatible.")
-        if manifest.get("schema_version") not in {34, LATEST_SCHEMA_VERSION}:
+        if manifest.get("schema_version") not in {34, 35, LATEST_SCHEMA_VERSION}:
             raise BackupRestoreError("Backup database schema is incompatible.")
         if not isinstance(manifest.get("application_version"), str) or not isinstance(
             manifest.get("created_at"), str
@@ -1041,7 +1093,7 @@ class BackupRestoreService:
         if not _REQUIRED_TABLES <= tables:
             raise BackupRestoreError("SQLite database is missing required Intelligence tables.")
         version_row = connection.execute("PRAGMA user_version").fetchone()
-        if version_row is None or int(version_row[0]) not in {34, LATEST_SCHEMA_VERSION}:
+        if version_row is None or int(version_row[0]) not in {34, 35, LATEST_SCHEMA_VERSION}:
             raise BackupRestoreError("SQLite database schema is not compatible with this version.")
         for table in tables:
             quoted = table.replace('"', '""')
@@ -1592,7 +1644,7 @@ class BackupRestoreService:
         info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
         info.compress_type = zipfile.ZIP_DEFLATED
         info.external_attr = (stat.S_IFREG | 0o600) << 16
-        with archive.open(info, "w") as output, path.open("rb") as source:
+        with archive.open(info, "w", force_zip64=True) as output, path.open("rb") as source:
             shutil.copyfileobj(source, output, length=1024 * 1024)
 
     def _zip_write_data_file(
@@ -1605,6 +1657,8 @@ class BackupRestoreService:
         info = zipfile.ZipInfo(archive_name, date_time=(1980, 1, 1, 0, 0, 0))
         info.compress_type = zipfile.ZIP_DEFLATED
         info.external_attr = (stat.S_IFREG | 0o600) << 16
+        if any(artifact["kind"] == "audio" for artifact in authority["artifacts"]):
+            info.compress_type = zipfile.ZIP_STORED
         root_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
         directory_fd = os.open(self.data_root, root_flags)
         try:
@@ -1626,7 +1680,7 @@ class BackupRestoreService:
                     raise BackupRestoreError("A referenced DATA artifact is not a regular file.")
                 hasher = hashlib.sha256()
                 size = 0
-                with archive.open(info, "w") as output:
+                with archive.open(info, "w", force_zip64=True) as output:
                     while chunk := os.read(file_fd, 1024 * 1024):
                         size += len(chunk)
                         hasher.update(chunk)
@@ -1733,41 +1787,37 @@ class BackupRestoreService:
         BackupRestoreService._fsync_dir(destination.parent)
 
     @staticmethod
-    def _read_archive_identity(path: Path, expected_hash: str) -> bytes:
-        flags = (
-            os.O_RDONLY
-            | getattr(os, "O_NOFOLLOW", 0)
-            | getattr(os, "O_NONBLOCK", 0)
-        )
+    def _require_disk_space(root: Path, required: int) -> None:
         try:
-            file_fd = os.open(path, flags)
+            with managed_directory(root) as descriptor:
+                require_space(descriptor, required)
         except OSError as error:
-            raise BackupRestoreError("Inspected backup archive is missing or unsafe.") from error
+            raise BackupRestoreError("Insufficient available disk space for Backup or Restore.") from error
+
+    @staticmethod
+    @contextmanager
+    def _read_archive_identity(path: Path, expected_hash: str) -> Iterator[BinaryIO]:
         try:
-            before = os.fstat(file_fd)
-            if not stat.S_ISREG(before.st_mode) or before.st_size > MAX_ARCHIVE_BYTES:
-                raise BackupRestoreError("Inspected backup archive is missing or unsafe.")
-            chunks: list[bytes] = []
-            hasher = hashlib.sha256()
-            size = 0
-            while chunk := os.read(file_fd, 1024 * 1024):
-                size += len(chunk)
-                if size > MAX_ARCHIVE_BYTES:
-                    raise BackupRestoreError("Inspected backup archive exceeds the supported size.")
-                chunks.append(chunk)
-                hasher.update(chunk)
-            after = os.fstat(file_fd)
-            if (before.st_ino, before.st_size, before.st_mtime_ns) != (
-                after.st_ino, after.st_size, after.st_mtime_ns
-            ) or size != before.st_size:
-                raise BackupRestoreError("Inspected backup archive changed while being read.")
-            if hasher.hexdigest() != expected_hash:
-                raise BackupRestoreError("Restore archive identity changed after inspection.")
-            return b"".join(chunks)
-        except OSError as error:
-            raise BackupRestoreError("Inspected backup archive changed or became unavailable.") from error
-        finally:
-            os.close(file_fd)
+            with open_managed(path.parent, path.name, maximum=MAX_ARCHIVE_BYTES) as stream:
+                def verify() -> None:
+                    stream.seek(0)
+                    hasher = hashlib.sha256()
+                    size = 0
+                    while chunk := stream.read(1024 * 1024):
+                        size += len(chunk)
+                        if size > MAX_ARCHIVE_BYTES:
+                            raise BackupRestoreError("Inspected backup archive exceeds the supported size.")
+                        hasher.update(chunk)
+                    if size != os.fstat(stream.fileno()).st_size or hasher.hexdigest() != expected_hash:
+                        raise BackupRestoreError("Restore archive identity changed after inspection.")
+                    stream.seek(0)
+                verify()
+                yield cast(BinaryIO, _BoundedZipReader(stream))
+                verify()
+        except (OSError, ValueError) as error:
+            if isinstance(error, BackupRestoreError):
+                raise
+            raise BackupRestoreError("Inspected backup archive is missing, changed or unsafe.") from error
 
     @staticmethod
     def _hash_path_with_size(path: Path) -> tuple[int, str]:

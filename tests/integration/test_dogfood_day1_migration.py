@@ -14,7 +14,7 @@ NOW = datetime(2026, 10, 8, tzinfo=UTC)
 
 def database34(tmp_path: Path):
     repo = SQLiteStateRepository(tmp_path / 'state.sqlite3')
-    migrations = repo._load_migrations()
+    migrations = tuple(m for m in repo._load_migrations() if m.version <= 35)
     repo._load_migrations = lambda: migrations[:-1]
     assert repo.initialize(now=NOW).version == 34
     source = ProductOrchestrationService(repo, now=lambda: NOW).add_source(url='https://www.youtube.com/@lingdujieshuo', processing_policy=ProcessingPolicy.STANDARD_INTELLIGENCE)
@@ -41,7 +41,7 @@ def test_34_to_35_preserves_unresolved_source_and_is_restart_idempotent(tmp_path
 
 def test_schema35_failure_rolls_back_trigger_and_history_atomically(tmp_path):
     repo, source = database34(tmp_path)
-    migrations = repo._load_migrations()
+    migrations = tuple(m for m in repo._load_migrations() if m.version <= 35)
     repo._load_migrations = lambda: (*migrations[:-1], replace(migrations[-1], sql=migrations[-1].sql + '\nINVALID MIGRATION;'))
     with pytest.raises(MigrationError, match='migration 35'):
         repo.initialize(now=NOW)

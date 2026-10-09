@@ -2,28 +2,356 @@
 
 from __future__ import annotations
 
+import ctypes
+import errno
+import fcntl
 import hashlib
 import json
 import os
 import re
 import sqlite3
 import stat
+import sys
+import time
 import uuid
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, BinaryIO, Protocol, cast
 
 if TYPE_CHECKING:
     from youtube_intel.state import SQLiteStateRepository, VerifiedEvidenceText
 
 MAX_TEXT_BYTES = 2 * 1024 * 1024
-MAX_MEDIA_BYTES = 64 * 1024 * 1024
+MAX_MEDIA_BYTES = 2 * 1024 * 1024 * 1024
+IO_CHUNK_BYTES = 1024 * 1024
+DISK_RESERVE_BYTES = 256 * 1024 * 1024
+IMPORT_DEADLINE_SECONDS = 2 * 60 * 60
 SOURCE_CONTRACT = "source-snapshot-v1"
+
+
+class ChunkReader(Protocol):
+    def read(self, size: int = -1) -> bytes: ...
+
+
+class BytesReader:
+    """Compatibility bytes inputs retain one source buffer, copying only chunks."""
+    def __init__(self, payload: bytes) -> None:
+        self.view = memoryview(payload)
+        self.offset = 0
+
+    def read(self, size: int = -1) -> bytes:
+        if not 0 < size <= IO_CHUNK_BYTES:
+            raise ValueError("unbounded byte read")
+        chunk = self.view[self.offset:self.offset + size].tobytes()
+        self.offset += len(chunk)
+        return chunk
 
 
 def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def require_space(descriptor: int, required: int) -> None:
+    space = os.fstatvfs(descriptor)
+    if space.f_bavail * space.f_frsize < required + DISK_RESERVE_BYTES:
+        raise OSError(28, "Insufficient local disk space")
+
+
+def cleanup_abandoned_imports(root: Path) -> None:
+    """Only reserved staging entries with no live writer lock may be retired."""
+    try:
+        with managed_directory(root) as directory:
+            try:
+                fcntl.flock(directory, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return
+            for name in os.listdir(directory):
+                if re.fullmatch(r"\.import-[0-9a-f]{32}", name) is None:
+                    continue
+                try:
+                    fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
+                except OSError:
+                    continue
+                try:
+                    own = os.fstat(fd)
+                    if not stat.S_ISREG(own.st_mode):
+                        continue
+                    try:
+                        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    except BlockingIOError:
+                        continue
+                    current = os.stat(name, dir_fd=directory, follow_symlinks=False)
+                    if (current.st_dev, current.st_ino) == (own.st_dev, own.st_ino):
+                        os.unlink(name, dir_fd=directory)
+                finally:
+                    os.close(fd)
+    except FileNotFoundError:
+        pass
+
+
+@contextmanager
+def managed_directory(root: Path, relative: str = "", *, create: bool = False) -> Iterator[int]:
+    parts = relative.split("/") if relative else []
+    if any(not p or p in {".", ".."} or "\\" in p or ":" in p for p in parts):
+        raise ValueError("invalid source artifact path")
+    # Walk the absolute root too: O_NOFOLLOW on the final component alone does
+    # not protect against a symlink in an ancestor directory.
+    absolute = root.absolute()
+    descriptor = os.open("/", os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        for part in [*absolute.parts[1:], *parts]:
+            if create:
+                try:
+                    os.mkdir(part, mode=0o700, dir_fd=descriptor)
+                except FileExistsError:
+                    pass
+            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = child
+        yield descriptor
+    finally:
+        os.close(descriptor)
+
+
+@contextmanager
+def open_managed(root: Path, relative: str, *, maximum: int) -> Iterator[BinaryIO]:
+    parts = relative.split("/")
+    if any(not p or p in {".", ".."} or "\\" in p or ":" in p for p in parts):
+        raise ValueError("invalid source artifact path")
+    with managed_directory(root, "/".join(parts[:-1])) as directory:
+        fd = os.open(parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
+        with os.fdopen(fd, "rb") as stream:
+            before = os.fstat(stream.fileno())
+            if not stat.S_ISREG(before.st_mode) or not 0 < before.st_size <= maximum:
+                raise ValueError("source artifact exceeds policy")
+            yield stream
+            after = os.fstat(stream.fileno())
+            if (before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (after.st_size, after.st_mtime_ns, after.st_ctime_ns):
+                raise ValueError("source artifact changed while reading")
+
+
+def hash_managed(root: Path, relative: str, *, maximum: int) -> tuple[int, str]:
+    with open_managed(root, relative, maximum=maximum) as stream:
+        hasher = hashlib.sha256()
+        size = 0
+        while chunk := stream.read(IO_CHUNK_BYTES):
+            size += len(chunk)
+            if size > maximum:
+                raise ValueError("source artifact exceeds policy")
+            hasher.update(chunk)
+        if size != os.fstat(stream.fileno()).st_size:
+            raise ValueError("source artifact changed while reading")
+        return size, hasher.hexdigest()
+
+
+@dataclass(frozen=True)
+class StagedFile:
+    root: Path
+    name: str
+    size: int
+    digest: str
+    directory: int
+    stream: BinaryIO
+
+    @property
+    def path(self) -> Path:
+        return self.root / self.name
+
+    def publish(self, root: Path, relative: str) -> bool:
+        # Hash the pinned inode, never reopen its replaceable pathname.
+        before = os.fstat(self.stream.fileno())
+        self.stream.seek(0)
+        hasher = hashlib.sha256()
+        size = 0
+        while chunk := self.stream.read(IO_CHUNK_BYTES):
+            hasher.update(chunk)
+            size += len(chunk)
+            if size > self.size:
+                raise ValueError("staged file grew during validation")
+        after = os.fstat(self.stream.fileno())
+        def identity(metadata: os.stat_result) -> tuple[int, int, int, int, int]:
+            return (metadata.st_dev, metadata.st_ino, metadata.st_size, metadata.st_mtime_ns, metadata.st_ctime_ns)
+        named = os.stat(self.name, dir_fd=self.directory, follow_symlinks=False)
+        if (size, hasher.hexdigest()) != (self.size, self.digest) or identity(before) != identity(after) or identity(named) != identity(after) or not stat.S_ISREG(named.st_mode):
+            raise ValueError("staged file changed during validation")
+        parts = relative.split("/")
+        if any(not p or p in {".", ".."} or "\\" in p or ":" in p for p in parts):
+            raise ValueError("invalid source artifact path")
+        with managed_directory(root, "/".join(parts[:-1]), create=True) as directory:
+            try:
+                os.link(self.name, parts[-1], src_dir_fd=self.directory, dst_dir_fd=directory, follow_symlinks=False)
+            except FileExistsError:
+                if hash_managed(root, relative, maximum=self.size) != (self.size, self.digest):
+                    raise ValueError("immutable source artifact conflict") from None
+                return False
+            linked = os.stat(parts[-1], dir_fd=directory, follow_symlinks=False)
+            try:
+                if not stat.S_ISREG(linked.st_mode) or (linked.st_dev, linked.st_ino) != (after.st_dev, after.st_ino):
+                    raise ValueError("published source inode changed")
+                # A hard link changes ctime. Size/mtime and full bytes must remain exact.
+                if hash_managed(root, relative, maximum=self.size) != (self.size, self.digest):
+                    raise ValueError("published source bytes changed")
+                os.fsync(directory)
+            except BaseException:
+                current = os.stat(parts[-1], dir_fd=directory, follow_symlinks=False)
+                if (current.st_dev, current.st_ino) == (linked.st_dev, linked.st_ino):
+                    os.unlink(parts[-1], dir_fd=directory)
+                raise
+            return True
+
+    def remove_uncommitted(self, root: Path, relative: str) -> None:
+        """Remove only a new link still pointing to this attempt's private inode."""
+        parts = relative.split("/")
+        with managed_directory(root, "/".join(parts[:-1])) as directory:
+            own = os.fstat(self.stream.fileno())
+            current = os.stat(parts[-1], dir_fd=directory, follow_symlinks=False)
+            if (current.st_dev, current.st_ino) == (own.st_dev, own.st_ino):
+                os.unlink(parts[-1], dir_fd=directory)
+                os.fsync(directory)
+
+
+@contextmanager
+def stage_stream(root: Path, source: ChunkReader, length: int, *, maximum: int,
+                 cancelled: Callable[[], bool] | None = None,
+                 progress: Callable[[int], None] | None = None) -> Iterator[StagedFile]:
+    if not 0 < length <= maximum:
+        raise ValueError("file size outside policy")
+    with managed_directory(root, create=True) as directory:
+        fcntl.flock(directory, fcntl.LOCK_SH)
+        require_space(directory, length)
+        name = ".import-" + uuid.uuid4().hex
+        fd = os.open(name, os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | getattr(os, "O_EXLOCK", 0), 0o600, dir_fd=directory)
+        own = os.fstat(fd)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            hasher = hashlib.sha256()
+            size = 0
+            deadline = time.monotonic() + IMPORT_DEADLINE_SECONDS
+            with os.fdopen(fd, "w+b") as output:
+                while size < length:
+                    if cancelled and cancelled():
+                        raise InterruptedError("Local snapshot was cancelled")
+                    if time.monotonic() > deadline:
+                        raise TimeoutError("Local import exceeded its time limit")
+                    # read1 returns one available receive, allowing deadline
+                    # checks even when a client trickles less than a full chunk.
+                    reader = getattr(source, "read1", source.read)
+                    chunk = reader(min(IO_CHUNK_BYTES, length - size))
+                    if time.monotonic() > deadline:
+                        raise TimeoutError("Local import exceeded its time limit")
+                    if not chunk:
+                        raise EOFError("Selected file upload is incomplete")
+                    if len(chunk) > min(IO_CHUNK_BYTES, length - size):
+                        raise ValueError("source returned more than requested")
+                    require_space(directory, len(chunk))
+                    output.write(chunk)
+                    hasher.update(chunk)
+                    size += len(chunk)
+                    if progress:
+                        progress(size)
+                output.flush()
+                os.fsync(output.fileno())
+                if cancelled and cancelled():
+                    raise InterruptedError("Local snapshot was cancelled")
+                yield StagedFile(root, name, size, hasher.hexdigest(), directory, output)
+        finally:
+            _unlink_owned(directory, name, own)
+
+
+def _unlink_owned(directory: int, name: str, own: os.stat_result) -> None:
+    """Cancellation removes only the inode created by this attempt."""
+    try:
+        current = os.stat(name, dir_fd=directory, follow_symlinks=False)
+        if (current.st_dev, current.st_ino) == (own.st_dev, own.st_ino):
+            os.unlink(name, dir_fd=directory)
+    except FileNotFoundError:
+        pass
+
+
+def clone_descriptor(source: int, directory: int, name: str) -> bool:
+    """Atomic macOS CoW clone from an already authorized, pinned descriptor."""
+    metadata = os.fstat(source)
+    immutable = stat.UF_IMMUTABLE | stat.UF_APPEND | stat.SF_IMMUTABLE | stat.SF_APPEND
+    if sys.platform != "darwin" or metadata.st_dev != os.fstat(directory).st_dev or getattr(metadata, "st_flags", 0) & immutable:
+        return False
+    library = ctypes.CDLL("/usr/lib/libSystem.B.dylib", use_errno=True)
+    clone = getattr(library, "fclonefileat", None)
+    if clone is None:
+        return False
+    clone.argtypes = (ctypes.c_int, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint32)
+    clone.restype = ctypes.c_int
+    # CLONE_NOOWNERCOPY; no pathname resolution for the source or parent.
+    if clone(source, directory, name.encode(), 2) == 0:
+        return True
+    error = ctypes.get_errno()
+    if error in {errno.ENOTSUP, errno.EXDEV, errno.ENOSYS}:
+        return False
+    raise OSError(error, "Local CoW snapshot failed")
+
+
+@contextmanager
+def stage_native(root: Path, source: BinaryIO, *, maximum: int,
+                 cancelled: Callable[[], bool],
+                 progress: Callable[[str, int, int, str], None]) -> Iterator[StagedFile]:
+    """Clone first; unsupported volumes copy in bounded chunks off the UI thread."""
+    before = os.fstat(source.fileno())
+    length = before.st_size
+    if not stat.S_ISREG(before.st_mode) or not 0 < length <= maximum:
+        raise ValueError("file size outside policy")
+    with managed_directory(root, create=True) as directory:
+        fcntl.flock(directory, fcntl.LOCK_SH)
+        # Reserve a full file even for CoW, protecting later private writes.
+        require_space(directory, length)
+        name = ".import-" + uuid.uuid4().hex
+        progress("SNAPSHOTTING", 0, length, "PENDING")
+        if cancelled():
+            raise InterruptedError("Local snapshot was cancelled")
+        cloned = clone_descriptor(source.fileno(), directory, name)
+        if not cloned:
+            source.seek(0)
+            with stage_stream(root, source, length, maximum=maximum, cancelled=cancelled,
+                              progress=lambda value: progress("COPYING", value, length, "STREAM_COPY")) as staged:
+                after = os.fstat(source.fileno())
+                if (before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (after.st_size, after.st_mtime_ns, after.st_ctime_ns):
+                    raise ValueError("selected source changed during copying")
+                progress("VERIFYING", length, length, "STREAM_COPY")
+                yield staged
+            return
+        own = os.stat(name, dir_fd=directory, follow_symlinks=False)
+        try:
+            after = os.fstat(source.fileno())
+            if (before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (after.st_size, after.st_mtime_ns, after.st_ctime_ns):
+                raise ValueError("selected source changed during cloning")
+            fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_EXLOCK", 0), dir_fd=directory)
+            with os.fdopen(fd, "rb") as output:
+                fcntl.flock(output.fileno(), fcntl.LOCK_EX)
+                os.fchmod(output.fileno(), 0o600)
+                if os.fstat(output.fileno()).st_ino == before.st_ino:
+                    raise ValueError("clone must have an independent inode")
+                digest = hashlib.sha256()
+                count = 0
+                deadline = time.monotonic() + IMPORT_DEADLINE_SECONDS
+                progress("VERIFYING", 0, length, "APFS_CLONE")
+                while chunk := output.read(IO_CHUNK_BYTES):
+                    if cancelled():
+                        raise InterruptedError("Local snapshot was cancelled")
+                    if time.monotonic() > deadline:
+                        raise TimeoutError("Local verification exceeded its time limit")
+                    digest.update(chunk)
+                    count += len(chunk)
+                    if count > length:
+                        raise ValueError("clone changed during hashing")
+                    progress("VERIFYING", count, length, "APFS_CLONE")
+                if count != length:
+                    raise ValueError("clone size mismatch")
+                os.fsync(output.fileno())
+                yield StagedFile(root, name, length, digest.hexdigest(), directory, output)
+        finally:
+            _unlink_owned(directory, name, own)
 
 
 def read_managed(root: Path, relative: str, *, maximum: int) -> bytes:
@@ -157,13 +485,18 @@ def verify_source(
             or artifact["provider"] != row["provider"]
         ):
             return None
-        data = read_managed(
+        if row["provider"] == "LOCAL" and row["media_kind"] != "TEXT":
+            size, digest = hash_managed(root, artifact["relative_path"], maximum=MAX_MEDIA_BYTES)
+            data = b""
+        else:
+            data = read_managed(
             root,
             artifact["relative_path"],
             maximum=(256 * 1024 if row["provider"] == "BILIBILI" else
                      MAX_MEDIA_BYTES if row["media_kind"] != "TEXT" else MAX_TEXT_BYTES),
-        )
-        if len(data) != row["byte_count"] or sha256(data) != row["source_hash"]:
+            )
+            size, digest = len(data), sha256(data)
+        if size != row["byte_count"] or digest != row["source_hash"]:
             return None
         network_snapshot = None
         if row["provider"] == "BILIBILI":
@@ -447,15 +780,16 @@ def safe_filename(value: str) -> str:
     return value.strip()[:240] or "file"
 
 
-@lru_cache(maxsize=1)
-def _expected_source_schema() -> tuple[tuple[str, str], ...]:
+@lru_cache(maxsize=3)
+def _expected_source_schema(version: int) -> tuple[tuple[str, str], ...]:
     from youtube_intel.state import SQLiteStateRepository
 
     expected = sqlite3.connect(":memory:")
     try:
         expected.execute("PRAGMA legacy_alter_table=ON")
         for migration in SQLiteStateRepository(Path(":memory:"))._load_migrations():
-            expected.executescript(migration.sql)
+            if migration.version <= version:
+                expected.executescript(migration.sql)
         return _source_schema(expected)
     finally:
         expected.close()
@@ -485,5 +819,5 @@ def _source_schema(connection: sqlite3.Connection) -> tuple[tuple[str, str], ...
 
 def verify_source_schema(connection: sqlite3.Connection) -> None:
     """Restore requires the packaged constraints, not just matching row hashes."""
-    if _source_schema(connection) != _expected_source_schema():
+    if _source_schema(connection) != _expected_source_schema(int(connection.execute("PRAGMA user_version").fetchone()[0])):
         raise ValueError("source authority schema is incompatible")

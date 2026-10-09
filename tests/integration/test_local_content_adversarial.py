@@ -160,7 +160,7 @@ def test_playlist_disguised_as_audio_never_gains_authority(local, tmp_path):
 )
 def test_size_limits_before_storage(local, filename, maximum):
     with pytest.raises(LocalImportError, match="LOCAL_FILE_TOO_LARGE"):
-        local.import_bytes(filename, b"x" * (maximum + 1))
+        local.import_stream(filename, io.BytesIO(b"x"), maximum + 1)
     assert not local.data_root.exists()
 
 
@@ -256,7 +256,7 @@ def test_selected_inplace_mutation_rejected(tmp_path):
 def test_managed_symlink_is_never_source_authority(local, tmp_path):
     local.data_root.mkdir()
     (local.data_root / "transcripts").symlink_to(tmp_path, target_is_directory=True)
-    with pytest.raises(OSError):
+    with pytest.raises(LocalImportError, match="LOCAL_FILE_UNREADABLE"):
         local.import_bytes("selected.txt", b"Canonical source material.\n")
     assert not (tmp_path / "local").exists()
 

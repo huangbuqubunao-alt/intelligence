@@ -1,0 +1,118 @@
+import { useEffect, useRef, useState } from "react";
+import { ApiRequestError, api, post } from "../api/client";
+import { useUiLanguage } from "./uiLanguage";
+
+export type NativeFileState = {
+  filename: string; byte_count: number; phase: string; loaded: number;
+  snapshot_method: string; error_code: string | null; processing_error_code: string | null;
+  import: { content_id: string; filename: string; status: string; duplicate: boolean } | null;
+};
+export type NativeJob = { job_id: string; state: string; files: NativeFileState[]; error_code: string | null };
+const running = (job: NativeJob) => ["SELECTING", "IMPORTING"].includes(job.state);
+const changed = () => window.dispatchEvent(new Event("native-imports-changed"));
+const phaseCopy: Record<string, string> = {
+  SELECTED: "Ready to add", SNAPSHOTTING: "Creating local snapshot…", COPYING: "Copying local file…",
+  VERIFYING: "Verifying imported file…", SAVED: "Import successful. File saved.", FAILED: "Import failed",
+};
+
+function FileState({ file, errors }: { file: NativeFileState; errors?: Record<string, string> }) {
+  const { t } = useUiLanguage();
+  return <li><strong>{file.filename}</strong><p role="status">{t(phaseCopy[file.phase] ?? "Importing selected files…")}</p>
+    {file.phase === "COPYING" && file.byte_count > 0 && <><p>{Math.floor(file.loaded / file.byte_count * 100)}%</p><progress aria-label={t("Copy progress")} value={file.loaded} max={file.byte_count} /></>}
+    {file.error_code && <p role="alert" className="form-error">{t(errors?.[file.error_code] ?? "The selected file could not be imported. Try again after checking local storage.")}</p>}
+    {file.import && <p>{t(file.import.status === "READY" ? "Ready" : "File saved. Local transcription status appears in Content.")}{file.import.duplicate ? ` · ${t("Already imported")}` : ""}</p>}
+    {file.processing_error_code && <p>{t("File saved. Automatic processing could not start; check its status in Content.")}</p>}
+  </li>;
+}
+
+export function NativeLocalImport({ available, onClose, onSaved, onImported, onYouTube, onBilibili, errors }: {
+  available: boolean | null; onClose: () => void; onSaved: () => void;
+  onImported?: (id: string) => void; onYouTube: () => void; onBilibili?: () => void;
+  errors: Record<string, string>;
+}) {
+  const { t } = useUiLanguage();
+  const [job, setJob] = useState<NativeJob | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const [pollRevision, setPollRevision] = useState(0);
+  const acted = useRef(false);
+  const received = (next: NativeJob) => { setJob(next); changed(); };
+  const explain = (reason: unknown) => setError(reason instanceof ApiRequestError ? errors[reason.code] ?? "The selected file could not be imported. Try again after checking local storage." : "The local service could not be reached. Reopen Intelligence and retry.");
+  useEffect(() => {
+    if (!job || !running(job)) return;
+    let disposed = false;
+    const timer = setTimeout(async () => {
+      try {
+        const response = await post<{ job: NativeJob }>(`/local/native/picks/${job.job_id}`, {});
+        if (!disposed) received(response.job);
+      } catch (reason) { if (!disposed) { explain(reason); setPollRevision(value => value + 1); } }
+    }, 500);
+    return () => { disposed = true; clearTimeout(timer); };
+  }, [job, pollRevision]);
+  useEffect(() => {
+    if (!job || acted.current || job.error_code || job.files.some(file => file.error_code) || !job.files.length || !job.files.every(file => file.import)) return;
+    acted.current = true;
+    if (onImported) onImported(job.files[0].import!.content_id);
+    else onSaved();
+  }, [job, onImported, onSaved]);
+  const request = async (action: "choose" | "confirm" | "cancel") => {
+    if (pending) return;
+    setPending(true); setError(null);
+    try {
+      const path = action === "choose" ? "/local/native/picks" : `/local/native/picks/${job!.job_id}/${action}`;
+      const response = await post<{ job: NativeJob }>(path, {});
+      received(response.job);
+    } catch (reason) { explain(reason); }
+    finally { setPending(false); }
+  };
+  const busy = !!job && running(job);
+  const close = async () => {
+    if (job?.state === "SELECTED" || job?.state === "SELECTING") await request("cancel");
+    onClose();
+  };
+  return <div className="overlay"><section className="modal local-import" role="dialog" aria-modal="true" aria-labelledby="native-local-title">
+    <div className="modal-head"><h2 id="native-local-title">{t("Add local files")}</h2><button className="button button-ghost" disabled={pending} onClick={() => void close()}>{t(busy && job?.state === "IMPORTING" ? "Continue in background" : "Cancel")}</button></div>
+    <div className="button-row" aria-label={t("Source provider")}><button className="button button-secondary" disabled={busy || pending} onClick={onYouTube}>YouTube</button><button className="button button-primary" aria-pressed="true" disabled={busy}>{t("Local files")}</button>{onBilibili && <button className="button button-secondary" disabled={busy || pending} onClick={onBilibili}>{t("Bilibili")}</button>}</div>
+    <p>{t("Choose files in the macOS selector. Intelligence creates independent local snapshots; file contents are not uploaded through the browser.")}</p>
+    <p className="hint">{t("TXT / MD: UTF-8, up to 2 MiB. Audio / video: up to 2 GiB. Media duration: up to two hours. Everything stays on this device.")}</p>
+    {available === null && <p role="status">{t("Checking native file selection…")}</p>}
+    {available === false && <p role="alert" className="form-error">{t("Native file selection is unavailable. Reopen Intelligence using its current launcher.")}</p>}
+    {error && <p role="alert" className="form-error">{t(error)}</p>}
+    {job?.error_code && <p role="alert" className="form-error">{t(errors[job.error_code] ?? "The selected file could not be imported. Try again after checking local storage.")}</p>}
+    {job?.state === "SELECTING" && <p role="status">{t("Choose files in the macOS selector…")}</p>}
+    {job?.state === "IMPORTING" && <p role="status">{t("Importing selected files…")}</p>}
+    {job?.state === "CANCELLED" && <p role="status">{t("Selection cancelled. No new Content was added.")}</p>}
+    {!!job?.files.length && <ul className="local-file-list">{job.files.map((file, index) => <FileState key={index} file={file} errors={errors} />)}</ul>}
+    {!busy && <button className="button button-secondary" aria-label={t("Choose local files")} disabled={available !== true || pending || job?.state === "SELECTED"} onClick={() => { acted.current = false; void request("choose"); }}>{t("Choose local files")}</button>}
+    {job?.state === "SELECTED" && <button className="button button-primary" disabled={pending} onClick={() => void request("confirm")}>{t("Confirm import")}</button>}
+    {busy && <button className="button button-secondary" disabled={pending} onClick={() => void request("cancel")}>{t("Cancel import")}</button>}
+    {job?.files.filter(file => file.import).map((file, index) => <button key={index} className="button button-primary" onClick={() => onImported ? onImported(file.import!.content_id) : onSaved()}>{t("Open Content")}: {file.filename}</button>)}
+  </section></div>;
+}
+
+/** Pending work is visible outside the modal while the rest of the app works. */
+export function NativeImportActivity({ onOpen }: { onOpen: (id: string) => void }) {
+  const { t } = useUiLanguage();
+  const [jobs, setJobs] = useState<NativeJob[]>([]);
+  useEffect(() => {
+    if (!navigator.platform.includes("Mac")) return;
+    let disposed = false, active = false;
+    const update = async () => {
+      if (!active || disposed) return;
+      try {
+        const result = await post<{ jobs: NativeJob[] }>("/local/native/jobs", {});
+        if (!disposed) setJobs(result.jobs);
+      } catch { /* Capability may close during application restart. */ }
+    };
+    void api<{ capability: { available: boolean } }>("/local/native/capability").then(result => { active = result.capability.available; void update(); }).catch(() => {});
+    window.addEventListener("native-imports-changed", update);
+    const timer = setInterval(update, 1000);
+    return () => { disposed = true; clearInterval(timer); window.removeEventListener("native-imports-changed", update); };
+  }, []);
+  const visible = jobs.filter(job => job.state === "IMPORTING" || job.state === "FAILED" || job.state === "COMPLETE");
+  return visible.length ? <section className="panel" aria-label={t("Local imports")}><h2>{t("Local imports")}</h2>
+    {visible.map(job => <div key={job.job_id}>{job.error_code && <p role="alert">{t("Import failed. Reopen local import to choose the file again.")}</p>}<ul className="local-file-list">{job.files.map((file, index) => <FileState key={index} file={file} />)}</ul>
+      {job.files.filter(file => file.import).map((file, index) => <button key={index} className="button button-secondary" onClick={() => onOpen(file.import!.content_id)}>{t("Open Content")}: {file.filename}</button>)}
+    </div>)}
+  </section> : null;
+}

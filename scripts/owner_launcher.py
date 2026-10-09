@@ -144,11 +144,13 @@ def launch(project: Path, *, open_browser: bool = True) -> str:
     vite = project / "frontend" / "node_modules" / ".bin" / "vite"
     if not python.exists() or not vite.exists() or not (project / "frontend" / "dist" / "index.html").exists():
         raise RuntimeError("The candidate must have its existing runtime and frontend build prepared first.")
+    from youtube_intel.native_picker_build import prepare_native_picker
+    picker = prepare_native_picker(project)
     env = dict(os.environ)
     inherited_paths = [str(Path(p).resolve()) for p in env.get("PYTHONPATH", "").split(os.pathsep) if p]
     env["PYTHONPATH"] = os.pathsep.join([str(project / "src"), *inherited_paths])
     commands = [
-        [str(python), "-m", "youtube_intel", "--project-root", str(root), "serve-api", "--database", str(root / "state.sqlite3"), "--port", "5489"],
+        [str(python), "-m", "youtube_intel", "--project-root", str(root), "serve-api", "--database", str(root / "state.sqlite3"), "--port", "5489", "--native-import-origin", "http://127.0.0.1:5488", "--native-import-origin", "http://localhost:5488", "--native-picker-executable", str(picker)],
         [str(vite), "preview", "--host", "127.0.0.1", "--port", "5488", "--strictPort"],
     ]
     processes = []

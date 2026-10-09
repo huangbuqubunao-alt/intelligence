@@ -64,6 +64,8 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     api.add_argument("--database", type=Path, required=True)
     api.add_argument("--port", type=int, default=8765)
+    api.add_argument("--native-import-origin", action="append", default=[])
+    api.add_argument("--native-picker-executable", type=Path)
     commands.add_parser(
         "doctor", help="read-only configuration and local-resource checks"
     )
@@ -143,6 +145,10 @@ def main(
                     project_root=project_root,
                     database=args.database,
                 )
+                if args.native_import_origin:
+                    if args.native_picker_executable is None:
+                        raise ValueError("Native import requires its prepared selector")
+                    composition.application.enable_native_import(tuple(args.native_import_origin), picker_executable=args.native_picker_executable)
                 server = serve_loopback(
                     composition.application,
                     port=args.port,
@@ -163,6 +169,7 @@ def main(
                     server.serve_forever()
                 finally:
                     server.server_close()
+                    composition.application.shutdown_native_import()
                     composition.worker.stop()
                     for sig, handler in previous_handlers.items():
                         signal.signal(sig, handler)

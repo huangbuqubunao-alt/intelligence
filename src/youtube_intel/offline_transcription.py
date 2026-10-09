@@ -73,6 +73,7 @@ def run_bounded(
     timeout: float,
     maximum: int = MAX_RESULT,
     env: dict[str, str] | None = None,
+    pass_fds: tuple[int, ...] = (),
 ) -> bytes:
     """Drain both pipes incrementally; terminate only our isolated process group."""
     process = None
@@ -82,6 +83,7 @@ def run_bounded(
                 sys.executable,
                 str(Path(__file__).with_name("task_process_guard.py")),
                 str(os.getpid()),
+                *(f"--pass-fd={fd}" for fd in pass_fds),
                 *args,
             ],
             stdin=subprocess.DEVNULL,
@@ -89,6 +91,7 @@ def run_bounded(
             stderr=subprocess.PIPE,
             start_new_session=True,
             env=env,
+            pass_fds=pass_fds,
         )
         assert process.stdout is not None and process.stderr is not None
         output = bytearray()

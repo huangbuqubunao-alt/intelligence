@@ -2,6 +2,7 @@ import { AddEntry } from "./AddEntry";
 import { CreatorFollowForm, CreatorFollowingDetail, FollowCreatorFromContent, Tracking, trackingCopy, useCreatorFollowingCapability } from "./CreatorFollowing";
 import { BilibiliImport, BilibiliCaptionStatus, bilibiliStatus } from "./BilibiliImport";
 import { LocalImport, localStatus } from "./LocalImport";
+import { NativeImportActivity } from "./NativeLocalImport";
 import { LocalTranscription, transcriptionCopy } from "./LocalTranscription";
 import { ChangeEvent, FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import { ApiRequestError, api, patch, post, put, uploadZip } from "../api/client";
@@ -1220,6 +1221,7 @@ function Workspace() {
             const target = researchReturn; navigate("Research"); location.hash = target;
           }}>{t("Back to Research")}</button>}
         </header>
+        <NativeImportActivity onOpen={openContent} />
         {page === "Research" && <Research onOpen={(kind, id, evidenceId) => {
           const returnTo = location.hash.slice(1);
           if (kind === "content") { openContent(id); setResearchEvidence(evidenceId ?? null); }

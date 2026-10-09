@@ -4,21 +4,30 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
+import select
+import socket
 import sqlite3
 import threading
+import time
 from collections.abc import Mapping
 from dataclasses import asdict
 from datetime import UTC, datetime
+from functools import partial
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path, PurePosixPath
-from typing import Callable, Final, cast
+from typing import BinaryIO, Callable, Final, cast
 from urllib.parse import parse_qs, urlparse
 
 from pydantic import ValidationError
 
-from youtube_intel.backup_restore import BackupRestoreError, BackupRestoreService
+from youtube_intel.backup_restore import (
+    MAX_ARCHIVE_BYTES,
+    BackupRestoreError,
+    BackupRestoreService,
+)
 from youtube_intel.bilibili_content import BilibiliContentProvider
 from youtube_intel.brief import WeeklyBrief, WeeklyBriefService
 from youtube_intel.content_summary_read import (
@@ -57,6 +66,7 @@ from youtube_intel.knowledge_delta import KnowledgeDeltaService
 from youtube_intel.local_content import LocalContentProvider, LocalImportError
 from youtube_intel.local_transcription_jobs import LocalTranscriptionJobs
 from youtube_intel.model_settings import CredentialStoreError, ModelSettingsService
+from youtube_intel.native_import import NativeImportService, macos_pick
 from youtube_intel.offline_transcription import OfflineError
 from youtube_intel.orchestration import (
     AutomationTargetType,
@@ -86,8 +96,10 @@ from youtube_intel.saved_intelligence import (
 )
 from youtube_intel.scoring import AuthoritativeScoringReader, VerifiedScoringRead
 from youtube_intel.source_authority import (
+    IO_CHUNK_BYTES,
     MAX_MEDIA_BYTES,
     MAX_TEXT_BYTES,
+    open_managed,
     safe_filename,
     verify_source,
 )
@@ -608,6 +620,55 @@ class LocalApiApplication:
         self._runtime_mode = runtime_mode
         self._demo_data = demo_data
         self._backup_restore_service = backup_restore_service
+        self._native_import: NativeImportService | None = None
+
+    def enable_native_import(self, origins: tuple[str, ...], *, picker_executable: Path) -> None:
+        for origin in origins:
+            parsed = urlparse(origin)
+            if parsed.scheme != "http" or parsed.hostname not in {"127.0.0.1", "localhost"} or not parsed.port or parsed.netloc != f"{parsed.hostname}:{parsed.port}" or parsed.path or parsed.query or parsed.fragment:
+                raise ValueError("Native import requires an exact local application origin")
+        if self._local_provider is None or not origins:
+            raise ValueError("Native import needs local source storage")
+        def process_saved(content_id: str) -> None:
+            jobs = self._require_transcription()
+            capability = jobs.capability()
+            deadline = time.monotonic() + 30
+            while capability.get("checking") is True and time.monotonic() < deadline:
+                time.sleep(0.1)  # background admission thread; Content is already visible
+                capability = jobs.capability()
+            # Existing provisioned offline adapter only; no model download/cloud.
+            if capability.get("state") == "READY" and capability.get("production_eligible") is True:
+                identity = capability.get("execution_identity")
+                if isinstance(identity, str):
+                    jobs.start(content_id, identity)
+        self._native_import = NativeImportService(self._local_provider,
+            origins=origins, backup=self._backup_restore_service, process_saved=process_saved,
+            picker=partial(macos_pick, executable=picker_executable))
+
+    def shutdown_native_import(self) -> None:
+        if self._native_import:
+            self._native_import.shutdown()
+
+    def native_request(self, method: str, route: str, body: bytes, origin: str) -> tuple[int, dict[str, object]]:
+        service = self._native_import
+        if service is None:
+            raise ApiError(HTTPStatus.NOT_FOUND, "LOCAL_NATIVE_PICKER_UNAVAILABLE", "Native local selection is unavailable.")
+        if method != "POST":
+            raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Native route is unavailable.")
+        self._only_keys(self._body(body), set())  # no paths, filenames or caller scripts
+        try:
+            if route == "/api/v1/local/native/picks":
+                return HTTPStatus.ACCEPTED, {"job": service.choose(origin)}
+            if route == "/api/v1/local/native/jobs":
+                return HTTPStatus.OK, {"jobs": service.jobs(origin)}
+            match = re.fullmatch(r"/api/v1/local/native/picks/([A-Za-z0-9_-]{43})(?:/(confirm|cancel))?", route)
+            if match:
+                key, action = match.groups()
+                result = service.confirm(key, origin) if action == "confirm" else service.cancel(key, origin) if action == "cancel" else service.status(key, origin)
+                return HTTPStatus.ACCEPTED if action else HTTPStatus.OK, {"job": result}
+        except LocalImportError as error:
+            raise ApiError(HTTPStatus.CONFLICT, error.code, "The native local import could not proceed.") from None
+        raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Native route is unavailable.")
 
     @staticmethod
     def _body(body: bytes) -> dict[str, object]:
@@ -733,6 +794,8 @@ class LocalApiApplication:
     ) -> tuple[int, dict[str, object]]:
         route = urlparse(path).path.rstrip("/") or "/"
         try:
+            if method == "GET" and route == "/api/v1/local/native/capability":
+                return HTTPStatus.OK, {"capability": {"available": self._native_import is not None}}
             creator_from_content = re.fullmatch(r"/api/v1/videos/([^/]+)/follow-(creator|channel)", route)
             following_provider = "YOUTUBE" if route == "/api/v1/sources/channels" or (creator_from_content and creator_from_content[2] == "channel") else "BILIBILI"
             if method == "POST" and (route in {"/api/v1/sources/creators", "/api/v1/sources/channels"} or creator_from_content):
@@ -1892,7 +1955,33 @@ class LocalApiApplication:
             )
         return self._deep_analysis_service
 
-    def backup_download(self, path: str) -> tuple[int, dict[str, str], bytes] | None:
+    def handle_stream(
+        self, path: str, stream: BinaryIO, length: int,
+        *, cancelled: Callable[[], bool] | None = None,
+    ) -> tuple[int, dict[str, object]]:
+        route = urlparse(path).path.rstrip("/")
+        if self._backup_restore_service and self._backup_restore_service.restore_pending:
+            raise ApiError(HTTPStatus.CONFLICT, "RESTORE_PENDING", "Restore is pending. Reopen after restart.")
+        try:
+            if route == "/api/v1/local/imports":
+                if self._local_provider is None:
+                    raise ApiError(HTTPStatus.CONFLICT, "LOCAL_STORAGE_UNAVAILABLE", "Local storage is unavailable.")
+                query = parse_qs(urlparse(path).query, keep_blank_values=True, max_num_fields=3)
+                names = query.get("filename", [])
+                if set(query) != {"filename"} or len(names) != 1 or len(names[0]) > 1024:
+                    raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY, "LOCAL_INVALID_FILENAME", "Select a supported file.")
+                imported = self._local_provider.import_stream(names[0], stream, length, cancelled=cancelled)
+                return HTTPStatus.OK if imported.duplicate else HTTPStatus.CREATED, {"import": imported.as_dict()}
+            if route == "/api/v1/backup-restore/restore/stage":
+                staged = self._require_backup_restore().stage_restore_stream(stream, length, cancelled=cancelled)
+                return HTTPStatus.OK, {"restore": {"restore_id": staged.restore_id, "archive_sha256": staged.archive_sha256, "preview": staged.preview}}
+        except LocalImportError as error:
+            raise ApiError(HTTPStatus.REQUEST_TIMEOUT if error.code == "LOCAL_IMPORT_TIMEOUT" else HTTPStatus.UNPROCESSABLE_ENTITY, error.code, "The selected file could not be imported.") from None
+        except BackupRestoreError as error:
+            raise ApiError(HTTPStatus.CONFLICT, "BACKUP_RESTORE_REJECTED", str(error)) from None
+        raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Stream route is unavailable.")
+
+    def backup_download(self, path: str) -> tuple[int, dict[str, str], bytes | Path] | None:
         if self._backup_restore_service is None:
             return None
         match = re.fullmatch(
@@ -1905,13 +1994,10 @@ class LocalApiApplication:
         if found is None:
             return int(HTTPStatus.NOT_FOUND), {"Content-Type": "application/json; charset=utf-8"}, b'{"error":{"message":"Backup was not found."}}'
         archive_path, file_name = found
-        data = archive_path.read_bytes()
-        if len(data) > 512 * 1024 * 1024:
-            return int(HTTPStatus.INTERNAL_SERVER_ERROR), {"Content-Type": "application/json; charset=utf-8"}, b'{"error":{"message":"Backup exceeds the supported size."}}'
         return int(HTTPStatus.OK), {
             "Content-Type": "application/zip",
             "Content-Disposition": f'attachment; filename="{file_name}"',
-        }, data
+        }, archive_path
 
     def _saved_list(self, path: str) -> dict[str, object]:
         query = parse_qs(urlparse(path).query, keep_blank_values=True, max_num_fields=3)
@@ -3152,6 +3238,7 @@ class LocalApiApplication:
         }
 
 
+UPLOAD_IDLE_TIMEOUT_SECONDS = 120
 _LOCAL_ORIGIN = re.compile(r"^http://(localhost|127\.0\.0\.1)(:\d+)?$")
 
 
@@ -3184,9 +3271,38 @@ def serve_loopback(
             self.end_headers()
             self.wfile.write(encoded)
 
+        def _send_file(self, status: int, headers: dict[str, str], path: Path) -> None:
+            with open_managed(path.parent, path.name, maximum=MAX_ARCHIVE_BYTES) as source:
+                self.send_response(status)
+                for name, value in headers.items():
+                    self.send_header(name, value)
+                self.send_header("Content-Length", str(os.fstat(source.fileno()).st_size))
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.end_headers()
+                while chunk := source.read(IO_CHUNK_BYTES):
+                    self.wfile.write(chunk)
+
+        def _cancelled(self) -> bool:
+            if select.select([self.connection], [], [], 0)[0]:
+                return bool(self.connection.recv(1, socket.MSG_PEEK) == b"")
+            return False
+
         def _handle(self) -> None:
             is_mutation = self.command not in {"GET", "HEAD"}
             origin = self.headers.get("Origin")
+            native_route = urlparse(self.path).path.rstrip("/")
+            is_native = native_route.startswith("/api/v1/local/native/") and native_route != "/api/v1/local/native/capability"
+            if is_native:
+                service = application._native_import
+                if service is None:
+                    self._send(HTTPStatus.NOT_FOUND, {"error": {"code": "LOCAL_NATIVE_PICKER_UNAVAILABLE", "message": "Native selection is unavailable."}})
+                    return
+                server_port = cast(ThreadingHTTPServer, self.server).server_port
+                hosts = {urlparse(value).netloc for value in service.origins} | {f"127.0.0.1:{server_port}", f"localhost:{server_port}"}
+                if origin not in service.origins or self.headers.get("Host") not in hosts or self.headers.get("X-YIA-Request") != "local-ui" or self.headers.get("Sec-Fetch-Site") not in {None, "same-origin"}:
+                    self._send(HTTPStatus.FORBIDDEN, {"error": {"code": "LOCAL_NATIVE_ACCESS_REJECTED", "message": "Only the current local application can request native selection."}})
+                    return
             if is_mutation and (
                 self.headers.get("X-YIA-Request") != "local-ui"
                 or (origin is not None and _LOCAL_ORIGIN.fullmatch(origin) is None)
@@ -3205,19 +3321,30 @@ def serve_loopback(
                 binary = application.backup_download(self.path)
                 if binary is not None:
                     status, headers, binary_payload = binary
-                    self._send_bytes(status, headers, binary_payload)
+                    try:
+                        if isinstance(binary_payload, Path):
+                            self.connection.settimeout(UPLOAD_IDLE_TIMEOUT_SECONDS)
+                            self._send_file(status, headers, binary_payload)
+                        else:
+                            self._send_bytes(status, headers, binary_payload)
+                    except (OSError, ValueError):
+                        self.close_connection = True
                     return
             length = 0
             is_local_import = False
+            is_stage = False
             if is_mutation:
+                if self.headers.get("Transfer-Encoding") or len(self.headers.get_all("Content-Length", [])) > 1:
+                    self._send(HTTPStatus.BAD_REQUEST, {"error": {"code": "INVALID_LENGTH", "message": "Use a single fixed request length."}})
+                    return
                 raw_length = self.headers.get("Content-Length", "0")
                 if not raw_length.isdecimal():
                     self._send(HTTPStatus.BAD_REQUEST, {"error": {"code": "INVALID_LENGTH", "message": "Request size is invalid."}})
                     return
                 length = int(raw_length)
-                is_stage = urlparse(self.path).path.rstrip("/") == "/api/v1/backup-restore/restore/stage"
-                is_local_import = urlparse(self.path).path.rstrip("/") == "/api/v1/local/imports"
-                maximum = 512 * 1024 * 1024 if is_stage else MAX_MEDIA_BYTES if is_local_import else 2 * 1024 * 1024
+                is_stage = self.command == "POST" and urlparse(self.path).path.rstrip("/") == "/api/v1/backup-restore/restore/stage"
+                is_local_import = self.command == "POST" and urlparse(self.path).path.rstrip("/") == "/api/v1/local/imports"
+                maximum = 4096 if is_native else MAX_ARCHIVE_BYTES if is_stage else MAX_MEDIA_BYTES if is_local_import else 2 * 1024 * 1024
                 if is_local_import:
                     names=parse_qs(urlparse(self.path).query).get('filename',[])
                     if len(names)==1 and Path(safe_filename(names[0])).suffix.lower() in {'.txt','.md'}:
@@ -3237,20 +3364,42 @@ def serve_loopback(
                 if not acquired:
                     self._send(HTTPStatus.TOO_MANY_REQUESTS,{"error":{"code":"LOCAL_IMPORT_BUSY","message":"Another local import is processing. Try again shortly."}})
                     return
-                self.connection.settimeout(30)
+            staged_restore_id: str | None = None
+            response_sent = False
             try:
-                request_body=self.rfile.read(length)
-                if len(request_body)!=length:
-                    raise ApiError(HTTPStatus.BAD_REQUEST,'INVALID_LENGTH','Selected file upload is incomplete.')
-                status, response_payload = application.handle(
-                    self.command, self.path, request_body
-                )
+                if is_native:
+                    self.connection.settimeout(UPLOAD_IDLE_TIMEOUT_SECONDS)
+                    native_body = self.rfile.read(length)
+                    if len(native_body) != length:
+                        raise ApiError(HTTPStatus.BAD_REQUEST, "INVALID_LENGTH", "Control request is incomplete.")
+                    status, response_payload = application.native_request(self.command, native_route, native_body, origin or "")
+                elif is_local_import or is_stage:
+                    self.connection.settimeout(UPLOAD_IDLE_TIMEOUT_SECONDS)
+                    status, response_payload = application.handle_stream(self.path, cast(BinaryIO, self.rfile), length, cancelled=self._cancelled)
+                else:
+                    request_body = self.rfile.read(length)
+                    if len(request_body) != length:
+                        raise ApiError(HTTPStatus.BAD_REQUEST, "INVALID_LENGTH", "Request upload is incomplete.")
+                    status, response_payload = application.handle(self.command, self.path, request_body)
+                if is_stage:
+                    staged_restore = response_payload.get("restore")
+                    if isinstance(staged_restore, dict) and isinstance(staged_restore.get("restore_id"), str):
+                        staged_restore_id = staged_restore["restore_id"]
+                    if self._cancelled():
+                        self.close_connection = True
+                        return
                 self._send(status, response_payload)
+                response_sent = True
                 restore = response_payload.get("restore")
                 if isinstance(restore, dict) and restore.get("restart_required") is True:
                     threading.Timer(0.25, self.server.shutdown).start()
             except ApiError as error:
-                self._send(error.status, _error_body(error))
+                try:
+                    self._send(error.status, _error_body(error))
+                except OSError:
+                    self.close_connection = True
+            except (BrokenPipeError, ConnectionResetError):
+                self.close_connection = True
             except Exception:
                 self._send(
                     HTTPStatus.INTERNAL_SERVER_ERROR,
@@ -3263,6 +3412,8 @@ def serve_loopback(
                 )
 
             finally:
+                if staged_restore_id is not None and not response_sent and application._backup_restore_service is not None:
+                    application._backup_restore_service.cancel_restore(staged_restore_id)
                 if acquired:
                     application._local_import_slot.release()
 

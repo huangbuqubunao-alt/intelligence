@@ -24,10 +24,11 @@ from youtube_intel.offline_transcription import (
 )
 from youtube_intel.source_authority import (
     MAX_MEDIA_BYTES,
+    open_managed,
     read_managed,
     sha256,
+    stage_stream,
     verify_source,
-    write_managed,
 )
 from youtube_intel.state import SQLiteStateRepository, format_utc_datetime
 
@@ -440,11 +441,8 @@ class LocalTranscriptionJobs:
                     (source["snapshot_artifact_id"],),
                 ).fetchone()
                 duration = source["duration_seconds"]
-                payload = read_managed(
-                    self.data_root, artifact["relative_path"], maximum=MAX_MEDIA_BYTES
-                )
-                if sha256(payload) != source["source_hash"]:
-                    raise OfflineError("LOCAL_SOURCE_UNTRUSTED")
+                relative = artifact["relative_path"]
+                digest, size = source["source_hash"], source["byte_count"]
                 extension = source["format"]
             current = selected.capability()
             if (
@@ -459,8 +457,11 @@ class LocalTranscriptionJobs:
                 prefix="source-attempt-", dir=self.machine_root
             ) as temporary:
                 snapshot = Path(temporary) / ("source" + extension)
-                write_managed(Path(temporary), snapshot.name, payload)
-                del payload
+                with open_managed(self.data_root, relative, maximum=MAX_MEDIA_BYTES) as input_file:
+                    with stage_stream(Path(temporary), input_file, size, maximum=MAX_MEDIA_BYTES) as staged:
+                        if staged.digest != digest:
+                            raise OfflineError("LOCAL_SOURCE_UNTRUSTED")
+                        staged.publish(Path(temporary), snapshot.name)
                 transcript = selected.transcribe(snapshot, duration_seconds=duration)
             if (
                 sha256(transcript.provenance.encode()) != capability.execution_identity
