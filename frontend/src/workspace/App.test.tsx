@@ -2610,3 +2610,20 @@ test.each(["en", "zh-CN"])("%s non-retryable Content explains the prerequisite a
   fireEvent.click(retry);
   expect(mutations).toEqual([]);
 });
+
+test.each([
+  ["WAITING_CONTENT", "等待内容整理"],
+  ["WAITING_MODEL", "等待合格的洞察模型"],
+  ["WAITING_BUDGET", "等待获准的处理资源"],
+  ["SUCCEEDED_NO_NEW_INTELLIGENCE", "已完成，未产生新洞察"],
+])("Chinese optional Intelligence %s has an ordinary localized status label", async (status, label) => {
+  localStorage.setItem("yia.ui-language", "zh-CN");
+  location.hash = "Content/video-1";
+  const original = globalThis.fetch;
+  vi.stubGlobal("fetch", vi.fn((path: string, init?: RequestInit) => path.endsWith("/videos/video-1")
+    ? response({ ...daVideoDetail, intelligence_result: { ...daVideoDetail.intelligence_result, status } })
+    : original(path, init)));
+  render(<App />);
+  expect(await screen.findByText(label, { exact: true })).toBeTruthy();
+  expect(screen.queryByText(status, { exact: true })).toBeNull();
+});

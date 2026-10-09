@@ -8,9 +8,11 @@ export type ApiError = {
 /** An API failure that keeps its machine code so callers can localize by code. */
 export class ApiRequestError extends Error {
   readonly code: string;
+  readonly technicalMessage: string;
   readonly details?: ApiError["details"];
   constructor(error: ApiError) {
-    super(error.message);
+    super(error.code === "VALIDATION_ERROR" ? "The request could not be accepted. Check the entered information and try again." : error.message);
+    this.technicalMessage = error.message;
     this.name = "ApiRequestError";
     this.code = error.code;
     this.details = error.details;
