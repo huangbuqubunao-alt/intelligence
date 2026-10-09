@@ -394,7 +394,6 @@ def test_saved_content_and_evidence_survive_summary_failure_and_duplicate_retry(
 
 def test_saved_native_media_remains_visible_when_status_update_fails(workspace, monkeypatch):
     import sqlite3
-    from contextlib import contextmanager
 
     from youtube_intel import local_content
     root, repo, provider, _ = workspace
@@ -408,15 +407,18 @@ def test_saved_native_media_remains_visible_when_status_update_fails(workspace, 
             self.actual = actual
         def __getattr__(self, name):
             return getattr(self.actual, name)
+        def __enter__(self):
+            self.actual.__enter__()
+            return self
+        def __exit__(self, *args):
+            return self.actual.__exit__(*args)
         def execute(self, sql, *args):
             if sql.startswith("UPDATE content_source_snapshots SET status=?") and not failed:
                 failed.append(True)
                 raise sqlite3.OperationalError("isolated status write failure")
             return self.actual.execute(sql, *args)
-    @contextmanager
-    def connect():
-        with original() as actual:
-            yield Connection(actual)
+    def connect(**options):
+        return Connection(original(**options))
     monkeypatch.setattr(repo, "_connect", connect)
     service, key = selected(provider, source)
     try:
@@ -427,6 +429,6 @@ def test_saved_native_media_remains_visible_when_status_update_fails(workspace, 
         assert item["processing_error_code"] == "LOCAL_PROCESSING_UNAVAILABLE"
         assert item["import"]["status"] == "IMPORTED"
         assert len(repo.list_videos()) == 1
-        assert item["import"]["content_id"] == repo.list_videos()[0]["video_id"]
+        assert item["import"]["content_id"] == repo.list_videos()[0].video_id
     finally:
         service.shutdown()
