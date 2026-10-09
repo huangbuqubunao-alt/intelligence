@@ -89,6 +89,28 @@ def prepare_workspace(project: Path) -> Path:
     return root
 
 
+def check_port_available(port: int) -> None:
+    # On BSD/macOS SO_REUSEADDR can bind a specific address even while a
+    # wildcard listener is active. Detect that listener without sending data.
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=0.5):
+            pass
+    except ConnectionRefusedError:
+        pass
+    except OSError as error:
+        raise RuntimeError(f"Intelligence could not verify local port {port}. Inspect the local networking error and reopen Intelligence.") from error
+    else:
+        raise RuntimeError(f"Intelligence cannot start: local port {port} is in use. Close the application using it and reopen Intelligence.")
+    with socket.socket() as probe:
+        # Match the application servers' restart behavior: closed connections
+        # may remain in TIME_WAIT, but a live listener must still be refused.
+        probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            probe.bind(("127.0.0.1", port))
+        except OSError as error:
+            raise RuntimeError(f"Intelligence cannot start: local port {port} is in use. Close the application using it and reopen Intelligence.") from error
+
+
 def launch(project: Path, *, open_browser: bool = True) -> str:
     identity = prepare_frontend(project)
     root = prepare_workspace(project)
@@ -117,8 +139,7 @@ def launch(project: Path, *, open_browser: bool = True) -> str:
         # Port checks below still refuse to replace any running process.
         pid_file.unlink(missing_ok=True)
     for port in (5488, 5489):
-        with socket.socket() as probe:
-            probe.bind(("127.0.0.1", port))
+        check_port_available(port)
     python = project / ".venv" / "bin" / "python"
     vite = project / "frontend" / "node_modules" / ".bin" / "vite"
     if not python.exists() or not vite.exists() or not (project / "frontend" / "dist" / "index.html").exists():

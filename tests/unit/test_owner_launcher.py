@@ -1,6 +1,7 @@
 """Launcher must bind served bytes to current source, never existence/timestamps."""
 import importlib.util
 import json
+import socket
 from pathlib import Path
 from unittest.mock import patch
 
@@ -10,6 +11,38 @@ _SPEC = importlib.util.spec_from_file_location('owner_launcher', Path(__file__).
 assert _SPEC and _SPEC.loader
 launcher = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(launcher)
+
+
+def test_port_probe_allows_closed_server_connections_to_finish() -> None:
+    with socket.socket() as server:
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server.bind(('127.0.0.1', 0))
+        port = server.getsockname()[1]
+        server.listen(1)
+        with socket.create_connection(('127.0.0.1', port), timeout=2) as client:
+            accepted, _ = server.accept()
+            accepted.close()
+            assert client.recv(1) == b''
+    # The accepted server connection can remain in TIME_WAIT after the listener
+    # exits. Both supported application servers allow address reuse on restart.
+    launcher.check_port_available(port)
+
+
+@pytest.mark.parametrize('host', ['127.0.0.1', '0.0.0.0'])
+def test_port_probe_still_refuses_an_actual_listener(host: str) -> None:
+    with socket.socket() as server:
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server.bind((host, 0))
+        server.listen(1)
+        with pytest.raises(RuntimeError, match='port .* in use'):
+            launcher.check_port_available(server.getsockname()[1])
+
+
+def test_port_probe_fails_closed_when_listener_detection_times_out() -> None:
+    with patch.object(launcher.socket, 'create_connection', side_effect=TimeoutError), patch.object(launcher.socket, 'socket') as probe:
+        with pytest.raises(RuntimeError, match='verify local port'):
+            launcher.check_port_available(12345)
+        probe.assert_not_called()
 
 
 def workspace(tmp_path: Path) -> Path:
@@ -98,7 +131,7 @@ def test_healthy_old_launcher_cannot_be_reused_when_revision_changes(tmp_path: P
         status = 200
     def get(url, **kwargs):
         return Response(b'{"runtime":{"demo_data":false}}' if '/api/' in url else b'old interface')
-    with patch.object(launcher, 'prepare_frontend', return_value={'revision': 'adopted-main'}), patch.object(launcher, 'prepare_workspace', return_value=owner), patch.object(launcher, 'urlopen', side_effect=get), patch.object(launcher, 'stop') as stop, patch.object(launcher.socket, 'socket'):
+    with patch.object(launcher, 'prepare_frontend', return_value={'revision': 'adopted-main'}), patch.object(launcher, 'prepare_workspace', return_value=owner), patch.object(launcher, 'urlopen', side_effect=get), patch.object(launcher, 'stop') as stop, patch.object(launcher, 'check_port_available'):
         # A fresh process cannot start in the unprepared fixture. It must never
         # succeed by reusing a healthy but stale receipt.
         with pytest.raises(RuntimeError, match='prepared'):

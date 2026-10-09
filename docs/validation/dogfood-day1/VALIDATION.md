@@ -1,8 +1,9 @@
 # Intelligence Dogfood Day 1 acceptance
 
 Starting main and origin/main: `943bc05bbc0c20e5d2f8e92c8358aa6e3e988981`.
-Isolated branch: `codex/dogfood-day1-fixes`. Implementation frozen at
-`758a050`; the subsequent evidence commit changes no application code.
+Isolated branch: `codex/dogfood-day1-fixes`. Initial product implementation was
+frozen at `758a050`; its evidence commit `e7d7b64` changed no application code.
+The post-adoption launcher restart correction below remains in this same goal.
 
 ## Final checks
 
@@ -124,3 +125,23 @@ Post-adoption equality, HTTP asset proof and safe owner GET preservation are
 recorded in the final report and ignored operational adoption receipt.
 
 Next action: **REAL-USER DOGFOOD DAY 2**.
+
+## Post-adoption restart finding
+
+The initial accepted candidate `e7d7b64` was fast-forward adopted, pushed and
+fetched successfully. Normal owner launch rebuilt current production bytes and
+stopped the two verified owned October 3 processes. Its bare socket bind
+preflight then failed with `OSError: [Errno 48] Address already in use`
+(`scripts/owner_launcher.py`, launch port probe). `lsof` confirmed no listener;
+`netstat` showed the closed owner connections in TIME_WAIT. Startup had not yet
+opened or migrated owner data.
+
+The isolated correction uses reusable bind after a bounded no-payload loopback
+connection check. Independent review found that reusable bind alone can miss a
+macOS wildcard listener; this was fixed before re-adoption. Only connection
+refusal permits bind, while a live listener or unexpected error/timeout fails
+closed with an actionable launcher error. No unrelated process is stopped.
+Eleven focused tests pass, including real TIME_WAIT, loopback/wildcard listener
+refusal and timeout fail-closed coverage. Fresh independent review approves the
+correction with no P0/P1. Ruff, strict mypy and diff checks pass. A fresh full
+backend rerun after this final code freeze is required before re-adoption.

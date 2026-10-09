@@ -1,0 +1,30 @@
+..FF.......                                                              [100%]
+=================================== FAILURES ===================================
+__________ test_port_probe_still_refuses_an_actual_listener[0.0.0.0] ___________
+
+host = '0.0.0.0'
+
+    @pytest.mark.parametrize('host', ['127.0.0.1', '0.0.0.0'])
+    def test_port_probe_still_refuses_an_actual_listener(host: str) -> None:
+        with socket.socket() as server:
+            server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            server.bind((host, 0))
+            server.listen(1)
+>           with pytest.raises(RuntimeError, match='port .* in use'):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE RuntimeError
+
+tests/unit/test_owner_launcher.py:37: Failed
+________ test_port_probe_fails_closed_when_listener_detection_times_out ________
+
+    def test_port_probe_fails_closed_when_listener_detection_times_out() -> None:
+        with patch.object(launcher.socket, 'create_connection', side_effect=TimeoutError), patch.object(launcher.socket, 'socket') as probe:
+>           with pytest.raises(RuntimeError, match='verify local port'):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE RuntimeError
+
+tests/unit/test_owner_launcher.py:43: Failed
+=========================== short test summary info ============================
+FAILED tests/unit/test_owner_launcher.py::test_port_probe_still_refuses_an_actual_listener[0.0.0.0]
+FAILED tests/unit/test_owner_launcher.py::test_port_probe_fails_closed_when_listener_detection_times_out
+2 failed, 9 passed in 0.24s
