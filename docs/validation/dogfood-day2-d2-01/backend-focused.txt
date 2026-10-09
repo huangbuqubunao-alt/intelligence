@@ -1,0 +1,23 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.11, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/hua/Documents/yia-worktrees/dogfood-day2-local-import-fix
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collected 208 items
+
+tests/integration/test_dogfood_day2_local_import.py ......               [  2%]
+tests/integration/test_local_content_provider.py ....                    [  4%]
+tests/integration/test_local_content_adversarial.py .................... [ 14%]
+.....................                                                    [ 24%]
+tests/integration/test_local_transcription_service.py ...............    [ 31%]
+tests/integration/test_bilibili_three_provider.py .....                  [ 34%]
+tests/integration/test_bilibili_content.py ...............               [ 41%]
+tests/integration/test_youtube_following.py ............................ [ 54%]
+......................                                                   [ 65%]
+tests/integration/test_dogfood_day1_intelligence.py ..............       [ 72%]
+tests/integration/test_dogfood_day1_migration.py ...                     [ 73%]
+tests/unit/test_dogfood_day1_product.py ................                 [ 81%]
+tests/unit/test_local_api.py ............................                [ 94%]
+tests/unit/test_owner_launcher.py ...........                            [100%]
+
+======================== 208 passed in 70.32s (0:01:10) ========================

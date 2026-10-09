@@ -1,0 +1,97 @@
+{
+  "schema": 35,
+  "integrity": "ok",
+  "foreign_keys": [],
+  "content_count": 10,
+  "snapshots": [
+    {
+      "content_id": "local-f8ec3ffe0f4a2f8e7c627a7d83fc76bae5e04d3fdf860955f798d5891ae91fd5",
+      "filename": "d2-en-md.md",
+      "media_kind": "TEXT",
+      "status": "READY",
+      "byte_count": 39,
+      "source_hash": "f8ec3ffe0f4a2f8e7c627a7d83fc76bae5e04d3fdf860955f798d5891ae91fd5"
+    },
+    {
+      "content_id": "local-d035d6975955da9071a7a50d802d4a43cd157fc8c1f34fa70f58088ae81d95e9",
+      "filename": "d2-en-txt.txt",
+      "media_kind": "TEXT",
+      "status": "READY",
+      "byte_count": 40,
+      "source_hash": "d035d6975955da9071a7a50d802d4a43cd157fc8c1f34fa70f58088ae81d95e9"
+    },
+    {
+      "content_id": "local-2f0acbb24909e2131ac91d8c0f37fa78a48be06033362761d8154df0be9e2f9a",
+      "filename": "d2-en-wav.wav",
+      "media_kind": "AUDIO",
+      "status": "TRANSCRIPTION_UNAVAILABLE",
+      "byte_count": 32078,
+      "source_hash": "2f0acbb24909e2131ac91d8c0f37fa78a48be06033362761d8154df0be9e2f9a"
+    },
+    {
+      "content_id": "local-7fc9149402ddc53d94b2d8cfcd115db7e7d1111a620a31bdbc06226b7fba599e",
+      "filename": "d2-video-0.mp4",
+      "media_kind": "VIDEO",
+      "status": "TRANSCRIPTION_UNAVAILABLE",
+      "byte_count": 1881,
+      "source_hash": "7fc9149402ddc53d94b2d8cfcd115db7e7d1111a620a31bdbc06226b7fba599e"
+    },
+    {
+      "content_id": "local-2212f212186b922aaa29332c8a16fd0bd1f48ebbff59b85d888ef8182a31f9dd",
+      "filename": "d2-video-1.mp4",
+      "media_kind": "VIDEO",
+      "status": "TRANSCRIPTION_UNAVAILABLE",
+      "byte_count": 1881,
+      "source_hash": "2212f212186b922aaa29332c8a16fd0bd1f48ebbff59b85d888ef8182a31f9dd"
+    },
+    {
+      "content_id": "local-01bcb791bbba767486c9b392351b30dcc0624a52630f4e2ef294de3fd19597bc",
+      "filename": "d2-video-2.mp4",
+      "media_kind": "VIDEO",
+      "status": "TRANSCRIPTION_UNAVAILABLE",
+      "byte_count": 1881,
+      "source_hash": "01bcb791bbba767486c9b392351b30dcc0624a52630f4e2ef294de3fd19597bc"
+    },
+    {
+      "content_id": "local-6a2c1ac9c768b6f238c634e89ee58f5135e64abb1d706d70f71a268370db0258",
+      "filename": "d2-video-3.mp4",
+      "media_kind": "VIDEO",
+      "status": "TRANSCRIPTION_UNAVAILABLE",
+      "byte_count": 1881,
+      "source_hash": "6a2c1ac9c768b6f238c634e89ee58f5135e64abb1d706d70f71a268370db0258"
+    },
+    {
+      "content_id": "local-20ab55184a41fda8a4139a9bb1811867b0f4a4944834da705b16722fed50cc7e",
+      "filename": "d2-zh-CN-md.md",
+      "media_kind": "TEXT",
+      "status": "READY",
+      "byte_count": 42,
+      "source_hash": "20ab55184a41fda8a4139a9bb1811867b0f4a4944834da705b16722fed50cc7e"
+    },
+    {
+      "content_id": "local-fd923d0eea3ebef4b57b0e3d04e007a93c73323b380d6d1e10bb958ca60dd6c5",
+      "filename": "d2-zh-CN-txt.txt",
+      "media_kind": "TEXT",
+      "status": "READY",
+      "byte_count": 43,
+      "source_hash": "fd923d0eea3ebef4b57b0e3d04e007a93c73323b380d6d1e10bb958ca60dd6c5"
+    },
+    {
+      "content_id": "local-aec4661fb4c7d3c0a42c1a782a541647244c0332411e9617b4d5aa6f6e9723fa",
+      "filename": "d2-zh-CN-wav.wav",
+      "media_kind": "AUDIO",
+      "status": "TRANSCRIPTION_UNAVAILABLE",
+      "byte_count": 32078,
+      "source_hash": "aec4661fb4c7d3c0a42c1a782a541647244c0332411e9617b4d5aa6f6e9723fa"
+    }
+  ],
+  "sources": [
+    {
+      "provider": "LOCAL",
+      "source_type": "LOCAL_LIBRARY",
+      "source_id": "local-library",
+      "canonical_url": "local:library"
+    }
+  ],
+  "tracking_count": 0
+}

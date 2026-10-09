@@ -1,0 +1,6 @@
+scripts/owner_launcher.py:14: error: Library stubs not installed for "yaml"  [import-untyped]
+scripts/owner_launcher.py:14: note: Hint: "python3 -m pip install types-PyYAML"
+scripts/owner_launcher.py:14: note: (or run "mypy --install-types" to install all missing stub packages)
+scripts/owner_launcher.py:14: note: See https://mypy.readthedocs.io/en/stable/running_mypy.html#missing-imports
+scripts/owner_launcher.py:25: error: Need type annotation for "paths" (hint: "paths: list[<type>] = ...")  [var-annotated]
+Found 2 errors in 1 file (checked 99 source files)

@@ -4,6 +4,8 @@ export type UiLanguage = "zh-CN" | "en";
 
 const storageKey = "yia.ui-language";
 const chinese: Record<string, string> = {
+  "File imported. Its processing status appears below.": "文件已导入。处理状态显示在下方。",
+  "Retry failed files": "重试失败的文件",
   "Language, interests, processing, and your data.": "语言、兴趣、内容处理和你的数据。",
   "Open Following to check your saved sources or add something new. Content is organized first; generating Intelligence is optional.": "打开关注，检查已保存的来源或添加新内容。系统先整理内容；是否进一步生成洞察，由你选择。",
   "Paste a YouTube or Bilibili video link, follow a YouTube channel, or import a local file.": "粘贴 YouTube 或 Bilibili 视频链接，持续关注 YouTube 频道，或导入本地文件。",

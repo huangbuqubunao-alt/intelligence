@@ -1,0 +1,135 @@
+{
+  "scenarios": [
+    {
+      "language": "en",
+      "width": 1440,
+      "filename": "d2-video-0.mp4",
+      "content_id": "local-7fc9149402ddc53d94b2d8cfcd115db7e7d1111a620a31bdbc06226b7fba599e",
+      "post_status": 201,
+      "processing": "TRANSCRIPTION_UNAVAILABLE",
+      "selection_survived_focus": true,
+      "upload_survived_focus": true,
+      "keyboard_confirm": true,
+      "double_submit_guard": true,
+      "automatic_content": true,
+      "reload_list": true,
+      "no_overflow": true
+    },
+    {
+      "language": "en",
+      "width": 320,
+      "filename": "d2-video-1.mp4",
+      "content_id": "local-2212f212186b922aaa29332c8a16fd0bd1f48ebbff59b85d888ef8182a31f9dd",
+      "post_status": 201,
+      "processing": "TRANSCRIPTION_UNAVAILABLE",
+      "selection_survived_focus": true,
+      "upload_survived_focus": true,
+      "keyboard_confirm": true,
+      "double_submit_guard": true,
+      "automatic_content": true,
+      "reload_list": true,
+      "no_overflow": true
+    },
+    {
+      "language": "en",
+      "width": 320,
+      "kind": "txt",
+      "filename": "d2-en-txt.txt",
+      "post_status": 201,
+      "real_api": true
+    },
+    {
+      "language": "en",
+      "width": 320,
+      "kind": "md",
+      "filename": "d2-en-md.md",
+      "post_status": 201,
+      "real_api": true
+    },
+    {
+      "language": "en",
+      "width": 320,
+      "kind": "wav",
+      "filename": "d2-en-wav.wav",
+      "post_status": 201,
+      "real_api": true
+    },
+    {
+      "language": "en",
+      "width": 320,
+      "kind": "invalid",
+      "filename": "d2-en-invalid.mp4",
+      "post_status": 422,
+      "real_api": true
+    },
+    {
+      "language": "zh-CN",
+      "width": 1440,
+      "filename": "d2-video-2.mp4",
+      "content_id": "local-01bcb791bbba767486c9b392351b30dcc0624a52630f4e2ef294de3fd19597bc",
+      "post_status": 201,
+      "processing": "TRANSCRIPTION_UNAVAILABLE",
+      "selection_survived_focus": true,
+      "upload_survived_focus": true,
+      "keyboard_confirm": true,
+      "double_submit_guard": true,
+      "automatic_content": true,
+      "reload_list": true,
+      "no_overflow": true
+    },
+    {
+      "language": "zh-CN",
+      "width": 320,
+      "filename": "d2-video-3.mp4",
+      "content_id": "local-6a2c1ac9c768b6f238c634e89ee58f5135e64abb1d706d70f71a268370db0258",
+      "post_status": 201,
+      "processing": "TRANSCRIPTION_UNAVAILABLE",
+      "selection_survived_focus": true,
+      "upload_survived_focus": true,
+      "keyboard_confirm": true,
+      "double_submit_guard": true,
+      "automatic_content": true,
+      "reload_list": true,
+      "no_overflow": true
+    },
+    {
+      "language": "zh-CN",
+      "width": 320,
+      "kind": "txt",
+      "filename": "d2-zh-CN-txt.txt",
+      "post_status": 201,
+      "real_api": true
+    },
+    {
+      "language": "zh-CN",
+      "width": 320,
+      "kind": "md",
+      "filename": "d2-zh-CN-md.md",
+      "post_status": 201,
+      "real_api": true
+    },
+    {
+      "language": "zh-CN",
+      "width": 320,
+      "kind": "wav",
+      "filename": "d2-zh-CN-wav.wav",
+      "post_status": 201,
+      "real_api": true
+    },
+    {
+      "language": "zh-CN",
+      "width": 320,
+      "kind": "invalid",
+      "filename": "d2-zh-CN-invalid.mp4",
+      "post_status": 422,
+      "real_api": true
+    }
+  ],
+  "errors": [],
+  "external": [],
+  "expectedConsole": [
+    "Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)",
+    "Failed to load resource: the server responded with a status of 422 (Unprocessable Entity)"
+  ],
+  "fixture": "ffmpeg-generated media; real normal composition; no credentials; no transcription model"
+}

@@ -1,0 +1,162 @@
+
+> youtube-intel-workspace@0.1.0 test
+> vitest run
+
+
+ RUN  v2.1.9 /Users/hua/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend
+
+ ✓ src/workspace/KnowledgeDelta.test.tsx (7 tests) 173ms
+stderr | src/workspace/ContentStatusLocalization.test.tsx > an untrusted Bilibili source is localized on the Content list and detail in both languages
+Warning: An update to ContentPage inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ContentPage (/Users/hua/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend/src/workspace/App.tsx:1840:24)
+    at main
+    at div
+    at Workspace (/Users/hua/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend/src/workspace/App.tsx:1142:40)
+    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend/src/workspace/uiLanguage.tsx:1011:31)
+    at App
+
+ ✓ src/workspace/AdvancedSourceForm.test.tsx (2 tests) 234ms
+stderr | src/workspace/ContentStatusLocalization.test.tsx > an untrusted Bilibili source is localized on the Content list and detail in both languages
+Warning: An update to ContentPage inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ContentPage (/Users/hua/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend/src/workspace/App.tsx:1840:24)
+    at main
+    at div
+    at Workspace (/Users/hua/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend/src/workspace/App.tsx:1142:40)
+    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend/src/workspace/uiLanguage.tsx:1011:31)
+    at App
+
+ ✓ src/workspace/ResearchDiff.test.tsx (15 tests) 309ms
+stderr | src/workspace/ContentStatusLocalization.test.tsx > an untrusted Local source is localized on the Content list and detail in both languages
+Warning: An update to ContentPage inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ContentPage (/Users/hua/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend/src/workspace/App.tsx:1840:24)
+    at main
+    at div
+    at Workspace (/Users/hua/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend/src/workspace/App.tsx:1142:40)
+    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend/src/workspace/uiLanguage.tsx:1011:31)
+    at App
+
+stderr | src/workspace/ContentStatusLocalization.test.tsx > an untrusted Local source is localized on the Content list and detail in both languages
+Warning: An update to ContentPage inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ContentPage (/Users/hua/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend/src/workspace/App.tsx:1840:24)
+    at main
+    at div
+    at Workspace (/Users/hua/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend/src/workspace/App.tsx:1142:40)
+    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend/src/workspace/uiLanguage.tsx:1011:31)
+    at App
+
+stderr | src/workspace/ContentStatusLocalization.test.tsx > a Bilibili Content without a public caption stays an honest metadata-only record
+Warning: An update to ContentPage inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ContentPage (/Users/hua/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend/src/workspace/App.tsx:1840:24)
+    at main
+    at div
+    at Workspace (/Users/hua/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend/src/workspace/App.tsx:1142:40)
+    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend/src/workspace/uiLanguage.tsx:1011:31)
+    at App
+
+stderr | src/workspace/ContentStatusLocalization.test.tsx > a Bilibili Content without a public caption stays an honest metadata-only record
+Warning: An update to ContentPage inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ContentPage (/Users/hua/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend/src/workspace/App.tsx:1840:24)
+    at main
+    at div
+    at Workspace (/Users/hua/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend/src/workspace/App.tsx:1142:40)
+    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend/src/workspace/uiLanguage.tsx:1011:31)
+    at App
+
+ ✓ src/workspace/ContentStatusLocalization.test.tsx (3 tests) 399ms
+ ✓ src/workspace/CreatorFollowing.test.tsx (24 tests) 481ms
+ ✓ src/workspace/LocalImport.test.tsx (13 tests) 689ms
+ ✓ src/workspace/Research.test.tsx (18 tests) 654ms
+stderr | src/workspace/App.test.tsx > Chinese Following explains discovery-only state and the insight processing choice
+Warning: An update to ExistingSourceForm inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ExistingSourceForm (/Users/hua/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend/src/workspace/App.tsx:4009:31)
+    at SourceForm (/Users/hua/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend/src/workspace/App.tsx:3999:16)
+    at div
+    at SourceDetail (/Users/hua/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend/src/workspace/App.tsx:4742:25)
+    at Sources (/Users/hua/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend/src/workspace/App.tsx:3712:20)
+    at main
+    at div
+    at Workspace (/Users/hua/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend/src/workspace/App.tsx:1142:40)
+    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend/src/workspace/uiLanguage.tsx:1011:31)
+    at App
+
+ ✓ src/workspace/LocalImportFlow.test.tsx (4 tests) 406ms
+ ✓ src/workspace/BilibiliCaptionStatus.test.tsx (1 test) 57ms
+ ✓ src/workspace/AddEntry.test.tsx (24 tests) 282ms
+ ✓ src/workspace/LocalTranscription.test.tsx (7 tests) 291ms
+ ✓ src/workspace/Onboarding.test.tsx (3 tests) 125ms
+ ✓ src/workspace/LocalImportStatus.test.tsx (4 tests) 210ms
+ ✓ src/workspace/BilibiliImport.test.tsx (2 tests) 310ms
+ ✓ src/api/client.test.ts (1 test) 1ms
+ ✓ src/demo-v1/App.test.tsx (32 tests) 2831ms
+   ✓ pre-freeze path A keeps 18 Followings findable by group, filter and search 426ms
+   ✓ revision 3 paths F and G mock safe backup restore and Obsidian publishing 361ms
+ ✓ src/workspace/App.test.tsx (108 tests) 4985ms
+   ✓ one-time Content retry remains visible and polls accepted durable work to completion 2020ms
+
+ Test Files  17 passed (17)
+      Tests  268 passed (268)
+   Start at  20:50:11
+   Duration  6.44s (transform 1.37s, setup 0ms, collect 5.79s, tests 12.44s, environment 9.17s, prepare 1.09s)

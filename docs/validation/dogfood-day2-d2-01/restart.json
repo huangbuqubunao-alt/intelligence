@@ -1,0 +1,17 @@
+{
+  "restart": true,
+  "content_count": 10,
+  "media_states": {
+    "d2-zh-CN-wav.wav": "TRANSCRIPTION_UNAVAILABLE",
+    "d2-zh-CN-md.md": "READY",
+    "d2-zh-CN-txt.txt": "READY",
+    "d2-video-3.mp4": "TRANSCRIPTION_UNAVAILABLE",
+    "d2-video-2.mp4": "TRANSCRIPTION_UNAVAILABLE",
+    "d2-en-wav.wav": "TRANSCRIPTION_UNAVAILABLE",
+    "d2-en-md.md": "READY",
+    "d2-en-txt.txt": "READY",
+    "d2-video-1.mp4": "TRANSCRIPTION_UNAVAILABLE",
+    "d2-video-0.mp4": "TRANSCRIPTION_UNAVAILABLE"
+  },
+  "source_count": 1
+}

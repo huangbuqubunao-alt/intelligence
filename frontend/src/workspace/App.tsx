@@ -1135,6 +1135,9 @@ function Workspace() {
   const { t } = useUiLanguage();
   const [page, setPage] = useState<Page>(initialPage);
   const [refresh, setRefresh] = useState(0);
+  // Add lives above refreshed/navigated pages: file chooser focus must not unmount it.
+  const [addProvider, setAddProvider] = useState<"YOUTUBE" | "LOCAL" | null>(null);
+  const [imported, setImported] = useState(false);
   const [contentTarget, setContentTarget] = useState<string | null>(initialContentTarget);
   useEffect(() => {
     const openLinkedContent = () => { const target = initialContentTarget(); if (target) { setPage("Content"); setContentTarget(target); setDeltaTarget(null); setResearchReturn(null); } };
@@ -1159,6 +1162,7 @@ function Workspace() {
     return () => observer.disconnect();
   }, [page, researchEvidence]);
   const navigate = (next: Page) => {
+    setImported(false);
     setResearchReturn(null); setResearchEvidence(null);
     setContentTarget(null);
     setDeltaTarget(null);
@@ -1233,10 +1237,14 @@ function Workspace() {
             refresh={refresh}
             onRefresh={() => setRefresh((value) => value + 1)}
             targetSourceId={deltaTarget?.kind === "source" ? deltaTarget.id : null}
+            onAdd={setAddProvider}
           />
         )}
         {page === "Content" && (
-          <ContentPage refresh={refresh} targetVideoId={contentTarget} />
+          <>
+            {imported && <p role="status" aria-live="polite">{t("File imported. Its processing status appears below.")}</p>}
+            <ContentPage refresh={refresh} targetVideoId={contentTarget} />
+          </>
         )}
         {page === "Intelligence" && (
           deltaTarget?.kind === "intelligence"
@@ -1246,6 +1254,9 @@ function Workspace() {
         {page === "Topics" && <Topics refresh={refresh} targetTopicId={deltaTarget?.kind === "topic" ? deltaTarget.id : null} />}
         {page === "Settings" && <Settings refresh={refresh} />}
       </main>
+      {addProvider !== null && <AddEntry initialLocal={addProvider === "LOCAL"} onClose={() => setAddProvider(null)} onSaved={() => { setAddProvider(null); setRefresh(value => value + 1); }} onImported={id => {
+        setAddProvider(null); setRefresh(value => value + 1); setImported(true); openContent(id);
+      }} />}
     </div>
   );
 }
@@ -2449,12 +2460,11 @@ function Topics({ refresh, targetTopicId }: { refresh: number; targetTopicId?: s
 }
 
 function Sources(
-  { refresh, onRefresh, targetSourceId }: { refresh: number; onRefresh: () => void; targetSourceId?: string | null },
+  { refresh, onRefresh, targetSourceId, onAdd }: { refresh: number; onRefresh: () => void; targetSourceId?: string | null; onAdd: (provider: "YOUTUBE" | "LOCAL") => void },
 ) {
   const { t } = useUiLanguage();
   const { data, error } = useRemote<{ sources: Source[] }>("/sources", refresh);
   const [selected, setSelected] = useState<string | null>(targetSourceId ?? null);
-  const [adding, setAdding] = useState(false);
   const [filter, setFilter] = useState("all");
   const [rowBusy, setRowBusy] = useState<string | null>(null);
   const [rowMessage, setRowMessage] = useState<string | null>(null);
@@ -2468,7 +2478,6 @@ function Sources(
     check(); window.addEventListener("focus", check);
     return () => window.removeEventListener("focus", check);
   }, []);
-  const [addProvider, setAddProvider] = useState<"YOUTUBE" | "LOCAL" | "BILIBILI">("YOUTUBE");
   const creatorCapability = useCreatorFollowingCapability();
   const creatorFollowingWithdrawn = creatorCapability.known &&
     creatorCapability.capability !== null && !creatorCapability.capability.available;
@@ -2481,7 +2490,7 @@ function Sources(
       <div className="page-actions">
         <button
           className="button button-primary"
-          onClick={() => { setAddProvider("YOUTUBE"); setAdding(true); }}
+          onClick={() => onAdd("YOUTUBE")}
         >
           {t("Add Source")}
         </button>
@@ -2529,7 +2538,7 @@ function Sources(
                           ? contentStatus("BILIBILI", source.last_error?.code ?? "IMPORTED")
                           : { value: source.last_error?.code ?? (source.enabled ? "ENABLED" : "DISABLED"), label: undefined })}
                       />}
-                  {source.provider === "LOCAL" ? <button className="button button-secondary" onClick={() => { setAddProvider("LOCAL"); setAdding(true); }}>{t("Import files")}</button> : <a
+                  {source.provider === "LOCAL" ? <button className="button button-secondary" onClick={() => onAdd("LOCAL")}>{t("Import files")}</button> : <a
                     href={source.canonical_url}
                     target="_blank"
                     rel="noreferrer"
@@ -2549,25 +2558,16 @@ function Sources(
             </p>
             <button
               className="button button-primary"
-              onClick={() => { setAddProvider("YOUTUBE"); setAdding(true); }}
+              onClick={() => onAdd("YOUTUBE")}
             >
               {t("Add Source")}
             </button>
           </Empty>
         )}
-      {adding && (
-        <SourceForm
-          initialProvider={addProvider}
-          onClose={() => setAdding(false)}
-          onSaved={() => {
-            setAdding(false);
-            onRefresh();
-          }}
-        />
-      )}
       {selected && (
         <SourceDetail
           id={selected}
+          onAddLocal={() => { setSelected(null); onAdd("LOCAL"); }}
           onClose={() => setSelected(null)}
           onRefresh={onRefresh}
         />
@@ -2904,10 +2904,11 @@ export function ExistingSourceForm(
   );
 }
 function SourceDetail(
-  { id, onClose, onRefresh }: {
+  { id, onClose, onRefresh, onAddLocal }: {
     id: string;
     onClose: () => void;
     onRefresh: () => void;
+    onAddLocal: () => void;
   },
 ) {
   const { t } = useUiLanguage();
@@ -2955,9 +2956,8 @@ function SourceDetail(
   </section></div>;
   if (data.source.provider === "LOCAL") return <div className="overlay"><section className="modal local-import" role="dialog" aria-modal="true" aria-label={t("Local library")}>
     <div className="modal-head"><h2>{t("Local library")}</h2><button className="button button-ghost" onClick={onClose}>{t("Close")}</button></div>
-    <p>{t("Explicit imports only")}</p><button className="button button-primary" onClick={() => setEditing(true)}>{t("Import files")}</button>
+    <p>{t("Explicit imports only")}</p><button className="button button-primary" onClick={onAddLocal}>{t("Import files")}</button>
     <ul>{data.recent_videos.map(content => <li key={content.video_id}><a href={`#Content/${content.video_id}`} onClick={onClose}>{content.title}</a> · {t(localStatus(content.processing_status))}</li>)}</ul>
-    {editing && <LocalImport onClose={() => setEditing(false)} onYouTube={() => setEditing(false)} onSaved={() => { setEditing(false);setRefresh(v=>v+1);onRefresh(); }} />}
   </section></div>;
   const check = async () => {
     if (checking || !data.source.enabled) return;

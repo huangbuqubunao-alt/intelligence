@@ -1,0 +1,8 @@
+{
+  "base": "ce60189",
+  "selected": "synthetic d2-video.mp4",
+  "trigger": "file-chooser return focus -> check-stale -> sources refresh",
+  "actual": "Add a Source",
+  "local_selection_lost": true,
+  "upload_requests": 0
+}

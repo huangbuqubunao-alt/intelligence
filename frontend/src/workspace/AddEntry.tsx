@@ -42,7 +42,7 @@ const confirmation: Record<RecognizedLink["kind"], string> = {
   YOUTUBE_VIDEO: "YouTube video — process this video only. Its channel will not be followed.",
   BILIBILI_VIDEO: "Bilibili video — import this public video only. Its creator will not be followed.",
 };
-export function AddEntry({ onClose, onSaved, initialLocal = false }: { onClose: () => void; onSaved: () => void; initialLocal?: boolean }) {
+export function AddEntry({ onClose, onSaved, onImported, initialLocal = false }: { onClose: () => void; onSaved: () => void; onImported?: (contentId: string) => void; initialLocal?: boolean }) {
   const { t } = useUiLanguage();
   const [local, setLocal] = useState(initialLocal);
   const [input, setInput] = useState("");
@@ -51,7 +51,7 @@ export function AddEntry({ onClose, onSaved, initialLocal = false }: { onClose: 
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ kind: RecognizedLink["kind"]; content_id?: string; status?: string } | null>(null);
   const recognized = recognizeLink(input);
-  if (local) return <LocalImport onClose={onClose} onSaved={onSaved} onYouTube={() => setLocal(false)} />;
+  if (local) return <LocalImport onClose={onClose} onSaved={onSaved} onImported={onImported} onYouTube={() => setLocal(false)} />;
   return <div className="overlay"><section className="modal local-import" role="dialog" aria-modal="true" aria-labelledby="add-entry-title">
     <div className="modal-head"><h2 id="add-entry-title">{t("Add a Source")}</h2><button className="button button-ghost" aria-label={t("Close")} disabled={busy} onClick={result ? onSaved : onClose}>{t(result ? "Done" : "Close")}</button></div>
     {!result && <>

@@ -38,3 +38,20 @@ test("invalid input gives actionable copy and makes zero writes", () => {
   expect(screen.queryByText("Request values are invalid or unavailable.")).toBeNull();
   expect(fetchMock).not.toHaveBeenCalled();
 });
+
+test.each(["en", "zh-CN"])("single YouTube and Bilibili imports never enroll channel Following (%s)", async language => {
+  localStorage.setItem("yia.ui-language", language);
+  const fetchMock = vi.fn(async (path: string) => ({ ok: true, json: async () => path.endsWith("/bilibili/imports") ? { import: { content_id: "bilibili-content", processing_status: "CAPTION_UNAVAILABLE" } } : { source: { video_id: "abcdefghijk" } } }));
+  vi.stubGlobal("fetch", fetchMock);
+  const t = (en: string, zh: string) => language === "en" ? en : zh;
+  for (const [input, endpoint, contentId] of [["https://youtu.be/abcdefghijk", "/api/v1/sources/import", "abcdefghijk"], ["BV1xx411c7mD", "/api/v1/bilibili/imports", "bilibili-content"]]) {
+    const view = render(<UiLanguageProvider><AddEntry onClose={vi.fn()} onSaved={vi.fn()} /></UiLanguageProvider>);
+    fireEvent.change(screen.getByLabelText(t("Paste link", "粘贴链接")), { target: { value: input } });
+    fireEvent.click(screen.getByRole("button", { name: t("Confirm import", "确认导入") }));
+    const link = await screen.findByRole("link", { name: t("Open Content", "打开内容") });
+    expect(link.getAttribute("href")).toBe(`#Content/${contentId}`);
+    expect(fetchMock.mock.calls.at(-1)?.[0]).toBe(endpoint);
+    expect(fetchMock.mock.calls.some(call => call[0].endsWith("/sources/channels"))).toBe(false);
+    view.unmount();
+  }
+});
