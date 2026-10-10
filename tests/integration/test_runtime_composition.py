@@ -846,3 +846,72 @@ def test_runtime_operations_derives_authority_from_different_model_config(
     assert authority.judge_model == "different-model"
     assert authority.judge_model_digest == f"sha256:{'1' * 64}"
     assert authority.judge_provider == "ollama"
+
+
+def test_local_distillation_transport_is_production_authorized(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Local Intelligence extraction must never strand in WAITING_MODEL.
+
+    Regression anchor: the M12 cloud production gate added a
+    ``production_qualified`` requirement to the local Ollama transport, but no
+    runtime path ever granted it, so manual and automatic local extraction was
+    rejected before dispatch and stayed WAITING_MODEL forever. The local digest
+    binding still gates every dispatch.
+    """
+    from youtube_intel.distillation import (
+        VerifiedDistillationInput,
+        VerifiedEvidenceInput,
+    )
+
+    project = _project(
+        tmp_path,
+        digest="sha256:500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41",
+    )
+    dependencies = RuntimeDependencies(
+        discovery_source=_DiscoverySource(),
+        metadata_provider=_MetadataProvider(),
+        subtitle_adapter_factory=lambda: pytest.fail("subtitle stage was not requested"),
+        scoring_provider_factory=lambda: pytest.fail("scoring stage was not requested"),
+        analysis_provider_factory=lambda: pytest.fail("analysis stage was not requested"),
+    )
+    config = load_app_config(
+        project / "config" / "channels.yaml",
+        project / "config" / "settings.yaml",
+    )
+    database = project / "gui.sqlite3"
+    composition = build_local_source_run_runtime(
+        config=config,
+        project_root=project,
+        database=database,
+        dependencies=dependencies,
+        now=lambda: NOW,
+    )
+    transport = composition.distillation._transport
+    assert transport.actual_provider == "ollama"
+    assert transport.actual_model == config.settings.local_scoring.model
+    verified = VerifiedDistillationInput(
+        source_display_name="Public source",
+        video_id=VIDEO_ID,
+        video_title="A public title",
+        evidence=(
+            VerifiedEvidenceInput(
+                evidence_id="evidence-1",
+                start_ms=1_000,
+                end_ms=2_000,
+                excerpt="The product launched in April.",
+                excerpt_hash="a" * 64,
+                timed_transcript_id="transcript-1",
+                timed_transcript_hash="b" * 64,
+            ),
+        ),
+        personalization=(),
+        source_focus_rules=(),
+        source_ignore_rules=(),
+        distillation_style=None,
+        selected_provider="ollama",
+        selected_model=config.settings.local_scoring.model,
+        semantic_hash="c" * 64,
+        output_language="zh-CN",
+    )
+    assert transport.is_authorized_for_normal_production(verified) is True

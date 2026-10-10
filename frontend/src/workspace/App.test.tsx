@@ -2656,3 +2656,79 @@ test.each(["en", "zh-CN"])("%s empty Content explains single-content and local e
     : "暂无内容。添加视频链接，持续关注 YouTube 频道，或导入本地文件。", { exact: true })).toBeTruthy();
   expect(screen.queryByText(/Demo fixtures/)).toBeNull();
 });
+
+test("user hash navigation (browser back/forward or editing the address bar) switches views", async () => {
+  localStorage.setItem("yia.ui-language", "zh-CN");
+  location.hash = "";
+  const original = globalThis.fetch;
+  vi.stubGlobal("fetch", vi.fn((path: string, init?: RequestInit) => original(path, init)));
+  render(<App />);
+  await screen.findByRole("heading", { name: "首页" });
+  location.hash = "Settings";
+  window.dispatchEvent(new HashChangeEvent("hashchange"));
+  await screen.findByRole("heading", { name: "设置" });
+  location.hash = "Topics";
+  window.dispatchEvent(new HashChangeEvent("hashchange"));
+  await screen.findByRole("heading", { name: "主题" });
+  location.hash = "Content";
+  window.dispatchEvent(new HashChangeEvent("hashchange"));
+  await screen.findByRole("heading", { name: "内容" });
+  location.hash = "Following";
+  window.dispatchEvent(new HashChangeEvent("hashchange"));
+  await screen.findByRole("heading", { name: "关注" });
+  location.hash = "";
+  window.dispatchEvent(new HashChangeEvent("hashchange"));
+  await screen.findByRole("heading", { name: "首页" });
+});
+
+test("hashchange to a Content deep link still opens that Content detail", async () => {
+  localStorage.setItem("yia.ui-language", "zh-CN");
+  location.hash = "";
+  const original = globalThis.fetch;
+  vi.stubGlobal("fetch", vi.fn((path: string, init?: RequestInit) => path.endsWith("/videos/video-1")
+    ? response({ ...daVideoDetail, video: { ...daVideoDetail.video, provider: "YOUTUBE", source_id: "import-source" } })
+    : original(path, init)));
+  render(<App />);
+  await screen.findByRole("heading", { name: "首页" });
+  location.hash = "Content/video-1";
+  window.dispatchEvent(new HashChangeEvent("hashchange"));
+  await screen.findByText("Deep Analysis fixture");
+  expect(location.hash).toBe("#Content/video-1");
+});
+
+test("import success notice survives the programmatic navigation that follows it", async () => {
+  // Regression: onImported() calls setImported(true) and then openContent(),
+  // which assigns location.hash. The hashchange handler must recognize that
+  // assignment as programmatic navigation (programmaticHash stores the hash
+  // WITH the leading "#", matching location.hash). If the stored value ever
+  // misses the "#", the handler misclassifies the navigation as user-driven
+  // and clears the just-set import notice.
+  const baseFetch = vi.mocked(fetch);
+  vi.stubGlobal("fetch", vi.fn((input: string, init?: RequestInit) => {
+    if (input.includes("/local/imports") && init?.method === "POST")
+      return response({ import: { content_id: "video-9", filename: "note.txt", status: "READY", duplicate: false } });
+    if (input.endsWith("/videos/video-9"))
+      return response({ ...daVideoDetail, video: { ...daVideoDetail.video, video_id: "video-9" } });
+    if (input.endsWith("/sources")) return response({ sources: [] });
+    if (input.endsWith("/videos")) return response({ videos: [] });
+    return baseFetch(input, init);
+  }));
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Following" }));
+  fireEvent.click((await screen.findAllByRole("button", { name: "Add Source" }))[1]);
+  fireEvent.click(screen.getByRole("button", { name: "Import local file" }));
+  const file = new File(["hello"], "note.txt", { type: "text/plain" });
+  fireEvent.change(screen.getByLabelText("Choose local files"), { target: { files: [file] } });
+
+  const hashes: string[] = [];
+  window.addEventListener("hashchange", () => hashes.push(location.hash));
+  fireEvent.click(screen.getByRole("button", { name: "Confirm import" }));
+
+  // The import succeeds: onImported() sets imported=true and openContent()
+  // assigns location.hash. The notice must render...
+  await screen.findByText("File imported. Its processing status appears below.");
+  // ...and the hashchange fired by openContent() must be recognized as
+  // programmatic navigation, so the notice is not cleared.
+  await waitFor(() => expect(hashes).toContain("#Content"));
+  expect(screen.getByText("File imported. Its processing status appears below.")).toBeTruthy();
+});
