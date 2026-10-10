@@ -41,8 +41,7 @@
 ### U5. 两个环境敏感的后端测试 —— 已确认非本次改动引入
 - `tests/integration/test_background_following.py::test_serve_api_sigterm_drains_active_tracking_before_exit`（SIGTERM 后子进程 10 秒未退出）
 - `tests/unit/test_offline_transcription.py::test_task_owned_child_stops_when_application_parent_dies`（子进程心跳 3 秒超时）
-- **本轮复核结论**：两测试在 muse-work 分支单独运行时均通过（2.3s / 5.7s），确认为进程生命周期/信号时序类环境敏感测试（与系统负载相关），与本次修改的代码路径（路由、提炼、备份）无交集。豆包"既有环境问题"的判断成立。
-- 全量套件后台运行中，完成后将对比 main 基线确认无新增失败。
+- **本轮复核结论**：两测试在 muse-work 分支单独运行时均通过（2.3s / 5.7s）；后端全量套件（muse-work 与 main 基线）中均未出现 FAILED，确认为进程生命周期/信号时序类环境敏感测试（与系统负载相关），与本次修改的代码路径（路由、提炼、备份）无交集。豆包"既有环境问题"的判断成立。
 
 ## 本轮已知但未修复的小问题
 

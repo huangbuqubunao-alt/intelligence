@@ -2,7 +2,7 @@
 
 > 评审对象：豆包在 `opencode/user-pilot` 分支（本目录对应 `~/workspace/intelligence/pilot/` 快照）中对 Intelligence 产品代码的 6 处改动（3 处产品修复 + 3 个测试文件新增）。
 > 评审方法：`diff` 对比 main 基线（`~/workspace/intelligence/main`）与 muse-work 分支（`~/workspace/intelligence/muse-work`，含 Muse 修正版）；阅读改动点上下游代码语义；核查安全影响（云门禁、凭据、付费调用路径）；独立重跑后端回归测试。
-> 结论总览：**Bug1 = MODIFY（方向正确，实现有 `#` 缺陷，已由 Muse 版修正）**；**Bug2 = ACCEPT**；**Bug3 = ACCEPT**；**4 组测试 = ACCEPT**。
+> 结论总览：**Bug1 = MODIFY（方向正确，实现有 `#` 缺陷，已由 Muse 版修正）**；**Bug2 = ACCEPT**；**Bug3 = MODIFY（部分采用：保留 PENDING 豁免，回退 WAITING_MODEL 豁免——全量对比发现其破坏 3 个既有集成测试，见 M-5）**；**测试 = MODIFY（采用 4 个，移除 1 个随回退）**。
 > 本文档全部为中文。验证环境：Linux，Python 3.12，pytest 9.1.1；前端未做真实 GUI 点击（无浏览器自动化能力，见 INDEPENDENT_UX_REPORT.md）。
 
 ---
@@ -82,7 +82,7 @@ transport = OllamaLocalDistillationTransport(
 
 ---
 
-## 改动 3：备份就绪检查豁免两类终态 checkpoint（Bug3）—— ACCEPT
+## 改动 3：备份就绪检查豁免两类终态 checkpoint（Bug3）—— MODIFY（部分采用）
 
 **文件**：`src/youtube_intel/backup_restore.py`
 
@@ -93,14 +93,30 @@ transport = OllamaLocalDistillationTransport(
 1. `PENDING` + `distillation_no_new_intelligence_results` 已有该 `execution_id` 的结果行 → 视为已完结（"无新洞察"结果已持久记录；SUCCEEDED 终态要求存在 Intelligence 行，schema CHECK 约束使其无法置 SUCCEEDED，checkpoint 只能停在 PENDING，且 `continue` 入口只接受 PENDING→ 推进，实为死状态）；
 2. `WAITING_MODEL` + `invocation_count = 0` → 从未被 claim/dispatch（模型在 reserve 时不可用），无运行中工作，且 `continue` 入口不接受 WAITING_MODEL，无法自行推进。
 
-### 审查依据
+### 审查依据（初审）
 
 - **根因属实**：`record_distillation_no_new_intelligence`（`state.py:10149`）只写结果表，不改 checkpoint 状态；SUCCEEDED 要求 Intelligence 行的约束与豆包描述一致；原检查把任何 PENDING/WAITING_MODEL 都视为 `DISTILLATION_ACTIVE`，一次提炼后备份被永久阻止——逻辑链完整。
-- **豁免条件精确**：`_is_completed_no_new_intelligence` 要求 `JOIN distillation_no_new_intelligence_results ... AND c.invocation_count = 1`——结果行存在即证明该执行确实跑完（invocation_count ∈ {0,1}，有结果行则必为 1，条件等价但显式写出更严谨）；`_is_uninvoked_waiting_model` 要求 `status='WAITING_MODEL' AND invocation_count=0`——从未调度，无运行中工作。两个豁免都不会放过真正活动（RUNNING / WAITING_BUDGET / invocation_count=1 的 WAITING_MODEL / 无结果的 PENDING）的任务。
-- **一致性**：主检查循环与 `_is_settled_attention_source_run` 的 SQL 豁免条件一致（后者用 `EXISTS` 子查询表达同一语义），两处不会出现"备份放行但 attention 判定阻塞"的不一致。
-- **安全影响**：备份一致性保证未被削弱——豁免的都是"已持久记录且不可再推进"的终态，不存在备份时丢失未落盘工作的风险。
+- **豁免条件精确**（第 1 类）：`_is_completed_no_new_intelligence` 要求 `JOIN distillation_no_new_intelligence_results ... AND c.invocation_count = 1`——结果行存在即证明该执行确实跑完（invocation_count ∈ {0,1}，有结果行则必为 1，条件等价但显式写出更严谨）。
+- **一致性**：主检查循环与 `_is_settled_attention_source_run` 的 SQL 豁免条件一致（后者用 `EXISTS` 子查询表达同一语义）。
 
-### 决定：ACCEPT（直接采用）
+### 复审修正（全量套件对比后，2026-10-11）
+
+初审时 ACCEPT 了两类豁免，但后端全量套件与 main 基线对比发现：**第 2 类豁免（`WAITING_MODEL`+`invocation_count=0`）破坏 3 个既有集成测试**——`tests/integration/test_task022_personalized_distillation.py::test_backup_quiescence_requires_confirmed_user_cloud_success_for_local_wait` 的 3 个参数化用例。这些测试明确要求：本地提炼因模型不可用停在 `WAITING_MODEL`（`invocation_count=0`、`MODEL_UNAVAILABLE_BEFORE_TRANSPORT`）时，备份必须被阻止（`DISTILLATION_ACTIVE` 在列），直到用户确认的云端成功（`USER_CONFIRMATION` + HTTP 200）才放行。
+
+豆包"无法自行推进"的论证不足以证明其为终态：
+- 状态名即为 WAITING（等待模型），非终态；`processing_orchestrator.py` 将其映射为子任务 WAITING + 源运行 NEEDS_ATTENTION/MODEL_UNAVAILABLE——是面向用户的可行动状态（用户可修复模型后重试），不是死状态；
+- 代码库已为合法放行路径保留了精确机制 `_is_cloud_completed_local_wait`（同一视频的云端成功 + 用户确认），说明原设计把未调用的本地等待视为待处理工作，而非可一律豁免；
+- 既有单元测试 `test_quiescence_keeps_resumable_model_work_and_other_attention_runs_blocked` 的命名意图即为"可恢复的模型工作继续阻止备份"；
+- 同为"等待"状态的 `WAITING_BUDGET`+`invocation_count=0` 仍被阻止（既有测试要求），对 WAITING_MODEL 网开一面缺乏原则性区分。
+
+备份安全的基本姿态是 fail-closed：有未决本地工作时阻止备份。放宽安全门需要比"continue 入口不接受该状态"更强的理由。
+
+### 决定：MODIFY（部分采用）
+
+- **保留**第 1 类豁免（`PENDING`+已有 no-new 结果）：确为死终态，无测试矛盾。
+- **回退**第 2 类豁免（`WAITING_MODEL`+`invocation_count=0`）：删除 `_is_uninvoked_waiting_model` helper 及其在主检查循环与 `_is_settled_attention_source_run` SQL 中的两处调用；`_is_cloud_completed_local_wait` 原有路径保留。
+- 豆包新增测试 `test_backup_is_not_blocked_by_uninvoked_waiting_model` 随回退一并移除（其断言行为与 3 个既有集成测试直接矛盾）；`test_backup_is_not_blocked_by_completed_no_new_intelligence` 保留。
+- 回退后定向验证：`test_backup_restore.py`（27 passed）+ `test_runtime_composition.py`（10 passed）+ 3 个 task022 用例 = **40 passed**。
 
 ---
 
@@ -110,15 +126,16 @@ transport = OllamaLocalDistillationTransport(
 |---|---|---|
 | `frontend/src/workspace/App.test.tsx` | ① 用户 hash 导航（地址栏/前进后退）切换 Settings/Topics/Content/Following/空 hash 回首页；② hashchange 深链接仍打开内容详情 | 测试覆盖了 Bug1 的两条核心路径；用 `HashChangeEvent` 模拟浏览器行为，断言视图标题切换与 hash 保持。语义正确。注意：前端测试尚未在本环境执行（无 node_modules，见 TEST_REPORT.md），结论基于代码审查。 |
 | `tests/integration/test_runtime_composition.py` | `test_local_distillation_transport_is_production_authorized`：构造本地 runtime，断言 transport 为 ollama、模型匹配配置，并走完一次本地提炼授权 | 回归锚点准确（M12 门禁导致 WAITING_MODEL）。**已独立实测通过**（见下）。 |
-| `tests/unit/test_backup_restore.py` | ① `test_backup_is_not_blocked_by_completed_no_new_intelligence`；② `test_backup_is_not_blocked_by_uninvoked_waiting_model` | 两个测试分别构造两类死 checkpoint 并断言 `readiness()["ready"] is True` 且无 `DISTILLATION_ACTIVE`。用例与豁免条件一一对应。**已独立实测通过**（见下）。 |
+| `tests/unit/test_backup_restore.py` | ① `test_backup_is_not_blocked_by_completed_no_new_intelligence`（保留）；② `test_backup_is_not_blocked_by_uninvoked_waiting_model`（已移除——其断言行为与 3 个既有集成测试矛盾，随 WAITING_MODEL 豁免回退一并删除） | 保留的测试构造 PENDING+no-new 结果 checkpoint 并断言 `readiness()["ready"] is True` 且无 `DISTILLATION_ACTIVE`，用例与豁免条件一一对应。**已独立实测通过**（见下）。 |
 
 **独立实测**（muse-work 分支，Linux，Python 3.12，pytest 9.1.1，`PYTHONPATH=src`）：
 
-- `tests/unit/test_backup_restore.py` → **28 passed**
+- `tests/unit/test_backup_restore.py` → **27 passed**（移除 1 个随回退的测试后）
 - `tests/integration/test_runtime_composition.py` → **10 passed**
-- 合计 38 passed，0 failed。含全部 3 个新增后端回归测试。
+- `tests/integration/test_task022_personalized_distillation.py::test_backup_quiescence_requires_confirmed_user_cloud_success_for_local_wait`（3 个用例，回退验证）→ **3 passed**
+- 合计 40 passed，0 failed。含保留的 2 个新增后端回归测试。
 
-### 决定：ACCEPT（测试用例语义正确，命名与回归锚点清晰；后端已实测通过，前端待 npm 环境执行）
+### 决定：MODIFY（测试用例语义正确，命名与回归锚点清晰；后端已实测通过，前端待 npm 环境执行；1 个测试随产品代码回退移除）
 
 ---
 

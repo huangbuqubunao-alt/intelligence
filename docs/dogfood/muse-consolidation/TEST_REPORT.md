@@ -16,18 +16,34 @@
 
 | 套件 | 命令 | 结果 |
 |---|---|---|
-| `tests/unit/test_backup_restore.py` | 同上 | **28 passed**（60.96s→42.97s，含 2 个新增回归测试 `test_backup_is_not_blocked_by_completed_no_new_intelligence`、`test_backup_is_not_blocked_by_uninvoked_waiting_model`） |
+| `tests/unit/test_backup_restore.py` | 同上 | **27 passed**（含保留的新增回归测试 `test_backup_is_not_blocked_by_completed_no_new_intelligence`；`test_backup_is_not_blocked_by_uninvoked_waiting_model` 已随 WAITING_MODEL 豁免回退移除，见 M-5） |
 | `tests/integration/test_runtime_composition.py` | 同上 | **10 passed**（含新增回归测试 `test_local_distillation_transport_is_production_authorized`） |
-| 两套件合并 | 同上 | **38 passed，0 failed** |
+| `test_task022…::test_backup_quiescence_requires_confirmed_user_cloud_success_for_local_wait`（3 用例） | 同上 | **3 passed**（WAITING_MODEL 豁免回退后的定向验证） |
+| 定向验证合并 | 同上 | **40 passed，0 failed** |
 
-结论：Bug2（本地提炼生产资格）、Bug3（备份豁免）的产品代码改动与其回归测试在本环境全部通过。
+结论：Bug2（本地提炼生产资格）、Bug3（备份豁免，M-5 回退后）的产品代码改动与其回归测试在本环境全部通过。
 
-## 待填项
+## 后端全量套件（`pytest tests/`，不含 e2e）——已完成
 
-| 项 | 状态 |
-|---|---|
-| 后端全量套件（`pytest tests/`，不含 e2e） | **[RUNNING]** muse-work 分支全量运行中（后台）；main 基线待跑。豆包报告的 2 个失败已在 muse-work 上单独复核：`test_task_owned_child_stops_when_application_parent_dies` 与 `test_serve_api_sigterm_drains_active_tracking_before_exit` 单独运行时均通过，确认为进程时序类环境敏感测试，非本次改动引入 |
+| 分支 | 结果 | 日志 |
+|---|---|---|
+| muse-work（含本轮全部改动） | **704 failed / 3265 passed / 1 skipped**（33.5 分钟） | `~/workspace/muse-backend-tests.log` |
+| main 基线 | **702 failed / 3264 passed / 1 skipped**（32.8 分钟） | `~/workspace/main-backend-tests.log` |
+
+**失败集合差集**（`comm` 对比两个 FAILED 列表）：
+- 仅 muse-work 失败（3 个）：`tests/integration/test_task022_personalized_distillation.py::test_backup_quiescence_requires_confirmed_user_cloud_success_for_local_wait` 的 3 个参数化用例 —— **确认为本次改动引入的回归**（豆包 WAITING_MODEL 豁免过宽），已回退修复并定向验证 40 passed（见 ISSUES_FOUND.md M-5）。
+- 仅 main 失败（1 个）：`tests/integration/test_local_content_adversarial.py::test_original_move_delete_mutation_dedupe_and_changed_import` —— 在 muse-work 上通过，属环境抖动/时序敏感，非改动相关。
+- 其余 701 个失败在两个分支完全一致，均为 pre-existing 环境/固件限制，与本次改动无关：
+  - `ScoreResult` pydantic 校验 "reason does not match output_language"（约 460 处）及连带的 `DeepAnalysisRejected: requires a verified scoring read`（148 处）——评分管线 fixture/环境问题（venv pydantic 2.13.5 在 `pyproject.toml` pin 范围 `>=2.13.4,<2.14` 内，非版本错配）；
+  - macOS 特有：`/usr/sbin/ioreg` 缺失（16 处）、APFS/Keychain 相关；
+  - 需真实 Ollama 服务：`OllamaProviderError`（10 处）；
+  - 改动直接相关的测试文件（`test_backup_restore.py`、`test_runtime_composition.py`）在全量中零失败。
+
+**结论**：回退 M-5 后，muse-work 与 main 基线的失败集合实质一致（差 1 个环境抖动项），无新增回归。
+
+## 其他已确认项
 | 前端 vitest（`App.test.tsx`） | **111 passed**（2026-10-11 实测：108 个原有 + 豆包新增 2 个 + Muse 新增导入回归测试 1 个）。另 `tsc -b` 类型检查通过、`vite build` 生产构建成功 |
+| 豆包报告的 2 个后端失败测试 | 在全量套件中未出现 FAILED；此前单独运行均通过，确认为进程时序类环境敏感测试，非本次改动引入 |
 | `npm run build`（生产构建） | **通过**（`tsc -b` + `vite build`，dist 输出正常） |
 | 真实 GUI 回归（导航 hash、提炼、备份三条路径） | **未执行** —— 本环境无浏览器自动化能力；豆包轮次的 GUI 验证记录保留在其分支备查，本轮不重复声称 |
 | macOS 特有项（Keychain、APFS clonefile、原生文件选择器） | **NOT TESTED**（本环境为 Linux，相关分支不可达） |

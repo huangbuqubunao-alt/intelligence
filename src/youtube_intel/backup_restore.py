@@ -1302,13 +1302,9 @@ class BackupRestoreService:
                 raise BackupRestoreError("A distillation checkpoint is missing its authority.")
             status = getattr(execution.status, "value", str(execution.status))
             if status in {"PENDING", "RUNNING", "WAITING_BUDGET", "WAITING_MODEL"}:
-                if status == "WAITING_MODEL" and (
-                    self._is_cloud_completed_local_wait(connection, str(execution_id))
-                    or self._is_uninvoked_waiting_model(connection, str(execution_id))
+                if status == "WAITING_MODEL" and self._is_cloud_completed_local_wait(
+                    connection, str(execution_id)
                 ):
-                    # Cloud-completed waits and local waits that never invoked
-                    # (model unavailable at reserve time) hold no running work;
-                    # they can never advance on their own. Backup may proceed.
                     continue
                 if status == "PENDING" and self._is_completed_no_new_intelligence(
                     connection, str(execution_id)
@@ -1353,29 +1349,11 @@ class BackupRestoreService:
             "('PENDING','RUNNING','WAITING_BUDGET','WAITING_MODEL') "
             "AND NOT (c.status = 'PENDING' AND EXISTS ("
             "  SELECT 1 FROM distillation_no_new_intelligence_results AS result"
-            "  WHERE result.execution_id = c.execution_id)) "
-            "AND NOT (c.status = 'WAITING_MODEL' AND c.invocation_count = 0) LIMIT 1",
+            "  WHERE result.execution_id = c.execution_id)) LIMIT 1",
             (str(run["source_id"]),),
         ).fetchone() is not None:
             return False
         return True
-
-    def _is_uninvoked_waiting_model(
-        self, connection: sqlite3.Connection, execution_id: str
-    ) -> bool:
-        """Whether a WAITING_MODEL checkpoint never invoked (no running work).
-
-        A local extraction that was reserved while the model was unavailable
-        stays WAITING_MODEL with invocation_count 0 and cannot advance on its
-        own, so it must not block Backup forever.
-        """
-        row = connection.execute(
-            "SELECT 1 FROM distillation_execution_checkpoints "
-            "WHERE execution_id = ? AND status = 'WAITING_MODEL' "
-            "AND invocation_count = 0",
-            (execution_id,),
-        ).fetchone()
-        return row is not None
 
     def _is_completed_no_new_intelligence(
         self, connection: sqlite3.Connection, execution_id: str
