@@ -1140,10 +1140,31 @@ function Workspace() {
   const [addProvider, setAddProvider] = useState<"YOUTUBE" | "LOCAL" | null>(null);
   const [imported, setImported] = useState(false);
   const [contentTarget, setContentTarget] = useState<string | null>(initialContentTarget);
+  // Tracks the hash produced by in-app navigation so the hashchange listener
+  // can tell programmatic navigation apart from user navigation (browser
+  // back/forward or editing the address bar). A stale value is harmless: it is
+  // cleared on the next user hashchange because it will not match.
+  const programmaticHash = useRef<string | null>(null);
   useEffect(() => {
-    const openLinkedContent = () => { const target = initialContentTarget(); if (target) { setPage("Content"); setContentTarget(target); setDeltaTarget(null); setResearchReturn(null); } };
-    window.addEventListener("hashchange", openLinkedContent);
-    return () => window.removeEventListener("hashchange", openLinkedContent);
+    const onHashChange = () => {
+      if (programmaticHash.current === location.hash) {
+        programmaticHash.current = null;
+        return;
+      }
+      programmaticHash.current = null;
+      const target = initialContentTarget();
+      if (target) {
+        setPage("Content"); setContentTarget(target); setDeltaTarget(null); setResearchReturn(null);
+        return;
+      }
+      const next = initialPage();
+      setImported(false);
+      setResearchReturn(null); setResearchEvidence(null);
+      setContentTarget(null); setDeltaTarget(null);
+      setPage(next);
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
   const [deltaTarget, setDeltaTarget] = useState<DeltaTarget | null>(null);
   const [researchReturn, setResearchReturn] = useState<string | null>(null);
@@ -1167,12 +1188,14 @@ function Workspace() {
     setResearchReturn(null); setResearchEvidence(null);
     setContentTarget(null);
     setDeltaTarget(null);
+    programmaticHash.current = next;
     location.hash = next;
     setPage(next);
   };
   const openContent = (videoId: string) => {
     setDeltaTarget(null);
     setContentTarget(videoId);
+    programmaticHash.current = "Content";
     location.hash = "Content";
     setPage("Content");
   };
@@ -1182,6 +1205,7 @@ function Workspace() {
     };
     setDeltaTarget(target);
     setContentTarget(target.kind === "content" ? target.id : null);
+    programmaticHash.current = destinations[target.kind];
     location.hash = destinations[target.kind];
     setPage(destinations[target.kind]);
   };

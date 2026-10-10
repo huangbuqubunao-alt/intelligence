@@ -2656,3 +2656,42 @@ test.each(["en", "zh-CN"])("%s empty Content explains single-content and local e
     : "暂无内容。添加视频链接，持续关注 YouTube 频道，或导入本地文件。", { exact: true })).toBeTruthy();
   expect(screen.queryByText(/Demo fixtures/)).toBeNull();
 });
+
+test("user hash navigation (browser back/forward or editing the address bar) switches views", async () => {
+  localStorage.setItem("yia.ui-language", "zh-CN");
+  location.hash = "";
+  const original = globalThis.fetch;
+  vi.stubGlobal("fetch", vi.fn((path: string, init?: RequestInit) => original(path, init)));
+  render(<App />);
+  await screen.findByRole("heading", { name: "首页" });
+  location.hash = "Settings";
+  window.dispatchEvent(new HashChangeEvent("hashchange"));
+  await screen.findByRole("heading", { name: "设置" });
+  location.hash = "Topics";
+  window.dispatchEvent(new HashChangeEvent("hashchange"));
+  await screen.findByRole("heading", { name: "主题" });
+  location.hash = "Content";
+  window.dispatchEvent(new HashChangeEvent("hashchange"));
+  await screen.findByRole("heading", { name: "内容" });
+  location.hash = "Following";
+  window.dispatchEvent(new HashChangeEvent("hashchange"));
+  await screen.findByRole("heading", { name: "关注" });
+  location.hash = "";
+  window.dispatchEvent(new HashChangeEvent("hashchange"));
+  await screen.findByRole("heading", { name: "首页" });
+});
+
+test("hashchange to a Content deep link still opens that Content detail", async () => {
+  localStorage.setItem("yia.ui-language", "zh-CN");
+  location.hash = "";
+  const original = globalThis.fetch;
+  vi.stubGlobal("fetch", vi.fn((path: string, init?: RequestInit) => path.endsWith("/videos/video-1")
+    ? response({ ...daVideoDetail, video: { ...daVideoDetail.video, provider: "YOUTUBE", source_id: "import-source" } })
+    : original(path, init)));
+  render(<App />);
+  await screen.findByRole("heading", { name: "首页" });
+  location.hash = "Content/video-1";
+  window.dispatchEvent(new HashChangeEvent("hashchange"));
+  await screen.findByText("Deep Analysis fixture");
+  expect(location.hash).toBe("#Content/video-1");
+});

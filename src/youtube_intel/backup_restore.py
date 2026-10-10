@@ -1302,9 +1302,22 @@ class BackupRestoreService:
                 raise BackupRestoreError("A distillation checkpoint is missing its authority.")
             status = getattr(execution.status, "value", str(execution.status))
             if status in {"PENDING", "RUNNING", "WAITING_BUDGET", "WAITING_MODEL"}:
-                if status == "WAITING_MODEL" and self._is_cloud_completed_local_wait(
+                if status == "WAITING_MODEL" and (
+                    self._is_cloud_completed_local_wait(connection, str(execution_id))
+                    or self._is_uninvoked_waiting_model(connection, str(execution_id))
+                ):
+                    # Cloud-completed waits and local waits that never invoked
+                    # (model unavailable at reserve time) hold no running work;
+                    # they can never advance on their own. Backup may proceed.
+                    continue
+                if status == "PENDING" and self._is_completed_no_new_intelligence(
                     connection, str(execution_id)
                 ):
+                    # A local extraction that finished with "no new
+                    # Intelligence" keeps the checkpoint PENDING because the
+                    # SUCCEEDED terminal state requires an Intelligence row.
+                    # It is already durably recorded and cannot advance again;
+                    # treating it as active would block Backup forever.
                     continue
                 reasons.append("DISTILLATION_ACTIVE")
                 break
@@ -1313,6 +1326,42 @@ class BackupRestoreService:
             ):
                 raise BackupRestoreError("An ambiguous distillation checkpoint failed validation.")
         return reasons
+
+    def _is_uninvoked_waiting_model(
+        self, connection: sqlite3.Connection, execution_id: str
+    ) -> bool:
+        """Whether a WAITING_MODEL checkpoint never invoked (no running work).
+
+        A local extraction that was reserved while the model was unavailable
+        stays WAITING_MODEL with invocation_count 0 and cannot advance on its
+        own, so it must not block Backup forever.
+        """
+        row = connection.execute(
+            "SELECT 1 FROM distillation_execution_checkpoints "
+            "WHERE execution_id = ? AND status = 'WAITING_MODEL' "
+            "AND invocation_count = 0",
+            (execution_id,),
+        ).fetchone()
+        return row is not None
+
+    def _is_completed_no_new_intelligence(
+        self, connection: sqlite3.Connection, execution_id: str
+    ) -> bool:
+        """Whether a PENDING checkpoint is a durably completed no-new result.
+
+        Local extraction that found no new Intelligence is recorded in
+        ``distillation_no_new_intelligence_results`` while the checkpoint stays
+        PENDING (the SUCCEEDED terminal state requires an Intelligence row).
+        Such a checkpoint can never advance again and must not block Backup.
+        """
+        row = connection.execute(
+            "SELECT 1 FROM distillation_execution_checkpoints AS c "
+            "JOIN distillation_no_new_intelligence_results AS result "
+            "ON result.execution_id = c.execution_id "
+            "WHERE c.execution_id = ? AND c.invocation_count = 1",
+            (execution_id,),
+        ).fetchone()
+        return row is not None
 
     def _is_settled_attention_source_run(
         self, connection: sqlite3.Connection, run: sqlite3.Row
@@ -1334,12 +1383,18 @@ class BackupRestoreService:
             (str(run["run_id"]),),
         ).fetchone() is not None:
             return False
-        return connection.execute(
-            "SELECT 1 FROM distillation_execution_checkpoints "
-            "WHERE source_id = ? AND status IN "
-            "('PENDING','RUNNING','WAITING_BUDGET','WAITING_MODEL') LIMIT 1",
+        if connection.execute(
+            "SELECT 1 FROM distillation_execution_checkpoints AS c "
+            "WHERE c.source_id = ? AND c.status IN "
+            "('PENDING','RUNNING','WAITING_BUDGET','WAITING_MODEL') "
+            "AND NOT (c.status = 'PENDING' AND EXISTS ("
+            "  SELECT 1 FROM distillation_no_new_intelligence_results AS result"
+            "  WHERE result.execution_id = c.execution_id)) "
+            "AND NOT (c.status = 'WAITING_MODEL' AND c.invocation_count = 0) LIMIT 1",
             (str(run["source_id"]),),
-        ).fetchone() is None
+        ).fetchone() is not None:
+            return False
+        return True
 
     def _is_cloud_completed_local_wait_source_run(
         self, connection: sqlite3.Connection, run: sqlite3.Row

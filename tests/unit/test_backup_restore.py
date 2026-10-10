@@ -1043,3 +1043,136 @@ def test_quiescence_keeps_resumable_model_work_and_other_attention_runs_blocked(
     assert readiness["ready"] is False
     assert "DISTILLATION_ACTIVE" in readiness["reasons"]
     assert "SOURCE_RUN_ACTIVE" in readiness["reasons"]
+
+
+def test_backup_is_not_blocked_by_completed_no_new_intelligence(
+    tmp_path: Path,
+) -> None:
+    """A locally finished "no new Intelligence" extraction must not block Backup.
+
+    Regression: the no-new result is durably recorded while the checkpoint
+    stays PENDING (the SUCCEEDED terminal state requires an Intelligence row),
+    and the readiness check treated every PENDING checkpoint as active, so a
+    single manual extraction blocked Backup forever.
+    """
+    from youtube_intel.state import (
+        EvidenceAvailability,
+        EvidenceLineageKind,
+        EvidenceRole,
+        EvidenceWrite,
+        build_evidence_id,
+    )
+
+    database, data_root, _, repository, _ = _workspace(tmp_path)
+    _add_source(repository)
+    artifact_id = "artifact-1"
+    evidence_id = build_evidence_id(
+        video_id="video-1",
+        artifact_id=artifact_id,
+        start_ms=1000,
+        end_ms=1500,
+        lineage_kind=EvidenceLineageKind.ORIGINAL_TRANSCRIPT,
+        role=EvidenceRole.PRIMARY_ORIGINAL,
+    )
+    repository.create_evidence(
+        EvidenceWrite(
+            evidence_id=evidence_id,
+            video_id="video-1",
+            artifact_id=artifact_id,
+            start_ms=1000,
+            end_ms=1500,
+            lineage_kind=EvidenceLineageKind.ORIGINAL_TRANSCRIPT,
+            role=EvidenceRole.PRIMARY_ORIGINAL,
+            language="en",
+            availability=EvidenceAvailability.AVAILABLE,
+        ),
+        now=NOW,
+    )
+    reason = PersonalizedDistillationService._RESERVATION_REASON
+    use_case = PersonalizedDistillationService._RESERVATION_USE_CASE
+    repository.reserve_distillation_execution(
+        DistillationExecutionWrite(
+            execution_id="execution-no-new",
+            source_id="source-1",
+            video_id="video-1",
+            reason=reason,
+            use_case=use_case,
+            selected_provider="ollama",
+            selected_model="qwen3:8b",
+            output_language="en",
+        ),
+        now=NOW,
+    )
+    assert repository.claim_reserved_distillation_execution(
+        execution_id="execution-no-new",
+        source_id="source-1",
+        video_id="video-1",
+        reason=reason,
+        use_case=use_case,
+        selected_provider="ollama",
+        selected_model="qwen3:8b",
+        output_language="en",
+        now=NOW,
+    )
+    repository.record_distillation_no_new_intelligence(
+        execution_id="execution-no-new",
+        evidence_ids=(evidence_id,),
+        budget_state="RUNTIME_BUDGET_ADMITTED",
+        actual_provider="ollama",
+        actual_model="qwen3:8b",
+        input_tokens=100,
+        output_tokens=50,
+        cost_microunits=0,
+        duration_ms=1200,
+        now=NOW,
+    )
+
+    readiness = BackupRestoreService(database=database, data_root=data_root).readiness()
+
+    assert readiness["ready"] is True
+    assert "DISTILLATION_ACTIVE" not in readiness["reasons"]
+
+
+def test_backup_is_not_blocked_by_uninvoked_waiting_model(
+    tmp_path: Path,
+) -> None:
+    """A WAITING_MODEL checkpoint that never invoked must not block Backup.
+
+    It holds no running work and can never advance on its own (the continue
+    seam only accepts PENDING), so treating it as active would block Backup
+    forever after an extraction reserved while the model was unavailable.
+    """
+    database, data_root, _, repository, _ = _workspace(tmp_path)
+    _add_source(repository)
+    repository.begin_distillation_execution(
+        DistillationExecutionWrite(
+            execution_id="execution-waiting-model",
+            source_id="source-1",
+            video_id="video-1",
+            reason="MANUAL_PERSONALIZED_DISTILLATION",
+            use_case="PERSONALIZED_INTELLIGENCE",
+            selected_provider="ollama",
+            selected_model="qwen3:8b",
+            output_language="en",
+        ),
+        now=NOW,
+    )
+    repository.finish_distillation_without_admission(
+        execution_id="execution-waiting-model",
+        status="WAITING_MODEL",
+        budget_state="RUNTIME_BUDGET_ADMITTED",
+        outcome="MODEL_UNAVAILABLE_BEFORE_TRANSPORT",
+        invocation_count=0,
+        actual_provider=None,
+        actual_model=None,
+        input_tokens=None,
+        output_tokens=None,
+        cost_microunits=None,
+        duration_ms=None,
+        now=NOW,
+    )
+
+    readiness = BackupRestoreService(database=database, data_root=data_root).readiness()
+
+    assert readiness["ready"] is True
+    assert "DISTILLATION_ACTIVE" not in readiness["reasons"]

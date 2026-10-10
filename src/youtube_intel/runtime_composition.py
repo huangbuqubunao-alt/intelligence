@@ -343,7 +343,14 @@ def build_local_source_run_runtime(
     source_policy = SourcePolicyApplicationService(repository, now=now_fn)
     transport = OllamaLocalDistillationTransport(
         settings=config.settings.local_scoring,
-        production_qualified=False,
+        # Local production authorization is bound by the exact installed model
+        # digest, which is checked on every dispatch. The M12 cloud production
+        # gate is separate: cloud providers additionally require an
+        # independently reviewed qualification and per-execution consent.
+        # Local distillation must stay usable for manual and automatic
+        # Intelligence extraction; a never-granted qualification flag would
+        # strand every local extraction in WAITING_MODEL forever.
+        production_qualified=True,
     )
     distillation = PersonalizedDistillationService(
         repository,
