@@ -1,0 +1,30 @@
+{
+  "code_head": "d12553d40802722d47c4ffb13407960f6aa62a6d",
+  "audit_head": "9f3b03ead107b769b81bf1c77f76d542a424921c",
+  "initial_main": "fad25e6109d02650b25ae777f2f7557dd478309d",
+  "backend": {
+    "passed": 4008,
+    "skipped": 1,
+    "failed": 0,
+    "seconds": 865.41
+  },
+  "frontend": {
+    "passed": 292,
+    "files": 19
+  },
+  "typecheck": true,
+  "production_build": true,
+  "ruff": true,
+  "strict_mypy": true,
+  "diff_check": true,
+  "migration_approved": true,
+  "final_gui_passed": true,
+  "backup_restore_exact": true,
+  "independent_review": "APPROVE",
+  "new_p0_p1": 0,
+  "local_intelligence_qualification": false,
+  "paid_cloud_invocations": 0,
+  "d2_native_hash_pins_unchanged": true,
+  "all_code_acceptance_gates_passed": true,
+  "adoption": "PENDING_GIT_AND_OWNER_PRESERVATION"
+}

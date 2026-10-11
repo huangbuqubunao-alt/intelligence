@@ -1,0 +1,309 @@
+{
+  "result": {
+    "realMacOS": true,
+    "headless": false,
+    "contentUrl": "http://127.0.0.1:5798/#Content/aircAruvnKk",
+    "realAppKitImport": true,
+    "contentDeepLinkReloadBackForward": true,
+    "waitingExecution": "distillation:reservation:v3:e487d5a1efa138ff3be57866ace2b6196d1f1d0be310544e895510eac07f9204",
+    "restore": {
+      "ready": true,
+      "reasons": [],
+      "message": "Core data is quiescent and ready for backup.",
+      "restore_pending": false,
+      "last_restore": {
+        "completed_at": "2026-10-11T18:12:58Z",
+        "message": "Restore completed successfully.",
+        "restore_id": "e788b03983944909a12b0f963bd2c788",
+        "state": "APPLIED"
+      }
+    },
+    "passed": true,
+    "zeroFileHttpUpload": true,
+    "preservedAllTablesAndArtifacts": true,
+    "restartRestore": true
+  },
+  "errors": [],
+  "posts": [
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/sources/check-stale",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/picks",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/picks/<grant>",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/picks/<grant>",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/picks/<grant>",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/picks/<grant>",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/picks/<grant>",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/picks/<grant>",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/picks/<grant>",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/picks/<grant>",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/picks/<grant>",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/picks/<grant>",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/picks/<grant>",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/picks/<grant>",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/picks/<grant>",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/picks/<grant>",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/picks/<grant>/confirm",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/picks/<grant>",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/videos/aircAruvnKk/intelligence",
+      "body": "{\"command_id\":\"ui:1791742367068:aeym8hq822s\"}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/videos/aircAruvnKk/intelligence/cancel",
+      "body": "{\"execution_id\":\"distillation:reservation:v3:e487d5a1efa138ff3be57866ace2b6196d1f1d0be310544e895510eac07f9204\"}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/backup-restore/backups",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/backup-restore/restore/stage",
+      "body": null
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/backup-restore/restore/confirm",
+      "body": "{\"restore_id\":\"e788b03983944909a12b0f963bd2c788\"}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5798/api/v1/local/native/jobs",
+      "body": "{}"
+    }
+  ]
+}

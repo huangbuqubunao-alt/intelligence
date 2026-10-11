@@ -1,0 +1,18 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.11, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/hua/Documents/yia-worktrees/waiting-model-final-fix
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collected 49 items
+
+tests/unit/test_backup_restore.py ...................................... [ 77%]
+...........                                                              [100%]
+
+=============================== warnings summary ===============================
+tests/unit/test_backup_restore.py::test_invalid_backup_never_changes_live_data[duplicate-path]
+  /Users/hua/.local/share/uv/python/cpython-3.12-macos-aarch64-none/lib/python3.12/zipfile/__init__.py:1611: UserWarning: Duplicate name: 'data/transcripts/video-1.txt'
+    return self._open_to_write(zinfo, force_zip64=force_zip64)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+- generated xml file: /Users/hua/Documents/yia-worktrees/waiting-model-final-fix/docs/validation/waiting-model-final-fix/sibling-proof.xml -
+======================== 49 passed, 1 warning in 16.33s ========================

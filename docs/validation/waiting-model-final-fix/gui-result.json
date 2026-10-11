@@ -1,0 +1,115 @@
+{
+  "result": {
+    "realMacOS": true,
+    "headless": false,
+    "contentUrl": "http://127.0.0.1:5788/#Content/aircAruvnKk",
+    "waitingExecution": "distillation:reservation:v3:3e49263db8075f3c196044468f151b5de4e5a2d404ad4687bd7a98b6fde817d4",
+    "restore": {
+      "ready": true,
+      "reasons": [],
+      "message": "Core data is quiescent and ready for backup.",
+      "restore_pending": false,
+      "last_restore": {
+        "completed_at": "2026-10-11T14:27:42Z",
+        "message": "Restore completed successfully.",
+        "restore_id": "8a83ea1e26fe4409a06d540edaa5c2ea",
+        "state": "APPLIED"
+      }
+    },
+    "passed": true,
+    "zeroFileHttpUpload": true,
+    "preservedAllTablesAndArtifacts": true,
+    "restartRestore": true
+  },
+  "errors": [],
+  "posts": [
+    {
+      "url": "http://127.0.0.1:5788/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5788/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5788/api/v1/videos/aircAruvnKk/intelligence",
+      "body": "{\"command_id\":\"ui:1791728851492:72z4kr93xpx\"}"
+    },
+    {
+      "url": "http://127.0.0.1:5788/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5788/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5788/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5788/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5788/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5788/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5788/api/v1/videos/aircAruvnKk/intelligence/cancel",
+      "body": "{\"execution_id\":\"distillation:reservation:v3:3e49263db8075f3c196044468f151b5de4e5a2d404ad4687bd7a98b6fde817d4\"}"
+    },
+    {
+      "url": "http://127.0.0.1:5788/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5788/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5788/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5788/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5788/api/v1/backup-restore/backups",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5788/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5788/api/v1/backup-restore/restore/stage",
+      "body": null
+    },
+    {
+      "url": "http://127.0.0.1:5788/api/v1/backup-restore/restore/confirm",
+      "body": "{\"restore_id\":\"8a83ea1e26fe4409a06d540edaa5c2ea\"}"
+    },
+    {
+      "url": "http://127.0.0.1:5788/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5788/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5788/api/v1/local/native/jobs",
+      "body": "{}"
+    },
+    {
+      "url": "http://127.0.0.1:5788/api/v1/local/native/jobs",
+      "body": "{}"
+    }
+  ]
+}

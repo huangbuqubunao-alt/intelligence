@@ -1,0 +1,10 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.11, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/hua/Documents/yia-worktrees/waiting-model-final-fix
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collected 49 items / 48 deselected / 1 selected
+
+tests/unit/test_backup_restore.py .                                      [100%]
+
+======================= 1 passed, 48 deselected in 1.22s =======================

@@ -1,0 +1,163 @@
+{
+  "images": [
+    {
+      "src": "screenshots/01-first-open.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/02-onboarding.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/03-onboarding.png",
+      "loaded": true
+    },
+    {
+      "src": "../../dogfood/opencode-user-pilot/screenshots/04-after-onboarding.png",
+      "loaded": true
+    },
+    {
+      "src": "../../dogfood/opencode-user-pilot/screenshots/06-following-empty.png",
+      "loaded": true
+    },
+    {
+      "src": "../../dogfood/opencode-user-pilot/screenshots/07-add-source-dialog.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/16-youtube-video-dialog.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/17-youtube-video-success.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/16-youtube-channel-dialog.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/17-following-current.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/18-following-paused.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/19-following-resumed.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/04-native-selected.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/07-real-appkit-picker.png",
+      "loaded": true
+    },
+    {
+      "src": "../../dogfood/opencode-user-pilot/screenshots/36-audio-detail.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/20-content-list.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/21-content-detail.png",
+      "loaded": true
+    },
+    {
+      "src": "../../dogfood/opencode-user-pilot/screenshots/47-content-detail-summary.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/21-content-detail.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/22-content-summary.png",
+      "loaded": true
+    },
+    {
+      "src": "../../dogfood/opencode-user-pilot/screenshots/36-audio-detail.png",
+      "loaded": true
+    },
+    {
+      "src": "../../dogfood/opencode-user-pilot/screenshots/46-content-detail-full.png",
+      "loaded": true
+    },
+    {
+      "src": "../waiting-model-final-fix/final-gui/screenshots/03c-waiting-model-panel.png",
+      "loaded": true
+    },
+    {
+      "src": "../waiting-model-final-fix/final-gui/screenshots/05c-cancelled-panel.png",
+      "loaded": true
+    },
+    {
+      "src": "../../dogfood/opencode-user-pilot/screenshots/20-intelligence-empty.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/25-topics-empty.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/10-settings-ready-zh.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/11-settings-en.png",
+      "loaded": true
+    },
+    {
+      "src": "../../dogfood/opencode-user-pilot/screenshots/41-language-english-draft.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/11-settings-en.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/10-settings-ready-zh.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/10-settings-ready-zh.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/12-backup-created.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/13-restore-preview.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/14-restore-confirm.png",
+      "loaded": true
+    },
+    {
+      "src": "../waiting-model-final-fix/final-gui/screenshots/04-backup-blocked.png",
+      "loaded": true
+    },
+    {
+      "src": "../waiting-model-final-fix/final-gui/screenshots/06-backup-ready.png",
+      "loaded": true
+    },
+    {
+      "src": "../waiting-model-final-fix/final-gui/screenshots/07-backup-created.png",
+      "loaded": true
+    },
+    {
+      "src": "../waiting-model-final-fix/final-gui/screenshots/10c-restored-cancelled-panel.png",
+      "loaded": true
+    }
+  ],
+  "chapters": 19,
+  "hasCancel": true,
+  "oldLimit": false
+}

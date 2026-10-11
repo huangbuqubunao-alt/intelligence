@@ -1,0 +1,85 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.11, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/hua/Documents/yia-worktrees/waiting-model-final-fix
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collected 253 items
+
+tests/unit/test_backup_restore.py ...................................... [ 15%]
+..........                                                               [ 18%]
+tests/unit/test_distillation_dispatch.py ...                             [ 20%]
+tests/integration/test_task022_personalized_distillation.py ............ [ 24%]
+........................................................................ [ 53%]
+.....................................................                    [ 74%]
+tests/integration/test_state_store.py F................................. [ 87%]
+............                                                             [ 92%]
+tests/integration/test_task016c_phase_h2c_lineage_schema.py .........F.. [ 97%]
+.......                                                                  [100%]
+
+=================================== FAILURES ===================================
+_________ test_initialize_is_repeatable_and_records_packaged_checksum __________
+
+tmp_path = PosixPath('/Users/hua/Documents/yia-worktrees/waiting-model-final-fix/.var/waiting-model-final-fix/focused2/test_initialize_is_repeatable_0')
+
+    def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) -> None:
+        path = _database_path(tmp_path)
+        repository = SQLiteStateRepository(path)
+
+        first = repository.initialize(now=NOW)
+        second = repository.initialize(now=NOW)
+
+        sql = (
+            resources.files("youtube_intel")
+            .joinpath("migrations", "037_add_waiting_model_cancellation.sql")
+            .read_bytes()
+        )
+        assert first == second
+        assert first.version == 37
+        assert first.name == "037_add_waiting_model_cancellation.sql"
+        assert first.checksum == hashlib.sha256(sql).hexdigest()
+
+        with _raw_connection(path) as connection:
+            tables = {
+                row["name"]
+                for row in connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                )
+                if not row["name"].startswith("sqlite_")
+            }
+            migration_count = connection.execute(
+                "SELECT COUNT(*) FROM schema_migrations"
+            ).fetchone()[0]
+>       assert tables == EXPECTED_TABLES
+E       AssertionError: assert {'artifacts',...f_items', ...} == {'artifacts',...f_items', ...}
+E
+E         Extra items in the left set:
+E         'distillation_waiting_model_cancellations'
+E         Use -v to get more diff
+
+tests/integration/test_state_store.py:856: AssertionError
+____________ test_doctor_database_check_accepts_exactly_version_37 _____________
+
+tmp_path = PosixPath('/Users/hua/Documents/yia-worktrees/waiting-model-final-fix/.var/waiting-model-final-fix/focused2/test_doctor_database_check_acc0')
+
+    def test_doctor_database_check_accepts_exactly_version_37(tmp_path: Path) -> None:
+        path = _database_path(tmp_path)
+        repository = SQLiteStateRepository(path)
+        repository.initialize(now=NOW)
+>       assert _database_check(path).status == "PASS"
+E       AssertionError: assert 'FAIL' == 'PASS'
+E
+E         - PASS
+E         + FAIL
+
+tests/integration/test_task016c_phase_h2c_lineage_schema.py:417: AssertionError
+=============================== warnings summary ===============================
+tests/unit/test_backup_restore.py::test_invalid_backup_never_changes_live_data[duplicate-path]
+  /Users/hua/.local/share/uv/python/cpython-3.12-macos-aarch64-none/lib/python3.12/zipfile/__init__.py:1611: UserWarning: Duplicate name: 'data/transcripts/video-1.txt'
+    return self._open_to_write(zinfo, force_zip64=force_zip64)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+- generated xml file: /Users/hua/Documents/yia-worktrees/waiting-model-final-fix/docs/validation/waiting-model-final-fix/focused2.xml -
+=========================== short test summary info ============================
+FAILED tests/integration/test_state_store.py::test_initialize_is_repeatable_and_records_packaged_checksum
+FAILED tests/integration/test_task016c_phase_h2c_lineage_schema.py::test_doctor_database_check_accepts_exactly_version_37
+============= 2 failed, 251 passed, 1 warning in 108.68s (0:01:48) =============

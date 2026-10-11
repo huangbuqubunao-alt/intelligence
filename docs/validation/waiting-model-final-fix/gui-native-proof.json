@@ -1,0 +1,11 @@
+{
+  "source": "gui-native-result.json",
+  "realMacOS": true,
+  "headless": false,
+  "realAppKitImport": true,
+  "contentDeepLinkReloadBackForward": true,
+  "localContentUrl": "http://127.0.0.1:5788/#Content/local-5a47929c3df695f273f34936af9838dd18a561a70625007a2c94a72b48cc975d",
+  "zero_file_http_upload": true,
+  "pageerrors": [],
+  "following_attempt": "The same driver then tried extraction on local Content, which the existing product does not support. That later failure is preserved in the source record; extraction acceptance used a real imported YouTube video."
+}

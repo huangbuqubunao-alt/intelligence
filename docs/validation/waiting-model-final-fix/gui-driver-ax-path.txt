@@ -1,0 +1,16 @@
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+locator.click: Timeout 30000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('button', { name: '提炼为洞察', exact: true })[22m
+
+    at /Users/hua/Documents/yia-worktrees/waiting-model-final-fix/docs/validation/waiting-model-final-fix/gui_acceptance.mjs:54:60 {
+  log: [
+    "  - waiting for getByRole('button', { name: '提炼为洞察', exact: true })"
+  ],
+  name: 'TimeoutError'
+}
+
+Node.js v22.22.3

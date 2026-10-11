@@ -1,0 +1,1160 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.11, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/hua/Documents/yia-worktrees/waiting-model-final-fix
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collected 114 items
+
+tests/unit/test_backup_restore.py ....................F................. [ 33%]
+...........                                                              [ 42%]
+tests/integration/test_state_store.py .................................. [ 72%]
+............                                                             [ 83%]
+tests/integration/test_task016c_phase_h2c_lineage_schema.py ............ [ 93%]
+.......                                                                  [100%]
+
+=================================== FAILURES ===================================
+___ test_cancel_api_is_content_bound_idempotent_and_keeps_all_waits_visible ____
+
+self = <youtube_intel.local_api.LocalApiApplication object at 0x10a8dbce0>
+method = 'GET', path = '/api/v1/videos/video-1', body = b''
+
+    def handle(
+        self, method: str, path: str, body: bytes = b""
+    ) -> tuple[int, dict[str, object]]:
+        route = urlparse(path).path.rstrip("/") or "/"
+        try:
+            if method == "GET" and route == "/api/v1/local/native/capability":
+                return HTTPStatus.OK, {"capability": {"available": self._native_import is not None}}
+            creator_from_content = re.fullmatch(r"/api/v1/videos/([^/]+)/follow-(creator|channel)", route)
+            following_provider = "YOUTUBE" if route == "/api/v1/sources/channels" or (creator_from_content and creator_from_content[2] == "channel") else "BILIBILI"
+            if method == "POST" and (route in {"/api/v1/sources/creators", "/api/v1/sources/channels"} or creator_from_content):
+                if self._source_tracking is None:
+                    raise ApiError(HTTPStatus.CONFLICT, "TRACKING_UNAVAILABLE", "Source storage is unavailable.")
+                data = self._body(body)
+                self._only_keys(data, set() if creator_from_content else {"input", "processing_mode"})
+                mode = ProcessingPolicy.from_product_mode(self._string(data, "processing_mode") or "ORGANIZE_CONTENT")
+                if following_provider == "BILIBILI" and not CREATOR_FOLLOWING_AVAILABLE:
+                    # The capability is withdrawn, so no provider request is made,
+                    # no source row is created, and nothing is silently scheduled.
+                    raise ApiError(
+                        HTTPStatus.CONFLICT,
+                        "BILIBILI_" + CREATOR_FOLLOWING_CODE,
+                        CREATOR_FOLLOWING_UNAVAILABLE_MESSAGE,
+                    )
+                try:
+                    source = self._source_tracking.follow_content(creator_from_content[1], provider=following_provider) if creator_from_content else self._source_tracking.follow(self._string(data, "input", required=True) or "", provider=following_provider)
+                except (BilibiliError, TrackingError) as error:
+                    raise ApiError(_BILIBILI_ERROR_STATUS.get(error.code, HTTPStatus.UNPROCESSABLE_ENTITY), following_provider + "_" + error.code, "The public source could not be followed.") from None
+                if not creator_from_content and following_provider == "YOUTUBE":
+                    updated = self._service.update_source(source.source_id, processing_policy=mode)
+                    assert updated is not None
+                    source = updated
+                if self._source_run_wakeup is not None:
+                    self._source_run_wakeup()
+                return HTTPStatus.OK, {"source": self._source_projection(source)}
+            if method == "POST" and route == "/api/v1/sources/check-stale":
+                self._only_keys(self._body(body), set())
+                from youtube_intel.following_tracking import tracking_due
+                results: list[str] = []
+                unavailable: list[str] = []
+                # Scheduling follows the oldest due frontier, not the UI list's
+                # creation order, so newer follows cannot starve older providers.
+                with self._repository._connect() as connection:
+                    sources = connection.execute("SELECT s.source_id FROM source_tracking_state t JOIN source_subscriptions s USING(source_id) WHERE s.enabled=1 ORDER BY t.next_check_at,s.source_id").fetchall()
+                for row in sources:
+                    if len(results) >= 3:
+                        break
+                    source_id = row[0]
+                    tracked_source = self._repository.get_source_subscription(source_id)
+                    if tracked_source and tracked_source.provider == "BILIBILI" and not CREATOR_FOLLOWING_AVAILABLE:
+                        if tracking_due(self._repository, source_id, self._now()):
+                            unavailable.append("CAPABILITY_UNAVAILABLE")
+                        continue
+                    if tracking_due(self._repository, source_id, self._now()):
+                        from youtube_intel.following_scheduler import (
+                            AUTOMATIC_CHECK_PREFIX,
+                        )
+                        with self._repository._connect() as connection:
+                            due = connection.execute("SELECT next_check_at FROM source_tracking_state WHERE source_id=?", (source_id,)).fetchone()[0]
+                        result = self._service.check_source(source_id, command_id=AUTOMATIC_CHECK_PREFIX + source_id + ":" + due, automatic=True)
+                        results.append(result.status.value)
+                if self._source_run_wakeup is not None:
+                    self._source_run_wakeup()
+                return HTTPStatus.ACCEPTED, {"checks": results + unavailable[:3]}
+            if method == "POST" and (route == "/api/v1/bilibili/imports" or re.fullmatch(r"/api/v1/videos/[^/]+/captions/retry", route)):
+                if self._bilibili_provider is None:
+                    raise ApiError(HTTPStatus.CONFLICT, "BILIBILI_STORAGE_UNAVAILABLE", "Content storage is unavailable.")
+                data = self._body(body)
+                self._only_keys(data, {"input"} if route == "/api/v1/bilibili/imports" else set())
+                if not self._bilibili_import_slot.acquire(blocking=False):
+                    raise ApiError(HTTPStatus.TOO_MANY_REQUESTS, "BILIBILI_RATE_LIMITED", "An import is already processing.")
+                try:
+                    if route == "/api/v1/bilibili/imports":
+                        bilibili_input = self._string(data, "input", required=True)
+                        assert bilibili_input is not None
+                        imported = self._bilibili_provider.import_input(bilibili_input)
+                    else:
+                        imported = self._bilibili_provider.retry(route.split("/")[4])
+                except BilibiliError as rejection:
+                    status = _BILIBILI_ERROR_STATUS.get(
+                        rejection.code, HTTPStatus.UNPROCESSABLE_ENTITY
+                    )
+                    raise ApiError(status, "BILIBILI_" + rejection.code, "The public video could not be imported.") from None
+                finally:
+                    self._bilibili_import_slot.release()
+                return HTTPStatus.OK if imported.reused else HTTPStatus.CREATED, {"import": imported.as_dict()}
+            if route.startswith("/api/v1/local/transcription/") or re.fullmatch(r"/api/v1/videos/[^/]+/transcription", route):
+                return self._transcription_route(method, route, body)
+            if method == "POST" and route == "/api/v1/local/imports":
+                if self._local_provider is None:
+                    raise ApiError(HTTPStatus.CONFLICT, "LOCAL_STORAGE_UNAVAILABLE", "Local storage is unavailable.")
+                query = parse_qs(urlparse(path).query, keep_blank_values=True)
+                names = query.get("filename", [])
+                if set(query) != {"filename"} or len(names) != 1 or len(names[0]) > 1024:
+                    raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY,"LOCAL_INVALID_FILENAME","Select a supported file.")
+                try:
+                    import_result = self._local_provider.import_bytes(names[0], body)
+                except LocalImportError as rejection:
+                    raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY,rejection.code,"The selected file could not be imported.") from None
+                return HTTPStatus.OK if import_result.duplicate else HTTPStatus.CREATED, {"import":import_result.as_dict()}
+            if route == "/api/v1/research" or route.startswith("/api/v1/research/"):
+                return self._research_route(method, path, body)
+            if method == "GET" and route == "/api/v1/backup-restore/status":
+                if self._backup_restore_service is None:
+                    raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Backup and Restore is unavailable.")
+                return HTTPStatus.OK, {"status": self._backup_restore_service.readiness()}
+            if method == "POST" and route == "/api/v1/backup-restore/restore/stage":
+                if self._backup_restore_service is None:
+                    raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Backup and Restore is unavailable.")
+                staged = self._backup_restore_service.stage_restore(body)
+                return HTTPStatus.OK, {
+                    "restore": {
+                        "restore_id": staged.restore_id,
+                        "archive_sha256": staged.archive_sha256,
+                        "preview": staged.preview,
+                    }
+                }
+            if method == "GET" and route == "/api/v1/saved-intelligence":
+                return HTTPStatus.OK, self._saved_list(path)
+            if method == "GET":
+>               return HTTPStatus.OK, self._get(route)
+                                      ^^^^^^^^^^^^^^^^
+
+src/youtube_intel/local_api.py:912:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/youtube_intel/local_api.py:2260: in _get
+    video = self._repository.get_video(route.rsplit("/", 1)[1])
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/youtube_intel/state.py:2212: in get_video
+    return None if row is None else self._video_from_row(row)
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+src/youtube_intel/state.py:1951: in _video_from_row
+    discovered_at=_parse_utc_datetime(str(row["discovered_at"])),
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+value = '2026-09-23T08:00:00+00:00'
+
+    def _parse_utc_datetime(value: str) -> datetime:
+>       return datetime.fromisoformat(value.removesuffix("Z") + "+00:00")
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       ValueError: Invalid isoformat string: '2026-09-23T08:00:00+00:00+00:00'
+
+src/youtube_intel/state.py:1465: ValueError
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = PosixPath('/Users/hua/Documents/yia-worktrees/waiting-model-final-fix/.var/waiting-model-final-fix/focused4/test_cancel_api_is_content_bou0')
+
+    def test_cancel_api_is_content_bound_idempotent_and_keeps_all_waits_visible(tmp_path: Path) -> None:
+        from youtube_intel.local_api import ApiError, LocalApiApplication
+        from youtube_intel.orchestration_service import ProductOrchestrationService
+
+        _, data_root, vault, repository, _ = _workspace(tmp_path)
+        _add_source(repository)
+        first = _waiting_model(repository, "wait-1")
+        second = _waiting_model(repository, "wait-2")
+        app = LocalApiApplication(repository, ProductOrchestrationService(repository, now=lambda: NOW),
+                                  data_root=data_root, vault_root=vault, now=lambda: NOW)
+        route = "/api/v1/videos/video-1/intelligence/cancel"
+        body = json.dumps({"execution_id": first}).encode()
+        status, response = app.handle("POST", route, body)
+        assert status == 200 and response["execution"]["status"] == "CANCELLED"
+        assert app.handle("POST", route, body) == (status, response)
+        with pytest.raises(ApiError) as wrong_content:
+            app.handle("POST", route.replace("video-1", "wrong"), body)
+        assert wrong_content.value.status == 409
+        with pytest.raises(ApiError) as extra_authority:
+            app.handle("POST", route, json.dumps({"execution_id": second, "authorize": True}).encode())
+        assert extra_authority.value.status == 422
+>       waiting = app.handle("GET", "/api/v1/videos/video-1")[1]["waiting_model_executions"]
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/unit/test_backup_restore.py:292:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <youtube_intel.local_api.LocalApiApplication object at 0x10a8dbce0>
+method = 'GET', path = '/api/v1/videos/video-1', body = b''
+
+    def handle(
+        self, method: str, path: str, body: bytes = b""
+    ) -> tuple[int, dict[str, object]]:
+        route = urlparse(path).path.rstrip("/") or "/"
+        try:
+            if method == "GET" and route == "/api/v1/local/native/capability":
+                return HTTPStatus.OK, {"capability": {"available": self._native_import is not None}}
+            creator_from_content = re.fullmatch(r"/api/v1/videos/([^/]+)/follow-(creator|channel)", route)
+            following_provider = "YOUTUBE" if route == "/api/v1/sources/channels" or (creator_from_content and creator_from_content[2] == "channel") else "BILIBILI"
+            if method == "POST" and (route in {"/api/v1/sources/creators", "/api/v1/sources/channels"} or creator_from_content):
+                if self._source_tracking is None:
+                    raise ApiError(HTTPStatus.CONFLICT, "TRACKING_UNAVAILABLE", "Source storage is unavailable.")
+                data = self._body(body)
+                self._only_keys(data, set() if creator_from_content else {"input", "processing_mode"})
+                mode = ProcessingPolicy.from_product_mode(self._string(data, "processing_mode") or "ORGANIZE_CONTENT")
+                if following_provider == "BILIBILI" and not CREATOR_FOLLOWING_AVAILABLE:
+                    # The capability is withdrawn, so no provider request is made,
+                    # no source row is created, and nothing is silently scheduled.
+                    raise ApiError(
+                        HTTPStatus.CONFLICT,
+                        "BILIBILI_" + CREATOR_FOLLOWING_CODE,
+                        CREATOR_FOLLOWING_UNAVAILABLE_MESSAGE,
+                    )
+                try:
+                    source = self._source_tracking.follow_content(creator_from_content[1], provider=following_provider) if creator_from_content else self._source_tracking.follow(self._string(data, "input", required=True) or "", provider=following_provider)
+                except (BilibiliError, TrackingError) as error:
+                    raise ApiError(_BILIBILI_ERROR_STATUS.get(error.code, HTTPStatus.UNPROCESSABLE_ENTITY), following_provider + "_" + error.code, "The public source could not be followed.") from None
+                if not creator_from_content and following_provider == "YOUTUBE":
+                    updated = self._service.update_source(source.source_id, processing_policy=mode)
+                    assert updated is not None
+                    source = updated
+                if self._source_run_wakeup is not None:
+                    self._source_run_wakeup()
+                return HTTPStatus.OK, {"source": self._source_projection(source)}
+            if method == "POST" and route == "/api/v1/sources/check-stale":
+                self._only_keys(self._body(body), set())
+                from youtube_intel.following_tracking import tracking_due
+                results: list[str] = []
+                unavailable: list[str] = []
+                # Scheduling follows the oldest due frontier, not the UI list's
+                # creation order, so newer follows cannot starve older providers.
+                with self._repository._connect() as connection:
+                    sources = connection.execute("SELECT s.source_id FROM source_tracking_state t JOIN source_subscriptions s USING(source_id) WHERE s.enabled=1 ORDER BY t.next_check_at,s.source_id").fetchall()
+                for row in sources:
+                    if len(results) >= 3:
+                        break
+                    source_id = row[0]
+                    tracked_source = self._repository.get_source_subscription(source_id)
+                    if tracked_source and tracked_source.provider == "BILIBILI" and not CREATOR_FOLLOWING_AVAILABLE:
+                        if tracking_due(self._repository, source_id, self._now()):
+                            unavailable.append("CAPABILITY_UNAVAILABLE")
+                        continue
+                    if tracking_due(self._repository, source_id, self._now()):
+                        from youtube_intel.following_scheduler import (
+                            AUTOMATIC_CHECK_PREFIX,
+                        )
+                        with self._repository._connect() as connection:
+                            due = connection.execute("SELECT next_check_at FROM source_tracking_state WHERE source_id=?", (source_id,)).fetchone()[0]
+                        result = self._service.check_source(source_id, command_id=AUTOMATIC_CHECK_PREFIX + source_id + ":" + due, automatic=True)
+                        results.append(result.status.value)
+                if self._source_run_wakeup is not None:
+                    self._source_run_wakeup()
+                return HTTPStatus.ACCEPTED, {"checks": results + unavailable[:3]}
+            if method == "POST" and (route == "/api/v1/bilibili/imports" or re.fullmatch(r"/api/v1/videos/[^/]+/captions/retry", route)):
+                if self._bilibili_provider is None:
+                    raise ApiError(HTTPStatus.CONFLICT, "BILIBILI_STORAGE_UNAVAILABLE", "Content storage is unavailable.")
+                data = self._body(body)
+                self._only_keys(data, {"input"} if route == "/api/v1/bilibili/imports" else set())
+                if not self._bilibili_import_slot.acquire(blocking=False):
+                    raise ApiError(HTTPStatus.TOO_MANY_REQUESTS, "BILIBILI_RATE_LIMITED", "An import is already processing.")
+                try:
+                    if route == "/api/v1/bilibili/imports":
+                        bilibili_input = self._string(data, "input", required=True)
+                        assert bilibili_input is not None
+                        imported = self._bilibili_provider.import_input(bilibili_input)
+                    else:
+                        imported = self._bilibili_provider.retry(route.split("/")[4])
+                except BilibiliError as rejection:
+                    status = _BILIBILI_ERROR_STATUS.get(
+                        rejection.code, HTTPStatus.UNPROCESSABLE_ENTITY
+                    )
+                    raise ApiError(status, "BILIBILI_" + rejection.code, "The public video could not be imported.") from None
+                finally:
+                    self._bilibili_import_slot.release()
+                return HTTPStatus.OK if imported.reused else HTTPStatus.CREATED, {"import": imported.as_dict()}
+            if route.startswith("/api/v1/local/transcription/") or re.fullmatch(r"/api/v1/videos/[^/]+/transcription", route):
+                return self._transcription_route(method, route, body)
+            if method == "POST" and route == "/api/v1/local/imports":
+                if self._local_provider is None:
+                    raise ApiError(HTTPStatus.CONFLICT, "LOCAL_STORAGE_UNAVAILABLE", "Local storage is unavailable.")
+                query = parse_qs(urlparse(path).query, keep_blank_values=True)
+                names = query.get("filename", [])
+                if set(query) != {"filename"} or len(names) != 1 or len(names[0]) > 1024:
+                    raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY,"LOCAL_INVALID_FILENAME","Select a supported file.")
+                try:
+                    import_result = self._local_provider.import_bytes(names[0], body)
+                except LocalImportError as rejection:
+                    raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY,rejection.code,"The selected file could not be imported.") from None
+                return HTTPStatus.OK if import_result.duplicate else HTTPStatus.CREATED, {"import":import_result.as_dict()}
+            if route == "/api/v1/research" or route.startswith("/api/v1/research/"):
+                return self._research_route(method, path, body)
+            if method == "GET" and route == "/api/v1/backup-restore/status":
+                if self._backup_restore_service is None:
+                    raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Backup and Restore is unavailable.")
+                return HTTPStatus.OK, {"status": self._backup_restore_service.readiness()}
+            if method == "POST" and route == "/api/v1/backup-restore/restore/stage":
+                if self._backup_restore_service is None:
+                    raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Backup and Restore is unavailable.")
+                staged = self._backup_restore_service.stage_restore(body)
+                return HTTPStatus.OK, {
+                    "restore": {
+                        "restore_id": staged.restore_id,
+                        "archive_sha256": staged.archive_sha256,
+                        "preview": staged.preview,
+                    }
+                }
+            if method == "GET" and route == "/api/v1/saved-intelligence":
+                return HTTPStatus.OK, self._saved_list(path)
+            if method == "GET":
+                return HTTPStatus.OK, self._get(route)
+            # Local provider capability is explicit: source material never
+            # enters YouTube ingestion or external Intelligence transports.
+            local_target = re.fullmatch(r'/api/v1/videos/([^/]+)/cloud-intelligence/(?:review|confirm)',route)
+            source_target = re.fullmatch(r'/api/v1/sources/([^/]+)/videos/([^/]+)/(?:manual-analyze|distill)',route)
+            if local_target is not None or source_target is not None:
+                content_id=local_target[1] if local_target is not None else source_target[2] if source_target is not None else ''
+                selected_local_content=self._repository.get_video(content_id)
+                if selected_local_content is not None and selected_local_content.provider=='LOCAL':
+                    raise ApiError(HTTPStatus.CONFLICT,'LOCAL_PROVIDER_CAPABILITY_UNAVAILABLE','Local Content uses on-device source processing.')
+                if selected_local_content is not None and selected_local_content.provider=='BILIBILI':
+                    raise ApiError(HTTPStatus.CONFLICT,'BILIBILI_PROVIDER_CAPABILITY_UNAVAILABLE','Public caption Content uses stored source processing.')
+            data = self._body(body)
+            if route in {"/api/v1/settings/cloud-credential", "/api/v1/settings/cloud-credential/delete"}:
+                if self._model_settings is None:
+                    raise ApiError(HTTPStatus.CONFLICT, "CREDENTIAL_STORE_UNAVAILABLE", "System credential store is unavailable.")
+                if method == "PUT" and route == "/api/v1/settings/cloud-credential":
+                    self._only_keys(data, {"credential"})
+                    self._model_settings.save_credential(self._string(data, "credential", required=True) or "")
+                elif method == "POST" and route.endswith("/delete"):
+                    self._only_keys(data, {"confirm"})
+                    if data.get("confirm") != "DELETE":
+                        raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY, "CONFIRMATION_REQUIRED", "Confirm credential deletion explicitly.")
+                    self._model_settings.delete_credential()
+                else:
+                    raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+                self._cloud_credential_available = bool(self._model_settings.credential())
+                if self._refresh_cloud_distillation is not None:
+                    self._cloud_distillation_service = self._refresh_cloud_distillation()
+                return HTTPStatus.OK, self._model_settings.credential_status()
+            if method == "POST" and route.startswith("/api/v1/videos/") and route.endswith("/deep-analysis/obsidian"):
+                content_id = self._obsidian_content_id(route)
+                self._only_keys(data, {"result_identity"})
+                result_identity = self._string(data, "result_identity", required=True)
+                assert result_identity is not None
+                try:
+                    published = self._deep_analysis_publisher.publish(content_id=content_id, result_identity=result_identity)
+                except DeepAnalysisPublishError as rejection:
+                    raise ApiError(HTTPStatus.CONFLICT, rejection.code, "Deep Analysis could not be published to Obsidian.") from None
+                return HTTPStatus.OK, {"publish": published}
+            if method == "POST" and re.fullmatch(r"/api/v1/videos/[^/]+/intelligence", route):
+                self._only_keys(data, {"command_id"})
+                video_id = route.split("/")[4]
+                source_id = self._manual_content_source(video_id)
+                if source_id is None or self._distillation_service is None:
+                    raise ApiError(HTTPStatus.CONFLICT, "CONTENT_NOT_READY", "Finish organizing this Content before extracting Intelligence.")
+                command_id = self._string(data, "command_id", required=True) or ""
+                reservation = self._distillation_service.reserve_distillation_execution(
+                    source_id=source_id, video_id=video_id,
+                    evidence_ids=self._repository.list_canonical_coverage_evidence_ids(video_id),
+                    manual_command_id=command_id,
+                )
+                # This service is the local route. Cloud review/authorization is
+                # a separate explicit command and is never an automatic fallback.
+                self._distillation_service.continue_reserved_distillation(reservation.execution_id)
+                return HTTPStatus.ACCEPTED, {"execution": _distillation_execution_dto(
+                    self._repository.get_distillation_execution(reservation.execution_id)
+                )}
+            if method == "POST" and re.fullmatch(r"/api/v1/videos/[^/]+/intelligence/cancel", route):
+                self._only_keys(data, {"execution_id"})
+                video_id = route.split("/")[4]
+                execution_id = self._string(data, "execution_id", required=True) or ""
+                from .state import StateStoreError
+                try:
+                    execution = self._repository.cancel_waiting_model_execution(
+                        execution_id, video_id=video_id, now=self._now(),
+                    )
+                except StateStoreError:
+                    raise ApiError(HTTPStatus.CONFLICT, "WAITING_MODEL_CANCEL_UNSAFE",
+                                   "This task cannot be safely cancelled. Refresh its current state.") from None
+                return HTTPStatus.OK, {"execution": _distillation_execution_dto(execution)}
+            cloud_prefix = "/api/v1/videos/"
+            if method == "POST" and route.startswith(cloud_prefix) and (
+                route.endswith("/cloud-intelligence/review")
+                or route.endswith("/cloud-intelligence/confirm")
+            ):
+                if (
+                    not self._cloud_intelligence_qualified
+                    or not self._cloud_credential_available
+                    or self._cloud_distillation_service is None
+                ):
+                    raise ApiError(HTTPStatus.CONFLICT, "CLOUD_INTELLIGENCE_UNAVAILABLE",
+                                   "Qualified Cloud Intelligence requires an available backend credential.")
+                video_id, _, cloud_action = route.removeprefix(cloud_prefix).partition("/")
+                if cloud_action not in {"cloud-intelligence/review", "cloud-intelligence/confirm"}:
+                    raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Cloud Intelligence route was not found.")
+                if not video_id or self._repository.get_video(video_id) is None:
+                    raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Video was not found.")
+                if route.endswith("/cloud-intelligence/review"):
+                    self._only_keys(data, {"command_id"})
+                    manual_command_id = self._string(data, "command_id")
+                    manual_source = self._manual_content_source(video_id) if manual_command_id else None
+                    candidates = (manual_source,) if manual_source else tuple(
+                        source.source_id for source in self._repository.list_source_subscriptions()
+                        if source.enabled and self._repository.source_has_video(source.source_id, video_id)
+                        and (
+                            (decision := self._repository.current_filter_decision(source.source_id, video_id))
+                            is not None and decision.outcome is FilterOutcome.RELEVANT
+                        )
+                    )
+                    if not candidates:
+                        raise ApiError(HTTPStatus.CONFLICT, "EVIDENCE_UNAVAILABLE",
+                                       "No eligible source and Evidence are available for this Content.")
+                    cloud_evidence_ids = self._repository.list_canonical_coverage_evidence_ids(video_id)
+                    reservation = self._cloud_distillation_service.reserve_distillation_execution(
+                        source_id=sorted(candidates)[0], video_id=video_id,
+                        evidence_ids=cloud_evidence_ids,
+                        manual_command_id=manual_command_id,
+                    )
+                    return HTTPStatus.CREATED, {
+                        "review": self._cloud_distillation_service.review_reserved_cloud_execution(
+                            reservation.execution_id
+                        )
+                    }
+                self._only_keys(data, {"execution_id", "review_hash", "authorize"})
+                if data.get("authorize") is not True:
+                    raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY, "CONSENT_REQUIRED",
+                                   "Cloud execution requires affirmative confirmation.")
+                execution_id = self._string(data, "execution_id", required=True) or ""
+                review_hash = self._string(data, "review_hash", required=True) or ""
+                review = self._cloud_distillation_service.review_reserved_cloud_execution(execution_id)
+                if review["video_id"] != video_id or review["verified_input_hash"] != review_hash:
+                    raise ApiError(HTTPStatus.CONFLICT, "REVIEW_STALE",
+                                   "Cloud review changed; review the current Evidence again.")
+                authorization_id = self._cloud_distillation_service.authorize_reserved_cloud_execution(
+                    execution_id
+                )
+                cloud_result = self._cloud_distillation_service.continue_reserved_distillation(execution_id)
+                return HTTPStatus.ACCEPTED, {
+                    "authorization_id": authorization_id,
+                    "execution": {
+                        "execution_id": cloud_result.execution_id,
+                        "status": cloud_result.status.value,
+                        "invocation_count": cloud_result.invocation_count,
+                        "intelligence_id": cloud_result.intelligence_id,
+                        "revision_id": cloud_result.revision_id,
+                    },
+                }
+            if (
+                method == "GET"
+                and route == "/api/v1/deep-analysis/capability"
+            ):
+                return HTTPStatus.OK, {
+                    "capability": self._require_deep_analysis().capability_report()
+                }
+            deep_analysis_prefix = "/api/v1/videos/"
+            if (
+                method == "POST"
+                and route.startswith(deep_analysis_prefix)
+                and (route.endswith("/deep-analysis") or route.endswith("/deep-analysis/preflight"))
+            ):
+                deep_analysis_service = self._require_deep_analysis()
+                video_id, _, tail = route.removeprefix(
+                    deep_analysis_prefix
+                ).partition("/")
+                if tail not in {"deep-analysis", "deep-analysis/preflight"} or not video_id:
+                    raise ApiError(
+                        HTTPStatus.NOT_FOUND,
+                        "NOT_FOUND",
+                        "Deep Analysis route was not found.",
+                    )
+                if self._repository.get_video(video_id) is None:
+                    raise ApiError(
+                        HTTPStatus.NOT_FOUND, "NOT_FOUND", "Content was not found."
+                    )
+                self._only_keys(data, {"authorize_cloud", "execution_id", "route_id", "acknowledge_unknown_cost", "egress_mode"})
+                for identity in ("execution_id", "route_id", "egress_mode"):
+                    value = data.get(identity)
+                    if identity in data and (not isinstance(value, str) or not value or len(value) > 256):
+                        raise ApiError(HTTPStatus.BAD_REQUEST, "INVALID_REQUEST", "Invalid Deep Analysis identity.")
+                authorize_cloud = data.get("authorize_cloud") is True
+                try:
+                    if tail == "deep-analysis/preflight":
+                        self._only_keys(data, {"route_id"})
+                        if not isinstance(data.get("route_id"), str):
+                            raise ApiError(HTTPStatus.BAD_REQUEST, "INVALID_REQUEST", "A route is required.")
+                        return HTTPStatus.OK, {"preflight": deep_analysis_service.preflight(content_id=video_id, route_id=cast(str, data["route_id"]))}
+                    deep_analysis_run = deep_analysis_service.run(
+                        content_id=video_id, cloud_consent=authorize_cloud,
+                        route_id=cast(str | None, data.get("route_id")), execution_id=cast(str | None, data.get("execution_id")),
+                        acknowledge_unknown_cost=data.get("acknowledge_unknown_cost") is True,
+                        egress_mode=cast(str, data.get("egress_mode", "SELECTED_EVIDENCE_ONLY")),
+                    )
+                except DeepAnalysisRejected as rejection:
+                    # The stable machine code drives localized UI copy; the
+                    # English prose is a developer diagnostic only.
+                    raise ApiError(
+                        HTTPStatus.CONFLICT,
+                        f"DEEP_ANALYSIS_{rejection.status.availability.value}",
+                        rejection.status.reason or "Deep Analysis is unavailable.",
+                        details={
+                            "reason_code": (
+                                None
+                                if rejection.status.reason_code is None
+                                else rejection.status.reason_code.value
+                            ),
+                            "availability": rejection.status.availability.value,
+                            "consent_required": rejection.status.consent_required,
+                        },
+                    ) from None
+                return HTTPStatus.CREATED, {
+                    "deep_analysis": {"result": deep_analysis_run.as_dict()}
+                }
+            if method == "POST" and route == "/api/v1/backup-restore/backups":
+                service = self._require_backup_restore()
+                self._only_keys(data, set())
+                backup_result = service.create_backup()
+                return HTTPStatus.CREATED, {
+                    "backup": {
+                        "backup_id": backup_result.backup_id,
+                        "file_name": backup_result.file_name,
+                        "size_bytes": backup_result.size_bytes,
+                        "created_at": backup_result.created_at,
+                        "preview": backup_result.preview,
+                    }
+                }
+            if method == "POST" and route == "/api/v1/backup-restore/restore/confirm":
+                service = self._require_backup_restore()
+                self._only_keys(data, {"restore_id"})
+                restore_id = self._string(data, "restore_id", required=True) or ""
+                return HTTPStatus.ACCEPTED, {
+                    "restore": service.confirm_restore(restore_id)
+                }
+            if method == "POST" and route == "/api/v1/backup-restore/restore/cancel":
+                service = self._require_backup_restore()
+                self._only_keys(data, {"restore_id"})
+                restore_id = self._string(data, "restore_id", required=True) or ""
+                cancelled = service.cancel_restore(restore_id)
+                if not cancelled:
+                    raise ApiError(HTTPStatus.CONFLICT, "RESTORE_CANNOT_CANCEL", "Inspected Restore is no longer available.")
+                return HTTPStatus.OK, {"cancelled": True}
+            translation_route = self._translation_route(route)
+            if method == "POST" and translation_route is not None:
+                self._only_keys(data, set())
+                return HTTPStatus.OK, self._translate_presented_evidence(
+                    intelligence_id=translation_route[0],
+                    evidence_id=translation_route[1],
+                )
+            content_translation_route = self._content_translation_route(route)
+            if method == "POST" and content_translation_route is not None:
+                self._only_keys(data, set())
+                return HTTPStatus.OK, self._translate_content_evidence(
+                    video_id=content_translation_route[0],
+                    evidence_id=content_translation_route[1],
+                )
+            if method == "POST" and route in {
+                "/api/v1/saved-intelligence/save",
+                "/api/v1/saved-intelligence/unsave",
+            }:
+                self._only_keys(data, {"intelligence_id"})
+                intelligence_id = data.get("intelligence_id")
+                if not isinstance(intelligence_id, str):
+                    raise ValueError("Intelligence identity is required")
+                if route.endswith("/unsave"):
+                    self._saved_service.unsave(
+                        UnsaveIntelligence(intelligence_id=intelligence_id)
+                    )
+                    return HTTPStatus.OK, {"saved": False}
+                try:
+                    saved = self._saved_service.save(
+                        SaveIntelligence(intelligence_id=intelligence_id)
+                    )
+                except IntegrityConflict as error:
+                    raise ApiError(
+                        HTTPStatus.CONFLICT,
+                        "SAVED_TARGET_CHANGED",
+                        "Intelligence changed before Save; read its current state.",
+                    ) from error
+                return HTTPStatus.OK, {"saved": _saved_relation_dto(saved)}
+            if method == "POST" and route == "/api/v1/settings/preferences/long-term":
+                self._only_keys(data, {"command_id", "scope", "target_id", "statement"})
+                preference = self._preference_service.set_explicit_long_term(
+                    command_id=self._string(data, "command_id", required=True) or "",
+                    scope=PreferenceScope(
+                        self._string(data, "scope", required=True) or ""
+                    ),
+                    target_id=self._string(data, "target_id"),
+                    statement=self._string(data, "statement", required=True) or "",
+                )
+                return HTTPStatus.CREATED, {"preference": _preference_dto(preference)}
+            if (
+                method == "POST"
+                and route == "/api/v1/settings/preferences/temporary-focus"
+            ):
+                self._only_keys(
+                    data,
+                    {"command_id", "scope", "target_id", "statement", "expires_at"},
+                )
+                expires_at = self._utc_timestamp(data, "expires_at")
+                if expires_at <= self._now():
+                    raise ApiError(
+                        HTTPStatus.UNPROCESSABLE_ENTITY,
+                        "VALIDATION_ERROR",
+                        "expires_at must be after the backend current time.",
+                    )
+                preference = self._preference_service.set_temporary_focus(
+                    command_id=self._string(data, "command_id", required=True) or "",
+                    scope=PreferenceScope(
+                        self._string(data, "scope", required=True) or ""
+                    ),
+                    target_id=self._string(data, "target_id"),
+                    statement=self._string(data, "statement", required=True) or "",
+                    expires_at=expires_at,
+                )
+                return HTTPStatus.CREATED, {"preference": _preference_dto(preference)}
+            if method == "POST" and route == "/api/v1/settings/feedback":
+                self._only_keys(
+                    data,
+                    {
+                        "feedback_id",
+                        "kind",
+                        "scope",
+                        "target_id",
+                        "content",
+                        "correction_kind",
+                    },
+                )
+                content = data.get("content")
+                if content is not None and not isinstance(content, str):
+                    raise ApiError(
+                        HTTPStatus.UNPROCESSABLE_ENTITY,
+                        "VALIDATION_ERROR",
+                        "content is invalid.",
+                    )
+                correction_value = self._string(data, "correction_kind")
+                feedback = self._preference_service.record_feedback(
+                    FeedbackWrite(
+                        feedback_id=self._string(data, "feedback_id", required=True)
+                        or "",
+                        kind=FeedbackKind(
+                            self._string(data, "kind", required=True) or ""
+                        ),
+                        scope=PreferenceScope(
+                            self._string(data, "scope", required=True) or ""
+                        ),
+                        target_id=self._string(data, "target_id"),
+                        content=None if content is None else content.strip(),
+                        correction_kind=None
+                        if correction_value is None
+                        else FeedbackCorrectionKind(correction_value),
+                    )
+                )
+                return HTTPStatus.CREATED, {"feedback": _feedback_dto(feedback)}
+            if method == "POST" and route == "/api/v1/topics":
+                self._only_keys(data, {"command_id", "name"})
+                topic = self._topic_service.create_topic(
+                    command_id=self._string(data, "command_id", required=True) or "",
+                    name=self._string(data, "name", required=True) or "",
+                )
+                return HTTPStatus.CREATED, {
+                    "topic": _topic_dto(self._topic_service.read_topic(topic.topic_id))
+                }
+            topic_prefix = "/api/v1/topics/"
+            if method == "PATCH" and route.startswith(topic_prefix):
+                topic_id = route.removeprefix(topic_prefix)
+                if not topic_id or "/" in topic_id:
+                    raise ApiError(
+                        HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found."
+                    )
+                self._only_keys(data, {"name"})
+                topic = self._topic_service.rename_topic(
+                    topic_id=topic_id,
+                    name=self._string(data, "name", required=True) or "",
+                )
+                return HTTPStatus.OK, {
+                    "topic": _topic_dto(self._topic_service.read_topic(topic.topic_id))
+                }
+            if (
+                method == "POST"
+                and route.startswith(topic_prefix)
+                and route.endswith("/pin")
+            ):
+                topic_id = route.removeprefix(topic_prefix).removesuffix("/pin")
+                if not topic_id or "/" in topic_id:
+                    raise ApiError(
+                        HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found."
+                    )
+                self._only_keys(data, {"pinned"})
+                pinned = self._boolean(data, "pinned")
+                if pinned is None:
+                    raise ApiError(
+                        HTTPStatus.UNPROCESSABLE_ENTITY,
+                        "VALIDATION_ERROR",
+                        "pinned is required.",
+                    )
+                topic = self._topic_service.set_pinned(topic_id=topic_id, pinned=pinned)
+                return HTTPStatus.OK, {
+                    "topic": _topic_dto(self._topic_service.read_topic(topic.topic_id))
+                }
+            if (
+                method == "POST"
+                and route.startswith(topic_prefix)
+                and route.endswith("/associations")
+            ):
+                topic_id = route.removeprefix(topic_prefix).removesuffix(
+                    "/associations"
+                )
+                if not topic_id or "/" in topic_id:
+                    raise ApiError(
+                        HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found."
+                    )
+                self._only_keys(data, {"intelligence_id", "association_kind"})
+                association = self._topic_service.associate_intelligence(
+                    topic_id=topic_id,
+                    intelligence_id=self._string(data, "intelligence_id", required=True)
+                    or "",
+                    kind=TopicAssociationKind(
+                        self._string(data, "association_kind", required=True) or ""
+                    ),
+                )
+                return HTTPStatus.CREATED, {
+                    "association": _topic_association_dto(association)
+                }
+            if (
+                method == "POST"
+                and route.startswith(topic_prefix)
+                and route.endswith("/relations")
+            ):
+                topic_id = route.removeprefix(topic_prefix).removesuffix("/relations")
+                if not topic_id or "/" in topic_id:
+                    raise ApiError(
+                        HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found."
+                    )
+                self._only_keys(data, {"related_topic_id"})
+                relation = self._topic_service.relate_topics(
+                    topic_id,
+                    self._string(data, "related_topic_id", required=True) or "",
+                )
+                return HTTPStatus.CREATED, {"relation": _topic_relation_dto(relation)}
+            if (
+                method == "POST"
+                and route.startswith(topic_prefix)
+                and route.endswith("/merge")
+            ):
+                topic_id = route.removeprefix(topic_prefix).removesuffix("/merge")
+                if not topic_id or "/" in topic_id:
+                    raise ApiError(
+                        HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found."
+                    )
+                self._only_keys(data, {"source_topic_id"})
+                topic = self._topic_service.merge_topics(
+                    target_topic_id=topic_id,
+                    source_topic_id=self._string(data, "source_topic_id", required=True)
+                    or "",
+                )
+                return HTTPStatus.OK, {
+                    "topic": _topic_dto(self._topic_service.read_topic(topic.topic_id))
+                }
+            if (
+                method == "POST"
+                and route.startswith(topic_prefix)
+                and route.endswith("/split")
+            ):
+                topic_id = route.removeprefix(topic_prefix).removesuffix("/split")
+                if not topic_id or "/" in topic_id:
+                    raise ApiError(
+                        HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found."
+                    )
+                self._only_keys(data, {"command_id", "name", "membership_ids"})
+                topic = self._topic_service.split_topic(
+                    source_topic_id=topic_id,
+                    command_id=self._string(data, "command_id", required=True) or "",
+                    name=self._string(data, "name", required=True) or "",
+                    membership_ids=self._rules(data, "membership_ids", required=True)
+                    or (),
+                )
+                return HTTPStatus.CREATED, {
+                    "topic": _topic_dto(self._topic_service.read_topic(topic.topic_id))
+                }
+            preference_prefix = "/api/v1/settings/preferences/"
+            if (
+                method == "PATCH"
+                and route.startswith(preference_prefix)
+                and "/" not in route.removeprefix(preference_prefix)
+            ):
+                self._only_keys(data, {"command_id", "statement"})
+                preference = self._preference_service.replace_explicit_long_term(
+                    command_id=self._string(data, "command_id", required=True) or "",
+                    preference_id=route.removeprefix(preference_prefix),
+                    statement=self._string(data, "statement", required=True) or "",
+                )
+                return HTTPStatus.OK, {"preference": _preference_dto(preference)}
+            if (
+                method == "DELETE"
+                and route.startswith(preference_prefix)
+                and "/" not in route.removeprefix(preference_prefix)
+            ):
+                self._only_keys(data, {"command_id"})
+                event = self._preference_service.delete_preference(
+                    command_id=self._string(data, "command_id", required=True) or "",
+                    preference_id=route.removeprefix(preference_prefix),
+                )
+                return HTTPStatus.OK, {
+                    "state_event_id": event.state_event_id,
+                    "preference_id": event.preference_id,
+                    "state": event.state.value,
+                    "created_at": _timestamp(event.created_at),
+                }
+            if method == "PUT" and route == "/api/v1/settings/output-language":
+                self._only_keys(data, {"output_language"})
+                try:
+                    language = self._output_language_service.set(
+                        output_language=self._string(
+                            data, "output_language", required=True
+                        )
+                        or "",
+                        now=self._now(),
+                    )
+                except ValueError as error:
+                    raise ApiError(
+                        HTTPStatus.UNPROCESSABLE_ENTITY,
+                        "VALIDATION_ERROR",
+                        "output_language must be zh-CN or en.",
+                    ) from error
+                return HTTPStatus.OK, {
+                    "output_language": language.value,
+                    "source": language.source,
+                    "updated_at": _timestamp(language.updated_at),
+                }
+            if method == "PUT" and route == "/api/v1/settings/source-policy":
+                self._only_keys(
+                    data,
+                    {
+                        "command_id",
+                        "initial_history_count",
+                        "per_run_max_new_videos",
+                        "focus_rules",
+                        "ignore_rules",
+                        "distillation_style",
+                    },
+                )
+                source_policy = self._source_policy_service.update_global(
+                    command_id=self._string(data, "command_id", required=True) or "",
+                    initial_history_count=self._integer(
+                        data, "initial_history_count", required=True
+                    )
+                    or 0,
+                    per_run_max_new_videos=self._integer(
+                        data, "per_run_max_new_videos", required=True
+                    )
+                    or 0,
+                    focus_rules=self._rules(data, "focus_rules", required=True) or (),
+                    ignore_rules=self._rules(data, "ignore_rules", required=True) or (),
+                    distillation_style=DistillationStyle(
+                        self._string(data, "distillation_style", required=True) or ""
+                    ),
+                )
+                return HTTPStatus.OK, {"policy": _source_policy_dto(source_policy)}
+            if method == "POST" and route == "/api/v1/sources/import":
+                self._only_keys(data, {"url", "command_id"})
+                from youtube_intel.orchestration import normalize_source_url
+                url = self._string(data, "url", required=True) or ""
+                if normalize_source_url(url).source_type is not SourceType.VIDEO_URL:
+                    raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY, "YOUTUBE_INVALID_INPUT", "Paste a single video link, or use channel following.")
+                source = self._service.add_source(url=url, processing_policy=ProcessingPolicy.DISCOVER_ONLY)
+                import_run = self._service.check_source(source.source_id, command_id=self._string(data, "command_id", required=True))
+                if self._source_run_wakeup is not None:
+                    self._source_run_wakeup()
+                return HTTPStatus.ACCEPTED, {"source": self._source_projection(source), "source_run": None if import_run.source_run is None else _source_run_dto(import_run.source_run)}
+            if method == "POST" and route == "/api/v1/sources":
+                processing_policy = ProcessingPolicy(
+                    self._string(data, "processing_policy", required=True) or ""
+                )
+                from youtube_intel.orchestration import normalize_source_url
+                source_url = self._string(data, "url", required=True) or ""
+                if normalize_source_url(source_url).source_type is SourceType.CHANNEL:
+                    if self._source_tracking is None:
+                        raise ApiError(HTTPStatus.CONFLICT, "TRACKING_UNAVAILABLE", "Channel following is unavailable; no unresolved source was created.")
+                    source = self._source_tracking.follow(source_url, provider="YOUTUBE")
+                    source = self._service.update_source(source.source_id, processing_policy=processing_policy) or source
+                else:
+                    source = self._service.add_source(url=source_url, processing_policy=processing_policy)
+                return HTTPStatus.CREATED, {"source": _source_dto(source)}
+            source_policy_prefix = "/api/v1/sources/"
+            if (
+                method == "PUT"
+                and route.startswith(source_policy_prefix)
+                and route.endswith("/policy")
+            ):
+                source_id = route.removeprefix(source_policy_prefix).removesuffix(
+                    "/policy"
+                )
+                if not source_id or "/" in source_id:
+                    raise ApiError(
+                        HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found."
+                    )
+                self._only_keys(
+                    data,
+                    {
+                        "command_id",
+                        "initial_history_count",
+                        "per_run_max_new_videos",
+                        "focus_mode",
+                        "focus_rules",
+                        "ignore_mode",
+                        "ignore_rules",
+                        "distillation_style_mode",
+                        "distillation_style",
+                    },
+                )
+                source_policy = self._source_policy_service.update_source(
+                    source_id=source_id,
+                    command_id=self._string(data, "command_id", required=True) or "",
+                    initial_history_count=self._integer(data, "initial_history_count"),
+                    per_run_max_new_videos=self._integer(
+                        data, "per_run_max_new_videos"
+                    ),
+                    focus_mode=PolicyOverrideMode(
+                        self._string(data, "focus_mode", required=True) or ""
+                    ),
+                    focus_rules=self._rules(data, "focus_rules", required=True) or (),
+                    ignore_mode=PolicyOverrideMode(
+                        self._string(data, "ignore_mode", required=True) or ""
+                    ),
+                    ignore_rules=self._rules(data, "ignore_rules", required=True) or (),
+                    distillation_style_mode=PolicyOverrideMode(
+                        self._string(data, "distillation_style_mode", required=True)
+                        or ""
+                    ),
+                    distillation_style=(
+                        None
+                        if self._string(data, "distillation_style") is None
+                        else DistillationStyle(
+                            self._string(data, "distillation_style") or ""
+                        )
+                    ),
+                )
+                return HTTPStatus.OK, {"policy": _source_policy_dto(source_policy)}
+            if (
+                method == "POST"
+                and route.startswith(source_policy_prefix)
+                and route.endswith("/manual-analyze")
+            ):
+                remainder = route.removeprefix(source_policy_prefix).removesuffix(
+                    "/manual-analyze"
+                )
+                parts = remainder.split("/")
+                if len(parts) != 3 or parts[1] != "videos" or not all(parts):
+                    raise ApiError(
+                        HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found."
+                    )
+                self._only_keys(data, {"command_id"})
+                command_id = self._string(data, "command_id", required=True) or ""
+                if self._processing_orchestrator is None:
+                    decision = self._source_policy_service.manual_analyze_override(
+                        source_id=parts[0], video_id=parts[2], command_id=command_id
+                    )
+                    return HTTPStatus.CREATED, {
+                        "decision": _filter_decision_dto(decision)
+                    }
+                run = self._processing_orchestrator.enqueue_manual_analyze_video(
+                    source_id=parts[0],
+                    video_id=parts[2],
+                    command_id=command_id,
+                )
+                assert run.manual_analyze_override_id is not None
+                manual_decision = self._repository.filter_decision_for_manual_override(
+                    run.manual_analyze_override_id
+                )
+                if manual_decision is None:
+                    raise ApiError(
+                        HTTPStatus.CONFLICT,
+                        "CONFLICT",
+                        "Manual Analyze was not durably admitted.",
+                    )
+                return HTTPStatus.ACCEPTED, {
+                    "decision": _filter_decision_dto(manual_decision),
+                    "source_run": _source_run_dto(run),
+                }
+            if (
+                method == "POST"
+                and route.startswith(source_policy_prefix)
+                and route.endswith("/distill")
+            ):
+                remainder = route.removeprefix(source_policy_prefix).removesuffix(
+                    "/distill"
+                )
+                parts = remainder.split("/")
+                if len(parts) != 3 or parts[1] != "videos" or not all(parts):
+                    raise ApiError(
+                        HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found."
+                    )
+                self._only_keys(data, {"execution_id", "evidence_ids"})
+                if self._distillation_service is None:
+                    raise ApiError(
+                        HTTPStatus.CONFLICT,
+                        "DISTILLATION_UNAVAILABLE",
+                        "Personalized distillation requires an authorized offline transport.",
+                    )
+                evidence_ids = self._rules(data, "evidence_ids", required=True)
+                distillation_result = self._distillation_service.distill(
+                    self._distillation_service.manual_command(
+                        execution_id=self._string(data, "execution_id", required=True)
+                        or "",
+                        source_id=parts[0],
+                        video_id=parts[2],
+                        evidence_ids=evidence_ids or (),
+                    )
+                )
+                status = (
+                    HTTPStatus.CREATED
+                    if distillation_result.status.value == "SUCCEEDED"
+                    else HTTPStatus.ACCEPTED
+                )
+                return status, {
+                    "execution": {
+                        "execution_id": distillation_result.execution_id,
+                        "status": distillation_result.status.value,
+                        "invocation_count": distillation_result.invocation_count,
+                        "intelligence_id": distillation_result.intelligence_id,
+                        "revision_id": distillation_result.revision_id,
+                    }
+                }
+            if method == "PATCH" and route.startswith("/api/v1/sources/"):
+                source_id = route.rsplit("/", 1)[1]
+                self._only_keys(data, {"enabled", "processing_policy"})
+                policy_value = self._string(data, "processing_policy")
+                updated_source = self._service.update_source(
+                    source_id,
+                    enabled=self._boolean(data, "enabled"),
+                    processing_policy=None
+                    if policy_value is None
+                    else ProcessingPolicy(policy_value),
+                )
+                if updated_source is None:
+                    raise ApiError(
+                        HTTPStatus.NOT_FOUND, "NOT_FOUND", "Source was not found."
+                    )
+                if self._source_run_wakeup is not None:
+                    self._source_run_wakeup()
+                return HTTPStatus.OK, {"source": _source_dto(updated_source)}
+            if (
+                method == "POST"
+                and route.endswith("/check")
+                and route.startswith("/api/v1/sources/")
+            ):
+                source_id = route.split("/")[-2]
+                self._only_keys(data, {"command_id"})
+                existing = self._repository.get_source_subscription(source_id)
+                if (
+                    existing is not None
+                    and existing.provider == "BILIBILI"
+                    and existing.source_type is SourceType.CREATOR
+                    and not CREATOR_FOLLOWING_AVAILABLE
+                ):
+                    # Stored creator rows stay readable, but a withdrawn
+                    # capability must not answer Check Now with a silent request.
+                    return HTTPStatus.OK, {
+                        "status": "CAPABILITY_UNAVAILABLE",
+                        "message": CREATOR_FOLLOWING_CODE,
+                    }
+                result = self._service.check_source(
+                    source_id,
+                    command_id=self._string(data, "command_id"),
+                )
+                if result.source_run is not None:
+                    if self._source_run_wakeup is not None:
+                        self._source_run_wakeup()
+                    return HTTPStatus.ACCEPTED, {
+                        "source_run": _source_run_dto(result.source_run),
+                        "message": result.safe_message,
+                    }
+                return HTTPStatus.OK, {
+                    "status": result.status.value,
+                    "message": result.safe_message,
+                }
+            if method == "POST" and route == "/api/v1/automation":
+                target_type = AutomationTargetType(
+                    self._string(data, "target_type", required=True) or ""
+                )
+                frequency = ScheduleFrequency(
+                    self._string(data, "frequency", required=True) or ""
+                )
+                weekday = data.get("weekday")
+                if weekday is not None and (
+                    not isinstance(weekday, int) or isinstance(weekday, bool)
+                ):
+                    raise ApiError(
+                        HTTPStatus.UNPROCESSABLE_ENTITY,
+                        "VALIDATION_ERROR",
+                        "weekday is invalid.",
+                    )
+                schedule = self._service.save_schedule(
+                    schedule_id=self._string(data, "schedule_id"),
+                    target_type=target_type,
+                    target_id=self._string(data, "target_id"),
+                    frequency=frequency,
+                    weekday=weekday,
+                    local_time=self._string(data, "local_time"),
+                    timezone=self._string(data, "timezone") or self._timezone,
+                    enabled=self._boolean(data, "enabled") is not False,
+                )
+                return HTTPStatus.CREATED, {"schedule": self._schedule_dto(schedule)}
+            if method == "PUT" and route == "/api/v1/settings/model-preference":
+                self._only_keys(data, {"provider", "model"})
+                pref = self._service.set_desired_model(
+                    provider=self._string(data, "provider"),
+                    model=self._string(data, "model"),
+                )
+                return HTTPStatus.OK, {
+                    "desired_provider": pref.desired_provider,
+                    "desired_model": pref.desired_model,
+                    "active_production_default": None,
+                    "reason": "No production-eligible Deep Analysis model is currently available.",
+                }
+            raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+        except OfflineError as error:
+            return HTTPStatus.CONFLICT, {"error": {"code": error.code, "message": "Local transcription is unavailable or could not complete."}}
+        except ApiError:
+            raise
+        except IntegrityConflict as error:
+            raise ApiError(
+                HTTPStatus.CONFLICT,
+                "CONFLICT",
+                "Preference or feedback command conflicts with existing history.",
+            ) from error
+        except CredentialStoreError:
+            raise ApiError(HTTPStatus.SERVICE_UNAVAILABLE, "CREDENTIAL_STORE_UNAVAILABLE", "System credential store is unavailable.") from None
+        except BackupRestoreError as error:
+            raise ApiError(
+                HTTPStatus.CONFLICT,
+                "BACKUP_RESTORE_REJECTED",
+                str(error),
+            ) from error
+        except (ValueError, KeyError) as error:
+>           raise ApiError(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                "VALIDATION_ERROR",
+                "Request values are invalid or unavailable.",
+            ) from error
+E           youtube_intel.local_api.ApiError: Request values are invalid or unavailable.
+
+src/youtube_intel/local_api.py:1737: ApiError
+=============================== warnings summary ===============================
+tests/unit/test_backup_restore.py::test_invalid_backup_never_changes_live_data[duplicate-path]
+  /Users/hua/.local/share/uv/python/cpython-3.12-macos-aarch64-none/lib/python3.12/zipfile/__init__.py:1611: UserWarning: Duplicate name: 'data/transcripts/video-1.txt'
+    return self._open_to_write(zinfo, force_zip64=force_zip64)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+- generated xml file: /Users/hua/Documents/yia-worktrees/waiting-model-final-fix/docs/validation/waiting-model-final-fix/focused4.xml -
+=========================== short test summary info ============================
+FAILED tests/unit/test_backup_restore.py::test_cancel_api_is_content_bound_idempotent_and_keeps_all_waits_visible
+================== 1 failed, 113 passed, 1 warning in 35.16s ===================

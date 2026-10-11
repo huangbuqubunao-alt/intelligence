@@ -222,8 +222,14 @@ a { color: #0e7a4f; }
 <h2 id="10-提炼-intelligence洞察">10. 提炼 Intelligence（洞察）</h2>
 <p>在内容详情页的&quot;洞察处理结果&quot;区域，可以手动触发提炼：点击 <strong>提炼为洞察</strong>。</p>
 <p><strong>开始前</strong>：洞察提炼需要具备对应能力并获允许的模型。当前示例本地模型 <code>qwen3:8b</code> 可用于评分与摘要，尚不能用于洞察提炼。仅显示“已安装，可使用”不表示可以提炼洞察。</p>
-<p>没有合格的洞察模型时，请先继续阅读内容、摘要与原文。手动提炼可能显示等待模型，不会偷偷转为付费云端处理。等待任务目前可能一直阻止备份；请先阅读第 15 章的限制，再决定是否尝试。</p>
-<figure><img src="screenshots/23-waiting-model.png" alt="等待合格的洞察模型"/><figcaption>等待合格的洞察模型</figcaption></figure>
+<p>没有合格的洞察模型时，页面明确显示 <strong>“当前没有合格的洞察模型。”</strong>，任务等待模型，不会偷偷转为付费云端处理。</p>
+<p><strong>取消尚未执行的等待任务</strong>：</p>
+<p>1. 在该 Content 的 <strong>洞察处理结果</strong> 区域，点击 <strong>取消本次提炼</strong>。</p>
+<p>2. 等待明确反馈：<strong>“本次提炼已取消，没有生成洞察。原 Content、字幕、摘要和 Evidence 均保留。”</strong></p>
+<p>3. 可以继续阅读原文、摘要和证据。取消结果重启后仍保留；恢复包含该结果的备份，也不会重新执行这次任务。</p>
+<figure><img src="../waiting-model-final-fix/final-gui/screenshots/03c-waiting-model-panel.png" alt="等待模型与安全取消入口"/><figcaption>等待模型与安全取消入口</figcaption></figure>
+<figure><img src="../waiting-model-final-fix/final-gui/screenshots/05c-cancelled-panel.png" alt="取消成功，已有内容与证据保留"/><figcaption>取消成功，已有内容与证据保留</figcaption></figure>
+<p>只有系统能证明确实尚未调用本地模型的等待任务才提供取消入口；云端等待保持原有安全规则。若提示不能安全取消，或还有别的等待任务，请按页面原因处理；不要删除任务记录。已执行、执行状态不明或等待预算的任务不能通过此操作解除。</p>
 <p><strong>模型满足条件后</strong>：系统基于可信证据分析内容，判断是否有值得长期保留的新洞察。</p>
 <p><strong>两种结果</strong>：</p>
 <p>1. <strong>发现新洞察</strong>：生成洞察条目，可在 <strong>洞察</strong> 页面查看，并关联到主题。</p>
@@ -305,7 +311,7 @@ a { color: #0e7a4f; }
 <p>1. 打开 <strong>设置 → 备份与恢复</strong>。</p>
 <figure><img src="screenshots/10-settings-ready-zh.png" alt="备份与恢复"/><figcaption>备份与恢复</figcaption></figure>
 <p>2. 点击 <strong>创建备份</strong>，系统生成一个备份文件（<code>.zip</code>），列出备份中的内容统计（关注数、内容数、证据数等）。</p>
-<p><strong>备份前检查</strong>：如果有内容正在处理（例如提炼任务仍在执行），页面会提示&quot;以下工作尚未结束，暂时无法备份&quot;，普通运行任务结束后即可备份；等待模型的任务还受下面的限制。这是为了保证备份数据的一致性。</p>
+<p><strong>备份前检查</strong>：如果有内容正在处理（例如提炼任务仍在执行），页面会提示&quot;以下工作尚未结束，暂时无法备份&quot;，普通运行任务结束后即可备份。对于尚未调用模型的等待任务，可先到对应 Content 点击 <strong>取消本次提炼</strong>；页面会重新检查全部工作，其他任务未结束时仍不能备份。这是为了保证备份数据的一致性。</p>
 <p><strong>保存备份</strong>：创建后点击 <strong>保存备份文件</strong>，将 ZIP 文件保存到你选定的位置。</p>
 <figure><img src="screenshots/12-backup-created.png" alt="备份创建结果"/><figcaption>备份创建结果</figcaption></figure>
 <p><strong>恢复备份</strong>：</p>
@@ -316,8 +322,12 @@ a { color: #0e7a4f; }
 <p>5. 重启应用，确认恢复完成，再打开内容检查原文与证据。</p>
 <figure><img src="screenshots/13-restore-preview.png" alt="恢复前检查"/><figcaption>恢复前检查</figcaption></figure>
 <figure><img src="screenshots/14-restore-confirm.png" alt="恢复确认"/><figcaption>恢复确认</figcaption></figure>
-<p>损坏或不符合要求的备份不会覆盖当前数据。等待模型、等待预算或尚未完成的工作可能阻止备份。当前版本部分等待任务不能自行解除，单纯重试或等候不保证备份恢复可用；请保留数据并联系维护者，不要删除任务记录。</p>
-<figure><img src="screenshots/24-backup-blocked.png" alt="等待任务阻止备份"/><figcaption>等待任务阻止备份</figcaption></figure>
+<p>损坏或不符合要求的备份不会覆盖当前数据。等待模型、等待预算或尚未完成的工作可能阻止备份。安全取消只终止所选的未执行等待任务；如果仍有其他工作，页面继续显示真实阻塞原因。</p>
+<figure><img src="../waiting-model-final-fix/final-gui/screenshots/04-backup-blocked.png" alt="取消前，等待任务阻止备份"/><figcaption>取消前，等待任务阻止备份</figcaption></figure>
+<figure><img src="../waiting-model-final-fix/final-gui/screenshots/06-backup-ready.png" alt="安全取消后，所有工作静止时才允许备份"/><figcaption>安全取消后，所有工作静止时才允许备份</figcaption></figure>
+<figure><img src="../waiting-model-final-fix/final-gui/screenshots/07-backup-created.png" alt="包含取消记录的真实备份"/><figcaption>包含取消记录的真实备份</figcaption></figure>
+<figure><img src="../waiting-model-final-fix/final-gui/screenshots/10c-restored-cancelled-panel.png" alt="恢复后取消结果仍保留"/><figcaption>恢复后取消结果仍保留</figcaption></figure>
+<p>无法证明确实未执行的任务仍会阻止备份，请保留数据并联系维护者，不要删除 checkpoint 或调用记录。</p>
 <blockquote>上图是隔离示例数据的真实备份与恢复界面；你的条目数量和文件大小会不同。</blockquote>
 <hr/>
 <h2 id="16-常见问题">16. 常见问题</h2>
@@ -326,7 +336,7 @@ a { color: #0e7a4f; }
 <p><strong>Q2：添加的视频一直没有字幕/摘要？</strong></p>
 <p>A：检查内容详情页的状态提示。如果显示&quot;字幕不可用&quot;或&quot;待转写&quot;，说明源没有可用字幕，或本地转写模型尚未配置。系统不会编造内容，这是如实反馈。</p>
 <p><strong>Q3：点击&quot;提炼为洞察&quot;后一直显示处理中？</strong></p>
-<p>A：洞察需要具备对应能力的模型。当前本地 <code>qwen3:8b</code> 尚不能提炼洞察，即使显示已安装，也可能处于等待状态。云端洞察需要合格模型、凭据和明确授权。等待状态并不表示已完成。</p>
+<p>A：洞察需要具备对应能力的模型。当前本地 <code>qwen3:8b</code> 尚不能提炼洞察，即使显示已安装，也可能处于等待状态。云端洞察需要合格模型、凭据和明确授权。等待状态并不表示已完成。尚未调用模型时，可以点击 <strong>取消本次提炼</strong>，已有内容与证据保留。</p>
 <p><strong>Q4：浏览器后退/前进按钮没有反应？</strong></p>
 <p>A：旧版本存在此问题，本手册对应版本已修复：点击浏览器后退/前进按钮，或直接在地址栏修改 # 后的路径，都会正确切换页面。</p>
 <p><strong>Q5：为什么不能持续关注 Bilibili UP 主？</strong></p>
@@ -334,12 +344,12 @@ a { color: #0e7a4f; }
 <p><strong>Q6：如何修改语言？</strong></p>
 <p>A：设置 → 语言 → 编辑语言，选择界面语言与输出语言并保存。</p>
 <p><strong>Q7：备份时提示&quot;暂时无法备份&quot;？</strong></p>
-<p>A：有未结束或未决的工作。已完成的“无新洞察”结果不会阻止备份；等待模型或预算仍可能阻止。部分等待任务暂不能自行解除，请保留数据并联系维护者。</p>
+<p>A：有未结束或未决的工作。已完成的“无新洞察”结果不会阻止备份；等待模型或预算仍可能阻止。尚未调用模型的等待任务可在对应 Content 安全取消。系统会重新检查全部任务；已执行、状态不明或等待预算的工作仍遵守原安全规则。</p>
 <p><strong>Q8：可以删除内容吗？</strong></p>
 <p>A：当前版本的内容管理与处理记录聚焦于采集、整理与提炼。请在设置与界面中查看可用的管理操作；本文档对应的体验版本以添加、关注、整理、提炼为主。</p>
 <hr/>
 <h2 id="17-当前已知限制">17. 当前已知限制</h2>
-<p>以下是本手册对应版本（2026-10-11）的使用限制：</p>
+<p>以下是本手册对应版本（2026-10-12）的使用限制：</p>
 <table>
 <tr><th>限制</th><th>表现</th><th>说明</th></tr>
 <tr><td><strong>本地音频/视频转写依赖模型</strong></td><td>导入的音频/视频显示&quot;待转写&quot;</td><td>需要约 1.6 GB 的本地语音识别模型（mlx-whisper）。模型未配置时，转写能力检查会如实报告&quot;暂不可用&quot;</td></tr>
@@ -349,12 +359,12 @@ a { color: #0e7a4f; }
 <tr><td><strong>媒体导入上限 2 GiB</strong></td><td>超过上限时拒绝导入</td><td>macOS 原生快速快照有既有验收；大文件仍需校验，不能把确认接收理解为已经处理完成</td></tr>
 <tr><td><strong>主题需先有洞察</strong></td><td>主题页面为空</td><td>主题归档的是已提炼的洞察；产生第一条洞察前主题为空是正常现象</td></tr>
 <tr><td><strong>本地洞察当前不可用</strong></td><td>可能显示等待模型</td><td>当前本地模型仅用于评分与摘要，不能仅凭安装状态启用洞察</td></tr>
-<tr><td><strong>等待任务可能阻止备份</strong></td><td>暂时无法备份</td><td>当前部分等待任务没有可用的安全取消入口，需联系维护者</td></tr>
+<tr><td><strong>其他未结束或未决任务仍阻止备份</strong></td><td>暂时无法备份</td><td>零调用的等待模型任务可安全取消；等待预算、已执行或状态不明的任务仍需按原因处理</td></tr>
 </table>
 <hr/>
 <h2 id="图示与使用范围">图示与使用范围</h2>
 <p>本手册保留 17 章操作结构。图示包含本次实际界面及未变化页面的上一版图示，不是设计稿。示例条目不代表你的资料已经导入。</p>
-<p>YouTube 单视频与频道添加、关注暂停与恢复、本地文本导入、内容导航、等待模型提示、中英文设置、备份及恢复已实际操作。完整语音转写、当前本地模型生成洞察及真实主题详情尚未验证；没有合格洞察模型时，应继续使用内容整理与原文阅读。</p>
+<p>YouTube 单视频与频道添加、关注暂停与恢复、本地文本导入、内容导航、等待模型提示及安全取消、中英文设置、备份及恢复已实际操作。本次取消与恢复截图来自真实 macOS Chrome 和隔离服务，未接触正式用户数据。完整语音转写、当前本地模型生成洞察及真实主题详情尚未验证；没有合格洞察模型时，应继续使用内容整理与原文阅读。</p>
 <footer style="margin-top:3rem;padding-top:1rem;border-top:1px solid #ddd;color:#6b7280;font-size:.9rem">
 <p>Intelligence 用户使用手册 · 简体中文 · 全部截图来自真实运行的产品（隔离测试环境）。</p>
 </footer>

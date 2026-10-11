@@ -1,0 +1,140 @@
+{
+  "focused4.txt": {
+    "original_sha256": "bfae0b33c442c26b5db08e42a8ec0e57616c6a4010c0054cf6a81370b791cc2b",
+    "normalized_sha256": "23da7a4e5cbe564acae95c3b99541a7c9de70dff5e2c777cd0c319b208a3c97a",
+    "change": "trailing whitespace and extra final blank lines only",
+    "original_private_path": ".var/waiting-model-final-fix/raw-test-logs/focused4.txt"
+  },
+  "focused2.txt": {
+    "original_sha256": "44f5f50536a42bdabf48872032de88d7d63bc5a9bed9406c2212a524b4574920",
+    "normalized_sha256": "903d393e4cbe36f5801a65e8512f7836828500292658c4b665e74edb45f6e4cb",
+    "change": "trailing whitespace and extra final blank lines only",
+    "original_private_path": ".var/waiting-model-final-fix/raw-test-logs/focused2.txt"
+  },
+  "focused3.txt": {
+    "original_sha256": "6aff097444b63a79c479bcf960f7d43a89b5cb58972277a268a223beca95302e",
+    "normalized_sha256": "47f596fc5d7b6e9d94b2ef45490fb4f19ecf7729e94ff8cd7f4f35e8691a37b6",
+    "change": "trailing whitespace and extra final blank lines only",
+    "original_private_path": ".var/waiting-model-final-fix/raw-test-logs/focused3.txt"
+  },
+  "frontend-full.txt": {
+    "original_sha256": "c0499386283120d10610190303c8a1a19a2b8ea2902d516e71f7f8eda63de4e4",
+    "normalized_sha256": "196282d342f5eecf2ff30a1c1272bfc601c977c88ec5dee22b65ab805e3afda0",
+    "change": "trailing whitespace and extra final blank lines only",
+    "original_private_path": ".var/waiting-model-final-fix/raw-test-logs/frontend-full.txt"
+  },
+  "frontend-focused.txt": {
+    "original_sha256": "13375264b9297bf7cd4e2548a7d557bd82671ca400dbf65be2748a1cba27be18",
+    "normalized_sha256": "0349a0df21f0783084b29b9d8a845d940202df80dd90c0490613db421474faa1",
+    "change": "trailing whitespace and extra final blank lines only",
+    "original_private_path": ".var/waiting-model-final-fix/raw-test-logs/frontend-focused.txt"
+  },
+  "typecheck.txt": {
+    "original_sha256": "0073b777d6b85b5e4d2ac79b723aeebbde034ccb34fcc14bd2f0666746071629",
+    "normalized_sha256": "c622f9726fb50c3dff1164e20824b72f67492778bed5cae2055914dfe2ffc1f5",
+    "change": "trailing whitespace and extra final blank lines only",
+    "original_private_path": ".var/waiting-model-final-fix/raw-test-logs/typecheck.txt"
+  },
+  "resume-proof.xml": {
+    "original_sha256": "e034da858336952b6079445370c7fd288f4e27999e3e9fdf08497c82fafa2ba8",
+    "normalized_sha256": "b061e4c66b2a872c70e2b46988e1c37ffe9bdc1ea499dc9f657c24e85d6fdf2e",
+    "change": "trailing whitespace and extra final blank lines only",
+    "original_private_path": ".var/waiting-model-final-fix/raw-test-logs/resume-proof.xml"
+  },
+  "final-cancellation.xml": {
+    "original_sha256": "5b729f4760b0379c91c3931619bd5c5910f3ef505b6f907c8b5f58c969c0328b",
+    "normalized_sha256": "944fbd8074e285aaf3fce4d5e2fb850cbc1c2faac90d3a245ac3de5d4ceee168",
+    "change": "trailing whitespace and extra final blank lines only",
+    "original_private_path": ".var/waiting-model-final-fix/raw-test-logs/final-cancellation.xml"
+  },
+  "focused4.xml": {
+    "original_sha256": "a8f453fa687809945710ebec9e3136718d2baffaf29c8af568cbe2c2ed571dc4",
+    "normalized_sha256": "7457355eb226616b96ae2395cd606e77473930764b3dfd9879a0062b5741f7d5",
+    "change": "trailing whitespace and extra final blank lines only",
+    "original_private_path": ".var/waiting-model-final-fix/raw-test-logs/focused4.xml"
+  },
+  "focused1.xml": {
+    "original_sha256": "963532d7d6fd3f746d3a0e243b3e12d8c0b2f87fe5a94301f3b4d70bdb1bd7ae",
+    "normalized_sha256": "e3a07678d7ba9bbd243524124143c0ae4018c91bc7ea96efc9a1dde8a79ffe6b",
+    "change": "trailing whitespace and extra final blank lines only",
+    "original_private_path": ".var/waiting-model-final-fix/raw-test-logs/focused1.xml"
+  },
+  "green-registered.xml": {
+    "original_sha256": "9aeef464761dfea474f1cebc554305b44b3dee87e13e6d4acba65914beca7517",
+    "normalized_sha256": "bef50745f7144b2013201ed81be85072d8689eaca524ec3178dc91f46c7d4c36",
+    "change": "trailing whitespace and extra final blank lines only",
+    "original_private_path": ".var/waiting-model-final-fix/raw-test-logs/green-registered.xml"
+  },
+  "focused3.xml": {
+    "original_sha256": "0090bb8e9c091447a399112acb7947d3d147462e4345a44e570ea24033cd7586",
+    "normalized_sha256": "b5957ef715457ee7780ec79c1becaae5330483256516f2c79d77423538d1e521",
+    "change": "trailing whitespace and extra final blank lines only",
+    "original_private_path": ".var/waiting-model-final-fix/raw-test-logs/focused3.xml"
+  },
+  "focused2.xml": {
+    "original_sha256": "f01e5dcbb475819a3ba5973259162bf4cb377bb55d24ff3b39c4cee5db0eb484",
+    "normalized_sha256": "ab103007c255493e0b4f73445a226ebe2880709bfeaf1baac9658a726aef87ad",
+    "change": "trailing whitespace and extra final blank lines only",
+    "original_private_path": ".var/waiting-model-final-fix/raw-test-logs/focused2.xml"
+  },
+  "migration-final.xml": {
+    "original_sha256": "cbc237e50b738c7808ef0a25fbddc3f1ddc4991de4b2ab73771ff5e3ca7f8a8a",
+    "normalized_sha256": "f588dcd64813441ddcbc442b221de28958cc18a474a443bdc712fc03602dec08",
+    "change": "trailing whitespace and extra final blank lines only",
+    "original_private_path": ".var/waiting-model-final-fix/raw-test-logs/migration-final.xml"
+  },
+  "resume-proof-fixed.xml": {
+    "original_sha256": "32e2130bdd4fb38b9142b44bbb284d66b65342591e3f96b2f26127f77abefb16",
+    "normalized_sha256": "d8440e3411ebe4ff9e1d451dd9d2282f39285faf5f524423eb331d73b519009d",
+    "change": "trailing whitespace and extra final blank lines only",
+    "original_private_path": ".var/waiting-model-final-fix/raw-test-logs/resume-proof-fixed.xml"
+  },
+  "green.xml": {
+    "original_sha256": "831c778ddb86438957abb8d0d3cbad315872bb5bfa94d524efd7244ebe0a636e",
+    "normalized_sha256": "0d1e7958fd8bbd4d3d8f589d1346b47dd46bcf0761f1940e5dd23cdcc238800d",
+    "change": "trailing whitespace and extra final blank lines only",
+    "original_private_path": ".var/waiting-model-final-fix/raw-test-logs/green.xml"
+  },
+  "red-corrected.xml": {
+    "original_sha256": "dcc302d80a37b7a2519ac29fa61845d80ed7982dbbfe541d5e0c9445fe9fae17",
+    "normalized_sha256": "207befbb2cd19ee0dfd3c431be960d72e75b2185d05cad3c0c3d63f242ca71e0",
+    "change": "trailing whitespace and extra final blank lines only",
+    "original_private_path": ".var/waiting-model-final-fix/raw-test-logs/red-corrected.xml"
+  },
+  "backend-full.xml": {
+    "original_sha256": "5f33046b04433915e42fe0c2bf48abc3c5e80faddf73ff781f269921f1bdaa72",
+    "normalized_sha256": "4cc6b3bf2c79cdbe9dab27260ba494a87908a8ede556568e6d12fe9f0322eb98",
+    "change": "trailing whitespace and extra final blank lines only",
+    "original_private_path": ".var/waiting-model-final-fix/raw-test-logs/backend-full.xml"
+  },
+  "backend-full-final.xml": {
+    "original_sha256": "f593c508a62d92d1a663bc17faa2f5db987b2772ae095c859b4ee5bafcf8853e",
+    "normalized_sha256": "c7b1cdf1917d17a254de876adb4266577ea3eacec72aa78bd71d67473bcd6edb",
+    "change": "trailing whitespace and extra final blank lines only",
+    "original_private_path": ".var/waiting-model-final-fix/raw-test-logs/backend-full-final.xml"
+  },
+  "backend-cloud-safe.xml": {
+    "original_sha256": "61517fdb7ac108bc7a848104b8fff643ef91ab1a694445287a253ab9a10ea52a",
+    "normalized_sha256": "c3ab928451ce12c3964bc218078670cf37c49572122c86fc528998d8034a6929",
+    "change": "trailing whitespace and extra final blank lines only",
+    "original_private_path": ".var/waiting-model-final-fix/raw-test-logs/backend-cloud-safe.xml"
+  },
+  "sibling-proof.xml": {
+    "original_sha256": "b83aaf8d92aa69a04651b2eb1603d9404d689bd9d7a03db1b4d9c2dedecb0071",
+    "normalized_sha256": "c8e3fdb24961845954da637bf01ca0e858c55c817acb9ec877f53cf5004e0636",
+    "change": "trailing whitespace and extra final blank lines only",
+    "original_private_path": ".var/waiting-model-final-fix/raw-test-logs/sibling-proof.xml"
+  },
+  "cloud-boundary.xml": {
+    "original_sha256": "b0d4707ed3bf896efb6ac64c0ec97b0b20c1fe0d3a657bf2cc67a5210f80a1da",
+    "normalized_sha256": "2728f2af8842ef410dc66ac20628f99246641f1350b0e2d1cc815d3cb1c73e03",
+    "change": "trailing whitespace and extra final blank lines only",
+    "original_private_path": ".var/waiting-model-final-fix/raw-test-logs/cloud-boundary.xml"
+  },
+  "red.xml": {
+    "original_sha256": "07167eb13edf88ba6db5102be8933c07e65bae94958056fbb8351654db2354f0",
+    "normalized_sha256": "94fdbe89523c2eb0202f3ac2fe3257103271aa2d309a55724ea1bc091551210e",
+    "change": "trailing whitespace and extra final blank lines only",
+    "original_private_path": ".var/waiting-model-final-fix/raw-test-logs/red.xml"
+  }
+}

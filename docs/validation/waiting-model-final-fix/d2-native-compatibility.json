@@ -1,0 +1,42 @@
+{
+  "src/youtube_intel/native_import.py": {
+    "candidate_sha256": "949b51a8d255d8c10e641ee59ed3465b4a247ab21f87e17724f5adf2e65e048b",
+    "audited_sha256": "949b51a8d255d8c10e641ee59ed3465b4a247ab21f87e17724f5adf2e65e048b",
+    "same": true
+  },
+  "src/youtube_intel/local_content.py": {
+    "candidate_sha256": "136195242ab8c2e9240e7e4f8ac63d2de21b7564b8f8fa71e0d2edc1b98ab85b",
+    "audited_sha256": "136195242ab8c2e9240e7e4f8ac63d2de21b7564b8f8fa71e0d2edc1b98ab85b",
+    "same": true
+  },
+  "src/youtube_intel/native_picker.m": {
+    "candidate_sha256": "d06b77d6092c7a3ffeaac750bfd912c5e11ab5adb90ff88b4d8be331bfd1416b",
+    "audited_sha256": "d06b77d6092c7a3ffeaac750bfd912c5e11ab5adb90ff88b4d8be331bfd1416b",
+    "same": true
+  },
+  "src/youtube_intel/native_picker_build.py": {
+    "candidate_sha256": "e5c93bb8aa86f3ecf4cbfe580fd0267825f613bc759140fc82d45d337e178859",
+    "audited_sha256": "e5c93bb8aa86f3ecf4cbfe580fd0267825f613bc759140fc82d45d337e178859",
+    "same": true
+  },
+  "frontend/src/workspace/LocalImport.tsx": {
+    "candidate_sha256": "335c8773739c7056c6d3a705230cddad3cefae54831f7ad925b9e057313e8972",
+    "audited_sha256": "335c8773739c7056c6d3a705230cddad3cefae54831f7ad925b9e057313e8972",
+    "same": true
+  },
+  "frontend/src/workspace/NativeLocalImport.tsx": {
+    "candidate_sha256": "a690affbf334e06b52d8e1cceaa245c3224b7b5e9d70d1f070d4a9b33e5f1bac",
+    "audited_sha256": "a690affbf334e06b52d8e1cceaa245c3224b7b5e9d70d1f070d4a9b33e5f1bac",
+    "same": true
+  },
+  "docs/validation/dogfood-day2-d2-02/actual-native-media.json": {
+    "candidate_sha256": "90be4f86130ccbca3860593d118021ab3f0569c6e10d97be378ad84a08ee57c7",
+    "audited_sha256": "90be4f86130ccbca3860593d118021ab3f0569c6e10d97be378ad84a08ee57c7",
+    "same": true
+  },
+  "docs/validation/dogfood-day2-d2-02/browser-native-import.json": {
+    "candidate_sha256": "3a02371cb463bc8cb6b477cda57d54c5ca56fa6260a3754c080f764ea011429e",
+    "audited_sha256": "3a02371cb463bc8cb6b477cda57d54c5ca56fa6260a3754c080f764ea011429e",
+    "same": true
+  }
+}
