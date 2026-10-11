@@ -27,6 +27,11 @@ export function Research({ onOpen }: { onOpen: OpenResearchSource }) {
     const followRoute = () => {
       const route = /^#Research\/([a-f0-9]{64})(?:\/history\/([a-f0-9]{64})|\/diff\/([a-f0-9]{64})\/([a-f0-9]{64}))?$/.exec(location.hash);
       const nextComparison = route?.[3] ? `${route[3]}/${route[4]}` : null;
+      if (location.hash === "#Research") {
+        setComparison(null); setActiveId(null); setHistoricalId(null); setCreating(false);
+        setResult(null); setError(null);
+        return;
+      }
       if (route && (nextComparison !== comparison || route[1] !== activeId || (route[2] ?? null) !== historicalId)) {
         setComparison(nextComparison); setActiveId(route[1]); setHistoricalId(route[2] ?? null); setCreating(false);
         setResult(null); setError(null);
@@ -55,7 +60,10 @@ export function Research({ onOpen }: { onOpen: OpenResearchSource }) {
   const open = (id: string) => { setComparison(null); setHistoricalId(null); setActiveId(id); setCreating(false); location.hash = `Research/${id}`; };
   const openRevision = (id: string) => { setComparison(null); setHistoricalId(id); setResult(null); setError(null); location.hash = `Research/${activeId}/history/${id}`; };
   const compare = (base: string, target: string) => { setComparison(`${base}/${target}`); setHistoricalId(null); setError(null); location.hash = `Research/${activeId}/diff/${base}/${target}`; };
-  const newResearch = () => { setComparison(null); setHistoricalId(null); setActiveId(null); setResult(null); setError(null); setCreating(true); location.hash = "Research"; };
+  const newResearch = () => {
+    setComparison(null); setHistoricalId(null); setActiveId(null); setResult(null); setError(null); setCreating(true);
+    if (location.hash !== "#Research") history.pushState(null, "", "#Research");
+  };
   const run = async (question: string, contentIds: string[]) => {
     setBusy(true); setError(null);
     try {

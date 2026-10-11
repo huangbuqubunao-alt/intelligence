@@ -1335,9 +1335,12 @@ class BackupRestoreService:
         ).fetchone() is not None:
             return False
         return connection.execute(
-            "SELECT 1 FROM distillation_execution_checkpoints "
+            "SELECT 1 FROM distillation_execution_checkpoints AS c "
             "WHERE source_id = ? AND status IN "
-            "('PENDING','RUNNING','WAITING_BUDGET','WAITING_MODEL') LIMIT 1",
+            "('PENDING','RUNNING','WAITING_BUDGET','WAITING_MODEL') "
+            "AND NOT (c.status = 'PENDING' AND c.invocation_count = 1 AND EXISTS ("
+            "SELECT 1 FROM distillation_no_new_intelligence_results AS result "
+            "WHERE result.execution_id = c.execution_id)) LIMIT 1",
             (str(run["source_id"]),),
         ).fetchone() is None
 

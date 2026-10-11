@@ -1140,10 +1140,37 @@ function Workspace() {
   const [addProvider, setAddProvider] = useState<"YOUTUBE" | "LOCAL" | null>(null);
   const [imported, setImported] = useState(false);
   const [contentTarget, setContentTarget] = useState<string | null>(initialContentTarget);
+  // Tracks the hash produced by in-app navigation so the hashchange listener
+  // can tell programmatic navigation apart from user navigation (browser
+  // back/forward or editing the address bar). Stored WITH the leading "#"
+  // because location.hash always includes it (e.g. "#Settings"); storing the
+  // bare page name would never match and every programmatic navigation would
+  // be misclassified as user navigation (clearing the import notice).
+  const programmaticHash = useRef<string | null>(null);
   useEffect(() => {
-    const openLinkedContent = () => { const target = initialContentTarget(); if (target) { setPage("Content"); setContentTarget(target); setDeltaTarget(null); setResearchReturn(null); } };
-    window.addEventListener("hashchange", openLinkedContent);
-    return () => window.removeEventListener("hashchange", openLinkedContent);
+    const onHashChange = (event: HashChangeEvent) => {
+      // Rapid assignments queue separate events. Only the current URL may
+      // consume our navigation marker or reset the current view.
+      if (event.newURL && new URL(event.newURL).hash !== location.hash) return;
+      if (programmaticHash.current === location.hash) {
+        programmaticHash.current = null;
+        return;
+      }
+      programmaticHash.current = null;
+      const target = initialContentTarget();
+      if (target) {
+        setImported(false);
+        setPage("Content"); setContentTarget(target); setDeltaTarget(null); setResearchReturn(null);
+        return;
+      }
+      const next = initialPage();
+      setImported(false);
+      setResearchReturn(null); setResearchEvidence(null);
+      setContentTarget(null); setDeltaTarget(null);
+      setPage(next);
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
   const [deltaTarget, setDeltaTarget] = useState<DeltaTarget | null>(null);
   const [researchReturn, setResearchReturn] = useState<string | null>(null);
@@ -1162,18 +1189,26 @@ function Workspace() {
     observer.observe(document.body, { childList: true, subtree: true });
     return () => observer.disconnect();
   }, [page, researchEvidence]);
+  const changeHash = (hash: string) => {
+    const next = `#${hash}`;
+    // A no-op emits no event. Preserve a marker for an already queued real
+    // assignment, but never create one for a no-op.
+    if (location.hash === next) return;
+    programmaticHash.current = next;
+    location.hash = hash;
+  };
   const navigate = (next: Page) => {
     setImported(false);
     setResearchReturn(null); setResearchEvidence(null);
     setContentTarget(null);
     setDeltaTarget(null);
-    location.hash = next;
+    changeHash(next);
     setPage(next);
   };
   const openContent = (videoId: string) => {
     setDeltaTarget(null);
     setContentTarget(videoId);
-    location.hash = "Content";
+    changeHash(`Content/${encodeURIComponent(videoId)}`);
     setPage("Content");
   };
   const openDelta = (target: DeltaTarget) => {
@@ -1182,7 +1217,7 @@ function Workspace() {
     };
     setDeltaTarget(target);
     setContentTarget(target.kind === "content" ? target.id : null);
-    location.hash = destinations[target.kind];
+    changeHash(target.kind === "content" ? `Content/${encodeURIComponent(target.id)}` : destinations[target.kind]);
     setPage(destinations[target.kind]);
   };
   return (

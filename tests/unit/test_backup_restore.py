@@ -1043,3 +1043,132 @@ def test_quiescence_keeps_resumable_model_work_and_other_attention_runs_blocked(
     assert readiness["ready"] is False
     assert "DISTILLATION_ACTIVE" in readiness["reasons"]
     assert "SOURCE_RUN_ACTIVE" in readiness["reasons"]
+
+
+@pytest.mark.parametrize("tamper", [False, True])
+def test_completed_no_new_attention_run_backup_restore_or_fail_closed(
+    tmp_path: Path, tamper: bool,
+) -> None:
+    """A locally finished "no new Intelligence" extraction must not block Backup.
+
+    The repository already projects the durable no-new result as completed,
+    while its immutable raw checkpoint remains PENDING. The parent source-run
+    quiescence query must recognize that completion too, and still reject a
+    result whose Evidence binding is corrupt.
+    """
+    from youtube_intel.state import (
+        EvidenceAvailability,
+        EvidenceLineageKind,
+        EvidenceRole,
+        EvidenceWrite,
+        build_evidence_id,
+    )
+
+    database, data_root, _, repository, _ = _workspace(tmp_path)
+    _add_source(repository)
+    artifact_id = "artifact-1"
+    evidence_id = build_evidence_id(
+        video_id="video-1",
+        artifact_id=artifact_id,
+        start_ms=1000,
+        end_ms=1500,
+        lineage_kind=EvidenceLineageKind.ORIGINAL_TRANSCRIPT,
+        role=EvidenceRole.PRIMARY_ORIGINAL,
+    )
+    repository.create_evidence(
+        EvidenceWrite(
+            evidence_id=evidence_id,
+            video_id="video-1",
+            artifact_id=artifact_id,
+            start_ms=1000,
+            end_ms=1500,
+            lineage_kind=EvidenceLineageKind.ORIGINAL_TRANSCRIPT,
+            role=EvidenceRole.PRIMARY_ORIGINAL,
+            language="en",
+            availability=EvidenceAvailability.AVAILABLE,
+        ),
+        now=NOW,
+    )
+    reason = PersonalizedDistillationService._RESERVATION_REASON
+    use_case = PersonalizedDistillationService._RESERVATION_USE_CASE
+    repository.reserve_distillation_execution(
+        DistillationExecutionWrite(
+            execution_id="execution-no-new",
+            source_id="source-1",
+            video_id="video-1",
+            reason=reason,
+            use_case=use_case,
+            selected_provider="ollama",
+            selected_model="qwen3:8b",
+            output_language="en",
+        ),
+        now=NOW,
+    )
+    assert repository.claim_reserved_distillation_execution(
+        execution_id="execution-no-new",
+        source_id="source-1",
+        video_id="video-1",
+        reason=reason,
+        use_case=use_case,
+        selected_provider="ollama",
+        selected_model="qwen3:8b",
+        output_language="en",
+        now=NOW,
+    )
+    repository.record_distillation_no_new_intelligence(
+        execution_id="execution-no-new",
+        evidence_ids=(evidence_id,),
+        budget_state="RUNTIME_BUDGET_ADMITTED",
+        actual_provider="ollama",
+        actual_model="qwen3:8b",
+        input_tokens=100,
+        output_tokens=50,
+        cost_microunits=0,
+        duration_ms=1200,
+        now=NOW,
+    )
+
+    run_id = _ambiguous_parent_source_run(repository, execution_id="execution-no-new")
+    repository.transition_source_run_child(
+        run_id, video_id="video-1", to_state=SourceRunChildState.COMPLETED, now=NOW
+    )
+    repository.transition_source_run(
+        run_id, to_state=SourceRunState.NEEDS_ATTENTION,
+        attention_reason=SourceRunAttentionReason.MODEL_UNAVAILABLE, now=NOW
+    )
+    service = BackupRestoreService(database=database, data_root=data_root)
+    if tamper:
+        with sqlite3.connect(database) as connection:
+            # Deliberately corrupt only this isolated fixture; production
+            # immutability remains intact.
+            connection.execute("DROP TRIGGER distillation_no_new_result_immutable_update")
+            connection.execute("UPDATE distillation_no_new_intelligence_results SET evidence_set_hash = ?", ("0" * 64,))
+        assert service.readiness()["ready"] is False
+        with pytest.raises(BackupRestoreError):
+            service.create_backup()
+        return
+
+    assert service.readiness()["ready"] is True
+    before = repository.get_distillation_execution("execution-no-new")
+    assert before is not None
+    assert before.status == "SUCCEEDED_NO_NEW_INTELLIGENCE"
+    assert before.invocation_count == 1
+    before_evidence = repository.get_evidence(evidence_id)
+    assert before_evidence is not None
+    before_usage = repository.get_distillation_resource_usage("execution-no-new")
+    backup = service.create_backup()
+    archive_path, _ = service.backup_download(backup.backup_id) or (None, None)
+    assert archive_path is not None
+    staged = service.stage_restore(archive_path.read_bytes())
+    service.confirm_restore(staged.restore_id)
+    service.recover_and_apply_pending_restore()
+    restored = SQLiteStateRepository(database)
+    assert restored.get_distillation_execution("execution-no-new") == before
+    assert restored.get_evidence(evidence_id) == before_evidence
+    assert restored.get_distillation_resource_usage("execution-no-new") == before_usage
+    assert not restored.claim_reserved_distillation_execution(
+        execution_id="execution-no-new", source_id="source-1", video_id="video-1",
+        reason=reason, use_case=use_case, selected_provider="ollama",
+        selected_model="qwen3:8b", output_language="en", now=NOW,
+    )
+    assert service.readiness()["ready"] is True

@@ -43,11 +43,12 @@ try {
     }
     const accepted = await response;
     assert.ok([200, 201].includes(accepted.status()));
-    await page.waitForURL(`${base}#Content`, { timeout: 30_000 });
+    await page.waitForURL(url => url.href.startsWith(`${base}#Content/`), { timeout: 30_000 });
     const listing = await page.request.get(`${base}api/v1/videos`);
     const item = (await listing.json()).videos.find(item => item.title === filename);
     assert.ok(item, "saved Content is present in normal listing");
     const contentId = item.video_id;
+    assert.equal(page.url(), `${base}#Content/${encodeURIComponent(contentId)}`);
     await dialog.waitFor({ state: "hidden" });
     await page.getByRole("heading", { name: filename, exact: true }).waitFor();
     const detail = await page.request.get(`${base}api/v1/videos/${contentId}`);

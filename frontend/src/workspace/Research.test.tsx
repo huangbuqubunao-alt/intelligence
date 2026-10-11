@@ -206,3 +206,23 @@ it("keeps the loaded packet when reopening the already selected History entry", 
   expect(screen.getByText("Original authority.")).toBeTruthy();
   expect(screen.queryByText("Verifying saved Research…")).toBeNull();
 });
+it("browser Back to the Research list clears the previous detail", async () => {
+  location.hash = `Research/${packet.research_id}`;
+  setup();
+  await screen.findByText("Original authority.");
+  location.hash = "Research";
+  fireEvent(window, new HashChangeEvent("hashchange"));
+  await screen.findByText("No Research yet. Start with a question and selected library Content.");
+  expect(screen.queryByText("Original authority.")).toBeNull();
+});
+
+it("New Research from a detail keeps its form after the route change", async () => {
+  location.hash = `Research/${packet.research_id}`;
+  setup();
+  await screen.findByText("Original authority.");
+  fireEvent.click(screen.getByRole("button", { name: "New Research" }));
+  await screen.findByLabelText("Research question");
+  await new Promise(resolve => setTimeout(resolve, 0));
+  expect(screen.getByLabelText("Research question")).toBeTruthy();
+  expect(location.hash).toBe("#Research");
+});

@@ -29,10 +29,12 @@ try {
   await dialog.getByRole("status").filter({ hasText: "Verifying imported file…" }).waitFor();
   assert.equal(await dialog.getByRole("progressbar").count(), 0);
   await page.screenshot({ path: join(evidence, "native-verifying-two-gib.png"), fullPage: true });
-  await page.waitForURL(`${base}#Content`, { timeout: 120_000 });
+  await page.waitForURL(url => url.href.startsWith(`${base}#Content/`), { timeout: 120_000 });
   await page.getByRole("heading", { name: "two-gib.mp4", exact: true }).waitFor();
   const listing = await page.request.get(`${base}api/v1/videos`);
   const item = (await listing.json()).videos.find(item => item.title === "two-gib.mp4");
+  assert.ok(item, "saved Content is present in normal listing");
+  assert.equal(page.url(), `${base}#Content/${encodeURIComponent(item.video_id)}`);
   assert.equal(item.processing_status, "TRANSCRIPTION_UNAVAILABLE");
   const jobs = await page.evaluate(async () => (await (await fetch('/api/v1/local/native/jobs', { method: 'POST', body: '{}', headers: {'Content-Type':'application/json','X-YIA-Request':'local-ui'} })).json()).jobs);
   assert.equal(jobs[0].files[0].snapshot_method, "APFS_CLONE");
