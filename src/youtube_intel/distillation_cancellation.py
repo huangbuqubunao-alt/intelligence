@@ -28,7 +28,8 @@ def verify_wait(connection: sqlite3.Connection, checkpoint: sqlite3.Row) -> None
         "SELECT * FROM distillation_resource_usage WHERE execution_id=?", (execution_id,),
     ).fetchone()
     if (
-        checkpoint["status"] != "WAITING_MODEL" or checkpoint["invocation_count"] != 0
+        checkpoint["selected_provider"] != "ollama"
+        or checkpoint["status"] != "WAITING_MODEL" or checkpoint["invocation_count"] != 0
         or checkpoint["intelligence_id"] is not None or checkpoint["revision_id"] is not None
         or checkpoint["budget_state"] not in {"RUNTIME_BUDGET_ADMITTED", "ADMITTED"}
         or usage is None

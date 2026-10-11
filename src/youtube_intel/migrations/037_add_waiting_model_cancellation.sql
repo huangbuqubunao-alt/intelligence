@@ -25,6 +25,7 @@ WHEN NOT EXISTS (
       AND c.selected_provider = NEW.selected_provider AND c.selected_model = NEW.selected_model
       AND c.output_language = NEW.output_language AND c.updated_at = NEW.checkpoint_updated_at
       AND c.budget_state = NEW.budget_state
+      AND c.selected_provider = 'ollama'
       AND c.status = 'WAITING_MODEL' AND c.invocation_count = 0
       AND c.intelligence_id IS NULL AND c.revision_id IS NULL
       AND c.budget_state IN ('RUNTIME_BUDGET_ADMITTED', 'ADMITTED')

@@ -125,6 +125,50 @@ def test_cancel_does_not_release_another_pending_execution(tmp_path: Path) -> No
         repository.cancel_waiting_model_execution("another-pending", video_id="video-1", now=NOW)
 
 
+
+@pytest.mark.parametrize("provider,model", [("moonshot", "kimi-k3"), ("moonshot", "kimi-k2.6"), ("openai", "gpt-4.1")])
+@pytest.mark.parametrize("claimed", [False, True])
+def test_cloud_model_wait_never_acquires_local_cancellation_authority(
+    tmp_path: Path, provider: str, model: str, claimed: bool,
+) -> None:
+    _, _, _, repository, _ = _workspace(tmp_path)
+    _add_source(repository)
+    request = dict(execution_id="cloud-wait", source_id="source-1", video_id="video-1",
+                   reason=PersonalizedDistillationService._RESERVATION_REASON,
+                   use_case=PersonalizedDistillationService._RESERVATION_USE_CASE,
+                   selected_provider=provider, selected_model=model, output_language="en")
+    repository.reserve_distillation_execution(DistillationExecutionWrite(**request), now=NOW)
+    consent = repository.authorize_cloud_execution(
+        authorization_id="cloud-wait-consent-1", execution_id="cloud-wait", provider=provider,
+        model=model, verified_input_hash="a" * 64, consent_kind="USER_CONFIRMATION", now=NOW,
+    )
+    if claimed:
+        assert repository.claim_reserved_distillation_execution(**request, now=NOW)
+    # Preserve the existing cloud pre-dispatch accounting contract, including the
+    # stale-preflight sequence found in review. It cannot confer local cancellation.
+    repository.finish_distillation_without_admission(
+        execution_id="cloud-wait", status="WAITING_MODEL", budget_state="RUNTIME_BUDGET_ADMITTED",
+        outcome="MODEL_UNAVAILABLE_BEFORE_TRANSPORT", invocation_count=0,
+        actual_provider=None, actual_model=None, input_tokens=None, output_tokens=None,
+        cost_microunits=None, duration_ms=None, now=NOW,
+    )
+    assert repository.can_cancel_waiting_model_execution("cloud-wait") is False
+    with pytest.raises(StateStoreError):
+        repository.cancel_waiting_model_execution("cloud-wait", video_id="video-1", now=NOW)
+    with repository._connect() as connection:
+        with pytest.raises(sqlite3.IntegrityError, match="zero-invocation"):
+            connection.execute(
+                "INSERT INTO distillation_waiting_model_cancellations "
+                "SELECT execution_id, source_id, video_id, reason, use_case, selected_provider, "
+                "selected_model, output_language, updated_at, budget_state, updated_at, "
+                "'CANCELLED_BEFORE_MODEL_INVOCATION' FROM distillation_execution_checkpoints"
+            )
+        assert connection.execute("SELECT COUNT(*) FROM distillation_waiting_model_cancellations").fetchone()[0] == 0
+    assert repository.get_distillation_execution("cloud-wait").status == "WAITING_MODEL"
+    assert repository.get_cloud_execution_authorization("cloud-wait") == consent
+    assert _service(tmp_path).readiness()["ready"] is False
+
+
 def test_cancel_rejects_claimed_or_unknown_execution(tmp_path: Path) -> None:
     _, _, _, repository, _ = _workspace(tmp_path)
     _add_source(repository)

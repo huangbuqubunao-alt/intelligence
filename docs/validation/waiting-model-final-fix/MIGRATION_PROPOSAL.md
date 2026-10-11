@@ -24,11 +24,12 @@ execution 的 checkpoint/相关执行产物写入保护 trigger。不重建已�
 ## 安全校验与生命周期
 
 取消在 `BEGIN IMMEDIATE` 内读取、校验并插入，重复请求返回同一终止结果。
-前提是原 checkpoint WAITING_MODEL / invocation_count=0 / 无 Intelligence 或
+前提是原 checkpoint selected_provider=ollama / WAITING_MODEL / invocation_count=0 / 无 Intelligence 或
 revision；同一 execution 的不可变 usage 必须完整匹配请求和预算身份，且为
 WAITING_MODEL / invocation_count=0 / MODEL_UNAVAILABLE_BEFORE_TRANSPORT。
 实际 provider/model、token、费用、duration、HTTP response 必须均为空。
 已 claim/未知 budget marker、no-new 或云响应/失败记录拒绝。
+云端任务不获得本地取消权威，保持既有授权、前置失败记账与 fail-closed 规则。
 source-run 如仍活跃，或关联身份/child 状态矛盾，拒绝并允许稍后重试。
 
 原 checkpoint 和 usage 保持原字节语义；有效结果由经重新验证的 sidecar
