@@ -1,0 +1,107 @@
+[
+  {
+    "file": ".var/muse-final-audit/main-backend.log",
+    "sha256": "b807afee59abc002eb9e78b2e477e5ef551621b1f5116c05e78d79e30413ce39",
+    "bytes": 20184
+  },
+  {
+    "file": ".var/muse-final-audit/candidate-backend.log",
+    "sha256": "dbcf12f40352874214ef5fd06a91a3468e105628eeecee9c05ebc9c4a4399b70",
+    "bytes": 20151
+  },
+  {
+    "file": ".var/muse-final-audit/main-frontend.log",
+    "sha256": "4b131686b8db824bd968aebd9c8800826c6f8863bcefa2ae50da01f6a8543bb5",
+    "bytes": 10326
+  },
+  {
+    "file": ".var/muse-final-audit/candidate-frontend-final.log",
+    "sha256": "c130e5809b3bbca79ac490d00620010a2e8ffe4675ef6bf666fddf524c37d868",
+    "bytes": 15118
+  },
+  {
+    "file": ".var/muse-final-audit/opencode-frontend.log",
+    "sha256": "1e894a3726eb5443cacac39b7e6ae93851de9fbaa2031d75e7e97004c556ded5",
+    "bytes": 41710
+  },
+  {
+    "file": ".var/muse-final-audit/muse-frontend.log",
+    "sha256": "fd103a7bfbd523fbc99b8cf6d5553f9ef169fd354454558412890da43854ce4e",
+    "bytes": 41391
+  },
+  {
+    "file": ".var/muse-final-audit/muse-import-focused.log",
+    "sha256": "fefadff9bc5752131339601e7d0766cbf67c4422a1ae614f22fa3e2f290f7b06",
+    "bytes": 24202
+  },
+  {
+    "file": ".var/muse-final-audit/main-route-reproduction.log",
+    "sha256": "5f44eab2fbb7b817a110ce91ac46d34841c5c4ec26a25db94568edad2d590e54",
+    "bytes": 77668
+  },
+  {
+    "file": ".var/muse-final-audit/opencode-notice-reproduction.log",
+    "sha256": "f21a1e64614e05e99c5dfd9cf65e4ea0f5e725f3501942a400050babe5d626e6",
+    "bytes": 26367
+  },
+  {
+    "file": ".var/muse-final-audit/ruff-final.log",
+    "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    "bytes": 19
+  },
+  {
+    "file": ".var/muse-final-audit/mypy-final.log",
+    "sha256": "491f2304d8f2c8f1671935be0737116adcdf690bd43abfa3132286dc3985dacc",
+    "bytes": 45
+  },
+  {
+    "file": ".var/muse-final-audit/typecheck-final.log",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "bytes": 0
+  },
+  {
+    "file": ".var/muse-final-audit/build-final.log",
+    "sha256": "b00a434a15ad59f95a43211f9a73091839c7b8ef20536728635e836725939b8f",
+    "bytes": 395
+  },
+  {
+    "file": ".var/muse-final-audit/no-new-strengthened.log",
+    "sha256": "5d5ab33d19c863f3964dce172747d9bfb77329b6c5ad1b0409b2c7c07c0a3934",
+    "bytes": 464
+  },
+  {
+    "file": ".var/muse-final-audit/gui-media.log",
+    "sha256": "2b7dac380644ae10a5f16e77e15f39a8f7bd1018c4f0e120f7b7951514b711c2",
+    "bytes": 479
+  },
+  {
+    "file": ".var/muse-final-audit/gui-media-corrected.log",
+    "sha256": "e599844971d0a63ad906ffcbd25936df455a657a2d87841b7fdf57a4d00ef82d",
+    "bytes": 479
+  },
+  {
+    "file": ".var/muse-final-audit/gui-youtube.log",
+    "sha256": "a36ebffcf5ffbda7a13af4e70b0bddc3c1bbfdf70c79a7e3972f45aca513c2e7",
+    "bytes": 3022
+  },
+  {
+    "file": ".var/muse-final-audit/gui-youtube-corrected.log",
+    "sha256": "1f2d83b0b8f7bfa4b808e6b1c3ae77c8f6eadeee21b5759f06cf76ddef0b6106",
+    "bytes": 1140
+  },
+  {
+    "file": ".var/muse-final-audit/gui-completion.log",
+    "sha256": "9346b044abb7b08d0a9e11b2391ae22dbbeca8231f27876709dc5556abf7a6eb",
+    "bytes": 13167
+  },
+  {
+    "file": ".var/muse-final-audit/gui-completion-corrected.log",
+    "sha256": "b9442bf2bf5beddc0c93d1498c5cf1477de55854276121ba0084bc44ee4f2629",
+    "bytes": 26011
+  },
+  {
+    "file": ".var/muse-final-audit/final-focused-wrong-path.log",
+    "sha256": "7721ff698a50e22829bcfa1855e68b4e51cf9544ea394164add7b8d3572b801b",
+    "bytes": 578
+  }
+]

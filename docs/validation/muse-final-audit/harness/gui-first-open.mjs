@@ -1,0 +1,3 @@
+import {chromium} from '../../../../frontend/node_modules/playwright-core/index.mjs';
+const ctx=await chromium.launchPersistentContext('.var/muse-final-audit/gui/first-open-profile',{executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true,viewport:{width:1440,height:1000}});
+const page=ctx.pages()[0];await page.goto('http://127.0.0.1:5688/');await page.waitForLoadState('networkidle');console.log((await page.locator('body').innerText()).slice(0,10000));await page.screenshot({path:'docs/validation/muse-final-audit/screenshots/01-first-open.png'});await ctx.close();

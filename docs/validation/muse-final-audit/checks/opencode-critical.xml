@@ -1,0 +1,250 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="3" time="1.776" timestamp="2026-10-11T21:16:31.927785+08:00" hostname="192.168.0.101"><testcase classname="tests.integration.test_task022_personalized_distillation" name="test_backup_quiescence_requires_confirmed_user_cloud_success_for_local_wait[USER_CONFIRMATION-200-True]" time="0.323"><failure message="AssertionError: assert {'DISTILLATIO...E_RUN_ACTIVE'} &lt;= {'SOURCE_RUN_ACTIVE'}&#10;  &#10;  Extra items in the left set:&#10;  'DISTILLATION_ACTIVE'">tmp_path = PosixPath('/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/opencode-critical/test_backup_quiescence_require0')
+consent_kind = 'USER_CONFIRMATION', http_status_code = 200, quiescent = True
+
+    @pytest.mark.parametrize(
+        ("consent_kind", "http_status_code", "quiescent"),
+        [
+            ("USER_CONFIRMATION", 200, True),
+            ("OWNER_QUALIFICATION", 200, False),
+            ("USER_CONFIRMATION", None, False),
+        ],
+    )
+    def test_backup_quiescence_requires_confirmed_user_cloud_success_for_local_wait(
+        tmp_path: Path,
+        consent_kind: str,
+        http_status_code: int | None,
+        quiescent: bool,
+    ) -&gt; None:
+        repository = _repository(tmp_path)
+        source_id, video_id = _source_and_video(repository, "video-cloud-backup")
+        evidence_id = _evidence(repository, video_id)
+        local_execution_id = "local-waiting-for-model"
+        repository.begin_distillation_execution(
+            DistillationExecutionWrite(
+                execution_id=local_execution_id,
+                source_id=source_id,
+                video_id=video_id,
+                reason="MANUAL_PERSONALIZED_DISTILLATION",
+                use_case="PERSONALIZED_INTELLIGENCE",
+                selected_provider="ollama",
+                selected_model="qwen3:8b",
+                output_language="zh-CN",
+            ),
+            now=NOW,
+        )
+        repository.finish_distillation_without_admission(
+            execution_id=local_execution_id,
+            status="WAITING_MODEL",
+            budget_state="ADMITTED",
+            outcome="MODEL_UNAVAILABLE_BEFORE_TRANSPORT",
+            invocation_count=0,
+            actual_provider=None,
+            actual_model=None,
+            input_tokens=None,
+            output_tokens=None,
+            cost_microunits=None,
+            duration_ms=None,
+            now=NOW,
+        )
+        run = repository.create_source_run(
+            SourceRunWrite.manual_check_now(
+                source_id=source_id,
+                command_id="cloud-backup-source-run",
+                priority=SourceRunPriority.P2,
+                created_at=NOW,
+            )
+        )
+        repository.transition_source_run(run.run_id, to_state=SourceRunState.RUNNING, now=NOW)
+        repository.record_source_run_child(
+            run.run_id,
+            video_id=video_id,
+            state=SourceRunChildState.PENDING,
+            distillation_execution_id=local_execution_id,
+            now=NOW,
+        )
+        repository.transition_source_run_child(
+            run.run_id, video_id=video_id, to_state=SourceRunChildState.WAITING, now=NOW
+        )
+        repository.transition_source_run(
+            run.run_id,
+            to_state=SourceRunState.NEEDS_ATTENTION,
+            attention_reason=SourceRunAttentionReason.MODEL_UNAVAILABLE,
+            now=NOW,
+        )
+        backup = BackupRestoreService(database=tmp_path / "state.sqlite3", data_root=tmp_path)
+        with repository._connect() as connection:
+&gt;           assert {"SOURCE_RUN_ACTIVE", "DISTILLATION_ACTIVE"} &lt;= set(
+                backup._quiescence_reasons(connection)
+            )
+E           AssertionError: assert {'DISTILLATIO...E_RUN_ACTIVE'} &lt;= {'SOURCE_RUN_ACTIVE'}
+E
+E             Extra items in the left set:
+E             'DISTILLATION_ACTIVE'
+
+tests/integration/test_task022_personalized_distillation.py:3692: AssertionError</failure></testcase><testcase classname="tests.integration.test_task022_personalized_distillation" name="test_backup_quiescence_requires_confirmed_user_cloud_success_for_local_wait[OWNER_QUALIFICATION-200-False]" time="0.324"><failure message="AssertionError: assert {'DISTILLATIO...E_RUN_ACTIVE'} &lt;= {'SOURCE_RUN_ACTIVE'}&#10;  &#10;  Extra items in the left set:&#10;  'DISTILLATION_ACTIVE'">tmp_path = PosixPath('/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/opencode-critical/test_backup_quiescence_require1')
+consent_kind = 'OWNER_QUALIFICATION', http_status_code = 200, quiescent = False
+
+    @pytest.mark.parametrize(
+        ("consent_kind", "http_status_code", "quiescent"),
+        [
+            ("USER_CONFIRMATION", 200, True),
+            ("OWNER_QUALIFICATION", 200, False),
+            ("USER_CONFIRMATION", None, False),
+        ],
+    )
+    def test_backup_quiescence_requires_confirmed_user_cloud_success_for_local_wait(
+        tmp_path: Path,
+        consent_kind: str,
+        http_status_code: int | None,
+        quiescent: bool,
+    ) -&gt; None:
+        repository = _repository(tmp_path)
+        source_id, video_id = _source_and_video(repository, "video-cloud-backup")
+        evidence_id = _evidence(repository, video_id)
+        local_execution_id = "local-waiting-for-model"
+        repository.begin_distillation_execution(
+            DistillationExecutionWrite(
+                execution_id=local_execution_id,
+                source_id=source_id,
+                video_id=video_id,
+                reason="MANUAL_PERSONALIZED_DISTILLATION",
+                use_case="PERSONALIZED_INTELLIGENCE",
+                selected_provider="ollama",
+                selected_model="qwen3:8b",
+                output_language="zh-CN",
+            ),
+            now=NOW,
+        )
+        repository.finish_distillation_without_admission(
+            execution_id=local_execution_id,
+            status="WAITING_MODEL",
+            budget_state="ADMITTED",
+            outcome="MODEL_UNAVAILABLE_BEFORE_TRANSPORT",
+            invocation_count=0,
+            actual_provider=None,
+            actual_model=None,
+            input_tokens=None,
+            output_tokens=None,
+            cost_microunits=None,
+            duration_ms=None,
+            now=NOW,
+        )
+        run = repository.create_source_run(
+            SourceRunWrite.manual_check_now(
+                source_id=source_id,
+                command_id="cloud-backup-source-run",
+                priority=SourceRunPriority.P2,
+                created_at=NOW,
+            )
+        )
+        repository.transition_source_run(run.run_id, to_state=SourceRunState.RUNNING, now=NOW)
+        repository.record_source_run_child(
+            run.run_id,
+            video_id=video_id,
+            state=SourceRunChildState.PENDING,
+            distillation_execution_id=local_execution_id,
+            now=NOW,
+        )
+        repository.transition_source_run_child(
+            run.run_id, video_id=video_id, to_state=SourceRunChildState.WAITING, now=NOW
+        )
+        repository.transition_source_run(
+            run.run_id,
+            to_state=SourceRunState.NEEDS_ATTENTION,
+            attention_reason=SourceRunAttentionReason.MODEL_UNAVAILABLE,
+            now=NOW,
+        )
+        backup = BackupRestoreService(database=tmp_path / "state.sqlite3", data_root=tmp_path)
+        with repository._connect() as connection:
+&gt;           assert {"SOURCE_RUN_ACTIVE", "DISTILLATION_ACTIVE"} &lt;= set(
+                backup._quiescence_reasons(connection)
+            )
+E           AssertionError: assert {'DISTILLATIO...E_RUN_ACTIVE'} &lt;= {'SOURCE_RUN_ACTIVE'}
+E
+E             Extra items in the left set:
+E             'DISTILLATION_ACTIVE'
+
+tests/integration/test_task022_personalized_distillation.py:3692: AssertionError</failure></testcase><testcase classname="tests.integration.test_task022_personalized_distillation" name="test_backup_quiescence_requires_confirmed_user_cloud_success_for_local_wait[USER_CONFIRMATION-None-False]" time="0.323"><failure message="AssertionError: assert {'DISTILLATIO...E_RUN_ACTIVE'} &lt;= {'SOURCE_RUN_ACTIVE'}&#10;  &#10;  Extra items in the left set:&#10;  'DISTILLATION_ACTIVE'">tmp_path = PosixPath('/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/opencode-critical/test_backup_quiescence_require2')
+consent_kind = 'USER_CONFIRMATION', http_status_code = None, quiescent = False
+
+    @pytest.mark.parametrize(
+        ("consent_kind", "http_status_code", "quiescent"),
+        [
+            ("USER_CONFIRMATION", 200, True),
+            ("OWNER_QUALIFICATION", 200, False),
+            ("USER_CONFIRMATION", None, False),
+        ],
+    )
+    def test_backup_quiescence_requires_confirmed_user_cloud_success_for_local_wait(
+        tmp_path: Path,
+        consent_kind: str,
+        http_status_code: int | None,
+        quiescent: bool,
+    ) -&gt; None:
+        repository = _repository(tmp_path)
+        source_id, video_id = _source_and_video(repository, "video-cloud-backup")
+        evidence_id = _evidence(repository, video_id)
+        local_execution_id = "local-waiting-for-model"
+        repository.begin_distillation_execution(
+            DistillationExecutionWrite(
+                execution_id=local_execution_id,
+                source_id=source_id,
+                video_id=video_id,
+                reason="MANUAL_PERSONALIZED_DISTILLATION",
+                use_case="PERSONALIZED_INTELLIGENCE",
+                selected_provider="ollama",
+                selected_model="qwen3:8b",
+                output_language="zh-CN",
+            ),
+            now=NOW,
+        )
+        repository.finish_distillation_without_admission(
+            execution_id=local_execution_id,
+            status="WAITING_MODEL",
+            budget_state="ADMITTED",
+            outcome="MODEL_UNAVAILABLE_BEFORE_TRANSPORT",
+            invocation_count=0,
+            actual_provider=None,
+            actual_model=None,
+            input_tokens=None,
+            output_tokens=None,
+            cost_microunits=None,
+            duration_ms=None,
+            now=NOW,
+        )
+        run = repository.create_source_run(
+            SourceRunWrite.manual_check_now(
+                source_id=source_id,
+                command_id="cloud-backup-source-run",
+                priority=SourceRunPriority.P2,
+                created_at=NOW,
+            )
+        )
+        repository.transition_source_run(run.run_id, to_state=SourceRunState.RUNNING, now=NOW)
+        repository.record_source_run_child(
+            run.run_id,
+            video_id=video_id,
+            state=SourceRunChildState.PENDING,
+            distillation_execution_id=local_execution_id,
+            now=NOW,
+        )
+        repository.transition_source_run_child(
+            run.run_id, video_id=video_id, to_state=SourceRunChildState.WAITING, now=NOW
+        )
+        repository.transition_source_run(
+            run.run_id,
+            to_state=SourceRunState.NEEDS_ATTENTION,
+            attention_reason=SourceRunAttentionReason.MODEL_UNAVAILABLE,
+            now=NOW,
+        )
+        backup = BackupRestoreService(database=tmp_path / "state.sqlite3", data_root=tmp_path)
+        with repository._connect() as connection:
+&gt;           assert {"SOURCE_RUN_ACTIVE", "DISTILLATION_ACTIVE"} &lt;= set(
+                backup._quiescence_reasons(connection)
+            )
+E           AssertionError: assert {'DISTILLATIO...E_RUN_ACTIVE'} &lt;= {'SOURCE_RUN_ACTIVE'}
+E
+E             Extra items in the left set:
+E             'DISTILLATION_ACTIVE'
+
+tests/integration/test_task022_personalized_distillation.py:3692: AssertionError</failure></testcase></testsuite></testsuites>

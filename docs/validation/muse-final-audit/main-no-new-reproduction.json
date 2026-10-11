@@ -1,0 +1,14 @@
+{
+  "main_sha": "fad25e6109d02650b25ae777f2f7557dd478309d",
+  "candidate_regression_test": "completed_no_new_attention_run_backup_restore_or_fail_closed[False]",
+  "main_reproduces_bug": true,
+  "readiness": {
+    "ready": false,
+    "reasons": [
+      "SOURCE_RUN_ACTIVE"
+    ],
+    "message": "A Following Source Run is active.",
+    "restore_pending": false,
+    "last_restore": null
+  }
+}

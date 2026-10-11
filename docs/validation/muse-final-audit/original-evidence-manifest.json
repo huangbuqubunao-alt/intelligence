@@ -1,0 +1,530 @@
+{
+  "opencode_head": "8d63bbfeb5a764a0dc2cee8aa540e102a22ed6f4",
+  "png_count": 49,
+  "manual_image_occurrences": 31,
+  "missing_paths": [],
+  "duplicate_groups": [
+    [
+      "05-after-reload.png",
+      "06-following-empty.png"
+    ],
+    [
+      "16-content-detail.png",
+      "22-intelligence-result.png",
+      "31-intelligence-result.png",
+      "33-intelligence-after-fix.png",
+      "46-content-detail-full.png"
+    ],
+    [
+      "20-intelligence-empty.png",
+      "21-topics-empty.png"
+    ],
+    [
+      "23-topics-route.png",
+      "24-settings.png",
+      "43-settings-chinese.png"
+    ],
+    [
+      "25-narrow-content.png",
+      "25-narrow-following.png",
+      "25-narrow-home.png",
+      "25-narrow-settings.png"
+    ],
+    [
+      "debug-following.png",
+      "evidence-backend-down-content.png",
+      "evidence-backend-down-following.png",
+      "evidence-backend-down-home.png",
+      "evidence-backend-down-intelligence.png"
+    ]
+  ],
+  "files": [
+    {
+      "path": "docs/dogfood/opencode-user-pilot/EXPLORATION_REPORT.md",
+      "bytes": 6081,
+      "sha256": "a8ffa3f5f08ab2843f12cceb105731fdff3bc6ba5647e923e5e3e59e2acee677",
+      "git_blob": "078b19e1da9ccc74d706748fc43a9654af1d0d76"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/FINAL_REPORT.md",
+      "bytes": 8616,
+      "sha256": "55363fadd6da2e01430f023e772ecef4565bdf8b4c1c3d876f6f6eed7ba35b57",
+      "git_blob": "82c1834537b4ea5287e6b30cc19c5d36ea6a6367"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/HANDOFF_STATUS.md",
+      "bytes": 6556,
+      "sha256": "704b3277b9deec42aca5276b9aef9213d2b4d766d014874581f1167295686c81",
+      "git_blob": "a2c4cb9c9336d0808003a741429f0ca648bab6a9"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/ISSUES_FOUND.md",
+      "bytes": 7375,
+      "sha256": "e66992338628198a6fa07fcefa5ef81e24ecd06ae8aa981d702f050b56d063e4",
+      "git_blob": "95b377cf9c72ac7cb179c1aba512e345e4456c7c"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/UNRESOLVED_ISSUES.md",
+      "bytes": 3952,
+      "sha256": "4137137358356a36d7ed8dcf95fd649d07c604572f201ab252bb6d9f82eafb73",
+      "git_blob": "8f498cd006a6fc08b9a53cdc0997b80768f87434"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/USER_MANUAL.html",
+      "bytes": 29309,
+      "sha256": "4ae18a1c281812ecd56638f36603b45bf7693e6729b01c8627a1fc5743a0bd17",
+      "git_blob": "91365983d40c0e696094bf3baf289c5239379782"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/USER_MANUAL.md",
+      "bytes": 20074,
+      "sha256": "ab79ede3fde6797a4766b365d9b2953f7242b13eee025b313970bacd86b8b41f",
+      "git_blob": "1311160e407a95dc14a9fb8bd61e14de58a23103"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/build_manual_html.py",
+      "bytes": 4681,
+      "sha256": "adbcb1b559e808959cf4bf1d829cacede6328918b6a691b0a9986abf044ba534",
+      "git_blob": "b5564285dabc3ebea2721839877935e6e890a84f"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/harness/browser.mjs",
+      "bytes": 1896,
+      "sha256": "b0da25d19aacde074f97c165bda637620d0534974934b812dd27236d8f316ddc",
+      "git_blob": "2ecd23ef3082bb38796f7a59c6be68716f443bb0"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/harness/p01_first_open.mjs",
+      "bytes": 1332,
+      "sha256": "2a5677b7d295f5bdd993a77e6e9b7a44f68b49b8d1f0302cd089911f5def2c79",
+      "git_blob": "be6d58f7bb6e1271d9cdd18ca5474555bf65ab2e"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/harness/p02_onboarding.mjs",
+      "bytes": 1872,
+      "sha256": "e1225fc0f60caf562112538252402dd3f15b26eb7881004812645abdac162737",
+      "git_blob": "8deec4cd2a3b0eeb180bab8a80036229f5383b86"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/harness/p03_add_dialog.mjs",
+      "bytes": 1321,
+      "sha256": "f55070c8ebfe56938dd8c8f480086db339f7ad5878aaa62ab6090d3b19d34664",
+      "git_blob": "fd121b11ddfa9335cf66bcd19b56cdbf816fe07d"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/harness/p04_add_channel.mjs",
+      "bytes": 1292,
+      "sha256": "2503b5623f765257a863b3dad6b854a4f18da137aef9f136dd3cbe874e455ce9",
+      "git_blob": "cd927e061e20809a0c97a2b5c3ffa6c5478b7053"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/harness/p04b_link_recognize.mjs",
+      "bytes": 1093,
+      "sha256": "6c620dae45f0c4820e627b5bd0116e99bafab80288a275340ef58a6db6385882",
+      "git_blob": "9426bdd47bc2b9fa87d7dfbc66410ed681eb3a1e"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/harness/p05_following_view.mjs",
+      "bytes": 1750,
+      "sha256": "597b88aaa3ddeb30e4dd1779c74e5eb817b38dbcacc28074aa0ffa93d23939bd",
+      "git_blob": "72633804afb66c6f78c1bfe69e6bb6eec9884b37"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/harness/p06_native_picker.mjs",
+      "bytes": 1327,
+      "sha256": "b22cf0982acc8e839e7f4b92da1e1007b0d2c1bcd2d5b5b7c369416fb95dbe6f",
+      "git_blob": "e8c4a8ef0b423655c22643e5826e4ad0aaf771e1"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/harness/p07_video_import.mjs",
+      "bytes": 1861,
+      "sha256": "4c83249fc856346f1c698e68efdc2c533d78127733c5fd6a123cd8c7cd4a489f",
+      "git_blob": "68fc437b786fdb8c8367b1db1d0a46505399883d"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/harness/p08_content.mjs",
+      "bytes": 861,
+      "sha256": "61043556b97581ee5732d31c751dce9218d31ecdf9393165a5fc6b050b7e39ea",
+      "git_blob": "5c119a5508bd97c61c6e04f13d693a2a42c6678b"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/harness/p09_content_detail.mjs",
+      "bytes": 1023,
+      "sha256": "844d8356bf5b28a3f599c6fb3d59285f9e4001ab39c660312b3017246e528b48",
+      "git_blob": "b2106d4c7a62dd26720dfd5b7267c0356ecc37fd"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/harness/p10_intelligence.mjs",
+      "bytes": 1997,
+      "sha256": "98416e92b0dc8df45da1d266f1e1f93ad3b2bc512abcf4a346917e536a335dc0",
+      "git_blob": "2b41588d8e9e583ab501ae14bd4e9f9821641bfe"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/harness/p11_navigation.mjs",
+      "bytes": 2137,
+      "sha256": "31228b66dc9182c0f3eaffeb61e5db5b21b6225220055762dc9c3f047a66e9b6",
+      "git_blob": "f7b31ef06ee12b16b052769e86e48249c4a26d3b"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/harness/p12_settings.mjs",
+      "bytes": 2143,
+      "sha256": "ddda630eec6c7727943b77e9210a6451218f8188c498e99be2521134ce99a113",
+      "git_blob": "44a6150df843ce0c066cfd48a8ec40be48630380"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/harness/p13_nav_verify.mjs",
+      "bytes": 2816,
+      "sha256": "c593d9fac4b3776584e914c3f95db0fd6d70a8547af9eeb0eb43cfc867068ff5",
+      "git_blob": "69d54772440ed27bbf9fa630efeddc101946909d"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/harness/p13b_hash_diag.mjs",
+      "bytes": 1047,
+      "sha256": "4e1549f3aaea4e2b6d6d2c08d35ee5d8ca9848667197bdf26d2dbd67471acf72",
+      "git_blob": "bf06b713fecffc7e95b33cd0c75e8b9435ede943"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/harness/p13c_fresh_load.mjs",
+      "bytes": 1014,
+      "sha256": "a5f2a9970e357e577f8d839fdba57d6f11e0a3113f5a4c4f9962e327f361cc1f",
+      "git_blob": "6b7ed5bdcb3434f095aa160c7abbe400dbb541bf"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/harness/p14_intelligence.mjs",
+      "bytes": 2064,
+      "sha256": "49aab14220d7106d0b3593928fcb4291f2867999e778c879e27cfc984a4af0a7",
+      "git_blob": "8205cb270c0f3e3ca265a1c0a501cd2a6867e2f6"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/harness/p15_intelligence_fix.mjs",
+      "bytes": 1702,
+      "sha256": "2801fdf34244e7dbf9908657dc40933917d7649805ed1e8c307217059e242116",
+      "git_blob": "318febd47c3c5aef865a539c71d1805956dadfff"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/harness/p16_local_transcribe.mjs",
+      "bytes": 1514,
+      "sha256": "be9f57f90b93d52fdf54953925d0d28b707e78f6b94829f5ec698252e8b5e6ba",
+      "git_blob": "375937767617252a20d511d72c3804680abc491a"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/harness/p17_following_settings.mjs",
+      "bytes": 2837,
+      "sha256": "aef00279a7fd261275a650144de6422c61fb56a9489cdb262aa58ec58d1fdd22",
+      "git_blob": "c69f680e2cd161b92c122ea54e3e082dfdbb8efc"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/harness/p17b_language_resume.mjs",
+      "bytes": 2897,
+      "sha256": "c4cf74ce97ffff30441065a26078e28039c32f63c0aa03a45614c424007ba401",
+      "git_blob": "4a3260fd0e6b5a2da840dcf42c0667e77769236e"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/harness/p18_screens.mjs",
+      "bytes": 1470,
+      "sha256": "e9052d7bac78e6ae095d3ff17ef0870a049ad2bc2230c001d76a0438bed6998e",
+      "git_blob": "7dfac6e744fea78536e2627908e6693440bd9c07"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/harness/pilot_launcher.py",
+      "bytes": 9180,
+      "sha256": "c9b0d485a2c0287e53873c284aa68864e11e8fd98033073fb89aad6f3a22b326",
+      "git_blob": "5b988178634a2fa3329e62c5a8ef6a8facec47f1"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/01-first-open.png",
+      "bytes": 80960,
+      "sha256": "193152fb3420ee9db21cf564c8e93beb36af5a66cf985f01c00e4f4d9b6e931d",
+      "git_blob": "8741cdc21274ae59dfd07fc042644c75546c8b3b"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/02-onboarding-step2.png",
+      "bytes": 76532,
+      "sha256": "a3949f97b9bb1bd54a0361922230ba3f3053f23e40a647e46298ca91b0317673",
+      "git_blob": "73628e90d73d59167046632acf68ce03ca0c5ae0"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/03-onboarding-step3.png",
+      "bytes": 81185,
+      "sha256": "5ad9c1e03879d398ba080f14f5160d8efe1e4dfb9aa3828202934915801409d7",
+      "git_blob": "7c712fa24fe0f211ca43e0bd737fb11f0a24f8a1"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/04-after-onboarding.png",
+      "bytes": 49827,
+      "sha256": "109ce1ebedcefd4de3804e51b9912f72bf79c6b25339c1d1fd132470a2dca85f",
+      "git_blob": "6a1cac585bc45f120480a2e0e1b66882ae1b63e0"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/05-after-reload.png",
+      "bytes": 49812,
+      "sha256": "40e7d89af16ec558ceadfa4b34b2171b60521de55cdceb3579bc09ac88fcb1b3",
+      "git_blob": "d94d7f08fda0397381c68eb7e196a345a29c6eb2"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/06-following-empty.png",
+      "bytes": 49812,
+      "sha256": "40e7d89af16ec558ceadfa4b34b2171b60521de55cdceb3579bc09ac88fcb1b3",
+      "git_blob": "d94d7f08fda0397381c68eb7e196a345a29c6eb2"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/07-add-source-dialog.png",
+      "bytes": 72155,
+      "sha256": "d6432e37a6dd2c7dac91be74fda3b0ec5805e5f93ba77a254f4a2a62c48a4119",
+      "git_blob": "588867cb4836f3b777d35f0b13629c6f5012b552"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/08-link-typed.png",
+      "bytes": 105002,
+      "sha256": "3c828923ae79f28428c914eeba66cb7572d4a505484975259650f96b5455ae4c",
+      "git_blob": "197ca92aa0fcb93e567e15a8882a6877223c0c48"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/09-after-channel-add.png",
+      "bytes": 59185,
+      "sha256": "66a37692e3d412938b443ea3aef74aa135a48837cc38a5be7aadfc7937940f8f",
+      "git_blob": "bceecea1817e4c4c98642f83cca2457d7980bfea"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/10-following-with-channel.png",
+      "bytes": 48779,
+      "sha256": "074b92187daab94a7ce8ed806e95e9e48b6ae62f3fca062592f94144023ca4bd",
+      "git_blob": "15bdfcfb3f374674d43413c844b43dc8c1152b47"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/11-local-import-dialog.png",
+      "bytes": 79738,
+      "sha256": "c6ac853536c96d2a2f3cf9e8034cd7da23d9ffa313041710b97796538e31df9e",
+      "git_blob": "b843e0a325c24184d0aba28eddd92b7901a80ea3"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/12-native-picker-open.png",
+      "bytes": 84084,
+      "sha256": "55be8810accb30229b72a756b2d08fc71362997835fadd8ac6e72cca23e84399",
+      "git_blob": "6d50384e919ffbf4462fef28a5dac7efb931f1ab"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/13-video-link-recognized.png",
+      "bytes": 78174,
+      "sha256": "ac4304ca3ff2a19c28e5d84794140ef18fea7ccd9d7b988e65d35864be64d437",
+      "git_blob": "1ee5e5bf51b4e66ec72694f18b1a58a6307abce9"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/14-after-video-import.png",
+      "bytes": 60597,
+      "sha256": "96952ce9997142597503ae2a81cc62e7f88676a4918994df36ffd66bcf2b1758",
+      "git_blob": "ba5c19608e266b0f07acd20fea0cd45dccd16463"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/15-content-list.png",
+      "bytes": 35849,
+      "sha256": "66f942e363fa36077fd2648abff114012071f8d4cf1e340fdf95862445855420",
+      "git_blob": "bc973c3d749eabdcf9512d00fcf0ec1630ff55dc"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/16-content-detail.png",
+      "bytes": 134678,
+      "sha256": "64b216ecde4b3e7f454dc96693895c107727e0caf0b4a59f5ffce9c419cd2c1f",
+      "git_blob": "bc302f06ac76ca0d22ff0d752c3e392f581267b4"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/20-intelligence-empty.png",
+      "bytes": 37982,
+      "sha256": "fcdbebf3189bbb7e3829a252ed537d4b00a3fd8fd59884848bd5dfd86cdeb539",
+      "git_blob": "e19422abee0316b99cd03269789fde5322318eed"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/21-topics-empty.png",
+      "bytes": 37982,
+      "sha256": "fcdbebf3189bbb7e3829a252ed537d4b00a3fd8fd59884848bd5dfd86cdeb539",
+      "git_blob": "e19422abee0316b99cd03269789fde5322318eed"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/22-intelligence-result.png",
+      "bytes": 134678,
+      "sha256": "64b216ecde4b3e7f454dc96693895c107727e0caf0b4a59f5ffce9c419cd2c1f",
+      "git_blob": "bc302f06ac76ca0d22ff0d752c3e392f581267b4"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/23-topics-route.png",
+      "bytes": 121778,
+      "sha256": "78b650126d781d1fed3c574f5f825a4da614642ff1a71cb068949e3b081b1bf4",
+      "git_blob": "4060a1d04706b84ad8c59c29b722695d5c8c4ee6"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/24-settings.png",
+      "bytes": 121778,
+      "sha256": "78b650126d781d1fed3c574f5f825a4da614642ff1a71cb068949e3b081b1bf4",
+      "git_blob": "4060a1d04706b84ad8c59c29b722695d5c8c4ee6"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/25-narrow-content.png",
+      "bytes": 69135,
+      "sha256": "76e824540ca024e73d0a44ac90051057d4a404300acb8277767c8bfee4ca6e3e",
+      "git_blob": "21c24931552cc0ef190390790d763bcdc3a1a09c"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/25-narrow-following.png",
+      "bytes": 69135,
+      "sha256": "76e824540ca024e73d0a44ac90051057d4a404300acb8277767c8bfee4ca6e3e",
+      "git_blob": "21c24931552cc0ef190390790d763bcdc3a1a09c"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/25-narrow-home.png",
+      "bytes": 69135,
+      "sha256": "76e824540ca024e73d0a44ac90051057d4a404300acb8277767c8bfee4ca6e3e",
+      "git_blob": "21c24931552cc0ef190390790d763bcdc3a1a09c"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/25-narrow-settings.png",
+      "bytes": 69135,
+      "sha256": "76e824540ca024e73d0a44ac90051057d4a404300acb8277767c8bfee4ca6e3e",
+      "git_blob": "21c24931552cc0ef190390790d763bcdc3a1a09c"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/30-topics-real.png",
+      "bytes": 28263,
+      "sha256": "c3dd956ac8dd78a37dffdf17fee70eefb3bc3bd54a744bd3656c3b17fd65d913",
+      "git_blob": "0651b938ed6c662a6d0b0805df015bf7d0861489"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/31-intelligence-result.png",
+      "bytes": 134678,
+      "sha256": "64b216ecde4b3e7f454dc96693895c107727e0caf0b4a59f5ffce9c419cd2c1f",
+      "git_blob": "bc302f06ac76ca0d22ff0d752c3e392f581267b4"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/32-intelligence-view-after.png",
+      "bytes": 56090,
+      "sha256": "616765865771a2a169e2e9987d61b9d16b4de93f0cd4bd1bf5970e1a87d46763",
+      "git_blob": "a6d79181bea5b24fdbc1c7f420e8f941bd22569a"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/33-intelligence-after-fix.png",
+      "bytes": 134678,
+      "sha256": "64b216ecde4b3e7f454dc96693895c107727e0caf0b4a59f5ffce9c419cd2c1f",
+      "git_blob": "bc302f06ac76ca0d22ff0d752c3e392f581267b4"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/34-intelligence-extracted.png",
+      "bytes": 198267,
+      "sha256": "294d42f5b91f1f952d8c6c0501fa05debc94660b7d9e42d28f666cbb3c1d154c",
+      "git_blob": "82436f758f676a1fe9cd4373e5e18ddd40fde27f"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/35-intelligence-view.png",
+      "bytes": 43420,
+      "sha256": "8e19126ebcd282a2adee0b062dc1f988450a43ff1b30ca24047663199dd73d42",
+      "git_blob": "5a3eef1a1f78fba81c7544bd7602e56eafd4b3b2"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/36-audio-detail.png",
+      "bytes": 97149,
+      "sha256": "92fb9ef967f011842997292e2ac9f3d9c9c01a9b3fe2b3b961f10422c94517aa",
+      "git_blob": "52deee64a3cb6d81955d205d84565fccfd2f3d17"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/37-audio-transcribed.png",
+      "bytes": 101929,
+      "sha256": "06cf2d0bba1a5fa1752423459077a56eb33c028aa861de94d24c5b05ef412995",
+      "git_blob": "50446d6040d66269d2a44adfe3e58725dbf06c4d"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/38-following-paused.png",
+      "bytes": 60250,
+      "sha256": "ae3b08ca3838cf1a8a4b94905edeb66db9f4d45a3df52310f186a5b4881e17a9",
+      "git_blob": "e3864900acd8c0a8a358e7db5a306c1bcf199763"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/39-following-resumed.png",
+      "bytes": 64862,
+      "sha256": "eef0e0a4bacff314b6c1e4b00ae6d64910765dd327109ca53be3b11f6d96116b",
+      "git_blob": "423220bcfc8238a0bd821166e19336cf84897d0e"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/40-language-dialog.png",
+      "bytes": 107965,
+      "sha256": "cdaec7a9792f92a029f65349cee10ded36e419c95f28f8c8b0ecebf06de53549",
+      "git_blob": "b9623969649ba2689d286c6139ab277d3bdc6486"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/41-language-english-draft.png",
+      "bytes": 108491,
+      "sha256": "4b5e3e1d3f1a4cb88038f41fe4f867a2deda5a069613a228a09aa44fd69843b5",
+      "git_blob": "f271d3fe6c64daeec5cad7858ad42a4dbab467d8"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/42-settings-english.png",
+      "bytes": 118293,
+      "sha256": "2c65dc5d9668d061f065358d9a9616750f5e4612a293d48e05d3ff55b635640a",
+      "git_blob": "159d8551fb80098b68416262cf9522616a5c1439"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/43-settings-chinese.png",
+      "bytes": 121778,
+      "sha256": "78b650126d781d1fed3c574f5f825a4da614642ff1a71cb068949e3b081b1bf4",
+      "git_blob": "4060a1d04706b84ad8c59c29b722695d5c8c4ee6"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/44-home.png",
+      "bytes": 82792,
+      "sha256": "947165c4c24effe0c0304815838f5b69dae3f604d2fc563a482b2fa3e18491ca",
+      "git_blob": "2ecc6e3b1531ff33c28a223dfb68a17fc27e8d90"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/45-content-list-real.png",
+      "bytes": 57226,
+      "sha256": "c3c8a326b082e07bab380c8650e887621185bd822494320a69915ec15427422b",
+      "git_blob": "bb542510f16f177ca6e2bde2420c887f3f076df9"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/46-content-detail-full.png",
+      "bytes": 134678,
+      "sha256": "64b216ecde4b3e7f454dc96693895c107727e0caf0b4a59f5ffce9c419cd2c1f",
+      "git_blob": "bc302f06ac76ca0d22ff0d752c3e392f581267b4"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/47-content-detail-summary.png",
+      "bytes": 202277,
+      "sha256": "103a330b946a8fdbd038625bc5e049f1a203101ba4aca32260a806209b57e67a",
+      "git_blob": "cde1d331916059bf012b1c06adb8f8c4dbb8471b"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/debug-following.png",
+      "bytes": 35377,
+      "sha256": "eace1e8aef3d59bc9ce08295f1e0693b52596b58f94fe1259c2ad586e043191b",
+      "git_blob": "dc44f7f7a64c4aea22d97c56842bf9b7c6c1784a"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/evidence-backend-down-content.png",
+      "bytes": 35377,
+      "sha256": "eace1e8aef3d59bc9ce08295f1e0693b52596b58f94fe1259c2ad586e043191b",
+      "git_blob": "dc44f7f7a64c4aea22d97c56842bf9b7c6c1784a"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/evidence-backend-down-following.png",
+      "bytes": 35377,
+      "sha256": "eace1e8aef3d59bc9ce08295f1e0693b52596b58f94fe1259c2ad586e043191b",
+      "git_blob": "dc44f7f7a64c4aea22d97c56842bf9b7c6c1784a"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/evidence-backend-down-home.png",
+      "bytes": 35377,
+      "sha256": "eace1e8aef3d59bc9ce08295f1e0693b52596b58f94fe1259c2ad586e043191b",
+      "git_blob": "dc44f7f7a64c4aea22d97c56842bf9b7c6c1784a"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/evidence-backend-down-intelligence.png",
+      "bytes": 35377,
+      "sha256": "eace1e8aef3d59bc9ce08295f1e0693b52596b58f94fe1259c2ad586e043191b",
+      "git_blob": "dc44f7f7a64c4aea22d97c56842bf9b7c6c1784a"
+    },
+    {
+      "path": "docs/dogfood/opencode-user-pilot/screenshots/manual-html-preview.png",
+      "bytes": 175685,
+      "sha256": "7e5b3b7241b4383ef417a96329d2df9d34e4e10e1eabcf7f5a9f12a991c62a62",
+      "git_blob": "cc12657da6400078c23b1ee44803c6748f48a433"
+    }
+  ],
+  "scope": "Raw originals copied byte-for-byte from pinned Git; hashes prove preservation, not scene truth. Visual compatibility and exclusions are listed separately."
+}

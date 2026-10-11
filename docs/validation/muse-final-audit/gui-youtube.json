@@ -1,0 +1,120 @@
+{
+  "results": [
+    {
+      "kind": "video",
+      "confirmed": true,
+      "url": "http://127.0.0.1:5688/#Following",
+      "body": "洞察\n本地优先的知识工作台\n首页\n关注\n内容\n洞察\n主题\n设置\n证据始终可追溯\n\n洞察工作台\n\n关注\n\n选择要持续关注的来源。\n\nBilibili UP 主持续关注当前暂不可用。你仍可添加公开 Bilibili 视频。\n\n添加关注\n筛选关注\n全部关注\n有更新\n产生新洞察\n需要处理\n已暂停\n本地资料库\n仅导入明确选择的文件 · 本地\n关注中\n导入文件"
+    },
+    {
+      "kind": "channel",
+      "confirmed": true,
+      "url": "http://127.0.0.1:5688/#Following",
+      "body": "洞察\n本地优先的知识工作台\n首页\n关注\n内容\n洞察\n主题\n设置\n证据始终可追溯\n\n洞察工作台\n\n关注\n\n选择要持续关注的来源。\n\nBilibili UP 主持续关注当前暂不可用。你仍可添加公开 Bilibili 视频。\n\n添加关注\n筛选关注\n全部关注\n有更新\n产生新洞察\n需要处理\n已暂停\n本地资料库\n仅导入明确选择的文件 · 本地\n关注中\n导入文件"
+    }
+  ],
+  "responses": [
+    {
+      "url": "http://127.0.0.1:5688/api/v1/sources/check-stale",
+      "status": 202,
+      "body": {
+        "checks": []
+      }
+    },
+    {
+      "url": "http://127.0.0.1:5688/api/v1/sources/check-stale",
+      "status": 202,
+      "body": {
+        "checks": []
+      }
+    },
+    {
+      "url": "http://127.0.0.1:5688/api/v1/sources/import",
+      "status": 202,
+      "body": {
+        "source": {
+          "source_id": "93a4f620-436a-4ed6-816a-7483610f779e",
+          "provider": "YOUTUBE",
+          "source_type": "VIDEO_URL",
+          "canonical_url": "https://www.youtube.com/watch?v=aircAruvnKk",
+          "channel_id": null,
+          "video_id": "aircAruvnKk",
+          "display_name": null,
+          "enabled": true,
+          "processing_policy": "DISCOVER_ONLY",
+          "processing_mode": "ORGANIZE_CONTENT",
+          "last_checked_at": "2026-10-11T13:18:57.091753Z",
+          "last_success_at": "2026-10-11T13:18:57.091753Z",
+          "last_error": null,
+          "created_at": "2026-10-11T13:18:29.416887Z",
+          "updated_at": "2026-10-11T13:18:57.091753Z",
+          "tracking": null,
+          "tracking_parent_source_ids": [],
+          "insight_count": 0,
+          "friendly_name": "But what is a neural network? | Deep learning chapter 1",
+          "needs_attention": false
+        },
+        "source_run": {
+          "run_id": "source-run:7faac2ab84c33ea5a8f85f2b880c073146fa14a6b05f1ad7aef3d7f51d0d72e1",
+          "source_id": "93a4f620-436a-4ed6-816a-7483610f779e",
+          "trigger": "MANUAL_CHECK_NOW",
+          "trigger_reference": "185be705-b799-4334-811f-614de3d9393b",
+          "priority": "P0",
+          "state": "QUEUED",
+          "attention_reason": null,
+          "automation_run_id": null,
+          "manual_command_id": "185be705-b799-4334-811f-614de3d9393b",
+          "manual_analyze_override_id": null,
+          "created_at": "2026-10-11T13:22:19.257827Z",
+          "updated_at": "2026-10-11T13:22:19.257827Z"
+        }
+      }
+    },
+    {
+      "url": "http://127.0.0.1:5688/api/v1/sources/channels",
+      "status": 200,
+      "body": {
+        "source": {
+          "source_id": "youtube-channel-UCHnyfMqiRRG1u-2MsSQLbXA",
+          "provider": "YOUTUBE",
+          "source_type": "CHANNEL",
+          "canonical_url": "https://www.youtube.com/channel/UCHnyfMqiRRG1u-2MsSQLbXA",
+          "channel_id": "UCHnyfMqiRRG1u-2MsSQLbXA",
+          "video_id": null,
+          "display_name": "Veritasium",
+          "enabled": true,
+          "processing_policy": "DISCOVER_ONLY",
+          "processing_mode": "ORGANIZE_CONTENT",
+          "last_checked_at": "2026-10-11T13:22:29.824299Z",
+          "last_success_at": "2026-10-11T13:22:29.824299Z",
+          "last_error": null,
+          "created_at": "2026-10-11T13:22:29.804046Z",
+          "updated_at": "2026-10-11T13:22:31.743961Z",
+          "tracking": {
+            "source_id": "youtube-channel-UCHnyfMqiRRG1u-2MsSQLbXA",
+            "contract": "source-tracking-v1",
+            "followed_at": "2026-10-11T13:22:29.804046Z",
+            "baseline_at": "2026-10-11T13:22:29.824299Z",
+            "verified_at": "2026-10-11T13:22:29.824299Z",
+            "latest_published_at": "2026-10-09T13:00:03.000000Z",
+            "next_page": 1,
+            "coverage": "COMPLETE",
+            "health": "HEALTHY",
+            "next_check_at": "2026-10-11T13:37:29.824299Z",
+            "discovered_count": 0,
+            "pending_count": 0,
+            "unavailable_count": 0,
+            "update_count": 0,
+            "checking": false,
+            "processing_count": 0,
+            "manual_check_at": "2026-10-11T13:37:29.824299Z"
+          },
+          "tracking_parent_source_ids": [],
+          "insight_count": 0,
+          "friendly_name": "Veritasium",
+          "needs_attention": false
+        }
+      }
+    }
+  ]
+}

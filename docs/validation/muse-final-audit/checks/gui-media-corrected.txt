@@ -1,0 +1,16 @@
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+locator.waitFor: Timeout 45000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('button', { name: '确认导入', exact: true }) to be visible[22m
+
+    at /Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/gui-media.mjs:24:54 {
+  log: [
+    "  - waiting for getByRole('button', { name: '确认导入', exact: true }) to be visible"
+  ],
+  name: 'TimeoutError'
+}
+
+Node.js v22.22.3

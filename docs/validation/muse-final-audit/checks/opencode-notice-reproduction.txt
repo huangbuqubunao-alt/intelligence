@@ -1,0 +1,683 @@
+
+ RUN  v2.1.9 /Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/opencode-source/frontend
+
+ ❯ src/workspace/AuditMuseRegression.test.tsx (111 tests | 1 failed | 110 skipped) 132ms
+   × import success notice survives the programmatic navigation that follows it 131ms
+     → Unable to find an element with the text: File imported. Its processing status appears below.. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"app-shell"[39m
+    [36m>[39m
+      [36m<aside[39m
+        [33mclass[39m=[32m"sidebar"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"brand"[39m
+        [36m>[39m
+          [36m<svg[39m
+            [33maria-hidden[39m=[32m"true"[39m
+            [33mclass[39m=[32m"brand-logo"[39m
+            [33mfocusable[39m=[32m"false"[39m
+            [33mviewBox[39m=[32m"0 0 24 24"[39m
+            [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+          [36m>[39m
+            [36m<defs>[39m
+              [36m<lineargradient[39m
+                [33mgradientUnits[39m=[32m"userSpaceOnUse"[39m
+                [33mid[39m=[32m"intel-logo-grad-r0"[39m
+                [33mx1[39m=[32m"20"[39m
+                [33mx2[39m=[32m"4"[39m
+                [33my1[39m=[32m"4"[39m
+                [33my2[39m=[32m"20"[39m
+              [36m>[39m
+                [36m<stop[39m
+                  [33moffset[39m=[32m"0%"[39m
+                  [33mstop-color[39m=[32m"#4C8DFF"[39m
+                [36m/>[39m
+                [36m<stop[39m
+                  [33moffset[39m=[32m"100%"[39m
+                  [33mstop-color[39m=[32m"#8B6CF0"[39m
+                [36m/>[39m
+              [36m</lineargradient>[39m
+            [36m</defs>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M18.89 13.22 A7 7 0 1 1 16.5 6.64"[39m
+              [33mfill[39m=[32m"none"[39m
+              [33mstroke[39m=[32m"url(#intel-logo-grad-r0)"[39m
+              [33mstroke-linecap[39m=[32m"round"[39m
+              [33mstroke-width[39m=[32m"2.9"[39m
+            [36m/>[39m
+            [36m<circle[39m
+              [33mcx[39m=[32m"19.09"[39m
+              [33mcy[39m=[32m"6.46"[39m
+              [33mfill[39m=[32m"url(#intel-logo-grad-r0)"[39m
+              [33mr[39m=[32m"2"[39m
+            [36m/>[39m
+          [36m</svg>[39m
+          [36m<div>[39m
+            [36m<strong>[39m
+              [0mIntelligence[0m
+            [36m</strong>[39m
+            [36m<small>[39m
+              [0mLocal-first workspace[0m
+            [36m</small>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<nav[39m
+          [33maria-label[39m=[32m"Primary navigation"[39m
+          [33mclass[39m=[32m"sidebar-nav"[39m
+        [36m>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mHome[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mFollowing[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33maria-current[39m=[32m"page"[39m
+            [33mclass[39m=[32m"nav-item active"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mContent[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mIntelligence[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mTopics[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mSettings[0m
+          [36m</button>[39m
+        [36m</nav>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"sidebar-foot"[39m
+        [36m>[39m
+          [0mEvidence stays reachable[0m
+        [36m</div>[39m
+      [36m</aside>[39m
+      [36m<main[39m
+        [33mclass[39m=[32m"workspace-main"[39m
+      [36m>[39m
+        [36m<header[39m
+          [33mclass[39m=[32m"page-header"[39m
+        [36m>[39m
+          [36m<div>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"eyebrow"[39m
+            [36m>[39m
+              [0mINTELLIGENCE[0m
+            [36m</p>[39m
+            [36m<h1>[39m
+              [0mContent[0m
+            [36m</h1>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"page-subtitle"[39m
+            [36m>[39m
+              [0mRead ingested content, transcript state, and processing history.[0m
+            [36m</p>[39m
+          [36m</div>[39m
+        [36m</header>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"dashboard-stack"[39m
+        [36m>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"button button-ghost"[39m
+          [36m>[39m
+            [0mBack to Content[0m
+          [36m</button>[39m
+          [36m<section[39m
+            [33mclass[39m=[32m"panel"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"panel-heading"[39m
+            [36m>[39m
+              [36m<h2>[39m
+                [0mDeep Analysis fixture[0m
+              [36m</h2>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"reading-meta"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"status status-neutral"[39m
+              [36m>[39m
+                [0mComplete[0m
+              [36m</span>[39m
+              [36m<span>[39m
+                [0mFixture channel[0m
+                [0m · [0m
+                [0mSep 1, 2026[0m
+              [36m</span>[39m
+            [36m</div>[39m
+            [36m<a[39m
+              [33mclass[39m=[32m"source-link"[39m
+              [33mhref[39m=[32m"https://www.youtube.com/watch?v=video-1"[39m
+              [33mrel[39m=[32m"noreferrer"[39m
+              [33mtarget[39m=[32m"_blank"[39m
+            [36m>[39m
+              [0mOpen original source[0m
+            [36m</a>[39m
+          [36m</section>[39m
+          [36m<section[39m
+            [33mclass[39m=[32m"panel"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"panel-heading"[39m
+            [36m>[39m
+              [36m<h2>[39m
+                [0mTranscript[0m
+              [36m</h2>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"transcript-copy"[39m
+            [36m>[39m
+              [0mOriginal transcript evidence.[0m
+            [36m</div>[39m
+          [36m</section>[39m
+          [36m<section[39m
+            [33mclass[39m=[32m"panel"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"panel-heading"[39m
+            [36m>[39m
+              [36m<h2>[39m
+                [0mSummary / Video Notes[0m
+              [36m</h2>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"semantic-state state-neutral"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"status status-warning"[39m
+              [36m>[39m
+                [0mUnavailable[0m
+              [36m</span>[39m
+              [36m<p>[39m
+                [0mSummary / Video Notes are not available for this Content yet. No summary is fabricated from missing output.[0m
+              [36m</p>[39m
+            [36m</div>[39m
+          [36m</section>[39m
+          [36m<section[39m
+            [33mclass[39m=[32m"panel"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"panel-heading"[39m
+            [36m>[39m
+              [36m<h2>[39m
+                [0mDeep Analysis[0m
+              [36m</h2>[39m
+            [36m</div>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"hint"[39m
+            [36m>[39m
+              [0mSummary explains what this content says. Deep Analysis is a separate, on-demand action for the conclusions, evidence, uncertainty, what it means for you, and what to investigate next.[0m
+            [36m</p>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"semantic-state state-neutral"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"status status-neutral"[39m
+              [36m>[39m
+                [0mNot run yet[0m
+              [36m</span>[39m
+              [36m<p>[39m
+                [0mDeep Analysis has not been run for this Content. It is an on-demand action and runs nothing until you ask for it.[0m
+              [36m</p>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"reading-meta"[39m
+            [36m>[39m
+              [36m<button[39m
+                [33mclass[39m=[32m"button button-primary"[39m
+                [33mdisabled[39m=[32m""[39m
+                [33mtype[39m=[32m"button"[39m
+              [36m>[39m
+                [0mRun Deep Analysis[0m
+              [36m</button>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"deep-analysis-publish"[39m
+            [36m>[39m
+              [36m<button[39m
+                [33mclass[39m=[32m"button button-secondary"[39m
+                [33mdisabled[39m=[32m""[39m
+                [33mtype[39m=[32m"button"[39m
+              [36m>[39m
+                [0mPublish to Obsidian[0m
+              [36m</button>[39m
+              [36m<p[39m
+                [33mclass[39m=[32m"hint"[39m
+              [36m>[39m
+                [0mPublishing updates the managed note. Your My thoughts section is preserved.[0m
+              [36m</p>[39m
+            [36m</div>[39m
+          [36m</section>[39m
+          [36m<section[39m
+            [33mclass[39m=[32m"panel"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"panel-heading"[39m
+            [36m>[39m
+              [36m<h2>[39m
+                [0mEvidence · source transcript[0m
+              [36m</h2>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"empty-state"[39m
+            [36m>[39m
+              [0mNo available, verified canonical transcript Evidence is recorded for this Content.[0m
+            [36m</div>[39m
+          [36m</section>[39m
+          [36m<section[39m
+            [33mclass[39m=[32m"panel"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"panel-heading"[39m
+            [36m>[39m
+              [36m<h2>[39m
+                [0mIntelligence result[0m
+              [36m</h2>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"semantic-state state-neutral"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"status status-neutral"[39m
+              [36m>[39m
+                [0mNot processed[0m
+              [36m</span>[39m
+              [36m<p>[39m
+                [0mThis Content has not been processed for Intelligence yet.[0m
+              [36m</p>[39m
+            [36m</div>[39m
+          [36m</section>[39m
+          [36m<section[39m
+            [33mclass[39m=[32m"panel"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"panel-heading"[39m
+            [36m>[39m
+              [36m<h2>[39m
+                [0mProcessing history[0m
+              [36m</h2>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"empty-state"[39m
+            [36m>[39m
+              [0mNo processing history yet.[0m
+            [36m</div>[39m
+          [36m</section>[39m
+        [36m</div>[39m
+      [36m</main>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/workspace/AuditMuseRegression.test.tsx > import success notice survives the programmatic navigation that follows it
+TestingLibraryElementError: Unable to find an element with the text: File imported. Its processing status appears below.. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"app-shell"[39m
+    [36m>[39m
+      [36m<aside[39m
+        [33mclass[39m=[32m"sidebar"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"brand"[39m
+        [36m>[39m
+          [36m<svg[39m
+            [33maria-hidden[39m=[32m"true"[39m
+            [33mclass[39m=[32m"brand-logo"[39m
+            [33mfocusable[39m=[32m"false"[39m
+            [33mviewBox[39m=[32m"0 0 24 24"[39m
+            [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+          [36m>[39m
+            [36m<defs>[39m
+              [36m<lineargradient[39m
+                [33mgradientUnits[39m=[32m"userSpaceOnUse"[39m
+                [33mid[39m=[32m"intel-logo-grad-r0"[39m
+                [33mx1[39m=[32m"20"[39m
+                [33mx2[39m=[32m"4"[39m
+                [33my1[39m=[32m"4"[39m
+                [33my2[39m=[32m"20"[39m
+              [36m>[39m
+                [36m<stop[39m
+                  [33moffset[39m=[32m"0%"[39m
+                  [33mstop-color[39m=[32m"#4C8DFF"[39m
+                [36m/>[39m
+                [36m<stop[39m
+                  [33moffset[39m=[32m"100%"[39m
+                  [33mstop-color[39m=[32m"#8B6CF0"[39m
+                [36m/>[39m
+              [36m</lineargradient>[39m
+            [36m</defs>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M18.89 13.22 A7 7 0 1 1 16.5 6.64"[39m
+              [33mfill[39m=[32m"none"[39m
+              [33mstroke[39m=[32m"url(#intel-logo-grad-r0)"[39m
+              [33mstroke-linecap[39m=[32m"round"[39m
+              [33mstroke-width[39m=[32m"2.9"[39m
+            [36m/>[39m
+            [36m<circle[39m
+              [33mcx[39m=[32m"19.09"[39m
+              [33mcy[39m=[32m"6.46"[39m
+              [33mfill[39m=[32m"url(#intel-logo-grad-r0)"[39m
+              [33mr[39m=[32m"2"[39m
+            [36m/>[39m
+          [36m</svg>[39m
+          [36m<div>[39m
+            [36m<strong>[39m
+              [0mIntelligence[0m
+            [36m</strong>[39m
+            [36m<small>[39m
+              [0mLocal-first workspace[0m
+            [36m</small>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<nav[39m
+          [33maria-label[39m=[32m"Primary navigation"[39m
+          [33mclass[39m=[32m"sidebar-nav"[39m
+        [36m>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mHome[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mFollowing[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33maria-current[39m=[32m"page"[39m
+            [33mclass[39m=[32m"nav-item active"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mContent[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mIntelligence[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mTopics[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mSettings[0m
+          [36m</button>[39m
+        [36m</nav>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"sidebar-foot"[39m
+        [36m>[39m
+          [0mEvidence stays reachable[0m
+        [36m</div>[39m
+      [36m</aside>[39m
+      [36m<main[39m
+        [33mclass[39m=[32m"workspace-main"[39m
+      [36m>[39m
+        [36m<header[39m
+          [33mclass[39m=[32m"page-header"[39m
+        [36m>[39m
+          [36m<div>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"eyebrow"[39m
+            [36m>[39m
+              [0mINTELLIGENCE[0m
+            [36m</p>[39m
+            [36m<h1>[39m
+              [0mContent[0m
+            [36m</h1>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"page-subtitle"[39m
+            [36m>[39m
+              [0mRead ingested content, transcript state, and processing history.[0m
+            [36m</p>[39m
+          [36m</div>[39m
+        [36m</header>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"dashboard-stack"[39m
+        [36m>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"button button-ghost"[39m
+          [36m>[39m
+            [0mBack to Content[0m
+          [36m</button>[39m
+          [36m<section[39m
+            [33mclass[39m=[32m"panel"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"panel-heading"[39m
+            [36m>[39m
+              [36m<h2>[39m
+                [0mDeep Analysis fixture[0m
+              [36m</h2>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"reading-meta"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"status status-neutral"[39m
+              [36m>[39m
+                [0mComplete[0m
+              [36m</span>[39m
+              [36m<span>[39m
+                [0mFixture channel[0m
+                [0m · [0m
+                [0mSep 1, 2026[0m
+              [36m</span>[39m
+            [36m</div>[39m
+            [36m<a[39m
+              [33mclass[39m=[32m"source-link"[39m
+              [33mhref[39m=[32m"https://www.youtube.com/watch?v=video-1"[39m
+              [33mrel[39m=[32m"noreferrer"[39m
+              [33mtarget[39m=[32m"_blank"[39m
+            [36m>[39m
+              [0mOpen original source[0m
+            [36m</a>[39m
+          [36m</section>[39m
+          [36m<section[39m
+            [33mclass[39m=[32m"panel"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"panel-heading"[39m
+            [36m>[39m
+              [36m<h2>[39m
+                [0mTranscript[0m
+              [36m</h2>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"transcript-copy"[39m
+            [36m>[39m
+              [0mOriginal transcript evidence.[0m
+            [36m</div>[39m
+          [36m</section>[39m
+          [36m<section[39m
+            [33mclass[39m=[32m"panel"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"panel-heading"[39m
+            [36m>[39m
+              [36m<h2>[39m
+                [0mSummary / Video Notes[0m
+              [36m</h2>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"semantic-state state-neutral"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"status status-warning"[39m
+              [36m>[39m
+                [0mUnavailable[0m
+              [36m</span>[39m
+              [36m<p>[39m
+                [0mSummary / Video Notes are not available for this Content yet. No summary is fabricated from missing output.[0m
+              [36m</p>[39m
+            [36m</div>[39m
+          [36m</section>[39m
+          [36m<section[39m
+            [33mclass[39m=[32m"panel"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"panel-heading"[39m
+            [36m>[39m
+              [36m<h2>[39m
+                [0mDeep Analysis[0m
+              [36m</h2>[39m
+            [36m</div>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"hint"[39m
+            [36m>[39m
+              [0mSummary explains what this content says. Deep Analysis is a separate, on-demand action for the conclusions, evidence, uncertainty, what it means for you, and what to investigate next.[0m
+            [36m</p>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"semantic-state state-neutral"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"status status-neutral"[39m
+              [36m>[39m
+                [0mNot run yet[0m
+              [36m</span>[39m
+              [36m<p>[39m
+                [0mDeep Analysis has not been run for this Content. It is an on-demand action and runs nothing until you ask for it.[0m
+              [36m</p>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"reading-meta"[39m
+            [36m>[39m
+              [36m<button[39m
+                [33mclass[39m=[32m"button button-primary"[39m
+                [33mdisabled[39m=[32m""[39m
+                [33mtype[39m=[32m"button"[39m
+              [36m>[39m
+                [0mRun Deep Analysis[0m
+              [36m</button>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"deep-analysis-publish"[39m
+            [36m>[39m
+              [36m<button[39m
+                [33mclass[39m=[32m"button button-secondary"[39m
+                [33mdisabled[39m=[32m""[39m
+                [33mtype[39m=[32m"button"[39m
+              [36m>[39m
+                [0mPublish to Obsidian[0m
+              [36m</button>[39m
+              [36m<p[39m
+                [33mclass[39m=[32m"hint"[39m
+              [36m>[39m
+                [0mPublishing updates the managed note. Your My thoughts section is preserved.[0m
+              [36m</p>[39m
+            [36m</div>[39m
+          [36m</section>[39m
+          [36m<section[39m
+            [33mclass[39m=[32m"panel"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"panel-heading"[39m
+            [36m>[39m
+              [36m<h2>[39m
+                [0mEvidence · source transcript[0m
+              [36m</h2>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"empty-state"[39m
+            [36m>[39m
+              [0mNo available, verified canonical transcript Evidence is recorded for this Content.[0m
+            [36m</div>[39m
+          [36m</section>[39m
+          [36m<section[39m
+            [33mclass[39m=[32m"panel"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"panel-heading"[39m
+            [36m>[39m
+              [36m<h2>[39m
+                [0mIntelligence result[0m
+              [36m</h2>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"semantic-state state-neutral"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"status status-neutral"[39m
+              [36m>[39m
+                [0mNot processed[0m
+              [36m</span>[39m
+              [36m<p>[39m
+                [0mThis Content has not been processed for Intelligence yet.[0m
+              [36m</p>[39m
+            [36m</div>[39m
+          [36m</section>[39m
+          [36m<section[39m
+            [33mclass[39m=[32m"panel"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"panel-heading"[39m
+            [36m>[39m
+              [36m<h2>[39m
+                [0mProcessing history[0m
+              [36m</h2>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"empty-state"[39m
+            [36m>[39m
+              [0mNo processing history yet.[0m
+            [36m</div>[39m
+          [36m</section>[39m
+        [36m</div>[39m
+      [36m</main>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+ ❯ Object.getElementError ../../../../../v1x-local-main/frontend/node_modules/@testing-library/dom/dist/config.js:37:19
+ ❯ ../../../../../v1x-local-main/frontend/node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+ ❯ ../../../../../v1x-local-main/frontend/node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+ ❯ ../../../../../v1x-local-main/frontend/node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+ ❯ src/workspace/AuditMuseRegression.test.tsx:2733:17
+    2731|   // programmatic navigation, so the notice is not cleared.
+    2732|   await waitFor(() => expect(hashes).toContain("#Content"));
+    2733|   expect(screen.getByText("File imported. Its processing status appear…
+       |                 ^
+    2734| });
+    2735|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 110 skipped (111)
+   Start at  21:18:24
+   Duration  976ms (transform 303ms, setup 0ms, collect 410ms, tests 132ms, environment 207ms, prepare 37ms)

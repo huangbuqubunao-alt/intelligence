@@ -1,0 +1,1899 @@
+
+ RUN  v2.1.9 /Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/baseline-source/frontend
+
+ ❯ src/workspace/AuditRouteRegression.test.tsx (110 tests | 1 failed | 109 skipped) 1081ms
+   × user hash navigation (browser back/forward or editing the address bar) switches views 1080ms
+     → Unable to find role="heading" and name "设置"
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"app-shell"[39m
+    [36m>[39m
+      [36m<aside[39m
+        [33mclass[39m=[32m"sidebar"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"brand"[39m
+        [36m>[39m
+          [36m<svg[39m
+            [33maria-hidden[39m=[32m"true"[39m
+            [33mclass[39m=[32m"brand-logo"[39m
+            [33mfocusable[39m=[32m"false"[39m
+            [33mviewBox[39m=[32m"0 0 24 24"[39m
+            [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+          [36m>[39m
+            [36m<defs>[39m
+              [36m<lineargradient[39m
+                [33mgradientUnits[39m=[32m"userSpaceOnUse"[39m
+                [33mid[39m=[32m"intel-logo-grad-r0"[39m
+                [33mx1[39m=[32m"20"[39m
+                [33mx2[39m=[32m"4"[39m
+                [33my1[39m=[32m"4"[39m
+                [33my2[39m=[32m"20"[39m
+              [36m>[39m
+                [36m<stop[39m
+                  [33moffset[39m=[32m"0%"[39m
+                  [33mstop-color[39m=[32m"#4C8DFF"[39m
+                [36m/>[39m
+                [36m<stop[39m
+                  [33moffset[39m=[32m"100%"[39m
+                  [33mstop-color[39m=[32m"#8B6CF0"[39m
+                [36m/>[39m
+              [36m</lineargradient>[39m
+            [36m</defs>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M18.89 13.22 A7 7 0 1 1 16.5 6.64"[39m
+              [33mfill[39m=[32m"none"[39m
+              [33mstroke[39m=[32m"url(#intel-logo-grad-r0)"[39m
+              [33mstroke-linecap[39m=[32m"round"[39m
+              [33mstroke-width[39m=[32m"2.9"[39m
+            [36m/>[39m
+            [36m<circle[39m
+              [33mcx[39m=[32m"19.09"[39m
+              [33mcy[39m=[32m"6.46"[39m
+              [33mfill[39m=[32m"url(#intel-logo-grad-r0)"[39m
+              [33mr[39m=[32m"2"[39m
+            [36m/>[39m
+          [36m</svg>[39m
+          [36m<div>[39m
+            [36m<strong>[39m
+              [0m洞察[0m
+            [36m</strong>[39m
+            [36m<small>[39m
+              [0m本地优先的知识工作台[0m
+            [36m</small>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<nav[39m
+          [33maria-label[39m=[32m"主导航"[39m
+          [33mclass[39m=[32m"sidebar-nav"[39m
+        [36m>[39m
+          [36m<button[39m
+            [33maria-current[39m=[32m"page"[39m
+            [33mclass[39m=[32m"nav-item active"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0m首页[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0m关注[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0m内容[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0m洞察[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0m主题[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0m设置[0m
+          [36m</button>[39m
+        [36m</nav>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"sidebar-foot"[39m
+        [36m>[39m
+          [0m证据始终可追溯[0m
+        [36m</div>[39m
+      [36m</aside>[39m
+      [36m<main[39m
+        [33mclass[39m=[32m"workspace-main"[39m
+      [36m>[39m
+        [36m<header[39m
+          [33mclass[39m=[32m"page-header"[39m
+        [36m>[39m
+          [36m<div>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"eyebrow"[39m
+            [36m>[39m
+              [0m洞察工作台[0m
+            [36m</p>[39m
+            [36m<h1>[39m
+              [0m首页[0m
+            [36m</h1>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"page-subtitle"[39m
+            [36m>[39m
+              [0m查看你关注的知识最近发生了什么变化。[0m
+            [36m</p>[39m
+          [36m</div>[39m
+        [36m</header>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"dashboard-stack"[39m
+        [36m>[39m
+          [36m<section[39m
+            [33maria-busy[39m=[32m"false"[39m
+            [33maria-labelledby[39m=[32m"knowledge-delta-heading"[39m
+            [33mclass[39m=[32m"panel knowledge-delta"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"panel-heading"[39m
+            [36m>[39m
+              [36m<h2[39m
+                [33mid[39m=[32m"knowledge-delta-heading"[39m
+              [36m>[39m
+                [0m最近 7 天发生了什么变化？[0m
+              [36m</h2>[39m
+            [36m</div>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"delta-window"[39m
+            [36m>[39m
+              [0m2026年9月26日 16:00[0m
+              [0m – [0m
+              [0m2026年10月3日 16:00[0m
+              [0m · [0m
+              [0mAsia/Shanghai[0m
+            [36m</p>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"delta-empty"[39m
+            [36m>[39m
+              [0m最近 7 天没有明显的知识变化。[0m
+            [36m</p>[39m
+          [36m</section>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"dashboard-stack"[39m
+          [36m>[39m
+            [36m<section[39m
+              [33mclass[39m=[32m"panel"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"panel-heading"[39m
+              [36m>[39m
+                [36m<h2>[39m
+                  [0m当前重点[0m
+                [36m</h2>[39m
+              [36m</div>[39m
+              [36m<article[39m
+                [33mclass[39m=[32m"panel intelligence-card"[39m
+              [36m>[39m
+                [36m<header[39m
+                  [33mclass[39m=[32m"intelligence-conclusion"[39m
+                [36m>[39m
+                  [36m<p[39m
+                    [33mclass[39m=[32m"section-label"[39m
+                  [36m>[39m
+                    [0m结论[0m
+                  [36m</p>[39m
+                  [36m<h2>[39m
+                    [0mA rumor remains unresolved.[0m
+                  [36m</h2>[39m
+                [36m</header>[39m
+                [36m<section[39m
+                  [33mclass[39m=[32m"intelligence-section"[39m
+                [36m>[39m
+                  [36m<h3>[39m
+                    [0m为何重要[0m
+                  [36m</h3>[39m
+                  [36m<p>[39m
+                    [0mWatch for confirmation before changing your plans.[0m
+                  [36m</p>[39m
+                [36m</section>[39m
+                [36m<section[39m
+                  [33mclass[39m=[32m"intelligence-section"[39m
+                [36m>[39m
+                  [36m<h3>[39m
+                    [0m新增信息[0m
+                  [36m</h3>[39m
+                  [36m<p>[39m
+                    [0mA second source now challenges the original claim.[0m
+                  [36m</p>[39m
+                [36m</section>[39m
+                [36m<section[39m
+                  [33mclass[39m=[32m"intelligence-section"[39m
+                [36m>[39m
+                  [36m<h3>[39m
+                    [0m重要细节[0m
+                  [36m</h3>[39m
+                  [36m<ul>[39m
+                    [36m<li>[39m
+                      [0mThe available sources are not yet independent.[0m
+                    [36m</li>[39m
+                  [36m</ul>[39m
+                [36m</section>[39m
+                [36m<div[39m
+                  [33maria-label[39m=[32m"判断类型与当前状态"[39m
+                  [33mclass[39m=[32m"reading-meta"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"status status-neutral"[39m
+                  [36m>[39m
+                    [0mUnconfirmed rumor[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"status status-neutral"[39m
+                  [36m>[39m
+                    [0m有争议[0m
+                  [36m</span>[39m
+                [36m</div>[39m
+                [36m<section[39m
+                  [33mclass[39m=[32m"intelligence-section"[39m
+                [36m>[39m
+                  [36m<h3>[39m
+                    [0m验证状态[0m
+                  [36m</h3>[39m
+                  [36m<p>[39m
+                    [0m仍需验证；冲突证据或解释尚未解决。[0m
+                  [36m</p>[39m
+                  [36m<p[39m
+                    [33mclass[39m=[32m"hint"[39m
+                  [36m>[39m
+                    [0m这是验证状态，不是数值置信度。[0m
+                  [36m</p>[39m
+                [36m</section>[39m
+                [36m<details[39m
+                  [33mclass[39m=[32m"evidence-block evidence-trace"[39m
+                [36m>[39m
+                  [36m<summary>[39m
+                    [0m证据与原始来源[0m
+                  [36m</summary>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"evidence-origin"[39m
+                  [36m>[39m
+                    [36m<div>[39m
+                      [36m<span>[39m
+                        [0m来源[0m
+                      [36m</span>[39m
+                      [36m<strong>[39m
+                        [0m3Blue1Brown[0m
+                      [36m</strong>[39m
+                      [36m<small>[39m
+                        [0msource-1[0m
+                        [0m · [0m
+                        [0mvideo-1[0m
+                      [36m</small>[39m
+                      [36m<a[39m
+                        [33mhref[39m=[32m"https://youtube.test/source"[39m
+                        [33mrel[39m=[32m"noreferrer"[39m
+                        [33mtarget[39m=[32m"_blank"[39m
+                      [36m>[39m
+                        [0m打开来源[0m
+                      [36m</a>[39m
+                    [36m</div>[39m
+                    [36m<div>[39m
+                      [36m<span>[39m
+                        [0m内容[0m
+                      [36m</span>[39m
+                      [36m<strong>[39m
+                        [0mTransformers, the tech behind LLMs | Deep Learning Chapter 5[0m
+                      [36m</strong>[39m
+                    [36m</div>[39m
+                  [36m</div>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"evidence-trace-list"[39m
+                  [36m>[39m
+                    [36m<article[39m
+                      [33mclass[39m=[32m"evidence-item evidence-trace-item"[39m
+                    [36m>[39m
+                      [36m<div[39m
+                        [33mclass[39m=[32m"reading-meta"[39m
+                      [36m>[39m
+                        [36m<span[39m
+                          [33mclass[39m=[32m"status status-neutral"[39m
+                        [36m>[39m
+                          [0m反驳[0m
+                        [36m</span>[39m
+                        [36m<span>[39m
+                          [0m来源语言[0m
+                          [0m: [0m
+                          [0men[0m
+                        [36m</span>[39m
+                      [36m</div>[39m
+                      [36m<div[39m
+                        [33maria-label[39m=[32m"证据显示方式"[39m
+                        [33mclass[39m=[32m"segmented evidence-display-modes"[39m
+                        [33mrole[39m=[32m"group"[39m
+                      [36m>[39m
+                        [36m<button[39m
+                          [33maria-pressed[39m=[32m"false"[39m
+                          [33mclass[39m=[32m""[39m
+                          [33mtype[39m=[32m"button"[39m
+                        [36m>[39m
+                          [0m译文[0m
+                        [36m</button>[39m
+                        [36m<button[39m
+                          [33maria-pressed[39m=[32m"false"[39m
+                          [33mclass[39m=[32m""[39m
+                          [33mtype[39m=[32m"button"[39m
+                        [36m>[39m
+                          [0m双语[0m
+                        [36m</button>[39m
+                        [36m<button[39m
+                          [33maria-pressed[39m=[32m"true"[39m
+                          [33mclass[39m=[32m"active"[39m
+                          [33mtype[39m=[32m"button"[39m
+                        [36m>[39m
+                          [0m原文[0m
+                        [36m</button>[39m
+                      [36m</div>[39m
+                      [36m<div>[39m
+                        [36m<strong>[39m
+                          [0m原文（权威原文）[0m
+                          [0m · [0m
+                          [0men[0m
+                        [36m</strong>[39m
+                        [36m<blockquote>[39m
+                          [0mAttention lets each token weigh relevant context from other tokens.[0m
+                        [36m</blockquote>[39m
+                      [36m</div>[39m
+                      [36m<p[39m
+                        [33mclass[39m=[32m"hint"[39m
+                      [36m>[39m
+                        [0m暂无译文。[0m
+                      [36m</p>[39m
+                      [36m<div>[39m
+                        [36m<strong>[39m
+                          [0m来源位置[0m
+                        [36m</strong>[39m
+                        [36m<p>[39m
+                          [0m0:01–0:02[0m
+                        [36m</p>[39m
+                      [36m</div>[39m
+                      [36m<div>[39m
+                        [36m<strong>[39m
+                          [0m溯源信息[0m
+                        [36m</strong>[39m
+                        [36m<p>[39m
+                          [0m原始字幕[0m
+                          [0m · [0m
+                          [0m主要原始资料[0m
+                        [36m</p>[39m
+                        [36m<small>[39m
+                          [0martifact-1[0m
+                        [36m</small>[39m
+                      [36m</div>[39m
+                      [36m<div[39m
+                        [33mclass[39m=[32m"evidence-actions"[39m
+                      [36m>[39m
+                        [36m<button[39m
+                          [33mclass[39m=[32m"button button-secondary button-small"[39m
+                        [36m>[39m
+                          [0m打开内容[0m
+                        [36m</button>[39m
+                        [36m<a[39m
+                          [33mclass[39m=[32m"button button-ghost button-small evidence-source-link"[39m
+                          [33mhref[39m=[32m"https://www.youtube.com/watch?v=video-1&t=1"[39m
+                          [33mrel[39m=[32m"noreferrer"[39m
+                          [33mtarget[39m=[32m"_blank"[39m
+                        [36m>[39m
+                          [0m打开原始来源对应时间点[0m
+                        [36m</a>[39m
+                      [36m</div>[39m
+                    [36m</article>[39m
+                  [36m</div>[39m
+                  [36m<p[39m
+                    [33mclass[39m=[32m"hint"[39m
+                  [36m>[39m
+                    [0m支持、反驳或附带条件只描述证据与这版洞察的关系；缺失的关系显示为未确定，不作推断。[0m
+                  [36m</p>[39m
+                [36m</details>[39m
+                [36m<button[39m
+                  [33mclass[39m=[32m"button button-secondary"[39m
+                [36m>[39m
+                  [0m收藏[0m
+                [36m</button>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"intelligence-section"[39m
+                [36m>[39m
+                  [36m<button[39m
+                    [33mclass[39m=[32m"button button-secondary"[39m
+                    [33mtype[39m=[32m"button"[39m
+                  [36m>[39m
+                    [0m加入主题[0m
+                  [36m</button>[39m
+                [36m</div>[39m
+              [36m</article>[39m
+              [36m<button[39m
+                [33mclass[39m=[32m"button button-ghost"[39m
+              [36m>[39m
+                [0m查看全部洞察[0m
+              [36m</button>[39m
+            [36m</section>[39m
+            [36m<section[39m
+              [33mclass[39m=[32m"panel"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"panel-heading"[39m
+              [36m>[39m
+                [36m<h2>[39m
+                  [0m置顶主题[0m
+                [36m</h2>[39m
+              [36m</div>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"empty-state"[39m
+              [36m>[39m
+                [0m暂无置顶主题。[0m
+              [36m</div>[39m
+            [36m</section>[39m
+            [36m<section[39m
+              [33mclass[39m=[32m"panel"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"panel-heading"[39m
+              [36m>[39m
+                [36m<h2>[39m
+                  [0m需要处理[0m
+                [36m</h2>[39m
+              [36m</div>[39m
+              [36m<article[39m
+                [33mclass[39m=[32m"semantic-state state-blocked"[39m
+              [36m>[39m
+                [36m<strong>[39m
+                  [0m视频分析已暂停。[0m
+                [36m</strong>[39m
+                [36m<p>[39m
+                  [0m关注和已有洞察保持不变。[0m
+                [36m</p>[39m
+                [36m<p>[39m
+                  [0m请在设置中查看当前模型状态。[0m
+                [36m</p>[39m
+              [36m</article>[39m
+            [36m</section>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</main>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"app-shell"[39m
+    [36m>[39m
+      [36m<aside[39m
+        [33mclass[39m=[32m"sidebar"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"brand"[39m
+        [36m>[39m
+          [36m<svg[39m
+            [33maria-hidden[39m=[32m"true"[39m
+            [33mclass[39m=[32m"brand-logo"[39m
+            [33mfocusable[39m=[32m"false"[39m
+            [33mviewBox[39m=[32m"0 0 24 24"[39m
+            [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+          [36m>[39m
+            [36m<defs>[39m
+              [36m<lineargradient[39m
+                [33mgradientUnits[39m=[32m"userSpaceOnUse"[39m
+                [33mid[39m=[32m"intel-logo-grad-r0"[39m
+                [33mx1[39m=[32m"20"[39m
+                [33mx2[39m=[32m"4"[39m
+                [33my1[39m=[32m"4"[39m
+                [33my2[39m=[32m"20"[39m
+              [36m>[39m
+                [36m<stop[39m
+                  [33moffset[39m=[32m"0%"[39m
+                  [33mstop-color[39m=[32m"#4C8DFF"[39m
+                [36m/>[39m
+                [36m<stop[39m
+                  [33moffset[39m=[32m"100%"[39m
+                  [33mstop-color[39m=[32m"#8B6CF0"[39m
+                [36m/>[39m
+              [36m</lineargradient>[39m
+            [36m</defs>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M18.89 13.22 A7 7 0 1 1 16.5 6.64"[39m
+              [33mfill[39m=[32m"none"[39m
+              [33mstroke[39m=[32m"url(#intel-logo-grad-r0)"[39m
+              [33mstroke-linecap[39m=[32m"round"[39m
+              [33mstroke-width[39m=[32m"2.9"[39m
+            [36m/>[39m
+            [36m<circle[39m
+              [33mcx[39m=[32m"19.09"[39m
+              [33mcy[39m=[32m"6.46"[39m
+              [33mfill[39m=[32m"url(#intel-logo-grad-r0)"[39m
+              [33mr[39m=[32m"2"[39m
+            [36m/>[39m
+          [36m</svg>[39m
+          [36m<div>[39m
+            [36m<strong>[39m
+              [0m洞察[0m
+            [36m</strong>[39m
+            [36m<small>[39m
+              [0m本地优先的知识工作台[0m
+            [36m</small>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<nav[39m
+          [33maria-label[39m=[32m"主导航"[39m
+          [33mclass[39m=[32m"sidebar-nav"[39m
+        [36m>[39m
+          [36m<button[39m
+            [33maria-current[39m=[32m"page"[39m
+            [33mclass[39m=[32m"nav-item active"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0m首页[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0m关注[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0m内容[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0m洞察[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0m主题[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0m设置[0m
+          [36m</button>[39m
+        [36m</nav>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"sidebar-foot"[39m
+        [36m>[39m
+          [0m证据始终可追溯[0m
+        [36m</div>[39m
+      [36m</aside>[39m
+      [36m<main[39m
+        [33mclass[39m=[32m"workspace-main"[39m
+      [36m>[39m
+        [36m<header[39m
+          [33mclass[39m=[32m"page-header"[39m
+        [36m>[39m
+          [36m<div>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"eyebrow"[39m
+            [36m>[39m
+              [0m洞察工作台[0m
+            [36m</p>[39m
+            [36m<h1>[39m
+              [0m首页[0m
+            [36m</h1>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"page-subtitle"[39m
+            [36m>[39m
+              [0m查看你关注的知识最近发生了什么变化。[0m
+            [36m</p>[39m
+          [36m</div>[39m
+        [36m</header>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"dashboard-stack"[39m
+        [36m>[39m
+          [36m<section[39m
+            [33maria-busy[39m=[32m"false"[39m
+            [33maria-labelledby[39m=[32m"knowledge-delta-heading"[39m
+            [33mclass[39m=[32m"panel knowledge-delta"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"panel-heading"[39m
+            [36m>[39m
+              [36m<h2[39m
+                [33mid[39m=[32m"knowledge-delta-heading"[39m
+              [36m>[39m
+                [0m最近 7 天发生了什么变化？[0m
+              [36m</h2>[39m
+            [36m</div>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"delta-window"[39m
+            [36m>[39m
+              [0m2026年9月26日 16:00[0m
+              [0m – [0m
+              [0m2026年10月3日 16:00[0m
+              [0m · [0m
+              [0mAsia/Shanghai[0m
+            [36m</p>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"delta-empty"[39m
+            [36m>[39m
+              [0m最近 7 天没有明显的知识变化。[0m
+            [36m</p>[39m
+          [36m</section>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"dashboard-stack"[39m
+          [36m>[39m
+            [36m<section[39m
+              [33mclass[39m=[32m"panel"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"panel-heading"[39m
+              [36m>[39m
+                [36m<h2>[39m
+                  [0m当前重点[0m
+                [36m</h2>[39m
+              [36m</div>[39m
+              [36m<article[39m
+                [33mclass[39m=[32m"panel intelligence-card"[39m
+              [36m>[39m
+                [36m<header[39m
+                  [33mclass[39m=[32m"intelligence-conclusion"[39m
+                [36m>[39m
+                  [36m<p[39m
+                    [33mclass[39m=[32m"section-label"[39m
+                  [36m>[39m
+                    [0m结论[0m
+                  [36m</p>[39m
+                  [36m<h2>[39m
+                    [0mA rumor remains unresolved.[0m
+                  [36m</h2>[39m
+                [36m</header>[39m
+                [36m<section[39m
+                  [33mclass[39m=[32m"intelligence-section"[39m
+                [36m>[39m
+                  [36m<h3>[39m
+                    [0m为何重要[0m
+                  [36m</h3>[39m
+                  [36m<p>[39m
+                    [0mWatch for confirmation before changing your plans.[0m
+                  [36m</p>[39m
+                [36m</section>[39m
+                [36m<section[39m
+                  [33mclass[39m=[32m"intelligence-section"[39m
+                [36m>[39m
+                  [36m<h3>[39m
+                    [0m新增信息[0m
+                  [36m</h3>[39m
+                  [36m<p>[39m
+                    [0mA second source now challenges the original claim.[0m
+                  [36m</p>[39m
+                [36m</section>[39m
+                [36m<section[39m
+                  [33mclass[39m=[32m"intelligence-section"[39m
+                [36m>[39m
+                  [36m<h3>[39m
+                    [0m重要细节[0m
+                  [36m</h3>[39m
+                  [36m<ul>[39m
+                    [36m<li>[39m
+                      [0mThe available sources are not yet independent.[0m
+                    [36m</li>[39m
+                  [36m</ul>[39m
+                [36m</section>[39m
+                [36m<div[39m
+                  [33maria-label[39m=[32m"判断类型与当前状态"[39m
+                  [33mclass[39m=[32m"reading-meta"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"status status-neutral"[39m
+                  [36m>[39m
+                    [0mUnconfirmed rumor[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"status status-neutral"[39m
+                  [36m>[39m
+                    [0m有争议[0m
+                  [36m</span>[39m
+                [36m</div>[39m
+                [36m<section[39m
+                  [33mclass[39m=[32m"intelligence-section"[39m
+                [36m>[39m
+                  [36m<h3>[39m
+                    [0m验证状态[0m
+                  [36m</h3>[39m
+                  [36m<p>[39m
+                    [0m仍需验证；冲突证据或解释尚未解决。[0m
+                  [36m</p>[39m
+                  [36m<p[39m
+                    [33mclass[39m=[32m"hint"[39m
+                  [36m>[39m
+                    [0m这是验证状态，不是数值置信度。[0m
+                  [36m</p>[39m
+                [36m</section>[39m
+                [36m<details[39m
+                  [33mclass[39m=[32m"evidence-block evidence-trace"[39m
+                [36m>[39m
+                  [36m<summary>[39m
+                    [0m证据与原始来源[0m
+                  [36m</summary>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"evidence-origin"[39m
+                  [36m>[39m
+                    [36m<div>[39m
+                      [36m<span>[39m
+                        [0m来源[0m
+                      [36m</span>[39m
+                      [36m<strong>[39m
+                        [0m3Blue1Brown[0m
+                      [36m</strong>[39m
+                      [36m<small>[39m
+                        [0msource-1[0m
+                        [0m · [0m
+                        [0mvideo-1[0m
+                      [36m</small>[39m
+                      [36m<a[39m
+                        [33mhref[39m=[32m"https://youtube.test/source"[39m
+                        [33mrel[39m=[32m"noreferrer"[39m
+                        [33mtarget[39m=[32m"_blank"[39m
+                      [36m>[39m
+                        [0m打开来源[0m
+                      [36m</a>[39m
+                    [36m</div>[39m
+                    [36m<div>[39m
+                      [36m<span>[39m
+                        [0m内容[0m
+                      [36m</span>[39m
+                      [36m<strong>[39m
+                        [0mTransformers, the tech behind LLMs | Deep Learning Chapter 5[0m
+                      [36m</strong>[39m
+                    [36m</div>[39m
+                  [36m</div>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"evidence-trace-list"[39m
+                  [36m>[39m
+                    [36m<article[39m
+                      [33mclass[39m=[32m"evidence-item evidence-trace-item"[39m
+                    [36m>[39m
+                      [36m<div[39m
+                        [33mclass[39m=[32m"reading-meta"[39m
+                      [36m>[39m
+                        [36m<span[39m
+                          [33mclass[39m=[32m"status status-neutral"[39m
+                        [36m>[39m
+                          [0m反驳[0m
+                        [36m</span>[39m
+                        [36m<span>[39m
+                          [0m来源语言[0m
+                          [0m: [0m
+                          [0men[0m
+                        [36m</span>[39m
+                      [36m</div>[39m
+                      [36m<div[39m
+                        [33maria-label[39m=[32m"证据显示方式"[39m
+                        [33mclass[39m=[32m"segmented evidence-display-modes"[39m
+                        [33mrole[39m=[32m"group"[39m
+                      [36m>[39m
+                        [36m<button[39m
+                          [33maria-pressed[39m=[32m"false"[39m
+                          [33mclass[39m=[32m""[39m
+                          [33mtype[39m=[32m"button"[39m
+                        [36m>[39m
+                          [0m译文[0m
+                        [36m</button>[39m
+                        [36m<button[39m
+                          [33maria-pressed[39m=[32m"false"[39m
+                          [33mclass[39m=[32m""[39m
+                          [33mtype[39m=[32m"button"[39m
+                        [36m>[39m
+                          [0m双语[0m
+                        [36m</button>[39m
+                        [36m<button[39m
+                          [33maria-pressed[39m=[32m"true"[39m
+                          [33mclass[39m=[32m"active"[39m
+                          [33mtype[39m=[32m"button"[39m
+                        [36m>[39m
+                          [0m原文[0m
+                        [36m</button>[39m
+                      [36m</div>[39m
+                      [36m<div>[39m
+                        [36m<strong>[39m
+                          [0m原文（权威原文）[0m
+                          [0m · [0m
+                          [0men[0m
+                        [36m</strong>[39m
+                        [36m<blockquote>[39m
+                          [0mAttention lets each token weigh relevant context from other tokens.[0m
+                        [36m</blockquote>[39m
+                      [36m</div>[39m
+                      [36m<p[39m
+                        [33mclass[39m=[32m"hint"[39m
+                      [36m>[39m
+                        [0m暂无译文。[0m
+                      [36m</p>[39m
+                      [36m<div>[39m
+                        [36m<strong>[39m
+                          [0m来源位置[0m
+                        [36m</strong>[39m
+                        [36m<p>[39m
+                          [0m0:01–0:02[0m
+                        [36m</p>[39m
+                      [36m</div>[39m
+                      [36m<div>[39m
+                        [36m<strong>[39m
+                          [0m溯源信息[0m
+                        [36m</strong>[39m
+                        [36m<p>[39m
+                          [0m原始字幕[0m
+                          [0m · [0m
+                          [0m主要原始资料[0m
+                        [36m</p>[39m
+                        [36m<small>[39m
+                          [0martifact-1[0m
+                        [36m</small>[39m
+                      [36m</div>[39m
+                      [36m<div[39m
+                        [33mclass[39m=[32m"evidence-actions"[39m
+                      [36m>[39m
+                        [36m<button[39m
+                          [33mclass[39m=[32m"button button-secondary button-small"[39m
+                        [36m>[39m
+                          [0m打开内容[0m
+                        [36m</button>[39m
+                        [36m<a[39m
+                          [33mclass[39m=[32m"button button-ghost button-small evidence-source-link"[39m
+                          [33mhref[39m=[32m"https://www.youtube.com/watch?v=video-1&t=1"[39m
+                          [33mrel[39m=[32m"noreferrer"[39m
+                          [33mtarget[39m=[32m"_blank"[39m
+                        [36m>[39m
+                          [0m打开原始来源对应时间点[0m
+                        [36m</a>[39m
+                      [36m</div>[39m
+                    [36m</article>[39m
+                  [36m</div>[39m
+                  [36m<p[39m
+                    [33mclass[39m=[32m"hint"[39m
+                  [36m>[39m
+                    [0m支持、反驳或附带条件只描述证据与这版洞察的关系；缺失的关系显示为未确定，不作推断。[0m
+                  [36m</p>[39m
+                [36m</details>[39m
+                [36m<button[39m
+                  [33mclass[39m=[32m"button button-secondary"[39m
+                [36m>[39m
+                  [0m收藏[0m
+                [36m</button>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"intelligence-section"[39m
+                [36m>[39m
+                  [36m<button[39m
+                    [33mclass[39m=[32m"button button-secondary"[39m
+                    [33mtype[39m=[32m"button"[39m
+                  [36m>[39m
+                    [0m加入主题[0m
+                  [36m</button>[39m
+                [36m</div>[39m
+              [36m</article>[39m
+              [36m<button[39m
+                [33mclass[39m=[32m"button button-ghost"[39m
+              [36m>[39m
+                [0m查看全部洞察[0m
+              [36m</button>[39m
+            [36m</section>[39m
+            [36m<section[39m
+              [33mclass[39m=[32m"panel"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"panel-heading"[39m
+              [36m>[39m
+                [36m<h2>[39m
+                  [0m置顶主题[0m
+                [36m</h2>[39m
+              [36m</div>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"empty-state"[39m
+              [36m>[39m
+                [0m暂无置顶主题。[0m
+              [36m</div>[39m
+            [36m</section>[39m
+            [36m<section[39m
+              [33mclass[39m=[32m"panel"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"panel-heading"[39m
+              [36m>[39m
+                [36m<h2>[39m
+                  [0m需要处理[0m
+                [36m</h2>[39m
+              [36m</div>[39m
+              [36m<article[39m
+                [33mclass[39m=[32m"semantic-state state-blocked"[39m
+              [36m>[39m
+                [36m<strong>[39m
+                  [0m视频分析已暂停。[0m
+                [36m</strong>[39m
+                [36m<p>[39m
+                  [0m关注和已有洞察保持不变。[0m
+                [36m</p>[39m
+                [36m<p>[39m
+                  [0m请在设置中查看当前模型状态。[0m
+                [36m</p>[39m
+              [36m</article>[39m
+            [36m</section>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</main>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/workspace/AuditRouteRegression.test.tsx > user hash navigation (browser back/forward or editing the address bar) switches views
+TestingLibraryElementError: Unable to find role="heading" and name "设置"
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"app-shell"[39m
+    [36m>[39m
+      [36m<aside[39m
+        [33mclass[39m=[32m"sidebar"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"brand"[39m
+        [36m>[39m
+          [36m<svg[39m
+            [33maria-hidden[39m=[32m"true"[39m
+            [33mclass[39m=[32m"brand-logo"[39m
+            [33mfocusable[39m=[32m"false"[39m
+            [33mviewBox[39m=[32m"0 0 24 24"[39m
+            [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+          [36m>[39m
+            [36m<defs>[39m
+              [36m<lineargradient[39m
+                [33mgradientUnits[39m=[32m"userSpaceOnUse"[39m
+                [33mid[39m=[32m"intel-logo-grad-r0"[39m
+                [33mx1[39m=[32m"20"[39m
+                [33mx2[39m=[32m"4"[39m
+                [33my1[39m=[32m"4"[39m
+                [33my2[39m=[32m"20"[39m
+              [36m>[39m
+                [36m<stop[39m
+                  [33moffset[39m=[32m"0%"[39m
+                  [33mstop-color[39m=[32m"#4C8DFF"[39m
+                [36m/>[39m
+                [36m<stop[39m
+                  [33moffset[39m=[32m"100%"[39m
+                  [33mstop-color[39m=[32m"#8B6CF0"[39m
+                [36m/>[39m
+              [36m</lineargradient>[39m
+            [36m</defs>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M18.89 13.22 A7 7 0 1 1 16.5 6.64"[39m
+              [33mfill[39m=[32m"none"[39m
+              [33mstroke[39m=[32m"url(#intel-logo-grad-r0)"[39m
+              [33mstroke-linecap[39m=[32m"round"[39m
+              [33mstroke-width[39m=[32m"2.9"[39m
+            [36m/>[39m
+            [36m<circle[39m
+              [33mcx[39m=[32m"19.09"[39m
+              [33mcy[39m=[32m"6.46"[39m
+              [33mfill[39m=[32m"url(#intel-logo-grad-r0)"[39m
+              [33mr[39m=[32m"2"[39m
+            [36m/>[39m
+          [36m</svg>[39m
+          [36m<div>[39m
+            [36m<strong>[39m
+              [0m洞察[0m
+            [36m</strong>[39m
+            [36m<small>[39m
+              [0m本地优先的知识工作台[0m
+            [36m</small>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<nav[39m
+          [33maria-label[39m=[32m"主导航"[39m
+          [33mclass[39m=[32m"sidebar-nav"[39m
+        [36m>[39m
+          [36m<button[39m
+            [33maria-current[39m=[32m"page"[39m
+            [33mclass[39m=[32m"nav-item active"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0m首页[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0m关注[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0m内容[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0m洞察[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0m主题[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0m设置[0m
+          [36m</button>[39m
+        [36m</nav>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"sidebar-foot"[39m
+        [36m>[39m
+          [0m证据始终可追溯[0m
+        [36m</div>[39m
+      [36m</aside>[39m
+      [36m<main[39m
+        [33mclass[39m=[32m"workspace-main"[39m
+      [36m>[39m
+        [36m<header[39m
+          [33mclass[39m=[32m"page-header"[39m
+        [36m>[39m
+          [36m<div>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"eyebrow"[39m
+            [36m>[39m
+              [0m洞察工作台[0m
+            [36m</p>[39m
+            [36m<h1>[39m
+              [0m首页[0m
+            [36m</h1>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"page-subtitle"[39m
+            [36m>[39m
+              [0m查看你关注的知识最近发生了什么变化。[0m
+            [36m</p>[39m
+          [36m</div>[39m
+        [36m</header>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"dashboard-stack"[39m
+        [36m>[39m
+          [36m<section[39m
+            [33maria-busy[39m=[32m"false"[39m
+            [33maria-labelledby[39m=[32m"knowledge-delta-heading"[39m
+            [33mclass[39m=[32m"panel knowledge-delta"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"panel-heading"[39m
+            [36m>[39m
+              [36m<h2[39m
+                [33mid[39m=[32m"knowledge-delta-heading"[39m
+              [36m>[39m
+                [0m最近 7 天发生了什么变化？[0m
+              [36m</h2>[39m
+            [36m</div>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"delta-window"[39m
+            [36m>[39m
+              [0m2026年9月26日 16:00[0m
+              [0m – [0m
+              [0m2026年10月3日 16:00[0m
+              [0m · [0m
+              [0mAsia/Shanghai[0m
+            [36m</p>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"delta-empty"[39m
+            [36m>[39m
+              [0m最近 7 天没有明显的知识变化。[0m
+            [36m</p>[39m
+          [36m</section>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"dashboard-stack"[39m
+          [36m>[39m
+            [36m<section[39m
+              [33mclass[39m=[32m"panel"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"panel-heading"[39m
+              [36m>[39m
+                [36m<h2>[39m
+                  [0m当前重点[0m
+                [36m</h2>[39m
+              [36m</div>[39m
+              [36m<article[39m
+                [33mclass[39m=[32m"panel intelligence-card"[39m
+              [36m>[39m
+                [36m<header[39m
+                  [33mclass[39m=[32m"intelligence-conclusion"[39m
+                [36m>[39m
+                  [36m<p[39m
+                    [33mclass[39m=[32m"section-label"[39m
+                  [36m>[39m
+                    [0m结论[0m
+                  [36m</p>[39m
+                  [36m<h2>[39m
+                    [0mA rumor remains unresolved.[0m
+                  [36m</h2>[39m
+                [36m</header>[39m
+                [36m<section[39m
+                  [33mclass[39m=[32m"intelligence-section"[39m
+                [36m>[39m
+                  [36m<h3>[39m
+                    [0m为何重要[0m
+                  [36m</h3>[39m
+                  [36m<p>[39m
+                    [0mWatch for confirmation before changing your plans.[0m
+                  [36m</p>[39m
+                [36m</section>[39m
+                [36m<section[39m
+                  [33mclass[39m=[32m"intelligence-section"[39m
+                [36m>[39m
+                  [36m<h3>[39m
+                    [0m新增信息[0m
+                  [36m</h3>[39m
+                  [36m<p>[39m
+                    [0mA second source now challenges the original claim.[0m
+                  [36m</p>[39m
+                [36m</section>[39m
+                [36m<section[39m
+                  [33mclass[39m=[32m"intelligence-section"[39m
+                [36m>[39m
+                  [36m<h3>[39m
+                    [0m重要细节[0m
+                  [36m</h3>[39m
+                  [36m<ul>[39m
+                    [36m<li>[39m
+                      [0mThe available sources are not yet independent.[0m
+                    [36m</li>[39m
+                  [36m</ul>[39m
+                [36m</section>[39m
+                [36m<div[39m
+                  [33maria-label[39m=[32m"判断类型与当前状态"[39m
+                  [33mclass[39m=[32m"reading-meta"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"status status-neutral"[39m
+                  [36m>[39m
+                    [0mUnconfirmed rumor[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"status status-neutral"[39m
+                  [36m>[39m
+                    [0m有争议[0m
+                  [36m</span>[39m
+                [36m</div>[39m
+                [36m<section[39m
+                  [33mclass[39m=[32m"intelligence-section"[39m
+                [36m>[39m
+                  [36m<h3>[39m
+                    [0m验证状态[0m
+                  [36m</h3>[39m
+                  [36m<p>[39m
+                    [0m仍需验证；冲突证据或解释尚未解决。[0m
+                  [36m</p>[39m
+                  [36m<p[39m
+                    [33mclass[39m=[32m"hint"[39m
+                  [36m>[39m
+                    [0m这是验证状态，不是数值置信度。[0m
+                  [36m</p>[39m
+                [36m</section>[39m
+                [36m<details[39m
+                  [33mclass[39m=[32m"evidence-block evidence-trace"[39m
+                [36m>[39m
+                  [36m<summary>[39m
+                    [0m证据与原始来源[0m
+                  [36m</summary>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"evidence-origin"[39m
+                  [36m>[39m
+                    [36m<div>[39m
+                      [36m<span>[39m
+                        [0m来源[0m
+                      [36m</span>[39m
+                      [36m<strong>[39m
+                        [0m3Blue1Brown[0m
+                      [36m</strong>[39m
+                      [36m<small>[39m
+                        [0msource-1[0m
+                        [0m · [0m
+                        [0mvideo-1[0m
+                      [36m</small>[39m
+                      [36m<a[39m
+                        [33mhref[39m=[32m"https://youtube.test/source"[39m
+                        [33mrel[39m=[32m"noreferrer"[39m
+                        [33mtarget[39m=[32m"_blank"[39m
+                      [36m>[39m
+                        [0m打开来源[0m
+                      [36m</a>[39m
+                    [36m</div>[39m
+                    [36m<div>[39m
+                      [36m<span>[39m
+                        [0m内容[0m
+                      [36m</span>[39m
+                      [36m<strong>[39m
+                        [0mTransformers, the tech behind LLMs | Deep Learning Chapter 5[0m
+                      [36m</strong>[39m
+                    [36m</div>[39m
+                  [36m</div>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"evidence-trace-list"[39m
+                  [36m>[39m
+                    [36m<article[39m
+                      [33mclass[39m=[32m"evidence-item evidence-trace-item"[39m
+                    [36m>[39m
+                      [36m<div[39m
+                        [33mclass[39m=[32m"reading-meta"[39m
+                      [36m>[39m
+                        [36m<span[39m
+                          [33mclass[39m=[32m"status status-neutral"[39m
+                        [36m>[39m
+                          [0m反驳[0m
+                        [36m</span>[39m
+                        [36m<span>[39m
+                          [0m来源语言[0m
+                          [0m: [0m
+                          [0men[0m
+                        [36m</span>[39m
+                      [36m</div>[39m
+                      [36m<div[39m
+                        [33maria-label[39m=[32m"证据显示方式"[39m
+                        [33mclass[39m=[32m"segmented evidence-display-modes"[39m
+                        [33mrole[39m=[32m"group"[39m
+                      [36m>[39m
+                        [36m<button[39m
+                          [33maria-pressed[39m=[32m"false"[39m
+                          [33mclass[39m=[32m""[39m
+                          [33mtype[39m=[32m"button"[39m
+                        [36m>[39m
+                          [0m译文[0m
+                        [36m</button>[39m
+                        [36m<button[39m
+                          [33maria-pressed[39m=[32m"false"[39m
+                          [33mclass[39m=[32m""[39m
+                          [33mtype[39m=[32m"button"[39m
+                        [36m>[39m
+                          [0m双语[0m
+                        [36m</button>[39m
+                        [36m<button[39m
+                          [33maria-pressed[39m=[32m"true"[39m
+                          [33mclass[39m=[32m"active"[39m
+                          [33mtype[39m=[32m"button"[39m
+                        [36m>[39m
+                          [0m原文[0m
+                        [36m</button>[39m
+                      [36m</div>[39m
+                      [36m<div>[39m
+                        [36m<strong>[39m
+                          [0m原文（权威原文）[0m
+                          [0m · [0m
+                          [0men[0m
+                        [36m</strong>[39m
+                        [36m<blockquote>[39m
+                          [0mAttention lets each token weigh relevant context from other tokens.[0m
+                        [36m</blockquote>[39m
+                      [36m</div>[39m
+                      [36m<p[39m
+                        [33mclass[39m=[32m"hint"[39m
+                      [36m>[39m
+                        [0m暂无译文。[0m
+                      [36m</p>[39m
+                      [36m<div>[39m
+                        [36m<strong>[39m
+                          [0m来源位置[0m
+                        [36m</strong>[39m
+                        [36m<p>[39m
+                          [0m0:01–0:02[0m
+                        [36m</p>[39m
+                      [36m</div>[39m
+                      [36m<div>[39m
+                        [36m<strong>[39m
+                          [0m溯源信息[0m
+                        [36m</strong>[39m
+                        [36m<p>[39m
+                          [0m原始字幕[0m
+                          [0m · [0m
+                          [0m主要原始资料[0m
+                        [36m</p>[39m
+                        [36m<small>[39m
+                          [0martifact-1[0m
+                        [36m</small>[39m
+                      [36m</div>[39m
+                      [36m<div[39m
+                        [33mclass[39m=[32m"evidence-actions"[39m
+                      [36m>[39m
+                        [36m<button[39m
+                          [33mclass[39m=[32m"button button-secondary button-small"[39m
+                        [36m>[39m
+                          [0m打开内容[0m
+                        [36m</button>[39m
+                        [36m<a[39m
+                          [33mclass[39m=[32m"button button-ghost button-small evidence-source-link"[39m
+                          [33mhref[39m=[32m"https://www.youtube.com/watch?v=video-1&t=1"[39m
+                          [33mrel[39m=[32m"noreferrer"[39m
+                          [33mtarget[39m=[32m"_blank"[39m
+                        [36m>[39m
+                          [0m打开原始来源对应时间点[0m
+                        [36m</a>[39m
+                      [36m</div>[39m
+                    [36m</article>[39m
+                  [36m</div>[39m
+                  [36m<p[39m
+                    [33mclass[39m=[32m"hint"[39m
+                  [36m>[39m
+                    [0m支持、反驳或附带条件只描述证据与这版洞察的关系；缺失的关系显示为未确定，不作推断。[0m
+                  [36m</p>[39m
+                [36m</details>[39m
+                [36m<button[39m
+                  [33mclass[39m=[32m"button button-secondary"[39m
+                [36m>[39m
+                  [0m收藏[0m
+                [36m</button>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"intelligence-section"[39m
+                [36m>[39m
+                  [36m<button[39m
+                    [33mclass[39m=[32m"button button-secondary"[39m
+                    [33mtype[39m=[32m"button"[39m
+                  [36m>[39m
+                    [0m加入主题[0m
+                  [36m</button>[39m
+                [36m</div>[39m
+              [36m</article>[39m
+              [36m<button[39m
+                [33mclass[39m=[32m"button button-ghost"[39m
+              [36m>[39m
+                [0m查看全部洞察[0m
+              [36m</button>[39m
+            [36m</section>[39m
+            [36m<section[39m
+              [33mclass[39m=[32m"panel"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"panel-heading"[39m
+              [36m>[39m
+                [36m<h2>[39m
+                  [0m置顶主题[0m
+                [36m</h2>[39m
+              [36m</div>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"empty-state"[39m
+              [36m>[39m
+                [0m暂无置顶主题。[0m
+              [36m</div>[39m
+            [36m</section>[39m
+            [36m<section[39m
+              [33mclass[39m=[32m"panel"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"panel-heading"[39m
+              [36m>[39m
+                [36m<h2>[39m
+                  [0m需要处理[0m
+                [36m</h2>[39m
+              [36m</div>[39m
+              [36m<article[39m
+                [33mclass[39m=[32m"semantic-state state-blocked"[39m
+              [36m>[39m
+                [36m<strong>[39m
+                  [0m视频分析已暂停。[0m
+                [36m</strong>[39m
+                [36m<p>[39m
+                  [0m关注和已有洞察保持不变。[0m
+                [36m</p>[39m
+                [36m<p>[39m
+                  [0m请在设置中查看当前模型状态。[0m
+                [36m</p>[39m
+              [36m</article>[39m
+            [36m</section>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</main>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"app-shell"[39m
+    [36m>[39m
+      [36m<aside[39m
+        [33mclass[39m=[32m"sidebar"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"brand"[39m
+        [36m>[39m
+          [36m<svg[39m
+            [33maria-hidden[39m=[32m"true"[39m
+            [33mclass[39m=[32m"brand-logo"[39m
+            [33mfocusable[39m=[32m"false"[39m
+            [33mviewBox[39m=[32m"0 0 24 24"[39m
+            [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+          [36m>[39m
+            [36m<defs>[39m
+              [36m<lineargradient[39m
+                [33mgradientUnits[39m=[32m"userSpaceOnUse"[39m
+                [33mid[39m=[32m"intel-logo-grad-r0"[39m
+                [33mx1[39m=[32m"20"[39m
+                [33mx2[39m=[32m"4"[39m
+                [33my1[39m=[32m"4"[39m
+                [33my2[39m=[32m"20"[39m
+              [36m>[39m
+                [36m<stop[39m
+                  [33moffset[39m=[32m"0%"[39m
+                  [33mstop-color[39m=[32m"#4C8DFF"[39m
+                [36m/>[39m
+                [36m<stop[39m
+                  [33moffset[39m=[32m"100%"[39m
+                  [33mstop-color[39m=[32m"#8B6CF0"[39m
+                [36m/>[39m
+              [36m</lineargradient>[39m
+            [36m</defs>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M18.89 13.22 A7 7 0 1 1 16.5 6.64"[39m
+              [33mfill[39m=[32m"none"[39m
+              [33mstroke[39m=[32m"url(#intel-logo-grad-r0)"[39m
+              [33mstroke-linecap[39m=[32m"round"[39m
+              [33mstroke-width[39m=[32m"2.9"[39m
+            [36m/>[39m
+            [36m<circle[39m
+              [33mcx[39m=[32m"19.09"[39m
+              [33mcy[39m=[32m"6.46"[39m
+              [33mfill[39m=[32m"url(#intel-logo-grad-r0)"[39m
+              [33mr[39m=[32m"2"[39m
+            [36m/>[39m
+          [36m</svg>[39m
+          [36m<div>[39m
+            [36m<strong>[39m
+              [0m洞察[0m
+            [36m</strong>[39m
+            [36m<small>[39m
+              [0m本地优先的知识工作台[0m
+            [36m</small>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<nav[39m
+          [33maria-label[39m=[32m"主导航"[39m
+          [33mclass[39m=[32m"sidebar-nav"[39m
+        [36m>[39m
+          [36m<button[39m
+            [33maria-current[39m=[32m"page"[39m
+            [33mclass[39m=[32m"nav-item active"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0m首页[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0m关注[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0m内容[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0m洞察[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0m主题[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0m设置[0m
+          [36m</button>[39m
+        [36m</nav>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"sidebar-foot"[39m
+        [36m>[39m
+          [0m证据始终可追溯[0m
+        [36m</div>[39m
+      [36m</aside>[39m
+      [36m<main[39m
+        [33mclass[39m=[32m"workspace-main"[39m
+      [36m>[39m
+        [36m<header[39m
+          [33mclass[39m=[32m"page-header"[39m
+        [36m>[39m
+          [36m<div>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"eyebrow"[39m
+            [36m>[39m
+              [0m洞察工作台[0m
+            [36m</p>[39m
+            [36m<h1>[39m
+              [0m首页[0m
+            [36m</h1>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"page-subtitle"[39m
+            [36m>[39m
+              [0m查看你关注的知识最近发生了什么变化。[0m
+            [36m</p>[39m
+          [36m</div>[39m
+        [36m</header>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"dashboard-stack"[39m
+        [36m>[39m
+          [36m<section[39m
+            [33maria-busy[39m=[32m"false"[39m
+            [33maria-labelledby[39m=[32m"knowledge-delta-heading"[39m
+            [33mclass[39m=[32m"panel knowledge-delta"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"panel-heading"[39m
+            [36m>[39m
+              [36m<h2[39m
+                [33mid[39m=[32m"knowledge-delta-heading"[39m
+              [36m>[39m
+                [0m最近 7 天发生了什么变化？[0m
+              [36m</h2>[39m
+            [36m</div>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"delta-window"[39m
+            [36m>[39m
+              [0m2026年9月26日 16:00[0m
+              [0m – [0m
+              [0m2026年10月3日 16:00[0m
+              [0m · [0m
+              [0mAsia/Shanghai[0m
+            [36m</p>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"delta-empty"[39m
+            [36m>[39m
+              [0m最近 7 天没有明显的知识变化。[0m
+            [36m</p>[39m
+          [36m</section>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"dashboard-stack"[39m
+          [36m>[39m
+            [36m<section[39m
+              [33mclass[39m=[32m"panel"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"panel-heading"[39m
+              [36m>[39m
+                [36m<h2>[39m
+                  [0m当前重点[0m
+                [36m</h2>[39m
+              [36m</div>[39m
+              [36m<article[39m
+                [33mclass[39m=[32m"panel intelligence-card"[39m
+              [36m>[39m
+                [36m<header[39m
+                  [33mclass[39m=[32m"intelligence-conclusion"[39m
+                [36m>[39m
+                  [36m<p[39m
+                    [33mclass[39m=[32m"section-label"[39m
+                  [36m>[39m
+                    [0m结论[0m
+                  [36m</p>[39m
+                  [36m<h2>[39m
+                    [0mA rumor remains unresolved.[0m
+                  [36m</h2>[39m
+                [36m</header>[39m
+                [36m<section[39m
+                  [33mclass[39m=[32m"intelligence-section"[39m
+                [36m>[39m
+                  [36m<h3>[39m
+                    [0m为何重要[0m
+                  [36m</h3>[39m
+                  [36m<p>[39m
+                    [0mWatch for confirmation before changing your plans.[0m
+                  [36m</p>[39m
+                [36m</section>[39m
+                [36m<section[39m
+                  [33mclass[39m=[32m"intelligence-section"[39m
+                [36m>[39m
+                  [36m<h3>[39m
+                    [0m新增信息[0m
+                  [36m</h3>[39m
+                  [36m<p>[39m
+                    [0mA second source now challenges the original claim.[0m
+                  [36m</p>[39m
+                [36m</section>[39m
+                [36m<section[39m
+                  [33mclass[39m=[32m"intelligence-section"[39m
+                [36m>[39m
+                  [36m<h3>[39m
+                    [0m重要细节[0m
+                  [36m</h3>[39m
+                  [36m<ul>[39m
+                    [36m<li>[39m
+                      [0mThe available sources are not yet independent.[0m
+                    [36m</li>[39m
+                  [36m</ul>[39m
+                [36m</section>[39m
+                [36m<div[39m
+                  [33maria-label[39m=[32m"判断类型与当前状态"[39m
+                  [33mclass[39m=[32m"reading-meta"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"status status-neutral"[39m
+                  [36m>[39m
+                    [0mUnconfirmed rumor[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"status status-neutral"[39m
+                  [36m>[39m
+                    [0m有争议[0m
+                  [36m</span>[39m
+                [36m</div>[39m
+                [36m<section[39m
+                  [33mclass[39m=[32m"intelligence-section"[39m
+                [36m>[39m
+                  [36m<h3>[39m
+                    [0m验证状态[0m
+                  [36m</h3>[39m
+                  [36m<p>[39m
+                    [0m仍需验证；冲突证据或解释尚未解决。[0m
+                  [36m</p>[39m
+                  [36m<p[39m
+                    [33mclass[39m=[32m"hint"[39m
+                  [36m>[39m
+                    [0m这是验证状态，不是数值置信度。[0m
+                  [36m</p>[39m
+                [36m</section>[39m
+                [36m<details[39m
+                  [33mclass[39m=[32m"evidence-block evidence-trace"[39m
+                [36m>[39m
+                  [36m<summary>[39m
+                    [0m证据与原始来源[0m
+                  [36m</summary>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"evidence-origin"[39m
+                  [36m>[39m
+                    [36m<div>[39m
+                      [36m<span>[39m
+                        [0m来源[0m
+                      [36m</span>[39m
+                      [36m<strong>[39m
+                        [0m3Blue1Brown[0m
+                      [36m</strong>[39m
+                      [36m<small>[39m
+                        [0msource-1[0m
+                        [0m · [0m
+                        [0mvideo-1[0m
+                      [36m</small>[39m
+                      [36m<a[39m
+                        [33mhref[39m=[32m"https://youtube.test/source"[39m
+                        [33mrel[39m=[32m"noreferrer"[39m
+                        [33mtarget[39m=[32m"_blank"[39m
+                      [36m>[39m
+                        [0m打开来源[0m
+                      [36m</a>[39m
+                    [36m</div>[39m
+                    [36m<div>[39m
+                      [36m<span>[39m
+                        [0m内容[0m
+                      [36m</span>[39m
+                      [36m<strong>[39m
+                        [0mTransformers, the tech behind LLMs | Deep Learning Chapter 5[0m
+                      [36m</strong>[39m
+                    [36m</div>[39m
+                  [36m</div>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"evidence-trace-list"[39m
+                  [36m>[39m
+                    [36m<article[39m
+                      [33mclass[39m=[32m"evidence-item evidence-trace-item"[39m
+                    [36m>[39m
+                      [36m<div[39m
+                        [33mclass[39m=[32m"reading-meta"[39m
+                      [36m>[39m
+                        [36m<span[39m
+                          [33mclass[39m=[32m"status status-neutral"[39m
+                        [36m>[39m
+                          [0m反驳[0m
+                        [36m</span>[39m
+                        [36m<span>[39m
+                          [0m来源语言[0m
+                          [0m: [0m
+                          [0men[0m
+                        [36m</span>[39m
+                      [36m</div>[39m
+                      [36m<div[39m
+                        [33maria-label[39m=[32m"证据显示方式"[39m
+                        [33mclass[39m=[32m"segmented evidence-display-modes"[39m
+                        [33mrole[39m=[32m"group"[39m
+                      [36m>[39m
+                        [36m<button[39m
+                          [33maria-pressed[39m=[32m"false"[39m
+                          [33mclass[39m=[32m""[39m
+                          [33mtype[39m=[32m"button"[39m
+                        [36m>[39m
+                          [0m译文[0m
+                        [36m</button>[39m
+                        [36m<button[39m
+                          [33maria-pressed[39m=[32m"false"[39m
+                          [33mclass[39m=[32m""[39m
+                          [33mtype[39m=[32m"button"[39m
+                        [36m>[39m
+                          [0m双语[0m
+                        [36m</button>[39m
+                        [36m<button[39m
+                          [33maria-pressed[39m=[32m"true"[39m
+                          [33mclass[39m=[32m"active"[39m
+                          [33mtype[39m=[32m"button"[39m
+                        [36m>[39m
+                          [0m原文[0m
+                        [36m</button>[39m
+                      [36m</div>[39m
+                      [36m<div>[39m
+                        [36m<strong>[39m
+                          [0m原文（权威原文）[0m
+                          [0m · [0m
+                          [0men[0m
+                        [36m</strong>[39m
+                        [36m<blockquote>[39m
+                          [0mAttention lets each token weigh relevant context from other tokens.[0m
+                        [36m</blockquote>[39m
+                      [36m</div>[39m
+                      [36m<p[39m
+                        [33mclass[39m=[32m"hint"[39m
+                      [36m>[39m
+                        [0m暂无译文。[0m
+                      [36m</p>[39m
+                      [36m<div>[39m
+                        [36m<strong>[39m
+                          [0m来源位置[0m
+                        [36m</strong>[39m
+                        [36m<p>[39m
+                          [0m0:01–0:02[0m
+                        [36m</p>[39m
+                      [36m</div>[39m
+                      [36m<div>[39m
+                        [36m<strong>[39m
+                          [0m溯源信息[0m
+                        [36m</strong>[39m
+                        [36m<p>[39m
+                          [0m原始字幕[0m
+                          [0m · [0m
+                          [0m主要原始资料[0m
+                        [36m</p>[39m
+                        [36m<small>[39m
+                          [0martifact-1[0m
+                        [36m</small>[39m
+                      [36m</div>[39m
+                      [36m<div[39m
+                        [33mclass[39m=[32m"evidence-actions"[39m
+                      [36m>[39m
+                        [36m<button[39m
+                          [33mclass[39m=[32m"button button-secondary button-small"[39m
+                        [36m>[39m
+                          [0m打开内容[0m
+                        [36m</button>[39m
+                        [36m<a[39m
+                          [33mclass[39m=[32m"button button-ghost button-small evidence-source-link"[39m
+                          [33mhref[39m=[32m"https://www.youtube.com/watch?v=video-1&t=1"[39m
+                          [33mrel[39m=[32m"noreferrer"[39m
+                          [33mtarget[39m=[32m"_blank"[39m
+                        [36m>[39m
+                          [0m打开原始来源对应时间点[0m
+                        [36m</a>[39m
+                      [36m</div>[39m
+                    [36m</article>[39m
+                  [36m</div>[39m
+                  [36m<p[39m
+                    [33mclass[39m=[32m"hint"[39m
+                  [36m>[39m
+                    [0m支持、反驳或附带条件只描述证据与这版洞察的关系；缺失的关系显示为未确定，不作推断。[0m
+                  [36m</p>[39m
+                [36m</details>[39m
+                [36m<button[39m
+                  [33mclass[39m=[32m"button button-secondary"[39m
+                [36m>[39m
+                  [0m收藏[0m
+                [36m</button>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"intelligence-section"[39m
+                [36m>[39m
+                  [36m<button[39m
+                    [33mclass[39m=[32m"button button-secondary"[39m
+                    [33mtype[39m=[32m"button"[39m
+                  [36m>[39m
+                    [0m加入主题[0m
+                  [36m</button>[39m
+                [36m</div>[39m
+              [36m</article>[39m
+              [36m<button[39m
+                [33mclass[39m=[32m"button button-ghost"[39m
+              [36m>[39m
+                [0m查看全部洞察[0m
+              [36m</button>[39m
+            [36m</section>[39m
+            [36m<section[39m
+              [33mclass[39m=[32m"panel"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"panel-heading"[39m
+              [36m>[39m
+                [36m<h2>[39m
+                  [0m置顶主题[0m
+                [36m</h2>[39m
+              [36m</div>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"empty-state"[39m
+              [36m>[39m
+                [0m暂无置顶主题。[0m
+              [36m</div>[39m
+            [36m</section>[39m
+            [36m<section[39m
+              [33mclass[39m=[32m"panel"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"panel-heading"[39m
+              [36m>[39m
+                [36m<h2>[39m
+                  [0m需要处理[0m
+                [36m</h2>[39m
+              [36m</div>[39m
+              [36m<article[39m
+                [33mclass[39m=[32m"semantic-state state-blocked"[39m
+              [36m>[39m
+                [36m<strong>[39m
+                  [0m视频分析已暂停。[0m
+                [36m</strong>[39m
+                [36m<p>[39m
+                  [0m关注和已有洞察保持不变。[0m
+                [36m</p>[39m
+                [36m<p>[39m
+                  [0m请在设置中查看当前模型状态。[0m
+                [36m</p>[39m
+              [36m</article>[39m
+            [36m</section>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</main>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+ ❯ waitForWrapper ../../../../../v1x-local-main/frontend/node_modules/@testing-library/dom/dist/wait-for.js:163:27
+ ❯ ../../../../../v1x-local-main/frontend/node_modules/@testing-library/dom/dist/query-helpers.js:86:33
+ ❯ src/workspace/AuditRouteRegression.test.tsx:2669:16
+    2667|   location.hash = "Settings";
+    2668|   window.dispatchEvent(new HashChangeEvent("hashchange"));
+    2669|   await screen.findByRole("heading", { name: "设置" });
+       |                ^
+    2670|   location.hash = "Topics";
+    2671|   window.dispatchEvent(new HashChangeEvent("hashchange"));
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 109 skipped (110)
+   Start at  21:18:25
+   Duration  2.05s (transform 388ms, setup 0ms, collect 533ms, tests 1.08s, environment 203ms, prepare 53ms)

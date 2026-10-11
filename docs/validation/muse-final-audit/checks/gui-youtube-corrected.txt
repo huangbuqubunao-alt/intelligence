@@ -1,0 +1,50 @@
+video RECOGNITION 添加关注
+关闭
+
+粘贴 YouTube 或 Bilibili 链接，应用会先识别再添加。
+
+粘贴链接
+
+YouTube 视频：仅处理此视频，不关注其频道。
+
+确认导入
+导入本地文件
+
+YouTube · 本地文件 · Bilibili 公开视频导入
+channel RECOGNITION 添加关注
+关闭
+
+粘贴 YouTube 或 Bilibili 链接，应用会先识别再添加。
+
+粘贴链接
+
+YouTube 频道：持续关注未来新内容，不导入已有历史视频。
+
+发现新内容后
+ 整理内容自动保存新内容，并生成可阅读摘要和可核对的出处。 进一步提炼洞察在整理内容后，再判断哪些信息值得长期保留并形成洞察。需要符合要求的模型及必要授权。
+关注频道
+导入本地文件
+
+YouTube · 本地文件 · Bilibili 公开视频导入
+CONTENT 洞察
+本地优先的知识工作台
+首页
+关注
+内容
+洞察
+主题
+设置
+证据始终可追溯
+
+洞察工作台
+
+内容
+
+阅读内容、字幕与处理记录。
+
+But what is a neural network? | Deep learning chapter 1
+3Blue1Brown · 2017年10月5日
+已完成
+audit-note.txt
+本地 · 2026年10月11日
+已就绪

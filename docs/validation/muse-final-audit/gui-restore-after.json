@@ -1,0 +1,32 @@
+{
+  "matches_before": true,
+  "counts": {
+    "videos": 1,
+    "evidence": 1,
+    "intelligences": 0,
+    "source_subscriptions": 1
+  },
+  "integrity": "ok",
+  "artifacts": [
+    [
+      "local-c6b631893bae9a13487c8cd74a64ae47240979f661c27f4f4590b39d32b4accd/canonical.txt",
+      "transcripts/local/local-c6b631893bae9a13487c8cd74a64ae47240979f661c27f4f4590b39d32b4accd/canonical.txt",
+      "c6b631893bae9a13487c8cd74a64ae47240979f661c27f4f4590b39d32b4accd"
+    ],
+    [
+      "local-c6b631893bae9a13487c8cd74a64ae47240979f661c27f4f4590b39d32b4accd/source.txt",
+      "transcripts/local/local-c6b631893bae9a13487c8cd74a64ae47240979f661c27f4f4590b39d32b4accd/source.txt",
+      "c6b631893bae9a13487c8cd74a64ae47240979f661c27f4f4590b39d32b4accd"
+    ],
+    [
+      "summary/429089beb73ea66acb256bf8f33456db918c3a46fcdc9d04d41016183b49ae64/structured",
+      "transcripts/summaries/429089beb73ea66acb256bf8f33456db918c3a46fcdc9d04d41016183b49ae64.json",
+      "552c0a77dece55c844e200ca53aa271f69b509bbc5bd0bcb97e283fed5a007a6"
+    ]
+  ],
+  "file_hashes": {
+    "transcripts/summaries/429089beb73ea66acb256bf8f33456db918c3a46fcdc9d04d41016183b49ae64.json": "552c0a77dece55c844e200ca53aa271f69b509bbc5bd0bcb97e283fed5a007a6",
+    "transcripts/local/local-c6b631893bae9a13487c8cd74a64ae47240979f661c27f4f4590b39d32b4accd/canonical.txt": "c6b631893bae9a13487c8cd74a64ae47240979f661c27f4f4590b39d32b4accd",
+    "transcripts/local/local-c6b631893bae9a13487c8cd74a64ae47240979f661c27f4f4590b39d32b4accd/source.txt": "c6b631893bae9a13487c8cd74a64ae47240979f661c27f4f4590b39d32b4accd"
+  }
+}

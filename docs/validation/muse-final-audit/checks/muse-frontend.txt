@@ -1,0 +1,961 @@
+
+> youtube-intel-workspace@0.1.0 test
+> vitest run
+
+
+ RUN  v2.1.9 /Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend
+
+stderr | src/workspace/ContentStatusLocalization.test.tsx > an untrusted Bilibili source is localized on the Content list and detail in both languages
+Warning: An update to ContentPage inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ContentPage (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/App.tsx:1864:24)
+    at main
+    at div
+    at Workspace (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/App.tsx:1144:40)
+    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/uiLanguage.tsx:1042:31)
+    at App
+
+ ✓ src/workspace/ResearchDiff.test.tsx (15 tests) 554ms
+ ✓ src/workspace/CreatorFollowing.test.tsx (24 tests) 795ms
+   ✓ a withdrawn creator is never advertised as monitoring in the Following list 376ms
+stderr | src/workspace/ContentStatusLocalization.test.tsx > an untrusted Bilibili source is localized on the Content list and detail in both languages
+Warning: An update to ContentPage inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ContentPage (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/App.tsx:1864:24)
+    at main
+    at div
+    at Workspace (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/App.tsx:1144:40)
+    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/uiLanguage.tsx:1042:31)
+    at App
+
+ ✓ src/workspace/AdvancedSourceForm.test.tsx (2 tests) 591ms
+   ✓ advanced source configuration preserves the bounded V1 controls 305ms
+stderr | src/workspace/ContentStatusLocalization.test.tsx > an untrusted Local source is localized on the Content list and detail in both languages
+Warning: An update to ContentPage inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ContentPage (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/App.tsx:1864:24)
+    at main
+    at div
+    at Workspace (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/App.tsx:1144:40)
+    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/uiLanguage.tsx:1042:31)
+    at App
+
+stderr | src/workspace/ContentStatusLocalization.test.tsx > an untrusted Local source is localized on the Content list and detail in both languages
+Warning: An update to ContentPage inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ContentPage (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/App.tsx:1864:24)
+    at main
+    at div
+    at Workspace (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/App.tsx:1144:40)
+    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/uiLanguage.tsx:1042:31)
+    at App
+
+stderr | src/workspace/ContentStatusLocalization.test.tsx > a Bilibili Content without a public caption stays an honest metadata-only record
+Warning: An update to ContentPage inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ContentPage (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/App.tsx:1864:24)
+    at main
+    at div
+    at Workspace (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/App.tsx:1144:40)
+    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/uiLanguage.tsx:1042:31)
+    at App
+
+ ✓ src/workspace/ContentStatusLocalization.test.tsx (3 tests) 997ms
+   ✓ an untrusted Bilibili source is localized on the Content list and detail in both languages 454ms
+stderr | src/workspace/ContentStatusLocalization.test.tsx > a Bilibili Content without a public caption stays an honest metadata-only record
+Warning: An update to ContentPage inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ContentPage (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/App.tsx:1864:24)
+    at main
+    at div
+    at Workspace (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/App.tsx:1144:40)
+    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/uiLanguage.tsx:1042:31)
+    at App
+
+ ✓ src/workspace/LocalImport.test.tsx (13 tests) 1133ms
+ ✓ src/workspace/Research.test.tsx (18 tests) 1411ms
+   ✓ paginates without accumulating an unbounded rendered list 402ms
+stderr | src/workspace/App.test.tsx > Chinese Following explains discovery-only state and the insight processing choice
+Warning: An update to ExistingSourceForm inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at ExistingSourceForm (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/App.tsx:4033:31)
+    at SourceForm (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/App.tsx:4023:16)
+    at div
+    at SourceDetail (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/App.tsx:4766:25)
+    at Sources (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/App.tsx:3736:20)
+    at main
+    at div
+    at Workspace (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/App.tsx:1144:40)
+    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/uiLanguage.tsx:1042:31)
+    at App
+
+ ✓ src/workspace/NativeLocalImport.test.tsx (7 tests) 2031ms
+   ✓ uses only native JSON controls, keeps selection on focus and navigates to saved Content 714ms
+   ✓ shows actual fallback bytes and reports duration errors independently 1133ms
+ ✓ src/workspace/KnowledgeDelta.test.tsx (7 tests) 409ms
+ ✓ src/workspace/AddEntry.test.tsx (24 tests) 562ms
+ ✓ src/workspace/LocalTranscription.test.tsx (7 tests) 638ms
+   ✓ distinguishes acoustic qualification from installed assets in en 308ms
+ ✓ src/workspace/LocalImportStatus.test.tsx (4 tests) 462ms
+   ✓ shows an untrusted Local source in Chinese without backend vocabulary 390ms
+ ✓ src/workspace/LocalImportLarge.test.tsx (7 tests) 793ms
+ ✓ src/workspace/BilibiliImport.test.tsx (2 tests) 487ms
+   ✓ imports only the supplied public video and exposes truthful no-caption Content 403ms
+ ✓ src/workspace/Onboarding.test.tsx (3 tests) 130ms
+ ✓ src/workspace/BilibiliCaptionStatus.test.tsx (1 test) 76ms
+ ❯ src/workspace/LocalImportFlow.test.tsx (4 tests | 1 failed) 1756ms
+   ✓ D2-01 preserves the selected video when file-chooser focus triggers a Following refresh 461ms
+   × D2-01 keeps in-flight import on refresh and page switches, then opens its saved Content once 1207ms
+     → Unable to find an element with the text: Local model is missing. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"app-shell"[39m
+    [36m>[39m
+      [36m<aside[39m
+        [33mclass[39m=[32m"sidebar"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"brand"[39m
+        [36m>[39m
+          [36m<svg[39m
+            [33maria-hidden[39m=[32m"true"[39m
+            [33mclass[39m=[32m"brand-logo"[39m
+            [33mfocusable[39m=[32m"false"[39m
+            [33mviewBox[39m=[32m"0 0 24 24"[39m
+            [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+          [36m>[39m
+            [36m<defs>[39m
+              [36m<lineargradient[39m
+                [33mgradientUnits[39m=[32m"userSpaceOnUse"[39m
+                [33mid[39m=[32m"intel-logo-grad-r1"[39m
+                [33mx1[39m=[32m"20"[39m
+                [33mx2[39m=[32m"4"[39m
+                [33my1[39m=[32m"4"[39m
+                [33my2[39m=[32m"20"[39m
+              [36m>[39m
+                [36m<stop[39m
+                  [33moffset[39m=[32m"0%"[39m
+                  [33mstop-color[39m=[32m"#4C8DFF"[39m
+                [36m/>[39m
+                [36m<stop[39m
+                  [33moffset[39m=[32m"100%"[39m
+                  [33mstop-color[39m=[32m"#8B6CF0"[39m
+                [36m/>[39m
+              [36m</lineargradient>[39m
+            [36m</defs>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M18.89 13.22 A7 7 0 1 1 16.5 6.64"[39m
+              [33mfill[39m=[32m"none"[39m
+              [33mstroke[39m=[32m"url(#intel-logo-grad-r1)"[39m
+              [33mstroke-linecap[39m=[32m"round"[39m
+              [33mstroke-width[39m=[32m"2.9"[39m
+            [36m/>[39m
+            [36m<circle[39m
+              [33mcx[39m=[32m"19.09"[39m
+              [33mcy[39m=[32m"6.46"[39m
+              [33mfill[39m=[32m"url(#intel-logo-grad-r1)"[39m
+              [33mr[39m=[32m"2"[39m
+            [36m/>[39m
+          [36m</svg>[39m
+          [36m<div>[39m
+            [36m<strong>[39m
+              [0mIntelligence[0m
+            [36m</strong>[39m
+            [36m<small>[39m
+              [0mLocal-first workspace[0m
+            [36m</small>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<nav[39m
+          [33maria-label[39m=[32m"Primary navigation"[39m
+          [33mclass[39m=[32m"sidebar-nav"[39m
+        [36m>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mHome[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mFollowing[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33maria-current[39m=[32m"page"[39m
+            [33mclass[39m=[32m"nav-item active"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mContent[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mIntelligence[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mTopics[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mSettings[0m
+          [36m</button>[39m
+        [36m</nav>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"sidebar-foot"[39m
+        [36m>[39m
+          [0mEvidence stays reachable[0m
+        [36m</div>[39m
+      [36m</aside>[39m
+      [36m<main[39m
+        [33mclass[39m=[32m"workspace-main"[39m
+      [36m>[39m
+        [36m<header[39m
+          [33mclass[39m=[32m"page-header"[39m
+        [36m>[39m
+          [36m<div>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"eyebrow"[39m
+            [36m>[39m
+              [0mINTELLIGENCE[0m
+            [36m</p>[39m
+            [36m<h1>[39m
+              [0mContent[0m
+            [36m</h1>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"page-subtitle"[39m
+            [36m>[39m
+              [0mRead ingested content, transcript state, and processing history.[0m
+            [36m</p>[39m
+          [36m</div>[39m
+        [36m</header>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"compact-list"[39m
+        [36m>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"list-row"[39m
+          [36m>[39m
+            [36m<span>[39m
+              [36m<strong>[39m
+                [0md2-video.mp4[0m
+              [36m</strong>[39m
+              [36m<small>[39m
+                [0mLocal[0m
+                [0m · [0m
+                [0mOct 9, 2026[0m
+              [36m</small>[39m
+            [36m</span>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"status status-warning"[39m
+            [36m>[39m
+              [0mLocal transcription is unavailable[0m
+            [36m</span>[39m
+          [36m</button>[39m
+        [36m</div>[39m
+      [36m</main>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"app-shell"[39m
+    [36m>[39m
+      [36m<aside[39m
+        [33mclass[39m=[32m"sidebar"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"brand"[39m
+        [36m>[39m
+          [36m<svg[39m
+            [33maria-hidden[39m=[32m"true"[39m
+            [33mclass[39m=[32m"brand-logo"[39m
+            [33mfocusable[39m=[32m"false"[39m
+            [33mviewBox[39m=[32m"0 0 24 24"[39m
+            [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+          [36m>[39m
+            [36m<defs>[39m
+              [36m<lineargradient[39m
+                [33mgradientUnits[39m=[32m"userSpaceOnUse"[39m
+                [33mid[39m=[32m"intel-logo-grad-r1"[39m
+                [33mx1[39m=[32m"20"[39m
+                [33mx2[39m=[32m"4"[39m
+                [33my1[39m=[32m"4"[39m
+                [33my2[39m=[32m"20"[39m
+              [36m>[39m
+                [36m<stop[39m
+                  [33moffset[39m=[32m"0%"[39m
+                  [33mstop-color[39m=[32m"#4C8DFF"[39m
+                [36m/>[39m
+                [36m<stop[39m
+                  [33moffset[39m=[32m"100%"[39m
+                  [33mstop-color[39m=[32m"#8B6CF0"[39m
+                [36m/>[39m
+              [36m</lineargradient>[39m
+            [36m</defs>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M18.89 13.22 A7 7 0 1 1 16.5 6.64"[39m
+              [33mfill[39m=[32m"none"[39m
+              [33mstroke[39m=[32m"url(#intel-logo-grad-r1)"[39m
+              [33mstroke-linecap[39m=[32m"round"[39m
+              [33mstroke-width[39m=[32m"2.9"[39m
+            [36m/>[39m
+            [36m<circle[39m
+              [33mcx[39m=[32m"19.09"[39m
+              [33mcy[39m=[32m"6.46"[39m
+              [33mfill[39m=[32m"url(#intel-logo-grad-r1)"[39m
+              [33mr[39m=[32m"2"[39m
+            [36m/>[39m
+          [36m</svg>[39m
+          [36m<div>[39m
+            [36m<strong>[39m
+              [0mIntelligence[0m
+            [36m</strong>[39m
+            [36m<small>[39m
+              [0mLocal-first workspace[0m
+            [36m</small>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<nav[39m
+          [33maria-label[39m=[32m"Primary navigation"[39m
+          [33mclass[39m=[32m"sidebar-nav"[39m
+        [36m>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mHome[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mFollowing[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33maria-current[39m=[32m"page"[39m
+            [33mclass[39m=[32m"nav-item active"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mContent[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mIntelligence[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mTopics[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mSettings[0m
+          [36m</button>[39m
+        [36m</nav>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"sidebar-foot"[39m
+        [36m>[39m
+          [0mEvidence stays reachable[0m
+        [36m</div>[39m
+      [36m</aside>[39m
+      [36m<main[39m
+        [33mclass[39m=[32m"workspace-main"[39m
+      [36m>[39m
+        [36m<header[39m
+          [33mclass[39m=[32m"page-header"[39m
+        [36m>[39m
+          [36m<div>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"eyebrow"[39m
+            [36m>[39m
+              [0mINTELLIGENCE[0m
+            [36m</p>[39m
+            [36m<h1>[39m
+              [0mContent[0m
+            [36m</h1>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"page-subtitle"[39m
+            [36m>[39m
+              [0mRead ingested content, transcript state, and processing history.[0m
+            [36m</p>[39m
+          [36m</div>[39m
+        [36m</header>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"compact-list"[39m
+        [36m>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"list-row"[39m
+          [36m>[39m
+            [36m<span>[39m
+              [36m<strong>[39m
+                [0md2-video.mp4[0m
+              [36m</strong>[39m
+              [36m<small>[39m
+                [0mLocal[0m
+                [0m · [0m
+                [0mOct 9, 2026[0m
+              [36m</small>[39m
+            [36m</span>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"status status-warning"[39m
+            [36m>[39m
+              [0mLocal transcription is unavailable[0m
+            [36m</span>[39m
+          [36m</button>[39m
+        [36m</div>[39m
+      [36m</main>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+ ✓ src/api/client.test.ts (1 test) 1ms
+ ✓ src/demo-v1/App.test.tsx (32 tests) 4819ms
+   ✓ pre-freeze path A keeps 18 Followings findable by group, filter and search 985ms
+   ✓ add Following exposes Provider breadth while keeping a complete YouTube mock flow 375ms
+   ✓ revision 3 paths D and E show Topic lifecycle, evolution and Research history 308ms
+   ✓ revision 3 paths F and G mock safe backup restore and Obsidian publishing 443ms
+stderr | src/workspace/App.test.tsx > user hash navigation (browser back/forward or editing the address bar) switches views
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/App.tsx:1144:40)
+    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/uiLanguage.tsx:1042:31)
+    at App
+
+stderr | src/workspace/App.test.tsx > user hash navigation (browser back/forward or editing the address bar) switches views
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/App.tsx:1144:40)
+    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/uiLanguage.tsx:1042:31)
+    at App
+
+stderr | src/workspace/App.test.tsx > user hash navigation (browser back/forward or editing the address bar) switches views
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/App.tsx:1144:40)
+    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/uiLanguage.tsx:1042:31)
+    at App
+
+stderr | src/workspace/App.test.tsx > user hash navigation (browser back/forward or editing the address bar) switches views
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/App.tsx:1144:40)
+    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/uiLanguage.tsx:1042:31)
+    at App
+
+stderr | src/workspace/App.test.tsx > user hash navigation (browser back/forward or editing the address bar) switches views
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/App.tsx:1144:40)
+    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/uiLanguage.tsx:1042:31)
+    at App
+
+stderr | src/workspace/App.test.tsx > hashchange to a Content deep link still opens that Content detail
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/App.tsx:1144:40)
+    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/uiLanguage.tsx:1042:31)
+    at App
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/App.tsx:1144:40)
+    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/uiLanguage.tsx:1042:31)
+    at App
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/App.tsx:1144:40)
+    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/uiLanguage.tsx:1042:31)
+    at App
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/App.tsx:1144:40)
+    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/muse-source/frontend/src/workspace/uiLanguage.tsx:1042:31)
+    at App
+
+ ✓ src/workspace/App.test.tsx (111 tests) 7548ms
+   ✓ Chinese Settings edits global interests through existing authority 460ms
+   ✓ UI language defaults to Chinese and a saved English choice survives remount 415ms
+   ✓ one-time Content retry remains visible and polls accepted durable work to completion 2018ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/workspace/LocalImportFlow.test.tsx > D2-01 keeps in-flight import on refresh and page switches, then opens its saved Content once
+TestingLibraryElementError: Unable to find an element with the text: Local model is missing. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"app-shell"[39m
+    [36m>[39m
+      [36m<aside[39m
+        [33mclass[39m=[32m"sidebar"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"brand"[39m
+        [36m>[39m
+          [36m<svg[39m
+            [33maria-hidden[39m=[32m"true"[39m
+            [33mclass[39m=[32m"brand-logo"[39m
+            [33mfocusable[39m=[32m"false"[39m
+            [33mviewBox[39m=[32m"0 0 24 24"[39m
+            [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+          [36m>[39m
+            [36m<defs>[39m
+              [36m<lineargradient[39m
+                [33mgradientUnits[39m=[32m"userSpaceOnUse"[39m
+                [33mid[39m=[32m"intel-logo-grad-r1"[39m
+                [33mx1[39m=[32m"20"[39m
+                [33mx2[39m=[32m"4"[39m
+                [33my1[39m=[32m"4"[39m
+                [33my2[39m=[32m"20"[39m
+              [36m>[39m
+                [36m<stop[39m
+                  [33moffset[39m=[32m"0%"[39m
+                  [33mstop-color[39m=[32m"#4C8DFF"[39m
+                [36m/>[39m
+                [36m<stop[39m
+                  [33moffset[39m=[32m"100%"[39m
+                  [33mstop-color[39m=[32m"#8B6CF0"[39m
+                [36m/>[39m
+              [36m</lineargradient>[39m
+            [36m</defs>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M18.89 13.22 A7 7 0 1 1 16.5 6.64"[39m
+              [33mfill[39m=[32m"none"[39m
+              [33mstroke[39m=[32m"url(#intel-logo-grad-r1)"[39m
+              [33mstroke-linecap[39m=[32m"round"[39m
+              [33mstroke-width[39m=[32m"2.9"[39m
+            [36m/>[39m
+            [36m<circle[39m
+              [33mcx[39m=[32m"19.09"[39m
+              [33mcy[39m=[32m"6.46"[39m
+              [33mfill[39m=[32m"url(#intel-logo-grad-r1)"[39m
+              [33mr[39m=[32m"2"[39m
+            [36m/>[39m
+          [36m</svg>[39m
+          [36m<div>[39m
+            [36m<strong>[39m
+              [0mIntelligence[0m
+            [36m</strong>[39m
+            [36m<small>[39m
+              [0mLocal-first workspace[0m
+            [36m</small>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<nav[39m
+          [33maria-label[39m=[32m"Primary navigation"[39m
+          [33mclass[39m=[32m"sidebar-nav"[39m
+        [36m>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mHome[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mFollowing[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33maria-current[39m=[32m"page"[39m
+            [33mclass[39m=[32m"nav-item active"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mContent[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mIntelligence[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mTopics[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mSettings[0m
+          [36m</button>[39m
+        [36m</nav>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"sidebar-foot"[39m
+        [36m>[39m
+          [0mEvidence stays reachable[0m
+        [36m</div>[39m
+      [36m</aside>[39m
+      [36m<main[39m
+        [33mclass[39m=[32m"workspace-main"[39m
+      [36m>[39m
+        [36m<header[39m
+          [33mclass[39m=[32m"page-header"[39m
+        [36m>[39m
+          [36m<div>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"eyebrow"[39m
+            [36m>[39m
+              [0mINTELLIGENCE[0m
+            [36m</p>[39m
+            [36m<h1>[39m
+              [0mContent[0m
+            [36m</h1>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"page-subtitle"[39m
+            [36m>[39m
+              [0mRead ingested content, transcript state, and processing history.[0m
+            [36m</p>[39m
+          [36m</div>[39m
+        [36m</header>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"compact-list"[39m
+        [36m>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"list-row"[39m
+          [36m>[39m
+            [36m<span>[39m
+              [36m<strong>[39m
+                [0md2-video.mp4[0m
+              [36m</strong>[39m
+              [36m<small>[39m
+                [0mLocal[0m
+                [0m · [0m
+                [0mOct 9, 2026[0m
+              [36m</small>[39m
+            [36m</span>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"status status-warning"[39m
+            [36m>[39m
+              [0mLocal transcription is unavailable[0m
+            [36m</span>[39m
+          [36m</button>[39m
+        [36m</div>[39m
+      [36m</main>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"app-shell"[39m
+    [36m>[39m
+      [36m<aside[39m
+        [33mclass[39m=[32m"sidebar"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"brand"[39m
+        [36m>[39m
+          [36m<svg[39m
+            [33maria-hidden[39m=[32m"true"[39m
+            [33mclass[39m=[32m"brand-logo"[39m
+            [33mfocusable[39m=[32m"false"[39m
+            [33mviewBox[39m=[32m"0 0 24 24"[39m
+            [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+          [36m>[39m
+            [36m<defs>[39m
+              [36m<lineargradient[39m
+                [33mgradientUnits[39m=[32m"userSpaceOnUse"[39m
+                [33mid[39m=[32m"intel-logo-grad-r1"[39m
+                [33mx1[39m=[32m"20"[39m
+                [33mx2[39m=[32m"4"[39m
+                [33my1[39m=[32m"4"[39m
+                [33my2[39m=[32m"20"[39m
+              [36m>[39m
+                [36m<stop[39m
+                  [33moffset[39m=[32m"0%"[39m
+                  [33mstop-color[39m=[32m"#4C8DFF"[39m
+                [36m/>[39m
+                [36m<stop[39m
+                  [33moffset[39m=[32m"100%"[39m
+                  [33mstop-color[39m=[32m"#8B6CF0"[39m
+                [36m/>[39m
+              [36m</lineargradient>[39m
+            [36m</defs>[39m
+            [36m<path[39m
+              [33md[39m=[32m"M18.89 13.22 A7 7 0 1 1 16.5 6.64"[39m
+              [33mfill[39m=[32m"none"[39m
+              [33mstroke[39m=[32m"url(#intel-logo-grad-r1)"[39m
+              [33mstroke-linecap[39m=[32m"round"[39m
+              [33mstroke-width[39m=[32m"2.9"[39m
+            [36m/>[39m
+            [36m<circle[39m
+              [33mcx[39m=[32m"19.09"[39m
+              [33mcy[39m=[32m"6.46"[39m
+              [33mfill[39m=[32m"url(#intel-logo-grad-r1)"[39m
+              [33mr[39m=[32m"2"[39m
+            [36m/>[39m
+          [36m</svg>[39m
+          [36m<div>[39m
+            [36m<strong>[39m
+              [0mIntelligence[0m
+            [36m</strong>[39m
+            [36m<small>[39m
+              [0mLocal-first workspace[0m
+            [36m</small>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<nav[39m
+          [33maria-label[39m=[32m"Primary navigation"[39m
+          [33mclass[39m=[32m"sidebar-nav"[39m
+        [36m>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mHome[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mFollowing[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33maria-current[39m=[32m"page"[39m
+            [33mclass[39m=[32m"nav-item active"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mContent[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mIntelligence[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mTopics[0m
+          [36m</button>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"nav-item "[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [0mSettings[0m
+          [36m</button>[39m
+        [36m</nav>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"sidebar-foot"[39m
+        [36m>[39m
+          [0mEvidence stays reachable[0m
+        [36m</div>[39m
+      [36m</aside>[39m
+      [36m<main[39m
+        [33mclass[39m=[32m"workspace-main"[39m
+      [36m>[39m
+        [36m<header[39m
+          [33mclass[39m=[32m"page-header"[39m
+        [36m>[39m
+          [36m<div>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"eyebrow"[39m
+            [36m>[39m
+              [0mINTELLIGENCE[0m
+            [36m</p>[39m
+            [36m<h1>[39m
+              [0mContent[0m
+            [36m</h1>[39m
+            [36m<p[39m
+              [33mclass[39m=[32m"page-subtitle"[39m
+            [36m>[39m
+              [0mRead ingested content, transcript state, and processing history.[0m
+            [36m</p>[39m
+          [36m</div>[39m
+        [36m</header>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"compact-list"[39m
+        [36m>[39m
+          [36m<button[39m
+            [33mclass[39m=[32m"list-row"[39m
+          [36m>[39m
+            [36m<span>[39m
+              [36m<strong>[39m
+                [0md2-video.mp4[0m
+              [36m</strong>[39m
+              [36m<small>[39m
+                [0mLocal[0m
+                [0m · [0m
+                [0mOct 9, 2026[0m
+              [36m</small>[39m
+            [36m</span>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"status status-warning"[39m
+            [36m>[39m
+              [0mLocal transcription is unavailable[0m
+            [36m</span>[39m
+          [36m</button>[39m
+        [36m</div>[39m
+      [36m</main>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+ ❯ waitForWrapper ../../../../../v1x-local-main/frontend/node_modules/@testing-library/dom/dist/wait-for.js:163:27
+ ❯ ../../../../../v1x-local-main/frontend/node_modules/@testing-library/dom/dist/query-helpers.js:86:33
+ ❯ src/workspace/LocalImportFlow.test.tsx:65:24
+     63|   expect(upload).toHaveBeenCalledTimes(1);
+     64|   expect(screen.queryByRole("dialog")).toBeNull();
+     65|   expect((await screen.findAllByText("Local model is missing")).length…
+       |                        ^
+     66| });
+     67|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed | 18 passed (19)
+      Tests  1 failed | 284 passed (285)
+   Start at  21:17:10
+   Duration  10.60s (transform 1.41s, setup 0ms, collect 9.45s, tests 25.19s, environment 22.50s, prepare 2.64s)

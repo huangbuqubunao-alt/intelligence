@@ -1,0 +1,69 @@
+{
+  "checkpoints": [
+    {
+      "execution_id": "distillation:reservation:v3:20f6e9ebad84c7294d2aba082b895e4eb6a6ff9adf31536439d280700f74f6bd",
+      "source_id": "93a4f620-436a-4ed6-816a-7483610f779e",
+      "video_id": "aircAruvnKk",
+      "reason": "MANUAL_CONTENT:ui:1791725340561:eo8nw24fxk4",
+      "use_case": "PERSONALIZED_INTELLIGENCE",
+      "selected_provider": "ollama",
+      "selected_model": "qwen3:8b",
+      "status": "WAITING_MODEL",
+      "budget_state": "RUNTIME_BUDGET_ADMITTED",
+      "invocation_count": 0,
+      "intelligence_id": null,
+      "revision_id": null,
+      "created_at": "2026-10-11T13:29:01.619775Z",
+      "updated_at": "2026-10-11T13:29:01.948094Z",
+      "output_language": "en"
+    }
+  ],
+  "usage_count": 1,
+  "cloud_authorization_counts": {
+    "distillation_cloud_authorizations": 0,
+    "distillation_openai_cloud_authorizations": 0,
+    "distillation_moonshot_cloud_authorizations": 0
+  },
+  "integrity_check": "ok",
+  "backup_status": {
+    "status": {
+      "ready": false,
+      "reasons": [
+        "DISTILLATION_ACTIVE"
+      ],
+      "message": "A distillation checkpoint is still active.",
+      "restore_pending": false,
+      "last_restore": {
+        "completed_at": "2026-10-11T13:14:09Z",
+        "message": "Restore completed successfully.",
+        "restore_id": "8f397c73842b4743900fdf85581c4f4d",
+        "state": "APPLIED"
+      }
+    }
+  },
+  "resource_usage": [
+    {
+      "execution_id": "distillation:reservation:v3:20f6e9ebad84c7294d2aba082b895e4eb6a6ff9adf31536439d280700f74f6bd",
+      "reason": "MANUAL_CONTENT:ui:1791725340561:eo8nw24fxk4",
+      "use_case": "PERSONALIZED_INTELLIGENCE",
+      "source_id": "93a4f620-436a-4ed6-816a-7483610f779e",
+      "video_id": "aircAruvnKk",
+      "intelligence_id": null,
+      "revision_id": null,
+      "selected_provider": "ollama",
+      "selected_model": "qwen3:8b",
+      "actual_provider": null,
+      "actual_model": null,
+      "status": "WAITING_MODEL",
+      "invocation_count": 0,
+      "input_tokens": null,
+      "output_tokens": null,
+      "cost_microunits": null,
+      "duration_ms": null,
+      "budget_state": "RUNTIME_BUDGET_ADMITTED",
+      "outcome": "MODEL_UNAVAILABLE_BEFORE_TRANSPORT",
+      "created_at": "2026-10-11T13:29:01.948094Z",
+      "http_status_code": null
+    }
+  ]
+}

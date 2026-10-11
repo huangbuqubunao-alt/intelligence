@@ -1,0 +1,30 @@
+{
+  "main": {
+    "collected": 3979,
+    "passed": 3978,
+    "failures": [],
+    "skips": [
+      {
+        "id": "tests.unit.test_o200k_provisioning::test_external_provisioned_canonical_asset_preserves_golden_token_ids",
+        "reason": "requires an explicitly provisioned canonical o200k asset"
+      }
+    ]
+  },
+  "candidate": {
+    "collected": 3982,
+    "passed": 3981,
+    "failures": [],
+    "skips": [
+      {
+        "id": "tests.unit.test_o200k_provisioning::test_external_provisioned_canonical_asset_preserves_golden_token_ids",
+        "reason": "requires an explicitly provisioned canonical o200k asset"
+      }
+    ]
+  },
+  "added_tests": [
+    "tests.integration.test_runtime_composition::test_local_summary_identity_does_not_grant_intelligence_production",
+    "tests.unit.test_backup_restore::test_completed_no_new_attention_run_backup_restore_or_fail_closed[False]",
+    "tests.unit.test_backup_restore::test_completed_no_new_attention_run_backup_restore_or_fail_closed[True]"
+  ],
+  "new_candidate_failures": []
+}

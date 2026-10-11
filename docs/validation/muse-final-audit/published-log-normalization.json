@@ -1,0 +1,107 @@
+[
+  {
+    "published": "checks/opencode-notice-reproduction.txt",
+    "raw": ".var/muse-final-audit/raw-published-evidence/opencode-notice-reproduction.txt",
+    "raw_sha256": "ac3bdc4535755d4a906bb3868f3738c4d9401b708a9ac76cbc209c7337bc7cc8",
+    "published_sha256": "92e221115368b0d61ee48a55e4f8831759593fe23b6e650f26db156d326b17db",
+    "change": "trailing whitespace/blank EOF only; failure text and assertions retained"
+  },
+  {
+    "published": "checks/candidate-frontend-final.txt",
+    "raw": ".var/muse-final-audit/raw-published-evidence/candidate-frontend-final.txt",
+    "raw_sha256": "c130e5809b3bbca79ac490d00620010a2e8ffe4675ef6bf666fddf524c37d868",
+    "published_sha256": "15a53a955c33368d049d8d119fa52016160b52f239de8d1d1c58db917cd27d4a",
+    "change": "trailing whitespace/blank EOF only; failure text and assertions retained"
+  },
+  {
+    "published": "checks/gui-completion.txt",
+    "raw": ".var/muse-final-audit/raw-published-evidence/gui-completion.txt",
+    "raw_sha256": "9346b044abb7b08d0a9e11b2391ae22dbbeca8231f27876709dc5556abf7a6eb",
+    "published_sha256": "d2cdd2c48adbb39f8514bb10814b18852f7b4c30cf10885dafa16f0095b0eee4",
+    "change": "trailing whitespace/blank EOF only; failure text and assertions retained"
+  },
+  {
+    "published": "checks/muse-critical.xml",
+    "raw": ".var/muse-final-audit/raw-published-evidence/muse-critical.xml",
+    "raw_sha256": "d338df9f2662f176cbf06cd20454a9dc7abd1a119c199b00c0378cc9f25b12dd",
+    "published_sha256": "0eaefee92f12d118eece9b2bced4975bc1893802ce7e56f1be916712fbb6db5a",
+    "change": "trailing whitespace/blank EOF only; failure text and assertions retained"
+  },
+  {
+    "published": "checks/focused-backend.xml",
+    "raw": ".var/muse-final-audit/raw-published-evidence/focused-backend.xml",
+    "raw_sha256": "438049801650e7de8f0ea489738ac1c055fab9dc18357a9aa88622c13cc5e0a8",
+    "published_sha256": "fc5ab6274ae1e9c1e9d32bc2fe5aae970489d17229a0ff1402daab3dc6d5ed78",
+    "change": "trailing whitespace/blank EOF only; failure text and assertions retained"
+  },
+  {
+    "published": "checks/main-backend.xml",
+    "raw": ".var/muse-final-audit/raw-published-evidence/main-backend.xml",
+    "raw_sha256": "32df2f72a439a202b7516a342c19cce975a6cac48a059023857aa4b42a3f494d",
+    "published_sha256": "bffe19d14590b42cb6052e17c9732c4a291fa2a1eb7036d262b4d53932f8c292",
+    "change": "trailing whitespace/blank EOF only; failure text and assertions retained"
+  },
+  {
+    "published": "checks/candidate-backend.xml",
+    "raw": ".var/muse-final-audit/raw-published-evidence/candidate-backend.xml",
+    "raw_sha256": "40b3c8c9d506464af9cc4b3fe1455ace27594c2a039224eed0ee7fa64b58449c",
+    "published_sha256": "8acece16757a20f87421cb043ef1a95bd3f500a17a75d12bf4d4a438c553117d",
+    "change": "trailing whitespace/blank EOF only; failure text and assertions retained"
+  },
+  {
+    "published": "checks/main-frontend.txt",
+    "raw": ".var/muse-final-audit/raw-published-evidence/main-frontend.txt",
+    "raw_sha256": "4b131686b8db824bd968aebd9c8800826c6f8863bcefa2ae50da01f6a8543bb5",
+    "published_sha256": "49152bd6ae0bceef9b44e5bdd955dfab4440bdaee52a08ddf098888e4fc5eb39",
+    "change": "trailing whitespace/blank EOF only; failure text and assertions retained"
+  },
+  {
+    "published": "checks/main-route-reproduction.txt",
+    "raw": ".var/muse-final-audit/raw-published-evidence/main-route-reproduction.txt",
+    "raw_sha256": "5f44eab2fbb7b817a110ce91ac46d34841c5c4ec26a25db94568edad2d590e54",
+    "published_sha256": "4ff64e8fd360b334acc63e7f3ca8235056da5f55768026ca5b98a89005003b4f",
+    "change": "trailing whitespace/blank EOF only; failure text and assertions retained"
+  },
+  {
+    "published": "checks/final-focused.xml",
+    "raw": ".var/muse-final-audit/raw-published-evidence/final-focused.xml",
+    "raw_sha256": "9de88d160e8c2ac8e3af6cd9f9d28dc08f94c928257be04fbf42887d015af5ae",
+    "published_sha256": "2d9248346954a276e69894954c44bf8667ce39cc2202f4e3d6321f9be511306a",
+    "change": "trailing whitespace/blank EOF only; failure text and assertions retained"
+  },
+  {
+    "published": "checks/muse-frontend.txt",
+    "raw": ".var/muse-final-audit/raw-published-evidence/muse-frontend.txt",
+    "raw_sha256": "b581cac96a0a762b62db8bc236fcf93255ab35aa2e19ccf5eb6faf401ff08b03",
+    "published_sha256": "e5c327356e177e0fce422d0a5e0d7eeed6ae08f7b52c4e3323335e8adbd41f67",
+    "change": "trailing whitespace/blank EOF only; failure text and assertions retained"
+  },
+  {
+    "published": "checks/opencode-critical.xml",
+    "raw": ".var/muse-final-audit/raw-published-evidence/opencode-critical.xml",
+    "raw_sha256": "ebdd60842f387959cb64eaab6c60a57c991467b018e0043f374563f76e9ec9ca",
+    "published_sha256": "272e065354bd4d8e2bf42cd504f532270c8d8805905a73512e4ea6162054954f",
+    "change": "trailing whitespace/blank EOF only; failure text and assertions retained"
+  },
+  {
+    "published": "checks/final-focused-wrong-path.xml",
+    "raw": ".var/muse-final-audit/raw-published-evidence/final-focused-wrong-path.xml",
+    "raw_sha256": "5bd1eb3afc7fbecbc4d0c518845886bf129e0d0cec9f6c5f1a08549dd38b64af",
+    "published_sha256": "4a2eeb5da1bfc9a2412127190a367afd391711cab1e5b44353a05a939d4b7d75",
+    "change": "trailing whitespace/blank EOF only; failure text and assertions retained"
+  },
+  {
+    "published": "checks/opencode-frontend.txt",
+    "raw": ".var/muse-final-audit/raw-published-evidence/opencode-frontend.txt",
+    "raw_sha256": "d1c5526a31df0697c970e664111e27e14e31915c52beb7d6ca34cec8735f4e0f",
+    "published_sha256": "d0d525b421cff92fcbd154e589bc418eca57a5d5dedad961fc990f43848390cc",
+    "change": "trailing whitespace/blank EOF only; failure text and assertions retained"
+  },
+  {
+    "published": "checks/muse-import-focused.txt",
+    "raw": ".var/muse-final-audit/raw-published-evidence/muse-import-focused.txt",
+    "raw_sha256": "6057ec2cc60ab14dbd9debb44358cb0c45c0c45608ace1d78e4abe3136793e84",
+    "published_sha256": "cb52ec5bbba596051e8b230602dbf5f659a9c9ce00fbd85999d8dbdc5c8c2f73",
+    "change": "trailing whitespace/blank EOF only; failure text and assertions retained"
+  }
+]

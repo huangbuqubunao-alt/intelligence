@@ -1,0 +1,223 @@
+{
+  "capture_date": "2026-10-11",
+  "api_port": 5689,
+  "ui_port": 5688,
+  "product_pngs": [
+    {
+      "path": "screenshots/01-first-open.png",
+      "sha256": "8c4c1ff65d4a1c9d86d35949f3f1e0035974d0339500dd2a24824e058e329eb2",
+      "bytes": 76795,
+      "capture": "real Chrome screenshot against isolated candidate",
+      "scope": "product UI; no mocked HTTP"
+    },
+    {
+      "path": "screenshots/02-onboarding.png",
+      "sha256": "a8e893a7a34a040fc2b379695e6ed82976b1115a48ef913a33706ede02a52636",
+      "bytes": 76782,
+      "capture": "real Chrome screenshot against isolated candidate",
+      "scope": "product UI; no mocked HTTP"
+    },
+    {
+      "path": "screenshots/03-onboarding.png",
+      "sha256": "bcdc93e91762aaa09c4830e4c43b91346d66abc231850c8b9714e9810d79b233",
+      "bytes": 81923,
+      "capture": "real Chrome screenshot against isolated candidate",
+      "scope": "product UI; no mocked HTTP"
+    },
+    {
+      "path": "screenshots/04-native-selected.png",
+      "sha256": "135d923a4fbcd70be603acafd947ddf343270c3e9e5eaf755c0a375c015adacf",
+      "bytes": 86242,
+      "capture": "real Chrome screenshot against isolated candidate",
+      "scope": "product UI; no mocked HTTP"
+    },
+    {
+      "path": "screenshots/05-local-content.png",
+      "sha256": "b4580f1da63f64e2cd4ce63230d2f571bffda3c8647896e33a3fc7b22a1f6aad",
+      "bytes": 95907,
+      "capture": "real Chrome screenshot against isolated candidate",
+      "scope": "product UI; no mocked HTTP"
+    },
+    {
+      "path": "screenshots/06-settings-zh.png",
+      "sha256": "7d2fb7332d874b7c3de900cc5bfe2ccc889cc448449416bc1952af1fda81d2f4",
+      "bytes": 42915,
+      "capture": "real Chrome screenshot against isolated candidate",
+      "scope": "product UI; no mocked HTTP"
+    },
+    {
+      "path": "screenshots/07-real-appkit-picker.png",
+      "sha256": "b3fc39bcecdec65e2d6e1e194e8458345a3d05a0ab2757554e5ee7e29b1ea07e",
+      "bytes": 163716,
+      "capture": "screencapture actual macOS AppKit panel",
+      "scope": "product UI; no mocked HTTP"
+    },
+    {
+      "path": "screenshots/10-settings-ready-zh.png",
+      "sha256": "a59d55f6bc1baef7459abb34c057066f4219530d9faba349673d27f248e5de4a",
+      "bytes": 162517,
+      "capture": "real Chrome screenshot against isolated candidate",
+      "scope": "product UI; no mocked HTTP"
+    },
+    {
+      "path": "screenshots/11-settings-en.png",
+      "sha256": "6639f071a3ae6bb12cf63e29078f18b5b38bcf6f9015ef2f370800eea2bbdfc5",
+      "bytes": 153257,
+      "capture": "real Chrome screenshot against isolated candidate",
+      "scope": "product UI; no mocked HTTP"
+    },
+    {
+      "path": "screenshots/12-backup-created.png",
+      "sha256": "692624ff0af54cec63e7bbe9ca6108e0037de137a2a42071ec9c99549dc67588",
+      "bytes": 177118,
+      "capture": "real Chrome screenshot against isolated candidate",
+      "scope": "product UI; no mocked HTTP"
+    },
+    {
+      "path": "screenshots/13-restore-preview.png",
+      "sha256": "70b75cb155aa25cb82fca04773036ec40c90ed3dc529f199cb59229204ab2dc4",
+      "bytes": 207642,
+      "capture": "real Chrome screenshot against isolated candidate",
+      "scope": "product UI; no mocked HTTP"
+    },
+    {
+      "path": "screenshots/14-restore-confirm.png",
+      "sha256": "807cb8050a249906e8778b0c7fc9621f62e20b9f1d117d56f9ae54895ff83ca8",
+      "bytes": 139062,
+      "capture": "real Chrome screenshot against isolated candidate",
+      "scope": "product UI; no mocked HTTP"
+    },
+    {
+      "path": "screenshots/16-youtube-channel-dialog.png",
+      "sha256": "9625501bca22f67a48404f5ccfe6e222220b53d5ce2be328b135734dbec81085",
+      "bytes": 110510,
+      "capture": "real Chrome screenshot against isolated candidate",
+      "scope": "product UI; no mocked HTTP"
+    },
+    {
+      "path": "screenshots/16-youtube-video-dialog.png",
+      "sha256": "fd25bf4a713d8b75e7e33f8156df8c812e2e23b37a7e14afed75383703b11eb7",
+      "bytes": 78325,
+      "capture": "real Chrome screenshot against isolated candidate",
+      "scope": "product UI; no mocked HTTP"
+    },
+    {
+      "path": "screenshots/17-following-current.png",
+      "sha256": "9789f2ffd189dcb3928083238e23e8ac45e505069c921fc6315fc6a09d1a4688",
+      "bytes": 56615,
+      "capture": "real Chrome screenshot against isolated candidate",
+      "scope": "product UI; no mocked HTTP"
+    },
+    {
+      "path": "screenshots/17-youtube-channel-added.png",
+      "sha256": "31d512610f8115c1e9edf8877b5f2e486e5263605510003841decbb5ec194037",
+      "bytes": 47850,
+      "capture": "real Chrome screenshot against isolated candidate",
+      "scope": "product UI; no mocked HTTP"
+    },
+    {
+      "path": "screenshots/17-youtube-channel-blocked.png",
+      "sha256": "69793365c3ac24f84369c6d36274dbb07db133d045b294914973207977d708e9",
+      "bytes": 60228,
+      "capture": "real Chrome screenshot against isolated candidate",
+      "scope": "diagnostic error image"
+    },
+    {
+      "path": "screenshots/17-youtube-channel-success.png",
+      "sha256": "135fb87034503d982c822f41af3a549639481a1ed21223ab8a54da19134c0530",
+      "bytes": 58526,
+      "capture": "real Chrome screenshot against isolated candidate",
+      "scope": "product UI; no mocked HTTP"
+    },
+    {
+      "path": "screenshots/17-youtube-video-added.png",
+      "sha256": "31d512610f8115c1e9edf8877b5f2e486e5263605510003841decbb5ec194037",
+      "bytes": 47850,
+      "capture": "real Chrome screenshot against isolated candidate",
+      "scope": "product UI; no mocked HTTP"
+    },
+    {
+      "path": "screenshots/17-youtube-video-blocked.png",
+      "sha256": "69793365c3ac24f84369c6d36274dbb07db133d045b294914973207977d708e9",
+      "bytes": 60228,
+      "capture": "real Chrome screenshot against isolated candidate",
+      "scope": "diagnostic error image"
+    },
+    {
+      "path": "screenshots/17-youtube-video-success.png",
+      "sha256": "69793365c3ac24f84369c6d36274dbb07db133d045b294914973207977d708e9",
+      "bytes": 60228,
+      "capture": "real Chrome screenshot against isolated candidate",
+      "scope": "product UI; no mocked HTTP"
+    },
+    {
+      "path": "screenshots/18-following-paused.png",
+      "sha256": "22a454f66eb77eeb24f2d2a325f9b30784a538b27436f55328fe92123a506575",
+      "bytes": 61248,
+      "capture": "real Chrome screenshot against isolated candidate",
+      "scope": "product UI; no mocked HTTP"
+    },
+    {
+      "path": "screenshots/19-following-resumed.png",
+      "sha256": "ededcfd522b8a800e6cc89aa2f1494ccec072b02770d11cd4098c300556bec0b",
+      "bytes": 63687,
+      "capture": "real Chrome screenshot against isolated candidate",
+      "scope": "product UI; no mocked HTTP"
+    },
+    {
+      "path": "screenshots/20-content-list.png",
+      "sha256": "329295529af8f1e36951bc6361fba580ee8b2f5776b765285b217e88c731bbbc",
+      "bytes": 42603,
+      "capture": "real Chrome screenshot against isolated candidate",
+      "scope": "product UI; no mocked HTTP"
+    },
+    {
+      "path": "screenshots/21-content-detail.png",
+      "sha256": "4b2e11e101d78dad4ea2721f32375d6f812184f52f1e789a8f9b95a884730d8b",
+      "bytes": 165764,
+      "capture": "real Chrome screenshot against isolated candidate",
+      "scope": "product UI; no mocked HTTP"
+    },
+    {
+      "path": "screenshots/22-content-summary.png",
+      "sha256": "fdfaca557cba084a1cda19b86be7d3818524b724b3c15c3e947ff8ce867e39f6",
+      "bytes": 1434177,
+      "capture": "real Chrome screenshot against isolated candidate",
+      "scope": "product UI; no mocked HTTP"
+    },
+    {
+      "path": "screenshots/23-waiting-model.png",
+      "sha256": "951a83dcdcf4bfe70b7601985ecd140036ba2504f3f3c75f255188c05ee80e3a",
+      "bytes": 214653,
+      "capture": "real Chrome screenshot against isolated candidate",
+      "scope": "product UI; no mocked HTTP"
+    },
+    {
+      "path": "screenshots/24-backup-blocked.png",
+      "sha256": "56fbd40ad72dd328d65b2e64727e207bb03810551400c88421dc2ac55577cd1f",
+      "bytes": 138059,
+      "capture": "real Chrome screenshot against isolated candidate",
+      "scope": "diagnostic error image"
+    },
+    {
+      "path": "screenshots/25-topics-empty.png",
+      "sha256": "f15bc0860110711ac7e1565f6a2139f0482f52abbd1eb9145c016e1246c1e014",
+      "bytes": 29659,
+      "capture": "real Chrome screenshot against isolated candidate",
+      "scope": "product UI; no mocked HTTP"
+    },
+    {
+      "path": "screenshots/26-completion-failure.png",
+      "sha256": "df832094e608952ec7e3f63e530b905468f60a763fbfde7c2179b08160e7eec2",
+      "bytes": 165533,
+      "capture": "real Chrome screenshot against isolated candidate",
+      "scope": "diagnostic error image"
+    }
+  ],
+  "manual_preview": "manual-preview.png is a rendered document, not a product screenshot",
+  "notes": [
+    "17-youtube-*-blocked.png preserve the first driver selector error; later actual success screenshots and API receipts supersede it.",
+    "07-real-appkit-picker.png is genuine but captured while loading; actual selected text and saved Content are separately visible in 04/05.",
+    "Small-media automatic AppKit selection did not complete; this is not new APFS acceptance."
+  ]
+}

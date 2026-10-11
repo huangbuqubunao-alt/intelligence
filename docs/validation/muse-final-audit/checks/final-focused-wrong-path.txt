@@ -1,0 +1,11 @@
+ERROR: file or directory not found: tests/integration/test_task022_budget_safety_cases.py
+
+============================= test session starts ==============================
+platform darwin -- Python 3.12.11, pytest-9.1.1, pluggy-1.6.0
+rootdir: /Users/hua/Documents/yia-worktrees/muse-final-audit
+configfile: pyproject.toml
+plugins: anyio-4.14.2
+collected 0 items
+
+- generated xml file: /Users/hua/Documents/yia-worktrees/muse-final-audit/docs/validation/muse-final-audit/checks/final-focused.xml -
+============================ no tests ran in 0.00s =============================

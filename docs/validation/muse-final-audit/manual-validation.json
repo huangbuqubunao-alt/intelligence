@@ -1,0 +1,146 @@
+{
+  "images": [
+    {
+      "src": "screenshots/01-first-open.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/02-onboarding.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/03-onboarding.png",
+      "loaded": true
+    },
+    {
+      "src": "../../dogfood/opencode-user-pilot/screenshots/04-after-onboarding.png",
+      "loaded": true
+    },
+    {
+      "src": "../../dogfood/opencode-user-pilot/screenshots/06-following-empty.png",
+      "loaded": true
+    },
+    {
+      "src": "../../dogfood/opencode-user-pilot/screenshots/07-add-source-dialog.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/16-youtube-video-dialog.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/17-youtube-video-success.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/16-youtube-channel-dialog.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/17-following-current.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/18-following-paused.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/19-following-resumed.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/04-native-selected.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/07-real-appkit-picker.png",
+      "loaded": true
+    },
+    {
+      "src": "../../dogfood/opencode-user-pilot/screenshots/36-audio-detail.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/20-content-list.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/21-content-detail.png",
+      "loaded": true
+    },
+    {
+      "src": "../../dogfood/opencode-user-pilot/screenshots/47-content-detail-summary.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/21-content-detail.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/22-content-summary.png",
+      "loaded": true
+    },
+    {
+      "src": "../../dogfood/opencode-user-pilot/screenshots/36-audio-detail.png",
+      "loaded": true
+    },
+    {
+      "src": "../../dogfood/opencode-user-pilot/screenshots/46-content-detail-full.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/23-waiting-model.png",
+      "loaded": true
+    },
+    {
+      "src": "../../dogfood/opencode-user-pilot/screenshots/20-intelligence-empty.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/25-topics-empty.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/10-settings-ready-zh.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/11-settings-en.png",
+      "loaded": true
+    },
+    {
+      "src": "../../dogfood/opencode-user-pilot/screenshots/41-language-english-draft.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/11-settings-en.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/10-settings-ready-zh.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/10-settings-ready-zh.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/12-backup-created.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/13-restore-preview.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/14-restore-confirm.png",
+      "loaded": true
+    },
+    {
+      "src": "screenshots/24-backup-blocked.png",
+      "loaded": true
+    }
+  ],
+  "brokenAnchors": [],
+  "numberedChapters": 17
+}
