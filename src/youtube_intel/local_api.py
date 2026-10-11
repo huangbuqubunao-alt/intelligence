@@ -408,7 +408,7 @@ def _distillation_execution_dto(execution: object | None) -> dict[str, object]:
             True
             if status == "SUCCEEDED"
             else False
-            if status == "SUCCEEDED_NO_NEW_INTELLIGENCE"
+            if status in {"SUCCEEDED_NO_NEW_INTELLIGENCE", "CANCELLED"}
             else None
         ),
         "intelligence_id": getattr(execution, "intelligence_id"),
@@ -966,6 +966,19 @@ class LocalApiApplication:
                 return HTTPStatus.ACCEPTED, {"execution": _distillation_execution_dto(
                     self._repository.get_distillation_execution(reservation.execution_id)
                 )}
+            if method == "POST" and re.fullmatch(r"/api/v1/videos/[^/]+/intelligence/cancel", route):
+                self._only_keys(data, {"execution_id"})
+                video_id = route.split("/")[4]
+                execution_id = self._string(data, "execution_id", required=True) or ""
+                from .state import StateStoreError
+                try:
+                    execution = self._repository.cancel_waiting_model_execution(
+                        execution_id, video_id=video_id, now=self._now(),
+                    )
+                except StateStoreError:
+                    raise ApiError(HTTPStatus.CONFLICT, "WAITING_MODEL_CANCEL_UNSAFE",
+                                   "This task cannot be safely cancelled. Refresh its current state.") from None
+                return HTTPStatus.OK, {"execution": _distillation_execution_dto(execution)}
             cloud_prefix = "/api/v1/videos/"
             if method == "POST" and route.startswith(cloud_prefix) and (
                 route.endswith("/cloud-intelligence/review")
@@ -2262,6 +2275,10 @@ class LocalApiApplication:
                     )
                 ),
                 "manual_intelligence_eligible": self._manual_content_source(video.video_id) is not None,
+                "waiting_model_executions": [
+                    {**_distillation_execution_dto(wait), "can_cancel": self._repository.can_cancel_waiting_model_execution(wait.execution_id)}
+                    for wait in self._repository.list_waiting_model_executions_for_video(video.video_id)
+                ],
                 "cloud_intelligence_available": (
                     video.provider == "YOUTUBE" and self._cloud_intelligence_qualified and self._cloud_credential_available
                 ),

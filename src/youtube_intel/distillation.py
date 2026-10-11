@@ -37,6 +37,7 @@ from youtube_intel.state import (
 
 
 class DistillationExecutionStatus(str, Enum):
+    CANCELLED = "CANCELLED"
     WAITING_BUDGET = "WAITING_BUDGET"
     WAITING_MODEL = "WAITING_MODEL"
     REJECTED_INELIGIBLE = "REJECTED_INELIGIBLE"

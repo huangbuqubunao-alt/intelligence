@@ -1748,6 +1748,7 @@ class SQLiteStateRepository:
             "034_add_source_tracking.sql",
             "035_align_no_new_canonical_evidence.sql",
             "036_expand_local_media_snapshot_limit.sql",
+            "037_add_waiting_model_cancellation.sql",
         )
         migrations: list[_Migration] = []
         for name in names:
@@ -9256,6 +9257,16 @@ class SQLiteStateRepository:
             ).fetchone()
             if row is None:
                 return None
+            from .distillation_cancellation import read_cancellation
+            try:
+                cancellation = read_cancellation(connection, row)
+            except ValueError as error:
+                raise StateStoreError("model wait cancellation failed validation") from error
+            if cancellation is not None:
+                return replace(
+                    self._distillation_execution_from_row(row, status_override="CANCELLED"),
+                    updated_at=_parse_utc_datetime(str(cancellation["cancelled_at"])),
+                )
             no_new = connection.execute(
                 "SELECT * FROM distillation_no_new_intelligence_results "
                 "WHERE execution_id = :execution_id",
@@ -9421,19 +9432,84 @@ class SQLiteStateRepository:
             ).fetchone()
             if row is None:
                 return None
-            no_new = connection.execute(
-                "SELECT * FROM distillation_no_new_intelligence_results "
-                "WHERE execution_id = :execution_id",
-                {"execution_id": str(row["execution_id"])},
-            ).fetchone()
-            if no_new is not None:
-                self._validate_no_new_result_row(no_new, row)
-            return self._distillation_execution_from_row(
-                row,
-                status_override=(
-                    "SUCCEEDED_NO_NEW_INTELLIGENCE" if no_new is not None else None
-                ),
+            return self.get_distillation_execution(str(row["execution_id"]))
+        finally:
+            connection.close()
+
+    def cancel_waiting_model_execution(
+        self, execution_id: str, *, video_id: str, now: datetime,
+    ) -> DistillationExecutionRecord:
+        """Append a terminal receipt without changing a request, usage or Evidence."""
+        from .distillation_cancellation import (
+            BINDINGS,
+            TABLE,
+            read_cancellation,
+            verify_wait,
+        )
+
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                checkpoint = connection.execute(
+                    "SELECT * FROM distillation_execution_checkpoints WHERE execution_id=? AND video_id=?",
+                    (execution_id, video_id),
+                ).fetchone()
+                if checkpoint is None:
+                    raise StateStoreError("model wait does not belong to this Content")
+                cancellation = read_cancellation(connection, checkpoint)
+                if cancellation is None:
+                    verify_wait(connection, checkpoint)
+                    values = {key: checkpoint[key] for key in BINDINGS}
+                    values.update(checkpoint_updated_at=checkpoint["updated_at"], cancelled_at=format_utc_datetime(now))
+                    connection.execute(
+                        f"INSERT INTO {TABLE} (execution_id, source_id, video_id, reason, use_case, "
+                        "selected_provider, selected_model, output_language, budget_state, checkpoint_updated_at, "
+                        "cancelled_at, outcome) VALUES (:execution_id, :source_id, :video_id, :reason, :use_case, "
+                        ":selected_provider, :selected_model, :output_language, :budget_state, :checkpoint_updated_at, "
+                        ":cancelled_at, 'CANCELLED_BEFORE_MODEL_INVOCATION')", values,
+                    )
+                    cancellation = read_cancellation(connection, checkpoint)
+                if cancellation is None:
+                    raise StateStoreError("model wait cancellation was not saved")
+                return replace(
+                    self._distillation_execution_from_row(checkpoint, status_override="CANCELLED"),
+                    updated_at=_parse_utc_datetime(str(cancellation["cancelled_at"])),
+                )
+        except (sqlite3.IntegrityError, ValueError) as error:
+            raise StateStoreError("model wait cannot be safely cancelled") from error
+        finally:
+            connection.close()
+
+    def list_waiting_model_executions_for_video(self, video_id: str) -> tuple[DistillationExecutionRecord, ...]:
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT execution_id FROM distillation_execution_checkpoints "
+                "WHERE video_id=? AND status='WAITING_MODEL' ORDER BY created_at, execution_id", (video_id,),
+            ).fetchall()
+            return tuple(
+                record for row in rows
+                if (record := self.get_distillation_execution(str(row[0]))) is not None and record.status == "WAITING_MODEL"
             )
+        finally:
+            connection.close()
+
+    def can_cancel_waiting_model_execution(self, execution_id: str) -> bool:
+        from .distillation_cancellation import has_table, read_cancellation, verify_wait
+
+        connection = self._connect()
+        try:
+            if not has_table(connection):
+                return False
+            row = connection.execute(
+                "SELECT * FROM distillation_execution_checkpoints WHERE execution_id=?", (execution_id,),
+            ).fetchone()
+            if row is None or read_cancellation(connection, row) is not None:
+                return False
+            verify_wait(connection, row)
+            return True
+        except (ValueError, sqlite3.Error):
+            return False
         finally:
             connection.close()
 

@@ -5,14 +5,21 @@ import io
 import json
 import sqlite3
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
+from threading import Barrier
 
 import pytest
 
 from youtube_intel.backup_restore import BackupRestoreError, BackupRestoreService
-from youtube_intel.distillation import PersonalizedDistillationService
+from youtube_intel.config import LocalScoringSettings
+from youtube_intel.distillation import (
+    DistillationExecutionStatus,
+    OllamaLocalDistillationTransport,
+    PersonalizedDistillationService,
+)
 from youtube_intel.orchestration import ProcessingPolicy, SourceType
 from youtube_intel.source_run import (
     SourceRunAttentionReason,
@@ -23,11 +30,318 @@ from youtube_intel.source_run import (
 )
 from youtube_intel.state import (
     DistillationExecutionWrite,
+    IntegrityConflict,
     SourceSubscriptionRecord,
     SQLiteStateRepository,
+    StateStoreError,
 )
 
 NOW = datetime(2026, 9, 23, 8, 0, tzinfo=UTC)
+
+
+def _waiting_model(repository: SQLiteStateRepository, execution_id: str = "waiting-model") -> str:
+    repository.reserve_distillation_execution(
+        DistillationExecutionWrite(
+            execution_id=execution_id, source_id="source-1", video_id="video-1",
+            reason="MANUAL_CONTENT:cancel-test", use_case="PERSONALIZED_INTELLIGENCE",
+            selected_provider="ollama", selected_model="qwen3:8b", output_language="en",
+        ), now=NOW,
+    )
+    repository.finish_distillation_without_admission(
+        execution_id=execution_id, status="WAITING_MODEL",
+        budget_state="RUNTIME_BUDGET_ADMITTED", outcome="MODEL_UNAVAILABLE_BEFORE_TRANSPORT",
+        invocation_count=0, actual_provider=None, actual_model=None,
+        input_tokens=None, output_tokens=None, cost_microunits=None, duration_ms=None, now=NOW,
+    )
+    return execution_id
+
+
+def test_waiting_model_zero_invocation_cancel_is_durable_idempotent_and_backup_safe(tmp_path: Path) -> None:
+    database, data_root, vault, repository, artifact = _workspace(tmp_path)
+    _add_source(repository)
+    execution_id = _waiting_model(repository)
+    service = _service(tmp_path)
+    assert service.readiness()["ready"] is False
+    with repository._connect() as connection:
+        checkpoint_before = tuple(connection.execute("SELECT * FROM distillation_execution_checkpoints").fetchone())
+        ledger_before = tuple(connection.execute("SELECT * FROM distillation_resource_usage").fetchone())
+    cancelled = repository.cancel_waiting_model_execution(execution_id, video_id="video-1", now=NOW)
+    assert cancelled.status == "CANCELLED"
+    assert cancelled.invocation_count == 0
+    assert cancelled.intelligence_id is None and cancelled.revision_id is None
+    assert repository.cancel_waiting_model_execution(execution_id, video_id="video-1", now=NOW) == cancelled
+    with repository._connect() as connection:
+        assert tuple(connection.execute("SELECT * FROM distillation_execution_checkpoints").fetchone()) == checkpoint_before
+        assert tuple(connection.execute("SELECT * FROM distillation_resource_usage").fetchone()) == ledger_before
+        assert connection.execute("SELECT COUNT(*) FROM distillation_waiting_model_cancellations").fetchone()[0] == 1
+        with pytest.raises(sqlite3.IntegrityError, match="immutable"):
+            connection.execute("UPDATE distillation_waiting_model_cancellations SET cancelled_at=cancelled_at")
+        with pytest.raises(sqlite3.IntegrityError, match="immutable"):
+            connection.execute("DELETE FROM distillation_waiting_model_cancellations")
+    restarted = SQLiteStateRepository(database)
+    restarted.initialize(now=NOW)
+    assert restarted.get_distillation_execution(execution_id) == cancelled
+    # The real unqualified transport remains closed; continuing a cancelled identity
+    # must return before policy, budget, preflight or transport are consulted.
+    transport = OllamaLocalDistillationTransport(settings=LocalScoringSettings(
+        model="qwen3:8b", expected_model_digest="sha256:" + "0" * 64,
+    ))
+    resumed = PersonalizedDistillationService(
+        restarted, None, transport, None, now=lambda: NOW,  # type: ignore[arg-type]
+    ).continue_reserved_distillation(execution_id)
+    assert resumed.status is DistillationExecutionStatus.CANCELLED
+    assert resumed.invocation_count == 0
+    assert service.readiness()["ready"] is True
+    backup = service.create_backup()
+    archive, _ = service.backup_download(backup.backup_id)
+    repository.save_global_output_language(output_language="zh-CN", now=NOW)
+    staged = service.stage_restore(archive.read_bytes())
+    service.confirm_restore(staged.restore_id)
+    service.recover_and_apply_pending_restore()
+    restored = SQLiteStateRepository(database)
+    restored.initialize(now=NOW)
+    assert restored.get_distillation_execution(execution_id) == cancelled
+    assert restored.get_global_user_settings().output_language == "en"
+    assert service.readiness()["ready"] is True
+    assert (data_root / "transcripts/video-1.txt").read_bytes() == artifact
+    assert (vault / "owner-note.md").read_text() == "owner text stays outside restore"
+
+
+def test_cancel_does_not_release_another_pending_execution(tmp_path: Path) -> None:
+    _, _, _, repository, _ = _workspace(tmp_path)
+    _add_source(repository)
+    execution_id = _waiting_model(repository)
+    repository.reserve_distillation_execution(
+        DistillationExecutionWrite(
+            execution_id="another-pending", source_id="source-1", video_id="video-1",
+            reason="OTHER_TASK", use_case="PERSONALIZED_INTELLIGENCE",
+            selected_provider="ollama", selected_model="qwen3:8b", output_language="en",
+        ), now=NOW,
+    )
+    repository.cancel_waiting_model_execution(execution_id, video_id="video-1", now=NOW)
+    assert _service(tmp_path).readiness()["ready"] is False
+    assert "DISTILLATION_ACTIVE" in _service(tmp_path).readiness()["reasons"]
+    with pytest.raises(StateStoreError):
+        repository.cancel_waiting_model_execution("another-pending", video_id="video-1", now=NOW)
+
+
+def test_cancel_rejects_claimed_or_unknown_execution(tmp_path: Path) -> None:
+    _, _, _, repository, _ = _workspace(tmp_path)
+    _add_source(repository)
+    execution_id = _reserve_ambiguous_execution(repository)
+    with pytest.raises(StateStoreError):
+        repository.cancel_waiting_model_execution(execution_id, video_id="video-1", now=NOW)
+    assert repository.get_distillation_execution(execution_id).invocation_count == 1
+
+
+@pytest.mark.parametrize("unsafe", ["missing-ledger", "unknown-budget", "called", "wrong-content", "unknown-outcome", "observed-cost"])
+def test_model_wait_cancellation_requires_complete_zero_call_proof(tmp_path: Path, unsafe: str) -> None:
+    _, _, _, repository, _ = _workspace(tmp_path)
+    _add_source(repository)
+    execution_id = _waiting_model(repository)
+    with repository._connect() as connection:
+        if unsafe == "missing-ledger":
+            connection.execute("DROP TRIGGER distillation_resource_usage_immutable_delete")
+            connection.execute("DELETE FROM distillation_resource_usage")
+        elif unsafe in {"unknown-budget", "called"}:
+            connection.execute("DROP TRIGGER distillation_checkpoint_terminal_immutable")
+            connection.execute("UPDATE distillation_execution_checkpoints SET " + (
+                "budget_state='UNKNOWN'" if unsafe == "unknown-budget" else "invocation_count=1"
+            ))
+        elif unsafe in {"unknown-outcome", "observed-cost"}:
+            connection.execute("DROP TRIGGER distillation_resource_usage_immutable_update")
+            connection.execute("UPDATE distillation_resource_usage SET " + (
+                "outcome='TRANSPORT_OUTCOME_UNKNOWN'" if unsafe == "unknown-outcome" else "cost_microunits=0"
+            ))
+    assert repository.can_cancel_waiting_model_execution(execution_id) is (unsafe == "wrong-content")
+    if unsafe != "wrong-content":
+        with repository._connect() as connection:
+            with pytest.raises(sqlite3.IntegrityError, match="zero-invocation"):
+                connection.execute(
+                    "INSERT INTO distillation_waiting_model_cancellations "
+                    "SELECT execution_id, source_id, video_id, reason, use_case, selected_provider, "
+                    "selected_model, output_language, updated_at, budget_state, updated_at, "
+                    "'CANCELLED_BEFORE_MODEL_INVOCATION' FROM distillation_execution_checkpoints"
+                )
+    with pytest.raises(StateStoreError):
+        repository.cancel_waiting_model_execution(
+            execution_id, video_id="different-content" if unsafe == "wrong-content" else "video-1", now=NOW,
+        )
+    assert _service(tmp_path).readiness()["ready"] is False
+
+
+def test_cancelled_wait_parent_quiescence_requires_all_children_terminal(tmp_path: Path) -> None:
+    _, _, _, repository, _ = _workspace(tmp_path)
+    _add_source(repository)
+    execution_id = _waiting_model(repository)
+    run_id = _ambiguous_parent_source_run(repository, execution_id=execution_id)
+    with repository._connect() as connection:
+        connection.execute(
+            "INSERT INTO videos (video_id, channel_id, pipeline_status, pipeline_version, "
+            "availability, discovered_at, updated_at) "
+            "VALUES ('video-2', 'UC_TEST', 'DISCOVERED', 'fixture-v1', 'public', ?, ?)",
+            (NOW.isoformat(), NOW.isoformat()),
+        )
+    repository.link_source_video("source-1", "video-2", discovered_at=NOW)
+    repository.record_source_run_child(run_id, video_id="video-2", state=SourceRunChildState.PENDING,
+                                       distillation_execution_id=None, now=NOW)
+    repository.transition_source_run_child(run_id, video_id="video-1", to_state=SourceRunChildState.WAITING, now=NOW)
+    assert repository.can_cancel_waiting_model_execution(execution_id) is False
+    with pytest.raises(StateStoreError):
+        repository.cancel_waiting_model_execution(execution_id, video_id="video-1", now=NOW)
+    repository.transition_source_run(run_id, to_state=SourceRunState.NEEDS_ATTENTION,
+                                    attention_reason=SourceRunAttentionReason.MODEL_UNAVAILABLE, now=NOW)
+    repository.cancel_waiting_model_execution(execution_id, video_id="video-1", now=NOW)
+    assert repository.get_source_run(run_id).state is SourceRunState.NEEDS_ATTENTION
+    assert _service(tmp_path).readiness()["ready"] is False
+    assert "SOURCE_RUN_ACTIVE" in _service(tmp_path).readiness()["reasons"]
+    repository.transition_source_run_child(run_id, video_id="video-2", to_state=SourceRunChildState.FAILED, now=NOW)
+    assert _service(tmp_path).readiness()["ready"] is True
+    with pytest.raises(IntegrityConflict):
+        repository.transition_source_run_child(run_id, video_id="video-1", to_state=SourceRunChildState.PENDING, now=NOW)
+
+
+@pytest.mark.parametrize("state", ["WAITING_BUDGET", "PENDING"])
+def test_cancellation_does_not_change_budget_or_pending_rules(tmp_path: Path, state: str) -> None:
+    _, _, _, repository, _ = _workspace(tmp_path)
+    _add_source(repository)
+    execution_id = _waiting_model(repository, "cancel-me")
+    repository.reserve_distillation_execution(DistillationExecutionWrite(
+        execution_id="keep-blocking", source_id="source-1", video_id="video-1",
+        reason="OTHER_TASK", use_case="PERSONALIZED_INTELLIGENCE", selected_provider="ollama",
+        selected_model="qwen3:8b", output_language="en",
+    ), now=NOW)
+    if state == "WAITING_BUDGET":
+        repository.finish_distillation_without_admission(
+            execution_id="keep-blocking", status=state, budget_state="BLOCKED",
+            outcome="BUDGET_BLOCKED_BEFORE_TRANSPORT", invocation_count=0,
+            actual_provider=None, actual_model=None, input_tokens=None, output_tokens=None,
+            cost_microunits=None, duration_ms=None, now=NOW,
+        )
+    repository.cancel_waiting_model_execution(execution_id, video_id="video-1", now=NOW)
+    with pytest.raises(StateStoreError):
+        repository.cancel_waiting_model_execution("keep-blocking", video_id="video-1", now=NOW)
+    assert repository.get_distillation_execution("keep-blocking").status == state
+    assert _service(tmp_path).readiness()["ready"] is False
+
+
+@pytest.mark.parametrize("round", range(4))
+def test_preflight_cancel_and_dispatch_claim_are_serialized(tmp_path: Path, round: int) -> None:
+    _, _, _, repository, _ = _workspace(tmp_path)
+    _add_source(repository)
+    execution_id = "cancel-claim-race"
+    request = dict(execution_id=execution_id, source_id="source-1", video_id="video-1",
+                   reason="RACE", use_case="PERSONALIZED_INTELLIGENCE", selected_provider="ollama",
+                   selected_model="qwen3:8b", output_language="en")
+    repository.reserve_distillation_execution(DistillationExecutionWrite(**request), now=NOW)
+    barrier = Barrier(2)
+
+    def claim() -> bool:
+        barrier.wait(timeout=5)
+        return repository.claim_reserved_distillation_execution(**request, now=NOW)
+
+    def wait_then_cancel() -> bool:
+        barrier.wait(timeout=5)
+        try:
+            repository.finish_distillation_without_admission(
+                execution_id=execution_id, status="WAITING_MODEL", budget_state="RUNTIME_BUDGET_ADMITTED",
+                outcome="MODEL_UNAVAILABLE_BEFORE_TRANSPORT", invocation_count=0,
+                actual_provider=None, actual_model=None, input_tokens=None, output_tokens=None,
+                cost_microunits=None, duration_ms=None, now=NOW,
+            )
+            repository.cancel_waiting_model_execution(execution_id, video_id="video-1", now=NOW)
+            return True
+        except StateStoreError:
+            return False
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        started = pool.submit(claim)
+        cancelled = pool.submit(wait_then_cancel)
+        assert started.result(timeout=10) != cancelled.result(timeout=10)
+    record = repository.get_distillation_execution(execution_id)
+    assert (record.status, record.invocation_count) in {("CANCELLED", 0), ("PENDING", 1)}
+
+
+@pytest.mark.parametrize("tamper", ["receipt", "ledger", "trigger"])
+def test_cancelled_wait_corruption_cannot_pass_backup(tmp_path: Path, tamper: str) -> None:
+    _, _, _, repository, _ = _workspace(tmp_path)
+    _add_source(repository)
+    execution_id = _waiting_model(repository)
+    repository.cancel_waiting_model_execution(execution_id, video_id="video-1", now=NOW)
+    with repository._connect() as connection:
+        if tamper == "receipt":
+            connection.execute("DROP TRIGGER waiting_model_cancellation_immutable_update")
+            connection.execute("UPDATE distillation_waiting_model_cancellations SET selected_model='other'")
+        elif tamper == "ledger":
+            connection.execute("DROP TRIGGER distillation_resource_usage_immutable_update")
+            connection.execute("UPDATE distillation_resource_usage SET outcome='UNKNOWN'")
+        else:
+            connection.execute("DROP TRIGGER waiting_model_cancelled_checkpoint_terminal")
+    assert _service(tmp_path).readiness()["ready"] is False
+    with pytest.raises(BackupRestoreError):
+        _service(tmp_path).create_backup()
+
+
+def test_schema36_backup_restore_upgrades_without_inventing_cancellations(tmp_path: Path, monkeypatch) -> None:
+    load = SQLiteStateRepository._load_migrations
+    with monkeypatch.context() as legacy:
+        legacy.setattr(SQLiteStateRepository, "_load_migrations", lambda self: tuple(m for m in load(self) if m.version <= 36))
+        database, _, _, repository, _ = _workspace(tmp_path)
+        _add_source(repository)
+        service = _service(tmp_path)
+        backup = service.create_backup()
+        archive, _ = service.backup_download(backup.backup_id)
+        execution_id = _waiting_model(repository)
+    with repository._connect() as connection:
+        before = tuple(connection.execute("SELECT * FROM distillation_execution_checkpoints").fetchone())
+    assert repository.initialize(now=NOW).version == 37
+    with repository._connect() as connection:
+        assert tuple(connection.execute("SELECT * FROM distillation_execution_checkpoints").fetchone()) == before
+        assert connection.execute("SELECT COUNT(*) FROM distillation_waiting_model_cancellations").fetchone()[0] == 0
+    assert service.readiness()["ready"] is False
+    repository.cancel_waiting_model_execution(execution_id, video_id="video-1", now=NOW)
+    staged = service.stage_restore(archive.read_bytes())
+    service.confirm_restore(staged.restore_id)
+    service.recover_and_apply_pending_restore()
+    restored = SQLiteStateRepository(database)
+    assert restored.initialize(now=NOW).version == 37
+    assert restored.get_distillation_execution(execution_id) is None
+    assert service.readiness()["ready"] is True
+
+
+def test_cancel_api_is_content_bound_idempotent_and_keeps_all_waits_visible(tmp_path: Path) -> None:
+    from youtube_intel.local_api import ApiError, LocalApiApplication
+    from youtube_intel.orchestration_service import ProductOrchestrationService
+
+    _, data_root, vault, repository, _ = _workspace(tmp_path)
+    _add_source(repository)
+    first = _waiting_model(repository, "wait-1")
+    second = _waiting_model(repository, "wait-2")
+    app = LocalApiApplication(repository, ProductOrchestrationService(repository, now=lambda: NOW),
+                              data_root=data_root, vault_root=vault, now=lambda: NOW)
+    # The low-level backup fixture uses ISO offsets; API readers require canonical UTC-Z.
+    with repository._connect() as connection:
+        timestamp = NOW.isoformat().replace("+00:00", "Z")
+        connection.execute("UPDATE videos SET discovered_at=?, updated_at=?", (timestamp, timestamp))
+        connection.execute("UPDATE artifacts SET created_at=?", (timestamp,))
+    route = "/api/v1/videos/video-1/intelligence/cancel"
+    body = json.dumps({"execution_id": first}).encode()
+    status, response = app.handle("POST", route, body)
+    assert status == 200 and response["execution"]["status"] == "CANCELLED"
+    assert app.handle("POST", route, body) == (status, response)
+    with pytest.raises(ApiError) as wrong_content:
+        app.handle("POST", route.replace("video-1", "wrong"), body)
+    assert wrong_content.value.status == 409
+    with pytest.raises(ApiError) as extra_authority:
+        app.handle("POST", route, json.dumps({"execution_id": second, "authorize": True}).encode())
+    assert extra_authority.value.status == 422
+    waiting = app.handle("GET", "/api/v1/videos/video-1")[1]["waiting_model_executions"]
+    assert [item["execution_id"] for item in waiting] == [second]
+    assert waiting[0]["can_cancel"] is True
+    assert _service(tmp_path).readiness()["ready"] is False
+    assert app.handle("POST", route, json.dumps({"execution_id": second}).encode())[0] == 200
+    assert _service(tmp_path).readiness()["ready"] is True
+
 
 
 def _workspace(tmp_path: Path) -> tuple[Path, Path, Path, SQLiteStateRepository, bytes]:
@@ -461,7 +775,7 @@ def test_cloud_authorization_and_unidentified_response_survive_backup_restore(
     service.recover_and_apply_pending_restore()
 
     restored = SQLiteStateRepository(database)
-    assert restored.initialize(now=NOW).version == 36
+    assert restored.initialize(now=NOW).version == 37
     assert restored.get_cloud_execution_authorization(execution_id) == authorization
     assert restored.get_cloud_execution_authorization(openai_execution_id) == openai_authorization
     assert restored.get_cloud_execution_authorization(moonshot_execution_id) == moonshot_authorization

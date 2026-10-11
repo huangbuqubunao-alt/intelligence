@@ -409,7 +409,7 @@ def test_mixed_provider_backup_restore_research_delta_and_database(
     assert len(repo.list_videos()) == 3
     with repo._connect() as connection:
         verify_tracking(connection, repository=repo)
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 36
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 37
         assert connection.execute("PRAGMA quick_check").fetchone()[0] == "ok"
         assert connection.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
         assert connection.execute("PRAGMA foreign_key_check").fetchall() == []

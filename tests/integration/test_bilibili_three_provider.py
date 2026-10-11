@@ -151,7 +151,7 @@ def test_three_provider_backup_restore_offline(tmp_path: Path) -> None:
     with restored._connect() as connection:
         assert connection.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
         assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 36
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 37
 
 
 def test_corrupt_backed_up_caption_rejected_with_rehashed_archive(tmp_path: Path) -> None:
@@ -202,7 +202,7 @@ def test_schema33_failure_atomic_and_upgrade_preserves_local(tmp_path: Path, mon
     assert repo.schema_version().version == 32
     assert tuple(repo.resolve_verified_evidence_text(e) for e in refs) == before
     monkeypatch.setattr(repo, "_load_migrations", lambda: migrations)
-    assert repo.initialize(now=NOW).version == 36
+    assert repo.initialize(now=NOW).version == 37
     assert tuple(repo.resolve_verified_evidence_text(e) for e in refs) == before
     with repo._connect() as connection:
         assert connection.execute("PRAGMA foreign_key_check").fetchall() == []

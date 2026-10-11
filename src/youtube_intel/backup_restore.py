@@ -46,7 +46,7 @@ from .state import SQLiteStateRepository
 
 FORMAT_NAME = "intelligence-core-backup"
 FORMAT_VERSION = 1
-LATEST_SCHEMA_VERSION = 36
+LATEST_SCHEMA_VERSION = 37
 MAX_ARCHIVE_BYTES = 8 * 1024 * 1024 * 1024
 MAX_ARCHIVE_FILES = 10_002
 MAX_MEMBER_BYTES = 2 * 1024 * 1024 * 1024
@@ -895,7 +895,7 @@ class BackupRestoreService:
             raise BackupRestoreError("Backup manifest fields are incomplete or unsupported.")
         if manifest.get("format") != FORMAT_NAME or manifest.get("format_version") != FORMAT_VERSION:
             raise BackupRestoreError("Backup format is incompatible.")
-        if manifest.get("schema_version") not in {34, 35, LATEST_SCHEMA_VERSION}:
+        if manifest.get("schema_version") not in {34, 35, 36, LATEST_SCHEMA_VERSION}:
             raise BackupRestoreError("Backup database schema is incompatible.")
         if not isinstance(manifest.get("application_version"), str) or not isinstance(
             manifest.get("created_at"), str
@@ -1093,7 +1093,7 @@ class BackupRestoreService:
         if not _REQUIRED_TABLES <= tables:
             raise BackupRestoreError("SQLite database is missing required Intelligence tables.")
         version_row = connection.execute("PRAGMA user_version").fetchone()
-        if version_row is None or int(version_row[0]) not in {34, 35, LATEST_SCHEMA_VERSION}:
+        if version_row is None or int(version_row[0]) not in {34, 35, 36, LATEST_SCHEMA_VERSION}:
             raise BackupRestoreError("SQLite database schema is not compatible with this version.")
         for table in tables:
             quoted = table.replace('"', '""')
@@ -1111,6 +1111,10 @@ class BackupRestoreService:
         if len(history) != len(migrations):
             raise BackupRestoreError("SQLite migration history is incomplete.")
         try:
+            from .distillation_cancellation import (
+                verify_database as verify_cancellations,
+            )
+            verify_cancellations(connection)
             ResearchLiteService(repository).verify_schema(connection)
             from .source_authority import verify_source_schema
             verify_source_schema(connection)
@@ -1279,6 +1283,8 @@ class BackupRestoreService:
                         continue
                     if self._is_settled_attention_source_run(connection, run):
                         continue
+                    if self._is_cancelled_model_wait_source_run(connection, repository, run):
+                        continue
                     reasons.append("SOURCE_RUN_ACTIVE")
                     break
             else:
@@ -1313,6 +1319,29 @@ class BackupRestoreService:
             ):
                 raise BackupRestoreError("An ambiguous distillation checkpoint failed validation.")
         return reasons
+
+    def _is_cancelled_model_wait_source_run(
+        self, connection: sqlite3.Connection, repository: SQLiteStateRepository, run: sqlite3.Row,
+    ) -> bool:
+        if run["state"] != "NEEDS_ATTENTION" or run["attention_reason"] != "MODEL_UNAVAILABLE":
+            return False
+        children = connection.execute(
+            "SELECT * FROM source_run_video_executions WHERE run_id=?", (run["run_id"],),
+        ).fetchall()
+        has_cancelled_wait = False
+        for child in children:
+            if child["state"] in _TERMINAL_SOURCE_RUN_CHILDREN:
+                continue
+            if child["state"] != "WAITING" or child["distillation_execution_id"] is None:
+                return False
+            execution = repository.get_distillation_execution(str(child["distillation_execution_id"]))
+            if (
+                execution is None or execution.status != "CANCELLED"
+                or execution.source_id != run["source_id"] or execution.video_id != child["video_id"]
+            ):
+                return False
+            has_cancelled_wait = True
+        return has_cancelled_wait
 
     def _is_settled_attention_source_run(
         self, connection: sqlite3.Connection, run: sqlite3.Row
