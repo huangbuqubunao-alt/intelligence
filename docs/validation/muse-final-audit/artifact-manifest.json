@@ -225,6 +225,10 @@
       "sha256": "a0dfc383d073e7aebd399a8cf18ca44fa255d5d5372c92b1848fa308c93295ff",
       "bytes": 22391
     },
+    "protected-final-check.json": {
+      "sha256": "5fb80c0a5a56f5c2307be45fb3efa005e09292f8d5cce51b0b1901c02b88ae4f",
+      "bytes": 743
+    },
     "published-log-normalization.json": {
       "sha256": "44b3e5ad014bed0d49ca8101a31965195ada064a35df48d14e76fb31977b9846",
       "bytes": 6107

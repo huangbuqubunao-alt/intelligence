@@ -1,0 +1,21 @@
+{
+  "states": [
+    {
+      "root": "/Users/hua/Documents/yia-worktrees/v1x-local-main",
+      "head": "fad25e6109d02650b25ae777f2f7557dd478309d",
+      "status": ""
+    },
+    {
+      "root": "/Users/hua/Documents/yia-worktrees/opencode-user-pilot",
+      "head": "8d63bbfeb5a764a0dc2cee8aa540e102a22ed6f4",
+      "status": ""
+    }
+  ],
+  "remote_refs": "fad25e6109d02650b25ae777f2f7557dd478309d\trefs/heads/main\n1cc146b17760be4de0c8613cb03787d75dbf5fa9\trefs/heads/muse/user-pilot-consolidation\n8d63bbfeb5a764a0dc2cee8aa540e102a22ed6f4\trefs/heads/opencode/user-pilot",
+  "code_head": "fad9eaead4036eb39013a5d5fba3e53f14ecbd43",
+  "audit_servers_stopped": [
+    75148,
+    76722
+  ],
+  "owned_temporary_node_modules_link_removed": true
+}
