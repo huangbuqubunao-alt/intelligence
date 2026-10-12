@@ -2944,6 +2944,7 @@ class PersonalizedDistillationService:
                 )
             )
         personalization = tuple(item.statement for item in projection.active_preferences)
+        source_display_name = source.display_name or video.channel_name
         semantic_payload = {
             "distillation_style": projection.distillation_style,
             "evidence": [
@@ -2964,7 +2965,7 @@ class PersonalizedDistillationService:
             "source_focus_rules": projection.source_focus_rules,
             "source_id": projection.source_id,
             "source_ignore_rules": projection.source_ignore_rules,
-            "source_display_name": source.display_name,
+            "source_display_name": source_display_name,
             "video_id": projection.video_id,
             "video_title": video.title,
         }
@@ -2974,7 +2975,7 @@ class PersonalizedDistillationService:
             ).encode("utf-8")
         ).hexdigest()
         return VerifiedDistillationInput(
-            source_display_name=source.display_name,
+            source_display_name=source_display_name,
             video_id=projection.video_id,
             video_title=video.title,
             evidence=tuple(evidence),
