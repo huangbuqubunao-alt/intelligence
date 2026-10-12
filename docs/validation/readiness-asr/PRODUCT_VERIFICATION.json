@@ -1,0 +1,40 @@
+{
+  "fresh_process_capability": {
+    "checking": false,
+    "execution_identity": "091247aa07b501a31b9f99dbf3c34172e0c6167767fe4b003a54d3accdd99646",
+    "executor": "mlx-whisper-timed-v1",
+    "executor_compatible": true,
+    "media_tools_available": true,
+    "model_identity": "sha256:627ea4bff5510683c5919ac35d290ec3cfca957ef74a301ca46e24ec71d34751",
+    "model_present": true,
+    "production_eligible": true,
+    "qualification_identity": "bca2ee240198ba59d25eb1e533543bfcbb89ba40264995b4b1bdfa04519f323c",
+    "qualification_state": "PASSED",
+    "reason_code": null,
+    "runtime_available": true,
+    "runtime_detected": true,
+    "state": "READY"
+  },
+  "fresh_tuple_identical": true,
+  "changed_or_absent_tuple_fail_closed": true,
+  "verification_sha256": "8bfb2fc08c3efd3589a8f5b7b2fde8b9c1a03568881b7f31765a89a0ca08002c",
+  "private_verification_path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness-asr/.var/readiness-asr/product-01/product-verification.json",
+  "restart_verified_count": 14,
+  "model_absence_verified_count": 14,
+  "restored_verified_count": 14,
+  "negative_controls_count": 3,
+  "model_and_receipt_excluded": true,
+  "restored_qualification_not_inherited": true,
+  "database_checks": {
+    "real": {
+      "quick_check": "ok",
+      "integrity_check": "ok",
+      "foreign_key_check": []
+    },
+    "restored": {
+      "quick_check": "ok",
+      "integrity_check": "ok",
+      "foreign_key_check": []
+    }
+  }
+}

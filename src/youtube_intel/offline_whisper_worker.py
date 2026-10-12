@@ -41,19 +41,18 @@ def main() -> None:
         else:
             if not args.model or not args.transcribe or not Path(args.model).is_dir():
                 raise ValueError("local model required")
-            response = mlx_whisper.transcribe(
-                args.transcribe,
-                path_or_hf_repo=str(Path(args.model).resolve(strict=True)),
-                task="transcribe",
-                language=None,
-                temperature=0.0,
-                compression_ratio_threshold=2.4,
-                logprob_threshold=-1.0,
-                no_speech_threshold=0.6,
-                initial_prompt=None,
-                verbose=None,
-                word_timestamps=False,
-                condition_on_previous_text=True,
+            from youtube_intel.acoustic_remediation import transcribe_pcm
+
+            response = transcribe_pcm(
+                Path(args.transcribe),
+                lambda audio: mlx_whisper.transcribe(
+                    audio,
+                    path_or_hf_repo=str(Path(args.model).resolve(strict=True)),
+                    task="transcribe", language=None, temperature=0.0,
+                    compression_ratio_threshold=2.4, logprob_threshold=-1.0,
+                    no_speech_threshold=0.6, initial_prompt=None, verbose=None,
+                    word_timestamps=True, condition_on_previous_text=False,
+                ),
             )
     sys.stdout.write(json.dumps(response, ensure_ascii=False, allow_nan=False))
 

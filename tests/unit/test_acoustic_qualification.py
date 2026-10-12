@@ -4,6 +4,7 @@ import json
 import pytest
 
 from youtube_intel.acoustic_qualification import (
+    NegativeControlResult,
     QualificationEvidence,
     SampleResult,
     evaluate,
@@ -13,8 +14,9 @@ from youtube_intel.acoustic_qualification import (
 
 
 def evidence():
-    samples = tuple(SampleResult(name=name, source_sha256="a" * 64, expected_sha256="b" * 64, error_rate=0.01, duration_seconds=125 if name == "medium" else 4 if name == "very-short" else 25, processing_seconds=5, completed=True, timestamps_valid=True, coverage_passed=True, no_omission=True) for name in ["english-clean", "mandarin-clean", "mixed-clean", "very-short", "medium", "designed-pauses", "mild-noise", "english-video"])
-    return QualificationEvidence(corpus_sha256="c" * 64, samples=samples, offline=True, cloud_dispatches=0, source_uploads=0)
+    samples = tuple(SampleResult(name=name, source_sha256="a" * 64, expected_sha256="b" * 64, error_rate=0.01, duration_seconds=125 if name == "medium" else 4 if name == "very-short" else 25, processing_seconds=5, completed=True, timestamps_valid=True, coverage_passed=True, no_omission=True) for name in ["english-clean", "mandarin-clean", "mixed-clean", "very-short", "medium", "designed-pauses", "mild-noise", "english-video", "independent-medium", "boundary-medium", "silence-medium", "mixed-medium", "english-clean-weak-18db", "mandarin-clean-weak-18db"])
+    negatives = tuple(NegativeControlResult(name=name, source_sha256="d" * 64, processing_seconds=1., observed_outcome="NOISE_ONLY" if "noise" in name else "NO_SIGNAL", decoder_invocations=0, no_authority=True) for name in ["negative-silence-short", "negative-silence-medium", "negative-noise-short"])
+    return QualificationEvidence(corpus_sha256="c" * 64, samples=samples, negative_controls=negatives, offline=True, cloud_dispatches=0, source_uploads=0)
 
 
 def test_not_tested_and_boolean_cannot_mint_pass(tmp_path):

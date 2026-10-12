@@ -25,7 +25,7 @@ from youtube_intel.source_authority import MAX_TEXT_BYTES, read_managed, sha256
 from youtube_intel.state import TimedTranscriptCueWrite
 
 CONTRACT = "offline-timed-transcription-v1"
-PROFILE = "mlx-source-auto-t0-v1"
+PROFILE = "mlx-source-silence-native-word-auto-t0-v4"
 MAX_RESULT = 4 * 1024 * 1024
 MAX_AUDIO = 7200 * 16000 * 2 + 4096
 

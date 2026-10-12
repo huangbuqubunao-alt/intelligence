@@ -1,0 +1,1898 @@
+{
+  "verdict": "PASSED",
+  "profile": "mlx-source-silence-native-word-auto-t0-v4",
+  "capability_before": {
+    "checking": false,
+    "execution_identity": "091247aa07b501a31b9f99dbf3c34172e0c6167767fe4b003a54d3accdd99646",
+    "executor": "mlx-whisper-timed-v1",
+    "executor_compatible": true,
+    "media_tools_available": true,
+    "model_identity": "sha256:627ea4bff5510683c5919ac35d290ec3cfca957ef74a301ca46e24ec71d34751",
+    "model_present": true,
+    "production_eligible": false,
+    "qualification_identity": null,
+    "qualification_state": "NOT_TESTED",
+    "reason_code": null,
+    "runtime_available": true,
+    "runtime_detected": true,
+    "state": "READY"
+  },
+  "engineering_seam": true,
+  "owner_data_access": false,
+  "offline": true,
+  "cloud_dispatches": 0,
+  "source_uploads": 0,
+  "qualification_tuple": {
+    "decoding_profile": {
+      "beam_size": null,
+      "best_of": null,
+      "compression_ratio_threshold": 2.4,
+      "condition_on_previous_text": false,
+      "fp16": true,
+      "initial_prompt": null,
+      "language": null,
+      "logprob_threshold": -1.0,
+      "name": "mlx-source-silence-native-word-auto-t0-v4",
+      "no_speech_threshold": 0.6,
+      "task": "transcribe",
+      "temperature": 0.0,
+      "word_timestamps": true
+    },
+    "executor": "mlx-whisper-timed-v1",
+    "executor_contract": "offline-timed-transcription-v1",
+    "implementation": {
+      "MlxTimedExecutor._command": "1c633011e5a438f906c39939bc749204014c18f3111fd378556f08068232739d",
+      "MlxTimedExecutor._env": "b1c9baca6de48c34fac84882994a5832ea4b627c913e9170fd32c963e5496cbd",
+      "MlxTimedExecutor.transcribe": "b26d366f677818bdf0851baee5c2082d3a2841cb53fc6416c2c1c819944f06bd",
+      "TimedTranscriptCueWrite": "44cb71d9093076587bcff3c51ad15ccd5b0d5cb47e9e7d0b1d4701e65547ed3b",
+      "acoustic_qualification.py": "70ddc93683e7c879a728444edc7a22dc4a679a0faa029f151a12fc8942a9cb5c",
+      "acoustic_remediation.py": "eb846a95663c1e023f611f1306efd7f058f94840c42b1b5c11506c2fe90cc9da",
+      "acoustic_scoring.py": "969f6381d72c66ff6a23cdd45a386617670e4032d3e0aed396995da5c876c67d",
+      "local_content.py": "136195242ab8c2e9240e7e4f8ac63d2de21b7564b8f8fa71e0d2edc1b98ab85b",
+      "model_identity": "cffedba485ee4eebdb5a50761c739f6fc475746327ee0ed4d146783c3e9fbbba",
+      "offline_whisper_worker.py": "93790c14b7209b9042c9f0fcd319ead7297c4dd0a588f21d96a82542150c9521",
+      "source_authority.py": "f9c5abb46bc4e5ba88c435949bf3f48ffe0a4f6e394768e439e1db4c5bbc18cd",
+      "validate_result": "7dd396004c71a59ab7223f647b71b0833f08b3dcf637dc9bbb30fdf90dee3f33"
+    },
+    "mlx": "0.32.0",
+    "mlx_whisper": "0.4.3",
+    "model_digest": "sha256:627ea4bff5510683c5919ac35d290ec3cfca957ef74a301ca46e24ec71d34751",
+    "model_manifest": "bc204b003b65c104fb1ae5301c4be03575841b5ee792e232bdfae60e60d27034",
+    "model_repository": "mlx-community/whisper-large-v3-turbo",
+    "model_revision": "a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb",
+    "platform": {
+      "hardware": [
+        "Apple M1 Pro",
+        "17179869184"
+      ],
+      "machine": "arm64",
+      "os": "26.3.1",
+      "python": "3.12.11",
+      "system": "Darwin"
+    },
+    "preprocessing_profile": "first-audio-mono16k-pcm-s16le-max2h-v1",
+    "preprocessing_tools": {
+      "ffmpeg": "00d01197255300c02122c783dd0126a9e7f47d6c6a19faafae2e6610efd071d3",
+      "ffprobe": "daba6e06838d10260602536a676069cef6d756345e1c6d66268ceb7f2d5e7c39"
+    },
+    "qualification_policy": "private-acoustic-gates-v2-source-word",
+    "required_negative_controls": [
+      "negative-noise-short",
+      "negative-silence-medium",
+      "negative-silence-short"
+    ],
+    "required_samples": [
+      "boundary-medium",
+      "designed-pauses",
+      "english-clean",
+      "english-clean-weak-18db",
+      "english-video",
+      "independent-medium",
+      "mandarin-clean",
+      "mandarin-clean-weak-18db",
+      "medium",
+      "mild-noise",
+      "mixed-clean",
+      "mixed-medium",
+      "silence-medium",
+      "very-short"
+    ],
+    "segmentation_policy": {
+      "cut": "silence midpoint",
+      "dropped_source_frames": 0,
+      "max_chunk_frames": 400000,
+      "minimum_silence_frames": 4800,
+      "noise_frame_fraction": 0.95,
+      "overlap_frames": 0,
+      "sample_rate": 16000,
+      "silence_rms_dbfs": -45,
+      "spectral_flatness_threshold": 0.4,
+      "time_mapping": "native integer PCM frames; representation error <=1e-9s; no clipping",
+      "window_frames": 320
+    },
+    "timestamp_policy": "native-source-sample-grid-finite-monotonic-nonoverlap-positive-ms-source-window-v2",
+    "transcript_contract": "source-transcript-provenance-v2-exact-boundary-spaces-v2"
+  },
+  "private_artifacts_root": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness-asr/.var/readiness-asr/product-01",
+  "report_sha256": "c0ab6bd9b831285bb602d03f953ca4e817ffbad0103474d7b7ff6e4f22a00df0",
+  "qualification_status": {
+    "identity": "bca2ee240198ba59d25eb1e533543bfcbb89ba40264995b4b1bdfa04519f323c",
+    "production_eligible": true,
+    "state": "PASSED"
+  },
+  "samples": [
+    {
+      "id": "english-clean",
+      "passed": true,
+      "source_sha256": "a9e2f9c5ecb74fd5d9a498c05e59d124b7cc6ed52b8261337f37e35cd350cf03",
+      "raw_sha256": "3c04bb3894fb9e2aff1456f4061796d41ae02885a7fb39dddb5ffc0a0db4c32d",
+      "product_wall_seconds": 12.981589291011915,
+      "max_API_read_seconds": 0.000768749974668026,
+      "score": {
+        "error_rate": 0.04,
+        "errors": 2,
+        "reference_units": 50
+      },
+      "coverage": {
+        "passed": true,
+        "regions": [
+          {
+            "coverage": 0.9450443405487245,
+            "end": 4.2564375000000005,
+            "largest_gap_seconds": 0.20643750000000072,
+            "passed": true,
+            "start": 0.5,
+            "uncovered_seconds": 0.20643750000000072
+          },
+          {
+            "coverage": 0.9789833180086691,
+            "end": 9.64,
+            "largest_gap_seconds": 0.10000000000000142,
+            "passed": true,
+            "start": 4.881875,
+            "uncovered_seconds": 0.10000000000000142
+          },
+          {
+            "coverage": 0.9629704524908411,
+            "end": 15.524562499999998,
+            "largest_gap_seconds": 0.1945624999999982,
+            "passed": true,
+            "start": 10.2703125,
+            "uncovered_seconds": 0.1945624999999982
+          },
+          {
+            "coverage": 0.9364578686887997,
+            "end": 22.0339375,
+            "largest_gap_seconds": 0.37393750000000026,
+            "passed": true,
+            "start": 16.1490625,
+            "uncovered_seconds": 0.37393750000000026
+          }
+        ]
+      },
+      "recalls": [
+        1.0,
+        1.0,
+        1.0,
+        0.9230769230769231
+      ],
+      "decoder_invocations": 4,
+      "acoustic_guard": "DECODE",
+      "trusted_timed_transcript": true,
+      "summary": true,
+      "evidence_resolves": true,
+      "no_authority": null,
+      "status": "READY",
+      "cue_count": 4,
+      "evidence_count": 5
+    },
+    {
+      "id": "mandarin-clean",
+      "passed": true,
+      "source_sha256": "932b708175a2cc61bdcbae7685a4d69b82a082ae7810a745b3de5c3140ae4c63",
+      "raw_sha256": "57523b5698e71b046f2ada4c0acdc78067e07824876fd922dc48f9a74657ef95",
+      "product_wall_seconds": 20.650745332997758,
+      "max_API_read_seconds": 0.001689666009042412,
+      "score": {
+        "error_rate": 0.03529411764705882,
+        "errors": 3,
+        "reference_units": 85
+      },
+      "coverage": {
+        "passed": true,
+        "regions": [
+          {
+            "coverage": 0.9736194161097432,
+            "end": 4.05375,
+            "largest_gap_seconds": 0.09375,
+            "passed": true,
+            "start": 0.5,
+            "uncovered_seconds": 0.09375
+          },
+          {
+            "coverage": 0.9293121190532729,
+            "end": 9.404875,
+            "largest_gap_seconds": 0.27000000000000046,
+            "passed": true,
+            "start": 4.6674999999999995,
+            "uncovered_seconds": 0.33487500000000114
+          },
+          {
+            "coverage": 0.9175635472721704,
+            "end": 15.7310625,
+            "largest_gap_seconds": 0.3200000000000003,
+            "passed": true,
+            "start": 10.0168125,
+            "uncovered_seconds": 0.4710625000000004
+          },
+          {
+            "coverage": 0.896185386676937,
+            "end": 24.148625000000003,
+            "largest_gap_seconds": 0.41999999999999815,
+            "passed": true,
+            "start": 16.3595,
+            "uncovered_seconds": 0.8086250000000028
+          }
+        ]
+      },
+      "recalls": [
+        1.0,
+        1.0,
+        0.8695652173913043,
+        1.0
+      ],
+      "decoder_invocations": 8,
+      "acoustic_guard": "DECODE",
+      "trusted_timed_transcript": true,
+      "summary": true,
+      "evidence_resolves": true,
+      "no_authority": null,
+      "status": "READY",
+      "cue_count": 8,
+      "evidence_count": 9
+    },
+    {
+      "id": "mixed-clean",
+      "passed": true,
+      "source_sha256": "b2c52137055637692c1c2080e29b7b9271140760c6cd77accc5baa3c52c83888",
+      "raw_sha256": "936c951f8bccaad82594c54357d291fabd506860c115850839cd561f5b6d8223",
+      "product_wall_seconds": 19.61851562501397,
+      "max_API_read_seconds": 0.002078666992019862,
+      "score": {
+        "error_rate": 0.08196721311475409,
+        "errors": 5,
+        "han": {
+          "error_rate": 0.07142857142857142,
+          "errors": 3,
+          "reference_units": 42
+        },
+        "latin": {
+          "error_rate": 0.10526315789473684,
+          "errors": 2,
+          "reference_units": 19
+        },
+        "reference_units": 61
+      },
+      "coverage": {
+        "passed": true,
+        "regions": [
+          {
+            "coverage": 0.9467218252475869,
+            "end": 2.9928125,
+            "largest_gap_seconds": 0.1328125,
+            "passed": true,
+            "start": 0.5,
+            "uncovered_seconds": 0.1328125
+          },
+          {
+            "coverage": 0.8269823988386862,
+            "end": 5.6775625000000005,
+            "largest_gap_seconds": 0.3575625000000002,
+            "passed": true,
+            "start": 3.6109375,
+            "uncovered_seconds": 0.3575625000000002
+          },
+          {
+            "coverage": 0.9658806343906507,
+            "end": 9.902625,
+            "largest_gap_seconds": 0.1226250000000011,
+            "passed": true,
+            "start": 6.308625,
+            "uncovered_seconds": 0.1226250000000011
+          },
+          {
+            "coverage": 0.8571651750842495,
+            "end": 13.310000000000002,
+            "largest_gap_seconds": 0.40000000000000213,
+            "passed": true,
+            "start": 10.509562500000001,
+            "uncovered_seconds": 0.40000000000000213
+          },
+          {
+            "coverage": 0.9083156531562556,
+            "end": 18.4759375,
+            "largest_gap_seconds": 0.2900000000000027,
+            "passed": true,
+            "start": 13.939312500000002,
+            "uncovered_seconds": 0.41593750000000185
+          },
+          {
+            "coverage": 0.8832692433031352,
+            "end": 21.9658125,
+            "largest_gap_seconds": 0.3358124999999994,
+            "passed": true,
+            "start": 19.089,
+            "uncovered_seconds": 0.3358124999999994
+          }
+        ]
+      },
+      "recalls": [
+        1.0,
+        1.0,
+        1.0,
+        0.8571428571428571,
+        0.8235294117647058,
+        1.0
+      ],
+      "decoder_invocations": 7,
+      "acoustic_guard": "DECODE",
+      "trusted_timed_transcript": true,
+      "summary": true,
+      "evidence_resolves": true,
+      "no_authority": null,
+      "status": "READY",
+      "cue_count": 7,
+      "evidence_count": 8
+    },
+    {
+      "id": "very-short",
+      "passed": true,
+      "source_sha256": "e9e62db1690385376dac341d4a93ad2963798de0594f464561b177ee03f59170",
+      "raw_sha256": "625ff0e0507bd083a20257d164d6b087efeffefd2ea39e47343f28b5a22e6a36",
+      "product_wall_seconds": 6.877537333988585,
+      "max_API_read_seconds": 0.0011365420068614185,
+      "score": {
+        "error_rate": 0.0,
+        "errors": 0,
+        "reference_units": 6
+      },
+      "coverage": {
+        "passed": true,
+        "regions": [
+          {
+            "coverage": 0.9035234232084625,
+            "end": 2.8574375,
+            "largest_gap_seconds": 0.22743750000000018,
+            "passed": true,
+            "start": 0.5,
+            "uncovered_seconds": 0.22743750000000018
+          }
+        ]
+      },
+      "recalls": [
+        1.0
+      ],
+      "decoder_invocations": 1,
+      "acoustic_guard": "DECODE",
+      "trusted_timed_transcript": true,
+      "summary": true,
+      "evidence_resolves": true,
+      "no_authority": null,
+      "status": "READY",
+      "cue_count": 1,
+      "evidence_count": 2
+    },
+    {
+      "id": "medium",
+      "passed": true,
+      "source_sha256": "41d878e52cc55e7849931dcd25249a56731da0fb6b9750c65e2308ef8922d44f",
+      "raw_sha256": "833595e4270eaa5a0088b92933076e6e3a94d04d0f2de7612922cff010388872",
+      "product_wall_seconds": 40.77653299999656,
+      "max_API_read_seconds": 0.0015091249952092767,
+      "score": {
+        "error_rate": 0.016304347826086956,
+        "errors": 3,
+        "reference_units": 184
+      },
+      "coverage": {
+        "passed": true,
+        "regions": [
+          {
+            "coverage": 0.9575961808480764,
+            "end": 4.061,
+            "largest_gap_seconds": 0.1509999999999998,
+            "passed": true,
+            "start": 0.5,
+            "uncovered_seconds": 0.1509999999999998
+          },
+          {
+            "coverage": 0.9438395037286347,
+            "end": 10.87275,
+            "largest_gap_seconds": 0.21274999999999977,
+            "passed": true,
+            "start": 7.0845,
+            "uncovered_seconds": 0.21274999999999977
+          },
+          {
+            "coverage": 0.9426091278646609,
+            "end": 17.422062500000003,
+            "largest_gap_seconds": 0.2020625000000038,
+            "passed": true,
+            "start": 13.901250000000001,
+            "uncovered_seconds": 0.2020625000000038
+          },
+          {
+            "coverage": 0.9010537091621512,
+            "end": 23.980375,
+            "largest_gap_seconds": 0.35037499999999966,
+            "passed": true,
+            "start": 20.4393125,
+            "uncovered_seconds": 0.35037499999999966
+          },
+          {
+            "coverage": 0.9227272727272726,
+            "end": 30.988125,
+            "largest_gap_seconds": 0.3081250000000004,
+            "passed": true,
+            "start": 27.000625,
+            "uncovered_seconds": 0.3081250000000004
+          },
+          {
+            "coverage": 0.9698522461569079,
+            "end": 37.783625,
+            "largest_gap_seconds": 0.11362499999999898,
+            "passed": true,
+            "start": 34.0146875,
+            "uncovered_seconds": 0.11362499999999898
+          },
+          {
+            "coverage": 0.921332097658802,
+            "end": 44.933625,
+            "largest_gap_seconds": 0.32362499999999983,
+            "passed": true,
+            "start": 40.8198125,
+            "uncovered_seconds": 0.32362499999999983
+          },
+          {
+            "coverage": 0.9568900200104922,
+            "end": 51.178687499999995,
+            "largest_gap_seconds": 0.13868749999999608,
+            "passed": true,
+            "start": 47.961625,
+            "uncovered_seconds": 0.13868749999999608
+          },
+          {
+            "coverage": 0.9335698419547129,
+            "end": 58.119812499999995,
+            "largest_gap_seconds": 0.25981249999999534,
+            "passed": true,
+            "start": 54.208749999999995,
+            "uncovered_seconds": 0.25981249999999534
+          },
+          {
+            "coverage": 0.9346316477018862,
+            "end": 64.77768749999998,
+            "largest_gap_seconds": 0.2376874999999785,
+            "passed": true,
+            "start": 61.14156249999999,
+            "uncovered_seconds": 0.2376874999999785
+          },
+          {
+            "coverage": 0.9505728120940095,
+            "end": 72.02925,
+            "largest_gap_seconds": 0.20925000000001148,
+            "passed": true,
+            "start": 67.79575,
+            "uncovered_seconds": 0.20925000000001148
+          },
+          {
+            "coverage": 0.9494825118972373,
+            "end": 78.80975,
+            "largest_gap_seconds": 0.18974999999998943,
+            "passed": true,
+            "start": 75.053625,
+            "uncovered_seconds": 0.18974999999998943
+          },
+          {
+            "coverage": 0.9594371788509888,
+            "end": 85.73837499999999,
+            "largest_gap_seconds": 0.15837499999999238,
+            "passed": true,
+            "start": 81.83393749999999,
+            "uncovered_seconds": 0.15837499999999238
+          },
+          {
+            "coverage": 0.9572045298129281,
+            "end": 92.761,
+            "largest_gap_seconds": 0.17099999999999227,
+            "passed": true,
+            "start": 88.76525,
+            "uncovered_seconds": 0.17099999999999227
+          },
+          {
+            "coverage": 0.9748241664459583,
+            "end": 100.02693749999999,
+            "largest_gap_seconds": 0.10693749999998658,
+            "passed": true,
+            "start": 95.77931249999999,
+            "uncovered_seconds": 0.10693749999998658
+          },
+          {
+            "coverage": 0.9729256890469542,
+            "end": 107.41799999999998,
+            "largest_gap_seconds": 0.11799999999998079,
+            "passed": true,
+            "start": 103.05962499999998,
+            "uncovered_seconds": 0.11799999999998079
+          },
+          {
+            "coverage": 0.9386957786675202,
+            "end": 114.95656249999999,
+            "largest_gap_seconds": 0.27656249999998295,
+            "passed": true,
+            "start": 110.44524999999999,
+            "uncovered_seconds": 0.27656249999998295
+          },
+          {
+            "coverage": 0.9218064998347036,
+            "end": 122.32999999999998,
+            "largest_gap_seconds": 0.3399999999999892,
+            "passed": true,
+            "start": 117.98181249999999,
+            "uncovered_seconds": 0.3399999999999892
+          }
+        ]
+      },
+      "recalls": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.9,
+        0.8888888888888888,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.9090909090909091,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "decoder_invocations": 18,
+      "acoustic_guard": "DECODE",
+      "trusted_timed_transcript": true,
+      "summary": true,
+      "evidence_resolves": true,
+      "no_authority": null,
+      "status": "READY",
+      "cue_count": 18,
+      "evidence_count": 20
+    },
+    {
+      "id": "designed-pauses",
+      "passed": true,
+      "source_sha256": "4a6f5d0e87ebc47f8397cac825991b9c6021dcc72fff0733511610ed50edf6e3",
+      "raw_sha256": "c934c70d7c58bab4065bc0a8668486534582b355dbf711a442f78f9aaff39fce",
+      "product_wall_seconds": 11.070481542032212,
+      "max_API_read_seconds": 0.0006216669571585953,
+      "score": {
+        "error_rate": 0.0,
+        "errors": 0,
+        "reference_units": 37
+      },
+      "coverage": {
+        "passed": true,
+        "regions": [
+          {
+            "coverage": 0.9450443405487245,
+            "end": 4.2564375000000005,
+            "largest_gap_seconds": 0.20643750000000072,
+            "passed": true,
+            "start": 0.5,
+            "uncovered_seconds": 0.20643750000000072
+          },
+          {
+            "coverage": 0.9789833180086694,
+            "end": 13.04,
+            "largest_gap_seconds": 0.09999999999999964,
+            "passed": true,
+            "start": 8.281875,
+            "uncovered_seconds": 0.09999999999999964
+          },
+          {
+            "coverage": 0.9635358466153036,
+            "end": 22.38375,
+            "largest_gap_seconds": 0.19374999999999787,
+            "passed": true,
+            "start": 17.0703125,
+            "uncovered_seconds": 0.19374999999999787
+          }
+        ]
+      },
+      "recalls": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "decoder_invocations": 3,
+      "acoustic_guard": "DECODE",
+      "trusted_timed_transcript": true,
+      "summary": true,
+      "evidence_resolves": true,
+      "no_authority": null,
+      "status": "READY",
+      "cue_count": 3,
+      "evidence_count": 4
+    },
+    {
+      "id": "mild-noise",
+      "passed": true,
+      "source_sha256": "a5c880a93136a832cbc92c83048dec525f5c8ae15c79ed68a815a4dc98675789",
+      "raw_sha256": "7204b7a0092f555894fc7edc8157ca25e8a52d9cc48185e94e2c42d0d78e2662",
+      "product_wall_seconds": 7.469148250005674,
+      "max_API_read_seconds": 0.0007531250012107193,
+      "score": {
+        "error_rate": 0.04,
+        "errors": 2,
+        "reference_units": 50
+      },
+      "coverage": {
+        "passed": true,
+        "regions": [
+          {
+            "coverage": 0.9583548242184248,
+            "end": 4.2564375000000005,
+            "largest_gap_seconds": 0.1564375000000009,
+            "passed": true,
+            "start": 0.5,
+            "uncovered_seconds": 0.1564375000000009
+          },
+          {
+            "coverage": 0.9789833180086691,
+            "end": 9.64,
+            "largest_gap_seconds": 0.10000000000000142,
+            "passed": true,
+            "start": 4.881875,
+            "uncovered_seconds": 0.10000000000000142
+          },
+          {
+            "coverage": 0.9767099923542909,
+            "end": 15.583749999999998,
+            "largest_gap_seconds": 0.12374999999999758,
+            "passed": true,
+            "start": 10.2703125,
+            "uncovered_seconds": 0.12374999999999758
+          },
+          {
+            "coverage": 0.9621753194760279,
+            "end": 22.061437499999997,
+            "largest_gap_seconds": 0.22143749999999685,
+            "passed": true,
+            "start": 16.207124999999998,
+            "uncovered_seconds": 0.22143749999999685
+          }
+        ]
+      },
+      "recalls": [
+        1.0,
+        1.0,
+        1.0,
+        0.9230769230769231
+      ],
+      "decoder_invocations": 1,
+      "acoustic_guard": "DECODE",
+      "trusted_timed_transcript": true,
+      "summary": true,
+      "evidence_resolves": true,
+      "no_authority": null,
+      "status": "READY",
+      "cue_count": 4,
+      "evidence_count": 5
+    },
+    {
+      "id": "independent-medium",
+      "passed": true,
+      "source_sha256": "417db23904b288581f8efccc589873f582133d7cebf6c21a78f14b4fecbc3e92",
+      "raw_sha256": "515ed90a0757e37beafefceec8e742fb6896b87b2df421f4fcd051fb5287d0d2",
+      "product_wall_seconds": 48.66276333294809,
+      "max_API_read_seconds": 0.0007461659843102098,
+      "score": {
+        "error_rate": 0.0,
+        "errors": 0,
+        "reference_units": 233
+      },
+      "coverage": {
+        "passed": true,
+        "regions": [
+          {
+            "coverage": 0.9375237805342058,
+            "end": 4.6065625,
+            "largest_gap_seconds": 0.25656250000000025,
+            "passed": true,
+            "start": 0.5,
+            "uncovered_seconds": 0.25656250000000025
+          },
+          {
+            "coverage": 0.9495783399911227,
+            "end": 10.353000000000002,
+            "largest_gap_seconds": 0.21300000000000097,
+            "passed": true,
+            "start": 6.128625,
+            "uncovered_seconds": 0.21300000000000097
+          },
+          {
+            "coverage": 0.948640706448707,
+            "end": 16.107375,
+            "largest_gap_seconds": 0.21737500000000054,
+            "passed": true,
+            "start": 11.874937500000001,
+            "uncovered_seconds": 0.21737500000000054
+          },
+          {
+            "coverage": 0.9224458266185424,
+            "end": 22.3239375,
+            "largest_gap_seconds": 0.3639374999999987,
+            "passed": true,
+            "start": 17.63125,
+            "uncovered_seconds": 0.3639374999999987
+          },
+          {
+            "coverage": 0.9535948979052506,
+            "end": 27.404625000000003,
+            "largest_gap_seconds": 0.16462500000000446,
+            "passed": true,
+            "start": 23.8570625,
+            "uncovered_seconds": 0.16462500000000446
+          },
+          {
+            "coverage": 0.9235278982577363,
+            "end": 32.330062500000004,
+            "largest_gap_seconds": 0.26006250000000364,
+            "passed": true,
+            "start": 28.9293125,
+            "uncovered_seconds": 0.26006250000000364
+          },
+          {
+            "coverage": 0.9535098477743296,
+            "end": 38.181375,
+            "largest_gap_seconds": 0.20137500000000585,
+            "passed": true,
+            "start": 33.8498125,
+            "uncovered_seconds": 0.20137500000000585
+          },
+          {
+            "coverage": 0.9774064272211733,
+            "end": 43.833375,
+            "largest_gap_seconds": 0.09337499999999466,
+            "passed": true,
+            "start": 39.7005625,
+            "uncovered_seconds": 0.09337499999999466
+          },
+          {
+            "coverage": 0.9452619779840777,
+            "end": 49.718062499999995,
+            "largest_gap_seconds": 0.23806249999999807,
+            "passed": true,
+            "start": 45.368937499999994,
+            "uncovered_seconds": 0.23806249999999807
+          },
+          {
+            "coverage": 0.979709725172172,
+            "end": 55.13881249999999,
+            "largest_gap_seconds": 0.07881249999999085,
+            "passed": true,
+            "start": 51.25456249999999,
+            "uncovered_seconds": 0.07881249999999085
+          },
+          {
+            "coverage": 0.9615342206820544,
+            "end": 60.64262499999999,
+            "largest_gap_seconds": 0.15262499999998624,
+            "passed": true,
+            "start": 56.67481249999999,
+            "uncovered_seconds": 0.15262499999998624
+          },
+          {
+            "coverage": 0.9470015347322867,
+            "end": 66.52093749999999,
+            "largest_gap_seconds": 0.2309374999999818,
+            "passed": true,
+            "start": 62.163499999999985,
+            "uncovered_seconds": 0.2309374999999818
+          },
+          {
+            "coverage": 0.9209408397799957,
+            "end": 72.24149999999999,
+            "largest_gap_seconds": 0.33149999999999125,
+            "passed": true,
+            "start": 68.04843749999999,
+            "uncovered_seconds": 0.33149999999999125
+          },
+          {
+            "coverage": 0.9345106805027168,
+            "end": 77.9965,
+            "largest_gap_seconds": 0.27649999999999864,
+            "passed": true,
+            "start": 73.77443749999999,
+            "uncovered_seconds": 0.27649999999999864
+          },
+          {
+            "coverage": 0.9699559592623178,
+            "end": 84.1064375,
+            "largest_gap_seconds": 0.13643749999999955,
+            "passed": true,
+            "start": 79.5651875,
+            "uncovered_seconds": 0.13643749999999955
+          },
+          {
+            "coverage": 0.9560940606640471,
+            "end": 89.8035625,
+            "largest_gap_seconds": 0.18356249999999363,
+            "passed": true,
+            "start": 85.62275,
+            "uncovered_seconds": 0.18356249999999363
+          },
+          {
+            "coverage": 0.8956204695133385,
+            "end": 95.6726875,
+            "largest_gap_seconds": 0.45268749999999613,
+            "passed": true,
+            "start": 91.33574999999999,
+            "uncovered_seconds": 0.45268749999999613
+          },
+          {
+            "coverage": 0.9269571398951484,
+            "end": 101.41824999999999,
+            "largest_gap_seconds": 0.3082499999999868,
+            "passed": true,
+            "start": 97.19812499999999,
+            "uncovered_seconds": 0.3082499999999868
+          },
+          {
+            "coverage": 0.9545760269036762,
+            "end": 108.14637499999999,
+            "largest_gap_seconds": 0.23637499999999534,
+            "passed": true,
+            "start": 102.94262499999999,
+            "uncovered_seconds": 0.23637499999999534
+          },
+          {
+            "coverage": 0.9456636879702315,
+            "end": 114.2700625,
+            "largest_gap_seconds": 0.2500624999999985,
+            "passed": true,
+            "start": 109.6679375,
+            "uncovered_seconds": 0.2500624999999985
+          }
+        ]
+      },
+      "recalls": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "decoder_invocations": 20,
+      "acoustic_guard": "DECODE",
+      "trusted_timed_transcript": true,
+      "summary": true,
+      "evidence_resolves": true,
+      "no_authority": null,
+      "status": "READY",
+      "cue_count": 20,
+      "evidence_count": 22
+    },
+    {
+      "id": "boundary-medium",
+      "passed": true,
+      "source_sha256": "372d4d968d67ea22396cb87e10c89de3dcaaece46afdc35eba0dc9176731d6f3",
+      "raw_sha256": "fdcd5381a23691be5791b3db40aa636247f05baf4700a1f9577b640242853d9a",
+      "product_wall_seconds": 17.09778929100139,
+      "max_API_read_seconds": 0.001038749993313104,
+      "score": {
+        "error_rate": 0.006006006006006006,
+        "errors": 2,
+        "reference_units": 333
+      },
+      "coverage": {
+        "passed": true,
+        "regions": [
+          {
+            "coverage": 0.9618750475610685,
+            "end": 4.6065625,
+            "largest_gap_seconds": 0.15656249999999972,
+            "passed": true,
+            "start": 0.5,
+            "uncovered_seconds": 0.15656249999999972
+          },
+          {
+            "coverage": 0.9573901464713716,
+            "end": 8.853000000000002,
+            "largest_gap_seconds": 0.17999999999999972,
+            "passed": true,
+            "start": 4.628625,
+            "uncovered_seconds": 0.17999999999999972
+          },
+          {
+            "coverage": 0.9628169346859814,
+            "end": 13.107375000000001,
+            "largest_gap_seconds": 0.15737500000000182,
+            "passed": true,
+            "start": 8.874937500000001,
+            "uncovered_seconds": 0.15737500000000182
+          },
+          {
+            "coverage": 0.9291051236631468,
+            "end": 17.8239375,
+            "largest_gap_seconds": 0.2939374999999984,
+            "passed": true,
+            "start": 13.131250000000001,
+            "uncovered_seconds": 0.3326874999999969
+          },
+          {
+            "coverage": 0.9564137347826845,
+            "end": 21.404625000000003,
+            "largest_gap_seconds": 0.1546250000000029,
+            "passed": true,
+            "start": 17.8570625,
+            "uncovered_seconds": 0.1546250000000029
+          },
+          {
+            "coverage": 0.9411894435051094,
+            "end": 24.8300625,
+            "largest_gap_seconds": 0.1999999999999993,
+            "passed": true,
+            "start": 21.4293125,
+            "uncovered_seconds": 0.1999999999999993
+          },
+          {
+            "coverage": 0.995382728518866,
+            "end": 29.181375000000003,
+            "largest_gap_seconds": 0.019999999999999574,
+            "passed": true,
+            "start": 24.849812500000002,
+            "uncovered_seconds": 0.019999999999999574
+          },
+          {
+            "coverage": 1.0,
+            "end": 33.333375000000004,
+            "largest_gap_seconds": 0.0,
+            "passed": true,
+            "start": 29.200562500000004,
+            "uncovered_seconds": 0.0
+          },
+          {
+            "coverage": 1.0,
+            "end": 37.7180625,
+            "largest_gap_seconds": 0.0,
+            "passed": true,
+            "start": 33.3689375,
+            "uncovered_seconds": 0.0
+          },
+          {
+            "coverage": 0.9616882281006635,
+            "end": 41.6388125,
+            "largest_gap_seconds": 0.14881249999999824,
+            "passed": true,
+            "start": 37.7545625,
+            "uncovered_seconds": 0.14881249999999824
+          },
+          {
+            "coverage": 1.0,
+            "end": 45.642625,
+            "largest_gap_seconds": 0.0,
+            "passed": true,
+            "start": 41.6748125,
+            "uncovered_seconds": 0.0
+          },
+          {
+            "coverage": 0.9745406560621912,
+            "end": 50.0209375,
+            "largest_gap_seconds": 0.11093750000000568,
+            "passed": true,
+            "start": 45.6635,
+            "uncovered_seconds": 0.11093750000000568
+          },
+          {
+            "coverage": 0.9110286336061046,
+            "end": 54.2415,
+            "largest_gap_seconds": 0.20156250000000142,
+            "passed": true,
+            "start": 50.0484375,
+            "uncovered_seconds": 0.3730625000000032
+          },
+          {
+            "coverage": 0.9510902550589911,
+            "end": 58.4965,
+            "largest_gap_seconds": 0.20649999999999835,
+            "passed": true,
+            "start": 54.2744375,
+            "uncovered_seconds": 0.20649999999999835
+          },
+          {
+            "coverage": 0.9733003027800724,
+            "end": 63.1064375,
+            "largest_gap_seconds": 0.11643749999999642,
+            "passed": true,
+            "start": 58.5651875,
+            "uncovered_seconds": 0.1212499999999963
+          },
+          {
+            "coverage": 0.9519680684077562,
+            "end": 67.3035625,
+            "largest_gap_seconds": 0.17356250000000273,
+            "passed": true,
+            "start": 63.12275,
+            "uncovered_seconds": 0.20081249999999784
+          },
+          {
+            "coverage": 0.9394301854707354,
+            "end": 71.67268750000001,
+            "largest_gap_seconds": 0.2626875000000126,
+            "passed": true,
+            "start": 67.33575,
+            "uncovered_seconds": 0.2626875000000126
+          },
+          {
+            "coverage": 0.9640117295103842,
+            "end": 75.91825,
+            "largest_gap_seconds": 0.14000000000000057,
+            "passed": true,
+            "start": 71.698125,
+            "uncovered_seconds": 0.15187499999998977
+          },
+          {
+            "coverage": 1.0,
+            "end": 81.146375,
+            "largest_gap_seconds": 0.0,
+            "passed": true,
+            "start": 75.942625,
+            "uncovered_seconds": 0.0
+          },
+          {
+            "coverage": 1.0,
+            "end": 85.77006250000001,
+            "largest_gap_seconds": 0.0,
+            "passed": true,
+            "start": 81.16793750000001,
+            "uncovered_seconds": 0.0
+          },
+          {
+            "coverage": 1.0,
+            "end": 89.5538125,
+            "largest_gap_seconds": 0.0,
+            "passed": true,
+            "start": 85.797375,
+            "uncovered_seconds": 0.0
+          },
+          {
+            "coverage": 1.0,
+            "end": 94.33737500000001,
+            "largest_gap_seconds": 0.0,
+            "passed": true,
+            "start": 89.57925,
+            "uncovered_seconds": 0.0
+          },
+          {
+            "coverage": 1.0,
+            "end": 99.68112500000001,
+            "largest_gap_seconds": 0.0,
+            "passed": true,
+            "start": 94.3676875,
+            "uncovered_seconds": 0.0
+          },
+          {
+            "coverage": 0.9965837149964243,
+            "end": 105.5588125,
+            "largest_gap_seconds": 0.01999999999999602,
+            "passed": true,
+            "start": 99.7045,
+            "uncovered_seconds": 0.01999999999999602
+          },
+          {
+            "coverage": 1.0,
+            "end": 109.14643749999999,
+            "largest_gap_seconds": 0.0,
+            "passed": true,
+            "start": 105.5854375,
+            "uncovered_seconds": 0.0
+          },
+          {
+            "coverage": 1.0,
+            "end": 112.95818750000001,
+            "largest_gap_seconds": 0.0,
+            "passed": true,
+            "start": 109.1699375,
+            "uncovered_seconds": 0.0
+          },
+          {
+            "coverage": 1.0,
+            "end": 116.50750000000001,
+            "largest_gap_seconds": 0.0,
+            "passed": true,
+            "start": 112.9866875,
+            "uncovered_seconds": 0.0
+          },
+          {
+            "coverage": 1.0,
+            "end": 120.06581249999999,
+            "largest_gap_seconds": 0.0,
+            "passed": true,
+            "start": 116.52475,
+            "uncovered_seconds": 0.0
+          },
+          {
+            "coverage": 0.9188557993730422,
+            "end": 124.0735625,
+            "largest_gap_seconds": 0.3235624999999942,
+            "passed": true,
+            "start": 120.0860625,
+            "uncovered_seconds": 0.3235624999999942
+          }
+        ]
+      },
+      "recalls": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.9230769230769231,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "decoder_invocations": 5,
+      "acoustic_guard": "DECODE",
+      "trusted_timed_transcript": true,
+      "summary": true,
+      "evidence_resolves": true,
+      "no_authority": null,
+      "status": "READY",
+      "cue_count": 28,
+      "evidence_count": 24
+    },
+    {
+      "id": "silence-medium",
+      "passed": true,
+      "source_sha256": "572d267519cf5ddcd14b3cea5bf99f03c476a4ffc6767703d8d565b0d30cec3c",
+      "raw_sha256": "a43fec2465ad038ceb624e5c5f8357be6e32e03335fbc5de7a6e19cecdfbece4",
+      "product_wall_seconds": 32.73400687496178,
+      "max_API_read_seconds": 0.0014823329984210432,
+      "score": {
+        "error_rate": 0.0,
+        "errors": 0,
+        "reference_units": 138
+      },
+      "coverage": {
+        "passed": true,
+        "regions": [
+          {
+            "coverage": 0.9423940339395784,
+            "end": 4.6065625,
+            "largest_gap_seconds": 0.2365624999999998,
+            "passed": true,
+            "start": 0.5,
+            "uncovered_seconds": 0.2365624999999998
+          },
+          {
+            "coverage": 0.9519455540760469,
+            "end": 15.853,
+            "largest_gap_seconds": 0.2029999999999994,
+            "passed": true,
+            "start": 11.628625,
+            "uncovered_seconds": 0.2029999999999994
+          },
+          {
+            "coverage": 0.8234173570194476,
+            "end": 27.107375,
+            "largest_gap_seconds": 0.7473750000000017,
+            "passed": true,
+            "start": 22.8749375,
+            "uncovered_seconds": 0.7473750000000017
+          },
+          {
+            "coverage": 0.9245768016728152,
+            "end": 38.8239375,
+            "largest_gap_seconds": 0.3539375000000007,
+            "passed": true,
+            "start": 34.13125,
+            "uncovered_seconds": 0.3539375000000007
+          },
+          {
+            "coverage": 0.9338630397632194,
+            "end": 49.404624999999996,
+            "largest_gap_seconds": 0.2346249999999941,
+            "passed": true,
+            "start": 45.8570625,
+            "uncovered_seconds": 0.2346249999999941
+          },
+          {
+            "coverage": 0.9264684260824823,
+            "end": 59.8300625,
+            "largest_gap_seconds": 0.2500624999999985,
+            "passed": true,
+            "start": 56.429312499999995,
+            "uncovered_seconds": 0.2500624999999985
+          },
+          {
+            "coverage": 0.9558184835148962,
+            "end": 71.181375,
+            "largest_gap_seconds": 0.19137500000000784,
+            "passed": true,
+            "start": 66.8498125,
+            "uncovered_seconds": 0.19137500000000784
+          },
+          {
+            "coverage": 0.9798260869565208,
+            "end": 82.333375,
+            "largest_gap_seconds": 0.08337500000000375,
+            "passed": true,
+            "start": 78.2005625,
+            "uncovered_seconds": 0.08337500000000375
+          },
+          {
+            "coverage": 0.9521599172247298,
+            "end": 93.7180625,
+            "largest_gap_seconds": 0.20806249999999693,
+            "passed": true,
+            "start": 89.3689375,
+            "uncovered_seconds": 0.20806249999999693
+          },
+          {
+            "coverage": 0.9616882281006615,
+            "end": 104.6388125,
+            "largest_gap_seconds": 0.14881250000000534,
+            "passed": true,
+            "start": 100.7545625,
+            "uncovered_seconds": 0.14881250000000534
+          },
+          {
+            "coverage": 0.9640545010632444,
+            "end": 115.642625,
+            "largest_gap_seconds": 0.14262499999999534,
+            "passed": true,
+            "start": 111.6748125,
+            "uncovered_seconds": 0.14262499999999534
+          },
+          {
+            "coverage": 0.9447066079547897,
+            "end": 127.0209375,
+            "largest_gap_seconds": 0.24093750000000114,
+            "passed": true,
+            "start": 122.6635,
+            "uncovered_seconds": 0.24093750000000114
+          }
+        ]
+      },
+      "recalls": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "decoder_invocations": 12,
+      "acoustic_guard": "DECODE",
+      "trusted_timed_transcript": true,
+      "summary": true,
+      "evidence_resolves": true,
+      "no_authority": null,
+      "status": "READY",
+      "cue_count": 12,
+      "evidence_count": 14
+    },
+    {
+      "id": "mixed-medium",
+      "passed": true,
+      "source_sha256": "d0a4d463eb48bddc2eb12df244a2bac12420e4d46fa7b613f7083c605ae1edc7",
+      "raw_sha256": "481e0400752157d02070fef10f85c497dae66f62f52e5525aed9e463e443381c",
+      "product_wall_seconds": 71.40283754200209,
+      "max_API_read_seconds": 0.002952750015538186,
+      "score": {
+        "error_rate": 0.03934426229508197,
+        "errors": 12,
+        "han": {
+          "error_rate": 0.05714285714285714,
+          "errors": 12,
+          "reference_units": 210
+        },
+        "latin": {
+          "error_rate": 0.0,
+          "errors": 0,
+          "reference_units": 95
+        },
+        "reference_units": 305
+      },
+      "coverage": {
+        "passed": true,
+        "regions": [
+          {
+            "coverage": 0.9467218252475869,
+            "end": 2.9928125,
+            "largest_gap_seconds": 0.1328125,
+            "passed": true,
+            "start": 0.5,
+            "uncovered_seconds": 0.1328125
+          },
+          {
+            "coverage": 0.8545937622656324,
+            "end": 6.0809999999999995,
+            "largest_gap_seconds": 0.30099999999999927,
+            "passed": true,
+            "start": 4.0109375,
+            "uncovered_seconds": 0.30099999999999927
+          },
+          {
+            "coverage": 0.9658806343906513,
+            "end": 10.702625,
+            "largest_gap_seconds": 0.12262499999999932,
+            "passed": true,
+            "start": 7.108625,
+            "uncovered_seconds": 0.12262499999999932
+          },
+          {
+            "coverage": 0.9500078112794867,
+            "end": 14.510000000000002,
+            "largest_gap_seconds": 0.14000000000000234,
+            "passed": true,
+            "start": 11.7095625,
+            "uncovered_seconds": 0.14000000000000234
+          },
+          {
+            "coverage": 0.9083156531562556,
+            "end": 20.075937500000002,
+            "largest_gap_seconds": 0.28999999999999915,
+            "passed": true,
+            "start": 15.539312500000001,
+            "uncovered_seconds": 0.41593750000000185
+          },
+          {
+            "coverage": 0.8916180534233956,
+            "end": 23.938875,
+            "largest_gap_seconds": 0.30887500000000045,
+            "passed": true,
+            "start": 21.089,
+            "uncovered_seconds": 0.30887500000000045
+          },
+          {
+            "coverage": 0.9405791650996614,
+            "end": 27.458125,
+            "largest_gap_seconds": 0.14812500000000028,
+            "passed": true,
+            "start": 24.9653125,
+            "uncovered_seconds": 0.14812500000000028
+          },
+          {
+            "coverage": 0.861688958666708,
+            "end": 30.5463125,
+            "largest_gap_seconds": 0.2863124999999975,
+            "passed": true,
+            "start": 28.47625,
+            "uncovered_seconds": 0.2863124999999975
+          },
+          {
+            "coverage": 0.9727497217584863,
+            "end": 35.1679375,
+            "largest_gap_seconds": 0.09793750000000045,
+            "passed": true,
+            "start": 31.5739375,
+            "uncovered_seconds": 0.09793750000000045
+          },
+          {
+            "coverage": 0.9481107862610743,
+            "end": 38.9753125,
+            "largest_gap_seconds": 0.14531250000000284,
+            "passed": true,
+            "start": 36.174875,
+            "uncovered_seconds": 0.14531250000000284
+          },
+          {
+            "coverage": 0.9093489102581775,
+            "end": 44.54125,
+            "largest_gap_seconds": 0.27999999999999403,
+            "passed": true,
+            "start": 40.004625,
+            "uncovered_seconds": 0.41124999999999545
+          },
+          {
+            "coverage": 0.886245010746085,
+            "end": 48.4041875,
+            "largest_gap_seconds": 0.32418750000000074,
+            "passed": true,
+            "start": 45.5543125,
+            "uncovered_seconds": 0.32418750000000074
+          },
+          {
+            "coverage": 0.9464711044252228,
+            "end": 51.9234375,
+            "largest_gap_seconds": 0.13343749999999943,
+            "passed": true,
+            "start": 49.430625,
+            "uncovered_seconds": 0.13343749999999943
+          },
+          {
+            "coverage": 0.8542918390145252,
+            "end": 55.011624999999995,
+            "largest_gap_seconds": 0.30162499999999426,
+            "passed": true,
+            "start": 52.941562499999996,
+            "uncovered_seconds": 0.30162499999999426
+          },
+          {
+            "coverage": 0.96848914858097,
+            "end": 59.63325,
+            "largest_gap_seconds": 0.11324999999999363,
+            "passed": true,
+            "start": 56.039249999999996,
+            "uncovered_seconds": 0.11324999999999363
+          },
+          {
+            "coverage": 0.9533555024884524,
+            "end": 63.440625,
+            "largest_gap_seconds": 0.13062499999999488,
+            "passed": true,
+            "start": 60.640187499999996,
+            "uncovered_seconds": 0.13062499999999488
+          },
+          {
+            "coverage": 0.908177885542664,
+            "end": 69.0065625,
+            "largest_gap_seconds": 0.29000000000000625,
+            "passed": true,
+            "start": 64.4699375,
+            "uncovered_seconds": 0.41656250000001194
+          },
+          {
+            "coverage": 0.8913987455590207,
+            "end": 72.86949999999999,
+            "largest_gap_seconds": 0.3094999999999857,
+            "passed": true,
+            "start": 70.01962499999999,
+            "uncovered_seconds": 0.3094999999999857
+          },
+          {
+            "coverage": 0.944339977435131,
+            "end": 76.38874999999999,
+            "largest_gap_seconds": 0.1387499999999875,
+            "passed": true,
+            "start": 73.89593749999999,
+            "uncovered_seconds": 0.1387499999999875
+          },
+          {
+            "coverage": 0.8468947193623412,
+            "end": 79.47693749999999,
+            "largest_gap_seconds": 0.31693749999999454,
+            "passed": true,
+            "start": 77.40687499999999,
+            "uncovered_seconds": 0.31693749999999454
+          },
+          {
+            "coverage": 0.9670109905397936,
+            "end": 84.09856249999999,
+            "largest_gap_seconds": 0.1185624999999817,
+            "passed": true,
+            "start": 80.50456249999999,
+            "uncovered_seconds": 0.1185624999999817
+          },
+          {
+            "coverage": 0.9514584774700392,
+            "end": 87.9059375,
+            "largest_gap_seconds": 0.13593749999999716,
+            "passed": true,
+            "start": 85.10549999999999,
+            "uncovered_seconds": 0.13593749999999716
+          },
+          {
+            "coverage": 0.9136197062794481,
+            "end": 93.471875,
+            "largest_gap_seconds": 0.28000000000000114,
+            "passed": true,
+            "start": 88.93525,
+            "uncovered_seconds": 0.39187499999999886
+          },
+          {
+            "coverage": 0.8860257028817127,
+            "end": 97.33481249999998,
+            "largest_gap_seconds": 0.32481249999997885,
+            "passed": true,
+            "start": 94.48493749999999,
+            "uncovered_seconds": 0.32481249999997885
+          },
+          {
+            "coverage": 0.9422088504450336,
+            "end": 100.85406249999998,
+            "largest_gap_seconds": 0.14406249999998977,
+            "passed": true,
+            "start": 98.36124999999998,
+            "uncovered_seconds": 0.14406249999998977
+          },
+          {
+            "coverage": 0.8636514597989241,
+            "end": 103.94224999999999,
+            "largest_gap_seconds": 0.28224999999999056,
+            "passed": true,
+            "start": 101.87218749999998,
+            "uncovered_seconds": 0.28224999999999056
+          },
+          {
+            "coverage": 0.9655328324986132,
+            "end": 108.56387499999998,
+            "largest_gap_seconds": 0.12387499999998397,
+            "passed": true,
+            "start": 104.96987499999999,
+            "uncovered_seconds": 0.12387499999998397
+          },
+          {
+            "coverage": 0.9495614524516311,
+            "end": 112.37124999999999,
+            "largest_gap_seconds": 0.14124999999998522,
+            "passed": true,
+            "start": 109.57081249999999,
+            "uncovered_seconds": 0.14124999999998522
+          },
+          {
+            "coverage": 0.908040117929081,
+            "end": 117.9371875,
+            "largest_gap_seconds": 0.28999999999999204,
+            "passed": true,
+            "start": 113.40056249999999,
+            "uncovered_seconds": 0.41718749999998295
+          },
+          {
+            "coverage": 0.8841615860344817,
+            "end": 121.80012499999998,
+            "largest_gap_seconds": 0.33012499999998113,
+            "passed": true,
+            "start": 118.95024999999998,
+            "uncovered_seconds": 0.33012499999998113
+          }
+        ]
+      },
+      "recalls": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.8235294117647058,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.8235294117647058,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.8235294117647058,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        0.8235294117647058,
+        1.0
+      ],
+      "decoder_invocations": 35,
+      "acoustic_guard": "DECODE",
+      "trusted_timed_transcript": true,
+      "summary": true,
+      "evidence_resolves": true,
+      "no_authority": null,
+      "status": "READY",
+      "cue_count": 35,
+      "evidence_count": 23
+    },
+    {
+      "id": "english-video",
+      "passed": true,
+      "source_sha256": "4196f1ca40bca9c2d454e49933fb8599073b79c07c176b214ce6d3791524f283",
+      "raw_sha256": "6cb9f2fd9467f1b3ca9eb2a68b7d0044a95f8a38d680750981d52fdff13611ea",
+      "product_wall_seconds": 12.077212875010446,
+      "max_API_read_seconds": 0.0006225420511327684,
+      "score": {
+        "error_rate": 0.04,
+        "errors": 2,
+        "reference_units": 50
+      },
+      "coverage": {
+        "passed": true,
+        "regions": [
+          {
+            "coverage": 0.9450443405487245,
+            "end": 4.2564375000000005,
+            "largest_gap_seconds": 0.20643750000000072,
+            "passed": true,
+            "start": 0.5,
+            "uncovered_seconds": 0.20643750000000072
+          },
+          {
+            "coverage": 0.9789833180086691,
+            "end": 9.64,
+            "largest_gap_seconds": 0.10000000000000142,
+            "passed": true,
+            "start": 4.881875,
+            "uncovered_seconds": 0.10000000000000142
+          },
+          {
+            "coverage": 0.9629704524908411,
+            "end": 15.524562499999998,
+            "largest_gap_seconds": 0.1945624999999982,
+            "passed": true,
+            "start": 10.2703125,
+            "uncovered_seconds": 0.1945624999999982
+          },
+          {
+            "coverage": 0.939856411563542,
+            "end": 22.0339375,
+            "largest_gap_seconds": 0.3539375000000007,
+            "passed": true,
+            "start": 16.1490625,
+            "uncovered_seconds": 0.3539375000000007
+          }
+        ]
+      },
+      "recalls": [
+        1.0,
+        1.0,
+        1.0,
+        0.9230769230769231
+      ],
+      "decoder_invocations": 4,
+      "acoustic_guard": "DECODE",
+      "trusted_timed_transcript": true,
+      "summary": true,
+      "evidence_resolves": true,
+      "no_authority": null,
+      "status": "READY",
+      "cue_count": 4,
+      "evidence_count": 5
+    },
+    {
+      "id": "negative-silence-short",
+      "passed": true,
+      "source_sha256": "e944042fd4103fa307da8beb67f580a415e5503a0417b2f75c271957e22f2e73",
+      "raw_sha256": "3c63bdb9d024c91cc6dd7289fb09de775fc00d874a4d7c52deeb7bdcc6da16ab",
+      "product_wall_seconds": 3.4414634999702685,
+      "max_API_read_seconds": 0.0006539580062963068,
+      "score": null,
+      "coverage": null,
+      "recalls": null,
+      "decoder_invocations": 0,
+      "acoustic_guard": "NO_SIGNAL",
+      "trusted_timed_transcript": false,
+      "summary": false,
+      "evidence_resolves": null,
+      "no_authority": true,
+      "status": "FAILED",
+      "cue_count": 0,
+      "evidence_count": 0
+    },
+    {
+      "id": "negative-silence-medium",
+      "passed": true,
+      "source_sha256": "0935209b1b1466039d95ade6481db52f1da6ed8ed0cfbf847c5f9a40218c8f33",
+      "raw_sha256": "e4df401754ee1dfed1656010b23327cfd34824aa31c611bb4b1dbc523a5470db",
+      "product_wall_seconds": 3.5308455000049435,
+      "max_API_read_seconds": 0.0005707910167984664,
+      "score": null,
+      "coverage": null,
+      "recalls": null,
+      "decoder_invocations": 0,
+      "acoustic_guard": "NO_SIGNAL",
+      "trusted_timed_transcript": false,
+      "summary": false,
+      "evidence_resolves": null,
+      "no_authority": true,
+      "status": "FAILED",
+      "cue_count": 0,
+      "evidence_count": 0
+    },
+    {
+      "id": "negative-noise-short",
+      "passed": true,
+      "source_sha256": "c99e530be25a5cb83837bf12ccc7fbb4c9ff3760141a6c4a527604ab9c38c996",
+      "raw_sha256": "702ebd9f8816d16fc7663d8e9f83642bec056cd4e27d334e9cb8b2c84716ca8e",
+      "product_wall_seconds": 3.5578545830212533,
+      "max_API_read_seconds": 0.0005220409948378801,
+      "score": null,
+      "coverage": null,
+      "recalls": null,
+      "decoder_invocations": 0,
+      "acoustic_guard": "NOISE_ONLY",
+      "trusted_timed_transcript": false,
+      "summary": false,
+      "evidence_resolves": null,
+      "no_authority": true,
+      "status": "FAILED",
+      "cue_count": 0,
+      "evidence_count": 0
+    },
+    {
+      "id": "english-clean-weak-18db",
+      "passed": true,
+      "source_sha256": "862b2fe747e68b4b306ce5edaff8d753e57c3f630bc0cbba398cd8ade0a00373",
+      "raw_sha256": "1990e894b404e0f2011d89ce2ad663f0ae7dc5986e7a6f4ff658f05f863410ef",
+      "product_wall_seconds": 16.258187916013412,
+      "max_API_read_seconds": 0.004656833014450967,
+      "score": {
+        "error_rate": 0.0,
+        "errors": 0,
+        "reference_units": 50
+      },
+      "coverage": {
+        "passed": true,
+        "regions": [
+          {
+            "coverage": 0.9370580503469043,
+            "end": 4.2564375000000005,
+            "largest_gap_seconds": 0.23643750000000097,
+            "passed": true,
+            "start": 0.5,
+            "uncovered_seconds": 0.23643750000000097
+          },
+          {
+            "coverage": 0.9327466176277419,
+            "end": 9.64,
+            "largest_gap_seconds": 0.16999999999999993,
+            "passed": true,
+            "start": 4.881875,
+            "uncovered_seconds": 0.3200000000000003
+          },
+          {
+            "coverage": 0.9591640100870727,
+            "end": 15.524562499999998,
+            "largest_gap_seconds": 0.21456249999999777,
+            "passed": true,
+            "start": 10.2703125,
+            "uncovered_seconds": 0.21456249999999777
+          },
+          {
+            "coverage": 0.9194651543150871,
+            "end": 22.0339375,
+            "largest_gap_seconds": 0.33000000000000185,
+            "passed": true,
+            "start": 16.1490625,
+            "uncovered_seconds": 0.4739375000000017
+          }
+        ]
+      },
+      "recalls": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "decoder_invocations": 6,
+      "acoustic_guard": "DECODE",
+      "trusted_timed_transcript": true,
+      "summary": true,
+      "evidence_resolves": true,
+      "no_authority": null,
+      "status": "READY",
+      "cue_count": 6,
+      "evidence_count": 7
+    },
+    {
+      "id": "mandarin-clean-weak-18db",
+      "passed": true,
+      "source_sha256": "824c16aeb6603960a9b6f083b4ea36c8ef9ab87ceca308022ecdcf1a0f8953b9",
+      "raw_sha256": "b1fb5b5db1e042b81aacbb7c04184ae583c79f6ae1f39296fdee2da9c7c08be5",
+      "product_wall_seconds": 21.160184374952223,
+      "max_API_read_seconds": 0.0008513330249115825,
+      "score": {
+        "error_rate": 0.03529411764705882,
+        "errors": 3,
+        "reference_units": 85
+      },
+      "coverage": {
+        "passed": true,
+        "regions": [
+          {
+            "coverage": 0.9736194161097432,
+            "end": 4.05375,
+            "largest_gap_seconds": 0.09375,
+            "passed": true,
+            "start": 0.5,
+            "uncovered_seconds": 0.09375
+          },
+          {
+            "coverage": 0.9314229926911,
+            "end": 9.404875,
+            "largest_gap_seconds": 0.2400000000000002,
+            "passed": true,
+            "start": 4.6674999999999995,
+            "uncovered_seconds": 0.32487500000000047
+          },
+          {
+            "coverage": 0.9228135800848757,
+            "end": 15.7310625,
+            "largest_gap_seconds": 0.28999999999999915,
+            "passed": true,
+            "start": 10.0168125,
+            "uncovered_seconds": 0.44106249999999925
+          },
+          {
+            "coverage": 0.896185386676937,
+            "end": 24.148625000000003,
+            "largest_gap_seconds": 0.41999999999999815,
+            "passed": true,
+            "start": 16.3595,
+            "uncovered_seconds": 0.8086250000000028
+          }
+        ]
+      },
+      "recalls": [
+        1.0,
+        1.0,
+        0.8695652173913043,
+        1.0
+      ],
+      "decoder_invocations": 8,
+      "acoustic_guard": "DECODE",
+      "trusted_timed_transcript": true,
+      "summary": true,
+      "evidence_resolves": true,
+      "no_authority": null,
+      "status": "READY",
+      "cue_count": 8,
+      "evidence_count": 9
+    }
+  ]
+}

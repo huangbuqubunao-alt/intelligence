@@ -28,8 +28,9 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue
 from youtube_intel.source_authority import read_managed
 
 REPOSITORY = "mlx-community/whisper-large-v3-turbo"
-POLICY = "private-acoustic-gates-v1"
-REQUIRED = frozenset({"english-clean", "mandarin-clean", "mixed-clean", "very-short", "medium", "designed-pauses", "mild-noise", "english-video"})
+POLICY = "private-acoustic-gates-v2-source-word"
+REQUIRED = frozenset({"english-clean", "mandarin-clean", "mixed-clean", "very-short", "medium", "designed-pauses", "mild-noise", "english-video", "independent-medium", "boundary-medium", "silence-medium", "mixed-medium", "english-clean-weak-18db", "mandarin-clean-weak-18db"})
+NEGATIVE_REQUIRED = frozenset({"negative-silence-short", "negative-silence-medium", "negative-noise-short"})
 
 
 class SampleResult(BaseModel):
@@ -46,10 +47,22 @@ class SampleResult(BaseModel):
     no_omission: bool
 
 
+class NegativeControlResult(BaseModel):
+    """Measured execution refusal, never a successful empty transcript."""
+    model_config = ConfigDict(frozen=True, extra="forbid", strict=True)
+    name: str
+    source_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    processing_seconds: float = Field(gt=0, allow_inf_nan=False)
+    observed_outcome: Literal["NO_SIGNAL", "NOISE_ONLY"]
+    decoder_invocations: int = Field(ge=0)
+    no_authority: bool
+
+
 class QualificationEvidence(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid", strict=True)
     corpus_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
     samples: tuple[SampleResult, ...]
+    negative_controls: tuple[NegativeControlResult, ...] = ()
     offline: bool
     cloud_dispatches: int = Field(ge=0)
     source_uploads: int = Field(ge=0)
@@ -58,6 +71,9 @@ class QualificationEvidence(BaseModel):
 def evaluate(evidence: QualificationEvidence) -> Literal["PASSED", "FAILED"]:
     names = [s.name for s in evidence.samples]
     if (not REQUIRED <= set(names) or len(names) != len(set(names)) or not evidence.offline or evidence.cloud_dispatches or evidence.source_uploads):
+        return "FAILED"
+    negatives = [s.name for s in evidence.negative_controls]
+    if (not NEGATIVE_REQUIRED <= set(negatives) or len(negatives) != len(set(negatives)) or any(s.observed_outcome not in {"NO_SIGNAL", "NOISE_ONLY"} or s.decoder_invocations != 0 or not s.no_authority or not 0 < s.processing_seconds < 1800 for s in evidence.negative_controls)):
         return "FAILED"
     for sample in evidence.samples:
         if (not sample.completed or not sample.timestamps_valid or not sample.coverage_passed or not sample.no_omission or not math.isfinite(sample.processing_seconds) or not 0 < sample.processing_seconds < 1800):
@@ -86,6 +102,7 @@ def machine_binding(key: bytes) -> str:
 
 
 def current_tuple(model: Path, identity: str, origin: dict[str, JsonValue]) -> dict[str, JsonValue]:
+    from youtube_intel.acoustic_remediation import DECODING_POLICY, SEGMENTATION_POLICY
     from youtube_intel.offline_transcription import (
         CONTRACT,
         PROFILE,
@@ -125,15 +142,18 @@ def current_tuple(model: Path, identity: str, origin: dict[str, JsonValue]) -> d
         "model_revision": origin["revision"],
         "model_digest": identity,
         "model_manifest": origin["manifest_sha256"],
-        "decoding_profile": {"name": PROFILE, "task": "transcribe", "language": None, "temperature": 0.0, "compression_ratio_threshold": 2.4, "logprob_threshold": -1.0, "no_speech_threshold": 0.6, "initial_prompt": None, "word_timestamps": False, "condition_on_previous_text": True, "fp16": True, "beam_size": None, "best_of": None},
+        "decoding_profile": {"name": PROFILE, **DECODING_POLICY},
         "transcript_contract": "source-transcript-provenance-v2-exact-boundary-spaces-v2",
-        "timestamp_policy": "finite-monotonic-nonoverlap-positive-ms-duration-plus1s-v1",
+        "timestamp_policy": "native-source-sample-grid-finite-monotonic-nonoverlap-positive-ms-source-window-v2",
+        "segmentation_policy": SEGMENTATION_POLICY,
+        "required_samples": [name for name in sorted(REQUIRED)],
+        "required_negative_controls": [name for name in sorted(NEGATIVE_REQUIRED)],
         "preprocessing_profile": "first-audio-mono16k-pcm-s16le-max2h-v1",
         "platform": {"system": platform.system(), "machine": platform.machine(), "os": platform.mac_ver()[0], "python": platform.python_version(), "hardware": hardware_values},
         "preprocessing_tools": tools,
         # Bind implementation changes even when a developer forgets a version bump.
         "implementation": {
-            **{name: hashlib.sha256(Path(__file__).with_name(name).read_bytes()).hexdigest() for name in ("offline_whisper_worker.py", "local_content.py", "source_authority.py", "acoustic_scoring.py", "acoustic_qualification.py")},
+            **{name: hashlib.sha256(Path(__file__).with_name(name).read_bytes()).hexdigest() for name in ("offline_whisper_worker.py", "acoustic_remediation.py", "local_content.py", "source_authority.py", "acoustic_scoring.py", "acoustic_qualification.py")},
             **{function.__qualname__: hashlib.sha256(inspect.getsource(function).encode()).hexdigest() for function in (MlxTimedExecutor.transcribe, MlxTimedExecutor._command, MlxTimedExecutor._env, validate_result, model_identity, TimedTranscriptCueWrite)},
         },
     }

@@ -1,0 +1,17 @@
+{
+  "frozen_at": "2026-10-12T10:46:56.652952+00:00",
+  "actual_product_decodes_before_freeze": 0,
+  "required_speech_results": 14,
+  "required_refusal_controls": 3,
+  "parameters": "Same tested run03 policy; native segmented word alignment, same guarded PCM, no clip/no expected words, all strict gates",
+  "implementation_sha256": {
+    "src/youtube_intel/acoustic_remediation.py": "eb846a95663c1e023f611f1306efd7f058f94840c42b1b5c11506c2fe90cc9da",
+    "src/youtube_intel/offline_whisper_worker.py": "93790c14b7209b9042c9f0fcd319ead7297c4dd0a588f21d96a82542150c9521",
+    "src/youtube_intel/offline_transcription.py": "8951093d33d9024830eb096c34efcde57be0708b7d0594fbb9679882282e8c03",
+    "src/youtube_intel/acoustic_qualification.py": "70ddc93683e7c879a728444edc7a22dc4a679a0faa029f151a12fc8942a9cb5c",
+    "src/youtube_intel/acoustic_scoring.py": "969f6381d72c66ff6a23cdd45a386617670e4032d3e0aed396995da5c876c67d",
+    "scripts/qualify_readiness_asr_product.py": "ad2718550b7e81c95b559f6820b6229f9cdafe929b3ccc8ccb54a2c1a80a7d9c",
+    "docs/validation/readiness-asr/run03/FROZEN_CORPUS.json": "dfad7b991ba52057462fdae6477874a34884fa7a36ae667247b231fd393365d3",
+    "docs/validation/readiness-asr/run03/FROZEN_POLICY.json": "cc8699d7bef733a6ba9d5cd278e8b0b18d2a464c90d3f0b458e63616615bfeee"
+  }
+}
