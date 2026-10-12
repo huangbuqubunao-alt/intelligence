@@ -75,3 +75,22 @@ def test_short_silence_windows_are_not_expanded_or_overlapped():
     audio = np.concatenate([np.full(16000, .1), np.zeros(4800), np.full(16000, .1)])
     spans = source_windows(audio)
     assert spans == [(0, 18400), (18400, 36800)]
+
+
+def test_native_word_alignment_uses_pcm_grid_and_maps_word_and_segment_times():
+    raw = {'language': 'en', 'segments': [{'start': .315, 'end': 1.005, 'text': ' Again again.', 'words': [
+        {'start': .315, 'end': .5, 'word': ' Again', 'probability': .98},
+        {'start': .5, 'end': 1.005, 'word': ' again.', 'probability': .97}]}]}
+    result = assemble([(32000, 56000)], [raw], 56000, word_alignment=True)
+    segment = result['segments'][0]
+    assert segment['start'] == 2.315
+    assert segment['end'] == 3.005
+    assert ''.join(w['word'] for w in segment['words']) == raw['segments'][0]['text']
+    assert segment['words'][1]['end'] == 3.005
+
+
+def test_nonfinite_or_out_of_source_word_metadata_cannot_pass_word_alignment():
+    for end in [float('nan'), 3.]:
+        raw = {'language': 'en', 'segments': [{'start': 0., 'end': 1., 'text': 'Speech.', 'words': [{'start': 0., 'end': end, 'word': 'Speech.', 'probability': .9}]}]}
+        with pytest.raises(ValueError):
+            assemble([(0, 32000)], [raw], 32000, word_alignment=True)

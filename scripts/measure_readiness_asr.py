@@ -14,12 +14,12 @@ import wave
 from pathlib import Path
 
 import numpy as np
-from readiness_asr_profile import assemble, boundaries, signal_guard, source_windows
+from readiness_asr_profile import assemble, boundaries, signal_guard
 
 from youtube_intel.acoustic_scoring import coverage, score, utterance_recalls
 
 MODEL = Path('/Users/hua/Documents/yia-worktrees/v1x-acoustic-qualification/.var/phase9/models/whisper-large-v3-turbo/a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb')
-FROZEN = Path('docs/validation/readiness-asr/run02')
+FROZEN = Path('docs/validation/readiness-asr/run03')
 
 
 def nonfinite(value, path='$'):
@@ -42,7 +42,7 @@ def child(args):
             raise ValueError('actual mono16k PCM required')
         audio = np.frombuffer(wav.readframes(wav.getnframes()), dtype='<i2').astype(np.float32) / 32768
     partitions = boundaries(audio)
-    spans = source_windows(audio)
+    spans = partitions
     global_guard = signal_guard(audio)
     outputs, times, guards, loads = [], [], [], []
     decoder = None
@@ -64,14 +64,14 @@ def child(args):
             runtime.load_model = counted
             decoder = mlx_whisper.transcribe
         t = time.monotonic()
-        raw = decoder(audio[start:end], path_or_hf_repo=str(MODEL), task='transcribe', language=None, temperature=0., compression_ratio_threshold=2.4, logprob_threshold=-1., no_speech_threshold=.6, initial_prompt=None, verbose=None, word_timestamps=False, condition_on_previous_text=False)
+        raw = decoder(audio[start:end], path_or_hf_repo=str(MODEL), task='transcribe', language=None, temperature=0., compression_ratio_threshold=2.4, logprob_threshold=-1., no_speech_threshold=.6, initial_prompt=None, verbose=None, word_timestamps=True, condition_on_previous_text=False)
         times.append(time.monotonic() - t)
         outputs.append(raw)
     # Explicit untrusted diagnostics retain all model metadata and failures.
     args.output.with_suffix('.NONAUTHORITATIVE.json').write_text(json.dumps(outputs, ensure_ascii=False, indent=2))
     error = None
     try:
-        merged = assemble(spans, outputs, len(audio))
+        merged = assemble(spans, outputs, len(audio), word_alignment=True)
     except Exception as exc:
         error = type(exc).__name__ + ': ' + str(exc)
         merged = {'segments': [{**s, 'start': s['start'] + start/16000, 'end': s['end'] + start/16000} for (start, end), raw in zip(spans, outputs, strict=True) for s in raw['segments']]}

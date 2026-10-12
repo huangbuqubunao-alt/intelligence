@@ -73,16 +73,17 @@ def boundaries(audio: np.ndarray) -> list[tuple[int, int]]:
     return list(zip(cuts, cuts[1:]))
 
 
-def _tick(value: Any) -> int:
+def _tick(value: Any, *, word_alignment: bool = False) -> int:
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
         raise ValueError('nonfinite timestamp')
-    tick = round(value / .02)
-    if abs(value - tick * .02) > 1e-9:
-        raise ValueError('timestamp is not on the SDK 20ms token grid')
-    return tick * WINDOW
+    quantum = 1 / RATE if word_alignment else .02
+    tick = round(value / quantum)
+    if abs(value - tick * quantum) > 1e-9:
+        raise ValueError('timestamp is not on the native source-sample grid')
+    return tick if word_alignment else tick * WINDOW
 
 
-def assemble(spans: Sequence[tuple[int, int]], outputs: Sequence[dict[str, Any]], frames: int) -> dict[str, Any]:
+def assemble(spans: Sequence[tuple[int, int]], outputs: Sequence[dict[str, Any]], frames: int, *, word_alignment: bool = False) -> dict[str, Any]:
     if len(spans) != len(outputs):
         raise ValueError('incomplete attempt')
     merged = []
@@ -93,15 +94,34 @@ def assemble(spans: Sequence[tuple[int, int]], outputs: Sequence[dict[str, Any]]
         mapped = []
         previous = 0
         for segment in raw['segments']:
-            local_start, local_end = _tick(segment['start']), _tick(segment['end'])
+            local_start, local_end = _tick(segment['start'], word_alignment=word_alignment), _tick(segment['end'], word_alignment=word_alignment)
             if local_start < previous or local_end <= local_start or local_end > end - start:
                 raise ValueError('invalid source-window timestamp')
             previous = local_end
-            mapped.append({**segment, 'start': local_start / RATE, 'end': local_end / RATE})
+            mapped_segment = {**segment, 'start': local_start / RATE, 'end': local_end / RATE}
+            if word_alignment:
+                words = segment.get('words')
+                if not isinstance(words, list) or not words:
+                    raise ValueError('native alignment words required')
+                mapped_words = []
+                previous_word = 0
+                for word in words:
+                    word_start = _tick(word['start'], word_alignment=True)
+                    word_end = _tick(word['end'], word_alignment=True)
+                    if word_start < previous_word or word_end < word_start or word_end > end-start:
+                        raise ValueError('invalid native word source-window timestamp')
+                    previous_word = word_end
+                    mapped_words.append({**word, 'start': word_start/RATE, 'end': word_end/RATE})
+                mapped_segment['words'] = mapped_words
+            mapped.append(mapped_segment)
         if mapped:
             validate_result(json.dumps({**raw, 'segments': mapped}, allow_nan=False).encode(), duration_seconds=(end-start)/RATE, provenance='research-chunk')
             languages.append(raw.get('language', 'und'))
-            merged.extend({**s, 'start': (start + _tick(s['start'])) / RATE, 'end': (start + _tick(s['end'])) / RATE} for s in mapped)
+            for segment in mapped:
+                source_segment = {**segment, 'start': (start + _tick(segment['start'], word_alignment=word_alignment)) / RATE, 'end': (start + _tick(segment['end'], word_alignment=word_alignment)) / RATE}
+                if word_alignment:
+                    source_segment['words'] = [{**word, 'start': (start+_tick(word['start'], word_alignment=True))/RATE, 'end': (start+_tick(word['end'], word_alignment=True))/RATE} for word in segment['words']]
+                merged.append(source_segment)
     response = {'language': languages[0] if languages and len(set(languages)) == 1 else 'mul', 'segments': merged}
     if merged:
         validate_result(json.dumps(response, ensure_ascii=False, allow_nan=False).encode(), duration_seconds=frames/RATE, provenance='research-source-merged')
