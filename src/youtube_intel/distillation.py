@@ -2011,7 +2011,7 @@ class OllamaLocalDistillationTransport:
     transport_kind = DistillationTransportKind.LOCAL_PRODUCTION
     is_offline_test_transport = False
     _MODEL = "qwen3:8b"
-    _PROMPT_VERSION = "local-distillation-admission-v2"
+    _PROMPT_VERSION = "local-distillation-admission-v3-explicit-branches"
     _CONTEXT_TOKENS = 8_192
     _DIGEST = "sha256:500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41"
     _MAX_RESPONSE_BYTES = 1_000_000
@@ -2038,6 +2038,7 @@ class OllamaLocalDistillationTransport:
         "type": "object",
         "additionalProperties": False,
         "required": [
+            "result",
             "core_conclusion",
             "user_relevant_information",
             "important_new_information",
@@ -2047,6 +2048,7 @@ class OllamaLocalDistillationTransport:
             "evidence",
         ],
         "properties": {
+            "result": {"enum": ["INTELLIGENCE"]},
             "core_conclusion": {"type": "string"},
             "user_relevant_information": {"type": "array", "items": {"type": "string"}},
             "important_new_information": {"type": "array", "items": {"type": "string"}},
@@ -2165,7 +2167,7 @@ class OllamaLocalDistillationTransport:
         ]
         prompt = (
             "Return exactly one of the two shapes in the supplied schema. For admitted "
-            "Intelligence, use exactly the listed Intelligence fields. Intelligence is an "
+            "Intelligence, return result=INTELLIGENCE and exactly the listed Intelligence fields. Intelligence is an "
             "evidence-backed, revisable judgment worth retaining beyond a one-off Summary, "
             "such as a substantive factual conclusion, meaningful development, useful "
             "interpretation, or a clearly classified prediction, opinion, or system inference. "
@@ -3477,6 +3479,16 @@ class PersonalizedDistillationService:
             "core_conclusion", "user_relevant_information", "important_new_information",
             "meaningful_details", "filtered_noise", "claim_kind", "evidence",
         }
+        if (
+            isinstance(payload, dict)
+            and set(payload) == expected_keys | {"result"}
+            and payload["result"] == "INTELLIGENCE"
+            and command.selected_provider == verified_input.selected_provider == "ollama"
+            and command.selected_model == verified_input.selected_model == OllamaLocalDistillationTransport._MODEL
+        ):
+            # Decode only the explicit local wire marker. Raw model output
+            # stays intact; all existing claim and Evidence checks still run.
+            payload = {key: value for key, value in payload.items() if key != "result"}
         if not isinstance(payload, dict) or set(payload) != expected_keys:
             raise ValueError("structured distillation schema is invalid")
         try:

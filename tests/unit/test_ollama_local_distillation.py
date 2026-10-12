@@ -115,7 +115,8 @@ def test_local_distillation_is_exact_digest_loopback_and_structured(
             schemas = outbound["format"]["anyOf"]
             assert len(schemas) == 2
             intelligence_schema, zero_schema = schemas
-            assert "result" not in intelligence_schema["properties"]
+            assert intelligence_schema["properties"]["result"]["enum"] == ["INTELLIGENCE"]
+            assert intelligence_schema["required"][0] == "result"
             assert intelligence_schema["additionalProperties"] is False
             assert intelligence_schema["properties"]["evidence"]["items"]["properties"]["stance"]["enum"] == [
                 "supporting", "contradicting", "conditional"
