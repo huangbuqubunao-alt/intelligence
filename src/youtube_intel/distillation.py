@@ -2011,7 +2011,7 @@ class OllamaLocalDistillationTransport:
     transport_kind = DistillationTransportKind.LOCAL_PRODUCTION
     is_offline_test_transport = False
     _MODEL = "qwen3:8b"
-    _PROMPT_VERSION = "local-distillation-admission-v3-explicit-branches"
+    _PROMPT_VERSION = "local-distillation-admission-v4-source-attribution"
     _CONTEXT_TOKENS = 8_192
     _DIGEST = "sha256:500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41"
     _MAX_RESPONSE_BYTES = 1_000_000
@@ -2180,6 +2180,23 @@ class OllamaLocalDistillationTransport:
             "contradicting or qualifying Evidence with contradicting or conditional stance; "
             "do not hide it. Stance describes the claim-Evidence relation, not confidence. "
             "Keep filtered_noise brief; do not copy omitted Evidence into it. "
+            "Source attribution applies to core_conclusion and every information field, "
+            "not just to claim_kind. The source speaker is not the personal user; "
+            "identify the source by source_display_name when reporting its claims. "
+            "Preserve uncertainty: seems, estimates, hopes, predictions and reported "
+            "results must remain qualified and attributed. A source's claimed result "
+            "is not an independently verified fact. Similar modes or related benchmarks "
+            "do not establish identical performance or prove a separate claimed result. "
+            "Clearly label your own interpretation and validation needs; never describe "
+            "them as things the source measured or verified. Do not invent experiments, "
+            "numbers, prices, latency, dates or guarantees. "
+            "Each information field has a distinct purpose: user_relevant_information "
+            "explains relevance to the supplied interests; important_new_information "
+            "states the source's material development; meaningful_details retains "
+            "specific qualifications and limitations. Avoid repeating the same sentence "
+            "across fields. Do not repeat retained claims in filtered_noise; use [] "
+            "when there is no omitted noise worth identifying. Keep Evidence IDs only "
+            "in the evidence reference objects, not in prose. "
             f"There are exactly {len(evidence)} candidate Evidence items. "
             "If nothing qualifies, return exactly "
             "result=NO_NEW_INTELLIGENCE with every supplied Evidence ID and timestamp once, "
@@ -2189,6 +2206,7 @@ class OllamaLocalDistillationTransport:
             + json.dumps(
                 {
                     "video_title": value.video_title,
+                    "source_display_name": value.source_display_name,
                     "evidence": evidence,
                     "personalization": value.personalization,
                     "focus": value.source_focus_rules,
