@@ -1007,6 +1007,73 @@ def _completed_plain_caption_runtime(tmp_path: Path):
     return runtime, adapter, source.source_id, config, dependencies
 
 
+@pytest.mark.parametrize("restart", [False, True])
+def test_successful_caption_repair_summary_exception_offers_safe_summary_only_retry(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, restart: bool) -> None:
+    from youtube_intel.extractive_summary import ExtractiveSummaryService
+
+    runtime, adapter, source_id, config, dependencies = _completed_plain_caption_runtime(tmp_path)
+    original_job = runtime.repository.latest_video_job(VIDEO_ID)
+    original_canonical = runtime.repository.latest_artifact(VIDEO_ID, ArtifactKind.TRANSCRIPT_CANONICAL)
+    original_create = ExtractiveSummaryService.create
+
+    def fail_summary(*args, **kwargs):
+        raise RuntimeError("synthetic ordinary Summary failure after caption commit")
+
+    monkeypatch.setattr(ExtractiveSummaryService, "create", fail_summary)
+    runtime.application.handle("POST", f"/api/v1/sources/{source_id}/check", b'{"command_id":"synthetic-summary-fails-after-repair"}')
+    failed = runtime.worker.run_once()
+    assert failed is not None and failed.state is SourceRunState.NEEDS_ATTENTION
+    timed = runtime.repository.get_verified_timed_transcript(video_id=VIDEO_ID)
+    evidence_ids = runtime.repository.list_canonical_coverage_evidence_ids(VIDEO_ID)
+    assert timed is not None and evidence_ids
+    assert runtime.repository.current_local_summary_pointer(VIDEO_ID) is None
+    repaired_job = runtime.repository.latest_video_job(VIDEO_ID)
+    assert repaired_job is not None and repaired_job.status.value == "SUCCEEDED"
+    reads = adapter.read_calls
+    with runtime.repository._connect() as connection:
+        provider_history = tuple(tuple(row) for row in connection.execute(
+            "SELECT * FROM provider_calls ORDER BY request_hash"))
+    if restart:
+        runtime = build_local_source_run_runtime(config=config, project_root=tmp_path,
+            database=tmp_path / "gui.sqlite3", dependencies=dependencies, now=lambda: datetime.now(UTC))
+    status, detail = runtime.application.handle("GET", f"/api/v1/videos/{VIDEO_ID}")
+    assert status == 200
+    assert detail["video"]["processing_status"] == "RETRY_REQUIRED"
+    assert detail["video"]["summary_preparation_status"] == "NEEDS_ATTENTION"
+    assert detail["video"]["retry_allowed"] is True
+
+    def retry_summary(service, video_id, **kwargs):
+        # A real active retry remains asynchronous and protected; the settled
+        # failure hint must not replace live Source Run status.
+        projection = runtime.application.handle("GET", f"/api/v1/videos/{VIDEO_ID}")[1]["video"]
+        assert projection["processing_status"] == "WAITING"
+        assert "summary_preparation_status" not in projection
+        assert not runtime.backup_restore.readiness()["ready"]
+        return original_create(service, video_id, **kwargs)
+
+    monkeypatch.setattr(ExtractiveSummaryService, "create", retry_summary)
+    status, _ = runtime.application.handle("POST", f"/api/v1/sources/{source_id}/check", b'{"command_id":"synthetic-summary-only-retry"}')
+    assert status == 202
+    assert not runtime.backup_restore.readiness()["ready"]
+    completed = runtime.worker.run_once()
+    assert completed is not None and completed.state is SourceRunState.COMPLETED
+    assert runtime.application.handle("GET", f"/api/v1/videos/{VIDEO_ID}")[1]["video"]["processing_status"] == "ORGANIZED"
+    assert runtime.repository.current_local_summary_pointer(VIDEO_ID) is not None
+    assert runtime.backup_restore.readiness()["ready"]
+    assert adapter.read_calls == reads
+    assert runtime.repository.get_verified_timed_transcript(video_id=VIDEO_ID) == timed
+    assert runtime.repository.list_canonical_coverage_evidence_ids(VIDEO_ID) == evidence_ids
+    assert original_job is not None and runtime.repository.get_job(original_job.job_id) == original_job
+    assert original_canonical is not None and runtime.repository.get_artifact(original_canonical.artifact_id) == original_canonical
+    assert runtime.repository.get_job(repaired_job.job_id) == repaired_job
+    assert runtime.repository.get_source_run(failed.run_id) == failed
+    with runtime.repository._connect() as connection:
+        assert tuple(tuple(row) for row in connection.execute(
+            "SELECT * FROM provider_calls ORDER BY request_hash")) == provider_history
+    assert sum(job.job_id.startswith("caption-repair-")
+               for job in runtime.repository.list_video_jobs(VIDEO_ID, limit=1000)) == 1
+
+
 @pytest.mark.parametrize("failure_point", ["caption_repair.after_artifacts", "caption_repair.after_authority"])
 def test_caption_repair_transaction_rollback_retains_history_and_allows_explicit_retry(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure_point: str) -> None:
     runtime, adapter, source_id, _, _ = _completed_plain_caption_runtime(tmp_path)

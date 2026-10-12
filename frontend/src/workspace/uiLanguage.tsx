@@ -93,6 +93,7 @@ const chinese: Record<string, string> = {
   "Reading captions…": "正在读取字幕…",
   "The captured captions have no verified source timing. Content needs timed captions before Summary and source references can be prepared.": "已获取的字幕没有可验证的原始时间。需要带时间的字幕，才能生成摘要和出处。",
   "Retry to check this source for native timed captions. Your captured text and history are kept.": "点击重试，检查此来源是否提供原生时间字幕。已获取的文本和处理历史会保留。",
+  "Timed captions are saved, but the Summary could not be prepared. Retry to organize this Content; your captured text and source references are kept.": "带时间的字幕已保存，摘要整理未完成。点击重试以整理此内容；已获取的文本和出处会保留。",
   "Organizing content…": "正在整理内容…",
   "Will retry later": "稍后重试",
   "Paste a supported HTTPS YouTube video or channel link, @handle, channel ID, or Bilibili BV video link. To add a file, choose Import local file.": "请输入支持的 HTTPS YouTube 视频或频道链接、@用户名、频道 ID，或 Bilibili BV 视频链接。导入文件请选择“导入本地文件”。",

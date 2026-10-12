@@ -1916,9 +1916,24 @@ class LocalApiApplication:
                   and self._repository.get_verified_timed_transcript(video_id=video.video_id) is None):
                 projection["processing_status"] = "NEEDS_ATTENTION"
                 projection["caption_timing_status"] = "UNAVAILABLE"
-            active_source = any(run.source_id in {source.source_id for source in retry_sources}
-                                     and run.state.value in {"QUEUED", "RUNNING"}
-                                     for run in self._repository.list_source_runs()) if retry_sources else False
+            source_ids = {source.source_id for source in retry_sources}
+            source_runs = tuple(run for run in self._repository.list_source_runs()
+                                if run.source_id in source_ids) if source_ids else ()
+            active_source = any(run.state.value in {"QUEUED", "RUNNING"} for run in source_runs)
+            latest_run = source_runs[-1] if source_runs else None
+            if (not active_source and latest_run is not None
+                    and latest_run.state.value == "NEEDS_ATTENTION"
+                    and any(source.source_id == latest_run.source_id
+                            and source.processing_policy.value == "DISCOVER_ONLY" for source in retry_sources)
+                    and job is not None and job.status is JobStatus.SUCCEEDED
+                    and video.pipeline_status is PipelineStatus.TRANSCRIPT_READY
+                    and self._repository.current_local_summary_pointer(video.video_id) is None
+                    and self._repository.get_verified_timed_transcript(video_id=video.video_id) is not None):
+                # Native caption authority already committed, but the ordinary
+                # source check stopped before Summary. Offer that same command
+                # again instead of presenting a settled failure as live work.
+                projection["processing_status"] = "RETRY_REQUIRED"
+                projection["summary_preparation_status"] = "NEEDS_ATTENTION"
             if (retry_sources and not active_source and job is not None
                     and job.status is JobStatus.PENDING and job.last_error_code is not None):
                 # Global recovery can activate this retry without a Source Run

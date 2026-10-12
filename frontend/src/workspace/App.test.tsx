@@ -2669,7 +2669,7 @@ test("one-time video imports do not become continuous Following rows", async () 
   await waitFor(() => expect(screen.queryByText("Imported video title")).toBeNull());
 });
 
-test.each(["RETRY_REQUIRED", "NEEDS_ATTENTION"])("one-time Content %s retry remains visible and polls accepted durable work to completion", async (initialStatus) => {
+test.each([["RETRY_REQUIRED", false], ["NEEDS_ATTENTION", false], ["RETRY_REQUIRED", true]])("one-time Content %s Summary failure=%s retry remains visible and polls accepted durable work to completion", async (initialStatus, summaryFailure) => {
   location.hash = "Content/video-1";
   let accepted = false;
   let reads = 0;
@@ -2683,16 +2683,40 @@ test.each(["RETRY_REQUIRED", "NEEDS_ATTENTION"])("one-time Content %s retry rema
       const status = !accepted ? initialStatus : ++reads === 1 ? "WAITING" : "ORGANIZED";
       return response({ ...daVideoDetail, video: { ...daVideoDetail.video, provider: "YOUTUBE", source_id: "import-source", processing_status: status,
         caption_timing_status: !accepted && initialStatus === "NEEDS_ATTENTION" ? "UNAVAILABLE" : undefined,
+        summary_preparation_status: !accepted && summaryFailure ? "NEEDS_ATTENTION" : undefined,
       } });
     }
     return original(path, init);
   }));
   render(<App />);
+  if (summaryFailure) expect(await screen.findByText("Timed captions are saved, but the Summary could not be prepared. Retry to organize this Content; your captured text and source references are kept.")).toBeTruthy();
   fireEvent.click(await screen.findByRole("button", { name: /^Retry$/ }));
   expect(await screen.findByText("Retry accepted. Processing status will update here.")).toBeTruthy();
   await waitFor(() => expect(screen.queryByRole("button", { name: /^Retry$/ })).toBeNull());
   await waitFor(() => expect(reads).toBeGreaterThan(1), { timeout: 4000 });
   expect(await screen.findByText("Completed", { exact: true })).toBeTruthy();
+});
+
+test.each(["en", "zh-CN"])("%s settled Summary failure explains a retry without implying missing captions", async (language) => {
+  localStorage.setItem("yia.ui-language", language);
+  location.hash = "Content/video-1";
+  const original = globalThis.fetch;
+  vi.stubGlobal("fetch", vi.fn((path: string, init?: RequestInit) => {
+    if (path.endsWith("/videos/video-1")) return response({ ...daVideoDetail, video: {
+      ...daVideoDetail.video, provider: "YOUTUBE", source_id: "import-source", processing_status: "RETRY_REQUIRED",
+      summary_preparation_status: "NEEDS_ATTENTION", retry_allowed: true,
+    } });
+    return original(path, init);
+  }));
+  render(<App />);
+  expect(await screen.findByText(language === "en"
+    ? "Timed captions are saved, but the Summary could not be prepared. Retry to organize this Content; your captured text and source references are kept."
+    : "带时间的字幕已保存，摘要整理未完成。点击重试以整理此内容；已获取的文本和出处会保留。")).toBeTruthy();
+  expect((screen.getByRole("button", { name: language === "en" ? /^Retry$/ : /^重试$/ }) as HTMLButtonElement).disabled).toBe(false);
+  expect(screen.queryByText(language === "en" ? "Organizing content…" : "正在整理内容…")).toBeNull();
+  expect(screen.queryByText(language === "en"
+    ? "The captured captions have no verified source timing. Content needs timed captions before Summary and source references can be prepared."
+    : "已获取的字幕没有可验证的原始时间。需要带时间的字幕，才能生成摘要和出处。")).toBeNull();
 });
 
 test.each([["en", false], ["zh-CN", false], ["en", true], ["zh-CN", true]])("%s completed plain captions with retry source=%s explain missing timing without claiming work is running", async (language, hasSource) => {
