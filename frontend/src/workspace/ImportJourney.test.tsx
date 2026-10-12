@@ -146,11 +146,35 @@ it("does not duplicate a current result already shown in the import dialog", asy
   const api = nativeApi([importing("inline")]);
   const view = render(<UiLanguageProvider><NativeImportActivity modalOpen routeKey="Following" onOpen={vi.fn()} errors={errors} /></UiLanguageProvider>);
   await api.loaded();
+  act(() => window.dispatchEvent(new CustomEvent("native-imports-changed", { detail: mixedComplete("inline") })));
   await api.update([mixedComplete("inline")]);
   expect(screen.queryByRole("alert")).toBeNull();
   view.rerender(<UiLanguageProvider><NativeImportActivity routeKey="Content" onOpen={vi.fn()} errors={errors} /></UiLanguageProvider>);
   await api.update([mixedComplete("inline")]);
   expect(screen.queryByRole("region", { name: "Local imports" })).toBeNull();
+});
+
+it("shows background failure after selection in a dialog without acknowledging it early", async () => {
+  const api = nativeApi([]);
+  const view = render(<UiLanguageProvider><NativeImportActivity modalOpen routeKey="Following" onOpen={vi.fn()} errors={errors} /></UiLanguageProvider>);
+  await api.loaded();
+  const selected = { ...importing("selected"), state: "SELECTED" };
+  act(() => window.dispatchEvent(new CustomEvent("native-imports-changed", { detail: selected })));
+  await api.update([selected]);
+  await api.update([importing("selected")]);
+  await screen.findByText("Verifying imported file…");
+  view.rerender(<UiLanguageProvider><NativeImportActivity routeKey="Content" onOpen={vi.fn()} errors={errors} /></UiLanguageProvider>);
+  await api.update([{ ...mixedComplete("selected"), state: "FAILED" }]);
+  expect((await screen.findByRole("alert")).textContent).toContain("two-hour duration limit");
+});
+
+it("does not hide an unrelated background result while another Add dialog is open", async () => {
+  const api = nativeApi([importing("background")]);
+  const view = render(<UiLanguageProvider><NativeImportActivity onOpen={vi.fn()} errors={errors} /></UiLanguageProvider>);
+  await screen.findByText("Verifying imported file…");
+  view.rerender(<UiLanguageProvider><NativeImportActivity modalOpen onOpen={vi.fn()} errors={errors} /></UiLanguageProvider>);
+  await api.update([mixedComplete("background")]);
+  expect((await screen.findByRole("alert")).textContent).toContain("two-hour duration limit");
 });
 
 it("expires a terminal notice while preserving its backend history", async () => {
@@ -176,4 +200,19 @@ it("does not poll idle history, and resumes when an import event arrives", async
   vi.useRealTimers();
   await api.update([mixedComplete("history"), importing("new")]);
   expect(await screen.findByText("Verifying imported file…")).toBeTruthy();
+});
+
+it("starts the notice timeout at completion, even after a long file-selection pause", async () => {
+  const api = nativeApi([importing("delayed")]);
+  render(<UiLanguageProvider><NativeImportActivity onOpen={vi.fn()} errors={errors} /></UiLanguageProvider>);
+  await screen.findByText("Verifying imported file…");
+  vi.useFakeTimers();
+  await act(async () => { api.emit([{ ...importing("delayed"), state: "SELECTED" }]); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(16000); });
+  await act(async () => { api.emit([mixedComplete("delayed")]); });
+  expect(screen.getByRole("alert")).toBeTruthy();
+  await act(async () => { await vi.advanceTimersByTimeAsync(14000); });
+  expect(screen.getByRole("alert")).toBeTruthy();
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+  expect(screen.queryByRole("region", { name: "Local imports" })).toBeNull();
 });

@@ -24,6 +24,7 @@ export function TranscriptionSetup() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState(false);
+  const [readFailed, setReadFailed] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
   const panel = useRef<HTMLElement>(null);
@@ -41,10 +42,10 @@ export function TranscriptionSetup() {
         const result = await api<{ capability: TranscriptionCapability }>("/local/transcription/capability");
         if (disposed) return;
         if (!result.capability?.state) throw new Error("Capability unavailable");
-        setCapability(result.capability); setError(null);
+        setCapability(result.capability); setError(null); setReadFailed(false);
         if (result.capability.checking || result.capability.qualification_state === "RUNNING") timer = setTimeout(read, 2000);
       } catch {
-        if (!disposed) { setActionError(false); setError("Transcription status could not be checked. Check the local connection and try again."); }
+        if (!disposed) { setReadFailed(true); setActionError(false); setError("Transcription status could not be checked. Check the local connection and try again."); }
       }
     };
     void read();
@@ -80,10 +81,10 @@ export function TranscriptionSetup() {
     <h2 id="transcription-setup-title">{t("Local audio and video transcription")}</h2>
     <p role="status" aria-live="polite">{t(error && !capability ? error : transcriptionGuidance(capability))}</p>
     <p className="hint">{t("Importing a video saves the file. Transcript, Summary and Evidence require usable source text. You can also import an existing TXT or MD transcript; no cloud service is used for local transcription.")}</p>
-    <button className="button button-secondary" disabled={!!checking} onClick={() => void check(false)}>{t(checking ? "Checking local transcription capability…" : "Check availability")}</button>
+    <button className="button button-secondary" disabled={busy || (!!checking && !readFailed)} onClick={() => readFailed ? setRevision(value => value + 1) : void check(false)}>{t(readFailed ? "Retry status check" : checking ? "Checking local transcription capability…" : "Check availability")}</button>
     <form onSubmit={event => { event.preventDefault(); if (path.trim()) void check(true); }}>
-      <label className="field">{t("Local speech model directory")}<input value={path} maxLength={4096} autoComplete="off" placeholder={t("Choose an already provisioned local model directory")} disabled={!!checking} onChange={event => setPath(event.target.value)} /></label>
-      <button className="button button-primary" disabled={!!checking || !path.trim()}>{t("Save and check model")}</button>
+      <label className="field">{t("Local speech model directory")}<input value={path} maxLength={4096} autoComplete="off" placeholder={t("Choose an already provisioned local model directory")} disabled={!!checking || readFailed} onChange={event => setPath(event.target.value)} /></label>
+      <button className="button button-primary" disabled={!!checking || readFailed || !path.trim()}>{t("Save and check model")}</button>
     </form>
     {message && <p role="status">{t(message)}</p>}
     {error && (capability || actionError) && <p className="form-error" role={actionError ? "alert" : "status"}>{t(error)}</p>}

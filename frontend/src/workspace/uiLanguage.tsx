@@ -4,6 +4,7 @@ export type UiLanguage = "zh-CN" | "en";
 
 const storageKey = "yia.ui-language";
 const chinese: Record<string, string> = {
+  "Retry status check": "重试状态检查",
   "The local service is disconnected. Reopen Intelligence, then retry when the connection returns.": "本地服务未连接。请重新打开 Intelligence，连接恢复后点击重试。",
   "Restore completed successfully.": "备份已恢复，重启后的数据检查已通过。",
   "Choose an Intelligence ZIP backup.": "请选择 Intelligence 生成的 ZIP 备份文件。",

@@ -9,6 +9,7 @@ export type NativeFileState = {
 };
 export type NativeJob = { job_id: string; state: string; files: NativeFileState[]; error_code: string | null };
 const running = (job: NativeJob) => ["SELECTING", "IMPORTING"].includes(job.state);
+const terminalNotice = (job: NativeJob) => ["FAILED", "COMPLETE"].includes(job.state);
 const changed = (job: NativeJob) => window.dispatchEvent(new CustomEvent("native-imports-changed", { detail: job }));
 const phaseCopy: Record<string, string> = {
   SELECTED: "Ready to add", SNAPSHOTTING: "Creating local snapshot…", COPYING: "Copying local file…",
@@ -129,9 +130,9 @@ export function NativeImportActivity({ onOpen, errors, routeKey = "", modalOpen 
     let timer: ReturnType<typeof setTimeout> | undefined;
     const receive = (incoming: NativeJob[], initial = false) => {
       const visible = incoming.filter(job => {
-        if (!running(job) && ((initial && !known.current.has(job.job_id)) || modal.current)) acknowledged.current.add(job.job_id);
+        if (terminalNotice(job) && initial && !known.current.has(job.job_id)) acknowledged.current.add(job.job_id);
         known.current.add(job.job_id);
-        if (!running(job) && !expires.current.has(job.job_id)) expires.current.set(job.job_id, Date.now() + 15000);
+        if (terminalNotice(job) && !expires.current.has(job.job_id)) expires.current.set(job.job_id, Date.now() + 15000);
         return job.state === "IMPORTING" || ((job.state === "FAILED" || job.state === "COMPLETE") && !acknowledged.current.has(job.job_id));
       });
       setJobs(visible);
@@ -158,7 +159,10 @@ export function NativeImportActivity({ onOpen, errors, routeKey = "", modalOpen 
       const job = (event as CustomEvent<NativeJob>).detail;
       if (job?.job_id) {
         known.current.add(job.job_id);
-        if (!running(job) && modal.current) acknowledged.current.add(job.job_id);
+        // Only this dialog's actual terminal event acknowledges its result.
+        // SELECTED is still waiting for confirmation, and other jobs may finish
+        // while an unrelated Add dialog is open.
+        if (terminalNotice(job) && modal.current) acknowledged.current.add(job.job_id);
       }
       if (reading) queued = true;
       else void update();

@@ -63,14 +63,32 @@ it("retries a connection failure and returns to the exact Content", async () => 
   localStorage.setItem("yia.ui-language", "en");
   render(<UiLanguageProvider><TranscriptionSetup /></UiLanguageProvider>);
   await screen.findByText("Transcription status could not be checked. Check the local connection and try again.");
-  await userEvent.click(screen.getByRole("button", { name: "Check availability" }));
+  await userEvent.click(screen.getByRole("button", { name: "Retry status check" }));
   await screen.findByText(/Local transcription is ready/);
   expect(screen.getByRole("link", { name: "Back to Content" }).getAttribute("href")).toBe("#Content/local%3Acontent");
-  expect(fetch.mock.calls[1][0]).toBe("/api/v1/local/transcription/refresh");
+  expect(fetch.mock.calls[1][0]).toBe("/api/v1/local/transcription/capability");
+  expect(fetch.mock.calls.every(([, options]) => !options?.method)).toBe(true);
 });
 it("prevents model changes during a live check", async () => {
   view({ ...available, qualification_state: "RUNNING", production_eligible: false });
   await screen.findByText(/Speech quality verification is in progress/);
   expect(screen.getByRole("button", { name: "Save and check model" }).hasAttribute("disabled")).toBe(true);
   expect(screen.getByLabelText("Local speech model directory").hasAttribute("disabled")).toBe(true);
+});
+
+it("can retry status after a live check loses connection without changing its model", async () => {
+  localStorage.setItem("yia.ui-language", "en");
+  const fetch = vi.fn()
+    .mockResolvedValueOnce({ ok: true, json: async () => ({ capability: { ...available, checking: true, production_eligible: false } }) })
+    .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+    .mockResolvedValue({ ok: true, json: async () => ({ capability: available }) });
+  vi.stubGlobal("fetch", fetch);
+  render(<UiLanguageProvider><TranscriptionSetup /></UiLanguageProvider>);
+  await screen.findByText("Transcription status could not be checked. Check the local connection and try again.", {}, { timeout: 3000 });
+  expect(screen.getByLabelText("Local speech model directory").hasAttribute("disabled")).toBe(true);
+  const retry = screen.getByRole("button", { name: "Retry status check" });
+  expect(retry.hasAttribute("disabled")).toBe(false);
+  await userEvent.click(retry);
+  await screen.findByText(/Local transcription is ready/);
+  expect(fetch.mock.calls.every(([, options]) => !options?.method)).toBe(true);
 });
