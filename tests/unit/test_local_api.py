@@ -135,6 +135,47 @@ def test_safe_source_write_and_read_do_not_start_check(tmp_path: Path) -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("transcript_status", "error_code", "expected_status", "retry_allowed"),
+    [
+        (JobStatus.RETRY_PENDING, "RATE_LIMITED", "RETRY_REQUIRED", True),
+        (JobStatus.PENDING, None, "READING_CAPTIONS", True),
+        (JobStatus.RUNNING, None, "READING_CAPTIONS", True),
+        (JobStatus.FAILED_FINAL, "CAPABILITY_UNAVAILABLE", "FAILED", False),
+    ],
+)
+def test_metadata_completion_does_not_hide_unfinished_caption_work(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    transcript_status: JobStatus, error_code: str | None,
+    expected_status: str, retry_allowed: bool,
+) -> None:
+    from youtube_intel.domain import ProcessingStage
+
+    app = _app(tmp_path)
+    _record_video(app, "abcdefghijk")
+    app.handle("POST", "/api/v1/sources", json.dumps({
+        "url": "https://youtu.be/abcdefghijk", "processing_policy": "DISCOVER_ONLY",
+    }).encode())
+    available_at = datetime(2026, 9, 1, 1, tzinfo=UTC)
+    metadata = SimpleNamespace(status=JobStatus.SUCCEEDED,
+        target_stage=ProcessingStage.METADATA, available_at=available_at,
+        last_error_code=None)
+    transcript = SimpleNamespace(status=transcript_status,
+        target_stage=ProcessingStage.TRANSCRIPT, available_at=available_at,
+        last_error_code=error_code)
+    monkeypatch.setattr(app._repository, "latest_video_job",
+        lambda _id, *, target_stage=None: transcript
+        if target_stage is ProcessingStage.TRANSCRIPT else metadata)
+
+    status, detail = app.handle("GET", "/api/v1/videos/abcdefghijk")
+    assert status == 200
+    assert detail["video"]["processing_status"] == expected_status
+    assert detail["video"]["processing_job"]["stage"] == "TRANSCRIPT"
+    assert detail["video"]["processing_job"]["error_code"] == error_code
+    assert detail["video"]["retry_allowed"] is retry_allowed
+    assert detail["video"]["source_id"]
+
+
 def test_safe_provider_projection_reports_bounded_local_authority(tmp_path: Path) -> None:
     status, payload = _app(tmp_path).handle("GET", "/api/v1/settings")
     assert status == 200

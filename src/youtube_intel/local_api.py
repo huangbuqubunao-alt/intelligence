@@ -1904,6 +1904,14 @@ class LocalApiApplication:
             if retry_sources:
                 projection["source_id"] = retry_sources[0].source_id
             job = self._repository.latest_video_job(video.video_id)
+            # Metadata can finish after the caption attempt. Its success must
+            # not hide the still-unfinished caption stage or its retry action.
+            if job is not None and job.status is JobStatus.SUCCEEDED and job.target_stage is ProcessingStage.METADATA:
+                caption_job = self._repository.latest_video_job(
+                    video.video_id, target_stage=ProcessingStage.TRANSCRIPT
+                )
+                if caption_job is not None and caption_job.status is not JobStatus.SUCCEEDED:
+                    job = caption_job
             projection["processing_job"] = None if job is None else {"status": job.status.value, "stage": job.target_stage.value if job.target_stage is not None else None, "retry_at": _timestamp(job.available_at), "error_code": job.last_error_code}
             projection["retry_allowed"] = not (job is not None and job.status.value == "FAILED_FINAL" and job.last_error_code in {"CAPABILITY_UNAVAILABLE", "TRUST_INTEGRITY_INVALID"})
             if job is not None and job.status.value in {"PENDING", "RUNNING", "RETRY_PENDING", "FAILED_FINAL"}:
