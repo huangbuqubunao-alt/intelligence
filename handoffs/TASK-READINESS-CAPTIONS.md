@@ -118,3 +118,56 @@ test hiding or unrelated refactor is in the commit.
   timed-transcript/Evidence helper bodies changed. A previous receipt must not be
   assumed current if it binds those bodies. No receipt was altered here.
 - Reviewer verdict, root acceptance and integration: PENDING.
+
+## Independent P1 rejection and scoped follow-up
+
+The independent reviewer rejected the initial implementation with a reproducible
+P1: an ordinary `ExtractiveSummaryService.create` Exception after the atomic caption
+transaction left trusted timing/Evidence and a successful child, but no Summary.
+The settled Source Run was NEEDS_ATTENTION while Content projected TRANSCRIPT_READY;
+the UI displayed organizing indefinitely and offered no Summary recovery action.
+The initial ready-for-review statement does not constitute acceptance.
+
+Follow-up implementation: `14ab316b64aa9491ced852045a8d9fbffb612acd`.
+It changes only the API projection, small English/Chinese guidance and regressions.
+No atomic state, Schema, lease, Source Run transition or Summary writer rule changes.
+For a settled latest enabled one-time DISCOVER_ONLY Source Run needing attention,
+a successful current Content job and verified timing with no Summary now project
+RETRY_REQUIRED plus additive `summary_preparation_status=NEEDS_ATTENTION`. Active
+QUEUED/RUNNING Source Runs continue to project WAITING and remain Backup-blocking.
+The ordinary source-check command reaches the existing Summary service; it does
+not refetch or rerun the successful subtitle repair or dispatch a model.
+
+New regressions use normal POST/check, worker and GET/detail, with an ordinary
+Exception injected only at Summary creation after the actual transaction commits.
+Both same-process and freshly rebuilt-runtime recovery prove: timing/Evidence
+retained; immutable original job/artifact and repair child unchanged; old failed
+Source Run unchanged; all provider-call rows byte-for-byte unchanged; no extra
+body read or caption child; live retry WAITING/Backup blocked; final Summary pointer,
+ORGANIZED Content and true readiness. Frontend tests cover the settled retry and
+normal accepted-work polling plus both localized explanations without a false
+missing-caption warning.
+
+Measured follow-up checks:
+
+- Red backend reproduction: **2 failed**, key assertion
+  `TRANSCRIPT_READY != RETRY_REQUIRED`, line 1038 in the runtime integration test.
+  Preserved `.var/readiness-captions/summary-retry-red.txt`.
+- Red frontend reproduction: **1 failed**, expected Summary recovery explanation
+  absent, preserved `summary-ui-red.txt`.
+- Green same-process/restarted backend reproduction: **2 passed**,
+  `summary-retry-green-final.txt`; frontend recovery polling regression **1 passed**,
+  `summary-ui-green.txt`.
+- Expanded backend commands listed above after follow-up: **364 passed**, one
+  existing duplicate ZIP fixture warning, 88.50 seconds; `summary-fix-backend.txt`.
+- Complete frontend: **346 passed, 22 files**, `summary-fix-frontend-all.txt`.
+- TypeScript and production build PASS; `summary-fix-typecheck.txt`,
+  `summary-fix-build.txt`.
+- Ruff and strict mypy on the changed four-source/three-test scope PASS;
+  `summary-fix-ruff.txt`, `summary-fix-mypy.txt`. Final API-only guard retains the
+  prior no-source fast path; its Ruff/mypy and fresh API/runtime check passed.
+- `git diff --check` PASS. No tests skipped in the complete frontend or expanded
+  backend run; targeted `-k` runs are identified as targeted, not full regression.
+
+Independent rereview and root live GUI acceptance remain required. No candidate
+commit was merged or adopted by this implementer.
