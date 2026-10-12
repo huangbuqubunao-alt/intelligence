@@ -125,12 +125,16 @@ def test_local_distillation_is_exact_digest_loopback_and_structured(
                 "NO_NEW_INTELLIGENCE"
             ]
             prompt = outbound["messages"][0]["content"]
+            assert [message["role"] for message in outbound["messages"]] == ["system", "user"]
             assert "in en" in prompt
             assert "Admission is a threshold, not a quota" in prompt
             assert "attribute it and do not present it as established fact" in prompt
             assert "cite only relevant supplied Evidence" in prompt
             assert "every supplied Evidence ID and timestamp once" in prompt
-            assert '"source_display_name":"Public source"' in prompt
+            context = json.loads(outbound["messages"][1]["content"])
+            assert context["source_display_name"] == "Public source"
+            assert context["evidence"][0]["excerpt"] == _input().evidence[0].excerpt
+            assert _input().evidence[0].excerpt not in prompt
             assert "source speaker is not the personal user" in prompt
             assert "Preserve uncertainty" in prompt
             assert "Do not repeat retained claims in filtered_noise" in prompt
