@@ -27,7 +27,7 @@ a { color: #0e7a4f; }
 <body>
 <h1 id="intelligence-用户使用手册">Intelligence 用户使用手册</h1>
 <blockquote>简体中文 · 面向完全不懂编程的普通用户</blockquote>
-<blockquote>版本：0.1.0 · macOS · 2026-10-11</blockquote>
+<blockquote>版本：0.1.0 · macOS · 2026-10-12</blockquote>
 <blockquote>图示来自实际产品界面；部分未变化页面沿用上一版图示。请留意页面上真实的处理状态。</blockquote>
 <hr/>
 <h2 id="目录">目录</h2>
@@ -53,7 +53,7 @@ a { color: #0e7a4f; }
 <p><strong>Intelligence 是一个&quot;本地优先&quot;的个人智能知识工作台</strong>。它帮助你：</p>
 <ul>
 <li><strong>持续关注</strong>你感兴趣的信息来源（如 YouTube 频道）；</li>
-<li><strong>采集内容</strong>（视频、字幕、本地文件），自动<strong>转写、摘要</strong>并保留<strong>证据</strong>；</li>
+<li><strong>采集内容</strong>（视频、字幕、本地文件）；有可用原文时整理摘要与证据，本地音视频转写还需具备合格语音模型；</li>
 <li>从内容中<strong>提炼长期有价值的洞察</strong>；</li>
 <li>围绕主题<strong>持续积累和演化认知</strong>。</li>
 </ul>
@@ -169,10 +169,13 @@ a { color: #0e7a4f; }
 <p><strong>导入后的状态</strong>：</p>
 <ul>
 <li><strong>文本文件</strong>（TXT/MD）：直接整理为内容，可阅读原文。</li>
-<li><strong>音频/视频文件</strong>：显示&quot;待转写&quot;，应用会尝试使用本地转写能力生成字幕。打开该内容的详情页可以看到转写进度。</li>
+<li><strong>音频/视频文件</strong>：先保存独立文件快照。打开详情查看转写准备情况；没有合格语音模型时不会生成字幕、摘要或假洞察。</li>
 </ul>
 <figure><img src="../../dogfood/opencode-user-pilot/screenshots/36-audio-detail.png" alt="音频详情页"/><figcaption>音频详情页</figcaption></figure>
-<blockquote>注意：本地转写依赖一个约 1.6 GB 的语音识别模型。如果模型尚未配置，音频/视频会保持&quot;待转写&quot;状态，页面会如实说明&quot;正在检查本地转写能力&quot;与原因，不会假装已经转写成功。</blockquote>
+<p><strong>一批文件可以有不同结果</strong>：超过两小时的媒体会显示失败原因；同批次其他有效文件仍能保存。查看当次结果后可打开成功的内容。历史失败不会一直出现在关注或内容页；后台完成提示可点击 <strong>关闭导入提示</strong>，也会自动消失。切换页面会清掉已结束任务的提示，仍在运行的导入保持可见，历史记录与原文件不删除。</p>
+<figure><img src="../user-journey-remediation/screenshots/mixed-import.png" alt="真实混合批次：短视频保存，超长媒体拒绝"/><figcaption>真实混合批次：短视频保存，超长媒体拒绝</figcaption></figure>
+<p><strong>“本地转写暂不可用”需要看具体原因</strong>，不是导入失败。当前验收机器的语音运行组件和媒体工具可用，但没有配置合格语音模型。点击 <strong>设置本地转写</strong> 查看下一步。跳过首次设置后，导入对话框和内容详情仍保留该入口。</p>
+<figure><img src="../user-journey-remediation/screenshots/video-transcription.png" alt="视频详情中的原因与设置入口"/><figcaption>视频详情中的原因与设置入口</figcaption></figure>
 <p><strong>大文件</strong>：导入有明确的大小上限（文本与媒体文件各有上限），超过限制会拒绝并提示。</p>
 <hr/>
 <h2 id="7-查看-content内容">7. 查看 Content（内容）</h2>
@@ -188,6 +191,7 @@ a { color: #0e7a4f; }
 <tr><td>处理中</td><td>正在获取字幕或生成摘要</td></tr>
 </table>
 <p><strong>打开详情</strong>：点击任意内容条目，进入详情页。</p>
+<p>详情地址会包含该内容标识。刷新、浏览器后退和前进都保留对应位置；点击 <strong>返回内容</strong> 回到列表。</p>
 <figure><img src="screenshots/21-content-detail.png" alt="内容详情"/><figcaption>内容详情</figcaption></figure>
 <p>详情页包含：视频信息（标题、频道、发布时间）、<strong>打开原始来源</strong> 链接、<strong>关注此频道</strong> 快捷入口、<strong>原始字幕</strong>、<strong>来源位置/溯源信息</strong>（证据）等。</p>
 <hr/>
@@ -271,6 +275,16 @@ a { color: #0e7a4f; }
 <p><strong>在设置页的&quot;模型与处理准备&quot;中展开&quot;云端配置与模型详情&quot;</strong>，可以看到模型连接状态与可用模型列表（只读）。</p>
 <blockquote>提示：安装本地模型需要一定的技术准备（安装 Ollama 并拉取指定模型）。未配置模型时仍可导入和阅读原文；是否能生成摘要取决于内容与页面显示的处理方式。</blockquote>
 <hr/>
+<h3 id="本地音视频的语音模型">本地音视频的语音模型</h3>
+<p>语音转写模型与上面的 Ollama 评分/摘要模型是两种能力。“本地模型已安装”不能证明语音转写可用。</p>
+<p>1. 首次使用的处理说明页，或者导入对话框/视频详情，点击 <strong>设置本地转写</strong>。</p>
+<p>2. 在 <strong>设置 → 本地音视频转写</strong> 查看原因。点击 <strong>检查可用性</strong> 可重新检测当前环境。</p>
+<p>3. 如果你已经有应用兼容的 MLX Whisper 模型，输入其文件夹的完整路径。文件夹需包含 <code>config.json</code> 和模型权重；点击 <strong>保存并检查模型</strong>。应用不会自动安装运行环境或下载模型。</p>
+<p>4. 保存路径只记录选择，不代表模型通过质量验证。未测试、验证失败或验证结果过期时仍不能启动转写，配置不会解除限制。等页面明确显示转写已就绪后，再返回已导入的音视频，点击 <strong>开始转写</strong>。</p>
+<p>5. 从内容详情进入设置时，点击 <strong>返回内容</strong> 回到原文件。路径错误会显示可改正的提示并保留输入；有检查或转写在运行时不能修改模型。</p>
+<figure><img src="../user-journey-remediation/screenshots/transcription-setup.png" alt="真实 macOS 界面的语音转写设置与诊断"/><figcaption>真实 macOS 界面的语音转写设置与诊断</figcaption></figure>
+<p><strong>尚无合格语音模型时可以继续做什么</strong>：保留已导入音视频，先导入自己已有的 UTF-8 TXT/MD 转录文本，直接阅读来源文本、摘要摘录与 Evidence。系统不会自动改用付费云模型。当前版本没有面向普通用户的一键安装及质量验证流程，因此仅填写目录无法保证转写可用；没有兼容且已通过验证的模型时需要应用维护者先完成资格验证。</p>
+<figure><img src="../user-journey-remediation/screenshots/text-evidence.png" alt="TXT 资料的来源文本、摘要与证据"/><figcaption>TXT 资料的来源文本、摘要与证据</figcaption></figure>
 <h2 id="13-配置云端模型">13. 配置云端模型</h2>
 <p>云端模型是<strong>可选</strong>能力，用于更高质量的洞察提炼。</p>
 <p><strong>在设置页的&quot;洞察&quot;区域</strong>，当前状态会明确说明：</p>
@@ -288,6 +302,7 @@ a { color: #0e7a4f; }
 <hr/>
 <h2 id="14-修改语言">14. 修改语言</h2>
 <p>可以修改<strong>界面语言</strong>与<strong>生成内容的语言</strong>（中文或英文）。</p>
+<p>编辑后点击 <strong>保存语言</strong> 才应用；点击 <strong>取消</strong> 保留当前语言，未保存的选择不会写入设置。</p>
 <p><strong>操作步骤</strong>：</p>
 <p>1. 打开 <strong>设置</strong> 页面，找到 <strong>语言</strong> 区域。</p>
 <p>2. 点击 <strong>编辑语言</strong>。</p>

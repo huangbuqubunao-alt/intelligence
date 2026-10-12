@@ -1,0 +1,347 @@
+{
+  "baseline": "fa906148aef506bb19ae7036d2309f3cdd7b47ca",
+  "code_head": "47b4eb2234f955411131f61eee4cff7bf0618fc7",
+  "environment": "isolated macOS; API 5889, frontend 5888; no owner data or credentials",
+  "steps": [
+    {
+      "name": "首次使用：三步、返回、跳过前的转写设置入口",
+      "result": "PASS"
+    },
+    {
+      "name": "设置：缺模型明确原因、能力重查和输入错误恢复",
+      "result": "PASS"
+    },
+    {
+      "name": "本地导入：原生选择前可设置转写；退出不创建内容",
+      "result": "PASS"
+    },
+    {
+      "name": "本地导入：原生文件选择取消可退出",
+      "result": "PASS"
+    },
+    {
+      "name": "本地导入：混合超时与成功真实批次逐项反馈",
+      "result": "FAIL",
+      "error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n0 !== 1\n"
+    },
+    {
+      "name": "混合批次：原生列表多选、超过两小时拒绝且短视频成功保存",
+      "result": "FAIL",
+      "error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n0 !== 1\n"
+    },
+    {
+      "name": "原生混合批次已解决多选：短视频成功，超两小时逐项拒绝",
+      "result": "PASS"
+    },
+    {
+      "name": "成功内容打开、缺模型原因、跨页与刷新不再显示历史导入错误",
+      "result": "PASS"
+    },
+    {
+      "name": "TXT/MD 导入真实成功：来源文本、摘要、Evidence、语言切换、深链接刷新",
+      "result": "FAIL",
+      "error": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n\n2 !== 1\n"
+    },
+    {
+      "name": "文本阅读、原文/双语、深度分析门禁、刷新与返回",
+      "result": "FAIL",
+      "error": "TimeoutError: locator.waitFor: Timeout 8000ms exceeded.\nCall log:\n  - waiting for getByRole('heading', { name: 'source-note.txt', exact: true }) to be visible\n"
+    },
+    {
+      "name": "Research：问题与范围验证、真实文本证据包、重做、历史",
+      "result": "FAIL",
+      "error": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:\n\n  assert.ok(await page.getByRole('button',{name:'收集资料库证据包',exact:true}).isDisabled())\n"
+    },
+    {
+      "name": "Research：空问题提示与真实文本证据包",
+      "result": "FAIL",
+      "error": "TimeoutError: locator.waitFor: Timeout 8000ms exceeded.\nCall log:\n  - waiting for getByRole('heading', { name: '当前研究版本', exact: true }) to be visible\n"
+    },
+    {
+      "name": "真实 Research：三条证据、来源回跳、返回研究、刷新与重做",
+      "result": "PASS"
+    },
+    {
+      "name": "添加来源：无效链接即时反馈，可改正并继续",
+      "result": "PASS"
+    },
+    {
+      "name": "公开视频真实字幕处理、提炼进入 WAITING_MODEL，备份按状态阻塞",
+      "result": "PASS"
+    },
+    {
+      "name": "取消提炼保留全部历史与 DATA，刷新不复活，备份重新可用",
+      "result": "PASS"
+    },
+    {
+      "name": "设置：语言取消不保存、兴趣保存与取消、真实备份下载",
+      "result": "PASS"
+    },
+    {
+      "name": "恢复：错误扩展名被拒绝、有效预览可取消、确认需明确输入",
+      "result": "PASS"
+    },
+    {
+      "name": "真实恢复+重启：全表、所有 DATA 哈希与备份一致；取消任务不复活",
+      "result": "PASS"
+    },
+    {
+      "name": "内容列表路由修复：详情 URL、刷新、浏览器后退前进及返回列表",
+      "result": "PASS"
+    },
+    {
+      "name": "真实频道：保留网络失败原因、暂停和恢复不导入历史",
+      "result": "FAIL",
+      "error": "TimeoutError: locator.waitFor: Timeout 8000ms exceeded.\nCall log:\n  - waiting for getByRole('button', { name: '恢复监测', exact: true }) to be visible\n"
+    },
+    {
+      "name": "频道暂停后继续关注可恢复，冷却状态与历史保护保持",
+      "result": "PASS"
+    },
+    {
+      "name": "损坏 ZIP：错误反馈保留、中文显示、成功状态刷新不清掉错误",
+      "result": "PASS"
+    },
+    {
+      "name": "双语设置保存：英文生效、刷新保持、转写指导完整",
+      "result": "PASS"
+    },
+    {
+      "name": "四种屏宽与六导航：页面可达、无横向溢出、无历史导入警报",
+      "result": "PASS"
+    },
+    {
+      "name": "中文四种屏宽和六导航：无溢出，转写设置与内容原文可阅读",
+      "result": "PASS"
+    },
+    {
+      "name": "实际断网反馈及重试恢复：没有生造数据或错误结束任务",
+      "result": "PASS"
+    },
+    {
+      "name": "最终候选 macOS 可见 GUI：视频不可用原因→设置→返回详情→刷新保留",
+      "result": "PASS",
+      "headless": false
+    },
+    {
+      "name": "最终候选可见 macOS GUI：备份→预览→RESTORE→重启，全表与 DATA 完全一致",
+      "result": "PASS",
+      "headless": false
+    },
+    {
+      "name": "macOS GUI 受控连接故障：检查中断后 GET 重试恢复，模型操作保持关闭（真实资格未伪造）",
+      "result": "PASS",
+      "headless": false,
+      "fixture": "checking flag plus one transport abort; final response from real service"
+    }
+  ],
+  "page_errors": [],
+  "request_counts": {
+    "POST /api/v1/local/native/jobs": 652,
+    "POST /api/v1/local/transcription/refresh": 1,
+    "PUT /api/v1/local/transcription/model": 2,
+    "POST /api/v1/sources/check-stale": 17,
+    "POST /api/v1/local/native/picks": 5,
+    "POST /api/v1/local/native/picks/<grant>": 632,
+    "POST /api/v1/local/native/picks/<grant>/cancel": 3,
+    "POST /api/v1/local/native/picks/<grant>/confirm": 1,
+    "POST /api/v1/research": 2,
+    "POST /api/v1/sources/import": 1,
+    "POST /api/v1/videos/aircAruvnKk/intelligence": 1,
+    "POST /api/v1/videos/aircAruvnKk/intelligence/cancel": 1,
+    "PUT /api/v1/settings/source-policy": 1,
+    "POST /api/v1/backup-restore/backups": 1,
+    "POST /api/v1/backup-restore/restore/stage": 4,
+    "POST /api/v1/backup-restore/restore/cancel": 1,
+    "PUT /api/v1/settings/output-language": 3,
+    "POST /api/v1/backup-restore/restore/confirm": 1,
+    "POST /api/v1/sources/channels": 1,
+    "PATCH /api/v1/sources/youtube-channel-UCYO_jab_esuFRV4b17AJtAw": 2
+  },
+  "background_final": {
+    "head": "47b4eb2234f955411131f61eee4cff7bf0618fc7",
+    "headful": true,
+    "nativePicker": true,
+    "backgroundCompletionNotice": true,
+    "automaticExpiry": true,
+    "navigateNoRepeat": true,
+    "reloadNoRepeat": true,
+    "dismissThisRun": "notice expired before corrected selector; earlier mixed-batch GUI tested dismissal",
+    "selectorCorrection": "关闭通知 -> 关闭导入提示"
+  },
+  "manual_images": [
+    {
+      "src": "screenshots/01-first-open.png",
+      "ok": true
+    },
+    {
+      "src": "screenshots/02-onboarding.png",
+      "ok": true
+    },
+    {
+      "src": "screenshots/03-onboarding.png",
+      "ok": true
+    },
+    {
+      "src": "../../dogfood/opencode-user-pilot/screenshots/04-after-onboarding.png",
+      "ok": true
+    },
+    {
+      "src": "../../dogfood/opencode-user-pilot/screenshots/06-following-empty.png",
+      "ok": true
+    },
+    {
+      "src": "../../dogfood/opencode-user-pilot/screenshots/07-add-source-dialog.png",
+      "ok": true
+    },
+    {
+      "src": "screenshots/16-youtube-video-dialog.png",
+      "ok": true
+    },
+    {
+      "src": "screenshots/17-youtube-video-success.png",
+      "ok": true
+    },
+    {
+      "src": "screenshots/16-youtube-channel-dialog.png",
+      "ok": true
+    },
+    {
+      "src": "screenshots/17-following-current.png",
+      "ok": true
+    },
+    {
+      "src": "screenshots/18-following-paused.png",
+      "ok": true
+    },
+    {
+      "src": "screenshots/19-following-resumed.png",
+      "ok": true
+    },
+    {
+      "src": "screenshots/04-native-selected.png",
+      "ok": true
+    },
+    {
+      "src": "screenshots/07-real-appkit-picker.png",
+      "ok": true
+    },
+    {
+      "src": "../../dogfood/opencode-user-pilot/screenshots/36-audio-detail.png",
+      "ok": true
+    },
+    {
+      "src": "../user-journey-remediation/screenshots/mixed-import.png",
+      "ok": true
+    },
+    {
+      "src": "../user-journey-remediation/screenshots/video-transcription.png",
+      "ok": true
+    },
+    {
+      "src": "screenshots/20-content-list.png",
+      "ok": true
+    },
+    {
+      "src": "screenshots/21-content-detail.png",
+      "ok": true
+    },
+    {
+      "src": "../../dogfood/opencode-user-pilot/screenshots/47-content-detail-summary.png",
+      "ok": true
+    },
+    {
+      "src": "screenshots/21-content-detail.png",
+      "ok": true
+    },
+    {
+      "src": "screenshots/22-content-summary.png",
+      "ok": true
+    },
+    {
+      "src": "../../dogfood/opencode-user-pilot/screenshots/36-audio-detail.png",
+      "ok": true
+    },
+    {
+      "src": "../../dogfood/opencode-user-pilot/screenshots/46-content-detail-full.png",
+      "ok": true
+    },
+    {
+      "src": "../waiting-model-final-fix/final-gui/screenshots/03c-waiting-model-panel.png",
+      "ok": true
+    },
+    {
+      "src": "../waiting-model-final-fix/final-gui/screenshots/05c-cancelled-panel.png",
+      "ok": true
+    },
+    {
+      "src": "../../dogfood/opencode-user-pilot/screenshots/20-intelligence-empty.png",
+      "ok": true
+    },
+    {
+      "src": "screenshots/25-topics-empty.png",
+      "ok": true
+    },
+    {
+      "src": "screenshots/10-settings-ready-zh.png",
+      "ok": true
+    },
+    {
+      "src": "../user-journey-remediation/screenshots/transcription-setup.png",
+      "ok": true
+    },
+    {
+      "src": "../user-journey-remediation/screenshots/text-evidence.png",
+      "ok": true
+    },
+    {
+      "src": "screenshots/11-settings-en.png",
+      "ok": true
+    },
+    {
+      "src": "../../dogfood/opencode-user-pilot/screenshots/41-language-english-draft.png",
+      "ok": true
+    },
+    {
+      "src": "screenshots/11-settings-en.png",
+      "ok": true
+    },
+    {
+      "src": "screenshots/10-settings-ready-zh.png",
+      "ok": true
+    },
+    {
+      "src": "screenshots/10-settings-ready-zh.png",
+      "ok": true
+    },
+    {
+      "src": "screenshots/12-backup-created.png",
+      "ok": true
+    },
+    {
+      "src": "screenshots/13-restore-preview.png",
+      "ok": true
+    },
+    {
+      "src": "screenshots/14-restore-confirm.png",
+      "ok": true
+    },
+    {
+      "src": "../waiting-model-final-fix/final-gui/screenshots/04-backup-blocked.png",
+      "ok": true
+    },
+    {
+      "src": "../waiting-model-final-fix/final-gui/screenshots/06-backup-ready.png",
+      "ok": true
+    },
+    {
+      "src": "../waiting-model-final-fix/final-gui/screenshots/07-backup-created.png",
+      "ok": true
+    },
+    {
+      "src": "../waiting-model-final-fix/final-gui/screenshots/10c-restored-cancelled-panel.png",
+      "ok": true
+    }
+  ],
+  "failure_interpretation": "FAIL entries preserve harness attempts. Multi-select / selectors were corrected; Content route loss exposed a real defect and was fixed. Earlier failed attempts are not presented as passing model qualification."
+}

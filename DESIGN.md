@@ -50,6 +50,22 @@ horizontal overflow. Buttons use existing sizes and spacing.
 
 ## Interaction and accessibility
 
+Local import failures and completion are notices for the current operation.
+Do not replay terminal job history when loading the workspace. Results shown in
+the import dialog are not duplicated above every page. A background completion
+can be dismissed and expires after 15 seconds; navigation clears terminal
+notices while genuine active imports stay visible. Acknowledging a notice never
+cancels a job or deletes its history.
+
+Introduce speech readiness during onboarding and before local import. Blocked
+audio/video Content links to Settings → local transcription and back to the
+same Content. Explain runtime, missing model and acoustic verification separately.
+Only the backend's production eligibility permits transcription. Saving a model
+directory is a configuration action, never proof that transcription is usable.
+Status refreshes must not erase operation failures before the user can read them.
+Content list and detail use the canonical URL so refresh and browser history
+preserve the reading location.
+
 Use native buttons, labeled inputs and a keyboard-accessible details disclosure.
 A polite live status announces transcription changes. Preserve source text,
 Summary and Evidence reading order. Poll sequentially only during capability

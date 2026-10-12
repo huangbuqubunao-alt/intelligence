@@ -1,0 +1,41 @@
+{
+  "cancel": {
+    "changed_tables": [
+      "distillation_waiting_model_cancellations"
+    ],
+    "all_other_tables_equal": true,
+    "files_equal": true,
+    "cancellation_rows_before": 0,
+    "cancellation_rows_after": 1
+  },
+  "restore": [
+    {
+      "before": "backup-state.json",
+      "after": "restored-state.json",
+      "all_tables_and_files_equal": true,
+      "tables": 71,
+      "files": 10,
+      "integrity": "ok",
+      "before_sha256": "3257da3211cff8cfa72f9755636de78b2017f72c5a34e141fff665122c53cb27",
+      "after_sha256": "3257da3211cff8cfa72f9755636de78b2017f72c5a34e141fff665122c53cb27"
+    },
+    {
+      "before": "macos-before-restore.json",
+      "after": "macos-after-restore.json",
+      "all_tables_and_files_equal": true,
+      "tables": 71,
+      "files": 10,
+      "integrity": "ok",
+      "before_sha256": "5d7282e75c8e2c8de34492d4b19f6f741cdaaba4120468f9c89dfefb919b2451",
+      "after_sha256": "5d7282e75c8e2c8de34492d4b19f6f741cdaaba4120468f9c89dfefb919b2451"
+    }
+  ],
+  "d2_02_unchanged": {
+    "src/youtube_intel/native_import.py": "949b51a8d255d8c10e641ee59ed3465b4a247ab21f87e17724f5adf2e65e048b",
+    "src/youtube_intel/local_content.py": "136195242ab8c2e9240e7e4f8ac63d2de21b7564b8f8fa71e0d2edc1b98ab85b",
+    "src/youtube_intel/native_picker.m": "d06b77d6092c7a3ffeaac750bfd912c5e11ab5adb90ff88b4d8be331bfd1416b",
+    "src/youtube_intel/native_picker_build.py": "e5c93bb8aa86f3ecf4cbfe580fd0267825f613bc759140fc82d45d337e178859",
+    "docs/validation/dogfood-day2-d2-02/actual-native-media.json": "90be4f86130ccbca3860593d118021ab3f0569c6e10d97be378ad84a08ee57c7",
+    "docs/validation/dogfood-day2-d2-02/browser-native-import.json": "3a02371cb463bc8cb6b477cda57d54c5ca56fa6260a3754c080f764ea011429e"
+  }
+}

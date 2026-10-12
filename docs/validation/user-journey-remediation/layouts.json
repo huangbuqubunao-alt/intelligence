@@ -1,0 +1,146 @@
+[
+  {
+    "width": 320,
+    "page": "Home",
+    "client": 320,
+    "scroll": 320
+  },
+  {
+    "width": 320,
+    "page": "Following",
+    "client": 320,
+    "scroll": 320
+  },
+  {
+    "width": 320,
+    "page": "Content",
+    "client": 320,
+    "scroll": 320
+  },
+  {
+    "width": 320,
+    "page": "Intelligence",
+    "client": 320,
+    "scroll": 320
+  },
+  {
+    "width": 320,
+    "page": "Topics",
+    "client": 320,
+    "scroll": 320
+  },
+  {
+    "width": 320,
+    "page": "Settings",
+    "client": 320,
+    "scroll": 320
+  },
+  {
+    "width": 768,
+    "page": "Home",
+    "client": 768,
+    "scroll": 768
+  },
+  {
+    "width": 768,
+    "page": "Following",
+    "client": 768,
+    "scroll": 768
+  },
+  {
+    "width": 768,
+    "page": "Content",
+    "client": 768,
+    "scroll": 768
+  },
+  {
+    "width": 768,
+    "page": "Intelligence",
+    "client": 768,
+    "scroll": 768
+  },
+  {
+    "width": 768,
+    "page": "Topics",
+    "client": 768,
+    "scroll": 768
+  },
+  {
+    "width": 768,
+    "page": "Settings",
+    "client": 768,
+    "scroll": 768
+  },
+  {
+    "width": 1024,
+    "page": "Home",
+    "client": 1024,
+    "scroll": 1024
+  },
+  {
+    "width": 1024,
+    "page": "Following",
+    "client": 1024,
+    "scroll": 1024
+  },
+  {
+    "width": 1024,
+    "page": "Content",
+    "client": 1024,
+    "scroll": 1024
+  },
+  {
+    "width": 1024,
+    "page": "Intelligence",
+    "client": 1024,
+    "scroll": 1024
+  },
+  {
+    "width": 1024,
+    "page": "Topics",
+    "client": 1024,
+    "scroll": 1024
+  },
+  {
+    "width": 1024,
+    "page": "Settings",
+    "client": 1024,
+    "scroll": 1024
+  },
+  {
+    "width": 1440,
+    "page": "Home",
+    "client": 1440,
+    "scroll": 1440
+  },
+  {
+    "width": 1440,
+    "page": "Following",
+    "client": 1440,
+    "scroll": 1440
+  },
+  {
+    "width": 1440,
+    "page": "Content",
+    "client": 1440,
+    "scroll": 1440
+  },
+  {
+    "width": 1440,
+    "page": "Intelligence",
+    "client": 1440,
+    "scroll": 1440
+  },
+  {
+    "width": 1440,
+    "page": "Topics",
+    "client": 1440,
+    "scroll": 1440
+  },
+  {
+    "width": 1440,
+    "page": "Settings",
+    "client": 1440,
+    "scroll": 1440
+  }
+]
