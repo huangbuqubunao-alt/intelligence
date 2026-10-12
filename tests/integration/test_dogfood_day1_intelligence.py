@@ -118,7 +118,9 @@ def test_optional_automatic_analysis_never_blocks_real_content(tmp_path, monkeyp
 
 
 @pytest.mark.parametrize("retryable", [True, False])
-def test_one_time_content_failure_is_visible_and_explicit_retry_recovers(tmp_path, monkeypatch, retryable):
+@pytest.mark.parametrize("recovered_elsewhere", [True, False])
+@pytest.mark.parametrize("metadata_finished_later", [True, False])
+def test_one_time_content_failure_is_visible_and_explicit_retry_recovers(tmp_path, monkeypatch, retryable, recovered_elsewhere, metadata_finished_later):
     from youtube_intel.config import load_app_config
     from youtube_intel.domain import AppError, ErrorCode
     from youtube_intel.runtime import RuntimeDependencies, RuntimeOperations
@@ -142,6 +144,19 @@ def test_one_time_content_failure_is_visible_and_explicit_retry_recovers(tmp_pat
         dependencies=RuntimeDependencies(discovery_source=support._DiscoverySource(), metadata_provider=support._MetadataProvider(), subtitle_adapter_factory=Failed, scoring_provider_factory=denied, analysis_provider_factory=denied, quality_judge_provider_factory=denied),
     )
     repo = runtime._repository
+    if metadata_finished_later:
+        from youtube_intel.domain import ProcessingStage
+
+        latest = repo.latest_video_job
+        def reordered_latest(video_id, *, target_stage=None):
+            # Both rows are actual pipeline records; vary only which completion
+            # timestamp wins the generic latest read, as in the real import.
+            if target_stage is None:
+                metadata = latest(video_id, target_stage=ProcessingStage.METADATA)
+                if metadata is not None and metadata.status.value == "SUCCEEDED":
+                    return metadata
+            return latest(video_id, target_stage=target_stage)
+        monkeypatch.setattr(repo, "latest_video_job", reordered_latest)
     orchestrator = pipeline._orchestrator(repo, pipeline._Transport(available=False))
     orchestrator._now = lambda: current
     orchestrator._ingestion = RuntimeSourceRunIngestion(runtime, orchestrator._source_policy)
@@ -149,7 +164,7 @@ def test_one_time_content_failure_is_visible_and_explicit_retry_recovers(tmp_pat
     source = product.add_source(url=f"https://youtube.com/watch?v={support.VIDEO_ID}", processing_policy=ProcessingPolicy.DISCOVER_ONLY)
     run = product.check_source(source.source_id, command_id="failed-content").source_run
     assert orchestrator.resume(run.run_id).state is SourceRunState.NEEDS_ATTENTION
-    job = repo.latest_video_job(support.VIDEO_ID)
+    job = repo.latest_content_job(support.VIDEO_ID)
     assert job.status.value == ("RETRY_PENDING" if retryable else "FAILED_FINAL")
     app = LocalApiApplication(repo, product, data_root=runtime._data_root)
     detail = app.handle("GET", f"/api/v1/videos/{support.VIDEO_ID}")[1]
@@ -157,6 +172,15 @@ def test_one_time_content_failure_is_visible_and_explicit_retry_recovers(tmp_pat
     assert detail["video"]["source_id"] == source.source_id
     from datetime import timedelta
     current = job.available_at + timedelta(seconds=1)
+    if recovered_elsewhere and retryable:
+        # Recovery for another video activates all due caption jobs. A one-off
+        # import has no Following scheduler to execute its now-PENDING job.
+        assert repo.activate_retry_jobs(now=current)
+        app = LocalApiApplication(repo, product, data_root=runtime._data_root)
+        recovered = app.handle("GET", f"/api/v1/videos/{support.VIDEO_ID}")[1]
+        assert recovered["video"]["processing_job"]["status"] == "PENDING"
+        assert recovered["video"]["processing_status"] == "RETRY_REQUIRED"
+        assert recovered["video"]["retry_allowed"] is True
     runtime._dependencies = replace(runtime._dependencies, subtitle_adapter_factory=support._TimedSubtitleAdapter)
     status, accepted = app.handle("POST", f"/api/v1/sources/{source.source_id}/check", b'{"command_id":"retry-content"}')
     assert status == 202

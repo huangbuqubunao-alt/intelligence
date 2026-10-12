@@ -2283,6 +2283,17 @@ class SQLiteStateRepository:
         finally:
             connection.close()
 
+    def latest_content_job(self, video_id: str) -> JobRecord | None:
+        """Read unfinished captions even when metadata completed later."""
+
+        job = self.latest_video_job(video_id)
+        if (job is not None and job.status is JobStatus.SUCCEEDED
+                and job.target_stage is ProcessingStage.METADATA):
+            caption = self.latest_video_job(video_id, target_stage=ProcessingStage.TRANSCRIPT)
+            if caption is not None and caption.status is not JobStatus.SUCCEEDED:
+                return caption
+        return job
+
     def list_video_jobs(
         self, video_id: str, *, limit: int = 100
     ) -> tuple[JobRecord, ...]:

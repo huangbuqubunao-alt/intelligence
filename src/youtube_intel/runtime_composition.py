@@ -93,7 +93,7 @@ class RuntimeSourceRunIngestion:
             return
         policy = self._source_policy.effective_policy(source_id)
         if source is not None and source.video_id is not None and source.processing_policy.value == "DISCOVER_ONLY":
-            failed = self._runtime._repository.latest_video_job(source.video_id)
+            failed = self._runtime._repository.latest_content_job(source.video_id)
             if failed is not None and failed.status.value == "FAILED_FINAL" and failed.last_error_code in {"CAPABILITY_UNAVAILABLE", "TRUST_INTEGRITY_INVALID"}:
                 # Do not let the ordinary planner create a fresh job that
                 # bypasses the existing non-retryable trust/capability terminal.
@@ -117,8 +117,8 @@ class RuntimeSourceRunIngestion:
             # scoring/Summary pipeline of legacy STANDARD_INTELLIGENCE sources.
             content_only = source is not None and source.processing_policy.value == "DISCOVER_ONLY"
             for video_id in video_ids if content_only else ():
-                job = self._runtime._repository.latest_video_job(video_id)
-                if job is not None and job.status.value in {"RETRY_PENDING", "FAILED_FINAL"}:
+                job = self._runtime._repository.latest_content_job(video_id)
+                if job is not None and job.status.value in {"PENDING", "RUNNING", "RETRY_PENDING", "FAILED_FINAL"}:
                     # A one-time import has no Following scheduler. Retain a
                     # durable attention outcome and expose explicit retry.
                     raise SourceRunDiscoveryError("Content processing needs attention")

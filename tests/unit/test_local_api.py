@@ -140,6 +140,7 @@ def test_safe_source_write_and_read_do_not_start_check(tmp_path: Path) -> None:
     [
         (JobStatus.RETRY_PENDING, "RATE_LIMITED", "RETRY_REQUIRED", True),
         (JobStatus.PENDING, None, "READING_CAPTIONS", True),
+        (JobStatus.PENDING, "RATE_LIMITED", "RETRY_REQUIRED", True),
         (JobStatus.RUNNING, None, "READING_CAPTIONS", True),
         (JobStatus.FAILED_FINAL, "CAPABILITY_UNAVAILABLE", "FAILED", False),
     ],

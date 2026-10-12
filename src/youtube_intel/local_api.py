@@ -1903,15 +1903,7 @@ class LocalApiApplication:
                                   and source.video_id == video.video_id)
             if retry_sources:
                 projection["source_id"] = retry_sources[0].source_id
-            job = self._repository.latest_video_job(video.video_id)
-            # Metadata can finish after the caption attempt. Its success must
-            # not hide the still-unfinished caption stage or its retry action.
-            if job is not None and job.status is JobStatus.SUCCEEDED and job.target_stage is ProcessingStage.METADATA:
-                caption_job = self._repository.latest_video_job(
-                    video.video_id, target_stage=ProcessingStage.TRANSCRIPT
-                )
-                if caption_job is not None and caption_job.status is not JobStatus.SUCCEEDED:
-                    job = caption_job
+            job = self._repository.latest_content_job(video.video_id)
             projection["processing_job"] = None if job is None else {"status": job.status.value, "stage": job.target_stage.value if job.target_stage is not None else None, "retry_at": _timestamp(job.available_at), "error_code": job.last_error_code}
             projection["retry_allowed"] = not (job is not None and job.status.value == "FAILED_FINAL" and job.last_error_code in {"CAPABILITY_UNAVAILABLE", "TRUST_INTEGRITY_INVALID"})
             if job is not None and job.status.value in {"PENDING", "RUNNING", "RETRY_PENDING", "FAILED_FINAL"}:
@@ -1919,9 +1911,16 @@ class LocalApiApplication:
             elif self._repository.current_local_summary_pointer(video.video_id) is not None:
                 summary = self._note_projection(video.video_id).get("v2")
                 projection["processing_status"] = "ORGANIZED" if isinstance(summary, dict) and summary.get("status") == "AVAILABLE" else "NEEDS_ATTENTION"
-            if retry_sources and any(run.source_id == retry_sources[0].source_id
+            active_source = any(run.source_id in {source.source_id for source in retry_sources}
                                      and run.state.value in {"QUEUED", "RUNNING"}
-                                     for run in self._repository.list_source_runs()):
+                                     for run in self._repository.list_source_runs()) if retry_sources else False
+            if (retry_sources and not active_source and job is not None
+                    and job.status is JobStatus.PENDING and job.last_error_code is not None):
+                # Global recovery can activate this retry without a Source Run
+                # to drain it. Offer the normal check command; keep the job and
+                # Backup safety state intact until that command executes it.
+                projection["processing_status"] = "RETRY_REQUIRED"
+            if active_source:
                 projection["processing_status"] = "WAITING"
         return projection
 
