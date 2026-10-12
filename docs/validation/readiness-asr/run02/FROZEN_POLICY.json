@@ -1,0 +1,49 @@
+{
+  "profile": "mlx-source-silence-window-auto-t0-v3-research",
+  "PCM": {
+    "sample_rate": 16000,
+    "window_frames": 320,
+    "silence_rms_dbfs": -45,
+    "min_silence_frames": 4800,
+    "split": "midpoint of every qualifying silence",
+    "max_chunk_frames": 400000,
+    "overlap_frames": 0,
+    "drop_frames": "only pre-detected quiet outside speech windows, before inference",
+    "empty_PCM": "reject/no transcript, no model dispatch",
+    "speech_windows": "each original partition: first/last active20ms RMS frame with up to3200frame(200ms) padding bounded by original partition"
+  },
+  "decoding": {
+    "task": "transcribe",
+    "language": null,
+    "temperature": 0,
+    "compression_ratio_threshold": 2.4,
+    "logprob_threshold": -1,
+    "no_speech_threshold": 0.6,
+    "condition_on_previous_text": false,
+    "word_timestamps": false,
+    "initial_prompt": null
+  },
+  "timing": "SDK 20ms token timestamps mapped to integer source samples only if within1e-9s of grid; validate finite/all metadata, positive/nonoverlap and source-window bound; no clipping",
+  "gates": "unchanged private-acoustic-gates-v1; all12 primary and3negative required, perutterance recall>=50%, speechcoverage>=80%, gap<=1.5s; no exclusion or tuning after decoding",
+  "model_revision": "a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb",
+  "weights_sha256": "951ed3fc1203e6a62467abb2144a96ce7eafca8fa77e3704fdb8635ff3e7f8a6",
+  "runtime": {
+    "mlx-whisper": "0.4.3",
+    "mlx": "0.32.0"
+  },
+  "acoustic_guard": {
+    "frame_size": 320,
+    "hop_size": 320,
+    "window": "Hann",
+    "FFT": "rfft powers excluding DC",
+    "spectral_flatness": "geometric_mean(power)/arithmetic_mean(power), epsilon1e-20",
+    "noise_frame_flatness_threshold": 0.4,
+    "noise_only_fraction_threshold": 0.95,
+    "scope": "execution-before-model refusal, never transcript success or postdecode removal",
+    "speech_floor": "-45dBFS RMS; ambiguous/unvoiced returns no trusted transcript",
+    "limits": "signal heuristic may reject weak speech or noise-heavy speech; all frozen speech/noise/mixed gates must pass, no population accuracy claim",
+    "working_memory": "FFT blocks of at most1024 active frames, criterion unchanged"
+  },
+  "required_samples": "12 original/independent primary, all3 old negative controls,2 predeclared18dB weak speech extensions",
+  "prior_failed_profile": "d7f496f; RUN01_RESULTS.json retained, long silent padding SDK source coverage failure, original dataset/expected/gates unchanged"
+}

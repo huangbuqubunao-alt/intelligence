@@ -37,10 +37,13 @@ def signal_guard(audio: np.ndarray) -> str:
     active = frames[rms > SILENCE_AMPLITUDE]
     if not len(active):
         return 'NO_SIGNAL'
-    power = np.abs(np.fft.rfft(active * np.hanning(WINDOW), axis=1)[:, 1:]) ** 2
-    power = np.maximum(power, 1e-20)
-    flatness = np.exp(np.mean(np.log(power), axis=1)) / np.mean(power, axis=1)
-    return 'NOISE_ONLY' if np.mean(flatness >= .4) >= .95 else 'DECODE'
+    noise_frames = 0
+    for offset in range(0, len(active), 1024):
+        power = np.abs(np.fft.rfft(active[offset:offset+1024] * np.hanning(WINDOW), axis=1)[:, 1:]) ** 2
+        power = np.maximum(power, 1e-20)
+        flatness = np.exp(np.mean(np.log(power), axis=1)) / np.mean(power, axis=1)
+        noise_frames += int(np.count_nonzero(flatness >= .4))
+    return 'NOISE_ONLY' if noise_frames / len(active) >= .95 else 'DECODE'
 
 
 def boundaries(audio: np.ndarray) -> list[tuple[int, int]]:
@@ -103,3 +106,23 @@ def assemble(spans: Sequence[tuple[int, int]], outputs: Sequence[dict[str, Any]]
     if merged:
         validate_result(json.dumps(response, ensure_ascii=False, allow_nan=False).encode(), duration_seconds=frames/RATE, provenance='research-source-merged')
     return response
+
+
+def source_windows(audio: np.ndarray) -> list[tuple[int, int]]:
+    """Remove only pre-detected quiet padding before inference, on source frames.
+
+    Speech windows retain up to 200ms of surrounding PCM and cannot extend
+    beyond their original partition. No model output enters this decision.
+    Unvoiced partitions remain recorded for the explicit refusal guard.
+    """
+    windows = []
+    for start, end in boundaries(audio):
+        rms = np.sqrt(np.mean(_frames(audio[start:end]) ** 2, axis=1))
+        active = np.flatnonzero(rms > SILENCE_AMPLITUDE)
+        if not len(active):
+            windows.append((start, end))
+            continue
+        left = max(start, start + int(active[0]) * WINDOW - 3200)
+        right = min(end, start + (int(active[-1]) + 1) * WINDOW + 3200)
+        windows.append((left, right))
+    return windows

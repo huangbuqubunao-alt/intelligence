@@ -14,12 +14,12 @@ import wave
 from pathlib import Path
 
 import numpy as np
-from readiness_asr_profile import assemble, boundaries, signal_guard
+from readiness_asr_profile import assemble, boundaries, signal_guard, source_windows
 
 from youtube_intel.acoustic_scoring import coverage, score, utterance_recalls
 
 MODEL = Path('/Users/hua/Documents/yia-worktrees/v1x-acoustic-qualification/.var/phase9/models/whisper-large-v3-turbo/a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb')
-FROZEN = Path('docs/validation/readiness-asr')
+FROZEN = Path('docs/validation/readiness-asr/run02')
 
 
 def nonfinite(value, path='$'):
@@ -41,7 +41,8 @@ def child(args):
         if (wav.getnchannels(), wav.getsampwidth(), wav.getframerate()) != (1, 2, 16000):
             raise ValueError('actual mono16k PCM required')
         audio = np.frombuffer(wav.readframes(wav.getnframes()), dtype='<i2').astype(np.float32) / 32768
-    spans = boundaries(audio)
+    partitions = boundaries(audio)
+    spans = source_windows(audio)
     global_guard = signal_guard(audio)
     outputs, times, guards, loads = [], [], [], []
     decoder = None
@@ -74,7 +75,7 @@ def child(args):
     except Exception as exc:
         error = type(exc).__name__ + ': ' + str(exc)
         merged = {'segments': [{**s, 'start': s['start'] + start/16000, 'end': s['end'] + start/16000} for (start, end), raw in zip(spans, outputs, strict=True) for s in raw['segments']]}
-    result = {'boundaries': spans, 'guards': guards, 'global_guard': global_guard, 'nonfinite': nonfinite(outputs), 'validation_error': error, 'segments': [{k: s[k] for k in ('start','end','text')} for s in merged['segments']], 'model_seconds': sum(times), 'invocations': len(times), 'disk_model_loads': len(loads), 'call_seconds': times, 'authoritative': False}
+    result = {'source_partitions': partitions, 'boundaries': spans, 'guards': guards, 'global_guard': global_guard, 'nonfinite': nonfinite(outputs), 'validation_error': error, 'segments': [{k: s[k] for k in ('start','end','text')} for s in merged['segments']], 'model_seconds': sum(times), 'invocations': len(times), 'disk_model_loads': len(loads), 'call_seconds': times, 'authoritative': False}
     args.output.write_text(json.dumps(result, ensure_ascii=False, allow_nan=False, indent=2))
 
 

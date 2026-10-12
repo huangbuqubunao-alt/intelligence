@@ -1,0 +1,306 @@
+{
+  "verdict": "FAILED",
+  "passed": 11,
+  "required": 17,
+  "production_eligible": false,
+  "retained_private_root": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness-asr/.var/readiness-asr/run-02",
+  "samples": [
+    {
+      "id": "english-clean",
+      "passed": true,
+      "score": {
+        "errors": 0,
+        "reference_units": 50,
+        "error_rate": 0.0
+      },
+      "validation_error": null,
+      "invocations": 4,
+      "global_guard": "DECODE"
+    },
+    {
+      "id": "mandarin-clean",
+      "passed": false,
+      "score": {
+        "errors": 4,
+        "reference_units": 85,
+        "error_rate": 0.047058823529411764
+      },
+      "validation_error": "ValueError: invalid source-window timestamp",
+      "invocations": 8,
+      "global_guard": "DECODE"
+    },
+    {
+      "id": "mixed-clean",
+      "passed": false,
+      "score": {
+        "errors": 5,
+        "reference_units": 61,
+        "error_rate": 0.08196721311475409,
+        "han": {
+          "errors": 3,
+          "reference_units": 42,
+          "error_rate": 0.07142857142857142
+        },
+        "latin": {
+          "errors": 2,
+          "reference_units": 19,
+          "error_rate": 0.10526315789473684
+        }
+      },
+      "validation_error": "ValueError: invalid source-window timestamp",
+      "invocations": 7,
+      "global_guard": "DECODE"
+    },
+    {
+      "id": "very-short",
+      "passed": true,
+      "score": {
+        "errors": 0,
+        "reference_units": 6,
+        "error_rate": 0.0
+      },
+      "validation_error": null,
+      "invocations": 1,
+      "global_guard": "DECODE"
+    },
+    {
+      "id": "medium",
+      "passed": false,
+      "score": {
+        "errors": 1,
+        "reference_units": 184,
+        "error_rate": 0.005434782608695652
+      },
+      "validation_error": "ValueError: invalid source-window timestamp",
+      "invocations": 18,
+      "global_guard": "DECODE"
+    },
+    {
+      "id": "designed-pauses",
+      "passed": true,
+      "score": {
+        "errors": 0,
+        "reference_units": 37,
+        "error_rate": 0.0
+      },
+      "validation_error": null,
+      "invocations": 3,
+      "global_guard": "DECODE"
+    },
+    {
+      "id": "mild-noise",
+      "passed": true,
+      "score": {
+        "errors": 2,
+        "reference_units": 50,
+        "error_rate": 0.04
+      },
+      "validation_error": null,
+      "invocations": 1,
+      "global_guard": "DECODE"
+    },
+    {
+      "id": "independent-medium",
+      "passed": true,
+      "score": {
+        "errors": 0,
+        "reference_units": 233,
+        "error_rate": 0.0
+      },
+      "validation_error": null,
+      "invocations": 20,
+      "global_guard": "DECODE"
+    },
+    {
+      "id": "boundary-medium",
+      "passed": true,
+      "score": {
+        "errors": 2,
+        "reference_units": 333,
+        "error_rate": 0.006006006006006006
+      },
+      "validation_error": null,
+      "invocations": 5,
+      "global_guard": "DECODE"
+    },
+    {
+      "id": "silence-medium",
+      "passed": false,
+      "score": {
+        "errors": 0,
+        "reference_units": 138,
+        "error_rate": 0.0
+      },
+      "validation_error": "ValueError: invalid source-window timestamp",
+      "invocations": 12,
+      "global_guard": "DECODE"
+    },
+    {
+      "id": "mixed-medium",
+      "passed": false,
+      "score": {
+        "errors": 25,
+        "reference_units": 305,
+        "error_rate": 0.08196721311475409,
+        "han": {
+          "errors": 15,
+          "reference_units": 210,
+          "error_rate": 0.07142857142857142
+        },
+        "latin": {
+          "errors": 10,
+          "reference_units": 95,
+          "error_rate": 0.10526315789473684
+        }
+      },
+      "validation_error": "ValueError: invalid source-window timestamp",
+      "invocations": 35,
+      "global_guard": "DECODE"
+    },
+    {
+      "id": "english-video",
+      "passed": true,
+      "score": {
+        "errors": 0,
+        "reference_units": 50,
+        "error_rate": 0.0
+      },
+      "validation_error": null,
+      "invocations": 4,
+      "global_guard": "DECODE"
+    },
+    {
+      "id": "negative-silence-short",
+      "passed": true,
+      "validation_error": null,
+      "invocations": 0,
+      "global_guard": "NO_SIGNAL"
+    },
+    {
+      "id": "negative-silence-medium",
+      "passed": true,
+      "validation_error": null,
+      "invocations": 0,
+      "global_guard": "NO_SIGNAL"
+    },
+    {
+      "id": "negative-noise-short",
+      "passed": true,
+      "validation_error": null,
+      "invocations": 0,
+      "global_guard": "NOISE_ONLY"
+    },
+    {
+      "id": "english-clean-weak-18db",
+      "passed": true,
+      "score": {
+        "errors": 0,
+        "reference_units": 50,
+        "error_rate": 0.0
+      },
+      "validation_error": null,
+      "invocations": 6,
+      "global_guard": "DECODE"
+    },
+    {
+      "id": "mandarin-clean-weak-18db",
+      "passed": false,
+      "score": {
+        "errors": 3,
+        "reference_units": 85,
+        "error_rate": 0.03529411764705882
+      },
+      "validation_error": "ValueError: invalid source-window timestamp",
+      "invocations": 8,
+      "global_guard": "DECODE"
+    }
+  ],
+  "artifact_sha256": {
+    "boundary-medium.NONAUTHORITATIVE.json": "5038ae292e8d43a1d7326f498df89a8037c87d6be25ce58618acf6e7abce53c5",
+    "boundary-medium.json": "9168e6b9ebe97686989ea40f8443b1313d6c540d1a57d5a3142b058e98fbda02",
+    "boundary-medium.pcm.wav": "dc0184f4e233520ea1735bbf52324b61d55b798deafdb9a34398810abe107aac",
+    "boundary-medium.resource.txt": "5b3ec6f524c3627426faac5fa67792f71147ac9cf3c7d688af194be88b7717b4",
+    "boundary-medium.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "designed-pauses.NONAUTHORITATIVE.json": "fedaf0140730b4f65166c2dbf6a3da58977080a662e3562e3764defc22c9aa81",
+    "designed-pauses.json": "cc751a175ca703e82fa0252de0a889019f45aa8591ca19d985ccbf103bbdcee3",
+    "designed-pauses.pcm.wav": "f660093cdc2eeca2c76eef87878126a33ca96f6c4355baea994201168147af6f",
+    "designed-pauses.resource.txt": "e7e0da8d71985adfadd67a26c865d95475e733d3872246ce8fd4285af199e3b4",
+    "designed-pauses.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "english-clean-weak-18db.NONAUTHORITATIVE.json": "d85c90c92fae06d8400a368fb69e5388a74e3516627ff0dcc6134dbe79633e3c",
+    "english-clean-weak-18db.json": "bfaf461cd1f6366d72a885aee254993f7a3d44bbc718fc9b6e1b4da80078715c",
+    "english-clean-weak-18db.pcm.wav": "527a29077fe90e006ae6f27bd61e4bfb12491cefdf90418dc8de72c68fd6401c",
+    "english-clean-weak-18db.resource.txt": "6ce1f216636175ba5282e59c34dfcf3f380b9b84fb1efa70ed8500044828d18a",
+    "english-clean-weak-18db.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "english-clean.NONAUTHORITATIVE.json": "ae32ece5534e91f269fdc53e4ff77af2fba1be3e913e79fc590adc85cb7b95ee",
+    "english-clean.json": "07d2c881c381b67e5cbdfbde0d1755145690732df6e026c8d7bd5407cc51aea5",
+    "english-clean.pcm.wav": "8e912444934cd7259fa15deecc62f66ae04ffd21c77d07c61be344f60619db55",
+    "english-clean.resource.txt": "26b358c34beace7742973d16eacfe5655eaa7784f38534fe798ca165cf077ab4",
+    "english-clean.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "english-video.NONAUTHORITATIVE.json": "9b1f2911868259d098dd1fc7d1ef9860e819ee1fc0b17a85a4209be10302f3ad",
+    "english-video.json": "1521f918baaed54bc781c6ff87dd55da8d8e98655b601e46aba5451c9c9203fc",
+    "english-video.pcm.wav": "71fd533d60e833b9e74a432f15cb865690c198d97facc5048082ec98b087b97b",
+    "english-video.resource.txt": "d6c674b13a8304c17eeb1783029e76076406d03a57e01311bd9d1273f639543d",
+    "english-video.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "independent-medium.NONAUTHORITATIVE.json": "4e28976a9cf83df1c06d0d9e305d18ba182d2da5fddc0a922891c130b4cbbaf2",
+    "independent-medium.json": "5ddcb0c4f15e5a9df9d7764d94a429c2455086381e4ea542bdebb095f039822a",
+    "independent-medium.pcm.wav": "e9572626c8035dfe46fc656b9a55385e1b1a15e05d91c9c8daa87a0303c9b883",
+    "independent-medium.resource.txt": "d77050e121c4d07fd5b95142bfd72003fa2a41b3060c35fdd55131c6125dec79",
+    "independent-medium.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "mandarin-clean-weak-18db.NONAUTHORITATIVE.json": "b63983eb01dce7a706f5917a41fa9a07eb9dfac3a84727ce33cec630ebca9bfe",
+    "mandarin-clean-weak-18db.json": "3462e5c6ce834a392a73e794ba35f8ada0f2b25fbf606888e4b8c681ec830bfd",
+    "mandarin-clean-weak-18db.pcm.wav": "888d19cebcbee969e0b937ac16ed23e6138d471d81671b62ad2315d3bf494f04",
+    "mandarin-clean-weak-18db.resource.txt": "7a7d2e7914dbc70d9ddeafff8cfd7bcbcc61cec2ac4155912cedf99d3efa76b5",
+    "mandarin-clean-weak-18db.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "mandarin-clean.NONAUTHORITATIVE.json": "b25e6baea7e3f01f21883e4522b4370a32a6272809891efe48d08b49f7cd9459",
+    "mandarin-clean.json": "940bd032057ce7e4fc788dd29c14bbc266d7e5212dca073f9f0de75a2df2024a",
+    "mandarin-clean.pcm.wav": "d441ffe3815341b0aaa43e19f025db14e1c05e5e4fe9196ac7a064e4747bee91",
+    "mandarin-clean.resource.txt": "e3d15a432935453052d1668ed7406e6135e383ba7e67e37f47f2ac4b969f482e",
+    "mandarin-clean.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "medium.NONAUTHORITATIVE.json": "f083c69af64efb8ff7664684eda5134319acc5062b51dd4486b208630f7adb57",
+    "medium.json": "3351f68d045600ad0181d0b54d1c62eb734bde9b9d908ac9d67dfbabbe4ba0b5",
+    "medium.pcm.wav": "89acb976f77d7626517ac2d69b98854965b4db717f28fcecddab88af1b32ed44",
+    "medium.resource.txt": "647d894c23973aab399c40e714a809d3628e450a92bab1d7629a3f39a92aacd5",
+    "medium.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "mild-noise.NONAUTHORITATIVE.json": "96b6c4478857f1015209bd5320db2145e3131e0de383cc9d354d91e2902dd81c",
+    "mild-noise.json": "1a470e9f02d5c4258d35fe87a78a988130172c819297e66ba790053e5a4b8326",
+    "mild-noise.pcm.wav": "24d1afb86eef9b2bc22a5d75b47fa7d97445c31ad6fb997a157089ec52945254",
+    "mild-noise.resource.txt": "92381dbdb1241a62c13e70e18eb2a245d84a3f2cc4076e223361bcbdbd7178ee",
+    "mild-noise.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "mixed-clean.NONAUTHORITATIVE.json": "1e760c3a636d9a24ab44ad8f6b164b6a6953998244f9a93070403f06b7b92eba",
+    "mixed-clean.json": "f7346c07d498a797441051aab0b3a000292c439090ef4a6895a55bc1b55c03b4",
+    "mixed-clean.pcm.wav": "e9eb1e4ef0acc403788e177eb31432867d5132d5420b1b21c3c351747b1891b8",
+    "mixed-clean.resource.txt": "9f9c47a95ea5191e6ee09f98183b2e0af51c3a99ab454c8466fbc6dd9aec6aeb",
+    "mixed-clean.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "mixed-medium.NONAUTHORITATIVE.json": "7c2d09e1be06b50f7d0d61e9de3d65767302062c550cdedc05e64e21d4dd7039",
+    "mixed-medium.json": "fa17ab731cfd056dd733478a992c6bb42370ff0c38faaa7b3da7c818025d7c4a",
+    "mixed-medium.pcm.wav": "632214f5e272560ea613efcb1b71d0c6387773b99380f4b15d39ffa02fb31e1c",
+    "mixed-medium.resource.txt": "4715dd86cb8816e5af750caba36b983512a04873b434917703197f9aaf0378a9",
+    "mixed-medium.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "negative-noise-short.NONAUTHORITATIVE.json": "b71e969938fb8d8cf04cda2d3c1be8719ac2c0d6a5d9b8a2dc3be9e240ac533d",
+    "negative-noise-short.json": "fcd544a16dc0bf158e4db78ea7ea0ccfcb8125fdb859b38ae1410ed154c7e293",
+    "negative-noise-short.pcm.wav": "7e3f23229380d8f35e74cee8246e88459065a3e59a6ef8ff06654ec1e8b5df63",
+    "negative-noise-short.resource.txt": "befd557b183b59d2a9c19e1522d6ba53e428627b8856414edb790091bc23072e",
+    "negative-noise-short.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "negative-silence-medium.NONAUTHORITATIVE.json": "0d64f6816ec7dab226804e588d038d5f7c24e2fa84640ffea713e45189747f8d",
+    "negative-silence-medium.json": "becad40df69e4b27bbdaada0282d5bea18278a7231f9ef73a301883683cff68a",
+    "negative-silence-medium.pcm.wav": "139fa318308487b3e090def51c2623b366349f2e770d5d85e9f2dca1cbabe6ca",
+    "negative-silence-medium.resource.txt": "0849802c96f175c8672e21d7b9cb59b9fb0abc0ea4986f7fad1411b2112420bd",
+    "negative-silence-medium.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "negative-silence-short.NONAUTHORITATIVE.json": "5c6d3ea2c97f7e7e97d48c49ee6d77d0826940ef75dba03c306fdb8bc186f53d",
+    "negative-silence-short.json": "e317d674e36ee82c29760d59664f4e783938186e329a87ba95b6f99e2985ef14",
+    "negative-silence-short.pcm.wav": "56ee531c39dd8f6f5f954e038261635aba1d1f1aced7490c5c212bd24d9e9b48",
+    "negative-silence-short.resource.txt": "91cbb400a6c69bb9d0a1553e3e5cf8223d8e25d5a9ec3dc0a2171524276c6396",
+    "negative-silence-short.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "report.json": "603de47488670129921cd3a2673f9a771fcee76f915bcd7b60f4597011d13d2a",
+    "silence-medium.NONAUTHORITATIVE.json": "c4de4213858a79978fd5cc9cc7b0edc6a0c1d23a8330c42de7a49279e6f1a1a2",
+    "silence-medium.json": "e705f736bb0b3c56269e6df435f21dfd4d4f0ab086daa8dfde0244e12a4069a4",
+    "silence-medium.pcm.wav": "9fdcfa9da1c17429e331f3bd31646458e7c51458bc9088c6ff34fc67b840455a",
+    "silence-medium.resource.txt": "8a6f84792dd24c478b801663eb40f4d65135bf92a1a0dc1b3acdeca07670db1c",
+    "silence-medium.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "very-short.NONAUTHORITATIVE.json": "162d0c70ef52266bed2b6d6dc4a6abb591a69995b56a2dde944d14d1328c9c9c",
+    "very-short.json": "6b287103fda0ff7e005461a22c11f5fcfaa57f9700ebd692d4da545f82a8a3d3",
+    "very-short.pcm.wav": "06771684fb0df52ceffc6aec6f0817fe974018def0708f108ee7a2e16f44e185",
+    "very-short.resource.txt": "58d6c5786820d7b6ddf613acca78123a6a6598446a2455661fd645cd86e5ee14",
+    "very-short.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

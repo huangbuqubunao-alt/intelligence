@@ -1,0 +1,12 @@
+{
+  "at": "2026-10-12T10:24:29.296435+00:00",
+  "candidate_decodes_before_freeze": 0,
+  "frozen_hashes": {
+    "docs/validation/readiness-asr/run02/FROZEN_POLICY.json": "6d0ddea40d9cb1d6861210781c3ad8eab81980b3bb2e860897a63e07ad06032a",
+    "docs/validation/readiness-asr/run02/FROZEN_CORPUS.json": "dfad7b991ba52057462fdae6477874a34884fa7a36ae667247b231fd393365d3",
+    "scripts/readiness_asr_profile.py": "c4c7ff78edfbbefe9de0695d6bd0df3b1306770a9092d67cb8d934e2a0bb1869",
+    "scripts/measure_readiness_asr.py": "99b89ed030e2d4b7d7d5f8bcf726967bf09493d0c369b4f012acf9eeba6b12dc",
+    "tests/unit/test_readiness_asr_segmentation.py": "1053e6123520166071eea7d2138857f309b561a0147973bedd037148a3391c27"
+  },
+  "approval": "root confirmed deterministic pre-inference quiet-window cropping within user-approved scope"
+}

@@ -59,3 +59,19 @@ def test_late_chunk_failure_never_returns_partial_or_removes_repeated_words():
     assert [s['text'] for s in result['segments']] == ['Again again.'] * 2
     assert result['segments'][1]['start'] == 2.
     json.dumps(result, allow_nan=False)
+
+
+def test_long_silent_padding_is_removed_before_decoding_with_source_offset():
+    from scripts.readiness_asr_profile import source_windows
+    audio = np.concatenate([np.zeros(160000), np.full(16000, .1), np.zeros(160000)])
+    spans = source_windows(audio)
+    assert spans == [(0, 80000), (156800, 179200), (256000, 336000)]
+    # All speech bytes remain untouched; only pre-detected silence excluded.
+    assert np.array_equal(audio[160000:176000], audio[spans[1][0]:spans[1][1]][3200:-3200])
+
+
+def test_short_silence_windows_are_not_expanded_or_overlapped():
+    from scripts.readiness_asr_profile import source_windows
+    audio = np.concatenate([np.full(16000, .1), np.zeros(4800), np.full(16000, .1)])
+    spans = source_windows(audio)
+    assert spans == [(0, 18400), (18400, 36800)]
