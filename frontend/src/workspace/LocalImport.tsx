@@ -121,6 +121,8 @@ export function LocalImport({ onClose, onSaved, onImported, onYouTube, onBilibil
     {!finished && <div className="button-row" aria-label={t("Source provider")}><button className="button button-secondary" disabled={busy} onClick={onYouTube}>YouTube</button><button className="button button-primary" aria-pressed="true" disabled={busy}>{t("Local files")}</button>{onBilibili && <button className="button button-secondary" disabled={busy} onClick={onBilibili}>{t("Bilibili")}</button>}</div>}
     <p>{t("Import a private snapshot into your Local library. Originals stay untouched; moving, deleting or editing them does not change imported Content.")}</p>
     <p className="hint">{t("TXT / MD: UTF-8, up to 2 MiB. Audio / video: up to 2 GiB. Media duration: up to two hours. Everything stays on this device.")}</p>
+    <p className="hint">{t("Importing a video saves the file. Transcript, Summary and Evidence require usable source text. You can also import an existing TXT or MD transcript; no cloud service is used for local transcription.")}</p>
+    <button className="button button-ghost" disabled={busy} onClick={() => { onClose(); location.hash = "Settings/transcription"; }}>{t("Set up local transcription")}</button>
     {!finished && <label className="field">{t("Choose local files")}<input type="file" aria-label={t("Choose local files")} multiple accept=".txt,.md,.mp3,.m4a,.wav,.mp4,.mov,.m4v" disabled={busy} onChange={event => {
       const selected = Array.from(event.target.files ?? []);
       setResults([]); setErrors([]);

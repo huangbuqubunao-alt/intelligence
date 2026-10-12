@@ -2596,7 +2596,8 @@ test("Chinese Backup explains a block in Chinese instead of the backend English 
     : defaultFetch(path, init)));
   render(<App />);
   fireEvent.click(screen.getByRole("button", { name: "设置" }));
-  const status = await screen.findByRole("status");
+  const backupPanel = (await screen.findByRole("heading", { name: "备份与恢复" })).closest("section")!;
+  const status = await within(backupPanel).findByRole("status");
   expect(status.textContent).toContain("有一个采集任务仍在执行");
   expect(status.textContent).not.toContain("Source Run is active");
   expect(status.textContent).not.toMatch(/[A-Za-z]{4,}\s+[A-Za-z]{4,}/);
@@ -2799,4 +2800,81 @@ test("queued stale hash events do not clear the current imported detail", async 
   window.dispatchEvent(new HashChangeEvent("hashchange", { newURL: "http://localhost/#Following" }));
   expect(screen.getByText("File imported. Its processing status appears below.")).toBeTruthy();
   expect(location.hash).toBe("#Content/video-9");
+});
+
+test("transcription setup deep links reach Settings and return to the exact Content", async () => {
+  location.hash = "Settings/transcription/video-1";
+  const base = globalThis.fetch;
+  vi.stubGlobal("fetch", vi.fn((path: string, init?: RequestInit) => path.endsWith("/local/transcription/capability")
+    ? response({ capability: { state: "MODEL_MISSING", runtime_available: true, model_present: false, production_eligible: false } })
+    : base(path, init)));
+  render(<App />);
+  expect(await screen.findByRole("heading", { name: "Local audio and video transcription" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("link", { name: "Back to Content" }));
+  expect(await screen.findByRole("heading", { name: "Transformers, the tech behind LLMs | Deep Learning Chapter 5" })).toBeTruthy();
+  expect(location.hash).toBe("#Content/video-1");
+  expect(within(screen.getByRole("navigation")).getAllByRole("button")).toHaveLength(6);
+});
+
+test("cancelling language drafts writes nothing and keeps the current interface", async () => {
+  const fetch = vi.mocked(globalThis.fetch);
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Edit language" }));
+  fireEvent.change(screen.getByLabelText("Interface language"), { target: { value: "zh-CN" } });
+  fireEvent.change(screen.getByLabelText("Preferred output language"), { target: { value: "en" } });
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(screen.getByRole("button", { name: "Settings" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Edit language" })).toBeTruthy();
+  expect(fetch.mock.calls.some(([, options]) => options?.method === "PUT")).toBe(false);
+});
+
+test("Content list, detail, and browser history share the canonical deep link", async () => {
+  location.hash = "Content";
+  render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: /Transformers, the tech behind LLMs/ }));
+  await screen.findByRole("heading", { name: "Transformers, the tech behind LLMs | Deep Learning Chapter 5" });
+  expect(location.hash).toBe("#Content/video-1");
+  location.hash = "Content";
+  window.dispatchEvent(new HashChangeEvent("hashchange"));
+  await screen.findByRole("button", { name: /Transformers, the tech behind LLMs/ });
+  location.hash = "Content/video-1";
+  window.dispatchEvent(new HashChangeEvent("hashchange"));
+  fireEvent.click(await screen.findByRole("button", { name: "Back to Content" }));
+  expect(location.hash).toBe("#Content");
+  expect(await screen.findByRole("button", { name: /Transformers, the tech behind LLMs/ })).toBeTruthy();
+});
+
+test("Chinese Backup rejects invalid files with localized recovery guidance", async () => {
+  localStorage.setItem("yia.ui-language", "zh-CN");
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "设置" }));
+  fireEvent.change(await screen.findByLabelText("选择备份文件"), { target: { files: [new File(["text"], "note.txt")] } });
+  expect((await screen.findByRole("alert")).textContent).toBe("请选择 Intelligence 生成的 ZIP 备份文件。");
+});
+
+test("Backup inspection errors remain visible after a successful readiness refresh", async () => {
+  localStorage.setItem("yia.ui-language", "zh-CN");
+  const base = globalThis.fetch;
+  vi.stubGlobal("fetch", vi.fn((path: string, init?: RequestInit) => {
+    if (path.endsWith("/backup-restore/status")) return response({ status: { ready: true, reasons: [], restore_pending: false } });
+    if (path.endsWith("/restore/stage")) return Promise.resolve({ ok: false, status: 409, json: async () => ({ error: { code: "BACKUP_RESTORE_REJECTED", message: "Backup archive is invalid or truncated." } }) });
+    return base(path, init);
+  }));
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "设置" }));
+  fireEvent.change(await screen.findByLabelText("选择备份文件"), { target: { files: [new File(["broken"], "broken.zip", { type: "application/zip" })] } });
+  await waitFor(() => expect(screen.getByRole("button", { name: "创建备份" }).hasAttribute("disabled")).toBe(false));
+  expect((await screen.findByRole("alert")).textContent).toBe("备份检查未通过，请选择完整的 Intelligence ZIP 备份；当前数据未改变。");
+  expect(screen.queryByRole("button", { name: "恢复此备份…" })).toBeNull();
+});
+
+test("a disconnected local service gives Chinese recovery guidance and a retry action", async () => {
+  localStorage.setItem("yia.ui-language", "zh-CN");
+  location.hash = "Content";
+  vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+  render(<App />);
+  expect(await screen.findByText("本地服务未连接。请重新打开 Intelligence，连接恢复后点击重试。")).toBeTruthy();
+  expect(screen.getByRole("button", { name: "重试" })).toBeTruthy();
+  expect(screen.queryByText("Failed to fetch")).toBeNull();
 });

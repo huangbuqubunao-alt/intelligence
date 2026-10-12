@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, ApiRequestError, post, put } from "../api/client";
 import { useUiLanguage } from "./uiLanguage";
+import { transcriptionGuidance } from "./TranscriptionSetup";
 
 export type TranscriptionCapability = {
   state: string; runtime_detected: boolean; runtime_available: boolean;
@@ -89,7 +90,8 @@ export function LocalTranscription({ id, onCompleted, onStatusChange }: { id: st
   const active = state?.status === "RUNNING" || capability?.checking;
   return <section className="local-transcription" aria-label={t("Offline transcription")}>
     <p role="status" aria-live="polite">{t(capability?.checking ? reasons.CAPABILITY_CHECKING : transcriptionCopy(state?.status ?? "PENDING"))}</p>
-    {state?.status !== "READY" && <p className="hint">{t(state?.status === "QUALIFICATION_REQUIRED" ? reasons.ACOUSTIC_NOT_QUALIFIED : reasons[state?.last_failure_category ?? capability?.reason_code ?? ""] ?? "Transcription runs on this device using the selected local executor and model. Your media stays private.")}</p>}
+    {state?.status !== "READY" && <p className="hint">{t(state?.status === "QUALIFICATION_REQUIRED" || ["MODEL_MISSING", "RUNTIME_UNAVAILABLE", "UNSUPPORTED"].includes(state?.status ?? "") ? transcriptionGuidance(capability) : reasons[state?.last_failure_category ?? capability?.reason_code ?? ""] ?? "Transcription runs on this device using the selected local executor and model. Your media stays private.")}</p>}
+    {state && ["MODEL_MISSING", "RUNTIME_UNAVAILABLE", "UNSUPPORTED", "QUALIFICATION_REQUIRED"].includes(state.status) && <a className="button button-secondary" href={`#Settings/transcription/${encodeURIComponent(id)}`}>{t("Set up local transcription")}</a>}
     {error && <p role="alert">{t(error)}</p>}
     {(state?.start_available || state?.retry_available) && <button className="button button-primary" disabled={busy || active} onClick={() => void action("start")}>{t(state.summary_recovery ? "Complete Summary" : state.retry_available ? "Retry transcription" : "Start transcription")}</button>}
     <details><summary>{t("Transcription diagnostics")}</summary>

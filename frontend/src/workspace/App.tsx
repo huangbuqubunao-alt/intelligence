@@ -4,6 +4,7 @@ import { BilibiliImport, BilibiliCaptionStatus, bilibiliStatus } from "./Bilibil
 import { LocalImport, localStatus, localImportErrors } from "./LocalImport";
 import { NativeImportActivity } from "./NativeLocalImport";
 import { LocalTranscription, transcriptionCopy } from "./LocalTranscription";
+import { TranscriptionSetup } from "./TranscriptionSetup";
 import { ChangeEvent, FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import { ApiRequestError, api, patch, post, put, uploadZip } from "../api/client";
 import { ModelSettings } from "./ModelSettings";
@@ -339,6 +340,7 @@ function initialContentTarget(): string | null {
 
 function initialPage(): Page {
   const raw = location.hash.slice(1);
+  if (/^Settings\/transcription(?:\/[^/]+)?$/.test(raw)) return "Settings";
   if (raw.startsWith("Content/")) return "Content";
   if (/^Research(?:\/[a-f0-9]{64}(?:\/history\/[a-f0-9]{64}|\/diff\/[a-f0-9]{64}\/[a-f0-9]{64})?)?$/.test(raw)) return "Research";
   const legacy: Record<string, Page> = {
@@ -508,6 +510,13 @@ function ErrorState(
   },
 ) {
   const { language, t } = useUiLanguage();
+  // These are browser transport failures, rather than service error prose.
+  if (["Failed to fetch", "Load failed", "NetworkError when attempting to fetch resource."].includes(error)) {
+    return <div className="semantic-state state-danger" role="alert">
+      <p>{t("The local service is disconnected. Reopen Intelligence, then retry when the connection returns.")}</p>
+      <button className="button button-secondary" onClick={() => window.location.reload()}>{t("Retry")}</button>
+    </div>;
+  }
   // When a stable machine code is known, localized copy is the product text.
   // Localizing never relies on matching arbitrary English strings.
   const localized = code ? localizedApiErrorCopy(code) : undefined;
@@ -1258,7 +1267,7 @@ function Workspace() {
             const target = researchReturn; navigate("Research"); location.hash = target;
           }}>{t("Back to Research")}</button>}
         </header>
-        <NativeImportActivity onOpen={openContent} errors={localImportErrors} />
+        <NativeImportActivity onOpen={openContent} errors={localImportErrors} routeKey={`${page}/${contentTarget ?? ""}`} modalOpen={addProvider !== null} />
         {page === "Research" && <Research onOpen={(kind, id, evidenceId) => {
           const returnTo = location.hash.slice(1);
           if (kind === "content") { openContent(id); setResearchEvidence(evidenceId ?? null); }
@@ -1282,7 +1291,7 @@ function Workspace() {
         {page === "Content" && (
           <>
             {imported && <p role="status" aria-live="polite">{t("File imported. Its processing status appears below.")}</p>}
-            <ContentPage refresh={refresh} targetVideoId={contentTarget} />
+            <ContentPage refresh={refresh} targetVideoId={contentTarget} onOpen={openContent} onClose={() => navigate("Content")} />
           </>
         )}
         {page === "Intelligence" && (
@@ -1539,9 +1548,11 @@ function SavedCard(
   );
 }
 function ContentPage(
-  { refresh, targetVideoId }: {
+  { refresh, targetVideoId, onOpen, onClose }: {
     refresh: number;
     targetVideoId?: string | null;
+    onOpen: (id: string) => void;
+    onClose: () => void;
   },
 ) {
   const { t } = useUiLanguage();
@@ -1552,14 +1563,10 @@ function ContentPage(
     const timer = setTimeout(() => setRevision(value => value + 1), 2000);
     return () => clearTimeout(timer);
   }, [list.data]);
-  const [selected, setSelected] = useState<string | null>(targetVideoId ?? null);
-  useEffect(() => {
-    if (targetVideoId) setSelected(targetVideoId);
-  }, [targetVideoId]);
   if (list.error) return <ErrorState error={list.error} />;
   if (!list.data) return <Empty>Loading Content…</Empty>;
-  if (selected) {
-    return <ContentDetailPanel id={selected} onClose={() => setSelected(null)} />;
+  if (targetVideoId) {
+    return <ContentDetailPanel key={targetVideoId} id={targetVideoId} onClose={onClose} />;
   }
   return list.data.videos.length
     ? (
@@ -1568,7 +1575,7 @@ function ContentPage(
           <button
             className="list-row"
             key={item.video_id}
-            onClick={() => setSelected(item.video_id)}
+            onClick={() => onOpen(item.video_id)}
           >
             <span>
               <strong>{item.title ?? item.video_id}</strong>
@@ -3365,6 +3372,7 @@ function BackupRestorePanel() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const confirmationDialog = useRef<HTMLDialogElement>(null);
+  const [statusError, setStatusError] = useState<string | null>(null);
 
   useEffect(() => {
     const dialog = confirmationDialog.current;
@@ -3382,9 +3390,9 @@ function BackupRestorePanel() {
     try {
       const result = await api<{ status: BackupRestoreStatus }>("/backup-restore/status");
       setStatus(result.status);
-      setError(null);
+      setStatusError(null);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Backup status is unavailable.");
+      setStatusError("Backup status is unavailable. Check the local connection and retry.");
     }
   };
 
@@ -3404,7 +3412,7 @@ function BackupRestorePanel() {
       );
       setBackup(result.backup);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Backup could not be created.");
+      setError("Backup could not be created. Check readiness and available storage, then retry.");
     } finally {
       setBusy(false);
       await refreshStatus();
@@ -3429,7 +3437,7 @@ function BackupRestorePanel() {
       }>("/backup-restore/restore/stage", file);
       setRestore(result.restore);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Backup inspection failed.");
+      setError("Backup inspection failed. Choose an intact Intelligence ZIP backup; current data has not changed.");
     } finally {
       setBusy(false);
       await refreshStatus();
@@ -3446,7 +3454,7 @@ function BackupRestorePanel() {
       setShowConfirm(false);
       setConfirmation("");
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Restore inspection could not be cancelled.");
+      setError("Restore inspection could not be cancelled. Check the local connection and retry before restoring.");
     } finally {
       setBusy(false);
       await refreshStatus();
@@ -3470,7 +3478,7 @@ function BackupRestorePanel() {
         message: "Restore is pending. Intelligence will restart before processing resumes.",
       } : current);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Restore confirmation failed.");
+      setError("Restore confirmation failed. Check restore status before trying again.");
     } finally {
       setBusy(false);
       await refreshStatus();
@@ -3546,12 +3554,13 @@ function BackupRestorePanel() {
         </article>
       ) : null}
       {status?.last_restore?.state === "APPLIED" ? (
-        <p className="success-message" role="status">{t(status.last_restore.message)}</p>
+        <p className="success-message" role="status">{t("Restore completed successfully.")}</p>
       ) : null}
       {status?.restore_pending ? (
         <p role="status">{t("Restore is pending. Intelligence will restart and validate the restored data before processing resumes.")}</p>
       ) : null}
-      {error ? <p className="form-error" role="alert">{error}</p> : null}
+      {error ? <p className="form-error" role="alert">{t(error)}</p> : null}
+      {statusError ? <p className="form-error" role="alert">{t(statusError)} <button disabled={busy} onClick={() => void refreshStatus()}>{t("Retry")}</button></p> : null}
       {showConfirm && restore ? (
         <dialog
           ref={confirmationDialog}
@@ -3723,6 +3732,7 @@ function Settings({ refresh }: { refresh: number }) {
           <label className="field">{t("Interface language")}<select aria-label={t("Interface language")} value={interfaceDraft} disabled={savingLanguage} onChange={event => setInterfaceDraft(event.target.value as "zh-CN" | "en")}><option value="zh-CN">中文</option><option value="en">English</option></select></label>
           <label className="field">{t("Preferred output language")}<select aria-label={t("Preferred output language")} value={outputDraft} disabled={savingLanguage} onChange={event => setOutputDraft(event.target.value as "zh-CN" | "en")}><option value="zh-CN">中文</option><option value="en">English</option></select></label>
           <button className="button button-primary" disabled={savingLanguage} onClick={() => void saveLanguage(outputDraft)}>{t(savingLanguage ? "Saving…" : "Save language")}</button>
+          <button className="button button-secondary" disabled={savingLanguage} onClick={() => { setEditingLanguage(false); setLanguageError(null); }}>{t("Cancel")}</button>
         </>}
         <p className="hint">{t("Source language is detected automatically. Language choices apply to future output; existing content is preserved.")}</p>
         {languageError ? <p className="form-error" role="alert">{languageError}</p> : null}
@@ -3735,6 +3745,7 @@ function Settings({ refresh }: { refresh: number }) {
         <h3>{t("Intelligence")}</h3><p>{t(videoDistillation?.production_eligible ? "Optional cloud analysis is available after your authorization for each request." : videoDistillation?.credential_status === "BLOCKED" ? "Cloud Intelligence needs a credential and authorization. Content processing remains usable." : "Configure a qualified Intelligence model. Content processing remains usable.")}</p>
         <details><summary>{t("Cloud setup and model details")}</summary><ModelSettings message={modelMessage} setMessage={setModelMessage} credential={settings.data.cloud_credential} preference={settings.data.model_preference} onSaved={() => setRevision(current => current + 1)} /></details>
       </Panel>
+      <TranscriptionSetup />
       <BackupRestorePanel />
       <Panel title="Data and privacy (read-only)"><p>{t("Local-first means local persistence by default. Credential values are never shown.")}</p></Panel>
       <details className="settings-advanced"><summary>{t("Advanced and diagnostics")}</summary>
