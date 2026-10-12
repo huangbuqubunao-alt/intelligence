@@ -2669,7 +2669,7 @@ test("one-time video imports do not become continuous Following rows", async () 
   await waitFor(() => expect(screen.queryByText("Imported video title")).toBeNull());
 });
 
-test("one-time Content retry remains visible and polls accepted durable work to completion", async () => {
+test.each(["RETRY_REQUIRED", "NEEDS_ATTENTION"])("one-time Content %s retry remains visible and polls accepted durable work to completion", async (initialStatus) => {
   location.hash = "Content/video-1";
   let accepted = false;
   let reads = 0;
@@ -2680,8 +2680,10 @@ test("one-time Content retry remains visible and polls accepted durable work to 
       return response({ source_run: { run_id: "retry-run", state: "QUEUED" } });
     }
     if (path.endsWith("/videos/video-1")) {
-      const status = !accepted ? "RETRY_REQUIRED" : ++reads === 1 ? "WAITING" : "ORGANIZED";
-      return response({ ...daVideoDetail, video: { ...daVideoDetail.video, provider: "YOUTUBE", source_id: "import-source", processing_status: status } });
+      const status = !accepted ? initialStatus : ++reads === 1 ? "WAITING" : "ORGANIZED";
+      return response({ ...daVideoDetail, video: { ...daVideoDetail.video, provider: "YOUTUBE", source_id: "import-source", processing_status: status,
+        caption_timing_status: !accepted && initialStatus === "NEEDS_ATTENTION" ? "UNAVAILABLE" : undefined,
+      } });
     }
     return original(path, init);
   }));
@@ -2691,6 +2693,30 @@ test("one-time Content retry remains visible and polls accepted durable work to 
   await waitFor(() => expect(screen.queryByRole("button", { name: /^Retry$/ })).toBeNull());
   await waitFor(() => expect(reads).toBeGreaterThan(1), { timeout: 4000 });
   expect(await screen.findByText("Completed", { exact: true })).toBeTruthy();
+});
+
+test.each([["en", false], ["zh-CN", false], ["en", true], ["zh-CN", true]])("%s completed plain captions with retry source=%s explain missing timing without claiming work is running", async (language, hasSource) => {
+  localStorage.setItem("yia.ui-language", language);
+  location.hash = "Content/video-1";
+  const original = globalThis.fetch;
+  vi.stubGlobal("fetch", vi.fn((path: string, init?: RequestInit) => {
+    if (path.endsWith("/videos/video-1")) return response({ ...daVideoDetail, video: {
+      ...daVideoDetail.video, provider: "YOUTUBE", processing_status: "NEEDS_ATTENTION", caption_timing_status: "UNAVAILABLE",
+      source_id: hasSource ? "import-source" : undefined,
+    } });
+    return original(path, init);
+  }));
+  render(<App />);
+  expect(await screen.findByText(language === "en"
+    ? "The captured captions have no verified source timing. Content needs timed captions before Summary and source references can be prepared."
+    : "已获取的字幕没有可验证的原始时间。需要带时间的字幕，才能生成摘要和出处。" )).toBeTruthy();
+  expect(screen.queryByText(language === "en" ? "Organizing content…" : "正在整理内容…")).toBeNull();
+  if (hasSource) {
+    expect(screen.getByText(language === "en"
+      ? "Retry to check this source for native timed captions. Your captured text and history are kept."
+      : "点击重试，检查此来源是否提供原生时间字幕。已获取的文本和处理历史会保留。")).toBeTruthy();
+    expect((screen.getByRole("button", { name: language === "en" ? /^Retry$/ : /^重试$/ }) as HTMLButtonElement).disabled).toBe(false);
+  }
 });
 
 test.each(["en", "zh-CN"])("%s non-retryable Content explains the prerequisite and disables retry semantically", async (language) => {

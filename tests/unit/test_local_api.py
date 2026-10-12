@@ -197,6 +197,26 @@ def test_safe_provider_projection_reports_bounded_local_authority(tmp_path: Path
     assert "secret" not in str(payload).lower()
 
 
+def test_completed_plain_caption_import_needs_attention_instead_of_polling(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from dataclasses import replace
+
+    from youtube_intel.domain import PipelineStatus, ProcessingStage
+
+    app = _app(tmp_path)
+    _record_video(app, "abcdefghijk")
+    record = app._repository.get_video("abcdefghijk")
+    assert record is not None
+    monkeypatch.setattr(app._repository, "get_video", lambda _id: replace(record, pipeline_status=PipelineStatus.TRANSCRIPT_READY))
+    monkeypatch.setattr(app._repository, "latest_content_job", lambda _id: SimpleNamespace(
+        status=JobStatus.SUCCEEDED, target_stage=ProcessingStage.TRANSCRIPT,
+        available_at=datetime(2026, 9, 1, tzinfo=UTC), last_error_code=None,
+    ))
+    status, detail = app.handle("GET", "/api/v1/videos/abcdefghijk")
+    assert status == 200
+    assert detail["video"]["processing_status"] == "NEEDS_ATTENTION"
+    assert detail["video"]["caption_timing_status"] == "UNAVAILABLE"
+
+
 def test_qualified_moonshot_projection_keeps_consent_per_execution() -> None:
     from youtube_intel.orchestration import provider_model_statuses
 

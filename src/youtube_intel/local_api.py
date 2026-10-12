@@ -47,6 +47,7 @@ from youtube_intel.domain import (
     AnalysisCompleted,
     AnalysisOutcome,
     JobStatus,
+    PipelineStatus,
     ProcessingStage,
     ScoringOutputLanguage,
 )
@@ -1911,6 +1912,10 @@ class LocalApiApplication:
             elif self._repository.current_local_summary_pointer(video.video_id) is not None:
                 summary = self._note_projection(video.video_id).get("v2")
                 projection["processing_status"] = "ORGANIZED" if isinstance(summary, dict) and summary.get("status") == "AVAILABLE" else "NEEDS_ATTENTION"
+            elif (video.pipeline_status is PipelineStatus.TRANSCRIPT_READY
+                  and self._repository.get_verified_timed_transcript(video_id=video.video_id) is None):
+                projection["processing_status"] = "NEEDS_ATTENTION"
+                projection["caption_timing_status"] = "UNAVAILABLE"
             active_source = any(run.source_id in {source.source_id for source in retry_sources}
                                      and run.state.value in {"QUEUED", "RUNNING"}
                                      for run in self._repository.list_source_runs()) if retry_sources else False

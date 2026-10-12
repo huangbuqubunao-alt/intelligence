@@ -83,7 +83,7 @@ _FORMAT_RANK = {
     SubtitleFormat.SRT: 2,
 }
 SELECTION_POLICY_VERSION: Final = "subtitle-selection-v2-original-tracks"
-FORMAT_POLICY_VERSION: Final = "subtitle-format-v1"
+FORMAT_POLICY_VERSION: Final = "subtitle-format-v2-native-timing"
 NORMALIZATION_VERSION: Final = "subtitle-normalization-v1"
 QUALITY_POLICY_VERSION: Final = "subtitle-quality-v1"
 _RAW_PRODUCER_VERSION: Final = (
@@ -296,11 +296,18 @@ class SubtitleAdapter(Protocol):
 
 
 @dataclass(frozen=True, slots=True)
+class CaptionRepairContext:
+    source_run_id: str
+    expected_canonical_artifact_id: str
+
+
+@dataclass(frozen=True, slots=True)
 class TranscriptJobContext:
     job_id: str
     owner: str
     pipeline_version: str
     refresh_generation: int = 0
+    repair: CaptionRepairContext | None = None
 
     def __post_init__(self) -> None:
         if not self.job_id.strip() or not self.owner.strip():
@@ -381,20 +388,10 @@ def normalize_language_tag(value: str) -> str:
     return normalized
 
 
-def _persist_original_transcript_evidence(
-    repository: object,
-    *,
-    timed: TimedTranscriptWrite,
-    language: str,
-    now: datetime,
-) -> None:
-    """Bind bounded, contiguous Evidence spans to the canonical timed transcript."""
-    create = getattr(repository, "create_evidence_with_text_binding", None)
-    get_evidence = getattr(repository, "get_evidence", None)
-    resolve_text = getattr(repository, "resolve_verified_evidence_text", None)
-    if not (callable(create) and callable(get_evidence) and callable(resolve_text)):
-        return
-
+def _original_transcript_evidence_writes(
+    timed: TimedTranscriptWrite, language: str,
+) -> tuple[tuple[EvidenceWrite, EvidenceTextBindingWrite], ...]:
+    writes = []
     first = 0
     while first < len(timed.cues):
         last = first + 1
@@ -428,17 +425,29 @@ def _persist_original_transcript_evidence(
             language=language,
             availability=EvidenceAvailability.AVAILABLE,
         )
-        existing = get_evidence(evidence_id)
+        writes.append((evidence, EvidenceTextBindingWrite.from_timed_transcript(
+            evidence=evidence, timed_transcript_id=timed.timed_transcript_id,
+            start_cue_index=first, end_cue_index=last, excerpt=excerpt,
+        )))
+        first = last
+    return tuple(writes)
+
+
+def _persist_original_transcript_evidence(
+    repository: object, *, timed: TimedTranscriptWrite, language: str, now: datetime,
+) -> None:
+    """Bind bounded, contiguous Evidence spans to the canonical timed transcript."""
+    create = getattr(repository, "create_evidence_with_text_binding", None)
+    get_evidence = getattr(repository, "get_evidence", None)
+    resolve_text = getattr(repository, "resolve_verified_evidence_text", None)
+    if not (callable(create) and callable(get_evidence) and callable(resolve_text)):
+        return
+    for evidence, binding in _original_transcript_evidence_writes(timed, language):
+        existing = get_evidence(evidence.evidence_id)
         if existing is None:
             create(
                 evidence,
-                EvidenceTextBindingWrite.from_timed_transcript(
-                    evidence=evidence,
-                    timed_transcript_id=timed.timed_transcript_id,
-                    start_cue_index=first,
-                    end_cue_index=last,
-                    excerpt=excerpt,
-                ),
+                binding,
                 now=now,
             )
         elif (
@@ -447,11 +456,10 @@ def _persist_original_transcript_evidence(
             or existing.start_ms != evidence.start_ms
             or existing.end_ms != evidence.end_ms
             or existing.language != evidence.language
-            or (verified := resolve_text(evidence_id)) is None
-            or verified.excerpt != excerpt
+            or (verified := resolve_text(evidence.evidence_id)) is None
+            or verified.excerpt != binding.excerpt
         ):
             raise ValueError("existing transcript Evidence conflicts with canonical cues")
-        first = last
 
 
 def _language_match_rank(actual: str, requested: str) -> int | None:
@@ -1140,6 +1148,7 @@ def _raw_artifact_id(
     metadata: _SourceMetadata,
     source_content_hash: str,
     provider: str,
+    source_producer_version: str = _RAW_PRODUCER_VERSION,
 ) -> str:
     provenance_hash = _stable_hash(
         {
@@ -1151,7 +1160,7 @@ def _raw_artifact_id(
             "source_content_hash": source_content_hash,
             "source_format": metadata.source_format.value,
             "source_type": metadata.source_type.value,
-            "source_producer_version": _RAW_PRODUCER_VERSION,
+            "source_producer_version": source_producer_version,
         }
     )
     return f"subtitle-source-{provenance_hash}"
@@ -1611,7 +1620,7 @@ def _normalize_recovered_raw(
 ) -> NormalizedSubtitle:
     invalid = False
     try:
-        normalized = normalize_subtitle(raw_body, source_format)
+        normalized = normalize_timed_subtitle(raw_body, source_format)
     except InvalidSubtitleCandidate:
         invalid = True
         normalized = None
@@ -1650,6 +1659,68 @@ class SubtitleAcquisitionService:
         self._context = context
         self._clock = clock
         self._provider_lease_seconds = provider_lease_seconds
+
+    def _persist_timed_source(
+        self, *, video_id: str, canonical_artifact_id: str,
+        normalized: NormalizedSubtitle, language: str, now: datetime,
+    ) -> None:
+        persist = getattr(self._repository, "create_timed_transcript", None)
+        if not callable(persist) or not normalized.timed_cues:
+            return
+        timed = TimedTranscriptWrite.from_cues(
+            video_id=video_id, canonical_artifact_id=canonical_artifact_id,
+            cues=tuple(TimedTranscriptCueWrite(
+                start_ms=cue.start_ms, end_ms=cue.end_ms, text=cue.text,
+            ) for cue in normalized.timed_cues),
+        )
+        persist(timed, now=now)
+        _persist_original_transcript_evidence(
+            self._repository, timed=timed, language=language, now=now,
+        )
+
+    def _native_timing_alternate(
+        self, *, candidate: RankedSubtitleCandidate,
+        ranked: Sequence[RankedSubtitleCandidate], video_id: str,
+        raw_request_hash: str, now: datetime,
+    ) -> tuple[RankedSubtitleCandidate, bytes, NormalizedSubtitle, ProviderCallMetadata] | None:
+        """Try one native body per alternate format for this exact caption track."""
+        attempted_formats = {candidate.track.source_format}
+        for alternate in ranked:
+            track = alternate.track
+            if (track.source_format not in {SubtitleFormat.VTT, SubtitleFormat.SRT}
+                or track.source_format in attempted_formats
+                or track.source_type is not candidate.track.source_type
+                or normalize_language_tag(track.language) != normalize_language_tag(candidate.track.language)
+                or _normalized_track_name(track.name) != _normalized_track_name(candidate.track.name)):
+                continue
+            attempted_formats.add(track.source_format)
+            relative = _source_relative_path(
+                video_id=video_id, raw_request_hash=raw_request_hash,
+                metadata=_SourceMetadata(
+                    source_type=track.source_type, requested_language=alternate.requested_language,
+                    actual_language=track.language, source_format=track.source_format,
+                ),
+            )
+            path = _resolve_data_path(self._data_root, relative, video_id=video_id)
+            try:
+                if path.exists():
+                    body, _ = _read_verified_file(
+                        path, expected_hash=None, max_bytes=SUBTITLE_QUALITY_POLICY.max_raw_bytes,
+                        video_id=video_id, permission_error_code=ErrorCode.PERMISSION_DENIED,
+                    )
+                    normalized = _normalize_recovered_raw(body, track.source_format, video_id=video_id)
+                    call = ProviderCallMetadata(provider=self._adapter.provider_name,
+                                                provider_version=self._adapter.provider_version,
+                                                started_at=now, finished_at=now)
+                else:
+                    read = self._read_adapter_track(track, video_id=video_id)
+                    body, call = read.body, read.call
+                    normalized = normalize_timed_subtitle(body, track.source_format)
+            except InvalidSubtitleCandidate:
+                continue
+            if normalized.timed_cues:
+                return alternate, body, normalized, call
+        return None
 
     def _get_artifact(
         self,
@@ -1975,7 +2046,7 @@ class SubtitleAcquisitionService:
     ) -> TranscriptReady:
         invalid = False
         try:
-            normalized = normalize_subtitle(raw_body, metadata.source_format)
+            normalized = normalize_timed_subtitle(raw_body, metadata.source_format)
         except InvalidSubtitleCandidate:
             invalid = True
             normalized = None
@@ -2074,6 +2145,10 @@ class SubtitleAcquisitionService:
                 retryable=True,
                 video_id=video_id,
             )
+        self._persist_timed_source(
+            video_id=video_id, canonical_artifact_id=canonical_artifact_id,
+            normalized=normalized, language=metadata.actual_language, now=now,
+        )
         return TranscriptReady(
             artifact=TranscriptArtifact(
                 video_id=video_id,
@@ -2348,6 +2423,21 @@ class SubtitleAcquisitionService:
         )
         if complete_stage:
             self._complete_cached_stage(video_id=video_id, now=now)
+        read_timed = getattr(self._repository, "get_verified_timed_transcript", None)
+        current_timed = read_timed(video_id=video_id) if callable(read_timed) else None
+        if current_timed is None:
+            normalized = _normalize_recovered_raw(raw_body, metadata.source_format, video_id=video_id)
+            if normalized.text != canonical_text:
+                raise _service_error(ErrorCode.LOCAL_RESOURCE, "cached timed transcript text is inconsistent",
+                                     retryable=False, video_id=video_id)
+            self._persist_timed_source(
+                video_id=video_id, canonical_artifact_id=canonical_record.artifact_id,
+                normalized=normalized, language=metadata.actual_language, now=now,
+            )
+        elif current_timed.canonical_artifact_id == canonical_record.artifact_id:
+            _persist_original_transcript_evidence(
+                self._repository, timed=current_timed, language=metadata.actual_language, now=now,
+            )
         return TranscriptReady(
             artifact=artifact,
             call=ProviderCallMetadata(
@@ -2532,6 +2622,27 @@ class SubtitleAcquisitionService:
             except InvalidSubtitleCandidate:
                 continue
 
+            if not normalized.timed_cues:
+                # Preserve the original accepted plain body even if a native
+                # alternate proves timing. No timing is inferred or clipped.
+                _atomic_write(raw_path, raw_body, data_root=self._data_root,
+                              expected_hash=normalized.source_content_hash,
+                              max_bytes=SUBTITLE_QUALITY_POLICY.max_raw_bytes, video_id=video_id)
+                alternate = self._native_timing_alternate(
+                    candidate=candidate, ranked=ranked, video_id=video_id,
+                    raw_request_hash=raw_request_hash, now=now,
+                )
+                if alternate is not None:
+                    candidate, raw_body, normalized, last_call = alternate
+                    metadata = _SourceMetadata(
+                        source_type=candidate.track.source_type, requested_language=candidate.requested_language,
+                        actual_language=candidate.track.language, source_format=candidate.track.source_format,
+                    )
+                    raw_relative_path = _source_relative_path(
+                        video_id=video_id, raw_request_hash=raw_request_hash, metadata=metadata,
+                    )
+                    raw_path = _resolve_data_path(self._data_root, raw_relative_path, video_id=video_id)
+
             canonical_request_hash = build_canonical_request_hash(
                 source_content_hash=normalized.source_content_hash,
                 source_format=candidate.track.source_format,
@@ -2617,9 +2728,27 @@ class SubtitleAcquisitionService:
                     expires_at=None,
                 ),
             )
+            completion = ProviderCallCompletion(
+                request_hash=provider_request.request_hash, response_artifact_id=raw_artifact_id,
+                input_tokens=None, output_tokens=None, cost_microusd=None,
+            )
             stage_persistence_failed = False
             try:
-                self._repository.complete_stage(
+                repair = self._context.repair
+                if repair is not None:
+                    complete_repair = getattr(self._repository, "complete_caption_repair")
+                    complete_repair(
+                        job_id=self._context.job_id, owner=self._context.owner, video_id=video_id,
+                        pipeline_version=self._context.pipeline_version, source_run_id=repair.source_run_id,
+                        expected_canonical_artifact_id=repair.expected_canonical_artifact_id,
+                        artifacts=artifacts, provider_call=completion, data_root=self._data_root, now=now,
+                        language_preferences=language_preferences, provider_version=self._adapter.provider_version,
+                        timed=TimedTranscriptWrite.from_cues(video_id=video_id, canonical_artifact_id=canonical_artifact_id,
+                            cues=tuple(TimedTranscriptCueWrite(start_ms=c.start_ms, end_ms=c.end_ms, text=c.text)
+                                       for c in normalized.timed_cues)),
+                    )
+                else:
+                    self._repository.complete_stage(
                     job_id=self._context.job_id,
                     owner=self._context.owner,
                     video_id=video_id,
@@ -2627,35 +2756,12 @@ class SubtitleAcquisitionService:
                     target_status=PipelineStatus.TRANSCRIPT_READY,
                     pipeline_version=self._context.pipeline_version,
                     artifacts=artifacts,
-                    provider_call=ProviderCallCompletion(
-                        request_hash=provider_request.request_hash,
-                        response_artifact_id=raw_artifact_id,
-                        input_tokens=None,
-                        output_tokens=None,
-                        cost_microusd=None,
-                    ),
+                    provider_call=completion,
                     now=now,
                 )
-                persist_timed = getattr(self._repository, "create_timed_transcript", None)
-                if callable(persist_timed) and normalized.timed_cues:
-                    timed = TimedTranscriptWrite.from_cues(
-                            video_id=video_id,
-                            canonical_artifact_id=canonical_artifact_id,
-                            cues=tuple(
-                                TimedTranscriptCueWrite(
-                                    start_ms=cue.start_ms,
-                                    end_ms=cue.end_ms,
-                                    text=cue.text,
-                                )
-                                for cue in normalized.timed_cues
-                            ),
-                        )
-                    persist_timed(timed, now=now)
-                    _persist_original_transcript_evidence(
-                        self._repository,
-                        timed=timed,
-                        language=candidate.track.language,
-                        now=now,
+                    self._persist_timed_source(
+                        video_id=video_id, canonical_artifact_id=canonical_artifact_id,
+                        normalized=normalized, language=candidate.track.language, now=now,
                     )
             except Exception:
                 stage_persistence_failed = True

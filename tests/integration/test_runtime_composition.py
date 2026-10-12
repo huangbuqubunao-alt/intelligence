@@ -199,6 +199,34 @@ class _NoSubtitleAdapter(_SubtitleAdapter):
         return SubtitleTrackListing(tracks=(), call=self._call)
 
 
+class _NativeCaptionRepairAdapter(_SubtitleAdapter):
+    """Synthetic source replay: plain-only first, native timing after user retry."""
+
+    native_available = False
+
+    def enumerate_tracks(self, video_id: str) -> SubtitleTrackListing:
+        original = super().enumerate_tracks(video_id)
+        if not self.native_available:
+            return original
+        track = original.tracks[0]
+        return SubtitleTrackListing(tracks=(*original.tracks, SubtitleTrack(
+            source_type=track.source_type, language=track.language,
+            source_format=SubtitleFormat.VTT, name=track.name,
+            url="https://example.invalid/native-vtt", provider_position=1,
+        )), call=original.call)
+
+    def read_track(self, track: SubtitleTrack) -> SubtitleReadResult:
+        self.read_calls += 1
+        lines = ("The product workflow begins with clear evidence from source material.",
+                 "The second meaningful source sentence explains the reliable product workflow.")
+        if track.source_format is SubtitleFormat.VTT:
+            body = ("WEBVTT\n\n00:00:00.000 --> 00:00:02.000\n" + lines[0]
+                    + "\n\n00:00:02.000 --> 00:00:04.000\n" + lines[1] + "\n").encode()
+        else:
+            body = json.dumps({"events": [{"segs": [{"utf8": line}]} for line in lines]}).encode()
+        return SubtitleReadResult(body=body, call=self._call)
+
+
 class _ScoringProvider:
     def __init__(self) -> None:
         self.calls = 0
@@ -911,3 +939,239 @@ def test_local_summary_identity_does_not_grant_intelligence_production(
     assert transport.is_authorized_for(verified) is True
     assert transport.is_authorized_for_normal_production(verified) is False
     assert requests == []
+
+
+def test_explicit_user_check_atomically_repairs_completed_plain_captions(tmp_path: Path) -> None:
+    project = _project(tmp_path)
+    adapter = _NativeCaptionRepairAdapter()
+    dependencies = RuntimeDependencies(
+        discovery_source=_SingleVideoDiscoverySource(), metadata_provider=_MetadataProvider(),
+        subtitle_adapter_factory=lambda: adapter,
+        scoring_provider_factory=lambda: pytest.fail("Content repair must not dispatch scoring"),
+        analysis_provider_factory=lambda: pytest.fail("Content repair must not dispatch analysis"),
+    )
+    config = load_app_config(project / "config/channels.yaml", project / "config/settings.yaml")
+    runtime = build_local_source_run_runtime(config=config, project_root=project,
+        database=project / "gui.sqlite3", dependencies=dependencies, now=lambda: datetime.now(UTC))
+    source = runtime.product.add_source(url=f"https://www.youtube.com/watch?v={VIDEO_ID}",
+                                       processing_policy=ProcessingPolicy.DISCOVER_ONLY)
+    status, first = runtime.application.handle("POST", f"/api/v1/sources/{source.source_id}/check",
+                                               b'{"command_id":"synthetic-plain-caption-import"}')
+    assert status == 202
+    runtime.worker.run_once()
+    assert runtime.repository.get_video(VIDEO_ID).pipeline_status is PipelineStatus.TRANSCRIPT_READY
+    original_job = runtime.repository.latest_video_job(VIDEO_ID)
+    assert original_job is not None and original_job.status.value == "SUCCEEDED"
+    plain = runtime.repository.latest_artifact(VIDEO_ID, ArtifactKind.TRANSCRIPT_CANONICAL)
+    assert plain is not None
+    plain_body = (project / "data" / plain.relative_path).read_bytes()
+    assert runtime.repository.get_verified_timed_transcript(video_id=VIDEO_ID) is None
+    assert runtime.application.handle("GET", f"/api/v1/videos/{VIDEO_ID}")[1]["video"]["processing_status"] == "NEEDS_ATTENTION"
+    adapter.native_available = True
+    status, second = runtime.application.handle("POST", f"/api/v1/sources/{source.source_id}/check",
+                                                b'{"command_id":"synthetic-explicit-caption-repair"}')
+    assert status == 202 and first["source_run"]["run_id"] != second["source_run"]["run_id"]
+    progressed = runtime.worker.run_once()
+    assert progressed is not None
+    timed = runtime.repository.get_verified_timed_transcript(video_id=VIDEO_ID)
+    assert timed is not None and len(timed.cues) == 2
+    assert runtime.repository.list_canonical_coverage_evidence_ids(VIDEO_ID)
+    assert runtime.repository.current_local_summary_pointer(VIDEO_ID) is not None
+    assert runtime.repository.get_job(original_job.job_id) == original_job
+    assert (project / "data" / plain.relative_path).read_bytes() == plain_body
+    assert runtime.repository.get_video(VIDEO_ID).pipeline_status is PipelineStatus.TRANSCRIPT_READY
+    assert runtime.application.handle("GET", f"/api/v1/videos/{VIDEO_ID}")[1]["video"]["processing_status"] == "ORGANIZED"
+    reads = adapter.read_calls
+    runtime.application.handle("POST", f"/api/v1/sources/{source.source_id}/check",
+                               b'{"command_id":"synthetic-idempotent-after-repair"}')
+    runtime.worker.run_once()
+    assert adapter.read_calls == reads
+
+
+def _completed_plain_caption_runtime(tmp_path: Path):
+    project = _project(tmp_path)
+    adapter = _NativeCaptionRepairAdapter()
+    dependencies = RuntimeDependencies(discovery_source=_SingleVideoDiscoverySource(),
+        metadata_provider=_MetadataProvider(), subtitle_adapter_factory=lambda: adapter,
+        scoring_provider_factory=lambda: pytest.fail("Caption repair must not dispatch scoring"),
+        analysis_provider_factory=lambda: pytest.fail("Caption repair must not dispatch analysis"))
+    config = load_app_config(project / "config/channels.yaml", project / "config/settings.yaml")
+    runtime = build_local_source_run_runtime(config=config, project_root=project,
+        database=project / "gui.sqlite3", dependencies=dependencies, now=lambda: datetime.now(UTC))
+    source = runtime.product.add_source(url=f"https://www.youtube.com/watch?v={VIDEO_ID}",
+                                       processing_policy=ProcessingPolicy.DISCOVER_ONLY)
+    runtime.application.handle("POST", f"/api/v1/sources/{source.source_id}/check",
+                               b'{"command_id":"synthetic-plain-import"}')
+    runtime.worker.run_once()
+    adapter.native_available = True
+    return runtime, adapter, source.source_id, config, dependencies
+
+
+@pytest.mark.parametrize("failure_point", ["caption_repair.after_artifacts", "caption_repair.after_authority"])
+def test_caption_repair_transaction_rollback_retains_history_and_allows_explicit_retry(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure_point: str) -> None:
+    runtime, adapter, source_id, _, _ = _completed_plain_caption_runtime(tmp_path)
+    original_job = runtime.repository.latest_video_job(VIDEO_ID)
+    old = runtime.repository.latest_artifact(VIDEO_ID, ArtifactKind.TRANSCRIPT_CANONICAL)
+    assert old is not None and original_job is not None
+    original_inject = runtime.repository._inject_failure
+    def fail(point: str) -> None:
+        if point == failure_point:
+            raise RuntimeError("synthetic atomic failure")
+    monkeypatch.setattr(runtime.repository, "_inject_failure", fail)
+    runtime.application.handle("POST", f"/api/v1/sources/{source_id}/check", b'{"command_id":"synthetic-failing-repair"}')
+    failed = runtime.worker.run_once()
+    assert failed is not None and failed.state is SourceRunState.NEEDS_ATTENTION
+    assert runtime.repository.get_verified_timed_transcript(video_id=VIDEO_ID) is None
+    assert not runtime.repository.list_canonical_coverage_evidence_ids(VIDEO_ID)
+    assert runtime.repository.current_local_summary_pointer(VIDEO_ID) is None
+    assert runtime.repository.latest_artifact(VIDEO_ID, ArtifactKind.TRANSCRIPT_CANONICAL) == old
+    assert runtime.repository.get_job(original_job.job_id) == original_job
+    with runtime.repository._connect() as connection:
+        assert connection.execute("SELECT COUNT(*) FROM artifacts WHERE job_id LIKE 'caption-repair-%'").fetchone()[0] == 0
+        assert connection.execute("SELECT COUNT(*) FROM provider_calls WHERE status='SUCCEEDED'").fetchone()[0] == 1
+    monkeypatch.setattr(runtime.repository, "_inject_failure", original_inject)
+    runtime.application.handle("POST", f"/api/v1/sources/{source_id}/check", b'{"command_id":"synthetic-explicit-repair-retry"}')
+    runtime.worker.run_once()
+    assert runtime.repository.get_verified_timed_transcript(video_id=VIDEO_ID) is not None
+    assert runtime.repository.current_local_summary_pointer(VIDEO_ID) is not None
+    assert adapter.read_calls == 5  # initial JSON3 + two bounded JSON3/VTT attempts
+    # The failed repair remains history; retry derives from the original
+    # successful canonical job rather than creating an unrelated stage rerun.
+    jobs = runtime.repository.list_video_jobs(VIDEO_ID, limit=1000)
+    assert sum(job.job_id.startswith("caption-repair-") for job in jobs) == 2
+    assert not any(job.job_id.startswith("content-retry-") for job in jobs)
+    assert runtime.repository.get_job(original_job.job_id) == original_job
+
+
+@pytest.mark.parametrize("invalid", ["owner", "expired_lease", "foreign_run", "current_pointer", "foreign_artifact", "native_timing", "canonical_hash", "unknown_ledger"])
+def test_caption_repair_rejects_unowned_foreign_changed_or_unproven_authority(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, invalid: str) -> None:
+    from dataclasses import replace
+    from datetime import timedelta
+
+    from youtube_intel.state import TimedTranscriptCueWrite, TimedTranscriptWrite
+
+    runtime, _, source_id, _, _ = _completed_plain_caption_runtime(tmp_path)
+    original_job = runtime.repository.latest_video_job(VIDEO_ID)
+    old = runtime.repository.latest_artifact(VIDEO_ID, ArtifactKind.TRANSCRIPT_CANONICAL)
+    original = runtime.repository.complete_caption_repair
+    def corrupt(**kwargs):
+        if invalid == "owner":
+            kwargs["owner"] = "foreign-worker"
+        elif invalid == "expired_lease":
+            kwargs["now"] += timedelta(minutes=10)
+        elif invalid == "foreign_run":
+            kwargs["source_run_id"] = "foreign-run"
+        elif invalid == "current_pointer":
+            kwargs["expected_canonical_artifact_id"] = "foreign-canonical"
+        elif invalid == "foreign_artifact":
+            kwargs["artifacts"] = (kwargs["artifacts"][0], replace(kwargs["artifacts"][1], video_id="foreign-video"))
+        elif invalid == "native_timing":
+            timed = kwargs["timed"]
+            altered = tuple(TimedTranscriptCueWrite(start_ms=c.start_ms, end_ms=c.end_ms + (1 if i == 1 else 0), text=c.text) for i, c in enumerate(timed.cues))
+            kwargs["timed"] = TimedTranscriptWrite.from_cues(video_id=timed.video_id, canonical_artifact_id=timed.canonical_artifact_id, cues=altered)
+        elif invalid == "canonical_hash":
+            (kwargs["data_root"] / kwargs["artifacts"][1].relative_path).write_bytes(b"synthetic changed text\n")
+        elif invalid == "unknown_ledger":
+            runtime.repository.record_provider_dispatch_intent(kwargs["provider_call"].request_hash, owner=kwargs["owner"], now=kwargs["now"])
+        return original(**kwargs)
+    monkeypatch.setattr(runtime.repository, "complete_caption_repair", corrupt)
+    runtime.application.handle("POST", f"/api/v1/sources/{source_id}/check", b'{"command_id":"synthetic-invalid-repair"}')
+    runtime.worker.run_once()
+    assert runtime.repository.get_verified_timed_transcript(video_id=VIDEO_ID) is None
+    assert not runtime.repository.list_canonical_coverage_evidence_ids(VIDEO_ID)
+    assert runtime.repository.latest_artifact(VIDEO_ID, ArtifactKind.TRANSCRIPT_CANONICAL) == old
+    assert original_job is not None and runtime.repository.get_job(original_job.job_id) == original_job
+    with runtime.repository._connect() as connection:
+        assert connection.execute("SELECT COUNT(*) FROM artifacts WHERE job_id LIKE 'caption-repair-%'").fetchone()[0] == 0
+
+
+def test_caption_repair_concurrent_completion_commits_once(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from concurrent.futures import ThreadPoolExecutor
+
+    runtime, _, source_id, _, _ = _completed_plain_caption_runtime(tmp_path)
+    original = runtime.repository.complete_caption_repair
+    outcomes: list[str] = []
+    def concurrent(**kwargs):
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            futures = [pool.submit(original, **kwargs) for _ in range(2)]
+            results = []
+            for future in futures:
+                try:
+                    results.append(future.result())
+                    outcomes.append("committed")
+                except Exception:
+                    outcomes.append("rejected")
+            assert len(results) == 1
+            return results[0]
+    monkeypatch.setattr(runtime.repository, "complete_caption_repair", concurrent)
+    runtime.application.handle("POST", f"/api/v1/sources/{source_id}/check", b'{"command_id":"synthetic-concurrent-repair"}')
+    runtime.worker.run_once()
+    assert sorted(outcomes) == ["committed", "rejected"]
+    assert runtime.repository.get_verified_timed_transcript(video_id=VIDEO_ID) is not None
+    assert runtime.repository.current_local_summary_pointer(VIDEO_ID) is not None
+    with runtime.repository._connect() as connection:
+        assert connection.execute("SELECT COUNT(*) FROM artifacts WHERE job_id LIKE 'caption-repair-%'").fetchone()[0] == 2
+        assert connection.execute("SELECT COUNT(*) FROM timed_transcripts").fetchone()[0] == 1
+
+
+@pytest.mark.parametrize("live_lease", ["job", "provider"])
+def test_caption_repair_restart_retains_command_child_and_raw_after_lease_expiry(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, live_lease: str) -> None:
+    from datetime import timedelta
+
+    from youtube_intel import runtime_composition as composition_module
+
+    class SyntheticProcessInterruption(BaseException):
+        pass
+
+    runtime, adapter, source_id, config, dependencies = _completed_plain_caption_runtime(tmp_path)
+    def interrupt(point: str) -> None:
+        if point == "caption_repair.after_authority":
+            raise SyntheticProcessInterruption()
+    monkeypatch.setattr(runtime.repository, "_inject_failure", interrupt)
+    status, accepted = runtime.application.handle("POST", f"/api/v1/sources/{source_id}/check", b'{"command_id":"synthetic-interrupted-repair"}')
+    assert status == 202
+    run_id = accepted["source_run"]["run_id"]
+    with pytest.raises(SyntheticProcessInterruption):
+        runtime.worker.run_once()
+    job = runtime.repository.latest_video_job(VIDEO_ID)
+    assert job is not None and job.status.value == "RUNNING"
+    if live_lease == "provider":
+        # A crash can leave a provider reservation alive after the job lease
+        # ends. Reproduce that isolated SQLite state without contacting a host.
+        with runtime.repository._connect() as connection:
+            connection.execute("UPDATE jobs SET lease_until=? WHERE job_id=?",
+                               ((datetime.now(UTC) - timedelta(seconds=1)).isoformat().replace("+00:00", "Z"), job.job_id))
+    assert not runtime.backup_restore.readiness()["ready"]
+    assert runtime.repository.get_verified_timed_transcript(video_id=VIDEO_ID) is None
+    reads = adapter.read_calls
+    restarted = build_local_source_run_runtime(config=config, project_root=tmp_path,
+        database=tmp_path / "gui.sqlite3", dependencies=dependencies, now=lambda: datetime.now(UTC))
+    deferred = restarted.worker.run_once()
+    assert deferred is not None and deferred.run_id == run_id and deferred.state is SourceRunState.RUNNING
+    assert adapter.read_calls == reads
+    future = datetime.now(UTC) + timedelta(minutes=10)
+    class ExpiredLeaseClock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return future
+    monkeypatch.setattr(composition_module, "datetime", ExpiredLeaseClock)
+    resumed = restarted.worker.run_once()
+    assert resumed is not None and resumed.run_id == run_id
+    saved = restarted.repository.get_job(job.job_id)
+    assert saved is not None and saved.status.value == "SUCCEEDED" and saved.attempt_count == 2
+    assert adapter.read_calls == reads
+    assert restarted.repository.get_verified_timed_transcript(video_id=VIDEO_ID) is not None
+    assert restarted.repository.current_local_summary_pointer(VIDEO_ID) is not None
+    timed = restarted.repository.get_verified_timed_transcript(video_id=VIDEO_ID)
+    assert restarted.backup_restore.readiness()["ready"]
+    # Rebuilding ordinary runtime and explicitly checking again must retain
+    # authority and avoid both a new repair child and another subtitle fetch.
+    again = build_local_source_run_runtime(config=config, project_root=tmp_path,
+        database=tmp_path / "gui.sqlite3", dependencies=dependencies, now=lambda: future)
+    again.application.handle("POST", f"/api/v1/sources/{source_id}/check",
+                             b'{"command_id":"synthetic-post-repair-restart"}')
+    again.worker.run_once()
+    assert again.repository.get_verified_timed_transcript(video_id=VIDEO_ID) == timed
+    assert adapter.read_calls == reads
+    assert sum(saved.job_id.startswith("caption-repair-")
+               for saved in again.repository.list_video_jobs(VIDEO_ID, limit=1000)) == 1

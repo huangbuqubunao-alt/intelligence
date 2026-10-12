@@ -1332,6 +1332,139 @@ def _service(
     )
 
 
+class _NativeFormatOpener(_BodyOpener):
+    """Synthetic replay of JSON3 append/overlap and native VTT alternate."""
+
+    def __init__(self, *, vtt: bytes | BaseException | None = None) -> None:
+        super().__init__(json.dumps({"events": [
+            {"tStartMs": 0, "dDurationMs": 4000, "segs": [{"utf8": "First source sentence has sufficient meaningful characters."}]},
+            {"tStartMs": 1000, "aAppend": 1, "segs": [{"utf8": "\n"}]},
+            {"tStartMs": 2000, "dDurationMs": 4000, "segs": [{"utf8": "Second source sentence has sufficient meaningful characters."}]},
+        ]}).encode())
+        self.vtt = vtt if vtt is not None else b"WEBVTT\n\n00:00:00.000 --> 00:00:02.000\nFirst source sentence has sufficient meaningful characters.\n\n00:00:02.000 --> 00:00:04.000\nSecond source sentence has sufficient meaningful characters.\n"
+        self.formats: list[str] = []
+
+    def __call__(self, request: object, timeout: float) -> object:
+        url = getattr(request, "full_url", "")
+        source_format = "vtt" if "fmt=vtt" in url else "json3"
+        self.formats.append(source_format)
+        if source_format == "vtt":
+            if isinstance(self.vtt, BaseException):
+                raise self.vtt
+            self.calls += 1
+            response = _Response(self.vtt, content_length=len(self.vtt))
+            self.responses.append(response)
+            return response
+        return super().__call__(request, timeout)
+
+
+def _native_format_adapter(opener: _NativeFormatOpener) -> YtDlpSubtitleAdapter:
+    adapter, _ = _bound_adapter(_directory_payload([
+        _directory_entry(source_format=fmt, url=f"https://www.youtube.com/api/timedtext?v=video123&lang=en&fmt={fmt}")
+        for fmt in ("json3", "vtt")
+    ]), opener)
+    return adapter
+
+
+def test_plain_json3_uses_same_track_native_timing_and_preserves_raw(tmp_path: Path) -> None:
+    repository = _repository_with_transcript_job(tmp_path)
+    opener = _NativeFormatOpener()
+    result = _service(adapter=_native_format_adapter(opener), repository=repository,
+                      data_root=tmp_path / "data", job_id="subtitle-job").fetch(_video(), ("en",))
+    assert isinstance(result, TranscriptReady)
+    assert result.artifact.source_format is SubtitleFormat.VTT
+    assert opener.formats == ["json3", "vtt"]
+    timed = repository.get_verified_timed_transcript(video_id="video123")
+    assert timed is not None and len(timed.cues) == 2
+    assert [(cue.start_ms, cue.end_ms) for cue in timed.cues] == [(0, 2000), (2000, 4000)]
+    assert repository.list_canonical_coverage_evidence_ids("video123")
+    assert [path.read_bytes() for path in (tmp_path / "data").rglob("*.json3")] == [opener.body]
+
+
+def test_plain_json3_remains_plain_when_alternate_timing_is_invalid(tmp_path: Path) -> None:
+    repository = _repository_with_transcript_job(tmp_path)
+    opener = _NativeFormatOpener(vtt=b"WEBVTT\n\n00:00:00.000 --> 00:00:03.000\nFirst source sentence has sufficient meaningful characters.\n\n00:00:02.000 --> 00:00:04.000\nSecond source sentence has sufficient meaningful characters.\n")
+    result = _service(adapter=_native_format_adapter(opener), repository=repository,
+                      data_root=tmp_path / "data", job_id="subtitle-job").fetch(_video(), ("en",))
+    assert isinstance(result, TranscriptReady)
+    assert result.artifact.source_format is SubtitleFormat.JSON3
+    assert opener.formats == ["json3", "vtt"]
+    assert repository.get_verified_timed_transcript(video_id="video123") is None
+
+
+def test_native_timing_fallback_propagates_rate_limit_without_plain_downgrade(tmp_path: Path) -> None:
+    repository = _repository_with_transcript_job(tmp_path)
+    headers = HTTPMessage()
+    headers["Retry-After"] = "12"
+    opener = _NativeFormatOpener(vtt=urllib.error.HTTPError("https://www.youtube.com/api/timedtext", 429, "limited", headers, None))
+    with pytest.raises(TranscriptError) as failure:
+        _service(adapter=_native_format_adapter(opener), repository=repository,
+                 data_root=tmp_path / "data", job_id="subtitle-job").fetch(_video(), ("en",))
+    assert failure.value.error.code is ErrorCode.RATE_LIMITED
+    assert opener.formats == ["json3", "vtt"]
+    assert repository.get_video("video123").pipeline_status is PipelineStatus.METADATA_READY
+
+
+def test_cache_recovery_restores_timing_after_stage_commit_interruption(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    repository = _repository_with_transcript_job(tmp_path)
+    adapter, _ = _bound_adapter(_load_json("info_tracks.json"), _BodyOpener((FIXTURES / "manual_en.json3").read_bytes()))
+    service = _service(adapter=adapter, repository=repository, data_root=tmp_path / "data", job_id="subtitle-job")
+    original = repository.create_timed_transcript
+    monkeypatch.setattr(repository, "create_timed_transcript", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("synthetic interruption")))
+    with pytest.raises(TranscriptError):
+        service.fetch(_video(), ("en",))
+    assert repository.get_job("subtitle-job").status is JobStatus.SUCCEEDED
+    monkeypatch.setattr(repository, "create_timed_transcript", original)
+    service.load_verified_transcript(_video(), ("en",))
+    assert repository.get_verified_timed_transcript(video_id="video123") is not None
+    assert repository.list_canonical_coverage_evidence_ids("video123")
+
+
+def test_unindexed_native_raw_recovery_keeps_timing_without_second_body_read(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    repository = _repository_with_transcript_job(tmp_path)
+    opener = _NativeFormatOpener()
+    service = _service(adapter=_native_format_adapter(opener), repository=repository,
+                       data_root=tmp_path / "data", job_id="subtitle-job")
+    original = repository.complete_stage
+    monkeypatch.setattr(repository, "complete_stage", lambda **kwargs: (_ for _ in ()).throw(RuntimeError("synthetic transaction failure")))
+    with pytest.raises(TranscriptError):
+        service.fetch(_video(), ("en",))
+    assert opener.formats == ["json3", "vtt"]
+    monkeypatch.setattr(repository, "complete_stage", original)
+    # The call lease belongs to this failed attempt. Ordinary time-based retry
+    # reserves the failed call and reads the deterministically saved raw bodies.
+    retry_service = _service(adapter=_native_format_adapter(opener), repository=repository,
+                             data_root=tmp_path / "data", job_id="subtitle-job", now=NOW + td(seconds=1))
+    result = retry_service.fetch(_video(), ("en",))
+    assert isinstance(result, TranscriptReady)
+    assert result.artifact.source_format is SubtitleFormat.VTT
+    assert opener.formats == ["json3", "vtt"]
+    assert repository.get_verified_timed_transcript(video_id="video123") is not None
+
+
+@pytest.mark.parametrize("different", ["language", "source", "name"])
+def test_native_timing_fallback_cannot_select_another_caption_track(tmp_path: Path, different: str) -> None:
+    repository = _repository_with_transcript_job(tmp_path)
+    opener = _NativeFormatOpener()
+    alternate = _directory_entry(source_format="vtt", name="Other track" if different == "name" else "English",
+                                 url="https://www.youtube.com/api/timedtext?v=video123&fmt=vtt")
+    payload = _directory_payload([_directory_entry()])
+    payload["subtitles"] = {"en": [_directory_entry()]}
+    if different == "source":
+        payload["automatic_captions"] = {"en": [alternate]}
+    elif different == "language":
+        payload["subtitles"] = {"en": [_directory_entry()], "zh": [alternate]}
+    else:
+        payload["subtitles"] = {"en": [_directory_entry(), alternate]}
+    adapter, _ = _bound_adapter(payload, opener)
+    result = _service(adapter=adapter, repository=repository, data_root=tmp_path / "data",
+                      job_id="subtitle-job").fetch(_video(), ("en", "zh"))
+    assert isinstance(result, TranscriptReady)
+    assert result.artifact.source_format is SubtitleFormat.JSON3
+    assert opener.formats == ["json3"]
+    assert repository.get_verified_timed_transcript(video_id="video123") is None
+
+
 def _provider_request_for(
     adapter: YtDlpSubtitleAdapter,
     languages: tuple[str, ...] = ("en",),

@@ -7,7 +7,7 @@ import json
 import math
 import re
 import sqlite3
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
@@ -2736,6 +2736,7 @@ class SQLiteStateRepository:
         lease_until: datetime,
         now: datetime,
         video_id: str | None = None,
+        job_id: str | None = None,
     ) -> JobRecord | None:
         if not owner.strip():
             msg = "lease owner must be non-empty"
@@ -2756,6 +2757,9 @@ class SQLiteStateRepository:
         if video_id is not None:
             video_filter = " AND video_id = :video_id"
             params["video_id"] = video_id
+        if job_id is not None:
+            video_filter += " AND job_id = :job_id"
+            params["job_id"] = job_id
         connection = self._connect()
         try:
             with _immediate_transaction(connection):
@@ -4591,6 +4595,196 @@ class SQLiteStateRepository:
             except sqlite3.IntegrityError as error:
                 msg = "stage completion violates repository integrity"
                 raise IntegrityConflict(msg) from error
+        finally:
+            connection.close()
+
+    def complete_caption_repair(
+        self, *, job_id: str, owner: str, video_id: str, pipeline_version: str,
+        source_run_id: str, expected_canonical_artifact_id: str,
+        artifacts: tuple[ArtifactWrite, ...], provider_call: ProviderCallCompletion,
+        timed: TimedTranscriptWrite, data_root: Path, now: datetime,
+        language_preferences: Sequence[str], provider_version: str,
+    ) -> StageCompletionResult:
+        """Atomically supplement plain Content after an explicit source check.
+
+        This grants no pipeline transition. Native files are re-read and proven
+        inside the transaction before a new repair job receives authority.
+        """
+        from youtube_intel.transcripts import (
+            _CANONICAL_PRODUCER_VERSION,
+            _MAX_CANONICAL_BYTES,
+            _RAW_PRODUCER_VERSION,
+            FORMAT_POLICY_VERSION,
+            SELECTION_POLICY_VERSION,
+            SUBTITLE_QUALITY_POLICY,
+            _canonical_artifact_id,
+            _canonical_artifact_key,
+            _canonical_relative_path,
+            _decode_source_metadata,
+            _original_transcript_evidence_writes,
+            _raw_artifact_id,
+            _raw_artifact_key,
+            _read_verified_file,
+            _resolve_data_path,
+            _source_relative_path,
+            _validate_source_provenance,
+            build_canonical_request_hash,
+            build_raw_request_hash,
+            normalize_language_tag,
+            normalize_subtitle,
+            normalize_timed_subtitle,
+        )
+
+        if self._source_data_root is None or data_root.resolve() != self._source_data_root.resolve():
+            raise IntegrityConflict("caption repair requires this repository's bound DATA root")
+        if len(artifacts) != 2:
+            raise IntegrityConflict("caption repair needs the native source and canonical artifacts")
+        raw, canonical = artifacts
+        expected_job_id = "caption-repair-" + hashlib.sha256(f"{source_run_id}:{video_id}".encode()).hexdigest()
+        if (job_id != expected_job_id or raw.kind is not ArtifactKind.SUBTITLE_SOURCE
+            or canonical.kind is not ArtifactKind.TRANSCRIPT_CANONICAL
+            or timed.video_id != video_id or timed.canonical_artifact_id != canonical.artifact_id
+            or any(a.video_id != video_id or a.job_id != job_id or a.storage_root is not StorageRoot.DATA
+                   or a.model is not None or a.expires_at is not None
+                   or a.retention_class is not RetentionClass.LONG_LIVED for a in artifacts)
+            or raw.provider is None or raw.provider != canonical.provider
+            or raw.producer_version != _RAW_PRODUCER_VERSION
+            or canonical.producer_version != _CANONICAL_PRODUCER_VERSION):
+            raise IntegrityConflict("caption repair artifacts are foreign or unbound")
+        timestamp = format_utc_datetime(now)
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                job = self._owned_running_job(connection, job_id=job_id, owner=owner, now=timestamp)
+                video = connection.execute("SELECT * FROM videos WHERE video_id=?", (video_id,)).fetchone()
+                run = connection.execute(
+                    "SELECT r.* FROM source_runs r JOIN source_subscriptions s USING(source_id) "
+                    "JOIN source_video_links l USING(source_id) WHERE r.run_id=? AND l.video_id=? "
+                    "AND s.enabled=1 AND s.source_type='VIDEO_URL' AND s.video_id=? "
+                    "AND s.processing_policy='DISCOVER_ONLY'", (source_run_id, video_id, video_id),
+                ).fetchone()
+                if (video is None or video["provider"] != "YOUTUBE"
+                    or video["pipeline_status"] != PipelineStatus.TRANSCRIPT_READY.value
+                    or video["pipeline_version"] != pipeline_version
+                    or job["video_id"] != video_id or job["pipeline_version"] != pipeline_version
+                    or job["target_stage"] != ProcessingStage.TRANSCRIPT.value
+                    or job["scope_key"] != f"video:{video_id}:TRANSCRIPT"
+                    or job["job_type"] != JobType.VIDEO_STAGE.value
+                    or run is None or run["state"] != "RUNNING" or run["trigger"] != "MANUAL_CHECK_NOW"
+                    or not run["manual_command_id"] or str(run["manual_command_id"]).startswith("following-auto:")):
+                    raise ConcurrencyConflict("caption repair source, job or current Content changed")
+                if connection.execute("SELECT 1 FROM jobs WHERE video_id=? AND job_id<>? "
+                    "AND status IN ('PENDING','RUNNING','RETRY_PENDING') LIMIT 1", (video_id, job_id)).fetchone():
+                    raise ConcurrencyConflict("caption repair cannot overlap another active Content job")
+                if (connection.execute("SELECT 1 FROM timed_transcripts WHERE video_id=?", (video_id,)).fetchone()
+                    or connection.execute("SELECT 1 FROM current_content_summaries WHERE video_id=?", (video_id,)).fetchone()):
+                    raise IntegrityConflict("caption repair cannot replace existing timing or Summary authority")
+                old = connection.execute(
+                    "SELECT * FROM artifacts WHERE video_id=? AND kind=? AND deleted_at IS NULL "
+                    "ORDER BY created_at DESC,artifact_id DESC LIMIT 1", (video_id, ArtifactKind.TRANSCRIPT_CANONICAL.value),
+                ).fetchone()
+                if old is None or old["artifact_id"] != expected_canonical_artifact_id:
+                    raise ConcurrencyConflict("caption repair current canonical pointer changed")
+                old_raw = connection.execute(
+                    "SELECT a.* FROM artifacts a JOIN provider_calls p ON p.response_artifact_id=a.artifact_id "
+                    "JOIN jobs j ON j.job_id=a.job_id WHERE a.job_id=? AND a.video_id=? AND a.kind=? "
+                    "AND a.deleted_at IS NULL AND p.status='SUCCEEDED' AND j.status='SUCCEEDED' "
+                    "AND j.target_stage='TRANSCRIPT'", (old["job_id"], video_id, ArtifactKind.SUBTITLE_SOURCE.value),
+                ).fetchone()
+                if old_raw is None or old_raw["provider"] != old["provider"]:
+                    raise IntegrityConflict("caption repair historical plain source is not verified")
+                old_bodies = []
+                for existing in (old, old_raw):
+                    if existing["storage_root"] != StorageRoot.DATA.value:
+                        raise IntegrityConflict("caption repair historical storage is invalid")
+                    verified_body, _ = _read_verified_file(_resolve_data_path(data_root, existing["relative_path"], video_id=video_id),
+                        expected_hash=existing["content_hash"], max_bytes=SUBTITLE_QUALITY_POLICY.max_raw_bytes, video_id=video_id)
+                    old_bodies.append(verified_body)
+                ledger = connection.execute("SELECT * FROM provider_calls WHERE request_hash=?", (provider_call.request_hash,)).fetchone()
+                if (ledger is None or ledger["operation"] != "subtitle.fetch" or ledger["provider"] != raw.provider
+                    or ledger["model"] is not None or ledger["prompt_version"] != SELECTION_POLICY_VERSION
+                    or ledger["schema_version"] != FORMAT_POLICY_VERSION
+                    or provider_call.response_artifact_id != raw.artifact_id
+                    or self._dispatch_state_in_transaction(connection, provider_call.request_hash) is not None):
+                    raise IntegrityConflict("caption repair provider ledger is invalid or unknown")
+                raw_hash = PurePosixPath(raw.relative_path).parent.name
+                request = ProviderCallRequest(operation="subtitle.fetch", normalized_input_hash=raw_hash,
+                    provider=raw.provider, model=None, prompt_version=SELECTION_POLICY_VERSION,
+                    schema_version=FORMAT_POLICY_VERSION, deterministic_artifact_key=raw.artifact_key)
+                if request.request_hash != provider_call.request_hash:
+                    raise IntegrityConflict("caption repair provider request hash is foreign")
+                metadata = _decode_source_metadata(PurePosixPath(raw.relative_path).name, video_id=video_id)
+                expected_raw_hash = build_raw_request_hash(video_id=video_id,
+                    language_preferences=language_preferences, provider=raw.provider,
+                    provider_version=provider_version, refresh_generation=int(expected_job_id.removeprefix("caption-repair-")[:15], 16))
+                old_metadata = _decode_source_metadata(PurePosixPath(old_raw["relative_path"]).name, video_id=video_id)
+                old_hash = PurePosixPath(old_raw["relative_path"]).parent.name
+                old_policy = str(old_raw["producer_version"]).split("+")
+                old_ledger = connection.execute("SELECT * FROM provider_calls WHERE response_artifact_id=? AND status='SUCCEEDED'",
+                                                (old_raw["artifact_id"],)).fetchone()
+                if len(old_policy) != 2 or old_ledger is None:
+                    raise IntegrityConflict("caption repair historical provider policy is missing")
+                old_request = ProviderCallRequest(operation="subtitle.fetch", normalized_input_hash=old_hash,
+                    provider=old_raw["provider"], model=None, prompt_version=old_policy[0], schema_version=old_policy[1],
+                    deterministic_artifact_key=old_raw["artifact_key"])
+                if old_request.request_hash != old_ledger["request_hash"] or not self._provider_request_matches(old_ledger, old_request):
+                    raise IntegrityConflict("caption repair historical provider request is foreign")
+                old_normalized = normalize_subtitle(old_bodies[1], old_metadata.source_format)
+                old_canonical_hash = build_canonical_request_hash(source_content_hash=old_raw["content_hash"], source_format=old_metadata.source_format)
+                if (old_bodies[0] != old_normalized.text.encode()
+                    or old_raw["artifact_key"] != _raw_artifact_key(old_hash)
+                    or old_raw["artifact_id"] != _raw_artifact_id(raw_request_hash=old_hash, metadata=old_metadata,
+                        source_content_hash=old_raw["content_hash"], provider=old_raw["provider"],
+                        source_producer_version=old_raw["producer_version"])
+                    or old["artifact_id"] != _canonical_artifact_id(raw_artifact_id=old_raw["artifact_id"],
+                        raw_content_hash=old_raw["content_hash"], provider=old_raw["provider"], model=None,
+                        raw_request_hash=old_hash, canonical_request_hash=old_canonical_hash,
+                        content_hash=old["content_hash"], quality_flags=old_normalized.quality_flags)):
+                    raise IntegrityConflict("caption repair historical plain source binding is invalid")
+                _validate_source_provenance(metadata, language_preferences, video_id=video_id)
+                if (raw_hash != expected_raw_hash
+                    or metadata.source_type is not old_metadata.source_type
+                    or normalize_language_tag(metadata.actual_language) != normalize_language_tag(old_metadata.actual_language)):
+                    raise IntegrityConflict("caption repair source or explicit refresh identity changed")
+                if (raw.relative_path != _source_relative_path(video_id=video_id, raw_request_hash=raw_hash, metadata=metadata)
+                    or raw.artifact_key != _raw_artifact_key(raw_hash)):
+                    raise IntegrityConflict("caption repair source request binding is invalid")
+                body, _ = _read_verified_file(_resolve_data_path(data_root, raw.relative_path, video_id=video_id),
+                    expected_hash=raw.content_hash, max_bytes=SUBTITLE_QUALITY_POLICY.max_raw_bytes, video_id=video_id)
+                normalized = normalize_timed_subtitle(body, metadata.source_format)
+                canonical_body, _ = _read_verified_file(_resolve_data_path(data_root, canonical.relative_path, video_id=video_id),
+                    expected_hash=canonical.content_hash, max_bytes=_MAX_CANONICAL_BYTES, video_id=video_id)
+                canonical_hash = build_canonical_request_hash(source_content_hash=raw.content_hash, source_format=metadata.source_format)
+                proof = TimedTranscriptWrite.from_cues(video_id=video_id, canonical_artifact_id=canonical.artifact_id,
+                    cues=tuple(TimedTranscriptCueWrite(start_ms=c.start_ms, end_ms=c.end_ms, text=c.text) for c in normalized.timed_cues))
+                if (not normalized.timed_cues or normalized.text.encode() != canonical_body or proof != timed
+                    or raw.artifact_id != _raw_artifact_id(raw_request_hash=raw_hash, metadata=metadata,
+                                                          source_content_hash=raw.content_hash, provider=raw.provider)
+                    or canonical.artifact_key != _canonical_artifact_key(raw_hash, canonical_hash)
+                    or canonical.relative_path != _canonical_relative_path(video_id=video_id,
+                        raw_request_hash=raw_hash, canonical_request_hash=canonical_hash, quality_flags=normalized.quality_flags)
+                    or canonical.artifact_id != _canonical_artifact_id(raw_artifact_id=raw.artifact_id,
+                        raw_content_hash=raw.content_hash, provider=raw.provider, model=None,
+                        raw_request_hash=raw_hash, canonical_request_hash=canonical_hash,
+                        content_hash=canonical.content_hash, quality_flags=normalized.quality_flags)):
+                    raise IntegrityConflict("caption repair native timing or exact text proof is invalid")
+                stored = tuple(self._upsert_artifact_in_transaction(connection, a, now=timestamp) for a in artifacts)
+                self._inject_failure("caption_repair.after_artifacts")
+                completed = self._complete_provider_call_in_transaction(connection, provider_call, owner=owner, now=timestamp)
+                self._insert_timed_transcript_in_transaction(connection, timed, now=now)
+                for evidence, binding in _original_transcript_evidence_writes(timed, metadata.actual_language):
+                    connection.execute(
+                        "INSERT INTO evidence (evidence_id,video_id,artifact_id,start_ms,end_ms,lineage_kind,role,language,availability,created_at) "
+                        "VALUES (?,?,?,?,?,?,?,?,?,?)", (evidence.evidence_id, evidence.video_id, evidence.artifact_id,
+                            evidence.start_ms, evidence.end_ms, evidence.lineage_kind.value, evidence.role.value,
+                            evidence.language, evidence.availability.value, timestamp),
+                    )
+                    self._insert_evidence_text_binding_in_transaction(connection, evidence, binding, now=now)
+                self._inject_failure("caption_repair.after_authority")
+                finished = self._finish_job_success_in_transaction(connection, job_id=job_id, owner=owner, now=timestamp)
+                return StageCompletionResult(job=finished, video=self._video_from_row(video), artifacts=stored, provider_call=completed)
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict("caption repair violates immutable authority") from error
         finally:
             connection.close()
 
@@ -6930,6 +7124,18 @@ class SQLiteStateRepository:
         self, timed: TimedTranscriptWrite, *, now: datetime
     ) -> TimedTranscriptWrite:
         """Persist one cue-level authority after validating its canonical Artifact."""
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                return self._insert_timed_transcript_in_transaction(connection, timed, now=now)
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict("timed transcript violates immutable authority") from error
+        finally:
+            connection.close()
+
+    def _insert_timed_transcript_in_transaction(
+        self, connection: sqlite3.Connection, timed: TimedTranscriptWrite, *, now: datetime,
+    ) -> TimedTranscriptWrite:
         if (
             not timed.timed_transcript_id.strip()
             or not timed.video_id.strip()
@@ -6944,46 +7150,39 @@ class SQLiteStateRepository:
             if cue.start_ms < previous_end:
                 raise ValueError("timed transcript cues must not overlap")
             previous_end = cue.end_ms
-        connection = self._connect()
-        try:
-            with _immediate_transaction(connection):
-                artifact = connection.execute(
-                    "SELECT video_id, kind, deleted_at FROM artifacts WHERE artifact_id = ?",
-                    (timed.canonical_artifact_id,),
-                ).fetchone()
-                if (
-                    artifact is None
-                    or artifact["video_id"] != timed.video_id
-                    or artifact["kind"] != ArtifactKind.TRANSCRIPT_CANONICAL.value
-                    or artifact["deleted_at"] is not None
-                ):
-                    raise IntegrityConflict("timed transcript canonical artifact is not legal")
-                existing = connection.execute(
-                    "SELECT timed_transcript_hash FROM timed_transcripts WHERE timed_transcript_id = ?",
-                    (timed.timed_transcript_id,),
-                ).fetchone()
-                if existing is not None:
-                    if existing["timed_transcript_hash"] != timed.timed_transcript_hash:
-                        raise IntegrityConflict("timed transcript identity conflicts")
-                    return timed
-                connection.execute(
-                    "INSERT INTO timed_transcripts (timed_transcript_id, video_id, canonical_artifact_id, timed_transcript_hash, created_at) VALUES (?, ?, ?, ?, ?)",
-                    (timed.timed_transcript_id, timed.video_id, timed.canonical_artifact_id, timed.timed_transcript_hash, format_utc_datetime(now),
-                    ),
+        artifact = connection.execute(
+            "SELECT video_id, kind, deleted_at FROM artifacts WHERE artifact_id = ?",
+            (timed.canonical_artifact_id,),
+        ).fetchone()
+        if (
+            artifact is None
+            or artifact["video_id"] != timed.video_id
+            or artifact["kind"] != ArtifactKind.TRANSCRIPT_CANONICAL.value
+            or artifact["deleted_at"] is not None
+        ):
+            raise IntegrityConflict("timed transcript canonical artifact is not legal")
+        existing = connection.execute(
+            "SELECT timed_transcript_hash FROM timed_transcripts WHERE timed_transcript_id = ?",
+            (timed.timed_transcript_id,),
+        ).fetchone()
+        if existing is not None:
+            if existing["timed_transcript_hash"] != timed.timed_transcript_hash:
+                raise IntegrityConflict("timed transcript identity conflicts")
+            return timed
+        connection.execute(
+            "INSERT INTO timed_transcripts (timed_transcript_id, video_id, canonical_artifact_id, timed_transcript_hash, created_at) VALUES (?, ?, ?, ?, ?)",
+            (timed.timed_transcript_id, timed.video_id, timed.canonical_artifact_id, timed.timed_transcript_hash, format_utc_datetime(now),
+            ),
+        )
+        connection.executemany(
+            "INSERT INTO timed_transcript_cues (timed_transcript_id, cue_index, start_ms, end_ms, cue_text, cue_text_hash) VALUES (?, ?, ?, ?, ?, ?)",
+            [
+                (timed.timed_transcript_id, index, cue.start_ms, cue.end_ms, cue.text, cue.text_hash,
                 )
-                connection.executemany(
-                    "INSERT INTO timed_transcript_cues (timed_transcript_id, cue_index, start_ms, end_ms, cue_text, cue_text_hash) VALUES (?, ?, ?, ?, ?, ?)",
-                    [
-                        (timed.timed_transcript_id, index, cue.start_ms, cue.end_ms, cue.text, cue.text_hash,
-                        )
-                        for index, cue in enumerate(timed.cues)
-                    ],
-                )
-                return timed
-        except sqlite3.IntegrityError as error:
-            raise IntegrityConflict("timed transcript violates immutable authority") from error
-        finally:
-            connection.close()
+                for index, cue in enumerate(timed.cues)
+            ],
+        )
+        return timed
 
     def _insert_evidence_text_binding_in_transaction(
         self,

@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import secrets
 import threading
 from contextlib import nullcontext
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Callable
 
@@ -28,6 +29,12 @@ from youtube_intel.distillation import (
     MoonshotK26NonThinkingCloudDistillationTransport,
     OllamaLocalDistillationTransport,
     PersonalizedDistillationService,
+)
+from youtube_intel.domain import (
+    ErrorCode,
+    JobStatus,
+    PipelineStatus,
+    TranscriptReady,
 )
 from youtube_intel.evidence_translation import EvidenceTranslationPresentationService
 from youtube_intel.following_scheduler import AUTOMATIC_CHECK_PREFIX, FollowingScheduler
@@ -56,7 +63,16 @@ from youtube_intel.source_policy import (
     SourcePolicyApplicationService,
 )
 from youtube_intel.source_run import SourceRunRecord, SourceRunState, SourceRunTrigger
-from youtube_intel.state import SQLiteStateRepository
+from youtube_intel.state import ArtifactKind, ProviderCallRequest, SQLiteStateRepository
+from youtube_intel.transcripts import (
+    FORMAT_POLICY_VERSION,
+    SELECTION_POLICY_VERSION,
+    CaptionRepairContext,
+    SubtitleAcquisitionService,
+    TranscriptError,
+    TranscriptJobContext,
+    build_raw_request_hash,
+)
 
 
 class RuntimeSourceRunIngestion:
@@ -71,6 +87,86 @@ class RuntimeSourceRunIngestion:
         self._runtime = runtime
         self._source_policy = source_policy
         self._source_tracking = source_tracking
+
+    def caption_repair_is_waiting(self, run: SourceRunRecord) -> bool:
+        """On restart, respect both existing leases before resuming this child."""
+        repository = self._runtime._repository
+        source = repository.get_source_subscription(run.source_id)
+        if source is None or source.video_id is None:
+            return False
+        identity = hashlib.sha256(f"{run.run_id}:{source.video_id}".encode()).hexdigest()
+        job = repository.get_job("caption-repair-" + identity)
+        if job is None:
+            return False
+        now = datetime.now(UTC)
+        if ((job.status is JobStatus.RUNNING and job.lease_until is not None and job.lease_until > now)
+            or (job.status is JobStatus.RETRY_PENDING and job.available_at > now)):
+            return True
+        adapter = self._runtime._dependencies.subtitle_adapter_factory()
+        raw_hash = build_raw_request_hash(video_id=source.video_id,
+            language_preferences=self._runtime._config.settings.general.transcript_languages,
+            provider=adapter.provider_name, provider_version=adapter.provider_version,
+            refresh_generation=int(identity[:15], 16))
+        request = ProviderCallRequest(operation="subtitle.fetch", normalized_input_hash=raw_hash,
+            provider=adapter.provider_name, model=None, prompt_version=SELECTION_POLICY_VERSION,
+            schema_version=FORMAT_POLICY_VERSION, deterministic_artifact_key="subtitle-source:" + raw_hash)
+        call = repository.get_provider_call(request.request_hash)
+        return bool(call is not None and call.lease_until is not None and call.lease_until > now)
+
+    def _repair_plain_captions(self, source_id: str, video_id: str) -> None:
+        repository = self._runtime._repository
+        video = repository.get_video(video_id)
+        if (video is None or video.pipeline_status is not PipelineStatus.TRANSCRIPT_READY
+            or repository.get_verified_timed_transcript(video_id=video_id) is not None):
+            return
+        runs = tuple(run for run in repository.list_source_runs()
+                     if run.source_id == source_id and run.state is SourceRunState.RUNNING
+                     and run.trigger is SourceRunTrigger.MANUAL_CHECK_NOW
+                     and run.manual_command_id is not None
+                     and not run.manual_command_id.startswith(AUTOMATIC_CHECK_PREFIX))
+        if len(runs) != 1:
+            raise SourceRunDiscoveryError("Caption repair requires an explicit active source check")
+        run = runs[0]
+        canonical = repository.latest_artifact(video_id, ArtifactKind.TRANSCRIPT_CANONICAL)
+        prior = None if canonical is None or canonical.job_id is None else repository.get_job(canonical.job_id)
+        if prior is None or canonical is None:
+            raise SourceRunDiscoveryError("Caption repair source history is unavailable")
+        now = datetime.now(UTC)
+        identity = hashlib.sha256(f"{run.run_id}:{video_id}".encode()).hexdigest()
+        job_id = "caption-repair-" + identity
+        if any(job.job_id != job_id and job.status in {JobStatus.PENDING, JobStatus.RUNNING, JobStatus.RETRY_PENDING}
+               for job in repository.list_video_jobs(video_id, limit=1000)):
+            raise SourceRunDiscoveryError("Caption repair cannot overlap active Content work")
+        job = repository.get_job(job_id)
+        if job is None:
+            if prior.status is not JobStatus.SUCCEEDED:
+                raise SourceRunDiscoveryError("Caption repair requires completed source history")
+            job = repository.rerun_job(prior.job_id, new_job_id=job_id, available_at=now, now=now)
+        repository.reclaim_expired_jobs(now=now)
+        repository.activate_retry_jobs(now=now)
+        claimed = repository.claim_next_job(owner=self._runtime._runtime_owner,
+            lease_until=now + timedelta(seconds=300), now=now, video_id=video_id, job_id=job_id)
+        if claimed is None or claimed.job_id != job_id:
+            raise SourceRunDiscoveryError("Caption repair job is already owned or unavailable")
+        service = SubtitleAcquisitionService(
+            adapter=self._runtime._dependencies.subtitle_adapter_factory(), repository=repository,
+            data_root=self._runtime._data_root,
+            context=TranscriptJobContext(job_id=job_id, owner=self._runtime._runtime_owner,
+                pipeline_version=video.pipeline_version, refresh_generation=int(identity[:15], 16),
+                repair=CaptionRepairContext(run.run_id, canonical.artifact_id)),
+            clock=lambda: datetime.now(UTC),
+        )
+        try:
+            result = service.fetch(self._runtime._video_metadata(video), self._runtime._config.settings.general.transcript_languages)
+            if not isinstance(result, TranscriptReady):
+                raise SourceRunDiscoveryError("Native timed captions are unavailable")
+        except Exception as error:
+            saved = repository.get_job(job_id)
+            if saved is not None and saved.status is JobStatus.RUNNING:
+                code = error.error.code if isinstance(error, TranscriptError) else ErrorCode.LOCAL_RESOURCE
+                repository.fail_job(job_id, owner=self._runtime._runtime_owner, error_code=code,
+                    error_message="Caption repair needs attention", retry_at=None, now=datetime.now(UTC))
+            raise SourceRunDiscoveryError("Caption repair needs attention") from error
 
     def ingest(self, source_id: str) -> None:
         source = self._runtime._repository.get_source_subscription(source_id)
@@ -99,6 +195,7 @@ class RuntimeSourceRunIngestion:
                 # bypasses the existing non-retryable trust/capability terminal.
                 raise SourceRunDiscoveryError("Content cannot be safely retried")
             if (failed is not None and failed.status.value == "FAILED_FINAL"
+                and not failed.job_id.startswith("caption-repair-")
                 and failed.target_stage is not None and failed.target_stage.value in {"METADATA", "TRANSCRIPT"}
                 and failed.last_error_code not in {"CAPABILITY_UNAVAILABLE", "TRUST_INTEGRITY_INVALID"}):
                 # This is an explicit one-time source check, with the same trust
@@ -108,6 +205,8 @@ class RuntimeSourceRunIngestion:
                 now = _utcnow()
                 self._runtime._repository.rerun_job(failed.job_id, new_job_id="content-retry-" + secrets.token_hex(16), available_at=now, now=now)
         try:
+            if source is not None and source.video_id is not None and source.processing_policy.value == "DISCOVER_ONLY":
+                self._repair_plain_captions(source_id, source.video_id)
             video_ids = self._runtime.ingest_source_to_transcript(
                 source_id,
                 limit=policy.per_run_max_new_videos,
@@ -124,6 +223,8 @@ class RuntimeSourceRunIngestion:
                     raise SourceRunDiscoveryError("Content processing needs attention")
                 if self._runtime._repository.get_verified_timed_transcript(video_id=video_id) is not None and self._runtime._repository.current_local_summary_pointer(video_id) is None:
                     ExtractiveSummaryService(self._runtime._repository, self._runtime._data_root).create(video_id, now=datetime.now(UTC))
+                if self._runtime._repository.get_verified_timed_transcript(video_id=video_id) is None:
+                    raise SourceRunDiscoveryError("Content captions need verified source timing")
         except Exception as error:
             if isinstance(error, SourceRunDiscoveryError):
                 raise
@@ -231,6 +332,9 @@ class DurableSourceRunWorker:
                 if not queued:
                     return None
                 run = queued[0]
+                ingestion = self._orchestrator._ingestion
+                if isinstance(ingestion, RuntimeSourceRunIngestion) and ingestion.caption_repair_is_waiting(run):
+                    return run
                 try:
                     return self._orchestrator.resume(run.run_id)
                 except Exception:
