@@ -21,7 +21,7 @@
 |---|---|---|
 | 全原始、独立、弱音与负控制冻结 | PASS | 原12正向+2弱音+3负控制；输入、预期、policy、实现 SHA 在各轮 FREEZE 与 product-freeze |
 | 原 profile 纯静音失败真实复现 | PASS | `.var/readiness-asr/old-worker-silence-baseline.json`，3.5s 输出 Thank you./29.98s |
-| run01/run02 失败保留 | PASS | 16/17 与12/17，完整失败 docs/raw 保留；未改门槛/样例 |
+| run01/run02 失败保留 | PASS | 16/17 与11/17，完整失败 docs/raw 保留；未改门槛/样例 |
 | run03 统一政策研究矩阵 | PASS | 17/17，`run03/RESULTS.json`；research 未颁产品资格 |
 | 实际 Local Jobs 全矩阵 | PASS | `PRODUCT_RESULTS.json`；14 trusted 正向全通过，3负控FAILED/零调用/无 authority |
 | 字幕、摘要、Evidence 完整 | PASS | 实际 repository timed cues/Summary 与 Evidence resolve；native原输出独立保存 |
@@ -34,9 +34,9 @@
 ## 实际检查
 
 - 红测试保留：缺少 helper、原长停顿边界、word-grid、旧8样本/缺负控制无法资格 PASS 均先失败再实现。
-- 聚焦121 tests PASS，日志 `.var/readiness-asr/product-focused.txt`。
+- 原聚焦121 tests PASS，独立 review P1 修复后的126 focused tests PASS（包括新增5项），日志 `.var/readiness-asr/review-p1-focused.txt`。
 - Strict mypy 102源文件 PASS，`product-final-mypy.txt`；全src Ruff、相关脚本/新测试 Ruff PASS，py_compile/diffcheck PASS。
-- 独立树完整 backend `PYTHONPATH=src .venv/bin/python -m pytest -q` 正在运行，日志 `.var/readiness-asr/backend-full.txt`；结果完成后另报，不能将运行中当通过。
+- 独立树完整 backend `PYTHONPATH=src .venv/bin/python -m pytest -q`：4033 passed、1 existing skip、2既有fixture warnings，992.12s；日志 `.var/readiness-asr/backend-full.txt`。该次 collection 在 review 新增5tests之前，新增全由126 focused覆盖；root整合后仍应执行候选完整集合。skip为既有 canonical o200k asset 未显式provision，未下载/弱化。
 - 前端与真实 macOS GUI 由 root 在整合候选进行；此树不改前端。
 
 ## 可复核执行
@@ -57,4 +57,8 @@
 
 ## Reviewer / 主控
 
-未启动新三方完整审查；等待 root 分配 bounded independent review。未自行合入 main。
+首轮独立 reviewer 判定 REJECT：P1为 harness 未把Summary/Evidence条件传入seal前qualification；P2为run02文档计数。现最小修复并新增5测试，等待root bounded re-review；未自行合入main。
+
+## 独立审查整改补充
+
+产品完整条件（真实READY、trusted字幕、Summary、Evidence resolve、全部entry.passed门槛）现在绑定completed；report/evaluate不一致时在任何seal写入前拒绝。负控制也绑定实际FAILED及完整passed状态。新增缺摘要/证据/字幕、stale pass flag、PENDING和before-seal无writer调用回归。原product-freeze与全部raw/report/receipt不变，新harnessfreeze为`product-freeze-review-p1.json`，`REVIEW_P1_REPLAY.json`证明已保存17项完整evidence canonical逐字节一致并认证旧receipt，无新推理或历史重写。后续新的显式engineeringrun默认读review后冻结；`--freeze`仅可显式引用匹配实现的材料，原冻实现hash不会被静默复用。

@@ -15,6 +15,7 @@ from youtube_intel.acoustic_qualification import (
     SampleResult,
     canonical,
     current_tuple,
+    evaluate,
     qualification_status,
     seal_record,
 )
@@ -29,13 +30,28 @@ MODEL = Path('/Users/hua/Documents/yia-worktrees/v1x-acoustic-qualification/.var
 FROZEN = Path('docs/validation/readiness-asr/run03')
 
 
+def product_evidence(report, samples, frozen_bytes):
+    """Bind every real product authority requirement to qualification."""
+    positive = tuple(SampleResult(name=s['id'],source_sha256=s['source_sha256'],expected_sha256=next(x['expected_sha256'] for x in samples if x['id']==s['id']),error_rate=s.get('score',{}).get('error_rate'),duration_seconds=next(x['duration_seconds'] for x in samples if x['id']==s['id']),processing_seconds=s['product_wall_seconds'],completed=bool(s['passed'] and s['status']['status'] == 'READY' and s['trusted_timed_transcript'] and s['summary'] and s['evidence_resolves']),timestamps_valid=s['trusted_timed_transcript'],coverage_passed=s.get('coverage',{}).get('passed',False),no_omission=bool(s.get('recalls')) and all(r >= .5 for r in s.get('recalls',[]))) for s in report['samples'] if not s['id'].startswith('negative-'))
+    negative = tuple(NegativeControlResult(name=s['id'],source_sha256=s['source_sha256'],processing_seconds=s['product_wall_seconds'],observed_outcome=s['acoustic_guard'],decoder_invocations=s['decoder_invocations'],no_authority=bool(s['passed'] and s['status']['status'] == 'FAILED' and s['no_authority'])) for s in report['samples'] if s['id'].startswith('negative-'))
+    return QualificationEvidence(corpus_sha256=hashlib.sha256(frozen_bytes).hexdigest(),samples=positive,negative_controls=negative,offline=True,cloud_dispatches=0,source_uploads=0)
+
+
+def seal_product_result(machine, identity, result, report, audit):
+    """Refuse inconsistent evidence before any receipt can be written."""
+    if evaluate(result) != report['verdict']:
+        raise ValueError('product verdict and complete evidence differ before sealing')
+    seal_record(machine, identity, evidence=result, audit=audit)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('root', type=Path)
+    parser.add_argument('--freeze', type=Path, default=Path('docs/validation/readiness-asr/product-freeze-review-p1.json'))
     args = parser.parse_args()
     root = args.root.resolve()
     root.mkdir(parents=True, exist_ok=False)
-    policy = json.loads(Path('docs/validation/readiness-asr/product-freeze.json').read_text())
+    policy = json.loads(args.freeze.read_text())
     for filename, digest in policy['implementation_sha256'].items():
         assert hashlib.sha256(Path(filename).read_bytes()).hexdigest() == digest, 'frozen product code changed'
     frozen_bytes = (FROZEN/'FROZEN_CORPUS.json').read_bytes()
@@ -112,16 +128,14 @@ def main():
         (root/'report.json').write_bytes(canonical(report))
         print(json.dumps({k:entry.get(k) for k in ('id','passed','score','status','no_authority','decoder_invocations')}),flush=True)
     report['verdict'] = 'PASSED' if all(s['passed'] for s in report['samples']) else 'FAILED'
-    positive = tuple(SampleResult(name=s['id'],source_sha256=s['source_sha256'],expected_sha256=next(x['expected_sha256'] for x in samples if x['id']==s['id']),error_rate=s.get('score',{}).get('error_rate'),duration_seconds=next(x['duration_seconds'] for x in samples if x['id']==s['id']),processing_seconds=s['product_wall_seconds'],completed=s['trusted_timed_transcript'],timestamps_valid=s['trusted_timed_transcript'],coverage_passed=s.get('coverage',{}).get('passed',False),no_omission=bool(s.get('recalls')) and all(r >= .5 for r in s.get('recalls',[]))) for s in report['samples'] if not s['id'].startswith('negative-'))
-    negative = tuple(NegativeControlResult(name=s['id'],source_sha256=s['source_sha256'],processing_seconds=s['product_wall_seconds'],observed_outcome=s['acoustic_guard'],decoder_invocations=s['decoder_invocations'],no_authority=s['no_authority']) for s in report['samples'] if s['id'].startswith('negative-'))
-    result = QualificationEvidence(corpus_sha256=hashlib.sha256(frozen_bytes).hexdigest(),samples=positive,negative_controls=negative,offline=True,cloud_dispatches=0,source_uploads=0)
+    result = product_evidence(report, samples, frozen_bytes)
     origin = json.loads((MODEL/'model-origin.json').read_text())
     identity = current_tuple(MODEL,boundary.model_identity(MODEL),origin)
     report['qualification_tuple'] = identity
     report['evidence'] = result.model_dump(mode='json')
     audit = canonical(report)
     (root/'report.json').write_bytes(audit)
-    seal_record(machine,identity,evidence=result,audit=audit)
+    seal_product_result(machine, identity, result, report, audit)
     state = qualification_status(machine,identity)
     (root/'qualification-status.json').write_bytes(canonical(state))
     assert (state['state'] == 'PASSED') == (report['verdict'] == 'PASSED')

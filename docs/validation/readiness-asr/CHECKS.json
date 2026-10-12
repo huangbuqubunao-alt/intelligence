@@ -1,0 +1,22 @@
+{
+  "backend_full": {
+    "command": "PYTHONPATH=src .venv/bin/python -m pytest -q",
+    "passed": 4033,
+    "skipped": 1,
+    "warnings": 2,
+    "seconds": 992.12,
+    "note": "collection before 5 review-P1 regression tests; latest focused run covers all new tests",
+    "skip_reason": "existing test_o200k_provisioning requires explicitly provisioned canonical o200k asset",
+    "log_sha256": "fcfddd1f1dbc43451e15905667353ff83cf97deb6bbada52b4431c634bc90f47"
+  },
+  "latest_focused": {
+    "passed": 126,
+    "seconds": 17.26,
+    "log_sha256": "fb3531c630a2dd5d8159127a8d5373d4bdfba09fe1b0a328b2b242b63cb787fb"
+  },
+  "strict_mypy_source_files": 102,
+  "ruff": "PASS",
+  "py_compile": "PASS",
+  "git_diff_check": "PASS",
+  "new_model_inferences_after_review": 0
+}

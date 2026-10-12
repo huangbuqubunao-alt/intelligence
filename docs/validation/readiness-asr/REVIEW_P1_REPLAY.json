@@ -1,0 +1,15 @@
+{
+  "replayed_at": "2026-10-12T15:27:49.390675+00:00",
+  "new_inferences": 0,
+  "old_raw_report_sha256": "c0ab6bd9b831285bb602d03f953ca4e817ffbad0103474d7b7ff6e4f22a00df0",
+  "original_sealed_receipt_sha256": "7c32beca15d5ca8b7c90dc7aa173d6e1e2c2ece7074d366337226d5f6a46f05a",
+  "complete_product_evidence_byte_identical": true,
+  "evaluate": "PASSED",
+  "authenticated_old_receipt": {
+    "state": "PASSED",
+    "production_eligible": true,
+    "identity": "bca2ee240198ba59d25eb1e533543bfcbb89ba40264995b4b1bdfa04519f323c"
+  },
+  "frozen_harness_sha256": "0f822e45f208f92bcbb6f4e3cd572b5edb6300a9c7d09f00da7e5957fafd8615",
+  "historical_receipt_rewritten": false
+}

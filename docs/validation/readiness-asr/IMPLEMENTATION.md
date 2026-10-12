@@ -12,7 +12,7 @@
 
 ## 冻结与失败保留
 
-run01 全 17 项有 1 个长停顿覆盖失败；run02 有 5 个窗口结束时间失败。两轮全部证据保留，不覆盖、不删样例。统一 run03 的 17 项通过原门槛；见 `run03/RESULTS.json`，这仅是 research 结果，不能独立使产品获得资格。
+run01 全 17 项有 1 个长停顿覆盖失败；run02 有 6 个窗口结束时间失败。两轮全部证据保留，不覆盖、不删样例。统一 run03 的 17 项通过原门槛；见 `run03/RESULTS.json`，这仅是 research 结果，不能独立使产品获得资格。
 
 实际产品验收在 `product-freeze.json` 的所有 implementation 和输入 SHA 冻结后，使用 `qualify_readiness_asr_product.py` 与已有 engineering executor seam 经真实 LocalContentProvider、LocalTranscriptionJobs、offline worker 和 repository 完成。只有真实 trusted subtitle/Summary/Evidence、原评分与覆盖门槛、负控制没有 authority 全部满足，才在新隔离 `.local-transcription` 根写入已有机器 HMAC receipt。普通用户配置不能写 PASSED。
 
@@ -25,3 +25,7 @@ DIRECT：已安装 mlx-whisper 0.4.3（MIT）、MLX 0.32.0、原固定 large-v3-
 ADAPT：项目专用 PCM 帧划分、前置信号拒绝与整数源时轴映射；没有复制第三方实现或修改 SDK。来源与模型许可证记录沿用 `docs/REUSE_REGISTER.md` / 既有 model-origin，不扩展模型分发范围。
 
 14 正向为既有 macOS 合成语音冻结材料，包括独立、中长、混合、弱音与轻噪声，不能据此声称自然录音总体准确率。低于固定信号门限或大部分呈噪声谱的真实语音可能被误拒绝；连续语音遇 25 秒硬窗口可能影响边缘词，必须承受相同门槛。仅冻结矩阵的真实通过可以证明本轮资格；正式激活、真实 GUI 端到端和主分支采用由 root 独立验收决定。
+
+## 独立审查整改
+
+首轮review发现harness在报告FAILED（如缺Summary/Evidence）时可能先写PASSEDreceipt。整改将全部真实产品authority条件绑定到qualification completed，并在seal之前核对evaluate与reportverdict；不一致直接拒绝、无receipt写入。新增5个CPU回归，126 focused全部通过。原实测17项完整evidence经新predicate重放仍canonical逐字节一致，原HMACreceipt认证不变；见REVIEW_P1_REPLAY.json，无新推理/历史receipt重写。原product-freeze保留，新harness独立冻结product-freeze-review-p1.json。run02摘要已按原JSON纠正为11/17、6失败。完整后端4033pass+1既有asset前提skip及新增测试覆盖见CHECKS.json。
