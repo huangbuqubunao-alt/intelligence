@@ -133,6 +133,45 @@ const topic = {
 const response = (value: object) =>
   Promise.resolve({ ok: true, json: async () => value });
 
+test.each(["en", "zh-CN"])("%s source excerpts do not claim the generation language", async (language) => {
+  localStorage.setItem("yia.ui-language", language);
+  location.hash = "Content/video-1";
+  const defaultFetch = globalThis.fetch;
+  vi.stubGlobal("fetch", vi.fn((path: string, init?: RequestInit) => {
+    if (path.endsWith("/videos/video-1")) return response({
+      video: { video_id: "video-1", provider: "YOUTUBE", processing_status: "ORGANIZED", title: "Chinese source" },
+      transcript: { status: "AVAILABLE", text: "这是原始中文字幕。" },
+      note: { v2: { status: "AVAILABLE", method: "SOURCE_EXCERPTS", language: "en-US", summary: "保留原文摘录。" } },
+      intelligence_result: { status: "NOT_PROCESSED" }, history: [],
+    });
+    return defaultFetch(path, init);
+  }));
+  render(<App />);
+  await screen.findByText("保留原文摘录。");
+  expect(screen.queryByText("en-US")).toBeNull();
+  expect(screen.getByText(language === "zh-CN" ? "保留原文语言" : "Original source language (unchanged)")).toBeTruthy();
+});
+
+test.each(["en", "zh-CN"])("%s model Summary keeps its actual generation language", async (language) => {
+  localStorage.setItem("yia.ui-language", language);
+  location.hash = "Content/video-1";
+  const defaultFetch = globalThis.fetch;
+  vi.stubGlobal("fetch", vi.fn((path: string, init?: RequestInit) => {
+    if (path.endsWith("/videos/video-1")) return response({
+      video: { video_id: "video-1", provider: "YOUTUBE", processing_status: "ORGANIZED", title: "Chinese source" },
+      transcript: { status: "AVAILABLE", text: "这是原始中文字幕。" },
+      note: { v2: { status: "AVAILABLE", language: "en-US", summary: "An English model Summary." } },
+      intelligence_result: { status: "NOT_PROCESSED" }, history: [],
+    });
+    return defaultFetch(path, init);
+  }));
+  render(<App />);
+  await screen.findByText("An English model Summary.");
+  expect(screen.getByText("en-US")).toBeTruthy();
+  expect(screen.queryByText("Original source language (unchanged)")).toBeNull();
+  expect(screen.queryByText("保留原文语言")).toBeNull();
+});
+
 test.each([
   ["en", false], ["en", true], ["zh-CN", false], ["zh-CN", true],
 ])("%s cancels only the selected wait and reads true backup readiness (other work: %s)", async (language, otherWork) => {
@@ -174,6 +213,23 @@ test.each([
   expect(commands).toEqual([{ path: "/api/v1/videos/video-1/intelligence/cancel", body: { execution_id: "wait-1" } }]);
   fireEvent.click(screen.getByRole("button", { name: chinese ? "设置" : "Settings" }));
   await waitFor(() => expect(screen.getByRole("button", { name: chinese ? "创建备份" : "Create Backup" }).hasAttribute("disabled")).toBe(Boolean(otherWork)));
+});
+
+test.each(["en", "zh-CN"])("%s backup explains an unfinished extraction without claiming model execution", async (language) => {
+  localStorage.setItem("yia.ui-language", language);
+  location.hash = "Settings";
+  const defaultFetch = globalThis.fetch;
+  vi.stubGlobal("fetch", vi.fn((path: string, init?: RequestInit) => {
+    if (path.endsWith("/backup-restore/status")) return response({ status: {
+      ready: false, reasons: ["DISTILLATION_ACTIVE"], restore_pending: false, last_restore: null,
+    } });
+    return defaultFetch(path, init);
+  }));
+  render(<App />);
+  const chinese = language === "zh-CN";
+  expect(await screen.findByText(chinese ? /有一个提炼任务尚未结束/ : /an Intelligence extraction has not finished/)).toBeTruthy();
+  expect(screen.queryByText(chinese ? /提炼任务仍在执行/ : /a distillation is still running/)).toBeNull();
+  expect(screen.getByRole("button", { name: chinese ? "创建备份" : "Create Backup" }).hasAttribute("disabled")).toBe(true);
 });
 
 beforeEach(() => {

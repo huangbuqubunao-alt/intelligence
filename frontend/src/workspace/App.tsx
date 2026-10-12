@@ -1688,7 +1688,9 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
             <div className="summary-note">
               <div className="reading-meta">
                 <Status value="AVAILABLE" />
-                <span>{!note.language || note.language === "und" ? t("Language unavailable") : note.language}</span>
+                <span>{note.method === "SOURCE_EXCERPTS"
+                  ? t("Original source language (unchanged)")
+                  : !note.language || note.language === "und" ? t("Language unavailable") : note.language}</span>
               </div>
               {note.method === "SOURCE_EXCERPTS" && <p className="hint">{t("These are original source excerpts, selected deterministically without a model or new interpretation.")}</p>}
               {note.summary ? <><h3>{t("Summary")}</h3><p>{note.summary}</p></> : null}
@@ -3322,7 +3324,7 @@ type BackupRestoreStatus = {
 
 const backupReasonCopy: Record<string, string> = {
   SOURCE_RUN_ACTIVE: "a Source Run is still working",
-  DISTILLATION_ACTIVE: "a distillation is still running",
+  DISTILLATION_ACTIVE: "an Intelligence extraction has not finished",
   JOBS_ACTIVE: "a background job is still running",
   PROVIDER_CALL_UNRESOLVED: "a provider call has an unresolved outcome",
   PROVIDER_DISPATCH_UNRESOLVED: "a provider dispatch has an unresolved outcome",
@@ -3350,7 +3352,7 @@ function backupReadiness(status: BackupRestoreStatus | null) {
     .map((reason) => backupReasonCopy[reason])
     .filter((value): value is string => value !== undefined);
   return items.length
-    ? { lead: "Backup is unavailable while these are still running:", items }
+    ? { lead: "Backup is unavailable while this work remains unfinished:", items }
     : { lead: "Backup is unavailable while other work is still in flight.", items: [] as string[] };
 }
 function BackupRestorePanel() {
