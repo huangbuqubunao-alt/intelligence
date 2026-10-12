@@ -82,7 +82,7 @@ _FORMAT_RANK = {
     SubtitleFormat.VTT: 1,
     SubtitleFormat.SRT: 2,
 }
-SELECTION_POLICY_VERSION: Final = "subtitle-selection-v1"
+SELECTION_POLICY_VERSION: Final = "subtitle-selection-v2-original-tracks"
 FORMAT_POLICY_VERSION: Final = "subtitle-format-v1"
 NORMALIZATION_VERSION: Final = "subtitle-normalization-v1"
 QUALITY_POLICY_VERSION: Final = "subtitle-quality-v1"

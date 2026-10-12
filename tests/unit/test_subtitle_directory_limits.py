@@ -89,6 +89,32 @@ def test_real_3blue1brown_directory_shape_fits_supported_track_bound(
     }
 
 
+@pytest.mark.parametrize("translation_query", [
+    "tlang=zh-Hans", "tlang=", "tlang=zh-Hans&tlang=en", "%74lang=zh-Hans",
+])
+def test_provider_translation_is_not_exposed_as_original_subtitle(
+    monkeypatch: pytest.MonkeyPatch, translation_query: str,
+) -> None:
+    payload = _directory_payload(manual_languages=["zh"], automatic_languages=["en", "en-orig", "zh-Hans"])
+    for entry in payload["automatic_captions"]["zh-Hans"]:
+        entry["url"] += "&" + translation_query
+    listing = _adapter_for_payload(monkeypatch, payload).enumerate_tracks(_VIDEO_ID)
+    assert {track.language for track in listing.tracks} == {"zh", "en", "en-orig"}
+    from youtube_intel.transcripts import rank_subtitle_candidates
+    ranked = rank_subtitle_candidates(listing.tracks, ("zh", "en"))
+    assert ranked[0].track.source_type is TranscriptSourceType.MANUAL_SUBTITLE
+    assert ranked[0].track.language == "zh"
+
+
+def test_translation_only_directory_has_no_original_candidates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = _directory_payload(manual_languages=[], automatic_languages=["zh-Hans"])
+    for entry in payload["automatic_captions"]["zh-Hans"]:
+        entry["url"] += "&tlang=zh-Hans"
+    assert _adapter_for_payload(monkeypatch, payload).enumerate_tracks(_VIDEO_ID).tracks == ()
+
+
 def test_supported_track_bound_still_rejects_more_than_configured_limit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

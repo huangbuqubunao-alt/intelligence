@@ -14,7 +14,7 @@ from http.client import HTTPMessage
 from io import StringIO
 from types import TracebackType
 from typing import IO, Any, Final, Protocol
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlsplit
 
 import yt_dlp  # type: ignore[import-untyped]
 from yt_dlp.utils import (  # type: ignore[import-untyped]
@@ -1463,7 +1463,14 @@ class YtDlpSubtitleAdapter:
                 )
             raise
         return SubtitleTrackListing(
-            tracks=tracks,
+            # `tlang` asks YouTube to machine-translate another track. Such a
+            # derivative must never acquire Original Transcript authority.
+            # Keep signed URLs intact and validate all directory entries first.
+            tracks=tuple(track for track in tracks if not any(
+                key == "tlang" for key, _ in parse_qsl(
+                    urlsplit(track.url).query, keep_blank_values=True
+                )
+            )),
             call=self.last_call,
         )
 
