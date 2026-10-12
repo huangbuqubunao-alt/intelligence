@@ -1,0 +1,7 @@
+{
+  "docs/validation/readiness-asr/FROZEN_POLICY.json": "7a705bb023431aecbc0ca10e790b96ea1fee857f470282b0f26c6ec71f7b525f",
+  "docs/validation/readiness-asr/FROZEN_CORPUS.json": "dfad7b991ba52057462fdae6477874a34884fa7a36ae667247b231fd393365d3",
+  "scripts/readiness_asr_profile.py": "ffbfec041a8437cb90bc80199f7afb56fdc254cc7cf3934c5bba8dfdb1f332b9",
+  "scripts/measure_readiness_asr.py": "a6c3226d1f2fcb495ed3a8ff9b39757f0b09f64c7e209ce138142c5a84bda2e7",
+  "tests/unit/test_readiness_asr_segmentation.py": "5be663104936a352d6aea503a79d8d5118cb5e27d9d8fc56c489f075ac7c537f"
+}

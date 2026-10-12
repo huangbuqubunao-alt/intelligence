@@ -1,0 +1,7 @@
+{
+  "frozen_before_candidate_inference_at": "2026-10-12T10:17:41.511662+00:00",
+  "root_authorization": "2026-10-12 approved exact isolation model remediation; fixed pre-inference flatness guard confirmed by root",
+  "hash_manifest_sha256": "8adcae79aacc5ae264273ecbd7d9c1f60047d0c8d0935f47a23458f8ff0dfe1d",
+  "candidate_decodes_before_freeze": 0,
+  "production_changes": 0
+}
