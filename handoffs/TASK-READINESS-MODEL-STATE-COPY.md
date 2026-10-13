@@ -81,3 +81,14 @@ Build assets: `index-BsxpjgLs.js` / `index-DmN6_wU_.css`，仅本树 ignored dis
 ## Reviewer / 主控
 
 待独立审查固定实现 SHA 并重跑关键检查；主控负责真实 GUI、接受与整合。
+
+### 独立 Reviewer：2026-10-14 / caption_resume
+
+**APPROVE（本有界文案切片；真实 GUI / 资格 / 采用仍由主控验收）**。独立读取 task、实际 DTO producer 和完整 base `aa1a9b30f35c548ab7ba162b5877c925e33110d7` → author `fc2d854223eb3d00a1bd88049e00f2bb481fe5f3` / handoff `b6a62500cec964b5dcd994aaa6abd09e9a663181` Diff。仅两产品前端文件、追加专项测试、交接，无新增 P0/P1。
+
+- 独立 typecheck PASS，随后专项 **12 PASS / 192ms**，build **50 modules PASS / 503ms**；证据 `/tmp/readiness-model-copy-independent-ts.txt`、`readiness-model-copy-independent-focused.txt`、`readiness-model-copy-independent-build.txt`。资产同作者 `index-BsxpjgLs.js` / `index-DmN6_wU_.css`。独立 baseline diff check PASS；作者全前端日志实际 **418 PASS / 26 files / 12.40s** 已核对，既有 act warnings 保留，无必要重复完整套件。
+- `ModelSettingsService.runtime_status` 的 READY 实际只校验 exact installed name/digest；新 copy 忠实表达安装身份，不授 Intelligence 资格。现有 Local selection 明确 provider=`Local`、scope=`SCORING_SUMMARY_ONLY`；仅 `INTELLIGENCE_UNQUALIFIED` 输出未通过说明。缺失/未知/错 scope 不捏造通过或失败，research 9b 发现项不替换正式 runtime 身份。
+- Cloud production_eligible / credential BLOCKED 原条件、ModelSettings credentials/授权 handlers、所有按钮和 fetch loaders 未改变；新文案明确可选与每请求单独授权，普通内容整理不依赖 Cloud。专项验证既有七 GET 路径且无 body/mutation，没有新增模型或凭据操作。
+- 双语文案、新状态分支与测试覆盖一致；旧测试原样保留，无 backend/Schema/gate/state/config/dependency/toolchain/freeze/模型输出修改。只复用现有 Panel/提示/DTO，无新增布局、控制或键盘行为。
+
+Reviewer 未访问真实 owner、模型或 Cloud，未推理；未把受控组件测试当 macOS GUI。主控须在真实隔离 Settings 核验当前 8b 安装身份、未通过本地洞察资格、Cloud 可选逐次授权及原阅读流程。V2 首例真实 FAIL 仍不合格，本审查没有新的资格或继续模型调用权。Reviewer 只追加本交接并提交，STOP。
