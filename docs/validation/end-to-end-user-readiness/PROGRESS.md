@@ -7,7 +7,7 @@
 - 页面读取恢复已独立审查并整合。真实 headful Chrome 中，仅停止自有隔离 API 5929，页面明确显示“本地服务暂时不可用”；重启同一服务后点击“重新加载页面数据”恢复原内容，完整请求记录全部为 GET，零提交重放。见 PAGE_READ_REAL_GUI_EVIDENCE.json 及 page-read-service-unavailable.png / page-read-recovered.png。
 - 旧字幕429安全终止的原 P1 已返修，正规 ProviderCallRecord/DispatchRecord 解析和混合批次原子负控独立通过。独立 APPROVE b9bb62c/审查3d63b4 已整合，受影响86测试通过。普通隔离 idle worker 自动终止两条精确旧请求，保留原错误、计数、hash，无费用；真实设置页显示可备份。见 RETIRED_SUBTITLE_REAL_GUI_EVIDENCE.json；这不证明原 raw 丢失 P1 已解决。
 - ExistingSourceForm 全局偏好读失败明确显示失败、只读手动重试、保留草稿，未知继承不可提交。独立 APPROVE 和完整379前端/TS/build通过，已整合08e02e2。普通真实 GUI 可达性仍须验证，不能冒充真实页面已验收。
-- 原字幕 DATA4→3 的 FAIL 保持。用户已批准 first-plain capture；实现前确认 precommit rollback 的 VTT 也需 durable hash。NATIVE_RAW_CAPTURE_ADDENDUM.md 精确补充至最多两份真实接受 capture，等待具体批准；原测试的零重复读取及未知 raw 拒绝不放宽。
+- 原字幕 DATA4→3 的 FAIL 保持。用户已批准 first-plain capture，并明确批准 NATIVE_RAW_CAPTURE_ADDENDUM.md 精确补充至最多两份真实接受 capture。独立 writer 继续实现 precommit durable hash；原测试的零重复读取及未知 raw 拒绝不放宽，完整恢复验收仍OPEN。
 - 用户已批准固定 qwen3.5:9b-q4_K_M 下载与隔离资格验收。官方原 manifest56671c2…和全部blob大小/hash通过；本地 wrapper仅附加同原manifest的reference，原字段/层不变，见 MODEL_REPLACEMENT_INSTALL_RECEIPT.json。尚未执行推理，不授生产资格；研究 harness 冻结与预输出审查继续。已安装8b仍不合格。长内容容量和滚动字幕重复仍OPEN。
 - 正式 main/origin-main/served 仍 73ee7e747b4461b9de8a201d6b47669eb3913d1a，正式工作树干净；本轮没有修改 owner 数据或正式配置，也未发布候选。
 

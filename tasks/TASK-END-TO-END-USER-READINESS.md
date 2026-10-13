@@ -1,6 +1,7 @@
 # TASK-END-TO-END-USER-READINESS
 
 状态：IN_PROGRESS（用户 2026-10-12 明确要求修复所有不通链路，完成后再交用户测试）。
+2026-10-13 续作：用户具体批准固定 qwen3.5:9b-q4_K_M 隔离下载与原标准验收，替代下文最初“只用已安装8b、不新增权重”限制的这一精确项；无运行时/依赖升级、正式采用或门禁放行。字幕补全、旧429精确终止、firstplain捕获及最多两份真实接受capture的winner precommit hash补充也已有各自具体批准。权威最新状态见 READINESS_MATRIX.md / PROGRESS.md，不以历史已通过局部操作替代当前 OPEN。
 工作树：`/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness`。
 分支：`codex/task-end-to-end-user-readiness`；基线：`73ee7e747b4461b9de8a201d6b47669eb3913d1a`。
 
