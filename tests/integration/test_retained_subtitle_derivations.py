@@ -818,3 +818,148 @@ def test_other_checkpoint_states_keep_archive_and_backup_closed(
     before = _tables(repo)
     assert _settle(runtime) == () and _tables(repo) == before
     assert not runtime.backup_restore.readiness()["ready"]
+
+
+_SUCCESSOR_FAULTS = (
+    "call-time", "job-time", "open-attempt", "unknown-attempt", "job-count",
+    "call-naive", "call-future", "call-count", "job-owner", "call-owner",
+    "call-usage", "call-dispatch", "attempt-number", "attempt-naive",
+    "attempt-lease", "job-available", "run-naive", "run-time",
+)
+
+
+def _damage_successor(repo, fault):
+    with repo._connect() as connection:
+        successor = connection.execute(
+            "SELECT a.job_id,p.request_hash FROM provider_calls p JOIN artifacts a "
+            "ON p.response_artifact_id=a.artifact_id WHERE a.job_id LIKE 'caption-repair-%' "
+            "AND p.status='SUCCEEDED'"
+        ).fetchone()
+        job, call = successor["job_id"], successor["request_hash"]
+        changes = {
+            "call-time": ("provider_calls", "finished_at", "2000-01-01T00:00:00Z", "request_hash", call),
+            "job-time": ("jobs", "finished_at", "2000-01-01T00:00:00Z", "job_id", job),
+            "unknown-attempt": ("job_attempts", "outcome", "LEASE_EXPIRED", "job_id", job),
+            "job-count": ("jobs", "attempt_count", 1.5, "job_id", job),
+            "call-naive": ("provider_calls", "started_at", "2026-10-13T00:00:00", "request_hash", call),
+            "call-future": ("provider_calls", "finished_at", "2099-01-01T00:00:00Z", "request_hash", call),
+            "call-count": ("provider_calls", "attempt_count", 1.5, "request_hash", call),
+            "call-usage": ("provider_calls", "input_tokens", 0, "request_hash", call),
+            "attempt-number": ("job_attempts", "attempt_number", 2, "job_id", job),
+            "attempt-naive": ("job_attempts", "finished_at", "2026-10-13T00:00:00", "job_id", job),
+            "attempt-lease": ("job_attempts", "lease_until", "2000-01-01T00:00:00Z", "job_id", job),
+            "job-available": ("jobs", "available_at", "2099-01-01T00:00:00Z", "job_id", job),
+        }
+        if fault in changes:
+            table, field, value, key, identity = changes[fault]
+            connection.execute(f"UPDATE {table} SET {field}=? WHERE {key}=?", (value, identity))
+        elif fault == "open-attempt":
+            connection.execute("UPDATE job_attempts SET finished_at=NULL,outcome=NULL WHERE job_id=?", (job,))
+        elif fault == "job-owner":
+            connection.execute("UPDATE jobs SET status='RUNNING',lease_owner='unknown-execution',lease_until='2099-01-01T00:00:00Z',finished_at=NULL WHERE job_id=?", (job,))
+        elif fault == "call-owner":
+            connection.execute("UPDATE provider_calls SET status='PENDING',reservation_owner='unknown-execution',lease_until='2099-01-01T00:00:00Z',finished_at=NULL WHERE request_hash=?", (call,))
+        elif fault == "call-dispatch":
+            connection.execute("INSERT INTO provider_dispatch_states(request_hash,status,updated_at) VALUES (?,'FAILED_KNOWN',?)", (call, datetime.now(UTC).isoformat()))
+        elif fault in {"run-naive", "run-time"}:
+            connection.execute("UPDATE source_runs SET updated_at=? WHERE manual_command_id='archive-successor-child'", (
+                "2026-10-13T00:00:00" if fault == "run-naive" else "2000-01-01T00:00:00Z",))
+        else:
+            raise AssertionError(fault)
+
+
+@pytest.mark.parametrize("fault", _SUCCESSOR_FAULTS)
+def test_successor_complete_execution_is_required_before_any_archival(tmp_path, monkeypatch, fault):
+    runtime, adapter, old, _, _ = _repaired_failure(tmp_path, monkeypatch)
+    _damage_successor(runtime.repository, fault)
+    before, files, reads = _tables(runtime.repository), _files(runtime.backup_restore.data_root), adapter.read_calls
+    assert _settle(runtime) == ()
+    assert _tables(runtime.repository) == before
+    assert _files(runtime.backup_restore.data_root) == files and adapter.read_calls == reads
+    assert not runtime.backup_restore.readiness()["ready"]
+    assert runtime.repository.get_provider_call(old["request_hash"]).status.value == "FAILED_RETRYABLE"
+
+
+def test_incomplete_successor_and_another_unresolved_call_leave_entire_batch_unchanged(tmp_path, monkeypatch):
+    from youtube_intel.state import ProviderCallRequest
+
+    runtime, adapter, _, _, _ = _repaired_failure(tmp_path, monkeypatch)
+    request = ProviderCallRequest(operation="subtitle.fetch", normalized_input_hash="d" * 64,
+        provider="yt-dlp", model=None, prompt_version="subtitle-selection-v2-original-tracks",
+        schema_version="subtitle-format-v2-native-timing", deterministic_artifact_key="subtitle-source:" + "d" * 64)
+    now = datetime.now(UTC)
+    runtime.repository.reserve_provider_call(request, owner="another-unresolved-call",
+        lease_until=now + timedelta(minutes=1), available_at=now, now=now)
+    _damage_successor(runtime.repository, "open-attempt")
+    before, files, reads = _tables(runtime.repository), _files(runtime.backup_restore.data_root), adapter.read_calls
+    assert _settle(runtime) == () and _tables(runtime.repository) == before
+    assert _files(runtime.backup_restore.data_root) == files and adapter.read_calls == reads
+    assert not runtime.backup_restore.readiness()["ready"]
+
+
+@pytest.mark.parametrize("fault", ["call-time", "job-time", "open-attempt", "unknown-attempt", "job-count", "snapshot-drift"])
+def test_historical_successor_mutation_blocks_backup_and_restore_without_live_mutation(tmp_path, monkeypatch, fault):
+    import io
+
+    from youtube_intel.backup_restore import BackupRestoreError
+
+    runtime, adapter, _, _, _ = _repaired_failure(tmp_path, monkeypatch)
+    assert _settle(runtime)
+    backup, repo = runtime.backup_restore, runtime.repository
+    result = backup.create_backup()
+    package, _ = backup.backup_download(result.backup_id)
+
+    def damage(repository):
+        if fault != "snapshot-drift":
+            _damage_successor(repository, fault)
+        else:
+            # Still intrinsically valid (count1 <= max4), but not the proven
+            # immutable historical execution snapshot which had max3.
+            with repository._connect() as connection:
+                connection.execute("UPDATE jobs SET max_attempts=4 WHERE status='SUCCEEDED' AND job_id LIKE 'caption-repair-%'")
+
+    damage(repo)
+    before, files, reads = _tables(repo), _files(backup.data_root), adapter.read_calls
+    assert not backup.readiness()["ready"]
+    with pytest.raises(BackupRestoreError):
+        backup.create_backup()
+    with zipfile.ZipFile(package) as source:
+        manifest = json.loads(source.read("manifest.json"))
+        database = tmp_path / "damaged-archive.sqlite3"
+        database.write_bytes(source.read(manifest["database"]["path"]))
+        damage(SQLiteStateRepository(database))
+        changed = database.read_bytes()
+        manifest["database"]["sha256"] = hashlib.sha256(changed).hexdigest()
+        manifest["database"]["size_bytes"] = len(changed)
+        output = io.BytesIO()
+        with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as target:
+            for name in source.namelist():
+                body = changed if name == manifest["database"]["path"] else source.read(name)
+                target.writestr(name, json.dumps(manifest).encode() if name == "manifest.json" else body)
+    with pytest.raises(BackupRestoreError):
+        backup.stage_restore(output.getvalue())
+    assert _tables(repo) == before and _files(backup.data_root) == files
+    assert adapter.read_calls == reads
+
+
+def test_unreleased_incomplete_proof_is_rejected_without_immutable_upgrade(tmp_path, monkeypatch):
+    from youtube_intel.backup_restore import BackupRestoreError
+    from youtube_intel.transcripts import _retained_caption_proof
+
+    runtime, adapter, old, _, _ = _repaired_failure(tmp_path, monkeypatch)
+    repo, backup = runtime.repository, runtime.backup_restore
+    now = datetime.now(UTC) + timedelta(seconds=1)
+    with repo._connect() as connection:
+        proof = _retained_caption_proof(repo, connection, backup.data_root, old, now=now)
+        payload = json.loads(proof["proof_json"])
+        assert set(payload["successor_execution"]) == {"job", "provider_call", "attempts", "source_run", "source_run_events"}
+        payload.pop("successor_execution")  # Exact rejected private candidate shape.
+        proof["proof_json"] = json.dumps(payload, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
+        proof["proof_sha256"] = hashlib.sha256(proof["proof_json"].encode()).hexdigest()
+        connection.execute("INSERT INTO retained_subtitle_derivations (" + ",".join(proof) + ") VALUES (" + ",".join("?" for _ in proof) + ")", tuple(proof.values()))
+        connection.execute("UPDATE provider_calls SET status='FAILED_FINAL',finished_at=?,updated_at=? WHERE request_hash=?", (proof["created_at"], proof["created_at"], old["request_hash"]))
+    before, files, reads = _tables(repo), _files(backup.data_root), adapter.read_calls
+    assert not backup.readiness()["ready"] and _settle(runtime) == ()
+    with pytest.raises(BackupRestoreError):
+        backup.create_backup()
+    assert _tables(repo) == before and _files(backup.data_root) == files and adapter.read_calls == reads

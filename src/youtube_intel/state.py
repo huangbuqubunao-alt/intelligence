@@ -4527,7 +4527,7 @@ class SQLiteStateRepository:
             _retention_require(isinstance(stored["proof_json"],str) and len(stored["proof_json"]) <= 1_000_000
                 and hashlib.sha256(stored["proof_json"].encode()).hexdigest() == stored["proof_sha256"])
             payload = json.loads(stored["proof_json"])
-            _retention_require(isinstance(payload,dict) and set(payload)=={"archive","input","original_ledger","attempts","evidence_ids","successor_raw_artifact_id"})
+            _retention_require(isinstance(payload,dict) and set(payload)=={"archive","input","original_ledger","attempts","evidence_ids","successor_raw_artifact_id","successor_execution"})
             original = payload["original_ledger"]
             actual = connection.execute("SELECT * FROM provider_calls WHERE request_hash=?",(stored["request_hash"],)).fetchone()
             _retention_require(isinstance(original,dict) and actual is not None and set(original)==set(actual.keys()))

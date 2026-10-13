@@ -1041,6 +1041,102 @@ def _retention_utc(value: object) -> datetime:
     return stamp
 
 
+def _retained_successor_execution(
+    connection: Any, job: Any, call: Any, run: Any, *, now: datetime,
+) -> dict[str, Any]:
+    """Prove and snapshot every successor execution field, not only status."""
+    from youtube_intel.source_run import (
+        _SOURCE_RUN_STATE_TRANSITIONS,
+        SourceRunState,
+        SourceRunTrigger,
+        build_source_run_id,
+        build_source_run_idempotency_key,
+    )
+
+    _retention_require(
+        job["status"] == "SUCCEEDED" and job["job_type"] == "VIDEO_STAGE"
+        and job["target_stage"] == "TRANSCRIPT"
+        and type(job["attempt_count"]) is int and type(job["max_attempts"]) is int
+        and 0 < job["attempt_count"] <= job["max_attempts"]
+        and all(job[k] is None for k in (
+            "lease_owner", "lease_until", "last_error_code", "last_error_message",
+            "authoritative_scoring_artifact_key", "scoring_success_provenance", "scoring_lineage_version"))
+    )
+    created, finished = _retention_utc(job["created_at"]), _retention_utc(job["finished_at"])
+    _retention_require(created <= _retention_utc(job["available_at"]) <= finished <= now
+        and finished == _retention_utc(job["updated_at"]))
+    attempts = connection.execute(
+        "SELECT * FROM job_attempts WHERE job_id=? ORDER BY attempt_number LIMIT 1001",
+        (job["job_id"],),
+    ).fetchall()
+    _retention_require(len(attempts) == job["attempt_count"] <= 1000)
+    prior_finish = created
+    for number, attempt in enumerate(attempts, 1):
+        _retention_require(type(attempt["attempt_id"]) is int and attempt["attempt_id"] > 0
+            and type(attempt["attempt_number"]) is int and attempt["attempt_number"] == number
+            and attempt["job_id"] == job["job_id"]
+            and isinstance(attempt["lease_owner"], str) and bool(attempt["lease_owner"].strip()))
+        start, end = _retention_utc(attempt["started_at"]), _retention_utc(attempt["finished_at"])
+        _retention_require(prior_finish <= start <= end <= finished
+            and end <= _retention_utc(attempt["lease_until"]))
+        if number == len(attempts):
+            _retention_require(attempt["outcome"] == "SUCCEEDED" and end == finished
+                and attempt["error_code"] is None and attempt["error_message"] is None
+                and _retention_utc(job["available_at"]) <= start)
+        else:
+            _retention_require(attempt["outcome"] == "RETRY_PENDING"
+                and attempt["error_code"] in {code.value for code in ErrorCode}
+                and isinstance(attempt["error_message"], str) and bool(attempt["error_message"].strip()))
+        prior_finish = end
+    _retention_require(call["status"] == "SUCCEEDED"
+        and type(call["attempt_count"]) is int and 0 < call["attempt_count"] <= len(attempts)
+        and all(call[k] is None for k in (
+            "reservation_owner", "lease_until", "input_tokens", "output_tokens",
+            "cost_microusd", "last_error_code", "last_error_message"))
+        and call["response_artifact_id"] == call["raw_id"]
+        and connection.execute("SELECT 1 FROM provider_dispatch_states WHERE request_hash=?",
+                               (call["request_hash"],)).fetchone() is None)
+    _retention_require(created <= _retention_utc(call["started_at"])
+        <= _retention_utc(call["finished_at"]) <= finished
+        and _retention_utc(call["finished_at"]) == _retention_utc(call["updated_at"])
+        and created <= _retention_utc(call["available_at"]) <= _retention_utc(call["finished_at"]))
+    trigger = SourceRunTrigger.MANUAL_CHECK_NOW
+    _retention_require(run["trigger"] == trigger.value and run["state"] == "COMPLETED"
+        and run["priority"] == "P0" and run["attention_reason"] is None
+        and run["automation_run_id"] is None and run["manual_analyze_override_id"] is None
+        and run["trigger_reference"] == run["manual_command_id"]
+        and run["run_id"] == build_source_run_id(source_id=run["source_id"], trigger=trigger,
+                                                 trigger_reference=run["manual_command_id"])
+        and run["idempotency_key"] == build_source_run_idempotency_key(
+            source_id=run["source_id"], trigger=trigger, trigger_reference=run["manual_command_id"]))
+    run_created, run_finished = _retention_utc(run["created_at"]), _retention_utc(run["updated_at"])
+    _retention_require(run_created <= created <= finished <= run_finished <= now)
+    events = connection.execute(
+        "SELECT * FROM source_run_state_events WHERE run_id=? ORDER BY event_id LIMIT 1001",
+        (run["run_id"],),
+    ).fetchall()
+    _retention_require(0 < len(events) <= 1000)
+    prior_state: SourceRunState | None = None
+    prior_time = run_created
+    for index, event in enumerate(events):
+        current = SourceRunState(event["state"])
+        occurred = _retention_utc(event["occurred_at"])
+        _retention_require(type(event["event_id"]) is int and event["event_id"] > 0
+            and event["run_id"] == run["run_id"] and event["attention_reason"] is None
+            and prior_time <= occurred <= run_finished)
+        if index == 0:
+            _retention_require(event["prior_state"] is None and current is SourceRunState.QUEUED
+                and occurred == run_created)
+        else:
+            _retention_require(prior_state is not None and event["prior_state"] == prior_state.value
+                and current in _SOURCE_RUN_STATE_TRANSITIONS[prior_state])
+        prior_state, prior_time = current, occurred
+    _retention_require(prior_state is SourceRunState.COMPLETED and prior_time == run_finished)
+    return {"job": dict(job), "provider_call": {k: call[k] for k in call.keys() if k != "raw_id"},
+            "attempts": [dict(a) for a in attempts], "source_run": dict(run),
+            "source_run_events": [dict(e) for e in events]}
+
+
 def _retained_caption_proof(
     repository: Any, connection: Any, data_root: Path, ledger: dict[str, Any],
     *, now: datetime, successor: dict[str, str] | None = None,
@@ -1213,8 +1309,12 @@ def _retained_caption_proof(
         "AND p.prompt_version=? AND p.schema_version=?",(successor_job["job_id"],video_id,SELECTION_POLICY_VERSION,FORMAT_POLICY_VERSION)).fetchall()
     _retention_require(len(calls)==1)
     successor_call = calls[0]
-    successor_runs = connection.execute("SELECT run_id FROM source_runs WHERE source_id=? AND trigger='MANUAL_CHECK_NOW' AND manual_command_id IS NOT NULL AND manual_command_id NOT LIKE 'following-auto:%'",(run["source_id"],)).fetchall()
-    _retention_require(sum(successor_job["job_id"] == "caption-repair-" + hashlib.sha256(f"{r[0]}:{video_id}".encode()).hexdigest() for r in successor_runs)==1)
+    successor_runs = connection.execute("SELECT * FROM source_runs WHERE source_id=? AND trigger='MANUAL_CHECK_NOW' AND manual_command_id IS NOT NULL AND manual_command_id NOT LIKE 'following-auto:%' LIMIT 1001",(run["source_id"],)).fetchall()
+    _retention_require(len(successor_runs) <= 1000)
+    matched_successors = [r for r in successor_runs if successor_job["job_id"] == "caption-repair-" + hashlib.sha256(f"{r['run_id']}:{video_id}".encode()).hexdigest()]
+    _retention_require(len(matched_successors) == 1)
+    successor_execution = _retained_successor_execution(
+        connection, successor_job, successor_call, matched_successors[0], now=now)
     successor_raw = connection.execute("SELECT * FROM artifacts WHERE artifact_id=?",(successor_call["raw_id"],)).fetchone()
     successor_raw_hash = str(successor_raw["artifact_key"]).removeprefix("subtitle-source:")
     successor_refresh = int(str(successor_job["job_id"]).removeprefix("caption-repair-")[:15],16)
@@ -1286,6 +1386,7 @@ def _retained_caption_proof(
         "raw_request_hash":raw_hash,"source_metadata":_encode_source_metadata(metadata),
         "quality_flags":_encode_quality_flags(normalized.quality_flags),"parent_canonical_artifact_id":parent_id},
         "original_ledger":ledger,"attempts":[dict(a) for a in attempts],
+        "successor_execution":successor_execution,
         "evidence_ids":[str(e["evidence_id"]) for e in evidence],"successor_raw_artifact_id":successor_call["raw_id"]}
     encoded = json.dumps(payload,ensure_ascii=True,sort_keys=True,separators=(",",":"))
     _retention_require(len(encoded) <= 1_000_000)

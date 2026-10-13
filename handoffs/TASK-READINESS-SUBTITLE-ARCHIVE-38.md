@@ -152,3 +152,64 @@ tests/integration/test_task025a_saved_intelligence.py`，含全部新增52项、
 
 **Verdict: REJECT；未解决 P0=0、P1=1。** 不整合此实现、不操作正式 Schema/main；
 保留失败和原实现，由原作者修复后提交新 SHA 再独立复审。Reviewer 完成审查提交后 STOP。
+
+## 原作者 P1 返修交接：2026-10-14
+
+基线为上述独立 REJECT `658cd53c946054d1e184a7743929279cdcffc3bf`，原实现
+`29f1e50f08a90407e8d0c7a5c331306dfa62ec39` 保留，不改原审查/五项失败探针或旧完整
+回归日志。主控明确本返修在既有获批后继完整证明范围，无新增迁移或权限。
+
+实际四文件：`transcripts.py`、`state.py`、此 archive integration tests、本交接。
+没有修改 migration038、23字段、旧34–37合同、配置/模型/Cloud/依赖或正式数据。
+
+- 新有界 `_retained_successor_execution` 正规验证 SUCCEEDED Transcript Job 的类型、
+  attempt/max整数计数、可用/创建/完成/更新时间完整顺序，无 owner/lease/错误或跨
+  scoring 权力字段；全部 attempts 连续编号、对应 Job、非空历史 owner、正规 UTC/
+  起止/租约顺序、最后唯一 SUCCEEDED 与 Job 完成时间吻合，之前仅已知已终结
+  RETRY_PENDING+正规错误。不接受 open/LEASE_EXPIRED/未知结果或缺计数。
+- 后继 provider call 必须精确成功、正整数与 Job attempts 相容、完整开始/完成/
+  更新时间和 available UTC 顺序、response绑定，没有 owner/lease/usage/cost/残留
+  错误或任何 dispatch。普通 request/raw/canonical/Summary/Evidence 完整证明仍保留。
+- 后继 SourceRun 同源唯一明确 command；复用既有 source-run ID/idempotency builders
+  与状态转换规则，校验 scope/priority/trigger/reference、成功终结、UTC与 Job 起止，
+  并检查有界不可变事件链的起始、连续合法状态/时间和最终完成，不能只信状态枚举。
+- 在原 canonical `proof_json` 中追加 `successor_execution`，完整绑定 Job/provider/
+  全 attempts/SourceRun/事件全部字段；state 精确 key 与 hash reader同步。准入和
+  历史 Backup/Restore 共用上述完整重算，后来合法-looking 字段改动也不能漂移
+  已有不可变历史证明。没有扩表或改 proof authority，归档仍非 Transcript/Evidence。
+- 已拒绝的未发布旧 candidate38 proof缺该字段，继续 fail-closed，不静默 upgrade
+  或改写不可变行；旧私有包不宣称支持。真正已支持34–37包不变，新鲜38 proof正常
+  保留与恢复；future current Summary pointer变更正控保留。
+
+新增26项，旧52项及其所有断言完整保留：18 successor实时负控（含五项审查复现、
+naive/future/小数count/编号/lease/owner/usage/dispatch/source-run顺序），混合未解决
+批次不变，六项归档后历史与重新计算 ZIP DB hash 的 Restore tamper拒绝（含仍
+合法 max_attempts改变检测），以及未发布 incomplete proof拒绝且无不可变升级。
+每项确认表/物理文件保持原状、无新 GET；正常真实controller fixture、幂等/恢复/
+future pointer/old34–37正控均继续执行。
+
+检查：
+
+- 新18负控在旧实现 **14 FAIL / 4 PASS**，`successor-tdd-red.log`，作为红证据。
+  其中两个 owner fixture原尝试 SUCCEEDED+owner，被现有 SQLite CHECK拒绝，不是
+  业务负控通过；首 green **18 PASS / 2 fixture FAIL**，`successor-first-green.log`。
+  停止重复并读取 CHECK后改为合法 RUNNING/PENDING+owner/lease/nullfinished，保护
+  SQL原样保留，未降低 Schema或负控预期。
+- 首77项完整 archive专项 **77 PASS / 119.34s**，`successor-focused-final.log`；包含
+  原52及当时新增25，最后 incomplete proof专项另与状态/schema/saved回归运行。
+- 原 Reviewer `/tmp/readiness-archive38-independent-probe.py` 未改，重新执行输出另存
+  `successor-external-probe-after.log`：五项均 **archived=false / ready=false /
+  tables_changed=false / extra_fetch=0**。这是原探针结果对照，不自填独立 APPROVE。
+- 额外 incomplete proof + state store/lineage/doctor/saved整文件回归运行日志
+  `successor-schema-regression.log`：**114 PASS / 37.46s**。78 archive案例的77项
+  首轮专项与最后一项本轮执行均通过，没有称其为单轮完整78输出。
+- 最终 py_compile PASS；strict mypy src **102 files PASS** / Ruff src/tests/scripts
+  PASS / diff check PASS，`successor-commit-mypy.log` / `successor-commit-ruff.log`。
+  初新增 local import I001 已仅整理新增 import，不改工具链或既有代码格式。
+- **本返修没有运行完整后端/前端/GUI验收**。原完整4310 PASS / 1 schema assertion
+  FAIL / 1既有skip /2warnings保留；后续48专项 PASS不冒充完整通过。主控明确不重复
+  旧基线19分钟套件，最终接受整合后仍需最新完整后端、前端、TS/build及真实GUI。
+
+作者提交本有界返修后 STOP，建议 IN_REVIEW。待另一角色独立复审，无自审、采用或
+生产资格声明；当前 main/正式 owner未操作。主控实际 rollback→real新child→idle
+archive→GUI Backup/Restore全表全DATA流程仍是接受门禁，不由 fixture替代。
