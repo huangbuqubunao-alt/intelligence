@@ -136,3 +136,6 @@
 - 字幕Schema38作者29f1e50已STOP/clean：52专项、65 schema/doctor、15Bili、8domain及static通过。完整原结果4310PASS/1迁移名称切片断言FAIL/1既有skip/2warnings；[-22:]→[-23:]精准修正后全文件48PASS，原失败保留，不能称全量已通过。独立审查、root真实GUI恢复及最新整合完整回归待完成。
 - 设置安装身份/本地洞察未合格/可选云端分离文案候选fc2d854+b6a6250提交，12专项/完整418/TS/build通过，尚待独立review和root真实GUI。旧误导截图保留，正式未改。
 - 六页面真实读取与内容字幕/摘要/Evidence可读无pageerror，UI数据加载结束后显示真实转写完成和DeepAnalysis未合格；仅page reads，不能宣称保存/主题/全部动作通过。当前手册49图片真实headfulChrome零缺图/无横向溢出，MANUAL_RENDER_CHECKPOINT.json。正式main/remote仍73ee7e7。
+
+- Settings truthful-copy已独立APPROVE/整合8b8afc3，root完整418PASS/26files/12.04s、TS/buildPASS。真实普通隔离runtime中英文identity/unqualified/Cloudoptional提示全部PASS，无pageerror，界面恢复中文且生成语言未改；MODEL_STATE_COPY_GUI_EVIDENCE.json与两语截图。手册补首次设置指导与真实截图。
+- Schema38独立反证发现successor finished_at/attempt终结校验P1，29f1e50未接受未整合；待REJECT交接后原作者返修。原4152/4220检查点不能覆盖该候选，正式仍不变。

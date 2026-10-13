@@ -1,0 +1,24 @@
+{
+  "status": "PASS_REAL_MACOS_ZH_EN",
+  "zhcheck": {
+    "installedIdentity": true,
+    "installationNotQualification": true,
+    "localUnqualified": true,
+    "cloudOptionalConsent": true,
+    "contentReadable": true,
+    "falseReadyCopyAbsent": true
+  },
+  "errors": [],
+  "formalDataAccessed": false,
+  "modelCalls": 0,
+  "encheck": {
+    "installedIdentity": true,
+    "installationNotQualification": true,
+    "localUnqualified": true,
+    "cloudOptionalConsent": true,
+    "falseReadyCopyAbsent": true
+  },
+  "interfaceRestored": "zh-CN",
+  "generatedOutputLanguageUnchanged": "zh-CN",
+  "uiProvider": "actual ordinary private runtime; no response substitution"
+}
