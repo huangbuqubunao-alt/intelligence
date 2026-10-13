@@ -59,3 +59,13 @@ DIRECT 复用项目现有 provider ledger、SQLite BEGIN IMMEDIATE/CAS、BackupR
 ## Reviewer / 主控 / 整合
 
 待独立 Reviewer 和主控记录；本实现者提交后停止写入，不预填 APPROVE/ACCEPT/DONE。
+
+### 独立 Reviewer — REJECT（2026-10-13）
+
+- Reviewer `/root/intel_bounded_review`；审查范围 `fbe0e2b7323384ebb60408a436c4a6b732c61a72...2c71a9750fb155d02fb41e1227a83809301b66e6`，没有修改业务代码。结论 **REJECT：P0=0，P1=1**。不能整合或声称已完成安全验收。
+- **P1：无法正规读取的 ledger 历史仍被自动终止并放行 Backup。** `state.py:4332–4343` 只读取原始 dispatch status、比较时间字符串；没有通过现有 `ProviderCallRecord` / `ProviderDispatchRecord` 解析权威记录。`_verify_core_database` 不解析这些字段，因此不是补偿校验。
+- 独立复现使用专用测试的 `_workspace` / `_failure`，每例均为新的 `TemporaryDirectory(prefix="retired-subtitles-independent-")`。正常已知429失败记录之后，分别仅将 `provider_calls.started_at`、`updated_at`、`available_at` 或既有 `FAILED_KNOWN` dispatch 的 `updated_at` 改为字符串 `0`。正规 `get_provider_call` 或 `_dispatch_state_in_transaction` 均报 `ValueError: Invalid isoformat string: '0+00:00'`。四例均被 `retire_known_failed_subtitle_calls` 转为终态，Backup readiness 从 `False / PROVIDER_CALL_UNRESOLVED` 变成 `True`，而损坏历史没有获得可解释权威。这些修改仅发生在隔离临时测试数据库，未触碰正式数据。
+- 必须在同一个 `BEGIN IMMEDIATE` 内对所有拟退休 provider 与存在的 dispatch 使用原正规解析器并校验适用时间关系；不可解析、无法解释或不一致的记录必须整批拒绝且不改任何行，继续 fail-closed。补充四种损坏时间与有效/损坏记录混合批次的原子不变负控。不要修改 Schema、Backup 安全判断或旧历史字段来掩盖失败。
+- 已核对正常保护窗口锁顺序与 Backup 相同；SQLite事务/CAS互斥现有 reservation；非目标 provider、未知 dispatch、活动工作和合法取消 checkpoint 的正常规则保留。thread-local 只抑制本维护关闭窗口的同线程自唤醒，普通 `notify()` 与跨线程通知仍保留。没有发现另一项独立 P1。
+- 独立运行实现者列出的七个完整相关测试文件：**358 passed，1个既有 duplicate ZIP path UserWarning，175.66s**。命令为 `PYTHONPATH=src .venv/bin/python -m pytest -q tests/integration/test_retired_subtitle_failures.py tests/unit/test_backup_restore.py tests/integration/test_runtime_composition.py tests/integration/test_background_following.py tests/integration/test_state_store.py tests/integration/test_task022_personalized_distillation.py tests/integration/test_task023b_distillation_reservation.py`。日志 `/tmp/readiness-retired-subtitles-review-tests.log`。现有测试通过没有覆盖上述独立 P1。
+- 独立 Ruff（三个 Python 文件）、strict mypy（两个生产文件）、`git diff --check` PASS。与 root `d903c60` 的只读 `git merge-tree --write-tree d903c60 2c71a9750fb155d02fb41e1227a83809301b66e6` 无冲突，结果树 `272fca3f489e277bf95a64bfc84a0ab7868bc3aa`；未实际合并。frontend、完整后端和真实GUI不在本次纯后端 scoped reviewer 检查内，不能据此声称全链路通过。未运行网络、模型或正式数据操作。
