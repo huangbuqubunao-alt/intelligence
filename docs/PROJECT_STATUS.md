@@ -8,10 +8,12 @@ main/origin-main/served仍73ee7e747b4461b9de8a201d6b47669eb3913d1a；本轮未�
 恢复PASS；窄窗四宽六导航正反Tab/Enter/鼠标PASS。LOCAL_TIMED独立302/root78
 PASS已整合，真实Whisper内容WAIT0→取消→Backupready、全部78DATA及authority
 保持PASS，正向模型资格仍关闭。原固定9b nonthinking首例独立FAIL4P1保留。用户
-已批准官方thinking精确单次研究；新research4bef56e已提交，73合同PASS、首例
-prepare0调用，独立代码及sealed输入审查进行中，不授资格/生产权力。字幕Schema
-37→38精确归档迁移已批准，52新专项/65现有state+doctor通过，完整backend运行中；
-未提交/独立review/GUI完成前不整合。LOCAL_TEXT/core必须等该迁移整合后串行。
+已批准官方thinking精确单次研究；新research4bef56e及独立预输出b345777已整合，root73合同PASS；真实英文首例
+1调用、912输入/4096输出、length且最终正文为空，正规REJECTED_OUTPUT，停止后3例。
+不扩预算/补输出/授资格；LOCAL8例仍BLOCKED。Schema37→38作者29f1e50已STOP，
+52新专项/65现有state+doctor通过，full4310PASS/1精确版本断言FAIL已修正/相关48
+PASS；独立审查、root真实GUI和最新整合完整回归尚待完成。设置truthful-copy
+fc2d854+b6a6250候选12专项/完整418/TS/build通过，待独立审查和真实GUI。LOCAL_TEXT/core必须等该迁移整合后串行。
 长内容/rolling及真正Intelligence保存/主题仍OPEN。统一候选中文手册49图经真实
 macOS Chrome渲染零缺图、无水平溢出；尚未正式采用。当前矩阵与外部证据见
 [普通用户验收矩阵](validation/end-to-end-user-readiness/READINESS_MATRIX.md)及

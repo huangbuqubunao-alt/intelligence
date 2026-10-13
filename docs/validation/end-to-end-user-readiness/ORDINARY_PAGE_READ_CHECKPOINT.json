@@ -1,0 +1,82 @@
+{
+  "candidate": "6c0a496",
+  "scope": "real private macOS browser, page reads only, not all action branches",
+  "tour": [
+    {
+      "page": "首页",
+      "url": "http://127.0.0.1:5908/#Home",
+      "heading": 1,
+      "text": "洞察工作台\n\n首页\n\n查看你关注的知识最近发生了什么变化。\n\n最近 7 天发生了什么变化？\n\n2026年10月7日 00:13 – 2026年10月14日 00:13 · Asia/Shanghai\n\n已完成内容\n15\n新增洞察\n0\n洞察修订\n0\n获得新材料的主题\n0\n来源健康变化\n0\n已完成内容\nordinary-ui-video.mp4\n2026年10月12日 23:40\n\n内容处理完成\n\n打开内容\nmandarin-clean-weak-18db.wav\n2026年10月12日 23:16\n\n内容处理完成\n\n打开内容\n\n显示 2 ／共 15 · 打开相关页面查看更多。\n\n暂无重要新洞察。\n\n打开关注，检查已保存的来源或添加新内容。系统先整理内容；是否进一步生成洞察，由你选择。\n\n查看关注",
+      "width": {
+        "scroll": 1440,
+        "client": 1440
+      }
+    },
+    {
+      "page": "关注",
+      "url": "http://127.0.0.1:5908/#Following",
+      "heading": 1,
+      "text": "洞察工作台\n\n关注\n\n选择要持续关注的来源。\n\nBilibili UP 主持续关注当前暂不可用。你仍可添加公开 Bilibili 视频。\n\n添加关注\n筛选关注\n全部关注\n有更新\n产生新洞察\n需要处理\n已暂停\n本地资料库\n仅导入明确选择的文件 · 本地\n关注中\n导入文件",
+      "width": {
+        "scroll": 1440,
+        "client": 1440
+      }
+    },
+    {
+      "page": "内容",
+      "url": "http://127.0.0.1:5908/#Content",
+      "heading": 1,
+      "text": "洞察工作台\n\n内容\n\n阅读内容、字幕与处理记录。\n\n正在加载内容…",
+      "width": {
+        "scroll": 1440,
+        "client": 1440
+      }
+    },
+    {
+      "page": "洞察",
+      "url": "http://127.0.0.1:5908/#Intelligence",
+      "heading": 1,
+      "text": "洞察工作台\n\n洞察\n\n值得长期追踪、可回溯证据的洞察。\n\n研究\n当前\n已收藏\n正在加载已验证的洞察…",
+      "width": {
+        "scroll": 1440,
+        "client": 1440
+      }
+    },
+    {
+      "page": "主题",
+      "url": "http://127.0.0.1:5908/#Topics",
+      "heading": 1,
+      "text": "洞察工作台\n\n主题\n\n由相关洞察形成的当前理解。\n\n暂无主题。",
+      "width": {
+        "scroll": 1440,
+        "client": 1440
+      }
+    },
+    {
+      "page": "设置",
+      "url": "http://127.0.0.1:5908/#Settings",
+      "heading": 1,
+      "text": "洞察工作台\n\n设置\n\n语言、兴趣、内容处理和你的数据。\n\n语言\n\n界面语言: 中文 · 生成语言: 中文\n\n编辑语言\n\n来源语言自动识别。语言选择用于以后生成的内容；已有内容保持不变。\n\n我的偏好\n\n这是未来洞察筛选的默认偏好。单个关注可继承或单独设置。摘要仍忠实于原内容；已有洞察和主题不变。\n\n我重点关注: 尚未设置\n\n编辑兴趣\n模型与处理准备\n内容整理\n\n可以使用。有原文或字幕时，内容将在本机保存并整理。云端洞察为可选功能。\n\n当前使用的本地模型\n\nqwen3:8b · 已安装，可使用\n\n评分和模型摘要使用此运行配置。高级设置中的候选偏好不会改变它。\n\n洞察\n\n云端洞察需要配置凭据并授权。内容整理仍可使用。\n\n云端配置与模型详情\n本地音视频转写\n\n本地转写已就绪。打开已导入的音频或视频，点击“开始转写”；媒体文件始终保留在本机。\n\n导入视频只保存文件。字幕、摘要和 Evidence 需要可用的原文。你也可以导入已有的 TXT 或 MD 转录文本；本地转写不会使用云服务。\n\n检查可用性\n本地语音模型目录\n保存并检查模型\n\n请选择已安装的 MLX Whisper 模型文件夹，其中应包含 config.json 和模型权重文件。应用不会安装运行环境或下载模型。模型配置仅保留在本机，不包含在备份中。\n\n转写诊断\n备份与恢复\n\n备份包含洞察核心数据和已保存设置，不包含外部资料库、凭据和模型文件。\n\n核心数据已就绪，可以创建备份。\n\n创建备份\n选择备份\n\n备份已恢复，重启后的数据检查已通过。\n\n数据与隐私（只读）\n\n默认在本地保存数据；不会显示凭据的值。\n\n高级设置与诊断",
+      "width": {
+        "scroll": 1425,
+        "client": 1425
+      }
+    }
+  ],
+  "errors": [],
+  "modelGenerations": 0,
+  "formalDataAccessed": false,
+  "settled": [
+    {
+      "page": "内容",
+      "url": "http://127.0.0.1:5908/#Content",
+      "text": "洞察工作台\n\n内容\n\n阅读内容、字幕与处理记录。\n\nordinary-ui-video.mp4\n本地 · 2026年10月12日\n已就绪\nmandarin-clean-weak-18db.wav\n本地 · 2026年10月12日\n已就绪\nenglish-clean-weak-18db.wav\n本地 · 2026年10月12日\n已就绪\nnegative-noise-short.wav\n本地 · 2026年10月12日\n本地转写失败\nnegative-silence-medium.wav\n本地 · 2026年10月12日\n本地转写失败\nnegative-silence-short.wav\n本地 · 2026年10月12日\n本地转写失败\nenglish-video.mp4\n本地 · 2026年10月12日\n已就绪\nmixed-medium.wav\n本地 · 2026年10月12日\n已就绪\nsilence-medium.wav\n本地 · 2026年10月12日\n已就绪\nboundary-medium.wav\n本地 · 2026年10月12日\n已就绪\nindependent-medium.wav\n本地 · 2026年10月12日\n已就绪\nmild-noise.wav\n本地 · 2026年10月12日\n已就绪\ndesigned-pauses.wav\n本地 · 2026年10月12日\n已就绪\nmedium.wav\n本地 · 2026年10月12日\n已就绪\nvery-short.wav\n本地 · 2026年10月12日\n已就绪\nmixed-clean.wav\n本地 · 2026年10月12日\n已就绪\nmandarin-clean.wav\n本地 · 2026年10月12日\n已就绪\nenglish-clean.wav\n本地 · 2026年10月12日\n已就绪"
+    },
+    {
+      "page": "洞察",
+      "url": "http://127.0.0.1:5908/#Intelligence",
+      "text": "洞察工作台\n\n洞察\n\n值得长期追踪、可回溯证据的洞察。\n\n研究\n当前\n已收藏\n洞察处理进度\nordinary-ui-video.mp4\n\n本次提炼已取消，没有生成洞察。原 Content、字幕、摘要和 Evidence 均保留。\n\n打开内容"
+    }
+  ],
+  "status": "PASS_PAGE_READS_ONLY_NOT_ALL_USER_ACTIONS"
+}

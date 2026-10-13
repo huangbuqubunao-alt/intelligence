@@ -129,3 +129,10 @@
 - Schema37→38精确迁移用户已批准，记录FAILED_SUBTITLE_ARCHIVE_APPROVAL.md；readiness-subtitle-archive-38实施未提交/未验收/未整合，必须独立review与全部旧新包/并发/GUI全表全DATA恢复。原错误/unknown仍保持block。
 - 用户已具体批准QWEN35_THINKING_FOLLOWUP_PROPOSAL及对应APPROVAL；只同固定9b新official-thinking-v2模式，scope研究脚本/合同/freeze，独立tree作者仅prepare-only，不真实调用。原nonthinkingFAIL4P1及其余3例停止保留；新模式冻结及独立输入审查后root才可许可一次首例，LOCAL8例依赖仍未满足。没有新增下载/Cloud/资格翻转。
 - LOCAL_TEXT必须在归档核心state接受整合后串行；长内容/rolling政策、真实Intelligence保存/主题仍OPEN。正式main/origin-main/served73ee7e7、owner/config/credentials仍受保护，本任务不结束为全部可用，也未开启新开发阶段。
+
+## 2026-10-14 最新模型与迁移检查点
+
+- 官方thinking V2研究代码4bef56e、独立预输出b345777已整合；root追加73合同PASS/16.22s。安装全部7blob/三runtimebinary/原wrapper/tags身份重校PASS，空api/ps及无本任务其它重量执行、fresh资源>10GiB后，外部精确一次permit93f908d…启用首例。真实194.602s/1generation1invocation，912input/4096output，native done_reason=length/public final为空，正规结果REJECTED_OUTPUT。QWEN35_THINKING_V2_FAILURE.json保留原opaque response hash，不读thinking、不补输出、不扩大预算；其余3例未prepare/调用，LOCAL8例仍BLOCKED，正式资格false。旧nonthinking4P1FAIL不变。
+- 字幕Schema38作者29f1e50已STOP/clean：52专项、65 schema/doctor、15Bili、8domain及static通过。完整原结果4310PASS/1迁移名称切片断言FAIL/1既有skip/2warnings；[-22:]→[-23:]精准修正后全文件48PASS，原失败保留，不能称全量已通过。独立审查、root真实GUI恢复及最新整合完整回归待完成。
+- 设置安装身份/本地洞察未合格/可选云端分离文案候选fc2d854+b6a6250提交，12专项/完整418/TS/build通过，尚待独立review和root真实GUI。旧误导截图保留，正式未改。
+- 六页面真实读取与内容字幕/摘要/Evidence可读无pageerror，UI数据加载结束后显示真实转写完成和DeepAnalysis未合格；仅page reads，不能宣称保存/主题/全部动作通过。当前手册49图片真实headfulChrome零缺图/无横向溢出，MANUAL_RENDER_CHECKPOINT.json。正式main/remote仍73ee7e7。

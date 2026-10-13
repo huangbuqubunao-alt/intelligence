@@ -1,0 +1,68 @@
+{
+  "recorded_at": "2026-10-13T21:05:32.027912+00:00",
+  "status": "FAIL_FIXED_OUTPUT_BUDGET_EXHAUSTED",
+  "case": "real-deepthink-en",
+  "profile": "readiness-qwen35-9b-official-thinking-v2",
+  "pre_output_review_commit": "b345777b88ffb9dd4aa811a8773bfd2e72108a3f",
+  "implementation_commit": "4bef56e9d31f826debd7206f79ec8b510cc795d6",
+  "root_permit_sha256": "93f908d9d345757d13016a8a4a34d8cf5924685dacbb4597e2c2e1757cb7f0ff",
+  "prepared_sha256": "3164b2e48c543912d1c478752e3fa5270889c5f04659cad0c6bcaba659e78654",
+  "result_sha256": "66f3c27489bbf44b246b64ad5193e816a201d954b92957eafdf03995a7b8034d",
+  "opaque_response_sha256": "de34fcfcc32fc8e58c3de55138c884cce716e691ab8df6b814f4b8a46b6b1235",
+  "request_sha256": "8244ff88c8dd9cf37a5ee15f4446a6e641f97b8d6fa41639373949177e9c7a7c",
+  "public_final_content": "",
+  "model": "qwen3.5:9b-q4_K_M",
+  "done": true,
+  "done_reason": "length",
+  "input_tokens": 912,
+  "output_tokens": 4096,
+  "total_duration_seconds": 194.6019675,
+  "outcome": {
+    "execution_id": "distillation:reservation:v3:2b2b1f85ea5bbf5df83dcda4ad370fbda8e09517e5c3486a91fc76dc250fd661",
+    "status": "REJECTED_OUTPUT",
+    "invocation_count": 1,
+    "intelligence_id": null,
+    "revision_id": null
+  },
+  "generations": 1,
+  "all_18_prepared_data_hashes_unchanged": true,
+  "verified_input_hash_unchanged": true,
+  "checkpoint_status": "REJECTED_OUTPUT",
+  "checkpoint_invocation_count": 1,
+  "independent_public_result_review": {
+    "reviewer": "/root (not research implementer)",
+    "result": "FAIL",
+    "basis": "Native response done_reason=length,4096-token fixed budget exhausted,empty public final content; ordinary research transport rejected known truncated output. There is no admissible semantic result. Opaque thinking not read or interpreted."
+  },
+  "later_cases_prepared": [],
+  "later_cases_invoked": [],
+  "no_reroll_or_output_repair": true,
+  "historical_nonthinking_failure_preserved": true,
+  "local_8_case_gate": "BLOCKED; original four-case profile did not pass",
+  "production_qualified": false,
+  "formal_data_accessed": false,
+  "cloud_calls": 0,
+  "all_case_directories": [
+    "real-deepthink-en"
+  ],
+  "actual_request": {
+    "think": true,
+    "options": {
+      "temperature": 1.0,
+      "top_p": 0.95,
+      "top_k": 20,
+      "min_p": 0.0,
+      "presence_penalty": 1.5,
+      "repeat_penalty": 1.0,
+      "seed": 20261013,
+      "num_ctx": 8192,
+      "num_predict": 4096
+    },
+    "stream": false,
+    "model": "qwen3.5:9b-q4_K_M",
+    "message_roles": [
+      "system",
+      "user"
+    ]
+  }
+}
