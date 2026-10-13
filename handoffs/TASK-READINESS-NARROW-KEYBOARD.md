@@ -54,7 +54,14 @@ Backend/Ruff/mypy 未跑：没有 Python/backend 变化。原 9B 真实 FAIL 未
 
 ## Reviewer 结论
 
-待独立审查。
+独立 Reviewer `/root/intel_bounded_review`：**APPROVE（限定代码审查），P0/P1 = 0**。实现 SHA `9bdcce33f316de1c6378087e73a2fbefeb84b09a`；基线 `142f16bd26747c8bc3584c4e681620c26d89f4d7`。作者 STOP，接手时工作树 clean。
+
+- 完整三文件 diff 核对：业务只有既有 sidebar button 的六行 focus handler。父节点就是 sidebar-nav；仅横向内容超过可用宽度时请求 nearest 滚动，未修改 tab 顺序/键盘事件、preventDefault、激活、路由、状态、ARIA、CSS 或宽屏布局。保持鼠标 onClick；聚焦本身不调用 navigate 或提交请求。
+- 独立 focused：`npm test --prefix frontend -- --cache=false src/workspace/SidebarKeyboard.test.tsx`，**3 PASS / 1.29 秒**。两种语言覆盖六个目的地正反 Tab、正确目标滚动且不激活、Enter 激活；宽屏不额外滚动且鼠标行为保留。测试替身没有布局能力，不能用它证明像素完整可见。
+- 独立 `npm run typecheck --prefix frontend`、`npm run build --prefix frontend`、范围 diff check：PASS；50 modules，CSS `index-DmN6_wU_.css` / JS `index-nAg-FfKj.js`。实现者完整日志 389 / 24 PASS 已核对，按主控有界要求未重复全套。未运行 backend/Ruff/mypy：没有 Python 改动。
+- 与 root `c90406e4f6d8e681afc0df3f9052ea0ce8963fc3` 的只读 merge-tree 无冲突，结果树 `b211dacfcc4a26f309e104ec137ff6221cc738fe`。未实际整合。一次读取实现者日志使用了 root 而非候选 cwd，返回 No such file；随后在候选正确目录读取原日志，没有修改或伪造证据。
+- **真实 GUI 尚待主控验收**：320/768/1024/1440px、六个按钮正反 Tab、完整可见、document 无横向滚动与 Enter 激活都须真实重放。scrollIntoView 会按 nearest 对可滚动祖先请求可见性；本代码不构造 document 溢出，也未通过隐藏内容规避问题，但 jsdom 无法证明实际祖先滚动位置。
+- Reviewer 只补交接。无业务修改、资格/模型调用、正式配置/数据、Schema 或 main 操作；本批准不代表模型资格或整体普通用户链路已通过。
 
 ## 主控验收与整合
 
