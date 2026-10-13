@@ -69,3 +69,23 @@ DIRECT 复用项目现有 provider ledger、SQLite BEGIN IMMEDIATE/CAS、BackupR
 - 已核对正常保护窗口锁顺序与 Backup 相同；SQLite事务/CAS互斥现有 reservation；非目标 provider、未知 dispatch、活动工作和合法取消 checkpoint 的正常规则保留。thread-local 只抑制本维护关闭窗口的同线程自唤醒，普通 `notify()` 与跨线程通知仍保留。没有发现另一项独立 P1。
 - 独立运行实现者列出的七个完整相关测试文件：**358 passed，1个既有 duplicate ZIP path UserWarning，175.66s**。命令为 `PYTHONPATH=src .venv/bin/python -m pytest -q tests/integration/test_retired_subtitle_failures.py tests/unit/test_backup_restore.py tests/integration/test_runtime_composition.py tests/integration/test_background_following.py tests/integration/test_state_store.py tests/integration/test_task022_personalized_distillation.py tests/integration/test_task023b_distillation_reservation.py`。日志 `/tmp/readiness-retired-subtitles-review-tests.log`。现有测试通过没有覆盖上述独立 P1。
 - 独立 Ruff（三个 Python 文件）、strict mypy（两个生产文件）、`git diff --check` PASS。与 root `d903c60` 的只读 `git merge-tree --write-tree d903c60 2c71a9750fb155d02fb41e1227a83809301b66e6` 无冲突，结果树 `272fca3f489e277bf95a64bfc84a0ab7868bc3aa`；未实际合并。frontend、完整后端和真实GUI不在本次纯后端 scoped reviewer 检查内，不能据此声称全链路通过。未运行网络、模型或正式数据操作。
+
+### Implementer — P1 退回整改（2026-10-13）
+
+- 正式退回基线 `22be1a4a1e052673edcc140dadd697bd1656fa5b`，保留原实现与上述独立 REJECT 历史；本节是新的 scoped 修复证据，不改写审查结论。
+- 原缺陷确认：把 raw TEXT 时间大小比较及数据库 schema 校验当成了可解释 ledger 历史证明，遗漏正规 ProviderCallRecord / ProviderDispatchRecord 读取。
+- 同一 BEGIN IMMEDIATE 内，对每个候选复用 `_provider_call_from_row` 及 `_dispatch_state_in_transaction`。明确 ValueError/TypeError/OverflowError 解析失败则整批返回不变，未使用宽泛异常来绕过校验；不存在新状态或修复历史数据。
+- 完整行读取后检查请求哈希的64位小写hex形状、真实整数且正的 reservation attempt_count、原三个时间字段均为字符串/可解析 UTC，started_at <= updated_at <= 当前时间，available_at >= updated_at。未来的有效 retry backoff 仍允许安全终止并原样保留，不把 backoff 视为未知 dispatch。
+- 存在 dispatch 时必须是正规解析的 FAILED_KNOWN、request_hash 同一关联，且其 UTC 更新时间在开始与已知失败更新时间之间。date-only 被原 parser 接受为 naive datetime，不具备 UTC 执行时间权威；本方法明确拒绝，不改全局 parser。
+- 所有行校验先于任何终止 UPDATE，因此一个损坏行与多个合法行混合时也不部分清理。原 owner/lease/response、未知 dispatch、全局工作/Restore 及 CAS 判定完整保留；BackupRestore/Schema/runtime hook/Cloud/正式配置和数据没有新增改动。
+- request_hash 的原 normalized input 不在 provider ledger 持久化字段中，本补丁验证既有身份形状和 dispatch 关联，不伪造或重算缺失原输入，不宣称对已合法形状的历史哈希进行语义重新归属。
+
+新增 TDD 证据：
+
+1. 改实现前 `PYTHONPATH=src .venv/bin/python -m pytest -q tests/integration/test_retired_subtitle_failures.py -k 'unreadable_retirement_history or inconsistent_retirement_times'`：**16 failed / 39 deselected**；四种时间 `0` × 单行/混合批次全部错误终止，时间关系/计数异常同样错误终止。完整日志 `/tmp/readiness-retired-subtitles-p1-red.log`。
+2. 初轮加入正规 parser 后 54 passed / 1 failed：原 FAILED_KNOWN 正控 fixture 使用 `NOW.isoformat()`，正规 parser 不接受 `+00:00` 文本。对照实际生产 `format_utc_datetime` 的 Z 写入格式修正 fixture，保留全部正控断言；时间关系负控也改成正规可读 Z 格式，以确保检查的是合理关系，而不是仅因解析错误通过。
+3. 新增20个负控：四个损坏时间、四种混合批次、可正规读取但不合理的时间关系、非真实整数/零/未知计数、四个无 UTC 的日期；另加一个未来合法 backoff 正控。全部进行业务表快照不变与 Backup 仍阻塞检查。
+4. 专用测试最终 **60 passed in 17.01s**；py_compile / Ruff 三 Python 文件 / strict mypy 两生产文件 / diff check PASS。
+5. 原七文件完整相关回归：**379 passed / 176.32s**，仅一个既有 duplicate ZIP path UserWarning（预期破损备份负控）。完整日志 `/tmp/readiness-retired-subtitles-p1-regression.log`；未跳过/削弱测试或更改测试脚本。
+
+本次实际新增生产修改仅 state.py 退休方法；专用测试 fixture/负控及本交接文档。后端全产品和真实 GUI 仍由主控整合后验收。建议重新 `IN_REVIEW`，不自填独立 APPROVE，也不自行整合/main采用；提交后停止写入。

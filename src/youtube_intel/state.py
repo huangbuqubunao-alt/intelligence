@@ -4310,14 +4310,36 @@ class SQLiteStateRepository:
                         return ()
                 with _immediate_transaction(connection):
                     rows = connection.execute(
-                        "SELECT p.*, d.status AS dispatch_status FROM provider_calls p "
-                        "LEFT JOIN provider_dispatch_states d USING(request_hash) "
-                        "WHERE p.status NOT IN ('SUCCEEDED','FAILED_FINAL') ORDER BY request_hash"
+                        "SELECT * FROM provider_calls "
+                        "WHERE status NOT IN ('SUCCEEDED','FAILED_FINAL') ORDER BY request_hash"
                     ).fetchall()
                     now_text = format_utc_datetime(now)
                     for row in rows:
+                        try:
+                            record = self._provider_call_from_row(row)
+                            dispatch = self._dispatch_state_in_transaction(connection, record.request_hash)
+                        except (ValueError, TypeError, OverflowError):
+                            # Unreadable history is not proof of a known failure.
+                            return ()
                         if not (
-                            row["operation"] == "subtitle.fetch" and row["provider"] == "yt-dlp"
+                            isinstance(row["request_hash"], str)
+                            and len(record.request_hash) == 64
+                            and all(char in "0123456789abcdef" for char in record.request_hash)
+                            and type(row["attempt_count"]) is int and record.attempt_count > 0
+                            and all(isinstance(row[key], str) for key in (
+                                "started_at", "updated_at", "available_at",
+                            ))
+                            and all(stamp.tzinfo is not None and stamp.utcoffset() == timedelta(0)
+                                    for stamp in (record.started_at, record.updated_at, record.available_at,
+                                                  *((dispatch.updated_at,) if dispatch else ())))
+                            and record.started_at <= record.updated_at <= now
+                            and record.available_at >= record.updated_at
+                            and (dispatch is None or (
+                                dispatch.request_hash == record.request_hash
+                                and dispatch.status is ProviderDispatchStatus.FAILED_KNOWN
+                                and record.started_at <= dispatch.updated_at <= record.updated_at
+                            ))
+                            and row["operation"] == "subtitle.fetch" and row["provider"] == "yt-dlp"
                             and row["model"] is None
                             and row["prompt_version"] == "subtitle-selection-v1"
                             and row["schema_version"] == "subtitle-format-v1"
@@ -4329,8 +4351,6 @@ class SQLiteStateRepository:
                                 "reservation_owner", "lease_until", "response_artifact_id",
                                 "input_tokens", "output_tokens", "cost_microusd", "finished_at",
                             ))
-                            and row["dispatch_status"] in {None, "FAILED_KNOWN"}
-                            and row["started_at"] <= now_text and row["updated_at"] <= now_text
                             and connection.execute(
                                 "SELECT 1 FROM artifacts WHERE artifact_key=?",
                                 (f"subtitle-source:{row['request_hash']}",),

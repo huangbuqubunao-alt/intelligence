@@ -19,6 +19,7 @@ from youtube_intel.state import (
     ProviderCallRequest,
     ProviderCallStatus,
     SQLiteStateRepository,
+    format_utc_datetime,
 )
 
 support = _load_module("test_backup_restore")
@@ -108,7 +109,7 @@ def test_unknown_or_inconsistent_dispatch_is_not_retired(tmp_path, dispatch):
     repository, backup = _workspace(tmp_path)
     request = _failure(repository)
     with repository._connect() as connection:
-        connection.execute("INSERT INTO provider_dispatch_states VALUES (?,?,?)", (request.request_hash, dispatch, NOW.isoformat()))
+        connection.execute("INSERT INTO provider_dispatch_states VALUES (?,?,?)", (request.request_hash, dispatch, format_utc_datetime(NOW)))
     before = _tables(repository)
     assert repository.retire_known_failed_subtitle_calls(backup_restore=backup, now=LATER) == ()
     assert _tables(repository) == before
@@ -297,8 +298,8 @@ def test_other_live_source_authority_blocks_retirement(tmp_path, active):
             created_at=NOW, updated_at=NOW,
         ))
         with repository._connect() as connection:
-            connection.execute("INSERT INTO source_tracking_state(source_id,contract,followed_at,next_check_at) VALUES('source-1','source-tracking-v1',?,?)", (NOW.isoformat(), NOW.isoformat()))
-            connection.execute("INSERT INTO source_checks(check_id,source_id,started_at,status) VALUES('live-check','source-1',?,'RUNNING')", (NOW.isoformat(),))
+            connection.execute("INSERT INTO source_tracking_state(source_id,contract,followed_at,next_check_at) VALUES('source-1','source-tracking-v1',?,?)", (format_utc_datetime(NOW), format_utc_datetime(NOW)))
+            connection.execute("INSERT INTO source_checks(check_id,source_id,started_at,status) VALUES('live-check','source-1',?,'RUNNING')", (format_utc_datetime(NOW),))
     before = _tables(repository)
     assert repository.retire_known_failed_subtitle_calls(backup_restore=backup, now=LATER) == ()
     assert _tables(repository) == before
@@ -309,7 +310,7 @@ def test_known_failed_dispatch_is_preserved_and_settled(tmp_path):
     repository, backup = _workspace(tmp_path)
     request = _failure(repository)
     with repository._connect() as connection:
-        connection.execute("INSERT INTO provider_dispatch_states VALUES (?,?,?)", (request.request_hash, "FAILED_KNOWN", NOW.isoformat()))
+        connection.execute("INSERT INTO provider_dispatch_states VALUES (?,?,?)", (request.request_hash, "FAILED_KNOWN", format_utc_datetime(NOW)))
     before = _tables(repository)["provider_dispatch_states"]
     assert repository.retire_known_failed_subtitle_calls(backup_restore=backup, now=LATER) == (request.request_hash,)
     assert _tables(repository)["provider_dispatch_states"] == before
@@ -373,3 +374,75 @@ def test_other_backup_window_or_database_authority_cannot_settle(tmp_path):
     with pytest.raises(ValueError, match="matching Backup authority"):
         repository.retire_known_failed_subtitle_calls(backup_restore=other_backup, now=LATER)
     assert _tables(repository) == before
+
+
+@pytest.mark.parametrize("column", ["started_at", "updated_at", "available_at", "dispatch_updated_at"])
+@pytest.mark.parametrize("mixed_batch", [False, True])
+def test_unreadable_retirement_history_keeps_every_row_and_backup_blocked(tmp_path, column, mixed_batch):
+    repository, backup = _workspace(tmp_path)
+    request = _failure(repository)
+    if mixed_batch:
+        _failure(repository, normalized_input_hash=hashlib.sha256(b"another valid public subtitle").hexdigest())
+    with repository._connect() as connection:
+        if column == "dispatch_updated_at":
+            connection.execute("INSERT INTO provider_dispatch_states VALUES (?,?,?)", (request.request_hash, "FAILED_KNOWN", "0"))
+        else:
+            connection.execute(f"UPDATE provider_calls SET {column}='0' WHERE request_hash=?", (request.request_hash,))
+    with pytest.raises(ValueError, match="Invalid isoformat"):
+        if column == "dispatch_updated_at":
+            with repository._connect() as connection:
+                repository._dispatch_state_in_transaction(connection, request.request_hash)
+        else:
+            repository.get_provider_call(request.request_hash)
+    before = _tables(repository)
+    assert repository.retire_known_failed_subtitle_calls(backup_restore=backup, now=LATER) == ()
+    assert _tables(repository) == before
+    assert backup.readiness()["ready"] is False
+
+
+@pytest.mark.parametrize("column,value", [
+    ("started_at", format_utc_datetime(NOW + timedelta(seconds=1))),
+    ("updated_at", format_utc_datetime(NOW - timedelta(seconds=1))),
+    ("available_at", format_utc_datetime(NOW - timedelta(seconds=1))),
+    ("dispatch_updated_at", format_utc_datetime(NOW - timedelta(seconds=1))),
+    ("dispatch_updated_at", format_utc_datetime(NOW + timedelta(seconds=1))),
+    ("attempt_count", 0), ("attempt_count", 1.5), ("attempt_count", "unknown"),
+])
+def test_inconsistent_retirement_times_or_counts_are_not_reinterpreted(tmp_path, column, value):
+    repository, backup = _workspace(tmp_path)
+    request = _failure(repository)
+    with repository._connect() as connection:
+        if column == "dispatch_updated_at":
+            connection.execute("INSERT INTO provider_dispatch_states VALUES (?,?,?)", (request.request_hash, "FAILED_KNOWN", value))
+        else:
+            connection.execute(f"UPDATE provider_calls SET {column}=? WHERE request_hash=?", (value, request.request_hash))
+    before = _tables(repository)
+    assert repository.retire_known_failed_subtitle_calls(backup_restore=backup, now=LATER) == ()
+    assert _tables(repository) == before
+    assert backup.readiness()["ready"] is False
+
+
+@pytest.mark.parametrize("column", ["started_at", "updated_at", "available_at", "dispatch_updated_at"])
+def test_date_without_utc_execution_time_is_not_retired(tmp_path, column):
+    repository, backup = _workspace(tmp_path)
+    request = _failure(repository)
+    with repository._connect() as connection:
+        if column == "dispatch_updated_at":
+            connection.execute("INSERT INTO provider_dispatch_states VALUES (?,?,?)", (request.request_hash, "FAILED_KNOWN", "2026-09-23"))
+        else:
+            connection.execute(f"UPDATE provider_calls SET {column}='2026-09-23' WHERE request_hash=?", (request.request_hash,))
+    before = _tables(repository)
+    assert repository.retire_known_failed_subtitle_calls(backup_restore=backup, now=LATER) == ()
+    assert _tables(repository) == before
+    assert backup.readiness()["ready"] is False
+
+
+def test_valid_future_retry_backoff_is_not_mistaken_for_unknown_history(tmp_path):
+    repository, backup = _workspace(tmp_path)
+    request = _failure(repository)
+    with repository._connect() as connection:
+        connection.execute("UPDATE provider_calls SET available_at=? WHERE request_hash=?", (format_utc_datetime(LATER + timedelta(minutes=5)), request.request_hash))
+    before = repository.get_provider_call(request.request_hash)
+    assert repository.retire_known_failed_subtitle_calls(backup_restore=backup, now=LATER) == (request.request_hash,)
+    assert repository.get_provider_call(request.request_hash).available_at == before.available_at
+    assert backup.readiness()["ready"] is True
