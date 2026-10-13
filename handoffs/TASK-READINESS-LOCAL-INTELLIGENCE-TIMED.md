@@ -71,4 +71,23 @@ DECISION NEEDED：本实现范围内无新增审批请求；真实模型依赖�
 
 ## Reviewer / 主控验收 / 整合结果
 
-独立 Reviewer verdict、主控 ACCEPT/REJECT、整合检查与最终状态均待主控填写；实现者未合并 main。
+### 独立 Reviewer `/root/intel_bounded_review`
+
+**APPROVE（仅获批 LOCAL_TIMED 代码切片），P0/P1 = 0。** 实现 SHA `f399034d837807d9850cf16cebabdd32f6039478`，基线 `67d6e9a930fa0289c9d97c4ad3119e493b16ce0e`。作者 STOP、接手及检查后工作树均 clean。模型资格、真实 LOCAL 八例和完整用户旅程没有获批或被声明通过。
+
+独立审查完整六文件 diff 与具体批准提案：只有显式 manual LOCAL_LIBRARY/DISCOVER_ONLY、同来源 READY 音视频、完整 verified timed/canonical/Summary/Evidence 可以构造 LOCAL seal。源文件、canonical、timed、当前 extractive Summary 和完整 coverage 进入 context hash；正规 reservation identity 重建后，正向与 NO_NEW 在 BEGIN IMMEDIATE 内再次验证相同 context。可信 reader 中嵌套读连接在该写事务保护下没有给予其他数据库 writer 变更窗口；文件字节仍按既有可信 reader 重新验 hash。未知、纯文本、外来来源、非手动 LOCAL 均不扩大权限。
+
+Cloud API 的既有早拒绝、service 的 reserve/历史恢复拒绝、各真实 Cloud transport 的授权与 request 拒绝覆盖 LOCAL；默认 YT marker 搭配真实 local-ID 也不能构造 Cloud 请求。没有凭据/payload/dispatch 授权增加。旧 YT production receipt 在正规 composer 输出 LOCAL marker 时返回不合格，普通续跑保持 WAITING_MODEL/零调用；qualification seam 没有连接普通 UI。YT wire/semantic payload、模型参数、资格 reader 不变。LOCAL card 使用 NULL 外链、真实 Content/source/Evidence ID 与真实时间。
+
+独立检查：
+
+- 新专项 + source-context + unit API：**78 PASS / 41.95 秒**，包括执行中六类 authority 变更（正向与 NO_NEW）、取消/重启、全表全 DATA Backup/Restore、实际外链投影与旧 YT 投影兼容。
+- 原 personalized distillation/reservation/local wire branches + Ollama/OpenAI/Moonshot adapter/dispatch：**224 PASS / 87.04 秒**。合计 302 项，未删/跳过/改断言或门槛。
+- 额外独立正常 LOCAL fixture 并发 probe `/tmp/readiness-local-timed-independent-races.py`：第一续跑 claim 后阻塞；取消拒绝；另一个真实 repository 实例续跑转 AMBIGUOUS；释放第一调用后两者同终态。**总一次 fixture dispatch、第二零调用、零 card、重启后不重派**。无真实网络或模型。首次临时路径未 resolve，既有 NOFOLLOW 拒绝 macOS `/var` 符号链接（NotADirectoryError）；只修 probe 的临时根为真实路径，未改产品安全 reader 或测试。
+- Ruff（3 生产文件 + 新测试）、strict mypy（3 生产文件）、py_compile、git diff --check：PASS。
+- 与 root `8ba165f011121ec4ee26d68712d2a252b9a20473` 的只读 merge-tree：无冲突，结果树 `233b0955ed7bbf6e4697ef31ec8042fdd042d9d2`；未执行实际 merge/cherry-pick。
+- 前端/TS/build 未执行：无前端改动。主控整合后的完整回归和真实 GUI 仍需执行。
+
+剩余限制：固定 9b 原真实语义 FAIL，LOCAL 真实模型/GUI验收仍 BLOCKED；最多 20 Evidence、TEXT_RANGE、长内容处理及 Schema38 归档均未实现于此切片。大媒体反复可信 hash 的响应时间应在随后受控 GUI 中观察，本审查没有实测该性能或假称所有普通用户链路可用。未触及正式数据、配置、迁移、推理、资格收据或 main。
+
+Reviewer 只补本交接并提交审查记录；任务状态与 ACCEPT/REJECT/整合/最终验收由主控决定。
