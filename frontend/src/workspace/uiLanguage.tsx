@@ -4,6 +4,9 @@ export type UiLanguage = "zh-CN" | "en";
 
 const storageKey = "yia.ui-language";
 const chinese: Record<string, string> = {
+  "Loading global interests…": "正在加载全局兴趣…",
+  "Global interests could not be loaded. Check the local connection and retry. Your draft is preserved.": "未能加载全局兴趣，请检查本地连接后重试。已填写的内容仍保留。",
+  "Retry global interests": "重试加载全局兴趣",
   "Reload page data": "重新加载页面数据",
   "The local service is temporarily unavailable. Wait for it to recover, then reload this page.": "本地服务暂时不可用。请等待服务恢复，再重新加载此页面。",
   "The page could not be loaded because the local service returned an unreadable response. Reload this page to try reading it again.": "本地服务返回的响应无法读取，页面未能加载。请重新加载此页面，再次读取。",

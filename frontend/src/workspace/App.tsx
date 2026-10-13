@@ -354,7 +354,7 @@ function initialPage(): Page {
   return pages.includes(candidate as Page) ? candidate as Page : "Home";
 }
 
-function useRemote<T>(path: string, refresh = 0) {
+function useRemote<T>(path: string, refresh = 0, validate?: (value: unknown) => boolean) {
   const [readRevision, setReadRevision] = useState(0);
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -366,7 +366,13 @@ function useRemote<T>(path: string, refresh = 0) {
     setData(null);
     setError(null);
     setErrorCode(undefined);
-    api<T>(path).then((value) => alive && setData(value)).catch((reason: Error) => {
+    api<T>(path).then((value) => {
+      if (!alive) return;
+      if (validate && !validate(value)) {
+        throw new ApiRequestError({ code: "READ_RESPONSE_INVALID", message: "The policy response could not be read." });
+      }
+      setData(value);
+    }).catch((reason: Error) => {
       if (!alive) return;
       setError(reason.message);
       setErrorCode(reason instanceof ApiRequestError ? reason.code : undefined);
@@ -374,7 +380,7 @@ function useRemote<T>(path: string, refresh = 0) {
     return () => {
       alive = false;
     };
-  }, [path, refresh, readRevision]);
+  }, [path, refresh, readRevision, validate]);
   return { data, error, errorCode, reload: () => setReadRevision(value => value + 1) };
 }
 function statusLabel(value: string) {
@@ -2671,6 +2677,19 @@ function ruleList(value: string) {
 function SourceForm(props: Parameters<typeof ExistingSourceForm>[0]) {
   return props.source ? <ExistingSourceForm {...props} /> : <AddEntry onClose={props.onClose} onSaved={props.onSaved} initialLocal={props.initialProvider === "LOCAL"} />;
 }
+function validGlobalPolicy(value: unknown): value is { policy: SourcePolicy } {
+  if (!value || typeof value !== "object" || !("policy" in value)) return false;
+  const policy = value.policy;
+  if (!policy || typeof policy !== "object") return false;
+  const rules = (value: unknown) => Array.isArray(value) && value.every(item => typeof item === "string");
+  return "focus_rules" in policy && rules(policy.focus_rules)
+    && "ignore_rules" in policy && rules(policy.ignore_rules)
+    && "initial_history_count" in policy && typeof policy.initial_history_count === "number"
+    && Number.isSafeInteger(policy.initial_history_count) && policy.initial_history_count >= 0
+    && "per_run_max_new_videos" in policy && typeof policy.per_run_max_new_videos === "number"
+    && Number.isSafeInteger(policy.per_run_max_new_videos) && policy.per_run_max_new_videos > 0
+    && "distillation_style" in policy && STYLES.some(([style]) => style === policy.distillation_style);
+}
 export function ExistingSourceForm(
   { onClose, onSaved, source, policy, policyModes, schedules, initialProvider = "YOUTUBE" }: {
     initialProvider?: "YOUTUBE" | "LOCAL" | "BILIBILI";
@@ -2685,7 +2704,7 @@ export function ExistingSourceForm(
   const { t } = useUiLanguage();
   const [providerChoice,setProviderChoice] = useState(initialProvider);
   const [youtubeMode, setYoutubeMode] = useState<"video" | "channel">("video");
-  const globalPolicy = useRemote<{ policy: SourcePolicy }>("/settings/source-policy", 0);
+  const globalPolicy = useRemote<{ policy: SourcePolicy }>("/settings/source-policy", 0, validGlobalPolicy);
   const schedule = schedules?.[0];
   const [url, setUrl] = useState(source?.canonical_url ?? "");
   const [enabled, setEnabled] = useState(source?.enabled ?? true);
@@ -2711,8 +2730,10 @@ export function ExistingSourceForm(
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const policyReadRequired = [focusMode, ignoreMode, styleMode].includes("INHERIT");
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (policyReadRequired && !globalPolicy.data) return;
     if (!source && /^(?:@|UC|https:\/\/(?:www\.)?youtube\.com\/(?:@|channel\/))/.test(url.trim())) {
       setError(t("Use Follow a channel to follow from now on without importing existing videos."));
       return;
@@ -2799,7 +2820,14 @@ export function ExistingSourceForm(
           <button className="button button-secondary" aria-pressed={youtubeMode === "video"} onClick={() => setYoutubeMode("video")}>{t("Add one video")}</button>
           <button className="button button-secondary" aria-pressed={youtubeMode === "channel"} onClick={() => setYoutubeMode("channel")}>{t("Follow a channel")}</button>
         </div>}
-        {!source && youtubeMode === "channel" ? <CreatorFollowForm provider="YOUTUBE" onSaved={onSaved} /> : <form onSubmit={submit}><details><summary>{t("Advanced source configuration")}</summary>
+        {!source && youtubeMode === "channel" ? <CreatorFollowForm provider="YOUTUBE" onSaved={onSaved} /> : <form onSubmit={submit}>
+          {!globalPolicy.data && (globalPolicy.error
+            ? <div role="alert">
+              <ErrorState error={t("Global interests could not be loaded. Check the local connection and retry. Your draft is preserved.")} />
+              <button type="button" className="button button-secondary" onClick={globalPolicy.reload}>{t("Retry global interests")}</button>
+            </div>
+            : <p className="hint" role="status">{t("Loading global interests…")}</p>)}
+          <details><summary>{t("Advanced source configuration")}</summary>
           <label className="field">
             {t("Source URL")}<input
               aria-label={t("Source URL")}
@@ -2875,7 +2903,7 @@ export function ExistingSourceForm(
                 <option value="OVERRIDE">{t("Set for this Following")}</option>
               </select>
             </label>
-            {focusMode === "INHERIT" ? <p className="hint">{t("Global focus")}: {globalPolicy.data?.policy?.focus_rules.join("、") || t("Not set")}</p> : null}
+            {focusMode === "INHERIT" && globalPolicy.data ? <p className="hint">{t("Global focus")}: {globalPolicy.data?.policy?.focus_rules.join("、") || t("Not set")}</p> : null}
             {focusMode === "OVERRIDE" ? <label className="field">
               {t("Focus")}<input
                 aria-label={t("Focus")}
@@ -2895,7 +2923,7 @@ export function ExistingSourceForm(
                 <option value="OVERRIDE">{t("Set for this Following")}</option>
               </select>
             </label>
-            {ignoreMode === "INHERIT" ? <p className="hint">{t("Global ignore")}: {globalPolicy.data?.policy?.ignore_rules.join("、") || t("Not set")}</p> : null}
+            {ignoreMode === "INHERIT" && globalPolicy.data ? <p className="hint">{t("Global ignore")}: {globalPolicy.data?.policy?.ignore_rules.join("、") || t("Not set")}</p> : null}
             {ignoreMode === "OVERRIDE" ? <label className="field">
               {t("Ignore")}<input
                 aria-label={t("Ignore")}
@@ -2982,7 +3010,7 @@ export function ExistingSourceForm(
             </button>
             <button
               className="button button-primary"
-              disabled={busy}
+              disabled={busy || (policyReadRequired && !globalPolicy.data)}
               type="submit"
             >
               {t(busy ? "Saving…" : source ? "Save changes" : "Add Source")}
