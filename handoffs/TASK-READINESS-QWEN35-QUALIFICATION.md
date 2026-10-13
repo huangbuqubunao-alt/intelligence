@@ -91,3 +91,18 @@
 - [llama.cpp b11351 OAI 参数转换](https://github.com/ggml-org/llama.cpp/blob/b11351/tools/server/server-common.cpp) 转发剩余原生字段；[schema](https://github.com/ggml-org/llama.cpp/blob/b11351/tools/server/server-schema.cpp) 解析固定 temperature/top_k/top_p/min_p/repeat_penalty/presence_penalty/seed；[context](https://github.com/ggml-org/llama.cpp/blob/b11351/tools/server/server-context.cpp) 将解析结果交 `common_sampler_init`；[sampling](https://github.com/ggml-org/llama.cpp/blob/b11351/common/sampling.cpp) 使用这些参数及 seed 创建实际采样链。
 
 这些证据证明固定官方源码中有参数语义路径，**不能证明已安装 binary 与源码逐字节对应，或真实9B加载/模板/容量/延迟/内存/输出质量已通过**。mock wire 与版本字符串不能替代实际测证；首个受控调用仍须记录真实兼容与语义结论，遇不支持或决定性失败即停。不得通过额外 debug render probe 加载模型。全后端/前端、正式 factory、macOS GUI 与 Backup/Restore 未在本限定无产品源码改动预审重跑，留给主控后续完整验收；此处无生产资格或 main 合并许可。
+
+## 独立首例 sealed-input review（2026-10-13）
+
+`/root/intel_bounded_review` 对原本 worktree @`9bcf6d3e6dd6f06b6419e064cdfa6d3aff7221b0` 的 `real-deepthink-en` 给出 **PREPARED_APPROVE**。此结论仅绑定以下输入，不代替 root 的单例启动 receipt 或输出语义审查，不授予生产资格。
+
+- prepared.json SHA256：`10fa5e5251a9f7f172ff707446aea4864994096334239883e72cd3ae2d940144`。
+- state.sqlite3 SHA256：`d08d19dbaf472a5693bd3edb80f329cb77a844e70392437d44cf339f01d3a442`。
+- verified-input.json SHA256：`32511e6c319c7b678f5da7ce51ed89d636a7d23cf306f284bcd899919d0cfeca`。
+- profile/freeze/harness 均匹配前述代码预审和原冻结；原 corpus/expectation 保持。真实 QoXRfTb7ves 的公开 URL、title、Google DeepMind、18条原冻结 cues、canonical hash 和2项 Evidence 原文/时间/hash 一致，语义仍按供应方及研究者陈述审查，不独立证明数学正确性。
+
+独立 `/tmp/readiness-qwen35-independent-prepared-review.py` 用 SQLite `mode=ro` repository 重建 ordinary reserved command/VerifiedInput，逐字段等于输入 JSON；integrity_check/FK check PASS。精确比较 **全部18 DATA文件** 的 inventory/hash、无 symlink/额外文件。数据库前后 SHA 未变；execution=PENDING、invocation_count=0，9B provider row=0；没有 generation/request/response/result/permit，其他三个病例尚未准备。不会读取 private thinking，也未触发 provider API/network/generation。探针初次使用错误的 source_url 字段及 status.value 显示字段，校正为真实 VideoRecord.source_url 与字符串 status 后通过；业务代码和断言要求没有改变。
+
+已独立核对 root `QWEN35_RUNTIME_STATIC_PROVENANCE.json`：CLI/runner/lib 的三项 SHA 与本机文件一致，各 `codesign --verify --strict` 通过且 vendor/team 为 Infra Technologies, Inc / 3MU9H2V9Y9；binary embedded CLI revision `cf2a313a298066d572c36812e5ad30a21c0db13b` 与官方 v0.40.1 tag、native `631109b34` 与官方 b11351 tag 完整 commit `631109b34da437a3c4a5ebd75091d677671392e3` 一致。只读官方 release workflow 在编译前生成 certificate.p12、Go1.26 gitStatus 使用非空 porcelain 判断 modified，提供 **vcs.modified=true 与官方打包相容的解释，并非排他原因证明**；没有读取证书/私钥，也没有新下载发行载荷或执行 runner/model。
+
+因此接受 root receipt 的 `runtime_parameters_verified` **仅按其明确 static-support 定义**：固定 vendor-signed 安装实现与已核查官方参数路径支持。`runtime_execution_verified`、`model_load_verified`、`capacity_or_semantic_quality_verified`、`exact_release_payload_hash_verified` 全部仍 false。不能填写成实测参数效果，不保证容量或推理成功；root 另发启动许可才可做一次实际测证，失败即停。Gatekeeper enforced 不作主张。本节只补 handoff，没有改变输入快照、profile、程序或生产配置。
