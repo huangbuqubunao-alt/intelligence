@@ -73,3 +73,21 @@
 ## Reviewer与主控
 
 等待 `/root/intel_bounded_review` 独立审查，commit SHA由实现者提交后回报主控。主控保留最终验收/任务状态/执行令，未批准整合或任何main采用。
+
+## 独立 Reviewer：限定代码与冻结预审（2026-10-13）
+
+- Reviewer: `/root/intel_bounded_review`；被审实现：`bdabef7b67df711e6d073ffbbb5c7127dba40591`，基线：`08e02e2a1a3cabcf72f52ee2565eb3c14f3be7b5`。
+- Verdict: **APPROVE — 仅 research code/freeze PRE_OUTPUT**。P0/P1: 0。不是实际模型资格批准、运行授权或生产采用；每例 sealed prepared input 仍须独立复核，且须主控外部启动 receipt。
+- 实现者已停写且审前 clean；审查没有改业务代码、测试、profile、冻结文件、正式配置或数据。现阶段没有准备四个实际病例，没有模型调用；本节仅补交接。
+
+独立核对了全部新增实现、测试、任务范围、17项冻结文件 hash、原语料与原语义门槛、ordinary generate source hash 与 research subtype source hash。原 v5 prompt/schema、原 NO_NEW 完整 coverage 和 ordinary claim/Evidence parser 均保留。正向表示仅删除精确 `result` marker；错误身份、marker、额外字段、缺失字段和无效 Evidence 都拒绝，未修补文本或提高来源权限。prepare 用明确的隔离只读来源建立新目录/数据库，不触发网络；exclusive fsync 的 generation 标记在 HTTP 前持久化，重复、重启与不明结果不能 reroll。外部许可绑定代码、profile、freeze、prepared snapshot、安装身份、空间和固定病例顺序；后例要求前例精确 result hash 与独立语义 PASS，生产门禁保持 false。
+
+独立执行：新研究合同测试 **36 PASS / 13.70秒**；普通 Ollama 测试 **4 PASS / 0.19秒**；两个新增 Python 文件 py_compile、Ruff 均 PASS；`MYPYPATH=src .venv/bin/python -m mypy --strict scripts/qualify_readiness_qwen35_intelligence.py` PASS；基线至候选 `git diff --check` PASS。首次 mypy 未给 MYPYPATH，读到另一 checkout 的 editable 安装而报 import-untyped；随后按任务指定源路径重跑通过，没有 ignore 或降低严格性。
+
+源码级参数支持独立核查使用只读官方固定版本文件，不安装/编译/升级或调用模型：
+
+- [Ollama v0.40.1 llama_server.go](https://github.com/ollama/ollama/blob/v0.40.1/llm/llama_server.go) 将固定 options 写入 `/v1/chat/completions` 请求，think 对应 template kwargs。
+- [固定 native runner 版本](https://github.com/ollama/ollama/blob/v0.40.1/LLAMA_CPP_VERSION) 为 `b11351`；[CMake 构建引用](https://github.com/ollama/ollama/blob/v0.40.1/llama/server/CMakeLists.txt) 绑定该版本。
+- [llama.cpp b11351 OAI 参数转换](https://github.com/ggml-org/llama.cpp/blob/b11351/tools/server/server-common.cpp) 转发剩余原生字段；[schema](https://github.com/ggml-org/llama.cpp/blob/b11351/tools/server/server-schema.cpp) 解析固定 temperature/top_k/top_p/min_p/repeat_penalty/presence_penalty/seed；[context](https://github.com/ggml-org/llama.cpp/blob/b11351/tools/server/server-context.cpp) 将解析结果交 `common_sampler_init`；[sampling](https://github.com/ggml-org/llama.cpp/blob/b11351/common/sampling.cpp) 使用这些参数及 seed 创建实际采样链。
+
+这些证据证明固定官方源码中有参数语义路径，**不能证明已安装 binary 与源码逐字节对应，或真实9B加载/模板/容量/延迟/内存/输出质量已通过**。mock wire 与版本字符串不能替代实际测证；首个受控调用仍须记录真实兼容与语义结论，遇不支持或决定性失败即停。不得通过额外 debug render probe 加载模型。全后端/前端、正式 factory、macOS GUI 与 Backup/Restore 未在本限定无产品源码改动预审重跑，留给主控后续完整验收；此处无生产资格或 main 合并许可。
