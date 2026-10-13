@@ -1,0 +1,32 @@
+{
+  "authority_and_all_data_unchanged": true,
+  "checkpoints": [
+    {
+      "execution_id": "distillation:reservation:v3:ebf0d4293209a6623cbad98e496c19bfa60e40cb943fb8d96fea703faea68293",
+      "status": "WAITING_MODEL",
+      "invocation_count": 0
+    }
+  ],
+  "cancellations": [
+    {
+      "execution_id": "distillation:reservation:v3:ebf0d4293209a6623cbad98e496c19bfa60e40cb943fb8d96fea703faea68293",
+      "source_id": "local-library",
+      "video_id": "local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd",
+      "reason": "MANUAL_CONTENT:ui:1791906318290:3k233g859mr",
+      "use_case": "PERSONALIZED_INTELLIGENCE",
+      "selected_provider": "ollama",
+      "selected_model": "qwen3:8b",
+      "output_language": "zh-CN",
+      "checkpoint_updated_at": "2026-10-13T15:45:19.409232Z",
+      "budget_state": "RUNTIME_BUDGET_ADMITTED",
+      "cancelled_at": "2026-10-13T15:49:36.940301Z",
+      "outcome": "CANCELLED_BEFORE_MODEL_INVOCATION"
+    }
+  ],
+  "status": "REAL_LOCAL_WAIT_CANCEL_BACKUP_READINESS_PASS",
+  "positive_intelligence_qualification": "BLOCKED_FIXED9B_SEMANTIC_FAIL",
+  "backup_ready": true,
+  "model_calls": 0,
+  "cloud_calls": 0,
+  "formal_data_touched": false
+}

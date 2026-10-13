@@ -33,3 +33,5 @@
 本轮 Native Picker 不可用新的电脑控制工具，未改实现的前次真实原生选择器与2GiB APFS验收证据复用。新转写样本经普通导入API建立，再从实际UI点击转写；两者明确区分。没有通过截图或fixture宣称真实模型合格。
 
 2026-10-13续作：ASR文案与最小CSS均独立审查整合，真实中英文反馈/Retry Tab及四窗口document几何PASS；完整backend4220 PASS/1既有skip/2warning，frontend386 PASS/TS/build。六导航完整可见键盘检查另发现部分遮挡，NARROW_WINDOW_GUI_EVIDENCE.json如实PARTIAL/FAIL，独立返修中；不能说小屏全通过。LOCAL_TIMED候选39新专项等通过独立审查中未整合，真实LOCAL新资格仍因9b原语义FAIL而BLOCKED，不复制旧YTreceipt或授普通factory权力。Schema38旧失败归档仅精确待批提案，未实施。fresh RAW GUI恢复71表/4物理DATA精确PASS不覆盖旧失败恢复OPEN。
+
+夜间最新状态优先：键盘返修已独立整合且四宽六项正反Tab/Enter/鼠标真实PASS（新NARROW_KEYBOARD_GUI_EVIDENCE，旧FAIL留存）。LOCAL_TIMED已独立整合/root78PASS，真实Whisper视频WAIT0→取消→Backupready与全部78DATA/authority保持PASS，正向模型仍BLOCKED。Source详情中性加载/失败GET重试独立整合，406前端/TS/build以及真实1GET/0命令重放PASS，见SOURCE_DETAIL_GUI_EVIDENCE。Schema38和同固定9b新thinking模式均已获精确隔离批准，但尚未完成实现/独立验收；不能将批准当PASS。当前4220后端只是此前RAW/UI检查点，最终候选完整回归仍等待核心新变更。

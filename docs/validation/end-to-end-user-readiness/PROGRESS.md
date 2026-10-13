@@ -120,3 +120,12 @@
 - LOCAL_TIMED f399034d已提交停写，39新专项、相关269/Backup82/最终78 PASS，独立审查中未整合。真实LOCAL8例仍受9b原资格FAIL阻塞；不授旧YTreceipt权力、不调用模型。
 - FAILED_SUBTITLE_ARCHIVE_MIGRATION_PROPOSAL.md 经独立只读细化后已提交具体Schema37→38隔离批准问题；尚未批准、没有DDL/实施/正式迁移。历史错误/无权威派生DATA保留和34–37旧包兼容均在精确范围，不绕过Backup。
 - 统一中文手册Markdown/HTML已更新，真实Chrome渲染47张图零损坏且已视觉检查。正式main/origin-main/served73ee7e7仍保持；没有把未合格洞察或未结束链路交用户做完成验收。
+
+## 2026-10-13 夜间续作验收
+
+- LOCAL_TIMED独立APPROVE/root78 PASS已整合3c4ee35/c90406e；普通factory在真实已转写ordinary-ui-video上手动提炼进入WAITING_MODEL/invocation0，Backup真实阻塞，普通UI取消后immutable cancellation保留且ready。5Artifact/5Evidence/当前Summary与全部78物理DATA逐字段/hash未变，见LOCAL_TIMED_WAIT_CANCEL_GUI_EVIDENCE.json。该负控通过不替代模型正向资格。
+- Keyboard独立APPROVE整合ccff02a/3131e67；四宽六导航正反Tab每项完整可见、仅focus不导航，真实Enter→Topics与mouse→Content正常；完整389/24/TS/build PASS。旧partial FAIL未改，独立新NARROW_KEYBOARD_GUI_EVIDENCE.json PASS。首次probe恰遇HMR重载失焦，只记INVALID并在稳定页面完整重验。
+- SOURCE_DETAIL_LOADING独立APPROVE e59a773/7767a0d整合ca4b930/ca582fa；root406/25 full/TS/build PASS。普通真实Google Following详情innerGET有界延迟时中性loading、真实browser abort后明确GET-only retry恰1GET/0命令重放，恢复正确YouTube，pageerror0。SOURCE_DETAIL_GUI_EVIDENCE.json PASS。初次按第二GET注入的探针两次未触达状态，停该方式；诊断StrictMode实际inner为3/4后改明确有界目标，未改数据/payload/capability。一次不透明route promise reset与一个额外面板截图locator timeout是工具错误，未作为产品PASS或重跑生成。
+- Schema37→38精确迁移用户已批准，记录FAILED_SUBTITLE_ARCHIVE_APPROVAL.md；readiness-subtitle-archive-38实施未提交/未验收/未整合，必须独立review与全部旧新包/并发/GUI全表全DATA恢复。原错误/unknown仍保持block。
+- 用户已具体批准QWEN35_THINKING_FOLLOWUP_PROPOSAL及对应APPROVAL；只同固定9b新official-thinking-v2模式，scope研究脚本/合同/freeze，独立tree作者仅prepare-only，不真实调用。原nonthinkingFAIL4P1及其余3例停止保留；新模式冻结及独立输入审查后root才可许可一次首例，LOCAL8例依赖仍未满足。没有新增下载/Cloud/资格翻转。
+- LOCAL_TEXT必须在归档核心state接受整合后串行；长内容/rolling政策、真实Intelligence保存/主题仍OPEN。正式main/origin-main/served73ee7e7、owner/config/credentials仍受保护，本任务不结束为全部可用，也未开启新开发阶段。

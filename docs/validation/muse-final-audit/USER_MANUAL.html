@@ -138,6 +138,8 @@ a { color: #0e7a4f; }
 <figure><img src="screenshots/19-following-resumed.png" alt="恢复关注"/><figcaption>恢复关注</figcaption></figure>
 <p><strong>自动检查</strong>：应用会定期自动检查已关注的频道是否有新视频。应用运行时会检查更新；两次检查至少间隔 15 分钟。</p>
 <blockquote>提示：如果某个公开来源暂时不可访问，页面会如实提示&quot;此公开来源不可用，已保留存储的内容&quot;，不会删除你已有的内容。</blockquote>
+<p>点击频道名称可查看关注详情。加载期间显示中性的“关注”，不会把尚未读取的 YouTube 来源误标成 Bilibili 不可用。如果提示 <strong>未能加载来源详情</strong>，点击 <strong>重试加载来源详情</strong>；这只重新读取，不会重复提交来源检查或修改关注设置，已保存的内容保留。</p>
+<figure><img src="../end-to-end-user-readiness/source-detail-read-error.png" alt="真实隔离界面：详情读取失败与明确重试"/><figcaption>真实隔离界面：详情读取失败与明确重试</figcaption></figure>
 <hr/>
 <h2 id="5-导入-bilibili-视频">5. 导入 Bilibili 视频</h2>
 <p>可以<strong>单次导入</strong>一条公开的 Bilibili 视频。</p>
@@ -237,6 +239,8 @@ a { color: #0e7a4f; }
 <figure><img src="../waiting-model-final-fix/final-gui/screenshots/03c-waiting-model-panel.png" alt="等待模型与安全取消入口"/><figcaption>等待模型与安全取消入口</figcaption></figure>
 <figure><img src="../waiting-model-final-fix/final-gui/screenshots/05c-cancelled-panel.png" alt="取消成功，已有内容与证据保留"/><figcaption>取消成功，已有内容与证据保留</figcaption></figure>
 <p>只有系统能证明确实尚未调用本地模型的等待任务才提供取消入口；云端等待保持原有安全规则。若提示不能安全取消，或还有别的等待任务，请按页面原因处理；不要删除任务记录。已执行、执行状态不明或等待预算的任务不能通过此操作解除。</p>
+<p>本轮隔离候选也已实际验证：真实本地视频经转写得到字幕、摘要和 Evidence 后，点击提炼会在没有合格模型时安全等待；取消后全部原文件和证据保持一致，备份页面重新检查并恢复可用。这证明等待与取消链路，不代表本地洞察模型已合格或已经生成洞察。</p>
+<figure><img src="../end-to-end-user-readiness/local-timed-real-cancelled.png" alt="真实本地视频：取消结果与原字幕、证据保留"/><figcaption>真实本地视频：取消结果与原字幕、证据保留</figcaption></figure>
 <p><strong>模型满足条件后</strong>：系统基于可信证据分析内容，判断是否有值得长期保留的新洞察。</p>
 <p><strong>两种结果</strong>：</p>
 <p>1. <strong>发现新洞察</strong>：生成洞察条目，可在 <strong>洞察</strong> 页面查看，并关联到主题。</p>
@@ -387,7 +391,7 @@ a { color: #0e7a4f; }
 <hr/>
 <h2 id="图示与使用范围">图示与使用范围</h2>
 <p>本手册保留 17 章操作结构。图示包含本次实际界面及未变化页面的上一版图示，不是设计稿。示例条目不代表你的资料已经导入。</p>
-<p>YouTube 单视频与频道添加、关注暂停与恢复、本地文本导入、内容导航、等待模型提示及安全取消、中英文设置、备份及恢复已实际操作。本次取消与恢复截图来自真实 macOS Chrome 和隔离服务，未接触正式用户数据。完整语音转写、当前本地模型生成洞察及真实主题详情尚未验证；没有合格洞察模型时，应继续使用内容整理与原文阅读。</p>
+<p>YouTube 单视频与频道添加、关注暂停与恢复、本地文本导入、内容导航、中英文设置、备份及恢复已实际操作。本轮隔离普通服务还完成真实 Whisper 视频转写、字幕/摘要/Evidence、71表78文件恢复，以及本地视频零调用等待→安全取消→备份重新可用；关注详情读取故障的重试只发GET。截图来自真实 macOS Chrome 和隔离服务，未接触正式用户数据；不把隔离模型设置复制成正式资格。当前本地洞察正向生成、保存及真实主题完整链路仍受模型语义失败阻塞，新的获批模式尚未实测通过；没有合格洞察模型时，继续使用内容整理与原文阅读。本轮候选尚未正式采用。</p>
 <footer style="margin-top:3rem;padding-top:1rem;border-top:1px solid #ddd;color:#6b7280;font-size:.9rem">
 <p>Intelligence 用户使用手册 · 简体中文 · 全部截图来自真实运行的产品（隔离测试环境）。</p>
 </footer>
