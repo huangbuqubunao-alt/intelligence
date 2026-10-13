@@ -38,3 +38,11 @@ DIRECT 复用现有 ApiClient、useRemote GET 读取生命周期及 reload、Err
 该可选 validator 与稳定 useRemote lifecycle 组合，未来全局政策 API 正式新增 style 值时需同步 UI 支持；不把未知 style 假装成现有默认值。本 scoped 前端任务不跑后端；真实 headful GUI 与整合全产品验收由主控按任务卡完成，此交接不宣称已通过它们。
 
 建议 `IN_REVIEW`；`DECISION NEEDED`: None。提交后停止写入，独立 Reviewer 和主控分别填写审查、整合与真实 GUI 验收结论；不自填 APPROVE/ACCEPT/DONE。
+
+## 独立 Reviewer（2026-10-13）
+
+- `/root/intel_bounded_review` 只读业务代码，审查 `d903c609a90ac055b81a265890297f2b8f427e1b...8e4b2d418617767887e3f7bfb29ac3bd2350fc5e`。**APPROVE，P0=0 / P1=0**，仅此 scoped 前端实现；不表示整体验收、正式采用或模型资格。
+- `validGlobalPolicy` 是稳定的模块级函数，不产生 render/effect 请求循环；只验证这一个 loader，五个原 SourcePolicy 字段的类型/整数边界/既有 style 均校验。失败、null、缺失与加载中不再显示 Not set；成功且真实空数组仍显示正确空状态。JSON 错误沿用 ApiClient；没有改写其它页面读取或 backend 权威。
+- 重试按钮 `type=button`，只增本 loader readRevision，普通 GET 与 alive guard 保留。URL/focus/history/time 等草稿不重置；INHERIT 依赖未知读取时 disabled 与 submit guard 两层拒绝；全 OVERRIDE 沿用本地明确值。既有 AdvancedSourceForm.test.tsx 的全 OVERRIDE POST/PATCH/PUT/automation 提交断言仍通过，未弱化测试。
+- 独立 `npm test` **23 files /379 tests passed，无跳过，12.05s**，日志 `/tmp/readiness-source-policy-read-review-tests.log`；`npm run typecheck`、`npm run build` PASS（50 modules，index-BxF978od.js），`git diff --check` PASS。既有 React act warning 保留，没有隐藏失败或修改 test scripts。
+- Diff 仅准许的3个前端源码/新增测试文件及 task/handoff；无 backend、Schema、依赖、锁文件、配置、凭据、Cloud 或正式数据变更。当前 root branch 与候选只读 merge-tree 无冲突，结果树 `13f123cc7eb4e8f8ce0c6c0c6fcddb82e5bc3ae4`，未实际合并。真实服务失败/恢复的 macOS GUI 验收仍由主控继续，不将 fixture 测试冒充实测。
