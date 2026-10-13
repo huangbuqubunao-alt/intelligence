@@ -73,3 +73,82 @@ Schema34–37 包按其原严格 manifest 合同恢复，再启动迁移只追�
 ## Reviewer / 主控验收
 
 待独立 Reviewer，待主控真实隔离 GUI 全表全 DATA 恢复与整体回归。实现者不填写 APPROVE/ACCEPT。
+
+## 独立审查 1 — REJECT（2026-10-14）
+
+Reviewer：`/root/intel_bounded_review`，审查固定实现
+`29f1e50f08a90407e8d0c7a5c331306dfa62ec39`，基线
+`a2c668bbe32d1acc4bcf83176a331eb3e850e09b`。作者 STOP/clean 后开始；因仅允许一个
+Reviewer，期间按主控要求暂停并等待小 UI 独立审查结束，再恢复。只读业务文件；
+唯一仓库写入是本审查段。没有模型、provider、云端或正式 owner 操作。
+
+阅读具体批准/提案/任务/仓库协议、全部 38 文件 diff、52 新测试完整边界；graph-first
+查询本 worktree 未索引，按明确分配文件读取 fallback，没有建立或修改索引。
+23 字段新增表/不可变 triggers、37 支持/34–37 原 manifest 形状、38 refs/counters、
+DATA 全集检测、protected gate/BEGIN IMMEDIATE/whole-batch CAS、旧 ledger 原字段保留、
+历史后继与当前指针分离的设计方向符合批准范围。现有测试改动仅更新当前版本和
+精确新增迁移/table/index/columns；保留旧历史与回滚断言，没有删测试/skip/弱门禁。
+这些正确部分不能覆盖下面的成功后继证明缺口。
+
+### P1-1：未完整证明后继执行终结，仍错误终止旧请求并开放 Backup
+
+位置：`transcripts.py:1203–1243` 的 `_retained_caption_proof`，准入和历史复核共用。
+后继 job 只核对 SUCCEEDED/scope/identity、created 下界与 finished 上界；没有正规验证
+后继全部 `job_attempts` 的终结状态/计数和租约记录，也没有约束 job/provider
+`created/started <= finished <= updated`。`_quiescence_reasons` 的 terminal 状态枚举
+无法证明这些被遗漏的执行字段。`state.py:4488–4499` 随后把该不完整 proof 写成
+不可变归档并 CAS 旧调用为 FAILED_FINAL，Backup 的同一 proof reader 继续接受。
+
+独立复现使用候选原 `_repaired_failure`：普通 API check/worker 的受控本地 transport
+先产生精确完成事务失败，再正常另一个明确命令生成真实成功后继；之后分别只修改
+该后继一项记录，全部在 fresh TemporaryDirectory 隔离数据库中。未伪造模型/源资格，
+没有网络/推理。复现代码 `/tmp/readiness-archive38-independent-probe.py`，完整输出
+`/tmp/readiness-archive38-independent-probe.txt`。命令：
+
+```sh
+PYTHONPATH=src:tests:. .venv/bin/python /tmp/readiness-archive38-independent-probe.py
+```
+
+| 单独损坏字段 | 实际结果（每例相同） |
+|---|---|
+| successor provider_calls.finished_at = `2000-01-01T00:00:00Z`（早于开始） | archived=true / ready=true / tables_changed=true / extra_fetch=0 |
+| successor jobs.finished_at = 同一早于 created 的时间 | archived=true / ready=true / tables_changed=true / extra_fetch=0 |
+| successor job_attempts.finished_at=NULL 且 outcome=NULL（尚未终结） | archived=true / ready=true / tables_changed=true / extra_fetch=0 |
+| successor job_attempts.outcome=`LEASE_EXPIRED`（执行不明） | archived=true / ready=true / tables_changed=true / extra_fetch=0 |
+| successor jobs.attempt_count=1.5（非整数/与真实 attempts 不符） | archived=true / ready=true / tables_changed=true / extra_fetch=0 |
+
+预期每例都是整个批次不变、零归档、旧请求仍阻塞 Backup。特别是未终结或状态不明的
+后继不能只凭 SUCCEEDED 行与现存输出解除安全阻塞。这违背获批“同源后继真实成功、
+无未知执行、全部字段正规解析、时间/计数异常 fail-closed”条件，属于必须修复的 P1。
+没有另一个已确认独立 P0/P1；这里的五项是同一后继 proof 完整性缺陷的不同反证。
+
+要求原作者在批准的现有 proof 边界内补足：后继 job/全部 attempts/provider ledger/
+source-run 身份与正规类型、UTC、完整时间关系、计数连续一致、已知成功终结、无活跃
+owner/lease/未知 dispatch、usage/cost/null 状态保护；准入及不可变历史验证使用同一
+完整证明，不能把当前可变行/terminal 字符串当历史可信快照。保留旧失败的全部证明。
+必须新增上述五项及 malformed UTC/计数缺漏/未知执行/usage/owner/null 负控，含混合
+批次原子不变、归档后篡改历史 proof 拒绝恢复；正常后继、future refresh/current
+pointer、旧包恢复与无新增执行正控仍通过。此要求不扩大迁移表字段、provider 白名单
+或资格范围，不需要新批准；Reviewer 不代作者修改。
+
+### 独立检查和证据限制
+
+| 检查 | 结果 |
+|---|---|
+| 先 py_compile 五个改动 Python 文件 | PASS |
+| archive-focused + state store + lineage/doctor + saved Intelligence | **165 PASS / 116.44s**，`/tmp/readiness-archive38-review-tests.txt` |
+| `.venv/bin/ruff check src tests scripts` | PASS，`/tmp/readiness-archive38-review-ruff.txt` |
+| `MYPYPATH=src .venv/bin/mypy --strict src` | PASS / 102 source files，`/tmp/readiness-archive38-review-mypy.txt` |
+| 五项独立后继负控 | **FAIL 安全预期**，输出如上；不能被 165 PASS 抵消 |
+| git diff --check / 范围复核 | PASS，仅允许审查说明追加 |
+
+165 命令为 `PYTHONPATH=src:. .venv/bin/python -m pytest -q
+tests/integration/test_retained_subtitle_derivations.py tests/integration/test_state_store.py
+tests/integration/test_task016c_phase_h2c_lineage_schema.py
+tests/integration/test_task025a_saved_intelligence.py`，含全部新增52项、旧34–37/38恢复、
+故障回滚、CAS竞态和 suffix 修正全文件。作者完整日志确为 4310 PASS / 1 FAIL /
+1 既有资产 SKIP，后续48专项通过不是完整全量 PASS；不重跑19分钟旧候选完整套件。
+真实 GUI/最终整合后的完整后端/前端/TS/build仍由主控完成，当前不能声明迁移验收。
+
+**Verdict: REJECT；未解决 P0=0、P1=1。** 不整合此实现、不操作正式 Schema/main；
+保留失败和原实现，由原作者修复后提交新 SHA 再独立复审。Reviewer 完成审查提交后 STOP。
