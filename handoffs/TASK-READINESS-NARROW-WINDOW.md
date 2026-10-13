@@ -50,7 +50,15 @@ DIRECT 复用现有 CSS responsive layout、sidebar 自身 `overflow-x:auto`、�
 
 ## Reviewer 结论
 
-待独立审查。
+独立 Reviewer `/root/intel_bounded_review`：**APPROVE（限定代码审查），P0/P1 = 0**。
+
+- 审查实现 SHA：`530528bce30180d208eca7ea014b6aa20e024fad`；基线 `a18fd2388a9d8a393f5386fa1226aa3ed141dc6c`。接手时 tracked/untracked 均 clean，实现者已停写。
+- 独立核对全部 diff：产品代码确实只改 body 最小宽度一行。`min(320px, 100%)` 在包含块可用宽度少于 320px 时不再把 body 扩展为 320px；宽屏保留原 320px 最小值。未使用 `100vw`，未隐藏 document 溢出，未裁剪正文；既有 `minmax(0, 1fr)`、窄屏布局和 sidebar 自身 `overflow-x:auto` 保持不变。
+- 对照 DESIGN.md 的窄屏换行、键盘可达、六个目的地约定，没有界面状态、导航、模型或持久化变化。
+- 独立执行 `npm run build --prefix frontend`（包含 `tsc -b`）：PASS，50 modules；产物 CSS `index-DmN6_wU_.css`、JS `index-CGCcdoTd.js`。独立 `git diff --check BASE..IMPLEMENTATION`：PASS。构建后 Git 仍 clean。
+- 已检查实现者完整前端日志：386 tests / 23 files PASS。按主控有界审查要求，没有重复运行全套，也未新增只复述 CSS 数值的测试。未运行后端/Ruff/mypy：没有对应代码变化。
+- **真实 GUI 几何与键盘尚待主控验收**：本结论允许整合这项 CSS 修复，不证明所有页面在 320/768/1024/1440px 均已通过。必须继续确认 document 无横向溢出、正文不被裁剪、sidebar 导航可滚动且键盘可达。未操作真实 owner 数据或调用模型。
+- Reviewer 只补此 handoff，未修改业务代码或任务状态；无 main 合并或发布操作。
 
 ## 主控验收与整合
 
