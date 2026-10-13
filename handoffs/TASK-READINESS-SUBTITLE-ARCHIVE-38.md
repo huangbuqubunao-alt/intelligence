@@ -213,3 +213,105 @@ future pointer/old34–37正控均继续执行。
 作者提交本有界返修后 STOP，建议 IN_REVIEW。待另一角色独立复审，无自审、采用或
 生产资格声明；当前 main/正式 owner未操作。主控实际 rollback→real新child→idle
 archive→GUI Backup/Restore全表全DATA流程仍是接受门禁，不由 fixture替代。
+
+## 独立复审 2 — REJECT（2026-10-14）
+
+Reviewer `/root/intel_bounded_review`；固定候选
+`4f80c2b76ca6ebd7ade0b1fe6ebf9bf4bd03b0eb`，原完整基线
+`a2c668bbe32d1acc4bcf83176a331eb3e850e09b`，返修比较点为前次审查
+`658cd53c946054d1e184a7743929279cdcffc3bf`。作者 STOP/clean 后复审，只有本交接
+追加；没有业务修复、模型/provider/云调用或正式 owner/Schema/main 操作。
+沿用仓库要求的单 Reviewer，按完整规格、批准和已读图谱/fallback文件审查两种 diff。
+
+### 返修已证明的正确部分
+
+原五个独立 successor 探针原脚本不改重新执行，全部现在
+`archived=false / ready=false / tables_changed=false / extra_fetch=0`。
+新 successor Job/provider/all attempts/SourceRun/event 快照、完整时序、连续计数和终结
+检查有效；同一个 CHECK 合法但状态链不连续的追加事件，在 successor 正确拒绝。
+正常归档、原52项、新26项、future current pointer、old34–37/new38恢复、混批/锁/
+竞态/回滚/不授 authority 正控及已写负控都通过。但旧失败 child 仍没有对应完整证明。
+
+### P1-1：原失败 child 的完整执行与历史证明仍缺失
+
+位置 `transcripts.py:1224–1240`，以及 `1384–1390` 的 proof payload；历史复验为
+`state.py:4527–4542`。原 Job 只验证部分身份、attempt_count、状态与部分时间，未严格
+解析 max_attempts、最终 attempt 与 Job 的终结一致性、最终 lease/完整时序、原
+SourceRun UTC/身份/事件链；payload 保存 original_ledger 和 attempts，却不绑定原
+Job/SourceRun/其事件的完整不可变快照。当前对 successor 的修复不能证明原请求安全。
+
+独立使用同一正常 API/worker fixture：plain import → 精确 completion 回滚 → 另一个
+明确 check 成功，随后在 fresh TemporaryDirectory 私有数据库只损坏原失败 child。
+不是把未知执行伪装成模型结果，没有网络或真实模型。四项均实测为
+`archived=true / ready=true / tables_changed=true / files_changed=false / extra_fetch=0`：
+
+| 原失败 child 单独变化 | 原本应拒绝的原因 |
+|---|---|
+| jobs.max_attempts=1.5 | 非整数计数没有正规解析 |
+| 最后 job_attempts.outcome=RETRY_PENDING | 最终 attempt 没有证明 FAILED_FINAL，与 Job 不符 |
+| job_attempts.lease_until=started_at | 完结在已到期 lease 之后，无法证明正规 owned 完结 |
+| source_runs.updated_at=无时区 ISO 字符串 | 原 SourceRun 时间未正规 UTC 验证 |
+
+租约项已核对实际语义：`renew_job` 同时更新 active attempt 的 lease_until；`fail_job`
+调用 `_owned_running_job` 要求 `lease_until > now`。不能把结束晚于最终 attempt lease
+当普通合法完结而放宽 proof。原 SourceRun 事件 UPDATE 正确被既有 immutable trigger
+拒绝，保留该 SQL 失败，不称业务安全失败；改为只追加一条 enum/FK/CHECK 合法但
+prior_state 不连续的事件，原 child 仍错误归档/ready=true，successor 对照正确拒绝。
+
+历史反证更直接：先正常归档和创建包，再把原 Job.max_attempts 合法改为4，或把原
+SourceRun.updated_at 改为 created_at，live readiness 均仍 true。保持源 ZIP 原
+ZipInfo/regular-file属性，checkpoint 私有变更数据库、重算 database manifest hash/
+size 后，**这两种实际变更包都可 stage_restore**。没有 confirm/apply；live 表/文件
+在 stage 操作前后不变，额外获取0。同法对 successor.max_attempts=4 的对照包则明确
+拒绝 `Neutral subtitle retention proof failed validation.`，live readiness=false。
+所以不是 ZIP 包装/哈希校验失效，而是 original Job/SourceRun 不在已封存 proof 中。
+
+要求原作者在现有已批准范围内补足原失败 Job/全部 attempts/provider/SourceRun/事件
+的类型、terminal、UTC、计数、租约、身份和完整历史 snapshot 验证，准入与恢复重算
+共用同一边界；缺旧 proof 保持关闭，不猜测或静默升级。整批在全部 proof 通过前不变，
+正常后继/current pointer future refresh 仍合法。没有新增迁移字段或扩大 provider/
+资格权限的需求；Reviewer 不代作者修复。
+
+### P2-1：新 Restore tamper 测试提前因 ZIP 属性拒绝，未测到 proof 边界
+
+`test_retained_subtitle_derivations.py:901–942` 的6个新历史 Restore负控，用
+`target.writestr(name, body)` 重包，丢失原 regular-file ZipInfo。独立复核其提前拒绝
+原因是 `Backup archive contains a symbolic or special file.`，不是历史 proof。
+还需显式 checkpoint 被篡改的私有 SQLite，再读取单文件 bytes，避免 WAL 修改没有
+进入被测试包。应保留原 ZipInfo、确认序列化DB内实际变更并断言 proof-specific拒绝，
+保持所有原断言。独立修正探针包装后才得到上面的 original接受/successor拒绝对照。
+原始错误包装输出保留，不冒充有效 Restore 安全证明。
+
+### 独立命令与证据
+
+- 原5项：`PYTHONPATH=src:tests:. .venv/bin/python /tmp/readiness-archive38-independent-probe.py`；
+  输出 `/tmp/readiness-archive38-independent-probe-rereview.txt`，5项正确关闭。
+- 原 child 4项：同前缀运行 `/tmp/readiness-archive38-rereview-old-proof.py`；输出
+  `/tmp/readiness-archive38-rereview-old-proof.txt`。随后直接事件 UPDATE 被 immutable
+  trigger拒绝退出1，这项不列为业务反例；正规追加事件另在下一脚本执行。
+- 原/后继事件与原历史：同前缀运行 `/tmp/readiness-archive38-rereview-history.py`；
+  最终有效输出 `/tmp/readiness-archive38-rereview-history-checkpoint.txt`。
+- 后继历史正确对照：同前缀运行 `/tmp/readiness-archive38-rereview-successor-zipinfo.py`；
+  有效输出 `/tmp/readiness-archive38-rereview-successor-checkpoint.txt`。
+  两个最终脚本均保留原 ZipInfo 并 checkpoint；最早无属性输出/history-final与未
+  checkpoint输出/history-zipinfo保留但不作为有效恢复结论。
+- `PYTHONPATH=src:. .venv/bin/python -m pytest -q tests/integration/test_retained_subtitle_derivations.py tests/integration/test_state_store.py tests/integration/test_task016c_phase_h2c_lineage_schema.py tests/integration/test_task025a_saved_intelligence.py`
+  → **191 PASS /154.09s**，`/tmp/readiness-archive38-rereview-tests.txt`。
+- `PYTHONPATH=src:. .venv/bin/python -m pytest -q tests/unit/test_backup_restore.py`
+  → **55 PASS /18.01s**，`/tmp/readiness-archive38-rereview-backup-unit.txt`；1 warning是
+  既有 duplicate ZIP path负控。
+- 5业务 Python py_compile PASS；Ruff src/tests/scripts PASS；strict mypy src
+  **102 files PASS**；diff check PASS，分别有 `/tmp/readiness-archive38-rereview-{ruff,mypy}.txt`。
+- 完整38文件与返修4文件 diff 已复核：旧tests只更新当前schema/精确名称与追加表/index/
+  columns，历史34–37/回滚断言保留，无删/skip/忽略新增。23字段/immutable表不变，
+  doctor只当前38。root在核验时bb2dfc3包含原基线，后续修改集中前端/研究/docs，
+  未改本切片5个业务文件；这只是兼容拓扑信息，REJECT不能据此整合。
+
+不重复19分钟旧候选完整后端；作者旧全量4310 PASS/1 FAIL/1既有SKIP以及suffix修正
+48通过仍按原事实保留。最新整合后的全量与真实macOS GUI是主控后续门禁，不能由
+本次246项通过替代。另只读核对真实GUI提出的时间问题：caption服务成功提交复用
+fetch入口now、capture另取实时now，普通 import也有入口时间复用；真实长IO下 lease/
+terminal clock需另精确核验，不能放宽历史证明或倒填已有时间。未作该问题实测PASS。
+
+**Verdict REJECT；P0=0，P1=1（original执行/历史证明缺口），P2=1（Restore负控包）。**
+不整合、不采用、不授资格；退回原实现者。审查提交后 STOP，等待明确新任务。
