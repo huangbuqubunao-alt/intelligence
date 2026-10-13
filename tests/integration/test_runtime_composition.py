@@ -1094,7 +1094,10 @@ def test_caption_repair_transaction_rollback_retains_history_and_allows_explicit
     assert runtime.repository.latest_artifact(VIDEO_ID, ArtifactKind.TRANSCRIPT_CANONICAL) == old
     assert runtime.repository.get_job(original_job.job_id) == original_job
     with runtime.repository._connect() as connection:
-        assert connection.execute("SELECT COUNT(*) FROM artifacts WHERE job_id LIKE 'caption-repair-%'").fetchone()[0] == 0
+        assert connection.execute("SELECT COUNT(*) FROM artifacts WHERE job_id LIKE 'caption-repair-%' AND artifact_key LIKE 'subtitle-source-capture:%'").fetchone()[0] == 2
+        assert connection.execute("SELECT COUNT(*) FROM artifacts WHERE job_id LIKE 'caption-repair-%' AND artifact_key NOT LIKE 'subtitle-source-capture:%'").fetchone()[0] == 0
+        assert connection.execute("SELECT COUNT(*) FROM timed_transcripts").fetchone()[0] == 0
+        assert connection.execute("SELECT COUNT(*) FROM evidence").fetchone()[0] == 0
         assert connection.execute("SELECT COUNT(*) FROM provider_calls WHERE status='SUCCEEDED'").fetchone()[0] == 1
     monkeypatch.setattr(runtime.repository, "_inject_failure", original_inject)
     runtime.application.handle("POST", f"/api/v1/sources/{source_id}/check", b'{"command_id":"synthetic-explicit-repair-retry"}')
@@ -1149,7 +1152,10 @@ def test_caption_repair_rejects_unowned_foreign_changed_or_unproven_authority(tm
     assert runtime.repository.latest_artifact(VIDEO_ID, ArtifactKind.TRANSCRIPT_CANONICAL) == old
     assert original_job is not None and runtime.repository.get_job(original_job.job_id) == original_job
     with runtime.repository._connect() as connection:
-        assert connection.execute("SELECT COUNT(*) FROM artifacts WHERE job_id LIKE 'caption-repair-%'").fetchone()[0] == 0
+        assert connection.execute("SELECT COUNT(*) FROM artifacts WHERE job_id LIKE 'caption-repair-%' AND artifact_key LIKE 'subtitle-source-capture:%'").fetchone()[0] == 2
+        assert connection.execute("SELECT COUNT(*) FROM artifacts WHERE job_id LIKE 'caption-repair-%' AND artifact_key NOT LIKE 'subtitle-source-capture:%'").fetchone()[0] == 0
+        assert connection.execute("SELECT COUNT(*) FROM timed_transcripts").fetchone()[0] == 0
+        assert connection.execute("SELECT COUNT(*) FROM evidence").fetchone()[0] == 0
 
 
 def test_caption_repair_concurrent_completion_commits_once(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1177,7 +1183,8 @@ def test_caption_repair_concurrent_completion_commits_once(tmp_path: Path, monke
     assert runtime.repository.get_verified_timed_transcript(video_id=VIDEO_ID) is not None
     assert runtime.repository.current_local_summary_pointer(VIDEO_ID) is not None
     with runtime.repository._connect() as connection:
-        assert connection.execute("SELECT COUNT(*) FROM artifacts WHERE job_id LIKE 'caption-repair-%'").fetchone()[0] == 2
+        assert connection.execute("SELECT COUNT(*) FROM artifacts WHERE job_id LIKE 'caption-repair-%'").fetchone()[0] == 4
+        assert connection.execute("SELECT COUNT(*) FROM artifacts WHERE job_id LIKE 'caption-repair-%' AND artifact_key LIKE 'subtitle-source-capture:%'").fetchone()[0] == 2
         assert connection.execute("SELECT COUNT(*) FROM timed_transcripts").fetchone()[0] == 1
 
 
@@ -1242,3 +1249,39 @@ def test_caption_repair_restart_retains_command_child_and_raw_after_lease_expiry
     assert adapter.read_calls == reads
     assert sum(saved.job_id.startswith("caption-repair-")
                for saved in again.repository.list_video_jobs(VIDEO_ID, limit=1000)) == 1
+
+
+def test_native_capture_backup_restore_preserves_every_table_and_every_data_file(tmp_path: Path) -> None:
+    import hashlib
+    import sqlite3
+    runtime, adapter, source_id, _, _ = _completed_plain_caption_runtime(tmp_path)
+    runtime.application.handle("POST", f"/api/v1/sources/{source_id}/check", b'{"command_id":"capture-full-restore"}')
+    runtime.worker.run_once()
+    service = runtime.backup_restore
+    data = service.data_root
+    def files():
+        return {p.relative_to(data).as_posix(): (p.read_bytes(), hashlib.sha256(p.read_bytes()).hexdigest())
+                for p in data.rglob("*") if p.is_file()}
+    def tables():
+        with sqlite3.connect(service.database) as connection:
+            return {name: sorted((tuple(row) for row in connection.execute('SELECT * FROM "' + name + '"')), key=repr)
+                    for (name,) in connection.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")}
+    before_files, before_tables, reads = files(), tables(), adapter.read_calls
+    assert service.readiness()["ready"]
+    with runtime.repository._connect() as connection:
+        captures = connection.execute("SELECT * FROM artifacts WHERE artifact_key LIKE 'subtitle-source-capture:%'").fetchall()
+        assert len(captures) == 3  # initial plain + repair plain/native, preserving both histories
+        assert all(row["relative_path"] in before_files for row in captures)
+    backup = service.create_backup()
+    archive, _ = service.backup_download(backup.backup_id)
+    preview = service.stage_restore(archive.read_bytes())
+    service.confirm_restore(preview.restore_id)
+    service.recover_and_apply_pending_restore()
+    assert files() == before_files
+    assert tables() == before_tables
+    assert adapter.read_calls == reads
+    restored = SQLiteStateRepository(service.database)
+    restored.bind_source_storage(data)
+    assert restored.get_verified_timed_transcript(video_id=VIDEO_ID) is not None
+    assert restored.current_local_summary_pointer(VIDEO_ID) is not None
+    assert service.readiness()["ready"]

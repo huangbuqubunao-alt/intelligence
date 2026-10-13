@@ -323,11 +323,19 @@ class TranscriptJobContext:
 
 @runtime_checkable
 class TranscriptRepository(Protocol):
+    def bind_source_storage(self, root: Path) -> None: ...
+
     def get_artifact_by_key(self, artifact_key: str) -> ArtifactRecord | None: ...
 
     def get_job(self, job_id: str) -> JobRecord | None: ...
 
     def get_video(self, video_id: str) -> VideoRecord | None: ...
+
+    def register_subtitle_source_capture(
+        self, *, artifact: ArtifactWrite, body: bytes, context: TranscriptJobContext,
+        provider_request: ProviderCallRequest, language_preferences: Sequence[str],
+        provider_version: str, data_root: Path, now: datetime,
+    ) -> ArtifactRecord: ...
 
     def mark_artifact_deleted(
         self,
@@ -1166,6 +1174,33 @@ def _raw_artifact_id(
     return f"subtitle-source-{provenance_hash}"
 
 
+def _capture_artifact_key(raw_request_hash: str, metadata: _SourceMetadata) -> str:
+    # The key deliberately excludes content hash: changed bytes cannot rebind it.
+    return f"subtitle-source-capture:{raw_request_hash}:{_encode_source_metadata(metadata)}"
+
+
+def _capture_artifact_write(
+    *, video_id: str, context: TranscriptJobContext, raw_request_hash: str,
+    metadata: _SourceMetadata, content_hash: str, provider: str, provider_version: str,
+) -> ArtifactWrite:
+    identity = _stable_hash({
+        "role": "subtitle-source-capture-v1", "job_id": context.job_id,
+        "provider_version": provider_version,
+        "raw_id": _raw_artifact_id(raw_request_hash=raw_request_hash, metadata=metadata,
+                                   source_content_hash=content_hash, provider=provider),
+    })
+    return ArtifactWrite(
+        artifact_id=f"subtitle-source-capture-{identity}",
+        artifact_key=_capture_artifact_key(raw_request_hash, metadata),
+        video_id=video_id, job_id=context.job_id, kind=ArtifactKind.SUBTITLE_SOURCE,
+        storage_root=StorageRoot.DATA,
+        relative_path=_source_relative_path(video_id=video_id, raw_request_hash=raw_request_hash, metadata=metadata),
+        content_hash=content_hash, provider=provider, model=None,
+        producer_version=_RAW_PRODUCER_VERSION, retention_class=RetentionClass.LONG_LIVED,
+        expires_at=None,
+    )
+
+
 def _canonical_artifact_key(
     raw_request_hash: str,
     canonical_request_hash: str,
@@ -1654,6 +1689,7 @@ class SubtitleAcquisitionService:
             msg = "provider_lease_seconds must be positive"
             raise ValueError(msg)
         self._adapter = adapter
+        repository.bind_source_storage(data_root)
         self._repository = repository
         self._data_root = data_root
         self._context = context
@@ -1678,11 +1714,49 @@ class SubtitleAcquisitionService:
             self._repository, timed=timed, language=language, now=now,
         )
 
+    def _read_capture_candidate(
+        self, *, candidate: RankedSubtitleCandidate, video_id: str, raw_request_hash: str,
+        provider_request: ProviderCallRequest, language_preferences: Sequence[str],
+        now: datetime, require_timing: bool = False,
+    ) -> tuple[bytes, NormalizedSubtitle, ProviderCallMetadata, ArtifactWrite] | None:
+        track = candidate.track
+        metadata = _SourceMetadata(track.source_type, candidate.requested_language, track.language, track.source_format)
+        relative = _source_relative_path(video_id=video_id, raw_request_hash=raw_request_hash, metadata=metadata)
+        path = _resolve_data_path(self._data_root, relative, video_id=video_id)
+        record = self._get_artifact(_capture_artifact_key(raw_request_hash, metadata), video_id=video_id)
+        if record is None and path.exists():
+            raise _service_error(ErrorCode.LOCAL_RESOURCE, "unindexed subtitle source has no capture proof",
+                                 retryable=False, video_id=video_id)
+        if record is not None and path.exists():
+            body, _ = _read_verified_file(path, expected_hash=record.content_hash,
+                max_bytes=SUBTITLE_QUALITY_POLICY.max_raw_bytes, video_id=video_id,
+                permission_error_code=ErrorCode.PERMISSION_DENIED)
+            call = ProviderCallMetadata(provider=self._adapter.provider_name, provider_version=self._adapter.provider_version, started_at=now, finished_at=now)
+            normalized = _normalize_recovered_raw(body, track.source_format, video_id=video_id)
+        else:
+            read = self._read_adapter_track(track, video_id=video_id)
+            body, call = read.body, read.call
+            normalized = normalize_timed_subtitle(body, track.source_format)
+        if require_timing and not normalized.timed_cues:
+            return None
+        capture = _capture_artifact_write(video_id=video_id, context=self._context,
+            raw_request_hash=raw_request_hash, metadata=metadata, content_hash=normalized.source_content_hash,
+            provider=self._adapter.provider_name, provider_version=self._adapter.provider_version)
+        # Repository CAS validates the owned request and fixes hash BEFORE any file write.
+        self._repository.register_subtitle_source_capture(artifact=capture, body=body,
+            context=self._context, provider_request=provider_request, language_preferences=language_preferences,
+            provider_version=self._adapter.provider_version, data_root=self._data_root,
+            now=_aware_utc(self._clock(), video_id=video_id))
+        _atomic_write(path, body, data_root=self._data_root, expected_hash=capture.content_hash,
+                      max_bytes=SUBTITLE_QUALITY_POLICY.max_raw_bytes, video_id=video_id)
+        return body, normalized, call, capture
+
     def _native_timing_alternate(
         self, *, candidate: RankedSubtitleCandidate,
         ranked: Sequence[RankedSubtitleCandidate], video_id: str,
-        raw_request_hash: str, now: datetime,
-    ) -> tuple[RankedSubtitleCandidate, bytes, NormalizedSubtitle, ProviderCallMetadata] | None:
+        raw_request_hash: str, provider_request: ProviderCallRequest,
+        language_preferences: Sequence[str], now: datetime,
+    ) -> tuple[RankedSubtitleCandidate, bytes, NormalizedSubtitle, ProviderCallMetadata, ArtifactWrite] | None:
         """Try one native body per alternate format for this exact caption track."""
         attempted_formats = {candidate.track.source_format}
         for alternate in ranked:
@@ -1694,32 +1768,15 @@ class SubtitleAcquisitionService:
                 or _normalized_track_name(track.name) != _normalized_track_name(candidate.track.name)):
                 continue
             attempted_formats.add(track.source_format)
-            relative = _source_relative_path(
-                video_id=video_id, raw_request_hash=raw_request_hash,
-                metadata=_SourceMetadata(
-                    source_type=track.source_type, requested_language=alternate.requested_language,
-                    actual_language=track.language, source_format=track.source_format,
-                ),
-            )
-            path = _resolve_data_path(self._data_root, relative, video_id=video_id)
             try:
-                if path.exists():
-                    body, _ = _read_verified_file(
-                        path, expected_hash=None, max_bytes=SUBTITLE_QUALITY_POLICY.max_raw_bytes,
-                        video_id=video_id, permission_error_code=ErrorCode.PERMISSION_DENIED,
-                    )
-                    normalized = _normalize_recovered_raw(body, track.source_format, video_id=video_id)
-                    call = ProviderCallMetadata(provider=self._adapter.provider_name,
-                                                provider_version=self._adapter.provider_version,
-                                                started_at=now, finished_at=now)
-                else:
-                    read = self._read_adapter_track(track, video_id=video_id)
-                    body, call = read.body, read.call
-                    normalized = normalize_timed_subtitle(body, track.source_format)
+                read = self._read_capture_candidate(candidate=alternate, video_id=video_id,
+                    raw_request_hash=raw_request_hash, provider_request=provider_request,
+                    language_preferences=language_preferences, now=now, require_timing=True)
             except InvalidSubtitleCandidate:
                 continue
-            if normalized.timed_cues:
-                return alternate, body, normalized, call
+            if read is not None:
+                body, normalized, call, capture = read
+                return alternate, body, normalized, call, capture
         return None
 
     def _get_artifact(
@@ -2595,32 +2652,14 @@ class SubtitleAcquisitionService:
                 video_id=video_id,
             )
             try:
-                if raw_path.exists():
-                    raw_body, _ = _read_verified_file(
-                        raw_path,
-                        expected_hash=None,
-                        max_bytes=SUBTITLE_QUALITY_POLICY.max_raw_bytes,
-                        video_id=video_id,
-                        permission_error_code=ErrorCode.PERMISSION_DENIED,
-                    )
-                    normalized = _normalize_recovered_raw(
-                        raw_body,
-                        candidate.track.source_format,
-                        video_id=video_id,
-                    )
-                else:
-                    read_result = self._read_adapter_track(
-                        candidate.track,
-                        video_id=video_id,
-                    )
-                    last_call = read_result.call
-                    raw_body = read_result.body
-                    normalized = normalize_timed_subtitle(
-                        raw_body,
-                        candidate.track.source_format,
-                    )
+                accepted = self._read_capture_candidate(candidate=candidate, video_id=video_id,
+                    raw_request_hash=raw_request_hash, provider_request=provider_request,
+                    language_preferences=language_preferences, now=now)
+                assert accepted is not None
+                raw_body, normalized, last_call, capture = accepted
             except InvalidSubtitleCandidate:
                 continue
+            captures: tuple[ArtifactWrite, ...] = (capture,)
 
             if not normalized.timed_cues:
                 # Preserve the original accepted plain body even if a native
@@ -2630,10 +2669,12 @@ class SubtitleAcquisitionService:
                               max_bytes=SUBTITLE_QUALITY_POLICY.max_raw_bytes, video_id=video_id)
                 alternate = self._native_timing_alternate(
                     candidate=candidate, ranked=ranked, video_id=video_id,
-                    raw_request_hash=raw_request_hash, now=now,
+                    raw_request_hash=raw_request_hash, provider_request=provider_request,
+                    language_preferences=language_preferences, now=now,
                 )
                 if alternate is not None:
-                    candidate, raw_body, normalized, last_call = alternate
+                    candidate, raw_body, normalized, last_call, alternate_capture = alternate
+                    captures += (alternate_capture,)
                     metadata = _SourceMetadata(
                         source_type=candidate.track.source_type, requested_language=candidate.requested_language,
                         actual_language=candidate.track.language, source_format=candidate.track.source_format,
@@ -2727,7 +2768,7 @@ class SubtitleAcquisitionService:
                     retention_class=RetentionClass.LONG_LIVED,
                     expires_at=None,
                 ),
-            )
+            ) + captures
             completion = ProviderCallCompletion(
                 request_hash=provider_request.request_hash, response_artifact_id=raw_artifact_id,
                 input_tokens=None, output_tokens=None, cost_microusd=None,

@@ -10,6 +10,7 @@ import traceback
 import urllib.error
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from datetime import UTC, datetime
 from datetime import timedelta as td
 from http.client import HTTPMessage
@@ -52,6 +53,7 @@ from youtube_intel.providers.subtitles import (
     YtDlpSubtitleAdapter,
 )
 from youtube_intel.state import (
+    ArtifactKind,
     JobType,
     ProviderCallRecord,
     ProviderCallRequest,
@@ -1219,6 +1221,7 @@ def _repository_with_transcript_job(
 ) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
     repository.initialize(now=now)
+    repository.bind_source_storage(tmp_path / "data")
     repository.save_discovery_batch(
         DiscoveryBatch(
             channel_id="UC_TEST",
@@ -1379,6 +1382,16 @@ def test_plain_json3_uses_same_track_native_timing_and_preserves_raw(tmp_path: P
     assert [(cue.start_ms, cue.end_ms) for cue in timed.cues] == [(0, 2000), (2000, 4000)]
     assert repository.list_canonical_coverage_evidence_ids("video123")
     assert [path.read_bytes() for path in (tmp_path / "data").rglob("*.json3")] == [opener.body]
+    with repository._connect() as connection:
+        captures = connection.execute("SELECT * FROM artifacts WHERE artifact_key LIKE 'subtitle-source-capture:%'").fetchall()
+        assert len(captures) == 2
+        capture = next(row for row in captures if row["relative_path"].endswith(".json3"))
+        assert capture["artifact_id"].startswith("subtitle-source-capture-")
+        assert capture["content_hash"] == hashlib.sha256(opener.body).hexdigest()
+        assert (tmp_path / "data" / capture["relative_path"]).read_bytes() == opener.body
+        winner = connection.execute("SELECT a.* FROM artifacts a JOIN provider_calls p ON p.response_artifact_id=a.artifact_id WHERE p.operation='subtitle.fetch'").fetchone()
+        assert winner["artifact_id"] != capture["artifact_id"] and winner["relative_path"].endswith(".vtt")
+        assert timed.canonical_artifact_id != capture["artifact_id"]
 
 
 def test_plain_json3_remains_plain_when_alternate_timing_is_invalid(tmp_path: Path) -> None:
@@ -1578,7 +1591,7 @@ def test_first_success_writes_two_artifacts_and_completes_real_sqlite(
         provider_row = connection.execute(
             "SELECT status, response_artifact_id FROM provider_calls"
         ).fetchone()
-    assert len(artifact_rows) == 2
+    assert len(artifact_rows) == 3  # selected source + canonical + retained capture
     assert {row[0] for row in artifact_rows} == {
         "subtitle_source",
         "transcript_canonical",
@@ -1944,8 +1957,9 @@ def test_missing_current_canonical_is_rebuilt_from_verified_raw_without_network(
             "SELECT kind, job_id, artifact_key, relative_path "
             "FROM artifacts ORDER BY created_at, artifact_id"
         ).fetchall()
-    assert len(artifact_rows) == 3
-    raw_rows = [row for row in artifact_rows if row[0] == "subtitle_source"]
+    assert len(artifact_rows) == 4
+    raw_rows = [row for row in artifact_rows if row[0] == "subtitle_source" and row[2].startswith("subtitle-source:")]
+    assert sum(row[2].startswith("subtitle-source-capture:") for row in artifact_rows) == 1
     canonical_rows = [
         row for row in artifact_rows if row[0] == "transcript_canonical"
     ]
@@ -2824,7 +2838,10 @@ def test_files_survive_stage_db_failure_and_next_attempt_repairs_indexes(
     assert tuple(data_root.rglob("source.*"))
     assert tuple(data_root.rglob("canonical.*.txt"))
     with sqlite3.connect(tmp_path / "state.sqlite3") as connection:
-        assert connection.execute("SELECT COUNT(*) FROM artifacts").fetchone()[0] == 0
+        assert connection.execute("SELECT COUNT(*) FROM artifacts WHERE artifact_key LIKE 'subtitle-source-capture:%'").fetchone()[0] == 1
+        assert connection.execute("SELECT COUNT(*) FROM artifacts WHERE artifact_key NOT LIKE 'subtitle-source-capture:%'").fetchone()[0] == 0
+        assert connection.execute("SELECT COUNT(*) FROM timed_transcripts").fetchone()[0] == 0
+        assert connection.execute("SELECT COUNT(*) FROM evidence").fetchone()[0] == 0
     request = _provider_request_for(adapter)
     provider_record = repository.get_provider_call(request.request_hash)
     assert provider_record is not None
@@ -2902,7 +2919,10 @@ def test_permission_error_during_atomic_write_is_safe_and_not_indexed(
         forbidden=("/Users/example/secret",),
     )
     with sqlite3.connect(tmp_path / "state.sqlite3") as connection:
-        assert connection.execute("SELECT COUNT(*) FROM artifacts").fetchone()[0] == 0
+        assert connection.execute("SELECT COUNT(*) FROM artifacts WHERE artifact_key LIKE 'subtitle-source-capture:%'").fetchone()[0] == 1
+        assert connection.execute("SELECT COUNT(*) FROM artifacts WHERE artifact_key NOT LIKE 'subtitle-source-capture:%'").fetchone()[0] == 0
+        assert connection.execute("SELECT COUNT(*) FROM timed_transcripts").fetchone()[0] == 0
+        assert connection.execute("SELECT COUNT(*) FROM evidence").fetchone()[0] == 0
     request = _provider_request_for(adapter)
     provider_record = repository.get_provider_call(request.request_hash)
     assert provider_record is not None
@@ -3400,3 +3420,269 @@ def test_nested_metadata_iteration_errors_are_safe_and_fail_closed() -> None:
     assert buckets_exc.value.error.code is ErrorCode.INVALID_RESPONSE
     assert buckets_exc.value.error.retryable is False
     _assert_exception_graph_is_redacted(buckets_exc.value, forbidden=(marker,))
+
+
+class _CaptureInterruption(BaseException):
+    pass
+
+
+@pytest.mark.parametrize("native", [False, True])
+@pytest.mark.parametrize("window", ["before_commit", "hash_only", "file_present"])
+def test_capture_windows_preserve_hash_and_resume_exact_bytes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, native: bool, window: str) -> None:
+    repository = _repository_with_transcript_job(tmp_path)
+    opener = _NativeFormatOpener() if native else _BodyOpener((FIXTURES / "manual_en.json3").read_bytes())
+    adapter = _native_format_adapter(opener) if native else _bound_adapter(_load_json("info_tracks.json"), opener)[0]
+    original_write = transcripts_mod._atomic_write
+    original_register = repository.register_subtitle_source_capture
+    saved_kwargs = []
+    target_suffix = ".vtt" if native else ".json3"
+    def register(**kwargs):
+        saved_kwargs.append(kwargs)
+        record = original_register(**kwargs)
+        if window == "hash_only" and kwargs["artifact"].relative_path.endswith(target_suffix):
+            raise _CaptureInterruption()
+        return record
+    def write(path, body, **kwargs):
+        original_write(path, body, **kwargs)
+        if window == "file_present" and path.name.endswith(target_suffix):
+            raise _CaptureInterruption()
+    def inject(point):
+        if window == "before_commit" and point == "subtitle_capture.before_commit":
+            raise _CaptureInterruption()
+    monkeypatch.setattr(repository, "register_subtitle_source_capture", register)
+    monkeypatch.setattr(transcripts_mod, "_atomic_write", write)
+    monkeypatch.setattr(repository, "_inject_failure", inject)
+    with pytest.raises(_CaptureInterruption):
+        _service(adapter=adapter, repository=repository, data_root=tmp_path / "data", job_id="subtitle-job").fetch(_video(), ("en",))
+    with repository._connect() as connection:
+        captures = connection.execute("SELECT * FROM artifacts").fetchall()
+        assert len(captures) == (0 if window == "before_commit" else 2 if native else 1)
+        assert all(row["artifact_key"].startswith("subtitle-source-capture:") for row in captures)
+        assert connection.execute("SELECT COUNT(*) FROM timed_transcripts").fetchone()[0] == 0
+        assert connection.execute("SELECT COUNT(*) FROM evidence").fetchone()[0] == 0
+    assert repository.get_job("subtitle-job").status is JobStatus.RUNNING
+    before = opener.calls
+    monkeypatch.setattr(transcripts_mod, "_atomic_write", original_write)
+    restarted = SQLiteStateRepository(tmp_path / "state.sqlite3")
+    resumed = _service(adapter=adapter, repository=restarted, data_root=tmp_path / "data", job_id="subtitle-job", now=NOW + td(seconds=301)).fetch(_video(), ("en",))
+    assert isinstance(resumed, TranscriptReady)
+    if window == "file_present":
+        assert opener.calls == before
+    elif window == "hash_only":
+        assert opener.calls == before + 1
+    else:
+        assert opener.calls == before + (2 if native else 1)
+    with restarted._connect() as connection:
+        for row in connection.execute("SELECT * FROM artifacts WHERE artifact_key LIKE 'subtitle-source-capture:%'"):
+            assert hashlib.sha256((tmp_path / "data" / row["relative_path"]).read_bytes()).hexdigest() == row["content_hash"]
+
+
+@pytest.mark.parametrize("suffix", [".json3", ".vtt"])
+def test_changed_legal_capture_bytes_fail_closed_without_body_read(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, suffix: str) -> None:
+    repository = _repository_with_transcript_job(tmp_path)
+    opener = _NativeFormatOpener()
+    monkeypatch.setattr(repository, "complete_stage", lambda **kwargs: (_ for _ in ()).throw(_CaptureInterruption()))
+    with pytest.raises(_CaptureInterruption):
+        _service(adapter=_native_format_adapter(opener), repository=repository, data_root=tmp_path / "data", job_id="subtitle-job").fetch(_video(), ("en",))
+    with repository._connect() as connection:
+        before = [tuple(row) for row in connection.execute("SELECT * FROM artifacts ORDER BY artifact_id")]
+        row = next(row for row in connection.execute("SELECT * FROM artifacts") if row["relative_path"].endswith(suffix))
+    path = tmp_path / "data" / row["relative_path"]
+    path.write_bytes(path.read_bytes().replace(b"First source sentence", b"Other source sentence"))
+    reads = opener.calls
+    with pytest.raises(TranscriptError):
+        _service(adapter=_native_format_adapter(opener), repository=repository, data_root=tmp_path / "data", job_id="subtitle-job", now=NOW + td(seconds=301)).fetch(_video(), ("en",))
+    assert opener.calls == reads
+    assert repository.get_verified_timed_transcript(video_id="video123") is None
+    with repository._connect() as connection:
+        assert [tuple(row) for row in connection.execute("SELECT * FROM artifacts ORDER BY artifact_id")] == before
+
+
+@pytest.mark.parametrize("suffix", ["json3", "vtt"])
+def test_unknown_old_source_is_not_promoted_or_replaced(tmp_path: Path, suffix: str) -> None:
+    repository = _repository_with_transcript_job(tmp_path)
+    opener = _NativeFormatOpener()
+    raw_hash = _provider_request_for(_native_format_adapter(opener)).normalized_input_hash
+    metadata = transcripts_mod._SourceMetadata(TranscriptSourceType.MANUAL_SUBTITLE, "en", "en", SubtitleFormat(suffix))
+    relative = transcripts_mod._source_relative_path(video_id="video123", raw_request_hash=raw_hash, metadata=metadata)
+    path = tmp_path / "data" / relative
+    path.parent.mkdir(parents=True)
+    unknown = opener.body if suffix == "json3" else opener.vtt
+    assert isinstance(unknown, bytes)
+    path.write_bytes(unknown)
+    with pytest.raises(TranscriptError):
+        _service(adapter=_native_format_adapter(opener), repository=repository, data_root=tmp_path / "data", job_id="subtitle-job").fetch(_video(), ("en",))
+    assert path.read_bytes() == unknown
+    assert repository.get_verified_timed_transcript(video_id="video123") is None
+    assert opener.formats == ([] if suffix == "json3" else ["json3"])
+    with repository._connect() as connection:
+        assert connection.execute("SELECT COUNT(*) FROM artifacts WHERE relative_path=?", (relative,)).fetchone()[0] == 0
+
+
+@pytest.mark.parametrize("invalid", ["owner", "expired", "artifact_job", "artifact_video", "provider", "version", "language", "request", "generation", "path", "hash", "body", "kind", "root", "unknown_dispatch"])
+def test_capture_registration_requires_exact_live_scope_and_full_cas(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, invalid: str) -> None:
+    from youtube_intel.state import StateStoreError
+    repository = _repository_with_transcript_job(tmp_path)
+    opener = _BodyOpener((FIXTURES / "manual_en.json3").read_bytes())
+    original = repository.register_subtitle_source_capture
+    saved = []
+    def register(**kwargs):
+        saved.append(kwargs)
+        original(**kwargs)
+        raise _CaptureInterruption()
+    monkeypatch.setattr(repository, "register_subtitle_source_capture", register)
+    with pytest.raises(_CaptureInterruption):
+        _service(adapter=_bound_adapter(_load_json("info_tracks.json"), opener)[0], repository=repository, data_root=tmp_path / "data", job_id="subtitle-job").fetch(_video(), ("en",))
+    kwargs = dict(saved[0])
+    before = repository.get_artifact_by_key(kwargs["artifact"].artifact_key)
+    assert original(**kwargs) == before
+    if invalid == "owner":
+        kwargs["context"] = replace(kwargs["context"], owner="foreign")
+    elif invalid == "expired":
+        kwargs["now"] = NOW + td(minutes=11)
+    elif invalid == "artifact_job":
+        kwargs["artifact"] = replace(kwargs["artifact"], job_id="foreign")
+    elif invalid == "artifact_video":
+        kwargs["artifact"] = replace(kwargs["artifact"], video_id="foreign")
+    elif invalid == "provider":
+        kwargs["artifact"] = replace(kwargs["artifact"], provider="foreign")
+    elif invalid == "version":
+        kwargs["provider_version"] = "foreign-version"
+    elif invalid == "language":
+        kwargs["language_preferences"] = ("zh-CN",)
+    elif invalid == "request":
+        kwargs["provider_request"] = replace(kwargs["provider_request"], schema_version="foreign")
+    elif invalid == "generation":
+        kwargs["context"] = replace(kwargs["context"], refresh_generation=2)
+    elif invalid == "path":
+        kwargs["artifact"] = replace(kwargs["artifact"], relative_path="transcripts/foreign.json3")
+    elif invalid == "hash":
+        kwargs["artifact"] = replace(kwargs["artifact"], content_hash="f" * 64)
+    elif invalid == "body":
+        kwargs["body"] = kwargs["body"].replace(b"Product", b"Changed") + b" "
+    elif invalid == "kind":
+        kwargs["artifact"] = replace(kwargs["artifact"], kind=ArtifactKind.TRANSCRIPT_CANONICAL)
+    elif invalid == "root":
+        kwargs["data_root"] = tmp_path / "foreign-data"
+    elif invalid == "unknown_dispatch":
+        with repository._connect() as connection:
+            connection.execute("INSERT INTO provider_dispatch_states(request_hash,status,updated_at) VALUES (?,?,?)",
+                (kwargs["provider_request"].request_hash, "DISPATCHED_RESULT_UNKNOWN", NOW.isoformat()))
+    with pytest.raises((StateStoreError, TranscriptError, ValueError)):
+        original(**kwargs)
+    assert repository.get_artifact_by_key(before.artifact_key) == before
+    assert repository.get_job("subtitle-job").status is JobStatus.RUNNING
+    assert repository.get_verified_timed_transcript(video_id="video123") is None
+
+
+def test_capture_registration_is_concurrently_idempotent_and_binding_is_immutable(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    repository = _repository_with_transcript_job(tmp_path)
+    original = repository.register_subtitle_source_capture
+    seen = []
+    def concurrent(**kwargs):
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(lambda _: original(**kwargs), range(2)))
+        assert results[0] == results[1]
+        seen.append(results[0])
+        return results[0]
+    monkeypatch.setattr(repository, "register_subtitle_source_capture", concurrent)
+    opener = _NativeFormatOpener()
+    _service(adapter=_native_format_adapter(opener), repository=repository, data_root=tmp_path / "data", job_id="subtitle-job").fetch(_video(), ("en",))
+    assert len(seen) == 2
+    repository.bind_source_storage(tmp_path / "data")
+    before = repository.get_job("subtitle-job")
+    before_database = (tmp_path / "state.sqlite3").read_bytes()
+    with pytest.raises(ValueError, match="cannot be rebound"):
+        _service(adapter=_native_format_adapter(opener), repository=repository, data_root=tmp_path / "foreign-data", job_id="subtitle-job")
+    assert repository.get_job("subtitle-job") == before
+    assert (tmp_path / "state.sqlite3").read_bytes() == before_database
+    assert opener.formats == ["json3", "vtt"]
+
+
+@pytest.mark.parametrize("missing", [False, True])
+def test_missing_or_changed_capture_cannot_become_a_successful_backup(tmp_path: Path, missing: bool) -> None:
+    from youtube_intel.backup_restore import BackupRestoreError, BackupRestoreService
+    repository = _repository_with_transcript_job(tmp_path)
+    opener = _NativeFormatOpener()
+    _service(adapter=_native_format_adapter(opener), repository=repository, data_root=tmp_path / "data", job_id="subtitle-job").fetch(_video(), ("en",))
+    with repository._connect() as connection:
+        row = connection.execute("SELECT * FROM artifacts WHERE artifact_key LIKE 'subtitle-source-capture:%' AND relative_path LIKE '%.json3'").fetchone()
+    path = tmp_path / "data" / row["relative_path"]
+    if missing:
+        path.unlink()  # only the owned isolated test fixture; production never deletes captures
+    else:
+        path.write_bytes(path.read_bytes().replace(b"First source sentence", b"Other source sentence"))
+    service = BackupRestoreService(database=tmp_path / "state.sqlite3", data_root=tmp_path / "data")
+    with pytest.raises(BackupRestoreError):
+        service.create_backup()
+    assert repository.get_artifact(row["artifact_id"]).content_hash == row["content_hash"]
+
+
+def test_hash_only_capture_rejects_changed_legal_refetch_and_unbound_repository(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from youtube_intel.state import IntegrityConflict
+    repository = _repository_with_transcript_job(tmp_path)
+    opener = _BodyOpener((FIXTURES / "manual_en.json3").read_bytes())
+    original = repository.register_subtitle_source_capture
+    saved = []
+    def register(**kwargs):
+        saved.append(kwargs)
+        original(**kwargs)
+        raise _CaptureInterruption()
+    monkeypatch.setattr(repository, "register_subtitle_source_capture", register)
+    with pytest.raises(_CaptureInterruption):
+        _service(adapter=_bound_adapter(_load_json("info_tracks.json"), opener)[0], repository=repository, data_root=tmp_path / "data", job_id="subtitle-job").fetch(_video(), ("en",))
+    kwargs = saved[0]
+    unbound = SQLiteStateRepository(tmp_path / "state.sqlite3")
+    with pytest.raises(IntegrityConflict, match="bound DATA root"):
+        unbound.register_subtitle_source_capture(**kwargs)
+    capture_before = repository.get_artifact_by_key(kwargs["artifact"].artifact_key)
+    monkeypatch.setattr(repository, "register_subtitle_source_capture", original)
+    opener.body += b" "  # still a valid native JSON3 document, but not the captured bytes
+    with pytest.raises(TranscriptError):
+        _service(adapter=_bound_adapter(_load_json("info_tracks.json"), opener)[0], repository=repository, data_root=tmp_path / "data", job_id="subtitle-job", now=NOW + td(seconds=301)).fetch(_video(), ("en",))
+    assert repository.get_artifact_by_key(kwargs["artifact"].artifact_key) == capture_before
+    assert not (tmp_path / "data" / kwargs["artifact"].relative_path).exists()
+    assert repository.get_verified_timed_transcript(video_id="video123") is None
+
+
+def test_rate_limited_native_alternate_retains_plain_capture_and_retries_only_alternate(tmp_path: Path) -> None:
+    repository = _repository_with_transcript_job(tmp_path)
+    opener = _NativeFormatOpener(vtt=urllib.error.HTTPError("https://www.youtube.com/api/timedtext", 429, "limited", {"Retry-After": "12"}, None))
+    with pytest.raises(TranscriptError) as failure:
+        _service(adapter=_native_format_adapter(opener), repository=repository, data_root=tmp_path / "data", job_id="subtitle-job").fetch(_video(), ("en",))
+    assert failure.value.error.code is ErrorCode.RATE_LIMITED
+    with repository._connect() as connection:
+        captures = connection.execute("SELECT * FROM artifacts").fetchall()
+        assert len(captures) == 1 and captures[0]["artifact_key"].startswith("subtitle-source-capture:")
+        assert connection.execute("SELECT COUNT(*) FROM evidence").fetchone()[0] == 0
+    opener.vtt = _NativeFormatOpener().vtt
+    result = _service(adapter=_native_format_adapter(opener), repository=repository, data_root=tmp_path / "data", job_id="subtitle-job", now=NOW + td(seconds=13)).fetch(_video(), ("en",))
+    assert isinstance(result, TranscriptReady)
+    assert opener.formats == ["json3", "vtt", "vtt"]
+
+
+def test_two_captures_reject_a_third_format_without_rebinding(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from youtube_intel.state import IntegrityConflict
+    repository = _repository_with_transcript_job(tmp_path)
+    saved = []
+    original = repository.register_subtitle_source_capture
+    def register(**kwargs):
+        saved.append(kwargs)
+        return original(**kwargs)
+    monkeypatch.setattr(repository, "register_subtitle_source_capture", register)
+    monkeypatch.setattr(repository, "complete_stage", lambda **kwargs: (_ for _ in ()).throw(_CaptureInterruption()))
+    opener = _NativeFormatOpener()
+    with pytest.raises(_CaptureInterruption):
+        _service(adapter=_native_format_adapter(opener), repository=repository, data_root=tmp_path / "data", job_id="subtitle-job").fetch(_video(), ("en",))
+    kwargs = dict(saved[-1])
+    body = b"1\n00:00:00,000 --> 00:00:02,000\nFirst source sentence has sufficient meaningful characters.\n\n2\n00:00:02,000 --> 00:00:04,000\nSecond source sentence has sufficient meaningful characters.\n"
+    metadata = transcripts_mod._SourceMetadata(TranscriptSourceType.MANUAL_SUBTITLE, "en", "en", SubtitleFormat.SRT)
+    kwargs["body"] = body
+    kwargs["artifact"] = transcripts_mod._capture_artifact_write(video_id="video123", context=kwargs["context"],
+        raw_request_hash=kwargs["provider_request"].normalized_input_hash, metadata=metadata, content_hash=hashlib.sha256(body).hexdigest(),
+        provider=kwargs["artifact"].provider, provider_version=kwargs["provider_version"])
+    with pytest.raises(IntegrityConflict, match="count exceeds"):
+        original(**kwargs)
+    with repository._connect() as connection:
+        assert connection.execute("SELECT COUNT(*) FROM artifacts").fetchone()[0] == 2
+    assert not (tmp_path / "data" / kwargs["artifact"].relative_path).exists()
