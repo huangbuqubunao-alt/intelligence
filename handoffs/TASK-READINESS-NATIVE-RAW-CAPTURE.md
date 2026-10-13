@@ -72,3 +72,20 @@ REJECT：unknown expected_hash=None promotion、重取未知旧文件补登记�
 
 Reviewer 结论：待独立审查，不由 Implementer 填写。
 主控验收 / 整合 / DONE：待 root 决定。
+
+## 独立 Reviewer（2026-10-13）
+
+Reviewer `/root/intel_bounded_review`；被审实现 `b957eb5ec46beda17885a858ad011e6cfc5b605c`，基线 `c5da5e8007f8a1343207045d5203558e0a8f253d`。结论 **APPROVE，限获批 raw capture delta**；本次变更新增 P0/P1：0。不代表整个用户链路完成、真实 GUI 验收或正式采用批准。根提案及 max2 addendum 的具体授权已复核；没有扩大到 current-policy ledger 退役或 derived canonical 的补登记。
+
+已独立检查完整 diff、普通/repair 调用路径、register 的 BEGIN IMMEDIATE/live owner+lease/request+政策绑定、capture key 不含 body hash、全字段 immutable CAS、source/type/language 与固定 path 证明、unknown dispatch/旧无索引 path 拒绝、hash-before-file 三个窗口、并发和 completion membership。最多两项捕获仅保留原料；原 winner/provider 指针、canonical/timing/Evidence 成功事务不变。已有 hash 的合法不同字节拒绝，恢复成功不重复 body 读取；authority rollback 断言仍严格，允许留下的 capture 数量明确。Backup 产品代码和 Schema 未改。原 ALL DATA 测试确实逐一比较全部文件 path/bytes/hash 与所有表，不是只比较 indexed 子集。
+
+独立检查结果：
+
+- 13相关测试文件 **408 PASS / 121.72秒**：subtitle_provider、runtime_composition、research_backup_restore、dogfood_day2_backup_limits、unit backup_restore、local_content_provider/adversarial、offline_transcription_jobs、local_transcription_service、unit offline_transcription、acoustic_qualification_boundary、unit acoustic_qualification/remediation。唯一 warning 是既有 duplicate-ZIP 攻击 fixture。
+- Ruff 两生产文件及两修改测试 PASS；`MYPYPATH=src .venv/bin/python -m mypy --strict src/youtube_intel/state.py src/youtube_intel/transcripts.py` PASS；四文件 py_compile PASS；基线至候选 diff check PASS。
+- 独立重算 candidate 和当前 accepted root 的实际 current_tuple（模型 origin/文件存在、工具 hash/version、实现 source hash；不推理、不读取 seal、不 mint receipt），逐字段一致且与实现者记录一致：SHA256 `9df8c083899990ebb7ad1e9173ccb6f4cb663351b78c4f0286b371443b04c357`。
+- 与 root `56695f8` 的只读 merge-tree 无冲突，树对象 `4eb3ed71ecd35d7a7d4b1d500484101de4ce0565`；此检查未执行整合或修改 checkout。
+
+独立复现已有整体 readiness 缺口：`/tmp/readiness-raw-independent-gap-probe.py` 在两套全新临时数据库分别运行 unchanged root core 与候选，走普通 source POST/check → worker → `caption_repair.after_authority` rollback → 新明确 command/child 重试。两者均真实补好 timed/Summary，但留下 **1个 current-v2 FAILED_RETRYABLE + 1个未索引 derived canonical**，readiness=false，reason=PROVIDER_CALL_UNRESOLVED。根基线相关 core 与 c5da5e8 无 diff，故此缺口并非本次引入。候选有5个正规 capture，**0个未索引 raw**；基线0个 capture、3个未索引 raw。这支持本次 raw 原因已修，不能宣称整体 Backup 链路已修完。临时证据目录分别 `/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/readiness-raw-review-ifuvd1e1` 与 `readiness-raw-review-mbirum6j`，未接触 owner 数据，未调用模型。
+
+待主控：保留上述 OPEN、另按精确范围处理或报告，整合后完整 backend/frontend/TS/build 和 fresh macOS GUI 全部文件 Backup/Restore。原真实 FAIL 不可重标。审查前后没有业务代码写入；仅补本交接。树原有 untracked 提案副本 `docs/validation/end-to-end-user-readiness/NATIVE_RAW_CAPTURE_PROPOSAL.md` 保持不动，不纳入审查提交或清理。
