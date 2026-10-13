@@ -1,0 +1,35 @@
+{
+  "status": "REPRODUCED_P2",
+  "candidate": "bb2dfc3",
+  "scope": "private real headful macOS Chrome; bounded 2500ms GET delay only, no response substitution",
+  "during": {
+    "falseNotTranscribed": true,
+    "falseNotRun": true,
+    "transcriptVisible": true
+  },
+  "settled": {
+    "completed": true,
+    "unqualified": false
+  },
+  "delayedRequests": [
+    "http://127.0.0.1:5908/api/v1/videos/local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd/transcription",
+    "http://127.0.0.1:5908/api/v1/videos/local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd/deep-analysis",
+    "http://127.0.0.1:5908/api/v1/videos/local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd/transcription",
+    "http://127.0.0.1:5908/api/v1/videos/local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd/deep-analysis",
+    "http://127.0.0.1:5908/api/v1/videos/local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd/transcription",
+    "http://127.0.0.1:5908/api/v1/videos/local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd/deep-analysis",
+    "http://127.0.0.1:5908/api/v1/videos/local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd/transcription",
+    "http://127.0.0.1:5908/api/v1/videos/local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd/deep-analysis",
+    "http://127.0.0.1:5908/api/v1/videos/local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd/transcription",
+    "http://127.0.0.1:5908/api/v1/videos/local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd/deep-analysis",
+    "http://127.0.0.1:5908/api/v1/videos/local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd/transcription",
+    "http://127.0.0.1:5908/api/v1/videos/local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd/deep-analysis",
+    "http://127.0.0.1:5908/api/v1/videos/local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd/transcription",
+    "http://127.0.0.1:5908/api/v1/videos/local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd/deep-analysis",
+    "http://127.0.0.1:5908/api/v1/videos/local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd/transcription",
+    "http://127.0.0.1:5908/api/v1/videos/local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd/deep-analysis"
+  ],
+  "pageErrors": [],
+  "modelCalls": 0,
+  "formalDataAccessed": false
+}
