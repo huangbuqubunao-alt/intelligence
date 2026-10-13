@@ -1,0 +1,428 @@
+{
+  "status": "PASS",
+  "oldFailurePreserved": "NARROW_WINDOW_GUI_EVIDENCE.json",
+  "firstHmrProbe": "INVALID_DURING_HMR_RELOAD",
+  "measurements": [
+    {
+      "width": 320,
+      "forward": [
+        {
+          "text": "Home",
+          "x": 14,
+          "right": 73.515625,
+          "navLeft": 14,
+          "navRight": 291,
+          "navScrollLeft": 0,
+          "client": 305,
+          "scroll": 305
+        },
+        {
+          "text": "Following",
+          "x": 76.515625,
+          "right": 159.609375,
+          "navLeft": 14,
+          "navRight": 291,
+          "navScrollLeft": 0,
+          "client": 305,
+          "scroll": 305
+        },
+        {
+          "text": "Content",
+          "x": 162.609375,
+          "right": 235.9765625,
+          "navLeft": 14,
+          "navRight": 291,
+          "navScrollLeft": 0,
+          "client": 305,
+          "scroll": 305
+        },
+        {
+          "text": "Intelligence",
+          "x": 194.4765625,
+          "right": 291.171875,
+          "navLeft": 14,
+          "navRight": 291,
+          "navScrollLeft": 44.5,
+          "client": 305,
+          "scroll": 305
+        },
+        {
+          "text": "Topics",
+          "x": 148.671875,
+          "right": 212.34375,
+          "navLeft": 14,
+          "navRight": 291,
+          "navScrollLeft": 190,
+          "client": 305,
+          "scroll": 305
+        },
+        {
+          "text": "Settings",
+          "x": 215.34375,
+          "right": 291.0234375,
+          "navLeft": 14,
+          "navRight": 291,
+          "navScrollLeft": 190,
+          "client": 305,
+          "scroll": 305
+        }
+      ],
+      "backward": [
+        {
+          "text": "Topics",
+          "x": 148.671875,
+          "right": 212.34375,
+          "client": 305,
+          "scroll": 305
+        },
+        {
+          "text": "Intelligence",
+          "x": 48.9765625,
+          "right": 145.671875,
+          "client": 305,
+          "scroll": 305
+        },
+        {
+          "text": "Content",
+          "x": 14.109375,
+          "right": 87.4765625,
+          "client": 305,
+          "scroll": 305
+        },
+        {
+          "text": "Following",
+          "x": 76.515625,
+          "right": 159.609375,
+          "client": 305,
+          "scroll": 305
+        },
+        {
+          "text": "Home",
+          "x": 14,
+          "right": 73.515625,
+          "client": 305,
+          "scroll": 305
+        }
+      ],
+      "urlUnchanged": "http://127.0.0.1:5908/#Content/local-c99e530be25a5cb83837bf12ccc7fbb4c9ff3760141a6c4a527604ab9c38c996"
+    },
+    {
+      "width": 768,
+      "forward": [
+        {
+          "text": "Home",
+          "x": 14,
+          "right": 73.515625,
+          "navLeft": 14,
+          "navRight": 739,
+          "navScrollLeft": 0,
+          "client": 753,
+          "scroll": 753
+        },
+        {
+          "text": "Following",
+          "x": 76.515625,
+          "right": 159.609375,
+          "navLeft": 14,
+          "navRight": 739,
+          "navScrollLeft": 0,
+          "client": 753,
+          "scroll": 753
+        },
+        {
+          "text": "Content",
+          "x": 162.609375,
+          "right": 235.9765625,
+          "navLeft": 14,
+          "navRight": 739,
+          "navScrollLeft": 0,
+          "client": 753,
+          "scroll": 753
+        },
+        {
+          "text": "Intelligence",
+          "x": 238.9765625,
+          "right": 335.671875,
+          "navLeft": 14,
+          "navRight": 739,
+          "navScrollLeft": 0,
+          "client": 753,
+          "scroll": 753
+        },
+        {
+          "text": "Topics",
+          "x": 338.671875,
+          "right": 402.34375,
+          "navLeft": 14,
+          "navRight": 739,
+          "navScrollLeft": 0,
+          "client": 753,
+          "scroll": 753
+        },
+        {
+          "text": "Settings",
+          "x": 405.34375,
+          "right": 481.0234375,
+          "navLeft": 14,
+          "navRight": 739,
+          "navScrollLeft": 0,
+          "client": 753,
+          "scroll": 753
+        }
+      ],
+      "backward": [
+        {
+          "text": "Topics",
+          "x": 338.671875,
+          "right": 402.34375,
+          "client": 753,
+          "scroll": 753
+        },
+        {
+          "text": "Intelligence",
+          "x": 238.9765625,
+          "right": 335.671875,
+          "client": 753,
+          "scroll": 753
+        },
+        {
+          "text": "Content",
+          "x": 162.609375,
+          "right": 235.9765625,
+          "client": 753,
+          "scroll": 753
+        },
+        {
+          "text": "Following",
+          "x": 76.515625,
+          "right": 159.609375,
+          "client": 753,
+          "scroll": 753
+        },
+        {
+          "text": "Home",
+          "x": 14,
+          "right": 73.515625,
+          "client": 753,
+          "scroll": 753
+        }
+      ],
+      "urlUnchanged": "http://127.0.0.1:5908/#Content/local-c99e530be25a5cb83837bf12ccc7fbb4c9ff3760141a6c4a527604ab9c38c996"
+    },
+    {
+      "width": 1024,
+      "forward": [
+        {
+          "text": "Home",
+          "x": 16,
+          "right": 231,
+          "navLeft": 16,
+          "navRight": 231,
+          "navScrollLeft": 0,
+          "client": 1009,
+          "scroll": 1009
+        },
+        {
+          "text": "Following",
+          "x": 16,
+          "right": 231,
+          "navLeft": 16,
+          "navRight": 231,
+          "navScrollLeft": 0,
+          "client": 1009,
+          "scroll": 1009
+        },
+        {
+          "text": "Content",
+          "x": 16,
+          "right": 231,
+          "navLeft": 16,
+          "navRight": 231,
+          "navScrollLeft": 0,
+          "client": 1009,
+          "scroll": 1009
+        },
+        {
+          "text": "Intelligence",
+          "x": 16,
+          "right": 231,
+          "navLeft": 16,
+          "navRight": 231,
+          "navScrollLeft": 0,
+          "client": 1009,
+          "scroll": 1009
+        },
+        {
+          "text": "Topics",
+          "x": 16,
+          "right": 231,
+          "navLeft": 16,
+          "navRight": 231,
+          "navScrollLeft": 0,
+          "client": 1009,
+          "scroll": 1009
+        },
+        {
+          "text": "Settings",
+          "x": 16,
+          "right": 231,
+          "navLeft": 16,
+          "navRight": 231,
+          "navScrollLeft": 0,
+          "client": 1009,
+          "scroll": 1009
+        }
+      ],
+      "backward": [
+        {
+          "text": "Topics",
+          "x": 16,
+          "right": 231,
+          "client": 1009,
+          "scroll": 1009
+        },
+        {
+          "text": "Intelligence",
+          "x": 16,
+          "right": 231,
+          "client": 1009,
+          "scroll": 1009
+        },
+        {
+          "text": "Content",
+          "x": 16,
+          "right": 231,
+          "client": 1009,
+          "scroll": 1009
+        },
+        {
+          "text": "Following",
+          "x": 16,
+          "right": 231,
+          "client": 1009,
+          "scroll": 1009
+        },
+        {
+          "text": "Home",
+          "x": 16,
+          "right": 231,
+          "client": 1009,
+          "scroll": 1009
+        }
+      ],
+      "urlUnchanged": "http://127.0.0.1:5908/#Content/local-c99e530be25a5cb83837bf12ccc7fbb4c9ff3760141a6c4a527604ab9c38c996"
+    },
+    {
+      "width": 1440,
+      "forward": [
+        {
+          "text": "Home",
+          "x": 16,
+          "right": 231,
+          "navLeft": 16,
+          "navRight": 231,
+          "navScrollLeft": 0,
+          "client": 1425,
+          "scroll": 1425
+        },
+        {
+          "text": "Following",
+          "x": 16,
+          "right": 231,
+          "navLeft": 16,
+          "navRight": 231,
+          "navScrollLeft": 0,
+          "client": 1425,
+          "scroll": 1425
+        },
+        {
+          "text": "Content",
+          "x": 16,
+          "right": 231,
+          "navLeft": 16,
+          "navRight": 231,
+          "navScrollLeft": 0,
+          "client": 1425,
+          "scroll": 1425
+        },
+        {
+          "text": "Intelligence",
+          "x": 16,
+          "right": 231,
+          "navLeft": 16,
+          "navRight": 231,
+          "navScrollLeft": 0,
+          "client": 1425,
+          "scroll": 1425
+        },
+        {
+          "text": "Topics",
+          "x": 16,
+          "right": 231,
+          "navLeft": 16,
+          "navRight": 231,
+          "navScrollLeft": 0,
+          "client": 1425,
+          "scroll": 1425
+        },
+        {
+          "text": "Settings",
+          "x": 16,
+          "right": 231,
+          "navLeft": 16,
+          "navRight": 231,
+          "navScrollLeft": 0,
+          "client": 1425,
+          "scroll": 1425
+        }
+      ],
+      "backward": [
+        {
+          "text": "Topics",
+          "x": 16,
+          "right": 231,
+          "client": 1425,
+          "scroll": 1425
+        },
+        {
+          "text": "Intelligence",
+          "x": 16,
+          "right": 231,
+          "client": 1425,
+          "scroll": 1425
+        },
+        {
+          "text": "Content",
+          "x": 16,
+          "right": 231,
+          "client": 1425,
+          "scroll": 1425
+        },
+        {
+          "text": "Following",
+          "x": 16,
+          "right": 231,
+          "client": 1425,
+          "scroll": 1425
+        },
+        {
+          "text": "Home",
+          "x": 16,
+          "right": 231,
+          "client": 1425,
+          "scroll": 1425
+        }
+      ],
+      "urlUnchanged": "http://127.0.0.1:5908/#Content/local-c99e530be25a5cb83837bf12ccc7fbb4c9ff3760141a6c4a527604ab9c38c996"
+    }
+  ],
+  "model_calls": 0,
+  "formal_data_touched": false,
+  "enterActivation": {
+    "url": "http://127.0.0.1:5908/#Topics",
+    "heading": "Topics"
+  },
+  "mouseActivation": {
+    "url": "http://127.0.0.1:5908/#Content"
+  }
+}
