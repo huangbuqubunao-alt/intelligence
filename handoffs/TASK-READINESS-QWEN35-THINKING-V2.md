@@ -70,3 +70,15 @@ DIRECT 已审 Qwen35 research harness、ordinary v5 两角色 prompt/schema/pars
 ## Reviewer / 主控结果
 
 待独立审查与 root 外部开始许可；实现者不填写 APPROVE/资格 PASS。
+
+### 独立 Reviewer：2026-10-14 / caption_resume
+
+**APPROVE（仅预输出代码合同与首例准备快照；不授予执行或生产资格）**。独立核对 base `4270ce6016c79ecfbe052cfaab46dbfcb25d2fb7` → author `4bef56e9d31f826debd7206f79ec8b510cc795d6` 的全部五文件 Diff；无产品 src、原输入/门槛、依赖或正式配置变更，无新增 P0/P1。原研究测试 bytes 完整保留为精确前缀。
+
+- 独立 `PYTHONPATH=src:. .venv/bin/python -m pytest -q tests/unit/test_readiness_qwen35_research.py tests/unit/test_ollama_local_distillation.py`：**73 PASS / 13.51s**，日志 `/tmp/qwen35-v2-independent-contract-corrected.txt`。首个命令误写不存在的 `test_local_distillation_transport.py`，0 tests，保留 `/tmp/qwen35-v2-independent-contract.txt`，未将其当作通过。
+- 独立 py_compile、Ruff 两文件、`MYPYPATH=src` strict mypy、`git diff --check` 均 PASS。
+- 独立执行冻结校验：26 项代码/输入实际 SHA 均一致，原 v5 generate hash 不变；profile/freeze SHA 分别 `845d354fa6b98fdaaf5620eac393915d6d42d2395ebd4eef192d8ef0dda6d072` / `ce6a0c3a32723da83b934e320b386524629ea3dc36bf4528ebcdd36f6d3a3714`。
+- 首例准备 SHA、DB、VerifiedInput、18 个 DATA 的完整路径集合及字节 SHA 全相符。只读 SQLite 中本 reservation 为 `PENDING / invocation_count=0 / ollama / qwen3.5:9b-q4_K_M`；无本 execution usage 结果、无 provider dispatch 状态；目录无 generation/request/response/permit/result。旧 V1 VerifiedInput 各已有字段逐值相同，仅新增已审 LOCAL 上下文字段 `YOUTUBE/null`。Reviewer 未调用任何模型或 API。
+- 已逐读外部 receipt、前序语义 review、native final-content 提取、durable once marker、4096 耗尽/length/timeout、重启拒绝及 CLI 退役路径。只有固定 V2 参数切换；未解读 thinking，未修 prose 或降低 Evidence/parser 约束。
+
+安装/static support receipt 是固定实现路径的静态证明；实际模型兼容、参数效果、容量和语义质量仍未验证。Root 必须另行检查当前安装/资源/无未解决重量执行并给首例一次许可；后例必须前例独立语义 PASS，任何 FAIL 停止。原 V1 首例真实 FAIL 保留、其它案例未执行、production_qualified=false。全产品回归与真实资格验收均不由此 APPROVE 替代。Reviewer 只追加本交接，提交后 STOP；恢复另行授权的 Schema 38 实现树。
