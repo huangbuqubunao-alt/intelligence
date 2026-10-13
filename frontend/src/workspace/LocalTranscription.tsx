@@ -33,7 +33,7 @@ const reasons: Record<string, string> = {
   EXECUTOR_TIMEOUT: "Transcription exceeded its time limit. You can retry the selected executor.",
   EXECUTOR_FAILED: "The selected local executor could not transcribe this media. You can retry.",
   EXECUTOR_OUTPUT_LIMIT: "The local executor exceeded its output limit. No transcript was accepted.",
-  TRANSCRIPT_INVALID: "The executor returned invalid text or timestamps. No transcript was accepted.",
+  TRANSCRIPT_INVALID: "No usable transcript was accepted. Your original file is saved. Check for clear speech before retrying transcription.",
   LOCAL_SOURCE_UNTRUSTED: "The imported snapshot failed verification. Existing Evidence is unavailable.",
   MODEL_CHANGED: "The model changed during execution. Check the selected model and retry.",
   EXECUTOR_IDENTITY_CHANGED: "The selected executor or model changed. Review the current selection before retrying.",

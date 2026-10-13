@@ -29,6 +29,13 @@ it("never falls back to a raw backend code, whatever the state", () => {
   }
 });
 
+it("keeps historical snapshot unavailability separate from current model capability", () => {
+  expect(localStatus("TRANSCRIPTION_UNAVAILABLE")).toBe("File saved");
+  expect(localStatus("RUNNING")).toBe("Transcribing…");
+  expect(localStatus("TRANSCRIPTION_FAILED")).toBe("Local transcription failed");
+  expect(localStatus("READY")).toBe("Ready");
+});
+
 const renderLocalLibraryRow = async (status: string, language: string) => {
   localStorage.setItem("yia.ui-language", language);
   const fetch = vi.fn().mockResolvedValue({
@@ -56,4 +63,12 @@ it("shows an untrusted Local source in English without backend vocabulary", asyn
   const shown = document.body.textContent ?? "";
   expect(shown).not.toContain(UNTRUSTED);
   expect(shown).not.toContain("LOCAL_SOURCE");
+});
+
+it.each(["en", "zh-CN"])("uses the saved snapshot label and current Content guidance in %s", async language => {
+  await renderLocalLibraryRow("TRANSCRIPTION_UNAVAILABLE", language);
+  await screen.findByText(language === "en" ? "File saved" : "文件已保存");
+  expect(screen.getByText(language === "en" ? "File saved. Open Content to check the current transcription status." : "文件已保存。请打开内容查看当前转写状态。")).toBeTruthy();
+  expect(screen.queryByText(language === "en" ? "Local transcription is unavailable" : "本地转写暂不可用")).toBeNull();
+  expect(screen.getByRole("link", { name: language === "en" ? "Open Content" : "打开内容" }).getAttribute("href")).toBe("#Content/local-id");
 });

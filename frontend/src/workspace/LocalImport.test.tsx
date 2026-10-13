@@ -69,7 +69,7 @@ it("guards synchronous double confirmation and preserves pending upload across p
   expect(screen.getByRole("button", { name: "Cancel" }).hasAttribute("disabled")).toBe(true);
   resolve({ ok: true, json: async () => ({ import: { content_id: "saved-video", filename: file.name, status: "TRANSCRIPTION_UNAVAILABLE", duplicate: false } }) });
   await waitFor(() => expect(onImported.mock.calls).toEqual([["saved-video"]]));
-  expect(screen.getByText("Local transcription is unavailable")).toBeTruthy();
+  expect(screen.getByText("File saved")).toBeTruthy();
   expect(screen.queryByRole("button", { name: "Confirm import" })).toBeNull();
 });
 

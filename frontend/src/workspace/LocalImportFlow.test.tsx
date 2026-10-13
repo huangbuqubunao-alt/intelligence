@@ -66,6 +66,20 @@ it("D2-01 keeps in-flight import on refresh and page switches, then opens its sa
 });
 
 // Projection fixtures cover executor states; real no-model media is exercised by browser E2E.
+it.each(["en", "zh-CN"])("does not mistake an old unavailable snapshot for current model readiness (%s)", async language => {
+  localStorage.setItem("yia.ui-language", language);
+  transcriptionState = { status: "FAILED", retry_available: true, last_failure_category: "TRANSCRIPT_INVALID", capability: { state: "READY", qualification_state: "PASSED", production_eligible: true, runtime_available: true, model_present: true, executor_compatible: true } };
+  location.hash = "#Content";
+  render(<App />);
+  expect(await screen.findByText(language === "en" ? "File saved" : "文件已保存")).toBeTruthy();
+  expect(screen.queryByText(language === "en" ? "Local transcription is unavailable" : "本地转写暂不可用")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: /d2-video\.mp4/ }));
+  await screen.findByText(language === "en" ? "Local transcription failed" : "本地转写失败", { selector: "p[role=status]" });
+  expect(screen.queryByText(language === "en" ? "Local transcription is unavailable" : "本地转写暂不可用")).toBeNull();
+  expect(screen.getByText(language === "en" ? "No usable transcript was accepted. Your original file is saved. Check for clear speech before retrying transcription." : "未获得可用字幕，原文件已保留。请确认录音包含清晰语音后，再重试转写。")).toBeTruthy();
+  expect(upload).not.toHaveBeenCalled();
+});
+
 it.each(["en", "zh-CN"])("shows live processing progress and failure reason after admission (%s)", async language => {
   localStorage.setItem("yia.ui-language", language);
   const t = (en: string, zh: string) => language === "en" ? en : zh;

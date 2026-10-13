@@ -56,7 +56,7 @@ it.each([2 * 1024 ** 3 - 1, 2 * 1024 ** 3])("admits simulated boundary %i with r
   act(() => upload.onload?.());
   await waitFor(() => expect(imported).toHaveBeenCalledWith("saved-large"));
   expect(screen.getByText("Import successful. File saved.")).toBeTruthy();
-  expect(screen.getByText("Local transcription is unavailable")).toBeTruthy();
+  expect(screen.getByText("File saved")).toBeTruthy();
 });
 
 it.each([[2 * 1024 ** 3 + 1, "large.mp4", "2 GiB"], [2 * 1024 ** 2 + 1, "notes.md", "2 MiB"], [0, "empty.wav", "empty"]] as const)("rejects simulated size %i for %s before uploading", async (size, name, message) => {

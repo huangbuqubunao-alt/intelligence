@@ -63,3 +63,19 @@ it("refreshes Content exactly once after trusted completion", async () => {
   ui.rerender(<UiLanguageProvider><LocalTranscription id="local-id" onCompleted={complete} /></UiLanguageProvider>);
   expect(complete).toHaveBeenCalledTimes(1);
 });
+
+it.each(["en", "zh-CN"])("explains invalid transcription without claiming a decoder ran in %s", async language => {
+  localStorage.setItem("yia.ui-language", language);
+  const fetch = vi.fn().mockResolvedValue(response({ status: "FAILED", retry_available: true, last_failure_category: "TRANSCRIPT_INVALID", capability: { ...capability, qualification_state: "PASSED", production_eligible: true } }));
+  vi.stubGlobal("fetch", fetch);
+  const complete = vi.fn();
+  const status = vi.fn();
+  render(<UiLanguageProvider><LocalTranscription id="local-noise" onCompleted={complete} onStatusChange={status} /></UiLanguageProvider>);
+  await screen.findByText(language === "en" ? "No usable transcript was accepted. Your original file is saved. Check for clear speech before retrying transcription." : "未获得可用字幕，原文件已保留。请确认录音包含清晰语音后，再重试转写。");
+  expect(screen.getByText(language === "en" ? "Local transcription failed" : "本地转写失败", { selector: "p[role=status]" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: language === "en" ? "Retry transcription" : "重试转写" })).toBeTruthy();
+  expect(document.body.textContent).not.toContain(language === "en" ? "executor returned" : "执行器返回");
+  expect(status).toHaveBeenCalledWith("FAILED");
+  expect(complete).not.toHaveBeenCalled();
+  expect(fetch.mock.calls).toHaveLength(1);
+});

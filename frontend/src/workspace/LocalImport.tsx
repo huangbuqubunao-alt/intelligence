@@ -41,7 +41,8 @@ const statusCopy: Record<string, string> = {
   IMPORTED: "Imported",
   UNAVAILABLE: "Unavailable",
   NOT_PROCESSED: "Not processed",
-  TRANSCRIPTION_UNAVAILABLE: "Local transcription is unavailable",
+  // This saved snapshot status is historical; Content owns the live job/capability.
+  TRANSCRIPTION_UNAVAILABLE: "File saved",
   TRANSCRIPTION_FAILED: "Local transcription failed",
   FAILED: "Import failed",
   SOURCE_UNAVAILABLE: "Source verification failed",
@@ -138,7 +139,7 @@ export function LocalImport({ onClose, onSaved, onImported, onYouTube, onBilibil
       <button className="button button-secondary" onClick={() => controller.current?.abort()}>{t("Cancel import")}</button>
     </div>}
     {results.length > 0 && <ul className="local-file-list">{results.map((result, index) => <li key={index}><strong>{result.filename}</strong><p>{t("Import successful. File saved.")}</p><p>{t(localStatus(result.status))}{result.duplicate ? ` · ${t("Already imported")}` : ""}</p>{!busy && <a href={`#Content/${result.content_id}`} onClick={event => { if (onImported) { event.preventDefault(); onImported(result.content_id); } else onSaved(); }}>{t("Open Content")}</a>}</li>)}</ul>}
-    {results.some(result => result.status === "TRANSCRIPTION_UNAVAILABLE") && <p className="hint">{t("Media snapshots are saved. A provisioned offline transcription adapter is required for transcript, Summary and Evidence; nothing is sent to a cloud service.")}</p>}
+    {results.some(result => result.status === "TRANSCRIPTION_UNAVAILABLE") && <p className="hint">{t("File saved. Open Content to check the current transcription status.")}</p>}
     {!finished && <button className="button button-primary" disabled={busy || !files.length} onClick={() => { if (!finished) void confirm(); }}>{t("Confirm import")}</button>}
     {finished && failedFiles.length > 0 && <button className="button button-secondary" onClick={() => void confirm(failedFiles)}>{t("Retry failed files")}</button>}
     {finished && <button className="button button-primary" onClick={done}>{t("Done")}</button>}
