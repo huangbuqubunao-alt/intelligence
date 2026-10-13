@@ -89,3 +89,12 @@ DIRECT 复用项目现有 provider ledger、SQLite BEGIN IMMEDIATE/CAS、BackupR
 5. 原七文件完整相关回归：**379 passed / 176.32s**，仅一个既有 duplicate ZIP path UserWarning（预期破损备份负控）。完整日志 `/tmp/readiness-retired-subtitles-p1-regression.log`；未跳过/削弱测试或更改测试脚本。
 
 本次实际新增生产修改仅 state.py 退休方法；专用测试 fixture/负控及本交接文档。后端全产品和真实 GUI 仍由主控整合后验收。建议重新 `IN_REVIEW`，不自填独立 APPROVE，也不自行整合/main采用；提交后停止写入。
+
+### 独立 Reviewer — P1 修复复审 APPROVE（2026-10-13）
+
+- `/root/intel_bounded_review` 审查 `22be1a4a1e052673edcc140dadd697bd1656fa5b...b9bb62c8cc30de4e2900424d7c36ed2cf46333ee` 并复核原 scoped 实现。**APPROVE，P0=0 / P1=0**；原 REJECT、失败记录及实现全部保留。本结论只批准用户已授权的隔离退休维护实现，不是正式数据变更、main采用、模型资格或整体GUI验收。
+- 独立重放四种原始损坏时间字段，每种单行/与另一个正规已知失败行混合共8例：均返回空退休集合，所有业务表快照完全不变，Backup 继续 blocked。独立未来合法 backoff 正控安全终止且 available_at 原样保留，readiness正确开放；不是仅复用作者断言。
+- 确认正规 provider/dispatch 解析与 hash/count/UTC/时间关系检查均在同一个 BEGIN IMMEDIATE 内且先于任何 UPDATE，混合批次不会先写合法行。解析失败不修复/覆盖旧时间；原未知/Cloud/owner/lease/response/费用负控、全局quiescence、保护窗口与CAS仍保留。没有改 Backup安全判断、Schema或全局时间解析器。
+- 独立重跑原七文件完整相关测试：**379 passed，1个既有 duplicate ZIP path UserWarning，183.33s，无跳过**；日志 `/tmp/readiness-retired-subtitles-rereview-tests.log`。完整命令同上次审查，包含专用60例、BackupRestore、runtime/background、state、云/本地 distillation reservation。原 race、重启、真实archive恢复、全表历史与外部通知负控全部通过。
+- 独立 Ruff（三个 Python 文件）、strict mypy（两个生产文件）、py_compile、diff check PASS，业务 worktree在审查前后 clean（本追加审查记录除外）。与 root `08e02e2` 的只读 merge-tree 无冲突，结果树 `c013250383a321834c452eb797f7b20ec09c8eb5`，未实际合并。
+- 只写本handoff审查段，未改业务代码。完整产品后端回归及真实GUI维护→BackupRestore仍由主控整合后完成，未运行模型、网络或正式 owner 数据。
