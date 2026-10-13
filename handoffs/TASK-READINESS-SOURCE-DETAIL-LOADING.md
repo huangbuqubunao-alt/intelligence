@@ -64,3 +64,19 @@ keyed 内部组件是现有详情的身份边界，不新增路由或产品功�
 ## Reviewer / 主控结果
 
 待独立审查、主控真实 GUI 验收和整合决定；实现者不填写自己的 APPROVE。
+
+## Independent Review — /root/caption_resume — 2026-10-13
+
+**APPROVE（仅本有界代码切片）**。固定 base `6805cec8ea91aaeb1bbb3441354dab50a7494271`，审查作者提交 `e59a7738835ec404f1bd1dbafed09c3a342762af`，reviewer 未修改产品代码。按 code-review-and-quality 核对正确性、范围、现有 React/API 边界、安全与读取/轮询成本；没有发现需要阻塞的 P0/P1/P2。
+
+独立阅读完整 CreatorFollowingDetail 及 API 读/写实现和新增 17 个行为例，与原 24 例对照：未知身份不再因 `undefined !== YOUTUBE` 显示 withdrawn；keyed ID 隔离 data/notice/busy/checkRun 并 dispose 旧 GET；mounted guard 不让旧 mutation 结果更新另一来源或 onRefresh。当前 source 读取失败保留已读信息、错误只在成功 GET 后清除，reading/readError 禁用 policy/check/pause；GET 重试只递增读取 revision，无 POST/PATCH 重放。新校验拒绝错 ID/明确未知 provider/缺数据，保留既有旧投影缺 provider 的 Bilibili 兼容规则，不授新能力；真实 Bilibili withdrawn 与 YT 独立能力路径保持。未见 backend、App、路由、依赖、Schema、模型资格或配置变化。
+
+实际独立命令/证据：
+
+- `npm test -- --cache=false src/workspace/CreatorFollowingLoading.test.tsx src/workspace/CreatorFollowing.test.tsx`：**41 PASS / 2 files / 1.22s**，`/tmp/source-detail-loading-review-focused.txt`。
+- `npm run typecheck`：**PASS**，`/tmp/source-detail-loading-review-typecheck.txt`。
+- `npm run build`：**PASS / 50 modules**，`/tmp/source-detail-loading-review-build.txt`，同作者 assets `index-DmN6_wU_.css` / `index-3AaOJjFF.js`。
+- `git diff --check 6805cec8ea91aaeb1bbb3441354dab50a7494271...HEAD`：**PASS**。
+- 作者 `/tmp/source-detail-loading-frontend-full.txt` 实际完整日志核验：**406 PASS / 25 files / 13.85s**，既有 act warnings 保留；没有新失败或触发全量重跑的疑点，因此按任务复用该全量证据。
+
+真实 macOS 延迟/失败 GET 恢复、换行与操作可达仍由 root 最终 GUI 验收，此 APPROVE 不声称 GUI 已完成、全部用户链路通过或获准正式采用。没有模型、云调用或正式数据访问。Review 仅追加本 handoff 后 commit、STOP；作者与主控决定整合。
