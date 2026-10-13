@@ -1,0 +1,90 @@
+{
+  "profile": "readiness-qwen35-9b-official-nonthinking-v1",
+  "base_head": "08e02e2a1a3cabcf72f52ee2565eb3c14f3be7b5",
+  "status": "PRE_OUTPUT_RESEARCH_ONLY_NOT_EXECUTABLE_UNTIL_REVIEW",
+  "actual_provider": "ollama",
+  "actual_model": "qwen3.5:9b-q4_K_M",
+  "expected_manifest_digest": "sha256:56671c2ab9385f9cfcb404638e32cd62d88e3501d44822208363c010179a3c90",
+  "installed_runtime": "0.40.1",
+  "production_qualified": false,
+  "prompt_version": "local-distillation-admission-v5-role-separated",
+  "schema_sha256": "6af421a97de4bda10b816a4e7d40906610721a81d0cffb869e32e94c4e99d491",
+  "request_parameters": {
+    "think": false,
+    "temperature": 0.7,
+    "top_p": 0.8,
+    "top_k": 20,
+    "min_p": 0.0,
+    "presence_penalty": 1.5,
+    "repeat_penalty": 1.0,
+    "seed": 20261013,
+    "num_ctx": 8192,
+    "num_predict": 4096
+  },
+  "primary_source": "https://huggingface.co/Qwen/Qwen3.5-9B",
+  "primary_source_sections": [
+    "Sampling Parameters",
+    "Best Practices"
+  ],
+  "source_verification": "Root verified the consistent non-thinking general-task profile before dispatching this task; no inference in this phase.",
+  "case_order": [
+    {
+      "corpus": "INTELLIGENCE_REAL_CORPUS_V2.json",
+      "sha256": "a7c96ee6b84aee6b8e492348b9f4f190d7c9f6f14241b25e533532bc4dcb82cb",
+      "case": "real-deepthink-en"
+    },
+    {
+      "corpus": "INTELLIGENCE_REAL_CORPUS_V2.json",
+      "sha256": "a7c96ee6b84aee6b8e492348b9f4f190d7c9f6f14241b25e533532bc4dcb82cb",
+      "case": "real-deepthink-zh-cn"
+    },
+    {
+      "corpus": "INTELLIGENCE_FROZEN_CORPUS.json",
+      "sha256": "cededc0061c43029e28a867bbaeab5ae5691c3e6a998997ace855eebb6dd37f3",
+      "case": "no-new-fifteen"
+    },
+    {
+      "corpus": "INTELLIGENCE_FROZEN_CORPUS.json",
+      "sha256": "cededc0061c43029e28a867bbaeab5ae5691c3e6a998997ace855eebb6dd37f3",
+      "case": "source-injection"
+    }
+  ],
+  "policy": {
+    "real_positives_required_in_both_languages": true,
+    "schema_and_exact_evidence_binding": true,
+    "all_positive_claims_independently_semantically_reviewed": true,
+    "no_new_complete_original_coverage_once": true,
+    "no_semantic_or_evidence_repair": true,
+    "no_calibration_or_additional_messages": true,
+    "one_generation_maximum_per_case": true,
+    "stop_after_decisive_failure": true,
+    "no_rerolls_or_runtime_upgrade": true,
+    "no_cloud_or_formal_writes": true
+  },
+  "legacy_applicability_conflict": {
+    "review": "INTELLIGENCE_SEMANTIC_REVIEW_V1.md",
+    "sha256": "61cac8bf3375a0e1e9f3eca3c7f08fe074fe66b499d85909bd565c69f90d1141",
+    "unchanged_original_cases": [
+      "release-en",
+      "release-zh",
+      "prediction-with-caveat"
+    ],
+    "note": "Original expectations and historical failures remain unchanged. This four-case research phase does not relabel these conflicted fictional positives as passed or establish that all V1 cases passed."
+  },
+  "execution_gates": [
+    "Root specifically approved research-only exact INTELLIGENCE representation-marker decoding on 2026-10-13; the ordinary parser remains authoritative and production code is unchanged.",
+    "Independent pre-output review of exact harness/profile/input/code hashes.",
+    "Root installed manifest and every blob hash receipt, runtime support and free-space checks.",
+    "Root explicit instruction to start real inference after all prior gates."
+  ],
+  "qualification_identity_limit": "Research-only isolation, truthful model identity and external frozen profile do not constitute an ordinary production qualification receipt. The existing reservation identifies the base v5 local prompt rather than this new sampling profile.",
+  "representation_adapter": {
+    "scope": "Exact existing result=INTELLIGENCE marker only, truthful fixed9B provider/tag/digest/profile; remove result field only. NO_NEW raw unchanged. Ordinary claim/Evidence parser and ledger retained. No additional prose/quote/stance/claim-kind corrections.",
+    "root_approval": "Explicit task supplement 2026-10-13",
+    "production_qualified": false
+  },
+  "installation_boundary": "Root installation receipt and independent bounded review PASS received before outputs; execution still requires independent exact pre-output review and root explicit start. Ollama local wrapper has an extra original-manifest-reference layer; expected/API digest remains pinned original manifest 56671c2…, never wrapper SHA or 8B alias.",
+  "research_execution_receipt": "External per-case review/install/start receipt must bind harness/profile/freeze/prepared hashes, model/digest/runtime, >10GiB free space and every prior independent semantic PASS. The receipt cannot be minted by this harness.",
+  "controlled_case_identity": "Real positive cases use a manual command that contains the unique research profile. Original controlled cases retain their genuine source-run policy reservation; actual9B identity, fresh fixed per-case DB and external sealed profile bind this isolated attempt. No artificial Summary is created to grant manual readiness.",
+  "input_freeze": "Each prepare-only case seals a fresh isolated database/data snapshot plus the actual ordinary-resolver VerifiedInput before outputs. The external per-case permit must bind prepared.json SHA; read-only preparation never calls tags/chat. Independent review must inspect these sealed inputs before root authorizes execution."
+}

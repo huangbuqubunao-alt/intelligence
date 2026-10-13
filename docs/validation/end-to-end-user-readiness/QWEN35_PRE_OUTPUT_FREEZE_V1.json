@@ -1,0 +1,43 @@
+{
+  "profile": "readiness-qwen35-9b-official-nonthinking-v1",
+  "base_head": "08e02e2a1a3cabcf72f52ee2565eb3c14f3be7b5",
+  "frozen_at": "2026-10-13T05:33:31.523648+00:00",
+  "phase": "PRE_OUTPUT_INDEPENDENT_REVIEW_PENDING",
+  "production_qualified": false,
+  "real_inference_calls": 0,
+  "files": {
+    "scripts/qualify_readiness_qwen35_intelligence.py": "519e2fa45151c33c26ea51f4cbea685ce7f079af18bb8545d3d2a77d23887814",
+    "tests/unit/test_readiness_qwen35_research.py": "6bda3ccf9f5c4c4c696bf5c63fb19c39ceca02f88fb6207153a793191a540c79",
+    "docs/validation/end-to-end-user-readiness/QWEN35_RESEARCH_PROFILE_V1.json": "44ebc3d04c799573cda8db74adb2e134f861ae577d40171219f97f04a033ea8c",
+    "scripts/qualify_readiness_local_intelligence.py": "473ca5d097f5aedccf4634bdfb887a29999133e8c46ad880d28f93e1b4cc70df",
+    "docs/validation/end-to-end-user-readiness/INTELLIGENCE_REAL_CORPUS_V2.json": "a7c96ee6b84aee6b8e492348b9f4f190d7c9f6f14241b25e533532bc4dcb82cb",
+    "docs/validation/end-to-end-user-readiness/INTELLIGENCE_REAL_CORPUS_V2.sha256": "abe1be82fde40976cbe0cc3339ec56810556374be683aea6b31645bb9fb93f4c",
+    "docs/validation/end-to-end-user-readiness/INTELLIGENCE_FROZEN_CORPUS.json": "cededc0061c43029e28a867bbaeab5ae5691c3e6a998997ace855eebb6dd37f3",
+    "docs/validation/end-to-end-user-readiness/INTELLIGENCE_FROZEN_CORPUS.sha256": "fab64b05ee36cc592c79a3832a80d8c14a7ce5444a0d95b22cb8e5a16cc91f4f",
+    "docs/validation/end-to-end-user-readiness/INTELLIGENCE_SEMANTIC_REVIEW_V1.md": "61cac8bf3375a0e1e9f3eca3c7f08fe074fe66b499d85909bd565c69f90d1141",
+    "src/youtube_intel/distillation.py": "fbcf8befe68fbb8e885032c28e3a3db2af6625764e4b00d3736557d34a66d34c",
+    "src/youtube_intel/state.py": "4ec690297a9b1bb04bdf3e88e49d0dd3b4be1d7f3940f1c96fcbee3f5744d47e",
+    "src/youtube_intel/config.py": "6daa30bcc982f3126a01445db1cb39bcfac8138cb12c00dd15f511350e5f8d76",
+    "src/youtube_intel/source_policy.py": "ad7f7ec363b228163712cb94ebbd3124fd1d4fc8e98b8f2982ab3b4d39c812b6",
+    "src/youtube_intel/domain.py": "cde91178584e4a2a5659a1f295d13c2be1a0a3f41e7dc1e1e98114a147a9d461",
+    "src/youtube_intel/runtime_composition.py": "c4529f66f17bab00ddef49ff11447428bf7024faa2420a19597de1e2604a7a6e",
+    "src/youtube_intel/orchestration.py": "307ef73d0d20ae152ebbe0b60c3041b50c27032da70f6fc6fdbc59e880c1ce80",
+    "src/youtube_intel/orchestration_service.py": "187f5816b07d3f9123c686efc7a0247f12783dae706e2c08e1af1cad26b575be"
+  },
+  "research_subtypes_sha256": "a54bb9885ff5e2921da023c11196f6dec0c982a85c566834194ec23932a2967a",
+  "ordinary_v5_generate_sha256": "92c003ee4b5a84716f98d06253a6cf181f7a9ac972660c1737d30ff4f283b7e0",
+  "case_order": [
+    "real-deepthink-en",
+    "real-deepthink-zh-cn",
+    "no-new-fifteen",
+    "source-injection"
+  ],
+  "input_policy": "Before any real output, sealed per-case prepared.json must bind fresh DB/data/ordinary VerifiedInput with exact frozen real timed cues or unchanged original controls; independent review and root receipt bind this prepared SHA.",
+  "installation_receipt": {
+    "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/docs/validation/end-to-end-user-readiness/MODEL_REPLACEMENT_INSTALL_RECEIPT.json",
+    "sha256": "4ccdde59f35ae105c2cfc46589d322db612d2a34699dbaca594f994f09b5a7eb",
+    "root_and_independent_blob_review": "PASS per parent dispatch, no inference"
+  },
+  "marker_scope": "Remove exact explicit INTELLIGENCE result marker only for fixed truthful9B identity/profile. Preserve ordinary parser/claims/evidence/NO_NEW unchanged; raw response audit retained. No production authority.",
+  "qualification_limit": "Existing v5 reservation does not intrinsically seal research sampling. External profile/code/input/receipt freezes are mandatory, not a production qualification receipt."
+}
