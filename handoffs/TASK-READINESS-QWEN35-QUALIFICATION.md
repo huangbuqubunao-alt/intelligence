@@ -106,3 +106,18 @@
 已独立核对 root `QWEN35_RUNTIME_STATIC_PROVENANCE.json`：CLI/runner/lib 的三项 SHA 与本机文件一致，各 `codesign --verify --strict` 通过且 vendor/team 为 Infra Technologies, Inc / 3MU9H2V9Y9；binary embedded CLI revision `cf2a313a298066d572c36812e5ad30a21c0db13b` 与官方 v0.40.1 tag、native `631109b34` 与官方 b11351 tag 完整 commit `631109b34da437a3c4a5ebd75091d677671392e3` 一致。只读官方 release workflow 在编译前生成 certificate.p12、Go1.26 gitStatus 使用非空 porcelain 判断 modified，提供 **vcs.modified=true 与官方打包相容的解释，并非排他原因证明**；没有读取证书/私钥，也没有新下载发行载荷或执行 runner/model。
 
 因此接受 root receipt 的 `runtime_parameters_verified` **仅按其明确 static-support 定义**：固定 vendor-signed 安装实现与已核查官方参数路径支持。`runtime_execution_verified`、`model_load_verified`、`capacity_or_semantic_quality_verified`、`exact_release_payload_hash_verified` 全部仍 false。不能填写成实测参数效果，不保证容量或推理成功；root 另发启动许可才可做一次实际测证，失败即停。Gatekeeper enforced 不作主张。本节只补 handoff，没有改变输入快照、profile、程序或生产配置。
+
+## 独立实际首例语义审查（2026-10-13）
+
+Reviewer `/root/intel_bounded_review` 对同一 `real-deepthink-en` 实际 response final content 与原 frozen V2 语料/expectation 独立比对，结论 **FAIL / REJECT qualification**。以下是 P1 语义资格阻塞，不是把受隔离且生产关闭的代码 delta 重标为生产事故。原 pre-output 代码与 input APPROVE 均不等于此次输出 PASS。
+
+1. **不确定陈述被提升为已证明事实**：来源中研究者表示似乎立即证明；core 使用 demonstrated ability，important 写 successfully proved，details 也断言 proof generated，claim_kind=FACT。实际这些字段没有 Google DeepMind/发言者报告的归属和待人类数学验证限制；另一个 detail 的 speaker attribution 不能给所有确定断言补上限定。
+2. **类比变成测量与一般人类基线**：来源是发言者自身大约三个思路，以及对模型可能二十或一百的主观猜测；输出改为模型确实探索约20–100种可能，core 又泛化为显著超过 human reasoning。没有真实搜索次数测量或一般人类对照证据，不满足原 forbid 门槛。
+3. **IMO 里程碑被错误连接到未命名猜想的证明**：第二段来源明确将 IMO gold-medal standard 的成就描述为 towards human-level intelligence 的里程碑；输出把该里程碑接到前述 conjecture capability。public mode 与 IMO mode 的相似关系也未完整保留，无法支持这种因果/归属连接。
+4. **缺少原要求的保留判断及材料限制**：没有明确需要人类数学验证与更广评估，user relevance 仅重复兴趣字符串；未命名猜想的 note 不能替代可靠性限制或为何应持续保留/追踪这一未证实信号的判断。没有降低门槛、补写 output 或把合法 schema 当成语义证明。
+
+独立 protocol/持久化核查 PASS：实际模型 qwen3.5:9b-q4_K_M，done_reason=stop，输入914/输出476 tokens；普通 checkpoint/resource ledger SUCCEEDED、invocation_count=1，harness generations=1，重复 continuation 未新增调用。固定 captured request options/think=false 和原 system/user 两消息一致。DB card 五字段逐项等于原 final content（仅精确表示 marker 解码），revision=FACT，两个保存的 Evidence ID/time/stance 等于 raw 输出和输入。sqlite integrity/FK PASS；原18 DATA文件保持全部 inventory/hash，VerifiedInput SHA不变，readonly审前后DB SHA不变。没有新模型调用、Cloud费用、正式写入或 private thinking 读取。
+
+绑定证据：result.json SHA `2c1ddf20df8cedec950144aee77db23400004d3206075764a63d1d077efc2829`；opaque response.json SHA `b01b1b882650c8b5254e05de119814301c38d27fa32ab6c298cbe13a1dfa106b`；final content SHA `c8d377e6a7eb703ce6e081789cdac72fd6f1869f3540855beabe755e706d040a`；prepared/input hash 同上。只读核查时只存在首例目录；ZH/no-new/injection 实例未 prepare 或调用，按 frozen first-fail-stop 正确跳过，不能标 PASS。root 已停止后例/同方法 reroll，历史8B失败全部保留。
+
+本次实际调用证明这一输入下固定9B能够加载并返回完整协议响应；不证明各采样参数的独立效果、普遍容量或语义可靠性。**production_qualified=false 必须保持，不能采用本9B为正式 Intelligence 模型或靠下一 seed/文本修补取得通过。** Reviewer 只补本交接，原输出、数据库、freeze、期待和业务文件均未改。
