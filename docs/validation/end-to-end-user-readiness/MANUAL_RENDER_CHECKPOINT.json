@@ -1,0 +1,15 @@
+{
+  "title": "Intelligence 用户使用手册",
+  "imageCount": 49,
+  "broken": [],
+  "scrollWidth": 1425,
+  "clientWidth": 1425,
+  "status": "PASS",
+  "render": "real headful macOS Chrome",
+  "formalPublished": false,
+  "candidate_head_at_render": "cd8717098f82cb262179cf0682281bef873071e0",
+  "manual": "docs/validation/muse-final-audit/USER_MANUAL.html",
+  "screenshot": "screenshots/manual-latest-render.png",
+  "visual_review": "PASS: Chinese text, spacing and candidate/unpublished/model gate limitations visible",
+  "formal_owner_data_accessed": false
+}

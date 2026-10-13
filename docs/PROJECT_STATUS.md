@@ -1,20 +1,21 @@
 # YouTube Intelligence Agent 项目状态
 
-2026-10-13 普通用户全链路整改续作（优先于下方历史状态）：正式
-main/origin-main/served均73ee7e747b4461b9de8a201d6b47669eb3913d1a，本轮未发布、
-未改owner数据/配置。候选codex/task-end-to-end-user-readiness尚未完成，不可交用户作
-“所有链路已通”验收。RAW真实GUI恢复71表/全部4DATA精确PASS；完整backend检查点
-4220PASS/1既有资产前提skip/2warnings，当前frontend389/24PASS及TS/build。
-窄窗CSS与键盘修复独立APPROVE已整合，四宽六导航正反Tab/Enter/鼠标真实PASS；
-LOCAL_TIMED独立302及root78PASS已整合，但真实模型链路仍因固定9b首例独立语义
-FAIL（4P1）阻塞，后3例与LOCAL8例未调用，资格保持关闭。已批准Schema37→38非权威
-字幕归档精确迁移在readiness-subtitle-archive-38隔离实施；Source详情unknown加载误显示
-Bilibili能力和GET恢复在readiness-source-detail-loading独立修复。LOCAL_TEXT/core
-接口变更等迁移串行整合；长内容/rolling/readiness及真实正向保存/主题仍OPEN。
-新官方thinking研究仅56d6bcc提案，未批准/实现/调用。统一图文手册为候选未发布，
-47图真实渲染检查通过。当前矩阵与外部证据见
+2026-10-14 普通用户全链路整改续作（优先于下方历史状态）：正式
+main/origin-main/served仍73ee7e747b4461b9de8a201d6b47669eb3913d1a；本轮未发布、
+未改owner数据/配置，候选尚未完成，不能交用户作为所有链路已通版本。RAW真实GUI
+恢复71表/全部4DATA精确PASS；此前完整backend检查点4220PASS/1既有资产前提skip/
+2warnings。当前frontend406/25PASS、TS/build及真实Source详情中性加载/1GET重试
+恢复PASS；窄窗四宽六导航正反Tab/Enter/鼠标PASS。LOCAL_TIMED独立302/root78
+PASS已整合，真实Whisper内容WAIT0→取消→Backupready、全部78DATA及authority
+保持PASS，正向模型资格仍关闭。原固定9b nonthinking首例独立FAIL4P1保留。用户
+已批准官方thinking精确单次研究；新research4bef56e已提交，73合同PASS、首例
+prepare0调用，独立代码及sealed输入审查进行中，不授资格/生产权力。字幕Schema
+37→38精确归档迁移已批准，52新专项/65现有state+doctor通过，完整backend运行中；
+未提交/独立review/GUI完成前不整合。LOCAL_TEXT/core必须等该迁移整合后串行。
+长内容/rolling及真正Intelligence保存/主题仍OPEN。统一候选中文手册49图经真实
+macOS Chrome渲染零缺图、无水平溢出；尚未正式采用。当前矩阵与外部证据见
 [普通用户验收矩阵](validation/end-to-end-user-readiness/READINESS_MATRIX.md)及
-[续作记录](validation/end-to-end-user-readiness/PROGRESS.md)。无新开发阶段启动。
+[续作记录](validation/end-to-end-user-readiness/PROGRESS.md)。没有启动新开发阶段。
 
 2026-10-08 Phase 13 automatic background Following candidate: implementation and
 self-review fixes are isolated on `codex/phase13-background-following`, based on
