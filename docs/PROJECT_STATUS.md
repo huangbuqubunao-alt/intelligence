@@ -1,21 +1,23 @@
 # YouTube Intelligence Agent 项目状态
 
 2026-10-14 普通用户全链路整改续作（优先于下方历史状态）：正式
-main/origin-main/served仍73ee7e747b4461b9de8a201d6b47669eb3913d1a；本轮未发布、
-未改owner数据/配置，候选尚未完成，不能交用户作为所有链路已通版本。RAW真实GUI
-恢复71表/全部4DATA精确PASS；此前完整backend检查点4220PASS/1既有资产前提skip/
-2warnings。当前frontend406/25PASS、TS/build及真实Source详情中性加载/1GET重试
-恢复PASS；窄窗四宽六导航正反Tab/Enter/鼠标PASS。LOCAL_TIMED独立302/root78
-PASS已整合，真实Whisper内容WAIT0→取消→Backupready、全部78DATA及authority
-保持PASS，正向模型资格仍关闭。原固定9b nonthinking首例独立FAIL4P1保留。用户
-已批准官方thinking精确单次研究；新research4bef56e及独立预输出b345777已整合，root73合同PASS；真实英文首例
-1调用、912输入/4096输出、length且最终正文为空，正规REJECTED_OUTPUT，停止后3例。
-不扩预算/补输出/授资格；LOCAL8例仍BLOCKED。Schema37→38作者29f1e50已STOP，
-52新专项/65现有state+doctor通过，full4310PASS/1精确版本断言FAIL已修正/相关48
-PASS；独立审查、root真实GUI和最新整合完整回归尚待完成。设置truthful-copy
-fc2d854+b6a6250候选12专项/完整418/TS/build通过，待独立审查和真实GUI。LOCAL_TEXT/core必须等该迁移整合后串行。
-长内容/rolling及真正Intelligence保存/主题仍OPEN。统一候选中文手册49图经真实
-macOS Chrome渲染零缺图、无水平溢出；尚未正式采用。当前矩阵与外部证据见
+main/origin-main仍73ee7e747b4461b9de8a201d6b47669eb3913d1a，工作树干净；本轮未发布、
+未改owner数据/配置。候选48b6e667尚未完成，不能作为所有链路已通版本交付。
+RAW真实GUI恢复71表/全部4DATA精确PASS；此前完整backend检查点4220PASS/
+1既有资产前提skip/2warnings。最新整合frontend418/26files PASS、TS/build PASS。
+设置中英文真实GUI明确installed身份≠Intelligence资格、Cloud可选逐次授权，零pageerror。
+Source详情中性加载/失败单次GET重试、四宽六导航正反Tab/Enter/鼠标真实PASS。
+LOCAL_TIMED已独立整合，真实Whisper内容WAIT0→取消→Backupready、全部78DATA及
+authority保持PASS；LOCAL_TEXT待Schema38核心接受后串行。正向模型资格仍关闭。
+原9b nonthinking首例语义FAIL4P1保留；official-thinking-v2首例真实1调用、912input/
+4096output、length且最终正文为空，REJECTED_OUTPUT，停止后3例与LOCAL8例。
+新的固定6144容量原英文一次研究只是待批提案，未实施或调用，不改资格。
+Schema38作者29f1e50被独立REJECT：异常后继结束时间/attempt记录可能错误终止旧请求；
+候选未整合。原作者正在同23字段/原批准范围内返修，独立五反证现均拒绝归档、
+保持Backupclosed且整批未改；等待完整专项提交STOP、独立重审及root真实GUI恢复。
+旧作者full4310PASS/1精确版本断言FAIL，修正后48相关PASS，不能声称最新全量通过。
+长内容/rolling及真实Intelligence保存/主题仍OPEN，最终完整回归与正式采用仍待完成。
+统一候选中文手册50图真实macOS Chrome渲染零缺图、无水平溢出。当前矩阵与证据见
 [普通用户验收矩阵](validation/end-to-end-user-readiness/READINESS_MATRIX.md)及
 [续作记录](validation/end-to-end-user-readiness/PROGRESS.md)。没有启动新开发阶段。
 

@@ -139,3 +139,7 @@
 
 - Settings truthful-copy已独立APPROVE/整合8b8afc3，root完整418PASS/26files/12.04s、TS/buildPASS。真实普通隔离runtime中英文identity/unqualified/Cloudoptional提示全部PASS，无pageerror，界面恢复中文且生成语言未改；MODEL_STATE_COPY_GUI_EVIDENCE.json与两语截图。手册补首次设置指导与真实截图。
 - Schema38独立反证发现successor finished_at/attempt终结校验P1，29f1e50未接受未整合；待REJECT交接后原作者返修。原4152/4220检查点不能覆盖该候选，正式仍不变。
+
+## 2026-10-14 最近中断恢复检查点（候选48b6e667）
+
+root/main干净，真实远端main73ee7e7复核通过，未发布。设置truthful-copy独立接受与真实ZH/EN GUI、root完整418/26files及TS/build均PASS，手册50图真实渲染0缺图/0溢出。Schema38原候选独立REJECT658cd53/P1，未整合；原作者正在已批准同23字段范围内补全successor_execution proof及live/历史恢复验证，五独立反证均保持closed且无表变更/额外GET。旧4310+1FAIL保留，最终整合完整backend仍待。LOCAL_TEXT只读预检，等核心接受后串行。固定9b thinking首例FAIL按原批准停止；6144单例容量仅新待批提案，未写研究代码/未调用，正式资格不变。
