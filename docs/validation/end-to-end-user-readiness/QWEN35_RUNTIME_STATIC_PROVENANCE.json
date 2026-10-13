@@ -1,0 +1,62 @@
+{
+  "status": "READ_ONLY_INSTALLED_RUNTIME_IMPLEMENTATION_SUPPORT_VERIFIED",
+  "installed_runtime": "0.40.1",
+  "observation_date": "2026-10-13",
+  "reporting_agent": "/root/caption_resume",
+  "runtime_parameters_verified": true,
+  "runtime_parameters_verified_meaning": "Vendor-signed fixed installed implementation supports frozen parameter path by fixed source and static provenance; not empirical option effect or actual model compatibility.",
+  "runtime_execution_verified": false,
+  "model_load_verified": false,
+  "capacity_or_semantic_quality_verified": false,
+  "exact_release_payload_hash_verified": false,
+  "production_qualified": false,
+  "inference_calls": 0,
+  "cli": {
+    "path": "/Applications/Ollama.app/Contents/Resources/ollama",
+    "sha256": "7f598201b6e77bf39079b02a44c64abcb34e83a0e685da24a71fd9aebff2344b",
+    "revision": "cf2a313a298066d572c36812e5ad30a21c0db13b",
+    "vcs_modified": true
+  },
+  "runner": {
+    "path": "/Applications/Ollama.app/Contents/Resources/llama-server",
+    "sha256": "35844857b55bb541fe914064b96e437f8b8d187968ecd8cfe50c52dd8434b8b8",
+    "embedded_native_commit": "631109b34"
+  },
+  "native_library": {
+    "path": "/Applications/Ollama.app/Contents/Resources/libllama-server-impl.dylib",
+    "sha256": "096573a0fe1ea34f126c937c7be021ffaa27647ff31eac5852cda8165a939b66"
+  },
+  "signature": {
+    "authority": "Developer ID Application: Infra Technologies, Inc (3MU9H2V9Y9)",
+    "team": "3MU9H2V9Y9",
+    "cli_runner_library_strict_verify_exit": 0,
+    "bundle_deep_strict_verify_exit": 0,
+    "stapled_notarization_ticket": true,
+    "spctl_gatekeeper_enforced_claim": false
+  },
+  "official": {
+    "ollama_tag": "https://api.github.com/repos/ollama/ollama/git/ref/tags/v0.40.1",
+    "ollama_tag_commit": "cf2a313a298066d572c36812e5ad30a21c0db13b",
+    "native_pin": "b11351",
+    "native_tag_commit": "631109b34da437a3c4a5ebd75091d677671392e3",
+    "native_tag": "https://api.github.com/repos/ggml-org/llama.cpp/git/ref/tags/b11351",
+    "release_run": "https://github.com/ollama/ollama/actions/runs/37707403523",
+    "release_run_conclusion": "success",
+    "darwin_job": "https://github.com/ollama/ollama/actions/runs/37707403523/job/113084983286",
+    "darwin_start": "2026-10-08T00:22:31Z",
+    "darwin_end": "2026-10-08T00:50:37Z"
+  },
+  "modified_flag_explanation": {
+    "workflow": "https://github.com/ollama/ollama/blob/v0.40.1/.github/workflows/release.yaml#L64",
+    "go_semantics": "https://github.com/golang/go/blob/go1.26.0/src/cmd/go/internal/vcs/vcs.go#L232",
+    "finding": "Official Darwin workflow creates unignored certificate.p12 before compilation; Go marks any nonempty git status modified. Consistent with official packaging, not exclusive proof of original cause. No certificate/private content read."
+  },
+  "source_support_review_commit": "9bcf6d3e6dd6f06b6419e064cdfa6d3aff7221b0",
+  "independent_acceptance": "PENDING",
+  "limits": [
+    "No source-to-binary byte-for-byte proof",
+    "No large release payload download",
+    "No model load/option effects/capacity/semantic result",
+    "Static support for bounded authorized experiment only"
+  ]
+}

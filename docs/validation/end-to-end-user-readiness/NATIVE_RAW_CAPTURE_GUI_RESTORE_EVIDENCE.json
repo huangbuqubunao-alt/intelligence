@@ -1,0 +1,32 @@
+{
+  "status": "PASS_AFTER_RAW_CAPTURE_FIX",
+  "scope": "Fresh normal public import, actual headful macOS Chrome backup/download/stage/confirm/restart, all tables and all DATA compared",
+  "original_failure_preserved": "NATIVE_CAPTIONS_GUI_RESTORE_EVIDENCE.json",
+  "backend_code_head": "7ff4ae6",
+  "ui_code_head": "9b6575e",
+  "schema": 37,
+  "tables_before": 71,
+  "tables_after": 71,
+  "all_physical_DATA_before": 4,
+  "all_physical_DATA_after": 4,
+  "before_sha256": "a8b0afabcd49f104d8fdf380624db81fb147cb520ba5c44a19a9444b6bf10a58",
+  "after_sha256": "a8b0afabcd49f104d8fdf380624db81fb147cb520ba5c44a19a9444b6bf10a58",
+  "all_tables_exact": true,
+  "all_file_paths_bytes_hashes_exact": true,
+  "manifest_matches_all_live_files": true,
+  "all_DATA_files": {
+    "transcripts/0eMzc-WnBfQ/4944c4fbfa3665558c563da053e0d4571086df139588f504ce205c979694dc67/canonical.5483658bb76e53619555cbb3798b6060e4d06a28de663050eff1fd58b1896cec.r.txt": "a7d3bd04a3a3d5cc7b7d000df790daf5577bf2641583ca973a13cf79e34fccf9",
+    "transcripts/0eMzc-WnBfQ/4944c4fbfa3665558c563da053e0d4571086df139588f504ce205c979694dc67/source.WyJhdXRvX3N1YnRpdGxlIiwiZW4iLCJlbiIsImpzb24zIl0.json3": "934957b468f8fc59a4bd5d57844e66702a65a78943c056a3472fed77b166caae",
+    "transcripts/0eMzc-WnBfQ/4944c4fbfa3665558c563da053e0d4571086df139588f504ce205c979694dc67/source.WyJhdXRvX3N1YnRpdGxlIiwiZW4iLCJlbiIsInZ0dCJd.vtt": "1ce80bdb4602f3ad248ae11ae181435ccec6150159d5da22202b3ef3a36f3e88",
+    "transcripts/summaries/37a26f8b9f99bd5c35d5f2ca4c475f55a2a7f06334cb9da7ceab6dce6ded36ea.json": "3ef740454cf3ec34450575d53a794cf8a0903c594382d98a406c4f61e11e1af0"
+  },
+  "artifact_references": 5,
+  "integrity": "ok",
+  "paid_cloud_calls": 0,
+  "model_calls": 0,
+  "formal_data_touched": false,
+  "gui_page_errors": [],
+  "runtime_root": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/raw-capture-acceptance",
+  "backup": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/raw-capture-real-gui-backup.zip",
+  "remaining_gap": "Failed current-policy request and orphan derived file require separate lifecycle repair; this fresh success does not close that rollback path."
+}

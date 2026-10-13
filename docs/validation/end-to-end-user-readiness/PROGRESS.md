@@ -103,3 +103,11 @@
 - RAW writer b957eb5及ASR状态文案d198a0a均已提交停写，独立审查中，尚未整合。保留原raw DATA4→3 FAIL；不能提前称Backup/Restore已解决。
 - RAW相关严格回滚路径另复现旧current-policy FAILED_RETRYABLE及未索引derived canonical持续阻塞备份，超本次已批raw捕获范围，风险OPEN，正在只读确定精确恢复方案；不擅自删文件或绕Backup。
 - Local内容提炼缺口、长内容容量、rolling字幕重复、真实新内容发现及最终图文手册/全回归/发布仍OPEN；用户暂不能收到“全部链路已通”的验收版本。
+
+## 2026-10-13 独立审查与首例真实9b结果
+
+- RAW delta独立APPROVE b957eb5/caab711（408相关测试/static/identityPASS）已整合d377c42/7ff4ae6，root188 PASS。ASRcopy独立APPROVE d198a0a/04f5040（独立386full42focused/TSbuild）已整合da01968/9b6575e，root386full/TSbuild/Ruff/mypy102 PASS。root当前完整backend进行中，未提前报告最终PASS。
+- qwen35首例prepared及runtime固定签名实现支持均独立批准（e1a4a6f，静态不是语义资格），一次实际执行SUCCEEDED/1invoke/1generation/914input476output tokens/约33秒，随后独立语义FAIL dd367be9（4个P1：事实升级、数量/一般人类泛化、IMO归属错置、缺核验/广泛评估判断）。QWEN35_REAL_QUALIFICATION_FAILURE.json保留精确finalcontent与opaque原响应hash。后3例未准备/未调用、不reroll、不改输出/门槛；生产资格仍false。
+- 用户已具体批准LOCAL_INTELLIGENCE_CHAIN_PROPOSAL，第一LOCAL_TIMED最小准入/授权负控在独立tree实施，仅代码与fixturechecks，真实8例资格依赖9b四例全PASS故BLOCKED，未授权绕过此依赖。
+- fresh普通产品导入Sasha真实字幕完成，firstJSON3+VTT均正规capture索引、4物理DATA（5Artifact引用）。真正GUI已创建下载zip，全部4DATA进包，当前正在普通确认/重启恢复，不替代旧FAIL；最终全表/allDATA比较未完成前不报PASS。
+- 正式main/origin-main/served73ee7e7与owner数据/配置未改；本轮模型失败已构成真实Intelligence用户正向链路阻塞。

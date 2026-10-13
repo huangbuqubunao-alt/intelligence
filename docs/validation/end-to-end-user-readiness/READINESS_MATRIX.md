@@ -12,9 +12,9 @@
 | 转写后 Backup/Restore | 实际UI创建/下载/预览/RESTORE/重启，71表78文件精确相同 | 最终整合候选再验收关键影响 |
 | 真正公开频道关注、暂停/恢复、自动检查 | 曾获得 HEALTHY 基线；最新真实检查再出现 NOT_FOUND，已保留内容并明确显示不可用 | OPEN 外部复发；此窗口无新发布，不能宣称真实新内容发现正向通过 |
 | YouTube已有字幕内容 | 3Blue1Brown 231 cues及摘要/Evidence；DeepMind真实18 cues | 不等于视频声学转写或模型摘要 |
-| 已完成但无时间轴的旧字幕补全 | 原生 VTT 补全独立审查并整合；真实 Sasha/Iwgl 用户重试均 ORGANIZED，字幕/摘要/Evidence 已可读 | 原始 JSON3 未索引造成 fresh Restore DATA4→3 的独立 FAIL，仍待捕获修复，不能称恢复完成 |
-| 字幕完成事务回滚后恢复 | 原实现未知 VTT 无 durable hash；原测试要求成功且无重复 body 读取 | firstplain 与最多两份真实 capture 补充均获批准，独立实施中，不削弱原断言或推广未知文件 |
-| 真正本地提炼 Intelligence | qwen3:8b v3–v11 未通过冻结语义门槛，停止调参；批准的固定9b权重已全部哈希校验 | 9b研究 harness/冻结/预输出审查及原标准真实资格仍待完成，生产false |
+| 已完成但无时间轴的旧字幕补全 | 原生 VTT 补全独立审查并整合；真实 Sasha/Iwgl 用户重试均 ORGANIZED，字幕/摘要/Evidence 已可读 | 原 DATA4→3 FAIL保留；经raw修复的fresh真实GUI恢复71表/全部4DATA精确一致，见NATIVE_RAW_CAPTURE_GUI_RESTORE_EVIDENCE.json；失败后新child的另一路径仍OPEN |
+| 字幕完成事务回滚后恢复 | 原实现未知 VTT 无 durable hash；原测试要求成功且无重复 body 读取 | firstplain/winner capture已独立APPROVE并整合，零重复读取和unknown拒绝相关188 PASS；旧current-policy失败ledger+derived orphan仍阻塞，另提精确Schema归档方案待批 |
+| 真正本地提炼 Intelligence | qwen3:8b v3–v11 未通过冻结语义门槛，停止调参；批准的固定9b权重已全部哈希校验 | 9b首例真实1调用、协议SUCCEEDED，但独立语义FAIL（4个P1），停止其余3例/不reroll，生产false；QWEN35_REAL_QUALIFICATION_FAILURE.json |
 | 无新洞察、注入、零调用等待取消 | 原模型基线负控与真实WAITING_MODEL取消/恢复已通过 | 新合格profile需重新实际模型负控验收 |
 | Intelligence保存、主题、真实来源回跳 | 既有逻辑回归通过，但本轮还没有合格本地正向支撑 | 真正 admitted Intelligence后全链路UI验收 |
 | Deep Analysis | 未合格模型保持禁用，摘要/Evidence可读 | 本轮指定模型范围不能冒充该能力已合格 |
@@ -31,3 +31,5 @@
 ![恢复并重启后通过数据检查](screenshots/asr-real-ui-after-restore.png)
 
 本轮 Native Picker 不可用新的电脑控制工具，未改实现的前次真实原生选择器与2GiB APFS验收证据复用。新转写样本经普通导入API建立，再从实际UI点击转写；两者明确区分。没有通过截图或fixture宣称真实模型合格。
+
+2026-10-13续作：ASR状态文案修复独立386full/42focused/TSbuild通过并整合，真实中英文详情与Retry保留已验证（未执行Retry，不额外调用模型）。320窗口实测发现旧body min-width与滚动条造成15px水平溢出，最小CSS修复在独立tree；不把当前小屏记录称PASS。LOCAL手动提炼精确范围已获用户批准，第一timed代码切片实施中；真实LOCAL新资格仍因9b原语义FAIL而BLOCKED，不复制旧YTreceipt或授普通factory权力。

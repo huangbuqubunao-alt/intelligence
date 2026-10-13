@@ -1,0 +1,42 @@
+{
+  "status": "SEMANTIC_QUALIFICATION_FAILED_STOPPED",
+  "case": "real-deepthink-en",
+  "actual_model": "qwen3.5:9b-q4_K_M",
+  "profile": "readiness-qwen35-9b-official-nonthinking-v1",
+  "outcome": {
+    "execution_id": "distillation:reservation:v3:5989a3b7dbbcbb0af8a8823baabf905b2f6a79fd0837ee5b1e1993beefa637c7",
+    "status": "SUCCEEDED",
+    "invocation_count": 1,
+    "intelligence_id": "intelligence:distillation:distillation:reservation:v3:5989a3b7dbbcbb0af8a8823baabf905b2f6a79fd0837ee5b1e1993beefa637c7",
+    "revision_id": "revision:distillation:distillation:reservation:v3:5989a3b7dbbcbb0af8a8823baabf905b2f6a79fd0837ee5b1e1993beefa637c7"
+  },
+  "generations": 1,
+  "result_sha256": "2c1ddf20df8cedec950144aee77db23400004d3206075764a63d1d077efc2829",
+  "request_sha256": "7e5fceead2c2bf1c8be1f0ac20c9b68cc488c33aa4281adb2fbebd030883f9d6",
+  "opaque_response_sha256": "b01b1b882650c8b5254e05de119814301c38d27fa32ab6c298cbe13a1dfa106b",
+  "prepared_sha256": "10fa5e5251a9f7f172ff707446aea4864994096334239883e72cd3ae2d940144",
+  "final_content": "{\n  \"result\": \"INTELLIGENCE\",\n  \"core_conclusion\": \"The 'Deep Think' mode of Gemini demonstrated the ability to solve a long-standing mathematical conjecture that previously remained unproven, utilizing a significantly higher volume of exploratory ideas compared to human reasoning.\",\n  \"user_relevant_information\": [\"AI reasoning and mathematical research: reliability, human verification, and test-time exploration\"],\n  \"important_new_information\": [\n    \"The model successfully proved a conjecture that humans had checked for many cases but could not prove.\",\n    \"Deep Think explored approximately 20 to 100 different possibilities, whereas the human speaker considered about three different ideas.\",\n    \"This capability represents a major milestone towards building human-level intelligence.\"\n  ],\n  \"meaningful_details\": [\n    \"The proof was generated using a 'completely different method' than previous attempts.\",\n    \"The specific mathematical conjecture is not named in the provided excerpts.\",\n    \"The speaker attributes the performance to 'Gemini Deep Think', noting that the mode users will access is 'very similar' to what they used.\"\n  ],\n  \"filtered_noise\": [],\n  \"claim_kind\": \"FACT\",\n  \"evidence\": [\n    {\n      \"evidence_id\": \"4750f3da8ddabb3e808ebcf282cc4a88d4fdbe8ccbcfc97988f6d4a46913f2f9\",\n      \"start_ms\": 0,\n      \"end_ms\": 46320,\n      \"stance\": \"supporting\"\n    },\n    {\n      \"evidence_id\": \"c0eb749542c1d64ab0f0c8ca7e9c54ce90d61c1eb438655c91a927e34e7ba0b7\",\n      \"start_ms\": 46320,\n      \"end_ms\": 62600,\n      \"stance\": \"supporting\"\n    }\n  ]\n}",
+  "public_response_statistics": {
+    "done": true,
+    "done_reason": "stop",
+    "prompt_eval_count": 914,
+    "eval_count": 476,
+    "total_duration": 33022430916
+  },
+  "independent_semantic_verdict": "FAIL",
+  "review_commit": "dd367be9c7e5be35ec202ac183d1a961c666ca93",
+  "production_qualified": false,
+  "cloud_calls": 0,
+  "later_cases_prepared": false,
+  "later_cases_called": false,
+  "rerolls": 0,
+  "private_thinking_inspected": false,
+  "formal_data_or_configuration_changed": false,
+  "failures": [
+    "Tentative reported proof promoted to established fact",
+    "Tentative speaker estimate converted into quantitative/general-human assertion",
+    "IMO milestone misattached to conjecture proof",
+    "Required human verification and broader evaluation judgment omitted"
+  ],
+  "preserved_attempt_directory": "/Users/hua/Documents/yia-worktrees/readiness-qwen35-qualification/.var/readiness-qwen35/readiness-qwen35-9b-official-nonthinking-v1/real-deepthink-en"
+}
