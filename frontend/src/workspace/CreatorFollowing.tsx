@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ApiRequestError, api, patch, post } from "../api/client";
 import { useUiLanguage } from "./uiLanguage";
 
@@ -156,9 +156,16 @@ const ACTIVE_STATES = ["QUEUED", "RUNNING", "WAITING", "PARTIAL"];
 const isActive = (data: Detail | null) =>
   data?.source_runs.some(run => ACTIVE_STATES.includes(run.state)) ?? false;
 
-export function CreatorFollowingDetail({ id, capability, onClose, onRefresh }: {
+type DetailProps = {
   id: string; capability: CreatorFollowingCapabilityState; onClose: () => void; onRefresh: () => void;
-}) {
+};
+
+export function CreatorFollowingDetail(props: DetailProps) {
+  // A different source starts with its own identity, commands and read state.
+  return <CreatorFollowingDetailContent key={props.id} {...props} />;
+}
+
+function CreatorFollowingDetailContent({ id, capability, onClose, onRefresh }: DetailProps) {
   const { t } = useUiLanguage();
   const [data, setData] = useState<Detail | null>(null);
   const [revision, setRevision] = useState(0);
@@ -166,9 +173,26 @@ export function CreatorFollowingDetail({ id, capability, onClose, onRefresh }: {
   const [message, setMessage] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [checkRun, setCheckRun] = useState<string | null>(null);
+  const [readError, setReadError] = useState(false);
+  const [reading, setReading] = useState(true);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
   useEffect(() => {
     let disposed = false;
-    void api<Detail>(`/sources/${id}`).then(value => { if (!disposed) setData(value); }).catch(() => { if (!disposed) setMessage("The source could not be checked. Try again later."); });
+    setReading(true);
+    void api<Detail>(`/sources/${id}`).then(value => {
+      if (disposed) return;
+      if (value?.source?.source_id !== id || !value.source.tracking
+          || (value.source.provider !== undefined && !["YOUTUBE", "BILIBILI"].includes(value.source.provider))
+          || !Array.isArray(value.source_runs) || !Array.isArray(value.recent_videos)) {
+        throw new Error("Source detail response identity is unavailable");
+      }
+      setData(value); setReadError(false);
+    }).catch(() => { if (!disposed) setReadError(true); })
+      .finally(() => { if (!disposed) setReading(false); });
     return () => { disposed = true; };
   }, [id, revision]);
   useEffect(() => {
@@ -198,24 +222,25 @@ export function CreatorFollowingDetail({ id, capability, onClose, onRefresh }: {
   }, [data]);
   const source = data?.source;
   const active = isActive(data);
-  const off = source?.provider !== "YOUTUBE" && withdrawn(capability);
+  const off = Boolean(source) && source?.provider !== "YOUTUBE" && withdrawn(capability);
+  const title = source ? source.provider === "YOUTUBE" ? "Channel Following" : "Creator Following" : "Following";
   const baselineEstablished = Boolean(source?.tracking.baseline_at ?? source?.tracking.verified_at);
   const manualCheckAt = source?.tracking.manual_check_at ?? source?.tracking.next_check_at;
   const cooldownUntil = manualCheckAt ? new Date(manualCheckAt) : null;
   const coolingDown = cooldownUntil !== null && cooldownUntil.getTime() - Date.now() > 0;
   const automaticCheckAt = source?.tracking.next_check_at ? new Date(source.tracking.next_check_at) : null;
   const needsAttention = ["STATE_INVALID", "RISK_CONTROLLED", "ACCESS_DENIED"].includes(source?.tracking.health ?? "");
-  return <div className="overlay"><section className="modal local-import" role="dialog" aria-modal="true" aria-label={t(source?.provider === "YOUTUBE" ? "Channel Following" : "Creator Following")}>
-    <div className="modal-head"><h2>{source?.display_name ?? t(source?.provider === "YOUTUBE" ? "Channel Following" : "Creator Following")}</h2><button className="button button-ghost" onClick={onClose}>{t("Close")}</button></div>
+  return <div className="overlay"><section className="modal local-import" role="dialog" aria-modal="true" aria-label={t(title)}>
+    <div className="modal-head"><h2>{source?.display_name ?? t(title)}</h2><button className="button button-ghost" onClick={onClose}>{t("Close")}</button></div>
     {off && <UnavailableNotice state={capability} creator />}
     {source && <>
       <p>{t(source.provider === "YOUTUBE" ? "YouTube" : "Bilibili")} · {off ? t("Continuous creator tracking is currently unavailable") : source.enabled ? t("Monitoring new videos") : t("Monitoring is paused")}</p>
       {source.provider === "YOUTUBE" && <label className="field">{t("When new content is found")}
-        <select aria-label={t("When new content is found")} value={source.processing_mode ?? "ORGANIZE_CONTENT"} disabled={busy} onChange={async event => {
+        <select aria-label={t("When new content is found")} value={source.processing_mode ?? "ORGANIZE_CONTENT"} disabled={busy || reading || readError} onChange={async event => {
           setBusy(true); setMessage(null);
-          try { await patch(`/sources/${id}`, { processing_policy: event.target.value === "ORGANIZE_CONTENT" ? "DISCOVER_ONLY" : "STANDARD_INTELLIGENCE" }); setRevision(value => value + 1); onRefresh(); setNotice("Saved"); }
-          catch { setMessage("The source could not be checked. Try again later."); }
-          finally { setBusy(false); }
+          try { await patch(`/sources/${id}`, { processing_policy: event.target.value === "ORGANIZE_CONTENT" ? "DISCOVER_ONLY" : "STANDARD_INTELLIGENCE" }); if (!mounted.current) return; setRevision(value => value + 1); onRefresh(); setNotice("Saved"); }
+          catch { if (mounted.current) setMessage("The source could not be checked. Try again later."); }
+          finally { if (mounted.current) setBusy(false); }
         }}><option value="ORGANIZE_CONTENT">{t("Organize content")}</option><option value="EXTRACT_INTELLIGENCE">{t("Also extract Intelligence")}</option></select>
       </label>}
       <a href={source.canonical_url} target="_blank" rel="noreferrer">{t("Open Source")}</a>
@@ -233,31 +258,37 @@ export function CreatorFollowingDetail({ id, capability, onClose, onRefresh }: {
       {!off && <p className="hint">{t(source.provider === "YOUTUBE" ? "Existing videos are not imported. Successful checks have a 15-minute cooldown." : "Existing videos are not imported. Updates are checked while the app is running, with a 15-minute cooldown.")}</p>}
       {!off && <p className="hint">{t("Updates are checked automatically while the app is running.")}</p>}
       <div className="button-row">
-        <button className="button button-primary" disabled={busy || (source.provider !== "YOUTUBE" && !capability.known) || off || !source.enabled || source.tracking.checking || active || coolingDown} onClick={async () => {
+        <button className="button button-primary" disabled={busy || reading || readError || (source.provider !== "YOUTUBE" && !capability.known) || off || !source.enabled || source.tracking.checking || active || coolingDown} onClick={async () => {
           setBusy(true); setMessage(null); setNotice(null); setCheckRun(null);
           try {
             const result = await post<{ source_run?: { run_id: string }; message?: string; status?: string }>(`/sources/${id}/check`, { command_id: crypto.randomUUID() });
+            if (!mounted.current) return;
             if (result.status === "CAPABILITY_UNAVAILABLE") setNotice(trackingCopy("CAPABILITY_UNAVAILABLE"));
             else if (result.source_run) { setCheckRun(result.source_run.run_id); setMessage("Checking…"); }
             else setNotice(trackingCopy(result.message ?? "HEALTHY", source.provider));
             setRevision(value => value + 1); onRefresh();
-          } catch { setMessage("The source could not be checked. Try again later."); }
-          finally { setBusy(false); }
+          } catch { if (mounted.current) setMessage("The source could not be checked. Try again later."); }
+          finally { if (mounted.current) setBusy(false); }
         }}>{t(busy || active || source.tracking.checking ? "Checking…" : coolingDown ? "Cooling down" : source.provider === "YOUTUBE" && source.tracking.health === "OFFLINE" ? "Retry" : "Check Now")}</button>
-        <button className="button button-secondary" disabled={busy} onClick={async () => {
+        <button className="button button-secondary" disabled={busy || reading || readError} onClick={async () => {
           setBusy(true); setMessage(null); setNotice(null); setCheckRun(null);
           try {
             await patch(`/sources/${id}`, { enabled: !source.enabled });
+            if (!mounted.current) return;
             setNotice(source.enabled ? "Monitoring is paused" : off ? trackingCopy("CAPABILITY_UNAVAILABLE") : "Monitoring new videos");
             setRevision(value => value + 1); onRefresh();
-          } catch { setMessage("The source could not be checked. Try again later."); }
-          finally { setBusy(false); }
+          } catch { if (mounted.current) setMessage("The source could not be checked. Try again later."); }
+          finally { if (mounted.current) setBusy(false); }
         }}>{t(source.enabled ? "Pause monitoring" : "Resume monitoring")}</button>
       </div>
       <h3>{t("Discovered Content")}</h3>
       {data && data.recent_videos.length ? <ul>{data.recent_videos.map(video => <li key={video.video_id}><a href={`#Content/${video.video_id}`} onClick={onClose}>{video.title ?? video.video_id}</a></li>)}</ul> : <p>{t("No new public videos have been discovered yet.")}</p>}
     </>}
-    {!source && !message && <p role="status">{t("Loading Source…")}</p>}
+    {!source && !readError && <p role="status">{t("Loading Source…")}</p>}
+    {readError && <div className="error" role="alert">
+      <p>{t("Source details could not be loaded. Check the local connection and retry. Stored Content is preserved.")}</p>
+      <button className="button button-secondary" disabled={reading} onClick={() => setRevision(value => value + 1)}>{t("Retry source details")}</button>
+    </div>}
     {message && <p role="status" aria-live="polite">{t(message)}</p>}
   </section></div>;
 }

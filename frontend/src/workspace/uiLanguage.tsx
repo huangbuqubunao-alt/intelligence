@@ -4,6 +4,8 @@ export type UiLanguage = "zh-CN" | "en";
 
 const storageKey = "yia.ui-language";
 const chinese: Record<string, string> = {
+  "Source details could not be loaded. Check the local connection and retry. Stored Content is preserved.": "未能加载来源详情，请检查本地连接后重试。已保存的内容仍保留。",
+  "Retry source details": "重试加载来源详情",
   "Loading global interests…": "正在加载全局兴趣…",
   "Global interests could not be loaded. Check the local connection and retry. Your draft is preserved.": "未能加载全局兴趣，请检查本地连接后重试。已填写的内容仍保留。",
   "Retry global interests": "重试加载全局兴趣",
