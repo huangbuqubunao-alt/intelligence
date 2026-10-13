@@ -28,7 +28,18 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
       ...options.headers
     }
   });
-  const body = (await response.json()) as T & { error?: ApiError };
+  let body: T & { error?: ApiError };
+  try {
+    body = (await response.json()) as T & { error?: ApiError };
+  } catch (reason) {
+    // A read can be requested again explicitly; a mutation may already have
+    // executed and must retain its uncertain failure without replay or remapping.
+    if (!["GET", "HEAD"].includes((options.method ?? "GET").toUpperCase())) throw reason;
+    throw new ApiRequestError({
+      code: response.status >= 500 ? "READ_SERVICE_UNAVAILABLE" : "READ_RESPONSE_INVALID",
+      message: reason instanceof Error ? reason.message : "The local service response could not be read.",
+    });
+  }
   if (!response.ok) throw new ApiRequestError(body.error ?? { code: "REQUEST_REJECTED", message: "The local service rejected this request." });
   return body;
 }

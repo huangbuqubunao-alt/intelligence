@@ -1816,6 +1816,39 @@ async function openDeepAnalysisContent() {
   await screen.findByRole("button", { name: runLabel });
 }
 
+test("publish status read recovery does not invent a failed write or publish a note", async () => {
+  const originalFetch = stubDeepAnalysis({
+    status: { availability: "AVAILABLE", qualified: false },
+    result: { ...daResult, evidence_citation_status: "DURABLE_EVIDENCE_VERIFIED" },
+  });
+  let available = false;
+  let statusReads = 0;
+  const writes: string[] = [];
+  vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    if (init?.method === "POST") writes.push(url);
+    if (url.endsWith("/deep-analysis/obsidian") && init?.method !== "POST") {
+      statusReads += 1;
+      if (!available) return Promise.resolve(new Response("", { status: 500 }));
+    }
+    return originalFetch(input, init);
+  }));
+
+  render(<App />);
+  await openDeepAnalysisContent();
+  await screen.findByText("The local service is temporarily unavailable. Wait for it to recover, then reload this page.");
+  // Existing result-identity key mounts once before and once after the result loads.
+  expect(statusReads).toBe(2);
+  expect((screen.getByRole("button", { name: "Publish to Obsidian" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.queryByText("The write did not complete. Check vault permissions, paths, or file conflicts and retry.")).toBeNull();
+  available = true;
+  fireEvent.click(screen.getByRole("button", { name: "Reload page data" }));
+  await waitFor(() => expect((screen.getByRole("button", { name: "Publish to Obsidian" }) as HTMLButtonElement).disabled).toBe(false));
+  expect(statusReads).toBe(3);
+  expect(writes).toEqual([]);
+  expect(screen.queryByText("The local service is temporarily unavailable. Wait for it to recover, then reload this page.")).toBeNull();
+});
+
 test("Deep Analysis is a Content-level action and adds no top-level navigation", async () => {
   stubDeepAnalysis({
     status: {
@@ -2983,4 +3016,77 @@ test("a disconnected local service gives Chinese recovery guidance and a retry a
   expect(await screen.findByText("本地服务未连接。请重新打开 Intelligence，连接恢复后点击重试。")).toBeTruthy();
   expect(screen.getByRole("button", { name: "重试" })).toBeTruthy();
   expect(screen.queryByText("Failed to fetch")).toBeNull();
+});
+
+test.each(["en", "zh-CN"])("%s empty restart response offers a bounded Content read reload and clears on recovery", async (language) => {
+  localStorage.setItem("yia.ui-language", language);
+  location.hash = "Content/video-1";
+  let available = false;
+  let reads = 0;
+  const writes: string[] = [];
+  const original = globalThis.fetch;
+  vi.stubGlobal("fetch", vi.fn((path: string, init?: RequestInit) => {
+    if (init?.method && init.method !== "GET") writes.push(path);
+    if (path.endsWith("/videos")) return response({ videos: [{ ...daVideoDetail.video, processing_status: "ORGANIZED" }] });
+    if (path.endsWith("/videos/video-1")) {
+      reads += 1;
+      return available ? response({ ...daVideoDetail, video: { ...daVideoDetail.video, processing_status: "ORGANIZED" } })
+        : Promise.resolve(new Response("", { status: 500 }));
+    }
+    return original(path, init);
+  }));
+  render(<App />);
+  const copy = language === "en"
+    ? "The local service is temporarily unavailable. Wait for it to recover, then reload this page."
+    : "本地服务暂时不可用。请等待服务恢复，再重新加载此页面。";
+  expect(await screen.findByText(copy)).toBeTruthy();
+  expect(document.body.textContent).not.toContain("Unexpected end of JSON input");
+  const label = language === "en" ? "Reload page data" : "重新加载页面数据";
+  expect(reads).toBe(1);
+  fireEvent.click(screen.getByRole("button", { name: label }));
+  expect(await screen.findByText(copy)).toBeTruthy();
+  expect(reads).toBe(2); // Still offline; there is no automatic retry loop.
+  available = true;
+  fireEvent.click(screen.getByRole("button", { name: label }));
+  expect(await screen.findByText("Original transcript evidence.")).toBeTruthy();
+  expect(reads).toBe(3);
+  expect(screen.queryByText(copy)).toBeNull();
+  expect(writes).toEqual([]);
+});
+
+test("page read reload preserves an open import draft and does not replay Following mutations", async () => {
+  location.hash = "Following";
+  let unavailable = false;
+  const writes: string[] = [];
+  const original = globalThis.fetch;
+  vi.stubGlobal("fetch", vi.fn((path: string, init?: RequestInit) => {
+    if (init?.method && init.method !== "GET") writes.push(path);
+    if (path.endsWith("/sources") && unavailable) return Promise.resolve(new Response("", { status: 500 }));
+    return original(path, init);
+  }));
+  render(<App />);
+  fireEvent.click((await screen.findAllByRole("button", { name: "Add Source" }))[0]);
+  const draft = "https://www.youtube.com/@my-unsaved-channel";
+  fireEvent.change(screen.getByLabelText("Paste link"), { target: { value: draft } });
+  unavailable = true;
+  fireEvent(window, new Event("focus"));
+  await screen.findByText("The local service is temporarily unavailable. Wait for it to recover, then reload this page.");
+  const priorWrites = [...writes];
+  unavailable = false;
+  fireEvent.click(screen.getByRole("button", { name: "Reload page data" }));
+  await screen.findAllByRole("button", { name: "Add Source" });
+  expect((screen.getByLabelText("Paste link") as HTMLInputElement).value).toBe(draft);
+  expect(writes).toEqual(priorWrites);
+});
+
+test("a failed page read does not leave its error on a different route", async () => {
+  location.hash = "Content";
+  const original = globalThis.fetch;
+  vi.stubGlobal("fetch", vi.fn((path: string, init?: RequestInit) => path.endsWith("/videos")
+    ? Promise.resolve(new Response("", { status: 500 })) : original(path, init)));
+  render(<App />);
+  await screen.findByText("The local service is temporarily unavailable. Wait for it to recover, then reload this page.");
+  fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+  await screen.findByRole("heading", { name: "Language" });
+  expect(screen.queryByText("The local service is temporarily unavailable. Wait for it to recover, then reload this page.")).toBeNull();
 });

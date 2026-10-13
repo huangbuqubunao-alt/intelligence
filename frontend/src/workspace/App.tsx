@@ -355,6 +355,7 @@ function initialPage(): Page {
 }
 
 function useRemote<T>(path: string, refresh = 0) {
+  const [readRevision, setReadRevision] = useState(0);
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Keep the stable machine code so failures can be localized by code instead of
@@ -373,8 +374,8 @@ function useRemote<T>(path: string, refresh = 0) {
     return () => {
       alive = false;
     };
-  }, [path, refresh]);
-  return { data, error, errorCode };
+  }, [path, refresh, readRevision]);
+  return { data, error, errorCode, reload: () => setReadRevision(value => value + 1) };
 }
 function statusLabel(value: string) {
   const labels: Record<string, string> = {
@@ -504,19 +505,30 @@ function Empty({ children }: { children: ReactNode }) {
   return <div className="empty-state">{typeof children === "string" ? t(children) : children}</div>;
 }
 function ErrorState(
-  { error, code, hideRawMessage }: {
+  { error, code, hideRawMessage, onReload }: {
     error: string;
     code?: string;
     /** Hide raw backend prose; used by normal Deep Analysis product UI. */
     hideRawMessage?: boolean;
+    /** Retry this failed GET loader only; never replay a user command. */
+    onReload?: () => void;
   },
 ) {
   const { language, t } = useUiLanguage();
+  const readReload = onReload && <button type="button" className="button button-secondary" onClick={onReload}>{t("Reload page data")}</button>;
   // These are browser transport failures, rather than service error prose.
   if (["Failed to fetch", "Load failed", "NetworkError when attempting to fetch resource."].includes(error)) {
     return <div className="semantic-state state-danger" role="alert">
       <p>{t("The local service is disconnected. Reopen Intelligence, then retry when the connection returns.")}</p>
-      <button className="button button-secondary" onClick={() => window.location.reload()}>{t("Retry")}</button>
+      {onReload && <button type="button" className="button button-secondary" onClick={onReload}>{t("Retry")}</button>}
+    </div>;
+  }
+  if (code === "READ_SERVICE_UNAVAILABLE" || code === "READ_RESPONSE_INVALID") {
+    return <div className="semantic-state state-danger" role="alert">
+      <p>{t(code === "READ_SERVICE_UNAVAILABLE"
+        ? "The local service is temporarily unavailable. Wait for it to recover, then reload this page."
+        : "The page could not be loaded because the local service returned an unreadable response. Reload this page to try reading it again.")}</p>
+      {readReload}
     </div>;
   }
   // When a stable machine code is known, localized copy is the product text.
@@ -529,6 +541,7 @@ function ErrorState(
       <div className="semantic-state state-danger">
         <Status value="Blocked" />
         <p>{t(localized)}</p>
+        {readReload}
       </div>
     );
   }
@@ -537,6 +550,7 @@ function ErrorState(
       <div className="semantic-state state-danger">
         <Status value="Blocked" />
         <p>{t("The operation could not be completed.")}</p>
+        {readReload}
       </div>
     );
   }
@@ -545,6 +559,7 @@ function ErrorState(
       <Status value="Blocked" />
       {language === "zh-CN" ? <p>{t("The operation could not be completed.")}</p> : null}
       <p>{error}</p>
+      {readReload}
     </div>
   );
 }
@@ -1318,7 +1333,7 @@ function Dashboard(
   },
 ) {
   const { t } = useUiLanguage();
-  const { data, error } = useRemote<
+  const { data, error, errorCode, reload } = useRemote<
     {
       intelligence?: Intelligence[];
       pinned_topics?: Topic[];
@@ -1329,7 +1344,7 @@ function Dashboard(
   >("/dashboard", refresh);
   const [onboardingDone, setOnboardingDone] = useState(onboardingCompleted);
   const finishOnboarding = () => { completeOnboarding(); setOnboardingDone(true); };
-  if (error) return <ErrorState error={error} />;
+  if (error) return <ErrorState error={error} code={errorCode} onReload={reload} />;
   if (!data) return <Empty>Loading Home…</Empty>;
   const intelligence = (data.intelligence ?? []).filter((item) =>
       item.status === "AVAILABLE" && item.trusted
@@ -1420,7 +1435,7 @@ function IntelligenceDetail({ id, openContent, onBack }: {
   const detail = useRemote<{ intelligence: Intelligence }>(`/intelligence/${id}`, revision);
   return <>
     <button type="button" className="button button-ghost" onClick={onBack}>{t("Back to Intelligence")}</button>
-    {detail.error ? <ErrorState error={detail.error} code={detail.errorCode} hideRawMessage />
+    {detail.error ? <ErrorState error={detail.error} code={detail.errorCode} onReload={detail.reload} hideRawMessage />
       : !detail.data ? <Empty>Loading verified Intelligence…</Empty>
       : <IntelligenceCard item={detail.data.intelligence} saved={false}
           onSaved={() => setRevision(value => value + 1)} onOpenContent={openContent} />}
@@ -1451,7 +1466,7 @@ function IntelligencePage(
     item.status === "AVAILABLE" && item.trusted
   );
   const researchEntry = <div className="button-row"><button type="button" className="button button-secondary" onClick={openResearch}>{t("Research")}</button></div>;
-  if (source.error) return <>{researchEntry}<ErrorState error={source.error} /></>;
+  if (source.error) return <>{researchEntry}<ErrorState error={source.error} code={source.errorCode} onReload={source.reload} /></>;
   return (
     <>
       {researchEntry}
@@ -1538,7 +1553,7 @@ function SavedCard(
       </div>
     );
   }
-  if (detail.error) return <ErrorState error={detail.error} />;
+  if (detail.error) return <ErrorState error={detail.error} code={detail.errorCode} onReload={detail.reload} />;
   if (!detail.data) return <Empty>Loading current saved Intelligence…</Empty>;
   return (
     <IntelligenceCard
@@ -1565,7 +1580,7 @@ function ContentPage(
     const timer = setTimeout(() => setRevision(value => value + 1), 2000);
     return () => clearTimeout(timer);
   }, [list.data]);
-  if (list.error) return <ErrorState error={list.error} />;
+  if (list.error) return <ErrorState error={list.error} code={list.errorCode} onReload={list.reload} />;
   if (!list.data) return <Empty>Loading Content…</Empty>;
   if (targetVideoId) {
     return <ContentDetailPanel key={targetVideoId} id={targetVideoId} onClose={onClose} />;
@@ -1598,7 +1613,7 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
   const creatorCapability = useCreatorFollowingCapability();
   const { t } = useUiLanguage();
   const [refresh, setRefresh] = useState(0);
-  const { data, error } = useRemote<ContentDetail>(`/videos/${id}`, refresh);
+  const { data, error, errorCode, reload } = useRemote<ContentDetail>(`/videos/${id}`, refresh);
   const [evidenceRefresh, setEvidenceRefresh] = useState(0);
   const transcriptionRefreshId = useRef<string | null>(null);
   const [transcriptionStatus, setTranscriptionStatus] = useState<string | null>(null);
@@ -1622,7 +1637,7 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
     const timer = setTimeout(() => setRefresh(value => value + 1), 2000);
     return () => clearTimeout(timer);
   }, [data]);
-  if (error) return <ErrorState error={error} />;
+  if (error) return <ErrorState error={error} code={errorCode} onReload={reload} />;
   if (!data) return <Empty>Loading Content detail…</Empty>;
   if (data.video.work_kind) return <div className="dashboard-stack"><button className="button button-ghost" onClick={onClose}>{t("Back to Content")}</button><Panel title={data.video.title ?? id}><Status {...contentStatus(data.video.provider, data.video.processing_status)} /><p>{t("Import accepted. Processing and any required attention appear in Content.")}</p><a href={data.video.source_url ?? undefined} target="_blank" rel="noreferrer">{t("Open original source")}</a><button className="button button-secondary" onClick={async () => { try { await post(`/sources/${data.video.source_id}/check`, { command_id: commandId() }); setRefresh(value => value + 1); } catch { setCloudError("The source could not be checked. Try again later."); } }}>{t("Retry")}</button>{cloudError && <p role="alert">{t(cloudError)}</p>}</Panel></div>;
   const transcript = data.transcript;
@@ -2034,7 +2049,7 @@ function DeepAnalysisPanel(
 ) {
   const { t } = useUiLanguage();
   const [refresh, setRefresh] = useState(0);
-  const { data, error, errorCode } = useRemote<DeepAnalysisEnvelope>(
+  const { data, error, errorCode, reload } = useRemote<DeepAnalysisEnvelope>(
     `/videos/${videoId}/deep-analysis`,
     refresh,
   );
@@ -2094,7 +2109,7 @@ function DeepAnalysisPanel(
       <p className="hint">
         {t("Summary explains what this content says. Deep Analysis is a separate, on-demand action for the conclusions, evidence, uncertainty, what it means for you, and what to investigate next.")}
       </p>
-      {error ? <ErrorState error={error} code={errorCode} hideRawMessage /> : null}
+      {error ? <ErrorState error={error} code={errorCode} onReload={reload} hideRawMessage /> : null}
       {actionError ? (
         <p className="semantic-state state-neutral">{t(actionError)}</p>
       ) : null}
@@ -2204,7 +2219,7 @@ function DeepAnalysisPublishAction({ videoId, resultIdentity }: { videoId: strin
   const { t } = useUiLanguage();
   type PublishState = { state: string; result_identity?: string; relative_path?: string };
   const path = `/videos/${videoId}/deep-analysis/obsidian`;
-  const { data, error } = useRemote<{ publish: PublishState }>(path);
+  const { data, error, errorCode, reload } = useRemote<{ publish: PublishState }>(path);
   const [outcome, setOutcome] = useState<PublishState | null>(null);
   const [busy, setBusy] = useState(false);
   const status = data?.publish;
@@ -2218,7 +2233,7 @@ function DeepAnalysisPublishAction({ videoId, resultIdentity }: { videoId: strin
     UNCHANGED: "The Obsidian note is already up to date.",
     WRITE_FAILED: "The write did not complete. Check vault permissions, paths, or file conflicts and retry.",
   };
-  const state = outcome?.state ?? (error ? "WRITE_FAILED" : status?.state === "AVAILABLE" && resultIdentity !== null && status.result_identity !== resultIdentity ? "RESULT_CHANGED" : status?.state);
+  const state = outcome?.state ?? (status?.state === "AVAILABLE" && resultIdentity !== null && status.result_identity !== resultIdentity ? "RESULT_CHANGED" : status?.state);
   async function publish() {
     if (!canPublish) return;
     setBusy(true);
@@ -2238,6 +2253,7 @@ function DeepAnalysisPublishAction({ videoId, resultIdentity }: { videoId: strin
         {busy ? t("Working…") : t("Publish to Obsidian")}
       </button>
       <p className="hint">{t("Publishing updates the managed note. Your My thoughts section is preserved.")}</p>
+      {error && <ErrorState error={error} code={errorCode} onReload={reload} hideRawMessage />}
       {state && state !== "AVAILABLE" ? <p role="status" className="hint">{t(copy[state] ?? copy.WRITE_FAILED)}</p> : null}
       {outcome?.relative_path ? <p className="hint deep-analysis-publish-path">{outcome.relative_path}</p> : null}
     </div>
@@ -2248,7 +2264,7 @@ function ContentEvidencePanel(
   { videoId, sourceUrl, refresh }: { videoId: string; sourceUrl: string | null; refresh: number },
 ) {
   const { language, t } = useUiLanguage();
-  const { data, error } = useRemote<{ evidence: ContentEvidence[] }>(
+  const { data, error, errorCode, reload } = useRemote<{ evidence: ContentEvidence[] }>(
     `/videos/${encodeURIComponent(videoId)}/evidence`,
     refresh,
   );
@@ -2264,6 +2280,7 @@ function ContentEvidencePanel(
     return (
       <Panel title={evidencePanelTitle}>
         <p className="hint">{t("Canonical Evidence could not be loaded. The Summary remains available with its own recorded references.")}</p>
+        <ErrorState error={error} code={errorCode} onReload={reload} hideRawMessage />
       </Panel>
     );
   }
@@ -2434,8 +2451,10 @@ function Topics({ refresh, targetTopicId }: { refresh: number; targetTopicId?: s
   const detail = useRemote<{ topic: Topic }>(
     selected ? `/topics/${selected}` : "/topics",
   );
-  if (list.error || detail.error) {
-    return <ErrorState error={list.error ?? detail.error ?? ""} />;
+  const failedReads = [list, detail].filter(read => read.error);
+  if (failedReads.length) {
+    return <ErrorState error={failedReads[0].error ?? ""} code={failedReads[0].errorCode}
+      onReload={() => failedReads.forEach(read => read.reload())} />;
   }
   if (!list.data) return <Empty>Loading Topics…</Empty>;
   if (!selected) {
@@ -2534,7 +2553,7 @@ function Sources(
   { refresh, onRefresh, targetSourceId, onAdd }: { refresh: number; onRefresh: () => void; targetSourceId?: string | null; onAdd: (provider: "YOUTUBE" | "LOCAL") => void },
 ) {
   const { t } = useUiLanguage();
-  const { data, error } = useRemote<{ sources: Source[] }>("/sources", refresh);
+  const { data, error, errorCode, reload } = useRemote<{ sources: Source[] }>("/sources", refresh);
   const [selected, setSelected] = useState<string | null>(targetSourceId ?? null);
   const [filter, setFilter] = useState("all");
   const [rowBusy, setRowBusy] = useState<string | null>(null);
@@ -2552,7 +2571,7 @@ function Sources(
   const creatorCapability = useCreatorFollowingCapability();
   const creatorFollowingWithdrawn = creatorCapability.known &&
     creatorCapability.capability !== null && !creatorCapability.capability.available;
-  if (error) return <ErrorState error={error} />;
+  if (error) return <ErrorState error={error} code={errorCode} onReload={reload} />;
   if (!data) return <Empty>Loading Sources…</Empty>;
   const followingSources = data.sources.filter(source => source.source_type !== "VIDEO_URL");
   return (
@@ -2985,7 +3004,7 @@ function SourceDetail(
   const { t } = useUiLanguage();
   const creatorCapability = useCreatorFollowingCapability();
   const [refresh, setRefresh] = useState(0);
-  const { data, error } = useRemote<
+  const { data, error, errorCode, reload } = useRemote<
     {
       source: Source;
       policy: SourcePolicy;
@@ -3012,7 +3031,7 @@ function SourceDetail(
     const timer = window.setTimeout(() => setRefresh((value) => value + 1), 1000);
     return () => window.clearTimeout(timer);
   }, [data]);
-  if (error) return <ErrorState error={error} />;
+  if (error) return <ErrorState error={error} code={errorCode} onReload={reload} />;
   if (!data) return <Empty>Loading Source…</Empty>;
   if (data.source.tracking) return <CreatorFollowingDetail id={id} capability={creatorCapability} onClose={onClose} onRefresh={onRefresh} />;
   if (data.source.source_type === "CHANNEL" && !data.source.tracking) return <div className="overlay"><section className="modal local-import" role="dialog" aria-modal="true" aria-label={sourceLabel(data.source)}>
@@ -3687,13 +3706,10 @@ function Settings({ refresh }: { refresh: number }) {
     "/settings/resource-usage",
     refresh,
   );
-  if (settings.error || prefs.error || policy.error || usage.error) {
-    return (
-      <ErrorState
-        error={settings.error ?? prefs.error ?? policy.error ?? usage.error ??
-          ""}
-      />
-    );
+  const failedReads = [settings, prefs, policy, usage].filter(read => read.error);
+  if (failedReads.length) {
+    return <ErrorState error={failedReads[0].error ?? ""} code={failedReads[0].errorCode}
+      onReload={() => failedReads.forEach(read => read.reload())} />;
   }
   if (!settings.data || !prefs.data || !policy.data || !usage.data) {
     return <Empty>Loading Settings…</Empty>;

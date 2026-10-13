@@ -4,6 +4,9 @@ export type UiLanguage = "zh-CN" | "en";
 
 const storageKey = "yia.ui-language";
 const chinese: Record<string, string> = {
+  "Reload page data": "重新加载页面数据",
+  "The local service is temporarily unavailable. Wait for it to recover, then reload this page.": "本地服务暂时不可用。请等待服务恢复，再重新加载此页面。",
+  "The page could not be loaded because the local service returned an unreadable response. Reload this page to try reading it again.": "本地服务返回的响应无法读取，页面未能加载。请重新加载此页面，再次读取。",
   "Retry status check": "重试状态检查",
   "The local service is disconnected. Reopen Intelligence, then retry when the connection returns.": "本地服务未连接。请重新打开 Intelligence，连接恢复后点击重试。",
   "Restore completed successfully.": "备份已恢复，重启后的数据检查已通过。",
