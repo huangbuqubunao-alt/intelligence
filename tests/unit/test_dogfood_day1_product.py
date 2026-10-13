@@ -60,7 +60,7 @@ def test_real_durable_import_identity_visible_before_metadata(tmp_path: Path) ->
     assert app._repository.list_source_subscriptions()[0].source_type is SourceType.VIDEO_URL
     with app._repository._connect() as connection:
         assert connection.execute('select count(*) from source_tracking_state').fetchone()[0] == 0
-        assert connection.execute('pragma user_version').fetchone()[0] == 37
+        assert connection.execute('pragma user_version').fetchone()[0] == 38
 
 
 def test_unavailable_tracking_does_not_create_generic_channel(tmp_path: Path) -> None:

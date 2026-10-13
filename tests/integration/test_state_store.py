@@ -79,6 +79,7 @@ REQUEST_HASH = build_provider_request_hash(
 )
 
 EXPECTED_TABLES = {
+    "retained_subtitle_derivations",
     "distillation_waiting_model_cancellations",
     "source_tracking_state", "source_observations", "source_checks",
     "research_items", "research_results",
@@ -148,6 +149,13 @@ EXPECTED_TABLES = {
     "videos",
 }
 EXPECTED_COLUMNS = {
+    "retained_subtitle_derivations": (
+        "archive_id", "proof_version", "request_hash", "job_id", "source_run_id", "source_id", "video_id",
+        "raw_capture_artifact_id", "raw_sha256", "relative_path", "derived_sha256", "size_bytes",
+        "normalization_version", "quality_profile_version", "canonical_request_hash", "successor_job_id",
+        "successor_request_hash", "successor_canonical_artifact_id", "successor_summary_artifact_id",
+        "reason", "created_at", "proof_json", "proof_sha256",
+    ),
     "research_items": ("research_id", "question", "scope_json", "output_language", "contract", "current_result_identity", "created_at"),
     "research_results": ("result_identity", "research_id", "execution_id", "payload_json", "payload_hash", "assembled_at", "execution_number"),
     "deep_analysis_evidence": ("result_identity", "evidence_id", "created_at"),
@@ -835,12 +843,12 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
 
     sql = (
         resources.files("youtube_intel")
-        .joinpath("migrations", "037_add_waiting_model_cancellation.sql")
+        .joinpath("migrations", "038_add_retained_subtitle_derivations.sql")
         .read_bytes()
     )
     assert first == second
-    assert first.version == 37
-    assert first.name == "037_add_waiting_model_cancellation.sql"
+    assert first.version == 38
+    assert first.name == "038_add_retained_subtitle_derivations.sql"
     assert first.checksum == hashlib.sha256(sql).hexdigest()
 
     with _raw_connection(path) as connection:
@@ -855,7 +863,7 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
             "SELECT COUNT(*) FROM schema_migrations"
         ).fetchone()[0]
     assert tables == EXPECTED_TABLES
-    assert migration_count == 36
+    assert migration_count == 37
     with _raw_connection(path) as connection:
         failure_columns = {
             row["name"]
@@ -889,7 +897,7 @@ def test_v027_upgrade_appends_v028_without_rewriting_migration_history(
         )
     monkeypatch.setattr(repository, "_load_migrations", lambda: migrations)
 
-    assert repository.initialize(now=NOW).version == 37
+    assert repository.initialize(now=NOW).version == 38
     with _raw_connection(path) as connection:
         history_after = tuple(
             tuple(row)
@@ -898,7 +906,7 @@ def test_v027_upgrade_appends_v028_without_rewriting_migration_history(
                 "FROM schema_migrations ORDER BY version"
             )
         )
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 37
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 38
     assert history_after[:27] == history_before
     assert history_after[27][0:2] == (
         28,
@@ -912,6 +920,7 @@ def test_v027_upgrade_appends_v028_without_rewriting_migration_history(
     assert history_after[33][0:2] == (35, "035_align_no_new_canonical_evidence.sql")
     assert history_after[34][0:2] == (36, "036_expand_local_media_snapshot_limit.sql")
     assert history_after[35][0:2] == (37, "037_add_waiting_model_cancellation.sql")
+    assert history_after[36][0:2] == (38, "038_add_retained_subtitle_derivations.sql")
 
 
 def test_m028_failure_rolls_back_schema_history_and_user_version(
@@ -949,7 +958,7 @@ def test_m028_failure_rolls_back_schema_history_and_user_version(
         }
         assert "http_status_code" not in columns
     monkeypatch.setattr(repository, "_load_migrations", lambda: migrations)
-    assert repository.initialize(now=NOW).version == 37
+    assert repository.initialize(now=NOW).version == 38
 
 
 def test_m026_failure_rolls_back_schema_history_and_user_version(
@@ -976,7 +985,7 @@ def test_m026_failure_rolls_back_schema_history_and_user_version(
             "SELECT 1 FROM sqlite_master WHERE name = 'm026_partial_probe'"
         ).fetchone() is None
     monkeypatch.setattr(repository, "_load_migrations", lambda: migrations)
-    assert repository.initialize(now=NOW).version == 37
+    assert repository.initialize(now=NOW).version == 38
 
 
 def test_m027_failure_rolls_back_schema_history_and_user_version(
@@ -1007,8 +1016,8 @@ def test_m027_failure_rolls_back_schema_history_and_user_version(
         ).fetchone() is None
 
     monkeypatch.setattr(repository, "_load_migrations", lambda: migrations)
-    assert repository.initialize(now=NOW).version == 37
-    assert repository.initialize(now=NOW).version == 37
+    assert repository.initialize(now=NOW).version == 38
+    assert repository.initialize(now=NOW).version == 38
 
 
 def test_m024_rejects_current_summary_for_missing_content(tmp_path: Path) -> None:
@@ -1060,7 +1069,7 @@ def test_m022_upgrades_v021_without_inventing_current_summary(
     )
     monkeypatch.undo()
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 37
+    assert upgraded.initialize(now=NOW).version == 38
     assert upgraded.get_video("video-1") is not None
     assert upgraded.current_local_summary_pointer("video-1") is None
     with _raw_connection(path) as connection:
@@ -1089,10 +1098,10 @@ def test_m020_adds_immutable_no_new_result_without_rewriting_history(
 
     monkeypatch.undo()
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 37
+    assert upgraded.initialize(now=NOW).version == 38
 
     with _raw_connection(path) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 37
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 38
         assert connection.execute(
             "SELECT COUNT(*) FROM distillation_no_new_intelligence_results"
         ).fetchone()[0] == 0
@@ -1181,6 +1190,7 @@ def test_schema_columns_and_required_indexes_match_adr_003(tmp_path: Path) -> No
 
     assert actual_columns == EXPECTED_COLUMNS
     assert explicit_indexes == {
+        "retained_subtitle_derivations_request", "retained_subtitle_derivations_job", "retained_subtitle_derivations_path",
         "one_active_source_check", "source_check_history",
         "uq_evidence_text", "uq_evidence_timed",
         "idx_research_items_created",

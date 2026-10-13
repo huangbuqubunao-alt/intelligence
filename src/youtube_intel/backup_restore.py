@@ -46,7 +46,7 @@ from .state import SQLiteStateRepository
 
 FORMAT_NAME = "intelligence-core-backup"
 FORMAT_VERSION = 1
-LATEST_SCHEMA_VERSION = 37
+LATEST_SCHEMA_VERSION = 38
 MAX_ARCHIVE_BYTES = 8 * 1024 * 1024 * 1024
 MAX_ARCHIVE_FILES = 10_002
 MAX_MEMBER_BYTES = 2 * 1024 * 1024 * 1024
@@ -276,6 +276,8 @@ class BackupRestoreService:
             with self._live_transaction() as connection:
                 reasons = self._quiescence_reasons(connection)
                 self._verify_core_database(connection)
+                if not reasons:
+                    self._live_artifacts(connection)
         except (OSError, sqlite3.Error, BackupRestoreError) as error:
             return {
                 "ready": False,
@@ -895,7 +897,7 @@ class BackupRestoreService:
             raise BackupRestoreError("Backup manifest fields are incomplete or unsupported.")
         if manifest.get("format") != FORMAT_NAME or manifest.get("format_version") != FORMAT_VERSION:
             raise BackupRestoreError("Backup format is incompatible.")
-        if manifest.get("schema_version") not in {34, 35, 36, LATEST_SCHEMA_VERSION}:
+        if manifest.get("schema_version") not in {34, 35, 36, 37, LATEST_SCHEMA_VERSION}:
             raise BackupRestoreError("Backup database schema is incompatible.")
         if not isinstance(manifest.get("application_version"), str) or not isinstance(
             manifest.get("created_at"), str
@@ -916,10 +918,12 @@ class BackupRestoreService:
         if not isinstance(files, list) or len(files) > MAX_ARCHIVE_FILES - 2:
             raise BackupRestoreError("Backup DATA manifest is invalid.")
         paths: set[str] = set()
+        neutral = manifest["schema_version"] == 38
         for record in files:
-            if not isinstance(record, dict) or set(record) != {
-                "relative_path", "size_bytes", "sha256", "artifacts"
-            }:
+            fields = {"relative_path", "size_bytes", "sha256", "artifacts"}
+            if neutral:
+                fields.add("retained_subtitle_derivations")
+            if not isinstance(record, dict) or set(record) != fields:
                 raise BackupRestoreError("Backup DATA record is invalid.")
             if not isinstance(record["relative_path"], str):
                 raise BackupRestoreError("Backup DATA path is invalid.")
@@ -929,7 +933,7 @@ class BackupRestoreService:
             if record["size_bytes"] > MAX_DATA_FILE_BYTES:
                 raise BackupRestoreError("Backup DATA artifact exceeds the supported size.")
             paths.add(path)
-            if not isinstance(record["artifacts"], list) or not record["artifacts"]:
+            if not isinstance(record["artifacts"], list) or (not record["artifacts"] and not (neutral and record["retained_subtitle_derivations"])):
                 raise BackupRestoreError("Backup DATA artifact identity is missing.")
             for artifact in record["artifacts"]:
                 if not isinstance(artifact, dict) or set(artifact) != {
@@ -938,10 +942,23 @@ class BackupRestoreService:
                     raise BackupRestoreError("Backup artifact identity is invalid.")
                 if not all(isinstance(artifact[field], str) and artifact[field] for field in artifact):
                     raise BackupRestoreError("Backup artifact identity is invalid.")
+            if neutral:
+                refs = record["retained_subtitle_derivations"]
+                if not isinstance(refs,list) or any(not isinstance(ref,dict) or set(ref) != {
+                    "archive_id","proof_version","video_id","proof_sha256"
+                } or not all(isinstance(value,str) and value for value in ref.values())
+                    or ref["proof_version"] != "failed-caption-derivation-v1"
+                    or not _SHA256.fullmatch(ref["archive_id"]) or not _SHA256.fullmatch(ref["proof_sha256"])
+                    for ref in refs):
+                    raise BackupRestoreError("Backup neutral retention identity is invalid.")
+                identities = [ref["archive_id"] for ref in refs]
+                if identities != sorted(set(identities)):
+                    raise BackupRestoreError("Backup neutral retention identities are not unique and sorted.")
         counts = manifest.get("counts")
-        if not isinstance(counts, dict) or set(counts) != {
-            "following", "content", "summaries", "evidence", "intelligence", "topics", "settings", "data_artifacts", "data_bytes"
-        } or any(type(value) is not int or value < 0 for value in counts.values()):
+        count_fields = {"following", "content", "summaries", "evidence", "intelligence", "topics", "settings", "data_artifacts", "data_bytes"}
+        if neutral:
+            count_fields.add("retained_derivations")
+        if not isinstance(counts, dict) or set(counts) != count_fields or any(type(value) is not int or value < 0 for value in counts.values()):
             raise BackupRestoreError("Backup object counts are invalid.")
         exclusions = manifest.get("exclusions")
         if exclusions != {"vault": True, "credentials": True, "model_weights": True}:
@@ -994,15 +1011,13 @@ class BackupRestoreService:
             "data_artifacts": sum(len(record["artifacts"]) for record in expected.values()),
             "data_bytes": sum(record["size_bytes"] for record in expected.values()),
         }
+        if int(connection.execute("PRAGMA user_version").fetchone()[0]) == 38:
+            actual_counts["retained_derivations"] = sum(len(record["retained_subtitle_derivations"]) for record in expected.values())
         if counts != actual_counts:
             raise BackupRestoreError("Backup preview counts do not match its database.")
         for relative, authority in expected.items():
             record = manifest_records[relative]
-            if (
-                record["sha256"] != authority["sha256"]
-                or record["size_bytes"] != authority["size_bytes"]
-                or record["artifacts"] != authority["artifacts"]
-            ):
+            if record != authority:
                 raise BackupRestoreError("Backup DATA metadata does not match database authority.")
             self._verify_file_record(root / Path(*PurePosixPath(relative).parts), record)
 
@@ -1029,14 +1044,52 @@ class BackupRestoreService:
                 "kind": str(row["kind"]),
                 "video_id": str(row["video_id"]),
             })
+        if int(connection.execute("PRAGMA user_version").fetchone()[0]) == 38:
+            repository = SQLiteStateRepository(self.database)
+            try:
+                repository.verify_retained_subtitle_derivations(connection,data_root=root)
+            except Exception as error:
+                raise BackupRestoreError("Neutral subtitle retention proof failed validation.") from error
+            for record in grouped.values():
+                record["retained_subtitle_derivations"] = []
+            for row in connection.execute("SELECT * FROM retained_subtitle_derivations ORDER BY relative_path,archive_id"):
+                relative = self._safe_archive_path(str(row["relative_path"]))
+                digest = str(row["derived_sha256"])
+                record = grouped.get(relative)
+                if record is None:
+                    record = {"relative_path":relative,"sha256":digest,"size_bytes":int(row["size_bytes"]),"artifacts":[],"retained_subtitle_derivations":[]}
+                    grouped[relative] = record
+                elif record["sha256"] != digest:
+                    raise BackupRestoreError("Neutral and ordinary DATA references disagree.")
+                record["size_bytes"] = int(row["size_bytes"])
+                record["retained_subtitle_derivations"].append({"archive_id":str(row["archive_id"]),"proof_version":str(row["proof_version"]),"video_id":str(row["video_id"]),"proof_sha256":str(row["proof_sha256"])})
         for relative, record in grouped.items():
             size, actual_hash = self._safe_hash_data_file(root, relative)
             if actual_hash != record["sha256"]:
                 raise BackupRestoreError("A referenced DATA artifact changed or is missing.")
             if size > MAX_DATA_FILE_BYTES:
                 raise BackupRestoreError("A referenced DATA artifact exceeds the supported size.")
+            if record.get("retained_subtitle_derivations") and record["size_bytes"] != size:
+                raise BackupRestoreError("Neutral DATA size changed or is missing.")
             record["size_bytes"] = size
+        self._verify_complete_data_set(root,set(grouped))
         return grouped
+
+    @staticmethod
+    def _verify_complete_data_set(root: Path, indexed: set[str]) -> None:
+        actual: set[str] = set()
+        if root.is_symlink() or (root.exists() and not root.is_dir()):
+            raise BackupRestoreError("DATA storage root is unsafe.")
+        if root.exists():
+            for path in root.rglob("*"):
+                if path.is_symlink():
+                    raise BackupRestoreError("DATA contains a symbolic link.")
+                if path.is_file():
+                    actual.add(path.relative_to(root).as_posix())
+                elif not path.is_dir():
+                    raise BackupRestoreError("DATA contains an unsupported file type.")
+        if actual != indexed:
+            raise BackupRestoreError("DATA contains unindexed files; Backup cannot omit stored bytes.")
 
     @staticmethod
     def _safe_hash_data_file(root: Path, relative: str) -> tuple[int, str]:
@@ -1093,7 +1146,7 @@ class BackupRestoreService:
         if not _REQUIRED_TABLES <= tables:
             raise BackupRestoreError("SQLite database is missing required Intelligence tables.")
         version_row = connection.execute("PRAGMA user_version").fetchone()
-        if version_row is None or int(version_row[0]) not in {34, 35, 36, LATEST_SCHEMA_VERSION}:
+        if version_row is None or int(version_row[0]) not in {34, 35, 36, 37, LATEST_SCHEMA_VERSION}:
             raise BackupRestoreError("SQLite database schema is not compatible with this version.")
         for table in tables:
             quoted = table.replace('"', '""')
@@ -1115,6 +1168,8 @@ class BackupRestoreService:
                 verify_database as verify_cancellations,
             )
             verify_cancellations(connection)
+            if int(version_row[0]) == 38:
+                repository._verify_retained_subtitle_schema(connection)
             ResearchLiteService(repository).verify_schema(connection)
             from .source_authority import verify_source_schema
             verify_source_schema(connection)
@@ -1619,6 +1674,9 @@ class BackupRestoreService:
             "data_artifacts": sum(len(row["artifacts"]) for row in artifacts.values()),
             "data_bytes": sum(row["size_bytes"] for row in artifacts.values()),
         }
+        neutral = int(connection.execute("PRAGMA user_version").fetchone()[0]) == 38
+        if neutral:
+            counts["retained_derivations"] = sum(len(row["retained_subtitle_derivations"]) for row in artifacts.values())
         try:
             app_version = package_version("youtube-intel")
         except PackageNotFoundError:
@@ -1636,6 +1694,7 @@ class BackupRestoreService:
                     "size_bytes": record["size_bytes"],
                     "sha256": record["sha256"],
                     "artifacts": record["artifacts"],
+                    **({"retained_subtitle_derivations": record["retained_subtitle_derivations"]} if neutral else {}),
                 }
                 for relative, record in sorted(artifacts.items())
             ],

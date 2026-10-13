@@ -330,6 +330,9 @@ class DurableSourceRunWorker:
                 if self.backup_restore is not None and not self._stop.is_set():
                     self._maintenance_context.active = True
                     try:
+                        self._orchestrator._repository.archive_failed_caption_repairs(
+                            backup_restore=self.backup_restore, now=self._orchestrator._now(),
+                        )
                         self._orchestrator._repository.retire_known_failed_subtitle_calls(
                             backup_restore=self.backup_restore, now=self._orchestrator._now(),
                         )

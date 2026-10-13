@@ -1022,6 +1022,277 @@ class _SourceMetadata:
     source_format: SubtitleFormat
 
 
+# Frozen recovery inputs are deliberately independent of mutable user settings.
+_RETAINED_LANGUAGES: Final = (("en",), ("zh", "en"))
+_RETAINED_PROVIDER_VERSION: Final = "2026.7.4"  # uv.lock, approved installed adapter
+_RETAINED_PROOF_VERSION: Final = "failed-caption-derivation-v1"
+
+
+def _retention_require(condition: object) -> None:
+    if not condition:
+        raise ValueError("failed caption derivation has no complete deterministic proof")
+
+
+def _retention_utc(value: object) -> datetime:
+    _retention_require(isinstance(value, str))
+    assert isinstance(value, str)
+    stamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    _retention_require(stamp.tzinfo is not None and stamp.utcoffset() == timedelta(0))
+    return stamp
+
+
+def _retained_caption_proof(
+    repository: Any, connection: Any, data_root: Path, ledger: dict[str, Any],
+    *, now: datetime, successor: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Recompute a failed child's bounded neutral proof, without fetching input.
+
+    With a successor binding this verifies retained history, independently of
+    future current pointers. Admission additionally verifies current authority.
+    """
+    from youtube_intel.domain import AnalysisPoint, AnalysisResult, PointKind
+    from youtube_intel.research_contract import digest
+    from youtube_intel.source_authority import read_managed
+
+    _retention_require(
+        ledger["operation"] == "subtitle.fetch" and ledger["provider"] == "yt-dlp"
+        and ledger["model"] is None and ledger["status"] == "FAILED_RETRYABLE"
+        and ledger["prompt_version"] == SELECTION_POLICY_VERSION
+        and ledger["schema_version"] == FORMAT_POLICY_VERSION
+        and ledger["last_error_code"] == "LOCAL_RESOURCE"
+        and ledger["last_error_message"] == "subtitle files were saved but stage persistence failed"
+        and type(ledger["attempt_count"]) is int and ledger["attempt_count"] > 0
+        and all(ledger[k] is None for k in (
+            "reservation_owner", "lease_until", "response_artifact_id", "finished_at",
+            "input_tokens", "output_tokens", "cost_microusd"))
+        and re.fullmatch(r"[a-f0-9]{64}", ledger["request_hash"]) is not None
+        and connection.execute("SELECT 1 FROM provider_dispatch_states WHERE request_hash=?",
+                               (ledger["request_hash"],)).fetchone() is None
+    )
+    _retention_require(_retention_utc(ledger["started_at"]) <= _retention_utc(ledger["updated_at"]) <= now
+                       and _retention_utc(ledger["available_at"]) >= _retention_utc(ledger["updated_at"]))
+    captures = connection.execute(
+        "SELECT * FROM artifacts WHERE artifact_key LIKE 'subtitle-source-capture:%' "
+        "AND job_id LIKE 'caption-repair-%' AND provider='yt-dlp' AND deleted_at IS NULL "
+        "ORDER BY artifact_id LIMIT 10001").fetchall()
+    _retention_require(len(captures) <= 10000)
+    candidates = []
+    for capture in captures:
+        pieces = str(capture["artifact_key"]).split(":")
+        if len(pieces) != 3:
+            continue
+        raw_hash = pieces[1]
+        request = ProviderCallRequest(operation="subtitle.fetch", normalized_input_hash=raw_hash,
+            provider="yt-dlp", model=None, prompt_version=SELECTION_POLICY_VERSION,
+            schema_version=FORMAT_POLICY_VERSION, deterministic_artifact_key=_raw_artifact_key(raw_hash))
+        if request.request_hash != ledger["request_hash"]:
+            continue
+        video_id, job_id = str(capture["video_id"]), str(capture["job_id"])
+        runs = connection.execute(
+            "SELECT r.* FROM source_runs r JOIN source_video_links l USING(source_id) "
+            "JOIN source_subscriptions s USING(source_id) WHERE l.video_id=? AND s.video_id=? "
+            "AND s.source_type='VIDEO_URL' AND s.processing_policy='DISCOVER_ONLY' "
+            "AND r.trigger='MANUAL_CHECK_NOW' AND r.manual_command_id IS NOT NULL "
+            "AND r.manual_command_id NOT LIKE 'following-auto:%' LIMIT 1001", (video_id,video_id)).fetchall()
+        _retention_require(len(runs) <= 1000)
+        matched_runs = [r for r in runs if job_id == "caption-repair-" + hashlib.sha256(
+            f"{r['run_id']}:{video_id}".encode()).hexdigest()]
+        _retention_require(len(matched_runs) == 1)
+        run = matched_runs[0]
+        identity = job_id.removeprefix("caption-repair-")
+        refresh = int(identity[:15], 16)
+        language_matches = [p for p in _RETAINED_LANGUAGES if build_raw_request_hash(
+            video_id=video_id, language_preferences=p, provider="yt-dlp",
+            provider_version=_RETAINED_PROVIDER_VERSION, refresh_generation=refresh) == raw_hash]
+        _retention_require(len(language_matches) == 1)
+        metadata = _decode_source_metadata(PurePosixPath(capture["relative_path"]).name, video_id=video_id)
+        raw = read_managed(data_root, capture["relative_path"], maximum=SUBTITLE_QUALITY_POLICY.max_raw_bytes)
+        expected = _capture_artifact_write(raw_request_hash=raw_hash, metadata=metadata,
+            content_hash=hashlib.sha256(raw).hexdigest(), provider="yt-dlp",
+            provider_version=_RETAINED_PROVIDER_VERSION, video_id=video_id,
+            context=TranscriptJobContext(job_id=job_id, owner="proof-only", pipeline_version="proof-only", refresh_generation=refresh))
+        _retention_require(all(capture[k] == getattr(expected,k) for k in (
+            "artifact_id", "artifact_key", "video_id", "job_id", "relative_path", "content_hash", "provider", "model", "producer_version"))
+            and capture["kind"] == ArtifactKind.SUBTITLE_SOURCE.value and capture["storage_root"] == "DATA"
+            and capture["retention_class"] == "LONG_LIVED" and capture["expires_at"] is None)
+        normalized = normalize_timed_subtitle(raw, metadata.source_format)
+        if not normalized.timed_cues:
+            continue  # A plain capture is retained by its existing Artifact.
+        canonical_hash = build_canonical_request_hash(source_content_hash=normalized.source_content_hash,
+            source_format=metadata.source_format)
+        relative = _canonical_relative_path(video_id=video_id, raw_request_hash=raw_hash,
+            canonical_request_hash=canonical_hash, quality_flags=normalized.quality_flags)
+        body = read_managed(data_root, relative, maximum=_MAX_CANONICAL_BYTES)
+        _retention_require(body == normalized.text.encode("utf-8")
+            and (successor is not None or connection.execute("SELECT 1 FROM artifacts WHERE relative_path=?", (relative,)).fetchone() is None))
+        job = connection.execute("SELECT * FROM jobs WHERE job_id=?", (job_id,)).fetchone()
+        attempts = connection.execute("SELECT * FROM job_attempts WHERE job_id=? ORDER BY attempt_number", (job_id,)).fetchall()
+        _retention_require(job is not None and job["status"] == "FAILED_FINAL"
+            and job["video_id"] == video_id and job["scope_key"] == f"video:{video_id}:TRANSCRIPT"
+            and job["job_type"] == "VIDEO_STAGE" and job["target_stage"] == "TRANSCRIPT"
+            and job["lease_owner"] is None and job["lease_until"] is None
+            and type(job["attempt_count"]) is int and job["attempt_count"] == len(attempts) > 0
+            and run["state"] == "NEEDS_ATTENTION")
+        started, finished = _retention_utc(job["created_at"]), _retention_utc(job["finished_at"])
+        _retention_require(started <= _retention_utc(capture["created_at"]) <= finished <= now
+            and started <= _retention_utc(ledger["started_at"]) <= _retention_utc(ledger["updated_at"]) <= finished
+            and _retention_utc(job["updated_at"]) == finished)
+        for number, attempt in enumerate(attempts, 1):
+            _retention_require(type(attempt["attempt_number"]) is int and attempt["attempt_number"] == number
+                and attempt["outcome"] in {"FAILED_FINAL", "RETRY_PENDING"}
+                and started <= _retention_utc(attempt["started_at"]) <= _retention_utc(attempt["finished_at"]) <= finished
+                and _retention_utc(attempt["lease_until"]) >= _retention_utc(attempt["started_at"]))
+        parents = connection.execute(
+            "SELECT a.artifact_id FROM artifacts a JOIN jobs j USING(job_id) "
+            "WHERE a.video_id=? AND a.kind='transcript_canonical' AND j.status='SUCCEEDED' "
+            "AND j.created_at<? AND j.scope_key=? AND j.pipeline_version=? AND a.deleted_at IS NULL",
+            (video_id,job["created_at"],job["scope_key"],job["pipeline_version"])).fetchall()
+        _retention_require(len(parents) == 1)
+        same_job_captures = [c for c in captures if c["job_id"] == job_id]
+        _retention_require(1 <= len(same_job_captures) <= 2
+            and all(str(c["artifact_key"]).split(":")[1] == raw_hash for c in same_job_captures))
+        parent = connection.execute("SELECT * FROM artifacts WHERE artifact_id=?",(parents[0][0],)).fetchone()
+        parent_raws = connection.execute("SELECT a.* FROM artifacts a JOIN provider_calls p ON p.response_artifact_id=a.artifact_id WHERE a.job_id=? AND a.video_id=? AND a.kind='subtitle_source' AND p.status='SUCCEEDED' AND p.provider='yt-dlp' AND a.deleted_at IS NULL",(parent["job_id"],video_id)).fetchall()
+        _retention_require(len(parent_raws)==1)
+        parent_raw = parent_raws[0]
+        parent_call = connection.execute("SELECT * FROM provider_calls WHERE response_artifact_id=? AND status='SUCCEEDED'",(parent_raw["artifact_id"],)).fetchall()
+        _retention_require(len(parent_call)==1 and parent_raw["model"] is None and parent["model"] is None)
+        parent_metadata = _decode_source_metadata(PurePosixPath(parent_raw["relative_path"]).name,video_id=video_id)
+        parent_body = read_managed(data_root,parent_raw["relative_path"],maximum=SUBTITLE_QUALITY_POLICY.max_raw_bytes)
+        parent_normalized = normalize_timed_subtitle(parent_body,parent_metadata.source_format)
+        _retention_require(not parent_normalized.timed_cues
+            and hashlib.sha256(parent_body).hexdigest()==parent_raw["content_hash"]
+            and read_managed(data_root,parent["relative_path"],maximum=_MAX_CANONICAL_BYTES)==parent_normalized.text.encode()
+            and parent["content_hash"]==parent_normalized.content_hash
+            and metadata.source_type is parent_metadata.source_type
+            and normalize_language_tag(metadata.actual_language)==normalize_language_tag(parent_metadata.actual_language))
+        parent_hash = str(parent_raw["artifact_key"]).removeprefix("subtitle-source:")
+        parent_canonical_hash = build_canonical_request_hash(source_content_hash=parent_raw["content_hash"],source_format=parent_metadata.source_format)
+        _retention_require(parent_raw["artifact_id"]==_raw_artifact_id(raw_request_hash=parent_hash,metadata=parent_metadata,source_content_hash=parent_raw["content_hash"],provider="yt-dlp",source_producer_version=parent_raw["producer_version"])
+            and parent["artifact_id"]==_canonical_artifact_id(raw_artifact_id=parent_raw["artifact_id"],raw_content_hash=parent_raw["content_hash"],provider="yt-dlp",model=None,raw_request_hash=parent_hash,canonical_request_hash=parent_canonical_hash,content_hash=parent["content_hash"],quality_flags=parent_normalized.quality_flags)
+            and parent["producer_version"]==_CANONICAL_PRODUCER_VERSION
+            and parent_call[0]["operation"]=="subtitle.fetch" and parent_call[0]["model"] is None
+            and parent_raw["producer_version"]==f"{parent_call[0]['prompt_version']}+{parent_call[0]['schema_version']}"
+            and (parent_call[0]["prompt_version"],parent_call[0]["schema_version"]) in {
+                (SELECTION_POLICY_VERSION,FORMAT_POLICY_VERSION),("subtitle-selection-v1","subtitle-format-v1")})
+        parent_request = ProviderCallRequest(operation="subtitle.fetch",normalized_input_hash=parent_hash,
+            provider="yt-dlp",model=None,prompt_version=parent_call[0]["prompt_version"],schema_version=parent_call[0]["schema_version"],
+            deterministic_artifact_key=_raw_artifact_key(parent_hash))
+        _retention_require(parent_request.request_hash==parent_call[0]["request_hash"])
+        _validate_source_provenance(metadata,language_matches[0],video_id=video_id)
+        candidates.append((capture,run,job,attempts,language_matches[0],raw_hash,metadata,normalized,canonical_hash,relative,body,parents[0][0]))
+    _retention_require(len(candidates) == 1)
+    capture,run,job,attempts,languages,raw_hash,metadata,normalized,canonical_hash,relative,body,parent_id = candidates[0]
+    video_id = str(capture["video_id"])
+    video = connection.execute("SELECT * FROM videos WHERE video_id=?",(video_id,)).fetchone()
+    _retention_require(video is not None and video["provider"]=="YOUTUBE" and video["pipeline_version"]==job["pipeline_version"])
+    admitting = successor is None
+    if successor is None:
+        timed = repository._get_verified_timed_transcript_in_transaction(connection, video_id)
+        pointer = connection.execute("SELECT * FROM current_content_summaries WHERE video_id=?",(video_id,)).fetchone()
+        _retention_require(timed is not None and pointer is not None and pointer["analysis_artifact_id"] is not None)
+        successor = {"canonical": timed.canonical_artifact_id, "summary": str(pointer["analysis_artifact_id"])}
+    canonical = connection.execute("SELECT * FROM artifacts WHERE artifact_id=?",(successor["canonical"],)).fetchone()
+    summary = connection.execute("SELECT * FROM artifacts WHERE artifact_id=?",(successor["summary"],)).fetchone()
+    _retention_require(canonical is not None and summary is not None
+        and canonical["video_id"] == video_id and canonical["kind"] == ArtifactKind.TRANSCRIPT_CANONICAL.value
+        and canonical["provider"] == "yt-dlp" and canonical["producer_version"] == _CANONICAL_PRODUCER_VERSION
+        and canonical["deleted_at"] is None and summary["video_id"] == video_id
+        and summary["kind"] == ArtifactKind.ANALYSIS_STRUCTURED.value and summary["provider"] == "extractive-source"
+        and summary["producer_version"] == "extractive-summary-v2" and summary["deleted_at"] is None)
+    successor_job = connection.execute("SELECT * FROM jobs WHERE job_id=?", (canonical["job_id"],)).fetchone()
+    _retention_require(successor_job is not None and successor_job["status"] == "SUCCEEDED"
+        and successor_job["video_id"] == video_id and successor_job["scope_key"] == job["scope_key"]
+        and successor_job["pipeline_version"] == job["pipeline_version"] and successor_job["job_id"] != job["job_id"]
+        and _retention_utc(successor_job["created_at"]) >= _retention_utc(job["finished_at"])
+        and _retention_utc(successor_job["finished_at"]) <= now)
+    calls = connection.execute(
+        "SELECT p.*,a.artifact_id AS raw_id FROM provider_calls p JOIN artifacts a ON p.response_artifact_id=a.artifact_id "
+        "WHERE a.job_id=? AND a.video_id=? AND a.kind='subtitle_source' AND a.deleted_at IS NULL "
+        "AND p.status='SUCCEEDED' AND p.operation='subtitle.fetch' AND p.provider='yt-dlp' AND p.model IS NULL "
+        "AND p.prompt_version=? AND p.schema_version=?",(successor_job["job_id"],video_id,SELECTION_POLICY_VERSION,FORMAT_POLICY_VERSION)).fetchall()
+    _retention_require(len(calls)==1)
+    successor_call = calls[0]
+    successor_runs = connection.execute("SELECT run_id FROM source_runs WHERE source_id=? AND trigger='MANUAL_CHECK_NOW' AND manual_command_id IS NOT NULL AND manual_command_id NOT LIKE 'following-auto:%'",(run["source_id"],)).fetchall()
+    _retention_require(sum(successor_job["job_id"] == "caption-repair-" + hashlib.sha256(f"{r[0]}:{video_id}".encode()).hexdigest() for r in successor_runs)==1)
+    successor_raw = connection.execute("SELECT * FROM artifacts WHERE artifact_id=?",(successor_call["raw_id"],)).fetchone()
+    successor_raw_hash = str(successor_raw["artifact_key"]).removeprefix("subtitle-source:")
+    successor_refresh = int(str(successor_job["job_id"]).removeprefix("caption-repair-")[:15],16)
+    _retention_require(build_raw_request_hash(video_id=video_id,language_preferences=languages,
+        provider="yt-dlp",provider_version=_RETAINED_PROVIDER_VERSION,refresh_generation=successor_refresh)==successor_raw_hash
+        and successor_raw["producer_version"]==_RAW_PRODUCER_VERSION and successor_raw["provider"]=="yt-dlp" and successor_raw["model"] is None)
+    successor_metadata = _decode_source_metadata(PurePosixPath(successor_raw["relative_path"]).name,video_id=video_id)
+    successor_body = read_managed(data_root,successor_raw["relative_path"],maximum=SUBTITLE_QUALITY_POLICY.max_raw_bytes)
+    successor_normalized = normalize_timed_subtitle(successor_body,successor_metadata.source_format)
+    successor_canonical_hash = build_canonical_request_hash(source_content_hash=successor_normalized.source_content_hash,source_format=successor_metadata.source_format)
+    successor_request = ProviderCallRequest(operation="subtitle.fetch",normalized_input_hash=successor_raw_hash,
+        provider="yt-dlp",model=None,prompt_version=SELECTION_POLICY_VERSION,schema_version=FORMAT_POLICY_VERSION,
+        deterministic_artifact_key=_raw_artifact_key(successor_raw_hash))
+    _retention_require(successor_normalized.timed_cues and successor_request.request_hash==successor_call["request_hash"]
+        and successor_normalized.source_content_hash==successor_raw["content_hash"]
+        and successor_raw["artifact_id"]==_raw_artifact_id(raw_request_hash=successor_raw_hash,metadata=successor_metadata,source_content_hash=successor_normalized.source_content_hash,provider="yt-dlp")
+        and canonical["artifact_id"]==_canonical_artifact_id(raw_artifact_id=successor_raw["artifact_id"],raw_content_hash=successor_raw["content_hash"],provider="yt-dlp",model=None,raw_request_hash=successor_raw_hash,canonical_request_hash=successor_canonical_hash,content_hash=successor_normalized.content_hash,quality_flags=successor_normalized.quality_flags)
+        and read_managed(data_root,canonical["relative_path"],maximum=_MAX_CANONICAL_BYTES)==successor_normalized.text.encode()
+        and canonical["content_hash"]==successor_normalized.content_hash
+        and successor_metadata.source_type is metadata.source_type and successor_metadata.actual_language==metadata.actual_language)
+    expected_timed = TimedTranscriptWrite.from_cues(video_id=video_id,canonical_artifact_id=canonical["artifact_id"],
+        cues=tuple(TimedTranscriptCueWrite(start_ms=c.start_ms,end_ms=c.end_ms,text=c.text) for c in successor_normalized.timed_cues))
+    _retention_require(type(successor_call["attempt_count"]) is int and successor_call["attempt_count"]>0
+        and _retention_utc(successor_call["started_at"]) <= _retention_utc(successor_call["updated_at"]) <= now
+        and _retention_utc(successor_call["finished_at"]) <= now
+        and all(successor_call[k] is None for k in ("reservation_owner","lease_until","input_tokens","output_tokens","cost_microusd")))
+    summary_body = read_managed(data_root,summary["relative_path"],maximum=1_000_000)
+    _retention_require(hashlib.sha256(summary_body).hexdigest()==summary["content_hash"])
+    result = AnalysisResult.model_validate_json(summary_body)
+    _retention_require(result.provider == "extractive-source" and result.model == "deterministic-excerpts-v2"
+        and summary["artifact_id"] == f"summary/{result.request_hash}/structured")
+    evidence = connection.execute("SELECT * FROM evidence WHERE artifact_id=? AND lineage_kind='ORIGINAL_TRANSCRIPT' ORDER BY start_ms,evidence_id",(canonical["artifact_id"],)).fetchall()
+    expected_evidence = _original_transcript_evidence_writes(expected_timed,successor_metadata.actual_language)
+    _retention_require({e["evidence_id"] for e in evidence}=={e.evidence_id for e,_ in expected_evidence})
+    for e,b in expected_evidence:
+        binding = connection.execute("SELECT * FROM evidence_text_bindings WHERE evidence_id=?",(e.evidence_id,)).fetchone()
+        _retention_require(binding is not None and binding["timed_transcript_id"]==b.timed_transcript_id
+            and binding["start_cue_index"]==b.start_cue_index and binding["end_cue_index"]==b.end_cue_index
+            and binding["excerpt"]==b.excerpt and binding["excerpt_hash"]==b.excerpt_hash
+            and binding["timed_transcript_hash"]==expected_timed.timed_transcript_hash)
+    for row in evidence:
+        verified = repository._resolve_verified_evidence_text_in_transaction(connection,str(row["evidence_id"]))
+        _retention_require(verified is not None and verified.video_id == video_id)
+    for item in result.evidence:
+        verified = repository._resolve_verified_evidence_text_in_transaction(connection,item.evidence_id)
+        _retention_require(verified is not None and verified.video_id == video_id and verified.excerpt == item.excerpt)
+        row = connection.execute("SELECT artifact_id FROM evidence WHERE evidence_id=?",(item.evidence_id,)).fetchone()
+        _retention_require(row is not None and row[0] == canonical["artifact_id"])
+    expected_result = AnalysisResult(provider="extractive-source",model="deterministic-excerpts-v2",prompt_version="analysis-prompt-v6",
+        request_hash=digest({"contract":"extractive-summary-v2","content_id":video_id,"evidence":[e.model_dump(mode="json") for e in result.evidence]}),
+        one_sentence_summary=result.evidence[0].excerpt[:500],core_points=tuple(AnalysisPoint(text=e.excerpt,kind=PointKind.FACT,evidence_ids=(e.evidence_id,)) for e in result.evidence),
+        keywords=("source excerpts",),evidence=result.evidence)
+    _retention_require(result==expected_result)
+    if admitting:
+        from youtube_intel.extractive_summary import ExtractiveSummaryService
+        _retention_require(ExtractiveSummaryService(repository,data_root).read(video_id,str(summary["artifact_id"])).result==result)
+    archive = dict(proof_version=_RETAINED_PROOF_VERSION, request_hash=ledger["request_hash"],
+        job_id=job["job_id"], source_run_id=run["run_id"], source_id=run["source_id"], video_id=video_id,
+        raw_capture_artifact_id=capture["artifact_id"],raw_sha256=normalized.source_content_hash,
+        relative_path=relative,derived_sha256=hashlib.sha256(body).hexdigest(),size_bytes=len(body),
+        normalization_version=NORMALIZATION_VERSION,quality_profile_version=QUALITY_POLICY_VERSION,
+        canonical_request_hash=canonical_hash,successor_job_id=successor_job["job_id"],
+        successor_request_hash=successor_call["request_hash"],successor_canonical_artifact_id=canonical["artifact_id"],
+        successor_summary_artifact_id=summary["artifact_id"],reason="COMPLETION_PERSISTENCE_FAILED_WITH_VERIFIED_SUCCESSOR",
+        created_at=now.isoformat(timespec="microseconds").replace("+00:00","Z"))
+    archive["archive_id"] = _stable_hash({"proof_version":_RETAINED_PROOF_VERSION,"request_hash":ledger["request_hash"],"relative_path":relative})
+    payload = {"archive":archive,"input":{"language_preferences":languages,"provider_version":_RETAINED_PROVIDER_VERSION,
+        "refresh_generation":int(str(job["job_id"]).removeprefix("caption-repair-")[:15],16),
+        "raw_request_hash":raw_hash,"source_metadata":_encode_source_metadata(metadata),
+        "quality_flags":_encode_quality_flags(normalized.quality_flags),"parent_canonical_artifact_id":parent_id},
+        "original_ledger":ledger,"attempts":[dict(a) for a in attempts],
+        "evidence_ids":[str(e["evidence_id"]) for e in evidence],"successor_raw_artifact_id":successor_call["raw_id"]}
+    encoded = json.dumps(payload,ensure_ascii=True,sort_keys=True,separators=(",",":"))
+    _retention_require(len(encoded) <= 1_000_000)
+    archive.update(proof_json=encoded,proof_sha256=hashlib.sha256(encoded.encode()).hexdigest())
+    return archive
+
+
 def _service_error(
     code: ErrorCode,
     message: str,
