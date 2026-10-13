@@ -510,3 +510,361 @@ def test_exact_external_receipt_and_prior_semantic_order(
     else:
         with pytest.raises(ValueError):
             research.validate_execution_permit(path, "real-deepthink-en")
+
+@pytest.fixture
+def thinking_profile(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in (
+        "PROFILE_ID",
+        "PROFILE_PATH",
+        "FREEZE_PATH",
+        "OPTIONS",
+        "CASE_ROOT",
+        "THINK",
+    ):
+        monkeypatch.setattr(
+            research, name, getattr(research, name, None), raising=False
+        )
+    research.select_profile("readiness-qwen35-9b-official-thinking-v2")
+
+
+def test_thinking_changes_only_three_native_values_preserving_v1_inputs(
+    thinking_profile: None,
+) -> None:
+    profile = research.load_profile()
+    old = research.read_object(research.DOCS / "QWEN35_RESEARCH_PROFILE_V1.json")
+    assert research.PROFILE_ID == "readiness-qwen35-9b-official-thinking-v2"
+    assert profile["case_order"] == old["case_order"]
+    assert profile["policy"] == old["policy"]
+    for key in (
+        "actual_model",
+        "expected_manifest_digest",
+        "installed_runtime",
+        "prompt_version",
+        "schema_sha256",
+        "legacy_applicability_conflict",
+        "representation_adapter",
+    ):
+        assert profile[key] == old[key]
+    changes = {
+        key: value
+        for key, value in profile["request_parameters"].items()
+        if old["request_parameters"][key] != value
+    }
+    assert changes == {"think": True, "temperature": 1.0, "top_p": 0.95}
+    assert profile["production_qualified"] is False
+    assert research.CASE_ROOT.name == research.PROFILE_ID
+
+
+def test_thinking_wire_uses_final_content_and_ignores_private_field(
+    thinking_profile: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class FinalContentOnly(dict[str, object]):
+        def get(self, key: str, default: object = None) -> object:
+            if key == "thinking":
+                raise AssertionError("Private thinking must never be inspected")
+            return super().get(key, default)
+
+    calls: list[Mapping[str, object]] = []
+
+    def fake(
+        self: object,
+        path: str,
+        *,
+        method: str,
+        body: Mapping[str, object] | None = None,
+    ) -> Mapping[str, object]:
+        assert path == "/api/chat" and body is not None
+        calls.append(body)
+        return {
+            "model": research.MODEL,
+            "done": True,
+            "done_reason": "stop",
+            "eval_count": 47,
+            "message": FinalContentOnly(
+                content=json.dumps(positive()), thinking="opaque fixture"
+            ),
+        }
+
+    monkeypatch.setattr(OllamaLocalDistillationTransport, "_request", fake)
+    transport = research.Qwen35ResearchTransport(root=tmp_path, execute_authorized=True)
+    result = transport.generate(verified())
+    assert json.loads(result.raw) == positive()
+    assert calls[0]["think"] is True
+    assert calls[0]["options"] == {
+        "temperature": 1.0,
+        "top_p": 0.95,
+        "top_k": 20,
+        "min_p": 0.0,
+        "presence_penalty": 1.5,
+        "repeat_penalty": 1.0,
+        "seed": 20261013,
+        "num_ctx": 8192,
+        "num_predict": 4096,
+    }
+    messages = calls[0]["messages"]
+    assert isinstance(messages, list) and len(messages) == 2
+    assert [message["role"] for message in messages] == ["system", "user"]
+    assert not transport.is_authorized_for_normal_production(verified())
+    with pytest.raises(RuntimeError, match="once"):
+        transport.generate(verified())
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("failure", ["budget", "length", "timeout"])
+def test_thinking_failure_preserves_attempt_and_never_reinvokes(
+    thinking_profile: None,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure: str,
+) -> None:
+    from youtube_intel.distillation import KnownLocalDistillationResponseError
+
+    calls = []
+
+    def fake(
+        self: object,
+        path: str,
+        *,
+        method: str,
+        body: Mapping[str, object] | None = None,
+    ) -> Mapping[str, object]:
+        calls.append(path)
+        if failure == "timeout":
+            raise TimeoutError("synthetic 300s outcome unknown")
+        return {
+            "model": research.MODEL,
+            "done": True,
+            "done_reason": "length" if failure == "length" else "stop",
+            "eval_count": 4096,
+            "message": {
+                "content": json.dumps(positive()),
+                "thinking": "opaque fixture",
+            },
+        }
+
+    monkeypatch.setattr(OllamaLocalDistillationTransport, "_request", fake)
+    transport = research.Qwen35ResearchTransport(root=tmp_path, execute_authorized=True)
+    with pytest.raises(
+        TimeoutError if failure == "timeout" else KnownLocalDistillationResponseError
+    ):
+        transport.generate(verified())
+    assert (tmp_path / "generation.started.json").exists()
+    if failure != "timeout":
+        assert (tmp_path / "response.json").exists()
+    restarted = research.Qwen35ResearchTransport(root=tmp_path, execute_authorized=True)
+    with pytest.raises(RuntimeError, match="once"):
+        restarted.generate(verified())
+    assert len(calls) == 1
+
+
+def test_thinking_cannot_prepare_later_case_without_prior_review(
+    thinking_profile: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(research, "CASE_ROOT", tmp_path / "cases")
+    monkeypatch.setattr(research, "validate_freeze", lambda: {})
+    with pytest.raises(ValueError, match="prior"):
+        research.prepare_case("real-deepthink-zh-cn")
+    assert not research.CASE_ROOT.exists()
+
+
+@pytest.mark.parametrize(
+    "profile",
+    ["v3", "qwen3:8b", "cloud", "readiness-qwen35-9b-official-nonthinking-v1"],
+)
+def test_cli_cannot_reopen_old_or_unknown_experiment(
+    profile: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sys
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "research",
+            "--profile",
+            profile,
+            "--case",
+            "real-deepthink-en",
+            "--prepare-only",
+        ],
+    )
+    monkeypatch.setattr(
+        research,
+        "prepare_case",
+        lambda *a, **k: pytest.fail("Unauthorized CLI preparation"),
+    )
+    with pytest.raises(SystemExit):
+        research.main()
+
+
+def test_transport_cannot_dispatch_after_profile_switch(
+    thinking_profile: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        OllamaLocalDistillationTransport,
+        "_request",
+        lambda *a, **k: pytest.fail("No profile-substitution network"),
+    )
+    transport = research.Qwen35ResearchTransport(root=tmp_path, execute_authorized=True)
+    research.select_profile(research.V1_PROFILE_ID)
+    with pytest.raises(ValueError, match="profile changed"):
+        transport.generate(verified())
+    assert not list(tmp_path.iterdir())
+
+
+@pytest.mark.parametrize(
+    "tamper",
+    [
+        "none",
+        "exclusive",
+        "unknown",
+        "static",
+        "installation",
+        "meaning",
+        "profile",
+        "freeze",
+        "code",
+        "prior",
+    ],
+)
+def test_v2_external_start_receipt_strict_binding(
+    thinking_profile: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, tamper: str
+) -> None:
+    monkeypatch.setattr(research, "validate_freeze", lambda: {})
+    freeze = tmp_path / "freeze.json"
+    freeze.write_text("{}")
+    monkeypatch.setattr(research, "FREEZE_PATH", freeze)
+    monkeypatch.setattr(research, "CASE_ROOT", tmp_path / "cases")
+    root = research.CASE_ROOT / "real-deepthink-en"
+    root.mkdir(parents=True)
+    (root / "prepared.json").write_text("{}")
+    permit = {
+        "status": "APPROVED_ISOLATED_GENERATION",
+        "case": "real-deepthink-en",
+        "pre_output_review": "APPROVE",
+        "root_start_authorized": True,
+        "installed_manifest_verified": True,
+        "all_installed_blob_hashes_verified": True,
+        "runtime_parameters_verified": True,
+        "installed_runtime": "0.40.1",
+        "actual_provider": "ollama",
+        "actual_model": research.MODEL,
+        "manifest_digest": research.DIGEST,
+        "profile": research.PROFILE_ID,
+        "production_qualified": False,
+        "cloud_authorized": False,
+        "harness_sha256": research.sha256(Path(research.__file__)),
+        "profile_sha256": research.sha256(research.PROFILE_PATH),
+        "freeze_sha256": research.sha256(freeze),
+        "prepared_sha256": research.sha256(root / "prepared.json"),
+        "post_install_free_bytes": 15 * 1024**3,
+        "prior_semantic_reviews": [],
+        "exclusive_heavyweight_execution_confirmed": True,
+        "no_unresolved_prior_heavyweight_execution": True,
+        "runtime_parameters_verified_meaning": research.read_object(
+            research.DOCS / "QWEN35_RUNTIME_STATIC_PROVENANCE.json"
+        )["runtime_parameters_verified_meaning"],
+        "runtime_static_provenance_sha256": research.sha256(
+            research.DOCS / "QWEN35_RUNTIME_STATIC_PROVENANCE.json"
+        ),
+        "installation_receipt_sha256": research.sha256(
+            research.DOCS / "MODEL_REPLACEMENT_INSTALL_RECEIPT.json"
+        ),
+    }
+    changes = {
+        "exclusive": ("exclusive_heavyweight_execution_confirmed", False),
+        "unknown": ("no_unresolved_prior_heavyweight_execution", False),
+        "static": ("runtime_static_provenance_sha256", "0" * 64),
+        "installation": ("installation_receipt_sha256", "0" * 64),
+        "meaning": ("runtime_parameters_verified_meaning", "Empirical behavior proved"),
+        "profile": ("profile", research.V1_PROFILE_ID),
+        "freeze": ("freeze_sha256", "0" * 64),
+        "code": ("harness_sha256", "0" * 64),
+        "prior": ("prior_semantic_reviews", [False]),
+    }
+    if tamper in changes:
+        key, value = changes[tamper]
+        permit[key] = value
+    path = tmp_path / "permit.json"
+    path.write_text(json.dumps(permit))
+    if tamper == "none":
+        assert research.validate_execution_permit(path, "real-deepthink-en") == permit
+    else:
+        with pytest.raises(ValueError):
+            research.validate_execution_permit(path, "real-deepthink-en")
+
+
+@pytest.mark.parametrize(
+    "tamper", ["none", "semantic", "profile", "count", "wrong-order", "malformed"]
+)
+def test_v2_later_case_requires_actual_prior_v2_review_result(
+    thinking_profile: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, tamper: str
+) -> None:
+    monkeypatch.setattr(research, "CASE_ROOT", tmp_path)
+    root = tmp_path / "real-deepthink-en"
+    root.mkdir()
+    result = {
+        "case": "real-deepthink-en",
+        "profile": research.PROFILE_ID,
+        "actual_model": research.MODEL,
+        "manifest_digest": research.DIGEST,
+        "production_qualified": False,
+        "generations": 1,
+        "outcome": {"status": "SUCCEEDED", "invocation_count": 1},
+    }
+    if tamper == "profile":
+        result["profile"] = research.V1_PROFILE_ID
+    if tamper == "count":
+        result["outcome"]["invocation_count"] = 0
+    path = root / "result.json"
+    path.write_text(json.dumps(result))
+    review = {
+        "case": "real-deepthink-en",
+        "verdict": "FAIL" if tamper == "semantic" else "PASS",
+        "result_sha256": research.sha256(path),
+    }
+    reviews = [review] if tamper != "malformed" else [False]
+    if tamper == "wrong-order":
+        review["case"] = "source-injection"
+    if tamper == "none":
+        research.validate_prior_semantic_reviews("real-deepthink-zh-cn", reviews)
+    else:
+        with pytest.raises(ValueError):
+            research.validate_prior_semantic_reviews("real-deepthink-zh-cn", reviews)
+
+@pytest.mark.parametrize("change", ["thinking-type", "seed", "policy", "corpus"])
+def test_v2_profile_cannot_change_native_types_or_original_standards(
+    thinking_profile: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, change: str,
+) -> None:
+    profile = research.read_object(research.PROFILE_PATH)
+    if change == "thinking-type":
+        profile["request_parameters"]["think"] = 1
+    elif change == "seed":
+        profile["request_parameters"]["seed"] += 1
+    elif change == "policy":
+        profile["policy"]["all_positive_claims_independently_semantically_reviewed"] = False
+    else:
+        profile["case_order"][0]["sha256"] = "0" * 64
+    path = tmp_path / "profile.json"
+    path.write_text(json.dumps(profile))
+    monkeypatch.setattr(research, "PROFILE_PATH", path)
+    with pytest.raises(ValueError):
+        research.load_profile()
+
+
+def test_v2_partial_freeze_cannot_omit_core_or_legacy_policy(
+    thinking_profile: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "freeze.json"
+    path.write_text(json.dumps({"profile": research.PROFILE_ID, "production_qualified": False,
+        "files": {"scripts/qualify_readiness_qwen35_intelligence.py": research.sha256(Path(research.__file__))}}))
+    monkeypatch.setattr(research, "FREEZE_PATH", path)
+    with pytest.raises(ValueError, match="complete"):
+        research.validate_freeze()
+
+
+def test_retired_v1_cannot_execute_even_with_a_supplied_permit(tmp_path: Path) -> None:
+    assert research.PROFILE_ID == research.V1_PROFILE_ID
+    with pytest.raises(ValueError, match="retired"):
+        research.execute_case("real-deepthink-en", tmp_path / "permit.json")
+    assert not list(tmp_path.iterdir())

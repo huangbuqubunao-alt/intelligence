@@ -24,6 +24,7 @@ from youtube_intel.config import LocalScoringSettings
 from youtube_intel.distillation import (
     DistillationCommand,
     DistillationTransportResult,
+    KnownLocalDistillationResponseError,
     OllamaLocalDistillationTransport,
     PersonalizedDistillationService,
     VerifiedDistillationInput,
@@ -36,7 +37,10 @@ from youtube_intel.state import ArtifactKind, DistillationStyle, SQLiteStateRepo
 
 PROJECT = Path(__file__).resolve().parents[1]
 DOCS = PROJECT / "docs/validation/end-to-end-user-readiness"
-PROFILE_ID = "readiness-qwen35-9b-official-nonthinking-v1"
+V1_PROFILE_ID = "readiness-qwen35-9b-official-nonthinking-v1"
+V2_PROFILE_ID = "readiness-qwen35-9b-official-thinking-v2"
+PROFILE_ID = V1_PROFILE_ID
+THINK = False
 MODEL = "qwen3.5:9b-q4_K_M"
 DIGEST = "sha256:56671c2ab9385f9cfcb404638e32cd62d88e3501d44822208363c010179a3c90"
 PROFILE_PATH = DOCS / "QWEN35_RESEARCH_PROFILE_V1.json"
@@ -67,6 +71,21 @@ OPTIONS: dict[str, object] = {
     "num_predict": 4096,
 }
 CASE_ROOT = PROJECT / ".var/readiness-qwen35" / PROFILE_ID
+
+
+def select_profile(profile: str) -> None:
+    """Choose only a fixed research variant; no product runtime uses this module."""
+    global PROFILE_ID, THINK, OPTIONS, PROFILE_PATH, FREEZE_PATH, CASE_ROOT
+    if profile not in {V1_PROFILE_ID, V2_PROFILE_ID}:
+        raise ValueError("research profile is outside the approved scope")
+    PROFILE_ID = profile
+    THINK = profile == V2_PROFILE_ID
+    OPTIONS = {**OPTIONS, "temperature": 1.0 if THINK else 0.7,
+               "top_p": 0.95 if THINK else 0.8}
+    version = "V2" if THINK else "V1"
+    PROFILE_PATH = DOCS / f"QWEN35_RESEARCH_PROFILE_{version}.json"
+    FREEZE_PATH = DOCS / f"QWEN35_PRE_OUTPUT_FREEZE_{version}.json"
+    CASE_ROOT = PROJECT / ".var/readiness-qwen35" / PROFILE_ID
 
 
 def sha256(path: Path) -> str:
@@ -111,7 +130,7 @@ def load_profile() -> dict[str, Any]:
         or profile.get("production_qualified") is not False
         or profile.get("prompt_version")
         != OllamaLocalDistillationTransport._PROMPT_VERSION
-        or profile.get("request_parameters") != {"think": False, **OPTIONS}
+        or profile.get("request_parameters") != {"think": THINK, **OPTIONS}
         or [entry["case"] for entry in profile["case_order"]] != list(CASE_IDS)
     ):
         raise ValueError("frozen research profile changed")
@@ -120,6 +139,13 @@ def load_profile() -> dict[str, Any]:
     )
     if hashlib.sha256(schema.encode()).hexdigest() != profile["schema_sha256"]:
         raise ValueError("ordinary wire schema changed")
+    if PROFILE_ID == V2_PROFILE_ID:
+        original = read_object(DOCS / "QWEN35_RESEARCH_PROFILE_V1.json")
+        if (type(profile["request_parameters"].get("think")) is not bool
+            or profile.get("policy") != original["policy"]
+            or profile.get("case_order") != original["case_order"]
+            or profile.get("legacy_applicability_conflict") != original["legacy_applicability_conflict"]):
+            raise ValueError("original input/semantic policy or native thinking type changed")
     return profile
 
 
@@ -152,6 +178,16 @@ def validate_freeze() -> dict[str, Any]:
     files = freeze.get("files")
     if not isinstance(files, dict) or not files:
         raise ValueError("pre-output code/input hashes missing")
+    if PROFILE_ID == V2_PROFILE_ID:
+        old = read_object(DOCS / "QWEN35_PRE_OUTPUT_FREEZE_V1.json")
+        required = set(old["files"]) | {
+            str(path.relative_to(PROJECT)) for path in (PROFILE_PATH,
+                DOCS / "QWEN35_PRE_OUTPUT_FREEZE_V1.json", DOCS / "MODEL_REPLACEMENT_INSTALL_RECEIPT.json",
+                DOCS / "QWEN35_RUNTIME_STATIC_PROVENANCE.json", DOCS / "QWEN35_THINKING_FOLLOWUP_PROPOSAL.md",
+                DOCS / "QWEN35_THINKING_FOLLOWUP_APPROVAL.md")}
+        generate_hash = hashlib.sha256(inspect.getsource(OllamaLocalDistillationTransport.generate).encode()).hexdigest()
+        if not required <= files.keys() or generate_hash != old["ordinary_v5_generate_sha256"]:
+            raise ValueError("complete code/old-policy/runtime freeze or original v5 generate missing")
     for relative, expected in files.items():
         path = PROJECT / relative
         if path.resolve().is_relative_to(PROJECT) is False or sha256(path) != expected:
@@ -203,10 +239,27 @@ def validate_execution_permit(path: Path, case_id: str) -> dict[str, Any]:
         raise ValueError("installation free-space receipt is missing")
     validate_freeze()
     load_case(case_id)
-    prior = permit.get("prior_semantic_reviews")
+    validate_prior_semantic_reviews(case_id, permit.get("prior_semantic_reviews"))
+    if PROFILE_ID == V2_PROFILE_ID:
+        runtime = read_object(DOCS / "QWEN35_RUNTIME_STATIC_PROVENANCE.json")
+        v2_expected = {
+            "exclusive_heavyweight_execution_confirmed": True,
+            "no_unresolved_prior_heavyweight_execution": True,
+            "runtime_parameters_verified_meaning": runtime["runtime_parameters_verified_meaning"],
+            "runtime_static_provenance_sha256": sha256(DOCS / "QWEN35_RUNTIME_STATIC_PROVENANCE.json"),
+            "installation_receipt_sha256": sha256(DOCS / "MODEL_REPLACEMENT_INSTALL_RECEIPT.json"),
+        }
+        if any(type(permit.get(k)) is not type(v) or permit.get(k) != v for k, v in v2_expected.items()):
+            raise ValueError("exact V2 runtime/static support and exclusive execution receipt missing")
+    return permit
+
+
+def validate_prior_semantic_reviews(case_id: str, prior: object) -> None:
+    if case_id not in CASE_IDS:
+        raise ValueError("case is outside the frozen research order")
     required = CASE_IDS[: CASE_IDS.index(case_id)]
-    if not isinstance(prior, list) or [
-        r.get("case") for r in prior if isinstance(r, dict)
+    if not isinstance(prior, list) or any(not isinstance(r, dict) for r in prior) or [
+        r.get("case") for r in prior
     ] != list(required):
         raise ValueError("prior independent semantic review receipts missing")
     for review in prior:
@@ -217,6 +270,11 @@ def validate_execution_permit(path: Path, case_id: str) -> dict[str, Any]:
             else "SUCCEEDED_NO_NEW_INTELLIGENCE"
         )
         result = read_object(result_path)
+        if PROFILE_ID == V2_PROFILE_ID and (
+            result.get("profile") != PROFILE_ID or result.get("case") != review["case"]
+            or result.get("actual_model") != MODEL or result.get("manifest_digest") != DIGEST
+            or result.get("outcome", {}).get("invocation_count") != 1):
+            raise ValueError("prior result is not the exact V2 one-call case")
         if (
             review.get("verdict") != "PASS"
             or review.get("result_sha256") != sha256(result_path)
@@ -225,7 +283,6 @@ def validate_execution_permit(path: Path, case_id: str) -> dict[str, Any]:
             or result.get("generations") != 1
         ):
             raise ValueError("prior case is not independently semantically accepted")
-    return permit
 
 
 class Qwen35ResearchTransport(OllamaLocalDistillationTransport):
@@ -240,6 +297,7 @@ class Qwen35ResearchTransport(OllamaLocalDistillationTransport):
         super().__init__(
             settings=LocalScoringSettings(model=MODEL, expected_model_digest=DIGEST)
         )
+        self.profile_id = PROFILE_ID
         self.root = root
         self.execute_authorized = execute_authorized
         self.generations = 0
@@ -251,11 +309,17 @@ class Qwen35ResearchTransport(OllamaLocalDistillationTransport):
     def generate(self, value: VerifiedDistillationInput) -> DistillationTransportResult:
         if not self.execute_authorized:
             raise RuntimeError("research generation is not authorized")
+        if self.profile_id != PROFILE_ID:
+            raise ValueError("research transport profile changed before dispatch")
+        load_profile()
         if self.generations or (self.root / "generation.started.json").exists():
             raise RuntimeError(
                 "research case may dispatch only once, including after restart"
             )
-        return super().generate(value)
+        result = super().generate(value)
+        if THINK and result.output_tokens is not None and result.output_tokens >= 4096:
+            raise KnownLocalDistillationResponseError("LOCAL_RESPONSE_TRUNCATED", result)
+        return result
 
     def _request(
         self, path: str, *, method: str, body: Mapping[str, object] | None = None
@@ -269,7 +333,7 @@ class Qwen35ResearchTransport(OllamaLocalDistillationTransport):
                 or body.get("format") != self._SCHEMA
             ):
                 raise ValueError("research request identity/schema changed")
-            body = {**body, "think": False, "options": dict(OPTIONS)}
+            body = {**body, "think": THINK, "options": dict(OPTIONS)}
             try:
                 write_once(
                     self.root / "generation.started.json",
@@ -410,8 +474,18 @@ def make_service(
     return service, transport
 
 
-def prepare_case(case_id: str) -> dict[str, Any]:
+def prepare_case(case_id: str, prior_reviews_path: Path | None = None) -> dict[str, Any]:
     validate_freeze()
+    if PROFILE_ID == V2_PROFILE_ID:
+        prior_receipt = read_object(prior_reviews_path) if prior_reviews_path else None
+        if prior_receipt is not None and (
+            prior_receipt.get("profile") != PROFILE_ID
+            or prior_receipt.get("harness_sha256") != sha256(Path(__file__))
+            or prior_receipt.get("freeze_sha256") != sha256(FREEZE_PATH)
+        ):
+            raise ValueError("prior preparation review receipt identity changed")
+        prior = prior_receipt.get("prior_semantic_reviews") if prior_receipt else []
+        validate_prior_semantic_reviews(case_id, prior)
     case = load_case(case_id)
     root = CASE_ROOT / case_id
     root.mkdir(parents=True, exist_ok=False)
@@ -468,6 +542,8 @@ def prepare_case(case_id: str) -> dict[str, Any]:
 
 
 def execute_case(case_id: str, permit_path: Path) -> dict[str, Any]:
+    if PROFILE_ID != V2_PROFILE_ID:
+        raise ValueError("the retired V1 experiment cannot be executed again")
     permit = validate_execution_permit(permit_path, case_id)
     root = CASE_ROOT / case_id
     prepared = read_object(root / "prepared.json")
@@ -516,13 +592,16 @@ def execute_case(case_id: str, permit_path: Path) -> dict[str, Any]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--profile", required=True, choices=(V2_PROFILE_ID,))
     parser.add_argument("--case", required=True, choices=CASE_IDS)
+    parser.add_argument("--prior-reviews", type=Path)
     modes = parser.add_mutually_exclusive_group(required=True)
     modes.add_argument("--prepare-only", action="store_true")
     modes.add_argument("--execute-with-permit", type=Path)
     args = parser.parse_args()
+    select_profile(args.profile)
     result = (
-        prepare_case(args.case)
+        prepare_case(args.case, args.prior_reviews)
         if args.prepare_only
         else execute_case(args.case, args.execute_with_permit)
     )
