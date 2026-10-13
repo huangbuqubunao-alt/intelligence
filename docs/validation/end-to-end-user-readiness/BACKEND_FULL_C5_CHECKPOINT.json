@@ -1,0 +1,26 @@
+{
+  "recorded_at": "2026-10-13T05:49:44.888942+00:00",
+  "source_head": "c5da5e8007f8a1343207045d5203558e0a8f253d",
+  "current_head": "2857acc146a0320cb9daf61ee460b556bb444fcc",
+  "code_unchanged_since_source_head": true,
+  "backend": {
+    "command": "PYTHONPATH=src .venv/bin/python -m pytest -q",
+    "exit_code": 0,
+    "passed": 4152,
+    "skipped": 1,
+    "warnings": 2,
+    "seconds": 969.28,
+    "log": ".var/end-to-end-user-readiness/backend-full-c5da5e8.txt",
+    "skip": "Existing o200k asset prerequisite; no newly skipped or disabled tests"
+  },
+  "ruff": {
+    "command": ".venv/bin/ruff check src tests scripts",
+    "exit_code": 0
+  },
+  "strict_mypy": {
+    "command": "MYPYPATH=src .venv/bin/mypy --strict src",
+    "exit_code": 0,
+    "source_files": 102
+  },
+  "qualification": "Still closed; pending raw-capture and model slices require subsequent affected/final checks"
+}
