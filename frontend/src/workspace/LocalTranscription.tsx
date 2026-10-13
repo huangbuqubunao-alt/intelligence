@@ -46,21 +46,28 @@ const reasons: Record<string, string> = {
 export const transcriptionCopy = (status: string) => stateCopy[status] ?? "Local transcription is unavailable";
 export function LocalTranscription({ id, onCompleted, onStatusChange }: { id: string; onCompleted: () => void; onStatusChange?: (status: string) => void }) {
   const { t } = useUiLanguage();
-  const [state, setState] = useState<State | null>(null);
+  const [responseState, setResponseState] = useState<{ id: string; revision: number; value: State } | null>(null);
+  const [readFailure, setReadFailure] = useState<{ id: string; revision: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [modelPath, setModelPath] = useState("");
   const [revision, setRevision] = useState(0);
+  const state = responseState?.id === id && responseState.revision === revision ? responseState.value : null;
+  const readError = readFailure?.id === id && readFailure.revision === revision;
   const completed = useRef(false);
+  const completionId = useRef(id);
   const onComplete = useRef(onCompleted); onComplete.current = onCompleted;
   const onStatus = useRef(onStatusChange); onStatus.current = onStatusChange;
   useEffect(() => {
     let active = true; let timer: ReturnType<typeof setTimeout> | undefined;
+    setResponseState(null); setReadFailure(null);
+    if (completionId.current !== id) { completionId.current = id; completed.current = false; setError(null); }
     const read = async () => {
       try {
         const response = await api<{ transcription: State }>(`/videos/${encodeURIComponent(id)}/transcription`);
         if (!active) return;
-        setState(response.transcription); setError(null);
+        if (!response.transcription || typeof response.transcription.status !== "string" || !Object.hasOwn(stateCopy, response.transcription.status)) throw new Error("Unreadable transcription state");
+        setResponseState({ id, revision, value: response.transcription }); setReadFailure(null);
         onStatus.current?.(response.transcription.status);
         if (response.transcription.status === "READY" && !completed.current) {
           completed.current = true; onComplete.current();
@@ -68,8 +75,8 @@ export function LocalTranscription({ id, onCompleted, onStatusChange }: { id: st
         if (["RUNNING", "PENDING"].includes(response.transcription.status) && !response.transcription.start_available || response.transcription.capability?.checking || response.transcription.capability?.qualification_state === "RUNNING") {
           timer = setTimeout(read, 2000);
         }
-      } catch (reason) {
-        if (active) setError(reason instanceof ApiRequestError ? reasons[reason.code] ?? "Local transcription could not complete. Check diagnostics and retry." : "Local transcription could not complete. Check diagnostics and retry.");
+      } catch {
+        if (active) { setResponseState(null); setReadFailure({ id, revision }); }
       }
     };
     void read();
@@ -89,13 +96,14 @@ export function LocalTranscription({ id, onCompleted, onStatusChange }: { id: st
   const capability = state?.capability;
   const active = state?.status === "RUNNING" || capability?.checking;
   return <section className="local-transcription" aria-label={t("Offline transcription")}>
-    <p role="status" aria-live="polite">{t(capability?.checking ? reasons.CAPABILITY_CHECKING : transcriptionCopy(state?.status ?? "PENDING"))}</p>
-    {state?.status !== "READY" && <p className="hint">{t(state?.status === "QUALIFICATION_REQUIRED" || ["MODEL_MISSING", "RUNTIME_UNAVAILABLE", "UNSUPPORTED"].includes(state?.status ?? "") ? transcriptionGuidance(capability) : reasons[state?.last_failure_category ?? capability?.reason_code ?? ""] ?? "Transcription runs on this device using the selected local executor and model. Your media stays private.")}</p>}
+    <p role={readError ? "alert" : "status"} aria-live="polite">{t(readError ? "Transcription status could not be read. Try reading it again." : !state ? "Reading transcription status…" : capability?.checking ? reasons.CAPABILITY_CHECKING : transcriptionCopy(state.status))}</p>
+    {readError && <button className="button button-secondary" onClick={() => setRevision(value => value + 1)}>{t("Reload transcription status")}</button>}
+    {state && state.status !== "READY" && <p className="hint">{t(state.status === "QUALIFICATION_REQUIRED" || ["MODEL_MISSING", "RUNTIME_UNAVAILABLE", "UNSUPPORTED"].includes(state.status) ? transcriptionGuidance(capability) : reasons[state.last_failure_category ?? capability?.reason_code ?? ""] ?? "Transcription runs on this device using the selected local executor and model. Your media stays private.")}</p>}
     {state && ["MODEL_MISSING", "RUNTIME_UNAVAILABLE", "UNSUPPORTED", "QUALIFICATION_REQUIRED"].includes(state.status) && <a className="button button-secondary" href={`#Settings/transcription/${encodeURIComponent(id)}`}>{t("Set up local transcription")}</a>}
     {error && <p role="alert">{t(error)}</p>}
     {(state?.start_available || state?.retry_available) && <button className="button button-primary" disabled={busy || active} onClick={() => void action("start")}>{t(state.summary_recovery ? "Complete Summary" : state.retry_available ? "Retry transcription" : "Start transcription")}</button>}
     <details><summary>{t("Transcription diagnostics")}</summary>
-      <dl><dt>{t("Runtime detected")}</dt><dd>{t(capability?.runtime_detected ? "Yes" : "No")}</dd>
+      {capability ? <dl><dt>{t("Runtime detected")}</dt><dd>{t(capability.runtime_detected ? "Yes" : "No")}</dd>
         <dt>{t("Runtime available")}</dt><dd>{t(capability?.runtime_available ? "Yes" : "No")}</dd>
         <dt>{t("Executor")}</dt><dd>{capability?.executor ?? "MLX Whisper"}</dd>
         <dt>{t("Model availability")}</dt><dd>{t(capability?.model_present ? "Available" : "Local model is missing")}</dd>
@@ -103,10 +111,10 @@ export function LocalTranscription({ id, onCompleted, onStatusChange }: { id: st
         <dt>{t("Capability")}</dt><dd>{t(capability?.state === "READY" ? "Ready" : capability?.checking ? reasons.CAPABILITY_CHECKING : transcriptionCopy(capability?.state ?? "RUNTIME_UNAVAILABLE"))}</dd>
         {capability?.model_identity && <><dt>{t("Model identity")}</dt><dd>{capability.model_identity}</dd></>}
         {state?.last_failure_category && <><dt>{t("Failure category")}</dt><dd>{state.last_failure_category}</dd></>}
-      </dl>
-      <button className="button button-secondary" disabled={busy || active} onClick={() => void action("refresh")}>{t("Check availability")}</button>
+      </dl> : <p className="hint">{t("Transcription diagnostics have not been read.")}</p>}
+      <button className="button button-secondary" disabled={!state || readError || busy || active} onClick={() => void action("refresh")}>{t("Check availability")}</button>
       <label>{t("Local MLX model directory")}<input type="text" value={modelPath} maxLength={4096} placeholder={t("Choose an already provisioned local model directory")} autoComplete="off" onChange={event => setModelPath(event.target.value)} /></label>
-      <button className="button button-secondary" disabled={busy || active || !modelPath.trim()} onClick={() => void action("model")}>{t("Use local model")}</button>
+      <button className="button button-secondary" disabled={!state || readError || busy || active || !modelPath.trim()} onClick={() => void action("model")}>{t("Use local model")}</button>
       <p className="hint">{t("Model configuration stays on this machine and is excluded from backups. Existing trusted transcripts do not require the model.")}</p>
     </details>
   </section>;

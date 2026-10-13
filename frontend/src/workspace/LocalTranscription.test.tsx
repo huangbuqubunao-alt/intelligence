@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import { LocalTranscription } from "./LocalTranscription";
@@ -78,4 +78,85 @@ it.each(["en", "zh-CN"])("explains invalid transcription without claiming a deco
   expect(status).toHaveBeenCalledWith("FAILED");
   expect(complete).not.toHaveBeenCalled();
   expect(fetch.mock.calls).toHaveLength(1);
+});
+
+it.each(["en", "zh-CN"])("keeps delayed transcription and diagnostics unknown without commands in %s", async language => {
+  localStorage.setItem("yia.ui-language", language);
+  let finish!: (value: ReturnType<typeof response>) => void;
+  const fetch = vi.fn(() => new Promise<ReturnType<typeof response>>(resolve => { finish = resolve; }));
+  vi.stubGlobal("fetch", fetch);
+  const complete = vi.fn(), status = vi.fn();
+  render(<UiLanguageProvider><LocalTranscription id="delayed" onCompleted={complete} onStatusChange={status} /></UiLanguageProvider>);
+  expect(screen.getByRole("status").textContent).toBe(language === "en" ? "Reading transcription status…" : "正在读取转写状态…");
+  expect(document.body.textContent).not.toMatch(/Awaiting transcription|待转写|Local model is missing|缺少本地模型/);
+  for (const button of screen.getAllByRole("button")) expect((button as HTMLButtonElement).disabled).toBe(true);
+  expect(status).not.toHaveBeenCalled(); expect(complete).not.toHaveBeenCalled();
+  await act(async () => finish(response({ status: "READY", retry_available: false, capability })));
+  await waitFor(() => expect(complete).toHaveBeenCalledTimes(1));
+  expect(status).toHaveBeenCalledWith("READY"); expect(fetch).toHaveBeenCalledTimes(1);
+});
+
+it.each(["en", "zh-CN"])("recovers failed transcription reads with only an explicit GET in %s", async language => {
+  localStorage.setItem("yia.ui-language", language);
+  const fetch = vi.fn().mockResolvedValueOnce({ ok: false, status: 500, json: async () => { throw new Error("private raw parse detail"); } })
+    .mockResolvedValue(response({ status: "READY", retry_available: false, capability }));
+  vi.stubGlobal("fetch", fetch);
+  const complete = vi.fn();
+  render(<UiLanguageProvider><LocalTranscription id="failed-read" onCompleted={complete} /></UiLanguageProvider>);
+  const retry = await screen.findByRole("button", { name: language === "en" ? "Reload transcription status" : "重新读取转写状态" });
+  expect(document.body.textContent).not.toMatch(/private raw|Awaiting transcription|待转写|Local model is missing|缺少本地模型/);
+  expect(complete).not.toHaveBeenCalled();
+  await userEvent.click(retry);
+  await waitFor(() => expect(complete).toHaveBeenCalledTimes(1));
+  expect(fetch.mock.calls).toHaveLength(2);
+  expect(fetch.mock.calls.every(([path, init]) => path === "/api/v1/videos/failed-read/transcription" && (!init?.method || init.method === "GET") && init?.body === undefined)).toBe(true);
+});
+
+it("ignores a late old Content response and notifies READY once for each current Content", async () => {
+  localStorage.setItem("yia.ui-language", "en");
+  let finishOld!: (value: ReturnType<typeof response>) => void;
+  const fetch = vi.fn((path: string) => path.includes("/old/")
+    ? new Promise<ReturnType<typeof response>>(resolve => { finishOld = resolve; })
+    : Promise.resolve(response({ status: "READY", retry_available: false, capability })));
+  vi.stubGlobal("fetch", fetch);
+  const complete = vi.fn(), status = vi.fn();
+  const ui = render(<UiLanguageProvider><LocalTranscription id="old" onCompleted={complete} onStatusChange={status} /></UiLanguageProvider>);
+  ui.rerender(<UiLanguageProvider><LocalTranscription id="new" onCompleted={complete} onStatusChange={status} /></UiLanguageProvider>);
+  expect(screen.getByRole("status").textContent).toBe("Reading transcription status…");
+  await waitFor(() => expect(complete).toHaveBeenCalledTimes(1));
+  await act(async () => finishOld(response({ status: "FAILED", retry_available: true, capability })));
+  expect(screen.getByRole("status").textContent).toBe("Transcription complete");
+  expect(status).not.toHaveBeenCalledWith("FAILED");
+  ui.rerender(<UiLanguageProvider><LocalTranscription id="third" onCompleted={complete} onStatusChange={status} /></UiLanguageProvider>);
+  await waitFor(() => expect(complete).toHaveBeenCalledTimes(2));
+});
+
+it("does not present a stale running state after a polling read fails and preserves the model draft", async () => {
+  localStorage.setItem("yia.ui-language", "en");
+  vi.useFakeTimers();
+  try {
+    const fetch = vi.fn().mockResolvedValueOnce(response({ status: "RUNNING", retry_available: false, capability }))
+      .mockRejectedValueOnce(new Error("read disconnected"))
+      .mockResolvedValue(response({ status: "READY", retry_available: false, capability }));
+    vi.stubGlobal("fetch", fetch);
+    const complete = vi.fn();
+    render(<UiLanguageProvider><LocalTranscription id="polling" onCompleted={complete} /></UiLanguageProvider>);
+    await act(async () => {});
+    expect(screen.getByRole("status").textContent).toBe("Transcribing…");
+    const input = screen.getByRole("textbox") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "/already/provisioned/draft" } });
+    await act(async () => vi.advanceTimersByTimeAsync(2000));
+    expect(screen.getByRole("alert").textContent).toContain("Transcription status could not be read");
+    expect(screen.queryByText("Transcribing…")).toBeNull();
+    expect(input.value).toBe("/already/provisioned/draft");
+    expect((screen.getByRole("button", { name: "Check availability" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Use local model" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(complete).not.toHaveBeenCalled();
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Reload transcription status" })); });
+    expect(screen.getByRole("status").textContent).toBe("Transcription complete");
+    expect(complete).toHaveBeenCalledTimes(1);
+    expect(input.value).toBe("/already/provisioned/draft");
+    expect(fetch.mock.calls).toHaveLength(3);
+    expect(fetch.mock.calls.every(([, init]) => !init?.method || init.method === "GET")).toBe(true);
+  } finally { vi.useRealTimers(); }
 });

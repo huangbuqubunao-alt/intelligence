@@ -2113,8 +2113,9 @@ function DeepAnalysisPanel(
   const status = data?.deep_analysis?.status;
   const result = data?.deep_analysis?.result;
   const durableCitations = result?.evidence_citation_status === "DURABLE_EVIDENCE_VERIFIED";
-  const availability = status?.availability ?? "NOT_REQUESTED";
-  const canRun = (status?.production_eligible ?? status?.qualified) === true && !busy && !dispatchBlocked && !preflight;
+  const availability = status?.availability;
+  const statusRead = typeof availability === "string" && availability.length > 0;
+  const canRun = !error && statusRead && (status?.production_eligible ?? status?.qualified) === true && !busy && !dispatchBlocked && !preflight;
 
   return (
     <Panel title={t("Deep Analysis")}>
@@ -2125,7 +2126,7 @@ function DeepAnalysisPanel(
       {actionError ? (
         <p className="semantic-state state-neutral">{t(actionError)}</p>
       ) : null}
-      {result ? (
+      {error ? null : !data ? <p role="status" aria-live="polite">{t("Reading Deep Analysis status…")}</p> : !statusRead ? <ErrorState error="" code="READ_RESPONSE_INVALID" onReload={reload} hideRawMessage /> : result ? (
         <div className="summary-note deep-analysis-result">
           <div className="reading-meta">
             <Status value="AVAILABLE" />
@@ -2174,12 +2175,12 @@ function DeepAnalysisPanel(
       ) : (
         <div className="semantic-state state-neutral">
           <span className="status status-neutral">
-            <DeepAnalysisStatusLabel value={availability} />
+            <DeepAnalysisStatusLabel value={availability!} />
           </span>
-          <p>{t(deepAnalysisReasonCopy(availability, status?.reason_code ?? null))}</p>
+          <p>{t(deepAnalysisReasonCopy(availability!, status?.reason_code ?? null))}</p>
         </div>
       )}
-      {(status?.routes ?? []).map((route) => (
+      {(error || !statusRead ? [] : status?.routes ?? []).map((route) => (
         <div className="semantic-state state-neutral" key={route.route_id}>
           <p>{route.provider_id} · {route.model_id}</p>
           <p>{t(route.configured ? "Route configured" : "Route not configured")} · {t(route.credential_configured ? "Credential available" : "Credential missing")}</p>
@@ -2212,7 +2213,7 @@ function DeepAnalysisPanel(
         >
           {busy ? t("Working…") : t("Run Deep Analysis")}
         </button>
-        {status && !status.qualified ? (
+        {!error && statusRead && status?.qualified === false ? (
           <span className="hint">
             {t("Unavailable until a model is qualified for Deep Analysis.")}
           </span>
@@ -2221,7 +2222,7 @@ function DeepAnalysisPanel(
       <DeepAnalysisPublishAction
         key={`${videoId}:${result?.result_identity ?? "none"}`}
         videoId={videoId}
-        resultIdentity={durableCitations ? result?.result_identity ?? null : null}
+        resultIdentity={!error && statusRead && durableCitations ? result?.result_identity ?? null : null}
       />
     </Panel>
   );
