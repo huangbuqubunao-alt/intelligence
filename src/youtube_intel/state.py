@@ -14,7 +14,10 @@ from datetime import datetime, timedelta
 from enum import Enum
 from importlib import resources
 from pathlib import Path, PurePosixPath
-from typing import Final, cast
+from typing import TYPE_CHECKING, Final, cast
+
+if TYPE_CHECKING:
+    from youtube_intel.backup_restore import BackupRestoreService
 
 from youtube_intel.domain import (
     Availability,
@@ -4270,6 +4273,92 @@ class SQLiteStateRepository:
                     msg = "failed provider call could not be read"
                     raise StateStoreError(msg)
                 return self._provider_call_from_row(saved)
+        finally:
+            connection.close()
+
+    def retire_known_failed_subtitle_calls(
+        self, *, backup_restore: BackupRestoreService, now: datetime,
+    ) -> tuple[str, ...]:
+        """Settle only retired, known-failed public requests at global quiescence.
+
+        The original error remains verbatim before the retirement annotation.
+        No request, artifact, dispatch history or execution record is removed.
+        Backup's existing gate and quiescence authority remain unchanged.
+        """
+        from youtube_intel.backup_restore import BackupRestoreService
+
+        if (type(backup_restore) is not BackupRestoreService
+                or backup_restore.database.resolve() != self._database_path.resolve()):
+            raise ValueError("subtitle retirement requires the matching Backup authority")
+        if not backup_restore.background_allowed:
+            return ()
+        connection = self._connect()
+        try:
+            # Avoid opening a protected window when there is no maintenance.
+            if connection.execute(
+                "SELECT 1 FROM provider_calls WHERE status='FAILED_RETRYABLE' "
+                "AND operation='subtitle.fetch' AND provider='yt-dlp' "
+                "AND prompt_version='subtitle-selection-v1' "
+                "AND schema_version='subtitle-format-v1' LIMIT 1"
+            ).fetchone() is None:
+                return ()
+            with backup_restore._protect_background(), backup_restore._staged_lock:
+                if backup_restore.restore_pending or backup_restore.restart_requested:
+                    return ()
+                with backup_restore._background_lock:
+                    if backup_restore._background_suspended != 1:
+                        return ()
+                with _immediate_transaction(connection):
+                    rows = connection.execute(
+                        "SELECT p.*, d.status AS dispatch_status FROM provider_calls p "
+                        "LEFT JOIN provider_dispatch_states d USING(request_hash) "
+                        "WHERE p.status NOT IN ('SUCCEEDED','FAILED_FINAL') ORDER BY request_hash"
+                    ).fetchall()
+                    now_text = format_utc_datetime(now)
+                    for row in rows:
+                        if not (
+                            row["operation"] == "subtitle.fetch" and row["provider"] == "yt-dlp"
+                            and row["model"] is None
+                            and row["prompt_version"] == "subtitle-selection-v1"
+                            and row["schema_version"] == "subtitle-format-v1"
+                            and row["status"] == "FAILED_RETRYABLE"
+                            and row["last_error_code"] == "RATE_LIMITED"
+                            and isinstance(row["last_error_message"], str)
+                            and bool(row["last_error_message"].strip())
+                            and all(row[key] is None for key in (
+                                "reservation_owner", "lease_until", "response_artifact_id",
+                                "input_tokens", "output_tokens", "cost_microusd", "finished_at",
+                            ))
+                            and row["dispatch_status"] in {None, "FAILED_KNOWN"}
+                            and row["started_at"] <= now_text and row["updated_at"] <= now_text
+                            and connection.execute(
+                                "SELECT 1 FROM artifacts WHERE artifact_key=?",
+                                (f"subtitle-source:{row['request_hash']}",),
+                            ).fetchone() is None
+                        ):
+                            return ()
+                    if not rows:
+                        return ()
+                    backup_restore._verify_core_database(connection)
+                    reasons = backup_restore._quiescence_reasons(connection, repository=self)
+                    if reasons != ["PROVIDER_CALL_UNRESOLVED"]:
+                        return ()
+                    retired = []
+                    for row in rows:
+                        changed = connection.execute(
+                            "UPDATE provider_calls SET status='FAILED_FINAL', "
+                            "last_error_message=last_error_message || ?, finished_at=?, updated_at=? "
+                            "WHERE request_hash=? AND status='FAILED_RETRYABLE' "
+                            "AND updated_at=? AND reservation_owner IS NULL AND lease_until IS NULL "
+                            "AND response_artifact_id IS NULL AND last_error_code='RATE_LIMITED'",
+                            ("\nPOLICY_RETIRED: subtitle-selection-v1/subtitle-format-v1; "
+                             "known public subtitle rate-limit failure retained; no further dispatch.",
+                             now_text, now_text, row["request_hash"], row["updated_at"]),
+                        ).rowcount
+                        if changed != 1:
+                            raise ConcurrencyConflict("retired subtitle request changed before settlement")
+                        retired.append(str(row["request_hash"]))
+                    return tuple(retired)
         finally:
             connection.close()
 

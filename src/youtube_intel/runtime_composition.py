@@ -296,6 +296,7 @@ class DurableSourceRunWorker:
         self._wake = threading.Event()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
+        self._maintenance_context = threading.local()
 
     def start(self) -> None:
         if self._thread is not None:
@@ -311,6 +312,12 @@ class DurableSourceRunWorker:
     def notify(self) -> None:
         self._wake.set()
 
+    def notify_backup_window_closed(self) -> None:
+        # Our idle maintenance closes its own protected window. Do not turn
+        # that callback into an idle self-wakeup loop; other threads still wake.
+        if not getattr(self._maintenance_context, "active", False):
+            self.notify()
+
     def run_once(self) -> SourceRunRecord | None:
         if not self._execution.acquire(blocking=False):
             return None
@@ -320,6 +327,14 @@ class DurableSourceRunWorker:
             if not self._orchestrator.queued_runs(limit=1) and (
                 self.scheduler is None or self.scheduler.wait_seconds() != 0
             ):
+                if self.backup_restore is not None and not self._stop.is_set():
+                    self._maintenance_context.active = True
+                    try:
+                        self._orchestrator._repository.retire_known_failed_subtitle_calls(
+                            backup_restore=self.backup_restore, now=self._orchestrator._now(),
+                        )
+                    finally:
+                        self._maintenance_context.active = False
                 return None
             gate = (nullcontext(True) if self.backup_restore is None
                     else self.backup_restore.background_work())
@@ -511,7 +526,7 @@ def build_local_source_run_runtime(
         orchestrator, scheduler=FollowingScheduler(source_tracking, product, now=now_fn),
         backup_restore=backup_restore,
     )
-    backup_restore.bind_background_wakeup(worker.notify)
+    backup_restore.bind_background_wakeup(worker.notify_backup_window_closed)
     reader = AuthoritativeScoringReader(
         repository=repository,
         data_root=data_root,
