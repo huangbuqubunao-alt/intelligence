@@ -1271,6 +1271,12 @@ function Workspace() {
               key={item}
               className={`nav-item ${page === item || (page === "Research" && item === "Intelligence") ? "active" : ""}`}
               aria-current={page === item || (page === "Research" && item === "Intelligence") ? "page" : undefined}
+              onFocus={event => {
+                const nav = event.currentTarget.parentElement;
+                if (nav && nav.scrollWidth > nav.clientWidth) {
+                  event.currentTarget.scrollIntoView({ block: "nearest", inline: "nearest" });
+                }
+              }}
               onClick={() => navigate(item)}
             >
               {t(item)}
