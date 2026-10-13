@@ -94,3 +94,12 @@
 - 用户已明确批准 RETIRED_SUBTITLE_FAILURE_PROPOSAL 精确隔离终止/并发/恢复范围，独立READINESS-RETIRED-SUBTITLES开始，尚未整合；root旧429 Backup阻塞仍保留。
 - 长内容正常提炼真实422/普通界面只泛称检查模型。现行Evidence>20先failclosed，Sasha114条不会偷偷送入8192ctx；≤20单长cue/总inputtoken无完整性门禁仍是将来采用前OPEN。需要正规长内容链路和真实readiness解释，不静默截断。
 - main/origin-main/served73ee7e7仍未动；本轮所有支持流程、模型正向保存/主题/来源、本轮图文手册及最终采用仍未完成。
+
+## 2026-10-13 额度中断后续作记录
+
+- 正式树/main/origin-main经实际ls-remote再次核对均73ee7e7，工作树干净；候选未发布。
+- root c5da5e8完整后端4152 PASS /1既有资产先决条件skip /2 warnings /969.28秒，全Ruff与strict mypy102 PASS；证据BACKEND_FULL_C5_CHECKPOINT.json已持久化。后续raw/UI切片仍须整合后检查，不能把本基线视作最终回归。
+- 已接受Qwen35预输出独立APPROVE（40合同测试/静态PASS），仅research脚本和冻结资料整合05844e1/56695f8；root合同40 PASS。首例real-deepthink-en在原冻结worktree执行prepare-only成功，0网络/0模型调用；sealed input和runtime provenance待独立复核，production仍false。
+- RAW writer b957eb5及ASR状态文案d198a0a均已提交停写，独立审查中，尚未整合。保留原raw DATA4→3 FAIL；不能提前称Backup/Restore已解决。
+- RAW相关严格回滚路径另复现旧current-policy FAILED_RETRYABLE及未索引derived canonical持续阻塞备份，超本次已批raw捕获范围，风险OPEN，正在只读确定精确恢复方案；不擅自删文件或绕Backup。
+- Local内容提炼缺口、长内容容量、rolling字幕重复、真实新内容发现及最终图文手册/全回归/发布仍OPEN；用户暂不能收到“全部链路已通”的验收版本。
