@@ -1,0 +1,84 @@
+{
+  "verdict": "PASS",
+  "candidate": "d903c60",
+  "service": "isolated captions acceptance 5928/5929",
+  "errorBody": "洞察\n本地优先的知识工作台\n首页\n关注\n内容\n洞察\n主题\n设置\n证据始终可追溯\n\n洞察工作台\n\n内容\n\n阅读内容、字幕与处理记录。\n\n本地服务暂时不可用。请等待服务恢复，再重新加载此页面。\n\n重新加载页面数据",
+  "afterBodyPrefix": "洞察\n本地优先的知识工作台\n首页\n关注\n内容\n洞察\n主题\n设置\n证据始终可追溯\n\n洞察工作台\n\n内容\n\n阅读内容、字幕与处理记录。\n\n返回内容\nHow DeepSeek Changes the LLM Story\n已完成\nSasha Rush · 2025年2月4日\n打开原始来源\n关注此频道\n原始字幕\n0.599s – 2.629s\ntime to talk about how deep seek changes\n2.639s – 6.030s\nthe large language model\n6.040s – 8.790s\nstory just a reminder deep seek is a\n8.800s – 11.470s\nsmall company less than 200 employees\n11.470s – 11.480s\nsmall company less than 200 employees\n11.480s – 13.910s\nit's a spin-off of a Chinese hedge fund\n13.910s – 13.920s\nit's a spin-off of a Chinese hedge fund\n13.920s – 16.390s\nand most notably they've been releasing\n16.390s – 16",
+  "requests": [
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5928/src/api/client.ts?t=1791858562110"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5928/api/v1/local/native/capability"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5928/api/v1/videos"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5928/api/v1/local/native/capability"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5928/api/v1/videos"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5928/api/v1/videos"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5928/api/v1/settings"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5928/api/v1/videos/0eMzc-WnBfQ"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5928/api/v1/settings"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5928/api/v1/videos/0eMzc-WnBfQ"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5928/api/v1/settings"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5928/api/v1/videos/0eMzc-WnBfQ/deep-analysis/obsidian"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5928/api/v1/videos/0eMzc-WnBfQ/deep-analysis"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5928/api/v1/videos/0eMzc-WnBfQ/evidence"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5928/api/v1/settings"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5928/api/v1/videos/0eMzc-WnBfQ/deep-analysis/obsidian"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5928/api/v1/videos/0eMzc-WnBfQ/deep-analysis"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:5928/api/v1/videos/0eMzc-WnBfQ/evidence"
+    }
+  ],
+  "mutatingRequestCount": 0,
+  "method": "headful Chrome, own isolated API terminated, actual error shown, same API restarted, manual reload-page-data button clicked without reloading browser",
+  "nativePickerClaim": false
+}

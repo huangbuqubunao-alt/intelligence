@@ -1,0 +1,37 @@
+{
+  "observedAt": "2026-10-13T05:24:42.621Z",
+  "url": "http://127.0.0.1:5898/#Settings",
+  "candidate": "c5da5e8007f8a1343207045d5203558e0a8f253d",
+  "readiness": true,
+  "createEnabled": true,
+  "pageErrors": [],
+  "scope": "Real headful macOS isolated UI after automatic retired-request termination; full raw Restore P1 still open; not formal adoption",
+  "otherWaitingTask": {
+    "command": "ui:1791869143117:4u0b4uxi5wj",
+    "executionId": "distillation:reservation:v3:2e9b226a8cecf33f53fb14f092fcee115ca12997479043bcd3381663d0e6472b",
+    "blockedBeforeCancel": true,
+    "readinessAfterCancel": true,
+    "invocationCount": 0,
+    "checkpointPreserved": true,
+    "cancellationPersisted": true,
+    "intelligenceId": null,
+    "mutations": [
+      {
+        "at": "2026-10-13T05:25:43.129Z",
+        "method": "POST",
+        "url": "http://127.0.0.1:5898/api/v1/videos/aircAruvnKk/intelligence",
+        "body": "{\"command_id\":\"ui:1791869143117:4u0b4uxi5wj\"}"
+      },
+      {
+        "at": "2026-10-13T05:26:24.744Z",
+        "method": "POST",
+        "url": "http://127.0.0.1:5898/api/v1/videos/aircAruvnKk/intelligence/cancel",
+        "body": "{\"execution_id\":\"distillation:reservation:v3:2e9b226a8cecf33f53fb14f092fcee115ca12997479043bcd3381663d0e6472b\"}"
+      }
+    ],
+    "screenshots": [
+      "backup-other-waiting-task-blocked.png",
+      "backup-other-waiting-task-cancelled.png"
+    ]
+  }
+}

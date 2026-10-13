@@ -1,0 +1,13 @@
+{
+  "verdict": "OPEN_EXTERNAL_RECURRENCE",
+  "observedAt": "2026-10-13T02:43:18.463Z",
+  "service": "isolated 5898/5899",
+  "source": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
+  "body": "洞察\n本地优先的知识工作台\n首页\n关注\n内容\n洞察\n主题\n设置\n证据始终可追溯\n\n洞察工作台\n\n关注\n\n选择要持续关注的来源。\n\nBilibili UP 主持续关注当前暂不可用。你仍可添加公开 Bilibili 视频。\n\n添加关注\n筛选关注\n全部关注\n有更新\n产生新洞察\n需要处理\n已暂停\nGoogle for Developers\n正在关注新视频 · YouTube\n暂停关注\n此公开来源不可用，已保留存储的内容。\n打开来源\nGoogle for Developers\n关闭\n\nYouTube · 正在关注新视频\n\n发现新内容后\n整理内容\n进一步提炼洞察\n打开来源\n来源状态\n此公开来源不可用，已保留存储的内容。\n跟踪起点已建立\n是\n上次检查\n2026/10/13 09:04:48\n上次成功检查\n2026/10/13 06:07:42\n下次可检查时间\n2026/10/13 11:04:50\n下次自动检查\n2026/10/13 11:04:50\n关注后发现的内容\n0\n等待获取的内容\n0\n无法导入的视频\n0\n\n不会导入已有视频。成功检查后需等待 15 分钟再检查。\n\n应用运行时会自动检查更新。\n\n冷却中\n暂停监测\n发现的内容\n\n尚未发现新的公开视频。",
+  "newPublicVideoDiscoveryProven": false,
+  "automaticCheckLastSuccessLocal": "2026-10-13 06:07:42",
+  "latestFailedCheckLocal": "2026-10-13 09:04:48",
+  "nextEligibleLocal": "2026-10-13 11:04:50",
+  "paidCloudCalls": 0,
+  "manualCooldownBypass": false
+}
