@@ -3795,9 +3795,12 @@ function Settings({ refresh }: { refresh: number }) {
       <GlobalInterests key={JSON.stringify(globalPolicy)} policy={globalPolicy} onSaved={() => setRevision(current => current + 1)} />
       <Panel title="Models and processing">
         <h3>{t("Content processing")}</h3><p>{t("Ready. Content is saved and organized locally when source text or captions are available. Cloud Intelligence is optional.")}</p>
-        <h3>{t("Currently used local model")}</h3><p>{settings.data.runtime_local_model?.model ?? localFoundation?.model ?? t("Not configured")} · {t(settings.data.runtime_local_model?.status === "READY" ? "Installed and ready" : "Readiness needs attention")}</p>
+        <h3>{t("Currently used local model")}</h3><p>{settings.data.runtime_local_model?.model ?? localFoundation?.model ?? t("Not configured")} · {t(settings.data.runtime_local_model?.status === "READY" ? "Installed; identity verified" : "Readiness needs attention")}</p>
+        <p className="hint">{t("Installation and identity checks do not qualify a model for Intelligence.")}</p>
         <p className="hint">{t("Scoring and model-based Summary use this runtime configuration. Candidate preferences in Advanced do not change it.")}</p>
-        <h3>{t("Intelligence")}</h3><p>{t(videoDistillation?.production_eligible ? "Optional cloud analysis is available after your authorization for each request." : videoDistillation?.credential_status === "BLOCKED" ? "Cloud Intelligence needs a credential and authorization. Content processing remains usable." : "Configure a qualified Intelligence model. Content processing remains usable.")}</p>
+        <h3>{t("Intelligence")}</h3>
+        {localFoundation?.qualification_status === "INTELLIGENCE_UNQUALIFIED" && <p>{t("The current local model has not passed Intelligence quality verification. Existing Content, Summary and Evidence remain readable.")}</p>}
+        <p>{t(videoDistillation?.production_eligible ? "Optional cloud analysis is available after your authorization for each request." : videoDistillation?.credential_status === "BLOCKED" ? "Cloud Intelligence is optional. It needs a credential and your separate authorization for each request. Content processing remains usable." : "Cloud Intelligence is optional and requires a qualified model and your separate authorization for each request. Content processing remains usable.")}</p>
         <details><summary>{t("Cloud setup and model details")}</summary><ModelSettings message={modelMessage} setMessage={setModelMessage} credential={settings.data.cloud_credential} preference={settings.data.model_preference} onSaved={() => setRevision(current => current + 1)} /></details>
       </Panel>
       <TranscriptionSetup />
