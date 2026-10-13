@@ -221,6 +221,8 @@ class VerifiedDistillationInput:
     selected_model: str
     semantic_hash: str
     output_language: ScoringOutputLanguage
+    content_provider: str = "YOUTUBE"
+    local_content_context_hash: str | None = None
 
     def __post_init__(self) -> None:
         if self.output_language not in {"zh-CN", "en"}:
@@ -229,6 +231,11 @@ class VerifiedDistillationInput:
     @property
     def evidence_ids(self) -> tuple[str, ...]:
         return tuple(item.evidence_id for item in self.evidence)
+
+
+def _cloud_source_allowed(value: VerifiedDistillationInput) -> bool:
+    return (type(value) is VerifiedDistillationInput and value.content_provider == "YOUTUBE"
+            and re.fullmatch(r"local-[0-9a-f]{64}", value.video_id) is None)
 
 
 @dataclass(frozen=True, slots=True)
@@ -1283,7 +1290,8 @@ class OpenAICloudDistillationTransport:
 
     def is_authorized_for(self, verified_input: VerifiedDistillationInput) -> bool:
         return (
-            self._authorization.provider == _M12_OPENAI_PROVIDER
+            _cloud_source_allowed(verified_input)
+            and self._authorization.provider == _M12_OPENAI_PROVIDER
             and self._authorization.model == _M12_OPENAI_MODEL
             and verified_input.selected_provider == _M12_OPENAI_PROVIDER
             and verified_input.selected_model == _M12_OPENAI_MODEL
@@ -1409,6 +1417,8 @@ class OpenAICloudDistillationTransport:
 
     @classmethod
     def _request(cls, verified_input: VerifiedDistillationInput) -> dict[str, object]:
+        if not _cloud_source_allowed(verified_input):
+            raise CloudDistillationPreDispatchError("Cloud Intelligence does not accept local Content")
         return {
             "endpoint_identity": cls._OFFICIAL_ENDPOINT_IDENTITY,
             "model": verified_input.selected_model,
@@ -1471,7 +1481,8 @@ class NvidiaNimCloudDistillationTransport:
 
     def is_authorized_for(self, verified_input: VerifiedDistillationInput) -> bool:
         return (
-            type(verified_input) is VerifiedDistillationInput
+            _cloud_source_allowed(verified_input)
+            and type(verified_input) is VerifiedDistillationInput
             and bool(verified_input.evidence)
             and self._authorization.provider == _NVIDIA_NIM_PROVIDER
             and self._authorization.model == _NVIDIA_NIM_MODEL
@@ -1666,6 +1677,8 @@ class NvidiaNimCloudDistillationTransport:
 
     @staticmethod
     def _request(verified_input: VerifiedDistillationInput) -> dict[str, object]:
+        if not _cloud_source_allowed(verified_input):
+            raise CloudDistillationPreDispatchError("Cloud Intelligence does not accept local Content")
         evidence = [
             {
                 "evidence_id": item.evidence_id,
@@ -1798,7 +1811,8 @@ class MoonshotK26CloudDistillationTransport:
 
     def is_authorized_for(self, verified_input: VerifiedDistillationInput) -> bool:
         return (
-            type(verified_input) is VerifiedDistillationInput
+            _cloud_source_allowed(verified_input)
+            and type(verified_input) is VerifiedDistillationInput
             and bool(verified_input.evidence)
             and self._authorization.provider == self._PROVIDER
             and self._authorization.model == self._MODEL
@@ -1928,6 +1942,8 @@ class MoonshotK26CloudDistillationTransport:
 
     @classmethod
     def _request(cls, verified_input: VerifiedDistillationInput) -> dict[str, object]:
+        if not _cloud_source_allowed(verified_input):
+            raise CloudDistillationPreDispatchError("Cloud Intelligence does not accept local Content")
         if (
             verified_input.selected_provider != cls._PROVIDER
             or verified_input.selected_model != cls._MODEL
@@ -2143,7 +2159,8 @@ class OllamaLocalDistillationTransport:
     def is_authorized_for_normal_production(
         self, value: VerifiedDistillationInput
     ) -> bool:
-        return self._production_qualified and self.is_authorized_for(value)
+        # Existing video qualification does not qualify local media inputs.
+        return value.content_provider == "YOUTUBE" and self._production_qualified and self.is_authorized_for(value)
 
     def is_authorized_for_qualification(self, value: VerifiedDistillationInput) -> bool:
         return self.is_authorized_for(value)
@@ -2657,6 +2674,12 @@ class PersonalizedDistillationService:
         transcript evidence set.  That lets a later process rebuild and verify
         the exact command from m010/Evidence persistence rather than memory.
         """
+        video = self._repository.get_video(video_id)
+        if video is not None and video.provider == "LOCAL" and (
+            self._selected_provider in {_NVIDIA_NIM_PROVIDER, _M12_OPENAI_PROVIDER, _MOONSHOT_K26_PROVIDER}
+            or getattr(self._transport, "transport_kind", None) is DistillationTransportKind.CLOUD_PRODUCTION
+        ):
+            raise ValueError("Cloud Intelligence does not accept local Content")
         reason = self._RESERVATION_REASON
         if manual_command_id is not None:
             if re.fullmatch(r"[A-Za-z0-9._:-]{1,80}", manual_command_id) is None:
@@ -2921,6 +2944,13 @@ class PersonalizedDistillationService:
         Artifact body, filesystem path, subtitle source, or caller-provided
         text: every excerpt comes from the m015 exact Evidence resolver.
         """
+        video = self._repository.get_video(projection.video_id)
+        if video is not None and video.provider == "LOCAL":
+            if (self._selected_provider in {_NVIDIA_NIM_PROVIDER, _M12_OPENAI_PROVIDER, _MOONSHOT_K26_PROVIDER}
+                or getattr(self._transport, "transport_kind", None) is DistillationTransportKind.CLOUD_PRODUCTION):
+                raise ValueError("Cloud Intelligence does not accept local Content")
+            if re.fullmatch(r"MANUAL_CONTENT:[A-Za-z0-9._:-]{1,80}", projection.reason) is None:
+                raise ValueError("local Intelligence requires an explicit manual Content command")
         if not self._legal_evidence(projection):
             raise ValueError("verified provider input evidence is not legal")
         source = self._repository.get_source_subscription(projection.source_id)
@@ -2969,12 +2999,21 @@ class PersonalizedDistillationService:
             "video_id": projection.video_id,
             "video_title": video.title,
         }
+        local_context = None
+        if video.provider == "LOCAL":
+            local_context = self._repository.manual_local_timed_context_hash(projection.source_id, projection.video_id)
+            if local_context is None:
+                raise ValueError("local Intelligence source/Summary authority is unavailable")
+            semantic_payload["content_provider"] = "LOCAL"
+            semantic_payload["local_content_context_hash"] = local_context
         semantic_hash = hashlib.sha256(
             json.dumps(
                 semantic_payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
             ).encode("utf-8")
         ).hexdigest()
         return VerifiedDistillationInput(
+            content_provider=video.provider,
+            local_content_context_hash=local_context,
             source_display_name=source_display_name,
             video_id=projection.video_id,
             video_title=video.title,
@@ -3132,6 +3171,7 @@ class PersonalizedDistillationService:
             candidate = self._parse_candidate(response.raw, projection, verified_input)
             if isinstance(candidate, _NoNewCandidate):
                 record = self._repository.record_distillation_no_new_intelligence(
+                    local_content_context_hash=verified_input.local_content_context_hash,
                     execution_id=projection.execution_id,
                     evidence_ids=candidate.evidence_ids,
                     budget_state=decision.state,
@@ -3146,6 +3186,7 @@ class PersonalizedDistillationService:
                 )
             else:
                 record = self._repository.admit_distillation(
+                    local_content_context_hash=verified_input.local_content_context_hash,
                     execution_id=projection.execution_id,
                     intelligence_id=f"intelligence:distillation:{projection.execution_id}",
                     revision_id=f"revision:distillation:{projection.execution_id}",
@@ -3358,6 +3399,8 @@ class PersonalizedDistillationService:
     def _manual_content_ready(self, source_id: str, video_id: str) -> bool:
         source = self._repository.get_source_subscription(source_id)
         video = self._repository.get_video(video_id)
+        if video is not None and video.provider == "LOCAL":
+            return self._repository.manual_local_timed_context_hash(source_id, video_id) is not None
         return bool(
             source is not None
             and video is not None
@@ -3382,6 +3425,9 @@ class PersonalizedDistillationService:
                 and self._same_execution_identity(record, command)
                 and self._manual_content_ready(command.source_id, command.video_id)
             )
+        video = self._repository.get_video(command.video_id)
+        if video is not None and video.provider == "LOCAL":
+            return False
         if not source.enabled:
             return False
         decision = self._repository.current_filter_decision(

@@ -1828,6 +1828,9 @@ class LocalApiApplication:
     def _manual_content_source(self, video_id: str) -> str | None:
         video = self._repository.get_video(video_id)
         note = self._note_projection(video_id).get("v2")
+        if video is not None and video.provider == "LOCAL":
+            return next((source.source_id for source in self._repository.list_source_subscriptions()
+                         if self._repository.manual_local_timed_context_hash(source.source_id, video_id) is not None), None)
         if video is None or video.provider != "YOUTUBE" or not isinstance(note, dict) or note.get("status") != "AVAILABLE":
             return None
         if self._repository.get_verified_timed_transcript(video_id=video_id) is None:
@@ -2519,10 +2522,10 @@ class LocalApiApplication:
             "filtered_noise": list(card.filtered_noise),
             "source_id": card.source_id,
             "source_display_name": source_display_name,
-            "source_url": None if source is None else source.canonical_url,
+            "source_url": None if source is None or getattr(source, "provider", None) == "LOCAL" else source.canonical_url,
             "video_id": card.video_id,
             "video_title": None if video is None else video.title,
-            "original_video_url": None if video is None else video.source_url,
+            "original_video_url": None if video is None or getattr(video, "provider", None) == "LOCAL" else video.source_url,
             "evidence_links": evidence_links,
             "preference_ids": list(card.preference_ids),
             "source_policy_revision_id": card.source_policy_revision_id,

@@ -2362,6 +2362,73 @@ class SQLiteStateRepository:
         finally:
             connection.close()
 
+    def manual_local_timed_context_hash(self, source_id: str, video_id: str) -> str | None:
+        """Read the exact local media/Summary authority for explicit Intelligence."""
+        connection = self._connect()
+        try:
+            return self._manual_local_timed_context_hash(connection, source_id, video_id)
+        finally:
+            connection.close()
+
+    def _manual_local_timed_context_hash(
+        self, connection: sqlite3.Connection, source_id: str, video_id: str,
+    ) -> str | None:
+        from youtube_intel.extractive_summary import ExtractiveSummaryService
+        from youtube_intel.source_authority import verify_source
+
+        if self._source_data_root is None:
+            return None
+        try:
+            source = connection.execute("SELECT * FROM source_subscriptions WHERE source_id=?", (source_id,)).fetchone()
+            snapshot = verify_source(self, connection, video_id)
+            if (source is None or source["provider"] != "LOCAL" or source["source_type"] != "LOCAL_LIBRARY"
+                or source["processing_policy"] != "DISCOVER_ONLY"
+                or snapshot is None or snapshot["provider"] != "LOCAL" or snapshot["source_id"] != source_id
+                or snapshot["status"] != "READY" or snapshot["media_kind"] not in {"AUDIO", "VIDEO"}
+                or not connection.execute("SELECT 1 FROM source_video_links WHERE source_id=? AND video_id=?", (source_id, video_id)).fetchone()):
+                return None
+            timed = self.get_verified_timed_transcript(video_id=video_id)
+            pointer = self.current_local_summary_pointer(video_id)
+            if (timed is None or timed.canonical_artifact_id != snapshot["canonical_artifact_id"] or pointer is None
+                or pointer.output_language not in {"en", "zh-CN"}):
+                return None
+            summary = self.get_artifact(pointer.artifact_id)
+            if summary is None:
+                return None
+            ExtractiveSummaryService(self, self._source_data_root).read(video_id, pointer.artifact_id)
+            ids = self.list_canonical_coverage_evidence_ids(video_id)
+            if not ids or len(ids) > 20:
+                return None
+            for evidence_id in ids:
+                evidence = self.resolve_verified_evidence_text(evidence_id)
+                if (evidence is None or evidence.video_id != video_id or evidence.locator_type != "TIMED_MEDIA"
+                    or evidence.timed_transcript_id != timed.timed_transcript_id
+                    or evidence.timed_transcript_hash != timed.timed_transcript_hash
+                    or evidence.start_ms is None or evidence.end_ms is None):
+                    return None
+            payload = {"contract": "manual-local-timed-context-v1", "source_id": source_id,
+                "video_id": video_id, "snapshot_id": snapshot["snapshot_artifact_id"],
+                "source_hash": snapshot["source_hash"], "canonical_id": snapshot["canonical_artifact_id"],
+                "canonical_hash": snapshot["canonical_text_hash"], "timed_id": timed.timed_transcript_id,
+                "timed_hash": timed.timed_transcript_hash, "summary_id": summary.artifact_id,
+                "summary_hash": summary.content_hash, "summary_language": pointer.output_language,
+                "evidence_ids": ids}
+            return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        except (ValueError, TypeError, OverflowError, OSError, sqlite3.Error, StateStoreError):
+            return None
+
+    def _require_local_distillation_context(
+        self, connection: sqlite3.Connection, checkpoint: sqlite3.Row, expected_hash: str | None,
+    ) -> None:
+        video = connection.execute("SELECT provider FROM videos WHERE video_id=?", (checkpoint["video_id"],)).fetchone()
+        if video is None or video["provider"] != "LOCAL":
+            return
+        if (re.fullmatch(r"MANUAL_CONTENT:[A-Za-z0-9._:-]{1,80}", str(checkpoint["reason"])) is None
+            or checkpoint["selected_provider"] in {"openai", "nvidia_nim", "moonshot"}
+            or expected_hash is None
+            or self._manual_local_timed_context_hash(connection, checkpoint["source_id"], checkpoint["video_id"]) != expected_hash):
+            raise StateStoreError("local Intelligence manual source/Summary authority changed or is unavailable")
+
     def latest_artifact(
         self,
         video_id: str,
@@ -10770,6 +10837,7 @@ class SQLiteStateRepository:
         duration_ms: int | None,
         now: datetime,
         http_status_code: int | None = None,
+        local_content_context_hash: str | None = None,
     ) -> DistillationExecutionRecord:
         evidence_ids = tuple(sorted(evidence_ids))
         if (
@@ -10830,6 +10898,7 @@ class SQLiteStateRepository:
                 ).fetchone()
                 if checkpoint is None or str(checkpoint["status"]) != "PENDING":
                     raise StateStoreError("distillation execution is not safely completable")
+                self._require_local_distillation_context(connection, checkpoint, local_content_context_hash)
                 if (
                     checkpoint["intelligence_id"] is not None
                     or checkpoint["revision_id"] is not None
@@ -10849,7 +10918,7 @@ class SQLiteStateRepository:
                     "JOIN source_video_links AS link ON link.source_id = source.source_id "
                     "JOIN videos AS video ON video.video_id = link.video_id "
                     "WHERE source.source_id = :source_id "
-                    "AND (source.enabled = 1 OR (:manual_content = 1 AND video.provider = 'YOUTUBE' "
+                    "AND (source.enabled = 1 OR (:manual_content = 1 AND video.provider IN ('YOUTUBE','LOCAL') "
                     "AND EXISTS (SELECT 1 FROM current_content_summaries AS summary "
                     "WHERE summary.video_id = video.video_id AND summary.analysis_artifact_id IS NOT NULL))) "
                     "AND video.video_id = :video_id AND video.availability = :availability",
@@ -10962,6 +11031,7 @@ class SQLiteStateRepository:
         duration_ms: int | None,
         now: datetime,
         http_status_code: int | None = None,
+        local_content_context_hash: str | None = None,
     ) -> DistillationExecutionRecord:
         if claim_kind is IntelligenceClaimKind.UNCLASSIFIED or not isinstance(claim_kind, IntelligenceClaimKind):
             raise ValueError("distillation claim kind must be classified")
@@ -11012,6 +11082,7 @@ class SQLiteStateRepository:
                 ).fetchone()
                 if checkpoint is None or str(checkpoint["status"]) != "PENDING":
                     raise StateStoreError("distillation execution is not safely admissible")
+                self._require_local_distillation_context(connection, checkpoint, local_content_context_hash)
                 if (
                     card.source_id != checkpoint["source_id"] or card.video_id != checkpoint["video_id"]
                 ):
