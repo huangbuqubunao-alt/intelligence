@@ -111,3 +111,12 @@
 - 用户已具体批准LOCAL_INTELLIGENCE_CHAIN_PROPOSAL，第一LOCAL_TIMED最小准入/授权负控在独立tree实施，仅代码与fixturechecks，真实8例资格依赖9b四例全PASS故BLOCKED，未授权绕过此依赖。
 - fresh普通产品导入Sasha真实字幕完成，firstJSON3+VTT均正规capture索引、4物理DATA（5Artifact引用）。真正GUI已创建下载zip，全部4DATA进包，当前正在普通确认/重启恢复，不替代旧FAIL；最终全表/allDATA比较未完成前不报PASS。
 - 正式main/origin-main/served73ee7e7与owner数据/配置未改；本轮模型失败已构成真实Intelligence用户正向链路阻塞。
+
+## 2026-10-13 当前续作检查点
+
+- fresh RAW 真实GUI恢复已完成：71表、全部4物理DATA（5Artifact引用）恢复前后精确一致，JSON3确实进包，见NATIVE_RAW_CAPTURE_GUI_RESTORE_EVIDENCE.json。旧失败/未知派生文件特殊恢复路径仍OPEN；不能以fresh成功覆盖旧FAIL。
+- root RAW/UI业务基线完整后端4220 PASS /1既有资产先决条件skip /2既有warnings /1020.20秒；全部Ruff/strictmypy102 PASS。CSS独立APPROVE并整合d367bea/59ab68b，root完整前端386/23 PASS、TS/build PASS，见BACKEND_RAW_UI_CHECKPOINT.json。这仍非最终所有整改完成后的回归。
+- 真实四种窗口320/768/1024/1440 document几何PASS，320可用305px时不再扩成320，Retry真实Tab可达。继续六导航Tab发现Intelligence按钮部分被遮、nav未滚动；2秒等待仍失败，保留NARROW_WINDOW_GUI_EVIDENCE.json为PARTIAL_PASS_KEYBOARD_VISIBILITY_BLOCKED。新TASK-READINESS-NARROW-KEYBOARD独立实施，不掩盖该新失败。
+- LOCAL_TIMED f399034d已提交停写，39新专项、相关269/Backup82/最终78 PASS，独立审查中未整合。真实LOCAL8例仍受9b原资格FAIL阻塞；不授旧YTreceipt权力、不调用模型。
+- FAILED_SUBTITLE_ARCHIVE_MIGRATION_PROPOSAL.md 经独立只读细化后已提交具体Schema37→38隔离批准问题；尚未批准、没有DDL/实施/正式迁移。历史错误/无权威派生DATA保留和34–37旧包兼容均在精确范围，不绕过Backup。
+- 统一中文手册Markdown/HTML已更新，真实Chrome渲染47张图零损坏且已视觉检查。正式main/origin-main/served73ee7e7仍保持；没有把未合格洞察或未结束链路交用户做完成验收。

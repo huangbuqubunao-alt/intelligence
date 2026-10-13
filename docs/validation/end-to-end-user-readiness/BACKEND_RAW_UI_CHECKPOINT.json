@@ -1,0 +1,26 @@
+{
+  "recorded_date": "2026-10-13",
+  "business_head": "9b6575e",
+  "backend": {
+    "command": "PYTHONPATH=src .venv/bin/python -m pytest -q",
+    "exit_code": 0,
+    "passed": 4220,
+    "skipped": 1,
+    "warnings": 2,
+    "seconds": 1020.20,
+    "log": ".var/end-to-end-user-readiness/backend-full-raw-ui.txt",
+    "skip": "Existing o200k asset prerequisite; no newly skipped or disabled tests"
+  },
+  "frontend_after_css_integration": {
+    "passed": 386,
+    "files": 23,
+    "seconds": 12.19,
+    "typecheck": "PASS",
+    "production_build": "PASS",
+    "log": ".var/end-to-end-user-readiness/frontend-full-narrow.txt"
+  },
+  "ruff": "PASS src/tests/scripts",
+  "strict_mypy": "PASS 102 source files",
+  "qualification": "CLOSED: fixed 9b first real semantic case FAILED; later cases not called",
+  "limitations": "Checkpoint only. LOCAL_TIMED and keyboard follow-up still require integration and affected/final checks; Schema38 pending approval and unimplemented. Not an all-journey or release acceptance."
+}

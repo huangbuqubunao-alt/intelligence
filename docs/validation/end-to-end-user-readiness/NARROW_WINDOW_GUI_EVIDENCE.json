@@ -1,0 +1,305 @@
+{
+  "status": "PARTIAL_PASS_KEYBOARD_VISIBILITY_BLOCKED",
+  "browser": "real headful macOS Chrome",
+  "product": "isolated candidate 5908",
+  "widths": [
+    {
+      "width": 320,
+      "client": 305,
+      "scroll": 305,
+      "body": 305,
+      "main": {
+        "x": 0,
+        "y": 127.5,
+        "width": 305,
+        "height": 2359.890625,
+        "top": 127.5,
+        "right": 305,
+        "bottom": 2487.390625,
+        "left": 0
+      },
+      "sidebar": [
+        {
+          "client": 305,
+          "scroll": 305
+        }
+      ],
+      "retry": [
+        {
+          "text": "Retry transcription",
+          "disabled": false,
+          "rect": {
+            "x": 33,
+            "y": 641.59375,
+            "width": 140.1875,
+            "height": 38,
+            "top": 641.59375,
+            "right": 173.1875,
+            "bottom": 679.59375,
+            "left": 33
+          }
+        }
+      ]
+    },
+    {
+      "width": 768,
+      "client": 753,
+      "scroll": 753,
+      "body": 753,
+      "main": {
+        "x": 0,
+        "y": 112.5,
+        "width": 753,
+        "height": 1881.9921875,
+        "top": 112.5,
+        "right": 753,
+        "bottom": 1994.4921875,
+        "left": 0
+      },
+      "sidebar": [
+        {
+          "client": 753,
+          "scroll": 753
+        }
+      ],
+      "retry": [
+        {
+          "text": "Retry transcription",
+          "disabled": false,
+          "rect": {
+            "x": 49.71875,
+            "y": 533.59375,
+            "width": 140.1875,
+            "height": 38,
+            "top": 533.59375,
+            "right": 189.90625,
+            "bottom": 571.59375,
+            "left": 49.71875
+          }
+        }
+      ]
+    },
+    {
+      "width": 1024,
+      "client": 1009,
+      "scroll": 1009,
+      "body": 1009,
+      "main": {
+        "x": 248,
+        "y": 0,
+        "width": 761,
+        "height": 1915.1875,
+        "top": 0,
+        "right": 1009,
+        "bottom": 1915.1875,
+        "left": 248
+      },
+      "sidebar": [
+        {
+          "client": 247,
+          "scroll": 247
+        }
+      ],
+      "retry": [
+        {
+          "text": "Retry transcription",
+          "disabled": false,
+          "rect": {
+            "x": 307.953125,
+            "y": 454.2890625,
+            "width": 140.1875,
+            "height": 38,
+            "top": 454.2890625,
+            "right": 448.140625,
+            "bottom": 492.2890625,
+            "left": 307.953125
+          }
+        }
+      ]
+    },
+    {
+      "width": 1440,
+      "client": 1425,
+      "scroll": 1425,
+      "body": 1425,
+      "main": {
+        "x": 248,
+        "y": 0,
+        "width": 1177,
+        "height": 1861.796875,
+        "top": 0,
+        "right": 1425,
+        "bottom": 1861.796875,
+        "left": 248
+      },
+      "sidebar": [
+        {
+          "client": 247,
+          "scroll": 247
+        }
+      ],
+      "retry": [
+        {
+          "text": "Retry transcription",
+          "disabled": false,
+          "rect": {
+            "x": 323,
+            "y": 439.8984375,
+            "width": 140.1875,
+            "height": 38,
+            "top": 439.8984375,
+            "right": 463.1875,
+            "bottom": 477.8984375,
+            "left": 323
+          }
+        }
+      ]
+    }
+  ],
+  "keyboard": [
+    {
+      "tag": "BUTTON",
+      "text": "Back to Content",
+      "label": null,
+      "disabled": false,
+      "rect": {
+        "x": 14,
+        "y": 260.59375,
+        "right": 291,
+        "bottom": 298.59375
+      },
+      "client": 305,
+      "scroll": 305
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Retry transcription",
+      "label": null,
+      "disabled": false,
+      "rect": {
+        "x": 33,
+        "y": 641.59375,
+        "right": 173.1875,
+        "bottom": 679.59375
+      },
+      "client": 305,
+      "scroll": 305
+    }
+  ],
+  "model_calls": 0,
+  "formal_data_touched": false,
+  "sidebar_keyboard": [
+    {
+      "tag": "BUTTON",
+      "text": "Back to Content",
+      "label": null,
+      "inNav": false,
+      "x": 14,
+      "right": 291,
+      "scroll": 305,
+      "client": 305
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Settings",
+      "label": null,
+      "inNav": true,
+      "x": 215.34375,
+      "right": 291.0234375,
+      "navClient": 277,
+      "navScroll": 467,
+      "scroll": 305,
+      "client": 305
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Topics",
+      "label": null,
+      "inNav": true,
+      "x": 148.671875,
+      "right": 212.34375,
+      "navClient": 277,
+      "navScroll": 467,
+      "scroll": 305,
+      "client": 305
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Intelligence",
+      "label": null,
+      "inNav": true,
+      "x": 48.9765625,
+      "right": 145.671875,
+      "navClient": 277,
+      "navScroll": 467,
+      "scroll": 305,
+      "client": 305
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Content",
+      "label": null,
+      "inNav": true,
+      "x": -27.390625,
+      "right": 45.9765625,
+      "navClient": 277,
+      "navScroll": 467,
+      "scroll": 305,
+      "client": 305
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Following",
+      "label": null,
+      "inNav": true,
+      "x": 76.515625,
+      "right": 159.609375,
+      "navClient": 277,
+      "navScroll": 467,
+      "scroll": 305,
+      "client": 305
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Home",
+      "label": null,
+      "inNav": true,
+      "x": 14,
+      "right": 73.515625,
+      "navClient": 277,
+      "navScroll": 467,
+      "scroll": 305,
+      "client": 305
+    }
+  ],
+  "width_geometry": "PASS",
+  "retry_keyboard": "PASS",
+  "sidebar_keyboard_visibility": {
+    "status": "FAIL",
+    "preceding_pass": [
+      {
+        "text": "Following",
+        "x": 76.515625,
+        "right": 159.609375,
+        "inNav": true,
+        "client": 305
+      },
+      {
+        "text": "Content",
+        "x": 162.609375,
+        "right": 235.9765625,
+        "inNav": true,
+        "client": 305
+      }
+    ],
+    "failed": {
+      "text": "Intelligence",
+      "x": 238.9765625,
+      "right": 335.671875,
+      "client": 305,
+      "navScrollLeft": 0
+    },
+    "failure_screenshot": ".var/end-to-end-user-readiness/narrow-keyboard-navigation-failure.png",
+    "repair_task": "TASK-READINESS-NARROW-KEYBOARD"
+  }
+}
