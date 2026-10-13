@@ -1,5 +1,21 @@
 # YouTube Intelligence Agent 项目状态
 
+2026-10-13 普通用户全链路整改续作（优先于下方历史状态）：正式
+main/origin-main/served均73ee7e747b4461b9de8a201d6b47669eb3913d1a，本轮未发布、
+未改owner数据/配置。候选codex/task-end-to-end-user-readiness尚未完成，不可交用户作
+“所有链路已通”验收。RAW真实GUI恢复71表/全部4DATA精确PASS；完整backend检查点
+4220PASS/1既有资产前提skip/2warnings，当前frontend389/24PASS及TS/build。
+窄窗CSS与键盘修复独立APPROVE已整合，四宽六导航正反Tab/Enter/鼠标真实PASS；
+LOCAL_TIMED独立302及root78PASS已整合，但真实模型链路仍因固定9b首例独立语义
+FAIL（4P1）阻塞，后3例与LOCAL8例未调用，资格保持关闭。已批准Schema37→38非权威
+字幕归档精确迁移在readiness-subtitle-archive-38隔离实施；Source详情unknown加载误显示
+Bilibili能力和GET恢复在readiness-source-detail-loading独立修复。LOCAL_TEXT/core
+接口变更等迁移串行整合；长内容/rolling/readiness及真实正向保存/主题仍OPEN。
+新官方thinking研究仅56d6bcc提案，未批准/实现/调用。统一图文手册为候选未发布，
+47图真实渲染检查通过。当前矩阵与外部证据见
+[普通用户验收矩阵](validation/end-to-end-user-readiness/READINESS_MATRIX.md)及
+[续作记录](validation/end-to-end-user-readiness/PROGRESS.md)。无新开发阶段启动。
+
 2026-10-08 Phase 13 automatic background Following candidate: implementation and
 self-review fixes are isolated on `codex/phase13-background-following`, based on
 accepted Phase 12 main `404d0a76ef022647f242e295a87b7ed18c3b0667`. The current owner
