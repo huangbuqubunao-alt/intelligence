@@ -67,6 +67,16 @@ Before 实证（主控保留，未修改）：
 
 待独立审查。
 
+### 独立审查（2026-10-13）
+
+`/root/intel_bounded_review`；实现者已停写，审前 clean。被审实现 `d198a0ae58a106d7fe8ff24ab7dc118532257d65`，基线 `2857acc146a0320cb9daf61ee460b556bb444fcc`。**APPROVE，限定本次 UI 文案 delta；新增 P0/P1=0。** 不代表模型资格或真实 GUI/全链路验收通过。
+
+独立检查全部 diff、localStatus 调用者及 Content detail 的实时 transcriptionStatus 投射：只有历史 TRANSCRIPTION_UNAVAILABLE 显示为“文件已保存”，后续实际 RUNNING/FAILED/READY 状态仍通过 LocalTranscription 更新；原 MODEL_MISSING/RUNTIME_UNAVAILABLE/UNSUPPORTED/QUALIFICATION_REQUIRED 继续显示真实设置引导和深链。TRANSCRIPT_INVALID 改成未接受可用字幕及清晰语音/重试建议，没有假定 decoder 执行或推断已确定噪声/静音原因；Retry 参数/防重复提交/一次 READY 回调没有改动。中英对应，原导入边界和成功/上传/路由断言保留；未变更 App、backend、模型门禁、dependencies/config/正式数据。
+
+独立执行：full frontend **386 tests / 23 files PASS，15.05秒**；focused五文件 **42 PASS，1.58秒**，均 `--cache=false`，未触发共享 Vitest cache 写入。TypeScript PASS；production build PASS（50 modules，`index-BKetMeTr.js`）；基线至候选与工作区 diff check PASS，审后 tracked clean。已有 App/ContentStatusLocalization 的 act 警告仍显示，没有隐藏或降低门槛。与 root `7ff4ae6` 的只读 merge-tree 无冲突（树对象 `fb75a247c461d69c17f418b5f2517149ea418935`）；未实际合并。
+
+本 Reviewer 只补本交接，不改业务文件。Backend/Ruff/mypy 没有 Python 改动故不重复；真实 macOS GUI、keyboard/responsive、模型/无效输入实测由 root 隔离验收，本轮 fixture 不能充当真实验收。整个 goal 的其他 OPEN（尤其旧 current-policy failed provider/canonical 与实际 Intelligence 资格）仍保留。
+
 ## 主控验收与整合
 
 待主控决定。
