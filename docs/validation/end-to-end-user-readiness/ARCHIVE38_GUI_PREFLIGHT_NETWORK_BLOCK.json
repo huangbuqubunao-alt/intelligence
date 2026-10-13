@@ -1,0 +1,87 @@
+{
+  "recorded_at": "2026-10-13T21:34:36.375032+00:00",
+  "status": "BLOCKED_GENUINE_LEGACY_PLAIN_FIXTURE_PUBLIC_429",
+  "scope": "Fresh isolated legacy73ee7 normal API/worker + real macOS UI; no authority edits or fake plain transcript",
+  "legacy_code_head": "73ee7e747b4461b9de8a201d6b47669eb3913d1a",
+  "schema": 37,
+  "videos": [
+    {
+      "video_id": "0eMzc-WnBfQ",
+      "pipeline_status": "METADATA_READY"
+    },
+    {
+      "video_id": "IwglW_hIL_g",
+      "pipeline_status": "METADATA_READY"
+    }
+  ],
+  "jobs": [
+    {
+      "job_id": "13d7c1a9-1fb6-456f-ad9f-648b275c43c0",
+      "video_id": "0eMzc-WnBfQ",
+      "target_stage": "METADATA",
+      "status": "SUCCEEDED",
+      "attempt_count": 1,
+      "last_error_code": null,
+      "last_error_message": null
+    },
+    {
+      "job_id": "e8d6c712-fb59-4cf0-882d-38009b697fa1",
+      "video_id": "0eMzc-WnBfQ",
+      "target_stage": "TRANSCRIPT",
+      "status": "PENDING",
+      "attempt_count": 1,
+      "last_error_code": "RATE_LIMITED",
+      "last_error_message": "subtitle adapter rate limited during body read"
+    },
+    {
+      "job_id": "83cd9610-6f7d-4746-8a5b-9307167b003d",
+      "video_id": "IwglW_hIL_g",
+      "target_stage": "METADATA",
+      "status": "SUCCEEDED",
+      "attempt_count": 1,
+      "last_error_code": null,
+      "last_error_message": null
+    },
+    {
+      "job_id": "f25a22ed-519a-44ea-af01-07432c80ce53",
+      "video_id": "IwglW_hIL_g",
+      "target_stage": "TRANSCRIPT",
+      "status": "RETRY_PENDING",
+      "attempt_count": 1,
+      "last_error_code": "RATE_LIMITED",
+      "last_error_message": "subtitle adapter rate limited during body read"
+    }
+  ],
+  "calls": [
+    {
+      "request_hash": "32ee6ce9b42d2da62b8d747571b9577e4e1abeb5a4797188015770bdfe8c1e20",
+      "operation": "subtitle.fetch",
+      "provider": "yt-dlp",
+      "status": "FAILED_RETRYABLE",
+      "attempt_count": 1,
+      "last_error_code": "RATE_LIMITED",
+      "last_error_message": "subtitle adapter rate limited during body read",
+      "started_at": "2026-10-13T21:31:54.046610Z",
+      "updated_at": "2026-10-13T21:31:54.046610Z"
+    },
+    {
+      "request_hash": "65f7dbbcf7ec738405c23787fe4b81aae7b651c14af3fba5ad0221195ded547d",
+      "operation": "subtitle.fetch",
+      "provider": "yt-dlp",
+      "status": "FAILED_RETRYABLE",
+      "attempt_count": 1,
+      "last_error_code": "RATE_LIMITED",
+      "last_error_message": "subtitle adapter rate limited during body read",
+      "started_at": "2026-10-13T21:33:30.647979Z",
+      "updated_at": "2026-10-13T21:33:30.647979Z"
+    }
+  ],
+  "timed_count": 0,
+  "stopped_after_two_distinct_imports": true,
+  "no_repeated_submit": true,
+  "no_fake_fixture_or_state_mutation": true,
+  "model_calls": 0,
+  "cloud_calls": 0,
+  "formal_writes": false,
+  "archive_gui_restore": "NOT_EXECUTED; genuine plain predecessor not obtained"
+}
