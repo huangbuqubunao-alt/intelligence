@@ -1,0 +1,100 @@
+{
+  "frozen_at": "2026-10-12T20:18:37.379531+00:00",
+  "experiment": "native-sampling-research-v10",
+  "prompt_version": "local-distillation-admission-v5-role-separated",
+  "model": "qwen3:8b",
+  "digest": "sha256:500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41",
+  "schema_sha256": "6af421a97de4bda10b816a4e7d40906610721a81d0cffb869e32e94c4e99d491",
+  "inputs": [
+    "cededc0061c43029e28a867bbaeab5ae5691c3e6a998997ace855eebb6dd37f3",
+    "a7c96ee6b84aee6b8e492348b9f4f190d7c9f6f14241b25e533532bc4dcb82cb"
+  ],
+  "code_hashes": {
+    "scripts/qualify_readiness_local_intelligence.py": "c1d8c5c66fdbd2f4d0c55b0ae0fc0a050270f0680ee64d4893288e56ee1eab6c",
+    "src/youtube_intel/distillation.py": "fd1f732340b6a9f9354d1c07ca430bac1a4f0251878790fdc31552152be84a8a",
+    "src/youtube_intel/runtime_composition.py": "71465c3f9263557ac47eba878b0e9d06f3571f88b196ae4377342b70594d90a4"
+  },
+  "request_parameters": {
+    "think": false,
+    "temperature": 0.7,
+    "top_p": 0.8,
+    "top_k": 20,
+    "min_p": 0.0,
+    "seed": 20261013,
+    "num_ctx": 8192,
+    "num_predict": 4096,
+    "timeout_seconds": 300
+  },
+  "changed": [
+    "Exact same v8 calibration messages/schema/normal parser; explicit native nonthinking sampler instead of temperature0; no seed rerolls or repeated generation"
+  ],
+  "unchanged": [
+    "Exact installed model/runtime",
+    "Frozen inputs/semantic gates",
+    "One model invocation per isolated case; no content repair",
+    "Production eligibility False; formal config/data untouched"
+  ],
+  "pre_output_review": "intel_bounded_review APPROVE exactc1d8c5c66fdbd2f4d0c55b0ae0fc0a050270f0680ee64d4893288e56ee1eab6c offline messages/source/schema/parser invariant; raw/single dispatch preserved",
+  "identity_limit": "Research-only profile; manual attempt and independent DB distinguish case. Reservation still has current v5 profile; cannot mint production qualification. If successful, version-bound production profile and fresh qualification required.",
+  "history": "v8 semanticREJECT. v9 exactquote-firstREJECT no repairedquotes/domainfields; all failures preserved. Fixed sample/seed/params before first output, no cherry-picking.",
+  "success": "All frozen semantically applicable multilingual actual positives and original controls; no sample contamination or positive quota bias; original actual outputs retained; no qualification from protocol",
+  "example": {
+    "context": {
+      "evidence": [
+        {
+          "evidence_id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "start_ms": 13000,
+          "end_ms": 24000,
+          "excerpt": "The build maintainer says the preview seems to reduce failed exports. They estimate about ten fewer retries in informal use. There has not been a controlled comparison."
+        }
+      ],
+      "focus": [
+        "Desktop software reliability and evaluation"
+      ],
+      "ignore": [],
+      "personalization": [],
+      "style": "BALANCED",
+      "source_display_name": "Desktop build preview discussion",
+      "video_title": "Preview reliability observations"
+    },
+    "output": {
+      "result": "INTELLIGENCE",
+      "core_conclusion": "The maintainer in Desktop build preview discussion reports an apparent export reliability improvement; the informal observation remains unverified.",
+      "user_relevant_information": [
+        "For reliability evaluation, this preliminary source claim suggests a controlled comparison is worth doing."
+      ],
+      "important_new_information": [
+        "The maintainer says the preview seems to reduce failed exports."
+      ],
+      "meaningful_details": [
+        "About ten fewer retries is the maintainer's estimate, not a measured result.",
+        "The source explicitly says no controlled comparison has been performed."
+      ],
+      "filtered_noise": [],
+      "claim_kind": "SYSTEM_INFERENCE",
+      "evidence": [
+        {
+          "evidence_id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "start_ms": 13000,
+          "end_ms": 24000,
+          "stance": "supporting"
+        }
+      ]
+    }
+  },
+  "message_roles": [
+    "original system",
+    "synthetic calibration user",
+    "synthetic calibration assistant",
+    "original actual source user"
+  ],
+  "language_strategy": "Original system requested output_language unchanged; example is English, so actual zh-CN must pass as well without repairs",
+  "runtime": {
+    "version": "0.40.1"
+  },
+  "primary_sources": [
+    "https://huggingface.co/Qwen/Qwen3-8B",
+    "https://docs.ollama.com/modelfile"
+  ],
+  "hypothesis": "Official nonthinking parameter recommendations differ from existing T0. Distinct sampling experiment, not proven root cause or qualification; all gates unchanged."
+}

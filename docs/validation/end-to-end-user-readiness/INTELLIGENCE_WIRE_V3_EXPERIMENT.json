@@ -1,0 +1,24 @@
+{
+  "frozen_at": "2026-10-12T15:04:55.249678+00:00",
+  "prompt_version": "local-distillation-admission-v3-explicit-branches",
+  "model": "qwen3:8b",
+  "digest": "sha256:500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41",
+  "schema_sha256": "4343a5cba2df4736268eb294914b97192a03458f70c71e8f1587b8bcbd4edaca",
+  "distillation_code_sha256": "86c05d266bc1cfc44d7284e5524edc165fca209466d5fdaea96015de60c654f7",
+  "inputs": [
+    "cededc0061c43029e28a867bbaeab5ae5691c3e6a998997ace855eebb6dd37f3",
+    "a7c96ee6b84aee6b8e492348b9f4f190d7c9f6f14241b25e533532bc4dcb82cb"
+  ],
+  "changed": "Two structured wire branches both start with an explicit result discriminator; positive remains all existing strict fields plus INTELLIGENCE marker. Decode validated marker only; retain exact raw wire.",
+  "unchanged": [
+    "Admission threshold, not quota",
+    "All substantive/attributed/source binding and stance requirements",
+    "Temperature 0, context 8192, exact existing qwen3 digest",
+    "NO_NEW requires all Evidence once",
+    "Cloud auth and schema untouched",
+    "No production qualification"
+  ],
+  "pre_output_review": "readiness_ui_review APPROVE bounded neutral experiment, cause not proven",
+  "rejection": "Unknown/mixed markers, extra fields, fabricated Evidence and cloud-positive tagged contracts reject.",
+  "controls": "Frozen no-new-fifteen and source-injection must remain genuine NO_NEW; positive outputs still need independent semantic review."
+}

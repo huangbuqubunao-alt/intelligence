@@ -1,0 +1,16 @@
+{
+  "case": "real-deepthink-en",
+  "research_profile": "native-thinking-v6",
+  "protocol": "SUCCEEDED",
+  "invocation_count": 1,
+  "production_qualified": false,
+  "semantic_verdict": "FAIL_PENDING_INDEPENDENT_CONFIRMATION",
+  "blocking_findings": [
+    "Source seems like proved became demonstrated/proved",
+    "years-old became decades-old",
+    "speaker estimate became asserted 20-100+ simultaneous possibilities"
+  ],
+  "raw_directory": ".var/end-to-end-user-readiness/intelligence/native-thinking-v6/real-deepthink-en",
+  "remaining_cases": "not run after decisive positive-case failure; not claimed passed",
+  "action": "stop native boolean approach; retain original gates and all outputs"
+}

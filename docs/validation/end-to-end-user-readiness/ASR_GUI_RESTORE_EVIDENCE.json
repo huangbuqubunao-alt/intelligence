@@ -1,0 +1,12 @@
+{
+  "exact_match": true,
+  "before_sha256": "e39def13783d38f86371a7c92ba2dc3597f729b9a4d169dcba3175f8144d45f2",
+  "after_sha256": "e39def13783d38f86371a7c92ba2dc3597f729b9a4d169dcba3175f8144d45f2",
+  "tables": 71,
+  "data_files": 78,
+  "integrity": "ok",
+  "ui_restore_completed": true,
+  "model_receipt_portability": "machine-local config unchanged; fresh restore tested independently by ASR author",
+  "native_picker": "unchanged prior GUI evidence reused; new import via normal local import API",
+  "new_video_id": "local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd"
+}

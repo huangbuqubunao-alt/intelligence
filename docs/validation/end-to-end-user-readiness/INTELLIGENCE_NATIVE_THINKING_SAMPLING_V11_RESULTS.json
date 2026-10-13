@@ -1,0 +1,39 @@
+{
+  "status": "REJECT",
+  "case": "real-deepthink-en",
+  "profile": "native-thinking-sampling-v11",
+  "protocol": {
+    "corpus_sha256": "a7c96ee6b84aee6b8e492348b9f4f190d7c9f6f14241b25e533532bc4dcb82cb",
+    "case": "real-deepthink-en",
+    "evidence_count": 2,
+    "execution_id": "distillation:reservation:v3:4a9f7d0146f735296ad01b713f02cd1062029e02f6480ffd886af8851f630aec",
+    "production_qualified": false,
+    "reasoning_profile": "native-thinking-sampling",
+    "outcome": {
+      "execution_id": "distillation:reservation:v3:4a9f7d0146f735296ad01b713f02cd1062029e02f6480ffd886af8851f630aec",
+      "status": "SUCCEEDED",
+      "invocation_count": 1,
+      "intelligence_id": "intelligence:distillation:distillation:reservation:v3:4a9f7d0146f735296ad01b713f02cd1062029e02f6480ffd886af8851f630aec",
+      "revision_id": "revision:distillation:distillation:reservation:v3:4a9f7d0146f735296ad01b713f02cd1062029e02f6480ffd886af8851f630aec"
+    },
+    "generations": 1
+  },
+  "actual_files_sha256": {
+    "request.json": "96341dc248a44b2a1f1d0fa7485b686b55f67010e831cf4757d5b738dab82677",
+    "response.json": "9eea4d41085be7cb552a081e240595c96a4429c46c4bae3ceff40eff41d4a9e1",
+    "result.json": "d4a8ef55f55435cbfd0b5c27e2b3bddf5f5e4f11a87179021e65d70e3ad0a2f5"
+  },
+  "independent_review": {
+    "reviewer": "intel_bounded_review",
+    "P0": 0,
+    "P1": [
+      "Fabricates range20–100+ and simultaneously; generalizes one speaker own three ideas to typical human solvers.",
+      "Promotes towards-human-level ambition to unqualified human-level expertise, omitting human verification and wider evaluation.",
+      "Conflates a conjecture anecdote with separate IMO similar-mode achievement."
+    ]
+  },
+  "improvements_not_qualification": [
+    "Publisher attribution now Google DeepMind; SYSTEM_INFERENCE enum no longer PREDICTION."
+  ],
+  "next": "Installed8b qualification blocker. Stop repeating sampler/prompt/seed variations. No production eligibility, further model/download scope requires specific decision."
+}

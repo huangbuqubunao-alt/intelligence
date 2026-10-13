@@ -1,0 +1,19 @@
+{
+  "protocol": "SUCCEEDED",
+  "production_qualified": false,
+  "invocation_count": 1,
+  "verdict": "FAIL_INDEPENDENT_SEMANTIC_REVIEW",
+  "P1": [
+    "Past purported source proof is unqualified achieved in meaningful_details[0]",
+    "Principal retrospective report misclassified PREDICTION"
+  ],
+  "P2": [
+    "Retained content primarily Summary paraphrase/generic relevance; source exploration and mode scope limitations omitted"
+  ],
+  "improvements": [
+    "Appears/reportedly/human verification and not independently verified elsewhere",
+    "No invented decades or numerical range; no calibration pollution"
+  ],
+  "control_no_new_fifteen": "actualSUCCEEDED_NO_NEW_INTELLIGENCE/all15bound/1call",
+  "raw_directory": ".var/end-to-end-user-readiness/intelligence/source-calibration-fast-v8"
+}

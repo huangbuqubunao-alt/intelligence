@@ -1,0 +1,26 @@
+{
+  "frozen_at": "2026-10-12T15:33:49.411544+00:00",
+  "prompt_version": "local-distillation-admission-v5-role-separated",
+  "model": "qwen3:8b",
+  "digest": "sha256:500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41",
+  "schema_sha256": "6af421a97de4bda10b816a4e7d40906610721a81d0cffb869e32e94c4e99d491",
+  "distillation_code_sha256": "fd1f732340b6a9f9354d1c07ca430bac1a4f0251878790fdc31552152be84a8a",
+  "inputs": [
+    "cededc0061c43029e28a867bbaeab5ae5691c3e6a998997ace855eebb6dd37f3",
+    "a7c96ee6b84aee6b8e492348b9f4f190d7c9f6f14241b25e533532bc4dcb82cb"
+  ],
+  "pre_output_review": "readiness_review APPROVE; system rules separated from source data user message; existing sealed name/title only",
+  "changed": [
+    "System instruction role separated from source and personalization user JSON",
+    "When source display name absent attribute speaker in existing sealed video_title; no invented publisher"
+  ],
+  "unchanged": [
+    "Admission threshold and strict schemas/parser/Evidence all unchanged",
+    "All frozen expectations and semantic gates",
+    "T0/context8192/thinkfalse/predict4096 existingdigest/runtime",
+    "NO_NEW and source-injection controls",
+    "Cloud/production_qualified false"
+  ],
+  "history": "Both v4 real en+zh rejected for overcertainty/attribution; zh also wrong output language; raw evidence retained",
+  "success": "Actual multilingual positive and controls independently semantically reviewed; protocol SUCCEEDED not qualification"
+}

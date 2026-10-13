@@ -1,0 +1,28 @@
+{
+  "frozen_at": "2026-10-12T15:23:46.424411+00:00",
+  "prompt_version": "local-distillation-admission-v4-source-attribution",
+  "model": "qwen3:8b",
+  "digest": "sha256:500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41",
+  "schema_sha256": "6af421a97de4bda10b816a4e7d40906610721a81d0cffb869e32e94c4e99d491",
+  "distillation_code_sha256": "04f420bb242daa05d46af7f7d44bea3200655f528ca66df83ddaa53df5979bfc",
+  "inputs": [
+    "cededc0061c43029e28a867bbaeab5ae5691c3e6a998997ace855eebb6dd37f3",
+    "a7c96ee6b84aee6b8e492348b9f4f190d7c9f6f14241b25e533532bc4dcb82cb"
+  ],
+  "pre_output_review": "readiness_review APPROVE 2026-10-12; generic source attribution, no expected answer or quota",
+  "changed": [
+    "Existing sealed source_display_name included in local prompt",
+    "Every prose field must attribute source speaker and preserve modal uncertainty",
+    "Reported result != independent verification; similar benchmarks != identical performance",
+    "Distinct fields, retained claims excluded from filtered_noise, Evidence IDs reference objects only"
+  ],
+  "unchanged": [
+    "Both structured schemas and exact strict decoding",
+    "All admission, stance and supplied Evidence binding gates",
+    "All frozen corpus expectations, no-new and injection controls",
+    "T=0, context8192, num_predict4096, existing model/runtime",
+    "Cloud authorization; production_qualified=false"
+  ],
+  "history": "v3 genuine positive protocol SUCCEEDED was independently REJECTED for attribution/overcertainty and repetition; keep original response/result unchanged",
+  "required": "Actual en/zh real-source positives with independent semantic review, unchanged complete no-new and hostile-source controls, fresh qualification binding; neither script exit0 nor protocol SUCCEEDED is qualification"
+}

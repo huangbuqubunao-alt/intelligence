@@ -1,0 +1,207 @@
+{
+  "frozen_at": "2026-10-12T20:13:51.434990+00:00",
+  "experiment": "source-grounding-research-v9",
+  "prompt_version": "local-distillation-admission-v5-role-separated",
+  "model": "qwen3:8b",
+  "digest": "sha256:500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41",
+  "schema_sha256": "9a7285f06dac943dd439e5e74376d1791ee68c55b912ffedf772be4cccbefeda",
+  "inputs": [
+    "cededc0061c43029e28a867bbaeab5ae5691c3e6a998997ace855eebb6dd37f3",
+    "a7c96ee6b84aee6b8e492348b9f4f190d7c9f6f14241b25e533532bc4dcb82cb"
+  ],
+  "code_hashes": {
+    "scripts/qualify_readiness_local_intelligence.py": "655513e9cb9b6497638a9313815e585ed59e5c1b881e8a426a36d94401d36a4a",
+    "src/youtube_intel/distillation.py": "fd1f732340b6a9f9354d1c07ca430bac1a4f0251878790fdc31552152be84a8a",
+    "src/youtube_intel/runtime_composition.py": "71465c3f9263557ac47eba878b0e9d06f3571f88b196ae4377342b70594d90a4"
+  },
+  "request_parameters": {
+    "think": false,
+    "temperature": 0,
+    "num_ctx": 8192,
+    "num_predict": 4096,
+    "timeout_seconds": 300
+  },
+  "changed": [
+    "Positive research wire lists exact source quotes before judgment",
+    "Validate exact quote/evidence ID/int timestamps and same groundings/cited set; only extra representation field removed before ordinary parser",
+    "All domain prose/kind/stance/references unchanged; original raw goes to invocation ledger"
+  ],
+  "unchanged": [
+    "Exact installed model/runtime",
+    "Frozen inputs/semantic gates",
+    "One model invocation per isolated case; no content repair",
+    "Production eligibility False; formal config/data untouched"
+  ],
+  "pre_output_review": "intel_bounded_review APPROVE exact script655513e9cb9b6497638a9313815e585ed59e5c1b881e8a426a36d94401d36a4a, 34 corruptions reject, domain fields invariant, original NO_NEW/schema/single dispatch preserved",
+  "identity_limit": "Isolated engineering GroundedResearchService representation decoder, ordinary downstream parser/persistence intact. Production v5 reservation/profile/eligibility unchanged; cannot mint qualification. Accepted production implementation must have version/schema/binding and fresh entire matrix.",
+  "history": "v8 actual EN semanticREJECT; no-new15 actual SUCCEEDED_NO_NEW1call/all15. Previous failures preserved; stop calibration approach. Grounding is a new binding/decoder mechanism, not a quota or semantic guarantee",
+  "success": "All frozen semantically applicable multilingual actual positives and original controls; no sample contamination or positive quota bias; original actual outputs retained; no qualification from protocol",
+  "message_roles": [
+    "original system plus generic source-record/classification instructions",
+    "original actual source user"
+  ],
+  "language_strategy": "Original requested output_language unchanged; no unrelated English calibration example",
+  "schema": {
+    "anyOf": [
+      {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "result",
+          "source_grounding",
+          "core_conclusion",
+          "user_relevant_information",
+          "important_new_information",
+          "meaningful_details",
+          "filtered_noise",
+          "claim_kind",
+          "evidence"
+        ],
+        "properties": {
+          "result": {
+            "enum": [
+              "INTELLIGENCE"
+            ]
+          },
+          "source_grounding": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 20,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "evidence_id",
+                "start_ms",
+                "end_ms",
+                "quote"
+              ],
+              "properties": {
+                "evidence_id": {
+                  "type": "string"
+                },
+                "start_ms": {
+                  "type": "integer"
+                },
+                "end_ms": {
+                  "type": "integer"
+                },
+                "quote": {
+                  "type": "string",
+                  "minLength": 20,
+                  "maxLength": 2000
+                }
+              }
+            }
+          },
+          "core_conclusion": {
+            "type": "string"
+          },
+          "user_relevant_information": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "important_new_information": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "meaningful_details": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "filtered_noise": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "claim_kind": {
+            "enum": [
+              "FACT",
+              "EVIDENCE_BACKED_STATEMENT",
+              "OPINION",
+              "PREDICTION",
+              "RUMOR",
+              "SYSTEM_INFERENCE"
+            ]
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "evidence_id",
+                "start_ms",
+                "end_ms",
+                "stance"
+              ],
+              "properties": {
+                "evidence_id": {
+                  "type": "string"
+                },
+                "start_ms": {
+                  "type": "integer"
+                },
+                "end_ms": {
+                  "type": "integer"
+                },
+                "stance": {
+                  "enum": [
+                    "supporting",
+                    "contradicting",
+                    "conditional"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "result",
+          "evidence"
+        ],
+        "properties": {
+          "result": {
+            "enum": [
+              "NO_NEW_INTELLIGENCE"
+            ]
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "evidence_id",
+                "start_ms",
+                "end_ms"
+              ],
+              "properties": {
+                "evidence_id": {
+                  "type": "string"
+                },
+                "start_ms": {
+                  "type": "integer"
+                },
+                "end_ms": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

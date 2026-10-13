@@ -1,0 +1,102 @@
+{
+  "frozen_at": "2026-10-12T20:38:14.672161+00:00",
+  "experiment": "native-thinking-sampling-research-v11",
+  "prompt_version": "local-distillation-admission-v5-role-separated",
+  "model": "qwen3:8b",
+  "digest": "sha256:500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41",
+  "schema_sha256": "6af421a97de4bda10b816a4e7d40906610721a81d0cffb869e32e94c4e99d491",
+  "inputs": [
+    "cededc0061c43029e28a867bbaeab5ae5691c3e6a998997ace855eebb6dd37f3",
+    "a7c96ee6b84aee6b8e492348b9f4f190d7c9f6f14241b25e533532bc4dcb82cb"
+  ],
+  "code_hashes": {
+    "scripts/qualify_readiness_local_intelligence.py": "473ca5d097f5aedccf4634bdfb887a29999133e8c46ad880d28f93e1b4cc70df",
+    "src/youtube_intel/distillation.py": "fbcf8befe68fbb8e885032c28e3a3db2af6625764e4b00d3736557d34a66d34c",
+    "src/youtube_intel/runtime_composition.py": "c4529f66f17bab00ddef49ff11447428bf7024faa2420a19597de1e2604a7a6e"
+  },
+  "request_parameters": {
+    "think": true,
+    "temperature": 0.6,
+    "top_p": 0.95,
+    "top_k": 20,
+    "min_p": 0.0,
+    "seed": 20261013,
+    "num_ctx": 8192,
+    "num_predict": 4096,
+    "timeout_seconds": 300
+  },
+  "changed": [
+    "Existing native thinking=True plus official thinking sampler T0.6/topP0.95/topK20/minP0 and same fixed seed; no seed rerolls.",
+    "Independent approved source-context fallback uses true persisted video.channel_name only when subscription display_name is absent; sealed semantic hash changes."
+  ],
+  "unchanged": [
+    "Exact installed model/runtime",
+    "Frozen inputs/semantic gates",
+    "One model invocation per isolated case; no content repair",
+    "Production eligibility False; formal config/data untouched"
+  ],
+  "pre_output_review": "intel_bounded_review APPROVE script473ca5d097f5aedccf4634bdfb887a29999133e8c46ad880d28f93e1b4cc70df; approved source context e5711ae integrated fbe0e2b.",
+  "identity_limit": "Research-only profile; manual attempt and independent DB distinguish case. Reservation still has current v5 profile; cannot mint production qualification. If successful, version-bound production profile and fresh qualification required.",
+  "history": "All prior v3-v10 failures retained. v10 independently REJECT. Distinct native thinking sampler, not a repeat or output repair. If same semantic failure remains, no reroll/repeated method; report installed-model qualification blocker.",
+  "success": "All frozen semantically applicable multilingual actual positives and original controls; no sample contamination or positive quota bias; original actual outputs retained; no qualification from protocol",
+  "example": {
+    "context": {
+      "evidence": [
+        {
+          "evidence_id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "start_ms": 13000,
+          "end_ms": 24000,
+          "excerpt": "The build maintainer says the preview seems to reduce failed exports. They estimate about ten fewer retries in informal use. There has not been a controlled comparison."
+        }
+      ],
+      "focus": [
+        "Desktop software reliability and evaluation"
+      ],
+      "ignore": [],
+      "personalization": [],
+      "style": "BALANCED",
+      "source_display_name": "Desktop build preview discussion",
+      "video_title": "Preview reliability observations"
+    },
+    "output": {
+      "result": "INTELLIGENCE",
+      "core_conclusion": "The maintainer in Desktop build preview discussion reports an apparent export reliability improvement; the informal observation remains unverified.",
+      "user_relevant_information": [
+        "For reliability evaluation, this preliminary source claim suggests a controlled comparison is worth doing."
+      ],
+      "important_new_information": [
+        "The maintainer says the preview seems to reduce failed exports."
+      ],
+      "meaningful_details": [
+        "About ten fewer retries is the maintainer's estimate, not a measured result.",
+        "The source explicitly says no controlled comparison has been performed."
+      ],
+      "filtered_noise": [],
+      "claim_kind": "SYSTEM_INFERENCE",
+      "evidence": [
+        {
+          "evidence_id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "start_ms": 13000,
+          "end_ms": 24000,
+          "stance": "supporting"
+        }
+      ]
+    }
+  },
+  "message_roles": [
+    "original system",
+    "synthetic calibration user",
+    "synthetic calibration assistant",
+    "original actual source user"
+  ],
+  "language_strategy": "Original system requested output_language unchanged; example is English, so actual zh-CN must pass as well without repairs",
+  "runtime": {
+    "version": "0.40.1"
+  },
+  "primary_sources": [
+    "https://huggingface.co/Qwen/Qwen3-8B",
+    "https://docs.ollama.com/modelfile"
+  ],
+  "hypothesis": "Native thinking at official nongreedy sampler may behave differently from earlier greedy thinking and nonthinking. True durable channel name may fix input omission. Neither change is itself evidence of semantic qualification.",
+  "code_head": "fbe0e2b7323384ebb60408a436c4a6b732c61a72"
+}

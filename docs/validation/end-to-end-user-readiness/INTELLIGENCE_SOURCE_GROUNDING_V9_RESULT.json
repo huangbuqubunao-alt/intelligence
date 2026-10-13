@@ -1,0 +1,14 @@
+{
+  "case": "real-deepthink-en",
+  "profile": "source-grounding-research-v9",
+  "protocol": "REJECTED_OUTPUT",
+  "production_qualified": false,
+  "invocation_count": 1,
+  "verdict": "FAIL_EXACT_SOURCE_QUOTES_AND_SEMANTIC",
+  "findings": [
+    "Model changed original source whitespace and quote capitalisation; exact substring grounding correctly rejected",
+    "Final text still retrospective unqualified solved/demonstrated, misleadingPREDICTION, omitted constraints"
+  ],
+  "raw_directory": ".var/end-to-end-user-readiness/intelligence/source-grounding-v9/real-deepthink-en",
+  "next_action": "Stop exact-quote-first prototype; no quote/prose repair. Investigate official fixed decoder parameters rather than more prompt variants."
+}

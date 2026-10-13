@@ -1,0 +1,265 @@
+{
+  "version": "readiness-real-intelligence-v2",
+  "frozen_at": "2026-10-12T10:37:53.993625+00:00",
+  "previous_frozen_corpus_sha256": "cededc0061c43029e28a867bbaeab5ae5691c3e6a998997ace855eebb6dd37f3",
+  "reason": "Independent pre-output review found v1 fictional notes-release positive expectations unfit for AI-only interests. V1 inputs, expectations, hashes and actual outputs retained unchanged.",
+  "input_boundary": "Real public source acquired by normal product YouTube ingestion, verified canonical transcript and immutable Evidence. Human claims and supplier narrative are not independent mathematical verification. No synthetic timing, no fixture model outputs, no paid cloud.",
+  "model": "qwen3:8b",
+  "digest": "sha256:500a1f067a9f782620b40bee6f7b0c89e17ae61f686b92c24933e4ca4b2b8b41",
+  "policy": {
+    "all_cases_semantically_reviewed": true,
+    "each_language_requires_real_positive": true,
+    "exact_schema_and_evidence_binding": true,
+    "repeat_continue_must_not_reinvoke": true,
+    "no_semantic_or_evidence_repair": true,
+    "production_qualified": false
+  },
+  "cases": [
+    {
+      "id": "real-deepthink-en",
+      "title": "Solving years-old math problems with Gemini 2.5 Deep Think",
+      "public_video_id": "QoXRfTb7ves",
+      "public_source_url": "https://www.youtube.com/watch?v=QoXRfTb7ves",
+      "canonical_sha256": "67c965b3254c6240b8fe5c9d2ad120e62aaa6b884780f91e4e27004769df71a6",
+      "output_language": "en",
+      "focus_rules": [
+        "AI reasoning and mathematical research: reliability, human verification, and test-time exploration"
+      ],
+      "timed_segments": [
+        {
+          "start_ms": 0,
+          "end_ms": 1880,
+          "text": "With my most recent experience"
+        },
+        {
+          "start_ms": 1880,
+          "end_ms": 4760,
+          "text": "with Gemini Deep Think,"
+        },
+        {
+          "start_ms": 4760,
+          "end_ms": 7080,
+          "text": "the answer was spectacular."
+        },
+        {
+          "start_ms": 7480,
+          "end_ms": 11600,
+          "text": "This is a mathematical conjecture that was made by some people, some years ago."
+        },
+        {
+          "start_ms": 11840,
+          "end_ms": 13320,
+          "text": "They didn't manage to prove it back then."
+        },
+        {
+          "start_ms": 13320,
+          "end_ms": 16360,
+          "text": "They checked many cases and then they just left it as a conjecture."
+        },
+        {
+          "start_ms": 16480,
+          "end_ms": 20960,
+          "text": "I asked the statement of the conjecture to Gemini Deep Think"
+        },
+        {
+          "start_ms": 21000,
+          "end_ms": 23160,
+          "text": "and it seems like it proved it right away"
+        },
+        {
+          "start_ms": 23160,
+          "end_ms": 25280,
+          "text": "with a completely different method."
+        },
+        {
+          "start_ms": 26640,
+          "end_ms": 28440,
+          "text": "When I was thinking about solving that question,"
+        },
+        {
+          "start_ms": 28440,
+          "end_ms": 31480,
+          "text": "I was thinking about maybe three different things, three different ideas,"
+        },
+        {
+          "start_ms": 31760,
+          "end_ms": 35440,
+          "text": "but it seems that Deep Think was thinking about 20 or 100."
+        },
+        {
+          "start_ms": 35840,
+          "end_ms": 38520,
+          "text": "Many, many different possibilities and then pursuing them."
+        },
+        {
+          "start_ms": 38960,
+          "end_ms": 42680,
+          "text": "The Deep Think mode that users will get access to"
+        },
+        {
+          "start_ms": 42680,
+          "end_ms": 46320,
+          "text": "is basically very similar to the Deep Think mode that we used"
+        },
+        {
+          "start_ms": 46320,
+          "end_ms": 50440,
+          "text": "to acheive the gold-medal standard at the IMO."
+        },
+        {
+          "start_ms": 50440,
+          "end_ms": 58520,
+          "text": "So, the achievement of IMO is a major milestone in artificial intelligence,"
+        },
+        {
+          "start_ms": 58520,
+          "end_ms": 62600,
+          "text": "towards building human-level intelligence."
+        }
+      ],
+      "expectation": {
+        "result": "INTELLIGENCE",
+        "require_substantive_judgment": true,
+        "retention_reason": "Track whether test-time exploration can become useful for mathematical research, while separating supplier claims and researcher experience from independently verified correctness.",
+        "retain": [
+          "Attribution to Google DeepMind and the speakers rather than independent proof",
+          "A reported formerly unproved conjecture and many explored possible approaches",
+          "The described public mode is similar to the IMO gold-medal-standard mode; similar is not identical",
+          "Still needs human mathematical verification and broader evaluation"
+        ],
+        "forbid": [
+          "Human-level intelligence established as fact",
+          "Guaranteed correct proofs",
+          "Independent verification of all claims",
+          "Measured latency or price claims not present in source",
+          "Unattributed claim that 20 or 100 is a measured exact search count"
+        ],
+        "confidence": "Partial/Medium/Low support, not a guaranteed or percentage confidence",
+        "no_new_boundary": "NO_NEW is a legal service outcome, but cannot by itself establish a usable real positive Intelligence path. Do not force admission or rewrite the input after output."
+      }
+    },
+    {
+      "id": "real-deepthink-zh-cn",
+      "title": "Solving years-old math problems with Gemini 2.5 Deep Think",
+      "public_video_id": "QoXRfTb7ves",
+      "public_source_url": "https://www.youtube.com/watch?v=QoXRfTb7ves",
+      "canonical_sha256": "67c965b3254c6240b8fe5c9d2ad120e62aaa6b884780f91e4e27004769df71a6",
+      "output_language": "zh-CN",
+      "focus_rules": [
+        "AI reasoning and mathematical research: reliability, human verification, and test-time exploration"
+      ],
+      "timed_segments": [
+        {
+          "start_ms": 0,
+          "end_ms": 1880,
+          "text": "With my most recent experience"
+        },
+        {
+          "start_ms": 1880,
+          "end_ms": 4760,
+          "text": "with Gemini Deep Think,"
+        },
+        {
+          "start_ms": 4760,
+          "end_ms": 7080,
+          "text": "the answer was spectacular."
+        },
+        {
+          "start_ms": 7480,
+          "end_ms": 11600,
+          "text": "This is a mathematical conjecture that was made by some people, some years ago."
+        },
+        {
+          "start_ms": 11840,
+          "end_ms": 13320,
+          "text": "They didn't manage to prove it back then."
+        },
+        {
+          "start_ms": 13320,
+          "end_ms": 16360,
+          "text": "They checked many cases and then they just left it as a conjecture."
+        },
+        {
+          "start_ms": 16480,
+          "end_ms": 20960,
+          "text": "I asked the statement of the conjecture to Gemini Deep Think"
+        },
+        {
+          "start_ms": 21000,
+          "end_ms": 23160,
+          "text": "and it seems like it proved it right away"
+        },
+        {
+          "start_ms": 23160,
+          "end_ms": 25280,
+          "text": "with a completely different method."
+        },
+        {
+          "start_ms": 26640,
+          "end_ms": 28440,
+          "text": "When I was thinking about solving that question,"
+        },
+        {
+          "start_ms": 28440,
+          "end_ms": 31480,
+          "text": "I was thinking about maybe three different things, three different ideas,"
+        },
+        {
+          "start_ms": 31760,
+          "end_ms": 35440,
+          "text": "but it seems that Deep Think was thinking about 20 or 100."
+        },
+        {
+          "start_ms": 35840,
+          "end_ms": 38520,
+          "text": "Many, many different possibilities and then pursuing them."
+        },
+        {
+          "start_ms": 38960,
+          "end_ms": 42680,
+          "text": "The Deep Think mode that users will get access to"
+        },
+        {
+          "start_ms": 42680,
+          "end_ms": 46320,
+          "text": "is basically very similar to the Deep Think mode that we used"
+        },
+        {
+          "start_ms": 46320,
+          "end_ms": 50440,
+          "text": "to acheive the gold-medal standard at the IMO."
+        },
+        {
+          "start_ms": 50440,
+          "end_ms": 58520,
+          "text": "So, the achievement of IMO is a major milestone in artificial intelligence,"
+        },
+        {
+          "start_ms": 58520,
+          "end_ms": 62600,
+          "text": "towards building human-level intelligence."
+        }
+      ],
+      "expectation": {
+        "result": "INTELLIGENCE",
+        "require_substantive_judgment": true,
+        "retention_reason": "Track whether test-time exploration can become useful for mathematical research, while separating supplier claims and researcher experience from independently verified correctness.",
+        "retain": [
+          "Attribution to Google DeepMind and the speakers rather than independent proof",
+          "A reported formerly unproved conjecture and many explored possible approaches",
+          "The described public mode is similar to the IMO gold-medal-standard mode; similar is not identical",
+          "Still needs human mathematical verification and broader evaluation"
+        ],
+        "forbid": [
+          "Human-level intelligence established as fact",
+          "Guaranteed correct proofs",
+          "Independent verification of all claims",
+          "Measured latency or price claims not present in source",
+          "Unattributed claim that 20 or 100 is a measured exact search count"
+        ],
+        "confidence": "Partial/Medium/Low support, not a guaranteed or percentage confidence",
+        "no_new_boundary": "NO_NEW is a legal service outcome, but cannot by itself establish a usable real positive Intelligence path. Do not force admission or rewrite the input after output."
+      }
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "status": "FAIL",
+  "tables": 71,
+  "files": 4,
+  "before_sha256": "e2f5e7cd933c1a1f75a8f87e59dd4725e3bc46162a72203fec745a4c3fd99e04",
+  "after_sha256": "41786289dc1fc1b89afbae1f600f4c8c62fa180b3bed01597f94ff2cd4072d12",
+  "integrity": "ok",
+  "scope": "Fresh normal public import with v2 native timing; exact all tables/files after real UI backup/upload/RESTORE/restart. Old-policy root ledger blocker remains pending approved retirement; this does not prove that blocker fixed.",
+  "formal_writes": false
+}

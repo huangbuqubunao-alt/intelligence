@@ -1,0 +1,20 @@
+{
+  "public": {
+    "exact_match": true,
+    "before_sha256": "332c5c1bc120737d1d98d5046ccae08ddfe1aa97dabc24f1f5cf533f86784632",
+    "after_sha256": "332c5c1bc120737d1d98d5046ccae08ddfe1aa97dabc24f1f5cf533f86784632",
+    "tables": 71,
+    "data_files": 3,
+    "integrity": "ok",
+    "cancellation_count": 0
+  },
+  "cancelled": {
+    "exact_match": true,
+    "before_sha256": "1f00a065ca4280f4c2473b1dfd9917474468266d2a7ed6b97680fe457273a458",
+    "after_sha256": "1f00a065ca4280f4c2473b1dfd9917474468266d2a7ed6b97680fe457273a458",
+    "tables": 71,
+    "data_files": 3,
+    "integrity": "ok",
+    "cancellation_count": 1
+  }
+}

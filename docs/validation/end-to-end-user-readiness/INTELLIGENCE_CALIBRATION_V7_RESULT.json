@@ -1,0 +1,14 @@
+{
+  "case": "real-deepthink-en",
+  "profile": "source-calibration-research-v7",
+  "protocol": "REJECTED_OUTPUT",
+  "production_qualified": false,
+  "generations": 1,
+  "invocation_count": 1,
+  "response_done_reason": "length",
+  "eval_count": 4096,
+  "final_content_length": 0,
+  "verdict": "FAIL_NO_FINAL_OUTPUT",
+  "raw_directory": ".var/end-to-end-user-readiness/intelligence/source-calibration-v7/real-deepthink-en",
+  "next_action": "No output repair or extra call; bounded new separately frozen non-thinking calibration experiment pending independent pre-output review"
+}

@@ -1,0 +1,40 @@
+{
+  "status": "REJECT",
+  "case": "real-deepthink-en",
+  "profile": "native-sampling-v10",
+  "protocol": {
+    "corpus_sha256": "a7c96ee6b84aee6b8e492348b9f4f190d7c9f6f14241b25e533532bc4dcb82cb",
+    "case": "real-deepthink-en",
+    "evidence_count": 2,
+    "execution_id": "distillation:reservation:v3:0b2a12d42deaa8e086b70256efb46872d44e4eb5f204ca884db511ec312e142b",
+    "production_qualified": false,
+    "reasoning_profile": "native-sampling",
+    "outcome": {
+      "execution_id": "distillation:reservation:v3:0b2a12d42deaa8e086b70256efb46872d44e4eb5f204ca884db511ec312e142b",
+      "status": "SUCCEEDED",
+      "invocation_count": 1,
+      "intelligence_id": "intelligence:distillation:distillation:reservation:v3:0b2a12d42deaa8e086b70256efb46872d44e4eb5f204ca884db511ec312e142b",
+      "revision_id": "revision:distillation:distillation:reservation:v3:0b2a12d42deaa8e086b70256efb46872d44e4eb5f204ca884db511ec312e142b"
+    },
+    "generations": 1
+  },
+  "actual_files_sha256": {
+    "request.json": "71b2efbc1e15880522168c2af6f4cac8dbc8b058131f897d79a19286780b2701",
+    "response.json": "3d5ee204435f64a120c7a5c4c954b8b43af35da18efa585c38eb9874577b5809",
+    "result.json": "79cfa580cab318049904bd32d790872221128bb742e8003037b967de9659abb1"
+  },
+  "independent_semantic_review": {
+    "reviewer": "intel_bounded_review",
+    "P0": 0,
+    "P1": [
+      "Retrospective purported proof report is misclassified as PREDICTION.",
+      "Detail promotes subjective source exploration estimate into generalized actual model-versus-human result."
+    ],
+    "P2": [
+      "A user/the user attribution misses identified video/source context.",
+      "Public-mode similar-not-identical qualification is omitted.",
+      "Output remains largely a summary and generic relevance rather than a retained evaluation judgment."
+    ]
+  },
+  "limits": "Native nonthinking sampling did not resolve the frozen semantic failures. No rerolls, no output correction, no production eligibility; private reasoning not inspected or published."
+}
