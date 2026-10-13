@@ -17,3 +17,15 @@ Required：approved所有known/unknown/concurrency/idempotence/restart/old34–3
 提交有界commit和完整handoff后STOP，建议IN_REVIEW不自行DONE/main。有规格空白/需扩大scope先报root，无自动新增迁移/字段/既有表改写。主控整合检查后真macOS GUI backup/download/preview/RESTORE/restart，所有表与全部物理DATA逐字节相等才验收。
 
 立即启动迁移。可并行：Keyboard已作者STOP，reviewer只审App/handoff不冲突；rootGUI/资料核验。等待：LOCAL_TEXT涉及state，必须本迁移接受整合后串行；9b真实FAIL/LOCAL8例仍BLOCKED，不授资格。
+
+## 2026-10-14 第二次独立REJECT后的原作者返修包
+
+Base61f740250872c67131a06d73eb93df86d202fd32，原tree readiness-subtitle-archive-38/原branch/原作者caption_resume，Reviewer intel_bounded_review。4f80后继proof修复有效但未接受整合；同一old failed child正规字段及历史snapshot仍缺，准确反证与ZipInfo/WAL复核见独立handoff。原审批覆盖Job/全部attempt/provider/source-run全字段正规计数/UTC/terminal证明，此返修继续同23字段Schema38/原安全范围，不重新申请迁移。
+
+补齐old Job（包括max_attempts正规整数）、全部attempt与最终明确FAILED_FINAL、owner/lease与UTC全时序、正规SourceRun identity/state/不可变事件链；全部original_execution字段绑定既有canonical proof_json与exact-key/hash/history读取。live准入、幂等、历史readiness与Restore统一重验，不允许仍合法但已漂移字段。旧未发布incomplete38 proof保持closed，不修改不可变历史/升级旧proof。后继完整snapshot正控保留，未来合法current Summary切换仍通过，old34–37合同完全不变。
+
+P2测试修正必须保留原ZipInfo/regular attrs，私有tamper DB保证WAL真正checkpoint后再封包/hash重算，并断言拒绝明确来自Neutral retention proof校验，不能把specialfile或DBhash提前拒绝称proof测试；保留旧断言，不删除/skip弱化任何负控。五old反证、两历史合法字段漂移、bad appended event/混合批次/rawfile全集/cancel/restorelease/幂等/未来pointer全部有真实外部观察，无新GET/模型。
+
+caption成功completion当前复用fetch入口now，capture却用IO后真实clock；原CAPTION_REPAIR_PROPOSAL要求active owner/lease/CAS。本任务只准最小同caption repair完成边界使用当前实际clock验证持久化/lease与终结UTC，不准用旧时间延长租约、倒填历史或放宽proof，不改普通非repair pipeline广泛clock、不新增retry/reclaim/response权限。先复现delay越lease、owner改变与clock后退负控，检查实际同repair成功/失败记录时间能满足安全proof。若需新增持久化边界/Schema/其他模块权限，先停报告具体增补，不能夹带。
+
+仅原transcripts.py/state.py及新增archive tests、精确caption tests与handoff，若其他路径先报告。先语法/TS不涉前端、TDD原候选反证、focused各旧新测试/static/diff提交STOP→独立重审。此次不重复19分钟旧完整backend；最终root接受整合后必须完整最新backend/front/TSbuild/GUI，旧4310+1FAIL保留。Parallel now独立UI已提交STOP的Reviewer（不业务写）；waiting核心接受后LOCAL_TEXT。所有正式服务/数据/模型/Cloud/依赖不动。

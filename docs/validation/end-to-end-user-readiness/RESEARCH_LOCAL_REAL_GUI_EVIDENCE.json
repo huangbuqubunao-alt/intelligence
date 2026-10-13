@@ -1,0 +1,209 @@
+{
+  "candidate": "3e5ac4c",
+  "status": "PASS_EVIDENCE_PACKAGE_CREATE_READ_RECOLLECT_INITIAL_TRACE",
+  "scope": "real isolated macOS headful Chrome, existing Whisper Content, deterministic library research, no model synthesis",
+  "researchUrl": "http://127.0.0.1:5908/#Research/e94a4247f39459b07e6a1bba75e44948c448ed7b4ce92dba5fc24b4bac0ce418",
+  "question": "How does this local recording protect privacy and preserve the original words?",
+  "sourceContent": "local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd",
+  "originalEvidenceCount": 3,
+  "existingIntelligenceCount": 0,
+  "explicitNoNewConclusion": true,
+  "initialEvidenceFocus": "content-evidence-cc14a20752de203fe7a470a3a249c59ba84b62773bed7465dd30364f86634bc3",
+  "refreshEvidenceFocus": "",
+  "durableEvidenceLocator": "OPEN: route does not retain Evidence ID on refresh; approved LOCAL_TEXT UI slice must resolve",
+  "requestLog": [
+    {
+      "method": "POST",
+      "path": "/api/v1/research"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research/e94a4247f39459b07e6a1bba75e44948c448ed7b4ce92dba5fc24b4bac0ce418/history"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research/e94a4247f39459b07e6a1bba75e44948c448ed7b4ce92dba5fc24b4bac0ce418"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research/e94a4247f39459b07e6a1bba75e44948c448ed7b4ce92dba5fc24b4bac0ce418/history"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/videos"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/videos"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/settings"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/videos/local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/settings"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/videos/local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/videos/local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd/transcription"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/videos/local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd/deep-analysis/obsidian"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/videos/local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd/deep-analysis"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/videos/local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd/evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/videos/local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd/transcription"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/videos/local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd/deep-analysis/obsidian"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/videos/local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd/deep-analysis"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/videos/local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd/evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/videos/local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd/evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/videos/local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/videos/local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd/transcription"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/videos/local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd/deep-analysis/obsidian"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/videos/local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd/deep-analysis"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/videos/local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd/evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/videos/local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd/transcription"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/videos/local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd/deep-analysis/obsidian"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/videos/local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd/deep-analysis"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/videos/local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd/evidence"
+    },
+    {
+      "method": "GET",
+      "path": "/src/api/client.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/local/native/capability"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/videos"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/local/native/capability"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/videos"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/local/native/jobs"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research/e94a4247f39459b07e6a1bba75e44948c448ed7b4ce92dba5fc24b4bac0ce418/history"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research/e94a4247f39459b07e6a1bba75e44948c448ed7b4ce92dba5fc24b4bac0ce418"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research/e94a4247f39459b07e6a1bba75e44948c448ed7b4ce92dba5fc24b4bac0ce418/history"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research/e94a4247f39459b07e6a1bba75e44948c448ed7b4ce92dba5fc24b4bac0ce418"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/research"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research/e94a4247f39459b07e6a1bba75e44948c448ed7b4ce92dba5fc24b4bac0ce418/history"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research/e94a4247f39459b07e6a1bba75e44948c448ed7b4ce92dba5fc24b4bac0ce418"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/research/e94a4247f39459b07e6a1bba75e44948c448ed7b4ce92dba5fc24b4bac0ce418/history"
+    }
+  ],
+  "pageErrors": [],
+  "modelCalls": 0,
+  "cloudCalls": 0,
+  "formalDataAccessed": false,
+  "historyCompare": {
+    "status": "PASS",
+    "text": "洞察工作台\n\n研究\n\n围绕问题查看所选本地资料库内容。\n\n研究仅使用你已有的资料库，不探索外网，也不调用模型。\n\n新建研究\n当前研究\n研究版本对比\n关闭对比\n\nHow does this local recording protect privacy and preserve the original words?\n\n输出语言: 简体中文\n\n方向：基础版本 → 目标版本。新增引用来自目标版本，移除引用来自基础版本。\n\n基础版本\n\n版本 1 · 2026/10/14 05:37:54\n\n打开基础版本\n目标版本\n\n版本 2 · 2026/10/14 05:38:52\n\n打开目标版本\n所选资料库范围\nordinary-ui-video.mp4\n对比概览\n\n无实质变化\n\n计数表示引用条目与证据包字段的变化，不表示证据强弱。对比范围仅为这两个有数量上限的已保存证据包。\n\n引用的内容\n\n无新增或移除\n\n未变：1\n\n证据引用\n\n无新增或移除\n\n未变：3\n\n已记录的解释与洞察版本引用\n\n无新增或移除\n\n未变：0\n\n证据包字段\n\n证据包字段无变化"
+  },
+  "extraNativeJobRequest": "Captured bootstrap POST /local/native/jobs; no native picker selection/file import occurred in research scope."
+}

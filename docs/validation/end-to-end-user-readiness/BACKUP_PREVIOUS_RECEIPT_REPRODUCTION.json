@@ -1,0 +1,9 @@
+{
+  "candidate": "3e5ac4c",
+  "status": "REPRODUCED_P2_AMBIGUOUS_PREVIOUS_RECEIPT",
+  "scope": "real isolated macOS UI; new backup selected/previewed, no new confirm yet",
+  "currentPreviewPending": true,
+  "previousReceiptStillVisible": true,
+  "previewDoesNotMutate": true,
+  "formalWrites": false
+}
