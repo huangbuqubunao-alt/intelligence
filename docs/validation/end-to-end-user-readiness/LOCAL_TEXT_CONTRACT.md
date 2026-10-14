@@ -41,6 +41,15 @@ a missing card projection cannot downgrade to generic. Missing proof or ledger
 rejects current/recorded cards, Save, saved-list trust and Topic association.
 An ordinary generic revision with no distillation association stays readable.
 
+The reserved revision identity family
+`revision:distillation:distillation:local-text-v<decimal version>:` independently
+requires strict verification, even if all card/checkpoint/ledger/proof rows are
+missing. This identity grants no authority. Unknown future versions fail closed;
+only the exact supported v2 execution and its exact revision identity can pass.
+Incidental substrings and non-version suffixes do not classify generic revisions.
+Schema39 Backup/Restore also traverses produced revisions through that same
+reader, so removing all forward associations cannot bypass validation.
+
 New schema 39 backups validate every proof and execution/ledger/result binding,
 including canceled and unknown terminal executions. Old 34–38 packages retain
 original validation/staging/activation contracts; normal startup runs the existing
@@ -62,6 +71,9 @@ false, execution authority NONE, and real calls zero. Future LOCAL8 and genuine
 ordinary Intelligence/save/Topic acceptance remain blocked by that prerequisite,
 exact input/code freeze, independent pre-output review and a specific start
 instruction. All positive tests in this task are explicitly offline fixtures.
+`LOCAL_TEXT_PREPARATION_PROFILE_V3.json` records this repair candidate's source
+hashes with unchanged v2 wire/profile, zero calls and authority NONE. V1/V2
+preparation records remain historical evidence, not current code freezes.
 
 User-facing reading steps: import TXT/MD, open Content and its original Evidence;
 read the displayed line ranges; use Open Content from an Intelligence Evidence

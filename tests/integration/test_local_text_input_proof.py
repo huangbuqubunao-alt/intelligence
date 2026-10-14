@@ -120,19 +120,26 @@ def test_legacy_backup_restore_then_normal_startup39_preserves_all_domain_rows_a
     assert _files(provider.data_root) == before[1]
 
 
-def test_generic_local_text_revision_without_distillation_association_stays_readable(tmp_path):
+@pytest.mark.parametrize("revision_id", ["generic-local-revision",
+    "generic:revision:distillation:distillation:local-text-v2:unrelated",
+    "revision:distillation:distillation:local-text-v2extra:unrelated"])
+def test_generic_local_text_revision_without_distillation_association_stays_readable(tmp_path, revision_id):
+    from youtube_intel.backup_restore import BackupRestoreService
     from youtube_intel.intelligence_read import AuthoritativeIntelligenceReader
     from youtube_intel.state import DependencyEdgeWrite, DependencyRelation
     trusted = _load_module("test_task019_trusted_intelligence_read")
     repository, _provider, _cid, ids, _refs, transport, _service = text._workspace(tmp_path)
     repository.create_intelligence(intelligence_id="generic-local-fixture", now=NOW)
     repository.append_intelligence_revision(intelligence_id="generic-local-fixture",
-        revision=trusted._write("generic-local-revision", ids[0]), now=NOW)
+        revision=trusted._write(revision_id, ids[0]), now=NOW)
     repository.create_dependency_edge(DependencyEdgeWrite(edge_id="generic-local-edge",
-        dependent_revision_id="generic-local-revision", relation=DependencyRelation.EVIDENCE_SUPPORT,
+        dependent_revision_id=revision_id, relation=DependencyRelation.EVIDENCE_SUPPORT,
         input_evidence_id=ids[0], input_revision_id=None), now=NOW)
     assert AuthoritativeIntelligenceReader(repository).read_current("generic-local-fixture").evidence_ids == (ids[0],)
-    assert repository.get_distillation_card("generic-local-revision") is None
+    assert repository.get_distillation_card(revision_id) is None
+    backup = BackupRestoreService(database=repository._database_path, data_root=_provider.data_root)
+    package, _ = backup.backup_download(backup.create_backup().backup_id)
+    assert backup.stage_restore(package.read_bytes()).restore_id
     assert transport.calls == 0
 
 
@@ -206,7 +213,11 @@ def test_original_input_retains_preferences_and_policy_after_valid_changes(tmp_p
             verify_local_text_input_proof(repository, connection, reservation.execution_id, require_current=True)
 
 
-@pytest.mark.parametrize("damage", ["proof", "card", "ledger", "projection"])
+@pytest.mark.parametrize("damage", [
+    "proof", "card", "ledger", "projection", "proof+card", "proof+ledger",
+    "card+ledger", "proof+card+ledger", "proof+checkpoint", "proof+card+checkpoint",
+    "proof+ledger+checkpoint", "proof+card+ledger+checkpoint",
+])
 def test_schema39_forged_archive_with_rehashed_database_is_rejected_before_live_replacement(tmp_path, damage):
     import io
     import zipfile
@@ -216,7 +227,13 @@ def test_schema39_forged_archive_with_rehashed_database_is_rejected_before_live_
     transport.raw = json.dumps(text._positive(refs))
     reservation = service.reserve_distillation_execution(source_id=text.LOCAL_SOURCE_ID,
         video_id=cid, evidence_ids=ids, manual_command_id="forged-archive")
-    assert service.continue_reserved_distillation(reservation.execution_id).status.value == "SUCCEEDED"
+    result = service.continue_reserved_distillation(reservation.execution_id)
+    assert result.status.value == "SUCCEEDED"
+    from youtube_intel.saved_intelligence import (
+        SavedIntelligenceService,
+        SaveIntelligence,
+    )
+    SavedIntelligenceService(repository, now=lambda: NOW).save(SaveIntelligence(intelligence_id=result.intelligence_id))
     backup = BackupRestoreService(database=repository._database_path, data_root=provider.data_root)
     package, _ = backup.backup_download(backup.create_backup().backup_id)
     with zipfile.ZipFile(package) as archive:
@@ -224,22 +241,30 @@ def test_schema39_forged_archive_with_rehashed_database_is_rejected_before_live_
         entries = {item.filename: item for item in archive.infolist()}
     forged_database = tmp_path / "forged-only.sqlite"
     forged_database.write_bytes(members["database/state.sqlite"])
-    table, trigger = {
-        "proof": ("local_text_input_proofs", "local_text_input_proofs_immutable_delete"),
-        "card": ("distillation_cards", "distillation_card_immutable_delete"),
-        "ledger": ("distillation_resource_usage", "distillation_resource_usage_immutable_delete"),
-        "projection": ("local_text_input_proofs", "local_text_input_proofs_immutable_update"),
-    }[damage]
+    tables = {"proof": "local_text_input_proofs", "card": "distillation_cards",
+        "ledger": "distillation_resource_usage", "checkpoint": "distillation_execution_checkpoints",
+        "projection": "local_text_input_proofs"}
     with sqlite3.connect(forged_database) as connection:
-        sql = connection.execute("SELECT sql FROM sqlite_master WHERE name=?", (trigger,)).fetchone()[0]
-        connection.execute('DROP TRIGGER "' + trigger + '"')
-        if damage == "projection":
-            value = json.loads(connection.execute("SELECT input_json FROM local_text_input_proofs").fetchone()[0])
-            value["profile"]["digest"] = "sha256:" + "0" * 64
-            connection.execute("UPDATE local_text_input_proofs SET input_json=?", (json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")),))
-        else:
-            connection.execute('DELETE FROM "' + table + '"')
-        connection.execute(sql)
+        connection.execute("PRAGMA foreign_keys=ON")
+        for missing in damage.split("+"):
+            table = tables[missing]
+            triggers = connection.execute("SELECT name,sql FROM sqlite_master WHERE type='trigger' AND tbl_name=?", (table,)).fetchall()
+            for name, _sql in triggers:
+                connection.execute('DROP TRIGGER "' + name + '"')
+            if missing == "projection":
+                value = json.loads(connection.execute("SELECT input_json FROM local_text_input_proofs").fetchone()[0])
+                value["profile"]["digest"] = "sha256:" + "0" * 64
+                connection.execute("UPDATE local_text_input_proofs SET input_json=?", (json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")),))
+            elif missing == "checkpoint" and "ledger" not in damage:
+                # A retained ledger has an FK to its checkpoint. Remove only
+                # the checkpoint's result association, preserving FK validity.
+                connection.execute("UPDATE distillation_execution_checkpoints SET status='REJECTED_OUTPUT',intelligence_id=NULL,revision_id=NULL")
+            else:
+                connection.execute('DELETE FROM "' + table + '"')
+            for _name, sql in triggers:
+                connection.execute(sql)
+        assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
+        assert connection.execute("PRAGMA integrity_check").fetchone() == ("ok",)
     connection.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchall()
     connection.execute("PRAGMA journal_mode=DELETE").fetchone()
     connection.close()
@@ -257,6 +282,98 @@ def test_schema39_forged_archive_with_rehashed_database_is_rejected_before_live_
         backup.stage_restore(stream.getvalue())
     assert (_tables(repository), _files(provider.data_root)) == before
     assert backup.restore_pending is False
+    # Reopen the same closed malicious database: all ordinary read consumers
+    # must reject too, including a previously saved relation after restart.
+    forged = SQLiteStateRepository(forged_database)
+    forged.bind_source_storage(provider.data_root)
+    _assert_text_consumers_closed(forged, result.intelligence_id, result.revision_id)
+    assert transport.calls == 1
+
+
+def _assert_text_consumers_closed(repository, intelligence_id, revision_id):
+    from youtube_intel.intelligence_read import (
+        AuthoritativeIntelligenceReader,
+        IntelligenceReadRejected,
+    )
+    from youtube_intel.saved_intelligence import (
+        SavedIntelligenceService,
+        SaveIntelligence,
+    )
+    from youtube_intel.topic import (
+        TopicApplicationService,
+        TopicAssociationKind,
+        TopicReadRejected,
+    )
+    reader = AuthoritativeIntelligenceReader(repository)
+    for read in (lambda: reader.read_current(intelligence_id),
+        lambda: reader.read_current_card(intelligence_id),
+        lambda: reader.read_recorded_card(intelligence_id, revision_id)):
+        with pytest.raises(IntelligenceReadRejected):
+            read()
+    saved = SavedIntelligenceService(repository, now=lambda: NOW)
+    with pytest.raises(IntelligenceReadRejected):
+        saved.save(SaveIntelligence(intelligence_id=intelligence_id))
+    assert saved.list_saved().items[0].verified is None
+    topics = TopicApplicationService(repository, now=lambda: NOW)
+    topic = topics.create_topic(command_id="association-loss", name="Association loss fixture")
+    with pytest.raises(TopicReadRejected):
+        topics.associate_intelligence(topic_id=topic.topic_id, intelligence_id=intelligence_id,
+            kind=TopicAssociationKind.NEW_INFORMATION)
+    assert repository.list_topic_memberships(topic.topic_id) == ()
+
+
+@pytest.mark.parametrize("version", ["2", "3", "999"])
+def test_explicit_text_revision_without_any_association_is_closed_including_future_versions(tmp_path, version):
+    import io
+    import zipfile
+
+    from youtube_intel.backup_restore import BackupRestoreError, BackupRestoreService
+    from youtube_intel.state import DependencyEdgeWrite, DependencyRelation
+    trusted = _load_module("test_task019_trusted_intelligence_read")
+    repository, provider, _cid, ids, _refs, transport, _service = text._workspace(tmp_path)
+    backup = BackupRestoreService(database=repository._database_path, data_root=provider.data_root)
+    package, _ = backup.backup_download(backup.create_backup().backup_id)
+    with zipfile.ZipFile(package) as archive:
+        entries = archive.infolist()
+        members = {entry.filename: archive.read(entry) for entry in entries}
+    forged_database = tmp_path / "future-only.sqlite"
+    forged_database.write_bytes(members["database/state.sqlite"])
+    live = repository
+    before = _tables(live), _files(provider.data_root)
+    repository = SQLiteStateRepository(forged_database)
+    repository.bind_source_storage(provider.data_root)
+    revision_id = f"revision:distillation:distillation:local-text-v{version}:" + ":".join(["a" * 64] * 3)
+    repository.create_intelligence(intelligence_id="explicit-text-fixture", now=NOW)
+    repository.append_intelligence_revision(intelligence_id="explicit-text-fixture",
+        revision=trusted._write(revision_id, ids[0]), now=NOW)
+    repository.create_dependency_edge(DependencyEdgeWrite(edge_id="explicit-text-edge",
+        dependent_revision_id=revision_id, relation=DependencyRelation.EVIDENCE_SUPPORT,
+        input_evidence_id=ids[0], input_revision_id=None), now=NOW)
+    repository.save_intelligence_relation(intelligence_id="explicit-text-fixture",
+        expected_revision_id=revision_id, now=NOW)
+    _assert_text_consumers_closed(repository, "explicit-text-fixture", revision_id)
+    with pytest.raises(BackupRestoreError, match="Local text input proof failed"):
+        BackupRestoreService(database=repository._database_path, data_root=provider.data_root).create_backup()
+    with repository._connect() as connection:
+        assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
+        assert tuple(connection.execute("PRAGMA integrity_check").fetchone()) == ("ok",)
+        connection.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchall()
+        connection.execute("PRAGMA journal_mode=DELETE").fetchone()
+    connection.close()
+    members["database/state.sqlite"] = forged_database.read_bytes()
+    manifest = json.loads(members["manifest.json"])
+    manifest["database"]["sha256"] = hashlib.sha256(members["database/state.sqlite"]).hexdigest()
+    manifest["database"]["size_bytes"] = len(members["database/state.sqlite"])
+    members["manifest.json"] = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
+    stream = io.BytesIO()
+    with zipfile.ZipFile(stream, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for entry in entries:
+            archive.writestr(entry, members[entry.filename])
+    with pytest.raises(BackupRestoreError, match="Local text input proof failed"):
+        backup.stage_restore(stream.getvalue())
+    assert (_tables(live), _files(provider.data_root)) == before
+    assert backup.restore_pending is False
+    assert transport.calls == 0
 
 
 def test_utf8_projection_limit_rejects_without_truncation_reservation_or_invocation(tmp_path):

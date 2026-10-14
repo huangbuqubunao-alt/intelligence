@@ -482,3 +482,102 @@ guards. No schema expansion is requested by this finding.
 Verdict: **REJECT**, one open P1, no additional P0/P2 finding asserted. Return to
 the original implementer for the bounded repair and independent re-review. This
 commit changes only this handoff. Reviewer **STOP**; no acceptance or integration.
+
+## Implementer association-loss repair — 2026-10-15
+
+Repair starts at independent REJECT `b2aebad7ba54cf0a6acc29db2fe9637609c8042b`
+on the original task branch/worktree. All prior implementation/rejection commits
+remain in history. Scope is reader/Backup validation, the matching proof tests,
+contract and this handoff plus a new preparation snapshot. No Schema/SQL, state,
+App/UI, runtime/provider, config, dependency, owner, qualification or network
+change. Continuing authorization and the exact 15-field proposal/startup
+clarification were read from the orchestrator worktree. Graph lookup was stale
+for this implementation; exact fixed-SHA source/diff was used. Jev routing was
+unavailable (HTTP451); strong/default reasoning and independent review retained.
+
+Reuse DIRECT existing authoritative current/recorded card readers, exact v2
+execution/proof/ledger verifier, SQLite and ZIP/hash restore guards. The reserved
+`revision:distillation:distillation:local-text-v<decimal version>:` identity now
+independently requires strict card validation. It grants no authority and does
+not try alternative hashes. Unknown future versions cannot become generic.
+The text verifier also requires the exact generated revision/execution identity.
+Backup traverses all produced revisions through the shared classifier and
+recorded-card reader, including results whose four associations disappeared.
+Ordinary generic identities (including incidental/non-version lookalikes) retain
+their original behavior. No new dependency or third-party source was needed.
+
+Regression fixtures retain every original ZIP entry's ZipInfo, rehash DB/manifest,
+checkpoint and close SQLite, restore exact immutable triggers and assert FK plus
+integrity before actual stage validation. Eleven association-loss combinations
+plus the original projection damage cover stage and reopened current/current-card/
+recorded-card/Save/saved-list/Topic. When a ledger survives, its FK requires its
+checkpoint row: those two cases remove only the checkpoint's result association,
+using a terminal non-ambiguous status with NULL result IDs; the original all-four
+probe still deletes all four rows. Future v2/v3/v999 identities with no sidecars
+also exercise actual rehashed stage. Strict expected proof-error assertions and
+live all-table/DATA equality remain, with no unknown-file guard weakened.
+
+Evidence preserved, including failed attempts:
+
+- TDD RED: `PYTHONPATH=src:. .venv/bin/pytest -q tests/integration/test_local_text_input_proof.py -k 'proof+card+ledger+checkpoint'`:
+  **1 failed**, `Failed: DID NOT RAISE BackupRestoreError` at actual stage,
+  `/tmp/local-text39-association-red.log`.
+- Direct/future RED: same module `-k explicit_text_revision`: **3 failed**,
+  `Failed: DID NOT RAISE IntelligenceReadRejected`, v2/v3/v999 current reads,
+  `/tmp/local-text39-future-red.log`.
+- Initial expanded proof run: **26 passed, 2 failed**, both newly added fixture
+  combinations attempted to delete a checkpoint still referenced by its retained
+  ledger; `sqlite3.IntegrityError: FOREIGN KEY constraint failed`,
+  `/tmp/local-text39-association-proof.log`. The already-started overlapping run
+  was deliberately interrupted before repeating this failure: **18 passed,
+  KeyboardInterrupt**, `/tmp/local-text39-association-local.log` (not PASS).
+- The first association-only fixture used AMBIGUOUS and correctly hit the earlier
+  ledger consistency guard: **3 passed, 2 failed**, expected proof error versus
+  `An ambiguous distillation resource record failed validation.`,
+  `/tmp/local-text39-association-fixture-fix.log`. The fixture was corrected to the
+  non-ambiguous terminal association-loss case above, rather than weakening the
+  expected error. Focused rerun: **2 passed**, 7.40s,
+  `/tmp/local-text39-association-fixture-closed.log`.
+- Original independent external probe rerun:
+  `PYTHONPATH=src:.:tests .venv/bin/python /tmp/local-text39-review-missing-associations.py`:
+  exit0, FK/integrity `ok`; archive CLOSED with
+  `Local text input proof failed validation.`, current-card/current/Save CLOSED
+  with `distillation card is unavailable`, Topic CLOSED; one offline fixture
+  generation, zero real model/network calls. Preserved output:
+  `/tmp/local-text39-association-original-probe.log`.
+- Related `pytest -q` cohort: `tests/unit/test_backup_restore.py`,
+  `tests/integration/test_task019_trusted_intelligence_read.py`,
+  `tests/integration/test_local_intelligence_timed.py`,
+  `tests/integration/test_task025a_saved_intelligence.py`,
+  `tests/integration/test_task023_topic_timeline.py`: **180 passed**, one intentional
+  duplicate-ZIP fixture warning, 91.27s,
+  `/tmp/local-text39-association-related.log`.
+- `ruff check src/youtube_intel tests scripts/prepare_readiness_local_text.py`:
+  PASS, `/tmp/local-text39-association-ruff.log`.
+- `mypy --strict src scripts/prepare_readiness_local_text.py`: **103 source files
+  PASS**, `/tmp/local-text39-association-mypy103.log`. Initial src-only run was
+  102 files; it is not misreported as the complete harness check.
+- `compileall -q src/youtube_intel scripts/prepare_readiness_local_text.py tests/integration/test_local_text_input_proof.py`:
+  PASS. Syntax/type errors were checked before test debugging. `git diff --check`
+  PASS; diff inspection confirms no migration/state/frontend/dependency edits.
+- Exclusive preparation output `LOCAL_TEXT_PREPARATION_PROFILE_V3.json` has all
+  recorded source hashes recomputed successfully; unchanged v2 wire/profile,
+  inputs not frozen, qualification false, real calls0, authority NONE. Historical
+  V1/V2 files preserved.
+
+Final `PYTHONPATH=src:. .venv/bin/pytest -q tests/integration/test_local_text_input_proof.py tests/integration/test_local_intelligence_text.py`:
+**97 passed in 183.69s**, `/tmp/local-text39-association-final-local.log`.
+Includes all expanded actual-stage/direct negatives, the two original P1s,
+legal Summary refresh and policy/preferences history, ordinary generic controls,
+Schema39 Save/Topic/new-backup activation/restart with all-domain-table/DATA
+equality, original34–38 restore/activation then continuous normal startup39,
+exact fifteen-field/immutable schema, atomic rollback, cancellation/raw WAITING
+ledger receipt, UNKNOWN restart/no redispatch, NO_NEW, Cloud zero-dispatch and
+Unicode bounds. No tests skipped, removed or weakened.
+
+Prior independent
+309/254 cohorts remain evidence for the previous candidate; they were not rerun
+or relabelled for this repair. Root final full backend/frontend, actual GUI,
+semantic model qualification and formal adoption remain separate gates. Author
+delivers a bounded commit and **STOP** for independent re-review; no acceptance,
+integration, public task-status update or qualification grant is claimed.

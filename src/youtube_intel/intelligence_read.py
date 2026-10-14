@@ -38,6 +38,12 @@ class IntelligenceReadRejected(ValueError):
 _MINT_SENTINEL: Final = object()
 
 
+def _is_local_text_revision(revision_id: str) -> bool:
+    # This reserved version family only requires validation; it grants no
+    # authority. Unknown future versions must never fall back to generic reads.
+    return re.match(r"revision:distillation:distillation:local-text-v[0-9]+:", revision_id) is not None
+
+
 class VerifiedIntelligenceRead:
     """A sealed, validated revision read minted only by this module.
 
@@ -153,18 +159,7 @@ class AuthoritativeIntelligenceReader:
     def read_current(self, intelligence_id: str) -> VerifiedIntelligenceRead:
         try:
             verified = self._read_current(intelligence_id)
-            # Classify from durable revision/execution association, never a nullable card getter.
-            with closing(self._repository._connect()) as connection:
-                text_execution = connection.execute(
-                    "SELECT 1 FROM distillation_execution_checkpoints d JOIN content_source_snapshots s "
-                    "ON s.content_id=d.video_id WHERE d.revision_id=? AND s.provider='LOCAL' AND s.media_kind='TEXT'",
-                    (verified.revision_id,),
-                ).fetchone()
-                text_card = connection.execute(
-                    "SELECT 1 FROM distillation_cards c JOIN content_source_snapshots s ON s.content_id=c.video_id "
-                    "WHERE c.revision_id=? AND s.provider='LOCAL' AND s.media_kind='TEXT'", (verified.revision_id,),
-                ).fetchone()
-            if text_execution is not None or text_card is not None:
+            if self._requires_local_text_card(verified.revision_id):
                 self._read_card(verified)
             return verified
         except IntelligenceReadRejected:
@@ -173,6 +168,22 @@ class AuthoritativeIntelligenceReader:
             raise IntelligenceReadRejected(
                 "PERSISTENCE_INVALID", "intelligence persistence is invalid"
             ) from error
+
+    def _requires_local_text_card(self, revision_id: str) -> bool:
+        if _is_local_text_revision(revision_id):
+            return True
+        # Classify from durable revision/execution association, never a nullable card getter.
+        with closing(self._repository._connect()) as connection:
+            text_execution = connection.execute(
+                "SELECT 1 FROM distillation_execution_checkpoints d JOIN content_source_snapshots s "
+                "ON s.content_id=d.video_id WHERE d.revision_id=? AND s.provider='LOCAL' AND s.media_kind='TEXT'",
+                (revision_id,),
+            ).fetchone()
+            text_card = connection.execute(
+                "SELECT 1 FROM distillation_cards c JOIN content_source_snapshots s ON s.content_id=c.video_id "
+                "WHERE c.revision_id=? AND s.provider='LOCAL' AND s.media_kind='TEXT'", (revision_id,),
+            ).fetchone()
+        return text_execution is not None or text_card is not None
 
     def read_current_card(self, intelligence_id: str) -> IntelligenceCard:
         """Return persisted card content only after minting the trusted revision read."""
@@ -256,9 +267,9 @@ class AuthoritativeIntelligenceReader:
                 canonical_evidence.append(item)
             version_binding: dict[str, str] = {}
             video = self._repository.get_video(card.video_id)
-            if video is not None and video.provider == "LOCAL" and any(
+            if _is_local_text_revision(verified.revision_id) or (video is not None and video.provider == "LOCAL" and any(
                 evidence is not None and evidence.locator_type == "TEXT_RANGE" for evidence in evidence_records
-            ):
+            )):
                 version_binding, canonical_evidence = self._text_card_projection(
                     verified, card.source_id, card.video_id, relations
                 )
@@ -322,7 +333,8 @@ class AuthoritativeIntelligenceReader:
         if execution is None:
             raise IntelligenceReadRejected("CARD_EXECUTION_INVALID", "text card execution is unavailable")
         matched = re.fullmatch(r"distillation:local-text-v2:([0-9a-f]{64}):([0-9a-f]{64}):[0-9a-f]{64}", execution.execution_id)
-        if (matched is None or execution.status != "SUCCEEDED" or execution.invocation_count != 1
+        if (matched is None or verified.revision_id != f"revision:distillation:{execution.execution_id}"
+            or execution.status != "SUCCEEDED" or execution.invocation_count != 1
             or execution.intelligence_id != verified.intelligence_id or execution.revision_id != verified.revision_id
             or execution.source_id != source_id or execution.video_id != video_id
             or execution.budget_state != "ADMITTED" or execution.use_case != "PERSONALIZED_INTELLIGENCE"

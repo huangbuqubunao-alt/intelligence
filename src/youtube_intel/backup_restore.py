@@ -1240,6 +1240,14 @@ class BackupRestoreService:
                     "AND p.execution_id IS NULL LIMIT 1").fetchone()
                 if missing is not None:
                     raise ValueError("text execution has no original input proof")
+                # Reverse-check produced revisions even when every execution
+                # sidecar has disappeared. The shared reader recognizes the
+                # reserved version family and requires all exact associations.
+                from .intelligence_read import AuthoritativeIntelligenceReader
+                reader = AuthoritativeIntelligenceReader(repository)
+                for revision in connection.execute("SELECT intelligence_id,revision_id FROM intelligence_revisions"):
+                    if reader._requires_local_text_card(str(revision["revision_id"])):
+                        reader.read_recorded_card(str(revision["intelligence_id"]), str(revision["revision_id"]))
             except Exception as error:
                 raise BackupRestoreError("Local text input proof failed validation.") from error
         from .following_tracking import verify_tracking
