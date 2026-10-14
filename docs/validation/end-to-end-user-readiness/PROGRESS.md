@@ -143,3 +143,9 @@
 ## 2026-10-14 最近中断恢复检查点（候选48b6e667）
 
 root/main干净，真实远端main73ee7e7复核通过，未发布。设置truthful-copy独立接受与真实ZH/EN GUI、root完整418/26files及TS/build均PASS，手册50图真实渲染0缺图/0溢出。Schema38原候选独立REJECT658cd53/P1，未整合；原作者正在已批准同23字段范围内补全successor_execution proof及live/历史恢复验证，五独立反证均保持closed且无表变更/额外GET。旧4310+1FAIL保留，最终整合完整backend仍待。LOCAL_TEXT只读预检，等核心接受后串行。固定9b thinking首例FAIL按原批准停止；6144单例容量仅新待批提案，未写研究代码/未调用，正式资格不变。
+
+## 2026-10-14 午间额度中断恢复（root7b119f58）
+
+用户明确批准6144原英文单例容量隔离诊断及LOCAL_TEXT可信reader最小补充；批准已落盘，不重问。当前旧V2失败/资格false仍保留，6144未实现/推理，LOCAL_TEXT仍待核心接受。正式main/真实remote73ee7e7干净未改。UI authorfff9bf已STOP，430前端/TSbuild自测，额度中断未有独立review，intel已恢复review。Schema独立二次REJECT61f740：oldchild完整执行history缺，真实合法ZIP恢复反证仍接受；246专项/staticPASS不能抵消，caption已恢复同批准范围原作者返修，未整合。
+
+真实普通LOCAL研究创建/回读/原证据初次定位/重新收集/两版本无变化对比PASS，无模型结论；刷新定位丢失OPEN。真实研究GUI Backup/Restore/重启后71表全部行+78物理DATA精确相等 SHA6bf70daad8cdb30e7320122e3e9f359995f83e2652779007009c01250a286778，当前研究和历史可读/readinessREADY。最新Schema38真实archive故障链未跑，旧正常代码新空库两公开JSON3均429，已停自有legacy服务，失败记录保留，未造plain样例。另备份新预览仍显示上次恢复成功反馈P2已截图，待普通UI最小修复，不动Backup安全handler。

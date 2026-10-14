@@ -11,3 +11,7 @@
 原 approved distillation.py/state.py/local_api.py/runtime_composition必要接入/frontend Evidence范围不扩到其他模块。独立task作者/Reviewer、精确wire冻结、正负控/旧YT及LOCAL Cloud零调用/NO_NEW coverage/保存主题引用/BackupRestore、完整回归均继续要求。schema38未独立接受前不写核心代码。真实9b后续资格与LOCAL八例仍不授权；无正式数据、配置、凭据、依赖、Cloud调用或发布。
 
 批准原因：原提案没有列 intelligence_read.py，该文件属于用户全局AGENTS“security-sensitive code”及授权可信读取边界，需具体批准新增最小文件范围；不是重新要求批准此前LOCAL_TIMED/TEXT主体。本补充目的只让已批文本locator在同一可信reader验证，不授额外执行或权威。
+
+## 2026-10-14 用户具体批准记录
+
+用户明确回复“批准该精确可信读取补充范围”。只将intelligence_read.py可信读取/hash验证纳入原LOCAL_TEXT边界；依赖Schema38接受，无新增模型调用或正式采用授权。

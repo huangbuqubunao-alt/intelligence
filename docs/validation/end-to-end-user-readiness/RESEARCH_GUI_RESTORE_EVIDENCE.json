@@ -1,0 +1,18 @@
+{
+  "recorded_at": "2026-10-13T21:43:36.045678+00:00",
+  "candidate": "7b119f5",
+  "status": "PASS",
+  "scope": "real isolated headful macOS Chrome create/download/file-input-preview/typeRESTORE/confirm/restart, then actual Research/history read; not Schema38 archive acceptance or Native Picker test",
+  "schema": 37,
+  "tables": 71,
+  "physicalDataFiles": 78,
+  "allRowsAndPhysicalHashesExact": true,
+  "beforeSha256": "6bf70daad8cdb30e7320122e3e9f359995f83e2652779007009c01250a286778",
+  "afterSha256": "6bf70daad8cdb30e7320122e3e9f359995f83e2652779007009c01250a286778",
+  "integrity": "ok",
+  "readiness": "READY after research and after restart",
+  "researchCurrentAndHistoryReadable": true,
+  "formalWrites": false,
+  "cloudCalls": 0,
+  "modelCallsDuringResearch": 0
+}
