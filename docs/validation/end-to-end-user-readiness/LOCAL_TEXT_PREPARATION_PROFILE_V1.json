@@ -1,0 +1,37 @@
+{
+  "case_order": [
+    "local-timed-en",
+    "local-timed-zh",
+    "local-txt-en",
+    "local-txt-zh",
+    "local-md-en",
+    "local-md-zh",
+    "local-no-new",
+    "local-injection"
+  ],
+  "code_sha256": {
+    "scripts/prepare_readiness_local_text.py": "272a5b70bc50442c8d720dec5b444d10b41e803ab66511df210c5255b03300ca",
+    "src/youtube_intel/distillation.py": "f6ee94c33af4760ef33233d884d12b5f5b4b4f7e20381000a8d633c31134edc0",
+    "src/youtube_intel/intelligence_read.py": "b745f0a14cf021adca998d278b62df5eba91aa0c481120005414d0b803e72f53",
+    "src/youtube_intel/local_api.py": "1f0a0671035d6dc7769da5232f452a5ff57da5b4db9275328d5cdc846c87fb81",
+    "src/youtube_intel/state.py": "82d3bde62d0a0bde741147b03fc83bee4119c5d20fb55b25450c25e845d2cc5c"
+  },
+  "content_inputs_frozen": false,
+  "execution_authority": "NONE",
+  "gates": [
+    "original four-case qualification and independent semantic review PASS",
+    "new exact code/profile/input freeze and independent pre-output review",
+    "explicit owner instruction to start LOCAL8; one generation per case; stop on decisive failure",
+    "independent semantic acceptance before a separately approved production reader"
+  ],
+  "model": "qwen3.5:9b-q4_K_M",
+  "model_digest": "sha256:56671c2ab9385f9cfcb404638e32cd62d88e3501d44822208363c010179a3c90",
+  "production_qualified": false,
+  "profile": "readiness-local-text-distillation-v1",
+  "profile_sha256": "6772f40c41bc7789ca13f4bc4610a8292ad8fe8c9bd9a665aa9a146d4beb10ec",
+  "prompt_sha256": "ca4f3a97b26fa13202f6d06ad160582f62535b6337ec0e40ed9fb17065e47043",
+  "real_model_calls": 0,
+  "schema_sha256": "134d26a1e07e40fcf6ffe743a9820022766266987050725e088f940d6b5951a3",
+  "status": "PREPARATION_ONLY_ORIGINAL_9B_QUALIFICATION_FAILED",
+  "wire_version": "local-text-distillation-v1"
+}

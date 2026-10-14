@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass
 from typing import Final, NoReturn
 
@@ -15,6 +16,7 @@ from youtube_intel.domain import Availability
 from youtube_intel.state import (
     DependencyRelation,
     EvidenceAvailability,
+    EvidenceRelationRecord,
     IntelligenceClaimKind,
     IntelligenceRevisionRecord,
     IntelligenceState,
@@ -149,7 +151,16 @@ class AuthoritativeIntelligenceReader:
 
     def read_current(self, intelligence_id: str) -> VerifiedIntelligenceRead:
         try:
-            return self._read_current(intelligence_id)
+            verified = self._read_current(intelligence_id)
+            if self._repository.get_distillation_card(verified.revision_id) is not None:
+                for eid in verified.evidence_ids:
+                    evidence = self._repository.get_evidence(eid)
+                    video = None if evidence is None else self._repository.get_video(evidence.video_id)
+                    if (evidence is not None and evidence.locator_type == "TEXT_RANGE"
+                        and video is not None and video.provider == "LOCAL"):
+                        self._read_card(verified)
+                        break
+            return verified
         except IntelligenceReadRejected:
             raise
         except (AttributeError, StateStoreError, ValueError) as error:
@@ -237,8 +248,17 @@ class AuthoritativeIntelligenceReader:
                 if relation.stance is not None:
                     item["stance"] = relation.stance.value
                 canonical_evidence.append(item)
+            version_binding: dict[str, str] = {}
+            video = self._repository.get_video(card.video_id)
+            if video is not None and video.provider == "LOCAL" and any(
+                evidence is not None and evidence.locator_type == "TEXT_RANGE" for evidence in evidence_records
+            ):
+                version_binding, canonical_evidence = self._text_card_projection(
+                    verified, card.source_id, card.video_id, relations
+                )
             canonical = json.dumps(
                 {
+                    **version_binding,
                     "core_conclusion": card.core_conclusion,
                     "user_relevant_information": list(card.user_relevant_information),
                     "important_new_information": list(card.important_new_information),
@@ -270,6 +290,77 @@ class AuthoritativeIntelligenceReader:
             raise IntelligenceReadRejected(
                 "PERSISTENCE_INVALID", "intelligence card persistence is invalid"
             ) from error
+
+    def _text_card_projection(
+        self, verified: VerifiedIntelligenceRead, source_id: str, video_id: str,
+        relations: tuple[EvidenceRelationRecord, ...],
+    ) -> tuple[dict[str, str], list[dict[str, int | str | None]]]:
+        from youtube_intel.distillation import (
+            _LOCAL_TEXT_WIRE_VERSION,
+            DistillationCommand,
+            LocalTextDistillationProfile,
+            VerifiedEvidenceInput,
+            _text_execution_id,
+            _text_reference,
+        )
+
+        # Query by the exact persisted revision, never newest/limited activity.
+        with self._repository._connect() as connection:
+            rows = connection.execute(
+                "SELECT execution_id FROM distillation_execution_checkpoints WHERE revision_id=?",
+                (verified.revision_id,),
+            ).fetchall()
+        if len(rows) != 1:
+            raise IntelligenceReadRejected("CARD_EXECUTION_INVALID", "text card requires one exact execution")
+        execution = self._repository.get_distillation_execution(str(rows[0]["execution_id"]))
+        if execution is None:
+            raise IntelligenceReadRejected("CARD_EXECUTION_INVALID", "text card execution is unavailable")
+        matched = re.fullmatch(r"distillation:local-text-v1:([0-9a-f]{64}):([0-9a-f]{64}):[0-9a-f]{64}", execution.execution_id)
+        if (matched is None or execution.status != "SUCCEEDED" or execution.invocation_count != 1
+            or execution.intelligence_id != verified.intelligence_id or execution.revision_id != verified.revision_id
+            or execution.source_id != source_id or execution.video_id != video_id
+            or execution.budget_state != "ADMITTED" or execution.use_case != "PERSONALIZED_INTELLIGENCE"
+            or re.fullmatch(r"MANUAL_CONTENT:[A-Za-z0-9._:-]{1,80}", execution.reason) is None
+            or execution.selected_provider in {"openai", "nvidia_nim", "moonshot"}
+            or execution.output_language not in {"en", "zh-CN"}):
+            raise IntelligenceReadRejected("CARD_EXECUTION_INVALID", "text execution version/target is invalid")
+        from typing import cast
+
+        from youtube_intel.domain import ScoringOutputLanguage
+
+        input_hash, context_hash = matched.group(1, 2)
+        command = DistillationCommand(execution_id=execution.execution_id, source_id=source_id, video_id=video_id,
+            reason=execution.reason, use_case=execution.use_case, selected_provider=execution.selected_provider,
+            selected_model=execution.selected_model, output_language=cast(ScoringOutputLanguage, execution.output_language),
+            evidence_ids=verified.evidence_ids)
+        if (execution.execution_id != _text_execution_id(command, input_hash, context_hash)
+            or self._repository.manual_local_text_context_hash(source_id, video_id) is None):
+            raise IntelligenceReadRejected("CARD_EXECUTION_INVALID", "text sealed source/input context is invalid")
+        ledger = self._repository.get_distillation_resource_usage(execution.execution_id)
+        if (ledger.status != "SUCCEEDED" or ledger.outcome != "ADMITTED" or ledger.invocation_count != 1
+            or ledger.intelligence_id != verified.intelligence_id or ledger.revision_id != verified.revision_id
+            or ledger.source_id != source_id or ledger.video_id != video_id or ledger.reason != execution.reason
+            or ledger.use_case != execution.use_case or ledger.budget_state != "ADMITTED"
+            or ledger.selected_provider != execution.selected_provider or ledger.selected_model != execution.selected_model
+            or ledger.actual_provider != execution.selected_provider or ledger.actual_model != execution.selected_model):
+            raise IntelligenceReadRejected("CARD_EXECUTION_INVALID", "text ledger binding is invalid")
+        references = []
+        for relation in relations:
+            text = self._repository.resolve_verified_evidence_text(relation.evidence_id)
+            record = self._repository.get_evidence(relation.evidence_id)
+            if (text is None or record is None or text.video_id != video_id or relation.stance is None
+                or record.locator_type != "TEXT_RANGE" or record.start_ms is not None or record.end_ms is not None):
+                raise IntelligenceReadRejected("CARD_EVIDENCE_INVALID", "text range authority is invalid")
+            reference = _text_reference(VerifiedEvidenceInput(evidence_id=text.evidence_id,
+                start_ms=text.start_ms, end_ms=text.end_ms, excerpt=text.excerpt, excerpt_hash=text.excerpt_hash,
+                timed_transcript_id=text.timed_transcript_id, timed_transcript_hash=text.timed_transcript_hash,
+                locator_type=text.locator_type, start_offset=text.start_offset, end_offset=text.end_offset,
+                start_line=text.start_line, end_line=text.end_line, source_content_hash=text.source_content_hash))
+            reference["stance"] = relation.stance.value
+            references.append(reference)
+        return {"wire_version": _LOCAL_TEXT_WIRE_VERSION, "verified_input_hash": input_hash,
+                "profile_hash": LocalTextDistillationProfile.identity_hash(),
+                "local_content_context_hash": context_hash}, references
 
     def _read_current(self, intelligence_id: str) -> VerifiedIntelligenceRead:
         try:

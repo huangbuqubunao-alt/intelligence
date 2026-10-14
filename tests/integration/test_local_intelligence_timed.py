@@ -161,16 +161,17 @@ def test_local_final_admission_rechecks_source_and_summary(tmp_path: Path, monke
     assert transport.calls == 1
 
 
-def test_local_reservation_rejects_text_foreign_source_and_unbound_storage(tmp_path: Path):
+def test_local_reservation_rejects_foreign_source_and_unbound_storage_and_versions_text(tmp_path: Path):
     repository, provider, cid, evidence, transport, service = _local(tmp_path)
     other, _ = support._source_and_video(repository)
     repository.link_source_video(other, cid, discovered_at=support.NOW)
     with pytest.raises(ValueError):
         service.reserve_distillation_execution(source_id=other, video_id=cid, evidence_ids=evidence, manual_command_id="foreign")
     text = provider.import_bytes("notes.txt", b"The local text remains a real text range.\n")
-    with pytest.raises(ValueError):
-        service.reserve_distillation_execution(source_id=LOCAL_SOURCE_ID, video_id=text.content_id,
-            evidence_ids=repository.list_canonical_coverage_evidence_ids(text.content_id), manual_command_id="text")
+    reservation = service.reserve_distillation_execution(source_id=LOCAL_SOURCE_ID, video_id=text.content_id,
+        evidence_ids=repository.list_canonical_coverage_evidence_ids(text.content_id), manual_command_id="text")
+    assert reservation.execution_id.startswith("distillation:local-text-v1:")
+    assert repository.get_distillation_execution(reservation.execution_id).invocation_count == 0
     restarted = SQLiteStateRepository(repository._database_path)
     assert restarted.manual_local_timed_context_hash(LOCAL_SOURCE_ID, cid) is None
     assert transport.calls == 0

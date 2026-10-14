@@ -47,6 +47,9 @@ type Intelligence = {
       artifact_id: string;
       start_ms: number | null;
       end_ms: number | null;
+      locator_type?: "TEXT_RANGE" | "TIMED_MEDIA" | null;
+      start_line?: number | null;
+      end_line?: number | null;
       language: string;
       lineage_kind: string;
       role: string;
@@ -335,9 +338,19 @@ const STYLES = [[
 ]] as const;
 
 function initialContentTarget(): string | null {
-  const match = /^#Content\/([^/]+)$/.exec(location.hash);
+  const match = /^#Content\/([^/]+)(?:\/Evidence\/[^/]+)?$/.exec(location.hash);
   if (!match) return null;
   try { const value = decodeURIComponent(match[1]); return value && value.length <= 256 && !/[\p{Cc}\p{Cs}]/u.test(value) ? value : null; } catch { return null; }
+}
+
+function initialEvidenceTarget(): string | null {
+  if (!initialContentTarget()) return null;
+  const match = /^#Content\/[^/]+\/Evidence\/([^/]+)$/.exec(location.hash);
+  if (!match) return null;
+  try {
+    const value = decodeURIComponent(match[1]);
+    return value && value.length <= 512 && !/[\p{Cc}\p{Cs}]/u.test(value) ? value : null;
+  } catch { return null; }
 }
 
 function initialPage(): Page {
@@ -730,6 +743,10 @@ function timestampRange(start: number | null, end: number | null) {
     ? timestamp(start)
     : `${timestamp(start)}–${timestamp(end)}`;
 }
+function textLineRange(start: number | null | undefined, end: number | null | undefined, t: (text: string) => string) {
+  return Number.isInteger(start) && Number.isInteger(end) && start! >= 1 && end! >= start!
+    ? `${t("Lines")} ${start}–${end}` : t("Text position unavailable");
+}
 function videoAt(url: string, start: number | null) {
   if (start === null) return url;
   try {
@@ -810,7 +827,7 @@ function evidenceSourceMatchesTarget(
 function Evidence(
   { item, onOpenContent }: {
     item: Intelligence;
-    onOpenContent?: (videoId: string) => void;
+    onOpenContent?: (videoId: string, evidenceId?: string) => void;
   },
 ) {
   const { language, t } = useUiLanguage();
@@ -988,7 +1005,8 @@ function Evidence(
             })()}
             <div>
               <strong>{t("Source position")}</strong>
-              <p>{timestampRange(link.start_ms, link.end_ms)}</p>
+              <p>{link.locator_type === "TEXT_RANGE"
+                ? textLineRange(link.start_line, link.end_line, t) : timestampRange(link.start_ms, link.end_ms)}</p>
             </div>
             <div>
               <strong>{t("Provenance")}</strong>
@@ -1000,7 +1018,7 @@ function Evidence(
                 ? (
                   <button
                     className="button button-secondary button-small"
-                    onClick={() => onOpenContent(card.video_id)}
+                    onClick={() => onOpenContent(card.video_id, link.evidence_id)}
                   >
                     {t("Open Content")}
                   </button>
@@ -1033,7 +1051,7 @@ function IntelligenceCard(
     item: Intelligence;
     saved: boolean;
     onSaved: () => void;
-    onOpenContent?: (videoId: string) => void;
+    onOpenContent?: (videoId: string, evidenceId?: string) => void;
   },
 ) {
   const { t } = useUiLanguage();
@@ -1194,6 +1212,7 @@ function Workspace() {
       const target = initialContentTarget();
       if (target) {
         setImported(false);
+        setResearchEvidence(initialEvidenceTarget());
         setPage("Content"); setContentTarget(target); setDeltaTarget(null); setResearchReturn(null);
         return;
       }
@@ -1208,12 +1227,12 @@ function Workspace() {
   }, []);
   const [deltaTarget, setDeltaTarget] = useState<DeltaTarget | null>(null);
   const [researchReturn, setResearchReturn] = useState<string | null>(null);
-  const [researchEvidence, setResearchEvidence] = useState<string | null>(null);
+  const [researchEvidence, setResearchEvidence] = useState<string | null>(initialEvidenceTarget);
   useEffect(() => {
     if (page !== "Content" || !researchEvidence) return;
     const focusEvidence = () => {
-      const element = document.getElementById(`content-evidence-${researchEvidence}`);
-      if (!element) return false;
+      const element = document.getElementById(`content-evidence-${encodeURIComponent(researchEvidence)}`);
+      if (!element || element.dataset.contentId !== contentTarget) return false;
       element.scrollIntoView({ block: "center" });
       element.setAttribute("tabindex", "-1"); element.focus({ preventScroll: true });
       return true;
@@ -1222,7 +1241,7 @@ function Workspace() {
     const observer = new MutationObserver(() => { if (focusEvidence()) observer.disconnect(); });
     observer.observe(document.body, { childList: true, subtree: true });
     return () => observer.disconnect();
-  }, [page, researchEvidence]);
+  }, [page, contentTarget, researchEvidence]);
   const changeHash = (hash: string) => {
     const next = `#${hash}`;
     // A no-op emits no event. Preserve a marker for an already queued real
@@ -1239,10 +1258,11 @@ function Workspace() {
     changeHash(next);
     setPage(next);
   };
-  const openContent = (videoId: string) => {
+  const openContent = (videoId: string, evidenceId?: string) => {
     setDeltaTarget(null);
     setContentTarget(videoId);
-    changeHash(`Content/${encodeURIComponent(videoId)}`);
+    setResearchEvidence(evidenceId ?? null);
+    changeHash(`Content/${encodeURIComponent(videoId)}${evidenceId ? `/Evidence/${encodeURIComponent(evidenceId)}` : ""}`);
     setPage("Content");
   };
   const openDelta = (target: DeltaTarget) => {
@@ -1299,7 +1319,7 @@ function Workspace() {
         <NativeImportActivity onOpen={openContent} errors={localImportErrors} routeKey={`${page}/${contentTarget ?? ""}`} modalOpen={addProvider !== null} />
         {page === "Research" && <Research onOpen={(kind, id, evidenceId) => {
           const returnTo = location.hash.slice(1);
-          if (kind === "content") { openContent(id); setResearchEvidence(evidenceId ?? null); }
+          if (kind === "content") { openContent(id, evidenceId); }
           else openDelta({ kind: "intelligence", id });
           setResearchReturn(returnTo);
         }} />}
@@ -1341,7 +1361,7 @@ function Dashboard(
   { refresh, navigate, openContent }: {
     refresh: number;
     navigate: (page: Page) => void;
-    openContent: (videoId: string) => void;
+    openContent: (videoId: string, evidenceId?: string) => void;
   },
 ) {
   const { t } = useUiLanguage();
@@ -1440,7 +1460,7 @@ function Attention({ run }: { run: SourceRun }) {
   );
 }
 function IntelligenceDetail({ id, openContent, onBack }: {
-  id: string; openContent: (videoId: string) => void; onBack: () => void;
+  id: string; openContent: (videoId: string, evidenceId?: string) => void; onBack: () => void;
 }) {
   const { t } = useUiLanguage();
   const [revision, setRevision] = useState(0);
@@ -1456,7 +1476,7 @@ function IntelligenceDetail({ id, openContent, onBack }: {
 function IntelligencePage(
   { refresh, openContent, openResearch }: {
     refresh: number;
-    openContent: (videoId: string) => void;
+    openContent: (videoId: string, evidenceId?: string) => void;
     openResearch: () => void;
   },
 ) {
@@ -1536,7 +1556,7 @@ function SavedCard(
     item: Saved;
     revision: number;
     onChanged: () => void;
-    onOpenContent: (videoId: string) => void;
+    onOpenContent: (videoId: string, evidenceId?: string) => void;
   },
 ) {
   const { t } = useUiLanguage();
@@ -2374,7 +2394,7 @@ function ContentEvidencePanel(
               const showTranslation = mode !== "原文";
               const showOriginal = mode !== "译文" || !translationAvailable;
               return (
-                <article className="evidence-item evidence-trace-item" id={`content-evidence-${encodeURIComponent(item.evidence_id)}`} key={item.evidence_id}>
+                <article className="evidence-item evidence-trace-item" id={`content-evidence-${encodeURIComponent(item.evidence_id)}`} data-content-id={videoId} key={item.evidence_id}>
                   <div className="reading-meta">
                     <span>{t("Source language")}: {item.source_language} · {t(item.locator_type === "TEXT_RANGE" ? "Original source text" : evidenceLineageLabel(item.lineage_kind))}</span>
                     <strong>{item.evidence_id}</strong>
@@ -2435,7 +2455,7 @@ function ContentEvidencePanel(
                   {translationError ? <p className="hint" role="alert">{t(translationError)}</p> : null}
                   <div>
                     <strong>{t("Source position")}</strong>
-                    <p>{item.locator_type === "TEXT_RANGE" ? `${t("Lines")} ${item.start_line}–${item.end_line}` : timestampRange(item.start_ms, item.end_ms)}</p>
+                    <p>{item.locator_type === "TEXT_RANGE" ? textLineRange(item.start_line, item.end_line, t) : timestampRange(item.start_ms, item.end_ms)}</p>
                   </div>
                   <div>
                     <strong>{t("Provenance")}</strong>

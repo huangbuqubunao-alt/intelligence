@@ -1,6 +1,70 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { App, intelligenceValidationCopy } from "./App";
 import { apiProxyTarget } from "../api/proxy";
+
+test.each(["evidence-1", "foreign-evidence"])("Content refresh re-resolves only its current Evidence identity: %s", async (target) => {
+  const defaultFetch = globalThis.fetch;
+  vi.stubGlobal("fetch", vi.fn((path: string, init?: RequestInit) => {
+    if (path.endsWith("/videos/video-1/evidence")) return response({ evidence: [{
+      evidence_id: "evidence-1", artifact_id: "artifact-1", locator_type: "TEXT_RANGE",
+      start_line: 2, end_line: 4, start_ms: null, end_ms: null,
+      source_language: "en", language: "en", original_excerpt: "Current resolver-verified text range.",
+      lineage_kind: "ORIGINAL_TRANSCRIPT", role: "PRIMARY_ORIGINAL", translated_excerpt: null,
+      translated_language: null, translation_target_language: "en", source_url: null,
+    }] });
+    return defaultFetch(path, init);
+  }));
+  const scroll = vi.fn();
+  const originalScroll = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollIntoView");
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: scroll });
+  location.hash = `#Content/video-1/Evidence/${target}`;
+  const view = render(<App />);
+  await screen.findByText("Current resolver-verified text range.");
+  if (target === "evidence-1") {
+    await waitFor(() => expect(document.activeElement?.id).toBe("content-evidence-evidence-1"));
+    expect(scroll).toHaveBeenCalledWith({ block: "center" });
+    view.unmount();
+    render(<App />);
+    await waitFor(() => expect(document.activeElement?.id).toBe("content-evidence-evidence-1"));
+  } else {
+    expect(document.getElementById("content-evidence-foreign-evidence")).toBeNull();
+    expect(scroll).not.toHaveBeenCalled();
+  }
+  expect(await screen.findByText("Lines 2–4")).toBeTruthy();
+  if (originalScroll) Object.defineProperty(HTMLElement.prototype, "scrollIntoView", originalScroll);
+  else Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+});
+
+test("Intelligence text Evidence displays real lines and links its internal Evidence identity", async () => {
+  const defaultFetch = globalThis.fetch;
+  const local = { ...intelligence, card: { ...intelligence.card, original_video_url: null, source_url: null,
+    evidence_links: [{ ...intelligence.card.evidence_links[0], locator_type: "TEXT_RANGE", start_ms: null,
+      end_ms: null, start_line: 2, end_line: 4 }] } };
+  vi.stubGlobal("fetch", vi.fn((path: string, init?: RequestInit) => {
+    if (path.endsWith("/intelligence")) return response({ intelligence: [local], activity: [] });
+    return defaultFetch(path, init);
+  }));
+  location.hash = "Intelligence";
+  render(<App />);
+  expect(await screen.findByText("Lines 2–4")).toBeTruthy();
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: "Open Content" })));
+  expect(location.hash).toBe("#Content/video-1/Evidence/evidence-1");
+});
+
+test.each(["en", "zh-CN"])("Text Evidence retains honest missing-position copy in %s", async (language) => {
+  localStorage.setItem("yia.ui-language", language);
+  const defaultFetch = globalThis.fetch;
+  const local = { ...intelligence, card: { ...intelligence.card, original_video_url: null,
+    evidence_links: [{ ...intelligence.card.evidence_links[0], locator_type: "TEXT_RANGE", start_ms: null, end_ms: null }] } };
+  vi.stubGlobal("fetch", vi.fn((path: string, init?: RequestInit) => {
+    if (path.endsWith("/intelligence")) return response({ intelligence: [local], activity: [] });
+    return defaultFetch(path, init);
+  }));
+  location.hash = "Intelligence";
+  render(<App />);
+  expect(await screen.findByText(language === "en" ? "Text position unavailable" : "文字位置不可用")).toBeTruthy();
+  expect(document.body.textContent).not.toContain("null–null");
+});
 
 test("Chinese Settings edits global interests through existing authority", async () => {
   localStorage.setItem("yia.ui-language", "zh-CN");

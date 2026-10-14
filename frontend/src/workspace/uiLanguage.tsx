@@ -364,6 +364,7 @@ const chinese: Record<string, string> = {
   "Imported at": "导入时间",
   "Source excerpts": "来源摘录",
   "Lines": "行",
+  "Text position unavailable": "文字位置不可用",
   "Explicit imports only": "仅导入明确选择的文件",
   "Choose up to 20 files at a time.": "每次最多选择 20 个文件。",
   "Import a private snapshot into your Local library. Originals stay untouched; moving, deleting or editing them does not change imported Content.": "将私有快照导入本地资料库。原文件保持不变，移动、删除或编辑原文件不会改变已导入的内容。",

@@ -1830,7 +1830,8 @@ class LocalApiApplication:
         note = self._note_projection(video_id).get("v2")
         if video is not None and video.provider == "LOCAL":
             return next((source.source_id for source in self._repository.list_source_subscriptions()
-                         if self._repository.manual_local_timed_context_hash(source.source_id, video_id) is not None), None)
+                         if (self._repository.manual_local_timed_context_hash(source.source_id, video_id) is not None
+                             or self._repository.manual_local_text_context_hash(source.source_id, video_id) is not None)), None)
         if video is None or video.provider != "YOUTUBE" or not isinstance(note, dict) or note.get("status") != "AVAILABLE":
             return None
         if self._repository.get_verified_timed_transcript(video_id=video_id) is None:
@@ -2487,6 +2488,10 @@ class LocalApiApplication:
                     "artifact_id": evidence.artifact_id,
                     "start_ms": evidence.start_ms,
                     "end_ms": evidence.end_ms,
+                    **({"locator_type": verified_text.locator_type,
+                        "start_offset": verified_text.start_offset, "end_offset": verified_text.end_offset,
+                        "start_line": verified_text.start_line, "end_line": verified_text.end_line}
+                       if verified_text is not None and verified_text.locator_type == "TEXT_RANGE" else {}),
                     "language": evidence.language,
                     "lineage_kind": evidence.lineage_kind.value,
                     "role": evidence.role.value,

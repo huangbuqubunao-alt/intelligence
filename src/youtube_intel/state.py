@@ -2427,8 +2427,71 @@ class SQLiteStateRepository:
         if (re.fullmatch(r"MANUAL_CONTENT:[A-Za-z0-9._:-]{1,80}", str(checkpoint["reason"])) is None
             or checkpoint["selected_provider"] in {"openai", "nvidia_nim", "moonshot"}
             or expected_hash is None
-            or self._manual_local_timed_context_hash(connection, checkpoint["source_id"], checkpoint["video_id"]) != expected_hash):
+            or (self._manual_local_text_context_hash(connection, checkpoint["source_id"], checkpoint["video_id"])
+                if str(checkpoint["execution_id"]).startswith("distillation:local-text-v1:")
+                else self._manual_local_timed_context_hash(connection, checkpoint["source_id"], checkpoint["video_id"])) != expected_hash):
             raise StateStoreError("local Intelligence manual source/Summary authority changed or is unavailable")
+
+    def manual_local_text_context_hash(self, source_id: str, video_id: str) -> str | None:
+        """Exact existing TEXT_RANGE authority; never grants automatic execution."""
+        connection = self._connect()
+        try:
+            return self._manual_local_text_context_hash(connection, source_id, video_id)
+        finally:
+            connection.close()
+
+    def _manual_local_text_context_hash(
+        self, connection: sqlite3.Connection, source_id: str, video_id: str,
+    ) -> str | None:
+        from youtube_intel.extractive_summary import ExtractiveSummaryService
+        from youtube_intel.source_authority import verify_source
+
+        if self._source_data_root is None:
+            return None
+        try:
+            source = connection.execute("SELECT * FROM source_subscriptions WHERE source_id=?", (source_id,)).fetchone()
+            snapshot = verify_source(self, connection, video_id)
+            if (source is None or source["provider"] != "LOCAL" or source["source_type"] != "LOCAL_LIBRARY"
+                or source["processing_policy"] != "DISCOVER_ONLY" or snapshot is None
+                or snapshot["provider"] != "LOCAL" or snapshot["source_id"] != source_id
+                or snapshot["status"] != "READY" or snapshot["media_kind"] != "TEXT"
+                or not connection.execute("SELECT 1 FROM source_video_links WHERE source_id=? AND video_id=?", (source_id, video_id)).fetchone()):
+                return None
+            pointer = self.current_local_summary_pointer(video_id)
+            if pointer is None or pointer.output_language not in {"en", "zh-CN"}:
+                return None
+            summary = self.get_artifact(pointer.artifact_id)
+            if summary is None:
+                return None
+            ExtractiveSummaryService(self, self._source_data_root).read(video_id, pointer.artifact_id)
+            ids = self.list_canonical_coverage_evidence_ids(video_id)
+            if not ids or len(ids) > 20:
+                return None
+            ranges = []
+            for eid in ids:
+                evidence = self.resolve_verified_evidence_text(eid)
+                record = self.get_evidence(eid)
+                if (evidence is None or record is None or evidence.video_id != video_id
+                    or record.locator_type != evidence.locator_type or evidence.locator_type != "TEXT_RANGE"
+                    or record.start_ms is not None or record.end_ms is not None
+                    or evidence.start_ms is not None or evidence.end_ms is not None
+                    or evidence.start_offset is None or evidence.end_offset is None
+                    or evidence.start_line is None or evidence.end_line is None
+                    or evidence.source_content_hash != snapshot["source_hash"]
+                    or evidence.timed_transcript_hash != snapshot["canonical_text_hash"]):
+                    return None
+                ranges.append({"evidence_id": eid, "start_offset": evidence.start_offset,
+                    "end_offset": evidence.end_offset, "start_line": evidence.start_line,
+                    "end_line": evidence.end_line, "excerpt_hash": evidence.excerpt_hash})
+            payload = {"contract": "manual-local-text-context-v1", "source_id": source_id,
+                "video_id": video_id, "snapshot_id": snapshot["snapshot_artifact_id"],
+                "source_hash": snapshot["source_hash"], "canonical_id": snapshot["canonical_artifact_id"],
+                "canonical_hash": snapshot["canonical_text_hash"], "summary_id": summary.artifact_id,
+                "summary_hash": summary.content_hash, "summary_language": pointer.output_language,
+                "evidence": ranges}
+            return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        except (ValueError, TypeError, OverflowError, OSError, sqlite3.Error, StateStoreError):
+            return None
 
     def latest_artifact(
         self,
