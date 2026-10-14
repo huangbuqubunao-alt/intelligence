@@ -377,3 +377,108 @@ Author delivers limited commit and **STOP**. Independent intel_bounded_review mu
 reverify exact commit and original P1 probes before acceptance. Final qualification,
 ordinary real-model positive Save/Topic and formal adoption remain pending their
 existing gates; no production eligibility is granted by this handoff.
+
+## Independent Schema39 re-review — 2026-10-15 — REJECT
+
+Reviewer: independent `local_text_review_resume`, continuing the interrupted
+`intel_bounded_review` audit. Reviewed candidate
+`2068ee1312c6981f6bd8984554b689a0b38215f7`, cumulative base
+`2978550aee692c7b24d5707d2eb4ebdfcc1d0e2f`; original rejection
+`3b562c64ebca70bb49bdc67b1f20ee96b766ed99` remains preserved. Read root AGENTS,
+COLLABORATION, task/agent package, approved exact Schema39 proposal and continuing
+authorization. Graph lookup found no new proof implementation; actual fixed-SHA
+source/diff was authoritative. Jev advisory returned HTTP451; review was not
+downgraded. No business code, tests, dependencies, configuration, original SQL,
+formal data or model eligibility was changed by this review.
+
+### P1 — Losing every association downgrades an explicit text distillation to a generic trusted read
+
+Locations: `src/youtube_intel/intelligence_read.py:158-169` and
+`src/youtube_intel/backup_restore.py:1237-1242`.
+
+`read_current` only requires the text-card verifier when a checkpoint or card
+still survives. The backup reverse check likewise only enumerates surviving
+checkpoints without proofs. If all four associated rows are absent together,
+the immutable `intelligence_revisions` row still has interpretation
+`DISTILLATION` and the explicit
+`revision:distillation:distillation:local-text-v2:<input>:<context>:<identity>`
+identity, with its Evidence/dependency graph intact, but neither gate discovers
+it. Its admitted text card no longer exists and its historical input cannot be
+verified, yet direct current/Save/Topic issue or consume a trusted read. A forged
+Schema39 package containing that orphan revision also passes stage validation.
+This violates the approved missing-proof/card/ledger fail-closed requirement;
+passing one-row deletion controls is insufficient.
+
+Fresh independent reproduction (exit0):
+
+```text
+PYTHONPATH=src:.:tests .venv/bin/python /tmp/local-text39-review-missing-associations.py
+All4 associations removed only in forged copy; original immutable schema triggers restored; FK/integrity [('ok',)]
+Remaining revision [... 'DISTILLATION', 'EVIDENCE_BACKED_STATEMENT']
+FORGED all-association-loss archive ACCEPTED: dc4a3ca82872412d8c65ac5dc341be4c
+CLOSED: current-card IntelligenceReadRejected distillation card is unavailable
+FORGED association-loss ACCEPTED: current
+FORGED association-loss ACCEPTED: save
+FORGED association-loss ACCEPTED: topic
+```
+
+Probe starts with a real offline-fixture admitted text result and its normal
+backup. Only in a private copied backup database, it removes rows from
+`local_text_input_proofs`, `distillation_cards`, `distillation_resource_usage`,
+and `distillation_execution_checkpoints`, temporarily dropping and then restoring
+each table's exact original triggers. It checks foreign keys/integrity, commits,
+checkpoints WAL, switches DELETE journal mode and closes before reading bytes.
+It updates the manifest's DB SHA256/size and retains every original ZipInfo;
+therefore the rejection is not masked by ZIP metadata, dirty WAL or manifest
+corruption. It stages but never activates the forged archive. Direct readers
+use that isolated forged DB with the original private fixture DATA. Real model,
+Cloud and network calls: zero; fixture generation: one. Script and outputs are
+preserved in `/tmp/local-text39-review-missing-associations.py`,
+`/tmp/local-text39-review-missing-associations.log` (pre-interruption) and
+`/tmp/local-text39-review-resume-associations.log` (fresh confirmation).
+
+Required repair: discover explicit LOCAL_TEXT distillation revisions independently
+of optional surviving sidecar rows, and reject missing exact associations at both
+trusted-read and backup validation boundaries. Preserve legal generic non-card
+revisions and old YouTube/timed behavior. Add the combined-loss negative alongside
+the individual-loss controls; retain exact immutable schema and full restore
+guards. No schema expansion is requested by this finding.
+
+### Verified controls and evidence
+
+- Fresh `PYTHONPATH=src:. .venv/bin/pytest -q tests/integration/test_local_text_input_proof.py`:
+  **17 passed in 27.02s**, exit0, `/tmp/local-text39-review-resume-proof.log`.
+  Includes exact15-field/FK/immutable schema, atomic mixed rollback, failed039
+  rollback, old34–38 original restore then normal startup39/all-domain-row/DATA
+  equality, cancel/UNKNOWN restart, immutable policy/preferences history, generic
+  revision positive, individual proof/card/ledger/projection forged archives,
+  and real UTF-8 overflow rejection. These passing tests do not close the P1 above.
+- Fresh original historical-summary probe, explicitly calling the evolved
+  fixture with `damage_original=False`: legal later Summary refresh PASS; after
+  only original Summary bytes are corrupted, current-card, recorded-card,
+  current, Save and Topic all CLOSED. Exit0,
+  `/tmp/local-text39-review-resume-history.log`; script
+  `/tmp/local-text39-independent-history-probe.py`. Original signature TypeError
+  is retained in `/tmp/local-text39-review-original-history.log`, not relabelled PASS.
+- Fresh nullable-card getter projection probe: current-card/current/Save/Topic
+  CLOSED; no saved relation minted. Exit0,
+  `/tmp/local-text39-review-resume-card.log`; original script
+  `/tmp/local-text-review-missing-card-probe.py`. Original two P1 are repaired.
+- Recovered completed independent cohorts: `/tmp/local-text39-review-core.log`
+  **309 passed, one intentional duplicate-ZIP warning, 356.06s**;
+  `/tmp/local-text39-review-related.log` **254 passed, 131.31s**. No related pytest
+  process remained when resuming. Preserve actual 254, not an estimated ~286;
+  overlapping cohorts are not a unique total.
+- Preserved independent strict type output
+  `/tmp/local-text39-review-mypy.log`: **103 source files PASS**. Prior syntax/Ruff
+  evidence from the interrupted audit remains unchanged; fresh `git diff --check`
+  PASS. No repeated hours-long cohort was necessary after the confirmed blocker.
+- Reviewed latest-schema assertions append exact039 and extend full migration
+  tails rather than relaxing them; old explicit migration fixtures remain.
+  Preparation V2 records zero real calls, qualification false and authority NONE;
+  Schema39 does not grant model eligibility. Final full backend/frontend, actual
+  GUI, model semantic qualification and root integration remain root gates.
+
+Verdict: **REJECT**, one open P1, no additional P0/P2 finding asserted. Return to
+the original implementer for the bounded repair and independent re-review. This
+commit changes only this handoff. Reviewer **STOP**; no acceptance or integration.
