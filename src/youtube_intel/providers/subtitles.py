@@ -810,6 +810,7 @@ class _MappedDirectory:
     tracks: tuple[SubtitleTrack, ...]
     next_position: int
     bucket_count: int
+    has_supported_format: bool
 
 
 def _nested_directory_contract_state(
@@ -873,6 +874,7 @@ def _map_directory(
         )
     key_names = _directory_key_names(payload)
     tracks: list[SubtitleTrack] = []
+    has_supported_format = False
     position = start_position
     bucket_count = start_bucket_count
     iteration_failed = False
@@ -1071,6 +1073,13 @@ def _map_directory(
                 source_format = _format_from_extension(raw_extension)
                 if source_format is None:
                     continue
+                has_supported_format = True
+                # Fully validate every entry above. A `tlang` derivative cannot
+                # acquire Original authority or consume native candidate capacity.
+                if any(key == "tlang" for key, _ in parse_qsl(
+                    urlsplit(raw_url).query, keep_blank_values=True
+                )):
+                    continue
                 if start_track_count + len(tracks) >= _MAX_TRACK_COUNT:
                     raise _directory_structure_error(
                         _DirectoryStructureState.UNKNOWN,
@@ -1117,7 +1126,7 @@ def _map_directory(
         )
         failure.directory_key_names = key_names
         raise failure
-    return _MappedDirectory(tuple(tracks), position, bucket_count)
+    return _MappedDirectory(tuple(tracks), position, bucket_count, has_supported_format)
 
 
 def _content_length(
@@ -1437,7 +1446,7 @@ class YtDlpSubtitleAdapter:
                 automatic_directory=automatic_shape,
             )
             tracks = (*manual.tracks, *automatic.tracks)
-            if automatic.next_position > 0 and not tracks:
+            if automatic.next_position > 0 and not (manual.has_supported_format or automatic.has_supported_format):
                 raise _directory_structure_error(
                     _DirectoryStructureState.UNKNOWN,
                     "directory_shape_unsupported_entry",
@@ -1463,14 +1472,7 @@ class YtDlpSubtitleAdapter:
                 )
             raise
         return SubtitleTrackListing(
-            # `tlang` asks YouTube to machine-translate another track. Such a
-            # derivative must never acquire Original Transcript authority.
-            # Keep signed URLs intact and validate all directory entries first.
-            tracks=tuple(track for track in tracks if not any(
-                key == "tlang" for key, _ in parse_qsl(
-                    urlsplit(track.url).query, keep_blank_values=True
-                )
-            )),
+            tracks=tracks,
             call=self.last_call,
         )
 

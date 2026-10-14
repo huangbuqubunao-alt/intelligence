@@ -3686,3 +3686,28 @@ def test_two_captures_reject_a_third_format_without_rebinding(tmp_path: Path, mo
     with repository._connect() as connection:
         assert connection.execute("SELECT COUNT(*) FROM artifacts").fetchone()[0] == 2
     assert not (tmp_path / "data" / kwargs["artifact"].relative_path).exists()
+
+
+def test_large_translation_directory_acquires_only_original_native_body_and_trusted_timing(tmp_path: Path) -> None:
+    repository = _repository_with_transcript_job(tmp_path)
+    native = _directory_entry(url="https://www.youtube.com/api/timedtext?v=video123&lang=en&fmt=json3")
+    translated = _directory_entry(url=native["url"] + "&tlang=fr")
+    payload = {"id": "video123", "subtitles": {"fr": [translated] * 1024}, "automatic_captions": {"en": [native]}}
+    class NativeOnlyOpener(_BodyOpener):
+        def __call__(self, request: object, timeout: float) -> object:
+            assert getattr(request, "full_url", None) == native["url"]
+            return super().__call__(request, timeout)
+    opener = NativeOnlyOpener((FIXTURES / "manual_en.json3").read_bytes())
+    adapter, handle = _bound_adapter(payload, opener)
+    result = _service(adapter=adapter, repository=repository, data_root=tmp_path / "data", job_id="subtitle-job").fetch(_video(), ("en",))
+    assert isinstance(result, TranscriptReady)
+    assert result.artifact.source_type is TranscriptSourceType.AUTO_SUBTITLE
+    assert result.artifact.source_format is SubtitleFormat.JSON3
+    assert repository.get_job("subtitle-job").status is JobStatus.SUCCEEDED
+    assert repository.get_video("video123").pipeline_status is PipelineStatus.TRANSCRIPT_READY
+    timed = repository.get_verified_timed_transcript(video_id="video123")
+    assert timed is not None and timed.cues
+    assert result.artifact.timed_text_path is not None
+    assert (tmp_path / "data" / result.artifact.timed_text_path).is_file()
+    assert len(handle.calls) == 1 and handle.calls[0][1] is False
+    assert opener.calls == 1 and all(response.closed for response in opener.responses)
