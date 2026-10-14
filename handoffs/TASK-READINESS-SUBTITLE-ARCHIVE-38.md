@@ -401,3 +401,77 @@ canonical/timed/Evidence，原成功父任务/原文保留，Backup继续blocked
 
 作者提交后 STOP，建议IN_REVIEW，待独立复审。原Schema表和qualification gate无
 新权力；本报告不填APPROVE，不合并main，不宣称完整用户链路完成。
+
+## 独立复审 3 — APPROVE（2026-10-14）
+
+Reviewer `/root/intel_bounded_review`，固定完整base
+`a2c668bbe32d1acc4bcf83176a331eb3e850e09b` → candidate
+`61b6f63ae94b7ab0b4ca3d74c28f7effb019292f`；返修比较点前次审查
+`61f740250872c67131a06d73eb93df86d202fd32`。作者 STOP/clean；等待唯一模型语义
+Reviewer STOP后开始，没有并行第二Reviewer。业务只读，仅本交接追加。没有模型/
+provider/API/正式owner/Schema/main操作。模型单例结果不属于本审查，不授资格。
+
+具体审批、任务、两次REJECT与原失败证据、完整候选39文件/返修5文件已复核；图谱
+找不到本新增符号，按指定文件fallback，不建立索引。原23字段append-only038及
+immutable triggers保持；doctor仅当前38；旧测试只更新当前版本与精确新增迁移/
+columns/index，历史34–37/回滚断言完整，Restore断言加强而非删除/skip/ignore。
+
+### 已解决 P1/P2 与独立反证
+
+- 统一 `_retained_execution` 对原FAILED_FINAL与后继SUCCEEDED验证整数max/attempt/
+  连续全部attempts、已知最后结果与Job/error一致、正规UTC完整顺序和owned终结
+  早于最终lease，无活owner/lease/scoring权力/usage/cost/dispatch未知。原FAILED
+  provider请求保留原错误与available历史。SourceRun ID/idempotency/trigger/scope/
+  priority/terminal/attention及immutable event链逐项验证；old/new全字段snapshot
+  都进入canonical proof_json，历史重算不能接受合法-looking的字段漂移。
+- 原五successor原脚本未改重跑，均 `archived=false / ready=false /
+  tables_changed=false / extra_fetch=0`，`/tmp/archive38-third-review-successor.txt`。
+- 原四old字段探针未改重跑（max_count1.5/最后RETRY_PENDING/结束越lease/naive run
+  UTC），均同样closed且DATA不变，`/tmp/archive38-third-review-old.txt`。随后直接
+  UPDATE事件仍被既有immutable trigger拒绝，保留该退出1；不当成业务反例。
+- 正规追加old/successor enum与CHECK合法但prior_state不连续事件，两个都正确
+  closed且整批不变，`/tmp/archive38-third-review-history.txt`。
+- 先正常归档后old Job.max_attempts合法改4、old run.updated_at改created_at：live
+  ready=false；原ZipInfo regular属性+私有DB checkpoint/TRUNCATE+重算manifest
+  hash/size的真正变更包stage均拒绝，原因精确
+  `Neutral subtitle retention proof failed validation.`。同法successor.max_attempts
+  漂移也正确拒绝（`/tmp/archive38-third-review-successor-history.txt`）。live表/
+  全物理DATA不变、额外获取0，未confirm/apply恶意包。P2错误包装/WAL提前拒绝已
+  改成真正到达proof边界的断言，原负控完整保留。
+- 准入/历史共用完整proof，缺新完整shape的未发布38旧candidate不静默upgrade。
+  正常future current Summary pointer变化不要求旧历史永远current；正常幂等/
+  重启/同path引用计一次/全表全DATA恢复/旧34–37与新38/锁/CAS/混批回滚正控通过。
+- caption-repair限定完成路径在IO后和提交前取现有clock，校验当前owned Job与
+  provider原租约、UTC/倒退；expired/owner变更整事务回滚，原Content及成功父记录
+  保留，无timed/Evidence/成功fake输出。九clock正负控独立跑；短IO成功完成时间
+  真在IO之后。普通非repair `complete_stage`/入口错误时间分支没有改写，不倒填
+  已有历史，不把旧普通pipeline时序缺陷当成正常proof放宽。
+
+### 独立关键检查
+
+先5业务Python py_compile PASS，然后执行：
+
+```sh
+PYTHONPATH=src:. .venv/bin/python -m pytest -q tests/integration/test_retained_subtitle_derivations.py tests/integration/test_caption_repair_completion_clock.py tests/integration/test_runtime_composition.py tests/unit/test_backup_restore.py tests/integration/test_state_store.py tests/integration/test_task016c_phase_h2c_lineage_schema.py tests/integration/test_task025a_saved_intelligence.py
+```
+
+**289 PASS /247.66s /1既有duplicate ZIP path warning**，
+`/tmp/archive38-third-review-tests.txt`。85archive（含全部原52、第一次26与本轮7）、
+9clock、27runtime、55Backup unit、113state/lineage/doctor/saved整文件；覆盖fullDATA/
+旧包/取消与checkpoint failclosed/Cloud历史与CAS/正常retry，未运行任何真实provider。
+
+`MYPYPATH=src .venv/bin/mypy --strict src`：**102files PASS**，
+`/tmp/archive38-third-review-mypy.txt`；Ruff src/tests/scripts PASS，
+`/tmp/archive38-third-review-ruff.txt`；git diffcheck与完整范围复核PASS。
+独立原探针在前两REJECT中的FAIL输出均保留，本轮另存，不覆盖。没有测试脚本、
+依赖、配置、credentials或资格标准改动；没有代码替作者修复。
+
+### Verdict与验收限制
+
+**APPROVE 固定实现61b6f63ae94b7ab0b4ca3d74c28f7effb019292f；本次未解决P0=0/P1=0/P2=0。**
+此前本task的两个proof P1与Restore测证P2均已真实解决。这是独立代码/隔离合同审查，
+不等于迁移最终采用或普通用户全部链路通过；尚须root接受整合、最新完整Backend/
+Frontend/TS/build与真实macOS GUI完整表和所有DATA恢复/重启对比。不重复19分钟旧
+候选完整套件；旧4310PASS/1FAIL/1既有SKIP及后续suffix48通过依旧不当作全量PASS。
+当前真实public429/缺genuine新GUI失败库证据不伪造。模型资格仍闭，正式owner不测试/
+重置，不自行main/push/正式build。Reviewer交接提交后STOP，等待明确下一任务。
