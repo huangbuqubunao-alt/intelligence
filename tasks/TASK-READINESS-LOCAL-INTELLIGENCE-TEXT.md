@@ -27,3 +27,11 @@ Review3b562c64ebca70bb49bdc67b1f20ee96b766ed99，base同SHA，原tree/原local_t
 ## 2026-10-15 Schema39批准后返修 READY
 
 用户已具体批准 LOCAL_TEXT_INPUT_PROOF_MIGRATION_PROPOSAL.md（call_37d985304ad94a94b581ed1e53765c44）。原作者local_text原tree，返修起点review3b562c64ebca70bb49bdc67b1f20ee96b766ed99。允许范围、精确15字段、原子proof、历史重构、read_current closed分类及旧34–38/新39完整恢复以获批提案为准；039 migration/state/distillation/reader/backup_restore/runtime doctor版本/对应tests/harness/docs。App/frontend继续STOP，Backup反馈Reviewer可并行。SourceInterest state必须等待本任务接受。零真实模型；不改正式数据配置/依赖/资格；不倒填旧候选格式。两原反证及合法refresh/generic旧协议正控、混合回滚/并发/幂等/取消重启/未知/NO_NEW/全表全DATA恢复；先类型再测试、原失败证据保留，完成限scope commit+handoff STOP后独立审查。不得自行扩表/字段或写公共状态。
+
+## 2026-10-15 Schema39 独立新P1：反向结果关联返修包
+
+2068ee1作者已STOP未接受。独立恢复审查确认：validZipInfo、checkpoint/closed/rehashed DB的39恶意包删除proof/card/ledger/checkpoint四关联但保留不可变revision:distillation:distillation:local-text-v2:…及DISTILLATION结果；Backup stage接受，read_current/Save/Topic降为generic接受，current-card仅因缺card拒绝。原两P1已closed及core309/related254 PASS不抵消。外部有效反证/tmp/local-text39-review-missing-associations.py及/tmp/local-text39-review-resume-associations.log保留。
+
+必须从持久明确结果/revision版本身份也要求完整checkpoint/ledger/proof/card关联，不能依赖这些可缺失投影来决定是否需校验；已识别v2或未知future本地文字版本一律缺关联closed，不能generic降级。该版本身份只用于要求更严校验，不授来源/结果authority，不试多个hash猜协议。Backup/Restore必须反向遍历这些已产出结果/revision验证同一reader；不能只正向检查幸存CP/proof。旧YT/timed/无提炼关联generic的合法正控保持，取消/NO_NEW/UNKNOWN原合同保留；所有表/DATA/原错误/历史不删，不改Schema39字段或旧SQL，不绕stage文件门禁。
+
+scope限既有reader/backup_restore及必要state只读查询、相应tests/handoff/合同docs；user持续默认授权，无逐方法批准。先复现此原反证和读写所有入口/实际valid39stage负控，再做最小修复；单删与组合删关联、future marker、legit generic/history、重启及旧34–38/new39正向完整恢复/原两P1全部相关检查。Reviewer handoff commit STOP后才由独立原任务author续写同tree；review正在写时作者不得写。新author恢复包届时记录起点SHA。零模型/Cloud/owner/config/依赖。
