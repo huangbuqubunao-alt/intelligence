@@ -11,3 +11,7 @@
 先TDD：1024+合法翻译、少量原生应返回完整原生；1025原生/4097entry/513桶仍拒绝；翻译非法host/凭据/fragment/缺字段/坏name不能因排除而放行；tlang空值/重复key按现精确语义排除，普通非tlang query保留原签名；位置/格式/原身份/零翻译bodyreads稳定。既有完整provider及subtitle policy、nativecapture与Backup相关回归/static/diff和独立Reviewer。全部历史失败保留，不删除/skip/弱化测试或上限。
 
 风险及审批：provider目录校验属于全局AGENTS“security-sensitive code”，且旧caption任务明确排除provider security transport，不能从通用继续授权推断扩文件范围。本提案只请求上述已验证entry保留点的隔离修复/验收；不授权正式采用或后续其他问题。DIRECT现标准库parse_qsl/urlsplit和provider validators；不新组件/依赖。
+
+## 2026-10-14 具体批准
+
+用户明确回复“批准该精确隔离修复与验收范围”。本提案精确文件/充分校验后原生保留点获批；无扩大raw桶/entry限额、历史重试、正式采用或其他权限。
