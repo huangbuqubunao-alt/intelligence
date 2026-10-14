@@ -15,3 +15,11 @@ DIRECT既有source_authority与EvidenceResolver、真实TEXT_RANGE存储、extra
 作者提交限定SHA/handoff STOP→独立review→root受影响检查/真实文本与研究深链GUI。完整最终Backend/Frontend/TS/build/Ruff/strictmypy/diff及真实Intelligence保存/主题正向仍整体门禁，固定9b原qualificationFAIL不得绕过。Parallel now caption仅providers/subtitles.py目录保留修复，与你distillation/state/intelligence_read/LOCAL Evidence合同不重叠，准许两独立writer；intel此时只读UI已STOP。你不得改变字幕provider/raw/archive核心合同。正式采用及真实模型正向等待门禁。
 
 2026-10-14补充：LOCAL_TEXT_READ_CURRENT_ADDENDUM.md用户明确批准，将intelligence_read.read_current最小验证入口纳入本task；只让新LOCAL_TEXT current read经同一严格card/version/ledger/hash验证供Save/Topic，不改其事务/旧YT/general行为，补直接入口损坏负控。
+
+## 2026-10-14 独立REJECT原作者返修包
+
+Review3b562c64ebca70bb49bdc67b1f20ee96b766ed99，base同SHA，原tree/原local_text作者，Reviewer intel_bounded_review。b79未接受未整合。两P1原反证必须保留：合法Summaryrefresh→只损坏原Summary字节（current新Summary与DB/card/hash/trigger不改），current/recorded/read_current/Save/Topic全部拒绝；missing card getter投影None（不删DB）同五入口closed。
+
+必须有可验证的原sealed context/input与原Summary身份，不以当前context非None、opaque hash自证明，也不直接用当前hash==旧hash破坏合法刷新。新LOCAL_TEXT版本由持久明确版本/执行关联分类，card缺失不能将新distillation降为generic读；旧YT/timed/generic非card revision保持原合法行为。完整original projection/执行关联/source-canonical-excerpt-profile-Summary-policy/preferences如无法现Schema合法承载，先给精确增补方案，不擅Schema/新持久化边界或猜多个hash。
+
+现在仅只读preflight明确原projection持久范围；证明同既有批准可实施后再最小backend/harness/freeze/tests修复及handoff，不App/frontend/UI写（前端已提交STOP）。Backup反馈caption独立App presentation writer与你无交集允许并行。新profile未实际调用/inputs_frozenfalse，无真实model/network/Cloud/formal/deps/config/历史改写，不能借返修扩大模式或容量。先语法/TDD两原反证及合法refresh/generic正控，focused旧新/static/diff+提交STOP→独立复审。无root最终full或GUIPASS冒充。SourceInterest CAS state等待本核心接受后串行。
