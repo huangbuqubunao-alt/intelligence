@@ -6,7 +6,7 @@ Backup反馈741bfdd作者STOP/clean，仅呈现历史与本次恢复回执、读
 root fb067全后端4445 PASS /7 FAIL /1既有资产skip /2warnings，1303.93s；7项summary_live_cutover均LeaseConflict，原日志保留，先只读定位，未削弱测试。不是最终全回归通过。此前root441前端/TSbuild、Schema38 root176专项/Ruff/mypy102通过。
 已接受Schema38第三审查/真正GUI恢复72表78DATA精确一致、Content中性加载/GET恢复0mutation/late-ID/四宽、Native目录translated不占1024原生quota。真正新视频仍触raw4096总目录上限，未放宽；旧失败归档真实GUI正向仍待条件，空表恢复不冒充。
 17声学14正3负控/LOCAL_TIMED零调用取消/RAW与研究完整恢复/新发布真实单视频自动ENROLLED/路由窄窗证据保留。统一中文手册56真实截图零缺图/无横溢。
-模型原8b、9b nonthinking、4096 thinking与唯一6144单例均未获语义资格；6144协议完成但独立语义P1 REJECT，全部模型调用STOP，后3/LOCAL8未调用，正式资格仍false。长内容/rolling、tracked失败恢复可达性、真实Intelligence保存/主题正向仍OPEN。新正式采用须所有门禁通过后另行具体批准；没有启动其他开发阶段。
+模型原8b、9b nonthinking、4096 thinking与唯一6144单例均未获语义资格；6144协议完成但独立语义P1 REJECT，全部模型调用STOP，后3/LOCAL8未调用，正式资格仍false。长内容/rolling、tracked失败恢复可达性、真实Intelligence保存/主题正向仍OPEN。用户2026-10-15已持续授权任务内必要修复/兼容迁移/本地模型调整及目标内条件发布；不再逐项审批，所有验收条件满足前仍不得采用。见CONTINUING_AUTHORIZATION_2026_10_15.md；没有启动其他开发阶段。
 详见[验收矩阵](validation/end-to-end-user-readiness/READINESS_MATRIX.md)与[续作记录](validation/end-to-end-user-readiness/PROGRESS.md)。
 
 2026-10-08 Phase 13 automatic background Following candidate: implementation and
