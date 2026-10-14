@@ -1,15 +1,13 @@
 # YouTube Intelligence Agent 项目状态
 
-2026-10-14 18:40续作（优先于历史状态）：正式main/实际origin-main仍73ee7e747b4461b9de8a201d6b47669eb3913d1a clean，本轮候选未完成/未发布，owner配置与数据未改。
-Schema38第三独立ff43 APPROVE已完整整合74ac5c2；root176相关201.26s/Ruff/mypy102 PASS。隔离37→38仅append038 registry+空neutral表，原70domain表/78文件不变；真正GUI38恢复72表78DATA精确PASS，新APPLIED回执及actual重启验证。genuine失败派生归档真实网络链仍未跑，不以空neutral正控冒充。
-Content UI047/ba524接受整合a40cac9，root441前端/TSbuild PASS；真实ZH/EN中性loading、abort执行/配置禁用、手动GET恢复0mutation、lateID隔离与四宽无横溢PASS。原FAIL留存。
-Native目录e1cede/d849独立APPROVE整合c38ee71，root202专项PASS；实际6068普通导入已不触旧supported上限，但Gemini新目录超过原raw4096，总上限保持closed，FAILED_FINAL0Artifact0Intelligence且Backupready，停止重复网络试探。
-LOCAL_TEXT b79b509作者STOP/clean：333相关+9复验/446前端/static PASS，仅fixture/NONE-qualifiedfalse；含具体获批read_current补充，唯一Reviewer独立审查中，未整合。文字真正模型/保存主题正向仍BLOCKED。
-SourceInterest-only CAS及入口已具体获批，state/App须LOCAL_TEXT接受后串行；备份旧回执上下文与Content失败网络归因的普通呈现修复排队，不改handlers。
-6144唯一EN native stop/912input4638output/218.923s，18DATA/输入不变，研究协议成功但独立fbd1035语义REJECT/P1；所有模型调用STOP/productionfalse，原8b/9bnonthinking及4096失败保留，后3/LOCAL8未调用，无后续实验授权。
-原17声学14正3负控/LOCAL_TIMED WAIT0取消/RAW与研究恢复/导航与Source GET恢复真实证据保留。后台实际新发布单视频ENROLLED/去重持久成功，随后字幕总目录限额和来源NOT_FOUND风险不掩盖。
-手册56真实图macOS渲染零缺图/无横溢；root最终完整Backend/Frontend/TSbuild/static/diff仍待所有代码接受，不以旧4220+1资产skip替代。长内容/rolling、tracked失败恢复可达性、真实Intelligence保存/Topic仍OPEN，最终采用另行具体批准。
-详见[验收矩阵](validation/end-to-end-user-readiness/READINESS_MATRIX.md)与[续作记录](validation/end-to-end-user-readiness/PROGRESS.md)。没有启动其他开发阶段。
+2026-10-15 恢复工作（优先于下方历史）：正式main、tracking origin/main与实际远端均73ee7e747b4461b9de8a201d6b47669eb3913d1a，clean；owner数据/配置未改，本轮未发布、不可称全链路可用。
+LOCAL_TEXT b79被独立3b562c6 REJECT两P1：合法摘要刷新后的原摘要损坏仍获可信读取，missing-card projection绕过read_current。Schema38无法存完整原投影，用户已具体批准15字段不可变输入证明的Schema38→39隔离迁移及旧34–38/新39恢复；原local_text作者返修，App停止，不调用模型，待独立审查。
+Backup反馈741bfdd作者STOP/clean，仅呈现历史与本次恢复回执、读失败状态及中性失败文案；20专项/461完整前端/TSbuild自测PASS，独立Reviewer进行中，未接受未整合。SourceInterest-only CAS已有精确批准，核心state/App依赖接受后串行。
+root fb067全后端4445 PASS /7 FAIL /1既有资产skip /2warnings，1303.93s；7项summary_live_cutover均LeaseConflict，原日志保留，先只读定位，未削弱测试。不是最终全回归通过。此前root441前端/TSbuild、Schema38 root176专项/Ruff/mypy102通过。
+已接受Schema38第三审查/真正GUI恢复72表78DATA精确一致、Content中性加载/GET恢复0mutation/late-ID/四宽、Native目录translated不占1024原生quota。真正新视频仍触raw4096总目录上限，未放宽；旧失败归档真实GUI正向仍待条件，空表恢复不冒充。
+17声学14正3负控/LOCAL_TIMED零调用取消/RAW与研究完整恢复/新发布真实单视频自动ENROLLED/路由窄窗证据保留。统一中文手册56真实截图零缺图/无横溢。
+模型原8b、9b nonthinking、4096 thinking与唯一6144单例均未获语义资格；6144协议完成但独立语义P1 REJECT，全部模型调用STOP，后3/LOCAL8未调用，正式资格仍false。长内容/rolling、tracked失败恢复可达性、真实Intelligence保存/主题正向仍OPEN。新正式采用须所有门禁通过后另行具体批准；没有启动其他开发阶段。
+详见[验收矩阵](validation/end-to-end-user-readiness/READINESS_MATRIX.md)与[续作记录](validation/end-to-end-user-readiness/PROGRESS.md)。
 
 2026-10-08 Phase 13 automatic background Following candidate: implementation and
 self-review fixes are isolated on `codex/phase13-background-following`, based on

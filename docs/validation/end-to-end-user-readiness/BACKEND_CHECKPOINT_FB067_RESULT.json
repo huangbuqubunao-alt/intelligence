@@ -1,0 +1,15 @@
+{
+  "label": "accepted-code backend checkpoint, not final",
+  "source_head": "fb06777503b780fdd4e1342114f6c15485987fe2",
+  "command": "PYTHONPATH=src .venv/bin/python -m pytest -q",
+  "passed": 4445,
+  "failed": 7,
+  "skipped": 1,
+  "warnings": 2,
+  "seconds": 1303.93,
+  "exit_code": 1,
+  "failure": "tests/integration/test_summary_live_cutover.py; LeaseConflict at state.py:2958",
+  "log": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/backend-full-fb067-checkpoint.log",
+  "tests_weakened": false,
+  "formal_data_touched": false
+}
