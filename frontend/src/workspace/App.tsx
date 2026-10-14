@@ -1689,7 +1689,7 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
           : null}
       </Panel>
       {data.video.caption_timing_status === "UNAVAILABLE" && !data.video.source_id && <Panel title="Processing needs attention"><p>{t("The captured captions have no verified source timing. Content needs timed captions before Summary and source references can be prepared.")}</p></Panel>}
-      {data.video.source_id && (["RETRY_REQUIRED", "FAILED"].includes(data.video.processing_status) || data.video.caption_timing_status === "UNAVAILABLE") && <Panel title="Processing needs attention">{data.video.caption_timing_status === "UNAVAILABLE" && <p>{t("The captured captions have no verified source timing. Content needs timed captions before Summary and source references can be prepared.")}</p>}<p>{t(data.video.retry_allowed === false ? "This Content needs source or processing readiness review before it can be processed again." : data.video.summary_preparation_status === "NEEDS_ATTENTION" ? "Timed captions are saved, but the Summary could not be prepared. Retry to organize this Content; your captured text and source references are kept." : data.video.caption_timing_status === "UNAVAILABLE" ? "Retry to check this source for native timed captions. Your captured text and history are kept." : "Processing needs attention. Retry this Content when the connection is available.")}</p><button className="button button-secondary" disabled={retryBusy || data.video.retry_allowed === false} onClick={async () => { setRetryBusy(true); setRetryFeedback(null); try { await post(`/sources/${data.video.source_id}/check`, { command_id: commandId() }); setRetryFeedback("Retry accepted. Processing status will update here."); setRefresh(value => value + 1); } catch { setRetryFeedback("The source could not be checked. Try again later."); } finally { setRetryBusy(false); } }}>{t(retryBusy ? "Retrying…" : "Retry")}</button>{retryFeedback && <p role="status">{t(retryFeedback)}</p>}</Panel>}
+      {data.video.source_id && (["RETRY_REQUIRED", "FAILED"].includes(data.video.processing_status) || data.video.caption_timing_status === "UNAVAILABLE") && <Panel title="Processing needs attention">{data.video.caption_timing_status === "UNAVAILABLE" && <p>{t("The captured captions have no verified source timing. Content needs timed captions before Summary and source references can be prepared.")}</p>}<p>{t(data.video.retry_allowed === false ? "This Content needs source or processing readiness review before it can be processed again." : data.video.summary_preparation_status === "NEEDS_ATTENTION" ? "Timed captions are saved, but the Summary could not be prepared. Retry to organize this Content; your captured text and source references are kept." : data.video.caption_timing_status === "UNAVAILABLE" ? "Retry to check this source for native timed captions. Your captured text and history are kept." : "Processing needs attention. Check the source and processing history before retrying; retry may still fail.")}</p><button className="button button-secondary" disabled={retryBusy || data.video.retry_allowed === false} onClick={async () => { setRetryBusy(true); setRetryFeedback(null); try { await post(`/sources/${data.video.source_id}/check`, { command_id: commandId() }); setRetryFeedback("Retry accepted. Processing status will update here."); setRefresh(value => value + 1); } catch { setRetryFeedback("The source could not be checked. Try again later."); } finally { setRetryBusy(false); } }}>{t(retryBusy ? "Retrying…" : "Retry")}</button>{retryFeedback && <p role="status">{t(retryFeedback)}</p>}</Panel>}
       {isBilibili && data.video.processing_status !== "SOURCE_UNAVAILABLE" && <FollowCreatorFromContent id={id} capability={creatorCapability} />}
       {data.video.provider === "YOUTUBE" && data.video.channel_id && /^UC[A-Za-z0-9_-]{22}$/.test(data.video.channel_id) && <FollowCreatorFromContent id={id} provider="YOUTUBE" />}
       <Panel title={data.video.provider === "LOCAL" && data.video.media_kind === "TEXT" ? "Source text" : "Transcript"}>
@@ -3382,7 +3382,7 @@ type BackupRestoreStatus = {
   reasons: string[];
   message: string;
   restore_pending: boolean;
-  last_restore?: { state: string; message: string } | null;
+  last_restore?: { state: string; message: string; restore_id?: string; completed_at?: string } | null;
 };
 
 const backupReasonCopy: Record<string, string> = {
@@ -3438,6 +3438,24 @@ function BackupRestorePanel() {
   const [error, setError] = useState<string | null>(null);
   const confirmationDialog = useRef<HTMLDialogElement>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
+  const inspectedRestore = useRef<{ id: string; baselineKnown: boolean; alreadyApplied: boolean } | null>(null);
+
+  useEffect(() => {
+    const receipt = status?.last_restore;
+    if (restore && inspectedRestore.current?.id !== restore.restore_id) {
+      inspectedRestore.current = {
+        id: restore.restore_id,
+        baselineKnown: status !== null && !statusError && (receipt == null || (
+          ["APPLIED", "REJECTED", "ROLLED_BACK"].includes(receipt.state)
+          && typeof receipt.restore_id === "string" && receipt.restore_id.length > 0
+        )),
+        alreadyApplied: receipt?.state === "APPLIED" && receipt.restore_id === restore.restore_id,
+      };
+    } else if (!restore && !busy && !showConfirm && !status?.restore_pending
+      && receipt?.restore_id !== inspectedRestore.current?.id) {
+      inspectedRestore.current = null;
+    }
+  }, [restore, status, statusError, busy, showConfirm]);
 
   useEffect(() => {
     const dialog = confirmationDialog.current;
@@ -3566,13 +3584,19 @@ function BackupRestorePanel() {
   );
 
   const readiness = backupReadiness(status);
+  const receipt = status?.last_restore;
+  const currentRestoreCompleted = typeof receipt?.restore_id === "string" && receipt.restore_id.length > 0
+    && inspectedRestore.current?.id === receipt.restore_id
+    && inspectedRestore.current.baselineKnown && !inspectedRestore.current.alreadyApplied;
+  const receiptDate = typeof receipt?.completed_at === "string" && Number.isFinite(Date.parse(receipt.completed_at))
+    ? humanDate(receipt.completed_at) : null;
   return (
     <Panel title="Backup and Restore">
       <p>{t("Backups include Intelligence core data and persisted settings. External Vault content, credentials, and model files are excluded.")}</p>
-      <p className="hint" role="status">
+      {!statusError ? <p className="hint" role="status">
         {t(readiness.lead)}
         {readiness.items.length > 0 && ` ${readiness.items.map((item) => t(item)).join(" ")}`}
-      </p>
+      </p> : null}
       <div className="button-row">
         <button type="button" onClick={createBackup} disabled={busy || !status?.ready}>
           {t(busy ? "Working…" : "Create Backup")}
@@ -3618,8 +3642,11 @@ function BackupRestorePanel() {
           </div>
         </article>
       ) : null}
-      {status?.last_restore?.state === "APPLIED" ? (
-        <p className="success-message" role="status">{t("Restore completed successfully.")}</p>
+      {!statusError && !busy && !restore && !showConfirm && status?.restore_pending === false && receipt?.state === "APPLIED" ? (
+        <p className={currentRestoreCompleted ? "success-message" : "hint"} role="status">
+          <span>{t(currentRestoreCompleted ? "Restore completed successfully." : "Previous restore completed successfully.")}</span>
+          {receiptDate ? <> <span className="reading-meta">{receiptDate}</span></> : null}
+        </p>
       ) : null}
       {status?.restore_pending ? (
         <p role="status">{t("Restore is pending. Intelligence will restart and validate the restored data before processing resumes.")}</p>
