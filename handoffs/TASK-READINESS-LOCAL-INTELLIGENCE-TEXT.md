@@ -581,3 +581,71 @@ or relabelled for this repair. Root final full backend/frontend, actual GUI,
 semantic model qualification and formal adoption remain separate gates. Author
 delivers a bounded commit and **STOP** for independent re-review; no acceptance,
 integration, public task-status update or qualification grant is claimed.
+
+## Independent final association re-review — 2026-10-15 — APPROVE
+
+Reviewer `local_text_review_resume`; exact candidate
+`5909ef7427491a09493efbdf8966a6264407de73`, repair diff against previous independent
+REJECT `b2aebad7ba54cf0a6acc29db2fe9637609c8042b`; cumulative original base remains
+`2978550aee692c7b24d5707d2eb4ebdfcc1d0e2f`. Original failures and rejections above
+remain history. Six-path repair has no state, migration/Schema, frontend,
+dependency, configuration, eligibility or owner-data change. Reviewer modified
+only this handoff after author clean STOP.
+
+The remaining P1 is closed. `intelligence_read.py:41-44,159-186` independently
+recognizes the reserved decimal-version text revision family, even without
+sidecars; this is a requirement to validate, never an authority grant.
+`335-343` requires the supported exact v2 execution and its exact generated
+revision identity. Unknown versions fail closed. `backup_restore.py:1243-1250`
+reverse-checks produced revisions with the same classifier and recorded-card
+verifier, while preserving the existing forward proof/result checks. Ordinary
+generic and near-marker identities retain their legal behavior. No alternate
+hash guessing, new storage field or weakened restore guard was introduced.
+
+Independent verification on this exact candidate:
+
+- Original external all-four-loss replay:
+  `PYTHONPATH=src:.:tests .venv/bin/python /tmp/local-text39-review-missing-associations.py`,
+  exit0, `/tmp/local-text39-final-review-original-associations.log`. Original
+  schema/triggers restored, FK/integrity `ok`, checkpointed/rehashed DB and
+  original valid ZipInfo. Actual stage now CLOSED with
+  `BackupRestoreError Local text input proof failed validation.`;
+  current-card/current/Save CLOSED with `distillation card is unavailable`;
+  Topic CLOSED. Private fixture only, no activation, real model/network0.
+- `PYTHONPATH=src:. .venv/bin/pytest -q tests/integration/test_local_text_input_proof.py tests/integration/test_local_intelligence_text.py`:
+  **97 passed in 173.19s**, exit0,
+  `/tmp/local-text39-final-review-local97.log`. Independently covers all expanded
+  association combinations in actual rehashed archives and reopened direct
+  current/current-card/recorded-card/Save/saved-list/Topic; v2/v3/v999 no-sidecar
+  markers; ordinary and incidental/non-version generic positives; the original
+  missing-card projection and historical Summary damage negatives; legal later
+  Summary refresh; cancellation preserving raw WAITING ledger receipt; UNKNOWN
+  and NO_NEW; exact fifteen-field/immutable schema, atomic mixed rollback,
+  old34–38 restore/activation followed by ordinary continuous startup39, and
+  Schema39 positive full-domain-table/DATA restore/restart equality.
+- `PYTHONPATH=src:. .venv/bin/python -m compileall -q src/youtube_intel scripts/prepare_readiness_local_text.py tests/integration/test_local_text_input_proof.py`:
+  PASS, exit0.
+- `.venv/bin/ruff check src/youtube_intel tests scripts/prepare_readiness_local_text.py`:
+  PASS, `/tmp/local-text39-final-review-ruff.log`, exit0.
+- `PYTHONPATH=src:. .venv/bin/mypy --strict src scripts/prepare_readiness_local_text.py`:
+  **103 source files PASS**, `/tmp/local-text39-final-review-mypy.log`, exit0.
+- Independently invoked prepare-only `prepare_profile()` and compared its whole
+  output with committed V3, recomputed every recorded source SHA256 and checked
+  V1/V2 byte equality against previous review commit: PASS. Unchanged v2 profile,
+  real calls0, production qualification false, authority NONE, inputs not frozen.
+- `git diff --check` PASS. Reviewed changed tests: added exact stage-error and
+  trust-rejection assertions; the FK-preserving partial-checkpoint fixture is
+  explicitly distinguished from the original all-four deletion. No removed/
+  skipped/weakened security assertion or unrelated source edit.
+
+Prior independent 309/254 cohorts and original 17-proof results belong to their
+recorded candidates and are not relabelled or aggregated as unique tests for
+this repair. The fresh97 cohort is the bounded high-risk rerun; author180-related
+is preserved as author evidence. Full root backend/frontend and real GUI are
+still root acceptance gates, not asserted here. Real-model semantic qualification
+and formal eligibility remain closed under their existing requirements.
+
+Verdict **APPROVE**: no open P0/P1/P2 found in this review; original two P1 plus
+the all-association-loss P1 now have passing independent negative/positive
+controls. Handoff-only review commit, clean **STOP**. Root owns acceptance,
+integration and final product validation; this review grants no model execution.
