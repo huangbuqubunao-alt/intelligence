@@ -1041,10 +1041,10 @@ def _retention_utc(value: object) -> datetime:
     return stamp
 
 
-def _retained_successor_execution(
-    connection: Any, job: Any, call: Any, run: Any, *, now: datetime,
+def _retained_execution(
+    connection: Any, job: Any, call: Any, run: Any, *, now: datetime, failed: bool = False,
 ) -> dict[str, Any]:
-    """Prove and snapshot every successor execution field, not only status."""
+    """Prove and snapshot every original or successor execution field."""
     from youtube_intel.source_run import (
         _SOURCE_RUN_STATE_TRANSITIONS,
         SourceRunState,
@@ -1054,14 +1054,16 @@ def _retained_successor_execution(
     )
 
     _retention_require(
-        job["status"] == "SUCCEEDED" and job["job_type"] == "VIDEO_STAGE"
+        job["status"] == ("FAILED_FINAL" if failed else "SUCCEEDED") and job["job_type"] == "VIDEO_STAGE"
         and job["target_stage"] == "TRANSCRIPT"
         and type(job["attempt_count"]) is int and type(job["max_attempts"]) is int
         and 0 < job["attempt_count"] <= job["max_attempts"]
         and all(job[k] is None for k in (
-            "lease_owner", "lease_until", "last_error_code", "last_error_message",
+            "lease_owner", "lease_until",
             "authoritative_scoring_artifact_key", "scoring_success_provenance", "scoring_lineage_version"))
     )
+    _retention_require((job["last_error_code"], job["last_error_message"]) == (
+        ("LOCAL_RESOURCE", "Caption repair needs attention") if failed else (None, None)))
     created, finished = _retention_utc(job["created_at"]), _retention_utc(job["finished_at"])
     _retention_require(created <= _retention_utc(job["available_at"]) <= finished <= now
         and finished == _retention_utc(job["updated_at"]))
@@ -1078,31 +1080,41 @@ def _retained_successor_execution(
             and isinstance(attempt["lease_owner"], str) and bool(attempt["lease_owner"].strip()))
         start, end = _retention_utc(attempt["started_at"]), _retention_utc(attempt["finished_at"])
         _retention_require(prior_finish <= start <= end <= finished
-            and end <= _retention_utc(attempt["lease_until"]))
+            and end < _retention_utc(attempt["lease_until"]))
         if number == len(attempts):
-            _retention_require(attempt["outcome"] == "SUCCEEDED" and end == finished
-                and attempt["error_code"] is None and attempt["error_message"] is None
+            _retention_require(attempt["outcome"] == ("FAILED_FINAL" if failed else "SUCCEEDED") and end == finished
+                and attempt["error_code"] == job["last_error_code"] and attempt["error_message"] == job["last_error_message"]
                 and _retention_utc(job["available_at"]) <= start)
         else:
             _retention_require(attempt["outcome"] == "RETRY_PENDING"
                 and attempt["error_code"] in {code.value for code in ErrorCode}
                 and isinstance(attempt["error_message"], str) and bool(attempt["error_message"].strip()))
         prior_finish = end
-    _retention_require(call["status"] == "SUCCEEDED"
+    _retention_require(call["status"] == ("FAILED_RETRYABLE" if failed else "SUCCEEDED")
         and type(call["attempt_count"]) is int and 0 < call["attempt_count"] <= len(attempts)
         and all(call[k] is None for k in (
             "reservation_owner", "lease_until", "input_tokens", "output_tokens",
-            "cost_microusd", "last_error_code", "last_error_message"))
-        and call["response_artifact_id"] == call["raw_id"]
+            "cost_microusd"))
+        and call["response_artifact_id"] == (None if failed else call["raw_id"])
         and connection.execute("SELECT 1 FROM provider_dispatch_states WHERE request_hash=?",
                                (call["request_hash"],)).fetchone() is None)
-    _retention_require(created <= _retention_utc(call["started_at"])
-        <= _retention_utc(call["finished_at"]) <= finished
-        and _retention_utc(call["finished_at"]) == _retention_utc(call["updated_at"])
-        and created <= _retention_utc(call["available_at"]) <= _retention_utc(call["finished_at"]))
+    if failed:
+        _retention_require(call["finished_at"] is None
+            and (call["last_error_code"], call["last_error_message"]) == (
+                "LOCAL_RESOURCE", "subtitle files were saved but stage persistence failed")
+            and created <= _retention_utc(call["started_at"]) <= _retention_utc(call["updated_at"]) <= finished
+            and _retention_utc(call["updated_at"]) <= _retention_utc(call["available_at"]))
+    else:
+        _retention_require(call["last_error_code"] is None and call["last_error_message"] is None
+            and created <= _retention_utc(call["started_at"])
+            <= _retention_utc(call["finished_at"]) <= finished
+            and _retention_utc(call["finished_at"]) == _retention_utc(call["updated_at"])
+            and created <= _retention_utc(call["available_at"]) <= _retention_utc(call["finished_at"]))
     trigger = SourceRunTrigger.MANUAL_CHECK_NOW
-    _retention_require(run["trigger"] == trigger.value and run["state"] == "COMPLETED"
-        and run["priority"] == "P0" and run["attention_reason"] is None
+    terminal = SourceRunState.NEEDS_ATTENTION if failed else SourceRunState.COMPLETED
+    attention = "EXECUTION_CONDITION_UNRESOLVED" if failed else None
+    _retention_require(run["trigger"] == trigger.value and run["state"] == terminal.value
+        and run["priority"] == "P0" and run["attention_reason"] == attention
         and run["automation_run_id"] is None and run["manual_analyze_override_id"] is None
         and run["trigger_reference"] == run["manual_command_id"]
         and run["run_id"] == build_source_run_id(source_id=run["source_id"], trigger=trigger,
@@ -1122,7 +1134,7 @@ def _retained_successor_execution(
         current = SourceRunState(event["state"])
         occurred = _retention_utc(event["occurred_at"])
         _retention_require(type(event["event_id"]) is int and event["event_id"] > 0
-            and event["run_id"] == run["run_id"] and event["attention_reason"] is None
+            and event["run_id"] == run["run_id"] and event["attention_reason"] == (attention if index == len(events) - 1 else None)
             and prior_time <= occurred <= run_finished)
         if index == 0:
             _retention_require(event["prior_state"] is None and current is SourceRunState.QUEUED
@@ -1131,7 +1143,7 @@ def _retained_successor_execution(
             _retention_require(prior_state is not None and event["prior_state"] == prior_state.value
                 and current in _SOURCE_RUN_STATE_TRANSITIONS[prior_state])
         prior_state, prior_time = current, occurred
-    _retention_require(prior_state is SourceRunState.COMPLETED and prior_time == run_finished)
+    _retention_require(prior_state is terminal and prior_time == run_finished)
     return {"job": dict(job), "provider_call": {k: call[k] for k in call.keys() if k != "raw_id"},
             "attempts": [dict(a) for a in attempts], "source_run": dict(run),
             "source_run_events": [dict(e) for e in events]}
@@ -1279,6 +1291,7 @@ def _retained_caption_proof(
         candidates.append((capture,run,job,attempts,language_matches[0],raw_hash,metadata,normalized,canonical_hash,relative,body,parents[0][0]))
     _retention_require(len(candidates) == 1)
     capture,run,job,attempts,languages,raw_hash,metadata,normalized,canonical_hash,relative,body,parent_id = candidates[0]
+    original_execution = _retained_execution(connection, job, ledger, run, now=now, failed=True)
     video_id = str(capture["video_id"])
     video = connection.execute("SELECT * FROM videos WHERE video_id=?",(video_id,)).fetchone()
     _retention_require(video is not None and video["provider"]=="YOUTUBE" and video["pipeline_version"]==job["pipeline_version"])
@@ -1313,7 +1326,7 @@ def _retained_caption_proof(
     _retention_require(len(successor_runs) <= 1000)
     matched_successors = [r for r in successor_runs if successor_job["job_id"] == "caption-repair-" + hashlib.sha256(f"{r['run_id']}:{video_id}".encode()).hexdigest()]
     _retention_require(len(matched_successors) == 1)
-    successor_execution = _retained_successor_execution(
+    successor_execution = _retained_execution(
         connection, successor_job, successor_call, matched_successors[0], now=now)
     successor_raw = connection.execute("SELECT * FROM artifacts WHERE artifact_id=?",(successor_call["raw_id"],)).fetchone()
     successor_raw_hash = str(successor_raw["artifact_key"]).removeprefix("subtitle-source:")
@@ -1386,7 +1399,7 @@ def _retained_caption_proof(
         "raw_request_hash":raw_hash,"source_metadata":_encode_source_metadata(metadata),
         "quality_flags":_encode_quality_flags(normalized.quality_flags),"parent_canonical_artifact_id":parent_id},
         "original_ledger":ledger,"attempts":[dict(a) for a in attempts],
-        "successor_execution":successor_execution,
+        "successor_execution":successor_execution,"original_execution":original_execution,
         "evidence_ids":[str(e["evidence_id"]) for e in evidence],"successor_raw_artifact_id":successor_call["raw_id"]}
     encoded = json.dumps(payload,ensure_ascii=True,sort_keys=True,separators=(",",":"))
     _retention_require(len(encoded) <= 1_000_000)
@@ -3149,17 +3162,22 @@ class SubtitleAcquisitionService:
             try:
                 repair = self._context.repair
                 if repair is not None:
+                    completion_now = _aware_utc(self._clock(), video_id=video_id)
+                    if completion_now < now:
+                        raise ValueError("caption repair clock moved backwards during acquisition")
                     complete_repair = getattr(self._repository, "complete_caption_repair")
-                    complete_repair(
+                    repair_result: StageCompletionResult = complete_repair(
                         job_id=self._context.job_id, owner=self._context.owner, video_id=video_id,
                         pipeline_version=self._context.pipeline_version, source_run_id=repair.source_run_id,
                         expected_canonical_artifact_id=repair.expected_canonical_artifact_id,
-                        artifacts=artifacts, provider_call=completion, data_root=self._data_root, now=now,
+                        artifacts=artifacts, provider_call=completion, data_root=self._data_root, now=completion_now,
                         language_preferences=language_preferences, provider_version=self._adapter.provider_version,
+                        clock=self._clock,
                         timed=TimedTranscriptWrite.from_cues(video_id=video_id, canonical_artifact_id=canonical_artifact_id,
                             cues=tuple(TimedTranscriptCueWrite(start_ms=c.start_ms, end_ms=c.end_ms, text=c.text)
                                        for c in normalized.timed_cues)),
                     )
+                    now = next(a.created_at for a in repair_result.artifacts if a.artifact_id == canonical_artifact_id)
                 else:
                     self._repository.complete_stage(
                     job_id=self._context.job_id,
@@ -3313,10 +3331,15 @@ class SubtitleAcquisitionService:
                 stage=ProcessingStage.TRANSCRIPT,
             )
         if owner_failure is not None:
+            failure_now = now
+            if self._context.repair is not None:
+                failure_now = _aware_utc(self._clock(), video_id=video_id)
+                if failure_now < now:
+                    raise TranscriptError(owner_failure)
             self._record_provider_failure(
                 request_hash=provider_request.request_hash,
                 error=owner_failure,
-                now=now,
+                now=failure_now,
             )
             raise TranscriptError(owner_failure)
         if owner_result is None:
@@ -3327,10 +3350,15 @@ class SubtitleAcquisitionService:
                 video_id=video_id,
                 stage=ProcessingStage.TRANSCRIPT,
             )
+            failure_now = now
+            if self._context.repair is not None:
+                failure_now = _aware_utc(self._clock(), video_id=video_id)
+                if failure_now < now:
+                    raise TranscriptError(fallback)
             self._record_provider_failure(
                 request_hash=provider_request.request_hash,
                 error=fallback,
-                now=now,
+                now=failure_now,
             )
             raise TranscriptError(fallback)
         return owner_result

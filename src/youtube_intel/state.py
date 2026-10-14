@@ -7,7 +7,7 @@ import json
 import math
 import re
 import sqlite3
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
@@ -4527,7 +4527,7 @@ class SQLiteStateRepository:
             _retention_require(isinstance(stored["proof_json"],str) and len(stored["proof_json"]) <= 1_000_000
                 and hashlib.sha256(stored["proof_json"].encode()).hexdigest() == stored["proof_sha256"])
             payload = json.loads(stored["proof_json"])
-            _retention_require(isinstance(payload,dict) and set(payload)=={"archive","input","original_ledger","attempts","evidence_ids","successor_raw_artifact_id","successor_execution"})
+            _retention_require(isinstance(payload,dict) and set(payload)=={"archive","input","original_ledger","attempts","evidence_ids","successor_raw_artifact_id","successor_execution","original_execution"})
             original = payload["original_ledger"]
             actual = connection.execute("SELECT * FROM provider_calls WHERE request_hash=?",(stored["request_hash"],)).fetchone()
             _retention_require(isinstance(original,dict) and actual is not None and set(original)==set(actual.keys()))
@@ -5046,6 +5046,7 @@ class SQLiteStateRepository:
         artifacts: tuple[ArtifactWrite, ...], provider_call: ProviderCallCompletion,
         timed: TimedTranscriptWrite, data_root: Path, now: datetime,
         language_preferences: Sequence[str], provider_version: str,
+        clock: Callable[[], datetime],
     ) -> StageCompletionResult:
         """Atomically supplement plain Content after an explicit source check.
 
@@ -5068,6 +5069,7 @@ class SQLiteStateRepository:
             _raw_artifact_key,
             _read_verified_file,
             _resolve_data_path,
+            _retention_utc,
             _source_relative_path,
             _validate_source_provenance,
             build_canonical_request_hash,
@@ -5103,6 +5105,16 @@ class SQLiteStateRepository:
         try:
             with _immediate_transaction(connection):
                 job = self._owned_running_job(connection, job_id=job_id, owner=owner, now=timestamp)
+                if now < _retention_utc(job["created_at"]) or now < _retention_utc(job["updated_at"]) or now >= _retention_utc(job["lease_until"]):
+                    raise ConcurrencyConflict("caption repair clock precedes its owned job")
+                pending_call = connection.execute("SELECT * FROM provider_calls WHERE request_hash=?",
+                    (provider_call.request_hash,)).fetchone()
+                if (pending_call is None or pending_call["status"] != "PENDING"
+                    or pending_call["reservation_owner"] != owner or pending_call["lease_until"] is None):
+                    raise ConcurrencyConflict("caption repair requires its current provider reservation")
+                provider_lease = _retention_utc(pending_call["lease_until"])
+                if not _retention_utc(pending_call["started_at"]) <= _retention_utc(pending_call["updated_at"]) <= now < provider_lease:
+                    raise ConcurrencyConflict("caption repair provider chronology is unsafe")
                 video = connection.execute("SELECT * FROM videos WHERE video_id=?", (video_id,)).fetchone()
                 run = connection.execute(
                     "SELECT r.* FROM source_runs r JOIN source_subscriptions s USING(source_id) "
@@ -5246,6 +5258,12 @@ class SQLiteStateRepository:
                     winner_captured |= capture.relative_path == raw.relative_path and capture.content_hash == raw.content_hash
                 if not winner_captured:
                     raise IntegrityConflict("caption repair native winner lacks its capture proof")
+                current_now = clock()
+                current_timestamp = format_utc_datetime(current_now)
+                if current_timestamp < timestamp or provider_lease <= current_now:
+                    raise ConcurrencyConflict("caption repair clock moved backwards or provider lease expired")
+                self._owned_running_job(connection, job_id=job_id, owner=owner, now=current_timestamp)
+                now, timestamp = current_now, current_timestamp
                 stored = tuple(self._upsert_artifact_in_transaction(connection, a, now=timestamp) for a in artifacts)
                 self._inject_failure("caption_repair.after_artifacts")
                 completed = self._complete_provider_call_in_transaction(connection, provider_call, owner=owner, now=timestamp)
@@ -5259,7 +5277,12 @@ class SQLiteStateRepository:
                     )
                     self._insert_evidence_text_binding_in_transaction(connection, evidence, binding, now=now)
                 self._inject_failure("caption_repair.after_authority")
-                finished = self._finish_job_success_in_transaction(connection, job_id=job_id, owner=owner, now=timestamp)
+                final_now = clock()
+                final_timestamp = format_utc_datetime(final_now)
+                if final_timestamp < timestamp or provider_lease <= final_now:
+                    raise ConcurrencyConflict("caption repair final clock or provider lease is unsafe")
+                self._owned_running_job(connection, job_id=job_id, owner=owner, now=final_timestamp)
+                finished = self._finish_job_success_in_transaction(connection, job_id=job_id, owner=owner, now=final_timestamp)
                 return StageCompletionResult(job=finished, video=self._video_from_row(video), artifacts=stored, provider_call=completed)
         except sqlite3.IntegrityError as error:
             raise IntegrityConflict("caption repair violates immutable authority") from error

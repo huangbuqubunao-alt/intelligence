@@ -315,3 +315,89 @@ terminal clock需另精确核验，不能放宽历史证明或倒填已有时间
 
 **Verdict REJECT；P0=0，P1=1（original执行/历史证明缺口），P2=1（Restore负控包）。**
 不整合、不采用、不授资格；退回原实现者。审查提交后 STOP，等待明确新任务。
+
+## 第二次 REJECT 原作者返修：2026-10-14
+
+精确基线 `61f740250872c67131a06d73eb93df86d202fd32`。主控最新 task返修包已读，
+原两个 REJECT、旧失败探针、4310+1FAIL完整后端与错误包装 Restore证据均保留。
+本轮五文件：state.py、transcripts.py、原 archive integration tests、独立新增
+test_caption_repair_completion_clock.py、本交接。不改23字段/038 migration、普通
+非repair pipeline、依赖/配置/模型资格或正式数据。作者不自行审查或采用。
+
+### old/successor统一完整证明与历史绑定
+
+原完整 successor helper限定在同一批准边界内适配成 `_retained_execution`，对 old
+FAILED_FINAL与后继SUCCEEDED共同严格检查全Job、正规整数max/attempt计数、全部连续
+attempts、最后结果与Job/错误相同、全部owned完成早于lease，及无活跃owner/lease/
+scoring权力；原失败最后必须FAILED_FINAL，不能RETRY_PENDING或LEASE_EXPIRED。
+复用现有SourceRun ID/idempotency及合法转换规则，要求原run为明确NEEDS_ATTENTION/
+EXECUTION_CONDITION_UNRESOLVED、后继COMPLETED，起止UTC与Job一致，有界不可变事件
+连续、初始与最终时间/状态精确，未知追加event拒绝。
+
+canonical proof_json新增 `original_execution`：完整原Job/provider/all attempts/
+SourceRun/events快照，与已补successor_execution共同重算、exact-key/SHA验证。原
+ledger全部字段及attempts仍保留；只有旧ledger status/finished_at/updated_at已批准
+CAS。任何后来合法-looking max_attempts或run更新时间漂移也不能被备份/恢复接受。
+旧未发布不完整candidate38 proof继续closed，不改不可变记录、不静默升级；真正
+旧34–37包合同不变。future current Summary pointer正控仍通过。
+
+### Restore负控实际到达proof边界
+
+六项已写历史负控保留全部原断言，补显式SQLite WAL checkpoint/TRUNCATE、WAL为空/
+消失与DB实际bytes改变断言；封包保留原 `ZipInfo` regular attributes，重算manifest
+DB hash/size，精确匹配 `Neutral subtitle retention proof failed validation`。新增
+两项old Job/Run历史同样包装、checkpoint且精确proof拒绝，不再把specialfile或
+hash提前拒绝当作历史证明。全表/物理DATA不变、额外获取0仍逐项验证。
+
+Reviewer原 `/tmp/readiness-archive38-rereview-history.py` 未改重跑，结果另存
+`original-history-external-after.log`：old与successor非法event均 archived=false/
+ready=false；oldJobmax4和oldRunupdated=created改包均 stage accepted=false，拒绝
+明确来自Neutral proof；live表/文件不变、extra_fetch0。原FAIL输出不替换。
+
+### 精确caption repair完成clock/lease
+
+`SubtitleAcquisitionService`仅repair分支在真实文件IO后读取自身现有clock，明确拒绝
+backward；传入 `complete_caption_repair` 的同一clock，内部在文件复核后和最终提交
+前再次取当前时间，校验UTC/Job chronology、当前Job owner/lease及原provider lease，
+越lease或clock倒退整事务回滚，不借旧时间延长租约。provider reservation须当前
+PENDING/同owner，原租约在最终提交仍未到期；正文、timed/Evidence、ledger与Job保持
+同一事务。服务返回canonical记录真实created_at，不将fetch入口时间当完成时间。
+repair失败也使用当前clock记录provider失败；backward或已过lease不能用旧时间关闭
+请求，保留未知/未解决状态fail-closed。普通 `complete_stage` 与非repair错误时间
+逻辑完全不改，无新执行/claim/lease续期权力。
+
+九个有界clock实验：短IO正控、Job/provider分别到期、owner变更、读取IO后clock
+倒退、两种naive lease、authority写入后最终提交前到期/clock倒退。只使用本地受控
+adapter和可控clock，不真实睡眠、联网、模型调用或改正式clock；负控不产生新
+canonical/timed/Evidence，原成功父任务/原文保留，Backup继续blocked。
+
+### 实际检查与失败说明
+
+- 原failed5+history2 TDD：**7 FAIL /6 PASS**（6是修正后的successor Restore），
+  `original-tdd-red.log`。完整old proof后重点 **14 PASS**，`original-first-green.log`。
+- 初clock实验TDD4FAIL1PASS与首green同样4FAIL1PASS，保留clock-tdd-red/clock-first-green。
+  停止重复并读取真实factory：worker injected now与TranscriptService现有
+  `runtime_composition.datetime.now(UTC)`是两个clock。只在测试通过module datetime
+  proxy绑定同一实验clock，未改product runtime_composition。
+- 用冻结61f740原完成方法AST在私有测试进程内执行对照（旧方法仅去掉新增clock
+  参数，文件/分支不改、不reset）；method SHA
+  `b8fde9f17828b29bf1c21b39bc5002fc0adcce560ca68adea139232e498cffeb`。
+  修正后的同clock旧方法 **4 FAIL /1 PASS**，`clock-controlled-old-red.log`；新方法
+  **5 PASS**，`clock-controlled-current-green.log`。后续增加4项lease/commit负控。
+- 新UTC import最初误放在capture方法，3个mypy name errors、Ruff error和随后10FAIL/
+  24PASS保留于original-final-{mypy,ruff}/clock-final-current，不作为业务通过。移到
+  精确complete方法local import后，先语法/static PASS，再34项回归PASS，
+  `clock-commit-current.log`；没有ignore/skip或格式化其它逻辑。
+- 最终全部相关四文件：**176 PASS /189.88s /1既有duplicate ZIP path warning**，
+  `final-old-proof-focused.log`。构成为85 archive（旧78+本轮7）、9clock、27runtime
+  composition、55Backup/Restore unit。含future pointer、全部旧包、全DATA恢复、
+  混批/锁/CAS/幂等与正常retry，原断言均保留。
+- 最终 py_compile、Ruff src/tests/scripts、strict mypy src **102文件**、diff check
+  PASS，`final-old-proof-{ruff,mypy}.log`。没有重跑旧19分钟完整backend或前端，遵守
+  主控要求；旧完整4310PASS+1FAIL不称PASS，最新接受整合后的完整回归仍必须。
+- 真实public plain两次429与缺genuine未修复库是root现状，本实现者没有伪造fresh
+  GUI archive验收。实际 macOS全表/全DATA恢复、最终采用仍待主控，不由controlled
+  fixture/本提交替代。模型/cloud/正式owner操作0。
+
+作者提交后 STOP，建议IN_REVIEW，待独立复审。原Schema表和qualification gate无
+新权力；本报告不填APPROVE，不合并main，不宣称完整用户链路完成。

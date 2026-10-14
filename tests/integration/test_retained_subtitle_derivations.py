@@ -928,15 +928,20 @@ def test_historical_successor_mutation_blocks_backup_and_restore_without_live_mu
         database = tmp_path / "damaged-archive.sqlite3"
         database.write_bytes(source.read(manifest["database"]["path"]))
         damage(SQLiteStateRepository(database))
+        with sqlite3.connect(database) as checkpoint:
+            assert checkpoint.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()[0] == 0
+        wal = database.with_name(database.name + "-wal")
+        assert not wal.exists() or wal.stat().st_size == 0
         changed = database.read_bytes()
+        assert changed != source.read(manifest["database"]["path"])
         manifest["database"]["sha256"] = hashlib.sha256(changed).hexdigest()
         manifest["database"]["size_bytes"] = len(changed)
         output = io.BytesIO()
         with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as target:
             for name in source.namelist():
                 body = changed if name == manifest["database"]["path"] else source.read(name)
-                target.writestr(name, json.dumps(manifest).encode() if name == "manifest.json" else body)
-    with pytest.raises(BackupRestoreError):
+                target.writestr(source.getinfo(name), json.dumps(manifest).encode() if name == "manifest.json" else body)
+    with pytest.raises(BackupRestoreError, match="Neutral subtitle retention proof failed validation"):
         backup.stage_restore(output.getvalue())
     assert _tables(repo) == before and _files(backup.data_root) == files
     assert adapter.read_calls == reads
@@ -962,4 +967,72 @@ def test_unreleased_incomplete_proof_is_rejected_without_immutable_upgrade(tmp_p
     assert not backup.readiness()["ready"] and _settle(runtime) == ()
     with pytest.raises(BackupRestoreError):
         backup.create_backup()
+    assert _tables(repo) == before and _files(backup.data_root) == files and adapter.read_calls == reads
+
+
+def _damage_original(repo, fault):
+    with repo._connect() as connection:
+        failed = connection.execute("SELECT a.job_id FROM artifacts a JOIN jobs j USING(job_id) WHERE a.artifact_key LIKE 'subtitle-source-capture:%' AND a.job_id LIKE 'caption-repair-%' AND j.status='FAILED_FINAL' LIMIT 1").fetchone()[0]
+        run = connection.execute("SELECT * FROM source_runs WHERE manual_command_id='archive-failed-child'").fetchone()
+        if fault == "max-count":
+            connection.execute("UPDATE jobs SET max_attempts=1.5 WHERE job_id=?", (failed,))
+        elif fault == "last-retry":
+            connection.execute("UPDATE job_attempts SET outcome='RETRY_PENDING' WHERE job_id=? AND attempt_number=(SELECT MAX(attempt_number) FROM job_attempts WHERE job_id=?)", (failed, failed))
+        elif fault == "expired-attempt":
+            connection.execute("UPDATE job_attempts SET lease_until=started_at WHERE job_id=?", (failed,))
+        elif fault == "run-naive":
+            connection.execute("UPDATE source_runs SET updated_at='2026-10-13T00:00:00' WHERE run_id=?", (run["run_id"],))
+        elif fault == "event-chain":
+            connection.execute("INSERT INTO source_run_state_events(run_id,prior_state,state,attention_reason,occurred_at) VALUES (?,'COMPLETED','QUEUED',NULL,?)", (run["run_id"], run["updated_at"]))
+        elif fault == "history-job":
+            connection.execute("UPDATE jobs SET max_attempts=4 WHERE job_id=?", (failed,))
+        elif fault == "history-run":
+            connection.execute("UPDATE source_runs SET updated_at=created_at WHERE run_id=?", (run["run_id"],))
+        else:
+            raise AssertionError(fault)
+
+
+@pytest.mark.parametrize("fault", ["max-count", "last-retry", "expired-attempt", "run-naive", "event-chain"])
+def test_original_complete_execution_is_required_before_archival(tmp_path, monkeypatch, fault):
+    runtime, adapter, _, _, _ = _repaired_failure(tmp_path, monkeypatch)
+    _damage_original(runtime.repository, fault)
+    before, files, reads = _tables(runtime.repository), _files(runtime.backup_restore.data_root), adapter.read_calls
+    assert _settle(runtime) == ()
+    assert _tables(runtime.repository) == before and _files(runtime.backup_restore.data_root) == files
+    assert adapter.read_calls == reads and not runtime.backup_restore.readiness()["ready"]
+
+
+@pytest.mark.parametrize("fault", ["history-job", "history-run"])
+def test_original_history_is_bound_and_restore_reaches_the_proof_validator(tmp_path, monkeypatch, fault):
+    import io
+
+    from youtube_intel.backup_restore import BackupRestoreError
+
+    runtime, adapter, _, _, _ = _repaired_failure(tmp_path, monkeypatch)
+    assert _settle(runtime)
+    backup, repo = runtime.backup_restore, runtime.repository
+    result = backup.create_backup()
+    package, _ = backup.backup_download(result.backup_id)
+    _damage_original(repo, fault)
+    before, files, reads = _tables(repo), _files(backup.data_root), adapter.read_calls
+    assert not backup.readiness()["ready"]
+    with zipfile.ZipFile(package) as source:
+        manifest = json.loads(source.read("manifest.json"))
+        database = tmp_path / "damaged-original.sqlite3"
+        database.write_bytes(source.read(manifest["database"]["path"]))
+        _damage_original(SQLiteStateRepository(database), fault)
+        with sqlite3.connect(database) as checkpoint:
+            assert checkpoint.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()[0] == 0
+        wal = database.with_name(database.name + "-wal")
+        assert not wal.exists() or wal.stat().st_size == 0
+        changed = database.read_bytes()
+        assert changed != source.read(manifest["database"]["path"])
+        manifest["database"].update(sha256=hashlib.sha256(changed).hexdigest(), size_bytes=len(changed))
+        output = io.BytesIO()
+        with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as target:
+            for info in source.infolist():
+                body = changed if info.filename == manifest["database"]["path"] else source.read(info)
+                target.writestr(info, json.dumps(manifest).encode() if info.filename == "manifest.json" else body)
+    with pytest.raises(BackupRestoreError, match="Neutral subtitle retention proof failed validation"):
+        backup.stage_restore(output.getvalue())
     assert _tables(repo) == before and _files(backup.data_root) == files and adapter.read_calls == reads
