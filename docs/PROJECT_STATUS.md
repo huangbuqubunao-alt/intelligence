@@ -1,12 +1,13 @@
 # YouTube Intelligence Agent 项目状态
 
-2026-10-15 恢复工作（优先于下方历史）：正式main、tracking origin/main与实际远端均73ee7e747b4461b9de8a201d6b47669eb3913d1a，clean；owner数据/配置未改，本轮未发布、不可称全链路可用。
-LOCAL_TEXT b79被独立3b562c6 REJECT两P1：合法摘要刷新后的原摘要损坏仍获可信读取，missing-card projection绕过read_current。Schema38无法存完整原投影，用户已具体批准15字段不可变输入证明的Schema38→39隔离迁移及旧34–38/新39恢复；原local_text作者返修，App停止，不调用模型，待独立审查。
-Backup反馈741bfdd作者STOP/clean，仅呈现历史与本次恢复回执、读失败状态及中性失败文案；20专项/461完整前端/TSbuild自测PASS，独立Reviewer进行中，未接受未整合。SourceInterest-only CAS已有精确批准，核心state/App依赖接受后串行。
-root fb067全后端4445 PASS /7 FAIL /1既有资产skip /2warnings，1303.93s；7项summary_live_cutover均LeaseConflict，原日志保留，先只读定位，未削弱测试。不是最终全回归通过。此前root441前端/TSbuild、Schema38 root176专项/Ruff/mypy102通过。
-已接受Schema38第三审查/真正GUI恢复72表78DATA精确一致、Content中性加载/GET恢复0mutation/late-ID/四宽、Native目录translated不占1024原生quota。真正新视频仍触raw4096总目录上限，未放宽；旧失败归档真实GUI正向仍待条件，空表恢复不冒充。
-17声学14正3负控/LOCAL_TIMED零调用取消/RAW与研究完整恢复/新发布真实单视频自动ENROLLED/路由窄窗证据保留。统一中文手册56真实截图零缺图/无横溢。
-模型原8b、9b nonthinking、4096 thinking与唯一6144单例均未获语义资格；6144协议完成但独立语义P1 REJECT，全部模型调用STOP，后3/LOCAL8未调用，正式资格仍false。长内容/rolling、tracked失败恢复可达性、真实Intelligence保存/主题正向仍OPEN。用户2026-10-15已持续授权任务内必要修复/兼容迁移/本地模型调整及目标内条件发布；不再逐项审批，所有验收条件满足前仍不得采用。见CONTINUING_AUTHORIZATION_2026_10_15.md；没有启动其他开发阶段。
+2026-10-15 最新续作（优先于下方历史）：正式main/实际origin/main/served revision均73ee7e747b4461b9de8a201d6b47669eb3913d1a，clean，served4assets逐SHA验证PASS、sourceSHA a494cacd…；未改正式DB/config，当前候选未发布。
+Backup反馈c124/独立5d54 APPROVE已完整整合01da43f，root22/TSbuild通过。真macOS GUI创建/下载/preview/输入RESTORE一次confirm/实际重启，新回执0947672898be4ad89bebde9a692a1899；72应用表+sqlite_sequence及78DATA全等，FK/integrity好/readinessready。真实先成功再坏ZIP及nextCreate不会旧成功复活，手册58真实图0broken/0横溢。
+完整后端fb067原4445PASS/7FAIL/1既有skip/2warnings1303.93s保留。七项为测试import钟超10min导致正确LeaseConflict；test-only184/独立ee147 APPROVE整合c374470，root21PASS/过期仍拒/113原断言逐symbol不变/生产0改。完整最新backend须全部核心接受后统一跑，不能说已全绿；测试文件23历史mypy错误与base一致，生产strict102通过。
+LOCAL_TEXT2068（15字段39）独立b2aebad REJECT：原两P1closed、core309/related254/proof17及mypy103PASS，但恶意39移除proof/card/ledger/checkpoint仍保留explicit local-text-v2 DISTILLATION revision，stage/current/Save/Topic降generic错误接受。新原任务作者在readiness-local-intelligence-text最小反向关联返修，尚未接受或整合；39正式不迁移/0模型。SourceInterest CAS已批仍等此state核心接受，幂等/旧PUT并发兼容先只读确认。
+Native目录最新实测23086raw/10.97MB，原生支持129；4k关闭了合法翻译扇出，已装skip flag对auto无效（离线8场景证据）。新必要v2仅provider/private预算32k+16MiB+5s/depth8/nodes524288，native1024/buckets512/逐条安全不变，透明更新raw政策/旧失败保留。作者已252专项PASS，相关全检查进行中，待独立review/root真实一次UI原生字幕链；不能把目录统计冒字幕成功。
+模型8b/9b nonthinking/4096/6144均未语义资格，旧失败全部保留/正式资格false。必要新local-only grounding生产port+strict qualification reader+同请求harness统一freeze计划已记录；0新调用，原4+独立未见holdout及LOCAL8需按原标准逐例真实验收。不能把research协议PASS或布尔复制到生产。
+已接受Schema38普通GUI72表78DATA/Content中性读取与GET恢复/17声学14正3负/LOCAL_TIMED WAIT0取消/RAW全文件恢复/真新视频autoENROLLED/窄窗导航证据保留。旧失败归档真实正向、长内容/rolling、tracked失败重试可达性及真实Intelligence保存主题仍OPEN。
+用户持续默认授权当前任务必要修复/兼容迁移/本地模型调整与所有门禁满足后的目标发布，详CONTINUING_AUTHORIZATION_2026_10_15.md；不反复按文件审批，不削测试/安全/资格、不付费云/删正式数据/force。所有既定条件未满足前不合main，没有开启无关开发阶段。
 详见[验收矩阵](validation/end-to-end-user-readiness/READINESS_MATRIX.md)与[续作记录](validation/end-to-end-user-readiness/PROGRESS.md)。
 
 2026-10-08 Phase 13 automatic background Following candidate: implementation and
