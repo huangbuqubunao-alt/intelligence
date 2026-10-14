@@ -85,3 +85,50 @@ PYTHONPATH=src:. .venv/bin/python -m pytest -q
 - 尚未运行全 backend/前端/build/macOS GUI。本次完整受影响后端范围如上；真实普通 UI 导入、字幕→Summary→Evidence→Backup 门禁仍由 root 在独立 APPROVE/接受后执行。
 - 全部真实失败、429、旧 FAILED_FINAL 无 retry、Schema/模型资格仍按原记录；本修复不复活旧失败、不放开模型、不代表全链路已可用。
 - 实现者建议：本次检查全通过，提交为 `IN_REVIEW`，作者 clean STOP；独立 Reviewer 的 APPROVE、root ACCEPT/整合均未自行填写。`DECISION NEEDED: None`。
+
+## 独立审查 — 2026-10-15 — APPROVE
+
+Reviewer `local_text_review_resume`，在 LOCAL_TEXT review clean STOP 后串行审查。
+精确候选 `b3f836d4c1f54f2bda1bd0e47d9d4bcb8f5a97c2`，base
+`68fb4468ad4114699debc05741471c9aa47c3f76`。已读根任务包、批准的有界扫描方案、
+真实容量统计、仓库角色规则与作者完整 diff/handoff。图索引未包含新 budget；以
+固定 SHA 的实际源码为准。Reviewer 只追加此 handoff，不修改业务、测试或公共任务状态。
+
+**结论：APPROVE；未发现未处置 P0/P1/P2。**
+
+- 明确批准的 raw 策略是 4096→32768，原 4097 拒绝政策已明确替换为兼容正控，
+  保留 32769 拒绝和原失败证据；并未宣称旧 raw 策略未变。native1024、buckets512、
+  语言/格式/名称/URL 原安全校验及正文选择身份保持。translated/unsupported 条目
+  在逐条原校验及完整预算计费后才排除，4500 前缀后的恶意项仍拒绝。
+- 同一个 `_DirectoryBudget` 覆盖 manual/automatic，含未知字段、JSON 标点/键/值、
+  转义和多字节 UTF-8；16MiB、depth8、nodes524288、monotonic5s 同时约束。
+  字符串先检查保守下界，再按最多2048码点分块；没有先整目录序列化再检查。
+  每次重复引用均计费，活动递归拒绝循环；未知非 JSON 对象拒绝，既有有限 lazy
+  name.runs Sequence 合同保留。耗尽返回整目录失败，不发布 partial listing。
+- 保留 native candidate 对象上限1024和 provider_position/raw URL 字节；标准库
+  复用无新依赖，无 Schema/state/App/model/配置/owner-data 扩围。预算明确只保护
+  extract_info 返回后的扫描/复制/retention，不限制上游预解析峰值/RSS。
+
+本 Reviewer 在该精确候选独立运行：
+
+| 检查 | 实际结果 |
+|---|---|
+| 上文所列相同11文件完整受影响 pytest（`PYTHONPATH=src:. .venv/bin/python -m pytest -q ...`） | **568 passed, 1 warning, 249.14s**，exit0；`/tmp/native-scan-v2-review-affected568.log`。唯一 warning 是既有 duplicate-ZIP 安全负控。 |
+| 三个修改 Python 文件 `py_compile` | PASS，exit0。 |
+| `.venv/bin/ruff check src tests scripts` | PASS，exit0；`/tmp/native-scan-v2-review-ruff.log`。 |
+| `MYPYPATH=src .venv/bin/mypy --strict src` | **102 source files PASS**，exit0；`/tmp/native-scan-v2-review-mypy.log`。 |
+| 独立 base→candidate AST 重新计算 | 仅 `_track_name`、`_map_directory`、`YtDlpSubtitleAdapter.enumerate_tracks` 三个既有函数变化，无删除；原 URL 校验、selected-body transport、yt-dlp options 的 AST 相同。 |
+| 独立完整 Adapter 差分探针 | 8种目录组合覆盖 name 缺失/NULL/string/simpleText/runs、未知嵌套字段、中英 emoji/引号/换行/反斜线、数字/布尔/NULL；实际 budget bytes/nodes 与完整标准 JSON 的独立计算相等。每例精确字节预算接受、少1字节预算拒绝；每次仅一次 metadata fixture、无正文/网络。 |
+| 独立纯 budget 差分 | 固定 seed39 的300个嵌套 JSON 样例，bytes/nodes 与独立 JSON 编码/递归计数全部一致；与 AST/Adapter 探针共同记录于 `/tmp/native-scan-v2-review-independent-probes.log`，exit0。 |
+| `git diff --check` 和四文件完整范围复核 | PASS；未跳过、删除或削弱其它安全测试；作者红证据与导入环境错误日志原样保留。 |
+
+完整568包含实测聚合形态的23086合成目录、跨来源32768/32769、16MiB精确边界、
+共享节点/深度/时间、未知非 JSON/循环、late translated 安全拒绝、native/bucket
+原边界、原生唯一正文一次请求/capture/可信 timing，以及相关恢复/运行时回归。
+合成目录不是实际 signed metadata 重放；此审查没有新的真实网络、正文或模型调用。
+
+root 仍负责接受/整合后的普通 macOS UI 单视频重试或导入、真实字幕→Summary→Evidence
+→Backup 和最终全 backend/frontend/build。该门禁尚未由此审查证明；未把预算修复或
+fixture 正向称为真实全链路可用，模型资格与旧 FAILED_FINAL 生命周期均未放开。
+
+此提交只有 handoff。Reviewer clean **STOP**，无公共状态修改、main合并或正式采用。
