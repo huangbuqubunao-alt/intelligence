@@ -134,3 +134,58 @@ canonical临时root/现node_modules链接后正常执行，最终有效输出
 
 **Verdict REJECT：P0=0、P1=0、P2=1。** 精确补足未知状态边界后由原作者提交返修再
 独立审查；当前不整合。Reviewer审查交接提交后STOP，不改业务、不自领后续任务。
+
+
+## 2026-10-14 原作者 P2-1 返修 — 提交后 STOP，待独立重审
+
+Implementer caption_resume，从 reviewer REJECT/STOP
+`979cae384305479780578772718043d41cccc9c0`恢复；原 base
+`2d167d8afa4d09b030fde4b3f1ea4f0c78721a7f`不变。先读取 root任务、原独立
+反例/完整交接与两份 DESIGN，并 graph-first核对 DeepAnalysisAvailability 的实际
+9值。当前返修只 App.tsx既有读取布尔条件、新 App.content-status-load测试及本交接；
+未改 Local组件/uiLanguage、后端、Schema、资格、参数、同意/费用/执行或发布处理器。
+
+最小方案：availability 必须是后端现明确9值，不接受非空未知/带空格/其它类型；
+qualified须真实 boolean，原可选 production_eligible/consent_required如返回则须
+boolean。保留既有 legacy availability+qualified响应兼容，不增加接口字段或新
+运行权力。未知/partial走已存在 READ_RESPONSE_INVALID本地化error/GET reload，
+run disabled，传给发布组件的resultIdentity为null；不改任何 command执行代码。
+
+新增11真实组件负控：EN/ZH UNKNOWN_FUTURE即便true资格/productionflags也禁止
+运行、无rawenum泄漏、原字幕仍可读；空/空格/numberavailability、missing/null/string
+qualified、stringproduction/consent都是读取错误并仅GET恢复。重读真实已知
+NOT_REQUESTED+bool资格后保留原运行行为，重读NOT_QUALIFIED仍禁用。额外给未知
+状态提供durable-looking result + AVAILABLE且identity匹配的发布读取，仍不能发布/
+运行、没有mutation；不是用空发布DTO让禁用断言虚假通过。测试stub只是读取合同
+负控，不伪装真实后端/模型资格或macOS成功证据。
+
+检查：
+
+| 命令/证据 | 结果 |
+|---|---|
+| 新测试后先npm run typecheck | PASS；/tmp/content-status-load-p2-tdd-ts.log |
+| 原实现+新增10负控TDD | **8FAIL/8PASS**；/tmp/content-status-load-p2-tdd-red.log；unknown真flags/partial缺失资格/坏类型无readonly恢复入口，原反例保持可复现 |
+| 最终npm test -- LocalTranscription.test.tsx App.content-status-load.test.tsx | **32PASS /794ms**；/tmp/content-status-load-p2-final-focused.log |
+| 完整npm test | **441PASS /27files /12.66s**；/tmp/content-status-load-p2-final-full.log，既有act warnings保留 |
+| 最终TS/build | PASS，50 modules/540ms；/tmp/content-status-load-p2-final-ts.log、/tmp/content-status-load-p2-final-build.log |
+| diffcheck/精确范围 | PASS；产品只有statusRead这7行读取校验变化，无旧断言/skip/config/deps变化 |
+| 原base敏感handler逐字节比较 | Deep run含preflight/consent、整个DeepAnalysisPublishAction、Local action均BYTE_EQUAL；/tmp/content-status-load-p2-handler-bytes.log |
+
+Build资产index-QXseFiTG.js/index-DmN6_wU_.css，ignored dist未提交/未更新正式。
+首次新测试写文件命令错误叠加frontend路径导致FileNotFoundError，无文件改写；改为
+当前frontend相对src路径后才新增TDD。未用该次旧测试运行当新增负控通过。
+
+另尝试原reviewer临时外部probe原文件不改的复跑：无config时7FAIL
+localStorage undefined（/tmp/content-status-load-p2-original-probe-after.log）；指定
+relativeconfig被root解析到/tmp而startupFAIL（...-corrected.log）；绝对现config后
+7FAIL React undefined（...-valid.log），外部tmp不含原tsconfig JSX上下文。停止该
+外部方法、不修改临时文件/工具链/config/测试来伪造PASS；没有claim原external
+probe已通过。仓库正式新增EN/ZH反例在有效JSX环境真实TDD→最终PASS，Reviewer仍
+应独立重跑自己的未知状态反证。
+
+没有后端/Ruff/mypy/fullGUI：无Python变化，主控接受后负责真实macOS读取延迟/
+失败/GET恢复/切ID及320–1440键盘验收；现控组件检查不代替真实GUI。先31focused/
+440full通过后增加真正有可发布状态的负控，因此最终再跑32/441，是新增覆盖所需。
+旧979caeREJECT、8FAIL TDD、Schema历史失败及研究所有实际FAIL均保留；没有模型/
+Cloud/owner/config/正式数据/新功能或main/部署操作。提交后clean/STOP，不自审、
+不宣布本切片独立APPROVE或整体用户链路完成。

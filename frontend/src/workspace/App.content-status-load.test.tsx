@@ -12,12 +12,13 @@ const detail = (id: string) => ({
   intelligence_result: { status: "NOT_PROCESSED" }, history: [],
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); location.hash = ""; });
-function open(language: string, read: (path: string) => Promise<ReturnType<typeof response>>) {
+function open(language: string, read: (path: string) => Promise<ReturnType<typeof response>>, publish: object = {}) {
   localStorage.setItem("yia.ui-language", language);
   localStorage.setItem("intelligence.onboarding.completed.v1", "true");
   location.hash = "#Content/a";
   const fetch = vi.fn((path: string, _init?: RequestInit) => {
     if (path.endsWith("/deep-analysis")) return read(path);
+    if (path.endsWith("/deep-analysis/obsidian")) return Promise.resolve(response({ publish }));
     if (path.endsWith("/evidence")) return Promise.resolve(response({ evidence: [] }));
     if (/\/videos\/[ab]$/.test(path)) return Promise.resolve(response(detail(path.slice(-1))));
     if (path.endsWith("/videos")) return Promise.resolve(response({ videos: [detail("a").video, detail("b").video] }));
@@ -79,4 +80,63 @@ it("does not turn an incomplete Deep Analysis projection into NOT_REQUESTED and 
   await view.findByText("Not run yet");
   expect(reads).toBe(2);
   expect(fetch.mock.calls.every(([, init]) => !init?.method || init.method === "GET")).toBe(true);
+});
+
+
+it.each(["en", "zh-CN"])("rejects an unknown nonempty Deep Analysis state despite true capability flags in %s", async language => {
+  let reads = 0;
+  const fetch = open(language, () => Promise.resolve(response({ deep_analysis: {
+    status: reads++ === 0 ? { ...status, availability: "UNKNOWN_FUTURE", qualified: true, production_eligible: true } : { ...status, availability: "NOT_REQUESTED", qualified: true, production_eligible: true }, result: null,
+  } })));
+  const view = within(await panel(language));
+  const reload = await view.findByRole("button", { name: language === "en" ? "Reload page data" : "重新加载页面数据" });
+  expect(view.getByRole("alert").textContent).toContain(language === "en" ? "unreadable response" : "响应无法读取");
+  expect(view.queryByText("UNKNOWN_FUTURE")).toBeNull();
+  expect((view.getByRole("button", { name: language === "en" ? "Run Deep Analysis" : "开始深度分析" }) as HTMLButtonElement).disabled).toBe(true);
+  expect((view.getByRole("button", { name: language === "en" ? "Publish to Obsidian" : "发布到 Obsidian" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.getByText("Original a transcript.")).toBeTruthy();
+  await userEvent.click(reload);
+  await view.findByText(language === "en" ? "Not run yet" : "尚未运行");
+  expect((view.getByRole("button", { name: language === "en" ? "Run Deep Analysis" : "开始深度分析" }) as HTMLButtonElement).disabled).toBe(false);
+  expect(reads).toBe(2);
+  expect(fetch.mock.calls.every(([, init]) => (!init?.method || init.method === "GET") && init?.body === undefined)).toBe(true);
+});
+
+it.each([
+  { ...status, availability: "" },
+  { ...status, availability: " NOT_REQUESTED" },
+  { ...status, availability: 42 },
+  { availability: "NOT_REQUESTED", production_eligible: true },
+  { ...status, availability: "NOT_REQUESTED", qualified: null, production_eligible: true },
+  { ...status, availability: "NOT_REQUESTED", qualified: "true", production_eligible: true },
+  { ...status, availability: "NOT_REQUESTED", qualified: true, production_eligible: "true" },
+  { ...status, availability: "NOT_REQUESTED", qualified: true, consent_required: "false" },
+])("keeps a malformed or partial Deep Analysis capability read-only: %j", async invalidStatus => {
+  let reads = 0;
+  const fetch = open("en", () => Promise.resolve(response({ deep_analysis: { status: reads++ === 0 ? invalidStatus : status, result: null } })));
+  const view = within(await panel("en"));
+  const reload = await view.findByRole("button", { name: "Reload page data" });
+  expect(view.getByRole("alert").textContent).toContain("unreadable response");
+  expect((view.getByRole("button", { name: "Run Deep Analysis" }) as HTMLButtonElement).disabled).toBe(true);
+  expect((view.getByRole("button", { name: "Publish to Obsidian" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(view.queryByText("Not run yet")).toBeNull();
+  expect(screen.getByText("Original a transcript.")).toBeTruthy();
+  await userEvent.click(reload);
+  await view.findByText("Unavailable until a model is qualified for Deep Analysis.");
+  expect(reads).toBe(2);
+  expect(fetch.mock.calls.every(([, init]) => (!init?.method || init.method === "GET") && init?.body === undefined)).toBe(true);
+});
+
+
+it("does not publish a durable-looking result from an unknown status response", async () => {
+  const fetch = open("en", () => Promise.resolve(response({ deep_analysis: {
+    status: { ...status, availability: "UNKNOWN_FUTURE", qualified: true, production_eligible: true },
+    result: { result_identity: "read-result", evidence_citation_status: "DURABLE_EVIDENCE_VERIFIED", roles: [], output_language: "en", generated_at: "2026-09-01T00:00:00Z" },
+  } })), { state: "AVAILABLE", result_identity: "read-result" });
+  const view = within(await panel("en"));
+  await view.findByRole("button", { name: "Reload page data" });
+  await act(async () => {});
+  expect((view.getByRole("button", { name: "Publish to Obsidian" }) as HTMLButtonElement).disabled).toBe(true);
+  expect((view.getByRole("button", { name: "Run Deep Analysis" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(fetch.mock.calls.every(([, init]) => (!init?.method || init.method === "GET") && init?.body === undefined)).toBe(true);
 });

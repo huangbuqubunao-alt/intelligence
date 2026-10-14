@@ -2114,7 +2114,13 @@ function DeepAnalysisPanel(
   const result = data?.deep_analysis?.result;
   const durableCitations = result?.evidence_citation_status === "DURABLE_EVIDENCE_VERIFIED";
   const availability = status?.availability;
-  const statusRead = typeof availability === "string" && availability.length > 0;
+  const statusRead = typeof availability === "string" && [
+    "AVAILABLE", "UNAVAILABLE", "NOT_REQUESTED", "NOT_QUALIFIED",
+    "CONTENT_UNAVAILABLE", "SCORING_UNAVAILABLE", "EVIDENCE_UNAVAILABLE",
+    "CLOUD_CONSENT_REQUIRED", "FAILED",
+  ].includes(availability) && typeof status?.qualified === "boolean"
+    && (status?.production_eligible === undefined || typeof status.production_eligible === "boolean")
+    && (status?.consent_required === undefined || typeof status.consent_required === "boolean");
   const canRun = !error && statusRead && (status?.production_eligible ?? status?.qualified) === true && !busy && !dispatchBlocked && !preflight;
 
   return (
