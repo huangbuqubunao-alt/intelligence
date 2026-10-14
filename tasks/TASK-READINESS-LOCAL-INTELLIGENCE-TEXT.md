@@ -23,3 +23,7 @@ Review3b562c64ebca70bb49bdc67b1f20ee96b766ed99，base同SHA，原tree/原local_t
 必须有可验证的原sealed context/input与原Summary身份，不以当前context非None、opaque hash自证明，也不直接用当前hash==旧hash破坏合法刷新。新LOCAL_TEXT版本由持久明确版本/执行关联分类，card缺失不能将新distillation降为generic读；旧YT/timed/generic非card revision保持原合法行为。完整original projection/执行关联/source-canonical-excerpt-profile-Summary-policy/preferences如无法现Schema合法承载，先给精确增补方案，不擅Schema/新持久化边界或猜多个hash。
 
 现在仅只读preflight明确原projection持久范围；证明同既有批准可实施后再最小backend/harness/freeze/tests修复及handoff，不App/frontend/UI写（前端已提交STOP）。Backup反馈caption独立App presentation writer与你无交集允许并行。新profile未实际调用/inputs_frozenfalse，无真实model/network/Cloud/formal/deps/config/历史改写，不能借返修扩大模式或容量。先语法/TDD两原反证及合法refresh/generic正控，focused旧新/static/diff+提交STOP→独立复审。无root最终full或GUIPASS冒充。SourceInterest CAS state等待本核心接受后串行。
+
+## 2026-10-15 Schema39批准后返修 READY
+
+用户已具体批准 LOCAL_TEXT_INPUT_PROOF_MIGRATION_PROPOSAL.md（call_37d985304ad94a94b581ed1e53765c44）。原作者local_text原tree，返修起点review3b562c64ebca70bb49bdc67b1f20ee96b766ed99。允许范围、精确15字段、原子proof、历史重构、read_current closed分类及旧34–38/新39完整恢复以获批提案为准；039 migration/state/distillation/reader/backup_restore/runtime doctor版本/对应tests/harness/docs。App/frontend继续STOP，Backup反馈Reviewer可并行。SourceInterest state必须等待本任务接受。零真实模型；不改正式数据配置/依赖/资格；不倒填旧候选格式。两原反证及合法refresh/generic旧协议正控、混合回滚/并发/幂等/取消重启/未知/NO_NEW/全表全DATA恢复；先类型再测试、原失败证据保留，完成限scope commit+handoff STOP后独立审查。不得自行扩表/字段或写公共状态。

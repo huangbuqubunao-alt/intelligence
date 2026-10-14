@@ -167,3 +167,7 @@ Schema38真实GUI创建/下载/文件选择/预览/RESTORE一次确认→actual 
 Native新隔离真实普通GUI导入Gemini目录仍因原raw4096entry上限失败，正确实际probe明确entry-limit（不再supportedlimit）；NATIVE_TRACK_REAL_GUI_EVIDENCE.json保留。原上限不提、未重试/改历史，FAILED_FINAL任务0Artifact/0Intelligencecheckpoint、Backup真实ready且无理由。该partial不能称字幕positive全通。LOCAL_TEXT和SourceInterestCAS read_current两精确补充用户批准54a8c20已落盘，前者作者最终复验、后者等state/App串行，不重问批准。
 
 2026-10-14 23:16从额度中断续作：LOCAL_TEXT作者b79b509 STOP；独立333/446/static均PASS，但两P1反证真实成立（原sealed Summary损坏仍可信、missing card跳过current校验），3b562c64 REJECT/handoffonly clean，未整合/资格不变。原作者只读方案/后端返修包，若现Schema承载不足先具体提案；不能hash套hash或拒合法refresh冒充修复。Caption独立Backup/Content反馈纯UI writer2137409与LOCAL全部frontendSTOP不交集，SourceInterest已批CAS继续串行等待。正式main/实际remote73ee7e7 clean未动。
+
+## 2026-10-15 恢复工作
+
+Schema39精确隔离迁移获用户明确批准；原作者返修，正式未改。Backup反馈741bfdd进入独立审查。root fb067完整后端实际结果：4445 passed、7 failed、1 existing skipped、2 warnings，1303.93s。失败均test_summary_live_cutover中LeaseConflict(state.py:2958)，未修改/跳过断言；日志.var/end-to-end-user-readiness/backend-full-fb067-checkpoint.log保留，先只读定位，不重复整套或声称全回归通过。

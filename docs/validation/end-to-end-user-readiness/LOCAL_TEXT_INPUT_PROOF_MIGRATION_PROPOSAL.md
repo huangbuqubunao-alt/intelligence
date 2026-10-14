@@ -35,3 +35,7 @@ reservation在同一BEGIN IMMEDIATE验证当前事实并创建checkpoint+proof�
 新增允许范围仅039 migration、state.py登记/原子proof、distillation.py/已批prepare freeze、intelligence_read.py必要历史helper/read_current、backup_restore.py proof与39支持、runtime.py doctor最新版本及对应测试/任务/handoff/docs。runtime_composition/provider/UI/deps/config/credentials/正式owner/Cloud/模型资格不改。本轮真实模型0调用，原四例FAIL/LOCAL8仍BLOCKED，Schema批准不授权任何推理或正式采用。
 
 Reuse DIRECT现SQLite/protected gate/restore lock/SourceAuthority/Evidence/Summary/hash/profile/backup机制；新表仅必要历史事实，避免错误字段承载。全局AGENTS与仓库AGENTS§5要求Schema/安全敏感持久化边界具体批准，原LOCAL_TEXT无Schema授权，故本步骤先暂停，其他已批UI及检查继续。
+
+## 2026-10-15 用户具体批准
+
+用户回答：**“批准该精确隔离迁移与验收范围”**，对应问题 call_37d985304ad94a94b581ed1e53765c44。仅授权本文15字段、隔离39迁移/旧新恢复及两P1修复；不授权正式采用或任何真实模型调用。
