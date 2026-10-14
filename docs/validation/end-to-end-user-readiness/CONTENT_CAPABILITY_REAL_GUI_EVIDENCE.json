@@ -1,0 +1,40 @@
+{
+  "recorded_at": "2026-10-14T10:24:45.584891+00:00",
+  "status": "PASS_BOUNDED_READ_STATE_RECOVERY",
+  "candidate": "a40cac9 integrated UI",
+  "scope": "actual macOS headful Chrome, real private 5908/5909 content; finite2500ms GET delay and browser request abort, no response substitution",
+  "neutral_loading_zh": true,
+  "neutral_loading_en": true,
+  "known_after_read": "real4cue completed Whisper; DeepAnalysis remains NOT_QUALIFIED",
+  "failed_state_buttons_disabled": [
+    "check availability",
+    "use local model",
+    "run deep analysis",
+    "publish"
+  ],
+  "retry": "explicit original GET reads only; parent onCompleted also made existing readonly refresh GETs, no mutations",
+  "source_evidence_readable_during_failure": true,
+  "late_content_isolation": {
+    "new_content": "negative-noise-short.wav",
+    "old_title_count": 0,
+    "old_cue_count": 0,
+    "new_title_count": 1
+  },
+  "video_api_mutations": 0,
+  "model_calls": 0,
+  "cloud_calls": 0,
+  "formal_data_accessed": false,
+  "screenshots": [
+    "screenshots/content-capability-neutral-loading-fixed.png",
+    "screenshots/content-capability-read-failed-fixed.png",
+    "screenshots/content-capability-neutral-loading-en-fixed.png"
+  ],
+  "remaining_validation": [
+    "newcandidate four width layout final check",
+    "unknown/partial response rejection independently tested; GUI did not forge a response to simulate qualification"
+  ],
+  "harness_errors_preserved": [
+    "Earlier exact-label guesses timed out; actual DOM/aria labels used to correct selectors.",
+    "After English screenshot unroute with pending duplicate requests caused route.continue already handled rejection and node kernel reset; not product success/failure. New isolated browser session created."
+  ]
+}
