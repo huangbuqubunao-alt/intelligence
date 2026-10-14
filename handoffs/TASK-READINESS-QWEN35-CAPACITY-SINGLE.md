@@ -162,3 +162,72 @@ Reviewer 最初测试命令遗漏 `PYTHONPATH=src:.`，共享环境误导入旧
 用户链路仍由 root 门禁约束。912+6144<8192 仅容量前提，未被本审查转换为实际
 加载、不截断或语义通过。没有发现本精确差异内需退回的 P0/P1/P2。Reviewer
 提交本 review-only handoff 后 STOP；Schema61b6作者树仍 STOP，不自审。
+
+
+## 2026-10-14 Independent actual single-case semantic review — REJECT (P1)
+
+Reviewer caption_resume，独立于作者与实际许可/执行者 root。唯一实际 EN 已结束，
+本次成功失败均 STOP；未执行任何后续案例。只查看 `message.content` 公开最终正文、
+完成 metadata、原 VerifiedInput/冻结 EN expectation 及 mode=ro ledger；私有 thinking
+未查看/解析/展示。未改原正文、响应、结果、profile、freeze、门槛或代码，未调用
+provider/API/网络/模型。对应执行909d…只生成1次、invocation1，productionfalse。
+
+实际证据 hash：
+
+| 文件 | SHA256 |
+|---|---|
+| result.json | b865c9115fba68cea608e8c13911d88929f21943193c160153bc7eb6b8db5c5f |
+| opaque response.json | bb980c4fa03eca06351e603482bac9e983dcce7bccd019d585dbbe48d7ebc73f |
+| verified-input.json（原V2不变） | 1cda0703943eec515f08c7e3520011c110e4069805173f5afc5971e9cc355136 |
+
+协议/持久化 **PASS**：实际精确9b、done=true/done_reason=stop、912 input/
+4638 eval、total_duration218.922517041s，低于唯一6144/300s门槛；公开非空 JSON
+经既有 research-only marker 表示适配及普通 parser 得到 SUCCEEDED。公开两条
+Evidence ID/范围与输入相同。独立将第一条15 cues/0–46320ms、第二条3 cues/
+46320–62600ms文本逐项拼接并重算excerpt SHA，与冻结18 cues完全一致。mode=ro
+checkpoint SUCCEEDED/invocation1；resource_usage SUCCEEDED/ADMITTED、实际ollama/
+qwen3.5:9b-q4_K_M、912/4638/invocation1，结果 generations1/productionfalse。
+这些是协议/绑定/记录成功，不能代替下述语义审查。
+
+语义按未改变的 INTELLIGENCE_REAL_CORPUS_V2 `real-deepthink-en.expectation`：
+
+1. **P1 来源忠实性失败。** core声称模型利用
+   “significantly deeper test-time exploration than typical human reasoning”。
+   源0–46320ms仅有一位讲者对本次问题的自述：自己想到可能三种思路，并猜测模型
+   似乎想到20或100种；没有一般人类推理基线、比较实验或可推广的深度结论。该
+   core把单个经历/估计扩大为一般人类比较，且 using/utilizing 把猜测的探索机制
+   写作此成就的解释。开头 “According to Google DeepMind” 与证明的 appears
+   保留部分归因/不确定性，但不能补足这个新增一般比较命题的来源支持。
+   “humans had previously only checked but not solved” 同时把特定原提问者过去未
+   证明扩为 humans，进一步显示归因范围扩大；主要拒绝点仍是明确典型人类基线。
+2. **P1 实质判断/保留要求失败。** require_substantive_judgment=true 与 retain
+   “Still needs human mathematical verification and broader evaluation” 未满足。
+   user_relevant_information仅写对理解数学研究可靠性/潜力“Relevant”，没有
+   区分演示与独立正确性、后续人类数学验证或更广泛评估的保留判断。
+   meaningful_details复述不确定措辞与 verification status uncertainty，但
+   不构成需要 human mathematical verification / broader evaluation 的同义判断；
+   broader evaluation 全部公开字段中不存在。不能把提到 reliability 或一句
+   不确定词当原要求的完整满足。
+3. 报告此前未证明猜想/多种方法这一主干 **部分通过**：来源确有先前未证明与
+   方法探索，模型保留 conjecture/appears 等；上述泛化阻止整体来源忠实 PASS。
+4. Google DeepMind归因与不独立确证 **部分通过**：core有来源归因、appears，
+   detail有不确定性；但未清楚区分讲者经历与经过独立人类验证的结果。
+5. 公共 mode 与 IMO gold-medal-standard mode **部分通过**：输出分别保留
+   “basically very similar” modes 和 IMO milestone；没有准确交代是用户将获得
+   的 mode 与所用 IMO mode 的相似关系。不自行为缺失联系补写解释或判完整PASS。
+6. 原禁项检查 **通过这些局部项**：没有把 human-level intelligence 已实现作
+   无归因事实；没有保证正确证明/声称全claims独立验证；没有新增延迟、价格或
+   20/100为精确测量值。claim_kind FACT 在归因的报告中本身不是本次拒绝原因。
+   这些局部通过不能抵消新增典型人类比较及缺少必要实质判断。
+7. confidence **仅部分支持**：proof appears/不确定词存在，没有百分比或保证；
+   不意味着其它泛化结论获得独立证据。NO_NEW未使用，不强迫改结果或重新生成。
+
+最终 verdict **REJECT / SEMANTIC_FAIL / P1**。新增容量使该单例产生可解析公开
+结果，证明这个固定输入的一次请求能在6144/300s内完成；不证明原四例或 LOCAL
+可用、一般容量充分、语义质量或生产资格。result的 SUCCEEDED 是服务协议结果，
+原 semantic_acceptance仍 PENDING_INDEPENDENT_REVIEW；本 handoff记录独立语义
+拒绝而不篡改原实际文件。旧 V1/V2 FAIL 与全部冻结政策保持原样。遵守具体批准：
+**本次单例已到终点，不调用后3样例、不reroll/校准/改prompt/延长timeout/授资格。**
+
+Reviewer 仅提交此 handoff后 STOP；原 Schema61b6仍作者 STOP待独立核心重审，
+普通 UI979cae返修等主控下一任务。没有 main/正式配置/owner数据/云付费操作。
