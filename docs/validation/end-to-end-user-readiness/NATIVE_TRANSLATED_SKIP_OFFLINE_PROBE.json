@@ -1,0 +1,122 @@
+{
+  "scope": "offline exact installed AST nodes; no extractor invocation/network/body/config edit",
+  "source_sha256": "73d5d3a9c1624239536fd6adcca9ac79f256b92c01320004abdbdb3485ac55a5",
+  "source_lines": [
+    4194,
+    4224,
+    4280
+  ],
+  "results": [
+    {
+      "source": "automatic",
+      "writeautomaticsub": false,
+      "skip": [],
+      "get_translated_subs": null,
+      "counts": {
+        "native": 14,
+        "translated": 14
+      },
+      "languages": [
+        "de",
+        "en",
+        "en-orig",
+        "fr"
+      ]
+    },
+    {
+      "source": "automatic",
+      "writeautomaticsub": false,
+      "skip": [
+        "translated_subs"
+      ],
+      "get_translated_subs": false,
+      "counts": {
+        "native": 14,
+        "translated": 14
+      },
+      "languages": [
+        "de",
+        "en",
+        "en-orig",
+        "fr"
+      ]
+    },
+    {
+      "source": "automatic",
+      "writeautomaticsub": true,
+      "skip": [],
+      "get_translated_subs": true,
+      "counts": {
+        "native": 14,
+        "translated": 14
+      },
+      "languages": [
+        "de",
+        "en",
+        "en-orig",
+        "fr"
+      ]
+    },
+    {
+      "source": "automatic",
+      "writeautomaticsub": true,
+      "skip": [
+        "translated_subs"
+      ],
+      "get_translated_subs": false,
+      "counts": {
+        "native": 14,
+        "translated": 14
+      },
+      "languages": [
+        "de",
+        "en",
+        "en-orig",
+        "fr"
+      ]
+    },
+    {
+      "source": "manual",
+      "writeautomaticsub": false,
+      "skip": [],
+      "get_translated_subs": null,
+      "counts": {},
+      "languages": []
+    },
+    {
+      "source": "manual",
+      "writeautomaticsub": false,
+      "skip": [
+        "translated_subs"
+      ],
+      "get_translated_subs": false,
+      "counts": {},
+      "languages": []
+    },
+    {
+      "source": "manual",
+      "writeautomaticsub": true,
+      "skip": [],
+      "get_translated_subs": true,
+      "counts": {
+        "native": 7,
+        "translated": 14
+      },
+      "languages": [
+        "de-en",
+        "en-en",
+        "fr-en"
+      ]
+    },
+    {
+      "source": "manual",
+      "writeautomaticsub": true,
+      "skip": [
+        "translated_subs"
+      ],
+      "get_translated_subs": false,
+      "counts": {},
+      "languages": []
+    }
+  ]
+}

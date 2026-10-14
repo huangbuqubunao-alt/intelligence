@@ -1,0 +1,76 @@
+{
+  "recorded_at": "2026-10-14T17:12:03.124615+00:00",
+  "root_head": "01da43f5966d2c2b0b4ec63ce00478d955eedc9d",
+  "video_id": "OYp5j2RihPE",
+  "yt_dlp_version": "2026.07.04",
+  "enumeration_attempts": 1,
+  "metadata_payloads": 1,
+  "subtitle_body_reads": 0,
+  "enumeration_elapsed_seconds": 4.124407832976431,
+  "normal_result_error": {
+    "code": "INVALID_RESPONSE",
+    "message": "subtitle track directory exceeds its entry limit"
+  },
+  "source_module_sha256": "cfcab69d9c6cd4057c58e95c17629907c820607d386fb4947daa5ad34535278c",
+  "canonical_directory_utf8_bytes": 10966987,
+  "canonical_directory_sha256": "876d8da182fcfdc1fa831da9bb5493461ef36b4c8312d1872ded035154620318",
+  "counts": {
+    "raw": 23086,
+    "native": 301,
+    "native_supported": 129,
+    "native_unsupported": 172,
+    "tlang": 22785,
+    "tlang_supported": 9765,
+    "tlang_unsupported": 13020
+  },
+  "extensions": {
+    "json3": 3298,
+    "srv1": 3298,
+    "srv2": 3298,
+    "srv3": 3298,
+    "ttml": 3298,
+    "srt": 3298,
+    "vtt": 3298
+  },
+  "per_source": {
+    "subtitles": {
+      "buckets": 1,
+      "max_entries_per_bucket": 7,
+      "raw": 7,
+      "native": 7
+    },
+    "automatic_captions": {
+      "buckets": 177,
+      "max_entries_per_bucket": 147,
+      "raw": 23079,
+      "tlang": 22785,
+      "native": 294
+    }
+  },
+  "maxima": {
+    "url_code_points": 391,
+    "language_code_points": 7,
+    "extension_code_points": 5,
+    "entry_field_count": 5,
+    "normalized_name_code_points": 21
+  },
+  "entry_field_names": [
+    "__yt_dlp_client",
+    "ext",
+    "impersonate",
+    "name",
+    "url"
+  ],
+  "existing_url_name_validator_failures": [],
+  "offline_count_validation_seconds": 0.4464845000184141,
+  "estimated_directory_python_deep_bytes": 14273551,
+  "existing_limits": {
+    "_MAX_LANGUAGE_BUCKET_COUNT": 512,
+    "_MAX_TRACK_COUNT": 1024,
+    "_MAX_DIRECTORY_ENTRY_COUNT": 4096,
+    "_MAX_TRACK_NAME_CODE_POINTS": 1000,
+    "_MAX_LANGUAGE_CODE_POINTS": 128,
+    "_MAX_EXTENSION_CODE_POINTS": 32,
+    "_MAX_TRACK_URL_CODE_POINTS": 8192
+  }
+}
