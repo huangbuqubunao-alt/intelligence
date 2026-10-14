@@ -367,6 +367,9 @@ a { color: #0e7a4f; }
 <figure><img src="../end-to-end-user-readiness/raw-capture-after-restore.png" alt="真实字幕备份恢复后的检查通过"/><figcaption>真实字幕备份恢复后的检查通过</figcaption></figure>
 <p>新数据版本也已在隔离环境通过本页面恢复并重启：全部数据表和 78 个文件与恢复前一致。这不表示所有外部字幕来源都可用，也不改变模型资格。</p>
 <figure><img alt="新数据版本真实恢复检查通过" src="../end-to-end-user-readiness/screenshots/schema38-real-gui-after-restore.png"/><figcaption>新数据版本真实恢复检查通过</figcaption></figure>
+<p>页面会把历史成功标为“上一次恢复已完成”并显示日期。选择新的备份时，预览只表示检查通过，当前数据还没有改变；只有确认恢复、重启并检查通过后，才显示本次恢复成功。新备份检查失败时会显示失败原因，不把上次成功当成本次完成。</p>
+<figure><img alt="上一次恢复记录带有明确日期" src="../end-to-end-user-readiness/screenshots/backup-feedback-history-panel.png"/><figcaption>上一次恢复记录带有明确日期</figcaption></figure>
+<figure><img alt="新预览尚未恢复，不显示旧成功" src="../end-to-end-user-readiness/screenshots/backup-feedback-preview-panel.png"/><figcaption>新预览尚未恢复，不显示旧成功</figcaption></figure>
 <p>损坏或不符合要求的备份不会覆盖当前数据。等待模型、等待预算或尚未完成的工作可能阻止备份。安全取消只终止所选的未执行等待任务；如果仍有其他工作，页面继续显示真实阻塞原因。</p>
 <figure><img src="../waiting-model-final-fix/final-gui/screenshots/04-backup-blocked.png" alt="取消前，等待任务阻止备份"/><figcaption>取消前，等待任务阻止备份</figcaption></figure>
 <figure><img src="../waiting-model-final-fix/final-gui/screenshots/06-backup-ready.png" alt="安全取消后，所有工作静止时才允许备份"/><figcaption>安全取消后，所有工作静止时才允许备份</figcaption></figure>

@@ -1,0 +1,7 @@
+{
+  "images": 58,
+  "broken": [],
+  "client": 1425,
+  "scroll": 1425,
+  "harnessIssue": "Numeric-leading CSS id required attribute selector; no document defect"
+}

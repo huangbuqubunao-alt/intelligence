@@ -526,6 +526,12 @@ Intelligence 优先在本机整理内容。部分内容可直接从原文提取�
 
 ![新数据版本真实恢复检查通过](../end-to-end-user-readiness/screenshots/schema38-real-gui-after-restore.png)
 
+页面会把历史成功标为“上一次恢复已完成”并显示日期。选择新的备份时，预览只表示检查通过，当前数据还没有改变；只有确认恢复、重启并检查通过后，才显示本次恢复成功。新备份检查失败时会显示失败原因，不把上次成功当成本次完成。
+
+![上一次恢复记录带有明确日期](../end-to-end-user-readiness/screenshots/backup-feedback-history-panel.png)
+
+![新预览尚未恢复，不显示旧成功](../end-to-end-user-readiness/screenshots/backup-feedback-preview-panel.png)
+
 损坏或不符合要求的备份不会覆盖当前数据。等待模型、等待预算或尚未完成的工作可能阻止备份。安全取消只终止所选的未执行等待任务；如果仍有其他工作，页面继续显示真实阻塞原因。
 
 ![取消前，等待任务阻止备份](../waiting-model-final-fix/final-gui/screenshots/04-backup-blocked.png)

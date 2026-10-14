@@ -1,0 +1,43 @@
+{
+  "date": "2026-10-15",
+  "author": "c1245b6ca899c0c16d88c9c0c4e4849ea09cd257",
+  "independent_review": "5d54c472063030a3a495e34f3a38f76a4acb6550",
+  "root_integration": "01da43f5966d2c2b0b4ec63ce00478d955eedc9d",
+  "root_focused_tests": 22,
+  "root_typecheck": "PASS",
+  "root_production_build_ms": 528,
+  "browser": "headful actual macOS Chrome",
+  "url": "http://127.0.0.1:5908/#Settings",
+  "private_data_root": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness-asr/.var/readiness-asr/product-01",
+  "schema": 38,
+  "history_feedback": "previous restore explicitly dated",
+  "new_preview_old_success_count": 0,
+  "new_preview_old_history_count": 0,
+  "create_download": "real ordinary UI Create + visible Save backup link",
+  "confirm_posts": 1,
+  "new_restore_id": "0947672898be4ad89bebde9a692a1899",
+  "completed_at": "2026-10-14T17:13:38Z",
+  "last_restore_state": "APPLIED",
+  "ready": true,
+  "reasons": [],
+  "all_72_application_tables_plus_sqlite_sequence_equal": true,
+  "all_DATA_files_equal": 78,
+  "integrity_check": "ok",
+  "foreign_key_check": [],
+  "after_current_success_invalid_new_ZIP": "actual stage rejected, current success0/history0, no second confirm; DATA and all rows unchanged",
+  "next_Create_after_error": "current success0/history1, old current attribution not revived",
+  "formal_touched": false,
+  "model_calls": 0,
+  "harness_errors_preserved": [
+    "first expected colon in previous-copy locator absent; corrected using actual aria snapshot",
+    "first wrongly awaited download on Create; actual UI requires Save backup file link",
+    "first snapshot count73 includes sqlite_sequence, prior helper72 omitted it",
+    "status API wraps payload in status; flat lookup undefined corrected after inspecting keys"
+  ],
+  "snapshots": [
+    ".var/end-to-end-user-readiness/backup-feedback-before-real-backup.json",
+    ".var/end-to-end-user-readiness/backup-feedback-after-real-restore.json",
+    ".var/end-to-end-user-readiness/backup-feedback-after-invalid-and-next-operation.json"
+  ],
+  "result": "PASS real feedback + full restore + invalid-next-operation"
+}
