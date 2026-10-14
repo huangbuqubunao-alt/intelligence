@@ -1,0 +1,79 @@
+{
+  "recorded_at": "2026-10-14T05:46:19.567417+00:00",
+  "status": "FAIL_INDEPENDENT_SEMANTIC_REVIEW",
+  "case": "real-deepthink-en",
+  "profile": "readiness-qwen35-9b-thinking-capacity6144-single-v3",
+  "implementation_commit": "21657d13d8cefc40dfab8ece0ec3152b42eadce8",
+  "pre_output_review_commit": "02ccbf4142a72263d5f7a1ca327c9f1c5ba90a21",
+  "independent_semantic_review_commit": "fbd1035b3589f5f03951d798fd36617223ddb8d3",
+  "root_permit_sha256": "82b31c9ae94970c7d97aa17a8befab0f9a48eaea8832407b3bbc496e201f0f1f",
+  "prepared_sha256": "ef02514aa842c7b595f81f6501e1178816606653dac3103517f15d4dcc000844",
+  "result_sha256": "b865c9115fba68cea608e8c13911d88929f21943193c160153bc7eb6b8db5c5f",
+  "opaque_response_sha256": "bb980c4fa03eca06351e603482bac9e983dcce7bccd019d585dbbe48d7ebc73f",
+  "request_sha256": "6bdc1eb3d1b0f136e47cdf58da490ff8bb8478a92233f5c7fefa175247f747d2",
+  "verified_input_sha256": "1cda0703943eec515f08c7e3520011c110e4069805173f5afc5971e9cc355136",
+  "native_completion_metadata": {
+    "model": "qwen3.5:9b-q4_K_M",
+    "done": true,
+    "done_reason": "stop",
+    "prompt_eval_count": 912,
+    "eval_count": 4638,
+    "total_duration": 218922517041
+  },
+  "total_duration_seconds": 218.922517041,
+  "public_final_content": "{\n  \"result\": \"INTELLIGENCE\",\n  \"core_conclusion\": \"According to Google DeepMind, Gemini Deep Think appears to have proved a long-standing mathematical conjecture that humans had previously only checked but not solved, utilizing significantly deeper test-time exploration than typical human reasoning.\",\n  \"user_relevant_information\": [\"Relevant for understanding AI reliability in mathematical research and the reported potential for test-time exploration capabilities as stated by Google DeepMind.\"],\n  \"important_new_information\": [\"Google DeepMind describes the model's achievement of a gold-medal standard at the IMO as a major milestone toward building human-level intelligence.\"],\n  \"meaningful_details\": [\"The source qualifies the proof with phrases like 'it seems like it proved' and notes 'basically very similar' modes, preserving uncertainty about verification status.\"],\n  \"filtered_noise\": [],\n  \"claim_kind\": \"FACT\",\n  \"evidence\": [\n    {\n      \"evidence_id\": \"4750f3da8ddabb3e808ebcf282cc4a88d4fdbe8ccbcfc97988f6d4a46913f2f9\",\n      \"start_ms\": 0,\n      \"end_ms\": 46320,\n      \"stance\": \"supporting\"\n    },\n    {\n      \"evidence_id\": \"c0eb749542c1d64ab0f0c8ca7e9c54ce90d61c1eb438655c91a927e34e7ba0b7\",\n      \"start_ms\": 46320,\n      \"end_ms\": 62600,\n      \"stance\": \"supporting\"\n    }\n  ]\n}",
+  "outcome": {
+    "execution_id": "distillation:reservation:v3:909d1c2ab68f0acfe3328a6b840f9a37bc9f807da3d599ff822159047c5b709e",
+    "status": "SUCCEEDED",
+    "invocation_count": 1,
+    "intelligence_id": "intelligence:distillation:distillation:reservation:v3:909d1c2ab68f0acfe3328a6b840f9a37bc9f807da3d599ff822159047c5b709e",
+    "revision_id": "revision:distillation:distillation:reservation:v3:909d1c2ab68f0acfe3328a6b840f9a37bc9f807da3d599ff822159047c5b709e"
+  },
+  "generations": 1,
+  "all_18_prepared_data_hashes_unchanged": true,
+  "verified_input_hash_unchanged": true,
+  "actual_request_equals_frozen_projection": true,
+  "checkpoint_status": "SUCCEEDED",
+  "checkpoint_invocation_count": 1,
+  "resource_usage_status": "SUCCEEDED",
+  "resource_usage_invocation_count": 1,
+  "protocol_capacity_result": "PASS_THIS_SINGLE_CASE_ONLY",
+  "independent_semantic_result": {
+    "result": "REJECT",
+    "priority": "P1",
+    "basis": [
+      "Single speaker experience/estimated exploration is generalized to typical human reasoning without source support.",
+      "Mandatory substantive judgment requiring human mathematical verification and broader evaluation is absent."
+    ]
+  },
+  "later_cases_prepared": [],
+  "later_cases_invoked": [],
+  "all_case_directories": [
+    "real-deepthink-en"
+  ],
+  "local_8_case_gate": "BLOCKED; original four-case qualification has not passed",
+  "production_qualified": false,
+  "cloud_calls": 0,
+  "formal_data_accessed": false,
+  "no_reroll_or_output_repair": true,
+  "actual_request": {
+    "think": true,
+    "options": {
+      "temperature": 1.0,
+      "top_p": 0.95,
+      "top_k": 20,
+      "min_p": 0.0,
+      "presence_penalty": 1.5,
+      "repeat_penalty": 1.0,
+      "seed": 20261013,
+      "num_ctx": 8192,
+      "num_predict": 6144
+    },
+    "stream": false,
+    "model": "qwen3.5:9b-q4_K_M",
+    "message_roles": [
+      "system",
+      "user"
+    ]
+  }
+}

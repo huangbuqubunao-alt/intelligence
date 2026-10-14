@@ -149,3 +149,9 @@ root/main干净，真实远端main73ee7e7复核通过，未发布。设置truthf
 用户明确批准6144原英文单例容量隔离诊断及LOCAL_TEXT可信reader最小补充；批准已落盘，不重问。当前旧V2失败/资格false仍保留，6144未实现/推理，LOCAL_TEXT仍待核心接受。正式main/真实remote73ee7e7干净未改。UI authorfff9bf已STOP，430前端/TSbuild自测，额度中断未有独立review，intel已恢复review。Schema独立二次REJECT61f740：oldchild完整执行history缺，真实合法ZIP恢复反证仍接受；246专项/staticPASS不能抵消，caption已恢复同批准范围原作者返修，未整合。
 
 真实普通LOCAL研究创建/回读/原证据初次定位/重新收集/两版本无变化对比PASS，无模型结论；刷新定位丢失OPEN。真实研究GUI Backup/Restore/重启后71表全部行+78物理DATA精确相等 SHA6bf70daad8cdb30e7320122e3e9f359995f83e2652779007009c01250a286778，当前研究和历史可读/readinessREADY。最新Schema38真实archive故障链未跑，旧正常代码新空库两公开JSON3均429，已停自有legacy服务，失败记录保留，未造plain样例。另备份新预览仍显示上次恢复成功反馈P2已截图，待普通UI最小修复，不动Backup安全handler。
+
+## 2026-10-14 下午单例诊断结束与续作
+
+6144研究实现21657/独立预输出02cc已接受整合，root105合同及静态PASS。fresh固定7blob/runtime与资源核对后，唯一EN精确permit82b31c9…执行1次：native stop/912input4638output/218.922517s，研究协议SUCCEEDED/1invoke1generation。root重新核对actual request==冻结projection、18DATA逐字节SHA/VerifiedInput不变、ledger明确终结、只有EN目录。独立语义fbd1035 REJECT/P1：typical human reasoning泛化与缺必需人类核验/更广泛评估判断。QWEN35_CAPACITY_V3_FAILURE.json保留公开正文、opaquehash及真结果；不读thinking、不修正文、不再调用，全部资格关闭，原失败保留。
+
+正式main/实际remote再次核对73ee7e7 clean。本轮字幕Schema38原作者二次修61b6f63 STOP，intel唯一Reviewer；caption切回原Content UI979P2最小有限枚举返修，两任务无共享core写入。LOCAL_TEXT与备份历史反馈等待依赖接受。没有把实验协议成功当产品质量通过，也没有要求用户测试未完成候选。
