@@ -182,3 +182,49 @@ DIRECT 复用现 React useRef/effect、既有 DTO/error 和测试 controlled fet
 没有 backend/Schema/配置/正式数据/模型/云端操作。未跑真实 GUI 或 backend（无后端改动）；
 root 真实 GUI 和独立 re-review 尚未完成，不宣称整体已采用或所有用户链路通过。
 本次限定提交后作者 STOP，待独立 Reviewer；不自审、不合并、不设置 DONE。
+
+
+## 2026-10-15 独立 Reviewer P2 返修复审 / intel_bounded_review
+
+**APPROVE** 精确候选 `c1245b6ca899c0c16d88c9c0c4e4849ea09cd257`；完整比较点
+仍 `2137409e2e2d6a4c0406bd1a480b0a63ed6c2388`。741 实现、c348 REJECT 和本次
+原作者返修完整保留，没有重写旧反证或声称先前版本通过。作者 STOP/clean 后审查，
+本 Reviewer 仅追加本 handoff；提交后 STOP，不自整合/发布，不修改任何业务文件。
+
+原 P2 已独立关闭：当前 error 且无 restore preview 时清除 inspectedRestore ref；
+完成回执 JSX 在 error 期间隐藏。后续明确 Create Backup 清除 error 后，旧回执只
+成为明确 Previous，而非本次完成，原 receipt 没有改写。原 matching APPLIED
+当前完成、历史标签与日期、preview/confirm/busy/pending 隐藏、未知或 missing
+baseline/ID 保守呈现、读取失败不显示旧 READY、Content 中性失败 copy 均保留。
+full fixed-base diff 仍仅四个允许文件，新增 repair 只 effect/ref/JSX 与两测试。
+Standards/Spec 两轴未发现新增 P0/P1/P2；不会因本呈现修复赋恢复/模型新权限。
+
+### 独立重新运行
+
+- **原外部中英连续 stage 失败反证原样**（corrected 中文字串版本，不修改断言）：
+  `/private/tmp/backup-feedback-independent-review/review.test.tsx`，
+  `vitest run --config /private/tmp/backup-feedback-independent-review/config.mjs`：
+  **2 PASS /180ms**；日志 `/tmp/backup-feedback-rereview-original-negative.log`。
+  先匹配 stage+confirm+APPLIED，再新 ZIP 检查失败，旧 current success 不再出现。
+- 另一个外部中英负控扩展后续明确 Create Backup、只显示 Previous，精确四项
+  POST 序列/confirm 唯一、没有重放：**2 PASS /187ms**，
+  `/private/tmp/backup-feedback-independent-review/review-create.test.tsx` 与
+  `config-create.mjs`；日志 `/tmp/backup-feedback-rereview-create-negative.log`。
+- 固定候选专项 **22 PASS /632ms**，`/tmp/backup-feedback-rereview-focused.log`。
+- 全前端 **463 PASS /28 files /12.91s**，`/tmp/backup-feedback-rereview-full.log`，
+  既有 React act warnings 保留，没有新增 skip 或弱化旧断言。
+- `npm run typecheck` PASS，`/tmp/backup-feedback-rereview-typescript.log`。
+- `npm run build` PASS /524ms /50 modules，
+  `/tmp/backup-feedback-rereview-build.log`，index-BVqJyEEm.js/index-DmN6_wU_.css。
+- 独立与**原 fixed base**字节检查：完整 GET、10s interval、create/choose/cancel/
+  confirm handlers/参数、dialog onCancel、全部 Backup disabled、Content Retry
+  handler/payload/disabled **BYTE_EQUAL**；旧20项专项测试原字节作为当前测试文件
+  前缀全部保留，仅追加2。日志 `/tmp/backup-feedback-rereview-handler-proof.log`。
+- 根 App 在检查时仍与 fixed base 字节相同，无当前并行 App 写入冲突。
+  完整 base→HEAD diff check 和树范围/清洁检查 PASS。
+
+所有外部反证与正控都是 controlled React/fetch fixture，未调用真实服务、网络、
+Restore、owner/配置/Schema/模型。仅前端改动未跑 Python/backend；根的真实 macOS
+同 ZIP 新 preview/完整恢复/回执及全表 DATA 比较、四宽键盘验收仍是接下来的独立
+普通产品证明，本 APPROVE 不替代其证据。旧真实失败与两次 REJECT/修复前失败
+日志完整保留。最终 Verdict **APPROVE / P0=0 / P1=0 / P2=0**，Reviewer STOP。
