@@ -1,20 +1,15 @@
 # YouTube Intelligence Agent 项目状态
 
-2026-10-14 下午续作（优先于历史状态）：正式main/真实origin-main仍
-73ee7e747b4461b9de8a201d6b47669eb3913d1a且clean。本轮候选尚未完成，未发布、未改owner/config。
-原17任务声学/LOCAL_TIMED WAIT0安全取消/RAW及研究真实全DATA恢复、窄窗导航、Source GET恢复证据保留。
-最新已接受产品frontend418/TSbuild；backend4220+1既有资产skip为旧检查点，非最终回归。
-Schema38原作者二次返修61b6f63已STOP：完整old/successor proof、caption completion当前clock、真实ZipInfo/WAL负控，176专项及静态通过；独立重审进行中，未整合/迁移正式。
-Content UI独立979caeREJECT未知availability误启用P2已退原作者有限枚举返修；旧备份成功提示与新预览混淆P2排队，安全handler不得改。
-6144单例已按用户批准仅EN一次完成：native stop/912input4638output/218.923s，协议SUCCEEDED/1调用1生成，18DATA与输入hash未变。但独立fbd1035语义REJECT/P1（来源泛化、缺核验/更广泛评估判断），全部研究调用已STOP、资格false。
-旧8b/nonthinking9b及4096length失败保留，后3和LOCAL8未调用；未授权继续模型试验。
-LOCAL_TEXT主体与trusted-reader补充获批，核心Schema38接受后串行，正向模型资格仍BLOCKED。
-真实资料研究创建/回读/原证据初次定位/重收集/历史对比及71表78DATA恢复PASS；刷新丢定位OPEN。
-兴趣设置普通UI保存重载PASS；tracked creator编辑入口OPEN，最小安全合同只读预检。
-长内容/rolling、真实Intelligence保存/Topic正向与最终完整回归仍OPEN；最终采用另行具体批准。
-中文候选手册53真实图，macOS Chrome零缺图/无横向溢出。当前逐项外部证据见
-[验收矩阵](validation/end-to-end-user-readiness/READINESS_MATRIX.md)与
-[续作记录](validation/end-to-end-user-readiness/PROGRESS.md)。没有启动其他开发阶段。
+2026-10-14 18:40续作（优先于历史状态）：正式main/实际origin-main仍73ee7e747b4461b9de8a201d6b47669eb3913d1a clean，本轮候选未完成/未发布，owner配置与数据未改。
+Schema38第三独立ff43 APPROVE已完整整合74ac5c2；root176相关201.26s/Ruff/mypy102 PASS。隔离37→38仅append038 registry+空neutral表，原70domain表/78文件不变；真正GUI38恢复72表78DATA精确PASS，新APPLIED回执及actual重启验证。genuine失败派生归档真实网络链仍未跑，不以空neutral正控冒充。
+Content UI047/ba524接受整合a40cac9，root441前端/TSbuild PASS；真实ZH/EN中性loading、abort执行/配置禁用、手动GET恢复0mutation、lateID隔离与四宽无横溢PASS。原FAIL留存。
+Native目录e1cede/d849独立APPROVE整合c38ee71，root202专项PASS；实际6068普通导入已不触旧supported上限，但Gemini新目录超过原raw4096，总上限保持closed，FAILED_FINAL0Artifact0Intelligence且Backupready，停止重复网络试探。
+LOCAL_TEXT b79b509作者STOP/clean：333相关+9复验/446前端/static PASS，仅fixture/NONE-qualifiedfalse；含具体获批read_current补充，唯一Reviewer独立审查中，未整合。文字真正模型/保存主题正向仍BLOCKED。
+SourceInterest-only CAS及入口已具体获批，state/App须LOCAL_TEXT接受后串行；备份旧回执上下文与Content失败网络归因的普通呈现修复排队，不改handlers。
+6144唯一EN native stop/912input4638output/218.923s，18DATA/输入不变，研究协议成功但独立fbd1035语义REJECT/P1；所有模型调用STOP/productionfalse，原8b/9bnonthinking及4096失败保留，后3/LOCAL8未调用，无后续实验授权。
+原17声学14正3负控/LOCAL_TIMED WAIT0取消/RAW与研究恢复/导航与Source GET恢复真实证据保留。后台实际新发布单视频ENROLLED/去重持久成功，随后字幕总目录限额和来源NOT_FOUND风险不掩盖。
+手册56真实图macOS渲染零缺图/无横溢；root最终完整Backend/Frontend/TSbuild/static/diff仍待所有代码接受，不以旧4220+1资产skip替代。长内容/rolling、tracked失败恢复可达性、真实Intelligence保存/Topic仍OPEN，最终采用另行具体批准。
+详见[验收矩阵](validation/end-to-end-user-readiness/READINESS_MATRIX.md)与[续作记录](validation/end-to-end-user-readiness/PROGRESS.md)。没有启动其他开发阶段。
 
 2026-10-08 Phase 13 automatic background Following candidate: implementation and
 self-review fixes are isolated on `codex/phase13-background-following`, based on
