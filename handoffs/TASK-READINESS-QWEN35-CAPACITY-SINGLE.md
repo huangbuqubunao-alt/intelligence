@@ -103,3 +103,62 @@ thinking未解析/读取/展示。完整receipt见QWEN35_CAPACITY_V3_INPUT_PREPA
 原V1/8b/V2失败、Schema38 REJECT、UI979caeREJECT与正式版本均保留。没有main合并/
 push/正式构建，未读owner/凭据/Vault，无production reader/付款/Cloud变化。提交
 后作者STOP/clean，建议IN_REVIEW，不自行APPROVE/ACCEPT/DONE或推理。
+
+
+## 2026-10-14 Independent pre-output review — APPROVE
+
+Reviewer caption_resume，非本研究作者。审查 base
+`bc110441627c0afd87b364c723c77a392a1c2145` → author
+`21657d13d8cefc40dfab8ece0ec3152b42eadce8`，作者已 STOP/clean。
+按已批准精确单例提案、任务卡及 code-review-and-quality 复核完整六文件差异；
+Reviewer 仅追加此 handoff，未改代码、测试、freeze、profile、准备库或失败证据。
+
+**APPROVE 仅表示本研究单例预输出工程/输入门禁通过。** 不授予模型执行许可、
+实际 runtime/容量/语义合格、LOCAL 完整链路或生产资格。Root 仍须接受候选、重新
+核验固定资源与互斥、签精确外部一次许可；300s、length/6144/empty/unknown/任何
+原语义失败停止，成功亦停止，后3案例和正式资格不在授权内。
+
+独立结果：
+
+- `PYTHONPATH=src:. .venv/bin/python -m pytest -q
+  tests/unit/test_readiness_qwen35_capacity.py tests/unit/test_readiness_qwen35_research.py
+  tests/unit/test_ollama_local_distillation.py` → **105 PASS /13.85s**，
+  `/tmp/qwen35-capacity-independent-tests-corrected.log`。32 新合同 + 原研究69 +
+  普通 transport4，原所谓73即后两模块合计；未删/skip/弱化任何测试。
+- py_compile PASS；Ruff 全 src/tests/scripts PASS；strict mypy src + 本脚本
+  **103 files PASS**；base diffcheck PASS。日志
+  `/tmp/qwen35-capacity-independent-{ruff,mypy}.log`。
+- 独立只读复算实际准备库及冻结32文件，阻断 provider `_request`/HTTP sentinel
+  期间零访问；`/tmp/qwen35-capacity-independent-seal.log`。prepared
+  `ef02514aa842c7b595f81f6501e1178816606653dac3103517f15d4dcc000844`、DB
+  `b089a7943ed8e2ced7bb5550cc824d518fce3c0b47febdb094da311aa725d77a`、
+  verified `1cda0703943eec515f08c7e3520011c110e4069805173f5afc5971e9cc355136`
+  与作者 receipt 实际相同；VerifiedInput 与原V2逐字节相同，18 DATA 完整路径/
+  bytes hash 集合相同。新 execution909d…不同于旧2b2b…；SQLite mode=ro 查
+  checkpoint **PENDING/0**、该执行 resource_usage0。
+- 新 profile `production_qualified=false`。只有唯一 EN 目录；没有 permit、
+  generation.started、实际 request、response、result 或后3目录。
+- 实际 request-projection 与旧真实 request 深度相同，唯一 options.num_predict
+  4096→6144；messages、原v5 role/prompt、schema、全部其它参数不变。
+  profile/freeze/harness SHA 与 receipt 相同。旧 V1/V2 corpus/policy、普通 parser/
+  service/core、旧合同和 V2 length/empty-final FAIL hashes 未变；未知状态不得重放。
+- 完整差异未触及生产 src/Schema/配置/deps/资格 reader/云或正式数据。只读复用
+  installed9b 原身份/静态 provenance；未调用任何真实 API、模型、下载或网络，
+  未读取/解析/展示任何私有 thinking，未重新抓取来源。
+- 独立检查 dispatch 前深比较旧实际 wire，exclusive durable marker 后才请求，
+  重启/超时/未知不能二次调用；新 case 在文件/DB/permit I/O 前限制唯一 EN，
+  老 V1/V2 CLI/execute 已退休；外部 exact prepared/code/profile/freeze/projection/
+  runtime/exclusive single-case receipt 必须一致。保留原 ledger/parser/budget seam。
+
+Reviewer 最初测试命令遗漏 `PYTHONPATH=src:.`，共享环境误导入旧
+`/Users/hua/youtube-intel/src/youtube_intel/distillation.py`，3 collection errors
+（缺 KnownLocalDistillationResponseError/OllamaLocalDistillationTransport）；原日志
+`/tmp/qwen35-capacity-independent-tests.log` 保留。仅按仓库命令加正确 PYTHONPATH，
+不安装/改环境配置/改测试，即得到上述105 PASS。只读 seal 探针第一次使用不存在的
+`distillation_executions` 表名，查询失败后用 sqlite_master 确认实际 checkpoint
+表名再完整复核；未修改任何库或 product，不能把该探针错误当产品行为。
+
+未执行完整后端/前端/build/GUI：本切片无产品代码变更，最终集成完整回归与真实
+用户链路仍由 root 门禁约束。912+6144<8192 仅容量前提，未被本审查转换为实际
+加载、不截断或语义通过。没有发现本精确差异内需退回的 P0/P1/P2。Reviewer
+提交本 review-only handoff 后 STOP；Schema61b6作者树仍 STOP，不自审。
