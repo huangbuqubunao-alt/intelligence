@@ -170,7 +170,7 @@ def test_local_reservation_rejects_foreign_source_and_unbound_storage_and_versio
     text = provider.import_bytes("notes.txt", b"The local text remains a real text range.\n")
     reservation = service.reserve_distillation_execution(source_id=LOCAL_SOURCE_ID, video_id=text.content_id,
         evidence_ids=repository.list_canonical_coverage_evidence_ids(text.content_id), manual_command_id="text")
-    assert reservation.execution_id.startswith("distillation:local-text-v1:")
+    assert reservation.execution_id.startswith("distillation:local-text-v2:")
     assert repository.get_distillation_execution(reservation.execution_id).invocation_count == 0
     restarted = SQLiteStateRepository(repository._database_path)
     assert restarted.manual_local_timed_context_hash(LOCAL_SOURCE_ID, cid) is None

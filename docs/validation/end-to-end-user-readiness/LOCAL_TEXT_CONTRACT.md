@@ -6,30 +6,47 @@ requires the actual LOCAL_LIBRARY/DISCOVER_ONLY source and current verified
 Summary; it never enables automatic library processing. LOCAL Cloud routes stay
 unavailable before credentials, payload construction or invocation.
 
-`local-text-distillation-v1` references contain exact Evidence ID, TEXT_RANGE,
+`local-text-distillation-v2` references contain exact Evidence ID, TEXT_RANGE,
 Unicode code-point half-open offsets, derived one-based lines, source/canonical/
 excerpt hashes, and explicit NULL start/end times. Mixed or missing fields,
 fabricated ranges/hashes, duplicate JSON keys, foreign Evidence and incomplete
 NO_NEW coverage are rejected. The old YouTube v5/timed wire, card hashes and
 timed card DTO remain unchanged.
 
-Schema 38 is reused without migration. An immutable
-`distillation:local-text-v1:<input hash>:<context hash>:<identity hash>` records
-the independent wire/profile, sealed input and exact source/Summary context.
-The identity hash binds the persisted command fields and exact profile hash;
-the profile binds prompt, schema, model/digest and generation settings. The card
-hash includes this input/context/profile binding plus the exact cited ranges.
-The reader requires one checkpoint for the revision, matching successful ledger,
-same Content/source, valid current resolver ranges and the exact card hash. It
-does not infer versions from NULL timestamps or try alternative hashes.
+Schema 39 adds only the specifically approved immutable 15-field
+`local_text_input_proofs` sidecar. Reservation validates current source facts and
+creates checkpoint plus proof in one BEGIN IMMEDIATE transaction before dispatch.
+The canonical original input/context JSON is bounded to 512 KiB combined UTF-8;
+it preserves full source excerpts/ranges, display metadata, language, immutable
+preferences and both policy revisions/effective rules, and the exact independent
+profile/model/digest/prompt/schema/options. It creates no new DATA artifact.
 
-At admission the source, canonical bytes, current Summary and complete coverage
-are checked again in the transaction against the sealed context. Historical
-cards preserve the admitted context commitment, while validating current source
-authority; a legal later Summary refresh does not rewrite their hashes. The
-specifically approved `read_current` hook applies the same card validator to
-LOCAL text cards before Save/list/Topic consumes the verified revision. General,
-YouTube and timed reads retain their existing behavior.
+`distillation:local-text-v2:<input hash>:<context hash>:<identity hash>` and the
+card hash bind the recomputed proof projections/profile to one exact execution
+and successful ledger. The version is never inferred from NULL timestamps or
+alternative hashes. The old unpublished v1 local text format is not backfilled.
+The old YouTube/timed identity and hash algorithms remain unchanged.
+
+The context identifies the original Summary artifact/hash/language, its actual
+Evidence and deterministic reconstruction. Historical validation reads those
+specified original bytes, resolves the original Evidence, reconstructs the
+original result/request hash and rehashes the complete sealed input/context.
+A legal subsequent Summary refresh or preference/policy change preserves that
+history. Damage to original Summary/source/Evidence/proof closes trusted reads.
+
+Admission and NO_NEW revalidate the proof plus current context/CAS in their
+existing transaction. Public `read_current` classifies LOCAL TEXT from durable
+revision/card/execution associations, then invokes the same `_read_card` validator;
+a missing card projection cannot downgrade to generic. Missing proof or ledger
+rejects current/recorded cards, Save, saved-list trust and Topic association.
+An ordinary generic revision with no distillation association stays readable.
+
+New schema 39 backups validate every proof and execution/ledger/result binding,
+including canceled and unknown terminal executions. Old 34–38 packages retain
+original validation/staging/activation contracts; normal startup runs the existing
+continuous migrations followed by additive 039 (38 needs only 039). All original
+domain rows and DATA are preserved; migration records and expected empty tables
+are the only new state. No historical input is invented.
 
 The existing Evidence display shows real lines (or honest unavailable text).
 Internal navigation serializes only Content ID and Evidence ID. After refresh,

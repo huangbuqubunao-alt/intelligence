@@ -257,3 +257,123 @@ useRemote late-result guard 保留，URL 不供应 offsets/timestamps。根与�
 两 P1 负控为隔离人工损坏/fixture，未读取 private thinking/真实模型结果，没有
 真实 GUI 或资格宣称。原四例/6144真实语义 FAIL 和 LOCAL8 BLOCKED 保持。Reviewer
 结论 **REJECT / P0=0 / P1=2 / P2=0**；退回原实现者，交接提交后 STOP。
+
+
+## 2026-10-15 Implementer repair handoff — Schema 39
+
+This section supersedes the original implementation's v1/no-migration claims.
+The original independent REJECT and its evidence above remain unchanged.
+
+- Repair base: `3b562c64ebca70bb49bdc67b1f20ee96b766ed99`.
+- Specific approval: root `74a5795`,
+  `LOCAL_TEXT_INPUT_PROOF_MIGRATION_PROPOSAL.md`, human answer
+  “批准该精确隔离迁移与验收范围” (`call_37d985304ad94a94b581ed1e53765c44`).
+  Governance files were read from root; none were cherry-picked or edited here.
+- Parent clarified legacy restore: existing 34–37 package validation/staging/
+  activation stays original; normal startup executes existing continuous
+  035–038 SQL then additive 039. A 38 image needs only 039. No sparse lineage,
+  stage upgrade, activation modification or old migration rewrite was added.
+- Author remains Implementer, independent review/acceptance pending. Exact repair
+  commit SHA is delivered in chat. No self-approval or main integration.
+
+### Delivered repair
+
+Additive `039_add_local_text_input_proofs.sql` has exactly the approved 15 fields,
+real FKs, version constants, lowercase SHA256/UTC/combined 512 KiB UTF-8 checks,
+source/video indexes, immutable UPDATE/DELETE triggers and source-bound reserved
+INSERT checks including real Evidence/preference IDs. Existing tables/rows and
+DATA are not rewritten by 039. Runtime doctor expects 39; backup still accepts
+original 34–38 packages using their own original manifest/data contracts.
+
+Checkpoint + typed proof are inserted in one BEGIN IMMEDIATE before dispatch,
+with current source/Summary/Evidence/policy/preferences/display metadata rechecked.
+Any failed proof validation rolls both back, including after existing successful
+work; no truncation or invented history is used. Explicit v2 seals complete input
+and context: full excerpts/ranges/hashes, original display metadata/language,
+original preference rows and both immutable policy revisions/effective settings,
+precise profile/model/digest/prompt/schema/think/options, original Summary identity/
+hash/language/producer, original Summary Evidence and deterministic reconstruction.
+Proof hash binds all projections and row identity. No new DATA file is introduced.
+
+Historical verification reads specified original Summary bytes, checks artifact
+identity/hash, resolves its original references, rebuilds the original deterministic
+AnalysisResult/request hash and rehashes complete input/context against immutable
+original policy/preference records. It never trusts opaque ID hashes alone or
+compares the admitted old context to the latest presentation. Legal later Summary,
+policy and preference changes preserve history; original byte/reference damage
+closes current/current-card/recorded-card/Save/saved-list/Topic trusted reads.
+
+Public read_current classifies LOCAL TEXT using exact durable revision/execution
+or persisted card membership rather than a nullable card projection getter. It
+then calls the same card/proof/execution/ledger/hash validator. Missing proof,
+card or ledger cannot downgrade to a generic read. Generic non-card revisions
+without a distillation association remain readable; old YouTube v5/timed identity,
+hash, receipt/eligibility and reader behavior retain their existing algorithms.
+Unpublished local text v1 is not backfilled or silently authorized.
+
+Admission/NO_NEW preserve existing current CAS, budget, source guards and unknown
+rules, additionally revalidating the full proof. Schema 39 backup verifies every
+proof and exact execution/ledger/result binding, including canceled/UNKNOWN/NO_NEW
+and successful cards. Cancellation reuses its immutable zero-call receipt while
+preserving the original WAITING_MODEL ledger. New text readers explicitly close
+SQLite read connections so staged validation cannot leave unmanifested WAL/SHM.
+Restore allowlists/integrity/file/hash gates are unchanged.
+
+Prepare-only harness now records independent v2; original V1 preparation evidence
+is preserved and a new `LOCAL_TEXT_PREPARATION_PROFILE_V2.json` records exact
+current code hashes. Verification confirmed real_model_calls=0,
+production_qualified=false, execution_authority=NONE, inputs_frozen=false. Original
+four-case model qualification remains FAIL; real LOCAL8 remains BLOCKED. Positive
+outputs throughout these checks are explicitly offline fixture transports.
+
+### Checks and retained failure evidence
+
+All commands used this worktree's `PYTHONPATH=src:.` and existing shared .venv;
+no installation or toolchain/configuration change occurred.
+
+| Check | Actual result / evidence |
+|---|---|
+| Two P1 TDD, before repair | `pytest -q tests/integration/test_local_intelligence_text.py -k 'missing_card_projection or history_keeps'`: 2 failed, 1 passed; both `Failed: DID NOT RAISE IntelligenceReadRejected` at original Summary damage and nullable card getter. |
+| Original LOCAL slice | 64 passed; expanded missing proof/card/ledger adds recorded/current/direct Save/list/Topic negatives. |
+| LOCAL/timed/Backup/retained-schema/state-store cohort | 292 passed, 1 intentional duplicate-zip fixture warning, 320.34s. |
+| Related reader/distillation/reservation/saved/topic/old transport cohort | 364 passed, 3 failed initially, 294.19s. Two failures were exact migration-tail expectations after adding 039; one genuine positive restore failed `Restore staging contains unmanifested files` due SQLite context not closing. All three fixed and rechecked below. `.var/local-text-repair/affected-checks.log`. |
+| Other 22 latest-schema affected test files | 430 passed, 3 failed initially, 189.42s. Only stale latest-name/tail-size expectations; update preserves exact full migration tail plus 039. Focused all three rechecks: 3 passed, 1.66s. `.var/local-text-repair/additional-checks.log` and `schema-expectation-rechecks.log`. |
+| Proof/doctor cohort | 31 passed, 21.16s; exact 15 fields/FKs, immutable triggers, atomic mixed rollback, migration-39 rollback preserving all 38 domain rows/DATA, old 34–38 full-table/DATA restore then ordinary 39 startup, cancellation/UNKNOWN restore/restart, original preference/policy history, generic LOCAL non-card and future-version rejection. |
+| Forged backup negatives | 4 passed, 12 deselected, 9.16s. Rehashed DB + original valid ZIP metadata cannot hide missing proof/card/ledger or damaged projection; rejection before any live replacement. First fixture attempt had ZIP special-file attributes; next retained uncheckpointed test WAL. Mechanism corrected with original ZipInfo and explicit checkpoint/DELETE-mode/close on isolated forged DB, preserving the strict expected proof error. Failed evidence: `forged-checks.log`; passing: `forged-checks-after-checkpoint.log`. |
+| Final LOCAL + proof + both exact migration-tail rechecks | **85 passed**, 144.05s, including real positive Save/Topic/BackupRestore all tables/DATA equality, two original P1 negatives/all trusted entries, missing-proof/card/ledger and legal Summary refresh. `.var/local-text-repair/final-local-checks.log`. |
+| Real UTF-8 overflow negative | **1 passed**, 16 deselected, 1.29s; 40 real persisted preferences each within existing 2048-character bound cause full UTF-8 projection >512 KiB; fails before checkpoint/dispatch with all tables/DATA unchanged. `bounded-checks.log`. |
+| Syntax | `python -m compileall -q src/youtube_intel scripts/prepare_readiness_local_text.py` PASS, plus changed new test syntax checked before running. |
+| Ruff | `ruff check src/youtube_intel tests scripts/prepare_readiness_local_text.py` PASS. |
+| Strict types | `mypy --strict src/youtube_intel scripts/prepare_readiness_local_text.py`: **103 source files PASS**. |
+| Prepare freeze | Every recorded source hash independently recomputed; exact v2 + zero calls/qualified false/authority NONE PASS. |
+| Diff hygiene | `git diff --check` PASS; production changes only approved state/distillation/reader/backup_restore/runtime/039, preparation harness/freeze/contract/handoff; other test edits only latest schema expectations/exact migration-list append and preserved m038 fault targeting. |
+
+Additional setup mistakes were resolved before substantive checks: initial 039
+registration omission (`no such table: local_text_input_proofs`) was corrected in
+explicit migration names; wrong imagined unit test filenames gave no-tests exit4
+and were replaced with actual existing filenames; one additional-test subprocess
+omitted PYTHONPATH and had collection errors, rerun with correct worktree import
+path. Cancellation fixture initially selected test-transport, correctly rejected
+by existing Ollama-only cancellation authority; fixture now uses unavailable
+Ollama with zero calls. These did not weaken production or test constraints.
+
+### Scope, reuse and STOP
+
+DIRECT standard-library JSON/hashlib/SQLite/contextlib, existing Evidence/source
+resolver, deterministic Summary/domain models/digest, immutable policy/preferences,
+checkpoint/ledger/CAS/cancellation/NO_NEW, ordinary restore/startup migration,
+Save/Topic readers. No third-party code or dependency added.
+
+Repair changed no App/frontend/local_api/provider/runtime_composition/analysis,
+Save/Topic writers, formal owner data, credentials, production configuration,
+qualification receipt or existing migration SQL. No real model, Cloud or external
+provider invocation, weights download, deployment or main merge was performed.
+Frontend was already STOP and is not rerun by this backend-only repair; root owns
+final frontend/GUI/full acceptance. Root's separately reported seven analysis
+LeaseConflict failures are outside this repair and were not modified or claimed
+fixed. Existing pass counts are cohorts with overlap, not a unique total.
+
+Author delivers limited commit and **STOP**. Independent intel_bounded_review must
+reverify exact commit and original P1 probes before acceptance. Final qualification,
+ordinary real-model positive Save/Topic and formal adoption remain pending their
+existing gates; no production eligibility is granted by this handoff.

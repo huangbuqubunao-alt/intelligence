@@ -46,7 +46,7 @@ from .state import SQLiteStateRepository
 
 FORMAT_NAME = "intelligence-core-backup"
 FORMAT_VERSION = 1
-LATEST_SCHEMA_VERSION = 38
+LATEST_SCHEMA_VERSION = 39
 MAX_ARCHIVE_BYTES = 8 * 1024 * 1024 * 1024
 MAX_ARCHIVE_FILES = 10_002
 MAX_MEMBER_BYTES = 2 * 1024 * 1024 * 1024
@@ -897,7 +897,7 @@ class BackupRestoreService:
             raise BackupRestoreError("Backup manifest fields are incomplete or unsupported.")
         if manifest.get("format") != FORMAT_NAME or manifest.get("format_version") != FORMAT_VERSION:
             raise BackupRestoreError("Backup format is incompatible.")
-        if manifest.get("schema_version") not in {34, 35, 36, 37, LATEST_SCHEMA_VERSION}:
+        if manifest.get("schema_version") not in {34, 35, 36, 37, 38, LATEST_SCHEMA_VERSION}:
             raise BackupRestoreError("Backup database schema is incompatible.")
         if not isinstance(manifest.get("application_version"), str) or not isinstance(
             manifest.get("created_at"), str
@@ -918,7 +918,7 @@ class BackupRestoreService:
         if not isinstance(files, list) or len(files) > MAX_ARCHIVE_FILES - 2:
             raise BackupRestoreError("Backup DATA manifest is invalid.")
         paths: set[str] = set()
-        neutral = manifest["schema_version"] == 38
+        neutral = manifest["schema_version"] >= 38
         for record in files:
             fields = {"relative_path", "size_bytes", "sha256", "artifacts"}
             if neutral:
@@ -1011,7 +1011,7 @@ class BackupRestoreService:
             "data_artifacts": sum(len(record["artifacts"]) for record in expected.values()),
             "data_bytes": sum(record["size_bytes"] for record in expected.values()),
         }
-        if int(connection.execute("PRAGMA user_version").fetchone()[0]) == 38:
+        if int(connection.execute("PRAGMA user_version").fetchone()[0]) >= 38:
             actual_counts["retained_derivations"] = sum(len(record["retained_subtitle_derivations"]) for record in expected.values())
         if counts != actual_counts:
             raise BackupRestoreError("Backup preview counts do not match its database.")
@@ -1044,7 +1044,7 @@ class BackupRestoreService:
                 "kind": str(row["kind"]),
                 "video_id": str(row["video_id"]),
             })
-        if int(connection.execute("PRAGMA user_version").fetchone()[0]) == 38:
+        if int(connection.execute("PRAGMA user_version").fetchone()[0]) >= 38:
             repository = SQLiteStateRepository(self.database)
             try:
                 repository.verify_retained_subtitle_derivations(connection,data_root=root)
@@ -1146,7 +1146,7 @@ class BackupRestoreService:
         if not _REQUIRED_TABLES <= tables:
             raise BackupRestoreError("SQLite database is missing required Intelligence tables.")
         version_row = connection.execute("PRAGMA user_version").fetchone()
-        if version_row is None or int(version_row[0]) not in {34, 35, 36, 37, LATEST_SCHEMA_VERSION}:
+        if version_row is None or int(version_row[0]) not in {34, 35, 36, 37, 38, LATEST_SCHEMA_VERSION}:
             raise BackupRestoreError("SQLite database schema is not compatible with this version.")
         for table in tables:
             quoted = table.replace('"', '""')
@@ -1168,7 +1168,7 @@ class BackupRestoreService:
                 verify_database as verify_cancellations,
             )
             verify_cancellations(connection)
-            if int(version_row[0]) == 38:
+            if int(version_row[0]) >= 38:
                 repository._verify_retained_subtitle_schema(connection)
             ResearchLiteService(repository).verify_schema(connection)
             from .source_authority import verify_source_schema
@@ -1204,6 +1204,44 @@ class BackupRestoreService:
         data_root: Path,
     ) -> None:
         repository.bind_source_storage(data_root)
+        if int(connection.execute("PRAGMA user_version").fetchone()[0]) >= 39:
+            from .distillation import verify_local_text_input_proof
+            try:
+                repository._verify_local_text_proof_schema(connection)
+                for proof in connection.execute("SELECT execution_id FROM local_text_input_proofs"):
+                    execution_id = str(proof[0])
+                    verified_proof = verify_local_text_input_proof(repository, connection, execution_id)
+                    execution = repository.get_distillation_execution(execution_id)
+                    usage = repository.get_distillation_resource_usage(execution_id)
+                    # Cancellation is an immutable sidecar receipt: the original
+                    # zero-call WAITING_MODEL ledger deliberately stays unchanged.
+                    ledger_status = "WAITING_MODEL" if execution is not None and execution.status == "CANCELLED" else None if execution is None else execution.status
+                    if execution is None or any(getattr(execution, key) != getattr(usage, key) for key in (
+                        "execution_id", "source_id", "video_id", "reason", "use_case", "selected_provider",
+                        "selected_model", "budget_state", "invocation_count", "intelligence_id", "revision_id",
+                    )) or usage.status != ledger_status:
+                        raise ValueError("text proof execution/ledger association is invalid")
+                    if execution.status == "SUCCEEDED":
+                        from .intelligence_read import AuthoritativeIntelligenceReader
+                        if execution.intelligence_id is None or execution.revision_id is None:
+                            raise ValueError("text result identity is missing")
+                        AuthoritativeIntelligenceReader(repository).read_recorded_card(execution.intelligence_id, execution.revision_id)
+                    elif execution.status == "SUCCEEDED_NO_NEW_INTELLIGENCE":
+                        result = connection.execute("SELECT * FROM distillation_no_new_intelligence_results WHERE execution_id=?", (execution_id,)).fetchone()
+                        ids = [e["evidence_id"] for e in json.loads(verified_proof.input_json)["evidence"]]
+                        if (result is None or json.loads(result["evidence_ids_json"]) != ids
+                            or hashlib.sha256(json.dumps(ids, separators=(",", ":")).encode()).hexdigest() != result["evidence_set_hash"]
+                            or usage.invocation_count != 1 or usage.outcome != "NO_NEW_INTELLIGENCE"
+                            or usage.actual_provider != execution.selected_provider or usage.actual_model != execution.selected_model):
+                            raise ValueError("text NO_NEW input/ledger association is invalid")
+                missing = connection.execute(
+                    "SELECT 1 FROM distillation_execution_checkpoints d LEFT JOIN local_text_input_proofs p "
+                    "ON p.execution_id=d.execution_id WHERE d.execution_id LIKE 'distillation:local-text-v2:%' "
+                    "AND p.execution_id IS NULL LIMIT 1").fetchone()
+                if missing is not None:
+                    raise ValueError("text execution has no original input proof")
+            except Exception as error:
+                raise BackupRestoreError("Local text input proof failed validation.") from error
         from .following_tracking import verify_tracking
         try:
             verify_tracking(connection, repository=repository)
@@ -1674,7 +1712,7 @@ class BackupRestoreService:
             "data_artifacts": sum(len(row["artifacts"]) for row in artifacts.values()),
             "data_bytes": sum(row["size_bytes"] for row in artifacts.values()),
         }
-        neutral = int(connection.execute("PRAGMA user_version").fetchone()[0]) == 38
+        neutral = int(connection.execute("PRAGMA user_version").fetchone()[0]) >= 38
         if neutral:
             counts["retained_derivations"] = sum(len(row["retained_subtitle_derivations"]) for row in artifacts.values())
         try:

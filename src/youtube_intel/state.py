@@ -8,7 +8,7 @@ import math
 import re
 import sqlite3
 from collections.abc import Callable, Iterator, Sequence
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from enum import Enum
@@ -675,6 +675,25 @@ class IntelligenceStateHistoryRecord:
     reason: str
     evidence_id: str
     created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class LocalTextInputProofWrite:
+    execution_id: str
+    proof_version: str
+    wire_version: str
+    source_id: str
+    video_id: str
+    original_summary_artifact_id: str
+    global_policy_revision_id: str
+    source_policy_revision_id: str | None
+    input_json: str
+    context_json: str
+    input_hash: str
+    context_hash: str
+    profile_hash: str
+    proof_hash: str
+    created_at: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -1754,6 +1773,7 @@ class SQLiteStateRepository:
             "036_expand_local_media_snapshot_limit.sql",
             "037_add_waiting_model_cancellation.sql",
             "038_add_retained_subtitle_derivations.sql",
+            "039_add_local_text_input_proofs.sql",
         )
         migrations: list[_Migration] = []
         for name in names:
@@ -2424,11 +2444,14 @@ class SQLiteStateRepository:
         video = connection.execute("SELECT provider FROM videos WHERE video_id=?", (checkpoint["video_id"],)).fetchone()
         if video is None or video["provider"] != "LOCAL":
             return
+        if str(checkpoint["execution_id"]).startswith("distillation:local-text-v2:"):
+            from youtube_intel.distillation import verify_local_text_input_proof
+            verify_local_text_input_proof(self, connection, checkpoint["execution_id"], require_current=True)
         if (re.fullmatch(r"MANUAL_CONTENT:[A-Za-z0-9._:-]{1,80}", str(checkpoint["reason"])) is None
             or checkpoint["selected_provider"] in {"openai", "nvidia_nim", "moonshot"}
             or expected_hash is None
             or (self._manual_local_text_context_hash(connection, checkpoint["source_id"], checkpoint["video_id"])
-                if str(checkpoint["execution_id"]).startswith("distillation:local-text-v1:")
+                if str(checkpoint["execution_id"]).startswith("distillation:local-text-v2:")
                 else self._manual_local_timed_context_hash(connection, checkpoint["source_id"], checkpoint["video_id"])) != expected_hash):
             raise StateStoreError("local Intelligence manual source/Summary authority changed or is unavailable")
 
@@ -2443,54 +2466,11 @@ class SQLiteStateRepository:
     def _manual_local_text_context_hash(
         self, connection: sqlite3.Connection, source_id: str, video_id: str,
     ) -> str | None:
-        from youtube_intel.extractive_summary import ExtractiveSummaryService
-        from youtube_intel.source_authority import verify_source
+        from youtube_intel.distillation import _local_text_context, _text_digest
 
-        if self._source_data_root is None:
-            return None
         try:
-            source = connection.execute("SELECT * FROM source_subscriptions WHERE source_id=?", (source_id,)).fetchone()
-            snapshot = verify_source(self, connection, video_id)
-            if (source is None or source["provider"] != "LOCAL" or source["source_type"] != "LOCAL_LIBRARY"
-                or source["processing_policy"] != "DISCOVER_ONLY" or snapshot is None
-                or snapshot["provider"] != "LOCAL" or snapshot["source_id"] != source_id
-                or snapshot["status"] != "READY" or snapshot["media_kind"] != "TEXT"
-                or not connection.execute("SELECT 1 FROM source_video_links WHERE source_id=? AND video_id=?", (source_id, video_id)).fetchone()):
-                return None
-            pointer = self.current_local_summary_pointer(video_id)
-            if pointer is None or pointer.output_language not in {"en", "zh-CN"}:
-                return None
-            summary = self.get_artifact(pointer.artifact_id)
-            if summary is None:
-                return None
-            ExtractiveSummaryService(self, self._source_data_root).read(video_id, pointer.artifact_id)
-            ids = self.list_canonical_coverage_evidence_ids(video_id)
-            if not ids or len(ids) > 20:
-                return None
-            ranges = []
-            for eid in ids:
-                evidence = self.resolve_verified_evidence_text(eid)
-                record = self.get_evidence(eid)
-                if (evidence is None or record is None or evidence.video_id != video_id
-                    or record.locator_type != evidence.locator_type or evidence.locator_type != "TEXT_RANGE"
-                    or record.start_ms is not None or record.end_ms is not None
-                    or evidence.start_ms is not None or evidence.end_ms is not None
-                    or evidence.start_offset is None or evidence.end_offset is None
-                    or evidence.start_line is None or evidence.end_line is None
-                    or evidence.source_content_hash != snapshot["source_hash"]
-                    or evidence.timed_transcript_hash != snapshot["canonical_text_hash"]):
-                    return None
-                ranges.append({"evidence_id": eid, "start_offset": evidence.start_offset,
-                    "end_offset": evidence.end_offset, "start_line": evidence.start_line,
-                    "end_line": evidence.end_line, "excerpt_hash": evidence.excerpt_hash})
-            payload = {"contract": "manual-local-text-context-v1", "source_id": source_id,
-                "video_id": video_id, "snapshot_id": snapshot["snapshot_artifact_id"],
-                "source_hash": snapshot["source_hash"], "canonical_id": snapshot["canonical_artifact_id"],
-                "canonical_hash": snapshot["canonical_text_hash"], "summary_id": summary.artifact_id,
-                "summary_hash": summary.content_hash, "summary_language": pointer.output_language,
-                "evidence": ranges}
-            return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-        except (ValueError, TypeError, OverflowError, OSError, sqlite3.Error, StateStoreError):
+            return _text_digest(_local_text_context(self, connection, source_id, video_id))
+        except (ValueError, TypeError, KeyError, OverflowError, OSError, sqlite3.Error, StateStoreError):
             return None
 
     def latest_artifact(
@@ -4573,6 +4553,14 @@ class SQLiteStateRepository:
             query = "SELECT type,name,sql FROM sqlite_master WHERE tbl_name='retained_subtitle_derivations' AND sql IS NOT NULL ORDER BY type,name"
             if [tuple(r) for r in connection.execute(query)] != expected.execute(query).fetchall():
                 raise IntegrityConflict("retained subtitle schema constraints are incompatible")
+
+    def _verify_local_text_proof_schema(self, connection: sqlite3.Connection) -> None:
+        migration = next(item for item in self._load_migrations() if item.version == 39)
+        with closing(sqlite3.connect(":memory:")) as expected:
+            expected.executescript(migration.sql)
+            query = "SELECT type,name,sql FROM sqlite_master WHERE tbl_name='local_text_input_proofs' AND sql IS NOT NULL ORDER BY type,name"
+            if [tuple(row) for row in connection.execute(query)] != expected.execute(query).fetchall():
+                raise IntegrityConflict("local text proof schema constraints are incompatible")
 
     def verify_retained_subtitle_derivations(
         self, connection: sqlite3.Connection, *, data_root: Path,
@@ -10360,7 +10348,8 @@ class SQLiteStateRepository:
             connection.close()
 
     def reserve_distillation_execution(
-        self, execution: DistillationExecutionWrite, *, now: datetime
+        self, execution: DistillationExecutionWrite, *, now: datetime,
+        input_proof: LocalTextInputProofWrite | None = None,
     ) -> DistillationExecutionRecord:
         """Persist a TASK-022 execution known to be pre-dispatch.
 
@@ -10402,6 +10391,19 @@ class SQLiteStateRepository:
                         "updated_at": timestamp,
                     },
                 )
+                if input_proof is not None:
+                    from dataclasses import asdict
+
+                    from youtube_intel.distillation import verify_local_text_input_proof
+                    values = asdict(input_proof)
+                    if input_proof.execution_id != execution.execution_id or input_proof.created_at != timestamp:
+                        raise StateStoreError("text proof reservation identity is invalid")
+                    columns = ",".join(values)
+                    parameters = ",".join(":" + key for key in values)
+                    connection.execute(f"INSERT INTO local_text_input_proofs ({columns}) VALUES ({parameters})", values)
+                    verify_local_text_input_proof(self, connection, execution.execution_id, require_current=True)
+                elif execution.execution_id.startswith("distillation:local-text-v2:"):
+                    raise StateStoreError("text reservation requires an atomic input proof")
                 row = connection.execute(
                     "SELECT * FROM distillation_execution_checkpoints WHERE execution_id = :execution_id",
                     {"execution_id": execution.execution_id},

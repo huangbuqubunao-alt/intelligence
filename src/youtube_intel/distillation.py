@@ -6,11 +6,13 @@ import hashlib
 import json
 import re
 import secrets
+import sqlite3
 import time
 import urllib.error
 import urllib.request
 import uuid
 from collections.abc import Callable, Mapping, Sequence
+from contextlib import closing
 from dataclasses import dataclass, replace
 from datetime import datetime
 from enum import Enum
@@ -31,6 +33,7 @@ from youtube_intel.state import (
     FilterOutcome,
     IntegrityConflict,
     IntelligenceClaimKind,
+    LocalTextInputProofWrite,
     SQLiteStateRepository,
     StateStoreError,
 )
@@ -230,6 +233,8 @@ class VerifiedDistillationInput:
     content_provider: str = "YOUTUBE"
     local_content_context_hash: str | None = None
     wire_version: str | None = None
+    input_json: str | None = None
+    context_json: str | None = None
 
     def __post_init__(self) -> None:
         if self.output_language not in {"zh-CN", "en"}:
@@ -240,8 +245,222 @@ class VerifiedDistillationInput:
         return tuple(item.evidence_id for item in self.evidence)
 
 
-_LOCAL_TEXT_WIRE_VERSION = "local-text-distillation-v1"
-_LOCAL_TEXT_EXECUTION_PREFIX = "distillation:local-text-v1:"
+_LOCAL_TEXT_WIRE_VERSION = "local-text-distillation-v2"
+_LOCAL_TEXT_EXECUTION_PREFIX = "distillation:local-text-v2:"
+
+
+def _text_json(value: object) -> str:
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
+
+
+def _text_digest(value: object) -> str:
+    return hashlib.sha256(_text_json(value).encode()).hexdigest()
+
+
+def _text_evidence(repository: SQLiteStateRepository, connection: sqlite3.Connection, eid: str, video_id: str) -> dict[str, object]:
+    text = repository._resolve_verified_evidence_text_in_transaction(connection, eid)
+    record = connection.execute("SELECT * FROM evidence WHERE evidence_id=?", (eid,)).fetchone()
+    if (text is None or record is None or text.video_id != video_id or record["locator_type"] != "TEXT_RANGE"
+        or record["start_ms"] is not None or record["end_ms"] is not None):
+        raise StateStoreError("original text Evidence authority is unavailable")
+    item = VerifiedEvidenceInput(evidence_id=text.evidence_id, start_ms=text.start_ms, end_ms=text.end_ms,
+        excerpt=text.excerpt, excerpt_hash=text.excerpt_hash, timed_transcript_id=text.timed_transcript_id,
+        timed_transcript_hash=text.timed_transcript_hash, locator_type=text.locator_type,
+        start_offset=text.start_offset, end_offset=text.end_offset, start_line=text.start_line,
+        end_line=text.end_line, source_content_hash=text.source_content_hash)
+    return {**_text_reference(item), "excerpt": text.excerpt}
+
+
+def _local_text_context(repository: SQLiteStateRepository, connection: sqlite3.Connection,
+    source_id: str, video_id: str, *, original: dict[str, object] | None = None) -> dict[str, object]:
+    """Reconstruct specified original Summary, independent of presentation refresh."""
+    from youtube_intel.domain import (
+        AnalysisPoint,
+        AnalysisResult,
+        EvidenceExcerpt,
+        EvidenceSource,
+        PointKind,
+    )
+    from youtube_intel.extractive_summary import ExtractiveSummaryService
+    from youtube_intel.research_contract import digest
+    from youtube_intel.source_authority import read_managed, sha256, verify_source
+
+    source = connection.execute("SELECT * FROM source_subscriptions WHERE source_id=?", (source_id,)).fetchone()
+    snapshot = verify_source(repository, connection, video_id)
+    if (repository._source_data_root is None or snapshot is None or snapshot["source_id"] != source_id
+        or snapshot["provider"] != "LOCAL" or snapshot["media_kind"] != "TEXT" or snapshot["status"] != "READY"
+        or source is None or source["provider"] != "LOCAL" or source["source_type"] != "LOCAL_LIBRARY"
+        or source["processing_policy"] != "DISCOVER_ONLY"
+        or not connection.execute("SELECT 1 FROM source_video_links WHERE source_id=? AND video_id=?", (source_id, video_id)).fetchone()):
+        raise StateStoreError("text source authority is unavailable")
+    if original is None:
+        pointer = connection.execute("SELECT analysis_artifact_id,output_language FROM current_content_summaries WHERE video_id=?", (video_id,)).fetchone()
+        if pointer is None:
+            raise StateStoreError("text Summary pointer is unavailable")
+        summary_id, language = pointer[0], pointer[1]
+        ExtractiveSummaryService(repository, repository._source_data_root).read(video_id, summary_id)
+    else:
+        summary_id, language = original["summary_id"], original["summary_language"]
+    artifact = connection.execute("SELECT * FROM artifacts WHERE artifact_id=?", (summary_id,)).fetchone()
+    if (artifact is None or artifact["video_id"] != video_id or artifact["provider"] != "extractive-source"
+        or artifact["kind"] != ArtifactKind.ANALYSIS_STRUCTURED.value or artifact["storage_root"] != "DATA"
+        or artifact["producer_version"] != "extractive-summary-v1" or artifact["deleted_at"] is not None
+        or language not in {"en", "zh-CN"}):
+        raise StateStoreError("original Summary identity is invalid")
+    payload = read_managed(repository._source_data_root, artifact["relative_path"], maximum=1_000_000)
+    result = AnalysisResult.model_validate_json(payload)
+    if not 1 <= len(result.evidence) <= 6:
+        raise StateStoreError("original Summary Evidence is invalid")
+    summary_evidence = [_text_evidence(repository, connection, e.evidence_id, video_id) for e in result.evidence]
+    excerpts = tuple(EvidenceExcerpt(evidence_id=str(e["evidence_id"]), source=EvidenceSource.TRANSCRIPT_SAMPLE,
+        excerpt=str(e["excerpt"])) for e in summary_evidence)
+    if any(len(e.excerpt) > 2000 for e in excerpts):
+        raise StateStoreError("original Summary excerpt exceeds bounds")
+    identity = digest({"contract": "extractive-summary-v1", "content_id": video_id,
+        "evidence": [e.model_dump(mode="json") for e in excerpts]})
+    expected = AnalysisResult(provider="extractive-source", model="deterministic-excerpts-v1",
+        prompt_version="analysis-prompt-v6", request_hash=identity, one_sentence_summary=excerpts[0].excerpt[:500],
+        core_points=tuple(AnalysisPoint(text=e.excerpt, kind=PointKind.FACT, evidence_ids=(e.evidence_id,)) for e in excerpts),
+        keywords=("source excerpts",), evidence=excerpts)
+    if (sha256(payload) != artifact["content_hash"] or result != expected
+        or artifact["artifact_id"] != f"summary/{identity}/structured" or artifact["model"] != result.model):
+        raise StateStoreError("original Summary reconstruction/hash is invalid")
+    return {"contract": "manual-local-text-context-v2", "source_id": source_id, "video_id": video_id,
+        "snapshot_id": snapshot["snapshot_artifact_id"], "source_hash": snapshot["source_hash"],
+        "canonical_id": snapshot["canonical_artifact_id"], "canonical_hash": snapshot["canonical_text_hash"],
+        "summary_id": artifact["artifact_id"], "summary_hash": artifact["content_hash"],
+        "summary_language": language, "summary_producer_version": artifact["producer_version"],
+        "summary_reconstruction": expected.model_dump(mode="json"), "summary_evidence": summary_evidence}
+
+
+def _text_profile_projection() -> dict[str, object]:
+    profile = LocalTextDistillationProfile
+    return {"wire_version": _LOCAL_TEXT_WIRE_VERSION, "model": profile.MODEL,
+        "digest": profile.DIGEST, "prompt": profile.PROMPT, "schema": profile.schema(),
+        "think": True, "options": profile.generation_options(), "profile_hash": profile.identity_hash()}
+
+
+def _text_policy_row(connection: sqlite3.Connection, revision_id: str) -> dict[str, object]:
+    row = connection.execute("SELECT * FROM source_policy_revisions WHERE revision_id=?", (revision_id,)).fetchone()
+    if row is None:
+        raise StateStoreError("original policy revision is missing")
+    return dict(row)
+
+
+def _text_input_projection(repository: SQLiteStateRepository, connection: sqlite3.Connection,
+    command: DistillationCommand, *, display_name: str | None, title: str | None,
+    context_hash: str, global_revision_id: str) -> dict[str, object]:
+    global_row = _text_policy_row(connection, global_revision_id)
+    source_row = None if command.source_policy_revision_id is None else _text_policy_row(connection, command.source_policy_revision_id)
+    policy = SourcePolicyApplicationService._policy_from_revisions(
+        repository._source_policy_revision_from_row(connection.execute("SELECT * FROM source_policy_revisions WHERE revision_id=?", (global_revision_id,)).fetchone()),
+        None if source_row is None else repository._source_policy_revision_from_row(connection.execute("SELECT * FROM source_policy_revisions WHERE revision_id=?", (command.source_policy_revision_id,)).fetchone()))
+    if (global_row["policy_scope"] != "GLOBAL" or (source_row is not None and
+        (source_row["policy_scope"] != "SOURCE" or source_row["source_id"] != command.source_id))
+        or command.source_focus_rules != policy.focus_rules or command.source_ignore_rules != policy.ignore_rules
+        or command.distillation_style != policy.distillation_style.value):
+        raise StateStoreError("original effective policy is invalid")
+    preferences = []
+    for pid in command.preference_ids:
+        row = connection.execute("SELECT * FROM preferences WHERE preference_id=?", (pid,)).fetchone()
+        if row is None:
+            raise StateStoreError("original preference is missing")
+        preferences.append(dict(row))
+    if len(set(command.preference_ids)) != len(command.preference_ids):
+        raise StateStoreError("original preferences contain duplicate identities")
+    return {"wire_version": _LOCAL_TEXT_WIRE_VERSION, "content_provider": "LOCAL",
+        "source_id": command.source_id, "video_id": command.video_id, "source_display_name": display_name,
+        "video_title": title, "selected_provider": command.selected_provider, "selected_model": command.selected_model,
+        "output_language": command.output_language, "distillation_style": command.distillation_style,
+        "source_focus_rules": list(command.source_focus_rules), "source_ignore_rules": list(command.source_ignore_rules),
+        "preferences": preferences, "personalization": [p["statement"] for p in preferences],
+        "global_policy": global_row, "source_policy": source_row, "profile": _text_profile_projection(),
+        "local_content_context_hash": context_hash,
+        "evidence": [_text_evidence(repository, connection, eid, command.video_id) for eid in command.evidence_ids]}
+
+
+def _text_proof_hash(proof: LocalTextInputProofWrite) -> str:
+    from dataclasses import asdict
+    return _text_digest({key: value for key, value in asdict(proof).items() if key != "proof_hash"})
+
+
+def verify_local_text_input_proof(repository: SQLiteStateRepository, connection: sqlite3.Connection,
+    execution_id: str, *, require_current: bool = False) -> LocalTextInputProofWrite:
+    """Reverify persisted complete input against specified original immutable facts."""
+    try:
+        return _verify_local_text_input_proof(repository, connection, execution_id, require_current=require_current)
+    except (KeyError, TypeError, ValueError, OSError, sqlite3.Error) as error:
+        raise StateStoreError("original text proof cannot be verified") from error
+
+
+def _verify_local_text_input_proof(repository: SQLiteStateRepository, connection: sqlite3.Connection,
+    execution_id: str, *, require_current: bool) -> LocalTextInputProofWrite:
+    from youtube_intel.state import _parse_utc_datetime
+    repository._verify_local_text_proof_schema(connection)
+    row = connection.execute("SELECT * FROM local_text_input_proofs WHERE execution_id=?", (execution_id,)).fetchone()
+    checkpoint = connection.execute("SELECT * FROM distillation_execution_checkpoints WHERE execution_id=?", (execution_id,)).fetchone()
+    if row is None or checkpoint is None:
+        raise StateStoreError("text input proof/checkpoint is missing")
+    proof = LocalTextInputProofWrite(**dict(row))
+    if (any(not isinstance(row[key], str) for key in row.keys() if key != "source_policy_revision_id")
+        or proof.source_policy_revision_id is not None and not isinstance(proof.source_policy_revision_id, str)
+        or len(proof.input_json.encode()) + len(proof.context_json.encode()) > 524288
+        or any(re.fullmatch(r"[0-9a-f]{64}", value) is None for value in (
+            proof.input_hash, proof.context_hash, proof.profile_hash, proof.proof_hash,
+        ))):
+        raise StateStoreError("text proof scalar types/bounds are invalid")
+    created = _parse_utc_datetime(proof.created_at)
+    input_value = json.loads(proof.input_json, object_pairs_hook=_strict_text_object)
+    context = json.loads(proof.context_json, object_pairs_hook=_strict_text_object)
+    if (not isinstance(input_value, dict) or not isinstance(context, dict)
+        or proof.proof_version != "local-text-input-proof-v1" or proof.wire_version != _LOCAL_TEXT_WIRE_VERSION
+        or _text_json(input_value) != proof.input_json or _text_json(context) != proof.context_json
+        or len(proof.input_json.encode()) + len(proof.context_json.encode()) > 524288
+        or proof.input_hash != _text_digest(input_value) or proof.context_hash != _text_digest(context)
+        or proof.profile_hash != LocalTextDistillationProfile.identity_hash() or proof.proof_hash != _text_proof_hash(proof)
+        or proof.created_at != checkpoint["created_at"]
+        or proof.source_id != checkpoint["source_id"] or proof.video_id != checkpoint["video_id"]
+        or context["summary_id"] != proof.original_summary_artifact_id
+        or checkpoint["use_case"] != "PERSONALIZED_INTELLIGENCE"
+        or re.fullmatch(r"MANUAL_CONTENT:[A-Za-z0-9._:-]{1,80}", checkpoint["reason"]) is None
+        or checkpoint["selected_provider"] in {"openai", "nvidia_nim", "moonshot"}):
+        raise StateStoreError("text input proof identity/hash is invalid")
+    if _text_json(_local_text_context(repository, connection, proof.source_id, proof.video_id, original=context)) != proof.context_json:
+        raise StateStoreError("original text context changed")
+    if require_current and context != _local_text_context(repository, connection, proof.source_id, proof.video_id):
+        raise StateStoreError("current text context changed")
+    evidence = input_value["evidence"]
+    preferences = input_value["preferences"]
+    if not isinstance(evidence, list) or not 1 <= len(evidence) <= 20 or not isinstance(preferences, list):
+        raise StateStoreError("text input bounds are invalid")
+    ids = tuple(item["evidence_id"] for item in evidence)
+    if ids != tuple(sorted(set(ids))):
+        raise StateStoreError("text input Evidence identity is invalid")
+    command = DistillationCommand(execution_id=execution_id, source_id=proof.source_id, video_id=proof.video_id,
+        evidence_ids=ids, reason=checkpoint["reason"], use_case=checkpoint["use_case"],
+        selected_provider=checkpoint["selected_provider"], selected_model=checkpoint["selected_model"],
+        output_language=checkpoint["output_language"], preference_ids=tuple(p["preference_id"] for p in preferences),
+        source_policy_revision_id=proof.source_policy_revision_id,
+        source_focus_rules=tuple(input_value["source_focus_rules"]), source_ignore_rules=tuple(input_value["source_ignore_rules"]),
+        distillation_style=input_value["distillation_style"])
+    if require_current:
+        current_global = connection.execute("SELECT revision_id FROM source_policy_current WHERE policy_key='GLOBAL'").fetchone()
+        current_source = connection.execute("SELECT revision_id FROM source_policy_current WHERE policy_key=?", (f"SOURCE:{proof.source_id}",)).fetchone()
+        source = repository.get_source_subscription(proof.source_id)
+        video = repository.get_video(proof.video_id)
+        active = tuple(p.preference_id for p in repository.list_active_preferences(now=created))
+        if (current_global is None or current_global[0] != proof.global_policy_revision_id
+            or (None if current_source is None else current_source[0]) != proof.source_policy_revision_id
+            or source is None or video is None or input_value["video_title"] != video.title
+            or input_value["source_display_name"] != (source.display_name or video.channel_name)
+            or active != command.preference_ids
+            or ids != tuple(sorted(repository.list_canonical_coverage_evidence_ids(proof.video_id)))):
+            raise StateStoreError("current original input facts changed")
+    expected = _text_input_projection(repository, connection, command, display_name=input_value["source_display_name"],
+        title=input_value["video_title"], context_hash=proof.context_hash, global_revision_id=proof.global_policy_revision_id)
+    if _text_json(expected) != proof.input_json or execution_id != _text_execution_id(command, proof.input_hash, proof.context_hash):
+        raise StateStoreError("original sealed input projection changed")
+    return proof
 
 
 def _strict_text_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
@@ -2385,7 +2604,7 @@ class LocalTextDistillationProfile:
     MODEL = "qwen3.5:9b-q4_K_M"
     DIGEST = "sha256:56671c2ab9385f9cfcb404638e32cd62d88e3501d44822208363c010179a3c90"
     PROMPT = (
-        "Return exactly one supplied schema branch, with wire_version=local-text-distillation-v1. "
+        "Return exactly one supplied schema branch, with wire_version=local-text-distillation-v2. "
         "Intelligence is an evidence-backed, revisable judgment worth retaining beyond a one-off Summary. "
         "Do not admit restatements, trivia, generic filler, unsupported claims or redundant repetition. "
         "Attribute all source claims to source_display_name or the document title, never to the personal user. "
@@ -2878,13 +3097,32 @@ class PersonalizedDistillationService:
             raise ValueError("reservation source/video is not eligible")
         if not self._legal_evidence(provisional):
             raise ValueError("reservation evidence is not legal")
-        command, _ = self._reserved_command(
+        command, verified_input = self._reserved_command(
             source_id=source_id,
             video_id=video_id,
             evidence_ids=canonical_evidence,
             output_language=output_language,
             reason=reason,
         )
+        reservation_now = self._now()
+        input_proof = None
+        if verified_input.wire_version == _LOCAL_TEXT_WIRE_VERSION:
+            if verified_input.input_json is None or verified_input.context_json is None:
+                raise StateStoreError("text reservation requires full projections")
+            from youtube_intel.state import format_utc_datetime
+            original_input = json.loads(verified_input.input_json)
+            original_context = json.loads(verified_input.context_json)
+            input_proof = LocalTextInputProofWrite(execution_id=command.execution_id,
+                proof_version="local-text-input-proof-v1", wire_version=_LOCAL_TEXT_WIRE_VERSION,
+                source_id=command.source_id, video_id=command.video_id,
+                original_summary_artifact_id=original_context["summary_id"],
+                global_policy_revision_id=original_input["global_policy"]["revision_id"],
+                source_policy_revision_id=command.source_policy_revision_id,
+                input_json=verified_input.input_json, context_json=verified_input.context_json,
+                input_hash=verified_input.semantic_hash, context_hash=_text_digest(original_context),
+                profile_hash=LocalTextDistillationProfile.identity_hash(), proof_hash="",
+                created_at=format_utc_datetime(reservation_now))
+            input_proof = replace(input_proof, proof_hash=_text_proof_hash(input_proof))
         existing = self._repository.get_distillation_execution(command.execution_id)
         if existing is None:
             try:
@@ -2899,7 +3137,8 @@ class PersonalizedDistillationService:
                         selected_model=command.selected_model,
                         output_language=command.output_language,
                     ),
-                    now=self._now(),
+                    now=reservation_now,
+                    input_proof=input_proof,
                 )
             except IntegrityConflict:
                 existing = self._repository.get_distillation_execution(
@@ -3121,7 +3360,7 @@ class PersonalizedDistillationService:
             )
         personalization = tuple(item.statement for item in projection.active_preferences)
         source_display_name = source.display_name or video.channel_name
-        semantic_payload = {
+        semantic_payload: dict[str, object] = {
             "distillation_style": projection.distillation_style,
             "evidence": [
                 {
@@ -3147,6 +3386,8 @@ class PersonalizedDistillationService:
         }
         local_context = None
         wire_version = None
+        input_json = None
+        context_json = None
         if video.provider == "LOCAL":
             locators = {item.locator_type for item in evidence}
             if locators == {"TEXT_RANGE"}:
@@ -3154,7 +3395,16 @@ class PersonalizedDistillationService:
                 local_context = self._repository.manual_local_text_context_hash(projection.source_id, projection.video_id)
                 semantic_payload["wire_version"] = wire_version
                 semantic_payload["profile_hash"] = LocalTextDistillationProfile.identity_hash()
-                semantic_payload["evidence"] = [_text_reference(item) for item in evidence]
+                with closing(self._repository._connect()) as connection:
+                    context = _local_text_context(self._repository, connection, projection.source_id, projection.video_id)
+                    local_context = _text_digest(context)
+                    policy = self._source_policy.effective_policy(projection.source_id)
+                    semantic_payload = _text_input_projection(self._repository, connection, projection,
+                        display_name=source_display_name, title=video.title, context_hash=local_context,
+                        global_revision_id=policy.global_revision_id)
+                    input_json, context_json = _text_json(semantic_payload), _text_json(context)
+                    if len(input_json.encode()) + len(context_json.encode()) > 524288:
+                        raise ValueError("text input proof exceeds UTF-8 bounds")
             elif locators == {"TIMED_MEDIA"}:
                 local_context = self._repository.manual_local_timed_context_hash(projection.source_id, projection.video_id)
             else:
@@ -3170,6 +3420,7 @@ class PersonalizedDistillationService:
         ).hexdigest()
         return VerifiedDistillationInput(
             wire_version=wire_version,
+            input_json=input_json, context_json=context_json,
             content_provider=video.provider,
             local_content_context_hash=local_context,
             source_display_name=source_display_name,
@@ -3390,6 +3641,9 @@ class PersonalizedDistillationService:
             is None
         ):
             raise ValueError("reserved execution reason is invalid")
+        if record.execution_id.startswith(_LOCAL_TEXT_EXECUTION_PREFIX):
+            with closing(self._repository._connect()) as connection:
+                verify_local_text_input_proof(self._repository, connection, record.execution_id, require_current=True)
         evidence_ids = self._repository.list_canonical_coverage_evidence_ids(
             record.video_id
         )

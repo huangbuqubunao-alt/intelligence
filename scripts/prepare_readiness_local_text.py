@@ -25,8 +25,8 @@ def prepare_profile() -> dict[str, object]:
     project = Path(__file__).resolve().parents[1]
     files = ("src/youtube_intel/distillation.py", "src/youtube_intel/state.py",
              "src/youtube_intel/intelligence_read.py", "src/youtube_intel/local_api.py",
-             "scripts/prepare_readiness_local_text.py")
-    return {"profile": "readiness-local-text-distillation-v1", "wire_version": profile.VERSION,
+             "scripts/prepare_readiness_local_text.py", "src/youtube_intel/migrations/039_add_local_text_input_proofs.sql")
+    return {"profile": "readiness-local-text-distillation-v2", "wire_version": profile.VERSION,
         "profile_sha256": profile.identity_hash(),
         "code_sha256": {name: hashlib.sha256((project / name).read_bytes()).hexdigest() for name in files},
         "content_inputs_frozen": False,

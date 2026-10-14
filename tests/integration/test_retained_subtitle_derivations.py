@@ -456,7 +456,7 @@ def test_old_manifest_contract_restores_then_adds_empty_archive_table(
     backup.confirm_restore(staged.restore_id)
     backup.recover_and_apply_pending_restore()
     assert _tables(repo) == tables and _files(root) == files
-    assert repo.initialize(now=backup_support.NOW).version == 38
+    assert repo.initialize(now=backup_support.NOW).version == 39
     with repo._connect() as connection:
         assert (
             connection.execute(
@@ -490,9 +490,10 @@ def test_migration38_ddl_fault_rolls_back_and_preserves37_exactly(
     )
     assert repo.initialize(now=datetime.now(UTC)).version == 37
     before = _tables(repo)
+    migration38 = next(m for m in migrations if m.version == 38)
     broken = replace(
-        migrations[-1],
-        sql=migrations[-1].sql + "\nSELECT unknown_migration_function();",
+        migration38,
+        sql=migration38.sql + "\nSELECT unknown_migration_function();",
     )
     monkeypatch.setattr(
         repo,
@@ -511,7 +512,7 @@ def test_migration38_ddl_fault_rolls_back_and_preserves37_exactly(
             is None
         )
     monkeypatch.setattr(repo, "_load_migrations", lambda: migrations)
-    assert repo.initialize(now=datetime.now(UTC)).version == 38
+    assert repo.initialize(now=datetime.now(UTC)).version == 39
     assert {
         k: v
         for k, v in _tables(repo).items()

@@ -338,7 +338,7 @@ def test_schema36_backup_restore_upgrades_without_inventing_cancellations(tmp_pa
         execution_id = _waiting_model(repository)
     with repository._connect() as connection:
         before = tuple(connection.execute("SELECT * FROM distillation_execution_checkpoints").fetchone())
-    assert repository.initialize(now=NOW).version == 38
+    assert repository.initialize(now=NOW).version == 39
     with repository._connect() as connection:
         assert tuple(connection.execute("SELECT * FROM distillation_execution_checkpoints").fetchone()) == before
         assert connection.execute("SELECT COUNT(*) FROM distillation_waiting_model_cancellations").fetchone()[0] == 0
@@ -348,7 +348,7 @@ def test_schema36_backup_restore_upgrades_without_inventing_cancellations(tmp_pa
     service.confirm_restore(staged.restore_id)
     service.recover_and_apply_pending_restore()
     restored = SQLiteStateRepository(database)
-    assert restored.initialize(now=NOW).version == 38
+    assert restored.initialize(now=NOW).version == 39
     assert restored.get_distillation_execution(execution_id) is None
     assert service.readiness()["ready"] is True
 
@@ -819,7 +819,7 @@ def test_cloud_authorization_and_unidentified_response_survive_backup_restore(
     service.recover_and_apply_pending_restore()
 
     restored = SQLiteStateRepository(database)
-    assert restored.initialize(now=NOW).version == 38
+    assert restored.initialize(now=NOW).version == 39
     assert restored.get_cloud_execution_authorization(execution_id) == authorization
     assert restored.get_cloud_execution_authorization(openai_execution_id) == openai_authorization
     assert restored.get_cloud_execution_authorization(moonshot_execution_id) == moonshot_authorization

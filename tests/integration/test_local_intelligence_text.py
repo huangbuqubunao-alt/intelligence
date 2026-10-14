@@ -28,7 +28,7 @@ def _workspace(tmp_path: Path, filename="notes.txt"):
                      "start_line": text.start_line, "end_line": text.end_line,
                      "source_content_hash": text.source_content_hash,
                      "canonical_text_hash": text.timed_transcript_hash, "excerpt_hash": text.excerpt_hash})
-    transport = support._FakeTransport(json.dumps({"wire_version": "local-text-distillation-v1", "result": "NO_NEW_INTELLIGENCE", "evidence": refs}))
+    transport = support._FakeTransport(json.dumps({"wire_version": "local-text-distillation-v2", "result": "NO_NEW_INTELLIGENCE", "evidence": refs}))
     return repository, provider, imported.content_id, ids, refs, transport, support._service(repository, transport)
 
 
@@ -37,12 +37,12 @@ def test_text_manual_no_new_uses_real_codepoints_and_null_times(tmp_path, filena
     repository, _provider, cid, ids, refs, transport, service = _workspace(tmp_path, filename)
     reservation = service.reserve_distillation_execution(source_id=LOCAL_SOURCE_ID, video_id=cid,
         evidence_ids=ids, manual_command_id="text-fixture")
-    assert reservation.execution_id.startswith("distillation:local-text-v1:")
+    assert reservation.execution_id.startswith("distillation:local-text-v2:")
     result = service.continue_reserved_distillation(reservation.execution_id)
     assert result.status.value == "SUCCEEDED_NO_NEW_INTELLIGENCE"
     assert transport.calls == 1
     value = transport.commands[0]
-    assert value.wire_version == "local-text-distillation-v1"
+    assert value.wire_version == "local-text-distillation-v2"
     assert all(e.locator_type == "TEXT_RANGE" and e.start_ms is None and e.end_ms is None for e in value.evidence)
     assert value.evidence[0].start_offset == refs[0]["start_offset"]
     assert repository.get_verified_timed_transcript(video_id=cid) is None
@@ -59,7 +59,7 @@ def test_text_manual_no_new_uses_real_codepoints_and_null_times(tmp_path, filena
 
 
 def _positive(refs):
-    return {"wire_version": "local-text-distillation-v1", "result": "INTELLIGENCE",
+    return {"wire_version": "local-text-distillation-v2", "result": "INTELLIGENCE",
         "core_conclusion": "The source reports a tentative result, requiring further verification.",
         "user_relevant_information": [], "important_new_information": [], "meaningful_details": [],
         "filtered_noise": [], "claim_kind": "EVIDENCE_BACKED_STATEMENT",
@@ -97,7 +97,7 @@ def test_text_positive_card_persistent_reader_and_api(tmp_path):
 @pytest.mark.parametrize("positive", [True, False])
 def test_text_wire_rejects_fabricated_binding(tmp_path, field, bad, positive):
     repository, _provider, cid, ids, refs, transport, service = _workspace(tmp_path)
-    payload = _positive(refs) if positive else {"wire_version": "local-text-distillation-v1", "result": "NO_NEW_INTELLIGENCE", "evidence": refs}
+    payload = _positive(refs) if positive else {"wire_version": "local-text-distillation-v2", "result": "NO_NEW_INTELLIGENCE", "evidence": refs}
     payload["evidence"][0][field] = bad
     transport.raw = json.dumps(payload)
     reservation = service.reserve_distillation_execution(source_id=LOCAL_SOURCE_ID, video_id=cid,
@@ -118,7 +118,7 @@ def test_text_no_new_requires_exact_version_and_complete_coverage(tmp_path, dama
     elif damage == "legacy":
         del payload["wire_version"]
     elif damage == "version":
-        payload["wire_version"] = "local-text-distillation-v2"
+        payload["wire_version"] = "local-text-distillation-v1"
     else:
         payload["evidence"][0] = {"evidence_id": refs[0]["evidence_id"], "start_ms": 0, "end_ms": 1}
     transport.raw = json.dumps(payload)
@@ -158,7 +158,7 @@ def test_text_final_cas_rejects_changes(tmp_path, monkeypatch, damage, positive)
     assert transport.calls == 1
 
 
-@pytest.mark.parametrize("damage", ["prefix", "input_hash", "context_hash", "status", "revision", "ledger", "missing", "duplicate"])
+@pytest.mark.parametrize("damage", ["prefix", "input_hash", "context_hash", "status", "revision", "ledger", "missing_ledger", "card", "proof", "missing", "duplicate"])
 def test_text_reader_requires_exact_unique_execution_and_ledger(tmp_path, monkeypatch, damage):
     from dataclasses import replace
 
@@ -173,7 +173,15 @@ def test_text_reader_requires_exact_unique_execution_and_ledger(tmp_path, monkey
     result = service.continue_reserved_distillation(reservation.execution_id)
     assert result.status.value == "SUCCEEDED"
     execution = repository.get_distillation_execution(reservation.execution_id)
-    if damage == "ledger":
+    if damage == "card":
+        monkeypatch.setattr(repository, "get_distillation_card", lambda _: None)
+    elif damage == "proof":
+        with repository._connect() as connection:
+            connection.execute("DROP TRIGGER local_text_input_proofs_immutable_delete")
+            connection.execute("DELETE FROM local_text_input_proofs WHERE execution_id=?", (reservation.execution_id,))
+    elif damage == "missing_ledger":
+        monkeypatch.setattr(repository, "get_distillation_resource_usage", lambda _: None)
+    elif damage == "ledger":
         ledger = repository.get_distillation_resource_usage(reservation.execution_id)
         monkeypatch.setattr(repository, "get_distillation_resource_usage", lambda _: replace(ledger, actual_model="foreign"))
     elif damage in {"missing", "duplicate"}:
@@ -195,6 +203,8 @@ def test_text_reader_requires_exact_unique_execution_and_ledger(tmp_path, monkey
         AuthoritativeIntelligenceReader(repository).read_current_card(result.intelligence_id)
     with pytest.raises(IntelligenceReadRejected):
         AuthoritativeIntelligenceReader(repository).read_current(result.intelligence_id)
+    with pytest.raises(IntelligenceReadRejected):
+        AuthoritativeIntelligenceReader(repository).read_recorded_card(result.intelligence_id, result.revision_id)
     from youtube_intel.saved_intelligence import (
         SavedIntelligenceService,
         SaveIntelligence,
@@ -347,6 +357,9 @@ def test_text_double_click_has_one_execution_and_invocation(tmp_path):
     with ThreadPoolExecutor(max_workers=2) as pool:
         execution_ids = list(pool.map(reserve, range(2)))
     assert execution_ids[0] == execution_ids[1]
+    with _repo._connect() as connection:
+        assert connection.execute("SELECT count(*) FROM local_text_input_proofs").fetchone()[0] == 1
+        assert connection.execute("SELECT count(*) FROM distillation_execution_checkpoints").fetchone()[0] == 1
     assert service.continue_reserved_distillation(execution_ids[0]).status.value == "SUCCEEDED_NO_NEW_INTELLIGENCE"
     assert transport.calls == 1
 
@@ -374,7 +387,8 @@ def test_text_cloud_api_and_service_block_before_payload_credential_or_dispatch(
     assert repository.latest_distillation_execution_for_video(cid) is None
 
 
-def test_text_history_keeps_its_sealed_context_after_valid_summary_refresh(tmp_path):
+@pytest.mark.parametrize("damage_original", [False, True])
+def test_text_history_keeps_its_sealed_context_after_valid_summary_refresh(tmp_path, damage_original):
     from youtube_intel.extractive_summary import ExtractiveSummaryService
     from youtube_intel.intelligence_read import AuthoritativeIntelligenceReader
     from youtube_intel.source_authority import sha256, text_evidence_id
@@ -411,6 +425,59 @@ def test_text_history_keeps_its_sealed_context_after_valid_summary_refresh(tmp_p
     assert reader.read_current_card(result.intelligence_id).video_id == cid
     assert reader.read_recorded_card(result.intelligence_id, result.revision_id).video_id == cid
     assert repository.get_intelligence_revision(result.revision_id) == original_revision
+    if damage_original:
+        from youtube_intel.intelligence_read import IntelligenceReadRejected
+        original = repository.get_artifact(pointer.artifact_id)
+        (provider.data_root / original.relative_path).write_bytes(b"corrupt original Summary only")
+        with pytest.raises(IntelligenceReadRejected):
+            reader.read_current(result.intelligence_id)
+        with pytest.raises(IntelligenceReadRejected):
+            reader.read_current_card(result.intelligence_id)
+        with pytest.raises(IntelligenceReadRejected):
+            reader.read_recorded_card(result.intelligence_id, result.revision_id)
+        from youtube_intel.saved_intelligence import (
+            SavedIntelligenceService,
+            SaveIntelligence,
+        )
+        from youtube_intel.topic import (
+            TopicApplicationService,
+            TopicAssociationKind,
+            TopicReadRejected,
+        )
+        saved = SavedIntelligenceService(repository, now=lambda: support.NOW)
+        with pytest.raises(IntelligenceReadRejected):
+            saved.save(SaveIntelligence(intelligence_id=result.intelligence_id))
+        repository.save_intelligence_relation(intelligence_id=result.intelligence_id,
+            expected_revision_id=result.revision_id, now=support.NOW)
+        assert saved.list_saved().items[0].verified is None
+        topics = TopicApplicationService(repository, now=lambda: support.NOW)
+        topic = topics.create_topic(command_id="history-corrupt", name="History damaged fixture")
+        with pytest.raises(TopicReadRejected):
+            topics.associate_intelligence(topic_id=topic.topic_id, intelligence_id=result.intelligence_id,
+                kind=TopicAssociationKind.NEW_INFORMATION)
+        assert repository.list_topic_memberships(topic.topic_id) == ()
+        from youtube_intel.backup_restore import (
+            BackupRestoreError,
+            BackupRestoreService,
+        )
+        with pytest.raises(BackupRestoreError):
+            BackupRestoreService(database=repository._database_path, data_root=provider.data_root).create_backup()
+
+
+def test_text_missing_card_projection_cannot_downgrade_to_generic(tmp_path, monkeypatch):
+    from youtube_intel.intelligence_read import (
+        AuthoritativeIntelligenceReader,
+        IntelligenceReadRejected,
+    )
+    repository, _provider, cid, ids, refs, transport, service = _workspace(tmp_path)
+    transport.raw = json.dumps(_positive(refs))
+    reservation = service.reserve_distillation_execution(source_id=LOCAL_SOURCE_ID, video_id=cid,
+        evidence_ids=ids, manual_command_id="missing-card")
+    result = service.continue_reserved_distillation(reservation.execution_id)
+    assert result.status.value == "SUCCEEDED"
+    monkeypatch.setattr(repository, "get_distillation_card", lambda _: None)
+    with pytest.raises(IntelligenceReadRejected):
+        AuthoritativeIntelligenceReader(repository).read_current(result.intelligence_id)
 
 
 @pytest.mark.parametrize("language", ["en", "zh-CN"])
