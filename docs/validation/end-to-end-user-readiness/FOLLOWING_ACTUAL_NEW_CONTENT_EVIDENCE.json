@@ -1,0 +1,115 @@
+{
+  "recorded_at": "2026-10-14T05:53:32.785418+00:00",
+  "scope": "isolated ordinary factory, real public feed and metadata; no fixture injection",
+  "source_id": "youtube-channel-UC_x5XG1OV2P6uZZ5FSM9Ttw",
+  "content_id": "OYp5j2RihPE",
+  "discovery_result": "PASS_ONE_ACTUAL_POST_FOLLOW_PUBLICATION",
+  "processing_result": "FAIL_TRANSCRIPT_ENUMERATION",
+  "observations": [
+    {
+      "source_id": "youtube-channel-UC_x5XG1OV2P6uZZ5FSM9Ttw",
+      "canonical_identity": "OYp5j2RihPE",
+      "published_at": "2026-10-13T19:00:11.000000Z",
+      "observed_at": "2026-10-13T21:03:52.600856Z",
+      "baseline": 0,
+      "enrollment": "ENROLLED",
+      "content_id": "OYp5j2RihPE",
+      "error_code": null
+    }
+  ],
+  "tracking_state": [
+    {
+      "source_id": "youtube-channel-UC_x5XG1OV2P6uZZ5FSM9Ttw",
+      "contract": "source-tracking-v1",
+      "followed_at": "2026-10-12T09:53:19.091795Z",
+      "baseline_at": "2026-10-12T09:53:19.121632Z",
+      "verified_at": "2026-10-14T00:55:04.205689Z",
+      "latest_published_at": "2026-10-13T19:00:11.000000Z",
+      "next_page": 1,
+      "coverage": "COMPLETE",
+      "health": "NOT_FOUND",
+      "next_check_at": "2026-10-14T09:29:15.618784Z"
+    }
+  ],
+  "source_run": [
+    {
+      "run_id": "source-run:429528af3ec172cc8e6fd5b44a9e650e5d5d79e75971bad617be4796fc12a315",
+      "source_id": "youtube-channel-UC_x5XG1OV2P6uZZ5FSM9Ttw",
+      "trigger": "MANUAL_CHECK_NOW",
+      "trigger_reference": "following-auto:youtube-channel-UC_x5XG1OV2P6uZZ5FSM9Ttw:2026-10-13T20:35:09.932773Z",
+      "priority": "P1",
+      "idempotency_key": "source-run-key:73c8eb3373b054ffcf136487cec10a7f24feb10280ab3d4baa5da953476a46c1",
+      "state": "COMPLETED",
+      "attention_reason": null,
+      "automation_run_id": null,
+      "manual_command_id": "following-auto:youtube-channel-UC_x5XG1OV2P6uZZ5FSM9Ttw:2026-10-13T20:35:09.932773Z",
+      "manual_analyze_override_id": null,
+      "created_at": "2026-10-13T21:03:52.532703Z",
+      "updated_at": "2026-10-13T21:04:03.732919Z"
+    }
+  ],
+  "source_run_state_events": [
+    {
+      "event_id": 274,
+      "run_id": "source-run:429528af3ec172cc8e6fd5b44a9e650e5d5d79e75971bad617be4796fc12a315",
+      "prior_state": null,
+      "state": "QUEUED",
+      "attention_reason": null,
+      "occurred_at": "2026-10-13T21:03:52.532703Z"
+    },
+    {
+      "event_id": 275,
+      "run_id": "source-run:429528af3ec172cc8e6fd5b44a9e650e5d5d79e75971bad617be4796fc12a315",
+      "prior_state": "QUEUED",
+      "state": "RUNNING",
+      "attention_reason": null,
+      "occurred_at": "2026-10-13T21:03:52.556791Z"
+    },
+    {
+      "event_id": 276,
+      "run_id": "source-run:429528af3ec172cc8e6fd5b44a9e650e5d5d79e75971bad617be4796fc12a315",
+      "prior_state": "RUNNING",
+      "state": "COMPLETED",
+      "attention_reason": null,
+      "occurred_at": "2026-10-13T21:04:03.732919Z"
+    }
+  ],
+  "source_video_links": [
+    {
+      "source_id": "youtube-channel-UC_x5XG1OV2P6uZZ5FSM9Ttw",
+      "video_id": "OYp5j2RihPE",
+      "discovered_at": "2026-10-13T21:04:02.198436Z"
+    }
+  ],
+  "job": [
+    {
+      "job_id": "0c925f83-abb1-4ad1-9f7d-236dd0d86b37",
+      "scope_key": "video:OYp5j2RihPE:TRANSCRIPT",
+      "video_id": "OYp5j2RihPE",
+      "job_type": "VIDEO_STAGE",
+      "target_stage": "TRANSCRIPT",
+      "pipeline_version": "runtime-v1",
+      "status": "FAILED_FINAL",
+      "attempt_count": 1,
+      "max_attempts": 3,
+      "available_at": "2026-10-13T21:03:58.014388Z",
+      "lease_owner": null,
+      "lease_until": null,
+      "last_error_code": "INVALID_RESPONSE",
+      "last_error_message": "subtitle adapter response invalid during track enumeration",
+      "created_at": "2026-10-13T21:03:58.014388Z",
+      "updated_at": "2026-10-13T21:03:58.014388Z",
+      "finished_at": "2026-10-13T21:03:58.014388Z",
+      "authoritative_scoring_artifact_key": null,
+      "scoring_success_provenance": null,
+      "scoring_lineage_version": null
+    }
+  ],
+  "content_count": 1,
+  "no_manual_import_or_fixture_injection_for_this_content": true,
+  "local_model_generations_for_content": 0,
+  "source_current_health": "NOT_FOUND; later external failure retained, not all-source availability claim",
+  "screenshot": "screenshots/automatic-found-content-transcript-failed.png",
+  "next_gate": "Investigate real subtitle track enumeration error; no trusted transcript/Summary/Evidence created; no all-chain completion claim",
+  "formal_data_accessed": false
+}

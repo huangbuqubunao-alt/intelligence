@@ -8,7 +8,7 @@
 | 多文件导入及过长视频 | 前轮已发布真实Native Picker/D2-01/D2-02/2GiB APFS通过；本轮实现不变，失败当时反馈可关闭、不跨页面残留 | 最终完整回归，复用未变实现证据 |
 | 本地视频/音频转写与声学负控 | 普通factory隔离固定tuple PASSED，真实UI转写4cue/Summary5Evidence；17任务14正向、3静音噪声负控失败无假文本 | 正式配置另批；不保证任意录音准确率 |
 | 本地转写后取消等待 | 真实WAITING_MODEL0→明确用户取消→无洞察，全部78DATA及authority保持，Backup重新ready | 新合格模型正向仍未通过 |
-| 公开频道关注/暂停/恢复/自动检查 | 真正HEALTHY基线及后来NOT_FOUND复发保留；最近正常Source详情GET恢复后HEALTHY | 无此窗口新发布，不宣称真实新内容发现通过；外部风险继续如实显示 |
+| 公开频道关注/暂停/恢复/自动检查 | 真正HEALTHY与后来NOT_FOUND保留；新真实关注后发布OYp5j2RihPE由following-auto持久ENROLLED/单video单link、SourceRun完成，GUI可读 | 一例真实新发现PASS；该内容TRANSCRIPT目录INVALID_RESPONSE/FAILED_FINAL，没有字幕/Summary/Evidence；当前来源NOT_FOUND风险保留 |
 | 原生字幕与已有plain补全 | 同源原生VTT补全、字幕/摘要/Evidence真实可读；firstplain/winner持久capture独立接受；fresh RAW真实恢复71表4DATA精确PASS | 老DATA4→3FAIL保留；另旧失败derived归档仍OPEN |
 | 旧失败请求+成功child安全归档 | Schema38已获批，原两次REJECT保留；原作者61b6f63完整old/后继snapshot、当前clock与ZipInfo负控返修STOP，176专项PASS，正在独立重审 | 23字段不变；无合并、待独立重审/真实GUI/最新完整回归；真实旧plain新导入两JSON3 429阻塞已停 |
 | 当前Content转写/深度分析读取 | 真实有限GET延迟复现假待转写/假尚未运行；作者fff9bf中性加载430全前端自测 | 独立REJECT979cae未知availability仍启用按钮P2，未整合；原作者返修+真实GUI |

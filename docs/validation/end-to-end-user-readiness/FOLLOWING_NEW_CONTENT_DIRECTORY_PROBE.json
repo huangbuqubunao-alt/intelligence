@@ -1,0 +1,25 @@
+{
+  "recorded_at": "2026-10-14T05:56:53.234657+00:00",
+  "video_id": "OYp5j2RihPE",
+  "scope": "read-only directory enumeration; no subtitle body/model/credentials/formal data",
+  "harness_previous_failure": "Metadata is Pydantic, not dataclass: asdict TypeError after first directory read; first result not retained, no positive claim.",
+  "status": "DIRECTORY_FAILED",
+  "error_code": "INVALID_RESPONSE",
+  "error_message": "subtitle track directory exceeds its supported track limit",
+  "retryable": false,
+  "exception_type": "_DirectoryInvalidResponse",
+  "diagnostic": "directory_shape_unknown",
+  "last_call": {
+    "provider": "yt-dlp",
+    "started_at": "2026-10-14T05:56:53.234932Z",
+    "finished_at": "2026-10-14T05:56:57.799585Z",
+    "provider_version": "2026.07.04",
+    "model": null,
+    "diagnostics": [
+      {
+        "code": "directory_shape_unknown",
+        "message": "directory shape unknown"
+      }
+    ]
+  }
+}

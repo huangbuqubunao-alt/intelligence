@@ -1,0 +1,22 @@
+{
+  "recorded_at": "2026-10-14T05:53:32.785418+00:00",
+  "status": "FAIL_MISSING_ORDINARY_ENTRY",
+  "scope": "real macOS Chrome isolated 5898 tracked creator detail",
+  "source_id": "youtube-channel-UC_x5XG1OV2P6uZZ5FSM9Ttw",
+  "global_setting_promise": "Single following can inherit or override interest preferences",
+  "actual_interest_edit_buttons": 0,
+  "actual_controls": [
+    "content processing mode",
+    "open source",
+    "cooldown disabled check",
+    "pause monitoring"
+  ],
+  "screenshot": "screenshots/tracked-interest-entry-missing.png",
+  "source_health": "NOT_FOUND",
+  "mutation_submitted": false,
+  "formal_data_accessed": false,
+  "harness_errors": [
+    "Exact button label without accessible-name separating space timed out; actual ariaSnapshot used to correct locator.",
+    "Open source is an external link, not a details drawer opener; drawer was opened through actual source card button."
+  ]
+}

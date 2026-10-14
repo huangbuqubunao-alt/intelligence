@@ -1,0 +1,15 @@
+# TASK-READINESS-LOCAL-INTELLIGENCE-TEXT
+
+2026-10-14 BLOCKED，依赖已获批Schema38核心独立接受整合，尚未分配writer/base/tree，不可提前写。LOCAL_TIMED已接受/root真WAIT0取消PASS。用户已具体批准LOCAL_INTELLIGENCE_CHAIN_PROPOSAL及LOCAL_TEXT_TRUSTED_READER_ADDENDUM；此卡只将已批第二串行切片具体化。模型原四例未通过，全部新真实LOCAL8调用仍BLOCKED，不能因本代码测试通过进行推理。
+
+目标：真实TXT/MD canonical/Summary/Evidence拥有真实TEXT_RANGE码点半开offset及派生行号/locator/source snapshot/canonical/excerpt hash，时间保持NULL；本地手动提炼输入/引用/NO_NEW完整coverage与保存/主题可信读取可绑定同一来源，旧YT/timed协议/hash/历史保留。新增独立明确版本的wire/profile，不继承旧YTreceipt或生产资格。新card版本必须从可验证持久执行/输入关联判定，不能尝试多个hash或仅凭NULL猜版本；现Schema若不够明确承载即STOP报告，不擅迁移。
+
+允许最小distillation.py/local_api.py/state.py/intelligence_read.py（仅_read_card+必要privatehelpers），runtime_composition.py只有确需对应独立资格reader接入先给最小方案；App/uiLanguage/既有Evidence显示仅真实locator/内部Content回跳和明确Cloud不可用。对应unit/integration/frontend测试、独立freeze与research-harness准备（零调用）、此task/handoff/手册。禁止其他provider/Schema/依赖/config/formal/Cloud/长内容/rolling变更。
+
+DIRECT既有source_authority与EvidenceResolver、真实TEXT_RANGE存储、extractiveSummary/当前pointer、sealedInput/ledger/budget/cancellation/NO_NEW事务/Save/Topic/readmodels/Backup；ADAPT独立文本版本和exact-key/hash；REJECT伪0ms、混合TIMED/TEXT、外部URL授authority/无hash定位、不完整coverage、output修补、新资格布尔/旧receipt。先graph-first/读AGENTS与批准提案，确定实施者和最新base后再写。
+
+专项先TDD：TXT/MD中英Unicode码点（含emoji/组合/多行）、可信范围正控，假时间/越界/缺字段/错excerpt/source/canonical/crosscontent/旧版本receipt拒绝，currentSummary执行前后CAS变更及NO_NEW全coverage，CloudAPI/service/transport0credential0payload0dispatch，并发双击/取消/重启/UNKNOWN/WAITBUDGET原安全门禁；新可信卡经持久重载/Save/Topic/BackupRestore全部表和DATA一致。原YT v5wire/cardhash字节/资格身份不变，旧timed/NO_NEW/路由/预算/授权回归全部保留。仅fixture正向明确标注，不当真实模型资格。
+
+原Evidence回跳后的页面刷新丢focus已真复现：只允许内部ContentID+EvidenceID序列化并从现read DTO/resolver重新验证定位；不把URL传入的时间/字符当authority，不放开foreign/损坏/缺Evidence。UI行号从可信range派生，中英及未知/失效文案，真实研究回跳重载可单独GUI证明，无模型。
+
+作者提交限定SHA/handoff STOP→独立review→root受影响检查/真实文本与研究深链GUI。完整最终Backend/Frontend/TS/build/Ruff/strictmypy/diff及真实Intelligence保存/主题正向仍整体门禁，固定9b原qualificationFAIL不得绕过。Implementation package/作者/Reviewer/base/并行将在核心依赖满足后即时生成。
