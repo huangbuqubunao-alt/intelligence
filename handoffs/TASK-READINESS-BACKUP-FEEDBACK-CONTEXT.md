@@ -80,3 +80,72 @@ node_modules仅复用已批准ignored symlink，dist ignored未提交/未更新�
 依赖，不提前实施。没有main合并/push/部署或主板DONE。
 
 建议IN_REVIEW；提交后作者clean/STOP，待独立Reviewer与root真实GUI验收。
+
+
+## 2026-10-15 独立 Reviewer / intel_bounded_review
+
+**REJECT** 固定作者 `741bfdda80e1ebbbdc34792a903c1c7d15d7f3fa`，base
+`2137409e2e2d6a4c0406bd1a480b0a63ed6c2388`。作者 STOP/clean 后审查；仅追加本
+handoff，没有修改产品、测试或其他工作树。审查后 STOP，不能整合本候选。
+
+### Spec / P2：连续恢复后新检查失败，旧完成仍冒充当前成功
+
+`BackupRestorePanel` 新 `inspectedRestore` 在 !restore 的分支中，若旧 receipt ID
+仍等于 ref ID 就保留 ref；success JSX 条件排除 statusError/busy/preview/pending，
+但没有排除当前操作的 `error`。同一已打开的 panel 先恢复 A 并读到匹配 APPLIED，
+随后用户选择 B，stage 检查失败（restore 被现 handler 置 null，当前 receipt 仍 A），
+ref A 的 baselineKnown=true/alreadyApplied=false 仍存在。因此检查失败错误旁仍
+显示 `success-message` 的“Restore completed successfully.” /“备份已恢复，重启后的
+数据检查已通过”，没有降为明确 previous，也没有在当前错误期间隐藏。任务要求
+新 preview/错误不把历史成功呈现成当前操作成功，连续操作仍有缺口。
+
+独立 controlled React 反证，ZH/EN 均 FAIL：
+`node_modules/.bin/vitest run --config /private/tmp/backup-feedback-independent-review/config.mjs`。
+测试 `/private/tmp/backup-feedback-independent-review/review.test.tsx`，日志
+`/tmp/backup-feedback-independent-negative-corrected.log`，实际 **2 FAIL /163ms**。
+正常 stage/confirm/APPLIED 正控先成功，再明确第二次 stage reject，并等待其真正
+检查失败 copy 后断言当前 completion 不存在；实际 `expected <span></span> to be null`
+（60 行），同一 DOM 的错误及旧 current success 同时存在。没有真实网络、恢复、
+DB、provider/模型或 owner 操作，只有测试用户明确点击及既有 fetch 的 controlled
+mock；未声称 P0/P1、安全检查绕过、付费或数据破坏。
+
+第一次外部 negative 运行 EN 已到真实失败断言，ZH 的新测试错误用了近义中文
+而非现 uiLanguage 精确字串，日志 `/tmp/backup-feedback-independent-negative.log`
+保留。仅按现字典修正外部新测试中文，再运行后两语言同一真正断言失败；没有改
+产品/旧断言，发现重复决定性失败后 STOP，不重复尝试同方法。
+
+返修须在原限定的 readonly ref/JSX 归因中处理后续检查/操作失败；可在未知/错误
+期间隐藏成功或明确转为 previous，不能保留未限定的 current-success。仍必须保持
+原所有命令与 disabled 条件字节、原失败反馈、pending/GET retry，不能更改后端或
+为了呈现问题重新提交确认。该 P2 不扩大原任务范围，无需新敏感授权。
+
+### Standards 与独立正向检查
+
+重读 AGENTS、Collaboration/项目状态/PRD/System Design/Reuse、task、root agent
+package 和 DESIGN；graph-first 查 Backup symbol 没有匹配（旧索引），然后按已分配
+App 实际固定候选源码及完整 4 文件 diff 审查。一个 Reviewer 规则优先于 skill
+并行建议。同一独立审查分别核 Standards 与 Spec：没有文档规范/红线违规或另一个
+P0/P1/P2；上项是未完整满足反馈归因的 Spec P2。
+
+- `npm run typecheck` PASS，`/tmp/backup-feedback-review-typescript.log`。
+- 独立专项 **20 PASS /546ms**，`/tmp/backup-feedback-review-focused.log`。
+- 独立完整前端 **461 PASS /28 files /11.41s**，
+  `/tmp/backup-feedback-review-full.log`，既有 act warnings 保留。
+- `npm run build` PASS /511ms，50 modules，
+  `/tmp/backup-feedback-review-build.log`，index-DQZg_05B.js/index-DmN6_wU_.css。
+- 原 fixed base 与实际候选字节比较：完整 status GET + 10s interval + createBackup/
+  chooseBackup/cancelRestore/confirmRestore、全部 Backup disabled 谓词、Content Retry
+  整个 handler/payload/disabled、dialog onCancel **BYTE_EQUAL**，
+  `/tmp/backup-feedback-independent-handler-proof.log`。无新增 mutation 或自动请求。
+- Diff check/工作树检查 PASS，共同祖先等于 fixed base。旧测试/断言没有删除、skip
+  或修改；产品仅 read DTO/ref/JSX 和两语中性 copy，backend/schema/安全门禁不变。
+
+初始历史 APPLIED 明确 previous、preview/confirm/busy/pending 时隐藏、匹配新实际
+APPLIED 才 current、不同 ID/missing identity/unknown baseline 不推断 current、GET
+失败无旧 READY/成功、confirm 失败不重放、通用 Content fallback 不臆断网络等原
+20 项合同通过；这些正向结果不能抵消连续操作 P2。
+
+没有运行 Python/backend checks（没有对应代码变更）、真实 macOS GUI、真实
+Backup/Restore 或四宽验证。本 UI review 的 controlled mock 不替代 root 的实际
+71/72 表全 DATA 恢复证据或最终真实页面验收。正式 build/main/owner/配置/模型资格
+未改变。Verdict **REJECT / P0=0 / P1=0 / P2=1**，交接提交后 STOP，退回原作者。
