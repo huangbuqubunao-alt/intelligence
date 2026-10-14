@@ -7,3 +7,7 @@
 新增直接read_current/save/list_saved/Topic负控确保真实text card hash/执行关联破坏均拒绝，旧YT/timed regression保留；正常本地fixture保存/主题和BackupRestore覆盖，明确非真实模型验收。用户原LOCAL8调用前提未满足，模型0调用；正式数据/config/依赖/Cloud无操作。继续同LOCAL_TEXT作者/独立Reviewer，不另开功能阶段。
 
 全局AGENTS要求security-sensitive代码具体批准；此前精确reader补充仅列_read_card与必要private验证helper，此项补公共read_current入口，故不擅扩大。
+
+## 2026-10-14 用户具体批准
+
+用户明确回复“批准该精确验证入口补充”。只上述精确隔离范围获批，无正式采用/模型执行或其他扩围。

@@ -13,3 +13,5 @@ DIRECT既有source_authority与EvidenceResolver、真实TEXT_RANGE存储、extra
 原Evidence回跳后的页面刷新丢focus已真复现：只允许内部ContentID+EvidenceID序列化并从现read DTO/resolver重新验证定位；不把URL传入的时间/字符当authority，不放开foreign/损坏/缺Evidence。UI行号从可信range派生，中英及未知/失效文案，真实研究回跳重载可单独GUI证明，无模型。
 
 作者提交限定SHA/handoff STOP→独立review→root受影响检查/真实文本与研究深链GUI。完整最终Backend/Frontend/TS/build/Ruff/strictmypy/diff及真实Intelligence保存/主题正向仍整体门禁，固定9b原qualificationFAIL不得绕过。Parallel now caption仅providers/subtitles.py目录保留修复，与你distillation/state/intelligence_read/LOCAL Evidence合同不重叠，准许两独立writer；intel此时只读UI已STOP。你不得改变字幕provider/raw/archive核心合同。正式采用及真实模型正向等待门禁。
+
+2026-10-14补充：LOCAL_TEXT_READ_CURRENT_ADDENDUM.md用户明确批准，将intelligence_read.read_current最小验证入口纳入本task；只让新LOCAL_TEXT current read经同一严格card/version/ledger/hash验证供Save/Topic，不改其事务/旧YT/general行为，补直接入口损坏负控。
