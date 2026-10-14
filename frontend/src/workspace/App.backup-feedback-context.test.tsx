@@ -222,3 +222,34 @@ it("retains pending/error feedback while confirming and acknowledges the matchin
   expect(fetch.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(2);
   expect(fetch.mock.calls.filter(([path]) => path.endsWith("/confirm"))).toHaveLength(1);
 });
+
+it.each(["en", "zh-CN"])("does not reuse a completed operation's success after a later ZIP inspection fails in %s", async language => {
+  let status: object = ready();
+  let stages = 0;
+  const fetch = open(language, () => response({ status }), path => {
+    if (path.endsWith("/stage")) return ++stages === 1 ? response(stage) : Promise.reject(new Error("second archive inspection failed"));
+    if (path.endsWith("/confirm")) status = ready({ restore_id: "current-restore", state: "APPLIED", message: "completed first operation", completed_at: "2026-10-14T12:00:00Z" });
+    return response({ backup: { backup_id: "next-backup", file_name: "next.zip", size_bytes: 100, created_at: "2026-10-14T12:05:00Z", preview } });
+  });
+  const view = within(await panel(language));
+  await act(async () => {});
+  choose(view, language);
+  const dialog = await openConfirmation(view, language);
+  fireEvent.click(dialog.getByRole("button", { name: language === "en" ? "Confirm Restore and restart" : "确认恢复并重启" }));
+  await view.findByText(currentCopy(language));
+  choose(view, language);
+  await view.findByText(language === "en" ? "Backup inspection failed. Choose an intact Intelligence ZIP backup; current data has not changed." : "备份检查未通过，请选择完整的 Intelligence ZIP 备份；当前数据未改变。");
+  expect(view.queryByText(currentCopy(language))).toBeNull();
+  expect(view.queryByText(previousCopy(language))).toBeNull();
+  expect(view.getByRole("alert")).toBeTruthy();
+  expect(fetch.mock.calls.filter(([path]) => path.endsWith("/confirm"))).toHaveLength(1);
+  // A later explicit action clears the inspection error, but must not revive
+  // the obsolete "this operation completed" context for the prior receipt.
+  fireEvent.click(view.getByRole("button", { name: language === "en" ? "Create Backup" : "创建备份" }));
+  await view.findByText(previousCopy(language));
+  expect(view.queryByText(currentCopy(language))).toBeNull();
+  expect(fetch.mock.calls.filter(([path]) => path.endsWith("/confirm"))).toHaveLength(1);
+  expect(fetch.mock.calls.filter(([, init]) => init?.method === "POST").map(([path]) => path)).toEqual([
+    "/api/v1/backup-restore/restore/stage", "/api/v1/backup-restore/restore/confirm", "/api/v1/backup-restore/restore/stage", "/api/v1/backup-restore/backups",
+  ]);
+});

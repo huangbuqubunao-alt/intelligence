@@ -3442,7 +3442,9 @@ function BackupRestorePanel() {
 
   useEffect(() => {
     const receipt = status?.last_restore;
-    if (restore && inspectedRestore.current?.id !== restore.restore_id) {
+    if (error && !restore) {
+      inspectedRestore.current = null;
+    } else if (restore && inspectedRestore.current?.id !== restore.restore_id) {
       inspectedRestore.current = {
         id: restore.restore_id,
         baselineKnown: status !== null && !statusError && (receipt == null || (
@@ -3455,7 +3457,7 @@ function BackupRestorePanel() {
       && receipt?.restore_id !== inspectedRestore.current?.id) {
       inspectedRestore.current = null;
     }
-  }, [restore, status, statusError, busy, showConfirm]);
+  }, [restore, status, statusError, busy, showConfirm, error]);
 
   useEffect(() => {
     const dialog = confirmationDialog.current;
@@ -3642,7 +3644,7 @@ function BackupRestorePanel() {
           </div>
         </article>
       ) : null}
-      {!statusError && !busy && !restore && !showConfirm && status?.restore_pending === false && receipt?.state === "APPLIED" ? (
+      {!statusError && !error && !busy && !restore && !showConfirm && status?.restore_pending === false && receipt?.state === "APPLIED" ? (
         <p className={currentRestoreCompleted ? "success-message" : "hint"} role="status">
           <span>{t(currentRestoreCompleted ? "Restore completed successfully." : "Previous restore completed successfully.")}</span>
           {receiptDate ? <> <span className="reading-meta">{receiptDate}</span></> : null}

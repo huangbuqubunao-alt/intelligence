@@ -149,3 +149,36 @@ APPLIED 才 current、不同 ID/missing identity/unknown baseline 不推断 curr
 Backup/Restore 或四宽验证。本 UI review 的 controlled mock 不替代 root 的实际
 71/72 表全 DATA 恢复证据或最终真实页面验收。正式 build/main/owner/配置/模型资格
 未改变。Verdict **REJECT / P0=0 / P1=0 / P2=1**，交接提交后 STOP，退回原作者。
+
+## 2026-10-15 原作者 P2 限定返修
+
+从独立 REJECT `c3487e940916d2c053988753a0924c2707a9c99e` 继续，保留上述反证。
+仅 App readonly receipt-ref effect/JSX 和本专项测试修改：当前操作 error 且无待恢复 preview
+时清除已结束操作的 ref；error 期间不显示完成回执。之后另一次明确 Create Backup
+清除 error 时仍可显示历史 previous，不重新把旧操作说成本次成功。正常匹配 ID 完成、
+preview/pending/失败 GET 和旧未知分支保留，receipt/后端历史没有改写。
+
+新增 ZH/EN 两项连续操作真实 controlled React 负控：先 stage+confirm+APPLIED 正控，
+后续 ZIP stage reject，等待真实失败文案，断言当前/历史成功均不与当前 error 并存；
+随后明确 Create Backup 成功只返回 previous，确认仍仅调用一次，无 mutation 重放。
+原20项测试/断言原样保留；22项专项全部通过。
+
+- TDD typecheck PASS；修复前新增2项 FAIL/20 PASS，关键行 App.backup-feedback-context.test.tsx:242
+  `expected <span></span> to be null`，`/tmp/backup-feedback-p2-tdd-red.log`。
+- 一次编辑命令工作目录误用 frontend 后再次添加 frontend 前缀，触发 FileNotFoundError，
+  产品未修改；随后命令串中的测试仍执行，保留 `/tmp/backup-feedback-p2-focused.log`
+  第二次同样2 FAIL证据。立即停止重复未修复测试，改正确文件后才跑验证；没有改断言。
+- 修复后 `npm run typecheck` PASS，`/tmp/backup-feedback-p2-fixed-ts.log`。
+- `npm test -- src/workspace/App.backup-feedback-context.test.tsx`：**22 PASS/636ms**，
+  `/tmp/backup-feedback-p2-fixed-focused.log`。
+- `npm test -- --cache=false`：**463 PASS/28 files/11.74s**，
+  `/tmp/backup-feedback-p2-full.log`；既有 React act warnings 未隐藏，未新增 skip。
+- `npm run build` PASS/50 modules/510ms，`/tmp/backup-feedback-p2-build.log`。
+- `git diff --check` PASS。与原精确 base 完整 GET/interval/create/choose/cancel/confirm
+  handlers、dialog onCancel、7项 Backup disabled、Content Retry handler/payload/disabled
+  **BYTE_EQUAL**，`/tmp/backup-feedback-p2-handler-proof.log`。无新增请求、权限或状态变化。
+
+DIRECT 复用现 React useRef/effect、既有 DTO/error 和测试 controlled fetch，无新依赖。
+没有 backend/Schema/配置/正式数据/模型/云端操作。未跑真实 GUI 或 backend（无后端改动）；
+root 真实 GUI 和独立 re-review 尚未完成，不宣称整体已采用或所有用户链路通过。
+本次限定提交后作者 STOP，待独立 Reviewer；不自审、不合并、不设置 DONE。
