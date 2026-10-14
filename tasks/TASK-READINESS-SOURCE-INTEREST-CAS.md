@@ -1,3 +1,5 @@
+2026-10-15 READY：LOCAL39独立00d66a APPROVE已整合ce3beaa；Native独立d1c342 APPROVE已整合5fd88fc。root97/252、frontend468、TS/build/Ruff/strictmypy103均通过。以下历史BLOCKED已解除。
+
 # TASK-READINESS-SOURCE-INTEREST-CAS
 
 2026-10-14 BLOCKED（串行等待LOCAL_TEXT state/frontend作者提交STOP、独立接受后最新base）。用户明确批准SOURCE_INTEREST_CAS_PROPOSAL.md精确隔离范围，不再重问；尚未指定writer/base/tree，不可提前实施。
