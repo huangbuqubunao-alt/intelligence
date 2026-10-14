@@ -65,3 +65,58 @@
 未跑新完整 backend/frontend/build/真实GUI：本卡为test-only，完整后端必须由root
 在最新已接受整合候选再跑，当前27个专项通过不能替代完整回归或正式采用。
 原全suite失败证据与独立批准门禁仍保留，生产10min过期保护未放宽。
+
+
+## 2026-10-15 独立 Reviewer / intel_bounded_review
+
+**APPROVE** 作者 `184d9446b77da5ebc153362eb9aff5e70e5a7267`，固定 base
+`5cfbad10141ea89d001e8006fe5c30919201cd24`。作者 STOP/clean 后审查，唯一 Reviewer；
+仅追加此 handoff，不改测试、生产、配置、Schema、其他树或公共 task 状态。审查后
+STOP，不自合并/发布，也未调用模型、网络、凭据或 owner 数据。
+
+重读原任务与 root agent package，沿用 AGENTS/协作/规格/reuse 规则；graph-first
+定位旧 lease/summary 路径（本新增测试不在旧索引），再核实际固定候选完整两文件
+差异。Standards 与 Spec 两轴没有 P0/P1/P2。修改只有测试 claim helper 默认 UTC
+取值改为调用时刻、restart 不再传导入 NOW，以及明确时钟正负控；生产 `_utcnow`/
+10min lease/complete-analysis 拒绝保护字节完全不变，不用 fixture 修复弱化标准。
+
+独立实际证据：
+
+- `PYTHONPATH=src:. python -m pytest -q tests/integration/test_summary_live_cutover.py`：
+  **21 PASS /8.97s**，`/tmp/summary-clock-review-module.log`。
+- `pytest -q tests/integration/test_state_store.py -k 'lease or renew or claim or expired or complete_analysis'`：
+  **6 PASS /40 deselected /2.07s**，`/tmp/summary-clock-review-lease.log`。限定选择
+  不是新增 skip；原 full-suite 失败没有改称通过，根后续全后端仍必需。
+- py_compile 与 scoped Ruff PASS；`MYPYPATH=src PYTHONPATH=src:. mypy --strict src`：
+  **102 source files PASS**，`/tmp/summary-clock-review-mypy-src.log`。
+- 额外该测试模块 strict mypy 与原 base `--shadow-file` 均有 **23 历史 errors**，
+  去掉行号后逐条消息完全相等，没有新增 errors；分别
+  `/tmp/summary-clock-review-mypy-test.log` 与 `/tmp/summary-clock-review-mypy-base.log`。
+  不声称 test-module strict gate PASS，不顺便修改历史测试类型。
+- 逐 symbol AST 比较全部原断言完全相同：**110 个原顶层函数断言（含 helper）+
+  RecordingProvider class 的 3 个断言，共 113**。除 `_claim_analysis_job` 与原
+  restart 测试调用参数外，所有原函数/class AST 完全相同。原 tuple/ref identity/
+  hydration/cache/次数/Evidence 断言没有削弱。检查
+  `/tmp/summary-clock-review-symbol-proof.log`。
+- 原 base→HEAD 精确只测试与本 handoff；src/frontend/config/deps/Schema/CI 差异
+  为空、production lease 合同字节相同；diff check PASS。根共同祖先就是 fixed
+  base，当前产品整合修改不与本测试 diff 重叠。
+
+时钟正控确实在 module NOW 后11分钟认领/analyze，job SUCCEEDED、ANALYSIS_READY
+与 Evidence 合法提升；再11分钟重启新 job 后，registry/request identity 不变，第二
+RecordingProvider generation=0、原 provider=1。真正过期负控仅在 NOW 认领，却于
+NOW+11分钟完成，精确 LeaseConflict、job RUNNING、pipeline SCORED、0 promoted
+Evidence、无 structured artifact。recording provider 是私有 fixture，不等于真实
+模型调用；这些成功不能授生产资格或假称真实 GUI 模型验收。
+
+临时机械审查器计数错误保留：最初将包含 class 的全113断言硬比较为任务所称110，
+随后误将110理解为仅 `test_` 前缀函数，两次仅计数的 AssertionError；原断言逐项
+比较始终相同。停止该硬编码计数方法，逐符号检查确认作者110是所有非class顶层
+函数、另有class3。`/tmp/summary-clock-review-proof.log`、
+`/tmp/summary-clock-review-proof-corrected.log` 与工具输出保留；最后采用完整逐符号
+比较通过，不修改产品/测试或弱化原断言，不把检查器计数错误算产品失败。
+
+本切片没有产品代码，未重复完整后端/前端/build/真实GUI；根接受后仍须用最新
+完整候选重跑全后端，确认原长 suite 7 个 LeaseConflict 假失败确已消除，不能用
+27 专项代替。原4445PASS/7FAIL/1skip与所有失败日志保留。
+Verdict **APPROVE / P0=0 / P1=0 / P2=0**，仅提交独立 review 后 STOP。
