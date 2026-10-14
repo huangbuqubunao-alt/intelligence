@@ -1,6 +1,6 @@
 # 普通用户链路验收矩阵（候选，未发布）
 
-2026-10-14 当前结论：**未完成，暂不交用户作为全部可用版本测试。** 正式main/真实远端仍73ee7e7，本轮未改owner数据、配置或凭据。当前审查记录c56e9ad（未完成候选）；下方历史检查点保留，不代表当前任务状态。
+2026-10-15 当前结论：**未完成，暂不交用户作为全部可用版本测试。** 正式main/真实远端仍73ee7e7，本轮未改owner数据、配置或凭据。Schema39精确隔离范围已获批准，但还在返修与独立验收；下方历史检查点保留，不代表当前完成状态。
 
 | 用户操作 | 当前外部证据 | 剩余门禁 |
 |---|---|---|
@@ -13,16 +13,16 @@
 | 旧失败请求+成功child安全归档 | Schema38第三独立ff43 APPROVE已整合74ac5c2；root176专项/静态PASS，普通Schema38真实GUI恢复72表78DATA精确PASS | 23字段保持；genuine失败derived归档真实GUI仍待网络条件，不用空表38恢复冒充；最终完整回归待 |
 | 当前Content转写/深度分析读取 | 真实有限GET延迟复现假待转写/假尚未运行；作者fff9bf中性加载430全前端自测 | 047/ba524返修独立接受整合；root441/TSbuild及真实ZH/EN loading、abort禁用、GET恢复/lateID隔离PASS；旧REJECT留存 |
 | 本地洞察真实资格 | 8b停止；9b nonthinking首例4语义P1 FAIL，native thinking首例4096length正文空FAIL，后3及LOCAL8未调用 | 6144原EN唯一调用完成，native stop/912输入4638输出/218.923s；协议PASS但独立fbd1035语义REJECT/P1，18DATA/输入hash不变；全部调用STOP、正式资格false |
-| LOCAL TXT/MD提炼与真实字符来源 | 主体LOCAL_TEXT及可信reader补充均已获具体批准；只读设计保留码点范围/NULL时间/旧YT协议 | 核心已接受，新独立作者LOCAL_TEXT实施含具体获批read_current验证入口，等待提交与独立review；模型实际0调用 |
+| LOCAL TXT/MD提炼与真实字符来源 | b79候选333后端/446前端通过但独立3b562c6 REJECT两P1；原摘要损坏/missing-card反证保留 | 已批准15字段Schema39输入历史证明，原作者返修；未接受未整合，真实模型0调用 |
 | 已生成洞察收藏/主题/原证据回跳 | 既有逻辑回归保留，没有合格模型正向GUI支撑 | 真正admitted Intelligence后全链路操作/恢复，不用fixture冒充 |
 | 本地资料研究 | 真实已转写Content收集3Evidence/0Intelligence、回读/初次定位原文、重新收集/两版本无实质变化对比PASS；明确无模型结论 | 刷新丢Evidence定位OPEN，纳入已批LOCAL深链UI |
-| 研究后的备份/恢复 | 真实创建/下载/选择ZIP/预览/RESTORE/重启；71表全部行和78DATA精确SHA6bf70daa…，当前与历史研究可读/readinessready | 不覆盖Schema38归档验收；旧恢复成功提示在新预览仍展示P2待UI最小修复 |
+| 研究后的备份/恢复 | 真实创建/下载/选择ZIP/预览/RESTORE/重启；71表全部行和78DATA精确SHA6bf70daa…，当前与历史研究可读/readinessready | 不覆盖Schema38归档验收；旧恢复成功提示在新预览仍展示P2真实复现；741自测461通过但独立c348 REJECT连续新ZIP失败残留，原作者呈现返修 |
 | 页面读失败与窄窗 | 实际自有API暂停→GET重试恢复、Source neutral loading/失败单GET重试、四宽六导航正反Tab/Enter/鼠标PASS | 最终候选复核，未知状态仍不得误放行 |
 | 关注继承兴趣配置 | ExistingSourceForm失败GET/重试/草稿保护组件通过；tracked creator普通详情没有编辑入口 | 专用interest-only CAS及入口已具体获批；待LOCAL_TEXT state/App接受后串行，未实测采用 |
 | 旧v1明确429取消阻塞 | 独立返修接受/真正idle worker持久终止并保留错误/history；另一WAIT0仍正确阻塞，用户取消后ready | 不扩大到当前未知/活跃执行 |
 | Deep Analysis/Cloud/Bilibili | 未合格Deep保持禁用，Cloud0调用无凭据；Bilibili Creator明确不可用、公开单视频原路径保留 | 不造资格、不以付费云替代本地，不绕Cookie或安全规则 |
 | 长内容/rolling字幕 | Sasha114Evidence真实422、单长cue需完整token预算准入；原生rolling重复真实可读但质量不佳 | OPEN新精确政策；不截20项/扩大窗口/改历史Evidence，未实施 |
-| 最终回归/采用 | 最新已接受root frontend418/TSbuild PASS；backend4220+1既有skip只是此前检查点 | 新core/UI接受后完整backend/front/TS/build/Ruff/mypy/diff；无P0/P1、真实恢复与另批正式采用 |
+| 最终回归/采用 | 最新已接受root441前端/TSbuild PASS；fb067完整后端4445通过/7失败/1既有skip/2警告，1303.93秒；7项因测试import捕获租约钟超10min，专用test-only修复排队，原生产保护不改 | 新core/UI接受后完整backend/front/TS/build/Ruff/mypy/diff；无P0/P1、真实恢复与另批正式采用 |
 
 ![真正隔离设置：本地转写就绪](screenshots/asr-real-qualified-settings.png)
 ![真正本地转写完成](screenshots/asr-real-ui-complete.png)
