@@ -39,6 +39,11 @@ PROJECT = Path(__file__).resolve().parents[1]
 DOCS = PROJECT / "docs/validation/end-to-end-user-readiness"
 V1_PROFILE_ID = "readiness-qwen35-9b-official-nonthinking-v1"
 V2_PROFILE_ID = "readiness-qwen35-9b-official-thinking-v2"
+V3_PROFILE_ID = "readiness-qwen35-9b-thinking-capacity6144-single-v3"
+CAPACITY_BASELINE_ROOT = Path(
+    "/Users/hua/Documents/yia-worktrees/readiness-qwen35-thinking-v2"
+    "/.var/readiness-qwen35/readiness-qwen35-9b-official-thinking-v2/real-deepthink-en"
+)
 PROFILE_ID = V1_PROFILE_ID
 THINK = False
 MODEL = "qwen3.5:9b-q4_K_M"
@@ -76,16 +81,71 @@ CASE_ROOT = PROJECT / ".var/readiness-qwen35" / PROFILE_ID
 def select_profile(profile: str) -> None:
     """Choose only a fixed research variant; no product runtime uses this module."""
     global PROFILE_ID, THINK, OPTIONS, PROFILE_PATH, FREEZE_PATH, CASE_ROOT
-    if profile not in {V1_PROFILE_ID, V2_PROFILE_ID}:
+    if profile not in {V1_PROFILE_ID, V2_PROFILE_ID, V3_PROFILE_ID}:
         raise ValueError("research profile is outside the approved scope")
     PROFILE_ID = profile
-    THINK = profile == V2_PROFILE_ID
+    THINK = profile in {V2_PROFILE_ID, V3_PROFILE_ID}
     OPTIONS = {**OPTIONS, "temperature": 1.0 if THINK else 0.7,
-               "top_p": 0.95 if THINK else 0.8}
-    version = "V2" if THINK else "V1"
+               "top_p": 0.95 if THINK else 0.8,
+               "num_predict": 6144 if profile == V3_PROFILE_ID else 4096}
+    version = "V3" if profile == V3_PROFILE_ID else "V2" if THINK else "V1"
     PROFILE_PATH = DOCS / f"QWEN35_RESEARCH_PROFILE_{version}.json"
     FREEZE_PATH = DOCS / f"QWEN35_PRE_OUTPUT_FREEZE_{version}.json"
     CASE_ROOT = PROJECT / ".var/readiness-qwen35" / PROFILE_ID
+
+
+def require_case_scope(case_id: str) -> None:
+    if PROFILE_ID == V3_PROFILE_ID and case_id != CASE_IDS[0]:
+        raise ValueError("only the single approved English capacity case is authorized")
+
+
+def validate_capacity_baseline() -> dict[str, Any]:
+    """Read fixed public input/audit hashes; never read the private response."""
+    failure = read_object(DOCS / "QWEN35_THINKING_V2_FAILURE.json")
+    for name, key in (("request.json", "request_sha256"), ("prepared.json", "prepared_sha256"),
+                      ("result.json", "result_sha256")):
+        if sha256(CAPACITY_BASELINE_ROOT / name) != failure[key]:
+            raise ValueError("original V2 audit evidence changed")
+    prepared = read_object(CAPACITY_BASELINE_ROOT / "prepared.json")
+    old_freeze = read_object(DOCS / "QWEN35_PRE_OUTPUT_FREEZE_V2.json")
+    old_tree = CAPACITY_BASELINE_ROOT.parents[3]
+    if (prepared["profile"] != V2_PROFILE_ID or prepared["case"] != CASE_IDS[0]
+        or prepared["production_qualified"] is not False
+        or sha256(CAPACITY_BASELINE_ROOT / "verified-input.json") != prepared["verified_input_sha256"]
+        or prepared["harness_sha256"] != old_freeze["files"]["scripts/qualify_readiness_qwen35_intelligence.py"]
+        or sha256(old_tree / "scripts/qualify_readiness_qwen35_intelligence.py") != prepared["harness_sha256"]
+        or len(prepared["prepared_data_hashes"]) != 18):
+        raise ValueError("original V2 sealed input or harness changed")
+    actual = {str(p.relative_to(CAPACITY_BASELINE_ROOT / "data")): sha256(p)
+              for p in (CAPACITY_BASELINE_ROOT / "data").rglob("*") if p.is_file()}
+    if actual != prepared["prepared_data_hashes"]:
+        raise ValueError("original V2 complete DATA changed")
+    return prepared
+
+
+def capacity_expected_request() -> dict[str, Any]:
+    validate_capacity_baseline()
+    request = read_object(CAPACITY_BASELINE_ROOT / "request.json")
+    return {**request, "options": {**request["options"], "num_predict": 6144}}
+
+
+def capacity_request_projection(value: VerifiedDistillationInput) -> dict[str, Any]:
+    """Capture ordinary v5 wire locally; this adapter has no provider operations."""
+    class Projection(OllamaLocalDistillationTransport):
+        _MODEL = MODEL
+        _DIGEST = DIGEST
+        body: dict[str, Any]
+
+        def _request(self, path: str, *, method: str, body: Mapping[str, object] | None = None) -> Mapping[str, object]:
+            if path != "/api/chat" or method != "POST" or body is None:
+                raise ValueError("unexpected offline projection operation")
+            self.body = {**body, "think": True, "options": dict(OPTIONS)}
+            return {"model": MODEL, "done": True, "message": {"content": "{}"}}
+    transport = Projection(settings=LocalScoringSettings(model=MODEL, expected_model_digest=DIGEST))
+    transport.generate(value)
+    if transport.body != capacity_expected_request():
+        raise ValueError("capacity request projection differs beyond num_predict")
+    return transport.body
 
 
 def sha256(path: Path) -> str:
@@ -131,7 +191,7 @@ def load_profile() -> dict[str, Any]:
         or profile.get("prompt_version")
         != OllamaLocalDistillationTransport._PROMPT_VERSION
         or profile.get("request_parameters") != {"think": THINK, **OPTIONS}
-        or [entry["case"] for entry in profile["case_order"]] != list(CASE_IDS)
+        or [entry["case"] for entry in profile["case_order"]] != list(CASE_IDS[:1] if PROFILE_ID == V3_PROFILE_ID else CASE_IDS)
     ):
         raise ValueError("frozen research profile changed")
     schema = json.dumps(
@@ -146,10 +206,25 @@ def load_profile() -> dict[str, Any]:
             or profile.get("case_order") != original["case_order"]
             or profile.get("legacy_applicability_conflict") != original["legacy_applicability_conflict"]):
             raise ValueError("original input/semantic policy or native thinking type changed")
+    if PROFILE_ID == V3_PROFILE_ID:
+        original = read_object(DOCS / "QWEN35_RESEARCH_PROFILE_V2.json")
+        expected = {"authorized_cases": [CASE_IDS[0]], "maximum_generations": 1,
+            "stop_after_any_outcome": True, "request_timeout_seconds": 300,
+            "baseline_profile": V2_PROFILE_ID,
+            "baseline_request_sha256": read_object(DOCS / "QWEN35_THINKING_V2_FAILURE.json")["request_sha256"]}
+        if (json.dumps(profile.get("capacity_single"), sort_keys=True) != json.dumps(expected, sort_keys=True)
+            or json.dumps(profile["request_parameters"], sort_keys=True) != json.dumps({"think": True, **OPTIONS}, sort_keys=True)
+            or type(profile["request_parameters"].get("think")) is not bool
+            or any(profile.get(k) != original[k] for k in (
+                "policy", "legacy_applicability_conflict", "representation_adapter",
+                "actual_model", "expected_manifest_digest", "installed_runtime", "prompt_version", "schema_sha256"))
+            or profile["case_order"] != original["case_order"][:1]):
+            raise ValueError("single capacity profile changed original policy or scope")
     return profile
 
 
 def load_case(case_id: str) -> dict[str, Any]:
+    require_case_scope(case_id)
     if case_id not in CASE_IDS:
         raise ValueError("case is outside the frozen four-case research scope")
     entry = next(
@@ -188,6 +263,28 @@ def validate_freeze() -> dict[str, Any]:
         generate_hash = hashlib.sha256(inspect.getsource(OllamaLocalDistillationTransport.generate).encode()).hexdigest()
         if not required <= files.keys() or generate_hash != old["ordinary_v5_generate_sha256"]:
             raise ValueError("complete code/old-policy/runtime freeze or original v5 generate missing")
+    if PROFILE_ID == V3_PROFILE_ID:
+        old = read_object(DOCS / "QWEN35_PRE_OUTPUT_FREEZE_V2.json")
+        required = set(old["files"]) | {str(p.relative_to(PROJECT)) for p in (
+            PROFILE_PATH, DOCS / "QWEN35_PRE_OUTPUT_FREEZE_V2.json",
+            DOCS / "QWEN35_THINKING_V2_FAILURE.json", DOCS / "QWEN35_CAPACITY_SINGLE_CASE_PROPOSAL.md",
+            PROJECT / "tests/unit/test_readiness_qwen35_capacity.py",
+            PROJECT / "tasks/TASK-READINESS-QWEN35-CAPACITY-SINGLE.md")}
+        original_generate = hashlib.sha256(inspect.getsource(OllamaLocalDistillationTransport.generate).encode()).hexdigest()
+        if (not required <= files.keys() or original_generate != old["ordinary_v5_generate_sha256"]
+            or freeze.get("ordinary_v5_generate_sha256") != original_generate
+            or freeze.get("request_parameters") != {"think": THINK, **OPTIONS}
+            or freeze.get("request_timeout_seconds") != 300):
+            raise ValueError("complete single capacity freeze missing")
+        for relative, expected in old["files"].items():
+            if relative != "scripts/qualify_readiness_qwen35_intelligence.py" and files[relative] != expected:
+                raise ValueError("original core, policy or contracts changed")
+        baseline = validate_capacity_baseline()
+        if freeze.get("baseline") != {"prepared_sha256": sha256(CAPACITY_BASELINE_ROOT / "prepared.json"),
+            "request_sha256": sha256(CAPACITY_BASELINE_ROOT / "request.json"),
+            "verified_input_sha256": baseline["verified_input_sha256"],
+            "harness_sha256": baseline["harness_sha256"], "prepared_data_hashes": baseline["prepared_data_hashes"]}:
+            raise ValueError("single capacity original sealed snapshot missing")
     for relative, expected in files.items():
         path = PROJECT / relative
         if path.resolve().is_relative_to(PROJECT) is False or sha256(path) != expected:
@@ -197,6 +294,7 @@ def validate_freeze() -> dict[str, Any]:
 
 def validate_execution_permit(path: Path, case_id: str) -> dict[str, Any]:
     """A manual external receipt is a prerequisite, not a production credential."""
+    require_case_scope(case_id)
     permit = read_object(path)
     if (
         case_id not in CASE_IDS
@@ -240,7 +338,7 @@ def validate_execution_permit(path: Path, case_id: str) -> dict[str, Any]:
     validate_freeze()
     load_case(case_id)
     validate_prior_semantic_reviews(case_id, permit.get("prior_semantic_reviews"))
-    if PROFILE_ID == V2_PROFILE_ID:
+    if PROFILE_ID in {V2_PROFILE_ID, V3_PROFILE_ID}:
         runtime = read_object(DOCS / "QWEN35_RUNTIME_STATIC_PROVENANCE.json")
         v2_expected = {
             "exclusive_heavyweight_execution_confirmed": True,
@@ -251,10 +349,18 @@ def validate_execution_permit(path: Path, case_id: str) -> dict[str, Any]:
         }
         if any(type(permit.get(k)) is not type(v) or permit.get(k) != v for k, v in v2_expected.items()):
             raise ValueError("exact V2 runtime/static support and exclusive execution receipt missing")
+    if PROFILE_ID == V3_PROFILE_ID:
+        single = {"single_case_only": True, "maximum_generations": 1,
+            "authorized_case_ids": [CASE_IDS[0]],
+            "request_projection_sha256": sha256(CASE_ROOT / case_id / "request-projection.json"),
+            "baseline_request_sha256": sha256(CAPACITY_BASELINE_ROOT / "request.json")}
+        if any(type(permit.get(k)) is not type(v) or permit.get(k) != v for k, v in single.items()):
+            raise ValueError("exact external single-case request permit missing")
     return permit
 
 
 def validate_prior_semantic_reviews(case_id: str, prior: object) -> None:
+    require_case_scope(case_id)
     if case_id not in CASE_IDS:
         raise ValueError("case is outside the frozen research order")
     required = CASE_IDS[: CASE_IDS.index(case_id)]
@@ -317,7 +423,7 @@ class Qwen35ResearchTransport(OllamaLocalDistillationTransport):
                 "research case may dispatch only once, including after restart"
             )
         result = super().generate(value)
-        if THINK and result.output_tokens is not None and result.output_tokens >= 4096:
+        if THINK and result.output_tokens is not None and result.output_tokens >= cast(int, OPTIONS["num_predict"]):
             raise KnownLocalDistillationResponseError("LOCAL_RESPONSE_TRUNCATED", result)
         return result
 
@@ -334,6 +440,8 @@ class Qwen35ResearchTransport(OllamaLocalDistillationTransport):
             ):
                 raise ValueError("research request identity/schema changed")
             body = {**body, "think": THINK, "options": dict(OPTIONS)}
+            if PROFILE_ID == V3_PROFILE_ID and body != capacity_expected_request():
+                raise ValueError("single capacity request changed before dispatch")
             try:
                 write_once(
                     self.root / "generation.started.json",
@@ -475,6 +583,7 @@ def make_service(
 
 
 def prepare_case(case_id: str, prior_reviews_path: Path | None = None) -> dict[str, Any]:
+    require_case_scope(case_id)
     validate_freeze()
     if PROFILE_ID == V2_PROFILE_ID:
         prior_receipt = read_object(prior_reviews_path) if prior_reviews_path else None
@@ -486,6 +595,12 @@ def prepare_case(case_id: str, prior_reviews_path: Path | None = None) -> dict[s
             raise ValueError("prior preparation review receipt identity changed")
         prior = prior_receipt.get("prior_semantic_reviews") if prior_receipt else []
         validate_prior_semantic_reviews(case_id, prior)
+    baseline = validate_capacity_baseline() if PROFILE_ID == V3_PROFILE_ID else None
+    if baseline is not None:
+        actual = {str(p.relative_to(SOURCE_RUNTIME / "data")): sha256(p)
+                  for p in (SOURCE_RUNTIME / "data").rglob("*") if p.is_file()}
+        if actual != baseline["prepared_data_hashes"]:
+            raise ValueError("isolated source no longer matches all original DATA")
     case = load_case(case_id)
     root = CASE_ROOT / case_id
     root.mkdir(parents=True, exist_ok=False)
@@ -537,13 +652,22 @@ def prepare_case(case_id: str, prior_reviews_path: Path | None = None) -> dict[s
             if p.is_file()
         },
     }
+    if baseline is not None:
+        if (record["verified_input_sha256"] != baseline["verified_input_sha256"]
+            or record["prepared_data_hashes"] != baseline["prepared_data_hashes"]
+            or record["execution_id"] == baseline["execution_id"]):
+            raise ValueError("single capacity must preserve original input in a fresh execution")
+        write_once(root / "request-projection.json", capacity_request_projection(verified))
+        record.update(request_projection_sha256=sha256(root / "request-projection.json"),
+            baseline_request_sha256=sha256(CAPACITY_BASELINE_ROOT / "request.json"))
     write_once(root / "prepared.json", record)
     return record
 
 
 def execute_case(case_id: str, permit_path: Path) -> dict[str, Any]:
-    if PROFILE_ID != V2_PROFILE_ID:
-        raise ValueError("the retired V1 experiment cannot be executed again")
+    require_case_scope(case_id)
+    if PROFILE_ID != V3_PROFILE_ID:
+        raise ValueError("the retired V1/V2 experiment cannot be executed again")
     permit = validate_execution_permit(permit_path, case_id)
     root = CASE_ROOT / case_id
     prepared = read_object(root / "prepared.json")
@@ -565,6 +689,19 @@ def execute_case(case_id: str, permit_path: Path) -> dict[str, Any]:
     for relative, expected in prepared["prepared_data_hashes"].items():
         if sha256(root / "data" / relative) != expected:
             raise ValueError("prepared isolated source artifact changed")
+    baseline = validate_capacity_baseline()
+    actual_data = {str(p.relative_to(root / "data")): sha256(p)
+                   for p in (root / "data").rglob("*") if p.is_file()}
+    if (prepared.get("profile") != PROFILE_ID or prepared.get("manifest_digest") != DIGEST
+        or prepared.get("source") != baseline["source"] or prepared.get("video") != baseline["video"]
+        or prepared.get("evidence_count") != baseline["evidence_count"]
+        or prepared["verified_input_sha256"] != baseline["verified_input_sha256"]
+        or actual_data != baseline["prepared_data_hashes"]
+        or prepared["prepared_data_hashes"] != actual_data
+        or prepared.get("request_projection_sha256") != permit["request_projection_sha256"]
+        or prepared.get("baseline_request_sha256") != permit["baseline_request_sha256"]
+        or read_object(root / "request-projection.json") != capacity_expected_request()):
+        raise ValueError("single capacity sealed input or projection changed")
     write_once(root / "execution-permit.json", permit)
     repository = SQLiteStateRepository(root / "state.sqlite3")
     repository.bind_source_storage(root / "data")
@@ -574,10 +711,7 @@ def execute_case(case_id: str, permit_path: Path) -> dict[str, Any]:
     outcome = service.continue_qualification_reserved_distillation(
         prepared["execution_id"]
     )
-    repeat = service.continue_qualification_reserved_distillation(
-        prepared["execution_id"]
-    )
-    if repeat != outcome or transport.generations > 1:
+    if transport.generations > 1:
         raise RuntimeError("research continuation is not idempotent")
     result = {
         **prepared,
@@ -592,8 +726,8 @@ def execute_case(case_id: str, permit_path: Path) -> dict[str, Any]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--profile", required=True, choices=(V2_PROFILE_ID,))
-    parser.add_argument("--case", required=True, choices=CASE_IDS)
+    parser.add_argument("--profile", required=True, choices=(V3_PROFILE_ID,))
+    parser.add_argument("--case", required=True, choices=CASE_IDS[:1])
     parser.add_argument("--prior-reviews", type=Path)
     modes = parser.add_mutually_exclusive_group(required=True)
     modes.add_argument("--prepare-only", action="store_true")
