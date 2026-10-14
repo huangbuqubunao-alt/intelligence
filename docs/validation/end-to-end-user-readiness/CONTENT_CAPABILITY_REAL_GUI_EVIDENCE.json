@@ -30,11 +30,41 @@
     "screenshots/content-capability-neutral-loading-en-fixed.png"
   ],
   "remaining_validation": [
-    "newcandidate four width layout final check",
     "unknown/partial response rejection independently tested; GUI did not forge a response to simulate qualification"
   ],
   "harness_errors_preserved": [
     "Earlier exact-label guesses timed out; actual DOM/aria labels used to correct selectors.",
     "After English screenshot unroute with pending duplicate requests caused route.continue already handled rejection and node kernel reset; not product success/failure. New isolated browser session created."
-  ]
+  ],
+  "four_widths_no_horizontal_overflow": [
+    {
+      "width": 320,
+      "client": 305,
+      "scroll": 305,
+      "mainClient": 305,
+      "mainScroll": 305
+    },
+    {
+      "width": 768,
+      "client": 753,
+      "scroll": 753,
+      "mainClient": 753,
+      "mainScroll": 753
+    },
+    {
+      "width": 1024,
+      "client": 1009,
+      "scroll": 1009,
+      "mainClient": 761,
+      "mainScroll": 761
+    },
+    {
+      "width": 1440,
+      "client": 1425,
+      "scroll": 1425,
+      "mainClient": 1177,
+      "mainScroll": 1177
+    }
+  ],
+  "interface_restored_to_zh_and_generation_still_zh": true
 }

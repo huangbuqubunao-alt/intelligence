@@ -1,0 +1,8 @@
+{
+  "status": "PASS",
+  "images": 56,
+  "broken": [],
+  "client": 1425,
+  "scroll": 1425,
+  "first_failure": "New screenshot markup omitted existing figure wrapper and overflowed. First failure screenshot retained; corrected only the three added image wrappers to match established template."
+}
