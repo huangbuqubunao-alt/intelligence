@@ -251,7 +251,16 @@ a { color: #0e7a4f; }
 <p><strong>洞察页面</strong>：所有提炼出的洞察汇总在这里。</p>
 <figure><img src="../../dogfood/opencode-user-pilot/screenshots/20-intelligence-empty.png" alt="洞察空状态"/><figcaption>洞察空状态</figcaption></figure>
 <p><strong>洞察处理进度</strong>：如果内容正在分析，洞察页面会显示&quot;分析尚未得到可信的最终结果&quot;，可点击&quot;打开内容&quot;回到详情页查看。</p>
-<blockquote>提示：提炼洞察是<strong>可选</strong>操作。不提炼也不影响内容整理。未配置合格模型时，页面会明确提示&quot;云端洞察需要配置凭据并授权&quot;，不会偷偷使用付费服务。</blockquote>
+<blockquote>提示：提炼洞察是<strong>可选</strong>操作。不提炼也不影响内容整理。设置页会分别显示安装身份、本地洞察资格和可选云端方案；安装成功不代表洞察合格，系统不会偷偷使用付费服务。</blockquote>
+<h3 id="已有资料库的研究">已有资料库的研究</h3>
+<p>在 <strong>洞察 → 研究</strong> 点击 <strong>新建研究</strong>，输入问题，再选择 1–20 个已有 Content，点击 <strong>收集资料库证据包</strong>。这个入口仅从所选本地资料中按词语检索、核验并整理已有证据，不探索外网，也不调用模型或产生新的结论。</p>
+<p>本轮隔离候选的真实录音案例得到 3 条原始证据、0 条已有洞察解释。证据保留原文和真实时间位置；点击 <strong>打开内容与证据</strong> 可回到原始 Content。没有相关材料时仍需你判断，不把空结果编成答案。</p>
+<figure><img src="../end-to-end-user-readiness/screenshots/research-real-local-evidence.png" alt="真实本地资料研究：只整理已验证证据"/><figcaption>真实本地资料研究：只整理已验证证据</figcaption></figure>
+<p><strong>重新收集</strong>会保留历史证据包。点击 <strong>与上一版本对比</strong>查看所选内容、证据和已有解释的引用变化；“无实质变化”不代表进行过新的模型分析，也不表示证据更强。</p>
+<figure><img src="../end-to-end-user-readiness/screenshots/research-real-history-diff.png" alt="真实研究历史对比：证据引用未变"/><figcaption>真实研究历史对比：证据引用未变</figcaption></figure>
+<p>研究当前版本与历史包会随备份保留。本轮实际恢复并重启后，全部数据库表和原文件均一致，研究与历史仍可阅读。</p>
+<figure><img src="../end-to-end-user-readiness/screenshots/research-real-after-restore.png" alt="实际恢复后当前研究和历史仍可阅读"/><figcaption>实际恢复后当前研究和历史仍可阅读</figcaption></figure>
+<p>当前候选的限制：首次点击能定位原文证据，但刷新内容页后定位标记会丢失，正在整改；不能把此功能说明当成全部用户链路已经验收。</p>
 <hr/>
 <h2 id="11-使用-topic主题">11. 使用 Topic（主题）</h2>
 <p><strong>主题</strong>用于把洞察按主题归档，持续积累认知。</p>

@@ -1,0 +1,9 @@
+{
+  "status": "PASS",
+  "candidate": "bc11044",
+  "scope": "real headful macOS Chrome local HTML manual; added actual research/compare/restore images",
+  "images": 53,
+  "broken": [],
+  "scrollWidth": 1425,
+  "clientWidth": 1425
+}

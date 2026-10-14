@@ -1,30 +1,28 @@
 # 普通用户链路验收矩阵（候选，未发布）
 
-当前结论：**未完成，不能交用户作为已可用版本。** 正式产品/main仍 73ee7e7，本轮未改正式数据、配置或凭据。
+2026-10-14 当前结论：**未完成，暂不交用户作为全部可用版本测试。** 正式main/真实远端仍73ee7e7，本轮未改owner数据、配置或凭据。当前候选bc11044；下方历史检查点保留，不代表当前任务状态。
 
-| 用户操作 | 当前真实结果 | 仍需完成 |
+| 用户操作 | 当前外部证据 | 剩余门禁 |
 |---|---|---|
-| 首次使用、跳过后去设置 | 真正 headful UI 引导可到设置，缺模型有具体说明 | 合格能力最终正式配置与回跳验收 |
-| 本地多文件导入，含过长媒体 | 前轮已发布的真实 macOS GUI通过，失败仅当时提示，可关闭，不跨页面长期残留 | 本轮相关实现不变，复用 D2-01/D2-02；完整回归 |
-| 选择模型、检查本地转写 | 当前普通 factory 在隔离机器精确 tuple 获 PASSED，并显示已就绪 | 正式配置须最后具体批准，不能复制布尔值 |
-| 本地真实视频开始转写 | 实际 UI 开始转写，Whisper READY；4 timed cues、1 Summary、5 Evidence | 当前样本是公开测试语音，不代表任意录音准确率 |
-| 中长/混合/停顿/弱声/静音/噪声 | 17真实产品任务全符合原门槛：14正向可信，3负控FAILED/零decoder无authority | 完整结果、失败研究记录已保留 |
-| 转写后 Backup/Restore | 实际UI创建/下载/预览/RESTORE/重启，71表78文件精确相同 | 最终整合候选再验收关键影响 |
-| 真正公开频道关注、暂停/恢复、自动检查 | 曾获得 HEALTHY 基线；最新真实检查再出现 NOT_FOUND，已保留内容并明确显示不可用 | OPEN 外部复发；此窗口无新发布，不能宣称真实新内容发现正向通过 |
-| YouTube已有字幕内容 | 3Blue1Brown 231 cues及摘要/Evidence；DeepMind真实18 cues | 不等于视频声学转写或模型摘要 |
-| 已完成但无时间轴的旧字幕补全 | 原生 VTT 补全独立审查并整合；真实 Sasha/Iwgl 用户重试均 ORGANIZED，字幕/摘要/Evidence 已可读 | 原 DATA4→3 FAIL保留；经raw修复的fresh真实GUI恢复71表/全部4DATA精确一致，见NATIVE_RAW_CAPTURE_GUI_RESTORE_EVIDENCE.json；失败后新child的另一路径仍OPEN |
-| 字幕完成事务回滚后恢复 | 原实现未知 VTT 无 durable hash；原测试要求成功且无重复 body 读取 | firstplain/winner capture已独立APPROVE并整合，零重复读取和unknown拒绝相关188 PASS；旧current-policy失败ledger+derived orphan仍阻塞，另提精确Schema归档方案待批 |
-| 真正本地提炼 Intelligence | qwen3:8b v3–v11 未通过冻结语义门槛，停止调参；批准的固定9b权重已全部哈希校验 | 9b首例真实1调用、协议SUCCEEDED，但独立语义FAIL（4个P1），停止其余3例/不reroll，生产false；QWEN35_REAL_QUALIFICATION_FAILURE.json |
-| 无新洞察、注入、零调用等待取消 | 原模型基线负控与真实WAITING_MODEL取消/恢复已通过 | 新合格profile需重新实际模型负控验收 |
-| Intelligence保存、主题、真实来源回跳 | 既有逻辑回归通过，但本轮还没有合格本地正向支撑 | 真正 admitted Intelligence后全链路UI验收 |
-| Deep Analysis | 未合格模型保持禁用，摘要/Evidence可读 | 本轮指定模型范围不能冒充该能力已合格 |
-| Bilibili UP持续关注 | 已验证外部风险拒绝，普通UX明确不可用 | 不绕过Cookie/安全门禁，不冒充支持 |
-| 付费云 | 本轮0调用、无凭据，不影响既有明确授权流程 | 不以付费云替代未合格本地模型 |
-| 页面读取失败恢复 | 真实隔离 API 停止后明确服务不可用；重启后点击重新加载数据恢复原内容，全部GET，零提交重放 | 真实截图 PAGE_READ_REAL_GUI_EVIDENCE.json；正式未采用 |
-| 读取关注继承偏好失败 | 独立完整379前端/TS/build PASS；显示错误、手动GET重试、草稿保留、未知继承阻止提交 | 普通用户真实可达入口仍待验证，不把组件测试称GUI验收 |
-| 已退休旧字幕429阻塞备份 | 精确终止实现经独立返修APPROVE并整合；真实worker保留旧错误/history，无调用或费用，readiness恢复 | 另一个真实WAITING_MODEL0仍阻塞；用户取消后才ready，负控截图/持久化校验已通过 |
-| 长内容提炼 | Sasha114条Evidence真实422；≤20但长单cue也需完整ctx准入保护 | OPEN，不能静默截断或扩大窗口；诚实readiness及安全完整处理方案待决策 |
-| rolling原生VTT阅读与摘要 | 原始文件含滚动重复，当前 canonical/Evidence/摘录仍重复 | OPEN normalization政策；不篡改原始文件、时间或历史Evidence |
+| 首次使用及跳过后设置 | 真实macOS引导可到设置；最新ZH/EN明确安装身份≠洞察资格、Cloud可选逐次授权 | 合格能力正式配置/最终回跳采用仍待 |
+| 多文件导入及过长视频 | 前轮已发布真实Native Picker/D2-01/D2-02/2GiB APFS通过；本轮实现不变，失败当时反馈可关闭、不跨页面残留 | 最终完整回归，复用未变实现证据 |
+| 本地视频/音频转写与声学负控 | 普通factory隔离固定tuple PASSED，真实UI转写4cue/Summary5Evidence；17任务14正向、3静音噪声负控失败无假文本 | 正式配置另批；不保证任意录音准确率 |
+| 本地转写后取消等待 | 真实WAITING_MODEL0→明确用户取消→无洞察，全部78DATA及authority保持，Backup重新ready | 新合格模型正向仍未通过 |
+| 公开频道关注/暂停/恢复/自动检查 | 真正HEALTHY基线及后来NOT_FOUND复发保留；最近正常Source详情GET恢复后HEALTHY | 无此窗口新发布，不宣称真实新内容发现通过；外部风险继续如实显示 |
+| 原生字幕与已有plain补全 | 同源原生VTT补全、字幕/摘要/Evidence真实可读；firstplain/winner持久capture独立接受；fresh RAW真实恢复71表4DATA精确PASS | 老DATA4→3FAIL保留；另旧失败derived归档仍OPEN |
+| 旧失败请求+成功child安全归档 | Schema38已获批，独立两次REJECT；后继5反证已修，oldchild计数/lease/事件链/历史snapshot仍P1，原作者返修 | 23字段不变；无合并、待独立重审/真实GUI/最新完整回归；真实旧plain新导入两JSON3 429阻塞已停 |
+| 当前Content转写/深度分析读取 | 真实有限GET延迟复现假待转写/假尚未运行；作者fff9bf中性加载430全前端自测 | 独立REJECT979cae未知availability仍启用按钮P2，未整合；原作者返修+真实GUI |
+| 本地洞察真实资格 | 8b停止；9b nonthinking首例4语义P1 FAIL，native thinking首例4096length正文空FAIL，后3及LOCAL8未调用 | 用户已批准同输入6144/ctx8192/300s原EN一次research，待实现freeze/独立预输出review/root一次permit；不能自动授资格 |
+| LOCAL TXT/MD提炼与真实字符来源 | 主体LOCAL_TEXT及可信reader补充均已获具体批准；只读设计保留码点范围/NULL时间/旧YT协议 | 核心Schema38接受后串行实施，真实模型仍需完整新资格；不伪0ms或套旧YTreceipt |
+| 已生成洞察收藏/主题/原证据回跳 | 既有逻辑回归保留，没有合格模型正向GUI支撑 | 真正admitted Intelligence后全链路操作/恢复，不用fixture冒充 |
+| 本地资料研究 | 真实已转写Content收集3Evidence/0Intelligence、回读/初次定位原文、重新收集/两版本无实质变化对比PASS；明确无模型结论 | 刷新丢Evidence定位OPEN，纳入已批LOCAL深链UI |
+| 研究后的备份/恢复 | 真实创建/下载/选择ZIP/预览/RESTORE/重启；71表全部行和78DATA精确SHA6bf70daa…，当前与历史研究可读/readinessready | 不覆盖Schema38归档验收；旧恢复成功提示在新预览仍展示P2待UI最小修复 |
+| 页面读失败与窄窗 | 实际自有API暂停→GET重试恢复、Source neutral loading/失败单GET重试、四宽六导航正反Tab/Enter/鼠标PASS | 最终候选复核，未知状态仍不得误放行 |
+| 关注继承兴趣配置 | ExistingSourceForm失败GET/重试/草稿保护组件通过；tracked creator普通详情没有编辑入口 | 普通可达性OPEN，不称真实GUI已验收 |
+| 旧v1明确429取消阻塞 | 独立返修接受/真正idle worker持久终止并保留错误/history；另一WAIT0仍正确阻塞，用户取消后ready | 不扩大到当前未知/活跃执行 |
+| Deep Analysis/Cloud/Bilibili | 未合格Deep保持禁用，Cloud0调用无凭据；Bilibili Creator明确不可用、公开单视频原路径保留 | 不造资格、不以付费云替代本地，不绕Cookie或安全规则 |
+| 长内容/rolling字幕 | Sasha114Evidence真实422、单长cue需完整token预算准入；原生rolling重复真实可读但质量不佳 | OPEN新精确政策；不截20项/扩大窗口/改历史Evidence，未实施 |
+| 最终回归/采用 | 最新已接受root frontend418/TSbuild PASS；backend4220+1既有skip只是此前检查点 | 新core/UI接受后完整backend/front/TS/build/Ruff/mypy/diff；无P0/P1、真实恢复与另批正式采用 |
 
 ![真正隔离设置：本地转写就绪](screenshots/asr-real-qualified-settings.png)
 ![真正本地转写完成](screenshots/asr-real-ui-complete.png)
