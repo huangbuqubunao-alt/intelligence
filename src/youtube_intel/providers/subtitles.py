@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import math
 import re
 import socket
 import urllib.error
@@ -12,6 +14,7 @@ from datetime import UTC, datetime
 from enum import Enum, auto
 from http.client import HTTPMessage
 from io import StringIO
+from time import monotonic
 from types import TracebackType
 from typing import IO, Any, Final, Protocol
 from urllib.parse import parse_qsl, urlsplit
@@ -54,10 +57,14 @@ _READ_CHUNK_BYTES: Final = 64 * 1024
 _MAX_LANGUAGE_BUCKET_COUNT: Final = 512
 # yt-dlp lists unsupported output formats alongside the three formats accepted
 # by this adapter. Keep the accepted resource bound finite while bounding the
-# larger raw directory scan independently. A real YouTube directory with 17
-# manual and 157 automatic languages has 522 supported tracks.
+# larger raw directory scan independently. Scan v2 admits the measured 23,086
+# entry fanout while bounding complete metadata bytes, nodes, depth and time.
 _MAX_TRACK_COUNT: Final = 1_024
-_MAX_DIRECTORY_ENTRY_COUNT: Final = 4_096
+_MAX_DIRECTORY_ENTRY_COUNT: Final = 32_768
+_MAX_DIRECTORY_UTF8_BYTES: Final = 16 * 1024 * 1024
+_MAX_DIRECTORY_SCAN_SECONDS: Final = 5.0
+_MAX_DIRECTORY_DEPTH: Final = 8
+_MAX_DIRECTORY_NODES: Final = 524_288
 _MAX_TRACK_NAME_CODE_POINTS: Final = 1_000
 _MAX_LANGUAGE_CODE_POINTS: Final = 128
 _MAX_EXTENSION_CODE_POINTS: Final = 32
@@ -721,8 +728,116 @@ def _format_from_extension(value: str) -> SubtitleFormat | None:
     return None
 
 
-def _track_name(value: Any, *, video_id: str) -> str:
+class _DirectoryBudgetExceeded(ValueError):
+    """A safe, fixed resource-bound failure without untrusted metadata."""
+
+
+class _DirectoryBudget:
+    """Post-extraction JSON scan budget shared by both caption directories.
+
+    Account compact ensure_ascii=False JSON bytes without constructing a whole
+    serialization. Container/key/scalar occurrences all consume node capacity;
+    repeated references are charged again and only active recursion is cyclic.
+    This does not bound yt-dlp's allocations before extract_info returns.
+    """
+
+    def __init__(self) -> None:
+        self.deadline = monotonic() + _MAX_DIRECTORY_SCAN_SECONDS
+        self.bytes = 0
+        self.nodes = 0
+        self.active: set[int] = set()
+
+    def check_time(self) -> None:
+        if monotonic() >= self.deadline:
+            raise _DirectoryBudgetExceeded("time limit")
+
+    def add_bytes(self, count: int) -> None:
+        self.check_time()
+        self.bytes += count
+        if self.bytes > _MAX_DIRECTORY_UTF8_BYTES:
+            raise _DirectoryBudgetExceeded("byte limit")
+
+    def node(self, depth: int) -> None:
+        self.check_time()
+        if depth > _MAX_DIRECTORY_DEPTH:
+            raise _DirectoryBudgetExceeded("depth limit")
+        self.nodes += 1
+        if self.nodes > _MAX_DIRECTORY_NODES:
+            raise _DirectoryBudgetExceeded("node limit")
+
+    def open_container(self, depth: int) -> None:
+        self.node(depth)
+        self.add_bytes(1)
+
+    def member(self, key: str, *, first: bool, depth: int) -> None:
+        self.add_bytes(0 if first else 1)
+        self.walk(key, depth=depth + 1)
+        self.add_bytes(1)
+
+    def walk(
+        self, value: object, *, depth: int,
+        skip_values: Mapping[str, object] | None = None,
+    ) -> None:
+        self.node(depth)
+        if isinstance(value, str):
+            # UTF-8 JSON is at least one byte per code point. Reject enormous
+            # strings before even a bounded encoding chunk is allocated.
+            if len(value) + 2 > _MAX_DIRECTORY_UTF8_BYTES - self.bytes:
+                raise _DirectoryBudgetExceeded("byte limit")
+            self.add_bytes(2)
+            for offset in range(0, len(value), 2048):
+                chunk = json.dumps(value[offset:offset + 2048], ensure_ascii=False)
+                self.add_bytes(len(chunk.encode("utf-8")) - 2)
+            return
+        if value is None or type(value) is bool:
+            self.add_bytes(4 if value is None or value is True else 5)
+            return
+        if type(value) is int or type(value) is float:
+            if isinstance(value, float) and not math.isfinite(value):
+                raise _DirectoryBudgetExceeded("non-JSON metadata")
+            self.add_bytes(len(str(value)))
+            return
+        mapping = isinstance(value, Mapping)
+        # JSON arrays support list/tuple, not arbitrary Python sequences such
+        # as range or memoryview. The established name.runs Sequence contract
+        # is scanned separately alongside its frozen 1,000-run limit.
+        sequence = isinstance(value, (list, tuple))
+        if not mapping and not sequence:
+            raise _DirectoryBudgetExceeded("non-JSON metadata")
+        if id(value) in self.active:
+            raise _DirectoryBudgetExceeded("cycle")
+        self.active.add(id(value))
+        try:
+            self.add_bytes(1)
+            if isinstance(value, Mapping):
+                seen: set[str] = set()
+                for key, child in value.items():
+                    self.check_time()
+                    if not isinstance(key, str) or key in seen:
+                        raise _DirectoryBudgetExceeded("non-JSON metadata")
+                    self.member(key, first=not seen, depth=depth)
+                    seen.add(key)
+                    if skip_values is not None and key in skip_values:
+                        if child is not skip_values[key]:
+                            raise _DirectoryBudgetExceeded("unstable metadata")
+                    else:
+                        self.walk(child, depth=depth + 1)
+            else:
+                assert isinstance(value, Sequence)
+                for index, child in enumerate(value):
+                    self.add_bytes(0 if index == 0 else 1)
+                    self.walk(child, depth=depth + 1)
+            self.add_bytes(1)
+        finally:
+            self.active.remove(id(value))
+
+
+def _track_name(
+    value: Any, *, video_id: str, budget: _DirectoryBudget | None = None,
+) -> str:
     if value is None:
+        if budget is not None:
+            budget.walk(value, depth=4)
         return ""
     if isinstance(value, str):
         if len(value) > _MAX_TRACK_NAME_CODE_POINTS:
@@ -732,6 +847,8 @@ def _track_name(value: Any, *, video_id: str) -> str:
                 retryable=False,
                 video_id=video_id,
             )
+        if budget is not None:
+            budget.walk(value, depth=4)
         return " ".join(value.split())
     if isinstance(value, Mapping):
         simple = value.get("simpleText")
@@ -743,12 +860,17 @@ def _track_name(value: Any, *, video_id: str) -> str:
                     retryable=False,
                     video_id=video_id,
                 )
+            if budget is not None:
+                budget.walk(value, depth=4)
             return " ".join(simple.split())
         runs = value.get("runs")
         if isinstance(runs, Sequence) and not isinstance(
             runs,
             (str, bytes, bytearray),
         ):
+            if budget is not None:
+                budget.walk(value, depth=4, skip_values={"runs": runs})
+                budget.open_container(5)
             joined = StringIO()
             code_point_count = 0
             iteration_failed = False
@@ -784,8 +906,11 @@ def _track_name(value: Any, *, video_id: str) -> str:
                             retryable=False,
                             video_id=video_id,
                         )
+                    if budget is not None:
+                        budget.add_bytes(0 if run_count == 1 else 1)
+                        budget.walk(run, depth=6)
                     joined.write(text)
-            except TranscriptError:
+            except (TranscriptError, _DirectoryBudgetExceeded):
                 raise
             except Exception:
                 iteration_failed = True
@@ -796,6 +921,8 @@ def _track_name(value: Any, *, video_id: str) -> str:
                     retryable=False,
                     video_id=video_id,
                 )
+            if budget is not None:
+                budget.add_bytes(1)
             return " ".join(joined.getvalue().split())
     raise _error(
         ErrorCode.INVALID_RESPONSE,
@@ -840,6 +967,7 @@ def _map_directory(
     video_id: str,
     manual_directory: _DirectoryShape,
     automatic_directory: _DirectoryShape,
+    budget: _DirectoryBudget,
 ) -> _MappedDirectory:
     contract_state = _nested_directory_contract_state(
         manual_directory,
@@ -886,7 +1014,9 @@ def _map_directory(
         _RequiredMembersShape.NOT_EVALUATED,
     )
     try:
+        budget.open_container(1)
         for raw_language, raw_entries in payload.items():
+            budget.check_time()
             bucket_count += 1
             contract_state = _nested_directory_contract_state(
                 manual_directory,
@@ -940,7 +1070,10 @@ def _map_directory(
                 _TrackEntryShape.ABSENT,
                 _RequiredMembersShape.NOT_EVALUATED,
             )
-            for raw_entry in raw_entries:
+            budget.member(raw_language, first=bucket_count == start_bucket_count + 1, depth=1)
+            budget.open_container(2)
+            for entry_index, raw_entry in enumerate(raw_entries):
+                budget.check_time()
                 contract_state = _nested_directory_contract_state(
                     manual_directory,
                     automatic_directory,
@@ -956,6 +1089,7 @@ def _map_directory(
                         video_id=video_id,
                         contract_state=contract_state,
                     )
+                budget.add_bytes(0 if entry_index == 0 else 1)
                 current_position = position
                 position += 1
                 if not isinstance(raw_entry, Mapping):
@@ -1061,7 +1195,11 @@ def _map_directory(
                         contract_state=contract_state,
                     ) from exc
                 try:
-                    name = _track_name(raw_entry.get("name"), video_id=video_id)
+                    raw_name = raw_entry.get("name")
+                    name = _track_name(
+                        raw_name, video_id=video_id,
+                        budget=budget if "name" in raw_entry else None,
+                    )
                 except TranscriptError as exc:
                     raise _directory_structure_error(
                         _DirectoryStructureState.UNKNOWN,
@@ -1070,6 +1208,7 @@ def _map_directory(
                         video_id=video_id,
                         contract_state=contract_state,
                     ) from exc
+                budget.walk(raw_entry, depth=3, skip_values={"name": raw_name})
                 source_format = _format_from_extension(raw_extension)
                 if source_format is None:
                     continue
@@ -1098,6 +1237,14 @@ def _map_directory(
                         provider_position=current_position,
                     )
                 )
+            budget.add_bytes(1)
+        budget.add_bytes(1)
+    except _DirectoryBudgetExceeded as exc:
+        raise _directory_structure_error(
+            _DirectoryStructureState.UNKNOWN, _DIRECTORY_UNKNOWN_DIAGNOSTIC,
+            f"subtitle track directory exceeds its {exc}",
+            video_id=video_id, contract_state=contract_state,
+        ) from None
     except _DirectoryInvalidResponse as exc:
         if (
             exc.directory_origin == "directory_origin_mapping"
@@ -1425,6 +1572,9 @@ class YtDlpSubtitleAdapter:
             self.last_call = _call(started, self._clock(), diagnostic=failure.diagnostic)
             raise failure
         try:
+            budget = _DirectoryBudget()
+            budget.open_container(0)
+            budget.member("subtitles", first=True, depth=0)
             manual = _map_directory(
                 manual_payload,
                 source_type=TranscriptSourceType.MANUAL_SUBTITLE,
@@ -1434,7 +1584,9 @@ class YtDlpSubtitleAdapter:
                 video_id=video_id,
                 manual_directory=manual_shape,
                 automatic_directory=automatic_shape,
+                budget=budget,
             )
+            budget.member("automatic_captions", first=False, depth=0)
             automatic = _map_directory(
                 automatic_payload,
                 source_type=TranscriptSourceType.AUTO_SUBTITLE,
@@ -1444,7 +1596,9 @@ class YtDlpSubtitleAdapter:
                 video_id=video_id,
                 manual_directory=manual_shape,
                 automatic_directory=automatic_shape,
+                budget=budget,
             )
+            budget.add_bytes(1)
             tracks = (*manual.tracks, *automatic.tracks)
             if automatic.next_position > 0 and not (manual.has_supported_format or automatic.has_supported_format):
                 raise _directory_structure_error(
@@ -1460,6 +1614,17 @@ class YtDlpSubtitleAdapter:
                         _RequiredMembersShape.COMPLETE,
                     ),
                 )
+        except _DirectoryBudgetExceeded as exc:
+            failure = _directory_structure_error(
+                _DirectoryStructureState.UNKNOWN, _DIRECTORY_UNKNOWN_DIAGNOSTIC,
+                f"subtitle track directory exceeds its {exc}",
+                video_id=video_id, contract_state=_nested_directory_contract_state(
+                    manual_shape, automatic_shape, _CaptionBucketShape.UNKNOWN,
+                    _TrackEntryShape.UNKNOWN, _RequiredMembersShape.UNKNOWN,
+                ),
+            )
+            self.last_call = _call(started, self._clock(), diagnostic=failure.diagnostic)
+            raise failure from None
         except _DirectoryInvalidResponse as exc:
             self.last_call = _call(started, self._clock(), diagnostic=exc.diagnostic)
             raise

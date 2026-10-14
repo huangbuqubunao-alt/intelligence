@@ -894,30 +894,27 @@ def test_directory_track_limit_counts_only_supported_ytdlp_formats() -> None:
     assert listing.tracks[-1].provider_position == 1_098
 
 
-def test_directory_raw_entry_scan_remains_finitely_bounded() -> None:
+@pytest.mark.parametrize("raw_count", [4_096, 4_097, 32_768, 32_769])
+def test_directory_raw_entry_scan_remains_finitely_bounded(raw_count: int) -> None:
+    # Scan v2 explicitly raises the raw policy from 4,096 to 32,768. Keep the
+    # former rejection boundary as a compatibility positive, not a silent skip.
     at_boundary, _ = _adapter_for_info(
         _directory_payload(
             [
-                *[_directory_entry(source_format="ttml")] * 4_095,
+                *[_directory_entry(source_format="ttml")] * (raw_count - 1),
                 _directory_entry(source_format="json3"),
             ]
         )
     )
-    listing = at_boundary.enumerate_tracks("video123")
-    assert len(listing.tracks) == 1
-    assert listing.tracks[0].provider_position == 4_095
-
-    over_boundary, _ = _adapter_for_info(
-        _directory_payload(
-            [
-                *[_directory_entry(source_format="ttml")] * 4_096,
-                _directory_entry(source_format="json3"),
-            ]
-        )
-    )
-    with pytest.raises(TranscriptError) as exc_info:
-        over_boundary.enumerate_tracks("video123")
-    assert exc_info.value.error.code is ErrorCode.INVALID_RESPONSE
+    if raw_count <= 32_768:
+        listing = at_boundary.enumerate_tracks("video123")
+        assert len(listing.tracks) == 1
+        assert listing.tracks[0].provider_position == raw_count - 1
+    else:
+        with pytest.raises(TranscriptError) as exc_info:
+            at_boundary.enumerate_tracks("video123")
+        assert exc_info.value.error.code is ErrorCode.INVALID_RESPONSE
+        assert exc_info.value.error.message == "subtitle track directory exceeds its entry limit"
 
 
 def test_structurally_invalid_unsupported_track_invalidates_mixed_directory() -> None:
@@ -3688,11 +3685,12 @@ def test_two_captures_reject_a_third_format_without_rebinding(tmp_path: Path, mo
     assert not (tmp_path / "data" / kwargs["artifact"].relative_path).exists()
 
 
-def test_large_translation_directory_acquires_only_original_native_body_and_trusted_timing(tmp_path: Path) -> None:
+@pytest.mark.parametrize("translation_count", [1024, 23085])
+def test_large_translation_directory_acquires_only_original_native_body_and_trusted_timing(tmp_path: Path, translation_count: int) -> None:
     repository = _repository_with_transcript_job(tmp_path)
     native = _directory_entry(url="https://www.youtube.com/api/timedtext?v=video123&lang=en&fmt=json3")
     translated = _directory_entry(url=native["url"] + "&tlang=fr")
-    payload = {"id": "video123", "subtitles": {"fr": [translated] * 1024}, "automatic_captions": {"en": [native]}}
+    payload = {"id": "video123", "subtitles": {"fr": [translated] * translation_count}, "automatic_captions": {"en": [native]}}
     class NativeOnlyOpener(_BodyOpener):
         def __call__(self, request: object, timeout: float) -> object:
             assert getattr(request, "full_url", None) == native["url"]

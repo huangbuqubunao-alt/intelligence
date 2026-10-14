@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from youtube_intel.domain import SubtitleFormat, TranscriptSourceType
+from youtube_intel.providers import subtitles as provider_module
 from youtube_intel.providers.subtitles import (
     _MAX_TRACK_COUNT,
     YtDlpSubtitleAdapter,
@@ -182,13 +185,16 @@ def test_native_capacity_keeps_1024_native_boundary_across_sources_even_with_tra
     assert len(calls) == 2
 
 
-@pytest.mark.parametrize("raw_count", [4096, 4097])
-def test_translations_still_consume_raw_entry_bound(monkeypatch: pytest.MonkeyPatch, raw_count: int) -> None:
-    payload = {"id": _VIDEO_ID, "subtitles": {}, "automatic_captions": {"en": [_native_entry(query="&tlang=fr")] * (raw_count - 1) + [_native_entry()]}}
+@pytest.mark.parametrize("raw_count", [4096, 4097, 32768, 32769])
+@pytest.mark.parametrize("manual_count", [0, 16384])
+def test_translations_still_consume_raw_entry_bound(monkeypatch: pytest.MonkeyPatch, raw_count: int, manual_count: int) -> None:
+    manual_count = min(manual_count, raw_count - 1)
+    translated = _native_entry(query="&tlang=fr")
+    payload = {"id": _VIDEO_ID, "subtitles": {"fr": [translated] * manual_count}, "automatic_captions": {"en": [translated] * (raw_count - manual_count - 1) + [_native_entry()]}}
     adapter, calls = _no_body_adapter(monkeypatch, payload)
-    if raw_count == 4096:
+    if raw_count <= 32768:
         tracks = adapter.enumerate_tracks(_VIDEO_ID).tracks
-        assert len(tracks) == 1 and tracks[0].provider_position == 4095
+        assert len(tracks) == 1 and tracks[0].provider_position == raw_count - 1
     else:
         with pytest.raises(_DirectoryInvalidResponse) as rejected:
             adapter.enumerate_tracks(_VIDEO_ID)
@@ -210,6 +216,7 @@ def test_translations_still_consume_language_bucket_bound(monkeypatch: pytest.Mo
 
 
 @pytest.mark.parametrize("extension", ["json3", "ttml"])
+@pytest.mark.parametrize("prefix_count", [1024, 4500])
 @pytest.mark.parametrize(("bad_fields", "expected"), [
     ({"url": "https://evil.test/api/timedtext?tlang=fr"}, "URL"),
     ({"url": "https://user:pass@www.youtube.com/api/timedtext?tlang=fr"}, "URL"),
@@ -222,9 +229,9 @@ def test_translations_still_consume_language_bucket_bound(monkeypatch: pytest.Mo
     ({"name": ["invalid"]}, "name"),
     ({"ext": None}, "format"),
 ])
-def test_malformed_translated_entry_is_not_hidden_after_large_valid_translation_prefix(monkeypatch: pytest.MonkeyPatch, extension: str, bad_fields: dict[str, object], expected: str) -> None:
+def test_malformed_translated_entry_is_not_hidden_after_large_valid_translation_prefix(monkeypatch: pytest.MonkeyPatch, extension: str, prefix_count: int, bad_fields: dict[str, object], expected: str) -> None:
     bad = {**_native_entry(extension=extension, query="&tlang=fr"), **bad_fields}
-    payload = {"id": _VIDEO_ID, "subtitles": {}, "automatic_captions": {"en": [_native_entry()] + [_native_entry(query="&tlang=fr")] * 1024 + [bad]}}
+    payload = {"id": _VIDEO_ID, "subtitles": {}, "automatic_captions": {"en": [_native_entry()] + [_native_entry(query="&tlang=fr")] * prefix_count + [bad]}}
     adapter, calls = _no_body_adapter(monkeypatch, payload)
     with pytest.raises(_DirectoryInvalidResponse) as rejected:
         adapter.enumerate_tracks(_VIDEO_ID)
@@ -256,3 +263,155 @@ def test_large_translated_only_supported_directory_keeps_empty_listing_but_unsup
             adapter.enumerate_tracks(_VIDEO_ID)
         assert rejected.value.error.message == "subtitle track directory has no supported formats"
     assert len(calls) == 1
+
+
+def test_synthetic_measured_fanout_shape_keeps_all_129_native_candidates(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Synthesized from measured aggregate counts, not a signed metadata replay.
+    manual = _entries("en")
+    automatic = {"en": _entries("en") * 21, "en-orig": _entries("en") * 21}
+    for index in range(175):
+        entries = _entries("en") * (19 if index < 105 else 18)
+        automatic[f"lang-{index}"] = [{**entry, "url": entry["url"] + f"&tlang=lang-{index}"} for entry in entries]
+    # Include all five measured field names, the longest measured URL and name
+    # sizes, and at least the measured complete catalog byte size. All data is
+    # invented; no expiring signed URL or downloaded subtitle is replayed.
+    for directory in ({"en": manual}, automatic):
+        for language, entries in directory.items():
+            entries[:] = [{**entry, "name": "Native subtitle track", "__yt_dlp_client": "web", "impersonate": None,
+                           "url": entry["url"] + "&signature=" + "a" * (391 - len(entry["url"]) - len("&signature="))}
+                          for entry in entries]
+    payload = {"id": _VIDEO_ID, "subtitles": {"en": manual}, "automatic_captions": automatic}
+    assert len(manual) + sum(map(len, automatic.values())) == 23086
+    assert 10966987 <= _directory_bytes(payload) < 16 * 1024 * 1024
+    adapter, calls = _no_body_adapter(monkeypatch, payload)
+    tracks = adapter.enumerate_tracks(_VIDEO_ID).tracks
+    assert len(tracks) == 129
+    assert tracks[0].provider_position == 0
+    assert tracks[-1].provider_position == 300
+    flattened = manual + [entry for entries in automatic.values() for entry in entries]
+    for track in tracks:
+        assert track.url == flattened[track.provider_position]["url"]
+    assert len(calls) == 1
+
+
+def _byte_payload(extra: object) -> dict[str, object]:
+    return {"id": _VIDEO_ID, "subtitles": {"en": [{**_native_entry(), "extra": extra}]}, "automatic_captions": {}}
+
+
+def _directory_bytes(payload: dict[str, object]) -> int:
+    return len(json.dumps({key: payload[key] for key in ("subtitles", "automatic_captions")}, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+
+
+@pytest.mark.parametrize("overflow", [0, 1])
+def test_full_directory_utf8_byte_boundary_includes_unknown_fields_and_json_escaping(monkeypatch: pytest.MonkeyPatch, overflow: int) -> None:
+    payload = _byte_payload('汉"\n')
+    payload["subtitles"]["en"][0]["extra"] += "x" * (16 * 1024 * 1024 - _directory_bytes(payload) + overflow)
+    assert _directory_bytes(payload) == 16 * 1024 * 1024 + overflow
+    adapter, calls = _no_body_adapter(monkeypatch, payload)
+    if overflow:
+        with pytest.raises(_DirectoryInvalidResponse, match="byte limit"):
+            adapter.enumerate_tracks(_VIDEO_ID)
+    else:
+        assert len(adapter.enumerate_tracks(_VIDEO_ID).tracks) == 1
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("overflow", [0, 1])
+def test_full_directory_bytes_are_shared_across_sources_and_nested_name_metadata(monkeypatch: pytest.MonkeyPatch, overflow: int) -> None:
+    manual = {**_native_entry(), "name": {"simpleText": " Native ", "extra": '汉"\n'}}
+    automatic = {**_native_entry(), "name": {"runs": [{"text": " Auto ", "extra": '界"\n'}]}}
+    payload = {"id": _VIDEO_ID, "subtitles": {"en": [manual]}, "automatic_captions": {"en": [automatic]}}
+    remaining = 16 * 1024 * 1024 - _directory_bytes(payload) + overflow
+    manual["name"]["extra"] += "x" * (remaining // 2)
+    automatic["name"]["runs"][0]["extra"] += "x" * (remaining - remaining // 2)
+    assert _directory_bytes(payload) == 16 * 1024 * 1024 + overflow
+    adapter, calls = _no_body_adapter(monkeypatch, payload)
+    if overflow:
+        with pytest.raises(_DirectoryInvalidResponse, match="byte limit"):
+            adapter.enumerate_tracks(_VIDEO_ID)
+    else:
+        listing = adapter.enumerate_tracks(_VIDEO_ID)
+        assert [track.name for track in listing.tracks] == ["Native", "Auto"]
+        assert [track.provider_position for track in listing.tracks] == [0, 1]
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("wrappers", [4, 5])
+def test_directory_depth_boundary_in_unknown_translated_metadata(monkeypatch: pytest.MonkeyPatch, wrappers: int) -> None:
+    value: object = None
+    for _ in range(wrappers):
+        value = [value]
+    payload = _byte_payload(value)
+    payload["subtitles"]["en"][0]["url"] += "&tlang=fr"
+    adapter, _ = _no_body_adapter(monkeypatch, payload)
+    if wrappers == 4:
+        assert adapter.enumerate_tracks(_VIDEO_ID).tracks == ()
+    else:
+        with pytest.raises(_DirectoryInvalidResponse, match="depth limit"):
+            adapter.enumerate_tracks(_VIDEO_ID)
+
+
+@pytest.mark.parametrize("value", [object(), float("nan"), float("inf"), b"not-json", {1: "bad-key"}, range(3)])
+def test_unknown_non_json_directory_metadata_fails_closed(monkeypatch: pytest.MonkeyPatch, value: object) -> None:
+    adapter, _ = _no_body_adapter(monkeypatch, _byte_payload(value))
+    with pytest.raises(_DirectoryInvalidResponse):
+        adapter.enumerate_tracks(_VIDEO_ID)
+
+
+def test_directory_cycles_are_rejected_without_partial_candidates(monkeypatch: pytest.MonkeyPatch) -> None:
+    cycle: list[object] = []
+    cycle.append(cycle)
+    adapter, _ = _no_body_adapter(monkeypatch, _byte_payload(cycle))
+    with pytest.raises(_DirectoryInvalidResponse, match="cycle"):
+        adapter.enumerate_tracks(_VIDEO_ID)
+
+
+def _json_nodes(value: object) -> int:
+    if isinstance(value, dict):
+        return 1 + sum(1 + _json_nodes(item) for item in value.values())
+    if isinstance(value, list):
+        return 1 + sum(map(_json_nodes, value))
+    return 1
+
+
+@pytest.mark.parametrize("overflow", [0, 1])
+def test_directory_node_boundary_counts_each_shared_reference_occurrence(monkeypatch: pytest.MonkeyPatch, overflow: int) -> None:
+    payload = _byte_payload([])
+    payload["automatic_captions"] = {"en": [{**_native_entry(), "extra": []}]}
+    directory = {key: payload[key] for key in ("subtitles", "automatic_captions")}
+    # Repeated identity is not a reason to avoid paying the scan cost.
+    remaining = 524288 - _json_nodes(directory) + overflow
+    payload["subtitles"]["en"][0]["extra"] = [None] * (remaining // 2)
+    payload["automatic_captions"]["en"][0]["extra"] = [None] * (remaining - remaining // 2)
+    adapter, _ = _no_body_adapter(monkeypatch, payload)
+    if overflow:
+        with pytest.raises(_DirectoryInvalidResponse, match="node limit"):
+            adapter.enumerate_tracks(_VIDEO_ID)
+    else:
+        assert len(adapter.enumerate_tracks(_VIDEO_ID).tracks) == 2
+
+
+@pytest.mark.parametrize("elapsed", [4.999, 5.0])
+def test_manual_and_automatic_share_monotonic_mapping_deadline(monkeypatch: pytest.MonkeyPatch, elapsed: float) -> None:
+    clock = [0.0]
+    monkeypatch.setattr(provider_module, "monotonic", lambda: clock[0], raising=False)
+    class LaterMapping(dict):
+        def items(self):
+            clock[0] = elapsed
+            return super().items()
+    payload = {"id": _VIDEO_ID, "subtitles": {"en": [_native_entry()]}, "automatic_captions": LaterMapping(en=[_native_entry()])}
+    adapter, _ = _no_body_adapter(monkeypatch, payload)
+    if elapsed < 5:
+        assert len(adapter.enumerate_tracks(_VIDEO_ID).tracks) == 2
+    else:
+        with pytest.raises(_DirectoryInvalidResponse, match="time limit"):
+            adapter.enumerate_tracks(_VIDEO_ID)
+
+
+@pytest.mark.parametrize("bad", [{"url": "https://evil.test/?tlang=fr"}, {"name": "x" * 1001}])
+def test_malformed_translation_after_old_4096_boundary_is_still_rejected(monkeypatch: pytest.MonkeyPatch, bad: dict[str, str]) -> None:
+    entry = _native_entry(query="&tlang=fr")
+    payload = {"id": _VIDEO_ID, "subtitles": {"en": [entry] * 4500 + [{**entry, **bad}]}, "automatic_captions": {}}
+    adapter, _ = _no_body_adapter(monkeypatch, payload)
+    with pytest.raises(_DirectoryInvalidResponse):
+        adapter.enumerate_tracks(_VIDEO_ID)
