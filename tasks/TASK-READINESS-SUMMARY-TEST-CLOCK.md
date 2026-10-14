@@ -1,0 +1,11 @@
+# TASK-READINESS-SUMMARY-TEST-CLOCK
+
+2026-10-15 READY，可在Backup作者提交STOP后串行实施；独立作者caption_resume，Reviewer intel_bounded_review。Base须该卡提交后的最新已接受root SHA，tree/branch开工时记录，禁止复用正在review的Backup tree写此任务。
+
+目标：保留全部生产租约拒绝保护与原断言，消除测试模块import时捕获NOW导致完整suite超过10min后7项伪过期。4445passed/7LeaseConflict/1skip原红日志保留。只读diagnosis：测试NOW在import取UTC，_claim_analysis_job默认now=NOW；生产analyze每次真实取UTC，owned_running_job/complete_analysis_stage从9f3b至fb067源码相同，Schema38未改普通Analysis。一次诊断脚本因RecordingProvider缺refs先在fixture断言停止，不能声称额外复现通过。
+
+允许仅tests/integration/test_summary_live_cutover.py、同任务handoff；若新独立测试文件必要先报告。默认job claim改为调用时取UTC，restart当次claim不能传module NOW；元数据/registry/hash固定NOW保留。不能延长10min lease、放松prod时间比较或改断言/skip/CI/依赖。增加模块NOW落后11min仍正常当次claim成功及显式真正过期仍LeaseConflict负控，保留所有request identity/restart/cache/provider次数/Evidence原断言。Test-only调整不授权生产或可信持久化变更。
+
+Reuse DIRECT现stdlib datetime、pytest monkeypatch及已有fixture/RecordingProvider（真实传registry refs，不调用真实模型）；所有测试私有SQLite/DATA；0网络/credentials/model/owner。先syntax/types→TDD红证据→本模块/相关lease状态测试/Ruff/diff；全Backend在root合并最新候选后执行，不以专测替代。
+
+限定commit与handoff STOP→独立审查。Parallel now local_text在独立tree改Schema39/backend，此任务只测试现Analysis、无文件合同交集，准许并行。不得顺便改state/analysis或BackupUI。SourceInterest state仍等待LOCAL核心接受。若同failure两次停止原方法并给证据。
