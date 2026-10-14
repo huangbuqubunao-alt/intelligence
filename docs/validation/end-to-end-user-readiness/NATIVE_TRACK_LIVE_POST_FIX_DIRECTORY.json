@@ -1,0 +1,23 @@
+{
+  "recorded_at": "2026-10-14T10:26:07.221679+00:00",
+  "candidate": "c38ee71",
+  "video_id": "OYp5j2RihPE",
+  "scope": "one read-only post-fix directory diagnosis; no body/model/credentials/formal",
+  "status": "DIRECTORY_FAILED",
+  "code": "INVALID_RESPONSE",
+  "message": "subtitle track directory exceeds its entry limit",
+  "diagnostic": "directory_shape_unknown",
+  "last_call": {
+    "provider": "yt-dlp",
+    "started_at": "2026-10-14T10:26:07.221910Z",
+    "finished_at": "2026-10-14T10:26:11.652125Z",
+    "provider_version": "2026.07.04",
+    "model": null,
+    "diagnostics": [
+      {
+        "code": "directory_shape_unknown",
+        "message": "directory shape unknown"
+      }
+    ]
+  }
+}
