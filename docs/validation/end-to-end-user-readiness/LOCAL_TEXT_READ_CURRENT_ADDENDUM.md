@@ -1,0 +1,9 @@
+# LOCAL_TEXT可信读取：保存/主题入口精确补充
+
+2026-10-14，待具体批准。主体与_read_card验证已获批；独立预检确认SaveIntelligenceService.save/list_saved与Topic._verified_current调用read_current直接返回verified，不经过_read_card。故新TEXT card范围/hash/版本/ledger校验若仅放_read_card，直接保存/主题路径遗漏同一新契约。
+
+请求仅将intelligence_read.py read_current入口及必要同文件私有helper纳入现已批准文字可信验证：对存在distillation card且实际LOCAL TEXT_RANGE的当前读，调用同一严格_read_card验证后再返回原verified。新版必须唯一checkpoint+ledger+revision+sealed context证明，不靠NULL或prefix授authority；拒绝损坏/错版本/缺关联。旧YT、timed与一般非card revision读行为保持；不改Save/Topic写事务、Schema、历史、模型资格/预算/调用或其他文件范围。
+
+新增直接read_current/save/list_saved/Topic负控确保真实text card hash/执行关联破坏均拒绝，旧YT/timed regression保留；正常本地fixture保存/主题和BackupRestore覆盖，明确非真实模型验收。用户原LOCAL8调用前提未满足，模型0调用；正式数据/config/依赖/Cloud无操作。继续同LOCAL_TEXT作者/独立Reviewer，不另开功能阶段。
+
+全局AGENTS要求security-sensitive代码具体批准；此前精确reader补充仅列_read_card与必要private验证helper，此项补公共read_current入口，故不擅扩大。
