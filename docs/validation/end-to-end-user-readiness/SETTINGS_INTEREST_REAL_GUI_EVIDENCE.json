@@ -1,0 +1,174 @@
+{
+  "status": "PASS_EDIT_SAVE_RELOAD_RESET_VIA_NORMAL_UI",
+  "candidate": "d1b7ab6",
+  "scope": "private real headful macOS UI, explicit interest fields only, no credentials/models",
+  "persisted": {
+    "focus": "产品案例, 本地隐私",
+    "ignore": "广告",
+    "mode": "PRODUCT_CASE_FIRST"
+  },
+  "returnedToEmptyBalancedViaUi": true,
+  "requests": [
+    {
+      "method": "PUT",
+      "path": "/api/v1/settings/source-policy"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/settings"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/settings/source-policy"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/settings/local-models"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/local/transcription/capability"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/backup-restore/status"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/settings/local-models"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/local/transcription/capability"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/backup-restore/status"
+    },
+    {
+      "method": "GET",
+      "path": "/src/api/client.ts"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/local/native/capability"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/settings"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/settings/preferences"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/settings/source-policy"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/settings/resource-usage"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/local/native/capability"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/settings"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/settings/preferences"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/settings/source-policy"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/settings/resource-usage"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/local/native/jobs"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/settings/local-models"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/local/transcription/capability"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/backup-restore/status"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/settings/local-models"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/local/transcription/capability"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/backup-restore/status"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/backup-restore/status"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/backup-restore/status"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/backup-restore/status"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/settings/source-policy"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/settings"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/settings/source-policy"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/settings/local-models"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/local/transcription/capability"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/backup-restore/status"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/settings/local-models"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/local/transcription/capability"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/backup-restore/status"
+    }
+  ],
+  "pageErrors": [],
+  "modelCalls": 0,
+  "cloudCalls": 0,
+  "formalWrites": false,
+  "sourceInheritanceEditor": "OPEN ordinary tracked creator entry, not covered"
+}
