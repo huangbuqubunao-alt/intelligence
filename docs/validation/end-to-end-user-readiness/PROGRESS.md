@@ -171,3 +171,5 @@ Native新隔离真实普通GUI导入Gemini目录仍因原raw4096entry上限失�
 ## 2026-10-15 恢复工作
 
 Schema39精确隔离迁移获用户明确批准；原作者返修，正式未改。Backup反馈741bfdd进入独立审查。root fb067完整后端实际结果：4445 passed、7 failed、1 existing skipped、2 warnings，1303.93s。失败均test_summary_live_cutover中LeaseConflict(state.py:2958)，未修改/跳过断言；日志.var/end-to-end-user-readiness/backend-full-fb067-checkpoint.log保留，先只读定位，不重复整套或声称全回归通过。
+
+Backup741独立20专项/461全量/TSbuild及handler byte核对PASS，但独立ZH/EN连续操作反证P2：本panel真实mock已成功恢复后再检查新ZIP失败，新错误旁仍显示上次“本次成功”。Reviewer拟REJECT，未整合；原日志/真实旧预览误导截图保留，交原作者最小呈现返修。所有检查通过也不能覆盖这个反证。
