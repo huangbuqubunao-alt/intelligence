@@ -189,3 +189,54 @@ probe已通过。仓库正式新增EN/ZH反例在有效JSX环境真实TDD→最�
 旧979caeREJECT、8FAIL TDD、Schema历史失败及研究所有实际FAIL均保留；没有模型/
 Cloud/owner/config/正式数据/新功能或main/部署操作。提交后clean/STOP，不自审、
 不宣布本切片独立APPROVE或整体用户链路完成。
+
+## 独立复审 — APPROVE（2026-10-14）
+
+Reviewer `/root/intel_bounded_review`；固定完整base
+`2d167d8afa4d09b030fde4b3f1ea4f0c78721a7f` → candidate
+`047546b0ca3478301646ca3ac3262b7905957f32`；返修从前次REJECT
+`979cae384305479780578772718043d41cccc9c0`比较。作者 STOP/clean 后审查，只有本
+交接追加，没有模型/API/provider/owner/Schema/研究或业务修复。唯一Reviewer串行。
+
+完整六文件/返修三文件diff、任务/两份DESIGN/原REJECT已复核。graph-first查后端
+DeepAnalysisAvailability，再实际读取对应枚举：新增允许集合正好现行九值，没有
+猜新状态或放宽资格。qualified必须boolean；已有可选production_eligible与
+consent_required若出现必须boolean，保持已有legacy缺可选字段兼容。未知/空/空格/
+非字符串availability和缺/null/string资格值走READ_RESPONSE_INVALID、仅GET恢复，
+不呈现假的NOT_REQUESTED、不泄漏未知枚举、不能run/publish。已知NOT_REQUESTED
+真实boolean资格与云端逐次同意原行为保留，不从安装/读取成功推导模型合格。
+
+原独立temp反例**未改test文件**，用前次有效canonical临时root/JSXautomatic
+config重新执行：**7 PASS /228ms**；`/tmp/content-status-rereview-original-probe.txt`。
+前次原collection错误和最终1FAIL证据保留，不以作者外部环境错误替代本次检查。
+旧UNKNOWN_FUTURE+trueflags现在button.disabled=true且rawenum不显示，确证P2解决。
+
+独立从base git show与candidate再次提取完整handler：Local action、Deep run（含
+preflight/逐次consent/费用/未知dispatch）、整个DeepAnalysisPublishAction
+**BYTE_EQUAL**。只收紧read eligibility/resultIdentity props，未修改任何execution/
+credential/publish命令处理器、参数或自动重放。Local首次null/revision/ID绑定、读错
+清空旧RUNNING与仅GET重读、model草稿保持、late ID响应cleanup、READY每Content一次
+通知和真实PENDING/FAILED等行为复核继续通过。可信原字幕与正文未被面板read阻断。
+
+独立检查（类型在前）：
+
+| 检查 | 实际结果 |
+|---|---|
+| npm run typecheck | PASS；/tmp/content-status-rereview-ts.txt |
+| 两组件focused | **32 PASS /719ms**；/tmp/content-status-rereview-focused.txt |
+| npm test完整 | **441 PASS /27files /11.93s**；/tmp/content-status-rereview-full.txt |
+| npm run build | PASS /504ms；/tmp/content-status-rereview-build.txt；index-QXseFiTG.js与作者同hash |
+| 原独立UNKNOWN_FUTURE反证 | **7 PASS /228ms**，有效temp上下文，原文件不改 |
+| handler bytes /完整范围 /git diffcheck | PASS，只有允许读状态/文案/追加tests，没有delete/skip/ignore |
+
+新负控包括真正durable-looking结果加AVAILABLE且identity相符的发布GET，使不能
+publish的验证到达该边界，非空发布DTO假禁用；partial boolean与中英文UNKNOWN的
+GET恢复无POST/PUT/body。完整云同意、未知执行阻塞、发布、路由既有cases未删，
+act warnings保留。未重复后端/Ruff/mypy：无Python业务变化；没有工具链/依赖/配置
+或正式dist更新。此前21/430通过与1独立FAIL及作者8FAIL红证据均保留。
+
+**APPROVE candidate047546b0ca3478301646ca3ac3262b7905957f32；未解决P0=0/P1=0/P2=0。**
+这仅为本slice独立工程验收，不表示整个普通用户链路、模型资格或最终发布完成。
+root仍须真实macOS有限延迟/GET故障/重读/切ID/四宽键盘验收，controlled React检查
+不冒充GUI。Schema38及完整接受整合后全量由root验收，正式owner不测试/reset。
+审查交接提交后STOP，不自行整合/main/发布或启动模型。
