@@ -60,8 +60,8 @@ from youtube_intel.summary_draft import (
 )
 from youtube_intel.summary_evidence_candidates import TrustedEvidenceRegistry
 
-# The live service stamps real wall-clock time, so the fixture lease must be
-# anchored to the actual current instant rather than a fixed historical one.
+# Freeze metadata and registry inputs at import; active job leases are anchored
+# separately to their actual claim time, even after a long suite or restart.
 NOW = datetime.now(UTC)
 VIDEO_ID = "ausLKMojXaY"
 PIPELINE = "pipeline-v1"
@@ -186,8 +186,10 @@ def _seed(
 
 
 def _claim_analysis_job(
-    repository: SQLiteStateRepository, *, job_id: str, now: datetime = NOW
+    repository: SQLiteStateRepository, *, job_id: str, now: datetime | None = None
 ) -> str:
+    if now is None:
+        now = datetime.now(UTC)
     repository.create_job(
         job_id=job_id,
         scope_key=f"video:{VIDEO_ID}:ANALYSIS",
@@ -470,7 +472,7 @@ def test_restart_reproduces_the_same_request_identity_and_reuses_the_cache(
     finally:
         connection.close()
     _claim_analysis_job(
-        restarted_repository, job_id="analysis-after-restart", now=NOW
+        restarted_repository, job_id="analysis-after-restart"
     )
     # The registry is rebuilt from a fresh trusted read, not carried over.
     assert _registry(restarted_repository).identity_hash() == registry_identity
@@ -974,3 +976,80 @@ def test_no_migration_is_required_for_the_cutover() -> None:
     migrations = repository._load_migrations()  # type: ignore[attr-defined]
     assert migrations
     assert not any("prompt" in getattr(item, "name", "").lower() for item in migrations)
+
+
+def test_import_clock_does_not_expire_a_later_claim_or_restart(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import youtube_intel.analysis as analysis_module
+
+    current = [NOW + timedelta(minutes=11)]
+    monkeypatch.setattr(
+        f"{__name__}.datetime", SimpleNamespace(now=lambda _tz: current[0])
+    )
+    monkeypatch.setattr(analysis_module, "_utcnow", lambda: current[0])
+    repository = _seed(tmp_path)
+    ref = _first_transcript_ref(repository)
+    provider = _RecordingProvider(refs=(ref,))
+    outcome = _analyze(_service(repository, provider, tmp_path))
+    assert outcome is not None
+    first_job = repository.get_job("analysis-job")
+    first_video = repository.get_video(VIDEO_ID)
+    assert first_job is not None and first_video is not None
+    assert first_job.status is JobStatus.SUCCEEDED
+    assert first_video.pipeline_status is PipelineStatus.ANALYSIS_READY
+    assert provider.generation_calls == 1
+    assert repository.list_summary_promoted_evidence_ids(VIDEO_ID)
+    request_hash = outcome.result.request_hash
+    registry_identity = _registry(repository).identity_hash()
+
+    current[0] += timedelta(minutes=11)
+    restarted_repository = _reopen(tmp_path)
+    connection = restarted_repository._connect()
+    try:
+        connection.execute(
+            "UPDATE videos SET pipeline_status = ? WHERE video_id = ?",
+            (PipelineStatus.SCORED.value, VIDEO_ID),
+        )
+    finally:
+        connection.close()
+    _claim_analysis_job(restarted_repository, job_id="late-restart")
+    restarted_provider = _RecordingProvider(refs=(ref,))
+    reused = _analyze(
+        _service(restarted_repository, restarted_provider, tmp_path, job_id="late-restart")
+    )
+    assert reused.result.request_hash == request_hash
+    assert _registry(restarted_repository).identity_hash() == registry_identity
+    assert restarted_provider.generation_calls == 0
+    assert provider.generation_calls == 1
+    restarted_job = restarted_repository.get_job("late-restart")
+    restarted_video = restarted_repository.get_video(VIDEO_ID)
+    assert restarted_job is not None and restarted_video is not None
+    assert restarted_job.status is JobStatus.SUCCEEDED
+    assert restarted_video.pipeline_status is PipelineStatus.ANALYSIS_READY
+
+
+def test_actually_expired_analysis_lease_still_rejects_completion(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import youtube_intel.analysis as analysis_module
+    from youtube_intel.state import LeaseConflict
+
+    monkeypatch.setattr(
+        f"{__name__}.datetime", SimpleNamespace(now=lambda _tz: NOW)
+    )
+    repository = _seed(tmp_path)
+    provider = _RecordingProvider(refs=(_first_transcript_ref(repository),))
+    monkeypatch.setattr(analysis_module, "_utcnow", lambda: NOW + timedelta(minutes=11))
+    with pytest.raises(LeaseConflict, match="job lease is not owned or has expired"):
+        _analyze(_service(repository, provider, tmp_path))
+    assert provider.generation_calls == 1
+    expired_job = repository.get_job("analysis-job")
+    uncompleted_video = repository.get_video(VIDEO_ID)
+    assert expired_job is not None and uncompleted_video is not None
+    assert expired_job.status is JobStatus.RUNNING
+    assert uncompleted_video.pipeline_status is PipelineStatus.SCORED
+    assert repository.list_summary_promoted_evidence_ids(VIDEO_ID) == ()
+    assert repository.get_artifact_by_key(
+        f"analysis/{provider.seen[0].request_hash}/structured"
+    ) is None
