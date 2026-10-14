@@ -152,3 +152,108 @@ Suggested status: IN_REVIEW; final affected checks passed. Implementer
 stops all writing after the exact committed SHA is reported. No self-approval,
 main merge, task-board DONE update or production activation is performed.
 Independent Reviewer and root acceptance are pending.
+
+
+## 2026-10-14 独立 Reviewer / intel_bounded_review
+
+**REJECT** 固定候选 `b79b509d3f039b2376e8122f8d8ed70e8bfb5302`，base
+`2978550aee692c7b24d5707d2eb4ebdfcc1d0e2f`。实现者已停止且树干净；本 Reviewer
+仅追加交接，不修改业务/测试/Schema/旧冻结文件，不调用模型、网络、凭据、正式
+API 或 owner 数据。全独立回归通过不覆盖以下可信边界缺口，不能整合此候选。
+
+### Spec / P1-1：原封存输入与上下文只剩 opaque hash，历史证明未重新验证
+
+`intelligence_read.py:_text_card_projection` 约 337–341 行从 execution_id 取
+`input_hash/context_hash`，传回 `_text_execution_id` 重算第三段，只检查当前
+`manual_local_text_context_hash(...) is not None`。checkpoint/ledger 验证来源和
+执行状态，但没有持久原 sealed input/context 投影供 reader 重构原哈希；原
+Summary identity/hash/language/coverage 等事实不能从两段哈希恢复。card hash
+包含同样两段字符串，只证明内部字符串一致，未验证这些字符串所承诺的历史。
+违反任务/可信 reader 补充的“不能仅 opaque hash 自证”与 sealed context 要求。
+
+独立正常私有 SQLite/fixture 复现（只一次离线 fake transport，无真实模型）：
+1. 原 source-bound TXT → 正常 reservation/调用/入卡；
+2. 复用原作者历史正控建立真实 source-bound EXTRACTION，正常创建新 Summary；
+   新旧 Summary artifact 不同，新 Summary 读取有效，历史卡仍可读，正控 PASS；
+3. 仅在私有 DATA 损坏原 sealed Summary 文件，未改 DB、trigger、checkpoint、
+   card/hash、当前新 Summary 或 canonical/Evidence；原 ExtractiveSummaryService
+   reader 明确拒绝该损坏文件；
+4. `read_current_card`、`read_recorded_card`、`read_current`、直接 Save、Topic
+   全部仍 ACCEPTED。同一原 admitted context 已无法验证却进入 trusted 消费入口。
+
+命令：`PYTHONPATH=src:.:tests .venv/bin/python /tmp/local-text-review-history-probe.py`。
+日志 `/tmp/local-text-review-history-probe-resolved.log`；证据库
+`/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/local-text-review-history-jbajzc4r`。
+关键输出 `Original historical Summary actual reader CLOSED: ValidationError`，
+随后五项 `DAMAGED original context still ACCEPTED`。
+进一步正常 Backup readiness 对真实 DATA 损坏仍 ready=false、message referenced
+artifact changed/missing（`/tmp/local-text-review-history-backup.log`）；因此本 finding
+是可信读取/原 context 证明缺失，**不是 Backup 绕过、费用或生产资格绕过**。
+
+返修需保存并重新验证明确原输入/上下文的完整事实与原 Summary/source/coverage
+关联，匹配原哈希和唯一执行，而不是把 opaque hash 纳入另一个 hash 即自证。
+合法 Summary refresh 必须保留正控，不能用“当前 context 等于旧 hash”粗暴拒绝
+所有历史。若既有 Schema/批准文件范围不能承载可验证持久证明，按原任务 STOP
+并报告精确增补，不擅迁移/倒填历史/授新模型资格。
+
+### Spec / P1-2：卡片缺失时 read_current 跳过新增可信校验
+
+`intelligence_read.py:read_current` 约 154 行将 `get_distillation_card(...) is
+not None` 作为进入 TEXT_RANGE 严格验证的前提。对于实际已持久化本地文本提炼
+revision，卡片缺失时 `_read_card` 必须拒绝，但公共 read_current 直接返回原
+verified，Save/list_saved/Topic 正好使用这个入口，故新缺版本/执行关联校验可漏。
+
+独立负控沿用作者 tests 中的损坏 repository getter seam：真实私有正常入卡后，
+仅令该 getter 返回 None；未删除 SQLite 行、修改/停用 immutable trigger，未
+声称正常 SQL 可以删卡或已在正式产品造成此损坏。直接卡片入口 CLOSED
+`IntelligenceReadRejected: distillation card is unavailable`，而 read_current、
+Save、list_saved.verified=True、Topic 仍 ACCEPTED。
+脚本 `/tmp/local-text-review-missing-card-probe.py`，同名 `.log`；证据库
+`/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/local-text-missing-card-review-qba3oszd`。
+命令同上述 Python/PYTHONPATH，fake transport 1，真实调用 0。
+
+返修须以实际 revision/LOCAL text Evidence/持久执行关联判断是否必须验证，而不
+以待验证卡片存在作为前提；新类型的缺失 card/proof/关联应 failclosed，原普通
+非-card revision 及旧 YT/timed 合同保持。此项独立于 P1-1，两者均需关闭。
+
+### Standards 与其他范围复核
+
+重读 task、AGENTS/协作/规范，以及原 LOCAL_INTELLIGENCE_CHAIN_PROPOSAL、
+LOCAL_TEXT_TRUSTED_READER_ADDENDUM 和 root 的已批准 READ_CURRENT_ADDENDUM。
+graph-first 尝试既有 symbols，新增函数不在旧索引，按固定候选实际完整 13 文件
+差异读源码；没有建立/重建索引。仓库一个 Reviewer 优先于 review skill 并行建议。
+范围、DIRECT 复用、strict JSON/精确 reference typed equality、duplicate keys、
+TIMED/TEXT 混用拒绝、real codepoint/line/NULL 时间、manual-only 与当前 Summary
+admission/NO_NEW final CAS、完整 coverage、Cloud 三层拒绝、等待/取消/未知恢复
+未发现另外独立 P0/P1/P2。两 P1 是 Spec 和可信边界问题，未用 passing tests 降级。
+
+原 Ollama generation/messages/schema 及 cloud helper 没有改动；新增旧 authorization
+拒绝新 wire，未注册真实 transport 或发资格。Schema/runtime composition/Save/
+Topic writers/source_authority 字节不变；新 preparation JSON 与实际脚本/code hashes
+精确相同、inputs_frozen=false、execution_authority=NONE、production_qualified=false。
+前端只接受内部 Content/Evidence identity 再由现 DTO 恢复位置；旧 Detail keyed ID、
+useRemote late-result guard 保留，URL 不供应 offsets/timestamps。根与候选共同祖先
+是 fixed base；root 当前已接受的 native/provider 修改与本差异无产品文件重叠。
+
+### 独立实际检查
+
+- 原 handoff 的九文件受影响后端命令原样独立执行：**333 PASS /223.89s**，
+  `/tmp/local-text-review-tests.log`；含本地 text/timed、旧 wire/reservation/read/save、
+  ordinary Ollama/dispatch。完整全后端仍属于 root 最终验收，不冒充已跑。
+- `npm test -- --run`：**446 PASS /27 files /11.90s**，
+  `/tmp/local-text-review-frontend.log`；旧 act warnings 保留，没有删 skip/assertions。
+- `npm run typecheck`、`npm run build`：PASS，build 508ms，
+  `/tmp/local-text-review-typescript.log` 与 `/tmp/local-text-review-build.log`。
+- 四 source 与准备脚本 py_compile、`ruff check src tests scripts`、
+  `PYTHONPATH=src:. python -m mypy --strict src scripts/prepare_readiness_local_text.py`
+  **103 source files PASS**；`/tmp/local-text-review-mypy.log`。
+- AST/旧 wire/cloud 函数/Schema/runtime/save/topic/source authority 与 preparation freeze
+  exact hashes 比较 PASS，`/tmp/local-text-review-invariance.log`；diff check PASS。
+- 首历史反证尝试直接使用未 resolve 的 macOS tempfile，正常 DATA NOFOLLOW 边界
+  拒绝 `/var` symlink，`NotADirectoryError: 'var'`，日志
+  `/tmp/local-text-review-history-probe.log`。仅修正临时脚本根 `.resolve()` 后才得到
+  有效反证，不修改业务或弱化边界；保留原失败输出，不作为产品缺陷。
+
+两 P1 负控为隔离人工损坏/fixture，未读取 private thinking/真实模型结果，没有
+真实 GUI 或资格宣称。原四例/6144真实语义 FAIL 和 LOCAL8 BLOCKED 保持。Reviewer
+结论 **REJECT / P0=0 / P1=2 / P2=0**；退回原实现者，交接提交后 STOP。
