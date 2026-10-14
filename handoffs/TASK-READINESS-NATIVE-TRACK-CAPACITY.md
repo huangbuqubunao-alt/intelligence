@@ -96,3 +96,51 @@ provider模块（索引旧文件）、再按本工作树具体_map_directory定�
 
 待独立Reviewer审查提交、完整差异及负控；Implementer不填写APPROVE/ACCEPT。
 提交后STOP。没有DECISION NEEDED或新增敏感审批范围。
+
+
+## 2026-10-14 独立 Reviewer / intel_bounded_review
+
+**APPROVE** 候选 `e1cede521106296dcf99dcccb41d64a220aa6177`；固定比较点
+`05f31372d0b05ecdecaa711aead19ab7a3ad71db`。作者停止且树干净后开始；本 Reviewer
+未修改业务代码、测试、公共任务状态或任何其他树，只追加本审查段。审查后 STOP，
+本结论不授权 main/发布，不授模型资格，也不声称真实公网/macOS GUI 已通过。
+
+### 规格与标准审查
+
+重读 AGENTS、COLLABORATION、状态/PRD/System Design/Reuse、ADR-006、任务卡和
+NATIVE_TRACK_CAPACITY_PROPOSAL 的具体批准。graph-first 找到 `_map_directory`，
+索引内容是旧基线，故随后核对固定候选真实源码及完整四文件 diff。
+仓库单 Reviewer 规则优先于 skill 的并行审查建议；在同一独立审查中分别检查
+Standards 与 Spec。两者均未发现 P0/P1/P2 或范围越界。
+
+原语言/桶/entry/ext/URL/name 校验全部发生在新的 `tlang` 排除之前；unsupported
+格式也先完成安全校验。精确 parse_qsl keep_blank_values 语义保持；支持的原生候选
+才计原 1024 限额，raw 4096 和桶 512 仍跨人工/自动目录累计。private boolean 只
+区分“至少有合法支持格式但均是翻译”与“非空但无支持格式”，不成为公开 DTO、
+候选、正文、Evidence 或持久化权威。原 URL 字节、language、来源/格式和 provider
+位置保留；翻译正文没有读取入口。没有更改错误映射、provider transport、selection/
+format/normalization policy、Job/ledger、Schema 或 Backup 安全门禁。
+
+独立 AST 比较仅 `_map_directory` 与 `YtDlpSubtitleAdapter.enumerate_tracks` 两个
+函数体变更；原 validators/read/error/normalization/transport 函数不变。三项限额
+精确为 1024/4096/512；两测试文件的全部原字节均是候选文件前缀，只有追加测试，
+没有 skip/删断言/弱化。根候选 provider 字节与本 fixed base 相同，共同祖先就是
+fixed base，无已知 provider 整合冲突。
+
+### 独立检查
+
+- `PYTHONPATH=src:. .venv/bin/python -m pytest -q tests/unit/test_subtitle_directory_limits.py tests/unit/test_subtitle_policy.py tests/integration/test_subtitle_provider.py tests/integration/test_runtime_composition.py tests/integration/test_provider_dispatch_crash_recovery.py tests/integration/test_retained_subtitle_derivations.py tests/integration/test_retired_subtitle_failures.py tests/integration/test_caption_repair_completion_clock.py tests/unit/test_backup_restore.py`：**475 PASS /246.85s**，1 个既有 duplicate ZIP 负控 warning；包括最后追加的正常 SQLite 获取 integration。日志 `/tmp/native-track-capacity-independent-tests.log`。
+- provider/unit/integration `py_compile`、`ruff check src tests scripts`、`MYPYPATH=src .venv/bin/mypy --strict src`：PASS，mypy 102 文件；日志 `/tmp/native-track-capacity-independent-mypy.log`。
+- `git diff --check base..HEAD` 及工作树检查：PASS。
+- 8 项外部只读 adapter 负控/正控全部 PASS，日志 `/tmp/native-track-capacity-independent-probes.log`：跨 manual/auto 的 raw4097、bucket513、native1025 均 nonretryable CLOSED；1024 合法翻译之后的坏语言、unsupported 翻译 URL 凭据仍 CLOSED；4096 累计含百分编码精确 tlang 仅保留原生 position4095/签名 URL；manual-only 合法翻译 EMPTY、unsupported-only CLOSED。sentinel 禁止任何正文读取，无网络、模型、正式数据或 DB 操作。
+- AST/旧测试字节/根兼容检查日志 `/tmp/native-track-capacity-independent-invariance.log`。该临时检查第一次只枚举 `ast.Assign`，漏掉现有 `Final` 的 `AnnAssign`，报 `AssertionError: {}`；修正检查器识别二者后 PASS。这是审查器错误，未改产品或测试，原工具输出保留。
+
+### 限制与移交
+
+当前独立检查为隔离 fixture/SQLite 生命周期与安全回归，不等于真实完整 YouTube
+目录回放。主控仍须在接受整合后执行正常新 source/Content 的真实 GUI 字幕处理及
+备份恢复，任何外部 429/失败如实保留。历史失败的正常重试不属于本 provider 修复，
+不以本 APPROVE 扩大生命周期范围。全后端、前端、最终正式采用由主控后续完整
+候选验收；本任务不需要前端构建，也未运行任何真实模型/Cloud/owner API。
+
+审查 Verdict：**APPROVE / P0=0 / P1=0 / P2=0**。Reviewer STOP。
