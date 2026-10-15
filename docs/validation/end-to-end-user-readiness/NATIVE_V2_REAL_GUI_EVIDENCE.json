@@ -1,0 +1,88 @@
+{
+  "candidate_code": "5fd88fc590f0e005db030b293faef0ce6c132a5e",
+  "video_id": "OYp5j2RihPE",
+  "title": "Gemini 4 Argon and Google Antigravity: From 2D concept to 3D cathedral",
+  "real_ordinary_GUI": "Following add URL → accepted → Content → 29 native cues + deterministic summary + 4 evidence → reload → settings ready → create/download/native choose/preview/RESTORE → actual restart → Content reread",
+  "job_statuses": [
+    {
+      "target_stage": "METADATA",
+      "status": "SUCCEEDED",
+      "attempt_count": 1,
+      "last_error_code": null
+    },
+    {
+      "target_stage": "TRANSCRIPT",
+      "status": "SUCCEEDED",
+      "attempt_count": 1,
+      "last_error_code": null
+    }
+  ],
+  "source_artifacts": [
+    {
+      "artifact_id": "summary/dacee6c826dbf37a51f12a1f50e6ab6b0d0b1aba290779bb5109854a6b3e1e1a/structured",
+      "kind": "analysis_structured",
+      "content_hash": "f249ac7ef7a18e05ca90d116b7ff3c4eea3814e1071cf96ba23ca230ca617a7b",
+      "relative_path": "transcripts/summaries/dacee6c826dbf37a51f12a1f50e6ab6b0d0b1aba290779bb5109854a6b3e1e1a.json",
+      "provider": "extractive-source",
+      "model": "deterministic-excerpts-v2"
+    },
+    {
+      "artifact_id": "subtitle-source-9d22133a4352285a1ac912364d69543e796dea179c86e5480c23613a2d285eea",
+      "kind": "subtitle_source",
+      "content_hash": "f2d45a97da3b2e72e89345d366f3f0852e217b68824e51826c66e58f84fcd51d",
+      "relative_path": "transcripts/OYp5j2RihPE/a388f30ee42c99a2315f861ba09f10797b8900f2826ee0838ea49d7c6b202763/source.WyJtYW51YWxfc3VidGl0bGUiLCJlbiIsImVuIiwianNvbjMiXQ.json3",
+      "provider": "yt-dlp",
+      "model": null
+    },
+    {
+      "artifact_id": "subtitle-source-capture-4503213de88ffc5ec18c9b71609bfd31bb959fdcbc4d2cad1a8ac8077a56f713",
+      "kind": "subtitle_source",
+      "content_hash": "f2d45a97da3b2e72e89345d366f3f0852e217b68824e51826c66e58f84fcd51d",
+      "relative_path": "transcripts/OYp5j2RihPE/a388f30ee42c99a2315f861ba09f10797b8900f2826ee0838ea49d7c6b202763/source.WyJtYW51YWxfc3VidGl0bGUiLCJlbiIsImVuIiwianNvbjMiXQ.json3",
+      "provider": "yt-dlp",
+      "model": null
+    },
+    {
+      "artifact_id": "transcript-canonical-39291606d06b48eb832683ff783fcc87fa07b470ba22d1746c319f61bcc39d12",
+      "kind": "transcript_canonical",
+      "content_hash": "544990c7658fc8c59eb9a1f89853584c5f2d42d2c7ce9264969b119660c1e35d",
+      "relative_path": "transcripts/OYp5j2RihPE/a388f30ee42c99a2315f861ba09f10797b8900f2826ee0838ea49d7c6b202763/canonical.7f9443a6600d3cbbba8035534916bfe6e31275f033fc5fea4aff6fc55f422d90.-.txt",
+      "provider": "yt-dlp",
+      "model": null
+    }
+  ],
+  "evidence_count": 4,
+  "cues": 29,
+  "no_distillation_attempt": true,
+  "prior84DATA_preserved": true,
+  "restore_all74tables_equal": true,
+  "restore_all87DATA_equal": true,
+  "checks": {
+    "foreign_key_check": [],
+    "integrity_check": [
+      [
+        "ok"
+      ]
+    ]
+  },
+  "backup_zip_sha256": "4fdbf83482624f66bb2f5048652519971dd677a4dacce9e7c03f7456edf42b5f",
+  "backup_status": {
+    "status": {
+      "ready": true,
+      "reasons": [],
+      "message": "Core data is quiescent and ready for backup.",
+      "restore_pending": false,
+      "last_restore": {
+        "completed_at": "2026-10-15T03:50:03Z",
+        "message": "Restore completed successfully.",
+        "restore_id": "7fa802adb6d84e2a9692040d7aa3a41c",
+        "state": "APPLIED"
+      }
+    }
+  },
+  "physical_data_files": 87,
+  "manifest_artifact_references": 88,
+  "display_count_observation": "UI label data files displays88 artifact references for87 physical paths, because raw source and immutable capture point at same file. Backup actual zip+all rows/DATA consistent; presentation wording queued for correction, no count fabricated.",
+  "model_qualification": false,
+  "original_directory_failure": "preserved; this fresh ordinary request succeeds on corrected policy; not proof of old failed tracked retry/archive positive"
+}

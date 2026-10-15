@@ -178,3 +178,6 @@ Backup741独立20专项/461全量/TSbuild及handler byte核对PASS，但独立ZH
 
 
 2026-10-15 root续作：Native v2整合后252专项PASS36.35s；最初猜错test路径0tests保留。LOCAL39真实两文件NativePicker导入成功，2份proof、各WAIT0取消；只取消TXT时MD仍阻塞Backup，全部取消ready。实际服务停止/重启74表84DATA全等，普通GUI Create/download/native choose/preview/RESTORE一次确认，APPLIED022eabc252c64191a7d54ef744319962@2026-10-15T03:44:32Z；全部74表84DATA逐行/hash完全一致、FK/integrity好，取消+Content深链接刷新可读。私有检查先误用数组index两次，最终具名SQLite列核实3checkpoint count均0；原输出保留。CUA extension setFiles被权限拦，未扩大权限，使用真实Chrome原生对话框成功。手册新增两张真实图，总60。SourceInterest新tree1aef3e0作者进行中；local grounding生产port新treec166377作者进行中，两文件范围隔离、0模型资格/调用；未发布。
+
+
+2026-10-15 Native v2真实普通GUI：单次添加OYp5j2RihPE，metadata及transcript各1次SUCCEEDED、29cue、deterministicSummary+4Evidence、raw源+不可变capture同SHA，刷新和实际GUI备份/恢复7fa802adb6d84e2a9692040d7aa3a41c@03:50:03Z后全部74表87物理DATA精确一致，原84DATA保留；无distillation/Cloud/付费调用。注意UI“数据文件88”实际是88 artifact引用/87物理路径（raw和capture共文件），已记录呈现文案修复队列，不把显示数冒作物理数。旧tracked失败重试与真实失败derived归档正向未覆盖。
