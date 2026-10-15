@@ -1,3 +1,7 @@
+2026-10-15 精确入口更正（优先于保留的初版假设）：独立port审查发现真实新builder为 `/api/chat`，system+user两条message，不是`/api/generate`单user。初版58byte只证明该单user特例，不能授生产容量。真实两条消息的官方qwen3.5封装88bytes；完整request≤7680已包含两content UTF8及JSON封装，因此render≤7768，input保守≤7770，最大6144输出与1余位要求13915；16384仍足。必须按真实system+user合同固定request所有字段，无history/tools/images/context/suffix/附加roles，本地模型本身SYSTEM/MESSAGE仍空。无生成诊断改用`/api/chat`、相同两角色及`_debug_render_only=true`；两种chat(native/legacy)官方分支均在实际模型Completion前返回。此前generate诊断尚未执行，实际生成仍0。当前profile仍原8192/BLOCKED，新的16384代码须后续独立任务和审查，不原地当已通过。
+
+完整manifest/config/5原层实核全部PASS，Ollama0.40.1与llama-server二进制SHA已记录`.var/end-to-end-user-readiness/capacity-runtime-preflight.json`。ps为空；16GiB物理RAM、44%系统free、余盘15.195GB。装载前必须再核压力，不能拿旧压力当当前资源承诺。新profile无实际proof/生成；旧profile不改。初版保留如下，明确不执行其中错误单user预检：
+
 # 本地容量只读证明及无生成预检
 2026-10-15；当前任务持续授权覆盖必要隔离模型调整。不是旧失败方案重试；新grounding profile尚未冻结、0次真实生成、0新proof、资格全关闭。原8192方案不足；本方案必须先独立审查才进入生产实现，所有旧语义失败保留。
 
