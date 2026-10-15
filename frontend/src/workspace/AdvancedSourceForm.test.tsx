@@ -87,7 +87,7 @@ test("Source setup writes only through the existing Source, policy, and schedule
         });
       }
       if (input.endsWith("/sources/source-new/policy")) {
-        return response({ policy: {} });
+        return response({ policy: {}, applied_source_policy_revision_id: "r1", current_source_policy_revision_id: "r1", historical_replay: false });
       }
       if (
         input.endsWith("/sources/source-new") && init?.method === "PATCH"
@@ -137,6 +137,7 @@ test("Source setup writes only through the existing Source, policy, and schedule
       }),
     )
   );
+  await waitFor(() => expect(fetch).toHaveBeenCalledWith("/api/v1/automation", expect.objectContaining({ method: "POST" })));
   expect(fetch).toHaveBeenCalledWith(
     "/api/v1/sources/source-new",
     expect.objectContaining({

@@ -112,6 +112,7 @@ type SourceRun = {
   updated_at: string;
 };
 type SourcePolicy = {
+  source_policy_revision_id?: string | null;
   initial_history_count: number;
   per_run_max_new_videos: number;
   focus_rules: string[];
@@ -2763,10 +2764,36 @@ export function ExistingSourceForm(
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [expected, setExpected] = useState<string | null | undefined>(source ? policy?.source_policy_revision_id : null);
+  const [policyKnown, setPolicyKnown] = useState(!source || (validGlobalPolicy({ policy }) && (!policyModes || Object.values(policyModes).every(mode => mode === "INHERIT" || mode === "OVERRIDE"))));
+  const [versionConflict, setVersionConflict] = useState(false);
+  const saving = useRef(false), alive = useRef(true);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  const attempt = useRef<{ signature: string; sourceId?: string; command: string; scheduleId: string;
+    policyDone: boolean; sourceDone: boolean; scheduleDone: boolean; request: object } | null>(null);
+  const versionKnown = policyKnown && (expected === null || (typeof expected === "string" && !!expected.trim() && expected.length <= 512));
+  const reloadVersion = async () => {
+    if (!source || busy) return;
+    setBusy(true);
+    try {
+      const value = await api<{ source: Source; policy: SourcePolicy; policy_modes?: SourcePolicyModes }>(`/sources/${source.source_id}`);
+      if (!alive.current) return;
+      const revision = value?.policy?.source_policy_revision_id;
+      if (value?.source?.source_id !== source.source_id || !validGlobalPolicy(value)
+          || (value.policy_modes && !Object.values(value.policy_modes).every(mode => mode === "INHERIT" || mode === "OVERRIDE"))
+          || !(revision === null || (typeof revision === "string" && !!revision.trim() && revision.length <= 512))) throw new Error("invalid policy read");
+      if (!STYLES.some(([value]) => value === style)) setStyle(value.policy.distillation_style);
+      if (!["INHERIT", "OVERRIDE"].includes(focusMode)) setFocusMode(value.policy_modes?.focus ?? "OVERRIDE");
+      if (!["INHERIT", "OVERRIDE"].includes(ignoreMode)) setIgnoreMode(value.policy_modes?.ignore ?? "OVERRIDE");
+      if (!["INHERIT", "OVERRIDE"].includes(styleMode)) setStyleMode(value.policy_modes?.style ?? "OVERRIDE");
+      setPolicyKnown(true); setExpected(revision); setVersionConflict(false); attempt.current = null; setError(null);
+    } catch { if (alive.current) setError("Interests could not be read. Retry before saving. Your draft is preserved."); }
+    finally { if (alive.current) setBusy(false); }
+  };
   const policyReadRequired = [focusMode, ignoreMode, styleMode].includes("INHERIT");
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (policyReadRequired && !globalPolicy.data) return;
+    if (saving.current || !versionKnown || versionConflict || (policyReadRequired && !globalPolicy.data)) return;
     if (!source && /^(?:@|UC|https:\/\/(?:www\.)?youtube\.com\/(?:@|channel\/))/.test(url.trim())) {
       setError(t("Use Follow a channel to follow from now on without importing existing videos."));
       return;
@@ -2776,54 +2803,51 @@ export function ExistingSourceForm(
       setError(t("Add at least one focus word to let the app select relevant videos for insight extraction."));
       return;
     }
-    setBusy(true);
-    setError(null);
+    const policyBody = { initial_history_count: Number(initialHistory), per_run_max_new_videos: Number(perRunLimit),
+      focus_mode: focusMode, focus_rules: focusMode === "INHERIT" ? [] : ruleList(focus),
+      ignore_mode: ignoreMode, ignore_rules: ignoreMode === "INHERIT" ? [] : ruleList(ignore),
+      distillation_style_mode: styleMode, distillation_style: styleMode === "INHERIT" ? null : style };
+    const signature = JSON.stringify({ url, policyBody, enabled, processingPolicy, frequency, time, scheduleEnabled });
+    if (attempt.current?.signature !== signature) attempt.current = { signature, sourceId: source?.source_id,
+      command: commandId(), scheduleId: schedule?.schedule_id ?? commandId(), policyDone: false, sourceDone: false, scheduleDone: false,
+      request: { expected_source_policy_revision_id: expected, ...policyBody } };
+    const step = attempt.current;
+    saving.current = true; setBusy(true); setError(null);
     try {
-      let sourceId = source?.source_id;
-      if (!sourceId) {
-        const created = await post<{ source: Source }>("/sources", {
-          url,
-          processing_policy: processingPolicy,
-        });
-        sourceId = created.source.source_id;
+      if (!step.sourceId) {
+        const created = await post<{ source: Source }>("/sources", { url, processing_policy: processingPolicy });
+        step.sourceId = created.source.source_id;
+        if (!alive.current) return;
       }
-      await patch(`/sources/${sourceId}`, {
-        enabled,
-        processing_policy: processingPolicy,
-      });
-      await put(`/sources/${sourceId}/policy`, {
-        command_id: commandId(),
-        initial_history_count: Number(initialHistory),
-        per_run_max_new_videos: Number(perRunLimit),
-        focus_mode: focusMode,
-        focus_rules: focusMode === "INHERIT" ? [] : ruleList(focus),
-        ignore_mode: ignoreMode,
-        ignore_rules: ignoreMode === "INHERIT" ? [] : ruleList(ignore),
-        distillation_style_mode: styleMode,
-        distillation_style: styleMode === "INHERIT" ? null : style,
-      });
-      if (frequency !== "MANUAL") {
-        await post("/automation", {
-          schedule_id: schedule?.schedule_id,
-          target_type: "SOURCE_CHECK",
-          target_id: sourceId,
-          frequency,
-          weekday: frequency === "WEEKLY" ? 1 : null,
-          local_time: time,
-          timezone: "Asia/Shanghai",
-          enabled: scheduleEnabled,
-        });
+      if (!step.policyDone) {
+        const result = await put<{ applied_source_policy_revision_id?: string; current_source_policy_revision_id?: string; historical_replay?: boolean }>(`/sources/${step.sourceId}/policy`, { command_id: step.command, ...step.request });
+        if (!alive.current) return;
+        if (!result.applied_source_policy_revision_id || !result.current_source_policy_revision_id || typeof result.historical_replay !== "boolean") throw new Error("The Source could not be saved.");
+        if (result.historical_replay || result.applied_source_policy_revision_id !== result.current_source_policy_revision_id) {
+          setVersionConflict(true); setError("This command was already applied, and newer interests exist. Your draft is preserved. Reload the current version."); return;
+        }
+        step.policyDone = true; setExpected(result.current_source_policy_revision_id);
+      }
+      if (!step.sourceDone) {
+        await patch(`/sources/${step.sourceId}`, { enabled, processing_policy: processingPolicy });
+        step.sourceDone = true;
+        if (!alive.current) return;
+      }
+      if (frequency !== "MANUAL" && !step.scheduleDone) {
+        await post("/automation", { schedule_id: step.scheduleId, target_type: "SOURCE_CHECK", target_id: step.sourceId,
+          frequency, weekday: frequency === "WEEKLY" ? 1 : null, local_time: time, timezone: "Asia/Shanghai", enabled: scheduleEnabled });
+        step.scheduleDone = true;
+        if (!alive.current) return;
       }
       onSaved();
     } catch (reason) {
-      setError(
-        reason instanceof Error
-          ? reason.message
-          : "The Source could not be saved.",
-      );
-    } finally {
-      setBusy(false);
-    }
+      if (!alive.current) return;
+      if (!step.policyDone && reason instanceof ApiRequestError && reason.code === "CONFLICT") {
+        setVersionConflict(true); setError("Interests changed elsewhere. Your draft is preserved. Reload the current version before saving again.");
+      } else setError(step.sourceDone ? "Source settings saved. The automatic schedule could not be saved. Retry resumes remaining steps."
+        : step.policyDone ? "Policy saved. Source settings could not be saved. Retry resumes remaining steps."
+        : "The Source could not be saved. Your draft is preserved. Retry resumes remaining steps.");
+    } finally { saving.current = false; if (alive.current) setBusy(false); }
   };
   if (providerChoice === "BILIBILI") return <BilibiliImport onClose={onClose} onSaved={onSaved} onProvider={setProviderChoice} />;
   if (providerChoice === "LOCAL") return <LocalImport onBilibili={() => setProviderChoice("BILIBILI")} onClose={onClose} onSaved={onSaved} onYouTube={() => setProviderChoice("YOUTUBE")} />;
@@ -2848,6 +2872,10 @@ export function ExistingSourceForm(
             {t("Cancel")}
           </button>
         </div>
+        {source && (!versionKnown || versionConflict) && <div role="alert">
+          {!versionKnown && <p>{t("Interests could not be read. Retry before saving. Your draft is preserved.")}</p>}
+          <button type="button" className="button button-secondary" disabled={busy} onClick={() => void reloadVersion()}>{t("Reload current interests")}</button>
+        </div>}
         {!source && <div className="button-row" aria-label={t("Source provider")}><button className="button button-primary" aria-pressed="true">YouTube</button><button className="button button-secondary" onClick={() => setProviderChoice("LOCAL")}>{t("Local files")}</button><button className="button button-secondary" onClick={() => setProviderChoice("BILIBILI")}>{t("Bilibili")}</button></div>}
         {!source && <div className="button-row" aria-label={t("YouTube source type")}>
           <button className="button button-secondary" aria-pressed={youtubeMode === "video"} onClick={() => setYoutubeMode("video")}>{t("Add one video")}</button>
@@ -3032,7 +3060,7 @@ export function ExistingSourceForm(
               : null}
           </Panel>
           </details>
-          {error && <ErrorState error={error} />}
+          {error && <div role="alert"><ErrorState error={t(error)} /></div>}
           <div className="modal-actions">
             <button
               type="button"
@@ -3043,7 +3071,7 @@ export function ExistingSourceForm(
             </button>
             <button
               className="button button-primary"
-              disabled={busy || (policyReadRequired && !globalPolicy.data)}
+              disabled={busy || !versionKnown || versionConflict || (policyReadRequired && !globalPolicy.data)}
               type="submit"
             >
               {t(busy ? "Saving…" : source ? "Save changes" : "Add Source")}

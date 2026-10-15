@@ -4,6 +4,23 @@ export type UiLanguage = "zh-CN" | "en";
 
 const storageKey = "yia.ui-language";
 const chinese: Record<string, string> = {
+  "Current saved focus": "当前已保存的关注词",
+  "Current saved ignore": "当前已保存的忽略词",
+  "Following interests": "此关注的兴趣",
+  "Save interests": "保存兴趣",
+  "Cancel interest editing": "取消编辑兴趣",
+  "Reload current interests": "重新读取当前兴趣",
+  "Loading interests…": "正在加载兴趣…",
+  "Interests saved.": "兴趣已保存。",
+  "Changes affect future checks and insights only. Processing and monitoring settings stay the same.": "更改仅影响后续检查与洞察，处理和关注设置保持不变。",
+  "An empty override means no words for this Following; inheritance follows global interests.": "单独设置为空表示此关注不使用词条；选择继承则跟随全局兴趣。",
+  "Interests could not be read. Retry before saving. Your draft is preserved.": "未能读取兴趣。请重新读取后再保存，草稿仍保留。",
+  "Interests changed elsewhere. Your draft is preserved. Reload the current version before saving again.": "兴趣已在其他位置更改，草稿仍保留。请重新读取当前版本后再保存。",
+  "This command was already applied, and newer interests exist. Your draft is preserved. Reload the current version.": "此操作已处理，之后已有新的兴趣更改。草稿仍保留，请重新读取当前版本。",
+  "Interests could not be saved. Your draft is preserved. Retry or reload the current version.": "未能确认兴趣保存结果，草稿仍保留。请重试或重新读取当前版本。",
+  "The Source could not be saved. Your draft is preserved. Retry resumes remaining steps.": "未能保存来源，草稿仍保留。重试将继续尚未完成的步骤。",
+  "Policy saved. Source settings could not be saved. Retry resumes remaining steps.": "内容偏好已保存，但来源设置未能保存。重试将继续尚未完成的步骤。",
+  "Source settings saved. The automatic schedule could not be saved. Retry resumes remaining steps.": "来源设置已保存，但自动计划未能保存。重试将继续尚未完成的步骤。",
   "Source details could not be loaded. Check the local connection and retry. Stored Content is preserved.": "未能加载来源详情，请检查本地连接后重试。已保存的内容仍保留。",
   "Retry source details": "重试加载来源详情",
   "Loading global interests…": "正在加载全局兴趣…",

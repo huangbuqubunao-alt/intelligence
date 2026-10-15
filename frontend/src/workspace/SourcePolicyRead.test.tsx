@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ExistingSourceForm } from "./App";
 import { UiLanguageProvider } from "./uiLanguage";
-const policy = { initial_history_count: 5, per_run_max_new_videos: 5, focus_rules: ["robotics"], ignore_rules: ["sponsored"], distillation_style: "BALANCED" };
+const policy = { source_policy_revision_id: null, initial_history_count: 5, per_run_max_new_videos: 5, focus_rules: ["robotics"], ignore_rules: ["sponsored"], distillation_style: "BALANCED" };
 const response = (value: unknown) => ({ ok: true, status: 200, json: async () => value });
 const source = { source_id: "source-1", canonical_url: "https://www.youtube.com/watch?v=abc", enabled: true, processing_policy: "STANDARD_INTELLIGENCE", display_name: "A video", last_error: null };
 function form(modes: NonNullable<Parameters<typeof ExistingSourceForm>[0]["policyModes"]> = { focus: "INHERIT", ignore: "INHERIT", style: "INHERIT" }) { return render(<UiLanguageProvider><ExistingSourceForm source={source} policy={policy} policyModes={modes} onClose={vi.fn()} onSaved={vi.fn()} /></UiLanguageProvider>); }

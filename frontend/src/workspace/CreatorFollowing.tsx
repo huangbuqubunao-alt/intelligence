@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ApiRequestError, api, patch, post } from "../api/client";
+import { ApiRequestError, api, patch, post, put } from "../api/client";
 import { useUiLanguage } from "./uiLanguage";
 
 export type Tracking = {
@@ -169,6 +169,7 @@ function CreatorFollowingDetailContent({ id, capability, onClose, onRefresh }: D
   const { t } = useUiLanguage();
   const [data, setData] = useState<Detail | null>(null);
   const [revision, setRevision] = useState(0);
+  const [interestOpen, setInterestOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -243,6 +244,8 @@ function CreatorFollowingDetailContent({ id, capability, onClose, onRefresh }: D
           finally { if (mounted.current) setBusy(false); }
         }}><option value="ORGANIZE_CONTENT">{t("Organize content")}</option><option value="EXTRACT_INTELLIGENCE">{t("Also extract Intelligence")}</option></select>
       </label>}
+      <button className="button button-secondary" disabled={busy || reading || readError} onClick={() => setInterestOpen(true)}>{t("Edit interests")}</button>
+      {interestOpen && <SourceInterestEditor key={id} id={id} onClose={() => setInterestOpen(false)} />}
       <a href={source.canonical_url} target="_blank" rel="noreferrer">{t("Open Source")}</a>
       <dl className="creator-tracking">
         <dt>{t(off ? "Last recorded source health" : "Source health")}</dt><dd>{t(trackingCopy(source.tracking.health, source.provider))}</dd>
@@ -291,4 +294,100 @@ function CreatorFollowingDetailContent({ id, capability, onClose, onRefresh }: D
     </div>}
     {message && <p role="status" aria-live="polite">{t(message)}</p>}
   </section></div>;
+}
+
+type InterestMode = "INHERIT" | "OVERRIDE";
+type InterestSnapshot = {
+  policy: { source_id: string; source_policy_revision_id: string | null; focus_rules: string[]; ignore_rules: string[]; distillation_style: string };
+  policy_modes: { focus: InterestMode; ignore: InterestMode; style: InterestMode };
+};
+const INTEREST_STYLES = ["BALANCED", "TECHNICAL_DETAIL_FIRST", "PRODUCT_CASE_FIRST", "TREND_OPINION_FIRST"];
+function validInterestSnapshot(value: unknown, id: string): value is InterestSnapshot {
+  if (!value || typeof value !== "object") return false;
+  const v = value as Partial<InterestSnapshot> & { source?: { source_id?: string } };
+  const p = v.policy, modes = v.policy_modes;
+  const rules = (x: unknown) => Array.isArray(x) && x.length <= 20 && x.every(r => typeof r === "string" && r.trim() && r === r.trim() && r.length <= 160);
+  return v.source?.source_id === id && p?.source_id === id
+    && (p.source_policy_revision_id === null || (typeof p.source_policy_revision_id === "string" && !!p.source_policy_revision_id.trim() && p.source_policy_revision_id.length <= 512))
+    && rules(p.focus_rules) && rules(p.ignore_rules) && INTEREST_STYLES.includes(p.distillation_style)
+    && !!modes && [modes.focus, modes.ignore, modes.style].every(m => m === "INHERIT" || m === "OVERRIDE");
+}
+
+function SourceInterestEditor({ id, onClose }: { id: string; onClose: () => void }) {
+  const { t } = useUiLanguage();
+  const [snapshot, setSnapshot] = useState<InterestSnapshot | null>(null);
+  const [focus, setFocus] = useState(""); const [ignore, setIgnore] = useState("");
+  const [focusMode, setFocusMode] = useState<InterestMode>("INHERIT");
+  const [ignoreMode, setIgnoreMode] = useState<InterestMode>("INHERIT");
+  const [styleMode, setStyleMode] = useState<InterestMode>("INHERIT");
+  const [style, setStyle] = useState("BALANCED");
+  const [reading, setReading] = useState(true), [busy, setBusy] = useState(false);
+  const [blocked, setBlocked] = useState(false), [message, setMessage] = useState<string | null>(null);
+  const [readAttempt, setReadAttempt] = useState(0);
+  const edited = useRef(false);
+  const initialized = useRef(false), mounted = useRef(true), submitting = useRef(false);
+  const command = useRef<{ signature: string; id: string } | null>(null);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  useEffect(() => {
+    let disposed = false;
+    setReading(true);
+    void api<unknown>(`/sources/${id}`).then(value => {
+      if (disposed) return;
+      if (!validInterestSnapshot(value, id)) throw new Error("invalid interest read");
+      setSnapshot(value); setBlocked(false); setMessage(null);
+      if (!initialized.current && !edited.current) {
+        setFocus(value.policy.focus_rules.join(", ")); setIgnore(value.policy.ignore_rules.join(", "));
+        setFocusMode(value.policy_modes.focus); setIgnoreMode(value.policy_modes.ignore); setStyleMode(value.policy_modes.style);
+        setStyle(value.policy.distillation_style);
+      }
+      initialized.current = true;
+    }).catch(() => { if (!disposed) { setBlocked(true); setMessage("Interests could not be read. Retry before saving. Your draft is preserved."); } })
+      .finally(() => { if (!disposed) setReading(false); });
+    return () => { disposed = true; };
+  }, [id, readAttempt]);
+  const mode = (label: string, value: InterestMode, change: (m: InterestMode) => void) => <label className="field">{t(label)}<select aria-label={t(label)} value={value} onChange={e => { edited.current = true; change(e.target.value as InterestMode); }}><option value="INHERIT">{t("Use global interests")}</option><option value="OVERRIDE">{t("Set for this Following")}</option></select></label>;
+  const rules = (value: string) => value.split(/[,，\n]/).map(v => v.trim()).filter(Boolean);
+  return <form aria-label={t("Following interests")} onKeyDown={e => { if (e.key === "Escape" && !busy) { e.stopPropagation(); onClose(); } }} onSubmit={async e => {
+    e.preventDefault();
+    if (!snapshot || reading || blocked || submitting.current) return;
+    const request = { expected_source_policy_revision_id: snapshot.policy.source_policy_revision_id,
+      focus_mode: focusMode, focus_rules: focusMode === "INHERIT" ? [] : rules(focus),
+      ignore_mode: ignoreMode, ignore_rules: ignoreMode === "INHERIT" ? [] : rules(ignore),
+      distillation_style_mode: styleMode, distillation_style: styleMode === "INHERIT" ? null : style };
+    const signature = JSON.stringify(request);
+    if (command.current?.signature !== signature) command.current = { signature, id: crypto.randomUUID() };
+    submitting.current = true; setBusy(true); setMessage(null);
+    try {
+      const result = await put<{ applied_source_policy_revision_id?: string; current_source_policy_revision_id?: string; historical_replay?: boolean }>(`/sources/${id}/interests`, { command_id: command.current.id, ...request });
+      if (!mounted.current) return;
+      if (!result.applied_source_policy_revision_id || !result.current_source_policy_revision_id || typeof result.historical_replay !== "boolean") throw new Error("invalid interest result");
+      if (result.historical_replay || result.applied_source_policy_revision_id !== result.current_source_policy_revision_id) {
+        setBlocked(true); setMessage("This command was already applied, and newer interests exist. Your draft is preserved. Reload the current version.");
+      } else {
+        setSnapshot({ ...snapshot, policy: { ...snapshot.policy, source_policy_revision_id: result.current_source_policy_revision_id } });
+        setMessage("Interests saved.");
+      }
+    } catch (error) {
+      if (!mounted.current) return;
+      if (error instanceof ApiRequestError && error.code === "CONFLICT") {
+        setBlocked(true); setMessage("Interests changed elsewhere. Your draft is preserved. Reload the current version before saving again.");
+      } else setMessage("Interests could not be saved. Your draft is preserved. Retry or reload the current version.");
+    } finally { submitting.current = false; if (mounted.current) setBusy(false); }
+  }}>
+    <h3>{t("Following interests")}</h3>
+    <p className="hint">{t("Changes affect future checks and insights only. Processing and monitoring settings stay the same.")}</p>
+    {reading && <p role="status">{t("Loading interests…")}</p>}
+    <fieldset disabled={busy || reading}>
+      {mode("Focus preference", focusMode, setFocusMode)}
+      {focusMode === "OVERRIDE" ? <label className="field">{t("Focus")}<input aria-label={t("Focus")} value={focus} onChange={e => { edited.current = true; setFocus(e.target.value); }} /></label> : snapshot && <p className="hint">{t(snapshot.policy_modes.focus === "INHERIT" ? "Global focus" : "Current saved focus")}: {snapshot.policy.focus_rules.join("、") || t("Not set")}</p>}
+      {mode("Ignore preference", ignoreMode, setIgnoreMode)}
+      {ignoreMode === "OVERRIDE" ? <label className="field">{t("Ignore")}<input aria-label={t("Ignore")} value={ignore} onChange={e => { edited.current = true; setIgnore(e.target.value); }} /></label> : snapshot && <p className="hint">{t(snapshot.policy_modes.ignore === "INHERIT" ? "Global ignore" : "Current saved ignore")}: {snapshot.policy.ignore_rules.join("、") || t("Not set")}</p>}
+      {mode("Style preference", styleMode, setStyleMode)}
+      {styleMode === "OVERRIDE" && <label className="field">{t("Distillation style")}<select aria-label={t("Distillation style")} value={style} onChange={e => { edited.current = true; setStyle(e.target.value); }}>{INTEREST_STYLES.map(v => <option key={v} value={v}>{t(({ BALANCED:"Balanced", TECHNICAL_DETAIL_FIRST:"Technical", PRODUCT_CASE_FIRST:"Product case", TREND_OPINION_FIRST:"Trend and opinion" })[v] ?? v)}</option>)}</select></label>}
+      <p className="hint">{t("An empty override means no words for this Following; inheritance follows global interests.")}</p>
+      <div className="button-row"><button className="button button-primary" disabled={!snapshot || blocked || reading || busy}>{t(busy ? "Saving…" : "Save interests")}</button><button type="button" className="button button-secondary" onClick={onClose}>{t("Cancel interest editing")}</button></div>
+    </fieldset>
+    {message && <p role={blocked ? "alert" : "status"}>{t(message)}</p>}
+    <button type="button" className="button button-secondary" disabled={busy || reading} onClick={() => setReadAttempt(v => v + 1)}>{t("Reload current interests")}</button>
+  </form>;
 }
