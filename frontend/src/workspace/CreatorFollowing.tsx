@@ -152,6 +152,40 @@ type Detail = {
   source_runs: { run_id?: string; state: string }[];
 };
 
+const readObject = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
+const readText = (value: unknown) => typeof value === "string" && value.trim().length > 0;
+const optionalReadText = (value: unknown) => value === undefined || value === null || typeof value === "string";
+const readCount = (value: unknown) => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+
+/** Validate the fields consumed by both independently polled detail surfaces. */
+export function validFollowingSourceRead(value: unknown): boolean {
+  if (!readObject(value) || !readText(value.source_id) || typeof value.enabled !== "boolean") return false;
+  if (!["display_name", "friendly_name", "channel_id", "video_id", "canonical_url", "provider", "source_type", "processing_mode", "last_checked_at", "last_success_at"].every(key => optionalReadText(value[key]))) return false;
+  if (value.tracking === undefined || value.tracking === null) return true;
+  const tracking = value.tracking;
+  if (!readObject(tracking) || !readText(tracking.health) || !readText(tracking.coverage)
+      || !readCount(tracking.update_count) || !readCount(tracking.pending_count)
+      || (tracking.checking !== undefined && typeof tracking.checking !== "boolean")
+      || !["unavailable_count", "processing_count"].every(key => tracking[key] === undefined || readCount(tracking[key]))
+      || !["verified_at", "baseline_at", "next_check_at", "manual_check_at"].every(key => optionalReadText(tracking[key]))) return false;
+  return value.provider === undefined || value.provider === "YOUTUBE" || value.provider === "BILIBILI";
+}
+
+export function validFollowingDetailRead(value: unknown, id: string, requireTracking = false): boolean {
+  if (!readObject(value) || !readObject(value.source) || !validFollowingSourceRead(value.source)
+      || value.source.source_id !== id || (requireTracking && !value.source.tracking)) return false;
+  const belongsToSource = (item: Record<string, unknown>) => item.source_id === undefined || item.source_id === id;
+  return Array.isArray(value.source_runs) && value.source_runs.every(run =>
+    readObject(run) && readText(run.state) && (run.run_id === undefined || readText(run.run_id))
+    && optionalReadText(run.attention_reason) && belongsToSource(run))
+    && Array.isArray(value.recent_videos) && value.recent_videos.every(video =>
+      readObject(video) && readText(video.video_id) && (video.title === null || typeof video.title === "string")
+      && readText(video.processing_status) && belongsToSource(video)
+      && (video.filter === undefined || video.filter === null || (readObject(video.filter)
+        && typeof video.filter.outcome === "string" && typeof video.filter.reason === "string")));
+}
+
 const ACTIVE_STATES = ["QUEUED", "RUNNING", "WAITING", "PARTIAL"];
 const isActive = (data: Detail | null) =>
   Boolean(data?.source.tracking.checking || data?.source_runs.some(run => ACTIVE_STATES.includes(run.state)));
@@ -186,9 +220,7 @@ function CreatorFollowingDetailContent({ id, capability, onClose, onRefresh, ref
     setReading(true);
     void api<Detail>(`/sources/${id}`).then(value => {
       if (disposed) return;
-      if (value?.source?.source_id !== id || !value.source.tracking
-          || (value.source.provider !== undefined && !["YOUTUBE", "BILIBILI"].includes(value.source.provider))
-          || !Array.isArray(value.source_runs) || !Array.isArray(value.recent_videos)) {
+      if (!validFollowingDetailRead(value, id, true)) {
         throw new Error("Source detail response identity is unavailable");
       }
       setData(value); setReadError(false);

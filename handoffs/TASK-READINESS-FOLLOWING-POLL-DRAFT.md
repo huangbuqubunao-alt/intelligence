@@ -139,3 +139,42 @@ API/CSS，无外部源码/依赖/许可改变；graph返回旧useRemote签名，
 本轮没有调用真实provider/model或root6098/6099，没有正式数据写入；后端0diff，按任务继承root后端证据，
 未声称本轮重跑backend。真实factory/API GUI仍由root复验。保留原作者全部RED及额度中断前日志，停止仅本轮
 独立Vite5194；审查只提交本handoff，之后clean **STOP**。
+
+## 原作者 P2 返修（2026-10-16）
+
+从独立 REJECT clean HEAD `1ad96976b51d27e2725b0faa1f76d53317d3f309` 继续原任务，保留
+`aa18dea...81c17f9...1ad9697` 全历史及上面失败证据；未动原已审 CAS 树、root 树或公共状态。
+Graph 查到两个旧符号，但未包含当前轮询修复，以本树固定源码与消费者为准。
+
+### 最小改动与复用
+
+- DIRECT 既有 TypeScript/React/API 失败流程，无依赖、Schema 或 backend 变更。两个独立详情读取
+  在 `setData` 前共用 `validFollowingDetailRead`，逐项验证 run/state/可选 run id，video/id/title/status
+  及实际读取的 filter 字段；如成员附带 source_id，必须与请求来源一致。空数组仍合法；null、空对象、
+  错类型、空必需 identity/state 和 foreign 成员拒绝整次读取，不过滤坏成员来冒充完整成功。
+- 共用 source 校验验证渲染标签字段与 tracking 对象、health/coverage、非负整数数量、可选 boolean
+  checking 和可选日期字段类型。Sources 列表已有身份校验也复用它；兼容原有可选字段和无 tracking 的
+  合法 legacy 来源，不改变原 established-tracking guard、路径隔离、晚返回与其它 useRemote 默认行为。
+- 坏响应沿用各自已有错误/GET 重试分支，保留已接受快照与原 editor DOM。没有 ErrorBoundary、停轮询、
+  自动写入、隐式 policy rebase 或重放命令。兴趣编辑器及 CAS 合同未改。
+
+### 红绿及检查证据
+
+| 检查 | 结果 |
+|---|---|
+| `npm run typecheck`（新增测试后、实现前） | PASS；`/tmp/following-poll-repair-red-types.log` |
+| `npm test -- src/workspace/FollowingPollDraft.test.tsx -t 'null run'`（实现前） | **2 failed**：完整 App `Cannot read properties of null (reading 'state')`，独立 Creator 未拒绝坏读、缺少错误说明；`/tmp/following-poll-repair-red.log`。此次聚焦执行的其余45项未选择，不是删/skip 测试 |
+| 修复首次类型检查 | TS18048 `read.source is possibly undefined`，`/tmp/following-poll-repair-types.log`；将记录 tracking 身份的访问改为已校验后的可选访问，校验器保留 boolean 返回而不宣称所有 legacy 读都有 tracking。未改变测试断言 |
+| `npm run typecheck`（最终） | PASS；`/tmp/following-poll-repair-types-green.log` |
+| `npm test -- src/workspace/FollowingPollDraft.test.tsx` | **47 passed**；`/tmp/following-poll-repair-focused.log`。原11项保留，新增18种坏成员×App/独立Creator=36项；核对同 DOM/focus/selection[2,5]/原多行草稿、明确失败及显式 GET 恢复、PUT/PATCH0 |
+| `npm test` | **31 files / 543 passed，13.79s**；`/tmp/following-poll-repair-full.log`；原507项全部保留，已有 React act 警告保留 |
+| `npm run build` | PASS，50 modules，546ms；`/tmp/following-poll-repair-build.log` |
+| Reviewer 原 Chrome 探针原样重跑 | `/tmp/following-poll-review-invalid-runs.mjs` 未修改；`/tmp/following-poll-repair-review-probe.log` 为 `draftConnected:true, dialogs:1, errors:[], writes:[]`。两个读取失败说明及各自 GET 重试可见。原失败 `.log` 不动；原空白 `.png` 在重跑前另存 `/tmp/following-poll-review-invalid-runs-before-repair.png`；已实际查看重跑截图，320窄窗原文本框与选区仍在 |
+| Chrome 相关坏成员边界 | `/tmp/following-poll-repair-members-browser.mjs` 和 `.log`：EN/ZH×320×6种（null run/video、object count、空 tracking、foreign run/video）**12 PASS**。实际完整 App/CSS 跨轮询、原 DOM/focus/selection/草稿、两处错误、GET 恢复、pageerror0/PUT-PATCH0；未调用真实 provider |
+| 原完整 Chrome 八矩阵原样重跑 | `/tmp/following-poll-browser.mjs`，`/tmp/following-poll-repair-browser8.log`：**8 PASS**，EN/ZH×320/1440×checking-only/active run；含多周期、慢读无重叠、503+显式GET恢复、409保留r0草稿无自动重放、显式兴趣GET后新命令、checking结束、无横溢出。每例故意409+成功为2 PUT，JSerrors0；预期503/409控制台记录保留 |
+| `git diff --check` / `git diff --check aa18dea...` | PASS；累计仍仅原5个任务允许路径；返修仅 App/Creator/原测试/handoff |
+
+后端0diff，本轮不重复后端/Ruff/mypy 或宣称重跑 backend；按原任务继承 root 已有后端证据。没有模型、
+Cloud/ASR、资格、owner、正式数据、配置/凭据/lockfile 触碰。自用 Vite5194 及测试页在交付前停止。
+这里的离线 HTTP fixture/真实 Chrome 只证明工程边界；root 的真实 factory/API Google checking GUI
+和同 Reviewer 对 `aa18dea...新HEAD` 的累计复审仍为剩余门禁。作者提交后 clean **STOP**，不自行接受或整合。

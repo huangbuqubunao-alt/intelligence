@@ -1,4 +1,5 @@
 import { AddEntry } from "./AddEntry";
+import { validFollowingDetailRead, validFollowingSourceRead } from "./CreatorFollowing";
 import { InterestRulesEditor, interestRuleValues, ruleDrafts, validInterestRule, type InterestRuleDraft, CreatorFollowForm, CreatorFollowingDetail, FollowCreatorFromContent, Tracking, trackingCopy, useCreatorFollowingCapability } from "./CreatorFollowing";
 import { BilibiliImport, BilibiliCaptionStatus, bilibiliStatus } from "./BilibiliImport";
 import { LocalImport, localStatus, localImportErrors } from "./LocalImport";
@@ -2600,7 +2601,7 @@ function Topics({ refresh, targetTopicId }: { refresh: number; targetTopicId?: s
 }
 
 function validSourceReadIdentity(value: unknown): boolean {
-  if (!value || typeof value !== "object") return false;
+  if (!validFollowingSourceRead(value)) return false;
   const source = value as Partial<Source>;
   return typeof source.source_id === "string" && !!source.source_id.trim()
     && typeof source.canonical_url === "string" && typeof source.enabled === "boolean";
@@ -3120,10 +3121,9 @@ function SourceDetail(
   const validateRead = useCallback((value: unknown) => {
     if (!value || typeof value !== "object") return false;
     const read = value as { source?: Source; source_runs?: unknown; recent_videos?: unknown };
-    if (!validSourceReadIdentity(read.source) || read.source?.source_id !== id
-        || !Array.isArray(read.source_runs) || !Array.isArray(read.recent_videos)
-        || (acceptedIdentity.current?.id === id && acceptedIdentity.current.tracked && !read.source.tracking)) return false;
-    acceptedIdentity.current = { id, tracked: Boolean(read.source.tracking) };
+    if (!validSourceReadIdentity(read.source) || !validFollowingDetailRead(value, id,
+      acceptedIdentity.current?.id === id && acceptedIdentity.current.tracked)) return false;
+    acceptedIdentity.current = { id, tracked: Boolean(read.source?.tracking) };
     return true;
   }, [id]);
   const { data, error, errorCode, reading, reload } = useRemote<

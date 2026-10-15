@@ -1,5 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { App } from "./App";
+import { CreatorFollowingDetail } from "./CreatorFollowing";
+import { UiLanguageProvider } from "./uiLanguage";
 
 const response = (value: unknown, status = 200) => ({ ok: status < 400, status, json: async () => value });
 const deferred = <T,>() => { let resolve!: (value: T) => void; const promise = new Promise<T>(r => { resolve = r; }); return { promise, resolve }; };
@@ -136,4 +138,51 @@ it("rejects a refresh that drops the established tracking identity instead of re
   detailRead = async id => response({ ...detail(id), source: { ...source(id), tracking: undefined } });
   await tick(); expect(screen.getByLabelText("Focus")).toBe(input);
   expect(screen.getByText("Source details could not be refreshed. Showing previously loaded details.")).toBeTruthy();
+});
+
+const malformedDetails: [string, (id: string) => unknown][] = [
+  ["null run", id => ({ ...detail(id), source_runs: [null] })],
+  ["empty run", id => ({ ...detail(id), source_runs: [{}] })],
+  ["wrong run state", id => ({ ...detail(id), source_runs: [{ state: {} }] })],
+  ["empty run state", id => ({ ...detail(id), source_runs: [{ state: "" }] })],
+  ["wrong run identity", id => ({ ...detail(id), source_runs: [{ state: "RUNNING", run_id: {} }] })],
+  ["foreign run", id => ({ ...detail(id), source_runs: [{ state: "RUNNING", source_id: "foreign" }] })],
+  ["null video", id => ({ ...detail(id), recent_videos: [null] })],
+  ["empty video", id => ({ ...detail(id), recent_videos: [{}] })],
+  ["wrong video title", id => ({ ...detail(id), recent_videos: [{ video_id: "video", title: {}, processing_status: "IMPORTED" }] })],
+  ["wrong video status", id => ({ ...detail(id), recent_videos: [{ video_id: "video", title: null, processing_status: {} }] })],
+  ["foreign video", id => ({ ...detail(id), recent_videos: [{ video_id: "video", title: null, processing_status: "IMPORTED", source_id: "foreign" }] })],
+  ["primitive tracking", id => ({ ...detail(id), source: { ...source(id), tracking: true } })],
+  ["empty tracking", id => ({ ...detail(id), source: { ...source(id), tracking: {} } })],
+  ["wrong checking", id => ({ ...detail(id), source: { ...source(id), tracking: { ...source(id).tracking, checking: "false" } } })],
+  ["wrong count", id => ({ ...detail(id), source: { ...source(id), tracking: { ...source(id).tracking, update_count: {} } } })],
+  ["negative count", id => ({ ...detail(id), source: { ...source(id), tracking: { ...source(id).tracking, pending_count: -1 } } })],
+  ["wrong date", id => ({ ...detail(id), source: { ...source(id), tracking: { ...source(id).tracking, manual_check_at: {} } } })],
+  ["wrong source label", id => ({ ...detail(id), source: { ...source(id), display_name: {} } })],
+];
+describe.each(["App", "Creator"])("%s rejects malformed detail members before replacing the loaded tree", surface => {
+  it.each(malformedDetails)("preserves the focused draft on %s and recovers with GET only", async (_name, malformed) => {
+    active = true;
+    let input: HTMLElement;
+    if (surface === "App") input = await openDraft();
+    else {
+      render(<UiLanguageProvider><CreatorFollowingDetail id="channel-a" capability={{ known: true, capability: { available: true, code: "AVAILABLE" } }} onClose={() => {}} onRefresh={() => {}} /></UiLanguageProvider>);
+      await flush(); fireEvent.click(screen.getByRole("button", { name: "Edit interests" })); await flush();
+      input = screen.getByLabelText("Focus"); input.focus(); fireEvent.change(input, { target: { value: "unsaved，draft\nwith  spaces" } });
+    }
+    (input as HTMLTextAreaElement).setSelectionRange(2, 5);
+    detailRead = async id => response(malformed(id)); await tick();
+    expect(screen.getByLabelText("Focus")).toBe(input); expect(document.activeElement).toBe(input);
+    expect((input as HTMLTextAreaElement).value).toBe("unsaved，draft\nwith  spaces");
+    expect((input as HTMLTextAreaElement).selectionStart).toBe(2); expect((input as HTMLTextAreaElement).selectionEnd).toBe(5);
+    expect(screen.getByText("Source details could not be loaded. Check the local connection and retry. Stored Content is preserved.")).toBeTruthy();
+    if (surface === "App") expect(screen.getByText("Source details could not be refreshed. Showing previously loaded details.")).toBeTruthy();
+    detailRead = async id => response(detail(id));
+    if (surface === "App") fireEvent.click(screen.getByRole("button", { name: "Reload page data" }));
+    fireEvent.click(screen.getByRole("button", { name: "Retry source details" })); await flush();
+    expect(screen.queryByText("Source details could not be loaded. Check the local connection and retry. Stored Content is preserved.")).toBeNull();
+    expect(screen.queryByText("Source details could not be refreshed. Showing previously loaded details.")).toBeNull();
+    expect(screen.getByLabelText("Focus")).toBe(input);
+    expect(fetcher.mock.calls.filter(([, init]) => ["PUT", "PATCH"].includes(init?.method ?? ""))).toHaveLength(0);
+  });
 });
