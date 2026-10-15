@@ -1,0 +1,28 @@
+{
+  "at": "2026-10-15T11:40:58.196166+00:00",
+  "source_interest_author": "e8d747111c756c94189723ef8e6862eacb5ca804",
+  "source_interest_review": "dd260deb957b33c6591ede5dcf5118e876db6f73",
+  "source_interest_integrated": "1b1d276d744b3a2111e8c616fa8a46f6f6565b01",
+  "root_source_backend": "36 passed in 12.20s",
+  "root_frontend": "496 passed in 13.21s",
+  "root_typescript_build": "PASS; 547ms build",
+  "grounding_author": "2e754fb15b8e88afdd4c2789f7a316f2e517e8e6",
+  "grounding_review": "aee4e079125c157287df1c39cb671a96e8bdfdf7",
+  "grounding_integrated": "43e7758",
+  "root_grounding_focused": "125 passed in 52.89s",
+  "root_src_mypy": "Success: no issues found in 104 source files",
+  "root_ruff": "All checks passed",
+  "root_negative_probe": "6 scope-language NOT_QUALIFIED, capacity LOCAL_CONTEXT_CAPACITY_UNVERIFIED",
+  "new_generation_requests": 0,
+  "render_only_diagnostic_requests": 1,
+  "qualification": false,
+  "formal_main_unchanged": "73ee7e747b4461b9de8a201d6b47669eb3913d1a",
+  "release": false,
+  "open_p1": "Real checking=true Following polling unmounts interest editor; separate task aa18dea in progress",
+  "preserved_setup_errors": [
+    "Initial root pytest omitted PYTHONPATH=src; 36 setup ModuleNotFoundError. Original log source-cas-root-pytest.log; corrected invocation 36 PASS.",
+    "Initial root negative probe imported local_distillation_capabilities from qualification module; ImportError. Graph did not index new code; actual definition verified in runtime_composition, corrected fresh-process probe closed.",
+    "Render-only QA default JSON fields errors preserved separately in LOCAL_CAPACITY_RENDER_SLOT_DIAGNOSTIC.json. No generation rerun."
+  ],
+  "limits": "Affected checks, not final full backend or real qualified model acceptance. Source CAS real GUI awaits polling P1 fix."
+}
