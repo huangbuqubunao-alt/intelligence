@@ -14,7 +14,7 @@ from typing import Callable
 
 from youtube_intel.backup_restore import BackupRestoreService
 from youtube_intel.bilibili_content import BilibiliContentProvider
-from youtube_intel.config import AppConfig
+from youtube_intel.config import AppConfig, LocalScoringSettings
 from youtube_intel.deep_analysis_obsidian import DeepAnalysisObsidianPublisher
 from youtube_intel.deep_analysis_service import (
     DeepAnalysisCapability,
@@ -420,6 +420,39 @@ def _deep_analysis_production_capability() -> DeepAnalysisCapability:
     return production_deep_analysis_capability()
 
 
+def local_distillation_capabilities() -> tuple[dict[str, object], ...]:
+    """Scope/language qualification only; independent of the fast scoring model."""
+    from youtube_intel.distillation import local_profile_for_scope
+    from youtube_intel.local_distillation_profile import PROFILE_ID, SCOPES
+    from youtube_intel.local_distillation_qualification import (
+        read_reviewed_qualifications,
+    )
+    authority = read_reviewed_qualifications()
+    return tuple(authority.scope_status(local_profile_for_scope(PROFILE_ID, scope), language)
+        for scope in SCOPES for language in ("en", "zh-CN"))
+
+
+def build_production_local_distillation_transport(settings: LocalScoringSettings) -> OllamaLocalDistillationTransport:
+    """Only a reviewed local profile may select the separate Intelligence model."""
+    from youtube_intel.distillation import local_profile_for_scope
+    from youtube_intel.local_distillation_profile import (
+        PROFILE_ID,
+        SCOPES,
+        resolve_profile,
+    )
+    from youtube_intel.local_distillation_qualification import (
+        read_reviewed_qualifications,
+    )
+    authority = read_reviewed_qualifications()
+    if any(authority.permits(local_profile_for_scope(PROFILE_ID, scope), language)
+           for scope in SCOPES for language in ("en", "zh-CN")):
+        profile = resolve_profile(PROFILE_ID)
+        return OllamaLocalDistillationTransport(settings=LocalScoringSettings(
+            model=profile.model, expected_model_digest=profile.model_digest, base_url=settings.base_url),
+            local_profile_id=PROFILE_ID, qualification_authority=authority)
+    return OllamaLocalDistillationTransport(settings=settings, production_qualified=False)
+
+
 def build_local_source_run_runtime(
     *,
     config: AppConfig,
@@ -463,10 +496,7 @@ def build_local_source_run_runtime(
         repository=repository,
     )
     source_policy = SourcePolicyApplicationService(repository, now=now_fn)
-    transport = OllamaLocalDistillationTransport(
-        settings=config.settings.local_scoring,
-        production_qualified=False,
-    )
+    transport = build_production_local_distillation_transport(config.settings.local_scoring)
     distillation = PersonalizedDistillationService(
         repository,
         source_policy,

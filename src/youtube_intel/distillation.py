@@ -13,7 +13,7 @@ import urllib.request
 import uuid
 from collections.abc import Callable, Mapping, Sequence
 from contextlib import closing
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime
 from enum import Enum
 from http.client import HTTPException, HTTPSConnection
@@ -22,6 +22,11 @@ from typing import Protocol, cast
 from youtube_intel.analysis import EnvironmentCredentialResolver
 from youtube_intel.config import LocalScoringSettings, _validate_loopback_http_base_url
 from youtube_intel.domain import Availability, ScoringOutputLanguage
+from youtube_intel.local_distillation_qualification import (
+    LocalExecutionPermit,
+    LocalQualificationAuthority,
+    read_reviewed_qualifications,
+)
 from youtube_intel.source_policy import SourcePolicyApplicationService
 from youtube_intel.state import (
     ArtifactKind,
@@ -247,6 +252,12 @@ class VerifiedDistillationInput:
         return tuple(item.evidence_id for item in self.evidence)
 
 
+def verified_distillation_input_projection(value: VerifiedDistillationInput) -> dict[str, object]:
+    """Preserve the historical export bytes when no new profile is selected."""
+    return {key: item for key, item in asdict(value).items()
+        if key not in {"local_profile_id", "local_profile_hash"} or item is not None}
+
+
 _LOCAL_TEXT_WIRE_VERSION = "local-text-distillation-v2"
 _LOCAL_TEXT_EXECUTION_PREFIX = "distillation:local-text-v2:"
 
@@ -335,7 +346,11 @@ def _local_text_context(repository: SQLiteStateRepository, connection: sqlite3.C
         "summary_reconstruction": expected.model_dump(mode="json"), "summary_evidence": summary_evidence}
 
 
-def _text_profile_projection() -> dict[str, object]:
+def _text_profile_projection(local_profile_id: str | None = None) -> dict[str, object]:
+    if local_profile_id is not None:
+        from youtube_intel.local_distillation_profile import digest
+        projection = local_profile_for_scope(local_profile_id, "LOCAL_TEXT")
+        return {**projection, "profile_hash": digest(projection)}
     profile = LocalTextDistillationProfile
     return {"wire_version": _LOCAL_TEXT_WIRE_VERSION, "model": profile.MODEL,
         "digest": profile.DIGEST, "prompt": profile.PROMPT, "schema": profile.schema(),
@@ -351,7 +366,11 @@ def _text_policy_row(connection: sqlite3.Connection, revision_id: str) -> dict[s
 
 def _text_input_projection(repository: SQLiteStateRepository, connection: sqlite3.Connection,
     command: DistillationCommand, *, display_name: str | None, title: str | None,
-    context_hash: str, global_revision_id: str) -> dict[str, object]:
+    context_hash: str, global_revision_id: str, local_profile_id: str | None = None) -> dict[str, object]:
+    if local_profile_id is not None:
+        from youtube_intel.local_distillation_profile import resolve_profile
+        if command.selected_provider != "ollama" or command.selected_model != resolve_profile(local_profile_id).model:
+            raise StateStoreError("text execution profile/model identity differs")
     global_row = _text_policy_row(connection, global_revision_id)
     source_row = None if command.source_policy_revision_id is None else _text_policy_row(connection, command.source_policy_revision_id)
     policy = SourcePolicyApplicationService._policy_from_revisions(
@@ -376,7 +395,9 @@ def _text_input_projection(repository: SQLiteStateRepository, connection: sqlite
         "output_language": command.output_language, "distillation_style": command.distillation_style,
         "source_focus_rules": list(command.source_focus_rules), "source_ignore_rules": list(command.source_ignore_rules),
         "preferences": preferences, "personalization": [p["statement"] for p in preferences],
-        "global_policy": global_row, "source_policy": source_row, "profile": _text_profile_projection(),
+        "global_policy": global_row, "source_policy": source_row, "profile": _text_profile_projection(local_profile_id),
+        **({"local_profile_id": local_profile_id, "local_profile_hash": _text_profile_projection(local_profile_id)["profile_hash"]}
+            if local_profile_id is not None else {}),
         "local_content_context_hash": context_hash,
         "evidence": [_text_evidence(repository, connection, eid, command.video_id) for eid in command.evidence_ids]}
 
@@ -414,12 +435,13 @@ def _verify_local_text_input_proof(repository: SQLiteStateRepository, connection
     created = _parse_utc_datetime(proof.created_at)
     input_value = json.loads(proof.input_json, object_pairs_hook=_strict_text_object)
     context = json.loads(proof.context_json, object_pairs_hook=_strict_text_object)
+    profile_id = text_profile_id_from_input(input_value)
     if (not isinstance(input_value, dict) or not isinstance(context, dict)
         or proof.proof_version != "local-text-input-proof-v1" or proof.wire_version != _LOCAL_TEXT_WIRE_VERSION
         or _text_json(input_value) != proof.input_json or _text_json(context) != proof.context_json
         or len(proof.input_json.encode()) + len(proof.context_json.encode()) > 524288
         or proof.input_hash != _text_digest(input_value) or proof.context_hash != _text_digest(context)
-        or proof.profile_hash != LocalTextDistillationProfile.identity_hash() or proof.proof_hash != _text_proof_hash(proof)
+        or proof.profile_hash != _text_profile_projection(profile_id)["profile_hash"] or proof.proof_hash != _text_proof_hash(proof)
         or proof.created_at != checkpoint["created_at"]
         or proof.source_id != checkpoint["source_id"] or proof.video_id != checkpoint["video_id"]
         or context["summary_id"] != proof.original_summary_artifact_id
@@ -459,8 +481,8 @@ def _verify_local_text_input_proof(repository: SQLiteStateRepository, connection
             or ids != tuple(sorted(repository.list_canonical_coverage_evidence_ids(proof.video_id)))):
             raise StateStoreError("current original input facts changed")
     expected = _text_input_projection(repository, connection, command, display_name=input_value["source_display_name"],
-        title=input_value["video_title"], context_hash=proof.context_hash, global_revision_id=proof.global_policy_revision_id)
-    if _text_json(expected) != proof.input_json or execution_id != _text_execution_id(command, proof.input_hash, proof.context_hash):
+        title=input_value["video_title"], context_hash=proof.context_hash, global_revision_id=proof.global_policy_revision_id, local_profile_id=profile_id)
+    if _text_json(expected) != proof.input_json or execution_id != _text_execution_id(command, proof.input_hash, proof.context_hash, local_profile_id=profile_id):
         raise StateStoreError("original sealed input projection changed")
     return proof
 
@@ -492,9 +514,9 @@ def _text_reference(item: VerifiedEvidenceInput) -> dict[str, int | str | None]:
         "excerpt_hash": item.excerpt_hash}
 
 
-def _text_execution_id(command: DistillationCommand, input_hash: str, context_hash: str) -> str:
+def _text_execution_id(command: DistillationCommand, input_hash: str, context_hash: str, *, local_profile_id: str | None = None) -> str:
     projection = {"wire_version": _LOCAL_TEXT_WIRE_VERSION, "verified_input_hash": input_hash,
-        "profile_hash": LocalTextDistillationProfile.identity_hash(),
+        "profile_hash": _text_profile_projection(local_profile_id)["profile_hash"],
         "context_hash": context_hash, "source_id": command.source_id, "video_id": command.video_id,
         "reason": command.reason, "use_case": command.use_case, "selected_provider": command.selected_provider,
         "selected_model": command.selected_model, "output_language": command.output_language}
@@ -2372,10 +2394,23 @@ class OllamaLocalDistillationTransport:
     }
 
     def __init__(
-        self, *, settings: LocalScoringSettings, production_qualified: bool = False
+        self, *, settings: LocalScoringSettings, production_qualified: bool = False,
+        local_profile_id: str | None = None,
+        qualification_authority: LocalQualificationAuthority | None = None,
+        qualification_permit: LocalExecutionPermit | None = None,
+        before_dispatch: Callable[[VerifiedDistillationInput, Mapping[str, object]], None] | None = None,
     ) -> None:
         self._settings = settings
         self._production_qualified = production_qualified
+        self.local_profile_id = local_profile_id
+        self._local_authority = qualification_authority or read_reviewed_qualifications()
+        self._local_permit = qualification_permit
+        self._before_dispatch = before_dispatch
+        self._qualification_dispatched = False
+        if local_profile_id is not None:
+            from youtube_intel.local_distillation_profile import resolve_profile
+            profile = resolve_profile(local_profile_id)
+            self._MODEL, self._DIGEST = profile.model, profile.model_digest
 
     @property
     def actual_provider(self) -> str:
@@ -2393,6 +2428,10 @@ class OllamaLocalDistillationTransport:
         ):
             return False
         try:
+            if self.local_profile_id is not None:
+                from youtube_intel.local_distillation_profile import resolve_profile
+                if self._request("/api/version", method="GET").get("version") != resolve_profile(self.local_profile_id).runtime:
+                    return False
             payload = self._request("/api/tags", method="GET")
             models = payload.get("models")
             return isinstance(models, list) and any(
@@ -2415,6 +2454,13 @@ class OllamaLocalDistillationTransport:
         return value
 
     def is_authorized_for(self, value: VerifiedDistillationInput) -> bool:
+        if self.local_profile_id is not None:
+            try:
+                return (type(value) is VerifiedDistillationInput and value.local_profile_id == self.local_profile_id
+                    and (self._settings.model, self._settings.expected_model_digest) == (self._MODEL, self._DIGEST)
+                    and bool(build_local_distillation_request(value)))
+            except (ValueError, TypeError, KeyError):
+                return False
         return (
             type(value) is VerifiedDistillationInput
             and bool(value.evidence)
@@ -2431,15 +2477,52 @@ class OllamaLocalDistillationTransport:
     def is_authorized_for_normal_production(
         self, value: VerifiedDistillationInput
     ) -> bool:
+        if self.local_profile_id is not None:
+            return self.is_authorized_for(value) and self._local_capacity_fits(value) and self._local_authority.permits(
+                local_profile_projection(value), value.output_language)
         # Existing video qualification does not qualify local media inputs.
         return value.content_provider == "YOUTUBE" and self._production_qualified and self.is_authorized_for(value)
 
     def is_authorized_for_qualification(self, value: VerifiedDistillationInput) -> bool:
+        if self.local_profile_id is not None:
+            from youtube_intel.local_distillation_profile import digest
+            return (not self._qualification_dispatched and self.is_authorized_for(value) and self._local_capacity_fits(value) and self._local_permit is not None
+                and self._local_permit.matches(local_profile_projection(value), value.semantic_hash,
+                    digest(build_local_distillation_request(value)), value.output_language))
         return self.is_authorized_for(value)
+
+    def _local_capacity_fits(self, value: VerifiedDistillationInput) -> bool:
+        from youtube_intel.local_distillation_profile import resolve_profile
+        try:
+            assert self.local_profile_id is not None
+            profile = resolve_profile(self.local_profile_id)
+            bound = profile.complete_input_token_upper_bound(build_local_distillation_request(value))
+            options = profile.options()
+            return type(bound) is int and 0 < bound <= options["num_ctx"] - options["num_predict"]
+        except (ValueError, TypeError, KeyError):
+            return False
 
     def generate(self, value: VerifiedDistillationInput) -> DistillationTransportResult:
         if not self.is_authorized_for(value):
             raise RuntimeError("local distillation route is not authorized")
+        if self.local_profile_id is not None:
+            if not (self.is_authorized_for_normal_production(value) or self.is_authorized_for_qualification(value)):
+                raise RuntimeError("local grounding execution is not qualified or permitted")
+            request = build_local_distillation_request(value)
+            if self._local_permit is not None and self._before_dispatch is None:
+                raise RuntimeError("qualification requires a durable once-dispatch claim")
+            if self._local_permit is not None:
+                self._qualification_dispatched = True
+            if self._before_dispatch is not None:
+                self._before_dispatch(value, request)
+            started = time.monotonic()
+            response = self._request("/api/chat", method="POST", body=request)
+            message = response.get("message")
+            final = message.get("content") if isinstance(message, Mapping) else None
+            self.last_grounding_final = final if isinstance(final, str) else None
+            self.last_grounding_completion = {key: response.get(key) for key in (
+                "model", "done", "done_reason", "prompt_eval_count", "eval_count")}
+            return validate_local_grounding_response(response, value, duration_ms=round((time.monotonic() - started) * 1000))
         # The service checks availability before it durably claims the one
         # permitted dispatch. Rechecking here would be a known pre-dispatch
         # failure after that claim and would be misreported as an unknown
@@ -2575,6 +2658,8 @@ class OllamaLocalDistillationTransport:
         )
         with urllib.request.urlopen(request, timeout=300.0) as response:
             raw = response.read(self._MAX_RESPONSE_BYTES + 1)
+        if self.local_profile_id is not None and path == "/api/chat":
+            self.last_grounding_raw_hash = hashlib.sha256(raw).hexdigest()
         if len(raw) > self._MAX_RESPONSE_BYTES:
             raise KnownLocalDistillationResponseError("LOCAL_RESPONSE_INVALID")
         try:
@@ -2680,6 +2765,25 @@ class LocalTextDistillationProfile:
 
 
 
+
+def local_profile_for_scope(profile_id: str, scope: str) -> dict[str, object]:
+    from youtube_intel.local_distillation_profile import resolve_profile
+    schema = LocalTextDistillationProfile.schema() if scope == "LOCAL_TEXT" else OllamaLocalDistillationTransport._SCHEMA
+    return resolve_profile(profile_id).projection(scope, schema)
+
+
+def text_profile_id_from_input(value: object) -> str | None:
+    if not isinstance(value, dict) or not isinstance(value.get("profile"), dict):
+        raise ValueError("text proof profile is missing")
+    stored = value["profile"]
+    profile_id = stored.get("local_profile_id")
+    if profile_id is not None and not isinstance(profile_id, str):
+        raise ValueError("text proof profile identity is invalid")
+    if stored != _text_profile_projection(profile_id):
+        raise ValueError("text proof profile is unknown or changed")
+    return profile_id
+
+
 def local_profile_projection(value: VerifiedDistillationInput) -> dict[str, object]:
     from youtube_intel.local_distillation_profile import resolve_profile, scope_for
     if value.local_profile_id is None:
@@ -2700,9 +2804,33 @@ def bind_local_profile(value: VerifiedDistillationInput, profile_id: str) -> Ver
     return replace(bound, local_profile_hash=digest(local_profile_projection(bound)))
 
 
+def validate_local_grounding_response(
+    response: Mapping[str, object], value: VerifiedDistillationInput, *, duration_ms: int,
+) -> DistillationTransportResult:
+    """Public final only; native thinking is never accessed or interpreted."""
+    from youtube_intel.local_distillation_profile import resolve_profile
+    if value.local_profile_id is None:
+        raise ValueError("local profile is missing")
+    profile = resolve_profile(value.local_profile_id)
+    message = response.get("message")
+    raw = message.get("content") if isinstance(message, Mapping) else None
+    inputs, outputs = response.get("prompt_eval_count"), response.get("eval_count")
+    if (response.get("model") != profile.model or response.get("done") is not True
+        or response.get("done_reason") != "stop" or type(inputs) is not int or not 0 < inputs <= 8192 - 6144
+        or type(outputs) is not int or not 0 < outputs < 6144
+        or not isinstance(raw, str) or not raw.strip() or len(raw.encode()) > profile.max_response_bytes):
+        raise KnownLocalDistillationResponseError("LOCAL_RESPONSE_INCOMPLETE_OR_TRUNCATED")
+    return DistillationTransportResult(raw=raw, actual_provider="ollama", actual_model=profile.model,
+        input_tokens=inputs, output_tokens=outputs, cost_microunits=None, duration_ms=duration_ms)
+
+
 def build_local_distillation_request(value: VerifiedDistillationInput) -> dict[str, object]:
     """Sole new-profile builder for production and qualification; no provider IO."""
-    from youtube_intel.local_distillation_profile import canonical, digest, resolve_profile
+    from youtube_intel.local_distillation_profile import (
+        canonical,
+        digest,
+        resolve_profile,
+    )
     projection = local_profile_projection(value)
     if value.local_profile_hash != digest(projection):
         raise ValueError("local execution profile hash differs")
@@ -2777,6 +2905,11 @@ class PersonalizedDistillationService:
         self._now = now
         self._selected_provider = transport.actual_provider
         self._selected_model = transport.actual_model
+        self._local_profile_id: str | None = getattr(transport, "local_profile_id", None)
+        if self._local_profile_id is not None:
+            from youtube_intel.local_distillation_profile import resolve_profile
+            if (self._selected_provider != "ollama" or self._selected_model != resolve_profile(self._local_profile_id).model):
+                raise ValueError("service local execution profile is invalid")
         self._output_language_for_video = output_language_for_video or (
             lambda _: "zh-CN"
         )
@@ -2917,11 +3050,15 @@ class PersonalizedDistillationService:
         output_language: ScoringOutputLanguage,
         verified_input_hash: str,
         cloud_request_profile_version: str | None = None,
+        local_profile_id: str | None = None,
+        local_profile_hash: str | None = None,
         reason: str | None = None,
     ) -> str:
         canonical = json.dumps(
             {
                 "evidence_ids": evidence_ids,
+                **({"local_profile_id": local_profile_id, "local_profile_hash": local_profile_hash}
+                    if local_profile_id is not None else {}),
                 **(
                     {
                         "local_prompt_version": OllamaLocalDistillationTransport._PROMPT_VERSION
@@ -3026,7 +3163,7 @@ class PersonalizedDistillationService:
             if verified_input.local_content_context_hash is None:
                 raise ValueError("text execution context is missing")
             return replace(projection, execution_id=_text_execution_id(
-                projection, verified_input.semantic_hash, verified_input.local_content_context_hash)), verified_input
+                projection, verified_input.semantic_hash, verified_input.local_content_context_hash, local_profile_id=verified_input.local_profile_id)), verified_input
         return (
             replace(
                 projection,
@@ -3038,6 +3175,7 @@ class PersonalizedDistillationService:
                     selected_model=self._selected_model,
                     output_language=output_language,
                     verified_input_hash=verified_input.semantic_hash,
+                    local_profile_id=verified_input.local_profile_id, local_profile_hash=verified_input.local_profile_hash,
                     reason=reason,
                     cloud_request_profile_version=(
                         getattr(self._transport, "_REQUEST_PROFILE_VERSION", None)
@@ -3165,7 +3303,7 @@ class PersonalizedDistillationService:
                 source_policy_revision_id=command.source_policy_revision_id,
                 input_json=verified_input.input_json, context_json=verified_input.context_json,
                 input_hash=verified_input.semantic_hash, context_hash=_text_digest(original_context),
-                profile_hash=LocalTextDistillationProfile.identity_hash(), proof_hash="",
+                profile_hash=cast(str, _text_profile_projection(verified_input.local_profile_id)["profile_hash"]), proof_hash="",
                 created_at=format_utc_datetime(reservation_now))
             input_proof = replace(input_proof, proof_hash=_text_proof_hash(input_proof))
         existing = self._repository.get_distillation_execution(command.execution_id)
@@ -3446,7 +3584,7 @@ class PersonalizedDistillationService:
                     policy = self._source_policy.effective_policy(projection.source_id)
                     semantic_payload = _text_input_projection(self._repository, connection, projection,
                         display_name=source_display_name, title=video.title, context_hash=local_context,
-                        global_revision_id=policy.global_revision_id)
+                        global_revision_id=policy.global_revision_id, local_profile_id=self._local_profile_id)
                     input_json, context_json = _text_json(semantic_payload), _text_json(context)
                     if len(input_json.encode()) + len(context_json.encode()) > 524288:
                         raise ValueError("text input proof exceeds UTF-8 bounds")
@@ -3458,6 +3596,13 @@ class PersonalizedDistillationService:
                 raise ValueError("local Intelligence source/Summary authority is unavailable")
             semantic_payload["content_provider"] = "LOCAL"
             semantic_payload["local_content_context_hash"] = local_context
+        local_profile_hash = None
+        if self._local_profile_id is not None:
+            from youtube_intel.local_distillation_profile import digest, scope_for
+            scope = scope_for(video.provider, wire_version, {item.locator_type for item in evidence})
+            local_profile_hash = digest(local_profile_for_scope(self._local_profile_id, scope))
+            semantic_payload["local_profile_id"] = self._local_profile_id
+            semantic_payload["local_profile_hash"] = local_profile_hash
         semantic_hash = hashlib.sha256(
             json.dumps(
                 semantic_payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
@@ -3465,6 +3610,7 @@ class PersonalizedDistillationService:
         ).hexdigest()
         return VerifiedDistillationInput(
             wire_version=wire_version,
+            local_profile_id=self._local_profile_id, local_profile_hash=local_profile_hash,
             input_json=input_json, context_json=context_json,
             content_provider=video.provider,
             local_content_context_hash=local_context,
@@ -3957,9 +4103,15 @@ class PersonalizedDistillationService:
         if verified_input.wire_version is not None:
             raise ValueError("distillation wire version is unsupported")
         try:
-            payload = json.loads(raw)
+            payload = (json.loads(raw, object_pairs_hook=_strict_text_object)
+                if verified_input.local_profile_id is not None else json.loads(raw))
         except (TypeError, json.JSONDecodeError) as error:
             raise ValueError("structured distillation output is malformed") from error
+        if verified_input.local_profile_id is not None:
+            if (verified_input.local_profile_id != self._local_profile_id
+                or not isinstance(payload, dict) or payload.get("result") not in {"INTELLIGENCE", "NO_NEW_INTELLIGENCE"}
+                or not build_local_distillation_request(verified_input)):
+                raise ValueError("local grounding wire/profile identity is invalid")
         if isinstance(payload, dict) and set(payload) == {"result", "evidence"}:
             if payload["result"] != "NO_NEW_INTELLIGENCE":
                 raise ValueError("positive zero-result marker is invalid")
@@ -4014,7 +4166,11 @@ class PersonalizedDistillationService:
             and set(payload) == expected_keys | {"result"}
             and payload["result"] == "INTELLIGENCE"
             and command.selected_provider == verified_input.selected_provider == "ollama"
-            and command.selected_model == verified_input.selected_model == OllamaLocalDistillationTransport._MODEL
+            and command.selected_model == verified_input.selected_model
+            and (command.selected_model == OllamaLocalDistillationTransport._MODEL
+                or (verified_input.local_profile_id is not None
+                    and verified_input.local_profile_id == self._local_profile_id
+                    and bool(build_local_distillation_request(verified_input))))
         ):
             # Decode only the explicit local wire marker. Raw model output
             # stays intact; all existing claim and Evidence checks still run.
@@ -4108,8 +4264,10 @@ class PersonalizedDistillationService:
     def _parse_text_candidate(
         self, raw: str, command: DistillationCommand, value: VerifiedDistillationInput,
     ) -> _Candidate | _NoNewCandidate:
+        if value.local_profile_id is not None:
+            build_local_distillation_request(value)
         if (value.content_provider != "LOCAL" or value.local_content_context_hash is None
-            or command.execution_id != _text_execution_id(command, value.semantic_hash, value.local_content_context_hash)
+            or command.execution_id != _text_execution_id(command, value.semantic_hash, value.local_content_context_hash, local_profile_id=value.local_profile_id)
             or set(value.evidence_ids) != set(command.evidence_ids)):
             raise ValueError("text execution/input binding is invalid")
         try:
@@ -4166,7 +4324,7 @@ class PersonalizedDistillationService:
             preference_ids=command.preference_ids, source_policy_revision_id=command.source_policy_revision_id)
         canonical = {key: payload[key] for key in positive - {"result", "evidence"}}
         canonical["verified_input_hash"] = value.semantic_hash
-        canonical["profile_hash"] = LocalTextDistillationProfile.identity_hash()
+        canonical["profile_hash"] = _text_profile_projection(value.local_profile_id)["profile_hash"]
         canonical["local_content_context_hash"] = value.local_content_context_hash
         canonical["evidence"] = [cited[eid] for eid in sorted(cited)]
         return _Candidate(claim, tuple(sorted(cited)), tuple((eid, stances[eid]) for eid in sorted(cited)),

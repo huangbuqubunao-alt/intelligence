@@ -315,7 +315,6 @@ class AuthoritativeIntelligenceReader:
         from youtube_intel.distillation import (
             _LOCAL_TEXT_WIRE_VERSION,
             DistillationCommand,
-            LocalTextDistillationProfile,
             VerifiedEvidenceInput,
             _text_execution_id,
             _text_reference,
@@ -344,7 +343,10 @@ class AuthoritativeIntelligenceReader:
             raise IntelligenceReadRejected("CARD_EXECUTION_INVALID", "text execution version/target is invalid")
         from typing import cast
 
-        from youtube_intel.distillation import verify_local_text_input_proof
+        from youtube_intel.distillation import (
+            text_profile_id_from_input,
+            verify_local_text_input_proof,
+        )
         from youtube_intel.domain import ScoringOutputLanguage
         with closing(self._repository._connect()) as connection:
             try:
@@ -362,7 +364,7 @@ class AuthoritativeIntelligenceReader:
             reason=execution.reason, use_case=execution.use_case, selected_provider=execution.selected_provider,
             selected_model=execution.selected_model, output_language=cast(ScoringOutputLanguage, execution.output_language),
             evidence_ids=verified.evidence_ids)
-        if execution.execution_id != _text_execution_id(command, input_hash, context_hash):
+        if execution.execution_id != _text_execution_id(command, input_hash, context_hash, local_profile_id=text_profile_id_from_input(original_input)):
             raise IntelligenceReadRejected("CARD_EXECUTION_INVALID", "text sealed execution context is invalid")
         ledger = self._repository.get_distillation_resource_usage(execution.execution_id)
         if (ledger.status != "SUCCEEDED" or ledger.outcome != "ADMITTED" or ledger.invocation_count != 1
@@ -387,7 +389,7 @@ class AuthoritativeIntelligenceReader:
             reference["stance"] = relation.stance.value
             references.append(reference)
         return {"wire_version": _LOCAL_TEXT_WIRE_VERSION, "verified_input_hash": input_hash,
-                "profile_hash": LocalTextDistillationProfile.identity_hash(),
+                "profile_hash": proof.profile_hash,
                 "local_content_context_hash": context_hash}, references
 
     def _read_current(self, intelligence_id: str) -> VerifiedIntelligenceRead:

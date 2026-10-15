@@ -78,6 +78,29 @@ OPTIONS: dict[str, object] = {
 CASE_ROOT = PROJECT / ".var/readiness-qwen35" / PROFILE_ID
 
 
+def historical_timed_input_projection(value: VerifiedDistillationInput) -> dict[str, object]:
+    """Export the exact pre-39 research input; never adapt a new input contract."""
+    raw = asdict(value)
+    expected = {"source_display_name", "video_id", "video_title", "evidence", "personalization",
+        "source_focus_rules", "source_ignore_rules", "distillation_style", "selected_provider", "selected_model",
+        "semantic_hash", "output_language", "content_provider", "local_content_context_hash",
+        "wire_version", "input_json", "context_json", "local_profile_id", "local_profile_hash"}
+    defaults = {"wire_version", "input_json", "context_json", "local_profile_id", "local_profile_hash"}
+    if (type(value) is not VerifiedDistillationInput or set(raw) != expected
+        or raw["content_provider"] != "YOUTUBE" or raw["local_content_context_hash"] is not None
+        or any(raw[key] is not None for key in defaults) or not value.evidence):
+        raise ValueError("historical research export requires the original YT timed contract")
+    ranges = {"start_offset", "end_offset", "start_line", "end_line", "source_content_hash"}
+    original = {"evidence_id", "start_ms", "end_ms", "excerpt", "excerpt_hash", "timed_transcript_id", "timed_transcript_hash"}
+    for item in raw["evidence"]:
+        if (set(item) != original | ranges | {"locator_type"} or item["locator_type"] != "TIMED_MEDIA"
+            or type(item["start_ms"]) is not int or type(item["end_ms"]) is not int
+            or any(item[key] is not None for key in ranges)):
+            raise ValueError("historical research export cannot discard nondefault locators")
+    return {key: tuple({name: item[name] for name in item if name in original} for item in raw["evidence"])
+        if key == "evidence" else child for key, child in raw.items() if key not in defaults}
+
+
 def select_profile(profile: str) -> None:
     """Choose only a fixed research variant; no product runtime uses this module."""
     global PROFILE_ID, THINK, OPTIONS, PROFILE_PATH, FREEZE_PATH, CASE_ROOT
@@ -630,7 +653,7 @@ def prepare_case(case_id: str, prior_reviews_path: Path | None = None) -> dict[s
     if execution is None:
         raise ValueError("prepared immutable reservation is missing")
     _, verified = service._reserved_command_from_record(execution)
-    write_once(root / "verified-input.json", asdict(verified))
+    write_once(root / "verified-input.json", historical_timed_input_projection(verified))
     record = {
         "case": case_id,
         "profile": PROFILE_ID,

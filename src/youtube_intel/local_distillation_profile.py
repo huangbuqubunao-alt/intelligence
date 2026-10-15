@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 PROFILE_ID = "local-grounding-qwen35-9b-thinking-v1"
@@ -27,6 +28,18 @@ class LocalDistillationProfile:
     timeout_seconds: int = 300
     max_request_bytes: int = 7_680
     max_response_bytes: int = 1_000_000
+
+    def complete_input_token_upper_bound(self, request: Mapping[str, object]) -> int:
+        """Block execution until the exact renderer/tokenizer bound is reviewed.
+
+        max_request_bytes is only a request-body resource bound. The installed
+        qwen3.5 renderer has implicit framing beyond show.template={{ .Prompt }};
+        neither request UTF-8 size nor an earlier prompt_eval_count proves that
+        the complete current input fits alongside num_predict. No approximate
+        tokenizer, caller-provided integer, or proof-file boolean substitutes
+        for a frozen, independently verified algorithm here.
+        """
+        raise ValueError("LOCAL_CONTEXT_CAPACITY_UNVERIFIED")
 
     def options(self) -> dict[str, int | float]:
         return {"temperature": 1.0, "top_p": 0.95, "top_k": 20, "min_p": 0.0,
