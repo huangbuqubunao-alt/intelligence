@@ -1,3 +1,7 @@
+2026-10-16 替代QA方案已获独立只读复核（local_text_review_resume，聊天STOP）：固定b11351 `/tokenize`仅调用词表tokenizer、不创建生成任务/不decode；显式content为完整rendered纯文本、add_special=true/parse_special=true/with_pieces=false。仅在本任务一次明确 `/api/chat messages:[]` load-only且ps原为空后，按服务父子关系取得唯一新runner，不扫描未知端口；校验UID/PID/starttime/父PID/已固定universal含ARM binary SHA/modelblob/loopback args/实际slot，并在调用前后复核。该load-only会创建context/装载权重，称无生成预检，不称整个流程vocab-only。当前Mac ps不支持arch字段，相关失败已保留；不得据uname推断进程实际slice，实际selected slice未单独证明，计数仅绑定当前真实runner而不是x86 dylib。若PID/端口/身份变化即关闭、不换端口重试；只允许该已验证loopback `/tokenize`，有界请求/响应/超时，不调用completion。确认无其它本应用重任务及资源足够，保留本机接收端证据。
+
+本次输入由现有隔离公开字幕/全部114原coverage及其hash重建，手工QA请求不是合法生产admission，不赋Evidence/成功/资格或绕20上限。只输出计数与hash，所有模型generation仍0。它只用于判断是否值得单次完整协议；真正修复20及NO_NEW/text schema要另做独立版本化，不直接把token结果拿去放行。root原Chelper计划维持停止，下面旧段仅为历史。
+
 2026-10-16 诊断分支结果：已安装libllama.0.5.0.dylib为x86_64，实际本机arm64且llama-server ARM slice静态链接；默认clang arm64链接失败，完整日志/tmp/readiness-vocab-native/compile.log（ld found architecture x86_64 required arm64）。未得到/执行helper，0 tokenizer/生成调用，不把最后cat命令exit0当编译成功。不改成Rosetta、不安装依赖、不碰生产代码。官方头7文件268735 bytes及来源SHA保存在/tmp/readiness-vocab-native/headers-sources.json；仅用于声明核验。后续只读评估任务固定runner公开/tokenize接口能否替代，尚未执行；不能扫描未知端口或把未验证接口当模型资格。下面是保留的原helper计划，当前已停。
 
 # 长内容容量只读诊断（不改产品、不生成）
