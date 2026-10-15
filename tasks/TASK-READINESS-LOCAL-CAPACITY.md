@@ -1,3 +1,11 @@
+2026-10-15 READY engineering-only，root容量只读独立复核已完成（local_text_review_resume，聊天STOP；数学/完整词表/88byte及actual slot成立，不授资格）。Base a32a492 plus后续纯docs commits（本次READY commit为精确建树base）；WT /Users/hua/Documents/yia-worktrees/readiness-local-capacity，branch codex/task-readiness-local-capacity。最新root受影响125PASS、strict src104/Ruff PASS，独立modelport470PASS/APPROVE已整合43e7758。未冻结/0真实新proof/0生成/records[]。
+
+精确补充：cold-load采用官方`POST /api/chat`的`messages:[]` load-only（不是两个空content、不是num_predict=0），保持keep_alive非0，不发unload。严格响应done=true/done_reason=load、空content/无eval，随后ps验证slot/运行器身份。readiness必须当前manifest/binary/runner进程/slot/请求和execution/有效期；应用重量工作lease持至dispatch，过期或身份变更在claim前关闭。应用锁只协调本应用，不能假称锁住外部Ollama客户端。source/runtime变化竞态使用原claim事务与ledger，不修改Schema。保留原None旧字节；transport `_request` wire为ensure_ascii=False且保序compact，不等同sort_keys canonical身份hash，明确分别计算/比对。fixed source inference与当前slot观察共同形成前提；禁止仅采用old receipt bool。容量代码/reader CODE_FILES必须完整纳入qualification fingerprint。
+
+独立来源：官方Ollama v0.40.1 routes.go3149–3159 empty messages load分支在Completion前return；runtime诊断receipt及proof plan均已记录。每次真实generation前仍须接受工程、统一freeze/oncepermit；作者此任务0真实Ollama IO生成，也不自行做load/debug。只做可控fixture/离线安全验收，root最后真实预检与语义分开做。
+
+以下原任务BLOCKED段是依赖满足前历史，以上READY优先：
+
 # TASK-READINESS-LOCAL-CAPACITY
 2026-10-15 BLOCKED：等待root容量证明只读独立复核及当前root工程整合checks记录；满足后pin最新root+docs-only base并建独立WT，不在旧port WT继续写。
 Implementer native_scan_resume，Reviewer local_text_review_resume串行复审。用户当前任务持续默认授权；必要隔离修复，0真实生成/资格关闭，不下载/新依赖/Schema/正式配置或数据。

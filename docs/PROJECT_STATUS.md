@@ -1,3 +1,6 @@
+# 2026-10-15 当前并行修复
+SourceCAS独立APPROVE整合1b1d276（root36/496/TSbuild通过），真实检查轮询卸载兴趣P1作者FOLLOWING-POLL-DRAFT返修验证中。modelport独立aee4e07 APPROVE整合43e7758（root125/Ruff/strictsrc104通过），资格6scope/language全false/容量仍UNVERIFIED。新LOCAL-CAPACITY工程任务READY：独立只读全词表/实际双message88byte/16384slot证明成立，原15Evidence不截；body12288/content8192/ctx16384及冷model空messages load-only的严格claim前接线，0实际生成，待工程审查/统一冻结。允许两个writer分别UI与容量backend；tracked Retry/最终capability UI依赖两者接受，串行。main73ee7e7，未发布/正式数据未动。
+
 # 2026-10-15 真实关注轮询P1（当前优先）
 SourceCAS完整历史整合1b1d276，root36backend+496front/TSbuild PASS；root真实6098GUI在tracking.checking=true时，2秒Sources刷新清data并卸载兴趣编辑器，无法保留草稿。独立最小FOLLOWING-POLL-DRAFT任务READY，待作者/复审/root真实验收。模型port2e754fb独立审查中，仍0生成/资格false。未发布。
 
