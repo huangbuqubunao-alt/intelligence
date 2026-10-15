@@ -1,5 +1,5 @@
 import { AddEntry } from "./AddEntry";
-import { CreatorFollowForm, CreatorFollowingDetail, FollowCreatorFromContent, Tracking, trackingCopy, useCreatorFollowingCapability } from "./CreatorFollowing";
+import { InterestRulesEditor, interestRuleValues, ruleDrafts, validInterestRule, type InterestRuleDraft, CreatorFollowForm, CreatorFollowingDetail, FollowCreatorFromContent, Tracking, trackingCopy, useCreatorFollowingCapability } from "./CreatorFollowing";
 import { BilibiliImport, BilibiliCaptionStatus, bilibiliStatus } from "./BilibiliImport";
 import { LocalImport, localStatus, localImportErrors } from "./LocalImport";
 import { NativeImportActivity } from "./NativeLocalImport";
@@ -2705,9 +2705,6 @@ function Sources(
     </>
   );
 }
-function ruleList(value: string) {
-  return value.split(/[,，]/).map((item) => item.trim()).filter(Boolean);
-}
 function SourceForm(props: Parameters<typeof ExistingSourceForm>[0]) {
   return props.source ? <ExistingSourceForm {...props} /> : <AddEntry onClose={props.onClose} onSaved={props.onSaved} initialLocal={props.initialProvider === "LOCAL"} />;
 }
@@ -2751,8 +2748,8 @@ export function ExistingSourceForm(
   const [perRunLimit, setPerRunLimit] = useState(
     String(policy?.per_run_max_new_videos ?? 5),
   );
-  const [focus, setFocus] = useState(policy?.focus_rules.join(", ") ?? "");
-  const [ignore, setIgnore] = useState(policy?.ignore_rules.join(", ") ?? "");
+  const [focus, setFocus] = useState<InterestRuleDraft[]>(() => ruleDrafts(policy?.focus_rules ?? []));
+  const [ignore, setIgnore] = useState<InterestRuleDraft[]>(() => ruleDrafts(policy?.ignore_rules ?? []));
   const [style, setStyle] = useState(policy?.distillation_style ?? "BALANCED");
   const [focusMode, setFocusMode] = useState<"INHERIT" | "OVERRIDE">(policyModes?.focus ?? (source ? "OVERRIDE" : "INHERIT"));
   const [ignoreMode, setIgnoreMode] = useState<"INHERIT" | "OVERRIDE">(policyModes?.ignore ?? (source ? "OVERRIDE" : "INHERIT"));
@@ -2798,15 +2795,18 @@ export function ExistingSourceForm(
       setError(t("Use Follow a channel to follow from now on without importing existing videos."));
       return;
     }
-    const effectiveFocus = focusMode === "INHERIT" ? globalPolicy.data?.policy?.focus_rules ?? [] : ruleList(focus);
+    const effectiveFocus = focusMode === "INHERIT" ? globalPolicy.data?.policy?.focus_rules ?? [] : interestRuleValues(focus);
     if (processingPolicy === "STANDARD_INTELLIGENCE" && !effectiveFocus.length) {
       setError(t("Add at least one focus word to let the app select relevant videos for insight extraction."));
       return;
     }
     const policyBody = { initial_history_count: Number(initialHistory), per_run_max_new_videos: Number(perRunLimit),
-      focus_mode: focusMode, focus_rules: focusMode === "INHERIT" ? [] : ruleList(focus),
-      ignore_mode: ignoreMode, ignore_rules: ignoreMode === "INHERIT" ? [] : ruleList(ignore),
+      focus_mode: focusMode, focus_rules: focusMode === "INHERIT" ? [] : interestRuleValues(focus),
+      ignore_mode: ignoreMode, ignore_rules: ignoreMode === "INHERIT" ? [] : interestRuleValues(ignore),
       distillation_style_mode: styleMode, distillation_style: styleMode === "INHERIT" ? null : style };
+    if (![...policyBody.focus_rules, ...policyBody.ignore_rules].every(validInterestRule)) {
+      setError(t("Each rule needs text without leading or trailing whitespace, up to 160 characters.")); return;
+    }
     const signature = JSON.stringify({ url, policyBody, enabled, processingPolicy, frequency, time, scheduleEnabled });
     if (attempt.current?.signature !== signature) attempt.current = { signature, sourceId: source?.source_id,
       command: commandId(), scheduleId: schedule?.schedule_id ?? commandId(), policyDone: false, sourceDone: false, scheduleDone: false,
@@ -2959,43 +2959,29 @@ export function ExistingSourceForm(
             </label>
             <label className="field">
               {t("Focus preference")}
-              <select aria-label={t("Focus preference")} value={focusMode} onChange={(event) => setFocusMode(event.target.value as "INHERIT" | "OVERRIDE")}>
+              <select aria-label={t("Focus preference")} value={focusMode} onChange={(event) => { setFocusMode(event.target.value as "INHERIT" | "OVERRIDE"); if (event.target.value === "OVERRIDE" && !focus.length) setFocus(ruleDrafts([""])); }}>
                 <option value="INHERIT">{t("Use global interests")}</option>
                 <option value="OVERRIDE">{t("Set for this Following")}</option>
               </select>
             </label>
             {focusMode === "INHERIT" && globalPolicy.data ? <p className="hint">{t("Global focus")}: {globalPolicy.data?.policy?.focus_rules.join("、") || t("Not set")}</p> : null}
-            {focusMode === "OVERRIDE" ? <label className="field">
-              {t("Focus")}<input
-                aria-label={t("Focus")}
-                value={focus}
-                onChange={(event) => setFocus(event.target.value)}
-                placeholder={t("Comma-separated terms")}
-              />
-              <small>{t("Use simple terms that help choose what is relevant.")}</small>
-              {processingPolicy === "STANDARD_INTELLIGENCE" && !ruleList(focus).length
-                ? <small>{t("Add at least one focus word to let the app select relevant videos for insight extraction.")}</small>
-                : null}
-            </label> : null}
+            {focusMode === "OVERRIDE" ? <div>
+              <InterestRulesEditor kind="focus" rows={focus} onChange={setFocus} />
+              <small>{t("Each row is one rule. Commas and line breaks stay in that rule. Blank rows are omitted.")}</small>
+              {processingPolicy === "STANDARD_INTELLIGENCE" && !interestRuleValues(focus).length ? <small>{t("Add at least one focus word to let the app select relevant videos for insight extraction.")}</small> : null}
+            </div> : null}
             <label className="field">
               {t("Ignore preference")}
-              <select aria-label={t("Ignore preference")} value={ignoreMode} onChange={(event) => setIgnoreMode(event.target.value as "INHERIT" | "OVERRIDE")}>
+              <select aria-label={t("Ignore preference")} value={ignoreMode} onChange={(event) => { setIgnoreMode(event.target.value as "INHERIT" | "OVERRIDE"); if (event.target.value === "OVERRIDE" && !ignore.length) setIgnore(ruleDrafts([""])); }}>
                 <option value="INHERIT">{t("Use global interests")}</option>
                 <option value="OVERRIDE">{t("Set for this Following")}</option>
               </select>
             </label>
             {ignoreMode === "INHERIT" && globalPolicy.data ? <p className="hint">{t("Global ignore")}: {globalPolicy.data?.policy?.ignore_rules.join("、") || t("Not set")}</p> : null}
-            {ignoreMode === "OVERRIDE" ? <label className="field">
-              {t("Ignore")}<input
-                aria-label={t("Ignore")}
-                value={ignore}
-                onChange={(event) => setIgnore(event.target.value)}
-                placeholder={t("Comma-separated terms")}
-              />
-              <small>
-                {t("Use simple terms to exclude videos from automatic relevance selection.")}
-              </small>
-            </label> : null}
+            {ignoreMode === "OVERRIDE" ? <div>
+              <InterestRulesEditor kind="ignore" rows={ignore} onChange={setIgnore} />
+              <small>{t("Each row is one rule. Commas and line breaks stay in that rule. Blank rows are omitted.")}</small>
+            </div> : null}
             <label className="field">
               {t("Style preference")}
               <select aria-label={t("Style preference")} value={styleMode} onChange={(event) => setStyleMode(event.target.value as "INHERIT" | "OVERRIDE")}>
@@ -3741,13 +3727,16 @@ function BackupRestorePanel() {
 
 function GlobalInterests({ policy, onSaved }: { policy: SourcePolicy; onSaved: () => void }) {
   const { t } = useUiLanguage();
-  const [focus, setFocus] = useState(policy.focus_rules.join(", "));
-  const [ignore, setIgnore] = useState(policy.ignore_rules.join(", "));
+  const [focus, setFocus] = useState<InterestRuleDraft[]>(() => ruleDrafts(policy.focus_rules));
+  const [ignore, setIgnore] = useState<InterestRuleDraft[]>(() => ruleDrafts(policy.ignore_rules));
   const [style, setStyle] = useState(policy.distillation_style);
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const save = async () => {
+    if (![...interestRuleValues(focus), ...interestRuleValues(ignore)].every(validInterestRule)) {
+      setError(t("Each rule needs text without leading or trailing whitespace, up to 160 characters.")); return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -3755,8 +3744,8 @@ function GlobalInterests({ policy, onSaved }: { policy: SourcePolicy; onSaved: (
         command_id: commandId(),
         initial_history_count: policy.initial_history_count,
         per_run_max_new_videos: policy.per_run_max_new_videos,
-        focus_rules: ruleList(focus),
-        ignore_rules: ruleList(ignore),
+        focus_rules: interestRuleValues(focus),
+        ignore_rules: interestRuleValues(ignore),
         distillation_style: style,
       });
       setEditing(false);
@@ -3770,13 +3759,9 @@ function GlobalInterests({ policy, onSaved }: { policy: SourcePolicy; onSaved: (
   return <Panel title="My interests">
     <p className="hint">{t("These are defaults for future insight selection. A Following can use them or set its own focus. Summaries remain faithful to source content; existing insights and Topics do not change.")}</p>
     {!editing ? <><p>{t("What I focus on")}: {policy.focus_rules.join(", ") || t("Not set")}</p><button className="button button-secondary" onClick={() => setEditing(true)}>{t("Edit interests")}</button></> : <>
-    <label className="field">{t("What I focus on")}
-      <input aria-label={t("What I focus on")} value={focus} onChange={(event) => setFocus(event.target.value)} placeholder={t("For example: AI Agent, language models, commercialization")} />
-    </label>
-    <label className="field">{t("Less of / ignore")}
-      <input aria-label={t("Less of / ignore")} value={ignore} onChange={(event) => setIgnore(event.target.value)} placeholder={t("For example: repetitive launch news")} />
-    </label>
-    <p className="hint">{t("Separate phrases with commas. These explicit rules apply to future checks and insights only.")}</p>
+    <InterestRulesEditor kind="focus" label="What I focus on" rows={focus} onChange={setFocus} />
+    <InterestRulesEditor kind="ignore" label="Less of / ignore" rows={ignore} onChange={setIgnore} />
+    <p className="hint">{t("Each row is one rule. Commas and line breaks stay in that rule. Blank rows are omitted.")}</p>
     <label className="field">{t("Insight style")}
       <select aria-label={t("Insight style")} value={style} onChange={(event) => setStyle(event.target.value)}>
         {STYLES.map(([value, label]) => <option value={value} key={value}>{t(label)}</option>)}

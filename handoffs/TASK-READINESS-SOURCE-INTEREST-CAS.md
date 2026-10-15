@@ -172,3 +172,87 @@ Agent-browser CLI 与 Python Playwright 均未安装；保留 Python `ModuleNotF
 证据，未安装依赖，改用已有 Node Playwright/Chrome。独立 Vite 仅占用5193并在审查后停止；root 服务未触碰。
 作者56项相关旧编排测试仅记录为作者证据，本轮未重复运行；root 的完整 backend、真实 API GUI 与最终采用仍是
 后续独立门禁，不冒充本轮通过。所有原失败/原通过日志均保留。审查提交后 clean **STOP**。
+
+## 原作者返修 — 合法规则逐值保真（2026-10-15，待独立复审）
+
+恢复点：独立 REJECT handoff 提交 `db2e81e31d773904c5e57e86d327f72154d2bd87`；原分支/完整历史保留。
+root 明确将同一 P2 的 `ExistingSourceForm` 与 `GlobalInterests` 纳入必要返修，范围限三处规则 UI
+序列化、局部样式、对应测试和本报告；未扩大 API/全局持久合同。先前 REJECT、原始探针和失败日志保留。
+
+### 修改与保真边界
+
+- DIRECT 现 React/TypeScript/样式 token；三处共用小型 `InterestRulesEditor`，每条规则一个有标签的
+  textarea，显式添加/移除，无 CSV 编码或 join/split。稳定行 id；键盘添加/移除后焦点落到新行/邻行。
+- 规则 state 保存原始字符串；提交只省略值恰为 `""` 的空草稿行，绝不 trim、拆逗号、拆换行或折叠空白。
+  仅改风格/数量时，英文/中文逗号、LF、CRLF、内部 tab/双空格逐值原样发送。INHERIT 与空 OVERRIDE
+  仍分开；专用编辑器单命令、409 草稿、显式 GET 不重放、完整表单原 CAS/未完成步骤重试均保留。
+- 只读核实 backend `_validate_policy_rules`：非空、两端不含 Python strip 空白、每条最多160 Unicode
+  codepoint、每组最多20等原规则。UI 拒非法边缘空白/过长草稿并保留草稿；按 codepoint 计长，不误拒合法
+  160 emoji 或字面 BOM。内部合法空白仍保留；未收紧后台领域合同。后台继续负责重复/总数等校验。
+- 局部 textarea 样式沿用现 token、焦点可见、窄窗收缩；中英文添加/移除、逐条说明和验证提示均有词条。
+  评估现有设计参考后沿用本项目 CSS，不为本次局部修复新增设计文档或依赖。
+- App 旧 `ruleList` 实际仅用于上述两个已授权表单，替换后无消费者，移除该有损 helper；无其它表单重构。
+  Global 的 API 路径、命令/数量保存语义保持现合同；旧 full 表单仍可正常写 Source/automation，未将其
+  冒充专用编辑器的零副作用路径。
+
+### 先红与故障证据
+
+| 反证 | 保留结果 |
+|---|---|
+| 专用 style-only 原值中英文逗号/LF/CRLF/tab | `/tmp/source-interest-rule-red-payload.log`，1 failed（12 deselected），实际 focus/ignore 被拆 |
+| 专用合法160 emoji 初始读取 | `/tmp/source-interest-rule-red.log`，旧 UTF-16 限制误拒，失败保留；单独补 Unicode/BOM 回归 |
+| 旧 full 表单仅改 Initial history / Distillation style | `/tmp/source-interest-fullform-red.log`，2 failed（5 deselected），完整原数组与拆分 payload 不同 |
+| Global style-only | `/tmp/source-interest-global-red.log`，1 failed（146 deselected），实际英文/中文逗号规则被拆 |
+| 添加后移除前行且邻行仍为上次焦点目标 | Chrome `/tmp/source-interest-rules-browser.log` 报 `remove focus lost`；新增 `/tmp/source-interest-keyboard-red.log` 同反证，修复焦点请求身份后20项通过 |
+
+开发过程中保留而未隐藏的其它失败：首轮规则 group 与 textarea 同名产生 query 歧义
+（`/tmp/source-interest-rule-focused.log`），改 group 名并保持原输入标签；提取时遗留一处 JSX closing
+label，由类型检查 `/tmp/source-interest-shared-types.log` 先报并修正；首个 npm tsc 在错误工作目录
+得到 `This is not the tsc command you are looking for`（`/tmp/source-interest-fullform-red-types.log`），改为
+frontend 现有 typecheck 脚本。先前相对路径错误未写文件；未修改 package/lock/工具链。
+
+原中文 Global 测试改用明确的“添加词条”操作创建两行，再分别填 `AI Agent` 与 `大模型`；原两项数组、
+ignore、API 路径与无额外写入断言完整保留，不再把合法 literal comma 当作用户分隔操作。
+
+一次完整前端运行出现无关 `LocalImportFlow.test.tsx` D2-01 找不到 `Import local file`：
+`/tmp/source-interest-rules-final-frontend2.log`（495 passed/1 failed）。先检查原 assertion/chooseVideo，
+未改该产品/测试；隔离运行6 passed（`/tmp/source-interest-unrelated-import-diagnosis.log`），再完整运行
+496 passed。保留该次失败，不声称所有尝试均成功；已有 React act 警告仍可见。
+
+### 最终检查与实际浏览器证据
+
+| 命令/范围 | 最终结果 |
+|---|---|
+| `cd frontend && npm test` | **30 files / 496 passed, 12.24s**；`/tmp/source-interest-rules-final-frontend3.log` |
+| `npm run typecheck` / `npm run build` | PASS；`/tmp/source-interest-rules-final-ts3.log`、`/tmp/source-interest-rules-final-build3.log`，50 modules，514ms |
+| 专用规则/冲突/Unicode/空 override/键盘 regression | **20 passed**；`/tmp/source-interest-keyboard-green.log`，已包含在最终496项中，不额外累加 |
+| `.venv/bin/ruff check src/youtube_intel tests scripts/prepare_readiness_local_text.py` | PASS；`/tmp/source-interest-rules-final-ruff.log` |
+| `PYTHONPATH=src:. .venv/bin/mypy --strict src scripts/prepare_readiness_local_text.py` | **103 files PASS**；`/tmp/source-interest-rules-final-mypy.log` |
+| `PYTHONPATH=src:. .venv/bin/python -m compileall -q src scripts/prepare_readiness_local_text.py tests/integration/test_source_interest_cas.py` | exit0 |
+| `git diff --check`（返修点及原任务 base cumulative） | PASS |
+| 相关 backend49 | 本次返修前序已实际运行 **49 passed, 17.35s**；`/tmp/source-interest-rule-backend.log`。随后仅改 UI/测试/文档，无后台改动，未重复整套 |
+| 原独立 `/tmp/source-interest-review-api-probe.py` 原样运行 | 3 PASS，exit0；`/tmp/source-interest-rules-final-api-probe.log`，隔离 SQLite 真 API：compound 原值持久化、重启历史幂等不回退、missing/NULL/changed expected 拒错误重放 |
+| 原独立 `/tmp/source-interest-review-rule-probe.mjs` 原样运行 | **RULES_PRESERVED true / JS_ERRORS []**；`/tmp/source-interest-rules-final-original-probe.log`；唯一 `/interests` PUT 完整原数组 |
+| `/tmp/source-interest-rules-browser.mjs` 真 Chrome/组件/CSS，离线 HTTP fixture | **8 matrices PASS**：ZH/EN × 320/768/1024/1440，键盘添加/移除、literal comma/多行、save/reopen、409草稿、一次显式GET无重放、重试原草稿、inherit、Escape、无横溢出；JS errors0。`/tmp/source-interest-rules-browser4.log`，每矩阵4 commands（3 accepted+1故意409） |
+| `/tmp/source-interest-forms-browser.mjs` 真 Chrome，离线 HTTP fixture | old full 与 Global 各 ZH/EN@320，style-only 原英文/中文逗号、LF/CRLF/tab 逐值完全相等；`/tmp/source-interest-forms-browser2.log`。Global仅原设置PUT，full仍原policy→PATCH→automation正常流 |
+
+原失败截图 `/tmp/source-interest-review-rule-loss.png` 已恢复原内容；另存原件
+`/tmp/source-interest-review-rule-loss-original.png`，修复原脚本截图另存
+`/tmp/source-interest-rules-final-original-probe.png`。矩阵截图在 `/tmp/source-interest-rules-browser/`；
+full/global窄窗截图 `/tmp/source-interest-{full,global}-{en,zh-CN}-320.png`；额外规则控件截图
+`/tmp/source-interest-rules-editor-visual.png`。浏览器日志中故意409、Vite本地WebSocket限制告警如实保留；
+JS error 为0不等于控制台所有级别为0。
+
+探针自身失败另存：forms首次HTML缺UTF-8 charset造成inline fixture中文字乱码
+（`/tmp/source-interest-forms-browser.log`），补测试页charset后四例通过；专用矩阵先对INHERIT后不存在的
+Focus按Escape（`/tmp/source-interest-rules-browser2.log`），后修为对来源select按Escape；再遇沿用旧探针
+错误中文标签“我重点关注”（`/tmp/source-interest-rules-browser3.log`），核对字典实际“重点词”后八例通过。
+未修改产品翻译、路由/权限/浏览器配置来迎合探针；未安装浏览器工具或依赖。
+
+### 范围、风险与停止状态
+
+返修仅 App/CreatorFollowing/uiLanguage/styles、对应3份测试、本 handoff。后台/state/Schema/原SQL/
+provider/runtime/模型资格/预算/Cloud/配置/凭据/依赖/lock/正式数据全部无改动；模型调用0。沿用现
+库无新增外部源码/许可；无 main/push/合入。审查仍需同一独立 Reviewer 对 original base 的 cumulative
+改动复审；本报告是作者证据，不是 ACCEPTED。root 最终真实 API GUI、全 backend 与采用门禁仍待后续，
+未拿离线 UI fixture 代替正式验收。作者将关闭自用5193，提交后 clean **STOP**。

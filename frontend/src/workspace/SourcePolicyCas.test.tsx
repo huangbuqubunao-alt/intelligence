@@ -32,3 +32,12 @@ it("blocks missing revisions and unknown persisted enums until a valid explicit 
  expect((save() as HTMLButtonElement).disabled).toBe(true);fireEvent.change(screen.getByLabelText("Focus"),{target:{value:"retained draft"}});
  fireEvent.click(screen.getByRole("button",{name:"Reload current interests"}));await waitFor(()=>expect((save() as HTMLButtonElement).disabled).toBe(false));expect((screen.getByLabelText("Focus") as HTMLInputElement).value).toBe("retained draft");
 });
+it.each(["Initial history", "Distillation style"])("preserves literal comma and internal whitespace rules when only %s changes",async field=>{
+ const original={...policy,focus_rules:["robotics, autonomy","产品，案例","first\n  second\tkept","CRLF\r\nkept"],ignore_rules:["ads, promo","广告，推广","two  spaces"]};
+ const fetcher=vi.fn(async(_u:string,i:RequestInit)=>i.method==="PUT"?response({applied_source_policy_revision_id:"r1",current_source_policy_revision_id:"r1",historical_replay:false}):response({policy}));vi.stubGlobal("fetch",fetcher);
+ render(<UiLanguageProvider><ExistingSourceForm source={source} policy={original} policyModes={modes} onSaved={vi.fn()} onClose={vi.fn()} /></UiLanguageProvider>);
+ fireEvent.change(screen.getByLabelText(field),{target:{value:field==="Initial history"?"5":"TECHNICAL_DETAIL_FIRST"}});fireEvent.click(save());
+ await waitFor(()=>expect(fetcher.mock.calls.some(([,i])=>i.method==="PUT")).toBe(true));
+ const body=JSON.parse(fetcher.mock.calls.find(([,i])=>i.method==="PUT")![1].body as string);
+ expect(body.focus_rules).toEqual(original.focus_rules);expect(body.ignore_rules).toEqual(original.ignore_rules);
+});

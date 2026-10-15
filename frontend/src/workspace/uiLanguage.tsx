@@ -4,6 +4,15 @@ export type UiLanguage = "zh-CN" | "en";
 
 const storageKey = "yia.ui-language";
 const chinese: Record<string, string> = {
+  "Focus rules": "关注规则",
+  "Ignore rules": "忽略规则",
+  "Add focus rule": "添加关注词条",
+  "Add ignore rule": "添加忽略词条",
+  "Remove focus rule": "移除关注词条",
+  "Remove ignore rule": "移除忽略词条",
+  "Remove rule": "移除词条",
+  "Each row is one rule. Commas and line breaks stay in that rule. Blank rows are omitted.": "每个文本框对应一条规则，逗号和换行保留在该规则内；空文本框不计入规则。",
+  "Each rule needs text without leading or trailing whitespace, up to 160 characters.": "每条规则最多 160 个字符，开头和结尾不能有空白。",
   "Current saved focus": "当前已保存的关注词",
   "Current saved ignore": "当前已保存的忽略词",
   "Following interests": "此关注的兴趣",

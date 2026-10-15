@@ -80,7 +80,11 @@ test("Chinese Settings edits global interests through existing authority", async
   render(<App />);
   fireEvent.click(screen.getByRole("button", { name: "设置" }));
   fireEvent.click(await screen.findByRole("button", { name: "编辑兴趣" }));
-  fireEvent.change(await screen.findByLabelText("我重点关注"), { target: { value: "AI Agent，大模型" } });
+  fireEvent.click(screen.getByRole("button", { name: "添加关注词条" }));
+  fireEvent.change(await screen.findByLabelText("我重点关注"), { target: { value: "AI Agent" } });
+  fireEvent.click(screen.getByRole("button", { name: "添加关注词条" }));
+  fireEvent.change(screen.getByLabelText("我重点关注 2"), { target: { value: "大模型" } });
+  fireEvent.click(screen.getByRole("button", { name: "添加忽略词条" }));
   fireEvent.change(screen.getByLabelText("少看／忽略"), { target: { value: "重复新闻" } });
   fireEvent.click(screen.getByRole("button", { name: "保存偏好" }));
   await waitFor(() => expect(writes[0]?.data.focus_rules).toEqual(["AI Agent", "大模型"]));
@@ -3154,3 +3158,22 @@ test("a failed page read does not leave its error on a different route", async (
   await screen.findByRole("heading", { name: "Language" });
   expect(screen.queryByText("The local service is temporarily unavailable. Wait for it to recover, then reload this page.")).toBeNull();
 });
+
+ test("global style-only save preserves each literal comma and internal whitespace rule", async () => {
+  const defaultFetch = globalThis.fetch;
+  const original = {initial_history_count:3,per_run_max_new_videos:10,focus_rules:["robotics, autonomy","产品，案例","first\n  second\tkept","CRLF\r\nkept"],ignore_rules:["ads, promo","广告，推广"],distillation_style:"BALANCED"};
+  const writes: Record<string, unknown>[] = [];
+  vi.stubGlobal("fetch",vi.fn((path:string,init?:RequestInit)=>{
+    if(path.endsWith("/settings/source-policy")) {
+      if(init?.method==="PUT"){writes.push(JSON.parse(String(init.body)));return response({});}
+      return response({policy:original});
+    }
+    return defaultFetch(path,init);
+  }));
+  render(<App/>);fireEvent.click(screen.getByRole("button",{name:"Settings"}));
+  fireEvent.click(await screen.findByRole("button",{name:"Edit interests"}));
+  fireEvent.change(screen.getByLabelText("Insight style"),{target:{value:"TECHNICAL_DETAIL_FIRST"}});
+  fireEvent.click(screen.getByRole("button",{name:"Save preferences"}));
+  await waitFor(()=>expect(writes).toHaveLength(1));
+  expect(writes[0].focus_rules).toEqual(original.focus_rules);expect(writes[0].ignore_rules).toEqual(original.ignore_rules);
+ });

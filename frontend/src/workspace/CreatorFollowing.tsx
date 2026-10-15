@@ -297,6 +297,13 @@ function CreatorFollowingDetailContent({ id, capability, onClose, onRefresh }: D
 }
 
 type InterestMode = "INHERIT" | "OVERRIDE";
+export type InterestRuleDraft = { id: string; value: string };
+// Match Python str.strip's Unicode whitespace without treating a literal BOM
+// as whitespace; persisted rules count Unicode codepoints, not UTF-16 units.
+const ruleEdgeWhitespace = /^[\p{White_Space}\u001c-\u001f]|[\p{White_Space}\u001c-\u001f]$/u;
+export const validInterestRule = (value: unknown): value is string => typeof value === "string"
+  && value.length > 0 && Array.from(value).length <= 160 && !ruleEdgeWhitespace.test(value);
+export const ruleDrafts = (values: string[]): InterestRuleDraft[] => values.map(value => ({ id: crypto.randomUUID(), value }));
 type InterestSnapshot = {
   policy: { source_id: string; source_policy_revision_id: string | null; focus_rules: string[]; ignore_rules: string[]; distillation_style: string };
   policy_modes: { focus: InterestMode; ignore: InterestMode; style: InterestMode };
@@ -306,17 +313,43 @@ function validInterestSnapshot(value: unknown, id: string): value is InterestSna
   if (!value || typeof value !== "object") return false;
   const v = value as Partial<InterestSnapshot> & { source?: { source_id?: string } };
   const p = v.policy, modes = v.policy_modes;
-  const rules = (x: unknown) => Array.isArray(x) && x.length <= 20 && x.every(r => typeof r === "string" && r.trim() && r === r.trim() && r.length <= 160);
+  const rules = (x: unknown) => Array.isArray(x) && x.length <= 20 && x.every(validInterestRule);
   return v.source?.source_id === id && p?.source_id === id
     && (p.source_policy_revision_id === null || (typeof p.source_policy_revision_id === "string" && !!p.source_policy_revision_id.trim() && p.source_policy_revision_id.length <= 512))
     && rules(p.focus_rules) && rules(p.ignore_rules) && INTEREST_STYLES.includes(p.distillation_style)
     && !!modes && [modes.focus, modes.ignore, modes.style].every(m => m === "INHERIT" || m === "OVERRIDE");
 }
 
+export const interestRuleValues = (rows: InterestRuleDraft[]) => rows.map(row => row.value).filter(value => value !== "");
+
+export function InterestRulesEditor({ kind, label: customLabel, rows, onChange: change }: { kind: "focus" | "ignore"; label?: string; rows: InterestRuleDraft[]; onChange: (rows: InterestRuleDraft[]) => void }) {
+  const { t } = useUiLanguage();
+  const [ruleFocus, setRuleFocus] = useState<{ id: string } | null>(null);
+  const [addId] = useState(() => `source-interest-add-${crypto.randomUUID()}`);
+  useEffect(() => { if (ruleFocus) document.getElementById(ruleFocus.id)?.focus(); }, [ruleFocus]);
+  const label = customLabel ?? (kind === "focus" ? "Focus" : "Ignore");
+  return <div className="source-interest-rule-editor" role="group" aria-label={t(kind === "focus" ? "Focus rules" : "Ignore rules")}>
+    {rows.map((row, index) => <div key={row.id}>
+      <label className="field" htmlFor={row.id}>{t(label)}{index > 0 ? ` ${index + 1}` : ""}
+        <textarea id={row.id} aria-label={`${t(label)}${index > 0 ? ` ${index + 1}` : ""}`} rows={2} value={row.value}
+          onChange={event => { change(rows.map(item => item.id === row.id ? { ...item, value: event.target.value } : item)); }} />
+      </label>
+      <button type="button" className="button button-secondary" aria-label={`${t(kind === "focus" ? "Remove focus rule" : "Remove ignore rule")} ${index + 1}`} onClick={() => {
+        const remaining = rows.filter(item => item.id !== row.id);
+        change(remaining); setRuleFocus({ id: remaining[Math.min(index, remaining.length - 1)]?.id ?? addId });
+      }}>{t("Remove rule")} {index + 1}</button>
+    </div>)}
+    <button type="button" id={addId} className="button button-secondary" disabled={rows.length >= 20} onClick={() => {
+      const row = ruleDrafts([""])[0]; change([...rows, row]); setRuleFocus({ id: row.id });
+    }}>{t(kind === "focus" ? "Add focus rule" : "Add ignore rule")}</button>
+  </div>;
+}
+
 function SourceInterestEditor({ id, onClose }: { id: string; onClose: () => void }) {
   const { t } = useUiLanguage();
   const [snapshot, setSnapshot] = useState<InterestSnapshot | null>(null);
-  const [focus, setFocus] = useState(""); const [ignore, setIgnore] = useState("");
+  const [focus, setFocus] = useState<InterestRuleDraft[]>([]);
+  const [ignore, setIgnore] = useState<InterestRuleDraft[]>([]);
   const [focusMode, setFocusMode] = useState<InterestMode>("INHERIT");
   const [ignoreMode, setIgnoreMode] = useState<InterestMode>("INHERIT");
   const [styleMode, setStyleMode] = useState<InterestMode>("INHERIT");
@@ -336,7 +369,7 @@ function SourceInterestEditor({ id, onClose }: { id: string; onClose: () => void
       if (!validInterestSnapshot(value, id)) throw new Error("invalid interest read");
       setSnapshot(value); setBlocked(false); setMessage(null);
       if (!initialized.current && !edited.current) {
-        setFocus(value.policy.focus_rules.join(", ")); setIgnore(value.policy.ignore_rules.join(", "));
+        setFocus(ruleDrafts(value.policy.focus_rules)); setIgnore(ruleDrafts(value.policy.ignore_rules));
         setFocusMode(value.policy_modes.focus); setIgnoreMode(value.policy_modes.ignore); setStyleMode(value.policy_modes.style);
         setStyle(value.policy.distillation_style);
       }
@@ -346,14 +379,20 @@ function SourceInterestEditor({ id, onClose }: { id: string; onClose: () => void
     return () => { disposed = true; };
   }, [id, readAttempt]);
   const mode = (label: string, value: InterestMode, change: (m: InterestMode) => void) => <label className="field">{t(label)}<select aria-label={t(label)} value={value} onChange={e => { edited.current = true; change(e.target.value as InterestMode); }}><option value="INHERIT">{t("Use global interests")}</option><option value="OVERRIDE">{t("Set for this Following")}</option></select></label>;
-  const rules = (value: string) => value.split(/[,，\n]/).map(v => v.trim()).filter(Boolean);
-  return <form aria-label={t("Following interests")} onKeyDown={e => { if (e.key === "Escape" && !busy) { e.stopPropagation(); onClose(); } }} onSubmit={async e => {
+  const savedRules = (label: string, values: string[]) => <div>
+    <p className="hint">{t(label)}</p>
+    {values.length ? <ul className="source-interest-saved-rules">{values.map((value, index) => <li key={index}>{value}</li>)}</ul> : <p className="hint">{t("Not set")}</p>}
+  </div>;
+  return <form className="source-interest-editor" aria-label={t("Following interests")} onKeyDown={e => { if (e.key === "Escape" && !busy) { e.stopPropagation(); onClose(); } }} onSubmit={async e => {
     e.preventDefault();
     if (!snapshot || reading || blocked || submitting.current) return;
     const request = { expected_source_policy_revision_id: snapshot.policy.source_policy_revision_id,
-      focus_mode: focusMode, focus_rules: focusMode === "INHERIT" ? [] : rules(focus),
-      ignore_mode: ignoreMode, ignore_rules: ignoreMode === "INHERIT" ? [] : rules(ignore),
+      focus_mode: focusMode, focus_rules: focusMode === "INHERIT" ? [] : interestRuleValues(focus),
+      ignore_mode: ignoreMode, ignore_rules: ignoreMode === "INHERIT" ? [] : interestRuleValues(ignore),
       distillation_style_mode: styleMode, distillation_style: styleMode === "INHERIT" ? null : style };
+    if (![...request.focus_rules, ...request.ignore_rules].every(validInterestRule)) {
+      setMessage("Each rule needs text without leading or trailing whitespace, up to 160 characters."); return;
+    }
     const signature = JSON.stringify(request);
     if (command.current?.signature !== signature) command.current = { signature, id: crypto.randomUUID() };
     submitting.current = true; setBusy(true); setMessage(null);
@@ -377,11 +416,12 @@ function SourceInterestEditor({ id, onClose }: { id: string; onClose: () => void
     <h3>{t("Following interests")}</h3>
     <p className="hint">{t("Changes affect future checks and insights only. Processing and monitoring settings stay the same.")}</p>
     {reading && <p role="status">{t("Loading interests…")}</p>}
+    <p className="hint">{t("Each row is one rule. Commas and line breaks stay in that rule. Blank rows are omitted.")}</p>
     <fieldset disabled={busy || reading}>
-      {mode("Focus preference", focusMode, setFocusMode)}
-      {focusMode === "OVERRIDE" ? <label className="field">{t("Focus")}<input aria-label={t("Focus")} value={focus} onChange={e => { edited.current = true; setFocus(e.target.value); }} /></label> : snapshot && <p className="hint">{t(snapshot.policy_modes.focus === "INHERIT" ? "Global focus" : "Current saved focus")}: {snapshot.policy.focus_rules.join("、") || t("Not set")}</p>}
-      {mode("Ignore preference", ignoreMode, setIgnoreMode)}
-      {ignoreMode === "OVERRIDE" ? <label className="field">{t("Ignore")}<input aria-label={t("Ignore")} value={ignore} onChange={e => { edited.current = true; setIgnore(e.target.value); }} /></label> : snapshot && <p className="hint">{t(snapshot.policy_modes.ignore === "INHERIT" ? "Global ignore" : "Current saved ignore")}: {snapshot.policy.ignore_rules.join("、") || t("Not set")}</p>}
+      {mode("Focus preference", focusMode, value => { setFocusMode(value); if (value === "OVERRIDE" && !focus.length) setFocus(ruleDrafts([""])); })}
+      {focusMode === "OVERRIDE" ? <InterestRulesEditor kind="focus" rows={focus} onChange={rows => { edited.current = true; setFocus(rows); }} /> : snapshot && savedRules(snapshot.policy_modes.focus === "INHERIT" ? "Global focus" : "Current saved focus", snapshot.policy.focus_rules)}
+      {mode("Ignore preference", ignoreMode, value => { setIgnoreMode(value); if (value === "OVERRIDE" && !ignore.length) setIgnore(ruleDrafts([""])); })}
+      {ignoreMode === "OVERRIDE" ? <InterestRulesEditor kind="ignore" rows={ignore} onChange={rows => { edited.current = true; setIgnore(rows); }} /> : snapshot && savedRules(snapshot.policy_modes.ignore === "INHERIT" ? "Global ignore" : "Current saved ignore", snapshot.policy.ignore_rules)}
       {mode("Style preference", styleMode, setStyleMode)}
       {styleMode === "OVERRIDE" && <label className="field">{t("Distillation style")}<select aria-label={t("Distillation style")} value={style} onChange={e => { edited.current = true; setStyle(e.target.value); }}>{INTEREST_STYLES.map(v => <option key={v} value={v}>{t(({ BALANCED:"Balanced", TECHNICAL_DETAIL_FIRST:"Technical", PRODUCT_CASE_FIRST:"Product case", TREND_OPINION_FIRST:"Trend and opinion" })[v] ?? v)}</option>)}</select></label>}
       <p className="hint">{t("An empty override means no words for this Following; inheritance follows global interests.")}</p>
