@@ -1,0 +1,81 @@
+{
+  "generation_calls": 0,
+  "model_metadata_calls": 0,
+  "qualification_granted": false,
+  "no_source_or_evidence_truncation": true,
+  "body_cap_unchanged": 7680,
+  "current_profile_id": "local-grounding-qwen35-9b-thinking-v1",
+  "current_profile_num_ctx": 8192,
+  "proposed_body_is_measurement_only_not_implemented": true,
+  "frozen_corpus_hashes": {
+    "INTELLIGENCE_REAL_CORPUS_V2.json": "a7c96ee6b84aee6b8e492348b9f4f190d7c9f6f14241b25e533532bc4dcb82cb",
+    "INTELLIGENCE_FROZEN_CORPUS.json": "cededc0061c43029e28a867bbaeab5ae5691c3e6a998997ace855eebb6dd37f3"
+  },
+  "sealed_input_sha256": "1cda0703943eec515f08c7e3520011c110e4069805173f5afc5971e9cc355136",
+  "results": [
+    {
+      "case_id": "real-deepthink-en",
+      "provenance": "historical public sealed input; language-only temporary clone",
+      "evidence_count": 2,
+      "evidence_excerpts_utf8_bytes": 929,
+      "system_content_utf8_bytes": 1527,
+      "user_content_utf8_bytes": 1537,
+      "format_canonical_utf8_bytes": 1356,
+      "current_full_request_utf8_bytes": 4790,
+      "current_builder_outcome": "ACCEPTED",
+      "current_request_sha256": "60b6808ab036c15caa3b00653a50b9516b39bbe0a657a1e0dd404426cbcc40da",
+      "proposed_16384_truncatefalse_shiftfalse_full_request_utf8_bytes": 4822,
+      "proposed_fits_7680": true,
+      "proposed_request_sha256": "3b487cca26a6926f1bd3cb5728564584bdd0d0fe9f4035798b6cbed64c37833f",
+      "actual_message_plus_wrapper_token_upper_bound": 3154
+    },
+    {
+      "case_id": "real-deepthink-zh-cn",
+      "provenance": "historical public sealed input; language-only temporary clone",
+      "evidence_count": 2,
+      "evidence_excerpts_utf8_bytes": 929,
+      "system_content_utf8_bytes": 1527,
+      "user_content_utf8_bytes": 1540,
+      "format_canonical_utf8_bytes": 1356,
+      "current_full_request_utf8_bytes": 4793,
+      "current_builder_outcome": "ACCEPTED",
+      "current_request_sha256": "36ef6d9eddc8e4e78a67b663313108cb1b6300ce338fcd3fc14cc2b7a35bc0d4",
+      "proposed_16384_truncatefalse_shiftfalse_full_request_utf8_bytes": 4825,
+      "proposed_fits_7680": true,
+      "proposed_request_sha256": "c63c3de9fd9add07a056ee21f7b93c4d4c61c02a03f422ed2919e81723774715",
+      "actual_message_plus_wrapper_token_upper_bound": 3157
+    },
+    {
+      "case_id": "no-new-fifteen",
+      "provenance": "original frozen synthetic-control setup in /tmp; ordinary verified-input resolver; no provider IO",
+      "evidence_count": 15,
+      "evidence_excerpts_utf8_bytes": 2241,
+      "system_content_utf8_bytes": 1527,
+      "user_content_utf8_bytes": 4444,
+      "format_canonical_utf8_bytes": 1356,
+      "current_full_request_utf8_bytes": 7837,
+      "current_builder_outcome": "complete local request exceeds the frozen UTF-8 budget",
+      "current_request_sha256": "cd4b943907b24ca76a5d742b9c17130ce8543f06898f883ecf650fba039203bb",
+      "proposed_16384_truncatefalse_shiftfalse_full_request_utf8_bytes": 7869,
+      "proposed_fits_7680": false,
+      "proposed_request_sha256": "6c994a20b7fefb231b4238bb054b76007289be6da84af52230e7f296cc1d2619",
+      "actual_message_plus_wrapper_token_upper_bound": 6061
+    },
+    {
+      "case_id": "source-injection",
+      "provenance": "original frozen synthetic-control setup in /tmp; ordinary verified-input resolver; no provider IO",
+      "evidence_count": 2,
+      "evidence_excerpts_utf8_bytes": 325,
+      "system_content_utf8_bytes": 1527,
+      "user_content_utf8_bytes": 880,
+      "format_canonical_utf8_bytes": 1356,
+      "current_full_request_utf8_bytes": 4117,
+      "current_builder_outcome": "ACCEPTED",
+      "current_request_sha256": "e2a2bc0962ac2ec40262d67803139bee2fa1f027acdd316d5b7fd1b9e7f8a304",
+      "proposed_16384_truncatefalse_shiftfalse_full_request_utf8_bytes": 4149,
+      "proposed_fits_7680": true,
+      "proposed_request_sha256": "1d9e34daffe0bbcdeb8fb099ccd7216ee41a0701c1d0d4fd9a2804c91819514b",
+      "actual_message_plus_wrapper_token_upper_bound": 2497
+    }
+  ]
+}

@@ -1,3 +1,7 @@
+2026-10-15 完整请求资源界补充：普通builder无IO测量原四输入，十五Evidence NO_NEW请求在新ctx/安全字段下7869 bytes，原7680 body cap错误拒绝；源与Evidence全部保留，测量见LOCAL_CAPACITY_FOUR_INPUT_MEASUREMENTS.json。新未冻结profile提议将body资源cap改12288，单独限制system+user content合计8192；actual完整输入token上界=实际content UTF8 bytes+88+2，最大8282，6144输出+1余位合计14427≤16384（余1957）。schema/JSON封装只影响body资源界，不渲染成prompt，二者不能混用。原四case最大content5971，均能原样接受。此项尚未实现、未冻结、未生成、未授资格，不改任何旧失败或已冻结profile。
+
+冷模型可在严格当前合法命令/once permit及应用重量工作锁下，一次显式empty-prompt load-only（官方done_reason=load在Completion前返回），核验实际ps digest/llamacpp/slot≥16384后才允许claim与唯一生成POST。UI/read-only availability不得装载；失败或取消/丢lease时invocation0，model仅留缓存无假结果。metadata检查只在claim前，generate消费绑定execution+requesthash的readiness；claim后不再次GET，不把已知预检失败记unknown。真正POST后超时/unknown保持fail-closed及持久历史。必须有冷模型可操作入口，不能仅因未loaded让用户永久等待。
+
 2026-10-15 精确入口更正（优先于保留的初版假设）：独立port审查发现真实新builder为 `/api/chat`，system+user两条message，不是`/api/generate`单user。初版58byte只证明该单user特例，不能授生产容量。真实两条消息的官方qwen3.5封装88bytes；完整request≤7680已包含两content UTF8及JSON封装，因此render≤7768，input保守≤7770，最大6144输出与1余位要求13915；16384仍足。必须按真实system+user合同固定request所有字段，无history/tools/images/context/suffix/附加roles，本地模型本身SYSTEM/MESSAGE仍空。无生成诊断改用`/api/chat`、相同两角色及`_debug_render_only=true`；两种chat(native/legacy)官方分支均在实际模型Completion前返回。此前generate诊断尚未执行，实际生成仍0。当前profile仍原8192/BLOCKED，新的16384代码须后续独立任务和审查，不原地当已通过。
 
 完整manifest/config/5原层实核全部PASS，Ollama0.40.1与llama-server二进制SHA已记录`.var/end-to-end-user-readiness/capacity-runtime-preflight.json`。ps为空；16GiB物理RAM、44%系统free、余盘15.195GB。装载前必须再核压力，不能拿旧压力当当前资源承诺。新profile无实际proof/生成；旧profile不改。初版保留如下，明确不执行其中错误单user预检：
