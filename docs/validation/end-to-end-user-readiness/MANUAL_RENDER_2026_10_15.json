@@ -1,0 +1,17 @@
+{
+  "checked_at": "2026-10-15T11:26:24.427486+00:00",
+  "url": "http://127.0.0.1:6108/validation/muse-final-audit/USER_MANUAL.html",
+  "browser": "real Chrome via CUA",
+  "images": 60,
+  "broken_images": [],
+  "viewport_width": 1312,
+  "document_scroll_width": 1297,
+  "screenshot_private": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/manual-final-render-20261015.png",
+  "screenshot_sha256": "24e43fd38f26b38f5840b9672c94fc974863072bc0e48d8de7fbb8629cf8e113",
+  "change": "Use existing figure wrapper for two added Schema39 screenshots; no product CSS or code change.",
+  "limits": "Desktop manual render only, not model qualification or final journey acceptance.",
+  "preserved_diagnostics": [
+    "Initial static server docs/validation root omitted shared docs images; corrected to docs root.",
+    "Immediate image read included pending network images; final networkidle all 60 loaded."
+  ]
+}

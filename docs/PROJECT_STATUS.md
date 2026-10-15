@@ -1,3 +1,6 @@
+# 2026-10-15 最新续作状态（覆盖后续历史）
+SourceInterest作者返修e8d7471已clean STOP，三处逐条规则保真、前端496通过，独立复审待完成。local grounding工程2e754fb已clean STOP，715+2后端与前端468通过，容量执行门仍BLOCKED/0生成/资格false，待独立审查。三个子Agent曾遇额度错误；不把作者报告视为独立接受。root只读GGUF确认全部256 byte符号及247587 merge拼接均在248320词表，system/messages缺省，尚未证明实际runner slot容量；8192不可放行。手册真实Chrome60图全加载，无横溢。正式main仍73ee7e7，未发布；tracked Retry P1、能力呈现/物理计数、真实模型及最终全回归仍OPEN。
+
 # 2026-10-15 最新实证（覆盖下方旧摘要）
 候选root c6e3fb2，正式main尚未采用。LOCAL39/Native v2独立APPROVE均已整合；root97/252，frontend468/TS/build、strictmypy103通过。
 真实NativePicker TXT+MD→2proof WAIT0→分别安全取消，余等待任务仍阻塞/全取消才ready，重启及实际GUI restore022eabc 74表84DATA全等。新公共OYp5普通导入29cue/summary/4Evidence，实际restore7fa802a全部74表87物理DATA全等；新VIDEO_URL旧失败副本单次重试成功，原job/provider原样，实际restore74表3DATA全等。原raw源与不可变capture共文件，UI误把artifact引用数当物理文件数(88vs87/4vs3)，呈现修复排队。研究指定Evidence URL刷新后仍真实focus/highlight(162px)，旧OPEN已关闭。
