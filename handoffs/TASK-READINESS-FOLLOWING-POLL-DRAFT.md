@@ -178,3 +178,47 @@ Graph 查到两个旧符号，但未包含当前轮询修复，以本树固定�
 Cloud/ASR、资格、owner、正式数据、配置/凭据/lockfile 触碰。自用 Vite5194 及测试页在交付前停止。
 这里的离线 HTTP fixture/真实 Chrome 只证明工程边界；root 的真实 factory/API Google checking GUI
 和同 Reviewer 对 `aa18dea...新HEAD` 的累计复审仍为剩余门禁。作者提交后 clean **STOP**，不自行接受或整合。
+
+## 独立 P2 返修复审 — REJECT（2026-10-16）
+
+- Reviewer：`local_text_review_resume`；固定累计范围 `aa18dea681c86645f7aa2efdea5b6c278dc96c89`
+  至 `13484df1c536a459ee798e4f6548493e1666e2f8`，保留 `81c17f9`、`1ad9697` 原实现/REJECT及失败证据。
+  开工及提交前确认 exact HEAD/clean tree；只写本报告，不改产品或测试，不并发容量代码审查。
+- 原 `source_runs:[null]` 问题已闭合；**本候选仍 REJECT，P0=0/P1=0/P2=1**。共享source校验遗漏
+  Sources列表实际消费的错误码，仍能造成同样的全App空白和当前草稿丢失。
+
+### P2：无tracking来源的 `last_error.code` 坏类型仍可击穿整个 Sources 树
+
+`frontend/src/workspace/CreatorFollowing.tsx:162–165` 的 `validFollowingSourceRead` 未校验
+`last_error`/`code`，无tracking时直接返回true。Sources列表接受一条其它字段合法的 `LOCAL_LIBRARY`
+来源，`last_error:{code:{}}` 会在 `App.tsx:2705` 作为Status的value；`App.tsx:493` 调用
+`value.toUpperCase()` 抛 `TypeError: value.toUpperCase is not a function`。SourceDetail即使完全合法，
+当前打开的tracked编辑器仍随整个App一起卸载，未保存草稿丢失，无错误/GET重试UI。
+
+独立真实Chrome/完整App/CSS离线HTTP探针，只在后续Sources列表读中把另一条已有LOCAL_LIBRARY行的
+错误码从null改成上述对象，所有详情读保持合法。结果 `draftConnected:false, dialogs:0, body:"",
+errors:[TypeError...], writes:[]`。证据 `/tmp/following-poll-review-repair-invalid-source-code.mjs`、
+同名 `.log`、`.png`。这不是原null-run反证重复：入口是Sources列表，实际未校验字段是last_error.code。
+
+要求原作者在接收快照前校验实际渲染的错误对象/代码；保留合法无tracking/LOCAL/legacy及null或既有可选
+字段兼容。坏读应保留原列表和草稿，明确失败并可GET恢复；不能靠Status字符串强制转换、过滤坏行、
+ErrorBoundary或停poll冒充成功。补同实际App组合与原焦点/选区/零PUT-PATCH断言。
+
+### 独立验证与累计五轴结果
+
+| 检查 | 本轮实际结果 |
+|---|---|
+| `cd frontend && npm test` | **31 files / 543 passed，15.47s**；`/tmp/following-poll-review-repair-frontend543.log`，exit0；原React警告保留 |
+| `npm run typecheck` / `npm run build` | 两者exit0；`/tmp/following-poll-review-repair-ts.log`、`/tmp/following-poll-review-repair-build.log`，50 modules，865ms |
+| 原Reviewer null-run探针 | 原逻辑只更换截图输出路径，`/tmp/following-poll-review-repair-invalid-runs.mjs/.log/.png`；**draftConnected=true/dialogs1/errors[]/writes[]**，保留草稿并显示两个失败/GET入口，旧空白证据未覆盖 |
+| 12坏成员Chrome矩阵 | `node /tmp/following-poll-repair-members-browser.mjs`，exit0；`/tmp/following-poll-review-repair-members12.log`，EN/ZH@320×六种坏成员，原DOM/focus/selection[2,5]/草稿及双入口错误、GET恢复、零pageerror/PUT-PATCH全部PASS |
+| 原完整8矩阵Chrome | `node /tmp/following-poll-browser.mjs`，exit0；`/tmp/following-poll-review-repair-browser8.log`，8 PASS。双父轮询/慢读/503恢复、CAS草稿不rebase/不重放、显式GET后新命令、checking完成、窄屏/选区通过，预期503/409控制台日志保留 |
+| 新source错误码反证 | 上述P2真实成立；该探针日志打印失败事实、命令正常退出不等于产品边界PASS |
+| 累计diff/range | `git diff --check aa18dea...HEAD` PASS；backend/tests/scripts/依赖/锁相对original base零diff；仍仅原5路径 |
+
+正确性/规格：原null成员、错类型、foreign成员由两详情入口共享校验拒绝，不过滤成员；原默认useRemote/
+路径隔离/CAS逻辑未改。安全/异常：十八种×两surface的36新负控及原十一项通过，但Sources列表错误码
+遗漏形成新P2，不能据矩阵通过宣称全部读取边界闭合。回归：旧507断言完整保留，仅原新测试增加负控，
+无skip/减弱标准。性能：原1s/2s读完成后再排下一周期的修复保持，Chrome慢读无重叠与原节拍通过。
+范围/复用：仍DIRECT现React/API，无依赖/后端/Schema/模型或资格/正式数据变更，graph索引缺新validator，
+以固定source/diff为依据。所有原RED/REJECT/空白截图保留；停止仅本轮Vite5194后提交handoff clean **STOP**。
