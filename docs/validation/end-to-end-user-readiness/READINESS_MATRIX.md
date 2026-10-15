@@ -1,3 +1,19 @@
+# 当前验收状态（2026-10-15晚间，候选未发布）
+完成条件不变：普通入口真实可操作、无未处置P0/P1、模型严格资格、完整回归/恢复与安全main拓扑同时满足。用户持续授权已覆盖必要实现及满足全部门禁后的采用；不再逐方法或重复发布审批。
+
+| 当前关键项 | 最新外部证据 | 当前剩余 |
+|---|---|---|
+| 兴趣逐条保真/CAS | 独立dd260de APPROVE，完整历史整合1b1d276；root36后台/496前端/TSbuild PASS，合法逗号、LF/CRLF/tab不再拆丢 | 真实checking=true时轮询卸载编辑器，新P1独立修复中；不能说整条兴趣链已通过 |
+| 9b生产工程端口 | 独立aee4e07 APPROVE，整合43e7758；root125专项、Ruff、strict mypy104 PASS；6范围语言全部NOT_QUALIFIED | 容量实际执行门仍UNVERIFIED；语义资格、scope UI及最终freeze未完成 |
+| 输入容量 | 固定GGUF256 byte符号与247587 merge拼接全在词表；真实一次无生成chat诊断88byte模板一致、llamacpp实际slot16384 | 原15 Evidence完整body7869被7680错误拒绝；拟拆body12288/content8192，代码待独立实施审查。该诊断不是模型生成/语义资格 |
+| TXT/MD与取消恢复 | 真实Native Picker、WAIT0分别取消/剩余任务仍阻塞，实际重启及GUI恢复74表84DATA全等 | 合格模型正向尚无；Schema39不在正式main迁移 |
+| 新字幕与原失败重试 | 原生29cue/摘要/4Evidence，真实74表87DATA恢复；VIDEO_URL旧失败单次重试保留原job/provider，74表3DATA恢复 | CHANNEL-only ENROLLED旧失败缺Retry的P1待专用持久命令；不能用VIDEO_URL通过冒充 |
+| 研究证据回跳/手册 | 真实刷新仍定位并focus指定Evidence；手册60图全加载、无横溢 | 后续新UI图及最终整体验收更新 |
+| Backup真实呈现 | 多次完整表/物理DATA比对通过，未知/其它待办仍安全阻塞 | artifact引用数不等于物理文件数，87显示88/3显示4的呈现修复待串行 |
+| 采用 | main仍73ee7e7、owner数据/配置未改；未发布 | 长内容/rolling、旧失败derived归档真阳性、合格洞察收藏/主题GUI、最终全回归等仍OPEN |
+
+以下为历史检查点，保留原失败与当时状态；不能将其中旧的“待批/未实施/OPEN”当作上述最新状态：
+
 # 普通用户链路验收矩阵（候选，未发布）
 
 2026-10-15 当前结论：**未完成，暂不交用户作为全部可用版本测试。** 正式main/真实远端仍73ee7e7，本轮未改owner数据、配置或凭据。Schema39及Native目录v2已独立接受并整合；真实39 TXT/MD导入→WAIT0取消→重启→GUI恢复74表84DATA全等，剩余关注CAS及模型正向仍在整改；下方历史检查点保留，不代表当前完成状态。
