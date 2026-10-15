@@ -104,3 +104,71 @@ Cloud、SourceRun/tracking/health/Source/enabled/processing 写合同均未扩�
 本报告是作者证据，不是独立 APPROVE。root 仍负责独立真实完整 GUI（非 fixture API）、最终全
 backend/Frontend gate 和正式采用；本次无 main/push/正式配置或任何模型调用。持续默认授权
 不授模型资格；原资格失败仍保留。候选提交后 clean **STOP**，等待指定 Reviewer。
+
+## 独立审查 — REJECT（2026-10-15）
+
+- Reviewer：`local_text_review_resume`，独立会话；未修改业务代码或仓库测试。
+- 固定范围：`1aef3e0ec18568bb503a1b8663364cd05ca221d1...b6d2133843cc69c751e38f325c35f65cddf425c6`。
+  恢复审查时重新确认 HEAD、branch 与 clean worktree，保留中断前已经完成的独立检查，不重复跑同一大套件。
+- 结论：**REJECT；P0=0，P1=0，P2=1**。以下 P2 必须由原作者修复，再提交独立复审；未授予 ACCEPTED。
+
+### P2：仅修改风格会拆分并改写已保存的合法规则
+
+文件：`frontend/src/workspace/CreatorFollowing.tsx:349`（读取时 `:339`，提交时 `:354–355`）。
+`SourceInterestEditor` 把规则数组用 `join(", ")` 放进输入框，再按英文逗号、中文逗号和换行拆分。
+领域合同允许单条规则包含这些字符；规则使用完整字符串匹配，因此拆成多条会改变过滤含义。
+用户无需编辑这些规则：仅调整 Distillation style 并保存就会发生改写。
+
+独立 Chrome 探针使用实际组件/CSS 和离线 HTTP fixture，原值为
+`focus_rules=["robotics, autonomy","产品，案例"]`、`ignore_rules=["ads, promotions"]`。
+只把风格改成 `TECHNICAL_DETAIL_FIRST` 后，唯一一个 PUT 实际发送
+`focus_rules=["robotics","autonomy","产品","案例"]`、`ignore_rules=["ads","promotions"]`，并显示
+`Interests saved.`。`RULES_PRESERVED false`，JS errors 为0。
+证据：`/tmp/source-interest-review-rule-probe.mjs`、`/tmp/source-interest-review-rule-probe.log`、
+`/tmp/source-interest-review-rule-loss.png`。
+
+另外独立调用真实隔离 SQLite/API，确认原始带逗号数组合法且逐值持久化；重启后历史重放不移动 head，
+missing/NULL 与不同 expected 也不能作为相同完整请求重放。
+证据：`PYTHONPATH=src:. .venv/bin/python /tmp/source-interest-review-api-probe.py`，exit0，
+`/tmp/source-interest-review-api-probe.log`。该探针无网络、模型或正式数据访问。
+
+要求：使用能逐条保留合法字符串的编辑表示，不能依赖有损 join/split 或要求用户自行编码 CSV。
+补充仅修改 style、未编辑 focus/ignore 的数组逐值相等回归，以及含中英文逗号、合法内部换行的往返。
+不得通过收紧既有领域规则或弱化断言消除该反证。
+
+### 五轴复核与独立证据
+
+1. **正确性/规格**：逐项复核完整 typed command identity（含 expected supplied/null/value）、
+   namespaced PK prefix 范围 LIMIT2、旧 identity 兼容、历史重放不更新 head；BEGIN IMMEDIATE 内校验
+   expected 并复制真实 raw nullable 数量；新旧 PUT 两种次序及真实双线程只有一个 winner；GET 单 SELECT
+   同快照。现有关键测试独立通过；上述 UI 规则改写仍违反输入保真。
+2. **边界/安全/恢复**：新兴趣路由拒数量/未知字段、非法 mode/style/unknown source；专用路径只追加
+   policy revision/pointer，无 Source/processing/automation/job/model 写。独立49项包含事务失败回滚、
+   非空 UTF-8 DATA 的真实 backup/stage/activate 全表/文件哈希相等及恢复后幂等；未改 Schema39 或备份实现。
+3. **回归/测试**：检查旧测试 diff，AdvancedSourceForm 只补有效新响应和异步等待，SourcePolicyRead
+   只补明确 nullable revision；原断言保留，无 skip/删测试/阈值或脚本改动。旧全量表单 CAS 先行、
+   部分成功后的未完成步骤重试、原 DAILY 时间、uncertain response 同 command、失败/晚读/坏 enum
+   与历史 replay 的 UI 测试均独立通过。新测试遗漏了合法分隔字符的输入保真。
+4. **性能/维护性**：command 查找有 BINARY PK 范围和 LIMIT2，无全表猜 hash；同快照 GET 为单语句，
+   沿用现有限制，无新增后台任务或外部调用。新命令 identity 和原 legacy identity 分支均已审阅。
+5. **范围/复用/来源**：完整12路径 diff 无 schema/SQL/dependency/lock/config/credential/provider/runtime/
+   Cloud/模型资格修改；DIRECT 现 SQLite/API/React，无新增外部源码或许可。只在本 handoff 写审查结果。
+   graph-first 的旧项目索引未覆盖新符号，实际固定 SHA source/diff 为依据；未把作者汇报当作独立 PASS。
+
+独立运行结果（均为上述固定候选）：
+
+| 命令/范围 | 结果 |
+|---|---|
+| `PYTHONPATH=src:. .venv/bin/pytest -q tests/integration/test_source_interest_cas.py tests/integration/test_task021_source_policy_filtering.py` | **49 passed, 18.80s**；`/tmp/source-interest-review-backend49.log` |
+| `cd frontend && npm test` | **30 files / 485 passed, 14.17s**；`/tmp/source-interest-review-frontend485.log`，原 React 警告保留 |
+| `npm run typecheck` / `npm run build` | PASS；`/tmp/source-interest-review-ts.log`、`/tmp/source-interest-review-build.log`（50 modules，535ms） |
+| `PYTHONPATH=src:. .venv/bin/python -m compileall -q src scripts/prepare_readiness_local_text.py tests/integration/test_source_interest_cas.py` | exit0 |
+| `.venv/bin/ruff check src/youtube_intel tests scripts/prepare_readiness_local_text.py` | PASS；`/tmp/source-interest-review-ruff.log` |
+| `PYTHONPATH=src:. .venv/bin/mypy --strict src scripts/prepare_readiness_local_text.py` | **103 files PASS**；`/tmp/source-interest-review-mypy.log` |
+| `git diff --check 1aef3e0ec18568bb503a1b8663364cd05ca221d1...HEAD` | PASS |
+| 两个 `/tmp/source-interest-review-{api,rule}-probe.*` | 真实隔离 API 控制 PASS；实际 Chrome 产品组件的规则保真反证成立，不能称功能 PASS |
+
+Agent-browser CLI 与 Python Playwright 均未安装；保留 Python `ModuleNotFoundError: No module named 'playwright'`
+证据，未安装依赖，改用已有 Node Playwright/Chrome。独立 Vite 仅占用5193并在审查后停止；root 服务未触碰。
+作者56项相关旧编排测试仅记录为作者证据，本轮未重复运行；root 的完整 backend、真实 API GUI 与最终采用仍是
+后续独立门禁，不冒充本轮通过。所有原失败/原通过日志均保留。审查提交后 clean **STOP**。
