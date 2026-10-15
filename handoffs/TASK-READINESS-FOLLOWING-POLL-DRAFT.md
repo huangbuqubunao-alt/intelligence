@@ -92,3 +92,50 @@ DIRECT 既有 React18.3.1 state/ref/effect/api/ErrorState 与前轮逐条词条�
 
 剩余门禁：同 Reviewer 独立 base...HEAD 审查，以及 root 原真实 Google/双页CAS/0副作用 GUI 复验；作者报告
 不是 ACCEPTED。本任务不推进 tracked retry/model任务。提交后关闭自用5194、确认clean **STOP**。
+
+## 独立审查 — REJECT（2026-10-16）
+
+- Reviewer：`local_text_review_resume`；固定范围
+  `aa18dea681c86645f7aa2efdea5b6c278dc96c89...81c17f9d5d4452a871c8613e45983bd89d2aaead`。
+  作者clean STOP后独立读task/package、完整5路径diff和测试；额度中断恢复后再次核实同HEAD与clean树。
+  不把额度中断当作测试完成，逐一读取真实完整结果；未重复已完成大套件。
+- **REJECT；P0=0，P1=0，P2=1。** 普通轮询组合已改善，但下面坏响应仍会使整棵树崩溃、草稿丢失，
+  不符合本任务“未知读取保留上次视图并明确失败”的边界。交回原作者，不直接修改业务/测试。
+
+### P2：同源响应数组中的坏条目绕过校验，轮询使整个 App 空白
+
+`frontend/src/workspace/App.tsx:3124` 只用 `Array.isArray` 校验 `source_runs/recent_videos`，接受
+`source_runs: [null]`。随后 `:3149–3150` 的轮询 effect 直接读取 `run.state`，触发
+`TypeError: Cannot read properties of null (reading 'state')`。React卸载整个App，已打开规则草稿DOM
+disconnected、dialog=0、body为空，原来的错误说明与GET重试也不存在。该负控没有任何PUT/PATCH。
+
+独立真实Chrome/完整App/CSS、离线HTTP fixture：先以真实同源合法tracking与active run打开兴趣草稿，
+仅将后续详情响应的 `source_runs` 改成 `[null]`，其余id/source/list/policy都保持合法。约一个轮询周期
+即崩溃。证据 `/tmp/following-poll-review-invalid-runs.mjs`、同名 `.log`、`.png`；日志记录
+`draftConnected:false, dialogs:0, body:"", writes:[]` 及SourceDetail堆栈，实际查看截图亦为空白。
+
+要求：在保存响应前校验实际消费的集合条目与字段形状，坏响应走原读取失败路径而保留原树/草稿/焦点。
+`CreatorFollowing.tsx:189–191` 的独立详情读同样只验数组容器，应检查相同响应边界；不要用忽略异常、
+ErrorBoundary替换草稿、停止轮询或缩减合法后端响应来掩盖。补完整App组合的坏成员负控，保留现有通过断言。
+
+### 独立通过的检查与五轴复核
+
+| 检查 | 真实结果/证据 |
+|---|---|
+| `cd frontend && npm test` | **31 files / 507 passed，14.88s**；`/tmp/following-poll-review-frontend507.log`。包含新11项及原496项，原React警告保留 |
+| `npm run typecheck` | 恢复后显式复核exit0；`/tmp/following-poll-review-resumed-ts.log`，不从早先只有启动头的日志推断完成 |
+| `npm run build` | PASS，50 modules，608ms；`/tmp/following-poll-review-build.log`，完整Vite完成记录 |
+| `node /tmp/following-poll-browser.mjs` | **8矩阵完成**，ZH/EN×320/1440×checking-only/active run；`/tmp/following-poll-review-browser8.log`，每矩阵真实完整App跨2+周期，同DOM/focus/selection[2,5]/多行草稿、2.5s慢list无重叠、503/modal错误直到GET成功、409不自动rebase/重放、显式GET新command、checking结束、无横溢出，JSerrors0。故意503/409控制台记录保留 |
+| 额外坏成员Chrome反证 | 上述P2成立；不能称invalid-response边界PASS |
+| `git diff --check aa18dea...HEAD` / 范围 | PASS；仅原5路径，无后端/schema/config/依赖/锁/模型或资格变更 |
+
+正确性/规格：useRemote的retain默认false、只有Sources/SourceDetail显式启用；同path保留快照、path变化
+在effect前屏蔽旧值，late cleanup忽略旧响应，正常组合通过。安全/异常：错误在有效成功前不清，既有机器码/
+GET文案保留，foreign/missing tracking测试通过，但坏成员未拒绝，形成本次P2。回归/测试：仅新增测试，
+旧测试/断言/脚本无修改；默认其它useRemote行为未改成保留快照。性能/并发：原2s/1s节拍按读取完成后
+再安排下一次，慢list/detail与两父轮询普通场景通过，未延长间隔或停止轮询。范围/复用：DIRECT现React/
+API/CSS，无外部源码/依赖/许可改变；graph返回旧useRemote签名，使用实际固定diff作为新实现依据。
+
+本轮没有调用真实provider/model或root6098/6099，没有正式数据写入；后端0diff，按任务继承root后端证据，
+未声称本轮重跑backend。真实factory/API GUI仍由root复验。保留原作者全部RED及额度中断前日志，停止仅本轮
+独立Vite5194；审查只提交本handoff，之后clean **STOP**。
