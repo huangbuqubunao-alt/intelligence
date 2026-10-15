@@ -1,0 +1,60 @@
+{
+  "code_head": "5fd88fc590f0e005db030b293faef0ce6c132a5e",
+  "native_picker": "actual AppKit NSOpenPanel selected TXT and MD, confirmed ordinary UI",
+  "files_imported": 2,
+  "files_after": 84,
+  "tables": 74,
+  "cancel_receipts": 3,
+  "new_proofs": 2,
+  "restart_all_rows_equal": true,
+  "restart_all_DATA_equal": true,
+  "other_wait_still_blocks_backup": true,
+  "all_cancelled_backup_ready": true,
+  "all_execution_invocation_counts_zero": true,
+  "checks": {
+    "foreign_key_check": [],
+    "integrity_check": [
+      [
+        "ok"
+      ]
+    ]
+  },
+  "model_qualification": false,
+  "GUI_restore": "PASS",
+  "positive_qualified_intelligence": "NOT QUALIFIED",
+  "count_index_correction": "private progress used wrong array index twice; corrected by named SQLite column; original outputs retained",
+  "execution_count": 3,
+  "restore_all_rows_equal": true,
+  "restore_all_DATA_equal": true,
+  "after_restore_checks": {
+    "foreign_key_check": [],
+    "integrity_check": [
+      [
+        "ok"
+      ]
+    ]
+  },
+  "backup_status": {
+    "status": {
+      "ready": true,
+      "reasons": [],
+      "message": "Core data is quiescent and ready for backup.",
+      "restore_pending": false,
+      "last_restore": {
+        "completed_at": "2026-10-15T03:44:32Z",
+        "message": "Restore completed successfully.",
+        "restore_id": "022eabc252c64191a7d54ef744319962",
+        "state": "APPLIED"
+      }
+    }
+  },
+  "backup_download_sha256": "19fd4e1f99a0efb01abf9925a7e123b200057f48eb8d833e6047a819bbf75c10",
+  "restored_content_deep_link_refresh": "PASS TXT retained cancellation/source after ordinary Content link and reload",
+  "text_evidence_focus_from_intelligence": "NOT EXECUTED; no qualified real Intelligence",
+  "screenshots": [
+    "schema39-native-import.png",
+    "schema39-other-wait-still-blocked.png",
+    "schema39-restored-panel.png",
+    "schema39-restored-cancelled-panel.png"
+  ]
+}

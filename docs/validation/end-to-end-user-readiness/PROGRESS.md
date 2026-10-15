@@ -175,3 +175,6 @@ Schema39精确隔离迁移获用户明确批准；原作者返修，正式未改
 Backup741独立20专项/461全量/TSbuild及handler byte核对PASS，但独立ZH/EN连续操作反证P2：本panel真实mock已成功恢复后再检查新ZIP失败，新错误旁仍显示上次“本次成功”。Reviewer拟REJECT，未整合；原日志/真实旧预览误导截图保留，交原作者最小呈现返修。所有检查通过也不能覆盖这个反证。
 
 2026-10-15中断恢复：root ea03a8f clean；原agent团队已结束，重建两个独立恢复角色。Native保留原2file dirty exact patch再续写，未覆盖成果。LOCAL39独立已复验原两P1closed，core309/related254及静态PASS；新增P1反向关联缺失恶意39包stage/read_current/Save/Topic错误接受，正式未受影响，待REJECT/原任务返修。Backup真GUI已PASS新回执0947672898be4ad89bebde9a692a1899，72应用表+sqlite_sequence/78DATA完全相同；原invalid-next-operation反证真UIclosed，手册58图0broken/0横溢。test-clock独立接受整合c374470/root21PASS，完整后端仍待全部最新核心后统一验证，旧7FAIL日志保留。用户持续默认授权生效，不再请求同scope或目标内条件发布批准。
+
+
+2026-10-15 root续作：Native v2整合后252专项PASS36.35s；最初猜错test路径0tests保留。LOCAL39真实两文件NativePicker导入成功，2份proof、各WAIT0取消；只取消TXT时MD仍阻塞Backup，全部取消ready。实际服务停止/重启74表84DATA全等，普通GUI Create/download/native choose/preview/RESTORE一次确认，APPLIED022eabc252c64191a7d54ef744319962@2026-10-15T03:44:32Z；全部74表84DATA逐行/hash完全一致、FK/integrity好，取消+Content深链接刷新可读。私有检查先误用数组index两次，最终具名SQLite列核实3checkpoint count均0；原输出保留。CUA extension setFiles被权限拦，未扩大权限，使用真实Chrome原生对话框成功。手册新增两张真实图，总60。SourceInterest新tree1aef3e0作者进行中；local grounding生产port新treec166377作者进行中，两文件范围隔离、0模型资格/调用；未发布。

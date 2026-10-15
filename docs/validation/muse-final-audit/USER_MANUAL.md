@@ -544,6 +544,12 @@ Intelligence 优先在本机整理内容。部分内容可直接从原文提取�
 
 无法证明确实未执行的任务仍会阻止备份，请保留数据并联系维护者，不要删除 checkpoint 或调用记录。
 
+2026-10-15 隔离验收：TXT 与 MD 均经真实 macOS 文件选择器导入。分别取消未执行的提炼后，重启和恢复仍保留取消结果、摘要与 Evidence；还有其他等待任务时，备份仍会阻塞。此次真实恢复逐项核对 74 张表和 84 个数据文件一致，不表示洞察模型已合格。
+
+![文本等待安全取消在恢复后仍保留](../end-to-end-user-readiness/screenshots/schema39-restored-cancelled-panel.png)
+
+![包含文字输入证明的备份恢复完成](../end-to-end-user-readiness/screenshots/schema39-restored-panel.png)
+
 > 上图是隔离示例数据的真实备份与恢复界面；你的条目数量和文件大小会不同。
 
 ---

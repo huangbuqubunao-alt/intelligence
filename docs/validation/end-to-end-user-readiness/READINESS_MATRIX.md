@@ -1,6 +1,6 @@
 # 普通用户链路验收矩阵（候选，未发布）
 
-2026-10-15 当前结论：**未完成，暂不交用户作为全部可用版本测试。** 正式main/真实远端仍73ee7e7，本轮未改owner数据、配置或凭据。Schema39精确隔离范围已获批准，但还在返修与独立验收；下方历史检查点保留，不代表当前完成状态。
+2026-10-15 当前结论：**未完成，暂不交用户作为全部可用版本测试。** 正式main/真实远端仍73ee7e7，本轮未改owner数据、配置或凭据。Schema39及Native目录v2已独立接受并整合；真实39 TXT/MD导入→WAIT0取消→重启→GUI恢复74表84DATA全等，剩余关注CAS及模型正向仍在整改；下方历史检查点保留，不代表当前完成状态。
 
 | 用户操作 | 当前外部证据 | 剩余门禁 |
 |---|---|---|
@@ -13,7 +13,7 @@
 | 旧失败请求+成功child安全归档 | Schema38第三独立ff43 APPROVE已整合74ac5c2；root176专项/静态PASS，普通Schema38真实GUI恢复72表78DATA精确PASS | 23字段保持；genuine失败derived归档真实GUI仍待网络条件，不用空表38恢复冒充；最终完整回归待 |
 | 当前Content转写/深度分析读取 | 真实有限GET延迟复现假待转写/假尚未运行；作者fff9bf中性加载430全前端自测 | 047/ba524返修独立接受整合；root441/TSbuild及真实ZH/EN loading、abort禁用、GET恢复/lateID隔离PASS；旧REJECT留存 |
 | 本地洞察真实资格 | 8b停止；9b nonthinking首例4语义P1 FAIL，native thinking首例4096length正文空FAIL，后3及LOCAL8未调用 | 6144原EN唯一调用完成，native stop/912输入4638输出/218.923s；协议PASS但独立fbd1035语义REJECT/P1，18DATA/输入hash不变；全部调用STOP、正式资格false |
-| LOCAL TXT/MD提炼与真实字符来源 | b79候选333后端/446前端通过但独立3b562c6 REJECT两P1；原摘要损坏/missing-card反证保留 | 已批准15字段Schema39输入历史证明，原作者返修；未接受未整合，真实模型0调用 |
+| LOCAL TXT/MD提炼与真实字符来源 | b79候选333后端/446前端通过但独立3b562c6 REJECT两P1；原摘要损坏/missing-card反证保留 | 15字段Schema39独立00d66a APPROVE已整合ce3beaa，root97/strict103通过；真实TXT/MD WAIT0/取消/重启/39 GUI恢复74表84DATA一致；正向模型0调用 |
 | 已生成洞察收藏/主题/原证据回跳 | 既有逻辑回归保留，没有合格模型正向GUI支撑 | 真正admitted Intelligence后全链路操作/恢复，不用fixture冒充 |
 | 本地资料研究 | 真实已转写Content收集3Evidence/0Intelligence、回读/初次定位原文、重新收集/两版本无实质变化对比PASS；明确无模型结论 | 刷新丢Evidence定位OPEN，纳入已批LOCAL深链UI |
 | 研究后的备份/恢复 | 真实创建/下载/选择ZIP/预览/RESTORE/重启；71表全部行和78DATA精确SHA6bf70daa…，当前与历史研究可读/readinessready | 不覆盖Schema38归档验收；旧恢复成功提示在新预览仍展示P2真实复现；741自测461通过但独立c348 REJECT连续新ZIP失败残留，原作者呈现返修 |
