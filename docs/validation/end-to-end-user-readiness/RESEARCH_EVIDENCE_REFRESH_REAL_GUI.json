@@ -1,0 +1,13 @@
+{
+  "scope": "real existing research, 3 actual ASR Evidence and zero Intelligence",
+  "action": "third Open Content and Evidence → specific Evidence URL → reload",
+  "content_id": "local-1170fd95391ac0822d0831b0414049e0407104be557516f18005ea24db49d9bd",
+  "evidence_id": "c8803b102b2448db9a258e14877a4b758a99b7b7db80c405f59d56e76612737d",
+  "after_reload": {
+    "document_active_element_id": "content-evidence-c8803b102b2448db9a258e14877a4b758a99b7b7db80c405f59d56e76612737d",
+    "outline": "rgb(153, 200, 255) auto 1px",
+    "viewport_top": 162
+  },
+  "result": "PASS; prior refresh focus loss closed by real GUI",
+  "new_model_calls": 0
+}
