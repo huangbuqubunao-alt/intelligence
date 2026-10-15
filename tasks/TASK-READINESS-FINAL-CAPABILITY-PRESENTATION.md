@@ -1,0 +1,6 @@
+# TASK-READINESS-FINAL-CAPABILITY-PRESENTATION
+2026-10-15 BLOCKED：等待SourceInterest与local grounding backend各独立接受并root从最新base pin作者/tree，当前不可写。
+必要同一用户状态准确呈现补全，持续默认授权。两个最小串行commit：
+1 本地Intelligence capability：backend固定reviewed-reader回调精确route/scope/output language，settings新增local_intelligence model/profile/scopes/qualification状态及Content按真实provider/locator/lang判定availability；旧8b评分摘要runtime_local_model及DeepAnalysis完全保留。React中英明确实际被验scope/未验原因，空/失败/未知disabled或WAIT/取消正确，不把installed当qualified，不让YT资格授LOCAL。缺resource/过期/异常不假称可用。确切DTO由已接受reader接口决定；zero真实调用。
+2 Backup摘要物理计数：现manifest counts.data_artifacts为artifact引用，source和immutablecapture可指向同一原始文件，因此真实87物理路径显示88、另一3路径显示4。必须保留旧format1 manifest/count语义与34–39备份验证兼容，仅在preview DTO追加从已验证manifest.data_files得到物理unique count/bytes，UI如实显示，旧响应fallback标签明确数据条目。不得改变Backup安全判定/归档/文件集合/校验；已真实恢复全部一致，不是丢文件。
+允许必要local_api/App或既有Backup summary DTO/uiLanguage/tests/handoff，精确taskpackage待dependency。专用readstatus无权限升级、false/unknown closed，旧Cloud/费用保留；真实中英/4宽、0多余mutation/full frontend/TSbuild/API/static/diff/独立review，后rootGUI最终统一freeze及真实qualification。

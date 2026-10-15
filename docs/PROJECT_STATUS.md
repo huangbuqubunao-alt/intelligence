@@ -1,3 +1,8 @@
+# 2026-10-15 最新实证（覆盖下方旧摘要）
+候选root c6e3fb2，正式main尚未采用。LOCAL39/Native v2独立APPROVE均已整合；root97/252，frontend468/TS/build、strictmypy103通过。
+真实NativePicker TXT+MD→2proof WAIT0→分别安全取消，余等待任务仍阻塞/全取消才ready，重启及实际GUI restore022eabc 74表84DATA全等。新公共OYp5普通导入29cue/summary/4Evidence，实际restore7fa802a全部74表87物理DATA全等；新VIDEO_URL旧失败副本单次重试成功，原job/provider原样，实际restore74表3DATA全等。原raw源与不可变capture共文件，UI误把artifact引用数当物理文件数(88vs87/4vs3)，呈现修复排队。研究指定Evidence URL刷新后仍真实focus/highlight(162px)，旧OPEN已关闭。
+SourceInterest CAS作者进行中（新backend104相关+fullfront483自测，待独立review/rootGUI）；local grounding生产port作者工程进行中，0真实调用/资格false。tracked-only失败Content缺Retry为真实独立P1，待前state核心接受串行修；capability/UI精确scope及物理计数接线待两core接受。38失败派生归档genuinepositive仍缺真实plain基线，不拿retained0成功库冒充。模型原8b/9b全部语义失败仍保留，未通过任何新qualification。最终完整回归/真实合格洞察保存主题链/无P0P1/安全topology与发布门禁未完成。
+
 # 2026-10-15 当前续作
 LOCAL39及Native目录v2均独立APPROVE并整合5fd88fc；root97/252、前端468/TS/build与strictmypy103通过。SourceInterest CAS解除依赖，独立任务READY；root真实39 GUI/恢复尚未完成，模型资格仍关闭，未发布。下方历史保留。
 

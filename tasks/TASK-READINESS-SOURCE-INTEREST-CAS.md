@@ -1,3 +1,5 @@
+2026-10-15 IN_PROGRESS：指定独立作者已开始；Task历史READY按当前状态解释。
+
 2026-10-15 READY：LOCAL39独立00d66a APPROVE已整合ce3beaa；Native独立d1c342 APPROVE已整合5fd88fc。root97/252、frontend468、TS/build/Ruff/strictmypy103均通过。以下历史BLOCKED已解除。
 
 # TASK-READINESS-SOURCE-INTEREST-CAS

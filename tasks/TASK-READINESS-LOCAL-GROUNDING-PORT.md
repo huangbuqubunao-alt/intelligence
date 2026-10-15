@@ -1,3 +1,5 @@
+2026-10-15 IN_PROGRESS：指定独立作者已开始；Task历史READY按当前状态解释。
+
 # TASK-READINESS-LOCAL-GROUNDING-PORT
 2026-10-15 READY，工程实现及负控范围；0真实模型调用，真实验收须生产代码独立接受及统一冻结后root签发。
 Base: 1aef3e0ec18568bb503a1b8663364cd05ca221d1 plus this docs-only commit. Worktree /Users/hua/Documents/yia-worktrees/readiness-local-grounding-port; branch codex/task-readiness-local-grounding-port.

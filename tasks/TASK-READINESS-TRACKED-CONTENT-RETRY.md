@@ -1,0 +1,7 @@
+# TASK-READINESS-TRACKED-CONTENT-RETRY
+2026-10-15 BLOCKED waiting SourceInterest state/local_api独立接受并root pin latest base/tree；必要P1，用户持续默认授权，无须重新审批。
+真实旧tracked OYp5在root/.var/end-to-end-user-readiness/runtime/state.sqlite3仅CHANNEL/ENROLLED来源，终态目录失败无字幕、无source_id投影，普通Content无Retry；channelCheck不会重取已ENROLLED。新单视频Retry真实29cue+4Evidence及74表3DATA完整restore通过，仅证明VIDEO_URL链。
+目标：已关注内容也有明确一次Content-only retry，不新增VIDEO_URL订阅、不重扫channel、不复活旧job/provider ledger，不触评分/洞察/ASR/Cloud/费用，不修改Source策略/跟踪前沿/观察日期。真正新人工command才新执行，重复同请求/重启幂等，未知/活跃/禁用/信任失败仍closed。
+复用DIRECT既有source_runs durable command/immutable trigger_reference和job/lease/provider generation/extractive Summary；不能直接Runtime.retry进入全阶段、enqueue_manual_check_now复用其它run或genericSourceRun discovery选其它children。需要专用versioned Content-only admission+recovery dispatch，root在只读方案完成后固定精确合同和任务包。预计必要state/runtime_composition/source_runs/local_api/App及tests/handoff，noSchema优先但不得绕持久命令/事务/Backup；未知不足必须如实报告root决定。
+Scope单video/providerYT/METADATA或TRANSCRIPT安全失败，无new无关功能。CAS expected terminal oldjob；server证明真实source membership、video/channel/provider一致与enabled、无活跃lease/unknown/其它run；reservedcommand namespace完整请求不可变，同command改input409，原command回原run。新job稳定(run,oldjob,stage)且完整验证；before transport复查authority，leases/unknown失败closed，generation不复用旧failed，exact once与retry重启/并发/source paused双方竞态均覆盖。
+依赖接受后独立author→STOP→review→root真实旧tracked副本普通GUI Retry→字幕/Summary/Evidence→重启/全表DATA恢复；完整回归及Cloud/NO_NEW/provenance/Backup安全不变。旧失败source/run/job/provider/历史保留。禁止将真实VIDEO_URL成功或fixture作为tracked positive。
