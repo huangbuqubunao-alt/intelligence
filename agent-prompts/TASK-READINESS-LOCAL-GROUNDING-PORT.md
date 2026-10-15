@@ -1,0 +1,3 @@
+# Implementer package
+Read AGENTS and collaboration/product/reuse documents, tasks/TASK-READINESS-LOCAL-GROUNDING-PORT.md and LOCAL_MODEL_GROUNDING_PORT_PLAN.md. All task scope, base, reviewer, reuse, checks and parallel boundaries are in that task card.
+Base exact worktree HEAD must be recorded before edits. Author native_scan_resume; Reviewer local_text_review_resume after clean STOP. User continuing authorization is in CONTINUING_AUTHORIZATION_2026_10_15.md. This package authorizes necessary production port + negative engineering only; zero real model calls and all qualification gates false until separate final freeze/once permits under root.
