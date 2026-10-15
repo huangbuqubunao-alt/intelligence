@@ -1,3 +1,6 @@
+# 2026-10-16 续作当前状态
+POLL作者81c17f9独立1ad9697 REJECT新增P2：source_runs:[null]合法外壳被漏验，随后null.state导致App空白/草稿断连；原作者同WT返修中，独立507/八正常矩阵保留，不能当异常路径通过。容量工程新WT e4c693f继续（此前额度中断后恢复），纯容量13专项通过，正在共享重量lease/完整I/O guard接线，0实际生成/资格false。长内容真实49.6min/89221字符/114Evidence仍OPEN；最小完整单次精确token诊断的C helper因本机ARM与bundle x86 dylib不匹配而停止，未执行，不装依赖或改生产。正式main73ee7e7/未发布。root e4c693f之后仅任务/证据docs。
+
 # 2026-10-15 当前并行修复
 SourceCAS独立APPROVE整合1b1d276（root36/496/TSbuild通过），真实检查轮询卸载兴趣P1作者FOLLOWING-POLL-DRAFT返修验证中。modelport独立aee4e07 APPROVE整合43e7758（root125/Ruff/strictsrc104通过），资格6scope/language全false/容量仍UNVERIFIED。新LOCAL-CAPACITY工程任务READY：独立只读全词表/实际双message88byte/16384slot证明成立，原15Evidence不截；body12288/content8192/ctx16384及冷model空messages load-only的严格claim前接线，0实际生成，待工程审查/统一冻结。允许两个writer分别UI与容量backend；tracked Retry/最终capability UI依赖两者接受，串行。main73ee7e7，未发布/正式数据未动。
 

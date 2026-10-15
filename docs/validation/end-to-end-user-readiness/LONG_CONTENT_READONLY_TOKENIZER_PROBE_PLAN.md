@@ -1,3 +1,5 @@
+2026-10-16 诊断分支结果：已安装libllama.0.5.0.dylib为x86_64，实际本机arm64且llama-server ARM slice静态链接；默认clang arm64链接失败，完整日志/tmp/readiness-vocab-native/compile.log（ld found architecture x86_64 required arm64）。未得到/执行helper，0 tokenizer/生成调用，不把最后cat命令exit0当编译成功。不改成Rosetta、不安装依赖、不碰生产代码。官方头7文件268735 bytes及来源SHA保存在/tmp/readiness-vocab-native/headers-sources.json；仅用于声明核验。后续只读评估任务固定runner公开/tokenize接口能否替代，尚未执行；不能扫描未知端口或把未验证接口当模型资格。下面是保留的原helper计划，当前已停。
+
 # 长内容容量只读诊断（不改产品、不生成）
 2026-10-16，当前任务持续授权范围。现49.6分钟公开Sasha快照89221字符/2406原cue/114完整coverage Evidence；单改支持文案不能关闭完整提炼OPEN。先核验单次完整处理是否可能，不能未经证明就新增多调用Schema，也不截20条或改历史。
 
