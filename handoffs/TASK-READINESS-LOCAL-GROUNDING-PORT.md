@@ -83,3 +83,66 @@ UI/capability 接线另需 root 从 SourceInterest 接受后的最新基线串�
 ## Reviewer / 主控验收 / 整合
 
 待独立 Reviewer、Orchestrator、Integrator 填写；作者不自签接受。
+
+### 独立 Reviewer：APPROVE（2026-10-15）
+
+- Reviewer：`local_text_review_resume`；固定 base `c166377110a2c0923e44378c33a8957950a4e185`，
+  author candidate `2e754fb15b8e88afdd4c2789f7a316f2e517e8e6`（含 `cbbd6e6`）。开工及结束前重验
+  exact HEAD/clean worktree，审查完整13路径 diff、task/package/plan及持续授权；graph-first 仅返回旧符号，
+  新实现以该固定 source/diff 为准。
+- **APPROVE；未发现当前任务内 P0/P1/P2。** 仅接受工程端口与负控。完整输入容量仍
+  `LOCAL_CONTEXT_CAPACITY_UNVERIFIED`，固定包 `records=[]`，六 scope/language 均 NOT_QUALIFIED；
+  真实模型语义/资格/普通GUI可用性未通过，不得据本结论签发 permit 或宣称可用。
+- 本次只写本 handoff，无业务/测试/schema/config/资格资源修改、无模型/metadata调用、无正式数据访问。
+
+#### 五轴审查
+
+1. **规格/正确性**：仅可信 registry 的新 profile 增加 semantic/reservation/text execution 绑定。
+   None 不序列化新增 profile keys；独立黄金 byte/hash 测试通过。以 `git show <base>:distillation.py`
+   做 AST 对比，四个旧 Cloud transport（OpenAI/NvidiaNim/Moonshot thinking/nonthinking）及旧
+   `LocalTextDistillationProfile` 完全相同。新普通 service 的 timed 正/零 marker 与 Text proof 正向通过。
+2. **安全/资格**：复核固定包 authority seal、raw caller bytes无seal、严格字段/重复key/完整cases与时效/
+   scope/language/model/runtime/profile/schema/code/once/ledger/review绑定；YT10不授LOCAL8。
+   `production_qualified=True` 不放行新 profile。实际容量函数始终抛错，production和once两门及harness
+   resource门均关闭，无环境或调用者容量开关。test-only monkeypatch 仅在测试中；新进程重新证明
+   当前空资格、六种状态、容量关闭和零 urllib IO，不将结构阳性或fake wire当生产 authority。
+3. **历史/恢复**：39表、trigger、15列、512KiB与旧/新proof验证不改存储合同。reader先验证完整proof及
+   精确profile allowlist，再重建执行身份，不依赖当前资格。新profile重跑原12项恶意关联归档矩阵通过。
+   独立额外future-id、已知profile options drift、顶层profile hash恶意proof均重算input/proof/DB/ZIP
+   manifest hash、恢复原trigger，SQLite FK/integrity有效；stage和current/recorded/card/Save/listSaved/
+   Topic全部拒绝，live全表/完整DATA不变。合法新profile历史读取在qualification方法被设置为必失败时
+   仍成功；另以原SummaryRefresh正/负用例换新profile，合法未来Summary刷新后历史可读且revision不变，
+   原Summary字节损坏后所有原可信入口关闭。
+4. **边界/维护/性能**：生产和harness共用builder/response parser，固定请求/响应字节上限、有限scope与
+   strict marker，不修输出、不访问thinking。once claim先于请求且文件exclusive+fsync，旧ledger防重发。
+   历史export只有原YT/TIMED明确字段白名单，新增39/profile字段必须全默认，未来字段/LOCAL/range拒绝；
+   原封存input SHA/DATA/fresh execution断言实际通过，未改旧freeze/失败receipt。
+5. **范围/复用/红线**：完整13路径无state/source_policy/local_api/App/Schema/依赖/锁/正式配置/凭据变更，
+   旧测试文件无修改，新增测试无skip/弱化标准；DIRECT现stdlib/strictparser/SQLite/resource/ledger，无
+   外部实现复制或新许可。前端source零diff，因此本轮不重复无关前端测试/TS/build；不把作者468项前端
+   或715项完整affected结果标成独立复验。root最终整合、全套与真实GUI另行记录。
+
+#### 独立实际检查
+
+| 检查 | 结果/证据 |
+|---|---|
+| compileall 修改生产模块/两个脚本/四个新测试文件 | exit0，先于测试 |
+| `.venv/bin/ruff check src tests scripts` | PASS；`/tmp/grounding-review-ruff.log` |
+| `PYTHONPATH=src:. .venv/bin/mypy --strict src/youtube_intel scripts/qualify_local_grounding_v1.py scripts/qualify_readiness_qwen35_intelligence.py` | **106 source files PASS**；`/tmp/grounding-review-mypy.log` |
+| 新profile/qualification/harness/proof及原readiness capacity五文件 | **125 passed，54.26s**；`/tmp/grounding-review-focused.log` |
+| 原openai/moonshot/ollama/dispatch/research、reservation、39 proof/text/timed/wire、trusted read十一文件 | **308 passed，256.30s**；`/tmp/grounding-review-regression.log` |
+| runtime composition / distillation source context两文件 | **32 passed，36.61s**；`/tmp/grounding-review-runtime-context.log` |
+| `/tmp/grounding-review-adversarial.py` 三种有效重哈希恶意归档+历史资格独立性 | **3 passed，12.18s**；`/tmp/grounding-review-adversarial-closed-connections.log` |
+| 同外部探针 `-k new_profile_keeps`，新profile合法SummaryRefresh/损坏原Summary | **2 passed，3 deselected，7.16s**；`/tmp/grounding-review-new-profile-history.log`，此处deselected只是独立选择另两项，先前3项已实际跑完 |
+| 新进程空authority/六状态/容量关闭，urllib设为必失败 | PASS，零IO；命令输出已记录审查工具证据 |
+| `git diff --check c166377...HEAD`、完整范围及旧AST比较 | PASS；候选及旧失败证据未改 |
+
+额外探针自身首轮误用不存在的repository私有helper，`/tmp/grounding-review-adversarial.log` 为3 FAIL；
+按生产实际构造 `LocalTextInputProofWrite(**dict(row))` 后，又暴露探针SQLite context manager未关闭连接而
+导致 `PRAGMA journal_mode=DELETE` locked（`/tmp/grounding-review-adversarial-fixed.log`，3 FAIL）。
+显式关闭这两个临时连接后上述3项真实通过；这两次是探针问题，未改产品、未放宽archive格式或失败断言。
+原作者所有RED与pre-existing sealed-input失败日志完整保留。
+
+后续容量任务必须使用实际生产builder的 `/api/chat` system+user两条messages，不能套单user generate
+的58字节封装结论；本次不改变ctx或其profile/hash。capacity、UI capability接线、全core整合后的统一freeze、
+真正未见holdout/逐例once/firstFAILstop与真实语义仍是后续门禁。提交审查后clean **STOP**，无并发模型审查。
