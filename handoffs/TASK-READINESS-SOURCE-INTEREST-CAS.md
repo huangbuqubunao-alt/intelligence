@@ -256,3 +256,39 @@ provider/runtime/模型资格/预算/Cloud/配置/凭据/依赖/lock/正式数�
 库无新增外部源码/许可；无 main/push/合入。审查仍需同一独立 Reviewer 对 original base 的 cumulative
 改动复审；本报告是作者证据，不是 ACCEPTED。root 最终真实 API GUI、全 backend 与采用门禁仍待后续，
 未拿离线 UI fixture 代替正式验收。作者将关闭自用5193，提交后 clean **STOP**。
+
+## 独立返修复审 — APPROVE（2026-10-15）
+
+- Reviewer：`local_text_review_resume`；固定 candidate `e8d747111c756c94189723ef8e6862eacb5ca804`，
+  原 base `1aef3e0ec18568bb503a1b8663364cd05ca221d1`。先核实 HEAD 与 clean worktree，再审累计 diff；
+  原 `db2e81e` REJECT、反证及通过日志均保留。
+- **APPROVE；当前未发现 P0/P1/P2。** 原 P2 已由结构化逐条 raw-string state 闭合，不再 join/split。
+  每个 textarea 独立稳定 identity；提交只省略真正空字符串，保留合法标点与内部空白。
+- 重新读返修8路径及原 base 的累计范围。`git diff --exit-code b6d213...HEAD -- src tests scripts
+  pyproject.toml frontend/package.json frontend/package-lock.json` exit0，确认后台/schema/依赖未变；
+  继承前次独立49 backend、Ruff、mypy103与 compile 证据，不为纯 UI 返修重复无关后台大套件。
+  graph 查询该项目返回 not indexed/error，使用固定 SHA 的实际 source/diff，不将旧图当新实现证据。
+
+### 独立复验
+
+| 检查 | 真实结果 |
+|---|---|
+| `cd frontend && npm test` | **30 files / 496 passed，12.00s**；`/tmp/source-interest-review-repair-frontend496.log`，既有 React act 警告保留 |
+| `npm run typecheck` / `npm run build` | PASS；`/tmp/source-interest-review-repair-ts.log`、`/tmp/source-interest-review-repair-build.log`，50 modules，504ms |
+| 原独立 P2 Chrome 探针 | 保留原逻辑，仅将截图输出改为新路径，`node /tmp/source-interest-review-repair-original-probe.mjs`：**RULES_PRESERVED true / JS_ERRORS []**；同名 `.log`，只1兴趣PUT，原失败截图不覆盖 |
+| 扩展独立 Chrome 探针 | `node /tmp/source-interest-review-repair-extended-probe.mjs`：原数组额外包含 LF、CRLF、tab/双空格、160 emoji、literal BOM，仅改style；**逐值保真 / JS_ERRORS []**，同名 `.log` 和 `.png` |
+| 专用规则浏览器矩阵 | 独立执行 `node /tmp/source-interest-rules-browser.mjs`：**ZH/EN × 320/768/1024/1440，8 PASS**；`/tmp/source-interest-review-repair-browser8.log`。键盘 Enter 添加/移除及焦点、新多行/逗号规则、保存/重开、409保留草稿、一次显式GET无自动重放、rebased保存、INHERIT、Escape、无横溢出；每矩阵4命令（3 accepted+1故意409），JS errors0 |
+| 旧 full / Global 窄屏 | 独立执行 `node /tmp/source-interest-forms-browser.mjs`：**两表单 × ZH/EN@320，4 PASS**；`/tmp/source-interest-review-repair-forms4.log`。仅改style，原中英文逗号/LF/CRLF/tab数组逐值相等；full仍policy→Source PATCH→automation，Global仅原设置PUT |
+| 累计 diff | `git diff --check 1aef3e0...HEAD` PASS；原中文 Global 测试改用添加两行，原focus/ignore数组和写边界断言保留；其它旧断言未删/弱化，无 skip 或门禁更改 |
+
+视觉复核实际 Chrome 截图：扩展专用探针及中文 full@320，逐条控件、风格/保存可操作；未把截图当后端证据。
+原完整前端检查包含 CAS草稿/未知版本/晚ID/双提交/部分成功重试，返修继续全部通过；新增11项覆盖原合法
+字符串往返、Unicode/BOM、空override/INHERIT、非法草稿不发命令、结构化草稿冲突与键盘焦点。
+
+五轴结论：正确性/规格上的原 P2 已闭合；安全/恢复与 CAS 后台字节无变；全前端与窄屏/键盘回归通过；
+每组最多20行，仍沿用160 codepoint领域界且无外部调用；DIRECT现React/CSS，无外部代码、依赖、配置、
+模型资格或正式数据修改。审查仅写本 handoff。相关 Vite 日志为5193，结束确认该端口无监听；root服务未碰。
+进程完成后工具 session 已失效，读取真实完整日志确认完成，未重跑已通过检查或伪造 exit code。
+
+本 APPROVE 是该固定 candidate 的独立代码审查；root的真实 API GUI、最终全backend和正式采用仍由root完成。
+容量/模型port未并发审查，未调用模型、show或debug。提交本审查后 clean **STOP**。
