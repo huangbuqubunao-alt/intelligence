@@ -5981,12 +5981,34 @@ class SQLiteStateRepository:
             connection.close()
 
     def create_source_policy_revision(
-        self, revision: SourcePolicyRevisionWrite
+        self, revision: SourcePolicyRevisionWrite, *,
+        command_prefix: str | None = None,
+        expected_revision_id: str | None = None,
+        expected_supplied: bool = False,
+        preserve_source_counts: bool = False,
+        legacy_revision_id: str | None = None,
     ) -> SourcePolicyRevisionRecord:
         self._validate_source_policy_revision(revision)
         connection = self._connect()
         try:
             with _immediate_transaction(connection):
+                if command_prefix is not None:
+                    history = connection.execute(
+                        "SELECT revision_id FROM source_policy_revisions WHERE revision_id COLLATE BINARY >= ? "
+                        "AND revision_id COLLATE BINARY < ? LIMIT 2",
+                        (command_prefix, command_prefix[:-1] + ";"),
+                    ).fetchall()
+                    if history and (len(history) != 1 or history[0][0] != revision.revision_id):
+                        raise IntegrityConflict("source policy command identity conflicts")
+                    if history:
+                        saved = connection.execute("SELECT * FROM source_policy_revisions WHERE revision_id=?", (revision.revision_id,)).fetchone()
+                        return self._source_policy_revision_from_row(saved)
+                    if legacy_revision_id is not None:
+                        legacy = connection.execute("SELECT * FROM source_policy_revisions WHERE revision_id=?", (legacy_revision_id,)).fetchone()
+                        if legacy is not None:
+                            if expected_supplied:
+                                raise IntegrityConflict("legacy source policy command identity conflicts")
+                            revision = replace(revision, revision_id=legacy_revision_id)
                 existing = connection.execute(
                     "SELECT * FROM source_policy_revisions WHERE revision_id = :revision_id",
                     {"revision_id": revision.revision_id},
@@ -6009,6 +6031,20 @@ class SQLiteStateRepository:
                     ):
                         return saved
                     raise IntegrityConflict("source policy command identity conflicts")
+                current = None
+                if command_prefix is not None:
+                    current = connection.execute(
+                        "SELECT revision.* FROM source_policy_current c JOIN source_policy_revisions revision "
+                        "ON revision.revision_id=c.revision_id WHERE c.policy_key=?", (f"SOURCE:{revision.source_id}",),
+                    ).fetchone()
+                    actual = None if current is None else str(current["revision_id"])
+                    if (not expected_supplied and actual is not None) or actual != expected_revision_id:
+                        raise IntegrityConflict("source policy version conflicts")
+                    if preserve_source_counts and current is not None:
+                        raw = self._source_policy_revision_from_row(current)
+                        revision = replace(revision, initial_history_count=raw.initial_history_count,
+                            per_run_max_new_videos=raw.per_run_max_new_videos)
+                        self._validate_source_policy_revision(revision)
                 connection.execute(
                     "INSERT INTO source_policy_revisions "
                     "(revision_id, policy_scope, source_id, initial_history_count, "
@@ -6049,18 +6085,26 @@ class SQLiteStateRepository:
                     if revision.policy_scope == "GLOBAL"
                     else f"SOURCE:{revision.source_id}"
                 )
-                connection.execute(
-                    "INSERT INTO source_policy_current "
-                    "(policy_key, policy_scope, source_id, revision_id) "
-                    "VALUES (:policy_key, :policy_scope, :source_id, :revision_id) "
-                    "ON CONFLICT(policy_key) DO UPDATE SET revision_id = excluded.revision_id",
-                    {
-                        "policy_key": policy_key,
-                        "policy_scope": revision.policy_scope,
-                        "source_id": revision.source_id,
-                        "revision_id": revision.revision_id,
-                    },
-                )
+                if command_prefix is not None and current is not None:
+                    changed = connection.execute(
+                        "UPDATE source_policy_current SET revision_id=? WHERE policy_key=? AND revision_id=?",
+                        (revision.revision_id, policy_key, expected_revision_id),
+                    ).rowcount
+                    if changed != 1:
+                        raise IntegrityConflict("source policy version conflicts")
+                else:
+                    connection.execute(
+                        "INSERT INTO source_policy_current "
+                        "(policy_key, policy_scope, source_id, revision_id) "
+                        "VALUES (:policy_key, :policy_scope, :source_id, :revision_id) "
+                        "ON CONFLICT(policy_key) DO UPDATE SET revision_id = excluded.revision_id",
+                        {
+                            "policy_key": policy_key,
+                            "policy_scope": revision.policy_scope,
+                            "source_id": revision.source_id,
+                            "revision_id": revision.revision_id,
+                        },
+                    )
                 row = connection.execute(
                     "SELECT * FROM source_policy_revisions WHERE revision_id = :revision_id",
                     {"revision_id": revision.revision_id},
@@ -6072,6 +6116,22 @@ class SQLiteStateRepository:
             raise IntegrityConflict("source policy violates its finite contract") from error
         finally:
             connection.close()
+
+    def read_source_policy_snapshot(
+        self, source_id: str,
+    ) -> tuple[SourcePolicyRevisionRecord, SourcePolicyRevisionRecord | None]:
+        # A single SQLite statement pins global + raw source to one snapshot.
+        with closing(self._connect()) as connection:
+            rows = connection.execute(
+                "SELECT r.* FROM source_policy_current c JOIN source_policy_revisions r "
+                "ON r.revision_id=c.revision_id WHERE c.policy_key IN ('GLOBAL', ?)",
+                (f"SOURCE:{source_id}",),
+            ).fetchall()
+        revisions = [self._source_policy_revision_from_row(row) for row in rows]
+        global_revision = next((r for r in revisions if r.policy_scope == "GLOBAL"), None)
+        if global_revision is None:
+            raise StateStoreError("global source policy is not initialized")
+        return global_revision, next((r for r in revisions if r.policy_scope == "SOURCE"), None)
 
     @staticmethod
     def _validate_filter_decision(decision: FilterDecisionWrite) -> None:

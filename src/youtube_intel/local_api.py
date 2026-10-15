@@ -105,6 +105,7 @@ from youtube_intel.source_authority import (
     verify_source,
 )
 from youtube_intel.source_policy import (
+    _EXPECTED_MISSING,
     EffectiveSourcePolicy,
     SourcePolicyApplicationService,
 )
@@ -1486,10 +1487,11 @@ class LocalApiApplication:
             if (
                 method == "PUT"
                 and route.startswith(source_policy_prefix)
-                and route.endswith("/policy")
+                and (route.endswith("/policy") or route.endswith("/interests"))
             ):
+                interest_only = route.endswith("/interests")
                 source_id = route.removeprefix(source_policy_prefix).removesuffix(
-                    "/policy"
+                    "/interests" if interest_only else "/policy"
                 )
                 if not source_id or "/" in source_id:
                     raise ApiError(
@@ -1499,19 +1501,22 @@ class LocalApiApplication:
                     data,
                     {
                         "command_id",
-                        "initial_history_count",
-                        "per_run_max_new_videos",
+                        "expected_source_policy_revision_id",
                         "focus_mode",
                         "focus_rules",
                         "ignore_mode",
                         "ignore_rules",
                         "distillation_style_mode",
                         "distillation_style",
-                    },
+                    } | (set() if interest_only else {"initial_history_count", "per_run_max_new_videos"}),
                 )
+                if interest_only and "expected_source_policy_revision_id" not in data:
+                    raise ValueError("interest requires an explicit expected revision")
                 source_policy = self._source_policy_service.update_source(
                     source_id=source_id,
                     command_id=self._string(data, "command_id", required=True) or "",
+                    expected_source_policy_revision_id=data.get("expected_source_policy_revision_id", _EXPECTED_MISSING),
+                    _interest_only=interest_only,
                     initial_history_count=self._integer(data, "initial_history_count"),
                     per_run_max_new_videos=self._integer(
                         data, "per_run_max_new_videos"
@@ -1536,7 +1541,10 @@ class LocalApiApplication:
                         )
                     ),
                 )
-                return HTTPStatus.OK, {"policy": _source_policy_dto(source_policy)}
+                return HTTPStatus.OK, {"policy": _source_policy_dto(source_policy),
+                    "applied_source_policy_revision_id": source_policy.applied_revision_id,
+                    "current_source_policy_revision_id": source_policy.source_policy_revision_id,
+                    "historical_replay": source_policy.applied_revision_id != source_policy.source_policy_revision_id}
             if (
                 method == "POST"
                 and route.startswith(source_policy_prefix)
@@ -2215,11 +2223,11 @@ class LocalApiApplication:
                 raise ApiError(
                     HTTPStatus.NOT_FOUND, "NOT_FOUND", "Source was not found."
                 )
-            source_policy_revision = self._repository.get_source_policy_revision(source.source_id)
+            effective_policy, source_policy_revision = self._source_policy_service.policy_snapshot(source.source_id)
             return {
                 "source": self._source_projection(source),
                 "policy": _source_policy_dto(
-                    self._source_policy_service.effective_policy(source.source_id)
+                    effective_policy
                 ),
                 "policy_modes": {
                     "focus": "INHERIT" if source_policy_revision is None else source_policy_revision.focus_mode.value,

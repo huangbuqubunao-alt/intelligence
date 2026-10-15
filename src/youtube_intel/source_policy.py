@@ -9,7 +9,8 @@ execution; TASK-022 owns personalized distillation.
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass
+import json
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from enum import Enum
 from typing import Callable
@@ -28,6 +29,8 @@ from youtube_intel.state import (
     SourcePolicyRevisionWrite,
     SQLiteStateRepository,
 )
+
+_EXPECTED_MISSING = object()
 
 
 class VideoType(str, Enum):
@@ -56,6 +59,7 @@ class EffectiveSourcePolicy:
     distillation_style: DistillationStyle
     global_revision_id: str
     source_policy_revision_id: str | None
+    applied_revision_id: str | None = field(default=None, compare=False)
 
 
 @dataclass(frozen=True, slots=True)
@@ -187,22 +191,16 @@ class SourcePolicyApplicationService:
         )
 
     def effective_policy(self, source_id: str) -> EffectiveSourcePolicy:
+        return self.policy_snapshot(source_id)[0]
+
+    def policy_snapshot(self, source_id: str) -> tuple[EffectiveSourcePolicy, SourcePolicyRevisionRecord | None]:
         if self._repository.get_source_subscription(source_id) is None:
             raise ValueError("source does not exist")
+        global_revision, raw = self._repository.read_source_policy_snapshot(source_id)
         effective = self._policy_from_revisions(
-            self._repository.get_global_source_policy_revision(),
-            self._repository.get_source_policy_revision(source_id),
+            global_revision, raw,
         )
-        return EffectiveSourcePolicy(
-            source_id=source_id,
-            initial_history_count=effective.initial_history_count,
-            per_run_max_new_videos=effective.per_run_max_new_videos,
-            focus_rules=effective.focus_rules,
-            ignore_rules=effective.ignore_rules,
-            distillation_style=effective.distillation_style,
-            global_revision_id=effective.global_revision_id,
-            source_policy_revision_id=effective.source_policy_revision_id,
-        )
+        return replace(effective, source_id=source_id), raw
 
     def update_global(
         self,
@@ -248,8 +246,15 @@ class SourcePolicyApplicationService:
         ignore_rules: tuple[str, ...] | list[str],
         distillation_style_mode: PolicyOverrideMode,
         distillation_style: DistillationStyle | None,
+        expected_source_policy_revision_id: object = _EXPECTED_MISSING,
+        _interest_only: bool = False,
     ) -> EffectiveSourcePolicy:
         command = self._command_id(command_id)
+        expected_supplied = expected_source_policy_revision_id is not _EXPECTED_MISSING
+        expected = expected_source_policy_revision_id if expected_supplied else None
+        if expected is not None and (not isinstance(expected, str) or not expected.strip()
+            or expected != expected.strip() or len(expected) > 512):
+            raise ValueError("source policy expected revision identity is invalid")
         if self._repository.get_source_subscription(source_id) is None:
             raise ValueError("source does not exist")
         if not isinstance(focus_mode, PolicyOverrideMode) or not isinstance(
@@ -260,26 +265,52 @@ class SourcePolicyApplicationService:
             distillation_style, DistillationStyle
         ):
             raise ValueError("distillation style must be a finite V1 value")
-        self._repository.create_source_policy_revision(
+        focus = self._rules(focus_rules)
+        ignore = self._rules(ignore_rules)
+        operation = "interest" if _interest_only else "full"
+        prefix = "source-policy:source-interest:v1:" + hashlib.sha256(json.dumps(
+            [operation, source_id, command], ensure_ascii=False, separators=(",", ":")
+        ).encode()).hexdigest() + ":"
+        request: dict[str, object] = {"expected_supplied": expected_supplied, "expected": expected,
+            "focus_mode": focus_mode.value, "focus_rules": focus,
+            "ignore_mode": ignore_mode.value, "ignore_rules": ignore,
+            "distillation_style_mode": distillation_style_mode.value,
+            "distillation_style": None if distillation_style is None else distillation_style.value}
+        if not _interest_only:
+            request.update(initial_history_count=initial_history_count, per_run_max_new_videos=per_run_max_new_videos)
+        revision_id = prefix + hashlib.sha256(json.dumps(request, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        applied = self._repository.create_source_policy_revision(
             SourcePolicyRevisionWrite(
-                revision_id=(
-                    "source-policy:source:"
-                    + self._identity_digest(source_id, command)
-                ),
+                revision_id=revision_id,
                 policy_scope="SOURCE",
                 source_id=source_id,
                 initial_history_count=initial_history_count,
                 per_run_max_new_videos=per_run_max_new_videos,
                 focus_mode=focus_mode,
-                focus_rules=self._rules(focus_rules),
+                focus_rules=focus,
                 ignore_mode=ignore_mode,
-                ignore_rules=self._rules(ignore_rules),
+                ignore_rules=ignore,
                 distillation_style_mode=distillation_style_mode,
                 distillation_style=distillation_style,
                 created_at=self._now(),
-            )
+            ), command_prefix=prefix, expected_revision_id=expected,
+            expected_supplied=expected_supplied, preserve_source_counts=_interest_only,
+            legacy_revision_id=None if _interest_only else "source-policy:source:" + self._identity_digest(source_id, command),
         )
-        return self.effective_policy(source_id)
+        return replace(self.effective_policy(source_id), applied_revision_id=applied.revision_id)
+
+    def update_source_interests(
+        self, *, source_id: str, command_id: str, expected_source_policy_revision_id: str | None,
+        focus_mode: PolicyOverrideMode, focus_rules: tuple[str, ...] | list[str],
+        ignore_mode: PolicyOverrideMode, ignore_rules: tuple[str, ...] | list[str],
+        distillation_style_mode: PolicyOverrideMode, distillation_style: DistillationStyle | None,
+    ) -> EffectiveSourcePolicy:
+        return self.update_source(source_id=source_id, command_id=command_id,
+            expected_source_policy_revision_id=expected_source_policy_revision_id,
+            initial_history_count=None, per_run_max_new_videos=None,
+            focus_mode=focus_mode, focus_rules=focus_rules, ignore_mode=ignore_mode, ignore_rules=ignore_rules,
+            distillation_style_mode=distillation_style_mode, distillation_style=distillation_style,
+            _interest_only=True)
 
     @staticmethod
     def _candidate_text(candidate: MetadataFilterCandidate) -> str:
