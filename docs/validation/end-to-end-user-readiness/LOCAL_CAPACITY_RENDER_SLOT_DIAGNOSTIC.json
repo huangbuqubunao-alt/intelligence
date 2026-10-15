@@ -80,5 +80,17 @@
       "explanation": "DebugInfo ImageCount uses omitempty; zero is absent. Stopped repeating assertions, inspected exact pinned official types and saved response. No second HTTP diagnostic or generation."
     }
   ],
-  "limits": "Proves installed runtime rendering and actual slot only at diagnostic time. Production capacity algorithm/per-execution readiness, independent review, freeze, semantic qualification and release incomplete."
+  "limits": "Proves installed runtime rendering and actual slot only at diagnostic time. Production capacity algorithm/per-execution readiness, independent review, freeze, semantic qualification and release incomplete.",
+  "diagnostic_wire_serializer": {
+    "ensure_ascii": false,
+    "sort_keys": false,
+    "separators": [
+      ",",
+      ":"
+    ],
+    "order": "preserved insertion order",
+    "wire_sha256": "59b4431f520aca4b3b9e3cee43ba29d8734e5e4d7bb5ae415744b5f0a38cca6d",
+    "sorted_canonical_identity_sha256": "346629a356aecda23212c6b3dc213a65960bd15dfadd3a130da9ffdadf16c51c",
+    "note": "Diagnostic wire is not the production request identity; both hashes shown explicitly. No second request."
+  }
 }
