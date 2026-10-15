@@ -1,0 +1,1 @@
+Read AGENTS/docs collaboration/product/reuse, task TASK-READINESS-FOLLOWING-POLL-DRAFT. All base/scope/reviewer/checks/parallel constraints in task; root candidate pin and worktree creation below task-doc commit. Independent author local_text_repair_resume; zero backend/model/formal writes. Commit and STOP.

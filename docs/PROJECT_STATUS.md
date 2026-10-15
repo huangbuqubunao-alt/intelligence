@@ -1,3 +1,6 @@
+# 2026-10-15 真实关注轮询P1（当前优先）
+SourceCAS完整历史整合1b1d276，root36backend+496front/TSbuild PASS；root真实6098GUI在tracking.checking=true时，2秒Sources刷新清data并卸载兴趣编辑器，无法保留草稿。独立最小FOLLOWING-POLL-DRAFT任务READY，待作者/复审/root真实验收。模型port2e754fb独立审查中，仍0生成/资格false。未发布。
+
 # 2026-10-15 最新续作状态（覆盖后续历史）
 SourceInterest作者返修e8d7471已clean STOP，三处逐条规则保真、前端496通过，独立复审待完成。local grounding工程2e754fb已clean STOP，715+2后端与前端468通过，容量执行门仍BLOCKED/0生成/资格false，待独立审查。三个子Agent曾遇额度错误；不把作者报告视为独立接受。root只读GGUF确认全部256 byte符号及247587 merge拼接均在248320词表，system/messages缺省，尚未证明实际runner slot容量；8192不可放行。手册真实Chrome60图全加载，无横溢。正式main仍73ee7e7，未发布；tracked Retry P1、能力呈现/物理计数、真实模型及最终全回归仍OPEN。
 
