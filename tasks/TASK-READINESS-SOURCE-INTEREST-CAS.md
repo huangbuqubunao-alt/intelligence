@@ -1,3 +1,5 @@
+2026-10-15 ACCEPTED for integration：作者e8d747111c756c94189723ef8e6862eacb5ca804，独立dd260deb957b33c6591ede5dcf5118e876db6f73 APPROVE，0P0/P1/P2。完整历史73a47d0→b6d213→db2e81e(REJECT)→e8d7471→dd260de一并保留。root复核累计14路径无Schema/deps/config/模型变更，旧测试仅精确新CAS DTO/异步等待及结构化编辑契约，不削断言。整合后受影响检查及真实API GUI仍待完成，不代表整体验收或发布。
+
 2026-10-15 IN_PROGRESS：指定独立作者已开始；Task历史READY按当前状态解释。
 
 2026-10-15 READY：LOCAL39独立00d66a APPROVE已整合ce3beaa；Native独立d1c342 APPROVE已整合5fd88fc。root97/252、frontend468、TS/build/Ruff/strictmypy103均通过。以下历史BLOCKED已解除。
