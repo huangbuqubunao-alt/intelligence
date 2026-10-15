@@ -235,6 +235,8 @@ class VerifiedDistillationInput:
     wire_version: str | None = None
     input_json: str | None = None
     context_json: str | None = None
+    local_profile_id: str | None = None
+    local_profile_hash: str | None = None
 
     def __post_init__(self) -> None:
         if self.output_language not in {"zh-CN", "en"}:
@@ -2675,6 +2677,49 @@ class LocalTextDistillationProfile:
             {"role": "user", "content": json.dumps(context, ensure_ascii=False, sort_keys=True, separators=(",", ":"))}],
             "format": cls.schema(), "stream": False, "think": True,
             "options": cls.generation_options()}
+
+
+
+def local_profile_projection(value: VerifiedDistillationInput) -> dict[str, object]:
+    from youtube_intel.local_distillation_profile import resolve_profile, scope_for
+    if value.local_profile_id is None:
+        raise ValueError("local execution profile is missing")
+    profile = resolve_profile(value.local_profile_id)
+    if (value.selected_provider != "ollama" or value.selected_model != profile.model or not value.evidence):
+        raise ValueError("local execution model/input is invalid")
+    scope = scope_for(value.content_provider, value.wire_version, {e.locator_type for e in value.evidence})
+    if value.content_provider == "LOCAL" and value.local_content_context_hash is None:
+        raise ValueError("local context authority is missing")
+    schema = LocalTextDistillationProfile.schema() if scope == "LOCAL_TEXT" else OllamaLocalDistillationTransport._SCHEMA
+    return profile.projection(scope, schema)
+
+
+def bind_local_profile(value: VerifiedDistillationInput, profile_id: str) -> VerifiedDistillationInput:
+    from youtube_intel.local_distillation_profile import digest
+    bound = replace(value, local_profile_id=profile_id, local_profile_hash=None)
+    return replace(bound, local_profile_hash=digest(local_profile_projection(bound)))
+
+
+def build_local_distillation_request(value: VerifiedDistillationInput) -> dict[str, object]:
+    """Sole new-profile builder for production and qualification; no provider IO."""
+    from youtube_intel.local_distillation_profile import canonical, digest, resolve_profile
+    projection = local_profile_projection(value)
+    if value.local_profile_hash != digest(projection):
+        raise ValueError("local execution profile hash differs")
+    evidence = [({**_text_reference(item), "excerpt": item.excerpt} if value.wire_version == _LOCAL_TEXT_WIRE_VERSION else
+        {"evidence_id": item.evidence_id, "start_ms": item.start_ms, "end_ms": item.end_ms, "excerpt": item.excerpt})
+        for item in value.evidence]
+    context = {"video_id": value.video_id, "video_title": value.video_title,
+        "source_display_name": value.source_display_name, "evidence": evidence,
+        "personalization": value.personalization, "focus": value.source_focus_rules,
+        "ignore": value.source_ignore_rules, "style": value.distillation_style, "output_language": value.output_language}
+    request = {"model": projection["model"], "messages": [{"role": "system", "content": projection["prompt"]},
+        {"role": "user", "content": canonical(context).decode()}], "format": projection["schema"],
+        "stream": False, "think": True, "options": projection["options"]}
+    assert value.local_profile_id is not None
+    if len(canonical(request)) > resolve_profile(value.local_profile_id).max_request_bytes:
+        raise ValueError("complete local request exceeds the frozen UTF-8 budget")
+    return request
 
 
 @dataclass(frozen=True, slots=True)
