@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import { ApiRequestError, api, patch, post, put } from "../api/client";
 import { useUiLanguage } from "./uiLanguage";
 
@@ -154,10 +154,10 @@ type Detail = {
 
 const ACTIVE_STATES = ["QUEUED", "RUNNING", "WAITING", "PARTIAL"];
 const isActive = (data: Detail | null) =>
-  data?.source_runs.some(run => ACTIVE_STATES.includes(run.state)) ?? false;
+  Boolean(data?.source.tracking.checking || data?.source_runs.some(run => ACTIVE_STATES.includes(run.state)));
 
 type DetailProps = {
-  id: string; capability: CreatorFollowingCapabilityState; onClose: () => void; onRefresh: () => void;
+  id: string; capability: CreatorFollowingCapabilityState; refreshNotice?: ReactNode; onClose: () => void; onRefresh: () => void;
 };
 
 export function CreatorFollowingDetail(props: DetailProps) {
@@ -165,7 +165,7 @@ export function CreatorFollowingDetail(props: DetailProps) {
   return <CreatorFollowingDetailContent key={props.id} {...props} />;
 }
 
-function CreatorFollowingDetailContent({ id, capability, onClose, onRefresh }: DetailProps) {
+function CreatorFollowingDetailContent({ id, capability, onClose, onRefresh, refreshNotice }: DetailProps) {
   const { t } = useUiLanguage();
   const [data, setData] = useState<Detail | null>(null);
   const [revision, setRevision] = useState(0);
@@ -197,10 +197,10 @@ function CreatorFollowingDetailContent({ id, capability, onClose, onRefresh }: D
     return () => { disposed = true; };
   }, [id, revision]);
   useEffect(() => {
-    if (!isActive(data) && !checkRun) return;
+    if (reading || (!isActive(data) && !checkRun)) return;
     const timer = setTimeout(() => setRevision(value => value + 1), 2000);
     return () => clearTimeout(timer);
-  }, [data, checkRun]);
+  }, [data, checkRun, reading]);
   // Polling replaces this component's data, so the outcome of the last command is
   // held separately: the user is told what happened and a refetch cannot erase it.
   useEffect(() => {
@@ -233,6 +233,8 @@ function CreatorFollowingDetailContent({ id, capability, onClose, onRefresh }: D
   const needsAttention = ["STATE_INVALID", "RISK_CONTROLLED", "ACCESS_DENIED"].includes(source?.tracking.health ?? "");
   return <div className="overlay"><section className="modal local-import" role="dialog" aria-modal="true" aria-label={t(title)}>
     <div className="modal-head"><h2>{source?.display_name ?? t(title)}</h2><button className="button button-ghost" onClick={onClose}>{t("Close")}</button></div>
+    {refreshNotice}
+    {reading && source && <p role="status" className="hint">{t("Refreshing source details…")}</p>}
     {off && <UnavailableNotice state={capability} creator />}
     {source && <>
       <p>{t(source.provider === "YOUTUBE" ? "YouTube" : "Bilibili")} · {off ? t("Continuous creator tracking is currently unavailable") : source.enabled ? t("Monitoring new videos") : t("Monitoring is paused")}</p>

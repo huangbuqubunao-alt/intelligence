@@ -5,7 +5,7 @@ import { LocalImport, localStatus, localImportErrors } from "./LocalImport";
 import { NativeImportActivity } from "./NativeLocalImport";
 import { LocalTranscription, transcriptionCopy } from "./LocalTranscription";
 import { TranscriptionSetup } from "./TranscriptionSetup";
-import { ChangeEvent, FormEvent, ReactNode, useEffect, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { ApiRequestError, api, patch, post, put, uploadZip } from "../api/client";
 import { ModelSettings } from "./ModelSettings";
 import { Logo } from "./Logo";
@@ -368,8 +368,10 @@ function initialPage(): Page {
   return pages.includes(candidate as Page) ? candidate as Page : "Home";
 }
 
-function useRemote<T>(path: string, refresh = 0, validate?: (value: unknown) => boolean) {
+function useRemote<T>(path: string, refresh = 0, validate?: (value: unknown) => boolean, retainOnRefresh = false) {
   const [readRevision, setReadRevision] = useState(0);
+  const requestPath = useRef(path);
+  const [reading, setReading] = useState(true);
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Keep the stable machine code so failures can be localized by code instead of
@@ -377,25 +379,33 @@ function useRemote<T>(path: string, refresh = 0, validate?: (value: unknown) => 
   const [errorCode, setErrorCode] = useState<string | undefined>(undefined);
   useEffect(() => {
     let alive = true;
-    setData(null);
-    setError(null);
-    setErrorCode(undefined);
+    const samePath = requestPath.current === path;
+    requestPath.current = path;
+    setReading(true);
+    if (!retainOnRefresh || !samePath) setData(null);
+    if (!retainOnRefresh || !samePath || !data) {
+      setError(null); setErrorCode(undefined);
+    }
     api<T>(path).then((value) => {
       if (!alive) return;
       if (validate && !validate(value)) {
         throw new ApiRequestError({ code: "READ_RESPONSE_INVALID", message: "The policy response could not be read." });
       }
-      setData(value);
+      setData(value); setError(null); setErrorCode(undefined);
     }).catch((reason: Error) => {
       if (!alive) return;
       setError(reason.message);
       setErrorCode(reason instanceof ApiRequestError ? reason.code : undefined);
-    });
+    }).finally(() => { if (alive) setReading(false); });
     return () => {
       alive = false;
     };
-  }, [path, refresh, readRevision, validate]);
-  return { data, error, errorCode, reload: () => setReadRevision(value => value + 1) };
+  }, [path, refresh, readRevision, validate, retainOnRefresh]);
+  // A path change must never expose another resource's retained snapshot,
+  // including the render before the new effect has cleared it.
+  const currentPath = !retainOnRefresh || requestPath.current === path;
+  return { data: currentPath ? data : null, error: currentPath ? error : null,
+    errorCode: currentPath ? errorCode : undefined, reading, reload: () => setReadRevision(value => value + 1) };
 }
 function statusLabel(value: string) {
   const labels: Record<string, string> = {
@@ -2589,20 +2599,44 @@ function Topics({ refresh, targetTopicId }: { refresh: number; targetTopicId?: s
   );
 }
 
+function validSourceReadIdentity(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const source = value as Partial<Source>;
+  return typeof source.source_id === "string" && !!source.source_id.trim()
+    && typeof source.canonical_url === "string" && typeof source.enabled === "boolean";
+}
+function validSourcesRead(value: unknown): boolean {
+  if (!value || typeof value !== "object" || !("sources" in value)) return false;
+  return Array.isArray(value.sources) && value.sources.every(validSourceReadIdentity);
+}
+
+function FollowingReadNotice({ reading, error, errorCode, onReload, detail = false }: {
+  reading: boolean; error: string | null; errorCode?: string; onReload: () => void; detail?: boolean;
+}) {
+  const { t } = useUiLanguage();
+  return <>
+    {error && <div>
+      <p className="hint">{t(detail ? "Source details could not be refreshed. Showing previously loaded details." : "The Following list could not be refreshed. Showing previously loaded sources.")}</p>
+      <ErrorState error={error} code={errorCode} hideRawMessage onReload={reading ? undefined : onReload} />
+    </div>}
+    {reading && <p role="status" className="hint">{t(detail ? "Refreshing source details…" : "Refreshing the Following list…")}</p>}
+  </>;
+}
+
 function Sources(
   { refresh, onRefresh, targetSourceId, onAdd }: { refresh: number; onRefresh: () => void; targetSourceId?: string | null; onAdd: (provider: "YOUTUBE" | "LOCAL") => void },
 ) {
   const { t } = useUiLanguage();
-  const { data, error, errorCode, reload } = useRemote<{ sources: Source[] }>("/sources", refresh);
+  const { data, error, errorCode, reading, reload } = useRemote<{ sources: Source[] }>("/sources", refresh, validSourcesRead, true);
   const [selected, setSelected] = useState<string | null>(targetSourceId ?? null);
   const [filter, setFilter] = useState("all");
   const [rowBusy, setRowBusy] = useState<string | null>(null);
   const [rowMessage, setRowMessage] = useState<string | null>(null);
   useEffect(() => {
-    if (!data?.sources.some(source => source.tracking?.checking)) return;
+    if (reading || !data?.sources.some(source => source.tracking?.checking)) return;
     const timer = setTimeout(onRefresh, 2000);
     return () => clearTimeout(timer);
-  }, [data]);
+  }, [data, reading]);
   useEffect(() => {
     const check = () => { if (document.visibilityState !== "hidden") void post("/sources/check-stale", {}).then(onRefresh).catch(() => {}); };
     check(); window.addEventListener("focus", check);
@@ -2611,11 +2645,12 @@ function Sources(
   const creatorCapability = useCreatorFollowingCapability();
   const creatorFollowingWithdrawn = creatorCapability.known &&
     creatorCapability.capability !== null && !creatorCapability.capability.available;
-  if (error) return <ErrorState error={error} code={errorCode} onReload={reload} />;
+  if (error && !data) return <ErrorState error={error} code={errorCode} onReload={reload} />;
   if (!data) return <Empty>Loading Sources…</Empty>;
   const followingSources = data.sources.filter(source => source.source_type !== "VIDEO_URL");
   return (
     <>
+      {!selected && <FollowingReadNotice reading={reading} error={error} errorCode={errorCode} onReload={reload} />}
       {creatorFollowingWithdrawn && <p className="hint" role="status">{t("Continuous Bilibili creator tracking is currently unavailable. You can still add public Bilibili videos.")}</p>}
       <div className="page-actions">
         <button
@@ -2697,6 +2732,7 @@ function Sources(
       {selected && (
         <SourceDetail
           id={selected}
+          refreshNotice={<FollowingReadNotice reading={reading} error={error} errorCode={errorCode} onReload={reload} />}
           onAddLocal={() => { setSelected(null); onAdd("LOCAL"); }}
           onClose={() => setSelected(null)}
           onRefresh={onRefresh}
@@ -3069,8 +3105,9 @@ export function ExistingSourceForm(
   );
 }
 function SourceDetail(
-  { id, onClose, onRefresh, onAddLocal }: {
+  { id, onClose, onRefresh, onAddLocal, refreshNotice }: {
     id: string;
+    refreshNotice?: ReactNode;
     onClose: () => void;
     onRefresh: () => void;
     onAddLocal: () => void;
@@ -3079,7 +3116,17 @@ function SourceDetail(
   const { t } = useUiLanguage();
   const creatorCapability = useCreatorFollowingCapability();
   const [refresh, setRefresh] = useState(0);
-  const { data, error, errorCode, reload } = useRemote<
+  const acceptedIdentity = useRef<{ id: string; tracked: boolean } | null>(null);
+  const validateRead = useCallback((value: unknown) => {
+    if (!value || typeof value !== "object") return false;
+    const read = value as { source?: Source; source_runs?: unknown; recent_videos?: unknown };
+    if (!validSourceReadIdentity(read.source) || read.source?.source_id !== id
+        || !Array.isArray(read.source_runs) || !Array.isArray(read.recent_videos)
+        || (acceptedIdentity.current?.id === id && acceptedIdentity.current.tracked && !read.source.tracking)) return false;
+    acceptedIdentity.current = { id, tracked: Boolean(read.source.tracking) };
+    return true;
+  }, [id]);
+  const { data, error, errorCode, reading, reload } = useRemote<
     {
       source: Source;
       policy: SourcePolicy;
@@ -3093,22 +3140,22 @@ function SourceDetail(
       }[];
       source_runs: SourceRun[];
     }
-  >(`/sources/${id}`, refresh);
+  >(`/sources/${id}`, refresh, validateRead, true);
   const [message, setMessage] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [checking, setChecking] = useState(false);
   useEffect(() => {
     if (
-      !data?.source_runs.some((run) =>
+      reading || !data?.source_runs.some((run) =>
         ["QUEUED", "RUNNING", "WAITING", "PARTIAL"].includes(run.state)
       )
     ) return;
     const timer = window.setTimeout(() => setRefresh((value) => value + 1), 1000);
     return () => window.clearTimeout(timer);
-  }, [data]);
-  if (error) return <ErrorState error={error} code={errorCode} onReload={reload} />;
+  }, [data, reading]);
+  if (error && (!data || !data.source.tracking)) return <ErrorState error={error} code={errorCode} onReload={reload} />;
   if (!data) return <Empty>Loading Source…</Empty>;
-  if (data.source.tracking) return <CreatorFollowingDetail id={id} capability={creatorCapability} onClose={onClose} onRefresh={onRefresh} />;
+  if (data.source.tracking) return <CreatorFollowingDetail refreshNotice={<>{refreshNotice}<FollowingReadNotice reading={reading} error={error} errorCode={errorCode} onReload={reload} detail /></>} id={id} capability={creatorCapability} onClose={onClose} onRefresh={onRefresh} />;
   if (data.source.source_type === "CHANNEL" && !data.source.tracking) return <div className="overlay"><section className="modal local-import" role="dialog" aria-modal="true" aria-label={sourceLabel(data.source)}>
     <div className="modal-head"><h2>{sourceLabel(data.source)}</h2><button className="button button-ghost" aria-label={t("Close")} onClick={onClose}>{t("Close")}</button></div>
     <p role="status">{t("Legacy channel needs attention. Re-add explicitly to establish tracking; its history is preserved.")}</p>

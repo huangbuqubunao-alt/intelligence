@@ -4,6 +4,10 @@ export type UiLanguage = "zh-CN" | "en";
 
 const storageKey = "yia.ui-language";
 const chinese: Record<string, string> = {
+  "The Following list could not be refreshed. Showing previously loaded sources.": "未能刷新关注列表，当前显示上次加载的来源。",
+  "Source details could not be refreshed. Showing previously loaded details.": "未能刷新来源详情，当前显示上次加载的详情。",
+  "Refreshing the Following list…": "正在刷新关注列表…",
+  "Refreshing source details…": "正在刷新来源详情…",
   "Focus rules": "关注规则",
   "Ignore rules": "忽略规则",
   "Add focus rule": "添加关注词条",
