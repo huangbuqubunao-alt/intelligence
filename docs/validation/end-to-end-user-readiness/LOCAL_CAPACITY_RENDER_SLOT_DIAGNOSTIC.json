@@ -1,0 +1,84 @@
+{
+  "started_at": "2026-10-15T11:35:32.523727+00:00",
+  "finished_at": "2026-10-15T11:35:40.552306+00:00",
+  "purpose": "one explicit non-generating system-user chat renderer/slot diagnostic, not semantic acceptance",
+  "generation_requests": 0,
+  "debug_render_requests": 1,
+  "request_sha256": "59b4431f520aca4b3b9e3cee43ba29d8734e5e4d7bb5ae415744b5f0a38cca6d",
+  "memory_free_percent_before": 51,
+  "response_keys": [
+    "model",
+    "created_at",
+    "message",
+    "done",
+    "_debug_info"
+  ],
+  "render_exact_match": true,
+  "render_bytes": 156,
+  "wrapper_bytes": 88,
+  "loaded_after": {
+    "models": [
+      {
+        "name": "qwen3.5:9b-q4_K_M",
+        "model": "qwen3.5:9b-q4_K_M",
+        "size": 6068319026,
+        "digest": "56671c2ab9385f9cfcb404638e32cd62d88e3501d44822208363c010179a3c90",
+        "details": {
+          "parent_model": "",
+          "format": "gguf",
+          "family": "qwen35",
+          "families": [
+            "qwen35"
+          ],
+          "parameter_size": "9.0B",
+          "quantization_level": "Q4_K_M"
+        },
+        "expires_at": "2026-10-15T19:37:40.540255+08:00",
+        "size_vram": 6068319026,
+        "context_length": 16384,
+        "runner": "llamacpp"
+      }
+    ]
+  },
+  "runtime_processes": [
+    "53242 /Applications/Ollama.app/Contents/Resources/llama-server --model /Users/hua/.ollama/models/blobs/sha256-02d45dc1cf451ba2475ac33b301c2dd8f985abe4c182ce04a1f2f5bf0260278d --port 55140 --host 127.0.0.1 --no-webui --offline -c 16384 -np 1 --log-verbosity 4 --no-log-prefix --no-log-timestamps --no-jinja --chat-template chatml --mmproj /Users/hua/.ollama/models/blobs/sha256-f836f08f921193f4d6b6a6952dba0a6fb116759d26a757bcb395d570d73976ca --load-mode none --flash-attn auto -b 512 -ub 512"
+  ],
+  "qualification": false,
+  "validated_at": "2026-10-15T11:36:46.781566+00:00",
+  "checks": {
+    "empty_official_message": true,
+    "done_false": true,
+    "no_eval_metrics": true,
+    "exact_render": true,
+    "wrapper_88": true,
+    "zero_images_official_omitempty": true,
+    "one_model": true,
+    "exact_slot": true,
+    "llamacpp": true,
+    "exact_runner_slot": true
+  },
+  "diagnostic_result": "RENDER_AND_SLOT_MATCH_ONLY_NOT_QUALIFICATION",
+  "response_default_message": {
+    "role": "",
+    "content": ""
+  },
+  "response_done": false,
+  "image_count": {
+    "raw_present": false,
+    "decoded_official_int_default": 0,
+    "source": "api/types.go DebugInfo.ImageCount int json:image_count,omitempty"
+  },
+  "response_sha256": "0469feb68dd393bbe242a7b01496998654c073faed101857aa90fecb3d75f248",
+  "preserved_qa_errors": [
+    {
+      "error": "AssertionError: ['model', 'created_at', 'message', 'done', '_debug_info']",
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/capacity-chat-render-diagnostic.json",
+      "explanation": "QA incorrectly required no message key; official ChatResponse encodes empty message even for debug."
+    },
+    {
+      "error": "Second saved-response QA AssertionError requiring explicit image_count=0",
+      "explanation": "DebugInfo ImageCount uses omitempty; zero is absent. Stopped repeating assertions, inspected exact pinned official types and saved response. No second HTTP diagnostic or generation."
+    }
+  ],
+  "limits": "Proves installed runtime rendering and actual slot only at diagnostic time. Production capacity algorithm/per-execution readiness, independent review, freeze, semantic qualification and release incomplete."
+}
