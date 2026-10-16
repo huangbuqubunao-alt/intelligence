@@ -1,3 +1,5 @@
+2026-10-16 IN_REVIEW：作者e0b123aaf241e39a8e4867c90ef48a53c9944763 clean STOP，base e4c693f；1015affected/178专项/75实际slot与factory锁复验/strict106/Ruff/diff自测PASS，独立local_text_review_resume审查中，尚未接受整合/0真实model IO/资格false。
+
 2026-10-16 claim边界精确决定（不可抹37既有ledger）：readiness有效期定义为开始claim前的arm/admission期限，在最后_claim_ready阶段核验/arm；claim事务成功后该已arm的唯一dispatch token不再因墙钟到期变为未调用。持模型/Backup资源gate，generate消费token及纯request/execution hash检查后唯一POST，不在claim后补metadata GET/TTL检查。claim失败（如用户安全取消赢竞态）立即discard/release，0 POST。
 
 harness持久once意图必须在claim前由独占创建完成，明确记录ARMED/尚未证明实际POST，不能把文件写入当generation成功或调用次数。写意图失败0invocation/0POST；写入后claim失败/进程终止只能保留spent意图+0POST记录、不自动重试/授资格。claim成功后任何本地hash/执行异常仍不得回滚invocation1；保留保守终态及明确“实际POST未证明/若有可信本机零POST审计则如实记0”区别，绝不伪称模型生成。原错误expire-after-claim→WAIT0测试已被37 trigger真实拒绝，保留失败日志，不改Schema/state/trigger。替代契约：preclaim过期拒0、arm在期限内且claim成功后唯一dispatch、意图IO前失败0、claim后崩溃/unknown不重发、取消竞态claim失败0；不能以删断言掩盖不可逆claim。

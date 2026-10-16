@@ -1,0 +1,12 @@
+{
+  "checked_at": "2026-10-16T01:46:35.874678+00:00",
+  "browser": "actual macOS Chrome, CUA",
+  "url": "http://127.0.0.1:6108/validation/muse-final-audit/USER_MANUAL.html",
+  "images": 62,
+  "loaded": 62,
+  "broken": [],
+  "viewport": 1312,
+  "scrollWidth": 1297,
+  "screenshot": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/manual-20261016-following.png",
+  "model_qualification": false
+}

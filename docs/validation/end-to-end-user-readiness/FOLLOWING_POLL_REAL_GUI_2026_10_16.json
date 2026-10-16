@@ -1,0 +1,62 @@
+{
+  "code_head": "2134a3075040f40f965c46ee26c90a3dbb94e41b",
+  "reviewer_commit": "d012c4828d68aa3d9f9142dcb02c9d6c24c1a753",
+  "root_checks": {
+    "frontend": 896,
+    "typescript": "PASS",
+    "production_build": "PASS",
+    "diff_check": "PASS",
+    "logs": [
+      "poll-root-typecheck.log",
+      "poll-root-frontend896.log",
+      "poll-root-build.log"
+    ]
+  },
+  "true_gui": {
+    "normal_factory_API": "6098/6099; no credentials or qualifications overrides",
+    "worker": "intentionally not started, to measure no unrelated work; real persisted tracking.checking=true; not a background worker positive",
+    "poll_draft": "multiple real poll cycles; comma/LF/tab preserved; focus true and selection [9,10] unchanged",
+    "initial_invalid_rule": "leading/trailing whitespace rejected with clear feedback and no write; legal internal LF/tab then saved",
+    "second_tab_reads_saved_value": "PASS",
+    "two_tab_conflict": "clear conflict retained exact stale draft; no auto rebase or overwrite",
+    "explicit_read_then_new_command": "PASS, final legal rule saved",
+    "reload_and_real_API_process_restart": "same multi-line value returned and editor operable"
+  },
+  "data": {
+    "tables": 74,
+    "changed_tables": [
+      "source_policy_current",
+      "source_policy_revisions"
+    ],
+    "other_tables_exact_equal": 72,
+    "history_rows_preserved": true,
+    "new_interest_revisions": 3,
+    "DATA_files": 87,
+    "all_DATA_exact_equal": true,
+    "restart_all_rows_and_DATA_equal": true,
+    "integrity_check": {
+      "foreign_key_check": [],
+      "integrity_check": [
+        [
+          "ok"
+        ]
+      ]
+    }
+  },
+  "side_effects": "all jobs/provider ledger/Intelligence/source run/authorization/budget tables unchanged",
+  "screenshots": [
+    {
+      "path": "docs/validation/end-to-end-user-readiness/screenshots/source-interest-poll-fixed-conflict.png",
+      "sha256": "f731364f66ca6a1da4b2d1b7a13695ea3852f5a90b358257fcf2218935eea98e"
+    },
+    {
+      "path": "docs/validation/end-to-end-user-readiness/screenshots/source-interest-poll-fixed-reloaded.png",
+      "sha256": "b4953abe8cb5929d0062d0a2d642b9c684958ac817ddbbd8ac7027637e85626f"
+    }
+  ],
+  "test_helper_error": "one read-only source listing helper assumed nullable tracking was object; AttributeError preserved in tool output, corrected to (tracking or {}); no writes",
+  "UI_tool_note": "one native AX edit click had no effect; inspected DOM then semantic locator opened editor; preserved original observation",
+  "qualification": false,
+  "formal_data_touched": false,
+  "release": "NOT ADOPTED; other full-goal gates remain"
+}

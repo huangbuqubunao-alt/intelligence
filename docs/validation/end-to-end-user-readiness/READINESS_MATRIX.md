@@ -3,7 +3,7 @@
 
 | 当前关键项 | 最新外部证据 | 当前剩余 |
 |---|---|---|
-| 兴趣逐条保真/CAS | 独立dd260de APPROVE，完整历史整合1b1d276；root36后台/496前端/TSbuild PASS，合法逗号、LF/CRLF/tab不再拆丢 | 真实checking=true时轮询卸载编辑器，新P1独立修复中；不能说整条兴趣链已通过 |
+| 兴趣逐条保真/CAS/轮询 | SourceCAS独立dd260de、轮询独立d012c48 APPROVE，历史整合2134a30；root896/TSbuild；真实checking=true编辑/保存/双页冲突/GET新command/刷新/进程重启，74表87DATA核验通过 | 后续最终候选完整回归；不将无worker隔离测零副作用当后台处理正向 |
 | 9b生产工程端口 | 独立aee4e07 APPROVE，整合43e7758；root125专项、Ruff、strict mypy104 PASS；6范围语言全部NOT_QUALIFIED | 容量实际执行门仍UNVERIFIED；语义资格、scope UI及最终freeze未完成 |
 | 输入容量 | 固定GGUF256 byte符号与247587 merge拼接全在词表；真实一次无生成chat诊断88byte模板一致、llamacpp实际slot16384 | 原15 Evidence完整body7869被7680错误拒绝；拟拆body12288/content8192，代码待独立实施审查。该诊断不是模型生成/语义资格 |
 | TXT/MD与取消恢复 | 真实Native Picker、WAIT0分别取消/剩余任务仍阻塞，实际重启及GUI恢复74表84DATA全等 | 合格模型正向尚无；Schema39不在正式main迁移 |

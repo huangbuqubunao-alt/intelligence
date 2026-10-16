@@ -1,3 +1,6 @@
+# 2026-10-16 当前已完成实证
+POLL独立d012c48 APPROVE，全历史整合2134a30；root896全前端/TSbuild/diff通过。真实普通factory/API checking=true时编辑跨轮询保留草稿/焦点/选区，保存/第二页竞争旧页冲突/明确GET新command/刷新/真实API进程重启全部通过；74表仅source_policy_current/revisions预期变化，原6历史保留+3新兴趣版本，其余72表和87DATA原样，重启全部74表87DATA全等，integrity/FK正常。中文统一手册新增2真实图，Chrome62/62加载无溢出。此service有意不启动worker测零副作用，不冒充后台worker成功。容量e0b123a clean STOP/1015affected+178+75专项/静态通过，独立安全审查中；资格false/0新生成，tracked Retry/最终capability/长内容/真实模型/最终采用仍未完成。
+
 # 2026-10-16 当前续作（覆盖下方历史）
 关注轮询草稿修复第二次系统返修 f19e437 clean STOP：作者896前端/TSbuild及真实Chrome多类型/配置恢复通过，原两REJECT历史保留，独立累计复审中，未整合。容量工程继续：preclaim arm/once ARMED intent先于不可变invocation claim，claim后不可擦inv1，0实际模型生成，待完整affected检查和独立审查。root完整公开49.6min/114 Evidence无生成/tokenizer实测30238 input tokens；6144输出共需36383，16384/32768不足，65536仅算术可行；长内容/rolling仍OPEN，未删减证据。正式main/origin/main73ee7e7 clean，未发布/正式数据未动。
 

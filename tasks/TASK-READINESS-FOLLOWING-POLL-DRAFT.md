@@ -1,3 +1,5 @@
+2026-10-16 DONE（仅本工程任务，完整goal未完）：接受历史全部整合2134a30，root896/TSbuild/diff通过，真实macOS GUI/两页CAS/刷新/API进程重启/全表及DATA副作用核验通过；见 FOLLOWING_POLL_REAL_GUI_2026_10_16.json。模型和其他全goal门禁保持原状，正式main未发布。
+
 2026-10-16 ACCEPTED engineering：独立 d012c4828d68aa3d9f9142dcb02c9d6c24c1a753 APPROVE author f19e437，累计五路径复核无P0/P1/P2，独立896前端/TSbuild/两原反证+36Chrome矩阵通过。root核对clean exacthead/完整handoff/范围后接受；保留81/1adREJECT/134/801REJECT/f19/d012完整提交历史待整合。root受影响检查和真实factory/API polling/CAS GUI仍为采用门禁，不能宣称整链完成。
 
 2026-10-16 IN_REVIEW：第二次完整消费者契约返修 f19e437c17ee06e2cfb451fae3a3ad640c1eea7a clean STOP；累计original aa18dea...f19由原独立Reviewer复审。作者896前端/TSbuild与两原Chrome反证、多类型/配置恢复记录齐；不能以作者PASS当root真实GUI或独立接受，两次REJECT历史保留。

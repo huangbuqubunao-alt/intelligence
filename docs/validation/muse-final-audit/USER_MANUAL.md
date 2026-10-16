@@ -166,6 +166,14 @@
 
 ![真实隔离界面：详情读取失败与明确重试](../end-to-end-user-readiness/source-detail-read-error.png)
 
+**编辑单个关注的兴趣**：点击频道名称 → **编辑兴趣**。关注重点、忽略词和提炼方式都可选择继承全局或单独设置。每个文本框是一条规则，规则中的逗号、换行和制表符会保留；开头或结尾有空白时会提示修改。点击 **保存兴趣**，出现“兴趣已保存”即完成。后台检查和列表刷新不会清掉正在编辑的草稿。
+
+如果另一页面已修改同一兴趣，保存会提示冲突并保留你的草稿。点击 **重新读取当前兴趣**，核对后再保存；系统不会自动覆盖另一页的新版本。修改只影响后续处理，已有内容、证据和处理设置保留。
+
+![真实双页修改冲突：草稿保留](../end-to-end-user-readiness/screenshots/source-interest-poll-fixed-conflict.png)
+
+![保存、刷新及重启后仍可读取的兴趣](../end-to-end-user-readiness/screenshots/source-interest-poll-fixed-reloaded.png)
+
 ---
 
 ## 5. 导入 Bilibili 视频
