@@ -1,3 +1,6 @@
+# 2026-10-16 14:37 真实host阻塞续修
+root已接受容量工程1c38d6a/178复验，但真实只读observe_host在0load拒manifest differs：Ollama0.40.1 legacy tag wrapper1252B SHA7dd7bb31含原manifest extra layer，原官方1088B SHA56671c2及API digest未变；新独立CAPACITY-HOST-FIX d34b560 writer仅capacity/tests，保留FAIL、不改模型安装/原digest，待独立review/root真实复验。FINAL-CAPABILITY原6854ed3 WIP已在额度重置后续作。2份完整public盲holdout已由独立reviewer仅私有预选/0调用，未freeze/不向实现者披露语义预期。tracked Retry只读选择独立不可变命令+可恢复完成投影，原SourceRun不能造成功；仍待当前两任务接受后精确迁移实施。模型资格false/0新生成，main73ee7e7未发布，owner数据未改。
+
 # 2026-10-16 容量工程接受整合
 独立bed638f APPROVE e0b123a，563独立测试通过；root整合1c38d6a，178/strict106/Ruff/diff复验通过，6scope/lang全NOT_QUALIFIED/0新生成。FINAL-CAPABILITY-PRESENTATION从已接受6854ed3独立实现中（实际只读DTO依赖已满足，容量产品写STOP后仅review时并行）；仅API呈现/物理计数与service极小只读binding/实际输出语言，不改变执行准入。tracked Retry只读确认原SourceRun8阶段不能诚实完成Content-only，正在精确兼容持久命令方案，产品写等当前UI接受。完整长内容/rolling及真实模型/最终全回归和采用仍OPEN，main73ee7e7未发布/owner数据未动。
 

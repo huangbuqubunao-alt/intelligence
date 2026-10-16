@@ -1,3 +1,10 @@
+2026-10-16 方案决定（仍BLOCKED，产品写等当前capability与hostfix接受后从最新root基线）：只读6854ed3源码证明原SourceRun八阶段/FINALIZATION/child-distillation不能诚实代表Content-only成功，因此选择独立持久Content retry request+执行投影，不把不适用步骤写成成功。持续默认授权覆盖必要兼容Schema迁移，先记录精确DDL字段/约束/旧34–39恢复策略与风险，不重复向用户逐项审批。
+首个实际P1修复限定YOUTUBE tracked CHANNEL/ENROLLED/METADATA_READY、明确可重试TRANSCRIPT FAILED_FINAL；不要暗中塞METADATA双job或调用Runtime.retry/_drain全pipeline。UI既有VIDEO_URL链不改，真实tracked-only必须独立验收。
+必要合同：immutable command/request固定contract/command_id/request_id、client input hash、source/video/channel/provider/expected-old-job及终态身份、unique targetjob、pipeline/stage、冻结language/adapter/selection/native policy/refresh_generation/provider-request identity、created_at；不能拿当前动态失败数重新生成provider request。另执行投影提供CAS/lease/阶段/attention/终态和完成canonical/timed/Summary/Evidence身份；精确字段/状态/触发器在开工方案定稿，不能将job SUCCEEDED直接冒成Content-ready。oldjob唯一消费、command严格输入比对/历史重放、BEGIN IMMEDIATE一次admission+新job+request，原历史不改。
+隔离与恢复：generic claim_next_job必须排除request-owned job，专用claim仅目标且同事务查权威；与同源SourceRun admission双向排斥/暂停赢0网络。目标SUCCEEDED但timed或Summary未完时，复用load_verified_transcript(complete_stage=False)与extractive Summary本地验证/恢复，禁止再次请求字幕；unknown/过期lease不可当未调用。不得调用scoring/distillation/ASR/Cloud或更新观察时间、跟踪前沿、source health/policy。
+Backup：新的未完成finalizing间隙也阻塞，运行持现background_work；完整双向command/job/provider/result/provenance Schema验证，完整原文件/capture保留。40兼容集合显式包含39（当前{34..38,LATEST}将漏39），老34–39迁移不backfill/不改旧数据；新40/旧34–39恢复和损坏反证全验。作者需在可用范围内给出终态错误/本地恢复用户出口，不能再制造永久未知Backup阻塞或伪成功。
+实际表/字段/风险范围须在实施前方案中固定，再最小工程与独立review/root真实旧tracked副本GUI/重启/BackupRestore验收。此处是决定与边界，不是Schema已经实施或P1已经关闭。
+
 # TASK-READINESS-TRACKED-CONTENT-RETRY
 2026-10-15 BLOCKED waiting SourceInterest state/local_api独立接受并root pin latest base/tree；必要P1，用户持续默认授权，无须重新审批。
 真实旧tracked OYp5在root/.var/end-to-end-user-readiness/runtime/state.sqlite3仅CHANNEL/ENROLLED来源，终态目录失败无字幕、无source_id投影，普通Content无Retry；channelCheck不会重取已ENROLLED。新单视频Retry真实29cue+4Evidence及74表3DATA完整restore通过，仅证明VIDEO_URL链。
