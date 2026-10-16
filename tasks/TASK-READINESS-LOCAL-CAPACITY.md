@@ -1,3 +1,5 @@
+2026-10-16 ACCEPTED engineering：独立bed638f24b8b372053840723f8884197341e0852 APPROVE e0b123a，563独立PASS（178专项+248旧合同+109Backup/runtime+28新反证），strict106/Ruff/compile/diff、原AST/bytes完整性复核通过，无P0/P1/P2。root读完整handoff、核对exact clean head/15路径/范围与历史失败后接受；待按完整2提交整合及root affected检查。真实host/load-only与模型语义资格不在该PASS中，仍保持false/0新生成，统一freeze后才按once验收。
+
 2026-10-16 IN_REVIEW：作者e0b123aaf241e39a8e4867c90ef48a53c9944763 clean STOP，base e4c693f；1015affected/178专项/75实际slot与factory锁复验/strict106/Ruff/diff自测PASS，独立local_text_review_resume审查中，尚未接受整合/0真实model IO/资格false。
 
 2026-10-16 claim边界精确决定（不可抹37既有ledger）：readiness有效期定义为开始claim前的arm/admission期限，在最后_claim_ready阶段核验/arm；claim事务成功后该已arm的唯一dispatch token不再因墙钟到期变为未调用。持模型/Backup资源gate，generate消费token及纯request/execution hash检查后唯一POST，不在claim后补metadata GET/TTL检查。claim失败（如用户安全取消赢竞态）立即discard/release，0 POST。
