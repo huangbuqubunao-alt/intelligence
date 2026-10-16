@@ -121,3 +121,58 @@ absent from the diff. No model HTTP/load/debug/generation or real owner data IO.
 ## Reviewer / 主控验收 / 整合
 
 Pending. Implementer does not self-approve or mark the task DONE.
+
+### Independent Reviewer — APPROVE (2026-10-16)
+
+- Reviewer: `local_text_review_resume`, independent context; author was clean STOP.
+- Reviewed exact base `c4a60f42e2a7f9caf6c31f9c02eb72c7792bfa44` through author
+  `329794b06d1782ec0436bd18fb047edb4c151dee`, branch
+  `codex/task-readiness-backup-picker-filter`. Read task/package and cumulative
+  four-path diff; no product/test changes made by Reviewer.
+- **APPROVE. No P0/P1/P2 findings.** Correctness, simplicity, architecture,
+  security and performance reviewed. Removing the non-authoritative OS hint is
+  exactly scoped; the visible localized hint is associated with the input.
+  No new handler, dependency, request, persistence or qualification behavior.
+
+Independent executed evidence (not the author's prior runs):
+
+| Check | Actual result / retained evidence |
+|---|---|
+| Full frontend | **937 PASS / 34 files**, 23.17s; `/tmp/backup-picker-review-front.log` |
+| Focused picker + existing feedback context + physical preview | **36 PASS / 3 files** (8 + 22 + 6), 1.97s; `/tmp/backup-picker-review-focused.log` |
+| TypeScript / production build | PASS; `/tmp/backup-picker-review-ts.log`, `/tmp/backup-picker-review-build.log` |
+| Author Chrome probe independently rerun | **28 assertion groups PASS**, EN/ZH; copied only to `/tmp`, original evidence preserved; `/tmp/backup-picker-review-author-browser.log` and `/tmp/backup-picker-review-author-browser/browser.json` |
+| New independent Chrome adverse sequence | **60 assertion groups PASS**, EN/ZH × 1440/360 widths; `/tmp/backup-picker-review-independent.mjs`, `.log`, `.json`; Chrome155.0.8059.80 |
+| Handler/scope proof | All three complete handler spans byte-equal to base; exactly the four permitted paths; `/tmp/backup-picker-review-unchanged.json`; `git diff --check` PASS |
+
+The new Chrome sequence starts with a previous APPLIED receipt, verifies empty
+file-list cancellation and misleading non-ZIP names produce zero stage POSTs,
+rejects invalid bytes with a ZIP extension, then defers a successful stage to
+check busy controls and suppression of old success. It confirms no automatic
+POST, rejects lowercase `restore`, and sends exactly one confirm only after
+explicit exact `RESTORE` plus button click. A new non-ZIP selection and rejected
+ZIP both suppress that completed operation's success. Deliberate good-file
+reselection uses a new inspection ID, empty confirmation, then explicit cancel
+returns to the correctly labelled previous receipt. Each context has exactly
+four stage, one confirm and one cancel POST; raw bytes, request headers and
+restore IDs are asserted. All API responses are intercepted synthetic fixtures;
+external requests are aborted and asserted absent. No page errors or unexpected
+console errors. Localized hint, keyboard focus and hint width checked; the
+360px Chinese screenshot `/tmp/backup-picker-review-zh-CN-360.png` was visually
+inspected and is readable without clipping. Other screenshots remain in `/tmp`.
+
+No existing test or assertion was modified/deleted/skipped. Backend, other file
+pickers, upload/cancel/confirm handlers, archive authority, Schema, dependencies,
+config and model eligibility are unchanged. Existing full-suite React act
+warnings remain visible; no suppression added. Agent-browser CLI is unavailable
+as previously recorded, so the installed Playwright-core drove actual isolated
+Google Chrome; no software was installed.
+
+**Limits / root acceptance:** headless `setInputFiles` and empty FileList do not
+exercise NSOpenPanel or prove native cancellation. Root still must verify its
+Chrome154/macOS ordinary picker accepts the real ZIP without an All files
+workaround and performs real strict stage/restore validation. This engineering
+approval does not substitute synthetic ZIP bytes or preview counts for that
+acceptance. No root service/UI, owner/formal data, paid/model/load/debug/generation
+IO was used. Only own frontend port5197 was served, then stopped. Reviewer writes
+only this handoff and stops after its review commit; root owns final acceptance.
