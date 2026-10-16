@@ -1,3 +1,5 @@
+2026-10-16 IN_REVIEW：第二次完整消费者契约返修 f19e437c17ee06e2cfb451fae3a3ad640c1eea7a clean STOP；累计original aa18dea...f19由原独立Reviewer复审。作者896前端/TSbuild与两原Chrome反证、多类型/配置恢复记录齐；不能以作者PASS当root真实GUI或独立接受，两次REJECT历史保留。
+
 # TASK-READINESS-FOLLOWING-POLL-DRAFT
 2026-10-15 READY。必要普通用户P1，持续授权覆盖。Base：1b1d276d744b3a2111e8c616fa8a46f6f6565b01 plus本任务docs-only commit。WT /Users/hua/Documents/yia-worktrees/readiness-following-poll-draft；branch codex/task-readiness-following-poll-draft。Implementer local_text_repair_resume，Reviewer local_text_review_resume在model-port审查STOP后串行。
 

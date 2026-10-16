@@ -102,5 +102,10 @@
     "cause": "task-owned SourceInterest clone ASR exclusion directory not yet initialized",
     "correction": "created only private .local-transcription/worker.lock with O_NOFOLLOW/0600; preserved first failure; ps -ww for complete runner args"
   },
-  "raw_result": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/long-tokenizer-qa-result.json"
+  "raw_result": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/long-tokenizer-qa-result.json",
+  "post_probe_ps": {
+    "checked_at": "2026-10-16T01:36:01.874555+00:00",
+    "models": [],
+    "disposition": "Natural expiry observed through GET /api/ps; no unload request."
+  }
 }

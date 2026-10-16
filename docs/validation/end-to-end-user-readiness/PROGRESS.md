@@ -1,3 +1,5 @@
+2026-10-16 续作：POLL f19e437已clean STOP转累计独立review；容量作者继续preclaim原子边界与affected检查。完整公开长内容/tokenizer无生成QA已完成（30238 input，完整body/runner身份/3原响应hash证据），已自然expire ps空；原setup fail/load0保留。Jev路由advisory HTTP451不可用，按既有strong实现/独立安全审查继续，不降级。当前未发布，剩余目标不缩减。
+
 # 普通用户完整链路整改：进行中
 
 本页是可恢复的工程进度，**不是“全部链路可用”的验收或发布报告**。
