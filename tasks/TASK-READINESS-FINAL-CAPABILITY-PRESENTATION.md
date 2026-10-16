@@ -1,3 +1,9 @@
+2026-10-16 只读合同精化（仍BLOCKED，不能提前产品写）：
+- 当前已接受 `runtime_composition.local_distillation_capabilities()` 返回6个scope/language status；复用它作新的只读callback，不以runtime_local_model READY代替语义资格。local_api.py现GET /settings第2376行及providers老状态只用于旧模型偏好；保留旧key，新增精确local_intelligence DTO。不能为Settings轮询调用load/debug/能力准备，capability错误应明确unknown/closed。
+- 独立9b factory仅any reviewed permit成立才选择9b。UI实际提交的model必须来自对该Content scope+语言授权的严格server状态，并与后端admission一致；无匹配状态时仍WAIT0/可取消，不取fast8b名称作9b请求。LOCAL provider TXT/MD character proof与timed必须区分；不接受客户端自报scope赋权。
+- `backup_restore.BackupRestoreService._public_preview`当前把counts.data_artifacts投影为data_artifact_count；现counts.data_bytes已是physical去重集合总bytes。新增data_file_count从已验证manifest.data_files的唯一relative_path计算，明确物理bytes仍复用相同validated集合；异常重复路径在已有验证拒绝，不能由呈现计算静默修复。旧manifest counts及验证、format1、34–39恢复不变。App当前3607 preview，新增字段缺省应称“数据条目”，新响应称“数据文件”；不要让旧response伪称物理文件。
+- 工程实现完后仍须root真实普通factory/settings GET无重模型副作用、精确Content禁用理由/配置回跳、真正GUI新backup/restore全部表/物理文件一致，独立review不替代该门禁。
+
 # TASK-READINESS-FINAL-CAPABILITY-PRESENTATION
 2026-10-15 BLOCKED：等待SourceInterest与local grounding backend各独立接受并root从最新base pin作者/tree，当前不可写。
 必要同一用户状态准确呈现补全，持续默认授权。两个最小串行commit：
