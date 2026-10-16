@@ -1859,6 +1859,8 @@ class BackupRestoreService:
             "settings_included": True,
             "data_artifact_count": counts["data_artifacts"],
             "data_size_bytes": counts["data_bytes"],
+            "data_file_count": len({record["relative_path"] for record in manifest["data_files"]}),
+            "data_file_size_bytes": counts["data_bytes"],
             "vault_excluded": True,
         }
 

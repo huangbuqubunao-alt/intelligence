@@ -3529,6 +3529,8 @@ type BackupPreview = {
   settings_included: boolean;
   data_artifact_count: number;
   data_size_bytes: number;
+  data_file_count?: number;
+  data_file_size_bytes?: number;
   vault_excluded: boolean;
 };
 
@@ -3736,7 +3738,9 @@ function BackupRestorePanel() {
       <div><dt>{t("Intelligence")}</dt><dd>{value.intelligence_count}</dd></div>
       <div><dt>{t("Topics")}</dt><dd>{value.topic_count}</dd></div>
       <div><dt>{t("Settings")}</dt><dd>{t(value.settings_included ? "Included" : "Not included")}</dd></div>
-      <div><dt>{t("DATA artifacts")}</dt><dd>{value.data_artifact_count} · {byteSize(value.data_size_bytes)}</dd></div>
+      <div>{Number.isSafeInteger(value.data_file_count) && value.data_file_count! >= 0 && Number.isSafeInteger(value.data_file_size_bytes) && value.data_file_size_bytes! >= 0
+        ? <><dt>{t("DATA files")}</dt><dd>{value.data_file_count} · {byteSize(value.data_file_size_bytes!)}</dd></>
+        : <><dt>{t("DATA entries")}</dt><dd>{value.data_artifact_count} · {byteSize(value.data_size_bytes)}</dd></>}</div>
     </dl>
   );
 

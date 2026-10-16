@@ -4,6 +4,8 @@ export type UiLanguage = "zh-CN" | "en";
 
 const storageKey = "yia.ui-language";
 const chinese: Record<string, string> = {
+  "DATA files": "数据文件",
+  "DATA entries": "数据条目",
   "Local Intelligence qualification": "本地洞察资格",
   "Local Intelligence for this Content": "此内容的本地洞察能力",
   "Target local Intelligence model": "目标本地洞察模型",

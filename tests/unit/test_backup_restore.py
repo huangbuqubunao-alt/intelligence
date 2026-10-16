@@ -1530,3 +1530,31 @@ def test_completed_no_new_attention_run_backup_restore_or_fail_closed(
         selected_model="qwen3:8b", output_language="en", now=NOW,
     )
     assert service.readiness()["ready"] is True
+
+
+def test_preview_distinguishes_artifact_references_from_physical_data_files(tmp_path: Path) -> None:
+    database, data_root, _vault, repository, artifact = _workspace(tmp_path)
+    with repository._connect() as connection:
+        connection.execute("INSERT INTO artifacts SELECT 'artifact-2', 'artifact-key-2', video_id, job_id, kind, storage_root, relative_path, content_hash, provider, model, producer_version, retention_class, created_at, expires_at, deleted_at FROM artifacts WHERE artifact_id='artifact-1'")
+        before = tuple(connection.iterdump())
+    service = _service(tmp_path)
+    backup = service.create_backup()
+    archive, _ = service.backup_download(backup.backup_id)
+    assert backup.preview["data_artifact_count"] == 2
+    assert backup.preview["data_file_count"] == 1
+    assert backup.preview["data_file_size_bytes"] == len(artifact)
+    assert backup.preview["data_size_bytes"] == len(artifact)
+    with zipfile.ZipFile(archive) as saved:
+        manifest = json.loads(saved.read("manifest.json"))
+        assert manifest["format_version"] == 1
+        assert manifest["counts"]["data_artifacts"] == 2
+        assert manifest["counts"]["data_bytes"] == len(artifact)
+        assert len(manifest["data_files"]) == 1
+        assert [name for name in saved.namelist() if name.startswith("data/")] == ["data/transcripts/video-1.txt"]
+    staged = service.stage_restore(archive.read_bytes())
+    assert staged.preview == backup.preview
+    service.confirm_restore(staged.restore_id)
+    service.recover_and_apply_pending_restore()
+    with SQLiteStateRepository(database)._connect() as connection:
+        assert tuple(connection.iterdump()) == before
+    assert (data_root / "transcripts/video-1.txt").read_bytes() == artifact
