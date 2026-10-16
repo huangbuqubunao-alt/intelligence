@@ -16,6 +16,12 @@ from importlib import resources
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Final, cast
 
+from youtube_intel.tracked_retry_context import (
+    generic_job_filter,
+    require_job,
+    require_provider,
+)
+
 if TYPE_CHECKING:
     from youtube_intel.backup_restore import BackupRestoreService
     from youtube_intel.transcripts import TranscriptJobContext
@@ -1774,6 +1780,7 @@ class SQLiteStateRepository:
             "037_add_waiting_model_cancellation.sql",
             "038_add_retained_subtitle_derivations.sql",
             "039_add_local_text_input_proofs.sql",
+            "040_add_tracked_content_retry.sql",
         )
         migrations: list[_Migration] = []
         for name in names:
@@ -2346,7 +2353,7 @@ class SQLiteStateRepository:
         try:
             rows = connection.execute(
                 "SELECT j.* FROM jobs AS j WHERE j.job_type = :job_type "
-                "AND j.status = :failed AND j.video_id IS NOT NULL "
+                f"AND j.status = :failed AND j.video_id IS NOT NULL {generic_job_filter(connection, 'j')} "
                 "AND NOT EXISTS (SELECT 1 FROM jobs AS newer "
                 "WHERE newer.video_id = j.video_id AND newer.job_type = :job_type "
                 "AND newer.status = :failed "
@@ -2752,6 +2759,8 @@ class SQLiteStateRepository:
         available_at: datetime,
         now: datetime,
     ) -> JobRecord:
+        if job_id.startswith("tracked-content-retry-job:"):
+            raise IntegrityConflict("Content retry target requires atomic request admission")
         self._validate_job_shape(
             scope_key=scope_key,
             video_id=video_id,
@@ -2881,7 +2890,7 @@ class SQLiteStateRepository:
                 row = connection.execute(
                     "SELECT * FROM jobs WHERE status = :status "
                     "AND available_at <= :now AND attempt_count < max_attempts "
-                    f"{video_filter} "
+                    f"{video_filter} {generic_job_filter(connection)} "
                     "ORDER BY available_at, created_at, job_id LIMIT 1",
                     params,
                 ).fetchone()
@@ -2947,6 +2956,7 @@ class SQLiteStateRepository:
         connection = self._connect()
         try:
             with _immediate_transaction(connection):
+                require_job(connection, job_id)
                 changed = connection.execute(
                     "UPDATE jobs SET lease_until = :lease_until, updated_at = :now "
                     "WHERE job_id = :job_id AND status = :running "
@@ -2986,6 +2996,7 @@ class SQLiteStateRepository:
         owner: str,
         now: str,
     ) -> sqlite3.Row:
+        require_job(connection, job_id)
         row: sqlite3.Row | None = connection.execute(
             "SELECT * FROM jobs WHERE job_id = :job_id AND status = :running "
             "AND lease_owner = :owner AND lease_until > :now",
@@ -3197,7 +3208,7 @@ class SQLiteStateRepository:
                 expired = tuple(
                     connection.execute(
                         "SELECT * FROM jobs WHERE status = :running "
-                        "AND lease_until <= :now ORDER BY lease_until, created_at, job_id",
+                        f"AND lease_until <= :now {generic_job_filter(connection)} ORDER BY lease_until, created_at, job_id",
                         {"running": JobStatus.RUNNING.value, "now": now_text},
                     )
                 )
@@ -3276,7 +3287,7 @@ class SQLiteStateRepository:
                 due = tuple(
                     connection.execute(
                         "SELECT job_id FROM jobs WHERE status = :retry_pending "
-                        "AND available_at <= :now ORDER BY available_at, created_at, job_id",
+                        f"AND available_at <= :now {generic_job_filter(connection)} ORDER BY available_at, created_at, job_id",
                         {
                             "retry_pending": JobStatus.RETRY_PENDING.value,
                             "now": now_text,
@@ -3312,6 +3323,8 @@ class SQLiteStateRepository:
         available_at: datetime,
         now: datetime,
     ) -> JobRecord:
+        with self._connect() as connection:
+            require_job(connection, old_job_id)
         old = self.get_job(old_job_id)
         if old is None or old.status not in {
             JobStatus.SUCCEEDED,
@@ -3349,6 +3362,8 @@ class SQLiteStateRepository:
         *,
         now: str,
     ) -> ArtifactRecord:
+        if artifact.job_id is not None:
+            require_job(connection, artifact.job_id)
         self._validate_artifact(artifact)
         expires_at = (
             None
@@ -3760,6 +3775,7 @@ class SQLiteStateRepository:
         connection = self._connect()
         try:
             with _immediate_transaction(connection):
+                require_provider(connection, request.request_hash)
                 row = connection.execute(
                     "SELECT * FROM provider_calls WHERE request_hash = :request_hash",
                     {"request_hash": request.request_hash},
@@ -3990,6 +4006,7 @@ class SQLiteStateRepository:
         connection = self._connect()
         try:
             with _immediate_transaction(connection):
+                require_provider(connection, request_hash)
                 changed = connection.execute(
                     "UPDATE provider_dispatch_states SET status = :target, updated_at = :now "
                     "WHERE request_hash = :request_hash AND status = :expected "
@@ -4181,6 +4198,7 @@ class SQLiteStateRepository:
         connection = self._connect()
         try:
             with _immediate_transaction(connection):
+                require_provider(connection, request_hash)
                 dispatch = self._dispatch_state_in_transaction(connection, request_hash)
                 if dispatch is None:
                     return None
@@ -4222,6 +4240,7 @@ class SQLiteStateRepository:
         owner: str,
         now: str,
     ) -> ProviderCallRecord:
+        require_provider(connection, completion.request_hash)
         for value in (
             completion.input_tokens,
             completion.output_tokens,
@@ -4354,6 +4373,7 @@ class SQLiteStateRepository:
         connection = self._connect()
         try:
             with _immediate_transaction(connection):
+                require_provider(connection, request_hash)
                 changed = connection.execute(
                     "UPDATE provider_calls SET status = :status, "
                     "reservation_owner = NULL, lease_until = NULL, "
