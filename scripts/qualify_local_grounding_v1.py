@@ -19,6 +19,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from youtube_intel import local_model_capacity as model_capacity
 from youtube_intel.config import LocalScoringSettings
 from youtube_intel.distillation import (
     OllamaLocalDistillationTransport,
@@ -280,19 +281,12 @@ def verify_resources(audit_root: Path, freeze: Mapping[str, Any], permit: LocalE
         or not capacity.get("reviewer_id") or capacity.get("reviewer_id") == capacity.get("producer_id")):
         raise ValueError("actual complete-input/tokenizer/template capacity is unverified")
     cache = Path(runtime["model_cache_root"])
-    manifest = cache / "manifests/registry.ollama.ai/library/qwen3.5/9b-q4_K_M"
-    if file_hash(manifest) != profile.model_digest.removeprefix("sha256:") or runtime.get("runtime") != profile.runtime:
-        raise ValueError("installed runtime or manifest differs")
-    content = read_object(manifest)
-    descriptors = [content["config"], *content["layers"]]
-    total = 0
-    for blob in descriptors:
-        if re.fullmatch(r"sha256:[0-9a-f]{64}", blob["digest"]) is None or type(blob["size"]) is not int or blob["size"] <= 0:
-            raise ValueError("manifest blob descriptor is malformed")
-        path = cache / "blobs" / blob["digest"].replace(":", "-")
-        if path.stat().st_size != blob["size"] or file_hash(path) != blob["digest"].removeprefix("sha256:"):
-            raise ValueError("installed model blob differs")
-        total += blob["size"]
+    if runtime.get("runtime") != profile.runtime or cache.resolve() != (Path.home() / ".ollama/models").resolve():
+        raise ValueError("installed runtime or model cache differs")
+    # The legacy wrapper hash is not the API model identity. Reuse production's
+    # pinned wrapper/parent/reference, every payload and binary, and fd identity.
+    model_capacity.verify_installed_model_bytes(cache)
+    total = sum(model_capacity.BLOBS.values())
     minimum_memory = runtime.get("required_available_memory_bytes")
     if (type(minimum_memory) is not int or minimum_memory < total + 2 * 1024**3
         or shutil.disk_usage(audit_root).free < 10 * 1024**3 or available_memory_bytes() < minimum_memory):

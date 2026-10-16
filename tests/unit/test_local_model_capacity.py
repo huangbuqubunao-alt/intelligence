@@ -306,47 +306,18 @@ def test_fixed_runner_rejects_context_parallel_and_any_unknown_override(
 def test_host_observer_verifies_all_fixed_bytes_and_resource_truth(
     tmp_path, monkeypatch, failure
 ):
-    import hashlib
-    import json
-    from dataclasses import replace
     from types import SimpleNamespace
 
     from youtube_intel import local_model_capacity as capacity
 
-    home = tmp_path / "home"
-    root = tmp_path / "runtime"
-    root.mkdir()
-    cache = home / ".ollama/models"
-    manifest = cache / "manifests/registry.ollama.ai/library/qwen3.5/9b-q4_K_M"
-    manifest.parent.mkdir(parents=True)
-    blobs = cache / "blobs"
-    blobs.mkdir()
-    payload = b"bounded fixture weight; never a model"
-    blob_hash = hashlib.sha256(payload).hexdigest()
-    (blobs / ("sha256-" + blob_hash)).write_bytes(payload)
-    binary = root / "ollama"
-    binary.write_bytes(b"fixture runtime")
-    binary_hash = capacity.file_hash(binary)
-    manifest.write_text(
-        json.dumps(
-            {
-                "config": {
-                    "digest": "sha256:" + blob_hash,
-                    "size": len(payload),
-                },
-                "layers": [],
-            }
-        )
+    manifests = _load_module("test_capacity_host_manifest")
+    manifest, parent, reference, binary, payloads = manifests.fixture_installation(
+        tmp_path, monkeypatch
     )
-    manifest_hash = capacity.file_hash(manifest)
-    profile = replace(
-        resolve_profile(PROFILE_ID), model_digest="sha256:" + manifest_hash
-    )
-    monkeypatch.setattr(capacity.Path, "home", classmethod(lambda _: home))
-    monkeypatch.setattr(capacity, "ROOT", root)
-    monkeypatch.setattr(capacity, "BINARIES", {"ollama": binary_hash})
-    monkeypatch.setattr(capacity, "BLOBS", {blob_hash: len(payload)})
-    monkeypatch.setattr(capacity, "resolve_profile", lambda _: profile)
+    root = binary.parent
+    cache = parent.parent.parent
+    blob_hash = payloads[0].name.removeprefix("sha256-")
+    blobs = parent.parent
     server = f"77 Thu Oct 01 00:00:00 2026 {root / 'ollama'} serve"
     runner = _runner(capacity, cache)
     if failure == "multiple-server":
@@ -377,8 +348,8 @@ def test_host_observer_verifies_all_fixed_bytes_and_resource_truth(
     if failure == "mutating-file":
         original = capacity.file_hash
 
-        def mutated(path):
-            value = original(path)
+        def mutated(path, **kwargs):
+            value = original(path, **kwargs)
             if path == binary:
                 binary.write_bytes(b"fixture runtime changed")
             return value
@@ -389,7 +360,9 @@ def test_host_observer_verifies_all_fixed_bytes_and_resource_truth(
         assert {p for p, _ in observation.files} == {
             manifest,
             binary,
-            blobs / ("sha256-" + blob_hash),
+            parent,
+            reference,
+            *payloads,
         }
         assert observation.is_current()
         binary.write_bytes(b"changed")

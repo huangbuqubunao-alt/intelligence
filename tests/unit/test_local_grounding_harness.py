@@ -179,3 +179,63 @@ def test_dedicated_preparation_preserves_verified_input_without_provider_io(tmp_
     assert prepared["verified_input"] == harness.verified_distillation_input_projection(expected)
     assert repository.get_distillation_execution(prepared["execution_id"]).invocation_count == 0
     assert prepared["workspace_ownership"] == harness.owned_workspace(audit, "local-timed-en", database, data)
+
+
+def _manifest_resource_fixture(tmp_path, monkeypatch):
+    import json
+    from types import SimpleNamespace
+
+    from youtube_intel import local_model_capacity as capacity
+    from youtube_intel.distillation import build_local_distillation_request
+    from youtube_intel.local_distillation_profile import digest
+
+    manifests = _load_module("test_capacity_host_manifest")
+    wrapper, parent, reference, binary, payloads = manifests.fixture_installation(tmp_path, monkeypatch)
+    harness = _harness()
+    profile = capacity.resolve_profile(capacity.PROFILE_ID)
+    monkeypatch.setattr(harness, "resolve_profile", lambda _: profile)
+    monkeypatch.setattr(harness, "available_memory_bytes", lambda: 20 * capacity.GIB)
+    request = build_local_distillation_request(support._input())
+    (tmp_path / "prepared.json").write_text(json.dumps({"request": request}))
+    runtime_path, proof_path = tmp_path / "runtime.json", tmp_path / "capacity.json"
+    runtime = {"runtime": profile.runtime, "model_cache_root": str(parent.parent.parent), "required_available_memory_bytes": sum(capacity.BLOBS.values()) + 2 * capacity.GIB}
+    proof = {"status": "INDEPENDENTLY_VERIFIED", "request_hash": digest(request), "model_digest": profile.model_digest,
+        "num_ctx": 16384, "num_predict": 6144, "complete_prompt_token_upper_bound": profile.complete_input_token_upper_bound(request),
+        "capacity_contract": "qwen35-byte-vocabulary-chat-system-user-88-plus2-v1", "max_request_bytes": 12288, "max_content_bytes": 8192,
+        "full_input_preserved": True, "method": "QWEN35_COMPLETE_BYTE_VOCABULARY_UPPER_BOUND", "template_hash": "a" * 64,
+        "tokenizer_hash": "b" * 64, "code_hash": "c" * 64, "profile_hash": "d" * 64, "reviewer_id": "fixture-reviewer", "producer_id": "fixture-producer"}
+    runtime_path.write_text(json.dumps(runtime))
+    proof_path.write_text(json.dumps(proof))
+    # A resource-check fixture is not an execute permit or production authority.
+    permit = SimpleNamespace(case_id="real-deepthink-en", runtime_proof_hash=harness.file_hash(runtime_path), capacity_proof_hash=harness.file_hash(proof_path), request_hash=digest(request), binding={"code_hash": "c" * 64, "profile_hash": "d" * 64})
+    freeze = {"runtime_proof_path": str(runtime_path), "capacity_proof_paths": {permit.case_id: str(proof_path)}}
+    return harness, freeze, permit, wrapper, parent, reference, binary, payloads
+
+
+def test_resource_preflight_reuses_complete_fixed_installation_without_provider_io(tmp_path, monkeypatch):
+    harness, freeze, permit, *_ = _manifest_resource_fixture(tmp_path, monkeypatch)
+    from youtube_intel import local_model_capacity as capacity
+    monkeypatch.setattr(capacity, "processes", lambda *_: pytest.fail("resource byte check is not model/process preparation"))
+    harness.verify_resources(tmp_path, freeze, permit)
+    assert harness.describe()["production_qualified"] is False
+
+
+@pytest.mark.parametrize("damage", ["wrapper", "parent", "reference", "payload", "binary", "memory", "runtime-proof", "capacity-proof", "permit-hash"])
+def test_resource_preflight_preserves_byte_resource_and_proof_rejections(tmp_path, monkeypatch, damage):
+    harness, freeze, permit, wrapper, parent, reference, binary, payloads = _manifest_resource_fixture(tmp_path, monkeypatch)
+    if damage in {"wrapper", "parent", "payload", "binary"}:
+        path = {"wrapper": wrapper, "parent": parent, "payload": payloads[1], "binary": binary}[damage]
+        path.write_bytes(b"x" * path.stat().st_size)
+    elif damage == "reference":
+        reference.rename(reference.parent / "old-link")
+        reference.symlink_to("../../../../blobs/sha256-" + "a" * 64)
+    elif damage == "memory":
+        monkeypatch.setattr(harness, "available_memory_bytes", lambda: 0)
+    elif damage == "runtime-proof":
+        Path(freeze["runtime_proof_path"]).write_text("{}")
+    elif damage == "capacity-proof":
+        Path(freeze["capacity_proof_paths"][permit.case_id]).write_text("{}")
+    elif damage == "permit-hash":
+        permit.runtime_proof_hash = "0" * 64
+    with pytest.raises((ValueError, OSError)):
+        harness.verify_resources(tmp_path, freeze, permit)

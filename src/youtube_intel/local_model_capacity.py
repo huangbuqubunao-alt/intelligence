@@ -25,7 +25,12 @@ from pathlib import Path
 from time import monotonic
 from typing import TYPE_CHECKING, Any, Protocol
 
-from youtube_intel.local_distillation_profile import PROFILE_ID, digest, resolve_profile
+from youtube_intel.local_distillation_profile import (
+    PROFILE_ID,
+    canonical,
+    digest,
+    resolve_profile,
+)
 
 if TYPE_CHECKING:
     from youtube_intel.backup_restore import BackupRestoreService
@@ -47,23 +52,43 @@ BLOBS = {
     "9371364b27a52acac9d87f88bd93c9db1174d8d6ec57f6888925cdc1788871ff": 65,
 }
 ROOT = Path("/Applications/Ollama.app/Contents/Resources")
+# v0.40.1 writes this legacy downgrade anchor, not the API-selected manifest.
+_WRAPPER_SHA256 = "7dd7bb310c1f18ad132c7fd72e73d4f6cff2e916c596a818701d2a1269037c7f"
+_WRAPPER_MANIFEST_BYTES = 1252
+_PARENT_MANIFEST_BYTES = 1088
+_MANIFEST_MEDIA_TYPE = "application/vnd.docker.distribution.manifest.v2+json"
 
 
 class CapacityUnavailable(OSError):
     """Known pre-dispatch resource/identity failure; no generation attempted."""
 
 
-def file_hash(path: Path) -> str:
+def _stat_identity(stat: os.stat_result) -> tuple[int, int, int, int]:
+    return stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns
+
+
+def file_hash(
+    path: Path, *, expected_identity: tuple[int, int, int, int] | None = None
+) -> str:
+    expected = (
+        expected_identity if expected_identity is not None else file_identity(path)
+    )
     result = hashlib.sha256()
     with path.open("rb") as stream:
+        if _stat_identity(os.fstat(stream.fileno())) != expected:
+            raise CapacityUnavailable("opened runtime file identity differs")
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             result.update(chunk)
+        if (
+            _stat_identity(os.fstat(stream.fileno())) != expected
+            or file_identity(path) != expected
+        ):
+            raise CapacityUnavailable("runtime file changed while hashing")
     return result.hexdigest()
 
 
 def file_identity(path: Path) -> tuple[int, int, int, int]:
-    stat = path.stat()
-    return stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns
+    return _stat_identity(path.stat())
 
 
 def processes(binary: str) -> str:
@@ -212,16 +237,117 @@ def unresolved_local_work(repository: SQLiteStateRepository) -> bool:
         return True  # missing/foreign/restored local evidence is never authority
 
 
+def _reference_identity(path: Path) -> tuple[int, int, int, int, str]:
+    stat = path.lstat()
+    return stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, os.readlink(path)
+
+
+def _verify_model_manifests(
+    wrapper: Path,
+    parent: Path,
+    *,
+    identities: Mapping[Path, tuple[int, int, int, int]] | None = None,
+) -> None:
+    """Verify the exact legacy anchor and its original runnable manifest.
+
+    Official v0.40.1 WriteLegacyAnchor appends manifest blobs as GC anchors;
+    the public digest comes from the v2 named reference to the original blob.
+    This accepts one pinned installation shape, never arbitrary extra layers.
+    """
+    from youtube_intel.local_distillation_qualification import strict_object
+
+    parent_hash = resolve_profile(PROFILE_ID).model_digest.removeprefix("sha256:")
+
+    def read(path: Path, size: int, expected_hash: str) -> object:
+        expected = file_identity(path) if identities is None else identities[path]
+        with path.open("rb") as stream:
+            if _stat_identity(os.fstat(stream.fileno())) != expected:
+                raise CapacityUnavailable("opened manifest file identity differs")
+            raw = stream.read(size + 1)
+            if (
+                _stat_identity(os.fstat(stream.fileno())) != expected
+                or file_identity(path) != expected
+            ):
+                raise CapacityUnavailable("manifest changed while reading")
+        if len(raw) != size or hashlib.sha256(raw).hexdigest() != expected_hash:
+            raise CapacityUnavailable("model manifest bytes differ")
+        try:
+            return json.loads(raw.decode("utf-8"), object_pairs_hook=strict_object)
+        except (ValueError, UnicodeError, RecursionError):
+            raise CapacityUnavailable("model manifest JSON differs") from None
+
+    wrapper_value = read(wrapper, _WRAPPER_MANIFEST_BYTES, _WRAPPER_SHA256)
+    parent_value = read(parent, _PARENT_MANIFEST_BYTES, parent_hash)
+    payloads = list(BLOBS.items())
+    if len(payloads) != 6:
+        raise CapacityUnavailable("fixed payload descriptor contract differs")
+    config_hash, config_size = payloads[0]
+    layers: list[dict[str, object]] = []
+    for (blob_hash, size), (kind, source) in zip(
+        payloads[1:],
+        (
+            ("projector", "mmproj.gguf"),
+            ("model", "model.gguf"),
+            ("template", None),
+            ("license", None),
+            ("params", None),
+        ),
+        strict=True,
+    ):
+        layer: dict[str, object] = {
+            "mediaType": "application/vnd.ollama.image." + kind,
+            "digest": "sha256:" + blob_hash,
+            "size": size,
+        }
+        if source is not None:
+            layer["from"] = source
+        layers.append(layer)
+    expected = {
+        "schemaVersion": 2,
+        "mediaType": _MANIFEST_MEDIA_TYPE,
+        "config": {
+            "mediaType": "application/vnd.docker.container.image.v1+json",
+            "digest": "sha256:" + config_hash,
+            "size": config_size,
+        },
+        "layers": layers,
+        "runner": "llamacpp",
+        "format": "gguf",
+    }
+    expected_wrapper = {
+        **expected,
+        "layers": [
+            *layers,
+            {
+                "mediaType": _MANIFEST_MEDIA_TYPE,
+                "digest": "sha256:" + parent_hash,
+                "size": _PARENT_MANIFEST_BYTES,
+            },
+        ],
+    }
+    if canonical(parent_value) != canonical(expected) or canonical(
+        wrapper_value
+    ) != canonical(expected_wrapper):
+        raise CapacityUnavailable(
+            "model manifest descriptors or parent relation differ"
+        )
+
+
 @dataclass(frozen=True)
 class HostObservation:
     files: tuple[tuple[Path, tuple[int, int, int, int]], ...]
     server: str
     runner: str
+    references: tuple[tuple[Path, tuple[int, int, int, int, str]], ...] = ()
 
     def is_current(self) -> bool:
         try:
             return (
                 all(file_identity(p) == identity for p, identity in self.files)
+                and all(
+                    _reference_identity(p) == identity
+                    for p, identity in self.references
+                )
                 and processes("ollama") == self.server
                 and processes("llama-server") == self.runner
             )
@@ -229,35 +355,58 @@ class HostObservation:
             return False
 
 
-def observe_host(*, data_root: Path, loaded: bool) -> HostObservation:
-    """Verify fixed installed bytes, not an old receipt's boolean."""
+def verify_installed_model_bytes(
+    cache: Path,
+) -> tuple[
+    tuple[tuple[Path, tuple[int, int, int, int]], ...],
+    tuple[tuple[Path, tuple[int, int, int, int, str]], ...],
+]:
+    """Shared fixed-byte gate; performs no process, HTTP, load or generation IO."""
     profile = resolve_profile(PROFILE_ID)
-    cache = Path.home() / ".ollama/models"
     manifest = cache / "manifests/registry.ollama.ai/library/qwen3.5/9b-q4_K_M"
+    parent_hash = profile.model_digest.removeprefix("sha256:")
+    parent = cache / "blobs" / ("sha256-" + parent_hash)
+    reference = cache / "manifests-v2/ollama.com/library/qwen3.5/9b-q4_K_M"
+    references = ((reference, _reference_identity(reference)),)
+    if (
+        references[0][1][-1] != "../../../../blobs/sha256-" + parent_hash
+        or reference.resolve() != parent.resolve()
+    ):
+        raise CapacityUnavailable("API manifest reference differs")
     paths = [
         manifest,
+        parent,
+        reference,
         *(ROOT / name for name in BINARIES),
         *(cache / "blobs" / ("sha256-" + h) for h in BLOBS),
     ]
     before = tuple((p, file_identity(p)) for p in paths)
-    if file_hash(manifest) != profile.model_digest.removeprefix("sha256:"):
-        raise CapacityUnavailable("model manifest differs")
-    descriptors = json.loads(manifest.read_bytes())
-    actual = {
-        d["digest"].removeprefix("sha256:"): d["size"]
-        for d in [descriptors["config"], *descriptors["layers"]]
-    }
-    if actual != BLOBS:
-        raise CapacityUnavailable("model blob set differs")
+    identities = dict(before)
+    _verify_model_manifests(manifest, parent, identities=identities)
     for name, expected in BINARIES.items():
-        if file_hash(ROOT / name) != expected:
+        if (
+            file_hash(ROOT / name, expected_identity=identities[ROOT / name])
+            != expected
+        ):
             raise CapacityUnavailable("runtime binary differs")
     for expected, size in BLOBS.items():
         path = cache / "blobs" / ("sha256-" + expected)
-        if path.stat().st_size != size or file_hash(path) != expected:
+        if (
+            path.stat().st_size != size
+            or file_hash(path, expected_identity=identities[path]) != expected
+        ):
             raise CapacityUnavailable("model blob differs")
-    if any(file_identity(p) != identity for p, identity in before):
+    if any(file_identity(p) != identity for p, identity in before) or any(
+        _reference_identity(p) != identity for p, identity in references
+    ):
         raise CapacityUnavailable("installed bytes changed while hashing")
+    return before, references
+
+
+def observe_host(*, data_root: Path, loaded: bool) -> HostObservation:
+    """Verify fixed installed bytes, not an old receipt's boolean."""
+    cache = Path.home() / ".ollama/models"
+    before, references = verify_installed_model_bytes(cache)
     server, runner = processes("ollama"), processes("llama-server")
     if len(server.splitlines()) != 1 or not server.endswith(" serve"):
         raise CapacityUnavailable("server process differs")
@@ -269,7 +418,7 @@ def observe_host(*, data_root: Path, loaded: bool) -> HostObservation:
         2 * GIB if loaded else sum(BLOBS.values()) + 2 * GIB
     ):
         raise CapacityUnavailable("disk or available RAM is insufficient")
-    return HostObservation(before, server, runner)
+    return HostObservation(before, server, runner, references)
 
 
 def validate_runner(runner: str, cache: Path) -> None:
