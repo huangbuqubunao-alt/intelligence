@@ -186,3 +186,5 @@ Backup741独立20专项/461全量/TSbuild及handler byte核对PASS，但独立ZH
 
 
 2026-10-16续作：FINAL-CAPABILITY c990538/7a169ce/独立d775b0c整合6fa6a07；root79相关backend、929frontend、TS/build、diffPASS。真实普通factory重启/Settings六资格false、ASRready、Backupready；后台关注正常新增导致初90→96文件，已普通UI暂停后固定74表96文件，创建前后全等，真实ZIP sha256 ea8b35621d3b27d3dac5bfda062fc0727304003e17da5155347e2215025ae985，UI96 physical正确。恢复尚未提交：Chrome原生NSOpenPanel选中ZIP但Open禁用，停止重复尝试并取消；误打开旧独立native import app未触产品API/导入，亦无恢复。此轮不宣称恢复PASS。原错误查询jobs.stage不存在保留tool输出。截图final-capability-real-settings-backup.png已保存。HOST-FIX9be84b8独立868d2da/500PASS，接受待整合/root复验；trackedRetry设计docs续写。两agent额度中断已核终态，19:41过19:36重置后续原任务，不重跑完成检查。资格全false，未发布。
+
+2026-10-16 19:50真实GUI：Chrome自定义filter禁用新ZIP，切所有文件同ZIP可Open并正常strict stage96physical；RESTORE一次确认后runtime重建，APPLIED689d0de7326e45ebbd60dfdfa251cc74@11:50:11Z，74表/96DATA与稳定基线精确一致，FK/integrity正常。保留FAIL，最小PICKER-FILTER任务c4a60f4独立writer只改UI accept提示。64图统一手册同步；初HTML生成误用系统python无markdown_it，原失败保留，改用已存在.venv模块完成，无安装/依赖变更，尚待render。
