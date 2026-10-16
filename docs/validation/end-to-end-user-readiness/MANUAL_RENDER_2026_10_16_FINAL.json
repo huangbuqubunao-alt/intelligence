@@ -1,0 +1,12 @@
+{
+  "date": "2026-10-16",
+  "manual": "docs/validation/muse-final-audit/USER_MANUAL.html",
+  "url": "http://127.0.0.1:6108/validation/muse-final-audit/USER_MANUAL.html",
+  "browser": "real macOS Chrome extension3",
+  "images": 64,
+  "loaded": 64,
+  "broken": [],
+  "viewport": 1312,
+  "scroll_width": 1297,
+  "initial_qa_failure": "Wrong http.server root docs/validation gave9 missing images; new images outsidefigure overflowed. Preserved tool output; corrected server root docs and wrapped both new images in existingfigure style. No old images removed."
+}

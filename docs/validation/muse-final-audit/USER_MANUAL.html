@@ -391,7 +391,7 @@ a { color: #0e7a4f; }
 <p><strong>Q2：添加的视频一直没有字幕/摘要？</strong></p>
 <p>A：检查内容详情页的状态提示。如果显示&quot;字幕不可用&quot;或&quot;待转写&quot;，说明源没有可用字幕，或本地转写模型尚未配置。系统不会编造内容，这是如实反馈。</p>
 <p><strong>Q3：点击&quot;提炼为洞察&quot;后一直显示处理中？</strong></p>
-<p>A：洞察需要通过对应来源类型和输出语言验收的模型。设置中会分别显示 YouTube、本地音视频和文本文档的中文/English 资格；已安装不等于合格。内容页会显示实际执行路由及“打开模型设置”。当前本地洞察资格尚未通过，请求可能进入等待状态。云端洞察需要合格模型、凭据和明确授权。等待状态并不表示已完成。尚未调用模型时，可以点击 **取消本次提炼**，已有内容与证据保留。</p>
+<p>A：洞察需要通过对应来源类型和输出语言验收的模型。设置中会分别显示 YouTube、本地音视频和文本文档的中文/English 资格；已安装不等于合格。内容页会显示实际执行路由及“打开模型设置”。当前本地洞察资格尚未通过，请求可能进入等待状态。云端洞察需要合格模型、凭据和明确授权。等待状态并不表示已完成。尚未调用模型时，可以点击 <strong>取消本次提炼</strong>，已有内容与证据保留。</p>
 <p><strong>Q4：浏览器后退/前进按钮没有反应？</strong></p>
 <p>A：旧版本存在此问题，本手册对应版本已修复：点击浏览器后退/前进按钮，或直接在地址栏修改 # 后的路径，都会正确切换页面。</p>
 <p><strong>Q5：为什么不能持续关注 Bilibili UP 主？</strong></p>
@@ -418,8 +418,8 @@ a { color: #0e7a4f; }
 </table>
 <hr/>
 <p>2026-10-16 实测：设置页分开显示已安装的评分/摘要模型、六类本地洞察资格和语音转写状态。备份结果中的“数据文件”是实际文件数；不同历史记录引用同一文件时，只计一个文件。本次隔离恢复前后 74 张表、96 个数据文件逐项一致。</p>
-<p><img src="../end-to-end-user-readiness/screenshots/final-capability-real-settings-backup.png" alt="真实设置与物理文件统计" /></p>
-<p><img src="../end-to-end-user-readiness/screenshots/final-capability-real-restored.png" alt="本次实际恢复完成" /></p>
+<figure><img src="../end-to-end-user-readiness/screenshots/final-capability-real-settings-backup.png" alt="真实设置与物理文件统计"/><figcaption>真实设置与物理文件统计</figcaption></figure>
+<figure><img src="../end-to-end-user-readiness/screenshots/final-capability-real-restored.png" alt="本次实际恢复完成"/><figcaption>本次实际恢复完成</figcaption></figure>
 <blockquote>
 <p>当前 Chrome 原生“自定义文件”筛选可能使 ZIP 无法点“打开”；临时可在“显示选项”切换“所有文件”，只选择自己创建的 Intelligence ZIP，再等应用完成检查。该入口正在修复，不影响后端备份校验。</p>
 </blockquote>
