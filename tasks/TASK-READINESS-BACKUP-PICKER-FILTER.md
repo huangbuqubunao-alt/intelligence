@@ -1,0 +1,6 @@
+# TASK-READINESS-BACKUP-PICKER-FILTER
+Status: READY (2026-10-16). Root base is this task/package commit after0804db2. User持续默认授权，当前普通用户恢复链必要最小修复，无新审批。
+真实证据：macOS Chrome154 NSOpenPanel在accept=".zip,application/zip"的“自定义文件”下，可读有效.zip选中仍Open disabled；切“所有文件”再选同ZIP立即Open enabled，正常stage成功96DATA。已实际进入RESTORE一次确认，root在做恢复校验。原源handler/input与Oct15基线字节相同，是当前Chrome/macOS实际兼容问题，不能声称此前UI都可用。
+决定：文件accept只是非权威OS筛选提示，安全权威在原后端有界ZIP+manifest/path/hash/Schema/quiescence校验。允许仅移除备份file input的accept属性，默认可选择文件；添加明确简短中英文提示选择Intelligence .zip备份，其他格式检查失败可重新选。不得放宽后端、改handler上传/自动确认、Schema/凭据/依赖/正式数据。无需新增运行库。DIRECT现React/input及已有strict服务，不建新file picker。
+允许文件：frontend/src/workspace/App.tsx、uiLanguage.tsx及必要既有或新前端测试、handoffs/TASK-READINESS-BACKUP-PICKER-FILTER.md。不得改字幕/本地导入Picker/D2/Backup持久化/qualification。先类型语法、行为回归证明合法选取/坏ZIP诚实失败/取消不触stage/新文件不复活旧成功；fullfrontend/typecheck/build/diff。真实macOS正常入口选ZIP不需“所有文件”切换/安全stage，bad非ZIP错误与重选，至少作者截图/独立review/root最终复验。仅自己的前端端口5197，API不得接正式owner；可用合成API作作者工程浏览器测试，root真实5909流程不并行操作。
+Implementer native_scan_resume，Reviewer local_text_review_resume在readonly长协议STOP后串行；实现独立新WT readiness-backup-picker-filter branch codex/task-readiness-backup-picker-filter，精确base此提交，STOP后review。当前trackedRetry仅docs提案writer、不写App，Host产品STOP接受，允许此呈现文件任务；trackedRetry产品写须等本任务接受整合。保持原失败与实证，不拿synthetic放行恢复。完成仅root可设DONE。
