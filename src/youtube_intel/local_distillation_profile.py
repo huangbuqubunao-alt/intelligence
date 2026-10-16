@@ -26,25 +26,41 @@ class LocalDistillationProfile:
     model_digest: str = "sha256:56671c2ab9385f9cfcb404638e32cd62d88e3501d44822208363c010179a3c90"
     runtime: str = "0.40.1"
     timeout_seconds: int = 300
-    max_request_bytes: int = 7_680
+    max_request_bytes: int = 12_288
+    max_content_bytes: int = 8_192
     max_response_bytes: int = 1_000_000
 
     def complete_input_token_upper_bound(self, request: Mapping[str, object]) -> int:
-        """Block execution until the exact renderer/tokenizer bound is reviewed.
+        """Bound only the fixed two-message, plain-text qwen35 renderer contract.
 
-        max_request_bytes is only a request-body resource bound. The installed
-        qwen3.5 renderer has implicit framing beyond show.template={{ .Prompt }};
-        neither request UTF-8 size nor an earlier prompt_eval_count proves that
-        the complete current input fits alongside num_predict. No approximate
-        tokenizer, caller-provided integer, or proof-file boolean substitutes
-        for a frozen, independently verified algorithm here.
+        Reviewed fixed vocabulary contains every byte symbol and merge result;
+        BPE cannot increase the original byte-symbol count. Framing contributes
+        88 bytes, with two additional special-token positions reserved. Runtime
+        fingerprint/renderer/slot checks remain necessary before dispatch.
         """
-        raise ValueError("LOCAL_CONTEXT_CAPACITY_UNVERIFIED")
+        from youtube_intel.distillation import local_profile_for_scope
+        if (set(request) != {"model", "messages", "format", "stream", "think", "options", "truncate", "shift"}
+            or request["model"] != self.model or canonical(request["options"]) != canonical(self.options())
+            or request["stream"] is not False or request["think"] is not True
+            or request["truncate"] is not False or request["shift"] is not False):
+            raise ValueError("local capacity request contract differs")
+        messages = request["messages"]
+        if (type(messages) is not list or len(messages) != 2
+            or any(type(m) is not dict or set(m) != {"role", "content"} or type(m["content"]) is not str
+                or m["role"] != role for m, role in zip(messages, ("system", "user")))):
+            raise ValueError("local capacity message contract differs")
+        if not any(messages[0]["content"] == self.prompt(scope)
+            and canonical(request["format"]) == canonical(local_profile_for_scope(self.profile_id, scope)["schema"]) for scope in SCOPES):
+            raise ValueError("local capacity prompt/schema differs")
+        content_bytes = sum(len(m["content"].encode("utf-8")) for m in messages)
+        if content_bytes > self.max_content_bytes or len(canonical(request)) > self.max_request_bytes:
+            raise ValueError("complete local input exceeds the frozen UTF-8 budgets")
+        return content_bytes + 88 + 2
 
     def options(self) -> dict[str, int | float]:
         return {"temperature": 1.0, "top_p": 0.95, "top_k": 20, "min_p": 0.0,
             "presence_penalty": 1.5, "repeat_penalty": 1.0, "seed": 20261013,
-            "num_ctx": 8192, "num_predict": 6144}
+            "num_ctx": 16384, "num_predict": 6144}
 
     def prompt(self, scope: str) -> str:
         if scope not in SCOPES:
@@ -79,7 +95,10 @@ class LocalDistillationProfile:
             "wire_version": TEXT_WIRE if scope == "LOCAL_TEXT" else None,
             "prompt": self.prompt(scope), "schema": schema, "think": True, "options": self.options(),
             "input_contract": "local-grounding-complete-evidence-v1",
-            "max_request_bytes": self.max_request_bytes}
+            "max_request_bytes": self.max_request_bytes, "max_content_bytes": self.max_content_bytes,
+            "truncate": False, "shift": False,
+            "capacity_contract": "qwen35-byte-vocabulary-chat-system-user-88-plus2-v1",
+            "capacity_vocabulary_model_blob": "02d45dc1cf451ba2475ac33b301c2dd8f985abe4c182ce04a1f2f5bf0260278d"}
 
 
 _PROFILE = LocalDistillationProfile()

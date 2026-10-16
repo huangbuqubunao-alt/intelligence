@@ -58,7 +58,7 @@ def test_new_profile_has_exact_options_and_distinct_request_identity():
     assert request["model"] == "qwen3.5:9b-q4_K_M"
     assert request["think"] is True and request["stream"] is False
     assert request["options"] == {"temperature": 1.0, "top_p": 0.95, "top_k": 20, "min_p": 0.0,
-        "presence_penalty": 1.5, "repeat_penalty": 1.0, "seed": 20261013, "num_ctx": 8192, "num_predict": 6144}
+        "presence_penalty": 1.5, "repeat_penalty": 1.0, "seed": 20261013, "num_ctx": 16384, "num_predict": 6144}
     assert build_local_distillation_request(value) == request
     prompt = request["messages"][0]["content"]
     assert "personal experience" in prompt and "group comparison" in prompt

@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 import urllib.error
 import urllib.request
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
+from contextlib import AbstractContextManager, nullcontext
 
 from youtube_intel.config import LocalAnalysisSettings, _validate_loopback_http_base_url
 from youtube_intel.evidence_translation import (
@@ -30,8 +31,10 @@ class OllamaEvidenceTranslator:
     prompt_version = TRANSLATION_PROMPT_VERSION
     schema_version = TRANSLATION_SCHEMA_VERSION
 
-    def __init__(self, *, settings: LocalAnalysisSettings) -> None:
+    def __init__(self, *, settings: LocalAnalysisSettings,
+        heavy_guard: Callable[[], AbstractContextManager[None]] | None = None) -> None:
         self._settings = settings
+        self._heavy_guard = heavy_guard
 
     def translate(
         self, *, excerpt: str, source_language: str, target_language: str
@@ -107,7 +110,7 @@ class OllamaEvidenceTranslator:
 
     def _read(self, request: urllib.request.Request) -> Mapping[str, object]:
         try:
-            with urllib.request.urlopen(request, timeout=180.0) as response:
+            with (self._heavy_guard() if self._heavy_guard is not None else nullcontext()), urllib.request.urlopen(request, timeout=180.0) as response:
                 raw = response.read(_MAX_RESPONSE_BYTES + 1)
         except (TimeoutError, OSError, urllib.error.URLError):
             raise RuntimeError("local Evidence translation model is unavailable") from None

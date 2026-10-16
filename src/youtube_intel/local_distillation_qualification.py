@@ -28,7 +28,9 @@ CASE_LANGUAGES = {
         "local-txt-en": "en", "local-txt-zh": "zh-CN", "local-md-en": "en",
         "local-md-zh": "zh-CN", "local-no-new": "en", "local-injection": "zh-CN"},
 }
-CODE_FILES = ("distillation.py", "local_distillation_profile.py", "local_distillation_qualification.py",
+CODE_FILES = ("distillation.py", "local_distillation_profile.py", "local_distillation_qualification.py", "local_model_capacity.py",
+    "providers/ollama_analysis.py", "providers/ollama_evidence_translation.py",
+    "local_transcription_jobs.py", "backup_restore.py",
     "intelligence_read.py", "runtime_composition.py", "state.py", "source_policy.py",
     "source_authority.py", "extractive_summary.py", "domain.py",
     "migrations/039_add_local_text_input_proofs.sql")
@@ -153,7 +155,7 @@ class CaseReceipt(_Strict):
                 and source.selector_id != self.producer_id and source.origin == "PUBLIC_SNAPSHOT"))
             and (not self.case_id.startswith("local-") or source.origin == "LOCAL_SNAPSHOT")
             and self.generation_count == self.ledger_invocation_count == 1 and self.done is True
-            and self.done_reason == "stop" and 0 < self.prompt_tokens <= 8192 - 6144 and 0 < self.output_tokens < 6144
+            and self.done_reason == "stop" and 0 < self.prompt_tokens <= 8192 + 88 + 2 and 0 < self.output_tokens < 6144
             and review.reviewer_id != self.producer_id and review.verdict == "PASS"
             and (review.case_id, review.input_hash, review.request_hash, review.final_hash)
             == (self.case_id, self.input_hash, self.request_hash, self.final_hash)

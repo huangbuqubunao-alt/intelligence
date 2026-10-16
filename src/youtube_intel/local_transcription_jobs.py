@@ -119,9 +119,19 @@ class LocalTranscriptionJobs:
         )
         try:
             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            from youtube_intel.local_model_capacity import unresolved_local_work
+            if unresolved_local_work(self.repository):
+                self._release(fd)
+                return None
             return fd
         except BlockingIOError:
             os.close(fd)
+            return None
+        except Exception:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
             return None
 
     @staticmethod

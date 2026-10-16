@@ -82,3 +82,100 @@ def test_historical_export_refuses_future_fields(monkeypatch):
     monkeypatch.setattr(research, "asdict", lambda _: {**asdict(value), "future": None})
     with pytest.raises(ValueError):
         research.historical_timed_input_projection(value)
+
+
+def _owned_workspace(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    harness = _harness()
+    audit = tmp_path.resolve() / "local-timed-en"
+    root = audit.parent / (audit.name + ".workspace")
+    root.mkdir(mode=0o700)
+    database, data = root / "state.sqlite3", root / "data"
+    database.write_bytes(b"fixture not a real database")
+    data.mkdir()
+    monkeypatch.setattr(harness.subprocess, "run", lambda *a, **k: SimpleNamespace(returncode=1, stdout="", stderr=""))
+    return harness, audit, root, database, data
+
+
+@pytest.mark.parametrize("failure", ["external-db", "symlink", "hardlink", "public-root", "active-holder", "missing-lsof", "restore"])
+def test_once_workspace_refuses_foreign_active_and_unknown_ownership(tmp_path, monkeypatch, failure):
+    import os
+    from types import SimpleNamespace
+    harness, audit, root, database, data = _owned_workspace(tmp_path, monkeypatch)
+    witness = harness.owned_workspace(audit, "local-timed-en", database, data)
+    assert witness["root"] == str(root)
+    if failure == "external-db":
+        database = tmp_path / "formal.sqlite3"
+        database.write_bytes(b"must never be opened")
+    elif failure == "symlink":
+        other = root / "other"
+        database.rename(other)
+        database.symlink_to(other)
+    elif failure == "hardlink":
+        os.link(database, root / "alias")
+    elif failure == "public-root":
+        root.chmod(0o755)
+    elif failure == "active-holder":
+        monkeypatch.setattr(harness.subprocess, "run", lambda *a, **k: SimpleNamespace(returncode=0, stdout="999999", stderr=""))
+    elif failure == "missing-lsof":
+        def missing(*a, **k):
+            raise FileNotFoundError("fixture lsof absent")
+        monkeypatch.setattr(harness.subprocess, "run", missing)
+    elif failure == "restore":
+        control = root / ".intelligence-backup-restore"
+        control.mkdir()
+        (control / "restore-state.json").write_text("{}")
+    with pytest.raises((ValueError, OSError)):
+        harness.owned_workspace(audit, "local-timed-en", database, data)
+
+
+def test_once_workspace_identity_detects_database_replacement(tmp_path, monkeypatch):
+    harness, audit, root, database, data = _owned_workspace(tmp_path, monkeypatch)
+    witness = harness.owned_workspace(audit, "local-timed-en", database, data)
+    replacement = root / "replacement"
+    replacement.write_bytes(database.read_bytes())
+    replacement.replace(database)
+    assert harness.owned_workspace(audit, "local-timed-en", database, data) != witness
+
+
+def test_prepare_refuses_external_database_before_any_reservation(tmp_path, monkeypatch):
+    harness, audit, root, database, data = _owned_workspace(tmp_path, monkeypatch)
+    class NeverService:
+        def __getattr__(self, name):
+            pytest.fail("ownership must precede service/database access")
+    with pytest.raises(ValueError):
+        harness.prepare_case(NeverService(), case_id="local-timed-en", source_id="s", video_id="v", audit_root=audit, data_root=data, database=tmp_path / "formal.sqlite3")
+
+
+def test_dedicated_preparation_preserves_verified_input_without_provider_io(tmp_path, monkeypatch):
+    from youtube_intel.config import LocalScoringSettings
+    from youtube_intel.distillation import (
+        OllamaLocalDistillationTransport,
+        PersonalizedDistillationService,
+        bind_local_profile,
+    )
+    from youtube_intel.local_content import LOCAL_SOURCE_ID, LocalContentProvider
+    from youtube_intel.local_distillation_profile import PROFILE_ID, resolve_profile
+    from youtube_intel.source_policy import SourcePolicyApplicationService
+    from youtube_intel.state import SQLiteStateRepository
+    timed = _load_module("test_local_intelligence_timed")
+    harness, audit, root, database, data = _owned_workspace(tmp_path, monkeypatch)
+    # Construct a fresh fixture using ordinary import/proof producers; no copy,
+    # rewrite or truncation of a formal owner's database or frozen Evidence.
+    database.write_bytes(b"")
+    repository = SQLiteStateRepository(database)
+    repository.initialize(now=timed.support.NOW)
+    provider = LocalContentProvider(repository, data, now=lambda: timed.support.NOW, transcriber=timed.media.Executor())
+    imported = provider.import_bytes("voice.wav", timed.media.audio_bytes())
+    profile = resolve_profile(PROFILE_ID)
+    wire = OllamaLocalDistillationTransport(settings=LocalScoringSettings(model=profile.model, expected_model_digest=profile.model_digest), local_profile_id=PROFILE_ID)
+    service = PersonalizedDistillationService(repository, SourcePolicyApplicationService(repository, now=lambda: timed.support.NOW), wire, timed.support._FakeBudget(True), now=lambda: timed.support.NOW, output_language_for_video=lambda _: "en")
+    _, original = service._reserved_command(source_id=LOCAL_SOURCE_ID, video_id=imported.content_id, evidence_ids=repository.list_canonical_coverage_evidence_ids(imported.content_id), output_language="en", reason="MANUAL_CONTENT:grounding-local-timed-en")
+    monkeypatch.setattr("urllib.request.urlopen", lambda *a, **k: pytest.fail("preparation must not perform provider IO"))
+    prepared = harness.prepare_case(service, case_id="local-timed-en", source_id=LOCAL_SOURCE_ID, video_id=imported.content_id, audit_root=audit, data_root=data, database=database)
+    expected = bind_local_profile(original, PROFILE_ID)
+    assert prepared["input_hash"] == expected.semantic_hash
+    assert prepared["request"] == harness.request_projection(expected)["request"]
+    assert prepared["verified_input"] == harness.verified_distillation_input_projection(expected)
+    assert repository.get_distillation_execution(prepared["execution_id"]).invocation_count == 0
+    assert prepared["workspace_ownership"] == harness.owned_workspace(audit, "local-timed-en", database, data)

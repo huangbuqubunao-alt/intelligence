@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 import urllib.error
 import urllib.request
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
+from contextlib import AbstractContextManager, nullcontext
 
 from youtube_intel.analysis import (
     LOCAL_ANALYSIS_CONTEXT_TOKENS,
@@ -58,8 +59,10 @@ class OllamaSummaryProvider:
 
     actual_provider = "ollama"
 
-    def __init__(self, *, settings: LocalAnalysisSettings) -> None:
+    def __init__(self, *, settings: LocalAnalysisSettings,
+        heavy_guard: Callable[[], AbstractContextManager[None]] | None = None) -> None:
         self._settings = settings
+        self._heavy_guard = heavy_guard
         self._raw: str | None = None
         self._request_hash: str | None = None
 
@@ -147,7 +150,7 @@ class OllamaSummaryProvider:
 
     def _read(self, request: urllib.request.Request) -> Mapping[str, object]:
         try:
-            with urllib.request.urlopen(request, timeout=300.0) as response:
+            with (self._heavy_guard() if self._heavy_guard is not None else nullcontext()), urllib.request.urlopen(request, timeout=300.0) as response:
                 raw = response.read(_MAX_RESPONSE_BYTES + 1)
         except (TimeoutError, OSError, urllib.error.URLError):
             raise RuntimeError("local Summary model is unavailable") from None

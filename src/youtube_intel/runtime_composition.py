@@ -7,7 +7,7 @@ import logging
 import secrets
 import threading
 from contextlib import nullcontext
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Callable
@@ -40,6 +40,11 @@ from youtube_intel.evidence_translation import EvidenceTranslationPresentationSe
 from youtube_intel.following_scheduler import AUTOMATIC_CHECK_PREFIX, FollowingScheduler
 from youtube_intel.following_tracking import FollowingTrackingService, is_tracked
 from youtube_intel.local_api import LocalApiApplication
+from youtube_intel.local_model_capacity import (
+    LocalCapacitySession,
+    SharedHeavyGuard,
+    guarded_transport,
+)
 from youtube_intel.model_settings import (
     CredentialStore,
     MacOSKeychainCredentialStore,
@@ -496,6 +501,26 @@ def build_local_source_run_runtime(
         repository=repository,
     )
     source_policy = SourcePolicyApplicationService(repository, now=now_fn)
+    heavy_guard = SharedHeavyGuard(repository=repository, data_root=data_root, backup_restore=backup_restore)
+    def guarded_factory(factory: Callable[[], object]) -> Callable[[], object]:
+        def build() -> object:
+            provider = factory()
+            from youtube_intel.providers.ollama import (
+                OllamaQualityJudgeProvider,
+                OllamaScoringProvider,
+            )
+            from youtube_intel.providers.ollama_analysis import OllamaSummaryProvider
+            if isinstance(provider, (OllamaScoringProvider, OllamaQualityJudgeProvider)):
+                provider._transport = guarded_transport(provider._transport, heavy_guard)
+            elif isinstance(provider, OllamaSummaryProvider):
+                provider._heavy_guard = heavy_guard
+            return provider
+        return build
+    runtime._dependencies = replace(runtime._dependencies,
+        scoring_provider_factory=guarded_factory(runtime._dependencies.scoring_provider_factory),
+        analysis_provider_factory=guarded_factory(runtime._dependencies.analysis_provider_factory),
+        quality_judge_provider_factory=(guarded_factory(runtime._dependencies.quality_judge_provider_factory)
+            if runtime._dependencies.quality_judge_provider_factory is not None else None))
     transport = build_production_local_distillation_transport(config.settings.local_scoring)
     distillation = PersonalizedDistillationService(
         repository,
@@ -505,6 +530,8 @@ def build_local_source_run_runtime(
         now=now_fn,
         output_language_for_video=runtime._intelligence_output_language,
     )
+    if transport.local_profile_id is not None:
+        transport._capacity_session = LocalCapacitySession(repository=repository, data_root=data_root, backup_restore=backup_restore)
     # One independently reviewed K2.6 qualification passed. The UI still
     # requires a separate consent for each normal cloud execution.
     m12_moonshot_qualified = True
@@ -535,7 +562,7 @@ def build_local_source_run_runtime(
     cloud_distillation = cloud_service()
     evidence_translation = EvidenceTranslationPresentationService(
         repository,
-        OllamaEvidenceTranslator(settings=config.settings.local_analysis),
+        OllamaEvidenceTranslator(settings=config.settings.local_analysis, heavy_guard=heavy_guard),
         now=now_fn,
     )
     from youtube_intel.providers.youtube_channel import YouTubeFollowingProvider

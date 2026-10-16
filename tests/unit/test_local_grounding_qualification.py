@@ -60,7 +60,7 @@ def test_boolean_does_not_enable_new_profile_or_inherit_legacy_scope():
 
 
 @pytest.mark.parametrize("change", [{"done": False}, {"done": None}, {"done_reason": "length"},
-    {"done_reason": None}, {"prompt_eval_count": None}, {"prompt_eval_count": 2049}, {"eval_count": 6144},
+    {"done_reason": None}, {"prompt_eval_count": None}, {"prompt_eval_count": 16384}, {"eval_count": 6144},
     {"eval_count": None}, {"eval_count": True}, {"model": "qwen3:8b"}])
 def test_new_response_requires_complete_untruncated_identity_and_counts(change):
     from youtube_intel.distillation import (
@@ -193,7 +193,7 @@ def test_backend_scope_status_does_not_relabel_the_fast_scoring_model():
     assert {s["scope"] for s in states} == {"YT_TIMED", "LOCAL_TIMED", "LOCAL_TEXT"}
 
 
-def test_once_transport_uses_production_request_and_never_reads_thinking(monkeypatch):
+def test_once_transport_uses_production_request_and_never_reads_thinking(tmp_path, monkeypatch):
     from datetime import timedelta
 
     from youtube_intel.distillation import build_local_distillation_request
@@ -219,12 +219,16 @@ def test_once_transport_uses_production_request_and_never_reads_thinking(monkeyp
     assert not wrong.matches(local_profile_projection(timed), timed.semantic_hash,
         digest(build_local_distillation_request(timed)), "en")
     claims, requests = [], []
+    capacity_support = _load_module("test_local_model_capacity")
+    session, metadata_send, metadata_calls, _ = capacity_support._session(tmp_path, monkeypatch)
     class OpaqueMessage(dict):
         def get(self, key, *args):
             assert key != "thinking"
             return super().get(key, *args)
     class OfflineWire(OllamaLocalDistillationTransport):
         def _request(self, path, *, method, body=None):
+            if path != "/api/chat" or body.get("messages") == []:
+                return metadata_send(path, method=method, body=body)
             assert path == "/api/chat" and method == "POST"
             requests.append(body)
             return {"model": profile.model, "done": True, "done_reason": "stop",
@@ -232,16 +236,20 @@ def test_once_transport_uses_production_request_and_never_reads_thinking(monkeyp
     transport = OfflineWire(settings=LocalScoringSettings(model=profile.model, expected_model_digest=profile.model_digest),
         local_profile_id=PROFILE_ID, qualification_permit=permit, before_dispatch=lambda _v, request: claims.append(request))
     assert transport.is_authorized_for_normal_production(value) is False
-    # A complete permit cannot substitute for a verified renderer/token bound.
-    assert transport.is_authorized_for_qualification(value) is False
+    # A permit plus pure capacity fit still cannot bypass current host readiness.
+    assert transport.is_authorized_for_qualification(value) is True
     with pytest.raises(RuntimeError):
         transport.generate(value)
     assert requests == claims == []
-    # Isolate the once/protocol contract below; this test-only replacement is
-    # neither a package capacity proof nor live qualification authority.
-    monkeypatch.setattr(type(profile), "complete_input_token_upper_bound", lambda *_: 100)
+    transport._capacity_session = session
+    assert transport.prepare_execution(permit.execution_id, value, qualification=True)
+    assert transport.ready_for_claim(permit.execution_id, value)
+    assert transport.arm_for_claim(permit.execution_id, value)
+    metadata_before = list(metadata_calls)
     assert transport.generate(value).raw == "{}"
+    assert metadata_calls == metadata_before
     assert claims == requests == [build_local_distillation_request(value)]
     with pytest.raises(RuntimeError):
         transport.generate(value)
     assert len(requests) == 1
+    transport.release_readiness()

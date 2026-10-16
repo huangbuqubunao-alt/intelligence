@@ -87,7 +87,9 @@ def describe() -> dict[str, object]:
         "profiles": {scope: local_profile_for_scope(PROFILE_ID, scope) for scope in SCOPES},
         "production_qualified": False, "execution_authority": "NONE", "real_model_calls": 0,
         "freeze_status": "UNFROZEN_PENDING_CORE_AND_UI_ACCEPTANCE",
-        "capacity_status": "BLOCKED_UNVERIFIED_RENDERER_AND_COMPLETE_INPUT",
+        "capacity_status": "REQUIRES_CURRENT_HOST_LOAD_ONLY_AND_SLOT_PREFLIGHT",
+        "workspace_contract": "PRIVATE_SIBLING_<audit_name>.workspace/state.sqlite3_AND_data",
+        "workspace_execution": "NO_GUI_API_OR_OTHER_BACKUP_PROCESS_ON_THIS_DATABASE",
         "case_order": CASE_LANGUAGES}
 
 
@@ -109,9 +111,48 @@ def data_manifest(root: Path) -> dict[str, str]:
     return result
 
 
+def owned_workspace(audit_root: Path, case_id: str, database: Path, data_root: Path) -> dict[str, object]:
+    """Dedicated private once workspace only; never an arbitrary application DB.
+
+    This is an ownership/admission check, not qualification or a cross-process
+    Backup lock. Freeze must additionally exclude GUI/API/Backup on this root.
+    """
+    if case_id not in {case for cases in CASE_LANGUAGES.values() for case in cases}:
+        raise ValueError("unknown isolated workspace case")
+    audit = audit_root.expanduser().absolute()
+    root = audit.parent / (audit.name + ".workspace")
+    database, data_root = database.expanduser().absolute(), data_root.expanduser().absolute()
+    if database != root / "state.sqlite3" or data_root != root / "data":
+        raise ValueError("once execution requires its dedicated sibling workspace")
+    if any(path.resolve() != path for path in (audit, root, database, data_root)):
+        raise ValueError("once workspace must not use symlink paths")
+    stat = root.stat()
+    db_stat, data_stat = database.stat(), data_root.stat()
+    if (not root.is_dir() or not database.is_file() or not data_root.is_dir()
+        or any(s.st_uid != os.geteuid() for s in (stat, db_stat, data_stat))
+        or stat.st_mode & 0o077 or db_stat.st_nlink != 1
+        or (root / ".intelligence-backup-restore/restore-state.json").exists()):
+        raise ValueError("once workspace ownership or restore state is unsafe")
+    result = subprocess.run(["/usr/sbin/lsof", "-nP", "-t", "--", str(database)],
+        capture_output=True, text=True, timeout=5, check=False)
+    pids = result.stdout.split()
+    if (result.returncode not in (0, 1) or result.stderr.strip()
+        or (result.returncode == 1 and pids) or (result.returncode == 0 and not pids)
+        or any(not pid.isdecimal() or int(pid) != os.getpid() for pid in pids)):
+        raise ValueError("another or unknown process holds the once database")
+    return {"root": str(root), "case_id": case_id, "root_device": stat.st_dev,
+        "root_inode": stat.st_ino, "database_device": db_stat.st_dev,
+        "database_inode": db_stat.st_ino, "data_device": data_stat.st_dev,
+        "data_inode": data_stat.st_ino}
+
+
 def prepare_case(service: PersonalizedDistillationService, *, case_id: str, source_id: str,
     video_id: str, audit_root: Path, data_root: Path, database: Path) -> dict[str, object]:
     """Use the ordinary reservation and exact production input, with zero IO to Ollama."""
+    ownership = owned_workspace(audit_root, case_id, database, data_root)
+    if (service._repository._database_path.resolve() != database.resolve()
+        or service._repository._source_data_root != data_root.resolve()):
+        raise ValueError("preparation service is not bound to the isolated workspace")
     reservation = service.reserve_distillation_execution(source_id=source_id, video_id=video_id,
         evidence_ids=service._repository.list_canonical_coverage_evidence_ids(video_id),
         manual_command_id="grounding-" + case_id)
@@ -126,6 +167,7 @@ def prepare_case(service: PersonalizedDistillationService, *, case_id: str, sour
         raise ValueError("case scope/language is outside the fixed order")
     result = {"version": "local-grounding-prepared-v1", "case_id": case_id,
         "execution_id": reservation.execution_id, "source_id": source_id, "video_id": video_id,
+        "workspace_ownership": ownership,
         "output_language": value.output_language, **projection,
         "verified_input": verified_distillation_input_projection(value),
         "database": str(database.resolve()), "database_hash": file_hash(database),
@@ -138,6 +180,8 @@ def prepare_case(service: PersonalizedDistillationService, *, case_id: str, sour
 
 def validate_execution_package(audit_root: Path, permit_path: Path, freeze_path: Path) -> tuple[dict[str, Any], LocalExecutionPermit, dict[str, Any]]:
     prepared, freeze = read_object(audit_root / "prepared.json"), read_object(freeze_path)
+    if owned_workspace(audit_root, prepared["case_id"], Path(prepared["database"]), Path(prepared["data_root"])) != prepared.get("workspace_ownership"):
+        raise ValueError("once workspace ownership changed")
     permit = LocalExecutionPermit.model_validate(read_object(permit_path))
     binding = prepared["binding"]
     current = qualification_binding(local_profile_for_scope(PROFILE_ID, binding["scope"]))
@@ -215,18 +259,20 @@ def verify_resources(audit_root: Path, freeze: Mapping[str, Any], permit: LocalE
     profile = resolve_profile(PROFILE_ID)
     prepared = read_object(audit_root / "prepared.json")
     # Independently supplied proof files cannot bypass the compiled production
-    # capacity algorithm. It currently blocks because renderer/tokenizer bounds
-    # are not frozen. This happens before any provider metadata or generation IO.
+    # capacity algorithm. Frozen proof files never substitute for the current
+    # production host/load-only/slot preflight before the generation claim.
     bound = profile.complete_input_token_upper_bound(prepared["request"])
     if file_hash(runtime_path) != permit.runtime_proof_hash or file_hash(capacity_path) != permit.capacity_proof_hash:
         raise ValueError("runtime or complete-input capacity proof changed")
     if (capacity.get("status") != "INDEPENDENTLY_VERIFIED" or capacity.get("request_hash") != permit.request_hash
-        or capacity.get("model_digest") != profile.model_digest or capacity.get("num_ctx") != 8192
+        or capacity.get("model_digest") != profile.model_digest or capacity.get("num_ctx") != 16384
         or type(capacity.get("complete_prompt_token_upper_bound")) is not int
         or capacity["complete_prompt_token_upper_bound"] != bound
-        or not 0 < bound <= 8192 - 6144 or capacity.get("num_predict") != 6144
+        or not 0 < bound <= 16384 - 6144 - 1 or capacity.get("num_predict") != 6144
+        or capacity.get("capacity_contract") != "qwen35-byte-vocabulary-chat-system-user-88-plus2-v1"
+        or capacity.get("max_request_bytes") != 12288 or capacity.get("max_content_bytes") != 8192
         or capacity.get("full_input_preserved") is not True
-        or capacity.get("method") not in {"EXACT_FROZEN_TOKENIZER_AND_TEMPLATE", "VERIFIED_BYTE_FALLBACK_UPPER_BOUND"}
+        or capacity.get("method") != "QWEN35_COMPLETE_BYTE_VOCABULARY_UPPER_BOUND"
         or not isinstance(capacity.get("template_hash"), str) or not sha(capacity["template_hash"])
         or not isinstance(capacity.get("tokenizer_hash"), str) or not sha(capacity["tokenizer_hash"])
         or capacity.get("code_hash") != permit.binding["code_hash"]
@@ -257,10 +303,13 @@ def execute_case(audit_root: Path, permit_path: Path, freeze_path: Path) -> dict
     prepared, permit, freeze = validate_execution_package(audit_root, permit_path, freeze_path)
     profile = resolve_profile(PROFILE_ID)
     def claim(value: VerifiedDistillationInput, request: Mapping[str, object]) -> None:
+        if owned_workspace(audit_root, permit.case_id, Path(prepared["database"]), Path(prepared["data_root"])) != prepared["workspace_ownership"]:
+            raise ValueError("once workspace ownership changed before claim")
         if request != prepared["request"] or value.semantic_hash != prepared["input_hash"]:
             raise ValueError("production request differs from independently prepared bytes")
-        write_once(audit_root / "generation.started.json", {"permit_hash": permit.permit_hash,
-            "request_hash": digest(request), "execution_id": permit.execution_id})
+        write_once(audit_root / "dispatch.armed.json", {"permit_hash": permit.permit_hash,
+            "request_hash": digest(request), "execution_id": permit.execution_id,
+            "status": "ARMED", "generation_post_proven": False})
     transport = OllamaLocalDistillationTransport(settings=LocalScoringSettings(model=profile.model,
         expected_model_digest=profile.model_digest), local_profile_id=PROFILE_ID,
         qualification_permit=permit, before_dispatch=claim)
@@ -274,9 +323,6 @@ def execute_case(audit_root: Path, permit_path: Path, freeze_path: Path) -> dict
     with (audit_root.parent / "generation.lock").open("a+b") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         verify_resources(audit_root, freeze, permit)
-        loaded = transport._request("/api/ps", method="GET").get("models")
-        if not isinstance(loaded, list) or any(not isinstance(m, dict) or m.get("name") != profile.model for m in loaded):
-            raise ValueError("another heavy model is loaded or exclusivity is unknown")
         source = SourceManifest.model_validate(read_object(Path(freeze["source_manifest_paths"][permit.case_id])))
         if (digest(source.model_dump()) != permit.source_manifest_hash
             or (source.input_hash, source.context_hash, source.request_hash)
@@ -293,6 +339,7 @@ def execute_case(audit_root: Path, permit_path: Path, freeze_path: Path) -> dict
             "permit_hash": permit.permit_hash, "request_hash": permit.request_hash,
             "semantic_acceptance": "PENDING_INDEPENDENT_REVIEW", "production_qualified": False,
             "public_final": getattr(transport, "last_grounding_final", None),
+            "generation_post_attempted_locally": transport.last_grounding_post_attempted,
             "opaque_raw_hash": getattr(transport, "last_grounding_raw_hash", None),
             "completion": getattr(transport, "last_grounding_completion", None)}
         # No QualificationRecord is emitted; an independent reviewer must bind

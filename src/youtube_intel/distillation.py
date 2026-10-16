@@ -7,6 +7,7 @@ import json
 import re
 import secrets
 import sqlite3
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -27,6 +28,7 @@ from youtube_intel.local_distillation_qualification import (
     LocalQualificationAuthority,
     read_reviewed_qualifications,
 )
+from youtube_intel.local_model_capacity import CapacityUnavailable, LocalCapacitySession
 from youtube_intel.source_policy import SourcePolicyApplicationService
 from youtube_intel.state import (
     ArtifactKind,
@@ -54,6 +56,10 @@ class DistillationExecutionStatus(str, Enum):
     AMBIGUOUS = "AMBIGUOUS"
     SUCCEEDED = "SUCCEEDED"
     SUCCEEDED_NO_NEW_INTELLIGENCE = "SUCCEEDED_NO_NEW_INTELLIGENCE"
+
+
+class LocalDistillationPreDispatchError(RuntimeError):
+    """Known failure before the generation POST, including lost readiness."""
 
 
 class DistillationTransportKind(str, Enum):
@@ -2407,6 +2413,10 @@ class OllamaLocalDistillationTransport:
         self._local_permit = qualification_permit
         self._before_dispatch = before_dispatch
         self._qualification_dispatched = False
+        self._capacity_session: LocalCapacitySession | None = None
+        self._prepared_execution: str | None = None
+        self._prepared_qualification = False
+        self.last_grounding_post_attempted = False
         if local_profile_id is not None:
             from youtube_intel.local_distillation_profile import resolve_profile
             profile = resolve_profile(local_profile_id)
@@ -2498,24 +2508,65 @@ class OllamaLocalDistillationTransport:
             profile = resolve_profile(self.local_profile_id)
             bound = profile.complete_input_token_upper_bound(build_local_distillation_request(value))
             options = profile.options()
-            return type(bound) is int and 0 < bound <= options["num_ctx"] - options["num_predict"]
+            return type(bound) is int and 0 < bound <= options["num_ctx"] - options["num_predict"] - 1
         except (ValueError, TypeError, KeyError):
+            return False
+
+    def prepare_execution(self, execution_id: str, value: VerifiedDistillationInput, *, qualification: bool) -> bool:
+        if self.local_profile_id is None or self._capacity_session is None:
+            return False
+        permits = self.is_authorized_for_qualification if qualification else self.is_authorized_for_normal_production
+        if not permits(value) or (self._local_permit is not None
+            and (self._before_dispatch is None or self._local_permit.execution_id != execution_id)):
+            return False
+        if not self._capacity_session.prepare(execution_id, value, build_local_distillation_request(value), self._request):
+            return False
+        self._prepared_execution, self._prepared_qualification = execution_id, qualification
+        return True
+
+    def ready_for_claim(self, execution_id: str, value: VerifiedDistillationInput) -> bool:
+        permits = self.is_authorized_for_qualification if self._prepared_qualification else self.is_authorized_for_normal_production
+        return (self._capacity_session is not None and self._prepared_execution == execution_id and permits(value)
+            and self._capacity_session.ready_for_claim(execution_id, build_local_distillation_request(value)))
+
+    def release_readiness(self) -> None:
+        if self._capacity_session is not None:
+            if self._capacity_session.lease.owner not in (None, threading.get_ident()):
+                return
+            self._capacity_session.release()
+        self._prepared_execution = None
+
+    def arm_for_claim(self, execution_id: str, value: VerifiedDistillationInput) -> bool:
+        if not self.ready_for_claim(execution_id, value) or self._capacity_session is None:
+            return False
+        try:
+            request = build_local_distillation_request(value)
+            self.last_grounding_post_attempted = False
+            if self._local_permit is not None:
+                self._qualification_dispatched = True
+            if self._before_dispatch is not None:
+                self._before_dispatch(value, request)  # durable ARMED intent, not a POST receipt
+            # Durable intent IO can take time: the final host/TTL check must
+            # follow it, immediately before the caller starts the claim.
+            self._capacity_session.arm(execution_id, request)
+            return True
+        except (OSError, ValueError, RuntimeError):
+            self.release_readiness()
             return False
 
     def generate(self, value: VerifiedDistillationInput) -> DistillationTransportResult:
         if not self.is_authorized_for(value):
             raise RuntimeError("local distillation route is not authorized")
         if self.local_profile_id is not None:
-            if not (self.is_authorized_for_normal_production(value) or self.is_authorized_for_qualification(value)):
-                raise RuntimeError("local grounding execution is not qualified or permitted")
             request = build_local_distillation_request(value)
-            if self._local_permit is not None and self._before_dispatch is None:
-                raise RuntimeError("qualification requires a durable once-dispatch claim")
-            if self._local_permit is not None:
-                self._qualification_dispatched = True
-            if self._before_dispatch is not None:
-                self._before_dispatch(value, request)
+            if self._capacity_session is None or self._prepared_execution is None:
+                raise LocalDistillationPreDispatchError("local capacity readiness is missing")
+            try:
+                self._capacity_session.consume(self._prepared_execution, request)
+            except (CapacityUnavailable, RuntimeError) as error:
+                raise LocalDistillationPreDispatchError("local capacity readiness is unavailable") from error
             started = time.monotonic()
+            self.last_grounding_post_attempted = True
             response = self._request("/api/chat", method="POST", body=request)
             message = response.get("message")
             final = message.get("content") if isinstance(message, Mapping) else None
@@ -2816,7 +2867,8 @@ def validate_local_grounding_response(
     raw = message.get("content") if isinstance(message, Mapping) else None
     inputs, outputs = response.get("prompt_eval_count"), response.get("eval_count")
     if (response.get("model") != profile.model or response.get("done") is not True
-        or response.get("done_reason") != "stop" or type(inputs) is not int or not 0 < inputs <= 8192 - 6144
+        or response.get("done_reason") != "stop" or type(inputs) is not int
+        or not 0 < inputs <= profile.complete_input_token_upper_bound(build_local_distillation_request(value))
         or type(outputs) is not int or not 0 < outputs < 6144
         or not isinstance(raw, str) or not raw.strip() or len(raw.encode()) > profile.max_response_bytes):
         raise KnownLocalDistillationResponseError("LOCAL_RESPONSE_INCOMPLETE_OR_TRUNCATED")
@@ -2843,10 +2895,11 @@ def build_local_distillation_request(value: VerifiedDistillationInput) -> dict[s
         "ignore": value.source_ignore_rules, "style": value.distillation_style, "output_language": value.output_language}
     request = {"model": projection["model"], "messages": [{"role": "system", "content": projection["prompt"]},
         {"role": "user", "content": canonical(context).decode()}], "format": projection["schema"],
-        "stream": False, "think": True, "options": projection["options"]}
+        "stream": False, "think": True, "options": projection["options"], "truncate": False, "shift": False}
     assert value.local_profile_id is not None
     if len(canonical(request)) > resolve_profile(value.local_profile_id).max_request_bytes:
         raise ValueError("complete local request exceeds the frozen UTF-8 budget")
+    resolve_profile(value.local_profile_id).complete_input_token_upper_bound(request)
     return request
 
 
@@ -2910,6 +2963,8 @@ class PersonalizedDistillationService:
             from youtube_intel.local_distillation_profile import resolve_profile
             if (self._selected_provider != "ollama" or self._selected_model != resolve_profile(self._local_profile_id).model):
                 raise ValueError("service local execution profile is invalid")
+            if isinstance(transport, OllamaLocalDistillationTransport) and repository._source_data_root is not None:
+                transport._capacity_session = LocalCapacitySession(repository=repository, data_root=repository._source_data_root)
         self._output_language_for_video = output_language_for_video or (
             lambda _: "zh-CN"
         )
@@ -2945,6 +3000,29 @@ class PersonalizedDistillationService:
             return bool(preflight())
         except Exception:
             return False
+
+    def _model_ready(self, command: DistillationCommand, value: VerifiedDistillationInput, *, qualification: bool) -> bool:
+        if isinstance(self._transport, OllamaLocalDistillationTransport) and self._local_profile_id is not None:
+            return self._transport.prepare_execution(command.execution_id, value, qualification=qualification)
+        return self._transport.available and self._preflight_available()
+
+    def _claim_ready(self, command: DistillationCommand, value: VerifiedDistillationInput) -> bool:
+        if isinstance(self._transport, OllamaLocalDistillationTransport) and self._local_profile_id is not None:
+            try:
+                record = self._repository.get_distillation_execution(command.execution_id)
+                if record is None or record.status != "PENDING" or record.invocation_count != 0:
+                    return False
+                _, current = self._reserved_command_from_record(record)
+                if current != value:
+                    return False
+            except (ValueError, StateStoreError):
+                return False
+            return self._transport.arm_for_claim(command.execution_id, value)
+        return True
+
+    def _release_local_readiness(self) -> None:
+        if isinstance(self._transport, OllamaLocalDistillationTransport) and self._local_profile_id is not None:
+            self._transport.release_readiness()
 
     def authorize_reserved_cloud_execution(
         self, execution_id: str, *, consent_kind: str = "USER_CONFIRMATION"
@@ -3636,6 +3714,11 @@ class PersonalizedDistillationService:
     ) -> DistillationResult:
         try:
             response = self._transport.generate(verified_input)
+        except LocalDistillationPreDispatchError:
+            # Claim is irreversible under schema37. Preserve its uncertainty;
+            # the local post_attempted observation separately remains false.
+            return self._finish_or_recover(projection, status=DistillationExecutionStatus.AMBIGUOUS,
+                budget_state=decision.state, outcome="RESERVED_DISPATCH_OUTCOME_UNKNOWN", invocation_count=1)
         except CloudDistillationPreDispatchError:
             return self._finish_or_recover(
                 projection,
@@ -3898,6 +3981,14 @@ class PersonalizedDistillationService:
     def _continue_reserved_distillation(
         self, execution_id: str, *, qualification: bool
     ) -> DistillationResult:
+        try:
+            return self._continue_reserved_distillation_impl(execution_id, qualification=qualification)
+        finally:
+            self._release_local_readiness()
+
+    def _continue_reserved_distillation_impl(
+        self, execution_id: str, *, qualification: bool
+    ) -> DistillationResult:
         """Continue exactly one persisted reservation through the TASK-022 path.
 
         The public seam accepts only the canonical execution identity.  It rebuilds
@@ -3968,8 +4059,7 @@ class PersonalizedDistillationService:
             )
         if (
             not self._transport_permits(verified_input, normal_production=not qualification)
-            or not self._transport.available
-            or not self._preflight_available()
+            or not self._model_ready(projection, verified_input, qualification=qualification)
         ):
             return self._finish_or_recover(
                 projection,
@@ -3984,6 +4074,9 @@ class PersonalizedDistillationService:
             consent_kind="OWNER_QUALIFICATION" if qualification else "USER_CONFIRMATION",
         ):
             raise CloudConsentRequiredError("explicit cloud authorization is missing or stale")
+        if not self._claim_ready(projection, verified_input):
+            return self._finish_or_recover(projection, status=DistillationExecutionStatus.WAITING_MODEL,
+                budget_state=decision.state, outcome="LOCAL_READINESS_LOST_BEFORE_CLAIM", invocation_count=0)
         claimed = self._repository.claim_reserved_distillation_execution(
             execution_id=projection.execution_id,
             source_id=projection.source_id,
@@ -4331,6 +4424,12 @@ class PersonalizedDistillationService:
             card, json.dumps(canonical, sort_keys=True, separators=(",", ":")).encode())
 
     def distill(self, command: DistillationCommand) -> DistillationResult:
+        try:
+            return self._distill_impl(command)
+        finally:
+            self._release_local_readiness()
+
+    def _distill_impl(self, command: DistillationCommand) -> DistillationResult:
         existing = self._repository.get_distillation_execution(command.execution_id)
         if existing is not None:
             if existing.status == "PENDING":
@@ -4390,8 +4489,7 @@ class PersonalizedDistillationService:
             )
         if (
             not self._transport_permits(verified_input)
-            or not self._transport.available
-            or not self._preflight_available()
+            or not self._model_ready(projection, verified_input, qualification=True)
         ):
             return self._finish(
                 projection,
@@ -4400,6 +4498,9 @@ class PersonalizedDistillationService:
                 outcome="MODEL_UNAVAILABLE_BEFORE_TRANSPORT",
                 invocation_count=0,
             )
+        if not self._claim_ready(projection, verified_input):
+            return self._finish(projection, status=DistillationExecutionStatus.WAITING_MODEL,
+                budget_state=decision.state, outcome="LOCAL_READINESS_LOST_BEFORE_CLAIM", invocation_count=0)
         claimed = self._repository.claim_distillation_execution(
             execution_id=projection.execution_id,
             source_id=projection.source_id,
