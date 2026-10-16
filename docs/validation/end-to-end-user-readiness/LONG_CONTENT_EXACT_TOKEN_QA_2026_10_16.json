@@ -1,0 +1,106 @@
+{
+  "started_at": "2026-10-16T01:32:31.170991+00:00",
+  "generation_requests": 0,
+  "model_load_requests": 1,
+  "tokenize_requests": 3,
+  "qualification": false,
+  "production_admission": false,
+  "probe_scope": "QA only; does not remove current 20-Evidence gate or body limit",
+  "load_request_sha256": "e89080ce5b9256eec01b23548a777517d95b56615822b025b64ccda2fd630d52",
+  "server": {
+    "pid": "1410",
+    "ppid": "1377",
+    "uid": "501",
+    "lstart": "Thu Oct  8 15:27:47 2026",
+    "comm": "/Applications/Ollama.app/Contents/Resources/ollama"
+  },
+  "runner": {
+    "pid": "68511",
+    "ppid": "1410",
+    "uid": "501",
+    "lstart": "Fri Oct 16 09:32:31 2026",
+    "comm": "/Applications/Ollama.app/Contents/Resources/llama-server",
+    "args": "/Applications/Ollama.app/Contents/Resources/llama-server --model /Users/hua/.ollama/models/blobs/sha256-02d45dc1cf451ba2475ac33b301c2dd8f985abe4c182ce04a1f2f5bf0260278d --port 59194 --host 127.0.0.1 --no-webui --offline -c 16384 -np 1 --log-verbosity 4 --no-log-prefix --no-log-timestamps --no-jinja --chat-template chatml --mmproj /Users/hua/.ollama/models/blobs/sha256-f836f08f921193f4d6b6a6952dba0a6fb116759d26a757bcb395d570d73976ca --load-mode none --flash-attn auto -b 512 -ub 512"
+  },
+  "runner_binary_sha256": "35844857b55bb541fe914064b96e437f8b8d187968ecd8cfe50c52dd8434b8b8",
+  "process_architecture": "selected slice unverified; exact live universal runner bound",
+  "host_architecture": "arm64",
+  "loaded_ps": {
+    "models": [
+      {
+        "name": "qwen3.5:9b-q4_K_M",
+        "model": "qwen3.5:9b-q4_K_M",
+        "size": 6068319026,
+        "digest": "56671c2ab9385f9cfcb404638e32cd62d88e3501d44822208363c010179a3c90",
+        "details": {
+          "parent_model": "",
+          "format": "gguf",
+          "family": "qwen35",
+          "families": [
+            "qwen35"
+          ],
+          "parameter_size": "9.0B",
+          "quantization_level": "Q4_K_M"
+        },
+        "expires_at": "2026-10-16T09:34:39.032295+08:00",
+        "size_vram": 6068319026,
+        "context_length": 16384,
+        "runner": "llamacpp"
+      }
+    ]
+  },
+  "memory_free_percent": 58,
+  "evidence_count": 114,
+  "excerpt_bytes": 89107,
+  "rendered_bytes": 108190,
+  "rendered_sha256": "8cd412d1fc8f52bb49cc45451d5b0a24cd9073b20558f20fd44a65c59a284481",
+  "input_context_sha256": "a042d69b1bb9841f38af0253384b57c5bcdb7a25ce2538ad9913efff7fc37649",
+  "counts": [
+    {
+      "probe": "empty",
+      "bytes": 0,
+      "token_count": 0,
+      "request_sha256": "3be5e61a3f6deb735f956dd3f01cb43db2f4030059ec95e33ee15a3fc91ca1c2",
+      "response_sha256": "9ee12b34bcf7cf0f3d4e9f9340d8eb7db4ed8d82ecfb58dfba3d7fe1f3db63ca",
+      "add_special": true,
+      "parse_special": true,
+      "with_pieces": false
+    },
+    {
+      "probe": "unicode",
+      "bytes": 18,
+      "token_count": 4,
+      "request_sha256": "7f83dcd4e895987be1e18c6d1163cc405d6a5d8103fbcab43d49fd49fefcf989",
+      "response_sha256": "8d765cfb011f51159b67ff92bb08d534f9479ec17a76b6da6baccc40a773761e",
+      "add_special": true,
+      "parse_special": true,
+      "with_pieces": false
+    },
+    {
+      "probe": "complete-public-source",
+      "bytes": 108190,
+      "token_count": 30238,
+      "request_sha256": "6f4b6de1c36d8bea60ae4559279aa68934ee2561322c32271de6b174db7c3563",
+      "response_sha256": "0dc55a68c2bddf7a221e0be5f92502f1a27ea26fc127a30c5ea45a106182ba66",
+      "add_special": true,
+      "parse_special": true,
+      "with_pieces": false
+    }
+  ],
+  "finished_at": "2026-10-16T01:32:39.713684+00:00",
+  "result": "EXACT_TASK_RUNNER_INPUT_COUNTS_ONLY_NOT_QUALIFICATION",
+  "complete_input_plus_output_and_margin": 36383,
+  "capacity_only": {
+    "16384": false,
+    "32768": false,
+    "65536": "token arithmetic only; resources, production preflight and semantic qualification unproven"
+  },
+  "setup_failure": {
+    "file": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/long-tokenizer-qa-result.json.first-setup-failure",
+    "model_load_requests": 0,
+    "tokenize_requests": 0,
+    "cause": "task-owned SourceInterest clone ASR exclusion directory not yet initialized",
+    "correction": "created only private .local-transcription/worker.lock with O_NOFOLLOW/0600; preserved first failure; ps -ww for complete runner args"
+  },
+  "raw_result": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/long-tokenizer-qa-result.json"
+}

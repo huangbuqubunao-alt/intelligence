@@ -1,3 +1,6 @@
+# 2026-10-16 当前续作（覆盖下方历史）
+关注轮询草稿修复第二次系统返修 f19e437 clean STOP：作者896前端/TSbuild及真实Chrome多类型/配置恢复通过，原两REJECT历史保留，独立累计复审中，未整合。容量工程继续：preclaim arm/once ARMED intent先于不可变invocation claim，claim后不可擦inv1，0实际模型生成，待完整affected检查和独立审查。root完整公开49.6min/114 Evidence无生成/tokenizer实测30238 input tokens；6144输出共需36383，16384/32768不足，65536仅算术可行；长内容/rolling仍OPEN，未删减证据。正式main/origin/main73ee7e7 clean，未发布/正式数据未动。
+
 # 2026-10-16 续作当前状态
 POLL作者81c17f9独立1ad9697 REJECT新增P2：source_runs:[null]合法外壳被漏验，随后null.state导致App空白/草稿断连；原作者同WT返修中，独立507/八正常矩阵保留，不能当异常路径通过。容量工程新WT e4c693f继续（此前额度中断后恢复），纯容量13专项通过，正在共享重量lease/完整I/O guard接线，0实际生成/资格false。长内容真实49.6min/89221字符/114Evidence仍OPEN；最小完整单次精确token诊断的C helper因本机ARM与bundle x86 dylib不匹配而停止，未执行，不装依赖或改生产。正式main73ee7e7/未发布。root e4c693f之后仅任务/证据docs。
 
