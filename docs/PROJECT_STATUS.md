@@ -1,3 +1,6 @@
+# 2026-10-16 当前关键路径
+真实新备份恢复APPLIED689d0de7后74表/96DATA全等；物理96/引用100显示正确。Chrome自定义file filter真实拒选而AllFiles可通过strict stage；最小329794b作者937front/TSbuild/Chrome工程PASS、独立review中。trackedRetry40精确提案已接受，c312ee4新WT后端先行（只此作者写state/Backup），原真正旧INVALID_RESPONSE核对完毕；frontend暂等picker接受。host88161aa root232/static通过，但真实disk/RAM不足closed，未加载/生成，资源已向用户说明且其他工作继续。手册64图真实全加载/无横溢。main/origin73ee7e7 clean未发布，owner数据未改。
+
 # 2026-10-16 19:47 真实验收更新
 FINAL-CAPABILITY已整合6fa6a07，root79backend/929frontend/TSbuild及真实Settings/LOCAL_TEXT能力+设置回跳PASS；实际create74表96DATA前后相同，ZIP96DATA逐hash一致，100artifact引用未冒称physical96。真实新GUI恢复仍未提交：Chrome原生选中ZIP但Open禁用，已取消并只读诊断。HOST-FIX整合88161aa，root232/strict106/Ruff/diffPASS；真实冷host现通过manifest门，但disk/RAM不足closed（0load/0generation），证据CAPACITY_REAL_HOST_FIXED_2026_10_16.json保留，不授资格。trackedRetry40精确proposal进行中；long协议只读最小持久化设计中。main73ee7e7未发布/owner不变。
 
