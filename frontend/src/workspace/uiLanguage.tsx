@@ -72,6 +72,7 @@ const chinese: Record<string, string> = {
   "Restore completed successfully.": "备份已恢复，重启后的数据检查已通过。",
   "Previous restore completed successfully.": "上一次恢复已完成，重启后的数据检查已通过。",
   "Choose an Intelligence ZIP backup.": "请选择 Intelligence 生成的 ZIP 备份文件。",
+  "Choose an Intelligence .zip backup. Invalid files are rejected; you can choose another file.": "请选择 Intelligence 生成的 .zip 备份。无效文件会被拒绝，可重新选择。",
   "Backup status is unavailable. Check the local connection and retry.": "未能检查备份状态，请检查本地连接后重试。",
   "Backup could not be created. Check readiness and available storage, then retry.": "未能创建备份，请检查当前阻塞任务及可用磁盘空间后重试。",
   "Backup inspection failed. Choose an intact Intelligence ZIP backup; current data has not changed.": "备份检查未通过，请选择完整的 Intelligence ZIP 备份；当前数据未改变。",

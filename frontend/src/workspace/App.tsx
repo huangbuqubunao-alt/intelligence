@@ -3766,13 +3766,16 @@ function BackupRestorePanel() {
           {t("Choose backup")}
           <input
             aria-label={t("Choose backup file")}
+            aria-describedby="backup-file-hint"
             type="file"
-            accept=".zip,application/zip"
             disabled={busy || status?.restore_pending}
             onChange={chooseBackup}
           />
         </label>
       </div>
+      <p id="backup-file-hint" className="hint">
+        {t("Choose an Intelligence .zip backup. Invalid files are rejected; you can choose another file.")}
+      </p>
       {backup ? (
         <article className="metadata-row" aria-label={t("Backup result")}>
           <div>
