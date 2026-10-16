@@ -1,3 +1,5 @@
+2026-10-16 必要同根因补充：harness verify_resources也独立误将legacy wrapper SHA当parent digest，允许scripts/qualify_local_grounding_v1.py与对应harness测试复用本固定双manifest/有序payload校验；不改runtime/resource/permit/once/arm/claim语义，原FAIL留存。统一freeze尚未发生，当前0新调用/资格false；不另按文件请求用户批准。固定官方源码另证真实API authority为manifests-v2/ollama.com/...指向parent blob的symlink，需一并纳身份/TOCTOU；不能只修legacy wrapper漏掉实际tag。
+
 # TASK-READINESS-CAPACITY-HOST-FIX
 2026-10-16 READY，base为本任务/package提交；已接受capacity完整root1c38d6a/复验178+strict106/Ruff，root最新25322c6。Implementer native_scan_resume，Reviewer local_text_review_resume。WT /Users/hua/Documents/yia-worktrees/readiness-capacity-host-fix，branch codex/task-readiness-capacity-host-fix。
 真实root只读observe_host在任何load前CLOSED: model manifest differs，证据CAPACITY_REAL_HOST_FAIL_2026_10_16.json。API model digest仍原批56671c2...，当前tag wrapper1252bytes SHA7dd7bb31...，mtime原Oct13；parent原manifest1088bytes blob SHA56671c2...完全在。tag wrapper多一个原manifest layer，因此当前误把wrapper SHA当批准parent digest，随后actual descriptors7与payload BLOBS6也将误拒。不得改installed manifest、tag、模型、依赖、profile digest、runtime参数或资格来绕过。
