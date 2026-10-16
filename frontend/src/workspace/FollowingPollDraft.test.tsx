@@ -30,9 +30,90 @@ beforeEach(() => {
     if (url.endsWith("/sources/check-stale")) return response({});
     if (url.endsWith("/sources")) return listRead();
     if (url.endsWith("/videos")) return response({ videos: [] });
-    if (/\/sources\/channel-[ab]$/.test(url)) return detailRead(url.endsWith("channel-b") ? "channel-b" : "channel-a");
+    if (url.endsWith("/settings/source-policy")) return response({ policy: detail().policy });
+    if (/\/sources\/[^/]+$/.test(url)) return detailRead(url.split("/").at(-1)!);
     return response({});
   }); vi.stubGlobal("fetch", fetcher);
+});
+
+// The matrix follows the consumer table in the task handoff, across visible,
+// legacy and hidden row types. Each mutation goes through the actual App tree.
+const rowKinds = ["tracked", "creator", "local", "bilibili", "video", "legacy", "generic"] as const;
+const contractRow = (kind: typeof rowKinds[number]) => ({
+  ...source(`row-${kind}`, false), display_name: `Row ${kind}`,
+  provider: kind === "local" ? "LOCAL" : ["bilibili", "creator"].includes(kind) ? "BILIBILI" : kind === "generic" ? undefined : "YOUTUBE",
+  source_type: kind === "local" ? "LOCAL_LIBRARY" : kind === "creator" ? "CREATOR" : ["bilibili", "video"].includes(kind) ? "VIDEO_URL" : kind === "generic" ? undefined : "CHANNEL",
+  tracking: ["tracked", "creator"].includes(kind) ? source().tracking : null,
+  processing_policy: "STANDARD_INTELLIGENCE", tracking_parent_source_ids: [], insight_count: 0,
+});
+const withField = (input: unknown, path: string, value: unknown) => {
+  const result = JSON.parse(JSON.stringify(input));
+  const keys = path.split("."); let target = result;
+  for (const key of keys.slice(0, -1)) target = target[key] ??= {};
+  target[keys.at(-1)!] = value; return result;
+};
+const sourceMutations: [string, unknown][] = [
+  ["source_id", {}], ["source_id", ""], ["canonical_url", {}], ["enabled", null],
+  ["display_name", {}], ["friendly_name", {}], ["channel_id", {}], ["video_id", {}],
+  ["provider", {}], ["provider", "UNKNOWN"], ["source_type", {}], ["source_type", "UNKNOWN"],
+  ["processing_policy", {}], ["processing_policy", "UNKNOWN"], ["processing_mode", {}], ["processing_mode", "UNKNOWN"],
+  ["tracking_parent_source_ids", {}], ["tracking_parent_source_ids", "parent"], ["tracking_parent_source_ids", [null]],
+  ["insight_count", {}], ["insight_count", -1], ["last_error", "error"], ["last_error", []], ["last_error", {}],
+  ["last_error.code", {}], ["last_error.code", ""], ["last_error.code", "__proto__"], ["last_error.message", {}],
+  ["last_checked_at", {}], ["last_checked_at", "invalid date"], ["last_success_at", {}], ["tracking", []],
+];
+describe.each(rowKinds)("source consumer contract: %s", kind => {
+  it.each(sourceMutations)("rejects %s=%j without losing any loaded row or the focused draft", async (path, value) => {
+    const rows = [source(), ...rowKinds.map(contractRow)]; listRead = async () => response({ sources: rows });
+    const input = await openDraft(); (input as HTMLTextAreaElement).setSelectionRange(2, 5);
+    const loadedRows = [...document.querySelectorAll("[data-source-id]")];
+    listRead = async () => response({ sources: rows.map(row => row.source_id === `row-${kind}`
+      ? withField(path === "last_error.message" ? { ...row, last_error: { code: "OFFLINE", message: null } } : row, path, value) : row) });
+    await tick();
+    expect(screen.getByText("The Following list could not be refreshed. Showing previously loaded sources.")).toBeTruthy();
+    expect([...document.querySelectorAll("[data-source-id]")]).toEqual(loadedRows);
+    expect(screen.getByLabelText("Focus")).toBe(input); expect(document.activeElement).toBe(input);
+    expect([(input as HTMLTextAreaElement).value, (input as HTMLTextAreaElement).selectionStart, (input as HTMLTextAreaElement).selectionEnd]).toEqual(["unsaved，draft\nwith  spaces", 2, 5]);
+    listRead = async () => response({ sources: rows }); fireEvent.click(screen.getByRole("button", { name: "Reload page data" })); await flush();
+    expect(screen.queryByText("The Following list could not be refreshed. Showing previously loaded sources.")).toBeNull();
+    expect(screen.getByLabelText("Focus")).toBe(input);
+    expect(fetcher.mock.calls.filter(([, init]) => ["PUT", "PATCH"].includes(init?.method ?? ""))).toHaveLength(0);
+  });
+});
+
+const genericDetail = () => ({ ...detail("row-generic"), source: contractRow("generic"),
+  schedules: [{ schedule_id: "schedule", frequency: "DAILY", enabled: true, local_time: "09:00", timezone: "UTC", weekday: null, target_id: "row-generic" }],
+  source_runs: [{ run_id: "active", state: "RUNNING", attention_reason: null, source_id: "row-generic" }],
+  recent_videos: [{ video_id: "video", title: "Stored video", processing_status: "IMPORTED", filter: { outcome: "UNCERTAIN", reason: "NO_FOCUS_RULES", source_id: "row-generic", video_id: "video" } }],
+});
+const genericMutations: [string, unknown][] = [
+  ["policy", null], ["policy.initial_history_count", {}], ["policy.per_run_max_new_videos", {}],
+  ["policy.focus_rules", null], ["policy.focus_rules", [{}]], ["policy.ignore_rules", {}],
+  ["policy.distillation_style", {}], ["policy.source_id", "foreign"], ["policy.source_policy_revision_id", {}],
+  ["policy_modes", null], ["policy_modes.focus", {}], ["policy_modes.ignore", "UNKNOWN"], ["policy_modes.style", {}],
+  ["schedules", null], ["schedules.0", null], ["schedules.0.schedule_id", {}], ["schedules.0.frequency", {}],
+  ["schedules.0.enabled", "false"], ["schedules.0.local_time", {}], ["schedules.0.timezone", {}], ["schedules.0.weekday", {}], ["schedules.0.target_id", "foreign"],
+  ["source_runs.0.attention_reason", {}], ["source_runs.0.attention_reason", "__proto__"], ["source_runs.0.state", "__proto__"],
+  ["recent_videos.0.filter.outcome", {}], ["recent_videos.0.filter.reason", "__proto__"],
+  ["recent_videos.0.filter.source_id", "foreign"], ["recent_videos.0.filter.video_id", "foreign"],
+  ["recent_videos.0.processing_status", "__proto__"],
+];
+it.each(genericMutations)("generic detail consumer rejects %s=%j while preserving the actual configuration draft", async (path, value) => {
+  listRead = async () => response({ sources: [source(), contractRow("generic")] });
+  detailRead = async () => response(genericDetail()); render(<App />); await flush();
+  fireEvent.click(screen.getByRole("button", { name: /Row generic/ })); await flush();
+  fireEvent.click(screen.getByRole("button", { name: "Edit configuration" })); await flush();
+  const editor = screen.getByRole("dialog", { name: "Edit Source configuration" });
+  fireEvent.click(within(editor).getByText("Advanced source configuration"));
+  const input = screen.getByLabelText("Focus"); input.focus(); fireEvent.change(input, { target: { value: "generic，draft\nwith  spaces" } });
+  (input as HTMLTextAreaElement).setSelectionRange(2, 5);
+  detailRead = async () => response(withField(genericDetail(), path, value)); await tick(1000);
+  expect(within(editor).getByText("Source details could not be refreshed. Showing previously loaded details.")).toBeTruthy();
+  expect(screen.getByLabelText("Focus")).toBe(input); expect(document.activeElement).toBe(input);
+  expect([(input as HTMLTextAreaElement).value, (input as HTMLTextAreaElement).selectionStart, (input as HTMLTextAreaElement).selectionEnd]).toEqual(["generic，draft\nwith  spaces", 2, 5]);
+  detailRead = async () => response(genericDetail()); fireEvent.click(within(editor).getByRole("button", { name: "Reload page data" })); await flush();
+  expect(screen.queryByText("Source details could not be refreshed. Showing previously loaded details.")).toBeNull(); expect(screen.getByLabelText("Focus")).toBe(input);
+  expect(fetcher.mock.calls.filter(([, init]) => ["PUT", "PATCH"].includes(init?.method ?? ""))).toHaveLength(0);
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); localStorage.clear(); location.hash = ""; });
 
@@ -159,6 +240,14 @@ const malformedDetails: [string, (id: string) => unknown][] = [
   ["negative count", id => ({ ...detail(id), source: { ...source(id), tracking: { ...source(id).tracking, pending_count: -1 } } })],
   ["wrong date", id => ({ ...detail(id), source: { ...source(id), tracking: { ...source(id).tracking, manual_check_at: {} } } })],
   ["wrong source label", id => ({ ...detail(id), source: { ...source(id), display_name: {} } })],
+  ...sourceMutations.map(([path, value]): [string, (id: string) => unknown] => [`source.${path}=${JSON.stringify(value)}`, id => ({
+    ...detail(id), source: withField(path === "last_error.message" ? { ...source(id), last_error: { code: "OFFLINE", message: null } } : source(id), path, value),
+  })]),
+  ...["health", "coverage", "update_count", "pending_count", "unavailable_count", "processing_count", "checking", "verified_at", "baseline_at", "next_check_at", "manual_check_at"].map((key): [string, (id: string) => unknown] => [`tracking.${key}`, id => ({ ...detail(id), source: withField(source(id), `tracking.${key}`, {}) })]),
+  ["tracking prototype health", id => ({ ...detail(id), source: withField(source(id), "tracking.health", "__proto__") })],
+  ["tracking invalid date", id => ({ ...detail(id), source: withField(source(id), "tracking.next_check_at", "invalid date") })],
+  ["null runs container", id => ({ ...detail(id), source_runs: null })],
+  ["null videos container", id => ({ ...detail(id), recent_videos: null })],
 ];
 describe.each(["App", "Creator"])("%s rejects malformed detail members before replacing the loaded tree", surface => {
   it.each(malformedDetails)("preserves the focused draft on %s and recovers with GET only", async (_name, malformed) => {
@@ -185,4 +274,38 @@ describe.each(["App", "Creator"])("%s rejects malformed detail members before re
     expect(screen.getByLabelText("Focus")).toBe(input);
     expect(fetcher.mock.calls.filter(([, init]) => ["PUT", "PATCH"].includes(init?.method ?? ""))).toHaveLength(0);
   });
+});
+
+it.each(["legacy", "local", "bilibili"] as const)("retains the %s detail DOM on a failed refresh and recovers with GET", async kind => {
+  const row = { ...contractRow(kind), source_type: kind === "bilibili" ? undefined : contractRow(kind).source_type };
+  const good = { ...detail(row.source_id), source: row, source_runs: [{ state: "RUNNING", run_id: "active" }] };
+  listRead = async () => response({ sources: [source(), row] }); detailRead = async () => response(good);
+  render(<App />); await flush(); fireEvent.click(screen.getByRole("button", { name: kind === "local" ? /Local library/ : new RegExp(`Row ${kind}`) })); await flush();
+  const modal = screen.getByRole("dialog"); const close = within(modal).getByRole("button", { name: "Close" }); close.focus();
+  detailRead = async () => response({ ...good, recent_videos: [null] }); await tick(1000);
+  expect(screen.getByRole("dialog")).toBe(modal); expect(document.activeElement).toBe(close);
+  expect(within(modal).getByText("Source details could not be refreshed. Showing previously loaded details.")).toBeTruthy();
+  detailRead = async () => response(good); fireEvent.click(screen.getByRole("button", { name: "Reload page data" })); await flush();
+  expect(screen.getByRole("dialog")).toBe(modal); expect(screen.queryByText("Source details could not be refreshed. Showing previously loaded details.")).toBeNull();
+  expect(fetcher.mock.calls.filter(([, init]) => ["PUT", "PATCH"].includes(init?.method ?? ""))).toHaveLength(0);
+});
+
+it("accepts legal nullable and legacy snapshots, future machine tokens and unused DTO extensions", async () => {
+  const rows = [source(), ...rowKinds.map(kind => ({ ...contractRow(kind), friendly_name: null, channel_id: null, video_id: null,
+    processing_mode: null, last_error: { code: "FUTURE_ERROR_99", message: null }, unused_extension: { any: [null] } }))];
+  listRead = async () => response({ sources: rows });
+  const input = await openDraft();
+  detailRead = async id => response({ ...detail(id), source: { ...source(id, false), display_name: null,
+    tracking: { ...source().tracking, checking: false, health: "FUTURE_HEALTH_99", verified_at: null, baseline_at: null, next_check_at: null, manual_check_at: null },
+    last_error: { code: "FUTURE_ERROR_99" }, unused_extension: { any: [null] } },
+    recent_videos: [{ video_id: "video", title: null, processing_status: "FUTURE_STATUS_99" }], source_runs: [] });
+  await tick(); expect(screen.getByLabelText("Focus")).toBe(input);
+  expect(screen.getByRole("link", { name: "video" })).toBeTruthy(); expect(screen.queryByRole("alert")).toBeNull();
+  expect(document.querySelectorAll("[data-source-id]").length).toBe(6); // two VIDEO_URL rows remain intentionally hidden
+});
+
+it("rejects duplicate source identities as a failed whole-list read", async () => {
+  const input = await openDraft(); listRead = async () => response({ sources: [source(), source()] }); await tick();
+  expect(screen.getByText("The Following list could not be refreshed. Showing previously loaded sources.")).toBeTruthy();
+  expect(screen.getByLabelText("Focus")).toBe(input); expect(document.activeElement).toBe(input);
 });

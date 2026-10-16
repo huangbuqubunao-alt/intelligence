@@ -2608,7 +2608,8 @@ function validSourceReadIdentity(value: unknown): boolean {
 }
 function validSourcesRead(value: unknown): boolean {
   if (!value || typeof value !== "object" || !("sources" in value)) return false;
-  return Array.isArray(value.sources) && value.sources.every(validSourceReadIdentity);
+  return Array.isArray(value.sources) && value.sources.every(validSourceReadIdentity)
+    && new Set(value.sources.map(source => source.source_id)).size === value.sources.length;
 }
 
 function FollowingReadNotice({ reading, error, errorCode, onReload, detail = false }: {
@@ -2759,7 +2760,7 @@ function validGlobalPolicy(value: unknown): value is { policy: SourcePolicy } {
     && "distillation_style" in policy && STYLES.some(([style]) => style === policy.distillation_style);
 }
 export function ExistingSourceForm(
-  { onClose, onSaved, source, policy, policyModes, schedules, initialProvider = "YOUTUBE" }: {
+  { onClose, onSaved, source, policy, policyModes, schedules, refreshNotice, initialProvider = "YOUTUBE" }: {
     initialProvider?: "YOUTUBE" | "LOCAL" | "BILIBILI";
     onClose: () => void;
     onSaved: () => void;
@@ -2767,6 +2768,7 @@ export function ExistingSourceForm(
     policy?: SourcePolicy;
     policyModes?: SourcePolicyModes;
     schedules?: Schedule[];
+    refreshNotice?: ReactNode;
   },
 ) {
   const { t } = useUiLanguage();
@@ -2909,6 +2911,7 @@ export function ExistingSourceForm(
             {t("Cancel")}
           </button>
         </div>
+        {refreshNotice}
         {source && (!versionKnown || versionConflict) && <div role="alert">
           {!versionKnown && <p>{t("Interests could not be read. Retry before saving. Your draft is preserved.")}</p>}
           <button type="button" className="button button-secondary" disabled={busy} onClick={() => void reloadVersion()}>{t("Reload current interests")}</button>
@@ -3153,21 +3156,25 @@ function SourceDetail(
     const timer = window.setTimeout(() => setRefresh((value) => value + 1), 1000);
     return () => window.clearTimeout(timer);
   }, [data, reading]);
-  if (error && (!data || !data.source.tracking)) return <ErrorState error={error} code={errorCode} onReload={reload} />;
+  if (error && !data) return <ErrorState error={error} code={errorCode} onReload={reload} />;
   if (!data) return <Empty>Loading Source…</Empty>;
-  if (data.source.tracking) return <CreatorFollowingDetail refreshNotice={<>{refreshNotice}<FollowingReadNotice reading={reading} error={error} errorCode={errorCode} onReload={reload} detail /></>} id={id} capability={creatorCapability} onClose={onClose} onRefresh={onRefresh} />;
+  const readNotice = <>{refreshNotice}<FollowingReadNotice reading={reading} error={error} errorCode={errorCode} onReload={reload} detail /></>;
+  if (data.source.tracking) return <CreatorFollowingDetail refreshNotice={readNotice} id={id} capability={creatorCapability} onClose={onClose} onRefresh={onRefresh} />;
   if (data.source.source_type === "CHANNEL" && !data.source.tracking) return <div className="overlay"><section className="modal local-import" role="dialog" aria-modal="true" aria-label={sourceLabel(data.source)}>
     <div className="modal-head"><h2>{sourceLabel(data.source)}</h2><button className="button button-ghost" aria-label={t("Close")} onClick={onClose}>{t("Close")}</button></div>
+    {readNotice}
     <p role="status">{t("Legacy channel needs attention. Re-add explicitly to establish tracking; its history is preserved.")}</p>
     <a href={data.source.canonical_url} target="_blank" rel="noreferrer">{t("Open Source")}</a>
   </section></div>;
   if (data.source.provider === "BILIBILI") return <div className="overlay"><section className="modal local-import" role="dialog" aria-modal="true" aria-label={t("Bilibili")}>
     <div className="modal-head"><h2>{sourceLabel(data.source)}</h2><button className="button button-ghost" onClick={onClose}>{t("Close")}</button></div>
+    {readNotice}
     <p>{t("This Following contains one imported video. Creator monitoring is not enabled.")}</p>
     <ul>{data.recent_videos.map(content => <li key={content.video_id}><a href={`#Content/${content.video_id}`} onClick={onClose}>{content.title}</a></li>)}</ul>
   </section></div>;
   if (data.source.provider === "LOCAL") return <div className="overlay"><section className="modal local-import" role="dialog" aria-modal="true" aria-label={t("Local library")}>
     <div className="modal-head"><h2>{t("Local library")}</h2><button className="button button-ghost" onClick={onClose}>{t("Close")}</button></div>
+    {readNotice}
     <p>{t("Explicit imports only")}</p><button className="button button-primary" onClick={onAddLocal}>{t("Import files")}</button>
     <ul>{data.recent_videos.map(content => <li key={content.video_id}><a href={`#Content/${content.video_id}`} onClick={onClose}>{content.title}</a> · {t(localStatus(content.processing_status))}</li>)}</ul>
   </section></div>;
@@ -3227,6 +3234,7 @@ function SourceDetail(
             {t("Close")}
           </button>
         </div>
+        {!editing && readNotice}
         <Panel title="Source management">
           <p>
             <Status value={data.source.enabled ? "ENABLED" : "DISABLED"} />{" "}
@@ -3389,6 +3397,7 @@ function SourceDetail(
       </section>
       {editing && (
         <SourceForm
+          refreshNotice={readNotice}
           source={data.source}
           policy={data.policy}
           policyModes={data.policy_modes}

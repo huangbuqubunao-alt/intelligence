@@ -157,33 +157,67 @@ const readObject = (value: unknown): value is Record<string, unknown> =>
 const readText = (value: unknown) => typeof value === "string" && value.trim().length > 0;
 const optionalReadText = (value: unknown) => value === undefined || value === null || typeof value === "string";
 const readCount = (value: unknown) => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+// State/copy dictionaries consume machine tokens, never arbitrary object keys.
+const readToken = (value: unknown) => typeof value === "string" && /^[A-Z][A-Z0-9_]*$/.test(value);
+const optionalReadDate = (value: unknown) => value === undefined || value === null
+  || (readText(value) && typeof value === "string" && Number.isFinite(Date.parse(value)));
+const optionalChoice = (value: unknown, choices: string[]) => value === undefined || choices.includes(value as string);
+const belongsToSource = (item: Record<string, unknown>, id: string) => item.source_id === undefined || item.source_id === id;
 
 /** Validate the fields consumed by both independently polled detail surfaces. */
 export function validFollowingSourceRead(value: unknown): boolean {
   if (!readObject(value) || !readText(value.source_id) || typeof value.enabled !== "boolean") return false;
-  if (!["display_name", "friendly_name", "channel_id", "video_id", "canonical_url", "provider", "source_type", "processing_mode", "last_checked_at", "last_success_at"].every(key => optionalReadText(value[key]))) return false;
+  if (!["display_name", "friendly_name", "channel_id", "video_id"].every(key => optionalReadText(value[key]))
+      || (value.canonical_url !== undefined && typeof value.canonical_url !== "string")
+      || !optionalChoice(value.provider, ["YOUTUBE", "BILIBILI", "LOCAL"])
+      || !optionalChoice(value.source_type, ["CHANNEL", "CREATOR", "VIDEO_URL", "LOCAL_LIBRARY"])
+      || !optionalChoice(value.processing_policy, ["DISCOVER_ONLY", "STANDARD_INTELLIGENCE", "FULL_INTELLIGENCE"])
+      || (value.processing_mode !== null && !optionalChoice(value.processing_mode, ["ORGANIZE_CONTENT", "EXTRACT_INTELLIGENCE"]))
+      || !["last_checked_at", "last_success_at"].every(key => optionalReadDate(value[key]))
+      || (value.tracking_parent_source_ids !== undefined && (!Array.isArray(value.tracking_parent_source_ids) || !value.tracking_parent_source_ids.every(readText)))
+      || (value.insight_count !== undefined && !readCount(value.insight_count))) return false;
+  if (value.last_error !== undefined && value.last_error !== null
+      && (!readObject(value.last_error) || !readToken(value.last_error.code) || !optionalReadText(value.last_error.message))) return false;
   if (value.tracking === undefined || value.tracking === null) return true;
   const tracking = value.tracking;
-  if (!readObject(tracking) || !readText(tracking.health) || !readText(tracking.coverage)
+  if (!readObject(tracking) || !readToken(tracking.health) || !readToken(tracking.coverage)
       || !readCount(tracking.update_count) || !readCount(tracking.pending_count)
       || (tracking.checking !== undefined && typeof tracking.checking !== "boolean")
       || !["unavailable_count", "processing_count"].every(key => tracking[key] === undefined || readCount(tracking[key]))
-      || !["verified_at", "baseline_at", "next_check_at", "manual_check_at"].every(key => optionalReadText(tracking[key]))) return false;
+      || !["verified_at", "baseline_at", "next_check_at", "manual_check_at"].every(key => optionalReadDate(tracking[key]))) return false;
   return value.provider === undefined || value.provider === "YOUTUBE" || value.provider === "BILIBILI";
+}
+
+function validFollowingPolicyRead(value: unknown, modes: unknown, id: string): boolean {
+  if (!readObject(value) || !belongsToSource(value, id) || !readCount(value.initial_history_count)
+      || !readCount(value.per_run_max_new_videos) || value.per_run_max_new_videos === 0
+      || ![value.focus_rules, value.ignore_rules].every(rules => Array.isArray(rules) && rules.length <= 20 && rules.every(validInterestRule))
+      || !INTEREST_STYLES.includes(value.distillation_style as string)
+      || !(value.source_policy_revision_id === undefined || value.source_policy_revision_id === null
+        || (typeof value.source_policy_revision_id === "string" && readText(value.source_policy_revision_id) && value.source_policy_revision_id.length <= 512))) return false;
+  return modes === undefined || (readObject(modes) && [modes.focus, modes.ignore, modes.style].every(mode => mode === "INHERIT" || mode === "OVERRIDE"));
 }
 
 export function validFollowingDetailRead(value: unknown, id: string, requireTracking = false): boolean {
   if (!readObject(value) || !readObject(value.source) || !validFollowingSourceRead(value.source)
       || value.source.source_id !== id || (requireTracking && !value.source.tracking)) return false;
-  const belongsToSource = (item: Record<string, unknown>) => item.source_id === undefined || item.source_id === id;
+  if (!value.source.tracking && value.source.source_type !== "CHANNEL" && !["LOCAL", "BILIBILI"].includes(value.source.provider as string)) {
+    if (!validFollowingPolicyRead(value.policy, value.policy_modes, id) || !Array.isArray(value.schedules)
+        || !value.schedules.every(schedule => readObject(schedule) && readText(schedule.schedule_id)
+          && ["MANUAL", "DAILY", "WEEKLY"].includes(schedule.frequency as string) && typeof schedule.enabled === "boolean"
+          && optionalReadText(schedule.local_time) && (schedule.timezone === undefined || typeof schedule.timezone === "string")
+          && (schedule.weekday === undefined || schedule.weekday === null || (typeof schedule.weekday === "number" && Number.isInteger(schedule.weekday) && schedule.weekday >= 0 && schedule.weekday <= 6))
+          && (schedule.target_id === undefined || schedule.target_id === id))) return false;
+  }
   return Array.isArray(value.source_runs) && value.source_runs.every(run =>
-    readObject(run) && readText(run.state) && (run.run_id === undefined || readText(run.run_id))
-    && optionalReadText(run.attention_reason) && belongsToSource(run))
+    readObject(run) && readToken(run.state) && (run.run_id === undefined || readText(run.run_id))
+    && (run.attention_reason === undefined || run.attention_reason === null || readToken(run.attention_reason)) && belongsToSource(run, id))
     && Array.isArray(value.recent_videos) && value.recent_videos.every(video =>
       readObject(video) && readText(video.video_id) && (video.title === null || typeof video.title === "string")
-      && readText(video.processing_status) && belongsToSource(video)
+      && readToken(video.processing_status) && belongsToSource(video, id)
       && (video.filter === undefined || video.filter === null || (readObject(video.filter)
-        && typeof video.filter.outcome === "string" && typeof video.filter.reason === "string")));
+        && readToken(video.filter.outcome) && readToken(video.filter.reason) && belongsToSource(video.filter, id)
+        && (video.filter.video_id === undefined || video.filter.video_id === video.video_id))));
 }
 
 const ACTIVE_STATES = ["QUEUED", "RUNNING", "WAITING", "PARTIAL"];

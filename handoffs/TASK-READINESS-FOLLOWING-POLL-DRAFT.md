@@ -222,3 +222,93 @@ ErrorBoundary或停poll冒充成功。补同实际App组合与原焦点/选区/�
 无skip/减弱标准。性能：原1s/2s读完成后再排下一周期的修复保持，Chrome慢读无重叠与原节拍通过。
 范围/复用：仍DIRECT现React/API，无依赖/后端/Schema/模型或资格/正式数据变更，graph索引缺新validator，
 以固定source/diff为依据。所有原RED/REJECT/空白截图保留；停止仅本轮Vite5194后提交handoff clean **STOP**。
+
+## 第二次返修：先枚举消费者契约（2026-10-16）
+
+从 clean `80196c6d8936fa53e1e6b015d47f2dd97648fb8e` 恢复。两次同类 REJECT 后停止“修一个
+字段、增加少量坏值”的方法；本节先按实际消费者及 backend DTO 枚举接收边界，再以字段 mutation
+运行实际 UI 验证。Graph 能定位旧 Sources/SourceDetail/Creator/Status，未索引新 validator；以下以本树
+源码及 `local_api.py:_source_dto/_source_projection/_source_video_dto/_source_policy_dto/_schedule_dto`
+为准。额外未消费的 DTO 字段不作 authority，也不因新增字段拒绝兼容响应。
+
+### 消费者契约表
+
+`?`=可省略以兼容已有 legacy；`null` 仅在明确列出时合法。machine token 为非空大写字母/数字/下划线
+（首字母为字母），未知但同格式 token 沿原未知文案处理；避免字符串字典的原型属性被当成合法状态。
+opaque identity 为非空字符串；显示文本允许空字符串。日期为可解析的非空日期字符串。
+
+| API 字段（每项均枚举） | 实际调用/渲染 | 合法类型与 nullable/legacy |
+|---|---|---|
+| list `sources`、每一行 | `.some/.filter/.map`，之后才隐藏 VIDEO_URL/parent 行 | 数组，可空；所有行都必须是合法 source，不过滤坏行 |
+| source `source_id` | row key、选择/id、GET/PATCH 路径 | identity；详情须等于请求 id |
+| source `canonical_url` | sourceLabel 正则、href、旧配置 input | 列表/App详情必需 string；独立 Creator 的旧读可省略，但出现须为 string |
+| source `display_name`, `friendly_name`, `channel_id`, `video_id` | sourceLabel fallback、Creator heading、旧 form | `? string / null` |
+| source `enabled` | 状态、禁用、显式 pause/check 命令 | boolean |
+| source `provider` | LOCAL/BILIBILI/YOUTUBE 分支与能力解释 | `?` 三枚举；tracking 时仅 YOUTUBE/BILIBILI；不接受 null/其它类型 |
+| source `source_type` | CHANNEL legacy/CREATOR/VIDEO_URL/LOCAL_LIBRARY 分支与可见性 | `?` 四枚举；legacy 无该字段仍合法 |
+| source `processing_policy` | 通用详情 discovery 文案、旧配置 select | `? DISCOVER_ONLY / STANDARD_INTELLIGENCE / FULL_INTELLIGENCE` |
+| source `processing_mode` | Creator 处理选项 | `? ORGANIZE_CONTENT / EXTRACT_INTELLIGENCE`，null 沿原默认值 |
+| source `tracking_parent_source_ids` | `.length` 决定手工导入行是否隐藏 | `? identity[]`，可空；不接受 string/object/null |
+| source `insight_count` | insights filter 数值比较 | `?` 非负安全整数 |
+| source `last_error` | attention filter、非 tracking Status/contentStatus | `? object / null`；对象不接受空壳、数组或其它 primitive |
+| source `last_error.code`, `.message` | code→Status.toUpperCase/statusLabel/Bilibili.replace；message 是该错误 DTO 的文本成员 | code 必需 machine token；message `? string / null`；不 stringify 坏 code |
+| source `last_checked_at`, `last_success_at` | Creator 日期显示 | `? date / null` |
+| source `tracking` | 三入口 tracking/legacy 分支；Creator 需要其存在 | `? object / null`；已接受 tracking 的同 id 后续不得降为缺失/null；Creator 入口始终要求合法对象 |
+| tracking `health`, `coverage` | health→trackingCopy/Status；coverage 为投影契约 | machine token |
+| tracking `update_count`, `pending_count` | `<dd>`、筛选、等待状态 | 必需非负安全整数 |
+| tracking `unavailable_count`, `processing_count` | `<dd>`/attention filter | `?` 非负安全整数 |
+| tracking `checking` | `.some` 轮询、isActive、按钮禁用 | `? boolean` |
+| tracking `verified_at`, `baseline_at`, `next_check_at`, `manual_check_at` | baseline、Date、cooldown timer | `? date / null` |
+| detail `source_runs` | 两入口 `.some/.find/.map`、active poll、receipt | 数组，可空；每项 object |
+| run `state`, `run_id`, `attention_reason`, `source_id` | state→includes/Status/statusLabel；id→key/receipt；attention→Attention 字典解构；source身份 | state machine token；run_id `? identity`（旧 Creator 简投影）；attention `? token / null`；source_id `?`，出现须等于请求 id |
+| detail `recent_videos` | 三种详情 `.map`、Content navigation | 数组，可空；每项 object |
+| video `video_id`, `title`, `processing_status`, `source_id` | link/key、直接 React 文本、Status/statusLabel/localStatus | id必需identity；title `string/null`；status machine token；source_id `?`，出现须等于请求 id |
+| video `filter`, filter `outcome`, `reason`, `source_id`, `video_id` | generic Status/filterReason 与显式 manual-analyze 分支 | filter `? object/null`；outcome/reason token；可选 source/video identity 必须与所在项一致 |
+| detail `policy` | 仅通用非 tracking 详情及其 ExistingSourceForm：计数文本、rules.join/ruleDrafts/select/version | 该分支必需 object；CHANNEL legacy/LOCAL/BILIBILI/tracked 不消费此父读的 policy |
+| policy `initial_history_count`, `per_run_max_new_videos` | React 文本、配置数值 | 前者非负安全整数；后者正安全整数 |
+| policy `focus_rules`, `ignore_rules`, `distillation_style` | join、逐条 textarea、style select | 合法原规则 string[]（空可，原逗号/内部换行空白保真，≤20/每项≤160）；四个既有 style 枚举 |
+| policy `source_id`, `source_policy_revision_id` | 表单期望版本 | source_id `?` 须等于请求 id；revision `? identity/null`，≤512；旧缺版本可读但原保存 gate 仍关闭 |
+| detail `policy_modes` / `focus`, `ignore`, `style` | ExistingSourceForm 初值与保存 gate | `? object`；出现须三项均 INHERIT/OVERRIDE；原兴趣编辑器的独立 snapshot 校验保持 |
+| detail `schedules`、每一项 | generic `.length/.map` 与旧 form 首项 | generic 必需数组，可空；每项 object |
+| schedule `schedule_id`, `frequency`, `enabled` | key、frequency.toLowerCase、select、Status | identity；MANUAL/DAILY/WEEKLY；boolean |
+| schedule `local_time`, `timezone`, `weekday`, `target_id` | 日期/时区文本、旧 form 初值、投影归属 | local_time `? string/null`；timezone `? string`；weekday `? integer[0,6]/null`；target_id `?` 须等于请求 id |
+
+不消费的 created_at/updated_at/trigger/priority/navigation 等字段不参与 UI 决策；测试须证明合法扩展字段
+不会被当成坏读。settings 能力和 SourceInterestEditor policy 自己的 GET 门禁不在这次 DTO 重构范围内。
+
+### 按表修复及方法变化
+
+共享 validator 一次覆盖上述 source/tracking、run/video/filter 及 generic policy/schedules 的消费边界；
+Sources 在隐藏 VIDEO_URL/parent 行之前验证完整数组，并拒绝重复 source_id。错误对象及 code/message
+在 tracking/legacy 分支判断之前验证，避免任何另一行击穿当前编辑器。未知同格式 machine token 和未消费
+扩展字段允许继续走原未知文案；没有改 Status、字符串强转、过滤坏行或 ErrorBoundary。
+
+非 tracked SourceDetail 原来的错误早退也会卸载已打开配置草稿，现改为仅首次无快照时早退；各分支复用
+原 FollowingReadNotice/GET。通用详情编辑时，把同一 notice 传入已有 ExistingSourceForm 的当前 modal，
+而不是放在被它遮住的父详情后面；这只传递读取说明，不改变表单草稿、CAS expected revision 或命令流程。
+其它 useRemote 默认、轮询节拍、path/id/晚响应 gate、SourceInterestEditor 独立读与保存 gate 均未改。
+
+### 本轮实际检查与外部证据
+
+| 检查 | 结果/证据 |
+|---|---|
+| 新契约矩阵前置类型检查 | `npm run typecheck` PASS；`/tmp/following-poll-contract-red-types.log` |
+| 新契约矩阵 RED | `npm test -- src/workspace/FollowingPollDraft.test.tsx -t 'consumer'`：**154 failed / 100 passed / 原47未选择**，10.48s；`/tmp/following-poll-contract-red.log`。同一完整App里32个 source 字段/值×7行类型=224，加 generic policy/schedules/filter 等30项；实际 Status.toUpperCase、字典 React object、policy.join 等失败和缺少拒绝/保留说明均保留，不靠测试 validator 返回值 |
+| 首次按表修复后的 focused | **301 PASS**，14.47s；`/tmp/following-poll-contract-focused.log` |
+| 进一步消费者覆盖 | 向原 App/独立Creator 双入口矩阵追加全部 source 字段与 tracking 每个计数/日期/health/coverage/checking 的坏值、非法容器/原型 token；追加 legal legacy/null/未知 FUTURE_* token/扩展 DTO 正例、三种非 tracked 分支原DOM恢复与重复 id 整读拒绝。原47项及旧543总项没有删除/减弱 |
+| 配置 modal 内可见说明 RED | 在实际打开的 `Edit Source configuration` 内断言错误与 GET：**1 failed**，父详情的说明不在当前编辑窗口；`/tmp/following-poll-contract-visible-error-red.log`。随后仅把 notice 传入当前配置 modal；未弱化该断言 |
+| 最终 `npm run typecheck` | PASS；`/tmp/following-poll-contract-verified-types.log` |
+| 最终 `npm test` | **31 files / 896 passed，20.69s**，本任务文件 **400 PASS**；`/tmp/following-poll-contract-full.log`。旧543全部保留，新353项均过，既有 act 警告保留 |
+| 最终 `npm run build` | PASS，50 modules，571ms；`/tmp/following-poll-contract-build.log` |
+| 两个 Reviewer 原 Chrome 脚本 | 原逻辑/文件不改，分别执行 `/tmp/following-poll-review-repair-invalid-source-code.mjs` 与 `/tmp/following-poll-review-repair-invalid-runs.mjs`；新日志 `/tmp/following-poll-contract-{source,runs}-probe.log`。两者均 `draftConnected:true, dialogs:1, errors:[], writes:[]`，有明确错误与 GET；另解析真实 JSON 日志逐项 assert 这些事实，不把 logger 正常退出当通过。原失败日志保留；重跑前的 png 另存各自 `-before-contract.png`，更早原空白 png 亦保留 |
+| Chrome 六种来源行的列表反证/恢复 | `/tmp/following-poll-contract-source-browser.mjs/.log`：EN/ZH×320×LOCAL/BILIBILI/VIDEO_URL/legacy/generic/tracked，**12 PASS**。每种另一行 `last_error.code:{}` 都拒绝整读，原完整App/草稿DOM/focus/selection[2,5]/多行空白原值保留，错误与 GET 恢复，pageerror0/PUT-PATCH0 |
+| Chrome 通用配置实际消费分支 | `/tmp/following-poll-contract-generic-browser.mjs/.log`：EN/ZH×320×policy/schedule/filter/source-code 四种坏读，**8 PASS**；原配置输入DOM/focus/selection/多行草稿保留，错误与 GET 处于同一正在编辑的 modal，恢复后仍同输入DOM，pageerror0/PUT-PATCH0 |
+| Chrome 窄窗可见图像补充 | `/tmp/following-poll-contract-generic-view.mjs/.log`：EN/ZH policy 两例 PASS，并核对 document 无横溢出；滚动到当前配置窗口 GET 按钮截图，已实际查看中文 `/tmp/following-poll-contract-zh-CN-generic-error-header.png`，明确错误/重读在编辑窗口内。另实际查看中文 source-error 图，原 focused 草稿/选区及错误同在 tracked modal |
+| 原完整 Chrome 八矩阵 | 原 `/tmp/following-poll-browser.mjs` 重跑，`/tmp/following-poll-contract-browser8.log` **8 PASS**，EN/ZH×320/1440×checking-only/active；慢读无重叠、503恢复、CAS r0冲突不rebase/不重放、显式兴趣GET后新命令、checking结束、原焦点/选区、无横溢出均保留；每例故意409+成功为2 PUT，JSerrors0，预期503/409控制台日志保留 |
+| 累计 diff/range | `git diff --check aa18dea681c86645f7aa2efdea5b6c278dc96c89` PASS；累计仅原五路径，本轮四路径。`git diff --name-only aa18dea -- src tests pyproject.toml frontend/package.json frontend/package-lock.json` 无输出 |
+
+所有测试仅隔离 HTTP fixture/本树前端；没有网络 provider/模型、正式数据、owner、Schema、配置/凭据、
+依赖/lock 修改。backend0diff，依原任务继承 root 后端证据，不重复宣称运行 Ruff/mypy/backend。仅关闭
+本轮自用 Vite5194/测试页；保留 root5908/6098/6099 未触碰。旧 REJECT 全历史与全部反证继续保留。
+提交后 clean **STOP**；剩余仍为同 Reviewer `aa18dea...新HEAD` 累计复审和 root 真实 factory/API GUI，
+作者不自行 ACCEPT/合入/推进其它任务。
