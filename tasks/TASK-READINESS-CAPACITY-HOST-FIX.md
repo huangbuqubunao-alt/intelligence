@@ -1,3 +1,5 @@
+2026-10-16 ACCEPTED：9be84b8 经独立868d2da APPROVE，500 tests/mypy106/Ruff/compile/diff及固定安装bytes-only校验PASS，无P0/P1/P2。root审阅累积diff与handoff，允许整合作者及独立报告；真实observe_host/slot/resource/prepare/语义仍待root，原FAIL不删除、资格不授予。
+
 2026-10-16 必要同根因补充：harness verify_resources也独立误将legacy wrapper SHA当parent digest，允许scripts/qualify_local_grounding_v1.py与对应harness测试复用本固定双manifest/有序payload校验；不改runtime/resource/permit/once/arm/claim语义，原FAIL留存。统一freeze尚未发生，当前0新调用/资格false；不另按文件请求用户批准。固定官方源码另证真实API authority为manifests-v2/ollama.com/...指向parent blob的symlink，需一并纳身份/TOCTOU；不能只修legacy wrapper漏掉实际tag。
 
 # TASK-READINESS-CAPACITY-HOST-FIX

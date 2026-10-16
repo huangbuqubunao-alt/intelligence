@@ -183,3 +183,6 @@ Backup741独立20专项/461全量/TSbuild及handler byte核对PASS，但独立ZH
 
 
 2026-10-15 Native v2真实普通GUI：单次添加OYp5j2RihPE，metadata及transcript各1次SUCCEEDED、29cue、deterministicSummary+4Evidence、raw源+不可变capture同SHA，刷新和实际GUI备份/恢复7fa802adb6d84e2a9692040d7aa3a41c@03:50:03Z后全部74表87物理DATA精确一致，原84DATA保留；无distillation/Cloud/付费调用。注意UI“数据文件88”实际是88 artifact引用/87物理路径（raw和capture共文件），已记录呈现文案修复队列，不把显示数冒作物理数。旧tracked失败重试与真实失败derived归档正向未覆盖。
+
+
+2026-10-16续作：FINAL-CAPABILITY c990538/7a169ce/独立d775b0c整合6fa6a07；root79相关backend、929frontend、TS/build、diffPASS。真实普通factory重启/Settings六资格false、ASRready、Backupready；后台关注正常新增导致初90→96文件，已普通UI暂停后固定74表96文件，创建前后全等，真实ZIP sha256 ea8b35621d3b27d3dac5bfda062fc0727304003e17da5155347e2215025ae985，UI96 physical正确。恢复尚未提交：Chrome原生NSOpenPanel选中ZIP但Open禁用，停止重复尝试并取消；误打开旧独立native import app未触产品API/导入，亦无恢复。此轮不宣称恢复PASS。原错误查询jobs.stage不存在保留tool输出。截图final-capability-real-settings-backup.png已保存。HOST-FIX9be84b8独立868d2da/500PASS，接受待整合/root复验；trackedRetry设计docs续写。两agent额度中断已核终态，19:41过19:36重置后续原任务，不重跑完成检查。资格全false，未发布。
