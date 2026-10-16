@@ -1,3 +1,5 @@
+2026-10-16 ACCEPTED：329794b经独立89e564c APPROVE，937frontend/36focused/TSbuild/88 Chrome工程组，原handlers字节不变/P0P1P2零。root审阅极小产品diff及handoff，允许整合两提交；Chrome154真实native无filter绕路和真实stage待root复验，未称已完成。
+
 # TASK-READINESS-BACKUP-PICKER-FILTER
 Status: READY (2026-10-16). Root base is this task/package commit after0804db2. User持续默认授权，当前普通用户恢复链必要最小修复，无新审批。
 真实证据：macOS Chrome154 NSOpenPanel在accept=".zip,application/zip"的“自定义文件”下，可读有效.zip选中仍Open disabled；切“所有文件”再选同ZIP立即Open enabled，正常stage成功96DATA。已实际进入RESTORE一次确认，root在做恢复校验。原源handler/input与Oct15基线字节相同，是当前Chrome/macOS实际兼容问题，不能声称此前UI都可用。
