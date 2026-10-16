@@ -1,0 +1,40 @@
+{
+  "head": "88161aae1a78f772f082430d4b93e7943ce770ba",
+  "tables": 74,
+  "physical_files": 96,
+  "stable_create_all_tables_equal": true,
+  "stable_create_all_files_equal": true,
+  "zip_sha256": "ea8b35621d3b27d3dac5bfda062fc0727304003e17da5155347e2215025ae985",
+  "archived_DATA_all_hashes_match": true,
+  "manifest_counts": {
+    "content": 24,
+    "data_artifacts": 100,
+    "data_bytes": 30264548,
+    "evidence": 210,
+    "following": 3,
+    "intelligence": 0,
+    "retained_derivations": 0,
+    "settings": 1,
+    "summaries": 21,
+    "topics": 0
+  },
+  "gui_physical_count": 96,
+  "restore_status": "NOT_SUBMITTED_native_Chrome_Open_disabled",
+  "model_qualification": "all_six_false",
+  "provider_calls_before_after_pause_only_ytdlp_subtitle": true,
+  "limitations": [
+    "Initial worker check added six DATA files before stabilized baseline; not asserted unchanged from earlier90.",
+    "This receipt does not claim restore PASS."
+  ],
+  "local_text_content_actual_route": {
+    "scope": "LOCAL_TEXT",
+    "output_language": "zh-CN",
+    "target_model": "qwen3.5:9b-q4_K_M",
+    "current_service_model": "qwen3:8b",
+    "qualification": "not_qualified",
+    "retained_content_summary_evidence": true,
+    "prior_cancel_feedback_visible": true,
+    "settings_link_navigation": "PASS",
+    "new_extract_commands": 0
+  }
+}

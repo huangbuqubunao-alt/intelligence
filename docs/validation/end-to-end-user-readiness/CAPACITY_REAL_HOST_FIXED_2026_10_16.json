@@ -1,0 +1,17 @@
+{
+  "started_at": "2026-10-16T11:46:16.873457+00:00",
+  "code_head": "88161aae1a78f772f082430d4b93e7943ce770ba",
+  "scope": "fixed installed bytes/process/resource observation; loaded=False, no model HTTP/load/generation",
+  "model_load_requests": 0,
+  "generation_requests": 0,
+  "result": "CLOSED",
+  "error_type": "CapacityUnavailable",
+  "error": "disk or available RAM is insufficient",
+  "finished_at": "2026-10-16T11:46:21.009680+00:00",
+  "resource_detail": {
+    "available_memory_bytes": 4204675072,
+    "required_cold_memory_bytes": 8698309198,
+    "available_disk_bytes": 9719455744,
+    "required_disk_bytes": 10737418240
+  }
+}
