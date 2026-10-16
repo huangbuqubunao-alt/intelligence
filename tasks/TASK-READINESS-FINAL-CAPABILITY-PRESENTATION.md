@@ -1,3 +1,5 @@
+2026-10-16 ACCEPTED：作者c990538/7a169ce，独立d775b0c APPROVE，330 backend/929frontend/144 Chrome、TSbuild/Ruff/mypy104/compile/diff PASS，P0/P1/P2=0。root审阅累计diff及handoff，允许仅整合这些已审提交。模型资格/真实普通factory与新Backup Restore全表全文件验收及最终回归仍OPEN；本接受仅工程范围，不授真实模型资格。
+
 2026-10-16 必要只读接口精化：Content POST继续仅command_id，禁止新增client model/scope赋权。允许distillation.py极小公开capability binding属性/方法，只投影现service provider/model/profile，无IO/claim/资格或执行改变；local_api用server已验证来源/locator/effective language匹配当前reviewed scope状态和实际service绑定。若reader已变而长寿命service仍旧8b，显示不可用/需重新初始化，不虚报9b可执行。不碰capacity执行方法，若review返修涉及同一区域则root协调串行。保留现WAIT0请求/安全取消生命周期与预算/Cloud授权；loading/unknown不启动未知操作。本必要方法属于当前用户持续授权，不需要新增逐文件批准。
 
 2026-10-16 READY：已接受local grounding port 43e7758与SourceCAS/POLL 2134a30及root真实GUI e659d48满足实际只读DTO依赖。root核对容量e0b123a diff：local_api/App/Backup均0diff，runtime_composition只改重量guard/transport factory，未改LocalApiApplication构造参数区域、local_distillation_capabilities函数或scope_status接口。容量作者clean STOP、当前仅独立Reviewer读产品/写handoff；因此允许本必要呈现任务从最新已接受root基线开工，解除先前保守等待容量审查的非功能依赖。
