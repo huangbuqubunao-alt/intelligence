@@ -312,3 +312,56 @@ Sources 在隐藏 VIDEO_URL/parent 行之前验证完整数组，并拒绝重复
 本轮自用 Vite5194/测试页；保留 root5908/6098/6099 未触碰。旧 REJECT 全历史与全部反证继续保留。
 提交后 clean **STOP**；剩余仍为同 Reviewer `aa18dea...新HEAD` 累计复审和 root 真实 factory/API GUI，
 作者不自行 ACCEPT/合入/推进其它任务。
+
+## 独立累计系统复审 — APPROVE（2026-10-16）
+
+- Reviewer：`local_text_review_resume`，固定累计 base `aa18dea681c86645f7aa2efdea5b6c278dc96c89`
+  至 author `f19e437c17ee06e2cfb451fae3a3ad640c1eea7a`；两次原 REJECT `1ad9697/80196c6` 及全部
+  红日志/空白截图保留。重新读原 task/package、完整消费者表、累计diff和最终实现，不只复测原两个字段。
+- **APPROVE；当前未发现 P0/P1/P2。** 原 null-run 和另一行 last_error.code 两条真实Chrome反证均闭合。
+  本结论是固定候选工程审查；root真实 factory/API checking 与双页CAS复验、整合门禁仍由root完成。
+
+### 累计五轴复核
+
+1. **规格/正确性**：对照实际Sources/SourceDetail/Creator/ExistingSourceForm/Status/Attention消费者和
+   backend `_source_dto/_source_projection/_source_video_dto/_source_policy_dto/_schedule_dto`，核对七类
+   source行及隐藏VIDEO_URL/parent行在过滤前均校验，不丢弃坏条目或重复id冒充完整成功。错误code、
+   tracking计数/日期、run/video/filter、通用policy/modes/schedules均在setData前验证。
+   provider/source type/processing/schedule枚举与本树backend一致；合法nullable/旧可选字段、完整规则、
+   FUTURE_* machine token及未消费扩展字段正例通过，不把prototype属性当状态文案。
+2. **异常/安全**：失败保持整份旧快照与同一编辑器DOM，不 stringify/过滤坏数据，不加ErrorBoundary。
+   详情与父列表错误直到有效成功前不清，并在当前tracked或通用配置modal内显示原机器码/GET。
+   未知/foreign/missing tracking及两父入口各自坏成员均关闭；初次失败不展示旧来源。path变化的首帧
+   屏蔽旧快照、cleanup忽略晚读、Creator keyed id不共享草稿，原CAS expected/command/409不rebase不重放。
+3. **回归/测试**：独立完整896前端通过，原543项/断言保留；测试diff中的原fetch fixture泛化仅为真实
+   七类id和全局policy读取，不删除旧断言。400项实际UI组合覆盖消费者mutation与合法兼容正例；另跑
+   原Chrome反证、原轮询矩阵及独立补充边界，不只调用validator返回值。正常检查、选择/导航、legacy/
+   LOCAL/Bilibili/通用配置的错误恢复均保留。
+4. **性能/并发**：原1s/2s节拍仍在read完成后排下一次，未停止/延迟poll掩盖问题；慢读、双父轮询、
+   503恢复与checking完成在真实Chrome通过，DOM/focus/selection[2,5]保持。校验为字段/集合线性检查，
+   未加独立任务队列或全局保留策略；其它useRemote默认false行为不扩张。
+5. **范围/复用**：累计仍原5路径、仅DIRECT现React/API/CSS；无后端/schema/SQL/依赖/锁/模型/资格/
+   正式配置或数据修改，无外部实现复制。graph未索引新validator，固定source与backend DTO为依据。
+   本轮只写本handoff；未触root服务/DB或并发capacity产品树。
+
+### 独立实际检查与运行证据
+
+| 检查 | 真实结果 |
+|---|---|
+| `cd frontend && npm test` | **31 files / 896 passed，27.95s**，exit0；`/tmp/following-poll-review-system-frontend896.log`。保留原act警告 |
+| `npm run typecheck` / `npm run build` | 两者exit0；`/tmp/following-poll-review-system-ts.log`、`/tmp/following-poll-review-system-build.log`，50 modules，922ms |
+| 两个原Reviewer Chrome反证 | 保留逻辑，只更换截图输出路径；`/tmp/following-poll-review-system-{runs,source}.mjs/.log/.png`，均 **draftConnected:true/dialogs1/errors[]/writes[]**，错误及GET可见。后验解析JSON事实另见 `system-logcheck.log`，未拿logger退出码当功能PASS |
+| 原完整App轮询八矩阵 | `node /tmp/following-poll-browser.mjs` exit0；`/tmp/following-poll-review-system-browser8.log` **8 PASS**，ZH/EN×320/1440×checking-only/active；多周期、慢读无重叠、503+GET、CAS r0冲突草稿/选区不rebase不重放、显式GET新command、checking完成及无横溢出，JSerrors0。每例故意409+成功2 PUT，预期控制台错误保留 |
+| 来源行坏码矩阵 | `node /tmp/following-poll-contract-source-browser.mjs` exit0；`/tmp/following-poll-review-system-source12.log` **12 PASS**，六类来源×EN/ZH@320；坏行不被过滤成成功，整份旧列表/草稿/焦点/选区保留，GET恢复，零pageerror/PUT-PATCH |
+| 通用配置实际消费者 | `node /tmp/following-poll-contract-generic-browser.mjs` exit0；`/tmp/following-poll-review-system-generic8.log` **8 PASS**，policy/schedule/filter/error四类×EN/ZH；同一正在编辑modal显示错误/GET，原输入DOM/焦点/选区保留、恢复，零pageerror/PUT-PATCH |
+| 新独立额外边界 | `/tmp/following-poll-review-system-extra6.mjs/.log`，exit0，**6 PASS**：Bilibili CREATOR坏码、parent-hidden行坏码、非法tracking日期×EN/ZH@320；同原矩阵完整DOM/焦点/选区/整读失败/GET恢复断言，errors0/writes0 |
+| 中文/英文窄窗错误可见性 | `node /tmp/following-poll-contract-generic-view.mjs` exit0；`/tmp/following-poll-review-system-view2.log` **2 PASS**，无横溢出。实际查看当前中文generic-error-header截图与原独立source截图：明确错误/GET在编辑modal内，草稿仍在 |
+| 累计diff/range | `git diff --check aa18dea...HEAD` PASS；`git diff --exit-code aa18dea...HEAD -- src tests scripts pyproject.toml frontend/package.json frontend/package-lock.json` exit0。backend0diff，不重跑或冒称后端/Ruff/mypy |
+
+日志后验QA首轮误从 `body.innerText` 查textarea的输入value而报AssertionError，工具原输出保留；该DOM
+属性不包含当前textarea value。未改产品、未重跑浏览器或削弱原断言：后验只核日志确实记录的DOM连接/
+错误/GET事实；原Chrome矩阵仍用 `el.value/selectionStart/selectionEnd` 直接严格断言完整多行草稿，
+该要求没有取消。更正后的日志事实核验为 `/tmp/following-poll-review-system-logcheck.log` exit0。
+
+结束前重验 exact candidate与clean树，只停止本轮Vite5194。所有旧失败/REJECT保留，模型/资格/正式数据
+调用0。handoff审查提交后clean **STOP**，不自行整合或将任务设为DONE。
