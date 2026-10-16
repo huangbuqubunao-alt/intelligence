@@ -1,3 +1,6 @@
+# 2026-10-16 容量工程接受整合
+独立bed638f APPROVE e0b123a，563独立测试通过；root整合1c38d6a，178/strict106/Ruff/diff复验通过，6scope/lang全NOT_QUALIFIED/0新生成。FINAL-CAPABILITY-PRESENTATION从已接受6854ed3独立实现中（实际只读DTO依赖已满足，容量产品写STOP后仅review时并行）；仅API呈现/物理计数与service极小只读binding/实际输出语言，不改变执行准入。tracked Retry只读确认原SourceRun8阶段不能诚实完成Content-only，正在精确兼容持久命令方案，产品写等当前UI接受。完整长内容/rolling及真实模型/最终全回归和采用仍OPEN，main73ee7e7未发布/owner数据未动。
+
 # 2026-10-16 当前已完成实证
 POLL独立d012c48 APPROVE，全历史整合2134a30；root896全前端/TSbuild/diff通过。真实普通factory/API checking=true时编辑跨轮询保留草稿/焦点/选区，保存/第二页竞争旧页冲突/明确GET新command/刷新/真实API进程重启全部通过；74表仅source_policy_current/revisions预期变化，原6历史保留+3新兴趣版本，其余72表和87DATA原样，重启全部74表87DATA全等，integrity/FK正常。中文统一手册新增2真实图，Chrome62/62加载无溢出。此service有意不启动worker测零副作用，不冒充后台worker成功。容量e0b123a clean STOP/1015affected+178+75专项/静态通过，独立安全审查中；资格false/0新生成，tracked Retry/最终capability/长内容/真实模型/最终采用仍未完成。
 

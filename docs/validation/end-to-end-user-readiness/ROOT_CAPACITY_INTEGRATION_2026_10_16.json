@@ -1,0 +1,31 @@
+{
+  "code_head": "1c38d6acb7d6b858911c868e02fc3828b240a3f4",
+  "author": "e0b123aaf241e39a8e4867c90ef48a53c9944763",
+  "independent_review": "bed638f24b8b372053840723f8884197341e0852",
+  "root_integration": "1c38d6a",
+  "checks": {
+    "pytest": {
+      "passed": 178,
+      "seconds": 78.03,
+      "log": ".var/end-to-end-user-readiness/capacity-root-tests178.log"
+    },
+    "mypy": {
+      "result": "PASS",
+      "source_files": 106,
+      "log": ".var/end-to-end-user-readiness/capacity-root-mypy.log"
+    },
+    "ruff": {
+      "result": "PASS",
+      "log": ".var/end-to-end-user-readiness/capacity-root-ruff.log"
+    },
+    "diff_check": "PASS",
+    "fresh_process_capabilities": {
+      "count": 6,
+      "all": "NOT_QUALIFIED"
+    }
+  },
+  "real_generation_requests": 0,
+  "qualification": false,
+  "actual_engineering_host_prepare": "not yet executed; independent existing no-generation load/render/tokenizer QA is separate evidence, not current production readiness",
+  "full_goal": "INCOMPLETE; do not release"
+}
