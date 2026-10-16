@@ -19,12 +19,13 @@
     "topics": 0
   },
   "gui_physical_count": 96,
-  "restore_status": "NOT_SUBMITTED_native_Chrome_Open_disabled",
+  "restore_status": "APPLIED",
   "model_qualification": "all_six_false",
   "provider_calls_before_after_pause_only_ytdlp_subtitle": true,
   "limitations": [
     "Initial worker check added six DATA files before stabilized baseline; not asserted unchanged from earlier90.",
-    "This receipt does not claim restore PASS."
+    "This receipt does not claim restore PASS.",
+    "Original custom native file filter disabled valid ZIP; selecting All files enabled it. Exact same ZIP passed normal stage/RESTORE; picker compatibility fix tracked separately, no backend checks bypassed."
   ],
   "local_text_content_actual_route": {
     "scope": "LOCAL_TEXT",
@@ -36,5 +37,11 @@
     "prior_cancel_feedback_visible": true,
     "settings_link_navigation": "PASS",
     "new_extract_commands": 0
-  }
+  },
+  "restore_id": "689d0de7326e45ebbd60dfdfa251cc74",
+  "completed_at": "2026-10-16T11:50:11Z",
+  "restored_all_74_tables_equal": true,
+  "restored_all_96_files_equal": true,
+  "restored_integrity_check": "ok",
+  "restored_foreign_key_check": []
 }

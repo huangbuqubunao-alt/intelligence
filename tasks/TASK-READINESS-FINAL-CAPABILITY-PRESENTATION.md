@@ -1,3 +1,5 @@
+2026-10-16 DONE（工程与本任务真实验收，不是整个goal完成）：全部作者+独立报告整合6fa6a07；root79backend/929front/TSbuild PASS，真实普通factory Settings/LOCAL_TEXT scope语言+实际route/设置回跳、物理96 vs引用100正确。普通GUI create/native choose/strict stage/RESTORE一次confirm/真实restart APPLIED689d0de7326e45ebbd60dfdfa251cc74，74表逐行96DATA逐hash全等，FK/integrity正常。native custom filter真实兼容问题需AllFiles才能选，另开必要PICKER-FILTER修复，不能称该入口已无障碍。0真实模型调用/资格false/未发布。证据FINAL_CAPABILITY_REAL_GUI_2026_10_16.json。
+
 2026-10-16 ACCEPTED：作者c990538/7a169ce，独立d775b0c APPROVE，330 backend/929frontend/144 Chrome、TSbuild/Ruff/mypy104/compile/diff PASS，P0/P1/P2=0。root审阅累计diff及handoff，允许仅整合这些已审提交。模型资格/真实普通factory与新Backup Restore全表全文件验收及最终回归仍OPEN；本接受仅工程范围，不授真实模型资格。
 
 2026-10-16 必要只读接口精化：Content POST继续仅command_id，禁止新增client model/scope赋权。允许distillation.py极小公开capability binding属性/方法，只投影现service provider/model/profile，无IO/claim/资格或执行改变；local_api用server已验证来源/locator/effective language匹配当前reviewed scope状态和实际service绑定。若reader已变而长寿命service仍旧8b，显示不可用/需重新初始化，不虚报9b可执行。不碰capacity执行方法，若review返修涉及同一区域则root协调串行。保留现WAIT0请求/安全取消生命周期与预算/Cloud授权；loading/unknown不启动未知操作。本必要方法属于当前用户持续授权，不需要新增逐文件批准。
