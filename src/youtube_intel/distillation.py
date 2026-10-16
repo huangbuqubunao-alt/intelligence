@@ -2969,6 +2969,19 @@ class PersonalizedDistillationService:
             lambda _: "zh-CN"
         )
 
+    def capability_binding(self) -> dict[str, str | None]:
+        """Describe this service's current route without preparing or dispatching it."""
+        return {"provider": self._selected_provider, "model": self._selected_model,
+                "profile_id": self._local_profile_id}
+
+    def capability_output_language(self, video_id: str) -> str | None:
+        """Use the same read-only language resolver as an explicit reservation."""
+        try:
+            language = self._output_language_for_video(video_id)
+            return language if language in {"en", "zh-CN"} else None
+        except Exception:
+            return None
+
     def _transport_permits(
         self,
         verified_input: VerifiedDistillationInput,

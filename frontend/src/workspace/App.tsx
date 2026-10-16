@@ -172,6 +172,7 @@ type ContentItem = {
   last_updated: string;
 };
 type ContentDetail = {
+  local_intelligence?: unknown;
   video: ContentItem;
   waiting_model_executions?: { execution_id: string; updated_at: string; can_cancel: boolean }[];
   cloud_intelligence_available?: boolean;
@@ -226,6 +227,68 @@ type ContentDetail = {
     context?: { stage?: string };
   }[];
 };
+type LocalScope = "YT_TIMED" | "LOCAL_TIMED" | "LOCAL_TEXT";
+type LocalBinding = { provider: string; model: string; profile_id: string | null };
+type LocalScopeStatus = { scope: LocalScope; output_language: "en" | "zh-CN"; model: string; profile_id: string; status: "QUALIFIED" | "NOT_QUALIFIED" };
+type LocalMatrix = { status: "KNOWN"; model: string; profile_id: string; runtime_binding: LocalBinding | null; scopes: LocalScopeStatus[] };
+type ContentLocalCapability = { video_id: string; scope: LocalScope; output_language: "en" | "zh-CN"; model: string; profile_id: string;
+  runtime_binding: LocalBinding; qualification_status: "QUALIFIED" | "NOT_QUALIFIED";
+  request_state: "WAITING_MODEL" | "ELIGIBLE_FOR_ADMISSION" | "UNKNOWN"; reason: string };
+const localObject = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
+const localText = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
+const localScope = (value: unknown): value is LocalScope => value === "YT_TIMED" || value === "LOCAL_TIMED" || value === "LOCAL_TEXT";
+const localBinding = (value: unknown): value is LocalBinding => localObject(value) && localText(value.provider) && localText(value.model)
+  && (value.profile_id === null || localText(value.profile_id));
+function readLocalMatrix(value: unknown): LocalMatrix | null {
+  if (!localObject(value) || value.status !== "KNOWN" || !localText(value.model) || !localText(value.profile_id)
+      || !(value.runtime_binding === null || localBinding(value.runtime_binding)) || !Array.isArray(value.scopes) || value.scopes.length !== 6) return null;
+  const pairs = new Set<string>();
+  for (const row of value.scopes) {
+    if (!localObject(row) || !localScope(row.scope) || !["en", "zh-CN"].includes(row.output_language as string)
+        || row.model !== value.model || row.profile_id !== value.profile_id || !["QUALIFIED", "NOT_QUALIFIED"].includes(row.status as string)) return null;
+    pairs.add(`${row.scope}/${row.output_language}`);
+  }
+  return pairs.size === 6 ? value as LocalMatrix : null;
+}
+function readContentLocal(value: unknown, video: ContentItem, id: string): ContentLocalCapability | null {
+  if (!localObject(value) || value.video_id !== id || !localScope(value.scope) || !["en", "zh-CN"].includes(value.output_language as string)
+      || !localText(value.model) || !localText(value.profile_id) || !localBinding(value.runtime_binding)
+      || !["QUALIFIED", "NOT_QUALIFIED"].includes(value.qualification_status as string)) return null;
+  if (video.provider === "YOUTUBE" ? value.scope !== "YT_TIMED" : video.provider !== "LOCAL" || value.scope === "YT_TIMED"
+      || (video.media_kind === "TEXT" && value.scope !== "LOCAL_TEXT") || (["AUDIO", "VIDEO"].includes(video.media_kind ?? "") && value.scope !== "LOCAL_TIMED")) return null;
+  const matches = value.runtime_binding.provider === "ollama" && value.runtime_binding.model === value.model && value.runtime_binding.profile_id === value.profile_id;
+  const consistent = value.qualification_status === "NOT_QUALIFIED"
+    ? value.request_state === "WAITING_MODEL" && value.reason === "NOT_QUALIFIED"
+    : (value.request_state === "ELIGIBLE_FOR_ADMISSION" && matches && value.reason === "ADMISSION_CHECKS_REQUIRED")
+      || (value.request_state === "WAITING_MODEL" && (value.reason === "ROUTE_REINITIALIZATION_REQUIRED" && !matches || value.reason === "MODEL_UNAVAILABLE" && matches))
+      || (value.request_state === "UNKNOWN" && matches && value.reason === "RESOURCE_STATUS_UNKNOWN");
+  return consistent ? value as ContentLocalCapability : null;
+}
+const localScopeLabel = (scope: LocalScope) => ({ YT_TIMED: "YouTube timed captions", LOCAL_TIMED: "Local audio/video", LOCAL_TEXT: "Local text documents" })[scope];
+const localLanguageLabel = (language: "en" | "zh-CN") => language === "en" ? "English" : "中文";
+function LocalIntelligencePresentation({ matrix, content, onReload }: { matrix?: unknown; content?: ContentLocalCapability | null; onReload: () => void }) {
+  const { t } = useUiLanguage();
+  const known = readLocalMatrix(matrix);
+  const label = content !== undefined ? "Local Intelligence for this Content" : "Local Intelligence qualification";
+  return <section role="region" aria-label={t(label)}>
+    {known ? <>
+      <p>{t("Target local Intelligence model")}: {known.model}</p>
+      <ul>{known.scopes.map(row => <li key={`${row.scope}/${row.output_language}`}>{t(localScopeLabel(row.scope))} · {localLanguageLabel(row.output_language)} · {t(row.status === "QUALIFIED" ? "Quality verification passed" : "Quality verification not passed")}</li>)}</ul>
+      <details><summary>{t("Verification profile")}</summary><p className="hint">{known.profile_id}</p></details>
+    </> : content ? <>
+      <p>{t("Target local Intelligence model")}: {content.model}</p>
+      <p>{t(localScopeLabel(content.scope))} · {localLanguageLabel(content.output_language)}</p>
+      <p>{t("Current execution route")}: {content.runtime_binding.model}</p>
+      <p>{t(({ NOT_QUALIFIED: "This source type and output language have not passed local Intelligence quality verification. A request will wait without running a model.",
+        ROUTE_REINITIALIZATION_REQUIRED: "The verified model does not match the current route. Restart the local service to reinitialize it; extraction will wait.",
+        MODEL_UNAVAILABLE: "The qualified model is unavailable. A request will wait; check local model setup.",
+        RESOURCE_STATUS_UNKNOWN: "Local model resource status is unknown. Read the status again before requesting extraction.",
+        ADMISSION_CHECKS_REQUIRED: "Qualified for this source and output language. Admission checks still apply." } as Record<string, string>)[content.reason])}</p>
+    </> : <p role="status">{t("Local Intelligence status is unknown. Read the status again before requesting extraction.")}</p>}
+    {(!known && !content || content?.request_state === "UNKNOWN") && <button type="button" className="button button-secondary" onClick={onReload}>{t("Retry local Intelligence status")}</button>}
+    {content !== undefined && <a href="#Settings">{t("Open model settings")}</a>}
+  </section>;
+}
 type DeepAnalysisRole = {
   role: string;
   text: string;
@@ -1682,12 +1745,13 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
     return () => clearTimeout(timer);
   }, [data]);
   if (error) return <ErrorState error={error} code={errorCode} onReload={reload} />;
-  if (!data) return <Empty>Loading Content detail…</Empty>;
+  if (!data || data.video.video_id !== id) return <Empty>Loading Content detail…</Empty>;
   if (data.video.work_kind) return <div className="dashboard-stack"><button className="button button-ghost" onClick={onClose}>{t("Back to Content")}</button><Panel title={data.video.title ?? id}><Status {...contentStatus(data.video.provider, data.video.processing_status)} /><p>{t("Import accepted. Processing and any required attention appear in Content.")}</p><a href={data.video.source_url ?? undefined} target="_blank" rel="noreferrer">{t("Open original source")}</a><button className="button button-secondary" onClick={async () => { try { await post(`/sources/${data.video.source_id}/check`, { command_id: commandId() }); setRefresh(value => value + 1); } catch { setCloudError("The source could not be checked. Try again later."); } }}>{t("Retry")}</button>{cloudError && <p role="alert">{t(cloudError)}</p>}</Panel></div>;
   const transcript = data.transcript;
   const isBilibili = data.video.provider === "BILIBILI";
   const isLocalMedia = data.video.provider === "LOCAL" && data.video.media_kind !== "TEXT";
   const note = data.note.v2;
+  const localCapability = readContentLocal(data.local_intelligence, data.video, id);
   const visibleHistory = data.history.filter((event) =>
     event.type === "JOB_STATUS" || !event.type
   );
@@ -1825,6 +1889,7 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
         refresh={evidenceRefresh}
       />
       <Panel title="Intelligence result">
+        <LocalIntelligencePresentation content={localCapability} onReload={reload} />
         <div className="semantic-state state-neutral">
           <Status value={data.intelligence_result.status} />
           <p role={data.intelligence_result.status === "CANCELLED" ? "status" : undefined}>{t(intelligenceResultCopy(data.intelligence_result.status))}</p>
@@ -1848,7 +1913,7 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
             </div>)}
           </div>}
           {data.manual_intelligence_eligible && <div className="button-row">
-            <button type="button" className="button button-primary" disabled={cloudBusy || Boolean(data.waiting_model_executions?.length)} onClick={async () => {
+            <button type="button" className="button button-primary" disabled={cloudBusy || !localCapability || localCapability.request_state === "UNKNOWN" || Boolean(data.waiting_model_executions?.length)} onClick={async () => {
               setCloudBusy(true); setCloudError(null); setCancelFeedback(null);
               try { await post(`/videos/${id}/intelligence`, { command_id: commandId() }); setRefresh(value => value + 1); }
               catch { setCloudError(t("Intelligence could not start. Check model readiness and try again.")); }
@@ -3846,6 +3911,7 @@ function Settings({ refresh }: { refresh: number }) {
     };
     providers: ProviderStatus[];
     runtime_local_model?: { model: string | null; status: string; installed?: boolean; digest_valid?: boolean };
+    local_intelligence?: unknown;
     content_processing?: { status: string; requires_cloud: boolean };
     cloud_credential?: { configured: boolean; source: string };
     model_preference?: { desired_provider: string | null; desired_model: string | null };
@@ -3924,7 +3990,8 @@ function Settings({ refresh }: { refresh: number }) {
         <p className="hint">{t("Installation and identity checks do not qualify a model for Intelligence.")}</p>
         <p className="hint">{t("Scoring and model-based Summary use this runtime configuration. Candidate preferences in Advanced do not change it.")}</p>
         <h3>{t("Intelligence")}</h3>
-        {localFoundation?.qualification_status === "INTELLIGENCE_UNQUALIFIED" && <p>{t("The current local model has not passed Intelligence quality verification. Existing Content, Summary and Evidence remain readable.")}</p>}
+        {!readLocalMatrix(settings.data.local_intelligence) && localFoundation?.qualification_status === "INTELLIGENCE_UNQUALIFIED" && <p>{t("The current local model has not passed Intelligence quality verification. Existing Content, Summary and Evidence remain readable.")}</p>}
+        <LocalIntelligencePresentation matrix={settings.data.local_intelligence} onReload={settings.reload} />
         <p>{t(videoDistillation?.production_eligible ? "Optional cloud analysis is available after your authorization for each request." : videoDistillation?.credential_status === "BLOCKED" ? "Cloud Intelligence is optional. It needs a credential and your separate authorization for each request. Content processing remains usable." : "Cloud Intelligence is optional and requires a qualified model and your separate authorization for each request. Content processing remains usable.")}</p>
         <details><summary>{t("Cloud setup and model details")}</summary><ModelSettings message={modelMessage} setMessage={setModelMessage} credential={settings.data.cloud_credential} preference={settings.data.model_preference} onSaved={() => setRevision(current => current + 1)} /></details>
       </Panel>

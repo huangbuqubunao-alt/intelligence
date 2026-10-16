@@ -280,6 +280,7 @@ def test_intelligence_card_projects_readable_persisted_provenance(
         SimpleNamespace(  # type: ignore[method-assign]
             evidence_id=evidence_id,
             video_id="wjZofJX0v4M",
+            locator_type="TIMED_MEDIA",
             start_ms=18_000,
             end_ms=42_000,
             excerpt="Attention lets each token weigh relevant context from other tokens.",

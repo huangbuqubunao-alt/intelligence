@@ -631,6 +631,7 @@ def build_local_source_run_runtime(
         source_run_wakeup=worker.notify,
         source_tracking=source_tracking,
         local_distillation_available=transport.available,
+        local_distillation_capabilities=local_distillation_capabilities,
         runtime_model=config.settings.local_scoring.model,
         runtime_model_digest=config.settings.local_scoring.expected_model_digest,
         analysis_reader=runtime._load_analysis,

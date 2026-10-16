@@ -562,6 +562,7 @@ class LocalApiApplication:
         source_tracking: FollowingTrackingService | None = None,
         runtime_model: str | None = None,
         runtime_model_digest: str | None = None,
+        local_distillation_capabilities: Callable[[], tuple[dict[str, object], ...]] | None = None,
     ) -> None:
         self._repository = repository
         self._service = service
@@ -577,6 +578,7 @@ class LocalApiApplication:
         self._model_settings = model_settings
         self._runtime_model = runtime_model
         self._runtime_model_digest = runtime_model_digest
+        self._local_distillation_capabilities = local_distillation_capabilities
         self._refresh_cloud_distillation = refresh_cloud_distillation
         self._processing_orchestrator = processing_orchestrator
         self._intelligence_reader = AuthoritativeIntelligenceReader(repository)
@@ -1833,6 +1835,75 @@ class LocalApiApplication:
             items[video_id] = {"video_id": video_id, "provider": "YOUTUBE", "title": row["canonical_url"], "source_url": row["canonical_url"], "channel_id": None, "channel_name": None, "published_at": None, "last_updated": row["created_at"], "processing_status": state, "work_kind": "DURABLE_CONTENT_IDENTITY", "source_id": row["source_id"]}
         return list(items.values())
 
+    def _local_intelligence_status(self) -> dict[str, object]:
+        """Reviewed scope/language facts only, never a model load or admission."""
+        binding = None if self._distillation_service is None else self._distillation_service.capability_binding()
+        unknown: dict[str, object] = {"status": "UNKNOWN", "model": None, "profile_id": None,
+                                      "runtime_binding": binding, "scopes": []}
+        try:
+            if self._local_distillation_capabilities is None:
+                return unknown
+            rows = self._local_distillation_capabilities()
+            expected = {(scope, language) for scope in ("YT_TIMED", "LOCAL_TIMED", "LOCAL_TEXT") for language in ("en", "zh-CN")}
+            if not isinstance(rows, tuple) or len(rows) != len(expected):
+                return unknown
+            pairs: set[tuple[str, str]] = set()
+            identities: set[tuple[str, str]] = set()
+            for row in rows:
+                if (not isinstance(row, dict) or set(row) != {"profile_id", "model", "scope", "output_language", "status"}
+                    or any(not isinstance(row[key], str) or not cast(str, row[key]).strip() for key in row)
+                    or row["status"] not in {"QUALIFIED", "NOT_QUALIFIED"}):
+                    return unknown
+                pairs.add((cast(str, row["scope"]), cast(str, row["output_language"])))
+                identities.add((cast(str, row["profile_id"]), cast(str, row["model"])))
+            if pairs != expected or len(identities) != 1:
+                return unknown
+            profile_id, model = next(iter(identities))
+            return {"status": "KNOWN", "model": model, "profile_id": profile_id,
+                    "runtime_binding": binding, "scopes": [dict(row) for row in rows]}
+        except Exception:
+            return unknown
+
+    def _content_local_intelligence_status(self, video_id: str, source_id: str | None) -> dict[str, object]:
+        matrix = self._local_intelligence_status()
+        language = None if self._distillation_service is None else self._distillation_service.capability_output_language(video_id)
+        result: dict[str, object] = {"video_id": video_id, "scope": None, "output_language": language,
+            "model": None, "profile_id": None, "qualification_status": "UNKNOWN",
+            "runtime_binding": matrix["runtime_binding"], "request_state": "UNKNOWN", "reason": "CAPABILITY_STATUS_UNAVAILABLE"}
+        if matrix["status"] != "KNOWN":
+            return result
+        video = self._repository.get_video(video_id)
+        if video is None or source_id is None:
+            result["reason"] = "CONTENT_NOT_READY"
+            return result
+        ids = self._repository.list_canonical_coverage_evidence_ids(video_id)
+        resolved = [self._repository.resolve_verified_evidence_text(identity) for identity in ids]
+        if not resolved or any(item is None or item.video_id != video_id for item in resolved):
+            result["reason"] = "EVIDENCE_UNAVAILABLE"
+            return result
+        locators = {item.locator_type for item in resolved if item is not None}
+        scope = ("YT_TIMED" if video.provider == "YOUTUBE" and locators == {"TIMED_MEDIA"}
+            else "LOCAL_TIMED" if video.provider == "LOCAL" and locators == {"TIMED_MEDIA"}
+            else "LOCAL_TEXT" if video.provider == "LOCAL" and locators == {"TEXT_RANGE"} else None)
+        result["scope"] = scope
+        if scope is None or language not in {"en", "zh-CN"}:
+            result["reason"] = "SCOPE_OR_LANGUAGE_UNAVAILABLE"
+            return result
+        rows = cast(list[dict[str, object]], matrix["scopes"])
+        row = next(item for item in rows if item["scope"] == scope and item["output_language"] == language)
+        result.update(model=row["model"], profile_id=row["profile_id"], qualification_status=row["status"], request_state="WAITING_MODEL")
+        if row["status"] != "QUALIFIED":
+            result["reason"] = "NOT_QUALIFIED"
+        elif matrix["runtime_binding"] != {"provider": "ollama", "model": row["model"], "profile_id": row["profile_id"]}:
+            result["reason"] = "ROUTE_REINITIALIZATION_REQUIRED"
+        elif self._local_distillation_available is False:
+            result["reason"] = "MODEL_UNAVAILABLE"
+        elif self._local_distillation_available is not True:
+            result.update(request_state="UNKNOWN", reason="RESOURCE_STATUS_UNKNOWN")
+        else:
+            result.update(request_state="ELIGIBLE_FOR_ADMISSION", reason="ADMISSION_CHECKS_REQUIRED")
+        return result
+
     def _manual_content_source(self, video_id: str) -> str | None:
         video = self._repository.get_video(video_id)
         note = self._note_projection(video_id).get("v2")
@@ -2303,6 +2374,7 @@ class LocalApiApplication:
                 raise ApiError(
                     HTTPStatus.NOT_FOUND, "NOT_FOUND", "Video was not found."
                 )
+            manual_source = self._manual_content_source(video.video_id)
             return {
                 "video": self._video_dto_with_deep_analysis(video),
                 "scoring": self._scoring_projection(video.video_id),
@@ -2313,7 +2385,8 @@ class LocalApiApplication:
                         video.video_id
                     )
                 ),
-                "manual_intelligence_eligible": self._manual_content_source(video.video_id) is not None,
+                "manual_intelligence_eligible": manual_source is not None,
+                "local_intelligence": self._content_local_intelligence_status(video.video_id, manual_source),
                 "waiting_model_executions": [
                     {**_distillation_execution_dto(wait), "can_cancel": self._repository.can_cancel_waiting_model_execution(wait.execution_id)}
                     for wait in self._repository.list_waiting_model_executions_for_video(video.video_id)
@@ -2403,6 +2476,7 @@ class LocalApiApplication:
                     "active_production_default": None,
                 },
                 "runtime_local_model": local_model_status,
+                "local_intelligence": self._local_intelligence_status(),
                 "content_processing": {"status": "READY", "method": "EXTRACTIVE_SOURCE", "requires_cloud": False},
                 "providers": [
                     asdict(item)
