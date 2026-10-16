@@ -1,0 +1,21 @@
+{
+  "code_head": "223de10",
+  "browser": "actual macOS Chrome154",
+  "input_accept": null,
+  "default_native_Open_enabled_after_select_zip": true,
+  "required_AllFiles_switch": false,
+  "actual_strict_stage": "PASS",
+  "data_files": 96,
+  "artifact_references": 100,
+  "preview_cancel": "PASS",
+  "all74tables_equal": true,
+  "all96DATAequal": true,
+  "existing_actual_full_restore_id": "689d0de7326e45ebbd60dfdfa251cc74",
+  "second_restore_not_submitted": true,
+  "backend_and_handlers_byte_unchanged": true,
+  "original_filter_failure_retained": true,
+  "limitations": [
+    "Two native AX observations returned empty after user changed Chrome windows; reacquired current app then selected only own test tab, no product change.",
+    "First root focused command had wrong existing feedback test filename;14 tests passed, corrected three-file36 result separate."
+  ]
+}

@@ -1,3 +1,6 @@
+# 2026-10-17 00:45 当前
+PICKER223de10已真实Chrome154默认选ZIP/strict stage96physical通过，取消后74表96DATA原样，root36/TSbuild PASS，本任务DONE。前次完整GUI恢复689d0de7的74表96DATA证据保留；main未发布。用户释放disk202GiB通过，coldhost因RAM约4.5GiB低于8.1继续closed/0load或生成；关闭仅自有5908/5909/6098/6099完成验收服务。trackedRetry40原WIP恢复，foundation13/strict108通过仅检查点，worker/Backup/UI尚未完成，待checkpoint整合已审picker。旧failed-derived positive受控fault-QA方案仍缺，新真实模型/长协议/最终回归/采用仍OPEN；owner数据不变。
+
 # 2026-10-16 当前关键路径
 真实新备份恢复APPLIED689d0de7后74表/96DATA全等；物理96/引用100显示正确。Chrome自定义file filter真实拒选而AllFiles可通过strict stage；最小329794b作者937front/TSbuild/Chrome工程PASS、独立review中。trackedRetry40精确提案已接受，c312ee4新WT后端先行（只此作者写state/Backup），原真正旧INVALID_RESPONSE核对完毕；frontend暂等picker接受。host88161aa root232/static通过，但真实disk/RAM不足closed，未加载/生成，资源已向用户说明且其他工作继续。手册64图真实全加载/无横溢。main/origin73ee7e7 clean未发布，owner数据未改。
 

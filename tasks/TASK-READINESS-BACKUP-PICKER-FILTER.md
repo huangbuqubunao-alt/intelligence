@@ -1,3 +1,5 @@
+2026-10-17 DONE：已审329794b/89e564c整合223de10。root36相关frontend/TSbuild/diff PASS；真实Chrome154普通native默认选择ZIP即Open enabled，无AllFiles绕路，strict stage96physical成功。取消预览后74表96DATA精确不变；前次实际全恢复689d0de7保留（backend/handlers字节不变），此次未提交第二次恢复。新旧filter实证与截图BACKUP_PICKER_REAL_GUI_2026_10_16.json/backup-picker-fixed-real-preview.png；原失败留存。此完成仅本任务，不授模型资格/不发布main。
+
 2026-10-16 ACCEPTED：329794b经独立89e564c APPROVE，937frontend/36focused/TSbuild/88 Chrome工程组，原handlers字节不变/P0P1P2零。root审阅极小产品diff及handoff，允许整合两提交；Chrome154真实native无filter绕路和真实stage待root复验，未称已完成。
 
 # TASK-READINESS-BACKUP-PICKER-FILTER

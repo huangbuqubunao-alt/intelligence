@@ -4,11 +4,11 @@
 | 当前关键项 | 最新外部证据 | 当前剩余 |
 |---|---|---|
 | 兴趣逐条保真/CAS/轮询 | 独立dd260de/d012c48，整合2134a30；root896/TSbuild；真实编辑/双页冲突/GET新command/刷新/进程重启，74表87DATA一致 | 最终完整回归 |
-| 9b端口与容量工程 | 独立aee4e07/bed638f/868d2da通过，整合88161aa；root232/strict106/Ruff通过；固定双manifest/v2引用/六payload/三binary身份修复 | 真实冷host因当前磁盘/RAM不足closed，0load/0生成；实际合法prepare/slot/统一freeze/原案例+holdouts语义与LOCAL8正向未完成 |
+| 9b端口与容量工程 | 独立aee4e07/bed638f/868d2da通过，整合88161aa；root232/strict106/Ruff通过；固定双manifest/v2引用/六payload/三binary身份修复 | 用户释放磁盘202GiB已通过；真实冷host因RAM约4.5<8.1GiB仍closed，0load/0生成；实际合法prepare/slot/统一freeze/原案例+holdouts语义与LOCAL8正向未完成 |
 | 精确能力及物理计数 | 独立d775b0c，整合6fa6a07；root79backend/929front/TSbuild；真实Settings六scope/lang全false、LOCAL_TEXT真实route/设置回跳；新备份100artifact引用显示96physical，全部96归档hash相同 | 模型资格仍false；后续新核心完整回归 |
 | TXT/MD与等待取消恢复 | 真实Native Picker/WAIT0分别取消/剩余任务仍阻塞；实际重启及GUI恢复74表84DATA一致 | 真实合格模型正向尚无；Schema39未在正式main迁移 |
 | 新字幕及失败重试 | 原生29cue/摘要/4Evidence真实恢复74表87DATA；VIDEO_URL重试/恢复74表3DATA保留旧job/provider | CHANNEL/ENROLLED旧INVALID_RESPONSE无Retry的P1，c312ee4已准入专属Schema40后端实施；不拿VIDEO_URL替代 |
-| Backup及原生选择 | 真create/native choose/strict stage/RESTORE一次确认/实际重启689d0de7，74表96DATA逐行/hash一致、FK/integrity正常 | Chrome154 custom filter禁用有效ZIP，AllFiles对照可正常恢复；329794b移除仅UIhint的修复独立审查中，root最终无需切筛选复验待 |
+| Backup及原生选择 | 真create/native choose/strict stage/RESTORE一次确认/实际重启689d0de7，74表96DATA逐行/hash一致、FK/integrity正常 | Chrome154 custom filter拒选问题已修复223de10；真实默认native直接选ZIP/strictstage/取消PASS，74表96DATA原样；root36/TSbuild通过 |
 | 研究证据回跳/手册 | 真实刷新定位focus指定Evidence；统一中文手册64/64真图加载，1312宽无横溢 | 最终新Retry与合格洞察截图 |
 | 其余验收与采用 | D2 native_import/local_content/native_picker/build与73ee7e7逐字不变；main/actualorigin73ee7e7 clean，owner未改 | 长内容/rolling完整协议、旧failed-derived归档genuinepositive、合格洞察收藏/主题/原证据GUI、最终完整backend/front/静态/恢复/topology/served及条件采用仍OPEN |
 

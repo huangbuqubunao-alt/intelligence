@@ -1,0 +1,15 @@
+{
+  "started_at": "2026-10-16T16:44:06.801143+00:00",
+  "code_head": "223de10c02ec0d8cf97158951d85fef34ce97155",
+  "scope": "read-only cold host observation after user resource release",
+  "model_load_requests": 0,
+  "generation_requests": 0,
+  "available_disk_bytes": 216877117440,
+  "required_disk_bytes": 10737418240,
+  "available_memory_bytes": 4860526592,
+  "required_cold_memory_bytes": 8698309198,
+  "result": "CLOSED",
+  "error_type": "CapacityUnavailable",
+  "error": "disk or available RAM is insufficient",
+  "finished_at": "2026-10-16T16:44:11.053441+00:00"
+}

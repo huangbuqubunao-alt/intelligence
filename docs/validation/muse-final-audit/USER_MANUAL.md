@@ -613,7 +613,7 @@ A：当前版本不提供删除已保存内容的操作。导入失败提示可�
 
 ![本次实际恢复完成](../end-to-end-user-readiness/screenshots/final-capability-real-restored.png)
 
-> 当前 Chrome 原生“自定义文件”筛选可能使 ZIP 无法点“打开”；临时可在“显示选项”切换“所有文件”，只选择自己创建的 Intelligence ZIP，再等应用完成检查。该入口正在修复，不影响后端备份校验。
+> 本轮候选已修复 Chrome 原生文件筛选导致 ZIP 无法打开的问题。直接点击“选择备份文件”，选取 Intelligence 生成的 ZIP，再等应用完成检查；无效文件会被拒绝，可以重新选择。检查通过仍需明确确认，才会恢复数据。
 
 ## 图示与使用范围
 
