@@ -81,3 +81,40 @@ DIRECT：已批准标准库 json/hashlib/os/pathlib 和原固定 BLOBS/BINARIES�
 ## 实现者结论
 
 建议 IN_REVIEW；提交后 clean STOP，等待独立 Reviewer 与 root 真实 host 复验。不自行 merge/main/push 或变更公共任务状态。
+
+## 独立 Reviewer — APPROVE（2026-10-16）
+
+- Reviewer `local_text_review_resume`，累计 exact base `d34b56022f76c134bf6fbbed8186b74d8ef933de` → author `9be84b882bfe9350657407758e25ba48987c421f`。author 开始/结束产品审查均 clean STOP，本 Reviewer 仅追加本 handoff。已读 task/package、root `a3b0c59` 的实际 v2 tag/harness 同根因补充、累计 diff、原真实 FAIL 及原容量合同；图中新增三个 helper 尚无节点，以该 exact SHA 实际源码为准。
+- **APPROVE，P0=0 / P1=0 / P2=0**，仅接受固定安装关联与共同字节校验的工程修复。没有把此前178/563 fixture PASS追认为真实 host PASS，也没有授模型资格。root 原 `CAPACITY_REAL_HOST_FAIL_2026_10_16.json` 原样保留；完整 observe_host/process/slot/resource/prepare/load-only/真实语义仍由 root 后续独立验收。
+
+### 五轴及安全结论
+
+- 正确性：公开/API profile digest 保持 parent `56671c2a…`，不是 wrapper `7dd7bb31…`。固定 wrapper1252B、parent1088B 各校验自己的 SHA与完整严格对象；有序 config+五 payload descriptors 的 mediaType/from/size、runner/format及唯一末尾 parent layer逐项关联，不允许任意 wrapper、额外/重复/重排层或“API说digest对就放行”。六 payload原字节与三个 fixed binaries实际 hash全部仍验证。
+- API真正选择的 `manifests-v2/ollama.com/...` 必须为精确 relative symlink目标，lstat/dev/inode/size/mtime/link text 及 target identity同时绑定。普通文件、缺失/错误链接、指向同内容但换 inode 的链接、parent/wrapper/引用在检查中变化均关闭。file_hash与manifest read把打开fd的fstat绑定初始identity，读后再核fd和path；独立补 wrapper/parent 的“读approved替身后恢复bad原inode”负控，两者都在fd gate拒绝；另外直接hash的读中mtime/换path inode也拒绝。
+- 架构与范围：harness只有 `verify_resources` 函数 AST改变，复用生产相同 fixed-byte gate；cache限定当前批准模型缓存，runtime/capacity proof hash、compiled容量界、reviewer与resource/permit边界保留。独立将 foreign cache/wrong runtime/不足的declared memory 写入并重算proof hash仍拒绝，foreign/runtime错误在尝试读取新cache之前拒绝。新helper只读文件，无进程/API/load/claim行为。
+- 历史/授权：LocalCapacitySession、ApplicationHeavyLease、SharedHeavyGuard、unresolved_local_work、_stopped_after_unknown、validate_runner、wire_bytes 的 AST与base完全相同；原TTL arm/once/claim不可抹/claim后无metadata/unknown/cancel边界不改。state/distillation/profile/qualification reader+empty resource/Backup/local_api/runtime_composition 全字节相同。CODE_FILES本就含容量模块，代码改变正常使旧binding不匹配；harness新hash只能在未来统一freeze登记，本任务没有permit/资格。
+- 测试质量/可读性/性能：原capacity test全部test names和参数集合保留，除host fixture函数外其余测试AST相同；host fixture从不真实的简化单manifest升级为完整双manifest+v2+六个小payload，原资源/错误目标保留，positive identity set加强，没有删skip/降低断言。实现是固定安装形状的有界标准库校验，不引入任意格式解析、依赖或第三方执行；manifest bounded read(size+1)，大payload仍stream hash，不将文件hash耗时冒作可用资源/slot承诺。
+
+### 独立真实安装与来源证据
+
+- 本 Reviewer独立执行 `verify_installed_model_bytes(Path.home()/'.ollama/models')`，**PASS_FIXED_INSTALLED_BYTES_ONLY**；精确观察时间 **2026-10-16T07:08:52.590407Z–07:08:56.790662Z**，日志 `/tmp/capacity-host-review-installed-readonly.json`。wrapper/parent/v2 reference、六payload和三个binary共12个路径身份（reference与parent指同物理文件）及symlink身份通过；profile digest原字节不变。执行时将urlopen与subprocess.run替换为拒绝，证明该操作不做HTTP或process准备；load/generation/qualification均0。这是该时间点的安装字节证据，**不是**当前或未来runner/slot/resource/readiness authority。
+- 重新阅读缓存官方 WriteLegacyAnchor、resolveManifestPath、GetModelForRunner及describeModelFromManifest，确证legacy GC anchor/v2优先选择/public digest语义。独立复算四份缓存文件Git blob SHA及SHA256，均与上述固定来源值一致：`/tmp/capacity-host-review-official-source-hashes.json`。未联网取材、执行或复制第三方实现。
+
+### 本 Reviewer 实际复验
+
+| 检查 | 独立结果与日志 |
+|---|---|
+| unit capacity_host_manifest/local_model_capacity/local_grounding_harness/local_grounding_qualification/local_grounding_profile + integration local_capacity_composition/local_grounding_proof | **232 PASS / 83.22s**；`/tmp/capacity-host-review-focused.log`，包含原178及新增manifest/harness负控 |
+| unit ollama_local_distillation/openai_distillation_adapter/moonshot_distillation_adapter/backup_restore + integration local_intelligence_text/offline_transcription_jobs/runtime_composition | **233 PASS / 187.22s**；`/tmp/capacity-host-review-regression.log`，仅既有 malicious duplicate ZIP-path warning |
+| 原独立Unicode/unknown/resource truth/restart/Settings/once/thread/真实lsof反证，只有import WT路径切到本树 | **28 PASS / 5.25s**；`/tmp/test_capacity_host_previous_independent.py`、`/tmp/capacity-host-review-previous-independent.log`，原断言无改 |
+| 新独立wrapper/parent fd替身、direct hash读后fd/path变化、rehash后的harness cache/runtime/memory反证 | **7 PASS / 1.14s**；`/tmp/test_capacity_host_extra_review.py`、`/tmp/capacity-host-review-extra.log` |
+| `PYTHONPATH=src:. .venv/bin/mypy src scripts/qualify_local_grounding_v1.py`、Ruff src/tests/scripts、compileall src/harness、累计diff check | **PASS，mypy106**；`/tmp/capacity-host-review-{mypy,ruff}.log`；compile/diff exit0 |
+| 独立AST/字节/原测试边界复核 | **PASS**；`/tmp/capacity-host-review-frozen-boundaries.json` |
+
+合计本次独立 **500 PASS**，无skip/deselected，不冒充作者488是本 Reviewer新执行。额度中断后先核实际 Git/日志/进程，已完成232/233/28未重启，只继续尚未完成的来源/边界审查与7项新反证。原作者/root全部FAIL/RED与既有独立反证保持原样；本次没有未处置失败。
+
+### 限制与 clean STOP
+
+- 固定版本、固定受信安装假设保持；任何另一个wrapper/tag/link/parent/payload/runtime继续closed，不推断升级兼容或任意manifest-list支持。应用gate不控制外部Ollama client，不宣称物理exactly-once或对恶意同机进程的密码学进程绑定。
+- 0实际模型HTTP/load/debug/generation，0正式/owner/Vault/配置修改；未触root服务，没有frontend diff而不重复Chrome/全前端。当前只读安装证据不替代完整host或真实语义验收；资格全false。
+- 本 Reviewer仅handoff提交后clean STOP，等待root调度；无main/merge/push，不并发review或实现tracked Retry。
