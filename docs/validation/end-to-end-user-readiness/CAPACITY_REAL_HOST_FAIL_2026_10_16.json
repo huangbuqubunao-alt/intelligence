@@ -1,0 +1,22 @@
+{
+  "started_at": "2026-10-16T06:37:04.297429+00:00",
+  "code_head": "25322c661011dd6998d8137c5f92203a4e05a323",
+  "scope": "readonly fixed-byte/process/resource observation only; not session prepare or model qualification",
+  "model_load_requests": 0,
+  "generation_requests": 0,
+  "result": "CLOSED",
+  "error_type": "CapacityUnavailable",
+  "error": "model manifest differs",
+  "finished_at": "2026-10-16T06:37:04.315148+00:00",
+  "read_only_diagnosis": {
+    "tag_manifest_bytes": 1252,
+    "tag_manifest_sha256": "7dd7bb310c1f18ad132c7fd72e73d4f6cff2e916c596a818701d2a1269037c7f",
+    "tag_manifest_mtime_utc": "2026-10-13T04:53:36.010686+00:00",
+    "official_parent_manifest_bytes": 1088,
+    "official_parent_sha256": "56671c2ab9385f9cfcb404638e32cd62d88e3501d44822208363c010179a3c90",
+    "api_version": "0.40.1",
+    "api_tags_digest": "56671c2ab9385f9cfcb404638e32cd62d88e3501d44822208363c010179a3c90",
+    "api_ps_models": [],
+    "cause": "fixed runtime local tag wrapper includes original manifest as an extra layer; original approved parent manifest is intact. Current code wrongly hashes wrapper as parent and compares seven wrapper descriptors with six payload blobs. No evidence of a changed model."
+  }
+}

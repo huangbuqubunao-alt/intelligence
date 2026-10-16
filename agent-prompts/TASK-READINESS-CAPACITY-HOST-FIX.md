@@ -1,0 +1,1 @@
+Task TASK-READINESS-CAPACITY-HOST-FIX，读取本卡/AGENTS按顺序完整规格/REUSE；新WT已由root准备。scope/真实原FAIL/批准原parent digest与local wrapper精确区别以task为准。你是native_scan_resume，独立reviewer另行复审，资格false，0真实模型HTTP/load/generation。先源码/真实样本反证，最小host修复，类型/Ruff/mypy/原178与必要相关兼容/负控，handoff原FAIL保留+commit clean STOP。可与FINAL-CAPABILITY隔离writer并行，不碰其产品文件，不合main。当前持续默认授权有效，无须再按文件请求用户确认。
