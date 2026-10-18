@@ -116,3 +116,38 @@ canonical 固定为严格 UTF-8、`ensure_ascii=False`、`sort_keys=True`、`sep
 
 - Orchestrator verdict / 批准整合 commit / 主线 commit / 整合后检查：待 root。
 - 未设任务 DONE，未整合 main，未发布。
+
+## 独立 Reviewer 复核（2026-10-19）
+
+- Reviewer：`subtitle_recovery_preflight_oct19`，非实现者；指定独立 WT `/Users/hua/Documents/yia-worktrees/readiness-long-codec-review`、branch `codex/review-readiness-long-lossless-codec`。
+- 精确审查：`0ae374f..f0cf9537ea40e4e3139d0cda300ac7e6f9c17e3c`；起始工作区 clean、作者已 STOP。读 root 最新任务追加决定及 `REVIEW-READINESS-LONG-LOSSLESS-CODEC.md`，按 code-review-and-quality 五轴检查，先读测试再逐行核查539行产品实现。
+- **Verdict: APPROVE（仅纯 codec 工程切片）。P0/P1/P2/P3 actionable findings：无。** 本结论不授 source authority、生产执行准入或任何模型资格，不宣称长内容功能可用。
+- Scope：精确 diff 仅 codec、其新单测、本 handoff 三个新增文件。旧产品、short/Cloud/profile/schema、state/Backup、资格、前端、依赖/lock/config 均零修改；review 自己只追加本节。图检索未覆盖新模块，改读指定 fixed candidate 源码；未改索引。
+
+### 独立运行的检查
+
+所有 Python 命令使用 `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src` 与 root 既有 `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`；工具目录相同。实际打印确认 codec 模块路径是本 review WT 的 `src/youtube_intel/long_grounding_codec.py`，未借其他 editable 项目。未安装依赖。
+
+| 独立命令（在 review WT） | 结果 |
+|---|---|
+| `python -m compileall -q src/youtube_intel/long_grounding_codec.py` | PASS |
+| `python -m pytest -q tests/unit/test_long_grounding_codec.py` | **110 passed**, 0.40s |
+| `python -m pytest -q tests/unit/test_local_grounding_profile.py tests/unit/test_local_grounding_harness.py tests/unit/test_local_grounding_qualification.py tests/integration/test_local_grounding_proof.py` | **113 passed**, 54.38s |
+| `mypy --strict src` | PASS，106 source files |
+| `ruff check src/youtube_intel/long_grounding_codec.py tests/unit/test_long_grounding_codec.py` | PASS |
+| `git diff --check 0ae374f..f0cf953`；精确文件范围及旧核心 zero-diff 检查 | PASS |
+| `python .var/codec-independent-review-20261019/adversarial.py` | PASS，全部独立合成边界及对抗检查 |
+
+独立 private QA 脚本与输出绝对路径分别为 `/Users/hua/Documents/yia-worktrees/readiness-long-codec-review/.var/codec-independent-review-20261019/adversarial.py`、同目录 `adversarial.log`。明确只用合成源，无真实 Sasha、blind holdout、thinking 或模型输出；没有 QA 断言失败，也没有修改产品或既有测试以获通过。
+
+### 独立证据与安全边界
+
+1. 实际边界值而非只缩小常量：32768 cue 成功 / 32769 拒绝；4102 Evidence 成功 / 4103 拒绝；累计1000000字符成功 / 1000001拒绝；单 cue 与单 Evidence excerpt 各4000成功 / 4001拒绝；canonical packet 恰5000000 bytes 编码及展开成功 / 5000001拒绝；原 public wire 恰1000000 bytes成功 / 1000001拒绝；独立展开后的 output 恰1000000 bytes成功 / 1000001拒绝；毫秒2^63−1成功 / 2^63拒绝；source ID 512成功 / 513拒绝；严格 JSON helper 深度16成功 / 17拒绝。4MB原文本byte限制另经逐行检查，且实际1M累计字符限制本身使其保守冗余（每字符UTF-8最多4 bytes、每cue separator仅1 byte），未把这当作可提升模型预算的依据。
+2. 120个固定种子 Unicode、组合字符、NUL、首尾空白/换行、RLE重复与随机 Evidence 分组全量精确往返；原 cue index/time/text/hash 与完整 Evidence excerpt/identity 均相等。只在同 Evidence 内相邻相同文本合并；canonical 重编码对非规范 RLE、错顺序/缺cue/错hash/多字段严格拒绝。
+3. 114条完整输入的 NO_NEW 全序展开成功；遗漏、逆序或重复引用拒绝。相同114输入的 positive20成功 / positive21拒绝，至少 supporting 约束继续保留。严格拒绝 E0/E01/E+1/大小写/全角数字/尾空白/NUL/直接runtime ID，以及 bool/float/NaN/±Inf/指数溢出、错UTF8/BOM/尾随JSON。缺任一positive字段均拒绝。
+4. public bytes及其hash独立保留，decoded bytes/hash独立绑定输入；只替换引用ID，claims、stance、顺序、组合Unicode与不确定性原文逐字段相等，未补齐或修复输出。冻结后原对象或返回JSON的修改不影响已存 bytes/hash。hash和canonical编码绑定身份，不能证明来源；完整自洽更换source metadata会产生不同hash，未来调用者必须验证预期输入hash与既有authority，不能仅凭 codec 值授信。
+5. Root另报真实 Sasha 2406cue/114Evidence roundtrip，是 root 的独立实证，未冒称为本 reviewer 自己读取或执行。本次无 network、tokenize、模型 load/generate、正式数据、SQLite维护或新持久化。Jev因本任务明确0网络/模型约束未调用，未据此降级审查。
+
+### 未执行项与结论限度
+
+全仓 suite/frontend build、真实 rendered tokenizer/slot/host资源、模型语义/资格、长 schema/profile/inputproof/receipt、反向 reader 和 Backup Restore 仍需后续串行任务验收。本模块未接入旧产品，现有短/Cloud合同零diff；本轮已运行规定 affected 回归及静态检查，不用本切片替代最终验收。无当前阻塞或需退回作者的缺陷。Reviewer 仅提交本 handoff 后 clean STOP，不合 main，不更新任务状态。
