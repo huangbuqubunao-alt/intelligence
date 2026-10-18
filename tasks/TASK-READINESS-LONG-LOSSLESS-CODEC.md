@@ -1,3 +1,5 @@
+2026-10-19 DONE（仅纯工程切片）：author f0cf953/独立6b42658 APPROVE，完整历史整合9b5fc88；root110/strict106/Ruff/diff通过，真实Sasha89221字符/2406cue/114Evidence精确roundtrip/1275runs，QA手构NO_NEW全序解码通过。未接模型/生产，资格关闭，完整长协议/真实语义/备份仍OPEN。下方保留原实施要求。
+
 # 长字幕无损输入与引用编码：纯函数切片
 
 Status: IN_PROGRESS（/root/long_lossless_codec_oct18，独立WT，0ae374f任务元数据基线）。Role Implementer，root指定独立worktree/agent；Base a073354（当前已接受工程+真实失败证据）。持续默认授权涵盖必要任务内整改；不申请逐文件批准。此切片不授任何模型资格/执行准入。

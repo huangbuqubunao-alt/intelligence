@@ -1,3 +1,6 @@
+# 2026-10-19 04:19 当前
+纯codec独立APPROVE完整历史已整合9b5fc88，root110/strict106/Ruff/diff及真实2406cue114Evidence逐项roundtrip通过；仅工程切片DONE，长协议生产接线/真实语义仍OPEN。新增明确x86词表QA利用已装支持/固定官方headers与vendor库，3对照与原真实runner0/4/30238完全一致，最大约116MiB，0权重/context/生成/HTTP；不改变加载内存门或资格。tracked40继续事件容量终结及严格新command恢复完整性，尚无最终STOP，不做main采用。38混合结清与两处真实兼容补修仍等共享核心接受。
+
 # 2026-10-19 04:15 续作
 原两实现handle已缺失、无live pytest/mypy，已在原WIP独立WT恢复tracked_retry_resume_oct19与long_lossless_codec_oct19，不覆盖成果。tracked40保持attempt0、专属父链新command补12回归PASS，完整检查/UI待交接。纯codec72dd0bd产品切片110新测试/113既有回归与静态通过，作者handoff未STOP，未接受。38真实proof新发现版本字符串与历史parent政策pair遗漏：独立只读及root复跑两处exact内存诊断完整PASS/23字段114Evidence，21文件SHA原样；产品及混合结清/GUI Restore仍未修。最新RAM4.403<8.101GiB/disk198.3GiB，0模型load/生成。main未发布/owner不变。
 

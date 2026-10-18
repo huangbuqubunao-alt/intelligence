@@ -151,3 +151,8 @@ canonical 固定为严格 UTF-8、`ensure_ascii=False`、`sort_keys=True`、`sep
 ### 未执行项与结论限度
 
 全仓 suite/frontend build、真实 rendered tokenizer/slot/host资源、模型语义/资格、长 schema/profile/inputproof/receipt、反向 reader 和 Backup Restore 仍需后续串行任务验收。本模块未接入旧产品，现有短/Cloud合同零diff；本轮已运行规定 affected 回归及静态检查，不用本切片替代最终验收。无当前阻塞或需退回作者的缺陷。Reviewer 仅提交本 handoff 后 clean STOP，不合 main，不更新任务状态。
+
+
+### Root 实际验收与整合 2026-10-19
+
+ACCEPTED工程切片，作者72dd0bd/f0cf953及独立6b42658完整历史已整合6c6200f/e8fea55/9b5fc88。root实际110 tests、strict106、Ruff/diff PASS；所整合codec bytes与独立审查candidate完全相同。root实际旧公开Sasha以mode=ro事务读取既有verified cue/Evidence bindings，89221字符/2406cue/114原coverage精确往返，1275runs，packet323768B/hash2219f0d5…；QA手构NO_NEW完整114序列只验证decoder，不是模型输出。见LONG_CODEC_REAL_SOURCE_QA_2026_10_19.json。当前只是纯codec DONE，不给输入authority/资格/执行准入，不代表长内容完整功能或Goal完成。
