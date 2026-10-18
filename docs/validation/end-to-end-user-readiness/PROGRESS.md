@@ -190,3 +190,10 @@ Backup741独立20专项/461全量/TSbuild及handler byte核对PASS，但独立ZH
 2026-10-16 19:50真实GUI：Chrome自定义filter禁用新ZIP，切所有文件同ZIP可Open并正常strict stage96physical；RESTORE一次确认后runtime重建，APPLIED689d0de7326e45ebbd60dfdfa251cc74@11:50:11Z，74表/96DATA与稳定基线精确一致，FK/integrity正常。保留FAIL，最小PICKER-FILTER任务c4a60f4独立writer只改UI accept提示。64图统一手册同步；初HTML生成误用系统python无markdown_it，原失败保留，改用已存在.venv模块完成，无安装/依赖变更，尚待render。
 
 2026-10-17 00:45续作：PICKER223de10 root36/TSbuild与Chrome154真实默认native选ZIP无需AllFiles、strict stage96physical成功；取消后74表96DATA精确不变。任务DONE/统一手册去临时绕路说明。用户已释放磁盘约202GiB，但fresh实际coldhost固定bytes通过后RAM4.5<8.101GiB仍closed，0load/0generation；已验证PID/cwd后只停止5908/5909/6098/6099自有完成验收服务。Chrome3已不可用，没有为清理重新启动浏览器或动用户应用。trackedRetry作者quota00:40后恢复原6path WIP，foundation13/mypy108既成PASS，不当完整任务接受。m38原失败快照库存只读缺失，获批受控真实fault-QA方案只读准备中。
+
+
+## 2026-10-18 真实字幕失败混合现场
+
+完整旧stock全复制→普通factory迁移39，真实native字幕获批单次窄completion事务故障（非自然故障）；原canonical/Evidence不改，2raw captures/1derived保留。正常明确新命令成功建立时间轴/摘要/120条Evidence；另外旧Iwgl经真实Chrome重试成功。74表19DATA，原8DATA及原Evidence全保留、checkpoint逐字段未变/0新模型。
+
+真实Settings仍Backup阻塞：2条旧v1/429与1条current-v2 LOCAL_RESOURCE互相阻挡两维护方法。独立read-only确认，同顺序/换顺序都不能推进；不直接改ledger、不删除文件、不冒称恢复。见SCHEMA38_REAL_MIXED_FAILURE_2026_10_18.json及截图。必要修复任务 TASK-READINESS-MIXED-SUBTITLE-SETTLEMENT 已记录，待tracked40核心结束后串行。当前API6109/UI6108只读/正常worker保留现场，不涉及owner。

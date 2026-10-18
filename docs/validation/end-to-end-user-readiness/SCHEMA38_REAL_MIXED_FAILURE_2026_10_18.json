@@ -1,0 +1,62 @@
+{
+  "at": "2026-10-18T15:26:18.560334+00:00",
+  "code_head": "5c8c52ea749d6b43c597d5a1dcfc5ed2b32a1a59",
+  "classification": "real public subtitle requests with one authorized controlled completion fault; not natural failure",
+  "formal_data_touched": false,
+  "schema": 39,
+  "old_stock_schema": 37,
+  "all_original_data_hashes_preserved": true,
+  "prior_evidence_rows_preserved": true,
+  "fault_no_new_evidence_or_timed_authority": true,
+  "fault_persisted_raw_capture_count": 2,
+  "fault_new_derived_file_count": 1,
+  "real_successor_completed": true,
+  "new_authoritative_timed_rows": 1,
+  "model_checkpoints_exactly_unchanged": true,
+  "new_provider_models": [
+    null,
+    null,
+    null
+  ],
+  "active_jobs": [],
+  "unresolved_calls": [
+    {
+      "request_hash": "32ee6ce9b42d2da62b8d747571b9577e4e1abeb5a4797188015770bdfe8c1e20",
+      "status": "FAILED_RETRYABLE",
+      "last_error_code": "RATE_LIMITED",
+      "prompt_version": "subtitle-selection-v1",
+      "schema_version": "subtitle-format-v1",
+      "reservation_owner": null,
+      "lease_until": null,
+      "response_artifact_id": null
+    },
+    {
+      "request_hash": "65f7dbbcf7ec738405c23787fe4b81aae7b651c14af3fba5ad0221195ded547d",
+      "status": "FAILED_RETRYABLE",
+      "last_error_code": "RATE_LIMITED",
+      "prompt_version": "subtitle-selection-v1",
+      "schema_version": "subtitle-format-v1",
+      "reservation_owner": null,
+      "lease_until": null,
+      "response_artifact_id": null
+    },
+    {
+      "request_hash": "c03e58f404fbcca714e4bc4d23bf7e6adc7eb10d017f658b46ea6ab9b13c24d8",
+      "status": "FAILED_RETRYABLE",
+      "last_error_code": "LOCAL_RESOURCE",
+      "prompt_version": "subtitle-selection-v2-original-tracks",
+      "schema_version": "subtitle-format-v2-native-timing",
+      "reservation_owner": null,
+      "lease_until": null,
+      "response_artifact_id": null
+    }
+  ],
+  "dispatch_count": 0,
+  "retained_count": 0,
+  "table_count": 74,
+  "physical_data_count": 19,
+  "backup_result": "BLOCKED_MIXED_KNOWN_FAILURES",
+  "independent_review": "tracked_foundation_review_oct18 confirmed both maintenance methods require all unresolved calls to be their own subtype; neither can progress",
+  "screenshot": "screenshots/schema38-mixed-failure-backup-blocked.png",
+  "restore": "NOT_RUN_BLOCKED_DO_NOT_BYPASS"
+}
