@@ -19,3 +19,9 @@ Backup：新的未完成finalizing间隙也阻塞，运行持现background_work�
 复用DIRECT既有source_runs durable command/immutable trigger_reference和job/lease/provider generation/extractive Summary；不能直接Runtime.retry进入全阶段、enqueue_manual_check_now复用其它run或genericSourceRun discovery选其它children。需要专用versioned Content-only admission+recovery dispatch，root在只读方案完成后固定精确合同和任务包。预计必要state/runtime_composition/source_runs/local_api/App及tests/handoff，noSchema优先但不得绕持久命令/事务/Backup；未知不足必须如实报告root决定。
 Scope单video/providerYT/METADATA或TRANSCRIPT安全失败，无new无关功能。CAS expected terminal oldjob；server证明真实source membership、video/channel/provider一致与enabled、无活跃lease/unknown/其它run；reservedcommand namespace完整请求不可变，同command改input409，原command回原run。新job稳定(run,oldjob,stage)且完整验证；before transport复查authority，leases/unknown失败closed，generation不复用旧failed，exact once与retry重启/并发/source paused双方竞态均覆盖。
 依赖接受后独立author→STOP→review→root真实旧tracked副本普通GUI Retry→字幕/Summary/Evidence→重启/全表DATA恢复；完整回归及Cloud/NO_NEW/provenance/Backup安全不变。旧失败source/run/job/provider/历史保留。禁止将真实VIDEO_URL成功或fixture作为tracked positive。
+
+## 2026-10-18 零调用取消/暂停后的新人工重试决定
+
+普通用户取消/暂停后恢复来源，应能用**新明确command**重新请求。旧终态不复活，初始oldjob不重复消费；同command仍幂等。不得为满足准入条件硬造job attempt或模型/provider执行记录。真实predispatch attempt0可保留，通过本专属协议已存在不可变request、完整已验证CANCELLED/FAILED本地终态事件/receipt、target唯一所有权、file closure和无provider/dispatch/未知/活跃writer的严格父链证明，允许窄后继准入；外部generic旧任务原白名单/真实attempt核验不放宽。若现Schema无法提供完整父链证明，作者先报告精确最小补全，不猜测。此为原取消/重试可用链的必要修复，无新功能阶段。
+
+必须覆盖cancel→new command成功、连续取消后新retry、pause→enable→retry、同command幂等与初始old唯一消费；缺父request/receipt/终态、错epoch、marker被删、未知执行/活跃writer及attempt不一致全部failclosed。此专属分支与初次generic准入分离，并在reader/Backup恢复中复验，不能只放API端条件。
