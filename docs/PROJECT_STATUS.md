@@ -1,3 +1,6 @@
+# 2026-10-18 23:36 调度补充
+tracked40作者继续其原共享核心，独立long-lossless-codec纯函数切片IN_PROGRESS，只新增codec/tests/独立handoff，明确并行例外；不改旧模块/Schema/准入/资格，无新模型IO。长协议持久化仍等tracked40及混合字幕补修串行。真实混合故障已完整冻结74表19DATA逐项一致/integrity/FK正常，本轮6108/6109/6118自有验收服务全部停止，正式5488/5489未动。手册真实Chrome64/64图无坏图/横溢；正式main/远端/served均73ee7e7、四资产hash一致，候选未发布。
+
 # 2026-10-18 23:30 当前
 真实完整旧37库正常迁移39；真实公开字幕+一次受控completion fault保留2raw/1derived，正常新命令后继成功；Iwgl旧PENDING经真实Chrome重试成功。74表/19DATA，原8DATA/hash及原Evidence全保留，0新模型。发现已知v1/429与v2/LOCAL_RESOURCE混合互阻P1，独立只读确认，Backup仍禁用/未绕过；新MIXED-SUBTITLE-SETTLEMENT任务等tracked40共享核心结束串行修。tracked40原基础独立REJECT已保留5c8c52e，原作者修复/104专项通过仅检查点，最终后端/UI待完成审查。磁盘198.6GiB通过，最新RAM5.545<8.101GiB，仍0load/生成。main/origin73ee7e7未发布，owner不变。
 

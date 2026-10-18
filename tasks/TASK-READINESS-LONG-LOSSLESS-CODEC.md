@@ -1,6 +1,6 @@
 # 长字幕无损输入与引用编码：纯函数切片
 
-Status: READY。Role Implementer，root指定独立worktree/agent；Base a073354（当前已接受工程+真实失败证据）。持续默认授权涵盖必要任务内整改；不申请逐文件批准。此切片不授任何模型资格/执行准入。
+Status: IN_PROGRESS（/root/long_lossless_codec_oct18，独立WT，0ae374f任务元数据基线）。Role Implementer，root指定独立worktree/agent；Base a073354（当前已接受工程+真实失败证据）。持续默认授权涵盖必要任务内整改；不申请逐文件批准。此切片不授任何模型资格/执行准入。
 
 ## 目标、边界与并行决定
 

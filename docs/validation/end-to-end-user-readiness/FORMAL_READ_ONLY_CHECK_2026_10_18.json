@@ -1,0 +1,19 @@
+{
+  "at": "2026-10-18T15:32:36.477970+00:00",
+  "mode": "read-only Git and served static assets; no owner database/config access",
+  "main": "73ee7e747b4461b9de8a201d6b47669eb3913d1a",
+  "actual_remote_main": "73ee7e747b4461b9de8a201d6b47669eb3913d1a",
+  "worktree_clean": true,
+  "served": {
+    "revision": "73ee7e747b4461b9de8a201d6b47669eb3913d1a",
+    "source_sha256": "a494cacdfd95f4c55f0a746920e061becee9580948228f812a655866c46eade3"
+  },
+  "assets": {
+    "assets/index-D49v12mD.css": true,
+    "assets/index-QjXrTOO8.js": true,
+    "favicon.svg": true,
+    "index.html": true
+  },
+  "url": "http://127.0.0.1:5488/",
+  "candidate_adopted": false
+}
