@@ -20,3 +20,11 @@ root@5c8c52e，隔离全量37旧库正常迁移39。公开真实字幕+一次获
 ## 验收
 
 两类各纯正向、混合正向、重复/重启、逐类不合格+未知第三项、所有 lease/response/dispatch/usage/cost/Cloud/PENDING/RUNNING负控、transaction中途失败全不变、归档不授authority、全部DATA无遗漏、旧34–39及新40兼容、现 tracked40独立所有权和Backup判定不回归。保留原测试和失败证据；affected tests/static后作者clean STOP→独立Review APPROVE→root整合复验。最终整项目完整检查仍单独必需。正式数据绝不参与。
+
+
+## 2026-10-19 真实证明兼容性补修（同任务必需范围）
+
+root exact accepted verifier在冻结真实现场只读运行，transcripts.py1215失败：恢复常量2026.7.4与真实adapter原值2026.07.04不同；只有exact (2026.07.04, zh/en)重算匹配原raw26b7…。这不是网络失败，不可把版本字符串normalize后重写历史身份。允许最小的**有限已知冻结原版本字符串**逐项唯一重算与完整raw/capture/后继绑定，任何多义/未知仍关闭，不从当前可变安装值推断历史。现proof-v1历史必须继续可验；无Schema或依赖升级。原版本修正后下游parent identity独立诊断仍失败（preflight定位中），不能把首个检查通过冒称全proof通过。真实输入proof/raw/path/旧parent/后继所有边界需逐项查明历史构造版本，只有可完整确定性证明的旧输入才准入，不容错猜hash、不给未知文件授authority。证据 SCHEMA38_REAL_PROVIDER_VERSION_PROOF_FAIL_2026_10_19.json，原失败保留。
+
+
+2026-10-19 独立preflight与root独立复跑确认：版本单独补正后，第二FAIL精确为parent策略缺失 `(subtitle-selection-v2-original-tracks, subtitle-format-v1)`；fixed SHA3745bc44c3dd3321ae7a2fa93fcea9061676b056 原常量证实是正式历史，不是推测。私有内存候选只改该exact pair与exact版本两处字符串，完整原verifier和固定后继历史重验PASS/23字段/114Evidence完全相等，DB+WAL+19DATA共21文件大小/SHA前后不变、retained仍0/ledger原样。原两个FAIL保留。产品实现必须有限保留两原版本字符串唯一重算，**不能全局替换**旧值；旧proof兼容及完整混合事务/负控/GUI恢复仍待。root证据 SCHEMA38_READONLY_COMPATIBILITY_DIAGNOSTIC_2026_10_19.json。

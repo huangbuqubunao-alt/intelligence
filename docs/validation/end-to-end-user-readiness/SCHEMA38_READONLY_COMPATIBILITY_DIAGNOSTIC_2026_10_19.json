@@ -1,0 +1,282 @@
+{
+  "diagnostic_only": true,
+  "actual_product_fixed": false,
+  "base": "038a648911da966099a7199075275e26d3a2e12b",
+  "source_sha256": "e273e1f4aa24b22c03cd928a8dec60baa13cdc6c24706ccd4359b3216bc8e898",
+  "full_original_equals_fixed_git_source": true,
+  "exact_text_replacements": 2,
+  "history_pair_commit": "3745bc44c3dd3321ae7a2fa93fcea9061676b056",
+  "identity_candidates": [
+    {
+      "version": "2026.7.4",
+      "languages": [
+        "en"
+      ],
+      "matches": false
+    },
+    {
+      "version": "2026.7.4",
+      "languages": [
+        "zh",
+        "en"
+      ],
+      "matches": false
+    },
+    {
+      "version": "2026.07.04",
+      "languages": [
+        "en"
+      ],
+      "matches": false
+    },
+    {
+      "version": "2026.07.04",
+      "languages": [
+        "zh",
+        "en"
+      ],
+      "matches": true
+    }
+  ],
+  "installed_adapter_version_data_only": "2026.07.04",
+  "attempts": [
+    {
+      "mode": "accepted_original",
+      "result": "FAIL",
+      "error_type": "ValueError",
+      "error": "failed caption derivation has no complete deterministic proof",
+      "traceback": "Traceback (most recent call last):\n  File \"/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/preflight-subtitle-recovery-20261019/diagnostic.py\", line 66, in <module>\n    proof=fn(r,c,FROZEN/'data',ledger,now=now)\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/src/youtube_intel/transcripts.py\", line 1215, in _retained_caption_proof\n    _retention_require(len(language_matches) == 1)\n  File \"/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/src/youtube_intel/transcripts.py\", line 1033, in _retention_require\n    raise ValueError(\"failed caption derivation has no complete deterministic proof\")\nValueError: failed caption derivation has no complete deterministic proof\n"
+    },
+    {
+      "mode": "provider_string_only",
+      "result": "FAIL",
+      "error_type": "ValueError",
+      "error": "failed caption derivation has no complete deterministic proof",
+      "traceback": "Traceback (most recent call last):\n  File \"/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/preflight-subtitle-recovery-20261019/diagnostic.py\", line 66, in <module>\n    proof=fn(r,c,FROZEN/'data',ledger,now=now)\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<DIAGNOSTIC-ONLY-EXACT-TWO-STRING-CHANGES>\", line 1279, in _retained_caption_proof\n  File \"/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/src/youtube_intel/transcripts.py\", line 1033, in _retention_require\n    raise ValueError(\"failed caption derivation has no complete deterministic proof\")\nValueError: failed caption derivation has no complete deterministic proof\n"
+    },
+    {
+      "mode": "provider_and_exact_historical_parent_pair",
+      "result": "PASS",
+      "field_count": 23,
+      "historical_bound_proof_exactly_equals_admission": true,
+      "proof_fields": {
+        "proof_version": "failed-caption-derivation-v1",
+        "request_hash": "c03e58f404fbcca714e4bc4d23bf7e6adc7eb10d017f658b46ea6ab9b13c24d8",
+        "job_id": "caption-repair-34322e6297617318d8749355d531251139879b879cdf61c8c82e557b46b04825",
+        "source_run_id": "source-run:bde6c5f1558d5a6710e84cb68409ba390778c92817b778d845f2902e0bb5ed59",
+        "source_id": "225f5b0c-385b-4625-80d9-e4dde730fd33",
+        "video_id": "0eMzc-WnBfQ",
+        "raw_capture_artifact_id": "subtitle-source-capture-7816b77f8e96d99958f825ee27ed63a2437ad56a0e8bed711169827abf353849",
+        "raw_sha256": "1ce80bdb4602f3ad248ae11ae181435ccec6150159d5da22202b3ef3a36f3e88",
+        "relative_path": "transcripts/0eMzc-WnBfQ/26b7b378e3172004893907ad3952439d688f1bf53fecdc8df6846f00e3212962/canonical.5483658bb76e53619555cbb3798b6060e4d06a28de663050eff1fd58b1896cec.r.txt",
+        "derived_sha256": "a7d3bd04a3a3d5cc7b7d000df790daf5577bf2641583ca973a13cf79e34fccf9",
+        "size_bytes": 89221,
+        "normalization_version": "subtitle-normalization-v1",
+        "quality_profile_version": "subtitle-quality-v1",
+        "canonical_request_hash": "5483658bb76e53619555cbb3798b6060e4d06a28de663050eff1fd58b1896cec",
+        "successor_job_id": "caption-repair-3cd82282ccb00f96ed86348bf846c067a0618cc11185fcd729f13a0fe77f3279",
+        "successor_request_hash": "3041a18a695893e5c36be5b16d065226950c7c6e2c80e50d4a0dc00d87eb1e55",
+        "successor_canonical_artifact_id": "transcript-canonical-92dc5e6ba376b30aad8c11a759e8291617764552d23c9f2507f08d09e1bbd511",
+        "successor_summary_artifact_id": "summary/8be368702264b0d5bb3f1fe34b496b4a57467d375792cddf45e08ba6f3622071/structured",
+        "reason": "COMPLETION_PERSISTENCE_FAILED_WITH_VERIFIED_SUCCESSOR",
+        "created_at": "2026-10-18T20:08:18.467350Z",
+        "archive_id": "597b6ca255306820f9bc6d6c42192e2994705efcb8a00b1d8d9d73ee6e1a7645",
+        "proof_sha256": "709533bb598aeaf442bc51da3048f6bd59244c440ff9799882b5eaae490b1c47"
+      },
+      "input": {
+        "language_preferences": [
+          "zh",
+          "en"
+        ],
+        "parent_canonical_artifact_id": "transcript-canonical-93fde9c70aba7d77cd979222ef20145bdd2e305906030dadb38cc729ea7cf16a",
+        "provider_version": "2026.07.04",
+        "quality_flags": "r",
+        "raw_request_hash": "26b7b378e3172004893907ad3952439d688f1bf53fecdc8df6846f00e3212962",
+        "refresh_generation": 235069977486825265,
+        "source_metadata": "WyJhdXRvX3N1YnRpdGxlIiwiZW4iLCJlbiIsInZ0dCJd"
+      },
+      "evidence_count": 114
+    }
+  ],
+  "retained_rows_still_zero": true,
+  "original_ledger_still_exactly_equal": true,
+  "before": {
+    "state.sqlite3": {
+      "size": 2985984,
+      "sha256": "332c490d781a5f98c9e1f6f2fbe0bc2fa5c012667209dafe82327b5b99e37caa"
+    },
+    "state.sqlite3-wal": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "data/transcripts/0eMzc-WnBfQ/26b7b378e3172004893907ad3952439d688f1bf53fecdc8df6846f00e3212962/canonical.5483658bb76e53619555cbb3798b6060e4d06a28de663050eff1fd58b1896cec.r.txt": {
+      "size": 89221,
+      "sha256": "a7d3bd04a3a3d5cc7b7d000df790daf5577bf2641583ca973a13cf79e34fccf9"
+    },
+    "data/transcripts/0eMzc-WnBfQ/26b7b378e3172004893907ad3952439d688f1bf53fecdc8df6846f00e3212962/source.WyJhdXRvX3N1YnRpdGxlIiwiZW4iLCJlbiIsImpzb24zIl0.json3": {
+      "size": 873916,
+      "sha256": "934957b468f8fc59a4bd5d57844e66702a65a78943c056a3472fed77b166caae"
+    },
+    "data/transcripts/0eMzc-WnBfQ/26b7b378e3172004893907ad3952439d688f1bf53fecdc8df6846f00e3212962/source.WyJhdXRvX3N1YnRpdGxlIiwiZW4iLCJlbiIsInZ0dCJd.vtt": {
+      "size": 415676,
+      "sha256": "1ce80bdb4602f3ad248ae11ae181435ccec6150159d5da22202b3ef3a36f3e88"
+    },
+    "data/transcripts/0eMzc-WnBfQ/5b613e294b5b1f0ced13dd533e7ba3b003243b4f011e734f49e4198a7025d140/canonical.36b9e9352363504b41d173533055a2e9878d92d6afb5910594303d99b2cd121a.-.txt": {
+      "size": 45130,
+      "sha256": "22a72834367d8025fe81de10adbca9ed101e8eaae9f67d1a6669f97382d2a9b1"
+    },
+    "data/transcripts/0eMzc-WnBfQ/5b613e294b5b1f0ced13dd533e7ba3b003243b4f011e734f49e4198a7025d140/source.WyJhdXRvX3N1YnRpdGxlIiwiZW4iLCJlbiIsImpzb24zIl0.json3": {
+      "size": 873916,
+      "sha256": "934957b468f8fc59a4bd5d57844e66702a65a78943c056a3472fed77b166caae"
+    },
+    "data/transcripts/0eMzc-WnBfQ/ad8dba167b57c7405ee503a02a243dfe13bd6c71b2ad48a961753370a9bfc4dc/canonical.5483658bb76e53619555cbb3798b6060e4d06a28de663050eff1fd58b1896cec.r.txt": {
+      "size": 89221,
+      "sha256": "a7d3bd04a3a3d5cc7b7d000df790daf5577bf2641583ca973a13cf79e34fccf9"
+    },
+    "data/transcripts/0eMzc-WnBfQ/ad8dba167b57c7405ee503a02a243dfe13bd6c71b2ad48a961753370a9bfc4dc/source.WyJhdXRvX3N1YnRpdGxlIiwiZW4iLCJlbiIsImpzb24zIl0.json3": {
+      "size": 873916,
+      "sha256": "934957b468f8fc59a4bd5d57844e66702a65a78943c056a3472fed77b166caae"
+    },
+    "data/transcripts/0eMzc-WnBfQ/ad8dba167b57c7405ee503a02a243dfe13bd6c71b2ad48a961753370a9bfc4dc/source.WyJhdXRvX3N1YnRpdGxlIiwiZW4iLCJlbiIsInZ0dCJd.vtt": {
+      "size": 415676,
+      "sha256": "1ce80bdb4602f3ad248ae11ae181435ccec6150159d5da22202b3ef3a36f3e88"
+    },
+    "data/transcripts/IwglW_hIL_g/19348d479b0435a2fd5b67ffb2d0156a194ffdfc79a5bad65c6adb6230700954/canonical.c9130409650bd583987deec52bd3e3dd303f30a5e730508f1e094886b753825c.r.txt": {
+      "size": 3224,
+      "sha256": "0b392e8425066ff9ffd82662efec63634347f50442c0cd0addded81d0b1bdbe1"
+    },
+    "data/transcripts/IwglW_hIL_g/19348d479b0435a2fd5b67ffb2d0156a194ffdfc79a5bad65c6adb6230700954/source.WyJhdXRvX3N1YnRpdGxlIiwiZW4iLCJlbiIsImpzb24zIl0.json3": {
+      "size": 26643,
+      "sha256": "475e93baf9a8cc33dc9f4820aa8857f40d1413dcfaa1325ee19851096c14d69a"
+    },
+    "data/transcripts/IwglW_hIL_g/19348d479b0435a2fd5b67ffb2d0156a194ffdfc79a5bad65c6adb6230700954/source.WyJhdXRvX3N1YnRpdGxlIiwiZW4iLCJlbiIsInZ0dCJd.vtt": {
+      "size": 15674,
+      "sha256": "f7314e9fd036e3590ee99e5a68808202361a5fcd123f1b464dc68170ec098cbc"
+    },
+    "data/transcripts/QoXRfTb7ves/db52c966c54f251398de2aea25fff73cb09cb973eb96b0c568f29b71aba37871/canonical.255e116efef46cf2ac7537657b10f04ca50eda48f3357129f16a1fb851e6d614.-.txt": {
+      "size": 931,
+      "sha256": "67c965b3254c6240b8fe5c9d2ad120e62aaa6b884780f91e4e27004769df71a6"
+    },
+    "data/transcripts/QoXRfTb7ves/db52c966c54f251398de2aea25fff73cb09cb973eb96b0c568f29b71aba37871/source.WyJtYW51YWxfc3VidGl0bGUiLCJlbiIsImVuLUdCIiwianNvbjMiXQ.json3": {
+      "size": 2770,
+      "sha256": "c3e3dfb5228373098c826f54dea066e9c3ed559ce4f167c87958dc12e2580cfe"
+    },
+    "data/transcripts/aircAruvnKk/4f58a216276b7eee4c252efc294618069a18d4f290412e3c8037adaf491b8178/canonical.bcf755d2c8486670976fa4909998e04a959ff039b2926b139dad815181a1d436.-.txt": {
+      "size": 14633,
+      "sha256": "edf4e024d8f13b26e28c04a0248dc222788ade2217c3d8119baeb0c782579508"
+    },
+    "data/transcripts/aircAruvnKk/4f58a216276b7eee4c252efc294618069a18d4f290412e3c8037adaf491b8178/source.WyJtYW51YWxfc3VidGl0bGUiLCJ6aCIsInpoIiwianNvbjMiXQ.json3": {
+      "size": 36956,
+      "sha256": "13c048e7346c94fb41a66c62162579af98567a0d7ce75f111926c6b0482e4d5a"
+    },
+    "data/transcripts/summaries/09f9b7456f5d83c63be6a3e0ddf7cac47acdc215069c0756baa91130a6a2ec1d.json": {
+      "size": 9002,
+      "sha256": "72e771994382a5fa6ae8866026de3abb7b94cfecf34e9bc0aa36c0e8d6c7d8b1"
+    },
+    "data/transcripts/summaries/8baf80d8c4b1e90062c50df1ff40b38aac4166cdefed564f9c8fb0b7d8ae94c8.json": {
+      "size": 3426,
+      "sha256": "85793150e2caca3da08a879df9c05f957fffc533f28250289679535505d5fdda"
+    },
+    "data/transcripts/summaries/8be368702264b0d5bb3f1fe34b496b4a57467d375792cddf45e08ba6f3622071.json": {
+      "size": 12279,
+      "sha256": "37847e4e92f80565336530a5564adf0ee53c30f12093b4d9c4370e3c0170f601"
+    },
+    "data/transcripts/summaries/dfc5e4c5079d471fb0279ad81902a7628c2d638d8bdfae9535b21764ba57dd67.json": {
+      "size": 30614,
+      "sha256": "3130d3ca3d33f1d343edfa8ebac500bf56090b3b641a46991c453ea223408a9a"
+    }
+  },
+  "after": {
+    "state.sqlite3": {
+      "size": 2985984,
+      "sha256": "332c490d781a5f98c9e1f6f2fbe0bc2fa5c012667209dafe82327b5b99e37caa"
+    },
+    "state.sqlite3-wal": {
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "data/transcripts/0eMzc-WnBfQ/26b7b378e3172004893907ad3952439d688f1bf53fecdc8df6846f00e3212962/canonical.5483658bb76e53619555cbb3798b6060e4d06a28de663050eff1fd58b1896cec.r.txt": {
+      "size": 89221,
+      "sha256": "a7d3bd04a3a3d5cc7b7d000df790daf5577bf2641583ca973a13cf79e34fccf9"
+    },
+    "data/transcripts/0eMzc-WnBfQ/26b7b378e3172004893907ad3952439d688f1bf53fecdc8df6846f00e3212962/source.WyJhdXRvX3N1YnRpdGxlIiwiZW4iLCJlbiIsImpzb24zIl0.json3": {
+      "size": 873916,
+      "sha256": "934957b468f8fc59a4bd5d57844e66702a65a78943c056a3472fed77b166caae"
+    },
+    "data/transcripts/0eMzc-WnBfQ/26b7b378e3172004893907ad3952439d688f1bf53fecdc8df6846f00e3212962/source.WyJhdXRvX3N1YnRpdGxlIiwiZW4iLCJlbiIsInZ0dCJd.vtt": {
+      "size": 415676,
+      "sha256": "1ce80bdb4602f3ad248ae11ae181435ccec6150159d5da22202b3ef3a36f3e88"
+    },
+    "data/transcripts/0eMzc-WnBfQ/5b613e294b5b1f0ced13dd533e7ba3b003243b4f011e734f49e4198a7025d140/canonical.36b9e9352363504b41d173533055a2e9878d92d6afb5910594303d99b2cd121a.-.txt": {
+      "size": 45130,
+      "sha256": "22a72834367d8025fe81de10adbca9ed101e8eaae9f67d1a6669f97382d2a9b1"
+    },
+    "data/transcripts/0eMzc-WnBfQ/5b613e294b5b1f0ced13dd533e7ba3b003243b4f011e734f49e4198a7025d140/source.WyJhdXRvX3N1YnRpdGxlIiwiZW4iLCJlbiIsImpzb24zIl0.json3": {
+      "size": 873916,
+      "sha256": "934957b468f8fc59a4bd5d57844e66702a65a78943c056a3472fed77b166caae"
+    },
+    "data/transcripts/0eMzc-WnBfQ/ad8dba167b57c7405ee503a02a243dfe13bd6c71b2ad48a961753370a9bfc4dc/canonical.5483658bb76e53619555cbb3798b6060e4d06a28de663050eff1fd58b1896cec.r.txt": {
+      "size": 89221,
+      "sha256": "a7d3bd04a3a3d5cc7b7d000df790daf5577bf2641583ca973a13cf79e34fccf9"
+    },
+    "data/transcripts/0eMzc-WnBfQ/ad8dba167b57c7405ee503a02a243dfe13bd6c71b2ad48a961753370a9bfc4dc/source.WyJhdXRvX3N1YnRpdGxlIiwiZW4iLCJlbiIsImpzb24zIl0.json3": {
+      "size": 873916,
+      "sha256": "934957b468f8fc59a4bd5d57844e66702a65a78943c056a3472fed77b166caae"
+    },
+    "data/transcripts/0eMzc-WnBfQ/ad8dba167b57c7405ee503a02a243dfe13bd6c71b2ad48a961753370a9bfc4dc/source.WyJhdXRvX3N1YnRpdGxlIiwiZW4iLCJlbiIsInZ0dCJd.vtt": {
+      "size": 415676,
+      "sha256": "1ce80bdb4602f3ad248ae11ae181435ccec6150159d5da22202b3ef3a36f3e88"
+    },
+    "data/transcripts/IwglW_hIL_g/19348d479b0435a2fd5b67ffb2d0156a194ffdfc79a5bad65c6adb6230700954/canonical.c9130409650bd583987deec52bd3e3dd303f30a5e730508f1e094886b753825c.r.txt": {
+      "size": 3224,
+      "sha256": "0b392e8425066ff9ffd82662efec63634347f50442c0cd0addded81d0b1bdbe1"
+    },
+    "data/transcripts/IwglW_hIL_g/19348d479b0435a2fd5b67ffb2d0156a194ffdfc79a5bad65c6adb6230700954/source.WyJhdXRvX3N1YnRpdGxlIiwiZW4iLCJlbiIsImpzb24zIl0.json3": {
+      "size": 26643,
+      "sha256": "475e93baf9a8cc33dc9f4820aa8857f40d1413dcfaa1325ee19851096c14d69a"
+    },
+    "data/transcripts/IwglW_hIL_g/19348d479b0435a2fd5b67ffb2d0156a194ffdfc79a5bad65c6adb6230700954/source.WyJhdXRvX3N1YnRpdGxlIiwiZW4iLCJlbiIsInZ0dCJd.vtt": {
+      "size": 15674,
+      "sha256": "f7314e9fd036e3590ee99e5a68808202361a5fcd123f1b464dc68170ec098cbc"
+    },
+    "data/transcripts/QoXRfTb7ves/db52c966c54f251398de2aea25fff73cb09cb973eb96b0c568f29b71aba37871/canonical.255e116efef46cf2ac7537657b10f04ca50eda48f3357129f16a1fb851e6d614.-.txt": {
+      "size": 931,
+      "sha256": "67c965b3254c6240b8fe5c9d2ad120e62aaa6b884780f91e4e27004769df71a6"
+    },
+    "data/transcripts/QoXRfTb7ves/db52c966c54f251398de2aea25fff73cb09cb973eb96b0c568f29b71aba37871/source.WyJtYW51YWxfc3VidGl0bGUiLCJlbiIsImVuLUdCIiwianNvbjMiXQ.json3": {
+      "size": 2770,
+      "sha256": "c3e3dfb5228373098c826f54dea066e9c3ed559ce4f167c87958dc12e2580cfe"
+    },
+    "data/transcripts/aircAruvnKk/4f58a216276b7eee4c252efc294618069a18d4f290412e3c8037adaf491b8178/canonical.bcf755d2c8486670976fa4909998e04a959ff039b2926b139dad815181a1d436.-.txt": {
+      "size": 14633,
+      "sha256": "edf4e024d8f13b26e28c04a0248dc222788ade2217c3d8119baeb0c782579508"
+    },
+    "data/transcripts/aircAruvnKk/4f58a216276b7eee4c252efc294618069a18d4f290412e3c8037adaf491b8178/source.WyJtYW51YWxfc3VidGl0bGUiLCJ6aCIsInpoIiwianNvbjMiXQ.json3": {
+      "size": 36956,
+      "sha256": "13c048e7346c94fb41a66c62162579af98567a0d7ce75f111926c6b0482e4d5a"
+    },
+    "data/transcripts/summaries/09f9b7456f5d83c63be6a3e0ddf7cac47acdc215069c0756baa91130a6a2ec1d.json": {
+      "size": 9002,
+      "sha256": "72e771994382a5fa6ae8866026de3abb7b94cfecf34e9bc0aa36c0e8d6c7d8b1"
+    },
+    "data/transcripts/summaries/8baf80d8c4b1e90062c50df1ff40b38aac4166cdefed564f9c8fb0b7d8ae94c8.json": {
+      "size": 3426,
+      "sha256": "85793150e2caca3da08a879df9c05f957fffc533f28250289679535505d5fdda"
+    },
+    "data/transcripts/summaries/8be368702264b0d5bb3f1fe34b496b4a57467d375792cddf45e08ba6f3622071.json": {
+      "size": 12279,
+      "sha256": "37847e4e92f80565336530a5564adf0ee53c30f12093b4d9c4370e3c0170f601"
+    },
+    "data/transcripts/summaries/dfc5e4c5079d471fb0279ad81902a7628c2d638d8bdfae9535b21764ba57dd67.json": {
+      "size": 30614,
+      "sha256": "3130d3ca3d33f1d343edfa8ebac500bf56090b3b641a46991c453ea223408a9a"
+    }
+  },
+  "all_21_files_sha_unchanged": true,
+  "fixed_history_constants": [
+    "SELECTION_POLICY_VERSION: Final = \"subtitle-selection-v2-original-tracks\"",
+    "FORMAT_POLICY_VERSION: Final = \"subtitle-format-v1\""
+  ],
+  "root_independent_rerun": true,
+  "run_log_sha256": "4f855a62dc13218eef6fe1dbf732568523fdd0485abd091ffc84e5f7fcdcb1a0"
+}

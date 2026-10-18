@@ -24,3 +24,6 @@ Reuse DIRECT标准库json/hashlib/dataclasses与已批准纯值/可信cue合同�
 先类型/语法，最小函数+meaningful tests逐步验证。测试包含逐cue/逐Evidence精确roundtrip、不同分组同内容hash边界、跨Evidence重复不合并、空白/Unicode/控制字符、顺序/缺cue/重复identity/时间或hash错、E01/unknown/重复/缺失NO_NEW、额外字段/类型混淆、输入对象后续修改、claims/stance逐字段不改、output原wire保留，以及所有有界拒绝。测试不得修改现有断言或门槛。
 
 focused pytest、Ruff、strict mypy src、diff check；旧short/cloud golden应保持零diff。独立handoff按模板，记录明确shape/限制与0模型IO，创建清洁提交并STOP。独立Reviewer对准确base…SHA审查/重跑，root接受整合前不可接入产品。完整长协议/迁移/保存主题/Backup Restore/实际模型验收是后续同一Goal必需，不能以本切片替代。
+
+
+2026-10-19 root边界决定：完整输入不截断；普通INTELLIGENCE.evidence维持accepted schema maxItems20（旧parser漏限不当授权），严测21拒绝。新codec NO_NEW引用必须完整全量/唯一/原顺序（真实114），未来须独立长schema身份，不能复用旧short合同绕20。仅ID严格双射展开，claims/stance逐字段不改。

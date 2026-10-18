@@ -1,0 +1,22 @@
+{
+  "at": "2026-10-18T20:03:15.571147+00:00",
+  "mode": "read-only exact accepted v2 verifier on frozen full real database/data; no maintenance calls or mutation",
+  "result": "FAIL",
+  "error_type": "ValueError",
+  "error": "failed caption derivation has no complete deterministic proof",
+  "traceback": "Traceback (most recent call last):\n  File \"/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/schema38_individual_proof_readonly.py\", line 17, in <module>\n    proof=_retained_caption_proof(r,c,root/'data',dict(row),now=datetime.now(UTC))\n          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/src/youtube_intel/transcripts.py\", line 1215, in _retained_caption_proof\n    _retention_require(len(language_matches) == 1)\n  File \"/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/src/youtube_intel/transcripts.py\", line 1033, in _retention_require\n    raise ValueError(\"failed caption derivation has no complete deterministic proof\")\nValueError: failed caption derivation has no complete deterministic proof\n",
+  "diagnosis": {
+    "frozen_provider_version": "2026.7.4",
+    "actual_adapter_version": "2026.07.04",
+    "unique_recomputed_identity_match": {
+      "provider_version": "2026.07.04",
+      "languages": [
+        "zh",
+        "en"
+      ],
+      "raw_request_hash": "26b7b378e3172004893907ad3952439d688f1bf53fecdc8df6846f00e3212962"
+    },
+    "normalizing_hash_input_permitted": false,
+    "downstream_proof_not_yet_passed": true
+  }
+}

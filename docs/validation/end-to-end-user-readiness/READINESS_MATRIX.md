@@ -1,16 +1,17 @@
-# 当前验收状态（2026-10-16，候选未发布）
+# 当前验收状态（2026-10-19，候选未发布）
 完成条件不变：普通入口真实可操作、无未处置P0/P1、模型严格资格、完整回归/恢复与安全main拓扑同时满足。用户持续授权覆盖必要实现及全部门禁后的采用，不重复逐方法审批。
 
 | 当前关键项 | 最新外部证据 | 当前剩余 |
 |---|---|---|
 | 兴趣逐条保真/CAS/轮询 | 独立dd260de/d012c48，整合2134a30；root896/TSbuild；真实编辑/双页冲突/GET新command/刷新/进程重启，74表87DATA一致 | 最终完整回归 |
-| 9b端口与容量工程 | 独立aee4e07/bed638f/868d2da通过，整合88161aa；root232/strict106/Ruff通过；固定双manifest/v2引用/六payload/三binary身份修复 | 用户释放磁盘202GiB已通过；真实冷host因RAM约4.5<8.1GiB仍closed，0load/0生成；实际合法prepare/slot/统一freeze/原案例+holdouts语义与LOCAL8正向未完成 |
+| 9b端口与容量工程 | 独立aee4e07/bed638f/868d2da通过，整合88161aa；root232/strict106/Ruff通过；固定双manifest/v2引用/六payload/三binary身份修复 | 磁盘198.3GiB已通过；10月19日04:04真实RAM4.403<8.101GiB仍closed，0load/0生成；实际合法prepare/slot/统一freeze/原案例+holdouts语义与LOCAL8正向未完成 |
 | 精确能力及物理计数 | 独立d775b0c，整合6fa6a07；root79backend/929front/TSbuild；真实Settings六scope/lang全false、LOCAL_TEXT真实route/设置回跳；新备份100artifact引用显示96physical，全部96归档hash相同 | 模型资格仍false；后续新核心完整回归 |
 | TXT/MD与等待取消恢复 | 真实Native Picker/WAIT0分别取消/剩余任务仍阻塞；实际重启及GUI恢复74表84DATA一致 | 真实合格模型正向尚无；Schema39未在正式main迁移 |
-| 新字幕及失败重试 | 原生29cue/摘要/4Evidence真实恢复74表87DATA；VIDEO_URL重试/恢复74表3DATA保留旧job/provider | CHANNEL/ENROLLED旧INVALID_RESPONSE无Retry的P1，c312ee4已准入专属Schema40后端实施；不拿VIDEO_URL替代 |
+| 新字幕及失败重试 | 原生29cue/摘要/4Evidence真实恢复74表87DATA；VIDEO_URL重试/恢复74表3DATA保留旧job/provider | CHANNEL/ENROLLED旧INVALID_RESPONSE专属Schema40 WIP，基础43e0c75独立REJECT已保留；原作者补reader/Backup/worker/API/UI及attempt0取消后父链重试，待最终审查与真实旧库验收 |
+| 真实旧失败派生归档 | 全量旧37库正常迁移39；真实公开字幕受控completion fault→新明确命令成功；旧Iwgl真实GUI Retry成功，74表19DATA/原8DATA与Evidence完整，0新模型 | 新真实P1：v1/429+v2/LOCAL_RESOURCE混合维护互阻；恢复proof provider原版本字符串不匹配、后续parent identity待定位，仍阻塞备份/未Restore，不用空归档恢复替代 |
 | Backup及原生选择 | 真create/native choose/strict stage/RESTORE一次确认/实际重启689d0de7，74表96DATA逐行/hash一致、FK/integrity正常 | Chrome154 custom filter拒选问题已修复223de10；真实默认native直接选ZIP/strictstage/取消PASS，74表96DATA原样；root36/TSbuild通过 |
-| 研究证据回跳/手册 | 真实刷新定位focus指定Evidence；统一中文手册64/64真图加载，1312宽无横溢 | 最终新Retry与合格洞察截图 |
-| 其余验收与采用 | D2 native_import/local_content/native_picker/build与73ee7e7逐字不变；main/actualorigin73ee7e7 clean，owner未改 | 长内容/rolling完整协议、旧failed-derived归档genuinepositive、合格洞察收藏/主题/原证据GUI、最终完整backend/front/静态/恢复/topology/served及条件采用仍OPEN |
+| 研究证据回跳/手册 | 真实刷新定位focus指定Evidence；10月19日前真实Chrome复验统一中文手册64/64真图加载，1312宽无横溢 | 最终新Retry与合格洞察截图 |
+| 其余验收与采用 | D2 native_import/local_content/native_picker/build与73ee7e7逐字不变；main/actualorigin73ee7e7 clean，owner未改 | 长内容纯无损codec切片独立实施中（仅新增module/tests，无执行接线）；完整长协议、旧failed-derived归档genuinepositive、合格洞察收藏/主题/原证据GUI、最终完整backend/front/静态/恢复/topology/served及条件采用仍OPEN |
 
 以下为历史检查点，保留原失败与当时状态；不能将其中旧的“待批/未实施/OPEN”当作上述最新状态：
 
