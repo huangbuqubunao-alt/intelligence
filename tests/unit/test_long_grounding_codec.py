@@ -685,3 +685,4 @@ def test_codec_version_is_hashed_in_unique_canonical_packet():
         allow_nan=False,
     ).encode("utf-8")
     assert packet.input_hash == hashlib.sha256(packet.canonical_wire).hexdigest()
+    assert packet.input_hash == "d304dd267e1916e1d76b02f1250b5a367ae6c7a8ae007684cd1b5133c84b417b"
