@@ -25,3 +25,8 @@ Scope单video/providerYT/METADATA或TRANSCRIPT安全失败，无new无关功能�
 普通用户取消/暂停后恢复来源，应能用**新明确command**重新请求。旧终态不复活，初始oldjob不重复消费；同command仍幂等。不得为满足准入条件硬造job attempt或模型/provider执行记录。真实predispatch attempt0可保留，通过本专属协议已存在不可变request、完整已验证CANCELLED/FAILED本地终态事件/receipt、target唯一所有权、file closure和无provider/dispatch/未知/活跃writer的严格父链证明，允许窄后继准入；外部generic旧任务原白名单/真实attempt核验不放宽。若现Schema无法提供完整父链证明，作者先报告精确最小补全，不猜测。此为原取消/重试可用链的必要修复，无新功能阶段。
 
 必须覆盖cancel→new command成功、连续取消后新retry、pause→enable→retry、同command幂等与初始old唯一消费；缺父request/receipt/终态、错epoch、marker被删、未知执行/活跃writer及attempt不一致全部failclosed。此专属分支与初次generic准入分离，并在reader/Backup恢复中复验，不能只放API端条件。
+
+
+## 2026-10-19 事件容量与多次中断的可用性
+
+固定128事件上限不提高以拖延问题；每次claim/recovery/preHTTP/本地action必须在源头预留全部剩余合法本地attempt的状态/结果事件与Close终态，不能本版正常执行产生“126事件、provider/target已SUC、仍有localattempt却只可关闭”死边缘。保留真实prep attempts，不伪造attempt0或模型执行。已存在精确NOT_DISPATCHED的容量关闭，要有专属typed关闭receipt与首次dispatch intent标记等严格正反向证明后，才可新人工command（generic名单不改）；unknown不重新网络，SUC substrate只纯本地完成/恢复、不退stage、不重发字幕。全部文件闭包/历史保留，真实重复崩溃、临界槽位、用足3次localattempt及最终Close需有外部证据。安全可备份终态不能替代原可用重试完整性的完成声明。

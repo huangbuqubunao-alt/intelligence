@@ -1,3 +1,6 @@
+# 2026-10-19 04:30 并行状态
+新纯LONG-MODEL-PROJECTION在fe4cfba独立WT进行，仅新module/tests/side冻结消息；旧模型9语义字段完整、Summary只side、source和策略仍JSON数据，0IO/不注册profile，ctx/schema/执行/资格后续串行。tracked40作者已源头预留128事件预算并补百次实际进程中断和1051父链，无假attempt0/无重复网络；仍待最新累计/Chrome/clean STOP与独立review，不是已接受。独立只读预检离线vocab工具结论限度中；正式采用/模型资格继续关闭。
+
 # 2026-10-19 04:19 当前
 纯codec独立APPROVE完整历史已整合9b5fc88，root110/strict106/Ruff/diff及真实2406cue114Evidence逐项roundtrip通过；仅工程切片DONE，长协议生产接线/真实语义仍OPEN。新增明确x86词表QA利用已装支持/固定官方headers与vendor库，3对照与原真实runner0/4/30238完全一致，最大约116MiB，0权重/context/生成/HTTP；不改变加载内存门或资格。tracked40继续事件容量终结及严格新command恢复完整性，尚无最终STOP，不做main采用。38混合结清与两处真实兼容补修仍等共享核心接受。
 
