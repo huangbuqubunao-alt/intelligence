@@ -30,3 +30,15 @@ DIRECT已安装Ollama0.40.1的libllama.0.5.0.dylib，SHA256 72d39b320e896b29a693
 helper仅对完整公开源构造的原始输入与固定renderer计算token数，用原Ollama相同库/词表/parse_special/add_special语义。先做空/Unicode/角色token小样例，严格错误退出；资源超时30秒、内存预期<512MiB，单进程，无任何generation。输入文件与输出元数据留本任务私有目录，不读任何thinking/正式owner文件。若实际ABI/词表身份/资源不满足即停，不能用估计数当生产容量。
 
 本诊断不是生产实现、不是模型资格或放行。若完整长内容单次预算可行，仍须独立版本化来源/人数上限与NO_NEW全覆盖合同、模型输出预算/真实语义/恢复审查；若不行才设计明确可恢复父子执行方案。现有容量工程按已审bytebound继续，保持0生成/空资格。
+
+
+2026-10-19 已接受纯切片后的只读精确接线前检（long_lossless_codec_oct19；0文件/DB/模型/网络；不是实现READY包）：
+
+- 后续仅新增两张不可变input proof/完成receipt表，迁移号等tracked40及混合字幕修复接受后确定。原20/LIMIT21/Cloud/LOCAL39路径不放宽。新factory必须同事务按指定source证明唯一canonical/timed及全ORIGINAL覆盖，不能用fetchone静默择一。
+- 最小专属接口：freeze_long_timed_input_in_transaction→reserve_long_distillation_execution（checkpoint+完整proof一次BEGIN IMMEDIATE、claim前提交）→claim_long_distillation_execution（ready/ARMED后重验hash/准入，CAS inv1、永不自动再次dispatch）→complete_long_distillation（strict completion+codec decode后receipt与card/revision/history/usage或NO_NEW一次事务）。提交异常重读可信receipt；缺失保留inv1未知，不统一误标模型REJECTED_OUTPUT或重新调用。
+- proof固定execution/source/video/canonical/timed/原Summary/policy revisions，完整semantic/context/messages/profile/request wire与各hash、codec input hash/code identity/proof version/time；不能只保存当前resolver名称。completion receipt分别原public wire/hash、decoded wire/hash、安全usage/completion、resultkind/terminal/intelligence/revision/admitted_content_hash与receipt hash。拒绝输出可保留真实public而无decoded，不授authority；不保存thinking正文。
+- codec decoded_hash不等于现revision content_hash（现canonical去result、排序真实Evidence ID、另用ASCII编码）。需一个独立共享纯card canonical投影，分别绑定decoded和admitted_content_hash；只处理固定表示，不修文字/stance。
+- 长NO_NEW复用035既有zero sidecar（SQL本无N上限），专属writer要求proof+receipt+全N原序解码齐全后原子写入，旧Python20上限不改。新getter与capacity unresolved_local_work只对严格完成closure的长NO_NEW结清，不能全局放行PENDING+inv1/unknown。
+- 历史Summary须冻结完整原文件/父Evidence并按原快照验证，不能依赖ExtractiveSummaryService.read的当前candidate/pointer，也不能调用会重建缓存的load_verified_transcript作为只读Backup验证。新统一closure贯穿current/historical reader、NO_NEW、Save/Topic写事务内、Backup正反向枚举proof/receipt/checkpoint/revision/sidecar/SourceRun。删除任意组合并重hash ZIP也必须拒绝；未知未来协议不降generic。
+- 新profile/schema/容量身份单独版本化，完整request固定后才冻结ctx/options/原生render与slot实证；22494仅planning。CODE_FILES必须纳入codec/projection/新协议validator/profile/迁移等，旧资格自然失配，不修改/迁移/授新资格；历史成功读取不要求当前资格或当前code_hash等于旧值。旧34–40及新版本集合显式列举，迁移只追加空表，无backfill/历史变更，完整旧新恢复。
+- 额外最终门：tracked40修改source_authority.py整文件SHA，acoustic_qualification.current_tuple.implementation明确绑定该SHA；既有17例ASR PASSED证据不能自动沿用新tuple。所有核心稳定后按同原17例/标准做新tuple真实资格并复验普通导入转写/恢复，保持资源门、失败closed，不复制旧receipt充作当前合格。证据 ASR_FINAL_TUPLE_REQUALIFICATION_REQUIRED_2026_10_19.json，当前0decoder/密钥读取。

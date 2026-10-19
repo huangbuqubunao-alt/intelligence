@@ -1,0 +1,13 @@
+{
+  "classification": "STATIC_REAL_ASR_QUALIFICATION_BINDING_CHANGE_NOT_EXECUTION",
+  "binding": "acoustic_qualification.current_tuple.implementation.source_authority.py full-file SHA256",
+  "accepted_root_source_sha256": "f9c5abb46bc4e5ba88c435949bf3f48ffe0a4f6e394768e439e1db4c5bbc18cd",
+  "tracked_candidate_b14788c_source_sha256": "72f769e4ced5f3a3c0f71241d6fbe04e6ec7f3d99b2a2a52dc717987488dcfe9",
+  "different": true,
+  "consequence": "Existing PASSED acoustic tuple receipt cannot authorize candidate; qualification_status compares the entire tuple and must fail closed",
+  "required": "After all core changes and independent acceptance, freeze same original 17 acoustic cases/semantic standards with final tuple and repeat real qualification once; retain old pass/fail evidence; no copying/resealing old evidence as current pass",
+  "resource_gate": "keep existing ASR memory/disk and decoding profile limits; no decoder until satisfied",
+  "formal_changes": false,
+  "decoder_calls": 0,
+  "credential_or_machine_key_reads": 0
+}
