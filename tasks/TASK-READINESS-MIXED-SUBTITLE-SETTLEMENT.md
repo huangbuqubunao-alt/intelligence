@@ -31,3 +31,6 @@ root exact accepted verifier在冻结真实现场只读运行，transcripts.py12
 
 
 2026-10-19 补充必需验证修复（仍等tracked40接受，非新功能/审批）：独立针对ZipInfo陷阱预检确认 test_retained_subtitle_derivations.py535–579七项manifest-neutral负控在570用writestr(name,body)丢S_IFREG，仅通用BackupRestoreError使其先被special-file guard挡；wrong-proof-hash实际未到proof。此为已证实验证缺口，不等于新产品接受漏洞。作者在本任务原测试范围内保留ZipInfo/合法regular metadata、加同构不变重包stage成功正控，重算真实DB/manifest后再证七类语义拒绝，尽量匹配具体拒绝原因，不能放宽特殊ZIP安全规则。LOCAL39和38历史original/successor两组已保留metadata并在独立6例中实际抵达语义拒绝；不需要泛化重写它们。native capture直接create_backup缺失/损坏反控不受重包影响。证据 ZIP_METADATA_TARGETED_PREFLIGHT_2026_10_19.json；原tmp38日志部分缺失如实记录，不当现证据。
+
+## 2026-10-19 真实Backup错误反馈同任务补齐
+新tracked GUI已确认原18DATA里两旧unindexed文件导致readiness reasons=[DATABASE_UNAVAILABLE]、message='DATA contains unindexed files; Backup cannot omit stored bytes.'，但App.backupReadiness对未识别reason误说仍有其他工作执行。加入本真实失败链的最小UI反馈修复：只在既有Backup panel用有限明确reason分类与中英提示准确区分未完成工作/文件或数据库完整性不可用/尚未确定；未知reason仍closed中性，不展示未经验证内部路径/原始错误，不把所有错误解释为运行任务。允许App.tsx/uiLanguage.tsx及相应现有/新focused UI测试、DESIGN.md必要一段，不新增功能/接口/设置。多原因时保留所有真实阻塞，不只一项；ready=false不能因取消或归档一项无条件放行。真实修复前截图failed-readiness.png已保存，最终须普通GUI验证实际reason及恢复。此scope等共享核心钟修复接受后同mixed任务串行实施，不重复审批。

@@ -1,0 +1,15 @@
+{
+  "classification": "EXACT_REAL_CLOCK_FAILURE_CAUSAL_FIELD_CHECK_NOT_PATCH_ACCEPTANCE",
+  "claim_event_at": "2026-10-19T07:21:21.924732Z",
+  "provider_started_at": "2026-10-19T07:21:21.929415Z",
+  "delta_ms": 4.683,
+  "old_worker_writes_claim_at_back_to_provider_updated_at": {
+    "path": "src/youtube_intel/tracked_retry_worker.py",
+    "root_source_sha256": "af5ba6bce92dae361a77be43c8c29314a1948992b3875f327cd02a087cdc0a80",
+    "line": 441
+  },
+  "strict_register_guard": "state.py:5028 rejects started_at>updated_at; guard must remain",
+  "independent_author_full_offline_probe": "original failure and single-predicate correction success reported; original temp source/log must be preserved in final author handoff before review",
+  "frozen_original_modified": false,
+  "http_model_cloud_calls": 0
+}
