@@ -6,6 +6,7 @@ import json
 import sqlite3
 from contextlib import closing
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from youtube_intel.domain import ProcessingStage, VideoMetadata
@@ -75,7 +76,7 @@ def event(state: str, *, prior: str | None, revision: int, epoch: int, at: str,
     return result
 
 
-def _read(connection: sqlite3.Connection, request_id: str, *, verify_parent: bool = True) -> tuple[dict[str, Any], dict[str, Any]]:
+def _read(connection: sqlite3.Connection, request_id: str, *, verify_parent: bool = True, data_root: Path | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
     r = connection.execute("SELECT * FROM tracked_content_retry_requests WHERE request_id=?", (request_id,)).fetchone()
     e = connection.execute("SELECT * FROM tracked_content_retry_executions WHERE request_id=?", (request_id,)).fetchone()
     if r is None or e is None:
@@ -123,7 +124,7 @@ def _read(connection: sqlite3.Connection, request_id: str, *, verify_parent: boo
         or target["scope_key"] != f"video:{request['video_id']}:TRANSCRIPT" or target["scoring_lineage_version"] is not None):
         raise RetryIntegrity("Content retry target changed")
     if verify_parent:
-        verify_old_failure(connection, old, source_id=request['source_id'])
+        verify_old_failure(connection, old, source_id=request['source_id'], data_root=data_root)
     if (execution['state'] == 'QUEUED' and (target['status'] != 'PENDING' or target['attempt_count'] != 0 or execution['provider_call_hash'] is not None)
         or execution['state'] in {'FINALIZING','ATTENTION','SUCCEEDED'} and target['status'] != 'SUCCEEDED'
         or execution['state'] in {'CANCELLED','AMBIGUOUS'} and target['status'] != 'FAILED_FINAL'
@@ -141,7 +142,7 @@ def _read(connection: sqlite3.Connection, request_id: str, *, verify_parent: boo
     return request, execution
 
 
-def verify_old_failure(connection: sqlite3.Connection, old: sqlite3.Row, *, source_id: str) -> str | None:
+def verify_old_failure(connection: sqlite3.Connection, old: sqlite3.Row, *, source_id: str, data_root: Path | None = None) -> str | None:
     """Keep generic failure admission strict; zero-call successors need an intact parent."""
     first_owner: str | None = None
     seen: set[str] = set()
@@ -159,17 +160,27 @@ def verify_old_failure(connection: sqlite3.Connection, old: sqlite3.Row, *, sour
             first_owner = identifier(owner[0])
         # Iterative traversal keeps arbitrarily long retained histories off the
         # Python call stack. Every ancestor is checked; none is truncated.
-        parent, execution = _read(connection, owner[0], verify_parent=False)
+        parent, execution = _read(connection, owner[0], verify_parent=False, data_root=data_root)
         if parent['source_id'] != source_id or parent['video_id'] != old['video_id'] or parent['pipeline_version'] != old['pipeline_version']:
             raise RetryIntegrity('Content retry parent source changed')
         if old['attempt_count'] != 0:
             if execution['state'] != 'FAILED':
                 raise RetryIntegrity('Content retry parent is not a known failure')
             call = connection.execute('SELECT * FROM provider_calls WHERE request_hash=?', (parent['provider_request_hash'],)).fetchone()
-            dispatch = connection.execute('SELECT status FROM provider_dispatch_states WHERE request_hash=?', (parent['provider_request_hash'],)).fetchone()
+            dispatch = connection.execute('SELECT status,updated_at FROM provider_dispatch_states WHERE request_hash=?', (parent['provider_request_hash'],)).fetchone()
             terminal=json.loads(execution['events_json'])[-1]
             history_closed=terminal['event']=='HISTORY_LIMIT_CLOSED'
-            if history_closed:
+            captured_failure = execution['error_code'] == 'LOCAL_FINALIZATION_FAILED'
+            if captured_failure:
+                if call is None or dispatch is None:
+                    raise RetryIntegrity('Content retry capture failure provider receipt is missing')
+                from youtube_intel.tracked_retry_capture_failure import (
+                    verify_capture_failure,
+                )
+
+                verify_capture_failure(connection, parent, execution, old, call, dispatch, data_root=data_root)
+                _verify_known_attempt(connection, old)
+            elif history_closed:
                 proof=json.loads(terminal['action']['input_json'])
                 attempt=connection.execute('SELECT * FROM job_attempts WHERE job_id=?',(old['job_id'],)).fetchall()
                 if (proof['dispatch_status']!='NOT_DISPATCHED' or proof['had_dispatch_intent']
@@ -188,7 +199,7 @@ def verify_old_failure(connection: sqlite3.Connection, old: sqlite3.Row, *, sour
             else:
                 _verify_known_attempt(connection, old)
             if (call is None or dispatch is None or call['status'] != 'FAILED_FINAL'
-                or call['last_error_code'] not in ({'CAPABILITY_UNAVAILABLE'} if history_closed else KNOWN_RETRYABLE) or dispatch[0] != 'FAILED_KNOWN'
+                or call['last_error_code'] not in ({'LOCAL_RESOURCE'} if captured_failure else {'CAPABILITY_UNAVAILABLE'} if history_closed else KNOWN_RETRYABLE) or dispatch[0] != 'FAILED_KNOWN'
                 or not SQLiteStateRepository._provider_request_matches(call,provider_request(parent)) or call['attempt_count']!=1
                 or call['reservation_owner'] is not None or call['lease_until'] is not None):
                 raise RetryIntegrity('Content retry parent provider failure is not known and eligible')
@@ -264,7 +275,7 @@ def admit(repository: SQLiteStateRepository, video_id: str, *, command_id: str, 
         if history:
             if len(history) != 1:
                 raise RetryIntegrity("Content retry command has ambiguous history")
-            request, execution = read(connection, history[0][0])
+            request, execution = read(connection, history[0][0], data_root=repository._source_data_root)
             if request["client_input_json"] != canonical(client):
                 raise RetryConflict("Content retry command input conflicts")
             return public(request, execution)
@@ -280,7 +291,7 @@ def admit(repository: SQLiteStateRepository, video_id: str, *, command_id: str, 
             or old["pipeline_version"] != video["pipeline_version"]
             or old["lease_owner"] is not None or old["lease_until"] is not None or old["finished_at"] is None):
             raise RetryConflict("Content retry needs the current known terminal transcript failure")
-        verify_old_failure(connection, old, source_id=source_id)
+        verify_old_failure(connection, old, source_id=source_id, data_root=repository._source_data_root)
         if connection.execute("SELECT 1 FROM jobs WHERE video_id=? AND status NOT IN ('SUCCEEDED','FAILED_FINAL') UNION ALL SELECT 1 FROM job_attempts a JOIN jobs j ON j.job_id=a.job_id WHERE j.video_id=? AND a.finished_at IS NULL LIMIT 1", (video_id, video_id)).fetchone():
             raise RetryConflict("Content work is already active")
         # Legacy calls have no complete job linkage. Unresolved calls cannot be
@@ -310,7 +321,7 @@ def admit(repository: SQLiteStateRepository, video_id: str, *, command_id: str, 
         connection.execute(f"INSERT INTO tracked_content_retry_requests ({columns}) VALUES ({','.join('?' for _ in values)})", tuple(values.values()))
         action = {"operation": OPERATION, "command_id": command_id, "expected_revision": None, "input_json": canonical(client), "input_sha256": digest(client), "applied_revision": 0}
         connection.execute("INSERT INTO tracked_content_retry_executions(request_id,source_id,state,events_json,updated_at) VALUES(?,?,'QUEUED',?,?)", (request_id, source_id, canonical([event("QUEUED", prior=None, revision=0, epoch=0, at=timestamp, name="ADMITTED", action=action)]), timestamp))
-        request, execution = read(connection, request_id)
+        request, execution = read(connection, request_id, data_root=repository._source_data_root)
         connection.commit()
         return public(request, execution)
 
@@ -457,9 +468,9 @@ def _verify_events(request: dict[str, Any], execution: dict[str, Any], events: l
         raise RetryIntegrity('Content retry projection is inconsistent')
 
 
-def read(connection: sqlite3.Connection, request_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
+def read(connection: sqlite3.Connection, request_id: str, *, data_root: Path | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
     try:
-        return _read(connection,request_id)
+        return _read(connection,request_id,data_root=data_root)
     except RetryIntegrity:
         raise
     except (ValueError,TypeError,KeyError,OverflowError) as error:

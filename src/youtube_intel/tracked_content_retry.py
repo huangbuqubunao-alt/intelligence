@@ -61,7 +61,7 @@ class TrackedContentRetryService:
             if prior:
                 if len(prior) != 1:
                     raise RetryConflict("Content retry command is ambiguous")
-                request, execution = read(connection, prior[0][0])
+                request, execution = read(connection, prior[0][0], data_root=self.data_root)
                 client = {
                     "contract": request["contract"],
                     "operation": request["operation"],
@@ -156,7 +156,7 @@ class TrackedContentRetryService:
                 closing(self.repository._connect(read_only=True)) as connection,
                 connection,
             ):
-                request, execution = read(connection, request_id)
+                request, execution = read(connection, request_id, data_root=self.data_root)
                 if expected_video_id is not None and request['video_id'] != expected_video_id:
                     raise RetryConflict('Content retry action does not belong to this Content')
                 from youtube_intel.tracked_retry_reader import verify_request
@@ -193,7 +193,7 @@ class TrackedContentRetryService:
                     closing(self.repository._connect(read_only=True)) as connection,
                     connection,
                 ):
-                    _, current = read(connection, request_id)
+                    _, current = read(connection, request_id, data_root=self.data_root)
                     if (
                         current["fencing_epoch"] != epoch
                         or current["revision"] != expected_revision
@@ -211,7 +211,7 @@ class TrackedContentRetryService:
             files.settle(terminal=operation!='RESUME_LOCAL')
             with closing(self.repository._connect()) as connection, connection:
                 connection.execute("BEGIN IMMEDIATE")
-                _, execution = read(connection, request_id)
+                _, execution = read(connection, request_id, data_root=self.data_root)
                 if execution["revision"] != expected_revision:
                     raise RetryConflict("Content retry action state changed")
                 at = format_utc_datetime(self.now())
@@ -300,7 +300,7 @@ class TrackedContentRetryService:
             except RetryConflict:
                 return result
             try:
-                parent_id = verify_old_failure(connection, old, source_id=source['source_id'])
+                parent_id = verify_old_failure(connection, old, source_id=source['source_id'], data_root=self.data_root)
                 if parent_id is not None:
                     with request_lock(self.repository._database_path, parent_id):
                         verify_request(self.repository, self.data_root, parent_id, settled=True)

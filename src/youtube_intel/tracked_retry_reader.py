@@ -38,7 +38,7 @@ def verify_request(
     settled: bool = False,
 ) -> tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]]]:
     with closing(repository._connect(read_only=True)) as connection, connection:
-        request, execution = read(connection, request_id)
+        request, execution = read(connection, request_id, data_root=root)
         target = connection.execute(
             "SELECT * FROM jobs WHERE job_id=?", (request["target_job_id"],)
         ).fetchone()
@@ -108,7 +108,7 @@ def verify_request(
             ):
                 raise RetryIntegrity("Content retry pre-dispatch projection changed")
             if state in {'FAILED', 'CANCELLED'}:
-                verify_old_failure(connection, target, source_id=request['source_id'])
+                verify_old_failure(connection, target, source_id=request['source_id'], data_root=root)
         else:
             attempts=connection.execute('SELECT * FROM job_attempts WHERE job_id=? ORDER BY attempt_number',(target['job_id'],)).fetchall()
             if (target['attempt_count']!=1 or len(attempts)!=1 or attempts[0]['attempt_number']!=1

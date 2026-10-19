@@ -192,12 +192,14 @@ class RetryWorker:
             closing(self.repository._connect(read_only=True)) as connection,
             connection,
         ):
-            _, execution = read(connection, self.request["request_id"])
+            _, execution = read(connection, self.request["request_id"], data_root=self.service.data_root)
+            checked_at = self.timestamp()
             if (
                 execution["fencing_epoch"] != self.epoch
                 or execution["lease_owner"] != self.owner
                 or execution["state"] not in ("ACQUIRING", "FINALIZING")
-                or execution["lease_until"] <= self.timestamp()
+                or execution["lease_until"] <= checked_at
+                or execution["updated_at"] > checked_at
             ):
                 raise RetryConflict("Content retry writer is fenced or expired")
 
@@ -222,7 +224,7 @@ class RetryWorker:
                 raise RetryIntegrity(
                     "Content retry cannot repeat an uncertain dispatch"
                 )
-            _, execution = read(connection, self.request['request_id'])
+            _, execution = read(connection, self.request['request_id'], data_root=self.service.data_root)
             if len(json.loads(execution['events_json'])) + ACQUISITION_EVENT_RESERVE > HISTORY_LIMIT:
                 raise HistoryLimitReached()
             if row[0] == 'NOT_DISPATCHED':
@@ -250,7 +252,7 @@ class RetryWorker:
         }.get(code,'INVALID_RESPONSE'))
         with closing(self.repository._connect()) as connection, connection:
             connection.execute("BEGIN IMMEDIATE")
-            request, execution = read(connection, self.request["request_id"])
+            request, execution = read(connection, self.request["request_id"], data_root=self.service.data_root)
             call = connection.execute(
                 "SELECT * FROM provider_calls WHERE request_hash=?",
                 (request["provider_request_hash"],),
@@ -309,7 +311,7 @@ class RetryWorker:
         ):
             with closing(self.repository._connect()) as connection, connection:
                 connection.execute("BEGIN IMMEDIATE")
-                request, execution = read(connection, request_id)
+                request, execution = read(connection, request_id, data_root=self.service.data_root)
                 self.request = request
                 if execution["state"] in TERMINAL:
                     from youtube_intel.tracked_retry_reader import verify_request
@@ -321,10 +323,12 @@ class RetryWorker:
                 if len(json.loads(execution['events_json'])) + reserve > HISTORY_LIMIT:
                     connection.commit()
                     return self._close_history_limit(request, execution)
-                at, until = (
-                    self.timestamp(),
-                    format_utc_datetime(self.service.now() + timedelta(minutes=5)),
-                )
+                # One actual instant owns this atomic claim/reservation. A later
+                # reserve clock followed by the earlier claim timestamp would
+                # move provider.updated_at behind its own started_at.
+                claimed_at = self.service.now()
+                at = format_utc_datetime(claimed_at)
+                until = format_utc_datetime(claimed_at + timedelta(minutes=5))
                 parameters = json.loads(request["parameters_json"])
                 contract_available=True
                 adapter: SubtitleAdapter
@@ -406,9 +410,9 @@ class RetryWorker:
                         connection,
                         provider_request(request),
                         owner=self.owner,
-                        lease_until=self.service.now() + timedelta(minutes=5),
-                        available_at=self.service.now(),
-                        now=self.service.now(),
+                        lease_until=claimed_at + timedelta(minutes=5),
+                        available_at=claimed_at,
+                        now=claimed_at,
                     )
                     connection.execute(
                         "INSERT INTO provider_dispatch_states(request_hash,status,updated_at) VALUES(?,'NOT_DISPATCHED',?)",
@@ -426,6 +430,14 @@ class RetryWorker:
                 )
                 self.epoch = execution["fencing_epoch"] + 1
                 if state == "ACQUIRING":
+                    pending = connection.execute(
+                        "SELECT started_at,updated_at,available_at FROM provider_calls WHERE request_hash=? AND status='PENDING'",
+                        (request['provider_request_hash'],),
+                    ).fetchone()
+                    if pending is not None and (
+                        not pending['started_at'] <= pending['updated_at'] <= at or pending['available_at'] > at
+                    ):
+                        raise RetryIntegrity('Content retry provider reservation time is inconsistent')
                     connection.execute(
                         "UPDATE jobs SET lease_owner=?,lease_until=?,updated_at=? WHERE job_id=? AND status='RUNNING'",
                         (self.owner, until, at, request["target_job_id"]),
@@ -510,7 +522,7 @@ class RetryWorker:
                             )
                     except HistoryLimitReached:
                         with closing(self.repository._connect(read_only=True)) as connection:
-                            _, execution=read(connection,request_id)
+                            _, execution=read(connection,request_id, data_root=self.service.data_root)
                         return self._close_history_limit(request,execution)
                     except UnknownOutcome:
                         return self._finish_failure(
@@ -534,7 +546,7 @@ class RetryWorker:
                             return self._finish_failure(files,'AMBIGUOUS','DISPATCH_OUTCOME_UNKNOWN')
                     with closing(self.repository._connect()) as connection, connection:
                         connection.execute("BEGIN IMMEDIATE")
-                        _, execution = read(connection, request_id)
+                        _, execution = read(connection, request_id, data_root=self.service.data_root)
                         transition(
                             connection,
                             execution,
@@ -545,7 +557,7 @@ class RetryWorker:
                 if not contract_available:
                     with closing(self.repository._connect()) as connection, connection:
                         connection.execute('BEGIN IMMEDIATE')
-                        _, execution=read(connection,request_id)
+                        _, execution=read(connection,request_id, data_root=self.service.data_root)
                         execution=transition(connection,execution,'ATTENTION',at=self.timestamp(),name='LOCAL_ATTENTION',error_code='RETRY_CONTRACT_UNAVAILABLE')
                         return public(request,execution)
                 return self._finalize(service, files, parameters)
@@ -559,7 +571,7 @@ class RetryWorker:
         """
         with closing(self.repository._connect()) as connection, connection:
             connection.execute('BEGIN IMMEDIATE')
-            _,current=read(connection,request['request_id'])
+            _,current=read(connection,request['request_id'], data_root=self.service.data_root)
             substrate=connection.execute('SELECT status FROM jobs WHERE job_id=?',(request['target_job_id'],)).fetchone()
             if (current['revision'],current['fencing_epoch'])!=(execution['revision'],execution['fencing_epoch']):
                 raise RetryConflict('Content retry closure ownership changed')
@@ -569,7 +581,7 @@ class RetryWorker:
 
         def check() -> None:
             with closing(self.repository._connect(read_only=True)) as connection:
-                _, current = read(connection, request['request_id'])
+                _, current = read(connection, request['request_id'], data_root=self.service.data_root)
                 if (current['revision'], current['fencing_epoch']) != expected:
                     raise RetryConflict('Content retry closure ownership changed')
 
@@ -583,7 +595,7 @@ class RetryWorker:
         files.settle()
         with closing(self.repository._connect()) as connection, connection:
             connection.execute('BEGIN IMMEDIATE')
-            _, current = read(connection, request['request_id'])
+            _, current = read(connection, request['request_id'], data_root=self.service.data_root)
             if (current['revision'], current['fencing_epoch']) != expected:
                 raise RetryConflict('Content retry closure ownership changed')
             target = connection.execute('SELECT * FROM jobs WHERE job_id=?',(request['target_job_id'],)).fetchone()
@@ -636,7 +648,7 @@ class RetryWorker:
         check()
         with closing(self.repository._connect()) as connection, connection:
             connection.execute('BEGIN IMMEDIATE')
-            _, current=read(connection,request['request_id'])
+            _, current=read(connection,request['request_id'], data_root=self.service.data_root)
             if (current['revision'],current['fencing_epoch'])!=(execution['revision'],execution['fencing_epoch']):
                 raise RetryConflict('Content retry local closure ownership changed')
             changes=dict(local_attempt_count=current['local_attempt_count']+1)
@@ -657,7 +669,7 @@ class RetryWorker:
     ) -> dict[str, Any]:
         with closing(self.repository._connect()) as connection, connection:
             connection.execute("BEGIN IMMEDIATE")
-            _, execution = read(connection, self.request["request_id"])
+            _, execution = read(connection, self.request["request_id"], data_root=self.service.data_root)
             if len(json.loads(execution['events_json'])) + local_event_reserve(execution['local_attempt_count']) > HISTORY_LIMIT:
                 connection.commit()
                 return self._close_history_limit(self.request,execution)
@@ -690,7 +702,7 @@ class RetryWorker:
         except Exception:
             with closing(self.repository._connect()) as connection, connection:
                 connection.execute("BEGIN IMMEDIATE")
-                _, execution = read(connection, self.request["request_id"])
+                _, execution = read(connection, self.request["request_id"], data_root=self.service.data_root)
                 execution = transition(
                     connection,
                     execution,
@@ -703,7 +715,7 @@ class RetryWorker:
         self.check()
         with closing(self.repository._connect()) as connection, connection:
             connection.execute("BEGIN IMMEDIATE")
-            _, execution = read(connection, self.request["request_id"])
+            _, execution = read(connection, self.request["request_id"], data_root=self.service.data_root)
             execution = transition(
                 connection,
                 execution,
