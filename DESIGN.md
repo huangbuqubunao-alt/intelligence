@@ -138,3 +138,10 @@ channels offer Retry when eligible. A created source is distinct from a successf
 baseline: show the offline message even when creation succeeded but the initial
 feed check failed. Preserve existing modal/button styles and wrapping at 320px.
 Never render backend socket, proxy or resolver details.
+
+## Backup safety feedback
+
+Backup lists every returned blocking reason. Distinguish unfinished work from
+unverified database or stored-file integrity; unknown reasons remain neutral and
+closed. Use bilingual finite copy without backend paths or raw errors. Caption
+retry completion refreshes dependent Evidence and Deep Analysis reads in place.

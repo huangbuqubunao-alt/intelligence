@@ -1,5 +1,5 @@
 import { AddEntry } from "./AddEntry";
-import { TrackedContentRetry, trackedRetryActive } from "./TrackedContentRetry";
+import { TrackedContentRetry, readTrackedRetry, trackedRetryActive } from "./TrackedContentRetry";
 import { validFollowingDetailRead, validFollowingSourceRead } from "./CreatorFollowing";
 import { InterestRulesEditor, interestRuleValues, ruleDrafts, validInterestRule, type InterestRuleDraft, CreatorFollowForm, CreatorFollowingDetail, FollowCreatorFromContent, Tracking, trackingCopy, useCreatorFollowingCapability } from "./CreatorFollowing";
 import { BilibiliImport, BilibiliCaptionStatus, bilibiliStatus } from "./BilibiliImport";
@@ -1724,6 +1724,7 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
   const [refresh, setRefresh] = useState(0);
   const { data, error, errorCode, reload } = useRemote<ContentDetail>(`/videos/${id}`, refresh, undefined, true);
   const [evidenceRefresh, setEvidenceRefresh] = useState(0);
+  const [captionResultRefresh, setCaptionResultRefresh] = useState(0);
   const transcriptionRefreshId = useRef<string | null>(null);
   const [transcriptionStatus, setTranscriptionStatus] = useState<string | null>(null);
   const [showCloudTerms, setShowCloudTerms] = useState(false);
@@ -1742,6 +1743,15 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
   const trackedRetryCommands = useRef(new Map<string, string>());
   const [retryBusy, setRetryBusy] = useState(false);
   const [retryFeedback, setRetryFeedback] = useState<string | null>(null);
+  const completedRetry = readTrackedRetry(data?.video.tracked_content_retry, id)?.request;
+  const captionResultIdentity = completedRetry?.state === "SUCCEEDED"
+    ? `${completedRetry.request_id}:${completedRetry.revision}` : null;
+  useEffect(() => {
+    if (captionResultIdentity) {
+      setEvidenceRefresh(value => value + 1);
+      setCaptionResultRefresh(value => value + 1);
+    }
+  }, [id, captionResultIdentity]);
   useEffect(() => {
     if (!data || (!trackedRetryActive(data.video.tracked_content_retry, id) && !["WAITING", "FETCHING", "READING_CAPTIONS", "ORGANIZING", "TRANSCRIPT_READY", "RETRY_PENDING", "RUNNING", "PENDING"].includes(data.video.processing_status))) return;
     const timer = setTimeout(() => setRefresh(value => value + 1), 2000);
@@ -1885,6 +1895,7 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
       </Panel>
       <DeepAnalysisPanel
         videoId={data.video.video_id}
+        inputRefresh={captionResultRefresh}
         onCompleted={() => setEvidenceRefresh((value) => value + 1)}
       />
       <ContentEvidencePanel
@@ -2158,13 +2169,13 @@ function costDisclosureCopy(state: string) {
 }
 
 function DeepAnalysisPanel(
-  { videoId, onCompleted }: { videoId: string; onCompleted: () => void },
+  { videoId, onCompleted, inputRefresh = 0 }: { videoId: string; onCompleted: () => void; inputRefresh?: number },
 ) {
   const { t } = useUiLanguage();
   const [refresh, setRefresh] = useState(0);
   const { data, error, errorCode, reload } = useRemote<DeepAnalysisEnvelope>(
     `/videos/${videoId}/deep-analysis`,
-    refresh,
+    refresh + inputRefresh,
   );
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -2172,7 +2183,7 @@ function DeepAnalysisPanel(
   const [preflight, setPreflight] = useState<DeepAnalysisPreflight | null>(null);
   const [costAcknowledged, setCostAcknowledged] = useState(false);
   const [dispatchBlocked, setDispatchBlocked] = useState(false);
-  useEffect(() => { setPreflight(null); setCostAcknowledged(false); setDispatchBlocked(false); }, [videoId]);
+  useEffect(() => { setPreflight(null); setCostAcknowledged(false); setDispatchBlocked(false); }, [videoId, inputRefresh]);
 
   async function run(authorized?: DeepAnalysisPreflight) {
     setBusy(true);
@@ -3553,6 +3564,8 @@ const backupReasonCopy: Record<string, string> = {
   PROVIDER_CALL_UNRESOLVED: "a provider call has an unresolved outcome",
   PROVIDER_DISPATCH_UNRESOLVED: "a provider dispatch has an unresolved outcome",
   RESTORE_PENDING: "a restore is pending",
+  TRACKED_CONTENT_RETRY_ACTIVE: "a caption retry is still unfinished",
+  DATABASE_UNAVAILABLE: "Stored files or the database could not be verified. Check local storage and retry.",
 };
 
 function byteSize(bytes: number) {
@@ -3565,19 +3578,22 @@ function byteSize(bytes: number) {
  * Why Backup is or is not available, built from the structured reason codes the
  * service returns. The service's own message is English engineering prose, so
  * rendering it would put untranslated backend text into the Chinese UI — and
- * would also hide *what* is still running. Each fragment is translated on its
+ * would also hide the actual safety blocker. Each fragment is translated on its
  * own because the sentence is assembled here.
  */
 function backupReadiness(status: BackupRestoreStatus | null) {
   if (!status) return { lead: "Checking whether core data is safe to back up…", items: [] as string[] };
-  if (status.restore_pending) return { lead: "A restore is pending. Intelligence restarts before processing resumes.", items: [] as string[] };
-  if (status.ready) return { lead: "Core data is quiescent and ready for backup.", items: [] as string[] };
-  const items = status.reasons
-    .map((reason) => backupReasonCopy[reason])
-    .filter((value): value is string => value !== undefined);
-  return items.length
-    ? { lead: "Backup is unavailable while this work remains unfinished:", items }
-    : { lead: "Backup is unavailable while other work is still in flight.", items: [] as string[] };
+  if (status.restore_pending && status.reasons.every(reason => reason === "RESTORE_PENDING")) return { lead: "A restore is pending. Intelligence restarts before processing resumes.", items: [] as string[] };
+  if (status.ready && !status.restore_pending) return { lead: "Core data is quiescent and ready for backup.", items: [] as string[] };
+  const unknown = "Backup safety has not been confirmed. Read its status again.";
+  const reasons = status.restore_pending ? ["RESTORE_PENDING", ...status.reasons] : status.reasons;
+  const items = [...new Set(reasons.map((reason) => backupReasonCopy[reason] ?? unknown))];
+  const workOnly = reasons.length > 0 && reasons.every(reason =>
+    reason !== "DATABASE_UNAVAILABLE" && backupReasonCopy[reason] !== undefined);
+  return {
+    lead: workOnly ? "Backup is unavailable while this work remains unfinished:" : "Backup is unavailable for these reasons:",
+    items: items.length ? items : [unknown],
+  };
 }
 function BackupRestorePanel() {
   const { t } = useUiLanguage();
