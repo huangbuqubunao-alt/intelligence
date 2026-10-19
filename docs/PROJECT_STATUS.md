@@ -1,3 +1,6 @@
+# 2026-10-19 15:30 真实根因与窄返修READY
+原作者离线完整worker重现真实失败：claim先取at，reserve后取now创建started_at，takeover又写较早at到updated_at，register正确拒倒退。安排独立TRACKED-CLOCK-CAPTURE-RECOVERY任务修每事务真实一致时间并为严格可证capture已知失败提供新人工command出口，原失败不改、未知不放。LONG-CARD-CANONICAL仅新纯module/test与共享核心隔离并行；mixed/长协议生产仍等共享核心稳定。root478/956/static已绿；真GUI仍未过，不发布。
+
 # 2026-10-19 15:26 root整合检查完成
 root89cca38相对已审166ab392所有产品/测试/前端字节完全相同，478backend/956front/strict113/TS/build/Ruff/diff全通过。真GUI新FAILED仍阻止用户路径验收；只读核对19DATA中新增capture有VERIFIED证明，2旧unindexed属于原18，待混合归档修复，不能归责新capture。所有原有模型/洞察权威表逐行/hash全等，0模型/Cloud。main未采用，共享核心新任务暂等诊断。
 
