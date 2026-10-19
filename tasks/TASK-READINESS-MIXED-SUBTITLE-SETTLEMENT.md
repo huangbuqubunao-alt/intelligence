@@ -1,6 +1,6 @@
 # 已知字幕失败混合结清
 
-- Status: READY（2026-10-20，tracked共享核心及钟修复已独立接受整合b498ea4；真实GUI验收仍由root进行，不阻塞本独立WT串行核心实施）
+- Status: IN_REVIEW（2026-10-20，作者d9226ff cleanSTOP；UI9927324/core19d8107，193+1/198/19后端、964前端及静态通过；独立review待pure reviewer STOP后串行。root可对独立完整副本并行做真实GUI QA；未APPROVE不接受整合或正式采用）
 - Owner: root 分配独立 Implementer，随后独立 Reviewer；root 不写产品代码。
 - Authorization: CONTINUING_AUTHORIZATION_2026_10_15.md 所记用户持续默认批准；本任务是当前真实链路 P1 的必要补修，无逐文件新审批。
 - Reuse: DIRECT 现有两类严格证明、SQLite BEGIN IMMEDIATE、protected operation gate、restore/stage 锁及完整 DATA 读验。无依赖/Schema/正式配置调整。
