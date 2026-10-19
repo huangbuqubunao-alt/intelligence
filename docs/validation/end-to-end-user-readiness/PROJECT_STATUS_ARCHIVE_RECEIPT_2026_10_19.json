@@ -1,0 +1,10 @@
+{
+  "classification": "LOSSLESS_PROJECT_STATUS_HISTORY_ARCHIVE_NOT_PRODUCT_CHANGE",
+  "source_at_parent": "docs/PROJECT_STATUS.md@d69623b",
+  "archive": "docs/validation/end-to-end-user-readiness/PROJECT_STATUS_HISTORY_THROUGH_2026_10_19.md",
+  "bytes": 143355,
+  "sha256": "d23d403a0678ae3ea9b02d9da331abf8b1c6a9dfc6cb9fc65bc52644a525cf81",
+  "archive_bytes_equal": true,
+  "current_status_bytes": 8003,
+  "reason": "Compact authoritative current state; complete historical evidence retained byte-for-byte; reduce repeated agent loading cost."
+}
