@@ -1,3 +1,6 @@
+# 2026-10-19 真旧内容验收发现，未DONE
+完整旧72表18DATA普通factory迁移40；真实GUI QUEUED→取消→实际重启保持终态/provider与attempt不变、新command准入通过。新命令真实读取后FAILED LOCAL_FINALIZATION_FAILED、无timed/Summary/Evidence，Backup报告unindexed DATA拒绝；完整失败77表19DATA已冻结，原作者只读诊断中，不盲目网络重试。详见TRACKED_REAL_GUI_FAILURE_2026_10_19.json。工程独立接受记录保留，但当前用户验收未通过，主任务不得DONE/正式采用。混合字幕和长协议共享核心继续等待。
+
 # 2026-10-19 工程 ACCEPTED，真实用户验收仍待
 
 独立76ad28f审查固定166ab392：原F1/F2/F3关闭，无新增发现；最终478 PASS、strict111/Ruff/diff及原7反证与独立计数/ZIP反证成立。root接受累计工程，按原分范围提交顺序整合，已接受picker不重复；不代表真旧tracked GUI、重启、全表/all DATA恢复或完整Goal通过。原4950db REJECT和中间harness失败全部保留。模型资格关闭、main不变。

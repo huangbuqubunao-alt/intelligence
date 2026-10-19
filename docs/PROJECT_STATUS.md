@@ -1,3 +1,6 @@
+# 2026-10-19 15:24 真旧tracked用户路径仍FAIL
+root整合89cca38源码与已审166ab392逐字一致。956前端/strict111/Ruff/diff已绿，478相关backend仍运行。真实旧CHANNEL内容可排队/取消/重启不复活、新command准入；随后真实字幕读取LOCAL_FINALIZATION_FAILED/count0，无成功结果。Backup真实unindexed DATA closed。完整77表19DATA失败副本已冻结，唯一原作者先只读定位；0模型/正式数据，main不变。不得以独立工程绿替代本真实失败，不启动共享核心mixed writer。
+
 # 2026-10-19 15:18 接受tracked工程
 独立固定166ab392复审76ad28f APPROVE，最终478 PASS/1既有warning/406.97s，原F1/F2/F3关闭。root接受累计工程并开始顺序整合，picker已在root不重复；真实旧tracked GUI/重启/全量恢复仍待，不是Goal完成。原REJECT与真实失败日志保留。38混合结清仍等整合检查后串行；模型资格/正式main不变。
 

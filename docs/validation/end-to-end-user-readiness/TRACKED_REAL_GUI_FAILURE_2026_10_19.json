@@ -1,0 +1,54 @@
+{
+  "classification": "GENUINE_OLD_TRACKED_GUI_PARTIAL_PASS_THEN_FAIL_NOT_ACCEPTANCE",
+  "root_head": "89cca38cbb7bd92e56ba4202013579d5e557f274",
+  "genuine_macos_gui": true,
+  "complete_initial_copy": {
+    "schema": 37,
+    "tables_including_internal": 72,
+    "physical_data": 18
+  },
+  "normal_factory_migrated_schema": 40,
+  "passed": [
+    "old CHANNEL/ENROLLED/METADATA_READY Content ordinary retry entrance",
+    "real zero-dispatch QUEUED cancellation",
+    "real service restart preserves CANCELLED/local_attempt0/providerNULL",
+    "provider_calls and job_attempts complete hashes unchanged after restart",
+    "original terminal job exact unchanged",
+    "new explicit command admitted after cancelled predecessor"
+  ],
+  "failed": [
+    "new real subtitle request ends FAILED LOCAL_FINALIZATION_FAILED before local attempt",
+    "Backup readiness DATABASE_UNAVAILABLE: DATA contains unindexed files; cannot omit stored bytes"
+  ],
+  "new_request": "tracked-content-retry:v1:ed60ddcda745868ae2902255161e51b83c06429ca23cb3c96d11f37f61282392",
+  "new_provider_request": "35a0f1908d1493a952662b1e89fba86eeab264945fe2aede75c332841c335f3c",
+  "frozen_failure": "tracked-real-failure-frozen-20261019/receipt.json",
+  "failure_snapshot": {
+    "all_tables_including_internal": 77,
+    "all_physical_data": 19,
+    "all_rows_and_data_exact": true,
+    "integrity": "ok",
+    "foreign_keys": []
+  },
+  "model_calls": 0,
+  "paid_cloud": false,
+  "formal_data_access": false,
+  "no_worker_note": "Only initial queued/cancel phase explicitly used normal factory with worker unstarted; restart and subsequent true retry used normal running worker. Not represented as first-phase production background execution.",
+  "resource_state": "Model qualification remains closed; no model generation attempted.",
+  "artifacts": {
+    "queued.png": "974dad892018ec3181419a151d3d649df69912298f75fe603df7e5e7c1b91aa8",
+    "queued.ax.txt": "3f82136809276f33d755ca8f704ad3d88a9d6eadf2dc8b3710f63de6c16d8772",
+    "cancelled.png": "50263999142fa06e7beac4e60fa4f392ee12c0ccd28f0fc69b88292252c8e2ec",
+    "cancelled.ax.txt": "3f82136809276f33d755ca8f704ad3d88a9d6eadf2dc8b3710f63de6c16d8772",
+    "cancelled-after-restart.png": "b531d58939d35ec1fc1c992530da660d43e553eb319bb84fc69b4dcffe0c3d9d",
+    "cancelled-after-restart.ax.txt": "9fc9b66038542d2f106fab1f40411cc7f5a08e76b90cdc8d016f3a3a151dfed7",
+    "retry-after-restart.png": "b47b46fc6e0d792fe7e733cc569d1332114b0f0c481fbc2db16e75a10b0f9b1a",
+    "real-retry-failed.png": "834efba66d65a10aecd300cfb96050065ac9ea0b9dfe818dc3d07e39e99c1e62",
+    "real-retry-failed.ax.txt": "9fc9b66038542d2f106fab1f40411cc7f5a08e76b90cdc8d016f3a3a151dfed7",
+    "failed-readiness.png": "cb13924455f55a87f883694ee94c2e4692ced85cf95282915e903fd1cdd65763",
+    "failed-readiness.ax.txt": "b4163bac3d9d46a4842da5ab2e9aa8012d34c2e0a5c8892031dc895236683cdd",
+    "after-cancel-db.json": "36945c6336e55f13b69aa5a202d4da9c7f73ea0936587091e73bedcd47c98811",
+    "cancelled-restart-proof.json": "9c60dcebd9c5cdcc4192928ada0ae20b4abfe8cc1f7f88b17c1169ec4c6c669b",
+    "failed-readiness.json": "5df0a62bccc456ad53fad9e78300282378d7b5dce2a4d22c4a04592aa8d0dbfa"
+  }
+}
