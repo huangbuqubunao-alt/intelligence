@@ -1,0 +1,27 @@
+{
+  "at": "2026-10-19T12:24:47.698621+00:00",
+  "qa_head": "ffcb3ed0bb47a771e161df5a3ed675ef007a8821",
+  "clock_core": "2d4a338",
+  "test_maintenance": "f4e3b7f",
+  "accepted_pure": "c91a02b",
+  "source_module": "/Users/hua/Documents/yia-worktrees/readiness-clock-full-qa/src/youtube_intel/state.py",
+  "command": [
+    "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
+    "-m",
+    "pytest",
+    "-q"
+  ],
+  "source_file_count": 407,
+  "classification": "FULL_BACKEND_PASS_FIXED_QA_COMBINATION_NOT_ADOPTION",
+  "formal_data_access": false,
+  "model_or_cloud_generation_authorized": false,
+  "completed_at": "2026-10-19T12:53:36.674330+00:00",
+  "pytest_exit": 0,
+  "wall_seconds": 1728.97,
+  "all_source_test_bytes_unchanged": true,
+  "log_sha256": "af9e1890e6bd4a1e62b8678020e7715c8dda60e0e04bb008791519cef9c43083",
+  "pytest_summary": "5334 passed, 1 skipped, 2 warnings in 1727.97s",
+  "root_integrated_head": "b498ea4d13099c38bce611a4e1432ace45959258",
+  "skip_reason": "requires an explicitly provisioned canonical o200k asset",
+  "skip_location": "tests/unit/test_o200k_provisioning.py:134"
+}

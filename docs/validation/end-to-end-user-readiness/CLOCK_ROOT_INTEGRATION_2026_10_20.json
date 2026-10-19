@@ -1,0 +1,11 @@
+{
+  "at": "2026-10-19T16:57:00.844722+00:00",
+  "head": "b498ea4d13099c38bce611a4e1432ace45959258",
+  "qa": "ffcb3ed0bb47a771e161df5a3ed675ef007a8821",
+  "source_test_count": 407,
+  "differences": [],
+  "available_memory_GiB": 5.479,
+  "free_disk_GiB": 192.948,
+  "model_loads": 0,
+  "generations": 0
+}
