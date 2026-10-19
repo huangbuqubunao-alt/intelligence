@@ -82,15 +82,16 @@ def test_migration39_failure_preserves38_all_rows_and_data(tmp_path, monkeypatch
         patch.setattr(SQLiteStateRepository, "_load_migrations", lambda _: tuple(m for m in migrations if m.version <= 38))
         repository, provider, _cid, _ids, _refs, transport, _service = text._workspace(tmp_path)
     before = _tables(repository), _files(provider.data_root)
-    broken = replace(migrations[-1], sql=migrations[-1].sql + "\nSELECT injected_unknown_function();")
-    monkeypatch.setattr(repository, "_load_migrations", lambda: (*migrations[:-1], broken))
+    migration39 = next(migration for migration in migrations if migration.version == 39)
+    broken = replace(migration39, sql=migration39.sql + "\nSELECT injected_unknown_function();")
+    monkeypatch.setattr(repository, "_load_migrations", lambda: (*tuple(m for m in migrations if m.version < 39), broken))
     with pytest.raises(MigrationError):
         repository.initialize(now=NOW)
     assert (_tables(repository), _files(provider.data_root)) == before
     with repository._connect() as connection:
         assert connection.execute("PRAGMA user_version").fetchone()[0] == 38
     monkeypatch.setattr(repository, "_load_migrations", lambda: migrations)
-    assert repository.initialize(now=NOW).version == 39
+    assert repository.initialize(now=NOW).version == 40
     after = _tables(repository)
     assert {k: v for k, v in after.items() if k in before[0] and k != "schema_migrations"} == {
         k: v for k, v in before[0].items() if k != "schema_migrations"}
@@ -112,7 +113,7 @@ def test_legacy_backup_restore_then_normal_startup39_preserves_all_domain_rows_a
     backup.confirm_restore(preview.restore_id)
     backup.recover_and_apply_pending_restore()
     assert (_tables(repository), _files(provider.data_root)) == before
-    assert repository.initialize(now=NOW).version == 39
+    assert repository.initialize(now=NOW).version == 40
     after = _tables(repository)
     assert {k: v for k, v in after.items() if k in before[0] and k != "schema_migrations"} == {
         k: v for k, v in before[0].items() if k != "schema_migrations"}
