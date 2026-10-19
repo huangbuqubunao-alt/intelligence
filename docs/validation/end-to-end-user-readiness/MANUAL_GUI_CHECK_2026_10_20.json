@@ -1,0 +1,15 @@
+{
+  "broken": [],
+  "images": 65,
+  "loaded": 65,
+  "newScreenshot": [
+    {
+      "naturalWidth": 1297,
+      "src": "../end-to-end-user-readiness/tracked-retry-success-after-restart-20261020.png",
+      "width": 880
+    }
+  ],
+  "scrollWidth": 1297,
+  "title": "Intelligence 用户使用手册",
+  "viewport": 1312
+}

@@ -1,3 +1,6 @@
+# 2026-10-20 当前增量外证
+tracked钟修复独立c314bdb APPROVE并整合；固定完整后端5334PASS/1既有SKIP/2warnings，root407src/tests全等、60专项/strict115/Ruff/diff通过。原失败stock真实GUI新command成功29cue/4Evidence/确定性摘要，实际重启77表/37DATA全等，原19DATA及原终态/模型权威全保留。Backup仍按旧unindexed文件安全阻塞；mixed修复进行。成功时Evidence需reload的真实UI缺口已分配，不能计作无刷新通过。模型/ASR最终资格与长执行/完整最终恢复和采用仍待。证据TRACKED_FIXED_REAL_GUI_2026_10_20.json。
+
 # 当前验收状态（2026-10-19，候选未发布）
 完成条件不变：普通入口真实可操作、无未处置P0/P1、模型严格资格、完整回归/恢复与安全main拓扑同时满足。用户持续授权覆盖必要实现及全部门禁后的采用，不重复逐方法审批。
 

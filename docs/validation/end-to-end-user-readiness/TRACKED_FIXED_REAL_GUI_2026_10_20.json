@@ -1,0 +1,73 @@
+{
+  "classification": "GENUINE_TRACKED_CLOCK_CAPTURE_GUI_SUCCESS_AND_RESTART_NOT_FULL_GOAL",
+  "root_head": "b498ea4d13099c38bce611a4e1432ace45959258",
+  "genuine_macos_gui": true,
+  "normal_factory_running_worker": true,
+  "actual_runtime_restart": true,
+  "request_id": "tracked-content-retry:v1:c48fe5d13d59d1e7742b9065056bc9a39f93b8e9f0bc88623c05855a73ea856f",
+  "request_status": "SUCCEEDED",
+  "native_timed_cues": 29,
+  "verified_evidence": 4,
+  "summary": "deterministic extractive original-language, not model insight",
+  "local_attempt_count": 1,
+  "all_77_tables_rows_equal_after_restart": true,
+  "all_37_physical_data_equal_after_restart": true,
+  "all_original_19_data_preserved": true,
+  "original_terminal_rows_unchanged": {
+    "tracked_content_retry_requests": true,
+    "tracked_content_retry_executions": true,
+    "tracked_content_retry_files": true,
+    "jobs": true,
+    "job_attempts": true,
+    "provider_calls": true
+  },
+  "all_model_authority_tables_unchanged": [
+    "distillation_cards",
+    "distillation_cloud_authorizations",
+    "distillation_cloud_response_failures",
+    "distillation_execution_checkpoints",
+    "distillation_moonshot_cloud_authorizations",
+    "distillation_moonshot_unidentified_http_responses",
+    "distillation_no_new_intelligence_results",
+    "distillation_openai_cloud_authorizations",
+    "distillation_openai_unidentified_http_responses",
+    "distillation_resource_usage",
+    "distillation_unidentified_http_responses",
+    "distillation_waiting_model_cancellations",
+    "intelligence_revisions",
+    "intelligences",
+    "saved_intelligences"
+  ],
+  "integrity": "ok",
+  "foreign_keys": [],
+  "model_calls": 0,
+  "cloud_calls": 0,
+  "formal_data_access": false,
+  "backup_readiness": {
+    "ready": false,
+    "reasons": [
+      "DATABASE_UNAVAILABLE"
+    ],
+    "message": "DATA contains unindexed files; Backup cannot omit stored bytes."
+  },
+  "remaining": [
+    "Mixed historic subtitle failures/2 old unindexed files require reviewed settlement and full restore",
+    "Success panel stale Evidence until reload, assigned minimal dependent-read refresh fix; not counted as no-reload pass",
+    "Model qualification, long execution and final ASR requalification remain closed/open acceptance gates"
+  ],
+  "automatic_check_note": "Normal restart admitted due configured source check; completed7discoveries/5subtitle reads before explicit target retry. UI pause/resume/pause real actions; never presented as allstate unchanged.",
+  "qa_failure_note": "First readonly inventory used assumed nonexistent tracked event table, raised OperationalError before writing evidence; corrected by actual sqlite_master, no product/data edits.",
+  "artifact_sha256": {
+    "fixed-success-after-restart-20261020.ax.txt": "6c7b5768a1f6fd2966786070c5f22bdbcd1109ebe5990f5e7fef8cec1a90c3b2",
+    "fixed-success-after-restart-20261020.png": "db4a9b2204f45de717f2c3b6fedc942179400e8e927b9d27079868ef53e2d2ca",
+    "fixed-success-20261020.ax.txt": "e4e62c3d8a9f9d0e90a9e3f1fd089d313b4a609732ba3c18fc8d7cbe5628e10d",
+    "fixed-before-retry-20261020.png": "fe247171bcfd59697fe85ecc3ab0b4aa938d1a161d99c6ad507b12f45777c70f",
+    "fixed-success-20261020.png": "2dd6cbcb866b78d733ae65498e7089e74ef03bb1cc0e0f22a7fc6639832f8901",
+    "fixed-restart-proof-20261020.json": "10010ca8f031bf1cdbe565abd10a4aa44ea1e53dc4c54c99d6b02f67561e3232",
+    "fixed-retry-running-20261020.png": "4003c50cfe4ca71feafd8a2a55f881acacfdfbb0903d3f7bb2d54cde61fe8f02",
+    "fixed-backup-still-blocked-20261020.ax.txt": "28bef9bea43721bd5ca9ff8b6e329f5c6670de57e9edfcfdbe8ea2d8fb175f0c",
+    "fixed-before-restart-20261020.json": "43d443c8647ae25c34dd97831005c230f98d2d874ca00074a1892b2b395033c7",
+    "fixed-backup-still-blocked-20261020.png": "46478bfa759dd6deaf5d6dabdd23130847ea279aad16173adc367d8103529228"
+  },
+  "manual_image": "tracked-retry-success-after-restart-20261020.png"
+}

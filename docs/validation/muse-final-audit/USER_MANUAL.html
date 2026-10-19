@@ -142,11 +142,11 @@ a { color: #0e7a4f; }
 <blockquote>提示：如果某个公开来源暂时不可访问，页面会如实提示&quot;此公开来源不可用，已保留存储的内容&quot;，不会删除你已有的内容。</blockquote>
 <p>点击频道名称可查看关注详情。加载期间显示中性的“关注”，不会把尚未读取的 YouTube 来源误标成 Bilibili 不可用。如果提示 <strong>未能加载来源详情</strong>，点击 <strong>重试加载来源详情</strong>；这只重新读取，不会重复提交来源检查或修改关注设置，已保存的内容保留。</p>
 <figure><img src="../end-to-end-user-readiness/source-detail-read-error.png" alt="真实隔离界面：详情读取失败与明确重试"/><figcaption>真实隔离界面：详情读取失败与明确重试</figcaption></figure>
-<hr/>
 <p><strong>编辑单个关注的兴趣</strong>：点击频道名称 → <strong>编辑兴趣</strong>。关注重点、忽略词和提炼方式都可选择继承全局或单独设置。每个文本框是一条规则，规则中的逗号、换行和制表符会保留；开头或结尾有空白时会提示修改。点击 <strong>保存兴趣</strong>，出现“兴趣已保存”即完成。后台检查和列表刷新不会清掉正在编辑的草稿。</p>
 <p>如果另一页面已修改同一兴趣，保存会提示冲突并保留你的草稿。点击 <strong>重新读取当前兴趣</strong>，核对后再保存；系统不会自动覆盖另一页的新版本。修改只影响后续处理，已有内容、证据和处理设置保留。</p>
 <figure><img src="../end-to-end-user-readiness/screenshots/source-interest-poll-fixed-conflict.png" alt="真实双页修改冲突：草稿保留"/><figcaption>真实双页修改冲突：草稿保留</figcaption></figure>
 <figure><img src="../end-to-end-user-readiness/screenshots/source-interest-poll-fixed-reloaded.png" alt="保存、刷新及重启后仍可读取的兴趣"/><figcaption>保存、刷新及重启后仍可读取的兴趣</figcaption></figure>
+<hr/>
 <h2 id="5-导入-bilibili-视频">5. 导入 Bilibili 视频</h2>
 <p>可以<strong>单次导入</strong>一条公开的 Bilibili 视频。</p>
 <p><strong>操作步骤</strong>：</p>
@@ -206,11 +206,15 @@ a { color: #0e7a4f; }
 <figure><img src="screenshots/21-content-detail.png" alt="内容详情"/><figcaption>内容详情</figcaption></figure>
 <p>详情页包含：视频信息（标题、频道、发布时间）、<strong>打开原始来源</strong> 链接、<strong>关注此频道</strong> 快捷入口、<strong>原始字幕</strong>、<strong>来源位置/溯源信息</strong>（证据）等。</p>
 <hr/>
-<h3>读取状态与恢复</h3>
+<h3 id="字幕失败后重试隔离候选已实测">字幕失败后重试（隔离候选已实测）</h3>
+<p>对已关注、符合安全条件且字幕处理已明确失败的内容，详情页会显示 <strong>重试字幕</strong>。点击后读取当前视频的原生字幕并整理来源引用与摘要；已取消或失败的历史记录和原文件保留，不覆盖原证据。若同一来源还在检查或仍有执行未结束，请等状态更新后再试，系统不会并发重复执行。</p>
+<p>成功时显示“字幕、来源引用与摘要已就绪”。这是内容整理完成，不代表已生成洞察；洞察仍需合格模型。下面是真实旧失败内容经重试、实际服务重启后保留成功结果的截图。正式产品尚未采用本轮候选。</p>
+<figure><img src="../end-to-end-user-readiness/tracked-retry-success-after-restart-20261020.png" alt="真实字幕重试成功，重启后仍可阅读"/><figcaption>真实字幕重试成功，重启后仍可阅读</figcaption></figure>
+<h3 id="读取状态与恢复">读取状态与恢复</h3>
 <p>打开详情后，<strong>正在读取转写状态…</strong> 或 <strong>正在读取深度分析状态…</strong> 表示状态仍在读取，不代表任务未执行，也不代表模型缺失。已有原文、摘要和证据仍可阅读。</p>
-<figure><img alt="真实内容状态读取中" src="../end-to-end-user-readiness/screenshots/content-capability-neutral-loading-fixed.png"/><figcaption>真实内容状态读取中</figcaption></figure>
+<figure><img src="../end-to-end-user-readiness/screenshots/content-capability-neutral-loading-fixed.png" alt="真实内容状态读取中"/><figcaption>真实内容状态读取中</figcaption></figure>
 <p>若读取失败，点击 <strong>重新读取转写状态</strong> 或对应面板的 <strong>重试</strong>。这只重新读取状态，不会重新转写、调用模型或重复发布。状态未明确前，执行和配置操作保持禁用。</p>
-<figure><img alt="真实读取失败与只读恢复入口" src="../end-to-end-user-readiness/screenshots/content-capability-read-failed-fixed.png"/><figcaption>真实读取失败与只读恢复入口</figcaption></figure>
+<figure><img src="../end-to-end-user-readiness/screenshots/content-capability-read-failed-fixed.png" alt="真实读取失败与只读恢复入口"/><figcaption>真实读取失败与只读恢复入口</figcaption></figure>
 <h2 id="8-查看字幕与摘要">8. 查看字幕与摘要</h2>
 <p>在内容详情页可以查看<strong>原始字幕</strong>与<strong>摘要</strong>。</p>
 <p><strong>原始字幕</strong>：逐段显示带时间戳的字幕文本，对应视频的具体时间段。</p>
@@ -370,10 +374,10 @@ a { color: #0e7a4f; }
 <p>本轮候选在真实字幕导入后，通过本页面创建、下载、选择、确认恢复并重启，原始字幕文件、摘要、证据和全部核心历史都与恢复前相同。失败任务的某些历史恢复情况仍在整改，不能把一次正常恢复视为所有情况已通过。</p>
 <figure><img src="../end-to-end-user-readiness/raw-capture-after-restore.png" alt="真实字幕备份恢复后的检查通过"/><figcaption>真实字幕备份恢复后的检查通过</figcaption></figure>
 <p>新数据版本也已在隔离环境通过本页面恢复并重启：全部数据表和 78 个文件与恢复前一致。这不表示所有外部字幕来源都可用，也不改变模型资格。</p>
-<figure><img alt="新数据版本真实恢复检查通过" src="../end-to-end-user-readiness/screenshots/schema38-real-gui-after-restore.png"/><figcaption>新数据版本真实恢复检查通过</figcaption></figure>
+<figure><img src="../end-to-end-user-readiness/screenshots/schema38-real-gui-after-restore.png" alt="新数据版本真实恢复检查通过"/><figcaption>新数据版本真实恢复检查通过</figcaption></figure>
 <p>页面会把历史成功标为“上一次恢复已完成”并显示日期。选择新的备份时，预览只表示检查通过，当前数据还没有改变；只有确认恢复、重启并检查通过后，才显示本次恢复成功。新备份检查失败时会显示失败原因，不把上次成功当成本次完成。</p>
-<figure><img alt="上一次恢复记录带有明确日期" src="../end-to-end-user-readiness/screenshots/backup-feedback-history-panel.png"/><figcaption>上一次恢复记录带有明确日期</figcaption></figure>
-<figure><img alt="新预览尚未恢复，不显示旧成功" src="../end-to-end-user-readiness/screenshots/backup-feedback-preview-panel.png"/><figcaption>新预览尚未恢复，不显示旧成功</figcaption></figure>
+<figure><img src="../end-to-end-user-readiness/screenshots/backup-feedback-history-panel.png" alt="上一次恢复记录带有明确日期"/><figcaption>上一次恢复记录带有明确日期</figcaption></figure>
+<figure><img src="../end-to-end-user-readiness/screenshots/backup-feedback-preview-panel.png" alt="新预览尚未恢复，不显示旧成功"/><figcaption>新预览尚未恢复，不显示旧成功</figcaption></figure>
 <p>损坏或不符合要求的备份不会覆盖当前数据。等待模型、等待预算或尚未完成的工作可能阻止备份。安全取消只终止所选的未执行等待任务；如果仍有其他工作，页面继续显示真实阻塞原因。</p>
 <figure><img src="../waiting-model-final-fix/final-gui/screenshots/04-backup-blocked.png" alt="取消前，等待任务阻止备份"/><figcaption>取消前，等待任务阻止备份</figcaption></figure>
 <figure><img src="../waiting-model-final-fix/final-gui/screenshots/06-backup-ready.png" alt="安全取消后，所有工作静止时才允许备份"/><figcaption>安全取消后，所有工作静止时才允许备份</figcaption></figure>
@@ -381,8 +385,8 @@ a { color: #0e7a4f; }
 <figure><img src="../waiting-model-final-fix/final-gui/screenshots/10c-restored-cancelled-panel.png" alt="恢复后取消结果仍保留"/><figcaption>恢复后取消结果仍保留</figcaption></figure>
 <p>无法证明确实未执行的任务仍会阻止备份，请保留数据并联系维护者，不要删除 checkpoint 或调用记录。</p>
 <p>2026-10-15 隔离验收：TXT 与 MD 均经真实 macOS 文件选择器导入。分别取消未执行的提炼后，重启和恢复仍保留取消结果、摘要与 Evidence；还有其他等待任务时，备份仍会阻塞。此次真实恢复逐项核对 74 张表和 84 个数据文件一致，不表示洞察模型已合格。</p>
-<figure><img alt="文本等待安全取消在恢复后仍保留" src="../end-to-end-user-readiness/screenshots/schema39-restored-cancelled-panel.png"/><figcaption>文本等待安全取消在恢复后仍保留</figcaption></figure>
-<figure><img alt="包含文字输入证明的备份恢复完成" src="../end-to-end-user-readiness/screenshots/schema39-restored-panel.png"/><figcaption>包含文字输入证明的备份恢复完成</figcaption></figure>
+<figure><img src="../end-to-end-user-readiness/screenshots/schema39-restored-cancelled-panel.png" alt="文本等待安全取消在恢复后仍保留"/><figcaption>文本等待安全取消在恢复后仍保留</figcaption></figure>
+<figure><img src="../end-to-end-user-readiness/screenshots/schema39-restored-panel.png" alt="包含文字输入证明的备份恢复完成"/><figcaption>包含文字输入证明的备份恢复完成</figcaption></figure>
 <blockquote>上图是隔离示例数据的真实备份与恢复界面；你的条目数量和文件大小会不同。</blockquote>
 <hr/>
 <h2 id="16-常见问题">16. 常见问题</h2>
@@ -420,9 +424,7 @@ a { color: #0e7a4f; }
 <p>2026-10-16 实测：设置页分开显示已安装的评分/摘要模型、六类本地洞察资格和语音转写状态。备份结果中的“数据文件”是实际文件数；不同历史记录引用同一文件时，只计一个文件。本次隔离恢复前后 74 张表、96 个数据文件逐项一致。</p>
 <figure><img src="../end-to-end-user-readiness/screenshots/final-capability-real-settings-backup.png" alt="真实设置与物理文件统计"/><figcaption>真实设置与物理文件统计</figcaption></figure>
 <figure><img src="../end-to-end-user-readiness/screenshots/final-capability-real-restored.png" alt="本次实际恢复完成"/><figcaption>本次实际恢复完成</figcaption></figure>
-<blockquote>
-<p>本轮候选已修复 Chrome 原生文件筛选导致 ZIP 无法打开的问题。直接点击“选择备份文件”，选取 Intelligence 生成的 ZIP，再等应用完成检查；无效文件会被拒绝，可以重新选择。检查通过仍需明确确认，才会恢复数据。</p>
-</blockquote>
+<blockquote>本轮候选已修复 Chrome 原生文件筛选导致 ZIP 无法打开的问题。直接点击“选择备份文件”，选取 Intelligence 生成的 ZIP，再等应用完成检查；无效文件会被拒绝，可以重新选择。检查通过仍需明确确认，才会恢复数据。</blockquote>
 <h2 id="图示与使用范围">图示与使用范围</h2>
 <p>本手册保留 17 章操作结构。图示包含本次实际界面及未变化页面的上一版图示，不是设计稿。示例条目不代表你的资料已经导入。</p>
 <p>YouTube 单视频与频道添加、关注暂停与恢复、本地文本导入、内容导航、中英文设置、备份及恢复已实际操作。本轮隔离普通服务还完成真实 Whisper 视频转写、字幕/摘要/Evidence、71表78文件恢复，以及本地视频零调用等待→安全取消→备份重新可用；关注详情读取故障的重试只发GET。截图来自真实 macOS Chrome 和隔离服务，未接触正式用户数据；不把隔离模型设置复制成正式资格。当前本地洞察正向生成、保存及真实主题完整链路仍受模型语义失败阻塞，新的获批模式尚未实测通过；没有合格洞察模型时，继续使用内容整理与原文阅读。本轮候选尚未正式采用。</p>
