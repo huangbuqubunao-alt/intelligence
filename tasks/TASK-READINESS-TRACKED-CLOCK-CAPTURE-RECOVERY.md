@@ -1,3 +1,6 @@
+# Engineering status: ACCEPTED (2026-10-20)
+独立c314bdb APPROVE、固定QA ffcb3ed完整5334PASS/1既有SKIP/2warnings，407源码测试前后全等。允许整合f4e3b7f/2d4a338/c036847/c314bdb；工程接受不代表真实GUI、mixed恢复或Goal完成。保留原失败证据，main不变。
+
 # Current status: IN_REVIEW (2026-10-19)
 固定c036847 cleanSTOP；产品2d4a338/test-only f4e3b7f；最终各单次60/566/478 PASS、strict114/Ruff/AST84绿。rootQA组合ffcb3ed完整backend正在运行，尚未声称通过；独立review及真GUI仍待，未ACCEPT/整合。
 
