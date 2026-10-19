@@ -1,0 +1,22 @@
+{
+  "at": "2026-10-19T01:15:37.306278+00:00",
+  "mode": "read-only Git, remote ref and served static files; no owner DB/config reads or writes",
+  "main": "73ee7e747b4461b9de8a201d6b47669eb3913d1a",
+  "actual_remote_main": "73ee7e747b4461b9de8a201d6b47669eb3913d1a",
+  "worktree_clean": true,
+  "served": {
+    "revision": "73ee7e747b4461b9de8a201d6b47669eb3913d1a",
+    "source_sha256": "a494cacdfd95f4c55f0a746920e061becee9580948228f812a655866c46eade3"
+  },
+  "assets": {
+    "assets/index-D49v12mD.css": true,
+    "assets/index-QjXrTOO8.js": true,
+    "favicon.svg": true,
+    "index.html": true
+  },
+  "main_ancestor_of_candidate": true,
+  "candidate_head": "97d0af30a46e03804f7369f1d815790184090039",
+  "native_D2_implementation_diff": "",
+  "url": "http://127.0.0.1:5488/",
+  "candidate_adopted": false
+}
