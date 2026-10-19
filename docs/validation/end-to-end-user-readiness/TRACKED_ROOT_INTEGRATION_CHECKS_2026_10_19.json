@@ -1,0 +1,155 @@
+{
+  "root_product_head": "89cca38cbb7bd92e56ba4202013579d5e557f274",
+  "reviewed_candidate": "166ab39207136e5fe572ad730a9cf73a0494b221",
+  "source_equality": {
+    "candidate": "166ab39207136e5fe572ad730a9cf73a0494b221",
+    "root_head": "89cca38cbb7bd92e56ba4202013579d5e557f274",
+    "identical_files": [
+      "frontend/src/workspace/App.tsx",
+      "frontend/src/workspace/BackupPickerFilter.test.tsx",
+      "frontend/src/workspace/DESIGN.md",
+      "frontend/src/workspace/TrackedContentRetry.test.tsx",
+      "frontend/src/workspace/TrackedContentRetry.tsx",
+      "frontend/src/workspace/uiLanguage.tsx",
+      "frontend/tracked-content-retry.e2e.mjs",
+      "src/youtube_intel/backup_restore.py",
+      "src/youtube_intel/local_api.py",
+      "src/youtube_intel/migrations/040_add_tracked_content_retry.sql",
+      "src/youtube_intel/runtime.py",
+      "src/youtube_intel/runtime_composition.py",
+      "src/youtube_intel/source_authority.py",
+      "src/youtube_intel/state.py",
+      "src/youtube_intel/tracked_content_retry.py",
+      "src/youtube_intel/tracked_retry_context.py",
+      "src/youtube_intel/tracked_retry_files.py",
+      "src/youtube_intel/tracked_retry_reader.py",
+      "src/youtube_intel/tracked_retry_store.py",
+      "src/youtube_intel/tracked_retry_worker.py",
+      "src/youtube_intel/transcripts.py",
+      "tests/e2e/tracked_content_retry_fixture_server.py",
+      "tests/integration/test_creator_following.py",
+      "tests/integration/test_provider_dispatch_crash_recovery.py",
+      "tests/integration/test_retained_subtitle_derivations.py",
+      "tests/integration/test_state_store.py",
+      "tests/integration/test_task023a_source_run_persistence.py",
+      "tests/integration/test_task024_processing_orchestration.py",
+      "tests/integration/test_tracked_content_retry.py",
+      "tests/integration/test_youtube_following.py",
+      "tests/unit/test_backup_restore.py"
+    ]
+  },
+  "checks": {
+    "diff": {
+      "name": "diff",
+      "exit": 0,
+      "elapsed_seconds": 0.05,
+      "command": [
+        "git",
+        "diff",
+        "--check",
+        "2cd66cd",
+        "HEAD"
+      ]
+    },
+    "ruff": {
+      "name": "ruff",
+      "exit": 0,
+      "elapsed_seconds": 0.11,
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "ruff",
+        "check",
+        "src",
+        "tests"
+      ]
+    },
+    "frontend": {
+      "name": "frontend",
+      "exit": 0,
+      "elapsed_seconds": 20.32,
+      "command": [
+        "npm",
+        "test",
+        "--",
+        "--reporter=dot"
+      ]
+    },
+    "mypy": {
+      "name": "mypy",
+      "exit": 0,
+      "elapsed_seconds": 2.74,
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "mypy",
+        "--strict",
+        "src"
+      ]
+    },
+    "typecheck": {
+      "name": "typecheck",
+      "exit": 0,
+      "elapsed_seconds": 3.13,
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ]
+    },
+    "backend": {
+      "name": "backend",
+      "exit": 0,
+      "elapsed_seconds": 425.55,
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/integration/test_tracked_content_retry.py",
+        "tests/integration/test_retained_subtitle_derivations.py",
+        "tests/integration/test_provider_dispatch_crash_recovery.py",
+        "tests/unit/test_state_transitions.py",
+        "tests/integration/test_state_store.py",
+        "tests/integration/test_runtime_composition.py",
+        "tests/integration/test_youtube_following.py",
+        "tests/unit/test_backup_restore.py",
+        "tests/unit/test_local_api.py",
+        "tests/integration/test_task023a_source_run_persistence.py",
+        "tests/integration/test_task024_processing_orchestration.py"
+      ]
+    },
+    "build": {
+      "name": "build",
+      "exit": 0,
+      "elapsed_seconds": 3.65,
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ]
+    }
+  },
+  "backend": {
+    "passed": 478,
+    "warnings": 1,
+    "pytest_seconds": 424.79
+  },
+  "frontend": {
+    "passed": 956,
+    "files": 35
+  },
+  "mypy_source_files": 113,
+  "all_commands_exit_zero": true,
+  "not_final_full_suite": true,
+  "real_gui_gate": "FAILED; TRACKED_REAL_GUI_FAILURE_2026_10_19.json",
+  "logs": {
+    "backend.log": "875903d6e346c4d1a997693989e72e9a908be9aeb9677890f11a26f931b2e623",
+    "frontend.log": "d44253ec4db38b7fed9e4d6195d8d45cc67bad4c3a3708b5ec3fa442f410269a",
+    "typecheck.log": "0073b777d6b85b5e4d2ac79b723aeebbde034ccb34fcc14bd2f0666746071629",
+    "mypy.log": "d197d6017d587f21ad64746c2d6847a7ecaac183b973fcf4aa19a188a269cd3f",
+    "ruff.log": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    "diff.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "build.log": "7c5fd8b4f03338dd3fbecc470678b39a2661c7ffae2deb6a00df24bdb5797318"
+  }
+}

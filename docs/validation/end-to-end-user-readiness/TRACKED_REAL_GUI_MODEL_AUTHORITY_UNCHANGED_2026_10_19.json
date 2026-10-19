@@ -1,0 +1,601 @@
+{
+  "classification": "READ_ONLY_COMPLETE_BEFORE_AFTER_MODEL_AUTHORITY_PROOF",
+  "table_count": 17,
+  "tables": {
+    "distillation_cards": {
+      "before": {
+        "rows": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "columns": [
+          "revision_id",
+          "source_id",
+          "video_id",
+          "core_conclusion",
+          "user_relevant_information_json",
+          "important_new_information_json",
+          "meaningful_details_json",
+          "filtered_noise_json",
+          "preference_ids_json",
+          "source_policy_revision_id",
+          "created_at"
+        ]
+      },
+      "after": {
+        "rows": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "columns": [
+          "revision_id",
+          "source_id",
+          "video_id",
+          "core_conclusion",
+          "user_relevant_information_json",
+          "important_new_information_json",
+          "meaningful_details_json",
+          "filtered_noise_json",
+          "preference_ids_json",
+          "source_policy_revision_id",
+          "created_at"
+        ]
+      },
+      "equal": true
+    },
+    "distillation_cloud_authorizations": {
+      "before": {
+        "rows": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "columns": [
+          "authorization_id",
+          "execution_id",
+          "provider",
+          "model",
+          "verified_input_hash",
+          "consent_kind",
+          "disclosure_version",
+          "cost_status",
+          "authorized_at"
+        ]
+      },
+      "after": {
+        "rows": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "columns": [
+          "authorization_id",
+          "execution_id",
+          "provider",
+          "model",
+          "verified_input_hash",
+          "consent_kind",
+          "disclosure_version",
+          "cost_status",
+          "authorized_at"
+        ]
+      },
+      "equal": true
+    },
+    "distillation_cloud_response_failures": {
+      "before": {
+        "rows": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "columns": [
+          "execution_id",
+          "actual_provider",
+          "actual_model",
+          "status",
+          "outcome",
+          "http_status_code",
+          "input_tokens",
+          "output_tokens",
+          "cost_microunits",
+          "duration_ms",
+          "received_at"
+        ]
+      },
+      "after": {
+        "rows": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "columns": [
+          "execution_id",
+          "actual_provider",
+          "actual_model",
+          "status",
+          "outcome",
+          "http_status_code",
+          "input_tokens",
+          "output_tokens",
+          "cost_microunits",
+          "duration_ms",
+          "received_at"
+        ]
+      },
+      "equal": true
+    },
+    "distillation_execution_checkpoints": {
+      "before": {
+        "rows": 2,
+        "sha256": "bac69cc3dad81711c671083b06be5351482c8c67947bfcb32b990ae6a1a10395",
+        "columns": [
+          "execution_id",
+          "source_id",
+          "video_id",
+          "reason",
+          "use_case",
+          "selected_provider",
+          "selected_model",
+          "status",
+          "budget_state",
+          "invocation_count",
+          "intelligence_id",
+          "revision_id",
+          "created_at",
+          "updated_at",
+          "output_language"
+        ]
+      },
+      "after": {
+        "rows": 2,
+        "sha256": "bac69cc3dad81711c671083b06be5351482c8c67947bfcb32b990ae6a1a10395",
+        "columns": [
+          "execution_id",
+          "source_id",
+          "video_id",
+          "reason",
+          "use_case",
+          "selected_provider",
+          "selected_model",
+          "status",
+          "budget_state",
+          "invocation_count",
+          "intelligence_id",
+          "revision_id",
+          "created_at",
+          "updated_at",
+          "output_language"
+        ]
+      },
+      "equal": true
+    },
+    "distillation_moonshot_cloud_authorizations": {
+      "before": {
+        "rows": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "columns": [
+          "authorization_id",
+          "execution_id",
+          "provider",
+          "model",
+          "verified_input_hash",
+          "consent_kind",
+          "disclosure_version",
+          "cost_status",
+          "authorized_at"
+        ]
+      },
+      "after": {
+        "rows": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "columns": [
+          "authorization_id",
+          "execution_id",
+          "provider",
+          "model",
+          "verified_input_hash",
+          "consent_kind",
+          "disclosure_version",
+          "cost_status",
+          "authorized_at"
+        ]
+      },
+      "equal": true
+    },
+    "distillation_moonshot_unidentified_http_responses": {
+      "before": {
+        "rows": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "columns": [
+          "execution_id",
+          "actual_provider",
+          "actual_model",
+          "status",
+          "outcome",
+          "input_tokens",
+          "output_tokens",
+          "cost_microunits",
+          "duration_ms",
+          "received_at"
+        ]
+      },
+      "after": {
+        "rows": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "columns": [
+          "execution_id",
+          "actual_provider",
+          "actual_model",
+          "status",
+          "outcome",
+          "input_tokens",
+          "output_tokens",
+          "cost_microunits",
+          "duration_ms",
+          "received_at"
+        ]
+      },
+      "equal": true
+    },
+    "distillation_no_new_intelligence_results": {
+      "before": {
+        "rows": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "columns": [
+          "execution_id",
+          "source_id",
+          "video_id",
+          "reason",
+          "use_case",
+          "evidence_ids_json",
+          "evidence_set_hash",
+          "actual_provider",
+          "actual_model",
+          "input_tokens",
+          "output_tokens",
+          "cost_microunits",
+          "duration_ms",
+          "budget_state",
+          "outcome",
+          "created_at",
+          "http_status_code"
+        ]
+      },
+      "after": {
+        "rows": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "columns": [
+          "execution_id",
+          "source_id",
+          "video_id",
+          "reason",
+          "use_case",
+          "evidence_ids_json",
+          "evidence_set_hash",
+          "actual_provider",
+          "actual_model",
+          "input_tokens",
+          "output_tokens",
+          "cost_microunits",
+          "duration_ms",
+          "budget_state",
+          "outcome",
+          "created_at",
+          "http_status_code"
+        ]
+      },
+      "equal": true
+    },
+    "distillation_openai_cloud_authorizations": {
+      "before": {
+        "rows": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "columns": [
+          "authorization_id",
+          "execution_id",
+          "provider",
+          "model",
+          "verified_input_hash",
+          "consent_kind",
+          "disclosure_version",
+          "cost_status",
+          "authorized_at"
+        ]
+      },
+      "after": {
+        "rows": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "columns": [
+          "authorization_id",
+          "execution_id",
+          "provider",
+          "model",
+          "verified_input_hash",
+          "consent_kind",
+          "disclosure_version",
+          "cost_status",
+          "authorized_at"
+        ]
+      },
+      "equal": true
+    },
+    "distillation_openai_unidentified_http_responses": {
+      "before": {
+        "rows": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "columns": [
+          "execution_id",
+          "actual_provider",
+          "actual_model",
+          "status",
+          "outcome",
+          "input_tokens",
+          "output_tokens",
+          "cost_microunits",
+          "duration_ms",
+          "received_at"
+        ]
+      },
+      "after": {
+        "rows": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "columns": [
+          "execution_id",
+          "actual_provider",
+          "actual_model",
+          "status",
+          "outcome",
+          "input_tokens",
+          "output_tokens",
+          "cost_microunits",
+          "duration_ms",
+          "received_at"
+        ]
+      },
+      "equal": true
+    },
+    "distillation_resource_usage": {
+      "before": {
+        "rows": 2,
+        "sha256": "2770208abb82b077b5e8bcefb47df9722fe1147d47bc8dfdd3b4e11687db5b2f",
+        "columns": [
+          "execution_id",
+          "reason",
+          "use_case",
+          "source_id",
+          "video_id",
+          "intelligence_id",
+          "revision_id",
+          "selected_provider",
+          "selected_model",
+          "actual_provider",
+          "actual_model",
+          "status",
+          "invocation_count",
+          "input_tokens",
+          "output_tokens",
+          "cost_microunits",
+          "duration_ms",
+          "budget_state",
+          "outcome",
+          "created_at",
+          "http_status_code"
+        ]
+      },
+      "after": {
+        "rows": 2,
+        "sha256": "2770208abb82b077b5e8bcefb47df9722fe1147d47bc8dfdd3b4e11687db5b2f",
+        "columns": [
+          "execution_id",
+          "reason",
+          "use_case",
+          "source_id",
+          "video_id",
+          "intelligence_id",
+          "revision_id",
+          "selected_provider",
+          "selected_model",
+          "actual_provider",
+          "actual_model",
+          "status",
+          "invocation_count",
+          "input_tokens",
+          "output_tokens",
+          "cost_microunits",
+          "duration_ms",
+          "budget_state",
+          "outcome",
+          "created_at",
+          "http_status_code"
+        ]
+      },
+      "equal": true
+    },
+    "distillation_unidentified_http_responses": {
+      "before": {
+        "rows": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "columns": [
+          "execution_id",
+          "actual_provider",
+          "actual_model",
+          "status",
+          "outcome",
+          "input_tokens",
+          "output_tokens",
+          "cost_microunits",
+          "duration_ms",
+          "received_at"
+        ]
+      },
+      "after": {
+        "rows": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "columns": [
+          "execution_id",
+          "actual_provider",
+          "actual_model",
+          "status",
+          "outcome",
+          "input_tokens",
+          "output_tokens",
+          "cost_microunits",
+          "duration_ms",
+          "received_at"
+        ]
+      },
+      "equal": true
+    },
+    "distillation_waiting_model_cancellations": {
+      "before": {
+        "rows": 2,
+        "sha256": "c21e1444ce3d2b92b2924aa9afdde488d08ffc9cc0af4f1330684003b60ea279",
+        "columns": [
+          "execution_id",
+          "source_id",
+          "video_id",
+          "reason",
+          "use_case",
+          "selected_provider",
+          "selected_model",
+          "output_language",
+          "checkpoint_updated_at",
+          "budget_state",
+          "cancelled_at",
+          "outcome"
+        ]
+      },
+      "after": {
+        "rows": 2,
+        "sha256": "c21e1444ce3d2b92b2924aa9afdde488d08ffc9cc0af4f1330684003b60ea279",
+        "columns": [
+          "execution_id",
+          "source_id",
+          "video_id",
+          "reason",
+          "use_case",
+          "selected_provider",
+          "selected_model",
+          "output_language",
+          "checkpoint_updated_at",
+          "budget_state",
+          "cancelled_at",
+          "outcome"
+        ]
+      },
+      "equal": true
+    },
+    "intelligence_revision_evidence": {
+      "before": {
+        "rows": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "columns": [
+          "revision_id",
+          "evidence_id",
+          "stance"
+        ]
+      },
+      "after": {
+        "rows": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "columns": [
+          "revision_id",
+          "evidence_id",
+          "stance"
+        ]
+      },
+      "equal": true
+    },
+    "intelligence_revisions": {
+      "before": {
+        "rows": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "columns": [
+          "revision_id",
+          "intelligence_id",
+          "revision_number",
+          "prior_revision_id",
+          "interpretation_kind",
+          "content_hash",
+          "created_at",
+          "claim_kind"
+        ]
+      },
+      "after": {
+        "rows": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "columns": [
+          "revision_id",
+          "intelligence_id",
+          "revision_number",
+          "prior_revision_id",
+          "interpretation_kind",
+          "content_hash",
+          "created_at",
+          "claim_kind"
+        ]
+      },
+      "equal": true
+    },
+    "intelligence_state_history": {
+      "before": {
+        "rows": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "columns": [
+          "state_event_id",
+          "intelligence_id",
+          "revision_id",
+          "state",
+          "prior_state",
+          "reason",
+          "evidence_id",
+          "created_at"
+        ]
+      },
+      "after": {
+        "rows": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "columns": [
+          "state_event_id",
+          "intelligence_id",
+          "revision_id",
+          "state",
+          "prior_state",
+          "reason",
+          "evidence_id",
+          "created_at"
+        ]
+      },
+      "equal": true
+    },
+    "intelligences": {
+      "before": {
+        "rows": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "columns": [
+          "intelligence_id",
+          "current_revision_id",
+          "created_at"
+        ]
+      },
+      "after": {
+        "rows": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "columns": [
+          "intelligence_id",
+          "current_revision_id",
+          "created_at"
+        ]
+      },
+      "equal": true
+    },
+    "saved_intelligences": {
+      "before": {
+        "rows": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "columns": [
+          "intelligence_id",
+          "saved_at"
+        ]
+      },
+      "after": {
+        "rows": 0,
+        "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "columns": [
+          "intelligence_id",
+          "saved_at"
+        ]
+      },
+      "equal": true
+    }
+  },
+  "all_exact": true,
+  "new_model_invocations": 0,
+  "qualification_not_granted": true,
+  "cloud_not_invoked": true
+}

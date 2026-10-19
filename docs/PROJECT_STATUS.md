@@ -1,3 +1,6 @@
+# 2026-10-19 15:26 root整合检查完成
+root89cca38相对已审166ab392所有产品/测试/前端字节完全相同，478backend/956front/strict113/TS/build/Ruff/diff全通过。真GUI新FAILED仍阻止用户路径验收；只读核对19DATA中新增capture有VERIFIED证明，2旧unindexed属于原18，待混合归档修复，不能归责新capture。所有原有模型/洞察权威表逐行/hash全等，0模型/Cloud。main未采用，共享核心新任务暂等诊断。
+
 # 2026-10-19 15:24 真旧tracked用户路径仍FAIL
 root整合89cca38源码与已审166ab392逐字一致。956前端/strict111/Ruff/diff已绿，478相关backend仍运行。真实旧CHANNEL内容可排队/取消/重启不复活、新command准入；随后真实字幕读取LOCAL_FINALIZATION_FAILED/count0，无成功结果。Backup真实unindexed DATA closed。完整77表19DATA失败副本已冻结，唯一原作者先只读定位；0模型/正式数据，main不变。不得以独立工程绿替代本真实失败，不启动共享核心mixed writer。
 
