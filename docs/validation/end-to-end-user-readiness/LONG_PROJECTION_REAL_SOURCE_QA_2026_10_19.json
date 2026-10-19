@@ -1,0 +1,64 @@
+{
+  "classification": "REAL_SOURCE_PURE_PROJECTION_QA_NOT_MODEL_OR_EXECUTION",
+  "model_calls": 0,
+  "tokenizer_calls": 0,
+  "network_calls": 0,
+  "production_admission": false,
+  "qualification": false,
+  "semantic_hash_origin": "QA canonical preview identity; not production input proof",
+  "result": "PASS_PURE_PREVIEW_ONLY",
+  "cues": 2406,
+  "evidence": 114,
+  "snapshots": {
+    "source_snapshot": {
+      "bytes": 4454,
+      "sha256": "a022ad83078252ee06249808f4c20e93c2df36d43e064c4c5fb1826f16b96c39"
+    },
+    "summary_snapshot": {
+      "bytes": 13720,
+      "sha256": "6dac37ecd5874e4f276921c1fbf96cd98dd4a114b965418f3a40547de445f4df"
+    },
+    "policy_snapshot": {
+      "bytes": 808,
+      "sha256": "bc7b6b0bcfa98ece100888cb48fa6826edc4ac762284342e19a42bcda7616530"
+    }
+  },
+  "outputs": {
+    "packet.json": {
+      "bytes": 323768,
+      "sha256": "2219f0d5648b2283f84b092630687719a6a2d2540cb3e120ba21bafe177f107b"
+    },
+    "context.json": {
+      "bytes": 83028,
+      "sha256": "21ad357ebe7b1a9023638915d99d801ee37a5c39d67d61d1f0945c00b8239370"
+    },
+    "messages.json": {
+      "bytes": 94552,
+      "sha256": "705afcdca5132108b48f7eea1f1b5ec3674fc9768d6e108929c8495a271b08a6"
+    },
+    "side.json": {
+      "bytes": 514882,
+      "sha256": "a94d394ef8867803b38ecff41b6c9129c9c7b421131334c63e70de690deaaddd"
+    },
+    "explicit-chatml-planning-render.txt": {
+      "bytes": 85760,
+      "sha256": "0402237584c7ee87238e5e156851c485d83d9c8ed19cb94e052e071ffdcff938"
+    }
+  },
+  "every_original_excerpt_exact": true,
+  "renderer_limitation": "explicit QA ChatML, not verified current native template or executable request",
+  "all_rows_unchanged": true,
+  "all_data_unchanged": true,
+  "accepted_projection_product_commit": "59194ad",
+  "independent_review": "ebb023db23c9ae4fc8721d83632ec090f3b38983",
+  "root_checks": {
+    "new_tests": 68,
+    "strict_source_files": 107,
+    "ruff": "PASS",
+    "diff_check": "PASS"
+  },
+  "preserved_QA_failure": {
+    "log": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/projection-real-sasha-root.log",
+    "error": "AttributeError: sqlite3.Row has no attribute hex in private inventory helper; fixed tuple(row), no product changes or model calls"
+  }
+}

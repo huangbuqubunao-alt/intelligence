@@ -1,3 +1,6 @@
+# 2026-10-19 09:19 实证
+纯projection4c45582获独立ebb023d APPROVE/291+实际全部byte临界值，整合59194ad/bffa8a5/ad551f1；root68/strict107/Ruff/diff通过。真实冻结2406cue114原Evidence逐excerpt全等，source/Summary/policy side原样、全部71表18DATA不变；新完整显式QA ChatML85760B离线词表22494tokens（1vocab/0权重/context/生成/HTTP），+6144+1=28639仅算术处于32k内，真实native request/slot/host/语义门仍OPEN。原QA sqlite3.Row inventory异常日志保留，修私有tuple序列化不改产品。tracked40最终累计461PASS/405.90s、前端956及Chrome24/旧34–40全表DATA7PASS，作者已分范围commit但handoff/evidence尚收尾，未独立接受。正式只读main/远端/served均73ee7e7、4资产SHA一致/祖先安全/D2四文件无diff；无owner DB/config访问。候选未发布。
+
 # 2026-10-19 09:09 中断续作
 原两writer额度中断已在原WIP恢复，无覆盖；tracked40最后known-adapter失败持久化/崩溃窗口修复6专项通过，最终affected/前端/Chrome尚运行、未STOP/接受。纯projection68专项+strict107通过，旧grounding联合回归待结束。root完整只读冻结原tracked失败71表18DATA逐项全等，真实Retry/迁移/恢复尚待已审候选。私有词表wrapper补final identity、kill/reap及独立发现晚完成漏洞，最终16 harmless tests+独立16/原负例PASS，原失败日志保留，0模型/词表调用；仅以后完整投影离线诊断用。最新disk197.955GiB/RAM4.639<8.101GiB，仍0load/生成/资格关闭。main未发布。
 

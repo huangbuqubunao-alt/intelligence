@@ -1,0 +1,232 @@
+{
+  "at": "2026-10-19T01:17:55.578072+00:00",
+  "result": "PASS_DIAGNOSTIC_ONLY",
+  "classification": "ONE_FULL_PUBLIC_SOURCE_PLANNING_RENDER_VOCABULARY_ONLY",
+  "qualification": false,
+  "production_admission": false,
+  "vocabulary_load_attempts": 1,
+  "weight_loads": 0,
+  "contexts": 0,
+  "generation_calls": 0,
+  "http_calls": 0,
+  "resource_contract": "CPU20s, wall30s with bounded ps observation, sampled RSS stop512MiB, output1MiB",
+  "renderer_limit": "explicit QA ChatML; not a validated current native or executable production request",
+  "bindings": {
+    "/Users/hua/.ollama/models/blobs/sha256-02d45dc1cf451ba2475ac33b301c2dd8f985abe4c182ce04a1f2f5bf0260278d": {
+      "identity": [
+        "/Users/hua/.ollama/models/blobs/sha256-02d45dc1cf451ba2475ac33b301c2dd8f985abe4c182ce04a1f2f5bf0260278d",
+        16777234,
+        133260631,
+        5629109120,
+        1791867208032934271,
+        501
+      ],
+      "sha256": "02d45dc1cf451ba2475ac33b301c2dd8f985abe4c182ce04a1f2f5bf0260278d"
+    },
+    "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/vocab-x86-qa-20261019/probe-x86": {
+      "identity": [
+        "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/vocab-x86-qa-20261019/probe-x86",
+        16777234,
+        136028913,
+        9440,
+        1792354528222829558,
+        501
+      ],
+      "sha256": "3e06d28a84b2e516e93216a0c8f5b4bfa2e643847daca23caf5af59432e2b5b5"
+    },
+    "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/vocab-x86-qa-20261019/probe.c": {
+      "identity": [
+        "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/vocab-x86-qa-20261019/probe.c",
+        16777234,
+        136028815,
+        1583,
+        1792354527754782050,
+        501
+      ],
+      "sha256": "b1016a416e412746e0fc6a7f3e872115703c3122c70eb54e4a8f3fcc7943a69c"
+    },
+    "/Applications/Ollama.app/Contents/Resources/libllama.0.5.0.dylib": {
+      "identity": [
+        "/Applications/Ollama.app/Contents/Resources/libllama.0.5.0.dylib",
+        16777234,
+        129250348,
+        3782192,
+        1791444462047781144,
+        501
+      ],
+      "sha256": "72d39b320e896b29a6937214d0e2b8361ea4f094f8c437fc39b9f72571fd7112"
+    },
+    "/Applications/Ollama.app/Contents/Resources/libggml.0.dylib": {
+      "identity": [
+        "/Applications/Ollama.app/Contents/Resources/libggml.0.25.3.dylib",
+        16777234,
+        129250237,
+        57840,
+        1791444460081055970,
+        501
+      ],
+      "sha256": "41a0e5539a45a6e9afb9516c2238fcffee2d0492765d6b4c262e6692280be440"
+    },
+    "/Applications/Ollama.app/Contents/Resources/libggml-base.0.dylib": {
+      "identity": [
+        "/Applications/Ollama.app/Contents/Resources/libggml-base.0.25.3.dylib",
+        16777234,
+        129250364,
+        794416,
+        1791444462096318630,
+        501
+      ],
+      "sha256": "4666fa4d40d27c67583e00c7f08c6ac9a3c40ccc969bccc3502fa2b90ce5406f"
+    },
+    "/tmp/readiness-vocab-native/include/llama.h": {
+      "identity": [
+        "/private/tmp/readiness-vocab-native/include/llama.h",
+        16777234,
+        135177318,
+        89978,
+        1792083351747465897,
+        501
+      ],
+      "sha256": "d5cf9203bea63b575e76cba4881f29cfd1b611451578b01582b75b72ecbb04bc"
+    },
+    "/tmp/readiness-vocab-native/include/gguf.h": {
+      "identity": [
+        "/private/tmp/readiness-vocab-native/include/gguf.h",
+        16777234,
+        135177331,
+        11355,
+        1792083354505460771,
+        501
+      ],
+      "sha256": "e56714aab702e5ce62ee587a409643c08f7e93e8fbb77f48ef7cc85075f96fa4"
+    },
+    "/tmp/readiness-vocab-native/include/ggml.h": {
+      "identity": [
+        "/private/tmp/readiness-vocab-native/include/ggml.h",
+        16777234,
+        135177350,
+        116144,
+        1792083357951262636,
+        501
+      ],
+      "sha256": "12ee71f99db7db9b353bc02b1fbb57c344ee17c01ac5fb7952b41a637a747ea9"
+    },
+    "/tmp/readiness-vocab-native/include/ggml-opt.h": {
+      "identity": [
+        "/private/tmp/readiness-vocab-native/include/ggml-opt.h",
+        16777234,
+        135177377,
+        14040,
+        1792083362336132825,
+        501
+      ],
+      "sha256": "3586de1bc8a934b5c72339e2b6937b0641e8f149b512231e666f67de0736eea2"
+    },
+    "/tmp/readiness-vocab-native/include/ggml-backend.h": {
+      "identity": [
+        "/private/tmp/readiness-vocab-native/include/ggml-backend.h",
+        16777234,
+        135177389,
+        25776,
+        1792083364312223161,
+        501
+      ],
+      "sha256": "5791edae1fb7622027621d15bc7a160198bd3b75ed8f96d06cb7b85e2b873756"
+    },
+    "/tmp/readiness-vocab-native/include/ggml-alloc.h": {
+      "identity": [
+        "/private/tmp/readiness-vocab-native/include/ggml-alloc.h",
+        16777234,
+        135177398,
+        3689,
+        1792083365764582655,
+        501
+      ],
+      "sha256": "d114067f9099c4a0e2bbc0625c676d4894d9cf0ea27168ee072c7de0e71bb51d"
+    },
+    "/tmp/readiness-vocab-native/include/ggml-cpu.h": {
+      "identity": [
+        "/private/tmp/readiness-vocab-native/include/ggml-cpu.h",
+        16777234,
+        135177410,
+        7753,
+        1792083368198303870,
+        501
+      ],
+      "sha256": "316279e004cdeb8e6ef78599acb602bf79a8abdf897fed9fd1914808c1518c6e"
+    },
+    "/Applications/Ollama.app/Contents/Resources/libllama.0.dylib": {
+      "identity": [
+        "/Applications/Ollama.app/Contents/Resources/libllama.0.5.0.dylib",
+        16777234,
+        129250348,
+        3782192,
+        1791444462047781144,
+        501
+      ],
+      "sha256": "72d39b320e896b29a6937214d0e2b8361ea4f094f8c437fc39b9f72571fd7112"
+    },
+    "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/projection-real-sasha-20261019-v2/explicit-chatml-planning-render.txt": {
+      "identity": [
+        "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/projection-real-sasha-20261019-v2/explicit-chatml-planning-render.txt",
+        16777234,
+        136135295,
+        85760,
+        1792372622508884031,
+        501
+      ],
+      "sha256": "0402237584c7ee87238e5e156851c485d83d9c8ed19cb94e052e071ffdcff938"
+    },
+    "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/projection-real-sasha-20261019-v2/messages.json": {
+      "identity": [
+        "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/projection-real-sasha-20261019-v2/messages.json",
+        16777234,
+        136135293,
+        94552,
+        1792372622508617156,
+        501
+      ],
+      "sha256": "705afcdca5132108b48f7eea1f1b5ec3674fc9768d6e108929c8495a271b08a6"
+    },
+    "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/projection-real-sasha-20261019-v2/receipt.json": {
+      "identity": [
+        "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/projection-real-sasha-20261019-v2/receipt.json",
+        16777234,
+        136135296,
+        1713,
+        1792372622534136532,
+        501
+      ],
+      "sha256": "5eabe3bf05c4251c26a9a89e2a3e729547bfae91c4898c8d6b9e92ac4452843c"
+    }
+  },
+  "source_preview_receipt_sha256": "5eabe3bf05c4251c26a9a89e2a3e729547bfae91c4898c8d6b9e92ac4452843c",
+  "input_bytes": 85760,
+  "input_sha256": "0402237584c7ee87238e5e156851c485d83d9c8ed19cb94e052e071ffdcff938",
+  "child_pid": 80193,
+  "counts": {
+    "input_bytes": 85760,
+    "token_count": 22494,
+    "vocab_only": true,
+    "vocab_size": 248320,
+    "context_created": false,
+    "generation_calls": 0
+  },
+  "process": {
+    "exit_code": 0,
+    "elapsed_seconds": 1.5977225410751998,
+    "observed_peak_rss_bytes": 112738304
+  },
+  "vocabulary_loads_completed": 1,
+  "finished_at": "2026-10-19T01:18:00.527272+00:00",
+  "final_identity_verified": true,
+  "child_exited_and_reaped": true,
+  "arithmetic_only": {
+    "input_tokens": 22494,
+    "hypothetical_output_tokens": 6144,
+    "hypothetical_bos_margin": 1,
+    "total": 28639,
+    "within_32768_by_arithmetic_only": true,
+    "not_a_ctx_slot_or_model_qualification_grant": true
+  }
+}

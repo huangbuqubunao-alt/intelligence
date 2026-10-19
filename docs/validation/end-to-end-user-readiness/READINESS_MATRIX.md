@@ -11,7 +11,7 @@
 | 真实旧失败派生归档 | 全量旧37库正常迁移39；真实公开字幕受控completion fault→新明确命令成功；旧Iwgl真实GUI Retry成功，74表19DATA/原8DATA与Evidence完整，0新模型 | 新真实P1：v1/429+v2/LOCAL_RESOURCE混合维护互阻；恢复proof的exact版本2026.07.04与历史parent政策pair均已独立定位；仅内存两处补正完整23字段114Evidence证明PASS、21文件SHA不变，产品/混合原子结清及GUI Restore仍未修，不用诊断PASS或空归档恢复替代 |
 | Backup及原生选择 | 真create/native choose/strict stage/RESTORE一次确认/实际重启689d0de7，74表96DATA逐行/hash一致、FK/integrity正常 | Chrome154 custom filter拒选问题已修复223de10；真实默认native直接选ZIP/strictstage/取消PASS，74表96DATA原样；root36/TSbuild通过 |
 | 研究证据回跳/手册 | 真实刷新定位focus指定Evidence；10月19日前真实Chrome复验统一中文手册64/64真图加载，1312宽无横溢 | 最终新Retry与合格洞察截图 |
-| 其余验收与采用 | 10月19日只读实查D2四文件与73ee7e7逐字不变；main/actualorigin/served均73ee7e7 clean，4资产SHA相等，main仍候选祖先；不读写owner DB/config | 长内容纯无损codec独立APPROVE已整合，root110/strict106+真实2406cue114 Evidence roundtrip通过；纯模型投影4c45582获独立ebb023d APPROVE/291测试与全部实际字节边界通过，待root整合复验，尚无执行接线；完整长协议、旧failed-derived归档genuinepositive、合格洞察收藏/主题/原证据GUI、最终完整backend/front/静态/恢复/topology/served及条件采用仍OPEN |
+| 其余验收与采用 | 10月19日只读实查D2四文件与73ee7e7逐字不变；main/actualorigin/served均73ee7e7 clean，4资产SHA相等，main仍候选祖先；不读写owner DB/config | 长内容纯无损codec独立APPROVE已整合，root110/strict106+真实2406cue114 Evidence roundtrip通过；纯模型投影59194ad已整合，独立291/真实字节边界和root68/strict107/真实2406cue114 Evidence展开通过；显式完整planning ChatML22494 tokens，0权重/context/生成，尚无执行接线；完整长协议、旧failed-derived归档genuinepositive、合格洞察收藏/主题/原证据GUI、最终完整backend/front/静态/恢复/topology/served及条件采用仍OPEN |
 
 以下为历史检查点，保留原失败与当时状态；不能将其中旧的“待批/未实施/OPEN”当作上述最新状态：
 

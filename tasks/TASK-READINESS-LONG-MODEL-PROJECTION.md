@@ -1,6 +1,6 @@
 # 完整长字幕模型可见投影：纯函数切片
 
-Status ACCEPTED（作者4c455826e0c8063952bf5b5bb3b6018084a95a96；独立ebb023db23c9ae4fc8721d83632ec090f3b38983 APPROVE；待root整合复验；仅纯新文件）。Base root@15ccb3f（已接受codec、root真实源/词表对照证据）。独立Implementer/WT后独立Review；root不写产品。
+Status DONE（仅纯工程切片；作者4c45582/独立ebb023d APPROVE，整合59194ad+bffa8a5+ad551f1；root68/strict107/Ruff/diff及真实2406cue114 Evidence展开通过；无生产接线/模型资格）。Base root@15ccb3f（已接受codec、root真实源/词表对照证据）。独立Implementer/WT后独立Review；root不写产品。
 
 ## 必要目标与严格边界
 
