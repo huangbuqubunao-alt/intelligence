@@ -1,3 +1,6 @@
+# 2026-10-19 14:50 继续
+原tracked返修writer因quota terminal，核验b147 clean/无进程后撤回写权，唯一writer已移交long_lossless_codec_oct19并真实复现counter三红一正控，保留原成果；仍无产品采用。独立4950db REJECT已归档3dc3b63。定点ZIP预检6PASS确认Schema38另有七项manifest反控被special-file提前挡，已并入原混合字幕任务测试修复；LOCAL39/38历史和native capture反控有真实语义证据，不泛化为全坏。完整原旧tracked工作副本72表18DATA已准备，仍未启动runtime/迁移。14:46资源新查RAM3.861<8.101GiB/disk197.615，0load/生成；工程继续，失败资格关闭，未改main/正式数据。
+
 # 2026-10-19 09:27 独立审查返修点
 tracked40 b14788c clean STOP后已在独立WT累计审查。原7+11 probes、956front/TSbuild/strict111/Ruff/真实Chrome24已通过；新实际反证：合法heartbeat式revision更新可把local_attempt_count提前+1而不改event，完整reader接受，实际2次local失败即count3耗尽（应3次），P2，暂不接受；扩展回归382PASS/1FAIL为creator_following最新schema仍期待39而实际40，未隐藏。原461独立进程仍live，待报告REJECT后退原作者窄返修。Root只读进一步发现source_authority整文件SHA属于ASR tuple，最终核心变更后需重验原17声学例，不能沿用旧receipt；0decoder/密钥读取。完整旧tracked GUI工作副本72表（含sqlite_sequence）18DATA已准备并全等，未启动runtime/迁移。long精确两表/原子claim/双向closure设计前检已回写现计划，无新实现包或迁移号；main仍未发布。
 

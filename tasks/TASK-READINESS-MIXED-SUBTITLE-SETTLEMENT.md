@@ -28,3 +28,6 @@ root exact accepted verifier在冻结真实现场只读运行，transcripts.py12
 
 
 2026-10-19 独立preflight与root独立复跑确认：版本单独补正后，第二FAIL精确为parent策略缺失 `(subtitle-selection-v2-original-tracks, subtitle-format-v1)`；fixed SHA3745bc44c3dd3321ae7a2fa93fcea9061676b056 原常量证实是正式历史，不是推测。私有内存候选只改该exact pair与exact版本两处字符串，完整原verifier和固定后继历史重验PASS/23字段/114Evidence完全相等，DB+WAL+19DATA共21文件大小/SHA前后不变、retained仍0/ledger原样。原两个FAIL保留。产品实现必须有限保留两原版本字符串唯一重算，**不能全局替换**旧值；旧proof兼容及完整混合事务/负控/GUI恢复仍待。root证据 SCHEMA38_READONLY_COMPATIBILITY_DIAGNOSTIC_2026_10_19.json。
+
+
+2026-10-19 补充必需验证修复（仍等tracked40接受，非新功能/审批）：独立针对ZipInfo陷阱预检确认 test_retained_subtitle_derivations.py535–579七项manifest-neutral负控在570用writestr(name,body)丢S_IFREG，仅通用BackupRestoreError使其先被special-file guard挡；wrong-proof-hash实际未到proof。此为已证实验证缺口，不等于新产品接受漏洞。作者在本任务原测试范围内保留ZipInfo/合法regular metadata、加同构不变重包stage成功正控，重算真实DB/manifest后再证七类语义拒绝，尽量匹配具体拒绝原因，不能放宽特殊ZIP安全规则。LOCAL39和38历史original/successor两组已保留metadata并在独立6例中实际抵达语义拒绝；不需要泛化重写它们。native capture直接create_backup缺失/损坏反控不受重包影响。证据 ZIP_METADATA_TARGETED_PREFLIGHT_2026_10_19.json；原tmp38日志部分缺失如实记录，不当现证据。

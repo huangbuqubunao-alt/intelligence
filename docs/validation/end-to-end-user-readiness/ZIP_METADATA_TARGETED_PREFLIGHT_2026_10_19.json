@@ -1,0 +1,29 @@
+{
+  "at": "2026-10-19T06:48:49.176596+00:00",
+  "classification": "TARGETED_OLD_REHASHED_ZIP_TEST_EVIDENCE_PREFLIGHT_NOT_FULL_REVIEW",
+  "reviewer": "subtitle_recovery_preflight_oct19",
+  "root_baseline": "5184fe8",
+  "checks": {
+    "passed": 6,
+    "seconds": 11.42,
+    "model_network_owner_IO": 0
+  },
+  "files": {
+    "probe.log": "f9fa51b8ffd24617d75711b25c9b8b5ea8b7839e75f10f06968aebece5abfa57",
+    "test_metadata_boundary.py": "a8acd8865c464c14b6661979a7dd4d2c93ba43877f573fbbbe1c2e7c8d22b537"
+  },
+  "confirmed_verification_gap": {
+    "file": "tests/integration/test_retained_subtitle_derivations.py",
+    "lines": "535-579, writer570",
+    "variants": 7,
+    "observed_wrong-proof-hash_error": "Backup archive contains a symbolic or special file.",
+    "meaning": "ZIP rejected before manifest/proof; no new product acceptance vulnerability proven",
+    "required": "in existing queued mixed settlement task preserve ZipInfo/regular metadata, unchanged-repack positive control, every original semantic negative must reach correct guard"
+  },
+  "valid_semantic_negatives": {
+    "LOCAL39": "two repackers keep ZipInfo and specific Local text proof assertions; all-four-loss exercised semantic rejection",
+    "Schema38_historical": "original/successor repackers keep ZipInfo and actual DB/checkpoint mutation with specific Neutral proof assertions; snapshot-drift/history-job exercised",
+    "native_capture": "create_backup missing/corrupt files tests do not repack; fulltable/fullDATA positive restore independently passed"
+  },
+  "limits": "old38 referenced tmp logs partly no longer present, not claimed inspected; no product or official test writes/commit"
+}
