@@ -1,0 +1,33 @@
+F
+=================================== FAILURES ===================================
+_ test_known_provider_failure_survives_crash_before_execution_receipt_without_becoming_unknown _
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-504/test_known_provider_failure_su0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x107caa180>
+
+    def test_known_provider_failure_survives_crash_before_execution_receipt_without_becoming_unknown(tmp_path,monkeypatch):
+        from youtube_intel.tracked_retry_worker import RetryWorker
+        repo,_source,cid,old,adapter,_fixture,_runtime,service=failed_tracked(tmp_path,monkeypatch)
+        receipt=service.request(cid,command_id='known-crash-window',expected_job_id=old.job_id)
+        def known(_):
+            raise TranscriptError(AppError(code=ErrorCode.INVALID_RESPONSE,message='known directory failure',retryable=False))
+        adapter.enumerate_tracks=known
+        def crash(*args,**kwargs):
+            raise KeyboardInterrupt('after provider failure, before execution terminal')
+        with monkeypatch.context() as context:
+            context.setattr(RetryWorker,'_finish_failure',crash)
+            with pytest.raises(KeyboardInterrupt):
+                service.run(receipt['request_id'])
+        adapter.enumerate_tracks=lambda _:pytest.fail('known settled failure was dispatched again')
+        result=service.run(receipt['request_id'])
+>       assert result['state']=='FAILED'
+E       AssertionError: assert 'AMBIGUOUS' == 'FAILED'
+E         
+E         - FAILED
+E         + AMBIGUOUS
+
+tests/integration/test_tracked_content_retry.py:363: AssertionError
+=========================== short test summary info ============================
+FAILED tests/integration/test_tracked_content_retry.py::test_known_provider_failure_survives_crash_before_execution_receipt_without_becoming_unknown
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
+1 failed, 88 deselected in 1.19s

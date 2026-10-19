@@ -1,0 +1,122 @@
+{
+  "task": "TASK-READINESS-TRACKED-CONTENT-RETRY",
+  "date": "2026-10-19",
+  "cumulative_review_base": "c312ee4a544556616c9b102d57ec44cf56a21b90",
+  "resume_head": "4b9aa0ad34bb56e82cbab0e6061948b217866c6a",
+  "backend_commit": "7809c61c8f82f3ff72ee1b6752ec9fef49525ad8",
+  "ui_commit": "30372a6ad93ff1aa656df39d8846d3aef40e1a6a",
+  "checks": [
+    {
+      "name": "broad_backend",
+      "source_log": "/tmp/tracked-retry-final-accepted-candidate-oct19.log",
+      "artifact": "docs/validation/end-to-end-user-readiness/tracked-retry-checks/broad_backend.txt",
+      "sha256": "7678fb79311d2a4c7bcb2b94dad188b54bb57d4aeb42aa6745d17ec709e55fb6",
+      "result": "461 passed; duplicate-ZIP negative-control warning; loaded before later historical-action fix"
+    },
+    {
+      "name": "latest_protocol_api",
+      "source_log": "/tmp/tracked-retry-latest-api-protocol-oct19.log",
+      "artifact": "docs/validation/end-to-end-user-readiness/tracked-retry-checks/latest_protocol_api.txt",
+      "sha256": "826b41fd14ba0de4d54d1fd48bc8cf0c4529fc62c01b787d1e62fda337cdca9a",
+      "result": "125 passed on final product code; includes historical-action replay fix"
+    },
+    {
+      "name": "route_ownership",
+      "source_log": "/tmp/tracked-retry-route-ownership-final-oct19.log",
+      "artifact": "docs/validation/end-to-end-user-readiness/tracked-retry-checks/route_ownership.txt",
+      "sha256": "a6b2f89420bbd747a0bad2e0f585bb38de1846a89cd317273df2081be57c31ed",
+      "result": "1 passed; final extra wrong-Content no-write assertion"
+    },
+    {
+      "name": "seven_schema_all_tables",
+      "source_log": "/tmp/tracked-retry-seven-schema-full-tables-oct19.log",
+      "artifact": "docs/validation/end-to-end-user-readiness/tracked-retry-checks/seven_schema_all_tables.txt",
+      "sha256": "4b58cde49cc06ee64e9b16f5dd4fccb4fc971e35ee1e5ca0bd3d65a78e547dd2",
+      "result": "7 passed; 34-40 all table rows and all DATA bytes before restore/after restore/after additive migration"
+    },
+    {
+      "name": "frontend",
+      "source_log": "/tmp/tracked-retry-frontend-final-oct19.log",
+      "artifact": "docs/validation/end-to-end-user-readiness/tracked-retry-checks/frontend.txt",
+      "sha256": "04465784b46c0dc17360d5841106a8424726b6a55dcc6592b74c6f4342348cea",
+      "result": "956 passed and TypeScript/Vite build passed; retained React act warnings"
+    },
+    {
+      "name": "browser",
+      "source_log": "/tmp/tracked-retry-browser-oct19-author-final.log",
+      "artifact": "docs/validation/end-to-end-user-readiness/tracked-retry-checks/browser.txt",
+      "sha256": "d6cd40d2ffe9b149782ccc8648c3096a368a794714188ba897baf5d36beebc6b",
+      "result": "24 actual DOM-asserted states; fresh document navigation, not hash-only navigation"
+    },
+    {
+      "name": "extra_backend",
+      "source_log": "/tmp/tracked-retry-extra-final-oct19.log",
+      "artifact": "docs/validation/end-to-end-user-readiness/tracked-retry-checks/extra_backend.txt",
+      "sha256": "6700d60e0260909fb52551f2f09ff3ea619692cb1d2d4007c5ded569aaf5f47f",
+      "result": "351 passed; subtitle adapter, transcript and tracking regression cohort"
+    },
+    {
+      "name": "known_receipt_boundary",
+      "source_log": "/tmp/tracked-retry-known-window-final-oct19.log",
+      "artifact": "docs/validation/end-to-end-user-readiness/tracked-retry-checks/known_receipt_boundary.txt",
+      "sha256": "db3da1cdc6939d4bdf6e1016d26bd71be37f8c944b4e2913344e937891ae36eb",
+      "result": "6 passed; also contained in latest protocol cohort"
+    },
+    {
+      "name": "source_budget",
+      "source_log": "/tmp/tracked-retry-source-budget-oct19.log",
+      "artifact": "docs/validation/end-to-end-user-readiness/tracked-retry-checks/source_budget.txt",
+      "sha256": "d3deb3ab9d382d6777dfa0386e1475073e035ef413ae283802f61701dc1214b1",
+      "result": "2 passed; actual repeated preflight/local claim interruptions; also in latest cohort"
+    },
+    {
+      "name": "prepared_parent_restore",
+      "source_log": "/tmp/tracked-retry-prepared-backup-oct19.log",
+      "artifact": "docs/validation/end-to-end-user-readiness/tracked-retry-checks/prepared_parent_restore.txt",
+      "sha256": "54d1a3c48c1c3df8d10b5e6788e433dcddd1b9df182f78f9255db42f191f0d88",
+      "result": "5 passed; all-table/DATA restore and rehashed negative controls; also in latest cohort"
+    }
+  ],
+  "static_checks": {
+    "mypy_src": "111 source files passed, strict=true",
+    "ruff": "all changed Python and full src passed",
+    "diff_check": "passed"
+  },
+  "code_source_sha256": {
+    "frontend/src/workspace/App.tsx": "aba0701044929e5ac58abb22c8a447291e1e5802cb7bf1bff877d7eb5e4106db",
+    "frontend/src/workspace/BackupPickerFilter.test.tsx": "d3473d69d0a570a6549d4421b6b0a4889b88f763235f206d80881f43683508d7",
+    "frontend/src/workspace/TrackedContentRetry.test.tsx": "768d4ddd188714def9ea34cf4bf1d99ba151ad0c96e19b79c3015944ef457289",
+    "frontend/src/workspace/TrackedContentRetry.tsx": "260fe3779144f7285363c405d597ee76cc061bd3b8f0aeb51fd1b34aa9b4cc8e",
+    "frontend/src/workspace/uiLanguage.tsx": "780bc56e5d15b7bdfa6e8f4cbd5b1fcd87877a4b7a29d5f324a22cdab110f6aa",
+    "frontend/tracked-content-retry.e2e.mjs": "3e6108caab292c9141352b1e9cc8977f640f2d7147c4c03921ed05871d1d7267",
+    "src/youtube_intel/backup_restore.py": "7a65d287a660c02762d806a1f19d122833a0195c174ebc93e74cd012b2d42b5e",
+    "src/youtube_intel/local_api.py": "7b3d90af1ba59c1e756f2ea2535c73e18daee65dfc60bcb8393cfbb54d12bc66",
+    "src/youtube_intel/migrations/040_add_tracked_content_retry.sql": "7a44951bcb347bd0cd247347d3122f421ddaeab9da6d0a65257e7fea9e41fdd1",
+    "src/youtube_intel/runtime.py": "b426991417c50370b82bfd940f6443c58588fdafbbdd0763dc4018b29fed824b",
+    "src/youtube_intel/runtime_composition.py": "04862780154b9e1c31698c3ec227e24ef86827df4bb117c2de5cb532ffe8f96a",
+    "src/youtube_intel/source_authority.py": "72f769e4ced5f3a3c0f71241d6fbe04e6ec7f3d99b2a2a52dc717987488dcfe9",
+    "src/youtube_intel/state.py": "4f2a8b8edd764aaa01cc7fecd3cfa3c026cff0e42e31797b9571a66fea709201",
+    "src/youtube_intel/tracked_content_retry.py": "7177fe64b1f4779a56e0133554cb726787683dab39dda87026b6a429aadd4fe1",
+    "src/youtube_intel/tracked_retry_context.py": "1db6bb3ea9824468c9ec84bb122b66559e3c917554e1101ddccbc57ebfa0a68d",
+    "src/youtube_intel/tracked_retry_files.py": "9f50243093169fd60fd59ae55c8c09b73d386bf932555650db38357a214712ca",
+    "src/youtube_intel/tracked_retry_reader.py": "46d0dca930b43dab2a0cf3752180bf76fdeffed4f6e2fb4b2efb7b26f4b91e4a",
+    "src/youtube_intel/tracked_retry_store.py": "d61a9a3f481e73ca51a4bc78c7c939d53a7f8ac1128ac77e36ad57b0e3176a43",
+    "src/youtube_intel/tracked_retry_worker.py": "0a9da1eb8880ae210e374ba46bf5d41c0a74ea2f5ef0a55f1d3b0599c9a41c98",
+    "src/youtube_intel/transcripts.py": "7c402e818e185c6e46a524c170de86633588d21098ef68f189887ffceddc7f92",
+    "tests/e2e/tracked_content_retry_fixture_server.py": "eb5882b56ef7db072da62615f3eeaf69426f59ddde54f799fb9e55d2661fe420",
+    "tests/integration/test_provider_dispatch_crash_recovery.py": "a859037bfb449c69e004c301177f78e018b01946060007f8b5a0e27914d5ba4f",
+    "tests/integration/test_retained_subtitle_derivations.py": "4be284c7bd665ff4abe308faa4c59f74c63e236f0b030f622099f0789f2bb15b",
+    "tests/integration/test_state_store.py": "02d8a74a00813ec28d313e560d7162d2c331d5d7b541fed9f7aa95175a6f0197",
+    "tests/integration/test_task023a_source_run_persistence.py": "635341bc10fff9ae8efd1b5aa20f8312b597e41423d499d04abadd09469f9f54",
+    "tests/integration/test_task024_processing_orchestration.py": "90c37d8f51bdf9e9769e70e986348fff191df9a4a3192e268c0d192431e036e0",
+    "tests/integration/test_tracked_content_retry.py": "c54f6cfe67d89ed1f862b2f94f0c7d6ed529bbfe948cfd05e3c381702ac53a51",
+    "tests/integration/test_youtube_following.py": "0f79a8eac5691955624f92e914aedc74fa50d264e050bffc853cffa343cfaac5",
+    "tests/unit/test_backup_restore.py": "671a1f700a5bd38d3a22d8083a1aea249996a9f1e00b475fc9ea56b0a693ecd5"
+  },
+  "limits": [
+    "No full-repository root regression claim",
+    "Independent cumulative review including original three REJECT findings still required",
+    "Root real legacy tracked copy GUI/restart/all-table all-DATA restore still required",
+    "No model qualification granted, no paid generation, no formal owner data modified"
+  ]
+}

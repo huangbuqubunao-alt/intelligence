@@ -1,3 +1,68 @@
+# TASK-READINESS-TRACKED-CONTENT-RETRY — 2026-10-19 完整作者交接
+
+## 当前结论与精确提交
+
+- Implementer: `tracked_retry_resume_oct19`，恢复既有WIP；没有重新开任务、覆盖旧作者或第二writer。
+- WT `/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry`；branch `codex/task-readiness-tracked-content-retry`。
+- 累计基础为 `c312ee4a544556616c9b102d57ec44cf56a21b90`；恢复时HEAD `4b9aa0ad34bb56e82cbab0e6061948b217866c6a`，包含基础 `43e0c75` 及已审picker `26a2984/4b9aa0a`。
+- 后端/恢复/迁移/协议测试/精确合同：`7809c61`。
+- UI、双语copy、前端测试、普通factory隔离fixture、真实Chrome脚本与截图：`30372a6`。
+- 本交接及检查证据为随后docs-only提交；**建议IN_REVIEW，作者clean STOP，不设DONE、不自行main/push/发布**。原foundation REJECT须独立累计复审，不能仅凭作者自审接受。
+
+## 实际完成范围
+
+- 补专属worker、provider/dispatch/epoch、实际store/request flock生命周期、write-ahead文件/buffer闭包、严格正反向reader、timed/Evidence/extractive Summary本地完成、3次本地恢复与明确取消/关闭出口；普通runtime factory/worker/API/中英文Content UI已接线。
+- 修原foundation F1：`mark_provider_dispatch_ambiguous`同事务require_provider，generic不能持旧owner改本协议；F2：typed事件、action/receipt/hash/epoch、原job真实最后attempt、target/provider/文件及完成投影重验；F3：040 VERIFIED observed hash/size明确非NULL，INSERT与更新负控保留。
+- 新command初始准入保留generic五项白名单与真实最后attempt。协议attempt0后继由完整不可变父request、取消/本地失败receipt、零provider/dispatch/attempt/artifact/files、真实父request锁证明；不造attempt。另对真实prep attempt1的容量关闭用独立typed receipt、NOT_DISPATCHED/无intent marker、完整provider/attempt/文件证明才授新人工后继，不扩generic名单。
+- 父链迭代全量验证，无递归/截断；循环、错source、缺祖先/receipt/marker、错epoch/attempt、未知provider、残留文件与活writer拒绝。1051条合法取消历史可新建command，中间祖先receipt被删仍拒绝。
+- 固定128事件。acquisition/claim/preHTTP预留16；剩余local `r`次在claim/finalize前预留`4*r+2`、RESUME前`4*r+1`。逼近预算时不消耗新的claim，直接做真实纯本地结果，保留后续所有合法attempt及Close。本版普通执行不制造“126+SUC+尚有合法本地attempt却只能Close”。详见执行补充合同。
+- typed明确adapter失败先持久化provider FAILED_FINAL+FAILED_KNOWN同事务，再由worker结清执行/文件；receipt前中断仍未知，receipt后中断重启恢复已知失败，不重复HTTP，原错误code/message保留。
+- API历史action按不可变request校验路由Content归属，新child建立后旧取消同command仍可重放；错Content在写入前拒绝，重放也重验完整authority。
+- Backup显式兼容34–40，40按精确Schema与manifest引用/字节全闭包验证，live/finalizing/attention阻塞；已持锁诚实结清的专属AMBIGUOUS保留未知语义并可备份。旧schema不backfill协议记录，实际原文件全部保留。
+
+## 验收证据与覆盖时点
+
+可重验命令、原始输出及source SHA-256：`docs/validation/end-to-end-user-readiness/tracked-retry-checks/validation.json`。以下各集合重叠，不能相加冒称独立总数。
+
+| 检查 | 实际结果 | 精确覆盖说明 |
+|---|---|---|
+| 11文件累计后端 | **461 PASS**，405.90s | 含最终known receipt修复；启动早于后来historical-action API修复，不冒称整套加载后者 |
+| fresh tracked协议 + Local API | **125 PASS**，119.72s | 最终产品代码，覆盖新历史action路由/完整服务重放验证 |
+| 最后错Content无写断言 | **1 PASS**，2.15s | 同一API测试额外增强，产品代码未再改 |
+| 字幕adapter/policy/timed/following/SourceRun扩展 | **351 PASS**，82.72s | 普通字幕路径与原跟踪边界；早于最后known/action两项，后者由上述新集合覆盖 |
+| Schema34–40 | **7 PASS**，5.33s | 非空fixture每种版本全部table/行与全部DATA bytes，恢复前后完全相同；迁移后旧领域行/旧migration历史仍同，协议三表为空 |
+| known receipt前后真实中断及unknown/失败 | **6 PASS**，4.51s | 新服务实例重启；中断前未知关闭，中断后known可明确新请求；包含在125中 |
+| 真实多次崩溃的源头预算 | **2 PASS**，8.96s | 112次predispatch claim中断后114事件诚实关闭，attempt1保留、新command成功；SUC后百次级local claim中断仍用足3次local attempt及Close，0字幕重取，事件≤128；包含在125中 |
+| prepared容量父链全量恢复/重新hash破坏 | **5 PASS**，10.33s | 所有table dump和全部DATA bytes；receipt/marker/attempt/provider破坏即使重算ZIP hash仍拒绝；包含在125中 |
+| strict mypy src | **111 source files PASS** | pyproject strict=true，不变更工具链/依赖 |
+| Ruff / diff check | **PASS** | 全src及全部相关Python变化，staged diff再次复核 |
+| frontend全套 + TS/Vite build | **956 PASS** / **PASS** | 35 files；原有React act warnings未隐藏，新增组件19项无新警告 |
+| 真实Chrome | **24 PASS** | en/zh-CN × 1440/320 × eligible/queued/cancelled/attention/finalizing/succeeded；每次真实document加载，并断言DOM状态文案后截图/核API，不使用hash-only旧DOM；无横溢/console error或warning/浏览器外部请求 |
+
+Chrome使用普通`build_local_source_run_runtime`、真实loopback API/SQLite/专属worker，仅字幕provider和失败窗口为离线可控边界。取消后新command、一次目录+一次body、local ATTENTION→RESUME→真实Summary/Evidence通过；完成2条Evidence，原取消target attempt0、新成功target attempt1。完整JSON与24截图位于`docs/validation/end-to-end-user-readiness/tracked-retry-browser/`；脚本为`frontend/tracked-content-retry.e2e.mjs`及`tests/e2e/tracked_content_retry_fixture_server.py`。这不是root真实旧tracked数据的验收替代。
+
+## 原失败与修正均保留
+
+- 共享venv初始未指定PYTHONPATH，导入`/Users/hua/youtube-intel`旧代码导致collection失败；后续全部`PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src:.`指向当前WT，没有改环境或安装依赖。
+- 额外源头预算前对event revision误作精确等于projection，合法heartbeat只增revision不加event的双进程反证失败；恢复原monotonic gap合同，epoch/typed事件仍严格；真实process后重验通过。
+- 扩展旧测试的latest39期望导致48个setup失败；仅更新latest40和追加040 migration期望，保留全部旧历史/断言；48重跑通过。混合来源恢复版本39断言同样精确改40，单项通过。
+- Chrome初版`/tmp`祖先symlink被managed_directory拒绝，HTTP500；只修隔离fixture root.resolve，不放宽产品路径保护。又发现同hash导航保留旧DOM，旧截图不算PASS；改真实document加载+每状态文案断言，最终重新输出全部截图。
+- known failure窗口原`AMBIGUOUS != FAILED`红例保留；初修只加repository hook仍失败，持久状态证明私有_fetch_reserved不经outer fetch、实际仍PENDING/INTENT；停下重复方案，改typed adapter callback源头receipt后绿，before/after反证完整。
+- 历史取消API原latest-only归属检查在新child后返回409，红例保留；改immutable request归属及full authority重放后绿，错Content SQL dump无变化。
+- 原始正/反例日志在`tracked-retry-checks`及manifest列出的`/tmp`路径中；未删除/跳过测试、未弱化断言/阈值或改CI脚本掩盖失败。预期重复ZIP路径warning与既有React act warnings完整保留。
+
+## Diff / 复用 / 剩余门禁
+
+- DIRECT：已批准SQLite事务/外键、fcntl、managed_directory/hash、现provider request builder、native字幕验证、timed/Evidence authority、extractive Summary、现Backup background gate。ADAPT仅专属authority/dispatch/file hooks；来源均当前仓库已审基线，无外部复制代码或新许可证义务。REJECT：假SourceRun成功、全pipeline drain、复活旧job/provider、假m038 successor、动态失败数生成provider身份、客户端自报权限。
+- 没有依赖/lockfile/toolchain/config/credentials/正式Vault变更，没有模型资格签发、付费模型生成或正式用户数据写入。040仅隔离fixture/恢复副本验收，没有正式迁移。旧034–039 SQL未改；额外三份老测试仅当前版本期望及完整性增强。
+- 仍需：独立累计审查原foundation三项+全部新diff、root正式候选全仓回归、root真实旧CHANNEL/ENROLLED失败全DATA隔离副本的普通GUI→字幕/Summary/Evidence→实际重启→全表全DATA恢复。
+- root另行记录的真实38混合字幕兼容任务保持串行，不扩入本次，也不以本fixture成功冒称它已解决。
+- 当前无作者已知仍失败的本任务检查。最终接收/合并/发布由root决定；本作者STOP后不继续写产品或替代Reviewer。
+
+---
+
+以下完整保留2026-10-17基础检查点，属于历史，不是当前范围/结论。
+
 # TASK-READINESS-TRACKED-CONTENT-RETRY — 后端基础检查点
 
 ## 元数据与当前范围

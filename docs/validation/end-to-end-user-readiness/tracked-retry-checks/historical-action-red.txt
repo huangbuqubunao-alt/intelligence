@@ -1,0 +1,236 @@
+F
+=================================== FAILURES ===================================
+______ test_api_get_is_read_only_and_strict_command_routes_are_replayable ______
+
+self = <youtube_intel.local_api.LocalApiApplication object at 0x107fae5a0>
+method = 'POST', path = '/api/v1/content/newvideo001/retry/actions'
+body = b'{"request_id": "tracked-content-retry:v1:1a65736b4f2ea23e1f03777b329b3c5f24c81be517c48b75b956d920da7e7610", "operation": "CANCEL_BEFORE_DISPATCH", "command_id": "api-cancel", "expected_revision": 0}'
+
+    def handle(
+        self, method: str, path: str, body: bytes = b""
+    ) -> tuple[int, dict[str, object]]:
+        route = urlparse(path).path.rstrip("/") or "/"
+        try:
+            if method == "GET" and route == "/api/v1/local/native/capability":
+                return HTTPStatus.OK, {"capability": {"available": self._native_import is not None}}
+            creator_from_content = re.fullmatch(r"/api/v1/videos/([^/]+)/follow-(creator|channel)", route)
+            following_provider = "YOUTUBE" if route == "/api/v1/sources/channels" or (creator_from_content and creator_from_content[2] == "channel") else "BILIBILI"
+            if method == "POST" and (route in {"/api/v1/sources/creators", "/api/v1/sources/channels"} or creator_from_content):
+                if self._source_tracking is None:
+                    raise ApiError(HTTPStatus.CONFLICT, "TRACKING_UNAVAILABLE", "Source storage is unavailable.")
+                data = self._body(body)
+                self._only_keys(data, set() if creator_from_content else {"input", "processing_mode"})
+                mode = ProcessingPolicy.from_product_mode(self._string(data, "processing_mode") or "ORGANIZE_CONTENT")
+                if following_provider == "BILIBILI" and not CREATOR_FOLLOWING_AVAILABLE:
+                    # The capability is withdrawn, so no provider request is made,
+                    # no source row is created, and nothing is silently scheduled.
+                    raise ApiError(
+                        HTTPStatus.CONFLICT,
+                        "BILIBILI_" + CREATOR_FOLLOWING_CODE,
+                        CREATOR_FOLLOWING_UNAVAILABLE_MESSAGE,
+                    )
+                try:
+                    source = self._source_tracking.follow_content(creator_from_content[1], provider=following_provider) if creator_from_content else self._source_tracking.follow(self._string(data, "input", required=True) or "", provider=following_provider)
+                except (BilibiliError, TrackingError) as error:
+                    raise ApiError(_BILIBILI_ERROR_STATUS.get(error.code, HTTPStatus.UNPROCESSABLE_ENTITY), following_provider + "_" + error.code, "The public source could not be followed.") from None
+                if not creator_from_content and following_provider == "YOUTUBE":
+                    updated = self._service.update_source(source.source_id, processing_policy=mode)
+                    assert updated is not None
+                    source = updated
+                if self._source_run_wakeup is not None:
+                    self._source_run_wakeup()
+                return HTTPStatus.OK, {"source": self._source_projection(source)}
+            if method == "POST" and route == "/api/v1/sources/check-stale":
+                self._only_keys(self._body(body), set())
+                from youtube_intel.following_tracking import tracking_due
+                results: list[str] = []
+                unavailable: list[str] = []
+                # Scheduling follows the oldest due frontier, not the UI list's
+                # creation order, so newer follows cannot starve older providers.
+                with self._repository._connect() as connection:
+                    sources = connection.execute("SELECT s.source_id FROM source_tracking_state t JOIN source_subscriptions s USING(source_id) WHERE s.enabled=1 ORDER BY t.next_check_at,s.source_id").fetchall()
+                for row in sources:
+                    if len(results) >= 3:
+                        break
+                    source_id = row[0]
+                    tracked_source = self._repository.get_source_subscription(source_id)
+                    if tracked_source and tracked_source.provider == "BILIBILI" and not CREATOR_FOLLOWING_AVAILABLE:
+                        if tracking_due(self._repository, source_id, self._now()):
+                            unavailable.append("CAPABILITY_UNAVAILABLE")
+                        continue
+                    if tracking_due(self._repository, source_id, self._now()):
+                        from youtube_intel.following_scheduler import (
+                            AUTOMATIC_CHECK_PREFIX,
+                        )
+                        with self._repository._connect() as connection:
+                            due = connection.execute("SELECT next_check_at FROM source_tracking_state WHERE source_id=?", (source_id,)).fetchone()[0]
+                        result = self._service.check_source(source_id, command_id=AUTOMATIC_CHECK_PREFIX + source_id + ":" + due, automatic=True)
+                        results.append(result.status.value)
+                if self._source_run_wakeup is not None:
+                    self._source_run_wakeup()
+                return HTTPStatus.ACCEPTED, {"checks": results + unavailable[:3]}
+            tracked_retry_route=re.fullmatch(r'/api/v1/content/([^/]+)/retry(?:/(actions))?',route)
+            if tracked_retry_route and method in {'GET','POST'}:
+                if self._tracked_content_retry is None:
+                    raise ApiError(HTTPStatus.CONFLICT,'RETRY_CONTRACT_UNAVAILABLE','Content retry is unavailable in this session.')
+                try:
+                    if method=='GET':
+                        return HTTPStatus.OK,{'tracked_content_retry':self._tracked_content_retry.status(tracked_retry_route[1])}
+                    data=self._body(body)
+                    if tracked_retry_route[2]:
+                        self._only_keys(data,{'request_id','operation','command_id','expected_revision'})
+                        request_id=self._retry_string(data, 'request_id')
+                        retry_status=self._tracked_content_retry.status(tracked_retry_route[1])
+                        if retry_status['request'] is None or retry_status['request']['request_id']!=request_id:
+>                           raise RetryConflict('Content retry action does not belong to this Content')
+E                           youtube_intel.tracked_retry_context.RetryConflict: Content retry action does not belong to this Content
+
+src/youtube_intel/local_api.py:883: RetryConflict
+
+The above exception was the direct cause of the following exception:
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-511/test_api_get_is_read_only_and_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x106e17140>
+
+    def test_api_get_is_read_only_and_strict_command_routes_are_replayable(tmp_path,monkeypatch):
+        import json
+    
+        from youtube_intel.local_api import ApiError, LocalApiApplication
+        from youtube_intel.orchestration_service import ProductOrchestrationService
+        repo,_source,cid,old,adapter,fixture,_runtime,service=failed_tracked(tmp_path,monkeypatch)
+        wakeups=[]
+        application=LocalApiApplication(repo,ProductOrchestrationService(repo,now=lambda:fixture.now),
+            data_root=service.data_root,tracked_content_retry=service,source_run_wakeup=lambda:wakeups.append(True))
+        with repo._connect() as connection:
+            before=tuple(connection.iterdump())
+        status,payload=application.handle('GET',f'/api/v1/content/{cid}/retry')
+        assert status==200 and payload['tracked_content_retry']['retry_allowed']
+        with repo._connect() as connection:
+            assert tuple(connection.iterdump())==before
+        inputs={'command_id':'from-api','expected_job_id':old.job_id}
+        status,payload=application.handle('POST',f'/api/v1/content/{cid}/retry',json.dumps(inputs).encode())
+        assert status==202 and len(wakeups)==1
+        receipt=payload['tracked_content_retry']
+        assert application.handle('POST',f'/api/v1/content/{cid}/retry',json.dumps(inputs).encode())[1]==payload
+        with pytest.raises(ApiError) as conflict:
+            application.handle('POST',f'/api/v1/content/{cid}/retry',json.dumps({**inputs,'expected_job_id':'changed'}).encode())
+        assert conflict.value.status==409
+        with pytest.raises(ApiError) as invalid:
+            application.handle('POST',f'/api/v1/content/{cid}/retry',json.dumps({**inputs,'source_id':'client-authority'}).encode())
+        assert invalid.value.status==422
+        action={'request_id':receipt['request_id'],'operation':'CANCEL_BEFORE_DISPATCH','command_id':'api-cancel','expected_revision':receipt['revision']}
+        assert application.handle('POST',f'/api/v1/content/{cid}/retry/actions',json.dumps(action).encode())[1]['tracked_content_retry']['state']=='CANCELLED'
+        assert application.handle('POST',f'/api/v1/content/{cid}/retry/actions',json.dumps(action).encode())[1]['tracked_content_retry']['state']=='CANCELLED'
+        adapter.enumerate_tracks=lambda _:pytest.fail('GET or cancelled command started transport')
+        assert application.handle('GET',f'/api/v1/videos/{cid}')[1]['video']['tracked_content_retry']['request']['state']=='CANCELLED'
+        following={'command_id':'after-api-cancel','expected_job_id':receipt['target_job_id']}
+        status,next_payload=application.handle('POST',f'/api/v1/content/{cid}/retry',json.dumps(following).encode())
+        assert status==202 and next_payload['tracked_content_retry']['state']=='QUEUED'
+>       assert application.handle('POST',f'/api/v1/content/{cid}/retry/actions',json.dumps(action).encode())[1]['tracked_content_retry']['state']=='CANCELLED'
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_tracked_content_retry.py:765: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <youtube_intel.local_api.LocalApiApplication object at 0x107fae5a0>
+method = 'POST', path = '/api/v1/content/newvideo001/retry/actions'
+body = b'{"request_id": "tracked-content-retry:v1:1a65736b4f2ea23e1f03777b329b3c5f24c81be517c48b75b956d920da7e7610", "operation": "CANCEL_BEFORE_DISPATCH", "command_id": "api-cancel", "expected_revision": 0}'
+
+    def handle(
+        self, method: str, path: str, body: bytes = b""
+    ) -> tuple[int, dict[str, object]]:
+        route = urlparse(path).path.rstrip("/") or "/"
+        try:
+            if method == "GET" and route == "/api/v1/local/native/capability":
+                return HTTPStatus.OK, {"capability": {"available": self._native_import is not None}}
+            creator_from_content = re.fullmatch(r"/api/v1/videos/([^/]+)/follow-(creator|channel)", route)
+            following_provider = "YOUTUBE" if route == "/api/v1/sources/channels" or (creator_from_content and creator_from_content[2] == "channel") else "BILIBILI"
+            if method == "POST" and (route in {"/api/v1/sources/creators", "/api/v1/sources/channels"} or creator_from_content):
+                if self._source_tracking is None:
+                    raise ApiError(HTTPStatus.CONFLICT, "TRACKING_UNAVAILABLE", "Source storage is unavailable.")
+                data = self._body(body)
+                self._only_keys(data, set() if creator_from_content else {"input", "processing_mode"})
+                mode = ProcessingPolicy.from_product_mode(self._string(data, "processing_mode") or "ORGANIZE_CONTENT")
+                if following_provider == "BILIBILI" and not CREATOR_FOLLOWING_AVAILABLE:
+                    # The capability is withdrawn, so no provider request is made,
+                    # no source row is created, and nothing is silently scheduled.
+                    raise ApiError(
+                        HTTPStatus.CONFLICT,
+                        "BILIBILI_" + CREATOR_FOLLOWING_CODE,
+                        CREATOR_FOLLOWING_UNAVAILABLE_MESSAGE,
+                    )
+                try:
+                    source = self._source_tracking.follow_content(creator_from_content[1], provider=following_provider) if creator_from_content else self._source_tracking.follow(self._string(data, "input", required=True) or "", provider=following_provider)
+                except (BilibiliError, TrackingError) as error:
+                    raise ApiError(_BILIBILI_ERROR_STATUS.get(error.code, HTTPStatus.UNPROCESSABLE_ENTITY), following_provider + "_" + error.code, "The public source could not be followed.") from None
+                if not creator_from_content and following_provider == "YOUTUBE":
+                    updated = self._service.update_source(source.source_id, processing_policy=mode)
+                    assert updated is not None
+                    source = updated
+                if self._source_run_wakeup is not None:
+                    self._source_run_wakeup()
+                return HTTPStatus.OK, {"source": self._source_projection(source)}
+            if method == "POST" and route == "/api/v1/sources/check-stale":
+                self._only_keys(self._body(body), set())
+                from youtube_intel.following_tracking import tracking_due
+                results: list[str] = []
+                unavailable: list[str] = []
+                # Scheduling follows the oldest due frontier, not the UI list's
+                # creation order, so newer follows cannot starve older providers.
+                with self._repository._connect() as connection:
+                    sources = connection.execute("SELECT s.source_id FROM source_tracking_state t JOIN source_subscriptions s USING(source_id) WHERE s.enabled=1 ORDER BY t.next_check_at,s.source_id").fetchall()
+                for row in sources:
+                    if len(results) >= 3:
+                        break
+                    source_id = row[0]
+                    tracked_source = self._repository.get_source_subscription(source_id)
+                    if tracked_source and tracked_source.provider == "BILIBILI" and not CREATOR_FOLLOWING_AVAILABLE:
+                        if tracking_due(self._repository, source_id, self._now()):
+                            unavailable.append("CAPABILITY_UNAVAILABLE")
+                        continue
+                    if tracking_due(self._repository, source_id, self._now()):
+                        from youtube_intel.following_scheduler import (
+                            AUTOMATIC_CHECK_PREFIX,
+                        )
+                        with self._repository._connect() as connection:
+                            due = connection.execute("SELECT next_check_at FROM source_tracking_state WHERE source_id=?", (source_id,)).fetchone()[0]
+                        result = self._service.check_source(source_id, command_id=AUTOMATIC_CHECK_PREFIX + source_id + ":" + due, automatic=True)
+                        results.append(result.status.value)
+                if self._source_run_wakeup is not None:
+                    self._source_run_wakeup()
+                return HTTPStatus.ACCEPTED, {"checks": results + unavailable[:3]}
+            tracked_retry_route=re.fullmatch(r'/api/v1/content/([^/]+)/retry(?:/(actions))?',route)
+            if tracked_retry_route and method in {'GET','POST'}:
+                if self._tracked_content_retry is None:
+                    raise ApiError(HTTPStatus.CONFLICT,'RETRY_CONTRACT_UNAVAILABLE','Content retry is unavailable in this session.')
+                try:
+                    if method=='GET':
+                        return HTTPStatus.OK,{'tracked_content_retry':self._tracked_content_retry.status(tracked_retry_route[1])}
+                    data=self._body(body)
+                    if tracked_retry_route[2]:
+                        self._only_keys(data,{'request_id','operation','command_id','expected_revision'})
+                        request_id=self._retry_string(data, 'request_id')
+                        retry_status=self._tracked_content_retry.status(tracked_retry_route[1])
+                        if retry_status['request'] is None or retry_status['request']['request_id']!=request_id:
+                            raise RetryConflict('Content retry action does not belong to this Content')
+                        revision=self._integer(data,'expected_revision',required=True)
+                        if revision is None:
+                            raise RetryConflict('Content retry revision is missing')
+                        receipt=self._tracked_content_retry.action(request_id,
+                            operation=self._retry_string(data, 'operation'),command_id=self._retry_string(data, 'command_id'),
+                            expected_revision=revision)
+                    else:
+                        self._only_keys(data,{'command_id','expected_job_id'})
+                        receipt=self._tracked_content_retry.request(tracked_retry_route[1],
+                            command_id=self._retry_string(data, 'command_id'),expected_job_id=self._retry_string(data, 'expected_job_id'))
+                except RetryIntegrity as error:
+                    raise ApiError(HTTPStatus.CONFLICT,'RETRY_INTEGRITY_INVALID','Content retry evidence could not be verified. No new request was sent.') from error
+                except RetryConflict as error:
+>                   raise ApiError(HTTPStatus.CONFLICT,'RETRY_CONFLICT','Content retry state changed or is busy. Refresh and try again.') from error
+E                   youtube_intel.local_api.ApiError: Content retry state changed or is busy. Refresh and try again.
+
+src/youtube_intel/local_api.py:897: ApiError
+=========================== short test summary info ============================
+FAILED tests/integration/test_tracked_content_retry.py::test_api_get_is_read_only_and_strict_command_routes_are_replayable
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 1 failures !!!!!!!!!!!!!!!!!!!!!!!!!!!
+1 failed, 90 deselected in 1.59s
