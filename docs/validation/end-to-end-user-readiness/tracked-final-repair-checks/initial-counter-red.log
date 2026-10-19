@@ -1,0 +1,111 @@
+FF.F                                                                     [100%]
+=================================== FAILURES ===================================
+______________ test_unrecorded_local_attempt_mutation_is_rejected ______________
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-526/test_unrecorded_local_attempt_0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x107f32270>
+
+    def test_unrecorded_local_attempt_mutation_is_rejected(tmp_path,monkeypatch):
+        repo,_,cid,old,_,_,_,service=_load_module('test_tracked_content_retry').failed_tracked(tmp_path,monkeypatch)
+        request=service.request(cid,command_id='independent-attempt-ledger',expected_job_id=old.job_id)
+        def stop():raise KeyboardInterrupt('fixture stop before any HTTP')
+        with monkeypatch.context() as p:
+            p.setattr(RetryWorker,'_preflight',lambda self:stop())
+            with pytest.raises(KeyboardInterrupt):service.run(request['request_id'])
+        with repo._connect() as connection:
+            before=dict(connection.execute('SELECT * FROM tracked_content_retry_executions').fetchone())
+            assert before['state']=='ACQUIRING' and before['local_attempt_count']==0
+            connection.execute('UPDATE tracked_content_retry_executions SET local_attempt_count=1,revision=revision+1 WHERE request_id=?',(request['request_id'],))
+            after=dict(connection.execute('SELECT * FROM tracked_content_retry_executions').fetchone())
+            assert after['events_json']==before['events_json']
+>       with pytest.raises(RetryIntegrity):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE RetryIntegrity
+
+.var/tracked-final-repair/test_new_invariants.py:21: Failed
+________ test_unrecorded_count_must_not_silently_remove_a_local_attempt ________
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-526/test_unrecorded_count_must_not0')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x108e6ac60>
+
+    def test_unrecorded_count_must_not_silently_remove_a_local_attempt(tmp_path,monkeypatch):
+        repo,_,cid,old,_,_,_,service=_load_module('test_tracked_content_retry').failed_tracked(tmp_path,monkeypatch)
+        r=service.request(cid,command_id='quota-effect',expected_job_id=old.job_id)
+        with monkeypatch.context() as p:
+            p.setattr(RetryWorker,'_preflight',lambda self:(_ for _ in ()).throw(KeyboardInterrupt('before HTTP')))
+            with pytest.raises(KeyboardInterrupt):service.run(r['request_id'])
+        with repo._connect() as c:
+            c.execute('UPDATE tracked_content_retry_executions SET revision=revision+1,local_attempt_count=1 WHERE request_id=?',(r['request_id'],))
+        calls=[]
+        def local_failure(*args,**kwargs):
+            calls.append('actual local attempt');raise OSError('isolated local failure')
+        monkeypatch.setattr(ExtractiveSummaryService,'create',local_failure)
+        result=service.run(r['request_id'])
+        while result['can_resume_local']:
+            service.action(r['request_id'],operation='RESUME_LOCAL',command_id='resume-'+str(result['revision']),expected_revision=result['revision'])
+            result=service.run(r['request_id'])
+        assert result['state']=='ATTENTION' and result['can_close_local']
+        with repo._connect() as c:
+            persisted=dict(c.execute('SELECT * FROM tracked_content_retry_executions').fetchone())
+        assert persisted['local_attempt_count']==3
+>       assert len(calls)==3, f"lost actual local attempt: only {len(calls)} actual local failures but persisted count is 3"
+E       AssertionError: lost actual local attempt: only 2 actual local failures but persisted count is 3
+E       assert 2 == 3
+E        +  where 2 = len(['actual local attempt', 'actual local attempt'])
+
+.var/tracked-final-repair/test_counter_closure.py:30: AssertionError
+____ test_rehashed_restore_must_reject_counter_not_bound_to_real_events[0] _____
+
+tmp_path = PosixPath('/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/pytest-of-hua/pytest-526/test_rehashed_restore_must_rej1')
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x108e6b470>
+counter = 0
+
+    @pytest.mark.parametrize('counter',[1,0])
+    def test_rehashed_restore_must_reject_counter_not_bound_to_real_events(tmp_path,monkeypatch,counter):
+        repo,_,cid,old,_,_,_,service=_load_module('test_tracked_content_retry').failed_tracked(tmp_path,monkeypatch)
+        r=service.request(cid,command_id='backup-counter',expected_job_id=old.job_id)
+        assert service.run(r['request_id'])['state']=='SUCCEEDED'
+        backup=BackupRestoreService(database=repo._database_path,data_root=service.data_root)
+        created=backup.create_backup();archive,_=backup.backup_download(created.backup_id)
+        with zipfile.ZipFile(archive) as z:
+            metadata={i.filename:i for i in z.infolist()}
+            members={n:z.read(n) for n in z.namelist()}
+        src=tmp_path/'original-snapshot.sqlite';src.write_bytes(members['database/state.sqlite'])
+        with sqlite3.connect(src) as c:
+            schema=c.execute("SELECT name,sql FROM sqlite_master WHERE type='trigger' ORDER BY name").fetchall()
+            columns=[r[1] for r in c.execute('PRAGMA table_info(tracked_content_retry_executions)')]
+            row=list(c.execute('SELECT * FROM tracked_content_retry_executions').fetchone())
+            assert row[columns.index('local_attempt_count')]==1
+            row[columns.index('local_attempt_count')]=counter
+            line='INSERT INTO "tracked_content_retry_executions" VALUES('+','.join(c.execute('SELECT quote(?)',(v,)).fetchone()[0] for v in row)+');'
+            dump=list(c.iterdump());count=sum(s.startswith('INSERT INTO "tracked_content_retry_executions" VALUES(') for s in dump);assert count==1
+            dump=[line if s.startswith('INSERT INTO "tracked_content_retry_executions" VALUES(') else s for s in dump]
+        # New isolated candidate rebuilt from normal SQLite dump. No DROP TRIGGER;
+        # final schema includes every original fixed trigger verbatim.
+        bad=tmp_path/'repacked-snapshot.sqlite'
+        with sqlite3.connect(bad) as c:
+            c.executescript('\n'.join(dump))
+            assert c.execute("SELECT name,sql FROM sqlite_master WHERE type='trigger' ORDER BY name").fetchall()==schema
+            assert c.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
+            assert c.execute('PRAGMA foreign_key_check').fetchall()==[]
+            c.execute('PRAGMA user_version=40')
+        members['database/state.sqlite']=bad.read_bytes()
+        manifest=json.loads(members['manifest.json']);body=members['database/state.sqlite']
+        manifest['database'].update(size_bytes=len(body),sha256=hashlib.sha256(body).hexdigest())
+        members['manifest.json']=json.dumps(manifest,sort_keys=True,separators=(',',':')).encode()
+        buf=io.BytesIO()
+        with zipfile.ZipFile(buf,'w') as z:
+            for name,body in members.items():z.writestr(metadata[name],body)
+        if counter==1:
+            staged=backup.stage_restore(buf.getvalue());assert staged.restore_id
+        else:
+>           with pytest.raises(BackupRestoreError):backup.stage_restore(buf.getvalue())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE BackupRestoreError
+
+.var/tracked-final-repair/test_counter_closure.py:72: Failed
+=========================== short test summary info ============================
+FAILED .var/tracked-final-repair/test_new_invariants.py::test_unrecorded_local_attempt_mutation_is_rejected
+FAILED .var/tracked-final-repair/test_counter_closure.py::test_unrecorded_count_must_not_silently_remove_a_local_attempt
+FAILED .var/tracked-final-repair/test_counter_closure.py::test_rehashed_restore_must_reject_counter_not_bound_to_real_events[0]
+3 failed, 1 passed in 6.34s

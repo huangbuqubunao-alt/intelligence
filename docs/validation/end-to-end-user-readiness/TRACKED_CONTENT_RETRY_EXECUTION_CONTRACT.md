@@ -11,6 +11,15 @@
 - 明确收到的typed adapter失败，在抛出前同事务持久化provider FAILED_FINAL及FAILED_KNOWN；不确定异常/超时走BaseException，不写known。若在执行终态前中断，恢复只结清既有known receipt，保留原错误code/message。若在known receipt前中断，仍是未知并关闭重发。
 - API的action按不可变request验证Content归属，不依赖“当前最新request”。新child产生后，同command重放旧取消仍返回旧receipt；错Content在任何写入前拒绝。action历史重放也完整验证provider/files/completion。
 
+## 本地次数的事件证明（最终窄返修）
+
+- `tracked_retry_store._verify_events()`始终从0顺序重放次数，所有阶段的execution投影次数及`CLOSE_HISTORY_LIMIT`输入次数必须等于重放值。纯heartbeat允许revision增加但不得消耗次数；不能据当前投影反推历史容量分支是否合法。
+- 新普通开始事件为`LOCAL_ATTEMPT_STARTED`（FINALIZING→FINALIZING），实际本地工作前同事务提交。新单槽容量结果为`LOCAL_INLINE_ATTENTION`或`LOCAL_INLINE_COMPLETED`（FINALIZING→ATTENTION/SUCCEEDED），实际本地工作后与结果和次数同事务提交。三个事件均必需唯一`local_attempt`对象，精确字段为`phase,before,after`；phase严格字符串`START`或`INLINE_RESULT`，before/after严格整数（拒bool/浮点），分别等于重放前次数和该次数+1。缺失、额外字段、错phase/epoch/状态/action、超过3次均拒绝。
+- INLINE_RESULT仅允许已有历史的事件数`i`满足`i + 4*(3-before) + 2 > 128`；`i`是结果前事件数，before仅来自已验证历史。未开始的普通COMPLETED或无见证旧容量结果不构成本地次数证明。普通失败结果须对应同owner已开始的attempt；不消耗次数的合同不可用ATTENTION仍保留原行为。
+- 兼容边界：34–39不变；候选040旧普通开始事件（同epoch、FINALIZING→FINALIZING的RECOVERED）可确定重放，正常历史保留。旧040容量inline没有充分开始/次数证明，拒绝读取但原记录/文件保留，不回填或伪造见证。040尚未正式采用，无正式数据迁移需求；新事件名使删除新START/INLINE_RESULT见证不能伪装成旧事件。
+- 固定反控包括：各阶段count±1、合法无事件heartbeat、所有新见证缺失/坏类型/多字段/错phase/epoch、重放count=1时容量阈值前后117/118/119条、旧普通开始正控/旧无证明inline拒绝、100+真实中断及全部3次真实本地失败。严格保持128/3，原错误/文件、Budget/Cloud和资格不变。
+
+
 ## 三种独立旧失败证明
 
 1. 初始generic：固定五项错误白名单、同码真实最后FAILED_FINAL attempt、终态job/lease及原有全部准入条件。不扩名单。
@@ -36,3 +45,5 @@ command_id为`history-limit:`加不含command_id的上述输入canonical hash。
 - 因此本版普通执行不能制造“126条+字幕已成功+仍有合法local attempt但只能Close”的状态。测试用真实worker反复中断于preflight前和local claim后；保留全部既有事件、真实attempt、3次本地配额及128硬界限，不扩常量、不裁历史。
 
 独立review仍须重跑基础REJECT三项、完整父链/容量负控与恢复矩阵。本文不是主控验收；root真实旧tracked全DATA副本GUI、重启及恢复仍为最终采用门禁。
+
+备份语义负控先用原ZipInfo原样重包做可stage/cancel正控；新增DATA项明确S_IFREG。两组独立恶意库提交后关闭，使用immutable=1新只读连接验证实际入ZIP主库的完整iterdump等于预期损坏快照，排除WAL遗漏；12项所有权/文件与4项prepared父链损坏须在语义校验层拒绝，不能靠ZIP特殊文件错误判绿。

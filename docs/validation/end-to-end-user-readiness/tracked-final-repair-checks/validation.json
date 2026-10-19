@@ -1,0 +1,109 @@
+{
+  "base": "b14788c6575ffb9796d62c72be8a6e4bb9ca255a",
+  "scope": "TRACKED F1/F2/F3 final narrow repair; no independent approval",
+  "source_sha256": {
+    "src/youtube_intel/tracked_retry_store.py": "30a9b9d39ac30213b9ec4d5c5be329cb8ac86e2df6e268024ea1cce36c9d82e9",
+    "src/youtube_intel/tracked_retry_worker.py": "af5ba6bce92dae361a77be43c8c29314a1948992b3875f327cd02a087cdc0a80",
+    "tests/integration/test_tracked_content_retry.py": "c3f77846fd0e1d2792080e17063b58a36bf71822fcedc4d42cf6ba4da6f22202",
+    "tests/integration/test_creator_following.py": "b1316353fb9c95c3603b828cffa3abc693a13a002bd1604c08aa5c3c566291f2"
+  },
+  "broad_suite_loaded_store_sha256": "71685f4ea883e71b2df55d9723799e3bbeb71354d23a830ef53be0b07fc17060",
+  "broad_suite_loaded_worker_sha256": "af5ba6bce92dae361a77be43c8c29314a1948992b3875f327cd02a087cdc0a80",
+  "loaded_timing": "11+7 started before final legacy result-capacity guard and 3 additional duplicate-JSON cases. Exact store reconstructed from the sole later guard edit; final 16 boundary and 21 semantic checks loaded final source. Do not claim broad suites loaded final store.",
+  "io": {
+    "external_network": 0,
+    "tokenizer": 0,
+    "model_weights_or_generation": 0,
+    "formal_user_data": 0
+  },
+  "limits": {
+    "events": 128,
+    "local_attempts": 3
+  },
+  "raw_logs": {
+    ".var/tracked-final-repair/affected-eleven.log": {
+      "sha256": "f4a335b0011ba08a97152b22c87827e630de3bb9af710cf36bda1ac3ad9fb256",
+      "summary": "475 passed, 1 warning in 410.76s (0:06:50)"
+    },
+    ".var/tracked-final-repair/counter-regression.log": {
+      "sha256": "858ed63705e13953fd5555bc5aa4fb9baec3fb50d52d22dadc35dc9a4b8e31ff",
+      "summary": "107 passed, 1 deselected in 125.79s (0:02:05)"
+    },
+    ".var/tracked-final-repair/extended-seven.log": {
+      "sha256": "87bca2e410ebda45dcb541ba23f5455f8426513e7bd41d13c3a0fe2330efaa4d",
+      "summary": "383 passed in 103.84s (0:01:43)"
+    },
+    ".var/tracked-final-repair/final-boundaries.log": {
+      "sha256": "61d1d8a29237e2177c27caae3cd7899f01ac3081c3f65b9b9028376bfb182144",
+      "summary": "8 passed, 100 deselected in 9.62s"
+    },
+    ".var/tracked-final-repair/final-phase-coverage.log": {
+      "sha256": "84023a0e62bebc3a60fa2ce476e8456d21da0429a41e5d3c362a3fb77c28e06e",
+      "summary": "5 passed, 103 deselected in 5.24s"
+    },
+    ".var/tracked-final-repair/final-semantic-closure.log": {
+      "sha256": "abdc99fdc38cf3ec7b908fb04075b6bbbf348cb66f8ed968e05c363de29124b4",
+      "summary": "21 passed, 87 deselected in 41.08s"
+    },
+    ".var/tracked-final-repair/final-source-boundaries.log": {
+      "sha256": "db9c4fa3d95c2f3bc5ddfa8c26cd2edcbabe73dfdca6ecb41db903adfb38e0e5",
+      "summary": "16 passed, 92 deselected in 17.40s"
+    },
+    ".var/tracked-final-repair/focused-first.log": {
+      "sha256": "59cb2bd1e2496adad1de951f3cf749a722a2c9d5a14d604e1900ff72a246be82",
+      "summary": "14 failed, 6 passed, 71 deselected in 38.81s"
+    },
+    ".var/tracked-final-repair/focused-second.log": {
+      "sha256": "1163c93d509ea691ac2bbabd6f3a09a1958a51b55613720feea9213c388f667a",
+      "summary": "1 failed, 29 passed, 70 deselected in 48.40s"
+    },
+    ".var/tracked-final-repair/mypy.log": {
+      "sha256": "fdac9028099af3d1af03b385379d26b4edebadf935fa7565d4d0fd38310e6db6",
+      "summary": null
+    },
+    ".var/tracked-final-repair/red-probes.log": {
+      "sha256": "6a4a849f63c7e3e5764c179a0e7ea07ee166c80b8fca38a49a91c7e4b0023b59",
+      "summary": "3 failed, 1 passed in 6.34s"
+    },
+    ".var/tracked-final-repair/ruff.log": {
+      "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "summary": null
+    },
+    ".var/tracked-final-repair/semantic-closure.log": {
+      "sha256": "ef6a0b722cdd0de6f97f9a3c49a95be455cf6be384c3c91cb701951914e3ade1",
+      "summary": "3 failed, 18 passed, 82 deselected in 40.22s"
+    }
+  },
+  "note": "Overlapping checks are not added together. Private original quota-effect probe now stops earlier at RetryIntegrity; formal heartbeat/worker test asserts no local work and legitimate quota test asserts three real failures.",
+  "commands": {
+    "red-probes.log": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src:tests:. <root-venv>/bin/python -m pytest -q .var/tracked-final-repair/test_new_invariants.py .var/tracked-final-repair/test_counter_closure.py",
+    "affected-eleven.log": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src:tests:. <root-venv>/bin/python -m pytest -q tests/integration/test_tracked_content_retry.py tests/integration/test_retained_subtitle_derivations.py tests/integration/test_provider_dispatch_crash_recovery.py tests/unit/test_state_transitions.py tests/integration/test_state_store.py tests/integration/test_runtime_composition.py tests/integration/test_youtube_following.py tests/unit/test_backup_restore.py tests/unit/test_local_api.py tests/integration/test_task023a_source_run_persistence.py tests/integration/test_task024_processing_orchestration.py",
+    "extended-seven.log": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src:tests:. <root-venv>/bin/python -m pytest -q tests/integration/test_subtitle_provider.py tests/integration/test_verified_timed_transcript.py tests/integration/test_creator_following.py tests/integration/test_background_following.py tests/unit/test_subtitle_policy.py tests/unit/test_subtitle_directory_limits.py tests/integration/test_phase11r_source_run_quiescence.py",
+    "final-source-boundaries.log": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src:tests:. <root-venv>/bin/python -m pytest -q tests/integration/test_tracked_content_retry.py -k 'history_capacity or inline_capacity or counter_replays or history_closure_receipt or duplicate_json'",
+    "final-semantic-closure.log": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src:tests:. <root-venv>/bin/python -m pytest -q tests/integration/test_tracked_content_retry.py -k 'rehashed_backup or prepared_history_parent or rehashed_restore_must or heartbeat_keeps'",
+    "ruff.log": "<root-venv>/bin/ruff check src tests/integration/test_tracked_content_retry.py tests/integration/test_creator_following.py",
+    "mypy.log": "<root-venv>/bin/mypy --strict src",
+    "final-phase-coverage.log": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src:tests:. <root-venv>/bin/python -m pytest -q tests/integration/test_tracked_content_retry.py -k counter_replays"
+  },
+  "root_venv": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv",
+  "unchanged_private_probe_sha256": {
+    ".var/tracked-final-repair/test_new_invariants.py": "9586573c61edd2dc8b01997e4d58958190a026f5a575df6a24a3579cb2d2ef08",
+    ".var/tracked-final-repair/test_counter_closure.py": "d1b02029410cfa560bb2e156687e4d059dc31f6cf2a25a8916089d5bc90e3189"
+  },
+  "product_and_protocol_test_commit": "f33633830fe9faa5660be1fe4f53d12d9b9903ef",
+  "latest_expectation_commit": "76e042b64eb21eec5b44d2e3669ba48dacb05cf5",
+  "final_phase_test_note": "After broad suites, explicit observed ACQUIRING/FINALIZING assertions were added and independently rerun: 5 passed. No product edits after final source-boundaries/semantic runs.",
+  "checked_in_logs": {
+    "affected-eleven.log": "f4a335b0011ba08a97152b22c87827e630de3bb9af710cf36bda1ac3ad9fb256",
+    "extended-seven.log": "87bca2e410ebda45dcb541ba23f5455f8426513e7bd41d13c3a0fe2330efaa4d",
+    "final-phase-coverage.log": "84023a0e62bebc3a60fa2ce476e8456d21da0429a41e5d3c362a3fb77c28e06e",
+    "final-semantic-closure.log": "abdc99fdc38cf3ec7b908fb04075b6bbbf348cb66f8ed968e05c363de29124b4",
+    "final-source-boundaries.log": "db9c4fa3d95c2f3bc5ddfa8c26cd2edcbabe73dfdca6ecb41db903adfb38e0e5",
+    "initial-counter-red.log": "6a4a849f63c7e3e5764c179a0e7ea07ee166c80b8fca38a49a91c7e4b0023b59",
+    "mypy.log": "fdac9028099af3d1af03b385379d26b4edebadf935fa7565d4d0fd38310e6db6",
+    "ruff.log": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    "zip-preserved-wal-red.log.gz": "2a41d5d35263a6e6b246c99698ba18c5f34cdffe105544a4784479e89ae52729"
+  },
+  "final_status": "IN_REVIEW; implementer clean STOP after docs commit; root independent fixed-diff review required",
+  "compressed_raw_log_note": "zip-preserved-wal-red.log.gz preserves the exact raw log bytes, including pytest whitespace; original uncompressed raw remains .var/tracked-final-repair/focused-first.log."
+}
