@@ -149,3 +149,14 @@ Check Now and creator enrollment. Historical source health is labeled as recorde
 history. YouTube uses the same tracking form/detail and its own capability; Bilibili
 withdrawal must not disable channels. A check's running notice is replaced by its
 settled health. Show the next eligible check without implying a scheduled daemon.
+
+
+## Tracked Content caption retry
+
+Use the existing Content panel, button row and bilingual status text. Keep one
+video caption acquisition distinct from a Following check. Queued, reading, local
+organization, attention, completed, cancelled and unknown outcomes stay explicit.
+Only server-authorized actions are shown; unknown or malformed receipts close
+actions. Preserve one command across uncertain responses and status polling.
+Local attention offers local-only retry and finish-with-text, with no inferred
+Intelligence/model eligibility. Detail polling must preserve feedback and focus.

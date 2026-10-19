@@ -1,0 +1,228 @@
+{
+  "snapshots": [
+    {
+      "language": "en",
+      "width": 1440,
+      "state": "ELIGIBLE",
+      "text": "Caption retry\n\nRetry native captions for this followed Content. This reads only this video and prepares source references and an extractive Summary.\n\nRetry captions\nRead caption retry status",
+      "overflow": false
+    },
+    {
+      "language": "en",
+      "width": 320,
+      "state": "ELIGIBLE",
+      "text": "Caption retry\n\nRetry native captions for this followed Content. This reads only this video and prepares source references and an extractive Summary.\n\nRetry captions\nRead caption retry status",
+      "overflow": false
+    },
+    {
+      "language": "zh-CN",
+      "width": 1440,
+      "state": "ELIGIBLE",
+      "text": "字幕重试\n\n为此关注内容重试原生字幕。仅读取当前视频，并整理来源引用与原文摘录摘要。\n\n重试字幕\n重新读取字幕重试状态",
+      "overflow": false
+    },
+    {
+      "language": "zh-CN",
+      "width": 320,
+      "state": "ELIGIBLE",
+      "text": "字幕重试\n\n为此关注内容重试原生字幕。仅读取当前视频，并整理来源引用与原文摘录摘要。\n\n重试字幕\n重新读取字幕重试状态",
+      "overflow": false
+    },
+    {
+      "language": "en",
+      "width": 1440,
+      "state": "QUEUED",
+      "text": "Caption retry\n\nCaption retry is queued. You can cancel before reading begins.\n\nCancel caption retry\nRead caption retry status",
+      "overflow": false
+    },
+    {
+      "language": "en",
+      "width": 320,
+      "state": "QUEUED",
+      "text": "Caption retry\n\nCaption retry is queued. You can cancel before reading begins.\n\nCancel caption retry\nRead caption retry status",
+      "overflow": false
+    },
+    {
+      "language": "zh-CN",
+      "width": 1440,
+      "state": "QUEUED",
+      "text": "字幕重试\n\n字幕重试已排队，开始读取前可以取消。\n\n取消字幕重试\n重新读取字幕重试状态",
+      "overflow": false
+    },
+    {
+      "language": "zh-CN",
+      "width": 320,
+      "state": "QUEUED",
+      "text": "字幕重试\n\n字幕重试已排队，开始读取前可以取消。\n\n取消字幕重试\n重新读取字幕重试状态",
+      "overflow": false
+    },
+    {
+      "language": "en",
+      "width": 1440,
+      "state": "CANCELLED",
+      "text": "Caption retry\n\nCaption retry was cancelled before reading began.\n\nRetry captions\nRead caption retry status",
+      "overflow": false
+    },
+    {
+      "language": "en",
+      "width": 320,
+      "state": "CANCELLED",
+      "text": "Caption retry\n\nCaption retry was cancelled before reading began.\n\nRetry captions\nRead caption retry status",
+      "overflow": false
+    },
+    {
+      "language": "zh-CN",
+      "width": 1440,
+      "state": "CANCELLED",
+      "text": "字幕重试\n\n已在开始读取前取消字幕重试。\n\n重试字幕\n重新读取字幕重试状态",
+      "overflow": false
+    },
+    {
+      "language": "zh-CN",
+      "width": 320,
+      "state": "CANCELLED",
+      "text": "字幕重试\n\n已在开始读取前取消字幕重试。\n\n重试字幕\n重新读取字幕重试状态",
+      "overflow": false
+    },
+    {
+      "language": "en",
+      "width": 1440,
+      "state": "ATTENTION",
+      "text": "Caption retry\n\nCaptions are saved, but local organization needs attention. Retry local organization or finish this attempt and keep the captured text.\n\nRetry local organization\nFinish and keep captured text\nRead caption retry status",
+      "overflow": false
+    },
+    {
+      "language": "en",
+      "width": 320,
+      "state": "ATTENTION",
+      "text": "Caption retry\n\nCaptions are saved, but local organization needs attention. Retry local organization or finish this attempt and keep the captured text.\n\nRetry local organization\nFinish and keep captured text\nRead caption retry status",
+      "overflow": false
+    },
+    {
+      "language": "zh-CN",
+      "width": 1440,
+      "state": "ATTENTION",
+      "text": "字幕重试\n\n字幕已保存，但本地整理需要处理。可以只重试本地整理，或结束本次整理并保留已读取的原文。\n\n只重试本地整理\n结束本次整理并保留原文\n重新读取字幕重试状态",
+      "overflow": false
+    },
+    {
+      "language": "zh-CN",
+      "width": 320,
+      "state": "ATTENTION",
+      "text": "字幕重试\n\n字幕已保存，但本地整理需要处理。可以只重试本地整理，或结束本次整理并保留已读取的原文。\n\n只重试本地整理\n结束本次整理并保留原文\n重新读取字幕重试状态",
+      "overflow": false
+    },
+    {
+      "language": "en",
+      "width": 1440,
+      "state": "FINALIZING",
+      "text": "Caption retry\n\nCaptions are saved. Preparing source references and Summary locally…\n\nRead caption retry status",
+      "overflow": false
+    },
+    {
+      "language": "en",
+      "width": 320,
+      "state": "FINALIZING",
+      "text": "Caption retry\n\nCaptions are saved. Preparing source references and Summary locally…\n\nRead caption retry status",
+      "overflow": false
+    },
+    {
+      "language": "zh-CN",
+      "width": 1440,
+      "state": "FINALIZING",
+      "text": "字幕重试\n\n字幕已保存，正在本地整理来源引用与摘要…\n\n重新读取字幕重试状态",
+      "overflow": false
+    },
+    {
+      "language": "zh-CN",
+      "width": 320,
+      "state": "FINALIZING",
+      "text": "字幕重试\n\n字幕已保存，正在本地整理来源引用与摘要…\n\n重新读取字幕重试状态",
+      "overflow": false
+    },
+    {
+      "language": "en",
+      "width": 1440,
+      "state": "SUCCEEDED",
+      "text": "Caption retry\n\nCaptions, source references and Summary are ready.\n\nRead caption retry status",
+      "overflow": false
+    },
+    {
+      "language": "en",
+      "width": 320,
+      "state": "SUCCEEDED",
+      "text": "Caption retry\n\nCaptions, source references and Summary are ready.\n\nRead caption retry status",
+      "overflow": false
+    },
+    {
+      "language": "zh-CN",
+      "width": 1440,
+      "state": "SUCCEEDED",
+      "text": "字幕重试\n\n字幕、来源引用与摘要已就绪。\n\n重新读取字幕重试状态",
+      "overflow": false
+    },
+    {
+      "language": "zh-CN",
+      "width": 320,
+      "state": "SUCCEEDED",
+      "text": "字幕重试\n\n字幕、来源引用与摘要已就绪。\n\n重新读取字幕重试状态",
+      "overflow": false
+    }
+  ],
+  "requests": [
+    {
+      "url": "http://127.0.0.1:5840/api/v1/content/newvideo001/retry",
+      "body": {
+        "expected_job_id": "92b1d2a8-4443-48e3-9184-17071b19ddb5",
+        "command_id": "ui:1792372182158:9hw3clk0n3f"
+      }
+    },
+    {
+      "url": "http://127.0.0.1:5840/api/v1/content/newvideo001/retry/actions",
+      "body": {
+        "request_id": "tracked-content-retry:v1:5f817502025edadca14d8b09024000808a53c86ac2c14789a08f1635ef9194ab",
+        "operation": "CANCEL_BEFORE_DISPATCH",
+        "expected_revision": 0,
+        "command_id": "ui:1792372187105:kia3uh2gsa"
+      }
+    },
+    {
+      "url": "http://127.0.0.1:5840/api/v1/content/newvideo001/retry",
+      "body": {
+        "expected_job_id": "tracked-content-retry-job:v1:3feea437f25c4755406cc988f3b9c4d08f449a1c87fc4289281c8c46c6b2d3ea",
+        "command_id": "ui:1792372194005:ma76bplh84"
+      }
+    },
+    {
+      "url": "http://127.0.0.1:5840/api/v1/content/newvideo001/retry/actions",
+      "body": {
+        "request_id": "tracked-content-retry:v1:64ba58d8518065ab79cd37fbb2cea582b3bb2b8839dea0158ac6271f6696bdbe",
+        "operation": "RESUME_LOCAL",
+        "expected_revision": 5,
+        "command_id": "ui:1792372199037:wr4whx3pbpn"
+      }
+    }
+  ],
+  "proof": {
+    "calls": [
+      "enumerate_tracks",
+      "read_track"
+    ],
+    "attempts": [
+      {
+        "job_id": "tracked-content-retry-job:v1:091d9ebd924022f4ab8011e5251df49236d7926028593d06bde8b2ecc40c3a01",
+        "attempt_count": 1,
+        "status": "SUCCEEDED"
+      },
+      {
+        "job_id": "tracked-content-retry-job:v1:3feea437f25c4755406cc988f3b9c4d08f449a1c87fc4289281c8c46c6b2d3ea",
+        "attempt_count": 0,
+        "status": "FAILED_FINAL"
+      }
+    ],
+    "content_id": "newvideo001"
+  },
+  "evidence_count": 2,
+  "errors": [],
+  "external": []
+}

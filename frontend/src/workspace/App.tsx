@@ -1,4 +1,5 @@
 import { AddEntry } from "./AddEntry";
+import { TrackedContentRetry, trackedRetryActive } from "./TrackedContentRetry";
 import { validFollowingDetailRead, validFollowingSourceRead } from "./CreatorFollowing";
 import { InterestRulesEditor, interestRuleValues, ruleDrafts, validInterestRule, type InterestRuleDraft, CreatorFollowForm, CreatorFollowingDetail, FollowCreatorFromContent, Tracking, trackingCopy, useCreatorFollowingCapability } from "./CreatorFollowing";
 import { BilibiliImport, BilibiliCaptionStatus, bilibiliStatus } from "./BilibiliImport";
@@ -153,6 +154,7 @@ type ContentItem = {
   work_kind?: string;
   source_id?: string;
   retry_allowed?: boolean;
+  tracked_content_retry?: unknown;
   caption_timing_status?: string;
   summary_preparation_status?: string;
   processing_job?: { status: string; stage: string; retry_at: string | null; error_code: string | null } | null;
@@ -1683,10 +1685,10 @@ function ContentPage(
   const [revision, setRevision] = useState(0);
   const list = useRemote<{ videos: ContentItem[] }>("/videos", refresh + revision);
   useEffect(() => {
-    if (!list.data?.videos.some(item => ["WAITING", "FETCHING", "READING_CAPTIONS", "ORGANIZING", "TRANSCRIPT_READY", "RETRY_PENDING", "RUNNING", "PENDING"].includes(item.processing_status))) return;
+    if (targetVideoId || !list.data?.videos.some(item => ["WAITING", "FETCHING", "READING_CAPTIONS", "ORGANIZING", "TRANSCRIPT_READY", "RETRY_PENDING", "RUNNING", "PENDING"].includes(item.processing_status))) return;
     const timer = setTimeout(() => setRevision(value => value + 1), 2000);
     return () => clearTimeout(timer);
-  }, [list.data]);
+  }, [list.data, targetVideoId]);
   if (list.error) return <ErrorState error={list.error} code={list.errorCode} onReload={list.reload} />;
   if (!list.data) return <Empty>Loading Content…</Empty>;
   if (targetVideoId) {
@@ -1720,7 +1722,7 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
   const creatorCapability = useCreatorFollowingCapability();
   const { t } = useUiLanguage();
   const [refresh, setRefresh] = useState(0);
-  const { data, error, errorCode, reload } = useRemote<ContentDetail>(`/videos/${id}`, refresh);
+  const { data, error, errorCode, reload } = useRemote<ContentDetail>(`/videos/${id}`, refresh, undefined, true);
   const [evidenceRefresh, setEvidenceRefresh] = useState(0);
   const transcriptionRefreshId = useRef<string | null>(null);
   const [transcriptionStatus, setTranscriptionStatus] = useState<string | null>(null);
@@ -1737,10 +1739,11 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
   const [cloudBusy, setCloudBusy] = useState(false);
   const [cloudError, setCloudError] = useState<string | null>(null);
   const [cancelFeedback, setCancelFeedback] = useState<string | null>(null);
+  const trackedRetryCommands = useRef(new Map<string, string>());
   const [retryBusy, setRetryBusy] = useState(false);
   const [retryFeedback, setRetryFeedback] = useState<string | null>(null);
   useEffect(() => {
-    if (!data || !["WAITING", "FETCHING", "READING_CAPTIONS", "ORGANIZING", "TRANSCRIPT_READY", "RETRY_PENDING", "RUNNING", "PENDING"].includes(data.video.processing_status)) return;
+    if (!data || (!trackedRetryActive(data.video.tracked_content_retry, id) && !["WAITING", "FETCHING", "READING_CAPTIONS", "ORGANIZING", "TRANSCRIPT_READY", "RETRY_PENDING", "RUNNING", "PENDING"].includes(data.video.processing_status))) return;
     const timer = setTimeout(() => setRefresh(value => value + 1), 2000);
     return () => clearTimeout(timer);
   }, [data]);
@@ -1784,6 +1787,7 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
           )
           : null}
       </Panel>
+      <TrackedContentRetry id={id} value={data.video.tracked_content_retry} commands={trackedRetryCommands} onRefresh={() => { setRefresh(value => value + 1); setEvidenceRefresh(value => value + 1); }} />
       {data.video.caption_timing_status === "UNAVAILABLE" && !data.video.source_id && <Panel title="Processing needs attention"><p>{t("The captured captions have no verified source timing. Content needs timed captions before Summary and source references can be prepared.")}</p></Panel>}
       {data.video.source_id && (["RETRY_REQUIRED", "FAILED"].includes(data.video.processing_status) || data.video.caption_timing_status === "UNAVAILABLE") && <Panel title="Processing needs attention">{data.video.caption_timing_status === "UNAVAILABLE" && <p>{t("The captured captions have no verified source timing. Content needs timed captions before Summary and source references can be prepared.")}</p>}<p>{t(data.video.retry_allowed === false ? "This Content needs source or processing readiness review before it can be processed again." : data.video.summary_preparation_status === "NEEDS_ATTENTION" ? "Timed captions are saved, but the Summary could not be prepared. Retry to organize this Content; your captured text and source references are kept." : data.video.caption_timing_status === "UNAVAILABLE" ? "Retry to check this source for native timed captions. Your captured text and history are kept." : "Processing needs attention. Check the source and processing history before retrying; retry may still fail.")}</p><button className="button button-secondary" disabled={retryBusy || data.video.retry_allowed === false} onClick={async () => { setRetryBusy(true); setRetryFeedback(null); try { await post(`/sources/${data.video.source_id}/check`, { command_id: commandId() }); setRetryFeedback("Retry accepted. Processing status will update here."); setRefresh(value => value + 1); } catch { setRetryFeedback("The source could not be checked. Try again later."); } finally { setRetryBusy(false); } }}>{t(retryBusy ? "Retrying…" : "Retry")}</button>{retryFeedback && <p role="status">{t(retryFeedback)}</p>}</Panel>}
       {isBilibili && data.video.processing_status !== "SOURCE_UNAVAILABLE" && <FollowCreatorFromContent id={id} capability={creatorCapability} />}
