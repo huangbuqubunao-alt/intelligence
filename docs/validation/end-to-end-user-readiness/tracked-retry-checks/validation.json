@@ -118,5 +118,25 @@
     "Independent cumulative review including original three REJECT findings still required",
     "Root real legacy tracked copy GUI/restart/all-table all-DATA restore still required",
     "No model qualification granted, no paid generation, no formal owner data modified"
+  ],
+  "failure_evidence": [
+    {
+      "artifact": "docs/validation/end-to-end-user-readiness/tracked-retry-checks/known-window-red.txt.gz",
+      "original_sha256": "b0e877bd779fae4b6aa90498ae5ba550d4803b0fdb8b8a5ff9737a35e5453603",
+      "compressed_sha256": "2b5321ddc87ede09c77800c44c1d95417fdd6496612fae7db2992c3a1ae6d520",
+      "encoding": "gzip; original byte-for-byte failure log retained"
+    },
+    {
+      "artifact": "docs/validation/end-to-end-user-readiness/tracked-retry-checks/known-window-diagnostic.txt.gz",
+      "original_sha256": "025270caf8c839b5599b45fc245b611de150818b9c8656a6017582181c455551",
+      "compressed_sha256": "f38dc291a85946ac0f14a3b7e000a480d33f0e949f766966a52f63a6b5eeff73",
+      "encoding": "gzip; original byte-for-byte failure log retained"
+    },
+    {
+      "artifact": "docs/validation/end-to-end-user-readiness/tracked-retry-checks/historical-action-red.txt.gz",
+      "original_sha256": "e0d9f5c532406cbed369ada9bf2960ef05a7bdbf7cc89e7c29ee7b313b3d7490",
+      "compressed_sha256": "fd1b17b982a78d3ed0fd89e305db29075dfa16d0514df83c1f36578bdbe634f2",
+      "encoding": "gzip; original byte-for-byte failure log retained"
+    }
   ]
 }
