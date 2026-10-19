@@ -1,3 +1,6 @@
+# 2026-10-19 19:54 中断成果核验
+两个实现会话曾额度terminal；新钟修复WT仍clean bc306d1零产品WIP，纯canonical留2个untracked文件原样。root仅QA：纯函数87PASS/strict114/Ruff，7相关组327PASS/32FAIL30.48s，失败均current39断言与已实施40不符；根控不含helper候选三代表亦3FAIL，非纯helper回归，已补原40作者test-only维护范围，禁止改历史39。额度提示恢复19:43已过，恢复同原handle/WT，不覆盖WIP。真实字幕根因修复、mixed、长协议/模型/完整恢复仍待；main未发布。
+
 # 2026-10-19 15:30 真实根因与窄返修READY
 原作者离线完整worker重现真实失败：claim先取at，reserve后取now创建started_at，takeover又写较早at到updated_at，register正确拒倒退。安排独立TRACKED-CLOCK-CAPTURE-RECOVERY任务修每事务真实一致时间并为严格可证capture已知失败提供新人工command出口，原失败不改、未知不放。LONG-CARD-CANONICAL仅新纯module/test与共享核心隔离并行；mixed/长协议生产仍等共享核心稳定。root478/956/static已绿；真GUI仍未过，不发布。
 
