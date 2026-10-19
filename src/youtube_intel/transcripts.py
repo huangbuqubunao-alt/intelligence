@@ -1024,7 +1024,8 @@ class _SourceMetadata:
 
 # Frozen recovery inputs are deliberately independent of mutable user settings.
 _RETAINED_LANGUAGES: Final = (("en",), ("zh", "en"))
-_RETAINED_PROVIDER_VERSION: Final = "2026.7.4"  # uv.lock, approved installed adapter
+# Exact historical adapter strings; never normalize or consult mutable installs.
+_RETAINED_PROVIDER_VERSIONS: Final = ("2026.7.4", "2026.07.04")
 _RETAINED_PROOF_VERSION: Final = "failed-caption-derivation-v1"
 
 
@@ -1209,15 +1210,17 @@ def _retained_caption_proof(
         run = matched_runs[0]
         identity = job_id.removeprefix("caption-repair-")
         refresh = int(identity[:15], 16)
-        language_matches = [p for p in _RETAINED_LANGUAGES if build_raw_request_hash(
+        input_matches = [(p, version) for p in _RETAINED_LANGUAGES
+                         for version in _RETAINED_PROVIDER_VERSIONS if build_raw_request_hash(
             video_id=video_id, language_preferences=p, provider="yt-dlp",
-            provider_version=_RETAINED_PROVIDER_VERSION, refresh_generation=refresh) == raw_hash]
-        _retention_require(len(language_matches) == 1)
+            provider_version=version, refresh_generation=refresh) == raw_hash]
+        _retention_require(len(input_matches) == 1)
+        languages, provider_version = input_matches[0]
         metadata = _decode_source_metadata(PurePosixPath(capture["relative_path"]).name, video_id=video_id)
         raw = read_managed(data_root, capture["relative_path"], maximum=SUBTITLE_QUALITY_POLICY.max_raw_bytes)
         expected = _capture_artifact_write(raw_request_hash=raw_hash, metadata=metadata,
             content_hash=hashlib.sha256(raw).hexdigest(), provider="yt-dlp",
-            provider_version=_RETAINED_PROVIDER_VERSION, video_id=video_id,
+            provider_version=provider_version, video_id=video_id,
             context=TranscriptJobContext(job_id=job_id, owner="proof-only", pipeline_version="proof-only", refresh_generation=refresh))
         _retention_require(all(capture[k] == getattr(expected,k) for k in (
             "artifact_id", "artifact_key", "video_id", "job_id", "relative_path", "content_hash", "provider", "model", "producer_version"))
@@ -1282,15 +1285,16 @@ def _retained_caption_proof(
             and parent_call[0]["operation"]=="subtitle.fetch" and parent_call[0]["model"] is None
             and parent_raw["producer_version"]==f"{parent_call[0]['prompt_version']}+{parent_call[0]['schema_version']}"
             and (parent_call[0]["prompt_version"],parent_call[0]["schema_version"]) in {
-                (SELECTION_POLICY_VERSION,FORMAT_POLICY_VERSION),("subtitle-selection-v1","subtitle-format-v1")})
+                (SELECTION_POLICY_VERSION,FORMAT_POLICY_VERSION),("subtitle-selection-v1","subtitle-format-v1"),
+                ("subtitle-selection-v2-original-tracks","subtitle-format-v1")})
         parent_request = ProviderCallRequest(operation="subtitle.fetch",normalized_input_hash=parent_hash,
             provider="yt-dlp",model=None,prompt_version=parent_call[0]["prompt_version"],schema_version=parent_call[0]["schema_version"],
             deterministic_artifact_key=_raw_artifact_key(parent_hash))
         _retention_require(parent_request.request_hash==parent_call[0]["request_hash"])
-        _validate_source_provenance(metadata,language_matches[0],video_id=video_id)
-        candidates.append((capture,run,job,attempts,language_matches[0],raw_hash,metadata,normalized,canonical_hash,relative,body,parents[0][0]))
+        _validate_source_provenance(metadata,languages,video_id=video_id)
+        candidates.append((capture,run,job,attempts,languages,provider_version,raw_hash,metadata,normalized,canonical_hash,relative,body,parents[0][0]))
     _retention_require(len(candidates) == 1)
-    capture,run,job,attempts,languages,raw_hash,metadata,normalized,canonical_hash,relative,body,parent_id = candidates[0]
+    capture,run,job,attempts,languages,provider_version,raw_hash,metadata,normalized,canonical_hash,relative,body,parent_id = candidates[0]
     original_execution = _retained_execution(connection, job, ledger, run, now=now, failed=True)
     video_id = str(capture["video_id"])
     video = connection.execute("SELECT * FROM videos WHERE video_id=?",(video_id,)).fetchone()
@@ -1332,7 +1336,7 @@ def _retained_caption_proof(
     successor_raw_hash = str(successor_raw["artifact_key"]).removeprefix("subtitle-source:")
     successor_refresh = int(str(successor_job["job_id"]).removeprefix("caption-repair-")[:15],16)
     _retention_require(build_raw_request_hash(video_id=video_id,language_preferences=languages,
-        provider="yt-dlp",provider_version=_RETAINED_PROVIDER_VERSION,refresh_generation=successor_refresh)==successor_raw_hash
+        provider="yt-dlp",provider_version=provider_version,refresh_generation=successor_refresh)==successor_raw_hash
         and successor_raw["producer_version"]==_RAW_PRODUCER_VERSION and successor_raw["provider"]=="yt-dlp" and successor_raw["model"] is None)
     successor_metadata = _decode_source_metadata(PurePosixPath(successor_raw["relative_path"]).name,video_id=video_id)
     successor_body = read_managed(data_root,successor_raw["relative_path"],maximum=SUBTITLE_QUALITY_POLICY.max_raw_bytes)
@@ -1394,7 +1398,7 @@ def _retained_caption_proof(
         successor_summary_artifact_id=summary["artifact_id"],reason="COMPLETION_PERSISTENCE_FAILED_WITH_VERIFIED_SUCCESSOR",
         created_at=now.isoformat(timespec="microseconds").replace("+00:00","Z"))
     archive["archive_id"] = _stable_hash({"proof_version":_RETAINED_PROOF_VERSION,"request_hash":ledger["request_hash"],"relative_path":relative})
-    payload = {"archive":archive,"input":{"language_preferences":languages,"provider_version":_RETAINED_PROVIDER_VERSION,
+    payload = {"archive":archive,"input":{"language_preferences":languages,"provider_version":provider_version,
         "refresh_generation":int(str(job["job_id"]).removeprefix("caption-repair-")[:15],16),
         "raw_request_hash":raw_hash,"source_metadata":_encode_source_metadata(metadata),
         "quality_flags":_encode_quality_flags(normalized.quality_flags),"parent_canonical_artifact_id":parent_id},
