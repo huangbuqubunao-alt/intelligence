@@ -1,0 +1,144 @@
+{
+  "task": "TASK-READINESS-MIXED-SUBTITLE-SETTLEMENT",
+  "status": "IMPLEMENTER_IN_REVIEW_NOT_DONE",
+  "base": "4e20793e08ce7c223e3e5dd03468e1f6424d1c8a",
+  "branch": "codex/task-readiness-mixed-subtitle-settlement",
+  "worktree": "/Users/hua/Documents/yia-worktrees/readiness-mixed-subtitle-settlement",
+  "code_commits": [
+    "9927324",
+    "19d8107"
+  ],
+  "python": "3.14.5 (main, May 10 2026, 10:21:34) [Clang 21.0.0 (clang-2100.0.123.102)]",
+  "module_origin_verified": "/Users/hua/Documents/yia-worktrees/readiness-mixed-subtitle-settlement/src/youtube_intel/state.py",
+  "source_file_sha256": {
+    "src/youtube_intel/state.py": "71b2e3a5b4fc00153ea4ada604676221916517be84938b8fcf4dffc91da9aa63",
+    "src/youtube_intel/transcripts.py": "619ff5a7b819e9355898c27c7b79044354a762c2a66817ea979d764f58268ecd",
+    "tests/integration/test_retained_subtitle_derivations.py": "0bb556355ed88f4191faff472b3d2a71754e9d52dc99a65cce641f5501a33f8e",
+    "frontend/src/workspace/App.tsx": "a685706031a58a7316f55c64e5caa0acd2ce1a683f22b6808d4d423898e1cc2b",
+    "frontend/src/workspace/uiLanguage.tsx": "5043d78fe0cf5f83e5ab042fc4c6e46c9819cc37837cfccebf53ce194f64194b",
+    "frontend/src/workspace/App.backup-feedback-context.test.tsx": "231708204126ad556b05abff2a2f7226869ec60fe703af2c0a06488e71efea48",
+    "frontend/src/workspace/App.tracked-result-refresh.test.tsx": "95d7e684d71b2e0565943db94bc01e0ab364e7a89d396e8b0090bbb5868dcaa2",
+    "DESIGN.md": "03a52abc1151c77bfd246c74d9abb2117e1cae6f313610e5758fe2452e0ae8d7"
+  },
+  "validation": {
+    "subtitle_full": {
+      "passed": 193,
+      "seconds": 265.27
+    },
+    "additional_exact_database_proof_negative": {
+      "passed": 1,
+      "seconds": 3.04
+    },
+    "distinct_current_subtitle_cases": 194,
+    "adjacent_backup_runtime_tracked": {
+      "passed": 198,
+      "seconds": 192.84,
+      "warnings": 1
+    },
+    "schema39_backup_and_forged_archive": {
+      "passed": 19,
+      "deselected": 11,
+      "seconds": 55.94
+    },
+    "frontend": {
+      "passed": 964,
+      "files": 36,
+      "seconds": 19.05
+    },
+    "mypy_strict_source_files": 115,
+    "ruff_src_tests": "PASS",
+    "typescript": "PASS",
+    "production_build": "PASS",
+    "compileall": "PASS",
+    "original_v1_predicate_ast_equal": true
+  },
+  "true_stock": {
+    "source": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/schema38-mixed-failure-frozen-20261018",
+    "original_table_count": 74,
+    "migrated_table_count": 77,
+    "data_files": 19,
+    "original_complete_files_unchanged": true,
+    "original_sql_unchanged": true,
+    "copied_complete": true,
+    "readiness_before": {
+      "ready": false,
+      "reasons": [
+        "PROVIDER_CALL_UNRESOLVED"
+      ],
+      "message": "A local or provider call is unresolved.",
+      "restore_pending": false,
+      "last_restore": null
+    },
+    "readiness_after": {
+      "ready": true,
+      "reasons": [],
+      "message": "Core data is quiescent and ready for backup.",
+      "restore_pending": false,
+      "last_restore": {
+        "completed_at": "2026-10-19T17:07:32Z",
+        "message": "Restore completed successfully.",
+        "restore_id": "aa60984281fe4b4595ca5e92e1a1d1ad",
+        "state": "APPLIED"
+      }
+    },
+    "settled_calls": 3,
+    "archived": [
+      "c03e58f404fbcca714e4bc4d23bf7e6adc7eb10d017f658b46ea6ab9b13c24d8"
+    ],
+    "all_unaffected_tables_equal": true,
+    "all_data_equal": true,
+    "full_restore_restart_tables_and_data_equal": true,
+    "no_network": true,
+    "backup_sha256": "ff622b7e048f771bfca4b37b5beeb8ebc39a05ac066298b2cebb496cbe3e8644",
+    "original_all_table_rows_preserved_except_exact_three_terminal_calls": true,
+    "original_migration_receipts_preserved": true,
+    "provider_call_keyset_unchanged": true,
+    "exact_three_call_changes": [
+      "32ee6ce9b42d2da62b8d747571b9577e4e1abeb5a4797188015770bdfe8c1e20",
+      "65f7dbbcf7ec738405c23787fe4b81aae7b651c14af3fba5ad0221195ded547d",
+      "c03e58f404fbcca714e4bc4d23bf7e6adc7eb10d017f658b46ea6ab9b13c24d8"
+    ]
+  },
+  "original_full_physical_file_count": 24,
+  "original_complete_file_index_sha256": "2f51e62cea7c167653dd1a82d1e39c50175094a1269ee375939ddd1e79c86b7d",
+  "original_database_sha256": "332c490d781a5f98c9e1f6f2fbe0bc2fa5c012667209dafe82327b5b99e37caa",
+  "private_evidence_root": "/Users/hua/Documents/yia-worktrees/readiness-mixed-subtitle-settlement/.var/mixed-subtitle-settlement",
+  "private_evidence_sha256": {
+    "backend-final.log": "4a67391e91b50842047cd388ad927511b984f53dfc4c1114db382390c0ad4bcb",
+    "zip-proof-corrected.log": "bed8f9aed0b84ae03413e7b99fbeed83d071a34efaf0751616cf00292cffb19b",
+    "backend-corrected.log": "9b896b81ecaaa3d95728d0f8343e1fae5154adc8675aa43c3732b6b3c67b2a48",
+    "historical-parent.log": "fb66110d0ab11d675cf5cc8bd496a4cf9ea435cddce988c29a888a8adc8873d8",
+    "backend-adjacent.log": "f0e6ec4ba57aa2459e6512124a22d6f3799f5aff1219f7f42135977b471f5243",
+    "local39-compat.log": "68fa46adc83c6537f4e0ef9ffc73480e817754b9b2d702bc40dc11048a363ccd",
+    "frontend-final2.log": "35c3aa448a52f1886b2c666d679a70972b5eeda4bbd4f57db080a166221497e5",
+    "ts-final2.log": "0073b777d6b85b5e4d2ac79b723aeebbde034ccb34fcc14bd2f0666746071629",
+    "build-final.log": "3f07f08050f67eae18fd0deb86e82ddb75f78059dcc0382fcf09ba9c0b7dbd09",
+    "mypy-final.log": "79b3c8416f9f9d31149254e4dbffb8ffc7ddc4950d295c2ec7f2ec31e27c95e1",
+    "ruff-complete.log": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    "frozen-proof.json": "20cf7c8d201f1584da651489d331f6c8067568ef821533ef41b30d32fbd27ff7",
+    "prove_frozen.py": "fac6d200dec35ab23520bce4b7f0ee3f38ee3e28a52189349736243918852614",
+    "verify_preservation.py": "ee31f535eefaace0079833597ce4fe05300b840a89d72191f9bd52ea865cf5a9",
+    "preservation.log": "68cb7177fcd67ee6ac3103f724c42f14591107e8448eddb5b653470cf5597cf4"
+  },
+  "scope_guards": {
+    "schema_dependency_config_credentials_formaldata_modified": false,
+    "real_network_or_model_execution": false,
+    "all_original_sql_and_files_unchanged": true,
+    "full_backend_delegated_to_root": true,
+    "real_macos_gui_acceptance_pending": true,
+    "independent_review_pending": true
+  },
+  "preserved_failures": [
+    "red.log",
+    "backend-targeted.log",
+    "frontend-red.log",
+    "frontend-red-corrected.log",
+    "frontend-red-valid-fixture.log",
+    "frontend-focused.log",
+    "frontend-final.log",
+    "frozen-proof.log",
+    "frozen-proof2.log",
+    "frozen-proof3.log",
+    "zip-final.log"
+  ]
+}
