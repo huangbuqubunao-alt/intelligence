@@ -1,3 +1,7 @@
+# 2026-10-19 工程 ACCEPTED，真实用户验收仍待
+
+独立76ad28f审查固定166ab392：原F1/F2/F3关闭，无新增发现；最终478 PASS、strict111/Ruff/diff及原7反证与独立计数/ZIP反证成立。root接受累计工程，按原分范围提交顺序整合，已接受picker不重复；不代表真旧tracked GUI、重启、全表/all DATA恢复或完整Goal通过。原4950db REJECT和中间harness失败全部保留。模型资格关闭、main不变。
+
 2026-10-19 窄返修 IN_REVIEW：唯一作者long_lossless_codec_oct19已166ab39207136e5fe572ad730a9cf73a0494b221 clean STOP（f336338核心+witness/F2测试、76e042b精确latest40、166ab39合同证据）。候选仍未接受；根本反控三红已修，真实ZipInfo+WAL main dump证明语义负控，广测475/383加载早一处旧结果容量guard，最终16/21/5补验覆盖最终guard，需独立fixed SHA复核，不能把广测当final全载。Reviewer subtitle_recovery_preflight_oct19；root仍不产品写。
 
 2026-10-19 F1必要精化决定（同一未采用40窄返修，不改表/SQL）：既有事件JSON可追加严格typed local_attempt witness，START与INLINE_RESULT各含exact before/after；统一重放只从0与已证明phase/epoch/事件推导计数，inline容量判断也只据该历史值，最后与projection核对，禁止循环反推。合法heartbeat revision间隙无attempt，0..3/128上限不变；已知旧正常same-epoch start可确定重放，缺充分start/witness的旧inline候选历史拒绝，不backfill或伪造记录并完整保留。实现者更新EXECUTION_CONTRACT/handoff，独立复审覆盖全phase计数±1/typed witness/容量阈值±1及旧正常历史、真实3local/百次中断和有效ZIP反控。此40尚未正式采用的兼容边界必须如实记录，不能宣称所有旧候选任意损坏可恢复。
