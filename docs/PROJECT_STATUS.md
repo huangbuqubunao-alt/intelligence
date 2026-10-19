@@ -20,7 +20,7 @@
 | 项目 | 外部证据 | 当前状态 |
 |---|---|---|
 | tracked Content Retry40 | 原166ab392独立76ad28f APPROVE；root源码逐字已审、478相关backend/956frontend/strict113/TS/build/Ruff/diff全通过 | 工程已整合；真用户验收发现新失败，未DONE |
-| TRACKED-CLOCK-CAPTURE-RECOVERY | 真旧72表18DATA正常factory迁移40，GUI排队/取消/实际重启不复活、新command可准入；新真实请求保存capture后LOCAL_FINALIZATION_FAILED；77表19DATA全等冻结。确证claim .924732/provider.started .929415差4.683ms，旧worker把updated_at倒写。作者新WT递增1µs/5ms/UTC三反控RED→单TX一致时间修复全GREEN，原guard保留；最终60专项PASS/59.42s | 唯一共享核心writer long_lossless_codec_oct19，WT readiness-tracked-clock-capture-recovery/basebc306d1。补严格1或2VERIFIED capture/ABSENT buffer闭包后继新command，不改旧终态或泛化LOCAL_RESOURCE。未最终STOP/独立接受 |
+| TRACKED-CLOCK-CAPTURE-RECOVERY | 真旧72表18DATA正常factory迁移40，GUI排队/取消/实际重启不复活、新command可准入；新真实请求保存capture后LOCAL_FINALIZATION_FAILED；77表19DATA全等冻结。确证claim .924732/provider.started .929415差4.683ms，旧worker把updated_at倒写。作者新WT递增1µs/5ms/UTC三反控RED→单TX一致时间修复全GREEN，原guard保留；最终60专项PASS/59.42s | 作者c036847 cleanSTOP，test-onlyf4e3b7f/core2d4a338/docs；60/566/478各单次PASS/strict114/Ruff/AST84通过。独立subtitle_recovery_preflight_oct19在fresh readiness-tracked-clock-capture-review审查；完整backend rootQA ffcb3ed（仅叠加已接受pure新文件）session49511正在运行，407 src/tests SHAguard，未ACCEPT/根控整合或真GUI通过 |
 | 当前Schema40测试维护 | root纯canonical相关组327PASS/32FAIL30.48s，32在旧latest39断言；root无helper候选三代表亦3FAIL。不是纯helper回归 | 已逐条84项AST/24文件核对current40、future41与锁定旧039 rollback；原扩围562PASS/4历史slice失败295.23s，四slice精确24→25后4项复验PASS。最终24文件与旧11组同源复验进行；完整backend将交root固定SHA独立跑，与review并行，不省略完整门禁 |
 | LONG-CARD-CANONICAL纯切片 | 仅新module/test/handoff，作者11ffb558独立8307ad3 APPROVE，282及1324对抗通过；root已整合c91a02b/fc666f3并282/strict114/Ruff/diff复验通过。DEL使通用3x倍率推导不成立，现按shape真实最大2,093,375B<3MB证明，不影响行为 | 仅纯切片DONE，作者/Reviewer cleanSTOP；一直unwired，无资格/Schema/执行接线 |
 | MIXED-SUBTITLE-SETTLEMENT | 完整真实旧库受控completion fault后新字幕成功，旧v1/429和v2/LOCAL_RESOURCE混合使维护互阻；真实proof版本2026.07.04和历史parent pair遗漏，内存exact双补正全23字段114Evidence PASS、文件不变；74表19DATA现场已冻结 | BLOCKED等共享钟修复接受后串行。有限exact历史兼容+全部unresolved并集同TX/任一失败全回滚+7个正确ZipInfo语义负控。新增最小Backup UI准确区分DB/文件异常与真实在途任务 |
@@ -39,7 +39,7 @@
 
 ## 资源与资格
 
-19:55正常available_memory_bytes复查：RAM3.769GiB<8.101GiB、disk196.836GiB通过；CLOSED，0load/0生成。自有6128/6129与标签页已关闭，未关闭用户应用/删除文件；资源请求异步已发，工程继续。不要以旧快照、假warm或调低门槛加载。
+20:22用户明确释放后正常available_memory_bytes复查：RAM5.924GiB<当前最低8.101GiB（差约2.18GiB）、disk196.540GiB通过；CLOSED，0load/0生成。自有6128/6129与标签页已关闭，未关闭用户应用/删除文件；已回复实际值，工程继续。长profile最终容量尚未冻结，不把此最低值当其资格。不要以旧快照、假warm或调低门槛加载。
 
 所有失败8b/9b原profile继续不合格；6144原单例协议通过但语义P1 REJECT，不能重跑同profile/修补输出。新长profile0实际生成；六scope/lang资格仍false。Deep Analysis未合格禁用，Cloud零调用、凭据未读写；Bilibili Creator明确暂不可用。
 

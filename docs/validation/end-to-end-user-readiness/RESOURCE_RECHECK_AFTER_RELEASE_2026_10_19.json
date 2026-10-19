@@ -1,0 +1,12 @@
+{
+  "at": "2026-10-19T12:22:58.404285+00:00",
+  "available_memory_bytes": 6360989696,
+  "available_memory_GiB": 5.924,
+  "free_disk_GiB": 196.54,
+  "required_current_cold_memory_GiB": 8.101,
+  "required_disk_GiB": 10,
+  "resource_gate_only": false,
+  "model_loads": 0,
+  "generations": 0,
+  "note": "Fresh recheck after user explicit resource release; long native profile final capacity not frozen, this is current minimum only, no qualification grant."
+}
