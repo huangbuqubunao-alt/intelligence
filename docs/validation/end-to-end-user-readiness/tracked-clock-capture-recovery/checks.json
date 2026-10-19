@@ -1,0 +1,157 @@
+{
+  "base": "bc306d16289f7cf8938851f05c9b35b9cc4f9781",
+  "maintenance_commit": "f4e3b7fe5889fc90039ff123e8d84453f1e48bca",
+  "fixed_product_tests_commit": "2d4a338745156356a6d8383a69f32c0270a3489c",
+  "environment": {
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PYTHONPATH": "src:tests:."
+  },
+  "cwd": "/Users/hua/Documents/yia-worktrees/readiness-tracked-clock-capture-recovery",
+  "load_binding": "All loaded source/test bytes equal2d4a338, verified against loaded-source-hashes.json after commits; no product/test edit during final60/566/478 runs.",
+  "commands": [
+    {
+      "argv": [
+        "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/integration/test_tracked_clock_capture_recovery.py"
+      ],
+      "result": "PASS",
+      "exact_summary": "60 passed in 59.42s",
+      "log": "capture-final-focused.log.gz"
+    },
+    {
+      "argv": [
+        "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/integration/test_bilibili_content.py",
+        "tests/integration/test_bilibili_three_provider.py",
+        "tests/integration/test_deep_analysis_persistence.py",
+        "tests/integration/test_dogfood_day2_schema36.py",
+        "tests/integration/test_local_text_input_proof.py",
+        "tests/integration/test_phase12_live_feed.py",
+        "tests/integration/test_research_backup_restore.py",
+        "tests/integration/test_research_diff.py",
+        "tests/integration/test_task016c_phase_h2c_lineage_schema.py",
+        "tests/integration/test_task018_domain_persistence.py",
+        "tests/integration/test_task018a_claim_classification.py",
+        "tests/integration/test_task018b_timed_evidence.py",
+        "tests/integration/test_task020_preference_feedback.py",
+        "tests/integration/test_task021_source_policy_filtering.py",
+        "tests/integration/test_task022_personalized_distillation.py",
+        "tests/integration/test_task022b_verified_outbound_input.py",
+        "tests/integration/test_task023_topic_timeline.py",
+        "tests/integration/test_task023b_distillation_reservation.py",
+        "tests/integration/test_task025_weekly_foundation.py",
+        "tests/integration/test_task025a_saved_intelligence.py",
+        "tests/integration/test_v1x_knowledge_delta.py",
+        "tests/integration/test_v1x_phase1b_backup_restore.py",
+        "tests/unit/test_dogfood_day1_product.py",
+        "tests/unit/test_evidence_translation.py"
+      ],
+      "result": "PASS",
+      "exact_summary": "566 passed in 305.01s",
+      "log": "schema40-final-full.log.gz"
+    },
+    {
+      "argv": [
+        "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/integration/test_tracked_content_retry.py",
+        "tests/integration/test_retained_subtitle_derivations.py",
+        "tests/integration/test_provider_dispatch_crash_recovery.py",
+        "tests/unit/test_state_transitions.py",
+        "tests/integration/test_state_store.py",
+        "tests/integration/test_runtime_composition.py",
+        "tests/integration/test_youtube_following.py",
+        "tests/unit/test_backup_restore.py",
+        "tests/unit/test_local_api.py",
+        "tests/integration/test_task023a_source_run_persistence.py",
+        "tests/integration/test_task024_processing_orchestration.py"
+      ],
+      "result": "PASS",
+      "exact_summary": "478 passed, 1 warning in 420.52s",
+      "log": "existing-affected-final.log.gz"
+    },
+    {
+      "argv": [
+        "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/mypy",
+        "--strict",
+        "src"
+      ],
+      "result": "PASS",
+      "exact_summary": "Success: no issues found in 114 source files",
+      "log": "final-mypy.log.gz"
+    },
+    {
+      "argv": [
+        "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/ruff",
+        "check",
+        "src",
+        "tests/integration/test_tracked_clock_capture_recovery.py"
+      ],
+      "result": "PASS",
+      "exact_summary": "All checks passed!",
+      "log": "final-ruff.log.gz"
+    },
+    {
+      "argv": [
+        "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/ruff",
+        "check",
+        "tests/integration/test_bilibili_content.py",
+        "tests/integration/test_bilibili_three_provider.py",
+        "tests/integration/test_deep_analysis_persistence.py",
+        "tests/integration/test_dogfood_day2_schema36.py",
+        "tests/integration/test_local_text_input_proof.py",
+        "tests/integration/test_phase12_live_feed.py",
+        "tests/integration/test_research_backup_restore.py",
+        "tests/integration/test_research_diff.py",
+        "tests/integration/test_task016c_phase_h2c_lineage_schema.py",
+        "tests/integration/test_task018_domain_persistence.py",
+        "tests/integration/test_task018a_claim_classification.py",
+        "tests/integration/test_task018b_timed_evidence.py",
+        "tests/integration/test_task020_preference_feedback.py",
+        "tests/integration/test_task021_source_policy_filtering.py",
+        "tests/integration/test_task022_personalized_distillation.py",
+        "tests/integration/test_task022b_verified_outbound_input.py",
+        "tests/integration/test_task023_topic_timeline.py",
+        "tests/integration/test_task023b_distillation_reservation.py",
+        "tests/integration/test_task025_weekly_foundation.py",
+        "tests/integration/test_task025a_saved_intelligence.py",
+        "tests/integration/test_v1x_knowledge_delta.py",
+        "tests/integration/test_v1x_phase1b_backup_restore.py",
+        "tests/unit/test_dogfood_day1_product.py",
+        "tests/unit/test_evidence_translation.py"
+      ],
+      "result": "PASS",
+      "exact_summary": "All checks passed!",
+      "log": "final-maintenance-ruff.log.gz"
+    }
+  ],
+  "pending": {
+    "complete_backend": "RUNNING root session49511 since2026-10-19T12:24:47Z, isolated readiness-clock-full-qa atffcb3ed0bb47a771e161df5a3ed675ef007a8821 (2d4a338 plus accepted purecanonical c91a02b two new source/test files). No terminal result claimed. Required before acceptance/integration.",
+    "genuine_gui": "Root on retained full test runtime after review; offline adapter positives are not network/GUI acceptance.",
+    "combination_with_root_c91a02b": "Root owns accepted purecanonical composition; not cherry-picked or claimed verified here."
+  },
+  "real_io": {
+    "http": 0,
+    "models": 0,
+    "tokenizer": 0,
+    "asr": 0,
+    "cloud": 0,
+    "original_frozen_writes": 0
+  },
+  "additional_checks": {
+    "AST": "84 reviewed changes in24 test files; companion script/input/output retained",
+    "diffcheck": "git diff --check basebc306d1 and current working diff PASS",
+    "source_freeze": "114 source and30 changed product/test byte hashes match commit2d4a338",
+    "warning": "Existing duplicate-path data/transcripts/video-1.txt ZIP negative test emitted one expected zipfile UserWarning; not suppressed.",
+    "original_stopped_worktree": "clean at166ab39207136e5fe572ad730a9cf73a0494b221",
+    "scoped_review": "5 source files (4 modified+1new),1new test,24 maintained tests,task contract/handoff/evidence only; no Schema/deps/config/frontend/CODE_FILES changes"
+  }
+}

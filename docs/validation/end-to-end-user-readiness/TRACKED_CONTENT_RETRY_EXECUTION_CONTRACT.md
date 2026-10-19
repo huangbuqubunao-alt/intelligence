@@ -47,3 +47,12 @@ command_id为`history-limit:`加不含command_id的上述输入canonical hash。
 独立review仍须重跑基础REJECT三项、完整父链/容量负控与恢复矩阵。本文不是主控验收；root真实旧tracked全DATA副本GUI、重启及恢复仍为最终采用门禁。
 
 备份语义负控先用原ZipInfo原样重包做可stage/cancel正控；新增DATA项明确S_IFREG。两组独立恶意库提交后关闭，使用immutable=1新只读连接验证实际入ZIP主库的完整iterdump等于预期损坏快照，排除WAL遗漏；12项所有权/文件与4项prepared父链损坏须在语义校验层拒绝，不能靠ZIP特殊文件错误判绿。
+
+## 真实推进时钟与已知 capture 失败后继（2026-10-19）
+
+- 一次原子 claim/reserve/takeover 只取一次真实 `claimed_at`，所有该事务的 started/updated/available 及五分钟 lease 由此派生。后续 IO/heartbeat 使用真实时刻；已有 `started_at > updated_at`、未来 updated/available 或倒退时钟继续拒绝，不夹值、不重写坏历史。取得 claim 后若时钟倒退到 execution.updated_at 之前，在调用 adapter 方法前 fence。原 `register_subtitle_source_capture` 严格时序校验保持原样。
+- 第四种旧失败证明仅适用于本 tracked 协议：execution 为 `FAILED/LOCAL_FINALIZATION_FAILED`、local count=0，真实 job/provider attempt 各=1；job 为 `FAILED_FINAL/INVALID_RESPONSE`，provider 为 `FAILED_FINAL/LOCAL_RESOURCE`，双方 message 精确为 `LOCAL_FINALIZATION_FAILED`，dispatch 为 `FAILED_KNOWN`。execution/job/provider/dispatch/终事件终结时间完全相等，无 live owner/lease/response/cost 或完成 authority。唯一真实 attempt 与首 CLAIMED 时刻、worker owner 格式、错误、终结时刻及 lease 一致；末两事件严格为同 epoch 的 DISPATCH_INTENT、FAILED。全历史仍先经过现有 typed/action/hash/source/request 证明。
+- 文件闭包仅允许既有协议的 1 或 2 个 VERIFIED CAPTURE，各有精确 ABSENT WRITE_BUFFER，数量及路径无额外项。逐项重建 producer/proof/hash，读取实际受限 DATA bytes；buffer 必须在磁盘上确实不存在，ABSENT 不是 partial。两 capture 必须是同源、同规范语言/请求语言、按时间先 plain 后 native VTT/SRT 的原生计时替代；不增加原 cap2。capture artifact 可以不存在或为完全匹配的非权威 source-capture 记录；任何 canonical/timed/Summary/Evidence 或其他 job artifact/文件均拒绝。
+- `verify_old_failure(..., data_root=...)` 在既有迭代父链的每层复验上述完整闭包。`read(..., data_root=...)` 向下传递显式 DATA root；遇这种祖先而缺 root 时关闭。服务/current/status、历史/action、worker、reader 及 Backup 路径均使用绑定 root。真实旧 attempt owner 没有独立事件 owner 字段，故仅验证已有真实 attempt 的 worker owner 格式与当前 owner 全空；新 command 还必须取得父 request EX 锁，不能仅据 lease 判定 writer 退出。
+- 此分支由 execution 的专属错误类别选择，provider 变成 generic 可重试错误也不能降级走普通名单。原 generic `KNOWN_RETRYABLE`、128/3、typed counter witness、1051 祖先及 34–39/LOCAL39/Cloud 行为不变。只允许用户显式新 command、新 target/provider identity；同 command 幂等、父记录只消费一次。原 FAILED、capture bytes、原错误及次数均不改；未知 dispatch/partial/额外文件/未结清 writer 继续关闭。
+- 该 narrow predicate 已只读核对原真实 3975B capture 失败，允许其作为新 command 的严格父证明；这不是执行或真实 GUI 正控。离线推进时钟/1–2 capture/重启/完整 Backup restore 为实现证据，真实 GUI 与全仓后端/独立 review 仍由 root 在固定候选上验收。旧 2 个 unindexed DATA 属独立 MIXED 缺口，不在此修复或绕过。

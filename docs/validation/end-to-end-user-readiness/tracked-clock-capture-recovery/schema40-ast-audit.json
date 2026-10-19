@@ -1,0 +1,578 @@
+[
+  {
+    "file": "tests/integration/test_bilibili_content.py",
+    "line": 56,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[14].body[3].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_bilibili_three_provider.py",
+    "line": 154,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[27].body[19].body[2].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_bilibili_three_provider.py",
+    "line": 205,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[29].body[16].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_deep_analysis_persistence.py",
+    "line": 222,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[18].body[2].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_dogfood_day2_schema36.py",
+    "line": 36,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[9].body[4].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_dogfood_day2_schema36.py",
+    "line": 48,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[9].body[8].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_dogfood_day2_schema36.py",
+    "line": 68,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[10].body[8].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_dogfood_day2_schema36.py",
+    "line": 82,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[11].body[9].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_local_text_input_proof.py",
+    "function": "test_migration39_failure_preserves38_all_rows_and_data",
+    "reason": "Explicit historical039 failure selection and normal full initialize40; all original38 rollback/data assertions unchanged."
+  },
+  {
+    "file": "tests/integration/test_local_text_input_proof.py",
+    "line": 115,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[17].body[10].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_phase12_live_feed.py",
+    "line": 176,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[22].body[44].body[1].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_research_backup_restore.py",
+    "line": 39,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[12].body[6].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_research_diff.py",
+    "line": 128,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[12].body[14].body[3].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_research_diff.py",
+    "line": 148,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[13].body[13].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task016c_phase_h2c_lineage_schema.py",
+    "line": 145,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[21].body[4].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task016c_phase_h2c_lineage_schema.py",
+    "line": 146,
+    "before": "039_add_local_text_input_proofs.sql",
+    "after": "040_add_tracked_content_retry.sql",
+    "ast": "module.body[21].body[5].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task016c_phase_h2c_lineage_schema.py",
+    "line": 148,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[21].body[6].body[0].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task016c_phase_h2c_lineage_schema.py",
+    "ast": "module.body[21].body[7].test.comparators[0].elts",
+    "reason": "Append actual040 history entry, preserve all preceding migrations including039."
+  },
+  {
+    "file": "tests/integration/test_task016c_phase_h2c_lineage_schema.py",
+    "line": 199,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[22].body[2].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task016c_phase_h2c_lineage_schema.py",
+    "line": 200,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[22].body[3].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task016c_phase_h2c_lineage_schema.py",
+    "line": 397,
+    "before": "INSERT INTO schema_migrations (version, name, checksum, applied_at) VALUES (40, '040_future.sql', ?, ?)",
+    "after": "INSERT INTO schema_migrations (version, name, checksum, applied_at) VALUES (41, '041_future.sql', ?, ?)",
+    "ast": "module.body[29].body[3].body[0].value.args[0]"
+  },
+  {
+    "file": "tests/integration/test_task016c_phase_h2c_lineage_schema.py",
+    "line": 401,
+    "before": "PRAGMA user_version = 40",
+    "after": "PRAGMA user_version = 41",
+    "ast": "module.body[29].body[3].body[1].value.args[0]"
+  },
+  {
+    "file": "tests/integration/test_task016c_phase_h2c_lineage_schema.py",
+    "line": 405,
+    "before": "DELETE FROM schema_migrations WHERE version = 40",
+    "after": "DELETE FROM schema_migrations WHERE version = 41",
+    "ast": "module.body[29].body[5].body[0].value.args[0]"
+  },
+  {
+    "file": "tests/integration/test_task016c_phase_h2c_lineage_schema.py",
+    "line": 406,
+    "before": "PRAGMA user_version = 39",
+    "after": "PRAGMA user_version = 40",
+    "ast": "module.body[29].body[5].body[1].value.args[0]"
+  },
+  {
+    "file": "tests/integration/test_task016c_phase_h2c_lineage_schema.py",
+    "line": 425,
+    "before": "PRAGMA user_version = 40",
+    "after": "PRAGMA user_version = 41",
+    "ast": "module.body[30].body[6].body[0].value.args[0]"
+  },
+  {
+    "file": "tests/integration/test_task016c_phase_h2c_lineage_schema.py",
+    "line": 428,
+    "before": "PRAGMA user_version = 39",
+    "after": "PRAGMA user_version = 40",
+    "ast": "module.body[30].body[8].body[0].value.args[0]"
+  },
+  {
+    "file": "tests/integration/test_task018_domain_persistence.py",
+    "line": 142,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[18].body[2].test.comparators[0].elts[0]"
+  },
+  {
+    "file": "tests/integration/test_task018_domain_persistence.py",
+    "line": 143,
+    "before": "039_add_local_text_input_proofs.sql",
+    "after": "040_add_tracked_content_retry.sql",
+    "ast": "module.body[18].body[2].test.comparators[0].elts[1]"
+  },
+  {
+    "file": "tests/integration/test_task018_domain_persistence.py",
+    "line": 146,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[18].body[3].body[0].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task018_domain_persistence.py",
+    "line": 181,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[19].body[4].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task018_domain_persistence.py",
+    "line": 182,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[19].body[5].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task018a_claim_classification.py",
+    "line": 110,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[16].body[1].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task018a_claim_classification.py",
+    "line": 112,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[16].body[2].body[0].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task018a_claim_classification.py",
+    "line": 154,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[17].body[8].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task018b_timed_evidence.py",
+    "line": 34,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[9].body[1].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task018b_timed_evidence.py",
+    "line": 111,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[12].body[9].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task020_preference_feedback.py",
+    "line": 36,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[14].body[2].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task020_preference_feedback.py",
+    "line": 422,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[27].body[21].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task021_source_policy_filtering.py",
+    "line": 40,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[14].body[1].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task021_source_policy_filtering.py",
+    "line": 107,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[20].body[2].body[0].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task021_source_policy_filtering.py",
+    "line": 116,
+    "before": 24,
+    "after": 25,
+    "ast": "module.body[20].body[3].test.left.slice.lower.operand"
+  },
+  {
+    "file": "tests/integration/test_task021_source_policy_filtering.py",
+    "ast": "module.body[20].body[3].test.comparators[0].elts",
+    "reason": "Append actual040 history entry, preserve all preceding migrations including039."
+  },
+  {
+    "file": "tests/integration/test_task021_source_policy_filtering.py",
+    "line": 173,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[21].body[11].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task022_personalized_distillation.py",
+    "line": 671,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[43].body[1].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task022_personalized_distillation.py",
+    "line": 1023,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[53].body[20].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task022_personalized_distillation.py",
+    "line": 1692,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[72].body[2].body[0].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task022_personalized_distillation.py",
+    "line": 1706,
+    "before": 24,
+    "after": 25,
+    "ast": "module.body[72].body[3].test.left.slice.lower.operand"
+  },
+  {
+    "file": "tests/integration/test_task022_personalized_distillation.py",
+    "ast": "module.body[72].body[3].test.comparators[0].elts",
+    "reason": "Append actual040 history entry, preserve all preceding migrations including039."
+  },
+  {
+    "file": "tests/integration/test_task022_personalized_distillation.py",
+    "line": 1952,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[74].body[16].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task022_personalized_distillation.py",
+    "line": 1953,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[74].body[17].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task022_personalized_distillation.py",
+    "line": 2031,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[75].body[10].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task022_personalized_distillation.py",
+    "line": 2094,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[76].body[13].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task022_personalized_distillation.py",
+    "line": 2286,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[78].body[16].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task022_personalized_distillation.py",
+    "line": 3270,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[104].body[45].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task022_personalized_distillation.py",
+    "line": 3332,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[105].body[17].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task022_personalized_distillation.py",
+    "line": 3511,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[106].body[43].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task022_personalized_distillation.py",
+    "line": 3807,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[109].body[0].body[19].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task022_personalized_distillation.py",
+    "line": 3879,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[110].body[19].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task022_personalized_distillation.py",
+    "line": 4154,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[114].body[18].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task022_personalized_distillation.py",
+    "line": 4329,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[116].body[15].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task022_personalized_distillation.py",
+    "line": 4387,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[117].body[21].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task022b_verified_outbound_input.py",
+    "line": 76,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[14].body[1].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task023_topic_timeline.py",
+    "line": 45,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[13].body[1].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task023_topic_timeline.py",
+    "line": 202,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[19].body[2].body[0].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task023_topic_timeline.py",
+    "line": 214,
+    "before": 24,
+    "after": 25,
+    "ast": "module.body[19].body[3].test.left.slice.lower.operand"
+  },
+  {
+    "file": "tests/integration/test_task023_topic_timeline.py",
+    "ast": "module.body[19].body[3].test.comparators[0].elts",
+    "reason": "Append actual040 history entry, preserve all preceding migrations including039."
+  },
+  {
+    "file": "tests/integration/test_task023_topic_timeline.py",
+    "line": 254,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[20].body[7].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task023b_distillation_reservation.py",
+    "line": 118,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[19].body[1].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task023b_distillation_reservation.py",
+    "line": 369,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[27].body[4].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task023b_distillation_reservation.py",
+    "line": 454,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[29].body[9].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task023b_distillation_reservation.py",
+    "line": 648,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[37].body[7].body[0].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task025_weekly_foundation.py",
+    "line": 95,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[24].body[1].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task025a_saved_intelligence.py",
+    "line": 39,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[14].body[1].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task025a_saved_intelligence.py",
+    "line": 43,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[14].body[3].body[1].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task025a_saved_intelligence.py",
+    "line": 50,
+    "before": 24,
+    "after": 25,
+    "ast": "module.body[14].body[3].body[3].test.left.slice.lower.operand"
+  },
+  {
+    "file": "tests/integration/test_task025a_saved_intelligence.py",
+    "ast": "module.body[14].body[3].body[3].test.comparators[0].elts",
+    "reason": "Append actual040 history entry, preserve all preceding migrations including039."
+  },
+  {
+    "file": "tests/integration/test_task025a_saved_intelligence.py",
+    "line": 600,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[29].body[26].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task025a_saved_intelligence.py",
+    "line": 649,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[29].body[47].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_task025a_saved_intelligence.py",
+    "line": 686,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[30].body[13].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_v1x_knowledge_delta.py",
+    "line": 515,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[34].body[15].body[1].test.comparators[0]"
+  },
+  {
+    "file": "tests/integration/test_v1x_phase1b_backup_restore.py",
+    "line": 76,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[17].body[5].test.comparators[0]"
+  },
+  {
+    "file": "tests/unit/test_dogfood_day1_product.py",
+    "line": 63,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[13].body[14].body[1].test.comparators[0]"
+  },
+  {
+    "file": "tests/unit/test_evidence_translation.py",
+    "line": 76,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[22].body[1].test.comparators[0]"
+  },
+  {
+    "file": "tests/unit/test_evidence_translation.py",
+    "line": 329,
+    "before": 39,
+    "after": 40,
+    "ast": "module.body[30].body[7].test.comparators[0]"
+  }
+]

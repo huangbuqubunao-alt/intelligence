@@ -1,0 +1,249 @@
+{
+  "notice": "Retrospective read-only snapshot receipt, not a raw execution log. No transcript contents included. Diagnostic invocations used source166 and offline captured bytes; none is a genuine GUI/network positive.",
+  "request_id": "tracked-content-retry:v1:ed60ddcda745868ae2902255161e51b83c06429ca23cb3c96d11f37f61282392",
+  "diagnostics": {
+    "original_frozen": {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/tracked-real-failure-frozen-20261019",
+      "main_bytes_sha256": "a32b39955e0f6a04ae41c4f7b305b6b9e27fce6c512fc1f7e396bd52d3cc8758",
+      "wal_bytes": 0,
+      "execution": {
+        "state": "FAILED",
+        "error_code": "LOCAL_FINALIZATION_FAILED",
+        "local_attempt_count": 0,
+        "revision": 3,
+        "fencing_epoch": 1
+      },
+      "events": [
+        "ADMITTED",
+        "CLAIMED",
+        "DISPATCH_INTENT",
+        "FAILED"
+      ],
+      "job": {
+        "status": "FAILED_FINAL",
+        "attempt_count": 1,
+        "last_error_code": "INVALID_RESPONSE"
+      },
+      "provider": {
+        "status": "FAILED_FINAL",
+        "attempt_count": 1,
+        "last_error_code": "LOCAL_RESOURCE",
+        "started_at": "2026-10-19T07:21:21.929415Z",
+        "updated_at": "2026-10-19T07:21:29.020389Z",
+        "finished_at": "2026-10-19T07:21:29.020389Z"
+      },
+      "files": [
+        {
+          "relative_path": "transcripts/OYp5j2RihPE/b5bd8ba862ab1b327c7fec424a70bead0424021f1a8094cd04d8b263e00dcdb9/.tracked-buffer-f5441dee68e04a63ecc08deb4feb388c6bad43b7862d95bc8e240b9470aa6a45",
+          "role": "WRITE_BUFFER",
+          "state": "ABSENT",
+          "expected_sha256": "f2d45a97da3b2e72e89345d366f3f0852e217b68824e51826c66e58f84fcd51d",
+          "expected_size_bytes": 3975,
+          "observed_sha256": null,
+          "observed_size_bytes": null
+        },
+        {
+          "relative_path": "transcripts/OYp5j2RihPE/b5bd8ba862ab1b327c7fec424a70bead0424021f1a8094cd04d8b263e00dcdb9/source.WyJtYW51YWxfc3VidGl0bGUiLCJlbiIsImVuIiwianNvbjMiXQ.json3",
+          "role": "CAPTURE",
+          "state": "VERIFIED",
+          "expected_sha256": "f2d45a97da3b2e72e89345d366f3f0852e217b68824e51826c66e58f84fcd51d",
+          "expected_size_bytes": 3975,
+          "observed_sha256": "f2d45a97da3b2e72e89345d366f3f0852e217b68824e51826c66e58f84fcd51d",
+          "observed_size_bytes": 3975
+        }
+      ],
+      "strict_successor_predicate_parent": "tracked-content-retry:v1:ed60ddcda745868ae2902255161e51b83c06429ca23cb3c96d11f37f61282392",
+      "strict_successor_predicate": "PASS (no admission/write/HTTP)"
+    },
+    "direct_register_reconstruction": {
+      "path": "/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/tracked-register-readonly-diagnosis-j5izn2q_",
+      "main_bytes_sha256": "84d5c92607ed746fc8041384448f185cde66c58f2f02ed7d2830b62b40811cd8",
+      "wal_bytes": 20632,
+      "execution": {
+        "state": "ACQUIRING",
+        "error_code": null,
+        "local_attempt_count": 0,
+        "revision": 2,
+        "fencing_epoch": 1
+      },
+      "events": [
+        "ADMITTED",
+        "CLAIMED",
+        "DISPATCH_INTENT"
+      ],
+      "job": {
+        "status": "RUNNING",
+        "attempt_count": 1,
+        "last_error_code": null
+      },
+      "provider": {
+        "status": "PENDING",
+        "attempt_count": 1,
+        "last_error_code": null,
+        "started_at": "2026-10-19T07:21:21.929415Z",
+        "updated_at": "2026-10-19T07:21:21.929415Z",
+        "finished_at": null
+      },
+      "files": [
+        {
+          "relative_path": "transcripts/OYp5j2RihPE/b5bd8ba862ab1b327c7fec424a70bead0424021f1a8094cd04d8b263e00dcdb9/.tracked-buffer-f5441dee68e04a63ecc08deb4feb388c6bad43b7862d95bc8e240b9470aa6a45",
+          "role": "WRITE_BUFFER",
+          "state": "ABSENT",
+          "expected_sha256": "f2d45a97da3b2e72e89345d366f3f0852e217b68824e51826c66e58f84fcd51d",
+          "expected_size_bytes": 3975,
+          "observed_sha256": null,
+          "observed_size_bytes": null
+        },
+        {
+          "relative_path": "transcripts/OYp5j2RihPE/b5bd8ba862ab1b327c7fec424a70bead0424021f1a8094cd04d8b263e00dcdb9/source.WyJtYW51YWxfc3VidGl0bGUiLCJlbiIsImVuIiwianNvbjMiXQ.json3",
+          "role": "CAPTURE",
+          "state": "VERIFIED",
+          "expected_sha256": "f2d45a97da3b2e72e89345d366f3f0852e217b68824e51826c66e58f84fcd51d",
+          "expected_size_bytes": 3975,
+          "observed_sha256": "f2d45a97da3b2e72e89345d366f3f0852e217b68824e51826c66e58f84fcd51d",
+          "observed_size_bytes": 3975
+        }
+      ]
+    },
+    "original_worker_offline_red": {
+      "path": "/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/tracked-full-offline-replay-ivopaljz",
+      "main_bytes_sha256": "bf4e6e1a82e8ab2eaac50eae3ccc50292fa7d58219e1b7630eb3dff568e6969f",
+      "wal_bytes": 0,
+      "execution": {
+        "state": "FAILED",
+        "error_code": "LOCAL_FINALIZATION_FAILED",
+        "local_attempt_count": 0,
+        "revision": 3,
+        "fencing_epoch": 1
+      },
+      "events": [
+        "ADMITTED",
+        "CLAIMED",
+        "DISPATCH_INTENT",
+        "FAILED"
+      ],
+      "job": {
+        "status": "FAILED_FINAL",
+        "attempt_count": 1,
+        "last_error_code": "INVALID_RESPONSE"
+      },
+      "provider": {
+        "status": "FAILED_FINAL",
+        "attempt_count": 1,
+        "last_error_code": "LOCAL_RESOURCE",
+        "started_at": "2026-10-19T07:27:11.736257Z",
+        "updated_at": "2026-10-19T07:27:11.899294Z",
+        "finished_at": "2026-10-19T07:27:11.899294Z"
+      },
+      "files": [
+        {
+          "relative_path": "transcripts/OYp5j2RihPE/b5bd8ba862ab1b327c7fec424a70bead0424021f1a8094cd04d8b263e00dcdb9/.tracked-buffer-f5441dee68e04a63ecc08deb4feb388c6bad43b7862d95bc8e240b9470aa6a45",
+          "role": "WRITE_BUFFER",
+          "state": "ABSENT",
+          "expected_sha256": "f2d45a97da3b2e72e89345d366f3f0852e217b68824e51826c66e58f84fcd51d",
+          "expected_size_bytes": 3975,
+          "observed_sha256": null,
+          "observed_size_bytes": null
+        },
+        {
+          "relative_path": "transcripts/OYp5j2RihPE/b5bd8ba862ab1b327c7fec424a70bead0424021f1a8094cd04d8b263e00dcdb9/source.WyJtYW51YWxfc3VidGl0bGUiLCJlbiIsImVuIiwianNvbjMiXQ.json3",
+          "role": "CAPTURE",
+          "state": "VERIFIED",
+          "expected_sha256": "f2d45a97da3b2e72e89345d366f3f0852e217b68824e51826c66e58f84fcd51d",
+          "expected_size_bytes": 3975,
+          "observed_sha256": "f2d45a97da3b2e72e89345d366f3f0852e217b68824e51826c66e58f84fcd51d",
+          "observed_size_bytes": 3975
+        }
+      ]
+    },
+    "memory_only_fresh_timestamp_counterfactual": {
+      "path": "/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/tracked-offline-positive-timestamp-f9hgor_a",
+      "main_bytes_sha256": "73714ac59265022ac275e348f267cc86e733e6cc0ae66f4722eb5674ac5dd35d",
+      "wal_bytes": 0,
+      "execution": {
+        "state": "SUCCEEDED",
+        "error_code": null,
+        "local_attempt_count": 1,
+        "revision": 5,
+        "fencing_epoch": 1
+      },
+      "events": [
+        "ADMITTED",
+        "CLAIMED",
+        "DISPATCH_INTENT",
+        "RECOVERED",
+        "LOCAL_ATTEMPT_STARTED",
+        "COMPLETED"
+      ],
+      "job": {
+        "status": "SUCCEEDED",
+        "attempt_count": 1,
+        "last_error_code": null
+      },
+      "provider": {
+        "status": "SUCCEEDED",
+        "attempt_count": 1,
+        "last_error_code": null,
+        "started_at": "2026-10-19T07:29:08.650429Z",
+        "updated_at": "2026-10-19T07:29:08.671503Z",
+        "finished_at": "2026-10-19T07:29:08.671503Z"
+      },
+      "files": [
+        {
+          "relative_path": "transcripts/OYp5j2RihPE/b5bd8ba862ab1b327c7fec424a70bead0424021f1a8094cd04d8b263e00dcdb9/.tracked-buffer-7a4963d5aead7212fce780cb44e79893afd39f3a33aa82c48309e5427a3e67e1",
+          "role": "WRITE_BUFFER",
+          "state": "ABSENT",
+          "expected_sha256": "544990c7658fc8c59eb9a1f89853584c5f2d42d2c7ce9264969b119660c1e35d",
+          "expected_size_bytes": 1095,
+          "observed_sha256": null,
+          "observed_size_bytes": null
+        },
+        {
+          "relative_path": "transcripts/OYp5j2RihPE/b5bd8ba862ab1b327c7fec424a70bead0424021f1a8094cd04d8b263e00dcdb9/.tracked-buffer-f5441dee68e04a63ecc08deb4feb388c6bad43b7862d95bc8e240b9470aa6a45",
+          "role": "WRITE_BUFFER",
+          "state": "ABSENT",
+          "expected_sha256": "f2d45a97da3b2e72e89345d366f3f0852e217b68824e51826c66e58f84fcd51d",
+          "expected_size_bytes": 3975,
+          "observed_sha256": null,
+          "observed_size_bytes": null
+        },
+        {
+          "relative_path": "transcripts/OYp5j2RihPE/b5bd8ba862ab1b327c7fec424a70bead0424021f1a8094cd04d8b263e00dcdb9/canonical.7f9443a6600d3cbbba8035534916bfe6e31275f033fc5fea4aff6fc55f422d90.-.txt",
+          "role": "CANONICAL_DERIVATION",
+          "state": "VERIFIED",
+          "expected_sha256": "544990c7658fc8c59eb9a1f89853584c5f2d42d2c7ce9264969b119660c1e35d",
+          "expected_size_bytes": 1095,
+          "observed_sha256": "544990c7658fc8c59eb9a1f89853584c5f2d42d2c7ce9264969b119660c1e35d",
+          "observed_size_bytes": 1095
+        },
+        {
+          "relative_path": "transcripts/OYp5j2RihPE/b5bd8ba862ab1b327c7fec424a70bead0424021f1a8094cd04d8b263e00dcdb9/source.WyJtYW51YWxfc3VidGl0bGUiLCJlbiIsImVuIiwianNvbjMiXQ.json3",
+          "role": "CAPTURE",
+          "state": "VERIFIED",
+          "expected_sha256": "f2d45a97da3b2e72e89345d366f3f0852e217b68824e51826c66e58f84fcd51d",
+          "expected_size_bytes": 3975,
+          "observed_sha256": "f2d45a97da3b2e72e89345d366f3f0852e217b68824e51826c66e58f84fcd51d",
+          "observed_size_bytes": 3975
+        },
+        {
+          "relative_path": "transcripts/summaries/.tracked-buffer-0cc6ccaeb3ee079b7b98ade7f8171343847f2295be53c8d2246ff0b7d085ac16",
+          "role": "WRITE_BUFFER",
+          "state": "ABSENT",
+          "expected_sha256": "f9624d0e4b45ad75c7d837a0bdc271121fce6dcb3b483cecd929ca00ca579674",
+          "expected_size_bytes": 3778,
+          "observed_sha256": null,
+          "observed_size_bytes": null
+        },
+        {
+          "relative_path": "transcripts/summaries/7d564ac22c5effdf80c2a200716caa2d7628c474bf84d1d34982b2486a94da26.json",
+          "role": "SUMMARY_DERIVATION",
+          "state": "VERIFIED",
+          "expected_sha256": "f9624d0e4b45ad75c7d837a0bdc271121fce6dcb3b483cecd929ca00ca579674",
+          "expected_size_bytes": 3778,
+          "observed_sha256": "f9624d0e4b45ad75c7d837a0bdc271121fce6dcb3b483cecd929ca00ca579674",
+          "observed_size_bytes": 3778
+        }
+      ]
+    }
+  }
+}

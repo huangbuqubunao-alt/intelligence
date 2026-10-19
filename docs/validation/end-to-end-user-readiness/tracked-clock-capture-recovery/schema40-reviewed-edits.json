@@ -1,0 +1,471 @@
+[
+  {
+    "file": "tests/unit/test_evidence_translation.py",
+    "line": 76,
+    "before": "    assert repository.initialize(now=NOW).version == 39",
+    "after": "    assert repository.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/unit/test_evidence_translation.py",
+    "line": 329,
+    "before": "    assert repository.initialize(now=NOW).version == 39",
+    "after": "    assert repository.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/unit/test_dogfood_day1_product.py",
+    "line": 63,
+    "before": "        assert connection.execute('pragma user_version').fetchone()[0] == 39",
+    "after": "        assert connection.execute('pragma user_version').fetchone()[0] == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_dogfood_day2_schema36.py",
+    "line": 36,
+    "before": "    assert repo.initialize(now=NOW).version == 39",
+    "after": "    assert repo.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_dogfood_day2_schema36.py",
+    "line": 48,
+    "before": "    assert repo.initialize(now=NOW).version == 39",
+    "after": "    assert repo.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_dogfood_day2_schema36.py",
+    "line": 68,
+    "before": "    assert repo.initialize(now=NOW).version == 39",
+    "after": "    assert repo.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_dogfood_day2_schema36.py",
+    "line": 82,
+    "before": "    assert repo.initialize(now=NOW).version == 39",
+    "after": "    assert repo.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task016c_phase_h2c_lineage_schema.py",
+    "line": 145,
+    "before": "    assert version.version == 39",
+    "after": "    assert version.version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task016c_phase_h2c_lineage_schema.py",
+    "line": 148,
+    "before": "        assert connection.execute(\"PRAGMA user_version\").fetchone()[0] == 39",
+    "after": "        assert connection.execute(\"PRAGMA user_version\").fetchone()[0] == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task016c_phase_h2c_lineage_schema.py",
+    "line": 199,
+    "before": "    assert version.version == 39",
+    "after": "    assert version.version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task016c_phase_h2c_lineage_schema.py",
+    "line": 200,
+    "before": "    assert repository.schema_version().version == 39",
+    "after": "    assert repository.schema_version().version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_bilibili_three_provider.py",
+    "line": 154,
+    "before": "        assert connection.execute(\"PRAGMA user_version\").fetchone()[0] == 39",
+    "after": "        assert connection.execute(\"PRAGMA user_version\").fetchone()[0] == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_bilibili_three_provider.py",
+    "line": 205,
+    "before": "    assert repo.initialize(now=NOW).version == 39",
+    "after": "    assert repo.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_v1x_phase1b_backup_restore.py",
+    "line": 76,
+    "before": "    assert repository.initialize(now=authority.NOW).version == 39",
+    "after": "    assert repository.initialize(now=authority.NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task023_topic_timeline.py",
+    "line": 45,
+    "before": "    assert repository.initialize(now=NOW).version == 39",
+    "after": "    assert repository.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task023_topic_timeline.py",
+    "line": 202,
+    "before": "        assert connection.execute(\"PRAGMA user_version\").fetchone()[0] == 39",
+    "after": "        assert connection.execute(\"PRAGMA user_version\").fetchone()[0] == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task023_topic_timeline.py",
+    "line": 254,
+    "before": "    assert upgraded.initialize(now=NOW).version == 39",
+    "after": "    assert upgraded.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_deep_analysis_persistence.py",
+    "line": 222,
+    "before": "    assert version.version == 39",
+    "after": "    assert version.version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task025_weekly_foundation.py",
+    "line": 95,
+    "before": "    assert repository.initialize(now=WEEK_START).version == 39",
+    "after": "    assert repository.initialize(now=WEEK_START).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task023b_distillation_reservation.py",
+    "line": 118,
+    "before": "    assert repository.initialize(now=NOW).version == 39",
+    "after": "    assert repository.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task023b_distillation_reservation.py",
+    "line": 369,
+    "before": "    assert reopened.initialize(now=NOW).version == 39",
+    "after": "    assert reopened.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task023b_distillation_reservation.py",
+    "line": 454,
+    "before": "    assert upgraded.initialize(now=NOW).version == 39",
+    "after": "    assert upgraded.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task023b_distillation_reservation.py",
+    "line": 648,
+    "before": "        assert connection.execute(\"PRAGMA user_version\").fetchone()[0] == 39",
+    "after": "        assert connection.execute(\"PRAGMA user_version\").fetchone()[0] == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_phase12_live_feed.py",
+    "line": 176,
+    "before": "        assert db.execute(\"PRAGMA user_version\").fetchone()[0] == 39",
+    "after": "        assert db.execute(\"PRAGMA user_version\").fetchone()[0] == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_research_diff.py",
+    "line": 128,
+    "before": "        assert db.execute(\"PRAGMA user_version\").fetchone()[0] == 39",
+    "after": "        assert db.execute(\"PRAGMA user_version\").fetchone()[0] == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_research_diff.py",
+    "line": 148,
+    "before": "    assert restored.initialize(now=support.authority.NOW).version == 39",
+    "after": "    assert restored.initialize(now=support.authority.NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task018a_claim_classification.py",
+    "line": 110,
+    "before": "    assert repository.initialize(now=NOW).version == 39",
+    "after": "    assert repository.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task018a_claim_classification.py",
+    "line": 112,
+    "before": "        assert connection.execute(\"PRAGMA user_version\").fetchone()[0] == 39",
+    "after": "        assert connection.execute(\"PRAGMA user_version\").fetchone()[0] == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task018a_claim_classification.py",
+    "line": 154,
+    "before": "    assert repository.initialize(now=NOW).version == 39",
+    "after": "    assert repository.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_local_text_input_proof.py",
+    "line": 93,
+    "before": "    assert repository.initialize(now=NOW).version == 39",
+    "after": "    assert repository.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_local_text_input_proof.py",
+    "line": 115,
+    "before": "    assert repository.initialize(now=NOW).version == 39",
+    "after": "    assert repository.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task018_domain_persistence.py",
+    "line": 142,
+    "before": "        39,",
+    "after": "        40,",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task018_domain_persistence.py",
+    "line": 146,
+    "before": "        assert connection.execute(\"PRAGMA user_version\").fetchone()[0] == 39",
+    "after": "        assert connection.execute(\"PRAGMA user_version\").fetchone()[0] == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task018_domain_persistence.py",
+    "line": 181,
+    "before": "    assert repository.initialize(now=NOW).version == 39",
+    "after": "    assert repository.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task018_domain_persistence.py",
+    "line": 182,
+    "before": "    assert repository.initialize(now=NOW).version == 39",
+    "after": "    assert repository.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task020_preference_feedback.py",
+    "line": 36,
+    "before": "    assert version.version == 39",
+    "after": "    assert version.version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task020_preference_feedback.py",
+    "line": 422,
+    "before": "    assert upgraded.initialize(now=NOW).version == 39",
+    "after": "    assert upgraded.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_bilibili_content.py",
+    "line": 56,
+    "before": "    assert repo.schema_version().version == 39  # type: ignore[union-attr]",
+    "after": "    assert repo.schema_version().version == 40  # type: ignore[union-attr]",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task018b_timed_evidence.py",
+    "line": 34,
+    "before": "    assert repository.initialize(now=NOW).version == 39",
+    "after": "    assert repository.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task018b_timed_evidence.py",
+    "line": 111,
+    "before": "    assert repository.initialize(now=NOW).version == 39",
+    "after": "    assert repository.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_v1x_knowledge_delta.py",
+    "line": 515,
+    "before": "        assert connection.execute(\"PRAGMA user_version\").fetchone()[0] == 39",
+    "after": "        assert connection.execute(\"PRAGMA user_version\").fetchone()[0] == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task022b_verified_outbound_input.py",
+    "line": 76,
+    "before": "    assert repository.initialize(now=NOW).version == 39",
+    "after": "    assert repository.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task025a_saved_intelligence.py",
+    "line": 39,
+    "before": "    assert repository.initialize(now=NOW).version == 39",
+    "after": "    assert repository.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task025a_saved_intelligence.py",
+    "line": 43,
+    "before": "        assert connection.execute(\"PRAGMA user_version\").fetchone()[0] == 39",
+    "after": "        assert connection.execute(\"PRAGMA user_version\").fetchone()[0] == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task025a_saved_intelligence.py",
+    "line": 600,
+    "before": "    assert upgraded.initialize(now=NOW).version == 39",
+    "after": "    assert upgraded.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task025a_saved_intelligence.py",
+    "line": 649,
+    "before": "    assert SQLiteStateRepository(path).initialize(now=NOW).version == 39",
+    "after": "    assert SQLiteStateRepository(path).initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task025a_saved_intelligence.py",
+    "line": 686,
+    "before": "    assert repository.initialize(now=NOW).version == 39",
+    "after": "    assert repository.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_research_backup_restore.py",
+    "line": 39,
+    "before": "    assert restored.initialize(now=support.authority.NOW).version == 39",
+    "after": "    assert restored.initialize(now=support.authority.NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task022_personalized_distillation.py",
+    "line": 671,
+    "before": "    assert repository.initialize(now=NOW).version == 39",
+    "after": "    assert repository.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task022_personalized_distillation.py",
+    "line": 1023,
+    "before": "    assert restarted.initialize(now=NOW).version == 39",
+    "after": "    assert restarted.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task022_personalized_distillation.py",
+    "line": 1692,
+    "before": "        assert connection.execute(\"PRAGMA user_version\").fetchone()[0] == 39",
+    "after": "        assert connection.execute(\"PRAGMA user_version\").fetchone()[0] == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task022_personalized_distillation.py",
+    "line": 1952,
+    "before": "    assert upgraded.initialize(now=NOW).version == 39",
+    "after": "    assert upgraded.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task022_personalized_distillation.py",
+    "line": 1953,
+    "before": "    assert upgraded.initialize(now=NOW).version == 39",
+    "after": "    assert upgraded.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task022_personalized_distillation.py",
+    "line": 2031,
+    "before": "    assert upgraded.initialize(now=NOW).version == 39",
+    "after": "    assert upgraded.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task022_personalized_distillation.py",
+    "line": 2094,
+    "before": "    assert upgraded.initialize(now=NOW).version == 39",
+    "after": "    assert upgraded.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task022_personalized_distillation.py",
+    "line": 2286,
+    "before": "    assert upgraded.initialize(now=NOW).version == 39",
+    "after": "    assert upgraded.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task022_personalized_distillation.py",
+    "line": 3270,
+    "before": "    assert restarted.initialize(now=NOW).version == 39",
+    "after": "    assert restarted.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task022_personalized_distillation.py",
+    "line": 3332,
+    "before": "    assert reopened.initialize(now=NOW).version == 39",
+    "after": "    assert reopened.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task022_personalized_distillation.py",
+    "line": 3511,
+    "before": "    assert restarted_repository.initialize(now=NOW).version == 39",
+    "after": "    assert restarted_repository.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task022_personalized_distillation.py",
+    "line": 3807,
+    "before": "        assert restarted_repository.initialize(now=NOW).version == 39",
+    "after": "        assert restarted_repository.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task022_personalized_distillation.py",
+    "line": 3879,
+    "before": "    assert restarted.initialize(now=NOW).version == 39",
+    "after": "    assert restarted.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task022_personalized_distillation.py",
+    "line": 4154,
+    "before": "    assert restarted_repository.initialize(now=NOW).version == 39",
+    "after": "    assert restarted_repository.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task022_personalized_distillation.py",
+    "line": 4329,
+    "before": "    assert legacy.initialize(now=NOW).version == 39",
+    "after": "    assert legacy.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task022_personalized_distillation.py",
+    "line": 4387,
+    "before": "    assert reopened.initialize(now=NOW).version == 39",
+    "after": "    assert reopened.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task021_source_policy_filtering.py",
+    "line": 40,
+    "before": "    assert repository.initialize(now=NOW).version == 39",
+    "after": "    assert repository.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task021_source_policy_filtering.py",
+    "line": 107,
+    "before": "        assert connection.execute(\"PRAGMA user_version\").fetchone()[0] == 39",
+    "after": "        assert connection.execute(\"PRAGMA user_version\").fetchone()[0] == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  },
+  {
+    "file": "tests/integration/test_task021_source_policy_filtering.py",
+    "line": 173,
+    "before": "    assert upgraded.initialize(now=NOW).version == 39",
+    "after": "    assert upgraded.initialize(now=NOW).version == 40",
+    "reason": "Normal full initialize/reopen/current-schema upgrade; prior frozen migration patch undone or restored."
+  }
+]
