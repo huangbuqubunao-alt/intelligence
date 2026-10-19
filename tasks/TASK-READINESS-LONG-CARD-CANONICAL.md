@@ -1,6 +1,8 @@
+root已整合c91a02b/fc666f3，产品/新tests逐字已审11ffb558；root282PASS/5.98s、strict114/Ruff/diff全通过。只此未接线纯切片DONE，完整长生产协议与32继承测试维护/模型真实资格/GUI仍待。
+
 独立8307ad3 APPROVE固定11ffb558，282和1324独立对抗/actual parser+reader parity通过，无新增发现。root接受仅纯切片，开始整合；当前39/40测试维护及完整长协议/用户模型资格仍不代表通过。
 
-# Current status: ACCEPTED (2026-10-19)
+# Current status: DONE — pure engineering slice only (2026-10-19)
 Author fixed11ffb558 cleanSTOP/3 newfiles; final282PASS/strict114/Ruff/diff. Independent new reviewer after root package. Known inherited32 currentSchema39 asserts vs40 retained, original40 writer repairs; no helper admission/wiring/model authority. Originaltask follows.
 
 # 长内容卡片规范表示纯切片

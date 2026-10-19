@@ -1,0 +1,73 @@
+{
+  "checks": [
+    {
+      "name": "tests",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/unit/test_long_card_canonical.py",
+        "tests/unit/test_long_grounding_codec.py",
+        "tests/unit/test_long_grounding_projection.py",
+        "tests/integration/test_task019_trusted_intelligence_read.py"
+      ],
+      "exit": 0,
+      "seconds": 6.26
+    },
+    {
+      "name": "mypy",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "mypy",
+        "--strict",
+        "src"
+      ],
+      "exit": 0,
+      "seconds": 0.27
+    },
+    {
+      "name": "ruff",
+      "command": [
+        ".venv/bin/python",
+        "-m",
+        "ruff",
+        "check",
+        "src",
+        "tests"
+      ],
+      "exit": 0,
+      "seconds": 0.07
+    },
+    {
+      "name": "diff",
+      "command": [
+        "git",
+        "diff",
+        "--check",
+        "c9dbc14",
+        "HEAD"
+      ],
+      "exit": 0,
+      "seconds": 0.02
+    }
+  ],
+  "sources_equal_reviewed": [
+    "src/youtube_intel/long_card_canonical.py",
+    "tests/unit/test_long_card_canonical.py"
+  ],
+  "candidate": "11ffb558",
+  "not_production_wired": true,
+  "known_inherited_schema_tests_open": true,
+  "logs": {
+    "mypy.log": "0d9882f1f6dd71fa523924801fe936e3519a4e0c1d8ed1d296b549cc336dbcbc",
+    "ruff.log": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    "tests.log": "70af2f6a87c14808424bc5991662ab4d6e2877a42c2e110fcd2cb0cef65b1da0",
+    "diff.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "actual_test_result": {
+    "passed": 282,
+    "pytest_seconds": 5.98
+  }
+}

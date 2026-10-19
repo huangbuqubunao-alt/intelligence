@@ -1,6 +1,6 @@
 # Intelligence 当前状态
 
-更新：2026-10-19 20:00。Goal ACTIVE，候选未发布。主控仅编排、文档、QA与已接受整合，不实现产品代码。当前任务是普通用户全链路修复与既定条件满足后的安全采用，不开启其他开发阶段。
+更新：2026-10-19 20:06。Goal ACTIVE，候选未发布。主控仅编排、文档、QA与已接受整合，不实现产品代码。当前任务是普通用户全链路修复与既定条件满足后的安全采用，不开启其他开发阶段。
 
 ## 不变边界
 
@@ -11,7 +11,7 @@
 
 ## 真实Git/正式产品
 
-- root WT `end-to-end-user-readiness`，branch `codex/task-end-to-end-user-readiness`。当前已整合产品基线89cca38（tracked累计166ab392+报告76ad28f）；后续root提交仅文档/证据/任务。
+- root WT `end-to-end-user-readiness`，branch `codex/task-end-to-end-user-readiness`。当前已整合tracked89cca38（累计166ab392+76ad28f）及纯canonical c91a02b/fc666f3；未接线，后续钟修复尚在独立WT。
 - 正式WT `v1x-local-main`，最后10-19 09:15只读：main/实际origin/main/served均73ee7e747b4461b9de8a201d6b47669eb3913d1a、clean、main为候选祖先，4资产SHA相等；正式http://127.0.0.1:5488/、API5489。未读写owner DB/config/凭据。采用前必须重新验证真实拓扑和owner安全，不能沿用早晨快照当最终确认。
 - D2-01/D2-02四实现文件相对正式无diff；旧2GiB APFS证据可复用，最终回归仍待。
 
@@ -22,7 +22,7 @@
 | tracked Content Retry40 | 原166ab392独立76ad28f APPROVE；root源码逐字已审、478相关backend/956frontend/strict113/TS/build/Ruff/diff全通过 | 工程已整合；真用户验收发现新失败，未DONE |
 | TRACKED-CLOCK-CAPTURE-RECOVERY | 真旧72表18DATA正常factory迁移40，GUI排队/取消/实际重启不复活、新command可准入；新真实请求保存capture后LOCAL_FINALIZATION_FAILED；77表19DATA全等冻结。确证claim .924732/provider.started .929415差4.683ms，旧worker把updated_at倒写。作者新WT递增1µs/5ms/UTC三反控RED→单TX一致时间修复全GREEN，原guard保留 | 唯一共享核心writer long_lossless_codec_oct19，WT readiness-tracked-clock-capture-recovery/basebc306d1。补严格1或2VERIFIED capture/ABSENT buffer闭包后继新command，不改旧终态或泛化LOCAL_RESOURCE。未最终STOP/独立接受 |
 | 当前Schema40测试维护 | root纯canonical相关组327PASS/32FAIL30.48s，32在旧latest39断言；root无helper候选三代表亦3FAIL。不是纯helper回归 | 已并入原40作者独立test-only commit范围，逐条current40，保留历史39/33rollback及所有数据断言；不能声称完整回归通过 |
-| LONG-CARD-CANONICAL纯切片 | 仅新module/test/handoff，作者11ffb558 cleanSTOP/最终282PASS/strict114/Ruff；独立282及1324对抗检查通过，report-only结论收尾。DEL使通用3x倍率推导不成立，现按shape真实最大2,093,375B<3MB证明，不影响行为 | writer long_card_canonical_oct19，WT readiness-long-card-canonical/base8f8c3d5。IN_REVIEW，独立报告和root验收/整合待；一直unwired，无资格/Schema/执行接线 |
+| LONG-CARD-CANONICAL纯切片 | 仅新module/test/handoff，作者11ffb558独立8307ad3 APPROVE，282及1324对抗通过；root已整合c91a02b/fc666f3并282/strict114/Ruff/diff复验通过。DEL使通用3x倍率推导不成立，现按shape真实最大2,093,375B<3MB证明，不影响行为 | 仅纯切片DONE，作者/Reviewer cleanSTOP；一直unwired，无资格/Schema/执行接线 |
 | MIXED-SUBTITLE-SETTLEMENT | 完整真实旧库受控completion fault后新字幕成功，旧v1/429和v2/LOCAL_RESOURCE混合使维护互阻；真实proof版本2026.07.04和历史parent pair遗漏，内存exact双补正全23字段114Evidence PASS、文件不变；74表19DATA现场已冻结 | BLOCKED等共享钟修复接受后串行。有限exact历史兼容+全部unresolved并集同TX/任一失败全回滚+7个正确ZipInfo语义负控。新增最小Backup UI准确区分DB/文件异常与真实在途任务 |
 | 长内容生产协议 | 纯codec/投影已审整合；真实2406cue/114Evidence逐项无损。完整QA ChatML85760B/22494tokens词表诊断仅0权重/context/生成，不授容量或资格 | 仍未实现inputproof/receipt两表、原子claim/完成、双向current历史/Save/Topic/Backup closure、profile/registry/CODE_FILES，等tracked+mixed稳定后串行，未预占迁移号 |
 
