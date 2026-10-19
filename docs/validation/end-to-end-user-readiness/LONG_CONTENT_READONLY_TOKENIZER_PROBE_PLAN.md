@@ -1,3 +1,10 @@
+# 2026-10-20 当前接线约束（后续串行，尚未实现）
+纯完整request/profile作者799c625（core d990c41）已cleanSTOP，候选profile local-grounding-qwen35-9b-lossless-rle-thinking-v1，32768ctx/6144output/300s及原固定采样，profilehash2fb51df81b7962b9f831e70720985656220e3be8d32dc92fb15ee755a6ef1a82。424专项/strict116通过，独立review进行；0模型/vocab/HTTP/holdout，不授容量/资格。prepare_long_request真实调用已接受projection，保留原semantic/profile及全side，独立request/schema/freeze哈希；不能把旧profile改写成新许可。真实公开114/2406输入身份仍待root审后实证。完整request字节界不是token预算。
+
+长协议取消闭包（独立只读preflight，无实现）：复用既有m037不可变取消记录，不增假模型receipt。两互斥终结分支为inputproof+m037cancel(inv0)，或inputproof+真实completionreceipt(inv1)。distillation_cancellation.verify_wait/read_cancellation须重验历史longproof、拒completion/NO_NEW/任何结果；state.cancel_waiting_model_execution/can_cancel_waiting_model_execution同TX完整proof，仍仅ollama+WAITING_MODEL+inv0+零usage+无结果，原checkpoint/usage行不改，只追加既有cancel。state.get_distillation_execution逻辑CANCELLED早退前也查proof，continuation/recovery立即终止不重新派发。
+
+Backup verify_cancellations/_validate_snapshot_authority/_is_cancelled_model_wait_source_run共享闭包；保持底层WAITING_MODEL与逻辑CANCELLED区别，SourceRun仍NEEDS_ATTENTION/MODEL_UNAVAILABLE、childWAITING，不伪造成功。刚reserve的PENDING/inv0不可取消；资格不符先真实落WAITING_MODEL和零usage。Cloud/WAITING_BUDGET/未知inv1/NO_NEW不可借取消开放。原m037 SQL先保持，verify_database按latest生成exact取消schema，随意加取消trigger会破坏旧37–40恢复；若新DDL守卫必要必须按snapshotversion兼容，不能把旧恢复误拒为当前Schema。此补充纳入后续完整proof/receipt/双向closure+全回归的精确任务范围，共享核心等mixed接受后串行，不预占迁移号。
+
 2026-10-19 纯card canonical11ffb558获独立8307ad3 APPROVE，root已整合c91a02b/fc666f3；root282/strict114/Ruff/diff通过。共享纯canonicalize_long_card(decoded_wire)固定旧七字段/原Evidence排序/ASCII内容hash，完整实达2,093,375B<3MB结构guard；DEL否定通用3x倍率推导，原错误已保留并纠正。不授admission/provenance、不改旧路径、不接线；后续长协议必须以其共享canonical与独立decodedhash分别绑定，仍待proof/receipt/执行/双向验证/真实模型资格。
 
 2026-10-19 唯一新完整planning render离线计数完成：85760B/22494 tokens，vocab248320，1次词表加载、0权重/context/生成/HTTP；v2 wrapper正常退出并reap，观察peak112738304B，所有固定输入/7headers/helper/source/libs/别名/GGUF身份及完整SHA终验通过。显式QA ChatML下22494+6144+1=28639，算术位于32768内；不能视为真实native rendering、ctx/slot/host门或资格。LONG_PROJECTION_VOCAB_PLANNING_2026_10_19.json及原private once-only receipt保留，禁止把此次计数当模型执行或重跑同诊断。
