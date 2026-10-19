@@ -9,6 +9,38 @@ from youtube_intel.state import SQLiteStateRepository
 from youtube_intel.transcripts import TranscriptError
 
 
+def _repack_backup(members, metadata):
+    """Preserve the real archive's regular-file metadata for semantic probes."""
+    import copy
+    import io
+    import stat
+    import zipfile
+
+    payload = io.BytesIO()
+    with zipfile.ZipFile(payload, 'w') as target:
+        for name, body in members.items():
+            info = copy.copy(metadata.get(name))
+            if info is None:
+                info = zipfile.ZipInfo(name)
+                info.create_system = 3
+                info.external_attr = (stat.S_IFREG | 0o600) << 16
+            target.writestr(info, body)
+    return payload.getvalue()
+
+
+def _closed_sqlite_main_bytes(connection, path):
+    """Assert the exact staged main bytes contain every intended SQL mutation."""
+    import sqlite3
+    from contextlib import closing
+
+    intended = tuple(connection.iterdump())
+    connection.close()
+    # immutable=1 ignores any adjacent WAL: this is exactly what goes in ZIP.
+    with closing(sqlite3.connect(path.as_uri() + '?immutable=1', uri=True)) as actual:
+        assert tuple(actual.iterdump()) == intended
+    return path.read_bytes()
+
+
 def failed_tracked(tmp_path, monkeypatch):
     support = _load_module("test_youtube_following")
     repo, tracker, fixture, runtime = support.youtube_setup(tmp_path, monkeypatch)
@@ -657,7 +689,6 @@ def test_retry_terminal_backup_restores_all_tables_and_data(tmp_path,monkeypatch
 @pytest.mark.parametrize('damage',['requests','execution','files','completion','future_target','extra_file','missing_file','parent_receipt','parent_epoch','parent_marker','parent_source','parent_cycle'])
 def test_rehashed_backup_still_rejects_missing_retry_authority(tmp_path,monkeypatch,damage):
     import hashlib
-    import io
     import json
     import sqlite3
     import zipfile
@@ -675,6 +706,10 @@ def test_rehashed_backup_still_rejects_missing_retry_authority(tmp_path,monkeypa
     archive,_=backup.backup_download(created.backup_id)
     with zipfile.ZipFile(archive) as source:
         members={name:source.read(name) for name in source.namelist()}
+        metadata={info.filename:info for info in source.infolist()}
+    repacked=_repack_backup(members,metadata)
+    staged=backup.stage_restore(repacked)
+    assert backup.cancel_restore(staged.restore_id)
     manifest=json.loads(members['manifest.json'])
     database=tmp_path/'malicious.sqlite'
     database.write_bytes(members['database/state.sqlite'])
@@ -710,7 +745,7 @@ def test_rehashed_backup_still_rejects_missing_retry_authority(tmp_path,monkeypa
                 connection.execute('UPDATE tracked_content_retry_executions SET events_json=? WHERE request_id=?',(json.dumps(events,sort_keys=True,separators=(',',':')),parent_id))
         for _name,sql in triggers:
             connection.execute(sql)
-    members['database/state.sqlite']=database.read_bytes()
+    members['database/state.sqlite']=_closed_sqlite_main_bytes(connection,database)
     manifest['database'].update(size_bytes=len(members['database/state.sqlite']),sha256=hashlib.sha256(members['database/state.sqlite']).hexdigest())
     if damage=='extra_file':
         members['data/transcripts/unowned.txt']=b'not an accepted capture'
@@ -719,12 +754,14 @@ def test_rehashed_backup_still_rejects_missing_retry_authority(tmp_path,monkeypa
         removed=manifest['data_files'].pop()
         members.pop('data/'+removed['relative_path'])
     members['manifest.json']=json.dumps(manifest,sort_keys=True,separators=(',',':')).encode()
-    payload=io.BytesIO()
-    with zipfile.ZipFile(payload,'w') as target:
-        for name,body in members.items():
-            target.writestr(name,body)
-    with pytest.raises(BackupRestoreError):
-        backup.stage_restore(payload.getvalue())
+    with pytest.raises(BackupRestoreError) as failure:
+        backup.stage_restore(_repack_backup(members,metadata))
+    expected = {
+        'extra_file': 'Backup DATA artifact identity is missing.',
+        'future_target': 'SQLite database has broken foreign-key authority.',
+        'missing_file': 'A source Summary failed authority validation.',
+    }.get(damage, 'Content retry ownership or file closure failed validation.')
+    assert str(failure.value) == expected
     assert backup.readiness()['ready']
 
 
@@ -783,7 +820,7 @@ def test_ordinary_runtime_factory_tracked_command_runs_through_dedicated_worker(
     assert composition.repository.get_job(receipt['target_job_id']).attempt_count==1
 
 
-def _retry_at_history_limit(tmp_path, monkeypatch, dispatch):
+def _retry_at_history_limit(tmp_path, monkeypatch, dispatch, *, event_count=126):
     import json
 
     from youtube_intel.extractive_summary import ExtractiveSummaryService
@@ -809,7 +846,7 @@ def _retry_at_history_limit(tmp_path, monkeypatch, dispatch):
                 service.run(receipt['request_id'])
     with repo._connect() as connection:
         _, execution=read(connection,receipt['request_id'])
-        while len(json.loads(execution['events_json'])) < 126:
+        while len(json.loads(execution['events_json'])) < event_count:
             execution=transition(connection,execution,execution['state'],at=execution['updated_at'],name='RECOVERED',fencing_epoch=execution['fencing_epoch']+1)
     service.adapter_factory=lambda:pytest.fail('history capacity closure constructed a transport')
     return repo,cid,receipt,service,adapter_factory
@@ -959,7 +996,6 @@ def test_real_local_crash_sequence_preserves_all_three_attempts_and_close_under_
 @pytest.mark.parametrize('damage',[None,'receipt','marker','attempt','provider'])
 def test_prepared_history_parent_survives_full_backup_and_rehashed_damage_is_rejected(tmp_path,monkeypatch,damage):
     import hashlib
-    import io
     import json
     import sqlite3
     import zipfile
@@ -974,19 +1010,23 @@ def test_prepared_history_parent_survives_full_backup_and_rehashed_damage_is_rej
     backup=BackupRestoreService(database=repo._database_path,data_root=service.data_root)
     created=backup.create_backup()
     archive,_=backup.backup_download(created.backup_id)
+    with zipfile.ZipFile(archive) as source:
+        members={name:source.read(name) for name in source.namelist()}
+        metadata={info.filename:info for info in source.infolist()}
+    repacked=_repack_backup(members,metadata)
+    staged=backup.stage_restore(repacked)
+    assert backup.cancel_restore(staged.restore_id)
     if damage is None:
         with repo._connect() as connection:
             before=tuple(connection.iterdump())
         files={str(path.relative_to(service.data_root)):path.read_bytes() for path in service.data_root.rglob('*') if path.is_file()}
-        staged=backup.stage_restore(archive.read_bytes())
+        staged=backup.stage_restore(repacked)
         backup.confirm_restore(staged.restore_id)
         backup.recover_and_apply_pending_restore()
         with repo._connect() as connection:
             assert tuple(connection.iterdump())==before
         assert {str(path.relative_to(service.data_root)):path.read_bytes() for path in service.data_root.rglob('*') if path.is_file()}==files
         return
-    with zipfile.ZipFile(archive) as source:
-        members={name:source.read(name) for name in source.namelist()}
     database=tmp_path/'prepared-corrupt.sqlite'
     database.write_bytes(members['database/state.sqlite'])
     with sqlite3.connect(database) as connection:
@@ -1005,16 +1045,15 @@ def test_prepared_history_parent_survives_full_backup_and_rehashed_damage_is_rej
         connection.execute('UPDATE tracked_content_retry_executions SET events_json=? WHERE request_id=?',(canonical(events),receipt['request_id']))
         for _,sql in triggers:
             connection.execute(sql)
-    members['database/state.sqlite']=database.read_bytes()
+    members['database/state.sqlite']=_closed_sqlite_main_bytes(connection,database)
     manifest=json.loads(members['manifest.json'])
     manifest['database'].update(size_bytes=len(members['database/state.sqlite']),sha256=hashlib.sha256(members['database/state.sqlite']).hexdigest())
     members['manifest.json']=canonical(manifest).encode()
-    payload=io.BytesIO()
-    with zipfile.ZipFile(payload,'w') as target:
-        for name,body in members.items():
-            target.writestr(name,body)
-    with pytest.raises(BackupRestoreError):
-        backup.stage_restore(payload.getvalue())
+    with pytest.raises(BackupRestoreError) as failure:
+        backup.stage_restore(_repack_backup(members,metadata))
+    expected = ('Backup contains active work: PROVIDER_DISPATCH_UNRESOLVED' if damage == 'provider'
+                else 'Content retry ownership or file closure failed validation.')
+    assert str(failure.value) == expected
 
 
 def _blocked_retry_process(database,data_root,request_id,now,entered,release,result):
@@ -1090,7 +1129,9 @@ def test_local_finalization_limit_still_allows_safe_close(tmp_path,monkeypatch):
     from youtube_intel.extractive_summary import ExtractiveSummaryService
     repo,_source,cid,old,adapter,_fixture,_runtime,service=failed_tracked(tmp_path,monkeypatch)
     receipt=service.request(cid,command_id='three-local',expected_job_id=old.job_id)
+    calls=[]
     def failed(*args,**kwargs):
+        calls.append(1)
         raise OSError('local Summary unavailable')
     monkeypatch.setattr(ExtractiveSummaryService,'create',failed)
     state=service.run(receipt['request_id'])
@@ -1098,6 +1139,7 @@ def test_local_finalization_limit_still_allows_safe_close(tmp_path,monkeypatch):
     for attempt in range(2):
         service.action(receipt['request_id'],operation='RESUME_LOCAL',command_id='local-'+str(attempt),expected_revision=state['revision'])
         state=service.run(receipt['request_id'])
+    assert len(calls)==3
     assert state['state']=='ATTENTION' and not state['can_resume_local'] and state['can_close_local']
     with pytest.raises(ValueError):
         service.action(receipt['request_id'],operation='RESUME_LOCAL',command_id='over-limit',expected_revision=state['revision'])
@@ -1133,3 +1175,281 @@ def test_local_file_failure_windows_can_resume_or_close_without_losing_bytes(tmp
     created=backup.create_backup()
     archive,_=backup.backup_download(created.backup_id)
     backup.stage_restore(archive.read_bytes())
+
+
+def test_heartbeat_keeps_zero_counter_and_unrecorded_count_blocks_all_work(tmp_path, monkeypatch):
+    from youtube_intel.extractive_summary import ExtractiveSummaryService
+    from youtube_intel.tracked_retry_context import RetryIntegrity
+    from youtube_intel.tracked_retry_reader import verify_all
+    from youtube_intel.tracked_retry_store import read
+    from youtube_intel.tracked_retry_worker import RetryWorker
+
+    repo, _, cid, old, _, _, _, service = failed_tracked(tmp_path, monkeypatch)
+    receipt = service.request(cid, command_id='counter-heartbeat', expected_job_id=old.job_id)
+    def stop(self):
+        raise KeyboardInterrupt('before acquisition')
+    with monkeypatch.context() as patch:
+        patch.setattr(RetryWorker, '_preflight', stop)
+        with pytest.raises(KeyboardInterrupt):
+            service.run(receipt['request_id'])
+    with repo._connect() as connection:
+        _, before = read(connection, receipt['request_id'])
+        connection.execute('UPDATE tracked_content_retry_executions SET revision=revision+1 WHERE request_id=?', (receipt['request_id'],))
+        _, heartbeat = read(connection, receipt['request_id'])
+        assert heartbeat['events_json'] == before['events_json'] and heartbeat['local_attempt_count'] == 0
+        connection.execute('UPDATE tracked_content_retry_executions SET revision=revision+1,local_attempt_count=1 WHERE request_id=?', (receipt['request_id'],))
+    calls = []
+    monkeypatch.setattr(ExtractiveSummaryService, 'create', lambda *a, **kw: calls.append('local work'))
+    with pytest.raises(RetryIntegrity):
+        service.request(cid, command_id='counter-heartbeat', expected_job_id=old.job_id)
+    with pytest.raises(RetryIntegrity):
+        service.run(receipt['request_id'])
+    with pytest.raises(RetryIntegrity):
+        verify_all(repo, service.data_root)
+    assert calls == []
+
+
+@pytest.mark.parametrize('outcome', ['SUCCEEDED', 'ATTENTION', 'FAILED', 'CANCELLED', 'AMBIGUOUS'])
+def test_counter_replays_uniquely_in_every_observed_phase(tmp_path, monkeypatch, outcome):
+    import copy
+    import json
+
+    import youtube_intel.tracked_retry_store as store
+    from youtube_intel.extractive_summary import ExtractiveSummaryService
+    from youtube_intel.tracked_retry_context import RetryIntegrity
+
+    repo, _, cid, old, adapter, _, _, service = failed_tracked(tmp_path, monkeypatch)
+    snapshots = []
+    verify = store._verify_events
+    def record(request, execution, events):
+        verify(request, execution, events)
+        snapshots.append(copy.deepcopy((request, execution, events)))
+    monkeypatch.setattr(store, '_verify_events', record)
+    receipt = service.request(cid, command_id='phase-counter', expected_job_id=old.job_id)
+    if outcome == 'CANCELLED':
+        result = service.action(receipt['request_id'], operation='CANCEL_BEFORE_DISPATCH', command_id='cancel', expected_revision=receipt['revision'])
+    else:
+        if outcome in {'ATTENTION', 'FAILED'}:
+            def fail(*a, **kw):
+                raise OSError('local failure')
+            monkeypatch.setattr(ExtractiveSummaryService, 'create', fail)
+        if outcome == 'AMBIGUOUS':
+            def unknown(_):
+                raise RuntimeError('transport result unknown')
+            adapter.enumerate_tracks = unknown
+        result = service.run(receipt['request_id'])
+        if outcome == 'FAILED':
+            result = service.action(receipt['request_id'], operation='CLOSE_LOCAL', command_id='close', expected_revision=result['revision'])
+    assert result['state'] == outcome
+    with repo._connect() as connection:
+        store.read(connection, receipt['request_id'])
+    observed = {execution['state'] for _, execution, _ in snapshots}
+    assert outcome in observed and 'QUEUED' in observed
+    if outcome != 'CANCELLED':
+        assert 'ACQUIRING' in observed
+    if outcome in {'SUCCEEDED', 'ATTENTION', 'FAILED'}:
+        assert 'FINALIZING' in observed
+    for request, execution, events in snapshots:
+        for delta in (-1, 1):
+            changed = dict(execution, local_attempt_count=execution['local_attempt_count'] + delta)
+            with pytest.raises(RetryIntegrity):
+                verify(request, changed, events)
+        legacy = copy.deepcopy(events)
+        for item in legacy:
+            if item['event'] == 'LOCAL_ATTEMPT_STARTED':
+                item['event'] = 'RECOVERED'
+                item.pop('local_attempt')
+        verify(request, execution, legacy)
+        for index, item in enumerate(events):
+            if item['event'] != 'LOCAL_ATTEMPT_STARTED':
+                continue
+            for witness in (None, {}, {'phase': 'START', 'before': False, 'after': 1},
+                            {'phase': 'START', 'before': 0, 'after': True},
+                            {'phase': 'START', 'before': 0.0, 'after': 1},
+                            {'phase': 'START', 'before': 1, 'after': 2},
+                            {'phase': 'INLINE_RESULT', 'before': 0, 'after': 1},
+                            {'phase': 'START', 'before': 0, 'after': 1, 'extra': 0}):
+                bad = copy.deepcopy(events)
+                if witness is None:
+                    bad[index].pop('local_attempt')
+                else:
+                    bad[index]['local_attempt'] = witness
+                with pytest.raises(RetryIntegrity):
+                    verify(request, execution, bad)
+            bad = copy.deepcopy(events)
+            bad[index]['fencing_epoch'] += 1
+            with pytest.raises(RetryIntegrity):
+                verify(request, execution, bad)
+        # Neither JSON representation nor the current counter participates in
+        # determining an inline branch's legality.
+        assert json.loads(execution['events_json']) == events
+
+
+@pytest.mark.parametrize('event_count, phase', [(117, 'START'), (118, 'INLINE_RESULT'), (119, 'INLINE_RESULT')])
+def test_inline_capacity_uses_replayed_count_at_threshold_and_neighbors(tmp_path, monkeypatch, event_count, phase):
+    import copy
+    import json
+
+    from youtube_intel.extractive_summary import ExtractiveSummaryService
+    from youtube_intel.tracked_retry_context import RetryIntegrity
+    from youtube_intel.tracked_retry_store import _verify_events, read
+
+    repo, _, receipt, service, factory = _retry_at_history_limit(tmp_path, monkeypatch, 'succeeded', event_count=event_count)
+    service.adapter_factory = factory
+    calls = []
+    def fail(*a, **kw):
+        calls.append('real local failure')
+        raise OSError('local failure')
+    monkeypatch.setattr(ExtractiveSummaryService, 'create', fail)
+    result = service.run(receipt['request_id'])
+    with repo._connect() as connection:
+        request, execution = read(connection, receipt['request_id'])
+    events = json.loads(execution['events_json'])
+    index = max(i for i, item in enumerate(events) if 'local_attempt' in item)
+    assert events[index]['local_attempt'] == dict(phase=phase, before=1, after=2)
+    assert execution['local_attempt_count'] == 2 and calls == ['real local failure']
+    if phase == 'START':
+        # A structurally valid single result is still forbidden one slot below
+        # the inline threshold. Keep the counter fixed; it is not an oracle.
+        below = copy.deepcopy(events[:index + 1])
+        below[-1].update(event='LOCAL_INLINE_ATTENTION', state='ATTENTION',
+                         local_attempt=dict(phase='INLINE_RESULT', before=1, after=2))
+        with pytest.raises(RetryIntegrity):
+            _verify_events(request, execution, below)
+    if phase == 'INLINE_RESULT':
+        for witness in (None, {}, {'phase': 'START', 'before': 1, 'after': 2},
+                        {'phase': 'INLINE_RESULT', 'before': True, 'after': 2},
+                        {'phase': 'INLINE_RESULT', 'before': 1, 'after': 3},
+                        {'phase': 'INLINE_RESULT', 'before': 1, 'after': 2, 'extra': 0}):
+            bad = copy.deepcopy(events)
+            if witness is None:
+                bad[index].pop('local_attempt')
+            else:
+                bad[index]['local_attempt'] = witness
+            with pytest.raises(RetryIntegrity):
+                _verify_events(request, execution, bad)
+        legacy = copy.deepcopy(events)
+        legacy[index]['event'] = 'LOCAL_ATTENTION'
+        legacy[index].pop('local_attempt')
+        with pytest.raises(RetryIntegrity):
+            _verify_events(request, execution, legacy)
+        with pytest.raises(RetryIntegrity):
+            _verify_events(request, dict(execution, local_attempt_count=1), legacy)
+    assert result['can_resume_local']
+    service.action(receipt['request_id'], operation='RESUME_LOCAL', command_id='third-real-attempt', expected_revision=result['revision'])
+    result = service.run(receipt['request_id'])
+    assert len(calls) == 2 and not result['can_resume_local'] and result['can_close_local']
+    assert service.action(receipt['request_id'], operation='CLOSE_LOCAL', command_id='close', expected_revision=result['revision'])['state'] == 'FAILED'
+    with repo._connect() as connection:
+        _, execution = read(connection, receipt['request_id'])
+        assert execution['local_attempt_count'] == 3 and len(json.loads(execution['events_json'])) <= 128
+
+
+@pytest.mark.parametrize('counter',[1,0,2])
+def test_rehashed_restore_must_reject_counter_not_bound_to_real_events(tmp_path,monkeypatch,counter):
+    import hashlib
+    import json
+    import sqlite3
+    import zipfile
+
+    from youtube_intel.backup_restore import BackupRestoreError, BackupRestoreService
+    repo,_,cid,old,_,_,_,service=failed_tracked(tmp_path,monkeypatch)
+    r=service.request(cid,command_id='backup-counter',expected_job_id=old.job_id)
+    assert service.run(r['request_id'])['state']=='SUCCEEDED'
+    backup=BackupRestoreService(database=repo._database_path,data_root=service.data_root)
+    created=backup.create_backup()
+    archive,_=backup.backup_download(created.backup_id)
+    with zipfile.ZipFile(archive) as z:
+        metadata={i.filename:i for i in z.infolist()}
+        members={n:z.read(n) for n in z.namelist()}
+    src=tmp_path/'original-snapshot.sqlite'
+    src.write_bytes(members['database/state.sqlite'])
+    with sqlite3.connect(src) as c:
+        schema=c.execute("SELECT name,sql FROM sqlite_master WHERE type='trigger' ORDER BY name").fetchall()
+        columns=[r[1] for r in c.execute('PRAGMA table_info(tracked_content_retry_executions)')]
+        row=list(c.execute('SELECT * FROM tracked_content_retry_executions').fetchone())
+        assert row[columns.index('local_attempt_count')]==1
+        row[columns.index('local_attempt_count')]=counter
+        line='INSERT INTO "tracked_content_retry_executions" VALUES('+','.join(c.execute('SELECT quote(?)',(v,)).fetchone()[0] for v in row)+');'
+        dump=list(c.iterdump())
+        count=sum(s.startswith('INSERT INTO "tracked_content_retry_executions" VALUES(') for s in dump)
+        assert count==1
+        dump=[line if s.startswith('INSERT INTO "tracked_content_retry_executions" VALUES(') else s for s in dump]
+    # New isolated candidate rebuilt from normal SQLite dump. No DROP TRIGGER;
+    # final schema includes every original fixed trigger verbatim.
+    bad=tmp_path/'repacked-snapshot.sqlite'
+    with sqlite3.connect(bad) as c:
+        c.executescript('\n'.join(dump))
+        assert c.execute("SELECT name,sql FROM sqlite_master WHERE type='trigger' ORDER BY name").fetchall()==schema
+        assert c.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
+        assert c.execute('PRAGMA foreign_key_check').fetchall()==[]
+        c.execute('PRAGMA user_version=40')
+    members['database/state.sqlite']=_closed_sqlite_main_bytes(c,bad)
+    manifest=json.loads(members['manifest.json'])
+    body=members['database/state.sqlite']
+    manifest['database'].update(size_bytes=len(body),sha256=hashlib.sha256(body).hexdigest())
+    members['manifest.json']=json.dumps(manifest,sort_keys=True,separators=(',',':')).encode()
+    payload=_repack_backup(members,metadata)
+    if counter==1:
+        staged=backup.stage_restore(payload)
+        assert staged.restore_id
+        assert backup.cancel_restore(staged.restore_id)
+    else:
+        with pytest.raises(BackupRestoreError, match='Content retry ownership or file closure failed validation'):
+            backup.stage_restore(payload)
+
+
+@pytest.mark.parametrize('dispatch', ['not-dispatched', 'intent'])
+def test_history_closure_receipt_counter_is_bound_even_when_rehashed(tmp_path, monkeypatch, dispatch):
+    import copy
+    import json
+
+    from youtube_intel.tracked_retry_context import RetryIntegrity
+    from youtube_intel.tracked_retry_store import (
+        _verify_events,
+        canonical,
+        digest,
+        read,
+    )
+
+    repo, _, receipt, service, _ = _retry_at_history_limit(tmp_path, monkeypatch, dispatch)
+    service.run(receipt['request_id'])
+    with repo._connect() as connection:
+        request, execution = read(connection, receipt['request_id'])
+    events = json.loads(execution['events_json'])
+    assert events[-1]['event'] == 'HISTORY_LIMIT_CLOSED' and execution['local_attempt_count'] == 0
+    for counter in (-1, 1):
+        with pytest.raises(RetryIntegrity):
+            _verify_events(request, dict(execution, local_attempt_count=counter), events)
+        bad = copy.deepcopy(events)
+        action = bad[-1]['action']
+        proof = json.loads(action['input_json'])
+        proof['local_attempt_count'] = counter
+        proof['command_id'] = 'history-limit:' + digest({key: value for key, value in proof.items() if key != 'command_id'})
+        action.update(command_id=proof['command_id'], input_json=canonical(proof), input_sha256=digest(proof))
+        with pytest.raises(RetryIntegrity):
+            _verify_events(request, execution, bad)
+
+
+@pytest.mark.parametrize('key', ['phase', 'before', 'after'])
+def test_duplicate_json_witness_fields_are_not_accepted_as_canonical_history(tmp_path, monkeypatch, key):
+    import json
+
+    from youtube_intel.tracked_retry_context import RetryIntegrity
+    from youtube_intel.tracked_retry_store import read
+
+    repo, _, cid, old, _, _, _, service = failed_tracked(tmp_path, monkeypatch)
+    receipt = service.request(cid, command_id='duplicate-witness', expected_job_id=old.job_id)
+    assert service.run(receipt['request_id'])['state'] == 'SUCCEEDED'
+    with repo._connect() as connection:
+        _, execution = read(connection, receipt['request_id'])
+        witness = {'phase': 'START', 'before': 0, 'after': 1}
+        fragment = json.dumps(witness, sort_keys=True, separators=(',', ':'))
+        duplicate = fragment[:-1] + ',' + json.dumps(key) + ':' + json.dumps(witness[key]) + '}'
+        assert fragment in execution['events_json']
+        damaged = execution['events_json'].replace(fragment, duplicate, 1)
+        for row in connection.execute("SELECT name FROM sqlite_master WHERE type='trigger' AND tbl_name='tracked_content_retry_executions'").fetchall():
+            connection.execute(f'DROP TRIGGER "{row[0]}"')
+        connection.execute('UPDATE tracked_content_retry_executions SET events_json=? WHERE request_id=?', (damaged, receipt['request_id']))
+        with pytest.raises(RetryIntegrity, match='history changed'):
+            read(connection, receipt['request_id'])

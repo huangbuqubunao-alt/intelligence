@@ -136,6 +136,7 @@ def transition(
     at: str,
     name: str,
     action: dict[str, Any] | None = None,
+    local_attempt: dict[str, Any] | None = None,
     **changes: Any,
 ) -> dict[str, Any]:
     revision = execution["revision"] + 1
@@ -155,6 +156,7 @@ def transition(
             at=at,
             name=name,
             action=action,
+            local_attempt=local_attempt,
         )
     )
     values["events_json"] = canonical(history)
@@ -638,11 +640,12 @@ class RetryWorker:
             if (current['revision'],current['fencing_epoch'])!=(execution['revision'],execution['fencing_epoch']):
                 raise RetryConflict('Content retry local closure ownership changed')
             changes=dict(local_attempt_count=current['local_attempt_count']+1)
+            changes['local_attempt'] = dict(phase='INLINE_RESULT', before=current['local_attempt_count'], after=changes['local_attempt_count'])
             if proof is None:
                 code='LOCAL_FINALIZATION_FAILED' if changes['local_attempt_count']<3 else 'LOCAL_FINALIZATION_LIMIT'
-                result=transition(connection,current,'ATTENTION',at=self.timestamp(),name='LOCAL_ATTENTION',error_code=code,**changes)
+                result=transition(connection,current,'ATTENTION',at=self.timestamp(),name='LOCAL_INLINE_ATTENTION',error_code=code,**changes)
             else:
-                result=transition(connection,current,'SUCCEEDED',at=self.timestamp(),name='COMPLETED',completion_json=canonical(proof),completion_sha256=digest(proof),
+                result=transition(connection,current,'SUCCEEDED',at=self.timestamp(),name='LOCAL_INLINE_COMPLETED',completion_json=canonical(proof),completion_sha256=digest(proof),
                     canonical_artifact_id=proof['canonical_artifact_id'],timed_transcript_id=proof['timed_transcript_id'],summary_artifact_id=proof['summary_artifact_id'],**changes)
             return public(request,result)
 
@@ -665,7 +668,8 @@ class RetryWorker:
                     execution,
                     "FINALIZING",
                     at=self.timestamp(),
-                    name="RECOVERED",
+                    name="LOCAL_ATTEMPT_STARTED",
+                    local_attempt=dict(phase='START', before=execution['local_attempt_count'], after=execution['local_attempt_count']+1),
                     local_attempt_count=execution["local_attempt_count"] + 1,
                 )
         if exhausted:

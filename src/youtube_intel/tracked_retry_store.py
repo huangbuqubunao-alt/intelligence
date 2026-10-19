@@ -66,9 +66,13 @@ def target_identity(request_id: str, old_job_id: str, pipeline: str) -> str:
 
 
 def event(state: str, *, prior: str | None, revision: int, epoch: int, at: str,
-          name: str, action: dict[str, Any] | None = None) -> dict[str, Any]:
-    return {"event": name, "prior_state": prior, "state": state, "revision": revision,
-            "fencing_epoch": epoch, "at": at, "action": action}
+          name: str, action: dict[str, Any] | None = None,
+          local_attempt: dict[str, Any] | None = None) -> dict[str, Any]:
+    result = {"event": name, "prior_state": prior, "state": state, "revision": revision,
+              "fencing_epoch": epoch, "at": at, "action": action}
+    if local_attempt is not None:
+        result['local_attempt'] = local_attempt
+    return result
 
 
 def _read(connection: sqlite3.Connection, request_id: str, *, verify_parent: bool = True) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -321,6 +325,8 @@ EVENT_STATES = {
     "ADMITTED": {"QUEUED"}, "CLAIMED": {"ACQUIRING"},
     "RECOVERED": {"ACQUIRING", "FINALIZING"}, "LOCAL_ATTENTION": {"ATTENTION"},
     "LOCAL_RESUMED": {"FINALIZING"}, "COMPLETED": {"SUCCEEDED"},
+    "LOCAL_ATTEMPT_STARTED": {"FINALIZING"},
+    "LOCAL_INLINE_ATTENTION": {"ATTENTION"}, "LOCAL_INLINE_COMPLETED": {"SUCCEEDED"},
     "FAILED": {"FAILED"}, "CANCELLED": {"CANCELLED"}, "AMBIGUOUS": {"AMBIGUOUS"},
     'DISPATCH_INTENT': {'ACQUIRING'}, 'HISTORY_LIMIT_CLOSED': {'FAILED','AMBIGUOUS'},
 }
@@ -332,10 +338,12 @@ ERRORS = {"SOURCE_PAUSED", "SOURCE_CONTEXT_CHANGED", "RETRY_CONTRACT_UNAVAILABLE
 def _verify_events(request: dict[str, Any], execution: dict[str, Any], events: list[Any]) -> None:
     prior = None
     revision, epoch = -1, 0
+    local_attempts, attempt_open, attention_without_attempt = 0, False, False
     actions: set[tuple[str, str]] = set()
     previous_at = request['created_at']
     for index, item in enumerate(events):
-        if (not isinstance(item, dict) or set(item) != {"event", "prior_state", "state", "revision", "fencing_epoch", "at", "action"}
+        fields = {"event", "prior_state", "state", "revision", "fencing_epoch", "at", "action"}
+        if (not isinstance(item, dict) or set(item) not in (fields, fields | {'local_attempt'})
             or item['event'] not in EVENT_STATES or item['state'] not in EVENT_STATES[item['event']]
             or item['prior_state'] != prior or type(item['revision']) is not int or item['revision'] <= revision
             or type(item['fencing_epoch']) is not int or not epoch <= item['fencing_epoch'] <= epoch + 1
@@ -355,6 +363,43 @@ def _verify_events(request: dict[str, Any], execution: dict[str, Any], events: l
         if (takes_ownership and item['fencing_epoch'] != epoch + 1
             or not takes_ownership and item['event'] != 'RECOVERED' and item['fencing_epoch'] != epoch):
             raise RetryIntegrity('Content retry event ownership changed')
+        # Legacy ordinary starts are unambiguous: same-owner FINALIZING ->
+        # FINALIZING RECOVERED. Inline results previously had no such proof and
+        # cannot be recovered from a projection counter. New event names make
+        # missing witnesses distinguishable from that legacy start contract.
+        start = item['event'] == 'LOCAL_ATTEMPT_STARTED' or (
+            item['event'] == 'RECOVERED' and prior == item['state'] == 'FINALIZING' and item['fencing_epoch'] == epoch)
+        inline = item['event'] in {'LOCAL_INLINE_ATTENTION','LOCAL_INLINE_COMPLETED'}
+        witness = item.get('local_attempt')
+        if 'local_attempt' in item or item['event'] == 'LOCAL_ATTEMPT_STARTED' or inline:
+            if (not isinstance(witness, dict) or set(witness) != {'phase','before','after'}
+                or type(witness['phase']) is not str
+                or type(witness['before']) is not int or type(witness['after']) is not int
+                or witness['before'] != local_attempts or witness['after'] != local_attempts + 1
+                or witness['phase'] != ('START' if start else 'INLINE_RESULT')
+                or prior != 'FINALIZING' or item['fencing_epoch'] != epoch or item['action'] is not None
+                or not (start or inline)
+                or inline and index + local_event_reserve(local_attempts) <= HISTORY_LIMIT):
+                raise RetryIntegrity('Content retry local attempt witness changed')
+        if item['event'] in {'COMPLETED','LOCAL_ATTENTION'} and index + local_event_reserve(local_attempts) > HISTORY_LIMIT:
+            raise RetryIntegrity('Content retry legacy inline result has no local attempt witness')
+        attention_without_attempt = False
+        if start or inline:
+            local_attempts += 1
+            if local_attempts > 3:
+                raise RetryIntegrity('Content retry local attempt limit changed')
+            attempt_open = start
+        elif item['event'] == 'COMPLETED':
+            if not attempt_open:
+                raise RetryIntegrity('Content retry completion has no real local attempt')
+            attempt_open = False
+        elif item['event'] == 'LOCAL_ATTENTION':
+            attention_without_attempt = not attempt_open
+            attempt_open = False
+        elif item['event'] == 'RECOVERED' and item['fencing_epoch'] != epoch:
+            # Ownership recovery is not another attempt. A previously started
+            # interrupted attempt stays counted, but cannot supply a new result.
+            attempt_open = False
         action = item['action']
         if action is not None:
             if not isinstance(action, dict) or set(action) != {'operation','command_id','expected_revision','input_json','input_sha256','applied_revision'}:
@@ -383,7 +428,7 @@ def _verify_events(request: dict[str, Any], execution: dict[str, Any], events: l
                     or expected['target_status'] not in {'RUNNING','FAILED_FINAL','SUCCEEDED'}
                     or any(type(expected[key]) is not int for key in ('attempt_count','provider_attempt_count','local_attempt_count'))
                     or expected['attempt_count']!=1 or expected['provider_attempt_count']!=1
-                    or not 0<=expected['local_attempt_count']<=3
+                    or expected['local_attempt_count'] != local_attempts
                     or type(expected['had_dispatch_intent']) is not bool
                     or expected['had_dispatch_intent']!=any(old['event']=='DISPATCH_INTENT' for old in events[:index])
                     or expected['had_dispatch_intent']!=(expected['dispatch_status']!='NOT_DISPATCHED')
@@ -406,6 +451,8 @@ def _verify_events(request: dict[str, Any], execution: dict[str, Any], events: l
         prior, revision, epoch, previous_at = item['state'], item['revision'], item['fencing_epoch'], item['at']
     if (prior != execution['state'] or revision > execution['revision'] or epoch != execution['fencing_epoch']
         or execution['updated_at'] < previous_at or len(events)>128
+        or type(execution['local_attempt_count']) is not int or execution['local_attempt_count'] != local_attempts
+        or attention_without_attempt and execution['error_code'] != 'RETRY_CONTRACT_UNAVAILABLE'
         or (execution['error_code'] is not None and execution['error_code'] not in ERRORS)):
         raise RetryIntegrity('Content retry projection is inconsistent')
 
