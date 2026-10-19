@@ -1,0 +1,25 @@
+{
+  "at": "2026-10-19T01:07:53.389238+00:00",
+  "classification": "COMPLETE_ISOLATED_TRACKED_ORIGIN_SNAPSHOT_NOT_RETRY_ACCEPTANCE",
+  "source": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/runtime",
+  "target": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/tracked-original-frozen-20261019",
+  "table_count": 71,
+  "physical_data_count": 18,
+  "all_rows_equal": true,
+  "all_data_equal": true,
+  "integrity": "ok",
+  "foreign_keys": [],
+  "target_failure": [
+    "OYp5j2RihPE",
+    "TRANSCRIPT",
+    "FAILED_FINAL",
+    1
+  ],
+  "model_calls": 0,
+  "network_calls": 0,
+  "formal_data_access": false,
+  "schema_changes": false,
+  "full_private_receipt": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/tracked-original-frozen-20261019/receipt.json",
+  "full_private_receipt_sha256": "fefb8eaf8d29165c34e6f1b6c49edd61a54ad5a17a20cfd630ead51e77f3edc1",
+  "future_acceptance": "not run: candidate must first pass independent review; normal runtime migration, actual tracked GUI retry and complete restore still required"
+}

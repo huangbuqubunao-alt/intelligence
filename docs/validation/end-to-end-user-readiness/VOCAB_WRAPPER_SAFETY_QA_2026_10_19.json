@@ -1,0 +1,48 @@
+{
+  "at": "2026-10-19T01:09:12.748638+00:00",
+  "classification": "PRIVATE_QA_WRAPPER_CHECKS_NOT_MODEL_QUALIFICATION",
+  "command": "python3 -m unittest -v test_bounded_qa > run-final16.log 2>&1",
+  "exit_code": 0,
+  "tests_passed": 16,
+  "elapsed_seconds": 0.398,
+  "private_directory": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/vocab-wrapper-v2-20261019",
+  "files": {
+    "bounded_qa.py": "4da87d76e6a5c7826ddc69c501b69d85e47599edc21aa42757ab316c3a3fbbf0",
+    "test_bounded_qa.py": "922762e87d3f5e063df15811ba443ec5641f9401d844ce9a3f4c5a74b5442cbb"
+  },
+  "covered": [
+    "actual nonzero child exit",
+    "wall timeout kill/reap",
+    "ps timeout kill/reap",
+    "arbitrary observer exception kill/reap",
+    "sampled RSS threshold kill/reap",
+    "output pipe-size independence and bound",
+    "spawn callback exception kill/reap",
+    "final identity false or exception revokes PASS",
+    "prior failure cannot become PASS",
+    "actual outer process nonzero exit with STOPPED receipt",
+    "strict counter result scalar types"
+  ],
+  "rss_contract": "sampled observation and stop threshold, not hard allocation cap",
+  "original_run_and_receipt": "preserved unmodified in vocab-x86-qa-20261019",
+  "vocabulary_loads": 0,
+  "weight_loads": 0,
+  "contexts": 0,
+  "generation_calls": 0,
+  "http_calls": 0,
+  "qualification": false,
+  "production_changes": false,
+  "independent_review": {
+    "agent": "subtitle_recovery_preflight_oct19",
+    "verdict": "APPROVE_LIMITED_DIAGNOSTIC_ONLY",
+    "independent_tests_passed": 16,
+    "elapsed_seconds": 0.385,
+    "late_completion_reproduction": "now TimeoutError with child exited and reaped"
+  },
+  "preserved_failure": {
+    "independent_P2": "observer delay could hide late completion",
+    "first_fix_failure": "macOS exited child group EPERM masked TimeoutError",
+    "log": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/vocab-wrapper-v2-20261019/run-first16-failure.log",
+    "resolution": "deadline rechecked after observation and loop; ignore EPERM only after direct child confirmed exited"
+  }
+}
