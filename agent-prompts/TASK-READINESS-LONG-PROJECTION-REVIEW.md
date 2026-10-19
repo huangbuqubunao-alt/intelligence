@@ -1,0 +1,9 @@
+Task TASK-READINESS-LONG-MODEL-PROJECTION independent review
+Role Reviewer; Agent subtitle_recovery_preflight_oct19; no product author role.
+Base fe4cfba56bb981c917c218747f54f1aeffd4ed8e; candidate 4c455826e0c8063952bf5b5bb3b6018084a95a96.
+Worktree /Users/hua/Documents/yia-worktrees/readiness-long-projection-review
+Branch codex/task-readiness-long-projection-review
+Allowed scope: read full diff and authoritative task/spec, run meaningful independent tests/static and adversarial private probes; only new handoffs/TASK-READINESS-LONG-PROJECTION-REVIEW.md may be written/committed. Do not edit candidate product/tests or resolve findings yourself.
+Reuse DIRECT accepted codec, pure typed values, fixed accepted prompt/stdlib; no new dependency. Concurrent tracked40 sole shared-core writer, projection author clean STOP. No real DB/source/holdout/thinking/tokenizer/network/model IO in review.
+Read root latest tasks/TASK-READINESS-LONG-MODEL-PROJECTION.md and candidate author handoff. Independently ensure all original nine model semantics, full114 exact binding/RLE, exact opaque snapshot bytes side-only Summary, strict type/JSON/resource boundaries including depth/byte exact maxima, version/hash identities and immutable return. Unknown/null/wrong object/alias order/value mutations must reject, original short/Cloud zero diff. Pure preview must not grant model execution/qualification or pretend opaque snapshots complete source proof.
+Run 291 related tests + strict src/Ruff/diff; add private independent boundary probes based on source reasoning, not only implementation tests. If findings P0/P1/P2 report exact path/line/repro and REJECT. If APPROVE explain limited engineering slice and remaining production protocol/real semantic gates. Commit only review handoff; report SHA+clean STOP. Never main/owner data.

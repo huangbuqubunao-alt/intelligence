@@ -1,6 +1,6 @@
 # 完整长字幕模型可见投影：纯函数切片
 
-Status IN_PROGRESS（long_lossless_codec_oct19；fe4cfba独立WT；仅纯新文件）。Base root@15ccb3f（已接受codec、root真实源/词表对照证据）。独立Implementer/WT后独立Review；root不写产品。
+Status IN_REVIEW（作者4c455826e0c8063952bf5b5bb3b6018084a95a96 clean STOP；独立Reviewer subtitle_recovery_preflight_oct19；仅纯新文件）。Base root@15ccb3f（已接受codec、root真实源/词表对照证据）。独立Implementer/WT后独立Review；root不写产品。
 
 ## 必要目标与严格边界
 
