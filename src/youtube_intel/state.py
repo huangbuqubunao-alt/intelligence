@@ -4155,6 +4155,7 @@ class SQLiteStateRepository:
         connection = self._connect()
         try:
             with _immediate_transaction(connection):
+                require_provider(connection, request_hash)
                 row = connection.execute(
                     "SELECT * FROM provider_calls WHERE request_hash = :request_hash "
                     "AND status = :pending AND reservation_owner = :owner "
@@ -4397,6 +4398,11 @@ class SQLiteStateRepository:
                 if changed != 1:
                     msg = "provider call reservation is not owned or has expired"
                     raise LeaseConflict(msg)
+                # CheckedAdapter leaves uncertain transport as BaseException,
+                # so an owned subtitle failure reaching this typed boundary is
+                # known. Persist that dispatch receipt with the failure itself.
+                if self._tracked_capture_dispatch(connection, request_hash):
+                    connection.execute("UPDATE provider_dispatch_states SET status='FAILED_KNOWN',updated_at=? WHERE request_hash=?", (now_text,request_hash))
                 saved = connection.execute(
                     "SELECT * FROM provider_calls WHERE request_hash = :request_hash",
                     {"request_hash": request_hash},
@@ -4933,6 +4939,15 @@ class SQLiteStateRepository:
         finally:
             connection.close()
 
+    @staticmethod
+    def _tracked_capture_dispatch(connection: sqlite3.Connection, request_hash: str) -> bool:
+        from youtube_intel.tracked_retry_context import active_provider
+
+        if not active_provider(request_hash):
+            return False
+        row = connection.execute("SELECT status FROM provider_dispatch_states WHERE request_hash=?", (request_hash,)).fetchone()
+        return row is not None and row[0] == "DISPATCH_INTENT_DURABLE"
+
     def register_subtitle_source_capture(
         self, *, artifact: ArtifactWrite, body: bytes, context: TranscriptJobContext,
         provider_request: ProviderCallRequest, language_preferences: Sequence[str],
@@ -5008,7 +5023,8 @@ class SQLiteStateRepository:
                     or type(ledger_row["attempt_count"]) is not int or ledger.attempt_count < 1
                     or ledger.started_at > ledger.updated_at or ledger.updated_at > now or ledger.available_at > now
                     or any(value is not None for value in (ledger.input_tokens, ledger.output_tokens, ledger.cost_microusd))
-                    or self._dispatch_state_in_transaction(connection, request.request_hash) is not None):
+                    or (self._dispatch_state_in_transaction(connection, request.request_hash) is not None
+                        and not self._tracked_capture_dispatch(connection, request.request_hash))):
                     raise LeaseConflict("subtitle capture lacks the exact owned live job/provider reservation")
                 repair = context.repair
                 if repair is None:
@@ -5075,7 +5091,12 @@ class SQLiteStateRepository:
                 existing = connection.execute("SELECT * FROM artifacts WHERE artifact_key=?", (artifact.artifact_key,)).fetchone()
                 if existing is None:
                     if path.exists():
-                        raise IntegrityConflict("unindexed subtitle source has no capture proof")
+                        retry_file = connection.execute("SELECT f.* FROM tracked_content_retry_files f JOIN tracked_content_retry_requests r USING(request_id) WHERE r.target_job_id=? AND r.provider_request_hash=? AND f.relative_path=? AND f.role='CAPTURE' AND f.state='VERIFIED'", (context.job_id, request.request_hash, artifact.relative_path)).fetchone() if context.job_id.startswith("tracked-content-retry-job:v1:") else None
+                        if (not self._tracked_capture_dispatch(connection, request.request_hash) or retry_file is None
+                            or retry_file['expected_sha256'] != artifact.content_hash or retry_file['observed_sha256'] != artifact.content_hash
+                            or retry_file['expected_size_bytes'] != len(body) or retry_file['observed_size_bytes'] != len(body)):
+                            raise IntegrityConflict("unindexed subtitle source has no capture proof")
+                        _read_verified_file(path, expected_hash=artifact.content_hash, max_bytes=SUBTITLE_QUALITY_POLICY.max_raw_bytes, video_id=video_id)
                     captures = connection.execute("SELECT * FROM artifacts WHERE artifact_key LIKE ?",
                         (f"subtitle-source-capture:{raw_hash}:%",)).fetchall()
                     if len(captures) >= 2:

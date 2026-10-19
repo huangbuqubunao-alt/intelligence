@@ -69,6 +69,7 @@ from youtube_intel.source_policy import (
 )
 from youtube_intel.source_run import SourceRunRecord, SourceRunState, SourceRunTrigger
 from youtube_intel.state import ArtifactKind, ProviderCallRequest, SQLiteStateRepository
+from youtube_intel.tracked_content_retry import TrackedContentRetryService
 from youtube_intel.transcripts import (
     FORMAT_POLICY_VERSION,
     SELECTION_POLICY_VERSION,
@@ -290,6 +291,7 @@ class DurableSourceRunWorker:
         poll_seconds: float = 0.5,
         scheduler: FollowingScheduler | None = None,
         backup_restore: BackupRestoreService | None = None,
+        tracked_content_retry: TrackedContentRetryService | None = None,
     ) -> None:
         if poll_seconds <= 0:
             raise ValueError("worker poll interval must be positive")
@@ -297,6 +299,7 @@ class DurableSourceRunWorker:
         self._poll_seconds = poll_seconds
         self.scheduler = scheduler
         self.backup_restore = backup_restore
+        self.tracked_content_retry = tracked_content_retry
         self._execution = threading.Lock()
         self._wake = threading.Event()
         self._stop = threading.Event()
@@ -327,6 +330,18 @@ class DurableSourceRunWorker:
         if not self._execution.acquire(blocking=False):
             return None
         try:
+            if self.tracked_content_retry is not None and not self._stop.is_set():
+                from contextlib import closing
+
+                with closing(self._orchestrator._repository._connect(read_only=True)) as connection:
+                    retry=connection.execute("SELECT request_id FROM tracked_content_retry_executions WHERE state IN ('QUEUED','ACQUIRING','FINALIZING') ORDER BY updated_at,request_id LIMIT 1").fetchone()
+                if retry is not None:
+                    gate=(nullcontext(True) if self.backup_restore is None else self.backup_restore.background_work())
+                    with gate as allowed:
+                        if allowed:
+                            self.tracked_content_retry.run(retry[0])
+                            self.notify()
+                    return None
             # An idle authority read is not active source work. Actual due
             # admission/execution still rechecks the protected Backup gate.
             if not self._orchestrator.queued_runs(limit=1) and (
@@ -582,9 +597,12 @@ def build_local_source_run_runtime(
         source_tracking=source_tracking,
         now=now_fn,
     )
+    tracked_content_retry=TrackedContentRetryService(repository,data_root,
+        adapter_factory=runtime._dependencies.subtitle_adapter_factory,
+        language_preferences=config.settings.general.transcript_languages,metadata_for_video=runtime._video_metadata,now=now_fn)
     worker = DurableSourceRunWorker(
         orchestrator, scheduler=FollowingScheduler(source_tracking, product, now=now_fn),
-        backup_restore=backup_restore,
+        backup_restore=backup_restore,tracked_content_retry=tracked_content_retry,
     )
     backup_restore.bind_background_wakeup(worker.notify_backup_window_closed)
     reader = AuthoritativeScoringReader(
@@ -629,6 +647,7 @@ def build_local_source_run_runtime(
         output_language_default=config.settings.general.output_language,
         now=now_fn,
         source_run_wakeup=worker.notify,
+        tracked_content_retry=tracked_content_retry,
         source_tracking=source_tracking,
         local_distillation_available=transport.available,
         local_distillation_capabilities=local_distillation_capabilities,

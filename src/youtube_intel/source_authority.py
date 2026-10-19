@@ -391,6 +391,10 @@ def read_managed(root: Path, relative: str, *, maximum: int) -> bytes:
 
 def write_managed(root: Path, relative: str, data: bytes) -> None:
     """Atomically publish once; identical retries never rewrite existing bytes."""
+    from youtube_intel.tracked_retry_context import intercept_write
+
+    if intercept_write(root, relative, data):
+        return
     parts = relative.split("/")
     if any(not p or p in {".", ".."} or "\\" in p or ":" in p for p in parts):
         raise ValueError("invalid source artifact path")

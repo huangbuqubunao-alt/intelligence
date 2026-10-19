@@ -170,6 +170,8 @@ def test_retained_failed_repair_is_atomic_durable_idempotent_and_full_restore(
     with zipfile.ZipFile(archive) as package:
         manifest = json.loads(package.read("manifest.json"))
     assert manifest["counts"]["retained_derivations"] == 1
+    assert manifest["counts"]["tracked_retry_retained_files"] == 0
+    assert all(row["tracked_content_retry_files"] == [] for row in manifest["data_files"])
     assert (
         preview.preview["data_artifact_count"] == manifest["counts"]["data_artifacts"]
     )
@@ -181,6 +183,7 @@ def test_retained_failed_repair_is_atomic_durable_idempotent_and_full_restore(
             "size_bytes",
             "artifacts",
             "retained_subtitle_derivations",
+            "tracked_content_retry_files",
         }
         for row in manifest["data_files"]
     )
@@ -456,7 +459,7 @@ def test_old_manifest_contract_restores_then_adds_empty_archive_table(
     backup.confirm_restore(staged.restore_id)
     backup.recover_and_apply_pending_restore()
     assert _tables(repo) == tables and _files(root) == files
-    assert repo.initialize(now=backup_support.NOW).version == 39
+    assert repo.initialize(now=backup_support.NOW).version == 40
     with repo._connect() as connection:
         assert (
             connection.execute(
@@ -512,7 +515,7 @@ def test_migration38_ddl_fault_rolls_back_and_preserves37_exactly(
             is None
         )
     monkeypatch.setattr(repo, "_load_migrations", lambda: migrations)
-    assert repo.initialize(now=datetime.now(UTC)).version == 39
+    assert repo.initialize(now=datetime.now(UTC)).version == 40
     assert {
         k: v
         for k, v in _tables(repo).items()

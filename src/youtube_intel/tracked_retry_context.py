@@ -114,3 +114,20 @@ def generic_job_filter(connection: sqlite3.Connection, alias: str = "") -> str:
     if present(connection):
         result += f" AND {column} NOT IN (SELECT target_job_id FROM tracked_content_retry_requests UNION SELECT expected_old_job_id FROM tracked_content_retry_requests) "
     return result
+
+
+class NativeTimingUnavailable(ValueError):
+    """A received native body has no authoritative timed representation."""
+
+
+def require_native_timing(available: bool) -> None:
+    if _AUTH.get() is not None and not available:
+        raise NativeTimingUnavailable("Native timed subtitles are unavailable")
+
+
+def active_provider(request_hash: str) -> bool:
+    value = _AUTH.get()
+    if value is None or value[1] != request_hash:
+        return False
+    value[2]()
+    return True

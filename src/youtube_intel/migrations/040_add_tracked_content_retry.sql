@@ -107,7 +107,7 @@ CREATE TABLE tracked_content_retry_files (
  settled_at TEXT CHECK(settled_at IS NULL OR (length(settled_at)=27 AND substr(settled_at,-1)='Z')),
  PRIMARY KEY(request_id,relative_path),
  CHECK((state='PLANNED' AND settled_at IS NULL AND observed_sha256 IS NULL AND observed_size_bytes IS NULL)
- OR (state='VERIFIED' AND settled_at IS NOT NULL AND observed_sha256=expected_sha256 AND observed_size_bytes=expected_size_bytes)
+ OR (state='VERIFIED' AND settled_at IS NOT NULL AND observed_sha256 IS NOT NULL AND observed_size_bytes IS NOT NULL AND observed_sha256=expected_sha256 AND observed_size_bytes=expected_size_bytes)
  OR (state='RETAINED_PARTIAL' AND role='WRITE_BUFFER' AND settled_at IS NOT NULL AND observed_sha256 IS NOT NULL AND observed_size_bytes IS NOT NULL)
  OR (state='ABSENT' AND settled_at IS NOT NULL AND observed_sha256 IS NULL AND observed_size_bytes IS NULL))
 );

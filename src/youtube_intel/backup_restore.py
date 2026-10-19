@@ -46,7 +46,7 @@ from .state import SQLiteStateRepository
 
 FORMAT_NAME = "intelligence-core-backup"
 FORMAT_VERSION = 1
-LATEST_SCHEMA_VERSION = 39
+LATEST_SCHEMA_VERSION = 40
 MAX_ARCHIVE_BYTES = 8 * 1024 * 1024 * 1024
 MAX_ARCHIVE_FILES = 10_002
 MAX_MEMBER_BYTES = 2 * 1024 * 1024 * 1024
@@ -261,15 +261,21 @@ class BackupRestoreService:
     def _protect_background(self) -> Iterator[None]:
         # Existing active work remains visible to the quiescence check; do not
         # wait holding SQLite while that work needs SQLite to settle.
-        with self._background_lock:
-            self._background_suspended += 1
+        from .tracked_retry_context import RetryConflict, RetryIntegrity, store_lock
+
         try:
-            yield
-        finally:
-            with self._background_lock:
-                self._background_suspended -= 1
-            if self._background_wakeup is not None:
-                self._background_wakeup()
+            with store_lock(self.database, exclusive=True):
+                with self._background_lock:
+                    self._background_suspended += 1
+                try:
+                    yield
+                finally:
+                    with self._background_lock:
+                        self._background_suspended -= 1
+                    if self._background_wakeup is not None:
+                        self._background_wakeup()
+        except (RetryConflict, RetryIntegrity) as error:
+            raise BackupRestoreError("Content retry is still writing; wait before Backup or Restore.") from error
 
     def readiness(self) -> dict[str, object]:
         try:
@@ -472,6 +478,10 @@ class BackupRestoreService:
             }
 
     def recover_and_apply_pending_restore(self) -> None:
+        with self._protect_background():
+            self._recover_and_apply_pending_restore()
+
+    def _recover_and_apply_pending_restore(self) -> None:
         """Run before repositories and workers open; recover finite marker states."""
         if not self.marker_path.exists():
             return
@@ -606,7 +616,7 @@ class BackupRestoreService:
                     "Restore activation failed and automatic rollback needs recovery; startup stopped safely."
                 ) from rollback_error
             return
-        self.recover_and_apply_pending_restore()
+        self._recover_and_apply_pending_restore()
 
     def _copy_staged_pair(self, stage_dir: Path, new_db: Path, new_data: Path) -> None:
         database_source = stage_dir / "database" / "state.sqlite"
@@ -815,7 +825,7 @@ class BackupRestoreService:
             if integrity is None or integrity[0] != "ok":
                 raise BackupRestoreError("Backup SQLite failed integrity_check.")
             repository = SQLiteStateRepository(stage_dir / "database" / "state.sqlite")
-            reasons = self._quiescence_reasons(connection, repository=repository)
+            reasons = self._quiescence_reasons(connection, repository=repository, data_root=stage_dir / "data")
             if reasons:
                 raise BackupRestoreError("Backup contains active work: " + ", ".join(reasons))
             self._validate_snapshot_authority(
@@ -897,7 +907,7 @@ class BackupRestoreService:
             raise BackupRestoreError("Backup manifest fields are incomplete or unsupported.")
         if manifest.get("format") != FORMAT_NAME or manifest.get("format_version") != FORMAT_VERSION:
             raise BackupRestoreError("Backup format is incompatible.")
-        if manifest.get("schema_version") not in {34, 35, 36, 37, 38, LATEST_SCHEMA_VERSION}:
+        if manifest.get("schema_version") not in {34, 35, 36, 37, 38, 39, LATEST_SCHEMA_VERSION}:
             raise BackupRestoreError("Backup database schema is incompatible.")
         if not isinstance(manifest.get("application_version"), str) or not isinstance(
             manifest.get("created_at"), str
@@ -919,10 +929,13 @@ class BackupRestoreService:
             raise BackupRestoreError("Backup DATA manifest is invalid.")
         paths: set[str] = set()
         neutral = manifest["schema_version"] >= 38
+        tracked = manifest["schema_version"] >= 40
         for record in files:
             fields = {"relative_path", "size_bytes", "sha256", "artifacts"}
             if neutral:
                 fields.add("retained_subtitle_derivations")
+            if tracked:
+                fields.add("tracked_content_retry_files")
             if not isinstance(record, dict) or set(record) != fields:
                 raise BackupRestoreError("Backup DATA record is invalid.")
             if not isinstance(record["relative_path"], str):
@@ -933,7 +946,7 @@ class BackupRestoreService:
             if record["size_bytes"] > MAX_DATA_FILE_BYTES:
                 raise BackupRestoreError("Backup DATA artifact exceeds the supported size.")
             paths.add(path)
-            if not isinstance(record["artifacts"], list) or (not record["artifacts"] and not (neutral and record["retained_subtitle_derivations"])):
+            if not isinstance(record["artifacts"], list) or (not record["artifacts"] and not (neutral and record["retained_subtitle_derivations"]) and not (tracked and record["tracked_content_retry_files"])):
                 raise BackupRestoreError("Backup DATA artifact identity is missing.")
             for artifact in record["artifacts"]:
                 if not isinstance(artifact, dict) or set(artifact) != {
@@ -954,8 +967,21 @@ class BackupRestoreService:
                 identities = [ref["archive_id"] for ref in refs]
                 if identities != sorted(set(identities)):
                     raise BackupRestoreError("Backup neutral retention identities are not unique and sorted.")
+            if tracked:
+                refs = record['tracked_content_retry_files']
+                if (not isinstance(refs,list) or any(not isinstance(ref,dict) or set(ref)!={'request_id','role','state','proof_sha256'}
+                    or not all(isinstance(value,str) and value for value in ref.values())
+                    or not ref['request_id'].startswith('tracked-content-retry:v1:')
+                    or ref['role'] not in {'CAPTURE','RAW_SOURCE','CANONICAL_DERIVATION','SUMMARY_DERIVATION','WRITE_BUFFER'}
+                    or ref['state'] not in {'VERIFIED','RETAINED_PARTIAL'} or not _SHA256.fullmatch(ref['proof_sha256']) for ref in refs)):
+                    raise BackupRestoreError('Backup Content retry file references are invalid.')
+                identities=[ref['request_id'] for ref in refs]
+                if identities != sorted(set(identities)):
+                    raise BackupRestoreError('Backup Content retry file references are not unique and sorted.')
         counts = manifest.get("counts")
         count_fields = {"following", "content", "summaries", "evidence", "intelligence", "topics", "settings", "data_artifacts", "data_bytes"}
+        if tracked:
+            count_fields.add("tracked_retry_retained_files")
         if neutral:
             count_fields.add("retained_derivations")
         if not isinstance(counts, dict) or set(counts) != count_fields or any(type(value) is not int or value < 0 for value in counts.values()):
@@ -1013,6 +1039,8 @@ class BackupRestoreService:
         }
         if int(connection.execute("PRAGMA user_version").fetchone()[0]) >= 38:
             actual_counts["retained_derivations"] = sum(len(record["retained_subtitle_derivations"]) for record in expected.values())
+        if int(connection.execute('PRAGMA user_version').fetchone()[0]) >= 40:
+            actual_counts['tracked_retry_retained_files']=sum(bool(record['tracked_content_retry_files']) and not record['artifacts'] for record in expected.values())
         if counts != actual_counts:
             raise BackupRestoreError("Backup preview counts do not match its database.")
         for relative, authority in expected.items():
@@ -1063,6 +1091,30 @@ class BackupRestoreService:
                     raise BackupRestoreError("Neutral and ordinary DATA references disagree.")
                 record["size_bytes"] = int(row["size_bytes"])
                 record["retained_subtitle_derivations"].append({"archive_id":str(row["archive_id"]),"proof_version":str(row["proof_version"]),"video_id":str(row["video_id"]),"proof_sha256":str(row["proof_sha256"])})
+        if int(connection.execute('PRAGMA user_version').fetchone()[0]) >= 40:
+            from .tracked_retry_reader import verify_all
+
+            database=Path(connection.execute('PRAGMA database_list').fetchone()[2])
+            repository=SQLiteStateRepository(database)
+            repository.bind_source_storage(root)
+            try:
+                verified=verify_all(repository,root,settled=True)
+            except Exception as error:
+                raise BackupRestoreError('Content retry ownership or file closure failed validation.') from error
+            for record in grouped.values():
+                record['tracked_content_retry_files']=[]
+            for _request,_execution,files in verified:
+                for row in files:
+                    if row['state'] not in {'VERIFIED','RETAINED_PARTIAL'}:
+                        continue
+                    relative=self._safe_archive_path(row['relative_path'])
+                    record=grouped.get(relative)
+                    if record is None:
+                        record=dict(relative_path=relative,sha256=row['observed_sha256'],size_bytes=row['observed_size_bytes'],artifacts=[],retained_subtitle_derivations=[],tracked_content_retry_files=[])
+                        grouped[relative]=record
+                    if record['sha256']!=row['observed_sha256']:
+                        raise BackupRestoreError('Content retry and ordinary DATA references disagree.')
+                    record['tracked_content_retry_files'].append({key:row[key] for key in ('request_id','role','state','proof_sha256')})
         for relative, record in grouped.items():
             size, actual_hash = self._safe_hash_data_file(root, relative)
             if actual_hash != record["sha256"]:
@@ -1146,8 +1198,14 @@ class BackupRestoreService:
         if not _REQUIRED_TABLES <= tables:
             raise BackupRestoreError("SQLite database is missing required Intelligence tables.")
         version_row = connection.execute("PRAGMA user_version").fetchone()
-        if version_row is None or int(version_row[0]) not in {34, 35, 36, 37, 38, LATEST_SCHEMA_VERSION}:
+        if version_row is None or int(version_row[0]) not in {34, 35, 36, 37, 38, 39, LATEST_SCHEMA_VERSION}:
             raise BackupRestoreError("SQLite database schema is not compatible with this version.")
+        if int(version_row[0]) >= 40:
+            from .tracked_retry_reader import verify_schema
+            try:
+                verify_schema(connection)
+            except Exception as error:
+                raise BackupRestoreError('Content retry schema authority is incompatible.') from error
         for table in tables:
             quoted = table.replace('"', '""')
             for column in connection.execute(f'PRAGMA table_info("{quoted}")'):
@@ -1340,7 +1398,7 @@ class BackupRestoreService:
                 raise BackupRestoreError("Evidence translation presentation failed hash validation.")
 
     def _quiescence_reasons(
-        self, connection: sqlite3.Connection, *, repository: SQLiteStateRepository | None = None
+        self, connection: sqlite3.Connection, *, repository: SQLiteStateRepository | None = None, data_root: Path | None = None
     ) -> list[str]:
         reasons: list[str] = []
         with self._background_lock:
@@ -1358,9 +1416,20 @@ class BackupRestoreService:
             if status not in _TERMINAL_PROVIDER_CALLS:
                 reasons.append("PROVIDER_CALL_UNRESOLVED")
                 break
-        for (status,) in connection.execute("SELECT DISTINCT status FROM provider_dispatch_states"):
-            if status not in _TERMINAL_DISPATCH:
-                reasons.append("PROVIDER_DISPATCH_UNRESOLVED")
+        tracked_ambiguous: set[str] = set()
+        if int(connection.execute('PRAGMA user_version').fetchone()[0]) >= 40:
+            from .tracked_retry_reader import verify_request
+            if connection.execute("SELECT 1 FROM tracked_content_retry_executions WHERE state IN ('QUEUED','ACQUIRING','FINALIZING','ATTENTION') LIMIT 1").fetchone():
+                reasons.append('TRACKED_CONTENT_RETRY_ACTIVE')
+            for row in connection.execute("SELECT request_id,provider_call_hash FROM tracked_content_retry_executions WHERE state='AMBIGUOUS'"):
+                try:
+                    verify_request(repository,data_root or self.data_root,row['request_id'],settled=True)
+                except Exception:
+                    continue
+                tracked_ambiguous.add(row['provider_call_hash'])
+        for row in connection.execute("SELECT request_hash,status FROM provider_dispatch_states"):
+            if row['status'] not in _TERMINAL_DISPATCH and not (row['status']=='AMBIGUOUS' and row['request_hash'] in tracked_ambiguous):
+                reasons.append('PROVIDER_DISPATCH_UNRESOLVED')
                 break
         source_run_columns = {
             str(row[1]) for row in connection.execute('PRAGMA table_info("source_runs")')
@@ -1723,6 +1792,8 @@ class BackupRestoreService:
         neutral = int(connection.execute("PRAGMA user_version").fetchone()[0]) >= 38
         if neutral:
             counts["retained_derivations"] = sum(len(row["retained_subtitle_derivations"]) for row in artifacts.values())
+        if int(connection.execute('PRAGMA user_version').fetchone()[0]) >= 40:
+            counts['tracked_retry_retained_files']=sum(bool(row['tracked_content_retry_files']) and not row['artifacts'] for row in artifacts.values())
         try:
             app_version = package_version("youtube-intel")
         except PackageNotFoundError:
@@ -1741,6 +1812,7 @@ class BackupRestoreService:
                     "sha256": record["sha256"],
                     "artifacts": record["artifacts"],
                     **({"retained_subtitle_derivations": record["retained_subtitle_derivations"]} if neutral else {}),
+                    **({"tracked_content_retry_files": record["tracked_content_retry_files"]} if int(connection.execute("PRAGMA user_version").fetchone()[0]) >= 40 else {}),
                 }
                 for relative, record in sorted(artifacts.items())
             ],

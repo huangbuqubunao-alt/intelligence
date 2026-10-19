@@ -220,3 +220,916 @@ def test_contended_initial_lock_creation_keeps_one_stable_inode(tmp_path):
     with ThreadPoolExecutor(max_workers=8) as pool:
         identities = list(pool.map(open_shared, range(1000)))
     assert len(set(identities)) == 1
+
+
+def test_worker_completes_only_content_and_preserves_tracking(tmp_path, monkeypatch):
+    repo, source, cid, old, adapter, fixture, _runtime, service = failed_tracked(tmp_path, monkeypatch)
+    with repo._connect() as connection:
+        before = {table: [tuple(row) for row in connection.execute(f'SELECT * FROM {table}')]
+                  for table in ('source_runs', 'source_observations', 'source_video_links', 'source_tracking_state', 'source_subscriptions')}
+    receipt = service.request(cid, command_id='worker-success', expected_job_id=old.job_id)
+    original = adapter.enumerate_tracks
+    calls = []
+    def inspect_intent(video_id):
+        with repo._connect() as connection:
+            execution = connection.execute('SELECT * FROM tracked_content_retry_executions').fetchone()
+            dispatch = connection.execute('SELECT status FROM provider_dispatch_states WHERE request_hash=?', (execution['provider_call_hash'],)).fetchone()
+            assert execution['state'] == 'ACQUIRING' and dispatch[0] == 'DISPATCH_INTENT_DURABLE'
+        calls.append(video_id)
+        return original(video_id)
+    adapter.enumerate_tracks = inspect_intent
+    completed = service.run(receipt['request_id'])
+    assert completed['state'] == 'SUCCEEDED'
+    assert calls == [cid]
+    assert repo.get_video(cid).pipeline_status.value == 'TRANSCRIPT_READY'
+    assert repo.current_local_summary_pointer(cid) is not None
+    assert service.run(receipt['request_id']) == completed
+    assert calls == [cid]
+    with repo._connect() as connection:
+        assert all([tuple(row) for row in connection.execute(f'SELECT * FROM {table}')] == rows for table, rows in before.items())
+        assert connection.execute('SELECT count(*) FROM tracked_content_retry_files').fetchone()[0] >= 6
+        assert not connection.execute("SELECT 1 FROM tracked_content_retry_files WHERE state='PLANNED'").fetchone()
+        assert not connection.execute("SELECT 1 FROM jobs WHERE video_id=? AND target_stage NOT IN ('METADATA','TRANSCRIPT')", (cid,)).fetchone()
+
+
+@pytest.mark.parametrize('outcome', ['known', 'unknown', 'paused'])
+def test_worker_closed_failures_never_refetch(tmp_path, monkeypatch, outcome):
+    repo, source, cid, old, adapter, fixture, _runtime, service = failed_tracked(tmp_path, monkeypatch)
+    receipt = service.request(cid, command_id=outcome, expected_job_id=old.job_id)
+    calls = []
+    def fail(video_id):
+        calls.append(video_id)
+        if outcome == 'known':
+            raise TranscriptError(AppError(code=ErrorCode.INVALID_RESPONSE, message='invalid directory', retryable=False))
+        raise TimeoutError('response outcome unknown')
+    adapter.enumerate_tracks = fail
+    if outcome == 'paused':
+        repo.update_source_subscription(source.source_id, enabled=False, now=fixture.now)
+    final = service.run(receipt['request_id'])
+    assert final['state'] == ('AMBIGUOUS' if outcome == 'unknown' else 'FAILED')
+    assert len(calls) == (0 if outcome == 'paused' else 1)
+    assert service.run(receipt['request_id']) == final
+    with repo._connect() as connection:
+        target = connection.execute('SELECT * FROM jobs WHERE job_id=?', (receipt['target_job_id'],)).fetchone()
+        assert target['status'] == 'FAILED_FINAL' and target['lease_owner'] is None
+        assert not connection.execute('SELECT 1 FROM job_attempts WHERE job_id=? AND finished_at IS NULL', (target['job_id'],)).fetchone()
+
+
+@pytest.mark.parametrize('damage', ['event','action','epoch','target','old_attempt'])
+def test_reader_rejects_tampered_foundation_evidence(tmp_path, monkeypatch, damage):
+    import json
+
+    from youtube_intel.tracked_retry_context import RetryIntegrity
+    from youtube_intel.tracked_retry_store import canonical, event, read
+    repo, _source, cid, old, _adapter, fixture, _runtime, service=failed_tracked(tmp_path,monkeypatch)
+    receipt=service.request(cid,command_id=damage,expected_job_id=old.job_id)
+    with repo._connect() as connection:
+        row=connection.execute('SELECT * FROM tracked_content_retry_executions').fetchone()
+        if damage in {'event','action','epoch'}:
+            events=json.loads(row['events_json'])
+            final=event('FAILED',prior='QUEUED',revision=1,epoch=0,at=row['updated_at'],name='FAILED')
+            if damage=='event':
+                final['event']='FUTURE_UNKNOWN_EVENT'
+            elif damage=='action':
+                final['action']={'arbitrary':'not a receipt'}
+            else:
+                final['fencing_epoch']=999
+            events.append(final)
+            connection.execute("UPDATE jobs SET status='FAILED_FINAL',finished_at=? WHERE job_id=?",(row['updated_at'],receipt['target_job_id']))
+            connection.execute("UPDATE tracked_content_retry_executions SET state='FAILED',revision=1,error_code='SOURCE_PAUSED',finished_at=updated_at,events_json=?",(canonical(events),))
+        elif damage=='target':
+            connection.execute("UPDATE jobs SET status='FAILED_FINAL',finished_at=? WHERE job_id=?",(row['updated_at'],receipt['target_job_id']))
+        else:
+            connection.execute("UPDATE job_attempts SET error_code='UNKNOWN_PROVIDER_STATE' WHERE job_id=?",(old.job_id,))
+    with repo._connect(read_only=True) as connection, pytest.raises(RetryIntegrity):
+        read(connection,receipt['request_id'])
+    with pytest.raises(RetryIntegrity):
+        service.request(cid,command_id=damage,expected_job_id=old.job_id)
+
+
+def test_verified_file_requires_both_observed_values(tmp_path,monkeypatch):
+    import sqlite3
+
+    from youtube_intel.tracked_retry_store import canonical, digest
+    repo,_source,cid,old,_adapter,_fixture,_runtime,service=failed_tracked(tmp_path,monkeypatch)
+    receipt=service.request(cid,command_id='null-file',expected_job_id=old.job_id)
+    with repo._connect() as connection:
+        at=connection.execute('SELECT created_at FROM tracked_content_retry_requests').fetchone()[0]
+        for checksum,size in [(None,None),('a'*64,None),(None,1)]:
+            with pytest.raises(sqlite3.IntegrityError):
+                connection.execute("INSERT INTO tracked_content_retry_files(request_id,relative_path,role,expected_sha256,expected_size_bytes,state,observed_sha256,observed_size_bytes,proof_json,proof_sha256,created_at,settled_at) VALUES(?,'test','CAPTURE',?,1,'VERIFIED',?,?,?,?,?,?)",(receipt['request_id'],'a'*64,checksum,size,canonical({}),digest({}),at,at))
+        connection.execute("INSERT INTO tracked_content_retry_files(request_id,relative_path,role,expected_sha256,expected_size_bytes,state,proof_json,proof_sha256,created_at) VALUES(?,'test','CAPTURE',?,1,'PLANNED',?,?,?)",(receipt['request_id'],'a'*64,canonical({}),digest({}),at))
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute("UPDATE tracked_content_retry_files SET state='VERIFIED',settled_at=?",(at,))
+
+
+def test_generic_ambiguous_mutator_is_fenced_even_with_real_owner(tmp_path,monkeypatch):
+    from youtube_intel.tracked_retry_context import RetryConflict
+    repo,_source,cid,old,adapter,fixture,_runtime,service=failed_tracked(tmp_path,monkeypatch)
+    receipt=service.request(cid,command_id='generic-ambiguity',expected_job_id=old.job_id)
+    def crash(_):
+        raise KeyboardInterrupt('simulate owner process loss before receipt')
+    adapter.enumerate_tracks=crash
+    with pytest.raises(KeyboardInterrupt):
+        service.run(receipt['request_id'])
+    with repo._connect() as connection:
+        execution=connection.execute('SELECT * FROM tracked_content_retry_executions').fetchone()
+        before=tuple(connection.iterdump())
+    with pytest.raises(RetryConflict):
+        repo.mark_provider_dispatch_ambiguous(execution['provider_call_hash'],owner=execution['lease_owner'],now=fixture.now)
+    with repo._connect() as connection:
+        assert tuple(connection.iterdump())==before
+    adapter.enumerate_tracks=lambda _: pytest.fail('unknown acquisition must never refetch')
+    result=service.run(receipt['request_id'])
+    assert result['state']=='AMBIGUOUS'
+    assert repo.get_job(receipt['target_job_id']).attempt_count==1
+
+
+def test_known_provider_failure_survives_crash_before_execution_receipt_without_becoming_unknown(tmp_path,monkeypatch):
+    from youtube_intel.tracked_retry_worker import RetryWorker
+    repo,_source,cid,old,adapter,_fixture,_runtime,service=failed_tracked(tmp_path,monkeypatch)
+    receipt=service.request(cid,command_id='known-crash-window',expected_job_id=old.job_id)
+    def known(_):
+        raise TranscriptError(AppError(code=ErrorCode.INVALID_RESPONSE,message='known directory failure',retryable=False))
+    adapter.enumerate_tracks=known
+    def crash(*args,**kwargs):
+        raise KeyboardInterrupt('after provider failure, before execution terminal')
+    with monkeypatch.context() as context:
+        context.setattr(RetryWorker,'_finish_failure',crash)
+        with pytest.raises(KeyboardInterrupt):
+            service.run(receipt['request_id'])
+    with repo._connect() as connection:
+        dispatch=connection.execute('SELECT * FROM provider_dispatch_states WHERE request_hash=(SELECT provider_request_hash FROM tracked_content_retry_requests)').fetchone()
+        call=connection.execute('SELECT * FROM provider_calls WHERE request_hash=(SELECT provider_request_hash FROM tracked_content_retry_requests)').fetchone()
+        assert (call['status'],dispatch['status'])==('FAILED_FINAL','FAILED_KNOWN'),(dict(call),dict(dispatch))
+    adapter.enumerate_tracks=lambda _:pytest.fail('known settled failure was dispatched again')
+    result=service.run(receipt['request_id'])
+    assert result['state']=='FAILED'
+    assert service.status(cid)['retry_allowed']
+    with repo._connect() as connection:
+        assert connection.execute('SELECT last_error_message FROM provider_calls WHERE request_hash=(SELECT provider_request_hash FROM tracked_content_retry_requests)').fetchone()[0]=='known directory failure'
+
+
+@pytest.mark.parametrize('window',['before_receipt','after_receipt'])
+def test_known_failure_receipt_crash_boundary_keeps_unknown_closed_and_known_recoverable(tmp_path,monkeypatch,window):
+    from youtube_intel.tracked_retry_worker import RetryWorker
+    repo,_source,cid,old,adapter,_fixture,_runtime,service=failed_tracked(tmp_path,monkeypatch)
+    receipt=service.request(cid,command_id='known-receipt-'+window,expected_job_id=old.job_id)
+    def known(_):
+        raise TranscriptError(AppError(code=ErrorCode.INVALID_RESPONSE,message='typed known failure before restart',retryable=False))
+    adapter.enumerate_tracks=known
+    original=RetryWorker._record_known_failure
+    def crash(self,error):
+        if window=='after_receipt':
+            original(self,error)
+        raise KeyboardInterrupt('actual process interruption '+window)
+    with monkeypatch.context() as context:
+        context.setattr(RetryWorker,'_record_known_failure',crash)
+        with pytest.raises(KeyboardInterrupt):
+            service.run(receipt['request_id'])
+    with repo._connect() as connection:
+        call=connection.execute('SELECT status,last_error_message FROM provider_calls WHERE request_hash=(SELECT provider_request_hash FROM tracked_content_retry_requests)').fetchone()
+        dispatch=connection.execute('SELECT status FROM provider_dispatch_states').fetchone()[0]
+        assert (call['status'],dispatch)==(('PENDING','DISPATCH_INTENT_DURABLE') if window=='before_receipt' else ('FAILED_FINAL','FAILED_KNOWN'))
+    adapter.enumerate_tracks=lambda _:pytest.fail('recovery dispatched captions again')
+    restarted=type(service)(repo,service.data_root,adapter_factory=service.adapter_factory,language_preferences=service.languages,metadata_for_video=service.metadata_for_video,now=service.now)
+    result=restarted.run(receipt['request_id'])
+    assert result['state']==('AMBIGUOUS' if window=='before_receipt' else 'FAILED')
+    assert restarted.status(cid)['retry_allowed']==(window=='after_receipt')
+
+
+@pytest.mark.parametrize('operation',['RESUME_LOCAL','CLOSE_LOCAL'])
+def test_local_attention_has_idempotent_user_exit_without_http(tmp_path,monkeypatch,operation):
+    from youtube_intel.extractive_summary import ExtractiveSummaryService
+    from youtube_intel.tracked_retry_reader import verify_all
+    repo,_source,cid,old,adapter,_fixture,_runtime,service=failed_tracked(tmp_path,monkeypatch)
+    receipt=service.request(cid,command_id='attention',expected_job_id=old.job_id)
+    original=ExtractiveSummaryService.create
+    def unavailable(*args,**kwargs):
+        raise OSError('isolated local write failure')
+    monkeypatch.setattr(ExtractiveSummaryService,'create',unavailable)
+    attention=service.run(receipt['request_id'])
+    assert attention['state']=='ATTENTION' and attention['can_close_local']
+    assert repo.get_job(receipt['target_job_id']).status.value=='SUCCEEDED'
+    adapter.enumerate_tracks=lambda _: pytest.fail('local finalization must never request subtitles')
+    adapter.read_track=lambda _: pytest.fail('local finalization must never read body')
+    monkeypatch.setattr(ExtractiveSummaryService,'create',original)
+    inputs=dict(operation=operation,command_id='local-action',expected_revision=attention['revision'])
+    action=service.action(receipt['request_id'],**inputs)
+    assert action['state']==('FINALIZING' if operation=='RESUME_LOCAL' else 'FAILED')
+    assert service.action(receipt['request_id'],**inputs)==action
+    if operation=='RESUME_LOCAL':
+        assert service.run(receipt['request_id'])['state']=='SUCCEEDED'
+    verified=verify_all(repo,service.data_root,settled=True)
+    assert len(verified)==1
+
+
+def test_cancel_queued_is_terminal_and_cannot_dispatch(tmp_path,monkeypatch):
+    from youtube_intel.tracked_retry_reader import verify_all
+    repo,_source,cid,old,adapter,_fixture,_runtime,service=failed_tracked(tmp_path,monkeypatch)
+    receipt=service.request(cid,command_id='cancel',expected_job_id=old.job_id)
+    inputs=dict(operation='CANCEL_BEFORE_DISPATCH',command_id='cancel-action',expected_revision=receipt['revision'])
+    cancelled=service.action(receipt['request_id'],**inputs)
+    assert cancelled['state']=='CANCELLED'
+    adapter.enumerate_tracks=lambda _: pytest.fail('cancelled retry dispatched')
+    assert service.run(receipt['request_id'])==cancelled
+    assert service.action(receipt['request_id'],**inputs)==cancelled
+    assert len(verify_all(repo,service.data_root,settled=True))==1
+
+
+@pytest.mark.parametrize('cause', ['cancel', 'pause', 'adapter'])
+def test_zero_dispatch_terminal_allows_new_explicit_command_without_fake_attempt(tmp_path, monkeypatch, cause):
+    from youtube_intel.tracked_retry_reader import verify_all
+    repo, source, cid, old, adapter, fixture, _runtime, service = failed_tracked(tmp_path, monkeypatch)
+    initial = service.request(cid, command_id='first', expected_job_id=old.job_id)
+    current = initial
+    original_factory = service.adapter_factory
+    for index in range(3):
+        if cause == 'cancel':
+            terminal = service.action(current['request_id'], operation='CANCEL_BEFORE_DISPATCH', command_id=f'cancel-{index}', expected_revision=current['revision'])
+        else:
+            if cause == 'pause':
+                repo.update_source_subscription(source.source_id, enabled=False, now=fixture.now)
+            else:
+                def unavailable():
+                    raise OSError('adapter unavailable before dispatch')
+                service.adapter_factory = unavailable
+            terminal = service.run(current['request_id'])
+            repo.update_source_subscription(source.source_id, enabled=True, now=fixture.now)
+            service.adapter_factory = original_factory
+        with repo._connect() as connection:
+            target = connection.execute('SELECT * FROM jobs WHERE job_id=?', (current['target_job_id'],)).fetchone()
+            assert target['attempt_count'] == 0
+            assert connection.execute('SELECT count(*) FROM job_attempts WHERE job_id=?', (target['job_id'],)).fetchone()[0] == 0
+        assert service.status(cid)['retry_allowed']
+        fixture.now += timedelta(seconds=1)
+        following = service.request(cid, command_id=f'new-{index}', expected_job_id=current['target_job_id'])
+        assert service.request(cid, command_id=f'new-{index}', expected_job_id=current['target_job_id']) == following
+        assert service.run(current['request_id']) == terminal
+        with pytest.raises(ValueError):
+            service.request(cid, command_id=f'reconsume-{index}', expected_job_id=old.job_id)
+        current = following
+    assert service.run(current['request_id'])['state'] == 'SUCCEEDED'
+    assert len(verify_all(repo, service.data_root, settled=True)) == 4
+
+
+@pytest.mark.parametrize('damage', ['parent', 'execution', 'receipt', 'epoch', 'marker', 'attempt', 'provider', 'file', 'active_writer', 'cycle', 'source'])
+def test_zero_dispatch_parent_proof_is_required_by_admission_reader_and_restore(tmp_path, monkeypatch, damage):
+    import json
+    import sqlite3
+    from contextlib import nullcontext
+
+    from youtube_intel.backup_restore import BackupRestoreService
+    from youtube_intel.tracked_retry_context import request_lock
+    from youtube_intel.tracked_retry_reader import verify_all
+    from youtube_intel.tracked_retry_store import canonical, digest, provider_request
+    repo, _source, cid, old, _adapter, fixture, _runtime, service = failed_tracked(tmp_path, monkeypatch)
+    first = service.request(cid, command_id='parent', expected_job_id=old.job_id)
+    service.action(first['request_id'], operation='CANCEL_BEFORE_DISPATCH', command_id='cancel', expected_revision=first['revision'])
+    if damage == 'active_writer':
+        context = request_lock(repo._database_path, first['request_id'])
+    else:
+        context = nullcontext()
+        with sqlite3.connect(repo._database_path) as connection:
+            connection.row_factory = sqlite3.Row
+            triggers = list(connection.execute("SELECT name,sql FROM sqlite_master WHERE type='trigger' AND name LIKE 'tracked_content_retry_%'"))
+            for name, _sql in triggers:
+                connection.execute(f'DROP TRIGGER "{name}"')
+            row = connection.execute('SELECT * FROM tracked_content_retry_executions').fetchone()
+            events = json.loads(row['events_json'])
+            if damage == 'parent':
+                connection.execute('DELETE FROM tracked_content_retry_executions')
+                connection.execute('DELETE FROM tracked_content_retry_requests')
+            elif damage == 'execution':
+                connection.execute('DELETE FROM tracked_content_retry_executions')
+            elif damage == 'cycle':
+                connection.execute('UPDATE tracked_content_retry_requests SET expected_old_job_id=target_job_id')
+            elif damage == 'source':
+                connection.execute("UPDATE tracked_content_retry_requests SET channel_id='UCwrongsource000000000000'")
+            elif damage in {'receipt','epoch','marker'}:
+                if damage == 'receipt':
+                    events[-1]['action'] = None
+                elif damage == 'epoch':
+                    events[-1]['fencing_epoch'] = 0
+                    connection.execute('UPDATE tracked_content_retry_executions SET fencing_epoch=0')
+                else:
+                    events.pop()
+                connection.execute('UPDATE tracked_content_retry_executions SET events_json=?', (canonical(events),))
+            elif damage == 'attempt':
+                connection.execute('UPDATE jobs SET attempt_count=1 WHERE job_id=?', (first['target_job_id'],))
+            elif damage == 'provider':
+                request = dict(connection.execute('SELECT * FROM tracked_content_retry_requests').fetchone())
+                repo._reserve_provider_call_in_transaction(connection, provider_request(request), owner='unproven', lease_until=fixture.now+timedelta(minutes=1), available_at=fixture.now, now=fixture.now)
+            else:
+                connection.execute("INSERT INTO tracked_content_retry_files(request_id,relative_path,role,expected_sha256,expected_size_bytes,state,proof_json,proof_sha256,created_at) VALUES(?,'unproven','CAPTURE',?,1,'PLANNED',?,?,?)", (first['request_id'],'a'*64,canonical({}),digest({}),row['updated_at']))
+            for _name, sql in triggers:
+                connection.execute(sql)
+    with context:
+        with pytest.raises(ValueError):
+            service.request(cid, command_id='new-after-damage', expected_job_id=first['target_job_id'])
+        if damage != 'active_writer':
+            with pytest.raises(ValueError):
+                verify_all(repo, service.data_root, settled=True)
+            assert not BackupRestoreService(database=repo._database_path,data_root=service.data_root).readiness()['ready']
+        else:
+            assert not service.status(cid)['retry_allowed']
+
+
+def test_long_zero_dispatch_parent_chain_is_iterative_and_checks_middle_ancestors(tmp_path, monkeypatch):
+    import json
+
+    from youtube_intel.state import format_utc_datetime
+    from youtube_intel.tracked_retry_reader import verify_request
+    from youtube_intel.tracked_retry_store import (
+        OPERATION,
+        PREFIX,
+        build_raw_request_hash,
+        canonical,
+        digest,
+        event,
+        provider_request,
+        request_identity,
+        target_identity,
+    )
+    from youtube_intel.tracked_retry_worker import transition
+    repo, source, cid, old, _adapter, fixture, _runtime, service = failed_tracked(tmp_path, monkeypatch)
+    first = service.request(cid, command_id='chain-root', expected_job_id=old.job_id)
+    service.action(first['request_id'], operation='CANCEL_BEFORE_DISPATCH', command_id='cancel-root', expected_revision=first['revision'])
+    # Seed 1,050 schema-valid, explicitly cancelled requests in one transaction;
+    # no provider calls or job attempts are invented. This exceeds Python's
+    # usual recursion limit without making fixture construction quadratic.
+    with repo._connect() as connection:
+        template = dict(connection.execute('SELECT * FROM tracked_content_retry_requests').fetchone())
+        parameters = json.loads(template['parameters_json'])
+        old_row = dict(connection.execute('SELECT * FROM jobs WHERE job_id=?', (first['target_job_id'],)).fetchone())
+        middle = None
+        for index in range(1050):
+            command = f'long-chain-{index}'
+            request_id = request_identity(source.source_id, command)
+            target_id = target_identity(request_id, old_row['job_id'], template['pipeline_version'])
+            generation = int(request_id.removeprefix(PREFIX)[:15], 16)
+            at = format_utc_datetime(fixture.now + timedelta(seconds=index+1))
+            client = dict(contract=template['contract'], operation=OPERATION, video_id=cid, command_id=command, expected_job_id=old_row['job_id'])
+            request = dict(template, request_id=request_id, command_id=command,
+                client_input_json=canonical(client), client_input_sha256=digest(client),
+                expected_old_job_id=old_row['job_id'], old_job_snapshot_json=canonical(old_row), old_job_snapshot_sha256=digest(old_row),
+                target_job_id=target_id, refresh_generation=generation, created_at=at,
+                raw_request_hash=build_raw_request_hash(video_id=cid, language_preferences=parameters['language_preferences'], provider=parameters['adapter_name'], provider_version=parameters['adapter_version'], refresh_generation=generation))
+            request['provider_request_hash'] = provider_request(request).request_hash
+            target = dict(old_row, job_id=target_id, status='PENDING', last_error_code=None, last_error_message=None, created_at=at, updated_at=at, finished_at=None)
+            connection.execute(f"INSERT INTO jobs({','.join(target)}) VALUES({','.join('?' for _ in target)})", tuple(target.values()))
+            connection.execute(f"INSERT INTO tracked_content_retry_requests({','.join(request)}) VALUES({','.join('?' for _ in request)})", tuple(request.values()))
+            admission = dict(operation=OPERATION, command_id=command, expected_revision=None, input_json=canonical(client), input_sha256=digest(client), applied_revision=0)
+            connection.execute("INSERT INTO tracked_content_retry_executions(request_id,source_id,state,events_json,updated_at) VALUES(?,?,'QUEUED',?,?)", (request_id,source.source_id,canonical([event('QUEUED',prior=None,revision=0,epoch=0,at=at,name='ADMITTED',action=admission)]),at))
+            execution = dict(connection.execute('SELECT * FROM tracked_content_retry_executions WHERE request_id=?', (request_id,)).fetchone())
+            inputs = dict(request_id=request_id,operation='CANCEL_BEFORE_DISPATCH',command_id='cancel-'+command,expected_revision=0)
+            action = dict(operation=inputs['operation'],command_id=inputs['command_id'],expected_revision=0,input_json=canonical(inputs),input_sha256=digest(inputs),applied_revision=1)
+            connection.execute("UPDATE jobs SET status='FAILED_FINAL',last_error_code='CAPABILITY_UNAVAILABLE',last_error_message='CANCELLED_BEFORE_DISPATCH',finished_at=? WHERE job_id=?", (at,target_id))
+            transition(connection,execution,'CANCELLED',at=at,name='CANCELLED',action=action,fencing_epoch=1,error_code='CANCELLED_BEFORE_DISPATCH')
+            old_row = dict(connection.execute('SELECT * FROM jobs WHERE job_id=?', (target_id,)).fetchone())
+            if index == 500:
+                middle = request_id
+    fixture.now += timedelta(seconds=1052)
+    assert verify_request(repo,service.data_root,request_id,settled=True)[1]['state'] == 'CANCELLED'
+    next_request = service.request(cid, command_id='after-long-chain', expected_job_id=target_id)
+    assert service.request(cid, command_id='after-long-chain', expected_job_id=target_id) == next_request
+    with repo._connect() as connection:
+        assert connection.execute('SELECT count(*) FROM job_attempts WHERE job_id GLOB ?', ('tracked-content-retry-job:*',)).fetchone()[0] == 0
+        trigger = connection.execute("SELECT sql FROM sqlite_master WHERE name='tracked_content_retry_execution_update'").fetchone()[0]
+        connection.execute('DROP TRIGGER tracked_content_retry_execution_update')
+        events = json.loads(connection.execute('SELECT events_json FROM tracked_content_retry_executions WHERE request_id=?',(middle,)).fetchone()[0])
+        events[-1]['action'] = None
+        connection.execute('UPDATE tracked_content_retry_executions SET events_json=? WHERE request_id=?',(canonical(events),middle))
+        connection.execute(trigger)
+    with pytest.raises(ValueError, match='receipt'):
+        verify_request(repo,service.data_root,next_request['request_id'])
+
+
+@pytest.mark.parametrize('outcome',['success','known','unknown','cancelled','closed','zerochain'])
+def test_retry_terminal_backup_restores_all_tables_and_data(tmp_path,monkeypatch,outcome):
+    import hashlib
+
+    from youtube_intel.backup_restore import BackupRestoreService
+    from youtube_intel.extractive_summary import ExtractiveSummaryService
+    repo,_source,cid,old,adapter,fixture,_runtime,service=failed_tracked(tmp_path,monkeypatch)
+    receipt=service.request(cid,command_id='backup-'+outcome,expected_job_id=old.job_id)
+    if outcome == 'zerochain':
+        service.action(receipt['request_id'], operation='CANCEL_BEFORE_DISPATCH',command_id='cancel-parent',expected_revision=receipt['revision'])
+        receipt = service.request(cid,command_id='after-cancel',expected_job_id=receipt['target_job_id'])
+    backup=BackupRestoreService(database=repo._database_path,data_root=service.data_root)
+    assert not backup.readiness()['ready']
+    if outcome=='cancelled':
+        service.action(receipt['request_id'],operation='CANCEL_BEFORE_DISPATCH',command_id='cancel',expected_revision=receipt['revision'])
+    else:
+        if outcome=='known':
+            def known(_):
+                raise TranscriptError(AppError(code=ErrorCode.INVALID_RESPONSE,message='invalid directory',retryable=False))
+            adapter.enumerate_tracks=known
+        elif outcome=='unknown':
+            def unknown(_):
+                raise TimeoutError('unknown')
+            adapter.enumerate_tracks=unknown
+        elif outcome=='closed':
+            def failed(*args,**kwargs):
+                raise OSError('local finalization failure')
+            monkeypatch.setattr(ExtractiveSummaryService,'create',failed)
+        final=service.run(receipt['request_id'])
+        if outcome=='closed':
+            assert not backup.readiness()['ready']
+            final=service.action(receipt['request_id'],operation='CLOSE_LOCAL',command_id='close',expected_revision=final['revision'])
+    assert backup.readiness()['ready'],backup.readiness()
+    with repo._connect() as connection:
+        tables={row[0]:[tuple(r) for r in connection.execute(f'SELECT * FROM "{row[0]}"')] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    files={str(p.relative_to(service.data_root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in service.data_root.rglob('*') if p.is_file()}
+    result=backup.create_backup()
+    archive,_=backup.backup_download(result.backup_id)
+    repo.save_global_output_language(output_language='zh-CN',now=fixture.now)
+    staged=backup.stage_restore(archive.read_bytes())
+    backup.confirm_restore(staged.restore_id)
+    backup.recover_and_apply_pending_restore()
+    restarted=SQLiteStateRepository(repo._database_path)
+    assert restarted.initialize(now=fixture.now).version==40
+    with restarted._connect() as connection:
+        assert {row[0]:[tuple(r) for r in connection.execute(f'SELECT * FROM "{row[0]}"')] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}==tables
+    assert {str(p.relative_to(service.data_root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in service.data_root.rglob('*') if p.is_file()}==files
+
+
+@pytest.mark.parametrize('damage',['requests','execution','files','completion','future_target','extra_file','missing_file','parent_receipt','parent_epoch','parent_marker','parent_source','parent_cycle'])
+def test_rehashed_backup_still_rejects_missing_retry_authority(tmp_path,monkeypatch,damage):
+    import hashlib
+    import io
+    import json
+    import sqlite3
+    import zipfile
+
+    from youtube_intel.backup_restore import BackupRestoreError, BackupRestoreService
+    repo,_source,cid,old,_adapter,_fixture,_runtime,service=failed_tracked(tmp_path,monkeypatch)
+    receipt=service.request(cid,command_id='corrupt',expected_job_id=old.job_id)
+    parent_id = receipt['request_id']
+    if damage.startswith('parent_'):
+        service.action(parent_id,operation='CANCEL_BEFORE_DISPATCH',command_id='cancel-parent',expected_revision=receipt['revision'])
+        receipt=service.request(cid,command_id='corrupt-child',expected_job_id=receipt['target_job_id'])
+    assert service.run(receipt['request_id'])['state']=='SUCCEEDED'
+    backup=BackupRestoreService(database=repo._database_path,data_root=service.data_root)
+    created=backup.create_backup()
+    archive,_=backup.backup_download(created.backup_id)
+    with zipfile.ZipFile(archive) as source:
+        members={name:source.read(name) for name in source.namelist()}
+    manifest=json.loads(members['manifest.json'])
+    database=tmp_path/'malicious.sqlite'
+    database.write_bytes(members['database/state.sqlite'])
+    with sqlite3.connect(database) as connection:
+        triggers=list(connection.execute("SELECT name,sql FROM sqlite_master WHERE type='trigger' AND name LIKE 'tracked_content_retry_%'"))
+        for name,_sql in triggers:
+            connection.execute(f'DROP TRIGGER "{name}"')
+        if damage=='requests':
+            for table in ('tracked_content_retry_files','tracked_content_retry_executions','tracked_content_retry_requests'):
+                connection.execute(f'DELETE FROM {table}')
+        elif damage=='execution':
+            connection.execute('DELETE FROM tracked_content_retry_executions')
+        elif damage=='files':
+            connection.execute('DELETE FROM tracked_content_retry_files')
+        elif damage=='completion':
+            connection.execute("UPDATE tracked_content_retry_executions SET completion_json='{}',completion_sha256=?",(hashlib.sha256(b'{}').hexdigest(),))
+        elif damage=='future_target':
+            connection.execute("UPDATE jobs SET job_id='tracked-content-retry-job:v99:unassociated' WHERE job_id=?",(receipt['target_job_id'],))
+        elif damage.startswith('parent_'):
+            if damage == 'parent_source':
+                connection.execute("UPDATE tracked_content_retry_requests SET channel_id='UCwrongsource000000000000' WHERE request_id=?", (parent_id,))
+            elif damage == 'parent_cycle':
+                connection.execute('UPDATE tracked_content_retry_requests SET expected_old_job_id=? WHERE request_id=?', (receipt['target_job_id'], parent_id))
+            else:
+                events=json.loads(connection.execute('SELECT events_json FROM tracked_content_retry_executions WHERE request_id=?',(parent_id,)).fetchone()[0])
+                if damage == 'parent_receipt':
+                    events[-1]['action']=None
+                elif damage == 'parent_epoch':
+                    events[-1]['fencing_epoch']=0
+                    connection.execute('UPDATE tracked_content_retry_executions SET fencing_epoch=0 WHERE request_id=?',(parent_id,))
+                else:
+                    events.pop()
+                connection.execute('UPDATE tracked_content_retry_executions SET events_json=? WHERE request_id=?',(json.dumps(events,sort_keys=True,separators=(',',':')),parent_id))
+        for _name,sql in triggers:
+            connection.execute(sql)
+    members['database/state.sqlite']=database.read_bytes()
+    manifest['database'].update(size_bytes=len(members['database/state.sqlite']),sha256=hashlib.sha256(members['database/state.sqlite']).hexdigest())
+    if damage=='extra_file':
+        members['data/transcripts/unowned.txt']=b'not an accepted capture'
+        manifest['data_files'].append(dict(relative_path='transcripts/unowned.txt',sha256=hashlib.sha256(members['data/transcripts/unowned.txt']).hexdigest(),size_bytes=len(members['data/transcripts/unowned.txt']),artifacts=[],retained_subtitle_derivations=[],tracked_content_retry_files=[]))
+    elif damage=='missing_file':
+        removed=manifest['data_files'].pop()
+        members.pop('data/'+removed['relative_path'])
+    members['manifest.json']=json.dumps(manifest,sort_keys=True,separators=(',',':')).encode()
+    payload=io.BytesIO()
+    with zipfile.ZipFile(payload,'w') as target:
+        for name,body in members.items():
+            target.writestr(name,body)
+    with pytest.raises(BackupRestoreError):
+        backup.stage_restore(payload.getvalue())
+    assert backup.readiness()['ready']
+
+
+def test_api_get_is_read_only_and_strict_command_routes_are_replayable(tmp_path,monkeypatch):
+    import json
+
+    from youtube_intel.local_api import ApiError, LocalApiApplication
+    from youtube_intel.orchestration_service import ProductOrchestrationService
+    repo,_source,cid,old,adapter,fixture,_runtime,service=failed_tracked(tmp_path,monkeypatch)
+    wakeups=[]
+    application=LocalApiApplication(repo,ProductOrchestrationService(repo,now=lambda:fixture.now),
+        data_root=service.data_root,tracked_content_retry=service,source_run_wakeup=lambda:wakeups.append(True))
+    with repo._connect() as connection:
+        before=tuple(connection.iterdump())
+    status,payload=application.handle('GET',f'/api/v1/content/{cid}/retry')
+    assert status==200 and payload['tracked_content_retry']['retry_allowed']
+    with repo._connect() as connection:
+        assert tuple(connection.iterdump())==before
+    inputs={'command_id':'from-api','expected_job_id':old.job_id}
+    status,payload=application.handle('POST',f'/api/v1/content/{cid}/retry',json.dumps(inputs).encode())
+    assert status==202 and len(wakeups)==1
+    receipt=payload['tracked_content_retry']
+    assert application.handle('POST',f'/api/v1/content/{cid}/retry',json.dumps(inputs).encode())[1]==payload
+    with pytest.raises(ApiError) as conflict:
+        application.handle('POST',f'/api/v1/content/{cid}/retry',json.dumps({**inputs,'expected_job_id':'changed'}).encode())
+    assert conflict.value.status==409
+    with pytest.raises(ApiError) as invalid:
+        application.handle('POST',f'/api/v1/content/{cid}/retry',json.dumps({**inputs,'source_id':'client-authority'}).encode())
+    assert invalid.value.status==422
+    action={'request_id':receipt['request_id'],'operation':'CANCEL_BEFORE_DISPATCH','command_id':'api-cancel','expected_revision':receipt['revision']}
+    assert application.handle('POST',f'/api/v1/content/{cid}/retry/actions',json.dumps(action).encode())[1]['tracked_content_retry']['state']=='CANCELLED'
+    assert application.handle('POST',f'/api/v1/content/{cid}/retry/actions',json.dumps(action).encode())[1]['tracked_content_retry']['state']=='CANCELLED'
+    adapter.enumerate_tracks=lambda _:pytest.fail('GET or cancelled command started transport')
+    assert application.handle('GET',f'/api/v1/videos/{cid}')[1]['video']['tracked_content_retry']['request']['state']=='CANCELLED'
+    following={'command_id':'after-api-cancel','expected_job_id':receipt['target_job_id']}
+    status,next_payload=application.handle('POST',f'/api/v1/content/{cid}/retry',json.dumps(following).encode())
+    assert status==202 and next_payload['tracked_content_retry']['state']=='QUEUED'
+    assert application.handle('POST',f'/api/v1/content/{cid}/retry/actions',json.dumps(action).encode())[1]['tracked_content_retry']['state']=='CANCELLED'
+    with repo._connect() as connection:
+        before_wrong_content=tuple(connection.iterdump())
+    with pytest.raises(ApiError) as wrong_content:
+        application.handle('POST','/api/v1/content/other-video/retry/actions',json.dumps(action).encode())
+    assert wrong_content.value.status==409
+    with repo._connect() as connection:
+        assert tuple(connection.iterdump())==before_wrong_content
+
+
+def test_ordinary_runtime_factory_tracked_command_runs_through_dedicated_worker(tmp_path, monkeypatch):
+    from youtube_intel.runtime_composition import build_local_source_run_runtime
+    repo, _source, cid, old, _adapter, fixture, runtime, _service = failed_tracked(tmp_path, monkeypatch)
+    composition=build_local_source_run_runtime(config=runtime._config,project_root=tmp_path,database=repo._database_path,dependencies=runtime._dependencies,now=lambda:fixture.now)
+    service=composition.application._tracked_content_retry
+    receipt=service.request(cid,command_id='ordinary-factory',expected_job_id=old.job_id)
+    composition.worker.run_once()
+    assert service.status(cid)['request']['state']=='SUCCEEDED'
+    assert composition.repository.get_job(receipt['target_job_id']).attempt_count==1
+
+
+def _retry_at_history_limit(tmp_path, monkeypatch, dispatch):
+    import json
+
+    from youtube_intel.extractive_summary import ExtractiveSummaryService
+    from youtube_intel.tracked_retry_store import read
+    from youtube_intel.tracked_retry_worker import RetryWorker, transition
+    repo, _source, cid, old, adapter, fixture, _runtime, service = failed_tracked(tmp_path, monkeypatch)
+    adapter_factory=service.adapter_factory
+    receipt=service.request(cid,command_id='history-limit',expected_job_id=old.job_id)
+    if dispatch == 'succeeded':
+        original=ExtractiveSummaryService.create
+        def local_failure(*args, **kwargs):
+            raise OSError('local finalization unavailable')
+        monkeypatch.setattr(ExtractiveSummaryService,'create',local_failure)
+        attention=service.run(receipt['request_id'])
+        monkeypatch.setattr(ExtractiveSummaryService,'create',original)
+        service.action(receipt['request_id'],operation='RESUME_LOCAL',command_id='resume',expected_revision=attention['revision'])
+    else:
+        def crash(*args):
+            raise KeyboardInterrupt('crash after claim')
+        with monkeypatch.context() as context:
+            context.setattr(RetryWorker,'_preflight',crash) if dispatch == 'not-dispatched' else context.setattr(adapter,'enumerate_tracks',crash)
+            with pytest.raises(KeyboardInterrupt):
+                service.run(receipt['request_id'])
+    with repo._connect() as connection:
+        _, execution=read(connection,receipt['request_id'])
+        while len(json.loads(execution['events_json'])) < 126:
+            execution=transition(connection,execution,execution['state'],at=execution['updated_at'],name='RECOVERED',fencing_epoch=execution['fencing_epoch']+1)
+    service.adapter_factory=lambda:pytest.fail('history capacity closure constructed a transport')
+    return repo,cid,receipt,service,adapter_factory
+
+
+@pytest.mark.parametrize('dispatch', ['not-dispatched','intent','succeeded'])
+def test_worker_reserves_terminal_history_capacity_without_transport_or_fake_success(tmp_path, monkeypatch, dispatch):
+    import json
+
+    from youtube_intel.backup_restore import BackupRestoreService
+    from youtube_intel.tracked_retry_reader import verify_all
+    repo,cid,receipt,service,adapter_factory=_retry_at_history_limit(tmp_path,monkeypatch,dispatch)
+    result=service.run(receipt['request_id'])
+    assert result['state'] == {'intent':'AMBIGUOUS','not-dispatched':'FAILED','succeeded':'SUCCEEDED'}[dispatch]
+    assert service.run(receipt['request_id'])==result
+    assert len(verify_all(repo,service.data_root,settled=True))==1
+    assert BackupRestoreService(database=repo._database_path,data_root=service.data_root).readiness()['ready']
+    with repo._connect() as connection:
+        assert len(json.loads(connection.execute('SELECT events_json FROM tracked_content_retry_executions').fetchone()[0]))==127
+    if dispatch=='not-dispatched':
+        assert service.status(cid)['retry_allowed']
+        service.adapter_factory=adapter_factory
+        following=service.request(cid,command_id='after-history-limit',expected_job_id=receipt['target_job_id'])
+        assert service.request(cid,command_id='after-history-limit',expected_job_id=receipt['target_job_id'])==following
+        assert service.run(following['request_id'])['state']=='SUCCEEDED'
+        assert repo.get_job(receipt['target_job_id']).attempt_count==1
+    elif dispatch=='intent':
+        assert not service.status(cid)['retry_allowed']
+
+
+@pytest.mark.parametrize('damage',['receipt','marker','epoch','attempt','provider','active_writer'])
+def test_prepared_history_limit_successor_requires_full_distinct_parent_receipt(tmp_path,monkeypatch,damage):
+    import json
+    import sqlite3
+    from contextlib import nullcontext
+
+    from youtube_intel.tracked_retry_context import request_lock
+    from youtube_intel.tracked_retry_reader import verify_all
+    from youtube_intel.tracked_retry_store import canonical, digest
+    repo,cid,receipt,service,adapter_factory=_retry_at_history_limit(tmp_path,monkeypatch,'not-dispatched')
+    assert service.run(receipt['request_id'])['state']=='FAILED'
+    service.adapter_factory=adapter_factory
+    context=request_lock(repo._database_path,receipt['request_id']) if damage=='active_writer' else nullcontext()
+    if damage!='active_writer':
+        with sqlite3.connect(repo._database_path) as connection:
+            triggers=list(connection.execute("SELECT name,sql FROM sqlite_master WHERE type='trigger' AND name LIKE 'tracked_content_retry_%'"))
+            for name,_ in triggers:
+                connection.execute(f'DROP TRIGGER "{name}"')
+            events=json.loads(connection.execute('SELECT events_json FROM tracked_content_retry_executions').fetchone()[0])
+            if damage=='receipt':
+                events[-1]['action']=None
+            elif damage=='marker':
+                events[-2]['event']='DISPATCH_INTENT'
+            elif damage=='epoch':
+                proof=json.loads(events[-1]['action']['input_json'])
+                proof['prior_epoch']+=1
+                proof['command_id']='history-limit:'+digest({key:value for key,value in proof.items() if key!='command_id'})
+                events[-1]['action'].update(command_id=proof['command_id'],input_json=canonical(proof),input_sha256=digest(proof))
+            elif damage=='attempt':
+                connection.execute("UPDATE job_attempts SET error_code='INVALID_RESPONSE' WHERE job_id=?",(receipt['target_job_id'],))
+            else:
+                connection.execute("UPDATE provider_dispatch_states SET status='AMBIGUOUS' WHERE request_hash=(SELECT provider_request_hash FROM tracked_content_retry_requests)")
+            connection.execute('UPDATE tracked_content_retry_executions SET events_json=?',(canonical(events),))
+            for _,sql in triggers:
+                connection.execute(sql)
+    with context:
+        with pytest.raises(ValueError):
+            service.request(cid,command_id='after-damaged-history',expected_job_id=receipt['target_job_id'])
+        if damage!='active_writer':
+            with pytest.raises(ValueError):
+                verify_all(repo,service.data_root,settled=True)
+
+
+def test_real_repeated_predispatch_crashes_reserve_capacity_and_allow_a_fresh_command(tmp_path,monkeypatch):
+    import json
+
+    from youtube_intel.tracked_retry_worker import RetryWorker
+    repo,_source,cid,old,_adapter,_fixture,_runtime,service=failed_tracked(tmp_path,monkeypatch)
+    receipt=service.request(cid,command_id='repeated-preflight-crashes',expected_job_id=old.job_id)
+    def crash(*args):
+        raise KeyboardInterrupt('actual restart before preflight')
+    with monkeypatch.context() as context:
+        context.setattr(RetryWorker,'_preflight',crash)
+        for _ in range(140):
+            try:
+                result=service.run(receipt['request_id'])
+            except KeyboardInterrupt:
+                continue
+            break
+        else:
+            pytest.fail('worker consumed reserved history without closing')
+    assert result['state']=='FAILED'
+    with repo._connect() as connection:
+        row=connection.execute('SELECT * FROM tracked_content_retry_executions').fetchone()
+        assert len(json.loads(row['events_json']))==114
+        assert row['fencing_epoch']==112
+        assert not any(event['event']=='DISPATCH_INTENT' for event in json.loads(row['events_json']))
+    following=service.request(cid,command_id='fresh-after-restarts',expected_job_id=receipt['target_job_id'])
+    assert service.run(following['request_id'])['state']=='SUCCEEDED'
+    assert repo.get_job(receipt['target_job_id']).attempt_count==1
+
+
+def test_real_local_crash_sequence_preserves_all_three_attempts_and_close_under_128_events(tmp_path,monkeypatch):
+    import json
+
+    from youtube_intel.extractive_summary import ExtractiveSummaryService
+    from youtube_intel.tracked_retry_store import read
+    from youtube_intel.tracked_retry_worker import RetryWorker
+    repo,_source,cid,old,adapter,_fixture,_runtime,service=failed_tracked(tmp_path,monkeypatch)
+    receipt=service.request(cid,command_id='local-restart-budget',expected_job_id=old.job_id)
+    def local_failure(*args,**kwargs):
+        raise OSError('recoverable isolated local failure')
+    monkeypatch.setattr(ExtractiveSummaryService,'create',local_failure)
+    current=service.run(receipt['request_id'])
+    assert current['state']=='ATTENTION' and current['can_resume_local']
+    adapter.enumerate_tracks=lambda _:pytest.fail('local recovery requested another directory')
+    adapter.read_track=lambda _:pytest.fail('local recovery requested another body')
+    service.action(receipt['request_id'],operation='RESUME_LOCAL',command_id='second-local',expected_revision=current['revision'])
+    def crash(*args):
+        raise KeyboardInterrupt('actual restart after local claim')
+    with monkeypatch.context() as context:
+        context.setattr(RetryWorker,'_finalize',crash)
+        for _ in range(140):
+            try:
+                current=service.run(receipt['request_id'])
+            except KeyboardInterrupt:
+                with repo._connect() as connection:
+                    _,execution=read(connection,receipt['request_id'])
+                    assert len(json.loads(execution['events_json']))<126
+                continue
+            break
+        else:
+            pytest.fail('local recovery consumed its reserved result/action budget')
+    assert current['state']=='ATTENTION' and current['can_resume_local']
+    service.action(receipt['request_id'],operation='RESUME_LOCAL',command_id='third-local',expected_revision=current['revision'])
+    current=service.run(receipt['request_id'])
+    assert current['state']=='ATTENTION' and not current['can_resume_local'] and current['can_close_local']
+    closed=service.action(receipt['request_id'],operation='CLOSE_LOCAL',command_id='close-after-three',expected_revision=current['revision'])
+    assert closed['state']=='FAILED'
+    with repo._connect() as connection:
+        _,execution=read(connection,receipt['request_id'])
+        assert execution['local_attempt_count']==3
+        assert len(json.loads(execution['events_json']))<=128
+        assert repo.get_job(receipt['target_job_id']).status.value=='SUCCEEDED'
+
+
+@pytest.mark.parametrize('damage',[None,'receipt','marker','attempt','provider'])
+def test_prepared_history_parent_survives_full_backup_and_rehashed_damage_is_rejected(tmp_path,monkeypatch,damage):
+    import hashlib
+    import io
+    import json
+    import sqlite3
+    import zipfile
+
+    from youtube_intel.backup_restore import BackupRestoreError, BackupRestoreService
+    from youtube_intel.tracked_retry_store import canonical
+    repo,cid,receipt,service,factory=_retry_at_history_limit(tmp_path,monkeypatch,'not-dispatched')
+    service.run(receipt['request_id'])
+    service.adapter_factory=factory
+    child=service.request(cid,command_id='prepared-backup-child',expected_job_id=receipt['target_job_id'])
+    assert service.run(child['request_id'])['state']=='SUCCEEDED'
+    backup=BackupRestoreService(database=repo._database_path,data_root=service.data_root)
+    created=backup.create_backup()
+    archive,_=backup.backup_download(created.backup_id)
+    if damage is None:
+        with repo._connect() as connection:
+            before=tuple(connection.iterdump())
+        files={str(path.relative_to(service.data_root)):path.read_bytes() for path in service.data_root.rglob('*') if path.is_file()}
+        staged=backup.stage_restore(archive.read_bytes())
+        backup.confirm_restore(staged.restore_id)
+        backup.recover_and_apply_pending_restore()
+        with repo._connect() as connection:
+            assert tuple(connection.iterdump())==before
+        assert {str(path.relative_to(service.data_root)):path.read_bytes() for path in service.data_root.rglob('*') if path.is_file()}==files
+        return
+    with zipfile.ZipFile(archive) as source:
+        members={name:source.read(name) for name in source.namelist()}
+    database=tmp_path/'prepared-corrupt.sqlite'
+    database.write_bytes(members['database/state.sqlite'])
+    with sqlite3.connect(database) as connection:
+        triggers=list(connection.execute("SELECT name,sql FROM sqlite_master WHERE type='trigger' AND name LIKE 'tracked_content_retry_%'"))
+        for name,_ in triggers:
+            connection.execute(f'DROP TRIGGER "{name}"')
+        events=json.loads(connection.execute('SELECT events_json FROM tracked_content_retry_executions WHERE request_id=?',(receipt['request_id'],)).fetchone()[0])
+        if damage=='receipt':
+            events[-1]['action']=None
+        elif damage=='marker':
+            events[-2]['event']='DISPATCH_INTENT'
+        elif damage=='attempt':
+            connection.execute("UPDATE job_attempts SET error_code='INVALID_RESPONSE' WHERE job_id=?",(receipt['target_job_id'],))
+        else:
+            connection.execute("UPDATE provider_dispatch_states SET status='AMBIGUOUS' WHERE request_hash=(SELECT provider_request_hash FROM tracked_content_retry_requests WHERE request_id=?)",(receipt['request_id'],))
+        connection.execute('UPDATE tracked_content_retry_executions SET events_json=? WHERE request_id=?',(canonical(events),receipt['request_id']))
+        for _,sql in triggers:
+            connection.execute(sql)
+    members['database/state.sqlite']=database.read_bytes()
+    manifest=json.loads(members['manifest.json'])
+    manifest['database'].update(size_bytes=len(members['database/state.sqlite']),sha256=hashlib.sha256(members['database/state.sqlite']).hexdigest())
+    members['manifest.json']=canonical(manifest).encode()
+    payload=io.BytesIO()
+    with zipfile.ZipFile(payload,'w') as target:
+        for name,body in members.items():
+            target.writestr(name,body)
+    with pytest.raises(BackupRestoreError):
+        backup.stage_restore(payload.getvalue())
+
+
+def _blocked_retry_process(database,data_root,request_id,now,entered,release,result):
+    import json
+    from pathlib import Path
+
+    from conftest import _load_module
+
+    from youtube_intel.domain import VideoMetadata
+    from youtube_intel.state import SQLiteStateRepository
+    from youtube_intel.tracked_content_retry import TrackedContentRetryService
+    from youtube_intel.tracked_retry_store import read
+    repo=SQLiteStateRepository(database)
+    with repo._connect() as connection:
+        request,_=read(connection,request_id)
+    parameters=json.loads(request['parameters_json'])
+    support=_load_module('test_runtime_composition')
+    adapter=support._TimedSubtitleAdapter()
+    def blocked(_):
+        entered.set()
+        assert release.wait(15)
+        return support._TimedSubtitleAdapter().enumerate_tracks(support.VIDEO_ID)
+    adapter.enumerate_tracks=blocked
+    service=TrackedContentRetryService(repo,Path(data_root),adapter_factory=lambda:adapter,
+        language_preferences=parameters['language_preferences'],metadata_for_video=lambda _:VideoMetadata.model_validate(parameters['metadata_snapshot']),now=lambda:now)
+    try:
+        result.put(service.run(request_id)['state'])
+    except Exception as error:
+        result.put(type(error).__name__)
+
+
+def test_actual_worker_process_keeps_expired_lease_exclusive_until_exit(tmp_path,monkeypatch):
+    import multiprocessing
+
+    from youtube_intel.backup_restore import BackupRestoreService
+    from youtube_intel.state import format_utc_datetime
+    from youtube_intel.tracked_retry_context import RetryConflict
+    repo,_source,cid,old,adapter,fixture,_runtime,service=failed_tracked(tmp_path,monkeypatch)
+    receipt=service.request(cid,command_id='process-owner',expected_job_id=old.job_id)
+    context=multiprocessing.get_context('spawn')
+    entered,release,result=context.Event(),context.Event(),context.Queue()
+    process=context.Process(target=_blocked_retry_process,args=(str(repo._database_path),str(service.data_root),receipt['request_id'],fixture.now,entered,release,result))
+    process.start()
+    try:
+        assert entered.wait(10)
+        with repo._connect() as connection:
+            expired=format_utc_datetime(fixture.now-timedelta(seconds=1))
+            connection.execute('UPDATE tracked_content_retry_executions SET revision=revision+1,lease_until=?',(expired,))
+            connection.execute('UPDATE jobs SET lease_until=? WHERE job_id=?',(expired,receipt['target_job_id']))
+            connection.execute('UPDATE provider_calls SET lease_until=? WHERE request_hash=(SELECT provider_call_hash FROM tracked_content_retry_executions)',(expired,))
+            before=tuple(connection.iterdump())
+        with pytest.raises(RetryConflict):
+            service.run(receipt['request_id'])
+        with pytest.raises(RetryConflict):
+            service.action(receipt['request_id'],operation='CLOSE_LOCAL',command_id='late-close',expected_revision=1)
+        backup=BackupRestoreService(database=repo._database_path,data_root=service.data_root)
+        assert not backup.readiness()['ready']
+        with repo._connect() as connection:
+            assert tuple(connection.iterdump())==before
+    finally:
+        release.set()
+        process.join(15)
+    assert process.exitcode==0
+    assert result.get(timeout=2)=='RetryConflict'
+    adapter.enumerate_tracks=lambda _:pytest.fail('recovery of durable intent must not refetch')
+    final=service.run(receipt['request_id'])
+    assert final['state']=='AMBIGUOUS'
+    assert repo.get_job(receipt['target_job_id']).attempt_count==1
+    assert backup.readiness()['ready']
+
+
+def test_local_finalization_limit_still_allows_safe_close(tmp_path,monkeypatch):
+    from youtube_intel.extractive_summary import ExtractiveSummaryService
+    repo,_source,cid,old,adapter,_fixture,_runtime,service=failed_tracked(tmp_path,monkeypatch)
+    receipt=service.request(cid,command_id='three-local',expected_job_id=old.job_id)
+    def failed(*args,**kwargs):
+        raise OSError('local Summary unavailable')
+    monkeypatch.setattr(ExtractiveSummaryService,'create',failed)
+    state=service.run(receipt['request_id'])
+    adapter.enumerate_tracks=lambda _:pytest.fail('local retries cannot dispatch')
+    for attempt in range(2):
+        service.action(receipt['request_id'],operation='RESUME_LOCAL',command_id='local-'+str(attempt),expected_revision=state['revision'])
+        state=service.run(receipt['request_id'])
+    assert state['state']=='ATTENTION' and not state['can_resume_local'] and state['can_close_local']
+    with pytest.raises(ValueError):
+        service.action(receipt['request_id'],operation='RESUME_LOCAL',command_id='over-limit',expected_revision=state['revision'])
+    assert service.action(receipt['request_id'],operation='CLOSE_LOCAL',command_id='safe-close',expected_revision=state['revision'])['state']=='FAILED'
+
+
+@pytest.mark.parametrize('point',['after_intents','after_buffer_fsync','after_publish'])
+@pytest.mark.parametrize('operation',['RESUME_LOCAL','CLOSE_LOCAL'])
+def test_local_file_failure_windows_can_resume_or_close_without_losing_bytes(tmp_path,monkeypatch,point,operation):
+    from youtube_intel.backup_restore import BackupRestoreService
+    repo,_source,cid,old,adapter,_fixture,_runtime,service=failed_tracked(tmp_path,monkeypatch)
+    receipt=service.request(cid,command_id='file-window',expected_job_id=old.job_id)
+    failed=[]
+    def inject(name):
+        if name=='tracked_retry.file.SUMMARY_DERIVATION.'+point and not failed:
+            failed.append(name)
+            raise OSError('isolated Summary publication interruption')
+    monkeypatch.setattr(repo,'_inject_failure',inject)
+    state=service.run(receipt['request_id'])
+    assert failed and state['state']=='ATTENTION'
+    files_before={str(p.relative_to(service.data_root)):p.read_bytes() for p in service.data_root.rglob('*') if p.is_file()}
+    adapter.enumerate_tracks=lambda _:pytest.fail('local file recovery must not request captions')
+    adapter.read_track=lambda _:pytest.fail('local file recovery must not read body')
+    service.action(receipt['request_id'],operation=operation,command_id='local-file-action',expected_revision=state['revision'])
+    if operation=='RESUME_LOCAL':
+        assert service.run(receipt['request_id'])['state']=='SUCCEEDED'
+    else:
+        assert service.status(cid)['request']['state']=='FAILED'
+    for path,body in files_before.items():
+        assert (service.data_root/path).read_bytes()==body
+    backup=BackupRestoreService(database=repo._database_path,data_root=service.data_root)
+    assert backup.readiness()['ready'],backup.readiness()
+    created=backup.create_backup()
+    archive,_=backup.backup_download(created.backup_id)
+    backup.stage_restore(archive.read_bytes())

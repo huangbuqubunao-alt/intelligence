@@ -138,6 +138,8 @@ from youtube_intel.summary_evidence_authority import (
     LegacySummaryNotCurrentAuthority,
 )
 from youtube_intel.topic import TopicApplicationService, TopicRead, TopicRelation
+from youtube_intel.tracked_content_retry import TrackedContentRetryService
+from youtube_intel.tracked_retry_context import RetryConflict, RetryIntegrity
 
 # One shared BilibiliError -> HTTP status map for every Bilibili entry point, so
 # the same provider failure is never reported as 422 here and 429 there.  The
@@ -549,6 +551,7 @@ class LocalApiApplication:
         output_language_default: ScoringOutputLanguage = "zh-CN",
         now: Callable[[], datetime] | None = None,
         source_run_wakeup: Callable[[], None] | None = None,
+        tracked_content_retry: TrackedContentRetryService | None = None,
         local_distillation_available: bool | None = None,
         analysis_reader: Callable[[str, str], AnalysisOutcome] | None = None,
         evidence_translation_service: EvidenceTranslationPresentationService | None = None,
@@ -602,6 +605,7 @@ class LocalApiApplication:
             repository, now=self._now, timezone=timezone
         )
         self._research_service = ResearchLiteService(repository, now=self._now)
+        self._tracked_content_retry = tracked_content_retry
         self._source_run_wakeup = source_run_wakeup
         self._local_distillation_available = local_distillation_available
         self._analysis_reader = analysis_reader
@@ -712,6 +716,13 @@ class LocalApiApplication:
                 f"{key} is invalid.",
             )
         return value.strip()
+
+    @staticmethod
+    def _retry_string(data: dict[str, object], key: str) -> str:
+        value=data.get(key)
+        if type(value) is not str or not value.strip() or len(value)>512:
+            raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY,'VALIDATION_ERROR','Content retry command input is invalid.')
+        return value
 
     @staticmethod
     def _boolean(data: dict[str, object], key: str) -> bool | None:
@@ -856,6 +867,34 @@ class LocalApiApplication:
                 if self._source_run_wakeup is not None:
                     self._source_run_wakeup()
                 return HTTPStatus.ACCEPTED, {"checks": results + unavailable[:3]}
+            tracked_retry_route=re.fullmatch(r'/api/v1/content/([^/]+)/retry(?:/(actions))?',route)
+            if tracked_retry_route and method in {'GET','POST'}:
+                if self._tracked_content_retry is None:
+                    raise ApiError(HTTPStatus.CONFLICT,'RETRY_CONTRACT_UNAVAILABLE','Content retry is unavailable in this session.')
+                try:
+                    if method=='GET':
+                        return HTTPStatus.OK,{'tracked_content_retry':self._tracked_content_retry.status(tracked_retry_route[1])}
+                    data=self._body(body)
+                    if tracked_retry_route[2]:
+                        self._only_keys(data,{'request_id','operation','command_id','expected_revision'})
+                        request_id=self._retry_string(data, 'request_id')
+                        revision=self._integer(data,'expected_revision',required=True)
+                        if revision is None:
+                            raise RetryConflict('Content retry revision is missing')
+                        receipt=self._tracked_content_retry.action(request_id,
+                            operation=self._retry_string(data, 'operation'),command_id=self._retry_string(data, 'command_id'),
+                            expected_revision=revision,expected_video_id=tracked_retry_route[1])
+                    else:
+                        self._only_keys(data,{'command_id','expected_job_id'})
+                        receipt=self._tracked_content_retry.request(tracked_retry_route[1],
+                            command_id=self._retry_string(data, 'command_id'),expected_job_id=self._retry_string(data, 'expected_job_id'))
+                except RetryIntegrity as error:
+                    raise ApiError(HTTPStatus.CONFLICT,'RETRY_INTEGRITY_INVALID','Content retry evidence could not be verified. No new request was sent.') from error
+                except RetryConflict as error:
+                    raise ApiError(HTTPStatus.CONFLICT,'RETRY_CONFLICT','Content retry state changed or is busy. Refresh and try again.') from error
+                if self._source_run_wakeup is not None:
+                    self._source_run_wakeup()
+                return HTTPStatus.ACCEPTED,{'tracked_content_retry':receipt}
             if method == "POST" and (route == "/api/v1/bilibili/imports" or re.fullmatch(r"/api/v1/videos/[^/]+/captions/retry", route)):
                 if self._bilibili_provider is None:
                     raise ApiError(HTTPStatus.CONFLICT, "BILIBILI_STORAGE_UNAVAILABLE", "Content storage is unavailable.")
@@ -2025,6 +2064,11 @@ class LocalApiApplication:
                 projection["processing_status"] = "RETRY_REQUIRED"
             if active_source:
                 projection["processing_status"] = "WAITING"
+        if video.provider=='YOUTUBE' and self._tracked_content_retry is not None:
+            try:
+                projection['tracked_content_retry']=self._tracked_content_retry.status(video.video_id)
+            except (RetryIntegrity,ValueError,OSError,sqlite3.Error):
+                projection['tracked_content_retry']={'request':None,'retry_allowed':False,'expected_job_id':None,'error_code':'RETRY_INTEGRITY_INVALID'}
         return projection
 
     def _require_transcription(self) -> LocalTranscriptionJobs:

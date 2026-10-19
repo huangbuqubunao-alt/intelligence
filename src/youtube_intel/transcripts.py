@@ -1948,6 +1948,10 @@ def _atomic_write(
             retryable=False,
             video_id=video_id,
         )
+    from youtube_intel.tracked_retry_context import intercept_write
+
+    if intercept_write(data_root, str(path.relative_to(data_root)), body):
+        return
     if path.exists():
         _read_verified_file(
             path,
@@ -2127,13 +2131,21 @@ class SubtitleAcquisitionService:
         capture = _capture_artifact_write(video_id=video_id, context=self._context,
             raw_request_hash=raw_request_hash, metadata=metadata, content_hash=normalized.source_content_hash,
             provider=self._adapter.provider_name, provider_version=self._adapter.provider_version)
-        # Repository CAS validates the owned request and fixes hash BEFORE any file write.
+        from youtube_intel.tracked_retry_context import active_provider
+
+        tracked = active_provider(provider_request.request_hash)
+        # Retry's file journal freezes producer/hash before any write. Publish
+        # before indexing so a failed write cannot leave an ordinary missing file.
+        if tracked:
+            _atomic_write(path, body, data_root=self._data_root, expected_hash=capture.content_hash,
+                          max_bytes=SUBTITLE_QUALITY_POLICY.max_raw_bytes, video_id=video_id)
         self._repository.register_subtitle_source_capture(artifact=capture, body=body,
             context=self._context, provider_request=provider_request, language_preferences=language_preferences,
             provider_version=self._adapter.provider_version, data_root=self._data_root,
             now=_aware_utc(self._clock(), video_id=video_id))
-        _atomic_write(path, body, data_root=self._data_root, expected_hash=capture.content_hash,
-                      max_bytes=SUBTITLE_QUALITY_POLICY.max_raw_bytes, video_id=video_id)
+        if not tracked:
+            _atomic_write(path, body, data_root=self._data_root, expected_hash=capture.content_hash,
+                          max_bytes=SUBTITLE_QUALITY_POLICY.max_raw_bytes, video_id=video_id)
         return body, normalized, call, capture
 
     def _native_timing_alternate(
@@ -3069,6 +3081,9 @@ class SubtitleAcquisitionService:
                     )
                     raw_path = _resolve_data_path(self._data_root, raw_relative_path, video_id=video_id)
 
+            from youtube_intel.tracked_retry_context import require_native_timing
+
+            require_native_timing(bool(normalized.timed_cues))
             canonical_request_hash = build_canonical_request_hash(
                 source_content_hash=normalized.source_content_hash,
                 source_format=candidate.track.source_format,
@@ -3158,6 +3173,12 @@ class SubtitleAcquisitionService:
                 request_hash=provider_request.request_hash, response_artifact_id=raw_artifact_id,
                 input_tokens=None, output_tokens=None, cost_microusd=None,
             )
+            from youtube_intel.tracked_retry_context import active_provider
+
+            if active_provider(provider_request.request_hash):
+                getattr(self._repository, "record_provider_dispatch_result_unknown")(
+                    provider_request.request_hash, owner=self._context.owner, now=_aware_utc(self._clock(), video_id=video_id),
+                )
             stage_persistence_failed = False
             try:
                 repair = self._context.repair
