@@ -1,3 +1,5 @@
+2026-10-19 IN_REVIEW：作者最终b14788c6575ffb9796d62c72be8a6e4bb9ca255a clean STOP/API与Vite已停止；独立累计base c312ee4a544556616c9b102d57ec44cf56a21b90…b14788c。原foundation43e0c75三项REJECT保留且须重验；最终产品尚未接受/整合，root真实旧tracked GUI/重启/完整恢复尚待。Reviewer subtitle_recovery_preflight_oct19，独立新WT。
+
 2026-10-16 READY_BACKEND：root接受精确提案221d1d1所载两主表+文件闭包Schema39→40及兼容/恢复方案，持续默认授权，无新人工审批。最新接受root含capability6fa6a07、host88161aa和真实全恢复a7ac13a；基线为本READY/package提交。Implementer local_text_repair_resume，Reviewer local_text_review_resume。独立新WT readiness-tracked-content-retry，branch codex/task-readiness-tracked-content-retry。
 先实施backend/migration/strict reader/worker/Backup及对应测试，分范围commit；当前PICKER-FILTER唯一另一writer仅App/uiLanguage，故本作者暂不得写frontend。该任务只改文件选择提示，与本backend契约完全隔离，root明确批准此并行。PICKER接受后root会把其已审提交提供给本WT顺序整合，再解锁本Retry UI范围；不得自行抢App写入或从旧base猜UI。
 提案中FK精化：request.observation_identity引用现有source_observations(source_id,canonical_identity)，并非不存在的observation_identity列。其余精确三表字段/版本、状态矩阵、文件意图/未知/稳定store+request flock与双向验证按提案；无false SourceRun成功、无newpaid/modelIO、0正式数据。所有新动作要有诚实持久终态/本地重试出口，不能制造新的永久已知失败阻塞。child无managed写能力/同步HTTP关闭要实际证明，不以仅lease超时取代。

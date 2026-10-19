@@ -21,5 +21,10 @@
   "schema_changes": false,
   "full_private_receipt": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/tracked-original-frozen-20261019/receipt.json",
   "full_private_receipt_sha256": "fefb8eaf8d29165c34e6f1b6c49edd61a54ad5a17a20cfd630ead51e77f3edc1",
-  "future_acceptance": "not run: candidate must first pass independent review; normal runtime migration, actual tracked GUI retry and complete restore still required"
+  "future_acceptance": "not run: candidate must first pass independent review; normal runtime migration, actual tracked GUI retry and complete restore still required",
+  "all_sqlite_tables_including_internal": 72,
+  "table_count_scope": "71 domain tables; supplemental proof includes all72 SQLite tables including sqlite_sequence",
+  "all_schema_objects_equal": true,
+  "all_sqlite_table_rows_equal": true,
+  "inclusive_proof_sha256": "b62a490c1229ea868f03988a0f304520a3a325817d85d0f63c59fb2e16fa2140"
 }
