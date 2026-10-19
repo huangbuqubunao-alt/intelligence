@@ -1,6 +1,6 @@
 # Intelligence 当前状态
 
-更新：2026-10-19 20:06。Goal ACTIVE，候选未发布。主控仅编排、文档、QA与已接受整合，不实现产品代码。当前任务是普通用户全链路修复与既定条件满足后的安全采用，不开启其他开发阶段。
+更新：2026-10-19 20:12。Goal ACTIVE，候选未发布。主控仅编排、文档、QA与已接受整合，不实现产品代码。当前任务是普通用户全链路修复与既定条件满足后的安全采用，不开启其他开发阶段。
 
 ## 不变边界
 
@@ -12,7 +12,7 @@
 ## 真实Git/正式产品
 
 - root WT `end-to-end-user-readiness`，branch `codex/task-end-to-end-user-readiness`。当前已整合tracked89cca38（累计166ab392+76ad28f）及纯canonical c91a02b/fc666f3；未接线，后续钟修复尚在独立WT。
-- 正式WT `v1x-local-main`，最后10-19 09:15只读：main/实际origin/main/served均73ee7e747b4461b9de8a201d6b47669eb3913d1a、clean、main为候选祖先，4资产SHA相等；正式http://127.0.0.1:5488/、API5489。未读写owner DB/config/凭据。采用前必须重新验证真实拓扑和owner安全，不能沿用早晨快照当最终确认。
+- 正式WT `v1x-local-main`，最后10-19 20:12只读：main/实际origin/main/served均73ee7e747b4461b9de8a201d6b47669eb3913d1a、clean、main为候选祖先，4资产SHA相等；正式http://127.0.0.1:5488/、API5489。未读写owner DB/config/凭据。采用前必须重新验证真实拓扑和owner安全，不能沿用本中间快照当最终确认。
 - D2-01/D2-02四实现文件相对正式无diff；旧2GiB APFS证据可复用，最终回归仍待。
 
 ## 当前活动与等待

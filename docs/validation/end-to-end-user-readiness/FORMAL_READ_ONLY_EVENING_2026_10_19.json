@@ -1,0 +1,44 @@
+{
+  "at": "2026-10-19T12:12:31.049214+00:00",
+  "mode": "Read-only Git refs, actual remote ls-remote from immediately preceding retained tool run, static served provenance/assets; no ownerDB/config/credential reads or writes",
+  "main": "73ee7e747b4461b9de8a201d6b47669eb3913d1a",
+  "origin_tracking_main": "73ee7e747b4461b9de8a201d6b47669eb3913d1a",
+  "actual_remote_main": "73ee7e747b4461b9de8a201d6b47669eb3913d1a",
+  "actual_remote_check": "git ls-remote origin refs/heads/main immediate preceding exec session20922 exit0",
+  "clean": true,
+  "served": {
+    "assets": {
+      "assets/index-D49v12mD.css": "7af965a6cbc839c0f51e50c190e97ef75d9dcddb6d79f7c7d7074b27c906f5cc",
+      "assets/index-QjXrTOO8.js": "a32675f9a286bdb80d36a2a249fe5932707f8d1b6c846f2bb094a80b8a7c9311",
+      "favicon.svg": "2c03dc0a62af3cdaf5fa7b6130192456175de92827ad4d87545183a9cb196405",
+      "index.html": "4f10d3337263491e3f0ea9b86e01b980f9749f823f2cb09301c2c550b0ba4b75"
+    },
+    "identity": {
+      "revision": "73ee7e747b4461b9de8a201d6b47669eb3913d1a",
+      "source_sha256": "a494cacdfd95f4c55f0a746920e061becee9580948228f812a655866c46eade3"
+    }
+  },
+  "served_provenance_equal_local": true,
+  "assets": {
+    "assets/index-D49v12mD.css": {
+      "equal": true,
+      "sha256": "7af965a6cbc839c0f51e50c190e97ef75d9dcddb6d79f7c7d7074b27c906f5cc"
+    },
+    "assets/index-QjXrTOO8.js": {
+      "equal": true,
+      "sha256": "a32675f9a286bdb80d36a2a249fe5932707f8d1b6c846f2bb094a80b8a7c9311"
+    },
+    "favicon.svg": {
+      "equal": true,
+      "sha256": "2c03dc0a62af3cdaf5fa7b6130192456175de92827ad4d87545183a9cb196405"
+    },
+    "index.html": {
+      "equal": true,
+      "sha256": "4f10d3337263491e3f0ea9b86e01b980f9749f823f2cb09301c2c550b0ba4b75"
+    }
+  },
+  "main_ancestor": true,
+  "candidate_head": "72bdc51d2239460ce5acb6b5621a7039010f34b6",
+  "D2_implementation_diff": "",
+  "candidate_adopted": false
+}
