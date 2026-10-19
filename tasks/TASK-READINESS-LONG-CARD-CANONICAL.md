@@ -1,4 +1,6 @@
-# Current status: IN_REVIEW (2026-10-19)
+独立8307ad3 APPROVE固定11ffb558，282和1324独立对抗/actual parser+reader parity通过，无新增发现。root接受仅纯切片，开始整合；当前39/40测试维护及完整长协议/用户模型资格仍不代表通过。
+
+# Current status: ACCEPTED (2026-10-19)
 Author fixed11ffb558 cleanSTOP/3 newfiles; final282PASS/strict114/Ruff/diff. Independent new reviewer after root package. Known inherited32 currentSchema39 asserts vs40 retained, original40 writer repairs; no helper admission/wiring/model authority. Originaltask follows.
 
 # 长内容卡片规范表示纯切片
