@@ -1,0 +1,3 @@
+# Implementer
+
+Read repo instructions/Collaboration/currentstatus and exact task. Base d9226ff; create specified fresh WT/branch, only frontend guard repair/tests/ownhandoff/evidence. Root is orchestrator/GUI only; independent reviewer currently owns oldcandidate review, never write itsWT/source. New task explicit parallel isolation (no backendcore writes). Reuse rootfrontend dependencies/venv without installing. Preserve original independent RED and unknown-dispatch semantics, completefrontend/TSbuild then scopedcommits cleanSTOP. No further approval, model/HTTP/credential/data actions. Report scope/approach before code. Do not set statusDONE or merge. Independent repro path and exact assertion in task.
