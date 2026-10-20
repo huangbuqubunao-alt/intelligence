@@ -1,0 +1,108 @@
+{
+  "task": "TASK-READINESS-LOCAL-REJECTION-ACCOUNTING",
+  "implementer": "local_rejection_accounting",
+  "base": "a989873773c0f4018cc696930789566925e88c7c",
+  "status": "IMPLEMENTED_PENDING_INDEPENDENT_REVIEW",
+  "worktree": "/Users/hua/Documents/yia-worktrees/readiness-local-rejection-accounting",
+  "branch": "codex/task-readiness-local-rejection-accounting",
+  "source_sha256": {
+    "src/youtube_intel/distillation.py": "daae02a09c0b17a147ad304c87c32a90068c9152f12436a92bd46c92cce3aef3",
+    "scripts/qualify_local_grounding_v1.py": "9478d79f46fad8cea4065f851ba503682ef315557a966bd91830264e5dabd5b9",
+    "tests/integration/test_local_rejection_accounting.py": "b389d7653fd695ed2d4342996e15ca52d27e20fee345bab9708f1a2d6d2667cb"
+  },
+  "pre_signed64_source_sha256": {
+    "scripts/qualify_local_grounding_v1.py": "9478d79f46fad8cea4065f851ba503682ef315557a966bd91830264e5dabd5b9",
+    "src/youtube_intel/distillation.py": "77fc77b52b6c1ebd9eccf01d5fde11d7b892893c482977b1359596ddc633f544",
+    "tests/integration/test_local_rejection_accounting.py": "bb9588cbf34d685d2f0e185007acdb4f9cbf7e03ba0b304aacefd1f68d4088c4"
+  },
+  "checks": {
+    "full_affected_pre_signed64": {
+      "files": 15,
+      "passed": 506,
+      "seconds": 423.33,
+      "source": "pre_signed64_source_sha256",
+      "log": "affected-frozen.log"
+    },
+    "final_signed64_delta": {
+      "files": 3,
+      "passed": 44,
+      "seconds": 40.45,
+      "new_regression_cases": 37,
+      "source": "source_sha256",
+      "log": "signed64-final-delta.log"
+    },
+    "compileall": "PASS",
+    "ruff_all_src_tests_scripts": "PASS",
+    "strict_mypy_sources": 117,
+    "diff_check": "PASS",
+    "cloud_and_old_text_ast_identical": [
+      "OpenAICloudDistillationTransport",
+      "NvidiaNimCloudDistillationTransport",
+      "MoonshotK26CloudDistillationTransport",
+      "MoonshotK26NonThinkingCloudDistillationTransport",
+      "LocalTextDistillationProfile"
+    ],
+    "protected_files_byte_identical": [
+      "local_distillation_profile.py",
+      "local_distillation_qualification.py",
+      "local_model_capacity.py",
+      "state.py",
+      "backup_restore.py",
+      "source_authority.py",
+      "resources/local_distillation_qualification_v1.json"
+    ]
+  },
+  "boundaries": {
+    "real_model_calls": 0,
+    "real_cloud_calls": 0,
+    "real_network_requests": 0,
+    "formal_data_read_or_write": false,
+    "schema_changed": false,
+    "profile_budget_changed": false,
+    "production_qualification_records": [],
+    "old_failures_modified": false,
+    "unknown_execution": "AMBIGUOUS/invocation1/TRANSPORT_OUTCOME_UNKNOWN; actual identity+usage remain null; archive may be allowed by existing rules; no success, cancellation or redispatch",
+    "precise_error": "separate once result local_response_error; no authority",
+    "thinking_read": false
+  },
+  "failures_preserved": {
+    "fixture_setup": "red.log; expected_model_digest field missing, setup corrected only",
+    "real_r13_red": "red-valid-fixture.log:22 failed/1 passed",
+    "finite_ambiguous_outcome_schema": "green-first.log; root explicitly chose existing finite unknown outcome rather than schema change",
+    "wrong_pythonpath": "affected.log:304 passed/15 import errors/interrupt after root instruction and verified own pid/cwd",
+    "correct_environment_old_source_interrupted_for_new_diag_fix": "affected-correct-environment.log:211 passed/interrupt",
+    "reused_diagnostic_red": "reuse-diagnostic-red.log:3 failed",
+    "signed64_red": "signed64-red.log:2 failed/2 positive-boundary passed"
+  },
+  "log_sha256": {
+    "affected-correct-environment.log": "0a4ba408dac1a6fe7009d48f0c614e67cfa80e5d2330609bfea31e26393fad5f",
+    "affected-frozen.log": "b75eb48b835dddbeaa0f850557ed52f650cc046adab3c7f4f9513203ddd1d8e4",
+    "affected.log": "f0e32626f79cefd83b8735845c018261fd1e76d03e2284dd39b9e213fb879338",
+    "focused-v2.log": "935d2f72fd6da15375bd7d6fd54b3339521db9f85fd095407eb2652582c4f8ad",
+    "green-first.log": "3066741be121c59e9fa9c476d6a908d7fe10991445507fde5179ee31fc041915",
+    "historical-pythonpath.log": "40a4844a35a65c91b7a8eedd918e0fd8d0d6f5978e7e3ed35daf6cbaf7c85898",
+    "known-green.log": "1e125c44239b1284c50b92855d4a5e4e6e4506f47699cdf9e265c2f3646bf264",
+    "mypy-final.log": "b7ee2c0bfb540427b2b4b941da1f3c080ce42fa8a487523ebdd76f6f53fea9f2",
+    "mypy-frozen.log": "b7ee2c0bfb540427b2b4b941da1f3c080ce42fa8a487523ebdd76f6f53fea9f2",
+    "mypy-full.log": "b7ee2c0bfb540427b2b4b941da1f3c080ce42fa8a487523ebdd76f6f53fea9f2",
+    "mypy-initial.log": "5d4b6d285b77932e3d08212c3b4974d0a803f98ec60408ac6ccf6a063fa6c19e",
+    "mypy-signed64-final.log": "b7ee2c0bfb540427b2b4b941da1f3c080ce42fa8a487523ebdd76f6f53fea9f2",
+    "red-valid-fixture.log": "06d1924d7a56c880fc27738df7ffa6cc65d3d06f274fd8be3a7931f76e1c823c",
+    "red.log": "82ae38c0738aa444293af932831bb46757cfe95b38e24d08bb9243a9b7589eeb",
+    "reuse-diagnostic-green.log": "04013da549b6fd7a45388daae5182cd5cb432445a553444f9c7fc832ee27e19c",
+    "reuse-diagnostic-red.log": "c7a2320cc8311091ad17259956618e210080df6f5a48cf1362c23f01b4c73da8",
+    "ruff-final.log": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    "ruff-frozen.log": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    "ruff-initial.log": "51da0b2dea96e83474af6a14277094b8b8c128f097eb98f81d3bd000cedc6eac",
+    "ruff-signed64-final.log": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    "signed64-final-delta.log": "6567648b8ae51a869a0701b89d4e6b60c5c4ff2c12746483d3f362d7d7e80c01",
+    "signed64-red.log": "57ed2b6cca301a26321fa2123fa977dd6a587af7c7fa08232a896ab7dfd64c98"
+  },
+  "remaining": [
+    "independent code review and root integration",
+    "original failed inv1 databases deliberately untouched",
+    "new code fingerprint requires new qualification freeze, not old model receipt reuse",
+    "no final Goal/regression/GUI/adoption claim"
+  ],
+  "core_commit": "ac2ea9d4585f3215b9f2330da4062f6fed95b1f5"
+}
