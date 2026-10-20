@@ -1,4 +1,4 @@
-> 最新接管入口：`docs/validation/end-to-end-user-readiness/CONTINUATION_HANDOFF.md`。用户要求交给OpenCode继续；先核对实时Git/进程及接管owner，避免两个主控同时写。pure APPPROVE与mixed尚未审查必须分开。
+> 2026-10-20 19:40：用户已从 OpenCode 交回 Codex root，唯一主控为本对话。最新纠正与后续顺序见 `docs/validation/end-to-end-user-readiness/OPENCODE_LOCAL_HANDOVER_AUDIT_2026_10_20.md`，优先于下文旧交接快照。mixed已经独立接受整合；LOCAL8旧case1只是NO_NEW，原资格/六正向未证明，registry仍空。R13已分派独立作者修复，R14自动batch根因已有固定官方源依据，均未发布。root只读复验既有ASR14+3回执：tuple/原策略/机器seal有效，零新模型调用；真实普通GUI与最终完整链路仍待。
 
 # Intelligence 当前状态
 

@@ -1,5 +1,7 @@
 # Intelligence Goal 通用续作交接
 
+> 最新接管修正（2026-10-20 19:40）：用户将 OpenCode 的 LOCAL budget decision 交回本对话；Codex root 是唯一主控。不要恢复旧permit或继续其LOCAL8链。读 `OPENCODE_LOCAL_HANDOVER_AUDIT_2026_10_20.md`：旧6144截断及R13真实，但案例1仅NO_NEW、六正向及原资格/holdout未证明，升级包term-sheet有hash快照漂移；不采用删case或直接常量升8192。root任务文档4614a25、核验e21029d；独立作者 `/root/local_rejection_accounting` 在新WT `readiness-local-rejection-accounting` 修R13，无state/Schema/profile更改，提交后独立审查再整合。只读 `/root/local_budget_evidence_audit` 已停止，R14固定官方源证明显式num_batch512可禁自动1024，后续新不可变profile/容量接线及真实冷暖验收待串行。ASR原14+3真实回执已只读校验当前tuple/evaluate/seal全部PASS（private asr-requal-20261020/root-readonly-recheck-20261020.json），0新调用，不把它当最终GUI证明。正式main/实际origin19:25仍73ee7e7/clean，owner数据未触碰。下文旧快照保留，冲突以本段及新核验文档为准。
+
 2026-10-20（最终候选真实GUI恢复+长协议冻结复现完成）。此文件是交接快照，后续执行者须更新；先核对真实Git/进程/文件证据，不能把本快照当实时状态。Goal收尾阶段、候选未发布。主控保持唯一写入控制，旧会话不得并行恢复同一目录。
 
 ## 权威入口与持续授权
