@@ -1,0 +1,160 @@
+{
+  "task": "TASK-READINESS-LOCAL-FIXED-RUNTIME-PROFILE",
+  "role": "Implementer",
+  "agent": "/root/local_fixed_runtime",
+  "base": "b3410a489f06d17ea8c62d2f27d637d3bbe25cc2",
+  "product_test_commit": "e021fb5646acfa09caef0819eab52610fa964524",
+  "recorded_at_utc": "2026-10-20T16:43:00.928215+00:00",
+  "recorded_at_asia_shanghai": "2026-10-21T00:43:00.928215+08:00",
+  "worktree": "/Users/hua/Documents/yia-worktrees/readiness-local-fixed-runtime",
+  "branch": "codex/task-readiness-local-fixed-runtime",
+  "source_sha256": {
+    "src/youtube_intel/local_distillation_profile.py": "8f72d3820980f3e900b4fce98d370babb75dad44369b37e056cc92d194f040fb",
+    "src/youtube_intel/local_model_capacity.py": "4ad223f9e29be91a53df80ddb7ff55a82f6a0c8e237263e816f1b571f922c38d",
+    "src/youtube_intel/distillation.py": "4cfc1655c8a702621bda9057c594a1447d9dbd894cb6d8d43ea21fb6f8ef8fc3",
+    "tests/unit/test_local_fixed_runtime_profile.py": "f97af8be210f0c34476cf03976047cb8146f1971c5be416ee14a6596c84fa10e",
+    "tests/integration/test_local_rejection_accounting.py": "a691604c8601c145554425660b4f61a54b045620f7028fa797e3335a85daa6bb"
+  },
+  "compatibility": {
+    "profiles": {
+      "local-grounding-qwen35-9b-thinking-v1": {
+        "projections": {
+          "YT_TIMED": "908575e9dbbdc6c0fa68c6ba0f2754ce1a463cc342202e09301abb79176389b7",
+          "LOCAL_TIMED": "da0b574bc10225da1c8fc99e491bdb7d292ba259c8b7729d6d065d9ecc58e69b",
+          "LOCAL_TEXT": "832f1243c1c25dddeb69f521e750fc0cfd352beecbcc643c15042370ea4d21d2"
+        },
+        "request": "c9959904b49362ad8f4f6caef4cad67478547390843b9aaaf0226bc0b2259be1"
+      },
+      "local-grounding-qwen35-9b-fixed-runtime-v2": {
+        "projections": {
+          "YT_TIMED": "78d0404f8ccfd6a39bcdfdaeb7a5a9c67c45b6800f1d65da6e61ab97bb5ef750",
+          "LOCAL_TIMED": "3669defc5ca12c2002d4066ababdc96168136408b9c86be4461d1e76dff69703",
+          "LOCAL_TEXT": "65a7c14c25741a950bf4d84b19f0e4cfe20a1e59d8d833d75cab65f0c09b7ae6"
+        },
+        "request": "9a451b14fda68cbddc26ffbd496a47e5e5def0530c8504d23b38f5f6f597349e"
+      }
+    },
+    "ast_classes": {
+      "OpenAICloudDistillationTransport": true,
+      "NvidiaNimCloudDistillationTransport": true,
+      "MoonshotK26CloudDistillationTransport": true,
+      "MoonshotK26NonThinkingCloudDistillationTransport": true,
+      "LocalTextDistillationProfile": true
+    },
+    "protected_files": {
+      "src/youtube_intel/local_distillation_qualification.py": "9fe4059fc0c1d5be6af5586cb84f11b51bd8f4a1ed9cdf0d65a251adef78fe9d",
+      "scripts/qualify_local_grounding_v1.py": "9478d79f46fad8cea4065f851ba503682ef315557a966bd91830264e5dabd5b9",
+      "src/youtube_intel/runtime_composition.py": "04862780154b9e1c31698c3ec227e24ef86827df4bb117c2de5cb532ffe8f96a",
+      "src/youtube_intel/state.py": "71b2e3a5b4fc00153ea4ada604676221916517be84938b8fcf4dffc91da9aa63",
+      "src/youtube_intel/backup_restore.py": "7a65d287a660c02762d806a1f19d122833a0195c174ebc93e74cd012b2d42b5e",
+      "src/youtube_intel/source_authority.py": "72f769e4ced5f3a3c0f71241d6fbe04e6ec7f3d99b2a2a52dc717987488dcfe9",
+      "src/youtube_intel/resources/local_distillation_qualification_v1.json": "0bf8f9526727d0c6f3c217ab3caf5630dc23cd97b6d1bcee525512a043d20347"
+    }
+  },
+  "new_contract": {
+    "profile_id": "local-grounding-qwen35-9b-fixed-runtime-v2",
+    "num_batch": 512,
+    "num_predict": 8192,
+    "max_content_bytes": 8101,
+    "maximum_complete_input_token_bound": 8191,
+    "num_ctx": 16384,
+    "timeout_seconds": 300,
+    "max_request_bytes": 12288,
+    "max_response_bytes": 1000000,
+    "qualification": false,
+    "generation_allowed": false
+  },
+  "checks": [
+    {
+      "command": "PYTHONPATH=src:tests .venv/bin/pytest -q tests/unit/test_local_fixed_runtime_profile.py",
+      "result": "45 failed, 2 passed in 7.07s; new profile not implemented; old golden assertions passed",
+      "log": ".var/local-fixed-runtime/red.log"
+    },
+    {
+      "command": "PYTHONPATH=src:tests .venv/bin/pytest -q tests/unit/test_local_fixed_runtime_profile.py -k identity_cannot_change",
+      "result": "2 failed, 47 deselected in 0.76s; suffix binary and request mutation reproduced",
+      "log": ".var/local-fixed-runtime/red-identity.log"
+    },
+    {
+      "command": "PYTHONPATH=src:tests:. .venv/bin/pytest -q tests/unit/test_local_fixed_runtime_profile.py tests/unit/test_local_model_capacity.py tests/unit/test_capacity_host_manifest.py tests/unit/test_local_grounding_profile.py tests/unit/test_local_grounding_qualification.py tests/unit/test_local_grounding_harness.py tests/integration/test_local_capacity_composition.py tests/integration/test_local_rejection_accounting.py tests/unit/test_ollama_local_distillation.py tests/unit/test_distillation_dispatch.py tests/unit/test_openai_distillation_adapter.py tests/unit/test_moonshot_distillation_adapter.py tests/integration/test_local_grounding_proof.py tests/integration/test_local_distillation_wire_branches.py",
+      "result": "391 passed, 5 failed in 133.85s",
+      "key_error": "AttributeError: 'types.SimpleNamespace' object has no attribute 'matches_value'",
+      "failure_file": "tests/integration/test_local_rejection_accounting.py",
+      "failure_point": "src/youtube_intel/distillation.py:2582 (at this fixed product commit)",
+      "interpretation": "Both old R13 fake-session nodes omitted the added complete-value matching method. All actual session paths and the other 391 tests passed. Product source stayed frozen; only two fixture nodes gained exact value == profile._input(). Original assert AST is identical.",
+      "initial_fixture_sha256": "b389d7653fd695ed2d4342996e15ca52d27e20fee345bab9708f1a2d6d2667cb",
+      "log": ".var/local-fixed-runtime/affected-final.log"
+    },
+    {
+      "command": "PYTHONPATH=src:tests:. .venv/bin/pytest -q tests/integration/test_local_rejection_accounting.py tests/unit/test_ollama_local_distillation.py tests/unit/test_distillation_dispatch.py",
+      "result": "44 passed in 38.78s",
+      "log": ".var/local-fixed-runtime/r13-final.log"
+    },
+    {
+      "command": "PYTHONPATH=src:tests:. .venv/bin/pytest -q tests/unit/test_local_fixed_runtime_profile.py -k 'reprepare or claim_rechecks or no_session'",
+      "result": "7 passed, 49 deselected in 1.92s",
+      "log": ".var/local-fixed-runtime/value-binding-final.log"
+    },
+    {
+      "command": "PYTHONPATH=src:tests:. .venv/bin/python -m compileall -q src tests/unit/test_local_fixed_runtime_profile.py; then changed R13 test file compiled separately",
+      "result": "PASS"
+    },
+    {
+      "command": "PYTHONPATH=src:tests:. .venv/bin/mypy --strict src",
+      "result": "Success: no issues found in 116 source files",
+      "log": ".var/local-fixed-runtime/mypy.log"
+    },
+    {
+      "command": ".venv/bin/ruff check src tests scripts",
+      "result": "All checks passed!",
+      "log": ".var/local-fixed-runtime/ruff-final.log"
+    },
+    {
+      "command": ".venv/bin/ruff check . --output-format concise",
+      "result": "Extra probe: 40 pre-existing docs issues, plus 35 then-new scope issues. Scope issues fixed; five flagged docs files byte-identical to base. Required src/tests/scripts gate passed. Extra . scan was not rerun or reported PASS.",
+      "log": ".var/local-fixed-runtime/ruff-initial.log"
+    },
+    {
+      "command": "git diff --check",
+      "result": "PASS"
+    },
+    {
+      "command": "Exact frozen v1/v2 hashes, protected file bytes, four Cloud class plus original LocalTextProfile AST, original R13 assert AST comparison",
+      "result": "PASS"
+    }
+  ],
+  "log_sha256": {
+    ".var/local-fixed-runtime/affected-final.log": "19cd9a9d73f5d546f457f70308d58f3a8d68373711fae9449729e38b3adae74f",
+    ".var/local-fixed-runtime/golden-and-baseline.log": "993561efe9f9d341a6b8f41aa51fcea4bdb8711c5ff2cdebd53ac8c2ee1bcfba",
+    ".var/local-fixed-runtime/green-initial.log": "a08b18b78a54a98dfc1cdaae99b9ea41accd4ea1c6c0f15301307b8228d7528f",
+    ".var/local-fixed-runtime/mypy.log": "9228e83ff0320df9dd545732802c318b2da0af9e2bf8107358d8c2b6ec9b472b",
+    ".var/local-fixed-runtime/r13-final.log": "3d1df4a1d883e45093b436a37e4f44a7591c0acabd749754d27cb6a5a72e986a",
+    ".var/local-fixed-runtime/red-identity.log": "106b8512c1224d823d868b5b925495d97bada494af026e7b9ed630b0272e9b31",
+    ".var/local-fixed-runtime/red.log": "8fc584a38f782eb0ba3e1b8883c0015eb01cd86ebfc9409dd53410a04c4ad2ed",
+    ".var/local-fixed-runtime/ruff-engineering.log": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    ".var/local-fixed-runtime/ruff-final.log": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    ".var/local-fixed-runtime/ruff-initial.log": "d3a528c88b9ca375a1e523ab5cdec2191fd470421487f34eeb5b13a87a6afcac",
+    ".var/local-fixed-runtime/value-binding-final.log": "bc2800682cd47a7389a6934282f8bdd873693b759474984d79300edd62fd5cd1"
+  },
+  "reuse": {
+    "DIRECT": "Installed stdlib and existing request/profile/session/host/lease/SQLite/strict observer implementations; no dependency changes.",
+    "REFERENCE": "Ollama MIT official commit cf2a313a298066d572c36812e5ad30a21c0db13b routes.go/sched.go/llm/llama_server.go; root independent handover audit. No third-party implementation copied.",
+    "legacy_argv_evidence": "Read-only root .var/end-to-end-user-readiness/olama-serve-20261020.log lines 449 and 1086; only starting llama-server lines read.",
+    "root_audit_path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/docs/validation/end-to-end-user-readiness/OPENCODE_LOCAL_HANDOVER_AUDIT_2026_10_20.md"
+  },
+  "actual_external_operations": {
+    "real_HTTP": 0,
+    "model_loads": 0,
+    "model_generations": 0,
+    "paid_cloud_calls": 0,
+    "owner_database_or_config_access": 0,
+    "process_kill_unload_restart": 0
+  },
+  "remaining_gates": [
+    "Independent review and root acceptance/integration",
+    "Freshly resourced, separately frozen genuine cold/warm/known1024-to512 load-only diagnostic",
+    "Separate version-specific qualification/harness; reviewed records remain empty",
+    "Long input protocol/closure and final true GUI/backup/restore/full regression/adoption"
+  ],
+  "recommendation": "IN_REVIEW only; no self-acceptance, DONE, main merge or release"
+}
