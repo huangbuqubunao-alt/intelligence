@@ -1,0 +1,33 @@
+# 长内容持久化与安全等待：一次兼容迁移计划
+
+2026-10-21。状态：PLANNED，尚未产品实施；等待固定运行profile独立接受后串行。用户持续默认授权覆盖此必要隔离兼容迁移，先记录范围和风险，不逐文件申请。正式采用仍须所有原门禁。依据既有 `LONG_CONTENT_READONLY_TOKENIZER_PROBE_PLAN.md` 全部冻结约束，以及本次只读 `long_protocol_preflight` 对固定b3410a4的代码核验；不是新增产品功能或模型资格。
+
+## 精确范围与兼容
+
+当前候选Schema40，计划40→41，仅追加两张不可变表及long专属完整性守卫；不回写旧checkpoint、ledger、Evidence、Summary、模型资格或历史。旧34–40备份先按其自身精确schema/闭包校验，再在隔离副本正常前向迁移，新增表为空；新41备份必须校验新表和正反闭包。保留Backup两处白名单中的40，不能用LATEST替代并遗漏旧版本。取消schema按快照版本验证，旧m037 trigger逐字不改。
+
+首次DDL必须定义最终完整branch，不能以临时禁止所有inv1/receipt的SQL换取等待测试通过，随后重写同号迁移。第一工程切片只提供真实等待/取消，所有long生成入口保持关闭；后续生成能力只能在相同冻结合同下新增代码及严格资格，不改写已接受迁移。若完整branch不能一次客观定义/验证，应先完成无DDL validator，再一次做完整迁移。无第二次临时“解除禁令”迁移。
+
+`long_distillation_input_proofs`拟最小字段：execution_id（PK/FK checkpoint）、proof_version、wire_version；source_id/video_id/canonical_artifact_id/timed_transcript_id/original_summary_artifact_id/global_policy_revision_id/nullable source_policy_revision_id（RESTRICT FK）；semantic_snapshot_wire/hash（复用既有完整projection side，包含原VerifiedInput、codec原wire、全source/cues/Summary文件及父链、policy快照）；profile_wire/hash、request_wire/hash、schema_hash、freeze_hash、code_identity_json、proof_hash、created_at。context/messages与hash从完整side/request重建交叉验证，不另造冗余编码。
+
+`long_distillation_completion_receipts`拟最小字段：execution_id（PK/FK proof）、receipt_version、proof_hash；public_wire/hash、成对nullable decoded_wire/hash；completion_json/hash（仅真实provider/model、完成原因、request身份、可靠计数、耗时；无thinking）；result_kind、terminal；成组nullable intelligence_id/revision_id/admitted_content_hash、nullable no_new_execution_id；receipt_hash、created_at。延迟FK绑定usage、positive card/revision复合身份、或execution相等的NO_NEW sidecar。未知执行不伪造completion receipt；按既有真实AMBIGUOUS账本事实保留，不能取消或重发。
+
+守卫：固定版本/枚举、typeof、明确UTF-8 byte界与JSON形状、64位小写hex、可靠整数范围、UTC时间及nullable分支组合；positive必须decoded+revision+contenthash，zero必须decoded+sidecar且无revision，拒绝无结果身份。两表禁止UPDATE/DELETE；proof INSERT只允许同一PENDING/reserved/inv0且来源身份/全集相符；receipt INSERT需proof/inv1/无取消，并在提交前满足完整结果/usage闭包。追加long checkpoint DELETE及m037 long互斥/缺proof守卫，不改旧trigger。SQL不能替代共享Python完整hash与来源验证。
+
+## 不可降级身份与首片普通入口
+
+执行ID采用独立 `distillation:long-timed-v1:<64hex>`，digest绑定完整冻结身份，兼容m010的512字符与现有字符串接口。保留整个long-timed版本族：未知/损坏版本直接拒绝。revision/intelligence沿既有派生ID形式；getter、reader、Backup正反向从checkpoint或revision的保留族识别，不能依nullable card/proof。禁止组合删除proof/card/ledger/receipt后落回generic。
+
+首片必须一次事务完成唯一canonical/timed、全部ORIGINAL Evidence、原Summary/policy/父链与文件hash验证→完整freeze→checkpoint+proof→预算真实通过但资格不可用的WAITING_MODEL/inv0及零usage；不提交裸PENDING。只追加m037取消记录，不改checkpoint为成功、不删除证据。取消/重启/恢复后不复活、不派发。已有真实invocation、未知执行、WAITING_BUDGET或其他PENDING任务均不借此放行。
+
+普通Content入口必须真实可达。`distillation.reserve_distillation_execution`在旧`_legal_evidence`20上限及_reserved_command之前路由YT_TIMED长factory；不要全局扩大旧20/LOCAL_TEXT39/Cloud合同，VerifiedInput类型本身不是authority。continuation先识别long并验证历史闭包，再返回等待/取消，不能落入generic reserve/begin/两种claim/finish/admit/NO_NEW。首片不注册long transport/claim/completion writer，所有generic写入口拒该族；历史reader/Save/Topic不得信任未闭合long结果。
+
+`local_api`现Content POST已传全canonical coverage IDs并走公共reserve/continue，保留endpoint；但_content_local_intelligence_status必须按同一长路由显示真实candidate profile及NOT_QUALIFIED/等待。runtime_composition已注入同一service，预计不需改；SourceRun走同一服务，验证parent保持NEEDS_ATTENTION/MODEL_UNAVAILABLE、child WAITING。现前端POST command_id、取消execution_id在JSON，namespace无斜杠，不需新接口；仍须实测，不能只凭类型判断。
+
+## 验收、风险及恢复策略
+
+允许的预计产品范围：新long持久化/历史validator模块、041迁移、state/distillation/distillation_cancellation/intelligence_read/backup_restore/local_api及资格CODE_FILES的必要闭包；复用已审codec/projection/request/canonical，不重造、不借039、不放宽Cloud。精确开工包仅在依赖接受后生成。模型/网络/owner零访问的隔离工程先完成，真实模型资格另按原标准冻结验收。
+
+必须覆盖真实114 Evidence/2406 cues完整freeze、歧义canonical/缺cue/错Summary父链拒绝、事务逐点失败无半成品、generic所有入口不能claim、取消并发/重启零派发、未知namespace及组合删除/重hash ZIP仍拒、旧34–40逐版及新41全SQL行/全部非空DATA恢复等值。普通macOS GUI真实提炼→WAIT0→取消→readiness→创建备份/原生选择/恢复重启→全量一致；其余未完成任务继续阻塞。原20条/NO_NEW/Cloud/预算/授权/SourceRun回归与完整最终测试不能省略。
+
+主要风险是封存与真实来源不一致、generic旁路claim、nullable记录组合降级、旧Summary刷新使历史误拒、旧版本取消schema误校验，以及未实现完整receipt闭包就提前宣称完成。措施为单事务、不可删除版本标记、共享正反validator、冻结历史文件/父链、版本化快照校验和独立审查。迁移失败回滚隔离副本，保留原库/原备份/失败证据；不做降级删除或正式数据重置。首片通过只代表长内容安全等待/取消与恢复工程，完整真实生成/保存/主题/Evidence仍是Goal未完成项。
