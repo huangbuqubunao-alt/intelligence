@@ -21,3 +21,7 @@
 核心稳定后沿同一生产 builder 接入固定模型 native renderer/slot/完整容量和专用资格路径，CODE_FILES覆盖实际执行与41及纯模块。按原标准固定原资格例及未见样例，首次真实失败停止，不改预算/时间/语义标准凑过。LOCAL 六实质正向及两反例不能拿 mic-test/仓库头几行充数。
 
 真实合格后还须普通 GUI 正向提炼→保存→主题→Evidence 回跳/刷新/重启/全量恢复，最终 ASR tuple seal复查、完整前后端/静态/build与图文手册。全部原采用条件满足才可安全 ff-only/push/launcher；当前候选未发布。
+
+## 旧 long v1 运行参数的版本边界
+
+只读核验确认旧longv1仅继承短v1的options并覆盖32768context，没有显式batch512。旧profile/request字节及本次等待/取消proof必须永久保留。未来真正执行如须固定512，应新建明确long运行profile版本，保持32768/6144/300和语义标准，单独验证原生容量/槽/资源及资格；不改旧_OPTIONS_WIRE或覆盖旧PROFILE_ID的历史含义。历史重建必须按proof冻结的profile_id选择保留resolver/builder，而非后来全局新默认。当前只WAIT且生成关闭，此处不是已获模型能力。
