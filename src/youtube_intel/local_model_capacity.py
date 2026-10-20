@@ -26,6 +26,7 @@ from time import monotonic
 from typing import TYPE_CHECKING, Any, Protocol
 
 from youtube_intel.local_distillation_profile import (
+    FIXED_RUNTIME_PROFILE_ID,
     PROFILE_ID,
     canonical,
     digest,
@@ -403,25 +404,67 @@ def verify_installed_model_bytes(
     return before, references
 
 
-def observe_host(*, data_root: Path, loaded: bool) -> HostObservation:
-    """Verify fixed installed bytes, not an old receipt's boolean."""
+def observe_host(
+    *, data_root: Path, loaded: bool, profile_id: str = PROFILE_ID,
+) -> HostObservation:
+    """Ordinary host gate; v2 execution observations require explicit512."""
+    profile = resolve_profile(profile_id)
+    return _observe_host(
+        data_root=data_root, loaded=loaded,
+        fixed_batch=512 if profile.profile_id == FIXED_RUNTIME_PROFILE_ID else None,
+    )
+
+
+def observe_load_only_reconfiguration(*, data_root: Path) -> HostObservation:
+    """Only the pinned legacy1024 shape may precede an empty reload probe.
+
+    This observation cannot be used as readiness: the session must observe the
+    ordinary fixed512 host after the probe before it can mint its ready state.
+    """
+    return _observe_host(data_root=data_root, loaded=True, fixed_batch=1024)
+
+
+def _observe_host(
+    *, data_root: Path, loaded: bool, fixed_batch: int | None = None,
+) -> HostObservation:
+    """Verify installed bytes and resource truth, never an old receipt boolean."""
     cache = Path.home() / ".ollama/models"
     before, references = verify_installed_model_bytes(cache)
     server, runner = processes("ollama"), processes("llama-server")
     if len(server.splitlines()) != 1 or not server.endswith(" serve"):
         raise CapacityUnavailable("server process differs")
     if loaded:
-        validate_runner(runner, cache)
+        _validate_runner(runner, cache, fixed_batch=fixed_batch)
     elif runner:
         raise CapacityUnavailable("untracked runner exists before load-only")
+    if fixed_batch is not None:
+        _validate_process_prefix(server, ROOT / "ollama", suffix=" serve")
     if shutil.disk_usage(data_root).free < 10 * GIB or available_memory_bytes() < (
-        2 * GIB if loaded else sum(BLOBS.values()) + 2 * GIB
+        2 * GIB if loaded and fixed_batch != 1024 else sum(BLOBS.values()) + 2 * GIB
     ):
         raise CapacityUnavailable("disk or available RAM is insufficient")
     return HostObservation(before, server, runner, references)
 
 
+def _validate_process_prefix(process: str, binary: Path, *, suffix: str | None = None) -> None:
+    prefix, marker, args = process.partition(" " + str(binary))
+    try:
+        pid, started = prefix.strip().split(maxsplit=1)
+        datetime.strptime(started, "%a %b %d %H:%M:%S %Y")
+        if not marker or not pid.isdecimal() or not args.startswith(" ") or (suffix is not None and args != suffix):
+            raise ValueError("process identity differs")
+    except ValueError as error:
+        raise CapacityUnavailable("runtime process identity differs") from error
+
+
 def validate_runner(runner: str, cache: Path) -> None:
+    """Preserve the original v1 runner gate, never accept legacy1024."""
+    _validate_runner(runner, cache)
+
+
+def _validate_runner(runner: str, cache: Path, *, fixed_batch: int | None = None) -> None:
+    if fixed_batch is not None:
+        _validate_process_prefix(runner, ROOT / "llama-server")
     if len(runner.splitlines()) != 1 or str(ROOT / "llama-server") not in runner:
         raise CapacityUnavailable("actual runner process is unavailable")
     args = shlex.split(runner[runner.index(str(ROOT / "llama-server")) :])[1:]
@@ -482,8 +525,8 @@ def validate_runner(runner: str, cache: Path) -> None:
         ),
         "--load-mode": "none",
         "--flash-attn": "auto",
-        "-b": "512",
-        "-ub": "512",
+        "-b": str(fixed_batch or 512),
+        "-ub": str(fixed_batch or 512),
         "--log-verbosity": "4",
     }
     if any(
@@ -491,6 +534,21 @@ def validate_runner(runner: str, cache: Path) -> None:
         for key, expected_value in fixed_optional.items()
     ):
         raise CapacityUnavailable("runner resource override differs")
+    if fixed_batch is not None and (
+        values.get("-b") != str(fixed_batch) or values.get("-ub") != str(fixed_batch)
+    ):
+        raise CapacityUnavailable("explicit paired runner batch differs")
+    if fixed_batch == 1024:
+        # Sole observed legacy shape: all official flags are present, with
+        # only the ephemeral loopback port and process start varying.
+        legacy = {
+            **expected, **{k: v for k, v in fixed_optional.items() if k != "--load-mode"},
+            "-b": "1024", "-ub": "1024",
+            "--no-log-prefix": "true", "--no-log-timestamps": "true",
+            "--port": values.get("--port", ""),
+        }
+        if values != legacy:
+            raise CapacityUnavailable("unknown legacy load-only runner shape")
     if (
         not values.get("--port", "").isdecimal()
         or not 1024 <= int(values["--port"]) <= 65535
@@ -661,6 +719,8 @@ def guarded_transport(
 
 @dataclass(frozen=True)
 class _Ready:
+    profile_id: str
+    value_hash: str
     execution_id: str
     request_hash: str
     wire_hash: str
@@ -681,7 +741,9 @@ class LocalCapacitySession:
         repository: SQLiteStateRepository,
         data_root: Path,
         backup_restore: BackupRestoreService | None = None,
+        profile_id: str = PROFILE_ID,
     ) -> None:
+        self._profile = resolve_profile(profile_id)
         self.repository, self.data_root = repository, data_root
         self.lease = ApplicationHeavyLease(
             repository=repository, data_root=data_root, backup_restore=backup_restore
@@ -697,14 +759,28 @@ class LocalCapacitySession:
         request: Mapping[str, object],
         send: Send,
     ) -> bool:
-        profile = resolve_profile(PROFILE_ID)
-        if self._ready is not None:
-            return self.ready_for_claim(execution_id, request)
+        from youtube_intel.distillation import (
+            VerifiedDistillationInput,
+            build_local_distillation_request,
+            verified_distillation_input_projection,
+        )
+        profile = self._profile
         try:
-            profile.complete_input_token_upper_bound(request)
+            if type(value) is not VerifiedDistillationInput or value.local_profile_id != profile.profile_id:
+                return False
+            expected = build_local_distillation_request(value)
+            if canonical(request) != canonical(expected) or wire_bytes(request) != wire_bytes(expected):
+                return False
+            value_hash = digest(verified_distillation_input_projection(value))
+            request_hash = digest(expected)
+            wire_hash = hashlib.sha256(wire_bytes(expected)).hexdigest()
+            if self._ready is not None:
+                return self._ready.value_hash == value_hash and self.ready_for_claim(execution_id, request)
+            bound = profile.complete_input_token_upper_bound(request)
+            if not 0 < bound <= profile.options()["num_ctx"] - profile.options()["num_predict"] - 1:
+                return False
             if (
-                value.local_profile_id != PROFILE_ID
-                or not execution_id
+                not execution_id
                 or not self.lease.acquire()
             ):
                 return False
@@ -747,8 +823,19 @@ class LocalCapacitySession:
                     "renderer/tokenizer or hidden messages differ"
                 )
             loaded = self._loaded(send)
-            observe_host(data_root=self.data_root, loaded=loaded)
-            if not loaded:
+            fixed = profile.profile_id == FIXED_RUNTIME_PROFILE_ID
+            if fixed:
+                try:
+                    before = observe_host(data_root=self.data_root, loaded=loaded, profile_id=profile.profile_id)
+                except CapacityUnavailable:
+                    if not loaded:
+                        raise
+                    before = observe_load_only_reconfiguration(data_root=self.data_root)
+            else:
+                before = observe_host(data_root=self.data_root, loaded=loaded)
+            if not before.is_current() or not self.lease.valid() or unresolved_local_work(self.repository):
+                raise CapacityUnavailable("host or quiescence changed before load-only")
+            if not loaded or fixed:
                 response = send(
                     "/api/chat",
                     method="POST",
@@ -788,11 +875,18 @@ class LocalCapacitySession:
                     )
             if not self._loaded(send):
                 raise CapacityUnavailable("actual model slot is unavailable")
-            host = observe_host(data_root=self.data_root, loaded=True)
+            host = (
+                observe_host(data_root=self.data_root, loaded=True, profile_id=profile.profile_id)
+                if fixed else observe_host(data_root=self.data_root, loaded=True)
+            )
+            if fixed and (host.files != before.files or host.references != before.references or host.server != before.server):
+                raise CapacityUnavailable("runtime identity changed across load-only")
             self._ready = _Ready(
+                profile.profile_id,
+                value_hash,
                 execution_id,
-                digest(request),
-                hashlib.sha256(wire_bytes(request)).hexdigest(),
+                request_hash,
+                wire_hash,
                 monotonic() + 30,
                 host,
             )
@@ -805,10 +899,9 @@ class LocalCapacitySession:
             self.release()
             return False
 
-    @staticmethod
-    def _loaded(send: Send) -> bool:
+    def _loaded(self, send: Send) -> bool:
         models = send("/api/ps", method="GET").get("models")
-        profile = resolve_profile(PROFILE_ID)
+        profile = self._profile
         if models == []:
             return False
         if (
@@ -828,10 +921,24 @@ class LocalCapacitySession:
             raise CapacityUnavailable("actual context differs")
         return True
 
+    def matches_value(self, value: VerifiedDistillationInput) -> bool:
+        """Bind transport claim/consume to the complete backend-prepared value."""
+        from youtube_intel.distillation import (
+            VerifiedDistillationInput,
+            verified_distillation_input_projection,
+        )
+        return (
+            self._ready is not None
+            and type(value) is VerifiedDistillationInput
+            and value.local_profile_id == self._profile.profile_id
+            and digest(verified_distillation_input_projection(value)) == self._ready.value_hash
+        )
+
     def ready_for_claim(self, execution_id: str, request: Mapping[str, object]) -> bool:
         ready = self._ready
         return (
             ready is not None
+            and ready.profile_id == self._profile.profile_id
             and not self._armed
             and not self._consumed
             and ready.execution_id == execution_id
@@ -854,6 +961,7 @@ class LocalCapacitySession:
         ready = self._ready
         if (
             ready is None
+            or ready.profile_id != self._profile.profile_id
             or not self._armed
             or self._consumed
             or self.lease.fd is None

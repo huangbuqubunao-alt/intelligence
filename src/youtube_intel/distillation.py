@@ -2499,7 +2499,12 @@ class OllamaLocalDistillationTransport:
 
     def is_authorized_for_qualification(self, value: VerifiedDistillationInput) -> bool:
         if self.local_profile_id is not None:
-            from youtube_intel.local_distillation_profile import digest
+            from youtube_intel.local_distillation_profile import (
+                FIXED_RUNTIME_PROFILE_ID,
+                digest,
+            )
+            if self.local_profile_id == FIXED_RUNTIME_PROFILE_ID:
+                return False  # engineering/load-only variant has no qualification path
             return (not self._qualification_dispatched and self.is_authorized_for(value) and self._local_capacity_fits(value) and self._local_permit is not None
                 and self._local_permit.matches(local_profile_projection(value), value.semantic_hash,
                     digest(build_local_distillation_request(value)), value.output_language))
@@ -2531,6 +2536,7 @@ class OllamaLocalDistillationTransport:
     def ready_for_claim(self, execution_id: str, value: VerifiedDistillationInput) -> bool:
         permits = self.is_authorized_for_qualification if self._prepared_qualification else self.is_authorized_for_normal_production
         return (self._capacity_session is not None and self._prepared_execution == execution_id and permits(value)
+            and self._capacity_session.matches_value(value)
             and self._capacity_session.ready_for_claim(execution_id, build_local_distillation_request(value)))
 
     def release_readiness(self) -> None:
@@ -2567,8 +2573,13 @@ class OllamaLocalDistillationTransport:
         if not self.is_authorized_for(value):
             raise RuntimeError("local distillation route is not authorized")
         if self.local_profile_id is not None:
+            from youtube_intel.local_distillation_profile import (
+                FIXED_RUNTIME_PROFILE_ID,
+            )
+            if self.local_profile_id == FIXED_RUNTIME_PROFILE_ID:
+                raise LocalDistillationPreDispatchError("fixed-runtime profile is load-only and unqualified")
             request = build_local_distillation_request(value)
-            if self._capacity_session is None or self._prepared_execution is None:
+            if self._capacity_session is None or self._prepared_execution is None or not self._capacity_session.matches_value(value):
                 raise LocalDistillationPreDispatchError("local capacity readiness is missing")
             try:
                 self._capacity_session.consume(self._prepared_execution, request)
@@ -2870,7 +2881,7 @@ def validate_local_grounding_response(
     if (response.get("model") != profile.model or response.get("done") is not True
         or response.get("done_reason") != "stop" or type(inputs) is not int
         or not 0 < inputs <= profile.complete_input_token_upper_bound(build_local_distillation_request(value))
-        or type(outputs) is not int or not 0 < outputs < 6144
+        or type(outputs) is not int or not 0 < outputs < profile.options()["num_predict"]
         or not isinstance(raw, str) or not raw.strip() or len(raw.encode()) > profile.max_response_bytes):
         raise KnownLocalDistillationResponseError(
             "LOCAL_RESPONSE_INCOMPLETE_OR_TRUNCATED",

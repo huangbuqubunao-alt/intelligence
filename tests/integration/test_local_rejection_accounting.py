@@ -216,7 +216,8 @@ def test_real_transport_retains_precise_failure_diagnostic_without_thinking(monk
     profile = _load_module("test_local_grounding_profile")
     wire = OllamaLocalDistillationTransport(settings=LocalScoringSettings(model=MODEL,
         expected_model_digest=resolve_profile(PROFILE_ID).model_digest), local_profile_id=PROFILE_ID)
-    wire._capacity_session = SimpleNamespace(consume=lambda *_: None)
+    wire._capacity_session = SimpleNamespace(consume=lambda *_: None,
+        matches_value=lambda value: value == profile._input())
     wire._prepared_execution = "offline-fixture"
     monkeypatch.setattr(wire, "is_authorized_for", lambda _: True)
     calls = []
@@ -271,7 +272,8 @@ def test_reused_transport_never_attributes_previous_response_to_failed_attempt(m
     profile = _load_module("test_local_grounding_profile")
     wire = OllamaLocalDistillationTransport(settings=LocalScoringSettings(model=MODEL,
         expected_model_digest=resolve_profile(PROFILE_ID).model_digest), local_profile_id=PROFILE_ID)
-    wire._capacity_session = SimpleNamespace(consume=lambda *_: None)
+    wire._capacity_session = SimpleNamespace(consume=lambda *_: None,
+        matches_value=lambda value: value == profile._input())
     wire._prepared_execution = "offline-fixture"
     monkeypatch.setattr(wire, "is_authorized_for", lambda _: True)
     response = _response(done_reason="stop", eval_count=50, prompt_eval_count=100, message={"content": "{}"})

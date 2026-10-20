@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 
 PROFILE_ID = "local-grounding-qwen35-9b-thinking-v1"
+FIXED_RUNTIME_PROFILE_ID = "local-grounding-qwen35-9b-fixed-runtime-v2"
 TEXT_WIRE = "local-text-distillation-v2"
 SCOPES = ("YT_TIMED", "LOCAL_TIMED", "LOCAL_TEXT")
 
@@ -58,9 +59,12 @@ class LocalDistillationProfile:
         return content_bytes + 88 + 2
 
     def options(self) -> dict[str, int | float]:
-        return {"temperature": 1.0, "top_p": 0.95, "top_k": 20, "min_p": 0.0,
+        options: dict[str, int | float] = {"temperature": 1.0, "top_p": 0.95, "top_k": 20, "min_p": 0.0,
             "presence_penalty": 1.5, "repeat_penalty": 1.0, "seed": 20261013,
             "num_ctx": 16384, "num_predict": 6144}
+        if self.profile_id == FIXED_RUNTIME_PROFILE_ID:
+            options.update(num_predict=8192, num_batch=512)
+        return options
 
     def prompt(self, scope: str) -> str:
         if scope not in SCOPES:
@@ -90,7 +94,7 @@ class LocalDistillationProfile:
         )
 
     def projection(self, scope: str, schema: object) -> dict[str, object]:
-        return {"local_profile_id": self.profile_id, "scope": scope, "model": self.model,
+        projection: dict[str, object] = {"local_profile_id": self.profile_id, "scope": scope, "model": self.model,
             "digest": self.model_digest, "runtime": self.runtime, "timeout_seconds": self.timeout_seconds,
             "wire_version": TEXT_WIRE if scope == "LOCAL_TEXT" else None,
             "prompt": self.prompt(scope), "schema": schema, "think": True, "options": self.options(),
@@ -99,15 +103,24 @@ class LocalDistillationProfile:
             "truncate": False, "shift": False,
             "capacity_contract": "qwen35-byte-vocabulary-chat-system-user-88-plus2-v1",
             "capacity_vocabulary_model_blob": "02d45dc1cf451ba2475ac33b301c2dd8f985abe4c182ce04a1f2f5bf0260278d"}
+        if self.profile_id == FIXED_RUNTIME_PROFILE_ID:
+            projection["max_response_bytes"] = self.max_response_bytes
+        return projection
 
 
 _PROFILE = LocalDistillationProfile()
+_FIXED_RUNTIME_PROFILE = LocalDistillationProfile(
+    profile_id=FIXED_RUNTIME_PROFILE_ID, max_content_bytes=8_101,
+)
 
 
 def resolve_profile(profile_id: str) -> LocalDistillationProfile:
-    if type(profile_id) is not str or profile_id != PROFILE_ID:
-        raise ValueError("unknown local distillation profile")
-    return _PROFILE
+    if type(profile_id) is str:
+        if profile_id == PROFILE_ID:
+            return _PROFILE
+        if profile_id == FIXED_RUNTIME_PROFILE_ID:
+            return _FIXED_RUNTIME_PROFILE
+    raise ValueError("unknown local distillation profile")
 
 
 def scope_for(provider: str, wire: str | None, locators: set[str]) -> str:
