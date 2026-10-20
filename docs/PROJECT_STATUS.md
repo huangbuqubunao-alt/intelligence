@@ -1,3 +1,5 @@
+> 2026-10-21 05:50 断点恢复：root基线bfad9d5 clean；原作者 /root/long_protocol_preflight 已恢复原dirtyWT readiness-long-input-wait-lifecycle/base4f7cc46，保留全部修改、独占产品写入。已核验4项synthetic PASS；作者报告真实114Evidence/2406cue副本普通API202→WAIT0→取消通过，但Backup仍被继承SOURCE_RUN_ACTIVE正确阻塞，完整恢复尚未通过。新澄清：唯一来源权威按完整AVAILABLE ORIGINAL Evidence所绑定的唯一合法canonical/timed判断，保留无Evidence旧artifact；两活动来源或混合/缺失引用仍拒绝。用户释放后05:50正常内存函数实测7.168GiB<8.101GiB，disk202.318GiB，0load/0generation；继续工程，不重复审批、不改资格/main/owner。
+
 > 2026-10-21 01:05 当前：R14独立接受并root100项复验整合完成。唯一产品writer /root/long_protocol_preflight 正在WT readiness-long-input-wait-lifecycle（base4f7cc46）实施完整长输入等待/取消/历史/恢复；task/package1795238及新接线纠正83aca03已记录。拟41仅隔离工程，无main/owner/模型资格变更。旧getter实际LIMIT21，新增专属完整集合路由，不放宽Cloud；拒绝receipt与SQL唯一性在迁移冻结前修正。异步资源问题仍等待用户回复，工程继续，不能标Goal完成。
 
 > 2026-10-21 00:52最新：R14已独立APPROVE7bb947e并整合root d861349/871ccf9/8a6d0f8；独立最终396PASS/138.89s+11有界探针，root100PASS/49.00s、compile/工程Ruff/strict117/diff及全部已审SHA通过。仅候选工程DONE，v2明确禁止生成、records=[]。下一串行long完整输入WAIT/取消/历史/恢复切片，40→41计划已记录，尚未迁移。真实加载资源仍不足，已异步请用户释放后复查；其他工程继续。无main/owner变更。

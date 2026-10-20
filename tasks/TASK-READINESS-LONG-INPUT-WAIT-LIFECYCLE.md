@@ -31,3 +31,5 @@ Actual wiring correction: old `state._evidence_ids_for_lineages` hasLIMIT21; exi
 - After independent review and root integration, real isolated macOS GUI Content提炼→202/wait0→取消→readiness→Backup create/download/native picker/stage/RESTORE/restart→all SQL/DATA consistency. No owner data, model generations, paid services or fake qualification. Do not call fixture/engineering proof a real positive model result.
 
 Compile/type before test debugging, meaningful RED first, once fixed-source affected group, independent review; preserve failed logs/source hashes and report true commands/results, no self-acceptance/DONE/main merge. Final whole Goal regression/real model/qualified positive GUI/full adoption gates remain outstanding.
+
+Root来源歧义澄清（2026-10-21）：完整AVAILABLE ORIGINAL全集必须绑定唯一合法canonical/timed权威；无任何Evidence的旧untimed artifact可共存且保留。不按所有未删除artifact数误拒，但不得JOIN过滤损坏/缺失/foreign引用；两活动权威/混合bindings仍拒绝。见迁移计划末节，真实114正向及反控必须覆盖。

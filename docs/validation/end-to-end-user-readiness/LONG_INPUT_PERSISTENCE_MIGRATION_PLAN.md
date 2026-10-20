@@ -1,6 +1,6 @@
 # 长内容持久化与安全等待：一次兼容迁移计划
 
-2026-10-21。状态：PLANNED，尚未产品实施；等待固定运行profile独立接受后串行。用户持续默认授权覆盖此必要隔离兼容迁移，先记录范围和风险，不逐文件申请。正式采用仍须所有原门禁。依据既有 `LONG_CONTENT_READONLY_TOKENIZER_PROBE_PLAN.md` 全部冻结约束，以及本次只读 `long_protocol_preflight` 对固定b3410a4的代码核验；不是新增产品功能或模型资格。
+2026-10-21。状态：IN_PROGRESS（隔离工作树），固定运行profile已独立接受并整合后串行实施；未采用正式main。用户持续默认授权覆盖此必要隔离兼容迁移，先记录范围和风险，不逐文件申请。正式采用仍须所有原门禁。依据既有 `LONG_CONTENT_READONLY_TOKENIZER_PROBE_PLAN.md` 全部冻结约束，以及本次只读 `long_protocol_preflight` 对固定b3410a4的代码核验；不是新增产品功能或模型资格。
 
 ## 精确范围与兼容
 
@@ -31,3 +31,7 @@
 必须覆盖真实114 Evidence/2406 cues完整freeze、歧义canonical/缺cue/错Summary父链拒绝、事务逐点失败无半成品、generic所有入口不能claim、取消并发/重启零派发、未知namespace及组合删除/重hash ZIP仍拒、旧34–40逐版及新41全SQL行/全部非空DATA恢复等值。普通macOS GUI真实提炼→WAIT0→取消→readiness→创建备份/原生选择/恢复重启→全量一致；其余未完成任务继续阻塞。原20条/NO_NEW/Cloud/预算/授权/SourceRun回归与完整最终测试不能省略。
 
 主要风险是封存与真实来源不一致、generic旁路claim、nullable记录组合降级、旧Summary刷新使历史误拒、旧版本取消schema误校验，以及未实现完整receipt闭包就提前宣称完成。措施为单事务、不可删除版本标记、共享正反validator、冻结历史文件/父链、版本化快照校验和独立审查。迁移失败回滚隔离副本，保留原库/原备份/失败证据；不做降级删除或正式数据重置。首片通过只代表长内容安全等待/取消与恢复工程，完整真实生成/保存/主题/Evidence仍是Goal未完成项。
+
+## 真实旧artifact共存的权威澄清（2026-10-21）
+
+原真实隔离副本有两个未删除canonical artifact，仅一个具备timed与全部114条AVAILABLE ORIGINAL Evidence，另一个是无Evidence的旧untimed历史。唯一性应针对完整AVAILABLE ORIGINAL全集绑定的合法canonical/timed权威，而非所有未删除artifact数量。首片可以接受上述无Evidence历史共存；旧artifact、文件和历史一律保留。必须先检查整个AVAILABLE ORIGINAL全集，不能通过JOIN或过滤隐藏损坏、缺失、deleted或foreign引用；所有行必须且仅能绑定同一合法canonical/timed及父链。若两套来源均有AVAILABLE ORIGINAL、混合bindings或缺失引用，仍fail-closed，不任择其中一份、不拼接凑全集、不删旧记录。须有真实114正向和双活动/混合/损坏反控。
