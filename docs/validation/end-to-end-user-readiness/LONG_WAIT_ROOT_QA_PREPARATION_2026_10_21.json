@@ -1,0 +1,49 @@
+{
+  "observed_at": "2026-10-20T21:58:26.846201+00:00",
+  "status": "PREPARED_ONLY_NO_RUNTIME_OR_ACCEPTANCE",
+  "root_head": "a571880",
+  "qa_stock": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/long-wait-gui-20261021",
+  "schema": 40,
+  "all_sql_tables": 77,
+  "all_physical_data": 19,
+  "all_sql_and_data_equal": true,
+  "entire_origin_unchanged": true,
+  "source": {
+    "observed_at": "2026-10-20T21:57:03.896012+00:00",
+    "video_id": "0eMzc-WnBfQ",
+    "available_original_evidence": 114,
+    "full_cues": 2406,
+    "schema_version": 40,
+    "initial_qa_error": {
+      "command": "inline readonly SQL completeness check for IwglW_hIL_g",
+      "key_error": "AssertionError: expected 114 Evidence/2406 cues",
+      "actual": [
+        5,
+        104
+      ],
+      "root_cause": "Root handover confused the public video IDs; production data was correct",
+      "correction": "Use actual complete 0eMzc-WnBfQ; no source or assertion weakened"
+    },
+    "owner_access": false,
+    "model_calls": 0
+  },
+  "evidence_sha256": {
+    "clone-proof.json": "1cf9dd556c91fc4c105c265d7bf34407397d28359a11d362331d91e0744d374b",
+    "source-completeness.json": "87454eac9c3c51a67bbd858c6e7f0d6d6a29e9a7c1feb3a1e030f7d90c97abde"
+  },
+  "qa_script_sha256": {
+    "prepare_long_wait_gui_oct21.py": "fc245fcbd7c8caccfcc3b07f1ecfc091774313607c11642db1f247b6321cfe85",
+    "snapshot_long_wait_gui_oct21.py": "458d646adc3cba9d4d4761ff11bdb7a2cd914609161da01cb85e65e50ed831e3"
+  },
+  "planned_after_independent_acceptance": [
+    "normal factory migration41 in new isolated stock only",
+    "real GUI full long Content extraction \u2192 WAIT0 \u2192 cancel and exact feedback",
+    "verify other uncancelled work continues to block",
+    "create/download/stage/confirm/restore/restart",
+    "all79 SQL tables/each row and all physical DATA path/size/SHA equal"
+  ],
+  "model_loads": 0,
+  "generations": 0,
+  "owner_access": false,
+  "main_adopted": false
+}
