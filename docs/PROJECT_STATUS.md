@@ -1,3 +1,5 @@
+> 2026-10-21 00:44：R14作者已cleanSTOP，固定候选9003320/core e021fb5，独立 /root/local_fixed_review 正审查。391PASS/5旧fake缺新方法的原完整组保留；只补两处精确输入匹配stub且原断言保持，最终44+7增量PASS，静态通过，不混报最终396全跑。尚未接受/整合。后续一次40→41长持久化范围/兼容/恢复计划已记录于LONG_INPUT_PERSISTENCE_MIGRATION_PLAN.md，等待R14后串行，不另设临时禁令迁移；当前没有Schema变更。
+
 > 2026-10-21 00:32续作：已确认root4f1824f与R14独立WT b3410a4均clean，旧派发尚未产品写入；现由 /root/local_fixed_runtime 在原独立WT实施同一精确任务，唯一产品writer。root已6b7e67b更新归属；另 /root/long_protocol_preflight 仅只读准备后续持久化切片，不能并行写核心。最新只读RAM4.985GiB/disk204.723GiB，继续0load/0generation；Jev仍HTTP451，采用原强推理+独立审查。R13已接受整合且无需重跑，正式main73ee7e7 clean/owner未触及。
 
 > 2026-10-20 19:50最新：R13已独立APPROVE e807c6b并整合root91b7f8c/418d7d5/b94f13f；root44PASS/38.77s、compile/Ruff/strict117/diff、三份已审SHA全等。详见LOCAL_REJECTION_ACCOUNTING_ROOT_INTEGRATION_2026_10_20.json。该窄任务DONE仅指候选工程，不是模型资格或Goal完成。下一串行R14固定新profile；最新只读RAM6.521GiB/disk193.375GiB，仍0load/0generation，资格records=[]，无main/owner变更。
