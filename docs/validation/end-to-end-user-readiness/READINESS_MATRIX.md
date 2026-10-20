@@ -1,3 +1,5 @@
+> 2026-10-21 00:52最新：R14已独立APPROVE7bb947e并整合root d861349/871ccf9/8a6d0f8；独立最终396PASS/138.89s+11有界探针，root100PASS/49.00s、compile/工程Ruff/strict117/diff及全部已审SHA通过。仅候选工程DONE，v2明确禁止生成、records=[]。下一串行long完整输入WAIT/取消/历史/恢复切片，40→41计划已记录，尚未迁移。真实加载资源仍不足，已异步请用户释放后复查；其他工程继续。无main/owner变更。
+
 > 2026-10-21 00:32续作：已确认root4f1824f与R14独立WT b3410a4均clean，旧派发尚未产品写入；现由 /root/local_fixed_runtime 在原独立WT实施同一精确任务，唯一产品writer。root已6b7e67b更新归属；另 /root/long_protocol_preflight 仅只读准备后续持久化切片，不能并行写核心。最新只读RAM4.985GiB/disk204.723GiB，继续0load/0generation；Jev仍HTTP451，采用原强推理+独立审查。R13已接受整合且无需重跑，正式main73ee7e7 clean/owner未触及。
 
 > 2026-10-20 19:50最新：R13已独立APPROVE e807c6b并整合root91b7f8c/418d7d5/b94f13f；root44PASS/38.77s、compile/Ruff/strict117/diff、三份已审SHA全等。详见LOCAL_REJECTION_ACCOUNTING_ROOT_INTEGRATION_2026_10_20.json。该窄任务DONE仅指候选工程，不是模型资格或Goal完成。下一串行R14固定新profile；最新只读RAM6.521GiB/disk193.375GiB，仍0load/0generation，资格records=[]，无main/owner变更。

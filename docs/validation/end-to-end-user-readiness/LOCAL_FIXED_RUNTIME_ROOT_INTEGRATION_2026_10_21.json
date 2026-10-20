@@ -1,0 +1,48 @@
+{
+  "task": "TASK-READINESS-LOCAL-FIXED-RUNTIME-PROFILE",
+  "status": "DONE_ON_CANDIDATE_NOT_QUALIFICATION",
+  "candidate_head": "8a6d0f8b8e5b78b5fe9189b54e1d6e03586bb067",
+  "root_core_commit": "d861349",
+  "author_core": "e021fb5646acfa09caef0819eab52610fa964524",
+  "independent_approve": "7bb947eacbe80ccd1de065c9a6d233cea68daf2c",
+  "source_sha256": {
+    "src/youtube_intel/local_distillation_profile.py": "8f72d3820980f3e900b4fce98d370babb75dad44369b37e056cc92d194f040fb",
+    "src/youtube_intel/local_model_capacity.py": "4ad223f9e29be91a53df80ddb7ff55a82f6a0c8e237263e816f1b571f922c38d",
+    "src/youtube_intel/distillation.py": "4cfc1655c8a702621bda9057c594a1447d9dbd894cb6d8d43ea21fb6f8ef8fc3",
+    "tests/unit/test_local_fixed_runtime_profile.py": "f97af8be210f0c34476cf03976047cb8146f1971c5be416ee14a6596c84fa10e",
+    "tests/integration/test_local_rejection_accounting.py": "a691604c8601c145554425660b4f61a54b045620f7028fa797e3335a85daa6bb"
+  },
+  "root_checks": {
+    "tests": "100 passed in 49.00s",
+    "command": "PYTHONPATH=src:tests:. .venv/bin/python -m pytest -q tests/unit/test_local_fixed_runtime_profile.py tests/integration/test_local_rejection_accounting.py tests/unit/test_ollama_local_distillation.py tests/unit/test_distillation_dispatch.py",
+    "log_sha256": "a976e1b4e12ef613d633775f9e61ec9009f5c069fddd5c41f4de2a2914c5eda0",
+    "compile": "PASS",
+    "ruff_src_tests_scripts": "PASS",
+    "strict_mypy_117": "PASS",
+    "diff": "PASS",
+    "protected_files_7": "byte/SHA exact"
+  },
+  "independent_checks": {
+    "full_affected_396": "PASS/138.89s",
+    "bounded_probes_11": "PASS",
+    "compatibility_AST_hashes": "PASS"
+  },
+  "extra_lint_note": "ruff . has40 pre-existing errors in five unchanged docs scripts; required project src/tests/scripts passes",
+  "boundaries": {
+    "schema_changed": false,
+    "real_model_load": 0,
+    "real_generation": 0,
+    "real_HTTP": 0,
+    "paid_cloud": 0,
+    "owner_access": false,
+    "qualification_records": [],
+    "main_adopted": false
+  },
+  "remaining": [
+    "genuine safe-resource cold/warm/load-only verification",
+    "long input wait/cancel/persistence+restore",
+    "full long execution/closure",
+    "versioned qualification path and original+unseen positives",
+    "final real GUI/full regression/manual/adoption"
+  ]
+}
