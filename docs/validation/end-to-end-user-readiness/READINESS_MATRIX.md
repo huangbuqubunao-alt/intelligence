@@ -1,3 +1,6 @@
+# 2026-10-20 混合候选独立P1修复与整合增量
+mixed字幕结清候选d9226ff被独立审查REJECT（P1：字幕成功刷新经inputRefresh清除未知云投递保护，App.tsx 2186 effect）。隔离修复分支作者ec6dabb以最小两行拆分effect：只有videoId变化清除dispatchBlocked，inputRefresh仅清除过期preflight/费用确认并GET重读；原reviewer反例逐字保RED→GREEN。新增4例覆盖残留preflight失效、相同成功token不循环、导航隔离；968前端/37文件全绿、TS/build/diff通过；后端源码与既有审内容字节全等。目标性delta复审b8bceaf APPROVE（root整合暴露1处顺序敏感同步断言→waitFor等价硬化，无产品变化）。root无冲突merge 96c9ffa整合全套候选、9927324/19d8107/d9226ff/ec6dabb/b8bceaf进入root；root整合检查968/TS/build/diff、compileall/strict mypy116/Ruff/194后端closure全PASS（.var/mixed-integration日志）。真实macOS GUI Backup恢复与无刷新Evidence复验、长协议两表与真实144/2406 request冻结校验仍在OPEN。
+
 # 2026-10-20 当前增量外证
 tracked钟修复独立c314bdb APPROVE并整合；固定完整后端5334PASS/1既有SKIP/2warnings，root407src/tests全等、60专项/strict115/Ruff/diff通过。原失败stock真实GUI新command成功29cue/4Evidence/确定性摘要，实际重启77表/37DATA全等，原19DATA及原终态/模型权威全保留。Backup仍按旧unindexed文件安全阻塞；mixed修复进行。成功时Evidence需reload的真实UI缺口已分配，不能计作无刷新通过。模型/ASR最终资格与长执行/完整最终恢复和采用仍待。证据TRACKED_FIXED_REAL_GUI_2026_10_20.json。
 
