@@ -1,6 +1,6 @@
 # TASK-READINESS-LONG-INPUT-WAIT-LIFECYCLE
 
-Status: IN_PROGRESS (candidate4da67d5 independently REJECTED for P1; repair assigned original writer). Dependency R14 accepted and integrated with root100PASS49.00s/static/hash checks. Implementer /root/long_protocol_preflight (role changes from read-only scout to sole writer). Base4f7cc46ed1381782288a2f4915dce027b38c3b94. Worktree /Users/hua/Documents/yia-worktrees/readiness-long-input-wait-lifecycle; branch codex/task-readiness-long-input-wait-lifecycle. Root already created it. Read newer root task/package from absolute root path. Independent reviewer after fixed clean submission. Root is sole orchestrator. Same Goal, no new product phase.
+Status: IN_REVIEW (repaired fixed candidate a2861e3; final60-file regression running, not accepted). Dependency R14 accepted and integrated with root100PASS49.00s/static/hash checks. Implementer /root/long_protocol_preflight (role changes from read-only scout to sole writer). Base4f7cc46ed1381782288a2f4915dce027b38c3b94. Worktree /Users/hua/Documents/yia-worktrees/readiness-long-input-wait-lifecycle; branch codex/task-readiness-long-input-wait-lifecycle. Root already created it. Read newer root task/package from absolute root path. Independent reviewer after fixed clean submission. Root is sole orchestrator. Same Goal, no new product phase.
 
 ## Goal and frozen basis
 
@@ -41,3 +41,5 @@ Root来源歧义澄清（2026-10-21）：完整AVAILABLE ORIGINAL全集必须绑
 隔离QA并行安排（root，2026-10-21）：固定候选4da67d5的独立审查/完整回归期间，root可在全新QA副本（40/77表/19DATA原样）使用该固定候选执行真实GUI验收；不整合未接受代码，不连接正式数据或凭据，不加载/生成模型，不主动获取新字幕。并行仅用于早发现普通界面问题，不提前接受/采用。任何后续源或Schema草稿变化均须保留失败副本、从原完整stock建新副本并重验；最终接受仍需review及全部检查。
 
 独立拒绝f9db3e4：usage direct/list/035 overlay及公开resource-usage endpoint绕过long闭包，显示被execution getter正确拒绝的inv1结果。原作者在同WT补RED并最小修复；新SHA须复审，旧候选不得整合。独立70新+497既有/static通过不能豁免P1；57文件组仍运行，准确保留原旧源码结果。
+
+R2固定a2861e38dd36124a680377bbdc55f9ff105e53f3，唯一产品writer已暂停，独立review WT readiness-long-input-wait-review-r2。新源96专项/compile/Ruff/strict117/diff已PASS；genuinev5完整114/2406、79表19DATA与用量读取通过。原57因运行中源变化已终止并保留mixed-source/hashFAIL证据，不计最终门禁；新唯一60文件完整组（原57+source-boundary/resource-closure/R14）固定全src/tests SHA运行中。仅全部新源检查和复审通过才接受。root在新完整v2副本使用明确headedChrome/CDP并行GUI，无正式数据/模型调用。
