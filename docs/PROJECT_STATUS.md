@@ -1,3 +1,5 @@
+> 2026-10-21 05:53 诊断已纠正并推进：独立只读scout确认既有无child NEEDS_ATTENTION本可quiescent；误阻塞来自open-checkpoint枚举只查物理WAITING_MODEL，未排除完整校验的long逻辑CANCELLED。作者在当前slice最小修复（无SourceRun历史改写），该例RED1FAIL→GREEN1PASS。作者中间真实genuine-stock-v3完成Backup create/stage/confirm/apply，79表全部行、19physicalDATA path/bytes/SHA全等、114Evidence/2406cue完整、重启CANCELLED。仍扩最终DDL反控/旧版本恢复；待源码冻结后重验，不作为独立接受或GUI验收。前述“另需无child终止路径”的早期诊断撤回；未新增任务/迁移。
+
 > 2026-10-21 05:50 断点恢复：root基线bfad9d5 clean；原作者 /root/long_protocol_preflight 已恢复原dirtyWT readiness-long-input-wait-lifecycle/base4f7cc46，保留全部修改、独占产品写入。已核验4项synthetic PASS；作者报告真实114Evidence/2406cue副本普通API202→WAIT0→取消通过，但Backup仍被继承SOURCE_RUN_ACTIVE正确阻塞，完整恢复尚未通过。新澄清：唯一来源权威按完整AVAILABLE ORIGINAL Evidence所绑定的唯一合法canonical/timed判断，保留无Evidence旧artifact；两活动来源或混合/缺失引用仍拒绝。用户释放后05:50正常内存函数实测7.168GiB<8.101GiB，disk202.318GiB，0load/0generation；继续工程，不重复审批、不改资格/main/owner。
 
 > 2026-10-21 01:05 当前：R14独立接受并root100项复验整合完成。唯一产品writer /root/long_protocol_preflight 正在WT readiness-long-input-wait-lifecycle（base4f7cc46）实施完整长输入等待/取消/历史/恢复；task/package1795238及新接线纠正83aca03已记录。拟41仅隔离工程，无main/owner/模型资格变更。旧getter实际LIMIT21，新增专属完整集合路由，不放宽Cloud；拒绝receipt与SQL唯一性在迁移冻结前修正。异步资源问题仍等待用户回复，工程继续，不能标Goal完成。
