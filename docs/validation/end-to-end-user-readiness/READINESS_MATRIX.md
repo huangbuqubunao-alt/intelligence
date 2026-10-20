@@ -1,3 +1,13 @@
+# 2026-10-20 19:43 OpenCode接管增量（候选未发布）
+
+旧LOCAL8不满足资格链：案例1仅NO_NEW，不能算六个正向之一；原资格/holdout前置未证明，升级包term-sheet一项hash漂移。旧6144两次截断和失败收尾崩溃属实，全部原件保留、不续旧permit。详见 `OPENCODE_LOCAL_HANDOVER_AUDIT_2026_10_20.md` 和独立handoff。
+
+R13固定候选62ed430（core ac2ea9d）已提交并cleanSTOP，独立代码审查进行，尚未整合。已知拒绝保留真实model/可靠成对用量；无身份走既有AMBIGUOUS/1，不允许取消或重发；修复诊断串案与signed64溢出。作者原固定15文件506PASS/423.33s；最小整数上界增量后37新增+7旧例共44PASS/40.45s，strict117/Ruff/compile/diff通过。两组源SHA有区别，不能声称最终源码已完整506。0真实模型/云端/外网/正式数据访问，无Schema/预算/资格变更。
+
+下一串行任务为新不可变fixed-runtime-v2 profile（显式batch512/8192输出/原300秒与字节上限），必须先接受R13；新profile无资格，旧v1与历史不改。当前RAM6.213GiB低于真实模型资源门，继续0load/0generation。ASR已有14+3回执经只读当前tuple/策略/seal及17raw hash复验有效（`ASR_EXISTING_RECEIPT_RECHECK_2026_10_20.json`），不代替普通GUI。长输入持久化/执行/双向闭包尚未实现，真正合格洞察保存/主题/证据回跳、最终回归/恢复和采用仍待，不能说普通用户所有链路已通。
+
+下方为保留的此前证据与历史，冲突以本段和最新核验文档为准。
+
 # 2026-10-20 混合候选独立P1修复与整合增量
 mixed字幕结清候选d9226ff被独立审查REJECT（P1：字幕成功刷新经inputRefresh清除未知云投递保护，App.tsx 2186 effect）。隔离修复分支作者ec6dabb以最小两行拆分effect：只有videoId变化清除dispatchBlocked，inputRefresh仅清除过期preflight/费用确认并GET重读；原reviewer反例逐字保RED→GREEN。新增4例覆盖残留preflight失效、相同成功token不循环、导航隔离；968前端/37文件全绿、TS/build/diff通过；后端源码与既有审内容字节全等。目标性delta复审b8bceaf APPROVE（root整合暴露1处顺序敏感同步断言→waitFor等价硬化，无产品变化）。root无冲突merge 96c9ffa整合全套候选、9927324/19d8107/d9226ff/ec6dabb/b8bceaf进入root；root整合检查968/TS/build/diff、compileall/strict mypy116/Ruff/194后端closure全PASS（.var/mixed-integration日志）。real macO**S GUI 备份恢复与无刷新 Evidence 复验、长协议 request 冻结校验：全部已 CLOSED（见下）。**
 
