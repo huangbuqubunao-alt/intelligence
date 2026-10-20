@@ -1,6 +1,6 @@
 # TASK-READINESS-LOCAL-REJECTION-ACCOUNTING
 
-Status: READY. Orchestrator: Codex root, resumed by explicit user handover 2026-10-20 19:23 CST. OpenCode run is paused; never execute its old permits or mutate its prepared databases.
+Status: IN_PROGRESS. Implementer: /root/local_rejection_accounting; independent review follows its fixed clean commit. Orchestrator: Codex root, resumed by explicit user handover 2026-10-20 19:23 CST. OpenCode run is paused; never execute its old permits or mutate its prepared databases.
 
 ## Goal and acceptance
 

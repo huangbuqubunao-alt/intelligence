@@ -32,4 +32,4 @@
 
 接管root a989873773c0f4018cc696930789566925e88c7c，clean；任务文档4614a25。19:25只读核验正式main clean，main与实际远端origin/main均 `73ee7e747b4461b9de8a201d6b47669eb3913d1a`。未访问或重置正式用户DB/配置/凭据，无push/main合并。模型门禁仍关闭，Goal不得标complete。
 
-旧ASR隔离回执存在PASSED/identity ab0c9eab…，尚需独立核对17项与当前tuple，不能仅凭status文件宣称已完成最终声学验收。最终长协议、真正正向GUI保存/主题/Evidence、全量回归、全表全DATA恢复及安全采用条件仍须逐项完成。
+接管后只读复验已有ASR隔离回执：当前tuple、原策略、机器seal均有效，17份raw hash逐一匹配，identity ab0c9eab…；见 `ASR_EXISTING_RECEIPT_RECHECK_2026_10_20.json`。没有重新运行解码或重新封签；这是现有声学证据的有效性核对，不代替最终普通GUI验证。最终长协议、真正正向GUI保存/主题/Evidence、全量回归、全表全DATA恢复及安全采用条件仍须逐项完成。
