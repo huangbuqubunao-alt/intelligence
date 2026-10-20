@@ -1,4 +1,4 @@
-> 2026-10-20 19:40：用户已从 OpenCode 交回 Codex root，唯一主控为本对话。最新纠正与后续顺序见 `docs/validation/end-to-end-user-readiness/OPENCODE_LOCAL_HANDOVER_AUDIT_2026_10_20.md`，优先于下文旧交接快照。mixed已经独立接受整合；LOCAL8旧case1只是NO_NEW，原资格/六正向未证明，registry仍空。R13已分派独立作者修复，R14自动batch根因已有固定官方源依据，均未发布。root只读复验既有ASR14+3回执：tuple/原策略/机器seal有效，零新模型调用；真实普通GUI与最终完整链路仍待。
+> 2026-10-20 19:31：用户已从 OpenCode 交回 Codex root，唯一主控为本对话。最新纠正与后续顺序见 `docs/validation/end-to-end-user-readiness/OPENCODE_LOCAL_HANDOVER_AUDIT_2026_10_20.md`，优先于下文旧交接快照。mixed已经独立接受整合；LOCAL8旧case1只是NO_NEW，原资格/六正向未证明，registry仍空。R13已分派独立作者修复，R14自动batch根因已有固定官方源依据，均未发布。root只读复验既有ASR14+3回执：tuple/原策略/机器seal有效，零新模型调用；真实普通GUI与最终完整链路仍待。
 
 # Intelligence 当前状态
 
@@ -31,6 +31,8 @@
 两writer曾quota terminal，已核验停止和WIP原样；当前实际19:53超过提示恢复19:43，已原handle恢复，不重建覆盖。钟修复旧166 WT保持STOP。全失败日志和私有harness错误都保留，不计绿。
 
 ## 必须继续的真实验收
+
+2026-10-20接管补充：ASR既有14+3真实记录已独立只读复查（当前tuple/策略/机器seal均PASS，17份raw hash逐一匹配，报告SHA694f9e89b73479d2fec6452f21cd9d90ceb2aff66ebfe5089fcb96e65a66805c）。下列第4项仅在最终tuple再次改变时重跑；不要浪费资源重跑未改变的真实声学资格。最终普通GUI仍须证明。
 
 1. 新钟/已知capture恢复完成→独立review→root整合检查→**原保留真失败测试stock普通GUI新重试**→实际字幕/timed/Summary/Evidence、重启不复活、旧history/files完整。旧2unindexed DATA来自原18，新增capture有VERIFIED证明，不误归同一原因。
 2. mixed修复→独立审查→root完整真实74表19DATA现场readiness/create/download/Native Picker/strict preview/RESTORE/正常重启→所有SQLite表（含sqlite_sequence）全部行和所有physicalDATA路径/大小/SHA全等。
