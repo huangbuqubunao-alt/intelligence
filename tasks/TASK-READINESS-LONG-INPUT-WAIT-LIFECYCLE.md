@@ -1,6 +1,6 @@
 # TASK-READINESS-LONG-INPUT-WAIT-LIFECYCLE
 
-Status: IN_PROGRESS. Dependency R14 accepted and integrated with root100PASS49.00s/static/hash checks. Implementer /root/long_protocol_preflight (role changes from read-only scout to sole writer). Base4f7cc46ed1381782288a2f4915dce027b38c3b94. Worktree /Users/hua/Documents/yia-worktrees/readiness-long-input-wait-lifecycle; branch codex/task-readiness-long-input-wait-lifecycle. Root already created it. Read newer root task/package from absolute root path. Independent reviewer after fixed clean submission. Root is sole orchestrator. Same Goal, no new product phase.
+Status: IN_REVIEW (fixed candidate; complete affected regression still running, no acceptance). Dependency R14 accepted and integrated with root100PASS49.00s/static/hash checks. Implementer /root/long_protocol_preflight (role changes from read-only scout to sole writer). Base4f7cc46ed1381782288a2f4915dce027b38c3b94. Worktree /Users/hua/Documents/yia-worktrees/readiness-long-input-wait-lifecycle; branch codex/task-readiness-long-input-wait-lifecycle. Root already created it. Read newer root task/package from absolute root path. Independent reviewer after fixed clean submission. Root is sole orchestrator. Same Goal, no new product phase.
 
 ## Goal and frozen basis
 
@@ -35,3 +35,5 @@ Compile/type before test debugging, meaningful RED first, once fixed-source affe
 Root来源歧义澄清（2026-10-21）：完整AVAILABLE ORIGINAL全集必须绑定唯一合法canonical/timed权威；无任何Evidence的旧untimed artifact可共存且保留。不按所有未删除artifact数误拒，但不得JOIN过滤损坏/缺失/foreign引用；两活动权威/混合bindings仍拒绝。见迁移计划末节，真实114正向及反控必须覆盖。
 
 验证并行安排（root，2026-10-21）：产品源码和专项/静态/真实后端v4已冻结时，可先提交固定工程候选及如实标记完整57文件组尚在运行的handoff，独立新对话只读该固定SHA，和已启动的大组并行。此安排仅并行审查时间，不跳过、缩减测试或提前接受；最终APPROVE/ACCEPTED须全部必需检查真实通过与最终交接齐全。任何产品/测试源码变更均须新freeze/SHA并复查，旧审查不能覆盖新代码。主控整合与GUI仍等待最终接受。
+
+固定提交4da67d55d73d3db214825d5b19368bb36caac507；独立审查新WT readiness-long-input-wait-review / codex/review-readiness-long-input-wait。作者产品源码暂停编辑，57文件组仍RUNNING，R14固定profile专项56PASS/9.13s；此前大组collection缓存两个已纠正的040 fixture断言，保留原结果并精确复验2case，不重启全组。APPROVE/ACCEPTED仍等待最终检查，不能把本状态当工程/Goal完成。
