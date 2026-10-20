@@ -1,6 +1,6 @@
 # Intelligence Goal 通用续作交接
 
-2026-10-20（混合修复整合）。此文件是交接快照，后续执行者须更新；先核对真实Git/进程/文件证据，不能把本快照当实时状态。Goal尚未完成、候选未发布。主控保持唯一写入控制，旧会话不得并行恢复同一目录。
+2026-10-20（最终候选真实GUI恢复+长协议冻结复现完成）。此文件是交接快照，后续执行者须更新；先核对真实Git/进程/文件证据，不能把本快照当实时状态。Goal收尾阶段、候选未发布。主控保持唯一写入控制，旧会话不得并行恢复同一目录。
 
 ## 权威入口与持续授权
 
@@ -13,14 +13,15 @@
 - 钟/捕获修复独立APPROVE并整合root（5dfadb9/f0a9ad5/2161dcc/b498ea4）；完整backend5334PASS；原OYp5j2RihPE真实Chrome重试SUCCEEDED，29cue/4Evidence/摘要，实际重启77表/37DATA全等（TRACKED_FIXED_REAL_GUI_2026_10_20.json）。
 - 纯长request冻结已完成独立APPROVE并整合root：35eb95e/8137178/ebc7c2b/2670b43；候选799c625（core d990c41）。
 - mixed字幕结清原候选d9226ff被独立审查REJECT（P1）；隔离作者修复ec6dabb（App.tsx effect拆分 + 4例测试）与delta硬化b8bceaf已经两次独立审查APPROVE并以96c9ffa/df19d70整合root；root整合复验968前端/TS/build/diff、compileall/strict116/Ruff/194后端closure全PASS（.var/mixed-integration日志，SHA见MIXED_DISPATCH_GUARD_FIX_IMPLEMENTER_2026_10_20.json）。
+- 最终候选真实GUI恢复全链与长request冻结复现完成（详见本轮证据MIXED_FINAL_GUI_RESTORE_LONG_FREEZE_2026_10_20.json）：隔离stock mixed-gui-final-20261020、恢复restore_id abe0cb3403954c7b860f90d0245647e7 APPLIED 05:50:54Z、77表/19DATA全量等值校验、无刷新Evidence复验、长协议9项hash复现全等。不要重跑这些验证材料集；frozen原素材目录只读保留。
 - 中文手册docs/validation/muse-final-audit/USER_MANUAL.md/html真截图65/65加载、0横溢；最终合格洞察/新恢复截图仍需补。
 
 ## 最新实际断点（必须优先处理）
 
-1. **mixed候选最终真实macOS GUI完整恢复仍在OPEN。** 旧d9226ff候选上的GUI实验（mixed-real-gui-20261020目录、6139端口）在root整合（96c9ffa/df19d70）后已过期：候选App.tsx已变，须从root HEAD重新以独立完整frozen-stock副本启动普通服务与真实Chrome再验证。验证序列：readiness→创建/下载→macOS Native Picker→strict preview→明确RESTORE→普通服务实际重启→全部SQL表（含sqlite_sequence）所有行＋每个物理DATA路径/大小/SHA相等（不能只比条目数），全部旧历史保留。可用私有harness `mixed_real_gui_server_oct20.py` 模式（真实candidate src、YIA_API_BASE、真实维护worker，--no-worker仅限初始读取），print module origin。独立APPROVE已覆盖静态/测试面；此GUI是验收面，不是独立审查替代。
-2. **真实无reload成功Evidence刷新复验**仍OPEN：可用独立原失败stock副本，保留新command与旧文件，不改已成功终态凑重试。
-3. **长request真实冻结校验未跑**：`long_real_request_freeze_oct20.py`（root .var）须先核对实际API/候选身份后运行真实114Evidence/2406cue验证；0模型资格。
-4. **mixed之后串行队列**：完整长输入inputproof/模型completionreceipt两表、合法全量来源factory、原子reserve/claim/complete、正反向current/history/NO_NEW/Save/Topic/Backup closure、capacity/native renderer/slot/registry/CODE_FILES与原入口接线；按LONG_CONTENT_READONLY_TOKENIZER_PROBE_PLAN.md，不重设计、不篡用旧39/20上限。
+1. **mixed候选最终真实macOS GUI完整恢复：已CLOSED（2026-10-20）。** 全链在最终候选（root f6e0034）+全新隔离 stock `mixed-gui-final-20261020` 完成：13:00:37 真实 worker 首启维护结清三笔 FAILED_RETRYABLE→FAILED_FINAL（2×v1/429 RATE_LIMITED + 1×v2/LOCAL_RESOURCE）与 retained_subtitle_derivations 留存证明（COMPLETION_PERSISTENCE_FAILED_WITH_VERIFIED_SUCCESSOR）；真实 Chrome 155 QA-profile（正式 942/943 未触碰）GUI create 1829e1eb… / HTTP 下载字节全等（SHA e4762249…）/真实原生 Open 面板用户选择（首次误选旧文件已 cancel 未触及数据）/strict stage abe0cb34…（SHA 全等）/RESTORE typed/确认恢复并重启→harness 重启→APPLIED 05:50:54Z；77表 75/77 行一致且 2 差异表均为结清落账（restore 无新增变化）、19 DATA path/size/SHA 全等、integrity ok；重启后 hash 路由无刷新 Evidence 复验 147 行终值相等、控制台零错误。证据：`MIXED_FINAL_GUI_RESTORE_LONG_FREEZE_2026_10_20.json` + `.var/mixed-integration/final-03-after-create.png`、`final-04-post-restore-content.png`。旧 mixed-real-gui-20261020 目录（旧候选 d9226ff 实验，restore_id 2473837…）留在原地作为历史，不再作为最新证据。
+2. **长 request 真实冻结校验：已复现（2026-10-20）。** 在最终候选 root 复算 request/schema/freeze/semantic/profile/messages/semantic_snapshot 9 项 hash 与 11:47 receipt 全部相等、114 Evidence/2406 cues、源文件不变、0 模型/tokenizer/http；带模型的长协议执行等合格模型资源门（旧 receipt 不作资格声称）。
+3. **真实无 reload 成功 Evidence 复验：已CLOSED（2026-10-20，最终候选）。** 恢复重启后 Content detail (#Content/IwglW_hIL_g) 无刷新渲染，evidence 行终值与基线全等。
+4. **未跑项仍按队列**：完整长输入 inputproof/模型 completionreceipt 两表、合法全量来源factory、原子 reserve/claim/complete、正反向 current/history/NO_NEW/Save/Topic/Backup closure、capacity/native renderer/slot/registry/CODE_FILES与原入口接线（按 LONG_CONTENT_READONLY_TOKENIZER_PROBE_PLAN.md，不重设计、不篡用旧39/20上限）——全部需要合格模型正向，属用户资源门后的长协议执行；acoustic tuple 17 例重验条件未消除（source_authority 绑定代码变化后旧 PASSED 不可复用；本轮 mixed 改动是否触发须 integrator 复核 96c9ffa 是否触碰 source_authority 绑定路径）。
 
 ## 之后剩余关键路径
 

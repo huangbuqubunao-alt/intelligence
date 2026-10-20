@@ -1,0 +1,71 @@
+{
+  "classification": "MIXED_FINAL_CANDIDATE_REAL_PASSED_FINAL_CANDIDATE",
+  "date": "2026-10-20",
+  "root_head": "f6e0034",
+  "candidate": "96c9ffa merge of mixed candidate (9927324+19d8107+d9226ff+ec6dabb+b8bceaf) then df19d70",
+  "stock": ".var/end-to-end-user-readiness/mixed-gui-final-20261020",
+  "stock_source": "schema38-mixed-failure-frozen-20261018",
+  "clone_equality": "74 tables/19 DATA equal; migrated 77 tables via --no-worker first boot; see clone-proof.json, post-migration.json",
+  "mixed_core_fix_live_on_final_candidate": {
+    "settlement_at": "2026-10-20T05:00:37.260722Z (13:00:37 local, first real worker boot on stock)",
+    "provider_calls_settled": [
+      {"request_hash_prefix": "32ee6ce9b42d", "from": "FAILED_RETRYABLE", "to": "FAILED_FINAL", "reason": "RATE_LIMITED v1/429 settled with finished_at stamp"},
+      {"request_hash_prefix": "65f7dbbcf7ec", "from": "FAILED_RETRYABLE", "to": "FAILED_FINAL", "reason": "RATE_LIMITED v1/429 settled with finished_at stamp"},
+      {"request_hash_prefix": "c03e58f404fb", "from": "FAILED_RETRYABLE", "to": "FAILED_FINAL", "reason": "LOCAL_RESOURCE v2 settled with finished_at stamp"}
+    ],
+    "retained_subtitle_derivations_0_to_1": "archive_id 597b6ca255306820… proof_version failed-caption-derivation-v1 reason COMPLETION_PERSISTENCE_FAILED_WITH_VERIFIED_SUCCESSOR — the prior maintenance interlock (v1/429 + v2/LOCAL_RESOURCE) is reconciled atomically on the frozen malformed-completion stock",
+    "stamps_performed_before_any_gui_backup_or_restore_clicks": true
+  },
+  "real_gui_backup_chain": {
+    "browser": "real macOS Chrome 155 headed, profile /tmp/yia-qa-chrome-profile, CDP 9223; user's formal processes untouched (PID 942/943 v1x-local-main)",
+    "api": "isolated harness .var/end-to-end-user-readiness/mixed_real_gui_final_server_oct20.py port 6139, real wk worker",
+    "frontend": "vite dev 6138 connected to 6139",
+    "instructions": [
+      {"step": "create_backup_clicked_in_ui", "zip": "1829e1eb9d9648308868d3aa293821bf.zip", "zip_created_at_utc": "2026-10-20T05:30:xx", "strict_preview_rendered": true},
+      {"step": "save_backup_file_link_click", "real_browser_http_download": "http://127.0.0.1:6138/api/v1/backup-restore/backups/1829e1eb9d9648308868d3aa293821bf/download", "downloaded_path": ".var/end-to-end-user-readiness/mixed-gui-final-20261020/native-choice/Intelligence-Backup-2026-10-20.zip", "sha256": "e4762249ef51239c6e5f4fda258f51f3faf6930fdf31e2886dcab896959b9b34", "byte_identical_to_source": true},
+      {"step": "choose_backup_file_via_real_native_Open_panel", "note": "CDP trusted click/JS-gesture/AX press/space-keystroke cannot initiate Chrome 155 native chooser in this automation context (agent-browser intercept + Chrome chooser gating); REAL USER performed the native panel pick", "picked_file": "~/Downloads/BU-KA-Intelligence-Backup-2026-10-20-MIXED-GUI-FINAL.zip", "picked_stage_sha256": "e4762249ef51239c6e5f4fda258f51f3faf6930fdf31e2886dcab896959b9b34", "first_pick_mistake_old_download": "selected.zip sha 82dec160… (old 11:49 artifact, wrong material) detected and cancelled via POST restore/cancel id 6c130496509842d19964d8a72b81af7b before any confirm; no data touched"},
+      {"step": "strict_stage_preview", "restore_id": "abe0cb3403954c7b860f90d0245647e7", "state": "STAGED", "manifest_sha256": "4446789fc6a834498d1df785da90a1221932a2bff545e4256446863ed14d1d84", "preview_counts": {"following": 5, "content": 4, "summary": 4, "evidence": 147, "intelligence": 0, "topic": 0, "settings": "included", "data_files": "19 · 3.7MB"}, "warning_text": "当前数据尚未改变。继续前请核对备份内容。"},
+      {"step": "restore_confirmation_typed_in_gui", "confirmation": "RESTORE", "button": "确认恢复并重启"},
+      {"step": "real_restart", "mechanism": "harness restart_requested loop rebuilds runtime in-process", "boot_lines_in_log": 2},
+      {"step": "restore_applied", "last_restore": {"restore_id": "abe0cb3403954c7b860f90d0245647e7", "state": "APPLIED", "completed_at": "2026-10-20T05:50:54Z", "message": "Restore completed successfully."}, "readiness_after": "ready true, reasons empty"}
+    ]
+  },
+  "post_restore_full_equality": {
+    "snapshot": ".var/end-to-end-user-readiness/mixed-gui-final-20261020/after-real-gui-restore.json",
+    "baseline": ".var/end-to-end-user-readiness/mixed-gui-final-20261020/post-migration.json",
+    "integrity": "ok",
+    "foreign_keys": "empty",
+    "tables": {"count": 77, "identical_rows_and_columns": 75, "differential_original_tables_explained": [
+      {"table": "provider_calls", "rows": "8→8", "explanation": "3 settlement stamps (2×RATE_LIMITED v1/429 + 1×LOCAL_RESOURCE v2) written once at 13:00:37 first-real-worker boot on the stock; identical values already present in the 13:30 GUI backup 1829e1eb…; restore produced no further change"},
+      {"table": "retained_subtitle_derivations", "rows": "0→1", "explanation": "settlement retention proof COMPLETION_PERSISTENCE_FAILED_WITH_VERIFIED_SUCCESSOR written at 13:00:37 first-real-worker boot, already present in the 13:30 GUI backup 1829e1eb…; restore produced no further change"}
+    ]},
+    "data": {"count": 19, "all_path_size_sha_equal": true},
+    "evidence_rows": 147,
+    "no_reload_evidence_refresh_check": "after restart, hash-routed Settings→Content→detail (#Content/IwglW_hIL_g) rendered Summary/Key Points/Evidence without reload; zero console errors; screenshot final-04-post-restore-content.png"
+  },
+  "long_request_freeze_repro_on_final_candidate": {
+    "receipt_from": "11:47 previous session output long-real-request-freeze-20261020/receipt.json",
+    "repro_scope": "recomputed prepare_long_request on final root (f6e0034) and compared every published hash",
+    "equal_hashes": ["request_hash", "schema_hash", "freeze_hash", "source_semantic_hash", "profile_hash", "messages_hash", "semantic_snapshot_hash", "request_bytes", "source_files_unchanged"],
+    "assertions": "114 evidence / 2406 cues, profile local-grounding-qwen35-9b-lossless-rle-thinking-v1 stable across mixed integration (byte-identical request wire)",
+    "model_calls": 0, "tokenizer_calls": 0, "http_calls": 0,
+    "qualification_claim": "none (no model executed; not a capacity/production admission)"
+  },
+  "screenshots": [
+    ".var/mixed-integration/final-03-after-create.png (backup result article after GUI Create Backup)",
+    ".var/mixed-integration/final-04-post-restore-content.png (post-restart Content detail with Evidence, no reload)"
+  ],
+  "red_lines_respected": {
+    "formal_processes_untouched": "PID 942 serve-api 5489 / PID 943 vite 5488 (v1x-local-main) never signaled",
+    "formal_data_access": false,
+    "model_calls": 0,
+    "cloud_calls": 0,
+    "no_vault_writes": true,
+    "stale_QA_chrome_closed_before": true
+  },
+  "limitations": [
+    "Native Open panel interactions were executed by the real user because autonomous Chrome 155 chooser initiation is blocked in this automation context; strict stage validation is server-side, so material authenticity is bound by the staged archive sha256 e4762249… regardless of picker driver",
+    "long-request freeze receipt was originally produced at 11:47 on an earlier root; this session verified byte-stable reproduction (not a fresh dedicated candidate snapshot run)",
+    "model qualification gates remain closed by user-side resource policy (RAM 4.639<8.101 GiB measured 2026-10-19 09:08); this evidence documents frozen-protocol + restore correctness only, no qualification claim"
+  ]
+}
