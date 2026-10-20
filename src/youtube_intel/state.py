@@ -11481,11 +11481,34 @@ class SQLiteStateRepository:
         finally:
             connection.close()
 
+    def _validate_long_resource_usage_authority(
+        self, connection: sqlite3.Connection, execution_id: str
+    ) -> None:
+        """Apply the same historical closure before any usage projection."""
+        from .long_distillation_persistence import is_long, verify_execution
+
+        if not is_long(execution_id):
+            return
+        from .distillation_cancellation import read_cancellation
+
+        try:
+            verify_execution(self, connection, execution_id)
+            checkpoint = connection.execute(
+                "SELECT * FROM distillation_execution_checkpoints WHERE execution_id=?",
+                (execution_id,),
+            ).fetchone()
+            if checkpoint is None:
+                raise StateStoreError("long usage checkpoint is missing")
+            read_cancellation(connection, checkpoint, repository=self)
+        except (ValueError, KeyError, TypeError, sqlite3.Error) as error:
+            raise StateStoreError("long resource usage failed historical validation") from error
+
     def get_distillation_resource_usage(
         self, execution_id: str
     ) -> DistillationResourceUsageRecord:
         connection = self._connect()
         try:
+            self._validate_long_resource_usage_authority(connection, execution_id)
             row = connection.execute(
                 "SELECT * FROM distillation_resource_usage WHERE execution_id = :execution_id",
                 {"execution_id": execution_id},
@@ -11680,6 +11703,17 @@ class SQLiteStateRepository:
                 ).fetchall()
             else:
                 unidentified_ids = []
+            # Retained family markers also require closure when a damaged
+            # ledger would otherwise disappear from the bounded projection.
+            long_ids = connection.execute(
+                "SELECT execution_id FROM distillation_execution_checkpoints "
+                "WHERE execution_id GLOB 'distillation:long-timed*'"
+            ).fetchall()
+            for execution_id in {
+                str(row["execution_id"])
+                for row in (*normal_rows, *zero_rows, *unidentified_ids, *long_ids)
+            }:
+                self._validate_long_resource_usage_authority(connection, execution_id)
             for row in zero_rows:
                 execution_id = str(row["execution_id"])
                 checkpoint = connection.execute(

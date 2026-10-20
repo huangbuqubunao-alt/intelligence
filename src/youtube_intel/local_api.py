@@ -2239,10 +2239,20 @@ class LocalApiApplication:
                 ],
             }
         if route == "/api/v1/settings/resource-usage":
+            from .state import StateStoreError
+
+            try:
+                usage = self._repository.list_distillation_resource_usage()
+            except StateStoreError as error:
+                raise ApiError(
+                    HTTPStatus.CONFLICT,
+                    "RESOURCE_USAGE_UNAVAILABLE",
+                    "Resource usage history could not be safely verified.",
+                ) from error
             return {
                 "usage": [
                     _resource_usage_dto(item)
-                    for item in self._repository.list_distillation_resource_usage()
+                    for item in usage
                 ]
             }
         if route == "/api/v1/settings/feedback":
