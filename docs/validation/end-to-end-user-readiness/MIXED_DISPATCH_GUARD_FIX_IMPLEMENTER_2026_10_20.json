@@ -1,0 +1,50 @@
+{
+  "task": "TASK-READINESS-MIXED-DISPATCH-GUARD-FIX",
+  "status": "IMPLEMENTER_IN_REVIEW_NOT_DONE",
+  "date": "2026-10-20",
+  "base": "d9226ff607a211f2e7dc196e9f447fdaea31bca1",
+  "base_candidate_rejected": true,
+  "base_rejection_reference": "independent review verdict REJECT, P1 caption refresh clears unknown cloud dispatch protection; repro SHA256 f422a84e08ba33c14d634610895ab123f15e61509573c123671b1b74169617d2",
+  "branch": "codex/task-readiness-mixed-dispatch-guard-fix",
+  "worktree": "/Users/hua/Documents/yia-worktrees/readiness-mixed-dispatch-guard-fix",
+  "scope": "frontend/src/workspace/App.tsx only, plus this frontend test file; no backend, state, transcripts, schema, dependency, credential or qualification changes",
+  "fix": "DeepAnalysisPanel preflight/cost reset effect no longer clears dispatchBlocked on inputRefresh; only a videoId change clears dispatchBlocked (split effect, two lines)",
+  "source_file_sha256": {
+    "frontend/src/workspace/App.tsx": "1f7fbd25e4c116e7dbb54ac48506f487825a0347c116f4a1c38085f17f2d2bca",
+    "frontend/src/workspace/App.dispatch-caption-guard.test.tsx": "d3ae8ddfe5a648be5c9bfc5e7162a5e268200c8558574acb9c85eaee0550e70d"
+  },
+  "red_green": {
+    "repro_source": "independent review mock-only repro, exact assertion kept verbatim",
+    "original_red_assertion": "a caption refresh must not clear an ambiguous cloud dispatch -> expected false to be true",
+    "red_log": ".var/dispatch-guard/red-before-fix.log",
+    "red_log_sha256": "37e6efd54fe1c28ff68f3591cdb765bcad414f99b0f70bfe74b96c1660006397",
+    "green_log": ".var/dispatch-guard/green-all.log",
+    "green_log_sha256": "a2fcf19ba0d7fbf28a2f4aa3b814cc2bd4a8bb7bbdc82bee6a771dede7f35181"
+  },
+  "validation": {
+    "node": "v22.22.3",
+    "frontend_full": {"files": 37, "tests": 968, "failed": 0, "log": ".var/dispatch-guard/frontend-full.log", "log_sha256": "0269f2577d2f5c184ba8f98a475fddb70aa40ee727e596174351d7f0b21c9f4a"},
+    "frontend_full_delta_vs_review_baseline": "964 -> 968: exactly the 4 new tests in App.dispatch-caption-guard.test.tsx; no existing test modified, removed or weakened",
+    "new_tests": [
+      "keeps an unknown cloud dispatch blocked when a verified caption result arrives (independent reviewer repro, assertion verbatim)",
+      "invalidates an open preflight on caption refresh without a second execution (preflight panel cleared, stale cost acknowledgement cleared, preflights remain 1 before re-run, 2 after, executions 1, blocked dispatch stays blocked)",
+      "does not loop caption-result reads when a later read repeats the same success token (deepReads stay at 2 on repeated same-revision reads; evidence count changes only from the explicit read button, executions 1, run stays disabled)",
+      "isolates the blocked dispatch across Content navigation per existing video-id semantics (other Content unaffected; return to the Content re-enables per original videoId change semantics; executions remain 1)"
+    ],
+    "typecheck": {"command": "npm run typecheck (tsc -b --pretty false)", "result": "PASS", "log": ".var/dispatch-guard/typecheck.log", "log_sha256": "0073b777d6b85b5e4d2ac79b723aeebbde034ccb34fcc14bd2f0666746071629"},
+    "build": {"command": "npm run build (tsc -b && vite build)", "result": "PASS", "log": ".var/dispatch-guard/build.log", "log_sha256": "22c2e0f0af6401b47101bf2f0dc4f6b91ccd516b09a1afba53a8f6d4d34ef553"},
+    "ruff": "not applicable, no Python change",
+    "diff_check": "git diff --check PASS",
+    "backend_full": "not run, unchanged per task card"
+  },
+  "constraints_kept": [
+    "no extra POST and no automatic model execution for an unchanged success token",
+    "no cost or qualification gate weakening; preflight and cost acknowledgement still invalidated on fresh inputs",
+    "no removal or weakening of existing tests or original failure records"
+  ],
+  "remaining_risks_or_notes": [
+    "this is a frontend mock-only change; no HTTP, model, Cloud, credential, frozen stock, owner data or real GUI involved in this slice",
+    "reviewer must review cumulative 4e20793..this candidate including the original REJECT repro and the original tracked/settlement closure",
+    "root real GUI restore on the old candidate proves Backup part only; whole mixed candidate acceptance still requires this P1 fix approved and integrated"
+  ]
+}

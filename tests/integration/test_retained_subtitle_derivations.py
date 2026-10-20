@@ -17,15 +17,36 @@ from youtube_intel.state import SQLiteStateRepository
 support = _load_module("test_runtime_composition")
 
 
-def _repaired_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def _repaired_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, provider_version="2026.7.4", parent_policy=None):
     # Real installed adapter identity with a bounded local transport fixture.
     monkeypatch.setattr(support._NativeCaptionRepairAdapter, "provider_name", "yt-dlp")
     monkeypatch.setattr(
-        support._NativeCaptionRepairAdapter, "provider_version", "2026.7.4"
+        support._NativeCaptionRepairAdapter, "provider_version", provider_version
     )
-    runtime, adapter, source_id, config, dependencies = (
-        support._completed_plain_caption_runtime(tmp_path)
-    )
+    if parent_policy is None:
+        runtime, adapter, source_id, config, dependencies = support._completed_plain_caption_runtime(tmp_path)
+    else:
+        # Generate the historical parent through the original acquisition path;
+        # no ledger/artifact identity is rewritten after creation.
+        from youtube_intel import transcripts
+        selection, source_format = parent_policy
+        raw_hash, raw_id = transcripts.build_raw_request_hash, transcripts._raw_artifact_id
+
+        def historical_hash(**kwargs):
+            kwargs.update(selection_policy_version=selection, format_policy_version=source_format)
+            return raw_hash(**kwargs)
+
+        def historical_id(**kwargs):
+            kwargs["source_producer_version"] = f"{selection}+{source_format}"
+            return raw_id(**kwargs)
+
+        with monkeypatch.context() as scoped:
+            scoped.setattr(transcripts, "SELECTION_POLICY_VERSION", selection)
+            scoped.setattr(transcripts, "FORMAT_POLICY_VERSION", source_format)
+            scoped.setattr(transcripts, "_RAW_PRODUCER_VERSION", f"{selection}+{source_format}")
+            scoped.setattr(transcripts, "build_raw_request_hash", historical_hash)
+            scoped.setattr(transcripts, "_raw_artifact_id", historical_id)
+            runtime, adapter, source_id, config, dependencies = support._completed_plain_caption_runtime(tmp_path)
     original = runtime.repository._inject_failure
 
     def fail(point: str) -> None:
@@ -530,6 +551,7 @@ def test_migration38_ddl_fault_rolls_back_and_preserves37_exactly(
         "duplicate-ref",
         "extra-ref",
         "wrong-proof-hash",
+        "wrong-database-proof-hash",
         "wrong-count",
         "old-shape",
         "wrong-file-hash",
@@ -547,20 +569,45 @@ def test_schema38_manifest_neutral_refs_are_strict_and_never_authority(
     backup = runtime.backup_restore
     result = backup.create_backup()
     path, _ = backup.backup_download(result.backup_id)
+    # A metadata-identical regular-file repack must stage successfully first;
+    # semantic negatives must not pass just because ZIP special-file checks fire.
+    original_output = io.BytesIO()
+    with zipfile.ZipFile(path) as source, zipfile.ZipFile(original_output, "w", compression=zipfile.ZIP_DEFLATED) as target:
+        for info in source.infolist():
+            target.writestr(info, source.read(info))
+    staged = backup.stage_restore(original_output.getvalue())
+    backup.cancel_restore(staged.restore_id)
     with zipfile.ZipFile(path) as source:
         manifest = json.loads(source.read("manifest.json"))
         record = next(
             r for r in manifest["data_files"] if r["retained_subtitle_derivations"]
         )
         refs = record["retained_subtitle_derivations"]
+        changed_database = None
         if fault == "missing-ref":
             refs.clear()
         elif fault == "duplicate-ref":
             refs.append(dict(refs[0]))
         elif fault == "extra-ref":
             refs.append({**refs[0], "archive_id": "f" * 64})
-        elif fault == "wrong-proof-hash":
+        elif fault in {"wrong-proof-hash", "wrong-database-proof-hash"}:
             refs[0]["proof_sha256"] = "0" * 64
+            if fault == "wrong-database-proof-hash":
+                # Malicious package only: retain the exact schema/immutable
+                # trigger while corrupting the proof and matching all outer hashes.
+                database = tmp_path / "corrupt-proof-package.sqlite3"
+                database.write_bytes(source.read(manifest["database"]["path"]))
+                with sqlite3.connect(database) as connection:
+                    trigger = connection.execute("SELECT sql FROM sqlite_master WHERE name='retained_subtitle_derivations_immutable_update'").fetchone()[0]
+                    connection.execute("DROP TRIGGER retained_subtitle_derivations_immutable_update")
+                    connection.execute("UPDATE retained_subtitle_derivations SET proof_sha256=?", ("0" * 64,))
+                    connection.execute(trigger)
+                connection.close()
+                wal = database.with_name(database.name + "-wal")
+                assert not wal.exists() or wal.stat().st_size == 0
+                changed_database = database.read_bytes()
+                assert changed_database != source.read(manifest["database"]["path"])
+                manifest["database"].update(sha256=hashlib.sha256(changed_database).hexdigest(), size_bytes=len(changed_database))
         elif fault == "wrong-count":
             manifest["counts"]["retained_derivations"] += 1
         elif fault == "old-shape":
@@ -571,13 +618,24 @@ def test_schema38_manifest_neutral_refs_are_strict_and_never_authority(
         with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as target:
             for name in source.namelist():
                 target.writestr(
-                    name,
+                    source.getinfo(name),
                     json.dumps(manifest).encode()
                     if name == "manifest.json"
+                    else changed_database if name == manifest["database"]["path"] and changed_database is not None
                     else source.read(name),
                 )
     before, files = _tables(runtime.repository), _files(backup.data_root)
-    with pytest.raises(BackupRestoreError):
+    expected_error = {
+        "missing-ref": "Backup DATA artifact identity is missing",
+        "duplicate-ref": "Backup neutral retention identities are not unique and sorted",
+        "extra-ref": "Backup DATA metadata does not match database authority",
+        "wrong-proof-hash": "Backup DATA metadata does not match database authority",
+        "wrong-database-proof-hash": "Neutral subtitle retention proof failed validation",
+        "wrong-count": "Backup preview counts do not match its database",
+        "old-shape": "Backup DATA record is invalid",
+        "wrong-file-hash": "Backup file hash or size does not match its manifest",
+    }[fault]
+    with pytest.raises(BackupRestoreError, match=expected_error):
         backup.stage_restore(output.getvalue())
     assert _tables(runtime.repository) == before and _files(backup.data_root) == files
 
@@ -1040,3 +1098,141 @@ def test_original_history_is_bound_and_restore_reaches_the_proof_validator(tmp_p
     with pytest.raises(BackupRestoreError, match="Neutral subtitle retention proof failed validation"):
         backup.stage_restore(output.getvalue())
     assert _tables(repo) == before and _files(backup.data_root) == files and adapter.read_calls == reads
+
+
+def _mixed_failure(tmp_path, monkeypatch):
+    runtime, adapter, child, _, _ = _repaired_failure(tmp_path, monkeypatch)
+    legacy = _load_module("test_retired_subtitle_failures")._failure(runtime.repository)
+    return runtime, adapter, child, legacy
+
+
+@pytest.mark.parametrize("entry", ["retire_known_failed_subtitle_calls", "archive_failed_caption_repairs", "worker"])
+def test_mixed_known_failures_settle_atomically_preserve_history_and_restore(tmp_path, monkeypatch, entry):
+    runtime, adapter, child, legacy = _mixed_failure(tmp_path, monkeypatch)
+    repo, backup = runtime.repository, runtime.backup_restore
+    before, files, reads = _tables(repo), _files(backup.data_root), adapter.read_calls
+    evidence = repo.list_evidence_for_presentation(support.VIDEO_ID)
+    timed = repo.get_verified_timed_transcript(video_id=support.VIDEO_ID)
+    if entry == "worker":
+        assert runtime.worker.run_once() is None
+    else:
+        expected = legacy.request_hash if entry.startswith("retire") else child["request_hash"]
+        assert getattr(repo, entry)(backup_restore=backup, now=datetime.now(UTC) + timedelta(seconds=1)) == (expected,)
+    assert backup.readiness()["ready"]
+    assert repo.get_provider_call(legacy.request_hash).status.value == "FAILED_FINAL"
+    assert repo.get_provider_call(child["request_hash"]).status.value == "FAILED_FINAL"
+    assert "POLICY_RETIRED" in repo.get_provider_call(legacy.request_hash).last_error_message
+    assert repo.get_provider_call(child["request_hash"]).last_error_message == child["last_error_message"]
+    after = _tables(repo)
+    assert {k:v for k,v in before.items() if k not in {"provider_calls", "retained_subtitle_derivations"}} == {k:v for k,v in after.items() if k not in {"provider_calls", "retained_subtitle_derivations"}}
+    assert _files(backup.data_root) == files and adapter.read_calls == reads
+    assert repo.list_evidence_for_presentation(support.VIDEO_ID) == evidence
+    assert repo.get_verified_timed_transcript(video_id=support.VIDEO_ID) == timed
+    restarted = SQLiteStateRepository(backup.database)
+    for method in ("retire_known_failed_subtitle_calls", "archive_failed_caption_repairs"):
+        assert getattr(restarted, method)(backup_restore=backup, now=datetime.now(UTC) + timedelta(seconds=2)) == ()
+    result = backup.create_backup()
+    archive, _ = backup.backup_download(result.backup_id)
+    staged = backup.stage_restore(archive.read_bytes())
+    backup.confirm_restore(staged.restore_id)
+    backup.recover_and_apply_pending_restore()
+    assert _tables(repo) == after and _files(backup.data_root) == files and adapter.read_calls == reads
+
+
+@pytest.mark.parametrize("family", ["legacy", "child"])
+@pytest.mark.parametrize("field,value", [
+    ("provider", "other"), ("operation", "cloud.execute"), ("model", "cloud-model"),
+    ("prompt_version", "unknown"), ("schema_version", "unknown"),
+    ("last_error_message", ""), ("last_error_code", "TRANSIENT_NETWORK"),
+    ("input_tokens", 0), ("output_tokens", 1), ("cost_microusd", 0),
+    ("attempt_count", 0), ("updated_at", "2099-01-01T00:00:00Z"),
+    ("available_at", "2000-01-01T00:00:00Z"), ("status", "PENDING"),
+    ("response_artifact_id", "artifact"), ("dispatch", "DISPATCHED_RESULT_UNKNOWN"),
+])
+def test_mixed_any_unproven_family_keeps_entire_batch_unchanged(tmp_path, monkeypatch, family, field, value):
+    runtime, adapter, child, legacy = _mixed_failure(tmp_path, monkeypatch)
+    repo, backup = runtime.repository, runtime.backup_restore
+    request_hash = legacy.request_hash if family == "legacy" else child["request_hash"]
+    with repo._connect() as connection:
+        if field == "dispatch":
+            connection.execute("INSERT INTO provider_dispatch_states VALUES (?,?,?)", (request_hash, value, child["updated_at"]))
+        elif field == "status":
+            connection.execute("UPDATE provider_calls SET status='PENDING',reservation_owner='unknown',lease_until='2099-01-01T00:00:00Z' WHERE request_hash=?", (request_hash,))
+        elif field == "response_artifact_id":
+            connection.execute("UPDATE provider_calls SET response_artifact_id=(SELECT artifact_id FROM artifacts LIMIT 1) WHERE request_hash=?", (request_hash,))
+        else:
+            connection.execute(f"UPDATE provider_calls SET {field}=? WHERE request_hash=?", (value, request_hash))
+    before, files, reads = _tables(repo), _files(backup.data_root), adapter.read_calls
+    for method in ("retire_known_failed_subtitle_calls", "archive_failed_caption_repairs"):
+        assert getattr(repo, method)(backup_restore=backup, now=datetime.now(UTC) + timedelta(seconds=1)) == ()
+        assert _tables(repo) == before and _files(backup.data_root) == files
+    assert adapter.read_calls == reads and not backup.readiness()["ready"]
+
+
+@pytest.mark.parametrize("fault", ["unknown-third", "unindexed", "bad-child-bytes", "active-job", "restore-pending", "background", "mid-write"])
+def test_mixed_global_guards_and_transaction_failure_preserve_every_row(tmp_path, monkeypatch, fault):
+    runtime, adapter, child, _ = _mixed_failure(tmp_path, monkeypatch)
+    repo, backup = runtime.repository, runtime.backup_restore
+    if fault == "unknown-third":
+        legacy = _load_module("test_retired_subtitle_failures")
+        legacy._failure(repo, normalized_input_hash="a"*64, provider="cloud-provider")
+    elif fault == "unindexed":
+        (backup.data_root / "unknown.txt").write_text("unowned bytes")
+    elif fault == "bad-child-bytes":
+        with repo._connect() as connection:
+            indexed = {r[0] for r in connection.execute("SELECT relative_path FROM artifacts WHERE storage_root='DATA'")}
+        derived = next(p for p in _files(backup.data_root) if p not in indexed)
+        (backup.data_root / derived).write_text("changed derived bytes")
+    elif fault == "active-job":
+        from youtube_intel.domain import ProcessingStage
+        from youtube_intel.state import JobType
+        repo.create_job(job_id="mixed-active", scope_key="channel:UC_MIXED:discovery", video_id=None, job_type=JobType.CHANNEL_DISCOVERY, target_stage=ProcessingStage.DISCOVERY, pipeline_version="test", max_attempts=1, available_at=datetime.now(UTC), now=datetime.now(UTC))
+    elif fault == "restore-pending":
+        monkeypatch.setattr(type(backup), "restore_pending", property(lambda self: True))
+    elif fault == "mid-write":
+        def fail(point):
+            if point == "subtitle_settlement.after_row":
+                raise RuntimeError("controlled mixed mid-write failure")
+        monkeypatch.setattr(repo, "_inject_failure", fail)
+    before, files, reads = _tables(repo), _files(backup.data_root), adapter.read_calls
+    if fault == "mid-write":
+        with pytest.raises(RuntimeError, match="controlled mixed mid-write failure"):
+            _settle(runtime)
+    elif fault == "background":
+        with backup.background_work() as allowed:
+            assert allowed and _settle(runtime) == ()
+    else:
+        assert _settle(runtime) == ()
+    assert _tables(repo) == before and _files(backup.data_root) == files and adapter.read_calls == reads
+
+
+@pytest.mark.parametrize("version", ["2026.7.4", "2026.07.04", "2026.7.04"])
+def test_exact_frozen_provider_versions_keep_proof_v1_identity_and_unknown_closed(tmp_path, monkeypatch, version):
+    runtime, _, old, _, _ = _repaired_failure(tmp_path, monkeypatch, provider_version=version)
+    before, files = _tables(runtime.repository), _files(runtime.backup_restore.data_root)
+    if version == "2026.7.04":
+        assert _settle(runtime) == ()
+        assert _tables(runtime.repository) == before and _files(runtime.backup_restore.data_root) == files
+    else:
+        assert _settle(runtime) == (old["request_hash"],)
+        with runtime.repository._connect() as connection:
+            proof = json.loads(connection.execute("SELECT proof_json FROM retained_subtitle_derivations").fetchone()[0])
+            assert proof["input"]["provider_version"] == version
+            runtime.repository.verify_retained_subtitle_derivations(connection, data_root=runtime.backup_restore.data_root)
+        assert runtime.backup_restore.readiness()["ready"]
+
+
+@pytest.mark.parametrize("parent_policy,allowed", [
+    (("subtitle-selection-v1", "subtitle-format-v1"), True),
+    (("subtitle-selection-v2-original-tracks", "subtitle-format-v1"), True),
+    (("subtitle-selection-v2-original-tracks", "subtitle-format-unknown"), False),
+])
+def test_finite_historical_parent_policy_pairs_recompute_exact_identities(tmp_path, monkeypatch, parent_policy, allowed):
+    runtime, _, _, _, _ = _repaired_failure(tmp_path, monkeypatch, parent_policy=parent_policy)
+    before, files = _tables(runtime.repository), _files(runtime.backup_restore.data_root)
+    if allowed:
+        assert _settle(runtime)
+        assert runtime.backup_restore.readiness()["ready"]
+    else:
+        assert _settle(runtime) == ()
+        assert _tables(runtime.repository) == before and _files(runtime.backup_restore.data_root) == files

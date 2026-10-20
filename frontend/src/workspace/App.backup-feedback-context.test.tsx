@@ -253,3 +253,34 @@ it.each(["en", "zh-CN"])("does not reuse a completed operation's success after a
     "/api/v1/backup-restore/restore/stage", "/api/v1/backup-restore/restore/confirm", "/api/v1/backup-restore/restore/stage", "/api/v1/backup-restore/backups",
   ]);
 });
+
+it.each(["en", "zh-CN"])("distinguishes integrity and unknown blockers while preserving every unfinished reason in %s", async language => {
+  const fetch = open(language, () => response({ status: { ready: false, reasons: ["DATABASE_UNAVAILABLE", "JOBS_ACTIVE", "TRACKED_CONTENT_RETRY_ACTIVE", "FUTURE_REASON"], message: "/private/raw/internal-error", restore_pending: false } }));
+  const view = within(await panel(language));
+  const copy = language === "en" ? ["Backup is unavailable for these reasons:", "Stored files or the database could not be verified. Check local storage and retry.", "a background job is still running", "a caption retry is still unfinished", "Backup safety has not been confirmed. Read its status again."] : ["以下原因导致暂时无法备份：", "无法验证已保存文件或数据库的完整性。请检查本地存储后重试。", "有一个后台任务仍在执行", "有一个字幕重试尚未结束", "尚未确认备份是否安全，请重新读取状态。"];
+  await waitFor(() => copy.forEach(text => expect(view.getByRole("status").textContent).toContain(text)));
+  expect(view.queryByText(/private\/raw/)).toBeNull();
+  expect((view.getByRole("button", { name: language === "en" ? "Create Backup" : "创建备份" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(fetch.mock.calls.every(([, init]) => !init?.method || init.method === "GET")).toBe(true);
+});
+
+it.each([{ reasons: [] }, { reasons: ["FUTURE_REASON"] }, { reasons: ["DATABASE_UNAVAILABLE"] }])("does not attribute closed readiness to running work without evidence: %j", async ({ reasons }) => {
+  open("en", () => response({ status: { ready: false, reasons, restore_pending: false } }));
+  const view = within(await panel("en"));
+  await view.findByText(reasons.includes("DATABASE_UNAVAILABLE") ? /Stored files or the database could not be verified/ : /Backup safety has not been confirmed/);
+  expect(view.getByRole("status").textContent).not.toMatch(/work.*(flight|unfinished)|job.*running/);
+  expect((view.getByRole("button", { name: "Create Backup" }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+
+it("preserves integrity and work blockers alongside a pending restore", async () => {
+  open("en", () => response({ status: { ready: false, reasons: ["DATABASE_UNAVAILABLE", "JOBS_ACTIVE"], restore_pending: true } }));
+  const view = within(await panel("en"));
+  await waitFor(() => {
+    const text = view.getByText(/Backup is unavailable for these reasons/).textContent;
+    expect(text).toContain("a restore is pending");
+    expect(text).toContain("Stored files or the database could not be verified");
+    expect(text).toContain("a background job is still running");
+  });
+  expect((view.getByRole("button", { name: "Create Backup" }) as HTMLButtonElement).disabled).toBe(true);
+});
