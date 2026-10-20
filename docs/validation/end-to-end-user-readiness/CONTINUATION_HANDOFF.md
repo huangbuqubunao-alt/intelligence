@@ -34,4 +34,6 @@
 
 ## 最终交付与会话纪律
 
+QA运行面已释放（2026-10-20收尾）：6139 isolated harness、6138 vite、yia-qa-chrome-profile Chrome（CDP9223）均已正常退出；正式5488/5489（v1x-local-main，PID942/943）保持存活未触碰。证据与截图留档于 .var/mixed-integration/ 与 docs/validation/end-to-end-user-readiness/。
+
 输出 INTELLIGENCE_THREE_AGENT_FINAL_ADOPTION_REPORT（实际测试、真实链路、模型资格、数据恢复、剩余问题、main/origin/served、手册、访问地址）；成功THREE_AGENT_REMEDIATION_ADOPTED，否则THREE_AGENT_ADOPTION_BLOCKED并保留候选证据。没有真实完成不标complete；无外部硬阻塞不单方面标blocked。每轮精简更新此handoff、PROJECT_STATUS、READINESS_MATRIX，保留原失败/原材料。不重新开启三方完整审查，不开其他开发阶段。
