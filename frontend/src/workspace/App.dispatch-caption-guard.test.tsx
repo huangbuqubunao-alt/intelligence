@@ -81,7 +81,7 @@ it("invalidates an open preflight on caption refresh without a second execution"
   finished = true;
   fireEvent.click(screen.getByRole("button", { name: "Read caption retry status" }));
   await screen.findByText("Reviewer fresh summary");
-  expect(screen.queryByRole("region", { name: "Cloud Deep Analysis preflight" })).toBeNull();
+  await waitFor(() => expect(screen.queryByRole("region", { name: "Cloud Deep Analysis preflight" })).toBeNull());
   const reRun = screen.getByRole("button", { name: "Run Deep Analysis" });
   await waitFor(() => expect((reRun as HTMLButtonElement).disabled).toBe(false));
   expect(preflights).toBe(1);
