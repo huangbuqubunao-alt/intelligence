@@ -33,3 +33,5 @@ Actual wiring correction: old `state._evidence_ids_for_lineages` hasLIMIT21; exi
 Compile/type before test debugging, meaningful RED first, once fixed-source affected group, independent review; preserve failed logs/source hashes and report true commands/results, no self-acceptance/DONE/main merge. Final whole Goal regression/real model/qualified positive GUI/full adoption gates remain outstanding.
 
 Root来源歧义澄清（2026-10-21）：完整AVAILABLE ORIGINAL全集必须绑定唯一合法canonical/timed权威；无任何Evidence的旧untimed artifact可共存且保留。不按所有未删除artifact数误拒，但不得JOIN过滤损坏/缺失/foreign引用；两活动权威/混合bindings仍拒绝。见迁移计划末节，真实114正向及反控必须覆盖。
+
+验证并行安排（root，2026-10-21）：产品源码和专项/静态/真实后端v4已冻结时，可先提交固定工程候选及如实标记完整57文件组尚在运行的handoff，独立新对话只读该固定SHA，和已启动的大组并行。此安排仅并行审查时间，不跳过、缩减测试或提前接受；最终APPROVE/ACCEPTED须全部必需检查真实通过与最终交接齐全。任何产品/测试源码变更均须新freeze/SHA并复查，旧审查不能覆盖新代码。主控整合与GUI仍等待最终接受。
