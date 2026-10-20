@@ -335,6 +335,7 @@ def execute_case(audit_root: Path, permit_path: Path, freeze_path: Path) -> dict
             "public_final": getattr(transport, "last_grounding_final", None),
             "generation_post_attempted_locally": transport.last_grounding_post_attempted,
             "opaque_raw_hash": getattr(transport, "last_grounding_raw_hash", None),
+            "local_response_error": transport.last_grounding_response_error,
             "completion": getattr(transport, "last_grounding_completion", None)}
         # No QualificationRecord is emitted; an independent reviewer must bind
         # actual once/ledger/public-final evidence into a separate receipt.

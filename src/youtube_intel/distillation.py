@@ -2417,6 +2417,10 @@ class OllamaLocalDistillationTransport:
         self._prepared_execution: str | None = None
         self._prepared_qualification = False
         self.last_grounding_post_attempted = False
+        self.last_grounding_response_error: str | None = None
+        self.last_grounding_final: str | None = None
+        self.last_grounding_completion: dict[str, object] | None = None
+        self.last_grounding_raw_hash: str | None = None
         if local_profile_id is not None:
             from youtube_intel.local_distillation_profile import resolve_profile
             profile = resolve_profile(local_profile_id)
@@ -2555,6 +2559,11 @@ class OllamaLocalDistillationTransport:
             return False
 
     def generate(self, value: VerifiedDistillationInput) -> DistillationTransportResult:
+        self.last_grounding_post_attempted = False
+        self.last_grounding_response_error = None
+        self.last_grounding_final = None
+        self.last_grounding_completion = None
+        self.last_grounding_raw_hash = None
         if not self.is_authorized_for(value):
             raise RuntimeError("local distillation route is not authorized")
         if self.local_profile_id is not None:
@@ -2567,13 +2576,17 @@ class OllamaLocalDistillationTransport:
                 raise LocalDistillationPreDispatchError("local capacity readiness is unavailable") from error
             started = time.monotonic()
             self.last_grounding_post_attempted = True
-            response = self._request("/api/chat", method="POST", body=request)
-            message = response.get("message")
-            final = message.get("content") if isinstance(message, Mapping) else None
-            self.last_grounding_final = final if isinstance(final, str) else None
-            self.last_grounding_completion = {key: response.get(key) for key in (
-                "model", "done", "done_reason", "prompt_eval_count", "eval_count")}
-            return validate_local_grounding_response(response, value, duration_ms=round((time.monotonic() - started) * 1000))
+            try:
+                response = self._request("/api/chat", method="POST", body=request)
+                message = response.get("message")
+                final = message.get("content") if isinstance(message, Mapping) else None
+                self.last_grounding_final = final if isinstance(final, str) else None
+                self.last_grounding_completion = {key: response.get(key) for key in (
+                    "model", "done", "done_reason", "prompt_eval_count", "eval_count")}
+                return validate_local_grounding_response(response, value, duration_ms=round((time.monotonic() - started) * 1000))
+            except KnownLocalDistillationResponseError as error:
+                self.last_grounding_response_error = error.reason
+                raise
         # The service checks availability before it durably claims the one
         # permitted dispatch. Rechecking here would be a known pre-dispatch
         # failure after that claim and would be misreported as an unknown
@@ -2660,20 +2673,8 @@ class OllamaLocalDistillationTransport:
         message = response.get("message")
         raw = message.get("content") if isinstance(message, Mapping) else None
         model = response.get("model")
-        prompt_eval_count = response.get("prompt_eval_count")
-        eval_count = response.get("eval_count")
-        result = (
-            DistillationTransportResult(
-                raw=raw if isinstance(raw, str) else "",
-                actual_provider="ollama",
-                actual_model=model,
-                input_tokens=prompt_eval_count if type(prompt_eval_count) is int and prompt_eval_count >= 0 else None,
-                output_tokens=eval_count if type(eval_count) is int and eval_count >= 0 else None,
-                cost_microunits=None,
-                duration_ms=round((time.monotonic() - started) * 1000),
-            )
-            if isinstance(model, str) and bool(model.strip())
-            else None
+        result = _observed_local_response(
+            response, duration_ms=round((time.monotonic() - started) * 1000)
         )
         if response.get("done") is False or response.get("done_reason") == "length":
             raise KnownLocalDistillationResponseError("LOCAL_RESPONSE_TRUNCATED", result)
@@ -2871,9 +2872,37 @@ def validate_local_grounding_response(
         or not 0 < inputs <= profile.complete_input_token_upper_bound(build_local_distillation_request(value))
         or type(outputs) is not int or not 0 < outputs < 6144
         or not isinstance(raw, str) or not raw.strip() or len(raw.encode()) > profile.max_response_bytes):
-        raise KnownLocalDistillationResponseError("LOCAL_RESPONSE_INCOMPLETE_OR_TRUNCATED")
+        raise KnownLocalDistillationResponseError(
+            "LOCAL_RESPONSE_INCOMPLETE_OR_TRUNCATED",
+            _observed_local_response(response, duration_ms=duration_ms),
+        )
     return DistillationTransportResult(raw=raw, actual_provider="ollama", actual_model=profile.model,
         input_tokens=inputs, output_tokens=outputs, cost_microunits=None, duration_ms=duration_ms)
+
+
+def _observed_local_response(
+    response: Mapping[str, object], *, duration_ms: int,
+) -> DistillationTransportResult | None:
+    """Keep actual response observations even when its output is inadmissible.
+
+    A selected model is not proof of the responding model. Invalid or unpaired
+    counters stay unknown together; neither a zero nor a selected identity is
+    substituted. The private thinking channel is never inspected.
+    """
+    model = response.get("model")
+    if not isinstance(model, str) or not model.strip():
+        return None
+    inputs, outputs = response.get("prompt_eval_count"), response.get("eval_count")
+    reliable_pair = (type(inputs) is int and 0 <= inputs <= 2**63 - 1
+        and type(outputs) is int and 0 <= outputs <= 2**63 - 1)
+    message = response.get("message")
+    raw = message.get("content") if isinstance(message, Mapping) else None
+    return DistillationTransportResult(
+        raw=raw if isinstance(raw, str) else "", actual_provider="ollama", actual_model=model,
+        input_tokens=inputs if reliable_pair and type(inputs) is int else None,
+        output_tokens=outputs if reliable_pair and type(outputs) is int else None,
+        cost_microunits=None, duration_ms=duration_ms,
+    )
 
 
 def build_local_distillation_request(value: VerifiedDistillationInput) -> dict[str, object]:
@@ -3743,9 +3772,10 @@ class PersonalizedDistillationService:
         except KnownLocalDistillationResponseError as error:
             return self._finish_or_recover(
                 projection,
-                status=DistillationExecutionStatus.REJECTED_OUTPUT,
+                status=(DistillationExecutionStatus.REJECTED_OUTPUT if error.result is not None
+                    else DistillationExecutionStatus.AMBIGUOUS),
                 budget_state=decision.state,
-                outcome=error.reason,
+                outcome=error.reason if error.result is not None else "TRANSPORT_OUTCOME_UNKNOWN",
                 invocation_count=1,
                 result=error.result,
             )
