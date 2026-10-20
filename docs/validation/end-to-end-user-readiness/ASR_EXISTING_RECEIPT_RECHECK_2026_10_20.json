@@ -1,0 +1,16 @@
+{
+  "classification": "EXISTING_REAL_ASR_RECEIPT_CURRENT_TUPLE_AND_SEAL_RECHECK_ONLY",
+  "report_sha256": "694f9e89b73479d2fec6452f21cd9d90ceb2aff66ebfe5089fcb96e65a66805c",
+  "tuple_equal": true,
+  "samples": 14,
+  "negative_controls": 3,
+  "policy_evaluation": "PASSED",
+  "current_status": {
+    "state": "PASSED",
+    "production_eligible": true,
+    "identity": "ab0c9eab7749bb2d344bb2db134b8859390e6e5aadcbbe68e6d9391d970cc576"
+  },
+  "real_model_generations_this_check": 0,
+  "model_weight_loads_this_check": 0,
+  "formal_data_access": false
+}
