@@ -2183,7 +2183,8 @@ function DeepAnalysisPanel(
   const [preflight, setPreflight] = useState<DeepAnalysisPreflight | null>(null);
   const [costAcknowledged, setCostAcknowledged] = useState(false);
   const [dispatchBlocked, setDispatchBlocked] = useState(false);
-  useEffect(() => { setPreflight(null); setCostAcknowledged(false); setDispatchBlocked(false); }, [videoId, inputRefresh]);
+  useEffect(() => { setPreflight(null); setCostAcknowledged(false); }, [videoId, inputRefresh]);
+  useEffect(() => { setDispatchBlocked(false); }, [videoId]);
 
   async function run(authorized?: DeepAnalysisPreflight) {
     setBusy(true);
