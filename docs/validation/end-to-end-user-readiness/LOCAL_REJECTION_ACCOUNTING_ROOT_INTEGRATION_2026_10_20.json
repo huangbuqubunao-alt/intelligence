@@ -1,0 +1,39 @@
+{
+  "task": "TASK-READINESS-LOCAL-REJECTION-ACCOUNTING",
+  "status": "ACCEPTED_AND_INTEGRATED_CANDIDATE_ONLY",
+  "candidate_head": "b94f13fd4872705a002535081d6cc53df4f54989",
+  "root_core_commit": "91b7f8c",
+  "author_core": "ac2ea9d4585f3215b9f2330da4062f6fed95b1f5",
+  "independent_approve": "e807c6b5038509c382db51626be952e014bd34ed",
+  "source_sha256": {
+    "src/youtube_intel/distillation.py": "daae02a09c0b17a147ad304c87c32a90068c9152f12436a92bd46c92cce3aef3",
+    "scripts/qualify_local_grounding_v1.py": "9478d79f46fad8cea4065f851ba503682ef315557a966bd91830264e5dabd5b9",
+    "tests/integration/test_local_rejection_accounting.py": "b389d7653fd695ed2d4342996e15ca52d27e20fee345bab9708f1a2d6d2667cb"
+  },
+  "root_checks": {
+    "focused": "44 passed in 38.77s",
+    "focused_log_sha256": "8f2b259f43df904b0ad0cf1c2da3cc501bf0a3461dd8c0b15ad8ac86a1b0ee44",
+    "command": "PYTHONPATH=src:. .venv/bin/python -m pytest -q tests/integration/test_local_rejection_accounting.py tests/unit/test_ollama_local_distillation.py tests/unit/test_distillation_dispatch.py",
+    "compileall": "PASS",
+    "ruff_src_tests_scripts": "PASS",
+    "strict_mypy_117": "PASS",
+    "diff_check": "PASS"
+  },
+  "independent_checks": {
+    "focused_146": "PASS",
+    "selected_48": "PASS (168 deselected, not full suite)",
+    "extra_legacy_5": "PASS",
+    "strict_mypy_118": "PASS"
+  },
+  "author_checks_note": "506 before final signed64 delta, final44 afterward; exact source hashes retained; not final whole-backend result",
+  "boundaries": {
+    "real_model_calls": 0,
+    "cloud_calls": 0,
+    "owner_data_access": false,
+    "schema_change": false,
+    "profile_budget_change": false,
+    "qualification_records": [],
+    "formal_adoption": false
+  },
+  "next": "new immutable fixed-runtime profile serial engineering, then remaining long protocol, real qualification, GUI, full regression and safe adoption gates"
+}

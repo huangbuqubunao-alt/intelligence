@@ -1,3 +1,5 @@
+> 2026-10-20 19:50最新：R13已独立APPROVE e807c6b并整合root91b7f8c/418d7d5/b94f13f；root44PASS/38.77s、compile/Ruff/strict117/diff、三份已审SHA全等。详见LOCAL_REJECTION_ACCOUNTING_ROOT_INTEGRATION_2026_10_20.json。该窄任务DONE仅指候选工程，不是模型资格或Goal完成。下一串行R14固定新profile；最新只读RAM6.521GiB/disk193.375GiB，仍0load/0generation，资格records=[]，无main/owner变更。
+
 # 2026-10-20 19:43 OpenCode接管增量（候选未发布）
 
 旧LOCAL8不满足资格链：案例1仅NO_NEW，不能算六个正向之一；原资格/holdout前置未证明，升级包term-sheet一项hash漂移。旧6144两次截断和失败收尾崩溃属实，全部原件保留、不续旧permit。详见 `OPENCODE_LOCAL_HANDOVER_AUDIT_2026_10_20.md` 和独立handoff。
