@@ -1,6 +1,6 @@
 # TASK-READINESS-LOCAL-REJECTION-ACCOUNTING
 
-Status: IN_REVIEW. Implementer /root/local_rejection_accounting is clean STOP at 62ed4307690cab7d2bbecca5b475695f2e922784 (core ac2ea9d4585f3215b9f2330da4062f6fed95b1f5); independent reviewer /root/local_budget_evidence_audit assigned 2026-10-20 19:43 CST. Orchestrator: Codex root, resumed by explicit user handover 2026-10-20 19:23 CST. OpenCode run is paused; never execute its old permits or mutate its prepared databases.
+Status: ACCEPTED_PENDING_INTEGRATION. Implementer /root/local_rejection_accounting is clean STOP at 62ed4307690cab7d2bbecca5b475695f2e922784 (core ac2ea9d4585f3215b9f2330da4062f6fed95b1f5); Independent reviewer /root/local_budget_evidence_audit APPROVE e807c6b5038509c382db51626be952e014bd34ed; root reviewed full diff and evidence, accepts this narrow engineering scope only. Integration checks still required. Orchestrator: Codex root, resumed by explicit user handover 2026-10-20 19:23 CST. OpenCode run is paused; never execute its old permits or mutate its prepared databases.
 
 ## Goal and acceptance
 
