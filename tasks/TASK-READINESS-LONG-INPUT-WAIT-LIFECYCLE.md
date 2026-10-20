@@ -1,6 +1,6 @@
 # TASK-READINESS-LONG-INPUT-WAIT-LIFECYCLE
 
-Status: BLOCKED_ON_R14_ACCEPTED_INTEGRATION. No product writer assigned; exact baseline/worktree/package supplied only when READY. Root is sole orchestrator. This is the next serial Goal slice, not a new product phase.
+Status: IN_PROGRESS. Dependency R14 accepted and integrated with root100PASS49.00s/static/hash checks. Implementer /root/long_protocol_preflight (role changes from read-only scout to sole writer). Base4f7cc46ed1381782288a2f4915dce027b38c3b94. Worktree /Users/hua/Documents/yia-worktrees/readiness-long-input-wait-lifecycle; branch codex/task-readiness-long-input-wait-lifecycle. Root already created it. Read newer root task/package from absolute root path. Independent reviewer after fixed clean submission. Root is sole orchestrator. Same Goal, no new product phase.
 
 ## Goal and frozen basis
 
