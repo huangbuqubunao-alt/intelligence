@@ -125,7 +125,7 @@ def test_all_domain_tables_unchanged_no_rerun_or_network(tmp_path, monkeypatch):
         before = list(db.iterdump())
         tables = [r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")]
         assert not any("diff" in t for t in tables)
-        assert db.execute("PRAGMA user_version").fetchone()[0] == 40
+        assert db.execute("PRAGMA user_version").fetchone()[0] == 41
     assert compare(ResearchLiteService(repo), first, second)["no_material_changes"]
     with repo._connect() as db:
         assert list(db.iterdump()) == before
@@ -145,7 +145,7 @@ def test_restore_recomputes_exact_diff(tmp_path):
     backup.confirm_restore(staged.restore_id)
     backup.recover_and_apply_pending_restore()
     restored = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert restored.initialize(now=support.authority.NOW).version == 40
+    assert restored.initialize(now=support.authority.NOW).version == 41
     assert compare(ResearchLiteService(restored), first, second) == expected
     with restored._connect() as db:
         assert db.execute("PRAGMA quick_check").fetchone()[0] == "ok"

@@ -46,7 +46,7 @@ from .state import SQLiteStateRepository
 
 FORMAT_NAME = "intelligence-core-backup"
 FORMAT_VERSION = 1
-LATEST_SCHEMA_VERSION = 40
+LATEST_SCHEMA_VERSION = 41
 MAX_ARCHIVE_BYTES = 8 * 1024 * 1024 * 1024
 MAX_ARCHIVE_FILES = 10_002
 MAX_MEMBER_BYTES = 2 * 1024 * 1024 * 1024
@@ -907,7 +907,7 @@ class BackupRestoreService:
             raise BackupRestoreError("Backup manifest fields are incomplete or unsupported.")
         if manifest.get("format") != FORMAT_NAME or manifest.get("format_version") != FORMAT_VERSION:
             raise BackupRestoreError("Backup format is incompatible.")
-        if manifest.get("schema_version") not in {34, 35, 36, 37, 38, 39, LATEST_SCHEMA_VERSION}:
+        if manifest.get("schema_version") not in {34, 35, 36, 37, 38, 39, 40, LATEST_SCHEMA_VERSION}:
             raise BackupRestoreError("Backup database schema is incompatible.")
         if not isinstance(manifest.get("application_version"), str) or not isinstance(
             manifest.get("created_at"), str
@@ -1198,7 +1198,7 @@ class BackupRestoreService:
         if not _REQUIRED_TABLES <= tables:
             raise BackupRestoreError("SQLite database is missing required Intelligence tables.")
         version_row = connection.execute("PRAGMA user_version").fetchone()
-        if version_row is None or int(version_row[0]) not in {34, 35, 36, 37, 38, 39, LATEST_SCHEMA_VERSION}:
+        if version_row is None or int(version_row[0]) not in {34, 35, 36, 37, 38, 39, 40, LATEST_SCHEMA_VERSION}:
             raise BackupRestoreError("SQLite database schema is not compatible with this version.")
         if int(version_row[0]) >= 40:
             from .tracked_retry_reader import verify_schema
@@ -1262,6 +1262,13 @@ class BackupRestoreService:
         data_root: Path,
     ) -> None:
         repository.bind_source_storage(data_root)
+        from .long_distillation_persistence import (
+            verify_database as verify_long_database,
+        )
+        try:
+            verify_long_database(repository, connection)
+        except Exception as error:
+            raise BackupRestoreError("Long timed input provenance failed validation.") from error
         if int(connection.execute("PRAGMA user_version").fetchone()[0]) >= 39:
             from .distillation import verify_local_text_input_proof
             try:
@@ -1405,6 +1412,7 @@ class BackupRestoreService:
             if self._background_active:
                 reasons.append("SOURCE_RUN_ACTIVE")
         repository = repository or SQLiteStateRepository(self.database)
+        repository.bind_source_storage(data_root or self.data_root)
         if connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='source_checks'").fetchone() is not None:
             if connection.execute("SELECT 1 FROM source_checks WHERE status='RUNNING' LIMIT 1").fetchone() is not None:
                 reasons.append("SOURCE_RUN_ACTIVE")
@@ -1451,7 +1459,7 @@ class BackupRestoreService:
                         continue
                     if self._is_cloud_completed_local_wait_source_run(connection, run):
                         continue
-                    if self._is_settled_attention_source_run(connection, run):
+                    if self._is_settled_attention_source_run(connection, run, repository):
                         continue
                     if self._is_cancelled_model_wait_source_run(connection, repository, run):
                         continue
@@ -1514,7 +1522,7 @@ class BackupRestoreService:
         return has_cancelled_wait
 
     def _is_settled_attention_source_run(
-        self, connection: sqlite3.Connection, run: sqlite3.Row
+        self, connection: sqlite3.Connection, run: sqlite3.Row, repository: SQLiteStateRepository
     ) -> bool:
         """Whether a NEEDS_ATTENTION run holds no resumable execution authority.
 
@@ -1533,15 +1541,27 @@ class BackupRestoreService:
             (str(run["run_id"]),),
         ).fetchone() is not None:
             return False
-        return connection.execute(
-            "SELECT 1 FROM distillation_execution_checkpoints AS c "
+        open_rows = connection.execute(
+            "SELECT c.execution_id FROM distillation_execution_checkpoints AS c "
             "WHERE source_id = ? AND status IN "
             "('PENDING','RUNNING','WAITING_BUDGET','WAITING_MODEL') "
             "AND NOT (c.status = 'PENDING' AND c.invocation_count = 1 AND EXISTS ("
             "SELECT 1 FROM distillation_no_new_intelligence_results AS result "
-            "WHERE result.execution_id = c.execution_id)) LIMIT 1",
+            "WHERE result.execution_id = c.execution_id))",
             (str(run["source_id"]),),
-        ).fetchone() is None
+        ).fetchall()
+        from .long_distillation_persistence import is_long
+        for row in open_rows:
+            execution_id = str(row[0])
+            # Long cancellation retains raw WAITING_MODEL. Only its fully
+            # reverified logical cancellation closes this new work authority;
+            # every legacy/unknown/uncancelled checkpoint stays blocking.
+            if is_long(execution_id):
+                execution = repository.get_distillation_execution(execution_id)
+                if execution is not None and execution.status == "CANCELLED":
+                    continue
+            return False
+        return True
 
     def _is_cloud_completed_local_wait_source_run(
         self, connection: sqlite3.Connection, run: sqlite3.Row

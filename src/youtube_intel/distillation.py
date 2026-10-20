@@ -3333,6 +3333,11 @@ class PersonalizedDistillationService:
             and record.output_language == command.output_language
         )
 
+    def reservation_evidence_ids(self, video_id: str) -> tuple[str, ...]:
+        """Complete local timed candidates; legacy/Cloud callers keep LIMIT21."""
+        from .long_distillation_persistence import candidate_evidence_ids
+        return candidate_evidence_ids(self, video_id)
+
     def reserve_distillation_execution(
         self,
         *,
@@ -3347,6 +3352,11 @@ class PersonalizedDistillationService:
         transcript evidence set.  That lets a later process rebuild and verify
         the exact command from m010/Evidence persistence rather than memory.
         """
+        from .long_distillation_persistence import reserve_wait, route_required
+        if route_required(self, video_id, evidence_ids, source_id):
+            execution_id = reserve_wait(self, source_id=source_id, video_id=video_id,
+                evidence_ids=evidence_ids, manual_command_id=manual_command_id)
+            return DistillationReservation(execution_id=execution_id, source_id=source_id, video_id=video_id)
         video = self._repository.get_video(video_id)
         if video is not None and video.provider == "LOCAL" and (
             self._selected_provider in {_NVIDIA_NIM_PROVIDER, _M12_OPENAI_PROVIDER, _MOONSHOT_K26_PROVIDER}
@@ -4057,6 +4067,9 @@ class PersonalizedDistillationService:
         record = self._repository.get_distillation_execution(execution_id)
         if record is None:
             raise ValueError("reserved execution does not exist")
+        from .long_distillation_persistence import is_long
+        if is_long(execution_id):
+            return self._result(record)
         if record.status != "PENDING":
             return self._result(record)
         if (

@@ -1,0 +1,274 @@
+{
+  "classification": "IMPLEMENTER_FIXED_ENGINEERING_CANDIDATE_NOT_ACCEPTED_NOT_MODEL_QUALIFICATION",
+  "base": "4f7cc46ed1381782288a2f4915dce027b38c3b94",
+  "product_sources": {
+    "src/youtube_intel/backup_restore.py": "8af0026602b6cb04151cd75344aef61f20ad2d0acb3cd50b51271e4869a08246",
+    "src/youtube_intel/distillation.py": "57616d2d1c81ccf3c31b30f54d8c6ee161b52a6f7ed62b477518e3b4c0da6156",
+    "src/youtube_intel/distillation_cancellation.py": "ca72661fb81d9df8f9fe628153e5896948be88f33ed540cb2e9a547c6bca3363",
+    "src/youtube_intel/intelligence_read.py": "9f7187183374ce9d8c779a6ac70572397d549a3cae0d51f58a2ff998f16aabe7",
+    "src/youtube_intel/local_api.py": "87e25fce47a2c6c9accd86bee878f62c05e7c42dbd69ebf359e14610b7220bf2",
+    "src/youtube_intel/local_distillation_qualification.py": "ef4d69fecd543f64c8c68b928cb7a9445ed423c4963c916a559a43ba40930590",
+    "src/youtube_intel/long_distillation_persistence.py": "77955303c9f4550633bf6dcb7fd65ce812edb31996e7d4a3665a482a75e25475",
+    "src/youtube_intel/migrations/041_add_long_distillation_provenance.sql": "00b416fba039c29a6773d475524eb8eca23cf06318c903c5076bf262a1795ea2",
+    "src/youtube_intel/processing_orchestrator.py": "ebc1075692e9b362fbc492ae31ad1eb61586d4972b2307edf0583a76358184d0",
+    "src/youtube_intel/state.py": "73595a45a6413229bc0ddf6106eee16316f22f1f2d950c61121e49875ad38477"
+  },
+  "old001_040_migrations_unchanged": [
+    {
+      "path": "src/youtube_intel/migrations/001_initial.sql",
+      "sha256": "10bd726fe24da8328de6603ef91dd2d51a1262403be7c2f927c0477cd2693006"
+    },
+    {
+      "path": "src/youtube_intel/migrations/002_add_scoring_lineage.sql",
+      "sha256": "d9bf30af20fd21334bd927cb5cbcbdfff94ac1ebc37eb4a001124109cc530651"
+    },
+    {
+      "path": "src/youtube_intel/migrations/003_add_deep_analysis_persistence.sql",
+      "sha256": "f61d5d276fac30ef1dbbabdc6c4b0809b797eb84bee06a1723d81ec48b8b1bfe"
+    },
+    {
+      "path": "src/youtube_intel/migrations/004_add_provider_dispatch_state.sql",
+      "sha256": "d69a700ae74d407472ed3267e964bb98b5e938b390abb355147112b553fe80b2"
+    },
+    {
+      "path": "src/youtube_intel/migrations/005_add_product_orchestration.sql",
+      "sha256": "43b4815fc20c5e748b3c547278e3a3e821549b4e59083d0e376fae49f90ba856"
+    },
+    {
+      "path": "src/youtube_intel/migrations/006_add_intelligence_domain.sql",
+      "sha256": "76441661565c24865cf696ae152e383647849f891fb7aa3c0239f14487052747"
+    },
+    {
+      "path": "src/youtube_intel/migrations/007_add_intelligence_claim_classification.sql",
+      "sha256": "4deeb04653dee15a91a5474e8276ddaac583ef4b5ed96a83fbb868ab51a35d4a"
+    },
+    {
+      "path": "src/youtube_intel/migrations/008_add_preference_feedback.sql",
+      "sha256": "4bb91b42a5aabd7b03a161df456194a6d1699ce07b8fd3e8a7a1208560349a2a"
+    },
+    {
+      "path": "src/youtube_intel/migrations/009_add_source_policy_filtering.sql",
+      "sha256": "9c29bc524cceee7100f79076248309e879187fe53719a8b867aac37906be06bf"
+    },
+    {
+      "path": "src/youtube_intel/migrations/010_add_personalized_distillation.sql",
+      "sha256": "9ceceed92fb2bf66e505ac2b8cd9d72789665781f78d5775f5546aa8f37422ba"
+    },
+    {
+      "path": "src/youtube_intel/migrations/011_add_topic_timeline.sql",
+      "sha256": "6cc596c0d633491b99aee49491d9e65397cd2b020677051e7a46c96e2448544d"
+    },
+    {
+      "path": "src/youtube_intel/migrations/012_add_source_run_orchestration.sql",
+      "sha256": "8e25d4a338d1b916d81c4c45d5549544ca0d8df4d8901670aa6676161dbbac31"
+    },
+    {
+      "path": "src/youtube_intel/migrations/013_add_weekly_brief_foundation.sql",
+      "sha256": "b723560ac98c385d5d7ad4ea96cd8128e508ea2ecc64dd0dc39f177f09f79106"
+    },
+    {
+      "path": "src/youtube_intel/migrations/014_add_saved_intelligence.sql",
+      "sha256": "ffb8c422187024cc524bf347eb267c425ae6f0909f564b069abd6332343a723f"
+    },
+    {
+      "path": "src/youtube_intel/migrations/015_add_timed_transcript_evidence_bindings.sql",
+      "sha256": "905b8c53becc209d0b0eb5c5d35b20a0df4407a9b9d23e2aa917d321fd962cb1"
+    },
+    {
+      "path": "src/youtube_intel/migrations/016_add_ambiguous_resource_ledger_outcome.sql",
+      "sha256": "28010bcf4ef6434bea4fba004d56e7fea13ef4c79b3a578e08582bfd8319efb4"
+    },
+    {
+      "path": "src/youtube_intel/migrations/017_add_current_content_summary.sql",
+      "sha256": "fe65ec05858496bfd20698fe175d6094ce515bd0bedb3f021da0cb6d74e9e83b"
+    },
+    {
+      "path": "src/youtube_intel/migrations/018_add_global_output_language.sql",
+      "sha256": "2bb28aac01ef6fc01ba4b9ca28c1c71a05ae1ac490e5b19a4a86f16efd0e2450"
+    },
+    {
+      "path": "src/youtube_intel/migrations/019_add_evidence_excerpt_stance.sql",
+      "sha256": "1f919d4df548f93d8041a5cce83497e7e75e41befe9a42c20a11c03c3c4b29a3"
+    },
+    {
+      "path": "src/youtube_intel/migrations/020_add_no_new_intelligence_result.sql",
+      "sha256": "1efe64f3cc5e71b368cdb799d3c6e030f713a5c916629e5aa74fd4ac43963385"
+    },
+    {
+      "path": "src/youtube_intel/migrations/021_seal_distillation_output_language.sql",
+      "sha256": "acf5f87d1fdc48f9fc59cbfd11849c09922304fef5cf0a4fb2e8aaa813bf3a99"
+    },
+    {
+      "path": "src/youtube_intel/migrations/022_bind_current_local_summary.sql",
+      "sha256": "dac02d5e412885806ea6924fa64b61de97a516fcbcddae02b8e58f74dabd9749"
+    },
+    {
+      "path": "src/youtube_intel/migrations/023_add_evidence_translation_presentation.sql",
+      "sha256": "d5210a4acc095791866ed87321707ff5d0f153bdc10e203022ce8c8b13c71551"
+    },
+    {
+      "path": "src/youtube_intel/migrations/024_bind_current_summary_to_content.sql",
+      "sha256": "fdd536abfee507774d827b4c1d62b67ab87c01ce87f54aa996ab99d8878d2472"
+    },
+    {
+      "path": "src/youtube_intel/migrations/025_add_explicit_cloud_execution_audit.sql",
+      "sha256": "0691295d155355a62f381163e8474568b395f748e4e6a4aa143c745fdbe9e33c"
+    },
+    {
+      "path": "src/youtube_intel/migrations/026_add_openai_cloud_execution_audit.sql",
+      "sha256": "d4c30d9876ca50ea8dbec3bc5e1b20667c2a6a0afab898ce7e60e4761c03c3f5"
+    },
+    {
+      "path": "src/youtube_intel/migrations/027_add_moonshot_cloud_execution_audit.sql",
+      "sha256": "7d6ff329c454b92b0b0a5239f6e68d21baf45d8c0546992297c5e528f8ac35c8"
+    },
+    {
+      "path": "src/youtube_intel/migrations/028_add_cloud_response_failure_ledger.sql",
+      "sha256": "b153085add7db4a0e50e65ac98ee09c02f8dce2d8560da249d9ff0393e300a01"
+    },
+    {
+      "path": "src/youtube_intel/migrations/030_add_deep_analysis_durable_evidence.sql",
+      "sha256": "46008eb71f44dcba34d5f009367bde73372f97c99c0f1f7b488722a9ef83ac87"
+    },
+    {
+      "path": "src/youtube_intel/migrations/031_add_research_lite.sql",
+      "sha256": "081ec3347bc202226cb9978f11ce3a89281076e3178d2e8793a2ba969df9b672"
+    },
+    {
+      "path": "src/youtube_intel/migrations/032_add_source_provider_authority.sql",
+      "sha256": "4d6d9abc32f4613d05594d11f263b6125f9d4358d8344a82db48a1111008a3f7"
+    },
+    {
+      "path": "src/youtube_intel/migrations/033_add_bilibili_provider.sql",
+      "sha256": "29954ea802aa9a5d620d43703d62d83e2003d9e5c9b26d9073aca80cd80e13dd"
+    },
+    {
+      "path": "src/youtube_intel/migrations/034_add_source_tracking.sql",
+      "sha256": "8e0b2b525217c1dd32657d641529df4ac3aae4096e82b8f683279ce2a5c813da"
+    },
+    {
+      "path": "src/youtube_intel/migrations/035_align_no_new_canonical_evidence.sql",
+      "sha256": "022817bb496d3310fdfad1e00014ac775a9c6ebef8afd5e2ac0438364b528309"
+    },
+    {
+      "path": "src/youtube_intel/migrations/036_expand_local_media_snapshot_limit.sql",
+      "sha256": "17749be10beb7f0fca10c565361269975bd570e5fbf41935e13e679fb8bd0bfe"
+    },
+    {
+      "path": "src/youtube_intel/migrations/037_add_waiting_model_cancellation.sql",
+      "sha256": "674d8bc9a9a847dda6d1298aada0c47bd9b8e67baac104e00c32e0c662460c47"
+    },
+    {
+      "path": "src/youtube_intel/migrations/038_add_retained_subtitle_derivations.sql",
+      "sha256": "8a8038bc6ba3029c691af8330b41ac8e6c177741951d7eaa4e5d0c15e1c6ad60"
+    },
+    {
+      "path": "src/youtube_intel/migrations/039_add_local_text_input_proofs.sql",
+      "sha256": "86bc84111505eb913285ec8e0c3098121af67de49f95947a1268683486641e39"
+    },
+    {
+      "path": "src/youtube_intel/migrations/040_add_tracked_content_retry.sql",
+      "sha256": "7a44951bcb347bd0cd247347d3122f421ddaeab9da6d0a65257e7fea9e41fdd1"
+    }
+  ],
+  "new_test_cases": 70,
+  "required_affected_group_status": "RUNNING",
+  "affected_test_files": [
+    "tests/integration/test_bilibili_content.py",
+    "tests/integration/test_bilibili_three_provider.py",
+    "tests/integration/test_creator_following.py",
+    "tests/integration/test_deep_analysis_persistence.py",
+    "tests/integration/test_distillation_source_context.py",
+    "tests/integration/test_dogfood_day2_schema36.py",
+    "tests/integration/test_local_capacity_composition.py",
+    "tests/integration/test_local_content_adversarial.py",
+    "tests/integration/test_local_content_provider.py",
+    "tests/integration/test_local_distillation_wire_branches.py",
+    "tests/integration/test_local_grounding_proof.py",
+    "tests/integration/test_local_intelligence_text.py",
+    "tests/integration/test_local_intelligence_timed.py",
+    "tests/integration/test_local_rejection_accounting.py",
+    "tests/integration/test_local_text_input_proof.py",
+    "tests/integration/test_local_transcription_service.py",
+    "tests/integration/test_long_completion_storage_contract.py",
+    "tests/integration/test_long_input_wait_lifecycle.py",
+    "tests/integration/test_phase11r_source_run_quiescence.py",
+    "tests/integration/test_phase12_live_feed.py",
+    "tests/integration/test_provider_dispatch_crash_recovery.py",
+    "tests/integration/test_research_backup_restore.py",
+    "tests/integration/test_research_diff.py",
+    "tests/integration/test_retained_subtitle_derivations.py",
+    "tests/integration/test_state_store.py",
+    "tests/integration/test_task016c_phase_h2c_lineage_schema.py",
+    "tests/integration/test_task018_domain_persistence.py",
+    "tests/integration/test_task018a_claim_classification.py",
+    "tests/integration/test_task018b_timed_evidence.py",
+    "tests/integration/test_task019_trusted_intelligence_read.py",
+    "tests/integration/test_task020_preference_feedback.py",
+    "tests/integration/test_task021_source_policy_filtering.py",
+    "tests/integration/test_task022_personalized_distillation.py",
+    "tests/integration/test_task022b_verified_outbound_input.py",
+    "tests/integration/test_task023_topic_timeline.py",
+    "tests/integration/test_task023a_source_run_persistence.py",
+    "tests/integration/test_task023b_distillation_reservation.py",
+    "tests/integration/test_task024_processing_orchestration.py",
+    "tests/integration/test_task025_weekly_foundation.py",
+    "tests/integration/test_task025a_saved_intelligence.py",
+    "tests/integration/test_tracked_clock_capture_recovery.py",
+    "tests/integration/test_tracked_content_retry.py",
+    "tests/integration/test_v1x_knowledge_delta.py",
+    "tests/integration/test_v1x_phase1b_backup_restore.py",
+    "tests/integration/test_youtube_following.py",
+    "tests/unit/test_backup_restore.py",
+    "tests/unit/test_distillation_dispatch.py",
+    "tests/unit/test_dogfood_day1_product.py",
+    "tests/unit/test_evidence_translation.py",
+    "tests/unit/test_local_api.py",
+    "tests/unit/test_local_grounding_harness.py",
+    "tests/unit/test_local_grounding_profile.py",
+    "tests/unit/test_local_grounding_qualification.py",
+    "tests/unit/test_local_model_capacity.py",
+    "tests/unit/test_moonshot_distillation_adapter.py",
+    "tests/unit/test_ollama_local_distillation.py",
+    "tests/unit/test_openai_distillation_adapter.py"
+  ],
+  "compileall": "PASS",
+  "ruff_src_tests_scripts": "PASS",
+  "strict_mypy": "PASS 117 source files",
+  "diff_check": "PASS",
+  "legacy_versions_34_to_40_restore_and_upgrade": "7 PASS",
+  "genuine_complete_source": {
+    "classification": "GENUINE_COMPLETE_SOURCE_BACKEND_WAIT_CANCEL_RESTORE_NOT_MODEL_QUALIFICATION",
+    "execution_id": "distillation:long-timed-v1:9c634b9b442c8623250d1871786a67800f4677250b9df86a5827711cf97c3991",
+    "video_id": "0eMzc-WnBfQ",
+    "evidence_count": 114,
+    "cue_count": 2406,
+    "sql_tables": 79,
+    "physical_data_files": 19,
+    "all_rows_equal_after_restore": true,
+    "all_data_equal_after_restore": true,
+    "source_data_unchanged": true,
+    "proof_hash": "b38d36350b8cb492138a45b6406594398d9c0021b61ac6ce57175a28decd6d91",
+    "request_hash": "8ef1958ba1305e09071191a7d4491dbabb5b12e418d7c91565d5f6931e00b358",
+    "freeze_hash": "657ba6913d8e7d98561780a27c0dd62b6fd5885428230720d5e90dd87bfb54d6",
+    "m037_before_count": 1,
+    "m037_after_count": 2,
+    "only_new_cancel_execution_id": "distillation:long-timed-v1:9c634b9b442c8623250d1871786a67800f4677250b9df86a5827711cf97c3991",
+    "all_preexisting_domain_rows_unchanged": true,
+    "old_airc_wait_not_changed": true,
+    "source_all_sql_rows_unchanged": true,
+    "model_calls": 0,
+    "http_calls": 0
+  },
+  "real_http_calls": 0,
+  "real_model_loads": 0,
+  "real_model_generations": 0,
+  "owner_access": false,
+  "remaining": [
+    "affected57-file final result",
+    "separateR14 result",
+    "independent review",
+    "root native GUI",
+    "full generation/positive Save/Topic qualification outside slice"
+  ]
+}

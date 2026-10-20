@@ -33,7 +33,7 @@ def test_upgrade_preserves_all_rows_evidence_and_immutable_triggers(tmp_path):
     before = rows(repo)
     evidence = repo.list_evidence_for_presentation(imported.content_id)[0]
     verified = repo.resolve_verified_evidence_text(evidence)
-    assert repo.initialize(now=NOW).version == 40
+    assert repo.initialize(now=NOW).version == 41
     assert rows(repo) == before
     assert repo.resolve_verified_evidence_text(evidence) == verified
     with repo._connect() as db:
@@ -45,7 +45,7 @@ def test_upgrade_preserves_all_rows_evidence_and_immutable_triggers(tmp_path):
                 db.execute(sql)
         table = db.execute("SELECT sql FROM sqlite_master WHERE name='content_source_snapshots'").fetchone()[0]
         assert "2147483648" in table and "2097152" in table and "67108864" in table
-    assert repo.initialize(now=NOW).version == 40
+    assert repo.initialize(now=NOW).version == 41
     assert rows(repo) == before
 
 
@@ -65,7 +65,7 @@ def test_failed_migration_rolls_back_schema_rows_and_history(tmp_path):
         assert db.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0] == 35
         assert db.execute("PRAGMA foreign_key_check").fetchall() == []
     repo._load_migrations = lambda: migrations
-    assert repo.initialize(now=NOW).version == 40
+    assert repo.initialize(now=NOW).version == 41
 
 
 def test_schema35_archive_restores_before_schema36_startup(tmp_path):
@@ -79,6 +79,6 @@ def test_schema35_archive_restores_before_schema36_startup(tmp_path):
     backup.confirm_restore(staged.restore_id)
     backup.recover_and_apply_pending_restore()
     assert repo.schema_version().version == 35
-    assert repo.initialize(now=NOW).version == 40
+    assert repo.initialize(now=NOW).version == 41
     assert repo.get_video(imported.content_id)
     assert repo.resolve_verified_evidence_text(repo.list_evidence_for_presentation(imported.content_id)[0])

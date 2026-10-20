@@ -998,11 +998,16 @@ class LocalApiApplication:
                 if source_id is None or self._distillation_service is None:
                     raise ApiError(HTTPStatus.CONFLICT, "CONTENT_NOT_READY", "Finish organizing this Content before extracting Intelligence.")
                 command_id = self._string(data, "command_id", required=True) or ""
-                reservation = self._distillation_service.reserve_distillation_execution(
-                    source_id=source_id, video_id=video_id,
-                    evidence_ids=self._repository.list_canonical_coverage_evidence_ids(video_id),
-                    manual_command_id=command_id,
-                )
+                from .state import StateStoreError
+                try:
+                    reservation = self._distillation_service.reserve_distillation_execution(
+                        source_id=source_id, video_id=video_id,
+                        evidence_ids=self._distillation_service.reservation_evidence_ids(video_id),
+                        manual_command_id=command_id,
+                    )
+                except StateStoreError as error:
+                    raise ApiError(HTTPStatus.CONFLICT, "CONTENT_INTELLIGENCE_UNAVAILABLE",
+                        "Content source could not be verified for Intelligence. Existing source material was kept.") from error
                 # This service is the local route. Cloud review/authorization is
                 # a separate explicit command and is never an automatic fallback.
                 self._distillation_service.continue_reserved_distillation(reservation.execution_id)
@@ -1915,7 +1920,13 @@ class LocalApiApplication:
         if video is None or source_id is None:
             result["reason"] = "CONTENT_NOT_READY"
             return result
-        ids = self._repository.list_canonical_coverage_evidence_ids(video_id)
+        from .state import StateStoreError
+        try:
+            ids = (self._repository.list_canonical_coverage_evidence_ids(video_id) if self._distillation_service is None
+                else self._distillation_service.reservation_evidence_ids(video_id))
+        except StateStoreError:
+            result["reason"] = "EVIDENCE_UNAVAILABLE"
+            return result
         resolved = [self._repository.resolve_verified_evidence_text(identity) for identity in ids]
         if not resolved or any(item is None or item.video_id != video_id for item in resolved):
             result["reason"] = "EVIDENCE_UNAVAILABLE"
@@ -1927,6 +1938,13 @@ class LocalApiApplication:
         result["scope"] = scope
         if scope is None or language not in {"en", "zh-CN"}:
             result["reason"] = "SCOPE_OR_LANGUAGE_UNAVAILABLE"
+            return result
+        from .long_distillation_persistence import route_required
+        if self._distillation_service is not None and route_required(self._distillation_service, video_id, ids, source_id):
+            from .long_distillation_profile import PROFILE_ID, resolve_long_profile
+            long_profile = json.loads(resolve_long_profile(PROFILE_ID).profile_wire)
+            result.update(model=long_profile["model"], profile_id=PROFILE_ID, qualification_status="NOT_QUALIFIED",
+                request_state="WAITING_MODEL", reason="NOT_QUALIFIED")
             return result
         rows = cast(list[dict[str, object]], matrix["scopes"])
         row = next(item for item in rows if item["scope"] == scope and item["output_language"] == language)

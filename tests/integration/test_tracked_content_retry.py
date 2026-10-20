@@ -69,7 +69,7 @@ def failed_tracked(tmp_path, monkeypatch):
 
 def test_schema40_adds_only_empty_protocol_tables(tmp_path):
     repo = SQLiteStateRepository(tmp_path / "state.sqlite")
-    assert repo.initialize(now=datetime(2026, 10, 16, tzinfo=UTC)).version == 40
+    assert repo.initialize(now=datetime(2026, 10, 16, tzinfo=UTC)).version == 41
     with repo._connect() as connection:
         for table in ("tracked_content_retry_requests", "tracked_content_retry_executions", "tracked_content_retry_files"):
             assert connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == 0
@@ -215,6 +215,7 @@ def test_migration40_failure_rolls_back_and_success_preserves39_domain_rows(tmp_
     from youtube_intel.state import MigrationError
     now = datetime(2026, 10, 16, tzinfo=UTC)
     all_migrations = SQLiteStateRepository(tmp_path / 'unused.sqlite')._load_migrations()
+    all_migrations = tuple(m for m in all_migrations if m.version <= 40)
     repo = SQLiteStateRepository(tmp_path / 'state.sqlite')
     with monkeypatch.context() as patch:
         patch.setattr(repo, '_load_migrations', lambda: all_migrations[:-1])
@@ -680,7 +681,7 @@ def test_retry_terminal_backup_restores_all_tables_and_data(tmp_path,monkeypatch
     backup.confirm_restore(staged.restore_id)
     backup.recover_and_apply_pending_restore()
     restarted=SQLiteStateRepository(repo._database_path)
-    assert restarted.initialize(now=fixture.now).version==40
+    assert restarted.initialize(now=fixture.now).version==41
     with restarted._connect() as connection:
         assert {row[0]:[tuple(r) for r in connection.execute(f'SELECT * FROM "{row[0]}"')] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}==tables
     assert {str(p.relative_to(service.data_root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in service.data_root.rglob('*') if p.is_file()}==files

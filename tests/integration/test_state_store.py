@@ -79,6 +79,8 @@ REQUEST_HASH = build_provider_request_hash(
 )
 
 EXPECTED_TABLES = {
+    "long_distillation_input_proofs",
+    "long_distillation_completion_receipts",
     "tracked_content_retry_requests", "tracked_content_retry_executions", "tracked_content_retry_files",
     "local_text_input_proofs",
     "retained_subtitle_derivations",
@@ -850,12 +852,12 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
 
     sql = (
         resources.files("youtube_intel")
-        .joinpath("migrations", "040_add_tracked_content_retry.sql")
+        .joinpath("migrations", "041_add_long_distillation_provenance.sql")
         .read_bytes()
     )
     assert first == second
-    assert first.version == 40
-    assert first.name == "040_add_tracked_content_retry.sql"
+    assert first.version == 41
+    assert first.name == "041_add_long_distillation_provenance.sql"
     assert first.checksum == hashlib.sha256(sql).hexdigest()
 
     with _raw_connection(path) as connection:
@@ -870,7 +872,7 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
             "SELECT COUNT(*) FROM schema_migrations"
         ).fetchone()[0]
     assert tables == EXPECTED_TABLES
-    assert migration_count == 39
+    assert migration_count == 40
     with _raw_connection(path) as connection:
         failure_columns = {
             row["name"]
@@ -904,7 +906,7 @@ def test_v027_upgrade_appends_v028_without_rewriting_migration_history(
         )
     monkeypatch.setattr(repository, "_load_migrations", lambda: migrations)
 
-    assert repository.initialize(now=NOW).version == 40
+    assert repository.initialize(now=NOW).version == 41
     with _raw_connection(path) as connection:
         history_after = tuple(
             tuple(row)
@@ -913,7 +915,7 @@ def test_v027_upgrade_appends_v028_without_rewriting_migration_history(
                 "FROM schema_migrations ORDER BY version"
             )
         )
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 40
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 41
     assert history_after[:27] == history_before
     assert history_after[27][0:2] == (
         28,
@@ -930,6 +932,7 @@ def test_v027_upgrade_appends_v028_without_rewriting_migration_history(
     assert history_after[36][0:2] == (38, "038_add_retained_subtitle_derivations.sql")
     assert history_after[37][0:2] == (39, "039_add_local_text_input_proofs.sql")
     assert history_after[38][0:2] == (40, "040_add_tracked_content_retry.sql")
+    assert history_after[39][0:2] == (41, "041_add_long_distillation_provenance.sql")
 
 
 def test_m028_failure_rolls_back_schema_history_and_user_version(
@@ -967,7 +970,7 @@ def test_m028_failure_rolls_back_schema_history_and_user_version(
         }
         assert "http_status_code" not in columns
     monkeypatch.setattr(repository, "_load_migrations", lambda: migrations)
-    assert repository.initialize(now=NOW).version == 40
+    assert repository.initialize(now=NOW).version == 41
 
 
 def test_m026_failure_rolls_back_schema_history_and_user_version(
@@ -994,7 +997,7 @@ def test_m026_failure_rolls_back_schema_history_and_user_version(
             "SELECT 1 FROM sqlite_master WHERE name = 'm026_partial_probe'"
         ).fetchone() is None
     monkeypatch.setattr(repository, "_load_migrations", lambda: migrations)
-    assert repository.initialize(now=NOW).version == 40
+    assert repository.initialize(now=NOW).version == 41
 
 
 def test_m027_failure_rolls_back_schema_history_and_user_version(
@@ -1025,8 +1028,8 @@ def test_m027_failure_rolls_back_schema_history_and_user_version(
         ).fetchone() is None
 
     monkeypatch.setattr(repository, "_load_migrations", lambda: migrations)
-    assert repository.initialize(now=NOW).version == 40
-    assert repository.initialize(now=NOW).version == 40
+    assert repository.initialize(now=NOW).version == 41
+    assert repository.initialize(now=NOW).version == 41
 
 
 def test_m024_rejects_current_summary_for_missing_content(tmp_path: Path) -> None:
@@ -1078,7 +1081,7 @@ def test_m022_upgrades_v021_without_inventing_current_summary(
     )
     monkeypatch.undo()
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 40
+    assert upgraded.initialize(now=NOW).version == 41
     assert upgraded.get_video("video-1") is not None
     assert upgraded.current_local_summary_pointer("video-1") is None
     with _raw_connection(path) as connection:
@@ -1107,10 +1110,10 @@ def test_m020_adds_immutable_no_new_result_without_rewriting_history(
 
     monkeypatch.undo()
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 40
+    assert upgraded.initialize(now=NOW).version == 41
 
     with _raw_connection(path) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 40
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 41
         assert connection.execute(
             "SELECT COUNT(*) FROM distillation_no_new_intelligence_results"
         ).fetchone()[0] == 0

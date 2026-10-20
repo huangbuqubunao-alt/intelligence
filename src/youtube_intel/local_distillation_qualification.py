@@ -33,7 +33,10 @@ CODE_FILES = ("distillation.py", "local_distillation_profile.py", "local_distill
     "local_transcription_jobs.py", "backup_restore.py",
     "intelligence_read.py", "runtime_composition.py", "state.py", "source_policy.py",
     "source_authority.py", "extractive_summary.py", "domain.py",
-    "migrations/039_add_local_text_input_proofs.sql")
+    "migrations/039_add_local_text_input_proofs.sql",
+    "long_distillation_persistence.py", "distillation_cancellation.py", "local_api.py", "processing_orchestrator.py", "long_grounding_codec.py", "long_grounding_projection.py",
+    "long_distillation_profile.py", "long_card_canonical.py",
+    "migrations/041_add_long_distillation_provenance.sql")
 _PACKAGE_AUTHORITY_SEAL = object()
 
 

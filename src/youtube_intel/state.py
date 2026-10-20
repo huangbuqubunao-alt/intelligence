@@ -1781,6 +1781,7 @@ class SQLiteStateRepository:
             "038_add_retained_subtitle_derivations.sql",
             "039_add_local_text_input_proofs.sql",
             "040_add_tracked_content_retry.sql",
+            "041_add_long_distillation_provenance.sql",
         )
         migrations: list[_Migration] = []
         for name in names:
@@ -10119,9 +10120,15 @@ class SQLiteStateRepository:
             ).fetchone()
             if row is None:
                 return None
+            from .long_distillation_persistence import is_long, verify_execution
+            if is_long(execution_id):
+                try:
+                    verify_execution(self, connection, execution_id)
+                except (ValueError, KeyError, TypeError, sqlite3.Error) as error:
+                    raise StateStoreError("long execution failed historical validation") from error
             from .distillation_cancellation import read_cancellation
             try:
-                cancellation = read_cancellation(connection, row)
+                cancellation = read_cancellation(connection, row, repository=self)
             except ValueError as error:
                 raise StateStoreError("model wait cancellation failed validation") from error
             if cancellation is not None:
@@ -10318,9 +10325,12 @@ class SQLiteStateRepository:
                 ).fetchone()
                 if checkpoint is None:
                     raise StateStoreError("model wait does not belong to this Content")
-                cancellation = read_cancellation(connection, checkpoint)
+                from .long_distillation_persistence import is_long, verify_execution
+                if is_long(execution_id):
+                    verify_execution(self, connection, execution_id)
+                cancellation = read_cancellation(connection, checkpoint, repository=self)
                 if cancellation is None:
-                    verify_wait(connection, checkpoint)
+                    verify_wait(connection, checkpoint, repository=self)
                     values = {key: checkpoint[key] for key in BINDINGS}
                     values.update(checkpoint_updated_at=checkpoint["updated_at"], cancelled_at=format_utc_datetime(now))
                     connection.execute(
@@ -10330,7 +10340,7 @@ class SQLiteStateRepository:
                         ":selected_provider, :selected_model, :output_language, :budget_state, :checkpoint_updated_at, "
                         ":cancelled_at, 'CANCELLED_BEFORE_MODEL_INVOCATION')", values,
                     )
-                    cancellation = read_cancellation(connection, checkpoint)
+                    cancellation = read_cancellation(connection, checkpoint, repository=self)
                 if cancellation is None:
                     raise StateStoreError("model wait cancellation was not saved")
                 return replace(
@@ -10366,11 +10376,11 @@ class SQLiteStateRepository:
             row = connection.execute(
                 "SELECT * FROM distillation_execution_checkpoints WHERE execution_id=?", (execution_id,),
             ).fetchone()
-            if row is None or read_cancellation(connection, row) is not None:
+            if row is None or read_cancellation(connection, row, repository=self) is not None:
                 return False
-            verify_wait(connection, row)
+            verify_wait(connection, row, repository=self)
             return True
-        except (ValueError, sqlite3.Error):
+        except (ValueError, sqlite3.Error, StateStoreError):
             return False
         finally:
             connection.close()
@@ -10378,6 +10388,8 @@ class SQLiteStateRepository:
     def begin_distillation_execution(
         self, execution: DistillationExecutionWrite, *, now: datetime
     ) -> DistillationExecutionRecord:
+        from .long_distillation_persistence import reject_generic
+        reject_generic(execution.execution_id)
         fields = (
             execution.execution_id,
             execution.source_id,
@@ -10457,6 +10469,8 @@ class SQLiteStateRepository:
         existing m010 PENDING row.  Unlike a legacy PENDING row, only this marker
         combined with invocation_count=0 proves no dispatch has been claimed.
         """
+        from .long_distillation_persistence import reject_generic
+        reject_generic(execution.execution_id)
         fields = (
             execution.execution_id,
             execution.source_id,
@@ -10535,6 +10549,8 @@ class SQLiteStateRepository:
         call is made.  A crash after this point is deliberately not resumable as
         a new dispatch: the caller must surface AMBIGUOUS instead.
         """
+        from .long_distillation_persistence import reject_generic
+        reject_generic(execution_id)
         fields = (
             execution_id,
             source_id,
@@ -10672,6 +10688,8 @@ class SQLiteStateRepository:
         now: datetime,
     ) -> bool:
         """Claim a directly-started execution before its one transport call."""
+        from .long_distillation_persistence import reject_generic
+        reject_generic(execution_id)
         fields = (
             execution_id,
             source_id,
@@ -10882,6 +10900,8 @@ class SQLiteStateRepository:
         now: datetime,
         http_status_code: int | None = None,
     ) -> DistillationExecutionRecord:
+        from .long_distillation_persistence import reject_generic
+        reject_generic(execution_id)
         if (
             status not in {
             "WAITING_BUDGET", "WAITING_MODEL", "REJECTED_INELIGIBLE", "REJECTED_EVIDENCE",
@@ -10942,6 +10962,8 @@ class SQLiteStateRepository:
         self, *, execution_id: str, budget_state: str, now: datetime
     ) -> DistillationExecutionRecord:
         """Persist a definite HTTP response whose model identity is unprovable."""
+        from .long_distillation_persistence import reject_generic
+        reject_generic(execution_id)
         if not budget_state.strip() or len(budget_state) > 160:
             raise ValueError("distillation budget state is invalid")
         timestamp = format_utc_datetime(now)
@@ -11006,6 +11028,8 @@ class SQLiteStateRepository:
         now: datetime,
     ) -> DistillationExecutionRecord:
         """Persist a finite failure classification for one confirmed cloud response."""
+        from .long_distillation_persistence import reject_generic
+        reject_generic(execution_id)
         if (
             not isinstance(budget_state, str)
             or not budget_state.strip()
@@ -11114,6 +11138,8 @@ class SQLiteStateRepository:
         http_status_code: int | None = None,
         local_content_context_hash: str | None = None,
     ) -> DistillationExecutionRecord:
+        from .long_distillation_persistence import reject_generic
+        reject_generic(execution_id)
         evidence_ids = tuple(sorted(evidence_ids))
         if (
             not evidence_ids
@@ -11308,6 +11334,8 @@ class SQLiteStateRepository:
         http_status_code: int | None = None,
         local_content_context_hash: str | None = None,
     ) -> DistillationExecutionRecord:
+        from .long_distillation_persistence import reject_generic
+        reject_generic(execution_id)
         if claim_kind is IntelligenceClaimKind.UNCLASSIFIED or not isinstance(claim_kind, IntelligenceClaimKind):
             raise ValueError("distillation claim kind must be classified")
         _validate_sha256(content_hash, field_name="distillation content_hash")

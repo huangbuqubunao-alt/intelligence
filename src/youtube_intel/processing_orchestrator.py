@@ -578,9 +578,7 @@ class DurableProcessingOrchestrator:
                 # including an invalid local Summary result. Do not claim the
                 # model is unavailable without that specific evidence.
                 return SourceRunAttentionReason.EXECUTION_CONDITION_UNRESOLVED
-            evidence_ids = self._repository.list_canonical_coverage_evidence_ids(
-                candidate.video_id
-            )
+            evidence_ids = self._distillation.reservation_evidence_ids(candidate.video_id)
             if not evidence_ids:
                 return SourceRunAttentionReason.EXECUTION_CONDITION_UNRESOLVED
             # TASK-023B must mint the canonical execution before m012 child bind.

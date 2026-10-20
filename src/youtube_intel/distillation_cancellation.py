@@ -6,7 +6,10 @@ import sqlite3
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
+
+if TYPE_CHECKING:
+    from .state import SQLiteStateRepository
 
 TABLE = "distillation_waiting_model_cancellations"
 BINDINGS = (
@@ -21,9 +24,25 @@ def has_table(connection: sqlite3.Connection) -> bool:
     ).fetchone() is not None
 
 
-def verify_wait(connection: sqlite3.Connection, checkpoint: sqlite3.Row) -> None:
+def verify_wait(connection: sqlite3.Connection, checkpoint: sqlite3.Row, *, repository: SQLiteStateRepository | None = None) -> None:
     """Revalidate immutable zero-call authority, including on restored snapshots."""
     execution_id = checkpoint["execution_id"]
+    from .long_distillation_persistence import (
+        PROOFS,
+        RECEIPTS,
+        _proof_digest,
+        is_long,
+        require_identity,
+        verify_execution,
+    )
+    if is_long(execution_id):
+        require_identity(execution_id)
+        proof = connection.execute(f"SELECT * FROM {PROOFS} WHERE execution_id=?", (execution_id,)).fetchone()
+        if proof is None or proof["proof_hash"] != _proof_digest(dict(proof)) or connection.execute(
+            f"SELECT 1 FROM {RECEIPTS} WHERE execution_id=?", (execution_id,)).fetchone():
+            raise ValueError("long cancellation input provenance differs")
+        if repository is not None:
+            verify_execution(repository, connection, execution_id)
     usage = connection.execute(
         "SELECT * FROM distillation_resource_usage WHERE execution_id=?", (execution_id,),
     ).fetchone()
@@ -60,7 +79,7 @@ def verify_wait(connection: sqlite3.Connection, checkpoint: sqlite3.Row) -> None
         raise ValueError("model wait parent is still active or inconsistent")
 
 
-def read_cancellation(connection: sqlite3.Connection, checkpoint: sqlite3.Row) -> sqlite3.Row | None:
+def read_cancellation(connection: sqlite3.Connection, checkpoint: sqlite3.Row, *, repository: SQLiteStateRepository | None = None) -> sqlite3.Row | None:
     if not has_table(connection):
         return None
     cancellation = connection.execute(
@@ -68,7 +87,7 @@ def read_cancellation(connection: sqlite3.Connection, checkpoint: sqlite3.Row) -
     ).fetchone()
     if cancellation is None:
         return None
-    verify_wait(connection, checkpoint)
+    verify_wait(connection, checkpoint, repository=repository)
     if (
         any(cancellation[key] != checkpoint[key] for key in BINDINGS)
         or cancellation["checkpoint_updated_at"] != checkpoint["updated_at"]
@@ -92,15 +111,16 @@ def _schema(connection: sqlite3.Connection) -> tuple[tuple[str, str], ...]:
     )
 
 
-@lru_cache(maxsize=1)
-def _expected_schema() -> tuple[tuple[str, str], ...]:
+@lru_cache(maxsize=8)
+def _expected_schema(version: int) -> tuple[tuple[str, str], ...]:
     from .state import SQLiteStateRepository
 
     connection = sqlite3.connect(":memory:")
     try:
         connection.execute("PRAGMA legacy_alter_table=ON")
         for migration in SQLiteStateRepository(Path(":memory:"))._load_migrations():
-            connection.executescript(migration.sql)
+            if migration.version <= version:
+                connection.executescript(migration.sql)
         return _schema(connection)
     finally:
         connection.close()
@@ -112,7 +132,7 @@ def verify_database(connection: sqlite3.Connection) -> None:
         if _schema(connection):
             raise ValueError("legacy database has unversioned cancellation authority")
         return
-    if _schema(connection) != _expected_schema():
+    if _schema(connection) != _expected_schema(version):
         raise ValueError("model wait cancellation schema is incompatible")
     for row in connection.execute(f"SELECT execution_id FROM {TABLE}"):
         checkpoint = connection.execute(
