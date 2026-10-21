@@ -31,3 +31,15 @@
 2026-10-21 scout /root/local_fixed_runtime 零写入/网络/模型核验：041最终字段、branch CHECK和延迟FK已能表达positive/NO_NEW/REJECTED，不需仅为三分支再迁移；SQL可表达不等于完成authority。新运行profile可保留long执行协议v1 namespace，由profile/request/freeze hash区分，勿把profile升级误作namespace升级。
 
 DIRECT复用ApplicationHeavyLease/共享重负载锁、安装字节验证、ready→arm→consume单次/线程/请求绑定及claim后不探测、300秒/1MB有界loopbackHTTP。LocalCapacitySession仍绑定短builder/resolver/16384槽，资格reader/permit也固定短版本，须明确long版本适配；不能通用重签permit授执行。新增执行文件补CODE_FILES，records仍空。verify_receipt_payload本身不能代替严格计数/cap/语义/revision完整双向闭包。先完成当前Settings/真实WAIT0取消恢复，再共享核心串行此工程，不同时写入。
+
+## 当前0.40.6官方实现只读前检
+
+2026-10-21 当前已安装程序为0.40.6，旧0.40.1 runtimeproof及binary哈希已不匹配；机器安装catalog新增不授执行能力。scout使用agent-reach GitHub路由/官方GitHub插件读取固定官方代码，零写入/模型动作。官方[v0.40.6 commit2476d5ead197abe04629651028f83d48dc75d2b2](https://github.com/ollama/ollama/commit/2476d5ead197abe04629651028f83d48dc75d2b2)，对照[v0.40.1 cf2a313a298066d572c36812e5ad30a21c0db13b](https://github.com/ollama/ollama/commit/cf2a313a298066d572c36812e5ad30a21c0db13b)。以下是源码推论，不是容量、质量或资格验收。
+
+- 显式num_batch仍关闭自动batch，显式num_ctx关闭自动context；已载1024与新显式512 options不等时需reload。[routes.go](https://github.com/ollama/ollama/blob/2476d5ead197abe04629651028f83d48dc75d2b2/server/routes.go#L202-L223)、[sched.go](https://github.com/ollama/ollama/blob/2476d5ead197abe04629651028f83d48dc75d2b2/server/sched.go#L1428-L1477)
+- 普通completion正batch映射成对-b/-ub，context为NumCtx×parallel，qwen35调度parallel1；16384/8192、32768/6144不被10×context兜底改小，但不保证实际输入+输出容纳。新增decision-head整prompt分支可把batch改为context，目标模型必须实测属于普通completion，不能以显式512推导所有模型都512。[runner参数](https://github.com/ollama/ollama/blob/2476d5ead197abe04629651028f83d48dc75d2b2/llm/llama_server.go#L92-L135)
+- 指定文件中think布尔/native enable_thinking、空messages正keepalive加载契约未变；keepalive0是卸载，不能用于装载证明。[API](https://github.com/ollama/ollama/blob/2476d5ead197abe04629651028f83d48dc75d2b2/api/types.go#L135-L172)、[load分支](https://github.com/ollama/ollama/blob/2476d5ead197abe04629651028f83d48dc75d2b2/server/routes.go#L3189-L3208)
+
+0.40.6官方文件SHA256（scout内存计算/Git blob交叉核验）：api/types.go e19aafa5065afa3ed058df9135d200527391e012349ed5955dd0cc09c0b33f7a；server/routes.go 47c0bce03da44ba50c65e436f61538c67457282b9504a1ecc11d090461120855；server/sched.go 3383fad80c474ae352da2289ed6ecc5a22763be722433eda4ac9816775ff382d；llm/llama_server.go 4d9477c32d90ed8c3436aa67480a2ac55234dd401038d097bb33ab8101c4461c。
+
+后续真实执行必须新版本冻结当前runtime/binary，不改旧profile/proof：cold/warm512、已知1024→512严格空加载、两context真实slot/argv、native renderer全token、thinking/public final、自然keepalive过期、ready→arm前host变化。应用lease不锁外部Ollama客户端；claim后仍一次consume、不隐藏重试，未知保持未知。先完成当前Settings等待/取消/恢复工程与GUI，才可串行实现。
