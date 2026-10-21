@@ -6,7 +6,7 @@ import ctypes
 import json
 import os
 from collections.abc import Callable
-from http.client import HTTPConnection
+from http.client import HTTPConnection, HTTPException
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
@@ -147,7 +147,7 @@ class ModelSettingsService:
             version = self._version_fetch()
             return ("READY" if isinstance(version, dict) and version.get("version") == profile.runtime
                 else "RUNTIME_MISMATCH")
-        except (OSError, ValueError, UnicodeError):
+        except (OSError, ValueError, UnicodeError, HTTPException):
             return "UNAVAILABLE"
 
     def credential(self) -> str:
@@ -183,7 +183,7 @@ class ModelSettingsService:
             installed = next((item for item in models if isinstance(item, dict) and item.get("name") == model), None)
             valid = installed is not None and isinstance(installed.get("digest"), str) and installed.get("digest") in {expected_digest, expected_digest.removeprefix("sha256:")}
             return {"model": model, "status": "READY" if valid else "DIGEST_MISMATCH" if installed else "NOT_INSTALLED", "installed": installed is not None, "digest_valid": valid}
-        except (OSError, ValueError, UnicodeError):
+        except (OSError, ValueError, UnicodeError, HTTPException):
             return {"model": model, "status": "UNREACHABLE", "installed": False, "digest_valid": False}
 
     def discovered_models(self) -> dict[str, object]:
@@ -199,5 +199,5 @@ class ModelSettingsService:
                 if isinstance(name, str) and 0 < len(name) <= 160:
                     models.append({"model": name, "qualified": False})
             return {"connection": "REACHABLE", "models": models}
-        except (OSError, ValueError, UnicodeError):
+        except (OSError, ValueError, UnicodeError, HTTPException):
             return {"connection": "UNAVAILABLE", "models": []}

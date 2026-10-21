@@ -3353,13 +3353,9 @@ class PersonalizedDistillationService:
         the exact command from m010/Evidence persistence rather than memory.
         """
         from .long_distillation_persistence import (
-            ModelConfigurationRequired,
-            configuration_required,
             reserve_wait,
             route_required,
         )
-        if configuration_required(self) and (manual_command_id is not None or len(evidence_ids) > 20):
-            raise ModelConfigurationRequired("MODEL_CONFIGURATION_REQUIRED")
         if route_required(self, video_id, evidence_ids, source_id):
             execution_id = reserve_wait(self, source_id=source_id, video_id=video_id,
                 evidence_ids=evidence_ids, manual_command_id=manual_command_id)

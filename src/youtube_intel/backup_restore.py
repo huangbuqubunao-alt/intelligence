@@ -328,6 +328,7 @@ class BackupRestoreService:
                     if self._background_wakeup is not None:
                         self._background_wakeup()
         except (RetryConflict, RetryIntegrity) as error:
+            self._require_native_import_idle()
             raise BackupRestoreError("Content retry is still writing; wait before Backup or Restore.") from error
 
     @contextmanager

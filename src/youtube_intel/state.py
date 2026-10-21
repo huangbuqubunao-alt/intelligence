@@ -4568,6 +4568,10 @@ class SQLiteStateRepository:
                         return tuple(retired), tuple(archived)
                 except (ValueError, TypeError, OverflowError, OSError, BackupRestoreError):
                     return empty
+        except BackupRestoreError:
+            # Background work may own SH before maintenance can enter EX.
+            # This is a safe no-op, just like the active-work check inside EX.
+            return empty
         finally:
             connection.close()
 

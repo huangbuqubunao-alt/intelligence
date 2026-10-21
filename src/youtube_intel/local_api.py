@@ -1059,9 +1059,14 @@ class LocalApiApplication:
                 if source_id is None or self._distillation_service is None:
                     raise ApiError(HTTPStatus.CONFLICT, "CONTENT_NOT_READY", "Finish organizing this Content before extracting Intelligence.")
                 command_id = self._string(data, "command_id", required=True) or ""
-                from .long_distillation_persistence import ModelConfigurationRequired
+                from .long_distillation_persistence import (
+                    ModelConfigurationRequired,
+                    configuration_required,
+                )
                 from .state import StateStoreError
                 try:
+                    if configuration_required(self._distillation_service):
+                        raise ModelConfigurationRequired("MODEL_CONFIGURATION_REQUIRED")
                     reservation = self._distillation_service.reserve_distillation_execution(
                         source_id=source_id, video_id=video_id,
                         evidence_ids=self._distillation_service.reservation_evidence_ids(video_id),
@@ -3531,7 +3536,19 @@ def serve_loopback(
 ) -> ThreadingHTTPServer:
     """Create, but do not start, a loopback-only server with mutation protection."""
 
+    class DrainingHTTPServer(ThreadingHTTPServer):
+        # server_close must join every accepted request before a new runtime
+        # opens the same database/DATA. Daemon handlers are not joined by the
+        # stdlib, including a status request still verifying Backup under EX.
+        daemon_threads = False
+
     class Handler(BaseHTTPRequestHandler):
+        def setup(self) -> None:
+            super().setup()
+            # The existing stream idle bound also covers an incomplete request
+            # line or JSON body, so draining cannot wait on an idle socket forever.
+            self.connection.settimeout(UPLOAD_IDLE_TIMEOUT_SECONDS)
+
         def log_message(self, format: str, *args: object) -> None:  # noqa: A002
             return
 
@@ -3672,14 +3689,16 @@ def serve_loopback(
                     if self._cancelled():
                         self.close_connection = True
                         return
-                if response_payload.get("runtime_restart_required") is True:
-                    # Restart even if this client disconnects after persistence.
+                restore = response_payload.get("restore")
+                if response_payload.get("runtime_restart_required") is True or (
+                    isinstance(restore, dict) and restore.get("restart_required") is True
+                ):
+                    # Persisted configuration and Restore must both restart even
+                    # when acknowledgement is lost. shutdown runs off this handler;
+                    # server_close later drains handlers before reconstruction.
                     threading.Timer(0.25, self.server.shutdown).start()
                 self._send(status, response_payload)
                 response_sent = True
-                restore = response_payload.get("restore")
-                if isinstance(restore, dict) and restore.get("restart_required") is True:
-                    threading.Timer(0.25, self.server.shutdown).start()
             except ApiError as error:
                 try:
                     self._send(error.status, _error_body(error))
@@ -3710,4 +3729,4 @@ def serve_loopback(
         do_PUT = _handle
         do_DELETE = _handle
 
-    return ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    return DrainingHTTPServer(("127.0.0.1", port), Handler)

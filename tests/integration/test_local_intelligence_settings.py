@@ -1000,3 +1000,256 @@ def test_native_backup_file_change_stream_stage_confirm_uses_ex_without_outer_sh
     assert json.loads(backup.result_path.read_bytes())["state"] == "APPLIED"
     assert long._inventory(repo, data) == original
     assert settings.path.read_bytes() == sidecar
+
+
+@pytest.mark.parametrize("boundary", ["tags", "version", "discovered"])
+@pytest.mark.parametrize("error_name", ["IncompleteRead", "BadStatusLine"])
+def test_malformed_http_discovery_is_unavailable_without_consuming_apply_journal(
+    tmp_path, boundary, error_name
+):
+    import http.client
+
+    from youtube_intel.model_settings import ModelSettingsService
+
+    repo, data, backup, settings = setup(tmp_path)
+    settings.apply(CANDIDATE_ID, settings.status()["etag"])
+    journal = (settings.root / "change.json").read_bytes()
+    candidate = settings.candidate
+
+    def malformed():
+        error = getattr(http.client, error_name)
+        raise error(b"partial response")
+
+    metadata = ModelSettingsService(
+        object(),
+        tags_fetch=malformed if boundary != "version" else lambda: {
+            "models": [{"name": candidate.model, "digest": candidate.model_digest}]
+        },
+        version_fetch=malformed if boundary == "version" else lambda: {
+            "version": candidate.runtime
+        },
+    )
+    if boundary == "discovered":
+        assert metadata.discovered_models() == {"connection": "UNAVAILABLE", "models": []}
+    assert metadata.fixed_local_identity(candidate) == "UNAVAILABLE"
+    reboot = LocalIntelligenceSettings(
+        BackupRestoreService(database=repo._database_path, data_root=data),
+        probe=metadata.fixed_local_identity,
+    )
+    reboot.bind_actual(
+        {"provider": "ollama", "model": candidate.model, "profile_id": None},
+        candidate.model_digest,
+    )
+    assert reboot.status()["status"] != "APPLIED"
+    assert not reboot.admission_allowed()
+    assert (settings.root / "change.json").read_bytes() == journal
+
+
+def test_legacy_cli_does_not_recover_pre_promotion_settings_journal(tmp_path, monkeypatch):
+    import youtube_intel.runtime as legacy
+    from youtube_intel.cli import ExitCode, main
+
+    _load_module("test_runtime_composition")._project(tmp_path)
+    _, _, _, settings = setup(tmp_path)
+    settings.apply(CANDIDATE_ID, settings.status()["etag"])
+    journal = settings._journal()
+    settings._write("model.json", journal["old_bytes"])
+    retained = (settings.root / "change.json").read_bytes()
+    monkeypatch.setattr(legacy, "create_runtime_operations", lambda *args: pytest.fail(
+        "CLI must not recover configuration or bootstrap while journal exists"
+    ))
+    assert main(["--project-root", str(tmp_path), "process"]) == ExitCode.USAGE_OR_CONFIGURATION
+    assert (settings.root / "change.json").read_bytes() == retained
+    assert not settings.path.exists()
+
+
+@pytest.mark.parametrize("link_kind", ["scope", "backup-control"])
+def test_legacy_cli_admission_never_creates_backup_storage_through_symlink(
+    tmp_path, monkeypatch, link_kind
+):
+    import youtube_intel.runtime as legacy
+    from youtube_intel.backup_restore import machine_configuration_root
+    from youtube_intel.cli import ExitCode, main
+    from youtube_intel.operations import CommandOutcome
+
+    _load_module("test_runtime_composition")._project(tmp_path)
+    scope = machine_configuration_root(tmp_path / "data")
+    scope.parent.mkdir(mode=0o700)
+    outside = tmp_path / "external"
+    outside.mkdir()
+    if link_kind == "scope":
+        scope.symlink_to(outside, target_is_directory=True)
+    else:
+        scope.mkdir(mode=0o700)
+        (scope / ".intelligence-backup-restore").symlink_to(outside, target_is_directory=True)
+
+    class Operations:
+        def process(self, **kwargs):
+            return CommandOutcome()
+
+    monkeypatch.setattr(legacy, "create_runtime_operations", lambda *args: Operations())
+    result = main(["--project-root", str(tmp_path), "process"])
+    assert list(outside.iterdir()) == []
+    assert result == (ExitCode.LOCAL_RESOURCE if link_kind == "scope" else ExitCode.OK)
+
+
+@pytest.mark.parametrize("ack_lost", [False, True])
+def test_real_http_restore_drains_old_status_before_cached_config_rebuild(tmp_path, monkeypatch, ack_lost):
+    import threading
+    from http.client import HTTPConnection, RemoteDisconnected
+
+    import youtube_intel.runtime_composition as composition
+    from youtube_intel.config import load_app_config
+    from youtube_intel.local_api import serve_loopback
+
+    project = _load_module("test_runtime_composition")._project(tmp_path)
+    config = load_app_config(project / "config/channels.yaml", project / "config/settings.yaml")
+    monkeypatch.setattr(composition, "local_models", lambda _: {"models": []})
+    monkeypatch.setattr(composition, "local_runtime_version", lambda _: {"version": "0.40.6"})
+
+    class NoCredentials:
+        def get(self):
+            return None
+
+    def build():
+        return composition.build_local_source_run_runtime(
+            config=config, project_root=project, database=project / "http.sqlite3",
+            credential_store=NoCredentials(),
+        )
+
+    first = build()
+    backup = first.backup_restore
+    original = long._inventory(first.repository, backup.data_root)
+    package, _ = backup.backup_download(backup.create_backup().backup_id)
+    staged = backup.stage_restore(package.read_bytes())
+    server = serve_loopback(first.application, port=0)
+    if ack_lost:
+        send = server.RequestHandlerClass._send
+
+        def drop_confirm_ack(handler, status, payload):
+            restore = payload.get("restore")
+            if isinstance(restore, dict) and restore.get("restart_required"):
+                raise BrokenPipeError("controlled lost Restore acknowledgement")
+            return send(handler, status, payload)
+
+        monkeypatch.setattr(server.RequestHandlerClass, "_send", drop_confirm_ack)
+    entered, release, closing, closed = (threading.Event() for _ in range(4))
+    outcome = []
+    verify = backup._live_artifacts
+
+    def held_status(connection):
+        if backup.restart_requested and threading.current_thread() is not threading.main_thread():
+            entered.set()
+            assert release.wait(10), "test must release bounded status verification"
+        return verify(connection)
+
+    monkeypatch.setattr(backup, "_live_artifacts", held_status)
+
+    def serving():
+        first.worker.start()
+        try:
+            server.serve_forever()
+        finally:
+            closing.set()
+            server.server_close()
+            closed.set()
+            first.application.shutdown_native_import()
+            first.worker.stop()
+        try:
+            outcome.append(build())
+        except Exception as error:
+            outcome.append(error)
+
+    runner = threading.Thread(target=serving, daemon=True)
+    runner.start()
+    client = HTTPConnection("127.0.0.1", server.server_port, timeout=5)
+    status_client = HTTPConnection("127.0.0.1", server.server_port, timeout=10)
+    status_result = []
+    reader = None
+    try:
+        client.request("POST", "/api/v1/backup-restore/restore/confirm",
+            json.dumps({"restore_id": staged.restore_id}), headers={"X-YIA-Request": "local-ui"})
+        if ack_lost:
+            with pytest.raises(RemoteDisconnected):
+                client.getresponse()
+        else:
+            response = client.getresponse()
+            assert response.status == 202 and json.loads(response.read())["restore"]["restart_required"]
+
+        def refresh_status():
+            try:
+                status_client.request("GET", "/api/v1/backup-restore/status")
+                response = status_client.getresponse()
+                status_result.append((response.status, response.read()))
+            except Exception as error:
+                status_result.append(error)
+
+        reader = threading.Thread(target=refresh_status, daemon=True)
+        reader.start()
+        assert entered.wait(3)
+        assert closing.wait(3)
+        assert not closed.wait(0.2), "old HTTP request must drain before runtime rebuild"
+    finally:
+        release.set()
+        client.close()
+        if not closing.is_set():
+            server.shutdown()
+        if reader is not None:
+            reader.join(10)
+        status_client.close()
+        runner.join(10)
+        server.server_close()
+    assert not runner.is_alive() and len(outcome) == 1
+    assert not isinstance(outcome[0], Exception), repr(outcome)
+    reboot = outcome[0]
+    assert not reboot.backup_restore.restore_pending
+    assert json.loads(reboot.backup_restore.result_path.read_bytes())["state"] == "APPLIED"
+    assert long._inventory(reboot.repository, backup.data_root) == original
+    assert status_result and status_result[0][0] == 200
+
+
+@pytest.mark.parametrize("prefix", [b"G", b"POST /api/v1/settings/local-intelligence HTTP/1.0\r\nContent-Length: 100\r\n\r\n{"])
+def test_http_drain_idle_request_has_existing_bounded_timeout(tmp_path, monkeypatch, prefix):
+    import socket
+    import threading
+
+    import youtube_intel.local_api as api
+    from youtube_intel.orchestration_service import ProductOrchestrationService
+
+    repo, data, backup, settings = setup(tmp_path)
+    before = long._inventory(repo, data)
+    monkeypatch.setattr(api, "UPLOAD_IDLE_TIMEOUT_SECONDS", 0.15)
+    app = api.LocalApiApplication(repo, ProductOrchestrationService(repo), data_root=data,
+        local_intelligence_settings=settings, backup_restore_service=backup)
+    server = api.serve_loopback(app, port=0)
+    started = threading.Event()
+    original = server.RequestHandlerClass.setup
+
+    def observed_setup(handler):
+        original(handler)
+        started.set()
+
+    monkeypatch.setattr(server.RequestHandlerClass, "setup", observed_setup)
+    closed = threading.Event()
+
+    def serving():
+        try:
+            server.serve_forever(poll_interval=0.01)
+        finally:
+            server.server_close()
+            closed.set()
+
+    thread = threading.Thread(target=serving, daemon=True)
+    thread.start()
+    client = socket.create_connection(("127.0.0.1", server.server_port), timeout=2)
+    try:
+        client.sendall(prefix)
+        assert started.wait(2)
+        server.shutdown()
+        assert closed.wait(2), "an incomplete idle request must not indefinitely block shutdown"
+    finally:
+        client.close()
+        thread.join(3)
+        server.server_close()
+    assert long._inventory(repo, data) == before
+    assert not backup.restart_requested

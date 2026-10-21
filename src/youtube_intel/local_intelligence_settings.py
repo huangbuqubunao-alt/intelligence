@@ -12,9 +12,14 @@ import stat
 import uuid
 from collections.abc import Callable, Iterator
 from contextlib import ExitStack, closing, contextmanager
+from pathlib import Path
 from typing import Any
 
-from youtube_intel.backup_restore import BackupRestoreError, BackupRestoreService
+from youtube_intel.backup_restore import (
+    BackupRestoreError,
+    BackupRestoreService,
+    machine_configuration_root,
+)
 from youtube_intel.local_distillation_profile import canonical
 from youtube_intel.local_intelligence_catalog import (
     CANDIDATE_ID,
@@ -27,6 +32,7 @@ from youtube_intel.state import SQLiteStateRepository, StateStoreError
 from youtube_intel.tracked_retry_context import (
     RetryConflict,
     RetryIntegrity,
+    store_lock,
 )
 
 MAX_BYTES = 16_384
@@ -60,6 +66,96 @@ def _object(raw: bytes) -> dict[str, Any]:
     return value
 
 
+def _read_configuration(root: Path, name: str) -> bytes | None:
+    with managed_directory(root, create=True) as directory:
+        identity = os.fstat(directory)
+        if identity.st_uid != os.getuid() or identity.st_mode & 0o022:
+            raise ValueError("unsafe configuration directory")
+        try:
+            fd = os.open(
+                name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory
+            )
+        except FileNotFoundError:
+            return None
+        with os.fdopen(fd, "rb") as stream:
+            before = os.fstat(stream.fileno())
+            maximum = MAX_BYTES * 3 if name == "change.json" else MAX_BYTES
+            if (
+                not stat.S_ISREG(before.st_mode)
+                or before.st_uid != os.getuid()
+                or before.st_nlink != 1
+                or before.st_mode & 0o022
+                or before.st_size > maximum
+            ):
+                raise ValueError("unsafe configuration file")
+            raw = stream.read(maximum + 1)
+            after = os.fstat(stream.fileno())
+            named = os.stat(name, dir_fd=directory, follow_symlinks=False)
+
+            def fingerprint(s: os.stat_result) -> tuple[int, int, int, int, int]:
+                return (s.st_dev, s.st_ino, s.st_size, s.st_mtime_ns, s.st_ctime_ns)
+
+            if (
+                fingerprint(before) != fingerprint(after)
+                or fingerprint(after) != fingerprint(named)
+                or len(raw) != before.st_size
+            ):
+                raise ValueError("configuration changed while reading")
+            return raw
+
+
+def _decode_selection(raw: bytes | None) -> InstalledCandidate | None:
+    if raw is None:
+        return None
+    value = _object(raw)
+    if type(value.get("version")) is not int:
+        raise ValueError("unsupported machine selection")
+    if value["version"] == 1:
+        if (
+            set(value) != {"version", "candidate_id", "generation"}
+            or value["candidate_id"] != CANDIDATE_ID
+        ):
+            raise ValueError("unsupported historical machine selection")
+    elif value["version"] == 2:
+        if set(value) != {"version", "candidate_id", "generation", "catalog_hash"}:
+            raise ValueError("unsupported machine selection")
+    else:
+        raise ValueError("unsupported machine selection")
+    candidate = resolve_candidate(value["candidate_id"])
+    if value["version"] == 2 and value["catalog_hash"] != candidate.catalog_hash:
+        raise ValueError("installation catalog identity differs")
+    if (
+        not isinstance(value["generation"], str)
+        or re.fullmatch(r"[0-9a-f]{64}", value["generation"]) is None
+    ):
+        raise ValueError("unsupported machine selection")
+    return candidate
+
+
+@contextmanager
+def legacy_configuration_admission(data_root: Path) -> Iterator[bool]:
+    """Legacy processing shares the machine latch but never recovers/applies it."""
+    root = machine_configuration_root(data_root)
+    with ExitStack() as stack:
+        for path in (root.parent, root):
+            directory = stack.enter_context(managed_directory(path, create=True))
+            identity = os.fstat(directory)
+            if identity.st_uid != os.getuid() or identity.st_mode & 0o022:
+                raise ValueError("Machine configuration directory is unsafe.")
+        try:
+            stack.enter_context(store_lock(root / ".admission", exclusive=False))
+        except (RetryConflict, RetryIntegrity):
+            yield False
+            return
+        # Any journal, including a pre-promotion or damaged one, requires the
+        # owning GUI composition to recover it. CLI must not clear this latch.
+        if _read_configuration(root, "change.json") is not None:
+            yield False
+            return
+        _decode_selection(_read_configuration(root, "model.json"))
+        yield True
+
+
 class LocalIntelligenceSettings:
     def __init__(
         self,
@@ -84,41 +180,7 @@ class LocalIntelligenceSettings:
         backup.bind_configuration_guard(self.admission_allowed)
 
     def _read(self, name: str) -> bytes | None:
-        with managed_directory(self.root, create=True) as directory:
-            identity = os.fstat(directory)
-            if identity.st_uid != os.getuid() or identity.st_mode & 0o022:
-                raise ValueError("unsafe configuration directory")
-            try:
-                fd = os.open(
-                    name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory
-                )
-            except FileNotFoundError:
-                return None
-            with os.fdopen(fd, "rb") as stream:
-                before = os.fstat(stream.fileno())
-                maximum = MAX_BYTES * 3 if name == "change.json" else MAX_BYTES
-                if (
-                    not stat.S_ISREG(before.st_mode)
-                    or before.st_uid != os.getuid()
-                    or before.st_nlink != 1
-                    or before.st_mode & 0o022
-                    or before.st_size > maximum
-                ):
-                    raise ValueError("unsafe configuration file")
-                raw = stream.read(maximum + 1)
-                after = os.fstat(stream.fileno())
-                named = os.stat(name, dir_fd=directory, follow_symlinks=False)
-
-                def fingerprint(s: os.stat_result) -> tuple[int, int, int, int, int]:
-                    return (s.st_dev, s.st_ino, s.st_size, s.st_mtime_ns, s.st_ctime_ns)
-
-                if (
-                    fingerprint(before) != fingerprint(after)
-                    or fingerprint(after) != fingerprint(named)
-                    or len(raw) != before.st_size
-                ):
-                    raise ValueError("configuration changed while reading")
-                return raw
+        return _read_configuration(self.root, name)
 
     def _write(self, name: str, raw: bytes | None) -> None:
         with managed_directory(self.root, create=True) as directory:
@@ -157,31 +219,7 @@ class LocalIntelligenceSettings:
                     pass
 
     def _selection(self, raw: bytes | None) -> InstalledCandidate | None:
-        if raw is None:
-            return None
-        value = _object(raw)
-        if type(value.get("version")) is not int:
-            raise ValueError("unsupported machine selection")
-        if value["version"] == 1:
-            if (
-                set(value) != {"version", "candidate_id", "generation"}
-                or value["candidate_id"] != CANDIDATE_ID
-            ):
-                raise ValueError("unsupported historical machine selection")
-        elif value["version"] == 2:
-            if set(value) != {"version", "candidate_id", "generation", "catalog_hash"}:
-                raise ValueError("unsupported machine selection")
-        else:
-            raise ValueError("unsupported machine selection")
-        candidate = resolve_candidate(value["candidate_id"])
-        if value["version"] == 2 and value["catalog_hash"] != candidate.catalog_hash:
-            raise ValueError("installation catalog identity differs")
-        if (
-            not isinstance(value["generation"], str)
-            or re.fullmatch(r"[0-9a-f]{64}", value["generation"]) is None
-        ):
-            raise ValueError("unsupported machine selection")
-        return candidate
+        return _decode_selection(raw)
 
     @property
     def candidate(self) -> InstalledCandidate:
