@@ -160,6 +160,12 @@ class _BoundedZipReader:
     def seekable(self) -> bool:
         return True
 
+def machine_configuration_root(data_root: Path) -> Path:
+    identity = Path(os.path.abspath(data_root))
+    scope = hashlib.sha256(os.fsencode(identity)).hexdigest()
+    return identity.parent / ".local-intelligence" / scope
+
+
 class BackupRestoreService:
     """Owns private archive/staging paths and operates only on core DATA/SQLite."""
 
@@ -194,6 +200,7 @@ class BackupRestoreService:
         self._background_active = 0
         self._native_import_active = 0
         self._background_wakeup: Callable[[], None] | None = None
+        self._configuration_allowed: Callable[[], bool] = lambda: True
         self._ensure_control_root()
         if not self.marker_path.exists():
             self._cleanup_unconfirmed_staging()
@@ -229,14 +236,58 @@ class BackupRestoreService:
     def bind_background_wakeup(self, wakeup: Callable[[], None]) -> None:
         self._background_wakeup = wakeup
 
+    def bind_configuration_guard(self, allowed: Callable[[], bool]) -> None:
+        self._configuration_allowed = allowed
+
+    @property
+    def machine_configuration_root(self) -> Path:
+        return machine_configuration_root(self.data_root)
+
+    @contextmanager
+    def admission_lock(self, *, exclusive: bool = False) -> Iterator[None]:
+        from contextlib import ExitStack
+
+        from .tracked_retry_context import store_lock
+
+        # One machine/DATA pair can be opened by CLI and GUI using different
+        # database paths. Share the stable sibling lock as well as preserving
+        # the existing database lock used by Content retry and Backup.
+        anchor = self.machine_configuration_root / ".admission"
+        with ExitStack() as stack:
+            for root in (anchor.parent.parent, anchor.parent):
+                descriptor = stack.enter_context(managed_directory(root, create=True))
+                identity = os.fstat(descriptor)
+                if identity.st_uid != os.getuid() or identity.st_mode & 0o022:
+                    raise ValueError("Machine configuration directory is unsafe.")
+            stack.enter_context(store_lock(anchor, exclusive=exclusive))
+            if anchor.parent != self.database.absolute().parent:
+                stack.enter_context(store_lock(self.database, exclusive=exclusive))
+            yield
+
     @property
     def background_allowed(self) -> bool:
         with self._background_lock:
-            return not self._background_suspended and not self.restore_pending and not self.restart_requested
+            return (not self._background_suspended and not self.restore_pending
+                and not self.restart_requested and self._configuration_allowed())
 
     @contextmanager
     def background_work(self, *, native_import: bool = False) -> Iterator[bool]:
         """Atomically admit work against protected archive/restore windows."""
+        from contextlib import ExitStack
+
+        from .tracked_retry_context import RetryConflict, RetryIntegrity
+
+        with ExitStack() as stack:
+            try:
+                stack.enter_context(self.admission_lock())
+            except (RetryConflict, RetryIntegrity):
+                yield False
+                return
+            with self._background_work_count(native_import=native_import) as allowed:
+                yield allowed
+
+    @contextmanager
+    def _background_work_count(self, *, native_import: bool) -> Iterator[bool]:
         with self._background_lock:
             allowed = self.background_allowed
             if allowed:
@@ -258,13 +309,15 @@ class BackupRestoreService:
                 raise BackupRestoreError("A local snapshot is being created. Wait for its import before Restore.")
 
     @contextmanager
-    def _protect_background(self) -> Iterator[None]:
+    def _protect_background(self, *, configuration: bool = False) -> Iterator[None]:
         # Existing active work remains visible to the quiescence check; do not
         # wait holding SQLite while that work needs SQLite to settle.
-        from .tracked_retry_context import RetryConflict, RetryIntegrity, store_lock
+        from .tracked_retry_context import RetryConflict, RetryIntegrity
 
         try:
-            with store_lock(self.database, exclusive=True):
+            with self.admission_lock(exclusive=True):
+                if not configuration and not self._configuration_allowed():
+                    raise BackupRestoreError("Local model configuration is applying or this runtime is stale.")
                 with self._background_lock:
                     self._background_suspended += 1
                 try:
@@ -276,6 +329,19 @@ class BackupRestoreService:
                         self._background_wakeup()
         except (RetryConflict, RetryIntegrity) as error:
             raise BackupRestoreError("Content retry is still writing; wait before Backup or Restore.") from error
+
+    @contextmanager
+    def configuration_window(self) -> Iterator[None]:
+        """Exclusive source/configuration CAS window; caller retains durable latch."""
+        with self._live_transaction(configuration=True) as connection, self._staged_lock:
+            if self.restore_pending or self._staged:
+                raise BackupRestoreError("Finish or cancel Restore before changing the local model.")
+            reasons = self._quiescence_reasons(connection)
+            self._verify_core_database(connection)
+            if reasons:
+                raise BackupRestoreError("Local model configuration is blocked: " + ", ".join(reasons))
+            self._live_artifacts(connection)
+            yield
 
     def readiness(self) -> dict[str, object]:
         try:
@@ -1751,12 +1817,12 @@ class BackupRestoreService:
                 return False
         return has_ambiguous_child
 
-    def _live_transaction(self) -> Any:
+    def _live_transaction(self, *, configuration: bool = False) -> Any:
         service = self
 
         class Transaction:
             def __enter__(self) -> sqlite3.Connection:
-                self.protection = service._protect_background()
+                self.protection = service._protect_background(configuration=configuration)
                 self.protection.__enter__()
                 try:
                     self.connection = sqlite3.connect(service.database, timeout=1, isolation_level=None)

@@ -160,3 +160,13 @@ Only server-authorized actions are shown; unknown or malformed receipts close
 actions. Preserve one command across uncertain responses and status polling.
 Local attention offers local-only retry and finish-with-text, with no inferred
 Intelligence/model eligibility. Detail polling must preserve feedback and focus.
+
+## Local Intelligence installation choice
+
+Keep the Intelligence action/result panel before transcript and Evidence so long
+sources never bury the primary action. Settings distinguishes the unchanged
+scoring/Summary model, actual Intelligence route, and quality eligibility. Offer
+only fixed installed model/runtime identities with an explicit radio selection.
+Save and apply reconnects to the local service; success requires a fresh actual
+route read. Preserve drafts on busy/conflict/network errors, link unfinished
+Content, and never equate installation selection with quality qualification.

@@ -148,3 +148,19 @@ it("keeps cancellation usable when a later capability is unknown", async () => {
   expect(writes).toHaveLength(1); expect(writes[0][0]).toContain('/intelligence/cancel');
   expect(screen.getByText('Preserved Summary')).toBeTruthy();
 });
+
+it("guides a wrong route to Settings without promising wait or creating a task", async () => {
+  local = { ...capability(), request_state: "CONFIGURATION_REQUIRED", reason: "MODEL_CONFIGURATION_REQUIRED" };
+  render(<App />);
+  await screen.findByText("Configure the local Intelligence model in Settings before requesting extraction. No task will be created with the current route.");
+  expect((screen.getByRole("button", { name: "Extract Intelligence" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.getByRole("link", { name: "Open model settings" }).getAttribute("href")).toBe("#Settings");
+  expect(fetcher.mock.calls.every(([, init]) => !init?.method || init.method === "GET")).toBe(true);
+});
+
+it("places the existing Intelligence action ahead of long source material", async () => {
+  render(<App />); const button = await screen.findByRole("button", { name: "Extract Intelligence" });
+  const source = screen.getByText("Original source");
+  expect(button.compareDocumentPosition(source) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(screen.getByText("Preserved Summary")).toBeTruthy();
+});

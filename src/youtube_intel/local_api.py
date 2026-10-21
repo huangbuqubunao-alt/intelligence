@@ -11,7 +11,8 @@ import socket
 import sqlite3
 import threading
 import time
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import asdict
 from datetime import UTC, datetime
 from functools import partial
@@ -65,6 +66,10 @@ from youtube_intel.intelligence_read import (
 )
 from youtube_intel.knowledge_delta import KnowledgeDeltaService
 from youtube_intel.local_content import LocalContentProvider, LocalImportError
+from youtube_intel.local_intelligence_settings import (
+    LocalIntelligenceSettings,
+    SettingsRejected,
+)
 from youtube_intel.local_transcription_jobs import LocalTranscriptionJobs
 from youtube_intel.model_settings import CredentialStoreError, ModelSettingsService
 from youtube_intel.native_import import NativeImportService, macos_pick
@@ -566,6 +571,7 @@ class LocalApiApplication:
         runtime_model: str | None = None,
         runtime_model_digest: str | None = None,
         local_distillation_capabilities: Callable[[], tuple[dict[str, object], ...]] | None = None,
+        local_intelligence_settings: LocalIntelligenceSettings | None = None,
     ) -> None:
         self._repository = repository
         self._service = service
@@ -579,6 +585,7 @@ class LocalApiApplication:
         self._cloud_intelligence_qualified = cloud_intelligence_qualified
         self._cloud_credential_available = cloud_credential_available
         self._model_settings = model_settings
+        self._local_intelligence_settings = local_intelligence_settings
         self._runtime_model = runtime_model
         self._runtime_model_digest = runtime_model_digest
         self._local_distillation_capabilities = local_distillation_capabilities
@@ -658,6 +665,10 @@ class LocalApiApplication:
             self._native_import.shutdown()
 
     def native_request(self, method: str, route: str, body: bytes, origin: str) -> tuple[int, dict[str, object]]:
+        with self._configuration_admission(route):
+            return self._native_request(method, route, body, origin)
+
+    def _native_request(self, method: str, route: str, body: bytes, origin: str) -> tuple[int, dict[str, object]]:
         service = self._native_import
         if service is None:
             raise ApiError(HTTPStatus.NOT_FOUND, "LOCAL_NATIVE_PICKER_UNAVAILABLE", "Native local selection is unavailable.")
@@ -804,7 +815,57 @@ class LocalApiApplication:
             )
         return timestamp.astimezone(UTC)
 
-    def handle(
+    @contextmanager
+    def _configuration_admission(self, route: str) -> Iterator[None]:
+        settings = self._local_intelligence_settings
+        if settings is None or route.startswith("/api/v1/backup-restore/"):
+            # Backup control methods recheck the same guard under their EX lock.
+            yield
+            return
+        maintenance = route.endswith("/intelligence/cancel")
+        with settings.admission(maintenance=maintenance) as allowed:
+            if not allowed:
+                raise ApiError(HTTPStatus.CONFLICT, "CONFIGURATION_APPLYING",
+                    "Local model settings are applying. Wait for the local service to reconnect.")
+            if maintenance or self._backup_restore_service is None:
+                yield
+                return
+            with self._backup_restore_service.background_work() as admitted:
+                if not admitted:
+                    raise ApiError(HTTPStatus.CONFLICT, "CONFIGURATION_APPLYING",
+                        "Protected local work prevents this request. Try again after it settles.")
+                yield
+
+    def handle(self, method: str, path: str, body: bytes = b"") -> tuple[int, dict[str, object]]:
+        route = urlparse(path).path.rstrip("/")
+        if route == "/api/v1/settings/local-intelligence":
+            settings = self._local_intelligence_settings
+            if settings is None:
+                raise ApiError(HTTPStatus.CONFLICT, "SETTINGS_UNAVAILABLE", "Local Intelligence settings are unavailable.")
+            if method == "GET":
+                return HTTPStatus.OK, {"local_intelligence": settings.status()}
+            if method == "PUT":
+                data = self._body(body)
+                self._only_keys(data, {"candidate_id", "expected_etag"})
+                candidate = self._string(data, "candidate_id", required=True) or ""
+                token = self._string(data, "expected_etag", required=True) or ""
+                try:
+                    result = settings.apply(candidate, token)
+                except SettingsRejected as error:
+                    raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY if error.code == "MODEL_CANDIDATE_INVALID"
+                        else HTTPStatus.CONFLICT, error.code,
+                        "Local Intelligence settings could not apply. Keep this selection and check model identity or unfinished tasks.",
+                        details={"reason_code": error.reason}) from error
+                restarting = result["restart_required"] is True
+                return (HTTPStatus.ACCEPTED if restarting else HTTPStatus.OK), {
+                    "local_intelligence": result, "runtime_restart_required": restarting}
+            raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+        if method in {"GET", "HEAD"}:
+            return self._handle(method, path, body)
+        with self._configuration_admission(route):
+            return self._handle(method, path, body)
+
+    def _handle(
         self, method: str, path: str, body: bytes = b""
     ) -> tuple[int, dict[str, object]]:
         route = urlparse(path).path.rstrip("/") or "/"
@@ -998,6 +1059,7 @@ class LocalApiApplication:
                 if source_id is None or self._distillation_service is None:
                     raise ApiError(HTTPStatus.CONFLICT, "CONTENT_NOT_READY", "Finish organizing this Content before extracting Intelligence.")
                 command_id = self._string(data, "command_id", required=True) or ""
+                from .long_distillation_persistence import ModelConfigurationRequired
                 from .state import StateStoreError
                 try:
                     reservation = self._distillation_service.reserve_distillation_execution(
@@ -1005,6 +1067,9 @@ class LocalApiApplication:
                         evidence_ids=self._distillation_service.reservation_evidence_ids(video_id),
                         manual_command_id=command_id,
                     )
+                except ModelConfigurationRequired as error:
+                    raise ApiError(HTTPStatus.CONFLICT, "MODEL_CONFIGURATION_REQUIRED",
+                        "Select the fixed local Intelligence model in Settings before requesting extraction.") from error
                 except StateStoreError as error:
                     raise ApiError(HTTPStatus.CONFLICT, "CONTENT_INTELLIGENCE_UNAVAILABLE",
                         "Content source could not be verified for Intelligence. Existing source material was kept.") from error
@@ -1940,6 +2005,10 @@ class LocalApiApplication:
             result["reason"] = "SCOPE_OR_LANGUAGE_UNAVAILABLE"
             return result
         from .long_distillation_persistence import route_required
+        if self._local_intelligence_settings is not None and not self._local_intelligence_settings.admission_allowed():
+            result.update(model=matrix["model"], profile_id=matrix["profile_id"],
+                request_state="CONFIGURATION_REQUIRED", reason="MODEL_CONFIGURATION_REQUIRED")
+            return result
         if self._distillation_service is not None and route_required(self._distillation_service, video_id, ids, source_id):
             from .long_distillation_profile import PROFILE_ID, resolve_long_profile
             long_profile = json.loads(resolve_long_profile(PROFILE_ID).profile_wire)
@@ -1949,6 +2018,10 @@ class LocalApiApplication:
         rows = cast(list[dict[str, object]], matrix["scopes"])
         row = next(item for item in rows if item["scope"] == scope and item["output_language"] == language)
         result.update(model=row["model"], profile_id=row["profile_id"], qualification_status=row["status"], request_state="WAITING_MODEL")
+        from .long_distillation_persistence import configuration_required
+        if self._distillation_service is not None and configuration_required(self._distillation_service):
+            result.update(request_state="CONFIGURATION_REQUIRED", reason="MODEL_CONFIGURATION_REQUIRED")
+            return result
         if row["status"] != "QUALIFIED":
             result["reason"] = "NOT_QUALIFIED"
         elif matrix["runtime_binding"] != {"provider": "ollama", "model": row["model"], "profile_id": row["profile_id"]}:
@@ -2140,7 +2213,12 @@ class LocalApiApplication:
             )
         return self._deep_analysis_service
 
-    def handle_stream(
+    def handle_stream(self, path: str, stream: BinaryIO, length: int, *,
+        cancelled: Callable[[], bool] | None = None) -> tuple[int, dict[str, object]]:
+        with self._configuration_admission(urlparse(path).path.rstrip("/")):
+            return self._handle_stream(path, stream, length, cancelled=cancelled)
+
+    def _handle_stream(
         self, path: str, stream: BinaryIO, length: int,
         *, cancelled: Callable[[], bool] | None = None,
     ) -> tuple[int, dict[str, object]]:
@@ -3594,6 +3672,9 @@ def serve_loopback(
                     if self._cancelled():
                         self.close_connection = True
                         return
+                if response_payload.get("runtime_restart_required") is True:
+                    # Restart even if this client disconnects after persistence.
+                    threading.Timer(0.25, self.server.shutdown).start()
                 self._send(status, response_payload)
                 response_sent = True
                 restore = response_payload.get("restore")

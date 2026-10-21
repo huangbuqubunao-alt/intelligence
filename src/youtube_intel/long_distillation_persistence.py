@@ -57,6 +57,15 @@ PROOFS = "long_distillation_input_proofs"
 RECEIPTS = "long_distillation_completion_receipts"
 
 
+class ModelConfigurationRequired(StateStoreError):
+    pass
+
+
+def configuration_required(service: PersonalizedDistillationService) -> bool:
+    profile = loads(resolve_long_profile(PROFILE_ID).profile_wire.decode())
+    return service._selected_provider == "ollama" and service._selected_model != profile["model"]
+
+
 def is_long(execution_id: str) -> bool:
     return execution_id.casefold().startswith(FAMILY)
 

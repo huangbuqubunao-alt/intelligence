@@ -50,6 +50,7 @@ from youtube_intel.model_settings import (
     MacOSKeychainCredentialStore,
     ModelSettingsService,
     local_models,
+    local_runtime_version,
 )
 from youtube_intel.orchestration_service import ProductOrchestrationService
 from youtube_intel.processing_orchestrator import (
@@ -536,7 +537,20 @@ def build_local_source_run_runtime(
         analysis_provider_factory=guarded_factory(runtime._dependencies.analysis_provider_factory),
         quality_judge_provider_factory=(guarded_factory(runtime._dependencies.quality_judge_provider_factory)
             if runtime._dependencies.quality_judge_provider_factory is not None else None))
-    transport = build_production_local_distillation_transport(config.settings.local_scoring)
+    from .local_intelligence_settings import LocalIntelligenceSettings
+
+    model_settings = ModelSettingsService(
+        credential_store or MacOSKeychainCredentialStore(),
+        tags_fetch=lambda: local_models(config.settings.local_scoring.base_url),
+        version_fetch=lambda: local_runtime_version(config.settings.local_scoring.base_url),
+    )
+    machine_settings = LocalIntelligenceSettings(backup_restore, probe=model_settings.fixed_local_identity)
+    intelligence_config = config.settings.local_scoring
+    if machine_settings.selected():
+        profile = machine_settings.candidate
+        intelligence_config = LocalScoringSettings(model=profile.model,
+            expected_model_digest=profile.model_digest, base_url=intelligence_config.base_url)
+    transport = build_production_local_distillation_transport(intelligence_config)
     distillation = PersonalizedDistillationService(
         repository,
         source_policy,
@@ -555,11 +569,6 @@ def build_local_source_run_runtime(
         capability_scope=DistillationCapabilityScope.V1_VIDEO_DISTILLATION,
         available=True,
     )
-    model_settings = ModelSettingsService(
-        credential_store or MacOSKeychainCredentialStore(),
-        tags_fetch=lambda: local_models(config.settings.local_scoring.base_url),
-    )
-
     def cloud_service() -> PersonalizedDistillationService:
         cloud_transport = MoonshotK26NonThinkingCloudDistillationTransport(
             authorization=CloudDistillationAuthorization.for_normal_production(
@@ -636,6 +645,7 @@ def build_local_source_run_runtime(
         cloud_intelligence_qualified=m12_moonshot_qualified,
         cloud_credential_available=bool(model_settings.credential()),
         model_settings=model_settings,
+        local_intelligence_settings=machine_settings,
         refresh_cloud_distillation=cloud_service,
         processing_orchestrator=orchestrator,
         data_root=data_root,
@@ -663,6 +673,7 @@ def build_local_source_run_runtime(
             vault_subdir=config.settings.storage.vault_subdir,
         ),
     )
+    machine_settings.bind_actual(distillation.capability_binding(), intelligence_config.expected_model_digest)
     return LocalSourceRunRuntime(
         repository=repository,
         runtime=runtime,

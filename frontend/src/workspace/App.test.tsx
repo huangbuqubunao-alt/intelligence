@@ -307,6 +307,9 @@ beforeEach(() => {
   vi.stubGlobal(
     "fetch",
     vi.fn((input: string, init?: RequestInit) => {
+      if (input.endsWith("/settings/local-intelligence")) return response({ local_intelligence: { status: "NOT_CONFIGURED", etag: "b".repeat(64), selected_candidate_id: null,
+        actual_route: { provider: "ollama", model: "qwen3:8b", profile_id: null }, blocking_work: [],
+        candidates: [{ candidate_id: "fixed-0406", model: "qwen3.5:9b-q4_K_M", runtime: "0.40.6", catalog_hash: "a".repeat(64), installation: "READY" }] } });
       if (input.endsWith("/knowledge-delta")) {
         return response({ knowledge_delta: {
           window_start: "2026-09-26T08:00:00.000000Z", window_end: "2026-10-03T08:00:00.000000Z",

@@ -122,7 +122,11 @@ def main(
                 project_root=project_root,
                 database=args.database,
             )
-            runs = composition.product.scheduler_tick(limit=args.limit)
+            with composition.backup_restore.background_work() as admitted:
+                if not admitted:
+                    print("Local configuration or protected work prevents scheduler admission.")
+                    return ExitCode.USAGE_OR_CONFIGURATION
+                runs = composition.product.scheduler_tick(limit=args.limit)
             for _ in runs:
                 if composition.worker.run_once() is None:
                     break
@@ -212,6 +216,45 @@ def main(
             )
             return ExitCode.EXECUTION_FAILED
 
+    return _run_operations(args, config, project_root, operations, run_id)
+
+
+def _run_operations(
+    args: argparse.Namespace, config: AppConfig, project_root: Path,
+    operations: Operations | None, run_id: str,
+) -> ExitCode:
+    if operations is not None:
+        return _run_admitted_operations(args, config, project_root, operations, run_id)
+    # Legacy CLI keeps its fast/scoring route. It still participates in the
+    # machine apply barrier before bootstrap or any provider/job admission.
+    from youtube_intel.backup_restore import (
+        BackupRestoreService,
+        machine_configuration_root,
+    )
+    from youtube_intel.local_intelligence_settings import LocalIntelligenceSettings
+
+    try:
+        data = _project_path(project_root, config.settings.storage.data_dir)
+        scope = machine_configuration_root(data)
+        backup = BackupRestoreService(database=scope / ".admission", data_root=data)
+        settings = LocalIntelligenceSettings(backup, probe=lambda _: "UNAVAILABLE")
+        with settings.admission() as allowed:
+            if not allowed:
+                print("Local Intelligence configuration must settle before this command.", file=sys.stderr)
+                return ExitCode.USAGE_OR_CONFIGURATION
+            with backup.background_work() as admitted:
+                if not admitted:
+                    return ExitCode.USAGE_OR_CONFIGURATION
+                return _run_admitted_operations(args, config, project_root, None, run_id)
+    except (OSError, ValueError, sqlite3.Error):
+        print("Local configuration or protected work prevents this command.", file=sys.stderr)
+        return ExitCode.LOCAL_RESOURCE
+
+
+def _run_admitted_operations(
+    args: argparse.Namespace, config: AppConfig, project_root: Path,
+    operations: Operations | None, run_id: str,
+) -> ExitCode:
     if operations is None:
         try:
             from youtube_intel.runtime import create_runtime_operations

@@ -21,6 +21,9 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); locati
 async function settingsView(language: Language, providers: object[] = [localProvider, cloudProvider], model = runtime) {
   localStorage.setItem("yia.ui-language", language);
   const fetch = vi.fn((path: string, _init?: RequestInit) => Promise.resolve({ ok: true, json: async () => {
+    if (path.endsWith("/settings/local-intelligence")) return { local_intelligence: { status: "NOT_CONFIGURED", etag: "b".repeat(64), selected_candidate_id: null,
+        actual_route: { provider: "ollama", model: "qwen3:8b", profile_id: null }, blocking_work: [],
+        candidates: [{ candidate_id: "fixed-0406", model: "qwen3.5:9b-q4_K_M", runtime: "0.40.6", catalog_hash: "a".repeat(64), installation: "READY" }] } };
     if (path.endsWith("/settings")) return {
       general: { timezone: "Asia/Shanghai", output_language: "zh-CN", output_language_source: "BOOTSTRAP_DEFAULT", output_language_updated_at: null },
       providers, runtime_local_model: model,
@@ -57,7 +60,7 @@ it.each<Language>(["en", "zh-CN"])("separates installed identity, unqualified lo
     : "云端洞察是可选方案。使用时需要配置凭据，并逐次明确授权。内容整理仍可使用。")).toBeTruthy();
   expect(copy.queryByText(/Installed and ready|已安装，可使用/)).toBeNull();
   expect(copy.getByText(language === "en" ? /Content is saved and organized locally/ : /内容将在本机保存并整理/)).toBeTruthy();
-  expect(fetch.mock.calls.every(([path]) => ["/settings", "/settings/preferences", "/settings/source-policy", "/settings/resource-usage", "/settings/local-models", "/local/transcription/capability", "/backup-restore/status"].some(route => path === `/api/v1${route}`))).toBe(true);
+  expect(fetch.mock.calls.every(([path]) => ["/settings", "/settings/local-intelligence", "/settings/preferences", "/settings/source-policy", "/settings/resource-usage", "/settings/local-models", "/local/transcription/capability", "/backup-restore/status"].some(route => path === `/api/v1${route}`))).toBe(true);
   expect(fetch.mock.calls.every(([, init]) => (!init?.method || init.method === "GET") && init?.body === undefined)).toBe(true); // Reads never authorize or invoke work.
 });
 

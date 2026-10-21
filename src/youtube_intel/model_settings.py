@@ -7,7 +7,10 @@ import json
 import os
 from collections.abc import Callable
 from http.client import HTTPConnection
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
+
+if TYPE_CHECKING:
+    from .local_intelligence_catalog import InstalledCandidate
 from urllib.parse import urlparse
 
 from youtube_intel.config import _validate_loopback_http_base_url
@@ -98,11 +101,19 @@ class MacOSKeychainCredentialStore:
 
 
 def local_models(base_url: str = "http://127.0.0.1:11434") -> object:
+    return _local_metadata(base_url, "/api/tags")
+
+
+def local_runtime_version(base_url: str = "http://127.0.0.1:11434") -> object:
+    return _local_metadata(base_url, "/api/version")
+
+
+def _local_metadata(base_url: str, endpoint: str) -> object:
     # Discovery only. No /generate, /pull, qualification or external request.
     parsed = urlparse(_validate_loopback_http_base_url(base_url))
     connection = HTTPConnection(parsed.hostname or "127.0.0.1", parsed.port or 80, timeout=2)
     try:
-        connection.request("GET", parsed.path.rstrip("/") + "/api/tags")
+        connection.request("GET", parsed.path.rstrip("/") + endpoint)
         response = connection.getresponse()
         if response.status != 200:
             raise ValueError("Discovery unavailable")
@@ -115,9 +126,29 @@ def local_models(base_url: str = "http://127.0.0.1:11434") -> object:
 
 
 class ModelSettingsService:
-    def __init__(self, store: CredentialStore, *, tags_fetch: Callable[[], object] = local_models) -> None:
+    def __init__(self, store: CredentialStore, *, tags_fetch: Callable[[], object] = local_models,
+        version_fetch: Callable[[], object] = local_runtime_version) -> None:
         self._store = store
         self._tags_fetch = tags_fetch
+        self._version_fetch = version_fetch
+
+    def fixed_local_identity(self, candidate: InstalledCandidate | None = None) -> str:
+        """Only bounded metadata for the one fixed candidate; no inference."""
+        from .local_intelligence_catalog import CATALOG
+        profile = candidate or CATALOG[0]
+        state = self.runtime_status(profile.model, profile.model_digest)["status"]
+        if state == "NOT_INSTALLED":
+            return "NOT_INSTALLED"
+        if state == "DIGEST_MISMATCH":
+            return "IDENTITY_MISMATCH"
+        if state != "READY":
+            return "UNAVAILABLE"
+        try:
+            version = self._version_fetch()
+            return ("READY" if isinstance(version, dict) and version.get("version") == profile.runtime
+                else "RUNTIME_MISMATCH")
+        except (OSError, ValueError, UnicodeError):
+            return "UNAVAILABLE"
 
     def credential(self) -> str:
         try:

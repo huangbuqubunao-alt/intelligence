@@ -7,6 +7,7 @@ import { LocalImport, localStatus, localImportErrors } from "./LocalImport";
 import { NativeImportActivity } from "./NativeLocalImport";
 import { LocalTranscription, transcriptionCopy } from "./LocalTranscription";
 import { TranscriptionSetup } from "./TranscriptionSetup";
+import { LocalIntelligenceSetup } from "./LocalIntelligenceSetup";
 import { ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { ApiRequestError, api, patch, post, put, uploadZip } from "../api/client";
 import { ModelSettings } from "./ModelSettings";
@@ -235,7 +236,7 @@ type LocalScopeStatus = { scope: LocalScope; output_language: "en" | "zh-CN"; mo
 type LocalMatrix = { status: "KNOWN"; model: string; profile_id: string; runtime_binding: LocalBinding | null; scopes: LocalScopeStatus[] };
 type ContentLocalCapability = { video_id: string; scope: LocalScope; output_language: "en" | "zh-CN"; model: string; profile_id: string;
   runtime_binding: LocalBinding; qualification_status: "QUALIFIED" | "NOT_QUALIFIED";
-  request_state: "WAITING_MODEL" | "ELIGIBLE_FOR_ADMISSION" | "UNKNOWN"; reason: string };
+  request_state: "WAITING_MODEL" | "ELIGIBLE_FOR_ADMISSION" | "UNKNOWN" | "CONFIGURATION_REQUIRED"; reason: string };
 const localObject = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
 const localText = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
 const localScope = (value: unknown): value is LocalScope => value === "YT_TIMED" || value === "LOCAL_TIMED" || value === "LOCAL_TEXT";
@@ -259,11 +260,11 @@ function readContentLocal(value: unknown, video: ContentItem, id: string): Conte
   if (video.provider === "YOUTUBE" ? value.scope !== "YT_TIMED" : video.provider !== "LOCAL" || value.scope === "YT_TIMED"
       || (video.media_kind === "TEXT" && value.scope !== "LOCAL_TEXT") || (["AUDIO", "VIDEO"].includes(video.media_kind ?? "") && value.scope !== "LOCAL_TIMED")) return null;
   const matches = value.runtime_binding.provider === "ollama" && value.runtime_binding.model === value.model && value.runtime_binding.profile_id === value.profile_id;
-  const consistent = value.qualification_status === "NOT_QUALIFIED"
+  const consistent = value.request_state === "CONFIGURATION_REQUIRED" && value.reason === "MODEL_CONFIGURATION_REQUIRED" || (value.qualification_status === "NOT_QUALIFIED"
     ? value.request_state === "WAITING_MODEL" && value.reason === "NOT_QUALIFIED"
     : (value.request_state === "ELIGIBLE_FOR_ADMISSION" && matches && value.reason === "ADMISSION_CHECKS_REQUIRED")
       || (value.request_state === "WAITING_MODEL" && (value.reason === "ROUTE_REINITIALIZATION_REQUIRED" && !matches || value.reason === "MODEL_UNAVAILABLE" && matches))
-      || (value.request_state === "UNKNOWN" && matches && value.reason === "RESOURCE_STATUS_UNKNOWN");
+      || (value.request_state === "UNKNOWN" && matches && value.reason === "RESOURCE_STATUS_UNKNOWN"));
   return consistent ? value as ContentLocalCapability : null;
 }
 const localScopeLabel = (scope: LocalScope) => ({ YT_TIMED: "YouTube timed captions", LOCAL_TIMED: "Local audio/video", LOCAL_TEXT: "Local text documents" })[scope];
@@ -281,7 +282,7 @@ function LocalIntelligencePresentation({ matrix, content, onReload }: { matrix?:
       <p>{t("Target local Intelligence model")}: {content.model}</p>
       <p>{t(localScopeLabel(content.scope))} · {localLanguageLabel(content.output_language)}</p>
       <p>{t("Current execution route")}: {content.runtime_binding.model}</p>
-      <p>{t(({ NOT_QUALIFIED: "This source type and output language have not passed local Intelligence quality verification. A request will wait without running a model.",
+      <p>{t(({ MODEL_CONFIGURATION_REQUIRED: "Configure the local Intelligence model in Settings before requesting extraction. No task will be created with the current route.", NOT_QUALIFIED: "This source type and output language have not passed local Intelligence quality verification. A request will wait without running a model.",
         ROUTE_REINITIALIZATION_REQUIRED: "The verified model does not match the current route. Restart the local service to reinitialize it; extraction will wait.",
         MODEL_UNAVAILABLE: "The qualified model is unavailable. A request will wait; check local model setup.",
         RESOURCE_STATUS_UNKNOWN: "Local model resource status is unknown. Read the status again before requesting extraction.",
@@ -1802,6 +1803,118 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
       {data.video.source_id && (["RETRY_REQUIRED", "FAILED"].includes(data.video.processing_status) || data.video.caption_timing_status === "UNAVAILABLE") && <Panel title="Processing needs attention">{data.video.caption_timing_status === "UNAVAILABLE" && <p>{t("The captured captions have no verified source timing. Content needs timed captions before Summary and source references can be prepared.")}</p>}<p>{t(data.video.retry_allowed === false ? "This Content needs source or processing readiness review before it can be processed again." : data.video.summary_preparation_status === "NEEDS_ATTENTION" ? "Timed captions are saved, but the Summary could not be prepared. Retry to organize this Content; your captured text and source references are kept." : data.video.caption_timing_status === "UNAVAILABLE" ? "Retry to check this source for native timed captions. Your captured text and history are kept." : "Processing needs attention. Check the source and processing history before retrying; retry may still fail.")}</p><button className="button button-secondary" disabled={retryBusy || data.video.retry_allowed === false} onClick={async () => { setRetryBusy(true); setRetryFeedback(null); try { await post(`/sources/${data.video.source_id}/check`, { command_id: commandId() }); setRetryFeedback("Retry accepted. Processing status will update here."); setRefresh(value => value + 1); } catch { setRetryFeedback("The source could not be checked. Try again later."); } finally { setRetryBusy(false); } }}>{t(retryBusy ? "Retrying…" : "Retry")}</button>{retryFeedback && <p role="status">{t(retryFeedback)}</p>}</Panel>}
       {isBilibili && data.video.processing_status !== "SOURCE_UNAVAILABLE" && <FollowCreatorFromContent id={id} capability={creatorCapability} />}
       {data.video.provider === "YOUTUBE" && data.video.channel_id && /^UC[A-Za-z0-9_-]{22}$/.test(data.video.channel_id) && <FollowCreatorFromContent id={id} provider="YOUTUBE" />}
+      <Panel title="Intelligence result">
+        <LocalIntelligencePresentation content={localCapability} onReload={reload} />
+        <div className="semantic-state state-neutral">
+          <Status value={data.intelligence_result.status} />
+          <p role={data.intelligence_result.status === "CANCELLED" ? "status" : undefined}>{t(intelligenceResultCopy(data.intelligence_result.status))}</p>
+          {cancelFeedback && data.intelligence_result.status !== "CANCELLED" && <p role="status">{cancelFeedback}</p>}
+          {Boolean(data.waiting_model_executions?.length) && <div>
+            <p>{t("No qualified Intelligence model is currently available.")}</p>
+            {data.waiting_model_executions?.map((wait) => <div className="button-row" key={wait.execution_id}>
+              <span className="hint">{humanDate(wait.updated_at)}</span>
+              {wait.can_cancel ? <button type="button" className="button button-secondary" disabled={cloudBusy} onClick={async () => {
+                setCloudBusy(true); setCloudError(null);
+                try {
+                  await post(`/videos/${id}/intelligence/cancel`, { execution_id: wait.execution_id });
+                  setCancelFeedback(t(intelligenceResultCopy("CANCELLED")));
+                  setRefresh(value => value + 1);
+                } catch {
+                  setCloudError(t("This task cannot be safely cancelled. Refresh its current state."));
+                  setRefresh(value => value + 1);
+                } finally { setCloudBusy(false); }
+              }}>{t(cloudBusy ? "Cancelling…" : "Cancel this extraction")}</button>
+                : <p>{t("This task cannot be safely cancelled. Refresh its current state.")}</p>}
+            </div>)}
+          </div>}
+          {data.manual_intelligence_eligible && <div className="button-row">
+            <button type="button" className="button button-primary" disabled={cloudBusy || !localCapability || ["UNKNOWN", "CONFIGURATION_REQUIRED"].includes(localCapability.request_state) || Boolean(data.waiting_model_executions?.length)} onClick={async () => {
+              setCloudBusy(true); setCloudError(null); setCancelFeedback(null);
+              try { await post(`/videos/${id}/intelligence`, { command_id: commandId() }); setRefresh(value => value + 1); }
+              catch (error) { setCloudError(t(error instanceof ApiRequestError && error.code === "MODEL_CONFIGURATION_REQUIRED" ? "Configure the local Intelligence model in Settings before requesting extraction. No task will be created with the current route." : "Intelligence could not start. Check model readiness and try again.")); }
+              finally { setCloudBusy(false); }
+            }}>{t(cloudBusy ? "Considering Content…" : "Extract Intelligence")}</button>
+            <p className="hint">{t("Uses qualified local processing when available. Cloud processing requires a separate review and explicit authorization.")}</p>
+          </div>}
+          {cloudError ? <p role="alert">{cloudError}</p> : null}
+          {data.intelligence_result.status === "WAITING_MODEL" && data.cloud_intelligence_available === false
+            ? <p>{t("Cloud Intelligence is currently unavailable because the provider or its runtime credential is unavailable. Existing Summary and Evidence remain usable.")}</p>
+            : null}
+          {data.intelligence_result.status === "SUCCEEDED_NO_NEW_INTELLIGENCE"
+            ? (
+              <p className="hint">
+                {t("This is a completed processing result, not an Intelligence validation posture or numeric confidence score.")}
+              </p>
+            )
+            : null}
+          {data.intelligence_result.status === "WAITING_MODEL" && note?.status === "AVAILABLE"
+            ? (
+              <div>
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  onClick={() => setShowCloudTerms((current) => !current)}
+                >
+                  {t("Review high-quality Intelligence")}
+                </button>
+                {showCloudTerms
+                  ? (
+                    <div className="semantic-state state-neutral">
+                      <h3>{t("Cloud Intelligence disclosure")}</h3>
+                      <p>{t("Provider: Moonshot · Model: kimi-k2.6 (thinking disabled).")}</p>
+                      <p>{t("Only bounded, verified Evidence excerpts and the task context needed for this Intelligence judgment would leave this device. The full database, unrelated Content, Followings, library, and credentials are excluded. Your original Evidence remains authoritative here.")}</p>
+                      <p>{t("Moonshot API usage is billed separately and may incur charges. Cost for this execution: UNKNOWN before the response. Published China-platform K2.6 rates: ¥6.50 per million uncached input tokens, ¥1.10 per million cached input tokens, and ¥27 per million output tokens. This request allows up to 8,192 output tokens.")}</p>
+                      {data.cloud_intelligence_available
+                        ? (
+                          <>
+                            <p>{t("Preparing a review stores a local reservation only. Confirming authorizes exactly one request for the reviewed Evidence and task context.")}</p>
+                            <button type="button" className="button button-secondary" disabled={cloudBusy}
+                              onClick={async () => {
+                                setCloudBusy(true);
+                                setCloudError(null);
+                                try {
+                                  const response = await post<{ review: NonNullable<typeof cloudReview> }>(
+                                    `/videos/${id}/cloud-intelligence/review`, data.manual_intelligence_eligible ? { command_id: commandId() } : {},
+                                  );
+                                  setCloudReview(response.review);
+                                } catch (reason) {
+                                  setCloudError((reason as Error).message);
+                                } finally { setCloudBusy(false); }
+                              }}>{t("Prepare one request for review")}</button>
+                            {cloudReview && (
+                              <div>
+                                <p>{t("Source")}: {cloudReview.source_id}. {t("Evidence items")}: {cloudReview.evidence_ids.length}. {t("Provider/model")}: {cloudReview.provider} · {cloudReview.model}. {t("Cost")}: {t(cloudReview.cost_status)}.</p>
+                                <p>{t("Review the original Evidence on this Content page before confirming. This permission applies only to this execution.")}</p>
+                                <button type="button" className="button" disabled={cloudBusy}
+                                  onClick={async () => {
+                                    setCloudBusy(true);
+                                    setCloudError(null);
+                                    try {
+                                      await post(`/videos/${id}/cloud-intelligence/confirm`, {
+                                        execution_id: cloudReview.execution_id,
+                                        review_hash: cloudReview.verified_input_hash,
+                                        authorize: true,
+                                      });
+                                      setCloudReview(null);
+                                      setRefresh((value) => value + 1);
+                                    } catch (reason) {
+                                      setCloudError((reason as Error).message);
+                                    } finally { setCloudBusy(false); }
+                                  }}>{t("Authorize this one cloud execution")}</button>
+                              </div>
+                            )}
+                            {cloudError && <p role="alert">{cloudError}</p>}
+                          </>
+                        )
+                        : <p>{t("Cloud execution is currently unavailable. This review does not authorize a request or send data.")}</p>}
+                    </div>
+                  )
+                  : null}
+              </div>
+            )
+            : null}
+        </div>
+      </Panel>
       <Panel title={data.video.provider === "LOCAL" && data.video.media_kind === "TEXT" ? "Source text" : "Transcript"}>
         {isBilibili && <BilibiliCaptionStatus id={id} status={data.video.processing_status} onCompleted={() => { setRefresh(value => value + 1); setEvidenceRefresh(value => value + 1); }} />}
         {isLocalMedia && <LocalTranscription id={id} onStatusChange={setTranscriptionStatus} onCompleted={() => { if (transcriptionRefreshId.current === id) return; transcriptionRefreshId.current = id; setRefresh(value => value + 1); setEvidenceRefresh(value => value + 1); }} />}
@@ -1903,118 +2016,6 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
         sourceUrl={data.video.source_url}
         refresh={evidenceRefresh}
       />
-      <Panel title="Intelligence result">
-        <LocalIntelligencePresentation content={localCapability} onReload={reload} />
-        <div className="semantic-state state-neutral">
-          <Status value={data.intelligence_result.status} />
-          <p role={data.intelligence_result.status === "CANCELLED" ? "status" : undefined}>{t(intelligenceResultCopy(data.intelligence_result.status))}</p>
-          {cancelFeedback && data.intelligence_result.status !== "CANCELLED" && <p role="status">{cancelFeedback}</p>}
-          {Boolean(data.waiting_model_executions?.length) && <div>
-            <p>{t("No qualified Intelligence model is currently available.")}</p>
-            {data.waiting_model_executions?.map((wait) => <div className="button-row" key={wait.execution_id}>
-              <span className="hint">{humanDate(wait.updated_at)}</span>
-              {wait.can_cancel ? <button type="button" className="button button-secondary" disabled={cloudBusy} onClick={async () => {
-                setCloudBusy(true); setCloudError(null);
-                try {
-                  await post(`/videos/${id}/intelligence/cancel`, { execution_id: wait.execution_id });
-                  setCancelFeedback(t(intelligenceResultCopy("CANCELLED")));
-                  setRefresh(value => value + 1);
-                } catch {
-                  setCloudError(t("This task cannot be safely cancelled. Refresh its current state."));
-                  setRefresh(value => value + 1);
-                } finally { setCloudBusy(false); }
-              }}>{t(cloudBusy ? "Cancelling…" : "Cancel this extraction")}</button>
-                : <p>{t("This task cannot be safely cancelled. Refresh its current state.")}</p>}
-            </div>)}
-          </div>}
-          {data.manual_intelligence_eligible && <div className="button-row">
-            <button type="button" className="button button-primary" disabled={cloudBusy || !localCapability || localCapability.request_state === "UNKNOWN" || Boolean(data.waiting_model_executions?.length)} onClick={async () => {
-              setCloudBusy(true); setCloudError(null); setCancelFeedback(null);
-              try { await post(`/videos/${id}/intelligence`, { command_id: commandId() }); setRefresh(value => value + 1); }
-              catch { setCloudError(t("Intelligence could not start. Check model readiness and try again.")); }
-              finally { setCloudBusy(false); }
-            }}>{t(cloudBusy ? "Considering Content…" : "Extract Intelligence")}</button>
-            <p className="hint">{t("Uses qualified local processing when available. Cloud processing requires a separate review and explicit authorization.")}</p>
-          </div>}
-          {cloudError ? <p role="alert">{cloudError}</p> : null}
-          {data.intelligence_result.status === "WAITING_MODEL" && data.cloud_intelligence_available === false
-            ? <p>{t("Cloud Intelligence is currently unavailable because the provider or its runtime credential is unavailable. Existing Summary and Evidence remain usable.")}</p>
-            : null}
-          {data.intelligence_result.status === "SUCCEEDED_NO_NEW_INTELLIGENCE"
-            ? (
-              <p className="hint">
-                {t("This is a completed processing result, not an Intelligence validation posture or numeric confidence score.")}
-              </p>
-            )
-            : null}
-          {data.intelligence_result.status === "WAITING_MODEL" && note?.status === "AVAILABLE"
-            ? (
-              <div>
-                <button
-                  type="button"
-                  className="button button-secondary"
-                  onClick={() => setShowCloudTerms((current) => !current)}
-                >
-                  {t("Review high-quality Intelligence")}
-                </button>
-                {showCloudTerms
-                  ? (
-                    <div className="semantic-state state-neutral">
-                      <h3>{t("Cloud Intelligence disclosure")}</h3>
-                      <p>{t("Provider: Moonshot · Model: kimi-k2.6 (thinking disabled).")}</p>
-                      <p>{t("Only bounded, verified Evidence excerpts and the task context needed for this Intelligence judgment would leave this device. The full database, unrelated Content, Followings, library, and credentials are excluded. Your original Evidence remains authoritative here.")}</p>
-                      <p>{t("Moonshot API usage is billed separately and may incur charges. Cost for this execution: UNKNOWN before the response. Published China-platform K2.6 rates: ¥6.50 per million uncached input tokens, ¥1.10 per million cached input tokens, and ¥27 per million output tokens. This request allows up to 8,192 output tokens.")}</p>
-                      {data.cloud_intelligence_available
-                        ? (
-                          <>
-                            <p>{t("Preparing a review stores a local reservation only. Confirming authorizes exactly one request for the reviewed Evidence and task context.")}</p>
-                            <button type="button" className="button button-secondary" disabled={cloudBusy}
-                              onClick={async () => {
-                                setCloudBusy(true);
-                                setCloudError(null);
-                                try {
-                                  const response = await post<{ review: NonNullable<typeof cloudReview> }>(
-                                    `/videos/${id}/cloud-intelligence/review`, data.manual_intelligence_eligible ? { command_id: commandId() } : {},
-                                  );
-                                  setCloudReview(response.review);
-                                } catch (reason) {
-                                  setCloudError((reason as Error).message);
-                                } finally { setCloudBusy(false); }
-                              }}>{t("Prepare one request for review")}</button>
-                            {cloudReview && (
-                              <div>
-                                <p>{t("Source")}: {cloudReview.source_id}. {t("Evidence items")}: {cloudReview.evidence_ids.length}. {t("Provider/model")}: {cloudReview.provider} · {cloudReview.model}. {t("Cost")}: {t(cloudReview.cost_status)}.</p>
-                                <p>{t("Review the original Evidence on this Content page before confirming. This permission applies only to this execution.")}</p>
-                                <button type="button" className="button" disabled={cloudBusy}
-                                  onClick={async () => {
-                                    setCloudBusy(true);
-                                    setCloudError(null);
-                                    try {
-                                      await post(`/videos/${id}/cloud-intelligence/confirm`, {
-                                        execution_id: cloudReview.execution_id,
-                                        review_hash: cloudReview.verified_input_hash,
-                                        authorize: true,
-                                      });
-                                      setCloudReview(null);
-                                      setRefresh((value) => value + 1);
-                                    } catch (reason) {
-                                      setCloudError((reason as Error).message);
-                                    } finally { setCloudBusy(false); }
-                                  }}>{t("Authorize this one cloud execution")}</button>
-                              </div>
-                            )}
-                            {cloudError && <p role="alert">{cloudError}</p>}
-                          </>
-                        )
-                        : <p>{t("Cloud execution is currently unavailable. This review does not authorize a request or send data.")}</p>}
-                    </div>
-                  )
-                  : null}
-              </div>
-            )
-            : null}
-        </div>
-      </Panel>
       <Panel title="Processing history">
         {visibleHistory.length
           ? visibleHistory.slice(0, 12).map((event, index) => (
@@ -4014,7 +4015,7 @@ function Settings({ refresh }: { refresh: number }) {
       <GlobalInterests key={JSON.stringify(globalPolicy)} policy={globalPolicy} onSaved={() => setRevision(current => current + 1)} />
       <Panel title="Models and processing">
         <h3>{t("Content processing")}</h3><p>{t("Ready. Content is saved and organized locally when source text or captions are available. Cloud Intelligence is optional.")}</p>
-        <h3>{t("Currently used local model")}</h3><p>{settings.data.runtime_local_model?.model ?? localFoundation?.model ?? t("Not configured")} · {t(settings.data.runtime_local_model?.status === "READY" ? "Installed; identity verified" : "Readiness needs attention")}</p>
+        <h3>{t("Local model for scoring and Summary")}</h3><p>{settings.data.runtime_local_model?.model ?? localFoundation?.model ?? t("Not configured")} · {t(settings.data.runtime_local_model?.status === "READY" ? "Installed; identity verified" : "Readiness needs attention")}</p>
         <p className="hint">{t("Installation and identity checks do not qualify a model for Intelligence.")}</p>
         <p className="hint">{t("Scoring and model-based Summary use this runtime configuration. Candidate preferences in Advanced do not change it.")}</p>
         <h3>{t("Intelligence")}</h3>
@@ -4023,6 +4024,7 @@ function Settings({ refresh }: { refresh: number }) {
         <p>{t(videoDistillation?.production_eligible ? "Optional cloud analysis is available after your authorization for each request." : videoDistillation?.credential_status === "BLOCKED" ? "Cloud Intelligence is optional. It needs a credential and your separate authorization for each request. Content processing remains usable." : "Cloud Intelligence is optional and requires a qualified model and your separate authorization for each request. Content processing remains usable.")}</p>
         <details><summary>{t("Cloud setup and model details")}</summary><ModelSettings message={modelMessage} setMessage={setModelMessage} credential={settings.data.cloud_credential} preference={settings.data.model_preference} onSaved={() => setRevision(current => current + 1)} /></details>
       </Panel>
+      <LocalIntelligenceSetup />
       <TranscriptionSetup />
       <BackupRestorePanel />
       <Panel title="Data and privacy (read-only)"><p>{t("Local-first means local persistence by default. Credential values are never shown.")}</p></Panel>
