@@ -1,0 +1,62 @@
+{
+  "observed_at": "2026-10-21T04:10:07.686069+00:00",
+  "classification": "ROOT_REAL_HEADED_GUI_NOT_ACCEPTED_AND_FRESH_FULL_CLONE_READY",
+  "reviewed_engineering_sha": "b3546ff14627be51c27ce799e4de800ec1e9336d",
+  "independent_review_sha": "2f3a8e8f0ccce3cd9c26ff5338919507640eb6b4",
+  "source_video_id": "0eMzc-WnBfQ",
+  "evidence_count": 114,
+  "cue_count": 2406,
+  "browser": "Own headful Chrome CDP9341; known own profile, normal worker",
+  "observed_http_status": 422,
+  "observed_original_exception": "ValueError: reservation evidence is invalid",
+  "root_cause": "Old actual qwen3:8b route differs from fixed9b long route; Settings cannot apply local Intelligence selection",
+  "task_mutations_after_failure": false,
+  "v2_all_79_sql_tables_equal": true,
+  "v2_all_19_data_files_equal": true,
+  "v3_full_stock_prepared": true,
+  "v3_runtime_started": false,
+  "v3_schema_version": 40,
+  "v3_table_count": 77,
+  "v3_data_file_count": 19,
+  "old_own_qa_services_6148_6149_stopped": true,
+  "model_loads": 0,
+  "model_generations": 0,
+  "formal_owner_access": false,
+  "main_adopted": false,
+  "goal_complete": false,
+  "next_plan": "LOCAL_INTELLIGENCE_SETTINGS_COMPLETION_PLAN.md",
+  "evidence": [
+    {
+      "path": ".var/end-to-end-user-readiness/long-wait-gui-20261021-v2/after-gui-failure.json",
+      "sha256": "084abd5b137219cd829b7827378248c3cfb577c3db02503de9481c233b977270"
+    },
+    {
+      "path": ".var/end-to-end-user-readiness/long-wait-gui-20261021-v2/post-factory.json",
+      "sha256": "9e1cc061f296d6b3cd388e277fbd9e8fd5250ac319528b2670703c069b1f91e8"
+    },
+    {
+      "path": ".var/end-to-end-user-readiness/long-wait-gui-20261021-v3/clone-proof.json",
+      "sha256": "efe06d7e2f9979e3310eba515b448f0976bcb436de0abf074fd86a506a17fff4"
+    },
+    {
+      "path": ".var/long-wait-integration/r3-real-runtime-422.png",
+      "sha256": "f192b5f644b1bf2e7ad701f2c385e8edb97fcc2ccc594468296537290b28b117"
+    },
+    {
+      "path": ".var/long-wait-integration/r3-first-extract.har",
+      "sha256": "0914abe63562298325897ef1c245defc731f1b755cfb01d10c80549366b394d9"
+    },
+    {
+      "path": ".var/long-wait-integration/r3-api-observed.log",
+      "sha256": "a78912cb5ad3486ae7e17c9c4520f60bf9394b14975dba5095b3d705205d41b2"
+    },
+    {
+      "path": ".var/end-to-end-user-readiness/resource-recheck-oct21-1206.json",
+      "sha256": "3bcdc5f6fdfb866e77d41cda0b06ccee75aefa0a123d3b07e0191cfa74ce35fa"
+    },
+    {
+      "path": ".var/end-to-end-user-readiness/local-ollama-readonly-ps-oct21-1210.json",
+      "sha256": "4512fd35cb016eb37a39db17c7dd0e7f0f69e97720adb0031fb45a99e23b0d0d"
+    }
+  ]
+}

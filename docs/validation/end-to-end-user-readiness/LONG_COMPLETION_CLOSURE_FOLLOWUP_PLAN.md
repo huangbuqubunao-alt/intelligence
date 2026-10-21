@@ -25,3 +25,9 @@
 ## 旧 long v1 运行参数的版本边界
 
 只读核验确认旧longv1仅继承短v1的options并覆盖32768context，没有显式batch512。旧profile/request字节及本次等待/取消proof必须永久保留。未来真正执行如须固定512，应新建明确long运行profile版本，保持32768/6144/300和语义标准，单独验证原生容量/槽/资源及资格；不改旧_OPTIONS_WIRE或覆盖旧PROFILE_ID的历史含义。历史重建必须按proof冻结的profile_id选择保留resolver/builder，而非后来全局新默认。当前只WAIT且生成关闭，此处不是已获模型能力。
+
+## 固定 b3546ff 后续只读核验
+
+2026-10-21 scout /root/local_fixed_runtime 零写入/网络/模型核验：041最终字段、branch CHECK和延迟FK已能表达positive/NO_NEW/REJECTED，不需仅为三分支再迁移；SQL可表达不等于完成authority。新运行profile可保留long执行协议v1 namespace，由profile/request/freeze hash区分，勿把profile升级误作namespace升级。
+
+DIRECT复用ApplicationHeavyLease/共享重负载锁、安装字节验证、ready→arm→consume单次/线程/请求绑定及claim后不探测、300秒/1MB有界loopbackHTTP。LocalCapacitySession仍绑定短builder/resolver/16384槽，资格reader/permit也固定短版本，须明确long版本适配；不能通用重签permit授执行。新增执行文件补CODE_FILES，records仍空。verify_receipt_payload本身不能代替严格计数/cap/语义/revision完整双向闭包。先完成当前Settings/真实WAIT0取消恢复，再共享核心串行此工程，不同时写入。
