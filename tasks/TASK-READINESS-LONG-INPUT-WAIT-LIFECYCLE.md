@@ -1,5 +1,7 @@
 # TASK-READINESS-LONG-INPUT-WAIT-LIFECYCLE
 
+2026-10-21最新Status: IN_PROGRESS。6e0f59e R4独立REJECT（25147d4，root仅导入报告787f741）；固定76文件完整组实际2159PASS/9FAIL/1warning/1656.10s，495源哈希不变。原writer额度失败停止，正式移交同clean WT唯一writer /root/settings_recovery_writer。集中修复native/background阻塞原因、metadata HTTPException、普通Content前检与既有LOCAL内部WAIT兼容、legacy CLI只读无副作用admission。root真GUI另复现恢复重建P1：旧daemon HTTP请求未drain仍持machine EX，新factory recover锁冲突退出；修产品生命周期，不用QA睡眠掩盖。详见ROOT_SETTINGS_GUI_FIXED_6E_2026_10_21.md。新SHA须精准反控、完整影响组、增量独审和新副本真实GUI；未接受/整合/发布。
+
 2026-10-21最新Status: IN_REVIEW，固定6e0f59e2f40fb62d371945cac0253346aa1616ce（base b3546ff，20files），原作者cleanSTOP只等待唯一76文件495哈希固定组。focused88/active4/nativeZIP1分组PASS，前端980/TS/build/compile/Ruff/strict119/diff PASS；旧975+5失败保留，不冒称全后端完成。独立R4 WT readiness-long-input-wait-review-r4 已创建、/root/long_wait_independent_review 已分派。root可并行在全新完整v3副本使用该固定源码和生产frontend做真实macOS GUI，不提前整合/接受。后续任何源变更新SHA及新副本复验，所有检查+独立APPROVE+真实GUI后才接受。
 
 2026-10-21最新Status: IN_PROGRESS。b3546ff工程获R3独立APPROVE2f3a8e8，但root真实GUI422/旧8b→只读Settings死路，未接受/整合。原sole author同WT从clean b3546ff实施 `docs/validation/end-to-end-user-readiness/LOCAL_INTELLIGENCE_SETTINGS_COMPLETION_PLAN.md` 精确必要扩围；它仅对该修复覆盖下文旧runtime_composition字节不变/noUI限制。新SHA须独立审查，root仅文档/QA，不改资格/main/owner。

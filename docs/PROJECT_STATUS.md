@@ -1,3 +1,5 @@
+> 2026-10-21最新：6e0f59e Settings/WAIT候选未接受。固定76文件2159PASS/9FAIL/1warning/1656.10s，R4独立REJECT报告已保留；root真实macOS逐项取消/其他任务阻塞/进程重启通过，但native ZIP恢复重建发现daemon HTTP未drain锁冲突P1。唯一writer现为 /root/settings_recovery_writer（原作者额度停止），集中修复后新SHA复验。所有79表/19DATA在失败后仍逐项相等；无正式数据、模型调用、main/发布变化。
+
 > 2026-10-21固定6e0f59e：设置/真实应用/统一机器admission/0.40.6安装catalog已提交并cleanSTOP，任务IN_REVIEW。新设置54backend分3组（focused88含39old、active4、nativeZIP1）PASS，前端全量980/38files及TS/build/compile/Ruff/strict119/diff PASS；唯一76文件固定495哈希完整影响组RUNNING。独立R4已启动，root新v3真实生产构建GUI并行准备；尚未整合/接受/main采用/真实模型资格，正式owner未动。
 
 > 2026-10-21 16:30恢复：原作者额度中断后原dirtyWT完整保留，现已超过16:12提示恢复时间，以原handle继续，未换writer/覆盖WIP。root303b0a3 clean；正式main及实际远端main均73ee7e7、正式WT clean，无owner访问。当前运行程序已变0.40.6/binary变化、app签名deep/strict PASS；只追加独立安装选择catalog，不改0.40.1冻结执行profile/资格。只读独立scout确认可安全分离，反控仍须证明短/长不能借旧permit执行。RAM4.396GiB仍不足真实模型加载，0load/0generation；正常GUI新v3仍未启动。

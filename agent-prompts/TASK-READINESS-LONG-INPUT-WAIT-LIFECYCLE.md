@@ -1,5 +1,7 @@
 # Implementer package: complete-source long wait lifecycle
 
+2026-10-21最新指派：/root/settings_recovery_writer 接替额度停止的原writer，成为同clean6e0f59e WT的唯一产品writer；task首条及ROOT_SETTINGS_GUI_FIXED_6E_2026_10_21.md优先。原76文件固定组2159PASS/9FAIL，根因确认后集中最小修复；独立reviewer只读定位真实恢复P1。全部旧成果/失败证据保留，当前候选不整合，不加载/生成模型/改资格/owner。新固定SHA/检查/增量独审/真实GUI全部通过才可接受。
+
 最新续作：先读root `LOCAL_INTELLIGENCE_SETTINGS_COMPLETION_PLAN.md` 和task首条。b3546ff工程R3 APPROVE但用户GUI422/只读Settings未接受。原sole author从该cleanSHA继续必要窄设置/保存应用/admission/重启和操作前置；用户默认授权，无新审批、加载/生成、owner或资格变更。新固定SHA独立review。立即启动：此唯一产品writer；可并行：root文档/隔离QA准备；等待：长执行/真实资格/采用。旧失败和1794PASS+6FAIL保留如实。
 
 Task: TASK-READINESS-LONG-INPUT-WAIT-LIFECYCLE. Role: Implementer /root/long_protocol_preflight, formerly read-only scout. Base:4f7cc46ed1381782288a2f4915dce027b38c3b94. Worktree:/Users/hua/Documents/yia-worktrees/readiness-long-input-wait-lifecycle. Branch:codex/task-readiness-long-input-wait-lifecycle. Already root-created, verify exact base/branch/clean before writing. Reviewer: independent new conversation after fixed commit. No other product writer; R14 author/reviewer cleanSTOP, root only docs/QA/integration.
