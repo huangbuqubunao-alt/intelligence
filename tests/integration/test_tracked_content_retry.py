@@ -233,7 +233,9 @@ def test_migration40_failure_rolls_back_and_success_preserves39_domain_rows(tmp_
     with repo._connect() as connection:
         assert tuple(connection.iterdump()) == before
         assert connection.execute('PRAGMA user_version').fetchone()[0] == 39
-    assert repo.initialize(now=now).version == 40
+    with monkeypatch.context() as patch:
+        patch.setattr(repo, '_load_migrations', lambda: all_migrations)
+        assert repo.initialize(now=now).version == 40
     with repo._connect() as connection:
         assert all(connection.execute(f'SELECT * FROM "{name}"').fetchall() == values for name, values in rows_before.items())
         targets = connection.execute('PRAGMA foreign_key_list(tracked_content_retry_requests)').fetchall()
@@ -1366,6 +1368,8 @@ def test_rehashed_restore_must_reject_counter_not_bound_to_real_events(tmp_path,
     src=tmp_path/'original-snapshot.sqlite'
     src.write_bytes(members['database/state.sqlite'])
     with sqlite3.connect(src) as c:
+        snapshot_version=c.execute('PRAGMA user_version').fetchone()[0]
+        assert snapshot_version==41
         schema=c.execute("SELECT name,sql FROM sqlite_master WHERE type='trigger' ORDER BY name").fetchall()
         columns=[r[1] for r in c.execute('PRAGMA table_info(tracked_content_retry_executions)')]
         row=list(c.execute('SELECT * FROM tracked_content_retry_executions').fetchone())
@@ -1384,7 +1388,7 @@ def test_rehashed_restore_must_reject_counter_not_bound_to_real_events(tmp_path,
         assert c.execute("SELECT name,sql FROM sqlite_master WHERE type='trigger' ORDER BY name").fetchall()==schema
         assert c.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
         assert c.execute('PRAGMA foreign_key_check').fetchall()==[]
-        c.execute('PRAGMA user_version=40')
+        c.execute(f'PRAGMA user_version={snapshot_version}')
     members['database/state.sqlite']=_closed_sqlite_main_bytes(c,bad)
     manifest=json.loads(members['manifest.json'])
     body=members['database/state.sqlite']

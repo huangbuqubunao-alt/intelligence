@@ -1,5 +1,5 @@
 {
-  "classification": "REPAIRED_P1_FIXED_ENGINEERING_CANDIDATE_NOT_ACCEPTED_NOT_MODEL_QUALIFICATION",
+  "classification": "FIXED_AUTHOR_CHECKS_COMPLETE_AWAITING_INDEPENDENT_REVIEW_NOT_ACCEPTED_NOT_MODEL_QUALIFICATION",
   "base": "4f7cc46ed1381782288a2f4915dce027b38c3b94",
   "product_sources": {
     "src/youtube_intel/backup_restore.py": "8af0026602b6cb04151cd75344aef61f20ad2d0acb3cd50b51271e4869a08246",
@@ -11,7 +11,8 @@
     "src/youtube_intel/long_distillation_persistence.py": "77955303c9f4550633bf6dcb7fd65ce812edb31996e7d4a3665a482a75e25475",
     "src/youtube_intel/migrations/041_add_long_distillation_provenance.sql": "00b416fba039c29a6773d475524eb8eca23cf06318c903c5076bf262a1795ea2",
     "src/youtube_intel/processing_orchestrator.py": "ebc1075692e9b362fbc492ae31ad1eb61586d4972b2307edf0583a76358184d0",
-    "src/youtube_intel/state.py": "ca70a7a809118feb51645420399625da764f02a807075f8015a2b91f9760c4c0"
+    "src/youtube_intel/state.py": "ca70a7a809118feb51645420399625da764f02a807075f8015a2b91f9760c4c0",
+    "src/youtube_intel/runtime.py": "39a16177bdb31c278371b46c5e21736d9e37772b21aae693e722a00f9e7e0d57"
   },
   "old001_040_migrations_unchanged": [
     {
@@ -171,8 +172,8 @@
       "sha256": "7a44951bcb347bd0cd247347d3122f421ddaeab9da6d0a65257e7fea9e41fdd1"
     }
   ],
-  "new_test_cases": 70,
-  "required_affected_group_status": "RUNNING",
+  "new_test_cases": 96,
+  "required_affected_group_status": "60 files on a2861e3:1794PASS/6FAIL1401.93s; preserved unchanged-source receipt. Exact6 repaired6PASS7.50s; new runtime impact104PASS75.48s. No all1800-pass single-run claim.",
   "affected_test_files": [
     "tests/integration/test_bilibili_content.py",
     "tests/integration/test_bilibili_three_provider.py",
@@ -248,7 +249,7 @@
     "all_rows_equal_after_restore": true,
     "all_data_equal_after_restore": true,
     "source_data_unchanged": true,
-    "proof_hash": "de0fd0795cbf56866faa1f984e0d3804f7df41f0b97fa54b17e8beef8294ac4f",
+    "proof_hash": "616fdfe4b8e0a83631f4bcc13f4909e8cbbaf8f8094a65f5393e79759b8d9759",
     "request_hash": "8ef1958ba1305e09071191a7d4491dbabb5b12e418d7c91565d5f6931e00b358",
     "freeze_hash": "657ba6913d8e7d98561780a27c0dd62b6fd5885428230720d5e90dd87bfb54d6",
     "m037_before_count": 1,
@@ -258,16 +259,16 @@
     "old_airc_wait_not_changed": true,
     "source_all_sql_rows_unchanged": true,
     "model_calls": 0,
-    "http_calls": 0
+    "http_calls": 0,
+    "doctor_after_restore": "PASS exact41"
   },
   "real_http_calls": 0,
   "real_model_loads": 0,
   "real_model_generations": 0,
   "owner_access": false,
   "remaining": [
-    "repaired60-file final result",
-    "independent re-review",
-    "root native GUI",
+    "independent re-review on final fixed commit",
+    "root native GUI/final acceptance",
     "full generation/positive Save/Topic qualification outside slice"
   ],
   "p1_review": {
@@ -344,6 +345,30 @@
     "tests/unit/test_ollama_local_distillation.py",
     "tests/unit/test_openai_distillation_adapter.py"
   ],
-  "affected_final_status": "PENDING on repaired frozen commit; all original57+source boundary+resource closure+R14=60 files",
-  "p1_focused_final": "96 PASS95.90s (all4 long persistence integration files, includes new26 resource closure)"
+  "affected_final_status": "60 files on a2861e3:1794PASS/6FAIL1401.93s; preserved unchanged-source receipt. Exact6 repaired6PASS7.50s; new runtime impact104PASS75.48s. No all1800-pass single-run claim.",
+  "p1_focused_final": "96 PASS95.90s (all4 long persistence integration files, includes new26 resource closure)",
+  "schema41_final_repairs": {
+    "original_full_group_commit": "a2861e38dd36124a680377bbdc55f9ff105e53f3",
+    "original_result": {
+      "commit": "a2861e38dd36124a680377bbdc55f9ff105e53f3",
+      "test_files": 60,
+      "pytest_exit": 1,
+      "all_tracked_source_tests_unchanged": true
+    },
+    "original_log": ".var/long-wait/affected-repaired-final.log",
+    "true_product_gap": "runtime._database_check still required40; now exact41, rejects40/42",
+    "fixture_saved_m014": "latest tail list26 items including041",
+    "fixture_m040": "success initialization pinned through40 as rollback setup was, preserving40 assertion",
+    "fixture_rehashed_counter": "reconstructed dump retains original PRAGMA version41, original counter1 success and counter0/2 exact semantic error assertions unchanged",
+    "six_failures_recheck": "6PASS7.50s",
+    "runtime_and_fixture_affected": [
+      "tests/integration/test_task016c_phase_h2c_lineage_schema.py",
+      "tests/integration/test_task025a_saved_intelligence.py",
+      "tests/integration/test_runtime_composition.py",
+      "tests/unit/test_task016c_phase_h2c_runtime.py"
+    ],
+    "runtime_and_fixture_affected_result": "104PASS75.48s",
+    "ddl_or_old_migrations_changed": false,
+    "source_freeze_11_files_unchanged": true
+  }
 }

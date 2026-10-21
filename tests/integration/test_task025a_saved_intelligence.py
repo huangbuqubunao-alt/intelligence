@@ -47,7 +47,7 @@ def test_fresh_m014_creates_empty_saved_state(tmp_path: Path) -> None:
                 "SELECT name FROM schema_migrations ORDER BY version"
             )
         ]
-        assert names[-25:] == [
+        assert names[-26:] == [
             "015_add_timed_transcript_evidence_bindings.sql",
             "016_add_ambiguous_resource_ledger_outcome.sql",
             "017_add_current_content_summary.sql",
@@ -73,6 +73,7 @@ def test_fresh_m014_creates_empty_saved_state(tmp_path: Path) -> None:
         "038_add_retained_subtitle_derivations.sql",
         "039_add_local_text_input_proofs.sql",
         "040_add_tracked_content_retry.sql",
+        "041_add_long_distillation_provenance.sql",
         ]
     finally:
         connection.close()

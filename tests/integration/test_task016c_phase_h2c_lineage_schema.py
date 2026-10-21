@@ -414,7 +414,7 @@ def test_unsupported_schema_versions_fail_closed(
         repository.initialize(now=NOW)
 
 
-def test_doctor_database_check_accepts_exactly_version_39(tmp_path: Path) -> None:
+def test_doctor_database_check_accepts_exactly_version_41(tmp_path: Path) -> None:
     path = _database_path(tmp_path)
     repository = SQLiteStateRepository(path)
     repository.initialize(now=NOW)
@@ -428,6 +428,9 @@ def test_doctor_database_check_accepts_exactly_version_39(tmp_path: Path) -> Non
     assert _database_check(path).status == "FAIL"
     with _raw_connection(path) as connection:
         connection.execute("PRAGMA user_version = 40")
+    assert _database_check(path).status == "FAIL"
+    with _raw_connection(path) as connection:
+        connection.execute("PRAGMA user_version = 41")
     assert _database_check(path).status == "PASS"
 
 

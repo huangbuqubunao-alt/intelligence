@@ -1,7 +1,7 @@
 # TASK-READINESS-LONG-INPUT-WAIT-LIFECYCLE
 
 Implementer: /root/long_protocol_preflight. Base: 4f7cc46ed1381782288a2f4915dce027b38c3b94.
-Status: implementation in progress; not accepted, not DONE.
+Status: author checks complete, clean STOP after fixed commit; independent re-review/root acceptance pending. Not accepted, not DONE.
 
 ## P1 review repair and replacement validation gate
 
@@ -27,7 +27,7 @@ Reuse: DIRECT accepted long_grounding_codec/projection, long_distillation_profil
 
 ## Checks and evidence
 
-Pending. Failures and source hashes retained under task-owned .var/long-wait. No model/HTTP/owner access authorized or performed. Final root GUI and full Goal generation/Save/Topic qualification remain outstanding.
+Author evidence and preserved failures/source hashes are recorded below and in the companion checks JSON under task-owned .var/long-wait. No model/HTTP/owner access authorized or performed. Final root GUI and full Goal generation/Save/Topic qualification remain outstanding.
 
 Preflight correction: `_evidence_ids_for_lineages` has LIMIT21; ordinary API did not actually send all114. RED full-source evidence-set mismatch preserved. Added service.reservation_evidence_ids only for compatible YT+ollama; API/status and one necessary processing_orchestrator call use it. Legacy getter/Cloud unchanged;4103 sentinel rejects above4102, never silently truncates. Parent explicitly accepted necessary sibling change.
 
@@ -46,3 +46,11 @@ Legacy34–40 individually backed up/restored and normally migrated to41:7PASS w
 Checks before this candidate: compileall src/tests/scripts PASS, Ruff src/tests/scripts PASS, strict mypy117 sources PASS, diff-check PASS; product SHA freeze unchanged during genuine final validation. Full affected57-file group is RUNNING, not claimed passed. Precise list/log `.var/long-wait/affected-files.json` / `affected-final.log`; separate R14 profile file running as requested by root. Final independent acceptance, final affected result and root GUI remain pending. This intermediate submission is not DONE or APPROVE.
 
 Repaired-source focused final: all4 long persistence integration files96PASS95.90s; compileall/Ruff/strict mypy117/diff-check PASS. Product10-file SHA map unchanged during genuine-v5 and focused checks. Old001–040 bytes, SourceAuthority whole file and TimedTranscriptCueWrite AST unchanged against base. Final60 gate still pending.
+
+## Final60 result, precise six repairs, replacement freeze
+
+The fixed a2861e3 60-file group completed1794PASS/6FAIL1401.93s; all tracked src/tests hashes remained unchanged throughout that run. Original log affected-repaired-final.log and repaired-final-result.json are retained. These are real failures, not a passing gate. Diagnosis: runtime doctor still required40 (one real product compatibility gap); the Saved migration-tail fixture omitted041 (one case); historical migration40 rollback success escaped its through40 monkeypatch (one case); three rehashed tracked-counter fixtures rebuilt complete41 migration history but hardcoded PRAGMA40, so correct history rejection prevented their intended semantic check. Fix doctor to exactly41 with explicit40/42 refusal; add041 and26-item tail; pin historical success through40; preserve the archive source's exact41 user_version after dump reconstruction. Counter1 positive and counter0/2 exact semantic rejection assertions remain unchanged. No generic error regex/coverage/DDL/history weakening.
+
+Exact repaired six cases6PASS7.50s (six-failures-repair.log). Full affected schema-lineage/Saved/runtime-composition/PhaseH2C-runtime files104PASS75.48s (schema41-doctor-affected.log). The latter scope covers the only new product change, runtime doctor; state/local_api and every other a2861e3 product file remain byte-identical. This is combined evidence across fixed runs, not a claim of one new1800PASS run. Current compileall/Ruff/strict mypy117/diff-check PASS. Final11-product-file hashes in doctor-product-source-freeze.json remained identical during targeted/affected/v6 checks; old001–040 unchanged, no ASR authority tuple components changed.
+
+Final genuine copy v6 re-proves actual0eMzc-WnBfQ114 Evidence/2406 cues ordinary WAIT0→cancel→restart/Backup full restore plus direct/list/API zero-invocation resource reads and post-restore doctor PASS. All79 tables/all SQL rows and19 DATA files equal; original stock and all old domain rows unchanged; m0371→2 only the new long cancellation, old airc wait unchanged. Receipt .var/long-wait/genuine-stock-v6/receipt.json, log genuine-v6.log. No real HTTP/model load/generation/owner/paid access. Independent re-review on this new source, root GUI/final acceptance and later actual generation/Save/Topic qualification remain outstanding. Author stops editing product after this fixed submission.
