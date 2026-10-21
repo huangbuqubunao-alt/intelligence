@@ -1,4 +1,6 @@
-> 2026-10-21 11:22 断点恢复：root8159e9b clean，作者d7849b3 clean后因R2残余P1恢复同WT。完整60实际1794PASS/6FAIL；doctor41真实缺口+3fixture精确修后6PASS/104影响组PASS/static/v6全真恢复PASS，不能称单轮1800绿。R2 c9e3ee2独立96+53/static PASS但REJECT casefold反扫漏标记；正在按同一is_long谓词修state/long persistence/reader并补反控。真实GUI v2副本仍40未启动/未迁移，自有headedChrome9341仍aboutblank；6148/6149无监听。11:13正常RAM4.985GiB/disk197.109GiB，0模型加载/生成，main/owner未动。
+> 2026-10-21续作：b3546ff casefold修复获R3独立APPROVE2f3a8e8（120关键+53旧风险/static PASS），原60实际1794PASS+6FAIL及修后104/最终561结果分别保留。root正常worker+真实headfulChrome/完整v2副本发现114/2406 Content提炼422，原配置8b而目标9b，Settings只读无法应用；操作还在全Evidence之后。79表/19DATA未变，零加载/生成。原作者同WT串行补窄模型设置/真实保存应用/admission保护及操作前置，方案LOCAL_INTELLIGENCE_SETTINGS_COMPLETION_PLAN.md，不另审批、不改资格/Schema/main/owner。尚未整合或Goal接受。
+
+> 2026-10-21 11:22历史：root8159e9b clean，作者d7849b3后因R2 casefold残余P1恢复同WT；当时6148/6149无监听。随后root QA v2已正常迁移41并真实GUI复现，以上最新记录覆盖旧运行状态。
 
 > 2026-10-21 06:13 4da67d5独立REJECT（报告f9db3e4已保留）：资源用量direct/list/035投影未走long完整校验，公开settings/resource-usage可错误显示被execution getter拒绝的长结果。仅此P1，独立70新+497既有/静态PASS，仍不能接受。原作者已获本任务内最小修复指派，新SHA须复审；57文件原组仍运行。root隔离UI仅初始Content加载，确认浏览器实际HeadlessChrome，不能称真实macOS GUI验收；没有提炼/取消/恢复动作，随后已关自有6148/6149和该浏览器，保留副本与截图。下次须明确自有headfulChrome/CDP核验，正式main/owner未动。
 

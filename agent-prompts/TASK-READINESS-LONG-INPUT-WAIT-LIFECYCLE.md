@@ -1,5 +1,7 @@
 # Implementer package: complete-source long wait lifecycle
 
+最新续作：先读root `LOCAL_INTELLIGENCE_SETTINGS_COMPLETION_PLAN.md` 和task首条。b3546ff工程R3 APPROVE但用户GUI422/只读Settings未接受。原sole author从该cleanSHA继续必要窄设置/保存应用/admission/重启和操作前置；用户默认授权，无新审批、加载/生成、owner或资格变更。新固定SHA独立review。立即启动：此唯一产品writer；可并行：root文档/隔离QA准备；等待：长执行/真实资格/采用。旧失败和1794PASS+6FAIL保留如实。
+
 Task: TASK-READINESS-LONG-INPUT-WAIT-LIFECYCLE. Role: Implementer /root/long_protocol_preflight, formerly read-only scout. Base:4f7cc46ed1381782288a2f4915dce027b38c3b94. Worktree:/Users/hua/Documents/yia-worktrees/readiness-long-input-wait-lifecycle. Branch:codex/task-readiness-long-input-wait-lifecycle. Already root-created, verify exact base/branch/clean before writing. Reviewer: independent new conversation after fixed commit. No other product writer; R14 author/reviewer cleanSTOP, root only docs/QA/integration.
 
 Read AGENTS/COLLABORATION/PRD/SYSTEM_DESIGN/REUSE_REGISTER, latest root PROJECT_STATUS/task card (newer than baseline, absolute root path), migration plan and all prior long constraints. User persistent default approval covers this necessary isolated compatibility/safety work; do not repeat per-file/method approval requests. The task card is binding scope and done criteria. Reuse DIRECT current accepted codec/projection/request/canonical, stdlib SQLite/hash/JSON, existing cancellation/ledger/Backup/service routing. No copied implementation/dependencies/model downloads/owner access. No real model load/generation, no paid cloud or network, no private thinking or holdout expected answers.
