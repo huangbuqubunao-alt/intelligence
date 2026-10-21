@@ -1,5 +1,7 @@
 # Implementer package: complete-source long wait lifecycle
 
+2026-10-22最新指派：/root/backup_passive_writer 为同WT唯一writer，从clean2922860继续；原292完整76已2181PASS/1warning/2065.60s及495哈希全等。root实际GUI正负向证据与剩余精确合同见ROOT_SETTINGS_AND_ASR_GUI_292_2026_10_22.md/task首条。必要窄Condition协调被动readiness与首个维护命令、Restore已确认后仅GET有界重连、中性语音模型保存反馈及媒体时长独立文案；不改worker/Schema/资格/声学。新固定源及全部检查+增量独审+最终GUI后才接受，旧失败/资格/owner边界保留。
+
 2026-10-21最新指派：/root/settings_recovery_writer 接替额度停止的原writer，成为同clean6e0f59e WT的唯一产品writer；task首条及ROOT_SETTINGS_GUI_FIXED_6E_2026_10_21.md优先。原76文件固定组2159PASS/9FAIL，根因确认后集中最小修复；独立reviewer只读定位真实恢复P1。全部旧成果/失败证据保留，当前候选不整合，不加载/生成模型/改资格/owner。新固定SHA/检查/增量独审/真实GUI全部通过才可接受。
 
 最新续作：先读root `LOCAL_INTELLIGENCE_SETTINGS_COMPLETION_PLAN.md` 和task首条。b3546ff工程R3 APPROVE但用户GUI422/只读Settings未接受。原sole author从该cleanSHA继续必要窄设置/保存应用/admission/重启和操作前置；用户默认授权，无新审批、加载/生成、owner或资格变更。新固定SHA独立review。立即启动：此唯一产品writer；可并行：root文档/隔离QA准备；等待：长执行/真实资格/采用。旧失败和1794PASS+6FAIL保留如实。
