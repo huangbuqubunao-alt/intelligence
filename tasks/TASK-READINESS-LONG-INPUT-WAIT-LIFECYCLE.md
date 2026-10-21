@@ -1,6 +1,6 @@
 # TASK-READINESS-LONG-INPUT-WAIT-LIFECYCLE
 
-Status: IN_REVIEW (repaired fixed candidate a2861e3; final60-file regression running, not accepted). Dependency R14 accepted and integrated with root100PASS49.00s/static/hash checks. Implementer /root/long_protocol_preflight (role changes from read-only scout to sole writer). Base4f7cc46ed1381782288a2f4915dce027b38c3b94. Worktree /Users/hua/Documents/yia-worktrees/readiness-long-input-wait-lifecycle; branch codex/task-readiness-long-input-wait-lifecycle. Root already created it. Read newer root task/package from absolute root path. Independent reviewer after fixed clean submission. Root is sole orchestrator. Same Goal, no new product phase.
+Status: IN_PROGRESS (R2 residual P1 returned to original writer; no candidate accepted). Dependency R14 accepted and integrated with root100PASS49.00s/static/hash checks. Implementer /root/long_protocol_preflight (role changes from read-only scout to sole writer). Base4f7cc46ed1381782288a2f4915dce027b38c3b94. Worktree /Users/hua/Documents/yia-worktrees/readiness-long-input-wait-lifecycle; branch codex/task-readiness-long-input-wait-lifecycle. Root already created it. Read newer root task/package from absolute root path. Independent reviewer after fixed clean submission. Root is sole orchestrator. Same Goal, no new product phase.
 
 ## Goal and frozen basis
 
@@ -43,3 +43,5 @@ Root来源歧义澄清（2026-10-21）：完整AVAILABLE ORIGINAL全集必须绑
 独立拒绝f9db3e4：usage direct/list/035 overlay及公开resource-usage endpoint绕过long闭包，显示被execution getter正确拒绝的inv1结果。原作者在同WT补RED并最小修复；新SHA须复审，旧候选不得整合。独立70新+497既有/static通过不能豁免P1；57文件组仍运行，准确保留原旧源码结果。
 
 R2固定a2861e38dd36124a680377bbdc55f9ff105e53f3，唯一产品writer已暂停，独立review WT readiness-long-input-wait-review-r2。新源96专项/compile/Ruff/strict117/diff已PASS；genuinev5完整114/2406、79表19DATA与用量读取通过。原57因运行中源变化已终止并保留mixed-source/hashFAIL证据，不计最终门禁；新唯一60文件完整组（原57+source-boundary/resource-closure/R14）固定全src/tests SHA运行中。仅全部新源检查和复审通过才接受。root在新完整v2副本使用明确headedChrome/CDP并行GUI，无正式数据/模型调用。
+
+2026-10-21 11时续作：固定a28660文件组实际1794PASS/6FAIL/1401.93s；d7849b3修doctor当前41真实缺口与3历史fixture，精确6PASS/7.50s、影响4文件104PASS/75.48s、static通过，v6全真恢复/doctor通过。R2 c9e3ee2独立REJECT：GLOB反扫与is_long.casefold不一致，case变体+缺ledger会静默漏掉；原P1对已枚举行已修，96critical+53风险组及static通过仍不豁免残余P1。原作者现补casefold一致的state/long persistence/intelligence reader反扫及新反控，041/旧迁移/资格不改。原1794+6日志保留，不称1800单轮通过。

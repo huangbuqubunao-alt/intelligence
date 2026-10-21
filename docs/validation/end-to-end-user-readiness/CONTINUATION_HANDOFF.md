@@ -1,3 +1,5 @@
+> 2026-10-21 11:22 断点恢复：root8159e9b clean，作者d7849b3 clean后因R2残余P1恢复同WT。完整60实际1794PASS/6FAIL；doctor41真实缺口+3fixture精确修后6PASS/104影响组PASS/static/v6全真恢复PASS，不能称单轮1800绿。R2 c9e3ee2独立96+53/static PASS但REJECT casefold反扫漏标记；正在按同一is_long谓词修state/long persistence/reader并补反控。真实GUI v2副本仍40未启动/未迁移，自有headedChrome9341仍aboutblank；6148/6149无监听。11:13正常RAM4.985GiB/disk197.109GiB，0模型加载/生成，main/owner未动。
+
 > 2026-10-21 06:13 4da67d5独立REJECT（报告f9db3e4已保留）：资源用量direct/list/035投影未走long完整校验，公开settings/resource-usage可错误显示被execution getter拒绝的长结果。仅此P1，独立70新+497既有/静态PASS，仍不能接受。原作者已获本任务内最小修复指派，新SHA须复审；57文件原组仍运行。root隔离UI仅初始Content加载，确认浏览器实际HeadlessChrome，不能称真实macOS GUI验收；没有提炼/取消/恢复动作，随后已关自有6148/6149和该浏览器，保留副本与截图。下次须明确自有headfulChrome/CDP核验，正式main/owner未动。
 
 > 2026-10-21 06:01 root QA已准备完整隔离副本long-wait-gui-20261021：40/77表所有行、19DATA与原stock逐项相等，原目录全文件不变，未启动/迁移。已现场纠正旧聊天视频ID：114Evidence/2406cue是0eMzc-WnBfQ，IwglW_hIL_g为5/104；错误只读断言及纠正保留source-completeness.json（见LONG_WAIT_ROOT_QA_PREPARATION_2026_10_21.json）。06:00只读正式main仍73ee7e7 clean，但5488/5489无监听，旧served快照不是当前在线证明；未启动或触碰owner。模型内存工程过程中最新5.604GiB，仍0load/0generation。作者正在最终扩围/static，下一串行completion设计只读前检已记录，未派发共享核心第二writer。
