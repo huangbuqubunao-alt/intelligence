@@ -14,7 +14,7 @@
 
 ### P1 addendum — Old daemon HTTP requests survive shutdown and can abort Restore reconstruction
 
-Locations: `src/youtube_intel/local_api.py:3713`, `cli.py:174`–`:176`, `backup_restore.py:347`–`:353` and `:547`; new machine EX acquisition at `backup_restore.py:262`/`:318`.
+Locations: `src/youtube_intel/local_api.py:3713`, `cli.py:175`–`:177`, `backup_restore.py:347`–`:353` and `:547`; new machine EX acquisition at `backup_restore.py:262`/`:318`.
 
 After the original R4 report, root's real headed GUI completed installed0.40.6 selection, actual9b route, full114/2406 WAIT0/cancellation and a genuine process restart with79SQL/19DATA equality. It then created/downloaded a real ZIP, selected it with the macOS native file chooser, staged it and confirmed RESTORE. Normal cached-config factory reconstruction terminated the service. Preserved root log `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/local-settings-r4/api-restart.log` shows `runtime_composition.py:510`→`recover_and_apply_pending_restore:547`→`_protect_background:318`→machine `store_lock(anchor):262`→`RetryConflict` at `tracked_retry_context.py:93`, ultimately uncaught `BackupRestoreError`. The first machine lock is contended; this is not staged-pair validation failure or an observed model invocation.
 
