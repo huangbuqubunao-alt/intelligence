@@ -1,4 +1,6 @@
-> 2026-10-21 00:52最新：R14已独立APPROVE7bb947e并整合root d861349/871ccf9/8a6d0f8；独立最终396PASS/138.89s+11有界探针，root100PASS/49.00s、compile/工程Ruff/strict117/diff及全部已审SHA通过。仅候选工程DONE，v2明确禁止生成、records=[]。下一串行long完整输入WAIT/取消/历史/恢复切片，40→41计划已记录，尚未迁移。真实加载资源仍不足，已异步请用户释放后复查；其他工程继续。无main/owner变更。
+> 2026-10-21当前：long WAIT/CANCEL/恢复工程 b3546ff 获R3独立APPROVE2f3a8e8（120关键+53旧风险、静态PASS）；root真实headful/正常worker GUI发现旧8b配置→提炼422→Settings只读死路，未接受/整合。79表19DATA保持不变、零模型调用。原作者正在串行补最小固定9b设置/真实应用/admission及操作前置；详见LOCAL_INTELLIGENCE_SETTINGS_COMPLETION_PLAN.md。新完整v3副本已准备，40/77表/19DATA全部相同，未启动。真实资格/正向、最终完整回归、图文手册、采用仍待，不把此前历史绿或工程APPROVE当Goal完成。
+
+> 2026-10-21 00:52历史：R14已独立APPROVE7bb947e并整合root d861349/871ccf9/8a6d0f8；独立396PASS、root100PASS和静态通过。v2生成关闭、records=[]。之后已在隔离候选增加41且完成上述R3工程审查；此旧快照不代表当前还未实施。main/owner未动。
 
 > 2026-10-21 00:32续作：已确认root4f1824f与R14独立WT b3410a4均clean，旧派发尚未产品写入；现由 /root/local_fixed_runtime 在原独立WT实施同一精确任务，唯一产品writer。root已6b7e67b更新归属；另 /root/long_protocol_preflight 仅只读准备后续持久化切片，不能并行写核心。最新只读RAM4.985GiB/disk204.723GiB，继续0load/0generation；Jev仍HTTP451，采用原强推理+独立审查。R13已接受整合且无需重跑，正式main73ee7e7 clean/owner未触及。
 
