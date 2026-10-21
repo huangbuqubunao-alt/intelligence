@@ -1,0 +1,36 @@
+{
+  "observed_at": "2026-10-21T08:32:10.317117+00:00",
+  "classification": "ROOT_RESUME_READONLY_GIT_RUNTIME_AND_RESOURCE_CHECK",
+  "root_head": "303b0a3db6079110ed284ad77081ae179e83ada6",
+  "fixed_engineering_head": "b3546ff14627be51c27ce799e4de800ec1e9336d",
+  "formal_main_head": "73ee7e747b4461b9de8a201d6b47669eb3913d1a",
+  "actual_remote_main_head": "73ee7e747b4461b9de8a201d6b47669eb3913d1a",
+  "formal_worktree_clean": true,
+  "runtime_self_report": "0.40.6",
+  "historical_runtime": "0.40.1",
+  "codesign_deep_strict_exit": 0,
+  "codesign_team_identifier": "3MU9H2V9Y9",
+  "notarization": "stapled",
+  "scope_decision": "Install-only fixed0.40.6 catalog; frozen execution profiles and qualification unchanged",
+  "independent_readonly_assessment": "Feasible only as install selection; transport/version/binary/permit/registry/long claim boundaries remain closed",
+  "writer": "/root/long_protocol_preflight",
+  "writer_resume": "Existing dirty WT retained; quota reset16:12 passed at16:29",
+  "main_adopted": false,
+  "formal_owner_access": false,
+  "model_loads": 0,
+  "generations": 0,
+  "evidence": [
+    {
+      "path": ".var/end-to-end-user-readiness/local-ollama-installed-target-readonly-oct21.json",
+      "sha256": "e0e5bcdb9d982a36d353c2eadcf943a7cc82bd33a388e9bb05c20888ce773326"
+    },
+    {
+      "path": ".var/end-to-end-user-readiness/ollama-binary-readonly-drift-oct21.json",
+      "sha256": "07a61c2aaec14211a681ddfa997fa5bfa6d027d3b7d5067df538f44920b7b7af"
+    },
+    {
+      "path": ".var/end-to-end-user-readiness/resource-recheck-oct21-1630.json",
+      "sha256": "9d80bfe7b8f5fc18d324373b463569ed5c0f3f2644b21d00fc4cd1e9294507e3"
+    }
+  ]
+}

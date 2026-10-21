@@ -1,3 +1,5 @@
+> 2026-10-21 16:30恢复：原作者额度中断后原dirtyWT完整保留，现已超过16:12提示恢复时间，以原handle继续，未换writer/覆盖WIP。root303b0a3 clean；正式main及实际远端main均73ee7e7、正式WT clean，无owner访问。当前运行程序已变0.40.6/binary变化、app签名deep/strict PASS；只追加独立安装选择catalog，不改0.40.1冻结执行profile/资格。只读独立scout确认可安全分离，反控仍须证明短/长不能借旧permit执行。RAM4.396GiB仍不足真实模型加载，0load/0generation；正常GUI新v3仍未启动。
+
 > 2026-10-21续作：b3546ff casefold修复获R3独立APPROVE2f3a8e8（120关键+53旧风险/static PASS），原60实际1794PASS+6FAIL及修后104/最终561结果分别保留。root正常worker+真实headfulChrome/完整v2副本发现114/2406 Content提炼422，原配置8b而目标9b，Settings只读无法应用；操作还在全Evidence之后。79表/19DATA未变，零加载/生成。原作者同WT串行补窄模型设置/真实保存应用/admission保护及操作前置，方案LOCAL_INTELLIGENCE_SETTINGS_COMPLETION_PLAN.md，不另审批、不改资格/Schema/main/owner。尚未整合或Goal接受。
 
 > 2026-10-21 11:22历史：root8159e9b clean，作者d7849b3后因R2 casefold残余P1恢复同WT；当时6148/6149无监听。随后root QA v2已正常迁移41并真实GUI复现，以上最新记录覆盖旧运行状态。
