@@ -11705,13 +11705,12 @@ class SQLiteStateRepository:
                 unidentified_ids = []
             # Retained family markers also require closure when a damaged
             # ledger would otherwise disappear from the bounded projection.
-            long_ids = connection.execute(
-                "SELECT execution_id FROM distillation_execution_checkpoints "
-                "WHERE execution_id GLOB 'distillation:long-timed*'"
+            checkpoint_ids = connection.execute(
+                "SELECT execution_id FROM distillation_execution_checkpoints"
             ).fetchall()
             for execution_id in {
                 str(row["execution_id"])
-                for row in (*normal_rows, *zero_rows, *unidentified_ids, *long_ids)
+                for row in (*normal_rows, *zero_rows, *unidentified_ids, *checkpoint_ids)
             }:
                 self._validate_long_resource_usage_authority(connection, execution_id)
             for row in zero_rows:

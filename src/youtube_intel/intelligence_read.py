@@ -170,12 +170,12 @@ class AuthoritativeIntelligenceReader:
             ) from error
 
     def _reject_unimplemented_long_revision(self, revision_id: str) -> None:
-        from .long_distillation_persistence import is_long_revision
+        from .long_distillation_persistence import is_long, is_long_revision
         with closing(self._repository._connect()) as connection:
             associated = connection.execute(
-                "SELECT 1 FROM distillation_execution_checkpoints WHERE revision_id=? AND execution_id LIKE 'distillation:long-timed%'", (revision_id,),
-            ).fetchone()
-        if is_long_revision(revision_id) or associated is not None:
+                "SELECT execution_id FROM distillation_execution_checkpoints WHERE revision_id=?", (revision_id,),
+            ).fetchall()
+        if is_long_revision(revision_id) or any(is_long(row[0]) for row in associated):
             raise IntelligenceReadRejected("LONG_AUTHORITY_UNAVAILABLE", "long result authority is not enabled")
 
     def _requires_local_text_card(self, revision_id: str) -> bool:

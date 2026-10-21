@@ -1058,13 +1058,15 @@ def verify_database(
     elif _schema(connection) != _expected_schema():
         raise StateStoreError("long provenance schema is incompatible")
     for row in connection.execute(
-        "SELECT execution_id FROM distillation_execution_checkpoints WHERE execution_id LIKE 'distillation:long-timed%'"
+        "SELECT execution_id FROM distillation_execution_checkpoints"
     ):
-        verify_execution(repository, connection, row[0])
+        if is_long(row[0]):
+            verify_execution(repository, connection, row[0])
     for row in connection.execute(
-        "SELECT revision_id FROM intelligence_revisions WHERE revision_id LIKE 'revision:distillation:distillation:long-timed%'"
+        "SELECT revision_id FROM intelligence_revisions"
     ):
-        raise StateStoreError("long revision authority is not enabled")
+        if is_long_revision(row[0]):
+            raise StateStoreError("long revision authority is not enabled")
     if version >= 41:
         for table in (PROOFS, RECEIPTS):
             for row in connection.execute(f"SELECT execution_id FROM {table}"):
