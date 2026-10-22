@@ -425,3 +425,53 @@ it("rejects an acknowledgement for another restore without entering the neutral 
   expect(view.queryByText(currentCopy("en"))).toBeNull();
   expect(fetch.mock.calls.filter(([path]) => path.endsWith("/confirm"))).toHaveLength(1);
 });
+
+
+it.each(["REJECTED", "ROLLED_BACK", "UNKNOWN_FUTURE"].flatMap(state =>
+  ["disconnect", "unrelated receipt"].map(next => ({ state, next }))))("retains known terminal failure after $state then $next", async ({ state, next }) => {
+  vi.useFakeTimers();
+  let status: object = ready();
+  let disconnected = false;
+  const fetch = open("en", () => disconnected ? Promise.reject(new Error("later connection lost")) : response({ status }), path => {
+    if (path.endsWith("/stage")) return response(stage);
+    status = { ...ready({ restore_id: "current-restore", state }), ready: false };
+    return response({ restore: { restore_id: "current-restore" } });
+  });
+  await act(async () => {});
+  const view = within(screen.getByRole("heading", { name: "Backup and Restore" }).closest("section")!);
+  choose(view, "en");
+  await act(async () => {});
+  const dialog = openConfirmationNow(view, "en");
+  fireEvent.click(dialog.getByRole("button", { name: "Confirm Restore and restart" }));
+  await act(async () => {});
+  expect(view.getByText("Restore did not complete successfully. Read its status before trying again.")).toBeTruthy();
+  disconnected = next === "disconnect";
+  status = ready();
+  await act(async () => vi.advanceTimersByTimeAsync(10_000));
+  expect(view.getByText("Restore did not complete successfully. Read its status before trying again.")).toBeTruthy();
+  expect(view.getByRole("button", { name: "Retry" })).toBeTruthy();
+  expect(view.queryByText("Reconnecting and validating the restored data…")).toBeNull();
+  expect(view.queryByText(currentCopy("en"))).toBeNull();
+  expect(view.queryByText(previousCopy("en"))).toBeNull();
+  expect(fetch.mock.calls.filter(([path]) => path.endsWith("/confirm"))).toHaveLength(1);
+});
+
+it("retains the confirmed binding through an unrelated historical receipt until the matching APPLIED receipt", async () => {
+  vi.useFakeTimers();
+  let status: object = ready();
+  const fetch = open("en", () => response({ status }), path => path.endsWith("/stage") ? response(stage) : response({ restore: { restore_id: "current-restore" } }));
+  await act(async () => {});
+  const view = within(screen.getByRole("heading", { name: "Backup and Restore" }).closest("section")!);
+  choose(view, "en");
+  await act(async () => {});
+  const dialog = openConfirmationNow(view, "en");
+  fireEvent.click(dialog.getByRole("button", { name: "Confirm Restore and restart" }));
+  await act(async () => {});
+  expect(view.getByText("Reconnecting and validating the restored data…")).toBeTruthy();
+  expect(view.queryByText(currentCopy("en"))).toBeNull();
+  status = ready({ restore_id: "current-restore", state: "APPLIED", completed_at: "2026-10-23T02:00:00Z" });
+  await act(async () => vi.advanceTimersByTimeAsync(10_000));
+  expect(view.getByText(currentCopy("en"))).toBeTruthy();
+  expect(view.queryByText(previousCopy("en"))).toBeNull();
+  expect(fetch.mock.calls.filter(([path]) => path.endsWith("/confirm"))).toHaveLength(1);
+});

@@ -3619,7 +3619,7 @@ function BackupRestorePanel() {
   const confirmationDialog = useRef<HTMLDialogElement>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const inspectedRestore = useRef<{ id: string; baselineKnown: boolean; alreadyApplied: boolean } | null>(null);
-  const confirmedRestore = useRef<{ id: string; deadline: number } | null>(null);
+  const confirmedRestore = useRef<{ id: string; deadline: number; failed: boolean } | null>(null);
   const reconnectTimer = useRef<number>();
   const statusReadVersion = useRef(0);
   const [reconnecting, setReconnecting] = useState(false);
@@ -3644,7 +3644,7 @@ function BackupRestorePanel() {
         )),
         alreadyApplied: receipt?.state === "APPLIED" && receipt.restore_id === restore.restore_id,
       };
-    } else if (!restore && !busy && !showConfirm && !status?.restore_pending
+    } else if (!restore && !busy && !showConfirm && !confirmedRestore.current && !status?.restore_pending
       && receipt?.restore_id !== inspectedRestore.current?.id) {
       inspectedRestore.current = null;
     }
@@ -3671,15 +3671,15 @@ function BackupRestorePanel() {
       const attempt = confirmedRestore.current;
       if (attempt) {
         const receipt = result.status.last_restore;
-        if (receipt?.restore_id === attempt.id && receipt.state !== "APPLIED") {
+        if (receipt?.restore_id === attempt.id && receipt.state === "APPLIED" && !result.status.restore_pending) {
+          finishReconnect();
+        } else if (attempt.failed || (receipt?.restore_id === attempt.id && receipt.state !== "APPLIED")) {
+          attempt.failed = true;
           window.clearTimeout(reconnectTimer.current);
           reconnectTimer.current = undefined;
           setReconnecting(false);
           setStatusError("Restore did not complete successfully. Read its status before trying again.");
           return;
-        }
-        if (receipt?.restore_id === attempt.id && receipt.state === "APPLIED" && !result.status.restore_pending) {
-          finishReconnect();
         } else if (Date.now() >= attempt.deadline) {
           setReconnecting(false);
           setStatusError("Backup status is unavailable. Check the local connection and retry.");
@@ -3692,7 +3692,10 @@ function BackupRestorePanel() {
     } catch (reason) {
       if (version !== statusReadVersion.current) return;
       const attempt = confirmedRestore.current;
-      if (attempt && Date.now() < attempt.deadline) {
+      if (attempt?.failed) {
+        setReconnecting(false);
+        setStatusError("Restore did not complete successfully. Read its status before trying again.");
+      } else if (attempt && Date.now() < attempt.deadline) {
         setReconnecting(true);
         setStatusError(null);
       } else {
@@ -3781,7 +3784,7 @@ function BackupRestorePanel() {
         throw new Error("Restore acknowledgement identity mismatch");
       }
       finishReconnect();
-      const attempt = { id: restore.restore_id, deadline: Date.now() + 60_000 };
+      const attempt = { id: restore.restore_id, deadline: Date.now() + 60_000, failed: false };
       confirmedRestore.current = attempt;
       statusReadVersion.current += 1;
       setStatusError(null);
