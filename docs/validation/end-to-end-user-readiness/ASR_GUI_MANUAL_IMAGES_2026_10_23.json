@@ -1,0 +1,23 @@
+[
+  {
+    "source": ".var/asr-gui-final-r5/04-real-transcript-and-extractive-summary.png",
+    "destination": "docs/validation/end-to-end-user-readiness/screenshots/asr-native-real-timed-transcript-oct22.png",
+    "sha256": "464da095863343befd903fb64c253f964e4bf262090acfb47c3e7317d847cfdf",
+    "product_source": "29228606ea230d1d3ccbe5b1fd2ef1e3111b0da4",
+    "kind": "genuine_headful_macOS_isolated_GUI"
+  },
+  {
+    "source": ".var/asr-gui-final-r5/05-real-timed-evidence.png",
+    "destination": "docs/validation/end-to-end-user-readiness/screenshots/asr-native-real-evidence-oct22.png",
+    "sha256": "6b8199bd59b0d14d08997b64d5f7c0472df24405b8f14fb69b522dc405429fb2",
+    "product_source": "29228606ea230d1d3ccbe5b1fd2ef1e3111b0da4",
+    "kind": "genuine_headful_macOS_isolated_GUI"
+  },
+  {
+    "source": ".var/asr-gui-final-r5/11-asr-restored-data-verified.png",
+    "destination": "docs/validation/end-to-end-user-readiness/screenshots/asr-24-data-restored-oct22.png",
+    "sha256": "d8cb6ffb70af80f3c15c34bc3e2971e35004906f41d3137cf42e31af24a709ec",
+    "product_source": "29228606ea230d1d3ccbe5b1fd2ef1e3111b0da4",
+    "kind": "genuine_headful_macOS_isolated_GUI"
+  }
+]

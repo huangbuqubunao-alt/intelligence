@@ -1,7 +1,7 @@
 # Intelligence 用户使用手册
 
 > 简体中文 · 面向完全不懂编程的普通用户
-> 版本：0.1.0 · macOS · 2026-10-16 · 本轮候选手册，尚未发布
+> 版本：0.1.0 · macOS · 2026-10-23 · 本轮候选手册，尚未发布
 > 图示来自实际产品界面；部分未变化页面沿用上一版图示。请留意页面上真实的处理状态。
 > 正式产品目前仍为上一版。本轮隔离环境已实测本地转写和字幕备份恢复；本地洞察模型仍未通过质量验收，不能视为全部流程已可用。
 
@@ -448,6 +448,12 @@ Intelligence 优先在本机整理内容。部分内容可直接从原文提取�
 
 ![真实视频的本地转写结果](../end-to-end-user-readiness/screenshots/asr-real-ui-complete.png)
 
+2026-10-22 的普通操作复验：先在设置中选择本机已通过验证的语音模型，再通过 macOS 文件选择器导入视频；应用自动完成本地转写，详情出现四段带时间的原话及对应 Evidence。摘要明确标为原文摘录，不代表模型生成了新洞察。此时不必再次点击开始或重试；请以当前任务状态为准。
+
+![真实原生视频导入后的时间字幕](../end-to-end-user-readiness/screenshots/asr-native-real-timed-transcript-oct22.png)
+
+![真实转写结果的来源证据](../end-to-end-user-readiness/screenshots/asr-native-real-evidence-oct22.png)
+
 **尚无合格语音模型时可以继续做什么**：保留已导入音视频，先导入自己已有的 UTF-8 TXT/MD 转录文本，直接阅读来源文本、摘要摘录与 Evidence。系统不会自动改用付费云模型。当前版本没有面向普通用户的一键安装及质量验证流程，因此仅填写目录无法保证转写可用；没有兼容且已通过验证的模型时需要应用维护者先完成资格验证。
 
 ![TXT 资料的来源文本、摘要与证据](../user-journey-remediation/screenshots/text-evidence.png)
@@ -565,6 +571,10 @@ Intelligence 优先在本机整理内容。部分内容可直接从原文提取�
 ![文本等待安全取消在恢复后仍保留](../end-to-end-user-readiness/screenshots/schema39-restored-cancelled-panel.png)
 
 ![包含文字输入证明的备份恢复完成](../end-to-end-user-readiness/screenshots/schema39-restored-panel.png)
+
+2026-10-22 另一次真实视频转写后，使用本页面创建、下载并经 macOS 文件选择器恢复备份，重新启动后的字幕、摘录摘要和 Evidence 仍可打开。隔离验收逐项核对全部 79 张数据表与 24 个数据文件相同；机器模型资格没有打包进备份，也没有因此授予洞察能力。
+
+![真实视频转写后的24个数据文件已恢复并检查通过](../end-to-end-user-readiness/screenshots/asr-24-data-restored-oct22.png)
 
 > 上图是隔离示例数据的真实备份与恢复界面；你的条目数量和文件大小会不同。
 
