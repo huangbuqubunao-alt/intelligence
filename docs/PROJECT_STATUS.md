@@ -1,4 +1,6 @@
-> 2026-10-23最新：同WT唯一writer改由 /root/backup_passive_resume 接手，原7文件WIP保留；窄Backup并发与恢复反馈尚未固定新源。root补核已实际完成的ASR 24 DATA原生Backup/Restore：79表全部行/24物理文件/机器选择全等，integrity/FK通过，confirm仅一次，恢复后深链接字幕/摘要/Evidence可读。详见ROOT_SETTINGS_AND_ASR_GUI_292_2026_10_22.md新增节。新源门禁、独审、最终GUI和9b真实资格/正向链路仍待；正式数据、main未动。
+> 2026-10-23最新：b187e82窄修复已固定，991 frontend/TS/build/static119通过，唯一76文件495hash组运行中；R6独立58de068 REJECT仅P2恢复失败后下一GET断连覆盖已知错误，原writer待freeze结束后纯前端修复。root新完整v5真GUI设置/双WAIT/逐项取消/重启/首次Backup成功/原生恢复全79SQL19DATA+选择全等，见ROOT_GUI_B187_AND_R6_2026_10_23.md。中文MD/HTML手册已补真实ASR24恢复截图，68图/17章/零坏链headful验证；最终新UI/ASR复验及9b资格/正向Save/Topic未完成。正式main与实际远端仍73ee7e7 clean；正式数据未动。
+
+> 2026-10-23前次：同WT唯一writer改由 /root/backup_passive_resume 接手，原7文件WIP保留；窄Backup并发与恢复反馈尚未固定新源。root补核已实际完成的ASR 24 DATA原生Backup/Restore：79表全部行/24物理文件/机器选择全等，integrity/FK通过，confirm仅一次，恢复后深链接字幕/摘要/Evidence可读。详见ROOT_SETTINGS_AND_ASR_GUI_292_2026_10_22.md新增节。新源门禁、独审、最终GUI和9b真实资格/正向链路仍待；正式数据、main未动。
 
 > 2026-10-22最新：固定292完整76文件2181PASS/1warning/2065.60s与495哈希全等；真实设置/WAIT取消/进程重启/NativeBackupRestore全量一致。真实Whisper设置/Native视频/字幕摘要Evidence亦通过，重启79SQL24DATA全等；超长失败关闭后跨路由无残留且全库无改。剩余首次Backup自身readiness争锁及窄反馈文案修复由同WT唯一 /root/backup_passive_writer 接续。详见ROOT_SETTINGS_AND_ASR_GUI_292_2026_10_22.md。候选未接受/发布，正式数据未动，洞察资格仍关闭。
 

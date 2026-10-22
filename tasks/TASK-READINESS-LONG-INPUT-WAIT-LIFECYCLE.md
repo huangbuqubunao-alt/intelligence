@@ -1,5 +1,7 @@
 # TASK-READINESS-LONG-INPUT-WAIT-LIFECYCLE
 
+2026-10-23当前：固定b187e82（parent292）991 frontend/TS/build/static119通过，唯一76文件固定495hash组运行中；R6独立58de068为REJECT，仅P2已知恢复失败后下一GET断连会隐藏错误，无P0/P1，独立backend74/UI57/static通过。原writer /root/backup_passive_resume 等freeze结束后纯前端最小修复；src/tests逐字不变时可复用真实完整后端结果，但新UI须精准反控、完整前端、独立复审/root最终GUI。root固定b187新v5普通模型设置/双WAIT/逐项取消/另一笔继续阻塞/真实进程重启/首次Backup成功/原生恢复全79SQL19DATA相等；详见ROOT_GUI_B187_AND_R6_2026_10_23.md。未接受整合/采用，不授洞察资格。
+
 2026-10-23断点续作：IN_PROGRESS。同WT唯一writer移交 `/root/backup_passive_resume`，原7文件WIP完整保留。root只读复核固定292真实ASR新增数据恢复：79 SQL表/24 DATA/机器选择全等、integrity/FK通过，HAR记录create201/stage200/confirm202各一次，恢复后真实Content深链接可读。详见ROOT_SETTINGS_AND_ASR_GUI_292_2026_10_22.md新增节。窄Backup并发/恢复反馈/准确文案尚在实施，新固定SHA/完整组/增量独审/最终GUI未完成；不改资格或正式main/owner。
 
 2026-10-22最新Status: IN_PROGRESS。固定2922860（parent6e）完整76文件2181PASS/1既有warning/2065.60s，495源哈希全程相等；R5独立67settings+旧9反控76PASS/99.41s和static119通过，报告605fa95/root476cc54仍PENDING。root真实292设置/双WAIT0取消/重启/NativeBackupRestore全79SQL19DATA相等；另真实Whisper设置→Native视频→4cue/摘录Summary/5Evidence，进程重启79SQL24DATA相等；超长失败关闭/跨路由无残留且全数据无改。尚有readiness与首次Backup本进程EX争锁、预期Restore重连错误文案、两处准确文案需修，未接受/发布。唯一writer现 /root/backup_passive_writer（原会话不再live），同clean292 WT继续最小修复；root只文档/QA。精确合同见ROOT_SETTINGS_AND_ASR_GUI_292_2026_10_22.md，不改worker/Schema/声学算法/资格，固定新SHA后完整检查、增量独审、新完整副本GUI。
