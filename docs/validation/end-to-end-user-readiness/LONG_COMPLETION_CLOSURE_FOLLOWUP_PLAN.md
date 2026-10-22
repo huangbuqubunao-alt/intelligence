@@ -43,3 +43,11 @@ DIRECT复用ApplicationHeavyLease/共享重负载锁、安装字节验证、read
 0.40.6官方文件SHA256（scout内存计算/Git blob交叉核验）：api/types.go e19aafa5065afa3ed058df9135d200527391e012349ed5955dd0cc09c0b33f7a；server/routes.go 47c0bce03da44ba50c65e436f61538c67457282b9504a1ecc11d090461120855；server/sched.go 3383fad80c474ae352da2289ed6ecc5a22763be722433eda4ac9816775ff382d；llm/llama_server.go 4d9477c32d90ed8c3436aa67480a2ac55234dd401038d097bb33ab8101c4461c。
 
 后续真实执行必须新版本冻结当前runtime/binary，不改旧profile/proof：cold/warm512、已知1024→512严格空加载、两context真实slot/argv、native renderer全token、thinking/public final、自然keepalive过期、ready→arm前host变化。应用lease不锁外部Ollama客户端；claim后仍一次consume、不隐藏重试，未知保持未知。先完成当前Settings等待/取消/恢复工程与GUI，才可串行实现。
+
+## 2026-10-23根调用点只读补核（非开工）
+
+固定292/b187的 `long_distillation_persistence.verify_proof` 当前调用无profile参数的 `prepare_long_request`，`_verify_prepared` 又直接 `resolve_long_profile(PROFILE_ID)`；将来不能仅换这个全局常量。必须由严格解码、有限已知ID的历史 `proof.profile_wire` 选择保留builder/resolver，并逐项重建request/profile/schema/freeze hash；新reserve只由后端可信运行选择确定新版本，调用者不能上传任意profile获得权限。旧v1 proof和已取消任务永久可读，不按当前binary或新增manifest键集重解释。
+
+当前 `reserve_wait` 已把真实手动command身份绑定为 `MANUAL_CONTENT:<manual_command_id>`，经policy/semantic/freeze及最终execution_id持久化；保留此机制。新手动命令可以形成新identity，旧取消仍不可复活，不应为支持重试重写旧取消行或削弱037。
+
+041的profile_wire/hash与request_wire/hash字段没有硬编码执行profile ID，三branch和usage延迟FK已经存在。后续先复用最终41而非仅为新增profile再迁移；SQL可表达仍不授claim/complete、语义质量或模型资格。当前 `verify_execution` 明确只接受inv0 WAITING_MODEL/WAITING_BUDGET，拒claimed/result，后续专用原子claim/complete与双向reader必须一起闭包后才改变此拒绝。来源/摘要/政策完整性guard及generic long-family拒绝保留。

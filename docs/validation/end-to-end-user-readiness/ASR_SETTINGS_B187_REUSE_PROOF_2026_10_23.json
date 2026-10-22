@@ -1,0 +1,73 @@
+{
+  "observed_at": "2026-10-22T18:15:31.257469+00:00",
+  "source": "b187e8223de16ab4472455796956ed8d4899364f",
+  "classification": "SAME_MACHINE_GENUINE_EXISTING_ASR_QUALIFICATION_REUSE_AND_UI_CHECK",
+  "capability": {
+    "state": "READY",
+    "runtime_detected": true,
+    "runtime_available": true,
+    "model_present": true,
+    "executor_compatible": true,
+    "executor": "mlx-whisper-timed-v1",
+    "model_identity": "sha256:627ea4bff5510683c5919ac35d290ec3cfca957ef74a301ca46e24ec71d34751",
+    "execution_identity": "091247aa07b501a31b9f99dbf3c34172e0c6167767fe4b003a54d3accdd99646",
+    "reason_code": null,
+    "qualification_state": "PASSED",
+    "qualification_identity": "ab0c9eab7749bb2d344bb2db134b8859390e6e5aadcbbe68e6d9391d970cc576",
+    "production_eligible": true,
+    "media_tools_available": true,
+    "checking": false
+  },
+  "containing_implementation_files": [
+    {
+      "path": "src/youtube_intel/offline_whisper_worker.py",
+      "unchanged_from_292": true,
+      "sha256": "93790c14b7209b9042c9f0fcd319ead7297c4dd0a588f21d96a82542150c9521"
+    },
+    {
+      "path": "src/youtube_intel/acoustic_remediation.py",
+      "unchanged_from_292": true,
+      "sha256": "eb846a95663c1e023f611f1306efd7f058f94840c42b1b5c11506c2fe90cc9da"
+    },
+    {
+      "path": "src/youtube_intel/local_content.py",
+      "unchanged_from_292": true,
+      "sha256": "136195242ab8c2e9240e7e4f8ac63d2de21b7564b8f8fa71e0d2edc1b98ab85b"
+    },
+    {
+      "path": "src/youtube_intel/source_authority.py",
+      "unchanged_from_292": true,
+      "sha256": "72f769e4ced5f3a3c0f71241d6fbe04e6ec7f3d99b2a2a52dc717987488dcfe9"
+    },
+    {
+      "path": "src/youtube_intel/acoustic_scoring.py",
+      "unchanged_from_292": true,
+      "sha256": "969f6381d72c66ff6a23cdd45a386617670e4032d3e0aed396995da5c876c67d"
+    },
+    {
+      "path": "src/youtube_intel/acoustic_qualification.py",
+      "unchanged_from_292": true,
+      "sha256": "70ddc93683e7c879a728444edc7a22dc4a679a0faa029f151a12fc8942a9cb5c"
+    },
+    {
+      "path": "src/youtube_intel/offline_transcription.py",
+      "unchanged_from_292": true,
+      "sha256": "8951093d33d9024830eb096c34efcde57be0708b7d0594fbb9679882282e8c03"
+    },
+    {
+      "path": "src/youtube_intel/state.py",
+      "unchanged_from_292": true,
+      "sha256": "57975bdfdc6f9bd1a9046c73b1c6c3d3552a3c139f0c31ac9849be00aa02db8a"
+    }
+  ],
+  "protected_acoustic_cache_files_unchanged": 3,
+  "old_acoustic_data_unchanged": true,
+  "all_79_tables_equal": true,
+  "all_24_physical_data_equal": true,
+  "machine_choice_equal": true,
+  "new_transcription_jobs": 0,
+  "new_9b_generation": 0,
+  "owner_access": false,
+  "qualification_re_signed_or_copied": false,
+  "frontend_terminal_restore_feedback_fix_pending": true
+}
