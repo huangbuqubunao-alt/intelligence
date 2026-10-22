@@ -1,3 +1,5 @@
+> 2026-10-23最新：同WT唯一writer改由 /root/backup_passive_resume 接手，原7文件WIP保留；窄Backup并发与恢复反馈尚未固定新源。root补核已实际完成的ASR 24 DATA原生Backup/Restore：79表全部行/24物理文件/机器选择全等，integrity/FK通过，confirm仅一次，恢复后深链接字幕/摘要/Evidence可读。详见ROOT_SETTINGS_AND_ASR_GUI_292_2026_10_22.md新增节。新源门禁、独审、最终GUI和9b真实资格/正向链路仍待；正式数据、main未动。
+
 > 2026-10-22最新：固定292完整76文件2181PASS/1warning/2065.60s与495哈希全等；真实设置/WAIT取消/进程重启/NativeBackupRestore全量一致。真实Whisper设置/Native视频/字幕摘要Evidence亦通过，重启79SQL24DATA全等；超长失败关闭后跨路由无残留且全库无改。剩余首次Backup自身readiness争锁及窄反馈文案修复由同WT唯一 /root/backup_passive_writer 接续。详见ROOT_SETTINGS_AND_ASR_GUI_292_2026_10_22.md。候选未接受/发布，正式数据未动，洞察资格仍关闭。
 
 > 2026-10-21最新：6e0f59e Settings/WAIT候选未接受。固定76文件2159PASS/9FAIL/1warning/1656.10s，R4独立REJECT报告已保留；root真实macOS逐项取消/其他任务阻塞/进程重启通过，但native ZIP恢复重建发现daemon HTTP未drain锁冲突P1。唯一writer现为 /root/settings_recovery_writer（原作者额度停止），集中修复后新SHA复验。所有79表/19DATA在失败后仍逐项相等；无正式数据、模型调用、main/发布变化。

@@ -32,6 +32,14 @@ root全新v4旧stock副本（40/77表/19DATA原样）正常factory迁移41/79表
 
 ## 当前唯一writer收尾范围
 
+### 2026-10-23续作：补齐已完成的24 DATA恢复证据
+
+10月22日03:02–03:05已经实际完成ASR新增数据的Backup/Restore及恢复后Content深链接；上一节“仍待”是此前断点状态。本次只读核对前后快照、HAR及下载ZIP：所有79 SQL表全部行、24物理DATA路径/字节/hash和机器模型选择逐项全等，integrity=ok、FK空。真实普通界面首次创建201→保存下载ZIP→macOS系统文件选择器→stage200（6来源/5内容/5摘要/152Evidence/24DATA）→输入RESTORE并confirm202一次→正常重建/自动重连→恢复完成。没有重发确认。ZIP为1,092,916字节，SHA256 `2aae5da05d6b4c4b358ecb26561d4a24cfc0945c10510bba5829e5b21b5a73d5`，不包含机器资格cache/seal/权重。
+
+证据：`.var/asr-gui-final-r5/09–12`实际截图、`real-asr-24-data-backup-restore-oct22.har`、`asr-complete-24-data.zip`；P/gui-final-control的`before-asr-native-restore.json`与`after-asr-native-restore.json`。恢复后实际Content深链接 `#Content/local-4196f1ca40bca9c2d454e49933fb8599073b79c07c176b214ce6d3791524f283`可读真实4条时间字幕、摘录摘要和Evidence。原声学回执、seal、audit及原P/data逐字保留。此证明固定292范围，不自动覆盖后续新源，也不授9b洞察资格。
+
+原writer额度中断，现由 `/root/backup_passive_resume` 在同WT接手，原7文件WIP完整保留；这是同任务唯一产品writer，不开启并行共享核心实现。新源尚未冻结，完整门禁/独审/最终GUI仍待。6148/6149中断后未运行不作为正式产品在线证据，正式owner未动。
+
 同任务、同WT、唯一writer /root/backup_passive_writer。292完整组已结束且源clean后才改新源。Backup内小Condition区分passive readiness与pending/active实际维护命令：首个命令可等已在运行的本进程passive校验，pending阻止新readiness插队；第二真实命令/真实API SH/native/外进程/未知仍明确拒绝。等待发生flock/SQLite之前，异常finally清pending并notify，取EX后仍全部重新校验，不缓存ready/去锁/统一盲重试。不改worker/runtime/source-run；原作者已确认idle worker无SH，不扩大成新准入框架。
 
 仅已确认并绑定restore_id的重启期使用有界仅GET重连中性反馈，不能重发confirm；到期限或明确REJECTED/ROLLED_BACK/未知保持真实错误和重试，匹配APPLIED才成功。保留旧错误断言并补中性窗口/超时/断连反控。
