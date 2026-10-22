@@ -38,7 +38,7 @@ it("saves only the explicit local path, without model execution or qualification
   await screen.findByText(/No local speech model is selected/);
   await userEvent.type(screen.getByLabelText("Local speech model directory"), "  /installed/speech-model  ");
   await userEvent.click(screen.getByRole("button", { name: "Save and check model" }));
-  await screen.findByText("Model selection saved. Availability and quality checks still apply.");
+  await screen.findByText("Model selection saved.");
   const writes = fetch.mock.calls.filter(([, options]) => options?.method);
   expect(writes).toHaveLength(1);
   expect(writes[0][0]).toBe("/api/v1/local/transcription/model");

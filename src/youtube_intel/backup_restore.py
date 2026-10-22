@@ -116,6 +116,10 @@ class BackupRestoreError(ValueError):
     """An archive, authority, or activation failed a bounded safety check."""
 
 
+class _MaintenanceActive(BackupRestoreError):
+    """A known operation on this service owns or awaits the maintenance window."""
+
+
 class _ReadOnlyEvidenceTranslator:
     def translate(
         self, *, excerpt: str, source_language: str, target_language: str
@@ -201,6 +205,9 @@ class BackupRestoreService:
         self._native_import_active = 0
         self._background_wakeup: Callable[[], None] | None = None
         self._configuration_allowed: Callable[[], bool] = lambda: True
+        self._maintenance_condition = threading.Condition()
+        self._passive_maintenance_owner: int | None = None
+        self._maintenance_command = False
         self._ensure_control_root()
         if not self.marker_path.exists():
             self._cleanup_unconfirmed_staging()
@@ -309,13 +316,44 @@ class BackupRestoreService:
                 raise BackupRestoreError("A local snapshot is being created. Wait for its import before Restore.")
 
     @contextmanager
-    def _protect_background(self, *, configuration: bool = False) -> Iterator[None]:
+    def _maintenance_window(self, *, passive: bool) -> Iterator[None]:
+        # Only this instance's passive status verification may be waited for.
+        # Actual commands and OS lock holders remain explicit busy blockers.
+        with self._maintenance_condition:
+            if self._maintenance_command or self._passive_maintenance_owner == threading.get_ident():
+                raise _MaintenanceActive("Another Backup, Restore or model configuration operation is in progress.")
+            if not passive:
+                self._maintenance_command = True
+            try:
+                while self._passive_maintenance_owner is not None:
+                    self._maintenance_condition.wait()
+                    if passive and self._maintenance_command:
+                        raise _MaintenanceActive("Another Backup, Restore or model configuration operation is in progress.")
+                if passive:
+                    self._passive_maintenance_owner = threading.get_ident()
+            except BaseException:
+                if not passive:
+                    self._maintenance_command = False
+                self._maintenance_condition.notify_all()
+                raise
+        try:
+            yield
+        finally:
+            with self._maintenance_condition:
+                if passive:
+                    self._passive_maintenance_owner = None
+                else:
+                    self._maintenance_command = False
+                self._maintenance_condition.notify_all()
+
+    @contextmanager
+    def _protect_background(self, *, configuration: bool = False, passive: bool = False) -> Iterator[None]:
         # Existing active work remains visible to the quiescence check; do not
         # wait holding SQLite while that work needs SQLite to settle.
         from .tracked_retry_context import RetryConflict, RetryIntegrity
 
         try:
-            with self.admission_lock(exclusive=True):
+            with self._maintenance_window(passive=passive), self.admission_lock(exclusive=True):
                 if not configuration and not self._configuration_allowed():
                     raise BackupRestoreError("Local model configuration is applying or this runtime is stale.")
                 with self._background_lock:
@@ -346,7 +384,7 @@ class BackupRestoreService:
 
     def readiness(self) -> dict[str, object]:
         try:
-            with self._live_transaction() as connection:
+            with self._live_transaction(passive=True) as connection:
                 reasons = self._quiescence_reasons(connection)
                 self._verify_core_database(connection)
                 if not reasons:
@@ -354,7 +392,7 @@ class BackupRestoreService:
         except (OSError, sqlite3.Error, BackupRestoreError) as error:
             return {
                 "ready": False,
-                "reasons": ["DATABASE_UNAVAILABLE"],
+                "reasons": ["MAINTENANCE_ACTIVE" if isinstance(error, _MaintenanceActive) else "DATABASE_UNAVAILABLE"],
                 "message": str(error) if isinstance(error, BackupRestoreError) else "Core data is unavailable.",
                 "restore_pending": self.restore_pending,
             }
@@ -1818,12 +1856,12 @@ class BackupRestoreService:
                 return False
         return has_ambiguous_child
 
-    def _live_transaction(self, *, configuration: bool = False) -> Any:
+    def _live_transaction(self, *, configuration: bool = False, passive: bool = False) -> Any:
         service = self
 
         class Transaction:
             def __enter__(self) -> sqlite3.Connection:
-                self.protection = service._protect_background(configuration=configuration)
+                self.protection = service._protect_background(configuration=configuration, passive=passive)
                 self.protection.__enter__()
                 try:
                     self.connection = sqlite3.connect(service.database, timeout=1, isolation_level=None)

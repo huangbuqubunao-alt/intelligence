@@ -1253,3 +1253,202 @@ def test_http_drain_idle_request_has_existing_bounded_timeout(tmp_path, monkeypa
         server.server_close()
     assert long._inventory(repo, data) == before
     assert not backup.restart_requested
+
+
+@pytest.mark.parametrize("read_fails", [False, True])
+def test_first_http_backup_waits_for_its_passive_readiness_without_replaying(tmp_path, monkeypatch, read_fails):
+    import threading
+    from http.client import HTTPConnection
+
+    from youtube_intel.local_api import LocalApiApplication, serve_loopback
+    from youtube_intel.orchestration_service import ProductOrchestrationService
+
+    repo, data, backup, _settings = setup(tmp_path)
+    original = long._inventory(repo, data)
+    entered, release, attempted, finished = (threading.Event() for _ in range(4))
+    inspect = backup._live_artifacts
+    create = backup.create_backup
+
+    def hold_readiness(connection):
+        if threading.current_thread().name == "passive-http-readiness":
+            entered.set()
+            assert release.wait(5)
+            if read_fails:
+                raise OSError("controlled passive verification failure")
+        return inspect(connection)
+
+    # Name the actual HTTP handler while readiness holds the real EX lock.
+    readiness = backup.readiness
+
+    def named_readiness():
+        threading.current_thread().name = "passive-http-readiness"
+        return readiness()
+
+    def first_create():
+        attempted.set()
+        return create()
+
+    monkeypatch.setattr(backup, "_live_artifacts", hold_readiness)
+    monkeypatch.setattr(backup, "readiness", named_readiness)
+    monkeypatch.setattr(backup, "create_backup", first_create)
+    app = LocalApiApplication(repo, ProductOrchestrationService(repo), data_root=data,
+        backup_restore_service=backup)
+    server = serve_loopback(app, port=0)
+    serving = threading.Thread(target=server.serve_forever, daemon=True)
+    serving.start()
+    results = {}
+
+    def request(key, method, path, body=None):
+        client = HTTPConnection("127.0.0.1", server.server_port, timeout=8)
+        try:
+            client.request(method, path, body, headers={"X-YIA-Request": "local-ui"})
+            response = client.getresponse()
+            results[key] = (response.status, json.loads(response.read()))
+        finally:
+            client.close()
+            if key == "create":
+                finished.set()
+
+    reader = threading.Thread(target=request, args=("readiness", "GET", "/api/v1/backup-restore/status"), daemon=True)
+    writer = threading.Thread(target=request, args=("create", "POST", "/api/v1/backup-restore/backups", "{}"), daemon=True)
+    try:
+        reader.start()
+        assert entered.wait(3)
+        writer.start()
+        assert attempted.wait(3)
+        assert not finished.wait(0.2), "a passive check must not make the user's first Backup fail"
+        # The first command now owns intent: a fresh passive poll cannot cut in,
+        # and a second real command is refused instead of being queued.
+        assert backup.readiness()["reasons"] == ["MAINTENANCE_ACTIVE"]
+        from youtube_intel.backup_restore import BackupRestoreError
+        with pytest.raises(BackupRestoreError, match="Another Backup"):
+            create()
+    finally:
+        release.set()
+        reader.join(8)
+        if writer.ident is not None:
+            writer.join(8)
+        server.shutdown()
+        serving.join(3)
+        server.server_close()
+    assert not reader.is_alive() and not writer.is_alive()
+    assert results["readiness"][0] == 200
+    assert results["readiness"][1]["status"]["ready"] is (not read_fails)
+    assert results["create"][0] == 201, results["create"]
+    package, _ = backup.backup_download(results["create"][1]["backup"]["backup_id"])
+    assert package.is_file()
+    assert len(list(backup.backup_root.glob("*.zip"))) == 1
+    assert long._inventory(repo, data) == original
+
+
+def test_active_maintenance_is_refused_instead_of_queued_and_then_released(tmp_path):
+    import threading
+
+    from youtube_intel.backup_restore import BackupRestoreError
+
+    repo, data, backup, _settings = setup(tmp_path)
+    original = long._inventory(repo, data)
+    entered, release, done = (threading.Event() for _ in range(3))
+
+    def active_command():
+        with backup._protect_background():
+            entered.set()
+            assert release.wait(5)
+
+    holder = threading.Thread(target=active_command, daemon=True)
+    outcome = []
+
+    def second_command():
+        try:
+            backup.create_backup()
+        except BackupRestoreError as error:
+            outcome.append(str(error))
+        finally:
+            done.set()
+
+    second = threading.Thread(target=second_command, daemon=True)
+    try:
+        holder.start()
+        assert entered.wait(3)
+        second.start()
+        assert done.wait(1), "a real maintenance command must remain an immediate blocker"
+        assert outcome
+        assert backup.readiness()["reasons"] == ["MAINTENANCE_ACTIVE"]
+        assert not list(backup.backup_root.iterdir())
+    finally:
+        release.set()
+        holder.join(5)
+        second.join(5)
+    assert long._inventory(repo, data) == original
+    assert backup.readiness()["ready"]
+
+
+def test_passive_readiness_does_not_wait_on_itself_and_releases_after_failure(tmp_path, monkeypatch):
+    repo, data, backup, _settings = setup(tmp_path)
+    original = long._inventory(repo, data)
+    inspect = backup._live_artifacts
+    nested = []
+
+    def nested_readiness(connection):
+        nested.append(backup.readiness())
+        return inspect(connection)
+
+    monkeypatch.setattr(backup, "_live_artifacts", nested_readiness)
+    assert backup.readiness()["ready"]
+    assert len(nested) == 1 and not nested[0]["ready"]
+    monkeypatch.setattr(backup, "_live_artifacts", inspect)
+    wakeups = []
+
+    def fail_once():
+        wakeups.append(True)
+        if len(wakeups) == 1:
+            raise RuntimeError("controlled notification failure")
+
+    backup.bind_background_wakeup(fail_once)
+    with pytest.raises(RuntimeError, match="notification failure"):
+        backup.readiness()
+    assert backup.readiness()["ready"]
+    assert long._inventory(repo, data) == original
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_maintenance_queue_never_waits_for_real_background_work(tmp_path, native):
+    from youtube_intel.backup_restore import BackupRestoreError
+
+    repo, data, backup, _settings = setup(tmp_path)
+    original = long._inventory(repo, data)
+    with backup.background_work(native_import=native) as allowed:
+        assert allowed
+        with pytest.raises(BackupRestoreError, match="local snapshot" if native else "Content retry"):
+            backup.create_backup()
+        assert not backup.readiness()["ready"]
+        assert not list(backup.backup_root.iterdir())
+    assert backup.readiness()["ready"]
+    assert long._inventory(repo, data) == original
+
+
+def test_maintenance_queue_never_waits_for_an_external_writer(tmp_path):
+    import subprocess
+    import sys
+
+    from youtube_intel.backup_restore import BackupRestoreError
+
+    repo, data, backup, _settings = setup(tmp_path)
+    original = long._inventory(repo, data)
+    writer = subprocess.Popen(
+        [sys.executable, "-c", "from pathlib import Path; import sys; from youtube_intel.tracked_retry_context import store_lock; "
+            "guard=store_lock(Path(sys.argv[1])); guard.__enter__(); print('LOCKED',flush=True); sys.stdin.readline(); guard.__exit__(None,None,None)",
+            str(repo._database_path)],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True,
+    )
+    try:
+        assert writer.stdout.readline().strip() == "LOCKED"
+        with pytest.raises(BackupRestoreError, match="Content retry"):
+            backup.create_backup()
+        assert not backup.readiness()["ready"]
+        assert not list(backup.backup_root.iterdir())
+    finally:
+        writer.communicate("release\n", timeout=5)
+    assert writer.returncode == 0
+    assert backup.readiness()["ready"]
+    assert long._inventory(repo, data) == original

@@ -1788,7 +1788,7 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
           <span>{data.video.provider === "LOCAL" ? t("Local") : isBilibili ? `${t("Bilibili")} · ${data.video.channel_name ?? ""}` : data.video.channel_name} · {humanDate(isBilibili ? data.video.published_at : data.video.imported_at ?? data.video.published_at)}</span>
           {data.video.media_kind && <span>{t(({TEXT:"Text",AUDIO:"Audio",VIDEO:"Video"} as Record<string,string>)[data.video.media_kind])}{isBilibili ? "" : ` · ${data.video.format}`}</span>}
           {data.video.source_language && <span>{t("Source language")}: {data.video.source_language === "und" ? t("Language unavailable") : data.video.source_language}</span>}
-          {data.video.duration_seconds != null && <span>{t("Duration")}: {Math.ceil(data.video.duration_seconds)}s</span>}
+          {data.video.duration_seconds != null && <span>{t("Media duration")}: {Math.ceil(data.video.duration_seconds)}s</span>}
         </div>
         {data.video.source_url
           ? (
@@ -3567,6 +3567,7 @@ const backupReasonCopy: Record<string, string> = {
   PROVIDER_DISPATCH_UNRESOLVED: "a provider dispatch has an unresolved outcome",
   RESTORE_PENDING: "a restore is pending",
   TRACKED_CONTENT_RETRY_ACTIVE: "a caption retry is still unfinished",
+  MAINTENANCE_ACTIVE: "another Backup, Restore or model configuration operation is in progress",
   DATABASE_UNAVAILABLE: "Stored files or the database could not be verified. Check local storage and retry.",
 };
 
@@ -3618,6 +3619,17 @@ function BackupRestorePanel() {
   const confirmationDialog = useRef<HTMLDialogElement>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const inspectedRestore = useRef<{ id: string; baselineKnown: boolean; alreadyApplied: boolean } | null>(null);
+  const confirmedRestore = useRef<{ id: string; deadline: number } | null>(null);
+  const reconnectTimer = useRef<number>();
+  const statusReadVersion = useRef(0);
+  const [reconnecting, setReconnecting] = useState(false);
+
+  const finishReconnect = () => {
+    confirmedRestore.current = null;
+    window.clearTimeout(reconnectTimer.current);
+    reconnectTimer.current = undefined;
+    setReconnecting(false);
+  };
 
   useEffect(() => {
     const receipt = status?.last_restore;
@@ -3651,19 +3663,53 @@ function BackupRestorePanel() {
   }, [showConfirm]);
 
   const refreshStatus = async () => {
+    const version = ++statusReadVersion.current;
     try {
       const result = await api<{ status: BackupRestoreStatus }>("/backup-restore/status");
+      if (version !== statusReadVersion.current) return;
       setStatus(result.status);
+      const attempt = confirmedRestore.current;
+      if (attempt) {
+        const receipt = result.status.last_restore;
+        if (receipt?.restore_id === attempt.id && receipt.state !== "APPLIED") {
+          window.clearTimeout(reconnectTimer.current);
+          reconnectTimer.current = undefined;
+          setReconnecting(false);
+          setStatusError("Restore did not complete successfully. Read its status before trying again.");
+          return;
+        }
+        if (receipt?.restore_id === attempt.id && receipt.state === "APPLIED" && !result.status.restore_pending) {
+          finishReconnect();
+        } else if (Date.now() >= attempt.deadline) {
+          setReconnecting(false);
+          setStatusError("Backup status is unavailable. Check the local connection and retry.");
+          return;
+        } else {
+          setReconnecting(true);
+        }
+      }
       setStatusError(null);
     } catch (reason) {
-      setStatusError("Backup status is unavailable. Check the local connection and retry.");
+      if (version !== statusReadVersion.current) return;
+      const attempt = confirmedRestore.current;
+      if (attempt && Date.now() < attempt.deadline) {
+        setReconnecting(true);
+        setStatusError(null);
+      } else {
+        setReconnecting(false);
+        setStatusError("Backup status is unavailable. Check the local connection and retry.");
+      }
     }
   };
 
   useEffect(() => {
     void refreshStatus();
     const timer = window.setInterval(() => void refreshStatus(), 10_000);
-    return () => window.clearInterval(timer);
+    return () => {
+      window.clearInterval(timer);
+      window.clearTimeout(reconnectTimer.current);
+      statusReadVersion.current += 1;
+    };
   }, []);
 
   const createBackup = async () => {
@@ -3730,7 +3776,21 @@ function BackupRestorePanel() {
     setBusy(true);
     setError(null);
     try {
-      await post("/backup-restore/restore/confirm", { restore_id: restore.restore_id });
+      const result = await post<{ restore?: { restore_id?: string } }>("/backup-restore/restore/confirm", { restore_id: restore.restore_id });
+      if (result.restore?.restore_id !== undefined && result.restore.restore_id !== restore.restore_id) {
+        throw new Error("Restore acknowledgement identity mismatch");
+      }
+      finishReconnect();
+      const attempt = { id: restore.restore_id, deadline: Date.now() + 60_000 };
+      confirmedRestore.current = attempt;
+      statusReadVersion.current += 1;
+      setStatusError(null);
+      setReconnecting(true);
+      reconnectTimer.current = window.setTimeout(() => {
+        if (confirmedRestore.current !== attempt) return;
+        setReconnecting(false);
+        setStatusError("Backup status is unavailable. Check the local connection and retry.");
+      }, 60_000);
       setShowConfirm(false);
       setRestore(null);
       setConfirmation("");
@@ -3837,6 +3897,7 @@ function BackupRestorePanel() {
       {status?.restore_pending ? (
         <p role="status">{t("Restore is pending. Intelligence will restart and validate the restored data before processing resumes.")}</p>
       ) : null}
+      {reconnecting ? <p role="status">{t("Reconnecting and validating the restored data…")}</p> : null}
       {error ? <p className="form-error" role="alert">{t(error)}</p> : null}
       {statusError ? <p className="form-error" role="alert">{t(statusError)} <button disabled={busy} onClick={() => void refreshStatus()}>{t("Retry")}</button></p> : null}
       {showConfirm && restore ? (

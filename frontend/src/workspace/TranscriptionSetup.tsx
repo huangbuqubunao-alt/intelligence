@@ -59,7 +59,7 @@ export function TranscriptionSetup() {
         ? await put<{ capability: TranscriptionCapability }>("/local/transcription/model", { model_path: path.trim() })
         : await post<{ capability: TranscriptionCapability }>("/local/transcription/refresh", {});
       setCapability(result.capability);
-      if (save) { setPath(""); setMessage("Model selection saved. Availability and quality checks still apply."); }
+      if (save) { setPath(""); setMessage("Model selection saved."); }
       setRevision(value => value + 1);
     } catch (reason) {
       setActionError(true);

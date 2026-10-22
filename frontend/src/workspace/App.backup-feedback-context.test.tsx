@@ -9,7 +9,7 @@ const preview = { backup_date: "2026-10-10T12:00:00Z", application_version: "tes
 const currentCopy = (language: string) => language === "en" ? "Restore completed successfully." : "备份已恢复，重启后的数据检查已通过。";
 const previousCopy = (language: string) => language === "en" ? "Previous restore completed successfully." : "上一次恢复已完成，重启后的数据检查已通过。";
 const stage = { restore: { restore_id: "current-restore", preview } };
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); localStorage.clear(); location.hash = ""; });
+afterEach(() => { vi.useRealTimers(); cleanup(); vi.unstubAllGlobals(); localStorage.clear(); location.hash = ""; });
 function open(language: string, read: () => ReturnType<typeof response>, mutation: (path: string) => ReturnType<typeof response> = () => response({})) {
   localStorage.setItem("yia.ui-language", language);
   localStorage.setItem("intelligence.onboarding.completed.v1", "true");
@@ -38,6 +38,15 @@ async function openConfirmation(view: ReturnType<typeof within>, language: strin
   const dialog = await view.findByRole("dialog");
   fireEvent.change(within(dialog).getByLabelText(language === "en" ? "Type RESTORE to confirm" : "输入 RESTORE 以确认"), { target: { value: "RESTORE" } });
   return within(dialog);
+}
+
+// Fake-clock cases flush mutations with act, then use synchronous accessible
+// queries; async findBy's polling timer must not be stranded on that clock.
+function openConfirmationNow(view: ReturnType<typeof within>, language: string) {
+  fireEvent.click(view.getByRole("button", { name: language === "en" ? "Restore this backup…" : "恢复此备份…" }));
+  const dialog = within(view.getByRole("dialog"));
+  fireEvent.change(dialog.getByLabelText(language === "en" ? "Type RESTORE to confirm" : "输入 RESTORE 以确认"), { target: { value: "RESTORE" } });
+  return dialog;
 }
 
 it.each(["en", "zh-CN"])("labels an applied receipt as previous on initial reading in %s", async language => {
@@ -209,11 +218,16 @@ it("retains pending/error feedback while confirming and acknowledges the matchin
   fireEvent.click(dialog.getByRole("button", { name: "Confirm Restore and restart" }));
   expect(view.queryByText(currentCopy("en"))).toBeNull();
   expect(view.queryByText(previousCopy("en"))).toBeNull();
+  vi.useFakeTimers();
   readFails = true;
   await act(async () => finish(await response({})));
-  await view.findByText("Backup status is unavailable. Check the local connection and retry.");
-  await view.findByText("Restore is pending. Intelligence will restart and validate the restored data before processing resumes.");
+  expect(view.getByText("Reconnecting and validating the restored data…")).toBeTruthy();
+  expect(view.queryByRole("alert")).toBeNull();
+  expect(view.getByText("Restore is pending. Intelligence will restart and validate the restored data before processing resumes.")).toBeTruthy();
+  await act(async () => vi.advanceTimersByTimeAsync(60_001));
+  expect(view.getByText("Backup status is unavailable. Check the local connection and retry.")).toBeTruthy();
   expect(view.queryByText(currentCopy("en"))).toBeNull();
+  vi.useRealTimers();
   readFails = false;
   status = ready({ restore_id: "current-restore", state: "APPLIED", message: "new receipt", completed_at: "2026-10-14T12:00:00Z" });
   fireEvent.click(view.getByRole("button", { name: "Retry" }));
@@ -221,6 +235,68 @@ it("retains pending/error feedback while confirming and acknowledges the matchin
   expect(view.queryByText(previousCopy("en"))).toBeNull();
   expect(fetch.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(2);
   expect(fetch.mock.calls.filter(([path]) => path.endsWith("/confirm"))).toHaveLength(1);
+});
+
+it.each(["en", "zh-CN"])("reconnects by GET after the acknowledged restore without replaying confirmation in %s", async language => {
+  vi.useFakeTimers();
+  let status: object = ready();
+  let disconnected = false;
+  const fetch = open(language, () => disconnected ? Promise.reject(new Error("expected local restart")) : response({ status }), path => {
+    if (path.endsWith("/stage")) return response(stage);
+    if (path.endsWith("/confirm")) disconnected = true;
+    return response({ restore: { restore_id: "current-restore", restart_required: true } });
+  });
+  await act(async () => {});
+  const view = within(screen.getByRole("heading", { name: language === "en" ? "Backup and Restore" : "备份与恢复" }).closest("section")!);
+  choose(view, language);
+  await act(async () => {});
+  const dialog = openConfirmationNow(view, language);
+  fireEvent.click(dialog.getByRole("button", { name: language === "en" ? "Confirm Restore and restart" : "确认恢复并重启" }));
+  await act(async () => {});
+  expect(view.getByText(language === "en" ? "Reconnecting and validating the restored data…" : "正在重新连接并验证恢复的数据…")).toBeTruthy();
+  expect(view.queryByRole("alert")).toBeNull();
+  disconnected = false;
+  status = ready({ restore_id: "current-restore", state: "APPLIED", completed_at: "2026-10-21T13:00:00Z" });
+  await act(async () => vi.advanceTimersByTimeAsync(10_000));
+  expect(view.getByText(currentCopy(language))).toBeTruthy();
+  expect(view.queryByText(language === "en" ? "Reconnecting and validating the restored data…" : "正在重新连接并验证恢复的数据…")).toBeNull();
+  expect(fetch.mock.calls.filter(([path]) => path.endsWith("/confirm"))).toHaveLength(1);
+  expect(fetch.mock.calls.filter(([, init]) => init?.method === "POST").map(([path]) => path)).toEqual([
+    "/api/v1/backup-restore/restore/stage", "/api/v1/backup-restore/restore/confirm",
+  ]);
+});
+
+it.each(["REJECTED", "ROLLED_BACK", "UNKNOWN_FUTURE"])("keeps a matching terminal restore failure explicit: %s", async state => {
+  let status: object = ready();
+  const fetch = open("en", () => response({ status }), path => {
+    if (path.endsWith("/stage")) return response(stage);
+    if (path.endsWith("/confirm")) status = { ...ready({ state, restore_id: "current-restore" }), ready: false };
+    return response({ restore: { restore_id: "current-restore", restart_required: true } });
+  });
+  const view = within(await panel("en"));
+  await act(async () => {});
+  choose(view, "en");
+  const dialog = await openConfirmation(view, "en");
+  fireEvent.click(dialog.getByRole("button", { name: "Confirm Restore and restart" }));
+  await view.findByText("Restore did not complete successfully. Read its status before trying again.");
+  expect(view.queryByText(currentCopy("en"))).toBeNull();
+  expect(view.getByRole("button", { name: "Retry" })).toBeTruthy();
+  fireEvent.click(view.getByRole("button", { name: "Retry" }));
+  await act(async () => {});
+  expect(view.getByText("Restore did not complete successfully. Read its status before trying again.")).toBeTruthy();
+  expect(fetch.mock.calls.filter(([path]) => path.endsWith("/confirm"))).toHaveLength(1);
+});
+
+it("labels source media length separately from processing duration", async () => {
+  localStorage.setItem("yia.ui-language", "zh-CN");
+  localStorage.setItem("intelligence.onboarding.completed.v1", "true");
+  location.hash = "#Content/media-time";
+  vi.stubGlobal("fetch", vi.fn((path: string) => path.endsWith("/videos/media-time")
+    ? response({ video: { video_id: "media-time", provider: "LOCAL", title: "Local movie", media_kind: "VIDEO", format: ".mp4", duration_seconds: 22.565, processing_status: "COMPLETED" }, transcript: { status: "UNAVAILABLE" }, note: { v1: { status: "UNAVAILABLE" }, v2: { status: "UNAVAILABLE" } }, intelligence_result: { status: "NOT_PROCESSED" }, history: [] })
+    : response({ evidence: [] })));
+  render(<App />);
+  await screen.findByText("时长: 23s");
+  expect(screen.queryByText("耗时: 23s")).toBeNull();
 });
 
 it.each(["en", "zh-CN"])("does not reuse a completed operation's success after a later ZIP inspection fails in %s", async language => {
@@ -283,4 +359,69 @@ it("preserves integrity and work blockers alongside a pending restore", async ()
     expect(text).toContain("a background job is still running");
   });
   expect((view.getByRole("button", { name: "Create Backup" }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+
+it.each(["en", "zh-CN"])("identifies known local maintenance without alleging database corruption in %s", async language => {
+  open(language, () => response({ status: { ...ready(), ready: false, reasons: ["MAINTENANCE_ACTIVE"] } }));
+  const view = within(await panel(language));
+  await view.findByText(language === "en" ? /another Backup, Restore or model configuration operation is in progress/ : /另一个备份、恢复或模型配置操作正在进行/);
+  expect(view.queryByText(/Stored files or the database|无法验证已保存文件/)).toBeNull();
+  expect((view.getByRole("button", { name: language === "en" ? "Create Backup" : "创建备份" }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+it("keeps acknowledged reconnect bounded when no matching receipt arrives", async () => {
+  vi.useFakeTimers();
+  const fetch = open("en", () => response({ status: ready() }), path => path.endsWith("/stage") ? response(stage) : response({ restore: { restore_id: "current-restore" } }));
+  await act(async () => {});
+  const view = within(screen.getByRole("heading", { name: "Backup and Restore" }).closest("section")!);
+  choose(view, "en");
+  await act(async () => {});
+  const dialog = openConfirmationNow(view, "en");
+  fireEvent.click(dialog.getByRole("button", { name: "Confirm Restore and restart" }));
+  await act(async () => {});
+  expect(view.getByText("Reconnecting and validating the restored data…")).toBeTruthy();
+  expect(view.queryByText(currentCopy("en"))).toBeNull();
+  await act(async () => vi.advanceTimersByTimeAsync(60_001));
+  expect(view.getByText("Backup status is unavailable. Check the local connection and retry.")).toBeTruthy();
+  expect(view.queryByText(currentCopy("en"))).toBeNull();
+  expect(fetch.mock.calls.filter(([path]) => path.endsWith("/confirm"))).toHaveLength(1);
+});
+
+it("does not let a pre-acknowledgement read overwrite the matching applied receipt", async () => {
+  vi.useFakeTimers();
+  let reads = 0;
+  let finishOld!: (value: Awaited<ReturnType<typeof response>>) => void;
+  let status: object = ready();
+  open("en", () => ++reads === 2 ? new Promise(resolve => { finishOld = resolve; }) : response({ status }), path => {
+    if (path.endsWith("/stage")) return response(stage);
+    status = ready({ restore_id: "current-restore", state: "APPLIED", completed_at: "2026-10-22T12:00:00Z" });
+    return response({ restore: { restore_id: "current-restore" } });
+  });
+  await act(async () => {});
+  const view = within(screen.getByRole("heading", { name: "Backup and Restore" }).closest("section")!);
+  choose(view, "en");
+  await act(async () => {});
+  const dialog = openConfirmationNow(view, "en");
+  await act(async () => vi.advanceTimersByTimeAsync(10_000));
+  fireEvent.click(dialog.getByRole("button", { name: "Confirm Restore and restart" }));
+  await act(async () => {});
+  expect(view.getByText(currentCopy("en"))).toBeTruthy();
+  await act(async () => finishOld(await response({ status: { ...ready(), restore_pending: true } })));
+  expect(view.getByText(currentCopy("en"))).toBeTruthy();
+  expect(view.queryByText("Restore is pending. Intelligence will restart and validate the restored data before processing resumes.")).toBeNull();
+});
+
+
+it("rejects an acknowledgement for another restore without entering the neutral reconnect window", async () => {
+  const fetch = open("en", () => response({ status: ready() }), path => path.endsWith("/stage") ? response(stage) : response({ restore: { restore_id: "different-restore" } }));
+  const view = within(await panel("en"));
+  await act(async () => {});
+  choose(view, "en");
+  const dialog = await openConfirmation(view, "en");
+  fireEvent.click(dialog.getByRole("button", { name: "Confirm Restore and restart" }));
+  await view.findByText("Restore confirmation failed. Check restore status before trying again.");
+  expect(view.queryByText("Reconnecting and validating the restored data…")).toBeNull();
+  expect(view.queryByText(currentCopy("en"))).toBeNull();
+  expect(fetch.mock.calls.filter(([path]) => path.endsWith("/confirm"))).toHaveLength(1);
 });
