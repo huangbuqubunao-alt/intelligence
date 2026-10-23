@@ -169,10 +169,22 @@ This reviewer did not repeat the author's entire 41-file group or full frontend/
 
 ### Root whole-suite regression followup — current/legacy TTL boundary
 
-Root accepted engineering at the previous fixed submission, then its independent full backend surfaced three real failures in cases outside the prior41-file affected group. Sole writer resumed the original clean worktree; own exact reproduction retained in `.var/long-completion/postintegration-red.log`: **3 FAIL /4.18s**. The root full run remains source-frozen in a separate worktree and its failures are not hidden or reinterpreted.
+Root accepted engineering at the previous fixed submission, then its independent full backend surfaced three real failures in cases outside the prior41-file affected group. Sole writer resumed the original clean worktree; own exact reproduction retained in `.var/long-completion/postintegration-red.log`: **3 FAIL /4.24s**. The root full run remains source-frozen in a separate worktree and its failures are not hidden or reinterpreted.
 
 The new current-native consume-time TTL check had accidentally changed historical v1/v2 arm→claim semantics. Dispatch that additional TTL check only through the finite current runtime profile (current short and current long share its resolved descriptor); historical arm-time TTL, exact request/wire/profile/execution binding, held lease/thread and single consume remain intact. Current short and current long still reject expiry after arm with zero send/consume; new long expiry and both historical v1/v2 once-only tests make the version boundary explicit, never grant retired generation.
 
 The other two failures were the old offline rejection-accounting SimpleNamespace fixture omitting the now-required permit binding, so it crashed before exercising its original precise error/unknown usage assertions. It now explicitly names the original legacy profile. Production validate/execute permit trust is unchanged; no missing-binding fallback was added. Original rejection/AMBIGUOUS, once-only result, original bytes and one-call assertions all remain.
 
 Syntax and targeted Ruff were checked first. Exact three failing nodes plus the whole expanded current-native-session file: **36 PASS /16.18s**, full log `postintegration-focused-green.log`. A complete fixed related group and whole-src strict checks follow before a fresh independent regression review. No schema/model/runtime identity/options/semantic criteria, UI, Cloud, owner, dependency or root-source changes; no model HTTP/load/generation.
+
+Final followup fixed `0f1e19407fa437d7a3a6fdee244ea98db1b13d7e`: **370 PASS /0 FAIL /0 SKIP /0 warnings /102.41s**, ten complete files (both originally failing integration files, current native session, historical capacity/runtime, current native capacity/runtime, harness and both qualification versions). Exact selected file list and command are preserved in `postintegration-source-freeze.json`; all537 source hashes before/after identical. No product/descriptor/harness byte change beyond the single scoped capacity TTL condition; fixture/new version-boundary tests are the other source differences. compileall src/tests/scripts, Ruff src/tests/scripts, strictmypy121 and diff-check PASS. The handoff above corrects its earlier timing typo4.18s to the actual retained RED log4.24s; failure count was unchanged.
+
+**CLEAN STOP pending fresh independent followup review**. Original whole-suite failures remain actual failures; root's currently frozen full run must finish before any new source integration. This370 group does not replace that full suite or grant model qualification. No root worktree, model load/generation, schema/migration, production configuration, dependencies, owner data or main writes. Final evidence SHA256 (same `.var/long-completion/` directory):
+
+- `postintegration-red.log`: `a54e3dcf6286cdc18cbefe302058c5230f21b00cb950b6892c0986084478cdb8`
+- `postintegration-focused-green.log`: `90da99ecb42f447a2225ab79023a4a0925f15cc867c97d72a34635bc2616d669`
+- `postintegration-source-freeze.json`: `d1b3a8a953910d90930393c340c83887ea3a5e1f0a6475595f37457440390121`
+- `postintegration-affected.log`: `512b68244bd83e43da58fbd901fa8cb60aa7874536b1940488f2e95e2faf94c5`
+- `postintegration-affected-result.json`: `481142f8b2d29007dd00cc157e695dd63195f763dcd11a07601e217b3c254558`
+- `postintegration-mypy.log`: `0cd98cfd5b35e0e85b86d75459966f02562f9c10fe59fb3d86271d1b9fa33e5c`
+- `postintegration-ruff.log`: `82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18`
