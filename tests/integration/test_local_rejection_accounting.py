@@ -248,7 +248,8 @@ def test_harness_persists_exclusive_failure_result_with_precise_diagnostic(tmp_p
     source_path.write_text(json.dumps(source))
     permit = SimpleNamespace(case_id="local-timed-en", execution_id=reservation.execution_id,
         source_manifest_hash=harness.digest(source), input_hash="a" * 64, context_hash="a" * 64,
-        request_hash="a" * 64, permit_hash="b" * 64)
+        request_hash="a" * 64, permit_hash="b" * 64,
+        binding={"profile_id": PROFILE_ID})
     prepared = {"database": str(repository._database_path), "data_root": str(provider.data_root),
         "output_language": "en", "source_id": LOCAL_SOURCE_ID}
     freeze = {"source_manifest_paths": {permit.case_id: str(source_path)}}

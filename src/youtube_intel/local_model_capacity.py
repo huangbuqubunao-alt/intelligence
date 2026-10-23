@@ -1227,7 +1227,9 @@ class LocalCapacitySession:
             or ready.profile_id != self._profile_id
             or not self._armed
             or self._consumed
-            or monotonic() >= ready.expires
+            # Current short/long share this finite runtime profile and require
+            # consume-time TTL. Historical arm-then-claim semantics stay intact.
+            or (self._profile.profile_id == CURRENT_RUNTIME_PROFILE_ID and monotonic() >= ready.expires)
             or self.lease.fd is None
             or self.lease.owner != threading.get_ident()
             or ready.execution_id != execution_id

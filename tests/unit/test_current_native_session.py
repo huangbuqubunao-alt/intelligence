@@ -106,7 +106,8 @@ def test_current_native_failure_never_mints_readiness(tmp_path, monkeypatch, dam
     assert not any(path == "/api/chat" and body.get("messages") for path, _, body in calls if body)
 
 
-def test_long_session_rebuilds_the_persisted_complete_proof_and_never_trusts_caller_bytes(tmp_path, monkeypatch):
+@pytest.mark.parametrize("expire_after_arm", [False, True])
+def test_long_session_rebuilds_the_persisted_complete_proof_and_never_trusts_caller_bytes(tmp_path, monkeypatch, expire_after_arm):
     import json
 
     from youtube_intel.local_distillation_qualification import LONG_CURRENT
@@ -144,9 +145,17 @@ def test_long_session_rebuilds_the_persisted_complete_proof_and_never_trusts_cal
     assert not session.matches_long("foreign", rebuilt.prepared)
     request = json.loads(rebuilt.prepared.request_wire)
     session.arm(eid, request)
-    session.consume(eid, request)
+    before = list(calls)
+    if expire_after_arm:
+        monkeypatch.setattr(capacity, "monotonic", lambda: 10**20)
+        with pytest.raises(RuntimeError):
+            session.consume(eid, request)
+        assert session._consumed is False
+    else:
+        session.consume(eid, request)
     with pytest.raises(RuntimeError):
         session.consume(eid, request)
+    assert calls == before
     assert repo.get_distillation_execution(eid).invocation_count == 0
     session.release()
 
@@ -232,5 +241,25 @@ def test_current_expiry_between_arm_and_consume_never_sends(tmp_path, monkeypatc
     before = list(calls), list(native)
     with pytest.raises(RuntimeError):
         session.consume("current", request)
-    assert before == (calls, native)
+    assert before == (calls, native) and session._consumed is False
+    session.release()
+
+
+@pytest.mark.parametrize("profile_id", [capacity.PROFILE_ID, capacity.FIXED_RUNTIME_PROFILE_ID])
+def test_historical_capacity_consumes_armed_bytes_once_without_new_postclaim_ttl(tmp_path, monkeypatch, profile_id):
+    """Historical capacity semantics alone confer no generation authority."""
+    previous, send, calls, _ = old._session(tmp_path, monkeypatch)
+    session = capacity.LocalCapacitySession(repository=previous.repository,
+        data_root=previous.data_root, profile_id=profile_id)
+    value = replace(old.support._input(), local_profile_id=profile_id,
+        local_profile_hash=digest(local_profile_for_scope(profile_id, "YT_TIMED")))
+    request = build_local_distillation_request(value)
+    assert session.prepare("historical", value, request, send)
+    session.arm("historical", request)
+    session._ready = replace(session._ready, expires=-1)
+    before = list(calls)
+    session.consume("historical", request)
+    with pytest.raises(RuntimeError):
+        session.consume("historical", request)
+    assert calls == before and session._consumed is True
     session.release()
