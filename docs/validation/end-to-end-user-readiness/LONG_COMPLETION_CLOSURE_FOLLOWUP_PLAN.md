@@ -109,3 +109,12 @@ scout对同一0.40.6官方Go qwen3.5源码只读补核：仅system/user、无too
 该已验证runner端口的GET /props无需--props（该开关控制POST），default_generation_settings.n_ctx为实际每slot容量，total_slots为实际parallel数量，is_sleeping为实际状态；不是请求num_ctx回显。[props构造](https://github.com/ggml-org/llama.cpp/blob/620d2225cc436ab0b001e3200e590e3b286ef9ab/tools/server/server-context.cpp#L5226)、[实际slot计算](https://github.com/ggml-org/llama.cpp/blob/620d2225cc436ab0b001e3200e590e3b286ef9ab/tools/server/server-context.cpp#L4652)。GET /slots默认开启，数组项有id/n_ctx/speculative/is_processing。[默认](https://github.com/ggml-org/llama.cpp/blob/620d2225cc436ab0b001e3200e590e3b286ef9ab/common/common.h#L681)、[字段](https://github.com/ggml-org/llama.cpp/blob/620d2225cc436ab0b001e3200e590e3b286ef9ab/tools/server/server-context.cpp#L733)。
 
 当前有限adapter要求total_slots严格int1、is_sleeping严格false、slots恰好一项id严格int0、两处实际C一致且slot空闲；保留runner/host前后身份绑定。503/超时/缺字段/类型错误或矛盾都failclosed，不采用request容量兜底。这些是固定源码合同，零本地HTTP/加载/生成的scout结论不代替真实机器容量验收。
+
+
+## 2026-10-23 current-long reserve→claim 中断恢复
+
+普通POST同步reserve→continue；若进程在新current-long PENDING/inv0持久化后、claim前退出，合法零调用任务不能再次永久阻塞Backup。本任务内补最小启动恢复，不新增DDL/调度器/自动模型调用：持同一ApplicationHeavyLease，仅完整历史proof与真实MANUAL_CONTENT、PENDING0/RESERVED、无ledger/usage/035/receipt的明确未执行记录，在IMMEDIATE事务内重验CAS后走现有defer_long。当前预算仍允许时WAITING_MODEL0可沿原路径取消；预算已否决时真实WAITING_BUDGET，保持原规则，不伪造ADMITTED。
+
+当前来源/Summary/policy指针合法刷新不等于冻结历史损坏；安全deferral验证完整保留历史，执行准入仍另需当前校验。inv1/未知/损坏/冲突/legacy/旧WAIT或WAIT_BUDGET、其他活跃lease均不降级或重发，不绕过Backup。若启动时别的真实任务持lease，保持真实阻塞并复用既有恢复机会或正常重启，不新建后台框架。恢复与claim竞争只能一个赢家，两次启动幂等；中断→恢复→取消→全SQL/全部DATA备份恢复不复活须有外部测试证据。
+
+保留真实中断reason，不能在实际已合格时虚称没有合格模型；优先沿既有DTO/提示展示“上次提炼在模型执行前中断，可安全取消后重新提炼”。若缺失，仅必要文案/翻译/测试纳同task，前端有改即重跑完整前端/TS/build。此为用户持续默认授权下的必要恢复边界，不需要逐方法审批；最终源码冻结、独审、真实门及采用条件均保持。
