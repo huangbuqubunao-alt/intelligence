@@ -147,3 +147,154 @@ def claim_long(
             raise StateStoreError("long invocation was already claimed")
         persistence.verify_execution(repository, connection, execution_id)
     return ClaimedLongExecution(execution_id, proof["proof_hash"], proof["request_hash"], threading.get_ident(), _CLAIM_SEAL)
+
+
+def _insert(connection: sqlite3.Connection, table: str, values: dict[str, Any]) -> None:
+    # Tables and fields are private fixed application literals.
+    connection.execute(
+        f"INSERT INTO {table}({','.join(values)}) VALUES({','.join('?' for _ in values)})",
+        tuple(values.values()),
+    )
+
+
+def _completion_receipt(
+    rebuilt: RebuiltLongInput, response: dict[str, Any], *, duration_ms: int, timestamp: str,
+) -> dict[str, Any]:
+    import hashlib
+
+    from youtube_intel.local_distillation_profile import digest
+    from youtube_intel.long_card_canonical import canonicalize_long_card
+    from youtube_intel.long_grounding_codec import decode_output
+
+    model = response.get("model")
+    if (not isinstance(model, str) or not model.strip() or model != model.strip()
+        or len(model) > 320 or type(duration_ms) is not int or not 0 <= duration_ms <= 2**63 - 1):
+        raise StateStoreError("long response identity or duration is unknown")
+    inputs, outputs = response.get("prompt_eval_count"), response.get("eval_count")
+    reliable = all(type(v) is int and 0 <= v <= 2**63 - 1 for v in (inputs, outputs))
+    if not reliable:
+        inputs = outputs = None
+    done = response.get("done") if type(response.get("done")) is bool else None
+    reason = response.get("done_reason") if isinstance(response.get("done_reason"), str) else None
+    if reason is not None and len(reason) > 160:
+        reason = None
+    message = response.get("message")
+    public = message.get("content") if isinstance(message, dict) else None
+    if isinstance(public, str):
+        wire = public.encode("utf-8", errors="strict")
+        public_state = "PRESENT" if len(wire) <= 1_000_000 else "OVERSIZE"
+        if public_state == "OVERSIZE":
+            public = None
+    else:
+        public, public_state = None, "ABSENT"
+    packet = EncodedGrounding(persistence.loads(rebuilt.proof["semantic_snapshot_wire"])["codec"]["canonical_wire"].encode())
+    decoded = None
+    if public:
+        try:
+            decoded = decode_output(public.encode(), packet)
+        except ValueError:
+            pass  # Keep authentic malformed public bytes as a rejected outcome.
+    kind = "REJECTED"
+    admitted_hash = None
+    if (done is True and reason == "stop" and model == rebuilt.value.selected_model
+        and type(inputs) is int and type(outputs) is int
+        and outputs < 6144 and inputs + 6144 + 2 <= 32768
+        and decoded is not None):
+        kind = persistence.loads(decoded.decoded_wire.decode())["result"]
+        if kind == "INTELLIGENCE":
+            admitted_hash = canonicalize_long_card(decoded.decoded_wire).content_hash
+    metadata = dict(done=done, done_reason=reason, actual_provider="ollama", actual_model=model,
+        request_hash=rebuilt.prepared.request_hash, input_tokens=inputs, output_tokens=outputs,
+        cost_microunits=None, duration_ms=duration_ms, public_state=public_state)
+    eid = rebuilt.proof["execution_id"]
+    receipt = dict(execution_id=eid, usage_execution_id=None if kind == "NO_NEW_INTELLIGENCE" else eid,
+        receipt_version="long-timed-completion-receipt-v1", proof_hash=rebuilt.proof["proof_hash"],
+        public_wire=public, public_hash=None if public is None else hashlib.sha256(public.encode()).hexdigest(),
+        decoded_wire=None if decoded is None else decoded.decoded_wire.decode(),
+        decoded_hash=None if decoded is None else decoded.decoded_hash,
+        completion_json=canonical(metadata).decode(), completion_hash=hashlib.sha256(canonical(metadata)).hexdigest(),
+        result_kind=kind, terminal={"INTELLIGENCE": "SUCCEEDED", "NO_NEW_INTELLIGENCE": "SUCCEEDED_NO_NEW_INTELLIGENCE", "REJECTED": "REJECTED_OUTPUT"}[kind],
+        intelligence_id="intelligence:distillation:" + eid if kind == "INTELLIGENCE" else None,
+        revision_id="revision:distillation:" + eid if kind == "INTELLIGENCE" else None,
+        admitted_content_hash=admitted_hash, no_new_execution_id=eid if kind == "NO_NEW_INTELLIGENCE" else None,
+        receipt_hash="", created_at=timestamp)
+    receipt["receipt_hash"] = digest({k: v for k, v in receipt.items() if k != "receipt_hash"})
+    return receipt
+
+
+def complete_long(
+    service: PersonalizedDistillationService, claim: ClaimedLongExecution,
+    response: dict[str, Any], *, duration_ms: int,
+) -> None:
+    """Commit a known response and its entire branch in one immediate transaction.
+
+    Only the dedicated claimed boundary may call this after its one-shot native
+    consume. Unknown identity/transport raises without a receipt or a retry.
+    Persisted bytes are strictly decoded, never repaired or rephrased.
+    """
+    import hashlib
+    import json
+
+    from youtube_intel.state import (
+        DistillationCardWrite,
+        EvidenceStance,
+        IntelligenceClaimKind,
+    )
+
+    if type(claim) is not ClaimedLongExecution or claim._seal is not _CLAIM_SEAL or claim.owner != threading.get_ident():
+        raise StateStoreError("long completion claim is foreign or on a different thread")
+    repository = service._repository
+    now = service._now()
+    timestamp = format_utc_datetime(now)
+    with closing(repository._connect()) as connection, _immediate_transaction(connection):
+        rebuilt = rebuild_long(repository, connection, claim.execution_id)
+        if (rebuilt.proof["proof_hash"] != claim.proof_hash or rebuilt.prepared.request_hash != claim.request_hash
+            or persistence._profile_id(rebuilt.proof) != CURRENT_RUNTIME_PROFILE_ID):
+            raise StateStoreError("long completion claim differs from its persisted request")
+        persistence.verify_execution(repository, connection, claim.execution_id)
+        checkpoint = connection.execute("SELECT * FROM distillation_execution_checkpoints WHERE execution_id=?", (claim.execution_id,)).fetchone()
+        if checkpoint is None or checkpoint["invocation_count"] != 1 or checkpoint["budget_state"] != "DISPATCH_CLAIMED" or checkpoint["status"] != "PENDING":
+            raise StateStoreError("long completion is not the single claimed invocation")
+        receipt = _completion_receipt(rebuilt, response, duration_ms=duration_ms, timestamp=timestamp)
+        _insert(connection, persistence.RECEIPTS, receipt)
+        metadata = persistence.loads(receipt["completion_json"])
+        kind = receipt["result_kind"]
+        budget = "ADMITTED" if kind != "REJECTED" else "REJECTED_OUTPUT"
+        if kind == "INTELLIGENCE":
+            value = persistence.loads(receipt["decoded_wire"])
+            evidence = tuple(sorted(ref["evidence_id"] for ref in value["evidence"]))
+            stances = {ref["evidence_id"]: EvidenceStance(ref["stance"]) for ref in value["evidence"]}
+            card = DistillationCardWrite(source_id=rebuilt.command.source_id, video_id=rebuilt.command.video_id,
+                core_conclusion=value["core_conclusion"],
+                user_relevant_information=tuple(value["user_relevant_information"]),
+                important_new_information=tuple(value["important_new_information"]),
+                meaningful_details=tuple(value["meaningful_details"]), filtered_noise=tuple(value["filtered_noise"]),
+                preference_ids=rebuilt.command.preference_ids, source_policy_revision_id=rebuilt.command.source_policy_revision_id)
+            encoded = {key + "_json": json.dumps(list(getattr(card, key)), separators=(",", ":")) for key in (
+                "user_relevant_information", "important_new_information", "meaningful_details", "filtered_noise", "preference_ids")}
+            repository._insert_distillation_card_in_transaction(connection,
+                intelligence_id=receipt["intelligence_id"], revision_id=receipt["revision_id"],
+                claim_kind=IntelligenceClaimKind(value["claim_kind"]), content_hash=receipt["admitted_content_hash"],
+                evidence_ids=evidence, stance_by_id=stances,
+                supporting_evidence_ids=tuple(e for e in evidence if stances[e] is EvidenceStance.SUPPORTING),
+                card=card, encoded_card=encoded, timestamp=timestamp)
+        # The NO_NEW physical checkpoint deliberately remains PENDING/inv1.
+        # Its immutable sidecar bans any subsequent checkpoint UPDATE.
+        connection.execute("UPDATE distillation_execution_checkpoints SET status=?,budget_state=?,intelligence_id=?,revision_id=?,updated_at=? WHERE execution_id=?",
+            ("PENDING" if kind == "NO_NEW_INTELLIGENCE" else receipt["terminal"], budget,
+             receipt["intelligence_id"], receipt["revision_id"], timestamp, claim.execution_id))
+        if kind == "NO_NEW_INTELLIGENCE":
+            ids = json.dumps(sorted(e.evidence_id for e in rebuilt.value.evidence), separators=(",", ":"))
+            _insert(connection, "distillation_no_new_intelligence_results", dict(
+                execution_id=claim.execution_id, source_id=checkpoint["source_id"], video_id=checkpoint["video_id"],
+                reason=checkpoint["reason"], use_case=checkpoint["use_case"], evidence_ids_json=ids,
+                evidence_set_hash=hashlib.sha256(ids.encode()).hexdigest(),
+                **{k: metadata[k] for k in ("actual_provider", "actual_model", "input_tokens", "output_tokens", "cost_microunits", "duration_ms")},
+                budget_state=budget, outcome="NO_NEW_INTELLIGENCE", created_at=timestamp, http_status_code=None))
+        else:
+            repository._insert_distillation_usage(connection, checkpoint=checkpoint,
+                status=receipt["terminal"], budget_state=budget,
+                outcome="ADMITTED" if kind == "INTELLIGENCE" else "LONG_OUTPUT_REJECTED",
+                invocation_count=1, **{k: metadata[k] for k in ("actual_provider", "actual_model", "input_tokens", "output_tokens", "cost_microunits", "duration_ms")},
+                http_status_code=None, intelligence_id=receipt["intelligence_id"], revision_id=receipt["revision_id"], now=now)
+        persistence.verify_execution(repository, connection, claim.execution_id)

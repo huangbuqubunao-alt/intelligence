@@ -998,6 +998,12 @@ def verify_execution(
     checkpoint = _row(
         connection, "distillation_execution_checkpoints", "execution_id", execution_id
     )
+    receipt = connection.execute(
+        f"SELECT * FROM {RECEIPTS} WHERE execution_id=?", (execution_id,)
+    ).fetchone()
+    if receipt is not None:
+        _verify_completion(repository, connection, proof, checkpoint, dict(receipt))
+        return
     if checkpoint["status"] == "PENDING" and _profile_id(proof) == CURRENT_LONG_PROFILE_ID:
         if (checkpoint["reason"].startswith("MANUAL_CONTENT:")
             and (checkpoint["invocation_count"], checkpoint["budget_state"]) in {
@@ -1129,11 +1135,25 @@ def verify_database(
         "SELECT revision_id FROM intelligence_revisions"
     ):
         if is_long_revision(row[0]):
-            raise StateStoreError("long revision authority is not enabled")
+            verify_revision(repository, connection, row[0])
     if version >= 41:
-        for table in (PROOFS, RECEIPTS):
+        for table in (PROOFS, RECEIPTS, "distillation_resource_usage", "distillation_no_new_intelligence_results", "distillation_waiting_model_cancellations"):
             for row in connection.execute(f"SELECT execution_id FROM {table}"):
-                verify_execution(repository, connection, row[0])
+                if is_long(row[0]):
+                    verify_execution(repository, connection, row[0])
+        for table, column in (("distillation_cards", "revision_id"), ("intelligence_revision_evidence", "revision_id"),
+            ("intelligence_state_history", "revision_id"), ("dependency_edges", "dependent_revision_id")):
+            for row in connection.execute(f"SELECT {column} FROM {table}"):
+                if is_long_revision(row[0]):
+                    verify_revision(repository, connection, row[0])
+        for row in connection.execute("SELECT intelligence_id,current_revision_id FROM intelligences"):
+            if row[0].casefold().startswith("intelligence:distillation:" + FAMILY):
+                execution_id = row[0].removeprefix("intelligence:distillation:")
+                require_identity(execution_id)
+                verify_execution(repository, connection, execution_id)
+                receipt = _row(connection, RECEIPTS, "execution_id", execution_id)
+                if receipt["result_kind"] != "INTELLIGENCE" or receipt["intelligence_id"] != row[0] or row[1] is None:
+                    raise StateStoreError("long Intelligence has no positive completion authority")
 
 
 def verify_receipt_payload(
@@ -1319,3 +1339,132 @@ def verify_receipt_payload(
             )
         ):
             raise StateStoreError("long canonical card/revision association differs")
+
+
+def _verify_completion(
+    repository: SQLiteStateRepository, connection: sqlite3.Connection,
+    proof: dict[str, Any], checkpoint: dict[str, Any], receipt: dict[str, Any],
+) -> None:
+    """Validate every retained result representation before any read overlay."""
+    if (_profile_id(proof) != CURRENT_LONG_PROFILE_ID
+        or checkpoint["invocation_count"] != 1
+        or checkpoint["created_at"] != proof["created_at"]
+        or checkpoint["updated_at"] != receipt["created_at"]
+        or checkpoint["selected_provider"] != "ollama"
+        or not checkpoint["reason"].startswith("MANUAL_CONTENT:")):
+        raise StateStoreError("long completion checkpoint authority differs")
+    verify_receipt_payload(connection, proof, receipt)
+    metadata = loads(receipt["completion_json"])
+    kind = receipt["result_kind"]
+    terminals = {"INTELLIGENCE": "SUCCEEDED", "NO_NEW_INTELLIGENCE": "SUCCEEDED_NO_NEW_INTELLIGENCE", "REJECTED": "REJECTED_OUTPUT"}
+    if (receipt["terminal"] != terminals.get(kind)
+        or metadata["actual_provider"] != "ollama"
+        or not isinstance(metadata["actual_model"], str) or not 0 < len(metadata["actual_model"]) <= 320
+        or metadata["actual_model"] != metadata["actual_model"].strip()
+        or (metadata["done_reason"] is not None and len(metadata["done_reason"]) > 160)
+        or receipt["intelligence_id"] != ("intelligence:distillation:" + proof["execution_id"] if kind == "INTELLIGENCE" else None)
+        or receipt["revision_id"] != ("revision:distillation:" + proof["execution_id"] if kind == "INTELLIGENCE" else None)):
+        raise StateStoreError("long completion branch or observed identity differs")
+    expected_budget = "REJECTED_OUTPUT" if kind == "REJECTED" else "ADMITTED"
+    if checkpoint["budget_state"] != expected_budget:
+        raise StateStoreError("long completion budget authority differs")
+    for table in ("distillation_waiting_model_cancellations", "distillation_cloud_response_failures",
+        "distillation_unidentified_http_responses", "distillation_openai_unidentified_http_responses",
+        "distillation_moonshot_unidentified_http_responses"):
+        if connection.execute(f"SELECT 1 FROM {table} WHERE execution_id=?", (proof["execution_id"],)).fetchone():
+            raise StateStoreError("long completion has conflicting result authority")
+    zero = connection.execute("SELECT * FROM distillation_no_new_intelligence_results WHERE execution_id=?", (proof["execution_id"],)).fetchone()
+    if (zero is not None) != (kind == "NO_NEW_INTELLIGENCE"):
+        raise StateStoreError("long completion zero branch differs")
+    expected_revision = "revision:distillation:" + proof["execution_id"]
+    revisions = connection.execute("SELECT revision_id FROM intelligence_revisions WHERE revision_id=? OR intelligence_id=?",
+        (expected_revision, "intelligence:distillation:" + proof["execution_id"])).fetchall()
+    cards = connection.execute("SELECT revision_id FROM distillation_cards WHERE revision_id=?", (expected_revision,)).fetchall()
+    authority = _row(connection, "distillation_no_new_intelligence_results" if kind == "NO_NEW_INTELLIGENCE" else "distillation_resource_usage", "execution_id", proof["execution_id"])
+    if kind != "NO_NEW_INTELLIGENCE" and (
+        authority["selected_provider"] != checkpoint["selected_provider"]
+        or authority["selected_model"] != checkpoint["selected_model"]
+        or authority["intelligence_id"] != receipt["intelligence_id"]
+        or authority["revision_id"] != receipt["revision_id"]
+        or authority["outcome"] != ("ADMITTED" if kind == "INTELLIGENCE" else "LONG_OUTPUT_REJECTED")
+        or authority["http_status_code"] is not None
+    ):
+        raise StateStoreError("long physical usage result or selected identity differs")
+    if kind == "NO_NEW_INTELLIGENCE" and (authority["outcome"] != "NO_NEW_INTELLIGENCE" or authority["http_status_code"] is not None):
+        raise StateStoreError("long zero usage outcome differs")
+    if kind != "REJECTED" and (
+        type(metadata["input_tokens"]) is not int or type(metadata["output_tokens"]) is not int
+        or metadata["output_tokens"] >= 6144 or metadata["input_tokens"] + 6144 + 2 > 32768
+    ):
+        raise StateStoreError("long successful completion exceeds frozen capacity")
+    if kind != "INTELLIGENCE":
+        if revisions or cards or checkpoint["intelligence_id"] is not None or checkpoint["revision_id"] is not None:
+            raise StateStoreError("long non-card completion has card authority")
+        return
+    revision = _row(connection, "intelligence_revisions", "revision_id", expected_revision)
+    card = _row(connection, "distillation_cards", "revision_id", expected_revision)
+    intelligence = _row(connection, "intelligences", "intelligence_id", receipt["intelligence_id"])
+    if (not cards or revision["intelligence_id"] != receipt["intelligence_id"]
+        or revision["revision_number"] != 1 or revision["prior_revision_id"] is not None
+        or revision["interpretation_kind"] != "DISTILLATION"
+        or revision["created_at"] != receipt["created_at"]
+        or intelligence["created_at"] != receipt["created_at"] or intelligence["current_revision_id"] is None
+        or card["source_id"] != proof["source_id"] or card["video_id"] != proof["video_id"]
+        or card["created_at"] != receipt["created_at"]
+        or card["source_policy_revision_id"] != proof["source_policy_revision_id"]):
+        raise StateStoreError("long revision/card target or parent history differs")
+    side = loads(proof["semantic_snapshot_wire"])
+    if json.loads(card["preference_ids_json"]) != loads(side["snapshots"]["policy"]["wire"])["command"]["preference_ids"]:
+        raise StateStoreError("long card frozen preferences differ")
+    refs = loads(receipt["decoded_wire"])["evidence"]
+    expected_stances = {ref["evidence_id"]: ref["stance"] for ref in refs}
+    rows = connection.execute("SELECT evidence_id,stance FROM intelligence_revision_evidence WHERE revision_id=?", (expected_revision,)).fetchall()
+    if {row[0]: row[1] for row in rows} != expected_stances:
+        raise StateStoreError("long revision Evidence stances differ")
+    edges = connection.execute("SELECT * FROM dependency_edges WHERE dependent_revision_id=?", (expected_revision,)).fetchall()
+    if (len(edges) != len(expected_stances) or {row["input_evidence_id"] for row in edges} != set(expected_stances)
+        or any(row["relation"] != "EVIDENCE_SUPPORT" or row["input_revision_id"] is not None
+            or row["created_at"] != receipt["created_at"]
+            or row["edge_id"] != f"support:{expected_revision}:{row['input_evidence_id']}" for row in edges)):
+        raise StateStoreError("long revision dependency closure differs")
+    supporting = sorted(eid for eid, stance in expected_stances.items() if stance == "supporting")
+    event = _row(connection, "intelligence_state_history", "state_event_id", "state:" + expected_revision)
+    if (not supporting or event["intelligence_id"] != receipt["intelligence_id"]
+        or event["revision_id"] != expected_revision or event["state"] != "NEW"
+        or event["prior_state"] is not None or event["reason"] != "DISTILLATION_ADMITTED"
+        or event["evidence_id"] != supporting[0] or event["created_at"] != receipt["created_at"]):
+        raise StateStoreError("long initial state history differs")
+
+
+def verify_revision(
+    repository: SQLiteStateRepository, connection: sqlite3.Connection, revision_id: str,
+) -> None:
+    """Reject reserved/associated long revisions without the full execution closure."""
+    associated = connection.execute(
+        "SELECT execution_id FROM distillation_execution_checkpoints WHERE revision_id=?", (revision_id,)
+    ).fetchall()
+    long_ids = [row[0] for row in associated if is_long(row[0])]
+    if is_long_revision(revision_id):
+        execution_id = revision_id.removeprefix("revision:distillation:")
+        try:
+            require_identity(execution_id)
+        except StateStoreError as error:
+            raise StateStoreError("long revision authority requires an exact execution identity") from error
+        if long_ids != [execution_id]:
+            raise StateStoreError("long revision has missing or ambiguous execution authority")
+    elif long_ids:
+        raise StateStoreError("long execution cannot acquire a generic revision identity")
+    else:
+        # A later generic interpretation of the same Intelligence still owns
+        # its original reserved long revision. Saving/reading that descendant
+        # must not forget the source execution when its nullable card is gone.
+        revision = connection.execute("SELECT intelligence_id FROM intelligence_revisions WHERE revision_id=?", (revision_id,)).fetchone()
+        if revision is not None and revision[0].casefold().startswith("intelligence:distillation:" + FAMILY):
+            origin = revision[0].removeprefix("intelligence:distillation:")
+            require_identity(origin)
+            verify_revision(repository, connection, "revision:distillation:" + origin)
+        return
+    verify_execution(repository, connection, execution_id)
+    receipt = _row(connection, RECEIPTS, "execution_id", execution_id)
+    if receipt["result_kind"] != "INTELLIGENCE" or receipt["revision_id"] != revision_id:
+        raise StateStoreError("long revision has no positive completion receipt")

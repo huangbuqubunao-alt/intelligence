@@ -11317,6 +11317,62 @@ class SQLiteStateRepository:
         finally:
             connection.close()
 
+    def _insert_distillation_card_in_transaction(
+        self, connection: sqlite3.Connection, *, intelligence_id: str,
+        revision_id: str, claim_kind: IntelligenceClaimKind, content_hash: str,
+        evidence_ids: tuple[str, ...], stance_by_id: dict[str, EvidenceStance],
+        supporting_evidence_ids: tuple[str, ...], card: DistillationCardWrite,
+        encoded_card: dict[str, str], timestamp: str,
+    ) -> None:
+        """Write domain/card rows only, inside the caller's verified transaction.
+
+        Caller owns admission, source checks and atomic execution/usage closure.
+        Both the generic admission and dedicated full-source long boundary use
+        this same structural primitive; it does not mint dispatch permission.
+        """
+        connection.execute(
+            "INSERT INTO intelligences (intelligence_id, current_revision_id, created_at) VALUES (:intelligence_id, NULL, :created_at)",
+            {"intelligence_id": intelligence_id, "created_at": timestamp},
+        )
+        connection.execute(
+            "INSERT INTO intelligence_revisions (revision_id, intelligence_id, revision_number, prior_revision_id, interpretation_kind, claim_kind, content_hash, created_at) VALUES (:revision_id, :intelligence_id, 1, NULL, 'DISTILLATION', :claim_kind, :content_hash, :created_at)",
+            {"revision_id": revision_id, "intelligence_id": intelligence_id, "claim_kind": claim_kind.value, "content_hash": content_hash, "created_at": timestamp,
+            },
+        )
+        for evidence_id in evidence_ids:
+            connection.execute(
+                "INSERT INTO intelligence_revision_evidence (revision_id, evidence_id, stance) "
+                "VALUES (:revision_id, :evidence_id, :stance)",
+                {
+                    "revision_id": revision_id,
+                    "evidence_id": evidence_id,
+                    "stance": stance_by_id[evidence_id].value,
+                },
+            )
+        connection.execute(
+            "INSERT INTO intelligence_state_history (state_event_id, intelligence_id, revision_id, state, prior_state, reason, evidence_id, created_at) VALUES (:state_event_id, :intelligence_id, :revision_id, 'NEW', NULL, 'DISTILLATION_ADMITTED', :evidence_id, :created_at)",
+            {"state_event_id": f"state:{revision_id}", "intelligence_id": intelligence_id, "revision_id": revision_id, "evidence_id": supporting_evidence_ids[0], "created_at": timestamp,
+            },
+        )
+        connection.execute(
+            "UPDATE intelligences SET current_revision_id = :revision_id WHERE intelligence_id = :intelligence_id",
+            {"revision_id": revision_id, "intelligence_id": intelligence_id},
+        )
+        # Legacy EVIDENCE_SUPPORT edges are structural dependency/provenance
+        # bindings for the full Evidence set. Semantic stance is owned only by
+        # intelligence_revision_evidence.stance and must never be inferred here.
+        for evidence_id in evidence_ids:
+            connection.execute(
+                "INSERT INTO dependency_edges (edge_id, dependent_revision_id, relation, input_evidence_id, input_revision_id, created_at) VALUES (:edge_id, :revision_id, 'EVIDENCE_SUPPORT', :evidence_id, NULL, :created_at)",
+                {"edge_id": f"support:{revision_id}:{evidence_id}", "revision_id": revision_id, "evidence_id": evidence_id, "created_at": timestamp,
+                },
+            )
+        connection.execute(
+            "INSERT INTO distillation_cards (revision_id, source_id, video_id, core_conclusion, user_relevant_information_json, important_new_information_json, meaningful_details_json, filtered_noise_json, preference_ids_json, source_policy_revision_id, created_at) VALUES (:revision_id, :source_id, :video_id, :core_conclusion, :user_relevant_information_json, :important_new_information_json, :meaningful_details_json, :filtered_noise_json, :preference_ids_json, :source_policy_revision_id, :created_at)",
+            {"revision_id": revision_id, "source_id": card.source_id, "video_id": card.video_id, "core_conclusion": card.core_conclusion.strip(), "source_policy_revision_id": card.source_policy_revision_id, "created_at": timestamp, **encoded_card,
+            },
+        )
+
     def admit_distillation(
         self,
         *,
@@ -11408,47 +11464,12 @@ class SQLiteStateRepository:
                 ):
                     raise StateStoreError("distillation evidence is unavailable or foreign")
                 timestamp = format_utc_datetime(now)
-                connection.execute(
-                    "INSERT INTO intelligences (intelligence_id, current_revision_id, created_at) VALUES (:intelligence_id, NULL, :created_at)",
-                    {"intelligence_id": intelligence_id, "created_at": timestamp},
-                )
-                connection.execute(
-                    "INSERT INTO intelligence_revisions (revision_id, intelligence_id, revision_number, prior_revision_id, interpretation_kind, claim_kind, content_hash, created_at) VALUES (:revision_id, :intelligence_id, 1, NULL, 'DISTILLATION', :claim_kind, :content_hash, :created_at)",
-                    {"revision_id": revision_id, "intelligence_id": intelligence_id, "claim_kind": claim_kind.value, "content_hash": content_hash, "created_at": timestamp,
-                    },
-                )
-                for evidence_id in evidence_ids:
-                    connection.execute(
-                        "INSERT INTO intelligence_revision_evidence (revision_id, evidence_id, stance) "
-                        "VALUES (:revision_id, :evidence_id, :stance)",
-                        {
-                            "revision_id": revision_id,
-                            "evidence_id": evidence_id,
-                            "stance": stance_by_id[evidence_id].value,
-                        },
-                    )
-                connection.execute(
-                    "INSERT INTO intelligence_state_history (state_event_id, intelligence_id, revision_id, state, prior_state, reason, evidence_id, created_at) VALUES (:state_event_id, :intelligence_id, :revision_id, 'NEW', NULL, 'DISTILLATION_ADMITTED', :evidence_id, :created_at)",
-                    {"state_event_id": f"state:{revision_id}", "intelligence_id": intelligence_id, "revision_id": revision_id, "evidence_id": supporting_evidence_ids[0], "created_at": timestamp,
-                    },
-                )
-                connection.execute(
-                    "UPDATE intelligences SET current_revision_id = :revision_id WHERE intelligence_id = :intelligence_id",
-                    {"revision_id": revision_id, "intelligence_id": intelligence_id},
-                )
-                # Legacy EVIDENCE_SUPPORT edges are structural dependency/provenance
-                # bindings for the full Evidence set. Semantic stance is owned only by
-                # intelligence_revision_evidence.stance and must never be inferred here.
-                for evidence_id in evidence_ids:
-                    connection.execute(
-                        "INSERT INTO dependency_edges (edge_id, dependent_revision_id, relation, input_evidence_id, input_revision_id, created_at) VALUES (:edge_id, :revision_id, 'EVIDENCE_SUPPORT', :evidence_id, NULL, :created_at)",
-                        {"edge_id": f"support:{revision_id}:{evidence_id}", "revision_id": revision_id, "evidence_id": evidence_id, "created_at": timestamp,
-                        },
-                    )
-                connection.execute(
-                    "INSERT INTO distillation_cards (revision_id, source_id, video_id, core_conclusion, user_relevant_information_json, important_new_information_json, meaningful_details_json, filtered_noise_json, preference_ids_json, source_policy_revision_id, created_at) VALUES (:revision_id, :source_id, :video_id, :core_conclusion, :user_relevant_information_json, :important_new_information_json, :meaningful_details_json, :filtered_noise_json, :preference_ids_json, :source_policy_revision_id, :created_at)",
-                    {"revision_id": revision_id, "source_id": card.source_id, "video_id": card.video_id, "core_conclusion": card.core_conclusion.strip(), "source_policy_revision_id": card.source_policy_revision_id, "created_at": timestamp, **encoded_card,
-                    },
+                self._insert_distillation_card_in_transaction(
+                    connection, intelligence_id=intelligence_id, revision_id=revision_id,
+                    claim_kind=claim_kind, content_hash=content_hash,
+                    evidence_ids=evidence_ids, stance_by_id=stance_by_id,
+                    supporting_evidence_ids=supporting_evidence_ids, card=card,
+                    encoded_card=encoded_card, timestamp=timestamp,
                 )
                 connection.execute(
                     "UPDATE distillation_execution_checkpoints SET status = 'SUCCEEDED', budget_state = 'ADMITTED', invocation_count = 1, intelligence_id = :intelligence_id, revision_id = :revision_id, updated_at = :updated_at WHERE execution_id = :execution_id",

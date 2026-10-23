@@ -169,14 +169,15 @@ class AuthoritativeIntelligenceReader:
                 "PERSISTENCE_INVALID", "intelligence persistence is invalid"
             ) from error
 
-    def _reject_unimplemented_long_revision(self, revision_id: str) -> None:
-        from .long_distillation_persistence import is_long, is_long_revision
+    def _validate_long_revision(self, revision_id: str) -> None:
+        from .long_distillation_persistence import verify_revision
         with closing(self._repository._connect()) as connection:
-            associated = connection.execute(
-                "SELECT execution_id FROM distillation_execution_checkpoints WHERE revision_id=?", (revision_id,),
-            ).fetchall()
-        if is_long_revision(revision_id) or any(is_long(row[0]) for row in associated):
-            raise IntelligenceReadRejected("LONG_AUTHORITY_UNAVAILABLE", "long result authority is not enabled")
+            try:
+                verify_revision(self._repository, connection, revision_id)
+            except (StateStoreError, ValueError, KeyError, TypeError) as error:
+                raise IntelligenceReadRejected(
+                    "LONG_AUTHORITY_UNAVAILABLE", "long completion provenance is invalid"
+                ) from error
 
     def _requires_local_text_card(self, revision_id: str) -> bool:
         if _is_local_text_revision(revision_id):
@@ -214,7 +215,7 @@ class AuthoritativeIntelligenceReader:
             current = next((r for r in revisions if r.revision_id == intelligence.current_revision_id), None)
             if current is None or current.revision_number != max(r.revision_number for r in revisions):
                 raise IntelligenceReadRejected("CURRENT_POINTER_INVALID", "current revision pointer is invalid")
-            self._reject_unimplemented_long_revision(revision.revision_id)
+            self._validate_long_revision(revision.revision_id)
             state = self._validate_history(revision, revisions)
             if revision.claim_kind is IntelligenceClaimKind.UNCLASSIFIED or state.state in {
                 IntelligenceState.INVALIDATED, IntelligenceState.OVERTURNED,
@@ -423,7 +424,7 @@ class AuthoritativeIntelligenceReader:
             raise IntelligenceReadRejected("CLAIM_KIND_INVALID", "claim classification is invalid")
         if revision.claim_kind is IntelligenceClaimKind.UNCLASSIFIED:
             raise IntelligenceReadRejected("CLAIM_KIND_UNCLASSIFIED", "claim classification is unclassified")
-        self._reject_unimplemented_long_revision(revision.revision_id)
+        self._validate_long_revision(revision.revision_id)
         state_event = self._validate_history(revision, revisions)
         evidence_ids = self._repository.list_intelligence_revision_evidence(revision.revision_id)
         if not evidence_ids:

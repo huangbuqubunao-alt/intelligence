@@ -1518,6 +1518,16 @@ class BackupRestoreService:
                 reasons.append("SOURCE_RUN_ACTIVE")
         repository = repository or SQLiteStateRepository(self.database)
         repository.bind_source_storage(data_root or self.data_root)
+        # Reverse-check retained reserved authorities even when an attacker has
+        # removed every checkpoint. The forward execution loop below cannot
+        # discover an orphan card/revision/receipt by itself.
+        from .long_distillation_persistence import (
+            verify_database as verify_long_database,
+        )
+        try:
+            verify_long_database(repository, connection)
+        except Exception as error:
+            raise BackupRestoreError("Long timed result provenance failed validation.") from error
         if connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='source_checks'").fetchone() is not None:
             if connection.execute("SELECT 1 FROM source_checks WHERE status='RUNNING' LIMIT 1").fetchone() is not None:
                 reasons.append("SOURCE_RUN_ACTIVE")

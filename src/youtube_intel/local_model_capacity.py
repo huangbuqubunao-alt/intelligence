@@ -183,8 +183,21 @@ def unresolved_local_work(repository: SQLiteStateRepository) -> bool:
                 "SELECT execution_id,status,updated_at FROM distillation_execution_checkpoints "
                 "WHERE selected_provider='ollama' AND (status='AMBIGUOUS' OR (status='PENDING' AND invocation_count=1))"
             ).fetchall()
-        if any(row["status"] == "PENDING" for row in rows):
-            return True
+        ambiguous_rows = []
+        for row in rows:
+            if row["status"] != "PENDING":
+                ambiguous_rows.append(row)
+                continue
+            # m020/035 intentionally retain raw PENDING/inv1 for a completed
+            # NO_NEW result. Only its fully validated logical result and usage
+            # close heavy work; a missing/foreign sidecar remains unknown.
+            execution = repository.get_distillation_execution(row["execution_id"])
+            usage = repository.get_distillation_resource_usage(row["execution_id"])
+            if (execution is None or execution.status != "SUCCEEDED_NO_NEW_INTELLIGENCE"
+                or usage.status != "SUCCEEDED_NO_NEW_INTELLIGENCE" or usage.invocation_count != 1
+                or usage.outcome != "NO_NEW_INTELLIGENCE"):
+                return True
+        rows = ambiguous_rows
         if not rows:
             return False
         from youtube_intel.backup_restore import _AMBIGUOUS_DISTILLATION_OUTCOMES
