@@ -1,0 +1,17 @@
+{
+  "observed_at": "2026-10-23T15:02:12.370590+00:00",
+  "classification": "REAL_FULL_BASELINE_FAILURE_UNRESOLVED_UNTIL_CORRECTED_SOURCE_RETEST",
+  "full_suite_collected": 5729,
+  "failed_node": "tests/integration/test_dogfood_day1_intelligence.py::test_production_manual_content_uses_output_preference_without_scoring",
+  "focused_command": "PYTHONPATH=src YOUTUBE_INTEL_O200K_TEST_ASSET=<verified isolated asset> .venv/bin/python -m pytest -q tests/integration/test_dogfood_day1_intelligence.py::test_production_manual_content_uses_output_preference_without_scoring -o cache_dir=.var/root-backend-baseline-oct23/focused-cache",
+  "focused_result": "1 failed in 1.95s",
+  "key_error": "src/youtube_intel/local_api.py:1076 ApiError MODEL_CONFIGURATION_REQUIRED: Select the fixed local Intelligence model in Settings before requesting extraction.",
+  "expected": "202, WAITING_MODEL, invocation_count=0, output_language=zh-CN, no Scoring/filter decision/topics",
+  "finding": "Isolated legacy test uses support._project old8b route; accepted Settings completion contract line19 explicitly requires MODEL_CONFIGURATION_REQUIRED with no task for wrong route, and real WAIT0 for selected fixed9b without qualification.",
+  "action": "Sole writer instructed to correct only the isolated test configuration precondition, retain every existing result assertion and wrong-route denial coverage; no implementation guard weakening.",
+  "product_changes_by_root": false,
+  "original_assertions_changed_by_root": false,
+  "full_baseline_status": "still running; must retain original failure and never count as PASS",
+  "log_sha256": "51d936fb990143a250433e323521524baa0201eeab9770bce54bf1661e0d7494",
+  "test_source_sha256": "53d8d846ed8cce7a9c36979ee1da5354acd1fb8ff4962c42f3444ed1dae2f0e7"
+}
