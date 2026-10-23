@@ -1,6 +1,6 @@
 # TASK-READINESS-LONG-COMPLETION-CLOSURE — bounded implementation plan
 
-Role: sole Implementer `/root/backup_passive_resume`; base `9c0c1a4a70ee85aa3600950f511a6c64c80fdaa9`; worktree `/Users/hua/Documents/yia-worktrees/readiness-long-completion-closure`; branch `codex/task-readiness-long-completion-closure`. Root's task/package are read by absolute root path (b2e5fc5); previous WAIT task is accepted and not reopened. Final acceptance belongs to root and independent Reviewer `/root/backup_reconnect_review`.
+Role: final sole Implementer `/root/long_completion_final_resume` (predecessor evidence retained below); base `9c0c1a4a70ee85aa3600950f511a6c64c80fdaa9`; worktree `/Users/hua/Documents/yia-worktrees/readiness-long-completion-closure`; branch `codex/task-readiness-long-completion-closure`. Root's task/package are read by absolute root path (b2e5fc5); previous WAIT task is accepted and not reopened. Final acceptance belongs to root after a fresh independent Reviewer assigned only after this final fixed clean submission.
 
 ## Contract and vertical slices
 
@@ -22,7 +22,7 @@ No real9b loading/generation, network/paid calls, registry records, formal owner
 
 ## Execution evidence
 
-Pending implementation. New worktree initially clean at exact base; graph indexed with fast/nonpersistent mode. No product source edits at plan creation.
+Chronological execution evidence retained below. New worktree initially clean at exact base; graph indexed with fast/nonpersistent mode. No product source edits at plan creation.
 
 ### Slice1 — finite pure profiles and historical proof dispatch
 
@@ -111,3 +111,25 @@ The installed0406 route now correctly describes the finite current-short-v3 exec
 Inherited research diagnostic cap checking used normalized result.output_tokens. R13 intentionally clears both usage counters when either one is missing/invalid, so a known raw eval_count equal to the fixed cap was silently lost as a rejection fact. The isolated research adapter now remembers a strictly integer raw output-cap observation only after preserving the raw response, then rejects its normal result with the original LOCAL_RESPONSE_TRUNCATED error. The error's usage remains the unchanged paired unknowns; no invented input/zero, production accounting changes, retry, new budget or generation permission. Existing diagnostic success fixture now supplies an actual paired input counter; missing-input budget fixtures stay missing and assert both unknowns. Added over-cap and malformed/unpaired-below-cap negatives retaining one-shot/no-production-authority checks. Frozen old profile/request/policy bytes remain unchanged.
 
 Compileall src/tests/scripts, Ruff src/tests/scripts, strictmypy121 and diff-check PASS before final fixed source freeze. The new complete run will be named final-task-*-r2 and include the original39 complete files plus both complete inherited research diagnostic files. Full commands/source hashes/results will be retained there; no test deletion/skipping/assertion weakening, DDL, dependency, credentials, owner, registry, localHTTP or real model operation. Engineering submission remains subject to independent fresh review/root acceptance and later actual model/GUI/fullGoal gates.
+
+### Final fixed submission — 2026-10-24 02:56 CST
+
+Sole continuation writer `/root/long_completion_final_resume` resumed clean `dd192ea35842965d96fa21b2200754bc4ed93307`. The predecessor r2 run had been interrupted with no final result: its runner, partial log, source freeze, static and boundary records were preserved byte-for-byte and inventoried in `final-task-interrupted-r2.json`. No PASS or FAIL was inferred from partial progress. The replacement r3 used exactly the same **41 complete files and 537 source hashes**, detached runner PID29144/pytest PID29150 with dedicated process identity receipt; no source or product changes were made during continuation.
+
+**Final complete affected group: 1622 PASS, 0 FAIL, 0 SKIP, 1 warning, 1012.44s** (`pytest` summary; runner elapsed1012.91s), exit0; all537 source hashes before/after are identical (`changed_source_files=[]`). The sole warning is the intentional duplicate-path corrupt-ZIP negative in the existing Backup test. This is the task affected group, not the final whole-Goal backend suite. Exact commands/environment/selected files/hashes are in the freeze, full original stdout in the log and result JSON below. The official existing o200k test asset was supplied without changing tests or dependencies.
+
+The same fixed product source already has complete author frontend **1005 PASS /38 files**, TypeScript/build PASS and compileall/Ruff/strict mypy **121 source files**/diff PASS. Root's separate empty-Content frontend change is absent here; combined final frontend and full backend remain root's later integration gates. Do not add overlapping focused counts, reinterpret root's original5725PASS/4FAIL as green, or hide the original task1514PASS/2FAIL/1warning run. All original failed/interrupted evidence remains retained.
+
+All40 existing migration files remain byte-identical to the accepted base, historical profiles/requests retained, no dependency/lockfile/configuration/credential/owner/main change. Qualification registry remains `records=[]`. This task used synthetic transport engineering only: zero real model HTTP/load/generation and no qualification or positive ordinary-user model claim. No ASR tuple/qualification/seal rewrite. Scope review confirms only the assigned closure, finite current runtime/capacity/qualification adapters, necessary narrow ordinary UI/readiness/harness regressions and their tests/this handoff changed. No deletion/skipping/weakening to hide failures.
+
+**CLEAN STOP for independent review**, not ACCEPTED/DONE and not authorization for registry/release. Root must independently review this fixed commit, integrate accepted code and then complete actual native capacity, frozen original semantic cases/holdouts and long full pair, LOCAL8, genuine positive GUI→Save/Topic/Evidence/restart/full BackupRestore, final whole-Goal checks and conditional adoption.
+
+Evidence directory: `/Users/hua/Documents/yia-worktrees/readiness-long-completion-closure/.var/long-completion/`. SHA256:
+
+- `final-task-source-freeze-r3.json`: `d02c4f6cf09d9dece5ac679d1ba18ffd0cd9d25ba6cc3d8b1c59268cc2bad593`
+- `final-task-affected-r3.log`: `91adcf89a07db2a4aa1a3b2470ff63e8ae04e7d7fabd7181ad111380dc3b750f`
+- `final-task-affected-result-r3.json`: `236237cbf610bedced7d449504da84379ed3e7fbeb87946122281854cbe5782c`
+- `final-task-process-r3.json`: `059fd3b7b30ffb4a64f93bde09177773ba56c9f45d01f97a99d2f6c044875f77`
+- `final-task-interrupted-r2.json`: `54f0298a70ac74926933bbd7ec1dc46d8943dcd14cf37d50f26f197c020cfa08`
+- `final-task-static-r2.json`: `dbdcac6040a922120f41f8eb39add1ab27ddfb5fa4b30b56afae3b44f8ed67b7`
+- `regression-r2-boundaries.json`: `a7ba8476629b592e441ca280efcd70b1a10909ac170967fed17c02c87e6077f2`
