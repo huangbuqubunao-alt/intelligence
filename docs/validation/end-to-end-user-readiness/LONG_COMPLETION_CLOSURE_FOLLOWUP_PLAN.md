@@ -64,3 +64,16 @@ DIRECT复用ApplicationHeavyLease/共享重负载锁、安装字节验证、read
 - 关闭shift后超长输入报错，生成触slot边界产生limit/truncated；不能当完整成功。[输入边界](https://github.com/ggml-org/llama.cpp/blob/620d2225cc436ab0b001e3200e590e3b286ef9ab/tools/server/server-context.cpp#L3675)、[生成边界](https://github.com/ggml-org/llama.cpp/blob/620d2225cc436ab0b001e3200e590e3b286ef9ab/tools/server/server-context.cpp#L2026)。
 
 有限当前profile须将false pair绑定真实最终request/freeze，完整Qwen35渲染/tokenize、实际slot/runner配置和N+输出+安全边界一并验证；不能仅靠字节长度、旧版本proof或成功HTTP授容量。此补核只澄清既有不截断要求，不扩大输出预算/context/300秒、依赖、模型或资格范围。
+
+
+## 2026-10-23 root 裁决：完整容量性质与不可观察开关分离
+
+官方补核明确native `/props`、Ollama load/ps均不暴露实际context_shift；顶层shiftfalse不能排除继承环境。不能伪造false证明，也不读取用户daemon全部环境/凭据、不为此直接引入第二套daemon管理框架。前节“实际runner配置”要求按下述可验证的安全性质实现；不是降低全量输入或无截断标准。
+
+/root/native_capacity_contract_scout 对同一固定upstream作有边界源码核验：只在纯文本普通单次completion、完整实际最终token序列N、实际单slot容量C、每请求真实硬上限P全部成立，并严格 **N+P+2<=C** 时，即使内部ctx_shift=true，容量触发分支仍不可达。该证明表达“本请求无容量shift/截断”，不表达“runner开关为false”。
+
+依据：[请求n_predict优先](https://github.com/ggml-org/llama.cpp/blob/620d2225cc436ab0b001e3200e590e3b286ef9ab/tools/server/server-context.cpp#L1960)、[采样递增](https://github.com/ggml-org/llama.cpp/blob/620d2225cc436ab0b001e3200e590e3b286ef9ab/tools/server/server-context.cpp#L4478)、[达到P停止](https://github.com/ggml-org/llama.cpp/blob/620d2225cc436ab0b001e3200e590e3b286ef9ab/tools/server/server-context.cpp#L2036)、[容量shift入口](https://github.com/ggml-org/llama.cpp/blob/620d2225cc436ab0b001e3200e590e3b286ef9ab/tools/server/server-context.cpp#L3374)。入口要求prompt.n_tokens()+1>=C，而约束使全过程<=N+P+1<=C-1。输入超限本身拒绝：[输入检查](https://github.com/ggml-org/llama.cpp/blob/620d2225cc436ab0b001e3200e590e3b286ef9ab/tools/server/server-context.cpp#L3675)。历史cache按commonprefix并删除尾部，不把旧cache全长与N相加：[匹配](https://github.com/ggml-org/llama.cpp/blob/620d2225cc436ab0b001e3200e590e3b286ef9ab/tools/server/server-context.cpp#L3700)、[满命中退一/keep_first](https://github.com/ggml-org/llama.cpp/blob/620d2225cc436ab0b001e3200e590e3b286ef9ab/tools/server/server-context.cpp#L3907)、[删cache尾](https://github.com/ggml-org/llama.cpp/blob/620d2225cc436ab0b001e3200e590e3b286ef9ab/tools/server/server-context.cpp#L3944)、[纯文本position](https://github.com/ggml-org/llama.cpp/blob/620d2225cc436ab0b001e3200e590e3b286ef9ab/tools/server/server-common.cpp#L435)。
+
+裁决：授权仅在新增有限当前runtime/profile的adapter工程中采用此充分条件，复用原有单daemon/lease/ready-arm-consume框架。仍冻结顶层truncatefalse/shiftfalse并在warm/load与最终请求一致；完整实际Qwen35渲染、true/true tokenize及BOS边界、请求/模板/schema/model/runtime/runner身份、真实C与P一一绑定。不得把请求num_ctx当实际C、字节估算当N、HTTP200或单个prompt_eval_count当完整性证明。排除媒体、续context、共享子请求和工具自动后续生成；任一前提不能实证就拒绝，不增加预算/时间、修补输出或启用registry。
+
+必须有synthetic ENGINEERING_ONLY正负控覆盖边界等号/越界、错slot/模板/token/host、cache冷热、未知上限，以及独立审查后真实机器容量/语义验收。此裁决只允许最小工程路径，不等于机器容量、模型质量或生产资格通过；不能据此写入registry。若实现发现源码前提不成立则记录具体反例并failclosed，再讨论最小受控启动边界。
