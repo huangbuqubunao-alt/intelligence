@@ -95,3 +95,8 @@ scout对同一0.40.6官方Go qwen3.5源码只读补核：仅system/user、无too
 必须证明实际Config.Renderer=qwen3.5及模型内置Messages为空；请求两条消息并不保证最终只有两条。[内置历史前插](https://github.com/ollama/ollama/blob/2476d5ead197abe04629651028f83d48dc75d2b2/server/routes.go#L3598)。Go路径schema作grammar，不加入文本prompt；native另一template分支包含messages/response_format，不能套此公式。[grammar](https://github.com/ollama/ollama/blob/2476d5ead197abe04629651028f83d48dc75d2b2/llm/llama_server.go#L1707)。
 
 官方测试仅有true后缀断言及另一assistant prefill场景，没有该精确S/U两条true全串golden；新测试必须注明固定官方源码推导，不冒称官方完整golden。[官方后缀测试](https://github.com/ollama/ollama/blob/2476d5ead197abe04629651028f83d48dc75d2b2/model/renderers/qwen35_test.go#L173)。这仍仅为工程实现输入，不是实际机器token容量或质量通过。
+
+
+## 2026-10-23 当前资格的真实结果约束
+
+`LIVE_MODEL` 表示实际调用方式，不表示产生了有效洞察。当前有限版本资格必须将封存的真实结果分支与逐例独立语义评审绑定：LOCAL前六个timed/TXT/MD中英文案例均需实质正向Intelligence，末两例按原NO_NEW/注入反例标准；long-full-en/zh均需完整来源下的实质正向。NO_NEW、拒绝或空正文不得凭PASS字符串、hash全等或一次调用记作正向通过。原输入、语义、case顺序和首次FAILSTOP不改，不修补模型输出；历史旧格式保持可读，不据旧receipt授当前生成资格。这属于已定原质量标准的显式工程校验，不新增模型调用或变相放宽。

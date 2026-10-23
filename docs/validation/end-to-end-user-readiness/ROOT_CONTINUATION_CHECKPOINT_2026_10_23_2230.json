@@ -1,0 +1,77 @@
+{
+  "observed_at": "2026-10-23T14:31:30.325776+00:00",
+  "classification": "INTERMEDIATE_ENGINEERING_NOT_QUALIFICATION_OR_RELEASE",
+  "root_head": "e4b210a89d3a4f3e6a6353b408979a3d845d68f1",
+  "core_head": "b021004f46a4953821abe5395992943962a48909",
+  "sole_writer": "/root/long_completion_finish",
+  "preserved_wip": "tests/unit/test_current_local_qualification.py preserved by sole writer before continuation",
+  "resource_recheck": {
+    "available_memory_bytes": 7200292864,
+    "available_memory_gib": 6.7057952880859375,
+    "minimum_gib": 8.101,
+    "disk_free_bytes": 206401331200,
+    "model_loads": 0,
+    "generations": 0
+  },
+  "frontend": {
+    "command": "npm test -- --run",
+    "exit_code": 0,
+    "test_files": 39,
+    "passed": 1008,
+    "seconds": 20.4,
+    "source_before_after_equal": true,
+    "source_file_count": 82,
+    "source_manifest_sha256": "3ebfbaf1bac6b5820ca4d033e80a83f1fc0f345b38140148a5138205536e4609",
+    "log_sha256": "7e2223a02cb0fc056a66b8650f3bd93ed7efb3d45668f797875728a2a80840e6",
+    "typescript": {
+      "command": "npm run typecheck",
+      "exit_code": 0,
+      "log_sha256": "0073b777d6b85b5e4d2ac79b723aeebbde034ccb34fcc14bd2f0666746071629"
+    }
+  },
+  "git": {
+    "formal_main": "73ee7e747b4461b9de8a201d6b47669eb3913d1a",
+    "actual_remote_main": "73ee7e747b4461b9de8a201d6b47669eb3913d1a",
+    "formal_worktree_clean": true,
+    "formal_ancestor_of_root": true,
+    "checked_readonly": true
+  },
+  "boundaries": "No owner database/configuration access or mutation; no model HTTP/load/generation or registry qualification; no main adoption.",
+  "core_logs_observed": {
+    "completion-closure-error-compat-fix.log": {
+      "sha256": "7e8021988806271e06b9a3c0c27fcf0b0a1775662935ad9589a5cfe856fa1b87",
+      "tail": [
+        "........................................................................ [ 66%]",
+        ".....................................                                    [100%]",
+        "109 passed in 215.04s (0:03:35)"
+      ]
+    },
+    "native-pure-green-first.log": {
+      "sha256": "f45d543b12d2c6cff965f73c61374f00ccd4d88266b4483358289f228f6eebcc",
+      "tail": [
+        ".......................                                                  [100%]",
+        "23 passed in 0.21s"
+      ]
+    },
+    "native-pure-mypy.log": {
+      "sha256": "0cd98cfd5b35e0e85b86d75459966f02562f9c10fe59fb3d86271d1b9fa33e5c",
+      "tail": [
+        "Success: no issues found in 121 source files"
+      ]
+    },
+    "current-host-old-new-regression.log": {
+      "sha256": "fc29e8b4a618796197001b0e08363b1b97ffc9036009fdac198ed9449b3f8e5a",
+      "tail": [
+        "........................................................................ [ 82%]",
+        "..............................                                           [100%]",
+        "174 passed in 11.90s"
+      ]
+    },
+    "current-host-mypy-fixed.log": {
+      "sha256": "0cd98cfd5b35e0e85b86d75459966f02562f9c10fe59fb3d86271d1b9fa33e5c",
+      "tail": [
+        "Success: no issues found in 121 source files"
+      ]
+    }
+  }
+}

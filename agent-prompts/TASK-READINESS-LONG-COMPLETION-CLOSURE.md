@@ -1,7 +1,7 @@
 # Implementer package — long completion closure
 
 Task: TASK-READINESS-LONG-COMPLETION-CLOSURE
-Role: Implementer /root/long_completion_resume, sole writer
+Role: Implementer /root/long_completion_finish, sole writer
 Base: codex/task-end-to-end-user-readiness@9c0c1a4a70ee85aa3600950f511a6c64c80fdaa9
 Worktree: /Users/hua/Documents/yia-worktrees/readiness-long-completion-closure
 Branch: codex/task-readiness-long-completion-closure
@@ -17,4 +17,4 @@ Whole production long completion and finite0.40.6 versions must be closed across
 
 Return new fixed SHA(s), exact tests+logs and freeze, handoff and cleanSTOP. Root accepts only after independent review, external checks and relevant real GUI. Do not merge/push/release or markDONE.
 
-2026-10-23 continuation: prior writer stopped on quota; sole replacement /root/long_completion_resume preserved the entire tracked diff and untracked execution module under own .var/resume-snapshot-oct23 before continuing at a17b8dd. No reset, replacement or second core writer. Independent fresh reviewer will be assigned after final fixed clean submission.
+2026-10-23 continuation: prior writer stopped on quota; sole replacement /root/long_completion_finish preserved the entire tracked diff and untracked execution module under own .var/resume-snapshot-oct23 before continuing at a17b8dd. No reset, replacement or second core writer. Independent fresh reviewer will be assigned after final fixed clean submission.
