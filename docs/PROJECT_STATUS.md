@@ -1,3 +1,5 @@
+> 2026-10-23真实新用户补测：首次引导第二步“设置本地转写”实际跳#Settings/transcription并准确显示缺模型及替代TXT/MD；空Content只有说明无操作入口，新P2已分派窄UI任务EMPTY-CONTENT-ENTRY，复用现有AddEntry，与后端closure无交叉文件可并行。无产品代码由root实施，无模型/正式数据动作。
+
 > 2026-10-23串行派发：WAIT工程整合记录9c0c1a4已clean；下一唯一产品writer /root/backup_passive_resume 在新WT readiness-long-completion-closure 从该基线实现有限0.40.6版本/长内容claim-complete-证据与恢复闭包，零真实模型动作、registry保持空。任务TASK-READINESS-LONG-COMPLETION-CLOSURE，独立review待固定提交。root只文档/只读QA，无第二共享核心writer，尚未Goal完成或main采用。
 
 > 2026-10-23最新：WAIT-LIFECYCLE候选工程DONE，root b08e1bf按顺序整合8个已审提交，495哈希全等acc0f989/R7 APPROVE847d7bf；整合后backend74/UI64/TS/compile/Ruff/strict119/diff通过。完整影响组2188/最终frontend998及真实macOS双WAIT取消/重启/备份恢复79表19与24 DATA逐项全等已验，中文手册73图17章真实Chrome零坏链并更新干净设置截图。尚未完成真实洞察资格/正向Save/Topic/最终全量与main采用；串行进入既定completion closure工程，无owner/main变化。
