@@ -1,0 +1,60 @@
+{
+  "observed_at": "2026-10-23T04:37:01.399622+00:00",
+  "classification": "GENUINE_HEADFUL_FRESH_USER_GUIDANCE_QA",
+  "product_root": "b08e1bf74da0ff50f29a7680910f1c666863b3be",
+  "frontend_reviewed_source": "acc0f989f3bb5b4c57f03e24e320705a6d9a52a7",
+  "isolation": "New task-owned SQLite/DATA/vault; one disabled required config channel; no model choice sidecar or credentials; normal factory/worker and native import lifecycle. Not formal owner.",
+  "passed": [
+    "First onboarding step2 explicitly explains imported video requires source/ASR and TXT/MD alternative",
+    "Visible onboarding setup link reaches #Settings/transcription and actual heading top19px",
+    "Missing model reason and model directory guide displayed, no false READY",
+    "Existing Following AddEntry local selection offers setup CTA before file selection",
+    "Local setup CTA closes modal and reaches correct Settings anchor"
+  ],
+  "new_defect": {
+    "severity": "P2",
+    "description": "Proven empty Content has only descriptive text and no actionable add/import CTA",
+    "screenshot": "04-empty-content-no-action.png",
+    "assigned_task": "TASK-READINESS-EMPTY-CONTENT-ENTRY"
+  },
+  "screenshots": {
+    "02-onboarding-transcription-guidance.png": "30c8cae4cbb578aa7c3468937d94758359e728fa5cfcc692ebc40e55fef6d11a",
+    "03-onboarding-link-arrival.png": "25bebf8e1f10270e3156b87ea156dad412a2466635fe88e2fab66f62557292f1",
+    "04-empty-content-no-action.png": "a376c40703db9f9432ddf53654208e9b14746f710d557a2ebe0e1e781aaa31e7",
+    "05-native-import-missing-model-guidance.png": "3aff3b996648fa806ac21ba63d82958f93095197af8ab0294e4bcf1099f6d86f",
+    "01-first-onboarding.png": "1598c0a2ef926db4c9749438b777ecd109b5413c352528b79004eca4bb43713b",
+    "06-import-guide-settings-arrival.png": "25bebf8e1f10270e3156b87ea156dad412a2466635fe88e2fab66f62557292f1"
+  },
+  "table_count": 78,
+  "execution_related_row_counts": {
+    "distillation_cards": 0,
+    "distillation_cloud_authorizations": 0,
+    "distillation_cloud_response_failures": 0,
+    "distillation_execution_checkpoints": 0,
+    "distillation_moonshot_cloud_authorizations": 0,
+    "distillation_moonshot_unidentified_http_responses": 0,
+    "distillation_no_new_intelligence_results": 0,
+    "distillation_openai_cloud_authorizations": 0,
+    "distillation_openai_unidentified_http_responses": 0,
+    "distillation_resource_usage": 0,
+    "distillation_unidentified_http_responses": 0,
+    "distillation_waiting_model_cancellations": 0,
+    "intelligence_revision_evidence": 0,
+    "intelligence_revisions": 0,
+    "intelligence_state_history": 0,
+    "intelligences": 0,
+    "long_distillation_completion_receipts": 0,
+    "long_distillation_input_proofs": 0,
+    "saved_intelligences": 0
+  },
+  "data_files": {},
+  "qa_setup_errors_preserved": [
+    "Initial system Python lackedyaml, corrected to existing .venv (no dependency installation).",
+    "Initial empty channels fixture rejected expected min1; copied existing disabled-channel QA config.",
+    "Initial missing QA vault; created task-owned emptyvault.",
+    "Optional copytree root templates absent; no such directory needed, normal factory uses packaged templates."
+  ],
+  "model_generations": 0,
+  "cloud_calls": 0,
+  "owner_access": false
+}

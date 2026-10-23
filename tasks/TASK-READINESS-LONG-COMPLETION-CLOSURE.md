@@ -1,6 +1,6 @@
 # TASK-READINESS-LONG-COMPLETION-CLOSURE
 
-Status: READY — 2026-10-23. Same ordinary-user remediation Goal, no new phase.
+Status: IN_PROGRESS — 2026-10-23. Same ordinary-user remediation Goal, no new phase.
 Base: codex/task-end-to-end-user-readiness@9c0c1a4a70ee85aa3600950f511a6c64c80fdaa9
 Dependency: TASK-READINESS-LONG-INPUT-WAIT-LIFECYCLE DONE in independent integration candidate b08e1bf, 495 reviewed source hashes exact; root integration74backend/64UI/static passed. Final authoracc0f989 independentR7 APPROVE847d7bf; actual full19/24DATA restore proof accepted. Formal main remains73ee; no release authorized by this card before final Goal gates.
 Implementer: /root/backup_passive_resume, sole product writer in NEW worktree /Users/hua/Documents/yia-worktrees/readiness-long-completion-closure, branch codex/task-readiness-long-completion-closure. Independent reviewer /root/backup_reconnect_review after fixed clean submission, separate new review worktree. Root writes only plans/docs/QA/integration. No other core writer.
