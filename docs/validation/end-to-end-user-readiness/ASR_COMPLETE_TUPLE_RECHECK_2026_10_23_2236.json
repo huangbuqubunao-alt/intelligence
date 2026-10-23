@@ -1,0 +1,31 @@
+{
+  "observed_at": "2026-10-23T14:36:10.974569+00:00",
+  "classification": "EXISTING_GENUINE_ASR_QUALIFICATION_RECHECK_NOT_A_NEW_TRANSCRIPTION",
+  "core_head": "91bdb09cd637451120cd15f846edefda211461e6",
+  "model_identity": "sha256:627ea4bff5510683c5919ac35d290ec3cfca957ef74a301ca46e24ec71d34751",
+  "tuple_equal": true,
+  "current_tuple_sha256": "a9ad0c5c32073209bc499dafbedb479fc3382d2d19878cb007d8fa8161afa886",
+  "status": {
+    "state": "PASSED",
+    "production_eligible": true,
+    "identity": "ab0c9eab7749bb2d344bb2db134b8859390e6e5aadcbbe68e6d9391d970cc576"
+  },
+  "original_policy_evaluation": "PASSED",
+  "original_speech_samples": 14,
+  "original_negative_controls": 3,
+  "audit_hash_matches": true,
+  "protected_existing_cache_unchanged": true,
+  "protected_files_checked": 5,
+  "implementation_binding_count": 12,
+  "new_asr_executions": 0,
+  "new_intelligence_generations": 0,
+  "model_weights_streamed_for_hash_only": true,
+  "executor_probe_or_weight_loading": false,
+  "qualification_resigned_or_key_copied": false,
+  "formal_owner_access": false,
+  "qa_corrections": [
+    "First diagnostic used strict model_validate on JSON-decoded lists; corrected to production model_validate_json(canonical(evidence)).",
+    "A QA assertion assumed qualification.lock exists; actual completed cache uses worker.lock. Corrected readonly check to enumerate existing cache files. No product or original tests changed."
+  ],
+  "limits": "Intermediate source; final binding comparison remains required if any of twelve bindings change."
+}
