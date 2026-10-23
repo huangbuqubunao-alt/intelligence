@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 PROFILE_ID = "local-grounding-qwen35-9b-thinking-v1"
 FIXED_RUNTIME_PROFILE_ID = "local-grounding-qwen35-9b-fixed-runtime-v2"
+CURRENT_RUNTIME_PROFILE_ID = "local-grounding-qwen35-9b-runtime-0.40.6-v3"
 TEXT_WIRE = "local-text-distillation-v2"
 SCOPES = ("YT_TIMED", "LOCAL_TIMED", "LOCAL_TEXT")
 
@@ -62,7 +63,7 @@ class LocalDistillationProfile:
         options: dict[str, int | float] = {"temperature": 1.0, "top_p": 0.95, "top_k": 20, "min_p": 0.0,
             "presence_penalty": 1.5, "repeat_penalty": 1.0, "seed": 20261013,
             "num_ctx": 16384, "num_predict": 6144}
-        if self.profile_id == FIXED_RUNTIME_PROFILE_ID:
+        if self.profile_id in {FIXED_RUNTIME_PROFILE_ID, CURRENT_RUNTIME_PROFILE_ID}:
             options.update(num_predict=8192, num_batch=512)
         return options
 
@@ -103,7 +104,7 @@ class LocalDistillationProfile:
             "truncate": False, "shift": False,
             "capacity_contract": "qwen35-byte-vocabulary-chat-system-user-88-plus2-v1",
             "capacity_vocabulary_model_blob": "02d45dc1cf451ba2475ac33b301c2dd8f985abe4c182ce04a1f2f5bf0260278d"}
-        if self.profile_id == FIXED_RUNTIME_PROFILE_ID:
+        if self.profile_id in {FIXED_RUNTIME_PROFILE_ID, CURRENT_RUNTIME_PROFILE_ID}:
             projection["max_response_bytes"] = self.max_response_bytes
         return projection
 
@@ -113,6 +114,10 @@ _FIXED_RUNTIME_PROFILE = LocalDistillationProfile(
     profile_id=FIXED_RUNTIME_PROFILE_ID, max_content_bytes=8_101,
 )
 
+_CURRENT_RUNTIME_PROFILE = LocalDistillationProfile(
+    profile_id=CURRENT_RUNTIME_PROFILE_ID, runtime="0.40.6", max_content_bytes=8_101,
+)
+
 
 def resolve_profile(profile_id: str) -> LocalDistillationProfile:
     if type(profile_id) is str:
@@ -120,6 +125,8 @@ def resolve_profile(profile_id: str) -> LocalDistillationProfile:
             return _PROFILE
         if profile_id == FIXED_RUNTIME_PROFILE_ID:
             return _FIXED_RUNTIME_PROFILE
+        if profile_id == CURRENT_RUNTIME_PROFILE_ID:
+            return _CURRENT_RUNTIME_PROFILE
     raise ValueError("unknown local distillation profile")
 
 

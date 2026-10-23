@@ -23,7 +23,13 @@ from youtube_intel.domain import (
     EvidenceSource,
     PointKind,
 )
+from youtube_intel.local_distillation_profile import (
+    CURRENT_RUNTIME_PROFILE_ID as CURRENT_SHORT_PROFILE_ID,
+)
 from youtube_intel.local_distillation_profile import canonical, digest
+from youtube_intel.long_distillation_profile import (
+    CURRENT_RUNTIME_PROFILE_ID as CURRENT_LONG_PROFILE_ID,
+)
 from youtube_intel.long_distillation_profile import (
     PROFILE_ID,
     PreparedLongRequest,
@@ -706,9 +712,14 @@ def reserve_wait(
             packet,
             service._local_profile_id,
         )
+        profile_id = (
+            CURRENT_LONG_PROFILE_ID
+            if service._local_profile_id == CURRENT_SHORT_PROFILE_ID else PROFILE_ID
+        )
         prepared = prepare_long_request(
             packet,
             value,
+            profile_id=profile_id,
             source_snapshot=canonical(source_snapshot),
             summary_snapshot=canonical(summary),
             policy_snapshot=canonical(policy),
@@ -730,7 +741,7 @@ def reserve_wait(
             source_policy_revision_id=command.source_policy_revision_id,
             semantic_snapshot_wire=prepared.projection.semantic_snapshot_wire.decode(),
             semantic_snapshot_hash=prepared.projection.semantic_snapshot_hash,
-            profile_wire=resolve_long_profile(PROFILE_ID).profile_wire.decode(),
+            profile_wire=resolve_long_profile(profile_id).profile_wire.decode(),
             profile_hash=prepared.profile_hash,
             request_wire=prepared.request_wire.decode(),
             request_hash=prepared.request_hash,
@@ -914,7 +925,10 @@ def verify_proof(
     if expected_value != value:
         raise StateStoreError("long original semantic input differs")
     prepared = prepare_long_request(
-        packet, value, **{k + "_snapshot": canonical(snapshots[k]) for k in snapshots}
+        packet, value, profile_id=_profile_id(proof),
+        source_snapshot=canonical(snapshots["source"]),
+        summary_snapshot=canonical(snapshots["summary"]),
+        policy_snapshot=canonical(snapshots["policy"]),
     )
     _verify_prepared(proof, prepared)
     code = loads(proof["code_identity_json"])
@@ -938,11 +952,21 @@ def verify_proof(
     return proof
 
 
+def _profile_id(proof: dict[str, Any]) -> str:
+    profile_id = loads(proof["profile_wire"]).get("profile_id")
+    if type(profile_id) is not str:
+        raise StateStoreError("long historical profile identity differs")
+    # Resolver is finite; caller-defined options and unknown versions cannot
+    # reinterpret persisted historical request bytes.
+    resolve_long_profile(profile_id)
+    return profile_id
+
+
 def _verify_prepared(proof: dict[str, Any], prepared: PreparedLongRequest) -> None:
     expected = {
         "semantic_snapshot_wire": prepared.projection.semantic_snapshot_wire.decode(),
         "semantic_snapshot_hash": prepared.projection.semantic_snapshot_hash,
-        "profile_wire": resolve_long_profile(PROFILE_ID).profile_wire.decode(),
+        "profile_wire": resolve_long_profile(_profile_id(proof)).profile_wire.decode(),
         "profile_hash": prepared.profile_hash,
         "request_wire": prepared.request_wire.decode(),
         "request_hash": prepared.request_hash,

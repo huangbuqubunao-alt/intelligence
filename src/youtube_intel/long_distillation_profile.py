@@ -30,6 +30,7 @@ from youtube_intel.long_grounding_codec import (
 )
 
 PROFILE_ID = "local-grounding-qwen35-9b-lossless-rle-thinking-v1"
+CURRENT_RUNTIME_PROFILE_ID = "local-grounding-qwen35-9b-lossless-rle-runtime-0.40.6-v2"
 SCHEMA_VERSION = "long-grounding-alias-exact-timed-schema-v1"
 FREEZE_VERSION = "long-grounding-complete-native-request-freeze-v1"
 MAX_REQUEST_BYTES = 8_000_000
@@ -58,7 +59,7 @@ class LongDistillationProfile:
 
     @property
     def profile_id(self) -> str:
-        return PROFILE_ID
+        return cast(str, json.loads(self.profile_wire)["profile_id"])
 
     @property
     def profile_hash(self) -> str:
@@ -106,10 +107,24 @@ _PROFILE = LongDistillationProfile(
 )
 
 
+# Keep the entire historical descriptor and request renderer intact. A new
+# finite identity binds current runtime/batch without reinterpreting old proofs.
+_CURRENT_DESCRIPTOR = json.loads(_PROFILE.profile_wire)
+_CURRENT_DESCRIPTOR.update(
+    profile_id=CURRENT_RUNTIME_PROFILE_ID,
+    runtime="0.40.6",
+    options={**json.loads(_OPTIONS_WIRE), "num_batch": 512},
+)
+_CURRENT_PROFILE = LongDistillationProfile(canonical(_CURRENT_DESCRIPTOR))
+
+
 def resolve_long_profile(profile_id: str) -> LongDistillationProfile:
-    if type(profile_id) is not str or profile_id != PROFILE_ID:
-        raise ValueError("unknown long request candidate profile")
-    return _PROFILE
+    if type(profile_id) is str:
+        if profile_id == PROFILE_ID:
+            return _PROFILE
+        if profile_id == CURRENT_RUNTIME_PROFILE_ID:
+            return _CURRENT_PROFILE
+    raise ValueError("unknown long request candidate profile")
 
 
 @dataclass(frozen=True, slots=True)
@@ -226,6 +241,7 @@ def prepare_long_request(
     source_snapshot: bytes,
     summary_snapshot: bytes,
     policy_snapshot: bytes,
+    profile_id: str = PROFILE_ID,
 ) -> PreparedLongRequest:
     """Freeze the actual complete projection and native request, without IO.
 
@@ -233,6 +249,8 @@ def prepare_long_request(
     Source profile fields are historical semantic identity, not this candidate's
     authority. Neither their hashes nor the VerifiedInput type prove authority.
     """
+    profile = resolve_long_profile(profile_id)
+    descriptor = json.loads(profile.profile_wire)
     if type(packet) is not EncodedGrounding:
         raise ValueError("long request requires the actual accepted codec packet")
     _preflight(packet.canonical_wire, MAX_INPUT_BYTES)
@@ -261,7 +279,7 @@ def prepare_long_request(
         "format": schema,
         "stream": False,
         "think": True,
-        "options": json.loads(_OPTIONS_WIRE),
+        "options": descriptor["options"],
         "truncate": False,
         "shift": False,
     }
@@ -269,7 +287,7 @@ def prepare_long_request(
     if len(request_wire) > MAX_REQUEST_BYTES:
         raise ValueError("long request exceeds complete request byte bound")
     return PreparedLongRequest(
-        _PROFILE.profile_hash,
+        profile.profile_hash,
         value.semantic_hash,
         value.local_profile_id,
         value.local_profile_hash,

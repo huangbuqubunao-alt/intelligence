@@ -23,3 +23,9 @@ No real9b loading/generation, network/paid calls, registry records, formal owner
 ## Execution evidence
 
 Pending implementation. New worktree initially clean at exact base; graph indexed with fast/nonpersistent mode. No product source edits at plan creation.
+
+### Slice1 — finite pure profiles and historical proof dispatch
+
+Added explicit short `local-grounding-qwen35-9b-runtime-0.40.6-v3` and long `local-grounding-qwen35-9b-lossless-rle-runtime-0.40.6-v2`, preserving old exported IDs/defaults and every frozen historical profile/request hash. New short is16384/8192/300s and long32768/6144/300s, explicit512 batch, original semantic prompt/schema/sampling. These pure resolvers grant no runtime/qualification/capacity permission. New long reserve chooses only the finite backend service profile; historical verify_proof and _verify_prepared both dispatch by strict persisted profile identity, reconstructing exact bytes rather than applying today's default. No registry, native execution or old proof rewrite.
+
+Evidence `.var/long-completion/`: historical-freeze-before.json captured prior old hashes; profiles-red.log actual2 missing-current-profile failures/7passing controls → profiles-green-initial.log129PASS25.27s (new profile cases + complete existing long profile + fixed runtime tests). history-dispatch-red.log actual new proof erroneously used old ID → history-dispatch-green.log10PASS1.29s including retained old proof bytes and independently readable new proof. New builder keyword initially exposed strictmypy **dict variance at old reconstruction call; replaced with explicit named snapshot arguments and finite profile ID, profiles-mypy-fixed.log119PASS. Ruff found only two new test import orders, fixed only those imports; all old assertions retained. This slice remains partial engineering: claim/complete/runtime/capacity/read authority still closed pending subsequent slices. No real models/network/owner/DDL/ASR changes.
