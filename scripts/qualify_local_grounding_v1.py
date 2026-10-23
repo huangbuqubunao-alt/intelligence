@@ -225,7 +225,10 @@ def validate_execution_package(audit_root: Path, permit_path: Path, freeze_path:
     permit = LocalExecutionPermit.model_validate(read_object(permit_path))
     binding = prepared["binding"]
     profile_id = binding["profile_id"]
-    projection = qualification_projection(profile_id, binding["scope"])
+    try:
+        projection = qualification_projection(profile_id, binding["scope"])
+    except ValueError as error:
+        raise ValueError("execution package is unreviewed, stale, or mismatched") from error
     current = qualification_binding(projection)
     if (freeze.get("version") != "local-grounding-freeze-v1" or freeze.get("status") != "PRE_OUTPUT_REVIEWED"
         or freeze.get("profile_id") != profile_id or prepared.get("production_qualified") is not False

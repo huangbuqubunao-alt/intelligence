@@ -430,6 +430,7 @@ class Qwen35ResearchTransport(OllamaLocalDistillationTransport):
         self.root = root
         self.execute_authorized = execute_authorized
         self.generations = 0
+        self._output_limit_observed = False
 
     @property
     def available(self) -> bool:
@@ -446,7 +447,7 @@ class Qwen35ResearchTransport(OllamaLocalDistillationTransport):
                 "research case may dispatch only once, including after restart"
             )
         result = super().generate(value)
-        if THINK and result.output_tokens is not None and result.output_tokens >= cast(int, OPTIONS["num_predict"]):
+        if THINK and self._output_limit_observed:
             raise KnownLocalDistillationResponseError("LOCAL_RESPONSE_TRUNCATED", result)
         return result
 
@@ -478,6 +479,12 @@ class Qwen35ResearchTransport(OllamaLocalDistillationTransport):
         if path == "/api/chat":
             # Preserve opaque provider raw response. Never inspect/display thinking.
             write_once(self.root / "response.json", response)
+            # A known raw output cap is a rejection fact even when the input
+            # counter is absent. Keep accounting's paired unknown counts intact.
+            outputs = response.get("eval_count")
+            self._output_limit_observed = (
+                type(outputs) is int and outputs >= cast(int, OPTIONS["num_predict"])
+            )
         return response
 
 

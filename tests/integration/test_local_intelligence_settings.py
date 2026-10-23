@@ -446,7 +446,12 @@ def test_real_composition_cached_app_config_reloads_only_intelligence_choice(
         actual["status"] == "APPLIED"
         and actual["actual_route"]["model"] == candidate.model
     )
-    assert actual["actual_route"]["profile_id"] is None
+    from youtube_intel.local_distillation_profile import CURRENT_RUNTIME_PROFILE_ID
+
+    assert actual["actual_route"]["profile_id"] == CURRENT_RUNTIME_PROFILE_ID
+    capabilities = composition.local_distillation_capabilities()
+    assert len(capabilities) == 6
+    assert all(row["status"] == "NOT_QUALIFIED" for row in capabilities)
     assert config.settings.local_scoring.model == "qwen3:8b"
     assert second.runtime._config.settings.local_scoring.model == "qwen3:8b"
     assert (project / "config/settings.yaml").read_bytes() == yaml

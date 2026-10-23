@@ -71,7 +71,7 @@ def test_projection_is_exact_old_actual_request_except_predict(capacity: None, m
         research.capacity_request_projection(replace(actual_input(), video_title="Different source input"))
 
 
-@pytest.mark.parametrize("failure", ["budget", "length", "empty", "timeout", "none"])
+@pytest.mark.parametrize("failure", ["budget", "budget-over", "length", "empty", "timeout", "none"])
 def test_capacity_one_attempt_preserves_response_and_stops(capacity: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str) -> None:
     calls = []
     def fake(self, path, *, method, body=None):
@@ -79,21 +79,43 @@ def test_capacity_one_attempt_preserves_response_and_stops(capacity: None, tmp_p
         assert path == "/api/chat" and body["options"]["num_predict"] == 6144
         if failure == "timeout":
             raise TimeoutError("synthetic unknown 300s completion")
-        return {"model": research.MODEL, "done": True, "done_reason": "length" if failure == "length" else "stop", "eval_count": 6144 if failure == "budget" else 4096, "message": {"content": "" if failure == "empty" else "{}", "thinking": "opaque fixture never interpreted"}}
+        return {"model": research.MODEL, "done": True, "done_reason": "length" if failure == "length" else "stop", **({"prompt_eval_count": 1075} if failure == "none" else {}), "eval_count": 6145 if failure == "budget-over" else 6144 if failure == "budget" else 4096, "message": {"content": "" if failure == "empty" else "{}", "thinking": "opaque fixture never interpreted"}}
     monkeypatch.setattr(OllamaLocalDistillationTransport, "_request", fake)
     transport = research.Qwen35ResearchTransport(root=tmp_path, execute_authorized=True)
     if failure == "none":
         result = transport.generate(actual_input())
         assert result.output_tokens == 4096
     else:
-        with pytest.raises(TimeoutError if failure == "timeout" else KnownLocalDistillationResponseError):
+        with pytest.raises(TimeoutError if failure == "timeout" else KnownLocalDistillationResponseError) as caught:
             transport.generate(actual_input())
+        if failure.startswith("budget"):
+            assert caught.value.reason == "LOCAL_RESPONSE_TRUNCATED"
+            assert caught.value.result.input_tokens is None
+            assert caught.value.result.output_tokens is None
     assert len(calls) == 1 and (tmp_path / "generation.started.json").exists()
     assert (tmp_path / "response.json").exists() is (failure != "timeout")
     restarted = research.Qwen35ResearchTransport(root=tmp_path, execute_authorized=True)
     with pytest.raises(RuntimeError, match="once"):
         restarted.generate(actual_input())
     assert len(calls) == 1
+    assert not transport.is_authorized_for_normal_production(actual_input())
+
+
+@pytest.mark.parametrize("input_count", [None, True, -1, "1075"])
+def test_capacity_unpaired_counters_remain_unknown_below_limit(capacity: None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, input_count: object) -> None:
+    response = {"model": research.MODEL, "done": True, "done_reason": "stop", "prompt_eval_count": input_count, "eval_count": 4096, "message": {"content": "{}"}}
+    calls = []
+    def fake(self, path, *, method, body=None):
+        calls.append(path)
+        return response
+    monkeypatch.setattr(OllamaLocalDistillationTransport, "_request", fake)
+    transport = research.Qwen35ResearchTransport(root=tmp_path, execute_authorized=True)
+    result = transport.generate(actual_input())
+    assert result.input_tokens is result.output_tokens is None
+    assert json.loads((tmp_path / "response.json").read_text()) == response
+    with pytest.raises(RuntimeError, match="once"):
+        transport.generate(actual_input())
+    assert calls == ["/api/chat"]
     assert not transport.is_authorized_for_normal_production(actual_input())
 
 
