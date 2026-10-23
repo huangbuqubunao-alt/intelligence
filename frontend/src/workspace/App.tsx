@@ -1418,7 +1418,7 @@ function Workspace() {
         {page === "Content" && (
           <>
             {imported && <p role="status" aria-live="polite">{t("File imported. Its processing status appears below.")}</p>}
-            <ContentPage refresh={refresh} targetVideoId={contentTarget} onOpen={openContent} onClose={() => navigate("Content")} />
+            <ContentPage refresh={refresh} targetVideoId={contentTarget} onOpen={openContent} onClose={() => navigate("Content")} onAdd={() => setAddProvider("YOUTUBE")} />
           </>
         )}
         {page === "Intelligence" && (
@@ -1675,11 +1675,12 @@ function SavedCard(
   );
 }
 function ContentPage(
-  { refresh, targetVideoId, onOpen, onClose }: {
+  { refresh, targetVideoId, onOpen, onClose, onAdd }: {
     refresh: number;
     targetVideoId?: string | null;
     onOpen: (id: string) => void;
     onClose: () => void;
+    onAdd: () => void;
   },
 ) {
   const { t } = useUiLanguage();
@@ -1715,7 +1716,8 @@ function ContentPage(
     )
     : (
       <Empty>
-        No Content yet. Add a video link, follow a YouTube channel, or import a local file.
+        <p>{t("No Content yet. Add a video link, follow a YouTube channel, or import a local file.")}</p>
+        <button type="button" className="button button-primary" onClick={onAdd}>{t("Add content")}</button>
       </Empty>
     );
 }

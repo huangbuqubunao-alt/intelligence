@@ -279,6 +279,7 @@ const chinese: Record<string, string> = {
   "Channels follow future uploads. Video links and local files are one-time imports. Bilibili creator following is unavailable.": "频道会持续关注新发布内容。视频链接和本地文件仅导入一次。暂不支持 Bilibili UP 主持续关注。",
   "Skip for now": "暂时跳过",
   "Add something": "添加内容",
+  "Add content": "添加内容",
 
   "Existing videos are not imported. Successful checks have a 15-minute cooldown.": "不会导入已有视频。成功检查后需等待 15 分钟再检查。",
   "Retry": "重试",
