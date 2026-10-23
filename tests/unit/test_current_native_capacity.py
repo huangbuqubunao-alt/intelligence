@@ -98,3 +98,72 @@ def test_native_capacity_does_not_accept_bytes_estimate_unknown_slot_or_arbitrar
         value["options"]["temperature"] = 0.0
     with pytest.raises(ValueError):
         native_capacity_witness(value, profile_id=profile, native_tokens=response, actual_slot_context=slot)
+
+
+@pytest.mark.parametrize("profile", [SHORT, LONG])
+def test_current_host_pins_distinct_runtime_bytes_without_reinterpreting_old(profile):
+    from youtube_intel import local_model_capacity as capacity
+    from youtube_intel.local_distillation_profile import (
+        FIXED_RUNTIME_PROFILE_ID,
+        PROFILE_ID,
+    )
+
+    assert capacity.runtime_binary_hashes(profile) == {
+        "ollama": "be4b054f8ebf8b3b185daa30671849a80f22c2b2ef45e064de562f69aba46a96",
+        "llama-server": "831a41b83171eb00710d75e55bc1d995c8bc61e01bee547420ca52c02448275d",
+        "libllama-server-impl.dylib": "c9d3c06fe860e99823811e0716766fae9589b40b800b91cbcb9f78dda1df2a7c",
+    }
+    assert capacity.runtime_binary_hashes(PROFILE_ID) == capacity.BINARIES
+    assert capacity.runtime_binary_hashes(FIXED_RUNTIME_PROFILE_ID) == capacity.BINARIES
+    assert capacity.runtime_binary_hashes(profile) != capacity.runtime_binary_hashes(PROFILE_ID)
+    with pytest.raises(ValueError):
+        capacity.runtime_binary_hashes("arbitrary-profile")
+
+
+@pytest.mark.parametrize("profile,context", [(SHORT, 16384), (LONG, 32768)])
+def test_current_host_observation_checks_finite_actual_slot_and512_before_capacity(tmp_path, monkeypatch, profile, context):
+    from conftest import _load_module
+
+    from youtube_intel import local_model_capacity as capacity
+
+    old = _load_module("test_local_model_capacity")
+    cache = tmp_path / ".ollama/models"
+    runner = old._runner(capacity, cache).replace("-c 16384", "-c " + str(context)) + " -b 512 -ub 512"
+    server = f"78 Thu Oct 01 00:00:00 2026 {capacity.ROOT / 'ollama'} serve"
+    seen = []
+    def verify_installed(_cache, *, profile_id):
+        seen.append(profile_id)
+        return (), ()
+    monkeypatch.setattr(capacity.Path, "home", lambda: tmp_path)
+    monkeypatch.setattr(capacity, "verify_installed_model_bytes", verify_installed)
+    monkeypatch.setattr(capacity, "processes", lambda binary: server if binary == "ollama" else runner)
+    monkeypatch.setattr(capacity.shutil, "disk_usage", lambda _: type("Usage", (), {"free": 20 * capacity.GIB})())
+    monkeypatch.setattr(capacity, "available_memory_bytes", lambda: 10 * capacity.GIB)
+    observed = capacity.observe_host(data_root=tmp_path, loaded=True, profile_id=profile)
+    assert seen == [profile]
+    assert observed.server == server and observed.runner == runner
+    monkeypatch.setattr(capacity, "processes", lambda binary: server if binary == "ollama" else runner.replace(" -b 512", " -b 1024"))
+    with pytest.raises(capacity.CapacityUnavailable):
+        capacity.observe_host(data_root=tmp_path, loaded=True, profile_id=profile)
+
+
+def test_current_runtime_verifies_v2_parent_reference_and_payloads_without_legacy_anchor(tmp_path, monkeypatch):
+    from conftest import _load_module
+
+    from youtube_intel import local_model_capacity as capacity
+
+    manifests = _load_module("test_capacity_host_manifest")
+    wrapper, parent, reference, _binary, payloads = manifests.fixture_installation(tmp_path, monkeypatch)
+    monkeypatch.setattr(capacity, "CURRENT_BINARIES", dict(capacity.BINARIES))
+    wrapper.rename(tmp_path / "historical-anchor-retained")
+    cache = parent.parent.parent
+    files, links = capacity.verify_installed_model_bytes(cache, profile_id=SHORT)
+    assert parent in {p for p, _identity in files}
+    assert reference in {p for p, _identity in files}
+    assert set(payloads) <= {p for p, _identity in files}
+    assert links[0][0] == reference and wrapper not in {p for p, _identity in files}
+    with pytest.raises(OSError):
+        capacity.verify_installed_model_bytes(cache)
+    parent.write_bytes(parent.read_bytes() + b" ")
+    with pytest.raises(capacity.CapacityUnavailable):
+        capacity.verify_installed_model_bytes(cache, profile_id=LONG)

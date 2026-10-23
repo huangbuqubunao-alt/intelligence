@@ -44,6 +44,22 @@ BINARIES = {
     "llama-server": "35844857b55bb541fe914064b96e437f8b8d187968ecd8cfe50c52dd8434b8b8",
     "libllama-server-impl.dylib": "096573a0fe1ea34f126c937c7be021ffaa27647ff31eac5852cda8165a939b66",
 }
+CURRENT_BINARIES = {
+    "ollama": "be4b054f8ebf8b3b185daa30671849a80f22c2b2ef45e064de562f69aba46a96",
+    "llama-server": "831a41b83171eb00710d75e55bc1d995c8bc61e01bee547420ca52c02448275d",
+    "libllama-server-impl.dylib": "c9d3c06fe860e99823811e0716766fae9589b40b800b91cbcb9f78dda1df2a7c",
+}
+
+
+def runtime_binary_hashes(profile_id: str) -> dict[str, str]:
+    """Finite version selection; never reinterpret old binary identities."""
+    if type(profile_id) is str and profile_id in {PROFILE_ID, FIXED_RUNTIME_PROFILE_ID}:
+        return dict(BINARIES)
+    from youtube_intel.local_native_capacity import current_descriptor
+    current_descriptor(profile_id)  # Reject unknown/case-variant profiles.
+    return dict(CURRENT_BINARIES)
+
+
 BLOBS = {
     "08f9698c1116d2ba3d2c1751f6e98919823e13bb28ff5eb7451c7bc9b40907c5": 177,
     "f836f08f921193f4d6b6a6952dba0a6fb116759d26a757bcb395d570d73976ca": 921704832,
@@ -257,16 +273,17 @@ def _reference_identity(path: Path) -> tuple[int, int, int, int, str]:
 
 
 def _verify_model_manifests(
-    wrapper: Path,
+    wrapper: Path | None,
     parent: Path,
     *,
     identities: Mapping[Path, tuple[int, int, int, int]] | None = None,
 ) -> None:
-    """Verify the exact legacy anchor and its original runnable manifest.
+    """Verify the exact runnable parent and optional historical GC anchor.
 
     Official v0.40.1 WriteLegacyAnchor appends manifest blobs as GC anchors;
-    the public digest comes from the v2 named reference to the original blob.
-    This accepts one pinned installation shape, never arbitrary extra layers.
+    only historical runtime verification requires that anchor. Current runtime
+    consumes the strict v2 reference/parent and identical fixed model layers.
+    No arbitrary descriptors, extra layers or weaker parent hashes are accepted.
     """
     from youtube_intel.local_distillation_qualification import strict_object
 
@@ -290,7 +307,7 @@ def _verify_model_manifests(
         except (ValueError, UnicodeError, RecursionError):
             raise CapacityUnavailable("model manifest JSON differs") from None
 
-    wrapper_value = read(wrapper, _WRAPPER_MANIFEST_BYTES, _WRAPPER_SHA256)
+    wrapper_value = None if wrapper is None else read(wrapper, _WRAPPER_MANIFEST_BYTES, _WRAPPER_SHA256)
     parent_value = read(parent, _PARENT_MANIFEST_BYTES, parent_hash)
     payloads = list(BLOBS.items())
     if len(payloads) != 6:
@@ -339,9 +356,9 @@ def _verify_model_manifests(
             },
         ],
     }
-    if canonical(parent_value) != canonical(expected) or canonical(
-        wrapper_value
-    ) != canonical(expected_wrapper):
+    if canonical(parent_value) != canonical(expected) or (
+        wrapper is not None and canonical(wrapper_value) != canonical(expected_wrapper)
+    ):
         raise CapacityUnavailable(
             "model manifest descriptors or parent relation differ"
         )
@@ -370,13 +387,15 @@ class HostObservation:
 
 
 def verify_installed_model_bytes(
-    cache: Path,
+    cache: Path, *, profile_id: str = PROFILE_ID,
 ) -> tuple[
     tuple[tuple[Path, tuple[int, int, int, int]], ...],
     tuple[tuple[Path, tuple[int, int, int, int, str]], ...],
 ]:
     """Shared fixed-byte gate; performs no process, HTTP, load or generation IO."""
-    profile = resolve_profile(PROFILE_ID)
+    binaries = runtime_binary_hashes(profile_id)
+    profile = resolve_profile(PROFILE_ID)  # Same fixed model; runtime selection is separate.
+    historical = profile_id in {PROFILE_ID, FIXED_RUNTIME_PROFILE_ID}
     manifest = cache / "manifests/registry.ollama.ai/library/qwen3.5/9b-q4_K_M"
     parent_hash = profile.model_digest.removeprefix("sha256:")
     parent = cache / "blobs" / ("sha256-" + parent_hash)
@@ -388,16 +407,16 @@ def verify_installed_model_bytes(
     ):
         raise CapacityUnavailable("API manifest reference differs")
     paths = [
-        manifest,
+        *([manifest] if historical else []),
         parent,
         reference,
-        *(ROOT / name for name in BINARIES),
+        *(ROOT / name for name in binaries),
         *(cache / "blobs" / ("sha256-" + h) for h in BLOBS),
     ]
     before = tuple((p, file_identity(p)) for p in paths)
     identities = dict(before)
-    _verify_model_manifests(manifest, parent, identities=identities)
-    for name, expected in BINARIES.items():
+    _verify_model_manifests(manifest if historical else None, parent, identities=identities)
+    for name, expected in binaries.items():
         if (
             file_hash(ROOT / name, expected_identity=identities[ROOT / name])
             != expected
@@ -421,11 +440,16 @@ def observe_host(
     *, data_root: Path, loaded: bool, profile_id: str = PROFILE_ID,
 ) -> HostObservation:
     """Ordinary host gate; v2 execution observations require explicit512."""
-    profile = resolve_profile(profile_id)
-    return _observe_host(
-        data_root=data_root, loaded=loaded,
-        fixed_batch=512 if profile.profile_id == FIXED_RUNTIME_PROFILE_ID else None,
-    )
+    if type(profile_id) is str and profile_id in {PROFILE_ID, FIXED_RUNTIME_PROFILE_ID}:
+        profile = resolve_profile(profile_id)
+        return _observe_host(
+            data_root=data_root, loaded=loaded,
+            fixed_batch=512 if profile.profile_id == FIXED_RUNTIME_PROFILE_ID else None,
+        )
+    from youtube_intel.local_native_capacity import current_descriptor
+    descriptor = current_descriptor(profile_id)
+    return _observe_host(data_root=data_root, loaded=loaded, fixed_batch=512,
+        runtime_profile_id=profile_id, context_tokens=descriptor["options"]["num_ctx"])
 
 
 def observe_load_only_reconfiguration(*, data_root: Path) -> HostObservation:
@@ -439,15 +463,29 @@ def observe_load_only_reconfiguration(*, data_root: Path) -> HostObservation:
 
 def _observe_host(
     *, data_root: Path, loaded: bool, fixed_batch: int | None = None,
+    runtime_profile_id: str = PROFILE_ID, context_tokens: int = 16384,
 ) -> HostObservation:
     """Verify installed bytes and resource truth, never an old receipt boolean."""
     cache = Path.home() / ".ollama/models"
-    before, references = verify_installed_model_bytes(cache)
+    current = runtime_profile_id not in {PROFILE_ID, FIXED_RUNTIME_PROFILE_ID}
+    if current:
+        from youtube_intel.local_native_capacity import current_descriptor
+        descriptor = current_descriptor(runtime_profile_id)
+        if context_tokens != descriptor["options"]["num_ctx"] or fixed_batch != 512:
+            raise CapacityUnavailable("current runtime host contract differs")
+        before, references = verify_installed_model_bytes(cache, profile_id=runtime_profile_id)
+    else:
+        if context_tokens != 16384:
+            raise CapacityUnavailable("historical context cannot be reinterpreted")
+        before, references = verify_installed_model_bytes(cache)
     server, runner = processes("ollama"), processes("llama-server")
     if len(server.splitlines()) != 1 or not server.endswith(" serve"):
         raise CapacityUnavailable("server process differs")
     if loaded:
-        _validate_runner(runner, cache, fixed_batch=fixed_batch)
+        if current:
+            _validate_runner(runner, cache, fixed_batch=fixed_batch, context_tokens=context_tokens, current_runtime=True)
+        else:
+            _validate_runner(runner, cache, fixed_batch=fixed_batch)
     elif runner:
         raise CapacityUnavailable("untracked runner exists before load-only")
     if fixed_batch is not None:
@@ -475,7 +513,12 @@ def validate_runner(runner: str, cache: Path) -> None:
     _validate_runner(runner, cache)
 
 
-def _validate_runner(runner: str, cache: Path, *, fixed_batch: int | None = None) -> None:
+def _validate_runner(
+    runner: str, cache: Path, *, fixed_batch: int | None = None,
+    context_tokens: int = 16384, current_runtime: bool = False,
+) -> None:
+    if type(context_tokens) is not int or context_tokens not in ({16384, 32768} if current_runtime else {16384}):
+        raise CapacityUnavailable("unknown finite runner context")
     if fixed_batch is not None:
         _validate_process_prefix(runner, ROOT / "llama-server")
     if len(runner.splitlines()) != 1 or str(ROOT / "llama-server") not in runner:
@@ -522,7 +565,7 @@ def _validate_runner(runner: str, cache: Path, *, fixed_batch: int | None = None
             / "blobs/sha256-02d45dc1cf451ba2475ac33b301c2dd8f985abe4c182ce04a1f2f5bf0260278d"
         ),
         "--host": "127.0.0.1",
-        "-c": "16384",
+        "-c": str(context_tokens),
         "-np": "1",
         "--chat-template": "chatml",
         "--no-jinja": "true",
