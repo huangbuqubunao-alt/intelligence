@@ -188,3 +188,24 @@ Final followup fixed `0f1e19407fa437d7a3a6fdee244ea98db1b13d7e`: **370 PASS /0 F
 - `postintegration-affected-result.json`: `481142f8b2d29007dd00cc157e695dd63195f763dcd11a07601e217b3c254558`
 - `postintegration-mypy.log`: `0cd98cfd5b35e0e85b86d75459966f02562f9c10fe59fb3d86271d1b9fa33e5c`
 - `postintegration-ruff.log`: `82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18`
+
+
+## Independent delta review R2 — historical/current consume TTL
+
+Reviewer `/root/long_completion_review_r1`, fresh independent worktree `/Users/hua/Documents/yia-worktrees/readiness-long-completion-review-r2`, branch `codex/review-readiness-long-completion-r2`. Reviewed the entire four-file delta `b6adac2bb0550bba0498c1373d99ce34062cd0b5..7f52d59a8b27d5d171d719fb4ae91d2b4aaf9ab2`, including product fix `0f1e19407fa437d7a3a6fdee244ea98db1b13d7e`. Reuses the independently completed R1 whole-task review (report commit `fcbf953370f45dc2563c52863ad5be6b43ead1fc`); mandatory instructions/specifications are byte-identical to that reviewed base. No broader refactor/model/framework change was included or authorized by this delta review.
+
+**APPROVE for this isolated regression fix; no reproducible P0/P1/P2 finding.** Tests were read before the one product condition. The finite current descriptor check is correct for both current-short and current-long: the constructor deliberately resolves the long session's underlying descriptor to the current-short runtime, so both still refuse expiry after arm at consume without consuming or sending. Historical v1/v2 retain the prior arm-time TTL plus exact profile/request/wire/execution/thread/held-lease/single-consume guards. Allowing their already armed capacity object to consume once after its old TTL does not register qualification or allow retired v2 generation. No post-claim metadata request or hidden retry was introduced.
+
+The legacy offline rejection-accounting fixture now explicitly provides its original profile binding while retaining its existing precise error/unknown usage/result bytes/once-only assertions. Production permit parsing and execution trust have no diff; an additional independent strict-model probe confirms a missing `binding` is rejected. No production fallback or relaxed permit binding is present. New negative tests cover current-long expiry and current-short remains covered; both historical IDs have explicit once-only capacity tests.
+
+Independent checks in this R2 worktree using the existing root Python environment, `PYTHONPATH=src`, synthetic transport only:
+
+- Three complete files `test_local_capacity_composition.py`, `test_local_rejection_accounting.py`, `test_current_native_session.py`: **99 PASS /0 FAIL /0 SKIP, 84.69s**, exit0. This includes all original three failing nodes and the new current-long/historical boundary cases.
+- Targeted Ruff on all three changed code/test files: PASS. Whole-src strict mypy: PASS, 121 files. Complete delta `git diff --check`: PASS.
+- All537 files match the author's final postintegration source freeze. Independently hashed original RED/complete370 run/freeze/result match the handoff hashes; original3-FAIL evidence remains retained. Unchanged paths include migrations, dependencies, configuration, registry, frontend and harness implementation. Zero real model/network load/generation, owner data, credential, root/main or release operation by this review.
+
+Exact commands, final summaries, hash comparisons and the missing-binding negative are retained in `/Users/hua/Documents/yia-worktrees/readiness-long-completion-review-r2/.var/independent-review-r2/review-evidence.json`, SHA256 `49a9eec9051b11cd17302cfdbae14449a8ed2724918f6a9b926c55ad806b3590`; independent99-test log SHA256 `7115ad56d7bbceaf3419efb0a5a0596c049d0d46f9f03ae72c40356b39185618`.
+
+Limits: this is a delta review, not a new full suite or real model/GUI acceptance. R1 engineering findings remain unchanged. Root's separately frozen whole-Goal backend run must finish and retain its actual result before source integration; this99 group and the author's370 group do not turn that run's failures into passes. Final combined full checks, actual capacity/quality/ordinary-user chains and adoption gates remain root responsibilities. Only this review handoff section was written.
+
+**CLEAN STOP — R2 reviewer complete; acceptance/integration remains with root.**
