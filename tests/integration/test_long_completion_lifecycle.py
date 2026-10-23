@@ -357,7 +357,7 @@ def test_fault_at_every_completion_write_and_commit_never_exposes_partial_author
         lease.release()
 
 
-@pytest.mark.parametrize("change", ["missing-model", "wrong-model", "length", "done-false", "token-cap", "input-cap", "malformed", "foreign-evidence", "missing-tokens"])
+@pytest.mark.parametrize("change", ["missing-model", "wrong-model", "length", "done-false", "token-cap", "input-cap", "malformed", "foreign-evidence", "missing-tokens", "zero-input", "zero-output"])
 def test_authentic_negative_response_preserves_observations_without_fake_card(tmp_path, change):
     from youtube_intel.long_distillation_execution import (
         claim_long,
@@ -391,6 +391,10 @@ def test_authentic_negative_response_preserves_observations_without_fake_card(tm
             raw["eval_count"] = 6144
         elif change == "input-cap":
             raw["prompt_eval_count"] = 26623
+        elif change == "zero-input":
+            raw["prompt_eval_count"] = 0
+        elif change == "zero-output":
+            raw["eval_count"] = 0
         elif change == "malformed":
             raw["message"] = {"content": "invalid authentic raw final"}
         elif change == "foreign-evidence":

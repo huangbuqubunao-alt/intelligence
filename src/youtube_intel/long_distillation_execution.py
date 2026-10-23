@@ -27,11 +27,14 @@ from youtube_intel.state import (
 if TYPE_CHECKING:
     import sqlite3
 
+    from youtube_intel.backup_restore import BackupRestoreService
     from youtube_intel.distillation import (
         DistillationCommand,
+        DistillationResult,
         PersonalizedDistillationService,
         VerifiedDistillationInput,
     )
+    from youtube_intel.local_model_capacity import ApplicationHeavyLease
     from youtube_intel.state import SQLiteStateRepository
 
 _CLAIM_SEAL = object()
@@ -105,6 +108,7 @@ def rebuild_long(
 
 def claim_long(
     service: PersonalizedDistillationService, execution_id: str, prepared: PreparedLongRequest,
+    *, qualification: bool = False,
 ) -> ClaimedLongExecution:
     repository = service._repository
     with closing(repository._connect()) as connection, _immediate_transaction(connection):
@@ -119,7 +123,11 @@ def claim_long(
             or type(prepared) is not PreparedLongRequest or prepared != rebuilt.prepared):
             raise StateStoreError("long claim is not a new exact pending manual request")
         ready = getattr(service._transport, "armed_long_for_claim", None)
-        if (not profile_qualified(service, rebuilt.value.output_language)
+        permitted = profile_qualified(service, rebuilt.value.output_language)
+        if qualification:
+            permits = getattr(service._transport, "long_request_authorized", None)
+            permitted = callable(permits) and permits(execution_id, rebuilt.prepared, rebuilt.value, qualification=True) is True
+        if (not permitted
             or not callable(ready) or ready(execution_id, rebuilt.prepared) is not True):
             raise StateStoreError("long claim readiness, lease or qualification differs")
         if not service._manual_content_ready(command.source_id, command.video_id):
@@ -198,7 +206,7 @@ def _completion_receipt(
     admitted_hash = None
     if (done is True and reason == "stop" and model == rebuilt.value.selected_model
         and type(inputs) is int and type(outputs) is int
-        and outputs < 6144 and inputs + 6144 + 2 <= 32768
+        and 0 < outputs < 6144 and 0 < inputs and inputs + 6144 + 2 <= 32768
         and decoded is not None):
         kind = persistence.loads(decoded.decoded_wire.decode())["result"]
         if kind == "INTELLIGENCE":
@@ -298,3 +306,117 @@ def complete_long(
                 invocation_count=1, **{k: metadata[k] for k in ("actual_provider", "actual_model", "input_tokens", "output_tokens", "cost_microunits", "duration_ms")},
                 http_status_code=None, intelligence_id=receipt["intelligence_id"], revision_id=receipt["revision_id"], now=now)
         persistence.verify_execution(repository, connection, claim.execution_id)
+
+
+def defer_long(service: PersonalizedDistillationService, execution_id: str, *, budget: bool = False,
+    lease: ApplicationHeavyLease | None = None) -> None:
+    """Durably defer only an exactly verified never-claimed current pending job."""
+    repository = service._repository
+    with closing(repository._connect()) as connection, _immediate_transaction(connection):
+        rebuilt = rebuild_long(repository, connection, execution_id)
+        persistence.verify_execution(repository, connection, execution_id)
+        checkpoint = persistence._row(connection, "distillation_execution_checkpoints", "execution_id", execution_id)
+        if (checkpoint["status"], checkpoint["invocation_count"], checkpoint["budget_state"]) != ("PENDING", 0, "RESERVED_NOT_DISPATCHED"):
+            raise StateStoreError("long deferral cannot alter a claimed or terminated invocation")
+        if lease is not None and not lease.valid():
+            raise StateStoreError("long recovery lost its application lease")
+        decision = service._budget.check(rebuilt.command)
+        if not decision.allowed:
+            state, outcome = "WAITING_BUDGET", "BUDGET_BLOCKED_BEFORE_TRANSPORT"
+        elif budget:
+            raise StateStoreError("long budget wait is no longer a blocked budget")
+        else:
+            state, outcome = "WAITING_MODEL", "MODEL_UNAVAILABLE_BEFORE_TRANSPORT"
+        persistence._checkpoint_wait(connection, execution_id, state, decision.state, outcome,
+            format_utc_datetime(service._now()))
+        persistence.verify_execution(repository, connection, execution_id)
+
+
+def continue_long(service: PersonalizedDistillationService, execution_id: str, *, qualification: bool) -> DistillationResult:
+    """Normal service seam: persisted proof, ready/arm, CAS, one consume, atomic result."""
+    import time
+
+    record = service._repository.get_distillation_execution(execution_id)
+    if record is None:
+        raise StateStoreError("long reservation is missing")
+    if (record.status, record.invocation_count, record.budget_state) != ("PENDING", 0, "RESERVED_NOT_DISPATCHED"):
+        from dataclasses import replace
+        # Presentation only: immutable inv1 unknown remains physically PENDING.
+        return service._result(replace(record, status="AMBIGUOUS") if record.status == "PENDING" else record)
+    with closing(service._repository._connect()) as connection:
+        rebuilt = rebuild_long(service._repository, connection, execution_id)
+    transport = service._transport
+    prepare = getattr(transport, "prepare_long_execution", None)
+    arm = getattr(transport, "arm_long_for_claim", None)
+    generate = getattr(transport, "generate_long", None)
+    claimed = False
+    try:
+        decision = service._budget.check(rebuilt.command)
+        if not decision.allowed:
+            defer_long(service, execution_id, budget=True)
+        elif (not callable(prepare) or not callable(arm) or not callable(generate)
+            or prepare(execution_id, rebuilt.prepared, rebuilt.value, qualification=qualification) is not True
+            or arm(execution_id, rebuilt.prepared) is not True):
+            defer_long(service, execution_id)
+        else:
+            claim = claim_long(service, execution_id, rebuilt.prepared, qualification=qualification)
+            claimed = True
+            started = time.monotonic()
+            response = generate(execution_id, rebuilt.prepared)
+            complete_long(service, claim, response, duration_ms=round((time.monotonic() - started) * 1000))
+        current = service._repository.get_distillation_execution(execution_id)
+        if current is None:
+            raise StateStoreError("long execution disappeared")
+        return service._result(current)
+    except (OSError, ValueError, RuntimeError, StateStoreError):
+        if not claimed:
+            current = service._repository.get_distillation_execution(execution_id)
+            if current is not None and (current.status, current.invocation_count, current.budget_state) == ("PENDING", 0, "RESERVED_NOT_DISPATCHED"):
+                defer_long(service, execution_id)
+        raise
+    finally:
+        service._release_local_readiness()
+
+
+def recover_pre_dispatch_long(service: PersonalizedDistillationService, *,
+    backup_restore: BackupRestoreService | None = None) -> int:
+    """Defer only proven current manual inv0 after a process interruption.
+
+    No native/model IO or automatic dispatch. Unknown claims and corrupt/legacy
+    histories remain closed. A busy lease leaves the real blocker for the next
+    ordinary startup; it is never exempted from Backup readiness.
+    """
+    import logging
+
+    from youtube_intel.local_model_capacity import ApplicationHeavyLease
+    repository = service._repository
+    if service._local_profile_id != SHORT_CURRENT or repository._source_data_root is None:
+        return 0
+    with closing(repository._connect()) as connection:
+        candidates = [row[0] for row in connection.execute(
+            "SELECT execution_id FROM distillation_execution_checkpoints WHERE status='PENDING' "
+            "AND invocation_count=0 AND budget_state='RESERVED_NOT_DISPATCHED' "
+            "AND selected_provider='ollama' AND reason LIKE 'MANUAL_CONTENT:%'") if persistence.is_long(row[0])]
+    if not candidates:
+        return 0
+    lease = ApplicationHeavyLease(repository=repository, data_root=repository._source_data_root,
+        backup_restore=backup_restore)
+    if not lease.acquire():
+        logging.getLogger(__name__).warning("Current long pre-dispatch recovery remains blocked by active or unknown work")
+        return 0
+    count = 0
+    try:
+        for execution_id in candidates:
+            try:
+                with closing(repository._connect()) as connection:
+                    rebuilt = rebuild_long(repository, connection, execution_id)
+                if persistence._profile_id(rebuilt.proof) != CURRENT_RUNTIME_PROFILE_ID:
+                    continue
+                defer_long(service, execution_id, lease=lease)
+                count += 1
+            except (OSError, ValueError, StateStoreError):
+                # Readers/quiescence continue to report the unmodified blocker.
+                logging.getLogger(__name__).warning("Current long pre-dispatch recovery remains closed for an unverifiable or changed request")
+        return count
+    finally:
+        lease.release()

@@ -239,3 +239,121 @@ def test_resource_preflight_preserves_byte_resource_and_proof_rejections(tmp_pat
         permit.runtime_proof_hash = "0" * 64
     with pytest.raises((ValueError, OSError)):
         harness.verify_resources(tmp_path, freeze, permit)
+
+
+@pytest.mark.parametrize("profile_id", ["local-grounding-qwen35-9b-runtime-0.40.6-v3", "local-grounding-qwen35-9b-lossless-rle-runtime-0.40.6-v2"])
+def test_current_harness_has_finite_complete_case_matrix_and_no_grant(profile_id):
+    from youtube_intel.local_distillation_qualification import LONG_CURRENT
+    harness = _harness()
+    description = harness.describe(profile_id)
+    assert description["profile_id"] == profile_id
+    assert description["production_qualified"] is False and description["real_model_calls"] == 0
+    if profile_id == LONG_CURRENT:
+        assert list(description["case_order"]["YT_TIMED"])[-2:] == ["long-full-en", "long-full-zh"]
+        assert len(description["case_order"]["YT_TIMED"]) == 12
+    else:
+        assert len(description["case_order"]["LOCAL_TEXT"]) == 8
+    with pytest.raises(ValueError):
+        harness.describe(profile_id + "-arbitrary")
+
+
+@pytest.mark.parametrize("damage", [None, "byte-substitute", "overflow", "schema", "template", "request", "same-reviewer", "full-input"])
+def test_current_harness_frozen_capacity_is_exact_native_and_never_a_caller_ready(damage):
+    import hashlib
+    from types import SimpleNamespace
+
+    from youtube_intel.distillation import (
+        bind_local_profile,
+        build_local_distillation_request,
+    )
+    from youtube_intel.local_distillation_profile import (
+        CURRENT_RUNTIME_PROFILE_ID,
+        digest,
+    )
+    from youtube_intel.local_distillation_qualification import (
+        qualification_binding,
+        qualification_projection,
+    )
+    from youtube_intel.local_native_capacity import render_qwen35_prompt
+    value = bind_local_profile(support._input(), CURRENT_RUNTIME_PROFILE_ID)
+    request = build_local_distillation_request(value)
+    binding = qualification_binding(qualification_projection(CURRENT_RUNTIME_PROFILE_ID, "YT_TIMED"))
+    permit = SimpleNamespace(binding=binding, request_hash=digest(request))
+    capacity = {"status": "INDEPENDENTLY_VERIFIED", "capacity_contract": "QWEN35_NATIVE_FULL_PROMPT_N_PLUS_P_PLUS2_V1",
+        "method": "PINNED_CURRENT_NATIVE_TOKEN_SEQUENCE", "request_hash": permit.request_hash,
+        "model_digest": binding["model_digest"], "num_ctx": 16384, "num_predict": 8192,
+        "complete_prompt_token_count": 100, "rendered_prompt_hash": hashlib.sha256(render_qwen35_prompt(request).encode()).hexdigest(),
+        "schema_hash": digest(request["format"]), "code_hash": binding["code_hash"], "profile_hash": binding["profile_hash"],
+        "full_input_preserved": True, "native_token_sequence_hash": "a" * 64, "template_hash": "b" * 64,
+        "tokenizer_hash": "c" * 64, "reviewer_id": "independent", "producer_id": "producer"}
+    if damage:
+        if damage == "byte-substitute":
+            capacity.pop("complete_prompt_token_count")
+            capacity["complete_prompt_token_upper_bound"] = 100
+        else:
+            key, value = {"overflow": ("complete_prompt_token_count", 8191), "schema": ("schema_hash", "d" * 64),
+                "template": ("template_hash", "unknown"), "request": ("request_hash", "d" * 64),
+                "same-reviewer": ("reviewer_id", "producer"), "full-input": ("full_input_preserved", False)}[damage]
+            capacity[key] = value
+        with pytest.raises(ValueError):
+            _harness().verify_current_capacity_document(capacity, {"request": request}, permit)
+    else:
+        _harness().verify_current_capacity_document(capacity, {"request": request}, permit)
+
+
+def test_current_long_harness_prepares_full_durable_source_without_native_or_generation(tmp_path, monkeypatch):
+    from youtube_intel.local_distillation_qualification import LONG_CURRENT
+    lifecycle = _load_module("test_long_completion_lifecycle")
+    audit = tmp_path.resolve() / "long-full-en"
+    workspace = audit.parent / (audit.name + ".workspace")
+    workspace.mkdir(mode=0o700)
+    repo, data, sid, vid, service, transport, lease = lifecycle.ready_fixture(workspace, full=True)
+    lease.release()
+    harness = _harness()
+    # Source is synthetic engineering (abcdefghijk), never a genuine long-full
+    # semantic receipt; later package validation requires the actual fixed ID.
+    service._output_language_for_video = lambda _: "en"
+    result = harness.prepare_case(service, case_id="long-full-en", source_id=sid, video_id=vid,
+        audit_root=audit, data_root=data, database=repo._database_path, profile_id=LONG_CURRENT)
+    assert result["binding"]["profile_id"] == LONG_CURRENT
+    assert result["evidence_count"] == 114 and result["cue_count"] == 2406
+    assert result["request"]["options"]["num_ctx"] == 32768
+    assert repo.get_distillation_execution(result["execution_id"]).invocation_count == 0
+    assert transport.calls == 0 and result["production_qualified"] is False
+
+
+@pytest.mark.parametrize("ledger_unreadable", [False, True])
+def test_actual_unknown_failure_still_leaves_durable_unmodified_observation(tmp_path, ledger_unreadable):
+    from types import SimpleNamespace
+    harness = _harness()
+    class Repository:
+        def get_distillation_execution(self, eid):
+            assert eid == "claimed-once"
+            if ledger_unreadable:
+                raise ValueError("actual corrupt ledger fixture")
+            from youtube_intel.state import DistillationExecutionRecord
+            return DistillationExecutionRecord(execution_id=eid, source_id="s", video_id="v", reason="MANUAL_CONTENT:test",
+                use_case="test", selected_provider="ollama", selected_model="actual-model", output_language="en",
+                status="PENDING", invocation_count=1, budget_state="DISPATCH_CLAIMED", intelligence_id=None,
+                revision_id=None, created_at=__import__("datetime").datetime.now(__import__("datetime").UTC),
+                updated_at=__import__("datetime").datetime.now(__import__("datetime").UTC))
+    class Service:
+        _repository = Repository()
+        def continue_qualification_reserved_distillation(self, eid):
+            raise OSError("authentic unknown fixture")
+    transport = SimpleNamespace(last_grounding_post_attempted=True, last_grounding_final=None,
+        last_grounding_raw_hash=None, last_grounding_response_error=None, last_grounding_completion=None)
+    permit = SimpleNamespace(case_id="local-timed-en", execution_id="claimed-once", permit_hash="a" * 64, request_hash="b" * 64)
+    with pytest.raises(OSError, match="authentic unknown fixture"):
+        harness.execute_observed_case(Service(), transport, permit, tmp_path)
+    result = harness.read_object(tmp_path / "result.json")
+    assert result["outcome"] is None and result["execution_error_type"] == "OSError"
+    if ledger_unreadable:
+        assert result["persisted_execution"] is None
+        assert result["persisted_execution_read_error_type"] == "ValueError"
+    else:
+        assert result["persisted_execution"]["status"] == "PENDING"
+        assert result["persisted_execution"]["invocation_count"] == 1
+    assert result["generation_post_attempted_locally"] is True
+    assert result["production_qualified"] is False
+    assert result["semantic_acceptance"] == "PENDING_INDEPENDENT_REVIEW"

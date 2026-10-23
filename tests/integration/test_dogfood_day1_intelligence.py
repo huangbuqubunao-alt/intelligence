@@ -250,7 +250,14 @@ def test_production_manual_content_uses_output_preference_without_scoring(tmp_pa
         def delete(self): pytest.fail("No credential writes")
     def denied():
         pytest.fail("Organized Content must not invent Scoring or invoke its providers")
-    project = support._project(tmp_path)
+    from youtube_intel.local_distillation_profile import (
+        CURRENT_RUNTIME_PROFILE_ID,
+        resolve_profile,
+    )
+    candidate = resolve_profile(CURRENT_RUNTIME_PROFILE_ID)
+    # This single fixture requires a configured unqualified route; old 8b now
+    # correctly requests Settings before a task exists. No provider is called.
+    project = support._project(tmp_path, model=candidate.model, digest=candidate.model_digest)
     runtime = build_local_source_run_runtime(
         config=load_app_config(project / "config/channels.yaml", project / "config/settings.yaml"),
         project_root=project, database=project / "state.sqlite3", credential_store=NoCredentials(),

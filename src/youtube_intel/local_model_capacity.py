@@ -1209,6 +1209,14 @@ class LocalCapacitySession:
             raise CapacityUnavailable("readiness expired or changed before claim")
         self._armed = True
 
+    def armed_for_claim(self, execution_id: str, request: Mapping[str, object]) -> bool:
+        ready = self._ready
+        return (ready is not None and self._armed and not self._consumed
+            and ready.profile_id == self._profile_id and ready.execution_id == execution_id
+            and ready.request_hash == digest(request)
+            and ready.wire_hash == hashlib.sha256(wire_bytes(request)).hexdigest()
+            and monotonic() < ready.expires and self.lease.valid() and ready.host.is_current())
+
     def consume(self, execution_id: str, request: Mapping[str, object]) -> None:
         # After SQLite claim: no HTTP/file/process metadata IO. Preclaim checks
         # already validated the host; only the held lease and sealed bytes

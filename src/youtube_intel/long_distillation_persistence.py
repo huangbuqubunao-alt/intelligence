@@ -1394,7 +1394,8 @@ def _verify_completion(
         raise StateStoreError("long zero usage outcome differs")
     if kind != "REJECTED" and (
         type(metadata["input_tokens"]) is not int or type(metadata["output_tokens"]) is not int
-        or metadata["output_tokens"] >= 6144 or metadata["input_tokens"] + 6144 + 2 > 32768
+        or not 0 < metadata["output_tokens"] < 6144 or metadata["input_tokens"] <= 0
+        or metadata["input_tokens"] + 6144 + 2 > 32768
     ):
         raise StateStoreError("long successful completion exceeds frozen capacity")
     if kind != "INTELLIGENCE":

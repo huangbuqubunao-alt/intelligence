@@ -259,7 +259,10 @@ function readContentLocal(value: unknown, video: ContentItem, id: string): Conte
       || !["QUALIFIED", "NOT_QUALIFIED"].includes(value.qualification_status as string)) return null;
   if (video.provider === "YOUTUBE" ? value.scope !== "YT_TIMED" : video.provider !== "LOCAL" || value.scope === "YT_TIMED"
       || (video.media_kind === "TEXT" && value.scope !== "LOCAL_TEXT") || (["AUDIO", "VIDEO"].includes(video.media_kind ?? "") && value.scope !== "LOCAL_TIMED")) return null;
-  const matches = value.runtime_binding.provider === "ollama" && value.runtime_binding.model === value.model && value.runtime_binding.profile_id === value.profile_id;
+  const matches = value.runtime_binding.provider === "ollama" && value.runtime_binding.model === value.model
+    && (value.runtime_binding.profile_id === value.profile_id || value.scope === "YT_TIMED"
+      && value.profile_id === "local-grounding-qwen35-9b-lossless-rle-runtime-0.40.6-v2"
+      && value.runtime_binding.profile_id === "local-grounding-qwen35-9b-runtime-0.40.6-v3");
   const consistent = value.request_state === "CONFIGURATION_REQUIRED" && value.reason === "MODEL_CONFIGURATION_REQUIRED" || (value.qualification_status === "NOT_QUALIFIED"
     ? value.request_state === "WAITING_MODEL" && value.reason === "NOT_QUALIFIED"
     : (value.request_state === "ELIGIBLE_FOR_ADMISSION" && matches && value.reason === "ADMISSION_CHECKS_REQUIRED")
@@ -1768,6 +1771,9 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
   const isLocalMedia = data.video.provider === "LOCAL" && data.video.media_kind !== "TEXT";
   const note = data.note.v2;
   const localCapability = readContentLocal(data.local_intelligence, data.video, id);
+  const unstartedLongWait = data.intelligence_result.status === "WAITING_MODEL"
+    && localCapability?.profile_id === "local-grounding-qwen35-9b-lossless-rle-runtime-0.40.6-v2"
+    && data.waiting_model_executions?.some(wait => wait.can_cancel) === true;
   const visibleHistory = data.history.filter((event) =>
     event.type === "JOB_STATUS" || !event.type
   );
@@ -1808,11 +1814,14 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
       <Panel title="Intelligence result">
         <LocalIntelligencePresentation content={localCapability} onReload={reload} />
         <div className="semantic-state state-neutral">
-          <Status value={data.intelligence_result.status} />
-          <p role={data.intelligence_result.status === "CANCELLED" ? "status" : undefined}>{t(intelligenceResultCopy(data.intelligence_result.status))}</p>
+          <Status value={data.intelligence_result.status} label={unstartedLongWait ? "Extraction has not started" : undefined} />
+          <p role={data.intelligence_result.status === "CANCELLED" ? "status" : undefined}>{t(unstartedLongWait
+            ? "This extraction has not run. You can safely cancel it, then request extraction again."
+            : intelligenceResultCopy(data.intelligence_result.status))}</p>
           {cancelFeedback && data.intelligence_result.status !== "CANCELLED" && <p role="status">{cancelFeedback}</p>}
           {Boolean(data.waiting_model_executions?.length) && <div>
-            <p>{t("No qualified Intelligence model is currently available.")}</p>
+            {(!unstartedLongWait || localCapability?.qualification_status === "NOT_QUALIFIED")
+              && <p>{t("No qualified Intelligence model is currently available.")}</p>}
             {data.waiting_model_executions?.map((wait) => <div className="button-row" key={wait.execution_id}>
               <span className="hint">{humanDate(wait.updated_at)}</span>
               {wait.can_cancel ? <button type="button" className="button button-secondary" disabled={cloudBusy} onClick={async () => {

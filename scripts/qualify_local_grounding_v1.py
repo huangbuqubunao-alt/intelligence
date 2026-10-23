@@ -26,11 +26,11 @@ from youtube_intel.distillation import (
     PersonalizedDistillationService,
     VerifiedDistillationInput,
     build_local_distillation_request,
-    local_profile_for_scope,
     local_profile_projection,
     verified_distillation_input_projection,
 )
 from youtube_intel.local_distillation_profile import (
+    CURRENT_RUNTIME_PROFILE_ID,
     PROFILE_ID,
     SCOPES,
     canonical,
@@ -39,11 +39,14 @@ from youtube_intel.local_distillation_profile import (
 )
 from youtube_intel.local_distillation_qualification import (
     CASE_LANGUAGES,
+    LONG_CURRENT,
     CaseReceipt,
     LocalExecutionPermit,
     SourceManifest,
     case_scope,
     qualification_binding,
+    qualification_cases,
+    qualification_projection,
     sha,
     strict_object,
 )
@@ -83,15 +86,18 @@ def write_once(path: Path, value: object) -> None:
         os.close(descriptor)
 
 
-def describe() -> dict[str, object]:
-    return {"version": "local-grounding-harness-v1", "profile_id": PROFILE_ID,
-        "profiles": {scope: local_profile_for_scope(PROFILE_ID, scope) for scope in SCOPES},
+def describe(profile_id: str = PROFILE_ID) -> dict[str, object]:
+    scopes = ("YT_TIMED",) if profile_id == LONG_CURRENT else SCOPES
+    profiles = {scope: qualification_projection(profile_id, scope) for scope in scopes}
+    return {"version": "local-grounding-harness-v1", "profile_id": profile_id,
+        "profiles": profiles,
         "production_qualified": False, "execution_authority": "NONE", "real_model_calls": 0,
         "freeze_status": "UNFROZEN_PENDING_CORE_AND_UI_ACCEPTANCE",
         "capacity_status": "REQUIRES_CURRENT_HOST_LOAD_ONLY_AND_SLOT_PREFLIGHT",
         "workspace_contract": "PRIVATE_SIBLING_<audit_name>.workspace/state.sqlite3_AND_data",
         "workspace_execution": "NO_GUI_API_OR_OTHER_BACKUP_PROCESS_ON_THIS_DATABASE",
-        "case_order": CASE_LANGUAGES}
+        "case_order": CASE_LANGUAGES if profile_id == PROFILE_ID else
+            {scope: qualification_cases(projection) for scope, projection in profiles.items()}}
 
 
 def request_projection(value: VerifiedDistillationInput) -> dict[str, object]:
@@ -118,7 +124,7 @@ def owned_workspace(audit_root: Path, case_id: str, database: Path, data_root: P
     This is an ownership/admission check, not qualification or a cross-process
     Backup lock. Freeze must additionally exclude GUI/API/Backup on this root.
     """
-    if case_id not in {case for cases in CASE_LANGUAGES.values() for case in cases}:
+    if case_id not in ({case for cases in CASE_LANGUAGES.values() for case in cases} | {"long-full-en", "long-full-zh"}):
         raise ValueError("unknown isolated workspace case")
     audit = audit_root.expanduser().absolute()
     root = audit.parent / (audit.name + ".workspace")
@@ -148,26 +154,59 @@ def owned_workspace(audit_root: Path, case_id: str, database: Path, data_root: P
 
 
 def prepare_case(service: PersonalizedDistillationService, *, case_id: str, source_id: str,
-    video_id: str, audit_root: Path, data_root: Path, database: Path) -> dict[str, object]:
+    video_id: str, audit_root: Path, data_root: Path, database: Path,
+    profile_id: str = PROFILE_ID) -> dict[str, object]:
     """Use the ordinary reservation and exact production input, with zero IO to Ollama."""
     ownership = owned_workspace(audit_root, case_id, database, data_root)
     if (service._repository._database_path.resolve() != database.resolve()
         or service._repository._source_data_root != data_root.resolve()):
         raise ValueError("preparation service is not bound to the isolated workspace")
-    reservation = service.reserve_distillation_execution(source_id=source_id, video_id=video_id,
-        evidence_ids=service._repository.list_canonical_coverage_evidence_ids(video_id),
-        manual_command_id="grounding-" + case_id)
-    record = service._repository.get_distillation_execution(reservation.execution_id)
-    if record is None:
-        raise ValueError("prepared reservation is missing")
-    _, value = service._reserved_command_from_record(record)
-    projection = request_projection(value)
-    scope = str(local_profile_projection(value)["scope"])
-    cases = CASE_LANGUAGES["YT_TIMED" if scope == "YT_TIMED" else "LOCAL"]
-    if cases.get(case_id) != value.output_language or case_scope(case_id) != scope:
+    # Preparation creates no claim/ready/permit and performs no native IO.
+    # Long original ten cases deliberately use the same complete long builder,
+    # even when a particular source would fit the ordinary short route.
+    qualification_projection(profile_id, "YT_TIMED")
+    expected_short = CURRENT_RUNTIME_PROFILE_ID if profile_id == LONG_CURRENT else profile_id
+    if service._local_profile_id != expected_short:
+        raise ValueError("preparation service profile differs")
+    if profile_id == LONG_CURRENT:
+        from youtube_intel.long_distillation_execution import rebuild_long
+        from youtube_intel.long_distillation_persistence import _reserve
+        evidence_ids = service.reservation_evidence_ids(video_id)
+        execution_id = _reserve(service, source_id=source_id, video_id=video_id,
+            evidence_ids=evidence_ids, manual_command_id="grounding-" + case_id, pending=True)
+        with service._repository._connect() as connection:
+            rebuilt = rebuild_long(service._repository, connection, execution_id)
+        value = rebuilt.value
+        projection = {"request": json.loads(rebuilt.prepared.request_wire), "request_hash": rebuilt.prepared.request_hash,
+            "binding": qualification_binding(qualification_projection(profile_id, "YT_TIMED")),
+            "input_hash": value.semantic_hash, "context_hash": rebuilt.proof["semantic_snapshot_hash"],
+            "evidence_count": len(value.evidence)}
+        # Count the exact persisted canonical timed source, not metadata supplied
+        # by the qualification operator.
+        from youtube_intel.long_grounding_codec import (
+            EncodedGrounding,
+            expand_grounding,
+        )
+        side = json.loads(rebuilt.proof["semantic_snapshot_wire"])
+        expanded = expand_grounding(EncodedGrounding(side["codec"]["canonical_wire"].encode()))
+        projection["cue_count"] = len(expanded.transcript.cues)
+        scope = "YT_TIMED"
+    else:
+        reservation = service.reserve_distillation_execution(source_id=source_id, video_id=video_id,
+            evidence_ids=service._repository.list_canonical_coverage_evidence_ids(video_id),
+            manual_command_id="grounding-" + case_id)
+        execution_id = reservation.execution_id
+        record = service._repository.get_distillation_execution(execution_id)
+        if record is None:
+            raise ValueError("prepared reservation is missing")
+        _, value = service._reserved_command_from_record(record)
+        projection = request_projection(value)
+        scope = str(local_profile_projection(value)["scope"])
+    cases = qualification_cases(qualification_projection(profile_id, scope))
+    if cases.get(case_id) != value.output_language or case_scope(case_id, profile_id=profile_id) != scope:
         raise ValueError("case scope/language is outside the fixed order")
     result = {"version": "local-grounding-prepared-v1", "case_id": case_id,
-        "execution_id": reservation.execution_id, "source_id": source_id, "video_id": video_id,
+        "execution_id": execution_id, "source_id": source_id, "video_id": video_id,
         "workspace_ownership": ownership,
         "output_language": value.output_language, **projection,
         "verified_input": verified_distillation_input_projection(value),
@@ -185,19 +224,21 @@ def validate_execution_package(audit_root: Path, permit_path: Path, freeze_path:
         raise ValueError("once workspace ownership changed")
     permit = LocalExecutionPermit.model_validate(read_object(permit_path))
     binding = prepared["binding"]
-    current = qualification_binding(local_profile_for_scope(PROFILE_ID, binding["scope"]))
+    profile_id = binding["profile_id"]
+    projection = qualification_projection(profile_id, binding["scope"])
+    current = qualification_binding(projection)
     if (freeze.get("version") != "local-grounding-freeze-v1" or freeze.get("status") != "PRE_OUTPUT_REVIEWED"
-        or freeze.get("profile_id") != PROFILE_ID or prepared.get("production_qualified") is not False
+        or freeze.get("profile_id") != profile_id or prepared.get("production_qualified") is not False
         or prepared.get("harness_hash") != file_hash(Path(__file__)) or permit.harness_hash != file_hash(Path(__file__))
         or permit.freeze_hash != file_hash(freeze_path) or binding != current or permit.binding != current
         or permit.case_id != prepared["case_id"] or permit.execution_id != prepared["execution_id"]
         or permit.input_hash != prepared["input_hash"] or permit.context_hash != prepared["context_hash"]
         or permit.request_hash != digest(prepared["request"]) or permit.request_hash != prepared["request_hash"]
         or freeze.get("prepared_case_hashes", {}).get(permit.case_id) != file_hash(audit_root / "prepared.json")
-        or not permit.matches(local_profile_for_scope(PROFILE_ID, binding["scope"]),
+        or not permit.matches(projection,
             prepared["input_hash"], prepared["request_hash"], prepared["output_language"])):
         raise ValueError("execution package is unreviewed, stale, or mismatched")
-    cases = CASE_LANGUAGES["YT_TIMED" if binding["scope"] == "YT_TIMED" else "LOCAL"]
+    cases = qualification_cases(projection)
     if freeze.get("case_order") != list(cases) or set(freeze.get("prepared_case_hashes", {})) != set(cases):
         raise ValueError("complete independently frozen cases are missing")
     if (set(freeze.get("prepared_case_paths", {})) != set(cases)
@@ -211,16 +252,20 @@ def validate_execution_package(audit_root: Path, permit_path: Path, freeze_path:
         source = SourceManifest.model_validate(read_object(Path(freeze["source_manifest_paths"][case_id])))
         if (file_hash(path) != freeze["prepared_case_hashes"][case_id]
             or entry.get("case_id") != case_id or entry.get("output_language") != language
-            or entry.get("binding") != qualification_binding(local_profile_for_scope(PROFILE_ID, case_scope(case_id)))
+            or entry.get("binding") != qualification_binding(qualification_projection(profile_id, case_scope(case_id, profile_id=profile_id)))
             or entry.get("harness_hash") != permit.harness_hash or entry.get("production_qualified") is not False
-            or source.source_id != entry.get("source_id")
+            or source.source_id != entry.get("video_id" if case_id.startswith("long-full-") else "source_id")
             or (source.input_hash, source.context_hash, source.request_hash)
             != (entry.get("input_hash"), entry.get("context_hash"), entry.get("request_hash"))
-            or digest(source.model_dump()) != freeze["source_manifest_hashes"][case_id]
+            or digest(source.model_dump(exclude_unset=True)) != freeze["source_manifest_hashes"][case_id]
             or (case_id.startswith("holdout-") and (not source.unseen_for_profile
                 or source.origin != "PUBLIC_SNAPSHOT" or source.selector_id == freeze.get("producer_id")))
             or (case_id.startswith("local-") and source.origin != "LOCAL_SNAPSHOT")):
             raise ValueError("a frozen source/input/profile is mismatched or lacks required provenance")
+        if case_id.startswith("long-full-") and (profile_id != LONG_CURRENT
+            or entry.get("video_id") != "0eMzc-WnBfQ" or entry.get("evidence_count") != 114 or entry.get("cue_count") != 2406
+            or source.evidence_count != 114 or source.cue_count != 2406 or source.origin != "PUBLIC_SNAPSHOT"):
+            raise ValueError("long full-source qualification requires the genuine complete source")
         frozen_sources[case_id] = source
     if binding["scope"] == "YT_TIMED":
         a, b = frozen_sources["holdout-a-en"], frozen_sources["holdout-b-en"]
@@ -228,14 +273,14 @@ def validate_execution_package(audit_root: Path, permit_path: Path, freeze_path:
             or (a.source_id, a.snapshot_hash) != (frozen_sources["holdout-a-zh"].source_id, frozen_sources["holdout-a-zh"].snapshot_hash)
             or (b.source_id, b.snapshot_hash) != (frozen_sources["holdout-b-zh"].source_id, frozen_sources["holdout-b-zh"].snapshot_hash)):
             raise ValueError("independent distinct holdout source pairs are missing")
-    for scope in {case_scope(case_id) for case_id in cases}:
-        if freeze.get("bindings", {}).get(scope) != qualification_binding(local_profile_for_scope(PROFILE_ID, scope)):
+    for scope in {case_scope(case_id, profile_id=profile_id) for case_id in cases}:
+        if freeze.get("bindings", {}).get(scope) != qualification_binding(qualification_projection(profile_id, scope)):
             raise ValueError("complete production profile bindings are missing")
     prior = freeze.get("prior_receipt_paths", {})
     for index, case_id in enumerate(list(cases)[:list(cases).index(permit.case_id)]):
         receipt_path = Path(prior[case_id])
         receipt = CaseReceipt.model_validate(read_object(receipt_path))
-        if (receipt.case_id != case_id or not receipt.passes(datetime.now(UTC))
+        if (receipt.case_id != case_id or not receipt.passes(datetime.now(UTC), profile_id)
             or file_hash(receipt_path) != permit.prior_review_hashes[index]
             or receipt.freeze_hash != permit.freeze_hash or receipt.harness_hash != permit.harness_hash):
             raise ValueError("a prior case lacks independent protocol and semantic PASS")
@@ -254,18 +299,57 @@ def available_memory_bytes() -> int:
     return int(page.group(1)) * pages
 
 
+def verify_current_capacity_document(capacity: Mapping[str, Any], prepared: Mapping[str, Any], permit: LocalExecutionPermit) -> None:
+    """Frozen reviewed observations are necessary; native session reobserves them.
+
+    This document never mints ready authority and cannot replace actual tokens,
+    slot, host or the current preclaim session. No byte bound stands in for N.
+    """
+    from youtube_intel.local_native_capacity import (
+        current_descriptor,
+        render_qwen35_prompt,
+    )
+    descriptor = current_descriptor(permit.binding["profile_id"])
+    options = descriptor["options"]
+    count = capacity.get("complete_prompt_token_count")
+    if (capacity.get("status") != "INDEPENDENTLY_VERIFIED"
+        or capacity.get("capacity_contract") != "QWEN35_NATIVE_FULL_PROMPT_N_PLUS_P_PLUS2_V1"
+        or capacity.get("method") != "PINNED_CURRENT_NATIVE_TOKEN_SEQUENCE"
+        or capacity.get("request_hash") != permit.request_hash
+        or capacity.get("model_digest") != descriptor["model_digest"]
+        or type(capacity.get("num_ctx")) is not int or capacity["num_ctx"] != options["num_ctx"]
+        or type(capacity.get("num_predict")) is not int or capacity["num_predict"] != options["num_predict"]
+        or type(count) is not int or not 0 < count <= options["num_ctx"] - options["num_predict"] - 2
+        or capacity.get("rendered_prompt_hash") != hashlib.sha256(render_qwen35_prompt(prepared["request"]).encode()).hexdigest()
+        or capacity.get("schema_hash") != digest(prepared["request"]["format"])
+        or capacity.get("code_hash") != permit.binding["code_hash"]
+        or capacity.get("profile_hash") != permit.binding["profile_hash"]
+        or capacity.get("full_input_preserved") is not True
+        or not all(isinstance(capacity.get(k), str) and sha(capacity[k]) for k in (
+            "native_token_sequence_hash", "template_hash", "tokenizer_hash"))
+        or not capacity.get("reviewer_id") or capacity.get("reviewer_id") == capacity.get("producer_id")):
+        raise ValueError("current full native tokenizer/actual slot proof is unverified")
+
+
 def verify_resources(audit_root: Path, freeze: Mapping[str, Any], permit: LocalExecutionPermit) -> None:
     runtime_path, capacity_path = Path(freeze["runtime_proof_path"]), Path(freeze["capacity_proof_paths"][permit.case_id])
     runtime, capacity = read_object(runtime_path), read_object(capacity_path)
-    profile = resolve_profile(PROFILE_ID)
+    # Legacy resource-only callers predate profile_id. Execution packages
+    # independently require the full exact binding before reaching this gate.
+    profile_id = permit.binding.get("profile_id", PROFILE_ID)
+    profile = resolve_profile(CURRENT_RUNTIME_PROFILE_ID if profile_id == LONG_CURRENT else profile_id)
     prepared = read_object(audit_root / "prepared.json")
     # Independently supplied proof files cannot bypass the compiled production
     # capacity algorithm. Frozen proof files never substitute for the current
     # production host/load-only/slot preflight before the generation claim.
-    bound = profile.complete_input_token_upper_bound(prepared["request"])
+    if profile_id in {CURRENT_RUNTIME_PROFILE_ID, LONG_CURRENT}:
+        verify_current_capacity_document(capacity, prepared, permit)
+        bound = None
+    else:
+        bound = profile.complete_input_token_upper_bound(prepared["request"])
     if file_hash(runtime_path) != permit.runtime_proof_hash or file_hash(capacity_path) != permit.capacity_proof_hash:
         raise ValueError("runtime or complete-input capacity proof changed")
-    if (capacity.get("status") != "INDEPENDENTLY_VERIFIED" or capacity.get("request_hash") != permit.request_hash
+    if profile_id == PROFILE_ID and (capacity.get("status") != "INDEPENDENTLY_VERIFIED" or capacity.get("request_hash") != permit.request_hash
         or capacity.get("model_digest") != profile.model_digest or capacity.get("num_ctx") != 16384
         or type(capacity.get("complete_prompt_token_upper_bound")) is not int
         or capacity["complete_prompt_token_upper_bound"] != bound
@@ -285,7 +369,8 @@ def verify_resources(audit_root: Path, freeze: Mapping[str, Any], permit: LocalE
         raise ValueError("installed runtime or model cache differs")
     # The legacy wrapper hash is not the API model identity. Reuse production's
     # pinned wrapper/parent/reference, every payload and binary, and fd identity.
-    model_capacity.verify_installed_model_bytes(cache)
+    model_capacity.verify_installed_model_bytes(cache, profile_id=profile_id)
+    model_capacity.runtime_binary_hashes(profile_id)
     total = sum(model_capacity.BLOBS.values())
     minimum_memory = runtime.get("required_available_memory_bytes")
     if (type(minimum_memory) is not int or minimum_memory < total + 2 * 1024**3
@@ -295,7 +380,8 @@ def verify_resources(audit_root: Path, freeze: Mapping[str, Any], permit: LocalE
 
 def execute_case(audit_root: Path, permit_path: Path, freeze_path: Path) -> dict[str, object]:
     prepared, permit, freeze = validate_execution_package(audit_root, permit_path, freeze_path)
-    profile = resolve_profile(PROFILE_ID)
+    profile_id = permit.binding["profile_id"]
+    profile = resolve_profile(CURRENT_RUNTIME_PROFILE_ID if profile_id == LONG_CURRENT else profile_id)
     def claim(value: VerifiedDistillationInput, request: Mapping[str, object]) -> None:
         if owned_workspace(audit_root, permit.case_id, Path(prepared["database"]), Path(prepared["data_root"])) != prepared["workspace_ownership"]:
             raise ValueError("once workspace ownership changed before claim")
@@ -305,7 +391,7 @@ def execute_case(audit_root: Path, permit_path: Path, freeze_path: Path) -> dict
             "request_hash": digest(request), "execution_id": permit.execution_id,
             "status": "ARMED", "generation_post_proven": False})
     transport = OllamaLocalDistillationTransport(settings=LocalScoringSettings(model=profile.model,
-        expected_model_digest=profile.model_digest), local_profile_id=PROFILE_ID,
+        expected_model_digest=profile.model_digest), local_profile_id=profile.profile_id,
         qualification_permit=permit, before_dispatch=claim)
     repository = SQLiteStateRepository(Path(prepared["database"]))
     repository.bind_source_storage(Path(prepared["data_root"]))
@@ -318,40 +404,71 @@ def execute_case(audit_root: Path, permit_path: Path, freeze_path: Path) -> dict
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         verify_resources(audit_root, freeze, permit)
         source = SourceManifest.model_validate(read_object(Path(freeze["source_manifest_paths"][permit.case_id])))
-        if (digest(source.model_dump()) != permit.source_manifest_hash
+        if (digest(source.model_dump(exclude_unset=True)) != permit.source_manifest_hash
             or (source.input_hash, source.context_hash, source.request_hash)
             != (permit.input_hash, permit.context_hash, permit.request_hash)
-            or source.source_id != prepared["source_id"]
+            or source.source_id != prepared["video_id" if permit.case_id.startswith("long-full-") else "source_id"]
             or any(not sha(h) for h in (source.snapshot_hash, source.summary_hash, source.evidence_hash, source.policy_hash))
             or (permit.case_id.startswith("holdout-") and (not source.unseen_for_profile
                 or source.origin != "PUBLIC_SNAPSHOT" or source.selector_id == freeze.get("producer_id")))
             or (permit.case_id.startswith("local-") and source.origin != "LOCAL_SNAPSHOT")):
             raise ValueError("independently frozen source manifest changed")
+        return execute_observed_case(service, transport, permit, audit_root)
+
+
+def execute_observed_case(service: PersonalizedDistillationService, transport: OllamaLocalDistillationTransport,
+    permit: LocalExecutionPermit, audit_root: Path) -> dict[str, object]:
+    """A failed real attempt retains its observations without inventing a result.
+
+    Preserve the actual exception after writing once. Neither expected case
+    outcome nor a successful HTTP/claim substitutes for actual persisted state.
+    No receipt/qualification/review is produced here.
+    """
+    outcome = None
+    failure = None
+    try:
         outcome = service.continue_qualification_reserved_distillation(permit.execution_id)
-        result = {"version": "local-grounding-result-v1", "case_id": permit.case_id,
-            "execution_id": permit.execution_id, "outcome": asdict(outcome),
-            "permit_hash": permit.permit_hash, "request_hash": permit.request_hash,
-            "semantic_acceptance": "PENDING_INDEPENDENT_REVIEW", "production_qualified": False,
-            "public_final": getattr(transport, "last_grounding_final", None),
-            "generation_post_attempted_locally": transport.last_grounding_post_attempted,
-            "opaque_raw_hash": getattr(transport, "last_grounding_raw_hash", None),
-            "local_response_error": transport.last_grounding_response_error,
-            "completion": getattr(transport, "last_grounding_completion", None)}
-        # No QualificationRecord is emitted; an independent reviewer must bind
-        # actual once/ledger/public-final evidence into a separate receipt.
-        write_once(audit_root / "result.json", result)
-        return result
+    except Exception as error:
+        failure = error
+    ledger_failure = None
+    record = None
+    try:
+        persisted = service._repository.get_distillation_execution(permit.execution_id)
+        record = None if persisted is None else asdict(persisted)
+    except Exception as error:
+        ledger_failure = error
+        if failure is None:
+            failure = error
+    if record is not None:
+        for key in ("created_at", "updated_at"):
+            record[key] = record[key].isoformat()
+    result = {"version": "local-grounding-result-v1", "case_id": permit.case_id,
+        "execution_id": permit.execution_id, "outcome": None if outcome is None else asdict(outcome),
+        "execution_error_type": None if failure is None else type(failure).__name__, "persisted_execution": record,
+        "persisted_execution_read_error_type": None if ledger_failure is None else type(ledger_failure).__name__,
+        "permit_hash": permit.permit_hash, "request_hash": permit.request_hash,
+        "semantic_acceptance": "PENDING_INDEPENDENT_REVIEW", "production_qualified": False,
+        "public_final": getattr(transport, "last_grounding_final", None),
+        "generation_post_attempted_locally": transport.last_grounding_post_attempted,
+        "opaque_raw_hash": getattr(transport, "last_grounding_raw_hash", None),
+        "local_response_error": transport.last_grounding_response_error,
+        "completion": getattr(transport, "last_grounding_completion", None)}
+    write_once(audit_root / "result.json", result)
+    if failure is not None:
+        raise failure
+    return result
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--execute", action="store_true")
+    parser.add_argument("--profile", choices=(PROFILE_ID, CURRENT_RUNTIME_PROFILE_ID, LONG_CURRENT), default=PROFILE_ID)
     parser.add_argument("--audit-root", type=Path)
     parser.add_argument("--permit", type=Path)
     parser.add_argument("--freeze", type=Path)
     args = parser.parse_args()
     if not args.execute:
-        print(canonical(describe()).decode())
+        print(canonical(describe(args.profile)).decode())
     elif args.audit_root is None or args.permit is None or args.freeze is None:
         parser.error("execution requires all reviewed audit/permit/freeze paths")
     else:

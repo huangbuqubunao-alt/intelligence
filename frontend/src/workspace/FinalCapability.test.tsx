@@ -164,3 +164,38 @@ it("places the existing Intelligence action ahead of long source material", asyn
   expect(button.compareDocumentPosition(source) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(screen.getByText("Preserved Summary")).toBeTruthy();
 });
+
+it.each(["en", "zh-CN"].flatMap(language => [true, false].map(qualified => [language, qualified] as const)))(
+  "keeps a proven unstarted long wait truthful independently of current qualification (%s/%s)", async (language, qualified) => {
+    localStorage.setItem("yia.ui-language", language);
+    const currentShort = "local-grounding-qwen35-9b-runtime-0.40.6-v3";
+    const currentLong = "local-grounding-qwen35-9b-lossless-rle-runtime-0.40.6-v2";
+    local = { ...capability(), profile_id: currentLong,
+      runtime_binding: { provider: "ollama", model, profile_id: currentShort },
+      qualification_status: qualified ? "QUALIFIED" : "NOT_QUALIFIED",
+      request_state: qualified ? "ELIGIBLE_FOR_ADMISSION" : "WAITING_MODEL",
+      reason: qualified ? "ADMISSION_CHECKS_REQUIRED" : "NOT_QUALIFIED" };
+    waiting = true;
+    render(<App />);
+    expect(await screen.findByText(language === "en"
+      ? "This extraction has not run. You can safely cancel it, then request extraction again."
+      : "本次提炼尚未执行，可以安全取消；取消后可重新提炼。")).toBeTruthy();
+    expect(screen.getByRole("button", { name: language === "en" ? "Cancel this extraction" : "取消本次提炼" })).toBeTruthy();
+    expect((screen.getByRole("button", { name: language === "en" ? "Extract Intelligence" : "提炼为洞察" }) as HTMLButtonElement).disabled).toBe(true);
+    const missing = language === "en" ? "No qualified Intelligence model is currently available." : "当前没有合格的洞察模型。";
+    expect(Boolean(screen.queryByText(missing))).toBe(!qualified);
+    expect(fetcher.mock.calls.every(([, init]) => !init?.method || init.method === "GET")).toBe(true);
+  },
+);
+
+it.each(["local-grounding-qwen35-9b-thinking-v1", "local-grounding-qwen35-9b-fixed-runtime-v2", "arbitrary"])(
+  "does not let another short binding grant the current long presentation (%s)", async route => {
+    local = { ...capability(), profile_id: "local-grounding-qwen35-9b-lossless-rle-runtime-0.40.6-v2",
+      runtime_binding: { provider: "ollama", model, profile_id: route },
+      qualification_status: "QUALIFIED", request_state: "ELIGIBLE_FOR_ADMISSION", reason: "ADMISSION_CHECKS_REQUIRED" };
+    render(<App />);
+    expect(await screen.findByRole("button", { name: "Retry local Intelligence status" })).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Extract Intelligence" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(fetcher.mock.calls.every(([, init]) => !init?.method || init.method === "GET")).toBe(true);
+  },
+);

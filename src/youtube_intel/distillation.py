@@ -15,10 +15,10 @@ import uuid
 from collections.abc import Callable, Mapping, Sequence
 from contextlib import closing
 from dataclasses import asdict, dataclass, replace
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
 from http.client import HTTPException, HTTPSConnection
-from typing import Protocol, cast
+from typing import Any, Protocol, cast
 
 from youtube_intel.analysis import EnvironmentCredentialResolver
 from youtube_intel.config import LocalScoringSettings, _validate_loopback_http_base_url
@@ -2414,6 +2414,8 @@ class OllamaLocalDistillationTransport:
         self._before_dispatch = before_dispatch
         self._qualification_dispatched = False
         self._capacity_session: LocalCapacitySession | None = None
+        self._long_capacity_session: LocalCapacitySession | None = None
+        self._prepared_long: tuple[str, object, bool] | None = None
         self._prepared_execution: str | None = None
         self._prepared_qualification = False
         self.last_grounding_post_attempted = False
@@ -2516,6 +2518,13 @@ class OllamaLocalDistillationTransport:
             assert self.local_profile_id is not None
             profile = resolve_profile(self.local_profile_id)
             bound = profile.complete_input_token_upper_bound(build_local_distillation_request(value))
+            from youtube_intel.local_distillation_profile import (
+                CURRENT_RUNTIME_PROFILE_ID,
+            )
+            if self.local_profile_id == CURRENT_RUNTIME_PROFILE_ID:
+                # Only the native session may establish actual N/C/P. The byte
+                # bound here is request admission, never a capacity permission.
+                return bound > 0
             options = profile.options()
             return type(bound) is int and 0 < bound <= options["num_ctx"] - options["num_predict"] - 1
         except (ValueError, TypeError, KeyError):
@@ -2540,11 +2549,102 @@ class OllamaLocalDistillationTransport:
             and self._capacity_session.ready_for_claim(execution_id, build_local_distillation_request(value)))
 
     def release_readiness(self) -> None:
+        if self._long_capacity_session is not None:
+            if self._long_capacity_session.lease.owner not in (None, threading.get_ident()):
+                return
+            self._long_capacity_session.release()
+        self._prepared_long = None
         if self._capacity_session is not None:
             if self._capacity_session.lease.owner not in (None, threading.get_ident()):
                 return
             self._capacity_session.release()
         self._prepared_execution = None
+
+    def long_profile_qualified(self, profile_id: str, language: str, now: datetime) -> bool:
+        from youtube_intel.local_distillation_profile import CURRENT_RUNTIME_PROFILE_ID
+        from youtube_intel.local_distillation_qualification import (
+            LONG_CURRENT,
+            qualification_projection,
+        )
+        return (self.local_profile_id == CURRENT_RUNTIME_PROFILE_ID and profile_id == LONG_CURRENT
+            and (self._settings.model, self._settings.expected_model_digest) == (self._MODEL, self._DIGEST)
+            and self._local_authority.permits(qualification_projection(LONG_CURRENT, "YT_TIMED"), language, now=now))
+
+    def long_request_authorized(self, execution_id: str, prepared: object,
+        value: VerifiedDistillationInput, *, qualification: bool) -> bool:
+        from youtube_intel.local_distillation_profile import CURRENT_RUNTIME_PROFILE_ID
+        from youtube_intel.local_distillation_qualification import (
+            LONG_CURRENT,
+            qualification_projection,
+        )
+        from youtube_intel.long_distillation_profile import (
+            PreparedLongRequest,
+            resolve_long_profile,
+        )
+        if (self.local_profile_id != CURRENT_RUNTIME_PROFILE_ID or type(prepared) is not PreparedLongRequest
+            or prepared.profile_hash != resolve_long_profile(LONG_CURRENT).profile_hash
+            or (self._settings.model, self._settings.expected_model_digest) != (self._MODEL, self._DIGEST)):
+            return False
+        if not qualification:
+            return self.long_profile_qualified(LONG_CURRENT, value.output_language, datetime.now(UTC))
+        return (not self._qualification_dispatched and self._local_permit is not None
+            and self._before_dispatch is not None and self._local_permit.execution_id == execution_id
+            and self._local_permit.matches(qualification_projection(LONG_CURRENT, "YT_TIMED"),
+                value.semantic_hash, prepared.request_hash, value.output_language))
+
+    def prepare_long_execution(self, execution_id: str, prepared: object,
+        value: VerifiedDistillationInput, *, qualification: bool) -> bool:
+        if (not self.long_request_authorized(execution_id, prepared, value, qualification=qualification)
+            or self._long_capacity_session is None
+            or not self._long_capacity_session.prepare_long(execution_id, prepared, self._request)):
+            return False
+        self._prepared_long = (execution_id, value, qualification)
+        return True
+
+    def arm_long_for_claim(self, execution_id: str, prepared: object) -> bool:
+        from youtube_intel.long_distillation_profile import PreparedLongRequest
+        session, retained = self._long_capacity_session, self._prepared_long
+        if session is None or retained is None or type(prepared) is not PreparedLongRequest or retained[0] != execution_id:
+            return False
+        value = cast(VerifiedDistillationInput, retained[1])
+        if not self.long_request_authorized(execution_id, prepared, value, qualification=retained[2]):
+            return False
+        try:
+            request = json.loads(prepared.request_wire)
+            if not session.matches_long(execution_id, prepared):
+                return False
+            if self._before_dispatch is not None:
+                self._before_dispatch(value, request)
+            session.arm(execution_id, request)
+            return True
+        except (OSError, ValueError, RuntimeError):
+            self.release_readiness()
+            return False
+
+    def armed_long_for_claim(self, execution_id: str, prepared: object) -> bool:
+        from youtube_intel.long_distillation_profile import PreparedLongRequest
+        session = self._long_capacity_session
+        return (session is not None and type(prepared) is PreparedLongRequest
+            and session.matches_long(execution_id, prepared)
+            and session.armed_for_claim(execution_id, json.loads(prepared.request_wire)))
+
+    def generate_long(self, execution_id: str, prepared: object) -> dict[str, Any]:
+        from youtube_intel.long_distillation_profile import PreparedLongRequest
+        if (self._long_capacity_session is None or type(prepared) is not PreparedLongRequest
+            or self._prepared_long is None or self._prepared_long[0] != execution_id
+            or not self._long_capacity_session.matches_long(execution_id, prepared)):
+            raise LocalDistillationPreDispatchError("long native readiness is missing")
+        request = json.loads(prepared.request_wire)
+        self._long_capacity_session.consume(execution_id, request)
+        self.last_grounding_post_attempted = True
+        self._qualification_dispatched = True
+        response = self._request("/api/chat", method="POST", body=request)
+        message = response.get("message")
+        final = message.get("content") if isinstance(message, Mapping) else None
+        self.last_grounding_final = final if isinstance(final, str) else None
+        self.last_grounding_completion = {key: response.get(key) for key in (
+            "model", "done", "done_reason", "prompt_eval_count", "eval_count")}
+        return dict(response)
 
     def arm_for_claim(self, execution_id: str, value: VerifiedDistillationInput) -> bool:
         if not self.ready_for_claim(execution_id, value) or self._capacity_session is None:
@@ -2719,14 +2819,26 @@ class OllamaLocalDistillationTransport:
             },
             method=method,
         )
-        with urllib.request.urlopen(request, timeout=300.0) as response:
-            raw = response.read(self._MAX_RESPONSE_BYTES + 1)
+        from youtube_intel.local_distillation_profile import CURRENT_RUNTIME_PROFILE_ID
+        if self.local_profile_id == CURRENT_RUNTIME_PROFILE_ID:
+            from youtube_intel.local_model_capacity import _NoNativeRedirect
+            with urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoNativeRedirect()).open(request, timeout=300.0) as response:
+                if response.geturl() != base + path:
+                    raise LocalDistillationPreDispatchError("current loopback endpoint changed")
+                raw = response.read(self._MAX_RESPONSE_BYTES + 1)
+        else:
+            with urllib.request.urlopen(request, timeout=300.0) as response:
+                raw = response.read(self._MAX_RESPONSE_BYTES + 1)
         if self.local_profile_id is not None and path == "/api/chat":
             self.last_grounding_raw_hash = hashlib.sha256(raw).hexdigest()
         if len(raw) > self._MAX_RESPONSE_BYTES:
             raise KnownLocalDistillationResponseError("LOCAL_RESPONSE_INVALID")
         try:
-            payload = json.loads(raw.decode("utf-8", errors="strict"))
+            if self.local_profile_id == CURRENT_RUNTIME_PROFILE_ID:
+                from youtube_intel.local_distillation_qualification import strict_object
+                payload = json.loads(raw.decode("utf-8", errors="strict"), object_pairs_hook=strict_object)
+            else:
+                payload = json.loads(raw.decode("utf-8", errors="strict"))
         except (UnicodeDecodeError, json.JSONDecodeError) as error:
             raise KnownLocalDistillationResponseError("LOCAL_RESPONSE_INVALID") from error
         if not isinstance(payload, Mapping):
@@ -3004,7 +3116,17 @@ class PersonalizedDistillationService:
             if (self._selected_provider != "ollama" or self._selected_model != resolve_profile(self._local_profile_id).model):
                 raise ValueError("service local execution profile is invalid")
             if isinstance(transport, OllamaLocalDistillationTransport) and repository._source_data_root is not None:
-                transport._capacity_session = LocalCapacitySession(repository=repository, data_root=repository._source_data_root)
+                transport._capacity_session = LocalCapacitySession(repository=repository, data_root=repository._source_data_root,
+                    profile_id=self._local_profile_id)
+                from youtube_intel.local_distillation_profile import (
+                    CURRENT_RUNTIME_PROFILE_ID,
+                )
+                if self._local_profile_id == CURRENT_RUNTIME_PROFILE_ID:
+                    from youtube_intel.local_distillation_qualification import (
+                        LONG_CURRENT,
+                    )
+                    transport._long_capacity_session = LocalCapacitySession(repository=repository,
+                        data_root=repository._source_data_root, profile_id=LONG_CURRENT)
         self._output_language_for_video = output_language_for_video or (
             lambda _: "zh-CN"
         )
@@ -3357,8 +3479,14 @@ class PersonalizedDistillationService:
             route_required,
         )
         if route_required(self, video_id, evidence_ids, source_id):
-            execution_id = reserve_wait(self, source_id=source_id, video_id=video_id,
-                evidence_ids=evidence_ids, manual_command_id=manual_command_id)
+            from .long_distillation_execution import profile_qualified, reserve_pending
+            if (manual_command_id is not None and isinstance(self._transport, OllamaLocalDistillationTransport)
+                and profile_qualified(self, self.capability_output_language(video_id) or "")):
+                execution_id = reserve_pending(self, source_id=source_id, video_id=video_id,
+                    evidence_ids=evidence_ids, manual_command_id=manual_command_id)
+            else:
+                execution_id = reserve_wait(self, source_id=source_id, video_id=video_id,
+                    evidence_ids=evidence_ids, manual_command_id=manual_command_id)
             return DistillationReservation(execution_id=execution_id, source_id=source_id, video_id=video_id)
         video = self._repository.get_video(video_id)
         if video is not None and video.provider == "LOCAL" and (
@@ -4072,7 +4200,8 @@ class PersonalizedDistillationService:
             raise ValueError("reserved execution does not exist")
         from .long_distillation_persistence import is_long
         if is_long(execution_id):
-            return self._result(record)
+            from .long_distillation_execution import continue_long
+            return continue_long(self, execution_id, qualification=qualification)
         if record.status != "PENDING":
             return self._result(record)
         if (

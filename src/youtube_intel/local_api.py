@@ -2015,10 +2015,27 @@ class LocalApiApplication:
                 request_state="CONFIGURATION_REQUIRED", reason="MODEL_CONFIGURATION_REQUIRED")
             return result
         if self._distillation_service is not None and route_required(self._distillation_service, video_id, ids, source_id):
+            from .local_distillation_profile import (
+                CURRENT_RUNTIME_PROFILE_ID as SHORT_CURRENT,
+            )
+            from .long_distillation_execution import profile_qualified
+            from .long_distillation_profile import (
+                CURRENT_RUNTIME_PROFILE_ID as LONG_CURRENT,
+            )
             from .long_distillation_profile import PROFILE_ID, resolve_long_profile
-            long_profile = json.loads(resolve_long_profile(PROFILE_ID).profile_wire)
-            result.update(model=long_profile["model"], profile_id=PROFILE_ID, qualification_status="NOT_QUALIFIED",
+            profile_id = LONG_CURRENT if self._distillation_service._local_profile_id == SHORT_CURRENT else PROFILE_ID
+            long_profile = json.loads(resolve_long_profile(profile_id).profile_wire)
+            qualified = profile_id == LONG_CURRENT and profile_qualified(self._distillation_service, language)
+            result.update(model=long_profile["model"], profile_id=profile_id,
+                qualification_status="QUALIFIED" if qualified else "NOT_QUALIFIED",
                 request_state="WAITING_MODEL", reason="NOT_QUALIFIED")
+            if qualified:
+                if self._local_distillation_available is True:
+                    result.update(request_state="ELIGIBLE_FOR_ADMISSION", reason="ADMISSION_CHECKS_REQUIRED")
+                elif self._local_distillation_available is False:
+                    result["reason"] = "MODEL_UNAVAILABLE"
+                else:
+                    result.update(request_state="UNKNOWN", reason="RESOURCE_STATUS_UNKNOWN")
             return result
         rows = cast(list[dict[str, object]], matrix["scopes"])
         row = next(item for item in rows if item["scope"] == scope and item["output_language"] == language)

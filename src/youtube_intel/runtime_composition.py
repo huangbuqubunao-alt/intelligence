@@ -442,35 +442,41 @@ def _deep_analysis_production_capability() -> DeepAnalysisCapability:
 
 
 def local_distillation_capabilities() -> tuple[dict[str, object], ...]:
-    """Scope/language qualification only; independent of the fast scoring model."""
-    from youtube_intel.distillation import local_profile_for_scope
-    from youtube_intel.local_distillation_profile import PROFILE_ID, SCOPES
+    """Current finite scope/language truth; never a load or qualification grant."""
+    from youtube_intel.local_distillation_profile import (
+        CURRENT_RUNTIME_PROFILE_ID,
+        SCOPES,
+    )
     from youtube_intel.local_distillation_qualification import (
+        qualification_projection,
         read_reviewed_qualifications,
     )
     authority = read_reviewed_qualifications()
-    return tuple(authority.scope_status(local_profile_for_scope(PROFILE_ID, scope), language)
+    return tuple(authority.scope_status(qualification_projection(CURRENT_RUNTIME_PROFILE_ID, scope), language)
         for scope in SCOPES for language in ("en", "zh-CN"))
 
 
 def build_production_local_distillation_transport(settings: LocalScoringSettings) -> OllamaLocalDistillationTransport:
-    """Only a reviewed local profile may select the separate Intelligence model."""
-    from youtube_intel.distillation import local_profile_for_scope
+    """The installed current route remains distinct from reviewed eligibility."""
     from youtube_intel.local_distillation_profile import (
-        PROFILE_ID,
+        CURRENT_RUNTIME_PROFILE_ID,
         SCOPES,
         resolve_profile,
     )
     from youtube_intel.local_distillation_qualification import (
+        LONG_CURRENT,
+        qualification_projection,
         read_reviewed_qualifications,
     )
     authority = read_reviewed_qualifications()
-    if any(authority.permits(local_profile_for_scope(PROFILE_ID, scope), language)
-           for scope in SCOPES for language in ("en", "zh-CN")):
-        profile = resolve_profile(PROFILE_ID)
+    profile = resolve_profile(CURRENT_RUNTIME_PROFILE_ID)
+    qualified = any(authority.permits(qualification_projection(profile_id, scope), language)
+        for profile_id, scope in [*((CURRENT_RUNTIME_PROFILE_ID, scope) for scope in SCOPES), (LONG_CURRENT, "YT_TIMED")]
+        for language in ("en", "zh-CN"))
+    if qualified or (settings.model, settings.expected_model_digest) == (profile.model, profile.model_digest):
         return OllamaLocalDistillationTransport(settings=LocalScoringSettings(
             model=profile.model, expected_model_digest=profile.model_digest, base_url=settings.base_url),
-            local_profile_id=PROFILE_ID, qualification_authority=authority)
+            local_profile_id=CURRENT_RUNTIME_PROFILE_ID, qualification_authority=authority)
     return OllamaLocalDistillationTransport(settings=settings, production_qualified=False)
 
 
@@ -560,7 +566,13 @@ def build_local_source_run_runtime(
         output_language_for_video=runtime._intelligence_output_language,
     )
     if transport.local_profile_id is not None:
-        transport._capacity_session = LocalCapacitySession(repository=repository, data_root=data_root, backup_restore=backup_restore)
+        transport._capacity_session = LocalCapacitySession(repository=repository, data_root=data_root,
+            backup_restore=backup_restore, profile_id=transport.local_profile_id)
+        from youtube_intel.local_distillation_profile import CURRENT_RUNTIME_PROFILE_ID
+        if transport.local_profile_id == CURRENT_RUNTIME_PROFILE_ID:
+            from youtube_intel.local_distillation_qualification import LONG_CURRENT
+            transport._long_capacity_session = LocalCapacitySession(repository=repository, data_root=data_root,
+                backup_restore=backup_restore, profile_id=LONG_CURRENT)
     # One independently reviewed K2.6 qualification passed. The UI still
     # requires a separate consent for each normal cloud execution.
     m12_moonshot_qualified = True
@@ -674,6 +686,10 @@ def build_local_source_run_runtime(
         ),
     )
     machine_settings.bind_actual(distillation.capability_binding(), intelligence_config.expected_model_digest)
+    # The application has now bound verified source storage; workers have not
+    # started. Recovery performs no model IO and cannot promote an invocation.
+    from youtube_intel.long_distillation_execution import recover_pre_dispatch_long
+    recover_pre_dispatch_long(distillation, backup_restore=backup_restore)
     return LocalSourceRunRuntime(
         repository=repository,
         runtime=runtime,
