@@ -1,0 +1,46 @@
+{
+  "observed_at": "2026-10-23T13:08:14.642675+00:00",
+  "classification": "UNFROZEN_ENGINEERING_PROGRESS_NOT_FINAL_ACCEPTANCE",
+  "core_last_committed": "93e1d2d",
+  "logs_read_by_root": {
+    "completion-expanded.log": {
+      "text": ".............................................                            [100%]\n45 passed in 41.95s\n",
+      "sha256": "7313c56702da259dda3ef915747d6c943bed7e9f4faa786e0f7c19bdb02a8517"
+    },
+    "full-source-restore-first.log": {
+      "text": "...                                                                      [100%]\n3 passed, 42 deselected in 57.24s\n",
+      "sha256": "338f07eb1e693eb84f1bcddb8de4871493d63b573457b04beb364962f2b01382"
+    },
+    "completed-corruption-green.log": {
+      "text": "..............                                                           [100%]\n14 passed, 45 deselected in 16.83s\n",
+      "sha256": "83498e07254170c074d8ea93c942268c683f2c752bd498c4ecd096bd3d5ceaab"
+    },
+    "orphan-heavy-green.log": {
+      "text": ".....                                                                    [100%]\n5 passed, 59 deselected in 4.46s\n",
+      "sha256": "191dd5cdc0f724bffd12e1324a44f621d023949a959fc654996507825c54d0ae"
+    },
+    "completion-slice-precheck-mypy.log": {
+      "text": "Success: no issues found in 120 source files\n",
+      "sha256": "a1051ec290fd198fdc01a84ce45195d00fd6617246598e305eb28ab300452773"
+    },
+    "completion-slice-precheck-ruff.log": {
+      "text": "All checks passed!\n",
+      "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+    }
+  },
+  "interpretation": "45 /3 /14 /5 groups belong to successive source versions and overlap. Never add them or claim one fixed final-source run. Engineering synthetic responses do not qualify real models.",
+  "observed_defects": {
+    "reverse_orphan_backup_readiness": "readiness accepted retained reserved revision/card after execution-side deletion; writer corrected reverse verification,14 controls now pass",
+    "no_new_heavy_work": "valid logical NO_NEW physical PENDING/inv1 wrongly blocked new local work; writer uses complete execution/usage authority,5 controls now pass"
+  },
+  "remaining": [
+    "fixed clean completion slice and existing regression",
+    "finite runtime/capacity/service wiring",
+    "independent final review and full tests",
+    "real native capacity and model quality",
+    "ordinary qualified positive GUI Save/Topic/Evidence/reboot/restore",
+    "final wholeGoal regression/topology/conditional adoption"
+  ],
+  "model_qualification": "registry remains closed, no real9b load/generation by this engineering task",
+  "owner_main": "untouched"
+}
