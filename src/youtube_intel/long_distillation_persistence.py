@@ -644,6 +644,19 @@ def reserve_wait(
     evidence_ids: tuple[str, ...],
     manual_command_id: str | None,
 ) -> str:
+    return _reserve(service, source_id=source_id, video_id=video_id,
+        evidence_ids=evidence_ids, manual_command_id=manual_command_id, pending=False)
+
+
+def _reserve(
+    service: PersonalizedDistillationService,
+    *,
+    source_id: str,
+    video_id: str,
+    evidence_ids: tuple[str, ...],
+    manual_command_id: str | None,
+    pending: bool,
+) -> str:
     from youtube_intel.distillation import DistillationCommand
 
     repository = service._repository
@@ -800,7 +813,8 @@ def reserve_wait(
             f"INSERT INTO {PROOFS}({','.join(proof)}) VALUES({','.join('?' for _ in proof)})",
             tuple(proof.values()),
         )
-        _checkpoint_wait(connection, execution_id, state, decision.state, outcome, now)
+        if not (pending and decision.allowed):
+            _checkpoint_wait(connection, execution_id, state, decision.state, outcome, now)
         verify_execution(repository, connection, execution_id)
         return execution_id
 
@@ -984,6 +998,22 @@ def verify_execution(
     checkpoint = _row(
         connection, "distillation_execution_checkpoints", "execution_id", execution_id
     )
+    if checkpoint["status"] == "PENDING" and _profile_id(proof) == CURRENT_LONG_PROFILE_ID:
+        if (checkpoint["reason"].startswith("MANUAL_CONTENT:")
+            and (checkpoint["invocation_count"], checkpoint["budget_state"]) in {
+                (0, "RESERVED_NOT_DISPATCHED"), (1, "DISPATCH_CLAIMED")}
+            and checkpoint["intelligence_id"] is None and checkpoint["revision_id"] is None):
+            for table in ("distillation_resource_usage", RECEIPTS,
+                "distillation_no_new_intelligence_results", "distillation_waiting_model_cancellations",
+                "distillation_cloud_response_failures", "distillation_unidentified_http_responses",
+                "distillation_openai_unidentified_http_responses", "distillation_moonshot_unidentified_http_responses"):
+                if connection.execute(f"SELECT 1 FROM {table} WHERE execution_id=?", (execution_id,)).fetchone():
+                    raise StateStoreError("long pending execution has conflicting result authority")
+            if connection.execute("SELECT 1 FROM intelligence_revisions WHERE revision_id=?",
+                ("revision:distillation:" + execution_id,)).fetchone():
+                raise StateStoreError("long pending execution has a revision")
+            return
+        raise StateStoreError("long pending claim identity differs")
     usage = _row(
         connection, "distillation_resource_usage", "execution_id", execution_id
     )
