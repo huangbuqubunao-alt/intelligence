@@ -1,0 +1,118 @@
+{
+  "observed_at": "2026-10-23T04:46:34.649725+00:00",
+  "classification": "GENUINE_MACOS_HEADFUL_NATIVE_IMPORT_FROM_FIXED_EMPTY_CONTENT_ACTION",
+  "accepted_author": "66e624be0f1e7decc46434419aa85a0cec1c2d17",
+  "product_commit": "5618cb0bb3010d8dab0da82302367e1be3fc7f4f",
+  "independent_review": "6954973 APPROVE",
+  "served_js": "index-BeVa1-KN.js",
+  "backend_root_product": "b08e1bf74da0ff50f29a7680910f1c666863b3be",
+  "actual_checks": [
+    "Chinese emptyContent Add content focused+Enter opens existingmodal",
+    "macOS native AppKit chooser selected actual task-owned TXT; normal preview and confirm once",
+    "Auto open Content original/extractive Summary/4real line range Evidence",
+    "Following route clears transient import panel/message",
+    "Direct Content URL reload retains source/lines/extractive disclaimer and no old import message",
+    "English fresh empty project via actual language UI; 320px content/button/shared nativechoice fit width320; Enter opens originalmodal",
+    "Fresh onboarding and import setup CTA reach #Settings/transcription with missingmodel reason",
+    "Empty current/saved Intelligence, Topics and Research render; zero content research submit gives proper selection validation"
+  ],
+  "native_http_counts": {
+    "POST /api/v1/local/native/picks 202": 1,
+    "POST /api/v1/local/native/jobs 200": 61,
+    "POST /api/v1/local/native/picks/iIIg3jYl9yM2yhWvSUCRaY7w7Ez-U7qMYRL2phIkNHk 200": 59,
+    "POST /api/v1/local/native/picks/iIIg3jYl9yM2yhWvSUCRaY7w7Ez-U7qMYRL2phIkNHk/confirm 202": 1
+  },
+  "source_file_sha256": "fa0eb1ac647d372315534b6cba6ad9ecc2690144496685f9960947899e56b24e",
+  "physical_data_files": {
+    "transcripts/summaries/0ac181130422e078094a3dac4c1fa77cf47c740e64f0b57808b54f7b0bc96c25.json": "3a0761a27c0a8a87a725fb53d40891bf03240affaeff3891c688758e09657751",
+    "transcripts/local/local-fa0eb1ac647d372315534b6cba6ad9ecc2690144496685f9960947899e56b24e/canonical.txt": "fa0eb1ac647d372315534b6cba6ad9ecc2690144496685f9960947899e56b24e",
+    "transcripts/local/local-fa0eb1ac647d372315534b6cba6ad9ecc2690144496685f9960947899e56b24e/source.txt": "fa0eb1ac647d372315534b6cba6ad9ecc2690144496685f9960947899e56b24e"
+  },
+  "sql_integrity": [
+    [
+      "ok"
+    ]
+  ],
+  "foreign_key_errors": [],
+  "zero_checkpoint_and_model_result_tables": {
+    "intelligences": 0,
+    "intelligence_revisions": 0,
+    "intelligence_revision_evidence": 0,
+    "intelligence_state_history": 0,
+    "distillation_execution_checkpoints": 0,
+    "distillation_cards": 0,
+    "saved_intelligences": 0,
+    "distillation_resource_usage": 0,
+    "distillation_no_new_intelligence_results": 0,
+    "distillation_cloud_authorizations": 0,
+    "distillation_unidentified_http_responses": 0,
+    "distillation_openai_cloud_authorizations": 0,
+    "distillation_openai_unidentified_http_responses": 0,
+    "distillation_moonshot_cloud_authorizations": 0,
+    "distillation_moonshot_unidentified_http_responses": 0,
+    "distillation_cloud_response_failures": 0,
+    "distillation_waiting_model_cancellations": 0,
+    "long_distillation_input_proofs": 0,
+    "long_distillation_completion_receipts": 0
+  },
+  "screenshots": {
+    ".var/end-to-end-user-readiness/fresh-user-guidance-oct23/02-onboarding-transcription-guidance.png": "30c8cae4cbb578aa7c3468937d94758359e728fa5cfcc692ebc40e55fef6d11a",
+    ".var/end-to-end-user-readiness/fresh-user-guidance-oct23/12-native-preview-from-content.png": "80cd705bafa1b42ef5e4bf2736fafe8b6e71e5ad82f2ca752914d334d22c31cb",
+    ".var/end-to-end-user-readiness/fresh-user-guidance-oct23/03-onboarding-link-arrival.png": "25bebf8e1f10270e3156b87ea156dad412a2466635fe88e2fab66f62557292f1",
+    ".var/end-to-end-user-readiness/fresh-user-guidance-oct23/04-empty-content-no-action.png": "a376c40703db9f9432ddf53654208e9b14746f710d557a2ebe0e1e781aaa31e7",
+    ".var/end-to-end-user-readiness/fresh-user-guidance-oct23/08-empty-topics.png": "6173fb8414fd88c49d358e0e1553ee40331a62fb7167f50c9ef6a13cee28f75b",
+    ".var/end-to-end-user-readiness/fresh-user-guidance-oct23/14-real-text-evidence-lines.png": "773ff96da802bf97cd774a3a7cd172e84700ece7591aaef1715cdb3bea769e38",
+    ".var/end-to-end-user-readiness/fresh-user-guidance-oct23/07-empty-intelligence.png": "36ba9ae5b28e500be05fd48ae05f5a6d8d08fdef484c6ff903a0db56087f198f",
+    ".var/end-to-end-user-readiness/fresh-user-guidance-oct23/09-empty-research-validation.png": "017fd399064dffba527baabd3ddf40745f5c6f8290a9f31dd6f0d0d05f6dfc06",
+    ".var/end-to-end-user-readiness/fresh-user-guidance-oct23/11-fixed-content-add-action.png": "a5febe3640cfb025c742a06dc12a133c2be914cc43c0880c5f42f9b923bd2ad5",
+    ".var/end-to-end-user-readiness/fresh-user-guidance-oct23/05-native-import-missing-model-guidance.png": "3aff3b996648fa806ac21ba63d82958f93095197af8ab0294e4bcf1099f6d86f",
+    ".var/end-to-end-user-readiness/fresh-user-guidance-oct23/01-first-onboarding.png": "1598c0a2ef926db4c9749438b777ecd109b5413c352528b79004eca4bb43713b",
+    ".var/end-to-end-user-readiness/fresh-user-guidance-oct23/15-following-no-transient-import.png": "6edef7fcb1740764451a13901c0089f61bfb46db131408e44ecd11888378e059",
+    ".var/end-to-end-user-readiness/fresh-user-guidance-oct23/10-empty-research-choose-content-feedback.png": "cd0839c0721d6c3ca65f2e99dbd6063ecbd526c4a4d553d0fbb5bc30cc3ca5f7",
+    ".var/end-to-end-user-readiness/fresh-user-guidance-oct23/13-real-text-import-opened.png": "28ed787b057fb15abf6a2f5fe7e91d31d5a37642ded0bab0e9c98a679106cdad",
+    ".var/end-to-end-user-readiness/fresh-user-guidance-oct23/06-import-guide-settings-arrival.png": "25bebf8e1f10270e3156b87ea156dad412a2466635fe88e2fab66f62557292f1",
+    ".var/end-to-end-user-readiness/fresh-user-entry-english-oct23/01-empty-content-en-320.png": "89f7fc2c0120d874150d9bf0348cb2b83a810c6b5468e405ff8a423eac66907d",
+    ".var/end-to-end-user-readiness/fresh-user-entry-english-oct23/03-native-choice-en-320.png": "9c5cb60b55ecbbf83e93d9065381372ea5d82b51b88d945152228c68c66acf2c",
+    ".var/end-to-end-user-readiness/fresh-user-entry-english-oct23/02-add-modal-en-320.png": "9321e6f88b5b3101ec8d13c5b3a232b920f03d94f92640d55d35ce1156a5e9b2"
+  },
+  "reload_read_proof": {
+    "route": "#Content/local-fa0eb1ac647d372315534b6cba6ad9ecc2690144496685f9960947899e56b24e",
+    "hasSource": true,
+    "hasLineRange": true,
+    "hasExtractiveDisclaimer": true,
+    "hasImportFeedback": false,
+    "assets": [
+      "/assets/index-BeVa1-KN.js"
+    ]
+  },
+  "english_320": {
+    "viewport": 320,
+    "documentWidth": 320,
+    "action": [
+      {
+        "label": "Add content",
+        "rect": {
+          "x": 31,
+          "y": 329.59375,
+          "width": 99.78125,
+          "height": 38,
+          "top": 329.59375,
+          "right": 130.78125,
+          "bottom": 367.59375,
+          "left": 31
+        },
+        "enabled": true
+      }
+    ],
+    "assets": [
+      "/assets/index-BeVa1-KN.js"
+    ]
+  },
+  "limits": [
+    "QA authored TXT is only real import/reading proof, not model qualification or generated Intelligence.",
+    "No real ASR/model generation, paid cloud or formal owner on this task.",
+    "134request HAR covers native chooser/preview/confirm/reading through Following, excludes later reload and English project.",
+    "Earlier frontend still in old browser memory after hash navigation; explicit reload verified newJS before acceptance."
+  ],
+  "verdict": "SCOPED_ENGINEERING_AND_GUI_ACCEPTED_PENDING_INTEGRATION"
+}
