@@ -26,6 +26,7 @@ from time import monotonic
 from typing import TYPE_CHECKING, Any, Protocol
 
 from youtube_intel.local_distillation_profile import (
+    CURRENT_RUNTIME_PROFILE_ID,
     FIXED_RUNTIME_PROFILE_ID,
     PROFILE_ID,
     canonical,
@@ -464,6 +465,7 @@ def observe_load_only_reconfiguration(*, data_root: Path) -> HostObservation:
 def _observe_host(
     *, data_root: Path, loaded: bool, fixed_batch: int | None = None,
     runtime_profile_id: str = PROFILE_ID, context_tokens: int = 16384,
+    load_only_reconfiguration: bool = False,
 ) -> HostObservation:
     """Verify installed bytes and resource truth, never an old receipt boolean."""
     cache = Path.home() / ".ollama/models"
@@ -471,7 +473,10 @@ def _observe_host(
     if current:
         from youtube_intel.local_native_capacity import current_descriptor
         descriptor = current_descriptor(runtime_profile_id)
-        if context_tokens != descriptor["options"]["num_ctx"] or fixed_batch != 512:
+        if load_only_reconfiguration:
+            if (context_tokens, fixed_batch) not in {(16384, 512), (32768, 512), (16384, 1024)}:
+                raise CapacityUnavailable("unknown current load-only runner shape")
+        elif context_tokens != descriptor["options"]["num_ctx"] or fixed_batch != 512:
             raise CapacityUnavailable("current runtime host contract differs")
         before, references = verify_installed_model_bytes(cache, profile_id=runtime_profile_id)
     else:
@@ -491,10 +496,25 @@ def _observe_host(
     if fixed_batch is not None:
         _validate_process_prefix(server, ROOT / "ollama", suffix=" serve")
     if shutil.disk_usage(data_root).free < 10 * GIB or available_memory_bytes() < (
-        2 * GIB if loaded and fixed_batch != 1024 else sum(BLOBS.values()) + 2 * GIB
+        2 * GIB if loaded and fixed_batch != 1024 and not load_only_reconfiguration else sum(BLOBS.values()) + 2 * GIB
     ):
         raise CapacityUnavailable("disk or available RAM is insufficient")
     return HostObservation(before, server, runner, references)
+
+
+def observe_current_load_only_reconfiguration(*, data_root: Path, profile_id: str) -> HostObservation:
+    """Finite same-byte old-slot observation; never usable as ready authority."""
+    from youtube_intel.local_native_capacity import current_descriptor
+    current_descriptor(profile_id)
+    runner = processes("llama-server")
+    args = shlex.split(runner[runner.index(str(ROOT / "llama-server")):])
+    if any(args.count(key) != 1 for key in ("-c", "-b", "-ub")):
+        raise CapacityUnavailable("current reconfiguration shape is unknown")
+    context, batch, micro = (int(args[args.index(key) + 1]) for key in ("-c", "-b", "-ub"))
+    if batch != micro:
+        raise CapacityUnavailable("current reconfiguration paired batch differs")
+    return _observe_host(data_root=data_root, loaded=True, runtime_profile_id=profile_id,
+        context_tokens=context, fixed_batch=batch, load_only_reconfiguration=True)
 
 
 def _validate_process_prefix(process: str, binary: Path, *, suffix: str | None = None) -> None:
@@ -790,6 +810,60 @@ def wire_bytes(request: Mapping[str, object]) -> bytes:
     ).encode("utf-8")
 
 
+def _native_slot_context(props: object, slots: object) -> int:
+    # Pinned upstream server-context.cpp: meta.slot_n_ctx=n_ctx_slot(), not
+    # nominal request num_ctx or the model training context.
+    if not isinstance(props, dict):
+        raise CapacityUnavailable("native properties are not an object")
+    settings = props.get("default_generation_settings")
+    if (props.get("endpoint_slots") is not True or type(props.get("total_slots")) is not int or props["total_slots"] != 1
+        or props.get("is_sleeping") is not False or not isinstance(settings, dict)
+        or type(settings.get("n_ctx")) is not int or settings["n_ctx"] <= 0):
+        raise CapacityUnavailable("actual native per-slot context unavailable")
+    context = int(settings["n_ctx"])
+    if (type(slots) is not list or len(slots) != 1 or not isinstance(slots[0], dict)
+        or type(slots[0].get("id")) is not int or slots[0]["id"] != 0
+        or type(slots[0].get("n_ctx")) is not int or slots[0]["n_ctx"] != context
+        or slots[0].get("is_processing") is not False or slots[0].get("speculative") is not False):
+        raise CapacityUnavailable("actual native slot is busy, speculative or differs")
+    return context
+
+
+class _NoNativeRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args: Any, **kwargs: Any) -> None:
+        raise CapacityUnavailable("native runner redirect refused")
+
+
+def native_runner_request(host: HostObservation, path: str, *, body: Mapping[str, object] | None = None) -> Any:
+    """Bounded metadata/tokenization only, on the already observed same runner."""
+    from youtube_intel.local_distillation_qualification import strict_object
+    if path not in {"/props", "/slots", "/tokenize"} or (path != "/tokenize") != (body is None) or not host.is_current():
+        raise CapacityUnavailable("native read route or host differs")
+    args = shlex.split(host.runner[host.runner.index(str(ROOT / "llama-server")):])
+    if args.count("--port") != 1:
+        raise CapacityUnavailable("native port identity is ambiguous")
+    port = args[args.index("--port") + 1]
+    if not port.isdecimal() or not 1024 <= int(port) <= 65535:
+        raise CapacityUnavailable("native port differs")
+    url = "http://127.0.0.1:" + port + path
+    encoded = None if body is None else canonical(body)
+    if encoded is not None and len(encoded) > 8_000_000:
+        raise CapacityUnavailable("native tokenization body exceeds bounds")
+    request = urllib.request.Request(url, data=encoded,
+        headers={"Accept": "application/json", **({"Content-Type": "application/json"} if body is not None else {})},
+        method="GET" if body is None else "POST")
+    with urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoNativeRedirect()).open(request, timeout=5) as response:
+        raw = response.read(1_000_001)
+        if response.geturl() != url:
+            raise CapacityUnavailable("native endpoint changed")
+    if len(raw) > 1_000_000 or not host.is_current():
+        raise CapacityUnavailable("native metadata exceeded bounds or host changed")
+    result = json.loads(raw.decode("utf-8", errors="strict"), object_pairs_hook=strict_object)
+    if not isinstance(result, list if path == "/slots" else dict):
+        raise CapacityUnavailable("native metadata shape differs")
+    return result
+
+
 class LocalCapacitySession:
     def __init__(
         self,
@@ -799,7 +873,10 @@ class LocalCapacitySession:
         backup_restore: BackupRestoreService | None = None,
         profile_id: str = PROFILE_ID,
     ) -> None:
-        self._profile = resolve_profile(profile_id)
+        from youtube_intel.local_distillation_qualification import LONG_CURRENT
+        self._profile_id = profile_id
+        self._profile = resolve_profile(CURRENT_RUNTIME_PROFILE_ID if profile_id == LONG_CURRENT else profile_id)
+        self.native_witness: object | None = None
         self.repository, self.data_root = repository, data_root
         self.lease = ApplicationHeavyLease(
             repository=repository, data_root=data_root, backup_restore=backup_restore
@@ -821,6 +898,19 @@ class LocalCapacitySession:
             verified_distillation_input_projection,
         )
         profile = self._profile
+        if self._profile_id == CURRENT_RUNTIME_PROFILE_ID:
+            try:
+                if type(value) is not VerifiedDistillationInput or value.local_profile_id != self._profile_id:
+                    return False
+                expected = build_local_distillation_request(value)
+                if canonical(request) != canonical(expected) or wire_bytes(request) != wire_bytes(expected):
+                    return False
+                return self._prepare_current(execution_id, digest(verified_distillation_input_projection(value)), request, send)
+            except (OSError, ValueError, KeyError, TypeError):
+                self.release()
+                return False
+        if self._profile_id != profile.profile_id:
+            return False  # Long requires its separately persisted proof reconstruction.
         try:
             if type(value) is not VerifiedDistillationInput or value.local_profile_id != profile.profile_id:
                 return False
@@ -955,7 +1045,114 @@ class LocalCapacitySession:
             self.release()
             return False
 
-    def _loaded(self, send: Send) -> bool:
+    def prepare_long(self, execution_id: str, prepared: object, send: Send) -> bool:
+        """Caller bytes confer no authority: rebuild the exact persisted proof first."""
+        from youtube_intel.local_distillation_qualification import LONG_CURRENT
+        from youtube_intel.long_distillation_execution import rebuild_long
+        from youtube_intel.long_distillation_profile import (
+            PreparedLongRequest,
+            resolve_long_profile,
+        )
+        try:
+            if self._profile_id != LONG_CURRENT or type(prepared) is not PreparedLongRequest:
+                return False
+            with self.repository._connect() as connection:
+                rebuilt = rebuild_long(self.repository, connection, execution_id)
+                checkpoint = connection.execute(
+                    "SELECT status,invocation_count,budget_state FROM distillation_execution_checkpoints WHERE execution_id=?",
+                    (execution_id,),
+                ).fetchone()
+            if (rebuilt.prepared != prepared or prepared.profile_hash != resolve_long_profile(LONG_CURRENT).profile_hash
+                or checkpoint is None or tuple(checkpoint) != ("PENDING", 0, "RESERVED_NOT_DISPATCHED")):
+                return False
+            return self._prepare_current(execution_id, rebuilt.proof["proof_hash"], json.loads(prepared.request_wire), send)
+        except (OSError, ValueError, KeyError, TypeError, sqlite3.Error):
+            self.release()
+            return False
+
+    def matches_long(self, execution_id: str, prepared: object) -> bool:
+        from youtube_intel.local_distillation_qualification import LONG_CURRENT
+        from youtube_intel.long_distillation_profile import PreparedLongRequest
+        return (self._profile_id == LONG_CURRENT and type(prepared) is PreparedLongRequest
+            and self._ready is not None and self._ready.execution_id == execution_id
+            and self._ready.request_hash == prepared.request_hash
+            and self._ready.wire_hash == hashlib.sha256(wire_bytes(json.loads(prepared.request_wire))).hexdigest())
+
+    def _prepare_current(self, execution_id: str, value_hash: str, request: Mapping[str, object], send: Send) -> bool:
+        from youtube_intel.local_native_capacity import (
+            current_descriptor,
+            native_capacity_witness,
+            render_qwen35_prompt,
+        )
+        try:
+            descriptor = current_descriptor(self._profile_id)
+            if self._ready is not None:
+                return self._ready.value_hash == value_hash and self.ready_for_claim(execution_id, request)
+            if not execution_id or not self.lease.acquire():
+                return False
+            if send("/api/version", method="GET").get("version") != descriptor["runtime"]:
+                raise CapacityUnavailable("current runtime version differs")
+            models = send("/api/tags", method="GET").get("models")
+            if not isinstance(models, list) or sum(isinstance(m, dict)
+                and m.get("name") == descriptor["model"] and str(m.get("digest")).removeprefix("sha256:")
+                    == descriptor["model_digest"].removeprefix("sha256:") for m in models) != 1:
+                raise CapacityUnavailable("installed current model differs")
+            show = send("/api/show", method="POST", body={"model": descriptor["model"]})
+            info, modelfile = show.get("model_info"), show.get("modelfile")
+            if (show.get("system") not in (None, "") or show.get("messages") not in (None, [])
+                or show.get("template") != "{{ .Prompt }}" or not isinstance(info, dict)
+                or any(info.get(k) != v for k, v in {"general.architecture": "qwen35",
+                    "qwen35.context_length": 262144, "tokenizer.ggml.model": "gpt2", "tokenizer.ggml.pre": "qwen35"}.items())
+                or not isinstance(modelfile, str)
+                or re.findall(r"(?m)^RENDERER (\S+)\s*$", modelfile) != ["qwen3.5"]
+                or re.findall(r"(?m)^PARSER (\S+)\s*$", modelfile) != ["qwen3.5"]):
+                raise CapacityUnavailable("current renderer/tokenizer or hidden messages differ")
+            loaded = self._loaded(send, allow_reconfiguration=True)
+            try:
+                before = observe_host(data_root=self.data_root, loaded=loaded, profile_id=self._profile_id)
+            except CapacityUnavailable:
+                if not loaded:
+                    raise
+                before = observe_current_load_only_reconfiguration(data_root=self.data_root, profile_id=self._profile_id)
+            if not before.is_current() or not self.lease.valid() or unresolved_local_work(self.repository):
+                raise CapacityUnavailable("current host or unresolved work changed before load")
+            response = send("/api/chat", method="POST", body={"model": descriptor["model"], "messages": [],
+                "stream": False, "think": True, "truncate": False, "shift": False,
+                "options": descriptor["options"], "keep_alive": "5m"})
+            message = response.get("message")
+            if (response.get("model") != descriptor["model"] or response.get("done") is not True
+                or response.get("done_reason") != "load" or not isinstance(message, dict)
+                or set(message) != {"role", "content"} or message.get("role") not in ("assistant", "")
+                or message.get("content") != "" or "error" in response
+                or any(k in response for k in ("eval_count", "prompt_eval_count", "eval_duration", "prompt_eval_duration"))):
+                raise CapacityUnavailable("current empty load returned generation or unknown state")
+            if not self._loaded(send):
+                raise CapacityUnavailable("current actual model slot unavailable")
+            host = observe_host(data_root=self.data_root, loaded=True, profile_id=self._profile_id)
+            if (host.files != before.files or host.references != before.references or host.server != before.server
+                or not host.is_current() or not self.lease.valid()):
+                raise CapacityUnavailable("current host changed during empty load")
+            context = _native_slot_context(native_runner_request(host, "/props"), native_runner_request(host, "/slots"))
+            prompt = render_qwen35_prompt(request)
+            tokens = native_runner_request(host, "/tokenize", body={"content": prompt,
+                "add_special": True, "parse_special": True})
+            witness = native_capacity_witness(request, profile_id=self._profile_id,
+                native_tokens=tokens, actual_slot_context=context)
+            if (_native_slot_context(native_runner_request(host, "/props"), native_runner_request(host, "/slots")) != context
+                or not host.is_current() or not self.lease.valid() or unresolved_local_work(self.repository)):
+                raise CapacityUnavailable("current slot/host changed while tokenizing")
+            self.native_witness = witness
+            self._ready = _Ready(self._profile_id, value_hash, execution_id, digest(request),
+                hashlib.sha256(wire_bytes(request)).hexdigest(), monotonic() + 30, host)
+            self._consumed = self._armed = False
+            if not self.ready_for_claim(execution_id, request):
+                raise CapacityUnavailable("current readiness changed before claim")
+            return True
+        except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
+            self.release()
+            return False
+
+    def _loaded(self, send: Send, *, allow_reconfiguration: bool = False) -> bool:
         models = send("/api/ps", method="GET").get("models")
         profile = self._profile
         if models == []:
@@ -972,7 +1169,9 @@ class LocalCapacitySession:
             raise CapacityUnavailable("another or unknown heavyweight runner is loaded")
         if (
             type(models[0].get("context_length")) is not int
-            or models[0]["context_length"] != 16384
+            or (models[0]["context_length"] not in {16384, 32768} if allow_reconfiguration else
+                models[0]["context_length"] != (32768 if self._profile_id ==
+                    "local-grounding-qwen35-9b-lossless-rle-runtime-0.40.6-v2" else 16384))
         ):
             raise CapacityUnavailable("actual context differs")
         return True
@@ -994,7 +1193,7 @@ class LocalCapacitySession:
         ready = self._ready
         return (
             ready is not None
-            and ready.profile_id == self._profile.profile_id
+            and ready.profile_id == self._profile_id
             and not self._armed
             and not self._consumed
             and ready.execution_id == execution_id
@@ -1017,9 +1216,10 @@ class LocalCapacitySession:
         ready = self._ready
         if (
             ready is None
-            or ready.profile_id != self._profile.profile_id
+            or ready.profile_id != self._profile_id
             or not self._armed
             or self._consumed
+            or monotonic() >= ready.expires
             or self.lease.fd is None
             or self.lease.owner != threading.get_ident()
             or ready.execution_id != execution_id
@@ -1035,5 +1235,6 @@ class LocalCapacitySession:
         if self.lease.owner is not None and self.lease.owner != threading.get_ident():
             return
         self._ready = None
+        self.native_witness = None
         self._armed = False
         self.lease.release()

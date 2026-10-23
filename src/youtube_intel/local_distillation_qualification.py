@@ -357,7 +357,18 @@ class LocalExecutionPermit(_Strict):
     def matches(self, projection: Mapping[str, object], input_hash: str, request_hash: str, language: str) -> bool:
         try:
             scope = str(projection["scope"])
-            expected = qualification_cases(projection)
+            from youtube_intel.local_distillation_profile import (
+                FIXED_RUNTIME_PROFILE_ID,
+            )
+            if projection.get("local_profile_id") == FIXED_RUNTIME_PROFILE_ID:
+                # Preserve historical permit structure only. The v2 transport
+                # independently refuses every generation, even with a permit.
+                from youtube_intel.distillation import local_profile_for_scope
+                if dict(projection) != local_profile_for_scope(FIXED_RUNTIME_PROFILE_ID, scope):
+                    return False
+                expected = CASE_LANGUAGES["YT_TIMED" if scope == "YT_TIMED" else "LOCAL"]
+            else:
+                expected = qualification_cases(projection)
             order = list(expected)
             issued, expires = timestamp(self.issued_at), timestamp(self.expires_at)
             return (case_scope(self.case_id, profile_id=str(projection["local_profile_id"])) == scope and self.binding == qualification_binding(projection) and input_hash == self.input_hash
