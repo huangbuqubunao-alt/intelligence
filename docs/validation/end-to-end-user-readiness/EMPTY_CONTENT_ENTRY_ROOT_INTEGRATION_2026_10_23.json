@@ -1,0 +1,25 @@
+{
+  "observed_at": "2026-10-23T09:30:26.237901+00:00",
+  "root_product_head": "1b7d7ad3194ce15c58b0d69d15dba17d05d516c5",
+  "author_fixed": "66e624be0f1e7decc46434419aa85a0cec1c2d17",
+  "independent_review": "6954973 APPROVE, independently reran181 tests",
+  "root_checks": {
+    "focused_tests": "10 PASS,1.99s",
+    "typecheck": "PASS",
+    "diff_check": "PASS",
+    "author_product_file_byte_equality": {
+      "frontend/src/workspace/App.empty-content-entry.test.tsx": true,
+      "frontend/src/workspace/App.tsx": true,
+      "frontend/src/workspace/uiLanguage.tsx": true
+    },
+    "backend_tests_config_scripts_contracts_packages": "unchanged from accepted b08e1bf"
+  },
+  "exact_author_full_frontend_reuse": "1008 PASS /39 files /20.27s; not claimed as fresh root full rerun",
+  "evidence_log_sha256": {
+    "focused.log": "22d04f407b463746f8dfdb1170f69e77badeb352753f4045751a67d3fd01181c",
+    "typecheck.log": "0073b777d6b85b5e4d2ac79b723aeebbde034ccb34fcc14bd2f0666746071629"
+  },
+  "gui_proof": "EMPTY_CONTENT_ENTRY_ROOT_GUI_2026_10_23.json",
+  "verdict": "SCOPED_ENGINEERING_INTEGRATED_NOT_GOAL_ADOPTION",
+  "setup_failure": "Initial output redirection directory was relative to frontend instead of repo; no tests ran. Correct repo directory created, both commands passed; no product/test changes."
+}

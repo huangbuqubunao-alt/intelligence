@@ -1,0 +1,14 @@
+{
+  "docs/validation/end-to-end-user-readiness/screenshots/content-empty-add-entry-oct23.png": {
+    "source": ".var/end-to-end-user-readiness/fresh-user-guidance-oct23/11-fixed-content-add-action.png",
+    "sha256": "a5febe3640cfb025c742a06dc12a133c2be914cc43c0880c5f42f9b923bd2ad5"
+  },
+  "docs/validation/end-to-end-user-readiness/screenshots/content-native-import-preview-oct23.png": {
+    "source": ".var/end-to-end-user-readiness/fresh-user-guidance-oct23/12-native-preview-from-content.png",
+    "sha256": "80cd705bafa1b42ef5e4bf2736fafe8b6e71e5ad82f2ca752914d334d22c31cb"
+  },
+  "docs/validation/end-to-end-user-readiness/screenshots/content-text-real-line-evidence-oct23.png": {
+    "source": ".var/end-to-end-user-readiness/fresh-user-guidance-oct23/14-real-text-evidence-lines.png",
+    "sha256": "773ff96da802bf97cd774a3a7cd172e84700ece7591aaef1715cdb3bea769e38"
+  }
+}

@@ -19,8 +19,8 @@
   "native_http_counts": {
     "POST /api/v1/local/native/picks 202": 1,
     "POST /api/v1/local/native/jobs 200": 61,
-    "POST /api/v1/local/native/picks/iIIg3jYl9yM2yhWvSUCRaY7w7Ez-U7qMYRL2phIkNHk 200": 59,
-    "POST /api/v1/local/native/picks/iIIg3jYl9yM2yhWvSUCRaY7w7Ez-U7qMYRL2phIkNHk/confirm 202": 1
+    "POST /api/v1/local/native/picks/<pick-id> 200": 59,
+    "POST /api/v1/local/native/picks/<pick-id>/confirm 202": 1
   },
   "source_file_sha256": "fa0eb1ac647d372315534b6cba6ad9ecc2690144496685f9960947899e56b24e",
   "physical_data_files": {
@@ -112,7 +112,8 @@
     "QA authored TXT is only real import/reading proof, not model qualification or generated Intelligence.",
     "No real ASR/model generation, paid cloud or formal owner on this task.",
     "134request HAR covers native chooser/preview/confirm/reading through Following, excludes later reload and English project.",
-    "Earlier frontend still in old browser memory after hash navigation; explicit reload verified newJS before acceptance."
+    "Earlier frontend still in old browser memory after hash navigation; explicit reload verified newJS before acceptance.",
+    "Consumed task-owned opaque picker ID redacted from tracked summary; unchanged original HAR remains isolated QA evidence."
   ],
   "verdict": "SCOPED_ENGINEERING_AND_GUI_ACCEPTED_PENDING_INTEGRATION"
 }

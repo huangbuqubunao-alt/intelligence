@@ -244,6 +244,18 @@
 
 所有采集到的内容都汇总在 **内容** 页面。
 
+首次进入还没有内容时，点击 **添加内容**。在弹窗中选择视频链接或 **本地文件**；也可以用键盘聚焦按钮后按 Enter 打开。
+
+![空内容页的添加入口（真实隔离候选）](../end-to-end-user-readiness/screenshots/content-empty-add-entry-oct23.png)
+
+本地文件通过系统文件选择窗口选择，核对预览后确认导入。成功后直接打开内容；如果暂时不能转写，按页面的 **设置本地转写** 入口准备模型，再返回处理。TXT、MD 可先查看原文和来源位置。
+
+![从内容页进入本地文件导入预览](../end-to-end-user-readiness/screenshots/content-native-import-preview-oct23.png)
+
+下面是真实导入的测试文字及行号证据。页面标明摘要来自原文摘录；这不代表洞察模型已合格，也不代表已经生成洞察。切换页面后，临时导入反馈会关闭；刷新内容详情仍能读取原文与证据。
+
+![真实文字内容的原文与行号证据](../end-to-end-user-readiness/screenshots/content-text-real-line-evidence-oct23.png)
+
 **列表**：每条内容显示标题、来源（频道/本地文件）、时间和处理状态。
 
 ![内容列表](screenshots/20-content-list.png)
