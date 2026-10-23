@@ -118,3 +118,10 @@ scout对同一0.40.6官方Go qwen3.5源码只读补核：仅system/user、无too
 当前来源/Summary/policy指针合法刷新不等于冻结历史损坏；安全deferral验证完整保留历史，执行准入仍另需当前校验。inv1/未知/损坏/冲突/legacy/旧WAIT或WAIT_BUDGET、其他活跃lease均不降级或重发，不绕过Backup。若启动时别的真实任务持lease，保持真实阻塞并复用既有恢复机会或正常重启，不新建后台框架。恢复与claim竞争只能一个赢家，两次启动幂等；中断→恢复→取消→全SQL/全部DATA备份恢复不复活须有外部测试证据。
 
 保留真实中断reason，不能在实际已合格时虚称没有合格模型；优先沿既有DTO/提示展示“上次提炼在模型执行前中断，可安全取消后重新提炼”。若缺失，仅必要文案/翻译/测试纳同task，前端有改即重跑完整前端/TS/build。此为用户持续默认授权下的必要恢复边界，不需要逐方法审批；最终源码冻结、独审、真实门及采用条件均保持。
+
+
+## 2026-10-23 恢复等待文案最小裁决
+
+实现者核验：checkpoint.reason已冻结为MANUAL_CONTENT身份，usage.outcome受037既有trigger与verify_wait固定；不可为文案改写身份/结果、旧trigger或再加authority表。采用更简单的通用真实说明：current-long WAIT0只陈述“本次尚未执行，可安全取消；取消后可重新提炼”，保留取消成功时Content/字幕/摘要/Evidence不变的反馈。当前确实无合格模型时，现有精确资格/capability仍明确“当前没有合格的洞察模型”，不把任务历史原因与当前资格混淆。
+
+不使用created_at/updated_at大小关系编码中断原因，不人为增加1µs作为原因位；时间戳不是新authority。已有持久proof/inv0/无ledger/lease/CAS足以证明安全未执行，无法证明具体为什么停止时就只展示可证明的事实。此裁决明确收敛前节reason建议，不另加Schema/字段/框架或模型调用。
