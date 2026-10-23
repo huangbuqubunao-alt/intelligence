@@ -6,14 +6,14 @@
 |---|---|---|
 | WAITING_MODEL 安全取消 | 已审acc0f989/R7、root b08e1bf整合；真实长114Evidence/2406cue与短任务分别取消，另一任务仍阻塞，重启不复活 | 新执行闭包完成后最终回归 |
 | Backup/Restore | 同候选真实macOS原生选择与一次RESTORE确认，79表全部行、19及24物理DATA逐项一致；重连真实反馈已验证 | 真实洞察结果加入后的最终全量一致性 |
-| 转写设置与本地导入 | Whisper原17声学例有效；真实Native视频转写4cue/摘要/5Evidence；时长超限现场反馈可关闭、不跨路由残留 | 最终核心tuple复核，必要时原标准重验 |
-| 新用户入口与设置引导 | 空Content新增现有添加入口独立APPROVE6954973，真实系统picker→TXT→4行号Evidence、深链reload、Following无残留；English320px亦通过；root10/TS/diff整合检查通过 | 最终全量前端；本项窄工程DONE |
+| 转写设置与本地导入 | Whisper原17声学例有效；真实Native视频转写4cue/摘要/5Evidence；时长超限现场反馈可关闭、不跨路由残留 | 22:36完整当前tuple/原seal/audit复核PASS（14+3），最终若12绑定改变须原标准重验 |
+| 新用户入口与设置引导 | 空Content新增现有添加入口独立APPROVE6954973，真实系统picker→TXT→4行号Evidence、深链reload、Following无残留；English320px亦通过；root10/TS/diff整合检查通过 | root完整前端1008/39文件及TS再次PASS；本项窄工程DONE |
 | 图文手册 | 统一中文MD/HTML76真实图片、17章、实际headfulChrome零坏图/锚点；新截图及hash见EMPTY_CONTENT_ENTRY_MANUAL_*_2026_10_23.json | 合格洞察正向真实截图 |
-| 长内容执行 | 独立WT有限0.40.6profile/historical dispatch与proof-bound claim已分片；唯一writer继续completion、真实用量、reader与恢复闭包 | 固定最终源、完整影响组、独立review、root整合与真实容量/质量验收 |
+| 长内容执行 | 独立WT已分片完成原子三结果/真实用量/双向恢复闭包及有限当前profile/纯native count/host/资格；当前唯一writer补session与公用service接线 | 固定最终源、完整影响组、独立review、root整合与真实容量/质量验收 |
 | 模型资格、保存/主题 | records=[]，未因安装或合成工程结果开放资格；旧失败仍保留 | 原标准资格/未见样例/LOCAL8、真实正向保存→主题→Evidence→重启恢复 |
 | 正式采用 | 正式WT只读仍73ee7e7 clean，owner未触；D2实现不变既有2GiB/APFS证据可复用 | 最终完整backend/frontend/static/build、实际远端拓扑、条件ff-only/push/launcher/served revision/startup |
 
-最新资源只读17:30约6.68GiB可用RAM，仍低于8.101GiB最低门槛；没有加载9b。工程先继续，不能沿用旧快照加载或降低门槛。证据见EMPTY_CONTENT_ENTRY_ROOT_INTEGRATION_2026_10_23.json、WAIT_LIFECYCLE_ROOT_INTEGRATION_2026_10_23.json与各真实GUI报告。
+最新资源只读22:28约6.71GiB可用RAM，仍低于8.101GiB最低门槛；没有加载9b。工程先继续，不能沿用旧快照加载或降低门槛。证据见ROOT_CONTINUATION_CHECKPOINT_2026_10_23_2230.json、ASR_COMPLETE_TUPLE_RECHECK_2026_10_23_2236.json、EMPTY_CONTENT_ENTRY_ROOT_INTEGRATION_2026_10_23.json、WAIT_LIFECYCLE_ROOT_INTEGRATION_2026_10_23.json与各真实GUI报告。
 
 ---
 
