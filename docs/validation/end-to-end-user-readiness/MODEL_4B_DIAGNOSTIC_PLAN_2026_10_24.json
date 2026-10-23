@@ -1,0 +1,91 @@
+{
+  "recorded_at": "2026-10-24T07:41:10.762104+08:00",
+  "authorization": "User explicitly allowed necessary lower-memory local model changes and configurable models; no large redevelopment, no paid cloud.",
+  "scope": "ONE ORIGINAL ENGLISH CASE, DIAGNOSTIC ONLY; 0 production-code changes",
+  "case": "real-deepthink-en",
+  "public_video_id": "QoXRfTb7ves",
+  "source_corpus_hash": "a7c96ee6b84aee6b8e492348b9f4f190d7c9f6f14241b25e533532bc4dcb82cb",
+  "real_cues": 18,
+  "evidence_count": 2,
+  "manifest_hash": "d8b0f5e9760cd1682034f292d7ef72ec46f432149be0df7574bf2d6e92e38c04",
+  "manifest_url": "https://registry.ollama.ai/v2/library/qwen3.5/manifests/4b-q4_K_M",
+  "public_payload_bytes": 3324173934,
+  "resource_formula": "sum of all six pinned public payload bytes + 2 GiB, fresh pre-load; not asserted peak upper bound",
+  "required_memory_bytes": 5471657582,
+  "required_memory_gib": 5.095878226682544,
+  "disk_minimum_bytes": 10737418240,
+  "official_artifacts": [
+    {
+      "mediaType": "application/vnd.docker.container.image.v1+json",
+      "digest": "sha256:788a4d94bc3f431ac0cd067005be4b838a09330427962952420b05d10ecf84db",
+      "size": 177,
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-4b-once-20261024/models/blobs/sha256-788a4d94bc3f431ac0cd067005be4b838a09330427962952420b05d10ecf84db",
+      "mode": "downloaded official pinned digest"
+    },
+    {
+      "mediaType": "application/vnd.ollama.image.projector",
+      "digest": "sha256:e56a899b1540860385465756dd308c84417410b94dbc1c380adffd20a921ca60",
+      "size": 675569120,
+      "from": "mmproj.gguf",
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-4b-once-20261024/models/blobs/sha256-e56a899b1540860385465756dd308c84417410b94dbc1c380adffd20a921ca60",
+      "mode": "downloaded official pinned digest"
+    },
+    {
+      "mediaType": "application/vnd.ollama.image.model",
+      "digest": "sha256:a9d0a3e1d8c91732a3812becd31f8d4a8ff57414903f226306069f0437e2ac50",
+      "size": 2648593216,
+      "from": "model.gguf",
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-4b-once-20261024/models/blobs/sha256-a9d0a3e1d8c91732a3812becd31f8d4a8ff57414903f226306069f0437e2ac50",
+      "mode": "downloaded official pinned digest"
+    },
+    {
+      "mediaType": "application/vnd.ollama.image.template",
+      "digest": "sha256:b507b9c2f6ca642bffcd06665ea7c91f235fd32daeefdf875a0f938db05fb315",
+      "size": 13,
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-4b-once-20261024/models/blobs/sha256-b507b9c2f6ca642bffcd06665ea7c91f235fd32daeefdf875a0f938db05fb315",
+      "mode": "verified existing public blob hardlink; never mutate"
+    },
+    {
+      "mediaType": "application/vnd.ollama.image.license",
+      "digest": "sha256:50cbab8a892c5f2993b8c7351a99182507472def3b1374558308605d99b86b32",
+      "size": 11343,
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-4b-once-20261024/models/blobs/sha256-50cbab8a892c5f2993b8c7351a99182507472def3b1374558308605d99b86b32",
+      "mode": "verified existing public blob hardlink; never mutate"
+    },
+    {
+      "mediaType": "application/vnd.ollama.image.params",
+      "digest": "sha256:9371364b27a52acac9d87f88bd93c9db1174d8d6ec57f6888925cdc1788871ff",
+      "size": 65,
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-4b-once-20261024/models/blobs/sha256-9371364b27a52acac9d87f88bd93c9db1174d8d6ec57f6888925cdc1788871ff",
+      "mode": "verified existing public blob hardlink; never mutate"
+    }
+  ],
+  "isolation": "root ignored qwen35-4b-once-20261024/models; new daemon loopback11438 only; global old model/owner data untouched",
+  "original_request": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-4b-once-20261024/original-request.json",
+  "candidate_request": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-4b-once-20261024/candidate-request.json",
+  "request_change": "only top-level model 9b→4b; same actual current short prompt/schema/policy/evidence/options/think/shift=false/truncate=false",
+  "freeze": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-4b-once-20261024/diagnostic-freeze.json",
+  "freeze_hash": "8d80c95d0fd29365a338256471a55bc98ea97fafd595cf92f678a2a95ff56387",
+  "harness": "/Users/hua/Documents/yia-worktrees/readiness-model-diagnostic/.var/model-diagnostic/diagnostic.py",
+  "harness_hash": "99b5c01b7c91496f85ba5bc37b408fc9bd0baee9a42007b3c9891e9d49aca253",
+  "independent_preflight_review": "PENDING",
+  "generation_budget": {
+    "num_ctx": 16384,
+    "num_predict": 8192,
+    "num_batch": 512,
+    "max_seconds": 300,
+    "max_actual_generations": 1
+  },
+  "before_generation_requirements": [
+    "Fresh real resources, no other actual ASR/model work, own QA lease",
+    "Three exact current runtime hashes, six exact payload hashes, exact isolated daemon and model identity",
+    "One empty load only; actual one idle nonspeculative runner slot and complete true/true native tokenization",
+    "N+8192+2<=actual C16384, same files/host/request/schema/lease/TTL",
+    "Durable global exclusive start marker; raw/error before parsing; no retries/output repair"
+  ],
+  "termination": "First actual result then STOP for independent semantic review, any quality/truncation/timeout/format failure remains failure. Preflight errors are retained and do not grant generation authority.",
+  "not_qualification": "No 4b verified profile/permit, no CaseReceipt, no registry record, no prod reserve/claim/complete, no model adoption. Passing one diagnostic does not permit production or replace originalYT10/LOCAL8/long12.",
+  "model_loads_so_far": 0,
+  "generations_so_far": 0,
+  "core_regression_scope_note": "Root fixed4a47b0a complete backend5940 remains running; three new compatibility failures reproduced; original writer fixes only legacy/current TTL and old offline fixture binding in separate WT. No root source changed during full run."
+}

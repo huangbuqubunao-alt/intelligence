@@ -1,3 +1,5 @@
+> 2026-10-24 07:36：core工程已按fcbf953独审整合到root4a47b0a，backend逐字等b6，前端仅叠加已审空Content入口；combined39文件1015PASS/TS/build/Ruff/strict121/compile/diff PASS。固定后端全仓5940运行中，三项真实旧兼容失败已复现，唯一原writer独立WT最小返修（current TTL不放宽、旧fixture补必要binding）；原全仓继续保留，不计全绿。官方4b current-v2六payload隔离下载校验完成，原英文18cue/2Evidence/current实际request仅model变化已冻结、独立QA复核中，0load/0gen、不授资格。正式main/owner未动。
+
 > 2026-10-24 07:18：固定b6adac2工程获独立fcbf953 APPROVE，作者41完整文件1622PASS、537源全等；独审184+222相关与Ruff/strict121 PASS、40migration不变、records=[]。root接受工程scope并准备整合/最终全仓回归，非整个Goal完成。用户补充模型应可配置、框架固定、不大重写，已记录MODEL_CONFIGURATION_PRINCIPLE_2026_10_24.md；小模型只先窄诊断，不能套9b资格或复制生命周期。真实ASR6源和79SQL22DATA重启相等已验，正式main/owner未动。
 
 > 2026-10-24 02:53续作：用户已明确授权保留Codex/Jimmm、其他空闲应用可关闭；允许必要低内存本地模型但不大规模重写。唯一writer /root/long_completion_final_resume 在dd192ea同537源恢复41完整文件r3，原r2中断无结果且全部保留。root真实Native六份导入及Whisper EN21/ZH37cue完成，中文中断→重启→GUI重试成功；正常重启79表/22DATA全部相等、无自动重跑，中文同音错字原样保留，独立APPROVE_SOURCE_ONLY（受损未知/旧任务语义不得从script补足），最终完整请求/政策/输出仍待。未9b生成/授资格/改正式main，详见LOCAL_NATIVE_REAL_ASR_RESTART_2026_10_24.json与MODEL_MEMORY_STRATEGY_2026_10_24.md。
