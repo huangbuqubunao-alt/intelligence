@@ -394,3 +394,8 @@
 - [x] `tasks/TASK-000-product-decisions.md` 进入主控验收。
 - [x] 规划基线已以 `c0f1f553db52b1cb4eb354e5c689c2abc5556223` 进入 Git 主线，`TASK-000` 设为 `DONE`。
 - [x] `TASK-001` 已获得本次依赖安装、锁文件和工具链写入授权并设为 `READY`；其他任务继续按依赖保持 `BLOCKED`。
+
+
+## 2026-10-24 当前普通用户整改：模型可配置与框架固定
+
+用户补充决定：云端/本地模型是配置和能力适配，业务流程保持统一，不为每个模型重开发；未配置、连接/接口不兼容、资源不足、未验证和质量失败必须明确区分并引导操作。换模型不放宽资格、Evidence、恢复、授权/预算门禁；旧执行保留原绑定。复用现有配置/Provider/runtime binding，先有边界诊断再有限适配，不做大规模重写。具体范围与事实见 docs/validation/end-to-end-user-readiness/MODEL_CONFIGURATION_PRINCIPLE_2026_10_24.md。

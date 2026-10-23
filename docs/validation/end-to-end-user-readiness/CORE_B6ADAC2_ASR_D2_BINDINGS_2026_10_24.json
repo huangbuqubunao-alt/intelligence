@@ -1,0 +1,87 @@
+{
+  "observed_at": "2026-10-24T03:00:44.031592+08:00",
+  "root": "e8a4780cd8cf76d2a494485bbf17f88db7b45681",
+  "core": "b6adac2bb0550bba0498c1373d99ce34062cd0b5",
+  "formal_reference": "73ee7e747b4461b9de8a201d6b47669eb3913d1a",
+  "classification": "IMMUTABLE_SOURCE_COMPARISON_ONLY_NOT_NEW_COMPLETE_TUPLE_QUALIFICATION",
+  "acoustic_bindings": [
+    {
+      "path": "src/youtube_intel/offline_whisper_worker.py",
+      "root_core_equal": true,
+      "sha256": "93790c14b7209b9042c9f0fcd319ead7297c4dd0a588f21d96a82542150c9521"
+    },
+    {
+      "path": "src/youtube_intel/acoustic_remediation.py",
+      "root_core_equal": true,
+      "sha256": "eb846a95663c1e023f611f1306efd7f058f94840c42b1b5c11506c2fe90cc9da"
+    },
+    {
+      "path": "src/youtube_intel/local_content.py",
+      "root_core_equal": true,
+      "sha256": "136195242ab8c2e9240e7e4f8ac63d2de21b7564b8f8fa71e0d2edc1b98ab85b"
+    },
+    {
+      "path": "src/youtube_intel/source_authority.py",
+      "root_core_equal": true,
+      "sha256": "72f769e4ced5f3a3c0f71241d6fbe04e6ec7f3d99b2a2a52dc717987488dcfe9"
+    },
+    {
+      "path": "src/youtube_intel/acoustic_scoring.py",
+      "root_core_equal": true,
+      "sha256": "969f6381d72c66ff6a23cdd45a386617670e4032d3e0aed396995da5c876c67d"
+    },
+    {
+      "path": "src/youtube_intel/acoustic_qualification.py",
+      "root_core_equal": true,
+      "sha256": "70ddc93683e7c879a728444edc7a22dc4a679a0faa029f151a12fc8942a9cb5c"
+    },
+    {
+      "path": "src/youtube_intel/offline_transcription.py",
+      "root_core_equal": true,
+      "sha256": "8951093d33d9024830eb096c34efcde57be0708b7d0594fbb9679882282e8c03"
+    },
+    {
+      "symbol": "TimedTranscriptCueWrite",
+      "root_core_equal": true,
+      "sha256": "44cb71d9093076587bcff3c51ad15ccd5b0d5cb47e9e7d0b1d4701e65547ed3b"
+    }
+  ],
+  "D2": [
+    {
+      "path": "src/youtube_intel/native_import.py",
+      "formal_root_core_equal": true,
+      "sha256": "949b51a8d255d8c10e641ee59ed3465b4a247ab21f87e17724f5adf2e65e048b"
+    },
+    {
+      "path": "src/youtube_intel/local_content.py",
+      "formal_root_core_equal": true,
+      "sha256": "136195242ab8c2e9240e7e4f8ac63d2de21b7564b8f8fa71e0d2edc1b98ab85b"
+    },
+    {
+      "path": "src/youtube_intel/native_picker_build.py",
+      "formal_root_core_equal": true,
+      "sha256": "e5c93bb8aa86f3ecf4cbfe580fd0267825f613bc759140fc82d45d337e178859"
+    },
+    {
+      "path": "src/youtube_intel/native_picker.m",
+      "formal_root_core_equal": true,
+      "sha256": "d06b77d6092c7a3ffeaac750bfd912c5e11ab5adb90ff88b4d8be331bfd1416b"
+    },
+    {
+      "path": "docs/validation/dogfood-day2-d2-02/actual-native-media.json",
+      "formal_root_core_equal": true,
+      "sha256": "90be4f86130ccbca3860593d118021ab3f0569c6e10d97be378ad84a08ee57c7"
+    },
+    {
+      "path": "docs/validation/dogfood-day2-d2-02/browser-native-import.json",
+      "formal_root_core_equal": true,
+      "sha256": "3a02371cb463bc8cb6b477cda57d54c5ca56fa6260a3754c080f764ea011429e"
+    }
+  ],
+  "formal_owner_access": false,
+  "no_model_or_runtime_import": true,
+  "limits": "Whole offline_transcription equality covers its five function/method bindings, plus six complete acoustic files and exact TimedTranscriptCueWrite. Recheck complete tuple/model/runtime/seal/expiry before final use; D2 missing path is not proof.",
+  "probe_errors_retained": [
+    "Initial guessed native-picker/IntelligenceFilePicker.swift was absent. Prior tracked WAIT_FINAL_D2_REUSE_2026_10_23.json resolved actual src/youtube_intel/native_picker.m; no missing source counted as equal."
+  ]
+}

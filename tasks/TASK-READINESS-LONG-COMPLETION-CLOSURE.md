@@ -1,6 +1,6 @@
 # TASK-READINESS-LONG-COMPLETION-CLOSURE
 
-Status: IN_PROGRESS — 2026-10-23. Same ordinary-user remediation Goal, no new phase.
+Status: ACCEPTED — 2026-10-24 independent fcbf953 APPROVE of fixed author b6adac2; root integration pending. Engineering scope only; final model/GUI/full Goal gates unchanged. Same ordinary-user remediation Goal, no new phase.
 Base: codex/task-end-to-end-user-readiness@9c0c1a4a70ee85aa3600950f511a6c64c80fdaa9
 Dependency: TASK-READINESS-LONG-INPUT-WAIT-LIFECYCLE DONE in independent integration candidate b08e1bf, 495 reviewed source hashes exact; root integration74backend/64UI/static passed. Final authoracc0f989 independentR7 APPROVE847d7bf; actual full19/24DATA restore proof accepted. Formal main remains73ee; no release authorized by this card before final Goal gates.
 Implementer: /root/long_completion_regression_finish, sole product writer in NEW worktree /Users/hua/Documents/yia-worktrees/readiness-long-completion-closure, branch codex/task-readiness-long-completion-closure. Independent fresh reviewer to be assigned after fixed clean submission, separate new review worktree. Root writes only plans/docs/QA/integration. No other core writer.
