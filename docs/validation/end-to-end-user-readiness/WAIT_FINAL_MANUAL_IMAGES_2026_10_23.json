@@ -1,0 +1,76 @@
+[
+  {
+    "source": ".var/local-settings-r6/02-explicit-installed-model.png",
+    "destination": "docs/validation/end-to-end-user-readiness/screenshots/intelligence-model-selection-oct23.png",
+    "product_source": "b187e8223de16ab4472455796956ed8d4899364f",
+    "sha256": "9e02ea084918ec13d85e68f8e92e59bb13d9a900f1ba5708d55b5787914aa532",
+    "classification": "GENUINE_ISOLATED_MACOS_GUI"
+  },
+  {
+    "source": ".var/local-settings-r6/03-applied-qualification-closed.png",
+    "destination": "docs/validation/end-to-end-user-readiness/screenshots/intelligence-model-applied-oct23.png",
+    "product_source": "b187e8223de16ab4472455796956ed8d4899364f",
+    "sha256": "4bfcb21bcc11581afa208b56355b8aca4cde962981df005f17685853c39af439",
+    "classification": "GENUINE_ISOLATED_MACOS_GUI"
+  },
+  {
+    "source": ".var/local-settings-r6/09-restarted-cancellation-retained.png",
+    "destination": "docs/validation/end-to-end-user-readiness/screenshots/long-wait-cancelled-restarted-oct23.png",
+    "product_source": "b187e8223de16ab4472455796956ed8d4899364f",
+    "sha256": "bbf3fe2656acffded3119c8ac580115cc007e8406299cf45582b251db8fba8a3",
+    "classification": "GENUINE_ISOLATED_MACOS_GUI"
+  },
+  {
+    "source": ".var/asr-gui-final-r6/02-ready-and-neutral-save-feedback.png",
+    "destination": "docs/validation/end-to-end-user-readiness/screenshots/asr-model-saved-ready-oct23.png",
+    "product_source": "b187e8223de16ab4472455796956ed8d4899364f",
+    "sha256": "7d1f86a10d75196a7949fbf5e761450827b5138dc752e46cfdc24c5a3aa888bf",
+    "classification": "GENUINE_ISOLATED_MACOS_GUI"
+  },
+  {
+    "source": ".var/asr-gui-final-r6/07-final-neutral-reconnect.png",
+    "destination": "docs/validation/end-to-end-user-readiness/screenshots/restore-reconnecting-oct23.png",
+    "product_source": "acc0f989f3bb5b4c57f03e24e320705a6d9a52a7",
+    "sha256": "2fa7dd5e6f6b0d48ca546fa2f70649eea48980e199d5a46f98dd4380f7a99a1e",
+    "classification": "GENUINE_ISOLATED_MACOS_GUI"
+  },
+  {
+    "source": ".var/asr-gui-final-r6/08-final-restored-data-verified.png",
+    "destination": "docs/validation/end-to-end-user-readiness/screenshots/restore-24-data-final-oct23.png",
+    "product_source": "acc0f989f3bb5b4c57f03e24e320705a6d9a52a7",
+    "sha256": "17bc626d511bf85eaf1171b84ee645ceafc105b7b4ace63f777027fbef43988e",
+    "classification": "GENUINE_ISOLATED_MACOS_GUI"
+  },
+  {
+    "source": "actual headful Chrome 155 CDP9341 / isolated GUI6148 / Settings; language edit en then zh-CN via actual UI, output zh-CN preserved",
+    "destination": "docs/validation/end-to-end-user-readiness/screenshots/settings-overview-clean-zh-final-oct23.png",
+    "product_source": "acc0f989f3bb5b4c57f03e24e320705a6d9a52a7",
+    "sha256": "1c66296c6ac11ba6a17fa1278c4e22e7851949269353347465166e7a3fef1e94",
+    "classification": "GENUINE_ISOLATED_MACOS_GUI",
+    "observed_at": "2026-10-23T04:24:25.249068+00:00"
+  },
+  {
+    "source": "actual headful Chrome 155 CDP9341 / isolated GUI6148 / Settings; language edit en then zh-CN via actual UI, output zh-CN preserved",
+    "destination": "docs/validation/end-to-end-user-readiness/screenshots/settings-overview-clean-en-oct23.png",
+    "product_source": "acc0f989f3bb5b4c57f03e24e320705a6d9a52a7",
+    "sha256": "30f34a85821fbabf950b58341a2e4d45608ddfa0b9b44481caa3b8db2f099b9d",
+    "classification": "GENUINE_ISOLATED_MACOS_GUI",
+    "observed_at": "2026-10-23T04:24:25.249418+00:00"
+  },
+  {
+    "source": "actual headful Chrome 155 CDP9341 / isolated GUI6148 / Settings; language edit en then zh-CN via actual UI, output zh-CN preserved",
+    "destination": "docs/validation/end-to-end-user-readiness/screenshots/settings-cloud-unconfigured-clean-oct23.png",
+    "product_source": "acc0f989f3bb5b4c57f03e24e320705a6d9a52a7",
+    "sha256": "4b7ad0cd346bcd6f1f2eac3243f6db0a0e42010d79208b8a6515c99fc4c34961",
+    "classification": "GENUINE_ISOLATED_MACOS_GUI",
+    "observed_at": "2026-10-23T04:24:25.249645+00:00"
+  },
+  {
+    "source": "actual headful Chrome 155 CDP9341 / isolated GUI6148 / Settings; language edit en then zh-CN via actual UI, output zh-CN preserved",
+    "destination": "docs/validation/end-to-end-user-readiness/screenshots/settings-backup-ready-clean-oct23.png",
+    "product_source": "acc0f989f3bb5b4c57f03e24e320705a6d9a52a7",
+    "sha256": "311659dabcae50d85338f6022c1908a47438108989f99257d7532087233388a9",
+    "classification": "GENUINE_ISOLATED_MACOS_GUI",
+    "observed_at": "2026-10-23T04:24:25.249823+00:00"
+  }
+]

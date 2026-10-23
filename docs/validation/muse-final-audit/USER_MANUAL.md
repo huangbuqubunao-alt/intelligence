@@ -352,6 +352,10 @@
 
 ![真实本地视频：取消结果与原字幕、证据保留](../end-to-end-user-readiness/local-timed-real-cancelled.png)
 
+长视频也使用同样的安全取消入口。取消后重新打开内容或重启应用，仍会显示 **已取消**，原字幕、摘要和 Evidence 保留。不同内容的等待任务需要分别处理；取消其中一项不会解除其他任务造成的备份阻塞。
+
+![长内容取消后，重启仍保留终止结果](../end-to-end-user-readiness/screenshots/long-wait-cancelled-restarted-oct23.png)
+
 **模型满足条件后**：系统基于可信证据分析内容，判断是否有值得长期保留的新洞察。
 
 **两种结果**：
@@ -411,7 +415,7 @@ Intelligence 优先在本机整理内容。部分内容可直接从原文提取�
 
 **查看当前模型**：打开 **设置 → 模型与处理准备**。
 
-![设置页](screenshots/10-settings-ready-zh.png)
+![设置页](../end-to-end-user-readiness/screenshots/settings-overview-clean-zh-final-oct23.png)
 
 **当前使用的本地模型**区域显示：
 - 模型名称（例如 `qwen3:8b`）；
@@ -427,6 +431,19 @@ Intelligence 优先在本机整理内容。部分内容可直接从原文提取�
 **在设置页的"模型与处理准备"中展开"云端配置与模型详情"**，可以看到模型连接状态与可用模型列表（只读）。
 
 > 提示：安装本地模型需要一定的技术准备（安装 Ollama 并拉取指定模型）。未配置模型时仍可导入和阅读原文；是否能生成摘要取决于内容与页面显示的处理方式。
+
+### 单独选择洞察模型
+
+内容详情提示需要配置洞察模型时，点击 **打开模型设置**，也可以直接进入 **设置 → 本地洞察模型设置**。
+
+1. 选择与本机已安装模型和 Ollama 版本匹配的选项。不能选择的选项会说明原因；请以页面检测结果为准。
+2. 点击 **保存并应用洞察模型**，等待应用重新连接。
+3. 确认页面显示实际的 **当前洞察模型**。该选择不会改变评分和摘要使用的模型。
+4. 再查看上方各类内容、语言的质量验收状态。**选择已应用不代表质量合格**；没有合格模型时仍会安全等待，不会偷偷运行或转用付费云端。
+
+![实际选择已安装且版本匹配的洞察模型](../end-to-end-user-readiness/screenshots/intelligence-model-selection-oct23.png)
+
+![模型选择已应用，质量资格仍如实显示](../end-to-end-user-readiness/screenshots/intelligence-model-applied-oct23.png)
 
 ---
 
@@ -444,7 +461,7 @@ Intelligence 优先在本机整理内容。部分内容可直接从原文提取�
 
 本轮隔离验收中，已通过质量验证的固定语音模型实际完成了视频转写。界面显示“本地转写已就绪”后，正常点击 **开始转写** 即可处理；以下是实际结果，不是示意图。资格和模型设置属于当前机器，恢复备份不会在另一台机器上自动变成可用。正式产品尚未采用本轮配置。
 
-![实际就绪的本地语音模型](../end-to-end-user-readiness/screenshots/asr-real-qualified-settings.png)
+![模型选择已保存，实际语音能力检查已就绪](../end-to-end-user-readiness/screenshots/asr-model-saved-ready-oct23.png)
 
 ![真实视频的本地转写结果](../end-to-end-user-readiness/screenshots/asr-real-ui-complete.png)
 
@@ -466,7 +483,7 @@ Intelligence 优先在本机整理内容。部分内容可直接从原文提取�
 
 - 未配置凭据时：**"云端洞察需要配置凭据并授权。内容整理仍可使用。"**
 
-![云端模型未配置提示](screenshots/11-settings-en.png) *（英文界面示例）*
+![云端模型未配置提示](../end-to-end-user-readiness/screenshots/settings-cloud-unconfigured-clean-oct23.png)
 
 **使用规则**：
 - 云端处理**需要你为每一次请求明确授权**（产品原则：不得未经授权自动调用付费云模型）；
@@ -497,11 +514,11 @@ Intelligence 优先在本机整理内容。部分内容可直接从原文提取�
 
 **切换为英文后的设置页**：
 
-![英文界面](screenshots/11-settings-en.png)
+![英文界面](../end-to-end-user-readiness/screenshots/settings-overview-clean-en-oct23.png)
 
 **切回中文**：再次点击 **编辑语言（Edit language）**，选择中文并保存。
 
-![中文界面](screenshots/10-settings-ready-zh.png)
+![中文界面](../end-to-end-user-readiness/screenshots/settings-overview-clean-zh-final-oct23.png)
 
 **说明**：
 - 来源语言自动识别；
@@ -518,7 +535,7 @@ Intelligence 优先在本机整理内容。部分内容可直接从原文提取�
 
 1. 打开 **设置 → 备份与恢复**。
 
-![备份与恢复](screenshots/10-settings-ready-zh.png)
+![备份与恢复](../end-to-end-user-readiness/screenshots/settings-backup-ready-clean-oct23.png)
 
 2. 点击 **创建备份**，系统生成一个备份文件（`.zip`），列出备份中的内容统计（关注数、内容数、证据数等）。
 
@@ -534,7 +551,11 @@ Intelligence 优先在本机整理内容。部分内容可直接从原文提取�
 2. 查看检查结果与内容数量。此时当前数据尚未改变。
 3. 点击 **恢复此备份…**，在确认框输入 `RESTORE`。
 4. 点击 **确认恢复并重启**。恢复会替换当前核心数据和本地内容快照；外部资料库不被覆盖。
-5. 重启应用，确认恢复完成，再打开内容检查原文与证据。
+5. 等待应用自动重启并重新连接。看到恢复完成后，再打开内容检查原文与证据。
+
+重启期间显示 **正在重新连接并验证恢复的数据…** 是正常的等待反馈。不要连续点击恢复确认。若显示明确失败或等待超过期限，页面会保留原因和 **重试** 入口；这里的重试只重新读取状态，不会再次提交恢复。
+
+![真实恢复确认后的重连与数据验证](../end-to-end-user-readiness/screenshots/restore-reconnecting-oct23.png)
 
 ![恢复前检查](screenshots/13-restore-preview.png)
 
@@ -575,6 +596,10 @@ Intelligence 优先在本机整理内容。部分内容可直接从原文提取�
 2026-10-22 另一次真实视频转写后，使用本页面创建、下载并经 macOS 文件选择器恢复备份，重新启动后的字幕、摘录摘要和 Evidence 仍可打开。隔离验收逐项核对全部 79 张数据表与 24 个数据文件相同；机器模型资格没有打包进备份，也没有因此授予洞察能力。
 
 ![真实视频转写后的24个数据文件已恢复并检查通过](../end-to-end-user-readiness/screenshots/asr-24-data-restored-oct22.png)
+
+最终候选界面也已重新完成同一真实转写资料库的恢复：确认只提交一次，自动重连后全部 79 张表和 24 个数据文件一致，原视频深链接的时间字幕、摘要与 Evidence 仍可阅读。
+
+![最终界面自动重连后，真实24文件备份恢复完成](../end-to-end-user-readiness/screenshots/restore-24-data-final-oct23.png)
 
 > 上图是隔离示例数据的真实备份与恢复界面；你的条目数量和文件大小会不同。
 

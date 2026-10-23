@@ -1,0 +1,302 @@
+{
+  "brokenAnchors": [],
+  "images": [
+    {
+      "loaded": true,
+      "src": "../end-to-end-user-readiness/model-state-copy-real-zh.png"
+    },
+    {
+      "loaded": true,
+      "src": "screenshots/01-first-open.png"
+    },
+    {
+      "loaded": true,
+      "src": "screenshots/02-onboarding.png"
+    },
+    {
+      "loaded": true,
+      "src": "screenshots/03-onboarding.png"
+    },
+    {
+      "loaded": true,
+      "src": "../../dogfood/opencode-user-pilot/screenshots/04-after-onboarding.png"
+    },
+    {
+      "loaded": true,
+      "src": "../../dogfood/opencode-user-pilot/screenshots/06-following-empty.png"
+    },
+    {
+      "loaded": true,
+      "src": "../../dogfood/opencode-user-pilot/screenshots/07-add-source-dialog.png"
+    },
+    {
+      "loaded": true,
+      "src": "screenshots/16-youtube-video-dialog.png"
+    },
+    {
+      "loaded": true,
+      "src": "screenshots/17-youtube-video-success.png"
+    },
+    {
+      "loaded": true,
+      "src": "screenshots/16-youtube-channel-dialog.png"
+    },
+    {
+      "loaded": true,
+      "src": "screenshots/17-following-current.png"
+    },
+    {
+      "loaded": true,
+      "src": "screenshots/18-following-paused.png"
+    },
+    {
+      "loaded": true,
+      "src": "screenshots/19-following-resumed.png"
+    },
+    {
+      "loaded": true,
+      "src": "../end-to-end-user-readiness/source-detail-read-error.png"
+    },
+    {
+      "loaded": true,
+      "src": "../end-to-end-user-readiness/screenshots/source-interest-poll-fixed-conflict.png"
+    },
+    {
+      "loaded": true,
+      "src": "../end-to-end-user-readiness/screenshots/source-interest-poll-fixed-reloaded.png"
+    },
+    {
+      "loaded": true,
+      "src": "screenshots/04-native-selected.png"
+    },
+    {
+      "loaded": true,
+      "src": "screenshots/07-real-appkit-picker.png"
+    },
+    {
+      "loaded": true,
+      "src": "../../dogfood/opencode-user-pilot/screenshots/36-audio-detail.png"
+    },
+    {
+      "loaded": true,
+      "src": "../user-journey-remediation/screenshots/mixed-import.png"
+    },
+    {
+      "loaded": true,
+      "src": "../end-to-end-user-readiness/asr-invalid-input-status-after.png"
+    },
+    {
+      "loaded": true,
+      "src": "../user-journey-remediation/screenshots/video-transcription.png"
+    },
+    {
+      "loaded": true,
+      "src": "screenshots/20-content-list.png"
+    },
+    {
+      "loaded": true,
+      "src": "screenshots/21-content-detail.png"
+    },
+    {
+      "loaded": true,
+      "src": "../end-to-end-user-readiness/tracked-retry-success-after-restart-20261020.png"
+    },
+    {
+      "loaded": true,
+      "src": "../end-to-end-user-readiness/screenshots/content-capability-neutral-loading-fixed.png"
+    },
+    {
+      "loaded": true,
+      "src": "../end-to-end-user-readiness/screenshots/content-capability-read-failed-fixed.png"
+    },
+    {
+      "loaded": true,
+      "src": "../../dogfood/opencode-user-pilot/screenshots/47-content-detail-summary.png"
+    },
+    {
+      "loaded": true,
+      "src": "screenshots/21-content-detail.png"
+    },
+    {
+      "loaded": true,
+      "src": "screenshots/22-content-summary.png"
+    },
+    {
+      "loaded": true,
+      "src": "../../dogfood/opencode-user-pilot/screenshots/36-audio-detail.png"
+    },
+    {
+      "loaded": true,
+      "src": "../../dogfood/opencode-user-pilot/screenshots/46-content-detail-full.png"
+    },
+    {
+      "loaded": true,
+      "src": "../waiting-model-final-fix/final-gui/screenshots/03c-waiting-model-panel.png"
+    },
+    {
+      "loaded": true,
+      "src": "../waiting-model-final-fix/final-gui/screenshots/05c-cancelled-panel.png"
+    },
+    {
+      "loaded": true,
+      "src": "../end-to-end-user-readiness/local-timed-real-cancelled.png"
+    },
+    {
+      "loaded": true,
+      "src": "../end-to-end-user-readiness/screenshots/long-wait-cancelled-restarted-oct23.png"
+    },
+    {
+      "loaded": true,
+      "src": "../../dogfood/opencode-user-pilot/screenshots/20-intelligence-empty.png"
+    },
+    {
+      "loaded": true,
+      "src": "../end-to-end-user-readiness/screenshots/research-real-local-evidence.png"
+    },
+    {
+      "loaded": true,
+      "src": "../end-to-end-user-readiness/screenshots/research-real-history-diff.png"
+    },
+    {
+      "loaded": true,
+      "src": "../end-to-end-user-readiness/screenshots/research-real-after-restore.png"
+    },
+    {
+      "loaded": true,
+      "src": "screenshots/25-topics-empty.png"
+    },
+    {
+      "loaded": true,
+      "src": "screenshots/10-settings-ready-zh.png"
+    },
+    {
+      "loaded": true,
+      "src": "../end-to-end-user-readiness/screenshots/intelligence-model-selection-oct23.png"
+    },
+    {
+      "loaded": true,
+      "src": "../end-to-end-user-readiness/screenshots/intelligence-model-applied-oct23.png"
+    },
+    {
+      "loaded": true,
+      "src": "../user-journey-remediation/screenshots/transcription-setup.png"
+    },
+    {
+      "loaded": true,
+      "src": "../end-to-end-user-readiness/screenshots/asr-model-saved-ready-oct23.png"
+    },
+    {
+      "loaded": true,
+      "src": "../end-to-end-user-readiness/screenshots/asr-real-ui-complete.png"
+    },
+    {
+      "loaded": true,
+      "src": "../end-to-end-user-readiness/screenshots/asr-native-real-timed-transcript-oct22.png"
+    },
+    {
+      "loaded": true,
+      "src": "../end-to-end-user-readiness/screenshots/asr-native-real-evidence-oct22.png"
+    },
+    {
+      "loaded": true,
+      "src": "../user-journey-remediation/screenshots/text-evidence.png"
+    },
+    {
+      "loaded": true,
+      "src": "screenshots/11-settings-en.png"
+    },
+    {
+      "loaded": true,
+      "src": "../../dogfood/opencode-user-pilot/screenshots/41-language-english-draft.png"
+    },
+    {
+      "loaded": true,
+      "src": "screenshots/11-settings-en.png"
+    },
+    {
+      "loaded": true,
+      "src": "screenshots/10-settings-ready-zh.png"
+    },
+    {
+      "loaded": true,
+      "src": "screenshots/10-settings-ready-zh.png"
+    },
+    {
+      "loaded": true,
+      "src": "screenshots/12-backup-created.png"
+    },
+    {
+      "loaded": true,
+      "src": "../end-to-end-user-readiness/screenshots/restore-reconnecting-oct23.png"
+    },
+    {
+      "loaded": true,
+      "src": "screenshots/13-restore-preview.png"
+    },
+    {
+      "loaded": true,
+      "src": "screenshots/14-restore-confirm.png"
+    },
+    {
+      "loaded": true,
+      "src": "../end-to-end-user-readiness/raw-capture-after-restore.png"
+    },
+    {
+      "loaded": true,
+      "src": "../end-to-end-user-readiness/screenshots/schema38-real-gui-after-restore.png"
+    },
+    {
+      "loaded": true,
+      "src": "../end-to-end-user-readiness/screenshots/backup-feedback-history-panel.png"
+    },
+    {
+      "loaded": true,
+      "src": "../end-to-end-user-readiness/screenshots/backup-feedback-preview-panel.png"
+    },
+    {
+      "loaded": true,
+      "src": "../waiting-model-final-fix/final-gui/screenshots/04-backup-blocked.png"
+    },
+    {
+      "loaded": true,
+      "src": "../waiting-model-final-fix/final-gui/screenshots/06-backup-ready.png"
+    },
+    {
+      "loaded": true,
+      "src": "../waiting-model-final-fix/final-gui/screenshots/07-backup-created.png"
+    },
+    {
+      "loaded": true,
+      "src": "../waiting-model-final-fix/final-gui/screenshots/10c-restored-cancelled-panel.png"
+    },
+    {
+      "loaded": true,
+      "src": "../end-to-end-user-readiness/screenshots/schema39-restored-cancelled-panel.png"
+    },
+    {
+      "loaded": true,
+      "src": "../end-to-end-user-readiness/screenshots/schema39-restored-panel.png"
+    },
+    {
+      "loaded": true,
+      "src": "../end-to-end-user-readiness/screenshots/asr-24-data-restored-oct22.png"
+    },
+    {
+      "loaded": true,
+      "src": "../end-to-end-user-readiness/screenshots/restore-24-data-final-oct23.png"
+    },
+    {
+      "loaded": true,
+      "src": "../end-to-end-user-readiness/screenshots/final-capability-real-settings-backup.png"
+    },
+    {
+      "loaded": true,
+      "src": "../end-to-end-user-readiness/screenshots/final-capability-real-restored.png"
+    }
+  ],
+  "numberedChapters": 17,
+  "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
+  "observed_at": "2026-10-23T04:19:02.451049+00:00",
+  "candidate_not_published": true,
+  "html_sha256": "f3aad0c6e2aeb90e11fd30099876863c6d288d9d077744b04a76014289c21f95"
+}

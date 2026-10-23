@@ -1,0 +1,26 @@
+{
+  "observed_at": "2026-10-23T04:25:17.633297+00:00",
+  "root_product_integration_head": "b08e1bf74da0ff50f29a7680910f1c666863b3be",
+  "accepted_author_head": "acc0f989f3bb5b4c57f03e24e320705a6d9a52a7",
+  "independent_approval": "847d7bf",
+  "source_hashes_verified": 495,
+  "source_mismatches": [],
+  "backend_settings": {
+    "passed": 74,
+    "seconds": 82.0,
+    "log": ".var/long-wait-integration/root-settings-acc-integration.log"
+  },
+  "frontend_affected": {
+    "passed": 64,
+    "seconds": 3.28,
+    "log": ".var/long-wait-integration/root-final-ui-integration.log"
+  },
+  "typecheck": "PASS tsc --noEmit",
+  "compileall": "PASS src",
+  "ruff": "PASS src tests scripts",
+  "mypy": "PASS strict119",
+  "diff_check": "PASS",
+  "earlier_collection_failure": "Missing PYTHONPATH=src; original log preserved; corrected explicit environment, no code/test change",
+  "manual_render": "WAIT_FINAL_MANUAL_RENDER_CHECK_CLEAN_SETTINGS_2026_10_23.json",
+  "scope": "Candidate engineering integration only. Full Goal, real Intelligence qualification/positive GUI/final whole regression/adoption remain open. No main or owner changes."
+}

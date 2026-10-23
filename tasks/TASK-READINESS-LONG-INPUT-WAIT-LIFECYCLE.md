@@ -1,5 +1,8 @@
 # TASK-READINESS-LONG-INPUT-WAIT-LIFECYCLE
 
+2026-10-23最新Status: DONE（仅独立候选工程整合，不是整个Goal完成或正式main发布）。root按接受顺序整合8个提交至b08e1bf，495源哈希与最终独立APPROVE acc0f989全等，整合后backend74/82.00s、frontend64/3.28s、TS/compile/Ruff/strict119/diff通过。完整受影响后端2188与前端998及最终真实macOS等待/取消/重启/79表19与24 DATA备份恢复证据保持；73图17章手册真实Chrome零坏链并以新设置截图替换旧残留导入提示。详见WAIT_LIFECYCLE_ROOT_INTEGRATION_2026_10_23.json。洞察真实资格、正向保存/主题及最终全量回归/采用仍未完成。下文保留历史进展。
+
+
 2026-10-23最新Status: ACCEPTED（仅本任务工程，待root候选整合）。最终acc0f989、独立R7 847d7bf APPROVE，R6唯一P2已关闭；完整后端b187 76文件2188PASS/1810.33s/495hash全等，最终420src/tests逐字相同可准确复用，最终前端998/TS/build/diff通过。root最终macOS acc界面真实24 DATA创建/下载/原生picker/确认仅一次/中性重连/恢复/Content字幕与Evidence读取，79表全行/24文件/机器选择全等；旧stockv5双WAIT取消/其他阻塞/真实重启/19DATA恢复亦通过。证据WAIT_LIFECYCLE_FINAL_GUI_ACCEPTANCE_2026_10_23.md及WAIT_LIFECYCLE_ACCEPTANCE_2026_10_23.json。允许顺序整合8个已审提交，逐字及影响检查通过后才DONE；不授模型资格，不合main/发布，整个Goal仍继续。
 
 2026-10-23当前：固定b187e82（parent292）991 frontend/TS/build/static119通过，唯一76文件固定495hash组运行中；R6独立58de068为REJECT，仅P2已知恢复失败后下一GET断连会隐藏错误，无P0/P1，独立backend74/UI57/static通过。原writer /root/backup_passive_resume 等freeze结束后纯前端最小修复；src/tests逐字不变时可复用真实完整后端结果，但新UI须精准反控、完整前端、独立复审/root最终GUI。root固定b187新v5普通模型设置/双WAIT/逐项取消/另一笔继续阻塞/真实进程重启/首次Backup成功/原生恢复全79SQL19DATA相等；详见ROOT_GUI_B187_AND_R6_2026_10_23.md。未接受整合/采用，不授洞察资格。

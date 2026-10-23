@@ -256,6 +256,8 @@ a { color: #0e7a4f; }
 <p>只有系统能证明确实尚未调用本地模型的等待任务才提供取消入口；云端等待保持原有安全规则。若提示不能安全取消，或还有别的等待任务，请按页面原因处理；不要删除任务记录。已执行、执行状态不明或等待预算的任务不能通过此操作解除。</p>
 <p>本轮隔离候选也已实际验证：真实本地视频经转写得到字幕、摘要和 Evidence 后，点击提炼会在没有合格模型时安全等待；取消后全部原文件和证据保持一致，备份页面重新检查并恢复可用。这证明等待与取消链路，不代表本地洞察模型已合格或已经生成洞察。</p>
 <figure><img src="../end-to-end-user-readiness/local-timed-real-cancelled.png" alt="真实本地视频：取消结果与原字幕、证据保留"/><figcaption>真实本地视频：取消结果与原字幕、证据保留</figcaption></figure>
+<p>长视频也使用同样的安全取消入口。取消后重新打开内容或重启应用，仍会显示 <strong>已取消</strong>，原字幕、摘要和 Evidence 保留。不同内容的等待任务需要分别处理；取消其中一项不会解除其他任务造成的备份阻塞。</p>
+<figure><img src="../end-to-end-user-readiness/screenshots/long-wait-cancelled-restarted-oct23.png" alt="长内容取消后，重启仍保留终止结果"/><figcaption>长内容取消后，重启仍保留终止结果</figcaption></figure>
 <p><strong>模型满足条件后</strong>：系统基于可信证据分析内容，判断是否有值得长期保留的新洞察。</p>
 <p><strong>两种结果</strong>：</p>
 <p>1. <strong>发现新洞察</strong>：生成洞察条目，可在 <strong>洞察</strong> 页面查看，并关联到主题。</p>
@@ -289,7 +291,7 @@ a { color: #0e7a4f; }
 <h2 id="12-配置本地模型">12. 配置本地模型</h2>
 <p>Intelligence 优先在本机整理内容。部分内容可直接从原文提取摘要；评分与其他摘要方式需要已就绪的本地模型。<strong>洞察提炼是另一个可选步骤</strong>，需要专门具备洞察能力的模型。</p>
 <p><strong>查看当前模型</strong>：打开 <strong>设置 → 模型与处理准备</strong>。</p>
-<figure><img src="screenshots/10-settings-ready-zh.png" alt="设置页"/><figcaption>设置页</figcaption></figure>
+<figure><img src="../end-to-end-user-readiness/screenshots/settings-overview-clean-zh-final-oct23.png" alt="设置页"/><figcaption>设置页</figcaption></figure>
 <p><strong>当前使用的本地模型</strong>区域显示：</p>
 <ul>
 <li>模型名称（例如 <code>qwen3:8b</code>）；</li>
@@ -305,6 +307,14 @@ a { color: #0e7a4f; }
 </ul>
 <p><strong>在设置页的&quot;模型与处理准备&quot;中展开&quot;云端配置与模型详情&quot;</strong>，可以看到模型连接状态与可用模型列表（只读）。</p>
 <blockquote>提示：安装本地模型需要一定的技术准备（安装 Ollama 并拉取指定模型）。未配置模型时仍可导入和阅读原文；是否能生成摘要取决于内容与页面显示的处理方式。</blockquote>
+<h3 id="单独选择洞察模型">单独选择洞察模型</h3>
+<p>内容详情提示需要配置洞察模型时，点击 <strong>打开模型设置</strong>，也可以直接进入 <strong>设置 → 本地洞察模型设置</strong>。</p>
+<p>1. 选择与本机已安装模型和 Ollama 版本匹配的选项。不能选择的选项会说明原因；请以页面检测结果为准。</p>
+<p>2. 点击 <strong>保存并应用洞察模型</strong>，等待应用重新连接。</p>
+<p>3. 确认页面显示实际的 <strong>当前洞察模型</strong>。该选择不会改变评分和摘要使用的模型。</p>
+<p>4. 再查看上方各类内容、语言的质量验收状态。<strong>选择已应用不代表质量合格</strong>；没有合格模型时仍会安全等待，不会偷偷运行或转用付费云端。</p>
+<figure><img src="../end-to-end-user-readiness/screenshots/intelligence-model-selection-oct23.png" alt="实际选择已安装且版本匹配的洞察模型"/><figcaption>实际选择已安装且版本匹配的洞察模型</figcaption></figure>
+<figure><img src="../end-to-end-user-readiness/screenshots/intelligence-model-applied-oct23.png" alt="模型选择已应用，质量资格仍如实显示"/><figcaption>模型选择已应用，质量资格仍如实显示</figcaption></figure>
 <hr/>
 <h3 id="本地音视频的语音模型">本地音视频的语音模型</h3>
 <p>语音转写模型与上面的 Ollama 评分/摘要模型是两种能力。“本地模型已安装”不能证明语音转写可用。</p>
@@ -315,7 +325,7 @@ a { color: #0e7a4f; }
 <p>5. 从内容详情进入设置时，点击 <strong>返回内容</strong> 回到原文件。路径错误会显示可改正的提示并保留输入；有检查或转写在运行时不能修改模型。</p>
 <figure><img src="../user-journey-remediation/screenshots/transcription-setup.png" alt="真实 macOS 界面的语音转写设置与诊断"/><figcaption>真实 macOS 界面的语音转写设置与诊断</figcaption></figure>
 <p>本轮隔离验收中，已通过质量验证的固定语音模型实际完成了视频转写。界面显示“本地转写已就绪”后，正常点击 <strong>开始转写</strong> 即可处理；以下是实际结果，不是示意图。资格和模型设置属于当前机器，恢复备份不会在另一台机器上自动变成可用。正式产品尚未采用本轮配置。</p>
-<figure><img src="../end-to-end-user-readiness/screenshots/asr-real-qualified-settings.png" alt="实际就绪的本地语音模型"/><figcaption>实际就绪的本地语音模型</figcaption></figure>
+<figure><img src="../end-to-end-user-readiness/screenshots/asr-model-saved-ready-oct23.png" alt="模型选择已保存，实际语音能力检查已就绪"/><figcaption>模型选择已保存，实际语音能力检查已就绪</figcaption></figure>
 <figure><img src="../end-to-end-user-readiness/screenshots/asr-real-ui-complete.png" alt="真实视频的本地转写结果"/><figcaption>真实视频的本地转写结果</figcaption></figure>
 <p>2026-10-22 的普通操作复验：先在设置中选择本机已通过验证的语音模型，再通过 macOS 文件选择器导入视频；应用自动完成本地转写，详情出现四段带时间的原话及对应 Evidence。摘要明确标为原文摘录，不代表模型生成了新洞察。此时不必再次点击开始或重试；请以当前任务状态为准。</p>
 <figure><img src="../end-to-end-user-readiness/screenshots/asr-native-real-timed-transcript-oct22.png" alt="真实原生视频导入后的时间字幕"/><figcaption>真实原生视频导入后的时间字幕</figcaption></figure>
@@ -328,7 +338,7 @@ a { color: #0e7a4f; }
 <ul>
 <li>未配置凭据时：<strong>&quot;云端洞察需要配置凭据并授权。内容整理仍可使用。&quot;</strong></li>
 </ul>
-<figure><img src="screenshots/11-settings-en.png" alt="云端模型未配置提示"/><figcaption>云端模型未配置提示</figcaption></figure>
+<figure><img src="../end-to-end-user-readiness/screenshots/settings-cloud-unconfigured-clean-oct23.png" alt="云端模型未配置提示"/><figcaption>云端模型未配置提示</figcaption></figure>
 <p><strong>使用规则</strong>：</p>
 <ul>
 <li>云端处理<strong>需要你为每一次请求明确授权</strong>（产品原则：不得未经授权自动调用付费云模型）；</li>
@@ -347,9 +357,9 @@ a { color: #0e7a4f; }
 <p>3. 选择 <strong>界面语言</strong> 与 <strong>默认输出语言</strong>（默认输出语言影响以后生成的摘要/洞察的语言）。</p>
 <p>4. 点击 <strong>保存语言</strong>。</p>
 <p><strong>切换为英文后的设置页</strong>：</p>
-<figure><img src="screenshots/11-settings-en.png" alt="英文界面"/><figcaption>英文界面</figcaption></figure>
+<figure><img src="../end-to-end-user-readiness/screenshots/settings-overview-clean-en-oct23.png" alt="英文界面"/><figcaption>英文界面</figcaption></figure>
 <p><strong>切回中文</strong>：再次点击 <strong>编辑语言（Edit language）</strong>，选择中文并保存。</p>
-<figure><img src="screenshots/10-settings-ready-zh.png" alt="中文界面"/><figcaption>中文界面</figcaption></figure>
+<figure><img src="../end-to-end-user-readiness/screenshots/settings-overview-clean-zh-final-oct23.png" alt="中文界面"/><figcaption>中文界面</figcaption></figure>
 <p><strong>说明</strong>：</p>
 <ul>
 <li>来源语言自动识别；</li>
@@ -361,7 +371,7 @@ a { color: #0e7a4f; }
 <p><strong>备份内容</strong>：备份包含洞察核心数据与已保存设置；不包含外部资料库、凭据和模型文件。</p>
 <p><strong>创建备份</strong>：</p>
 <p>1. 打开 <strong>设置 → 备份与恢复</strong>。</p>
-<figure><img src="screenshots/10-settings-ready-zh.png" alt="备份与恢复"/><figcaption>备份与恢复</figcaption></figure>
+<figure><img src="../end-to-end-user-readiness/screenshots/settings-backup-ready-clean-oct23.png" alt="备份与恢复"/><figcaption>备份与恢复</figcaption></figure>
 <p>2. 点击 <strong>创建备份</strong>，系统生成一个备份文件（<code>.zip</code>），列出备份中的内容统计（关注数、内容数、证据数等）。</p>
 <p><strong>备份前检查</strong>：如果有内容正在处理（例如提炼任务仍在执行），页面会提示&quot;以下工作尚未结束，暂时无法备份&quot;，普通运行任务结束后即可备份。对于尚未调用模型的等待任务，可先到对应 Content 点击 <strong>取消本次提炼</strong>；页面会重新检查全部工作，其他任务未结束时仍不能备份。这是为了保证备份数据的一致性。</p>
 <p><strong>保存备份</strong>：创建后点击 <strong>保存备份文件</strong>，将 ZIP 文件保存到你选定的位置。</p>
@@ -371,7 +381,9 @@ a { color: #0e7a4f; }
 <p>2. 查看检查结果与内容数量。此时当前数据尚未改变。</p>
 <p>3. 点击 <strong>恢复此备份…</strong>，在确认框输入 <code>RESTORE</code>。</p>
 <p>4. 点击 <strong>确认恢复并重启</strong>。恢复会替换当前核心数据和本地内容快照；外部资料库不被覆盖。</p>
-<p>5. 重启应用，确认恢复完成，再打开内容检查原文与证据。</p>
+<p>5. 等待应用自动重启并重新连接。看到恢复完成后，再打开内容检查原文与证据。</p>
+<p>重启期间显示 <strong>正在重新连接并验证恢复的数据…</strong> 是正常的等待反馈。不要连续点击恢复确认。若显示明确失败或等待超过期限，页面会保留原因和 <strong>重试</strong> 入口；这里的重试只重新读取状态，不会再次提交恢复。</p>
+<figure><img src="../end-to-end-user-readiness/screenshots/restore-reconnecting-oct23.png" alt="真实恢复确认后的重连与数据验证"/><figcaption>真实恢复确认后的重连与数据验证</figcaption></figure>
 <figure><img src="screenshots/13-restore-preview.png" alt="恢复前检查"/><figcaption>恢复前检查</figcaption></figure>
 <figure><img src="screenshots/14-restore-confirm.png" alt="恢复确认"/><figcaption>恢复确认</figcaption></figure>
 <p>本轮候选在真实字幕导入后，通过本页面创建、下载、选择、确认恢复并重启，原始字幕文件、摘要、证据和全部核心历史都与恢复前相同。失败任务的某些历史恢复情况仍在整改，不能把一次正常恢复视为所有情况已通过。</p>
@@ -392,6 +404,8 @@ a { color: #0e7a4f; }
 <figure><img src="../end-to-end-user-readiness/screenshots/schema39-restored-panel.png" alt="包含文字输入证明的备份恢复完成"/><figcaption>包含文字输入证明的备份恢复完成</figcaption></figure>
 <p>2026-10-22 另一次真实视频转写后，使用本页面创建、下载并经 macOS 文件选择器恢复备份，重新启动后的字幕、摘录摘要和 Evidence 仍可打开。隔离验收逐项核对全部 79 张数据表与 24 个数据文件相同；机器模型资格没有打包进备份，也没有因此授予洞察能力。</p>
 <figure><img src="../end-to-end-user-readiness/screenshots/asr-24-data-restored-oct22.png" alt="真实视频转写后的24个数据文件已恢复并检查通过"/><figcaption>真实视频转写后的24个数据文件已恢复并检查通过</figcaption></figure>
+<p>最终候选界面也已重新完成同一真实转写资料库的恢复：确认只提交一次，自动重连后全部 79 张表和 24 个数据文件一致，原视频深链接的时间字幕、摘要与 Evidence 仍可阅读。</p>
+<figure><img src="../end-to-end-user-readiness/screenshots/restore-24-data-final-oct23.png" alt="最终界面自动重连后，真实24文件备份恢复完成"/><figcaption>最终界面自动重连后，真实24文件备份恢复完成</figcaption></figure>
 <blockquote>上图是隔离示例数据的真实备份与恢复界面；你的条目数量和文件大小会不同。</blockquote>
 <hr/>
 <h2 id="16-常见问题">16. 常见问题</h2>
