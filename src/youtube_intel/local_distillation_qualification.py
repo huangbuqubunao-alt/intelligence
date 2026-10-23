@@ -16,7 +16,13 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from youtube_intel.local_distillation_profile import (
+    CURRENT_RUNTIME_PROFILE_ID as SHORT_CURRENT,
+)
 from youtube_intel.local_distillation_profile import PROFILE_ID, digest
+
+LONG_CURRENT = "local-grounding-qwen35-9b-lossless-rle-runtime-0.40.6-v2"
+# Lazy long resolver below avoids distillation/projection import cycles.
 
 VERSION = "local-distillation-qualification-v1"
 CASE_LANGUAGES = {
@@ -41,7 +47,40 @@ CODE_FILES = ("distillation.py", "local_distillation_profile.py", "local_distill
 _PACKAGE_AUTHORITY_SEAL = object()
 
 
-def case_scope(case_id: str) -> str:
+def qualification_projection(profile_id: str, scope: str) -> dict[str, object]:
+    """Only reviewed finite identities; long binds its base schema/codec contract."""
+    from youtube_intel.distillation import local_profile_for_scope
+    from youtube_intel.long_distillation_profile import resolve_long_profile
+    if scope not in {"YT_TIMED", "LOCAL_TIMED", "LOCAL_TEXT"}:
+        raise ValueError("unknown qualification scope")
+    if profile_id in {PROFILE_ID, SHORT_CURRENT}:
+        return local_profile_for_scope(profile_id, scope)
+    if profile_id == LONG_CURRENT and scope == "YT_TIMED":
+        descriptor = json.loads(resolve_long_profile(profile_id).profile_wire)
+        return {**descriptor, "local_profile_id": profile_id, "digest": descriptor["model_digest"],
+            "schema": descriptor["base_schema"], "input_contract": descriptor["schema_contract"]}
+    raise ValueError("unknown qualification profile/scope")
+
+
+def qualification_cases(projection: Mapping[str, object]) -> dict[str, str]:
+    profile_id, scope = str(projection["local_profile_id"]), str(projection["scope"])
+    if dict(projection) != qualification_projection(profile_id, scope):
+        raise ValueError("qualification projection differs from finite contract")
+    cases = dict(CASE_LANGUAGES["YT_TIMED" if scope == "YT_TIMED" else "LOCAL"])
+    if profile_id == LONG_CURRENT:
+        cases.update({"long-full-en": "en", "long-full-zh": "zh-CN"})
+    return cases
+
+
+def case_outcome(case_id: str) -> str:
+    """Substantive positives cannot be substituted with a successful NO_NEW call."""
+    return "NO_NEW" if case_id in {"no-new-fifteen", "source-injection", "holdout-no-new",
+        "holdout-injection", "local-no-new", "local-injection"} else "INTELLIGENCE"
+
+
+def case_scope(case_id: str, *, profile_id: str = PROFILE_ID) -> str:
+    if profile_id == LONG_CURRENT and case_id in {"long-full-en", "long-full-zh"}:
+        return "YT_TIMED"
     if case_id in CASE_LANGUAGES["YT_TIMED"]:
         return "YT_TIMED"
     if case_id in CASE_LANGUAGES["LOCAL"]:
@@ -91,6 +130,7 @@ class SemanticReview(_Strict):
     verdict: Literal["PASS", "FAIL"]
     reviewed_at: str
     review_hash: str
+    outcome: Literal["INTELLIGENCE", "NO_NEW"] | None = None
 
 
 class SourceManifest(_Strict):
@@ -105,6 +145,8 @@ class SourceManifest(_Strict):
     request_hash: str
     unseen_for_profile: bool
     selector_id: str = Field(min_length=1, max_length=200)
+    evidence_count: int | None = None
+    cue_count: int | None = None
 
 
 class CaseReceipt(_Strict):
@@ -139,11 +181,15 @@ class CaseReceipt(_Strict):
     completed_at: str
     review: SemanticReview
     receipt_hash: str
+    outcome: Literal["INTELLIGENCE", "NO_NEW"] | None = None
 
-    def passes(self, generated_at: datetime) -> bool:
-        from youtube_intel.distillation import local_profile_for_scope
-        projection = local_profile_for_scope(PROFILE_ID, self.scope)
+    def passes(self, generated_at: datetime, profile_id: str = PROFILE_ID) -> bool:
+        projection = qualification_projection(profile_id, self.scope)
         binding = qualification_binding(projection)
+        options = projection["options"]
+        if not isinstance(options, dict):
+            return False
+        current = profile_id in {SHORT_CURRENT, LONG_CURRENT}
         review = self.review
         source = self.source_manifest
         hashes = (self.input_hash, self.context_hash, self.request_hash, self.permit_hash,
@@ -152,20 +198,24 @@ class CaseReceipt(_Strict):
         return (self.mode == "LIVE_MODEL" and all(sha(h) for h in hashes)
             and self.profile_hash == binding["profile_hash"] and self.code_hash == binding["code_hash"]
             and self.model_digest == binding["model_digest"] and self.runtime == binding["runtime"]
-            and self.source_manifest_hash == digest(source.model_dump())
+            and self.source_manifest_hash == digest(source.model_dump(exclude_unset=True))
             and all(sha(h) for h in (source.snapshot_hash, source.summary_hash, source.evidence_hash, source.policy_hash))
             and (source.input_hash, source.context_hash, source.request_hash) == (self.input_hash, self.context_hash, self.request_hash)
             and (not self.case_id.startswith("holdout-") or (source.unseen_for_profile
                 and source.selector_id != self.producer_id and source.origin == "PUBLIC_SNAPSHOT"))
             and (not self.case_id.startswith("local-") or source.origin == "LOCAL_SNAPSHOT")
             and self.generation_count == self.ledger_invocation_count == 1 and self.done is True
-            and self.done_reason == "stop" and 0 < self.prompt_tokens <= 8192 + 88 + 2 and 0 < self.output_tokens < 6144
+            and self.done_reason == "stop" and 0 < self.prompt_tokens
+            and (self.prompt_tokens + int(options["num_predict"]) + 2 <= int(options["num_ctx"])
+                if current else self.prompt_tokens <= 8192 + 88 + 2)
+            and 0 < self.output_tokens < int(options["num_predict"])
+            and (not current or self.outcome == review.outcome == case_outcome(self.case_id))
             and review.reviewer_id != self.producer_id and review.verdict == "PASS"
             and (review.case_id, review.input_hash, review.request_hash, review.final_hash)
             == (self.case_id, self.input_hash, self.request_hash, self.final_hash)
             and timestamp(self.completed_at) <= timestamp(review.reviewed_at) <= generated_at
-            and review.review_hash == digest(review.model_dump(exclude={"review_hash"}))
-            and self.receipt_hash == digest(self.model_dump(exclude={"receipt_hash"})))
+            and review.review_hash == digest(review.model_dump(exclude={"review_hash"}, exclude_unset=True))
+            and self.receipt_hash == digest(self.model_dump(exclude={"receipt_hash"}, exclude_unset=True)))
 
 
 class QualificationRecord(_Strict):
@@ -183,18 +233,19 @@ class QualificationRecord(_Strict):
         try:
             generated, expiry = timestamp(self.generated_at), timestamp(self.expires_at)
             scope = str(projection["scope"])
-            expected = CASE_LANGUAGES["YT_TIMED" if scope == "YT_TIMED" else "LOCAL"]
+            expected = qualification_cases(projection)
             actual = [(c.case_id, c.output_language) for c in self.cases]
             return (now.tzinfo is not None and generated <= now < expiry
                 and timedelta(0) < expiry - generated <= timedelta(days=30)
                 and scope in {"YT_TIMED", "LOCAL_TIMED", "LOCAL_TEXT"}
                 and self.binding == qualification_binding(projection)
-                and self.binding["profile_id"] == PROFILE_ID and language in {"en", "zh-CN"}
+                and self.binding["profile_id"] in {PROFILE_ID, SHORT_CURRENT, LONG_CURRENT} and language in {"en", "zh-CN"}
                 and all(sha(h) for h in (self.freeze_hash, self.harness_hash, self.case_manifest_hash))
-                and self.record_hash == digest(self.model_dump(exclude={"record_hash"}))
+                and self.record_hash == digest(self.model_dump(exclude={"record_hash"}, exclude_unset=True))
                 and actual == list(expected.items())
                 and len({c.execution_id for c in self.cases}) == len(actual)
-                and all(c.passes(generated) for c in self.cases)
+                and all(c.passes(generated, self.binding["profile_id"]) for c in self.cases)
+                and (self.binding["profile_id"] != LONG_CURRENT or self._full_source_pair())
                 and all(timestamp(a.review.reviewed_at) <= timestamp(b.completed_at)
                     for a, b in zip(self.cases, self.cases[1:]))
                 and all((c.freeze_hash, c.harness_hash) == (self.freeze_hash, self.harness_hash) for c in self.cases)
@@ -206,6 +257,14 @@ class QualificationRecord(_Strict):
                     "LOCAL_TIMED" if c.case_id.startswith("local-timed-") else "LOCAL_TEXT") for c in self.cases))
         except (ValueError, KeyError, TypeError, OSError):
             return False
+
+    def _full_source_pair(self) -> bool:
+        left, right = self.cases[-2].source_manifest, self.cases[-1].source_manifest
+        return (left.origin == right.origin == "PUBLIC_SNAPSHOT"
+            and left.source_id == right.source_id == "0eMzc-WnBfQ"
+            and left.evidence_count == right.evidence_count == 114
+            and left.cue_count == right.cue_count == 2406
+            and left.snapshot_hash == right.snapshot_hash)
 
     def _distinct_holdouts(self) -> bool:
         values = {c.case_id: c.source_manifest for c in self.cases}
@@ -222,7 +281,8 @@ class LocalQualificationAuthority:
 
     def permits(self, projection: Mapping[str, object], language: str, *, now: datetime | None = None) -> bool:
         current = now or datetime.now(UTC)
-        matches = [r for r in self._records if r.binding.get("scope") == projection.get("scope")]
+        matches = [r for r in self._records if (r.binding.get("profile_id"), r.binding.get("scope"))
+            == (projection.get("local_profile_id"), projection.get("scope"))]
         # Multiple registrations are ambiguous; never pick the most flattering.
         return self._seal is _PACKAGE_AUTHORITY_SEAL and len(matches) == 1 and matches[0].permits(projection, language, current)
 
@@ -257,16 +317,21 @@ def read_reviewed_qualifications(raw: bytes | None = None) -> LocalQualification
             return LocalQualificationAuthority()
         value = json.loads(raw, object_pairs_hook=strict_object)
         if (not isinstance(value, dict) or set(value) != {"version", "records"} or value["version"] != VERSION
-            or not isinstance(value["records"], list) or len(value["records"]) > 3):
+            or not isinstance(value["records"], list) or len(value["records"]) > 4):
             return LocalQualificationAuthority()
         authority = LocalQualificationAuthority()
         authority._records = tuple(QualificationRecord.model_validate(r) for r in value["records"])
+        pairs = [(r.binding["profile_id"], r.binding["scope"]) for r in authority._records]
+        if len(set(pairs)) != len(pairs):
+            return LocalQualificationAuthority()
+        for profile_id, scope in pairs:
+            qualification_projection(profile_id, scope)
         # Test/caller-supplied bytes can exercise validation, never mint live
         # production authority. Only the reviewed fixed package resource can.
         if package_source:
             authority._seal = _PACKAGE_AUTHORITY_SEAL
         return authority
-    except (ValueError, TypeError, OSError, RecursionError):
+    except (ValueError, KeyError, TypeError, OSError, RecursionError):
         return LocalQualificationAuthority()
 
 
@@ -292,10 +357,10 @@ class LocalExecutionPermit(_Strict):
     def matches(self, projection: Mapping[str, object], input_hash: str, request_hash: str, language: str) -> bool:
         try:
             scope = str(projection["scope"])
-            expected = CASE_LANGUAGES["YT_TIMED" if scope == "YT_TIMED" else "LOCAL"]
+            expected = qualification_cases(projection)
             order = list(expected)
             issued, expires = timestamp(self.issued_at), timestamp(self.expires_at)
-            return (case_scope(self.case_id) == scope and self.binding == qualification_binding(projection) and input_hash == self.input_hash
+            return (case_scope(self.case_id, profile_id=str(projection["local_profile_id"])) == scope and self.binding == qualification_binding(projection) and input_hash == self.input_hash
                 and request_hash == self.request_hash and expected.get(self.case_id) == language
                 and self.permit_hash == digest(self.model_dump(exclude={"permit_hash"}))
                 and issued <= datetime.now(UTC) < expires and timedelta(0) < expires - issued <= timedelta(hours=1)
