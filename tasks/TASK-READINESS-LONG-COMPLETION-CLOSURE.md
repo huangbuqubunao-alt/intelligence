@@ -3,7 +3,7 @@
 Status: IN_PROGRESS — 2026-10-23. Same ordinary-user remediation Goal, no new phase.
 Base: codex/task-end-to-end-user-readiness@9c0c1a4a70ee85aa3600950f511a6c64c80fdaa9
 Dependency: TASK-READINESS-LONG-INPUT-WAIT-LIFECYCLE DONE in independent integration candidate b08e1bf, 495 reviewed source hashes exact; root integration74backend/64UI/static passed. Final authoracc0f989 independentR7 APPROVE847d7bf; actual full19/24DATA restore proof accepted. Formal main remains73ee; no release authorized by this card before final Goal gates.
-Implementer: /root/long_completion_after_interrupt, sole product writer in NEW worktree /Users/hua/Documents/yia-worktrees/readiness-long-completion-closure, branch codex/task-readiness-long-completion-closure. Independent fresh reviewer to be assigned after fixed clean submission, separate new review worktree. Root writes only plans/docs/QA/integration. No other core writer.
+Implementer: /root/long_completion_regression_finish, sole product writer in NEW worktree /Users/hua/Documents/yia-worktrees/readiness-long-completion-closure, branch codex/task-readiness-long-completion-closure. Independent fresh reviewer to be assigned after fixed clean submission, separate new review worktree. Root writes only plans/docs/QA/integration. No other core writer.
 
 ## Goal and completion criteria
 
@@ -44,3 +44,5 @@ Immediately: this sole writer after root creates freshWT. Parallel now: root doc
 2026-10-23 continuation history: /root/long_completion_resume preserved the prior tracked diff and untracked execution module in .var/resume-snapshot-oct23 at a17b8dd, then committed through b021004. After that writer quota interruption, current sole writer /root/long_completion_finish preserved the remaining untracked qualification test in .var/resume-finish-snapshot and resumed at b021004. Existing commits/WIP are retained; no simultaneous core writer. Independent fresh reviewer remains pending final fixed clean submission.
 
 2026-10-23 22:48 continuation: turn interruption stopped the previous writer/processes at91bdb09. Sole writer /root/long_completion_after_interrupt preserved all3 dirty native/session/qualification files byte-for-byte in .var/resume-snapshot-20261023-224847 before continuing. Prior commits/logs remain intact; no concurrent core writer.
+
+2026-10-24 continuation: 74f3953 stayed clean while the author quota stopped; final fixed39-file group completed1514PASS2FAIL/source537unchanged. Current sole writer /root/long_completion_regression_finish fixes these and the additional root full-baseline research-cap failures. New dd192ea is fixed, final41-file -r2 group running; no source changes during that group, old failure logs/results retained. Independentreview/acceptance remains pending final handoff and cleanSTOP.

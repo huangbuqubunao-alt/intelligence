@@ -1,0 +1,40 @@
+{
+  "observed_at": "2026-10-23T18:12:18.131757+00:00",
+  "classification": "FIXED_SOURCE_REAL_FAILURES_NOT_ACCEPTED",
+  "baseline": {
+    "source_head": "cb8ce9b5fa1be92ea2c31f5b7e33e7726c36e50b",
+    "source_files": 431,
+    "source_changed": [],
+    "command": "PYTHONPATH=src YOUTUBE_INTEL_O200K_TEST_ASSET=<isolated verified asset> .venv/bin/python -m pytest -q",
+    "passed": 5725,
+    "failed": 4,
+    "warnings": 2,
+    "seconds": 2256.64,
+    "log_sha256": "0e3d192abec62a390aed2fbd201c16c4d5a52863bbf7d279dd2dbe80af2c8c72",
+    "failures": [
+      "tests/integration/test_dogfood_day1_intelligence.py::test_production_manual_content_uses_output_preference_without_scoring",
+      "tests/unit/test_readiness_qwen35_capacity.py::test_capacity_one_attempt_preserves_response_and_stops[budget]",
+      "tests/unit/test_readiness_qwen35_capacity.py::test_capacity_one_attempt_preserves_response_and_stops[none]",
+      "tests/unit/test_readiness_qwen35_research.py::test_thinking_failure_preserves_attempt_and_never_reinvokes[budget]"
+    ]
+  },
+  "completion_task": {
+    "head": "74f395373b1883ecebd5faa792c2c24c4b5ad2f8",
+    "source_files": 537,
+    "source_changed": [],
+    "test_files": 39,
+    "passed": 1514,
+    "failed": 2,
+    "warnings": 1,
+    "seconds": 947.82,
+    "result_sha256": "a3a9f811004d31623a9a606fb4449f4f15c43081c5478e1503c5b44a52657bd2",
+    "log_sha256": "117ea4038ce99192566426aba25cdfb9b9220608598ba512a9d73699f879690d",
+    "failures": [
+      "tests/integration/test_local_intelligence_settings.py::test_real_composition_cached_app_config_reloads_only_intelligence_choice",
+      "tests/unit/test_local_fixed_runtime_profile.py::test_resealed_v2_receipts_are_refused_by_original_v1_reader_and_harness"
+    ]
+  },
+  "sole_writer": "/root/long_completion_regression_finish",
+  "new_results_must_preserve_original_files": true,
+  "scope_boundaries": "No owner/main adoption, registry records remain empty, zero actual9b generation. Current repair must preserve raw cap rejection even if paired usage unavailable; no weakening R13 unknown/paired accounting."
+}

@@ -1,3 +1,5 @@
+> 2026-10-24 02:20续作：原root完整基线5725PASS/4FAIL/2256.64s与作者固定74整卡1514PASS/2FAIL/947.82s均真实完成，431/537源分别全程不变，不能计全绿；完整失败见COMPLETE_REGRESSION_FAILURES_2026_10_24.json。前writer额度停止后，唯一 /root/long_completion_regression_finish 已固定dd192ea：5相关文件287PASS/121.49s/static121，原39+research2的41文件-r2固定组运行；未独审/整合。六份实质EN/ZH输入草稿获独立source-only审查，2段明确合成QA音频仅已生成，尚未转写/无9b调用/不授资格；旧无实质样例和失败全部保留。最新RAM02:12为5.47GiB，仍不足真实门。正式main/owner未动，registry=[]。
+
 > 2026-10-23 22:48中断恢复：91bdb09保留，当前唯一writer /root/long_completion_after_interrupt 将三项native WIP完整快照后继续。原root后端完整基线测试因turn中断停止（只有46个进度点，无最终结果），原日志保留，不计PASS，准备原源重跑；前端1008与ASR完整14+3复核已有独立真实结果不受影响。main/owner与资格未动。
 
 > 2026-10-23 22:30续作：前writer额度停止，原b021004及未跟踪资格测试已完整保留，当前唯一产品writer /root/long_completion_finish 在同WT续作有限当前native/session/资格harness。root独立完整前端39文件1008PASS/20.40s，源前后hash全等；核心faf/b279/b021为中间工程，未独审整合。用户释放后RAM实测6.71GiB仍不足8.101，保持零9b加载/生成、records=[]。正式main与实际远端仍73ee7e7 clean，未发布。证据ROOT_CONTINUATION_CHECKPOINT_2026_10_23_2230.json。

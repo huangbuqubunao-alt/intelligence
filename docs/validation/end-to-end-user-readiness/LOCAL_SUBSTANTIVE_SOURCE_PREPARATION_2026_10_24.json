@@ -1,0 +1,115 @@
+{
+  "observed_at": "2026-10-23T18:23:14.140100+00:00",
+  "classification": "REVIEWED_SOURCE_PREPARATION_ONLY_NO_MODEL_QUALIFICATION",
+  "decision_basis": "OPENCODE_LOCAL_HANDOVER_AUDIT_2026_10_20.md decision23, preserve old inadequate positives/failures and freeze substantive newEN/ZH sources",
+  "source_directory": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/local-substantive-inputs-20261024",
+  "source_manifest_sha256": "561cd0f2c5b16bb678a25da81b3ef9f1689395a26758401c9a18f31e5496e255",
+  "source_review": {
+    "reviewer": "/root/local_case_input_inventory",
+    "verdict": "APPROVE_SOURCE_DRAFT",
+    "scope": "Six source texts only, topic coverage limited to project reliability. Actual effective policy/context and realWhisper timeline still require later freeze; no model quality approval or permit.",
+    "source_hashes_checked": true,
+    "new9b_calls": 0
+  },
+  "source_type": "Assistant/root-authored editorial QA source material based on approved project contracts; not candidate9b outputs, external measurements or human recordings",
+  "source_files": {
+    "local-timed-en-script.txt": {
+      "sha256": "a63ba1e7060965dc01ac75a66454abfa0f0b0915c600c80ad223801494e912ed",
+      "bytes": 1652,
+      "language": "en"
+    },
+    "local-timed-zh-script.txt": {
+      "sha256": "79be26b166347381cc20f65302c17e172c1548d02a7e8f2a0f6a3df1b875adb0",
+      "bytes": 1516,
+      "language": "zh-CN"
+    },
+    "local-txt-en.txt": {
+      "sha256": "76bc5e9a7a8f6ac29c03718da734ac926b7adf8178882558d084da113bc741b0",
+      "bytes": 1948,
+      "language": "en"
+    },
+    "local-txt-zh.txt": {
+      "sha256": "4a92181ce4577904057ae9004e1cef8e4dc921f43e6ded6fc493190b7bbde1fb",
+      "bytes": 1745,
+      "language": "zh-CN"
+    },
+    "local-md-en.md": {
+      "sha256": "b258e960aa0bc280107e4d4d01793aa78ce9a854f0289187796d15ee510f2240",
+      "bytes": 2075,
+      "language": "en"
+    },
+    "local-md-zh.md": {
+      "sha256": "0ffc8b6b0f39fcdb08232325957f681f59b2fd9c89eaa4328d79d09a6e0231b1",
+      "bytes": 1782,
+      "language": "zh-CN"
+    }
+  },
+  "audio_generation": {
+    "started_at": "2026-10-23T18:19:38.710099+00:00",
+    "classification": "OFFLINE_SYNTHETIC_QA_AUDIO_SOURCE_NOT_TRANSCRIPT_OR_INSIGHT",
+    "voices": [
+      "Samantha",
+      "Tingting"
+    ],
+    "generator": "existing-macos-say-145-mono16k-pcm-v1",
+    "assistant_authored": true,
+    "asr_calls": 0,
+    "intelligence_calls": 0,
+    "files": {
+      "SYNTHETIC_QA-local-timed-en.wav": {
+        "sha256": "9ed845327847423d2e54a1483c3fa1de558f54f1849055318fa22278c6199bb9",
+        "bytes": 3253330,
+        "script_sha256": "a63ba1e7060965dc01ac75a66454abfa0f0b0915c600c80ad223801494e912ed",
+        "aiff_sha256": "7da63d74f8a3b63a0905d5bb6ef6332089947ad7ca502af6b1f8ff2127df3f54",
+        "voice": "Samantha",
+        "media_probe": {
+          "programs": [],
+          "stream_groups": [],
+          "streams": [
+            {
+              "codec_name": "pcm_s16le",
+              "sample_rate": "16000",
+              "channels": 1
+            }
+          ],
+          "format": {
+            "duration": "101.664125"
+          }
+        }
+      },
+      "SYNTHETIC_QA-local-timed-zh.wav": {
+        "sha256": "eee06ef0659846ae8f0fa0b670f5a9e3763ccd5b3fd54531a3d1288e579f03cb",
+        "bytes": 4026502,
+        "script_sha256": "79be26b166347381cc20f65302c17e172c1548d02a7e8f2a0f6a3df1b875adb0",
+        "aiff_sha256": "9e341f11ee5b7ec5cb994b23478496bf99d5477df5631f770fdcb8ec0264f5ec",
+        "voice": "Tingting",
+        "media_probe": {
+          "programs": [],
+          "stream_groups": [],
+          "streams": [
+            {
+              "codec_name": "pcm_s16le",
+              "sample_rate": "16000",
+              "channels": 1
+            }
+          ],
+          "format": {
+            "duration": "125.825750"
+          }
+        }
+      }
+    },
+    "ended_at": "2026-10-23T18:19:42.463306+00:00"
+  },
+  "next_required": [
+    "Actual qualifiedWhisper transcription with real complete timing/provenance; scripts are not transcripts",
+    "Normal LOCAL source import forTXT/MD and verified Summary/Evidence",
+    "Freeze actual effective policy/profile/input/request/runtime/nativecapacity/harness/code after final independent engineeringreview",
+    "OriginalYT10 prerequisite beforeLOCAL8, six substantive positive actualoutputs+two originalnegatives, firstFAILSTOP",
+    "Never reuse oldpermit/receipt or grant qualification from metadata/draft review"
+  ],
+  "new_intelligence_calls": 0,
+  "new_asr_calls": 0,
+  "formal_owner_access": false,
+  "paid_cloud_calls": 0
+}
