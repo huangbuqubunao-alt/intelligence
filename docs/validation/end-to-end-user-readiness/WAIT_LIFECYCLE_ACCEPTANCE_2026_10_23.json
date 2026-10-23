@@ -1,0 +1,44 @@
+{
+  "observed_at": "2026-10-23T04:11:58.535019+00:00",
+  "classification": "ACCEPTED_SCOPED_ENGINEERING_PENDING_ROOT_INTEGRATION_NOT_GOAL_OR_RELEASE",
+  "candidate": "acc0f989f3bb5b4c57f03e24e320705a6d9a52a7",
+  "dependency_base": "4f7cc46ed1381782288a2f4915dce027b38c3b94",
+  "independent_approval": "847d7bf",
+  "closed_r6_rejection": "58de068",
+  "backend": {
+    "fixed_source": "b187e8223de16ab4472455796956ed8d4899364f",
+    "test_files": 76,
+    "passed": 2188,
+    "warnings": 1,
+    "seconds": 1810.33,
+    "source_hashes_unchanged": 495,
+    "final_backend_files_byte_equal": 420,
+    "result_sha256": "0bd7b62128ff21f06f05eb5272b344a6611fbf3e0f5fcd45303396b6707659c4"
+  },
+  "frontend": {
+    "passed": 998,
+    "files": 38,
+    "typecheck_build_diff": true
+  },
+  "independent": {
+    "original_r6_probe_passed": 1,
+    "feedback_and_transcription_passed": 64,
+    "failure_applied_pending_combinations_passed": 3,
+    "final_source_hashes_rechecked": 495
+  },
+  "root_gui": {
+    "b187_full_old_stock_tables": 79,
+    "b187_full_old_stock_data": 19,
+    "b187_settings_two_waits_cancel_restart_native_restore_equal": true,
+    "final_asr_tables": 79,
+    "final_asr_data": 24,
+    "final_asr_restore_and_content_read_equal": true,
+    "restore_confirm_http_count": 1,
+    "integrity_and_foreign_keys_passed": true,
+    "original_acoustic_receipt_seal_audit_unchanged": true
+  },
+  "model_intelligence_qualification": "CLOSED",
+  "formal_owner_access": false,
+  "main_or_release_changed": false,
+  "qa_note": "Initial root acceptance helper treated the structured freeze envelope as a flat hash map and refused acceptance; corrected reader explicitly verifies fixed_sha, source_hash_count and all hashes. No product mismatch or assertion weakening."
+}

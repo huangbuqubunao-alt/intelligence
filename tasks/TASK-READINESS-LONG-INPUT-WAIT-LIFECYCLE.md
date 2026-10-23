@@ -1,5 +1,7 @@
 # TASK-READINESS-LONG-INPUT-WAIT-LIFECYCLE
 
+2026-10-23最新Status: ACCEPTED（仅本任务工程，待root候选整合）。最终acc0f989、独立R7 847d7bf APPROVE，R6唯一P2已关闭；完整后端b187 76文件2188PASS/1810.33s/495hash全等，最终420src/tests逐字相同可准确复用，最终前端998/TS/build/diff通过。root最终macOS acc界面真实24 DATA创建/下载/原生picker/确认仅一次/中性重连/恢复/Content字幕与Evidence读取，79表全行/24文件/机器选择全等；旧stockv5双WAIT取消/其他阻塞/真实重启/19DATA恢复亦通过。证据WAIT_LIFECYCLE_FINAL_GUI_ACCEPTANCE_2026_10_23.md及WAIT_LIFECYCLE_ACCEPTANCE_2026_10_23.json。允许顺序整合8个已审提交，逐字及影响检查通过后才DONE；不授模型资格，不合main/发布，整个Goal仍继续。
+
 2026-10-23当前：固定b187e82（parent292）991 frontend/TS/build/static119通过，唯一76文件固定495hash组运行中；R6独立58de068为REJECT，仅P2已知恢复失败后下一GET断连会隐藏错误，无P0/P1，独立backend74/UI57/static通过。原writer /root/backup_passive_resume 等freeze结束后纯前端最小修复；src/tests逐字不变时可复用真实完整后端结果，但新UI须精准反控、完整前端、独立复审/root最终GUI。root固定b187新v5普通模型设置/双WAIT/逐项取消/另一笔继续阻塞/真实进程重启/首次Backup成功/原生恢复全79SQL19DATA相等；详见ROOT_GUI_B187_AND_R6_2026_10_23.md。未接受整合/采用，不授洞察资格。
 
 2026-10-23断点续作：IN_PROGRESS。同WT唯一writer移交 `/root/backup_passive_resume`，原7文件WIP完整保留。root只读复核固定292真实ASR新增数据恢复：79 SQL表/24 DATA/机器选择全等、integrity/FK通过，HAR记录create201/stage200/confirm202各一次，恢复后真实Content深链接可读。详见ROOT_SETTINGS_AND_ASR_GUI_292_2026_10_22.md新增节。窄Backup并发/恢复反馈/准确文案尚在实施，新固定SHA/完整组/增量独审/最终GUI未完成；不改资格或正式main/owner。
