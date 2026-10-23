@@ -77,3 +77,12 @@ DIRECT复用ApplicationHeavyLease/共享重负载锁、安装字节验证、read
 裁决：授权仅在新增有限当前runtime/profile的adapter工程中采用此充分条件，复用原有单daemon/lease/ready-arm-consume框架。仍冻结顶层truncatefalse/shiftfalse并在warm/load与最终请求一致；完整实际Qwen35渲染、true/true tokenize及BOS边界、请求/模板/schema/model/runtime/runner身份、真实C与P一一绑定。不得把请求num_ctx当实际C、字节估算当N、HTTP200或单个prompt_eval_count当完整性证明。排除媒体、续context、共享子请求和工具自动后续生成；任一前提不能实证就拒绝，不增加预算/时间、修补输出或启用registry。
 
 必须有synthetic ENGINEERING_ONLY正负控覆盖边界等号/越界、错slot/模板/token/host、cache冷热、未知上限，以及独立审查后真实机器容量/语义验收。此裁决只允许最小工程路径，不等于机器容量、模型质量或生产资格通过；不能据此写入registry。若实现发现源码前提不成立则记录具体反例并failclosed，再讨论最小受控启动边界。
+
+
+## 2026-10-23 root 裁决：有限资格记录与长输入真实质量门
+
+当前资格模块仅旧PROFILE_ID/按scope唯一/最多3记录，不能直接支持current short与long同YT_TIMED；更不能据short资格开放long。任务内允许有限适配：生产记录按严格(profile_id,scope)唯一、完整binding逐项复验，当前最多4组合=short YT_TIMED/LOCAL_TIMED/LOCAL_TEXT与long YT_TIMED；保留既有262144字节等有界读取、package-only seal、过期/代码/模型/runtime/manifest/case顺序校验、重复/未知全部failclosed。不按恰好匹配hash挑优，不改全局旧PROFILE_ID/历史冻结或给旧R14版本授生成权。旧格式/原case矩阵保持，原始历史记录不改写；工程期resource records=[]。
+
+Long资格显式绑定base_schema+codec+profile，其每次动态alias schema仍由完整request/proof重建。原YT资格10例/原LOCAL8例的输入、语言、语义、独立review顺序和首次失败即停规则均保留，不能复用short receipt跨profile。长profile另在原YT矩阵末尾追加2个有界强制案例：`long-full-en`输出en、`long-full-zh`输出zh-CN；二者使用同一真实完整0eMzc-WnBfQ来源（114 ORIGINAL Evidence/2406 timed cues，不截20、不删cue、不调整历史），按该long profile各一次，前例获真实review通过才允许后例。它们是新增长profile的额外门，不替换/减少原10例或distinct unseen holdouts；不开放给short/LOCAL profile借用。
+
+补充案例的真实原文/摘要/政策/完整来源与请求hash、capacity/runtimeproof、冻结harness/manifest、permit前序链在最终工程固定后、任何实际调用前由root一次性封存；此处仅定义不可省略的质量覆盖。当前不授真实调用、签permit或写registry；资源不足/任何真实FAIL仍停并保留。若新增long案例需要最小有限case_scope/selector映射，属于当前qualification适配，不另建通用任意case机制。最终独审须核查profile隔离、篡改/重复/错case/profile/schema/code/model/容量/封印拒绝，以及长输入两例确为完整真实来源。普通GUI长内容正向/保存/主题/重启/恢复仍须通过，不能以工程合成结果或短样例替代。
