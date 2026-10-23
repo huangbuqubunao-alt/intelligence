@@ -100,3 +100,12 @@ scout对同一0.40.6官方Go qwen3.5源码只读补核：仅system/user、无too
 ## 2026-10-23 当前资格的真实结果约束
 
 `LIVE_MODEL` 表示实际调用方式，不表示产生了有效洞察。当前有限版本资格必须将封存的真实结果分支与逐例独立语义评审绑定：LOCAL前六个timed/TXT/MD中英文案例均需实质正向Intelligence，末两例按原NO_NEW/注入反例标准；long-full-en/zh均需完整来源下的实质正向。NO_NEW、拒绝或空正文不得凭PASS字符串、hash全等或一次调用记作正向通过。原输入、语义、case顺序和首次FAILSTOP不改，不修补模型输出；历史旧格式保持可读，不据旧receipt授当前生成资格。这属于已定原质量标准的显式工程校验，不新增模型调用或变相放宽。
+
+
+## 2026-10-23 实际 native slot 字段核验
+
+只读scout /root/native_slot_schema_scout 按固定官方源码确认：Ollama2476d5e构建LLAMA_CPP_VERSION=b11669精确指向已固定upstream620d2225；兼容补丁不改server routes。[构建](https://github.com/ollama/ollama/blob/2476d5ead197abe04629651028f83d48dc75d2b2/llama/server/CMakeLists.txt#L118)。
+
+该已验证runner端口的GET /props无需--props（该开关控制POST），default_generation_settings.n_ctx为实际每slot容量，total_slots为实际parallel数量，is_sleeping为实际状态；不是请求num_ctx回显。[props构造](https://github.com/ggml-org/llama.cpp/blob/620d2225cc436ab0b001e3200e590e3b286ef9ab/tools/server/server-context.cpp#L5226)、[实际slot计算](https://github.com/ggml-org/llama.cpp/blob/620d2225cc436ab0b001e3200e590e3b286ef9ab/tools/server/server-context.cpp#L4652)。GET /slots默认开启，数组项有id/n_ctx/speculative/is_processing。[默认](https://github.com/ggml-org/llama.cpp/blob/620d2225cc436ab0b001e3200e590e3b286ef9ab/common/common.h#L681)、[字段](https://github.com/ggml-org/llama.cpp/blob/620d2225cc436ab0b001e3200e590e3b286ef9ab/tools/server/server-context.cpp#L733)。
+
+当前有限adapter要求total_slots严格int1、is_sleeping严格false、slots恰好一项id严格int0、两处实际C一致且slot空闲；保留runner/host前后身份绑定。503/超时/缺字段/类型错误或矛盾都failclosed，不采用request容量兜底。这些是固定源码合同，零本地HTTP/加载/生成的scout结论不代替真实机器容量验收。
