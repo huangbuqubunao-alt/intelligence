@@ -86,3 +86,12 @@ DIRECT复用ApplicationHeavyLease/共享重负载锁、安装字节验证、read
 Long资格显式绑定base_schema+codec+profile，其每次动态alias schema仍由完整request/proof重建。原YT资格10例/原LOCAL8例的输入、语言、语义、独立review顺序和首次失败即停规则均保留，不能复用short receipt跨profile。长profile另在原YT矩阵末尾追加2个有界强制案例：`long-full-en`输出en、`long-full-zh`输出zh-CN；二者使用同一真实完整0eMzc-WnBfQ来源（114 ORIGINAL Evidence/2406 timed cues，不截20、不删cue、不调整历史），按该long profile各一次，前例获真实review通过才允许后例。它们是新增长profile的额外门，不替换/减少原10例或distinct unseen holdouts；不开放给short/LOCAL profile借用。
 
 补充案例的真实原文/摘要/政策/完整来源与请求hash、capacity/runtimeproof、冻结harness/manifest、permit前序链在最终工程固定后、任何实际调用前由root一次性封存；此处仅定义不可省略的质量覆盖。当前不授真实调用、签permit或写registry；资源不足/任何真实FAIL仍停并保留。若新增long案例需要最小有限case_scope/selector映射，属于当前qualification适配，不另建通用任意case机制。最终独审须核查profile隔离、篡改/重复/错case/profile/schema/code/model/容量/封印拒绝，以及长输入两例确为完整真实来源。普通GUI长内容正向/保存/主题/重启/恢复仍须通过，不能以工程合成结果或短样例替代。
+
+
+## 2026-10-23 think=true 精确 renderer 前检
+
+scout对同一0.40.6官方Go qwen3.5源码只读补核：仅system/user、无tools/媒体/历史且thinktrue时，精确文本为`<|im_start|>system\n{GoTrimSpace(S)}<|im_end|>\n<|im_start|>user\n{GoTrimSpace(U)}<|im_end|>\n<|im_start|>assistant\n<think>\n`，最后一个LF保留；无手写文本BOS、无false模式的空闭合thinking块。[固定实现](https://github.com/ollama/ollama/blob/2476d5ead197abe04629651028f83d48dc75d2b2/model/renderers/qwen35.go#L252)、[assistant后缀](https://github.com/ollama/ollama/blob/2476d5ead197abe04629651028f83d48dc75d2b2/model/renderers/qwen35.go#L349)、[LeadingBOS](https://github.com/ollama/ollama/blob/2476d5ead197abe04629651028f83d48dc75d2b2/model/renderers/qwen35.go#L72)。自动special/BOS由实际true/true native tokenization计算，不能另用假设减去。
+
+必须证明实际Config.Renderer=qwen3.5及模型内置Messages为空；请求两条消息并不保证最终只有两条。[内置历史前插](https://github.com/ollama/ollama/blob/2476d5ead197abe04629651028f83d48dc75d2b2/server/routes.go#L3598)。Go路径schema作grammar，不加入文本prompt；native另一template分支包含messages/response_format，不能套此公式。[grammar](https://github.com/ollama/ollama/blob/2476d5ead197abe04629651028f83d48dc75d2b2/llm/llama_server.go#L1707)。
+
+官方测试仅有true后缀断言及另一assistant prefill场景，没有该精确S/U两条true全串golden；新测试必须注明固定官方源码推导，不冒称官方完整golden。[官方后缀测试](https://github.com/ollama/ollama/blob/2476d5ead197abe04629651028f83d48dc75d2b2/model/renderers/qwen35_test.go#L173)。这仍仅为工程实现输入，不是实际机器token容量或质量通过。

@@ -1,0 +1,70 @@
+{
+  "observed_at": "2026-10-23T13:31:25.628543+00:00",
+  "baseline": "b08e1bf74da0ff50f29a7680910f1c666863b3be",
+  "fixed_intermediate": "faf472c39a38270de0ff03dd7fedf9a54020dde5",
+  "classification": "TWELVE_ACOUSTIC_IMPLEMENTATION_SOURCE_BINDINGS_UNCHANGED_NOT_COMPLETE_TUPLE_REQUALIFICATION",
+  "bindings": [
+    {
+      "binding": "offline_whisper_worker.py",
+      "equal": true,
+      "sha256": "93790c14b7209b9042c9f0fcd319ead7297c4dd0a588f21d96a82542150c9521"
+    },
+    {
+      "binding": "acoustic_remediation.py",
+      "equal": true,
+      "sha256": "eb846a95663c1e023f611f1306efd7f058f94840c42b1b5c11506c2fe90cc9da"
+    },
+    {
+      "binding": "local_content.py",
+      "equal": true,
+      "sha256": "136195242ab8c2e9240e7e4f8ac63d2de21b7564b8f8fa71e0d2edc1b98ab85b"
+    },
+    {
+      "binding": "source_authority.py",
+      "equal": true,
+      "sha256": "72f769e4ced5f3a3c0f71241d6fbe04e6ec7f3d99b2a2a52dc717987488dcfe9"
+    },
+    {
+      "binding": "acoustic_scoring.py",
+      "equal": true,
+      "sha256": "969f6381d72c66ff6a23cdd45a386617670e4032d3e0aed396995da5c876c67d"
+    },
+    {
+      "binding": "acoustic_qualification.py",
+      "equal": true,
+      "sha256": "70ddc93683e7c879a728444edc7a22dc4a679a0faa029f151a12fc8942a9cb5c"
+    },
+    {
+      "binding": "MlxTimedExecutor.transcribe",
+      "equal": true,
+      "sha256": "b26d366f677818bdf0851baee5c2082d3a2841cb53fc6416c2c1c819944f06bd"
+    },
+    {
+      "binding": "MlxTimedExecutor._command",
+      "equal": true,
+      "sha256": "1c633011e5a438f906c39939bc749204014c18f3111fd378556f08068232739d"
+    },
+    {
+      "binding": "MlxTimedExecutor._env",
+      "equal": true,
+      "sha256": "b1c9baca6de48c34fac84882994a5832ea4b627c913e9170fd32c963e5496cbd"
+    },
+    {
+      "binding": "validate_result",
+      "equal": true,
+      "sha256": "7dd396004c71a59ab7223f647b71b0833f08b3dcf637dc9bbb30fdf90dee3f33"
+    },
+    {
+      "binding": "model_identity",
+      "equal": true,
+      "sha256": "cffedba485ee4eebdb5a50761c739f6fc475746327ee0ed4d146783c3e9fbbba"
+    },
+    {
+      "binding": "TimedTranscriptCueWrite",
+      "equal": true,
+      "sha256": "44cb71d9093076587bcff3c51ad15ccd5b0d5cb47e9e7d0b1d4701e65547ed3b"
+    }
+  ],
+  "method": "Immutable git blobs;6 full files+6 AST-located inspect.getblock source fragments, matching current_tuple implementation binding definitions. No import of model runtimes or weights.",
+  "limits": "This source equality alone does not assert fresh runtime/tool/hardware/model/origin/expiry/seal validity. Recheck final complete tuple and genuine receipt before reuse; any changed binding needs original17-case requalification. No key copied/re-signed, model load, inference, config or DB accessed."
+}
