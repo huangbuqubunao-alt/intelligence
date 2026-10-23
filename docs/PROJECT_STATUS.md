@@ -1,3 +1,5 @@
+> 2026-10-24 02:53续作：用户已明确授权保留Codex/Jimmm、其他空闲应用可关闭；允许必要低内存本地模型但不大规模重写。唯一writer /root/long_completion_final_resume 在dd192ea同537源恢复41完整文件r3，原r2中断无结果且全部保留。root真实Native六份导入及Whisper EN21/ZH37cue完成，中文中断→重启→GUI重试成功；正常重启79表/22DATA全部相等、无自动重跑，中文同音错字原样保留，独立APPROVE_SOURCE_ONLY（受损未知/旧任务语义不得从script补足），最终完整请求/政策/输出仍待。未9b生成/授资格/改正式main，详见LOCAL_NATIVE_REAL_ASR_RESTART_2026_10_24.json与MODEL_MEMORY_STRATEGY_2026_10_24.md。
+
 > 2026-10-24 02:20续作：原root完整基线5725PASS/4FAIL/2256.64s与作者固定74整卡1514PASS/2FAIL/947.82s均真实完成，431/537源分别全程不变，不能计全绿；完整失败见COMPLETE_REGRESSION_FAILURES_2026_10_24.json。前writer额度停止后，唯一 /root/long_completion_regression_finish 已固定dd192ea：5相关文件287PASS/121.49s/static121，原39+research2的41文件-r2固定组运行；未独审/整合。六份实质EN/ZH输入草稿获独立source-only审查，2段明确合成QA音频仅已生成，尚未转写/无9b调用/不授资格；旧无实质样例和失败全部保留。最新RAM02:12为5.47GiB，仍不足真实门。正式main/owner未动，registry=[]。
 
 > 2026-10-23 22:48中断恢复：91bdb09保留，当前唯一writer /root/long_completion_after_interrupt 将三项native WIP完整快照后继续。原root后端完整基线测试因turn中断停止（只有46个进度点，无最终结果），原日志保留，不计PASS，准备原源重跑；前端1008与ASR完整14+3复核已有独立真实结果不受影响。main/owner与资格未动。

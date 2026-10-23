@@ -1,0 +1,68 @@
+{
+  "recorded_at": "2026-10-24T02:53:14.235384+08:00",
+  "root_head": "a73bc0cc1dda1887e028914830014a33e1eb638e",
+  "classification": "ROOT_REAL_NATIVE_IMPORT_ASR_RESTART_QA_ONLY",
+  "formal_owner_access": false,
+  "intelligence_model_loads": 0,
+  "intelligence_generations": 0,
+  "intelligence_qualification_grant": false,
+  "source_review_pending": true,
+  "normal_native_imports": 6,
+  "real_timed_cues": {
+    "en": 21,
+    "zh": 37
+  },
+  "asr_attempts": {
+    "en_succeeded": 1,
+    "zh_interrupted_retained": 1,
+    "zh_user_retry_succeeded": 1
+  },
+  "finished_restart": {
+    "all_79_SQL_tables_equal": true,
+    "all_22_physical_DATA_paths_sizes_hashes_equal": true,
+    "machine_selection_equal": true,
+    "integrity": "ok",
+    "foreign_keys": [],
+    "automatic_reexecution": false
+  },
+  "known_transcription_limitations": [
+    "Chinese actual ASR includes homophone errors: 未知→為之, 旧任务→就任务, 重试→重视, 保存→包存. Raw outputs retained, no text/timestamp repair. Source-only independent review pending."
+  ],
+  "qa_harness_corrections": [
+    "First setup used system Python without yaml; no helper/data written. Corrected to existing root .venv.",
+    "New isolated vault directory needed creation before normal factory; first failed startup retained.",
+    "Repository has no npm preview script; launched existing pinned vite preview executable instead.",
+    "Preview initially used default API 8765; restarted only owned preview with YIA_API_BASE=6139. No production configuration changes.",
+    "Source worker --no-worker does not disable normal local transcription pipeline; native import genuinely started Whisper. Interrupted Chinese during graceful QA stop; normal restart/status reconciled INTERRUPTED, real GUI retry succeeded."
+  ],
+  "evidence": {
+    "normal-import-real-asr.json": {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/asr-requal-20261020/local-substantive-control-20261024/normal-import-real-asr.json",
+      "sha256": "1c1fe48ed6250f2b8059c3995ab64cc82de2b195dd6e14418efe7e5812a974ac"
+    },
+    "before-finished-restart.json": {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/asr-requal-20261020/local-substantive-control-20261024/before-finished-restart.json",
+      "sha256": "ad55dd5a788a83a7341ccce3acb5d8b26433d1d46e847155dfd44c98e5dbd955"
+    },
+    "after-finished-restart.json": {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/asr-requal-20261020/local-substantive-control-20261024/after-finished-restart.json",
+      "sha256": "063e3d05597271dda57f2c95e752a1a5d9c98751e4551cd310c23c48f5640462"
+    },
+    "after-finished-restart-status.json": {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/asr-requal-20261020/local-substantive-control-20261024/after-finished-restart-status.json",
+      "sha256": "57eedc2708d708ef7a76c2a9b7feb3d09d11e849ddbb699255c09ebbd2e43212"
+    },
+    "native-five-imported.png": {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/asr-requal-20261020/local-substantive-control-20261024/native-five-imported.png",
+      "sha256": "90a68eeace10e586ea3392e3209fa16d09884366329f6c0adc669339d98e724b"
+    },
+    "interrupted-retry.png": {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/asr-requal-20261020/local-substantive-control-20261024/interrupted-retry.png",
+      "sha256": "5d875c1064242687409a0698e04efbd7f675b292c5d896c2182df55630635a16"
+    },
+    "zh-retry-real-complete.png": {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/asr-requal-20261020/local-substantive-control-20261024/zh-retry-real-complete.png",
+      "sha256": "d8f415b09e6e323b70a1c36469849ea2e2825623a882b3538a952b3fa2d9f224"
+    }
+  }
+}
