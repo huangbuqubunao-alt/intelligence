@@ -64,7 +64,7 @@ def test_unrelated_qualification_never_replaces_user_configured_model(monkeypatc
     assert transport.actual_model == 'qwen3:8b' and transport.local_profile_id is None
 
 
-@pytest.mark.parametrize('damage', ['none', 'old-version', 'wrong-port', 'server-inode', 'runner-inode', 'library-inode', 'changed-host', 'updated-after-start', 'missing-library', 'unknown-library', 'daemon-only-library', 'cold'])
+@pytest.mark.parametrize('damage', ['none', 'old-version', 'wrong-port', 'server-inode', 'runner-inode', 'library-inode', 'changed-host', 'updated-after-start', 'missing-library', 'unknown-library', 'daemon-only-library', 'cold', 'x86', 'translated', 'unknown-architecture', 'foreign-vmmap-pid', 'foreign-vmmap-start', 'cold-unknown'])
 def test_api_version_and_mapped_bytes_belong_to_same_observed_processes(tmp_path, monkeypatch, damage):
     from types import SimpleNamespace
 
@@ -78,16 +78,25 @@ def test_api_version_and_mapped_bytes_belong_to_same_observed_processes(tmp_path
         os.utime(paths['ollama'], (1800000000,1800000000))
     monkeypatch.setattr(c, 'ROOT', tmp_path)
     server = f'10 Sat Oct 24 00:00:00 2026 {paths["ollama"]} serve'
-    runner = '' if damage=='cold' else f'20 Sat Oct 24 00:00:00 2026 {paths["llama-server"]} --offline'
+    runner = '' if damage in {'cold','cold-unknown'} else f'20 Sat Oct 24 00:00:00 2026 {paths["llama-server"]} --offline'
     monkeypatch.setattr(c, 'processes', lambda binary: server if binary=='ollama' else runner)
     host = c.HostObservation(tuple((p,c.file_identity(p)) for p in paths.values()),server,runner)
     calls=[]
     def cmd(argv, **kwargs):
+        if argv[:2]==['/usr/bin/vmmap','-summary']:
+            pid=argv[2]
+            binary='ollama' if pid=='10' else 'llama-server'
+            code='X86-64' if damage=='x86' else 'X86-64 (Translated)' if damage=='translated' else 'unknown' if damage in {'unknown-architecture','cold-unknown'} else 'ARM64'
+            reported_pid='99' if damage=='foreign-vmmap-pid' else pid
+            launch='00:00:01.790' if damage=='foreign-vmmap-start' else '00:00:00.790'
+            return SimpleNamespace(stdout=f'Process:         {binary} [{reported_pid}]\nCode Type:       {code}\nLaunch Time:     2026-10-24 {launch} +0800\n')
         pid=argv[argv.index('-p')+1]
         assert '-nP' in argv
         if '-iTCP:11434' in argv:
             return SimpleNamespace(stdout='p10\nn127.0.0.1:'+('11435' if damage=='wrong-port' else '11434')+'\n')
-        names=['ollama'] if pid=='10' else ['llama-server','libllama-server-impl.dylib']
+        names=['ollama'] if pid=='10' else ['llama-server']
+        if damage=='library-inode' and pid=='20':
+            names.append('libllama-server-impl.dylib')
         if damage in {'missing-library','unknown-library','daemon-only-library'} and pid=='20':
             names=['llama-server']
         if damage=='daemon-only-library' and pid=='10':
@@ -106,7 +115,7 @@ def test_api_version_and_mapped_bytes_belong_to_same_observed_processes(tmp_path
         if damage=='changed-host':
             monkeypatch.setattr(c.HostObservation,'is_current',lambda self:False)
         return {'version':'0.40.6' if damage=='old-version' else '0.40.9'}
-    if damage in {'none','cold'}:
+    if damage in {'none','cold','missing-library'}:
         c.verify_runtime_api(host,'http://127.0.0.1:11434',send,'0.40.9')
         assert calls==['/api/version']
     else:
@@ -239,3 +248,96 @@ def test_actual_runtime_structural_records_never_borrow_older_scope_or_grant_pac
     changed=copy.deepcopy(record)
     changed.binding['runtime']='0.40.6'
     assert not changed.permits(projection,'en',now)
+
+
+@pytest.mark.parametrize('damage', ['missing-code', 'duplicate-code', 'missing-launch', 'duplicate-launch',
+    'wrong-name', 'unknown-launch', 'vmmap-timeout', 'changed-before', 'changed-after', 'changed-during-mapping',
+    'missing-main', 'duplicate-main', 'wrong-main-path'])
+def test_arm64_summary_and_main_mapping_never_accept_unknown_process(tmp_path, monkeypatch, damage):
+    import os
+    import subprocess
+    from types import SimpleNamespace
+
+    from youtube_intel import local_model_capacity as c
+
+    main=tmp_path/'llama-server'
+    main.write_bytes(b'exact isolated main')
+    os.utime(main,(1,1))
+    monkeypatch.setattr(c,'ROOT',tmp_path)
+    process=f'20 Sat Oct 24 00:00:00 2026 {main} --offline'
+    summary='Process:         llama-server [20]\nCode Type:       ARM64\nLaunch Time:     2026-10-24 00:00:00.790 +0800\n'
+    if damage=='missing-code':
+        summary=summary.replace('Code Type:       ARM64\n','')
+    elif damage=='duplicate-code':
+        summary+='Code Type:       ARM64\n'
+    elif damage=='missing-launch':
+        summary=summary.partition('Launch Time:')[0]
+    elif damage=='duplicate-launch':
+        summary+='Launch Time:     2026-10-24 00:00:00.790 +0800\n'
+    elif damage=='wrong-name':
+        summary=summary.replace('Process:         llama-server','Process:         ollama')
+    elif damage=='unknown-launch':
+        summary=summary.replace('2026-10-24 00:00:00.790 +0800','unknown')
+    observations=[]
+    commands=[]
+    def observe(binary):
+        assert binary=='llama-server'
+        observations.append(binary)
+        threshold={'changed-before':1,'changed-after':2,'changed-during-mapping':3}.get(damage,999)
+        return 'changed' if len(observations)>=threshold else process
+    monkeypatch.setattr(c,'processes',observe)
+    st=main.stat()
+    record=f'ftxt\nD{hex(st.st_dev)}\ni{st.st_ino}\nn{main}\n'
+    if damage=='missing-main':
+        record=''
+    elif damage=='duplicate-main':
+        record+=record
+    elif damage=='wrong-main-path':
+        record=record.replace(str(main),'/foreign/llama-server')
+    def command(argv,**kwargs):
+        commands.append(argv)
+        if argv[0]=='/usr/bin/vmmap':
+            assert argv==['/usr/bin/vmmap','-summary','20'] and kwargs['timeout']==5
+            if damage=='vmmap-timeout':
+                raise subprocess.TimeoutExpired(argv,5)
+            return SimpleNamespace(stdout=summary)
+        assert argv==['/usr/sbin/lsof','-nP','-a','-p','20','-d','txt','-FfDin']
+        return SimpleNamespace(stdout='p20\n'+record)
+    monkeypatch.setattr(c.subprocess,'run',command)
+    with pytest.raises((OSError,subprocess.SubprocessError)):
+        c._mapped_runtime_files(process,'llama-server')
+    assert len(commands)==(0 if damage=='changed-before' else 2 if damage in {'changed-during-mapping','missing-main','duplicate-main','wrong-main-path'} else 1)
+
+
+@pytest.mark.parametrize('padding', [' ', '     ', '          '])
+@pytest.mark.parametrize('changed_owner', [False, True])
+def test_ps_date_padding_is_parse_only_while_owner_bytes_stay_exact(tmp_path, monkeypatch, padding, changed_owner):
+    import os
+    from types import SimpleNamespace
+
+    from youtube_intel import local_model_capacity as c
+
+    main=tmp_path/'ollama'
+    main.write_bytes(b'fixed isolated main')
+    os.utime(main,(1,1))
+    monkeypatch.setattr(c,'ROOT',tmp_path)
+    # Actual frozen ps prefix: daemon-owner.json PID4312, observed 2026-10-24.
+    prefix='4312 Sat Oct 24 20:14:26 2026'
+    process=prefix+padding+str(main)+' serve'
+    observed=prefix+padding+' '+str(main)+' serve' if changed_owner else process
+    monkeypatch.setattr(c,'processes',lambda name:observed)
+    summary='Process:         ollama [4312]\nCode Type:       ARM64\nLaunch Time:     2026-10-24 20:14:26.790 +0800\n'
+    st=main.stat()
+    mapping=f'p4312\nftxt\nD{hex(st.st_dev)}\ni{st.st_ino}\nn{main}\n'
+    commands=[]
+    def command(argv,**kwargs):
+        commands.append(argv)
+        return SimpleNamespace(stdout=summary if argv[0]=='/usr/bin/vmmap' else mapping)
+    monkeypatch.setattr(c.subprocess,'run',command)
+    if changed_owner:
+        with pytest.raises(OSError,match='observation is unknown'):
+            c._mapped_runtime_files(process,'ollama')
+        assert commands==[]
+    else:
+        c._mapped_runtime_files(process,'ollama')
+        assert len(commands)==2

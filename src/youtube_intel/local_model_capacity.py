@@ -815,10 +815,30 @@ def wire_bytes(request: Mapping[str, object]) -> bytes:
 
 
 def _mapped_runtime_files(process: str, binary: str) -> None:
-    """Match kernel text mappings to frozen disk identities, never argv alone."""
-    pid = process.split()[0]
-    if not pid.isdecimal():
-        raise CapacityUnavailable("mapped runtime PID is unknown")
+    """Verify the actual native ARM64 process and its used fixed main executable."""
+    parts = process.split(maxsplit=1)
+    if not parts or not parts[0].isdecimal() or processes(binary) != process:
+        raise CapacityUnavailable("mapped runtime PID/observation is unknown")
+    pid = parts[0]
+    prefix = process.partition(" " + str(ROOT / binary))[0]
+    try:
+        started = datetime.strptime(prefix.split(maxsplit=1)[1].strip(), "%a %b %d %H:%M:%S %Y").astimezone().timestamp()
+    except (ValueError, IndexError) as error:
+        raise CapacityUnavailable("mapped runtime start time is unknown") from error
+    summary = subprocess.run(["/usr/bin/vmmap", "-summary", pid],
+        capture_output=True, text=True, timeout=5, check=True).stdout
+    if (len(summary) > 262144
+        or re.findall(r"(?m)^Process:[ \t]+([^\r\n]+)$", summary) != [binary + " [" + pid + "]"]
+        or re.findall(r"(?m)^Code Type:[ \t]+([^\r\n]+)$", summary) != ["ARM64"]):
+        raise CapacityUnavailable("actual runtime process architecture is unknown/unsupported")
+    launches = re.findall(r"(?m)^Launch Time:[ \t]+([^\r\n]+)$", summary)
+    try:
+        if len(launches) != 1 or int(datetime.strptime(launches[0], "%Y-%m-%d %H:%M:%S.%f %z").timestamp()) != int(started):
+            raise ValueError("launch observation differs")
+    except ValueError as error:
+        raise CapacityUnavailable("actual runtime process launch time differs") from error
+    if processes(binary) != process:
+        raise CapacityUnavailable("actual runtime process changed during architecture read")
     result = subprocess.run(["/usr/sbin/lsof", "-nP", "-a", "-p", pid, "-d", "txt", "-FfDin"],
         capture_output=True, text=True, timeout=5, check=True).stdout
     if len(result) > 262144:
@@ -829,26 +849,19 @@ def _mapped_runtime_files(process: str, binary: str) -> None:
             records.append({})
         elif records and line[:1] in {"D", "i", "n"}:
             records[-1][line[0]] = line[1:]
-    prefix = process.partition(" " + str(ROOT / binary))[0]
-    try:
-        started = datetime.strptime(prefix.split(maxsplit=1)[1], "%a %b %d %H:%M:%S %Y").astimezone().timestamp()
-    except (ValueError, IndexError) as error:
-        raise CapacityUnavailable("mapped runtime start time is unknown") from error
-    required = {binary}
-    library = "libllama-server-impl.dylib"
-    # A loaded fixed-runtime runner must prove its implementation, even if lsof omits it.
-    if binary == "llama-server" or any(library in row.get("n", "") for row in records):
-        required.add(library)
-    for name in required:
-        target = ROOT / name
-        matches = [row for row in records if name in row.get("n", "") and Path(row["n"]).name == name]
-        identity = file_identity(target)
-        if target.stat().st_mtime > started:
-            raise CapacityUnavailable("runtime file changed after process start")
-        if (len(matches) != 1 or matches[0].get("n") != str(target)
-            or int(matches[0].get("D", "-1"), 0) != identity[0]
-            or int(matches[0].get("i", "-1")) != identity[1]):
-            raise CapacityUnavailable("mapped runtime bytes differ from frozen disk")
+    # Fixed ARM64 embeds this implementation in main; the separate dylib is x86-only.
+    if any("libllama-server-impl.dylib" in row.get("n", "") for row in records):
+        raise CapacityUnavailable("x86 implementation mapping violates ARM64 contract")
+    target = ROOT / binary
+    matches = [row for row in records if Path(row.get("n", "")).name == binary]
+    identity = file_identity(target)
+    if target.stat().st_mtime > started:
+        raise CapacityUnavailable("runtime file changed after process start")
+    if (len(matches) != 1 or matches[0].get("n") != str(target)
+        or int(matches[0].get("D", "-1"), 0) != identity[0]
+        or int(matches[0].get("i", "-1")) != identity[1]
+        or processes(binary) != process):
+        raise CapacityUnavailable("mapped runtime bytes/observation differ from frozen disk")
 
 
 def verify_runtime_api(host: HostObservation, base_url: str, send: Send, expected_version: str) -> None:
