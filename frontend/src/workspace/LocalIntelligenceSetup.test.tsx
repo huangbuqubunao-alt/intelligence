@@ -63,3 +63,100 @@ it("rejects malformed applied status then refreshes without writing", async () =
   await screen.findByText("Saved local model settings are invalid. Select the fixed model to repair them safely.");
   expect(fetcher.mock.calls.every(([, init]) => !init?.method)).toBe(true);
 });
+
+// Actual isolated /api/v1/settings/local-intelligence response, 2026-10-25.
+// SHA256 of the unchanged complete response: 08eb46880bd0c72daa09bd808cf5d5e8149007d6cd5d970f2e97b95b59b0888b.
+// Installation is UNAVAILABLE and settings grant no model qualification.
+const realThreeCatalogSetup = {
+  "status": "NOT_CONFIGURED",
+  "etag": "11166c17229ddab7eec68caa81bb9d87b65d89a4c6089cf0f6987b3538ee8c74",
+  "selected_candidate_id": null,
+  "actual_route": {
+    "provider": "ollama",
+    "model": "qwen3:8b",
+    "profile_id": null
+  },
+  "restart_required": false,
+  "blocking_work": [],
+  "error_code": null,
+  "candidates": [
+    {
+      "candidate_id": "local-grounding-qwen35-9b-fixed-runtime-v2",
+      "model": "qwen3.5:9b-q4_K_M",
+      "model_digest": "sha256:56671c2ab9385f9cfcb404638e32cd62d88e3501d44822208363c010179a3c90",
+      "runtime": "0.40.1",
+      "catalog_hash": "92b37a8d2c2dbfe8e41946fb88e11fda55f9517f2fe023e9eea76395d968559a",
+      "installation": "UNAVAILABLE",
+      "qualification": "NOT_GRANTED_BY_SETTINGS"
+    },
+    {
+      "candidate_id": "local-intelligence-qwen35-9b-ollama-0.40.6-v1",
+      "model": "qwen3.5:9b-q4_K_M",
+      "model_digest": "sha256:56671c2ab9385f9cfcb404638e32cd62d88e3501d44822208363c010179a3c90",
+      "runtime": "0.40.6",
+      "catalog_hash": "06ceaa109cc4cb05f40612c3e41235789191188ec7220be22421a7d924048da3",
+      "installation": "UNAVAILABLE",
+      "qualification": "NOT_GRANTED_BY_SETTINGS"
+    },
+    {
+      "candidate_id": "local-intelligence-qwen35-9b-ollama-0.40.9-v2",
+      "model": "qwen3.5:9b-q4_K_M",
+      "model_digest": "sha256:56671c2ab9385f9cfcb404638e32cd62d88e3501d44822208363c010179a3c90",
+      "runtime": "0.40.9",
+      "catalog_hash": "14a5f3f6888314d9dd1bb35ae4fd0327a3cff641214db24f4b0f446ce7a08525",
+      "installation": "UNAVAILABLE",
+      "qualification": "NOT_GRANTED_BY_SETTINGS"
+    }
+  ]
+};
+
+it("renders all three real finite catalogs and explains the unavailable service", async () => {
+  const fetcher = vi.fn(async (_path: string, _options?: RequestInit) => response({ local_intelligence: realThreeCatalogSetup }));
+  view(fetcher);
+  const radios = await screen.findAllByRole("radio");
+  expect(radios).toHaveLength(3);
+  for (const runtime of ["0.40.1", "0.40.6", "0.40.9"]) {
+    expect(screen.getByRole("radio", { name: `${model} · Ollama ${runtime}` })).toBeTruthy();
+  }
+  expect(radios.every(radio => (radio as HTMLInputElement).disabled)).toBe(true);
+  expect(screen.getAllByText("The local model service is unavailable. Start it locally, then read the status again.")).toHaveLength(3);
+  expect(screen.queryByRole("alert")).toBeNull();
+  expect((screen.getByRole("button", { name: "Save and apply Intelligence model" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(fetcher.mock.calls.every(([, init]) => !init?.method)).toBe(true);
+});
+it("retains compatibility with the prior two-catalog response", async () => {
+  view(vi.fn(async () => response({ local_intelligence: {
+    ...realThreeCatalogSetup, candidates: realThreeCatalogSetup.candidates.slice(0, 2),
+  } })));
+  expect(await screen.findAllByRole("radio")).toHaveLength(2);
+  expect(screen.queryByRole("alert")).toBeNull();
+});
+it("only permits the READY choice among three catalogs without treating it as qualification", async () => {
+  const candidates = realThreeCatalogSetup.candidates.map((entry, index) => ({
+    ...entry, installation: index === 1 ? "READY" : "RUNTIME_MISMATCH",
+  }));
+  view(vi.fn(async () => response({ local_intelligence: { ...realThreeCatalogSetup, candidates } })));
+  const radios = await screen.findAllByRole("radio") as HTMLInputElement[];
+  expect(radios.map(radio => radio.disabled)).toEqual([true, false, true]);
+  const button = screen.getByRole("button", { name: "Save and apply Intelligence model" }) as HTMLButtonElement;
+  expect(button.disabled).toBe(true);
+  fireEvent.click(radios[1]);
+  expect(button.disabled).toBe(false);
+  expect(screen.getAllByText("The installed Ollama version does not match the required version shown above. This selection cannot apply.")).toHaveLength(2);
+  expect(screen.getByText("Saving checks installed identity only. It does not download, load, run or qualify a model.")).toBeTruthy();
+});
+it.each([
+  ["empty", []],
+  ["four unique catalogs", [...realThreeCatalogSetup.candidates, { ...candidate, candidate_id: "unsupported-fourth" }]],
+  ["duplicate catalog identity", [...realThreeCatalogSetup.candidates.slice(0, 2), realThreeCatalogSetup.candidates[1]]],
+  ["malformed third catalog", [...realThreeCatalogSetup.candidates.slice(0, 2), null]],
+  ["unknown installation", [...realThreeCatalogSetup.candidates.slice(0, 2), { ...realThreeCatalogSetup.candidates[2], installation: "QUALIFIED" }]],
+  ["missing runtime", [...realThreeCatalogSetup.candidates.slice(0, 2), { ...realThreeCatalogSetup.candidates[2], runtime: "" }]],
+])("rejects %s without offering selection or writing", async (_label, candidates) => {
+  const fetcher = vi.fn(async (_path: string, _options?: RequestInit) => response({ local_intelligence: { ...realThreeCatalogSetup, candidates } }));
+  view(fetcher);
+  await screen.findByRole("alert");
+  expect(screen.queryByRole("radio")).toBeNull();
+  expect(screen.queryByRole("button", { name: "Save and apply Intelligence model" })).toBeNull();
+  expect(fetcher.mock.calls.every(([, init]) => !init?.method)).toBe(true);
+});

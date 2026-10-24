@@ -11,10 +11,12 @@ type Setup = {
   candidates: Candidate[]; blocking_work: { video_id: string; status: string }[];
 };
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
+// Matches local_intelligence_catalog.CATALOG: the fixed 0.40.1, 0.40.6 and 0.40.9 choices.
+const MAX_LOCAL_INTELLIGENCE_CANDIDATES = 3;
 function readSetup(raw: unknown): Setup {
   if (!object(raw) || !["NOT_CONFIGURED", "INVALID", "APPLYING", "APPLIED", "ROUTE_MISMATCH"].includes(raw.status as string)
       || !(raw.etag === null || typeof raw.etag === "string" && /^[a-f0-9]{64}$/.test(raw.etag))
-      || !Array.isArray(raw.candidates) || !raw.candidates.length || raw.candidates.length > 2) throw new Error("SETTINGS_STATUS_INVALID");
+      || !Array.isArray(raw.candidates) || !raw.candidates.length || raw.candidates.length > MAX_LOCAL_INTELLIGENCE_CANDIDATES) throw new Error("SETTINGS_STATUS_INVALID");
   const candidates = raw.candidates;
   if (!candidates.every(c => object(c) && ["candidate_id", "model", "catalog_hash", "runtime"].every(k => typeof c[k] === "string" && c[k].length > 0)
       && ["READY", "NOT_INSTALLED", "IDENTITY_MISMATCH", "RUNTIME_MISMATCH", "UNAVAILABLE"].includes(c.installation as string))
