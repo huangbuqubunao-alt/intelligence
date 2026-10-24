@@ -1,0 +1,21 @@
+{
+  "classification": "BOUNDED_NEW_ARTIFACT_PREFLIGHT_ONLY",
+  "authorization": "User permits necessary lower-memory model adjustments and isolated download/validation by default, no large redevelopment.",
+  "reason": "9b original+2GiB resource gate unmet; both fixed4b modes failed and remain stopped. Evaluate one lower-memory standard Q3_K_S pure-text9b artifact through existingqwen3.5 adapter, no new business lifecycle.",
+  "source_repository": "unsloth/Qwen3.5-9B-GGUF",
+  "source_revision": "3885219b6810b007914f3a7950a8d1b469d598a5",
+  "base_model": "Qwen/Qwen3.5-9B",
+  "license": "Apache-2.0 (primary repository card metadata)",
+  "not_official_ollama_artifact": true,
+  "file": "Qwen3.5-9B-Q3_K_S.gguf",
+  "bytes": 4316865760,
+  "sha256": "162050d39ebae6b8a87435f282bcb7a0e3fab7b2444db730966b3fef1ed0179e",
+  "url": "https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/3885219b6810b007914f3a7950a8d1b469d598a5/Qwen3.5-9B-Q3_K_S.gguf",
+  "scope": "Pure text only. No projector/vision claims. Native metadata/runtime/complete-token/slot/model checks must independently prove compatibility; no profile grant from same family.",
+  "preliminary_memory_formula": "actual full created artifact payload bytes +2GiB fresh before load, at least6464349408B (~6.021GiB), not a peak guarantee. Recompute after manifest creation.",
+  "runtime": "Exact installed0.40.9 with existing fixed threebinaries; no upgrades.",
+  "limits": "Download/data import only now, no load/generation before new exact manifest/template/runtime freeze and independent review. If compatible and approved then originalEnglish diagnostic once only, same original messages/schema/evidence/sampling/thinktrue/8192/300, firstactualfailureSTOP, no outputrepair/retry/othercase/qualification.",
+  "risk": "Third-party lossy quantization can harm quality. Original semantic and full later qualification standards unchanged. No production model choice/config or credentials modified.",
+  "actual_loads": 0,
+  "actual_generations": 0
+}
