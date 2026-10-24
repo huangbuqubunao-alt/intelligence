@@ -1,0 +1,44 @@
+{
+  "at": "2026-10-24T12:03:00.395777+00:00",
+  "actual_binary_metadata": [
+    {
+      "name": "ollama",
+      "path": "/Applications/Ollama.app/Contents/Resources/ollama",
+      "bytes": 71493488,
+      "sha256": "74e3e350f2e492b4de9b4d45954b35bec344cfe85b7b7cd6a19f4b12ed4f02c2",
+      "dev": 16777232,
+      "inode": 140496479,
+      "mtime_ns": 1792833210950229237
+    },
+    {
+      "name": "llama-server",
+      "path": "/Applications/Ollama.app/Contents/Resources/llama-server",
+      "bytes": 19177440,
+      "sha256": "f6162e1ccaa57477e73f5450cd43feb2ef0eb300cd580f9cd57ff4c42693ee79",
+      "dev": 16777232,
+      "inode": 140496476,
+      "mtime_ns": 1792833210547697049
+    },
+    {
+      "name": "libllama-server-impl.dylib",
+      "path": "/Applications/Ollama.app/Contents/Resources/libllama-server-impl.dylib",
+      "bytes": 3794944,
+      "sha256": "9763c36521199851f70045d11c383af84ddc220af414f29d618a000979617eef",
+      "dev": 16777232,
+      "inode": 140496392,
+      "mtime_ns": 1792833208602793139
+    }
+  ],
+  "cli": "ollama version is 0.40.10",
+  "new_loads": 0,
+  "new_generations": 0,
+  "classification": "PRE_EXECUTION_RUNTIME_DRIFT_CLOSED",
+  "cause_proven": "Actual files/version changed; update initiator unknown. No attribution claim.",
+  "prior_runtime": "0.40.9",
+  "current_runtime": "0.40.10",
+  "old_profile_and_freeze": "Remain immutable, not relabelled as0.40.10",
+  "decision": "Download fixed official0.40.9 runtime archive into isolated ignored directory; verify official release digest, safe archive members, binary identity against prior0409. Never replace Applications app or owner config. No model execution before new exact-path package and independent review. If bytes differ, stop and assess before using.",
+  "authorization": "User continuing default approval for necessary isolated runtime/model adjustments; no app installation or production dependency change.",
+  "new_model_loads": 0,
+  "new_model_generations": 0
+}
