@@ -1,0 +1,11 @@
+{
+  "classification": "R1_UNCONDITIONAL_IMPLEMENTATION_MAPPING_FINDING_WITHDRAWN",
+  "prior_report_preserved": "CONFIGURABLE_BINDING_R1_REJECT_2026_10_24.json",
+  "actual_primary_evidence": "/Users/hua/Documents/yia-worktrees/readiness-model-diagnostic/.var/model-diagnostic-q3ks/review-r1",
+  "architecture_manifest_sha256": "cd411ce56be12b641b64b2ee0e3b30ffb74a1f660d4a233f55d6bd115238f43c",
+  "correction": "Fixed llama-server arm64 slice does not depend on x86_64-only implementation dylib. Missing impl mapping alone did not establish an ARM64 defect. Unconditional added requirement is itself an ARM64 false rejection; neither candidate has been integrated.",
+  "bounded_next": "QA then product author serially proves actual process ARM64 via vmmap PID/launch contract, requires the fixed executable mapping, rejects unknown/Rosetta/x86 and inappropriate impl mappings. No x86 framework or semantic/test weakening. Preserve rejected script, package, RED and review evidence.",
+  "q3_model_loads": 0,
+  "q3_model_generations": 0,
+  "main_or_owner_changes": false
+}

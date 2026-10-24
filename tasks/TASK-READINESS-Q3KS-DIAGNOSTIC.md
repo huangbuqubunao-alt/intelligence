@@ -53,6 +53,12 @@ Use the separately verified official0.40.9 archive in the fixed isolated
 the original0.40.9 bytes; no Applications install or owner configuration change.
 Bind the actual daemon PID/start/argv through the new frozen `daemon_owner`
 package entry. The unchanged old package remains historical evidence.
+The independent Mach-O and actual `vmmap` evidence establishes an ARM64-only
+diagnostic contract. Do not require the x86-only implementation dylib on ARM64.
+Prove actual process Code Type/PID/launch against the same process observation;
+require the exact main executable mapping, reject unknown/Rosetta/x86 and
+inappropriate implementation mappings. Preserve the rejected unconditional
+guard and its review evidence; do not implement an x86 dependency framework.
 Fresh resource lower bound is actual complete payload bytes plus 2 GiB,
 6464360941 bytes. This is not a peak-memory guarantee or a relaxed old-model gate.
 
