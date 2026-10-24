@@ -1,0 +1,20 @@
+{
+  "at": "2026-10-24T21:26:05.706832+00:00",
+  "classification": "USER_AUTHORIZED_FIXED_SMALLER_QUANT_ARTIFACT_AND_ONE_DIAGNOSTIC_PLAN",
+  "repository": "unsloth/Qwen3.5-9B-GGUF",
+  "revision": "3885219b6810b007914f3a7950a8d1b469d598a5",
+  "file": "Qwen3.5-9B-UD-IQ2_M.gguf",
+  "bytes": 3649365216,
+  "sha256": "a31b6b4c603ddd66b5496ee065c9dd13b2b6de77dce9e5d59609aef8d39868e7",
+  "source_tree_sha256": "4cf47be3d624a1141db46bdb6a158bb22a998a2bec51fe438617cba5ae947b22",
+  "url": "https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/3885219b6810b007914f3a7950a8d1b469d598a5/Qwen3.5-9B-UD-IQ2_M.gguf",
+  "license": "Apache-2.0; same frozen original repository/base model as priorQ3",
+  "reason": "Q3 nonthinking actualprecheck deniedmemory,0loads0generations; IQ2_M smallerpayload uses same payload+2GiB gate without lowering it",
+  "expected_payload_plus_2gib_bytes": 5796860397,
+  "readiness": "DOWNLOAD_IN_PROGRESS_NO_MODEL_LOAD_OR_GENERATION",
+  "max_real_generations": 1,
+  "original_case_and_semantic_standards_unchanged": true,
+  "options": "same8192output/16384context/300seconds/sampling/nativefalse; no source/prompt/outputrepair",
+  "production_or_qualification_changes": false,
+  "transfer": "preinstalled huggingface_hub1.24.0/hf_xet1.5.2; publictokenFalse, isolatedHF_HOME/cache, no depschange; priorfull/rangepartials retained; fullLFSchecksum mandatory"
+}
