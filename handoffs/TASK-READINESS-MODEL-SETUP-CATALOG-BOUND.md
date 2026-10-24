@@ -92,3 +92,16 @@
 ## 整合结果
 
 未整合、未发布。
+
+
+## Independent bounded review — APPROVE
+
+Reviewer `/root/long_completion_review_r1`, dedicated WT `readiness-model-setup-catalog-review`; candidate `ffa95fa77e36bd3e1a0a262007f5834e2c779b49`, base `6ed56192c65c395ba39dffcd423aecacb256856a`. Read task/package and repository specifications, reviewed tests first and complete base-to-candidate diff. Graph inspection independently confirms backend `CATALOG` has exactly three fixed0401/0406/0409 entries, and status returns that catalog with `NOT_GRANTED_BY_SETTINGS`. The actual captured response SHA `08eb46880bd0c72daa09bd808cf5d5e8149007d6cd5d970f2e97b95b59b0888b` and complete test fixture are structurally identical. No reproducible P0/P1/P2 found.
+
+The implementation is only the named finite upper bound3/comment replacing stale2. It does not remove nonempty checks or permit unbounded arrays. Duplicate candidate identity, malformed third entry, missing runtime, unknown installation and four-item inputs still reject the whole response without selection/write. Existing prior1/2 handling, selected identity/APPLIED actual-route consistency, installation READY-only selection/save and honest no-qualification wording remain. Tests only append meaningful captured-response/negative cases; no existing assertion was removed or weakened. No new dependency, source backend, Schema, qualification, Cloud or owner/configuration boundary changed.
+
+Independent checks: complete `LocalIntelligenceSetup.test.tsx` **19 PASS /0 FAIL /0 SKIP,0.834s**; TypeScript PASS; production build PASS,52modules, `index-D665EVVu.js`,570ms; base-to-candidate and working diff checks PASS. All **583** frozen source/test/config hashes match author freeze and remain unchanged before/after independent checks. Author's original RED2FAIL/17PASS and full frontend39files/1026PASS logs/size/hash were verified, but full frontend was not redundantly rerun by this reviewer. No Python changed, so root's already running whole-backend regression was not duplicated or touched. Existing approved node_modules was linked only in this review WT; no install/upgrade occurred.
+
+Evidence `.var/model-setup-catalog-review/{focused.log,typecheck.log,build.log,source-before.json,source-after.json,contract-crosscheck.json,review-evidence.json}`; review manifest SHA **`f31580bf1fd0a4025c3b11d167ce44c67112a3ef4f77a9dd59ecda65b251c6ac`**. Five-axis review finds the smallest finite contract correction appropriate, no unsafe broadening or new material performance cost. Future fourth catalog still requires an explicit finite contract update rather than silent acceptance.
+
+**APPROVE this engineering/UI contract candidate.** Root must still integrate and verify its actual backend/final build in the real GUI; this review does not claim a real-browser rerun, qualified model, positive Intelligence success, whole-Goal completion or publication. Reviewer made0model/HTTP/production-owner calls and edited only this handoff. Clean STOP after handoff-only commit.
