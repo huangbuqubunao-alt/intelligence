@@ -1,0 +1,36 @@
+{
+  "kind": "ISOLATED_NEW_MODE_DECISION_NOT_QUALIFICATION",
+  "candidate_id": "qwen35-4b-instruct-reasoning-runtime0409-diagnostic-v1",
+  "authorization": "User persistent authorization for necessary local model adjustments, configurable model boundary and no large redevelopment. No new download, dependency, production configuration or formal data changes.",
+  "decision": "Prepare exactly one independently frozen non-thinking diagnostic after independent preflight; no actual call before that review.",
+  "previous_candidate": "thinking candidate failed original positive gate and remains stopped/closed; all previous files and once marker preserved",
+  "previous_raw_sha256": "ca45e21675f3e8a8675bf28b3a1c9f0820ab8e78dd59dd625ff2ee512cf50fb0",
+  "request_delta_from_previous_candidate": [
+    "think true to false ONLY"
+  ],
+  "same": [
+    "weights",
+    "actual0409runtime",
+    "original real English case",
+    "full messages/schema/source/evidence/focus",
+    "all sampling/options/context16384/output8192/300seconds",
+    "real native complete token/idle-slot capacity",
+    "resource gate and one-shot lease",
+    "semantic expectedINTELLIGENCE and firstfailureSTOP"
+  ],
+  "official_mode_source": "https://huggingface.co/Qwen/Qwen3.5-4B#instruct-or-non-thinking-mode",
+  "official_sampling": "Model card non-thinking reasoning preset exactly matches original frozen temperature1.0/top_p.95/k20/min0/presence1.5/repeat1.0; no sampling tuning.",
+  "official_card_sha256": "e026c47f4545dc3cf56226081d5c263e6919adc024f250281485d0cb72d0d2d1",
+  "why_bounded": "Same installed fixed model, published alternate API mode, minimal adapter configuration; no model output repair or best-of-cases selection. Finite final mode alternative, not automatic search.",
+  "max_generations": 1,
+  "after_any_actual_result": "STOP. Failure grants no executable profile/qualification and no more cases. A positive diagnostic only permits separately reviewed production adapter and completely independent full original qualification from case1; never choose diagnostic output in place of a failed qualification result.",
+  "actual_generations_so_far": 0,
+  "production_qualified": false,
+  "official_card_conflict": "Captured card contains two different non-thinking reasoning recommendations: earlier section temperature1/top_p.95/top_k20/presence1.5, later Best Practices temperature1/top_p1/top_k40/presence2. This candidate explicitly freezes the earlier section to preserve every original option, not a claim of a unique uniform official preset; no parameter reselection after output.",
+  "independent_consult": {
+    "agent": "/root/long_completion_review_r1",
+    "decision": "May prepare within existing authorization, exact mode-only new candidate, concrete harness/package still require independent preflight",
+    "source_renderer": "Official0409 qwen35.go217-220 explicitfalse;349-355 empty thinking suffix, renderer.go71-73 true empty-think flag",
+    "limits": "Original thinking FAIL retained, new native false N mandatory, global exclusive once marker, no qualification receipt, failure STOP and no diagnostic-output selection into later qualification."
+  }
+}
