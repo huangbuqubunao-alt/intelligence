@@ -5,7 +5,7 @@ PRD, System Design, reuse register and the two linked validation reports.
 
 Task: TASK-READINESS-Q3KS-DIAGNOSTIC
 Role: Implementer / subsequent independent Reviewer
-Agent: existing model_diagnostic_qa_writer / local_import_source_review
+Agent: existing model_diagnostic_qa_writer / long_completion_review_r1
 Base: existing QA branch's clean HEAD; record exact SHA in handoff
 Worktree: /Users/hua/Documents/yia-worktrees/readiness-model-diagnostic
 Allowed scope: new ignored diagnostic/tests/evidence and task handoff only

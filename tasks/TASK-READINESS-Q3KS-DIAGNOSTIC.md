@@ -15,7 +15,7 @@ No production qualification, receipts, other cases, paid cloud, or owner data.
 - Implementer: `/root/model_diagnostic_qa_writer`.
 - Worktree: `/Users/hua/Documents/yia-worktrees/readiness-model-diagnostic`.
 - Base: existing clean QA branch, record its exact HEAD before modification.
-- Reviewer: `/root/local_import_source_review`, after implementer clean STOP.
+- Reviewer: `/root/long_completion_review_r1`, after implementer clean STOP.
 - Root: freeze exact request/manifest/package, resource and ownership checks,
   actual once-only execution and independent semantic review.
 - Parallel now: independent configurable-model-binding review in its own WT.
@@ -47,6 +47,12 @@ Manifest `4070000a6455cb321fd5f0f07974368573e66650db4ade1e920ee384f3f279f7`.
 Canonical manifest is a normal blob file; v2 tag reference is a relative symlink.
 Require the exact reference target and unchanged lstat/readlink at each boundary.
 Exactly four fixed payloads, no projector or `--mmproj`; reject unknown payloads.
+The external Applications installation changed to0.40.10 before execution.
+Use the separately verified official0.40.9 archive in the fixed isolated
+`pinned-ollama-0409-20261024/runtime` directory. All three critical hashes match
+the original0.40.9 bytes; no Applications install or owner configuration change.
+Bind the actual daemon PID/start/argv through the new frozen `daemon_owner`
+package entry. The unchanged old package remains historical evidence.
 Fresh resource lower bound is actual complete payload bytes plus 2 GiB,
 6464360941 bytes. This is not a peak-memory guarantee or a relaxed old-model gate.
 
