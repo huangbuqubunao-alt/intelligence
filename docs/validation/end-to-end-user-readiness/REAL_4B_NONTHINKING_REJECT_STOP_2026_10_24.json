@@ -1,0 +1,63 @@
+{
+  "recorded_at": "2026-10-24T13:14:51.687295+08:00",
+  "classification": "REJECT_STOP_DOMAIN_AND_FROZEN_POSITIVE_GATE_FAILED",
+  "candidate": "qwen3.5:4b-q4_K_M nonthinking",
+  "runtime": "0.40.9",
+  "actual_result": {
+    "evidence": [
+      {
+        "end_ms": 46320,
+        "evidence_id": "c0eb749542c1d64ab0f0c8ca7e9c54ce90d61c1eb438655c91a927e34e7ba0b7",
+        "start_ms": 46320
+      }
+    ],
+    "result": "NO_NEW_INTELLIGENCE"
+  },
+  "actual_transport": {
+    "done": true,
+    "done_reason": "stop",
+    "prompt_eval_count": 722,
+    "eval_count": 128
+  },
+  "wall_seconds": 5.1406715829944005,
+  "capacity": {
+    "N": 722,
+    "P": 8192,
+    "C": 16384,
+    "required": 8916
+  },
+  "independent_review": {
+    "agent": "/root/local_import_source_review",
+    "verdict": "REJECT_STOP",
+    "findings": [
+      "NO_NEW omits first supplied Evidence",
+      "Second Evidence ID requires46320–62600ms; actual46320–46320ms is an unacceptable grounding error",
+      "No positive substantive Intelligence; not output/context exhaustion"
+    ]
+  },
+  "evidence": {
+    "generation-raw.json": {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-model-diagnostic/.var/model-diagnostic-nonthinking/real-once-20261024/generation-raw.json",
+      "sha256": "52f0ecab08c48ae3503d50865ab5bded395ef1496717ab7731ff50a4a48443d8"
+    },
+    "diagnostic-result.json": {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-model-diagnostic/.var/model-diagnostic-nonthinking/real-once-20261024/diagnostic-result.json",
+      "sha256": "ea9e92fefa4ad8cbc1b912f897612207ee8083fd3647c5f2cb4a9f858a86a4c9"
+    },
+    "generation-start.json": {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-model-diagnostic/.var/model-diagnostic-nonthinking/real-once-20261024/generation-start.json",
+      "sha256": "dc9b86f5c13025ad5fe96c49495fae780adf55ad8bdd154e493752db5a25e9ac"
+    },
+    "capacity.json": {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-model-diagnostic/.var/model-diagnostic-nonthinking/real-once-20261024/capacity.json",
+      "sha256": "39c7aa166f4b484195d6d6cd8b1bcbcfac1cb070dbbcb46a91e405ed1dabd4cf"
+    }
+  },
+  "actual_generations_this_mode": 1,
+  "retries": 0,
+  "production_qualified": false,
+  "case_receipts": 0,
+  "both_4b_modes": "failed and stopped; never executable catalog/profile/qualification authority",
+  "cleanup": "own idle daemon54649 normalSIGTERM after completed result, no protectedapp/formaldata changes",
+  "separation": "diagnostic-result.json status AWAITING_INDEPENDENT_SEMANTIC_REVIEW represents structural parsing only; this report records independent domain rejection without rewriting that file or raw response."
+}
