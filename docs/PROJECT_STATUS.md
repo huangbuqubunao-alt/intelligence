@@ -1,3 +1,5 @@
+> 2026-10-24 续作：root1a60cd5 clean；集中模型绑定作者81a2d94/产品7370931+769a630已完成1706影响组和1017前端，独立review进行，已确认缺implementation dylib实际映射仍接受的P1，未整合。原4b thinking和nonthinking都真实FAIL/STOP（后者遗漏Evidence且时间范围错误），不授资格。固定第三方Unsloth 9b纯文本Q3_K_S已独立核验4payload/4316877293B/manifest4070000…，仅隔离metadata import、0load0gen；新QA脚本在旧独立QA WT适配，须独审后root至多一次原English诊断。payload+2GiB为6464360941B新资源下界，不放宽旧9b门槛。正式main/owner未动；Goal未完成，最终全测/真实正向/完整恢复/手册/发布门禁仍待。
+
 > 2026-10-24 13:05 当前续作：正式产品未发布，owner/config/凭据未触及。root当前已整合独立R2修复（d543b1c/38399a5/5405a50）：固定旧源码完整5940为5937PASS/3FAIL/2warnings、543文件全等；原三失败修复后root完整三个相关文件99PASS/83.53s、compile/Ruff/strict121通过，538源文件全等。最终全仓仍须在当前配置整改完成后重跑，不能把相关组当全绿。
 >
 > 配置整改 TASK-READINESS-CONFIGURABLE-MODEL-BINDING 仅在独立WT推进，唯一writer /root/model_diagnostic_qa_writer；先前writer quota停止、仅handoff已完整保留后串行续作。已发现并修正候选中的两个问题：实际0409二进制误绑旧0406版本；任何资格记录可能覆盖用户所选模型。中央有限模型/运行时描述收敛到已有Adapter，保留全部历史profile/wire/catalog hash，不改Schema/业务持久化/Cloud。完整affected及独立审查待完成，未接受/整合新代码。
