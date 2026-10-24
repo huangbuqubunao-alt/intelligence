@@ -1,0 +1,401 @@
+{
+  "at": "2026-10-24T16:41:17.579886+00:00",
+  "classification": "REAL_HEADFUL_MACOS_GUI_ACCEPTED_UI_CONTRACT_AND_UNCHANGED_ROOT_BACKEND",
+  "backend_revision": "6ed56192c65c395ba39dffcd423aecacb256856a",
+  "ui_revision": "5233d46b13e4712282f440d08d86c3ac34eaa0ee",
+  "ui_asset": "index-D665EVVu.js",
+  "ui_not_yet_integrated_to_keep_full_regression_frozen": true,
+  "gui_url": "http://127.0.0.1:6348",
+  "api_url": "http://127.0.0.1:6349",
+  "checks": {
+    "actual_native_import_over_two_hours_refused": true,
+    "subsequent_valid_text_import_with_summary_and_evidence": true,
+    "following_and_content_no_stale_error": true,
+    "actual_three_catalogs_read_and_only_matching_runtime_ready": true,
+    "gui_save_apply_then_reconnect": true,
+    "settings_do_not_grant_qualification": true,
+    "two_actual_gui_waiting_model_zero_invocation_tasks": true,
+    "cancel_one_other_still_blocks_backup": true,
+    "cancel_both_readiness_true": true,
+    "repeat_via_normal_ui_proxy_http_200_and_all_sql_files_unchanged": true,
+    "independent_process_restart_all_sql_files_unchanged": true,
+    "gui_backup_create_download_preview_explicit_RESTORE_and_reconnect": true,
+    "restore_all_tables_equal": true,
+    "table_count": 79,
+    "restore_all_data_equal": true,
+    "physical_data_count": 25,
+    "machine_selection_equal": true,
+    "cancelled_panel_after_restore_and_page_reload": true,
+    "actual_model_invocations": 0,
+    "paid_cloud_invocations": 0,
+    "fake_intelligence": 0
+  },
+  "restore_id": "db56f7d714a24517b9407c7ebf7f218e",
+  "backup": {
+    "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/17-current-cancelled-backup.zip",
+    "bytes": 7480139,
+    "sha256": "df3fdbce1fd477fca0393ec8c57cb14183d9f6b4851d4bad194baaa13526c42a"
+  },
+  "sql_and_data_snapshots": [
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/asr-requal-20261020/local-substantive-control-20261024/finalgui-two-waits-stable-oct25.json",
+      "bytes": 39550,
+      "sha256": "123de1bf617e898a8120617f2a981da318d22f4fe0581c91f4259a9c5a4e2fca"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/asr-requal-20261020/local-substantive-control-20261024/finalgui-one-cancel-oct25.json",
+      "bytes": 39720,
+      "sha256": "36cb429ad647a2c0779f5abf9378e93c6ce255942e90467c88258aff6c8f4b38"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/asr-requal-20261020/local-substantive-control-20261024/finalgui-both-cancel-oct25.json",
+      "bytes": 39720,
+      "sha256": "4b051dece0d4fa6f4f6393bcf7251477cc2a5cc151701e6a9b5a2526ce550791"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/asr-requal-20261020/local-substantive-control-20261024/finalgui-before-backup-oct25.json",
+      "bytes": 39669,
+      "sha256": "56033a7a57deaa5be8c8e66a2075add5ac6a73e9272b39644ee958a5c1725722"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/asr-requal-20261020/local-substantive-control-20261024/finalgui-after-real-repeat-oct25.json",
+      "bytes": 39669,
+      "sha256": "76c24cc1d71a70208fc4aa246dc984da12c2ab27cbb01cafba10f65d18a3365e"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/asr-requal-20261020/local-substantive-control-20261024/finalgui-before-normal-restart-oct25.json",
+      "bytes": 39669,
+      "sha256": "3e490584cb94a7d1c7423cfa7f5be5c0131762f404283471db9102285e20463d"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/asr-requal-20261020/local-substantive-control-20261024/finalgui-after-normal-restart-oct25.json",
+      "bytes": 39669,
+      "sha256": "d4631e36660a1d50871a69ac2f067d72146f1425d9dc6490717be0fd45fdc996"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/asr-requal-20261020/local-substantive-control-20261024/finalgui-before-restore-oct25.json",
+      "bytes": 39669,
+      "sha256": "237090bfd8ff74db3d7f097dcbb95e55961164415c5a7066a5abf61e535033fe"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/asr-requal-20261020/local-substantive-control-20261024/finalgui-after-restore-oct25.json",
+      "bytes": 39669,
+      "sha256": "89bffed4bdf4950297d8d57ac5d8032d2ed09572b67022a2abfd1d8bd26d8e82"
+    }
+  ],
+  "raw_evidence": [
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/01-settings-ready.png",
+      "bytes": 103443,
+      "sha256": "d05f04213c116820cb146bd08b7400c0e28badec79a48a765b0f6bff23bfff57"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/01-transcription-ready.txt",
+      "bytes": 610,
+      "sha256": "6bd964aca9eec19998916a14b2beed541eda03fd9c09aade66de099b964d2fe7"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/02-text-evidence-and-closed-model.png",
+      "bytes": 110259,
+      "sha256": "e5273823a72b073628c046cc043885e25892ffc5f30e17874b9d538bb45824fa"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/03-overlong-real-error.png",
+      "bytes": 103875,
+      "sha256": "5ad4ce331d09b963bcf65561c992401479af06e9e5ef36e6a914e22ebfe678d8"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/04-overlong-error.txt",
+      "bytes": 1064,
+      "sha256": "c6eab301fc105f4fb3ac8dfbdb69bd05bfd043e563892f1259fe980e6e8c1c15"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/04-overlong-failed-in-dialog.png",
+      "bytes": 104449,
+      "sha256": "dac4ace1b325ea15846322508362efb3db07739247eeff77ba95ecbb4d2b079f"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/05-subsequent-valid-import.png",
+      "bytes": 101052,
+      "sha256": "335ff2f87699f7e841c7d29fe3ed6bf3d4ee83ce6163fdde14ea8330ddcfabe0"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/06-following-no-stale-error.json",
+      "bytes": 598,
+      "sha256": "3fff99f9c924a60fc8c0be657ef55dcb890400e10653b87a24856add16d46113"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/06-following-no-stale-error.png",
+      "bytes": 45478,
+      "sha256": "be3392d429683fe38f50c648766d1d040a78176dee635370d0ef14b8fbfb57ce"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/07-content-no-stale-error.json",
+      "bytes": 810,
+      "sha256": "d29a6534119378d8bc55b31421fe9b73b66bcb1f35ee1f420fdb2cc75c94ac89"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/07-content-no-stale-error.png",
+      "bytes": 70450,
+      "sha256": "a1de224e7e82fbf7d6eb9b583e60c226696411e7d97644e8690e4df4d9800ad9"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/08-actual-three-catalog-settings.png",
+      "bytes": 115604,
+      "sha256": "71624b559b451d34988ccc1c6742f9e6b1535a31ad81a8d65bacba622cfe031a"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/08-actual-three-catalog-settings.txt",
+      "bytes": 592,
+      "sha256": "d5e55f6db9d1cadd17e67593a1c14d173e1e2e70198c10a6e486a12adbd6df20"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/09-model-configuration-applied.png",
+      "bytes": 52815,
+      "sha256": "03c999d7368a6c3aa1ff2fc6b5597fc290ae13187329b7cb5dae75f9abf65156"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/09-model-configuration-applied.txt",
+      "bytes": 675,
+      "sha256": "5279a1f258d921e5dff3dc51a413370ca0dc2bde71c784acf18f050084d8d197"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/10-before-wait-models-empty.json",
+      "bytes": 13,
+      "sha256": "a6fe9ec6e26a38d99fca418b69826e0238b7a2bb319ff05eb153a6fcfd1fa28d"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/10-first-real-waiting-model.png",
+      "bytes": 147996,
+      "sha256": "344942e52a7714ae84bdadb851a036201424628f27e7af6d888c6b524019e838"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/10-first-real-waiting-model.txt",
+      "bytes": 10555,
+      "sha256": "a47d7833cccddce69a24ae47a672750aac519f24c45e28a2cef9da7f540e1c36"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/11-two-wait-backup-status.json",
+      "bytes": 169,
+      "sha256": "01152a454e801ada694c344f85d5f7b75e07b2885c26d18e10dbd8973f0153f9"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/11-two-waits-backup-blocked.png",
+      "bytes": 116471,
+      "sha256": "de91000284ff2238f5d7c5bbca07de6d7321a2fbc93703b38a33a72dbd61d139"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/12-cancel-first.png",
+      "bytes": 198540,
+      "sha256": "755aba61d10e328ccbe139f03ecc286cca8b3620b2306f68b1e361494f82a22c"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/12-cancel-first.txt",
+      "bytes": 9604,
+      "sha256": "92545d47c6f13fb799587d0ee3c106a9b4cd23387a6dd26c0de59da3c1f3ff1d"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/12-one-wait-still-blocked-status.json",
+      "bytes": 169,
+      "sha256": "01152a454e801ada694c344f85d5f7b75e07b2885c26d18e10dbd8973f0153f9"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/13-one-wait-still-blocks-backup.png",
+      "bytes": 116331,
+      "sha256": "ca9734ee0ab4b385c0d097138ee175f025a81921c061b18872c02c26a2f40f1f"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/14-both-cancel-backup-ready.json",
+      "bytes": 149,
+      "sha256": "5cc044f29207abdacb2a03b2a2f7de5c0da8c84ae74a8f0eedf9f69ef79f2da3"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/14-both-cancelled.png",
+      "bytes": 160430,
+      "sha256": "d470879f83526a3e77d52052fd1f5ad2badf58b76383e15a8a504bad98824046"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/14-both-cancelled.txt",
+      "bytes": 10216,
+      "sha256": "3bb7dd0dfc6dbce0bcba6aa184162a43768f622e2ff388d8d158b12d0da33760"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/15-cross-origin-rejection.json",
+      "bytes": 96,
+      "sha256": "73690375f7241bc6a42de6c06ec374d7fc8d89d7cfbf3553ca0e56b69ed2542e"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/15-readonly-ledger-and-idempotence-proof.json",
+      "bytes": 2947,
+      "sha256": "d9889eaf1e741d75ed84d733ea533d5bb6d56e2d2b5cc1c30a0b1725c8a5710d"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/15-real-idempotent-cancel.json",
+      "bytes": 3814,
+      "sha256": "29375d53351b5fc8c03dbfdbeae314f1378725f7235e958ee00bf84561129cef"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/16-both-cancel-backup-ready.png",
+      "bytes": 16619,
+      "sha256": "1596b9dd02d9c18c954a13dff7720559b6eda53dfda2437180dddf4c942f1677"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/17-backup-created.png",
+      "bytes": 19392,
+      "sha256": "3dbbe64bf320192b2198526c5a3b9561f576459e87fef28bf1671b0e7a6b7129"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/17-download-proof.json",
+      "bytes": 907,
+      "sha256": "8b61ca68a650a1bbb0c2d95edc259c11cd7da1f5955e713cd6d44380cffb9715"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/18-normal-restart-backup-status.json",
+      "bytes": 149,
+      "sha256": "5cc044f29207abdacb2a03b2a2f7de5c0da8c84ae74a8f0eedf9f69ef79f2da3"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/18-normal-restart-process.json",
+      "bytes": 1176,
+      "sha256": "4898edb036251beaebd627ce458d270c19665f0aa295826a652732d601a90667"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/19-restore-preview.png",
+      "bytes": 118941,
+      "sha256": "d4be5a586e737911ba6cade10ba5c32232cbc06f46e00010fac462675320639d"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/19-restore-preview.txt",
+      "bytes": 3490,
+      "sha256": "230748bb34f51f94a4a220009d326a265c1948d851afddc8a8f9c111035db989"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/20-restore-explicit-confirmation.png",
+      "bytes": 19711,
+      "sha256": "3b9671598bc434c992a33e2ad493f1341667dea2b827b3e3629293b5f09374ab"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/21-after-restore-status.json",
+      "bytes": 301,
+      "sha256": "14452d1a1f8401d1160e428fa62b02469ea7eae50ad4bd02b1fe14e39ead5998"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/21-restore-reconnected.png",
+      "bytes": 17224,
+      "sha256": "2b7df45cefeff46ba81c81a8454edacf46e5d84cb34130113da06dd5b920ca0c"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/21-restore-reconnected.txt",
+      "bytes": 3233,
+      "sha256": "c9da8498f777714af29a10df4a2f6bc4032152f75758726b44280e76c05d5690"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/22-restored-cancelled-panel.json",
+      "bytes": 10853,
+      "sha256": "4c1d34c9cfa5ade5b4b2d9a4ca159a7d98c3a18a8c43029b7c8b9db484405ee2"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/22-restored-cancelled-panel.png",
+      "bytes": 119987,
+      "sha256": "2aa38d8edcaee5ff37e977cfd82ff9b6512c42837c2b4678de04c562314a07f0"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/23-current-asr-tuple-seal-recheck.json",
+      "bytes": 4476,
+      "sha256": "fcae9f577c63b4ea6668bd590ea9c242bbf64380e4fdd9992190db9c7793fcc6"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/24-restored-cancelled-viewport.png",
+      "bytes": 91303,
+      "sha256": "11a605630a382aaddf637c29268465c48198169f61b56316fa4e828e781aacd3"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/accepted-ui-preview-process.json",
+      "bytes": 510,
+      "sha256": "2fc91b03c5f9712d7159d34bd6bdf421aca1f9b0bde819b6b2c2fbf401c33b12"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/accepted-ui-preview.log",
+      "bytes": 39,
+      "sha256": "6a5a15dd50815f637385ddc7edf7111c716bc66024c490950bed78c79d123efa"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/api-normal-restart.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/api-relative-paths-process.json",
+      "bytes": 1168,
+      "sha256": "2bf819fe62f6fc41c6fe5238e11515e85cdb5addfc361706ca36dea2a3b6fb88"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/api-relative-paths.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/api.log",
+      "bytes": 110,
+      "sha256": "8dc74e3034326489b4d90fe29641f11bab5ba9af694b48d5c9b4b835c8e07d9f"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/before-start-snapshot.json",
+      "bytes": 16812,
+      "sha256": "6c9b7485cbc014ac95e5546760bd95acd0ea5787a78fa807870d241e03685ae9"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/chrome-process.json",
+      "bytes": 568,
+      "sha256": "6ad7896ed8ec036db6bb39a4f1b02d2b16c95da0e4f650e4bee35fe5a26a6626"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/chrome.log",
+      "bytes": 14489,
+      "sha256": "ea78c69cd97785bb07a3ad538bd840fba92b169d1da80aee9d5c3add5cf01ca7"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/frontend.log",
+      "bytes": 203,
+      "sha256": "e4066e86e0962dfe0e9d0b92f948f9db8ede115d94269942618bc1b29198d460"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/local-model-settings-headers.txt",
+      "bytes": 346,
+      "sha256": "0e6e429134a7cd872ad1667fddce6a19b7f1d8dda755db9f5e89d3e9287865b3"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/local-model-settings-response.json",
+      "bytes": 1425,
+      "sha256": "08eb46880bd0c72daa09bd808cf5d5e8149007d6cd5d970f2e97b95b59b0888b"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/metadata-only-empty-ps.json",
+      "bytes": 13,
+      "sha256": "a6fe9ec6e26a38d99fca418b69826e0238b7a2bb319ff05eb153a6fcfd1fa28d"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/metadata-only-ollama-process.json",
+      "bytes": 2926,
+      "sha256": "d6d7fc7220397ab4b2e7702b1760edbb82d9173db84e67a812270565e5c1b39e"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/metadata-only-ollama.log",
+      "bytes": 11038,
+      "sha256": "e571c81d3654897a6f8cde293f6db769a4be924b46e3c31506af6d3cbe1db701"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/processes.json",
+      "bytes": 1920,
+      "sha256": "2356de606060abde45b473c126e20001180286c60adda516704f337173a4ff69"
+    }
+  ],
+  "limitations": [
+    "Restore ZIP selected through actual headful Chrome File input with agent-browser upload, not a newly observed macOS Open dialog; previous actual Native Picker/APFS proof only reused for unchanged implementation.",
+    "Initial body-selector screenshots have excessive blank content; retained raw, not used in manual. Actual viewport screenshots visually checked and copied unedited.",
+    "Direct API replay omitted normal UI header/origin pairing and got403; normal UI proxy replay HTTP200 succeeded; safety guard retained.",
+    "Initial QA wrongly expected zero usage ROWS; two pre-existing zero-invocation ledger records must stay. Original failed assertion kept; readonly correction proves all79 tables unchanged.",
+    "Model positive Intelligence/Save/Topic remains unqualified and unproven; not a whole-Goal or release acceptance."
+  ],
+  "formal_owner_access": false
+}

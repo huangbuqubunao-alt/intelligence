@@ -1,0 +1,154 @@
+{
+  "classification": "FROZEN_ROOT_FULL_REGRESSION_NO_BACKEND_CHANGES_IN_PENDING_UI_ONLY_FIX",
+  "result": {
+    "head": "6ed56192c65c395ba39dffcd423aecacb256856a",
+    "ended_at": "2026-10-25T00:40:19.209868+08:00",
+    "source_files": 547,
+    "changed_source_files": [],
+    "checks": {
+      "compile": {
+        "command": [
+          "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
+          "-m",
+          "compileall",
+          "-q",
+          "src",
+          "tests",
+          "scripts"
+        ],
+        "cwd": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness",
+        "exit_code": 0,
+        "elapsed_seconds": 0.085,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "ruff": {
+        "command": [
+          "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
+          "-m",
+          "ruff",
+          "check",
+          "src",
+          "tests",
+          "scripts"
+        ],
+        "cwd": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness",
+        "exit_code": 0,
+        "elapsed_seconds": 0.059,
+        "log_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+      },
+      "mypy": {
+        "command": [
+          "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
+          "-m",
+          "mypy",
+          "src"
+        ],
+        "cwd": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness",
+        "exit_code": 0,
+        "elapsed_seconds": 0.265,
+        "log_sha256": "0cd98cfd5b35e0e85b86d75459966f02562f9c10fe59fb3d86271d1b9fa33e5c"
+      },
+      "typecheck": {
+        "command": [
+          "npm",
+          "run",
+          "typecheck"
+        ],
+        "cwd": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/frontend",
+        "exit_code": 0,
+        "elapsed_seconds": 3.283,
+        "log_sha256": "0073b777d6b85b5e4d2ac79b723aeebbde034ccb34fcc14bd2f0666746071629"
+      },
+      "diff": {
+        "command": [
+          "git",
+          "diff",
+          "--check"
+        ],
+        "cwd": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness",
+        "exit_code": 0,
+        "elapsed_seconds": 0.019,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "frontend": {
+        "command": [
+          "npm",
+          "test",
+          "--",
+          "--maxWorkers=2",
+          "--minWorkers=1"
+        ],
+        "cwd": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/frontend",
+        "exit_code": 0,
+        "elapsed_seconds": 32.832,
+        "log_sha256": "39c74ed2a64df545b06a6b6f36052168371b8cef9c63056479f9b87d3396c285"
+      },
+      "build": {
+        "command": [
+          "npm",
+          "run",
+          "build"
+        ],
+        "cwd": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/frontend",
+        "exit_code": 0,
+        "elapsed_seconds": 3.957,
+        "log_sha256": "d8687ea1fc1e489e9316792596865218b6eed74429441e7f9b622ea73cbc3934"
+      },
+      "backend": {
+        "command": [
+          "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
+          "-m",
+          "pytest",
+          "-q"
+        ],
+        "cwd": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness",
+        "exit_code": 0,
+        "elapsed_seconds": 2512.995,
+        "log_sha256": "10aa2ccab50755bc649f1021cb8937d0ef841e6c3e820aa4bec00a601572fc24"
+      }
+    },
+    "all_checks_pass": true
+  },
+  "evidence": [
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/root-final-whole-configurable-20261024/result.json",
+      "bytes": 3270,
+      "sha256": "10ff73cdfdf7945aa9b1c1021e1a68f3e63598250ed7a64088219de3f6261a3f"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/root-final-whole-configurable-20261024/source-before.json",
+      "bytes": 64278,
+      "sha256": "34824b6d36a9f4568a2adf231527a32ae77f92d2637aee5dfda81eba4d99971b"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/root-final-whole-configurable-20261024/source-after.json",
+      "bytes": 64278,
+      "sha256": "34824b6d36a9f4568a2adf231527a32ae77f92d2637aee5dfda81eba4d99971b"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/root-final-whole-configurable-20261024/backend.log",
+      "bytes": 7711,
+      "sha256": "10aa2ccab50755bc649f1021cb8937d0ef841e6c3e820aa4bec00a601572fc24"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/root-final-whole-configurable-20261024/frontend.log",
+      "bytes": 33333,
+      "sha256": "39c74ed2a64df545b06a6b6f36052168371b8cef9c63056479f9b87d3396c285"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/root-final-whole-configurable-20261024/build.log",
+      "bytes": 395,
+      "sha256": "d8687ea1fc1e489e9316792596865218b6eed74429441e7f9b622ea73cbc3934"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/root-final-whole-configurable-20261024/mypy.log",
+      "bytes": 45,
+      "sha256": "0cd98cfd5b35e0e85b86d75459966f02562f9c10fe59fb3d86271d1b9fa33e5c"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/root-final-whole-configurable-20261024/ruff.log",
+      "bytes": 19,
+      "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+    }
+  ]
+}

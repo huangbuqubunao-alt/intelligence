@@ -1,0 +1,135 @@
+{
+  "at": "2026-10-24T16:37:32.803934+00:00",
+  "classification": "CURRENT_COMPLETE_TUPLE_MACHINE_SEAL_AND_17_EXISTING_REAL_RAW_RECEIPTS_RECHECK_NOT_NEW_DECODING",
+  "tuple_equal": true,
+  "current_status": {
+    "state": "PASSED",
+    "production_eligible": true,
+    "identity": "ab0c9eab7749bb2d344bb2db134b8859390e6e5aadcbbe68e6d9391d970cc576"
+  },
+  "report_sha256": "694f9e89b73479d2fec6452f21cd9d90ceb2aff66ebfe5089fcb96e65a66805c",
+  "receipts": [
+    {
+      "id": "english-clean",
+      "raw_sha256": "3c04bb3894fb9e2aff1456f4061796d41ae02885a7fb39dddb5ffc0a0db4c32d",
+      "passed": true,
+      "trusted_timed_transcript": true,
+      "negative_no_authority": false
+    },
+    {
+      "id": "mandarin-clean",
+      "raw_sha256": "57523b5698e71b046f2ada4c0acdc78067e07824876fd922dc48f9a74657ef95",
+      "passed": true,
+      "trusted_timed_transcript": true,
+      "negative_no_authority": false
+    },
+    {
+      "id": "mixed-clean",
+      "raw_sha256": "936c951f8bccaad82594c54357d291fabd506860c115850839cd561f5b6d8223",
+      "passed": true,
+      "trusted_timed_transcript": true,
+      "negative_no_authority": false
+    },
+    {
+      "id": "very-short",
+      "raw_sha256": "625ff0e0507bd083a20257d164d6b087efeffefd2ea39e47343f28b5a22e6a36",
+      "passed": true,
+      "trusted_timed_transcript": true,
+      "negative_no_authority": false
+    },
+    {
+      "id": "medium",
+      "raw_sha256": "833595e4270eaa5a0088b92933076e6e3a94d04d0f2de7612922cff010388872",
+      "passed": true,
+      "trusted_timed_transcript": true,
+      "negative_no_authority": false
+    },
+    {
+      "id": "designed-pauses",
+      "raw_sha256": "c934c70d7c58bab4065bc0a8668486534582b355dbf711a442f78f9aaff39fce",
+      "passed": true,
+      "trusted_timed_transcript": true,
+      "negative_no_authority": false
+    },
+    {
+      "id": "mild-noise",
+      "raw_sha256": "7204b7a0092f555894fc7edc8157ca25e8a52d9cc48185e94e2c42d0d78e2662",
+      "passed": true,
+      "trusted_timed_transcript": true,
+      "negative_no_authority": false
+    },
+    {
+      "id": "independent-medium",
+      "raw_sha256": "515ed90a0757e37beafefceec8e742fb6896b87b2df421f4fcd051fb5287d0d2",
+      "passed": true,
+      "trusted_timed_transcript": true,
+      "negative_no_authority": false
+    },
+    {
+      "id": "boundary-medium",
+      "raw_sha256": "fdcd5381a23691be5791b3db40aa636247f05baf4700a1f9577b640242853d9a",
+      "passed": true,
+      "trusted_timed_transcript": true,
+      "negative_no_authority": false
+    },
+    {
+      "id": "silence-medium",
+      "raw_sha256": "a43fec2465ad038ceb624e5c5f8357be6e32e03335fbc5de7a6e19cecdfbece4",
+      "passed": true,
+      "trusted_timed_transcript": true,
+      "negative_no_authority": false
+    },
+    {
+      "id": "mixed-medium",
+      "raw_sha256": "481e0400752157d02070fef10f85c497dae66f62f52e5525aed9e463e443381c",
+      "passed": true,
+      "trusted_timed_transcript": true,
+      "negative_no_authority": false
+    },
+    {
+      "id": "english-video",
+      "raw_sha256": "6cb9f2fd9467f1b3ca9eb2a68b7d0044a95f8a38d680750981d52fdff13611ea",
+      "passed": true,
+      "trusted_timed_transcript": true,
+      "negative_no_authority": false
+    },
+    {
+      "id": "negative-silence-short",
+      "raw_sha256": "3c63bdb9d024c91cc6dd7289fb09de775fc00d874a4d7c52deeb7bdcc6da16ab",
+      "passed": true,
+      "trusted_timed_transcript": false,
+      "negative_no_authority": true
+    },
+    {
+      "id": "negative-silence-medium",
+      "raw_sha256": "e4df401754ee1dfed1656010b23327cfd34824aa31c611bb4b1dbc523a5470db",
+      "passed": true,
+      "trusted_timed_transcript": false,
+      "negative_no_authority": true
+    },
+    {
+      "id": "negative-noise-short",
+      "raw_sha256": "702ebd9f8816d16fc7663d8e9f83642bec056cd4e27d334e9cb8b2c84716ca8e",
+      "passed": true,
+      "trusted_timed_transcript": false,
+      "negative_no_authority": true
+    },
+    {
+      "id": "english-clean-weak-18db",
+      "raw_sha256": "1990e894b404e0f2011d89ce2ad663f0ae7dc5986e7a6f4ff658f05f863410ef",
+      "passed": true,
+      "trusted_timed_transcript": true,
+      "negative_no_authority": false
+    },
+    {
+      "id": "mandarin-clean-weak-18db",
+      "raw_sha256": "b1fb5b5db1e042b81aacbb7c04184ae583c79f6ae1f39296fdee2da9c7c08be5",
+      "passed": true,
+      "trusted_timed_transcript": true,
+      "negative_no_authority": false
+    }
+  ],
+  "model_loads": 0,
+  "decoder_invocations": 0,
+  "formal_owner_access": false
+}
