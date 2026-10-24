@@ -64,7 +64,7 @@ def test_unrelated_qualification_never_replaces_user_configured_model(monkeypatc
     assert transport.actual_model == 'qwen3:8b' and transport.local_profile_id is None
 
 
-@pytest.mark.parametrize('damage', ['none', 'old-version', 'wrong-port', 'server-inode', 'runner-inode', 'library-inode', 'changed-host', 'updated-after-start'])
+@pytest.mark.parametrize('damage', ['none', 'old-version', 'wrong-port', 'server-inode', 'runner-inode', 'library-inode', 'changed-host', 'updated-after-start', 'missing-library', 'unknown-library', 'daemon-only-library', 'cold'])
 def test_api_version_and_mapped_bytes_belong_to_same_observed_processes(tmp_path, monkeypatch, damage):
     from types import SimpleNamespace
 
@@ -78,7 +78,7 @@ def test_api_version_and_mapped_bytes_belong_to_same_observed_processes(tmp_path
         os.utime(paths['ollama'], (1800000000,1800000000))
     monkeypatch.setattr(c, 'ROOT', tmp_path)
     server = f'10 Sat Oct 24 00:00:00 2026 {paths["ollama"]} serve'
-    runner = f'20 Sat Oct 24 00:00:00 2026 {paths["llama-server"]} --offline'
+    runner = '' if damage=='cold' else f'20 Sat Oct 24 00:00:00 2026 {paths["llama-server"]} --offline'
     monkeypatch.setattr(c, 'processes', lambda binary: server if binary=='ollama' else runner)
     host = c.HostObservation(tuple((p,c.file_identity(p)) for p in paths.values()),server,runner)
     calls=[]
@@ -88,11 +88,17 @@ def test_api_version_and_mapped_bytes_belong_to_same_observed_processes(tmp_path
         if '-iTCP:11434' in argv:
             return SimpleNamespace(stdout='p10\nn127.0.0.1:'+('11435' if damage=='wrong-port' else '11434')+'\n')
         names=['ollama'] if pid=='10' else ['llama-server','libllama-server-impl.dylib']
+        if damage in {'missing-library','unknown-library','daemon-only-library'} and pid=='20':
+            names=['llama-server']
+        if damage=='daemon-only-library' and pid=='10':
+            names.append('libllama-server-impl.dylib')
         chunks=['p'+pid]
         for name in names:
             st=paths[name].stat()
             altered=(damage=='server-inode' and name=='ollama' or damage=='runner-inode' and name=='llama-server' or damage=='library-inode' and name=='libllama-server-impl.dylib')
             chunks += ['ftxt','D'+hex(st.st_dev),'i'+str(st.st_ino+int(altered)),'n'+str(paths[name])]
+        if damage=='unknown-library' and pid=='20':
+            chunks += ['ftxt','n'+str(paths['libllama-server-impl.dylib'])]
         return SimpleNamespace(stdout='\n'.join(chunks)+'\n')
     monkeypatch.setattr(c.subprocess,'run',cmd)
     def send(path, **kwargs):
@@ -100,7 +106,7 @@ def test_api_version_and_mapped_bytes_belong_to_same_observed_processes(tmp_path
         if damage=='changed-host':
             monkeypatch.setattr(c.HostObservation,'is_current',lambda self:False)
         return {'version':'0.40.6' if damage=='old-version' else '0.40.9'}
-    if damage=='none':
+    if damage in {'none','cold'}:
         c.verify_runtime_api(host,'http://127.0.0.1:11434',send,'0.40.9')
         assert calls==['/api/version']
     else:

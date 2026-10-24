@@ -836,7 +836,8 @@ def _mapped_runtime_files(process: str, binary: str) -> None:
         raise CapacityUnavailable("mapped runtime start time is unknown") from error
     required = {binary}
     library = "libllama-server-impl.dylib"
-    if any(library in row.get("n", "") for row in records):
+    # A loaded fixed-runtime runner must prove its implementation, even if lsof omits it.
+    if binary == "llama-server" or any(library in row.get("n", "") for row in records):
         required.add(library)
     for name in required:
         target = ROOT / name
