@@ -9,6 +9,11 @@ from dataclasses import dataclass
 PROFILE_ID = "local-grounding-qwen35-9b-thinking-v1"
 FIXED_RUNTIME_PROFILE_ID = "local-grounding-qwen35-9b-fixed-runtime-v2"
 CURRENT_RUNTIME_PROFILE_ID = "local-grounding-qwen35-9b-runtime-0.40.6-v3"
+ACTUAL_RUNTIME_PROFILE_ID = "local-grounding-qwen35-9b-runtime-0.40.9-v4"
+CURRENT_LONG_PROFILE_ID = "local-grounding-qwen35-9b-lossless-rle-runtime-0.40.6-v2"
+ACTUAL_LONG_PROFILE_ID = "local-grounding-qwen35-9b-lossless-rle-runtime-0.40.9-v3"
+NATIVE_SHORT_PROFILES = (CURRENT_RUNTIME_PROFILE_ID, ACTUAL_RUNTIME_PROFILE_ID)
+NATIVE_LONG_PROFILES = (CURRENT_LONG_PROFILE_ID, ACTUAL_LONG_PROFILE_ID)
 TEXT_WIRE = "local-text-distillation-v2"
 SCOPES = ("YT_TIMED", "LOCAL_TIMED", "LOCAL_TEXT")
 
@@ -63,7 +68,7 @@ class LocalDistillationProfile:
         options: dict[str, int | float] = {"temperature": 1.0, "top_p": 0.95, "top_k": 20, "min_p": 0.0,
             "presence_penalty": 1.5, "repeat_penalty": 1.0, "seed": 20261013,
             "num_ctx": 16384, "num_predict": 6144}
-        if self.profile_id in {FIXED_RUNTIME_PROFILE_ID, CURRENT_RUNTIME_PROFILE_ID}:
+        if self.profile_id in {FIXED_RUNTIME_PROFILE_ID, *NATIVE_SHORT_PROFILES}:
             options.update(num_predict=8192, num_batch=512)
         return options
 
@@ -104,7 +109,7 @@ class LocalDistillationProfile:
             "truncate": False, "shift": False,
             "capacity_contract": "qwen35-byte-vocabulary-chat-system-user-88-plus2-v1",
             "capacity_vocabulary_model_blob": "02d45dc1cf451ba2475ac33b301c2dd8f985abe4c182ce04a1f2f5bf0260278d"}
-        if self.profile_id in {FIXED_RUNTIME_PROFILE_ID, CURRENT_RUNTIME_PROFILE_ID}:
+        if self.profile_id in {FIXED_RUNTIME_PROFILE_ID, *NATIVE_SHORT_PROFILES}:
             projection["max_response_bytes"] = self.max_response_bytes
         return projection
 
@@ -118,6 +123,10 @@ _CURRENT_RUNTIME_PROFILE = LocalDistillationProfile(
     profile_id=CURRENT_RUNTIME_PROFILE_ID, runtime="0.40.6", max_content_bytes=8_101,
 )
 
+_ACTUAL_RUNTIME_PROFILE = LocalDistillationProfile(
+    profile_id=ACTUAL_RUNTIME_PROFILE_ID, runtime="0.40.9", max_content_bytes=8_101,
+)
+
 
 def resolve_profile(profile_id: str) -> LocalDistillationProfile:
     if type(profile_id) is str:
@@ -127,6 +136,8 @@ def resolve_profile(profile_id: str) -> LocalDistillationProfile:
             return _FIXED_RUNTIME_PROFILE
         if profile_id == CURRENT_RUNTIME_PROFILE_ID:
             return _CURRENT_RUNTIME_PROFILE
+        if profile_id == ACTUAL_RUNTIME_PROFILE_ID:
+            return _ACTUAL_RUNTIME_PROFILE
     raise ValueError("unknown local distillation profile")
 
 
@@ -139,3 +150,53 @@ def scope_for(provider: str, wire: str | None, locators: set[str]) -> str:
         if provider == "LOCAL":
             return "LOCAL_TIMED"
     raise ValueError("local distillation source contract is unsupported")
+
+
+@dataclass(frozen=True, slots=True)
+class ModelRuntimeBinding:
+    """Finite adapter metadata; neither installation nor this object qualifies execution."""
+
+    provider: str
+    model: str
+    model_digest: str
+    runtime: str
+    short_profile_id: str
+    long_profile_id: str
+    binary_hashes: tuple[tuple[str, str], ...]
+    executable: bool
+    runtime_source: str = ""
+    native_source: str = ""
+
+
+# The nominal0406 descriptor was paired with later disk bytes. Keep its
+# identity interpretable, but never invent the missing actual runtime proof.
+_MODEL_BINDINGS = (
+    ModelRuntimeBinding("ollama", _PROFILE.model, _PROFILE.model_digest, "0.40.6",
+        CURRENT_RUNTIME_PROFILE_ID, CURRENT_LONG_PROFILE_ID, (), False),
+    ModelRuntimeBinding("ollama", _PROFILE.model, _PROFILE.model_digest, "0.40.9",
+        ACTUAL_RUNTIME_PROFILE_ID, ACTUAL_LONG_PROFILE_ID, (
+            ("ollama", "be4b054f8ebf8b3b185daa30671849a80f22c2b2ef45e064de562f69aba46a96"),
+            ("llama-server", "831a41b83171eb00710d75e55bc1d995c8bc61e01bee547420ca52c02448275d"),
+            ("libllama-server-impl.dylib", "c9d3c06fe860e99823811e0716766fae9589b40b800b91cbcb9f78dda1df2a7c"),
+        ), True, "5e31438d5d2223d8338595b366b7434ef3539708", "a37cc46104eb50900d5ab4a9ba02a0abdac039db"),
+)
+
+
+def resolve_model_binding(provider: str, model: str, model_digest: str, runtime: str) -> ModelRuntimeBinding:
+    for binding in _MODEL_BINDINGS:
+        if (provider, model, model_digest, runtime) == (binding.provider, binding.model, binding.model_digest, binding.runtime):
+            return binding
+    raise ValueError("configured model/runtime has no reviewed adapter binding")
+
+
+def binding_for_profile(profile_id: str) -> ModelRuntimeBinding:
+    for binding in _MODEL_BINDINGS:
+        if type(profile_id) is str and profile_id in (binding.short_profile_id, binding.long_profile_id):
+            return binding
+    raise ValueError("unknown native model/runtime profile")
+
+
+def paired_long_profile(short_profile_id: str | None) -> str:
+    if short_profile_id in NATIVE_SHORT_PROFILES:
+        return binding_for_profile(str(short_profile_id)).long_profile_id
+    return "local-grounding-qwen35-9b-lossless-rle-thinking-v1"

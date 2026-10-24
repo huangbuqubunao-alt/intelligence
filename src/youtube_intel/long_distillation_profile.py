@@ -18,8 +18,12 @@ from youtube_intel.distillation import (
     VerifiedDistillationInput,
     local_profile_for_scope,
 )
+from youtube_intel.local_distillation_profile import (
+    ACTUAL_LONG_PROFILE_ID,
+    canonical,
+    resolve_profile,
+)
 from youtube_intel.local_distillation_profile import PROFILE_ID as SOURCE_PROFILE_ID
-from youtube_intel.local_distillation_profile import canonical, resolve_profile
 from youtube_intel.long_grounding_codec import (
     CODEC_VERSION,
     MAX_EVIDENCE,
@@ -31,6 +35,7 @@ from youtube_intel.long_grounding_codec import (
 
 PROFILE_ID = "local-grounding-qwen35-9b-lossless-rle-thinking-v1"
 CURRENT_RUNTIME_PROFILE_ID = "local-grounding-qwen35-9b-lossless-rle-runtime-0.40.6-v2"
+ACTUAL_RUNTIME_PROFILE_ID = ACTUAL_LONG_PROFILE_ID
 SCHEMA_VERSION = "long-grounding-alias-exact-timed-schema-v1"
 FREEZE_VERSION = "long-grounding-complete-native-request-freeze-v1"
 MAX_REQUEST_BYTES = 8_000_000
@@ -116,6 +121,8 @@ _CURRENT_DESCRIPTOR.update(
     options={**json.loads(_OPTIONS_WIRE), "num_batch": 512},
 )
 _CURRENT_PROFILE = LongDistillationProfile(canonical(_CURRENT_DESCRIPTOR))
+_ACTUAL_PROFILE = LongDistillationProfile(canonical({**_CURRENT_DESCRIPTOR,
+    "profile_id": ACTUAL_RUNTIME_PROFILE_ID, "runtime": "0.40.9"}))
 
 
 def resolve_long_profile(profile_id: str) -> LongDistillationProfile:
@@ -124,6 +131,8 @@ def resolve_long_profile(profile_id: str) -> LongDistillationProfile:
             return _PROFILE
         if profile_id == CURRENT_RUNTIME_PROFILE_ID:
             return _CURRENT_PROFILE
+        if profile_id == ACTUAL_RUNTIME_PROFILE_ID:
+            return _ACTUAL_PROFILE
     raise ValueError("unknown long request candidate profile")
 
 

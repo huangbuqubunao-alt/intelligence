@@ -29,6 +29,7 @@ from youtube_intel.local_distillation_profile import (
     CURRENT_RUNTIME_PROFILE_ID,
     FIXED_RUNTIME_PROFILE_ID,
     PROFILE_ID,
+    binding_for_profile,
     canonical,
     digest,
     resolve_profile,
@@ -58,7 +59,10 @@ def runtime_binary_hashes(profile_id: str) -> dict[str, str]:
         return dict(BINARIES)
     from youtube_intel.local_native_capacity import current_descriptor
     current_descriptor(profile_id)  # Reject unknown/case-variant profiles.
-    return dict(CURRENT_BINARIES)
+    binding = binding_for_profile(profile_id)
+    if not binding.executable:
+        raise CapacityUnavailable("historical runtime binding cannot execute")
+    return dict(binding.binary_hashes)
 
 
 BLOBS = {
