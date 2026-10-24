@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-24T12:41:41.139099+00:00",
+  "classification": "READONLY_INTERMEDIATE_GIT_TOPOLOGY_NOT_ADOPTION_GATE",
+  "root_head": "1edf9ecb3d874e8d7f54f2e151041d28bd0bce4d",
+  "formal_main": "73ee7e747b4461b9de8a201d6b47669eb3913d1a",
+  "formal_tracking_origin_main": "73ee7e747b4461b9de8a201d6b47669eb3913d1a",
+  "actual_remote_main": "73ee7e747b4461b9de8a201d6b47669eb3913d1a",
+  "formal_worktree_clean": true,
+  "formal_main_is_candidate_ancestor": true,
+  "owner_data_or_config_accessed": false,
+  "no_main_merge_push_or_release": true,
+  "limits": "Repeat live remote/worktree/ancestry checks at final adoption; no model qualification inferred."
+}

@@ -1,6 +1,6 @@
 # TASK-READINESS-CONFIGURABLE-MODEL-BINDING
 
-Status: READY. Same ordinary-user remediation Goal; no new product phase.
+Status: ACCEPTED_ENGINEERING_SCOPE, pending root integration checks. Same ordinary-user remediation Goal; no new product phase.
 Dependency: accepted b6adac2 core and accepted R2 product fix 0f1e194, independent c0df0ac APPROVE. Root whole5940 run remains on frozen pre-fix source; this task uses a separate worktree and cannot mutate that source.
 Base: latest root documentation baseline plus the exact accepted 0f1e194 cherry-pick, supplied by root in the execution package.
 
@@ -30,3 +30,16 @@ Prove actual version/binary pairing, old/current/unknown dispatch, per-model qua
 Freeze source and run the complete affected backend group; frontend full/TS/build for UI edits; compile, Ruff src/tests/scripts, strict mypy and diff check. Preserve original checks, failures, source hashes and exact commands. Independent reviewer and root integration remain mandatory. Do not claim affected checks equal final whole-Goal regression or qualification.
 
 Only own handoff may be written outside this task's product/test files. Commit scoped changes, report full SHA/cleanSTOP/limitations. No main merge, push, formal owner/config/credentials, qualification registry record, schema or dependencies.
+
+## Acceptance checkpoint, 2026-10-24
+
+Final author88374923b29bc5d08b08dac597272b2f617d71fb independently reviewed
+at67d45de55d40963a76082992f4c2a30484755dcc:9 complete affected files279PASS,
+compile/Ruff/strictmypy121/diffPASS,547 source bindings and40 migrations intact,
+registry empty. Earlier unconditional x86 implementation-library finding was
+withdrawn using actual Mach-O/ARM64 evidence. Final runtime guard proves actual
+ARM64 process/main mapping and handles real PS padding without changing complete
+identity comparisons. This accepts the final corrected range, not the rejected
+intermediate guard as an execution baseline. No model/04010 qualification or
+Goal/publication acceptance follows. Both4b candidates failed; Q3 diagnostic is
+separate and still requires independent preflight and one actual result.
