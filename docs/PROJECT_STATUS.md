@@ -1,3 +1,11 @@
+> 2026-10-24 13:05 当前续作：正式产品未发布，owner/config/凭据未触及。root当前已整合独立R2修复（d543b1c/38399a5/5405a50）：固定旧源码完整5940为5937PASS/3FAIL/2warnings、543文件全等；原三失败修复后root完整三个相关文件99PASS/83.53s、compile/Ruff/strict121通过，538源文件全等。最终全仓仍须在当前配置整改完成后重跑，不能把相关组当全绿。
+>
+> 配置整改 TASK-READINESS-CONFIGURABLE-MODEL-BINDING 仅在独立WT推进，唯一writer /root/model_diagnostic_qa_writer；先前writer quota停止、仅handoff已完整保留后串行续作。已发现并修正候选中的两个问题：实际0409二进制误绑旧0406版本；任何资格记录可能覆盖用户所选模型。中央有限模型/运行时描述收敛到已有Adapter，保留全部历史profile/wire/catalog hash，不改Schema/业务持久化/Cloud。完整affected及独立审查待完成，未接受/整合新代码。
+>
+> 固定官方4b thinking实际运行127.087s、720/4644tokens，正常stop但合法NO_NEW未达原正向INTELLIGENCE门；独立复核FAIL并停止，资格关闭，旧raw/marker留存。详情 REAL_4B_DIAGNOSTIC_FAILED_POSITIVE_GATE_2026_10_24.json。用户授权内仅再冻结最后一个nonthinking独立单例：相同权重/原输入/schema/options/8192/300，仅think=false；官方两处preset差异已记录，固定前段且不调参；独立QA48PASS后APPROVE_DIAGNOSTIC_ONLY，当前一次隔离运行中，结果后STOP、不授资格。绝不能借诊断或旧模型资格放行。
+>
+> 资源已自行处理可关闭应用与QA服务，Codex/Jimmm保留；新4b准入5.096GiB、启动前实际6.711GB通过，不称峰值保证。9b原8.10GiB门未降低。六份真实Native来源/EN21cue与ZH37cue、79SQL/22DATA正常重启与source review证据保留；中文同音错误不从朗读脚本补写。D2/ASR旧证据仅在最终对应绑定不变时复用。仍待最终合格真实正向、Save/Topic/Evidence/重启/全SQL与DATA恢复、中文图文手册、完整回归与安全main采用条件。
+
 > 2026-10-24 07:36：core工程已按fcbf953独审整合到root4a47b0a，backend逐字等b6，前端仅叠加已审空Content入口；combined39文件1015PASS/TS/build/Ruff/strict121/compile/diff PASS。固定后端全仓5940运行中，三项真实旧兼容失败已复现，唯一原writer独立WT最小返修（current TTL不放宽、旧fixture补必要binding）；原全仓继续保留，不计全绿。官方4b current-v2六payload隔离下载校验完成，原英文18cue/2Evidence/current实际request仅model变化已冻结、独立QA复核中，0load/0gen、不授资格。正式main/owner未动。
 
 > 2026-10-24 07:18：固定b6adac2工程获独立fcbf953 APPROVE，作者41完整文件1622PASS、537源全等；独审184+222相关与Ruff/strict121 PASS、40migration不变、records=[]。root接受工程scope并准备整合/最终全仓回归，非整个Goal完成。用户补充模型应可配置、框架固定、不大重写，已记录MODEL_CONFIGURATION_PRINCIPLE_2026_10_24.md；小模型只先窄诊断，不能套9b资格或复制生命周期。真实ASR6源和79SQL22DATA重启相等已验，正式main/owner未动。
