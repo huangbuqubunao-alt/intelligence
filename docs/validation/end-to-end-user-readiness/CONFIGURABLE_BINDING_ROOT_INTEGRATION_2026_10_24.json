@@ -1,0 +1,77 @@
+{
+  "head": "bc4a7fd771ca020eba006ea78ed459ca31c42dcc",
+  "at": "2026-10-24T12:50:45.447304+00:00",
+  "accepted_review": "67d45de55d40963a76082992f4c2a30484755dcc",
+  "accepted_source_files": 547,
+  "all_source_equal_reviewed": true,
+  "changed_source_during_checks": [],
+  "checks": {
+    "compile": {
+      "exit_code": 0,
+      "seconds": 0.19011708300058672,
+      "command": [
+        "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
+        "-m",
+        "compileall",
+        "-q",
+        "src",
+        "tests",
+        "scripts"
+      ],
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "ruff": {
+      "exit_code": 0,
+      "seconds": 0.0740964160004296,
+      "command": [
+        "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
+        "-m",
+        "ruff",
+        "check",
+        "src",
+        "tests",
+        "scripts"
+      ],
+      "log_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+    },
+    "mypy": {
+      "exit_code": 0,
+      "seconds": 1.8635800410002048,
+      "command": [
+        "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
+        "-m",
+        "mypy",
+        "src"
+      ],
+      "log_sha256": "0cd98cfd5b35e0e85b86d75459966f02562f9c10fe59fb3d86271d1b9fa33e5c"
+    },
+    "integration": {
+      "exit_code": 0,
+      "seconds": 69.56056104099935,
+      "command": [
+        "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/unit/test_configurable_model_binding.py",
+        "tests/integration/test_local_capacity_composition.py",
+        "tests/integration/test_local_rejection_accounting.py"
+      ],
+      "log_sha256": "98556a7ea1df121b27d893c4271ffbe3f40d7830f1fabfdd98d6d8e104423ec5"
+    },
+    "diff": {
+      "exit_code": 0,
+      "seconds": 0.025136250000286964,
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "all_checks_pass": true,
+  "qualification": false,
+  "main_or_owner_changes": false,
+  "pytest_summary": "126 passed in 69.26s (0:01:09)"
+}

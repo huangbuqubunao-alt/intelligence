@@ -1,6 +1,6 @@
 # TASK-READINESS-CONFIGURABLE-MODEL-BINDING
 
-Status: ACCEPTED_ENGINEERING_SCOPE, pending root integration checks. Same ordinary-user remediation Goal; no new product phase.
+Status: INTEGRATED_ENGINEERING_SCOPE, root integration checks passed. Same ordinary-user remediation Goal; no new product phase.
 Dependency: accepted b6adac2 core and accepted R2 product fix 0f1e194, independent c0df0ac APPROVE. Root whole5940 run remains on frozen pre-fix source; this task uses a separate worktree and cannot mutate that source.
 Base: latest root documentation baseline plus the exact accepted 0f1e194 cherry-pick, supplied by root in the execution package.
 

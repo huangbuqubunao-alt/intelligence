@@ -1,0 +1,83 @@
+{
+  "classification": "TIMEOUT_NO_FINAL_RESPONSE_FAIL_STOP",
+  "independent_actual_review": "eb8240d31c46f65421015a9b405d1e8b5bbef32b",
+  "independent_preflight": "db9a040b02d950491dc25428d751279b6fbf8be6",
+  "one_generation_consumed": true,
+  "actual_generation_seconds": 300.0069675000004,
+  "actual_http_status": null,
+  "final_body_bytes": 0,
+  "final_usage_known": false,
+  "semantic_outcome": "UNDETERMINED_NO_FINAL_RESPONSE",
+  "not_evidence_of_8192_budget_exhaustion": true,
+  "capacity": {
+    "N": 720,
+    "P": 8192,
+    "C": 16384,
+    "required": 8914
+  },
+  "fresh_memory_bytes": 6602211328,
+  "required_memory_bytes": 6464360941,
+  "post_cancellation_native_slot_idle": true,
+  "cleanup": "Owned idle pinned daemon4312 normal SIGTERM after explicit cancellation and native idle proof; no retry",
+  "production_qualified": false,
+  "ordinary_positive_gui_chain_proven": false,
+  "main_or_owner_changes": false,
+  "evidence": [
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-model-diagnostic/.var/model-diagnostic-q3ks/real-once-r3-pinned0409-20261024/precheck.json",
+      "bytes": 365,
+      "sha256": "3ad02a427a9ff592d461e8de774a160cf72b6816f6c3f833bcab52c95eaac3d8"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-model-diagnostic/.var/model-diagnostic-q3ks/real-once-r3-pinned0409-20261024/capacity.json",
+      "bytes": 14568,
+      "sha256": "dff3681855d2ffecfc18e2529d48b2ce5138f8c14c1befd08173673deae48646"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-model-diagnostic/.var/model-diagnostic-q3ks/real-once-r3-pinned0409-20261024/generation-start.json",
+      "bytes": 1713,
+      "sha256": "1d6b10eafbecc96a565f0ce636778a9b402f9586017ae7e2ed7f450be469b79a"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-model-diagnostic/.var/model-diagnostic-q3ks/real-once-r3-pinned0409-20261024/generation-raw.json",
+      "bytes": 146,
+      "sha256": "5517b18b9cb2fcb1453a2d0a450afbce3f26c96b5fcb05a3197fd7423ae3c20c"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-model-diagnostic/.var/model-diagnostic-q3ks/real-once-r3-pinned0409-20261024/stopped-error.json",
+      "bytes": 139,
+      "sha256": "333986d73e54ffa2c1115855fae0cb103b1625cf1ff0f19af291d66b397d96e9"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-model-diagnostic/.var/model-diagnostic-q3ks/real-once-r3-pinned0409-20261024/preload-raw.json",
+      "bytes": 330,
+      "sha256": "43a55ff26460056af4dd8c9261af044d1295a3f553528b1843fdc965d830dd6f"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q3ks-20261024/diagnostic-freeze-r3-pspadding.json",
+      "bytes": 46528,
+      "sha256": "8412febb1ccac4c8bf4d472231776438e0775a0b74b96d6b559730a83ac07274"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q3ks-20261024/actual-r3-parent-result.json",
+      "bytes": 282,
+      "sha256": "80d0988a02fe4f945bfc758eca5beec26b4c2d8a1591ce210c353e8610fcdd1f"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q3ks-20261024/completed-diagnostic-daemon-log.txt",
+      "bytes": 35202,
+      "sha256": "2cfafd53e9036f5cbc10857acaa186dec9b4d99526c82530012cac27666d4a62"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q3ks-20261024/after-timeout-native-slots.json",
+      "bytes": 1772,
+      "sha256": "6b7d621b4bf5b5f36d766d4bfb018a71ace517e925f54e5cc957a977cbbe6eb6"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q3ks-20261024/timeout-stop-cleanup-proof.json",
+      "bytes": 448,
+      "sha256": "16427328bdba613f7ef14f1a1341ebdaf8bfda52070d2d336fd5cf8d2e664173"
+    }
+  ],
+  "next": "Complete remaining whole regression and genuine GUI negative/restart/backup checks. No model profile grant or main adoption from this diagnostic."
+}
