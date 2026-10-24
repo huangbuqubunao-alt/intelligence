@@ -1,0 +1,79 @@
+{
+  "classification": "ROOT_INTEGRATION_R2_ACCEPTED_NOT_FINAL_GOAL",
+  "whole_before_fix": {
+    "head": "4a47b0a303616d920865a28e963b004a8906f9d6",
+    "passed": 5937,
+    "failed": 3,
+    "warnings": 2,
+    "seconds": 2528.563,
+    "source_files": 543,
+    "source_changes": [],
+    "evidence": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/root-final-whole-20261024/result.json"
+  },
+  "accepted_product_fix": "0f1e19407fa437d7a3a6fdee244ea98db1b13d7e",
+  "root_product_commit": "d543b1c",
+  "independent_review_commit": "c0df0ac32958f15d550e13c1a622dc6d5881a010",
+  "root_affected_after_fix": {
+    "head": "d14d4aa9554c2108363323e3fb0328dddc6890cb",
+    "source_files": 538,
+    "changed_source_files": [],
+    "checks": {
+      "compile": {
+        "command": [
+          "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
+          "-m",
+          "compileall",
+          "-q",
+          "src",
+          "tests",
+          "scripts"
+        ],
+        "exit_code": 0,
+        "seconds": 0.09788191699772142,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "ruff": {
+        "command": [
+          "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
+          "-m",
+          "ruff",
+          "check",
+          "src",
+          "tests",
+          "scripts"
+        ],
+        "exit_code": 0,
+        "seconds": 0.06523737500538118,
+        "log_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+      },
+      "mypy": {
+        "command": [
+          "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
+          "-m",
+          "mypy",
+          "src"
+        ],
+        "exit_code": 0,
+        "seconds": 1.6367816250131,
+        "log_sha256": "0cd98cfd5b35e0e85b86d75459966f02562f9c10fe59fb3d86271d1b9fa33e5c"
+      },
+      "tests": {
+        "command": [
+          "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/unit/test_current_native_session.py",
+          "tests/integration/test_local_capacity_composition.py",
+          "tests/integration/test_local_rejection_accounting.py"
+        ],
+        "exit_code": 0,
+        "seconds": 83.5331976669986,
+        "log_sha256": "59b947ad1f1ac37c63a2f51e93a7d8d165cffa4750c172cdd389e35d6fba8000"
+      }
+    }
+  },
+  "root_affected_passed": 99,
+  "previous_frontend_passed": 1015,
+  "remaining": "Final complete suite must run after central runtime binding repairs; no model/main/production success claim."
+}

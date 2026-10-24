@@ -1,0 +1,77 @@
+{
+  "recorded_at": "2026-10-24T12:46:41.108296+08:00",
+  "classification": "DIAGNOSTIC_COMPLETED_BUT_FROZEN_POSITIVE_GATE_FAILED_STOP",
+  "candidate": "qwen3.5:4b-q4_K_M",
+  "manifest_sha256": "d8b0f5e9760cd1682034f292d7ef72ec46f432149be0df7574bf2d6e92e38c04",
+  "runtime": "0.40.9",
+  "case": "real-deepthink-en",
+  "original_expectation": {
+    "confidence": "Partial/Medium/Low support, not a guaranteed or percentage confidence",
+    "forbid": [
+      "Human-level intelligence established as fact",
+      "Guaranteed correct proofs",
+      "Independent verification of all claims",
+      "Measured latency or price claims not present in source",
+      "Unattributed claim that 20 or 100 is a measured exact search count"
+    ],
+    "no_new_boundary": "NO_NEW is a legal service outcome, but cannot by itself establish a usable real positive Intelligence path. Do not force admission or rewrite the input after output.",
+    "require_substantive_judgment": true,
+    "result": "INTELLIGENCE",
+    "retain": [
+      "Attribution to Google DeepMind and the speakers rather than independent proof",
+      "A reported formerly unproved conjecture and many explored possible approaches",
+      "The described public mode is similar to the IMO gold-medal-standard mode; similar is not identical",
+      "Still needs human mathematical verification and broader evaluation"
+    ],
+    "retention_reason": "Track whether test-time exploration can become useful for mathematical research, while separating supplier claims and researcher experience from independently verified correctness."
+  },
+  "actual_result": {
+    "evidence": [
+      {
+        "end_ms": 46320,
+        "evidence_id": "4750f3da8ddabb3e808ebcf282cc4a88d4fdbe8ccbcfc97988f6d4a46913f2f9",
+        "start_ms": 0
+      },
+      {
+        "end_ms": 62600,
+        "evidence_id": "c0eb749542c1d64ab0f0c8ca7e9c54ce90d61c1eb438655c91a927e34e7ba0b7",
+        "start_ms": 46320
+      }
+    ],
+    "result": "NO_NEW_INTELLIGENCE"
+  },
+  "actual_transport": {
+    "done": true,
+    "done_reason": "stop",
+    "prompt_eval_count": 720,
+    "eval_count": 4644,
+    "total_duration": 127072491625,
+    "eval_duration": 125275220000
+  },
+  "wall_seconds": 127.08727799999906,
+  "raw_bytes": 19975,
+  "raw_path": "/Users/hua/Documents/yia-worktrees/readiness-model-diagnostic/.var/model-diagnostic/real-once-r3-actual0409-20261024/generation-raw.json",
+  "raw_sha256": "ca45e21675f3e8a8675bf28b3a1c9f0820ab8e78dd59dd625ff2ee512cf50fb0",
+  "package_path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-4b-once-20261024/diagnostic-freeze-r3-actual0409.json",
+  "package_sha256": "f9c136e8323a3eb2b694c09111586442d44c1768e6e1b728602dd2d4da1602c1",
+  "native_capacity": {
+    "N": 720,
+    "P": 8192,
+    "C": 16384,
+    "required": 8914
+  },
+  "actual_loads": 1,
+  "actual_generations": 1,
+  "retries_after_actual_result": 0,
+  "independent_review": {
+    "agent": "/root/long_completion_review_r1",
+    "verdict": "FAIL_FROZEN_POSITIVE_GATE_STOP",
+    "notes": "Legal NO_NEW with exact two Evidence references; no substantive positive judgment; not context/output exhaustion. Does not establish all 4b models fail."
+  },
+  "production_qualified": false,
+  "qualification_receipts": 0,
+  "formal_data_access": false,
+  "paid_cloud_calls": 0,
+  "cleanup": "Own daemon45082 terminated by exact verified command SIGTERM; no Ollama/llama process remains",
+  "next": "Keep qualification closed; continue bounded central model/runtime configuration repair. No more cases or executable4b profile under this frozen candidate."
+}
