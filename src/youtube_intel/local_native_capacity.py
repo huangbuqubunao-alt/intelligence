@@ -4,6 +4,8 @@ DERIVED_FROM_PINNED_SOURCE, not an official two-message test golden:
 Ollama 2476d5ead197abe04629651028f83d48dc75d2b2/model/renderers/qwen35.go
 (system/user TrimSpace and think=true suffix), server/prompt.go (Go renderer),
 and llm/llama_server.go (separate schema grammar, add_special/parse_special).
+Actual0409 binding independently reviews Ollama5e31438d5d2223d8338595b366b7434ef3539708
+and llama.cpp a37cc46104eb50900d5ab4a9ba02a0abdac039db; rendering is unchanged.
 The caller must establish that exact installed Go-rendered GGUF path, empty
 model messages/system, actual native tokenizer/slot and stable host/lease.
 Only the existing LocalCapacitySession may turn its own observations into ready
@@ -19,9 +21,14 @@ from dataclasses import dataclass
 from typing import Any
 
 from youtube_intel.local_distillation_profile import (
-    CURRENT_RUNTIME_PROFILE_ID as SHORT_CURRENT,
+    NATIVE_SHORT_PROFILES,
+    canonical,
+    digest,
+    resolve_profile,
 )
-from youtube_intel.local_distillation_profile import canonical, digest, resolve_profile
+from youtube_intel.long_distillation_profile import (
+    ACTUAL_RUNTIME_PROFILE_ID as LONG_ACTUAL,
+)
 from youtube_intel.long_distillation_profile import (
     CURRENT_RUNTIME_PROFILE_ID as LONG_CURRENT,
 )
@@ -54,12 +61,12 @@ def render_qwen35_prompt(request: Mapping[str, Any]) -> str:
 
 def current_descriptor(profile_id: str) -> dict[str, Any]:
     """Finite options identity only; not qualification or runtime authority."""
-    if type(profile_id) is str and profile_id == SHORT_CURRENT:
-        profile = resolve_profile(SHORT_CURRENT)
+    if type(profile_id) is str and profile_id in NATIVE_SHORT_PROFILES:
+        profile = resolve_profile(profile_id)
         return dict(profile_id=profile_id, model=profile.model, model_digest=profile.model_digest,
             runtime=profile.runtime, options=profile.options(), max_request_bytes=profile.max_request_bytes)
-    if type(profile_id) is str and profile_id == LONG_CURRENT:
-        return dict(json.loads(resolve_long_profile(LONG_CURRENT).profile_wire))
+    if type(profile_id) is str and profile_id in {LONG_CURRENT, LONG_ACTUAL}:
+        return dict(json.loads(resolve_long_profile(profile_id).profile_wire))
     raise ValueError("unknown current native capacity profile")
 
 

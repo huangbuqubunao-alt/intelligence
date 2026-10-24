@@ -17,11 +17,15 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from youtube_intel.local_distillation_profile import (
-    CURRENT_RUNTIME_PROFILE_ID as SHORT_CURRENT,
+    ACTUAL_LONG_PROFILE_ID,
+    NATIVE_LONG_PROFILES,
+    NATIVE_SHORT_PROFILES,
+    PROFILE_ID,
+    digest,
 )
-from youtube_intel.local_distillation_profile import PROFILE_ID, digest
 
 LONG_CURRENT = "local-grounding-qwen35-9b-lossless-rle-runtime-0.40.6-v2"
+LONG_ACTUAL = ACTUAL_LONG_PROFILE_ID
 # Lazy long resolver below avoids distillation/projection import cycles.
 
 VERSION = "local-distillation-qualification-v1"
@@ -53,9 +57,9 @@ def qualification_projection(profile_id: str, scope: str) -> dict[str, object]:
     from youtube_intel.long_distillation_profile import resolve_long_profile
     if scope not in {"YT_TIMED", "LOCAL_TIMED", "LOCAL_TEXT"}:
         raise ValueError("unknown qualification scope")
-    if profile_id in {PROFILE_ID, SHORT_CURRENT}:
+    if profile_id in {PROFILE_ID, *NATIVE_SHORT_PROFILES}:
         return local_profile_for_scope(profile_id, scope)
-    if profile_id == LONG_CURRENT and scope == "YT_TIMED":
+    if profile_id in NATIVE_LONG_PROFILES and scope == "YT_TIMED":
         descriptor = json.loads(resolve_long_profile(profile_id).profile_wire)
         return {**descriptor, "local_profile_id": profile_id, "digest": descriptor["model_digest"],
             "schema": descriptor["base_schema"], "input_contract": descriptor["schema_contract"]}
@@ -67,7 +71,7 @@ def qualification_cases(projection: Mapping[str, object]) -> dict[str, str]:
     if dict(projection) != qualification_projection(profile_id, scope):
         raise ValueError("qualification projection differs from finite contract")
     cases = dict(CASE_LANGUAGES["YT_TIMED" if scope == "YT_TIMED" else "LOCAL"])
-    if profile_id == LONG_CURRENT:
+    if profile_id in NATIVE_LONG_PROFILES:
         cases.update({"long-full-en": "en", "long-full-zh": "zh-CN"})
     return cases
 
@@ -79,7 +83,7 @@ def case_outcome(case_id: str) -> str:
 
 
 def case_scope(case_id: str, *, profile_id: str = PROFILE_ID) -> str:
-    if profile_id == LONG_CURRENT and case_id in {"long-full-en", "long-full-zh"}:
+    if profile_id in NATIVE_LONG_PROFILES and case_id in {"long-full-en", "long-full-zh"}:
         return "YT_TIMED"
     if case_id in CASE_LANGUAGES["YT_TIMED"]:
         return "YT_TIMED"
@@ -189,7 +193,7 @@ class CaseReceipt(_Strict):
         options = projection["options"]
         if not isinstance(options, dict):
             return False
-        current = profile_id in {SHORT_CURRENT, LONG_CURRENT}
+        current = profile_id in {*NATIVE_SHORT_PROFILES, *NATIVE_LONG_PROFILES}
         review = self.review
         source = self.source_manifest
         hashes = (self.input_hash, self.context_hash, self.request_hash, self.permit_hash,
@@ -239,13 +243,13 @@ class QualificationRecord(_Strict):
                 and timedelta(0) < expiry - generated <= timedelta(days=30)
                 and scope in {"YT_TIMED", "LOCAL_TIMED", "LOCAL_TEXT"}
                 and self.binding == qualification_binding(projection)
-                and self.binding["profile_id"] in {PROFILE_ID, SHORT_CURRENT, LONG_CURRENT} and language in {"en", "zh-CN"}
+                and self.binding["profile_id"] in {PROFILE_ID, *NATIVE_SHORT_PROFILES, *NATIVE_LONG_PROFILES} and language in {"en", "zh-CN"}
                 and all(sha(h) for h in (self.freeze_hash, self.harness_hash, self.case_manifest_hash))
                 and self.record_hash == digest(self.model_dump(exclude={"record_hash"}, exclude_unset=True))
                 and actual == list(expected.items())
                 and len({c.execution_id for c in self.cases}) == len(actual)
                 and all(c.passes(generated, self.binding["profile_id"]) for c in self.cases)
-                and (self.binding["profile_id"] != LONG_CURRENT or self._full_source_pair())
+                and (self.binding["profile_id"] not in NATIVE_LONG_PROFILES or self._full_source_pair())
                 and all(timestamp(a.review.reviewed_at) <= timestamp(b.completed_at)
                     for a, b in zip(self.cases, self.cases[1:]))
                 and all((c.freeze_hash, c.harness_hash) == (self.freeze_hash, self.harness_hash) for c in self.cases)

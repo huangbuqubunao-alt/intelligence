@@ -2502,10 +2502,13 @@ class OllamaLocalDistillationTransport:
     def is_authorized_for_qualification(self, value: VerifiedDistillationInput) -> bool:
         if self.local_profile_id is not None:
             from youtube_intel.local_distillation_profile import (
+                CURRENT_RUNTIME_PROFILE_ID as NOMINAL_RUNTIME_PROFILE_ID,
+            )
+            from youtube_intel.local_distillation_profile import (
                 FIXED_RUNTIME_PROFILE_ID,
                 digest,
             )
-            if self.local_profile_id == FIXED_RUNTIME_PROFILE_ID:
+            if self.local_profile_id in {FIXED_RUNTIME_PROFILE_ID, NOMINAL_RUNTIME_PROFILE_ID}:
                 return False  # engineering/load-only variant has no qualification path
             return (not self._qualification_dispatched and self.is_authorized_for(value) and self._local_capacity_fits(value) and self._local_permit is not None
                 and self._local_permit.matches(local_profile_projection(value), value.semantic_hash,
@@ -2519,7 +2522,7 @@ class OllamaLocalDistillationTransport:
             profile = resolve_profile(self.local_profile_id)
             bound = profile.complete_input_token_upper_bound(build_local_distillation_request(value))
             from youtube_intel.local_distillation_profile import (
-                CURRENT_RUNTIME_PROFILE_ID,
+                ACTUAL_RUNTIME_PROFILE_ID as CURRENT_RUNTIME_PROFILE_ID,
             )
             if self.local_profile_id == CURRENT_RUNTIME_PROFILE_ID:
                 # Only the native session may establish actual N/C/P. The byte
@@ -2561,9 +2564,13 @@ class OllamaLocalDistillationTransport:
         self._prepared_execution = None
 
     def long_profile_qualified(self, profile_id: str, language: str, now: datetime) -> bool:
-        from youtube_intel.local_distillation_profile import CURRENT_RUNTIME_PROFILE_ID
+        from youtube_intel.local_distillation_profile import (
+            ACTUAL_RUNTIME_PROFILE_ID as CURRENT_RUNTIME_PROFILE_ID,
+        )
         from youtube_intel.local_distillation_qualification import (
-            LONG_CURRENT,
+            LONG_ACTUAL as LONG_CURRENT,
+        )
+        from youtube_intel.local_distillation_qualification import (
             qualification_projection,
         )
         return (self.local_profile_id == CURRENT_RUNTIME_PROFILE_ID and profile_id == LONG_CURRENT
@@ -2572,9 +2579,13 @@ class OllamaLocalDistillationTransport:
 
     def long_request_authorized(self, execution_id: str, prepared: object,
         value: VerifiedDistillationInput, *, qualification: bool) -> bool:
-        from youtube_intel.local_distillation_profile import CURRENT_RUNTIME_PROFILE_ID
+        from youtube_intel.local_distillation_profile import (
+            ACTUAL_RUNTIME_PROFILE_ID as CURRENT_RUNTIME_PROFILE_ID,
+        )
         from youtube_intel.local_distillation_qualification import (
-            LONG_CURRENT,
+            LONG_ACTUAL as LONG_CURRENT,
+        )
+        from youtube_intel.local_distillation_qualification import (
             qualification_projection,
         )
         from youtube_intel.long_distillation_profile import (
@@ -2674,9 +2685,12 @@ class OllamaLocalDistillationTransport:
             raise RuntimeError("local distillation route is not authorized")
         if self.local_profile_id is not None:
             from youtube_intel.local_distillation_profile import (
+                CURRENT_RUNTIME_PROFILE_ID as NOMINAL_RUNTIME_PROFILE_ID,
+            )
+            from youtube_intel.local_distillation_profile import (
                 FIXED_RUNTIME_PROFILE_ID,
             )
-            if self.local_profile_id == FIXED_RUNTIME_PROFILE_ID:
+            if self.local_profile_id in {FIXED_RUNTIME_PROFILE_ID, NOMINAL_RUNTIME_PROFILE_ID}:
                 raise LocalDistillationPreDispatchError("fixed-runtime profile is load-only and unqualified")
             request = build_local_distillation_request(value)
             if self._capacity_session is None or self._prepared_execution is None or not self._capacity_session.matches_value(value):
@@ -2819,7 +2833,9 @@ class OllamaLocalDistillationTransport:
             },
             method=method,
         )
-        from youtube_intel.local_distillation_profile import CURRENT_RUNTIME_PROFILE_ID
+        from youtube_intel.local_distillation_profile import (
+            ACTUAL_RUNTIME_PROFILE_ID as CURRENT_RUNTIME_PROFILE_ID,
+        )
         if self.local_profile_id == CURRENT_RUNTIME_PROFILE_ID:
             from youtube_intel.local_model_capacity import _NoNativeRedirect
             with urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoNativeRedirect()).open(request, timeout=300.0) as response:
@@ -3117,16 +3133,16 @@ class PersonalizedDistillationService:
                 raise ValueError("service local execution profile is invalid")
             if isinstance(transport, OllamaLocalDistillationTransport) and repository._source_data_root is not None:
                 transport._capacity_session = LocalCapacitySession(repository=repository, data_root=repository._source_data_root,
-                    profile_id=self._local_profile_id)
+                    profile_id=self._local_profile_id, api_base_url=transport._settings.base_url)
                 from youtube_intel.local_distillation_profile import (
-                    CURRENT_RUNTIME_PROFILE_ID,
+                    ACTUAL_RUNTIME_PROFILE_ID as CURRENT_RUNTIME_PROFILE_ID,
                 )
                 if self._local_profile_id == CURRENT_RUNTIME_PROFILE_ID:
                     from youtube_intel.local_distillation_qualification import (
-                        LONG_CURRENT,
+                        LONG_ACTUAL as LONG_CURRENT,
                     )
                     transport._long_capacity_session = LocalCapacitySession(repository=repository,
-                        data_root=repository._source_data_root, profile_id=LONG_CURRENT)
+                        data_root=repository._source_data_root, profile_id=LONG_CURRENT, api_base_url=transport._settings.base_url)
         self._output_language_for_video = output_language_for_video or (
             lambda _: "zh-CN"
         )

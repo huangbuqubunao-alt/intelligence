@@ -24,11 +24,10 @@ from youtube_intel.domain import (
     PointKind,
 )
 from youtube_intel.local_distillation_profile import (
-    CURRENT_RUNTIME_PROFILE_ID as CURRENT_SHORT_PROFILE_ID,
-)
-from youtube_intel.local_distillation_profile import canonical, digest
-from youtube_intel.long_distillation_profile import (
-    CURRENT_RUNTIME_PROFILE_ID as CURRENT_LONG_PROFILE_ID,
+    NATIVE_LONG_PROFILES,
+    canonical,
+    digest,
+    paired_long_profile,
 )
 from youtube_intel.long_distillation_profile import (
     PROFILE_ID,
@@ -725,10 +724,7 @@ def _reserve(
             packet,
             service._local_profile_id,
         )
-        profile_id = (
-            CURRENT_LONG_PROFILE_ID
-            if service._local_profile_id == CURRENT_SHORT_PROFILE_ID else PROFILE_ID
-        )
+        profile_id = paired_long_profile(service._local_profile_id)
         prepared = prepare_long_request(
             packet,
             value,
@@ -1004,7 +1000,7 @@ def verify_execution(
     if receipt is not None:
         _verify_completion(repository, connection, proof, checkpoint, dict(receipt))
         return
-    if checkpoint["status"] == "PENDING" and _profile_id(proof) == CURRENT_LONG_PROFILE_ID:
+    if checkpoint["status"] == "PENDING" and _profile_id(proof) in NATIVE_LONG_PROFILES:
         if (checkpoint["reason"].startswith("MANUAL_CONTENT:")
             and (checkpoint["invocation_count"], checkpoint["budget_state"]) in {
                 (0, "RESERVED_NOT_DISPATCHED"), (1, "DISPATCH_CLAIMED")}
@@ -1346,7 +1342,7 @@ def _verify_completion(
     proof: dict[str, Any], checkpoint: dict[str, Any], receipt: dict[str, Any],
 ) -> None:
     """Validate every retained result representation before any read overlay."""
-    if (_profile_id(proof) != CURRENT_LONG_PROFILE_ID
+    if (_profile_id(proof) not in NATIVE_LONG_PROFILES
         or checkpoint["invocation_count"] != 1
         or checkpoint["created_at"] != proof["created_at"]
         or checkpoint["updated_at"] != receipt["created_at"]

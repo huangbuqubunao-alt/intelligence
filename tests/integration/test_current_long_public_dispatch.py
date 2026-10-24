@@ -8,9 +8,9 @@ from youtube_intel.distillation import (
     OllamaLocalDistillationTransport,
     PersonalizedDistillationService,
 )
-from youtube_intel.local_distillation_profile import CURRENT_RUNTIME_PROFILE_ID as SHORT
+from youtube_intel.local_distillation_profile import ACTUAL_RUNTIME_PROFILE_ID as SHORT
 from youtube_intel.local_distillation_profile import resolve_profile
-from youtube_intel.local_distillation_qualification import LONG_CURRENT
+from youtube_intel.local_distillation_qualification import LONG_ACTUAL as LONG_CURRENT
 from youtube_intel.long_distillation_persistence import RECEIPTS
 from youtube_intel.source_policy import SourcePolicyApplicationService
 

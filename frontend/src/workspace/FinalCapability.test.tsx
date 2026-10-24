@@ -199,3 +199,16 @@ it.each(["local-grounding-qwen35-9b-thinking-v1", "local-grounding-qwen35-9b-fix
     expect(fetcher.mock.calls.every(([, init]) => !init?.method || init.method === "GET")).toBe(true);
   },
 );
+
+// The new runtime is a separate exact pair; history does not grant it eligibility.
+it.each([true, false])("presents the actual0409 long route without borrowing0406 (%s)", async matched => {
+  local = { ...capability(), profile_id: "local-grounding-qwen35-9b-lossless-rle-runtime-0.40.9-v3",
+    runtime_binding: { provider: "ollama", model, profile_id: matched
+      ? "local-grounding-qwen35-9b-runtime-0.40.9-v4" : "local-grounding-qwen35-9b-runtime-0.40.6-v3" },
+    qualification_status: "QUALIFIED", request_state: "ELIGIBLE_FOR_ADMISSION", reason: "ADMISSION_CHECKS_REQUIRED" };
+  render(<App />);
+  const button = await screen.findByRole("button", { name: "Extract Intelligence" });
+  expect((button as HTMLButtonElement).disabled).toBe(!matched);
+  if (!matched) expect(screen.getByRole("button", { name: "Retry local Intelligence status" })).toBeTruthy();
+  expect(fetcher.mock.calls.every(([, init]) => !init?.method || init.method === "GET")).toBe(true);
+});

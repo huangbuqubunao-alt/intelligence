@@ -444,7 +444,9 @@ def _deep_analysis_production_capability() -> DeepAnalysisCapability:
 def local_distillation_capabilities() -> tuple[dict[str, object], ...]:
     """Current finite scope/language truth; never a load or qualification grant."""
     from youtube_intel.local_distillation_profile import (
-        CURRENT_RUNTIME_PROFILE_ID,
+        ACTUAL_RUNTIME_PROFILE_ID as CURRENT_RUNTIME_PROFILE_ID,
+    )
+    from youtube_intel.local_distillation_profile import (
         SCOPES,
     )
     from youtube_intel.local_distillation_qualification import (
@@ -456,28 +458,21 @@ def local_distillation_capabilities() -> tuple[dict[str, object], ...]:
         for scope in SCOPES for language in ("en", "zh-CN"))
 
 
-def build_production_local_distillation_transport(settings: LocalScoringSettings) -> OllamaLocalDistillationTransport:
+def build_production_local_distillation_transport(settings: LocalScoringSettings, *, runtime: str = "0.40.9") -> OllamaLocalDistillationTransport:
     """The installed current route remains distinct from reviewed eligibility."""
-    from youtube_intel.local_distillation_profile import (
-        CURRENT_RUNTIME_PROFILE_ID,
-        SCOPES,
-        resolve_profile,
-    )
+    from youtube_intel.local_distillation_profile import resolve_model_binding
     from youtube_intel.local_distillation_qualification import (
-        LONG_CURRENT,
-        qualification_projection,
         read_reviewed_qualifications,
     )
     authority = read_reviewed_qualifications()
-    profile = resolve_profile(CURRENT_RUNTIME_PROFILE_ID)
-    qualified = any(authority.permits(qualification_projection(profile_id, scope), language)
-        for profile_id, scope in [*((CURRENT_RUNTIME_PROFILE_ID, scope) for scope in SCOPES), (LONG_CURRENT, "YT_TIMED")]
-        for language in ("en", "zh-CN"))
-    if qualified or (settings.model, settings.expected_model_digest) == (profile.model, profile.model_digest):
-        return OllamaLocalDistillationTransport(settings=LocalScoringSettings(
-            model=profile.model, expected_model_digest=profile.model_digest, base_url=settings.base_url),
-            local_profile_id=CURRENT_RUNTIME_PROFILE_ID, qualification_authority=authority)
-    return OllamaLocalDistillationTransport(settings=settings, production_qualified=False)
+    try:
+        binding = resolve_model_binding("ollama", settings.model, settings.expected_model_digest, runtime)
+    except ValueError:
+        return OllamaLocalDistillationTransport(settings=settings, production_qualified=False)
+    if not binding.executable:
+        return OllamaLocalDistillationTransport(settings=settings, production_qualified=False)
+    return OllamaLocalDistillationTransport(settings=settings,
+        local_profile_id=binding.short_profile_id, qualification_authority=authority)
 
 
 def build_local_source_run_runtime(
@@ -556,7 +551,8 @@ def build_local_source_run_runtime(
         profile = machine_settings.candidate
         intelligence_config = LocalScoringSettings(model=profile.model,
             expected_model_digest=profile.model_digest, base_url=intelligence_config.base_url)
-    transport = build_production_local_distillation_transport(intelligence_config)
+    transport = build_production_local_distillation_transport(intelligence_config,
+        runtime=machine_settings.candidate.runtime if machine_settings.selected() else "0.40.9")
     distillation = PersonalizedDistillationService(
         repository,
         source_policy,
@@ -567,12 +563,16 @@ def build_local_source_run_runtime(
     )
     if transport.local_profile_id is not None:
         transport._capacity_session = LocalCapacitySession(repository=repository, data_root=data_root,
-            backup_restore=backup_restore, profile_id=transport.local_profile_id)
-        from youtube_intel.local_distillation_profile import CURRENT_RUNTIME_PROFILE_ID
+            backup_restore=backup_restore, profile_id=transport.local_profile_id, api_base_url=intelligence_config.base_url)
+        from youtube_intel.local_distillation_profile import (
+            ACTUAL_RUNTIME_PROFILE_ID as CURRENT_RUNTIME_PROFILE_ID,
+        )
         if transport.local_profile_id == CURRENT_RUNTIME_PROFILE_ID:
-            from youtube_intel.local_distillation_qualification import LONG_CURRENT
+            from youtube_intel.local_distillation_qualification import (
+                LONG_ACTUAL as LONG_CURRENT,
+            )
             transport._long_capacity_session = LocalCapacitySession(repository=repository, data_root=data_root,
-                backup_restore=backup_restore, profile_id=LONG_CURRENT)
+                backup_restore=backup_restore, profile_id=LONG_CURRENT, api_base_url=intelligence_config.base_url)
     # One independently reviewed K2.6 qualification passed. The UI still
     # requires a separate consent for each normal cloud execution.
     m12_moonshot_qualified = True

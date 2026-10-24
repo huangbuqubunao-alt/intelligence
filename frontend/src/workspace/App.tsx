@@ -261,8 +261,10 @@ function readContentLocal(value: unknown, video: ContentItem, id: string): Conte
       || (video.media_kind === "TEXT" && value.scope !== "LOCAL_TEXT") || (["AUDIO", "VIDEO"].includes(video.media_kind ?? "") && value.scope !== "LOCAL_TIMED")) return null;
   const matches = value.runtime_binding.provider === "ollama" && value.runtime_binding.model === value.model
     && (value.runtime_binding.profile_id === value.profile_id || value.scope === "YT_TIMED"
-      && value.profile_id === "local-grounding-qwen35-9b-lossless-rle-runtime-0.40.6-v2"
-      && value.runtime_binding.profile_id === "local-grounding-qwen35-9b-runtime-0.40.6-v3");
+      && ((value.profile_id === "local-grounding-qwen35-9b-lossless-rle-runtime-0.40.6-v2"
+        && value.runtime_binding.profile_id === "local-grounding-qwen35-9b-runtime-0.40.6-v3")
+        || (value.profile_id === "local-grounding-qwen35-9b-lossless-rle-runtime-0.40.9-v3"
+        && value.runtime_binding.profile_id === "local-grounding-qwen35-9b-runtime-0.40.9-v4")));
   const consistent = value.request_state === "CONFIGURATION_REQUIRED" && value.reason === "MODEL_CONFIGURATION_REQUIRED" || (value.qualification_status === "NOT_QUALIFIED"
     ? value.request_state === "WAITING_MODEL" && value.reason === "NOT_QUALIFIED"
     : (value.request_state === "ELIGIBLE_FOR_ADMISSION" && matches && value.reason === "ADMISSION_CHECKS_REQUIRED")
@@ -1772,7 +1774,7 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
   const note = data.note.v2;
   const localCapability = readContentLocal(data.local_intelligence, data.video, id);
   const unstartedLongWait = data.intelligence_result.status === "WAITING_MODEL"
-    && localCapability?.profile_id === "local-grounding-qwen35-9b-lossless-rle-runtime-0.40.6-v2"
+    && ["local-grounding-qwen35-9b-lossless-rle-runtime-0.40.6-v2", "local-grounding-qwen35-9b-lossless-rle-runtime-0.40.9-v3"].includes(localCapability?.profile_id ?? "")
     && data.waiting_model_executions?.some(wait => wait.can_cancel) === true;
   const visibleHistory = data.history.filter((event) =>
     event.type === "JOB_STATUS" || !event.type

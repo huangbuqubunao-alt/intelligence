@@ -4,8 +4,8 @@ from copy import deepcopy
 
 import pytest
 
-from youtube_intel.local_distillation_profile import CURRENT_RUNTIME_PROFILE_ID as SHORT
-from youtube_intel.long_distillation_profile import CURRENT_RUNTIME_PROFILE_ID as LONG
+from youtube_intel.local_distillation_profile import ACTUAL_RUNTIME_PROFILE_ID as SHORT
+from youtube_intel.long_distillation_profile import ACTUAL_RUNTIME_PROFILE_ID as LONG
 
 
 def request(profile=LONG):
@@ -154,7 +154,7 @@ def test_current_runtime_verifies_v2_parent_reference_and_payloads_without_legac
 
     manifests = _load_module("test_capacity_host_manifest")
     wrapper, parent, reference, _binary, payloads = manifests.fixture_installation(tmp_path, monkeypatch)
-    monkeypatch.setattr(capacity, "CURRENT_BINARIES", dict(capacity.BINARIES))
+    monkeypatch.setattr(capacity, "runtime_binary_hashes", lambda profile_id: dict(capacity.BINARIES))
     wrapper.rename(tmp_path / "historical-anchor-retained")
     cache = parent.parent.parent
     files, links = capacity.verify_installed_model_bytes(cache, profile_id=SHORT)

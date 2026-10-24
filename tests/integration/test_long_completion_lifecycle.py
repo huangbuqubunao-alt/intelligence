@@ -5,10 +5,12 @@ import json
 import pytest
 from conftest import _load_module
 
-from youtube_intel.local_distillation_profile import CURRENT_RUNTIME_PROFILE_ID
+from youtube_intel.local_distillation_profile import (
+    ACTUAL_RUNTIME_PROFILE_ID as CURRENT_RUNTIME_PROFILE_ID,
+)
 from youtube_intel.long_distillation_persistence import PROOFS
 from youtube_intel.long_distillation_profile import (
-    CURRENT_RUNTIME_PROFILE_ID as LONG_CURRENT,
+    ACTUAL_RUNTIME_PROFILE_ID as LONG_CURRENT,
 )
 from youtube_intel.long_distillation_profile import PROFILE_ID as LONG_OLD
 

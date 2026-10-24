@@ -30,16 +30,17 @@ from youtube_intel.distillation import (
     verified_distillation_input_projection,
 )
 from youtube_intel.local_distillation_profile import (
-    CURRENT_RUNTIME_PROFILE_ID,
+    NATIVE_LONG_PROFILES,
+    NATIVE_SHORT_PROFILES,
     PROFILE_ID,
     SCOPES,
+    binding_for_profile,
     canonical,
     digest,
     resolve_profile,
 )
 from youtube_intel.local_distillation_qualification import (
     CASE_LANGUAGES,
-    LONG_CURRENT,
     CaseReceipt,
     LocalExecutionPermit,
     SourceManifest,
@@ -87,7 +88,7 @@ def write_once(path: Path, value: object) -> None:
 
 
 def describe(profile_id: str = PROFILE_ID) -> dict[str, object]:
-    scopes = ("YT_TIMED",) if profile_id == LONG_CURRENT else SCOPES
+    scopes = ("YT_TIMED",) if profile_id in NATIVE_LONG_PROFILES else SCOPES
     profiles = {scope: qualification_projection(profile_id, scope) for scope in scopes}
     return {"version": "local-grounding-harness-v1", "profile_id": profile_id,
         "profiles": profiles,
@@ -165,10 +166,10 @@ def prepare_case(service: PersonalizedDistillationService, *, case_id: str, sour
     # Long original ten cases deliberately use the same complete long builder,
     # even when a particular source would fit the ordinary short route.
     qualification_projection(profile_id, "YT_TIMED")
-    expected_short = CURRENT_RUNTIME_PROFILE_ID if profile_id == LONG_CURRENT else profile_id
+    expected_short = binding_for_profile(profile_id).short_profile_id if profile_id in NATIVE_LONG_PROFILES else profile_id
     if service._local_profile_id != expected_short:
         raise ValueError("preparation service profile differs")
-    if profile_id == LONG_CURRENT:
+    if profile_id in NATIVE_LONG_PROFILES:
         from youtube_intel.long_distillation_execution import rebuild_long
         from youtube_intel.long_distillation_persistence import _reserve
         evidence_ids = service.reservation_evidence_ids(video_id)
@@ -265,7 +266,7 @@ def validate_execution_package(audit_root: Path, permit_path: Path, freeze_path:
                 or source.origin != "PUBLIC_SNAPSHOT" or source.selector_id == freeze.get("producer_id")))
             or (case_id.startswith("local-") and source.origin != "LOCAL_SNAPSHOT")):
             raise ValueError("a frozen source/input/profile is mismatched or lacks required provenance")
-        if case_id.startswith("long-full-") and (profile_id != LONG_CURRENT
+        if case_id.startswith("long-full-") and (profile_id not in NATIVE_LONG_PROFILES
             or entry.get("video_id") != "0eMzc-WnBfQ" or entry.get("evidence_count") != 114 or entry.get("cue_count") != 2406
             or source.evidence_count != 114 or source.cue_count != 2406 or source.origin != "PUBLIC_SNAPSHOT"):
             raise ValueError("long full-source qualification requires the genuine complete source")
@@ -340,12 +341,12 @@ def verify_resources(audit_root: Path, freeze: Mapping[str, Any], permit: LocalE
     # Legacy resource-only callers predate profile_id. Execution packages
     # independently require the full exact binding before reaching this gate.
     profile_id = permit.binding.get("profile_id", PROFILE_ID)
-    profile = resolve_profile(CURRENT_RUNTIME_PROFILE_ID if profile_id == LONG_CURRENT else profile_id)
+    profile = resolve_profile(binding_for_profile(profile_id).short_profile_id if profile_id in NATIVE_LONG_PROFILES else profile_id)
     prepared = read_object(audit_root / "prepared.json")
     # Independently supplied proof files cannot bypass the compiled production
     # capacity algorithm. Frozen proof files never substitute for the current
     # production host/load-only/slot preflight before the generation claim.
-    if profile_id in {CURRENT_RUNTIME_PROFILE_ID, LONG_CURRENT}:
+    if profile_id in {*NATIVE_SHORT_PROFILES, *NATIVE_LONG_PROFILES}:
         verify_current_capacity_document(capacity, prepared, permit)
         bound = None
     else:
@@ -384,7 +385,9 @@ def verify_resources(audit_root: Path, freeze: Mapping[str, Any], permit: LocalE
 def execute_case(audit_root: Path, permit_path: Path, freeze_path: Path) -> dict[str, object]:
     prepared, permit, freeze = validate_execution_package(audit_root, permit_path, freeze_path)
     profile_id = permit.binding["profile_id"]
-    profile = resolve_profile(CURRENT_RUNTIME_PROFILE_ID if profile_id == LONG_CURRENT else profile_id)
+    if profile_id in {*NATIVE_SHORT_PROFILES, *NATIVE_LONG_PROFILES} and not binding_for_profile(profile_id).executable:
+        raise ValueError("historical runtime profile cannot generate")
+    profile = resolve_profile(binding_for_profile(profile_id).short_profile_id if profile_id in NATIVE_LONG_PROFILES else profile_id)
     def claim(value: VerifiedDistillationInput, request: Mapping[str, object]) -> None:
         if owned_workspace(audit_root, permit.case_id, Path(prepared["database"]), Path(prepared["data_root"])) != prepared["workspace_ownership"]:
             raise ValueError("once workspace ownership changed before claim")
@@ -465,7 +468,7 @@ def execute_observed_case(service: PersonalizedDistillationService, transport: O
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--execute", action="store_true")
-    parser.add_argument("--profile", choices=(PROFILE_ID, CURRENT_RUNTIME_PROFILE_ID, LONG_CURRENT), default=PROFILE_ID)
+    parser.add_argument("--profile", choices=(PROFILE_ID, *NATIVE_SHORT_PROFILES, *NATIVE_LONG_PROFILES), default=PROFILE_ID)
     parser.add_argument("--audit-root", type=Path)
     parser.add_argument("--permit", type=Path)
     parser.add_argument("--freeze", type=Path)

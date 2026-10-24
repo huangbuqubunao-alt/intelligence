@@ -16,6 +16,7 @@ import shutil
 import sqlite3
 import subprocess
 import threading
+import urllib.parse
 import urllib.request
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import AbstractContextManager, contextmanager
@@ -26,8 +27,10 @@ from time import monotonic
 from typing import TYPE_CHECKING, Any, Protocol
 
 from youtube_intel.local_distillation_profile import (
-    CURRENT_RUNTIME_PROFILE_ID,
+    ACTUAL_RUNTIME_PROFILE_ID,
     FIXED_RUNTIME_PROFILE_ID,
+    NATIVE_LONG_PROFILES,
+    NATIVE_SHORT_PROFILES,
     PROFILE_ID,
     binding_for_profile,
     canonical,
@@ -46,11 +49,8 @@ BINARIES = {
     "llama-server": "35844857b55bb541fe914064b96e437f8b8d187968ecd8cfe50c52dd8434b8b8",
     "libllama-server-impl.dylib": "096573a0fe1ea34f126c937c7be021ffaa27647ff31eac5852cda8165a939b66",
 }
-CURRENT_BINARIES = {
-    "ollama": "be4b054f8ebf8b3b185daa30671849a80f22c2b2ef45e064de562f69aba46a96",
-    "llama-server": "831a41b83171eb00710d75e55bc1d995c8bc61e01bee547420ca52c02448275d",
-    "libllama-server-impl.dylib": "c9d3c06fe860e99823811e0716766fae9589b40b800b91cbcb9f78dda1df2a7c",
-}
+# Compatibility export of actual0409 bytes; descriptors own their version pairing.
+CURRENT_BINARIES = dict(binding_for_profile(ACTUAL_RUNTIME_PROFILE_ID).binary_hashes)
 
 
 def runtime_binary_hashes(profile_id: str) -> dict[str, str]:
@@ -814,6 +814,64 @@ def wire_bytes(request: Mapping[str, object]) -> bytes:
     ).encode("utf-8")
 
 
+def _mapped_runtime_files(process: str, binary: str) -> None:
+    """Match kernel text mappings to frozen disk identities, never argv alone."""
+    pid = process.split()[0]
+    if not pid.isdecimal():
+        raise CapacityUnavailable("mapped runtime PID is unknown")
+    result = subprocess.run(["/usr/sbin/lsof", "-nP", "-a", "-p", pid, "-d", "txt", "-FfDin"],
+        capture_output=True, text=True, timeout=5, check=True).stdout
+    if len(result) > 262144:
+        raise CapacityUnavailable("runtime mappings exceed bounds")
+    records: list[dict[str, str]] = []
+    for line in result.splitlines():
+        if line.startswith("f"):
+            records.append({})
+        elif records and line[:1] in {"D", "i", "n"}:
+            records[-1][line[0]] = line[1:]
+    prefix = process.partition(" " + str(ROOT / binary))[0]
+    try:
+        started = datetime.strptime(prefix.split(maxsplit=1)[1], "%a %b %d %H:%M:%S %Y").astimezone().timestamp()
+    except (ValueError, IndexError) as error:
+        raise CapacityUnavailable("mapped runtime start time is unknown") from error
+    required = {binary}
+    library = "libllama-server-impl.dylib"
+    if any(library in row.get("n", "") for row in records):
+        required.add(library)
+    for name in required:
+        target = ROOT / name
+        matches = [row for row in records if name in row.get("n", "") and Path(row["n"]).name == name]
+        identity = file_identity(target)
+        if target.stat().st_mtime > started:
+            raise CapacityUnavailable("runtime file changed after process start")
+        if (len(matches) != 1 or matches[0].get("n") != str(target)
+            or int(matches[0].get("D", "-1"), 0) != identity[0]
+            or int(matches[0].get("i", "-1")) != identity[1]):
+            raise CapacityUnavailable("mapped runtime bytes differ from frozen disk")
+
+
+def verify_runtime_api(host: HostObservation, base_url: str, send: Send, expected_version: str) -> None:
+    """Bind exact API version/listener/mapped files to one unchanged observation."""
+    endpoint = urllib.parse.urlsplit(base_url)
+    if (endpoint.scheme != "http" or endpoint.hostname not in {"127.0.0.1", "::1", "localhost"}
+        or endpoint.username is not None or endpoint.password is not None or endpoint.query or endpoint.fragment
+        or endpoint.path not in {"", "/"} or not host.is_current()):
+        raise CapacityUnavailable("runtime API endpoint/observation differs")
+    pid = host.server.split()[0]
+    port = endpoint.port or 80
+    listener = subprocess.run(["/usr/sbin/lsof", "-nP", "-a", "-p", pid,
+        "-iTCP:" + str(port), "-sTCP:LISTEN", "-Fn"], capture_output=True, text=True, timeout=5, check=True).stdout
+    addresses = {"127.0.0.1"} if endpoint.hostname == "127.0.0.1" else {"[::1]"} if endpoint.hostname == "::1" else {"127.0.0.1", "[::1]"}
+    if (len(listener) > 16384 or {line[1:] for line in listener.splitlines() if line.startswith("p")} != {pid}
+        or not any("n" + address + ":" + str(port) in listener.splitlines() for address in addresses)):
+        raise CapacityUnavailable("runtime API listener belongs to another process")
+    _mapped_runtime_files(host.server, "ollama")
+    if host.runner:
+        _mapped_runtime_files(host.runner, "llama-server")
+    if send("/api/version", method="GET").get("version") != expected_version or not host.is_current():
+        raise CapacityUnavailable("runtime API version or same-process observation differs")
+
+
 def _native_slot_context(props: object, slots: object) -> int:
     # Pinned upstream server-context.cpp: meta.slot_n_ctx=n_ctx_slot(), not
     # nominal request num_ctx or the model training context.
@@ -876,10 +934,11 @@ class LocalCapacitySession:
         data_root: Path,
         backup_restore: BackupRestoreService | None = None,
         profile_id: str = PROFILE_ID,
+        api_base_url: str = "http://127.0.0.1:11434",
     ) -> None:
-        from youtube_intel.local_distillation_qualification import LONG_CURRENT
         self._profile_id = profile_id
-        self._profile = resolve_profile(CURRENT_RUNTIME_PROFILE_ID if profile_id == LONG_CURRENT else profile_id)
+        self.api_base_url = api_base_url
+        self._profile = resolve_profile(binding_for_profile(profile_id).short_profile_id if profile_id in NATIVE_LONG_PROFILES else profile_id)
         self.native_witness: object | None = None
         self.repository, self.data_root = repository, data_root
         self.lease = ApplicationHeavyLease(
@@ -902,7 +961,7 @@ class LocalCapacitySession:
             verified_distillation_input_projection,
         )
         profile = self._profile
-        if self._profile_id == CURRENT_RUNTIME_PROFILE_ID:
+        if self._profile_id in NATIVE_SHORT_PROFILES:
             try:
                 if type(value) is not VerifiedDistillationInput or value.local_profile_id != self._profile_id:
                     return False
@@ -1051,7 +1110,9 @@ class LocalCapacitySession:
 
     def prepare_long(self, execution_id: str, prepared: object, send: Send) -> bool:
         """Caller bytes confer no authority: rebuild the exact persisted proof first."""
-        from youtube_intel.local_distillation_qualification import LONG_CURRENT
+        from youtube_intel.local_distillation_qualification import (
+            LONG_ACTUAL as LONG_CURRENT,
+        )
         from youtube_intel.long_distillation_execution import rebuild_long
         from youtube_intel.long_distillation_profile import (
             PreparedLongRequest,
@@ -1075,7 +1136,9 @@ class LocalCapacitySession:
             return False
 
     def matches_long(self, execution_id: str, prepared: object) -> bool:
-        from youtube_intel.local_distillation_qualification import LONG_CURRENT
+        from youtube_intel.local_distillation_qualification import (
+            LONG_ACTUAL as LONG_CURRENT,
+        )
         from youtube_intel.long_distillation_profile import PreparedLongRequest
         return (self._profile_id == LONG_CURRENT and type(prepared) is PreparedLongRequest
             and self._ready is not None and self._ready.execution_id == execution_id
@@ -1090,6 +1153,8 @@ class LocalCapacitySession:
         )
         try:
             descriptor = current_descriptor(self._profile_id)
+            if not binding_for_profile(self._profile_id).executable:
+                return False
             if self._ready is not None:
                 return self._ready.value_hash == value_hash and self.ready_for_claim(execution_id, request)
             if not execution_id or not self.lease.acquire():
@@ -1120,6 +1185,7 @@ class LocalCapacitySession:
                 before = observe_current_load_only_reconfiguration(data_root=self.data_root, profile_id=self._profile_id)
             if not before.is_current() or not self.lease.valid() or unresolved_local_work(self.repository):
                 raise CapacityUnavailable("current host or unresolved work changed before load")
+            verify_runtime_api(before, self.api_base_url, send, descriptor["runtime"])
             response = send("/api/chat", method="POST", body={"model": descriptor["model"], "messages": [],
                 "stream": False, "think": True, "truncate": False, "shift": False,
                 "options": descriptor["options"], "keep_alive": "5m"})
@@ -1136,6 +1202,7 @@ class LocalCapacitySession:
             if (host.files != before.files or host.references != before.references or host.server != before.server
                 or not host.is_current() or not self.lease.valid()):
                 raise CapacityUnavailable("current host changed during empty load")
+            verify_runtime_api(host, self.api_base_url, send, descriptor["runtime"])
             context = _native_slot_context(native_runner_request(host, "/props"), native_runner_request(host, "/slots"))
             prompt = render_qwen35_prompt(request)
             tokens = native_runner_request(host, "/tokenize", body={"content": prompt,
@@ -1174,8 +1241,7 @@ class LocalCapacitySession:
         if (
             type(models[0].get("context_length")) is not int
             or (models[0]["context_length"] not in {16384, 32768} if allow_reconfiguration else
-                models[0]["context_length"] != (32768 if self._profile_id ==
-                    "local-grounding-qwen35-9b-lossless-rle-runtime-0.40.6-v2" else 16384))
+                models[0]["context_length"] != (32768 if self._profile_id in NATIVE_LONG_PROFILES else 16384))
         ):
             raise CapacityUnavailable("actual context differs")
         return True
@@ -1233,7 +1299,7 @@ class LocalCapacitySession:
             or self._consumed
             # Current short/long share this finite runtime profile and require
             # consume-time TTL. Historical arm-then-claim semantics stay intact.
-            or (self._profile.profile_id == CURRENT_RUNTIME_PROFILE_ID and monotonic() >= ready.expires)
+            or (self._profile.profile_id in NATIVE_SHORT_PROFILES and monotonic() >= ready.expires)
             or self.lease.fd is None
             or self.lease.owner != threading.get_ident()
             or ready.execution_id != execution_id

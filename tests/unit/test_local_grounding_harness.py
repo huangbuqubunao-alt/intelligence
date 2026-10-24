@@ -302,7 +302,9 @@ def test_current_harness_frozen_capacity_is_exact_native_and_never_a_caller_read
 
 
 def test_current_long_harness_prepares_full_durable_source_without_native_or_generation(tmp_path, monkeypatch):
-    from youtube_intel.local_distillation_qualification import LONG_CURRENT
+    from youtube_intel.local_distillation_qualification import (
+        LONG_ACTUAL as LONG_CURRENT,
+    )
     lifecycle = _load_module("test_long_completion_lifecycle")
     audit = tmp_path.resolve() / "long-full-en"
     workspace = audit.parent / (audit.name + ".workspace")

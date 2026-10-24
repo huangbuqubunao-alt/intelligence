@@ -147,7 +147,10 @@ def test_installed_current_choice_real_budget_ordinary_api_wait_and_cancel_witho
     from youtube_intel.config import LocalScoringSettings
     from youtube_intel.distillation import PersonalizedDistillationService
     from youtube_intel.local_api import LocalApiApplication
-    from youtube_intel.local_intelligence_catalog import CATALOG
+    from youtube_intel.local_intelligence_catalog import (
+        ACTUAL_CANDIDATE_ID,
+        resolve_candidate,
+    )
     from youtube_intel.orchestration_service import ProductOrchestrationService
     from youtube_intel.runtime_composition import (
         ProductionDistillationBudget,
@@ -156,7 +159,7 @@ def test_installed_current_choice_real_budget_ordinary_api_wait_and_cancel_witho
 
     repo, data, _sid, vid, old, _, _ = long.workspace(tmp_path, count)
     backup = BackupRestoreService(database=repo._database_path, data_root=data)
-    candidate = CATALOG[1]
+    candidate = resolve_candidate(ACTUAL_CANDIDATE_ID)
     settings = LocalIntelligenceSettings(
         backup, probe=lambda item: "READY" if item == candidate else "RUNTIME_MISMATCH"
     )
@@ -381,12 +384,15 @@ def test_real_composition_cached_app_config_reloads_only_intelligence_choice(
 ):
     import youtube_intel.runtime_composition as composition
     from youtube_intel.config import load_app_config
-    from youtube_intel.local_intelligence_catalog import CATALOG
+    from youtube_intel.local_intelligence_catalog import (
+        ACTUAL_CANDIDATE_ID,
+        resolve_candidate,
+    )
     from youtube_intel.runtime_composition import build_local_source_run_runtime
 
     helpers = _load_module("test_runtime_composition")
     project = helpers._project(tmp_path)
-    candidate = CATALOG[1]
+    candidate = resolve_candidate(ACTUAL_CANDIDATE_ID)
     monkeypatch.setattr(
         composition,
         "local_models",
@@ -446,7 +452,9 @@ def test_real_composition_cached_app_config_reloads_only_intelligence_choice(
         actual["status"] == "APPLIED"
         and actual["actual_route"]["model"] == candidate.model
     )
-    from youtube_intel.local_distillation_profile import CURRENT_RUNTIME_PROFILE_ID
+    from youtube_intel.local_distillation_profile import (
+        ACTUAL_RUNTIME_PROFILE_ID as CURRENT_RUNTIME_PROFILE_ID,
+    )
 
     assert actual["actual_route"]["profile_id"] == CURRENT_RUNTIME_PROFILE_ID
     capabilities = composition.local_distillation_capabilities()

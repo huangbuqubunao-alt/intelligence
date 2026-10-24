@@ -145,7 +145,9 @@ def test_normal_factory_recovers_crashed_pending_without_loading_or_generating(t
     from youtube_intel.config import load_app_config
     from youtube_intel.distillation import OllamaLocalDistillationTransport
     from youtube_intel.local_distillation_profile import (
-        CURRENT_RUNTIME_PROFILE_ID,
+        ACTUAL_RUNTIME_PROFILE_ID as CURRENT_RUNTIME_PROFILE_ID,
+    )
+    from youtube_intel.local_distillation_profile import (
         resolve_profile,
     )
     from youtube_intel.runtime_composition import build_local_source_run_runtime

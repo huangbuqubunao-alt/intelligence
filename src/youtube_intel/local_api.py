@@ -2016,16 +2016,14 @@ class LocalApiApplication:
             return result
         if self._distillation_service is not None and route_required(self._distillation_service, video_id, ids, source_id):
             from .local_distillation_profile import (
-                CURRENT_RUNTIME_PROFILE_ID as SHORT_CURRENT,
+                NATIVE_SHORT_PROFILES,
+                paired_long_profile,
             )
             from .long_distillation_execution import profile_qualified
-            from .long_distillation_profile import (
-                CURRENT_RUNTIME_PROFILE_ID as LONG_CURRENT,
-            )
-            from .long_distillation_profile import PROFILE_ID, resolve_long_profile
-            profile_id = LONG_CURRENT if self._distillation_service._local_profile_id == SHORT_CURRENT else PROFILE_ID
+            from .long_distillation_profile import resolve_long_profile
+            profile_id = paired_long_profile(self._distillation_service._local_profile_id)
             long_profile = json.loads(resolve_long_profile(profile_id).profile_wire)
-            qualified = profile_id == LONG_CURRENT and profile_qualified(self._distillation_service, language)
+            qualified = self._distillation_service._local_profile_id in NATIVE_SHORT_PROFILES and profile_qualified(self._distillation_service, language)
             result.update(model=long_profile["model"], profile_id=profile_id,
                 qualification_status="QUALIFIED" if qualified else "NOT_QUALIFIED",
                 request_state="WAITING_MODEL", reason="NOT_QUALIFIED")

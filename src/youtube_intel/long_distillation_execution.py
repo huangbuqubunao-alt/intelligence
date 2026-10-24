@@ -9,11 +9,13 @@ from typing import TYPE_CHECKING, Any
 
 from youtube_intel import long_distillation_persistence as persistence
 from youtube_intel.local_distillation_profile import (
-    CURRENT_RUNTIME_PROFILE_ID as SHORT_CURRENT,
+    ACTUAL_RUNTIME_PROFILE_ID as SHORT_CURRENT,
 )
 from youtube_intel.local_distillation_profile import canonical
 from youtube_intel.long_distillation_profile import (
-    CURRENT_RUNTIME_PROFILE_ID,
+    ACTUAL_RUNTIME_PROFILE_ID as CURRENT_RUNTIME_PROFILE_ID,
+)
+from youtube_intel.long_distillation_profile import (
     PreparedLongRequest,
     prepare_long_request,
 )

@@ -9,7 +9,7 @@ from youtube_intel.distillation import (
     build_local_distillation_request,
     local_profile_for_scope,
 )
-from youtube_intel.local_distillation_profile import CURRENT_RUNTIME_PROFILE_ID as SHORT
+from youtube_intel.local_distillation_profile import ACTUAL_RUNTIME_PROFILE_ID as SHORT
 from youtube_intel.local_distillation_profile import digest, resolve_profile
 
 old = _load_module("test_local_model_capacity")
@@ -35,6 +35,12 @@ def fixture(tmp_path, monkeypatch):
             return [{"id": 0, "n_ctx": 16384, "is_processing": False, "speculative": False}]
         assert path == "/props"
         return {"default_generation_settings": {"n_ctx": 16384}, "total_slots": 1, "is_sleeping": False, "endpoint_slots": True}
+    # Explicit offline OS observer seam; exact mapped/API negatives live in
+    # test_configurable_model_binding. No real lsof or provider in fixtures.
+    def same_api(host, base_url, sender, expected):
+        assert host.is_current()
+        assert sender("/api/version", method="GET")["version"] == expected == "0.40.9"
+    monkeypatch.setattr(capacity, "verify_runtime_api", same_api)
     monkeypatch.setattr(capacity, "native_runner_request", native, raising=False)
     return session, value, send, calls, native_calls, loaded
 
@@ -110,7 +116,9 @@ def test_current_native_failure_never_mints_readiness(tmp_path, monkeypatch, dam
 def test_long_session_rebuilds_the_persisted_complete_proof_and_never_trusts_caller_bytes(tmp_path, monkeypatch, expire_after_arm):
     import json
 
-    from youtube_intel.local_distillation_qualification import LONG_CURRENT
+    from youtube_intel.local_distillation_qualification import (
+        LONG_ACTUAL as LONG_CURRENT,
+    )
     from youtube_intel.long_distillation_execution import rebuild_long, reserve_pending
 
     lifecycle = _load_module("test_long_completion_lifecycle")
