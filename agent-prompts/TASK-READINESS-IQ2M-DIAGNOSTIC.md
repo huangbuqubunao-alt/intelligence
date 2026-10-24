@@ -1,5 +1,5 @@
 # TASK-READINESS-IQ2M-DIAGNOSTIC
-Status: IN_PROGRESS_QA_WAITING_VERIFIED_ARTIFACT
+Status: IN_REVIEW_CONCRETE_DIAGNOSTIC_ONLY
 Role: QA Implementer
 Base: d61752b (product byte-identical final full6003backend/1026frontend)
 Worktree: /Users/hua/Documents/yia-worktrees/readiness-iq2m-diagnostic
