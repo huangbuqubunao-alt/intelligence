@@ -1,3 +1,5 @@
+> 2026-10-24 运行架构纠正：独审 b382444 已撤回先前“所有loaded runner缺impl即P1”的无条件结论。实际lipo/otool证实固定0409的ARM64 slice不加载x86-only impl；无条件guard反会误拒正常ARM64。81a2/d3均未整合。Q3原4dbc脚本/68fake/资源拒绝和旧包已完整备份，作者按真实vmmap PID/CodeType/Launch最小ARM64-only合同先QA、后产品串行修；不实现x86框架。外部app真实变04010，已在隔离目录下载官方0409 TGZ并核验全包cdfaee59、三binary字节全等旧0409；独立daemon4312 API0409/modelPS空，0新load0gen。root86a5889；无main/owner变化。详见ARM64_RUNTIME_REVIEW_CORRECTION与Q3KS_PINNED_RUNTIME_FREEZE。
+
 > 2026-10-24 续作：root1a60cd5 clean；集中模型绑定作者81a2d94/产品7370931+769a630已完成1706影响组和1017前端，独立review进行，已确认缺implementation dylib实际映射仍接受的P1，未整合。原4b thinking和nonthinking都真实FAIL/STOP（后者遗漏Evidence且时间范围错误），不授资格。固定第三方Unsloth 9b纯文本Q3_K_S已独立核验4payload/4316877293B/manifest4070000…，仅隔离metadata import、0load0gen；新QA脚本在旧独立QA WT适配，须独审后root至多一次原English诊断。payload+2GiB为6464360941B新资源下界，不放宽旧9b门槛。正式main/owner未动；Goal未完成，最终全测/真实正向/完整恢复/手册/发布门禁仍待。
 
 > 2026-10-24 13:05 当前续作：正式产品未发布，owner/config/凭据未触及。root当前已整合独立R2修复（d543b1c/38399a5/5405a50）：固定旧源码完整5940为5937PASS/3FAIL/2warnings、543文件全等；原三失败修复后root完整三个相关文件99PASS/83.53s、compile/Ruff/strict121通过，538源文件全等。最终全仓仍须在当前配置整改完成后重跑，不能把相关组当全绿。
