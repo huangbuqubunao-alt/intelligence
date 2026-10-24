@@ -1,5 +1,5 @@
 # TASK-READINESS-MODEL-SETUP-CATALOG-BOUND
-Status: ACCEPTED_ENGINEERING_SCOPE_PENDING_ROOT_INTEGRATION
+Status: INTEGRATED_ENGINEERING_SCOPE
 Role: Implementer
 Base: 6ed56192c65c395ba39dffcd423aecacb256856a
 Worktree: /Users/hua/Documents/yia-worktrees/readiness-model-setup-catalog-bound
@@ -17,3 +17,5 @@ Read required repository docs and relevant skills. Demonstrate failing 3-real-ca
 
 ## Acceptance checkpoint 2026-10-25
 Author ffa95fa, independent reviewer5233d46 APPROVE:19 related/full1026 UI/TS/build, no safety checks removed. Root real headful final accepted UI build D665EVVu with unchanged6ed backend rendered actual3 candidates, disabled two wrong runtime entries, applied only matching0409 then normal restart. Actual two WAIT0 GUI cancels/other blocker/idempotent repeat/independent restart/GUI BackupRestore all79 SQL and25 DATA exact. Root full frozen backend still pending, integration waits to preserve original frozen547. No model quality/Goal/main acceptance.
+
+Final root integration a2076db: complete1026 frontend/TS/build/Ruff/strict121/diff PASS,547 bindings stable, only2 UI source/test files differ from frozen6003 backend run; all backend/config/scripts/tests identical. Final root served4 assets byte-identical independent review build, real GUI all3 radios/applied/ASRready/Backupready/lastRestorePassed true. Manual79 images17 chapters zero bad images/anchors/overflow. Model qualification and whole Goal/main acceptance remain closed.

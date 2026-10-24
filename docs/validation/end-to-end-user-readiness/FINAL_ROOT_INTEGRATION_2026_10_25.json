@@ -1,0 +1,202 @@
+{
+  "at": "2026-10-24T16:49:16.356863+00:00",
+  "classification": "FINAL_ROOT_INTEGRATION_QUALITY_AND_GUI_ARTIFACT_PROOF_NOT_MODEL_OR_RELEASE_ACCEPTANCE",
+  "integration": {
+    "head": "a2076dbd695e1c8f6abae0f41bdc885fff5a6bdf",
+    "source_files": 547,
+    "all_backend_source_and_tests_identical_to_full6003": true,
+    "changed_since_frozen_full_run": [
+      "frontend/src/workspace/LocalIntelligenceSetup.test.tsx",
+      "frontend/src/workspace/LocalIntelligenceSetup.tsx"
+    ],
+    "source_unchanged_during_checks": true,
+    "checks": {
+      "typecheck": {
+        "command": [
+          "npm",
+          "run",
+          "typecheck"
+        ],
+        "cwd": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/frontend",
+        "exit_code": 0,
+        "log_sha256": "0073b777d6b85b5e4d2ac79b723aeebbde034ccb34fcc14bd2f0666746071629"
+      },
+      "frontend": {
+        "command": [
+          "npm",
+          "test",
+          "--",
+          "--maxWorkers=2",
+          "--minWorkers=1"
+        ],
+        "cwd": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/frontend",
+        "exit_code": 0,
+        "log_sha256": "00c80e9eb67c8756b363509be2bebbbac69ddce125b8d8bf8933593a272711fa"
+      },
+      "build": {
+        "command": [
+          "npm",
+          "run",
+          "build"
+        ],
+        "cwd": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/frontend",
+        "exit_code": 0,
+        "log_sha256": "7984c8e645f13648ccb99f6edd959fd10214371abd776b10e21c436c4de61293"
+      },
+      "ruff": {
+        "command": [
+          "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
+          "-m",
+          "ruff",
+          "check",
+          "src",
+          "tests",
+          "scripts"
+        ],
+        "cwd": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness",
+        "exit_code": 0,
+        "log_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+      },
+      "mypy": {
+        "command": [
+          "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
+          "-m",
+          "mypy",
+          "src"
+        ],
+        "cwd": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness",
+        "exit_code": 0,
+        "log_sha256": "0cd98cfd5b35e0e85b86d75459966f02562f9c10fe59fb3d86271d1b9fa33e5c"
+      },
+      "diff": {
+        "command": [
+          "git",
+          "diff",
+          "--check"
+        ],
+        "cwd": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness",
+        "exit_code": 0,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "all_pass": true
+  },
+  "root_gui": {
+    "appliedSelection": true,
+    "backupReady": true,
+    "candidateRadios": 3,
+    "lastRestorePassed": true,
+    "scripts": [
+      "http://127.0.0.1:6348/assets/index-D665EVVu.js"
+    ],
+    "transcriptionReady": true,
+    "unreadableError": false,
+    "url": "http://127.0.0.1:6348/#Settings"
+  },
+  "manual_render": {
+    "brokenImages": [],
+    "horizontalOverflow": false,
+    "imageCount": 79,
+    "mainChapterCount": 17,
+    "missingAnchors": [],
+    "url": "file:///Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/docs/validation/muse-final-audit/USER_MANUAL.html"
+  },
+  "source_and_logs": [
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/root-model-catalog-ui-integration-20261025/result.json",
+      "bytes": 2389,
+      "sha256": "5e668d9a6e2b75c388156a8d8d03ab02c31a605271127b2a53232184ab461428"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/root-model-catalog-ui-integration-20261025/source-before.json",
+      "bytes": 64279,
+      "sha256": "287a728ffa58692da448ec084409f15c1e200887a0a60c460dae6308293aadc0"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/root-model-catalog-ui-integration-20261025/source-after.json",
+      "bytes": 64279,
+      "sha256": "287a728ffa58692da448ec084409f15c1e200887a0a60c460dae6308293aadc0"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/root-model-catalog-ui-integration-20261025/frontend.log",
+      "bytes": 33333,
+      "sha256": "00c80e9eb67c8756b363509be2bebbbac69ddce125b8d8bf8933593a272711fa"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/root-model-catalog-ui-integration-20261025/typecheck.log",
+      "bytes": 68,
+      "sha256": "0073b777d6b85b5e4d2ac79b723aeebbde034ccb34fcc14bd2f0666746071629"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/root-model-catalog-ui-integration-20261025/build.log",
+      "bytes": 395,
+      "sha256": "7984c8e645f13648ccb99f6edd959fd10214371abd776b10e21c436c4de61293"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/root-model-catalog-ui-integration-20261025/ruff.log",
+      "bytes": 19,
+      "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/root-model-catalog-ui-integration-20261025/mypy.log",
+      "bytes": 45,
+      "sha256": "0cd98cfd5b35e0e85b86d75459966f02562f9c10fe59fb3d86271d1b9fa33e5c"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/root-model-catalog-ui-integration-20261025/diff.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "remaining_evidence": [
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/28-manual-render-check.json",
+      "bytes": 256,
+      "sha256": "39d0c8cd3b13f47d72b9e0e3c4331784200f73f4e41cbd293226cc63a65600ef"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/29-root-integrated-ui-process.json",
+      "bytes": 368,
+      "sha256": "9231e386f8004d63fa9f460630d12ca6fda13b6e8c8d69ac246e15c0a70af8f1"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/29-root-served-asset-proof.json",
+      "bytes": 630,
+      "sha256": "3f6deae5d6569a629fd2703c8b6b519fd542dfe6e62764947a0c60b25c95ee56"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/29-root-gui-final-settings-check.json",
+      "bytes": 282,
+      "sha256": "7abca07c32e798a368bf872890e70702aa2e3573b476f2d20208612c08e99d29"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/30-current-d2-source-receipt-reuse.json",
+      "bytes": 1997,
+      "sha256": "80b2d2d7430993e14a4e0a65b7518a1b3d70879cc0db60db12551f37094e3fb9"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/31-readonly-final-git-topology.json",
+      "bytes": 407,
+      "sha256": "9cdda3288bd1148ebee37b894557d67a7536453f9f6856496127f9d36d7041a0"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/32-actual-local-intelligence-qualification-closed.json",
+      "bytes": 1770,
+      "sha256": "156cd25bba7fe7a42b5aa5b78d3ecf789b4b6247c7f7730b94e036720c4fcce5"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/formal-5488-readonly-status.json",
+      "bytes": 127,
+      "sha256": "5904769901c0757b0e1ef98e506fb587baca069bee3ef4339a3cc43f323772f9"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-configurable-gui-20261025/formal-5489-readonly-status.json",
+      "bytes": 127,
+      "sha256": "edbcb10daba048e136f2912251e87c0e3068c7e422fead5dca3bc687bbc589ec"
+    }
+  ],
+  "backend_full_pass": 6003,
+  "frontend_final_full_pass": 1026,
+  "qualification_granted": false,
+  "main_adopted": false
+}

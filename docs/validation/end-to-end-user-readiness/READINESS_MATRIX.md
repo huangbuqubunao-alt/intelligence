@@ -1,3 +1,5 @@
+> 2026-10-25最终工程复验：完整后端6003、最终完整前端1026、TS/build/Ruff/strict121/compile/diff PASS；真实双WAIT取消/正常重启/GUI恢复79表25DATA精确一致；配置3catalog实际恢复、原生小文件导入与无残留错误PASS，ASR完整tuple/seal及原17回执SHA再次有效，D2六绑定不变复用2GiB APFS；手册79图17章渲染PASS。最终root真实served D665EVVu等独审构建；所有6类Intelligence仍NOT_QUALIFIED，正向Save/Topic未证明，正式main73ee7e7未动/5488-5489离线，当前THREE_AGENT_ADOPTION_BLOCKED。
+
 > 2026-10-25 00:41续作：root固定6ed完整后端 **6003PASS/0FAIL/2既有warnings/2512.09s**，完整前端1017/39、TS/build/Ruff/strict121/compile/diff全PASS，547源全程不变（FULL_REGRESSION_6003_2026_10_25.json）。真实headful GUI又发现model setup仍拒后端3catalog，窄UI有限3修复作者ffa95fa、独审5233d46 APPROVE；完整作者前端1026/39、独立19/TS/build通过，已用独审真实构建D665EVVu+不变root backend实测3候选/匹配0409应用/重启。root等待原冻结全仓结束后才整合，未覆盖测试源。真实macOS Native失败过长→有效TXT、切页清提示；两项真WAIT0、取消一项另一项仍closed、两项取消ready、正常UI代理重复200且全表不变、独立正常PID重启、真实GUI ZIP预览/RESTORE/重新连接全部79SQL+25DATA+机器选择精确相等，见FINAL_GUI_CANCEL_BACKUP_RESTORE_2026_10_25.json。当前ASR完整tuple/seal/17原raw SHA再次PASS，0新解码；中文手册补3张已目检的原始viewport图。Q3原300秒timeout仍FAIL_STOP；没有合格Intelligence正向/Save/Topic，main/owner未动，不能采用或说全部可用。下一步仅整合已审UI、最终前端/build复验及对应served资产核对，模型真阻塞保留。
 
 # 当前验收摘要（2026-10-23，候选未发布）
