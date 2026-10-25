@@ -1,0 +1,17 @@
+{
+  "at": "2026-10-25T02:48:02.007085+00:00",
+  "classification": "RESUME_PREVIOUSLY_UNEXECUTED_Q3_NONTHINKING_ON_FRESH_RESOURCES",
+  "reason": "IQ2 one actual response completed but semantic errors identified; that experiment stopped permanently. After verified native-idle normal cleanup RAM7277494272 now exceeds original Q3 threshold6464360941. No new model or sampling changes required.",
+  "authority": "User persistent default authorization for necessary isolated local model adjustments and actual testing; do not repeatedly ask approval",
+  "prior_Q3_attempt": {
+    "loads": 0,
+    "generations": 0,
+    "reason": "fresh resource gate denied before execution",
+    "global_generation_marker": "absent"
+  },
+  "original_fixed_scope": "same approved Q3 nonthinking harness/request/weight/options/8192output/16384context/300s; no code or prompt changes; at most one emptyload and one generation after fresh gates",
+  "changes": "new owned cold metadata daemon and owner-bound concrete package; preserve previous package/error/owner and all original335 inputs byte-identical",
+  "IQ2_scope": "one load and one generation consumed; no retry, no latercase, no qualification",
+  "new_qualification_or_product_changes": false,
+  "next_step": "metadata-only setup, concrete independent review, fresh resources, original single actual diagnostic"
+}

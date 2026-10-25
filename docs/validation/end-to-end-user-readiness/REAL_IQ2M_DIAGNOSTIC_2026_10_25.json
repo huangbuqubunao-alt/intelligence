@@ -1,0 +1,119 @@
+{
+  "at": "2026-10-25T02:50:35.923205+00:00",
+  "verdict": "REJECT_STOP_FROZEN_SEMANTIC_GATE_FAILED",
+  "independent_review_commit": "1d2eb57a2571fa74b981a10f97970c2be7f498df",
+  "checks": {
+    "normal_http_stop": true,
+    "exact_two_evidence_locations": true,
+    "positive_json_shape": true,
+    "once": true,
+    "no_thinking": true
+  },
+  "metrics": {
+    "prompt_eval_count": 722,
+    "eval_count": 506,
+    "done_reason": "stop",
+    "total_duration": 32257220458,
+    "prompt_eval_duration": 3427019000,
+    "eval_duration": 28825407000
+  },
+  "actual_generation_seconds": 32.2719549579997,
+  "whole_parent": {
+    "exit_code": 0,
+    "elapsed_seconds": 79.48389829100051,
+    "log": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-udiq2m-20261025/actual-root-run.log",
+    "qualification": false
+  },
+  "precheck": {
+    "kind": "DIAGNOSTIC_ONLY",
+    "experiment": "IQ2M_NONTHINKING_0409_EN_V1",
+    "candidate_mode": "NON_THINKING_REASONING",
+    "utc": "2026-10-25T02:43:20.928591+00:00",
+    "memory_bytes": 6211551232,
+    "disk_bytes": 185776066560,
+    "required_memory_bytes": 5796860396,
+    "public_payload_bytes": 3649376748,
+    "package_sha256": "c54e8c2881ffb7294cfb1c727f4d2c8ff5d3476dd9c383c6d21b84748dc72231",
+    "production_qualified": false,
+    "peak_memory_proven": false
+  },
+  "capacity": {
+    "N": 722,
+    "P": 8192,
+    "C": 16384,
+    "required": 8916
+  },
+  "counts": {
+    "empty_preloads": 1,
+    "real_generations": 1
+  },
+  "semantic_findings": [
+    {
+      "severity": "P1",
+      "field": "meaningful_details[1]",
+      "reason": "Changes public-mode-similar-to-IMO-mode relation into previous mode and adds qualitative-shift demonstrated capability; original comparison and attribution lost"
+    },
+    {
+      "severity": "P2",
+      "field": "important_new_information[1]",
+      "reason": "Turns attributed seems 20 or 100 guess into actual 20–100 exploration interval"
+    },
+    {
+      "severity": "P2",
+      "field": "whole output",
+      "reason": "Does not retain required human mathematical verification boundary"
+    }
+  ],
+  "raw_output_unchanged": true,
+  "proofs": [
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-iq2m-diagnostic/.var/model-diagnostic-iq2m/real-once-20261025/generation-raw.json",
+      "bytes": 2924,
+      "sha256": "95feff12bd6f9250bbfb58c500234b46e4d5766fc2ea599b6d73301366b8d03c"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-iq2m-diagnostic/.var/model-diagnostic-iq2m/real-once-20261025/diagnostic-result.json",
+      "bytes": 2029,
+      "sha256": "025f49d30f5aaba595d9c55af35acd88e1f37bd35f3272c25666cc40d42540da"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-iq2m-diagnostic/.var/model-diagnostic-iq2m/real-once-20261025/precheck.json",
+      "bytes": 458,
+      "sha256": "028464895c7598dfb0b84f0a8898cb16e5ccc76f722dfd83829aaef08a1bfd56"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-iq2m-diagnostic/.var/model-diagnostic-iq2m/real-once-20261025/preload-raw.json",
+      "bytes": 325,
+      "sha256": "9ba860db8670bad4a38a8d73c0c873bd6d13039879accb8289cf96928990c89e"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-iq2m-diagnostic/.var/model-diagnostic-iq2m/real-once-20261025/capacity.json",
+      "bytes": 14591,
+      "sha256": "efab6fe36a02f2e7931cc13105e30d8feda0018eab74292366a9b32801afbdff"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-iq2m-diagnostic/.var/model-diagnostic-iq2m/real-once-20261025/generation-start.json",
+      "bytes": 1806,
+      "sha256": "4b2ce3e4f25df42191323649c3151670e54ae031eebfdadc60df0850267d0ce2"
+    }
+  ],
+  "cleanup": {
+    "at": "2026-10-25T02:45:43.895052+00:00",
+    "native_slot_idle_after_normal_response": true,
+    "slots_sha256": "5588c3b71415f28880126bf1477030cf542001d8f2aaaa7df6b5162b8771cbe5",
+    "normal_sigterm_pid": 25107,
+    "no_other_process_killed": true,
+    "daemon_and_runner_exited": true,
+    "isolated_port_closed": true,
+    "empty_preloads": 1,
+    "real_generations": 1,
+    "retry_forbidden": true,
+    "qualification": false,
+    "daemon_log_sha256": "b37fe30f73a4b8fb8f14220815284555183bc9440f3885daf587edf4afdb689f"
+  },
+  "production_qualified": false,
+  "new_product_code": false,
+  "no_paid_cloud": true,
+  "formal_data_untouched": true,
+  "next_step": "IQ2 stopped with no retry; resume originally unexecuted Q3 nonthinking only if its original fresh resource gates and new concrete review pass"
+}
