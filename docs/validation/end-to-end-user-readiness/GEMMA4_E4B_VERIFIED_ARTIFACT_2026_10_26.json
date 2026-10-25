@@ -1,0 +1,55 @@
+{
+  "stage": "DOWNLOADED_SHA_VERIFIED_METADATA_INSPECTED_NO_RUNTIME",
+  "main_sha256": "370c2879f17648d337b0ab4e208fdce348e24d1060064e93d7645daafd56d39c",
+  "main_bytes": 5493439296,
+  "file_identity": {
+    "device": 16777232,
+    "inode": 140956880,
+    "size": 5493439296,
+    "mtime_ns": 1792956770844245878,
+    "ctime_ns": 1792956770844917836
+  },
+  "private_text_manifest_sha256": "3c43548a5a0ad898ca3e7b15fa67473e4cdb76788fb1899cd2153ea5a4d14a0f",
+  "official_full_manifest_sha256": "dc35e8d9c6061baa6f0fa870975ab6932e2542b579b13ea0f199fa4bb7300c9c",
+  "essential_payload_bytes": 5493450969,
+  "memory_gate_bytes": 7640934617,
+  "metadata": {
+    "version": 3,
+    "tensor_count": 720,
+    "metadata_count": 53,
+    "header_bytes": 15826416,
+    "inline_vision": false,
+    "tensor_names_sha256": "fea897570500b8e0c1b5e4e8bdbf86605688738d576620d24b6a3804dd699a5f",
+    "architecture": "gemma4",
+    "context_length": 131072,
+    "embedding_length": 2560,
+    "bos_id": 2,
+    "adds_bos": true,
+    "vocab": {
+      "type": 8,
+      "count": 262144,
+      "index2": "<bos>"
+    }
+  },
+  "proofs": {
+    "main-verified.json": {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/gemma4-e4b-20261025/main-verified.json",
+      "sha256": "2788763e31ed85454f929ffd7877b50beeba9d65abd8146026ec07c8f5171ee5"
+    },
+    "actual-gguf-inspection.json": {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/gemma4-e4b-20261025/actual-gguf-inspection.json",
+      "sha256": "5270292809d5324ab377449d66d1ee02962982d526661f6d3f34786977ce565a"
+    },
+    "artifact-installed.json": {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/gemma4-e4b-20261025/artifact-installed.json",
+      "sha256": "6fd70370a185ee24d0be78858db4dda8e4cb876731869d7924ad72af319e835e"
+    }
+  },
+  "pure_author": "e3976daedeb44bb6e1b8666251698b0e04f759dc",
+  "pure_review": "2b59db0cb667c8998ee5957da860ff1b3edebeeb",
+  "activation_implemented": false,
+  "model_loads": 0,
+  "generations": 0,
+  "qualification": false,
+  "formal_owner_access": false
+}
