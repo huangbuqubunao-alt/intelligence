@@ -1,0 +1,57 @@
+{
+  "status": "TERMINAL_WAITING_USER_MANUAL_CODEX_EXIT",
+  "qualification": false,
+  "author_commit": "9d5f226b69fccfe1b8d67df8bd935ef098645b8b",
+  "source_review_commit": "d268a4bf4440766d7531f1cddbc57675f86278b7",
+  "binding_review_commit": "74b26218ce18a7af09a301d5313909307882dd11",
+  "package_sha256": "d8307117ed8e0b3fe995ac907e7bc5dc3d56ec2311ecfa11de9c4ba268161326",
+  "ready": {
+    "launch": {
+      "kind": "DIAGNOSTIC_ONLY",
+      "qualification": false,
+      "pid": 46802,
+      "package_sha256": "d8307117ed8e0b3fe995ac907e7bc5dc3d56ec2311ecfa11de9c4ba268161326"
+    },
+    "chain": [
+      {
+        "pid": 46802,
+        "ppid": 46766,
+        "comm": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python"
+      },
+      {
+        "pid": 46766,
+        "ppid": 46765,
+        "comm": "-zsh"
+      },
+      {
+        "pid": 46765,
+        "ppid": 36172,
+        "comm": "login"
+      },
+      {
+        "pid": 36172,
+        "ppid": 1,
+        "comm": "/System/Applications/Utilities/Terminal.app/Contents/MacOS/Terminal"
+      }
+    ],
+    "terminal_owned": true,
+    "codex_ancestor": false,
+    "last_wait_observation": {
+      "elapsed_seconds": 15.867785333000938,
+      "apps_closed": false,
+      "memory_bytes": 6020300800,
+      "disk_bytes": 178972438528
+    },
+    "new_global_generation_absent": true,
+    "child_output_absent": true,
+    "qualification": false,
+    "child_output_path": "/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/real-once-alias-thinking-20261025",
+    "child_path_probe_note": "Checked actual controller.CHILD_OUTPUT; initial probe used an incorrect unused sibling name. Global once absence and real waiting state were already confirmed."
+  },
+  "loads": 0,
+  "generations": 0,
+  "formal_owner_access": false,
+  "product_source_unchanged": true,
+  "goal_tool_status": "usageLimited; manual conversation continuing",
+  "raw_root": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/model-chain-resolution-20261025"
+}
