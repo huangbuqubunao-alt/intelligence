@@ -1,0 +1,206 @@
+{
+  "at": "2026-10-25T22:50:37.775254+08:00",
+  "experiment": "Q4KM_TEXT_ALIAS_THINKING_0409_EN_V1",
+  "verdict": "PASS_PROTOCOL_BUT_POSITIVE_GATE_NOT_MET",
+  "experiment_disposition": "REJECT_STOP_NO_RETRY",
+  "source_review_commit": "d268a4bf4440766d7531f1cddbc57675f86278b7",
+  "binding_review_commit": "74b26218ce18a7af09a301d5313909307882dd11",
+  "start_head": "0f2689585effe283de705a088650e21e4329ab26",
+  "product_source_head": "a2076dbd695e1c8f6abae0f41bdc885fff5a6bdf",
+  "qualification": false,
+  "protocol_complete": true,
+  "positive_gate_met": false,
+  "output_repaired": false,
+  "private_thinking_read_or_displayed": false,
+  "counts": {
+    "empty_preloads": 1,
+    "real_generations": 1,
+    "new_generations_on_resume": 0,
+    "paid_cloud": 0
+  },
+  "metrics": {
+    "http_status": 200,
+    "elapsed_seconds": 252.45522158300446,
+    "done": true,
+    "done_reason": "stop",
+    "prompt_eval_count": 614,
+    "prompt_eval_cached_count": 0,
+    "eval_count": 5610,
+    "total_duration": 252440816250,
+    "eval_count_is_not_public_text_token_count": true
+  },
+  "precheck": {
+    "kind": "DIAGNOSTIC_ONLY",
+    "experiment": "Q4KM_TEXT_ALIAS_THINKING_0409_EN_V1",
+    "candidate_mode": "NATIVE_THINKING_WITH_EXACT_EVIDENCE_ALIASES",
+    "utc": "2026-10-25T14:35:29.334730+00:00",
+    "memory_bytes": 8601387008,
+    "disk_bytes": 179258007552,
+    "required_memory_bytes": 7776604301,
+    "public_payload_bytes": 5629120653,
+    "package_sha256": "d8307117ed8e0b3fe995ac907e7bc5dc3d56ec2311ecfa11de9c4ba268161326",
+    "production_qualified": false,
+    "peak_memory_proven": false
+  },
+  "capacity": {
+    "N": 614,
+    "P": 8192,
+    "C": 16384,
+    "required": 8808
+  },
+  "public_output": {
+    "evidence": [
+      {
+        "end_ms": 46320,
+        "evidence_id": "E1",
+        "start_ms": 0
+      },
+      {
+        "end_ms": 62600,
+        "evidence_id": "E2",
+        "start_ms": 46320
+      }
+    ],
+    "result": "NO_NEW_INTELLIGENCE"
+  },
+  "decoded_output": {
+    "evidence": [
+      {
+        "end_ms": 46320,
+        "evidence_id": "4750f3da8ddabb3e808ebcf282cc4a88d4fdbe8ccbcfc97988f6d4a46913f2f9",
+        "start_ms": 0
+      },
+      {
+        "end_ms": 62600,
+        "evidence_id": "c0eb749542c1d64ab0f0c8ca7e9c54ce90d61c1eb438655c91a927e34e7ba0b7",
+        "start_ms": 46320
+      }
+    ],
+    "result": "NO_NEW_INTELLIGENCE"
+  },
+  "public_content_sha256": "740c19791b8530b0499beff30efb7bb91325b0dc9ead6d74a96d404be27549e0",
+  "decoded_sha256": "73958eba8ddcc2659f6757687e1343a00d6c52cd0c2f0b6bb5a2b9a5bbaa16ea",
+  "raw_file_sha256": "ebd1ed928d52feb34cca135c347ab8f6e13aa5cc9bfea0fb5e77bdcd97c5e902",
+  "decoded_http_body_sha256": "ff13defebfbae72b38520e18cd5e2371c09745b510fa8da52001f95d011b2198",
+  "semantic_limit": "Frozen real-deepthink-en requires substantive INTELLIGENCE. Complete legal NO_NEW supplies no judgment body; it is not a hallucination or reference failure, and does not prove global poor performance. No gate weakened.",
+  "controller": {
+    "kind": "DIAGNOSTIC_ONLY",
+    "qualification": false,
+    "status": "AWAITING_REVIEW",
+    "child": {
+      "exit_code": 0,
+      "timed_out": false,
+      "child_stopped": true
+    },
+    "outcome": "CHILD_STOPPED",
+    "cleanup": {
+      "state": "OWNER_STOPPED",
+      "signalled": true,
+      "qualification": false,
+      "native_state": "IDLE"
+    }
+  },
+  "cleanup_root_observation": {
+    "recorded_pids_absent": [
+      46802,
+      46042,
+      47401,
+      47436
+    ],
+    "port_11438_closed": true
+  },
+  "isolated_database_readonly": {
+    "tables": 79,
+    "nonempty_tables": {
+      "schema_migrations": 40,
+      "source_policy_current": 1,
+      "source_policy_revisions": 1
+    },
+    "integrity": [
+      [
+        "ok"
+      ]
+    ],
+    "foreign_keys": []
+  },
+  "formal_owner_access": false,
+  "main_merge_push_deploy": false,
+  "proofs": [
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/reviewed-package.json",
+      "bytes": 607271,
+      "sha256": "d8307117ed8e0b3fe995ac907e7bc5dc3d56ec2311ecfa11de9c4ba268161326"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/candidate-request.json",
+      "bytes": 4738,
+      "sha256": "f258e0660691cb99f4526a9ccee4ad0631cee75e5986037814b060e5a91eb13e"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/codec-packet.json",
+      "bytes": 4068,
+      "sha256": "8193fc58ce69adee283679ddb4e0bcf3a12eaffb632823cd616fe835124ef9f2"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/prepared.json",
+      "bytes": 32962,
+      "sha256": "e505907e85795b13de77b5fdffc7ca1ce614802bcd9748ba3e3f847c221546bb"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/diagnostic.py",
+      "bytes": 24791,
+      "sha256": "8087ef0aa16090971408bb6837066e0027790b156a4e7490e97a51b210981d77"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/generation-start.json",
+      "bytes": 1838,
+      "sha256": "3a188ad59cbf6cc8a1e56ef6d08c9d0efd55aad47b3d7544e29ca8c127210174"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/real-once-alias-thinking-20261025/generation-start.json",
+      "bytes": 1838,
+      "sha256": "3a188ad59cbf6cc8a1e56ef6d08c9d0efd55aad47b3d7544e29ca8c127210174"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/real-once-alias-thinking-20261025/precheck.json",
+      "bytes": 487,
+      "sha256": "06eb3230fae66cabb81485b3108cc05d889236f740a9d7b962b94378762f6f96"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/real-once-alias-thinking-20261025/capacity.json",
+      "bytes": 13487,
+      "sha256": "949d4b376cf839563d84bf8909c9486db55465386ca3ec53645798bd4de4c121"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/real-once-alias-thinking-20261025/preload-raw.json",
+      "bytes": 330,
+      "sha256": "7e561de71701c9385e7ef7ea42bb664417d495d3e58544a0d96b4035d6fed99b"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/real-once-alias-thinking-20261025/generation-raw.json",
+      "bytes": 36074,
+      "sha256": "ebd1ed928d52feb34cca135c347ab8f6e13aa5cc9bfea0fb5e77bdcd97c5e902"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/real-once-alias-thinking-20261025/diagnostic-result.json",
+      "bytes": 1063,
+      "sha256": "e0871be478b0609e984b9cedbd9182a30c92ece41e90fe03fb140e8345a46818"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/launch-start.json",
+      "bytes": 161,
+      "sha256": "8b6e1163b0c95777b4ddb6d20259a071714b59bfbf09520f85dbd78094881f61"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/run-20261025/controller-result.json",
+      "bytes": 334,
+      "sha256": "3942a553bf6129bf7f609a901d434b071e0cda6da0233823cc5dc3781c8bf50a"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/run-20261025/cleanup-slots.json",
+      "bytes": 1772,
+      "sha256": "f080cf2f1e8a99c0f3de0c7ad9b003d2b9180fa5bf10d8daf2c92c7502914ef0"
+    }
+  ],
+  "actual_review_commit": "f914a156a6c4ab1ae3d34feb748695f3473f03f0"
+}
