@@ -1,5 +1,5 @@
 # TASK-READINESS-Q4KM-TEXT-DIAGNOSTIC
-Status: IN_PROGRESS_QA_ACTUAL_METADATA_READY
+Status: IN_REVIEW_CONCRETE_DIAGNOSTIC_ONLY
 Role: QA Implementer /root/model_setup_catalog_bound
 Worktree: /Users/hua/Documents/yia-worktrees/readiness-q4km-text-diagnostic
 Branch: codex/task-readiness-q4km-text-diagnostic

@@ -1,0 +1,128 @@
+{
+  "at": "2026-10-25T08:44:50.351187+00:00",
+  "verdict": "RESOURCE_BLOCKED_NOT_MODEL_TESTED",
+  "actual_model": "intelligence-qwen35-9b-text-q4km:02d45dc1",
+  "qualification": false,
+  "model_quality": "UNPROVEN_CURRENT_FIXED_TUPLE",
+  "actual_unchanged_guarded_pipeline_invoked": true,
+  "precheck": {
+    "kind": "DIAGNOSTIC_ONLY",
+    "experiment": "Q4KM_TEXT_NONTHINKING_0409_EN_V1",
+    "candidate_mode": "NON_THINKING_REASONING",
+    "utc": "2026-10-25T08:40:25.678929+00:00",
+    "memory_bytes": 6250053632,
+    "disk_bytes": 179712708608,
+    "required_memory_bytes": 7776604301,
+    "public_payload_bytes": 5629120653,
+    "package_sha256": "3a107e0cb24c2549cfd098b332f18333c9b75b184019c92e987b8894ee062bfe",
+    "production_qualified": false,
+    "peak_memory_proven": false
+  },
+  "error": {
+    "kind": "DIAGNOSTIC_ONLY",
+    "error": "ValueError: fresh resource gate failed",
+    "generation_consumed": false
+  },
+  "required_additional_memory_bytes": 1526550669,
+  "counts": {
+    "model_http_calls_after_precheck": 0,
+    "empty_preloads": 0,
+    "real_generations": 0
+  },
+  "global_generation_marker_absent": true,
+  "no_execution_state_database_created": true,
+  "parent_result": {
+    "exit_code": 1,
+    "elapsed_seconds": 12.082838707996416,
+    "log": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q4km-20261025/actual-root-run.log",
+    "qualification": false
+  },
+  "cleanup": {
+    "at": "2026-10-25T08:43:14.320897+00:00",
+    "classification": "RESOURCE_DENIED_BEFORE_MODEL_HTTP_OR_SQLITE_EXECUTION",
+    "cold_no_runner_before_stop": true,
+    "diagnostic_attempt_model_http_calls": 0,
+    "empty_preloads": 0,
+    "real_generations": 0,
+    "global_generation_marker_absent": true,
+    "only_outputs": [
+      "precheck.json",
+      "stopped-error.json"
+    ],
+    "normal_sigterm_pid": 29391,
+    "no_other_process_killed": true,
+    "daemon_and_runner_absent": true,
+    "isolated_port_closed": true,
+    "qualification": false,
+    "daemon_log_sha256": "20290328e2dac2bb9ed331495212aceac05856256ec33d912b108ff43ab5a8ac"
+  },
+  "resource_actions": [
+    {
+      "at": "2026-10-25T08:35:16.889369+00:00",
+      "pid": 22512,
+      "family": "idle_detached_openclaw_gateway",
+      "normal_sigterm": true,
+      "rss_before_kib": 199744,
+      "command_sha256": "5fd7de526d1f313af73aedc3a9964308dbf20d25aa5f2f40b89c2801a3c0bd41",
+      "raw_arguments_not_logged": true,
+      "codex_and_jimmm_untouched": true,
+      "no_config_or_user_files_modified": true,
+      "no_force_or_service_disable": true,
+      "authorization": "user expressly permits normal closure of nonessential apps exceptCodex/Jimmm"
+    },
+    {
+      "at": "2026-10-25T08:38:53.065968+00:00",
+      "action": "one normal unprivileged macOS purge of disk buffer cache",
+      "manual": "installed macOS purge(8): flushes disk cache; does not affect anonymous memory",
+      "result": {
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "Unable to purge disk buffers: Operation not permitted\n"
+      },
+      "before_available_bytes": 6263881728,
+      "after_available_bytes": 6263734272,
+      "required_memory_bytes": 7776604301,
+      "seconds": 0.005135874998813961,
+      "no_sudo_or_privilege_escalation": true,
+      "no_user_files_deleted_or_modified": true,
+      "no_app_closed": true,
+      "codex_jimmm_protected": true,
+      "original_resource_gate_unchanged": true,
+      "repeat": false
+    }
+  ],
+  "independent_preflight_review_commit": "9363b42d327d67b5069f4af97c53997738702ee8",
+  "proofs": [
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/real-once-20261025/precheck.json",
+      "bytes": 463,
+      "sha256": "536c3703cccff44361950738322d772944c5c2d4fd18880577bf8d5333811780"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/real-once-20261025/stopped-error.json",
+      "bytes": 116,
+      "sha256": "95654178990d9edc07643000cab0febd1b5943cbac519537451ac9db3155f5bc"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q4km-20261025/actual-root-parent-result.json",
+      "bytes": 240,
+      "sha256": "74e53e2bc0d5ba2bc3a28cd34b7f635790859aef580731a18f50ba8d2d0a2395"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q4km-20261025/actual-root-run.log",
+      "bytes": 39,
+      "sha256": "0200c0452c9ec367df6d9c1160036e52a6d1a428473f56d3d955d0062453082c"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q4km-20261025/resource-denial-cleanup-proof.json",
+      "bytes": 619,
+      "sha256": "fe02671090536005b12b2653fa78b677912c969d3031e904e4efffd619d0034f"
+    }
+  ],
+  "old_failure_retained": true,
+  "original_fullmodel_resource_gate_unchanged": true,
+  "no_business_source_changes": true,
+  "no_paid_cloud": true,
+  "no_formal_data_or_config_change": true,
+  "next_step": "preserve candidate; actual generation requires original fresh resources and new owner-bound independent review; do not retry unchanged resource gate or mark qualified/main adopted"
+}
