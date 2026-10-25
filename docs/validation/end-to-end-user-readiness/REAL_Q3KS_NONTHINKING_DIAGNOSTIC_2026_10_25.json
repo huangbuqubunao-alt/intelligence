@@ -1,0 +1,139 @@
+{
+  "at": "2026-10-25T03:00:08.414030+00:00",
+  "verdict": "REJECT_STOP_PROTOCOL_AND_FROZEN_SEMANTIC_GATE_FAILED",
+  "independent_review_commit": "c53644bd25cd0c80df2c469579ecb9139b63e692",
+  "resource_resume_review_commit": "38ab7832da3ce9a2dabd47544cff9d999310aed1",
+  "checks": {
+    "normal_http_stop": true,
+    "json_schema_structure": true,
+    "exact_evidence_locations": false,
+    "once": true,
+    "no_thinking": true
+  },
+  "reference_comparison": {
+    "expected": [
+      {
+        "evidence_id": "4750f3da8ddabb3e808ebcf282cc4a88d4fdbe8ccbcfc97988f6d4a46913f2f9",
+        "start_ms": 0,
+        "end_ms": 46320
+      },
+      {
+        "evidence_id": "c0eb749542c1d64ab0f0c8ca7e9c54ce90d61c1eb438655c91a927e34e7ba0b7",
+        "start_ms": 46320,
+        "end_ms": 62600
+      }
+    ],
+    "actual": [
+      {
+        "evidence_id": "4750f3da8ddabb3e808ebcf282cc4a88d4fdbe8ccbcfc97988f6d4a46913f2f9",
+        "start_ms": 0,
+        "end_ms": 46320
+      },
+      {
+        "evidence_id": "c0eb749542c1d64ab0f0c8ca7e9c54ce90d61c1eb438655c91a927e34e7ba0b",
+        "start_ms": 46320,
+        "end_ms": 62600
+      }
+    ],
+    "second_expected_id_length": 64,
+    "second_actual_id_length": 63
+  },
+  "metrics": {
+    "prompt_eval_count": 722,
+    "eval_count": 514,
+    "done_reason": "stop",
+    "total_duration": 28225446000,
+    "prompt_eval_duration": 3270246000,
+    "eval_duration": 24950558000
+  },
+  "actual_generation_seconds": 28.23971262499981,
+  "whole_parent": {
+    "exit_code": 0,
+    "elapsed_seconds": 71.29987908399926,
+    "log": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/q3ks-mode-only-diagnosis-20261025/resource-resume-20261025/actual-root-run.log",
+    "qualification": false
+  },
+  "precheck": {
+    "kind": "DIAGNOSTIC_ONLY",
+    "experiment": "MODE_ONLY_NONTHINKING_Q3KS_0409_EN_V1",
+    "candidate_mode": "NON_THINKING_REASONING",
+    "utc": "2026-10-25T02:53:25.963249+00:00",
+    "memory_bytes": 8213987328,
+    "disk_bytes": 185764855808,
+    "required_memory_bytes": 6464360941,
+    "public_payload_bytes": 4316877293,
+    "package_sha256": "e50d13e30a92c7dc0baf389e3eb68cd51daf78f1c931830c3c12bf8f43484d93",
+    "production_qualified": false,
+    "peak_memory_proven": false
+  },
+  "capacity": {
+    "N": 722,
+    "P": 8192,
+    "C": 16384,
+    "required": 8916
+  },
+  "counts": {
+    "previous_resource_denied_attempt_loads": 0,
+    "previous_resource_denied_attempt_generations": 0,
+    "this_empty_preloads": 1,
+    "this_real_generations": 1
+  },
+  "findings": [
+    "P1 second Evidence ID loses final7, cannot ground trusted reference",
+    "P1 core asserts successful proof/human-level shift without attribution or verification",
+    "P1 invents100+ distinct reasoning lines from speaker guess20or100",
+    "P1 unsupported standard-LLM/human-baseline comparison and conflated conjecture/IMO result"
+  ],
+  "raw_output_unchanged": true,
+  "proofs": [
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-q3ks-mode-only-diagnostic/.var/model-diagnostic-q3ks-nonthinking/real-once-resumed-20261025/generation-raw.json",
+      "bytes": 2965,
+      "sha256": "8a51a76d52d506be6b16560382c30039e00fb141ebc6872f9e508fe390dd42fd"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-q3ks-mode-only-diagnostic/.var/model-diagnostic-q3ks-nonthinking/real-once-resumed-20261025/diagnostic-result.json",
+      "bytes": 2040,
+      "sha256": "e9f21717686c02250b7a781faacfdc8188198c97af46d81ef61c3d6873012752"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-q3ks-mode-only-diagnostic/.var/model-diagnostic-q3ks-nonthinking/real-once-resumed-20261025/precheck.json",
+      "bytes": 468,
+      "sha256": "93db07f70b629c145c6227e2b7621337446a1fb66bbbbde8a625bc75367e7d38"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-q3ks-mode-only-diagnostic/.var/model-diagnostic-q3ks-nonthinking/real-once-resumed-20261025/preload-raw.json",
+      "bytes": 330,
+      "sha256": "8f7c73c300845546cdc5de25957cac77624a5a6da4b82b589a8bb2e0638f4a15"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-q3ks-mode-only-diagnostic/.var/model-diagnostic-q3ks-nonthinking/real-once-resumed-20261025/capacity.json",
+      "bytes": 14600,
+      "sha256": "e676b4f9d8d8977175d0cbf9c12fa66635335d25181c4387d9040e807ca08472"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-q3ks-mode-only-diagnostic/.var/model-diagnostic-q3ks-nonthinking/real-once-resumed-20261025/generation-start.json",
+      "bytes": 1819,
+      "sha256": "f1e73aaa5b180a982006a2ac41fef150984cfb418504df81b98cc399f6b318dd"
+    }
+  ],
+  "cleanup": {
+    "at": "2026-10-25T02:55:54.776849+00:00",
+    "native_slot_idle_after_normal_response": true,
+    "slots_sha256": "7437908704261046e5beb2890b2f94aec3122bb7311eb39d4e7ee401293dbde1",
+    "normal_sigterm_pid": 27848,
+    "no_other_process_killed": true,
+    "daemon_and_runner_exited": true,
+    "isolated_port_closed": true,
+    "empty_preloads": 1,
+    "real_generations": 1,
+    "retry_forbidden": true,
+    "qualification": false,
+    "daemon_log_sha256": "79c3c7ca3f832fcfa36c9eecac9f02660800425276c000ff74fbc3761626fca7"
+  },
+  "production_qualified": false,
+  "new_product_code": false,
+  "no_paid_cloud": true,
+  "formal_data_untouched": true,
+  "experiment_closed_no_retry": true
+}

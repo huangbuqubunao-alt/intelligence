@@ -1,0 +1,49 @@
+{
+  "at": "2026-10-25T03:02:40.280652+00:00",
+  "classification": "FIXED_EXISTING_OFFICIAL_Q4_TEXT_ONLY_DIAGNOSTIC_PLAN",
+  "authority": "User persistent default authorization for necessary isolated model adjustment, no repeated approval",
+  "source_weight": {
+    "classification": "FIXED_PREINSTALLED_OFFICIAL_TEXT_LAYER_FULL_SHA256_VERIFIED_NO_DOWNLOAD",
+    "at": "2026-10-25T03:01:19.130483+00:00",
+    "source_path": "/Users/hua/.ollama/models/blobs/sha256-02d45dc1cf451ba2475ac33b301c2dd8f985abe4c182ce04a1f2f5bf0260278d",
+    "source_identity": [
+      16777232,
+      133260631,
+      5629109120,
+      1791867208032934271,
+      1791867208049509843
+    ],
+    "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q4km-20261025/Qwen3.5-9B-official-Q4_K_M-text.gguf",
+    "sha256": "02d45dc1cf451ba2475ac33b301c2dd8f985abe4c182ce04a1f2f5bf0260278d",
+    "bytes": 5629109120,
+    "official_full_manifest_sha256": "56671c2ab9385f9cfcb404638e32cd62d88e3501d44822208363c010179a3c90",
+    "official_full_model_tag": "qwen3.5:9b-q4_K_M",
+    "source_unchanged": true,
+    "apfs_clone_not_hardlink": true,
+    "projector_not_imported_bytes": 921704832,
+    "original_sampling_defaults_not_imported": "same explicit frozen OPTIONS supplied to diagnostic",
+    "expected_text_payload_plus_unchanged_2gib": 7776604301,
+    "loads": 0,
+    "generations": 0,
+    "qualification": false,
+    "history_check_pending": true
+  },
+  "historical_failures": "same9B text weight failed previous0401/4096out/8192ctx/T0.7/p0.8/different914token messages; retain all original raw; changing packaging alone grants nothing",
+  "history_review": "independent readonly159 priorQA JSON plus17 root requests did not find current0409/nonthinking8192out16384ctx/original722token request previously executed on fullQ4",
+  "new_scope": "fixed old official text weights, pinned0409, same unchanged original full18cue/2Evidence/semantic gate/messages/schema/OPTIONS as current Q3/IQ2 diagnostics; preparedQ3false→Q4text candidate changes model tag only",
+  "model": "intelligence-qwen35-9b-text-q4km:02d45dc1",
+  "resource_rule": "actual four text payload bytes + unchanged2GiB; omit unused921704832B projector, no change to original complete full-model gate",
+  "max_empty_preloads": 1,
+  "max_real_generations": 1,
+  "deadline_seconds": 300,
+  "no_download": true,
+  "no_paid_cloud": true,
+  "no_product_code_or_qualification_changes": true,
+  "first_actual_failure": "stop and preserve raw; no latercase or retry",
+  "metadata_helper_reuse": {
+    "source": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-udiq2m-20261025/import-verified-metadata.py",
+    "sha256": "80cbe93b05ec27074395f1e33f4b6533539b6c6ad49c57bbf4a1caf20e87ed51",
+    "changes": "only proof path, fixed GGUF filename/hash/size, isolated tag/reference and purpose; all ownership/4payload/NoRedirect guards retained"
+  },
+  "next_step": "metadata-only import then QA141+concrete independent review then freshgate actual singlecase"
+}
