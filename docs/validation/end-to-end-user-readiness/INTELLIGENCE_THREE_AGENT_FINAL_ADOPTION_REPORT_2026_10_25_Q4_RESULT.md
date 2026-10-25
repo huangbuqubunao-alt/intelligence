@@ -17,6 +17,8 @@
 | served revision | 无当前在线served revision；5488/5489实测关闭，本次未发布或启动正式产品 |
 | 正式产品地址 | http://127.0.0.1:5488/ （当前离线） |
 
+归档末次刷新远端时，`git ls-remote origin refs/heads/main`发生LibreSSL SSL_ERROR_SYSCALL（exit128）；本轮此前已成功实查远端73ee7e7，本地main/tracking仍相等。末次刷新失败单独保留，不把旧读数冒称最新在线远端证明。当前没有合并发布，因此未继续重复网络操作。
+
 正式owner数据库、凭据、配置未读写或重置；本次没有业务代码、Schema、依赖变更，无敏感迁移待批准。没有merge/push/deploy、force或覆盖其他Agent成果。
 
 ## 此次真实模型结果
