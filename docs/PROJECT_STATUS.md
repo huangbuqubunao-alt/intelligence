@@ -1,3 +1,5 @@
+> 2026-10-25新候选准备已固定：作者9d5f226b69fccfe1b8d67df8bd935ef098645b8b（仅handoff）cleanSTOP；新私有adapter/harness/controller/metadata_setup/finalizer/template已准备、均未启动。固定531PASS/27.27秒=87新增+141隔离旧保护+303原codec/native；compile12/Ruff/zsh/diff通过，2794保护hash前后相等、2816模板绑定有效；旧直接129PASS/12FAIL及setup错误保留。候选canonical f258e066…eb13e，仅E1/E2+think=true，owner=null、无concretepackage/新model/launch标记。独立alias_thinking_independent_review已在新WT review6c666c8启动，未接受/加载/授资格/产品写入。私人包README和checks/summary路径见作者handoff；新真实执行必须先独审源代码，再绑定新冷owner具体包复核，不能复用旧once。
+
 > 2026-10-25接续：首位alias_thinking_qa_writer额度中断，已核验新WT aa12ae1 clean且私有目录尚不存在、没有WIP或模型调用；原只读Scout已完成并串行转为唯一实现者grounding_adapter_preflight，在同独立WT执行已提交的prepare-only任务。Scout原18cue/2Evidence codec严格回放及候选两项变更校验通过；本轮仍0新生成，原Q4 once/失败不变。主控只记录与QA，无业务代码写入。
 
 > 2026-10-25用户新指令：执行Goal解决正向链。当前root1afb514 clean，旧Q4非思考REJECT/once保持。已启动只读grounding_adapter_preflight，确认现有codec可纯准备18cue/2Evidence，但生产long仍是overflow路由，不能冒充短输入准入。下一精确私人QA候选为现有E1/E2别名+原生thinking两项改变，保留原内容/标准/8192/16384/300秒，先prepare-only/TDD/独审，0新模型调用；有质量信号后才最小生产适配及完整资格/GUI/恢复。详情MODEL_CHAIN_RESOLUTION_GOAL_2026_10_25.md；旧自动Goal仍usageLimited，当前对话继续实际执行，不伪造新Goal或完成状态。无main/owner/资格变化。
