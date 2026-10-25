@@ -1,0 +1,241 @@
+{
+  "at": "2026-10-25T18:13:45.599054+08:00",
+  "verdict": "REJECT_STOP",
+  "adoption": "THREE_AGENT_ADOPTION_BLOCKED",
+  "start_head": "c1708ca5d76ae1f1fd8b79496394c2a414e4afca",
+  "product_source_head": "a2076dbd695e1c8f6abae0f41bdc885fff5a6bdf",
+  "product_source_unchanged": true,
+  "production_qualified": false,
+  "experiment_closed_no_retry": true,
+  "independent_review": {
+    "agent": "/root/q4_actual_result_review",
+    "verdict": "REJECT_STOP",
+    "read_only": true,
+    "full_frozen_unique_bindings_checked": 1610,
+    "binding_mismatches": 0,
+    "pure_product_parser_replay": {
+      "input": "untouched actual message.content with request-derived parser objects; no production seal/admission claimed",
+      "exception": "ValueError: no-new Intelligence evidence set is incomplete",
+      "source": "src/youtube_intel/distillation.py:4465",
+      "model_calls": 0,
+      "database_calls": 0
+    }
+  },
+  "precheck": {
+    "kind": "DIAGNOSTIC_ONLY",
+    "experiment": "Q4KM_TEXT_NONTHINKING_0409_EN_V1",
+    "candidate_mode": "NON_THINKING_REASONING",
+    "utc": "2026-10-25T10:01:59.293455+00:00",
+    "memory_bytes": 8767176704,
+    "disk_bytes": 179826053120,
+    "required_memory_bytes": 7776604301,
+    "public_payload_bytes": 5629120653,
+    "package_sha256": "4c324a55fae37bac56f54c778e75be9b4492f0d1cf97080a9d6cd5a79dd99a92",
+    "production_qualified": false,
+    "peak_memory_proven": false
+  },
+  "capacity": {
+    "N": 722,
+    "P": 8192,
+    "C": 16384,
+    "required": 8916
+  },
+  "counts": {
+    "empty_preloads": 1,
+    "real_generations": 1,
+    "new_generations_on_resume": 0,
+    "paid_cloud": 0
+  },
+  "response": {
+    "http_status": 200,
+    "elapsed_seconds": 8.35749937500077,
+    "done": true,
+    "done_reason": "stop",
+    "prompt_tokens": 722,
+    "cached_prompt_tokens": 0,
+    "output_tokens": 118,
+    "output": {
+      "evidence": [
+        {
+          "end_ms": 46320,
+          "evidence_id": "4750f3da8ddabb3e808ebcf282cc4a88d4fdbe8ccbcfc97988f6d4a46913f2f9",
+          "start_ms": 0
+        }
+      ],
+      "result": "NO_NEW_INTELLIGENCE"
+    }
+  },
+  "decoded_body": {
+    "bytes": 580,
+    "sha256": "bee19136a94af65f7afa06ecb61b8dc5bd6b247720e279e7241a388e47606463"
+  },
+  "reference_comparison": {
+    "expected": [
+      {
+        "evidence_id": "4750f3da8ddabb3e808ebcf282cc4a88d4fdbe8ccbcfc97988f6d4a46913f2f9",
+        "start_ms": 0,
+        "end_ms": 46320
+      },
+      {
+        "evidence_id": "c0eb749542c1d64ab0f0c8ca7e9c54ce90d61c1eb438655c91a927e34e7ba0b7",
+        "start_ms": 46320,
+        "end_ms": 62600
+      }
+    ],
+    "actual": [
+      {
+        "end_ms": 46320,
+        "evidence_id": "4750f3da8ddabb3e808ebcf282cc4a88d4fdbe8ccbcfc97988f6d4a46913f2f9",
+        "start_ms": 0
+      }
+    ],
+    "missing_ids": [
+      "c0eb749542c1d64ab0f0c8ca7e9c54ce90d61c1eb438655c91a927e34e7ba0b7"
+    ]
+  },
+  "findings": [
+    "P1: NO_NEW Evidence set incomplete; exact second supplied reference omitted",
+    "Frozen positive INTELLIGENCE gate not met; no substantive judgment body",
+    "JSON schema shape and transport completion do not establish domain acceptance or model qualification"
+  ],
+  "controller": {
+    "kind": "DIAGNOSTIC_ONLY",
+    "qualification": false,
+    "status": "AWAITING_REVIEW",
+    "child": {
+      "exit_code": 0,
+      "timed_out": false,
+      "child_stopped": true
+    },
+    "outcome": "CHILD_STOPPED",
+    "cleanup": {
+      "state": "OWNER_STOPPED",
+      "signalled": true,
+      "qualification": false,
+      "native_state": "IDLE"
+    }
+  },
+  "readonly_cleanup_recheck": {
+    "recorded_pids_absent": [
+      36223,
+      37754,
+      38212,
+      38247
+    ],
+    "ports_listening": {
+      "11438": false,
+      "5488": false,
+      "5489": false
+    }
+  },
+  "qa_database": {
+    "read_only": true,
+    "tables": 79,
+    "nonempty_tables": {
+      "schema_migrations": 40,
+      "source_policy_current": 1,
+      "source_policy_revisions": 1
+    },
+    "integrity": [
+      [
+        "ok"
+      ]
+    ],
+    "foreign_key_failures": [],
+    "business_rows": 0
+  },
+  "formal": {
+    "main": "73ee7e747b4461b9de8a201d6b47669eb3913d1a",
+    "tracking_origin_main": "73ee7e747b4461b9de8a201d6b47669eb3913d1a",
+    "actual_remote_main": "73ee7e747b4461b9de8a201d6b47669eb3913d1a",
+    "served_revision": null,
+    "url": "http://127.0.0.1:5488/",
+    "online": false,
+    "owner_access": false,
+    "merged": false,
+    "pushed": false,
+    "deployed": false
+  },
+  "proofs": [
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q4km-20261025/diagnostic-freeze-q4km-text-terminal-v2.json",
+      "bytes": 407911,
+      "sha256": "4c324a55fae37bac56f54c778e75be9b4492f0d1cf97080a9d6cd5a79dd99a92"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q4km-20261025/candidate-request.json",
+      "bytes": 6812,
+      "sha256": "5ecc84f927518125ac4e6d3fce926824f089534c20e964b45a32425cf5aaccd8"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-4b-once-20261024/source-case.json",
+      "bytes": 3277,
+      "sha256": "c751f9a5c04f90ccd486c552a8f332ed386ced341f524115ce8627985dc798a3"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/diagnostic.py",
+      "bytes": 26018,
+      "sha256": "d510aef83346bf1706f69a14fc7e9e10148d2e0614591f6b333c24a28f91e1ef"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/generation-start.json",
+      "bytes": 1814,
+      "sha256": "8f030fff6d9a4d94aac18e0625347fc418c544c9bf6775931a91b3da1eb030c6"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/real-once-terminal-window-20261025/generation-start.json",
+      "bytes": 1814,
+      "sha256": "8f030fff6d9a4d94aac18e0625347fc418c544c9bf6775931a91b3da1eb030c6"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/real-once-terminal-window-20261025/precheck.json",
+      "bytes": 463,
+      "sha256": "b6c54a86e0dbe17206f01ccacee98b7b63b3f1abb109eb86d86f9f340d8d5b91"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/real-once-terminal-window-20261025/preload-raw.json",
+      "bytes": 330,
+      "sha256": "6f1b996adff7d109049a67503b5eff85f91cef1793cd0b34bf65989ad5c03c71"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/real-once-terminal-window-20261025/capacity.json",
+      "bytes": 14601,
+      "sha256": "3372edcc3f2e8ec082b01a0dda9fd0ee5663f139acd8dcb1a334f99f7a20c328"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/real-once-terminal-window-20261025/generation-raw.json",
+      "bytes": 872,
+      "sha256": "0c92f0b2fb500a0195555e6e9fd3cdfe26b4eeb190d5c1fb6b04aa5f8c4ccfb0"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/real-once-terminal-window-20261025/diagnostic-result.json",
+      "bytes": 434,
+      "sha256": "005dd9db6f21bb21f5849031933abf43fe090c64bfb38799a53a19c145e9cb19"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-q4-standalone-window/.var/q4-standalone-window/launch-start.json",
+      "bytes": 161,
+      "sha256": "af39d08fdc4ebc741acc33b07db0b11e9826b29dcdde24cf79e8bcd40e4de614"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-q4-standalone-window/.var/q4-standalone-window/run-20261025/controller-result.json",
+      "bytes": 334,
+      "sha256": "3942a553bf6129bf7f609a901d434b071e0cda6da0233823cc5dc3781c8bf50a"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-q4-standalone-window/.var/q4-standalone-window/run-20261025/cleanup-slots.json",
+      "bytes": 1771,
+      "sha256": "883c13a529aef47abee5b37774c241513f63395915fe06199aabfd14fdefd9b5"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-q4-standalone-window/.var/q4-standalone-window/run-20261025/wait-observations.jsonl",
+      "bytes": 13034,
+      "sha256": "b45b3e387efadb6074f2b17c614bba1a4e1faa954dc44504f92f64f145ce3b77"
+    },
+    {
+      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q4km-20261025/terminal-window-20261025/pinned-daemon.log",
+      "bytes": 24897,
+      "sha256": "f45edf72b66bece55f0033b9c3f0bb0d58ef1a985d342ad63349858a342f68e7"
+    }
+  ]
+}
