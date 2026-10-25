@@ -1,0 +1,79 @@
+{
+  "at": "2026-10-25T09:53:59.531860+00:00",
+  "status": "EXTERNAL_TERMINAL_READY_WAITING_FOR_USER_APP_EXIT",
+  "goal_complete": false,
+  "qualification": false,
+  "controller_pid": 37754,
+  "owner": {
+    "server": "36223 Sun Oct 25 17:27:46 2026     /Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/pinned-ollama-0409-20261024/runtime/ollama serve",
+    "runtime_root": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/pinned-ollama-0409-20261024/runtime"
+  },
+  "terminal_ancestry": {
+    "chain": [
+      {
+        "pid": 37754,
+        "ppid": 37718,
+        "comm": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python"
+      },
+      {
+        "pid": 37718,
+        "ppid": 37715,
+        "comm": "-zsh"
+      },
+      {
+        "pid": 37715,
+        "ppid": 36172,
+        "comm": "login"
+      },
+      {
+        "pid": 36172,
+        "ppid": 1,
+        "comm": "/System/Applications/Utilities/Terminal.app/Contents/MacOS/Terminal"
+      }
+    ],
+    "terminal_owned": true,
+    "codex_ancestor": false
+  },
+  "launcher": {
+    "at": "2026-10-25T09:52:09.234629+00:00",
+    "review_commit": "47939cf49616b48bbe4f899f5d38416f0bd33dcf",
+    "launcher": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q4km-20261025/terminal-window-20261025/开始独立验收.command",
+    "launcher_sha256": "806bcd7fdcb4f797d653a59738bfda478281c1e2ca8152067ca6e52f2fa09b28",
+    "template_sha256": "8a6b3540667d8d716407aeff06238eb5a1c3dda94c846b3d891e05b80852dc42",
+    "controller_sha256": "761c603af96a85d0d24edeb2fcdf708bc1c43bfa921dba284b12a66ca739dc8d",
+    "package": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q4km-20261025/diagnostic-freeze-q4km-text-terminal-v2.json",
+    "package_sha256": "4c324a55fae37bac56f54c778e75be9b4492f0d1cf97080a9d6cd5a79dd99a92",
+    "mechanical_template_substitution_only": true,
+    "zsh_syntax_pass": true,
+    "placeholder_guard_retained": true,
+    "initial_broad_placeholder_check_refused_before_file_or_launch": true,
+    "model_execution_authority": "one unchanged child after manual app exit and original fresh gates; no qualification"
+  },
+  "latest_wait_observation": {
+    "elapsed_seconds": 106.63601324999763,
+    "apps_closed": false,
+    "memory_bytes": 6118490112,
+    "disk_bytes": 179555176448
+  },
+  "controller_waiting": true,
+  "child_not_started": true,
+  "model_http_calls": 0,
+  "empty_preloads": 0,
+  "generations": 0,
+  "global_generation_marker_absent": true,
+  "auto_app_close": false,
+  "protected_apps": [
+    "Codex/ChatGPT",
+    "Jimmm"
+  ],
+  "user_next_action": "manually quitCodex/ChatGPT after readiness, keepTerminal+Jimmm; waitforwindowcompletion thenreopen samechat and readexistingresults; neverrelauchcase",
+  "new_offline_tests": 23,
+  "unchanged_original_tests": 141,
+  "independent_total_pass": 164,
+  "author_commit": "64065313dcd8e83dd2e40352188f60ae208669fa",
+  "review_commit": "47939cf49616b48bbe4f899f5d38416f0bd33dcf",
+  "business_source_unchanged_from": "a2076dbd695e1c8f6abae0f41bdc885fff5a6bdf",
+  "formal_data_and_config_untouched": true,
+  "no_paid_cloud": true,
+  "no_merge_push_deploy": true
+}
