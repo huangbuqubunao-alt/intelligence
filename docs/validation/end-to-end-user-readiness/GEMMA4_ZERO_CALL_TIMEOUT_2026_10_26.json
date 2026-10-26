@@ -1,0 +1,52 @@
+{
+  "at": "2026-10-26T13:22:14.454461+08:00",
+  "outcome": {
+    "kind": "DIAGNOSTIC_ONLY",
+    "qualification": false,
+    "status": "AWAITING_REVIEW",
+    "outcome": "WAIT_TIMEOUT",
+    "cleanup": {
+      "state": "OWNER_STOPPED",
+      "signalled": true,
+      "qualification": false,
+      "native_state": "NO_RUNNER"
+    }
+  },
+  "observations": 354,
+  "app_closed_observations": 0,
+  "memory_max": 6089818112,
+  "required_memory_bytes": 7640934617,
+  "real_model_loads": 0,
+  "real_model_generations": 0,
+  "missing": [
+    "generation-start.json",
+    "real-once-gemma4-e4b-20261026",
+    "run-20261026/child-stdout.log",
+    "run-20261026/child-stderr.log"
+  ],
+  "evidence": {
+    "launch-start.json": {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-gemma4-e4b-ready/.var/gemma4-e4b-ready/launch-start.json",
+      "sha256": "ea29a11364e4a2f29ce7204f09974c704cccd19b8ea934c1f7dd4590a3243e56",
+      "bytes": 161
+    },
+    "run-20261026/controller-result.json": {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-gemma4-e4b-ready/.var/gemma4-e4b-ready/run-20261026/controller-result.json",
+      "sha256": "4be580f945f20955244a82e2c6eafb3c75e8b5eb97e8e42e1d81d3d3745d9db9",
+      "bytes": 250
+    },
+    "run-20261026/wait-observations.jsonl": {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-gemma4-e4b-ready/.var/gemma4-e4b-ready/run-20261026/wait-observations.jsonl",
+      "sha256": "251a5e789bfe492c29625d9df5267f4c467677600d4b28c282347087fe16a2f7",
+      "bytes": 41568
+    },
+    "run-20261026/waiting-start.json": {
+      "path": "/Users/hua/Documents/yia-worktrees/readiness-gemma4-e4b-ready/.var/gemma4-e4b-ready/run-20261026/waiting-start.json",
+      "sha256": "89bb96163a1bd95a222dbfe4a03f5c50b9c45d05d5a8ba7272fa4e069bc71250",
+      "bytes": 247
+    }
+  },
+  "original_once_must_be_preserved": true,
+  "qualification": false,
+  "next": "Minimal pre-execution recovery only; original candidate/source/global generation once unchanged; independently review source and new owner binding; prepare manual-start after app exit rather than expire before user action."
+}
