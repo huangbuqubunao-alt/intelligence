@@ -1,6 +1,6 @@
 # TASK-READINESS-BIGMODEL-CLAIM-REPAIR
 
-Status READY. Repair the remaining P2-01 in rejected candidate 2bf9cf21725494309d7d9222759dc835a4dc2996 (which preserves 896a4834). Root assigns a new isolated worktree and one available implementer because the original author committed clean STOP and then hit usage limit. Do not overwrite either original worktree or commit. This is the existing audit task's safety closure, not new functionality or production adoption.
+Status DONE in isolated candidate: df57 independently APPROVEccd66, Root integratedf716511 with source equality and146 state/Backup PASS. No model or main adoption. Repair the remaining P2-01 in rejected candidate 2bf9cf21725494309d7d9222759dc835a4dc2996 (which preserves 896a4834). Root assigns a new isolated worktree and one available implementer because the original author committed clean STOP and then hit usage limit. Do not overwrite either original worktree or commit. This is the existing audit task's safety closure, not new functionality or production adoption.
 
 Read AGENTS, COLLABORATION, current status, original BIGMODEL-AUDIT task/migration plan/author handoff and independent review 8ac66e9b plus delta36308a68. The latter report may be read from Root's review worktree if not yet present in this branch. Use graph discovery first; index this worktree if necessary, then inspect current source. No subagents, model/provider/network calls, credentials, owner data, production configuration, dependencies, main, frontend or transport edits.
 
