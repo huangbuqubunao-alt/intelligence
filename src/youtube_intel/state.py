@@ -10932,6 +10932,10 @@ class SQLiteStateRepository:
         connection = self._connect()
         try:
             with _immediate_transaction(connection):
+                if selected_provider == ZHIPU_PAIR[0]:
+                    checkpoint = connection.execute("SELECT * FROM distillation_execution_checkpoints WHERE execution_id=?", (execution_id,)).fetchone()
+                    if checkpoint is not None:
+                        self._validate_zhipu_execution(connection, checkpoint)
                 changed = connection.execute(
                     "UPDATE distillation_execution_checkpoints "
                     "SET budget_state = 'DISPATCH_CLAIMED', invocation_count = 1, "
@@ -11140,6 +11144,7 @@ class SQLiteStateRepository:
                 ).fetchone()
                 if checkpoint is None or str(checkpoint["status"]) != "PENDING":
                     raise StateStoreError("distillation execution is not safely resumable")
+                self._validate_zhipu_execution(connection, checkpoint)
                 connection.execute(
                     "UPDATE distillation_execution_checkpoints SET status = :status, budget_state = :budget_state, invocation_count = :invocation_count, updated_at = :updated_at WHERE execution_id = :execution_id",
                     {
@@ -11427,6 +11432,7 @@ class SQLiteStateRepository:
                 ).fetchone()
                 if checkpoint is None or str(checkpoint["status"]) != "PENDING":
                     raise StateStoreError("distillation execution is not safely completable")
+                self._validate_zhipu_execution(connection, checkpoint)
                 self._require_local_distillation_context(connection, checkpoint, local_content_context_hash)
                 if (
                     checkpoint["intelligence_id"] is not None
@@ -11669,6 +11675,7 @@ class SQLiteStateRepository:
                 ).fetchone()
                 if checkpoint is None or str(checkpoint["status"]) != "PENDING":
                     raise StateStoreError("distillation execution is not safely admissible")
+                self._validate_zhipu_execution(connection, checkpoint)
                 self._require_local_distillation_context(connection, checkpoint, local_content_context_hash)
                 if (
                     card.source_id != checkpoint["source_id"] or card.video_id != checkpoint["video_id"]
