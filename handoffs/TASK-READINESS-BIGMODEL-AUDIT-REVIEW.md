@@ -119,3 +119,46 @@ Minimal completion: apply the same new-provider raw authority validation to this
 Author's378PASS/1FAIL five-file run and later111PASS complete Backup rerun remain separate historical evidence; the precise exception-expectation repair adds a direct-SQL refusal/count0 assertion instead of weakening it. This independent379-pass run is on the final2bf source, not a relabeling of that earlier run.
 
 One independent probe initially lacked its temporary fixture parent directory and stopped before creating a repository; it was corrected by creating that parent, without implementation changes. No additional toolchain/dependency or business change was made. Root was promptly informed of the remaining direct-claim result. Only this report is appended; the reviewer does not fix implementation, inspect a moving repair or touch Root GUI/owner/model/credential state. **Await a new fixed commit before final approval.**
+
+## Final fixed claim-path review — 2026-10-27
+
+**Latest verdict: APPROVE `df57ff0991336f9f7f6c14cc195d17319889d087`, bounded audit/storage/claim engineering only.** Both original P2 categories and the direct-claim omission are closed on this fixed source. No remaining confirmed P0/P1/P2 finding. Prior896 and2bf rejection records remain historical evidence; this approval applies only to the repaired chain, not those earlier commits in isolation.
+
+Root placed the fixed delta at review baseline `0b991b914f91ae2199f9d6610354e2b4ad2972aa`; all product/test bytes match df57. Read the new claim-repair task, pre-edit inventory, implementation/test diff and handoff. The production delta reuses the existing validator in just seven lines: before the direct claim UPDATE and before without-admission, admitted and NO_NEW completion writes. No SQL, provider/model/budget permission or old-provider behavior change was added; the validator immediately returns for other providers.
+
+### Independent boundary inventory
+
+Graph discovery plus a current-source AST/SQL inventory covered every checkpoint INSERT/UPDATE in `src/youtube_intel`. In addition to the implementation's relevant inventory, an extra status-only long `_checkpoint_wait` helper was explicitly classified; it cannot promote the invocation count.
+
+| Boundary | Fixed new-provider authority |
+|---|---|
+| `begin_distillation_execution`, `reserve_distillation_execution`, long `_reserve` | Initialization at count0; SQL042 still rejects inserting an invoked new-provider checkpoint. Dedicated long reservation requires its fixed local profile/proof. |
+| Direct and reserved claim APIs | Exact new raw audit validation under the existing immediate transaction, before any count1 write. No-consent claim remains refused by the SQL authorization guard; malformed persisted consent cannot be promoted. |
+| Atomic confirm-and-claim | Fresh-only, typed identity/hash arguments and strict042 SQL insert matching consent and claim in one transaction. Prior execution is refused before its callback, so it cannot adopt a damaged history. |
+| Without-admission, admitted and NO_NEW completion | Same new raw validator before writes; malformed authority cannot be promoted or become admitted/NO_NEW persistence. Existing claimed-only NO_NEW and terminal/replay guards remain. |
+| Known cloud failure / unidentified response | Known failure requires an already claimed invocation and retains its count; it is not a new dispatch grant. The new pair is explicitly denied the legacy unidentified-table route. Existing strict reader/reverse checks remain. |
+| Long claim/completion and `_checkpoint_wait` | Fixed Ollama profile/proof, sealed/thread-owned claim and existing readiness/admission checks. Completion retains an already count1 claim; deferral is status/count0 accounting. Generic claim APIs reject long IDs, and the new cloud pair cannot bind the local-long profile. |
+
+There is no new execution framework or provider path. Source inspection confirms atomic freshness, long/local separation, and the original immutability/at-most-once controls rather than relying only on test counts.
+
+### Independent fixed-source evidence
+
+The original NOT_CHECKED/BLOB-hash counterexample was re-created independently on df57: direct claim now raises `StateStoreError: BigModel consent identity is invalid`, leaving count0/NOT_CHECKED, the entire SQL dump and every physical DATA file unchanged, with zero model calls. Independently replayed without-admission/admitted/NO_NEW corrupted-hash completion attempts also refuse with all SQL/DATA unchanged.
+
+The final complete group includes all original SQL/reader/reserved-claim/reverse/rehash-and-stage scalar counterexamples; legal canonical UTC microseconds/leap day/time progression; valid direct/reserved concurrency/restart; valid fresh atomic one-winner/refusal-to-adopt; no-consent zero-call WAITING_MODEL/WAITING_BUDGET; legacy Backup/Restore; and local/long separation. No synthetic positive fixture is treated as real generated output or qualification.
+
+| Independent check on final df57 bytes | Result |
+|---|---|
+| In-memory compile changed Python before tests |2PASS |
+| `pytest -p no:cacheprovider tests/unit/test_bigmodel_claims.py tests/unit/test_backup_restore.py tests/integration/test_state_store.py tests/integration/test_task022_personalized_distillation.py tests/integration/test_local_intelligence_timed.py tests/integration/test_long_completion_storage_contract.py -q --tb=short` | **430PASS**,234.04s; one expected duplicate-path ZIP fixture warning |
+| Strict mypy all source, separate temporary cache |122files PASS |
+| Ruff no-cache on state and new claim tests |PASS |
+| All packaged migrations001–042, including042 |41 files byte-identical to2bf; historical40 remain unchanged transitively |
+| Product/test equality to df57 and fixed diff check |PASS |
+| Original direct and three completion adversarial probes |Refused before writes; all SQL/DATA unchanged |
+
+The first attempted group used two incorrect local/long test filenames and ran no tests; the actual names were read from the preserved final-command metadata and the corrected complete command above passed. No result was counted from that collection error. No test was deleted, skipped, broadened or weakened. The new claim matrix adds controls instead of hiding the prior direct-claim failure.
+
+Author's final log SHA256 was independently checked as `2416eea8dd8a056c922447c3484f558ab9b1612f7b91972ab84d95866eb8258c`; its exit0/source_unchanged/398-source-hash record remains separate from this independent430 run. Earlier1458PASS5FAIL→109 and378PASS1FAIL→111 evidence is not relabeled or added as disjoint totals.
+
+Scope/reuse remains DIRECT existing SQLite transactions, strict raw-audit validator, consent/claim/usage/admission and backup contracts. No dependency, transport, credential, owner data, production configuration, Root GUI service or main change. No further implementation issue was confirmed in this bounded chain. Root retains acceptance/integration authority and the actual provider/account/quality/fee/whole-feature/release gates; **this approval does not qualify GLM, authorize fees or declare the ordinary-user Goal/main adoption complete**.
