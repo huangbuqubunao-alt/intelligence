@@ -1,3 +1,5 @@
+> 2026-10-26用户将自行注册BigModel（未完成、无key、无充值授权），不在聊天收密钥。免费精确GLM-4.7-Flash官方价格/接口/隐私/限流及无key HEAD401已查，真实账号/质量/账单仍未验证；见FREE_CLOUD_PREFLIGHT_2026_10_26.md。云预览writer已固定bcb2df47 cleanSTOP，500受影响后端/最终26路径/160前端/static/build通过，尚待独立review；旧PENDING保留，正式数据/main不动。
+
 > 2026-10-26用户确认暂无API账号。三路径预检代理两次selectedmodel capacity中止，未写业务；Root经graph+当前AST独立核实：ProductionBudget无条件allowed、cloud review需key并先reservePENDING、前端无放弃。先做无key/无网络/零持久化preview及收费budget缺配置failclosed，原权限/Evidence/claim保留，代码单writer隔离；详见MODEL_PATHS_MINIMAL_IMPLEMENTATION_2026_10_26.md与CLOUD-READONLY-PREVIEW卡。旧KimiK2.6真实M12通过但官方当前提示即将限制新户/年底计划退役，不新推荐长期默认；免费GLM-4.7-Flash已查官方标价输入/输出/cache免费，账号实名/额度/网络/隐私/质量待验证，暂不承诺free可用。未新APIcall/费用/私有上传、未下Granite权重。
 
 > 2026-10-26用户补充Goal已生效：普通用户用合适模型完成核心操作，不以本地合格为唯一前置；本地/免费云/付费云并行评估，转写/摘要/洞察各自配置验收，保留所有成果/框架。见MODEL_PATHS_GOAL_AMENDMENT_2026_10_26.md。当前Gemma首例独审455a06 REJECTSTOP3P1+1P2，协议/清理/2518保护通过；root已整合a90fb5e，资格仍false/once封存。Granite仅小元数据调研DEFER，未下权重，不继续围绕local重复。已发现现有Moonshot K2.6 M12资格/逐次授权/预算和NVIDIA历史adapter，先只读核对最新证据与普通GUI最短链；免费当前条款/网络/额度与收费路径预览并行核实，无新增收费或私有上传。正式数据/main不动。
