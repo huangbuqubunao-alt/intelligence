@@ -1,6 +1,6 @@
 # TASK-READINESS-GEMMA4-PREEXEC-RECOVERY-REVIEW
 
-Status: IN_REVIEW. Fixed author8e864d91bbba0a9c5800ab1792438488f374f39c; manifest e7ae5a9d635a7ecc7c857df06a5de02dac3d778722e3ff94d99887a1ac384f54. Independent Reviewer; Root supplies exact fixed author commit/manifest/source/package hashes after cleanSTOP. NEW review WT/branch/base supplied in dispatch. Read assigned recovery task/prompt, specs/AGENTS, zero-call timeout receipt and earlier source/binding reports. Only own ignored evidence +handoffs/TASK-READINESS-GEMMA4-PREEXEC-RECOVERY-REVIEW.md writable. No subagents or author/C/G/product modifications.
+Status: ACCEPTED_SOURCE_AND_EXACT_BINDING; user manual first-case execution pending. Fixed author8e864d91bbba0a9c5800ab1792438488f374f39c; manifest e7ae5a9d635a7ecc7c857df06a5de02dac3d778722e3ff94d99887a1ac384f54. Independent Reviewer; Root supplies exact fixed author commit/manifest/source/package hashes after cleanSTOP. NEW review WT/branch/base supplied in dispatch. Read assigned recovery task/prompt, specs/AGENTS, zero-call timeout receipt and earlier source/binding reports. Only own ignored evidence +handoffs/TASK-READINESS-GEMMA4-PREEXEC-RECOVERY-REVIEW.md writable. No subagents or author/C/G/product modifications.
 
 Independently validate recovery is strictly BEFORE first real Gemma call: old354 observations never appsclosed, WAIT_TIMEOUT/OWNER_STOPPED/NO_RUNNER, all5HTTP onlymetadata, actual child/global/output absent, prior old PIDs/port gone. Immutable old files/53/1888/585 product/G proofs unchanged. Newdescriptor/hash/proofs cannot turn an executed/unknown/partial profile into safe recovery.
 
@@ -14,7 +14,7 @@ Return APPROVE_PREEXEC_RECOVERY_SOURCE_ONLY or REJECT with Pfindings/exacthashes
 
 ## Stage 2 — exact cold binding review
 
-Status: READY_BINDING_REVIEW after approved sourcef73183c1ce9f9e9ea3285247c8c29667e0acdab3, author8e864d91. Root sourceintegration077d2db. Continue same review task/ownWT in a separate ignored binding evidence directory; append a clearly dated stage2 to ownhandoff or add handoffs/TASK-READINESS-GEMMA4-PREEXEC-RECOVERY-BINDING.md. No source/runtime/HTTP/Terminal/signals/appclose writes. Root-only metadata already completed with newcold67013/start13:59:32/pinned0409/privateGstore, models[]/no runner and recorded genuine Terminal ancestry.
+Status: ACCEPTED_BOUND_MANUAL_RECOVERY_COMMAND_ONLY (449707ea71debebe2a8864a70ff17685e8b11e66) after approved sourcef73183c1ce9f9e9ea3285247c8c29667e0acdab3, author8e864d91. Root sourceintegration077d2db. Continue same review task/ownWT in a separate ignored binding evidence directory; append a clearly dated stage2 to ownhandoff or add handoffs/TASK-READINESS-GEMMA4-PREEXEC-RECOVERY-BINDING.md. No source/runtime/HTTP/Terminal/signals/appclose writes. Root-only metadata already completed with newcold67013/start13:59:32/pinned0409/privateGstore, models[]/no runner and recorded genuine Terminal ancestry.
 
 RootG/recovery-cold-binding.json SHA727aa3910415bbf15533a002d70c39bb9dae9c1a53e52ba6c7b90de30612a3f8 binds fresh Root-only GETps with exactowner before/after, metadata/ancestry/newsource/derived packet and planned command. Independent currentprocess/mapping/port/staticcapturedmetadata checks allowed; requestRootfreshps if needed, don'tHTTPyourself.
 
