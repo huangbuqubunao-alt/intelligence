@@ -1,6 +1,6 @@
 # TASK-READINESS-GEMMA4-PREEXEC-RECOVERY-REVIEW
 
-Status: WAITING_FIXED_SOURCE. Independent Reviewer; Root supplies exact fixed author commit/manifest/source/package hashes after cleanSTOP. NEW review WT/branch/base supplied in dispatch. Read assigned recovery task/prompt, specs/AGENTS, zero-call timeout receipt and earlier source/binding reports. Only own ignored evidence +handoffs/TASK-READINESS-GEMMA4-PREEXEC-RECOVERY-REVIEW.md writable. No subagents or author/C/G/product modifications.
+Status: IN_REVIEW. Fixed author8e864d91bbba0a9c5800ab1792438488f374f39c; manifest e7ae5a9d635a7ecc7c857df06a5de02dac3d778722e3ff94d99887a1ac384f54. Independent Reviewer; Root supplies exact fixed author commit/manifest/source/package hashes after cleanSTOP. NEW review WT/branch/base supplied in dispatch. Read assigned recovery task/prompt, specs/AGENTS, zero-call timeout receipt and earlier source/binding reports. Only own ignored evidence +handoffs/TASK-READINESS-GEMMA4-PREEXEC-RECOVERY-REVIEW.md writable. No subagents or author/C/G/product modifications.
 
 Independently validate recovery is strictly BEFORE first real Gemma call: old354 observations never appsclosed, WAIT_TIMEOUT/OWNER_STOPPED/NO_RUNNER, all5HTTP onlymetadata, actual child/global/output absent, prior old PIDs/port gone. Immutable old files/53/1888/585 product/G proofs unchanged. Newdescriptor/hash/proofs cannot turn an executed/unknown/partial profile into safe recovery.
 
