@@ -64,3 +64,26 @@ Reuse: DIRECT accepted DTO/routes/API helper, existing hash navigation, Settings
 Corroborated against Root's saved actual detail response, read-only at `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/cloud-preview-real-api-20261026/IwglW_hIL_g-before.json`, SHA256 `294e7e4c8e5c2ba3a9b67a53288d70e483609df252dc1c9db8623c97df8fc14d`: YouTube `IwglW_hIL_g`, processing ORGANIZED, transcript AVAILABLE, note.v2 AVAILABLE, manual_intelligence_eligible=true, cloud_intelligence_available=false, Intelligence NOT_PROCESSED with execution_id=null. Its local capability is NOT_QUALIFIED, request_state CONFIGURATION_REQUIRED, reason MODEL_CONFIGURATION_REQUIRED. These exact values make both current UI routes unavailable. The reviewer corroborated the saved DTO and fixed source, not a second independent GUI run, and did not touch Root's live DB/service/browser.
 
 Minimal repair within the parent Goal: provide the same read-only cloud-preview entry for eligible fresh NOT_PROCESSED public YouTube Content, plus only explicitly safe additional no-current-result postures if needed. Preserve Summary/transcript/source eligibility, LOCAL/BILIBILI denial, backend ticket/readiness/consent/current checks and all at-most-once rules. Do not manufacture WAITING_MODEL, invoke an unqualified local model, bypass qualification or create a task merely to reveal the entry. Add the real DTO posture as a regression and repeat Root's ordinary GUI path from fresh Content. Repair returns to the original writer; final delta review waits for its fixed SHA. No moving WIP was reviewed and no business code was changed here.
+
+## Final delta review 2026-10-27 — repair06046cd
+
+**APPROVE repaired bounded frontend source; the corroborated P1 is closed in code/regression.** Author repair `06046cd1dc6b7ae2d82e35d82a12ff309b636667` preserves7353 as its parent. Root cherry-picked only this repair to the existing review worktree as `2baecef6a0050e704410f6289245672ced6fda0e`; current product/test source equality against06046cd was independently confirmed. The earlier187-pass review and actual P1 addendum above remain unchanged historical evidence. Root's subsequent real-backend/headful acceptance is still required and is not inferred from these tests.
+
+Read Root's amended task at `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/tasks/TASK-READINESS-CLOUD-PREVIEW-UI.md` and reviewed exact7353→06046cd. The only production edit broadens the display predicate from WAITING_MODEL to WAITING_MODEL **or NOT_PROCESSED with backend manual_intelligence_eligible strictly true**, retaining explicit YOUTUBE and available Summary/transcript. It does not change local extraction's disabled predicate, CloudIntelligencePreview's ticket/readiness/expiry/confirmation guards, API payload/route or any backend authorization/qualification/persistence. There is no artificial wait, automatic request or new entry for running, uncertain or completed outcomes. The implementation is a scoped repair, with no architectural/performance/security change beyond displaying the existing read-only component at the correct fresh-content posture. No new confirmed P0/P1/P2 remains in this final delta.
+
+The two added English/Chinese regressions reproduce the actual fresh DTO posture and prove local extraction remains disabled, opening causes no POST, explicit preparation sends only the read-only review POST, blocked confirmation stays disabled, no local extraction/confirmation request is made, and Summary remains. Existing assertions/tests were not removed or weakened.
+
+Independent final checks on the repaired source:
+
+| Check | Result |
+|---|---|
+| `npm run typecheck`, before tests | PASS |
+| `npm run test -- src/workspace/App.test.tsx src/workspace/App.model-readiness.test.tsx src/workspace/App.cloud-preview.test.tsx` | **189 PASS**, 3 files, 10.45s;148+12+29. Existing React act warnings retained. |
+| `npm run build` | PASS;52 modules,551ms |
+| `git diff --check 7353e7ad... 06046cd1...` | PASS |
+| `git diff --quiet 06046cd1... -- src frontend/src frontend/m13-cloud-consent.e2e.mjs tests` | PASS |
+| Exact-current-source rendering-predicate probe | PASS: fresh eligible NOT_PROCESSED and original WAITING_MODEL route preserved;17 negative cases refused |
+
+The independent inline predicate probe evaluated the actual production expression, without editing source/tests or invoking React/API: LOCAL/BILIBILI, fresh manual eligibility false/missing/null/string/number, PENDING/RUNNING/AMBIGUOUS/CANCELLED/SUCCEEDED/SUCCEEDED_NO_NEW_INTELLIGENCE/REJECTED_OUTPUT, and absent/unavailable Summary/transcript all remain closed. In particular fresh manual_intelligence_eligible=false cannot reveal preview; the pre-existing WAITING_MODEL route is intentionally preserved independently of that manual flag.
+
+Reviewer touched no Root6178/6179 service, browser, DB or model/credential and ran no real network/provider operation. This final engineering verdict does not claim GUI, Backup/Restore, cloud quality, free-account quota, whole Goal completion or release. Root owns the actual fresh-Content GUI rerun and all remaining acceptance/integration gates. Only this append is committed, then clean STOP.
