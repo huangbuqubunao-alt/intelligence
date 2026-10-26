@@ -130,6 +130,19 @@ def _cloud_audit_tables(provider: object, model: object) -> tuple[str, str | Non
     return _CLOUD_AUDIT_TABLES.get((provider, model))
 
 
+def _zhipu_audit_utc(value: object) -> datetime:
+    """Canonical application UTC only; never coerce an invalid audit scalar."""
+    if not isinstance(value, str):
+        raise StateStoreError("BigModel audit UTC identity is invalid")
+    try:
+        parsed = _parse_utc_datetime(value)
+        if format_utc_datetime(parsed) != value:
+            raise ValueError("noncanonical audit UTC")
+        return parsed
+    except (ValueError, TypeError, OverflowError) as error:
+        raise StateStoreError("BigModel audit UTC identity is invalid") from error
+
+
 def _cloud_failure_table(provider: object, model: object) -> str:
     return ZHIPU_FAILURES if (provider, model) == ZHIPU_PAIR else CLOUD_FAILURE_TABLES[0]
 
@@ -4599,6 +4612,27 @@ class SQLiteStateRepository:
             if [tuple(r) for r in connection.execute(query)] != expected.execute(query).fetchall():
                 raise IntegrityConflict("retained subtitle schema constraints are incompatible")
 
+    @staticmethod
+    def _validate_zhipu_consent_row(consent: sqlite3.Row, checkpoint: sqlite3.Row) -> None:
+        fields = ("authorization_id", "execution_id", "provider", "model", "verified_input_hash",
+            "consent_kind", "disclosure_version", "cost_status", "authorized_at")
+        if (any(not isinstance(consent[key], str) for key in fields)
+            or not 16 <= len(consent["authorization_id"].strip()) <= 160
+            or len(consent["authorization_id"]) > 160
+            or not 1 <= len(consent["execution_id"].strip()) <= 512
+            or consent["execution_id"] != checkpoint["execution_id"]
+            or (consent["provider"], consent["model"]) != ZHIPU_PAIR
+            or re.fullmatch(r"[0-9a-f]{64}", consent["verified_input_hash"]) is None
+            or consent["consent_kind"] not in {"USER_CONFIRMATION", "OWNER_QUALIFICATION"}
+            or consent["disclosure_version"] != "m12-cloud-intelligence-v1"
+            or consent["cost_status"] != "UNKNOWN"):
+            raise StateStoreError("BigModel consent identity is invalid")
+        authorized = _zhipu_audit_utc(consent["authorized_at"])
+        created, updated = (_zhipu_audit_utc(checkpoint[key]) for key in ("created_at", "updated_at"))
+        if (authorized < created or updated < created
+            or ((checkpoint["invocation_count"] != 0 or checkpoint["status"] != "PENDING") and authorized > updated)):
+            raise StateStoreError("BigModel consent UTC identity differs from execution")
+
     def _validate_zhipu_execution(self, connection: sqlite3.Connection, checkpoint: sqlite3.Row) -> None:
         if checkpoint["selected_provider"] != ZHIPU_PAIR[0]:
             return
@@ -4615,9 +4649,8 @@ class SQLiteStateRepository:
             or sum(row is not None for row in (failure, usage, no_new)) > 1
             or (checkpoint["status"] != "PENDING" and all(row is None for row in (failure, usage, no_new)))):
             raise StateStoreError("BigModel execution has incomplete or competing accounting")
-        if consent is not None and ((consent["provider"], consent["model"]) != ZHIPU_PAIR
-            or consent["authorized_at"] > checkpoint["updated_at"]):
-            raise StateStoreError("BigModel execution consent differs")
+        if consent is not None:
+            self._validate_zhipu_consent_row(consent, checkpoint)
         if failure is not None:
             self._validate_cloud_response_failure_row(failure, checkpoint, consent)
         if no_new is not None:
@@ -4654,9 +4687,10 @@ class SQLiteStateRepository:
         # Table names come solely from the finite application-owned descriptor.
         for consent in connection.execute(f"SELECT * FROM {ZHIPU_AUTHORIZATIONS}"):
             checkpoint = connection.execute("SELECT * FROM distillation_execution_checkpoints WHERE execution_id=?", (consent["execution_id"],)).fetchone()
+            if checkpoint is not None:
+                self._validate_zhipu_consent_row(consent, checkpoint)
             if (checkpoint is None or (checkpoint["selected_provider"], checkpoint["selected_model"]) != ZHIPU_PAIR
                 or (consent["provider"], consent["model"]) != ZHIPU_PAIR
-                or consent["authorized_at"] > checkpoint["updated_at"]
                 or not connection.execute("SELECT 1 FROM videos WHERE video_id=? AND provider='YOUTUBE'", (checkpoint["video_id"],)).fetchone()
                 or not connection.execute("SELECT 1 FROM source_subscriptions WHERE source_id=? AND provider='YOUTUBE'", (checkpoint["source_id"],)).fetchone()):
                 raise IntegrityConflict("BigModel consent authority is invalid")
@@ -10331,6 +10365,16 @@ class SQLiteStateRepository:
     def _validate_cloud_response_failure_row(
         response: sqlite3.Row, checkpoint: sqlite3.Row, consent: sqlite3.Row | None
     ) -> None:
+        if (checkpoint["selected_provider"], checkpoint["selected_model"]) == ZHIPU_PAIR:
+            if consent is None:
+                raise StateStoreError("BigModel response has no consent identity")
+            SQLiteStateRepository._validate_zhipu_consent_row(consent, checkpoint)
+            received = _zhipu_audit_utc(response["received_at"])
+            if (not isinstance(response["execution_id"], str)
+                or response["execution_id"] != checkpoint["execution_id"]
+                or received != _zhipu_audit_utc(checkpoint["updated_at"])
+                or received < _zhipu_audit_utc(consent["authorized_at"])):
+                raise StateStoreError("BigModel response UTC identity differs from execution")
         if (
             consent is None
             or checkpoint["status"] != "REJECTED_OUTPUT"
@@ -10739,6 +10783,10 @@ class SQLiteStateRepository:
         connection = self._connect()
         try:
             with _immediate_transaction(connection):
+                if selected_provider == ZHIPU_PAIR[0]:
+                    checkpoint = connection.execute("SELECT * FROM distillation_execution_checkpoints WHERE execution_id=?", (execution_id,)).fetchone()
+                    if checkpoint is not None:
+                        self._validate_zhipu_execution(connection, checkpoint)
                 changed = connection.execute(
                     "UPDATE distillation_execution_checkpoints "
                     "SET budget_state = 'DISPATCH_CLAIMED', invocation_count = 1, updated_at = :updated_at "
@@ -10837,11 +10885,11 @@ class SQLiteStateRepository:
             if row is None:
                 return None
             return CloudExecutionAuthorizationRecord(
-                authorization_id=str(row["authorization_id"]),
+                authorization_id=(cast(str, row["authorization_id"]) if (row["provider"], row["model"]) == ZHIPU_PAIR else str(row["authorization_id"])),
                 execution_id=str(row["execution_id"]),
                 provider=str(row["provider"]),
                 model=str(row["model"]),
-                verified_input_hash=str(row["verified_input_hash"]),
+                verified_input_hash=(cast(str, row["verified_input_hash"]) if (row["provider"], row["model"]) == ZHIPU_PAIR else str(row["verified_input_hash"])),
                 consent_kind=str(row["consent_kind"]),
                 authorized_at=_parse_utc_datetime(str(row["authorized_at"])),
             )

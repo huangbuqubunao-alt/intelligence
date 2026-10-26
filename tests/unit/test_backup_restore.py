@@ -7,7 +7,7 @@ import sqlite3
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from threading import Barrier
 
@@ -1789,7 +1789,240 @@ def test_zhipu_direct_invoked_insert_and_unknown_model_cannot_bypass_consent(tmp
         repository.authorize_cloud_execution(authorization_id="zhipu-paid-model-consent",
             execution_id=unknown["execution_id"], provider="zhipu_bigmodel", model=unknown["selected_model"],
             verified_input_hash="a" * 64, consent_kind="USER_CONFIRMATION", now=NOW)
-    with pytest.raises(sqlite3.IntegrityError, match="authorization"):
+    with pytest.raises(StateStoreError, match="finite audit authority"):
         repository.claim_reserved_distillation_execution(**unknown, now=NOW)
     with repository._connect() as connection:
+        with pytest.raises(sqlite3.IntegrityError, match="authorization"):
+            connection.execute("UPDATE distillation_execution_checkpoints SET invocation_count=1,budget_state='DISPATCH_CLAIMED' WHERE execution_id=?", (unknown["execution_id"],))
         assert connection.execute("SELECT invocation_count FROM distillation_execution_checkpoints WHERE execution_id=?", (unknown["execution_id"],)).fetchone()[0] == 0
+
+
+def _insert_zhipu_consent_with_raw_identity(connection, execution_id, authorization_id, **overrides):
+    timestamp = connection.execute("SELECT updated_at FROM distillation_execution_checkpoints WHERE execution_id=?", (execution_id,)).fetchone()[0]
+    connection.execute("INSERT INTO distillation_zhipu_cloud_authorizations "
+        "(authorization_id,execution_id,provider,model,verified_input_hash,consent_kind,disclosure_version,cost_status,authorized_at) "
+        "VALUES (?,?,'zhipu_bigmodel','glm-4.7-flash',?,'USER_CONFIRMATION','m12-cloud-intelligence-v1','UNKNOWN',?)",
+        (authorization_id, execution_id, overrides.get("verified_input_hash", "a" * 64), overrides.get("authorized_at", timestamp)))
+
+
+def _corrupt_zhipu_audit_row(connection, table, changes):
+    """Isolated raw corruption: weaken one table, retain its guards and other row fields."""
+    assert table in {"distillation_zhipu_cloud_authorizations", "distillation_zhipu_cloud_response_failures"}
+    connection.row_factory = sqlite3.Row
+    rows = [dict(row) for row in connection.execute(f"SELECT * FROM {table}")]
+    columns = list(connection.execute(f"PRAGMA table_info({table})"))
+    guards = [row[0] for row in connection.execute("SELECT sql FROM sqlite_master WHERE type='trigger' AND tbl_name=? ORDER BY name", (table,))]
+    connection.execute("PRAGMA foreign_keys=OFF")
+    connection.execute(f"DROP TABLE {table}")
+    definition = ",".join(f'"{row["name"]}" {row["type"]}' + (" PRIMARY KEY" if row["pk"] else "") for row in columns)
+    connection.execute(f"CREATE TABLE {table} ({definition})")
+    for row in rows:
+        row.update(changes)
+        connection.execute(f"INSERT INTO {table} ({','.join(row)}) VALUES ({','.join('?' for _ in row)})", tuple(row.values()))
+    for guard in guards:
+        connection.execute(guard)
+    connection.execute("PRAGMA foreign_keys=ON")
+
+
+def _corrupt_zhipu_authorization_identity(connection, **changes):
+    _corrupt_zhipu_audit_row(connection, "distillation_zhipu_cloud_authorizations", changes or {"authorization_id": None})
+
+
+def test_zhipu_null_authorization_identity_cannot_pass_sql_checks(tmp_path):
+    _, _, _, repository, _ = _workspace(tmp_path)
+    request = _zhipu_request(repository)
+    with repository._connect() as connection:
+        before = tuple(connection.iterdump())
+        with pytest.raises(sqlite3.IntegrityError, match="NOT NULL"):
+            _insert_zhipu_consent_with_raw_identity(connection, request["execution_id"], None)
+        assert tuple(connection.iterdump()) == before
+        for table, key in (("distillation_zhipu_cloud_authorizations", "authorization_id"), ("distillation_zhipu_cloud_response_failures", "execution_id")):
+            assert next(row["notnull"] for row in connection.execute(f"PRAGMA table_info({table})") if row["name"] == key) == 1
+
+
+def test_zhipu_corrupt_null_consent_is_not_coerced_to_a_valid_string(tmp_path):
+    _, _, _, repository, _ = _workspace(tmp_path)
+    request = _zhipu_request(repository)
+    with repository._connect() as connection:
+        _corrupt_zhipu_authorization_identity(connection)
+        _insert_zhipu_consent_with_raw_identity(connection, request["execution_id"], None)
+        before = tuple(connection.iterdump())
+    with pytest.raises(StateStoreError, match="identity"):
+        repository.get_cloud_execution_authorization(request["execution_id"])
+    with repository._connect() as connection:
+        assert tuple(connection.iterdump()) == before
+
+
+@pytest.mark.parametrize("field,value", [
+    ("authorization_id", b"blob-identity-sixteen"),
+    ("verified_input_hash", b"a" * 64),
+    ("authorized_at", "0" * 20),
+    ("authorized_at", "2026-02-30T08:00:00.000000Z"),
+    ("authorized_at", "2028-02-30T08:00:00.000000Z"),
+    ("authorized_at", "2028-01-01T24:00:00.000000Z"),
+    ("authorized_at", "2028-01-01T08:00:00.abc123Z"),
+    ("authorized_at", "2026-09-23T08:00:00Z"),
+    ("authorized_at", "2026-09-23T10:00:00.000000+02:00"),
+])
+def test_zhipu_scalar_consent_sql_rejects_untyped_or_invalid_utc(tmp_path, field, value):
+    _, _, _, repository, _ = _workspace(tmp_path)
+    request = _zhipu_request(repository)
+    parameters = {"authorization_id": "valid-scalar-consent", field: value}
+    with repository._connect() as connection:
+        before = tuple(connection.iterdump())
+        with pytest.raises(sqlite3.IntegrityError):
+            _insert_zhipu_consent_with_raw_identity(connection, request["execution_id"], **parameters)
+        assert tuple(connection.iterdump()) == before
+
+
+@pytest.mark.parametrize("received_at", ["0" * 20, "9999-99-99T99:99:99Z", "2026-02-30T08:00:00.000000Z"])
+def test_zhipu_scalar_failure_sql_rejects_invalid_utc(tmp_path, received_at):
+    _, _, _, repository, _ = _workspace(tmp_path)
+    request = _zhipu_request(repository)
+    repository.authorize_cloud_execution(authorization_id="valid-scalar-consent",
+        execution_id=request["execution_id"], provider="zhipu_bigmodel", model="glm-4.7-flash",
+        verified_input_hash="a" * 64, consent_kind="USER_CONFIRMATION", now=NOW)
+    assert repository.claim_reserved_distillation_execution(**request, now=NOW)
+    with repository._connect() as connection:
+        connection.execute("UPDATE distillation_execution_checkpoints SET status='REJECTED_OUTPUT' WHERE execution_id=?", (request["execution_id"],))
+        before = tuple(connection.iterdump())
+        with pytest.raises(sqlite3.IntegrityError):
+            connection.execute("INSERT INTO distillation_zhipu_cloud_response_failures "
+                "(execution_id,actual_provider,actual_model,status,outcome,http_status_code,input_tokens,output_tokens,cost_microunits,duration_ms,received_at) "
+                "VALUES (?,'zhipu_bigmodel',NULL,'REJECTED_OUTPUT','CLOUD_HTTP_ERROR',429,NULL,NULL,NULL,NULL,?)",
+                (request["execution_id"], received_at))
+        assert tuple(connection.iterdump()) == before
+
+
+def _corrupt_zhipu_scalar_preserving_schema(connection, table, field, value):
+    """Only isolated adversarial copies bypass CHECK/immutability, then restore all SQL."""
+    guard = {
+        "distillation_zhipu_cloud_authorizations": "distillation_zhipu_cloud_authorization_immutable_update",
+        "distillation_zhipu_cloud_response_failures": "distillation_zhipu_cloud_response_failure_immutable_update",
+    }[table]
+    assert field in {"authorization_id", "verified_input_hash", "authorized_at", "received_at"}
+    schema_before = [tuple(row) for row in connection.execute("SELECT type,name,sql FROM sqlite_master ORDER BY type,name")]
+    sql = connection.execute("SELECT sql FROM sqlite_master WHERE name=?", (guard,)).fetchone()[0]
+    connection.execute("PRAGMA ignore_check_constraints=ON")
+    connection.execute(f"DROP TRIGGER {guard}")
+    try:
+        connection.execute(f"UPDATE {table} SET {field}=?", (value,))
+    finally:
+        connection.execute(sql)
+        connection.execute("PRAGMA ignore_check_constraints=OFF")
+    assert [tuple(row) for row in connection.execute("SELECT type,name,sql FROM sqlite_master ORDER BY type,name")] == schema_before
+
+
+@pytest.mark.parametrize("field,value", [
+    ("authorization_id", b"blob-identity-sixteen"), ("verified_input_hash", b"a" * 64),
+    ("authorized_at", "0" * 20), ("authorized_at", "2026-02-30T08:00:00.000000Z"),
+    ("authorized_at", "2026-09-23T08:00:00Z"), ("authorized_at", "2026-09-23T10:00:00.000000+02:00"),
+])
+def test_zhipu_raw_corrupt_consent_scalar_closes_reader_claim_and_verifier(tmp_path, field, value):
+    _, data_root, _, repository, _ = _workspace(tmp_path)
+    request = _zhipu_request(repository)
+    repository.authorize_cloud_execution(authorization_id="valid-scalar-consent", execution_id=request["execution_id"],
+        provider="zhipu_bigmodel", model="glm-4.7-flash", verified_input_hash="a" * 64,
+        consent_kind="USER_CONFIRMATION", now=NOW)
+    with repository._connect() as connection:
+        _corrupt_zhipu_scalar_preserving_schema(connection, "distillation_zhipu_cloud_authorizations", field, value)
+        before = tuple(connection.iterdump())
+    files = {str(p.relative_to(data_root)): p.read_bytes() for p in data_root.rglob("*") if p.is_file()}
+    with pytest.raises(StateStoreError, match="identity"):
+        repository.get_cloud_execution_authorization(request["execution_id"])
+    with pytest.raises(StateStoreError, match="identity"):
+        repository.claim_reserved_distillation_execution(**request, now=NOW)
+    with repository._connect() as connection:
+        with pytest.raises(StateStoreError, match="identity"):
+            repository.verify_cloud_audit_database(connection)
+        assert tuple(connection.iterdump()) == before
+    assert {str(p.relative_to(data_root)): p.read_bytes() for p in data_root.rglob("*") if p.is_file()} == files
+
+
+@pytest.mark.parametrize("received_at", ["0" * 20, "9999-99-99T99:99:99Z", "2026-02-30T08:00:00.000000Z"])
+def test_zhipu_raw_corrupt_failure_utc_closes_usage_and_verifier(tmp_path, received_at):
+    _, _, _, repository, _ = _workspace(tmp_path)
+    request = _zhipu_request(repository)
+    repository.authorize_cloud_execution(authorization_id="valid-scalar-consent", execution_id=request["execution_id"],
+        provider="zhipu_bigmodel", model="glm-4.7-flash", verified_input_hash="a" * 64,
+        consent_kind="USER_CONFIRMATION", now=NOW)
+    assert repository.claim_reserved_distillation_execution(**request, now=NOW)
+    repository.finish_distillation_cloud_response_failure(execution_id=request["execution_id"], budget_state="ADMITTED",
+        outcome="CLOUD_HTTP_ERROR", http_status_code=429, now=NOW)
+    with repository._connect() as connection:
+        _corrupt_zhipu_scalar_preserving_schema(connection, "distillation_zhipu_cloud_response_failures", "received_at", received_at)
+        before = tuple(connection.iterdump())
+    with pytest.raises(StateStoreError, match="identity"):
+        repository.get_distillation_resource_usage(request["execution_id"])
+    with repository._connect() as connection:
+        with pytest.raises(StateStoreError, match="identity"):
+            repository.verify_cloud_audit_database(connection)
+        assert tuple(connection.iterdump()) == before
+
+
+@pytest.mark.parametrize("authorized_at", [NOW + timedelta(seconds=1, microseconds=123456), datetime(2028, 2, 29, 12, 34, 56, 123456, tzinfo=UTC)])
+def test_zhipu_formatter_utc_and_preclaim_time_progression_remain_legal(tmp_path, authorized_at):
+    _, _, _, repository, _ = _workspace(tmp_path)
+    request = _zhipu_request(repository)
+    consent = repository.authorize_cloud_execution(authorization_id="valid-formatter-consent", execution_id=request["execution_id"],
+        provider="zhipu_bigmodel", model="glm-4.7-flash", verified_input_hash="a" * 64,
+        consent_kind="USER_CONFIRMATION", now=authorized_at)
+    assert consent.authorized_at == authorized_at
+    assert repository.claim_reserved_distillation_execution(**request, now=authorized_at + timedelta(seconds=1))
+    repository.finish_distillation_cloud_response_failure(execution_id=request["execution_id"], budget_state="ADMITTED",
+        outcome="CLOUD_HTTP_ERROR", http_status_code=429, now=authorized_at + timedelta(seconds=2))
+    with repository._connect() as connection:
+        repository.verify_cloud_audit_database(connection)
+
+
+@pytest.mark.parametrize("table,field,value", [
+    ("distillation_zhipu_cloud_authorizations", "authorization_id", None),
+    ("distillation_zhipu_cloud_authorizations", "authorization_id", b"blob-identity-sixteen"),
+    ("distillation_zhipu_cloud_authorizations", "verified_input_hash", b"a" * 64),
+    ("distillation_zhipu_cloud_authorizations", "authorized_at", "0" * 20),
+    ("distillation_zhipu_cloud_response_failures", "received_at", "9999-99-99T99:99:99Z"),
+])
+def test_zhipu_rehashed_scalar_corruption_cannot_restore_or_change_live_data(tmp_path, table, field, value):
+    _, data_root, _, repository, _ = _workspace(tmp_path)
+    request = _zhipu_request(repository)
+    repository.authorize_cloud_execution(authorization_id="valid-scalar-consent", execution_id=request["execution_id"],
+        provider="zhipu_bigmodel", model="glm-4.7-flash", verified_input_hash="a" * 64,
+        consent_kind="USER_CONFIRMATION", now=NOW)
+    assert repository.claim_reserved_distillation_execution(**request, now=NOW)
+    repository.finish_distillation_cloud_response_failure(execution_id=request["execution_id"], budget_state="ADMITTED",
+        outcome="CLOUD_HTTP_ERROR", http_status_code=429, now=NOW)
+    service = _service(tmp_path)
+    backup = service.create_backup()
+    path, _ = service.backup_download(backup.backup_id)
+    with zipfile.ZipFile(path) as archive:
+        infos = {info.filename: info for info in archive.infolist()}
+        members = {name: archive.read(name) for name in infos}
+    snapshot = tmp_path / "scalar-corruption-snapshot.sqlite"
+    snapshot.write_bytes(members["database/state.sqlite"])
+    with sqlite3.connect(snapshot) as connection:
+        connection.row_factory = sqlite3.Row
+        if value is None:
+            _corrupt_zhipu_audit_row(connection, table, {field: value})
+        else:
+            _corrupt_zhipu_scalar_preserving_schema(connection, table, field, value)
+    connection.close()
+    changed = snapshot.read_bytes()
+    assert changed != members["database/state.sqlite"]
+    members["database/state.sqlite"] = changed
+    manifest = json.loads(members["manifest.json"])
+    manifest["database"]["size_bytes"] = len(changed)
+    manifest["database"]["sha256"] = hashlib.sha256(changed).hexdigest()
+    members["manifest.json"] = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
+    payload = io.BytesIO()
+    with zipfile.ZipFile(payload, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for name, content in members.items():
+            archive.writestr(infos[name], content)
+    with repository._connect() as connection:
+        before = tuple(connection.iterdump())
+    files = {str(p.relative_to(data_root)): p.read_bytes() for p in data_root.rglob("*") if p.is_file()}
+    with pytest.raises(BackupRestoreError, match="persistence constraints"):
+        service.stage_restore(payload.getvalue())
+    assert not service.restore_pending
+    with repository._connect() as connection:
+        assert tuple(connection.iterdump()) == before
+    assert {str(p.relative_to(data_root)): p.read_bytes() for p in data_root.rglob("*") if p.is_file()} == files

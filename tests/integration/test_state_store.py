@@ -996,6 +996,21 @@ def test_m042_failure_rolls_back_all_new_audit_objects_and_preserves_v041(tmp_pa
     assert repository.initialize(now=NOW).version == 42
 
 
+def test_m042_unpublished_prior_candidate_checksum_is_not_rewritten(tmp_path):
+    repository = SQLiteStateRepository(_database_path(tmp_path))
+    repository.initialize(now=NOW)
+    # Isolated lineage corruption carrying the actual 896a483 candidate checksum;
+    # this is not an upgrade of any retained experimental database.
+    with repository._connect() as connection:
+        connection.execute("UPDATE schema_migrations SET checksum=? WHERE version=42",
+            ("118ac8cb16c6bf7fb87449f4d46ce807311658f12207c319c9e5a33123baadfb",))
+        before = tuple(connection.iterdump())
+    with pytest.raises(MigrationError, match="checksum"):
+        repository.initialize(now=NOW)
+    with repository._connect() as connection:
+        assert tuple(connection.iterdump()) == before
+
+
 def test_m026_failure_rolls_back_schema_history_and_user_version(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

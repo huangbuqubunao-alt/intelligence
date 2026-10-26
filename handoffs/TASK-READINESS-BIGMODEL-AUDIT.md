@@ -1,5 +1,7 @@
 # TASK-READINESS-BIGMODEL-AUDIT — implementation handoff
 
+> 2026-10-27: independent review rejected original candidate896a483 for two confirmed scalar P2 findings. The bounded repair below supersedes its scalar contract; original history/results are retained. Repaired candidate requires independent delta review and Root acceptance.
+
 ## Metadata / current state
 
 - Implementer: `/root/bigmodel_audit_writer`, sole writer; no subagent.
@@ -78,3 +80,30 @@ Reuse DIRECT: existing standard-library SQLite/JSON/hash/transactions, immutable
 ## Review / integration
 
 Implementation recommendation: **IN_REVIEW**. Final compile42 changed Python files, Ruff, strict mypy122 and diff checks pass (2026-10-27), and the five full-file expectation repairs have closed the actual failures without product changes. Reviewer must independently inspect the042 SQL, exact schema/row authority, old-version compatibility, no privilege/fee expansion and necessary test-version updates. Root alone accepts/integrates. The implementation commit is the commit containing this handoff; its exact SHA is reported to Root after clean STOP. No further implementation writes after that report.
+
+## 2026-10-27 scalar P2 delta repair (base896a483)
+
+Review proved NULL/BLOB authorization IDs and BLOB64-byte hashes could pass original SQL checks, become coerced strings and authorize a claim. Invalid UTC/calendar strings could pass verification/Backup yet later fail datetime parsing. Those identity/hash and UTC findings are fixed only for the new provider; no025–041 change or old-provider semantic rewrite.
+
+- Both new primary keys explicitly NOT NULL. The failure execution_id NULL was already rejected by its binding trigger, so this is consistency hardening, not a demonstrated failure-ledger bypass. IDs/execution IDs/hashes now require TEXT; hashes remain64 lowercase hex. Integer duration is enforced as its existing reader already required. Other enum strings already have non-null exact literal constraints.
+- Both audit times require the exact27-character UTC formatter shape, six fractional digits and a valid calendar/clock. Standard SQLite `strftime` with `+0 seconds` verifies the calendar roundtrip and rejects NULL parsing, normalized overflow dates and24-hour overflow. No custom SQL function or new dependency.
+- New-provider consent readers, claim API and reverse verification share raw identity/hash checks and Python parse/formatter roundtrip. They refuse malformed scalars with StateStoreError, and the getter uses already-validated ID/hash without coercion. Shared old-provider handling is unchanged. Failure received_at must match atomic completion time and follow consent. Consent cannot precede execution creation; legitimate authorization after reservation/before claim remains legal, then must fit the claimed execution interval. Microseconds and actual leap-day positives are tested.
+
+Unreleased042 SHA256 changes from `118ac8cb16c6bf7fb87449f4d46ce807311658f12207c319c9e5a33123baadfb` (896 candidate) to `7bddf62ec3fa49a94657b930fd7315a2089642ab7a9b82f2cb76064e1c824d73`. This is **not** an in-place conversion or compatibility claim for retained experimental42 databases. An isolated lineage-corruption test carrying that exact prior checksum proves initialization refuses without rewriting rows. No retained experimental DB was opened/re-signed/reset/upgraded. Fresh isolated fixtures only; all40 old SQL files remain identical.
+
+| Repair evidence | Result |
+|---|---|
+| Initial NULL direct-insert/getter tests |2RED: `DID NOT RAISE IntegrityError` / `DID NOT RAISE StateStoreError`, then GREEN |
+| Nine added BLOB-ID/hash and invalid/noncanonical UTC SQL refusals |9RED before fix, then GREEN |
+| Initial repaired SQL/null/known429 selection |12PASS |
+| Raw corruption preserving identical schema/guards, reader+claim+verifier refusal; valid formatter/time progression |11PASS |
+| SQL calendar/type boundaries, five rehashed malformed42 archives and prior-checksum refusal |15PASS |
+| Five complete relevant files: Backup, State, task022, Moonshot/OpenAI adapters |378PASS/1FAIL,176.26s;397 source/test hashes unchanged. Sole failure expected a later SQLite exception instead of the new earlier finite-audit StateStoreError. |
+| Complete Backup file after precise expectation update and added direct SQL refusal/count0 assertion |111PASS,48.66s;397 hashes unchanged; only this test file differs from the five-file run, all product/other test bytes identical. |
+| Final compile3 changed Python files / Ruff / strict mypy122 / diff |PASS |
+
+The raw-damage helper bypasses CHECK/immutability only on isolated copies, then restores identical schema/guard SQL; readers and semantic verification must independently refuse invalid values. NULL requires a separately weakened test table because NOT NULL cannot be bypassed by the CHECK pragma. Rehashed ZIP cases cover NULL ID, BLOB ID, BLOB hash, invalid authorization UTC and invalid failure UTC: original ZipInfo retained, WAL explicitly flushed, actual changed bytes asserted and manifest recomputed. Every stage refuses and all live SQL rows/DATA bytes remain unchanged. No test is skipped, assertion removed or exception broadened.
+
+Full repair evidence: `.var/bigmodel-scalar-repair/command.json`, `affected.log`, `source-before/after.json`, `result.json`, `backup-final-*`. Five-file log SHA256 `2a0efbee74ea90a2bcb1889eb1713a864f44eee5a1440d10213a9a52188db1bd`. Counts overlap, not disjoint totals; this is not a claim of one all-green five-file rerun or the full whole-feature suite. Earlier8961458PASS/5FAIL+109PASS history above remains unchanged.
+
+Scope is042/state/two related test files/this handoff. No transport, qualification, spending permission, credentials, owner data, dependency/config or main change. Fix commit is reported separately after clean STOP; independent delta review pending.

@@ -1,14 +1,21 @@
 -- Additive BigModel audit only. Historical migrations and rows are unchanged.
 CREATE TABLE distillation_zhipu_cloud_authorizations (
-    authorization_id TEXT PRIMARY KEY CHECK (length(trim(authorization_id)) BETWEEN 16 AND 160),
-    execution_id TEXT NOT NULL UNIQUE REFERENCES distillation_execution_checkpoints(execution_id) ON DELETE RESTRICT,
+    authorization_id TEXT NOT NULL PRIMARY KEY CHECK (typeof(authorization_id)='text' AND length(authorization_id)<=160 AND length(trim(authorization_id)) BETWEEN 16 AND 160),
+    execution_id TEXT NOT NULL UNIQUE CHECK (typeof(execution_id)='text' AND length(trim(execution_id)) BETWEEN 1 AND 512) REFERENCES distillation_execution_checkpoints(execution_id) ON DELETE RESTRICT,
     provider TEXT NOT NULL CHECK (provider = 'zhipu_bigmodel'),
     model TEXT NOT NULL CHECK (model = 'glm-4.7-flash'),
-    verified_input_hash TEXT NOT NULL CHECK (length(verified_input_hash) = 64 AND verified_input_hash NOT GLOB '*[^0-9a-f]*'),
+    verified_input_hash TEXT NOT NULL CHECK (typeof(verified_input_hash)='text' AND length(verified_input_hash) = 64 AND verified_input_hash NOT GLOB '*[^0-9a-f]*'),
     consent_kind TEXT NOT NULL CHECK (consent_kind IN ('USER_CONFIRMATION', 'OWNER_QUALIFICATION')),
     disclosure_version TEXT NOT NULL CHECK (disclosure_version = 'm12-cloud-intelligence-v1'),
     cost_status TEXT NOT NULL CHECK (cost_status = 'UNKNOWN'),
-    authorized_at TEXT NOT NULL CHECK (length(authorized_at) >= 20)
+    authorized_at TEXT NOT NULL CHECK (
+        typeof(authorized_at)='text' AND length(authorized_at)=27
+        AND authorized_at GLOB '????-??-??T??:??:??.??????Z'
+        AND substr(authorized_at,1,4) BETWEEN '0001' AND '9999'
+        AND substr(authorized_at,21,6) NOT GLOB '*[^0-9]*'
+        AND strftime('%Y-%m-%dT%H:%M:%S',substr(authorized_at,1,19)||'Z','+0 seconds') IS NOT NULL
+        AND strftime('%Y-%m-%dT%H:%M:%S',substr(authorized_at,1,19)||'Z','+0 seconds')=substr(authorized_at,1,19)
+    )
 );
 
 CREATE TRIGGER distillation_zhipu_cloud_authorization_bound
@@ -21,6 +28,7 @@ WHEN NOT EXISTS (
       AND checkpoint.status = 'PENDING'
       AND checkpoint.invocation_count = 0
       AND checkpoint.budget_state IN ('NOT_CHECKED', 'RESERVED_NOT_DISPATCHED')
+      AND NEW.authorized_at >= checkpoint.created_at
       AND EXISTS (SELECT 1 FROM videos v WHERE v.video_id=checkpoint.video_id AND v.provider='YOUTUBE')
       AND EXISTS (SELECT 1 FROM source_subscriptions s WHERE s.source_id=checkpoint.source_id AND s.provider='YOUTUBE')
 )
@@ -148,7 +156,7 @@ BEGIN
 END;
 
 CREATE TABLE distillation_zhipu_cloud_response_failures (
-    execution_id TEXT PRIMARY KEY
+    execution_id TEXT NOT NULL PRIMARY KEY CHECK (typeof(execution_id)='text' AND length(trim(execution_id)) BETWEEN 1 AND 512)
         REFERENCES distillation_execution_checkpoints(execution_id) ON DELETE RESTRICT,
     actual_provider TEXT NOT NULL
         CHECK (actual_provider = 'zhipu_bigmodel'),
@@ -168,8 +176,15 @@ CREATE TABLE distillation_zhipu_cloud_response_failures (
     input_tokens INTEGER CHECK (input_tokens IS NULL),
     output_tokens INTEGER CHECK (output_tokens IS NULL),
     cost_microunits INTEGER CHECK (cost_microunits IS NULL),
-    duration_ms INTEGER CHECK (duration_ms IS NULL OR duration_ms >= 0),
-    received_at TEXT NOT NULL CHECK (length(received_at) >= 20),
+    duration_ms INTEGER CHECK (duration_ms IS NULL OR (typeof(duration_ms)='integer' AND duration_ms >= 0)),
+    received_at TEXT NOT NULL CHECK (
+        typeof(received_at)='text' AND length(received_at)=27
+        AND received_at GLOB '????-??-??T??:??:??.??????Z'
+        AND substr(received_at,1,4) BETWEEN '0001' AND '9999'
+        AND substr(received_at,21,6) NOT GLOB '*[^0-9]*'
+        AND strftime('%Y-%m-%dT%H:%M:%S',substr(received_at,1,19)||'Z','+0 seconds') IS NOT NULL
+        AND strftime('%Y-%m-%dT%H:%M:%S',substr(received_at,1,19)||'Z','+0 seconds')=substr(received_at,1,19)
+    ),
     CHECK (
         (outcome = 'CLOUD_HTTP_ERROR' AND http_status_code IS NOT NULL AND http_status_code BETWEEN 300 AND 599)
         OR (outcome = 'CLOUD_RESULT_PENDING' AND http_status_code IS NOT NULL AND http_status_code = 202)
@@ -203,6 +218,10 @@ WHEN NOT EXISTS (
       AND checkpoint.intelligence_id IS NULL
       AND checkpoint.revision_id IS NULL
       AND checkpoint.budget_state != 'NOT_CHECKED'
+      AND NEW.received_at = checkpoint.updated_at
+      AND NEW.received_at >= checkpoint.created_at
+      AND EXISTS (SELECT 1 FROM distillation_zhipu_cloud_authorizations consent
+                  WHERE consent.execution_id=checkpoint.execution_id AND consent.authorized_at<=NEW.received_at)
       AND NOT EXISTS (SELECT 1 FROM distillation_cloud_response_failures WHERE execution_id=checkpoint.execution_id)
       AND NOT EXISTS (
           SELECT 1 FROM distillation_resource_usage AS usage
