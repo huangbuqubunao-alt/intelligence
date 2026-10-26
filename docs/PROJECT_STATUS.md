@@ -1,3 +1,5 @@
+> 2026-10-26继续执行：独审安全片段已整合，路线图ea7e74f批准两个不交叉writer：CLOUD-PREVIEW-UI（WT readiness-cloud-preview-ui/base2e5df5b，187定向PASS，headful工具问题已保留，尚无fixedcommit）与BIGMODEL-AUDIT（WT readiness-bigmodel-audit/baseea7e74f，042两表/有限guards/旧34–41恢复WIP，144影响组/strict122等中间通过，不算已审最终）。Root真实API QA克隆cloud-preview-real-api-20261026已启动6179、session68592、79表19DATA、readytrue；socket出站全拒/NoCredentials/不启动worker，只读GET已有4公开视频真实Summary/Evidence，尚未点击提炼或preview。需在UI固定并审后走真实API GUI、所有SQL/DATA对比、取消及Backup。手册4745a89已补最新真实语义拒绝/免费云未验证，headful排版79图0坏图/链接/横溢出。用户注册仍待完成通知，无key/费用/模型新调用/正式main采用。
+
 > 2026-10-26云预览安全片段已独审f5564615 APPROVE（无P0/P1/P2），Root整合3fe6751/8053920，src/frontend/tests与作者bcb2df47相等，Root26PASS17.56s；独审后端162+160、前端148+12/static/build通过。下一单writer CLOUD-PREVIEW-UI仅界面，不新增provider/收费。免费GLM仍待账号/真实资格；只读scout确认最小042两audit表、三有限trigger及LOCAL proof保护/版本校验，保留41兼容，见BIGMODEL_AUDIT_MIGRATION_PLAN_2026_10_26.md，尚未迁移/调用/main。
 
 > 2026-10-26用户将自行注册BigModel（未完成、无key、无充值授权），不在聊天收密钥。免费精确GLM-4.7-Flash官方价格/接口/隐私/限流及无key HEAD401已查，真实账号/质量/账单仍未验证；见FREE_CLOUD_PREFLIGHT_2026_10_26.md。云预览writer已固定bcb2df47 cleanSTOP，500受影响后端/最终26路径/160前端/static/build通过，尚待独立review；旧PENDING保留，正式数据/main不动。
