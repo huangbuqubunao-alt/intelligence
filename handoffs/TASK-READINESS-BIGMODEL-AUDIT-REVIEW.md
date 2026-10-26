@@ -75,3 +75,47 @@ However, the two reproduced malformed-scalar acceptance paths prevent approval o
 Read AGENTS/collaboration/PRD/System Design/V1 Product Spec/reuse/task/migration proposal and author handoff. Used code-review-and-quality and security-and-hardening; graph-first discovery followed by current source/diff because the indexed root predates new042. Jev was not exposed, so the existing strong/default independent review continued. DIRECT reuse is standard-library SQLite/JSON/hash, existing immutable authority, claim/admission/usage and strict restore; no copied third-party code or dependency/license action.
 
 Real BigModel transport/configuration/credential/account/price/quota/quality, actual cloud model use, whole-feature full regression, Root real GUI, formal Backup/Restore and main adoption remain outside this review. No model is qualified or user path declared usable here. **Do not integrate896a4834 until the findings have fixed-source regression and independent re-review.**
+
+## 2026-10-27 fixed scalar repair delta review
+
+Reviewed fixed author `2bf9cf21725494309d7d9222759dc835a4dc2996` against896a4834. Root placed that repair on the same review branch at `c069b677d6aa551dec16e3615451502ba82f0360`; source/test equality to2bf was verified. The original rejection and evidence above are retained.
+
+**Verdict: REJECT2bf pending one remaining P2-01 claim boundary.** P2-02 and the original direct SQL/reader/reserved-claim/restore scalar cases are repaired, but the other existing claim API still accepts a malformed new consent.
+
+### Confirmed repair coverage
+
+- New042 authorization identity is explicitly NOT NULL and textual; input hash must be textual64-lowercase-hex. Both audit timestamps require the application's fixed27-character UTC/calendar roundtrip. Only the new provider gets raw-value validation; old providers retain their existing behavior.
+- Independently replayed direct SQL NULL ID, BLOB ID, BLOB hash, zero authorization timestamp and overflow calendar cases: all rejected and each entire SQL dump remained unchanged.
+- Independently corrupted NULL/BLOB IDs, BLOB hash and zero authorization time in isolated copies: authorization reader, **reserved** claim and strict database verifier all rejected; SQL remained unchanged after these refusals. The NULL copy necessarily has a weakened table and is additionally rejected by exact schema verification. BLOB/time copies preserve identical schema and trigger SQL, so semantic row validation is actually exercised.
+- The complete Backup file exercises all five rehashed malformed-archive variants with unchanged live SQL/DATA, invalid failure UTC read refusal, legal microsecond/time progression and an actual2028 leap-day positive. The checksum test explicitly refuses the old unpublished042 checksum rather than silently rewriting it.
+- All40 historical SQL files001–041 remain byte-identical. New042 SHA256 is `7bddf62ec3fa49a94657b930fd7315a2089642ab7a9b82f2cb76064e1c824d73`; changing an unreleased candidate's042 is not advertised as compatibility for prior experimental42 databases.
+
+### Remaining P2-01 — direct NOT_CHECKED claim omits the new validator
+
+Location: `state.py:10899`, `claim_distillation_execution`. The repair adds `_validate_zhipu_execution` before `claim_reserved_distillation_execution`, but not this sibling existing claim method.
+
+Independent fixed-source reproduction in a fresh temporary repository:
+
+1. Add the existing public source/video fixture and call `begin_distillation_execution` for the exact new pair, yielding a legitimate PENDING/NOT_CHECKED/count0 checkpoint.
+2. Persist a valid new consent through `authorize_cloud_execution`.
+3. On the isolated corruption copy, set only its `verified_input_hash` to `b"a"*64` using the same CHECK/immutability-bypass technique; restore every trigger and CHECK setting, asserting the complete sqlite_master SQL is identical. This is the same malformed-row threat model used by the accepted repair tests.
+4. Call `claim_distillation_execution(**request, now=NOW)`.
+
+Actual result: **return True, invocation_count1, budget_state DISPATCH_CLAIMED**. No provider/model was called. A subsequent validated read can reject the bad row, but the existing method has already crossed its durable permission-to-dispatch boundary. The reserved sibling correctly refuses this same damaged consent.
+
+Minimal completion: apply the same new-provider raw authority validation to this direct claim boundary, or explicitly refuse the unsupported new-provider direct route. Preserve old-provider behavior. Add a NOT_CHECKED direct-claim counterexample proving count0/all rows unchanged, plus the relevant valid-path control. This is the remaining original scalar/claim finding, not a request for a new lifecycle or provider permission.
+
+### Independent fixed-source verification
+
+| Check | Result |
+|---|---|
+| Compile the three changed Python files before tests |3PASS |
+| `pytest -p no:cacheprovider tests/unit/test_backup_restore.py tests/integration/test_state_store.py tests/integration/test_task022_personalized_distillation.py tests/unit/test_moonshot_distillation_adapter.py tests/unit/test_openai_distillation_adapter.py -q --tb=short` | **379PASS**,165.39s; one expected duplicate-ZIP fixture warning |
+| Strict mypy all source |122files PASS |
+| Ruff no-cache on the three changed Python files |PASS |
+|40 historical SQL bytes and product/test equality to2bf |PASS |
+| Independent raw-value and direct-claim probes |Original entry points refuse; remaining direct claim counterexample above succeeds |
+
+Author's378PASS/1FAIL five-file run and later111PASS complete Backup rerun remain separate historical evidence; the precise exception-expectation repair adds a direct-SQL refusal/count0 assertion instead of weakening it. This independent379-pass run is on the final2bf source, not a relabeling of that earlier run.
+
+One independent probe initially lacked its temporary fixture parent directory and stopped before creating a repository; it was corrected by creating that parent, without implementation changes. No additional toolchain/dependency or business change was made. Root was promptly informed of the remaining direct-claim result. Only this report is appended; the reviewer does not fix implementation, inspect a moving repair or touch Root GUI/owner/model/credential state. **Await a new fixed commit before final approval.**
