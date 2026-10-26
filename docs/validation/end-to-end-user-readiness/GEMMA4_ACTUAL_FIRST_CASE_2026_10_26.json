@@ -1,0 +1,92 @@
+{
+  "at": "2026-10-26T14:16:44.436040+08:00",
+  "phase": "ACTUAL_FIRST_CASE_AWAITING_INDEPENDENT_SEMANTIC_REVIEW",
+  "model_generations": 1,
+  "preloads": 1,
+  "qualification": false,
+  "http_status": 200,
+  "transport_error": null,
+  "elapsed_seconds": 42.83256275000167,
+  "completion": {
+    "model": "intelligence-gemma4-e4b-text:370c2879",
+    "done": true,
+    "done_reason": "stop",
+    "total_duration": 42818393541,
+    "prompt_eval_count": 630,
+    "eval_count": 1366,
+    "eval_duration": 40849318000
+  },
+  "raw_file_sha256": "b2849a27cb12bd5dcd0528afb830e7be228e49a553e0f8ad6270bcb2fc393f95",
+  "raw_body_sha256": "890c7dbc2ecb3977caf87a55056dd0de4ea5adf18429623785213271afa6eaf5",
+  "public_final_sha256": "256bfd0739c81b9f3a60e62c2bd9b91dc4b4f41489a6d30dae586e8c05e71d2d",
+  "decoded_original_sha256": "dae3b9ff4b7446f578051a12131cb8dff71c460ea73640ac694a7253d0c0437c",
+  "generation_marker": {
+    "kind": "DIAGNOSTIC_ONLY",
+    "experiment": "GEMMA4_E4B_TEXT_THINKING_0409_EN_V1",
+    "candidate_mode": "NATIVE_THINKING_WITH_EXACT_EVIDENCE_ALIASES",
+    "utc": "2026-10-26T06:09:45.108947+00:00",
+    "memory_bytes": 8215248896,
+    "disk_bytes": 166876741632,
+    "required_memory_bytes": 7640934617,
+    "public_payload_bytes": 5493450969,
+    "package_sha256": "7cc9a6ca04a550943787e6b23eb97039d3d7cee378c4b56342828e2e2263e6ee",
+    "production_qualified": false,
+    "peak_memory_proven": false,
+    "capacity": {
+      "N": 630,
+      "P": 8192,
+      "C": 16384,
+      "required": 8824
+    },
+    "server": "67013 Mon Oct 26 13:59:32 2026     /Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/pinned-ollama-0409-20261024/runtime/ollama serve",
+    "runner": "67926 Mon Oct 26 14:09:47 2026     /Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/pinned-ollama-0409-20261024/runtime/llama-server --model /Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/gemma4-e4b-20261025/models/blobs/sha256-370c2879f17648d337b0ab4e208fdce348e24d1060064e93d7645daafd56d39c --port 57912 --host 127.0.0.1 --no-webui --offline -c 16384 -np 1 --log-verbosity 4 --no-log-prefix --no-log-timestamps --no-jinja --chat-template chatml --flash-attn auto -b 512 -ub 512",
+    "request_sha256": "36d15b05520ac4864ac6db99857780a79ac717b22fe6d7ba191201c60cd753d2",
+    "rendered_sha256": "73d14a58ba5dd82cf7bb192056140cd4ceadba38b46db53d64f9ea23914f4ba6",
+    "schema_sha256": "6af421a97de4bda10b816a4e7d40906610721a81d0cffb869e32e94c4e99d491",
+    "capacity_sha256": "2042360b809b37ec123791e28a4d01b11618f30a5fc727f66c386274628e098d",
+    "lease_owner": 67891,
+    "started_utc": "2026-10-26T06:10:15.695305+00:00",
+    "max_generations": 1,
+    "deadline_seconds": 300
+  },
+  "controller_result": {
+    "kind": "PREEXEC_RECOVERY_ONLY",
+    "qualification": false,
+    "outcome": "CHILD_STOPPED",
+    "child": {
+      "exit_code": 0,
+      "timed_out": false,
+      "child_stopped": true
+    },
+    "cleanup": {
+      "state": "OWNER_STOPPED",
+      "signalled": true,
+      "qualification": false,
+      "native_state": "IDLE"
+    }
+  },
+  "database": {
+    "uri_mode": "ro+immutable",
+    "tables": 79,
+    "integrity": [
+      [
+        "ok"
+      ]
+    ],
+    "foreign_keys": [],
+    "nonempty_tables": {
+      "schema_migrations": 40,
+      "source_policy_current": 1,
+      "source_policy_revisions": 1
+    }
+  },
+  "runtime_manifest_sha256": "fc56a3a85d92545c9cbd2b5091bdab68907f326eef07c0bf8233c4b1738f24d1",
+  "public_artifacts": [
+    "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/gemma4-e4b-20261025/actual-first-case-20261026/public-final.txt",
+    "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/gemma4-e4b-20261025/actual-first-case-20261026/public-decoded.json"
+  ],
+  "private_thinking": "Not inspected; only public message.content and completion/usage projected. Raw retained opaque.",
+  "formal_owner_access": false,
+  "main_adoption": false,
+  "next": "Independent semantic/grounding/cleanup verdict; no model retry or later case."
+}
