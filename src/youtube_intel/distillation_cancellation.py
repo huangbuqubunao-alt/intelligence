@@ -8,6 +8,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
+from .cloud_audit import ZHIPU_FAILURES
+
 if TYPE_CHECKING:
     from .state import SQLiteStateRepository
 
@@ -66,6 +68,7 @@ def verify_wait(connection: sqlite3.Connection, checkpoint: sqlite3.Row, *, repo
         "distillation_no_new_intelligence_results", "distillation_cloud_response_failures",
         "distillation_unidentified_http_responses", "distillation_openai_unidentified_http_responses",
         "distillation_moonshot_unidentified_http_responses",
+        *((ZHIPU_FAILURES,) if connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (ZHIPU_FAILURES,)).fetchone() else ()),
     ):
         if connection.execute(f"SELECT 1 FROM {table} WHERE execution_id=?", (execution_id,)).fetchone():
             raise ValueError("model wait has conflicting execution authority")

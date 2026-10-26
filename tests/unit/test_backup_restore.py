@@ -338,7 +338,7 @@ def test_schema36_backup_restore_upgrades_without_inventing_cancellations(tmp_pa
         execution_id = _waiting_model(repository)
     with repository._connect() as connection:
         before = tuple(connection.execute("SELECT * FROM distillation_execution_checkpoints").fetchone())
-    assert repository.initialize(now=NOW).version == 41
+    assert repository.initialize(now=NOW).version == 42
     with repository._connect() as connection:
         assert tuple(connection.execute("SELECT * FROM distillation_execution_checkpoints").fetchone()) == before
         assert connection.execute("SELECT COUNT(*) FROM distillation_waiting_model_cancellations").fetchone()[0] == 0
@@ -348,7 +348,7 @@ def test_schema36_backup_restore_upgrades_without_inventing_cancellations(tmp_pa
     service.confirm_restore(staged.restore_id)
     service.recover_and_apply_pending_restore()
     restored = SQLiteStateRepository(database)
-    assert restored.initialize(now=NOW).version == 41
+    assert restored.initialize(now=NOW).version == 42
     assert restored.get_distillation_execution(execution_id) is None
     assert service.readiness()["ready"] is True
 
@@ -819,7 +819,7 @@ def test_cloud_authorization_and_unidentified_response_survive_backup_restore(
     service.recover_and_apply_pending_restore()
 
     restored = SQLiteStateRepository(database)
-    assert restored.initialize(now=NOW).version == 41
+    assert restored.initialize(now=NOW).version == 42
     assert restored.get_cloud_execution_authorization(execution_id) == authorization
     assert restored.get_cloud_execution_authorization(openai_execution_id) == openai_authorization
     assert restored.get_cloud_execution_authorization(moonshot_execution_id) == moonshot_authorization
@@ -1560,7 +1560,7 @@ def test_preview_distinguishes_artifact_references_from_physical_data_files(tmp_
     assert (data_root / "transcripts/video-1.txt").read_bytes() == artifact
 
 
-@pytest.mark.parametrize('version',[34,35,36,37,38,39,40])
+@pytest.mark.parametrize('version',[34,35,36,37,38,39,40,41])
 def test_all_supported_schema_backups_restore_then_migrate_without_backfill(tmp_path,monkeypatch,version):
     load=SQLiteStateRepository._load_migrations
     with monkeypatch.context() as patch:
@@ -1583,7 +1583,7 @@ def test_all_supported_schema_backups_restore_then_migrate_without_backfill(tmp_
     with restored._connect() as connection:
         assert {row[0]:[tuple(value) for value in connection.execute(f'SELECT * FROM "{row[0]}"')] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}==tables
     assert {str(path.relative_to(data_root)):path.read_bytes() for path in data_root.rglob('*') if path.is_file()}==files
-    assert restored.initialize(now=NOW).version==41
+    assert restored.initialize(now=NOW).version==42
     assert restored.get_global_user_settings().output_language=='en'
     with restored._connect() as connection:
         for table,rows in tables.items():
@@ -1591,6 +1591,205 @@ def test_all_supported_schema_backups_restore_then_migrate_without_backfill(tmp_
                 assert [tuple(row) for row in connection.execute(f'SELECT * FROM "{table}"')]==rows
         assert [tuple(row) for row in connection.execute('SELECT * FROM schema_migrations WHERE version<=? ORDER BY version',(version,))]==tables['schema_migrations']
         assert all(connection.execute(f'SELECT count(*) FROM {table}').fetchone()[0]==0 for table in ('tracked_content_retry_requests','tracked_content_retry_executions','tracked_content_retry_files'))
+        assert all(connection.execute(f'SELECT count(*) FROM {table}').fetchone()[0]==0 for table in ('distillation_zhipu_cloud_authorizations','distillation_zhipu_cloud_response_failures'))
         assert not connection.execute('PRAGMA foreign_key_check').fetchall()
     assert {str(path.relative_to(data_root)):path.read_bytes() for path in data_root.rglob('*') if path.is_file()}==files
     assert len(files)==1
+
+
+def _zhipu_request(repository, execution_id="zhipu-audit"):
+    _add_source(repository)
+    request = dict(execution_id=execution_id, source_id="source-1", video_id="video-1",
+        reason=PersonalizedDistillationService._RESERVATION_REASON,
+        use_case=PersonalizedDistillationService._RESERVATION_USE_CASE,
+        selected_provider="zhipu_bigmodel", selected_model="glm-4.7-flash", output_language="en")
+    repository.reserve_distillation_execution(DistillationExecutionWrite(**request), now=NOW)
+    return request
+
+
+def test_zhipu_dispatch_requires_its_own_exact_consent(tmp_path):
+    _, _, _, repository, _ = _workspace(tmp_path)
+    request = _zhipu_request(repository)
+    with pytest.raises(sqlite3.IntegrityError, match="authorization"):
+        repository.claim_reserved_distillation_execution(**request, now=NOW)
+    assert repository.get_distillation_execution(request["execution_id"]).invocation_count == 0
+
+
+def test_zhipu_429_audit_survives_full_backup_restore(tmp_path):
+    database, data_root, _, repository, _ = _workspace(tmp_path)
+    request = _zhipu_request(repository)
+    consent = repository.authorize_cloud_execution(authorization_id="zhipu-audit-consent",
+        execution_id=request["execution_id"], provider="zhipu_bigmodel", model="glm-4.7-flash",
+        verified_input_hash="f" * 64, consent_kind="OWNER_QUALIFICATION", now=NOW)
+    assert repository.claim_reserved_distillation_execution(**request, now=NOW)
+    repository.finish_distillation_cloud_response_failure(execution_id=request["execution_id"],
+        budget_state="ADMITTED", outcome="CLOUD_HTTP_ERROR", http_status_code=429, now=NOW)
+    usage = repository.get_distillation_resource_usage(request["execution_id"])
+    assert usage.http_status_code == 429 and usage.cost_microunits is None
+    assert usage.actual_provider == "zhipu_bigmodel" and usage.actual_model is None
+    with repository._connect() as connection:
+        before = tuple(connection.iterdump())
+    files = {str(p.relative_to(data_root)): p.read_bytes() for p in data_root.rglob("*") if p.is_file()}
+    service = _service(tmp_path)
+    backup = service.create_backup()
+    archive, _ = service.backup_download(backup.backup_id)
+    staged = service.stage_restore(archive.read_bytes())
+    service.confirm_restore(staged.restore_id)
+    service.recover_and_apply_pending_restore()
+    restarted = SQLiteStateRepository(database)
+    assert restarted.initialize(now=NOW).version == 42
+    assert restarted.get_cloud_execution_authorization(request["execution_id"]) == consent
+    assert restarted.get_distillation_resource_usage(request["execution_id"]) == usage
+    with restarted._connect() as connection:
+        assert tuple(connection.iterdump()) == before
+    assert {str(p.relative_to(data_root)): p.read_bytes() for p in data_root.rglob("*") if p.is_file()} == files
+
+
+@pytest.mark.parametrize("outcome,status", [
+    ("CLOUD_HTTP_ERROR", 429), ("CLOUD_HTTP_ERROR", 503), ("CLOUD_RESULT_PENDING", 202),
+    ("HTTP_RESPONSE_MODEL_IDENTITY_UNKNOWN", 200), ("HTTP_RESPONSE_MODEL_IDENTITY_INVALID", 200),
+    ("CLOUD_HTTP_RESPONSE_MALFORMED", 200),
+])
+def test_zhipu_finite_failure_receipts_are_immutable_and_restart_safe(tmp_path, outcome, status):
+    database, _, _, repository, _ = _workspace(tmp_path)
+    request = _zhipu_request(repository)
+    consent = repository.authorize_cloud_execution(authorization_id="zhipu-audit-consent",
+        execution_id=request["execution_id"], provider="zhipu_bigmodel", model="glm-4.7-flash",
+        verified_input_hash="a" * 64, consent_kind="USER_CONFIRMATION", now=NOW)
+    assert repository.claim_reserved_distillation_execution(**request, now=NOW)
+    repository.finish_distillation_cloud_response_failure(execution_id=request["execution_id"],
+        budget_state="ADMITTED", outcome=outcome, http_status_code=status, now=NOW)
+    usage = repository.get_distillation_resource_usage(request["execution_id"])
+    assert usage.outcome == outcome and usage.http_status_code == status
+    assert usage.input_tokens is None and usage.output_tokens is None and usage.cost_microunits is None
+    with repository._connect() as connection:
+        for table in ("distillation_zhipu_cloud_authorizations", "distillation_zhipu_cloud_response_failures"):
+            with pytest.raises(sqlite3.IntegrityError, match="immutable"):
+                connection.execute(f"UPDATE {table} SET execution_id=execution_id")
+            with pytest.raises(sqlite3.IntegrityError, match="immutable"):
+                connection.execute(f"DELETE FROM {table}")
+    restarted = SQLiteStateRepository(database)
+    restarted.initialize(now=NOW)
+    assert restarted.get_cloud_execution_authorization(request["execution_id"]) == consent
+    assert restarted.get_distillation_resource_usage(request["execution_id"]) == usage
+    assert any(row.execution_id == request["execution_id"] for row in restarted.list_distillation_resource_usage())
+    assert not restarted.claim_reserved_distillation_execution(**request, now=NOW)
+    assert not restarted.can_cancel_waiting_model_execution(request["execution_id"])
+
+
+@pytest.mark.parametrize("claimed", [False, True])
+def test_zhipu_failure_before_claim_is_atomic_and_duplicate_claim_is_once(tmp_path, claimed):
+    _, _, _, repository, _ = _workspace(tmp_path)
+    request = _zhipu_request(repository)
+    repository.authorize_cloud_execution(authorization_id="zhipu-audit-consent",
+        execution_id=request["execution_id"], provider="zhipu_bigmodel", model="glm-4.7-flash",
+        verified_input_hash="a" * 64, consent_kind="USER_CONFIRMATION", now=NOW)
+    if claimed:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(lambda _: repository.claim_reserved_distillation_execution(**request, now=NOW), range(2)))
+        assert sorted(results) == [False, True]
+        assert _service(tmp_path).readiness()["ready"] is False
+        repository.finish_distillation_without_admission(execution_id=request["execution_id"],
+            status="AMBIGUOUS", budget_state="UNKNOWN", outcome="TRANSPORT_OUTCOME_UNKNOWN", invocation_count=1,
+            actual_provider=None, actual_model=None, input_tokens=None, output_tokens=None,
+            cost_microunits=None, duration_ms=None, http_status_code=None, now=NOW)
+        assert repository.get_distillation_resource_usage(request["execution_id"]).status == "AMBIGUOUS"
+    else:
+        with repository._connect() as connection:
+            before = tuple(connection.iterdump())
+        with pytest.raises(StateStoreError, match="claimed authorized"):
+            repository.finish_distillation_cloud_response_failure(execution_id=request["execution_id"],
+                budget_state="ADMITTED", outcome="CLOUD_HTTP_ERROR", http_status_code=429, now=NOW)
+        with repository._connect() as connection:
+            assert tuple(connection.iterdump()) == before
+    assert not repository.can_cancel_waiting_model_execution(request["execution_id"])
+
+
+@pytest.mark.parametrize("mutation", ["missing_guard", "weakened_union", "missing_table", "orphan_failure", "missing_consent"])
+def test_zhipu_audit_corruption_blocks_backup_without_changing_data(tmp_path, mutation):
+    _, data_root, _, repository, _ = _workspace(tmp_path)
+    request = _zhipu_request(repository)
+    repository.authorize_cloud_execution(authorization_id="zhipu-audit-consent",
+        execution_id=request["execution_id"], provider="zhipu_bigmodel", model="glm-4.7-flash",
+        verified_input_hash="a" * 64, consent_kind="USER_CONFIRMATION", now=NOW)
+    assert repository.claim_reserved_distillation_execution(**request, now=NOW)
+    repository.finish_distillation_cloud_response_failure(execution_id=request["execution_id"],
+        budget_state="ADMITTED", outcome="CLOUD_HTTP_ERROR", http_status_code=429, now=NOW)
+    with repository._connect() as connection:
+        if mutation == "missing_guard":
+            connection.execute("DROP TRIGGER local_text_input_proofs_zhipu_cloud_denied")
+        elif mutation == "weakened_union":
+            connection.execute("DROP TRIGGER distillation_resource_usage_http_status_bound")
+            connection.execute("CREATE TRIGGER distillation_resource_usage_http_status_bound BEFORE INSERT ON distillation_resource_usage BEGIN SELECT 1; END;")
+        elif mutation == "missing_table":
+            connection.execute("DROP TABLE distillation_zhipu_cloud_response_failures")
+        elif mutation == "missing_consent":
+            connection.execute("DROP TRIGGER distillation_zhipu_cloud_authorization_immutable_delete")
+            connection.execute("DELETE FROM distillation_zhipu_cloud_authorizations")
+        else:
+            connection.execute("DROP TRIGGER distillation_zhipu_cloud_response_failure_immutable_update")
+            connection.execute("PRAGMA foreign_keys=OFF")
+            connection.execute("UPDATE distillation_zhipu_cloud_response_failures SET execution_id='missing-execution'")
+        before = tuple(connection.iterdump())
+    files = {str(p.relative_to(data_root)): p.read_bytes() for p in data_root.rglob("*") if p.is_file()}
+    with pytest.raises(BackupRestoreError):
+        _service(tmp_path).create_backup()
+    with repository._connect() as connection:
+        assert tuple(connection.iterdump()) == before
+    assert {str(p.relative_to(data_root)): p.read_bytes() for p in data_root.rglob("*") if p.is_file()} == files
+
+
+def test_zhipu_rehashed_archive_with_missing_guard_is_refused_without_live_changes(tmp_path):
+    database, data_root, _, repository, _ = _workspace(tmp_path)
+    service = _service(tmp_path)
+    backup = service.create_backup()
+    archive_path, _ = service.backup_download(backup.backup_id)
+    with zipfile.ZipFile(archive_path) as archive:
+        infos = {info.filename: info for info in archive.infolist()}
+        members = {name: archive.read(name) for name in infos}
+    snapshot = tmp_path / "corruption-fixture.sqlite"
+    snapshot.write_bytes(members["database/state.sqlite"])
+    with sqlite3.connect(snapshot) as connection:
+        connection.execute("DROP TRIGGER distillation_zhipu_cloud_dispatch_requires_authorization")
+    connection.close()  # Flush the isolated snapshot's WAL before repackaging its bytes.
+    changed_database = snapshot.read_bytes()
+    assert changed_database != members["database/state.sqlite"]
+    members["database/state.sqlite"] = changed_database
+    manifest = json.loads(members["manifest.json"])
+    manifest["database"]["size_bytes"] = len(members["database/state.sqlite"])
+    manifest["database"]["sha256"] = hashlib.sha256(members["database/state.sqlite"]).hexdigest()
+    members["manifest.json"] = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
+    payload = io.BytesIO()
+    with zipfile.ZipFile(payload, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for name, value in members.items():
+            archive.writestr(infos[name], value)
+    with repository._connect() as connection:
+        before = tuple(connection.iterdump())
+    files = {str(p.relative_to(data_root)): p.read_bytes() for p in data_root.rglob("*") if p.is_file()}
+    with pytest.raises(BackupRestoreError, match="persistence constraints"):
+        service.stage_restore(payload.getvalue())
+    assert not service.restore_pending
+    with SQLiteStateRepository(database)._connect() as connection:
+        assert tuple(connection.iterdump()) == before
+    assert {str(p.relative_to(data_root)): p.read_bytes() for p in data_root.rglob("*") if p.is_file()} == files
+
+
+def test_zhipu_direct_invoked_insert_and_unknown_model_cannot_bypass_consent(tmp_path):
+    _, _, _, repository, _ = _workspace(tmp_path)
+    request = _zhipu_request(repository)
+    with repository._connect() as connection:
+        columns = [str(row["name"]) for row in connection.execute("PRAGMA table_info(distillation_execution_checkpoints)")]
+        values = dict(connection.execute("SELECT * FROM distillation_execution_checkpoints").fetchone())
+        values.update(execution_id="forged-invoked", invocation_count=1)
+        with pytest.raises(sqlite3.IntegrityError, match="authorization"):
+            connection.execute(f"INSERT INTO distillation_execution_checkpoints ({','.join(columns)}) VALUES ({','.join('?' for _ in columns)})", tuple(values[key] for key in columns))
+    unknown = {**request, "execution_id": "zhipu-paid-model-denied", "selected_model": "glm-5.3-flash"}
+    repository.reserve_distillation_execution(DistillationExecutionWrite(**unknown), now=NOW)
+    with pytest.raises(ValueError, match="authorization identity"):
+        repository.authorize_cloud_execution(authorization_id="zhipu-paid-model-consent",
+            execution_id=unknown["execution_id"], provider="zhipu_bigmodel", model=unknown["selected_model"],
+            verified_input_hash="a" * 64, consent_kind="USER_CONFIRMATION", now=NOW)
+    with pytest.raises(sqlite3.IntegrityError, match="authorization"):
+        repository.claim_reserved_distillation_execution(**unknown, now=NOW)
+    with repository._connect() as connection:
+        assert connection.execute("SELECT invocation_count FROM distillation_execution_checkpoints WHERE execution_id=?", (unknown["execution_id"],)).fetchone()[0] == 0

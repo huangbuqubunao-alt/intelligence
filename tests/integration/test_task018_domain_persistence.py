@@ -139,11 +139,11 @@ def test_fresh_database_applies_m006_with_exact_domain_schema(tmp_path: Path) ->
     version = repository.initialize(now=NOW)
 
     assert (version.version, version.name) == (
-        41,
-        "041_add_long_distillation_provenance.sql",
+        42,
+        "042_add_zhipu_cloud_execution_audit.sql",
     )
     with _connection(_database_path(tmp_path)) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 41
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 42
         tables = {row["name"] for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
         assert {
             "evidence",
@@ -178,8 +178,8 @@ def test_v005_upgrade_preserves_source_and_automation_and_is_idempotent(
             (now, now),
         )
 
-    assert repository.initialize(now=NOW).version == 41
-    assert repository.initialize(now=NOW).version == 41
+    assert repository.initialize(now=NOW).version == 42
+    assert repository.initialize(now=NOW).version == 42
     with _connection(path) as connection:
         assert connection.execute("SELECT COUNT(*) FROM source_subscriptions").fetchone()[0] == 1
         assert connection.execute("SELECT COUNT(*) FROM automation_schedules").fetchone()[0] == 1

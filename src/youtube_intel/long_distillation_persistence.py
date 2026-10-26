@@ -49,6 +49,8 @@ from youtube_intel.state import (
     format_utc_datetime,
 )
 
+from .cloud_audit import ZHIPU_FAILURES
+
 if TYPE_CHECKING:
     from youtube_intel.distillation import (
         DistillationCommand,
@@ -1008,7 +1010,8 @@ def verify_execution(
             for table in ("distillation_resource_usage", RECEIPTS,
                 "distillation_no_new_intelligence_results", "distillation_waiting_model_cancellations",
                 "distillation_cloud_response_failures", "distillation_unidentified_http_responses",
-                "distillation_openai_unidentified_http_responses", "distillation_moonshot_unidentified_http_responses"):
+                "distillation_openai_unidentified_http_responses", "distillation_moonshot_unidentified_http_responses",
+                *((ZHIPU_FAILURES,) if connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (ZHIPU_FAILURES,)).fetchone() else ())):
                 if connection.execute(f"SELECT 1 FROM {table} WHERE execution_id=?", (execution_id,)).fetchone():
                     raise StateStoreError("long pending execution has conflicting result authority")
             if connection.execute("SELECT 1 FROM intelligence_revisions WHERE revision_id=?",
@@ -1078,6 +1081,7 @@ def verify_execution(
         "distillation_unidentified_http_responses",
         "distillation_openai_unidentified_http_responses",
         "distillation_moonshot_unidentified_http_responses",
+        *((ZHIPU_FAILURES,) if connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (ZHIPU_FAILURES,)).fetchone() else ()),
     ):
         if connection.execute(
             f"SELECT 1 FROM {table} WHERE execution_id=?", (execution_id,)
@@ -1366,7 +1370,8 @@ def _verify_completion(
         raise StateStoreError("long completion budget authority differs")
     for table in ("distillation_waiting_model_cancellations", "distillation_cloud_response_failures",
         "distillation_unidentified_http_responses", "distillation_openai_unidentified_http_responses",
-        "distillation_moonshot_unidentified_http_responses"):
+        "distillation_moonshot_unidentified_http_responses",
+                *((ZHIPU_FAILURES,) if connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (ZHIPU_FAILURES,)).fetchone() else ())):
         if connection.execute(f"SELECT 1 FROM {table} WHERE execution_id=?", (proof["execution_id"],)).fetchone():
             raise StateStoreError("long completion has conflicting result authority")
     zero = connection.execute("SELECT * FROM distillation_no_new_intelligence_results WHERE execution_id=?", (proof["execution_id"],)).fetchone()

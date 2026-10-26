@@ -26,6 +26,8 @@ from youtube_intel.state import (
     StateStoreError,
 )
 
+from .cloud_audit import CLOUD_PROVIDERS
+
 
 class IntelligenceReadRejected(ValueError):
     """Persisted data does not satisfy the authoritative read contract."""
@@ -349,7 +351,7 @@ class AuthoritativeIntelligenceReader:
             or execution.source_id != source_id or execution.video_id != video_id
             or execution.budget_state != "ADMITTED" or execution.use_case != "PERSONALIZED_INTELLIGENCE"
             or re.fullmatch(r"MANUAL_CONTENT:[A-Za-z0-9._:-]{1,80}", execution.reason) is None
-            or execution.selected_provider in {"openai", "nvidia_nim", "moonshot"}
+            or execution.selected_provider in CLOUD_PROVIDERS
             or execution.output_language not in {"en", "zh-CN"}):
             raise IntelligenceReadRejected("CARD_EXECUTION_INVALID", "text execution version/target is invalid")
         from typing import cast

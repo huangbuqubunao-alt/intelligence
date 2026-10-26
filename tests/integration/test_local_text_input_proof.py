@@ -91,7 +91,7 @@ def test_migration39_failure_preserves38_all_rows_and_data(tmp_path, monkeypatch
     with repository._connect() as connection:
         assert connection.execute("PRAGMA user_version").fetchone()[0] == 38
     monkeypatch.setattr(repository, "_load_migrations", lambda: migrations)
-    assert repository.initialize(now=NOW).version == 41
+    assert repository.initialize(now=NOW).version == 42
     after = _tables(repository)
     assert {k: v for k, v in after.items() if k in before[0] and k != "schema_migrations"} == {
         k: v for k, v in before[0].items() if k != "schema_migrations"}
@@ -113,7 +113,7 @@ def test_legacy_backup_restore_then_normal_startup39_preserves_all_domain_rows_a
     backup.confirm_restore(preview.restore_id)
     backup.recover_and_apply_pending_restore()
     assert (_tables(repository), _files(provider.data_root)) == before
-    assert repository.initialize(now=NOW).version == 41
+    assert repository.initialize(now=NOW).version == 42
     after = _tables(repository)
     assert {k: v for k, v in after.items() if k in before[0] and k != "schema_migrations"} == {
         k: v for k, v in before[0].items() if k != "schema_migrations"}

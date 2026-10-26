@@ -638,7 +638,7 @@ def test_every_legacy_backup_restore_then_normal41_upgrade_retains_all_rows_and_
     backup.confirm_restore(preview.restore_id)
     backup.recover_and_apply_pending_restore()
     assert _inventory(repository, root) == before
-    assert repository.initialize(now=NOW).version == 41
+    assert repository.initialize(now=NOW).version == 42
     after, files = _inventory(repository, root)
     assert {
         k: v for k, v in after.items() if k in before[0] and k != "schema_migrations"

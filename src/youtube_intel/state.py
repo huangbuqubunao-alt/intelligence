@@ -65,12 +65,21 @@ from youtube_intel.source_run import (
     source_run_transition_allowed,
 )
 
+from .cloud_audit import (
+    CLOUD_FAILURE_TABLES,
+    CLOUD_PROVIDERS,
+    ZHIPU_AUTHORIZATIONS,
+    ZHIPU_FAILURES,
+    ZHIPU_PAIR,
+)
+
 #: The sole post-migration scoring lineage generation (schema v2).  Every
 #: post-migration SCORING Job receives exactly this literal at creation; the
 #: repository derives it internally and callers cannot submit a version.
 SCORING_LINEAGE_VERSION_V1: Final = "task016c-scoring-lineage-v1"
 
-_CLOUD_AUDIT_TABLES: Final = {
+_CLOUD_AUDIT_TABLES: Final[dict[tuple[str, str], tuple[str, str | None]]] = {
+    ZHIPU_PAIR: (ZHIPU_AUTHORIZATIONS, None),
     ("nvidia_nim", "moonshotai/kimi-k3"): (
         "distillation_cloud_authorizations",
         "distillation_unidentified_http_responses",
@@ -115,10 +124,14 @@ def _cloud_response_failure_matches_status(
     } and type(http_status_code) is int and 200 <= http_status_code <= 299
 
 
-def _cloud_audit_tables(provider: object, model: object) -> tuple[str, str] | None:
+def _cloud_audit_tables(provider: object, model: object) -> tuple[str, str | None] | None:
     if not isinstance(provider, str) or not isinstance(model, str):
         return None
     return _CLOUD_AUDIT_TABLES.get((provider, model))
+
+
+def _cloud_failure_table(provider: object, model: object) -> str:
+    return ZHIPU_FAILURES if (provider, model) == ZHIPU_PAIR else CLOUD_FAILURE_TABLES[0]
 
 
 def _sqlite_table_exists(connection: sqlite3.Connection, table_name: str) -> bool:
@@ -1782,6 +1795,7 @@ class SQLiteStateRepository:
             "039_add_local_text_input_proofs.sql",
             "040_add_tracked_content_retry.sql",
             "041_add_long_distillation_provenance.sql",
+            "042_add_zhipu_cloud_execution_audit.sql",
         )
         migrations: list[_Migration] = []
         for name in names:
@@ -1892,6 +1906,7 @@ class SQLiteStateRepository:
             if version is None:
                 msg = "migration history mismatch: no applied migration"
                 raise MigrationError(msg)
+            self.verify_cloud_audit_database(connection)
             return version
         finally:
             connection.close()
@@ -2456,7 +2471,7 @@ class SQLiteStateRepository:
             from youtube_intel.distillation import verify_local_text_input_proof
             verify_local_text_input_proof(self, connection, checkpoint["execution_id"], require_current=True)
         if (re.fullmatch(r"MANUAL_CONTENT:[A-Za-z0-9._:-]{1,80}", str(checkpoint["reason"])) is None
-            or checkpoint["selected_provider"] in {"openai", "nvidia_nim", "moonshot"}
+            or checkpoint["selected_provider"] in CLOUD_PROVIDERS
             or expected_hash is None
             or (self._manual_local_text_context_hash(connection, checkpoint["source_id"], checkpoint["video_id"])
                 if str(checkpoint["execution_id"]).startswith("distillation:local-text-v2:")
@@ -4584,10 +4599,102 @@ class SQLiteStateRepository:
             if [tuple(r) for r in connection.execute(query)] != expected.execute(query).fetchall():
                 raise IntegrityConflict("retained subtitle schema constraints are incompatible")
 
+    def _validate_zhipu_execution(self, connection: sqlite3.Connection, checkpoint: sqlite3.Row) -> None:
+        if checkpoint["selected_provider"] != ZHIPU_PAIR[0]:
+            return
+        if ((checkpoint["selected_provider"], checkpoint["selected_model"]) != ZHIPU_PAIR
+            or not _sqlite_table_exists(connection, ZHIPU_AUTHORIZATIONS)
+            or not _sqlite_table_exists(connection, ZHIPU_FAILURES)):
+            raise StateStoreError("BigModel execution has no finite audit authority")
+        execution_id = checkpoint["execution_id"]
+        consent = connection.execute(f"SELECT * FROM {ZHIPU_AUTHORIZATIONS} WHERE execution_id=?", (execution_id,)).fetchone()
+        failure = connection.execute(f"SELECT * FROM {ZHIPU_FAILURES} WHERE execution_id=?", (execution_id,)).fetchone()
+        usage = connection.execute("SELECT * FROM distillation_resource_usage WHERE execution_id=?", (execution_id,)).fetchone()
+        no_new = connection.execute("SELECT * FROM distillation_no_new_intelligence_results WHERE execution_id=?", (execution_id,)).fetchone()
+        if ((checkpoint["invocation_count"] == 1 and consent is None)
+            or sum(row is not None for row in (failure, usage, no_new)) > 1
+            or (checkpoint["status"] != "PENDING" and all(row is None for row in (failure, usage, no_new)))):
+            raise StateStoreError("BigModel execution has incomplete or competing accounting")
+        if consent is not None and ((consent["provider"], consent["model"]) != ZHIPU_PAIR
+            or consent["authorized_at"] > checkpoint["updated_at"]):
+            raise StateStoreError("BigModel execution consent differs")
+        if failure is not None:
+            self._validate_cloud_response_failure_row(failure, checkpoint, consent)
+        if no_new is not None:
+            self._validate_no_new_result_row(no_new, checkpoint)
+        if usage is not None and (any(usage[key] != checkpoint[key] for key in (
+            "source_id", "video_id", "reason", "use_case", "selected_provider", "selected_model",
+            "status", "invocation_count", "budget_state", "intelligence_id", "revision_id"))):
+            raise StateStoreError("BigModel execution usage differs")
+
+    def verify_cloud_audit_database(self, connection: sqlite3.Connection) -> None:
+        """Verify v042's exact new guards and every forward/reverse audit link."""
+        if int(connection.execute("PRAGMA user_version").fetchone()[0]) < 42:
+            if connection.execute("SELECT 1 FROM sqlite_master WHERE name IN (?,?)", (ZHIPU_AUTHORIZATIONS, ZHIPU_FAILURES)).fetchone():
+                raise IntegrityConflict("BigModel audit cannot appear in an older schema")
+            return
+        migrations = tuple(item for item in self._load_migrations() if item.version <= 42)
+        latest = migrations[-1]
+        names = tuple(re.findall(r"CREATE (?:TABLE|TRIGGER) ([a-z_]+)", latest.sql))
+        placeholders = ",".join("?" for _ in names)
+        schema_parameters = (*names, ZHIPU_AUTHORIZATIONS, ZHIPU_FAILURES)
+        query = f"SELECT type,name,sql FROM sqlite_master WHERE (name IN ({placeholders}) OR tbl_name IN (?,?)) AND sql IS NOT NULL ORDER BY type,name"
+        with closing(sqlite3.connect(":memory:")) as expected:
+            # Only v042's owning tables are required to parse its exact guards;
+            # replaying old ALTER/rebuild scripts here would require migration pragmas.
+            expected.executescript("CREATE TABLE distillation_execution_checkpoints(execution_id TEXT);"
+                "CREATE TABLE distillation_no_new_intelligence_results(execution_id TEXT);"
+                "CREATE TABLE distillation_resource_usage(execution_id TEXT);")
+            expected.executescript(next(item.sql for item in migrations if item.version == 39))
+            for trigger in ("distillation_no_new_http_status_bound", "distillation_resource_usage_http_status_bound", "distillation_cloud_failure_outcome_finite"):
+                expected.executescript(f"CREATE TRIGGER {trigger} BEFORE INSERT ON distillation_resource_usage BEGIN SELECT 1; END;")
+            expected.executescript(latest.sql)
+            if [tuple(row) for row in connection.execute(query, schema_parameters)] != expected.execute(query, schema_parameters).fetchall():
+                raise IntegrityConflict("BigModel audit schema constraints are incompatible")
+        # Table names come solely from the finite application-owned descriptor.
+        for consent in connection.execute(f"SELECT * FROM {ZHIPU_AUTHORIZATIONS}"):
+            checkpoint = connection.execute("SELECT * FROM distillation_execution_checkpoints WHERE execution_id=?", (consent["execution_id"],)).fetchone()
+            if (checkpoint is None or (checkpoint["selected_provider"], checkpoint["selected_model"]) != ZHIPU_PAIR
+                or (consent["provider"], consent["model"]) != ZHIPU_PAIR
+                or consent["authorized_at"] > checkpoint["updated_at"]
+                or not connection.execute("SELECT 1 FROM videos WHERE video_id=? AND provider='YOUTUBE'", (checkpoint["video_id"],)).fetchone()
+                or not connection.execute("SELECT 1 FROM source_subscriptions WHERE source_id=? AND provider='YOUTUBE'", (checkpoint["source_id"],)).fetchone()):
+                raise IntegrityConflict("BigModel consent authority is invalid")
+        for checkpoint in connection.execute("SELECT * FROM distillation_execution_checkpoints WHERE selected_provider=?", (ZHIPU_PAIR[0],)):
+            self._validate_zhipu_execution(connection, checkpoint)
+            execution_id = checkpoint["execution_id"]
+            consent = connection.execute(f"SELECT * FROM {ZHIPU_AUTHORIZATIONS} WHERE execution_id=?", (execution_id,)).fetchone()
+            failure = connection.execute(f"SELECT * FROM {ZHIPU_FAILURES} WHERE execution_id=?", (execution_id,)).fetchone()
+            usage = connection.execute("SELECT * FROM distillation_resource_usage WHERE execution_id=?", (execution_id,)).fetchone()
+            no_new = connection.execute("SELECT * FROM distillation_no_new_intelligence_results WHERE execution_id=?", (execution_id,)).fetchone()
+            if ((checkpoint["selected_provider"], checkpoint["selected_model"]) != ZHIPU_PAIR
+                or (checkpoint["invocation_count"] == 1 and consent is None)
+                or sum(row is not None for row in (failure, usage, no_new)) > 1):
+                raise IntegrityConflict("BigModel execution authority is invalid")
+            if failure is not None:
+                self._validate_cloud_response_failure_row(failure, checkpoint, consent)
+            if no_new is not None:
+                self._validate_no_new_result_row(no_new, checkpoint)
+        for failure in connection.execute(f"SELECT * FROM {ZHIPU_FAILURES}"):
+            checkpoint = connection.execute("SELECT * FROM distillation_execution_checkpoints WHERE execution_id=?", (failure["execution_id"],)).fetchone()
+            consent = connection.execute(f"SELECT * FROM {ZHIPU_AUTHORIZATIONS} WHERE execution_id=?", (failure["execution_id"],)).fetchone()
+            if checkpoint is None or (checkpoint["selected_provider"], checkpoint["selected_model"]) != ZHIPU_PAIR:
+                raise IntegrityConflict("BigModel response has no matching execution")
+            self._validate_cloud_response_failure_row(failure, checkpoint, consent)
+            for table in ("distillation_cloud_response_failures", "distillation_unidentified_http_responses",
+                "distillation_openai_unidentified_http_responses", "distillation_moonshot_unidentified_http_responses"):
+                if connection.execute(f"SELECT 1 FROM {table} WHERE execution_id=?", (failure["execution_id"],)).fetchone():
+                    raise IntegrityConflict("BigModel response has competing historical accounting")
+
     def _verify_local_text_proof_schema(self, connection: sqlite3.Connection) -> None:
         migration = next(item for item in self._load_migrations() if item.version == 39)
         with closing(sqlite3.connect(":memory:")) as expected:
             expected.executescript(migration.sql)
+            if int(connection.execute("PRAGMA user_version").fetchone()[0]) >= 42:
+                latest = next(item for item in self._load_migrations() if item.version == 42)
+                start = latest.sql.index("CREATE TRIGGER local_text_input_proofs_zhipu_cloud_denied")
+                end = latest.sql.index("END;", start) + len("END;")
+                expected.executescript(latest.sql[start:end])
             query = "SELECT type,name,sql FROM sqlite_master WHERE tbl_name='local_text_input_proofs' AND sql IS NOT NULL ORDER BY type,name"
             if [tuple(row) for row in connection.execute(query)] != expected.execute(query).fetchall():
                 raise IntegrityConflict("local text proof schema constraints are incompatible")
@@ -10111,6 +10218,7 @@ class SQLiteStateRepository:
                 (result["actual_provider"] == "nvidia_nim" and result["actual_model"] == "moonshotai/kimi-k3")
                 or (result["actual_provider"] == "openai" and result["actual_model"] == "gpt-4.1")
                 or (result["actual_provider"] == "moonshot" and result["actual_model"] in {"kimi-k2.6", "kimi-k3"})
+                or (result["actual_provider"], result["actual_model"]) == ZHIPU_PAIR
             )
         ):
             raise StateStoreError("no-new Intelligence HTTP status is invalid")
@@ -10124,6 +10232,7 @@ class SQLiteStateRepository:
             ).fetchone()
             if row is None:
                 return None
+            self._validate_zhipu_execution(connection, row)
             from .long_distillation_persistence import is_long, verify_execution
             if is_long(execution_id):
                 try:
@@ -10151,7 +10260,7 @@ class SQLiteStateRepository:
                 row["selected_provider"], row["selected_model"]
             )
             unidentified = None
-            if audit_tables is not None:
+            if audit_tables is not None and audit_tables[1] is not None:
                 _, response_table = audit_tables
                 unidentified = connection.execute(
                     f"SELECT * FROM {response_table} WHERE execution_id = ?",
@@ -10165,10 +10274,11 @@ class SQLiteStateRepository:
                     (execution_id,),
                 ).fetchone()
                 self._validate_unidentified_http_response_row(unidentified, row, consent)
+            failure_table = _cloud_failure_table(row["selected_provider"], row["selected_model"])
             failure = None
-            if _sqlite_table_exists(connection, "distillation_cloud_response_failures"):
+            if _sqlite_table_exists(connection, failure_table):
                 failure = connection.execute(
-                    "SELECT * FROM distillation_cloud_response_failures "
+                    f"SELECT * FROM {failure_table} "
                     "WHERE execution_id = ?",
                     (execution_id,),
                 ).fetchone()
@@ -10189,6 +10299,7 @@ class SQLiteStateRepository:
             )
         finally:
             connection.close()
+
 
     @staticmethod
     def _validate_unidentified_http_response_row(
@@ -10706,12 +10817,13 @@ class SQLiteStateRepository:
         connection = self._connect()
         try:
             checkpoint = connection.execute(
-                "SELECT selected_provider, selected_model "
+                "SELECT * "
                 "FROM distillation_execution_checkpoints WHERE execution_id = ?",
                 (execution_id,),
             ).fetchone()
             if checkpoint is None:
                 return None
+            self._validate_zhipu_execution(connection, checkpoint)
             audit_tables = _cloud_audit_tables(
                 checkpoint["selected_provider"], checkpoint["selected_model"]
             )
@@ -11041,7 +11153,7 @@ class SQLiteStateRepository:
                         checkpoint["selected_provider"], checkpoint["selected_model"]
                     )
                 )
-                if audit_tables is None:
+                if audit_tables is None or audit_tables[1] is None:
                     raise StateStoreError("unidentified HTTP response lacks a supported cloud identity")
                 authorization_table, response_table = audit_tables
                 consent = connection.execute(
@@ -11079,6 +11191,7 @@ class SQLiteStateRepository:
             raise IntegrityConflict("unidentified HTTP response violates the ledger contract") from error
         finally:
             connection.close()
+
 
     def finish_distillation_cloud_response_failure(
         self,
@@ -11133,6 +11246,9 @@ class SQLiteStateRepository:
                     raise StateStoreError(
                         "cloud response failure lacks a supported provider identity"
                     )
+                failure_table = _cloud_failure_table(checkpoint["selected_provider"], checkpoint["selected_model"])
+                if not _sqlite_table_exists(connection, failure_table):
+                    raise StateStoreError("cloud response failure audit schema is unavailable")
                 authorization_table, _ = audit_tables
                 consent = connection.execute(
                     f"SELECT * FROM {authorization_table} WHERE execution_id = ?",
@@ -11157,7 +11273,7 @@ class SQLiteStateRepository:
                     (budget_state, timestamp, execution_id),
                 )
                 connection.execute(
-                    "INSERT INTO distillation_cloud_response_failures "
+                    f"INSERT INTO {failure_table} "
                     "(execution_id, actual_provider, actual_model, status, outcome, "
                     "http_status_code, input_tokens, output_tokens, cost_microunits, "
                     "duration_ms, received_at) "
@@ -11183,6 +11299,7 @@ class SQLiteStateRepository:
             ) from error
         finally:
             connection.close()
+
 
     def record_distillation_no_new_intelligence(
         self,
@@ -11245,6 +11362,7 @@ class SQLiteStateRepository:
                 (actual_provider == "nvidia_nim" and actual_model == "moonshotai/kimi-k3")
                 or (actual_provider == "openai" and actual_model == "gpt-4.1")
                 or (actual_provider == "moonshot" and actual_model in {"kimi-k2.6", "kimi-k3"})
+                or (actual_provider, actual_model) == ZHIPU_PAIR
             )
         ):
             raise ValueError("no-new Intelligence HTTP status is invalid")
@@ -11597,6 +11715,9 @@ class SQLiteStateRepository:
                 {"execution_id": execution_id},
             ).fetchone()
             if row is not None:
+                checkpoint = connection.execute("SELECT * FROM distillation_execution_checkpoints WHERE execution_id=?", (execution_id,)).fetchone()
+                if checkpoint is not None:
+                    self._validate_zhipu_execution(connection, checkpoint)
                 return self._distillation_usage_from_row(row)
             checkpoint = connection.execute(
                 "SELECT * FROM distillation_execution_checkpoints WHERE execution_id = ?",
@@ -11607,8 +11728,10 @@ class SQLiteStateRepository:
                     checkpoint["selected_provider"], checkpoint["selected_model"]
                 )
             )
+            if checkpoint is not None:
+                self._validate_zhipu_execution(connection, checkpoint)
             unidentified = None
-            if audit_tables is not None:
+            if audit_tables is not None and audit_tables[1] is not None:
                 _, response_table = audit_tables
                 table_exists = connection.execute(
                     "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
@@ -11647,8 +11770,9 @@ class SQLiteStateRepository:
                     raise StateStoreError("unidentified HTTP response binding is missing")
                 self._validate_unidentified_http_response_row(response, checkpoint, consent)
                 return self._distillation_usage_from_row(unidentified)
+            failure_table = _cloud_failure_table(None if checkpoint is None else checkpoint["selected_provider"], None if checkpoint is None else checkpoint["selected_model"])
             cloud_failure = None
-            if _sqlite_table_exists(connection, "distillation_cloud_response_failures"):
+            if _sqlite_table_exists(connection, failure_table):
                 cloud_failure = connection.execute(
                     "SELECT checkpoint.execution_id, checkpoint.reason, checkpoint.use_case, "
                     "checkpoint.source_id, checkpoint.video_id, checkpoint.intelligence_id, "
@@ -11659,7 +11783,7 @@ class SQLiteStateRepository:
                     "response.cost_microunits, response.duration_ms, "
                     "checkpoint.budget_state, response.outcome, "
                     "response.received_at AS created_at, response.http_status_code "
-                    "FROM distillation_cloud_response_failures AS response "
+                    f"FROM {failure_table} AS response "
                     "JOIN distillation_execution_checkpoints AS checkpoint "
                     "ON checkpoint.execution_id = response.execution_id "
                     "WHERE response.execution_id = ?",
@@ -11669,7 +11793,7 @@ class SQLiteStateRepository:
                 if checkpoint is None or audit_tables is None:
                     raise StateStoreError("cloud response failure identity is unsupported")
                 response = connection.execute(
-                    "SELECT * FROM distillation_cloud_response_failures "
+                    f"SELECT * FROM {failure_table} "
                     "WHERE execution_id = ?",
                     (execution_id,),
                 ).fetchone()
@@ -11724,6 +11848,7 @@ class SQLiteStateRepository:
         finally:
             connection.close()
 
+
     def list_distillation_resource_usage(
         self, *, limit: int = 100
     ) -> tuple[DistillationResourceUsageRecord, ...]:
@@ -11766,7 +11891,7 @@ class SQLiteStateRepository:
                 "distillation_unidentified_http_responses",
                 "distillation_openai_unidentified_http_responses",
                 "distillation_moonshot_unidentified_http_responses",
-                "distillation_cloud_response_failures",
+                *CLOUD_FAILURE_TABLES,
             )
             existing_response_tables = tuple(
                 table_name
@@ -11796,6 +11921,12 @@ class SQLiteStateRepository:
                 for row in (*normal_rows, *zero_rows, *unidentified_ids, *checkpoint_ids)
             }:
                 self._validate_long_resource_usage_authority(connection, execution_id)
+            for receipt in (*normal_rows, *zero_rows):
+                if receipt["selected_provider"] == ZHIPU_PAIR[0]:
+                    checkpoint = connection.execute("SELECT * FROM distillation_execution_checkpoints WHERE execution_id=?", (receipt["execution_id"],)).fetchone()
+                    if checkpoint is None:
+                        raise StateStoreError("BigModel activity has no execution")
+                    self._validate_zhipu_execution(connection, checkpoint)
             for row in zero_rows:
                 execution_id = str(row["execution_id"])
                 checkpoint = connection.execute(
@@ -11823,6 +11954,7 @@ class SQLiteStateRepository:
             return tuple(combined[:limit])
         finally:
             connection.close()
+
 
     def get_distillation_card(self, revision_id: str) -> DistillationCardRecord | None:
         connection = self._connect()

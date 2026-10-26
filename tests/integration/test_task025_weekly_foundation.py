@@ -92,7 +92,7 @@ class _Transport:
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=WEEK_START).version == 41
+    assert repository.initialize(now=WEEK_START).version == 42
     return repository
 
 

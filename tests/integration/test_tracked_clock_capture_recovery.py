@@ -290,7 +290,7 @@ def test_capture_successor_survives_restart_and_exact_full_restore(tmp_path, mon
     backup.confirm_restore(preview.restore_id)
     backup.recover_and_apply_pending_restore()
     restarted = SQLiteStateRepository(repo._database_path)
-    assert restarted.initialize(now=fixture.now).version == 41
+    assert restarted.initialize(now=fixture.now).version == 42
     service = TrackedContentRetryService(restarted, service.data_root, adapter_factory=lambda: pytest.fail('terminal replay constructed transport'), language_preferences=service.languages, metadata_for_video=service.metadata_for_video, now=service.now)
     assert service.run(child['request_id'])['state'] == 'SUCCEEDED'
     assert service.request(cid, command_id='restore-capture-child', expected_job_id=parent['target_job_id'])['state'] == 'SUCCEEDED'
