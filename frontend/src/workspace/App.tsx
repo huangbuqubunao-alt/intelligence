@@ -1726,6 +1726,148 @@ function ContentPage(
       </Empty>
     );
 }
+type CloudReview = {
+  execution_id: string; review_hash: string; provider: string; model: string; source_id: string;
+  expires_at: string; output_language: string; cost_status: string; readiness: unknown;
+  evidence: { evidence_id: string; excerpt: string }[];
+  context: { personalization: string[]; focus: string[]; ignore: string[]; style: string | null };
+  outputLimit: number | null; raw: Record<string, unknown>;
+};
+function readCloudReview(value: unknown, id: string): CloudReview | null {
+  const strings = (items: unknown): items is string[] => Array.isArray(items) && items.length <= 100 && items.every(item => typeof item === "string");
+  if (!localObject(value) || value.video_id !== id
+    || ![value.execution_id, value.provider, value.model, value.source_id].every(localText)
+    || typeof value.review_hash !== "string" || !/^[a-f0-9]{64}$/.test(value.review_hash)
+    || typeof value.verified_input_hash !== "string" || !/^[a-f0-9]{64}$/.test(value.verified_input_hash)
+    || typeof value.expires_at !== "string" || !Number.isFinite(Date.parse(value.expires_at))
+    || !["en", "zh-CN"].includes(String(value.output_language)) || !localText(value.cost_status)
+    || !strings(value.evidence_ids) || !value.evidence_ids.length || value.evidence_ids.length > 20
+    || !localObject(value.outgoing_data) || !(value.outgoing_request === null || localObject(value.outgoing_request))) return null;
+  const data = value.outgoing_data, request = value.outgoing_request;
+  const evidence = data.evidence, evidenceIds = value.evidence_ids;
+  const outputLimit = request === null ? null : request.max_tokens ?? request.max_output_tokens;
+  if (!Array.isArray(evidence) || evidence.length !== value.evidence_ids.length
+    || !evidence.every(item => localObject(item) && localText(item.evidence_id) && typeof item.excerpt === "string")
+    || evidence.some((item, index) => item.evidence_id !== evidenceIds[index])
+    || data.video_id !== id || data.output_language !== value.output_language
+    || !strings(data.personalization) || !strings(data.source_focus_rules) || !strings(data.source_ignore_rules)
+    || !(data.distillation_style === null || typeof data.distillation_style === "string")
+    || (request !== null && (request.model !== value.model || typeof outputLimit !== "number" || !Number.isSafeInteger(outputLimit) || outputLimit <= 0))) return null;
+  return { execution_id: String(value.execution_id), review_hash: value.review_hash, provider: String(value.provider),
+    model: String(value.model), source_id: String(value.source_id), expires_at: value.expires_at,
+    output_language: String(value.output_language), cost_status: value.cost_status, readiness: value.readiness,
+    evidence: evidence.map(item => ({ evidence_id: String(item.evidence_id), excerpt: String(item.excerpt) })),
+    context: { personalization: data.personalization, focus: data.source_focus_rules, ignore: data.source_ignore_rules, style: data.distillation_style },
+    outputLimit: typeof outputLimit === "number" ? outputLimit : null, raw: { outgoing_data: data, outgoing_request: request } };
+}
+const cloudBlockerCopy: Record<string, string> = {
+  CREDENTIAL_REQUIRED: "Configure a cloud credential in Settings before confirming.",
+  MODEL_UNQUALIFIED: "This model has not qualified for this Intelligence task.",
+  MODEL_UNAVAILABLE: "The selected cloud model is currently unavailable.",
+  CLOUD_SPENDING_POLICY_REQUIRED: "A backend spending policy is required before cloud execution.",
+  INPUT_NOT_SUPPORTED: "The selected model does not support this input or output language.",
+  EXECUTION_ALREADY_EXISTS: "An execution already exists for this request. Check its current state before continuing.",
+};
+function CloudIntelligencePreview({ id, manual, onSettled }: { id: string; manual: boolean; onSettled: () => void }) {
+  const { t } = useUiLanguage();
+  const [open, setOpen] = useState(false), [review, setReview] = useState<CloudReview | null>(null);
+  const [busy, setBusy] = useState(false), [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null), [clock, setClock] = useState(Date.now);
+  const requestGeneration = useRef(0), busyRef = useRef(false), manualCommand = useRef(commandId());
+  const clear = () => {
+    requestGeneration.current += 1; busyRef.current = false;
+    setOpen(false); setReview(null); setBusy(false); setError(null); setMessage(null);
+  };
+  useEffect(() => {
+    const leave = (event: HashChangeEvent) => {
+      if (event.newURL && new URL(event.newURL).hash !== location.hash) return;
+      clear();
+    };
+    window.addEventListener("hashchange", leave);
+    return () => { requestGeneration.current += 1; window.removeEventListener("hashchange", leave); };
+  }, [id]);
+  useEffect(() => {
+    if (!review) return;
+    const timer = setTimeout(() => setClock(Date.now()), Math.min(2_147_483_647, Math.max(0, Date.parse(review.expires_at) - Date.now())));
+    return () => clearTimeout(timer);
+  }, [review]);
+  const readiness = review?.readiness;
+  const readinessValid = localObject(readiness) && typeof readiness.can_confirm === "boolean"
+    && Array.isArray(readiness.blockers) && readiness.blockers.every(item => typeof item === "string")
+    && localText(readiness.budget_state);
+  const blockers: string[] = readinessValid ? readiness.blockers as string[] : [];
+  const expired = review !== null && Date.parse(review.expires_at) <= clock;
+  const canConfirm = Boolean(review && readinessValid && readiness.can_confirm === true && blockers.length === 0 && review.outputLimit !== null && !expired && !busy);
+  const prepare = async () => {
+    if (busyRef.current) return;
+    const generation = ++requestGeneration.current;
+    busyRef.current = true; setBusy(true); setReview(null); setMessage(null); setError(null);
+    try {
+      const response = await post<{ review?: unknown }>(`/videos/${id}/cloud-intelligence/review`, manual ? { command_id: manualCommand.current } : {});
+      if (generation !== requestGeneration.current) return;
+      const current = readCloudReview(response.review, id);
+      if (!current) throw new Error("INVALID_REVIEW");
+      setClock(Date.now()); setReview(current);
+    } catch {
+      if (generation === requestGeneration.current) setError("The cloud review could not be verified. Keep reading this Content, then prepare a new review or check model settings.");
+    } finally {
+      if (generation === requestGeneration.current) { busyRef.current = false; setBusy(false); }
+    }
+  };
+  const confirm = async () => {
+    if (busyRef.current || !canConfirm || !review) return;
+    if (Date.parse(review.expires_at) <= Date.now()) { setClock(Date.now()); return; }
+    const generation = ++requestGeneration.current;
+    busyRef.current = true; setBusy(true); setError(null); setMessage(null);
+    const current = review;
+    setReview(null); // A dispatched ticket is never reused, even after a lost response.
+    try {
+      await post(`/videos/${id}/cloud-intelligence/confirm`, { execution_id: current.execution_id, review_hash: current.review_hash, authorize: true });
+      if (generation !== requestGeneration.current) return;
+      setMessage("Cloud confirmation returned. Check this Content's current Intelligence status."); onSettled();
+    } catch {
+      if (generation === requestGeneration.current) {
+        setError("Cloud confirmation was refused or could not be verified. Check the current task and model settings before preparing another review. Nothing is retried automatically.");
+        onSettled();
+      }
+    } finally {
+      if (generation === requestGeneration.current) { busyRef.current = false; setBusy(false); }
+    }
+  };
+  return <div>
+    <button type="button" className="button button-secondary" onClick={() => open ? clear() : setOpen(true)}>{t("Review cloud Intelligence")}</button>
+    {open && <section className="semantic-state state-neutral" aria-label={t("Cloud Intelligence disclosure")}>
+      <h3>{t("Cloud Intelligence disclosure")}</h3>
+      <p>{t("Only bounded, verified Evidence excerpts and the task context needed for this Intelligence judgment would leave this device. The full database, unrelated Content, Followings, library, and credentials are excluded. Your original Evidence remains authoritative here.")}</p>
+      <p>{t("Preparing a review does not create a task. Confirming authorizes exactly one request for the reviewed Evidence and task context.")}</p>
+      <div className="button-row"><button type="button" className="button button-secondary" disabled={busy} onClick={() => void prepare()}>{t(busy ? "Working…" : "Prepare one request for review")}</button>
+        <button type="button" className="button button-ghost" onClick={clear}>{t("Dismiss cloud review")}</button>
+        <a className="button button-ghost" href="#Settings">{t("Open model settings")}</a></div>
+      {review && <div>
+        <p>{t("Provider/model")}: {review.provider} · {review.model}</p>
+        <p>{t("Source")}: {review.source_id} · {t("Output language")}: {review.output_language} · {t("Maximum output tokens")}: {review.outputLimit ?? t("Unavailable")}</p>
+        <p>{t("Cost status")}: {t(review.cost_status === "UNKNOWN" ? "Unknown" : review.cost_status)}. {t("An unknown cost or an unverified budget is not a promise of free usage. The backend rechecks budget before execution.")}</p>
+        <h4>{t("Evidence that would be sent")}</h4>
+        {review.evidence.map(item => <blockquote key={item.evidence_id}><p>{item.excerpt}</p><a href={`#Content/${encodeURIComponent(id)}/Evidence/${encodeURIComponent(item.evidence_id)}`}>{t("View original Evidence")}</a></blockquote>)}
+        <h4>{t("Task context that would be sent")}</h4>
+        <p>{t("Personalization")}: {review.context.personalization.join(" · ") || t("None")}</p>
+        <p>{t("Focus")}: {review.context.focus.join(" · ") || t("None")}</p>
+        <p>{t("Ignore")}: {review.context.ignore.join(" · ") || t("None")}</p>
+        <p>{t("Insight style")}: {review.context.style ? t(STYLES.find(style => style[0] === review.context.style)?.[1] ?? review.context.style) : t("None")}</p>
+        {!readinessValid && <p role="status">{t("Cloud readiness could not be verified. Prepare a new review or check model settings.")}</p>}
+        {readinessValid && <>{!blockers.includes(String(readiness.budget_state)) && <p>{t(readiness.budget_state === "BUDGET_UNVERIFIED" ? "Budget has not been verified. Confirmation requires the backend's current budget check." : readiness.budget_state === "CLOUD_SPENDING_POLICY_REQUIRED" ? cloudBlockerCopy.CLOUD_SPENDING_POLICY_REQUIRED : "Budget policy will be rechecked before execution.")}</p>}
+          {blockers.map((code, index) => <p key={`${code}:${index}`}>{t(cloudBlockerCopy[code] ?? "Cloud confirmation is unavailable. Prepare a new review or check model settings.")}</p>)}
+          {!readiness.can_confirm && !blockers.length && <p>{t("Cloud confirmation is unavailable. Prepare a new review or check model settings.")}</p>}</>}
+        {expired && <p role="status">{t("This review expired. Prepare a new review before confirming.")}</p>}
+        <details><summary>{t("Exact outgoing request details")}</summary><pre className="transcript-copy">{JSON.stringify(review.raw, null, 2)}</pre></details>
+        <button type="button" className="button" disabled={!canConfirm} onClick={() => void confirm()}>{t("Authorize this one cloud execution")}</button>
+      </div>}
+      {busy && <p role="status">{t("Waiting for the local service. Nothing is retried automatically.")}</p>}
+      {error && <p role="alert">{t(error)}</p>}{message && <p role="status">{t(message)}</p>}
+    </section>}
+  </div>;
+}
+
 function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }) {
   const creatorCapability = useCreatorFollowingCapability();
   const { t } = useUiLanguage();
@@ -1735,17 +1877,6 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
   const [captionResultRefresh, setCaptionResultRefresh] = useState(0);
   const transcriptionRefreshId = useRef<string | null>(null);
   const [transcriptionStatus, setTranscriptionStatus] = useState<string | null>(null);
-  const [showCloudTerms, setShowCloudTerms] = useState(false);
-  const [cloudReview, setCloudReview] = useState<{
-    execution_id: string;
-    verified_input_hash: string;
-    review_hash: string;
-    source_id: string;
-    provider: string;
-    model: string;
-    evidence_ids: string[];
-    cost_status: string;
-  } | null>(null);
   const [cloudBusy, setCloudBusy] = useState(false);
   const [cloudError, setCloudError] = useState<string | null>(null);
   const [cancelFeedback, setCancelFeedback] = useState<string | null>(null);
@@ -1861,72 +1992,11 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
               </p>
             )
             : null}
-          {data.intelligence_result.status === "WAITING_MODEL" && note?.status === "AVAILABLE"
-            ? (
-              <div>
-                <button
-                  type="button"
-                  className="button button-secondary"
-                  onClick={() => setShowCloudTerms((current) => !current)}
-                >
-                  {t("Review high-quality Intelligence")}
-                </button>
-                {showCloudTerms
-                  ? (
-                    <div className="semantic-state state-neutral">
-                      <h3>{t("Cloud Intelligence disclosure")}</h3>
-                      <p>{t("Provider: Moonshot · Model: kimi-k2.6 (thinking disabled).")}</p>
-                      <p>{t("Only bounded, verified Evidence excerpts and the task context needed for this Intelligence judgment would leave this device. The full database, unrelated Content, Followings, library, and credentials are excluded. Your original Evidence remains authoritative here.")}</p>
-                      <p>{t("Moonshot API usage is billed separately and may incur charges. Cost for this execution: UNKNOWN before the response. Published China-platform K2.6 rates: ¥6.50 per million uncached input tokens, ¥1.10 per million cached input tokens, and ¥27 per million output tokens. This request allows up to 8,192 output tokens.")}</p>
-                      {data.cloud_intelligence_available
-                        ? (
-                          <>
-                            <p>{t("Preparing a review does not create a task. Confirming authorizes exactly one request for the reviewed Evidence and task context.")}</p>
-                            <button type="button" className="button button-secondary" disabled={cloudBusy}
-                              onClick={async () => {
-                                setCloudBusy(true);
-                                setCloudError(null);
-                                try {
-                                  const response = await post<{ review: NonNullable<typeof cloudReview> }>(
-                                    `/videos/${id}/cloud-intelligence/review`, data.manual_intelligence_eligible ? { command_id: commandId() } : {},
-                                  );
-                                  setCloudReview(response.review);
-                                } catch (reason) {
-                                  setCloudError((reason as Error).message);
-                                } finally { setCloudBusy(false); }
-                              }}>{t("Prepare one request for review")}</button>
-                            {cloudReview && (
-                              <div>
-                                <p>{t("Source")}: {cloudReview.source_id}. {t("Evidence items")}: {cloudReview.evidence_ids.length}. {t("Provider/model")}: {cloudReview.provider} · {cloudReview.model}. {t("Cost")}: {t(cloudReview.cost_status)}.</p>
-                                <p>{t("Review the original Evidence on this Content page before confirming. This permission applies only to this execution.")}</p>
-                                <button type="button" className="button" disabled={cloudBusy}
-                                  onClick={async () => {
-                                    setCloudBusy(true);
-                                    setCloudError(null);
-                                    try {
-                                      await post(`/videos/${id}/cloud-intelligence/confirm`, {
-                                        execution_id: cloudReview.execution_id,
-                                        review_hash: cloudReview.review_hash,
-                                        authorize: true,
-                                      });
-                                      setCloudReview(null);
-                                      setRefresh((value) => value + 1);
-                                    } catch (reason) {
-                                      setCloudError((reason as Error).message);
-                                    } finally { setCloudBusy(false); }
-                                  }}>{t("Authorize this one cloud execution")}</button>
-                              </div>
-                            )}
-                            {cloudError && <p role="alert">{cloudError}</p>}
-                          </>
-                        )
-                        : <p>{t("Cloud execution is currently unavailable. This review does not authorize a request or send data.")}</p>}
-                    </div>
-                  )
-                  : null}
-              </div>
-            )
-            : null}
+          {data.video.provider === "YOUTUBE" && data.intelligence_result.status === "WAITING_MODEL"
+            && note?.status === "AVAILABLE" && transcript.status === "AVAILABLE" && (
+            <CloudIntelligencePreview key={id} id={id} manual={data.manual_intelligence_eligible === true}
+              onSettled={() => setRefresh(value => value + 1)} />
+          )}
         </div>
       </Panel>
       <Panel title={data.video.provider === "LOCAL" && data.video.media_kind === "TEXT" ? "Source text" : "Transcript"}>

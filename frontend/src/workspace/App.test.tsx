@@ -808,7 +808,7 @@ test("local Intelligence pause discloses cloud scope without sending data", asyn
     if (input.endsWith("/videos/video-1")) {
       return response({
         video: {
-          video_id: "video-1", channel_id: "channel-1", channel_name: "Fixture channel",
+          provider: "YOUTUBE", video_id: "video-1", channel_id: "channel-1", channel_name: "Fixture channel",
           title: "Local-first Content", source_url: "https://youtube.test/video-1",
           published_at: "2026-09-01T00:00:00Z", processing_status: "COMPLETE",
           last_updated: "2026-09-01T00:00:00Z",
@@ -824,7 +824,7 @@ test("local Intelligence pause discloses cloud scope without sending data", asyn
     }
     if (input.endsWith("/videos")) {
       return response({ videos: [{
-        video_id: "video-1", channel_id: "channel-1", channel_name: "Fixture channel",
+        provider: "YOUTUBE", video_id: "video-1", channel_id: "channel-1", channel_name: "Fixture channel",
         title: "Local-first Content", source_url: "https://youtube.test/video-1",
         published_at: "2026-09-01T00:00:00Z", processing_status: "COMPLETE",
         last_updated: "2026-09-01T00:00:00Z",
@@ -839,11 +839,11 @@ test("local Intelligence pause discloses cloud scope without sending data", asyn
   fireEvent.click(await screen.findByRole("button", { name: /Local-first Content/ }));
   expect(await screen.findByText("Local Summary.")).toBeTruthy();
   expect(screen.getByText(/current local model cannot reliably create high-quality Intelligence/i)).toBeTruthy();
-  fireEvent.click(screen.getByRole("button", { name: "Review high-quality Intelligence" }));
-  expect(screen.getByText(/Provider: Moonshot · Model: kimi-k2.6 \(thinking disabled\)/)).toBeTruthy();
-  expect(screen.getByText(/Moonshot API usage is billed separately/)).toBeTruthy();
-  expect(screen.getByText(/Cost for this execution: UNKNOWN/)).toBeTruthy();
-  expect(screen.getByText(/does not authorize a request or send data/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Review cloud Intelligence" }));
+  expect(screen.getByText(/Only bounded, verified Evidence excerpts/)).toBeTruthy();
+  expect(screen.getByText(/Preparing a review does not create a task/)).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Prepare one request for review" })).toBeTruthy();
+  expect(document.body.textContent).not.toContain("¥6.50");
   expect(fetchMock.mock.calls.every(([, init]) => !init?.method || init.method === "GET")).toBe(true);
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -3186,30 +3186,37 @@ test("cloud Intelligence confirms the preview ticket while keeping the input has
   const confirmations: object[] = [];
   vi.stubGlobal("fetch", vi.fn(async (input: string, init?: RequestInit) => {
     if (input.endsWith("/cloud-intelligence/review")) return response({ review: {
-      execution_id: "read-only-preview", verified_input_hash: "immutable-input-hash", review_hash: "ephemeral-review-ticket",
-      source_id: "source-1", provider: "moonshot", model: "kimi-k2.6", evidence_ids: ["evidence-1"], cost_status: "UNKNOWN",
+      execution_id: "read-only-preview", verified_input_hash: "a".repeat(64), review_hash: "b".repeat(64),
+      video_id: "video-1", source_id: "source-1", provider: "offline-only", model: "offline-model", evidence_ids: ["evidence-1"], cost_status: "UNKNOWN",
+      expires_at: new Date(Date.now() + 300_000).toISOString(), output_language: "en",
+      readiness: { can_confirm: true, blockers: [], budget_state: "OFFLINE_TEST_ONLY" },
+      outgoing_data: { video_id: "video-1", output_language: "en", evidence: [{ evidence_id: "evidence-1", excerpt: "Offline verified excerpt." }], personalization: [], source_focus_rules: [], source_ignore_rules: [], distillation_style: "BALANCED" },
+      outgoing_request: { model: "offline-model", max_tokens: 8192 },
     } });
     if (input.endsWith("/cloud-intelligence/confirm")) {
       confirmations.push(JSON.parse(String(init?.body)));
       return response({});
     }
     const result = await defaultFetch(input, init);
-    if (input.endsWith("/videos/video-1")) return response({ ...await result.json(),
+    if (input.endsWith("/videos/video-1")) {
+      const data = await result.json();
+      return response({ ...data, video: { ...data.video, provider: "YOUTUBE" },
       cloud_intelligence_available: true,
       note: { v2: { status: "AVAILABLE", language: "en", summary: "Read-only preview fixture." } },
       intelligence_result: { status: "WAITING_MODEL", execution_id: null, has_new_intelligence: false },
-    });
+      });
+    }
     return result;
   }));
   location.hash = "#Content/video-1";
   render(<App />);
-  fireEvent.click(await screen.findByRole("button", { name: "Review high-quality Intelligence" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Review cloud Intelligence" }));
   expect(screen.getByText(/Preparing a review does not create a task/)).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Prepare one request for review" }));
   const confirm = await screen.findByRole("button", { name: "Authorize this one cloud execution" });
   expect(confirmations).toEqual([]);
   fireEvent.click(confirm);
   await waitFor(() => expect(confirmations).toEqual([{
-    execution_id: "read-only-preview", review_hash: "ephemeral-review-ticket", authorize: true,
+    execution_id: "read-only-preview", review_hash: "b".repeat(64), authorize: true,
   }]));
 });
