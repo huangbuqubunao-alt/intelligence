@@ -1,3 +1,5 @@
+> 2026-10-26云预览安全片段已独审f5564615 APPROVE（无P0/P1/P2），Root整合3fe6751/8053920，src/frontend/tests与作者bcb2df47相等，Root26PASS17.56s；独审后端162+160、前端148+12/static/build通过。下一单writer CLOUD-PREVIEW-UI仅界面，不新增provider/收费。免费GLM仍待账号/真实资格；只读scout确认最小042两audit表、三有限trigger及LOCAL proof保护/版本校验，保留41兼容，见BIGMODEL_AUDIT_MIGRATION_PLAN_2026_10_26.md，尚未迁移/调用/main。
+
 > 2026-10-26用户将自行注册BigModel（未完成、无key、无充值授权），不在聊天收密钥。免费精确GLM-4.7-Flash官方价格/接口/隐私/限流及无key HEAD401已查，真实账号/质量/账单仍未验证；见FREE_CLOUD_PREFLIGHT_2026_10_26.md。云预览writer已固定bcb2df47 cleanSTOP，500受影响后端/最终26路径/160前端/static/build通过，尚待独立review；旧PENDING保留，正式数据/main不动。
 
 > 2026-10-26用户确认暂无API账号。三路径预检代理两次selectedmodel capacity中止，未写业务；Root经graph+当前AST独立核实：ProductionBudget无条件allowed、cloud review需key并先reservePENDING、前端无放弃。先做无key/无网络/零持久化preview及收费budget缺配置failclosed，原权限/Evidence/claim保留，代码单writer隔离；详见MODEL_PATHS_MINIMAL_IMPLEMENTATION_2026_10_26.md与CLOUD-READONLY-PREVIEW卡。旧KimiK2.6真实M12通过但官方当前提示即将限制新户/年底计划退役，不新推荐长期默认；免费GLM-4.7-Flash已查官方标价输入/输出/cache免费，账号实名/额度/网络/隐私/质量待验证，暂不承诺free可用。未新APIcall/费用/私有上传、未下Granite权重。
