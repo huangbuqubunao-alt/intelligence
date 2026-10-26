@@ -6,7 +6,7 @@
 
 ## Behavior
 
-A small `CloudIntelligencePreview` component inside App.tsx replaces the existing disclosure only. Explicit YOUTUBE + available Summary/transcript + WAITING_MODEL can prepare review without `cloud_intelligence_available` or a key. Backend remains responsible for public/eligible source and canonical Evidence; missing authority produces a localized error while Content stays readable. LOCAL/BILIBILI show no operative preview action.
+A small `CloudIntelligencePreview` component inside App.tsx replaces the existing disclosure only. Explicit YOUTUBE + available Summary/transcript can prepare review without `cloud_intelligence_available` or a key when WAITING_MODEL, or when fresh NOT_PROCESSED with backend `manual_intelligence_eligible===true`. Backend remains responsible for public/eligible source and canonical Evidence; missing authority produces a localized error while Content stays readable. LOCAL/BILIBILI show no operative preview action.
 
 Opening shows a neutral scope explanation, with no provider request or automatic preview/confirmation. Explicit preparation uses the accepted read-only route. Provider/model, cost status, output language/limit, exact Evidence excerpts, personalization/focus/ignore/style and optional raw request details come from that response. Hardcoded K2.6 identity/rates/high-quality cloud button are removed. Existing DESIGN.md/styles are reused; no design-system/styling changes.
 
@@ -42,3 +42,14 @@ This is **simulated backend GUI evidence only**. Real accepted backend/headful, 
 DIRECT: accepted cloud DTO/routes, existing api/post, Settings/hash navigation, React state/effects/refs, bilingual dictionary and existing UI classes/Design reference. Existing React/Vitest/TypeScript/Vite dependencies reused through ignored symlink to root worktree node_modules; nothing installed. No external code copied; internal base/NOTICE preserved. Graph-first lookup had no matching frontend symbol, so current source was read. Jev unavailable; safe/default workflow retained. Applied frontend-ui-engineering, agent-browser runtime core and Git/TDD/incremental workflow.
 
 Independent review/Root acceptance pending. Commit clean and STOP; no integration or task status change by Implementer.
+
+
+## Minimal repair after Root real-API finding — 2026-10-27
+
+Root's actual isolated6179 DTO for public `IwglW_hIL_g` has Summary/transcript AVAILABLE, manual eligibility true, Intelligence NOT_PROCESSED, cloud availability false and local NOT_QUALIFIED/CONFIGURATION_REQUIRED. Commit7353's WAITING_MODEL-only entry was unreachable because local extraction was correctly disabled. That is a real product gap; the earlier simulated WAITING_MODEL screenshot did not establish the fresh-user path. Evidence read-only: `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/cloud-preview-real-api-20261026/IwglW_hIL_g-before.json`.
+
+Repair changes only that display condition: retain the existing WAITING_MODEL entry and add NOT_PROCESSED **only with backend manual eligibility true**, retaining explicit YOUTUBE and trusted Summary/transcript checks. Local extraction remains disabled; no artificial wait/qualification, new running/ambiguous/completed entry, automatic preview, backend contract or execution gate was introduced.
+
+Meaningful RED reproduced both English and Chinese missing-preview buttons with the exact above state, including the actual closed local capability shape. GREEN now proves disabled local extraction remains disabled; opening makes no write; the only POST is read-only review; cloud confirmation stays disabled; Summary remains and no extraction/confirmation route is called. These are offline UI assertions, not a new database acceptance claim.
+
+Final repair checks: **189 passed**, 10.36s (the original187 plus two bilingual regression cases); TypeScript PASS; Vite build PASS, 52 modules/607ms; scoped diff check PASS. The only source edit is one rendering predicate; related regression and this handoff accompany it. No assertions removed or weakened. Commit7353 history is preserved; this repair is a new commit pending independent review and Root's real API/headful rerun. No browser, Root service/database, key, provider or model operation occurred during repair. STOP after the new commit.

@@ -1992,7 +1992,8 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
               </p>
             )
             : null}
-          {data.video.provider === "YOUTUBE" && data.intelligence_result.status === "WAITING_MODEL"
+          {data.video.provider === "YOUTUBE" && (data.intelligence_result.status === "WAITING_MODEL"
+            || (data.intelligence_result.status === "NOT_PROCESSED" && data.manual_intelligence_eligible === true))
             && note?.status === "AVAILABLE" && transcript.status === "AVAILABLE" && (
             <CloudIntelligencePreview key={id} id={id} manual={data.manual_intelligence_eligible === true}
               onSettled={() => setRefresh(value => value + 1)} />

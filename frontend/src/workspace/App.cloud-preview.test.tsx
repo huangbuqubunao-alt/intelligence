@@ -177,3 +177,42 @@ it("keeps Content and a Settings action when review preparation fails", async ()
   expect(within(screen.getByRole("region", { name: "Cloud Intelligence disclosure" })).getByRole("link", { name: "Open model settings" })).toBeTruthy();
   expect(confirmations).toEqual([]);
 });
+
+it.each(["en", "zh-CN"])("fresh eligible public Content can preview without opening local qualification (%s)", async language => {
+  // Reproduce the actual isolated API posture reported by Root for IwglW_hIL_g.
+  // Only the response shape is reproduced; no real provider or user data is used.
+  const id = "IwglW_hIL_g";
+  localStorage.setItem("yia.ui-language", language);
+  location.hash = `#Content/${id}`;
+  const freshReview = review();
+  returnedReview = { ...freshReview, video_id: id,
+    outgoing_data: { ...freshReview.outgoing_data, video_id: id } };
+  const defaultFetch = globalThis.fetch;
+  const writes: string[] = [];
+  vi.stubGlobal("fetch", vi.fn((input: string, init?: RequestInit) => {
+    if (init?.method === "POST") writes.push(input);
+    if (input.endsWith(`/videos/${id}`)) return response({ ...detail(id),
+      manual_intelligence_eligible: true, cloud_intelligence_available: false, waiting_model_executions: [],
+      intelligence_result: { status: "NOT_PROCESSED", execution_id: null, has_new_intelligence: null,
+        intelligence_id: null, revision_id: null, updated_at: null },
+      local_intelligence: { video_id: id, scope: "YT_TIMED", output_language: "zh-CN",
+        model: "qwen3.5:9b-q4_K_M", profile_id: "local-grounding-qwen35-9b-runtime-0.40.9-v4",
+        qualification_status: "NOT_QUALIFIED", runtime_binding: { provider: "ollama", model: "qwen3:8b", profile_id: null },
+        request_state: "CONFIGURATION_REQUIRED", reason: "MODEL_CONFIGURATION_REQUIRED" },
+    });
+    return defaultFetch(input, init);
+  }));
+  render(<App />);
+  const extract = await screen.findByRole("button", { name: language === "en" ? "Extract Intelligence" : "提炼为洞察" });
+  expect((extract as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(extract);
+  fireEvent.click(await screen.findByRole("button", { name: language === "en" ? "Review cloud Intelligence" : "查看云端洞察预览" }));
+  expect(writes).toEqual([]);
+  fireEvent.click(screen.getByRole("button", { name: language === "en" ? "Prepare one request for review" : "准备审核本次请求" }));
+  await screen.findByText(/offline-preview-provider/);
+  expect(writes).toEqual([`/api/v1/videos/${id}/cloud-intelligence/review`]);
+  expect((screen.getByRole("button", { name: language === "en" ? "Authorize this one cloud execution" : "授权本次云端执行" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(confirmations).toEqual([]);
+  expect(screen.getByText("Retained local Summary.")).toBeTruthy();
+  expect((extract as HTMLButtonElement).disabled).toBe(true);
+});
