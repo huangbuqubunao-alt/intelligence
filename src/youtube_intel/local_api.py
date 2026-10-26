@@ -1102,13 +1102,9 @@ class LocalApiApplication:
                 route.endswith("/cloud-intelligence/review")
                 or route.endswith("/cloud-intelligence/confirm")
             ):
-                if (
-                    not self._cloud_intelligence_qualified
-                    or not self._cloud_credential_available
-                    or self._cloud_distillation_service is None
-                ):
+                if self._cloud_distillation_service is None:
                     raise ApiError(HTTPStatus.CONFLICT, "CLOUD_INTELLIGENCE_UNAVAILABLE",
-                                   "Qualified Cloud Intelligence requires an available backend credential.")
+                                   "Cloud Intelligence preview is unavailable.")
                 video_id, _, cloud_action = route.removeprefix(cloud_prefix).partition("/")
                 if cloud_action not in {"cloud-intelligence/review", "cloud-intelligence/confirm"}:
                     raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Cloud Intelligence route was not found.")
@@ -1130,14 +1126,12 @@ class LocalApiApplication:
                         raise ApiError(HTTPStatus.CONFLICT, "EVIDENCE_UNAVAILABLE",
                                        "No eligible source and Evidence are available for this Content.")
                     cloud_evidence_ids = self._repository.list_canonical_coverage_evidence_ids(video_id)
-                    reservation = self._cloud_distillation_service.reserve_distillation_execution(
-                        source_id=sorted(candidates)[0], video_id=video_id,
-                        evidence_ids=cloud_evidence_ids,
-                        manual_command_id=manual_command_id,
-                    )
-                    return HTTPStatus.CREATED, {
-                        "review": self._cloud_distillation_service.review_reserved_cloud_execution(
-                            reservation.execution_id
+                    return HTTPStatus.OK, {
+                        "review": self._cloud_distillation_service.preview_cloud_execution(
+                            source_id=sorted(candidates)[0], video_id=video_id,
+                            evidence_ids=cloud_evidence_ids, manual_command_id=manual_command_id,
+                            qualified=self._cloud_intelligence_qualified,
+                            credential_available=self._cloud_credential_available,
                         )
                     }
                 self._only_keys(data, {"execution_id", "review_hash", "authorize"})
@@ -1146,14 +1140,22 @@ class LocalApiApplication:
                                    "Cloud execution requires affirmative confirmation.")
                 execution_id = self._string(data, "execution_id", required=True) or ""
                 review_hash = self._string(data, "review_hash", required=True) or ""
-                review = self._cloud_distillation_service.review_reserved_cloud_execution(execution_id)
-                if review["video_id"] != video_id or review["verified_input_hash"] != review_hash:
-                    raise ApiError(HTTPStatus.CONFLICT, "REVIEW_STALE",
-                                   "Cloud review changed; review the current Evidence again.")
-                authorization_id = self._cloud_distillation_service.authorize_reserved_cloud_execution(
-                    execution_id
-                )
-                cloud_result = self._cloud_distillation_service.continue_reserved_distillation(execution_id)
+                if not self._cloud_intelligence_qualified or not self._cloud_credential_available:
+                    raise ApiError(HTTPStatus.CONFLICT, "CLOUD_INTELLIGENCE_UNAVAILABLE",
+                                   "Qualified Cloud Intelligence requires an available backend credential.")
+                from .distillation import CloudPreviewRejected
+                from .state import StateStoreError
+                try:
+                    authorization_id, cloud_result = self._cloud_distillation_service.confirm_cloud_preview(
+                        video_id=video_id, execution_id=execution_id, review_hash=review_hash,
+                    )
+                except CloudPreviewRejected as error:
+                    raise ApiError(HTTPStatus.CONFLICT, error.code,
+                                   "Cloud confirmation was refused. Check current data, model and spending policy.",
+                                   details={"reason_code": error.reason}) from None
+                except (ValueError, StateStoreError):
+                    raise ApiError(HTTPStatus.CONFLICT, "CLOUD_CONFIRMATION_REFUSED",
+                                   "Cloud confirmation is unavailable or changed. Review current data, model and budget again.") from None
                 return HTTPStatus.ACCEPTED, {
                     "authorization_id": authorization_id,
                     "execution": {

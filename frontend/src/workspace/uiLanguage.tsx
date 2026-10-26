@@ -1123,7 +1123,7 @@ const chinese: Record<string, string> = {
   "Provider: Moonshot · Model: kimi-k2.6 (thinking disabled).": "服务商：Moonshot；模型：kimi-k2.6（关闭思考模式）。",
   "Only bounded, verified Evidence excerpts and the task context needed for this Intelligence judgment would leave this device. The full database, unrelated Content, Followings, library, and credentials are excluded. Your original Evidence remains authoritative here.": "只有本次判断所需、经过验证且范围受限的证据片段和任务上下文会离开设备。完整数据库、无关内容、关注列表、资料库和凭据均不会发送。原始证据仍是本地溯源依据。",
   "Moonshot API usage is billed separately and may incur charges. Cost for this execution: UNKNOWN before the response. Published China-platform K2.6 rates: ¥6.50 per million uncached input tokens, ¥1.10 per million cached input tokens, and ¥27 per million output tokens. This request allows up to 8,192 output tokens.": "Moonshot API 单独计费，可能产生费用。本次执行在返回结果前的费用：UNKNOWN。中国平台公开的 K2.6 费率：未缓存输入每百万 token ¥6.50、缓存输入 ¥1.10、输出 ¥27。本次请求最多允许 8,192 个输出 token。",
-  "Preparing a review stores a local reservation only. Confirming authorizes exactly one request for the reviewed Evidence and task context.": "准备审核只在本地保留一次执行；确认后才授权对已审核证据和任务上下文发送一次请求。",
+  "Preparing a review does not create a task. Confirming authorizes exactly one request for the reviewed Evidence and task context.": "准备审核不会创建任务；确认后才授权对已审核证据和任务上下文发送一次请求。",
   "Prepare one request for review": "准备审核本次请求",
   "Review the original Evidence on this Content page before confirming. This permission applies only to this execution.": "确认前请查看此内容的原始证据。此次授权仅适用于本次执行。",
   "Authorize this one cloud execution": "授权本次云端执行",

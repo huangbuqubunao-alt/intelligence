@@ -19,7 +19,8 @@ try {
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({
       review: {
         execution_id: "isolated-review-1",
-        verified_input_hash: "fixture-hash",
+        verified_input_hash: "fixture-input-hash",
+        review_hash: "fixture-preview-ticket",
         source_id: "source-ai",
         provider: "moonshot",
         model: "kimi-k2.6",
@@ -33,7 +34,7 @@ try {
     const body = route.request().postDataJSON();
     assert.equal(body.authorize, true);
     assert.equal(body.execution_id, "isolated-review-1");
-    assert.equal(body.review_hash, "fixture-hash");
+    assert.equal(body.review_hash, "fixture-preview-ticket");
     await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
   });
   await page.route("**/api/v1/videos/aircAruvnKk", async (route) => {
@@ -67,7 +68,7 @@ try {
   await page.getByRole("button", { name: "准备审核本次请求" }).click();
   await page.getByRole("button", { name: "授权本次云端执行" }).waitFor();
   assert.equal(reviews, 1);
-  assert.equal(confirms, 0, "review is only a local reservation");
+  assert.equal(confirms, 0, "review is a read-only preview");
   await page.reload({ waitUntil: "networkidle" });
   assert.equal(confirms, 0, "reload must not dispatch a reviewed request");
   await page.getByRole("button", { name: "内容", exact: true }).click();

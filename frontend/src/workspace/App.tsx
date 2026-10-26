@@ -1739,6 +1739,7 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
   const [cloudReview, setCloudReview] = useState<{
     execution_id: string;
     verified_input_hash: string;
+    review_hash: string;
     source_id: string;
     provider: string;
     model: string;
@@ -1880,7 +1881,7 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
                       {data.cloud_intelligence_available
                         ? (
                           <>
-                            <p>{t("Preparing a review stores a local reservation only. Confirming authorizes exactly one request for the reviewed Evidence and task context.")}</p>
+                            <p>{t("Preparing a review does not create a task. Confirming authorizes exactly one request for the reviewed Evidence and task context.")}</p>
                             <button type="button" className="button button-secondary" disabled={cloudBusy}
                               onClick={async () => {
                                 setCloudBusy(true);
@@ -1905,7 +1906,7 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
                                     try {
                                       await post(`/videos/${id}/cloud-intelligence/confirm`, {
                                         execution_id: cloudReview.execution_id,
-                                        review_hash: cloudReview.verified_input_hash,
+                                        review_hash: cloudReview.review_hash,
                                         authorize: true,
                                       });
                                       setCloudReview(null);

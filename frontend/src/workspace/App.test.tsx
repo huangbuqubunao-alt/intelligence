@@ -3180,3 +3180,36 @@ test("a failed page read does not leave its error on a different route", async (
   await waitFor(()=>expect(writes).toHaveLength(1));
   expect(writes[0].focus_rules).toEqual(original.focus_rules);expect(writes[0].ignore_rules).toEqual(original.ignore_rules);
  });
+
+test("cloud Intelligence confirms the preview ticket while keeping the input hash distinct", async () => {
+  const defaultFetch = globalThis.fetch;
+  const confirmations: object[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (input: string, init?: RequestInit) => {
+    if (input.endsWith("/cloud-intelligence/review")) return response({ review: {
+      execution_id: "read-only-preview", verified_input_hash: "immutable-input-hash", review_hash: "ephemeral-review-ticket",
+      source_id: "source-1", provider: "moonshot", model: "kimi-k2.6", evidence_ids: ["evidence-1"], cost_status: "UNKNOWN",
+    } });
+    if (input.endsWith("/cloud-intelligence/confirm")) {
+      confirmations.push(JSON.parse(String(init?.body)));
+      return response({});
+    }
+    const result = await defaultFetch(input, init);
+    if (input.endsWith("/videos/video-1")) return response({ ...await result.json(),
+      cloud_intelligence_available: true,
+      note: { v2: { status: "AVAILABLE", language: "en", summary: "Read-only preview fixture." } },
+      intelligence_result: { status: "WAITING_MODEL", execution_id: null, has_new_intelligence: false },
+    });
+    return result;
+  }));
+  location.hash = "#Content/video-1";
+  render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: "Review high-quality Intelligence" }));
+  expect(screen.getByText(/Preparing a review does not create a task/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Prepare one request for review" }));
+  const confirm = await screen.findByRole("button", { name: "Authorize this one cloud execution" });
+  expect(confirmations).toEqual([]);
+  fireEvent.click(confirm);
+  await waitFor(() => expect(confirmations).toEqual([{
+    execution_id: "read-only-preview", review_hash: "ephemeral-review-ticket", authorize: true,
+  }]));
+});

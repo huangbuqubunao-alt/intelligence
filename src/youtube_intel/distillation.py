@@ -15,7 +15,7 @@ import uuid
 from collections.abc import Callable, Mapping, Sequence
 from contextlib import closing
 from dataclasses import asdict, dataclass, replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from enum import Enum
 from http.client import HTTPException, HTTPSConnection
 from typing import Any, Protocol, cast
@@ -606,6 +606,14 @@ class NvidiaNimResponseDiagnostics:
 
 class CloudConsentRequiredError(ValueError):
     """The current execution has no matching affirmative cloud authorization."""
+
+
+class CloudPreviewRejected(ValueError):
+    """Safe machine reason for a zero-write cloud confirmation refusal."""
+
+    def __init__(self, code: str, reason: str) -> None:
+        self.code, self.reason = code, reason
+        super().__init__(reason)
 
 
 class CloudDistillationAuthorization:
@@ -3123,6 +3131,8 @@ class PersonalizedDistillationService:
         self._source_policy = source_policy
         self._transport = transport
         self._budget = budget
+        self._cloud_previews: dict[str, tuple[DistillationCommand, VerifiedDistillationInput, datetime]] = {}
+        self._cloud_preview_lock = threading.Lock()
         self._now = now
         self._selected_provider = transport.actual_provider
         self._selected_model = transport.actual_model
@@ -3214,6 +3224,132 @@ class PersonalizedDistillationService:
     def _release_local_readiness(self) -> None:
         if isinstance(self._transport, OllamaLocalDistillationTransport) and self._local_profile_id is not None:
             self._transport.release_readiness()
+
+    def _prospective_cloud_command(
+        self, *, source_id: str, video_id: str, evidence_ids: tuple[str, ...],
+        manual_command_id: str | None = None,
+    ) -> tuple[DistillationCommand, VerifiedDistillationInput]:
+        if self._selected_provider not in {_NVIDIA_NIM_PROVIDER, _M12_OPENAI_PROVIDER, _MOONSHOT_K26_PROVIDER}:
+            raise ValueError("cloud review is unavailable for this transport")
+        video = self._repository.get_video(video_id)
+        if video is None or video.provider != "YOUTUBE":
+            raise ValueError("Cloud Intelligence requires public YouTube Content")
+        reason = self._RESERVATION_REASON
+        if manual_command_id is not None:
+            if re.fullmatch(r"[A-Za-z0-9._:-]{1,80}", manual_command_id) is None:
+                raise ValueError("manual Content command identity is invalid")
+            if not self._manual_content_ready(source_id, video_id):
+                raise ValueError("manual Content requires completed trusted source material")
+            reason = self._MANUAL_CONTENT_PREFIX + manual_command_id
+        evidence_ids = self._canonical_reservation_evidence(video_id=video_id, evidence_ids=evidence_ids)
+        language = self.capability_output_language(video_id)
+        if language not in {"zh-CN", "en"}:
+            raise ValueError("distillation output language preference is unsupported")
+        command, value = self._reserved_command(source_id=source_id, video_id=video_id,
+            evidence_ids=evidence_ids, output_language=cast(ScoringOutputLanguage, language), reason=reason)
+        if manual_command_id is None and not self._eligible(command):
+            raise ValueError("reservation source/video is not eligible")
+        if not self._legal_evidence(command):
+            raise ValueError("reservation evidence is not legal")
+        return command, value
+
+    def _cloud_request_preview(self, value: VerifiedDistillationInput) -> dict[str, object] | None:
+        # The fixed adapters' builders are pure. Validate provider-specific wire
+        # constraints (including output language) before persisting any consent.
+        if isinstance(self._transport, (OpenAICloudDistillationTransport,
+            NvidiaNimCloudDistillationTransport, MoonshotK26CloudDistillationTransport)):
+            try:
+                return self._transport._request(value)
+            except CloudDistillationPreDispatchError:
+                raise CloudPreviewRejected("CLOUD_INPUT_NOT_SUPPORTED", "INPUT_NOT_SUPPORTED") from None
+        return None  # Explicit offline test transport; never a production route.
+
+    def preview_cloud_execution(
+        self, *, source_id: str, video_id: str, evidence_ids: tuple[str, ...],
+        manual_command_id: str | None = None, qualified: bool, credential_available: bool,
+    ) -> dict[str, object]:
+        """Project exact trusted input without persistence, credentials or budget checks."""
+        command, value = self._prospective_cloud_command(source_id=source_id, video_id=video_id,
+            evidence_ids=evidence_ids, manual_command_id=manual_command_id)
+        now = self._now()
+        expires = now + timedelta(minutes=5)
+        token = secrets.token_hex(32)
+        with self._cloud_preview_lock:
+            self._cloud_previews = {key: entry for key, entry in self._cloud_previews.items() if entry[2] > now}
+            while len(self._cloud_previews) >= 128:
+                del self._cloud_previews[next(iter(self._cloud_previews))]
+            self._cloud_previews[token] = (command, value, expires)
+        blockers = []
+        try:
+            request = self._cloud_request_preview(value)
+        except ValueError:
+            request = None
+            blockers.append("INPUT_NOT_SUPPORTED")
+        if not qualified:
+            blockers.append("MODEL_UNQUALIFIED")
+        if not credential_available:
+            blockers.append("CREDENTIAL_REQUIRED")
+        if not self._transport.available:
+            blockers.append("MODEL_UNAVAILABLE")
+        if self._repository.get_distillation_execution(command.execution_id) is not None:
+            blockers.append("EXECUTION_ALREADY_EXISTS")
+        # Budget.check may reserve/account spending. Preview must never call it.
+        # The real production budget advertises its fixed missing-policy state;
+        # other injected policies remain unverified until explicit confirmation.
+        budget_state = getattr(self._budget, "cloud_preview_state", "BUDGET_UNVERIFIED")
+        if budget_state == "CLOUD_SPENDING_POLICY_REQUIRED":
+            blockers.append(budget_state)
+        return {"execution_id": command.execution_id, "source_id": source_id, "video_id": video_id,
+            "provider": value.selected_provider, "model": value.selected_model,
+            "verified_input_hash": value.semantic_hash, "review_hash": token,
+            "expires_at": expires.isoformat(), "output_language": value.output_language,
+            "evidence_ids": list(value.evidence_ids), "outgoing_data": verified_distillation_input_projection(value),
+            "outgoing_request": request,
+            "cost_status": "UNKNOWN",
+            "disclosure_version": "m12-cloud-intelligence-v1",
+            "readiness": {"can_confirm": not blockers, "blockers": blockers, "budget_state": budget_state}}
+
+    def confirm_cloud_preview(
+        self, *, video_id: str, execution_id: str, review_hash: str,
+    ) -> tuple[str, DistillationResult]:
+        """Confirm only a live review; recompute all authority before atomic claim."""
+        with self._cloud_preview_lock:
+            entry = self._cloud_previews.get(review_hash)
+        if entry is None:
+            raise ValueError("cloud preview is missing or expired; review again")
+        command, value, expires = entry
+        if command.video_id != video_id or command.execution_id != execution_id:
+            raise ValueError("cloud preview identity conflicts")
+        decision = BudgetDecision(False, "NOT_CHECKED")
+
+        def validate_current() -> None:
+            nonlocal decision
+            if self._now() >= expires:
+                raise ValueError("cloud preview expired; review again")
+            manual_id = (command.reason.removeprefix(self._MANUAL_CONTENT_PREFIX)
+                if command.reason.startswith(self._MANUAL_CONTENT_PREFIX) else None)
+            current_command, current_value = self._prospective_cloud_command(
+                source_id=command.source_id, video_id=video_id,
+                evidence_ids=command.evidence_ids, manual_command_id=manual_id)
+            if current_command != command or current_value != value:
+                raise ValueError("cloud preview changed; review current Evidence again")
+            self._cloud_request_preview(current_value)
+            if (not self._transport_permits(current_value, normal_production=True)
+                or not self._transport.available or not self._preflight_available()):
+                raise ValueError("cloud model or credential is unavailable")
+            decision = self._budget.check(current_command)
+            if not decision.allowed:
+                raise CloudPreviewRejected("CLOUD_BUDGET_REFUSED", decision.state)
+
+        authorization_id = f"cloud-consent:{secrets.token_hex(16)}"
+        self._repository.confirm_and_claim_cloud_execution(
+            DistillationExecutionWrite(execution_id=command.execution_id, source_id=command.source_id,
+                video_id=command.video_id, reason=command.reason, use_case=command.use_case,
+                selected_provider=command.selected_provider, selected_model=command.selected_model,
+                output_language=command.output_language),
+            authorization_id=authorization_id, verified_input_hash=value.semantic_hash,
+            validate_current=validate_current, now=self._now())
+        return authorization_id, self._dispatch_and_admit(command, value, decision)
 
     def authorize_reserved_cloud_execution(
         self, execution_id: str, *, consent_kind: str = "USER_CONFIRMATION"

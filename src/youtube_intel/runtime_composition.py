@@ -275,10 +275,13 @@ class RuntimeSourceRunPreparation:
 
 
 class ProductionDistillationBudget:
-    """Explicit production budget seam; provider authorization still gates dispatch."""
+    """No cloud spending authority exists until a finite policy is implemented."""
+
+    cloud_preview_state = "CLOUD_SPENDING_POLICY_REQUIRED"
 
     def check(self, command: DistillationCommand) -> BudgetDecision:
-        del command
+        if command.selected_provider != "ollama":
+            return BudgetDecision(allowed=False, state=self.cloud_preview_state)
         return BudgetDecision(allowed=True, state="RUNTIME_BUDGET_ADMITTED")
 
 

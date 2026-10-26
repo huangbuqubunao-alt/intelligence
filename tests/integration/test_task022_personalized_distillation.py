@@ -4426,10 +4426,11 @@ def test_cloud_review_and_confirmation_are_separate_api_actions(tmp_path: Path) 
     assert without_credential.handle("GET", f"/api/v1/videos/{video_id}")[1][
         "cloud_intelligence_available"
     ] is False
-    with pytest.raises(ApiError):
-        without_credential.handle(
-            "POST", f"/api/v1/videos/{video_id}/cloud-intelligence/review", b"{}"
-        )
+    preview_status, no_key = without_credential.handle(
+        "POST", f"/api/v1/videos/{video_id}/cloud-intelligence/review", b"{}")
+    assert preview_status == 200
+    assert "CREDENTIAL_REQUIRED" in no_key["review"]["readiness"]["blockers"]
+    assert repository.get_distillation_execution(no_key["review"]["execution_id"]) is None
     assert calls == 0
     app = LocalApiApplication(
         repository,
@@ -4445,7 +4446,7 @@ def test_cloud_review_and_confirmation_are_separate_api_actions(tmp_path: Path) 
         app.handle("POST", f"/api/v1/videos/{video_id}/extra/cloud-intelligence/review", b"{}")
     assert calls == 0
     status, payload = app.handle("POST", review_path, b"{}")
-    assert status == 201
+    assert status == 200
     review = payload["review"]
     assert isinstance(review, dict)
     assert review["source_id"] == source_id
@@ -4462,13 +4463,13 @@ def test_cloud_review_and_confirmation_are_separate_api_actions(tmp_path: Path) 
     with pytest.raises(ApiError):
         app.handle("POST", confirm_path, json.dumps({
             "execution_id": review["execution_id"],
-            "review_hash": review["verified_input_hash"],
+            "review_hash": review["review_hash"],
             "authorize": False,
         }).encode())
     assert calls == 0
     status, confirmed = app.handle("POST", confirm_path, json.dumps({
         "execution_id": review["execution_id"],
-        "review_hash": review["verified_input_hash"],
+        "review_hash": review["review_hash"],
         "authorize": True,
     }).encode())
     assert status == 202
@@ -4480,7 +4481,7 @@ def test_cloud_review_and_confirmation_are_separate_api_actions(tmp_path: Path) 
     with pytest.raises(ApiError):
         app.handle("POST", confirm_path, json.dumps({
             "execution_id": review["execution_id"],
-            "review_hash": review["verified_input_hash"],
+            "review_hash": review["review_hash"],
             "authorize": True,
         }).encode())
     assert calls == 1
@@ -4633,3 +4634,273 @@ def test_loopback_distillation_fails_closed_when_no_offline_transport_is_configu
         )
 
     assert error.value.code == "DISTILLATION_UNAVAILABLE"
+
+
+def test_cloud_preview_no_key_is_physically_readonly_and_does_not_check_budget(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    source_id, video_id = _source_and_video(repository)
+    _evidence(repository, video_id)
+    # Materialize a referenced DATA object and unrelated retained DATA; a read
+    # must preserve both bytes as well as every persisted SQLite table.
+    payload = b"Fixture canonical evidence."
+    (tmp_path / f"{video_id}-1000-1500.txt").write_bytes(payload)
+    (tmp_path / "retained-physical-DATA.bin").write_bytes(b"retained unrelated DATA\x00")
+    with repository._connect() as connection:
+        connection.execute("UPDATE artifacts SET content_hash=? WHERE video_id=?",
+            (hashlib.sha256(payload).hexdigest(), video_id))
+    budget = _FakeBudget(False, state="CLOUD_SPENDING_POLICY_REQUIRED")
+    credential_reads = 0
+
+    def credential() -> str:
+        nonlocal credential_reads
+        credential_reads += 1
+        raise AssertionError("preview must not resolve credentials")
+
+    cloud = _service(repository, NvidiaNimCloudDistillationTransport(
+        authorization=_normal_nvidia_authorization(), credential_resolver=credential,
+        wire_transport=lambda *_: pytest.fail("preview must not dispatch")), budget)
+    app = LocalApiApplication(repository, ProductOrchestrationService(repository, now=lambda: NOW),
+        cloud_distillation_service=cloud, cloud_intelligence_qualified=False,
+        cloud_credential_available=False, now=lambda: NOW)
+    connection = repository._connect()
+    before = tuple(connection.iterdump())
+    connection.close()
+    files_before = {p.relative_to(tmp_path): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
+    for _ in range(3):
+        status, body = app.handle("POST", f"/api/v1/videos/{video_id}/cloud-intelligence/review", b"{}")
+        assert status == 200
+        review = body["review"]
+        assert review["source_id"] == source_id
+        assert review["readiness"]["can_confirm"] is False
+        assert {"CREDENTIAL_REQUIRED", "MODEL_UNQUALIFIED"} <= set(review["readiness"]["blockers"])
+        assert repository.get_distillation_execution(review["execution_id"]) is None
+    # A UI close and a new service process cannot resurrect a task.
+    del app
+    restarted = _service(SQLiteStateRepository(tmp_path / "state.sqlite3"), cloud._transport, budget)
+    assert restarted._cloud_previews == {}
+    connection = repository._connect()
+    assert tuple(connection.iterdump()) == before
+    connection.close()
+    assert {p.relative_to(tmp_path): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()} == files_before
+    assert budget.calls == credential_reads == 0
+
+
+def test_production_budget_denies_unconfigured_cloud_preserves_local() -> None:
+    from youtube_intel.runtime_composition import ProductionDistillationBudget
+    budget = ProductionDistillationBudget()
+    command = DistillationCommand(execution_id="budget-test", source_id="source", video_id="video",
+        evidence_ids=("evidence",), reason="MANUAL_PERSONALIZED_DISTILLATION", use_case="PERSONALIZED_INTELLIGENCE",
+        selected_provider="moonshot", selected_model="kimi-k2.6", output_language="en")
+    assert budget.check(command) == BudgetDecision(False, "CLOUD_SPENDING_POLICY_REQUIRED")
+    assert budget.check(replace(command, selected_provider="ollama", selected_model="qwen3:8b")).allowed
+
+
+@pytest.mark.parametrize("change", ["forged", "expired", "restart", "language", "policy", "evidence", "key", "budget", "model", "source", "link"])
+def test_cloud_confirmation_refusal_never_persists_orphans(tmp_path: Path, change: str) -> None:
+    repository = _repository(tmp_path)
+    source_id, video_id = _source_and_video(repository)
+    evidence_id = _evidence(repository, video_id)
+    budget = _FakeBudget(True)
+    credential = ["offline-test-only"]
+    transport = NvidiaNimCloudDistillationTransport(authorization=_normal_nvidia_authorization(),
+        credential_resolver=lambda: credential[0], wire_transport=lambda *_: pytest.fail("refused confirmation dispatched"))
+    cloud = _service(repository, transport, budget)
+    review = cloud.preview_cloud_execution(source_id=source_id, video_id=video_id, evidence_ids=(evidence_id,),
+        qualified=True, credential_available=True)
+    token = str(review["review_hash"])
+    if change == "forged":
+        token = "0" * 64
+    if change == "expired":
+        cloud._now = lambda: NOW + timedelta(minutes=6)
+    if change == "restart":
+        cloud = _service(repository, transport, budget)
+    if change == "language":
+        cloud._output_language_for_video = lambda _: "en"
+    if change == "policy":
+        SourcePolicyApplicationService(repository, now=lambda: NOW).update_global(command_id="preview-stale-policy",
+            initial_history_count=5, per_run_max_new_videos=5, focus_rules=("changed",), ignore_rules=(),
+            distillation_style=DistillationStyle.BALANCED)
+    if change == "evidence":
+        connection = repository._connect()
+        connection.execute("UPDATE evidence SET availability='UNAVAILABLE' WHERE evidence_id=?", (evidence_id,))
+        connection.commit()
+        connection.close()
+    if change == "key":
+        credential[0] = ""
+    if change == "budget":
+        budget._decision = BudgetDecision(False, "FINITE_TEST_LIMIT_EXHAUSTED")
+    if change == "model":
+        cloud._selected_model = "different-model"
+    if change in {"source", "link"}:
+        with repository._connect() as connection:
+            if change == "source":
+                connection.execute("UPDATE source_subscriptions SET enabled=0 WHERE source_id=?", (source_id,))
+            else:
+                connection.execute("DELETE FROM source_video_links WHERE source_id=? AND video_id=?", (source_id, video_id))
+    connection = repository._connect()
+    before = tuple(connection.iterdump())
+    connection.close()
+    with pytest.raises((ValueError, StateStoreError)):
+        cloud.confirm_cloud_preview(video_id=video_id, execution_id=str(review["execution_id"]), review_hash=token)
+    connection = repository._connect()
+    assert tuple(connection.iterdump()) == before
+    connection.close()
+    assert repository.get_distillation_execution(str(review["execution_id"])) is None
+
+
+@pytest.mark.parametrize("outcome", ["success", "known_http_failure", "unknown"])
+def test_cloud_preview_confirmation_race_and_restart_never_replay(tmp_path: Path, outcome: str) -> None:
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+    repository = _repository(tmp_path)
+    source_id, video_id = _source_and_video(repository)
+    evidence_id = _evidence(repository, video_id)
+    entered, release = threading.Event(), threading.Event()
+    calls = []
+
+    def wire(*_args):
+        calls.append(1)
+        # Independent reads prove the transaction committed before transport.
+        record = repository.latest_distillation_execution_for_video(video_id)
+        assert record.invocation_count == 1 and record.budget_state == "DISPATCH_CLAIMED"
+        consent = repository.get_cloud_execution_authorization(record.execution_id)
+        assert consent is not None
+        entered.set()
+        assert release.wait(10)
+        if outcome == "unknown":
+            raise RuntimeError("offline simulated uncertain transport")
+        if outcome == "known_http_failure":
+            raise KnownCloudDistillationResponseError(http_status=429)
+        return {"model": "moonshotai/kimi-k3", "choices": [{"finish_reason": "stop", "message": {"content": _raw(evidence_id)}}]}
+
+    transport = NvidiaNimCloudDistillationTransport(authorization=_normal_nvidia_authorization(),
+        credential_resolver=lambda: "offline-only", wire_transport=wire)
+    class OneCallOfflineBudget(_FakeBudget):
+        def check(self, command: DistillationCommand) -> BudgetDecision:
+            self.calls += 1
+            return BudgetDecision(self.calls == 1, "OFFLINE_TEST_ONE_CALL_LIMIT")
+
+    budget = OneCallOfflineBudget(True)
+    first, second = _service(repository, transport, budget), _service(repository, transport, budget)
+    reviews = [service.preview_cloud_execution(source_id=source_id, video_id=video_id, evidence_ids=(evidence_id,),
+        qualified=True, credential_available=True) for service in (first, second)]
+    def confirm(service, review):
+        return service.confirm_cloud_preview(video_id=video_id,
+            execution_id=review["execution_id"], review_hash=review["review_hash"])
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        future = pool.submit(confirm, first, reviews[0])
+        try:
+            assert entered.wait(10)
+            with pytest.raises(StateStoreError):
+                confirm(second, reviews[1])
+        finally:
+            release.set()
+        _, result = future.result(timeout=10)
+    assert calls == [1]
+    assert result.status.value == {"success": "SUCCEEDED", "known_http_failure": "REJECTED_OUTPUT", "unknown": "AMBIGUOUS"}[outcome]
+    restarted = SQLiteStateRepository(tmp_path / "state.sqlite3")
+    fresh = _service(restarted, transport, budget)
+    review = fresh.preview_cloud_execution(source_id=source_id, video_id=video_id, evidence_ids=(evidence_id,),
+        qualified=True, credential_available=True)
+    with pytest.raises(StateStoreError):
+        confirm(fresh, review)
+    assert restarted.get_distillation_execution(result.execution_id).status == result.status.value
+    assert len(calls) == 1 and budget.calls == 1
+    with restarted._connect() as connection:
+        assert connection.execute("SELECT COUNT(*) FROM distillation_cloud_authorizations").fetchone()[0] == 1
+
+
+def test_cloud_preview_preserves_legacy_pending_and_backup_readiness(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    source_id, video_id = _source_and_video(repository)
+    evidence_id = _evidence(repository, video_id)
+    cloud = _service(repository, NvidiaNimCloudDistillationTransport(authorization=_normal_nvidia_authorization(),
+        credential_resolver=lambda: pytest.fail("preview credential read"), wire_transport=lambda *_: pytest.fail("preview HTTP")))
+    backup = BackupRestoreService(database=tmp_path / "state.sqlite3", data_root=tmp_path)
+    for legacy in (False, True):
+        if legacy:
+            cloud.reserve_distillation_execution(source_id=source_id, video_id=video_id, evidence_ids=(evidence_id,))
+        with repository._connect() as connection:
+            before = tuple(connection.iterdump())
+            readiness = backup._quiescence_reasons(connection)
+        review = cloud.preview_cloud_execution(source_id=source_id, video_id=video_id, evidence_ids=(evidence_id,),
+            qualified=True, credential_available=False)
+        del review  # Dismiss has no persistence operation.
+        with repository._connect() as connection:
+            assert tuple(connection.iterdump()) == before
+            assert backup._quiescence_reasons(connection) == readiness
+        assert ("DISTILLATION_ACTIVE" in readiness) is legacy
+
+
+@pytest.mark.parametrize("failure_point", ["cloud_confirmation_after_reservation", "cloud_confirmation_after_consent", "cloud_confirmation_after_claim"])
+def test_cloud_confirmation_rolls_back_every_partial_write(tmp_path: Path, monkeypatch, failure_point: str) -> None:
+    repository = _repository(tmp_path)
+    source_id, video_id = _source_and_video(repository)
+    evidence_id = _evidence(repository, video_id)
+    cloud = _service(repository, NvidiaNimCloudDistillationTransport(authorization=_normal_nvidia_authorization(),
+        credential_resolver=lambda: "offline-only", wire_transport=lambda *_: pytest.fail("rolled-back confirm dispatched")))
+    review = cloud.preview_cloud_execution(source_id=source_id, video_id=video_id, evidence_ids=(evidence_id,),
+        qualified=True, credential_available=True)
+    def failure(point: str) -> None:
+        if point == failure_point:
+            raise RuntimeError("offline injected transaction failure")
+    monkeypatch.setattr(repository, "_inject_failure", failure)
+    with repository._connect() as connection:
+        before = tuple(connection.iterdump())
+    with pytest.raises(RuntimeError, match="offline injected"):
+        cloud.confirm_cloud_preview(video_id=video_id, execution_id=review["execution_id"], review_hash=review["review_hash"])
+    with repository._connect() as connection:
+        assert tuple(connection.iterdump()) == before
+
+
+@pytest.mark.parametrize("gate", ["credential", "qualification", "production_budget", "availability"])
+def test_api_confirmation_gates_leave_all_tables_unchanged(tmp_path: Path, gate: str) -> None:
+    from youtube_intel.runtime_composition import ProductionDistillationBudget
+    repository = _repository(tmp_path)
+    source_id, video_id = _source_and_video(repository)
+    _evidence(repository, video_id)
+    cloud = _service(repository, NvidiaNimCloudDistillationTransport(authorization=_normal_nvidia_authorization(available=gate != "availability"),
+        credential_resolver=lambda: "offline-only", wire_transport=lambda *_: pytest.fail("refused confirm dispatched")))
+    if gate == "production_budget":
+        cloud._budget = ProductionDistillationBudget()
+    app = LocalApiApplication(repository, ProductOrchestrationService(repository, now=lambda: NOW),
+        cloud_distillation_service=cloud, cloud_intelligence_qualified=gate != "qualification",
+        cloud_credential_available=gate != "credential", now=lambda: NOW)
+    status, payload = app.handle("POST", f"/api/v1/videos/{video_id}/cloud-intelligence/review", b"{}")
+    review = payload["review"]
+    assert status == 200 and review["readiness"]["can_confirm"] is False
+    with repository._connect() as connection:
+        before = tuple(connection.iterdump())
+    with pytest.raises(ApiError) as rejected:
+        app.handle("POST", f"/api/v1/videos/{video_id}/cloud-intelligence/confirm", json.dumps({
+            "execution_id": review["execution_id"], "review_hash": review["review_hash"], "authorize": True}).encode())
+    if gate == "production_budget":
+        assert rejected.value.code == "CLOUD_BUDGET_REFUSED"
+        assert rejected.value.details == {"reason_code": "CLOUD_SPENDING_POLICY_REQUIRED"}
+    with repository._connect() as connection:
+        assert tuple(connection.iterdump()) == before
+
+
+def test_cloud_preview_discloses_wire_scope_and_bounds_without_credentials(tmp_path: Path) -> None:
+    repository = _repository(tmp_path)
+    source_id, video_id = _source_and_video(repository)
+    evidence_id = _evidence(repository, video_id)
+    cloud = _service(repository, MoonshotK26NonThinkingCloudDistillationTransport(
+        authorization=CloudDistillationAuthorization(),
+        credential_resolver=lambda: pytest.fail("preview resolved a credential"),
+        wire_transport=lambda *_: pytest.fail("preview invoked HTTP")))
+    review = cloud.preview_cloud_execution(source_id=source_id, video_id=video_id, evidence_ids=(evidence_id,),
+        qualified=False, credential_available=False)
+    request = review["outgoing_request"]
+    assert request["model"] == "kimi-k2.6" and request["max_tokens"] == 8192
+    assert request["max_retries"] == 0 and request["thinking"] == {"type": "disabled"}
+    assert "Fixture canonical evidence." in json.dumps(request)
+    assert review["outgoing_data"]["evidence"][0]["evidence_id"] == evidence_id
+    assert repository.get_distillation_execution(review["execution_id"]) is None
+    cloud._output_language_for_video = lambda _: "en"
+    review = cloud.preview_cloud_execution(source_id=source_id, video_id=video_id, evidence_ids=(evidence_id,),
+        qualified=False, credential_available=False)
+    assert "INPUT_NOT_SUPPORTED" in review["readiness"]["blockers"]
+    with pytest.raises(ValueError, match="INPUT_NOT_SUPPORTED"):
+        cloud.confirm_cloud_preview(video_id=video_id, execution_id=review["execution_id"], review_hash=review["review_hash"])
+    assert repository.get_distillation_execution(review["execution_id"]) is None

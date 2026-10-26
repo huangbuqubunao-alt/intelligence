@@ -10534,6 +10534,64 @@ class SQLiteStateRepository:
         finally:
             connection.close()
 
+    def confirm_and_claim_cloud_execution(
+        self, execution: DistillationExecutionWrite, *, authorization_id: str,
+        verified_input_hash: str, validate_current: Callable[[], None], now: datetime,
+    ) -> None:
+        """All-or-nothing fresh consent and claim; never adopt legacy PENDING rows.
+
+        Revalidation runs under the SQLite writer lock, before any write. A
+        duplicate, stale input, or failed gate leaves every table unchanged.
+        The claim is durable before the single transport call may start.
+        """
+        from .long_distillation_persistence import reject_generic
+        reject_generic(execution.execution_id)
+        fields = (execution.execution_id, execution.source_id, execution.video_id, execution.reason,
+            execution.use_case, execution.selected_provider, execution.selected_model, execution.output_language)
+        if any(not isinstance(value, str) or not value.strip() or len(value) > 512 for value in fields):
+            raise ValueError("cloud execution identity is invalid")
+        audit_tables = _cloud_audit_tables(execution.selected_provider, execution.selected_model)
+        if (audit_tables is None or execution.output_language not in {"zh-CN", "en"}
+            or re.fullmatch(r"[0-9a-f]{64}", verified_input_hash) is None
+            or re.fullmatch(r"cloud-consent:[0-9a-f]{32}", authorization_id) is None):
+            raise ValueError("cloud confirmation identity is invalid")
+        timestamp = format_utc_datetime(now)
+        connection = self._connect()
+        try:
+            with _immediate_transaction(connection):
+                if connection.execute("SELECT 1 FROM distillation_execution_checkpoints WHERE execution_id=?",
+                    (execution.execution_id,)).fetchone() is not None:
+                    raise StateStoreError("cloud execution already exists; it cannot be confirmed again")
+                validate_current()
+                connection.execute(
+                    "INSERT INTO distillation_execution_checkpoints "
+                    "(execution_id,source_id,video_id,reason,use_case,selected_provider,selected_model,output_language,"
+                    "status,budget_state,invocation_count,intelligence_id,revision_id,created_at,updated_at) "
+                    "VALUES (?,?,?,?,?,?,?,?,'PENDING','RESERVED_NOT_DISPATCHED',0,NULL,NULL,?,?)",
+                    (execution.execution_id, execution.source_id, execution.video_id, execution.reason,
+                     execution.use_case, execution.selected_provider, execution.selected_model,
+                     execution.output_language, timestamp, timestamp))
+                self._inject_failure("cloud_confirmation_after_reservation")
+                connection.execute(
+                    f"INSERT INTO {audit_tables[0]} "
+                    "(authorization_id,execution_id,provider,model,verified_input_hash,consent_kind,"
+                    "disclosure_version,cost_status,authorized_at) "
+                    "VALUES (?,?,?,?,?,'USER_CONFIRMATION','m12-cloud-intelligence-v1','UNKNOWN',?)",
+                    (authorization_id, execution.execution_id, execution.selected_provider,
+                     execution.selected_model, verified_input_hash, timestamp))
+                self._inject_failure("cloud_confirmation_after_consent")
+                changed = connection.execute(
+                    "UPDATE distillation_execution_checkpoints SET budget_state='DISPATCH_CLAIMED', invocation_count=1 "
+                    "WHERE execution_id=? AND status='PENDING' AND budget_state='RESERVED_NOT_DISPATCHED' AND invocation_count=0",
+                    (execution.execution_id,)).rowcount
+                if changed != 1:
+                    raise StateStoreError("cloud execution claim conflicts")
+                self._inject_failure("cloud_confirmation_after_claim")
+        except sqlite3.IntegrityError as error:
+            raise IntegrityConflict("cloud confirmation identity conflicts") from error
+        finally:
+            connection.close()
+
     def claim_reserved_distillation_execution(
         self,
         *,
