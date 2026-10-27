@@ -1,3 +1,5 @@
+> 2026-10-27为避免账号就绪后再串行等候，路线图批准不交叉的BIGMODEL-SETTINGS独立writer：仅候选provider专属凭据/隔离QA注入和最小设置/引导/深链接，不改transport/资格/预算/Schema/正式配置。与当前distillation.py transport writer无文件冲突；仍分别fixed独审，真实key由用户后续页面输入。
+
 > 2026-10-27用户确认BigModel“已注册，未充值”。仅账号注册状态得到本人确认；尚未安全录入key、核对账户精确免费额度或真实生成/语义/费用。准备provider-specific隔离设置后由用户页面手动填写，不在聊天收密钥，不自动付费；仍先完成当前transport离线固定提交与独立审查。
 
 > 2026-10-27已审Schema42真实GUI闭环完成：Root523bff8、实际6178/6179隔离服务创建下载877908B ZIP，界面选择/检查/RESTORE/自动重启重连，全部81SQL表每行+19DATA完全相同、integrityok/FK空、readytrue/APPLIED。旧WAIT0+独立取消记录及旧REJECTED1完整保留，两新审计表仍空，无key/worker/出站/模型/正式数据。证据schema42-actual-gui-result4f38474a、图文手册83图；仅自有服务已正常停止。下一步固定GLM transport离线开发中，真实云端资格及全Goal仍未通过、main未动。
