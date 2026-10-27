@@ -646,6 +646,10 @@ Intelligence 优先在本机整理内容。部分内容可直接从原文提取�
 
 ![真实预览流程之后，备份恢复与重启检查通过](../end-to-end-user-readiness/screenshots/cloud-preview-restore-real-zh-20261027.png)
 
+新版隔离候选也已通过本页恢复与自动重启：原有内容、证据、执行和取消历史均保留。备份不包含凭据或模型资格，恢复不会让未通过验收的模型变为可用。
+
+![新版隔离备份恢复与重启检查通过](../end-to-end-user-readiness/screenshots/schema42-restored-real-zh-20261027.png)
+
 ## 16. 常见问题
 
 **Q1：我的数据存在哪里？**

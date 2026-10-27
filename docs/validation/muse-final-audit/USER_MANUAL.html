@@ -428,6 +428,8 @@ a { color: #0e7a4f; }
 <hr/>
 <p>2026-10-27 实测：无密钥预览、关闭、进入设置再返回后，仍能正常创建并保存 ZIP，再通过本页面检查、确认恢复和自动重启。原文、字幕、摘要、证据及取消历史均保持一致，未生成洞察；其他真实未完成工作仍会按原因阻止备份。这个隔离样例不代表云模型质量已通过。</p>
 <figure><img src="../end-to-end-user-readiness/screenshots/cloud-preview-restore-real-zh-20261027.png" alt="真实预览流程之后，备份恢复与重启检查通过"/><figcaption>真实预览流程之后，备份恢复与重启检查通过</figcaption></figure>
+<p>新版隔离候选也已通过本页恢复与自动重启：原有内容、证据、执行和取消历史均保留。备份不包含凭据或模型资格，恢复不会让未通过验收的模型变为可用。</p>
+<figure><img src="../end-to-end-user-readiness/screenshots/schema42-restored-real-zh-20261027.png" alt="新版隔离备份恢复与重启检查通过"/><figcaption>新版隔离备份恢复与重启检查通过</figcaption></figure>
 <h2 id="16-常见问题">16. 常见问题</h2>
 <p><strong>Q1：我的数据存在哪里？</strong></p>
 <p>A：默认保存在你本机的数据目录中（本地优先）。凭据值永远不会被显示。</p>

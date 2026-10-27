@@ -42,3 +42,23 @@
 Root整合后重新运行3个完整前端文件：**189PASS/10.65s**；TypeScript PASS；生产构建52模块/532ms；diff检查PASS。独审最终189PASS/10.45s及TS/build551ms；这些是定向检查，不替代最后完整回归。手册MD/HTML补真实预览/阻断/恢复图示，保留原17章和旧图。
 
 新BigModel Schema42审计候选896/2bf尚被独审退回，未合入Root或正式数据；标量类型/时间已修，但直接claim入口仍在独立修复。免费GLM账号、适配、额度/费用策略、真实质量及保存/主题完整正向链未通过。本地洞察资格仍未开放；旧M12历史资格保留，但本轮缺凭据和费用策略，不可调用。仍需完成这些工作、最终全套回归及安全拓扑/正式数据保护，才能考虑main采用。
+
+
+## 同日后续：已审 Schema42 的真实恢复
+
+在此前 Schema41 界面验收之后，审计链896/2bf/df57已获独立最终ccd66 APPROVE，Root整合到 `523bff80d343949f57159b94e10ed1c4328144e5`。前文“42未接受”是当时历史状态；以下是后续实际结果，不改写原失败与退回记录。
+
+正常启动迁移41→42已核对：仅增加两张空审计表及迁移注册，旧业务数据和19DATA不变。沿用同一隔离公开/合成资料库，在真实macOS有窗口浏览器、实际API和前端完成创建备份→保存链接下载→选择同ZIP→检查预览→输入RESTORE→确认恢复并重启→自动重连。未使用模拟API或绕过Backup判断。
+
+- ZIP为877908字节、21成员，SHA256 `dcfe68c8b89b297261f515e7d3762caf287e3180df070a674925b440f9c9e773`。
+- 全部81张表每行、全部19DATA路径/长度/hash，与创建前逐项完全相同；integrity=ok、FK空。两张新provider审计表仍为空，无本次模型调用或伪造使用量。
+- 恢复结果APPLIED，ID `9bcebd3d8b86415782a4e447816e60b3`，完成时间 `2026-10-27T07:44:59Z`；ready=true、reasons=[]、restore_pending=false，界面“创建备份”重新可用，并明确显示重启数据检查通过。
+- 旧aircAruvnKk的原WAITING_MODEL/count0 checkpoint及独立CANCELLED_BEFORE_MODEL_INVOCATION记录都保留，不能把原checkpoint状态误读为取消复活。旧QoXRfTb7ves的REJECTED_OUTPUT/count1也保留，没有清除真实执行历史。
+- NoCredentials、所有socket出站拒绝、worker未启动仍保持；此项证明存储/界面恢复，不能冒充正常后台模型链或GLM质量/账号/费用验证。正式owner/main未触及。
+- 仅关闭本次自有浏览器与核验过的6178/6179服务；Codex/Jimmm不动。服务正常打印两次ready，证明恢复后运行时自动重建。
+
+原始逐表/逐文件快照、页面状态、API结果、ZIP和截图都保留在同一QA目录；汇总 `schema42-actual-gui-result.json` SHA256 `4f38474a68af5ba47fbab1751e3f05f786cf942d72ed98323452f4a73625316b`。两个误猜的只读状态URL曾返回404，随后读取源码的实际 `/api/v1/backup-restore/status` 验证；首次截图未包含下方成功消息，滚动到实际消息后补拍。错误定位不计作产品通过，也没有重复恢复或修改数据。
+
+![新版隔离备份恢复与重启检查通过](screenshots/schema42-restored-real-zh-20261027.png)
+
+后续仍为固定GLM资格用适配、专属隔离设置、免费政策与真实公开样例；所有模型质量门槛不变，正式采用及最终完整回归尚未完成。
