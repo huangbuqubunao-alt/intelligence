@@ -6,7 +6,9 @@ import hashlib
 import json
 import re
 import secrets
+import socket
 import sqlite3
+import ssl
 import threading
 import time
 import urllib.error
@@ -14,13 +16,14 @@ import urllib.request
 import uuid
 from collections.abc import Callable, Mapping, Sequence
 from contextlib import closing
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from enum import Enum
-from http.client import HTTPException, HTTPSConnection
+from http.client import HTTPException, HTTPResponse, HTTPSConnection
 from typing import Any, Protocol, cast
 
 from youtube_intel.analysis import EnvironmentCredentialResolver
+from youtube_intel.cloud_audit import CLOUD_PROVIDERS, ZHIPU_PAIR
 from youtube_intel.config import LocalScoringSettings, _validate_loopback_http_base_url
 from youtube_intel.domain import Availability, ScoringOutputLanguage
 from youtube_intel.local_distillation_qualification import (
@@ -755,6 +758,7 @@ _SUPPORTED_CLOUD_DISTILLATION_PAIRS = frozenset(
         ("openai", "gpt-4.1"),
         ("moonshot", "kimi-k2.6"),
         ("moonshot", "kimi-k3"),
+        ZHIPU_PAIR,
     }
 )
 
@@ -2287,6 +2291,326 @@ class MoonshotK26NonThinkingCloudDistillationTransport(MoonshotK26CloudDistillat
 
 
 @dataclass(frozen=True, slots=True)
+class _BigModelWireResponse:
+    http_status: int
+    body: bytes = field(repr=False)
+
+
+class _BigModelWireTransport(Protocol):
+    def __call__(self, request: Mapping[str, object], credential: str,
+        timeout_seconds: float, max_retries: int) -> _BigModelWireResponse: ...
+
+
+def _bigmodel_credential_valid(value: object) -> bool:
+    return isinstance(value, str) and 1 <= len(value) <= 4096 and all(
+        33 <= ord(character) <= 126 for character in value)
+
+
+def _bigmodel_request_bytes(request: Mapping[str, object]) -> bytes:
+    try:
+        body = json.dumps({key: value for key, value in request.items()
+            if key not in {"endpoint_identity", "max_retries"}}, ensure_ascii=False,
+            sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+    except (TypeError, ValueError, UnicodeError):
+        raise CloudDistillationPreDispatchError("BigModel request is invalid") from None
+    if len(body) > BigModelGlm47FlashDistillationTransport._MAX_REQUEST_BYTES:
+        raise CloudDistillationPreDispatchError("BigModel input exceeds its UTF-8 bound")
+    return body
+
+
+def _bigmodel_chat_completions_http_transport(request: Mapping[str, object], credential: str,
+    timeout_seconds: float, max_retries: int) -> _BigModelWireResponse:
+    """One fixed TLS POST; absolute deadline, bounded body, no redirect or retry."""
+    profile = BigModelGlm47FlashDistillationTransport
+    expected = profile._wire_parameters()
+    if (set(request) != set(expected) | {"messages"}
+        or any(request.get(key) != value for key, value in expected.items())
+        or type(request.get("stream")) is not bool
+        or timeout_seconds != profile._TIMEOUT_SECONDS or max_retries != 0
+        or not _bigmodel_credential_valid(credential)):
+        raise CloudDistillationPreDispatchError("BigModel transport policy is invalid")
+    body = _bigmodel_request_bytes(request)
+    try:
+        connection = HTTPSConnection("open.bigmodel.cn", timeout=timeout_seconds,
+            context=ssl.create_default_context())
+        connection.auto_open = 0  # Explicit connect only; send must never reconnect.
+    except Exception:
+        raise CloudDistillationPreDispatchError("BigModel transport could not be prepared") from None
+    deadline = time.monotonic() + timeout_seconds
+    expired = threading.Event()
+    wire_socket: socket.socket | None = None
+
+    def expire() -> None:
+        expired.set()
+        # Closing the socket interrupts header/body slow-drip reads as well as
+        # a single stalled read; per-read socket timeouts alone are insufficient.
+        # HTTPResponse can detach a Connection:close socket from its connection;
+        # keep the original TLS socket so the deadline still interrupts its body.
+        sock = wire_socket if wire_socket is not None else connection.sock
+        if sock is not None:
+            try:
+                if isinstance(sock, ssl.SSLSocket):
+                    # getresponse may mark this SSLSocket closed while its
+                    # response makefile still owns the live descriptor. Bypass
+                    # SSL's closed-flag guard to interrupt that descriptor too.
+                    socket.socket.shutdown(sock, socket.SHUT_RDWR)
+                else:
+                    sock.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+        connection.close()
+
+    timer = threading.Timer(timeout_seconds, expire)
+    timer.daemon = True
+    timer.start()
+    response: HTTPResponse | None = None
+    observed_status: int | None = None
+    try:
+        # DNS resolution itself has no portable socket timeout. Bound the caller
+        # with one daemon connector which can only establish TLS, never send HTTP.
+        # If DNS returns after expiry, it closes its connection without a POST.
+        connected = threading.Event()
+        connect_failed = threading.Event()
+
+        def connect() -> None:
+            nonlocal wire_socket
+            try:
+                connection.connect()
+                wire_socket = connection.sock
+            except Exception:
+                connect_failed.set()
+            finally:
+                if expired.is_set() or time.monotonic() >= deadline:
+                    connection.close()
+                connected.set()
+
+        threading.Thread(target=connect, daemon=True).start()
+        if (not connected.wait(max(0.0, deadline - time.monotonic()))
+            or connect_failed.is_set() or expired.is_set() or time.monotonic() >= deadline):
+            raise CloudDistillationPreDispatchError("BigModel TLS connection is unavailable before dispatch")
+        if wire_socket is not None:
+            wire_socket.settimeout(max(0.001, deadline - time.monotonic()))
+        connection.request("POST", "/api/paas/v4/chat/completions", body=body, headers={
+            "Authorization": f"Bearer {credential}", "Content-Type": "application/json",
+            "Accept": "application/json"})
+        response = connection.getresponse()
+        status = response.status
+        if expired.is_set() or time.monotonic() >= deadline:
+            raise AmbiguousCloudDistillationResponseError(http_status=None)
+        if type(status) is not int or not 100 <= status <= 599:
+            raise AmbiguousCloudDistillationResponseError(http_status=None)
+        observed_status = status
+        if status == 202:
+            raise AmbiguousCloudDistillationResponseError(http_status=202)
+        if status != 200:
+            raise KnownCloudDistillationResponseError(http_status=status)
+        chunks = bytearray()
+        while True:
+            remaining = deadline - time.monotonic()
+            if expired.is_set() or remaining <= 0:
+                raise AmbiguousCloudDistillationResponseError(http_status=200)
+            if wire_socket is not None:
+                wire_socket.settimeout(remaining)
+            chunk = response.read1(min(65536, profile._MAX_RESPONSE_BYTES + 1 - len(chunks)))
+            if expired.is_set() or time.monotonic() >= deadline:
+                raise AmbiguousCloudDistillationResponseError(http_status=200)
+            if not isinstance(chunk, bytes):
+                raise KnownCloudDistillationResponseError(http_status=200)
+            chunks.extend(chunk)
+            if len(chunks) > profile._MAX_RESPONSE_BYTES:
+                raise KnownCloudDistillationResponseError(reason="CLOUD_HTTP_RESPONSE_MALFORMED", http_status=200)
+            if not chunk:
+                if getattr(response, "length", None) not in {None, 0}:
+                    raise AmbiguousCloudDistillationResponseError(http_status=200)
+                break
+        return _BigModelWireResponse(200, bytes(chunks))
+    except (CloudDistillationPreDispatchError, KnownCloudDistillationResponseError, AmbiguousCloudDistillationResponseError):
+        raise
+    except Exception:
+        raise AmbiguousCloudDistillationResponseError(http_status=observed_status) from None
+    finally:
+        expired.set()
+        timer.cancel()
+        if response is not None:
+            response.close()
+        connection.close()
+
+
+class BigModelGlm47FlashDistillationTransport:
+    """Exact, qualification-only candidate; no credential/configuration integration."""
+
+    transport_kind = DistillationTransportKind.CLOUD_PRODUCTION
+    is_offline_test_transport = False
+    _PROVIDER, _MODEL = ZHIPU_PAIR
+    _PROMPT_VERSION = "m12-intelligence-admission-v1"
+    _REQUEST_PROFILE_VERSION = "bigmodel-glm-4.7-flash-thinking-json-qualification-v1"
+    _ENDPOINT = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
+    _TIMEOUT_SECONDS = 300.0
+    _MAX_REQUEST_BYTES = 128 * 1024
+    _MAX_RESPONSE_BYTES = 2 * 1024 * 1024
+
+    def __init__(self, *, authorization: CloudDistillationAuthorization,
+        credential_resolver: Callable[[], str],
+        wire_transport: _BigModelWireTransport = _bigmodel_chat_completions_http_transport) -> None:
+        self._authorization = authorization
+        self._credential_resolver = credential_resolver
+        self._wire_transport = wire_transport
+
+    @property
+    def actual_provider(self) -> str:
+        return self._PROVIDER
+
+    @property
+    def actual_model(self) -> str:
+        return self._MODEL
+
+    @property
+    def available(self) -> bool:
+        return self._authorization.provider_available
+
+    @classmethod
+    def _wire_parameters(cls) -> dict[str, object]:
+        return {"endpoint_identity": cls._ENDPOINT, "model": cls._MODEL, "stream": False,
+            "thinking": {"type": "enabled"}, "max_tokens": 16384, "temperature": 1.0,
+            "response_format": {"type": "json_object"}, "max_retries": 0}
+
+    @classmethod
+    def profile_projection(cls) -> dict[str, object]:
+        return {**cls._wire_parameters(), "request_profile_version": cls._REQUEST_PROFILE_VERSION,
+            "prompt_version": cls._PROMPT_VERSION, "timeout_seconds": cls._TIMEOUT_SECONDS,
+            "max_request_bytes": cls._MAX_REQUEST_BYTES, "max_response_bytes": cls._MAX_RESPONSE_BYTES}
+
+    @classmethod
+    def _request(cls, value: VerifiedDistillationInput) -> dict[str, object]:
+        if (not _cloud_source_allowed(value) or (value.selected_provider, value.selected_model) != ZHIPU_PAIR
+            or not value.evidence or value.output_language not in {"en", "zh-CN"}):
+            raise CloudDistillationPreDispatchError("BigModel public input identity is invalid")
+        # Official API accepts system messages. Preserve both original system
+        # messages and their exact order/text; no provider-specific prompt rewrite.
+        request = {**cls._wire_parameters(), "messages": _distillation_prompt_messages(value, task_role="system")}
+        _bigmodel_request_bytes(request)
+        return request
+
+    def is_authorized_for(self, value: VerifiedDistillationInput) -> bool:
+        return self.is_authorized_for_qualification(value)
+
+    def is_authorized_for_qualification(self, value: VerifiedDistillationInput) -> bool:
+        return (_cloud_source_allowed(value) and bool(value.evidence)
+            and (self._authorization.provider, self._authorization.model) == ZHIPU_PAIR
+            and type(self._authorization.qualification_max_calls) is int
+            and self._authorization.qualification_max_calls == 1
+            and not self._authorization.production_eligible
+            and self._authorization.permits(value))
+
+    def is_authorized_for_normal_production(self, value: VerifiedDistillationInput) -> bool:
+        return False  # Audit membership and old-provider qualification grant nothing.
+
+    def preflight_available(self) -> bool:
+        try:
+            return _bigmodel_credential_valid(self._credential_resolver())
+        except Exception:
+            return False
+
+    def generate(self, value: VerifiedDistillationInput) -> DistillationTransportResult:
+        if not self.is_authorized_for_qualification(value):
+            raise CloudDistillationPreDispatchError("BigModel qualification is not authorized")
+        request = self._request(value)
+        try:
+            credential = self._credential_resolver()
+        except Exception:
+            raise CloudDistillationPreDispatchError("BigModel credential is unavailable") from None
+        if not _bigmodel_credential_valid(credential):
+            raise CloudDistillationPreDispatchError("BigModel credential is unavailable")
+        started = time.monotonic()
+        try:
+            response = self._wire_transport(request, credential, self._TIMEOUT_SECONDS, 0)
+        except (CloudDistillationPreDispatchError, KnownCloudDistillationResponseError, AmbiguousCloudDistillationResponseError):
+            raise
+        except Exception:
+            raise AmbiguousCloudDistillationResponseError(http_status=None) from None
+        finally:
+            credential = ""
+        return self._decode(response, max(0, int((time.monotonic() - started) * 1000)))
+
+    @classmethod
+    def _decode(cls, response: _BigModelWireResponse, duration_ms: int) -> DistillationTransportResult:
+        if (not isinstance(response, _BigModelWireResponse) or type(response.http_status) is not int
+            or not 100 <= response.http_status <= 599):
+            raise AmbiguousCloudDistillationResponseError(http_status=None)
+        status = response.http_status
+        if status == 202:
+            raise AmbiguousCloudDistillationResponseError(http_status=202)
+        if status != 200:
+            raise KnownCloudDistillationResponseError(http_status=status)
+        observed = None
+        reason = "CLOUD_HTTP_RESPONSE_MALFORMED"
+        try:
+            if not isinstance(response.body, bytes) or len(response.body) > cls._MAX_RESPONSE_BYTES:
+                raise ValueError
+            data = json.loads(response.body.decode("utf-8"), object_pairs_hook=_strict_text_object)
+            if not isinstance(data, dict):
+                raise ValueError
+            model = data.get("model")
+            if model is None or model == "":
+                reason = "HTTP_RESPONSE_MODEL_IDENTITY_UNKNOWN"
+                raise ValueError
+            if model != cls._MODEL:
+                reason = "HTTP_RESPONSE_MODEL_IDENTITY_INVALID"
+                raise ValueError
+            usage = data.get("usage")
+            metrics: dict[str, int | None] = {}
+            if usage is not None:
+                if not isinstance(usage, dict):
+                    raise ValueError
+                for name in ("prompt_tokens", "completion_tokens", "total_tokens"):
+                    metric = usage.get(name)
+                    if name in usage and (type(metric) is not int or not 0 <= metric <= 2**63 - 1):
+                        raise ValueError
+                    metrics[name] = metric
+                details = usage.get("prompt_tokens_details")
+                if details is not None:
+                    if not isinstance(details, dict):
+                        raise ValueError
+                    cached = details.get("cached_tokens")
+                    prompt_count = metrics.get("prompt_tokens")
+                    if "cached_tokens" in details and (type(cached) is not int or cached < 0
+                        or (prompt_count is not None and cached > prompt_count)):
+                        raise ValueError
+                prompt, completion, total = (metrics.get(key) for key in ("prompt_tokens", "completion_tokens", "total_tokens"))
+                if prompt is not None and completion is not None and total is not None and prompt + completion != total:
+                    raise ValueError
+            observed = DistillationTransportResult("", cls._PROVIDER, cls._MODEL,
+                metrics.get("prompt_tokens"), metrics.get("completion_tokens"), None, duration_ms, 200)
+            choices = data.get("choices")
+            if not isinstance(choices, list) or len(choices) != 1 or not isinstance(choices[0], dict):
+                raise ValueError
+            choice = choices[0]
+            if type(choice.get("index")) is not int or choice["index"] != 0:
+                raise ValueError
+            if choice.get("finish_reason") == "length":
+                reason = "CLOUD_OUTPUT_TRUNCATED"
+                raise ValueError
+            if choice.get("finish_reason") != "stop":
+                reason = "CLOUD_HTTP_RESPONSE_INVALID"
+                raise ValueError
+            message = choice.get("message")
+            if (not isinstance(message, dict) or message.get("role") != "assistant"
+                or any(message.get(key) for key in ("tool_calls", "function_call", "audio", "image", "video"))
+                or any(data.get(key) for key in ("web_search", "video_result"))):
+                raise ValueError
+            content = message.get("content")
+            if not isinstance(content, str) or not content.strip():
+                reason = "CLOUD_FINAL_CONTENT_MISSING"
+                raise ValueError
+            if not isinstance(json.loads(content, object_pairs_hook=_strict_text_object), dict):
+                raise ValueError
+            # Deliberately never project reasoning_content or arbitrary metadata.
+            return replace(observed, raw=content)
+        except (ValueError, TypeError, UnicodeError, RecursionError):
+            raise KnownCloudDistillationResponseError(observed, reason=reason, http_status=200) from None
+
+
+@dataclass(frozen=True, slots=True)
 class DistillationResult:
     execution_id: str
     status: DistillationExecutionStatus
@@ -3229,7 +3553,7 @@ class PersonalizedDistillationService:
         self, *, source_id: str, video_id: str, evidence_ids: tuple[str, ...],
         manual_command_id: str | None = None,
     ) -> tuple[DistillationCommand, VerifiedDistillationInput]:
-        if self._selected_provider not in {_NVIDIA_NIM_PROVIDER, _M12_OPENAI_PROVIDER, _MOONSHOT_K26_PROVIDER}:
+        if self._selected_provider not in CLOUD_PROVIDERS:
             raise ValueError("cloud review is unavailable for this transport")
         video = self._repository.get_video(video_id)
         if video is None or video.provider != "YOUTUBE":
@@ -3257,7 +3581,8 @@ class PersonalizedDistillationService:
         # The fixed adapters' builders are pure. Validate provider-specific wire
         # constraints (including output language) before persisting any consent.
         if isinstance(self._transport, (OpenAICloudDistillationTransport,
-            NvidiaNimCloudDistillationTransport, MoonshotK26CloudDistillationTransport)):
+            NvidiaNimCloudDistillationTransport, MoonshotK26CloudDistillationTransport,
+            BigModelGlm47FlashDistillationTransport)):
             try:
                 return self._transport._request(value)
             except CloudDistillationPreDispatchError:
@@ -3355,11 +3680,7 @@ class PersonalizedDistillationService:
         self, execution_id: str, *, consent_kind: str = "USER_CONFIRMATION"
     ) -> str:
         """Persist one affirmative authorization bound to the verified input."""
-        if self._selected_provider not in {
-            _NVIDIA_NIM_PROVIDER,
-            _M12_OPENAI_PROVIDER,
-            _MOONSHOT_K26_PROVIDER,
-        }:
+        if self._selected_provider not in CLOUD_PROVIDERS:
             raise ValueError("cloud authorization is unavailable for this transport")
         if consent_kind not in {"USER_CONFIRMATION", "OWNER_QUALIFICATION"}:
             raise ValueError("cloud consent kind is invalid")
@@ -3379,11 +3700,7 @@ class PersonalizedDistillationService:
         return authorization.authorization_id
 
     def review_reserved_cloud_execution(self, execution_id: str) -> dict[str, object]:
-        if self._selected_provider not in {
-            _NVIDIA_NIM_PROVIDER,
-            _M12_OPENAI_PROVIDER,
-            _MOONSHOT_K26_PROVIDER,
-        }:
+        if self._selected_provider not in CLOUD_PROVIDERS:
             raise ValueError("cloud review is unavailable for this transport")
         record = self._repository.get_distillation_execution(execution_id)
         if record is None or record.status != "PENDING" or record.invocation_count != 0:
@@ -3404,11 +3721,7 @@ class PersonalizedDistillationService:
     def _cloud_consent_matches(
         self, execution_id: str, verified_input: VerifiedDistillationInput, *, consent_kind: str
     ) -> bool:
-        if self._selected_provider not in {
-            _NVIDIA_NIM_PROVIDER,
-            _M12_OPENAI_PROVIDER,
-            _MOONSHOT_K26_PROVIDER,
-        }:
+        if self._selected_provider not in CLOUD_PROVIDERS:
             return True
         consent = self._repository.get_cloud_execution_authorization(
             execution_id
@@ -3498,6 +3811,12 @@ class PersonalizedDistillationService:
                     == (_MOONSHOT_K26_PROVIDER, _MOONSHOT_K26_MODEL)
                     else {}
                 ),
+                **(
+                    {"cloud_prompt_version": BigModelGlm47FlashDistillationTransport._PROMPT_VERSION,
+                     "cloud_request_profile_version": cloud_request_profile_version
+                        or BigModelGlm47FlashDistillationTransport._REQUEST_PROFILE_VERSION}
+                    if (selected_provider, selected_model) == ZHIPU_PAIR else {}
+                ),
                 "reason": reason or PersonalizedDistillationService._RESERVATION_REASON,
                 "selected_model": selected_model,
                 "selected_provider": selected_provider,
@@ -3584,7 +3903,7 @@ class PersonalizedDistillationService:
                     reason=reason,
                     cloud_request_profile_version=(
                         getattr(self._transport, "_REQUEST_PROFILE_VERSION", None)
-                        if self._selected_provider == _MOONSHOT_K26_PROVIDER
+                        if self._selected_provider in {_MOONSHOT_K26_PROVIDER, ZHIPU_PAIR[0]}
                         else None
                     ),
                 ),
@@ -3642,7 +3961,7 @@ class PersonalizedDistillationService:
             return DistillationReservation(execution_id=execution_id, source_id=source_id, video_id=video_id)
         video = self._repository.get_video(video_id)
         if video is not None and video.provider == "LOCAL" and (
-            self._selected_provider in {_NVIDIA_NIM_PROVIDER, _M12_OPENAI_PROVIDER, _MOONSHOT_K26_PROVIDER}
+            self._selected_provider in CLOUD_PROVIDERS
             or getattr(self._transport, "transport_kind", None) is DistillationTransportKind.CLOUD_PRODUCTION
         ):
             raise ValueError("Cloud Intelligence does not accept local Content")
@@ -3932,7 +4251,7 @@ class PersonalizedDistillationService:
         """
         video = self._repository.get_video(projection.video_id)
         if video is not None and video.provider == "LOCAL":
-            if (self._selected_provider in {_NVIDIA_NIM_PROVIDER, _M12_OPENAI_PROVIDER, _MOONSHOT_K26_PROVIDER}
+            if (self._selected_provider in CLOUD_PROVIDERS
                 or getattr(self._transport, "transport_kind", None) is DistillationTransportKind.CLOUD_PRODUCTION):
                 raise ValueError("Cloud Intelligence does not accept local Content")
             if re.fullmatch(r"MANUAL_CONTENT:[A-Za-z0-9._:-]{1,80}", projection.reason) is None:
@@ -3991,6 +4310,10 @@ class PersonalizedDistillationService:
             "video_id": projection.video_id,
             "video_title": video.title,
         }
+        if (projection.selected_provider, projection.selected_model) == ZHIPU_PAIR:
+            # New candidate only: bind every frozen wire parameter/bound to the
+            # verified input and hence to immutable consent. Old hashes stay exact.
+            semantic_payload["cloud_request_profile"] = BigModelGlm47FlashDistillationTransport.profile_projection()
         local_context = None
         wire_version = None
         input_json = None
@@ -4180,7 +4503,7 @@ class PersonalizedDistillationService:
             response.actual_provider != projection.selected_provider
             or response.actual_model != projection.selected_model
         ):
-            if projection.selected_provider in {"nvidia_nim", "openai", "moonshot"}:
+            if projection.selected_provider in CLOUD_PROVIDERS:
                 record = self._repository.finish_distillation_cloud_response_failure(
                     execution_id=projection.execution_id,
                     budget_state=decision.state,
@@ -4408,8 +4731,13 @@ class PersonalizedDistillationService:
                 outcome="BUDGET_BLOCKED_BEFORE_TRANSPORT",
                 invocation_count=0,
             )
+        permitted = self._transport_permits(verified_input, normal_production=not qualification)
+        if (self._selected_provider == ZHIPU_PAIR[0] and permitted
+            and not self._cloud_consent_matches(projection.execution_id, verified_input,
+                consent_kind="OWNER_QUALIFICATION" if qualification else "USER_CONFIRMATION")):
+            raise CloudConsentRequiredError("explicit cloud authorization is missing or stale")
         if (
-            not self._transport_permits(verified_input, normal_production=not qualification)
+            not permitted
             or not self._model_ready(projection, verified_input, qualification=qualification)
         ):
             return self._finish_or_recover(
@@ -4839,7 +5167,11 @@ class PersonalizedDistillationService:
                 invocation_count=0,
             )
         if (
-            not self._transport_permits(verified_input)
+            # This new candidate has exactly one qualification entry: the
+            # reserved owner-consent path. The generic source-run path is normal
+            # production and cannot borrow its qualification permit.
+            not self._transport_permits(verified_input,
+                normal_production=self._selected_provider == ZHIPU_PAIR[0])
             or not self._model_ready(projection, verified_input, qualification=True)
         ):
             return self._finish(
