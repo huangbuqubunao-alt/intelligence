@@ -46,7 +46,9 @@ from youtube_intel.local_model_capacity import (
     guarded_transport,
 )
 from youtube_intel.model_settings import (
+    BigModelCredentialSettings,
     CredentialStore,
+    MacOSBigModelCredentialStore,
     MacOSKeychainCredentialStore,
     ModelSettingsService,
     local_models,
@@ -485,6 +487,7 @@ def build_local_source_run_runtime(
     database: Path,
     dependencies: RuntimeDependencies | None = None,
     credential_store: CredentialStore | None = None,
+    bigmodel_credential_store: CredentialStore | None = None,
     now: Callable[[], datetime] | None = None,
 ) -> LocalSourceRunRuntime:
     """Compose the GUI, scheduler, ingestion, and worker onto one durable authority."""
@@ -660,6 +663,8 @@ def build_local_source_run_runtime(
         cloud_intelligence_qualified=m12_moonshot_qualified,
         cloud_credential_available=bool(model_settings.credential()),
         model_settings=model_settings,
+        bigmodel_settings=BigModelCredentialSettings(
+            bigmodel_credential_store if bigmodel_credential_store is not None else MacOSBigModelCredentialStore()),
         local_intelligence_settings=machine_settings,
         refresh_cloud_distillation=cloud_service,
         processing_orchestrator=orchestrator,

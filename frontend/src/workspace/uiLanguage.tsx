@@ -4,6 +4,25 @@ export type UiLanguage = "zh-CN" | "en";
 
 const storageKey = "yia.ui-language";
 const chinese: Record<string, string> = {
+  "BigModel GLM-4.7-Flash candidate setup": "智谱 GLM-4.7-Flash 候选设置",
+  "Optional cloud Intelligence candidate": "可选云端洞察候选",
+  "Quality not verified · Execution closed": "质量未验证 · 执行未开放",
+  "The official price currently lists this exact model as free. Account entitlement, limits, connectivity, quality and actual billing are unverified. Prices may change. No paid model fallback is enabled.": "官方当前将此精确型号标为免费；账号权益、额度、连接、质量与实际账单尚未验证，价格可能变化。不会自动切换付费模型。",
+  "Cloud requests would send selected text to BigModel. Its privacy policy allows necessary retention and anonymized service improvement. Saving a key uploads no Content and authorizes no request.": "云端请求会向智谱发送所选文字。其隐私政策允许必要保留与匿名化服务改进。保存密钥不会上传内容，也不授权执行请求。",
+  "BigModel official account and API keys": "智谱官方账号与 API 密钥",
+  "BigModel privacy policy": "智谱隐私政策",
+  "Reading BigModel key status…": "正在读取智谱密钥状态…",
+  "BigModel API key": "智谱 API 密钥",
+  "Save BigModel key securely": "安全保存智谱密钥",
+  "Confirm BigModel key deletion": "确认删除智谱密钥",
+  "Delete BigModel key": "删除智谱密钥",
+  "Read BigModel key status": "读取智谱密钥状态",
+  "BigModel key settings could not be verified. Read the status before retrying; check macOS Keychain access. No model request was sent.": "无法确认智谱密钥设置。请先读取状态再重试，并检查 macOS 钥匙串访问权限。未发送模型请求。",
+  "BigModel key saved. No model was run; quality and account eligibility remain unverified.": "智谱密钥已保存，未运行模型；质量与账号权益仍未验证。",
+  "BigModel key deleted. Other providers and existing Content are unchanged.": "智谱密钥已删除，其他服务商和现有内容保持不变。",
+  "This credential is separate from Moonshot. It does not change local transcription, Summary or model qualification. Keys are excluded from backups.": "此密钥与 Moonshot 独立，不改变本地转写、摘要或模型资格。备份不包含密钥。",
+  "Explore optional cloud Intelligence setup": "了解可选云端洞察设置",
+
   "Local Intelligence model setup": "本地洞察模型设置",
   "This selection is only for Intelligence. It does not change the local model used for scoring and Summary.": "此选择仅用于洞察，不会改变评分和摘要使用的本地模型。",
   "Actual Intelligence route": "当前洞察模型",

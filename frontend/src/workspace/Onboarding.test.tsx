@@ -25,3 +25,15 @@ test.each(["en", "zh-CN"])("onboarding offers truthful multiple sources and skip
   fireEvent.click(screen.getByRole("button", { name: language === "en" ? "Add something" : "添加内容" }));
   expect(add).toHaveBeenCalledOnce();
 });
+
+
+test("first-run cloud setup can be opened without completing import or invoking a model", () => {
+  localStorage.setItem("yia.ui-language", "en");
+  const skip = vi.fn();
+  render(<UiLanguageProvider><FirstRunOnboarding onSkip={skip} onAddFollowing={vi.fn()} /></UiLanguageProvider>);
+  fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+  const setup = screen.getByRole("link", { name: "Explore optional cloud Intelligence setup" });
+  expect(setup.getAttribute("href")).toBe("#Settings/models/bigmodel");
+  fireEvent.click(setup);
+  expect(skip).toHaveBeenCalledOnce();
+});

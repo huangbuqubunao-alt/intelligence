@@ -35,6 +35,7 @@ export function FirstRunOnboarding({ onAddFollowing, onSkip }: {
         <p>{t("Content can be organized without cloud Intelligence. Some videos have no available captions.")}</p>
         <p>{t("Use local capability first. Never make a paid cloud call unless you explicitly opt in.")}</p>
         <p>{t("Importing a video saves the file. Transcript, Summary and Evidence require usable source text. You can also import an existing TXT or MD transcript; no cloud service is used for local transcription.")}</p>
+        <a className="button button-secondary" href="#Settings/models/bigmodel" onClick={onSkip}>{t("Explore optional cloud Intelligence setup")}</a>
         <a className="button button-secondary" href="#Settings/transcription" onClick={onSkip}>{t("Set up local transcription")}</a>
       </div>}
       {step === 2 && <>

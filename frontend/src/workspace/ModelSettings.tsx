@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { BigModelSettings } from "./BigModelSettings";
 import { api, post, put } from "../api/client";
 import { useUiLanguage } from "./uiLanguage";
 
@@ -26,6 +27,11 @@ export function ModelSettings({ credential, preference, onSaved, message, setMes
     } catch { setModels([]); setReachable(false); }
   };
   useEffect(() => { void scan(); }, []);
+  useEffect(() => {
+    const clear = () => { setKey(""); setConfirmed(false); };
+    window.addEventListener("hashchange", clear);
+    return () => window.removeEventListener("hashchange", clear);
+  }, []);
   const run = async (action: "candidate" | "save" | "delete") => {
     setBusy(true); setMessage("");
     try {
@@ -65,6 +71,7 @@ export function ModelSettings({ credential, preference, onSaved, message, setMes
     </div>
     <p className="hint">{t("This preference changes neither the configured Scoring/Summary model nor reviewed Deep Analysis qualification.")}</p>
     </details>
+    <BigModelSettings onSelected={() => { setKey(""); setConfirmed(false); }} />
     <h3>{t("Cloud Intelligence credential")}</h3>
     <p>Moonshot / kimi-k2.6 · {t("Video Distillation only")}</p>
     <p>{t(credential?.source === "KEYCHAIN" ? "Configured in macOS Keychain" : credential?.source === "ENVIRONMENT" ? "Using development environment variable" : credential?.source === "UNAVAILABLE" ? "System credential store is unavailable." : "Not configured")}</p>

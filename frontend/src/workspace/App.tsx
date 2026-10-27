@@ -10,6 +10,7 @@ import { TranscriptionSetup } from "./TranscriptionSetup";
 import { LocalIntelligenceSetup } from "./LocalIntelligenceSetup";
 import { ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { ApiRequestError, api, patch, post, put, uploadZip } from "../api/client";
+import { bigModelSettingsHref } from "./BigModelSettings";
 import { ModelSettings } from "./ModelSettings";
 import { Logo } from "./Logo";
 import { FirstRunOnboarding, completeOnboarding, onboardingCompleted } from "./Onboarding";
@@ -428,6 +429,7 @@ function initialEvidenceTarget(): string | null {
 
 function initialPage(): Page {
   const raw = location.hash.slice(1);
+  if (/^Settings\/models\/bigmodel(?:\?return=[^#]+)?$/.test(raw)) return "Settings";
   if (/^Settings\/transcription(?:\/[^/]+)?$/.test(raw)) return "Settings";
   if (raw.startsWith("Content/")) return "Content";
   if (/^Research(?:\/[a-f0-9]{64}(?:\/history\/[a-f0-9]{64}|\/diff\/[a-f0-9]{64}\/[a-f0-9]{64})?)?$/.test(raw)) return "Research";
@@ -1842,7 +1844,7 @@ function CloudIntelligencePreview({ id, manual, onSettled }: { id: string; manua
       <p>{t("Preparing a review does not create a task. Confirming authorizes exactly one request for the reviewed Evidence and task context.")}</p>
       <div className="button-row"><button type="button" className="button button-secondary" disabled={busy} onClick={() => void prepare()}>{t(busy ? "Working…" : "Prepare one request for review")}</button>
         <button type="button" className="button button-ghost" onClick={clear}>{t("Dismiss cloud review")}</button>
-        <a className="button button-ghost" href="#Settings">{t("Open model settings")}</a></div>
+        <a className="button button-ghost" href={bigModelSettingsHref()}>{t("Open model settings")}</a></div>
       {review && <div>
         <p>{t("Provider/model")}: {review.provider} · {review.model}</p>
         <p>{t("Source")}: {review.source_id} · {t("Output language")}: {review.output_language} · {t("Maximum output tokens")}: {review.outputLimit ?? t("Unavailable")}</p>

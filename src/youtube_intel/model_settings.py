@@ -100,6 +100,42 @@ class MacOSKeychainCredentialStore:
             core.CFRelease(item)
 
 
+class MacOSBigModelCredentialStore(MacOSKeychainCredentialStore):
+    """Fixed candidate namespace, independent of historical Moonshot credentials."""
+
+    _service = b"com.huangbuqubunao.intelligence.zhipu-bigmodel"
+
+
+class MacOSBigModelQACredentialStore(MacOSBigModelCredentialStore):
+    """Trusted-code-only isolated QA namespace; never selectable by HTTP input."""
+
+    _service = b"com.huangbuqubunao.intelligence.qa.zhipu-bigmodel"
+
+
+class BigModelCredentialSettings:
+    """Configuration only: no environment fallback, dispatch or qualification."""
+
+    def __init__(self, store: CredentialStore) -> None:
+        self._store = store
+
+    def status(self) -> dict[str, object]:
+        try:
+            source = "KEYCHAIN" if self._store.get() else "NONE"
+        except CredentialStoreError:
+            source = "UNAVAILABLE"
+        return {"provider": "zhipu_bigmodel", "model": "glm-4.7-flash",
+            "configured": source == "KEYCHAIN", "source": source,
+            "qualification": "NOT_VERIFIED", "budget": "CLOSED"}
+
+    def save(self, secret: str) -> None:
+        if not secret or len(secret) > 2048 or any(ord(c) < 33 or ord(c) == 127 for c in secret):
+            raise ValueError("Credential is invalid")
+        self._store.save(secret)
+
+    def delete(self) -> None:
+        self._store.delete()
+
+
 def local_models(base_url: str = "http://127.0.0.1:11434") -> object:
     return _local_metadata(base_url, "/api/tags")
 

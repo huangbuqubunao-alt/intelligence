@@ -71,7 +71,11 @@ from youtube_intel.local_intelligence_settings import (
     SettingsRejected,
 )
 from youtube_intel.local_transcription_jobs import LocalTranscriptionJobs
-from youtube_intel.model_settings import CredentialStoreError, ModelSettingsService
+from youtube_intel.model_settings import (
+    BigModelCredentialSettings,
+    CredentialStoreError,
+    ModelSettingsService,
+)
 from youtube_intel.native_import import NativeImportService, macos_pick
 from youtube_intel.offline_transcription import OfflineError
 from youtube_intel.orchestration import (
@@ -548,6 +552,7 @@ class LocalApiApplication:
         cloud_intelligence_qualified: bool = False,
         cloud_credential_available: bool = False,
         model_settings: ModelSettingsService | None = None,
+        bigmodel_settings: BigModelCredentialSettings | None = None,
         refresh_cloud_distillation: Callable[[], PersonalizedDistillationService] | None = None,
         processing_orchestrator: DurableProcessingOrchestrator | None = None,
         data_root: Path | None = None,
@@ -585,6 +590,7 @@ class LocalApiApplication:
         self._cloud_intelligence_qualified = cloud_intelligence_qualified
         self._cloud_credential_available = cloud_credential_available
         self._model_settings = model_settings
+        self._bigmodel_settings = bigmodel_settings
         self._local_intelligence_settings = local_intelligence_settings
         self._runtime_model = runtime_model
         self._runtime_model_digest = runtime_model_digest
@@ -1011,6 +1017,32 @@ class LocalApiApplication:
                 }
             if method == "GET" and route == "/api/v1/saved-intelligence":
                 return HTTPStatus.OK, self._saved_list(path)
+            if route in {"/api/v1/settings/bigmodel-credential", "/api/v1/settings/bigmodel-credential/delete"}:
+                if urlparse(path).query:
+                    raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY, "VALIDATION_ERROR", "Request contains unsupported fields.")
+                data = self._body(body)
+                secret = ""
+                if method == "GET" and route == "/api/v1/settings/bigmodel-credential":
+                    self._only_keys(data, set())
+                elif method == "PUT" and route == "/api/v1/settings/bigmodel-credential":
+                    self._only_keys(data, {"credential"})
+                    raw_secret = data.get("credential")
+                    if not isinstance(raw_secret, str) or not raw_secret or len(raw_secret) > 2048 or any(ord(c) < 33 or ord(c) == 127 for c in raw_secret):
+                        raise ValueError("Credential is invalid")
+                    secret = raw_secret
+                elif method == "POST" and route.endswith("/delete"):
+                    self._only_keys(data, {"confirm"})
+                    if data.get("confirm") != "DELETE":
+                        raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY, "CONFIRMATION_REQUIRED", "Confirm credential deletion explicitly.")
+                else:
+                    raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+                if self._bigmodel_settings is None:
+                    raise ApiError(HTTPStatus.CONFLICT, "CREDENTIAL_STORE_UNAVAILABLE", "System credential store is unavailable.")
+                if method == "PUT":
+                    self._bigmodel_settings.save(secret)
+                elif method == "POST":
+                    self._bigmodel_settings.delete()
+                return HTTPStatus.OK, self._bigmodel_settings.status()
             if method == "GET":
                 return HTTPStatus.OK, self._get(route)
             # Local provider capability is explicit: source material never

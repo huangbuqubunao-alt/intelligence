@@ -1285,3 +1285,54 @@ def test_native_capture_backup_restore_preserves_every_table_and_every_data_file
     assert restored.get_verified_timed_transcript(video_id=VIDEO_ID) is not None
     assert restored.current_local_summary_pointer(VIDEO_ID) is not None
     assert service.readiness()["ready"]
+
+
+def test_bigmodel_credential_di_is_configuration_only_and_independent(tmp_path, monkeypatch):
+    from youtube_intel.model_settings import CredentialStoreError
+
+    class FakeStore:
+        def __init__(self):
+            self.secret = None
+            self.calls = []
+        def get(self):
+            self.calls.append("get")
+            return self.secret
+        def save(self, secret):
+            self.calls.append("save")
+            self.secret = secret
+        def delete(self):
+            self.calls.append("delete")
+            self.secret = None
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("No native Keychain or model dispatch in configuration QA")
+
+    old, candidate = FakeStore(), FakeStore()
+    monkeypatch.setenv("MOONSHOT_API_KEY", "synthetic-old-config-only")
+    monkeypatch.setattr("youtube_intel.model_settings.MacOSBigModelCredentialStore._libraries", forbidden)
+    monkeypatch.setattr("youtube_intel.runtime_composition.local_models", lambda *args: {"models": []})
+    monkeypatch.setattr("youtube_intel.runtime_composition.local_runtime_version", lambda *args: {})
+    project = _project(tmp_path)
+    config = load_app_config(project / "config/channels.yaml", project / "config/settings.yaml")
+    runtime = build_local_source_run_runtime(config=config, project_root=project,
+        database=project / "isolated-settings.sqlite3", credential_store=old,
+        bigmodel_credential_store=candidate, now=lambda: NOW)
+    old_before = list(old.calls)
+    cloud_before = runtime.application._cloud_distillation_service
+    old_available = runtime.application._cloud_credential_available
+    path = "/api/v1/settings/bigmodel-credential"
+    _, result = runtime.application.handle("PUT", path, b'{"credential":"synthetic-bigmodel-di"}')
+    assert result["configured"] is True
+    assert result["qualification"] == "NOT_VERIFIED" and result["budget"] == "CLOSED"
+    assert candidate.calls == ["save", "get"]
+    assert old.calls == old_before and old.secret is None
+    assert runtime.application._cloud_distillation_service is cloud_before
+    assert runtime.application._cloud_credential_available == old_available
+    runtime.application.handle("POST", path + "/delete", b'{"confirm":"DELETE"}')
+    assert candidate.secret is None and old.calls == old_before
+    # A later native outage cannot change the legacy provider's availability.
+    def unavailable():
+        raise CredentialStoreError()
+    candidate.get = unavailable
+    assert runtime.application.handle("GET", path)[1]["source"] == "UNAVAILABLE"
+    assert runtime.application._cloud_credential_available == old_available

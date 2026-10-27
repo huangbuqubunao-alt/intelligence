@@ -66,7 +66,7 @@ it.each(["en", "zh-CN"])("opens a keyless read-only review with actual bounded d
   expect(screen.getByText(/My fixture interest/, { selector: "p" })).toBeTruthy();
   expect(screen.getByText(/Fixture focus/, { selector: "p" })).toBeTruthy();
   expect(screen.getByText(/8192/, { selector: "p" })).toBeTruthy();
-  expect(within(screen.getByRole("region", { name: language === "en" ? "Cloud Intelligence disclosure" : "云端洞察数据与费用说明" })).getByRole("link", { name: language === "en" ? "Open model settings" : "打开模型设置" }).getAttribute("href")).toBe("#Settings");
+  expect(within(screen.getByRole("region", { name: language === "en" ? "Cloud Intelligence disclosure" : "云端洞察数据与费用说明" })).getByRole("link", { name: language === "en" ? "Open model settings" : "打开模型设置" }).getAttribute("href")).toBe("#Settings/models/bigmodel?return=%23Content%2Fcloud-content");
   expect((screen.getByRole("button", { name: language === "en" ? "Authorize this one cloud execution" : "授权本次云端执行" }) as HTMLButtonElement).disabled).toBe(true);
   expect(document.body.textContent).not.toMatch(/¥6\.50|Moonshot API usage/);
   expect(requests.filter(path => /credential|cloud-intelligence\/confirm/.test(path))).toEqual([]);

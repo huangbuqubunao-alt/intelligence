@@ -3220,3 +3220,19 @@ test("cloud Intelligence confirms the preview ticket while keeping the input has
     execution_id: "read-only-preview", review_hash: "b".repeat(64), authorize: true,
   }]));
 });
+
+
+test("BigModel settings deep link opens the exact candidate and returns to Content Evidence", async () => {
+  const defaultFetch = globalThis.fetch;
+  vi.stubGlobal("fetch", vi.fn((path: string, init?: RequestInit) => {
+    if (path.endsWith("/settings/bigmodel-credential")) return response({ provider: "zhipu_bigmodel", model: "glm-4.7-flash", configured: false, source: "NONE", qualification: "NOT_VERIFIED", budget: "CLOSED" });
+    return defaultFetch(path, init);
+  }));
+  location.hash = "#Settings/models/bigmodel?return=%23Content%2Fvideo-1%2FEvidence%2Fevidence-1";
+  render(<App />);
+  await screen.findByText("Not configured");
+  await waitFor(() => expect(document.activeElement?.id).toBe("bigmodel-settings"));
+  expect(document.getElementById("bigmodel-settings")?.getAttribute("open")).not.toBeNull();
+  expect(screen.getByRole("link", { name: "Back to Content" }).getAttribute("href")).toBe("#Content/video-1/Evidence/evidence-1");
+  expect(screen.getAllByRole("navigation")[0].querySelectorAll("button")).toHaveLength(6);
+});
