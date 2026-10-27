@@ -1,6 +1,6 @@
 # TASK-READINESS-BIGMODEL-TRANSPORT
 
-Status READY after Root assigns the exact accepted base/new worktree. Dependencies: complete audit chain896+2bf+df57 independently APPROVEccd66, Root integrated649ec42/246a48d/f716511 and reports, source-equal; Root146 state/Backup tests PASS and actual isolated normal startup41→42 preserves all old domain rows and19DATA, adds only two empty audit tables. This task is the next small adapter slice, not credentials/UI or real qualification.
+Status IN_REVIEW: fixed clean author a7a9d710816c316e5719f9fcf5ed8da0b9b80e57 against523bff8, independent review required; no Root product integration yet. Dependencies: complete audit chain896+2bf+df57 independently APPROVEccd66, Root integrated649ec42/246a48d/f716511 and reports, source-equal; Root146 state/Backup tests PASS and actual isolated normal startup41→42 preserves all old domain rows and19DATA, adds only two empty audit tables. This task is the next small adapter slice, not credentials/UI or real qualification.
 
 Sole implementer, own handoff, no subagents. Read AGENTS/COLLABORATION/current top status/PRD/SYSTEM_DESIGN/V1_PRODUCT_SPEC/reuse and three-path amendment, FREE_CLOUD_PREFLIGHT_2026_10_26.md, BIGMODEL audit plan/reports and current approved claim-path inventory. Use graph discovery; current source/AST fallback when graph is stale. User standing approval covers necessary task code/methods; no per-file approval loop.
 

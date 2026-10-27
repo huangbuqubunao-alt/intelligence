@@ -1,3 +1,5 @@
+> 2026-10-27transport作者a7a9d710 clean STOP：最终12文件578PASS387.37s、新82例/strict122/Ruff/compile/diff通过，165源hash固定、旧10adapter及41SQL不变。原574PASS1FAIL及consent缺口RED保留，修后固定全组通过；仅资格用新pairprofile/wire/服务有限绑定，normal/generic仍拒。新独审WT将对523→a7固定source审，Root未合入此产品代码，设置writer继续不交叉。实际GLM生成仍0、账号已注册未充值、key待隔离页；全Goal未通过。
+
 > 2026-10-27为避免账号就绪后再串行等候，路线图批准不交叉的BIGMODEL-SETTINGS独立writer：仅候选provider专属凭据/隔离QA注入和最小设置/引导/深链接，不改transport/资格/预算/Schema/正式配置。与当前distillation.py transport writer无文件冲突；仍分别fixed独审，真实key由用户后续页面输入。
 
 > 2026-10-27用户确认BigModel“已注册，未充值”。仅账号注册状态得到本人确认；尚未安全录入key、核对账户精确免费额度或真实生成/语义/费用。准备provider-specific隔离设置后由用户页面手动填写，不在聊天收密钥，不自动付费；仍先完成当前transport离线固定提交与独立审查。
