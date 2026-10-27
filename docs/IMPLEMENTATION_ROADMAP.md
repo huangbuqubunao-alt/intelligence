@@ -1,3 +1,5 @@
+> 2026-10-28允许并行：CREDENTIAL-EDITOR-ISOLATION 仅 frontend；BIGMODEL-PUBLIC-FIRST-CASE 仅专用诊断脚本、相关测试和交接，基于已审组合、仅读公开隔离样例，不读取实际密钥/模型或触正式数据。两任务文件与契约不交叉，分别独审，生产资格仍关闭。
+
 > 2026-10-27批准有限后续UI并行：CREDENTIAL-EDITOR-ISOLATION仅frontend两provider编辑器与tests，从已审f9设置基线清理跨服务/外层折叠旧草稿，不改backend/Keychain/API/Schema/模型。与后台State+transport组合独审无产品文件写冲突；实际保存的QAkey保持，真实model仍待资格。
 
 > 2026-10-27新增有界并行：BIGMODEL-READ-SNAPSHOT仅accepted42 state.py只读事务及独立tests，不依赖未审adapter，不写API/UI/配置/SQL；SETTINGS修复仅独立UI/credential/API，无state重叠。2writer上限，独审仍一次1任务；transport复审已结束新readrace REJECT，暂不合源。
