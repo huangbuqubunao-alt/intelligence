@@ -15,3 +15,13 @@ Root新QA目录为 `.var/end-to-end-user-readiness/bigmodel-settings-real-api-20
 此时已通过专用本机页面请求用户本人输入并点击保存，不在聊天收密钥；live tab1689883978已markHandoff。API PID44125/session28040、Vite PID44173/session5838特意保持供本次手动输入，均仅loopback；没有启动正式产品。等待本人完成通知再只核对configured标志和已清空状态，不读取/输出secret。页面手动输入期间不自动切换标签、刷新、截图或读AX密码字段，避免干扰或记录草稿。
 
 后续仍需State只读快照修复/独审、固定GLM传输累计复审、免费账户实际条件、冻结公开输入/profile/语义标准及一次派发资格，随后普通Content→模型洞察→保存/主题/Evidence→重启→完整BackupRestore及最终全套回归/安全采用。当前保存入口绝不自动执行、付费或授资格。
+
+## 2026-10-28续验：本人保存与单一服务商输入区
+
+上文为10月27日初始记录。用户随后亲自在专用隔离页保存密钥；Root仅查六字段 metadata，确认 configured=true/source=KEYCHAIN/qualification=NOT_VERIFIED/budget=CLOSED，没有读出密钥。保存前后81表全部行和19个DATA逐项相等。State56与transport a7/007组合经5af独审接受并已整合；它们不授予模型质量资格。
+
+后续真实页面暴露的多服务商草稿可见性问题由92059a1修复，91fa87f独审APPROVE，Root整合c119d18/9471e24。当前一次只挂载所选服务商密码区，切换、折叠、离开清理草稿；旧服务商存量密钥和执行配置不变。Root完整前端1084PASS/42文件20.20s，TypeScript/build通过，后端源码仍逐字等e495910。实际Chrome重载接受版本，确认只展开智谱、旧Moonshot折叠，已保存状态保留。浏览器曾显示masked未提交字段，未读取其值或推断来源；Root仅清空未保存字段、未提交或删除密钥，再截图记录真实已配置状态。应用不承诺控制浏览器自身自动填充。
+
+![已配置，单一服务商输入区，执行仍关闭](screenshots/bigmodel-settings-single-editor-configured-zh-20261028.png)
+
+截图SHA256 `122b79d3ed4aaa9697ce69d397e580069a5368aa92b0a25ed54a31c4dc2190b6`。QA的 `root-editor-isolation-result.json` 保留完整检查日志hash、AX差分误判说明及81表/19DATA一致性；没有把AX差分中缺失的旧文本当成产品故障。当前真实BigModel模型调用仍0；下一步仅固定单个公开视频诊断，具体出站内容与防重放包独审通过后才由Root执行，任何结果停止，不能据此宣布全部可用或采用main。

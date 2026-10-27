@@ -1,3 +1,5 @@
+> 2026-10-28当前：单服务商密钥输入区92059a1经91fa独审APPROVE，Root整合c119d18/9471e24；完整前端1084PASS/42files20.20s、TS/build通过，后端逐字等e495910。真实Chrome仅智谱输入区、旧Moonshot折叠，未保存草稿清空且Native QA configured/KEYCHAIN保留；81表19DATA全等。手册85图追加当前真实已配置截图，仍NOT_VERIFIED/CLOSED。单个公开视频诊断脚本离线107PASS58.37s，固定包准备零key/wire，待固定提交与独立具体包预执行审查；实际BigModel调用仍0，正式main未动。
+
 > 2026-10-28已审State56+transport a7/007组合由5af独审APPROVE；Root整合6d0640f/5ab18bd/36e2d52/e495910，src/frontend/tests=3ca，Root213PASS75.77s/strict122/Ruff/compile122，保留原两个REJECT。用户QA Keychain已配置，保存前后81SQL表/19DATA全等，真实模型仍0/生产资格及预算关闭。官方定价今日只读快照确认GLM-4.7-Flash输入/输出/缓存免费、本人未充值，账号权益和实际账单仍未知。新public诊断副本81表19DATA/QoXR，准备单例英文原oracle诊断小包：先零key/零网络冻结与独审，Root最多一次公共请求，任何结果停且不授资格；后续多case/真实GUI/full回归与发布另验。UI editor isolation writer续作中。
 
 > 2026-10-27用户确认隔离页已保存，Root仅六字段GET核实BigModel configuredtrue/KEYCHAIN/NOT_VERIFIED/CLOSED，保存前后全部81SQL表+19DATA完全相同/integrityok/FK空，无生成/费用或新任务。读取UI状态的字符串匹配误用了“配置在”（实际“配置到”），截图明确新智谱field空+已保存；未输出密钥。另旧Moonshot未配置区可见masked未提交draft，Root不提交/不读值，仅让writer用假key做有界UX只读scout。State56ecaffd fixedclean：5read边界/同connlist，612PASS578.40s/static122/41SQL/286其它methods不变；新独审将精确组合已审settings+56+a7+007并复现真实service竞态，Root未合这些产品源。正式main仍73ee7e7，模型资格未开。
