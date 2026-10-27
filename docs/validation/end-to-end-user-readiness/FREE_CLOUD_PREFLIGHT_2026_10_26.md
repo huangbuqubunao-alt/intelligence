@@ -26,3 +26,12 @@
 5. 真实验收必须走 Content→字幕/摘要/Evidence→明确云同意→洞察→保存/主题/引用回跳→重启→全 SQL 行与物理 DATA 的 Backup/Restore，一并完成整体验证。公开视频资格不能自动扩 LOCAL/BILIBILI 私有上传、转写或摘要能力。
 
 收费路径无真实预算策略即拒绝调用。Gemma 拒绝/once/全部失败保留，正式 main/配置/数据不动。没有账号时继续工程、离线验收及审查；不伪报云端真实可用。
+
+
+## 2026-10-27 传输路径补充
+
+只读scout核实：Moonshot/NVIDIA及本次新候选固定wire使用标准库HTTPSConnection，不自动读取HTTP环境代理/macOS系统HTTP代理；OS/TUN路由仍适用。OpenAI urllib路径与之不同。因此此前curl经过本地代理的HEAD不能替代新wire路径验证。
+
+Root于 `2026-10-27T07:57:19Z` 使用HTTPSConnection+ssl.create_default_context，对唯一 `open.bigmodel.cn:443/api/paas/v4/chat/completions` 发一次无Authorization、无正文HEAD；8秒上限、零重试、禁重定向，实际HTTP401/0.118秒。未配置代理、未改Jimmm、未读取密钥、未执行生成。该结果仅证明当时同类客户端/TLS/系统网络路径到达鉴权入口，不代表实际账号/免费配额/模型响应质量/费用通过。原始证据位于隔离QA `cloud-preview-real-api-20261026/bigmodel-stdlib-head-preflight-20261027.json`。
+
+凭据scout确认旧ModelSettingsService和refresh factory隐式Moonshot，不能仅改界面标签。后续需明确独立BigModel路由/store，保留原Moonshot service/account/env；隔离输入页只读写BigModel QA专用namespace，保存不运行“测试生成”且不读取旧服务。当前仍未提供此入口或得到账号完成通知，不在聊天收取密钥。
