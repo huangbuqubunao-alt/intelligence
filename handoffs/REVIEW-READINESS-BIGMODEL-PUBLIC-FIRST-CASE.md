@@ -73,3 +73,34 @@ Commands use existing `/Users/hua/Documents/yia-worktrees/end-to-end-user-readin
 Author's original RED/development interrupted fixture failure and final107PASS remain separate historical evidence. No test was removed/skipped/weakened. Fake positive/NO_NEW/HTTP/private-marker outputs and fake keys are explicit engineering fixtures; they prove neither actual free billing nor real semantic quality. No real provider or user key was used. Whole6000-test expansion is outside this bounded preexecution review.
 
 **REJECT145 pending offline test self-sufficiency and cumulative fixed-source re-review.** The concrete public data/package appears internally consistent, but this report must not be used to create its approval or consume its actual attempt. Root alone owns subsequent acceptance and at-most-one real public diagnostic under original standards.
+
+## R2 — cumulative fixed-source and exact-package preexecution approval
+
+**Latest verdict: APPROVE_ONE_PUBLIC_DIAGNOSTIC**, limited to the exact prepared SHA **`d31ae035ab3f8f7b012e48eb35e8d780a63a7d4455a994f9d64a04960e4dcd14`**, source script145 plus test-only repair **`7e7d4d6d68e6a7ba37145fa25b4ce1e8ce257d02`**. Root authorized cherry-picking only that repair into this clean review branch; resulting review source commit449e4331564195120e660c96237ed4d7b42226f6 preserves original4ce8728 rejection. P2-01 is closed. No remaining confirmed P0/P1/P2 in this bounded script/package review.
+
+This verdict authorizes consideration of **at most one** public `real-deepthink-en` diagnostic, exact `zhipu_bigmodel/glm-4.7-flash`, original fixed input/profile/300s/zero-retry/Oct28-price restriction and `ANTICIPATED_FREE_EXACT_MODEL_ONLY`. It is not qualification, semantic PASS, a verified account/free bill, permission for another case/retry/provider/private input or normal production adoption. Account entitlement/actual bill remain UNKNOWN; original oracle/positive/NO_NEW standards stay unchanged. Root alone decides acceptance and creates the actual approval using this final review report commit. Reviewer never writes the actual review.json/attempt or executes the real request.
+
+### Offline fixture correction and privacy/bounds
+
+Repair changes only the unit fixture, committed public stock/manifest/README and author handoff. Independently confirmed all9 original behavioral test functions/decorators/assertions AST-identical to145; the production script is byte-identical, SHA`8e8dce691055bb6307c55e52b48b679b8b1587c9ec65278c4d37b4dc60f00ab4`. No execution/oracle/profile or public package change is needed.
+
+Archive SHA`f12f59025ef423fb0a3b6b0bd74e33b46846d481879bf8cc431d5c360209065f`,723183B, exactly23 unique regular members/5167184 expanded bytes, each manifest size/hash independently verified. Validated no absolute/traversal/backslash/symlink paths, bounded archive/member/aggregate sizes and no duplicate entries. Extraction checks inventory before creating files, verifies pinned archive and each member hash, then writes only a fresh pytest tmp stock. The trusted SQL contains no ATTACH/DETACH/load_extension/writable_schema operation. It reconstructs actual user_version42, integrityok/FKempty, with complete81-table rows/schema exactly equal to the authorized public D; all19 DATA are byte-identical to D. No substitute model response or altered oracle is introduced.
+
+Only four authorized public YouTube videos exist in the reconstructed fixture; preferences and both cloud-consent tables are empty. Sanitized public provenance omits live QA machine paths. No configs, real key/native data, approval, consumed attempt, model result/private reasoning, WAL/free pages or logs are archived. A member-by-member credential/private-key/Authorization-pattern scan found no hits; this supplements the exact known public-source comparison, not a claim that regex can establish arbitrary data's privacy. README preserves source attribution and does not invent a license over captions.
+
+### Independent clean-export verification
+
+Exported this review HEAD via git archive to a fresh temporary tree: no .var exists there. Ran the same full107 group with PYTHONPATH pointing to that export's byte-identical src, existing Root interpreter and PYTHONDONTWRITEBYTECODE=1. Additionally, an import wrapper forces the harness's original module.SOURCE to a nonexistent path, and an independent Python audit hook refuses file/directory/SQLite reads of the real original Root SOURCE. The repaired normal fixture must and does reconstruct its own tracked stock; it does not rely on this machine's untracked D. Actual output:
+
+```text
+Independent clean git export: .var absent;
+module original SOURCE nonexistent; Root stock reads audit-denied
+107 passed in59.28s
+Independent clean export group exit: 0
+```
+
+This is the same three complete files named in R1, including concurrent/interrupted/restarted at-most-once, private-marker/error redaction, tampering-before-key, honest NO_NEW/unknown and real fake-output Backup/Restore with retained external attempt. Compile124PASS, strict mypy src+script123PASS, changed script/test Ruff no-cache PASS and `git diff --check 14565034 7e7d4d6d` PASS. No assertion/test was skipped, deleted or weakened. Author's intermediate106PASS1FAIL due missing dump user_version and its corrected Backup run remain separate history; true42 is restored, not bypassed. Original R1 local107PASS and missing-source ERROR are retained above, not overwritten by this new clean result.
+
+Revalidated actual prepared package read-only after repair: exact d31ae035 SHA,165 code hashes, input4d4b307…150e, projection4224B/2ded85…7448 and body4132B/4b87a2…03a remain unchanged;81SQL/19DATA before/after equality passes. All8 frozen artifacts rehash through the original validate. Actual review.json and external attempt are still absent. No key resolution, actual provider HTTP/model invocation, real CLI execution or live Root settings QA access occurred.
+
+**APPROVE_ONE_PUBLIC_DIAGNOSTIC only for the exact package above; report commit then clean STOP.** Root must preserve the consumed external marker and original outcome on every result, never tune/repair/replay this case, and independently assess only public final/metadata against the original source, actual Summary and semantic oracle. Even a genuine positive diagnostic does not complete model qualification, ordinary-user/full-Goal acceptance or main-adoption gates.
