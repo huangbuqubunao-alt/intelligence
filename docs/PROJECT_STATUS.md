@@ -1,3 +1,5 @@
+> 2026-10-27用户确认BigModel“已注册，未充值”。仅账号注册状态得到本人确认；尚未安全录入key、核对账户精确免费额度或真实生成/语义/费用。准备provider-specific隔离设置后由用户页面手动填写，不在聊天收密钥，不自动付费；仍先完成当前transport离线固定提交与独立审查。
+
 > 2026-10-27已审Schema42真实GUI闭环完成：Root523bff8、实际6178/6179隔离服务创建下载877908B ZIP，界面选择/检查/RESTORE/自动重启重连，全部81SQL表每行+19DATA完全相同、integrityok/FK空、readytrue/APPLIED。旧WAIT0+独立取消记录及旧REJECTED1完整保留，两新审计表仍空，无key/worker/出站/模型/正式数据。证据schema42-actual-gui-result4f38474a、图文手册83图；仅自有服务已正常停止。下一步固定GLM transport离线开发中，真实云端资格及全Goal仍未通过、main未动。
 
 > 2026-10-27BigModel审计全链已接受：df57独审ccd66最终APPROVE，原896/2bf REJECT保留；Root整合649ec42/246a48d/f716511及83172d6/63ab7d7/7b90e98，src/tests与df57相等。Root146PASS57.34s，真实隔离存量正常启动41→42已成功：旧79表仅schema_migrations新增注册行、两新audit表为空共81表、全部19DATA不变/integrityok/FK空。当前仅QA6179/session90845运行（NoCredentials/出站socket全拒/workerfalse），将补42真实GUI备份恢复。下一小片BIGMODEL-TRANSPORT仅固定资格用adapter/离线tests，正常资格/预算仍关闭，不改凭据/正式配置/Schema、不调用模型。账号待用户通知，未GLM实际质量/费用/额度验证，正式main未动。

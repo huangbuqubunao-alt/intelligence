@@ -35,3 +35,6 @@
 Root于 `2026-10-27T07:57:19Z` 使用HTTPSConnection+ssl.create_default_context，对唯一 `open.bigmodel.cn:443/api/paas/v4/chat/completions` 发一次无Authorization、无正文HEAD；8秒上限、零重试、禁重定向，实际HTTP401/0.118秒。未配置代理、未改Jimmm、未读取密钥、未执行生成。该结果仅证明当时同类客户端/TLS/系统网络路径到达鉴权入口，不代表实际账号/免费配额/模型响应质量/费用通过。原始证据位于隔离QA `cloud-preview-real-api-20261026/bigmodel-stdlib-head-preflight-20261027.json`。
 
 凭据scout确认旧ModelSettingsService和refresh factory隐式Moonshot，不能仅改界面标签。后续需明确独立BigModel路由/store，保留原Moonshot service/account/env；隔离输入页只读写BigModel QA专用namespace，保存不运行“测试生成”且不读取旧服务。当前仍未提供此入口或得到账号完成通知，不在聊天收取密钥。
+
+
+2026-10-27最新本人答复：**已注册，未充值**。这更新此前“等待注册完成通知”的历史状态；不代表已经录入密钥、确认精确模型账户权益/额度、生成成功或账单为零。用户仍只在后续隔离设置页面自行填写，禁止聊天、命令行或日志收钥。
