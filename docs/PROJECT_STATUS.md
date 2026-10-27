@@ -1,3 +1,5 @@
+> 2026-10-27新门禁：transport-R2 bc18e51累计REJECT，仅原超限P2已关闭且真实ZIP恢复SQL/DATA通过，新audit read-snapshot跨时刻P2已合法确定性复现，268PASS1FAIL/一次单例PASS不消缺陷；新独立READ-SNAPSHOT任务从已审State42修所有同因多SELECT getter，不改SQL/写入规则。Settings修复f9a8cdba fixedclean：115后端/1075全前端/static/headful假key11PASS，等R2独审，Root尚未合产品或启动真key页，main仍73ee7e7。
+
 > 2026-10-27最新续作：原transport P2已fix00789303 cleanSTOP，579PASS/12file384.83s/static122，newR2reviewWT176afba仅源等007+包docs，正独审；Root尚未合源。Settings e9独审d77889f REJECT两P2（父Cloud fold藏密码、非ASCII不可发key保存为configured），原writer同WT修复；独立103backend PASS，全front1065PASS1FAIL旧DA resolver时序，单失败整文件17PASS，原失败保留不冒全绿。Root只合两份REJECT报告并备populatedQA81表19DATA+QA-only启动脚本，未启动/录真key；main/tracking/实际lsremote刚只读全73ee7e7 clean，未发布。账号已注册未充值，真实模型仍0。
 
 > 2026-10-27BigModel设置作者e9f790a8已fixed cleanSTOP：仅provider/QA独立store/API/UI引导深链，后端103PASS、完整前端1066PASS41files22.52s、static122/TS/build/Ruff；实际API假key9项headful与81表字节相等，0ContentDATA夹具局限保留，未真key/模型。新独审将逐15file复核；Root已备独立81表19DATA populatedQA，尚未启动/安全录钥。并行transport P2原作者8行前置pure request已RED→GREEN并终结REJECTED_EVIDENCE0/明确输入outcome，最终完整组尚在跑，未独审接受。

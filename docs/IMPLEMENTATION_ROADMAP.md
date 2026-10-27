@@ -1,3 +1,5 @@
+> 2026-10-27新增有界并行：BIGMODEL-READ-SNAPSHOT仅accepted42 state.py只读事务及独立tests，不依赖未审adapter，不写API/UI/配置/SQL；SETTINGS修复仅独立UI/credential/API，无state重叠。2writer上限，独审仍一次1任务；transport复审已结束新readrace REJECT，暂不合源。
+
 > 2026-10-27批准有限并行：已审523bff8基础上，BIGMODEL-TRANSPORT仅distillation.py/专属测试；BIGMODEL-SETTINGS仅model_settings/runtime注入/localAPI/必要准确状态与前端设置/引导/路由，不写distillation.py或Schema，不依赖未审adapter，不启用production/budget/模型。两者均复用已审42元数据，接口不互改，合并仍逐片独审。用户已注册未充值；新设置只是候选安全录钥，真实资格另验。Root/worker最多2writer+1reviewer。
 
 > 2026-10-26 主控批准本Goal有限并行批次：CLOUD-PREVIEW-UI（仅frontend App/翻译/测试）与BIGMODEL-AUDIT（仅042/state/strictread/restore及测试，禁止frontend/API/transport/runtime/config/credentials）。共同产品基线为独审已接受bcb2df47→Root3fe6751/8053920，Root26PASS。两任务文件/接口不交叉，不新增生产调用或资格；各独立WT单writer，至多两实现者。作者提交后逐项独审、Root串行整合及组合影响检查；任何实际共享契约变更先收敛为串行，不自行扩大。此批次仅工程，不是正式采用。
