@@ -4736,6 +4736,14 @@ class PersonalizedDistillationService:
             and not self._cloud_consent_matches(projection.execution_id, verified_input,
                 consent_kind="OWNER_QUALIFICATION" if qualification else "USER_CONFIRMATION")):
             raise CloudConsentRequiredError("explicit cloud authorization is missing or stale")
+        if self._selected_provider == ZHIPU_PAIR[0] and permitted:
+            try:
+                self._cloud_request_preview(verified_input)
+            except CloudPreviewRejected:
+                return self._finish_or_recover(projection,
+                    status=DistillationExecutionStatus.REJECTED_EVIDENCE,
+                    budget_state=decision.state, outcome="CLOUD_INPUT_NOT_SUPPORTED_BEFORE_TRANSPORT",
+                    invocation_count=0)
         if (
             not permitted
             or not self._model_ready(projection, verified_input, qualification=qualification)

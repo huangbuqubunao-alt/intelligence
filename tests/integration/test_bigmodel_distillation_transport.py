@@ -4,6 +4,7 @@ import json
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
+import test_task022_personalized_distillation as fixtures
 from test_task022_personalized_distillation import (
     NOW,
     _evidence,
@@ -429,3 +430,90 @@ def test_missing_or_mismatched_consent_refuses_before_credential_without_writes(
     with pytest.raises(d.CloudConsentRequiredError):
         service.continue_qualification_reserved_distillation(reservation.execution_id)
     assert _snapshot(repository, tmp_path) == before
+
+
+def test_oversized_trusted_input_is_terminal_before_credential_preflight(
+    tmp_path, monkeypatch
+):
+    lookups = []
+    wires = []
+    text = "Public caption factual sentence. " * 5000
+    cue = fixtures.TimedTranscriptCueWrite
+    binding = fixtures.EvidenceTextBindingWrite.from_timed_transcript
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            fixtures, "TimedTranscriptCueWrite", lambda **kw: cue(**dict(kw, text=text))
+        )
+        patch.setattr(
+            fixtures.EvidenceTextBindingWrite,
+            "from_timed_transcript",
+            lambda **kw: binding(**dict(kw, excerpt=text)),
+        )
+        repository, source, video, evidence, service = _setup(
+            tmp_path,
+            credentials=lambda: (
+                lookups.append("credential") or "synthetic-bigmodel-secret"
+            ),
+            wire=lambda *args: (
+                wires.append(args) or pytest.fail("invalid input must not reach wire")
+            ),
+        )
+    reservation = service.reserve_distillation_execution(
+        source_id=source, video_id=video, evidence_ids=(evidence,)
+    )
+    _, verified = service._reserved_command_from_record(
+        repository.get_distillation_execution(reservation.execution_id)
+    )
+    assert verified.evidence[0].excerpt == text and len(text.encode()) == 165000
+    with pytest.raises(d.CloudDistillationPreDispatchError, match="UTF-8 bound"):
+        service._transport._request(verified)
+    _permit(service, verified)
+    service.authorize_reserved_cloud_execution(
+        reservation.execution_id, consent_kind="OWNER_QUALIFICATION"
+    )
+    consent = repository.get_cloud_execution_authorization(reservation.execution_id)
+    before = _snapshot(repository, tmp_path)
+    result = service.continue_qualification_reserved_distillation(
+        reservation.execution_id
+    )
+    assert lookups == [] and wires == []  # Pure refusal precedes any key read.
+    assert result.status.value == "REJECTED_EVIDENCE" and result.invocation_count == 0
+    usage = repository.get_distillation_resource_usage(reservation.execution_id)
+    assert usage.outcome == "CLOUD_INPUT_NOT_SUPPORTED_BEFORE_TRANSPORT"
+    assert (
+        usage.actual_provider,
+        usage.actual_model,
+        usage.input_tokens,
+        usage.output_tokens,
+        usage.cost_microunits,
+        usage.http_status_code,
+    ) == (None, None, None, None, None, None)
+    assert (
+        repository.get_cloud_execution_authorization(reservation.execution_id)
+        == consent
+    )
+    assert _snapshot(repository, tmp_path)[1] == before[1]
+    with repository._connect() as connection:
+        repository.verify_cloud_audit_database(connection)
+        assert (
+            connection.execute(
+                "SELECT count(*) FROM distillation_execution_checkpoints WHERE status='PENDING'"
+            ).fetchone()[0]
+            == 0
+        )
+        assert (
+            connection.execute(
+                "SELECT count(*) FROM distillation_zhipu_cloud_response_failures"
+            ).fetchone()[0]
+            == 0
+        )
+    restarted = SQLiteStateRepository(tmp_path / "state.sqlite3")
+    restarted.initialize(now=NOW)
+    settled = _snapshot(restarted, tmp_path)
+    assert (
+        _service(
+            restarted, service._transport
+        ).continue_qualification_reserved_distillation(reservation.execution_id)
+        == result
+    )
+    assert lookups == [] and wires == [] and _snapshot(restarted, tmp_path) == settled
