@@ -1,15 +1,56 @@
 """Offline public diagnostic package tests; no native store or provider."""
 
+import builtins
 import importlib.util
+import io
 import json
-import shutil
+import os
 import sqlite3
+import stat
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+from zipfile import ZipFile
 
 import pytest
+
+FIXTURE = Path(__file__).resolve().parents[1] / 'fixtures/bigmodel_public_first_case'
+STOCK_SHA256 = 'f12f59025ef423fb0a3b6b0bd74e33b46846d481879bf8cc431d5c360209065f'
+
+
+def unpack_public_stock(module, stock):
+    """Bounded extraction of the fixed public fixture, never a user archive."""
+    archive = FIXTURE / 'stock.zip'
+    assert archive.stat().st_size < 1024 * 1024
+    assert module.sha(archive.read_bytes()) == STOCK_SHA256
+    manifest = json.loads((FIXTURE / 'manifest.json').read_bytes())
+    expected = {item['path']: item for item in manifest['files']}
+    with ZipFile(archive) as zipped:
+        entries = zipped.infolist()
+        assert len(entries) == len(expected) == 23
+        assert len({entry.filename for entry in entries}) == len(entries)
+        assert sum(entry.file_size for entry in entries) <= 8 * 1024 * 1024
+        # Validate the whole inventory before creating any extracted file.
+        for entry in entries:
+            name = PurePosixPath(entry.filename)
+            assert not name.is_absolute() and '\\' not in entry.filename
+            assert all(part not in {'', '.', '..'} for part in entry.filename.split('/'))
+            assert stat.S_ISREG(entry.external_attr >> 16)
+            assert entry.filename in expected and entry.file_size <= 6 * 1024 * 1024
+            assert entry.file_size == expected[entry.filename]['size']
+        for entry in entries:
+            raw = zipped.read(entry)
+            assert module.sha(raw) == expected[entry.filename]['sha256']
+            destination = stock / entry.filename
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            with destination.open('xb') as stream:
+                stream.write(raw)
+    # Standard SQLite dump preserves all original rows/schema without free pages.
+    with sqlite3.connect(stock / 'state.sqlite3') as target:
+        target.executescript((stock / 'state.sql').read_text())
+        assert target.execute('PRAGMA user_version').fetchone() == (42,)
+    (stock / 'state.sql').unlink()
 
 
 @pytest.fixture
@@ -21,13 +62,23 @@ def case(tmp_path, monkeypatch):
     spec.loader.exec_module(module)
     stock = tmp_path / 'stock'
     stock.mkdir()
-    original = module.SOURCE
-    with sqlite3.connect((original / 'state.sqlite3').as_uri() + '?mode=ro', uri=True) as source:
-        with sqlite3.connect(stock / 'state.sqlite3') as target:
-            source.backup(target)
-    shutil.copytree(original / 'data', stock / 'data')
-    for name in ['initial.json', 'provenance.json', 'official-pricing-20261028.txt']:
-        shutil.copyfile(original / name, stock / name)
+    blocked_source = str(module.SOURCE)
+    # Actively deny the original absolute location, including in clean checkouts.
+    # Guard Path/builtin reads, SQLite URIs, directory traversal and low-level opens.
+    def deny_external(original):
+        def guarded(path, *args, **kwargs):
+            if blocked_source in str(path):
+                raise PermissionError('Root-owned runtime stock forbidden in unit tests')
+            return original(path, *args, **kwargs)
+        return guarded
+    for owner, name in [(builtins, 'open'), (io, 'open'), (sqlite3, 'connect'),
+            (os, 'open'), (os, 'stat'), (os, 'lstat'), (os, 'listdir'), (os, 'scandir')]:
+        monkeypatch.setattr(owner, name, deny_external(getattr(owner, name)))
+    with pytest.raises(PermissionError):
+        (module.SOURCE / 'initial.json').read_bytes()
+    with pytest.raises(PermissionError):
+        sqlite3.connect((module.SOURCE / 'state.sqlite3').as_uri() + '?mode=ro', uri=True)
+    unpack_public_stock(module, stock)
     monkeypatch.setattr(module, 'SOURCE', stock)
     monkeypatch.setattr(module, 'PACKAGE', tmp_path / 'package')
     monkeypatch.setattr(module, 'ATTEMPT', tmp_path / 'attempt.json')
