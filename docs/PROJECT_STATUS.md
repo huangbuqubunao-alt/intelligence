@@ -1,3 +1,5 @@
+> 2026-10-27独审a7确证一项P2并已退回原writer：165000B合法可信公开视频字幕超128KiB纯request上限，reserved OWNER资格路径在拒绝前仍读取fake key1次、wire0，且误作WAITING_MODEL。Root未合入a7；原作者同WT仅新pair前置纯输入验证/明确拒绝并验证持久化终结，原source/同意/once/旧adapter不变。独审固定578组继续保留，后续修复必须重新审。并行settings完整首轮1064PASS2FAIL为精确深链期待更新、隐藏候选提前读已修lazy，最终复验中；不算已接受或整个模型可用。
+
 > 2026-10-27transport作者a7a9d710 clean STOP：最终12文件578PASS387.37s、新82例/strict122/Ruff/compile/diff通过，165源hash固定、旧10adapter及41SQL不变。原574PASS1FAIL及consent缺口RED保留，修后固定全组通过；仅资格用新pairprofile/wire/服务有限绑定，normal/generic仍拒。新独审WT将对523→a7固定source审，Root未合入此产品代码，设置writer继续不交叉。实际GLM生成仍0、账号已注册未充值、key待隔离页；全Goal未通过。
 
 > 2026-10-27为避免账号就绪后再串行等候，路线图批准不交叉的BIGMODEL-SETTINGS独立writer：仅候选provider专属凭据/隔离QA注入和最小设置/引导/深链接，不改transport/资格/预算/Schema/正式配置。与当前distillation.py transport writer无文件冲突；仍分别fixed独审，真实key由用户后续页面输入。
