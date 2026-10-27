@@ -359,8 +359,16 @@ a { color: #0e7a4f; }
 <blockquote>本手册撰写时，演示环境未配置云端凭据，因此云端洞察显示&quot;需要配置凭据并授权&quot;是正常的诚实反馈。</blockquote>
 <p>2026-10-27 补充：公开视频已有字幕和摘要时，即使本地模型尚不可用，也可以在内容详情点击 <strong>查看云端洞察预览 → 准备审核本次请求</strong>。不必先创建等待任务。页面会展示当前后台选定的服务商、型号、拟发送的证据和任务上下文；准备预览不会调用模型、创建提炼任务或把内容发给模型供应商。</p>
 <figure><img src="../end-to-end-user-readiness/screenshots/cloud-preview-real-zh-20261027.png" alt="真实服务中，无密钥也能查看拟发送的数据"/><figcaption>真实服务中，无密钥也能查看拟发送的数据</figcaption></figure>
-<p>缺少凭据、费用规则或其他执行条件时，<strong>授权本次云端执行</strong> 会保持禁用。点击 <strong>打开模型设置</strong>，在“模型与处理准备”中展开“云端配置与模型详情”，按具体原因配置。凭据必须与页面标明的服务商一致；免费候选的设置入口未就绪时，请先不要填写其密钥。配置成功也不代表质量验收通过。</p>
+<p>缺少凭据、费用规则或其他执行条件时，<strong>授权本次云端执行</strong> 会保持禁用。点击 <strong>打开模型设置</strong>，在“模型与处理准备”中展开“云端配置与模型详情”，按具体原因配置。凭据必须与页面标明的服务商一致。本轮候选已增加独立的智谱设置；配置成功不代表模型质量、账户权益或执行条件通过。</p>
 <figure><img src="../end-to-end-user-readiness/screenshots/cloud-preview-blocked-real-zh-20261027.png" alt="缺少凭据和费用规则时，真实界面仍禁止执行"/><figcaption>缺少凭据和费用规则时，真实界面仍禁止执行</figcaption></figure>
+<p>本轮候选的智谱设置：</p>
+<ol>
+<li>在 <strong>设置 → 模型与处理准备 → 云端配置与模型详情</strong> 展开 <strong>智谱 GLM-4.7-Flash 候选设置</strong>，也可从首次引导进入。</li>
+<li>在智谱官方控制台自行取得 API 密钥，填写 <strong>智谱 API 密钥</strong>，点击 <strong>安全保存智谱密钥</strong>。密钥不经过聊天；格式提示出现时重新复制完整密钥，不带空格。</li>
+<li>保存只写入本机钥匙串，不上传 Content、不运行模型、不改变转写、摘要或洞察资格。折叠面板或离开会清空尚未保存的密码草稿。</li>
+<li>“已配置”只表示已保存。当前仍显示 <strong>质量未验证 · 执行未开放</strong>；实际免费权益、额度及费用需另行验证，不会自动改用付费型号。正式产品仍以实际采用的版本为准。</li>
+</ol>
+<figure><img src="../end-to-end-user-readiness/screenshots/bigmodel-settings-real-unconfigured-zh-20261027.png" alt="真实隔离智谱设置，尚未输入密钥"/><figcaption>真实隔离智谱设置，尚未输入密钥</figcaption></figure>
 <p>点击 <strong>关闭云端预览</strong> 或离开页面即可放弃预览。进入设置再返回，内容仍保留，但需要重新准备预览，不能沿用旧授权。图中隔离服务当时选定 Moonshot/kimi-k2.6 且没有凭据或费用策略；这不是免费候选已接入、通过质量验收或正式产品已采用的证明。</p>
 <hr/>
 <h2 id="14-修改语言">14. 修改语言</h2>
