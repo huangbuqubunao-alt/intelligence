@@ -1,3 +1,5 @@
+> 2026-10-27最新续作：原transport P2已fix00789303 cleanSTOP，579PASS/12file384.83s/static122，newR2reviewWT176afba仅源等007+包docs，正独审；Root尚未合源。Settings e9独审d77889f REJECT两P2（父Cloud fold藏密码、非ASCII不可发key保存为configured），原writer同WT修复；独立103backend PASS，全front1065PASS1FAIL旧DA resolver时序，单失败整文件17PASS，原失败保留不冒全绿。Root只合两份REJECT报告并备populatedQA81表19DATA+QA-only启动脚本，未启动/录真key；main/tracking/实际lsremote刚只读全73ee7e7 clean，未发布。账号已注册未充值，真实模型仍0。
+
 > 2026-10-27BigModel设置作者e9f790a8已fixed cleanSTOP：仅provider/QA独立store/API/UI引导深链，后端103PASS、完整前端1066PASS41files22.52s、static122/TS/build/Ruff；实际API假key9项headful与81表字节相等，0ContentDATA夹具局限保留，未真key/模型。新独审将逐15file复核；Root已备独立81表19DATA populatedQA，尚未启动/安全录钥。并行transport P2原作者8行前置pure request已RED→GREEN并终结REJECTED_EVIDENCE0/明确输入outcome，最终完整组尚在跑，未独审接受。
 
 > 2026-10-27独审a7确证一项P2并已退回原writer：165000B合法可信公开视频字幕超128KiB纯request上限，reserved OWNER资格路径在拒绝前仍读取fake key1次、wire0，且误作WAITING_MODEL。Root未合入a7；原作者同WT仅新pair前置纯输入验证/明确拒绝并验证持久化终结，原source/同意/once/旧adapter不变。独审固定578组继续保留，后续修复必须重新审。并行settings完整首轮1064PASS2FAIL为精确深链期待更新、隐藏候选提前读已修lazy，最终复验中；不算已接受或整个模型可用。
