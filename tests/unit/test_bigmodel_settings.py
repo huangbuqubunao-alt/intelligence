@@ -220,3 +220,29 @@ def test_candidate_native_write_delete_uses_only_its_fixed_namespace(store_class
     store.delete()
     assert calls == [("find", store_class._service, b"api-key"),
         ("add", store_class._service, b"api-key"), ("find", store_class._service, b"api-key")]
+
+
+@pytest.mark.parametrize("secret", ["synthetic\u2003space", "synthetic\u0085control", "synthetic-密钥", "synthetic\u200bzero", "synthetic\ud800surrogate"])
+def test_unsendable_key_rejected_by_api_before_any_store_access(setup, secret):
+    app, store = setup
+    with pytest.raises(ApiError) as error:
+        app.handle("PUT", PATH, json.dumps({"credential": secret}).encode())
+    assert error.value.code == "VALIDATION_ERROR"
+    assert store.calls == []
+
+
+@pytest.mark.parametrize("secret", ["synthetic\u2003space", "synthetic\u0085control", "synthetic-密钥", "synthetic\u200bzero", "synthetic\ud800surrogate"])
+def test_unsendable_key_rejected_by_direct_settings_before_write(secret):
+    store = MemoryStore()
+    with pytest.raises(ValueError):
+        BigModelCredentialSettings(store).save(secret)
+    assert store.calls == []
+
+
+@pytest.mark.parametrize("secret", ["!~", "x" * 2048])
+def test_sendable_ascii_boundary_remains_configurable(setup, secret):
+    app, store = setup
+    status, result = app.handle("PUT", PATH, json.dumps({"credential": secret}).encode())
+    assert status == 200 and result["configured"] is True
+    assert result["qualification"] == "NOT_VERIFIED" and result["budget"] == "CLOSED"
+    assert store.secret == secret and store.calls == ["save", "get"]

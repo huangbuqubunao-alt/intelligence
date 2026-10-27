@@ -123,3 +123,61 @@ test("save receipt with unconfirmed key state never reports saved", async () => 
   await screen.findByRole("alert");
   expect(screen.queryByText("BigModel key saved. No model was run; quality and account eligibility remain unverified.")).toBeNull();
 });
+
+test.each([false, true])("outer Cloud fold clears hidden password and confirmation (inflight=%s)", async inflight => {
+  const { fetch } = setup();
+  fetch.mockImplementationOnce(() => reply({ ...empty, configured: true, source: "KEYCHAIN" }));
+  location.hash = "#Settings";
+  const view = render(<UiLanguageProvider><details open><summary>Outer Cloud setup</summary><BigModelSettings /></details></UiLanguageProvider>);
+  fireEvent.click(screen.getByText("BigModel GLM-4.7-Flash candidate setup"));
+  await screen.findByText("Configured in macOS Keychain");
+  const input = screen.getByLabelText("BigModel API key") as HTMLInputElement;
+  const confirm = screen.getByLabelText("Confirm BigModel key deletion") as HTMLInputElement;
+  fireEvent.change(input, { target: { value: "synthetic-hidden-key" } });
+  fireEvent.click(confirm);
+  let finish!: (value: { ok: boolean; json: () => Promise<object> }) => void;
+  if (inflight) {
+    fetch.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    fireEvent.click(screen.getByRole("button", { name: "Save BigModel key securely" }));
+  }
+  fireEvent.click(screen.getByText("Outer Cloud setup"));
+  await waitFor(() => expect(input.value).toBe(""));
+  expect(confirm.checked).toBe(false);
+  expect(view.container.querySelector("details")?.open).toBe(false);
+  expect(view.container.querySelector("#bigmodel-settings")?.hasAttribute("open")).toBe(true);
+  if (inflight) await act(async () => finish({ ok: true, json: async () => ({ ...empty, configured: true, source: "KEYCHAIN" }) }));
+  fireEvent.click(screen.getByText("Outer Cloud setup"));
+  expect(input.value).toBe("");
+  expect(fetch).toHaveBeenCalledTimes(inflight ? 2 : 1);
+});
+
+test.each(["synthetic\u2003space", "synthetic\u0085control", "synthetic-密钥", "synthetic\u200bzero", "synthetic\u007f", "x".repeat(2049)])("unsendable key is blocked before submit (%s)", async key => {
+  const { fetch } = setup();
+  location.hash = "#Settings";
+  render(<UiLanguageProvider><BigModelSettings /></UiLanguageProvider>);
+  fireEvent.click(screen.getByText("BigModel GLM-4.7-Flash candidate setup"));
+  await screen.findByText("Not configured");
+  const input = screen.getByLabelText("BigModel API key");
+  fireEvent.change(input, { target: { value: key } });
+  expect((screen.getByRole("button", { name: "Save BigModel key securely" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.getByRole("alert").textContent).toBe("This key contains unsupported characters or is too long. Copy the full API key again from BigModel, without spaces.");
+  expect(input.getAttribute("aria-invalid")).toBe("true");
+  expect(document.body.textContent).not.toContain(key);
+  fireEvent.submit(input.closest("form")!);
+  expect(fetch).toHaveBeenCalledOnce();
+});
+
+
+test("native password input strips a pasted newline; only its ASCII value is submitted", async () => {
+  const { calls } = setup();
+  location.hash = "#Settings";
+  render(<UiLanguageProvider><BigModelSettings /></UiLanguageProvider>);
+  fireEvent.click(screen.getByText("BigModel GLM-4.7-Flash candidate setup"));
+  await screen.findByText("Not configured");
+  const input = screen.getByLabelText("BigModel API key") as HTMLInputElement;
+  fireEvent.change(input, { target: { value: "synthetic\n" } });
+  expect(input.value).toBe("synthetic");
+  fireEvent.submit(input.closest("form")!);
+  await screen.findByText("BigModel key saved. No model was run; quality and account eligibility remain unverified.");
+  expect(JSON.parse(calls[1].body!).credential).toBe("synthetic");
+});

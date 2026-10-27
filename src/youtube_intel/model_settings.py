@@ -127,10 +127,14 @@ class BigModelCredentialSettings:
             "configured": source == "KEYCHAIN", "source": source,
             "qualification": "NOT_VERIFIED", "budget": "CLOSED"}
 
-    def save(self, secret: str) -> None:
-        if not secret or len(secret) > 2048 or any(ord(c) < 33 or ord(c) == 127 for c in secret):
+    @staticmethod
+    def validate_credential(secret: object) -> str:
+        if not isinstance(secret, str) or not secret or len(secret) > 2048 or any(not 33 <= ord(c) <= 126 for c in secret):
             raise ValueError("Credential is invalid")
-        self._store.save(secret)
+        return secret
+
+    def save(self, secret: str) -> None:
+        self._store.save(self.validate_credential(secret))
 
     def delete(self) -> None:
         self._store.delete()

@@ -1026,10 +1026,7 @@ class LocalApiApplication:
                     self._only_keys(data, set())
                 elif method == "PUT" and route == "/api/v1/settings/bigmodel-credential":
                     self._only_keys(data, {"credential"})
-                    raw_secret = data.get("credential")
-                    if not isinstance(raw_secret, str) or not raw_secret or len(raw_secret) > 2048 or any(ord(c) < 33 or ord(c) == 127 for c in raw_secret):
-                        raise ValueError("Credential is invalid")
-                    secret = raw_secret
+                    secret = BigModelCredentialSettings.validate_credential(data.get("credential"))
                 elif method == "POST" and route.endswith("/delete"):
                     self._only_keys(data, {"confirm"})
                     if data.get("confirm") != "DELETE":

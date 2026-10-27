@@ -4,6 +4,7 @@ export type UiLanguage = "zh-CN" | "en";
 
 const storageKey = "yia.ui-language";
 const chinese: Record<string, string> = {
+  "This key contains unsupported characters or is too long. Copy the full API key again from BigModel, without spaces.": "密钥包含不支持的字符或过长。请从智谱控制台重新复制完整 API 密钥，不要加入空格或中文。",
   "BigModel GLM-4.7-Flash candidate setup": "智谱 GLM-4.7-Flash 候选设置",
   "Optional cloud Intelligence candidate": "可选云端洞察候选",
   "Quality not verified · Execution closed": "质量未验证 · 执行未开放",

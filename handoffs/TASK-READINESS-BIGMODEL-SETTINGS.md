@@ -133,3 +133,45 @@ git diff --check
 ## Reviewer / Root
 
 待独立fixed-commit review；本实现者不填写APPROVE/ACCEPT或公共任务状态。
+
+## 2026-10-27 独审退回后的两项 P2 修复（追加，不覆盖 e9 历史）
+
+Root 正式退回 e9：独审 fixed 报告 d77889f 确认（1）外层 Cloud details 折叠后子详情仍 open，隐藏 password draft 未清；（2）新设置只拒 ord<33/127，U+2003/U+0085/中文能保存，和有限新 transport 的 ASCII33–126 不一致。上文 e9 对“无空白”的概括过宽，实际 e9 规则及反例以本段校正；e9及原证据保留，并非已接受源。
+
+### RED 与最小变更
+
+- `.var/bigmodel-settings/repair/frontend-red.log`：新完整 BigModel 文件 **8PASS/9FAIL**；真实验证外层 fold 的普通及 in-flight 状态均保留 synthetic-hidden-key；Unicode/C1/中文/零宽/过长输入及直接 submit 路径不一致。
+- `repair/backend-red.log`：该完整文件 **29PASS/10FAIL**，API/direct-service 分别让5种非法 key 穿过，包括高代理项；均用 fake store，没有原生或网络访问。
+- 新增 `BigModelCredentialSettings.validate_credential(object)->str` 仅针对新provider：严格1–2048字符、每字符ASCII33–126；API在任何store访问前和直接save复用同一验证。不trim、没有新key来源/namespace/路由。历史Moonshot两个class AST仍与e9逐字等价。
+- 前端按钮和提交函数使用相同有限长度/字符判定，不只靠disabled。非法时提供中英简短重新复制提示、aria-invalid/描述关联，不回显密钥。无新增CSS/协议/依赖。
+- 新详情 effect 仅监听其既有祖先 details 的非冒泡 native toggle；任一祖先关闭即清 password与删除确认，unmount移除监听。保留既有自身关闭/导航/卸载/已在途单次请求语义，不新增请求/取消/生产流程。
+- 新测试中的换行反例发现HTML password input会自动去掉换行（原 `synthetic\n` 实际field值为`synthetic`），因此不能把不存在于field的字符当未拦截。保留RED日志，并改为独立正向断言：native字段只提交已规范化ASCII值。后端原始带换行请求仍由原负例严格拒绝；无原有测试/断言删除、跳过或弱化。
+
+### 当前 fixed 检查
+
+命令沿用上文显式本WT PYTHONPATH/Root既有venv，日志均在 `repair/`：
+
+| 检查 | 最终真实结果 |
+|---|---|
+| 新BigModel前端完整文件 | **17PASS**，frontend-green.log |
+| 新BigModel后端完整文件 | **41PASS**，backend-green.log（Unicode API/direct拒绝、合法ASCII边界!~/2048仍可配置） |
+| 后端原4完整文件 | **115PASS/68.17s**，backend-full.log |
+| 完整前端41文件 | **1075PASS/24.29s**，frontend-full.log |
+| Strict mypy | **122PASS**，mypy-final.log |
+| Ruff/TypeScript/build | PASS，ruff-final.log/types-final.log/build-final.log；Vite587ms |
+| AST/diff | 改变的3个Python文件AST通过、git diff --check PASS |
+| 源码固定 | 最后检查/GUI期间6个产品/测试文件SHA未变化；所有45 protected文件仍等于e9，旧Moonshot class不变 |
+
+独审另有旧未改 `App.content-status-load.test.tsx:41` delayed DA en 的 `finish is not a function`：其原整组1065PASS/1FAIL和独立整文件17PASS保留为独审历史，作者未改该文件任何字节。本次完整1075PASS是新一次真实结果，不用其覆盖此前失败；repair manifest单独证明该旧测试字节与e9相同。
+
+### 当前真实 headful 与数据证明
+
+`repair/gui/gui_server.py` 为本任务新独立 fake-key API（60245）+自有Vite6194，Chrome headful隔离profile。`repair/gui/gui-result.json`/gui-final.log **11项真实PASS**：原9项 + 非ASCII禁用并显示可操作中文原因 + 实际外层折叠清空password/删除确认并可重新展开。仅选定新provider的PUT/delete两次写，observed external=[]、server socket outbound denied、worker/model0。in-flight外层fold、零额外请求和完成后不复活draft由组件完整测试真实覆盖。
+
+此次GUI首次新脚本把既有“云端配置与模型详情”写成“云端设置与模型详情”，locator超时；`repair/gui/first-failure.json/log/driver.mjs`保留，只校正测试locator，未改既有产品文案或隐藏失败。随后新fake memory store重启于同自有隔离库、最终11项PASS；没有删除/重置DB或任何用户数据。
+
+全部 **81表所有记录**的完整SQL dump前后字节相同；integrityok/FK空，SHA256 `b790ef6b3893a0df97c1d56a46fcc0e39e698dceefc87d3442ab610c4bab86c3`。新截图为 `repair/gui/settings-desktop.png` 与 settings-320.png。所有本次临时API/Vite/browser已停止，Root服务未动。此fixture仍无真实目标Content DATA，只证明精确返回URL，不作真实正文恢复/云模型质量声明。
+
+`repair/final-manifest.json` SHA256 **82edc0ef58f82010b7d6820917e32cb413a64af3e0541ee22c3ce72151526035**，包含6产品/测试源文件固定hash、45保护文件、21份证据hash、全部SQL相等和未改旧DA测试证明。原e9 manifest不变。
+
+本追加实际范围仅 BigModelSettings.tsx/test、uiLanguage一条双语提示、model_settings.py新provider helper、local_api新provider分支、test_bigmodel_settings.py及本handoff。无SQL/distillation/state/runtime/正式配置/key/依赖/资格/预算改动。repair scoped commit后clean STOP，等待独立delta review。NOT_VERIFIED/CLOSED及所有真实账号/额度/费用/语义/生产采用门禁保持，Root未获本作者“可真实使用”结论。

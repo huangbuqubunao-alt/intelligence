@@ -15,6 +15,9 @@ function validStatus(value: unknown): value is CandidateStatus {
     && typeof status.configured === "boolean" && ["NONE", "KEYCHAIN", "UNAVAILABLE"].includes(status.source ?? "")
     && status.configured === (status.source === "KEYCHAIN") && status.qualification === "NOT_VERIFIED" && status.budget === "CLOSED";
 }
+function sendableCredential(value: string) {
+  return value.length > 0 && value.length <= 2048 && !/[^\x21-\x7e]/.test(value);
+}
 function contentReturn(): string | null {
   const target = new URLSearchParams(location.hash.split("?")[1] ?? "").get("return");
   return target && /^#Content\/[^/?#]+(?:\/Evidence\/[^/?#]+)?$/.test(target) && !/[\p{Cc}\p{Cs}]/u.test(target) ? target : null;
@@ -59,12 +62,24 @@ export function BigModelSettings({ onSelected }: { onSelected?: () => void }) {
       element.scrollIntoView?.({ block: "start" }); element.focus({ preventScroll: true });
     };
     navigate();
+    // Native toggle does not bubble: each enclosing disclosure must clear a
+    // password that remains mounted when that disclosure is folded.
+    const parents: HTMLDetailsElement[] = [];
+    let parent = panel.current?.parentElement?.closest("details");
+    while (parent) { parents.push(parent); parent = parent.parentElement?.closest("details"); }
+    const clearHiddenDraft = () => {
+      if (parents.some(element => !element.open)) { setKey(""); setConfirmed(false); }
+    };
+    parents.forEach(element => element.addEventListener("toggle", clearHiddenDraft));
     window.addEventListener("hashchange", navigate);
-    return () => { mounted.current = false; window.removeEventListener("hashchange", navigate); };
+    return () => {
+      mounted.current = false; window.removeEventListener("hashchange", navigate);
+      parents.forEach(element => element.removeEventListener("toggle", clearHiddenDraft));
+    };
   }, []);
   useEffect(() => { if (active) void read(); }, [active]);
   const mutate = async (action: "save" | "delete") => {
-    if (pending.current || !status || (action === "delete" && !confirmed)) return;
+    if (pending.current || !status || (action === "delete" && !confirmed) || (action === "save" && !sendableCredential(key))) return;
     pending.current = true; setBusy(true); setError(false); setMessage("");
     try {
       const value = action === "save"
@@ -78,6 +93,7 @@ export function BigModelSettings({ onSelected }: { onSelected?: () => void }) {
     } catch { if (mounted.current) setError(true); }
     finally { pending.current = false; if (mounted.current) setBusy(false); }
   };
+  const invalidKey = key.length > 0 && !sendableCredential(key);
   return <details id="bigmodel-settings" ref={panel} tabIndex={-1} onToggle={event => {
     if (event.currentTarget.open) { setActive(true); onSelected?.(); }
     else { setKey(""); setConfirmed(false); }
@@ -91,8 +107,9 @@ export function BigModelSettings({ onSelected }: { onSelected?: () => void }) {
     <p><a href="https://bigmodel.cn" target="_blank" rel="noreferrer">{t("BigModel official account and API keys")}</a> · <a href="https://docs.bigmodel.cn/cn/terms/privacy-policy" target="_blank" rel="noreferrer">{t("BigModel privacy policy")}</a></p>
     <p role="status">{t(status?.source === "KEYCHAIN" ? "Configured in macOS Keychain" : status?.source === "NONE" ? "Not configured" : status?.source === "UNAVAILABLE" ? "System credential store is unavailable." : "Reading BigModel key status…")}</p>
     <form onSubmit={event => { event.preventDefault(); void mutate("save"); }}>
-      <label className="field">{t("BigModel API key")}<input type="password" value={key} onChange={event => setKey(event.target.value)} disabled={busy} autoComplete="off" spellCheck={false} maxLength={2048} /></label>
-      <button className="button button-secondary" disabled={busy || !status || !key || /\s|[\x00-\x20\x7f]/.test(key)}>{t("Save BigModel key securely")}</button>
+      <label className="field">{t("BigModel API key")}<input type="password" value={key} onChange={event => setKey(event.target.value)} disabled={busy} autoComplete="off" spellCheck={false} maxLength={2048} aria-invalid={invalidKey} aria-describedby={invalidKey ? "bigmodel-key-format" : undefined} /></label>
+      {invalidKey && <p id="bigmodel-key-format" className="form-error" role="alert">{t("This key contains unsupported characters or is too long. Copy the full API key again from BigModel, without spaces.")}</p>}
+      <button className="button button-secondary" disabled={busy || !status || !sendableCredential(key)}>{t("Save BigModel key securely")}</button>
     </form>
     {status?.source === "KEYCHAIN" && <>
       <label className="credential-confirm"><input type="checkbox" checked={confirmed} disabled={busy} onChange={event => setConfirmed(event.target.checked)} />{t("Confirm BigModel key deletion")}</label>
