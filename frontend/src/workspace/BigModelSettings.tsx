@@ -26,9 +26,14 @@ export function bigModelSettingsHref(returnHash = location.hash) {
   return `#Settings/models/bigmodel${returnHash.startsWith("#Content/") ? `?return=${encodeURIComponent(returnHash)}` : ""}`;
 }
 
-export function BigModelSettings({ onSelected }: { onSelected?: () => void }) {
+export function BigModelSettings({ selected, onSelectionChange }: {
+  selected?: boolean; onSelectionChange?: (open: boolean) => void;
+}) {
   const { t } = useUiLanguage();
-  const [active, setActive] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const open = selected ?? expanded;
+  const visible = useRef(open); visible.current = open;
+  const selectionChange = useRef(onSelectionChange); selectionChange.current = onSelectionChange;
   const [status, setStatus] = useState<CandidateStatus>();
   const [key, setKey] = useState("");
   const [confirmed, setConfirmed] = useState(false);
@@ -39,6 +44,11 @@ export function BigModelSettings({ onSelected }: { onSelected?: () => void }) {
   const panel = useRef<HTMLDetailsElement>(null);
   const mounted = useRef(true);
   const pending = useRef(false);
+  const refreshOnSettled = useRef(false);
+  const select = (next: boolean) => {
+    setKey(""); setConfirmed(false); setMessage("");
+    setExpanded(next); selectionChange.current?.(next);
+  };
   const read = async () => {
     if (pending.current) return;
     pending.current = true; setBusy(true);
@@ -47,7 +57,13 @@ export function BigModelSettings({ onSelected }: { onSelected?: () => void }) {
       if (!validStatus(value)) throw new Error("Invalid candidate status");
       if (mounted.current) { setStatus(value); setError(false); }
     } catch { if (mounted.current) { setStatus(undefined); setError(true); } }
-    finally { pending.current = false; if (mounted.current) setBusy(false); }
+    finally {
+      pending.current = false;
+      if (mounted.current) {
+        setBusy(false);
+        if (refreshOnSettled.current && visible.current) { refreshOnSettled.current = false; void read(); }
+      }
+    }
   };
   useEffect(() => {
     mounted.current = true;
@@ -56,7 +72,7 @@ export function BigModelSettings({ onSelected }: { onSelected?: () => void }) {
       if (!location.hash.startsWith("#Settings/models/bigmodel")) return;
       const element = panel.current;
       if (!element) return;
-      setActive(true); element.open = true;
+      select(true);
       const parent = element.parentElement?.closest("details");
       if (parent) parent.open = true;
       element.scrollIntoView?.({ block: "start" }); element.focus({ preventScroll: true });
@@ -68,7 +84,7 @@ export function BigModelSettings({ onSelected }: { onSelected?: () => void }) {
     let parent = panel.current?.parentElement?.closest("details");
     while (parent) { parents.push(parent); parent = parent.parentElement?.closest("details"); }
     const clearHiddenDraft = () => {
-      if (parents.some(element => !element.open)) { setKey(""); setConfirmed(false); }
+      if (parents.some(element => !element.open)) select(false);
     };
     parents.forEach(element => element.addEventListener("toggle", clearHiddenDraft));
     window.addEventListener("hashchange", navigate);
@@ -77,7 +93,12 @@ export function BigModelSettings({ onSelected }: { onSelected?: () => void }) {
       parents.forEach(element => element.removeEventListener("toggle", clearHiddenDraft));
     };
   }, []);
-  useEffect(() => { if (active) void read(); }, [active]);
+  useEffect(() => {
+    if (open) {
+      if (pending.current) refreshOnSettled.current = true;
+      else void read();
+    } else { setKey(""); setConfirmed(false); refreshOnSettled.current = false; }
+  }, [open]);
   const mutate = async (action: "save" | "delete") => {
     if (pending.current || !status || (action === "delete" && !confirmed) || (action === "save" && !sendableCredential(key))) return;
     pending.current = true; setBusy(true); setError(false); setMessage("");
@@ -91,14 +112,20 @@ export function BigModelSettings({ onSelected }: { onSelected?: () => void }) {
         setMessage(action === "save" ? "BigModel key saved. No model was run; quality and account eligibility remain unverified." : "BigModel key deleted. Other providers and existing Content are unchanged.");
       }
     } catch { if (mounted.current) setError(true); }
-    finally { pending.current = false; if (mounted.current) setBusy(false); }
+    finally {
+      pending.current = false;
+      if (mounted.current) {
+        setBusy(false);
+        if (refreshOnSettled.current && visible.current) { refreshOnSettled.current = false; void read(); }
+      }
+    }
   };
   const invalidKey = key.length > 0 && !sendableCredential(key);
-  return <details id="bigmodel-settings" ref={panel} tabIndex={-1} onToggle={event => {
-    if (event.currentTarget.open) { setActive(true); onSelected?.(); }
-    else { setKey(""); setConfirmed(false); }
+  return <details id="bigmodel-settings" ref={panel} tabIndex={-1} open={open} onToggle={event => {
+    if (event.currentTarget.open !== open) select(event.currentTarget.open);
   }}>
-    <summary>{t("BigModel GLM-4.7-Flash candidate setup")}</summary>
+    <summary onClick={event => { event.preventDefault(); select(!open); }}>{t("BigModel GLM-4.7-Flash candidate setup")}</summary>
+    {open && <>
     <h3>{t("Optional cloud Intelligence candidate")}</h3>
     <p>BigModel · GLM-4.7-Flash</p>
     <p>{t("Quality not verified · Execution closed")}</p>
@@ -107,7 +134,7 @@ export function BigModelSettings({ onSelected }: { onSelected?: () => void }) {
     <p><a href="https://bigmodel.cn" target="_blank" rel="noreferrer">{t("BigModel official account and API keys")}</a> · <a href="https://docs.bigmodel.cn/cn/terms/privacy-policy" target="_blank" rel="noreferrer">{t("BigModel privacy policy")}</a></p>
     <p role="status">{t(status?.source === "KEYCHAIN" ? "Configured in macOS Keychain" : status?.source === "NONE" ? "Not configured" : status?.source === "UNAVAILABLE" ? "System credential store is unavailable." : "Reading BigModel key status…")}</p>
     <form onSubmit={event => { event.preventDefault(); void mutate("save"); }}>
-      <label className="field">{t("BigModel API key")}<input type="password" value={key} onChange={event => setKey(event.target.value)} disabled={busy} autoComplete="off" spellCheck={false} maxLength={2048} aria-invalid={invalidKey} aria-describedby={invalidKey ? "bigmodel-key-format" : undefined} /></label>
+      <label className="field">{t("BigModel API key")}<input id="bigmodel-api-key" name="bigmodel-api-key" type="password" value={key} onChange={event => setKey(event.target.value)} disabled={busy} autoComplete="off" spellCheck={false} maxLength={2048} aria-invalid={invalidKey} aria-describedby={invalidKey ? "bigmodel-key-format" : undefined} /></label>
       {invalidKey && <p id="bigmodel-key-format" className="form-error" role="alert">{t("This key contains unsupported characters or is too long. Copy the full API key again from BigModel, without spaces.")}</p>}
       <button className="button button-secondary" disabled={busy || !status || !sendableCredential(key)}>{t("Save BigModel key securely")}</button>
     </form>
@@ -120,5 +147,6 @@ export function BigModelSettings({ onSelected }: { onSelected?: () => void }) {
     {message && <p role="status">{t(message)}</p>}
     <p className="hint">{t("This credential is separate from Moonshot. It does not change local transcription, Summary or model qualification. Keys are excluded from backups.")}</p>
     {returnHash && <a className="button button-secondary" href={returnHash}>{t("Back to Content")}</a>}
+    </>}
   </details>;
 }

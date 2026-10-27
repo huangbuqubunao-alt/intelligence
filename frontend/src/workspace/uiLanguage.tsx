@@ -4,6 +4,12 @@ export type UiLanguage = "zh-CN" | "en";
 
 const storageKey = "yia.ui-language";
 const chinese: Record<string, string> = {
+  "Choose which service's key to edit. This does not change the model used for execution.": "选择要编辑密钥的服务商，不会改变执行任务使用的模型。",
+  "Moonshot / kimi-k2.6 credential setup": "Moonshot / kimi-k2.6 密钥设置",
+  "Moonshot API key": "Moonshot API 密钥",
+  "Save Moonshot key securely": "安全保存 Moonshot 密钥",
+  "Confirm Moonshot key deletion": "确认删除 Moonshot 密钥",
+  "Delete Moonshot key": "删除 Moonshot 密钥",
   "This key contains unsupported characters or is too long. Copy the full API key again from BigModel, without spaces.": "密钥包含不支持的字符或过长。请从智谱控制台重新复制完整 API 密钥，不要加入空格或中文。",
   "BigModel GLM-4.7-Flash candidate setup": "智谱 GLM-4.7-Flash 候选设置",
   "Optional cloud Intelligence candidate": "可选云端洞察候选",

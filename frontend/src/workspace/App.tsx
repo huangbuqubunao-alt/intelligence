@@ -4098,6 +4098,7 @@ function Settings({ refresh }: { refresh: number }) {
   }>(
     "/settings",
     refresh + revision,
+    undefined, true,
   );
   const prefs = useRemote<{ active: Preference[]; history: Preference[] }>(
     "/settings/preferences",
@@ -4106,6 +4107,7 @@ function Settings({ refresh }: { refresh: number }) {
   const policy = useRemote<{ policy: SourcePolicy }>(
     "/settings/source-policy",
     refresh + revision,
+    undefined, true,
   );
   const usage = useRemote<{ usage: ResourceUsage[] }>(
     "/settings/resource-usage",

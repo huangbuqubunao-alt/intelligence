@@ -109,10 +109,11 @@ test("Settings saves discovered candidate and secure credential without generati
   fireEvent.change(await screen.findByLabelText("Discovered candidate"), { target: { value: "candidate:7b" } });
   fireEvent.click(screen.getByRole("button", { name: "Save candidate preference" }));
   await waitFor(() => expect(writes[0]?.data).toEqual({ provider: "Local", model: "candidate:7b" }));
-  fireEvent.change(screen.getByLabelText("New API credential"), { target: { value: "synthetic-closure-ui" } });
-  fireEvent.click(screen.getByRole("button", { name: "Save credential securely" }));
+  fireEvent.click(screen.getByText("Moonshot / kimi-k2.6 credential setup"));
+  fireEvent.change(await screen.findByLabelText("Moonshot API key"), { target: { value: "synthetic-closure-ui" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save Moonshot key securely" }));
   await screen.findByText("Credential saved in macOS Keychain. Every cloud execution still needs separate consent.");
-  expect((screen.getByLabelText("New API credential") as HTMLInputElement).value).toBe("");
+  expect((screen.getByLabelText("Moonshot API key") as HTMLInputElement).value).toBe("");
   expect(JSON.stringify(localStorage)).not.toContain("synthetic-closure-ui");
   expect(writes.map(write => write.path)).toEqual(["/api/v1/settings/model-preference", "/api/v1/settings/cloud-credential"]);
 });

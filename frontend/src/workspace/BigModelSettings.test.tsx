@@ -96,7 +96,7 @@ test("closed candidate is lazy; a double submit writes once and deletion stays p
   expect(screen.queryByLabelText("Confirm BigModel key deletion")).toBeNull();
 });
 
-test("collapsing the provider clears its draft and reopening makes no duplicate request", async () => {
+test("collapsing unmounts the password and reopening reads status without writing", async () => {
   const { fetch } = setup();
   location.hash = "#Settings";
   render(<UiLanguageProvider><BigModelSettings /></UiLanguageProvider>);
@@ -106,9 +106,11 @@ test("collapsing the provider clears its draft and reopening makes no duplicate 
   const input = screen.getByLabelText("BigModel API key") as HTMLInputElement;
   fireEvent.change(input, { target: { value: "synthetic-collapsed" } });
   fireEvent.click(toggle);
-  await waitFor(() => expect(input.value).toBe(""));
+  await waitFor(() => expect(screen.queryByLabelText("BigModel API key")).toBeNull());
   fireEvent.click(toggle);
-  expect(fetch).toHaveBeenCalledOnce();
+  expect((await screen.findByLabelText("BigModel API key") as HTMLInputElement).value).toBe("");
+  await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+  expect(fetch.mock.calls.every(([, init]) => !init?.method)).toBe(true);
 });
 
 test("save receipt with unconfirmed key state never reports saved", async () => {
@@ -141,14 +143,17 @@ test.each([false, true])("outer Cloud fold clears hidden password and confirmati
     fireEvent.click(screen.getByRole("button", { name: "Save BigModel key securely" }));
   }
   fireEvent.click(screen.getByText("Outer Cloud setup"));
-  await waitFor(() => expect(input.value).toBe(""));
-  expect(confirm.checked).toBe(false);
+  await waitFor(() => expect(screen.queryByLabelText("BigModel API key")).toBeNull());
+  expect(screen.queryByLabelText("Confirm BigModel key deletion")).toBeNull();
   expect(view.container.querySelector("details")?.open).toBe(false);
-  expect(view.container.querySelector("#bigmodel-settings")?.hasAttribute("open")).toBe(true);
+  expect(view.container.querySelector("#bigmodel-settings")?.hasAttribute("open")).toBe(false);
   if (inflight) await act(async () => finish({ ok: true, json: async () => ({ ...empty, configured: true, source: "KEYCHAIN" }) }));
   fireEvent.click(screen.getByText("Outer Cloud setup"));
-  expect(input.value).toBe("");
-  expect(fetch).toHaveBeenCalledTimes(inflight ? 2 : 1);
+  expect(screen.queryByLabelText("BigModel API key")).toBeNull();
+  fireEvent.click(screen.getByText("BigModel GLM-4.7-Flash candidate setup"));
+  expect((await screen.findByLabelText("BigModel API key") as HTMLInputElement).value).toBe("");
+  await waitFor(() => expect(fetch).toHaveBeenCalledTimes(inflight ? 3 : 2));
+  expect(fetch.mock.calls.filter(([, init]) => init?.method === "PUT")).toHaveLength(inflight ? 1 : 0);
 });
 
 test.each(["synthetic\u2003space", "synthetic\u0085control", "synthetic-密钥", "synthetic\u200bzero", "synthetic\u007f", "x".repeat(2049)])("unsendable key is blocked before submit (%s)", async key => {

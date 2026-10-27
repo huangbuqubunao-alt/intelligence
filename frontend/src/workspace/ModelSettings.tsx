@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BigModelSettings } from "./BigModelSettings";
 import { api, post, put } from "../api/client";
 import { useUiLanguage } from "./uiLanguage";
@@ -13,6 +13,13 @@ export function ModelSettings({ credential, preference, onSaved, message, setMes
   setMessage: (value: string) => void;
 }) {
   const { t } = useUiLanguage();
+  const [editor, setEditor] = useState<"bigmodel" | "moonshot" | null>(null);
+  const panel = useRef<HTMLElement>(null);
+  const pending = useRef(false);
+  const selectEditor = (next: "bigmodel" | "moonshot" | null) => {
+    setKey(""); setConfirmed(false); setEditor(next);
+    if (next === "moonshot") onSaved();
+  };
   const [models, setModels] = useState<{ model: string }[]>([]);
   const [candidate, setCandidate] = useState(preference?.desired_model ?? "");
   const [key, setKey] = useState("");
@@ -28,12 +35,26 @@ export function ModelSettings({ credential, preference, onSaved, message, setMes
   };
   useEffect(() => { void scan(); }, []);
   useEffect(() => {
-    const clear = () => { setKey(""); setConfirmed(false); };
+    const clear = () => {
+      setKey(""); setConfirmed(false);
+      setEditor(location.hash.startsWith("#Settings/models/bigmodel") ? "bigmodel" : null);
+    };
+    const parents: HTMLDetailsElement[] = [];
+    let parent = panel.current?.parentElement?.closest("details");
+    while (parent) { parents.push(parent); parent = parent.parentElement?.closest("details"); }
+    const folded = () => {
+      if (parents.some(element => !element.open)) { setKey(""); setConfirmed(false); setEditor(null); }
+    };
+    parents.forEach(element => element.addEventListener("toggle", folded));
     window.addEventListener("hashchange", clear);
-    return () => window.removeEventListener("hashchange", clear);
+    return () => {
+      window.removeEventListener("hashchange", clear);
+      parents.forEach(element => element.removeEventListener("toggle", folded));
+    };
   }, []);
   const run = async (action: "candidate" | "save" | "delete") => {
-    setBusy(true); setMessage("");
+    if (pending.current) return;
+    pending.current = true; setBusy(true); setMessage("");
     try {
       if (action === "candidate") {
         await put("/settings/model-preference", { provider: "Local", model: candidate });
@@ -50,9 +71,9 @@ export function ModelSettings({ credential, preference, onSaved, message, setMes
       onSaved();
     } catch {
       setMessage(t("Configuration could not be saved. Check the system credential store or try again."));
-    } finally { setBusy(false); }
+    } finally { pending.current = false; setBusy(false); }
   };
-  return <section className="panel" aria-label={t("Model configuration")}>
+  return <section ref={panel} className="panel" aria-label={t("Model configuration")}>
     <h2>{t("Model configuration")}</h2>
     <p className="hint">{t("Configured, reachable, qualified and production eligible are separate states. Settings cannot qualify a model.")}</p>
     <details><summary>{t("Experimental candidate preferences")}</summary>
@@ -71,19 +92,27 @@ export function ModelSettings({ credential, preference, onSaved, message, setMes
     </div>
     <p className="hint">{t("This preference changes neither the configured Scoring/Summary model nor reviewed Deep Analysis qualification.")}</p>
     </details>
-    <BigModelSettings onSelected={() => { setKey(""); setConfirmed(false); }} />
+    <p className="hint">{t("Choose which service's key to edit. This does not change the model used for execution.")}</p>
+    <BigModelSettings selected={editor === "bigmodel"} onSelectionChange={open => selectEditor(open ? "bigmodel" : null)} />
+    <details open={editor === "moonshot"} onToggle={event => {
+      if (event.currentTarget.open !== (editor === "moonshot")) selectEditor(event.currentTarget.open ? "moonshot" : null);
+    }}>
+    <summary onClick={event => { event.preventDefault(); selectEditor(editor === "moonshot" ? null : "moonshot"); }}>{t("Moonshot / kimi-k2.6 credential setup")}</summary>
+    {editor === "moonshot" && <>
     <h3>{t("Cloud Intelligence credential")}</h3>
     <p>Moonshot / kimi-k2.6 · {t("Video Distillation only")}</p>
     <p>{t(credential?.source === "KEYCHAIN" ? "Configured in macOS Keychain" : credential?.source === "ENVIRONMENT" ? "Using development environment variable" : credential?.source === "UNAVAILABLE" ? "System credential store is unavailable." : "Not configured")}</p>
-    <label className="field">{t("New API credential")}
-      <input type="password" aria-label={t("New API credential")} value={key} onChange={event => setKey(event.target.value)} autoComplete="off" spellCheck={false} />
+    <label className="field">{t("Moonshot API key")}
+      <input id="moonshot-api-key" name="moonshot-api-key" type="password" aria-label={t("Moonshot API key")} disabled={busy} value={key} onChange={event => setKey(event.target.value)} autoComplete="off" spellCheck={false} />
     </label>
-    <button type="button" disabled={busy || !key.trim()} onClick={() => void run("save")}>{t("Save credential securely")}</button>
+    <button type="button" disabled={busy || !key.trim()} onClick={() => void run("save")}>{t("Save Moonshot key securely")}</button>
     {credential?.source === "KEYCHAIN" ? <>
-      <label className="credential-confirm"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} />{t("Confirm Keychain credential deletion")}</label>
-      <button type="button" disabled={busy || !confirmed} onClick={() => void run("delete")}>{t("Delete Keychain credential")}</button>
+      <label className="credential-confirm"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} />{t("Confirm Moonshot key deletion")}</label>
+      <button type="button" disabled={busy || !confirmed} onClick={() => void run("delete")}>{t("Delete Moonshot key")}</button>
     </> : null}
     <p className="hint">{t("Saving a credential does not call a provider, prove availability, qualify Deep Analysis or authorize paid work.")}</p>
     {message ? <p role="status">{message}</p> : null}
+    </>}
+    </details>
   </section>;
 }

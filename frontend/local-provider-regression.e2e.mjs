@@ -37,12 +37,13 @@ try {
     await page.getByLabel(text("Discovered candidate", "已发现的候选模型")).selectOption("closure-candidate:7b");
     await page.getByRole("button", { name: text("Save candidate preference", "保存候选偏好"), exact: true }).click();
     await page.getByRole("status").filter({ hasText: text("Candidate preference saved.", "已保存候选偏好") }).waitFor();
-    await page.getByLabel(text("New API credential", "新的 API 凭据")).fill("synthetic-browser-closure");
-    await page.getByRole("button", { name: text("Save credential securely", "安全保存凭据"), exact: true }).click();
+    await page.getByText(text("Moonshot / kimi-k2.6 credential setup", "Moonshot / kimi-k2.6 密钥设置"), { exact: true }).click();
+    await page.getByLabel(text("Moonshot API key", "Moonshot API 密钥")).fill("synthetic-browser-closure");
+    await page.getByRole("button", { name: text("Save Moonshot key securely", "安全保存 Moonshot 密钥"), exact: true }).click();
     await page.getByRole("status").filter({ hasText: text("Credential saved", "凭据已存入") }).waitFor();
-    assert.equal(await page.getByLabel(text("New API credential", "新的 API 凭据")).inputValue(), "");
-    await page.getByLabel(text("Confirm Keychain credential deletion", "确认删除钥匙串凭据")).check();
-    await page.getByRole("button", { name: text("Delete Keychain credential", "删除钥匙串凭据"), exact: true }).click();
+    assert.equal(await page.getByLabel(text("Moonshot API key", "Moonshot API 密钥")).inputValue(), "");
+    await page.getByLabel(text("Confirm Moonshot key deletion", "确认删除 Moonshot 密钥")).check();
+    await page.getByRole("button", { name: text("Delete Moonshot key", "删除 Moonshot 密钥"), exact: true }).click();
     await page.getByRole("status").filter({ hasText: text("Keychain credential deleted.", "已删除钥匙串凭据") }).waitFor();
     const settings = await get("settings");
     assert.equal(settings.model_preference.active_production_default, null);
