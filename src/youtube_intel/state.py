@@ -1691,6 +1691,19 @@ def _immediate_transaction(connection: sqlite3.Connection) -> Iterator[None]:
         connection.commit()
 
 
+@contextmanager
+def _read_snapshot(connection: sqlite3.Connection) -> Iterator[None]:
+    """Pin all authority reads; never end a transaction owned by the caller."""
+    if connection.in_transaction:
+        yield
+        return
+    connection.execute("BEGIN")
+    try:
+        yield
+    finally:
+        connection.rollback()
+
+
 #: Reusing an active manual run must recognise exactly the states that still
 #: hold live execution, taken from the single definition rather than a copy.
 _ACTIVE_SOURCE_RUN_STATES = tuple(
@@ -4661,7 +4674,11 @@ class SQLiteStateRepository:
             raise StateStoreError("BigModel execution usage differs")
 
     def verify_cloud_audit_database(self, connection: sqlite3.Connection) -> None:
-        """Verify v042's exact new guards and every forward/reverse audit link."""
+        """Verify v042 authority within one caller-preserving read snapshot."""
+        with _read_snapshot(connection):
+            self._verify_cloud_audit_database_in_snapshot(connection)
+
+    def _verify_cloud_audit_database_in_snapshot(self, connection: sqlite3.Connection) -> None:
         if int(connection.execute("PRAGMA user_version").fetchone()[0]) < 42:
             if connection.execute("SELECT 1 FROM sqlite_master WHERE name IN (?,?)", (ZHIPU_AUTHORIZATIONS, ZHIPU_FAILURES)).fetchone():
                 raise IntegrityConflict("BigModel audit cannot appear in an older schema")
@@ -10258,8 +10275,7 @@ class SQLiteStateRepository:
             raise StateStoreError("no-new Intelligence HTTP status is invalid")
 
     def get_distillation_execution(self, execution_id: str) -> DistillationExecutionRecord | None:
-        connection = self._connect()
-        try:
+        with closing(self._connect()) as connection, _read_snapshot(connection):
             row = connection.execute(
                 "SELECT * FROM distillation_execution_checkpoints WHERE execution_id = :execution_id",
                 {"execution_id": execution_id},
@@ -10331,8 +10347,6 @@ class SQLiteStateRepository:
                     "SUCCEEDED_NO_NEW_INTELLIGENCE" if no_new is not None else None
                 ),
             )
-        finally:
-            connection.close()
 
 
     @staticmethod
@@ -10862,8 +10876,7 @@ class SQLiteStateRepository:
     def get_cloud_execution_authorization(
         self, execution_id: str
     ) -> CloudExecutionAuthorizationRecord | None:
-        connection = self._connect()
-        try:
+        with closing(self._connect()) as connection, _read_snapshot(connection):
             checkpoint = connection.execute(
                 "SELECT * "
                 "FROM distillation_execution_checkpoints WHERE execution_id = ?",
@@ -10893,8 +10906,6 @@ class SQLiteStateRepository:
                 consent_kind=str(row["consent_kind"]),
                 authorized_at=_parse_utc_datetime(str(row["authorized_at"])),
             )
-        finally:
-            connection.close()
 
     def claim_distillation_execution(
         self,
@@ -11762,73 +11773,42 @@ class SQLiteStateRepository:
     def get_distillation_resource_usage(
         self, execution_id: str
     ) -> DistillationResourceUsageRecord:
-        connection = self._connect()
-        try:
-            self._validate_long_resource_usage_authority(connection, execution_id)
-            row = connection.execute(
-                "SELECT * FROM distillation_resource_usage WHERE execution_id = :execution_id",
-                {"execution_id": execution_id},
-            ).fetchone()
-            if row is not None:
-                checkpoint = connection.execute("SELECT * FROM distillation_execution_checkpoints WHERE execution_id=?", (execution_id,)).fetchone()
-                if checkpoint is not None:
-                    self._validate_zhipu_execution(connection, checkpoint)
-                return self._distillation_usage_from_row(row)
-            checkpoint = connection.execute(
-                "SELECT * FROM distillation_execution_checkpoints WHERE execution_id = ?",
-                (execution_id,),
-            ).fetchone()
-            audit_tables = (
-                None if checkpoint is None else _cloud_audit_tables(
-                    checkpoint["selected_provider"], checkpoint["selected_model"]
-                )
-            )
+        with closing(self._connect()) as connection, _read_snapshot(connection):
+            return self._distillation_resource_usage_in_snapshot(connection, execution_id)
+
+    def _distillation_resource_usage_in_snapshot(
+        self, connection: sqlite3.Connection, execution_id: str
+    ) -> DistillationResourceUsageRecord:
+        self._validate_long_resource_usage_authority(connection, execution_id)
+        row = connection.execute(
+            "SELECT * FROM distillation_resource_usage WHERE execution_id = :execution_id",
+            {"execution_id": execution_id},
+        ).fetchone()
+        if row is not None:
+            checkpoint = connection.execute("SELECT * FROM distillation_execution_checkpoints WHERE execution_id=?", (execution_id,)).fetchone()
             if checkpoint is not None:
                 self._validate_zhipu_execution(connection, checkpoint)
-            unidentified = None
-            if audit_tables is not None and audit_tables[1] is not None:
-                _, response_table = audit_tables
-                table_exists = connection.execute(
-                    "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
-                    (response_table,),
-                ).fetchone()
-                if table_exists is not None:
-                    unidentified = connection.execute(
-                        "SELECT checkpoint.execution_id, checkpoint.reason, checkpoint.use_case, "
-                        "checkpoint.source_id, checkpoint.video_id, checkpoint.intelligence_id, "
-                        "checkpoint.revision_id, checkpoint.selected_provider, "
-                        "checkpoint.selected_model, response.actual_provider, "
-                        "response.actual_model, response.status, checkpoint.invocation_count, "
-                        "response.input_tokens, response.output_tokens, "
-                        "response.cost_microunits, response.duration_ms, "
-                        "checkpoint.budget_state, response.outcome, "
-                        "response.received_at AS created_at, NULL AS http_status_code "
-                        f"FROM {response_table} AS response "
-                        "JOIN distillation_execution_checkpoints AS checkpoint "
-                        "ON checkpoint.execution_id = response.execution_id "
-                        "WHERE response.execution_id = ?",
-                        (execution_id,),
-                    ).fetchone()
-            if unidentified is not None:
-                if audit_tables is None:
-                    raise StateStoreError("unidentified HTTP response identity is unsupported")
-                authorization_table, response_table = audit_tables
-                response = connection.execute(
-                    f"SELECT * FROM {response_table} WHERE execution_id = ?",
-                    (execution_id,),
-                ).fetchone()
-                consent = connection.execute(
-                    f"SELECT * FROM {authorization_table} WHERE execution_id = ?",
-                    (execution_id,),
-                ).fetchone()
-                if response is None or checkpoint is None:
-                    raise StateStoreError("unidentified HTTP response binding is missing")
-                self._validate_unidentified_http_response_row(response, checkpoint, consent)
-                return self._distillation_usage_from_row(unidentified)
-            failure_table = _cloud_failure_table(None if checkpoint is None else checkpoint["selected_provider"], None if checkpoint is None else checkpoint["selected_model"])
-            cloud_failure = None
-            if _sqlite_table_exists(connection, failure_table):
-                cloud_failure = connection.execute(
+            return self._distillation_usage_from_row(row)
+        checkpoint = connection.execute(
+            "SELECT * FROM distillation_execution_checkpoints WHERE execution_id = ?",
+            (execution_id,),
+        ).fetchone()
+        audit_tables = (
+            None if checkpoint is None else _cloud_audit_tables(
+                checkpoint["selected_provider"], checkpoint["selected_model"]
+            )
+        )
+        if checkpoint is not None:
+            self._validate_zhipu_execution(connection, checkpoint)
+        unidentified = None
+        if audit_tables is not None and audit_tables[1] is not None:
+            _, response_table = audit_tables
+            table_exists = connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+                (response_table,),
+            ).fetchone()
+            if table_exists is not None:
+                unidentified = connection.execute(
                     "SELECT checkpoint.execution_id, checkpoint.reason, checkpoint.use_case, "
                     "checkpoint.source_id, checkpoint.video_id, checkpoint.intelligence_id, "
                     "checkpoint.revision_id, checkpoint.selected_provider, "
@@ -11837,71 +11817,104 @@ class SQLiteStateRepository:
                     "response.input_tokens, response.output_tokens, "
                     "response.cost_microunits, response.duration_ms, "
                     "checkpoint.budget_state, response.outcome, "
-                    "response.received_at AS created_at, response.http_status_code "
-                    f"FROM {failure_table} AS response "
+                    "response.received_at AS created_at, NULL AS http_status_code "
+                    f"FROM {response_table} AS response "
                     "JOIN distillation_execution_checkpoints AS checkpoint "
                     "ON checkpoint.execution_id = response.execution_id "
                     "WHERE response.execution_id = ?",
                     (execution_id,),
                 ).fetchone()
-            if cloud_failure is not None:
-                if checkpoint is None or audit_tables is None:
-                    raise StateStoreError("cloud response failure identity is unsupported")
-                response = connection.execute(
-                    f"SELECT * FROM {failure_table} "
-                    "WHERE execution_id = ?",
-                    (execution_id,),
-                ).fetchone()
-                authorization_table, _ = audit_tables
-                consent = connection.execute(
-                    f"SELECT * FROM {authorization_table} WHERE execution_id = ?",
-                    (execution_id,),
-                ).fetchone()
-                if response is None:
-                    raise StateStoreError("cloud response failure binding is missing")
-                self._validate_cloud_response_failure_row(response, checkpoint, consent)
-                return self._distillation_usage_from_row(cloud_failure)
-            no_new_http_status = (
-                "result.http_status_code"
-                if _sqlite_column_exists(
-                    connection,
-                    "distillation_no_new_intelligence_results",
-                    "http_status_code",
-                )
-                else "NULL AS http_status_code"
-            )
-            no_new = connection.execute(
+        if unidentified is not None:
+            if audit_tables is None:
+                raise StateStoreError("unidentified HTTP response identity is unsupported")
+            authorization_table, response_table = audit_tables
+            response = connection.execute(
+                f"SELECT * FROM {response_table} WHERE execution_id = ?",
+                (execution_id,),
+            ).fetchone()
+            consent = connection.execute(
+                f"SELECT * FROM {authorization_table} WHERE execution_id = ?",
+                (execution_id,),
+            ).fetchone()
+            if response is None or checkpoint is None:
+                raise StateStoreError("unidentified HTTP response binding is missing")
+            self._validate_unidentified_http_response_row(response, checkpoint, consent)
+            return self._distillation_usage_from_row(unidentified)
+        failure_table = _cloud_failure_table(None if checkpoint is None else checkpoint["selected_provider"], None if checkpoint is None else checkpoint["selected_model"])
+        cloud_failure = None
+        if _sqlite_table_exists(connection, failure_table):
+            cloud_failure = connection.execute(
                 "SELECT checkpoint.execution_id, checkpoint.reason, checkpoint.use_case, "
-                "checkpoint.source_id, checkpoint.video_id, "
-                "checkpoint.selected_provider, checkpoint.selected_model, "
-                "result.actual_provider, result.actual_model, result.input_tokens, "
-                "result.output_tokens, result.cost_microunits, result.duration_ms, "
-                "result.budget_state, result.outcome, result.created_at, "
-                f"{no_new_http_status} "
-                "FROM distillation_no_new_intelligence_results AS result "
+                "checkpoint.source_id, checkpoint.video_id, checkpoint.intelligence_id, "
+                "checkpoint.revision_id, checkpoint.selected_provider, "
+                "checkpoint.selected_model, response.actual_provider, "
+                "response.actual_model, response.status, checkpoint.invocation_count, "
+                "response.input_tokens, response.output_tokens, "
+                "response.cost_microunits, response.duration_ms, "
+                "checkpoint.budget_state, response.outcome, "
+                "response.received_at AS created_at, response.http_status_code "
+                f"FROM {failure_table} AS response "
                 "JOIN distillation_execution_checkpoints AS checkpoint "
-                "ON checkpoint.execution_id = result.execution_id "
-                "WHERE result.execution_id = :execution_id",
-                {"execution_id": execution_id},
+                "ON checkpoint.execution_id = response.execution_id "
+                "WHERE response.execution_id = ?",
+                (execution_id,),
             ).fetchone()
-            if no_new is None:
-                raise StateStoreError("distillation resource usage does not exist")
-            checkpoint = connection.execute(
-                "SELECT * FROM distillation_execution_checkpoints "
-                "WHERE execution_id = :execution_id",
-                {"execution_id": execution_id},
+        if cloud_failure is not None:
+            if checkpoint is None or audit_tables is None:
+                raise StateStoreError("cloud response failure identity is unsupported")
+            response = connection.execute(
+                f"SELECT * FROM {failure_table} "
+                "WHERE execution_id = ?",
+                (execution_id,),
             ).fetchone()
-            result = connection.execute(
-                "SELECT * FROM distillation_no_new_intelligence_results "
-                "WHERE execution_id = :execution_id",
-                {"execution_id": execution_id},
+            authorization_table, _ = audit_tables
+            consent = connection.execute(
+                f"SELECT * FROM {authorization_table} WHERE execution_id = ?",
+                (execution_id,),
             ).fetchone()
-            if checkpoint is None or result is None:
-                raise StateStoreError("no-new Intelligence resource binding is missing")
-            self._validate_no_new_result_row(result, checkpoint)
-            return self._distillation_no_new_usage_from_row(no_new)
-        finally:
-            connection.close()
+            if response is None:
+                raise StateStoreError("cloud response failure binding is missing")
+            self._validate_cloud_response_failure_row(response, checkpoint, consent)
+            return self._distillation_usage_from_row(cloud_failure)
+        no_new_http_status = (
+            "result.http_status_code"
+            if _sqlite_column_exists(
+                connection,
+                "distillation_no_new_intelligence_results",
+                "http_status_code",
+            )
+            else "NULL AS http_status_code"
+        )
+        no_new = connection.execute(
+            "SELECT checkpoint.execution_id, checkpoint.reason, checkpoint.use_case, "
+            "checkpoint.source_id, checkpoint.video_id, "
+            "checkpoint.selected_provider, checkpoint.selected_model, "
+            "result.actual_provider, result.actual_model, result.input_tokens, "
+            "result.output_tokens, result.cost_microunits, result.duration_ms, "
+            "result.budget_state, result.outcome, result.created_at, "
+            f"{no_new_http_status} "
+            "FROM distillation_no_new_intelligence_results AS result "
+            "JOIN distillation_execution_checkpoints AS checkpoint "
+            "ON checkpoint.execution_id = result.execution_id "
+            "WHERE result.execution_id = :execution_id",
+            {"execution_id": execution_id},
+        ).fetchone()
+        if no_new is None:
+            raise StateStoreError("distillation resource usage does not exist")
+        checkpoint = connection.execute(
+            "SELECT * FROM distillation_execution_checkpoints "
+            "WHERE execution_id = :execution_id",
+            {"execution_id": execution_id},
+        ).fetchone()
+        result = connection.execute(
+            "SELECT * FROM distillation_no_new_intelligence_results "
+            "WHERE execution_id = :execution_id",
+            {"execution_id": execution_id},
+        ).fetchone()
+        if checkpoint is None or result is None:
+            raise StateStoreError("no-new Intelligence resource binding is missing")
+        self._validate_no_new_result_row(result, checkpoint)
+        return self._distillation_no_new_usage_from_row(no_new)
 
 
     def list_distillation_resource_usage(
@@ -11912,8 +11925,7 @@ class SQLiteStateRepository:
             not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 100
         ):
             raise ValueError("distillation resource usage limit is invalid")
-        connection = self._connect()
-        try:
+        with closing(self._connect()) as connection, _read_snapshot(connection):
             normal_rows = connection.execute(
                 "SELECT * FROM distillation_resource_usage "
                 "ORDER BY created_at DESC, execution_id DESC LIMIT :limit",
@@ -12000,15 +12012,13 @@ class SQLiteStateRepository:
             combined = [
                 *(self._distillation_usage_from_row(row) for row in normal_rows),
                 *(self._distillation_no_new_usage_from_row(row) for row in zero_rows),
-                *(self.get_distillation_resource_usage(str(row["execution_id"]))
+                *(self._distillation_resource_usage_in_snapshot(connection, str(row["execution_id"]))
                   for row in unidentified_ids),
             ]
             combined.sort(
                 key=lambda item: (item.created_at, item.execution_id), reverse=True
             )
             return tuple(combined[:limit])
-        finally:
-            connection.close()
 
 
     def get_distillation_card(self, revision_id: str) -> DistillationCardRecord | None:
