@@ -1,0 +1,59 @@
+# TASK-READINESS-BIGMODEL-PUBLIC-FIRST-CASE
+
+Implementer `/root/cloud_preview_writer`, sole writer/no subagents. Base `eaff966251231c08c39f9b44cfccf66d9b0252fd`; WT `/Users/hua/Documents/yia-worktrees/readiness-bigmodel-public-first-case`, branch `codex/task-readiness-bigmodel-public-first-case`. Author fixed commit reported in final chat. Suggested status IN_REVIEW; Root alone accepts/executes/integrates.
+
+## Scope and reuse
+
+One354-line, single-case diagnostic script, necessary tests, this handoff. No application/runtime/API/UI/config/credentials/schema/SQL/normal-budget/model-qualification changes. DIRECT accepted production prospective builder, exact BigModel adapter/decoder, SourcePolicy, OWNER_QUALIFICATION consent, durable claim/accounting and Backup/Restore. REFERENCE existing project write-once/manifest conventions; standard-library SQLite/JSON/hash/O_EXCL/fsync, no SDK/framework/dependency or copied third-party code. No local GPU/native model gates or extra case/qualification matrix. All actual provider/model calls and native credential accesses by author: **zero**. No access to live user settings QA6178/6179, native QA namespace, .env, private thinking, formal owner data or main.
+
+## Concrete prepared public package
+
+`/Users/hua/Documents/yia-worktrees/readiness-bigmodel-public-first-case/.var/bigmodel-public-first-case`
+
+Preparation actually ran using the CLI `prepare`, then pure validation succeeded. Source is only Root-authorized **public diagnostic copy** `.../end-to-end-user-readiness/.var/end-to-end-user-readiness/bigmodel-public-diagnostic-20261028`; provenance's `source_QA` string is informational, never followed/accessed. Source DB opens mode=ro; preparation only clones into the new owned package, with no new reservation/consent/checkpoint, no policy/input edits, no key, no budget check or wire. Root original81 tables and19 physical DATA match `initial.json` before/after; the clone has identical complete SQL/schema/DATA.
+
+- Case `real-deepthink-en`, actual public `QoXRfTb7ves`, source `3cede107-8ff8-4c29-b40b-1ddab71727ea`, output en, manual identity `free-public-diagnostic-case-1`.
+- Actual18 cue start/end/text exactly equal REAL_CORPUS_V2. Actual canonical artifact/file SHA `67c965b3254c6240b8fe5c9d2ad120e62aaa6b884780f91e4e27004769df71a6`; timed-transcript hash has its separate accepted contract, verified by repository rather than incorrectly equated to canonical file hash.
+- Entire authoritative canonical Evidence set:2, not historical/stale Evidence or a truncated subset. Verified input hash `4d4b30739519803c87fecd23b991b3f221a508512ecf2f63520f45c617c0150e`.
+- Request projection4224 bytes, SHA `2ded85cc303228625d9026513453f2fa42bd84fd28cd567e4aeb8efa060e7448`; exact HTTP JSON body4132 bytes, SHA `4b87a2d28698122e607f51876e6ddb7c1d67e6ff76daf52452ec8bed1298f03a`. Headers/credentials are not exported. Request contains only public source/Evidence/title/name plus original synthetic focus, no preferences, no ignore rules and BALANCED style. Oracle and published Summary are review artifacts, **not outgoing model context**.
+- `prepared.json` SHA **`d31ae035ab3f8f7b012e48eb35e8d780a63a7d4455a994f9d64a04960e4dcd14`**. It freezes source/destination/command/input/profile, all public artifact hashes, original SQL rows/schema, all19 DATA, and all source/script/corpus/SQL code hashes. `summary.json` binds the current durable published Summary for independent beyond-Summary assessment; `oracle.json` is the unchanged original English corpus entry.
+- Official Oct28 snapshot SHA `8b8c1f41835842f9f8dd316486ec2a3f34353d5e9d42eeb08a7b42876e5f1886`. Authorization is only anticipated-free exact `zhipu_bigmodel/glm-4.7-flash`. Code refuses execution outside Oct28 China date; stale pricing requires Root decision/review, no automatic update or fallback. Account entitlement and actual invoice remain UNKNOWN, resource cost remains None, never fabricated zero.
+- Profile unchanged: exact fixed BigModel endpoint, thinking enabled, nonstream JSON object, max_tokens16384/temp1,300s, zero retries,128KiB input/2MiB response. No arbitrary provider, endpoint, source, destination, key path/value or language CLI argument.
+
+At handoff `review.json` **absent**, external once marker **absent**, actual execution **not run**. Package is ignored runtime evidence accessible to independent reviewer, not a committed model result. No preparation/source difference requires oracle amendment.
+
+## Once, privacy and failure boundaries
+
+Execute first validates concrete package/code/price/source/data/profile/request, then exact independent approval bound to prepared SHA, before any credential resolution. Durable external `.var/bigmodel-public-first-case.attempt.json` uses O_EXCL/O_NOFOLLOW + file and parent fsync before reservation/consent/claim; marker states ARMED_NOT_PROOF_OF_POST, never implies confirmed generation. No deletion/reset/retry path. Marker is outside DB/DATA Backup/Restore, so restoring cannot restore an unspent attempt. Concurrent/repeated/restarted execute refuses before a second key lookup or wire. A hard interruption can retain PENDING/claimed uncertainty; marker forbids redispatch. Never erase that history or claim a confirmed call from the marker alone; existing authoritative recovery belongs to Root, with no replay.
+
+Real execution by Root alone uses only fixed `MacOSBigModelQACredentialStore`, no env/file/CLI fallback. The secret is cached ephemerally for one execution then cleared; no credential value is accepted through CLI. Invalid CLI never echoes argv values. Budget permits only the exact frozen command/profile/input and rechecks protected DB/DATA before key access. Production eligibility/budget remain closed.
+
+Existing service creates immutable OWNER consent, one claim and ordinary admission/NO_NEW/failure/unknown accounting. Original rows are checked for exact preservation; additions are restricted to this execution/card/revision and accepted related tables, all DATA unchanged. Complete error states stop; exception messages are not persisted/printed. Only public final plus named model/usage/status metadata and optional opaque outer-body hash escape. Private reasoning channel is never inspected/exported. Explicit thinking/private markers or credential echo in public final are rejected **before parser/admission/persistence**, with no private text in result or SQLite. NO_NEW is a legal service result but FAIL_STOP for this positive diagnostic. Even SUCCEEDED means POSITIVE_AWAITING_INDEPENDENT_REVIEW, never semantic PASS or qualification.
+
+Original oracle remains [REAL_CORPUS_V2](../docs/validation/end-to-end-user-readiness/INTELLIGENCE_REAL_CORPUS_V2.json): attribute to DeepMind/speakers; preserve tentative mathematical claims, similar≠identical and human verification requirement; do not assert independently proven correctness, established human-level intelligence, fabricated latency/price/search-count measurements or percentage confidence. No tuning, source truncation, output repair or rewritten oracle. Any result ends this single-case attempt.
+
+## Commands and independent review gate
+
+Author already ran prepare only:
+
+```sh
+cd /Users/hua/Documents/yia-worktrees/readiness-bigmodel-public-first-case
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/hua/Documents/yia-worktrees/readiness-bigmodel-public-first-case/src /Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python scripts/qualify_bigmodel_public_first_case.py prepare
+```
+
+**Do not rerun prepare or execute now.** Independent reviewer must inspect fixed code and this exact package/outgoing body/oracle/public data. Only after Root accepts that specific review, Root writes package `review.json` with exactly these non-secret fields (replace reviewer/report commit with actual independent identities):
+
+```json
+{"decision":"APPROVE_ONE_PUBLIC_DIAGNOSTIC","prepared_sha256":"d31ae035ab3f8f7b012e48eb35e8d780a63a7d4455a994f9d64a04960e4dcd14","reviewer":"INDEPENDENT_REVIEWER_ID","review_commit":"ACTUAL_40_LOWERCASE_HEX_REVIEW_COMMIT","maximum_calls":1,"cost_authorization":"ANTICIPATED_FREE_EXACT_MODEL_ONLY"}
+```
+
+Then **Root only**, using the same frozen author tree and exact environment/interpreter above, changes final CLI action to `execute`. No key argument or environment variable. It makes at most one fixed public request, stops, and writes public-only `result.json`; FAIL_STOP exits nonzero. Root must independently compare public final, actual Summary, exact source/Evidence and original oracle. No further case/holdout/production grant follows from this task, even after a genuine positive diagnostic. Actual usage/bill, broader qualification, normal GUI/Save/Topic/Evidence/restart/full backup and whole-feature acceptance remain later gates.
+
+## Verification / preserved failures
+
+- Initial RED: script absent1FAIL. Added expiry refusal RED before pricing-day guard. First broad development matrix17PASS1FAIL: the interrupted-case fixture did not reach its injected KeyboardInterrupt while the script/code hash was edited during that development matrix; its exact refusal stage was not captured, so that cause is not asserted. The isolated fixed-source interrupted test then1PASS2.80s; the earlier failure is not called green.
+- Final new diagnostic matrix24 cases plus complete existing BigModel adapter and service integration: **107PASS58.37s**, exit0, source_unchanged=true. Includes copied real-source preparation, positive/NO_NEW/private thought/429/202/timeout/wrong-model/bad-schema, key/error redaction, package/price/input/oracle/data/profile/code/review/destination tampering before key/wire, concurrent at-most-one, interruption/restart no replay, stale price, CLI accidental-key non-echo, unchanged normal budget/eligibility and actual Backup→download→stage→confirm→recover with all81 SQL tables and19DATA equal and once marker retained. Fake wire/key only, no real model quality claim.
+- Strict mypy all122 source plus new script:123 PASS; Ruff changed script/test PASS; in-memory compile122 source+script+test:124 PASS. Full command/log/fixed165 source/SQL/script/test hashes are `.var/bigmodel-first-checks/final.{json,log}`. No existing tests/assertions changed, removed or skipped. Original production source and41 SQL unchanged.
+- Early mypy invocation of script alone resolved installed editable package without typed source; corrected by explicitly checking `src` plus script. Optional narrowing/callback parameter names then fixed; no type ignore or dependency change. One early compileall command created an owned script .pyc; removed that generated artifact and used in-memory compile thereafter. No compiled artifact is submitted.
+
+No outstanding source blocker. Scope/diff/whitespace and current fixed hashes verified before commit; clean STOP for independent concrete preexecution review. Author has not created review approval or consumed the actual attempt.
