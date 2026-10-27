@@ -1,3 +1,5 @@
+> 2026-10-27批准有限后续UI并行：CREDENTIAL-EDITOR-ISOLATION仅frontend两provider编辑器与tests，从已审f9设置基线清理跨服务/外层折叠旧草稿，不改backend/Keychain/API/Schema/模型。与后台State+transport组合独审无产品文件写冲突；实际保存的QAkey保持，真实model仍待资格。
+
 > 2026-10-27新增有界并行：BIGMODEL-READ-SNAPSHOT仅accepted42 state.py只读事务及独立tests，不依赖未审adapter，不写API/UI/配置/SQL；SETTINGS修复仅独立UI/credential/API，无state重叠。2writer上限，独审仍一次1任务；transport复审已结束新readrace REJECT，暂不合源。
 
 > 2026-10-27批准有限并行：已审523bff8基础上，BIGMODEL-TRANSPORT仅distillation.py/专属测试；BIGMODEL-SETTINGS仅model_settings/runtime注入/localAPI/必要准确状态与前端设置/引导/路由，不写distillation.py或Schema，不依赖未审adapter，不启用production/budget/模型。两者均复用已审42元数据，接口不互改，合并仍逐片独审。用户已注册未充值；新设置只是候选安全录钥，真实资格另验。Root/worker最多2writer+1reviewer。
