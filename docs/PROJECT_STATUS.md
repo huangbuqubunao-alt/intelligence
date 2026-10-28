@@ -1,4 +1,6 @@
-> 2026-10-28当前：f878兼容修复经c86b独审累计APPROVE，Root整合cea14bd/3081e27/4c01997，src/tests/frontend逐字等f878。base19字段/projection原文、v2专用有限子类；作者704PASS221.15s，独审483PASS104.37s，Root329PASS87.20s/compile123/strict122/Ruff。Root用真实v1旧case副本证明旧input/ID/4132Bwire完全相同，实际BackupRestore81SQL19DATA全等、旧invocation1/语义REJECT保留，零key/wire。原15f72 REJECT仍保留。准备下一份独立未见公开case薄capsule，复用已有纯helpers/生产lifecycle，不建通用runner；具体包独审前不新请求。总实际GLM仍1次失败，普通资格/预算关闭，main不动。
+> 2026-10-28当前15:00安全前置：薄capsule作者因额度中断后已在同WT由followup恢复，仅offline/prepare；原未提交test保留。Root本机`credential-safety-status.json`现WAITING_USER_ROTATION，用户已被告知并请求亲自撤销/重建受影响QA密钥、更新隔离设置页。**在用户明确完成轮换+更新之前，禁止任何新真实模型/Native取钥调用，即便metadata仍configuredtrue或具体包已独审；不得读取/复制浏览器密钥弹窗。** 所有offline工作继续。Root实际公共pricing页FAQ复核精确GLM-4.7-Flash输入/输出/缓存免费；动态页面不完整抓取不算价格证明，账号权益/实际账单仍未知，无付费回退。总真实GLM仍1次，main未改。
+
+> 2026-10-28已接受工程：f878兼容修复经c86b独审累计APPROVE，Root整合cea14bd/3081e27/4c01997，src/tests/frontend逐字等f878。base19字段/projection原文、v2专用有限子类；作者704PASS221.15s，独审483PASS104.37s，Root329PASS87.20s/compile123/strict122/Ruff。Root用真实v1旧case副本证明旧input/ID/4132Bwire完全相同，实际BackupRestore81SQL19DATA全等、旧invocation1/语义REJECT保留，零key/wire。原15f72 REJECT仍保留。下一薄capsule具体包独审前不新请求。普通资格/预算关闭，main不动。
 
 > 2026-10-28oracle已接受：独立d8a3d151→Root1dfbc20，Root逐104cue/5Evidence/原Summary hash和81SQL19DATA复验PASS，辅助首次漏cue_index后纠正同表示，不改源。源名称冲突/重复字幕/160query cap真实语境/历史rollout均保留，只允许有条件SYSTEM_INFERENCE、不强制positive、不发oracle给writer或模型。oracle不是完整矩阵、新模型执行或资格许可。
 
