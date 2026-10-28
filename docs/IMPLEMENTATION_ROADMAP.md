@@ -1,3 +1,5 @@
+> 2026-10-28首例真实语义失败后零调用批次：GROUNDED-PROMPT-V2仅版本化prompt/资格专用profile及离线tests；UNSEEN-PUBLIC-ORACLE独立仅读既有公开D并仅写自己的新oracle/交接。分别独立WT，不共写产品文件；旧v1/历史/已耗QoXR不变，正常预算/资格关闭。两份成果分别审查和接受前不执行新模型请求，不大规模重开发，见GROUNDING_V2_MINIMAL_DECISION_2026_10_28.md。
+
 > 2026-10-28允许并行：CREDENTIAL-EDITOR-ISOLATION 仅 frontend；BIGMODEL-PUBLIC-FIRST-CASE 仅专用诊断脚本、相关测试和交接，基于已审组合、仅读公开隔离样例，不读取实际密钥/模型或触正式数据。两任务文件与契约不交叉，分别独审，生产资格仍关闭。
 
 > 2026-10-27批准有限后续UI并行：CREDENTIAL-EDITOR-ISOLATION仅frontend两provider编辑器与tests，从已审f9设置基线清理跨服务/外层折叠旧草稿，不改backend/Keychain/API/Schema/模型。与后台State+transport组合独审无产品文件写冲突；实际保存的QAkey保持，真实model仍待资格。
