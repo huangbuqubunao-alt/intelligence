@@ -1,3 +1,5 @@
+> 2026-10-29当前：云WAIT0/43/有限429与准确UI706+af经同一2094414累计APPROVE，Root2c16/460/a8整合。Root46新后端、完整front1102/42、TS/build/strict124/Ruff/compile/diff通过；实际GUI双取消/另一项仍blocked/重启不复活/ZIP恢复83SQL19DATA全等。此工程任务DONE候选，主Goal未完成，main未动。新同请求受限诊断e90cd1e0已真实1次HTTP200/55085ms/2480in3598out，证据ea68结束68590≠真实37190，原validator离线拒绝明确；REJECTED_OUTPUT1/no insight，原83行+19DATA保留/Backupready，无重试。原429原因仍未知未复现。累计GLM3次真实尝试，normal/local资格仍关闭、billUNKNOWN；开始最小固定证据引用协议方案，绝不改原失败/位置或降低质量。
+
 > 2026-10-28当前43候选706b165：629受影响后端PASS、44新增及静态/前端相关检查有据。一次独审83关键+11前端/TS/static通过；Root真实Mac页面从42不可取消→同库43可取消，迁移81旧表仅登记变/19DATA等，取消一项后另一项仍阻塞，实际服务重启不复活。唯一已发现P2为云端WAIT0误用本地模型说明，原writer最小DTO/文案修复中，当前review只复核这项delta，不重新审旧成果。Root使用fixed706导出运行隔离6198/6199，全凭据/出站禁用；正式采用仍未满足。
 
 > 2026-10-28当前21点续作：用户明确确认已轮换并更新隔离页，凭据安全阻塞已解除（USER_CONFIRMED_ROTATED_AND_UPDATED）；Root只在65bb6b/867606f固定prepared35ba7475包执行一次。真实HTTP429/REJECTED_OUTPUT/invocation1，无public final，立即停止，未重试；旧adapter未保留业务码，具体原因与新版语义质量均未验证，实际费用UNKNOWN。原once/result保留，模型资格/普通预算关闭。Root只读Backup readiness=true、全部81SQL/19DATA在该检查前后相等，未重复ZIP恢复。累计真实GLM尝试2次（v1语义REJECT、v2 HTTP429），main未动。详见GROUNDING_V2_PUBLIC_HTTP429_2026_10_28.md。

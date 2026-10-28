@@ -1,3 +1,7 @@
+# Status: DONE_IN_CANDIDATE (not main adoption)
+
+Root accepted706+af after2094414 cumulativeAPPROVE, integrated2c16c47/460f022/a8b413f. Root46/1102fullfront/TS/build/strict124/Ruff/compile/diff PASS and actual43 GUI cancel/restart/ZIP restore83SQL19DATA exact. See CLOUD_WAIT43_ROOT_ACCEPTANCE_2026_10_29.md/json. No remainingP0/P1/P2 for this task; normal model qualifications remain closed, fullGoal not complete. Below preserves assigned scope and original evidence.
+
 # TASK-READINESS-CLOUD-WAIT-ZERO-CANCEL
 
 IN_PROGRESS with fixed706b165 under one combined review; original READY for Root soleassignment from acceptedf878/c86+currentRootdocs; no dependency on unexecutedcapsule outcome. Read AGENTS/COLLABORATION/lateststatus/CLOUD_WAIT_ZERO_CANCEL_MIGRATION_PROPOSAL.md and actual37/42/state/Backup/API/UI. Standingin-goal authorization covers the exact compatibleisolated43 proposal; no per-fileapproval loop. One NEW WT/solewriter/no subagents.

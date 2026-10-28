@@ -1,0 +1,35 @@
+{
+  "readiness": {
+    "ready": true,
+    "reasons": [],
+    "message": "Core data is quiescent and ready for backup.",
+    "restore_pending": false,
+    "last_restore": {
+      "completed_at": "2026-10-28T13:18:57Z",
+      "message": "Restore completed successfully.",
+      "restore_id": "b8b369bc51864c74b2dfdcee2c50cbdf",
+      "state": "APPLIED"
+    }
+  },
+  "all_83_tables_every_row_and_schema_equal": true,
+  "all_19_DATA_byte_equal": true,
+  "cancelled_waits_did_not_revive": 2,
+  "original_real429_status": "REJECTED_OUTPUT",
+  "original_real429_invocations": 1,
+  "original_unknown_429_not_backfilled_or_cancellable": true,
+  "backup": {
+    "backup_id": "a26f5a9bcdf54bb0bab7b2ae249c412f",
+    "bytes": 881824,
+    "sha256": "aacfd54b8177ca906f9968cc8f2cd403c678717233c660236da590bb373cc0db",
+    "created_through_actual_gui": true,
+    "downloaded_through_displayed_local_link": true,
+    "schema_version": 43,
+    "physical_DATA_files": 19,
+    "intelligences": 0
+  },
+  "normal_cloud_qualification_still_closed": true,
+  "actual_model_key_network_calls_by_this_GUI_flow": 0,
+  "file_selection": "actual browser input; no claim of new native-picker/APFS acceptance",
+  "source": "immutable af71317 export, source bytes equal Root a8b413f",
+  "root_auxiliary_correction": "Schema tuples and JSON lists compared in identical canonical representation; every table row already equal in first check."
+}

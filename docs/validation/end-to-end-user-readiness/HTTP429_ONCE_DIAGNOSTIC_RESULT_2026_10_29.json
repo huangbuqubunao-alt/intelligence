@@ -1,0 +1,41 @@
+{
+  "execution_id": "distillation:reservation:v3:55b2fd4f511e7b4a96ef98076f8d830454f2fdf07d8a11cf275d408b9eb229f5",
+  "status": "REJECTED_OUTPUT",
+  "invocation_count": 1,
+  "http_status_code": 200,
+  "duration_ms": 55085,
+  "input_tokens": 2480,
+  "output_tokens": 3598,
+  "outcome": "STRUCTURED_OR_EVIDENCE_VALIDATION_REJECTED",
+  "actual_model": "glm-4.7-flash",
+  "actual_bill": "UNKNOWN",
+  "semantic_acceptance": "NOT_REVIEWED_STRUCTURAL_REJECTION",
+  "model_qualified": false,
+  "original_all83_table_rows_preserved": true,
+  "new_rows_only_this_execution": {
+    "distillation_execution_checkpoints": 1,
+    "distillation_resource_usage": 1,
+    "distillation_zhipu_cloud_authorizations": 1
+  },
+  "all19_DATA_equal": true,
+  "backup_readiness": {
+    "ready": true,
+    "reasons": [],
+    "message": "Core data is quiescent and ready for backup.",
+    "restore_pending": false,
+    "last_restore": null
+  },
+  "citation_failure": {
+    "evidence_id": "ea68a83ee3a35d0713259f64957279dae1f4acdebc521e41562e9d7ce41d92bc",
+    "expected_start_ms": 3200,
+    "expected_end_ms": 37190,
+    "model_start_ms": 3200,
+    "model_end_ms": 68590
+  },
+  "previous_429_reason": "UNKNOWN_NOT_REPRODUCED",
+  "old_failure_and_once_preserved": true,
+  "no_retry_or_next_case": true,
+  "result_sha256": "03ed1dd1088024fb26e6a341306c8f8b7a5a80d0a459db6289af0015b30e9f6c",
+  "prepared_sha256": "e90cd1e03c65c39322902ea0e63dcd72510c38a62b5d7d27808a32395a94cc5b",
+  "attempt_sha256": "4df61910014b7fe4a38b9bdfb8fe4dab736c5372315be55bb8b2d6f1b95d0437"
+}

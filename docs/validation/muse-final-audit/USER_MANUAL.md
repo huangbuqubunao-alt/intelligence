@@ -537,6 +537,16 @@ Intelligence 优先在本机整理内容。部分内容可直接从原文提取�
 
 ![已保存到隔离钥匙串，当前只展开智谱输入区；执行仍未开放](../end-to-end-user-readiness/screenshots/bigmodel-settings-single-editor-configured-zh-20261028.png)
 
+云端任务尚未开始、但缺少执行条件时，本轮候选会提示核对对应的 API 密钥或网络。可点击 **设置** 前往智谱配置，使用 **返回内容** 回到原任务；只有确认尚未执行的任务才显示 **取消本次提炼**。取消后没有生成洞察，原文、字幕、摘要和 Evidence 都保留。未知或已开始的任务不会被错误取消。
+
+![真实云端等待与取消入口](../end-to-end-user-readiness/screenshots/cloud-wait-cancel-real-zh-20261028.png)
+
+取消一项后，如果还有其它未完成任务，备份仍会明确提示阻塞；全部安全终结后才开放备份。本轮实际创建并恢复后，原资料和取消历史均保留，没有重新执行任务。
+
+![另一任务未完成时，备份仍保持阻塞](../end-to-end-user-readiness/screenshots/cloud-one-cancel-backup-blocked-real-zh-20261028.png)
+
+![真实恢复并重新连接后，核心数据仍可备份](../end-to-end-user-readiness/screenshots/cloud-cancel-restored-ready-real-zh-20261028.png)
+
 点击 **关闭云端预览** 或离开页面即可放弃预览。进入设置再返回，内容仍保留，但需要重新准备预览，不能沿用旧授权。图中隔离服务当时选定 Moonshot/kimi-k2.6 且没有凭据或费用策略；这不是免费候选已接入、通过质量验收或正式产品已采用的证明。
 
 
