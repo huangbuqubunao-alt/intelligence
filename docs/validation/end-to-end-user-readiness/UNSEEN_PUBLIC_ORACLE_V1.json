@@ -1,0 +1,1024 @@
+{
+  "version": "unseen-public-oracle-v1",
+  "frozen_at_utc": "2026-10-28T00:24:57.665443+00:00",
+  "reviewer": "/root/bigmodel_audit_review",
+  "task": "TASK-READINESS-UNSEEN-PUBLIC-ORACLE",
+  "case_id": "unseen-deepmind-interactive-coding-en",
+  "status": "FIT_FOR_CONDITIONAL_SOURCE_BOUNDED_POSITIVE_ORACLE",
+  "model_calls": 0,
+  "production_qualified": false,
+  "independence": {
+    "prepared_before_generation": true,
+    "prior_model_answer_used": false,
+    "oracle_sent_to_model": false,
+    "source_unseen_by_glm_authority": "Root task states the sole prior GLM generation used QoXRfTb7ves; this public D has no execution checkpoint for IwglW_hIL_g. This is not a global provider-history audit.",
+    "one_source_other_languages_are_not_independent_cases": true,
+    "excluded_spent_source_all_languages": "QoXRfTb7ves",
+    "no_truncation_or_input_interest_edit": true,
+    "not_a_complete_qualification_matrix": true,
+    "no_new_execution_authorization": true
+  },
+  "source": {
+    "video_id": "IwglW_hIL_g",
+    "source_id": "c1c2aef9-e341-4c34-a48a-91ee2a397c66",
+    "public_url": "https://www.youtube.com/watch?v=IwglW_hIL_g",
+    "publisher": "Google DeepMind",
+    "title": "Gemini 2.5 Pro Deep Think Demo | Competitive coding problem",
+    "description": "Watch as Tong He, a research scientist at Google DeepMind, introduces the new Gemini 2.5 Pro Deep Think, an enhanced reasoning mode that uses parallel thinking techniques.\n\nSee how Deep Think uses its reasoning capabilities to tackle a challenging coding problem from the competitive coding platform ‘Codeforces’.\n\nLearn more at https://blog.google/technology/google-deepmind/google-gemini-updates-io-2025/\n\n---\n\nSubscribe to our channel    / @googledeepmind  \nFind us on X   / googledeepmind  \nFollow us on Instagram   / googledeepmind  \nAdd us on Linkedin   / deepmind",
+    "published_at": "2025-05-22T22:26:33+00:00",
+    "metadata_duration_seconds": 140,
+    "provider": "YOUTUBE",
+    "availability": "public",
+    "source_processing_policy": "DISCOVER_ONLY",
+    "source_type": "VIDEO_URL",
+    "subtitle_basis": "Existing automatically captured public subtitles; no new network/media/acoustic verification.",
+    "timed_transcript_id": "timed-transcript:v1:aa314067fd5911f5443f8083e281951f77ca97f7db906c5c8c49c3464bf0a059",
+    "timed_transcript_hash": "84f3d8503037005bba3bcd351f52cf011965cad1c5f4d9eed03a876a23a06093",
+    "canonical_artifact_id": "transcript-canonical-a4d2e53d8a6d62bbe09d654fa0bc466b07c62e07fb799a1cf16d993da6de23ea",
+    "canonical_file_path": "transcripts/IwglW_hIL_g/19348d479b0435a2fd5b67ffb2d0156a194ffdfc79a5bad65c6adb6230700954/canonical.c9130409650bd583987deec52bd3e3dd303f30a5e730508f1e094886b753825c.r.txt",
+    "canonical_file_sha256": "0b392e8425066ff9ffd82662efec63634347f50442c0cd0addded81d0b1bdbe1",
+    "cues_sha256": "164d83b8ae802f8fe5670bda3b8c00bf575414b7e390c60fcb9ec8a521f569f2",
+    "available_cue_count": 104,
+    "available_caption_start_ms": 3200,
+    "available_caption_end_ms": 136880,
+    "coverage_scope": "All 104 current verified canonical cues and all five canonical Evidence items; no padding of uncaptured intro/outro, no deduplication/correction. This does not assert acoustic accuracy or unseen visual contents."
+  },
+  "original_context": {
+    "output_language": "en",
+    "active_preferences": [],
+    "focus_rules": [
+      "AI reasoning and mathematical research: reliability, human verification, and test-time exploration"
+    ],
+    "ignore_rules": [],
+    "distillation_style": "BALANCED",
+    "global_policy_revision_id": "source-policy:global:frozen-case-focus",
+    "source_policy_revision_id": null,
+    "policy_changed": false,
+    "output_language_basis": "English is frozen for this proposed case and matches the existing published Summary output_language=en. The public D has no global_user_settings row; this is not a claim that a global user preference was saved. No setting is changed."
+  },
+  "timed_segments": [
+    {
+      "cue_index": 0,
+      "start_ms": 3200,
+      "end_ms": 6390,
+      "text": "Hi, my name is Tom and I'm a research"
+    },
+    {
+      "cue_index": 1,
+      "start_ms": 6400,
+      "end_ms": 9070,
+      "text": "scientist here at Google DeepMind. I"
+    },
+    {
+      "cue_index": 2,
+      "start_ms": 9070,
+      "end_ms": 9080,
+      "text": "scientist here at Google DeepMind. I"
+    },
+    {
+      "cue_index": 3,
+      "start_ms": 9080,
+      "end_ms": 12470,
+      "text": "want to introduce you to Gemini 2.5 Pro"
+    },
+    {
+      "cue_index": 4,
+      "start_ms": 12470,
+      "end_ms": 12480,
+      "text": "want to introduce you to Gemini 2.5 Pro"
+    },
+    {
+      "cue_index": 5,
+      "start_ms": 12480,
+      "end_ms": 13710,
+      "text": "DeepSeek,"
+    },
+    {
+      "cue_index": 6,
+      "start_ms": 13710,
+      "end_ms": 13720,
+      "text": "DeepSeek,"
+    },
+    {
+      "cue_index": 7,
+      "start_ms": 13720,
+      "end_ms": 16750,
+      "text": "which is an enhanced reasoning mode"
+    },
+    {
+      "cue_index": 8,
+      "start_ms": 16750,
+      "end_ms": 16760,
+      "text": "which is an enhanced reasoning mode"
+    },
+    {
+      "cue_index": 9,
+      "start_ms": 16760,
+      "end_ms": 19430,
+      "text": "built on 2.5 Pro."
+    },
+    {
+      "cue_index": 10,
+      "start_ms": 19430,
+      "end_ms": 19440,
+      "text": "built on 2.5 Pro."
+    },
+    {
+      "cue_index": 11,
+      "start_ms": 19440,
+      "end_ms": 21870,
+      "text": "DeepSeek uses novel techniques like"
+    },
+    {
+      "cue_index": 12,
+      "start_ms": 21870,
+      "end_ms": 21880,
+      "text": "DeepSeek uses novel techniques like"
+    },
+    {
+      "cue_index": 13,
+      "start_ms": 21880,
+      "end_ms": 23990,
+      "text": "exploring many reasoning passes in"
+    },
+    {
+      "cue_index": 14,
+      "start_ms": 23990,
+      "end_ms": 24000,
+      "text": "exploring many reasoning passes in"
+    },
+    {
+      "cue_index": 15,
+      "start_ms": 24000,
+      "end_ms": 26670,
+      "text": "parallel, allowing the model to uncover"
+    },
+    {
+      "cue_index": 16,
+      "start_ms": 26670,
+      "end_ms": 26680,
+      "text": "parallel, allowing the model to uncover"
+    },
+    {
+      "cue_index": 17,
+      "start_ms": 26680,
+      "end_ms": 29390,
+      "text": "more sophisticated solutions. Let me"
+    },
+    {
+      "cue_index": 18,
+      "start_ms": 29390,
+      "end_ms": 29400,
+      "text": "more sophisticated solutions. Let me"
+    },
+    {
+      "cue_index": 19,
+      "start_ms": 29400,
+      "end_ms": 31830,
+      "text": "show you what that means."
+    },
+    {
+      "cue_index": 20,
+      "start_ms": 31830,
+      "end_ms": 31840,
+      "text": "show you what that means."
+    },
+    {
+      "cue_index": 21,
+      "start_ms": 31840,
+      "end_ms": 34190,
+      "text": "We are looking at an example called"
+    },
+    {
+      "cue_index": 22,
+      "start_ms": 34190,
+      "end_ms": 34200,
+      "text": "We are looking at an example called"
+    },
+    {
+      "cue_index": 23,
+      "start_ms": 34200,
+      "end_ms": 37190,
+      "text": "Catch the Mole, a notoriously difficult"
+    },
+    {
+      "cue_index": 24,
+      "start_ms": 37190,
+      "end_ms": 37200,
+      "text": "Catch the Mole, a notoriously difficult"
+    },
+    {
+      "cue_index": 25,
+      "start_ms": 37200,
+      "end_ms": 39350,
+      "text": "problem from the competitive coding"
+    },
+    {
+      "cue_index": 26,
+      "start_ms": 39350,
+      "end_ms": 39360,
+      "text": "problem from the competitive coding"
+    },
+    {
+      "cue_index": 27,
+      "start_ms": 39360,
+      "end_ms": 41990,
+      "text": "platform Codeforces."
+    },
+    {
+      "cue_index": 28,
+      "start_ms": 41990,
+      "end_ms": 42000,
+      "text": "platform Codeforces."
+    },
+    {
+      "cue_index": 29,
+      "start_ms": 42000,
+      "end_ms": 44350,
+      "text": "This problem is actually quite like a"
+    },
+    {
+      "cue_index": 30,
+      "start_ms": 44350,
+      "end_ms": 44360,
+      "text": "This problem is actually quite like a"
+    },
+    {
+      "cue_index": 31,
+      "start_ms": 44360,
+      "end_ms": 45630,
+      "text": "puzzle."
+    },
+    {
+      "cue_index": 32,
+      "start_ms": 45630,
+      "end_ms": 45640,
+      "text": "puzzle."
+    },
+    {
+      "cue_index": 33,
+      "start_ms": 45640,
+      "end_ms": 47270,
+      "text": "The challenge here is to find the"
+    },
+    {
+      "cue_index": 34,
+      "start_ms": 47270,
+      "end_ms": 47280,
+      "text": "The challenge here is to find the"
+    },
+    {
+      "cue_index": 35,
+      "start_ms": 47280,
+      "end_ms": 49630,
+      "text": "current position of a hidden mole that"
+    },
+    {
+      "cue_index": 36,
+      "start_ms": 49630,
+      "end_ms": 49640,
+      "text": "current position of a hidden mole that"
+    },
+    {
+      "cue_index": 37,
+      "start_ms": 49640,
+      "end_ms": 51310,
+      "text": "moves in a tree"
+    },
+    {
+      "cue_index": 38,
+      "start_ms": 51310,
+      "end_ms": 51320,
+      "text": "moves in a tree"
+    },
+    {
+      "cue_index": 39,
+      "start_ms": 51320,
+      "end_ms": 55430,
+      "text": "all within 160 limited queries."
+    },
+    {
+      "cue_index": 40,
+      "start_ms": 55430,
+      "end_ms": 55440,
+      "text": "all within 160 limited queries."
+    },
+    {
+      "cue_index": 41,
+      "start_ms": 55440,
+      "end_ms": 58310,
+      "text": "The real difficulty lies in two things."
+    },
+    {
+      "cue_index": 42,
+      "start_ms": 58310,
+      "end_ms": 58320,
+      "text": "The real difficulty lies in two things."
+    },
+    {
+      "cue_index": 43,
+      "start_ms": 58320,
+      "end_ms": 60910,
+      "text": "The first is that the mole moves based"
+    },
+    {
+      "cue_index": 44,
+      "start_ms": 60910,
+      "end_ms": 60920,
+      "text": "The first is that the mole moves based"
+    },
+    {
+      "cue_index": 45,
+      "start_ms": 60920,
+      "end_ms": 62550,
+      "text": "on your queries."
+    },
+    {
+      "cue_index": 46,
+      "start_ms": 62550,
+      "end_ms": 62560,
+      "text": "on your queries."
+    },
+    {
+      "cue_index": 47,
+      "start_ms": 62560,
+      "end_ms": 65430,
+      "text": "So, if you guess wrong, it will move"
+    },
+    {
+      "cue_index": 48,
+      "start_ms": 65430,
+      "end_ms": 65440,
+      "text": "So, if you guess wrong, it will move"
+    },
+    {
+      "cue_index": 49,
+      "start_ms": 65440,
+      "end_ms": 67230,
+      "text": "towards the root."
+    },
+    {
+      "cue_index": 50,
+      "start_ms": 67230,
+      "end_ms": 67240,
+      "text": "towards the root."
+    },
+    {
+      "cue_index": 51,
+      "start_ms": 67240,
+      "end_ms": 68590,
+      "text": "Second,"
+    },
+    {
+      "cue_index": 52,
+      "start_ms": 68590,
+      "end_ms": 68600,
+      "text": "Second,"
+    },
+    {
+      "cue_index": 53,
+      "start_ms": 68600,
+      "end_ms": 70710,
+      "text": "you have to find the current location of"
+    },
+    {
+      "cue_index": 54,
+      "start_ms": 70710,
+      "end_ms": 70720,
+      "text": "you have to find the current location of"
+    },
+    {
+      "cue_index": 55,
+      "start_ms": 70720,
+      "end_ms": 73510,
+      "text": "the mole within a limited number of"
+    },
+    {
+      "cue_index": 56,
+      "start_ms": 73510,
+      "end_ms": 73520,
+      "text": "the mole within a limited number of"
+    },
+    {
+      "cue_index": 57,
+      "start_ms": 73520,
+      "end_ms": 75670,
+      "text": "queries."
+    },
+    {
+      "cue_index": 58,
+      "start_ms": 75670,
+      "end_ms": 75680,
+      "text": "queries."
+    },
+    {
+      "cue_index": 59,
+      "start_ms": 75680,
+      "end_ms": 78150,
+      "text": "Most of the solutions to the problem"
+    },
+    {
+      "cue_index": 60,
+      "start_ms": 78150,
+      "end_ms": 78160,
+      "text": "Most of the solutions to the problem"
+    },
+    {
+      "cue_index": 61,
+      "start_ms": 78160,
+      "end_ms": 80550,
+      "text": "would just use simple methods that"
+    },
+    {
+      "cue_index": 62,
+      "start_ms": 80550,
+      "end_ms": 80560,
+      "text": "would just use simple methods that"
+    },
+    {
+      "cue_index": 63,
+      "start_ms": 80560,
+      "end_ms": 83110,
+      "text": "cannot efficiently track the changing"
+    },
+    {
+      "cue_index": 64,
+      "start_ms": 83110,
+      "end_ms": 83120,
+      "text": "cannot efficiently track the changing"
+    },
+    {
+      "cue_index": 65,
+      "start_ms": 83120,
+      "end_ms": 85270,
+      "text": "position of the mole."
+    },
+    {
+      "cue_index": 66,
+      "start_ms": 85270,
+      "end_ms": 85280,
+      "text": "position of the mole."
+    },
+    {
+      "cue_index": 67,
+      "start_ms": 85280,
+      "end_ms": 88550,
+      "text": "This is where DeepSeek shines."
+    },
+    {
+      "cue_index": 68,
+      "start_ms": 88550,
+      "end_ms": 88560,
+      "text": "This is where DeepSeek shines."
+    },
+    {
+      "cue_index": 69,
+      "start_ms": 88560,
+      "end_ms": 91430,
+      "text": "It was able to find an elegant solution,"
+    },
+    {
+      "cue_index": 70,
+      "start_ms": 91430,
+      "end_ms": 91440,
+      "text": "It was able to find an elegant solution,"
+    },
+    {
+      "cue_index": 71,
+      "start_ms": 91440,
+      "end_ms": 94670,
+      "text": "managing uncertainty to keep track of"
+    },
+    {
+      "cue_index": 72,
+      "start_ms": 94670,
+      "end_ms": 94680,
+      "text": "managing uncertainty to keep track of"
+    },
+    {
+      "cue_index": 73,
+      "start_ms": 94680,
+      "end_ms": 97070,
+      "text": "all possible locations the mole could"
+    },
+    {
+      "cue_index": 74,
+      "start_ms": 97070,
+      "end_ms": 97080,
+      "text": "all possible locations the mole could"
+    },
+    {
+      "cue_index": 75,
+      "start_ms": 97080,
+      "end_ms": 98150,
+      "text": "be."
+    },
+    {
+      "cue_index": 76,
+      "start_ms": 98150,
+      "end_ms": 98160,
+      "text": "be."
+    },
+    {
+      "cue_index": 77,
+      "start_ms": 98160,
+      "end_ms": 101550,
+      "text": "It did this by using a minimax strategy,"
+    },
+    {
+      "cue_index": 78,
+      "start_ms": 101550,
+      "end_ms": 101560,
+      "text": "It did this by using a minimax strategy,"
+    },
+    {
+      "cue_index": 79,
+      "start_ms": 101560,
+      "end_ms": 104030,
+      "text": "which reduces the uncertainty of where"
+    },
+    {
+      "cue_index": 80,
+      "start_ms": 104030,
+      "end_ms": 104040,
+      "text": "which reduces the uncertainty of where"
+    },
+    {
+      "cue_index": 81,
+      "start_ms": 104040,
+      "end_ms": 108070,
+      "text": "the mole will be after each query."
+    },
+    {
+      "cue_index": 82,
+      "start_ms": 108070,
+      "end_ms": 108080,
+      "text": "the mole will be after each query."
+    },
+    {
+      "cue_index": 83,
+      "start_ms": 108080,
+      "end_ms": 110790,
+      "text": "It's all about making the smartest move"
+    },
+    {
+      "cue_index": 84,
+      "start_ms": 110790,
+      "end_ms": 110800,
+      "text": "It's all about making the smartest move"
+    },
+    {
+      "cue_index": 85,
+      "start_ms": 110800,
+      "end_ms": 113270,
+      "text": "at each step to narrow down all the"
+    },
+    {
+      "cue_index": 86,
+      "start_ms": 113270,
+      "end_ms": 113280,
+      "text": "at each step to narrow down all the"
+    },
+    {
+      "cue_index": 87,
+      "start_ms": 113280,
+      "end_ms": 115550,
+      "text": "possible options."
+    },
+    {
+      "cue_index": 88,
+      "start_ms": 115550,
+      "end_ms": 115560,
+      "text": "possible options."
+    },
+    {
+      "cue_index": 89,
+      "start_ms": 115560,
+      "end_ms": 117510,
+      "text": "This is an incredibly challenging"
+    },
+    {
+      "cue_index": 90,
+      "start_ms": 117510,
+      "end_ms": 117520,
+      "text": "This is an incredibly challenging"
+    },
+    {
+      "cue_index": 91,
+      "start_ms": 117520,
+      "end_ms": 118750,
+      "text": "problem."
+    },
+    {
+      "cue_index": 92,
+      "start_ms": 118750,
+      "end_ms": 118760,
+      "text": "problem."
+    },
+    {
+      "cue_index": 93,
+      "start_ms": 118760,
+      "end_ms": 121230,
+      "text": "And it's just one example of how Deep"
+    },
+    {
+      "cue_index": 94,
+      "start_ms": 121230,
+      "end_ms": 121240,
+      "text": "And it's just one example of how Deep"
+    },
+    {
+      "cue_index": 95,
+      "start_ms": 121240,
+      "end_ms": 125030,
+      "text": "Seek unlocks amazing coding performance."
+    },
+    {
+      "cue_index": 96,
+      "start_ms": 125030,
+      "end_ms": 125040,
+      "text": "Seek unlocks amazing coding performance."
+    },
+    {
+      "cue_index": 97,
+      "start_ms": 125040,
+      "end_ms": 128029,
+      "text": "Now, we are making Deep Seek available"
+    },
+    {
+      "cue_index": 98,
+      "start_ms": 128029,
+      "end_ms": 128039,
+      "text": "Now, we are making Deep Seek available"
+    },
+    {
+      "cue_index": 99,
+      "start_ms": 128039,
+      "end_ms": 131990,
+      "text": "to trusted testers via the Gemini API."
+    },
+    {
+      "cue_index": 100,
+      "start_ms": 131990,
+      "end_ms": 132000,
+      "text": "to trusted testers via the Gemini API."
+    },
+    {
+      "cue_index": 101,
+      "start_ms": 132000,
+      "end_ms": 133830,
+      "text": "And we will make it more widely"
+    },
+    {
+      "cue_index": 102,
+      "start_ms": 133830,
+      "end_ms": 133840,
+      "text": "And we will make it more widely"
+    },
+    {
+      "cue_index": 103,
+      "start_ms": 133840,
+      "end_ms": 136880,
+      "text": "available soon."
+    }
+  ],
+  "canonical_evidence": [
+    {
+      "evidence_id": "ea68a83ee3a35d0713259f64957279dae1f4acdebc521e41562e9d7ce41d92bc",
+      "video_id": "IwglW_hIL_g",
+      "timed_transcript_id": "timed-transcript:v1:aa314067fd5911f5443f8083e281951f77ca97f7db906c5c8c49c3464bf0a059",
+      "timed_transcript_hash": "84f3d8503037005bba3bcd351f52cf011965cad1c5f4d9eed03a876a23a06093",
+      "start_ms": 3200,
+      "end_ms": 37190,
+      "excerpt": "Hi, my name is Tom and I'm a research\nscientist here at Google DeepMind. I\nscientist here at Google DeepMind. I\nwant to introduce you to Gemini 2.5 Pro\nwant to introduce you to Gemini 2.5 Pro\nDeepSeek,\nDeepSeek,\nwhich is an enhanced reasoning mode\nwhich is an enhanced reasoning mode\nbuilt on 2.5 Pro.\nbuilt on 2.5 Pro.\nDeepSeek uses novel techniques like\nDeepSeek uses novel techniques like\nexploring many reasoning passes in\nexploring many reasoning passes in\nparallel, allowing the model to uncover\nparallel, allowing the model to uncover\nmore sophisticated solutions. Let me\nmore sophisticated solutions. Let me\nshow you what that means.\nshow you what that means.\nWe are looking at an example called\nWe are looking at an example called\nCatch the Mole, a notoriously difficult",
+      "excerpt_hash": "6b932968d86bd7022e4c8400b3f897b49d4e5e548a3130586c07e0dd71ce2c51",
+      "locator_type": "TIMED_MEDIA",
+      "start_offset": null,
+      "end_offset": null,
+      "start_line": null,
+      "end_line": null,
+      "source_content_hash": null,
+      "start_cue_index": 0,
+      "end_cue_index": 24
+    },
+    {
+      "evidence_id": "e75ab0ce4f9c17ed3201d70eed4e69eed9d6b16d181cb11d9e8667d3845a1de4",
+      "video_id": "IwglW_hIL_g",
+      "timed_transcript_id": "timed-transcript:v1:aa314067fd5911f5443f8083e281951f77ca97f7db906c5c8c49c3464bf0a059",
+      "timed_transcript_hash": "84f3d8503037005bba3bcd351f52cf011965cad1c5f4d9eed03a876a23a06093",
+      "start_ms": 37190,
+      "end_ms": 68590,
+      "excerpt": "Catch the Mole, a notoriously difficult\nproblem from the competitive coding\nproblem from the competitive coding\nplatform Codeforces.\nplatform Codeforces.\nThis problem is actually quite like a\nThis problem is actually quite like a\npuzzle.\npuzzle.\nThe challenge here is to find the\nThe challenge here is to find the\ncurrent position of a hidden mole that\ncurrent position of a hidden mole that\nmoves in a tree\nmoves in a tree\nall within 160 limited queries.\nall within 160 limited queries.\nThe real difficulty lies in two things.\nThe real difficulty lies in two things.\nThe first is that the mole moves based\nThe first is that the mole moves based\non your queries.\non your queries.\nSo, if you guess wrong, it will move\nSo, if you guess wrong, it will move\ntowards the root.\ntowards the root.\nSecond,",
+      "excerpt_hash": "c21d74e7bf89f0fb6f46af8944aa6a89b2c70fc6b3c15ee3b860500f39ca993b",
+      "locator_type": "TIMED_MEDIA",
+      "start_offset": null,
+      "end_offset": null,
+      "start_line": null,
+      "end_line": null,
+      "source_content_hash": null,
+      "start_cue_index": 24,
+      "end_cue_index": 52
+    },
+    {
+      "evidence_id": "e3afd2cbb4cfce621b5e81105dcbae5a1dc12d77a894e79f8ee68a97d229e29d",
+      "video_id": "IwglW_hIL_g",
+      "timed_transcript_id": "timed-transcript:v1:aa314067fd5911f5443f8083e281951f77ca97f7db906c5c8c49c3464bf0a059",
+      "timed_transcript_hash": "84f3d8503037005bba3bcd351f52cf011965cad1c5f4d9eed03a876a23a06093",
+      "start_ms": 68590,
+      "end_ms": 101550,
+      "excerpt": "Second,\nyou have to find the current location of\nyou have to find the current location of\nthe mole within a limited number of\nthe mole within a limited number of\nqueries.\nqueries.\nMost of the solutions to the problem\nMost of the solutions to the problem\nwould just use simple methods that\nwould just use simple methods that\ncannot efficiently track the changing\ncannot efficiently track the changing\nposition of the mole.\nposition of the mole.\nThis is where DeepSeek shines.\nThis is where DeepSeek shines.\nIt was able to find an elegant solution,\nIt was able to find an elegant solution,\nmanaging uncertainty to keep track of\nmanaging uncertainty to keep track of\nall possible locations the mole could\nall possible locations the mole could\nbe.\nbe.\nIt did this by using a minimax strategy,",
+      "excerpt_hash": "e4749f5f2f2c50743fe1fb60506f5486689ab454123a560ba174305371c4686f",
+      "locator_type": "TIMED_MEDIA",
+      "start_offset": null,
+      "end_offset": null,
+      "start_line": null,
+      "end_line": null,
+      "source_content_hash": null,
+      "start_cue_index": 52,
+      "end_cue_index": 78
+    },
+    {
+      "evidence_id": "496f175417ecf9138873b216ecbe91a28ff230d7c8b85866b155bbd99d58eea2",
+      "video_id": "IwglW_hIL_g",
+      "timed_transcript_id": "timed-transcript:v1:aa314067fd5911f5443f8083e281951f77ca97f7db906c5c8c49c3464bf0a059",
+      "timed_transcript_hash": "84f3d8503037005bba3bcd351f52cf011965cad1c5f4d9eed03a876a23a06093",
+      "start_ms": 101550,
+      "end_ms": 132000,
+      "excerpt": "It did this by using a minimax strategy,\nwhich reduces the uncertainty of where\nwhich reduces the uncertainty of where\nthe mole will be after each query.\nthe mole will be after each query.\nIt's all about making the smartest move\nIt's all about making the smartest move\nat each step to narrow down all the\nat each step to narrow down all the\npossible options.\npossible options.\nThis is an incredibly challenging\nThis is an incredibly challenging\nproblem.\nproblem.\nAnd it's just one example of how Deep\nAnd it's just one example of how Deep\nSeek unlocks amazing coding performance.\nSeek unlocks amazing coding performance.\nNow, we are making Deep Seek available\nNow, we are making Deep Seek available\nto trusted testers via the Gemini API.\nto trusted testers via the Gemini API.",
+      "excerpt_hash": "c82c5ca06842a859ac6f5a9ab130b04979c48b6ad7e240bfad70bf40cc913f71",
+      "locator_type": "TIMED_MEDIA",
+      "start_offset": null,
+      "end_offset": null,
+      "start_line": null,
+      "end_line": null,
+      "source_content_hash": null,
+      "start_cue_index": 78,
+      "end_cue_index": 101
+    },
+    {
+      "evidence_id": "4f6a4bb14c20bb237172368f32541212198d1a9573cce8570c28c722e4d98e9d",
+      "video_id": "IwglW_hIL_g",
+      "timed_transcript_id": "timed-transcript:v1:aa314067fd5911f5443f8083e281951f77ca97f7db906c5c8c49c3464bf0a059",
+      "timed_transcript_hash": "84f3d8503037005bba3bcd351f52cf011965cad1c5f4d9eed03a876a23a06093",
+      "start_ms": 132000,
+      "end_ms": 136880,
+      "excerpt": "And we will make it more widely\nAnd we will make it more widely\navailable soon.",
+      "excerpt_hash": "f499e7ef0d7d4d9f7e1745fcdb6ed2caf5b9262d1ed1e1ca1041a5562da6ada9",
+      "locator_type": "TIMED_MEDIA",
+      "start_offset": null,
+      "end_offset": null,
+      "start_line": null,
+      "end_line": null,
+      "source_content_hash": null,
+      "start_cue_index": 101,
+      "end_cue_index": 104
+    }
+  ],
+  "actual_summary": {
+    "pointer": {
+      "video_id": "IwglW_hIL_g",
+      "result_identity": null,
+      "analysis_artifact_id": "summary/09f9b7456f5d83c63be6a3e0ddf7cac47acdc215069c0756baa91130a6a2ec1d/structured",
+      "output_language": "en",
+      "updated_at": "2026-10-18T15:23:39.003959Z"
+    },
+    "artifact": {
+      "artifact_id": "summary/09f9b7456f5d83c63be6a3e0ddf7cac47acdc215069c0756baa91130a6a2ec1d/structured",
+      "artifact_key": "summary/09f9b7456f5d83c63be6a3e0ddf7cac47acdc215069c0756baa91130a6a2ec1d/structured",
+      "video_id": "IwglW_hIL_g",
+      "job_id": null,
+      "kind": "analysis_structured",
+      "storage_root": "DATA",
+      "relative_path": "transcripts/summaries/09f9b7456f5d83c63be6a3e0ddf7cac47acdc215069c0756baa91130a6a2ec1d.json",
+      "content_hash": "72e771994382a5fa6ae8866026de3abb7b94cfecf34e9bc0aa36c0e8d6c7d8b1",
+      "provider": "extractive-source",
+      "model": "deterministic-excerpts-v2",
+      "producer_version": "extractive-summary-v2",
+      "retention_class": "LONG_LIVED",
+      "created_at": "2026-10-18T15:23:39.003959Z",
+      "expires_at": null,
+      "deleted_at": null
+    },
+    "published_file_sha256": "72e771994382a5fa6ae8866026de3abb7b94cfecf34e9bc0aa36c0e8d6c7d8b1",
+    "provider": "extractive-source",
+    "model": "deterministic-excerpts-v2",
+    "core_point_count": 5,
+    "core_points_sha256": "b94906ec110a434322b6794891215727e0d4abdc4b4f6ef7ee4ac64eaa2db33e",
+    "one_sentence_summary": "Hi, my name is Tom and I'm a research\nscientist here at Google DeepMind. I\nscientist here at Google DeepMind. I\nwant to introduce you to Gemini 2.5 Pro\nwant to introduce you to Gemini 2.5 Pro\nDeepSeek,\nDeepSeek,\nwhich is an enhanced reasoning mode\nwhich is an enhanced reasoning mode\nbuilt on 2.5 Pro.\nbuilt on 2.5 Pro.\nDeepSeek uses novel techniques like\nDeepSeek uses novel techniques like\nexploring many reasoning passes in\nexploring many reasoning passes in\nparallel, allowing the model to uncove",
+    "boundary": "All five core_points retain the full supplied source excerpts, including noise. Compare against all core_points, not merely the truncated one_sentence_summary. The historical Summary Evidence ids are preserved, not substituted for the current five canonical distillation ids. No Summary or oracle text is to be added to model input."
+  },
+  "source_quality_limits": [
+    {
+      "kind": "name_conflict",
+      "fact": "The video title identifies a Gemini 2.5 Pro Deep Think demo; automatic caption text repeatedly spells DeepSeek/Deep Seek. Preserve both as captured.",
+      "evaluation": "Allow conservative reference to the enhanced reasoning mode in this Google DeepMind-published Gemini demo. Do not force spelling/person-name repair or infer DeepSeek-company product ownership from this caption token."
+    },
+    {
+      "kind": "speaker_name_conflict",
+      "fact": "Description names Tong He; the automatic introduction renders Tom.",
+      "evaluation": "The source describes a research scientist at Google DeepMind; using speaker/presenter avoids an unsupported reconciliation. The app user is neither this presenter nor the publisher."
+    },
+    {
+      "kind": "duplicate_fragments",
+      "fact": "The frozen 104 cues contain repeated text and several 10ms continuation fragments.",
+      "evaluation": "No additional independent observations or repeated experiments are implied; text may be summarized without altering frozen Evidence/cues."
+    },
+    {
+      "kind": "text_only_scope",
+      "fact": "This review uses the provided captions/metadata/Summary, not video pixels, sound, hidden code or external problem solutions.",
+      "evaluation": "Do not assert what unseen visuals prove, or that no verification exists anywhere; only the provided textual Evidence lacks independent verification."
+    }
+  ],
+  "source_claims_and_numbers": [
+    {
+      "range_ms": [
+        13720,
+        31840
+      ],
+      "claim": "Publisher-presented enhanced reasoning mode built on Gemini 2.5 Pro is said to explore reasoning passes in parallel.",
+      "modality": "Supplier explanation, not independently measured mechanism or a quantified pass count."
+    },
+    {
+      "range_ms": [
+        31840,
+        75680
+      ],
+      "claim": "The presented Codeforces Catch the Mole example concerns a hidden position moving in a tree, responding to queries; wrong guesses are described as moving it toward the root.",
+      "modality": "Task description as narrated, not a complete formal problem specification or reproduced implementation."
+    },
+    {
+      "range_ms": [
+        51320,
+        55440
+      ],
+      "claim": "160 is the narrated task query cap.",
+      "number_boundary": "Not an observed exact used-query count, reasoning-pass count, model-call count, success rate, latency/token/cost measurement or general capacity guarantee."
+    },
+    {
+      "range_ms": [
+        75680,
+        115560
+      ],
+      "claim": "The presenter contrasts simpler approaches and claims a solution tracking possible positions and using minimax to narrow uncertainty after queries.",
+      "modality": "Attribute the claimed solution/efficacy; the provided text does not independently establish correctness, optimality or superiority across tasks."
+    },
+    {
+      "range_ms": [
+        118760,
+        136880
+      ],
+      "claim": "The source presents this as one coding-performance example, with trusted-tester Gemini API access then and wider access planned soon.",
+      "modality": "Historical supplier statement at the 2025 publication, not a verified current availability/date/price/general benchmark."
+    }
+  ],
+  "expectation": {
+    "result": "INTELLIGENCE_IF_SUBSTANTIVE_JUDGMENT_IS_VALID",
+    "require_substantive_judgment": true,
+    "fit_reason": "Original interests include reasoning reliability, human verification and test-time exploration. This specific interactive task links actions to changing hidden state and a finite query budget; it supports an explicit, conditional evaluation judgment beyond repeating the vendor demo. Textual naming noise limits attribution but does not erase these internally coherent task/strategy claims.",
+    "minimum_retention_value": "A revisable inference that evaluating inference-time reasoning for such tasks should test feedback-consistent state/uncertainty tracking under the task query constraint, with independently reproducible checks, rather than treating a vendor-selected coding demonstration or unmeasured parallel exploration as broad capability proof.",
+    "minimum_substantive_judgment": [
+      "Tie the retained inference to at least two concrete source features: query-dependent movement of hidden state; possible-position tracking/reported minimax uncertainty reduction; finite task query cap.",
+      "Explain an original-interest decision or validation consequence, such as verifying consistency of the evolving candidate-state set and compliance with the task query budget in reproducible solutions, not just reporting the named strategy or praising coding performance.",
+      "Separate this evaluation inference/hypothesis from the presenter's attributed solution claim. It must remain conditional on source/solution verification and must not assert generic model superiority or proven correctness.",
+      "A materially different source-bounded, revisable judgment of comparable specificity and interest relevance may pass; no fixed answer wording is required."
+    ],
+    "appropriate_claim_classification": "A central extrapolation/evaluation judgment is SYSTEM_INFERENCE or a clearly bounded hypothesis, not an advertised source-proven fact. Attributed source details remain distinct.",
+    "retain": [
+      "Publisher/presenter attribution; app user not assigned the speaker's experiences or beliefs.",
+      "The stateful, query-dependent nature of this particular narrated task, and the distinct role of its query cap.",
+      "The reported uncertainty-management/minimax strategy versus independently verified correctness.",
+      "What would need checking before broader reliability or research-use conclusions; no quantitative/percentage confidence.",
+      "Conservative naming or explicit caption/metadata uncertainty; no forced reconstruction of ambiguous names."
+    ],
+    "not_enough_for_positive": [
+      "A cleaner/shorter Summary of the five source excerpts.",
+      "A bare claim that minimax or parallel thinking improves reasoning.",
+      "A generic warning to test models without tying it to this task's dynamic feedback and query constraint.",
+      "Rollout news, named entities, unsupported performance praise or repeated caption lines as extra evidence."
+    ],
+    "forbid": [
+      "Reassigning the source narrative or research to the product user.",
+      "Claiming independently proven algorithm correctness, optimal minimax, universal coding/reasoning superiority or a benchmark gain from this single supplier narrative.",
+      "Presenting 160 as actually consumed queries, reasoning passes, model calls, tokens, latency, price or success statistics.",
+      "Inventing numeric parallel-pass counts, complexity bounds, tree size, Codeforces rank/problem id, dates, measured cost or performance.",
+      "Treating automatic-caption DeepSeek tokens as independent proof of another company's product or demanding an unresolved person-name correction.",
+      "Turning historical trusted-tester/planned access into current or guaranteed general availability.",
+      "Inferring facts from unreviewed audio, on-screen code, test executions or visual benchmark outcomes."
+    ],
+    "confidence": "Bounded qualitative partial/low confidence in the extrapolation; source-claim attribution and validation needs explicit. No invented percentages.",
+    "no_new_boundary": "NO_NEW remains a legal successful product outcome when a grounded substantive judgment cannot be supported or source noise prevents safe use. It does not meet this positive diagnostic, must not be rewritten into success, and must never trigger forced admission, oracle/input edits or automatic re-execution."
+  },
+  "freeze_boundaries": {
+    "oracle_is_review_artifact_only": true,
+    "current_summary_and_interest_preserved": true,
+    "new_prompt_profile_and_outgoing_request_require_separate_fixed_review": true,
+    "no_key_or_network_or_model_access": true,
+    "no_new_actual_diagnostic_permitted_by_this_artifact": true
+  },
+  "read_only_evidence": {
+    "table_count": 81,
+    "data_file_count": 19,
+    "all_initial_table_rowcounts_and_hashes_match": true,
+    "all_initial_data_sizes_hashes_match": true,
+    "snapshot_schema_and_table_hashes_sha256": "d3dc2d34fcfc8bef4b8ec3121e7bcbe7bad9d0bade04f7722892edb8b805a039",
+    "full_data_manifest_sha256": "d8421419d9f3083b607cc44937c442ccd3dd309f4dfec83a2bfb8b33b10a36e0",
+    "data_manifest": [
+      {
+        "path": "transcripts/0eMzc-WnBfQ/26b7b378e3172004893907ad3952439d688f1bf53fecdc8df6846f00e3212962/canonical.5483658bb76e53619555cbb3798b6060e4d06a28de663050eff1fd58b1896cec.r.txt",
+        "size": 89221,
+        "sha256": "a7d3bd04a3a3d5cc7b7d000df790daf5577bf2641583ca973a13cf79e34fccf9"
+      },
+      {
+        "path": "transcripts/0eMzc-WnBfQ/26b7b378e3172004893907ad3952439d688f1bf53fecdc8df6846f00e3212962/source.WyJhdXRvX3N1YnRpdGxlIiwiZW4iLCJlbiIsImpzb24zIl0.json3",
+        "size": 873916,
+        "sha256": "934957b468f8fc59a4bd5d57844e66702a65a78943c056a3472fed77b166caae"
+      },
+      {
+        "path": "transcripts/0eMzc-WnBfQ/26b7b378e3172004893907ad3952439d688f1bf53fecdc8df6846f00e3212962/source.WyJhdXRvX3N1YnRpdGxlIiwiZW4iLCJlbiIsInZ0dCJd.vtt",
+        "size": 415676,
+        "sha256": "1ce80bdb4602f3ad248ae11ae181435ccec6150159d5da22202b3ef3a36f3e88"
+      },
+      {
+        "path": "transcripts/0eMzc-WnBfQ/5b613e294b5b1f0ced13dd533e7ba3b003243b4f011e734f49e4198a7025d140/canonical.36b9e9352363504b41d173533055a2e9878d92d6afb5910594303d99b2cd121a.-.txt",
+        "size": 45130,
+        "sha256": "22a72834367d8025fe81de10adbca9ed101e8eaae9f67d1a6669f97382d2a9b1"
+      },
+      {
+        "path": "transcripts/0eMzc-WnBfQ/5b613e294b5b1f0ced13dd533e7ba3b003243b4f011e734f49e4198a7025d140/source.WyJhdXRvX3N1YnRpdGxlIiwiZW4iLCJlbiIsImpzb24zIl0.json3",
+        "size": 873916,
+        "sha256": "934957b468f8fc59a4bd5d57844e66702a65a78943c056a3472fed77b166caae"
+      },
+      {
+        "path": "transcripts/0eMzc-WnBfQ/ad8dba167b57c7405ee503a02a243dfe13bd6c71b2ad48a961753370a9bfc4dc/canonical.5483658bb76e53619555cbb3798b6060e4d06a28de663050eff1fd58b1896cec.r.txt",
+        "size": 89221,
+        "sha256": "a7d3bd04a3a3d5cc7b7d000df790daf5577bf2641583ca973a13cf79e34fccf9"
+      },
+      {
+        "path": "transcripts/0eMzc-WnBfQ/ad8dba167b57c7405ee503a02a243dfe13bd6c71b2ad48a961753370a9bfc4dc/source.WyJhdXRvX3N1YnRpdGxlIiwiZW4iLCJlbiIsImpzb24zIl0.json3",
+        "size": 873916,
+        "sha256": "934957b468f8fc59a4bd5d57844e66702a65a78943c056a3472fed77b166caae"
+      },
+      {
+        "path": "transcripts/0eMzc-WnBfQ/ad8dba167b57c7405ee503a02a243dfe13bd6c71b2ad48a961753370a9bfc4dc/source.WyJhdXRvX3N1YnRpdGxlIiwiZW4iLCJlbiIsInZ0dCJd.vtt",
+        "size": 415676,
+        "sha256": "1ce80bdb4602f3ad248ae11ae181435ccec6150159d5da22202b3ef3a36f3e88"
+      },
+      {
+        "path": "transcripts/IwglW_hIL_g/19348d479b0435a2fd5b67ffb2d0156a194ffdfc79a5bad65c6adb6230700954/canonical.c9130409650bd583987deec52bd3e3dd303f30a5e730508f1e094886b753825c.r.txt",
+        "size": 3224,
+        "sha256": "0b392e8425066ff9ffd82662efec63634347f50442c0cd0addded81d0b1bdbe1"
+      },
+      {
+        "path": "transcripts/IwglW_hIL_g/19348d479b0435a2fd5b67ffb2d0156a194ffdfc79a5bad65c6adb6230700954/source.WyJhdXRvX3N1YnRpdGxlIiwiZW4iLCJlbiIsImpzb24zIl0.json3",
+        "size": 26643,
+        "sha256": "475e93baf9a8cc33dc9f4820aa8857f40d1413dcfaa1325ee19851096c14d69a"
+      },
+      {
+        "path": "transcripts/IwglW_hIL_g/19348d479b0435a2fd5b67ffb2d0156a194ffdfc79a5bad65c6adb6230700954/source.WyJhdXRvX3N1YnRpdGxlIiwiZW4iLCJlbiIsInZ0dCJd.vtt",
+        "size": 15674,
+        "sha256": "f7314e9fd036e3590ee99e5a68808202361a5fcd123f1b464dc68170ec098cbc"
+      },
+      {
+        "path": "transcripts/QoXRfTb7ves/db52c966c54f251398de2aea25fff73cb09cb973eb96b0c568f29b71aba37871/canonical.255e116efef46cf2ac7537657b10f04ca50eda48f3357129f16a1fb851e6d614.-.txt",
+        "size": 931,
+        "sha256": "67c965b3254c6240b8fe5c9d2ad120e62aaa6b884780f91e4e27004769df71a6"
+      },
+      {
+        "path": "transcripts/QoXRfTb7ves/db52c966c54f251398de2aea25fff73cb09cb973eb96b0c568f29b71aba37871/source.WyJtYW51YWxfc3VidGl0bGUiLCJlbiIsImVuLUdCIiwianNvbjMiXQ.json3",
+        "size": 2770,
+        "sha256": "c3e3dfb5228373098c826f54dea066e9c3ed559ce4f167c87958dc12e2580cfe"
+      },
+      {
+        "path": "transcripts/aircAruvnKk/4f58a216276b7eee4c252efc294618069a18d4f290412e3c8037adaf491b8178/canonical.bcf755d2c8486670976fa4909998e04a959ff039b2926b139dad815181a1d436.-.txt",
+        "size": 14633,
+        "sha256": "edf4e024d8f13b26e28c04a0248dc222788ade2217c3d8119baeb0c782579508"
+      },
+      {
+        "path": "transcripts/aircAruvnKk/4f58a216276b7eee4c252efc294618069a18d4f290412e3c8037adaf491b8178/source.WyJtYW51YWxfc3VidGl0bGUiLCJ6aCIsInpoIiwianNvbjMiXQ.json3",
+        "size": 36956,
+        "sha256": "13c048e7346c94fb41a66c62162579af98567a0d7ce75f111926c6b0482e4d5a"
+      },
+      {
+        "path": "transcripts/summaries/09f9b7456f5d83c63be6a3e0ddf7cac47acdc215069c0756baa91130a6a2ec1d.json",
+        "size": 9002,
+        "sha256": "72e771994382a5fa6ae8866026de3abb7b94cfecf34e9bc0aa36c0e8d6c7d8b1"
+      },
+      {
+        "path": "transcripts/summaries/8baf80d8c4b1e90062c50df1ff40b38aac4166cdefed564f9c8fb0b7d8ae94c8.json",
+        "size": 3426,
+        "sha256": "85793150e2caca3da08a879df9c05f957fffc533f28250289679535505d5fdda"
+      },
+      {
+        "path": "transcripts/summaries/8be368702264b0d5bb3f1fe34b496b4a57467d375792cddf45e08ba6f3622071.json",
+        "size": 12279,
+        "sha256": "37847e4e92f80565336530a5564adf0ee53c30f12093b4d9c4370e3c0170f601"
+      },
+      {
+        "path": "transcripts/summaries/dfc5e4c5079d471fb0279ad81902a7628c2d638d8bdfae9535b21764ba57dd67.json",
+        "size": 30614,
+        "sha256": "3130d3ca3d33f1d343edfa8ebac500bf56090b3b641a46991c453ea223408a9a"
+      }
+    ],
+    "public_data_sql_and_files_before_after_identical": true
+  }
+}
