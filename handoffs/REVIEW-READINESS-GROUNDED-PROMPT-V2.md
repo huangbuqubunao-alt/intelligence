@@ -63,3 +63,66 @@ Existing `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin
 An initial auxiliary read guessed the test filename incorrectly; actual changed filenames were then read from git diff before running the correct complete group. No tests ran or passed from that mistaken file read. No test/assertion was modified, deleted/skipped/weakened. Author518PASS13files is retained separately: it omitted the failing historical-harness file and does not prove every direct serialization consumer unchanged. Once these concrete old-contract regressions were confirmed, blindly repeating the author's larger overlapping group or full6000 tests was unnecessary. Root owns fixed repair/re-review.
 
 **REJECT86 pending preservation of old direct input serialization and golden long-side identities.** No model eligibility/quality/free billing/whole-Goal/main approval is issued; zero real generation and no spent-case replay. Report commit then clean STOP.
+
+## R2 — cumulative fixed repair review
+
+**Latest verdict: APPROVE cumulative86 + repair `f878fcd9e6616a962e6fea7ca43fe312f21b803e`, bounded version/authority engineering only.** Original P2-01 and both its independently observed manifestations are closed. No remaining confirmed P0/P1/P2 in this slice. Original86/15f72 rejection stays historical; this approval is not retrospective acceptance of standalone86 or evidence that an unqualified model now has better semantics.
+
+Root authorized only the repair cherry-pick into the clean existing review tree, yielding b34b92d1c03839ce4782a66051a158288617462c before this report. Only this R2 report addition is authored by reviewer. No real key/native/environment/provider/network/model, old actual package/D/liveQA, oracle, product/test implementation or main action.
+
+### Compatibility and finite v2 type
+
+Original19-field VerifiedDistillationInput class and canonical projection helper are now source-byte-identical to6a55, rather than filtering a new field at selected old consumers. Only explicit v2 uses a private frozen/slots/keyword-only subtype with the marker. Its builder copies typed fields/references through dataclasses.fields/getattr, preserving actual VerifiedEvidenceInput objects instead of asdict dictionaries. Arbitrary subclasses, wrong tuple/marker, base input at v2 and v2 input at v1 are refused by the finite exact-type/source/profile checks before credential/wire. Constructor existence alone grants no authority, and normal-production predicate/budget remain closed.
+
+Independently enumerated **26 asdict calls** across committed src/scripts. Only three consume this verified-input contract: the canonical projection helper, historical timed export and local long value snapshot. Historical strict type/field checks and the long projection's exact-base input check remain untouched and now get their original base shape; neither is broadened to unknown extra fields or a cloud subtype. The other23 calls concern profile/command/usage/execution-result/local-proof/verified transcript-or-Evidence/catalog/provider-status/Delta dataclasses, not this input; their classes and consumers remain unchanged. No known-consumer patch or blanket unknown-field allowance was added.
+
+Independent raw base export SHA is again `525f0ea4c1bc7cc923d17b81c9975ff2feff36ce7c491e548f0d39c7a7c02a72`; old long snapshot is again `4f6bdfc09fd434eac242f9daef4bfe9c568d6d7fe793d1f5bac8e0d159b25027`. The complete original historical-harness and long projection/profile suites pass without edits to their old assertions. All15 protected v1 symbols, including original base/projection/shared builder and old transport/protocol symbols, match6a55 source bytes; all41 packaged SQL files remain exact. Default v1 request/profile/golden execution identity remains unchanged.
+
+### v2 identity, authority and actual storage controls
+
+Loaded the actual frozen86 distillation module separately, built both old86 and repaired v2 on the **same trusted synthetic repository**, and compared semantic hash, full verified projection, outgoing request and complete command/execution ID. All are byte-identical; full SQL and physical DATA remain unchanged, credential/budget/wire callbacks all prohibited. Actual output:
+
+```text
+86->fixed v2 same DB: semantic/projection/request/command+executionID byte-identical;
+SQL/DATA unchanged; key/budget/wire0
+v2 semantic be64e9fd9db9535acd3dcc0c77990c25479ea849207396b9f7b71f2f822dcaa5
+Base19-field class byte-exact; raw asdict525f and old long4f6b hashes restored
+```
+
+The added regressions pin base fields/raw export/long hash, frozen subtype, typed reference preservation and foreign-subtype/wrong-pair/unknown-marker refusal. Existing full v2 file retains generic contract/source separation, both languages, changed contract/profile input/execution/OWNER-consent binding, no credential on missing/stale consent, old card/audit/read/history survival, actual fake-output Backup/Restore and closed normal/LOCAL/BILI paths. No case-specific answer or independent oracle content was added to the generic paragraph; neither the spent real case nor a new source/model was executed.
+
+### Independent final checks
+
+Root's existing Python, explicit review src PYTHONPATH/PYTHONDONTWRITEBYTECODE=1; compile precedes tests. No dependency installs or source repairs.
+
+| Check | Independent actual result |
+|---|---|
+| In-memory compile122src+new test |123PASS |
+| Complete12-file group below |**483PASS**,104.37s; one expected duplicate-ZIP refusal warning |
+| Strict mypy all source |122files PASS |
+| Ruff no-cache changed source/test; diff check86→f878 |PASS |
+| Frozen86 versus fixed v2 pure same-DB identity comparison |All compared bytes equal; SQL/DATA unchanged; no key/budget/wire |
+| Base19-field/raw-asdict/old-long compatibility probes |Original bytes/hashes restored |
+| Fixedsrc/tests equality after checks |442files exactf878; path+bytes SHA256 `e55a7ee352ffc589be6c1f98b4d4f9d8f408a04f82e2bf81edac808371bc6410` |
+
+Actual complete pytest argument list after explicit review Python/environment prefix:
+
+```text
+-m pytest -p no:cacheprovider
+tests/unit/test_grounded_cloud_prompt_v2.py
+tests/unit/test_local_grounding_harness.py
+tests/unit/test_long_grounding_projection.py
+tests/unit/test_long_distillation_profile.py
+tests/unit/test_bigmodel_distillation_adapter.py
+tests/integration/test_bigmodel_distillation_transport.py
+tests/unit/test_openai_distillation_adapter.py
+tests/unit/test_moonshot_distillation_adapter.py
+tests/unit/test_distillation_dispatch.py
+tests/integration/test_task023b_distillation_reservation.py
+tests/integration/test_task019_trusted_intelligence_read.py
+tests/unit/test_backup_restore.py -q --tb=short
+```
+
+The initial attempted group used a nonexistent guessed reader-test filename and ran0 tests; it was corrected from the actual repository inventory before the complete group above. An auxiliary pure-comparison process initially omitted tests from PYTHONPATH and failed to import conftest before any fixture work; corrected explicit path then produced the identity proof above. Neither setup error is treated as a product failure or passing check. Original R1 130PASS1FAIL and author134focused/704expanded passes remain separately preserved, not erased or added to the independent totals. No existing test/assertion was removed, skipped or weakened. Larger overlapping/full6000 runs are not claimed or needed after the targeted complete group and causal compatibility probes passed.
+
+**APPROVE repaired generic v2 engineering only.** Root alone accepts/integrates and independently reviews a new concrete unseen input/profile/outgoing package before any separately bounded real diagnostic. Existing model qualification/budget stay closed; original spent-case semantic REJECT/output/oracle/attempt remain immutable. No generation, actual free-billing guarantee, normal eligibility, whole-Goal or safe-main adoption is authorized by this review. Report commit then clean STOP.
