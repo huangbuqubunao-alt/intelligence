@@ -1,3 +1,5 @@
+> 2026-10-29最新：引用v3工程已接受；真实中文HTTP200/5478in2957out仍独立872d05语义REJECT（1P1/2P2），Root45d5494保留原输出，停止GLM-4.7-Flash真实路线，累计5次请求/billUNKNOWN/normal及local资格关闭。Schema43测试维护aef30053经Root窄审整合50abfbc；32文件898PASS/1真实doctor失败保留，单函数版本42→43修后两完整相关文件47PASS。新的完整backend正冻结运行，未宣称全绿。付费GLM-5.3最多8次/总8元具体授权待用户答复，零付费调用；最小可配置边界仅只读侦察，不重开发。main未动。
+
 > 2026-10-29引用任务已启动：唯一writer /root/cloud_preview_writer 在readiness-bound-evidence-reference/baseee3f82d，纯codec+明确qualificationv3+必要finite绑定/取消匹配，零模型/Native/network；原claims/语义标准不变，不修旧输出。可信origin hash由adapter/result传递，不让模型再抄64位hash；旧20上限明确拒绝不截断。Root独立冻结未见中文公开airc的231cue/7Evidence/真实Summary及完整oracle，未给writer原始文本或预期结论，零新调用。
 
 > 2026-10-29当前：云WAIT0/43/有限429与准确UI706+af经同一2094414累计APPROVE，Root2c16/460/a8整合。Root46新后端、完整front1102/42、TS/build/strict124/Ruff/compile/diff通过；实际GUI双取消/另一项仍blocked/重启不复活/ZIP恢复83SQL19DATA全等。此工程任务DONE候选，主Goal未完成，main未动。新同请求受限诊断e90cd1e0已真实1次HTTP200/55085ms/2480in3598out，证据ea68结束68590≠真实37190，原validator离线拒绝明确；REJECTED_OUTPUT1/no insight，原83行+19DATA保留/Backupready，无重试。原429原因仍未知未复现。累计GLM3次真实尝试，normal/local资格仍关闭、billUNKNOWN；开始最小固定证据引用协议方案，绝不改原失败/位置或降低质量。
