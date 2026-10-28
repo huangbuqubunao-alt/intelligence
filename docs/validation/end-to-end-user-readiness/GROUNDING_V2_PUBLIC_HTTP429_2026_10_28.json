@@ -1,0 +1,28 @@
+{
+  "observed_at_utc": "2026-10-28T12:42:55.858818+00:00",
+  "case": "unseen-deepmind-interactive-coding-en",
+  "execution_id": "distillation:reservation:v3:62f120ea6d8d8cec42498c5ba77ed48ca9c32c8ec27c2152546ffcc3e691650c",
+  "status": "REJECTED_OUTPUT",
+  "invocation_count": 1,
+  "http_status_code": 429,
+  "outcome": "CLOUD_HTTP_ERROR",
+  "public_final_returned": false,
+  "safe_business_code": "NOT_RETAINED_BY_SCHEMA42_ADAPTER",
+  "semantic_quality": "UNVERIFIED_NO_FINAL_OUTPUT",
+  "actual_bill": "UNKNOWN",
+  "production_qualified": false,
+  "readiness": {
+    "ready": true,
+    "reasons": [],
+    "message": "Core data is quiescent and ready for backup.",
+    "restore_pending": false,
+    "last_restore": null
+  },
+  "all_81_tables_every_row_unchanged_by_readiness": true,
+  "all_19_DATA_equal": true,
+  "new_model_network_or_key_access": false,
+  "result_sha256": "9a939ddf90d70ebc66ffdc9961d7cc0012b2294173d01e0d792fe52824fdc846",
+  "attempt_sha256": "216162c0db3c02a7d4c84a55598c4a5639a454afdfa41dde99b7c3f9b1c34e19",
+  "prepared_sha256": "35ba7475c9f734aa9760c7173c6c982a3ccfe2a5bd2332b8d4e861632015344b",
+  "original_once_marker_preserved": true
+}
