@@ -1,4 +1,6 @@
-> 2026-10-28当前08:30：新unseen oracle d8a3d151已独立冻结，Root1dfbc20接受；Root逐104cue/5Evidence/原Summary hash和81SQL19DATA复验PASS，辅助首次漏cue_index后纠正同表示，不改源。源名称冲突/重复字幕/160query cap真实语境/历史rollout均保留，只允许有条件SYSTEM_INFERENCE、不强制positive、不发oracle给writer或模型。v2 writer仍独立WT离线回归：约66行产品diff，v1正文不动、wrapper通用规则、新profile与None字段兼容；11定向PASS，完整受影响组尚跑，未接受。总真实GLM仍1次失败，所有资格/正常预算关闭；不新请求/不main。
+> 2026-10-28当前：v2首稿86ea经作者518PASS195.68s后，独审15f72e6仍REJECT同根P2：base新None字段破坏旧YTexport严格字段集，并使相同旧long消息的semantic snapshot hash漂移；独审130PASS1FAIL/long旧基线probe，Rootad514保留报告，未合86产品代码。原writer已用followup恢复同WT修：base类/projection原文保留，仅v2专用有限frozen子类，exact-type/tuple/marker校验；不放宽旧consumers。已枚举26个asdict点，三VerifiedInput入口将补旧字段/rawasdict/long4f6b基线及原harness。新oracle仍已接受且未送writer/model，总真实GLM1次失败、正常资格预算关闭、不main。
+
+> 2026-10-28oracle已接受：独立d8a3d151→Root1dfbc20，Root逐104cue/5Evidence/原Summary hash和81SQL19DATA复验PASS，辅助首次漏cue_index后纠正同表示，不改源。源名称冲突/重复字幕/160query cap真实语境/历史rollout均保留，只允许有条件SYSTEM_INFERENCE、不强制positive、不发oracle给writer或模型。oracle不是完整矩阵、新模型执行或资格许可。
 
 > 2026-10-28任务启动08:20：6a55e1c已记录必要最小后续决策与零调用并行任务。writer `/root/cloud_preview_writer` 在NEW WT readiness-grounded-prompt-v2/base6a55，仅版本化通用prompt/资格profile及离线test；独立 `/root/bigmodel_audit_review` 在NEW WT readiness-unseen-public-oracle/base6a55仅读原公开Iwgl全部104cue/5Evidence和Summary。旧v1/历史/实际QoXR包和已耗调用不变，正常资格预算关闭，两份成果审查接受前不允许任何新真实请求。不换依赖/模型或大规模重开发，standing任务授权无需逐方法重批。
 
