@@ -251,6 +251,7 @@ class VerifiedDistillationInput:
     context_json: str | None = None
     local_profile_id: str | None = None
     local_profile_hash: str | None = None
+    cloud_profile_id: str | None = None
 
     def __post_init__(self) -> None:
         if self.output_language not in {"zh-CN", "en"}:
@@ -264,7 +265,7 @@ class VerifiedDistillationInput:
 def verified_distillation_input_projection(value: VerifiedDistillationInput) -> dict[str, object]:
     """Preserve the historical export bytes when no new profile is selected."""
     return {key: item for key, item in asdict(value).items()
-        if key not in {"local_profile_id", "local_profile_hash"} or item is not None}
+        if key not in {"local_profile_id", "local_profile_hash", "cloud_profile_id"} or item is not None}
 
 
 _LOCAL_TEXT_WIRE_VERSION = "local-text-distillation-v2"
@@ -925,6 +926,30 @@ def _distillation_prompt_messages(
         {"role": task_role, "content": f"TASK_AND_PERSONALIZATION={task_payload}"},
         {"role": "user", "content": f"UNTRUSTED_SOURCE_EVIDENCE={source_payload}"},
     ]
+
+
+_GROUNDING_V2_CONTRACT = (
+    "Distinguish the product user, each source speaker, and the publisher. Explicitly "
+    "attribute reported experiences, claims and opinions to their source; publication "
+    "does not establish independent verification. Preserve modality, uncertainty, "
+    "conditions, approximate quantities, units and comparisons from the Evidence. "
+    "Without measurement evidence, do not turn descriptions into measured counts, "
+    "magnitude, duration, or causal conclusions. Do not strengthen tentative statements "
+    "into established facts. Classify your own interpretation or inference as SYSTEM_INFERENCE, "
+    "state its supporting basis and what remains to be validated, and keep it revisable. "
+    "user_relevant_information describes relevance to the product user; source speakers' "
+    "experiences or beliefs are not the product user's experiences or beliefs. "
+    "If no evidence-backed judgment has retention value, return NO_NEW_INTELLIGENCE; "
+    "these grounding rules never require admission."
+)
+_BIGMODEL_GROUNDING_V2_PROFILE_ID = "bigmodel-glm-4.7-flash-thinking-json-grounding-qualification-v2"
+
+
+def _grounding_v2_prompt_messages(value: VerifiedDistillationInput) -> list[dict[str, str]]:
+    """Add general grounding constraints while preserving the frozen v1 builder."""
+    messages = _distillation_prompt_messages(value, task_role="system")
+    messages[0]["content"] += "\n" + _GROUNDING_V2_CONTRACT
+    return messages
 
 
 def _openai_responses_http_transport(
@@ -2448,6 +2473,7 @@ class BigModelGlm47FlashDistillationTransport:
     _TIMEOUT_SECONDS = 300.0
     _MAX_REQUEST_BYTES = 128 * 1024
     _MAX_RESPONSE_BYTES = 2 * 1024 * 1024
+    _CLOUD_PROFILE_ID: str | None = None
 
     def __init__(self, *, authorization: CloudDistillationAuthorization,
         credential_resolver: Callable[[], str],
@@ -2483,7 +2509,9 @@ class BigModelGlm47FlashDistillationTransport:
     @classmethod
     def _request(cls, value: VerifiedDistillationInput) -> dict[str, object]:
         if (not _cloud_source_allowed(value) or (value.selected_provider, value.selected_model) != ZHIPU_PAIR
-            or not value.evidence or value.output_language not in {"en", "zh-CN"}):
+            or not value.evidence or value.output_language not in {"en", "zh-CN"}
+            or cls._CLOUD_PROFILE_ID not in {None, _BIGMODEL_GROUNDING_V2_PROFILE_ID}
+            or value.cloud_profile_id != cls._CLOUD_PROFILE_ID):
             raise CloudDistillationPreDispatchError("BigModel public input identity is invalid")
         # Official API accepts system messages. Preserve both original system
         # messages and their exact order/text; no provider-specific prompt rewrite.
@@ -2496,6 +2524,8 @@ class BigModelGlm47FlashDistillationTransport:
 
     def is_authorized_for_qualification(self, value: VerifiedDistillationInput) -> bool:
         return (_cloud_source_allowed(value) and bool(value.evidence)
+            and self._CLOUD_PROFILE_ID in {None, _BIGMODEL_GROUNDING_V2_PROFILE_ID}
+            and value.cloud_profile_id == self._CLOUD_PROFILE_ID
             and (self._authorization.provider, self._authorization.model) == ZHIPU_PAIR
             and type(self._authorization.qualification_max_calls) is int
             and self._authorization.qualification_max_calls == 1
@@ -2608,6 +2638,26 @@ class BigModelGlm47FlashDistillationTransport:
             return replace(observed, raw=content)
         except (ValueError, TypeError, UnicodeError, RecursionError):
             raise KnownCloudDistillationResponseError(observed, reason=reason, http_status=200) from None
+
+
+class BigModelGlm47FlashGroundingV2DistillationTransport(BigModelGlm47FlashDistillationTransport):
+    """Explicit new qualification profile; inherits no normal production grant."""
+
+    _PROMPT_VERSION = "intelligence-grounding-v2"
+    _REQUEST_PROFILE_VERSION = _BIGMODEL_GROUNDING_V2_PROFILE_ID
+    _CLOUD_PROFILE_ID = _BIGMODEL_GROUNDING_V2_PROFILE_ID
+
+    @classmethod
+    def profile_projection(cls) -> dict[str, object]:
+        return {**super().profile_projection(),
+            "grounding_contract_sha256": hashlib.sha256(_GROUNDING_V2_CONTRACT.encode()).hexdigest()}
+
+    @classmethod
+    def _request(cls, value: VerifiedDistillationInput) -> dict[str, object]:
+        request = super()._request(value)
+        request["messages"] = _grounding_v2_prompt_messages(value)
+        _bigmodel_request_bytes(request)
+        return request
 
 
 @dataclass(frozen=True, slots=True)
@@ -3768,6 +3818,7 @@ class PersonalizedDistillationService:
         output_language: ScoringOutputLanguage,
         verified_input_hash: str,
         cloud_request_profile_version: str | None = None,
+        cloud_prompt_version: str | None = None,
         local_profile_id: str | None = None,
         local_profile_hash: str | None = None,
         reason: str | None = None,
@@ -3812,7 +3863,7 @@ class PersonalizedDistillationService:
                     else {}
                 ),
                 **(
-                    {"cloud_prompt_version": BigModelGlm47FlashDistillationTransport._PROMPT_VERSION,
+                    {"cloud_prompt_version": cloud_prompt_version or BigModelGlm47FlashDistillationTransport._PROMPT_VERSION,
                      "cloud_request_profile_version": cloud_request_profile_version
                         or BigModelGlm47FlashDistillationTransport._REQUEST_PROFILE_VERSION}
                     if (selected_provider, selected_model) == ZHIPU_PAIR else {}
@@ -3906,6 +3957,8 @@ class PersonalizedDistillationService:
                         if self._selected_provider in {_MOONSHOT_K26_PROVIDER, ZHIPU_PAIR[0]}
                         else None
                     ),
+                    cloud_prompt_version=(getattr(self._transport, "_PROMPT_VERSION", None)
+                        if (self._selected_provider, self._selected_model) == ZHIPU_PAIR else None),
                 ),
             ),
             verified_input,
@@ -4310,10 +4363,18 @@ class PersonalizedDistillationService:
             "video_id": projection.video_id,
             "video_title": video.title,
         }
+        cloud_profile_id = None
         if (projection.selected_provider, projection.selected_model) == ZHIPU_PAIR:
             # New candidate only: bind every frozen wire parameter/bound to the
             # verified input and hence to immutable consent. Old hashes stay exact.
-            semantic_payload["cloud_request_profile"] = BigModelGlm47FlashDistillationTransport.profile_projection()
+            profile = (self._transport if isinstance(self._transport, BigModelGlm47FlashDistillationTransport)
+                else BigModelGlm47FlashDistillationTransport)
+            cloud_profile_id = profile._CLOUD_PROFILE_ID
+            if cloud_profile_id not in {None, _BIGMODEL_GROUNDING_V2_PROFILE_ID}:
+                raise ValueError("cloud request profile is unsupported")
+            semantic_payload["cloud_request_profile"] = profile.profile_projection()
+            if cloud_profile_id is not None:
+                semantic_payload["cloud_profile_id"] = cloud_profile_id
         local_context = None
         wire_version = None
         input_json = None
@@ -4358,6 +4419,7 @@ class PersonalizedDistillationService:
         return VerifiedDistillationInput(
             wire_version=wire_version,
             local_profile_id=self._local_profile_id, local_profile_hash=local_profile_hash,
+            cloud_profile_id=cloud_profile_id,
             input_json=input_json, context_json=context_json,
             content_provider=video.provider,
             local_content_context_hash=local_context,
