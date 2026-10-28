@@ -4,6 +4,12 @@ export type UiLanguage = "zh-CN" | "en";
 
 const storageKey = "yia.ui-language";
 const chinese: Record<string, string> = {
+  "BigModel reported an account balance restriction. Check your provider account; no Intelligence was generated and this task will not retry automatically.": "智谱报告账号余额受限。请核对服务商账号；本次未生成洞察，也不会自动重试。",
+  "BigModel reported a request rate limit. Wait before starting a new explicitly authorized task; this task will not retry automatically.": "智谱报告请求频率受限。请等待后再新建明确授权的任务；本次不会自动重试。",
+  "BigModel reported service congestion. Wait before starting a new explicitly authorized task; this task will not retry automatically.": "智谱报告服务繁忙。请等待后再新建明确授权的任务；本次不会自动重试。",
+  "BigModel reported an account quota limit. Check the available quota in your provider account; this task will not retry automatically.": "智谱报告账号额度受限。请在服务商账号中核对可用额度；本次不会自动重试。",
+  "BigModel reported an incompatible API key type. Check the standard API key in Settings; this task will not retry automatically.": "智谱报告 API 密钥类型不匹配。请在设置中核对标准 API 密钥；本次不会自动重试。",
+
   "Choose which service's key to edit. This does not change the model used for execution.": "选择要编辑密钥的服务商，不会改变执行任务使用的模型。",
   "Moonshot / kimi-k2.6 credential setup": "Moonshot / kimi-k2.6 密钥设置",
   "Moonshot API key": "Moonshot API 密钥",

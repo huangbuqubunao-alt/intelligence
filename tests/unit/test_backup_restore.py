@@ -338,7 +338,7 @@ def test_schema36_backup_restore_upgrades_without_inventing_cancellations(tmp_pa
         execution_id = _waiting_model(repository)
     with repository._connect() as connection:
         before = tuple(connection.execute("SELECT * FROM distillation_execution_checkpoints").fetchone())
-    assert repository.initialize(now=NOW).version == 42
+    assert repository.initialize(now=NOW).version == 43
     with repository._connect() as connection:
         assert tuple(connection.execute("SELECT * FROM distillation_execution_checkpoints").fetchone()) == before
         assert connection.execute("SELECT COUNT(*) FROM distillation_waiting_model_cancellations").fetchone()[0] == 0
@@ -348,7 +348,7 @@ def test_schema36_backup_restore_upgrades_without_inventing_cancellations(tmp_pa
     service.confirm_restore(staged.restore_id)
     service.recover_and_apply_pending_restore()
     restored = SQLiteStateRepository(database)
-    assert restored.initialize(now=NOW).version == 42
+    assert restored.initialize(now=NOW).version == 43
     assert restored.get_distillation_execution(execution_id) is None
     assert service.readiness()["ready"] is True
 
@@ -819,7 +819,7 @@ def test_cloud_authorization_and_unidentified_response_survive_backup_restore(
     service.recover_and_apply_pending_restore()
 
     restored = SQLiteStateRepository(database)
-    assert restored.initialize(now=NOW).version == 42
+    assert restored.initialize(now=NOW).version == 43
     assert restored.get_cloud_execution_authorization(execution_id) == authorization
     assert restored.get_cloud_execution_authorization(openai_execution_id) == openai_authorization
     assert restored.get_cloud_execution_authorization(moonshot_execution_id) == moonshot_authorization
@@ -1560,7 +1560,7 @@ def test_preview_distinguishes_artifact_references_from_physical_data_files(tmp_
     assert (data_root / "transcripts/video-1.txt").read_bytes() == artifact
 
 
-@pytest.mark.parametrize('version',[34,35,36,37,38,39,40,41])
+@pytest.mark.parametrize('version',[34,35,36,37,38,39,40,41,42])
 def test_all_supported_schema_backups_restore_then_migrate_without_backfill(tmp_path,monkeypatch,version):
     load=SQLiteStateRepository._load_migrations
     with monkeypatch.context() as patch:
@@ -1583,14 +1583,14 @@ def test_all_supported_schema_backups_restore_then_migrate_without_backfill(tmp_
     with restored._connect() as connection:
         assert {row[0]:[tuple(value) for value in connection.execute(f'SELECT * FROM "{row[0]}"')] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}==tables
     assert {str(path.relative_to(data_root)):path.read_bytes() for path in data_root.rglob('*') if path.is_file()}==files
-    assert restored.initialize(now=NOW).version==42
+    assert restored.initialize(now=NOW).version==43
     assert restored.get_global_user_settings().output_language=='en'
     with restored._connect() as connection:
         for table,rows in tables.items():
             if table!='schema_migrations':
                 assert [tuple(row) for row in connection.execute(f'SELECT * FROM "{table}"')]==rows
         assert [tuple(row) for row in connection.execute('SELECT * FROM schema_migrations WHERE version<=? ORDER BY version',(version,))]==tables['schema_migrations']
-        assert all(connection.execute(f'SELECT count(*) FROM {table}').fetchone()[0]==0 for table in ('tracked_content_retry_requests','tracked_content_retry_executions','tracked_content_retry_files'))
+        assert all(connection.execute(f'SELECT count(*) FROM {table}').fetchone()[0]==0 for table in ('tracked_content_retry_requests','tracked_content_retry_executions','tracked_content_retry_files','distillation_cloud_waiting_model_cancellations','distillation_zhipu_http429_observations'))
         assert all(connection.execute(f'SELECT count(*) FROM {table}').fetchone()[0]==0 for table in ('distillation_zhipu_cloud_authorizations','distillation_zhipu_cloud_response_failures'))
         assert not connection.execute('PRAGMA foreign_key_check').fetchall()
     assert {str(path.relative_to(data_root)):path.read_bytes() for path in data_root.rglob('*') if path.is_file()}==files
@@ -1637,7 +1637,7 @@ def test_zhipu_429_audit_survives_full_backup_restore(tmp_path):
     service.confirm_restore(staged.restore_id)
     service.recover_and_apply_pending_restore()
     restarted = SQLiteStateRepository(database)
-    assert restarted.initialize(now=NOW).version == 42
+    assert restarted.initialize(now=NOW).version == 43
     assert restarted.get_cloud_execution_authorization(request["execution_id"]) == consent
     assert restarted.get_distillation_resource_usage(request["execution_id"]) == usage
     with restarted._connect() as connection:

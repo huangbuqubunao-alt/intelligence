@@ -79,6 +79,8 @@ REQUEST_HASH = build_provider_request_hash(
 )
 
 EXPECTED_TABLES = {
+    "distillation_cloud_waiting_model_cancellations",
+    "distillation_zhipu_http429_observations",
     "distillation_zhipu_cloud_authorizations",
     "distillation_zhipu_cloud_response_failures",
     "long_distillation_input_proofs",
@@ -854,12 +856,12 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
 
     sql = (
         resources.files("youtube_intel")
-        .joinpath("migrations", "042_add_zhipu_cloud_execution_audit.sql")
+        .joinpath("migrations", "043_add_cloud_wait_zero_cancellation.sql")
         .read_bytes()
     )
     assert first == second
-    assert first.version == 42
-    assert first.name == "042_add_zhipu_cloud_execution_audit.sql"
+    assert first.version == 43
+    assert first.name == "043_add_cloud_wait_zero_cancellation.sql"
     assert first.checksum == hashlib.sha256(sql).hexdigest()
 
     with _raw_connection(path) as connection:
@@ -874,7 +876,7 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
             "SELECT COUNT(*) FROM schema_migrations"
         ).fetchone()[0]
     assert tables == EXPECTED_TABLES
-    assert migration_count == 41
+    assert migration_count == 42
     with _raw_connection(path) as connection:
         failure_columns = {
             row["name"]
@@ -908,7 +910,7 @@ def test_v027_upgrade_appends_v028_without_rewriting_migration_history(
         )
     monkeypatch.setattr(repository, "_load_migrations", lambda: migrations)
 
-    assert repository.initialize(now=NOW).version == 42
+    assert repository.initialize(now=NOW).version == 43
     with _raw_connection(path) as connection:
         history_after = tuple(
             tuple(row)
@@ -917,7 +919,7 @@ def test_v027_upgrade_appends_v028_without_rewriting_migration_history(
                 "FROM schema_migrations ORDER BY version"
             )
         )
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 42
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 43
     assert history_after[:27] == history_before
     assert history_after[27][0:2] == (
         28,
@@ -973,7 +975,7 @@ def test_m028_failure_rolls_back_schema_history_and_user_version(
         }
         assert "http_status_code" not in columns
     monkeypatch.setattr(repository, "_load_migrations", lambda: migrations)
-    assert repository.initialize(now=NOW).version == 42
+    assert repository.initialize(now=NOW).version == 43
 
 
 def test_m042_failure_rolls_back_all_new_audit_objects_and_preserves_v041(tmp_path, monkeypatch):
@@ -985,7 +987,8 @@ def test_m042_failure_rolls_back_all_new_audit_objects_and_preserves_v041(tmp_pa
     assert repository.initialize(now=NOW).version == 41
     with repository._connect() as connection:
         before = tuple(connection.iterdump())
-    broken = replace(migrations[-1], sql=migrations[-1].sql + "\nSELECT missing_m042_failure_probe;\n")
+    m042 = next(m for m in migrations if m.version == 42)
+    broken = replace(m042, sql=m042.sql + "\nSELECT missing_m042_failure_probe;\n")
     monkeypatch.setattr(repository, "_load_migrations", lambda: (*legacy, broken))
     with pytest.raises(MigrationError, match="failed to apply migration 42"):
         repository.initialize(now=NOW)
@@ -993,7 +996,7 @@ def test_m042_failure_rolls_back_all_new_audit_objects_and_preserves_v041(tmp_pa
         assert tuple(connection.iterdump()) == before
         assert connection.execute("PRAGMA user_version").fetchone()[0] == 41
     monkeypatch.setattr(repository, "_load_migrations", lambda: migrations)
-    assert repository.initialize(now=NOW).version == 42
+    assert repository.initialize(now=NOW).version == 43
 
 
 def test_m042_unpublished_prior_candidate_checksum_is_not_rewritten(tmp_path):
@@ -1035,7 +1038,7 @@ def test_m026_failure_rolls_back_schema_history_and_user_version(
             "SELECT 1 FROM sqlite_master WHERE name = 'm026_partial_probe'"
         ).fetchone() is None
     monkeypatch.setattr(repository, "_load_migrations", lambda: migrations)
-    assert repository.initialize(now=NOW).version == 42
+    assert repository.initialize(now=NOW).version == 43
 
 
 def test_m027_failure_rolls_back_schema_history_and_user_version(
@@ -1066,8 +1069,8 @@ def test_m027_failure_rolls_back_schema_history_and_user_version(
         ).fetchone() is None
 
     monkeypatch.setattr(repository, "_load_migrations", lambda: migrations)
-    assert repository.initialize(now=NOW).version == 42
-    assert repository.initialize(now=NOW).version == 42
+    assert repository.initialize(now=NOW).version == 43
+    assert repository.initialize(now=NOW).version == 43
 
 
 def test_m024_rejects_current_summary_for_missing_content(tmp_path: Path) -> None:
@@ -1119,7 +1122,7 @@ def test_m022_upgrades_v021_without_inventing_current_summary(
     )
     monkeypatch.undo()
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 42
+    assert upgraded.initialize(now=NOW).version == 43
     assert upgraded.get_video("video-1") is not None
     assert upgraded.current_local_summary_pointer("video-1") is None
     with _raw_connection(path) as connection:
@@ -1148,10 +1151,10 @@ def test_m020_adds_immutable_no_new_result_without_rewriting_history(
 
     monkeypatch.undo()
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 42
+    assert upgraded.initialize(now=NOW).version == 43
 
     with _raw_connection(path) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 42
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 43
         assert connection.execute(
             "SELECT COUNT(*) FROM distillation_no_new_intelligence_results"
         ).fetchone()[0] == 0

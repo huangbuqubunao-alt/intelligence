@@ -590,6 +590,28 @@ class KnownCloudDistillationResponseError(ValueError):
         )
 
 
+class KnownBigModel429ResponseError(KnownCloudDistillationResponseError):
+    """Only a finite public code, never the provider's free-form error body."""
+
+    def __init__(self, safe_error_code: str) -> None:
+        super().__init__(http_status=429)
+        self.safe_error_code = safe_error_code
+
+
+def _bigmodel_safe_error_code(body: bytes) -> str | None:
+    if not isinstance(body, bytes) or len(body) > 8192:
+        return None
+    try:
+        value = json.loads(body.decode("utf-8"), object_pairs_hook=_strict_text_object)
+        error = value.get("error") if isinstance(value, dict) else None
+        code = error.get("code") if isinstance(error, dict) else None
+        if type(code) is int:
+            code = str(code)
+        return code if isinstance(code, str) and code in {"1113", "1302", "1305", "1308", "1315"} else None
+    except (ValueError, UnicodeError, RecursionError):
+        return None
+
+
 class AmbiguousCloudDistillationResponseError(RuntimeError):
     """A confirmed HTTP response whose streamed generation did not finish."""
 
@@ -2438,6 +2460,31 @@ def _bigmodel_chat_completions_http_transport(request: Mapping[str, object], cre
         if status == 202:
             raise AmbiguousCloudDistillationResponseError(http_status=202)
         if status != 200:
+            # An error body is optional diagnostic data. Read at most 8193 bytes
+            # within the original absolute deadline; any failure stays generic.
+            if status == 429:
+                error_body = bytearray()
+                try:
+                    while len(error_body) <= 8192:
+                        remaining = deadline - time.monotonic()
+                        if expired.is_set() or remaining <= 0:
+                            break
+                        if wire_socket is not None:
+                            wire_socket.settimeout(remaining)
+                        chunk = response.read1(8193 - len(error_body))
+                        if not isinstance(chunk, bytes):
+                            break
+                        error_body.extend(chunk)
+                        if not chunk:
+                            if not expired.is_set() and time.monotonic() < deadline and getattr(response, "length", None) in {None, 0}:
+                                code = _bigmodel_safe_error_code(bytes(error_body))
+                                if code is not None:
+                                    raise KnownBigModel429ResponseError(code)
+                            break
+                except KnownBigModel429ResponseError:
+                    raise
+                except Exception:
+                    pass
             raise KnownCloudDistillationResponseError(http_status=status)
         chunks = bytearray()
         while True:
@@ -2581,6 +2628,9 @@ class BigModelGlm47FlashDistillationTransport:
         if status == 202:
             raise AmbiguousCloudDistillationResponseError(http_status=202)
         if status != 200:
+            code = _bigmodel_safe_error_code(response.body) if status == 429 else None
+            if code is not None:
+                raise KnownBigModel429ResponseError(code)
             raise KnownCloudDistillationResponseError(http_status=status)
         observed = None
         reason = "CLOUD_HTTP_RESPONSE_MALFORMED"
@@ -4496,6 +4546,8 @@ class PersonalizedDistillationService:
                     outcome=failure_outcome,
                     http_status_code=http_status,
                     now=self._now(),
+                    bigmodel_error_code=(error.safe_error_code if isinstance(error, KnownBigModel429ResponseError)
+                        and (projection.selected_provider, projection.selected_model) == ZHIPU_PAIR else None),
                 )
                 return self._result(record)
             cloud_result = error.result

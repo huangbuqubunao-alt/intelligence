@@ -1110,7 +1110,7 @@ class LocalApiApplication:
                 # This service is the local route. Cloud review/authorization is
                 # a separate explicit command and is never an automatic fallback.
                 self._distillation_service.continue_reserved_distillation(reservation.execution_id)
-                return HTTPStatus.ACCEPTED, {"execution": _distillation_execution_dto(
+                return HTTPStatus.ACCEPTED, {"execution": self._distillation_execution_dto(
                     self._repository.get_distillation_execution(reservation.execution_id)
                 )}
             if method == "POST" and re.fullmatch(r"/api/v1/videos/[^/]+/intelligence/cancel", route):
@@ -1125,7 +1125,7 @@ class LocalApiApplication:
                 except StateStoreError:
                     raise ApiError(HTTPStatus.CONFLICT, "WAITING_MODEL_CANCEL_UNSAFE",
                                    "This task cannot be safely cancelled. Refresh its current state.") from None
-                return HTTPStatus.OK, {"execution": _distillation_execution_dto(execution)}
+                return HTTPStatus.OK, {"execution": self._distillation_execution_dto(execution)}
             cloud_prefix = "/api/v1/videos/"
             if method == "POST" and route.startswith(cloud_prefix) and (
                 route.endswith("/cloud-intelligence/review")
@@ -2009,6 +2009,14 @@ class LocalApiApplication:
         except Exception:
             return unknown
 
+    def _distillation_execution_dto(self, execution: object | None) -> dict[str, object]:
+        result = _distillation_execution_dto(execution)
+        if execution is not None:
+            code = self._repository.get_bigmodel_http429_code(str(getattr(execution, "execution_id")))
+            if code is not None:
+                result["cloud_http429_code"] = code
+        return result
+
     def _content_local_intelligence_status(self, video_id: str, source_id: str | None) -> dict[str, object]:
         matrix = self._local_intelligence_status()
         language = None if self._distillation_service is None else self._distillation_service.capability_output_language(video_id)
@@ -2105,7 +2113,7 @@ class LocalApiApplication:
             execution = self._repository.latest_distillation_execution_for_video(video.video_id)
             if execution is not None and execution.status != "SUCCEEDED":
                 activity.append({"video_id": video.video_id, "title": video.title,
-                                 **_distillation_execution_dto(execution)})
+                                 **self._distillation_execution_dto(execution)})
         # A relevance/preparation wait can precede a distillation reservation.
         seen = {item["video_id"] for item in activity}
         for run in self._repository.list_source_runs():
@@ -2571,7 +2579,7 @@ class LocalApiApplication:
             if video is None:
                 pending = next((item for item in self._pending_content_work() if item["video_id"] == route.rsplit("/", 1)[1]), None)
                 if pending is not None:
-                    return {"video": pending, "transcript": {"status": "NOT_AVAILABLE"}, "note": {"v2": {"status": "UNAVAILABLE"}}, "scoring": {"status": "NOT_AVAILABLE"}, "intelligence_result": _distillation_execution_dto(None), "history": [], "cloud_intelligence_available": False}
+                    return {"video": pending, "transcript": {"status": "NOT_AVAILABLE"}, "note": {"v2": {"status": "UNAVAILABLE"}}, "scoring": {"status": "NOT_AVAILABLE"}, "intelligence_result": self._distillation_execution_dto(None), "history": [], "cloud_intelligence_available": False}
                 raise ApiError(
                     HTTPStatus.NOT_FOUND, "NOT_FOUND", "Video was not found."
                 )
@@ -2581,7 +2589,7 @@ class LocalApiApplication:
                 "scoring": self._scoring_projection(video.video_id),
                 "transcript": self._transcript_projection(video.video_id),
                 "note": self._note_projection(video.video_id),
-                "intelligence_result": _distillation_execution_dto(
+                "intelligence_result": self._distillation_execution_dto(
                     self._repository.latest_distillation_execution_for_video(
                         video.video_id
                     )
@@ -2589,7 +2597,7 @@ class LocalApiApplication:
                 "manual_intelligence_eligible": manual_source is not None,
                 "local_intelligence": self._content_local_intelligence_status(video.video_id, manual_source),
                 "waiting_model_executions": [
-                    {**_distillation_execution_dto(wait), "can_cancel": self._repository.can_cancel_waiting_model_execution(wait.execution_id)}
+                    {**self._distillation_execution_dto(wait), "can_cancel": self._repository.can_cancel_waiting_model_execution(wait.execution_id)}
                     for wait in self._repository.list_waiting_model_executions_for_video(video.video_id)
                 ],
                 "cloud_intelligence_available": (

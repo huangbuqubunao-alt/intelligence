@@ -394,7 +394,11 @@ def test_native_wire_never_follows_redirects_or_retries_known_or_async_responses
     with pytest.raises(error) as raised:
         _send()
     assert raised.value.http_status == status
-    assert len(connection.requests) == 1 and connection.reads == 0 and connection.closed
+    assert len(connection.requests) == 1 and connection.closed
+    # Only HTTP429 permits bounded safe-code inspection; every other error
+    # still reads no response body. Arbitrary secret bytes remain unprojected.
+    assert connection.reads == (2 if status == 429 else 0)
+    assert getattr(raised.value, "safe_error_code", None) is None
     assert SECRET not in str(raised.value)
 
 

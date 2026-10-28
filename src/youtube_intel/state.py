@@ -1822,6 +1822,7 @@ class SQLiteStateRepository:
             "040_add_tracked_content_retry.sql",
             "041_add_long_distillation_provenance.sql",
             "042_add_zhipu_cloud_execution_audit.sql",
+            "043_add_cloud_wait_zero_cancellation.sql",
         )
         migrations: list[_Migration] = []
         for name in names:
@@ -8689,31 +8690,38 @@ class SQLiteStateRepository:
     ) -> tuple[str, ...]:
         if not lineage_kinds:
             return ()
-        placeholders = ", ".join("?" for _ in lineage_kinds)
         connection = self._connect()
         try:
-            position='coalesce(evidence.start_offset,evidence.start_ms)' if connection.execute('PRAGMA user_version').fetchone()[0]>=32 else 'evidence.start_ms'
-            rows = connection.execute(
-                "SELECT evidence.evidence_id FROM evidence "
-                "JOIN artifacts ON artifacts.artifact_id = evidence.artifact_id "
-                f"WHERE evidence.video_id = ? "
-                "AND evidence.availability = ? "
-                "AND artifacts.video_id = ? "
-                "AND artifacts.deleted_at IS NULL "
-                "AND artifacts.kind = ? "
-                f"AND evidence.lineage_kind IN ({placeholders}) "
-                f"ORDER BY {position} ASC, evidence.evidence_id ASC LIMIT 21",
-                (
-                    video_id,
-                    EvidenceAvailability.AVAILABLE.value,
-                    video_id,
-                    ArtifactKind.TRANSCRIPT_CANONICAL.value,
-                    *(kind.value for kind in lineage_kinds),
-                ),
-            ).fetchall()
-            return tuple(str(row["evidence_id"]) for row in rows)
+            return self._evidence_ids_for_lineages_in_snapshot(connection, video_id, lineage_kinds=lineage_kinds)
         finally:
             connection.close()
+
+    def _evidence_ids_for_lineages_in_snapshot(
+        self, connection: sqlite3.Connection, video_id: str, *, lineage_kinds: tuple[EvidenceLineageKind, ...]
+    ) -> tuple[str, ...]:
+        if not lineage_kinds:
+            return ()
+        placeholders = ", ".join("?" for _ in lineage_kinds)
+        position='coalesce(evidence.start_offset,evidence.start_ms)' if connection.execute('PRAGMA user_version').fetchone()[0]>=32 else 'evidence.start_ms'
+        rows = connection.execute(
+            "SELECT evidence.evidence_id FROM evidence "
+            "JOIN artifacts ON artifacts.artifact_id = evidence.artifact_id "
+            f"WHERE evidence.video_id = ? "
+            "AND evidence.availability = ? "
+            "AND artifacts.video_id = ? "
+            "AND artifacts.deleted_at IS NULL "
+            "AND artifacts.kind = ? "
+            f"AND evidence.lineage_kind IN ({placeholders}) "
+            f"ORDER BY {position} ASC, evidence.evidence_id ASC LIMIT 21",
+            (
+                video_id,
+                EvidenceAvailability.AVAILABLE.value,
+                video_id,
+                ArtifactKind.TRANSCRIPT_CANONICAL.value,
+                *(kind.value for kind in lineage_kinds),
+            ),
+        ).fetchall()
+        return tuple(str(row["evidence_id"]) for row in rows)
 
     def list_canonical_coverage_evidence_ids(self, video_id: str) -> tuple[str, ...]:
         """Canonical source coverage only (``ORIGINAL_TRANSCRIPT``).
@@ -10289,9 +10297,10 @@ class SQLiteStateRepository:
                     verify_execution(self, connection, execution_id)
                 except (ValueError, KeyError, TypeError, sqlite3.Error) as error:
                     raise StateStoreError("long execution failed historical validation") from error
-            from .distillation_cancellation import read_cancellation
+            from . import cloud_wait_cancellation, distillation_cancellation
+            proof = cloud_wait_cancellation if row["selected_provider"] == ZHIPU_PAIR[0] else distillation_cancellation
             try:
-                cancellation = read_cancellation(connection, row, repository=self)
+                cancellation = proof.read_cancellation(connection, row, repository=self)
             except ValueError as error:
                 raise StateStoreError("model wait cancellation failed validation") from error
             if cancellation is not None:
@@ -10482,12 +10491,7 @@ class SQLiteStateRepository:
         self, execution_id: str, *, video_id: str, now: datetime,
     ) -> DistillationExecutionRecord:
         """Append a terminal receipt without changing a request, usage or Evidence."""
-        from .distillation_cancellation import (
-            BINDINGS,
-            TABLE,
-            read_cancellation,
-            verify_wait,
-        )
+        from . import cloud_wait_cancellation, distillation_cancellation
 
         connection = self._connect()
         try:
@@ -10501,19 +10505,21 @@ class SQLiteStateRepository:
                 from .long_distillation_persistence import is_long, verify_execution
                 if is_long(execution_id):
                     verify_execution(self, connection, execution_id)
-                cancellation = read_cancellation(connection, checkpoint, repository=self)
+                proof = cloud_wait_cancellation if checkpoint["selected_provider"] == ZHIPU_PAIR[0] else distillation_cancellation
+                cancellation = proof.read_cancellation(connection, checkpoint, repository=self)
                 if cancellation is None:
-                    verify_wait(connection, checkpoint, repository=self)
-                    values = {key: checkpoint[key] for key in BINDINGS}
+                    proof.verify_wait(connection, checkpoint, repository=self)
+                    values = {key: checkpoint[key] for key in proof.BINDINGS}
+                    values["outcome"] = cloud_wait_cancellation.OUTCOME if checkpoint["selected_provider"] == ZHIPU_PAIR[0] else "CANCELLED_BEFORE_MODEL_INVOCATION"
                     values.update(checkpoint_updated_at=checkpoint["updated_at"], cancelled_at=format_utc_datetime(now))
                     connection.execute(
-                        f"INSERT INTO {TABLE} (execution_id, source_id, video_id, reason, use_case, "
+                        f"INSERT INTO {proof.TABLE} (execution_id, source_id, video_id, reason, use_case, "
                         "selected_provider, selected_model, output_language, budget_state, checkpoint_updated_at, "
                         "cancelled_at, outcome) VALUES (:execution_id, :source_id, :video_id, :reason, :use_case, "
                         ":selected_provider, :selected_model, :output_language, :budget_state, :checkpoint_updated_at, "
-                        ":cancelled_at, 'CANCELLED_BEFORE_MODEL_INVOCATION')", values,
+                        ":cancelled_at, :outcome)", values,
                     )
-                    cancellation = read_cancellation(connection, checkpoint, repository=self)
+                    cancellation = proof.read_cancellation(connection, checkpoint, repository=self)
                 if cancellation is None:
                     raise StateStoreError("model wait cancellation was not saved")
                 return replace(
@@ -10540,23 +10546,21 @@ class SQLiteStateRepository:
             connection.close()
 
     def can_cancel_waiting_model_execution(self, execution_id: str) -> bool:
-        from .distillation_cancellation import has_table, read_cancellation, verify_wait
-
-        connection = self._connect()
+        from . import cloud_wait_cancellation, distillation_cancellation
         try:
-            if not has_table(connection):
-                return False
-            row = connection.execute(
-                "SELECT * FROM distillation_execution_checkpoints WHERE execution_id=?", (execution_id,),
-            ).fetchone()
-            if row is None or read_cancellation(connection, row, repository=self) is not None:
-                return False
-            verify_wait(connection, row, repository=self)
-            return True
+            with closing(self._connect()) as connection, _read_snapshot(connection):
+                row = connection.execute(
+                    "SELECT * FROM distillation_execution_checkpoints WHERE execution_id=?", (execution_id,),
+                ).fetchone()
+                if row is None:
+                    return False
+                proof = cloud_wait_cancellation if row["selected_provider"] == ZHIPU_PAIR[0] else distillation_cancellation
+                if not proof.has_table(connection) or proof.read_cancellation(connection, row, repository=self) is not None:
+                    return False
+                proof.verify_wait(connection, row, repository=self)
+                return True
         except (ValueError, sqlite3.Error, StateStoreError):
             return False
-        finally:
-            connection.close()
 
     def begin_distillation_execution(
         self, execution: DistillationExecutionWrite, *, now: datetime
@@ -11257,6 +11261,12 @@ class SQLiteStateRepository:
             connection.close()
 
 
+    def get_bigmodel_http429_code(self, execution_id: str) -> str | None:
+        """Read optional safe metadata; never grants execution authority."""
+        from .cloud_http_observation import read_code
+        with closing(self._connect()) as connection, _read_snapshot(connection):
+            return read_code(connection, execution_id, repository=self)
+
     def finish_distillation_cloud_response_failure(
         self,
         *,
@@ -11265,6 +11275,7 @@ class SQLiteStateRepository:
         outcome: str,
         http_status_code: int | None,
         now: datetime,
+        bigmodel_error_code: str | None = None,
     ) -> DistillationExecutionRecord:
         """Persist a finite failure classification for one confirmed cloud response."""
         from .long_distillation_persistence import reject_generic
@@ -11278,6 +11289,10 @@ class SQLiteStateRepository:
             or not _cloud_response_failure_matches_status(outcome, http_status_code)
         ):
             raise ValueError("cloud response failure metadata is invalid")
+        if bigmodel_error_code is not None:
+            from .cloud_http_observation import CODES
+            if bigmodel_error_code not in CODES or outcome != "CLOUD_HTTP_ERROR" or http_status_code != 429:
+                raise ValueError("BigModel HTTP observation is invalid")
         timestamp = format_utc_datetime(now)
         connection = self._connect()
         try:
@@ -11356,6 +11371,14 @@ class SQLiteStateRepository:
                     (execution_id,),
                 ).fetchone()
                 assert row is not None
+                if bigmodel_error_code is not None and int(connection.execute("PRAGMA user_version").fetchone()[0]) >= 43:
+                    from .cloud_http_observation import TABLE, verify_schema
+                    verify_schema(connection)
+                    if (row["selected_provider"], row["selected_model"]) != ZHIPU_PAIR:
+                        raise StateStoreError("HTTP observation provider differs")
+                    self._validate_zhipu_execution(connection, row)
+                    connection.execute(f"INSERT INTO {TABLE} VALUES (?, 'zhipu_bigmodel', 'glm-4.7-flash', 429, ?, ?)",
+                        (execution_id, bigmodel_error_code, timestamp))
                 return self._distillation_execution_from_row(row)
         except sqlite3.IntegrityError as error:
             raise IntegrityConflict(

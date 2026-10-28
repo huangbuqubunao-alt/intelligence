@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { App, intelligenceValidationCopy } from "./App";
+import { App, intelligenceResultCopy, intelligenceValidationCopy } from "./App";
 import { apiProxyTarget } from "../api/proxy";
 
 test.each(["evidence-1", "foreign-evidence"])("Content refresh re-resolves only its current Evidence identity: %s", async (target) => {
@@ -3236,4 +3236,41 @@ test("BigModel settings deep link opens the exact candidate and returns to Conte
   expect(document.getElementById("bigmodel-settings")?.getAttribute("open")).not.toBeNull();
   expect(screen.getByRole("link", { name: "Back to Content" }).getAttribute("href")).toBe("#Content/video-1/Evidence/evidence-1");
   expect(screen.getAllByRole("navigation")[0].querySelectorAll("button")).toHaveLength(6);
+});
+
+
+test.each(["1113", "1302", "1305", "1308", "1315"])("BigModel safe code %s gives bounded guidance without automatic retry", (code) => {
+  const hint = intelligenceResultCopy("REJECTED_OUTPUT", code);
+  expect(hint).toContain("BigModel reported");
+  expect(hint).toContain("will not retry automatically");
+  expect(hint).not.toMatch(/recharge|top.up|paid fallback/i);
+  expect(intelligenceResultCopy("WAITING_MODEL", code)).not.toContain("BigModel reported");
+});
+
+test.each(["unknown", "constructor", "toString", "__proto__"])("unknown BigModel code %s preserves legacy generic result copy", (code) => {
+  expect(intelligenceResultCopy("REJECTED_OUTPUT", code)).toBe(intelligenceResultCopy("REJECTED_OUTPUT"));
+});
+
+test.each(["en", "zh-CN"])("Content renders safe BigModel failure guidance and exact settings link in %s without dispatch", async (language) => {
+  localStorage.setItem("yia.ui-language", language);
+  const defaultFetch = globalThis.fetch;
+  const commands: string[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (path: string, init?: RequestInit) => {
+    if (init?.method === "POST") commands.push(path);
+    const result = await defaultFetch(path, init);
+    if (path.endsWith("/videos/video-1")) {
+      const data = await result.json();
+      return response({ ...data, intelligence_result: { ...data.intelligence_result,
+        status: "REJECTED_OUTPUT", cloud_http429_code: "1315" } });
+    }
+    return result;
+  }));
+  location.hash = "#Content/video-1";
+  render(<App />);
+  expect(await screen.findByText(language === "en"
+    ? /BigModel reported an incompatible API key type/
+    : /智谱报告 API 密钥类型不匹配/)).toBeTruthy();
+  const link = screen.getByRole("link", { name: language === "en" ? "Settings" : "设置" });
+  expect(link.getAttribute("href")).toBe("#Settings/models/bigmodel?return=%23Content%2Fvideo-1");
+  expect(commands).toEqual([]);
 });

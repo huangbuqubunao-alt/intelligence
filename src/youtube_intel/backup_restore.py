@@ -46,7 +46,7 @@ from .state import SQLiteStateRepository
 
 FORMAT_NAME = "intelligence-core-backup"
 FORMAT_VERSION = 1
-LATEST_SCHEMA_VERSION = 42
+LATEST_SCHEMA_VERSION = 43
 MAX_ARCHIVE_BYTES = 8 * 1024 * 1024 * 1024
 MAX_ARCHIVE_FILES = 10_002
 MAX_MEMBER_BYTES = 2 * 1024 * 1024 * 1024
@@ -1012,7 +1012,7 @@ class BackupRestoreService:
             raise BackupRestoreError("Backup manifest fields are incomplete or unsupported.")
         if manifest.get("format") != FORMAT_NAME or manifest.get("format_version") != FORMAT_VERSION:
             raise BackupRestoreError("Backup format is incompatible.")
-        if manifest.get("schema_version") not in {34, 35, 36, 37, 38, 39, 40, 41, LATEST_SCHEMA_VERSION}:
+        if manifest.get("schema_version") not in {34, 35, 36, 37, 38, 39, 40, 41, 42, LATEST_SCHEMA_VERSION}:
             raise BackupRestoreError("Backup database schema is incompatible.")
         if not isinstance(manifest.get("application_version"), str) or not isinstance(
             manifest.get("created_at"), str
@@ -1303,7 +1303,7 @@ class BackupRestoreService:
         if not _REQUIRED_TABLES <= tables:
             raise BackupRestoreError("SQLite database is missing required Intelligence tables.")
         version_row = connection.execute("PRAGMA user_version").fetchone()
-        if version_row is None or int(version_row[0]) not in {34, 35, 36, 37, 38, 39, 40, 41, LATEST_SCHEMA_VERSION}:
+        if version_row is None or int(version_row[0]) not in {34, 35, 36, 37, 38, 39, 40, 41, 42, LATEST_SCHEMA_VERSION}:
             raise BackupRestoreError("SQLite database schema is not compatible with this version.")
         if int(version_row[0]) >= 40:
             from .tracked_retry_reader import verify_schema
@@ -1332,6 +1332,14 @@ class BackupRestoreService:
                 verify_database as verify_cancellations,
             )
             verify_cancellations(connection)
+            from .cloud_wait_cancellation import (
+                verify_database as verify_cloud_cancellations,
+            )
+            verify_cloud_cancellations(connection, repository=repository)
+            from .cloud_http_observation import (
+                verify_database as verify_http_observations,
+            )
+            verify_http_observations(connection, repository=repository)
             if int(version_row[0]) >= 38:
                 repository._verify_retained_subtitle_schema(connection)
             ResearchLiteService(repository).verify_schema(connection)
