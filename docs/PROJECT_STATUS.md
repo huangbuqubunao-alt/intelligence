@@ -1,4 +1,4 @@
-> 2026-10-28当前：v2首稿86ea经作者518PASS195.68s后，独审15f72e6仍REJECT同根P2：base新None字段破坏旧YTexport严格字段集，并使相同旧long消息的semantic snapshot hash漂移；独审130PASS1FAIL/long旧基线probe，Rootad514保留报告，未合86产品代码。原writer已用followup恢复同WT修：base类/projection原文保留，仅v2专用有限frozen子类，exact-type/tuple/marker校验；不放宽旧consumers。已枚举26个asdict点，三VerifiedInput入口将补旧字段/rawasdict/long4f6b基线及原harness。新oracle仍已接受且未送writer/model，总真实GLM1次失败、正常资格预算关闭、不main。
+> 2026-10-28当前：f878兼容修复经c86b独审累计APPROVE，Root整合cea14bd/3081e27/4c01997，src/tests/frontend逐字等f878。base19字段/projection原文、v2专用有限子类；作者704PASS221.15s，独审483PASS104.37s，Root329PASS87.20s/compile123/strict122/Ruff。Root用真实v1旧case副本证明旧input/ID/4132Bwire完全相同，实际BackupRestore81SQL19DATA全等、旧invocation1/语义REJECT保留，零key/wire。原15f72 REJECT仍保留。准备下一份独立未见公开case薄capsule，复用已有纯helpers/生产lifecycle，不建通用runner；具体包独审前不新请求。总实际GLM仍1次失败，普通资格/预算关闭，main不动。
 
 > 2026-10-28oracle已接受：独立d8a3d151→Root1dfbc20，Root逐104cue/5Evidence/原Summary hash和81SQL19DATA复验PASS，辅助首次漏cue_index后纠正同表示，不改源。源名称冲突/重复字幕/160query cap真实语境/历史rollout均保留，只允许有条件SYSTEM_INFERENCE、不强制positive、不发oracle给writer或模型。oracle不是完整矩阵、新模型执行或资格许可。
 
