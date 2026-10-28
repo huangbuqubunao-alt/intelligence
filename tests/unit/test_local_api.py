@@ -86,6 +86,7 @@ def test_video_detail_distinguishes_not_processed_admitted_and_no_new(
 
     app._repository.latest_distillation_execution_for_video = lambda _video_id: SimpleNamespace(  # type: ignore[method-assign]
         execution_id="exec-admitted",
+        selected_provider="ollama",
         status="SUCCEEDED",
         output_language="zh-CN",
         intelligence_id="intel-1",
@@ -97,6 +98,7 @@ def test_video_detail_distinguishes_not_processed_admitted_and_no_new(
 
     app._repository.latest_distillation_execution_for_video = lambda _video_id: SimpleNamespace(  # type: ignore[method-assign]
         execution_id="exec-zero",
+        selected_provider="ollama",
         status="SUCCEEDED_NO_NEW_INTELLIGENCE",
         output_language="zh-CN",
         intelligence_id=None,
@@ -107,6 +109,7 @@ def test_video_detail_distinguishes_not_processed_admitted_and_no_new(
     assert no_new["intelligence_result"] == {
         "status": "SUCCEEDED_NO_NEW_INTELLIGENCE",
         "execution_id": "exec-zero",
+        "selected_provider": "ollama",
         "output_language": "zh-CN",
         "has_new_intelligence": False,
         "intelligence_id": None,

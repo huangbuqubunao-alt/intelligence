@@ -4,6 +4,9 @@ export type UiLanguage = "zh-CN" | "en";
 
 const storageKey = "yia.ui-language";
 const chinese: Record<string, string> = {
+  "Waiting for cloud execution prerequisites": "等待云端执行条件",
+  "This cloud task is waiting for execution prerequisites. Check the BigModel API key or network in Settings. This cloud execution has not started. You can safely cancel this task.": "本次云端任务正在等待执行条件。请在设置中核对智谱 API 密钥或网络。本次云端执行尚未开始，可以安全取消此任务。",
+  "This cloud task is waiting for execution prerequisites. Check the BigModel API key or network in Settings. Cancellation safety has not been verified.": "本次云端任务正在等待执行条件。请在设置中核对智谱 API 密钥或网络。目前尚未确认此任务是否可以安全取消。",
   "BigModel reported an account balance restriction. Check your provider account; no Intelligence was generated and this task will not retry automatically.": "智谱报告账号余额受限。请核对服务商账号；本次未生成洞察，也不会自动重试。",
   "BigModel reported a request rate limit. Wait before starting a new explicitly authorized task; this task will not retry automatically.": "智谱报告请求频率受限。请等待后再新建明确授权的任务；本次不会自动重试。",
   "BigModel reported service congestion. Wait before starting a new explicitly authorized task; this task will not retry automatically.": "智谱报告服务繁忙。请等待后再新建明确授权的任务；本次不会自动重试。",

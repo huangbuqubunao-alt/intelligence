@@ -178,7 +178,7 @@ type ContentItem = {
 type ContentDetail = {
   local_intelligence?: unknown;
   video: ContentItem;
-  waiting_model_executions?: { execution_id: string; updated_at: string; can_cancel: boolean }[];
+  waiting_model_executions?: { execution_id: string; updated_at: string; can_cancel: boolean; selected_provider?: string }[];
   cloud_intelligence_available?: boolean;
   manual_intelligence_eligible?: boolean;
   transcript: {
@@ -215,6 +215,8 @@ type ContentDetail = {
     };
   };
   intelligence_result: {
+    selected_provider?: string;
+    can_cancel?: boolean;
     cloud_http429_code?: string;
     status: string;
     execution_id: string | null;
@@ -721,7 +723,13 @@ export function intelligenceValidationCopy(state: string) {
       "Updated. This is the current revision; older revisions are historical.",
   } as Record<string, string>)[state] ?? "Validation state is unavailable.";
 }
-export function intelligenceResultCopy(status: string, cloudCode?: string) {
+export function intelligenceResultCopy(status: string, cloudCode?: string, selectedProvider?: string, canCancel?: boolean) {
+  if (status === "WAITING_MODEL" && selectedProvider === "zhipu_bigmodel") {
+    return "This cloud task is waiting for execution prerequisites. Check the BigModel API key or network in Settings."
+      + (canCancel === true
+        ? " This cloud execution has not started. You can safely cancel this task."
+        : " Cancellation safety has not been verified.");
+  }
   if (status === "REJECTED_OUTPUT") {
     const hint = ({
       "1113": "BigModel reported an account balance restriction. Check your provider account; no Intelligence was generated and this task will not retry automatically.",
@@ -1579,7 +1587,7 @@ function IntelligencePage(
   const { t } = useUiLanguage();
   const [view, setView] = useState<"Current" | "Saved">("Current");
   const [revision, setRevision] = useState(0);
-  const current = useRemote<{ intelligence: Intelligence[]; activity?: { video_id: string; title: string; status: string; cloud_http429_code?: string }[] }>(
+  const current = useRemote<{ intelligence: Intelligence[]; activity?: { video_id: string; title: string; status: string; cloud_http429_code?: string; selected_provider?: string; can_cancel?: boolean }[] }>(
     "/intelligence",
     refresh + revision,
   );
@@ -1613,7 +1621,8 @@ function IntelligencePage(
       </div>
       {view === "Current" && current.data?.activity?.length ? <Panel title="Analysis activity">
         {current.data.activity.map(item => <article className="metadata-row" key={`${item.video_id}:${item.status}`}>
-          <div><strong>{item.title}</strong><p>{t(intelligenceResultCopy(item.status, item.cloud_http429_code))}</p>
+          <div><strong>{item.title}</strong><p>{t(intelligenceResultCopy(item.status, item.cloud_http429_code, item.selected_provider, item.can_cancel))}</p>
+            {item.status === "WAITING_MODEL" && item.selected_provider === "zhipu_bigmodel" && <a className="source-link" href={`#Settings/models/bigmodel?return=${encodeURIComponent(`#Content/${item.video_id}`)}`}>{t("Settings")}</a>}
             <button className="button button-secondary" onClick={() => openContent(item.video_id)}>{t("Open Content")}</button></div>
         </article>)}
       </Panel> : null}
@@ -1918,9 +1927,11 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
   const isLocalMedia = data.video.provider === "LOCAL" && data.video.media_kind !== "TEXT";
   const note = data.note.v2;
   const localCapability = readContentLocal(data.local_intelligence, data.video, id);
+  const cloudWait = data.intelligence_result.status === "WAITING_MODEL" && data.intelligence_result.selected_provider === "zhipu_bigmodel";
   const unstartedLongWait = data.intelligence_result.status === "WAITING_MODEL"
+    && !cloudWait
     && ["local-grounding-qwen35-9b-lossless-rle-runtime-0.40.6-v2", "local-grounding-qwen35-9b-lossless-rle-runtime-0.40.9-v3"].includes(localCapability?.profile_id ?? "")
-    && data.waiting_model_executions?.some(wait => wait.can_cancel) === true;
+    && data.waiting_model_executions?.some(wait => wait.can_cancel === true) === true;
   const visibleHistory = data.history.filter((event) =>
     event.type === "JOB_STATUS" || !event.type
   );
@@ -1961,18 +1972,22 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
       <Panel title="Intelligence result">
         <LocalIntelligencePresentation content={localCapability} onReload={reload} />
         <div className="semantic-state state-neutral">
-          <Status value={data.intelligence_result.status} label={unstartedLongWait ? "Extraction has not started" : undefined} />
+          <Status value={data.intelligence_result.status} label={cloudWait ? "Waiting for cloud execution prerequisites" : unstartedLongWait ? "Extraction has not started" : undefined} />
           <p role={data.intelligence_result.status === "CANCELLED" ? "status" : undefined}>{t(unstartedLongWait
             ? "This extraction has not run. You can safely cancel it, then request extraction again."
-            : intelligenceResultCopy(data.intelligence_result.status, data.intelligence_result.cloud_http429_code))}</p>
-          {data.intelligence_result.status === "REJECTED_OUTPUT" && data.intelligence_result.cloud_http429_code === "1315" && <a className="source-link" href={`#Settings/models/bigmodel?return=${encodeURIComponent(`#Content/${id}`)}`}>{t("Settings")}</a>}
+            : intelligenceResultCopy(data.intelligence_result.status, data.intelligence_result.cloud_http429_code, data.intelligence_result.selected_provider, data.intelligence_result.can_cancel))}</p>
+          {(cloudWait || (data.intelligence_result.status === "REJECTED_OUTPUT" && data.intelligence_result.cloud_http429_code === "1315")) && <a className="source-link" href={`#Settings/models/bigmodel?return=${encodeURIComponent(`#Content/${id}`)}`}>{t("Settings")}</a>}
           {cancelFeedback && data.intelligence_result.status !== "CANCELLED" && <p role="status">{cancelFeedback}</p>}
           {Boolean(data.waiting_model_executions?.length) && <div>
-            {(!unstartedLongWait || localCapability?.qualification_status === "NOT_QUALIFIED")
-              && <p>{t("No qualified Intelligence model is currently available.")}</p>}
-            {data.waiting_model_executions?.map((wait) => <div className="button-row" key={wait.execution_id}>
+            {data.waiting_model_executions?.map((wait) => <div key={wait.execution_id}>
+              {wait.selected_provider === "zhipu_bigmodel"
+                ? <><p>{t(intelligenceResultCopy("WAITING_MODEL", undefined, wait.selected_provider, wait.can_cancel))}</p>
+                  <a className="source-link" href={`#Settings/models/bigmodel?return=${encodeURIComponent(`#Content/${id}`)}`}>{t("Settings")}</a></>
+                : (!unstartedLongWait || localCapability?.qualification_status === "NOT_QUALIFIED")
+                  && <p>{t("No qualified Intelligence model is currently available.")}</p>}
+              <div className="button-row">
               <span className="hint">{humanDate(wait.updated_at)}</span>
-              {wait.can_cancel ? <button type="button" className="button button-secondary" disabled={cloudBusy} onClick={async () => {
+              {wait.can_cancel === true ? <button type="button" className="button button-secondary" disabled={cloudBusy} onClick={async () => {
                 setCloudBusy(true); setCloudError(null);
                 try {
                   await post(`/videos/${id}/intelligence/cancel`, { execution_id: wait.execution_id });
@@ -1984,6 +1999,7 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
                 } finally { setCloudBusy(false); }
               }}>{t(cloudBusy ? "Cancelling…" : "Cancel this extraction")}</button>
                 : <p>{t("This task cannot be safely cancelled. Refresh its current state.")}</p>}
+              </div>
             </div>)}
           </div>}
           {data.manual_intelligence_eligible && <div className="button-row">

@@ -416,6 +416,7 @@ def _distillation_execution_dto(execution: object | None) -> dict[str, object]:
     return {
         "status": status,
         "execution_id": str(getattr(execution, "execution_id")),
+        "selected_provider": getattr(execution, "selected_provider", None),
         "output_language": getattr(execution, "output_language"),
         "has_new_intelligence": (
             True
@@ -2012,7 +2013,10 @@ class LocalApiApplication:
     def _distillation_execution_dto(self, execution: object | None) -> dict[str, object]:
         result = _distillation_execution_dto(execution)
         if execution is not None:
-            code = self._repository.get_bigmodel_http429_code(str(getattr(execution, "execution_id")))
+            execution_id = str(getattr(execution, "execution_id"))
+            if result["status"] == "WAITING_MODEL":
+                result["can_cancel"] = self._repository.can_cancel_waiting_model_execution(execution_id)
+            code = self._repository.get_bigmodel_http429_code(execution_id)
             if code is not None:
                 result["cloud_http429_code"] = code
         return result
@@ -2597,7 +2601,7 @@ class LocalApiApplication:
                 "manual_intelligence_eligible": manual_source is not None,
                 "local_intelligence": self._content_local_intelligence_status(video.video_id, manual_source),
                 "waiting_model_executions": [
-                    {**self._distillation_execution_dto(wait), "can_cancel": self._repository.can_cancel_waiting_model_execution(wait.execution_id)}
+                    self._distillation_execution_dto(wait)
                     for wait in self._repository.list_waiting_model_executions_for_video(video.video_id)
                 ],
                 "cloud_intelligence_available": (

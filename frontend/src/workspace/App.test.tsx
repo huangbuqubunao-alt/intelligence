@@ -3274,3 +3274,80 @@ test.each(["en", "zh-CN"])("Content renders safe BigModel failure guidance and e
   expect(link.getAttribute("href")).toBe("#Settings/models/bigmodel?return=%23Content%2Fvideo-1");
   expect(commands).toEqual([]);
 });
+
+test.each([true, false, undefined])("BigModel WAITING_MODEL Content uses its own provider and proof (can_cancel=%s)", async (canCancel) => {
+  const defaultFetch = globalThis.fetch;
+  const writes: string[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (path: string, init?: RequestInit) => {
+    if (init?.method === "POST") writes.push(path);
+    const result = await defaultFetch(path, init);
+    if (path.endsWith("/videos/video-1")) {
+      const data = await result.json();
+      return response({ ...data, intelligence_result: { ...data.intelligence_result,
+        status: "WAITING_MODEL", execution_id: "cloud-own-wait", selected_provider: "zhipu_bigmodel", can_cancel: canCancel },
+        video: { ...data.video, provider: "YOUTUBE" },
+        local_intelligence: { video_id: "video-1", scope: "YT_TIMED", output_language: "en", model: "qwen3.5:9b-q4_K_M",
+          profile_id: "local-grounding-qwen35-9b-lossless-rle-runtime-0.40.9-v3",
+          runtime_binding: { provider: "ollama", model: "qwen3.5:9b-q4_K_M", profile_id: "local-grounding-qwen35-9b-runtime-0.40.9-v4" },
+          qualification_status: "NOT_QUALIFIED", request_state: "WAITING_MODEL", reason: "NOT_QUALIFIED" },
+        waiting_model_executions: [{ execution_id: "cloud-own-wait", selected_provider: "zhipu_bigmodel", can_cancel: canCancel, updated_at: "2026-10-28T00:00:00Z" }] });
+    }
+    return result;
+  }));
+  location.hash = "#Content/video-1";
+  render(<App />);
+  expect((await screen.findAllByText(/This cloud task is waiting for execution prerequisites/)).length).toBeGreaterThan(0);
+  expect(screen.queryByText(/The current local model cannot reliably create/)).toBeNull();
+  expect(screen.queryByText("No qualified Intelligence model is currently available.")).toBeNull();
+  expect(screen.getByText("Waiting for cloud execution prerequisites")).toBeTruthy();
+  const proof = screen.queryAllByText(/This cloud execution has not started/);
+  expect(proof.length > 0).toBe(canCancel === true);
+  expect(screen.queryByRole("button", { name: "Cancel this extraction" }) !== null).toBe(canCancel === true);
+  expect(screen.getAllByRole("link", { name: "Settings" })[0].getAttribute("href")).toBe("#Settings/models/bigmodel?return=%23Content%2Fvideo-1");
+  expect(screen.getByRole("region", { name: "Local Intelligence for this Content" }).textContent).toContain("have not passed local Intelligence quality verification");
+  expect(writes).toEqual([]);
+});
+
+test.each([true, false, undefined])("BigModel WAITING_MODEL activity retains task identity and only proven zero claim (%s)", async (canCancel) => {
+  const defaultFetch = globalThis.fetch;
+  vi.stubGlobal("fetch", vi.fn((path: string, init?: RequestInit) => path.endsWith("/intelligence")
+    ? response({ intelligence: [], activity: [{ video_id: "video-1", title: "Cloud wait activity", status: "WAITING_MODEL",
+      selected_provider: "zhipu_bigmodel", can_cancel: canCancel }] })
+    : defaultFetch(path, init)));
+  location.hash = "#Intelligence";
+  render(<App />);
+  await screen.findByText("Cloud wait activity");
+  expect(screen.getByText(/This cloud task is waiting for execution prerequisites/)).toBeTruthy();
+  expect(screen.queryByText(/The current local model cannot reliably create/)).toBeNull();
+  expect(screen.queryByText(/This cloud execution has not started/) !== null).toBe(canCancel === true);
+});
+
+test("mixed waiting rows keep cloud unknown conservative and cancel only the proven local identity", async () => {
+  const defaultFetch = globalThis.fetch;
+  const commands: object[] = [];
+  vi.stubGlobal("fetch", vi.fn(async (path: string, init?: RequestInit) => {
+    if (init?.method === "POST" && path.endsWith("/intelligence/cancel")) {
+      commands.push(JSON.parse(String(init.body)));
+      return response({ execution: { status: "CANCELLED" } });
+    }
+    const result = await defaultFetch(path, init);
+    if (path.endsWith("/videos/video-1")) {
+      const data = await result.json();
+      return response({ ...data, intelligence_result: { ...data.intelligence_result, status: "WAITING_MODEL",
+        execution_id: "cloud-unknown", selected_provider: "zhipu_bigmodel", can_cancel: false },
+        waiting_model_executions: [
+          { execution_id: "cloud-unknown", selected_provider: "zhipu_bigmodel", can_cancel: false, updated_at: "2026-10-28T00:00:00Z" },
+          { execution_id: "local-proven", selected_provider: "ollama", can_cancel: true, updated_at: "2026-10-28T00:00:00Z" },
+        ] });
+    }
+    return result;
+  }));
+  location.hash = "#Content/video-1";
+  render(<App />);
+  await screen.findAllByText(/This cloud task is waiting for execution prerequisites/);
+  expect(screen.queryByText(/This cloud execution has not started/)).toBeNull();
+  expect(screen.queryByText("Extraction has not started")).toBeNull();
+  expect(screen.getAllByText("No qualified Intelligence model is currently available.")).toHaveLength(1);
+  fireEvent.click(screen.getByRole("button", { name: "Cancel this extraction" }));
+  await waitFor(() => expect(commands).toEqual([{ execution_id: "local-proven" }]));
+});

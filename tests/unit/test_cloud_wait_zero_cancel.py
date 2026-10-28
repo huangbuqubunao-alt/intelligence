@@ -485,3 +485,23 @@ def test_invalid429_observation_rolls_back_claim_finish_without_replay(tmp_path)
         assert tuple(c.iterdump())==before
     assert repo.get_distillation_execution(eid).invocation_count==1
     assert not repo.can_cancel_waiting_model_execution(eid)
+
+
+@pytest.mark.parametrize('budget,can_cancel',[('ADMITTED',True),('UNPROVED',False)])
+def test_cloud_wait_identity_and_proof_reach_actual_content_and_activity_dto(tmp_path,budget,can_cancel):
+    from youtube_intel.local_api import LocalApiApplication
+    from youtube_intel.orchestration_service import ProductOrchestrationService
+    repo,_,eid,video,data,_=setup_wait(tmp_path,budget=budget,consent_kind='USER_CONFIRMATION')
+    app=LocalApiApplication(repo,ProductOrchestrationService(repo,now=lambda:NOW),data_root=data,vault_root=tmp_path/'vault',now=lambda:NOW)
+    status,content=app.handle('GET','/api/v1/videos/'+video)
+    assert status==200
+    main=content['intelligence_result']
+    wait=next(item for item in content['waiting_model_executions'] if item['execution_id']==eid)
+    status,listing=app.handle('GET','/api/v1/intelligence')
+    assert status==200
+    activity=next(item for item in listing['activity'] if item['execution_id']==eid)
+    for value in (main,wait,activity):
+        assert value['selected_provider']=='zhipu_bigmodel'
+        assert value['can_cancel'] is can_cancel
+        assert value['status']=='WAITING_MODEL'
+    assert repo.get_distillation_execution(eid).invocation_count==0
