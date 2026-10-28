@@ -36,7 +36,7 @@ def test_valid_restore_keeps_current_research_and_all_executions(tmp_path):
     service.confirm_restore(staged.restore_id)
     service.recover_and_apply_pending_restore()
     restored = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert restored.initialize(now=support.authority.NOW).version == 42
+    assert restored.initialize(now=support.authority.NOW).version == 43
     assert ResearchLiteService(restored).read(first.packet.research_id).as_dict() == current.as_dict()
     assert RESEARCH_AUTHORITY_TABLES <= _REQUIRED_TABLES
     with restored._connect() as db:

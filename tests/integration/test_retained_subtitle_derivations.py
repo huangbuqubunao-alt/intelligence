@@ -480,7 +480,7 @@ def test_old_manifest_contract_restores_then_adds_empty_archive_table(
     backup.confirm_restore(staged.restore_id)
     backup.recover_and_apply_pending_restore()
     assert _tables(repo) == tables and _files(root) == files
-    assert repo.initialize(now=backup_support.NOW).version == 42
+    assert repo.initialize(now=backup_support.NOW).version == 43
     with repo._connect() as connection:
         assert (
             connection.execute(
@@ -536,7 +536,7 @@ def test_migration38_ddl_fault_rolls_back_and_preserves37_exactly(
             is None
         )
     monkeypatch.setattr(repo, "_load_migrations", lambda: migrations)
-    assert repo.initialize(now=datetime.now(UTC)).version == 42
+    assert repo.initialize(now=datetime.now(UTC)).version == 43
     assert {
         k: v
         for k, v in _tables(repo).items()

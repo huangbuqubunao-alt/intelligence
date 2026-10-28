@@ -671,7 +671,7 @@ def test_migration34_failure_is_atomic_and_upgrade_preserves_bilibili_authority(
     assert repo.schema_version().version == 33
     assert repo.get_verified_timed_transcript(video_id=imported.content_id) == before
     monkeypatch.setattr(repo, "_load_migrations", lambda: migrations)
-    assert repo.initialize(now=NOW).version == 42
+    assert repo.initialize(now=NOW).version == 43
     assert repo.get_verified_timed_transcript(video_id=imported.content_id) == before
     assert repo.list_evidence_for_presentation(imported.content_id) == evidence
 

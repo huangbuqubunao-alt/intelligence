@@ -678,7 +678,16 @@ def test_gui_runtime_persists_truthful_attention_when_ingestion_fails(
 def test_doctor_is_read_only_and_explains_missing_first_run_state(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from urllib.error import URLError
+
+    def offline_tags(request: object, *args: object, **kwargs: object) -> None:
+        assert request.get_method() == "GET"
+        assert request.full_url.endswith("/api/tags")
+        raise URLError("offline doctor fixture")
+
+    monkeypatch.setattr("youtube_intel.runtime.urllib.request.urlopen", offline_tags)
     project = _project(tmp_path)
 
     exit_code = main(["--project-root", str(project), "doctor"])
