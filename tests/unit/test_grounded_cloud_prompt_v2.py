@@ -2,7 +2,7 @@
 
 import hashlib
 import json
-from dataclasses import replace
+from dataclasses import FrozenInstanceError, fields, replace
 
 import pytest
 from conftest import _load_module
@@ -31,6 +31,14 @@ def digest(value):
         separators=(',', ':')).encode()).hexdigest()
 
 
+def _profiled(value, profile):
+    if profile is None:
+        return value
+    return d._GroundingV2VerifiedDistillationInput(
+        **{item.name: getattr(value, item.name) for item in fields(d.VerifiedDistillationInput)},
+        cloud_profile_id=profile)
+
+
 def test_v1_input_prompt_profile_request_and_execution_stay_golden():
     value = adapter_support._input()
     assert digest(d.verified_distillation_input_projection(value)) == 'b49628928ee84e1eb812464b93a0591cb379279001193a0af7cc569e96afd9a3'
@@ -45,7 +53,7 @@ def test_v1_input_prompt_profile_request_and_execution_stay_golden():
 
 @pytest.mark.parametrize('language', ['en', 'zh-CN'])
 def test_v2_is_generic_additive_and_keeps_source_separate(language):
-    value = replace(adapter_support._input(language), cloud_profile_id=V2)
+    value = _profiled(adapter_support._input(language), V2)
     old = d._distillation_prompt_messages(value, task_role='system')
     request = d.BigModelGlm47FlashGroundingV2DistillationTransport._request(value)
     assert request['messages'][1:] == old[1:]
@@ -58,7 +66,7 @@ def test_v2_is_generic_additive_and_keeps_source_separate(language):
     for forbidden in ['QoXR', 'Gemini', 'DeepMind', 'conjecture', 'IMO', '20', '100', 'decades']:
         assert forbidden not in extra
     assert request | {'messages': old} == d.BigModelGlm47FlashDistillationTransport._request(
-        replace(value, cloud_profile_id=None))
+        adapter_support._input(language))
     profile = d.BigModelGlm47FlashGroundingV2DistillationTransport.profile_projection()
     assert profile['request_profile_version'] == V2
     assert profile['prompt_version'] != d.BigModelGlm47FlashDistillationTransport._PROMPT_VERSION
@@ -74,7 +82,7 @@ def test_v2_is_generic_additive_and_keeps_source_separate(language):
     ('BigModelGlm47FlashGroundingV2DistillationTransport', 'unknown-profile'),
 ])
 def test_cross_or_unknown_profile_never_resolves_key_or_wire(transport_name, profile):
-    value = replace(adapter_support._input(), cloud_profile_id=profile)
+    value = _profiled(adapter_support._input(), profile)
     transport = getattr(d, transport_name)(authorization=d.CloudDistillationAuthorization(
         cloud_enabled=True, provider='zhipu_bigmodel', model='glm-4.7-flash',
         credential_available=True, provider_available=True, qualification_input_hash=value.semantic_hash),
@@ -135,7 +143,9 @@ def test_new_identity_consent_history_read_and_backup_remain_isolated(tmp_path):
     new_command, new_input = v2._prospective_cloud_command(**arguments)
     assert old_command.execution_id != new_command.execution_id
     assert old_input.semantic_hash != new_input.semantic_hash
-    assert old_input.cloud_profile_id is None and new_input.cloud_profile_id == V2
+    assert type(old_input) is d.VerifiedDistillationInput and not hasattr(old_input, 'cloud_profile_id')
+    assert type(new_input) is d._GroundingV2VerifiedDistillationInput and new_input.cloud_profile_id == V2
+    assert all(type(item) is d.VerifiedEvidenceInput for item in new_input.evidence)
     assert d.verified_distillation_input_projection(new_input)['cloud_profile_id'] == V2
     assert 'cloud_profile_id' not in d.verified_distillation_input_projection(old_input)
     assert not ProductionDistillationBudget().check(new_command).allowed
@@ -223,7 +233,7 @@ def test_reserved_profile_mismatch_is_terminal_before_credentials(tmp_path, monk
 
 @pytest.mark.parametrize('provider', ['LOCAL', 'BILIBILI'])
 def test_v2_does_not_expand_cloud_content_permissions(provider):
-    value = replace(adapter_support._input(), cloud_profile_id=V2, content_provider=provider)
+    value = _profiled(replace(adapter_support._input(), content_provider=provider), V2)
     transport = d.BigModelGlm47FlashGroundingV2DistillationTransport(
         authorization=d.CloudDistillationAuthorization(cloud_enabled=True, provider='zhipu_bigmodel',
             model='glm-4.7-flash', credential_available=True, provider_available=True,
@@ -246,3 +256,35 @@ def test_v2_owner_permit_never_grants_normal_production(tmp_path):
     result = service.continue_reserved_distillation(reserved.execution_id)
     assert result.status.value == 'WAITING_MODEL' and result.invocation_count == 0
     assert calls == []
+
+
+def test_legacy_base_dataclass_fields_and_raw_asdict_remain_exact():
+    from dataclasses import asdict, fields
+    assert tuple(field.name for field in fields(d.VerifiedDistillationInput)) == (
+        'source_display_name', 'video_id', 'video_title', 'evidence', 'personalization',
+        'source_focus_rules', 'source_ignore_rules', 'distillation_style', 'selected_provider',
+        'selected_model', 'semantic_hash', 'output_language', 'content_provider',
+        'local_content_context_hash', 'wire_version', 'input_json', 'context_json',
+        'local_profile_id', 'local_profile_hash')
+    assert digest(asdict(adapter_support._input())) == '525f0ea4c1bc7cc923d17b81c9975ff2feff36ce7c491e548f0d39c7a7c02a72'
+
+
+def test_legacy_long_raw_value_snapshot_hash_is_unchanged():
+    long = _load_module('test_long_grounding_projection')
+    assert long.prepare().semantic_snapshot_hash == '4f6bdfc09fd434eac242f9daef4bfe9c568d6d7fe793d1f5bac8e0d159b25027'
+
+
+
+def test_v2_subtype_is_frozen_keeps_typed_refs_and_rejects_other_subtypes():
+    value = adapter_support._input()
+    v2 = _profiled(value, V2)
+    assert v2.evidence is value.evidence
+    assert v2.evidence[0] is value.evidence[0]
+    with pytest.raises(FrozenInstanceError):
+        v2.cloud_profile_id = 'unknown'
+    class Foreign(d.VerifiedDistillationInput):
+        pass
+    foreign = Foreign(**{item.name: getattr(value, item.name) for item in fields(d.VerifiedDistillationInput)})
+    assert not d._cloud_source_allowed(foreign)
+    assert not d._cloud_source_allowed(replace(v2, selected_provider='openai', selected_model='gpt-4.1'))
+    assert not d._cloud_source_allowed(replace(v2, cloud_profile_id='unknown'))

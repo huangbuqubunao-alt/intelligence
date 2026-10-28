@@ -38,11 +38,13 @@ backup validation remains intact. No new runner/framework or oracle.
   profile. Default runtime still selects the original v1 adapter.
 - Prompt `intelligence-grounding-v2`; profile
   `bigmodel-glm-4.7-flash-thinking-json-grounding-qualification-v2`.
-  New optional `VerifiedDistillationInput.cloud_profile_id` is None for every old
-  path. Only that newly absent key is omitted alongside the existing local-profile
-  omissions; older unrelated None fields remain serialized. Trusted service builders
-  derive the profile from their actual finite BigModel transport. Unknown profile
-  values reject; no external API/config selector or arbitrary profile input was added.
+  After the compatibility repair below, base `VerifiedDistillationInput` and its
+  projection remain source-byte-identical to the original base. Only v2 uses private
+  frozen/slots/keyword-only `_GroundingV2VerifiedDistillationInput.cloud_profile_id`.
+  Trusted service builders derive that finite profile and copy original field values
+  with fields/getattr, preserving nested typed Evidence references. The source gate
+  accepts exact base type or the exact v2 subtype with matching tuple/marker; arbitrary
+  subclasses and unknown markers reject. No external profile selector was added.
 - The complete v2 profile/contract SHA and profile ID bind the semantic hash. Actual
   prompt/profile versions bind reservation ID. Existing immutable OWNER consent binds
   that exact new input hash/execution; old input hashes/consent/eligibility grant no v2
@@ -106,6 +108,58 @@ with explicit `PYTHONDONTWRITEBYTECODE=1` and
 the exact full pytest argv and hash manifest are in the final JSON above. The shared
 editable-install default path is never trusted. No real HTTP/model/key operation was
 used as evidence. Final scoped commit is reported in chat; clean STOP pending review.
+
+## Independent-review compatibility repair
+
+Fixed86ea was independently **REJECTED**, report
+`15f72e662fa7054959550b3205131ad7ff8cf076` (Root preserved asad514).
+Its518PASS did not cover two direct raw-asdict consumers: the added null base field
+broke the historical YT export's strict key set and changed the long snapshot hash
+despite identical model context/messages. That original failure/history is retained.
+
+The repair removes the added field from the base class and restores the original
+projection function verbatim; no historical consumer or unknown-field rejection was
+changed. Only v2 constructs a dedicated frozen subclass. Conversion uses original
+field references, not recursive asdict. Transport marker checks use getattr(None)
+plus the finite exact-type/tuple/marker source gate. Existing v2 profile/contract,
+identity/consent, normal denial and cross-profile behavior remain covered.
+
+Current AST traversal of all src/scripts Python files found26 asdict calls, including
+import aliases/dataclasses.asdict. The three direct VerifiedDistillationInput consumers
+are distillation.verified_distillation_input_projection, long_grounding_projection.
+_value_snapshot and qualify_readiness_qwen35_intelligence.historical_timed_input_projection.
+The other23 serialize typed profile/proof/command/Evidence/source/summary/ledger/outcome/
+catalog/delta/API objects, not this input. Full call/function/expression inventory:
+`.var/grounding-v2-repair/asdict-inventory.json`. No consumer file was edited.
+
+Three concrete RED checks preserved in `.var/grounding-v2-repair/red.log`: base field
+list had the extra field; long old4f6bdfc09fd434eac242f9daef4bfe9c568d6d7fe793d1f5bac8e0d159b25027
+becamebe4b25fbd854955184be326b52058419c219918ed23f5aa740512cebd2a07965; original
+historical export raised its strict-contract ValueError. Repair focused group
+**134PASS11.27s** across the complete new/local-harness/long-projection files. New
+regressions pin all19 original base fields, raw-asdict SHA
+525f0ea4c1bc7cc923d17b81c9975ff2feff36ce7c491e548f0d39c7a7c02a72,
+the exact original long hash, frozen subtype/typed reference preservation and arbitrary
+subtype/wrong tuple/unknown marker refusal. Original legacy tests remain unchanged.
+Base class/projection/v1 builder source equal6a55e1c7 exactly; strict mypy122PASS and
+RuffPASS. Final expanded complete group/results are recorded in
+`.var/grounding-v2-repair/final.{json,log}` and reported in final chat. Earlier86ea
+evidence is retained separately in `.var/grounding-v2-checks`; it is not relabeled as
+compatibility acceptance. No source/prompt/oracle/model experiment was added by repair.
+
+Final repaired group: **704PASS221.15s**, 16 complete files, exit0 and
+source_unchanged=true over165 source/SQL/test/protected-script hashes. This is the
+original13-file/518-test group expanded with the original local harness, long projection and
+long profile files, plus the three new regression cases. The existing duplicate-ZIP
+refusal fixture produces the sole expected warning; none is suppressed. All15 frozen
+v1 symbols, including original base/projection, are byte-equal to6a55. Compile123,
+strict mypy122, Ruff and diff checks pass. A separate frozen86ea-module versus repaired
+module proof on one trusted synthetic repository confirms v2 semantic hash, full
+projection/request and command/ID byte equality, unchanged SQL/DATA, and zero
+key/budget/wire access (`.var/grounding-v2-repair/v2-identity.json`).
+Only distillation.py, this task's test and handoff differ from86ea. No legacy consumer,
+test, schema, first-case script, actual package or oracle was modified. Repair commit
+reported in final chat; clean STOP for cumulative independent review.
 
 ## Limits and next gate
 

@@ -16,7 +16,7 @@ import urllib.request
 import uuid
 from collections.abc import Callable, Mapping, Sequence
 from contextlib import closing
-from dataclasses import asdict, dataclass, field, replace
+from dataclasses import asdict, dataclass, field, fields, replace
 from datetime import UTC, datetime, timedelta
 from enum import Enum
 from http.client import HTTPException, HTTPResponse, HTTPSConnection
@@ -251,7 +251,6 @@ class VerifiedDistillationInput:
     context_json: str | None = None
     local_profile_id: str | None = None
     local_profile_hash: str | None = None
-    cloud_profile_id: str | None = None
 
     def __post_init__(self) -> None:
         if self.output_language not in {"zh-CN", "en"}:
@@ -262,10 +261,17 @@ class VerifiedDistillationInput:
         return tuple(item.evidence_id for item in self.evidence)
 
 
+@dataclass(frozen=True, slots=True, kw_only=True)
+class _GroundingV2VerifiedDistillationInput(VerifiedDistillationInput):
+    """Only the explicit new cloud profile extends the frozen legacy input."""
+
+    cloud_profile_id: str
+
+
 def verified_distillation_input_projection(value: VerifiedDistillationInput) -> dict[str, object]:
     """Preserve the historical export bytes when no new profile is selected."""
     return {key: item for key, item in asdict(value).items()
-        if key not in {"local_profile_id", "local_profile_hash", "cloud_profile_id"} or item is not None}
+        if key not in {"local_profile_id", "local_profile_hash"} or item is not None}
 
 
 _LOCAL_TEXT_WIRE_VERSION = "local-text-distillation-v2"
@@ -535,7 +541,11 @@ def _text_execution_id(command: DistillationCommand, input_hash: str, context_ha
 
 
 def _cloud_source_allowed(value: VerifiedDistillationInput) -> bool:
-    return (type(value) is VerifiedDistillationInput and value.content_provider == "YOUTUBE"
+    known_type = (type(value) is VerifiedDistillationInput
+        or (type(value) is _GroundingV2VerifiedDistillationInput
+            and (value.selected_provider, value.selected_model) == ZHIPU_PAIR
+            and value.cloud_profile_id == _BIGMODEL_GROUNDING_V2_PROFILE_ID))
+    return (known_type and value.content_provider == "YOUTUBE"
             and re.fullmatch(r"local-[0-9a-f]{64}", value.video_id) is None)
 
 
@@ -2511,7 +2521,7 @@ class BigModelGlm47FlashDistillationTransport:
         if (not _cloud_source_allowed(value) or (value.selected_provider, value.selected_model) != ZHIPU_PAIR
             or not value.evidence or value.output_language not in {"en", "zh-CN"}
             or cls._CLOUD_PROFILE_ID not in {None, _BIGMODEL_GROUNDING_V2_PROFILE_ID}
-            or value.cloud_profile_id != cls._CLOUD_PROFILE_ID):
+            or getattr(value, "cloud_profile_id", None) != cls._CLOUD_PROFILE_ID):
             raise CloudDistillationPreDispatchError("BigModel public input identity is invalid")
         # Official API accepts system messages. Preserve both original system
         # messages and their exact order/text; no provider-specific prompt rewrite.
@@ -2525,7 +2535,7 @@ class BigModelGlm47FlashDistillationTransport:
     def is_authorized_for_qualification(self, value: VerifiedDistillationInput) -> bool:
         return (_cloud_source_allowed(value) and bool(value.evidence)
             and self._CLOUD_PROFILE_ID in {None, _BIGMODEL_GROUNDING_V2_PROFILE_ID}
-            and value.cloud_profile_id == self._CLOUD_PROFILE_ID
+            and getattr(value, "cloud_profile_id", None) == self._CLOUD_PROFILE_ID
             and (self._authorization.provider, self._authorization.model) == ZHIPU_PAIR
             and type(self._authorization.qualification_max_calls) is int
             and self._authorization.qualification_max_calls == 1
@@ -4416,10 +4426,9 @@ class PersonalizedDistillationService:
                 semantic_payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
             ).encode("utf-8")
         ).hexdigest()
-        return VerifiedDistillationInput(
+        value = VerifiedDistillationInput(
             wire_version=wire_version,
             local_profile_id=self._local_profile_id, local_profile_hash=local_profile_hash,
-            cloud_profile_id=cloud_profile_id,
             input_json=input_json, context_json=context_json,
             content_provider=video.provider,
             local_content_context_hash=local_context,
@@ -4436,6 +4445,13 @@ class PersonalizedDistillationService:
             output_language=projection.output_language,
             semantic_hash=semantic_hash,
         )
+        if cloud_profile_id is not None:
+            # Preserve the original typed nested references; asdict would turn
+            # Evidence into plain dictionaries and change the trusted boundary.
+            return _GroundingV2VerifiedDistillationInput(
+                **{item.name: getattr(value, item.name) for item in fields(VerifiedDistillationInput)},
+                cloud_profile_id=cloud_profile_id)
+        return value
 
     def _dispatch_and_admit(
         self,
