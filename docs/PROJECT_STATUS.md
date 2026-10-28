@@ -1,4 +1,6 @@
-> 2026-10-28当前15:00安全前置：薄capsule作者因额度中断后已在同WT由followup恢复，仅offline/prepare；原未提交test保留。Root本机`credential-safety-status.json`现WAITING_USER_ROTATION，用户已被告知并请求亲自撤销/重建受影响QA密钥、更新隔离设置页。**在用户明确完成轮换+更新之前，禁止任何新真实模型/Native取钥调用，即便metadata仍configuredtrue或具体包已独审；不得读取/复制浏览器密钥弹窗。** 所有offline工作继续。Root实际公共pricing页FAQ复核精确GLM-4.7-Flash输入/输出/缓存免费；动态页面不完整抓取不算价格证明，账号权益/实际账单仍未知，无付费回退。总真实GLM仍1次，main未改。
+> 2026-10-28当前：capsule65bb6b经867606f独审conditionalAPPROVE，Root6b27d1e/8ac4ed9整合、新33PASS82.65s/strict123/Ruff/sourceequal；具体prepared35ba7475…仍无review/attempt/result，wire8836B/104cue5Evidence/原oracle不出站。安全状态仍WAITING_USER_ROTATION：用户须亲自撤销重建受影响QA密钥并更新隔离页，明确完成前Root禁止真实执行批准和为模型执行取钥/调用；不能因metadata配置true就绕过，不读浏览器密钥弹窗。正常设置页的纯metadata/用户自行保存不代表真实模型许可。总真实GLM1次失败、正常预算资格关闭、main不动。
+
+> 2026-10-28继续offline安全整改：已用fake v1/v2×缺key/knownTLS-beforePOST复现合法WAIT0无法取消且Backup被DISTILLATION_ACTIVE阻塞。BudgetDecision仅allowed/state，capsule真实预算标签PUBLIC_DIAGNOSTIC_ANTICIPATED_FREE_MAX_ONE；checkpoint没有request_identity_json，不能补造。Root记录精确43追加12字段cloud取消table/guards方案，保留037/001–042、CP/usage/consent/Evidence、未知/PENDING/RUNNING/BUDGET failclosed及42旧备份支持；待单独隔离实现和独审，不放行模型，不依赖凭据。
 
 > 2026-10-28已接受工程：f878兼容修复经c86b独审累计APPROVE，Root整合cea14bd/3081e27/4c01997，src/tests/frontend逐字等f878。base19字段/projection原文、v2专用有限子类；作者704PASS221.15s，独审483PASS104.37s，Root329PASS87.20s/compile123/strict122/Ruff。Root用真实v1旧case副本证明旧input/ID/4132Bwire完全相同，实际BackupRestore81SQL19DATA全等、旧invocation1/语义REJECT保留，零key/wire。原15f72 REJECT仍保留。下一薄capsule具体包独审前不新请求。普通资格/预算关闭，main不动。
 
