@@ -1,3 +1,22 @@
+# 当前验收摘要（2026-10-28，优先于以下历史，候选未发布）
+
+当前 Goal 未完成。保留既有成果，不重新开发或重复审查未变部分；新改动固定后只验证受影响范围，发布前再完成最终全量门禁。
+
+| 普通用户链路 | 真实已验证 | 当前剩余 |
+|---|---|---|
+| 本地导入、转写、字幕、摘要、Evidence | Native失败后成功导入/跨页清提示已通过；Whisper原17例14正向+3负控；原生字幕/capture与恢复已通过 | 仅实现或绑定改变时补相关回归，转写合格不等于洞察合格 |
+| 本地等待取消及备份恢复 | 真双WAIT0单项取消仍阻塞、全取消ready、重启/GUI恢复SQL及DATA一致 | 云端可靠WAIT0原先不能取消；当前43修复进行中，已执行/未知执行不放行 |
+| 首次引导、模型设置和凭据保存 | 真实无密钥入口、保存后metadata已配置、单服务商输入区、草稿不残留；1084前端/TS/build通过 | 正常模型执行资格仍关闭；不把保存密钥视为合格或免费额度证明 |
+| 免费云端GLM v1真实质量 | 真HTTP200得到结果，独立语义REJECT（确定性及数字失真），原记录及备份恢复保留 | 不启用v1，不能用工程成功冒充模型质量 |
+| 免费云端GLM grounding-v2 | 新通用prompt及旧协议兼容已审通过；固定公开104cue/5Evidence样例真实只调用1次，HTTP429无正文；失败已终结、Backup ready、81SQL/19DATA检查前后全等 | 业务码未保留，具体429原因未知；新版语义尚未验证，不盲目重试、不审无内容结果；有限原因提示与43修复合并实施 |
+| 模型可配置性与安全 | 当前框架/有限profile/公开请求预览/逐次同意/费用与资格门禁保留，本地与云各能力区分 | 尚无本轮真实合格Intelligence核心正向完整路径，不自动切付费，不上传私人/LOCAL/BILI内容 |
+| 正向洞察→保存→主题→Evidence→重启恢复 | 历史工程与fake回归保留 | 本轮真正合格模型结果及完整普通GUI操作仍待，不能宣称全部链路通畅 |
+| 文档、回归、正式采用 | 统一中文MD/HTML85图无缺失；历史完整后端6003、最新完整前端1084等有据可查；正式main未改 | 当前新43接受后需最后完整后端/前端/静态/build与实际GUI/恢复；Git拓扑安全且所有门禁通过才ff-only/push/served核验 |
+
+本轮实际GLM共2次尝试：v1结果语义失败，v2请求429没有最终内容，实际账单均未知。当前凭据轮换由用户确认完成；不再停留在旧WAITING_USER_ROTATION，不读取浏览器密钥弹窗或回填历史错误码。最新真实429证据见GROUNDING_V2_PUBLIC_HTTP429_2026_10_28.md/json，当前43范围见CLOUD_WAIT_ZERO_CANCEL_MIGRATION_PROPOSAL.md。
+
+---
+
 > 2026-10-25最终工程复验：完整后端6003、最终完整前端1026、TS/build/Ruff/strict121/compile/diff PASS；真实双WAIT取消/正常重启/GUI恢复79表25DATA精确一致；配置3catalog实际恢复、原生小文件导入与无残留错误PASS，ASR完整tuple/seal及原17回执SHA再次有效，D2六绑定不变复用2GiB APFS；手册79图17章渲染PASS。最终root真实served D665EVVu等独审构建；所有6类Intelligence仍NOT_QUALIFIED，正向Save/Topic未证明，正式main73ee7e7未动/5488-5489离线，当前THREE_AGENT_ADOPTION_BLOCKED。
 
 > 2026-10-25 00:41续作：root固定6ed完整后端 **6003PASS/0FAIL/2既有warnings/2512.09s**，完整前端1017/39、TS/build/Ruff/strict121/compile/diff全PASS，547源全程不变（FULL_REGRESSION_6003_2026_10_25.json）。真实headful GUI又发现model setup仍拒后端3catalog，窄UI有限3修复作者ffa95fa、独审5233d46 APPROVE；完整作者前端1026/39、独立19/TS/build通过，已用独审真实构建D665EVVu+不变root backend实测3候选/匹配0409应用/重启。root等待原冻结全仓结束后才整合，未覆盖测试源。真实macOS Native失败过长→有效TXT、切页清提示；两项真WAIT0、取消一项另一项仍closed、两项取消ready、正常UI代理重复200且全表不变、独立正常PID重启、真实GUI ZIP预览/RESTORE/重新连接全部79SQL+25DATA+机器选择精确相等，见FINAL_GUI_CANCEL_BACKUP_RESTORE_2026_10_25.json。当前ASR完整tuple/seal/17原raw SHA再次PASS，0新解码；中文手册补3张已目检的原始viewport图。Q3原300秒timeout仍FAIL_STOP；没有合格Intelligence正向/Save/Topic，main/owner未动，不能采用或说全部可用。下一步仅整合已审UI、最终前端/build复验及对应served资产核对，模型真阻塞保留。
