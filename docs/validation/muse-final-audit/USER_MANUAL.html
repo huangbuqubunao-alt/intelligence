@@ -369,6 +369,7 @@ a { color: #0e7a4f; }
 <li>“已配置”只表示已保存。当前仍显示 <strong>质量未验证 · 执行未开放</strong>；实际免费权益、额度及费用需另行验证，不会自动改用付费型号。正式产品仍以实际采用的版本为准。</li>
 </ol>
 <p>2026-10-28 隔离实测：智谱候选已能连接并返回结果，但首个公开视频样例出现事实确定性和数字失真，未通过质量验收，仍未开放给普通任务。不会因为保存了密钥或接口返回成功就自动启用模型。</p>
+<p>同日晚些时候，新版候选的一次公开样例请求被服务商拒绝（429），没有生成洞察，已停止重试。这个状态与模型质量不合格不同；可能涉及额度、限流或账户条件，当前没有足够信息确定原因，不需要因此立即充值。原内容、字幕、摘要和证据保留，该次失败已正常终结，没有继续阻塞备份；如果还有其他未完成任务，备份仍会按真实原因提示。</p>
 <figure><img src="../end-to-end-user-readiness/screenshots/bigmodel-settings-real-unconfigured-zh-20261027.png" alt="真实隔离智谱设置，尚未输入密钥"/><figcaption>真实隔离智谱设置，尚未输入密钥</figcaption></figure>
 <figure><img src="../end-to-end-user-readiness/screenshots/bigmodel-settings-single-editor-configured-zh-20261028.png" alt="已保存到隔离钥匙串，当前只展开智谱输入区；执行仍未开放"/><figcaption>已保存到隔离钥匙串，当前只展开智谱输入区；执行仍未开放</figcaption></figure>
 <p>点击 <strong>关闭云端预览</strong> 或离开页面即可放弃预览。进入设置再返回，内容仍保留，但需要重新准备预览，不能沿用旧授权。图中隔离服务当时选定 Moonshot/kimi-k2.6 且没有凭据或费用策略；这不是免费候选已接入、通过质量验收或正式产品已采用的证明。</p>
