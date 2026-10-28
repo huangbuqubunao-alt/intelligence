@@ -50,6 +50,7 @@ def verify_schema(connection: sqlite3.Connection) -> None:
 
 def verify_wait(connection: sqlite3.Connection, checkpoint: sqlite3.Row, *, repository: SQLiteStateRepository | None = None) -> None:
     from .distillation import (
+        BigModelGlm47FlashBoundEvidenceDistillationTransport,
         BigModelGlm47FlashDistillationTransport,
         BigModelGlm47FlashGroundingV2DistillationTransport,
         PersonalizedDistillationService,
@@ -105,7 +106,7 @@ def verify_wait(connection: sqlite3.Connection, checkpoint: sqlite3.Row, *, repo
             selected_provider=ZHIPU_PAIR[0], selected_model=ZHIPU_PAIR[1],
             output_language=checkpoint['output_language'], verified_input_hash=consent['verified_input_hash'],
             cloud_prompt_version=profile._PROMPT_VERSION, cloud_request_profile_version=profile._REQUEST_PROFILE_VERSION,
-            reason=checkpoint['reason']) for profile in (BigModelGlm47FlashDistillationTransport, BigModelGlm47FlashGroundingV2DistillationTransport)}
+            reason=checkpoint['reason']) for profile in (BigModelGlm47FlashDistillationTransport, BigModelGlm47FlashGroundingV2DistillationTransport, BigModelGlm47FlashBoundEvidenceDistillationTransport)}
         if checkpoint['execution_id'] not in identities:
             raise ValueError('cloud cancellation reservation profile cannot be proved')
         for table in ('distillation_no_new_intelligence_results','distillation_cloud_response_failures',

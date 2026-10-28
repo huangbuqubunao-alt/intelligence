@@ -22,6 +22,7 @@ from enum import Enum
 from http.client import HTTPException, HTTPResponse, HTTPSConnection
 from typing import Any, Protocol, cast
 
+from youtube_intel import bound_evidence_reference
 from youtube_intel.analysis import EnvironmentCredentialResolver
 from youtube_intel.cloud_audit import CLOUD_PROVIDERS, ZHIPU_PAIR
 from youtube_intel.config import LocalScoringSettings, _validate_loopback_http_base_url
@@ -264,6 +265,13 @@ class VerifiedDistillationInput:
 @dataclass(frozen=True, slots=True, kw_only=True)
 class _GroundingV2VerifiedDistillationInput(VerifiedDistillationInput):
     """Only the explicit new cloud profile extends the frozen legacy input."""
+
+    cloud_profile_id: str
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class _BoundEvidenceVerifiedDistillationInput(VerifiedDistillationInput):
+    """Exact new representation; legacy inputs retain their original fields."""
 
     cloud_profile_id: str
 
@@ -544,7 +552,10 @@ def _cloud_source_allowed(value: VerifiedDistillationInput) -> bool:
     known_type = (type(value) is VerifiedDistillationInput
         or (type(value) is _GroundingV2VerifiedDistillationInput
             and (value.selected_provider, value.selected_model) == ZHIPU_PAIR
-            and value.cloud_profile_id == _BIGMODEL_GROUNDING_V2_PROFILE_ID))
+            and value.cloud_profile_id == _BIGMODEL_GROUNDING_V2_PROFILE_ID)
+        or (type(value) is _BoundEvidenceVerifiedDistillationInput
+            and (value.selected_provider, value.selected_model) == ZHIPU_PAIR
+            and value.cloud_profile_id == bound_evidence_reference.PROFILE_ID))
     return (known_type and value.content_provider == "YOUTUBE"
             and re.fullmatch(r"local-[0-9a-f]{64}", value.video_id) is None)
 
@@ -559,6 +570,14 @@ class DistillationTransportResult:
     cost_microunits: int | None
     duration_ms: int | None
     http_status_code: int | None = None
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class _BoundEvidenceTransportResult(DistillationTransportResult):
+    """Raw public model text and derived representation remain distinguishable."""
+
+    normalized_raw: str
+    request_origin_hash: str
 
 
 class KnownLocalDistillationResponseError(ValueError):
@@ -2720,6 +2739,67 @@ class BigModelGlm47FlashGroundingV2DistillationTransport(BigModelGlm47FlashDisti
         return request
 
 
+class BigModelGlm47FlashBoundEvidenceDistillationTransport(BigModelGlm47FlashGroundingV2DistillationTransport):
+    """Qualification-only v3 representation, with unchanged v2 grounding semantics."""
+
+    _PROMPT_VERSION = "intelligence-grounding-bound-evidence-v3"
+    _REQUEST_PROFILE_VERSION = bound_evidence_reference.PROFILE_ID
+    _CLOUD_PROFILE_ID = bound_evidence_reference.PROFILE_ID
+
+    @classmethod
+    def profile_projection(cls) -> dict[str, object]:
+        return {**super().profile_projection(), "bound_evidence_contract": bound_evidence_reference.contract_projection()}
+
+    @classmethod
+    def _bound_profile_valid(cls) -> bool:
+        original = BigModelGlm47FlashDistillationTransport
+        return (cls._CLOUD_PROFILE_ID == cls._REQUEST_PROFILE_VERSION == bound_evidence_reference.PROFILE_ID
+            and cls._PROMPT_VERSION == "intelligence-grounding-bound-evidence-v3"
+            and cls._wire_parameters() == original._wire_parameters()
+            and (cls._TIMEOUT_SECONDS, cls._MAX_REQUEST_BYTES, cls._MAX_RESPONSE_BYTES)
+                == (original._TIMEOUT_SECONDS, original._MAX_REQUEST_BYTES, original._MAX_RESPONSE_BYTES))
+
+    @classmethod
+    def _request(cls, value: VerifiedDistillationInput) -> dict[str, object]:
+        if (not _cloud_source_allowed(value) or type(value) is not _BoundEvidenceVerifiedDistillationInput
+            or not cls._bound_profile_valid()
+            or value.cloud_profile_id != cls._CLOUD_PROFILE_ID):
+            raise CloudDistillationPreDispatchError("bound Evidence request identity is invalid")
+        try:
+            request = {**cls._wire_parameters(), "messages": bound_evidence_reference.prompt_messages(
+                value, _grounding_v2_prompt_messages(value))}
+            _bigmodel_request_bytes(request)
+            return request
+        except (ValueError, TypeError, RecursionError):
+            raise CloudDistillationPreDispatchError("bound Evidence request is invalid") from None
+
+    def is_authorized_for_qualification(self, value: VerifiedDistillationInput) -> bool:
+        return (_cloud_source_allowed(value) and type(value) is _BoundEvidenceVerifiedDistillationInput
+            and self._bound_profile_valid()
+            and value.cloud_profile_id == self._CLOUD_PROFILE_ID and bool(value.evidence)
+            and (self._authorization.provider, self._authorization.model) == ZHIPU_PAIR
+            and type(self._authorization.qualification_max_calls) is int
+            and self._authorization.qualification_max_calls == 1
+            and not self._authorization.production_eligible and self._authorization.permits(value))
+
+    def generate(self, value: VerifiedDistillationInput) -> DistillationTransportResult:
+        try:
+            # A backend-created origin observes the actual request's complete
+            # verified input, never a model-provided identity/hash assertion.
+            context = bound_evidence_reference.reference_context(value)
+        except (ValueError, TypeError, RecursionError):
+            raise CloudDistillationPreDispatchError("bound Evidence input is invalid") from None
+        response = super().generate(value)
+        origin = str(context["request_origin_hash"])
+        try:
+            normalized = bound_evidence_reference.normalize_response(response.raw, value, request_origin_hash=origin)
+        except (ValueError, TypeError, RecursionError):
+            raise KnownCloudDistillationResponseError(response, reason="CLOUD_HTTP_RESPONSE_INVALID", http_status=200) from None
+        return _BoundEvidenceTransportResult(
+            **{item.name: getattr(response, item.name) for item in fields(DistillationTransportResult)},
+            normalized_raw=normalized, request_origin_hash=origin)
+
+
 @dataclass(frozen=True, slots=True)
 class DistillationResult:
     execution_id: str
@@ -4430,7 +4510,7 @@ class PersonalizedDistillationService:
             profile = (self._transport if isinstance(self._transport, BigModelGlm47FlashDistillationTransport)
                 else BigModelGlm47FlashDistillationTransport)
             cloud_profile_id = profile._CLOUD_PROFILE_ID
-            if cloud_profile_id not in {None, _BIGMODEL_GROUNDING_V2_PROFILE_ID}:
+            if cloud_profile_id not in {None, _BIGMODEL_GROUNDING_V2_PROFILE_ID, bound_evidence_reference.PROFILE_ID}:
                 raise ValueError("cloud request profile is unsupported")
             semantic_payload["cloud_request_profile"] = profile.profile_projection()
             if cloud_profile_id is not None:
@@ -4495,6 +4575,10 @@ class PersonalizedDistillationService:
             output_language=projection.output_language,
             semantic_hash=semantic_hash,
         )
+        if cloud_profile_id == bound_evidence_reference.PROFILE_ID:
+            return _BoundEvidenceVerifiedDistillationInput(
+                **{item.name: getattr(value, item.name) for item in fields(VerifiedDistillationInput)},
+                cloud_profile_id=cloud_profile_id)
         if cloud_profile_id is not None:
             # Preserve the original typed nested references; asdict would turn
             # Evidence into plain dictionaries and change the trusted boundary.
@@ -4651,7 +4735,17 @@ class PersonalizedDistillationService:
                 result=response,
             )
         try:
-            candidate = self._parse_candidate(response.raw, projection, verified_input)
+            candidate_raw = response.raw
+            if type(verified_input) is _BoundEvidenceVerifiedDistillationInput:
+                if type(response) is not _BoundEvidenceTransportResult:
+                    raise ValueError("bound Evidence response provenance is missing")
+                candidate_raw = bound_evidence_reference.normalize_response(response.raw, verified_input,
+                    request_origin_hash=response.request_origin_hash)
+                if candidate_raw != response.normalized_raw:
+                    raise ValueError("bound Evidence normalized representation differs")
+            elif isinstance(response, _BoundEvidenceTransportResult):
+                raise ValueError("bound Evidence response cannot use a legacy profile")
+            candidate = self._parse_candidate(candidate_raw, projection, verified_input)
             if isinstance(candidate, _NoNewCandidate):
                 record = self._repository.record_distillation_no_new_intelligence(
                     local_content_context_hash=verified_input.local_content_context_hash,
