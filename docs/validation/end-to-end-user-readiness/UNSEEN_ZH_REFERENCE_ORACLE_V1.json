@@ -1,0 +1,2271 @@
+{
+  "oracle_version": "unseen-public-zh-reference-v1",
+  "case_id": "unseen-neural-network-mechanics-zh",
+  "frozen_before_any_candidate_generation": true,
+  "writer_has_not_received_oracle_or_raw_source": true,
+  "original_source_snapshot": {
+    "source": {
+      "provider": "YOUTUBE",
+      "source_id": "210df891-9699-44c7-9ae5-bd79e647dd1d",
+      "source_type": "VIDEO_URL",
+      "canonical_url": "https://www.youtube.com/watch?v=aircAruvnKk",
+      "channel_id": null,
+      "video_id": "aircAruvnKk",
+      "display_name": null,
+      "enabled": 1,
+      "processing_policy": "DISCOVER_ONLY",
+      "last_checked_at": "2026-10-12T09:56:32.140757Z",
+      "last_success_at": "2026-10-12T09:56:32.140757Z",
+      "last_error_code": null,
+      "last_error_message": null,
+      "created_at": "2026-10-12T09:56:15.229948Z",
+      "updated_at": "2026-10-12T09:56:32.140757Z"
+    },
+    "video": {
+      "video_id": "aircAruvnKk",
+      "channel_id": "UCYO_jab_esuFRV4b17AJtAw",
+      "channel_name": "3Blue1Brown",
+      "title": "But what is a neural network? | Deep learning chapter 1",
+      "description": "What are the neurons, why are there layers, and what is the math underlying it?\nHelp fund future projects: https://www.patreon.com/3blue1brown\nWritten/interactive form of this series: https://www.3blue1brown.com/topics/neural-networks\n\nAdditional funding for this project was provided by Amplify Partners\n\nFor those who want to learn more, I highly recommend the book by Michael Nielsen that introduces neural networks and deep learning: https://goo.gl/Zmczdy\n\nThere are two neat things about this book.  First, it's available for free, so consider joining me in making a donation to Nielsen if you get something out of it.  And second, it's centered around walking through some code and data, which you can download yourself, and which covers the same example that I introduced in this video.  Yay for active learning!\nhttps://github.com/mnielsen/neural-networks-and-deep-learning\n\nI also highly recommend Chris Olah's blog: http://colah.github.io/\n\nFor more videos, Welch Labs also has some great series on machine learning: \nhttps://youtu.be/i8D90DkCLhI\nhttps://youtu.be/bxe2T-V8XRs\n\nFor those of you looking to go *even* deeper, check out the text \"Deep Learning\" by Goodfellow, Bengio, and Courville.  \n\nAlso, the publication Distill is just utterly beautiful: https://distill.pub/\n\nLion photo by Kevin Pluck\n\nЗвуковая дорожка на русском языке: Влад Бурмистров.\n\nThanks to these viewers for their contributions to translations\nGerman: @fpgro\nHebrew: Omer Tuchfeld\nHungarian: Máté Kaszap\nItalian: @teobucci, Teo Bucci\n\n-----------------\nTimeline: \n0:00 - Introduction example\n1:07 - Series preview\n2:42 - What are neurons?\n3:35 - Introducing layers\n5:31 - Why layers?\n8:38 - Edge detection example\n11:34 - Counting weights and biases\n12:30 - How learning relates\n13:26 - Notation and linear algebra\n15:17 - Recap\n16:27 - Some final words\n17:03 - ReLU vs Sigmoid\n\nCorrection 14:45 - The final index on the bias vector should be \"k\"\n\n------------------\nAnimations largely made using manim, a scrappy open source python library.  https://github.com/3b1b/manim\n\nIf you want to check it out, I feel compelled to warn you that it's not the most well-documented tool, and has many other quirks you might expect in a library someone wrote with only their own use in mind.\n\nMusic by Vincent Rubinetti.\nDownload the music on Bandcamp:\nhttps://vincerubinetti.bandcamp.com/album/the-music-of-3blue1brown\n\nStream the music on Spotify:\nhttps://open.spotify.com/album/1dVyjwS8FBqXhRunaG5W5u\n\nIf you want to contribute translated subtitles or to help review those that have already been made by others and need approval, you can click the gear icon in the video and go to subtitles/cc, then \"add subtitles/cc\".  I really appreciate those who do this, as it helps make the lessons accessible to more people.\n------------------\n\n3blue1brown is a channel about animating math, in all senses of the word animate.  And you know the drill with YouTube, if you want to stay posted on new videos, subscribe, and click the bell to receive notifications (if you're into that).\n\nIf you are new to this channel and want to see more, a good place to start is this playlist: http://3b1b.co/recommended\n\nVarious social media stuffs:\nWebsite: https://www.3blue1brown.com\nTwitter: https://twitter.com/3Blue1Brown\nPatreon: https://patreon.com/3blue1brown\nFacebook: https://www.facebook.com/3blue1brown\nReddit: https://www.reddit.com/r/3Blue1Brown",
+      "source_url": "https://www.youtube.com/watch?v=aircAruvnKk",
+      "published_at": "2017-10-05T15:11:25.000000Z",
+      "duration_seconds": 1120,
+      "default_language": "en-US",
+      "available_languages_json": "[\"ar\",\"bn\",\"zh\",\"zh-CN\",\"zh-TW\",\"cs\",\"en\",\"fil\",\"fr\",\"de\",\"el\",\"iw\",\"hi\",\"hu\",\"it\",\"ja\",\"ko\",\"mr\",\"fa\",\"fa-IR\",\"pl\",\"pt\",\"pt-BR\",\"ro\",\"ru\",\"es\",\"th\",\"tr\",\"uk\",\"ur\",\"ab\",\"aa\",\"af\",\"ak\",\"sq\",\"am\",\"hy\",\"as\",\"ay\",\"az\",\"ba\",\"eu\",\"be\",\"bho\",\"bs\",\"br\",\"bg\",\"my\",\"ca\",\"ceb\",\"zh-Hans\",\"zh-Hant\",\"co\",\"hr\",\"da\",\"dv\",\"nl\",\"dz\",\"en-orig\",\"eo\",\"et\",\"ee\",\"fo\",\"fj\",\"fi\",\"gaa\",\"gl\",\"lg\",\"ka\",\"gn\",\"gu\",\"ht\",\"ha\",\"haw\",\"hmn\",\"is\",\"ig\",\"id\",\"iu\",\"ga\",\"jv\",\"kl\",\"kn\",\"kk\",\"kha\",\"km\",\"rw\",\"kri\",\"ku\",\"ky\",\"lo\",\"la\",\"lv\",\"ln\",\"lt\",\"lua\",\"luo\",\"lb\",\"mk\",\"mg\",\"ms\",\"ml\",\"mt\",\"gv\",\"mi\",\"mn\",\"mfe\",\"ne\",\"new\",\"nso\",\"no\",\"ny\",\"oc\",\"or\",\"om\",\"os\",\"pam\",\"ps\",\"pt-PT\",\"pa\",\"qu\",\"rn\",\"sm\",\"sg\",\"sa\",\"gd\",\"sr\",\"crs\",\"sn\",\"sd\",\"si\",\"sk\",\"sl\",\"so\",\"st\",\"su\",\"sw\",\"ss\",\"sv\",\"tg\",\"ta\",\"tt\",\"te\",\"bo\",\"ti\",\"to\",\"ts\",\"tn\",\"tum\",\"tk\",\"ug\",\"uz\",\"ve\",\"vi\",\"war\",\"cy\",\"fy\",\"wo\",\"xh\",\"yi\",\"yo\",\"zu\"]",
+      "live_status": "none",
+      "availability": "public",
+      "pipeline_status": "TRANSCRIPT_READY",
+      "pipeline_version": "runtime-v1",
+      "score": null,
+      "should_summarize": null,
+      "discovered_at": "2026-10-12T09:56:15.380099Z",
+      "updated_at": "2026-10-12T09:56:23.446432Z",
+      "completed_at": null,
+      "authoritative_scoring_job_id": null,
+      "provider": "YOUTUBE"
+    },
+    "timed": {
+      "timed_transcript_id": "timed-transcript:v1:9a40106d43c9b7573e9c11f22eee54502fa1e4238701b6ab08f52d5a039e2a26",
+      "video_id": "aircAruvnKk",
+      "canonical_artifact_id": "transcript-canonical-9b79422d6f8c89579bc1cf4eb3b838dd12b740294190c647f0b376258784684c",
+      "timed_transcript_hash": "dabb101e0397f8ea84c3be7af677f1959ad60390358ff0976b417f48430ec812",
+      "cues": [
+        {
+          "cue_index": 0,
+          "start_ms": 4020,
+          "end_ms": 10680,
+          "text": "這是一個隨意書寫的28*28像素、解析度很低的數字 3",
+          "text_hash": "e39f57287a43cdea12fccacf2bd4a01151f4403fe74d9ea6d32d54fdc588d7d1"
+        },
+        {
+          "cue_index": 1,
+          "start_ms": 10680,
+          "end_ms": 15660,
+          "text": "但你的大腦一看見就能輕鬆辨識出來 ，我想要你好好欣賞這點",
+          "text_hash": "6d71fed416ab36f0b4cb381715b1f85e6c38e88b1eecd091bda35f2d57a03388"
+        },
+        {
+          "cue_index": 2,
+          "start_ms": 15900,
+          "end_ms": 18949,
+          "text": "人腦能夠毫無障礙地辨識是非常厲害的",
+          "text_hash": "4a2b5f5f8213beb95a8247e898bf1571b5afc26ff61066626a6b881b5cafde6a"
+        },
+        {
+          "cue_index": 3,
+          "start_ms": 18949,
+          "end_ms": 23160,
+          "text": "我的意思是，這個、這個、還有這個，都能被識別為 3",
+          "text_hash": "43582c123df9999dffe605577b08f28523020d81a99b5aa38db3d9d7689c2935"
+        },
+        {
+          "cue_index": 4,
+          "start_ms": 23160,
+          "end_ms": 28060,
+          "text": "即使前後圖像的圖形組成有很大差異",
+          "text_hash": "76140e0e40c5e709725d05830e726102699b90e73a35b8799a3d1d3e79ee6cbd"
+        },
+        {
+          "cue_index": 5,
+          "start_ms": 28080,
+          "end_ms": 33780,
+          "text": "當你看到這張 3 在眼中所激發的感光細胞",
+          "text_hash": "2b7a50f7cf88775c27bcef6c6cef3cedf22d03bee3defb4c23c8d0dd36a7a357"
+        },
+        {
+          "cue_index": 6,
+          "start_ms": 33780,
+          "end_ms": 36800,
+          "text": "跟當你看到這張 3 所激發的感光細胞是非常不同的",
+          "text_hash": "48ff5ffa89fee014a1c641c1d5c8b1b743693c9cad87a4fe5047c85973f29152"
+        },
+        {
+          "cue_index": 7,
+          "start_ms": 37140,
+          "end_ms": 40610,
+          "text": "但在你驚人聰明的視覺皮層的處理下",
+          "text_hash": "1312d3e8ee6d6c89a461cb70becbe7d2b3844c9b0621969b607b0de9f4fbdf1b"
+        },
+        {
+          "cue_index": 8,
+          "start_ms": 41120,
+          "end_ms": 48140,
+          "text": "能將這兩個 3 視為同一個概念，同時將其他圖像視為不同的概念",
+          "text_hash": "5cd6148f2c73ba171d9b13e02c51c1cf645fe6dfcf1675d9f26dd40b4f40b3d0"
+        },
+        {
+          "cue_index": 9,
+          "start_ms": 48840,
+          "end_ms": 52760,
+          "text": "要是我要你：「嘿！坐下來幫我寫個程式， 」",
+          "text_hash": "6c62917f0d6e4b5052ed735c96aaac9141cad5dd5aef1c57512ebe25507d748b"
+        },
+        {
+          "cue_index": 10,
+          "start_ms": 52760,
+          "end_ms": 56720,
+          "text": "「輸入像這個 28*28 像素的數字圖像」",
+          "text_hash": "b5b290dea856771de9729716cc117c8593f1d8dffe7ef432ba860f3635fc0768"
+        },
+        {
+          "cue_index": 11,
+          "start_ms": 56720,
+          "end_ms": 62220,
+          "text": "「接著輸出該程式認為的 0 到 10 之間的一個數字 ，必須跟你認為的一樣。」",
+          "text_hash": "853fdc6bff27073e733f26a685a6a2e78b3d3b500c9f5f2d7c3afb6aea150fa7"
+        },
+        {
+          "cue_index": 12,
+          "start_ms": 62220,
+          "end_ms": 66120,
+          "text": "這個任務將不再是家常便飯，而變得嚇死人的困難",
+          "text_hash": "1a963241547046a1a7901dc9741f0a2f6e37fc1f3e8d6ec1f600bcb7942440fb"
+        },
+        {
+          "cue_index": 13,
+          "start_ms": 66750,
+          "end_ms": 68270,
+          "text": "除非你是山頂洞人",
+          "text_hash": "41ed5773888305728d6d21c5a75d4c6a7e615f5e39d0ee878a00cdf7a1a742aa"
+        },
+        {
+          "cue_index": 14,
+          "start_ms": 68270,
+          "end_ms": 74599,
+          "text": "我想不用再強調機器學習和神經網路之間，對未來發展的關聯性和重要性",
+          "text_hash": "3c200b22614ed76a7861b53f71e0b95c7b2e0521c8d754d5f67c3c932cb039ea"
+        },
+        {
+          "cue_index": 15,
+          "start_ms": 74640,
+          "end_ms": 78410,
+          "text": "我現在要向你展示神經網路究竟是什麼",
+          "text_hash": "6bff414333afc7286ce59a8a843992ab3fb19c248ad6c1a8c688598c512ecad9"
+        },
+        {
+          "cue_index": 16,
+          "start_ms": 78660,
+          "end_ms": 80000,
+          "text": "假設你沒有相關背景知識",
+          "text_hash": "ea8580bb30d3e9c6e8c1b7b660b19952dccbb4dd6572b226a72768ad61ff632e"
+        },
+        {
+          "cue_index": 17,
+          "start_ms": 80000,
+          "end_ms": 82000,
+          "text": "我會視覺化神經網路的運作",
+          "text_hash": "08760443ba8984b8ae073e86cbaadbe049eadd2a6956605aef9c52731e45d89a"
+        },
+        {
+          "cue_index": 18,
+          "start_ms": 82000,
+          "end_ms": 84260,
+          "text": "並且把它當作一門數學，不僅僅是當下流行詞語",
+          "text_hash": "713688433e47cdfe9cf729b14752ce7fc28d59111f3baea65ecd72898ce79bf0"
+        },
+        {
+          "cue_index": 19,
+          "start_ms": 84860,
+          "end_ms": 89080,
+          "text": "我希望你將能理解為什麼神經網路是長這個樣子",
+          "text_hash": "2223c66234e7582f16ba1d3a852c233068a41405ded7d4bf3f0679c716f913f2"
+        },
+        {
+          "cue_index": 20,
+          "start_ms": 89080,
+          "end_ms": 94400,
+          "text": "當你看到或聽到機器藉著神經網路來「學習」時 是了解其意涵的",
+          "text_hash": "fc35de55d4d22c784934bc9ecddb66416b581e690dc146cc3484e5444f038e0f"
+        },
+        {
+          "cue_index": 21,
+          "start_ms": 95220,
+          "end_ms": 98420,
+          "text": "這支影片將解釋神經網路的構造",
+          "text_hash": "6d86a13bd652b170fb11627d65ba84ce7f516fefb3d9c5423962cc298a4471fd"
+        },
+        {
+          "cue_index": 22,
+          "start_ms": 98440,
+          "end_ms": 100360,
+          "text": "而下一部影片將解釋機器學習",
+          "text_hash": "6129b5a3bd20cfa7eb89110194b6ff9129c2d528adb6308f21d87f8af30023ef"
+        },
+        {
+          "cue_index": 23,
+          "start_ms": 100520,
+          "end_ms": 105940,
+          "text": "我們要做的是打造一個可以辨識手寫數字的神經網路",
+          "text_hash": "ae1a20ed57146f23471fa6464a2df83c0b53a4b0d99911fc2832c2ab89bdad36"
+        },
+        {
+          "cue_index": 24,
+          "start_ms": 109420,
+          "end_ms": 112500,
+          "text": "這是介紹這種主題很典型的範例",
+          "text_hash": "49538a1d06d9ab84dd76d442d3878f4c6b3fd6e0861d038367c63417d1a93c27"
+        },
+        {
+          "cue_index": 25,
+          "start_ms": 112500,
+          "end_ms": 116420,
+          "text": "我樂於保持這種模式，因為在看完兩支影片後",
+          "text_hash": "e9f1491a117f15b0193ae1913f9a56ad84d8a34de68ad0935f6b24fd8d98e403"
+        },
+        {
+          "cue_index": 26,
+          "start_ms": 116420,
+          "end_ms": 121000,
+          "text": "我會給你一些很好的網站，你可以在那裡學到很多，並且下載程式碼",
+          "text_hash": "7c4eaa70835a4d65762dbcc774c374ed696614b5013530960c4acc69066a24ed"
+        },
+        {
+          "cue_index": 27,
+          "start_ms": 121100,
+          "end_ms": 123560,
+          "text": "在你的電腦裡好好研究",
+          "text_hash": "cadbcf09ce77fc715a1289aeb977ea83368fcb5d6f34a9d3a0e43f3685452746"
+        },
+        {
+          "cue_index": 28,
+          "start_ms": 124740,
+          "end_ms": 128960,
+          "text": "神經網路發展成很多很多不同類型",
+          "text_hash": "5fa0fc4c578cbef2bb98f2817f87d0f8a5c38ef9b2826984c28a70a28ad747c0"
+        },
+        {
+          "cue_index": 29,
+          "start_ms": 128970,
+          "end_ms": 131970,
+          "text": "而且近年來對這些的研究有爆炸性的趨勢",
+          "text_hash": "07f024b6d925b51331c44b175a9dc63174d704c9838789d8e9345c071d191330"
+        },
+        {
+          "cue_index": 30,
+          "start_ms": 132130,
+          "end_ms": 139019,
+          "text": "但這兩支入門影片只會帶你來認識，最簡單的一種神經網路：「多層感知機」(MLP) 最基本的樣子",
+          "text_hash": "8458db3fc76844cf5b81023f085fab1b5e57603254f7cfeea9aed8b78dc1e0ed"
+        },
+        {
+          "cue_index": 31,
+          "start_ms": 139300,
+          "end_ms": 141660,
+          "text": "這是必要的入門知識",
+          "text_hash": "1abf2cb8d6ee4e8619f5bfd27a7b0bbade215e8f93240978944c31a00512dc71"
+        },
+        {
+          "cue_index": 32,
+          "start_ms": 141660,
+          "end_ms": 144520,
+          "text": "對於將來要理解現在任何一種強大的神經網路",
+          "text_hash": "b68b21b3cac4c3b55273a121233e16ed013c5181ef1da43525ae2a7d241398e7"
+        },
+        {
+          "cue_index": 33,
+          "start_ms": 144760,
+          "end_ms": 148199,
+          "text": "而且相信我，今天的主題已經夠複雜了，足以讓你腦袋打結",
+          "text_hash": "96584b34ca0bf61a4d836078848725e7775a665b292e198f4cce883c74ec764b"
+        },
+        {
+          "cue_index": 34,
+          "start_ms": 148690,
+          "end_ms": 152820,
+          "text": "即使是這麼簡單的神經網路也可以經由學習來分辨手寫數字",
+          "text_hash": "3a14928ba964cb9e8423cce5c6511cfff1741c93d77bec3aa0874a89a6d28cd6"
+        },
+        {
+          "cue_index": 35,
+          "start_ms": 152820,
+          "end_ms": 156180,
+          "text": "這對電腦來說是非常酷的一件事",
+          "text_hash": "5348498c975cad5160e28e38311b2c4994d3b30e45a25cd3b4a9bd85ed6007f6"
+        },
+        {
+          "cue_index": 36,
+          "start_ms": 157120,
+          "end_ms": 161960,
+          "text": "而且與此同時你也將看到神經網路不盡人意的地方",
+          "text_hash": "b83e52d963e71ca6dc71ab98af95d21551fe75a2ef6f342e6b8c0d9a2899e548"
+        },
+        {
+          "cue_index": 37,
+          "start_ms": 163090,
+          "end_ms": 166900,
+          "text": "神經網路一如其名，是啟發自生物的大腦神經結構",
+          "text_hash": "a2338c7426ec33f3010507bfca88277a20405cf3ad0136d0baba9b42115eac5c"
+        },
+        {
+          "cue_index": 38,
+          "start_ms": 166900,
+          "end_ms": 168520,
+          "text": "讓我們來剖析它吧",
+          "text_hash": "5032d6cc899df3813ce59890da5bdc95bdc8b9fcae8a200b3caaa42dc345c26f"
+        },
+        {
+          "cue_index": 39,
+          "start_ms": 168520,
+          "end_ms": 171620,
+          "text": "何謂神經元，又是什麼機制讓它們連在一起的?",
+          "text_hash": "1352d95219a3c66d67b3e7d3d2a571f863c11b54be342620cf380fd02d938f88"
+        },
+        {
+          "cue_index": 40,
+          "start_ms": 172080,
+          "end_ms": 177740,
+          "text": "現在，當我說「神經元」，我要你聯想到它是乘載一個數字的容器",
+          "text_hash": "5641d61f408ed62b609bac5315c40353e3adbcc2528b6f48e326d366e29db1b4"
+        },
+        {
+          "cue_index": 41,
+          "start_ms": 178200,
+          "end_ms": 182120,
+          "text": "基本是介於 0 和 1 之間的數字，但實際上不止於此",
+          "text_hash": "5d1d95560d3b6bb1b4e38e365e5116148332d9be5d894835923795ea5d399d8f"
+        },
+        {
+          "cue_index": 42,
+          "start_ms": 183420,
+          "end_ms": 191120,
+          "text": "例如：神經網路以輸入圖像的每個像素，對應到每個神經元作為輸入",
+          "text_hash": "bed351ed116cb8543526fe6fbfd1326b85c2873fb3794b3ce1fca624280d490f"
+        },
+        {
+          "cue_index": 43,
+          "start_ms": 191720,
+          "end_ms": 200240,
+          "text": "也就是說輸入層總共有 784 個神經元，每個都有乘載數字 ，每個數字代表了對應像素的灰階值",
+          "text_hash": "62e86844016f3c80b294cb1d626ea132dabbbfe40d72b418c258c0e288a3f550"
+        },
+        {
+          "cue_index": 44,
+          "start_ms": 200760,
+          "end_ms": 204300,
+          "text": "灰階值 0 即黑色，1 即白色",
+          "text_hash": "e64289c67a03adbdf1b3069f9f2a4332559cea3448fc96aaa3b8602f23618a82"
+        },
+        {
+          "cue_index": 45,
+          "start_ms": 204900,
+          "end_ms": 208480,
+          "text": "這些在神經元中的數字稱為「激勵值」",
+          "text_hash": "306a558c3ce63b003ce96153828e0294959863825ebbacac756ba5a7f6a9a175"
+        },
+        {
+          "cue_index": 46,
+          "start_ms": 208480,
+          "end_ms": 210420,
+          "text": "在此你可能注意到",
+          "text_hash": "c9de044cd410d63f36adc404ebb1b462a62b7c9686ae31a20b1ed54d6d6573c4"
+        },
+        {
+          "cue_index": 47,
+          "start_ms": 210420,
+          "end_ms": 213960,
+          "text": "每當神經元激勵值越高，該神經元就越亮",
+          "text_hash": "e42e3a3d36484074cd09a6fc6a63815ea509c56ae6ec918361169b36617e4925"
+        },
+        {
+          "cue_index": 48,
+          "start_ms": 216260,
+          "end_ms": 221559,
+          "text": "於是全部的 784 個神經元，組成了神經網路的第一層",
+          "text_hash": "9fe756447c40743247437a19b441c1f1476c1080006a09d88061788cf4049311"
+        },
+        {
+          "cue_index": 49,
+          "start_ms": 225990,
+          "end_ms": 231289,
+          "text": "我們現在跳到最後一層，這層有 10 個神經元，各自表示 0 到 9 的數字",
+          "text_hash": "344ed5aba48a9e0508915183efd5002bea5d06e0e117db013eb344a5685e1c27"
+        },
+        {
+          "cue_index": 50,
+          "start_ms": 231570,
+          "end_ms": 236239,
+          "text": "同樣在這邊的神經元也各自有著介於 0 到 1 的激勵值",
+          "text_hash": "de337839c11aac76145e76ba9ddc2fbfe1768aa89375434ab030ce3602ccd916"
+        },
+        {
+          "cue_index": 51,
+          "start_ms": 236880,
+          "end_ms": 242400,
+          "text": "表示對於給定的圖像，神經網路對於實際數字的判斷結果",
+          "text_hash": "d78ea25eaee92604106a98fc477406a40ad45e85a92a433840ced69a78fd6cde"
+        },
+        {
+          "cue_index": 52,
+          "start_ms": 242460,
+          "end_ms": 246180,
+          "text": "在輸入層和輸出層之間，有數個「隱藏層」",
+          "text_hash": "3427723beffd7eb965542ca90cae016287c00e12b15f4e4ee9d2bc4df2606d83"
+        },
+        {
+          "cue_index": 53,
+          "start_ms": 246180,
+          "end_ms": 247380,
+          "text": "現在在本入門影片裡",
+          "text_hash": "14a1de71cc902c2eb1dda960fa874f795c95244f12aa0f93791109b30c5d57cd"
+        },
+        {
+          "cue_index": 54,
+          "start_ms": 247380,
+          "end_ms": 253540,
+          "text": "對於神經網路是如何進行判斷的，我們只能先把它看做是巨大的問號",
+          "text_hash": "bbb14cd932c2b033df90814dc82f1e0efb5d471554c3b94f60f29bc6ac95fcc8"
+        },
+        {
+          "cue_index": 55,
+          "start_ms": 253740,
+          "end_ms": 257660,
+          "text": "本影片展示的視覺化神經網路，我設計了兩個隱層，個別搭載16個神經元",
+          "text_hash": "c016a175fd1fe0e4ce45dd7545fb38e9a4fc198f1e6ea4425775d47bccafd822"
+        },
+        {
+          "cue_index": 56,
+          "start_ms": 257660,
+          "end_ms": 260600,
+          "text": "這只是擺好看的設定",
+          "text_hash": "9836052bf1e74bdbf243bb2ed057e161d2b6d6b486c0f1360691291344df465b"
+        },
+        {
+          "cue_index": 57,
+          "start_ms": 260600,
+          "end_ms": 264880,
+          "text": "老實說之所以選擇兩個隱層，是基於視覺化讓你看得清楚的考量，待會解釋",
+          "text_hash": "c9cbdcc2d9c671423f6f29860ef497c982138bd8f8b8f48b9187de02569df0c5"
+        },
+        {
+          "cue_index": 58,
+          "start_ms": 265340,
+          "end_ms": 268120,
+          "text": "而安排 16 個神經元，只是為了符合版面，也是為了讓你看得清楚",
+          "text_hash": "9273ab807e2a2aed0b32495c7d0ee07b0a8338c77b311b9c80528fa2dd29cf0e"
+        },
+        {
+          "cue_index": 59,
+          "start_ms": 268540,
+          "end_ms": 272200,
+          "text": "在實際應用上，神經網路的結構經實驗不斷調整可以變得非常巨大且特殊",
+          "text_hash": "7c5d56944b4795258f80ee0a1215a9aab5c34379a923ab8459907901aec3239e"
+        },
+        {
+          "cue_index": 60,
+          "start_ms": 272730,
+          "end_ms": 278329,
+          "text": "神經網路操作一層激勵值的方式，會決定下一層的激勵值",
+          "text_hash": "c526a3a26c8bb74ffc3dc7e80cc27e1147637140be5891968a229958f6613cbe"
+        },
+        {
+          "cue_index": 61,
+          "start_ms": 278760,
+          "end_ms": 285349,
+          "text": "這正是神經網路的核心價值，不同以往的資料處理技術，現在發展成只要輸入",
+          "text_hash": "072357b7e671839e660b93fbc25c02c68ea480756e3ea9df92dcb2a7b3fa7bda"
+        },
+        {
+          "cue_index": 62,
+          "start_ms": 285570,
+          "end_ms": 288409,
+          "text": "激勵值從上一層傳到下一層，最後輸出足夠正確的結果",
+          "text_hash": "a26f206accd8c5b9ae4caaaf3ef2383a0600febaa0d68515f4ab3dadeddd4461"
+        },
+        {
+          "cue_index": 63,
+          "start_ms": 288900,
+          "end_ms": 294859,
+          "text": "神經網路的本質就是模仿生物的大腦，就像一叢腦細胞被激發",
+          "text_hash": "6cc754534fd7b7f00a4156c5144a19cd57dc85d5021dd9e6cf64279aebfee0ec"
+        },
+        {
+          "cue_index": 64,
+          "start_ms": 295410,
+          "end_ms": 297410,
+          "text": "引發其他神經細胞的串聯反應",
+          "text_hash": "19e0ec78a956fa13b9bdc734b21d1eeac48a4ff5cb1554cfbb29622e0482b2ce"
+        },
+        {
+          "cue_index": 65,
+          "start_ms": 297570,
+          "end_ms": 298340,
+          "text": "我現在展示的",
+          "text_hash": "60af42100218f18d98eab56a0cc29d1e422f226bc1d0cb63985be00dbae6b76b"
+        },
+        {
+          "cue_index": 66,
+          "start_ms": 298340,
+          "end_ms": 301560,
+          "text": "這個神經網路已經訓練完成了，可以準確辨識圖像中的數字",
+          "text_hash": "2fbaa68a22ae23199d57bad41f143413121e4b743665e18f07d53749613a1800"
+        },
+        {
+          "cue_index": 67,
+          "start_ms": 301560,
+          "end_ms": 303560,
+          "text": "讓我來解釋「傳遞激勵值」這點",
+          "text_hash": "2f3bd72cf697ef574a20bd8f2cfbb7f3e5c5bfbc2396389f7b7283e57b9b3d53"
+        },
+        {
+          "cue_index": 68,
+          "start_ms": 303560,
+          "end_ms": 306580,
+          "text": "意思是：當你輸入一張 28x28 像素的圖像，它將點亮",
+          "text_hash": "db2e89fe0b737255b3a5896b685fd6b6800ea708e6238d39d9e2a47f659f2bf2"
+        },
+        {
+          "cue_index": 69,
+          "start_ms": 306640,
+          "end_ms": 311780,
+          "text": "所有 784 個神經元 每個都比照對應像素的灰階值，來決定自己的激勵值",
+          "text_hash": "e4fba8df7ac61a463422b730400453ee4fab540ea4b7d1d5eba48c5c3af8307b"
+        },
+        {
+          "cue_index": 70,
+          "start_ms": 312330,
+          "end_ms": 317029,
+          "text": "決定的數值分布狀態會影響下一層被啟動的神經元的分布",
+          "text_hash": "fd36e70ad3815da9a88c40df39097400ab1a9ee284211dd8b69fedbec7f9a84e"
+        },
+        {
+          "cue_index": 71,
+          "start_ms": 317190,
+          "end_ms": 319309,
+          "text": "又會導致下一層不同的分布",
+          "text_hash": "714ebd75c54f3103661921b46757bc3bb19ea5afb7643a30243a8f680e6631a6"
+        },
+        {
+          "cue_index": 72,
+          "start_ms": 319440,
+          "end_ms": 322190,
+          "text": "最後抵達輸出層，輸出層的神經元也會有特定的分布",
+          "text_hash": "2ce897614de8bcd6bbf516e30dd6fce6a9e1c4205bc2eed8983705d6f531461a"
+        },
+        {
+          "cue_index": 73,
+          "start_ms": 322350,
+          "end_ms": 329359,
+          "text": "而最亮的那個就是神經網路所認為最有可能答對的答案",
+          "text_hash": "e94375462eac11788d9db0a1ff17da4a4fc3ee8087672093215aea8e481b2edc"
+        },
+        {
+          "cue_index": 74,
+          "start_ms": 332070,
+          "end_ms": 336859,
+          "text": "但在一腳踏進數學之前，要先知道上層如何影響下層，而且機器學習為什麼會有用",
+          "text_hash": "0658d14974b877cef396ed3bcd3c8760c61bd5ab08b3decd83b6066f9fe887cf"
+        },
+        {
+          "cue_index": 75,
+          "start_ms": 337140,
+          "end_ms": 343440,
+          "text": "為什麼我們認為層狀結構會像這樣聰明地運作是非常合理的？",
+          "text_hash": "70e562da4a8558bb0541b5f59fa6526bc11f3b8ee4772b56c5ae7eb9a649b6e4"
+        },
+        {
+          "cue_index": 76,
+          "start_ms": 343800,
+          "end_ms": 348260,
+          "text": "我們在期待什麼呢？ 我們最想要神經網路的隱藏層怎麼運作呢？",
+          "text_hash": "639cadbe4f98f1f993c69b189e9065f01bd1725c438e4307c4a9036aeaeead50"
+        },
+        {
+          "cue_index": 77,
+          "start_ms": 348860,
+          "end_ms": 353860,
+          "text": "在你或我在辨識圖中的數字時我們會把各種筆畫拼湊在一起。",
+          "text_hash": "aae41e8c6770f96ff5cc6d12585f0bafa0d9f1e00e9ad333dcbb758361fdd2f1"
+        },
+        {
+          "cue_index": 78,
+          "start_ms": 354320,
+          "end_ms": 357200,
+          "text": "一個 9 字，上面有圓圈，而在右邊有一條直線",
+          "text_hash": "a1126ce2f8f9b275f5441e2c53e2b38d338629b68bfa14ef5f2e206c8e7a0316"
+        },
+        {
+          "cue_index": 79,
+          "start_ms": 357260,
+          "end_ms": 361280,
+          "text": "一個 8 字，上面也有一个圓圈但在下面與另一個圓圈相連",
+          "text_hash": "cf2ada7987e7bf9d0d2fe3d735143e08030edafe7697a8ecfaba060ec0f25617"
+        },
+        {
+          "cue_index": 80,
+          "start_ms": 362020,
+          "end_ms": 366599,
+          "text": "一個 4 基本上可以拆解成就像那些特定的筆畫",
+          "text_hash": "f67bd5a375b04a5eee274181b990a015c6d6a7cde90db07c1639fd780a84cdc4"
+        },
+        {
+          "cue_index": 81,
+          "start_ms": 367180,
+          "end_ms": 371970,
+          "text": "一個理想的情況中我們會希望第二層的每個神經元",
+          "text_hash": "15e5f6fffba2e96d7f7ab5e8858950825774ff7a389ac216ca450ec0632979a7"
+        },
+        {
+          "cue_index": 82,
+          "start_ms": 372640,
+          "end_ms": 374729,
+          "text": "能識別這些筆劃的其中之一",
+          "text_hash": "42acf56acd4ef65803e2355472632f8042f73905c730239994f4004d6800c6d8"
+        },
+        {
+          "cue_index": 83,
+          "start_ms": 374880,
+          "end_ms": 379680,
+          "text": "每次你輸入一個有頂部有個圓圈的圖像如 9 或 8 時",
+          "text_hash": "60be74fdc671d4c8380e49f7ec46d9186cb8741c21a39ae7ea23316051d47dbc"
+        },
+        {
+          "cue_index": 84,
+          "start_ms": 379860,
+          "end_ms": 384000,
+          "text": "隱層第二層的某些特定神經元的激勵值就會接近 1",
+          "text_hash": "64b0427d3452392105062d438d40e77fcceb731d8eba04edccf2674fcbb90978"
+        },
+        {
+          "cue_index": 85,
+          "start_ms": 384000,
+          "end_ms": 391620,
+          "text": "而我要的並不是單單適用這種圓圈，而是更廣泛的各種圓圈皆適用",
+          "text_hash": "c1fa1a0507103207cbd5d1de6d97c75108a461e32ea44e1b71426026ef866c74"
+        },
+        {
+          "cue_index": 86,
+          "start_ms": 392240,
+          "end_ms": 395020,
+          "text": "如此，在隱層第二層到輸出層的神經元",
+          "text_hash": "6aaf1d047b47e99140d13b6d7389c603cd417ee36e9c65e26de7edd06bad5b71"
+        },
+        {
+          "cue_index": 87,
+          "start_ms": 395380,
+          "end_ms": 399960,
+          "text": "只需要學習對應於數字的筆畫的組合",
+          "text_hash": "75e860cb5a55068cdff58fe9d1452a8ca9ff02bd8b6404ec2b9f52b2b3662a97"
+        },
+        {
+          "cue_index": 88,
+          "start_ms": 400500,
+          "end_ms": 402800,
+          "text": "當然這又丟出了一道難題",
+          "text_hash": "de684bb9d5c59f2dc07819fa39ceddb3a1e1cab32fc98e8c1c3c025bdf48f1ef"
+        },
+        {
+          "cue_index": 89,
+          "start_ms": 402880,
+          "end_ms": 408000,
+          "text": "因為你怎麼讓那些神經元知道那些數字該對應到那些特定的筆畫？",
+          "text_hash": "94c10091e87afb07216a5ac2cb4e7df6b3377a9bac39ff59d52f21ed9d901fd9"
+        },
+        {
+          "cue_index": 90,
+          "start_ms": 408000,
+          "end_ms": 412820,
+          "text": "而我甚至還沒開始講上一層怎麼影響下一層，但是再聽我解釋一下這裡",
+          "text_hash": "93c9065db756e4286c6f554ff2519721875e493323a4e466c69a6b08de1dad12"
+        },
+        {
+          "cue_index": 91,
+          "start_ms": 413640,
+          "end_ms": 416340,
+          "text": "辨識一個圓圈的問題也可以分解成辨識一些較小零件的問題",
+          "text_hash": "9a6e2d9403cec5568bec89a696b37a568bc8e637018ca46b5b5e9cd0b8137211"
+        },
+        {
+          "cue_index": 92,
+          "start_ms": 416860,
+          "end_ms": 422550,
+          "text": "一個合理的方法是認出組成它的各式各樣的邊",
+          "text_hash": "bb109692a336c2a04fc71aeb09689fcf7e5c538852eb4ae23933192c81f6eb28"
+        },
+        {
+          "cue_index": 93,
+          "start_ms": 423520,
+          "end_ms": 428910,
+          "text": "同樣的道理，你在數字 1，4 或者 7 中所看到的一條長線",
+          "text_hash": "a23ecac8f2e42ad1a6a281248f5c8d7fbcaf982dc3f59f8a83a6315b7218c907"
+        },
+        {
+          "cue_index": 94,
+          "start_ms": 428910,
+          "end_ms": 434279,
+          "text": "真的就是好幾小條的短線，根據特定筆畫順序，組合成的長線",
+          "text_hash": "4a55dcf73f25682c208c2717e4056d765fbb3b6c9c33425f788522a6cdb2e197"
+        },
+        {
+          "cue_index": 95,
+          "start_ms": 434740,
+          "end_ms": 439379,
+          "text": "所以我們期望在這網絡第二層",
+          "text_hash": "f2c4807077e7eb32c790c92b31d842c9e536f038f8878bc3f72ebe03d5081cff"
+        },
+        {
+          "cue_index": 96,
+          "start_ms": 440290,
+          "end_ms": 442650,
+          "text": "對應著各式各樣的一些小邊",
+          "text_hash": "7db6d6ef45b439711c7ca346fe052a9e21d09e0bc6a7eb15f78fdb96d4aa907e"
+        },
+        {
+          "cue_index": 97,
+          "start_ms": 443220,
+          "end_ms": 447420,
+          "text": "也許出現一個像這樣的一個圖像就點亮",
+          "text_hash": "c948e9df0cebb23be0023a061c04e0b8d63cb118e6799bc053300af1d731d562"
+        },
+        {
+          "cue_index": 98,
+          "start_ms": 447420,
+          "end_ms": 451640,
+          "text": "所有大約有 8 到 10 種有關的特定神經元",
+          "text_hash": "0f4224ea7d6d0de2f01aba071eac4a05c86e9dd15d400cd2b4d96ead7fa393da"
+        },
+        {
+          "cue_index": 99,
+          "start_ms": 451930,
+          "end_ms": 456930,
+          "text": "它接著點亮後上方的圓圈和一根垂直的長線以及點亮和一條線相聯的神經元",
+          "text_hash": "628bbe708a3df8d91a52c67a4a0d1edc3262a8e1793edebc5a90e73305da2230"
+        },
+        {
+          "cue_index": 100,
+          "start_ms": 457300,
+          "end_ms": 459599,
+          "text": "最後點亮數字 9 的神經元",
+          "text_hash": "1b99733a693d77c8f317c07ec3bc0dce261a677c1d04764aec3aa8b9ead90015"
+        },
+        {
+          "cue_index": 101,
+          "start_ms": 460300,
+          "end_ms": 464280,
+          "text": "不管這個是不是我們最終的網絡實際上的實施是另一個問題",
+          "text_hash": "e56b8c0556ffdb65c6df43132452585015031725308332fe6d570b0dac294dd7"
+        },
+        {
+          "cue_index": 102,
+          "start_ms": 464280,
+          "end_ms": 467080,
+          "text": "這個我們在知道怎樣了訓練網絡之後我在回過來講",
+          "text_hash": "1235d5cbc9cb6c173607d5976b1bc85ff77eab96cf86d0412603bf0e54dcea91"
+        },
+        {
+          "cue_index": 103,
+          "start_ms": 467350,
+          "end_ms": 472170,
+          "text": "但至少我們可能有點希望 像是一種以這樣分層結構為目標的",
+          "text_hash": "e57cd14fdffa44bf908fdda020f72e344b441e1b36164ab4fa9612c9377119a0"
+        },
+        {
+          "cue_index": 104,
+          "start_ms": 473020,
+          "end_ms": 480160,
+          "text": "你可以進一步想像怎樣能來檢測像這樣的邊和式樣對其他的圖像識別功能真是有用的",
+          "text_hash": "bc167547e2dbcd5da439a2a7ace8ec91c1fa9fc97c9192fc6c9d256ea74c6a88"
+        },
+        {
+          "cue_index": 105,
+          "start_ms": 480800,
+          "end_ms": 487200,
+          "text": "並甚至在圖像識別之外做各種各樣智能的東西也許你也想分解成一些抽象的層",
+          "text_hash": "7d3403fdc012f3bb5fcff5efafda49b4a7c7d07fff3999564dcd4f0e6e09f96d"
+        },
+        {
+          "cue_index": 106,
+          "start_ms": 487680,
+          "end_ms": 494660,
+          "text": "例如句子的分析涉及到把原始的語音提出一些獨特的聲音構成一些音節再構成",
+          "text_hash": "1182b47a0738788f5e3feee908dd94905238097d7e0b1f013b0c761e8a4fc81e"
+        },
+        {
+          "cue_index": 107,
+          "start_ms": 495070,
+          "end_ms": 499829,
+          "text": "詞再構成詞組以及更為抽象的思想等。",
+          "text_hash": "a18335333cbfbb9592cd0487c8910fea2d36aee0702b0667a1daf9cea494c52e"
+        },
+        {
+          "cue_index": 108,
+          "start_ms": 500770,
+          "end_ms": 505710,
+          "text": "但回到這些實際是怎樣工作的把你自己現在就放到這個的情景怎樣來設計",
+          "text_hash": "8c4a38273adc1d910e4cacf7984362889636794b45d1ccf04b445570471b1ef0"
+        },
+        {
+          "cue_index": 109,
+          "start_ms": 505710,
+          "end_ms": 510449,
+          "text": "如何在讓這層中的激勵函數可以決定下一層的激勵函數呢？",
+          "text_hash": "a844b4c2058d09e6344c73c80204a54fc66566ed66bdc1e427a53322cd57de38"
+        },
+        {
+          "cue_index": 110,
+          "start_ms": 510660,
+          "end_ms": 515860,
+          "text": "這目標是有一些機能它想起來可以集中到一個特定的樣本來把一些像素結合成",
+          "text_hash": "d246822735e7c3bd4cafc847fde23dd4e82b9fcbe6eac9064720aa9a5b055903"
+        },
+        {
+          "cue_index": 111,
+          "start_ms": 515880,
+          "end_ms": 521800,
+          "text": "邊或者把邊結合成式樣或者式樣成爲數字 在這個特別的例子裡面",
+          "text_hash": "75366ea0ad56b66562041d925f75c8fc3f6e312e26d1205097c995981b412d28"
+        },
+        {
+          "cue_index": 112,
+          "start_ms": 521800,
+          "end_ms": 524700,
+          "text": "我們希望第二層的這一個神經元",
+          "text_hash": "3b4518240dc7a39ce7d5c0e4bc5eb973e7d5513e9a2a15a256ba95a9938843d1"
+        },
+        {
+          "cue_index": 113,
+          "start_ms": 524700,
+          "end_ms": 530580,
+          "text": "可以正確的辨識出這個圖像裡有沒有一條邊",
+          "text_hash": "a4e24dea2e21edeb80c2bc335504ddf7bfe3a605264156023bf0f37d2bee3139"
+        },
+        {
+          "cue_index": 114,
+          "start_ms": 530940,
+          "end_ms": 534960,
+          "text": "現在我們想知道的是網路裡有哪些參數",
+          "text_hash": "f1e51bd32ad6ca2ec46a6f5a526516b53418366fc01936cc46d689f69c3fd9a9"
+        },
+        {
+          "cue_index": 115,
+          "start_ms": 535260,
+          "end_ms": 542260,
+          "text": "要怎麼調整這些參數才能讓完整的表達出是這個圖案",
+          "text_hash": "d276e133502778b7d4bf0a8c6613ad9a52edc31c734241971e81d157eea2ae7f"
+        },
+        {
+          "cue_index": 116,
+          "start_ms": 542380,
+          "end_ms": 547780,
+          "text": "還是其他的圖案或是由數個邊組合成的圓圈之類的",
+          "text_hash": "022be33212a9751c68a4ed1c30151a00016186516119bb81e925a83b8daf8963"
+        },
+        {
+          "cue_index": 117,
+          "start_ms": 548280,
+          "end_ms": 555380,
+          "text": "我們會分配給神經元和輸入層間的每一個連接線一個權重",
+          "text_hash": "275f407dc69d9a2720de89e345dabd2251b356385d6041df8367d37326607e8e"
+        },
+        {
+          "cue_index": 118,
+          "start_ms": 555840,
+          "end_ms": 557940,
+          "text": "權重單純只是一個數字而已",
+          "text_hash": "72abf6d62bc4450e645cc871935807552fa08719cc8eb586635249cabc22fdea"
+        },
+        {
+          "cue_index": 119,
+          "start_ms": 558180,
+          "end_ms": 565580,
+          "text": "然後計算所有激勵函數的加權總和",
+          "text_hash": "94b15ccd128457f997db89e329c5a2dc19b86d18f5adb482c4aad80864e23ff0"
+        },
+        {
+          "cue_index": 120,
+          "start_ms": 567370,
+          "end_ms": 571680,
+          "text": "把這些權重整理成一個圖像應該更好理解",
+          "text_hash": "1c5a343f791c152a733f156252968fcbc7f03916b9602a4bf1b4c133cd3197dd"
+        },
+        {
+          "cue_index": 121,
+          "start_ms": 571680,
+          "end_ms": 577079,
+          "text": "我把正的權重值標記為綠色 負的權重值標記為紅色",
+          "text_hash": "bb83f6eebb90ef1c9c7cedb208555440b279e892c5482ccd30a76e93ddb9d99d"
+        },
+        {
+          "cue_index": 122,
+          "start_ms": 577240,
+          "end_ms": 581670,
+          "text": "當顏色越亮代表它的值跟 0 差距越大",
+          "text_hash": "47c3dfd5b63d9082bf575a50603dd3d752a6118178eac05d544645041b6f85e4"
+        },
+        {
+          "cue_index": 123,
+          "start_ms": 582400,
+          "end_ms": 585840,
+          "text": "除了我們所關注的區域以外",
+          "text_hash": "5b0b3e31f3f1f321ed7a4d525207a34cf48b5661cc21c9cd457c011641b87d38"
+        },
+        {
+          "cue_index": 124,
+          "start_ms": 585840,
+          "end_ms": 589080,
+          "text": "所有的權重值都改為 0",
+          "text_hash": "e32eb4b22803f4e4cef3d6ffebac42692564ce7d48ce9da7046faab29b2b0736"
+        },
+        {
+          "cue_index": 125,
+          "start_ms": 589480,
+          "end_ms": 591500,
+          "text": "然後去取得所有像素的加權總合",
+          "text_hash": "f0a9c7ca179751f467f0cd93e9954ae4d9a3d37e15b1c763b3af28217a49e835"
+        },
+        {
+          "cue_index": 126,
+          "start_ms": 591500,
+          "end_ms": 597680,
+          "text": "幾乎就等於只有我們所關注的區域的值提升了",
+          "text_hash": "4c3bd5725c8946f08d8ea4d103224964759951c6e1e0529b356042ed445dbb55"
+        },
+        {
+          "cue_index": 127,
+          "start_ms": 598860,
+          "end_ms": 602620,
+          "text": "如果知道這裡是不是真的存在一條邊",
+          "text_hash": "0b38b0eb74d1556f1c2c499bfaa992bab032945f573c325f366b661b7cc00012"
+        },
+        {
+          "cue_index": 128,
+          "start_ms": 602620,
+          "end_ms": 606660,
+          "text": "你只需要在周圍加上負的權重",
+          "text_hash": "7a1390add55e72cc922e833ea897b705b35795752673acca7f95c7d74d42b1db"
+        },
+        {
+          "cue_index": 129,
+          "start_ms": 607020,
+          "end_ms": 612660,
+          "text": "這樣當中間的像素亮但是周圍的像素暗 就可以得到最大的加權總和",
+          "text_hash": "b62e7755af5ed324be4e37313df814826bd0568807813992f4ce3b697234fc41"
+        },
+        {
+          "cue_index": 130,
+          "start_ms": 614279,
+          "end_ms": 618169,
+          "text": "當你計算加權總和時 它的值可能是任意實數",
+          "text_hash": "4c583e9e50b33fc1a7b8ef28c8879d1013fda1f006d7ac83b7dff2a530f42268"
+        },
+        {
+          "cue_index": 131,
+          "start_ms": 618240,
+          "end_ms": 623180,
+          "text": "但是在這裡我們想要計算完的結果介於 0 跟 1 之間",
+          "text_hash": "8a6cd28e3edadb1c2ba692f31862c4943093ed672240d85565b21e0e767a60aa"
+        },
+        {
+          "cue_index": 132,
+          "start_ms": 623730,
+          "end_ms": 626599,
+          "text": "所以我們通常會把這個值丟進一個函數裡面",
+          "text_hash": "b23d1ae327e5894cccc965a8768819f6761bb14e09f02a87bdc7fbc9ad3715c0"
+        },
+        {
+          "cue_index": 133,
+          "start_ms": 626910,
+          "end_ms": 632000,
+          "text": "把這個實數軸壓縮成一個介於 0 到 1 之間",
+          "text_hash": "9ccf822acc72f1fde77efa52e0d48ecd761acb9b6a9f0d439e013f9863919bb7"
+        },
+        {
+          "cue_index": 134,
+          "start_ms": 632190,
+          "end_ms": 637249,
+          "text": "有一個常見的函數叫做「Sigmoid」也被稱為「邏輯函數」",
+          "text_hash": "4b7f18f671e1947ef73b01c8ec412946fb823f8c046508d4ed66b0f96f15d0c6"
+        },
+        {
+          "cue_index": 135,
+          "start_ms": 637980,
+          "end_ms": 643339,
+          "text": "基本上越小的數會越來越接近 0 越大的數會越來越接近 1",
+          "text_hash": "b106983adb5755c12116ff34142ca4af4660958a48d2dbcf6ab3f959c08214d4"
+        },
+        {
+          "cue_index": 136,
+          "start_ms": 643340,
+          "end_ms": 646600,
+          "text": "輸入值在 0 附近的會平穩增長",
+          "text_hash": "d8285c076d26f25bed08673a9ee2a260a2aa86fa966ffb6875192881b08158c3"
+        },
+        {
+          "cue_index": 137,
+          "start_ms": 649080,
+          "end_ms": 656020,
+          "text": "所以從神經網路得到的激勵函數基本上就代表加權總和的大小",
+          "text_hash": "81f3ba7f6ab143f1cf002125c10f08d3652ce2b200e15e7623da6ab67b28b824"
+        },
+        {
+          "cue_index": 138,
+          "start_ms": 657450,
+          "end_ms": 661819,
+          "text": "但是不是每次只要加權總和大於零的時候就點亮神經元",
+          "text_hash": "958100705ace87fa2cd5c6a620a47b4f7420d94a0d8ce274bc40c6a9e1a4b02e"
+        },
+        {
+          "cue_index": 139,
+          "start_ms": 662100,
+          "end_ms": 666260,
+          "text": "也許你只想要在它大於 10 的時候啟動",
+          "text_hash": "0f335604d641e6b9d56bd6fff5b0c0d1aa308d11018c988c7d74d4733d901ba4"
+        },
+        {
+          "cue_index": 140,
+          "start_ms": 666630,
+          "end_ms": 670279,
+          "text": "所以要加入一個門檻來確保它不會隨便啟動",
+          "text_hash": "d10d4e848e9412b5b1715410d1ca73f7e26760045a227c9559767e4828719080"
+        },
+        {
+          "cue_index": 141,
+          "start_ms": 670860,
+          "end_ms": 676099,
+          "text": "我們只要在加權總和後面加上一個像是 負10 之類的數",
+          "text_hash": "53b9e3a6fcfefd6d1b158a06987b12701b00eef5fe1ed19ff1a27d89f3a242ed"
+        },
+        {
+          "cue_index": 142,
+          "start_ms": 676520,
+          "end_ms": 679660,
+          "text": "再把它塞進邏輯函數裡",
+          "text_hash": "163de06c1e8d20b9a3929160b3893d462a75967ea478430a622a3b31034172a3"
+        },
+        {
+          "cue_index": 143,
+          "start_ms": 680220,
+          "end_ms": 682740,
+          "text": "這個附加的數字就叫做偏置",
+          "text_hash": "d61421e532f1c9fe056a6a84bd6bd482fc0a7eafe0973f45619dedcfa8a678b7"
+        },
+        {
+          "cue_index": 144,
+          "start_ms": 683300,
+          "end_ms": 689060,
+          "text": "所以權重告訴我們下一層的神經元所關注的圖樣",
+          "text_hash": "90f12e7f3e35221ad9c42bde16e2318f116b4f5fdfcffd558a0ee0c98cc5ba35"
+        },
+        {
+          "cue_index": 145,
+          "start_ms": 689220,
+          "end_ms": 695460,
+          "text": "偏置則告訴我們加權總和要超過什麼程度才是有意義的",
+          "text_hash": "abe05547486b8a2c25fd1c4ec96e3014650b257375d78768ad80542ecb69c164"
+        },
+        {
+          "cue_index": 146,
+          "start_ms": 695940,
+          "end_ms": 697940,
+          "text": "以上只是一個神經元的情況",
+          "text_hash": "d12ef97a45c9af70fe6858ebd3a64f2928bf2521856e27447133b995a0a3875b"
+        },
+        {
+          "cue_index": 147,
+          "start_ms": 698120,
+          "end_ms": 705060,
+          "text": "在這一層的每個神經元都會連接第一層共 784 個神經元",
+          "text_hash": "f6c477960539011c400d7d253e7fb86a32f786d9af1ff62b4171b04d5188d622"
+        },
+        {
+          "cue_index": 148,
+          "start_ms": 705060,
+          "end_ms": 710720,
+          "text": "而且這 784 條連接線都各有一個屬於自己的權重",
+          "text_hash": "80258895b5cef310bf89a2b5b3f77f7669f731c40e8bbfc4f19541c1291c304f"
+        },
+        {
+          "cue_index": 149,
+          "start_ms": 711320,
+          "end_ms": 717720,
+          "text": "還有每一個神經元都會在計算完加權總和後再加上自己的偏置再用邏輯函數輸出自己的結果",
+          "text_hash": "39b83d56b284057beb654c3116227eb974e90265937742a9088b4130d41aa4bd"
+        },
+        {
+          "cue_index": 150,
+          "start_ms": 718020,
+          "end_ms": 721909,
+          "text": "讓我們看看這個有著 16 個神經元的隱藏層",
+          "text_hash": "cbdcdc181e7b4967eaaac6ff54f06bc8817f3fd4de97741800fadf6a30f53211"
+        },
+        {
+          "cue_index": 151,
+          "start_ms": 722000,
+          "end_ms": 728260,
+          "text": "這 16 個神經元都各有 784 個自己的權重和 16 個偏置",
+          "text_hash": "0f15fc0dc40531474f7d7b6ef111cbfac8fd5c878ac806ccefb84e614eac9477"
+        },
+        {
+          "cue_index": 152,
+          "start_ms": 728480,
+          "end_ms": 732560,
+          "text": "這些還只是第一層和第二層的連接而已",
+          "text_hash": "a483dc290c68239d4974479bf0dc79aff821938070ab2ec085e086afb4b51c75"
+        },
+        {
+          "cue_index": 153,
+          "start_ms": 732560,
+          "end_ms": 737200,
+          "text": "在其他層裡還有他們各自的權重和偏置",
+          "text_hash": "d896a63c34f66213c4dc1ea3ccb577f07fad80f25516c92a0f5cb12d339b84b7"
+        },
+        {
+          "cue_index": 154,
+          "start_ms": 737760,
+          "end_ms": 741200,
+          "text": "整體來說整個網路使用了",
+          "text_hash": "7b39f38220845e9ec3057e6f4038d0f60b1565fc445c6d6d80b18f2d0794db8f"
+        },
+        {
+          "cue_index": 155,
+          "start_ms": 741280,
+          "end_ms": 743920,
+          "text": "大約 13,000 個權重和偏置",
+          "text_hash": "f1bfafeefd19f360b4338ac6c7ac96774bec0468cde21b2848de54793752e518"
+        },
+        {
+          "cue_index": 156,
+          "start_ms": 744280,
+          "end_ms": 749540,
+          "text": "13,000 個可以調整的參數來讓網路可以呈現不同的結果",
+          "text_hash": "80d42726fda306b45c9bc85a16ff604476920b3591d8d95b51b95d1769ccc947"
+        },
+        {
+          "cue_index": 157,
+          "start_ms": 750520,
+          "end_ms": 752520,
+          "text": "所以當我們談到學習的時候",
+          "text_hash": "e9b0991386f6f06d592cc6cefc14a8817a33856e76ea429f3ea0cf173b6af589"
+        },
+        {
+          "cue_index": 158,
+          "start_ms": 752520,
+          "end_ms": 759100,
+          "text": "就是在說如何讓電腦去找到一大堆正確的參數",
+          "text_hash": "906f8810fdc9eda9024410005c291db06c1221c7256192071462a26a704c63f1"
+        },
+        {
+          "cue_index": 159,
+          "start_ms": 759100,
+          "end_ms": 761700,
+          "text": "讓它解決問題",
+          "text_hash": "cbb64b0a4e1d0b0a4dfe5fe20a248e38a1633c96e942b73ea8f60d3782e89770"
+        },
+        {
+          "cue_index": 160,
+          "start_ms": 762380,
+          "end_ms": 766060,
+          "text": "有一個仔細想想會很嚇人的情況",
+          "text_hash": "2e1632089f0be84222f5378553d143dd6f5f6e0f1b8db38d020bdaaf10ce43c0"
+        },
+        {
+          "cue_index": 161,
+          "start_ms": 766060,
+          "end_ms": 769920,
+          "text": "想像一下如果你需要手動調整這些權重和偏置",
+          "text_hash": "6f98864da626f6bc486110955d57fc1fb7879778cbf5713e764d1ccb75043c02"
+        },
+        {
+          "cue_index": 162,
+          "start_ms": 770380,
+          "end_ms": 776600,
+          "text": "設定這些數字來讓第二層識別一條邊 然後讓第三層識別圖案",
+          "text_hash": "8c282809014ecd07f67d404dfe1ccae32de187ccd114c879f2a28d82682b5b76"
+        },
+        {
+          "cue_index": 163,
+          "start_ms": 777080,
+          "end_ms": 781440,
+          "text": "我個人認為這樣想像會比把它整個當成一個黑盒子更好",
+          "text_hash": "07f8cd8c677e0e8906272973076953ad821b84dcfc3b5b6565f2f381061cb9ed"
+        },
+        {
+          "cue_index": 164,
+          "start_ms": 781860,
+          "end_ms": 785160,
+          "text": "因為當網路的輸出和你的認知有所差異時",
+          "text_hash": "e2e64a678c8bcfd08f42b667337955fe51ef1493962a2f4562e3e85ede341db5"
+        },
+        {
+          "cue_index": 165,
+          "start_ms": 785520,
+          "end_ms": 791040,
+          "text": "如果你能足夠了解權重與偏置的關係",
+          "text_hash": "67e8f8853ed994e773a076db24ac29cc05bbbcb3b1c570e737f8b8e5e70d66cd"
+        },
+        {
+          "cue_index": 166,
+          "start_ms": 791080,
+          "end_ms": 794760,
+          "text": "就更容易該怎麼改變結構來修正",
+          "text_hash": "606be65bd3e2ae864514e2d6c424654e01c0305dc0b381b06ffdef46f0e4959a"
+        },
+        {
+          "cue_index": 167,
+          "start_ms": 794760,
+          "end_ms": 798280,
+          "text": "或是網路能輸出正確的結果但是過程跟你想像中有差異",
+          "text_hash": "e08ce12b46b376bd928a774f95b37e6e3d8aa2131e9fc31ddf5fe46097d45a36"
+        },
+        {
+          "cue_index": 168,
+          "start_ms": 798300,
+          "end_ms": 803880,
+          "text": "那麼去挖掘權重和偏置的實際境況對於測試你的認知有幫助",
+          "text_hash": "bc9afad50da45d2293afc613afb9d25cdd393ef44a862bb4c89be915ab7d78f4"
+        },
+        {
+          "cue_index": 169,
+          "start_ms": 803880,
+          "end_ms": 806360,
+          "text": "和找出所有可能的解決方案",
+          "text_hash": "96e5d8f36a77fc4ebc620f2571408fa3db17bbda409d833ae15f2ee7567470f1"
+        },
+        {
+          "cue_index": 170,
+          "start_ms": 806360,
+          "end_ms": 810700,
+          "text": "順帶一提 你不覺得這個公式看起來有點複雜嗎？",
+          "text_hash": "51b9747970ed5cf7f7201592e66b88abb1473085b1efe78fc20fb04f9d205e5d"
+        },
+        {
+          "cue_index": 171,
+          "start_ms": 812340,
+          "end_ms": 817740,
+          "text": "所以讓我來示範以簡單的符號來表達整個公式",
+          "text_hash": "5387e1e1b98e386bc44a4613e5af1084cde4491dd3e42cc715196dc4845f1abc"
+        },
+        {
+          "cue_index": 172,
+          "start_ms": 817740,
+          "end_ms": 820460,
+          "text": "如果你以後想要繼續鑽研神經網路就會很常看到",
+          "text_hash": "d4e34a10d7ba902be341427258a78e157dc1ffdaeda0d10884b4a51c790c511c"
+        },
+        {
+          "cue_index": 173,
+          "start_ms": 821110,
+          "end_ms": 825810,
+          "text": "我們把這一層的激勵函數放到一個向量中",
+          "text_hash": "8e56d37607580f75bc29384e085da20b0892ebc75f90ae2d214dcf6ec5aab405"
+        },
+        {
+          "cue_index": 174,
+          "start_ms": 827460,
+          "end_ms": 830600,
+          "text": "然後把所有的權重放到矩陣中",
+          "text_hash": "67e365fb598df37f6e8e3d7e8f7fa7f1c3b034941a53a09f7f54257db2d8b3a9"
+        },
+        {
+          "cue_index": 175,
+          "start_ms": 830600,
+          "end_ms": 837660,
+          "text": "在這個陣列裡的每一列將會對應到這一層和下一層的所有連線的權重",
+          "text_hash": "a309e52ba3c21e200c36334aff7a742eea30f60e65d6caa78dfb3964f8bebd26"
+        },
+        {
+          "cue_index": 176,
+          "start_ms": 838060,
+          "end_ms": 843599,
+          "text": "這代表矩陣相乘後的每一項都代表其中一個神經元的激勵函數",
+          "text_hash": "6333397641eb40e173b28086a6b5a85ea4ffa0e484a0f1ed950f9df91f99280d"
+        },
+        {
+          "cue_index": 177,
+          "start_ms": 844000,
+          "end_ms": 849330,
+          "text": "矩陣相乘的結果就是對應的神經元激勵函數",
+          "text_hash": "45171545f16993c4b1c45c8b19f61349be1ce3cdf80a2d3c45d17f047913c434"
+        },
+        {
+          "cue_index": 178,
+          "start_ms": 853540,
+          "end_ms": 858380,
+          "text": "順道一提 學習機器學習需要對線性代數有一定的了解",
+          "text_hash": "1e117eec7da42dfa523bddf52621f408051742c34d3f8603b09abbffce552c5d"
+        },
+        {
+          "cue_index": 179,
+          "start_ms": 858380,
+          "end_ms": 866940,
+          "text": "所以任何想要透過視覺化的教學理解矩陣和矩陣乘法可以去看我的以前做的線性代數系列影片",
+          "text_hash": "a11bcf0658556db4f65f7bae0081136fce9c41edaf607307d3690923c80f5266"
+        },
+        {
+          "cue_index": 180,
+          "start_ms": 867250,
+          "end_ms": 868839,
+          "text": "特別是第三篇",
+          "text_hash": "df6fd41dd7f7140414bdcff28c2e8be5eaee3571044a62729985c6bfd5c47c40"
+        },
+        {
+          "cue_index": 181,
+          "start_ms": 868840,
+          "end_ms": 874640,
+          "text": "會到正題 當我要加上偏置時也會把每一個偏置",
+          "text_hash": "cce2b6c1b18119d326fabfa05a9bb28c007f8aea07d571b0d300bf567e3c9cec"
+        },
+        {
+          "cue_index": 182,
+          "start_ms": 874880,
+          "end_ms": 882200,
+          "text": "放到矩陣裡在和前面算出來的結果做矩陣加法",
+          "text_hash": "36c7928eb9242a01f71d1ff02685fe83ce6731e9279a49aa58d8ebf293d68800"
+        },
+        {
+          "cue_index": 183,
+          "start_ms": 882910,
+          "end_ms": 884040,
+          "text": "最後一步",
+          "text_hash": "41502710fe7d3cd6fdc8bf7ca19b2d38995a8b9361fb16baa722cbf61d68c719"
+        },
+        {
+          "cue_index": 184,
+          "start_ms": 884040,
+          "end_ms": 887250,
+          "text": "我會用邏輯函數把整個結果包起來",
+          "text_hash": "556af03d73bf33a231d2e17368928591f9a7547ca8a253ad858610687c4b9702"
+        },
+        {
+          "cue_index": 185,
+          "start_ms": 887250,
+          "end_ms": 891899,
+          "text": "意思是把最後得到的向量一個一個丟進邏輯函數中",
+          "text_hash": "4201867051a0fe50d62008647d7a24035b2a75c04379fbc216efff7c57c38f78"
+        },
+        {
+          "cue_index": 186,
+          "start_ms": 892420,
+          "end_ms": 894570,
+          "text": "來計算出每一個結果",
+          "text_hash": "15d6d6aec733df480850d41affec3747d5849e3d73e54037bea76a60fcdc0027"
+        },
+        {
+          "cue_index": 187,
+          "start_ms": 895500,
+          "end_ms": 900520,
+          "text": "現在當我們用簡單的符號來寫下公式",
+          "text_hash": "55a0013e43039f8a87eaca5ce02cf23a6520c25bea838972a0ab17d778a1fb5e"
+        },
+        {
+          "cue_index": 188,
+          "start_ms": 900520,
+          "end_ms": 907580,
+          "text": "就可以很清楚完整的表達每一層之間的關係",
+          "text_hash": "09bb1562a8c44a407d45d60e0493483573ca33f26a747b526477742dddacb852"
+        },
+        {
+          "cue_index": 189,
+          "start_ms": 907920,
+          "end_ms": 915720,
+          "text": "還有這也讓我們更簡單快速的編寫程式碼 像是很多的對於矩陣運算有最佳化的函式庫",
+          "text_hash": "787f3bcd2b8fedc6ceed897637f1e25c618acf9a98b91f19e98068c2ad4e958c"
+        },
+        {
+          "cue_index": 190,
+          "start_ms": 917560,
+          "end_ms": 921360,
+          "text": "還記得我一開始說神經元只是一個簡單承載數字的東西嗎",
+          "text_hash": "98aacc3e002dedf216e8a80b6269f01266888f8dd4928106e7165ac785f065ee"
+        },
+        {
+          "cue_index": 191,
+          "start_ms": 921790,
+          "end_ms": 926250,
+          "text": "當然 它裡面所裝得數字取決於你給他的圖像",
+          "text_hash": "ba91ace13b4c9ff1598c3087b8bfdd83c8073535b333882beca537df56e149a0"
+        },
+        {
+          "cue_index": 192,
+          "start_ms": 927780,
+          "end_ms": 931880,
+          "text": "所以更準確地說應該把神經元當作一個函數",
+          "text_hash": "6e052df4ca2d403cf1200dd0cc89d700f846f48eacf362c597b30cc96b0ac8d7"
+        },
+        {
+          "cue_index": 193,
+          "start_ms": 931960,
+          "end_ms": 938060,
+          "text": "它的輸出是取決於上一層所有的神經元然後轉換成一個介於 0 到 1 的數字",
+          "text_hash": "dfed8a6ff6e76002feca4794b40d48e52bf31281ae0961d42fc1384b226b407f"
+        },
+        {
+          "cue_index": 194,
+          "start_ms": 938800,
+          "end_ms": 941680,
+          "text": "其實也可以把整個神經網路當作一個函數",
+          "text_hash": "108115392f6010301814865a4d1030d3f4edb6a5be5e13a3e5dde2402bc2cff8"
+        },
+        {
+          "cue_index": 195,
+          "start_ms": 941680,
+          "end_ms": 947080,
+          "text": "有著 784 個輸入值和 10 輸出值的函數",
+          "text_hash": "e91de2624c0edf8dfa2b5c30d7a6d7b17ccc669cd7ce85cce88ecfb3731f550f"
+        },
+        {
+          "cue_index": 196,
+          "start_ms": 947460,
+          "end_ms": 949580,
+          "text": "它是一個非常複雜的函數",
+          "text_hash": "75a0ccc970851cdd5e214adcb98ef7755bcf811e9d9a2f8a45574ed233128bae"
+        },
+        {
+          "cue_index": 197,
+          "start_ms": 949580,
+          "end_ms": 956240,
+          "text": "用來選擇正確圖案的權重和偏置參數就有 13000 個",
+          "text_hash": "44beaa179f017849916ca8ba9ef683a79efb57d4fe2f7f8727a2f4c59a19a22b"
+        },
+        {
+          "cue_index": 198,
+          "start_ms": 956250,
+          "end_ms": 960270,
+          "text": "還會不停地用到矩陣乘法和邏輯函數",
+          "text_hash": "302da0ac0d43a3b0ac254f95693fe3acd844d084f0842c74e64cb406ec1b7709"
+        },
+        {
+          "cue_index": 199,
+          "start_ms": 960610,
+          "end_ms": 966390,
+          "text": "即便它看起來很複雜但卻是很可靠的一個函數",
+          "text_hash": "bd6b64824996259b9a4cc507c5940732a47e10fd34ff40c62c07eddb85b8b922"
+        },
+        {
+          "cue_index": 200,
+          "start_ms": 966390,
+          "end_ms": 972239,
+          "text": "我的意思是如果它看起來很簡單 我們怎麼能期望它辨識數字呢",
+          "text_hash": "278896be829e141dd149f7447c0b85e3b3b621b41446cd804f446052970c9d85"
+        },
+        {
+          "cue_index": 201,
+          "start_ms": 972960,
+          "end_ms": 979559,
+          "text": "但是它是如何完成這個任務的？ 這個網路是如何只透過讀取數據來學習如何調整權重和偏置的？",
+          "text_hash": "bbae18106a567787ae8fd1b0c7f5ff38e0e25a981cd8404391d660636c2c7ba3"
+        },
+        {
+          "cue_index": 202,
+          "start_ms": 980080,
+          "end_ms": 986039,
+          "text": "這就是下一集的內容了 我們也會更深入更多關於網路運作的細節",
+          "text_hash": "922d73923b1a8568fa11a1efbe2777eff4ec36064590d8a7f25b5edc5c460e94"
+        },
+        {
+          "cue_index": 203,
+          "start_ms": 987130,
+          "end_ms": 992640,
+          "text": "現在又到了提醒大家如果要獲得更多新影片的通知趕快訂閱",
+          "text_hash": "fa8fd1221e04ec207611163699d60ba649714b5cf2ba54cebda60c2e80af66c4"
+        },
+        {
+          "cue_index": 204,
+          "start_ms": 992760,
+          "end_ms": 997560,
+          "text": "但是大部分的時候你都沒有收到來自 YouTube 的通知吧？",
+          "text_hash": "c43f05c756b9b0e2b8cacb39d47c831ed0647ae72677abca1587d0d6fc4bc2d7"
+        },
+        {
+          "cue_index": 205,
+          "start_ms": 997560,
+          "end_ms": 1003640,
+          "text": "也許我該說趕快訂閱讓 YouYube 的推薦演算法神經網路",
+          "text_hash": "745a72f539b4a80d137669455061a06adb061152afc3d798099aa949201ec31c"
+        },
+        {
+          "cue_index": 206,
+          "start_ms": 1003640,
+          "end_ms": 1007640,
+          "text": "去相信你想看到關於這個頻道的消息",
+          "text_hash": "4d85f30a3e99bb19b1c9c377c4656da55990c5829f18cc2f7b27f8f018639c22"
+        },
+        {
+          "cue_index": 207,
+          "start_ms": 1008250,
+          "end_ms": 1010250,
+          "text": "總之留意更多消息",
+          "text_hash": "91c058670b108c606908b0ca262b4baf85f7b3e9525ef3494bfce24e2ca32d0c"
+        },
+        {
+          "cue_index": 208,
+          "start_ms": 1010410,
+          "end_ms": 1013550,
+          "text": "感謝大家在 Patreon 平台上的支持",
+          "text_hash": "92a15d900e4fc4ff774f27f84d6ee3dd5de5c3f740c953a1593e4e0ea6bdc0c7"
+        },
+        {
+          "cue_index": 209,
+          "start_ms": 1013589,
+          "end_ms": 1016759,
+          "text": "我的機率系列影片在這個夏天進展得有點慢",
+          "text_hash": "77594c45fcbf617e08be74965aa75acc5d8ea5f4046fff2e904079897c082c16"
+        },
+        {
+          "cue_index": 210,
+          "start_ms": 1016760,
+          "end_ms": 1021379,
+          "text": "但是在這個系列結束後我會回到那個系列 所以大家可以留意新消息",
+          "text_hash": "b897bd1d5cb680e1db5abd15398c24eed36fc699aedff3933c0796f05f4a090b"
+        },
+        {
+          "cue_index": 211,
+          "start_ms": 1023310,
+          "end_ms": 1025550,
+          "text": "在影片的結尾 我邀請了 Lisha Li",
+          "text_hash": "b41e7234b6eef9be6574165a4f66e5440c966d966a89d7cc575270e64241038e"
+        },
+        {
+          "cue_index": 212,
+          "start_ms": 1025550,
+          "end_ms": 1032029,
+          "text": "她在博士研究是關於深度學習的理論 現在一個叫做 Amplify Partners 的創投公司任職",
+          "text_hash": "fc240b4a92b98c01ea229e3794af52a7b0e5a718ae5b7b35cbc2829215f6e5a3"
+        },
+        {
+          "cue_index": 213,
+          "start_ms": 1032029,
+          "end_ms": 1035040,
+          "text": "他們慷慨的贊助了這個影片",
+          "text_hash": "eb44335da99f52b4ed4f7ab7fb290545400c572525aeabd92c7b5a832e2f41d9"
+        },
+        {
+          "cue_index": 214,
+          "start_ms": 1035380,
+          "end_ms": 1039100,
+          "text": "所以 Lisha 我們想要快速的提一下「Sigmoid」這個函數",
+          "text_hash": "3bb0eafee262faf6f2445f70d7acacfd59989aa000897de935dc3945c4527f05"
+        },
+        {
+          "cue_index": 215,
+          "start_ms": 1039180,
+          "end_ms": 1044780,
+          "text": "據我所知早期的神經網路都會使用這個函數來讓權重介於 0 到 1 之間",
+          "text_hash": "605e3ec09da3b1fd83c75753388f6e6b8d604261780ca84e2f2df58be8b5552d"
+        },
+        {
+          "cue_index": 216,
+          "start_ms": 1044980,
+          "end_ms": 1050340,
+          "text": "用來模仿生物學上的神經元是處於活耀還是不活耀的狀態 (Lisha) 沒錯",
+          "text_hash": "f954ee49dd89e3a13d5567cf6698ea76194ce1e637ece241daf19ec3a3f0e927"
+        },
+        {
+          "cue_index": 217,
+          "start_ms": 1050360,
+          "end_ms": 1056120,
+          "text": "但是現在神經網路幾乎沒有使用「Sigmoid」函數，是因為它已經太老套了是嗎？",
+          "text_hash": "fd76fba9502b68926e2a5273155ea1c12f665611ee5884ce702c6b358ebf7071"
+        },
+        {
+          "cue_index": 218,
+          "start_ms": 1056120,
+          "end_ms": 1062660,
+          "text": "(Lisha) 沒錯，更準確的說是使用 ReLU 更容易訓練 (3B1B) ReLU 的全名是「線性整流函數」 對吧",
+          "text_hash": "dc3005524c39ad4fde60df98c1d5b8eda6302ce68bc720b6003dd2c6fe5a8296"
+        },
+        {
+          "cue_index": 219,
+          "start_ms": 1062660,
+          "end_ms": 1068840,
+          "text": "(Lisha) 對，這個函數會返回 0 跟輸入值的最大值",
+          "text_hash": "fd6d76abc768e30bfa0b1c1de72506d733db815c9c6db9619164589770b38eec"
+        },
+        {
+          "cue_index": 220,
+          "start_ms": 1069120,
+          "end_ms": 1073680,
+          "text": "我的解釋是使用這個函數比較符合",
+          "text_hash": "cd15e2cdb0bd403751864688a2be24f537d18f01c83fd2c151880c781c16cdbd"
+        },
+        {
+          "cue_index": 221,
+          "start_ms": 1074600,
+          "end_ms": 1076600,
+          "text": "生物學的原理",
+          "text_hash": "5ffabaa5d7aa9348fa621816ebd8e96082caaae3c43b6131339a5488c407d0c3"
+        },
+        {
+          "cue_index": 222,
+          "start_ms": 1076620,
+          "end_ms": 1078179,
+          "text": "類似於",
+          "text_hash": "835a24ae0d3a94addf30621857846693c86b21425b4ceedb9f4d5c12e5cafb0b"
+        },
+        {
+          "cue_index": 223,
+          "start_ms": 1078179,
+          "end_ms": 1083089,
+          "text": "神經元在甚麼時候活耀或不活耀 當它超過一個門檻的時候",
+          "text_hash": "80b075fd611d4ba3f0a0e4fa6a1275b77206b7eccd08422f3fba91a4be63c7eb"
+        },
+        {
+          "cue_index": 224,
+          "start_ms": 1083250,
+          "end_ms": 1085250,
+          "text": "它就像恆等函數一樣",
+          "text_hash": "95185e9b6d404ba3d5e7dc14405b151e416cad341b58d7e0f79620de007fa3f1"
+        },
+        {
+          "cue_index": 225,
+          "start_ms": 1085290,
+          "end_ms": 1090439,
+          "text": "但如果它沒有超過則輸出 0 所以它是一個很簡單的函數",
+          "text_hash": "fa70dd22563f5d56bb0be955207b3f7b22f4f83f5841f55bbc28f06a07730f9a"
+        },
+        {
+          "cue_index": 226,
+          "start_ms": 1090720,
+          "end_ms": 1094429,
+          "text": "使用「Sigmoid」並沒有幫助訓練或是說它很難以訓練",
+          "text_hash": "d78088a597adaef29f81c7c5cfd7dd0bbe76412986f82bc604a07831151978a9"
+        },
+        {
+          "cue_index": 227,
+          "start_ms": 1094429,
+          "end_ms": 1097760,
+          "text": "後來有人嘗試了 ReLU",
+          "text_hash": "4469881f9b5e0fdcf67d85c1cf9e775237da6d0866309f6f1103db0cb28ccb7a"
+        },
+        {
+          "cue_index": 228,
+          "start_ms": 1097760,
+          "end_ms": 1102140,
+          "text": "發現它的表現難以置信的好",
+          "text_hash": "4b89d4bfbcaa1eeba8efc3018aa2fa3a9ae12c615f5d5f2ec13c437d15a44f15"
+        },
+        {
+          "cue_index": 229,
+          "start_ms": 1102690,
+          "end_ms": 1105090,
+          "text": "在深度神經網路",
+          "text_hash": "23233c07da46f5553a95c5bfbc190e5cf3c6ed604f4af93d1e932666966ef9fd"
+        },
+        {
+          "cue_index": 230,
+          "start_ms": 1105090,
+          "end_ms": 1106060,
+          "text": "謝謝 Lisha",
+          "text_hash": "544aca6881cc0b6950d6e03f36036749dc420d222413752f381f260016748d6a"
+        }
+      ]
+    },
+    "evidence": [
+      {
+        "evidence_id": "c58edf84b40f2e7ca1e45211289ae0aa4aa6f65895cdbe2a2eccddfaaf412b47",
+        "video_id": "aircAruvnKk",
+        "timed_transcript_id": "timed-transcript:v1:9a40106d43c9b7573e9c11f22eee54502fa1e4238701b6ab08f52d5a039e2a26",
+        "timed_transcript_hash": "dabb101e0397f8ea84c3be7af677f1959ad60390358ff0976b417f48430ec812",
+        "start_ms": 4020,
+        "end_ms": 156180,
+        "excerpt": "這是一個隨意書寫的28*28像素、解析度很低的數字 3\n但你的大腦一看見就能輕鬆辨識出來 ，我想要你好好欣賞這點\n人腦能夠毫無障礙地辨識是非常厲害的\n我的意思是，這個、這個、還有這個，都能被識別為 3\n即使前後圖像的圖形組成有很大差異\n當你看到這張 3 在眼中所激發的感光細胞\n跟當你看到這張 3 所激發的感光細胞是非常不同的\n但在你驚人聰明的視覺皮層的處理下\n能將這兩個 3 視為同一個概念，同時將其他圖像視為不同的概念\n要是我要你：「嘿！坐下來幫我寫個程式， 」\n「輸入像這個 28*28 像素的數字圖像」\n「接著輸出該程式認為的 0 到 10 之間的一個數字 ，必須跟你認為的一樣。」\n這個任務將不再是家常便飯，而變得嚇死人的困難\n除非你是山頂洞人\n我想不用再強調機器學習和神經網路之間，對未來發展的關聯性和重要性\n我現在要向你展示神經網路究竟是什麼\n假設你沒有相關背景知識\n我會視覺化神經網路的運作\n並且把它當作一門數學，不僅僅是當下流行詞語\n我希望你將能理解為什麼神經網路是長這個樣子\n當你看到或聽到機器藉著神經網路來「學習」時 是了解其意涵的\n這支影片將解釋神經網路的構造\n而下一部影片將解釋機器學習\n我們要做的是打造一個可以辨識手寫數字的神經網路\n這是介紹這種主題很典型的範例\n我樂於保持這種模式，因為在看完兩支影片後\n我會給你一些很好的網站，你可以在那裡學到很多，並且下載程式碼\n在你的電腦裡好好研究\n神經網路發展成很多很多不同類型\n而且近年來對這些的研究有爆炸性的趨勢\n但這兩支入門影片只會帶你來認識，最簡單的一種神經網路：「多層感知機」(MLP) 最基本的樣子\n這是必要的入門知識\n對於將來要理解現在任何一種強大的神經網路\n而且相信我，今天的主題已經夠複雜了，足以讓你腦袋打結\n即使是這麼簡單的神經網路也可以經由學習來分辨手寫數字\n這對電腦來說是非常酷的一件事",
+        "excerpt_hash": "98ee935e93babdb5a47aaf32e11de9c070a6a95714de9b6de41a757f4d01a00f",
+        "locator_type": "TIMED_MEDIA",
+        "start_offset": null,
+        "end_offset": null,
+        "start_line": null,
+        "end_line": null,
+        "source_content_hash": null
+      },
+      {
+        "evidence_id": "546ecbbd475cc62183c4f3c11e181e81e73fb57924464cde20f50d827bc8d753",
+        "video_id": "aircAruvnKk",
+        "timed_transcript_id": "timed-transcript:v1:9a40106d43c9b7573e9c11f22eee54502fa1e4238701b6ab08f52d5a039e2a26",
+        "timed_transcript_hash": "dabb101e0397f8ea84c3be7af677f1959ad60390358ff0976b417f48430ec812",
+        "start_ms": 157120,
+        "end_ms": 306580,
+        "excerpt": "而且與此同時你也將看到神經網路不盡人意的地方\n神經網路一如其名，是啟發自生物的大腦神經結構\n讓我們來剖析它吧\n何謂神經元，又是什麼機制讓它們連在一起的?\n現在，當我說「神經元」，我要你聯想到它是乘載一個數字的容器\n基本是介於 0 和 1 之間的數字，但實際上不止於此\n例如：神經網路以輸入圖像的每個像素，對應到每個神經元作為輸入\n也就是說輸入層總共有 784 個神經元，每個都有乘載數字 ，每個數字代表了對應像素的灰階值\n灰階值 0 即黑色，1 即白色\n這些在神經元中的數字稱為「激勵值」\n在此你可能注意到\n每當神經元激勵值越高，該神經元就越亮\n於是全部的 784 個神經元，組成了神經網路的第一層\n我們現在跳到最後一層，這層有 10 個神經元，各自表示 0 到 9 的數字\n同樣在這邊的神經元也各自有著介於 0 到 1 的激勵值\n表示對於給定的圖像，神經網路對於實際數字的判斷結果\n在輸入層和輸出層之間，有數個「隱藏層」\n現在在本入門影片裡\n對於神經網路是如何進行判斷的，我們只能先把它看做是巨大的問號\n本影片展示的視覺化神經網路，我設計了兩個隱層，個別搭載16個神經元\n這只是擺好看的設定\n老實說之所以選擇兩個隱層，是基於視覺化讓你看得清楚的考量，待會解釋\n而安排 16 個神經元，只是為了符合版面，也是為了讓你看得清楚\n在實際應用上，神經網路的結構經實驗不斷調整可以變得非常巨大且特殊\n神經網路操作一層激勵值的方式，會決定下一層的激勵值\n這正是神經網路的核心價值，不同以往的資料處理技術，現在發展成只要輸入\n激勵值從上一層傳到下一層，最後輸出足夠正確的結果\n神經網路的本質就是模仿生物的大腦，就像一叢腦細胞被激發\n引發其他神經細胞的串聯反應\n我現在展示的\n這個神經網路已經訓練完成了，可以準確辨識圖像中的數字\n讓我來解釋「傳遞激勵值」這點\n意思是：當你輸入一張 28x28 像素的圖像，它將點亮",
+        "excerpt_hash": "7de66db5f86738b420fd90ab8842f7a8f02b379f299b46911726a31b2a7cb026",
+        "locator_type": "TIMED_MEDIA",
+        "start_offset": null,
+        "end_offset": null,
+        "start_line": null,
+        "end_line": null,
+        "source_content_hash": null
+      },
+      {
+        "evidence_id": "e724a780dfbbdf78f33a842d2123ec854b4a9d8b27d9cf96335609ee60465dab",
+        "video_id": "aircAruvnKk",
+        "timed_transcript_id": "timed-transcript:v1:9a40106d43c9b7573e9c11f22eee54502fa1e4238701b6ab08f52d5a039e2a26",
+        "timed_transcript_hash": "dabb101e0397f8ea84c3be7af677f1959ad60390358ff0976b417f48430ec812",
+        "start_ms": 306640,
+        "end_ms": 464280,
+        "excerpt": "所有 784 個神經元 每個都比照對應像素的灰階值，來決定自己的激勵值\n決定的數值分布狀態會影響下一層被啟動的神經元的分布\n又會導致下一層不同的分布\n最後抵達輸出層，輸出層的神經元也會有特定的分布\n而最亮的那個就是神經網路所認為最有可能答對的答案\n但在一腳踏進數學之前，要先知道上層如何影響下層，而且機器學習為什麼會有用\n為什麼我們認為層狀結構會像這樣聰明地運作是非常合理的？\n我們在期待什麼呢？ 我們最想要神經網路的隱藏層怎麼運作呢？\n在你或我在辨識圖中的數字時我們會把各種筆畫拼湊在一起。\n一個 9 字，上面有圓圈，而在右邊有一條直線\n一個 8 字，上面也有一个圓圈但在下面與另一個圓圈相連\n一個 4 基本上可以拆解成就像那些特定的筆畫\n一個理想的情況中我們會希望第二層的每個神經元\n能識別這些筆劃的其中之一\n每次你輸入一個有頂部有個圓圈的圖像如 9 或 8 時\n隱層第二層的某些特定神經元的激勵值就會接近 1\n而我要的並不是單單適用這種圓圈，而是更廣泛的各種圓圈皆適用\n如此，在隱層第二層到輸出層的神經元\n只需要學習對應於數字的筆畫的組合\n當然這又丟出了一道難題\n因為你怎麼讓那些神經元知道那些數字該對應到那些特定的筆畫？\n而我甚至還沒開始講上一層怎麼影響下一層，但是再聽我解釋一下這裡\n辨識一個圓圈的問題也可以分解成辨識一些較小零件的問題\n一個合理的方法是認出組成它的各式各樣的邊\n同樣的道理，你在數字 1，4 或者 7 中所看到的一條長線\n真的就是好幾小條的短線，根據特定筆畫順序，組合成的長線\n所以我們期望在這網絡第二層\n對應著各式各樣的一些小邊\n也許出現一個像這樣的一個圖像就點亮\n所有大約有 8 到 10 種有關的特定神經元\n它接著點亮後上方的圓圈和一根垂直的長線以及點亮和一條線相聯的神經元\n最後點亮數字 9 的神經元\n不管這個是不是我們最終的網絡實際上的實施是另一個問題",
+        "excerpt_hash": "ec3deb63eb9df12a36be08f3595520f4f260ad824d4398606981fee0a2ffa617",
+        "locator_type": "TIMED_MEDIA",
+        "start_offset": null,
+        "end_offset": null,
+        "start_line": null,
+        "end_line": null,
+        "source_content_hash": null
+      },
+      {
+        "evidence_id": "5759b57960b510e5678cbb68931f89827f279b5a54079cc7af6057889541fcf2",
+        "video_id": "aircAruvnKk",
+        "timed_transcript_id": "timed-transcript:v1:9a40106d43c9b7573e9c11f22eee54502fa1e4238701b6ab08f52d5a039e2a26",
+        "timed_transcript_hash": "dabb101e0397f8ea84c3be7af677f1959ad60390358ff0976b417f48430ec812",
+        "start_ms": 464280,
+        "end_ms": 643339,
+        "excerpt": "這個我們在知道怎樣了訓練網絡之後我在回過來講\n但至少我們可能有點希望 像是一種以這樣分層結構為目標的\n你可以進一步想像怎樣能來檢測像這樣的邊和式樣對其他的圖像識別功能真是有用的\n並甚至在圖像識別之外做各種各樣智能的東西也許你也想分解成一些抽象的層\n例如句子的分析涉及到把原始的語音提出一些獨特的聲音構成一些音節再構成\n詞再構成詞組以及更為抽象的思想等。\n但回到這些實際是怎樣工作的把你自己現在就放到這個的情景怎樣來設計\n如何在讓這層中的激勵函數可以決定下一層的激勵函數呢？\n這目標是有一些機能它想起來可以集中到一個特定的樣本來把一些像素結合成\n邊或者把邊結合成式樣或者式樣成爲數字 在這個特別的例子裡面\n我們希望第二層的這一個神經元\n可以正確的辨識出這個圖像裡有沒有一條邊\n現在我們想知道的是網路裡有哪些參數\n要怎麼調整這些參數才能讓完整的表達出是這個圖案\n還是其他的圖案或是由數個邊組合成的圓圈之類的\n我們會分配給神經元和輸入層間的每一個連接線一個權重\n權重單純只是一個數字而已\n然後計算所有激勵函數的加權總和\n把這些權重整理成一個圖像應該更好理解\n我把正的權重值標記為綠色 負的權重值標記為紅色\n當顏色越亮代表它的值跟 0 差距越大\n除了我們所關注的區域以外\n所有的權重值都改為 0\n然後去取得所有像素的加權總合\n幾乎就等於只有我們所關注的區域的值提升了\n如果知道這裡是不是真的存在一條邊\n你只需要在周圍加上負的權重\n這樣當中間的像素亮但是周圍的像素暗 就可以得到最大的加權總和\n當你計算加權總和時 它的值可能是任意實數\n但是在這裡我們想要計算完的結果介於 0 跟 1 之間\n所以我們通常會把這個值丟進一個函數裡面\n把這個實數軸壓縮成一個介於 0 到 1 之間\n有一個常見的函數叫做「Sigmoid」也被稱為「邏輯函數」\n基本上越小的數會越來越接近 0 越大的數會越來越接近 1",
+        "excerpt_hash": "01ffa786a24c1bb207f841894463e69b80a57b8ffcb6b50e4f99bbc9ac19feb1",
+        "locator_type": "TIMED_MEDIA",
+        "start_offset": null,
+        "end_offset": null,
+        "start_line": null,
+        "end_line": null,
+        "source_content_hash": null
+      },
+      {
+        "evidence_id": "f7a22e87f2868ceec729a71aa66b2f0a52ac44e50f4b7524769bf5615a8e6d59",
+        "video_id": "aircAruvnKk",
+        "timed_transcript_id": "timed-transcript:v1:9a40106d43c9b7573e9c11f22eee54502fa1e4238701b6ab08f52d5a039e2a26",
+        "timed_transcript_hash": "dabb101e0397f8ea84c3be7af677f1959ad60390358ff0976b417f48430ec812",
+        "start_ms": 643340,
+        "end_ms": 825810,
+        "excerpt": "輸入值在 0 附近的會平穩增長\n所以從神經網路得到的激勵函數基本上就代表加權總和的大小\n但是不是每次只要加權總和大於零的時候就點亮神經元\n也許你只想要在它大於 10 的時候啟動\n所以要加入一個門檻來確保它不會隨便啟動\n我們只要在加權總和後面加上一個像是 負10 之類的數\n再把它塞進邏輯函數裡\n這個附加的數字就叫做偏置\n所以權重告訴我們下一層的神經元所關注的圖樣\n偏置則告訴我們加權總和要超過什麼程度才是有意義的\n以上只是一個神經元的情況\n在這一層的每個神經元都會連接第一層共 784 個神經元\n而且這 784 條連接線都各有一個屬於自己的權重\n還有每一個神經元都會在計算完加權總和後再加上自己的偏置再用邏輯函數輸出自己的結果\n讓我們看看這個有著 16 個神經元的隱藏層\n這 16 個神經元都各有 784 個自己的權重和 16 個偏置\n這些還只是第一層和第二層的連接而已\n在其他層裡還有他們各自的權重和偏置\n整體來說整個網路使用了\n大約 13,000 個權重和偏置\n13,000 個可以調整的參數來讓網路可以呈現不同的結果\n所以當我們談到學習的時候\n就是在說如何讓電腦去找到一大堆正確的參數\n讓它解決問題\n有一個仔細想想會很嚇人的情況\n想像一下如果你需要手動調整這些權重和偏置\n設定這些數字來讓第二層識別一條邊 然後讓第三層識別圖案\n我個人認為這樣想像會比把它整個當成一個黑盒子更好\n因為當網路的輸出和你的認知有所差異時\n如果你能足夠了解權重與偏置的關係\n就更容易該怎麼改變結構來修正\n或是網路能輸出正確的結果但是過程跟你想像中有差異\n那麼去挖掘權重和偏置的實際境況對於測試你的認知有幫助\n和找出所有可能的解決方案\n順帶一提 你不覺得這個公式看起來有點複雜嗎？\n所以讓我來示範以簡單的符號來表達整個公式\n如果你以後想要繼續鑽研神經網路就會很常看到\n我們把這一層的激勵函數放到一個向量中",
+        "excerpt_hash": "47b52ad2b5ae8bd5962554d1f2517434ef63446649635c7b48337f1bfd9e34d7",
+        "locator_type": "TIMED_MEDIA",
+        "start_offset": null,
+        "end_offset": null,
+        "start_line": null,
+        "end_line": null,
+        "source_content_hash": null
+      },
+      {
+        "evidence_id": "fcbc10e86faf9fa52ee93fc674b58b70eaa79d8a31155293924ca35bc02683c6",
+        "video_id": "aircAruvnKk",
+        "timed_transcript_id": "timed-transcript:v1:9a40106d43c9b7573e9c11f22eee54502fa1e4238701b6ab08f52d5a039e2a26",
+        "timed_transcript_hash": "dabb101e0397f8ea84c3be7af677f1959ad60390358ff0976b417f48430ec812",
+        "start_ms": 827460,
+        "end_ms": 1013550,
+        "excerpt": "然後把所有的權重放到矩陣中\n在這個陣列裡的每一列將會對應到這一層和下一層的所有連線的權重\n這代表矩陣相乘後的每一項都代表其中一個神經元的激勵函數\n矩陣相乘的結果就是對應的神經元激勵函數\n順道一提 學習機器學習需要對線性代數有一定的了解\n所以任何想要透過視覺化的教學理解矩陣和矩陣乘法可以去看我的以前做的線性代數系列影片\n特別是第三篇\n會到正題 當我要加上偏置時也會把每一個偏置\n放到矩陣裡在和前面算出來的結果做矩陣加法\n最後一步\n我會用邏輯函數把整個結果包起來\n意思是把最後得到的向量一個一個丟進邏輯函數中\n來計算出每一個結果\n現在當我們用簡單的符號來寫下公式\n就可以很清楚完整的表達每一層之間的關係\n還有這也讓我們更簡單快速的編寫程式碼 像是很多的對於矩陣運算有最佳化的函式庫\n還記得我一開始說神經元只是一個簡單承載數字的東西嗎\n當然 它裡面所裝得數字取決於你給他的圖像\n所以更準確地說應該把神經元當作一個函數\n它的輸出是取決於上一層所有的神經元然後轉換成一個介於 0 到 1 的數字\n其實也可以把整個神經網路當作一個函數\n有著 784 個輸入值和 10 輸出值的函數\n它是一個非常複雜的函數\n用來選擇正確圖案的權重和偏置參數就有 13000 個\n還會不停地用到矩陣乘法和邏輯函數\n即便它看起來很複雜但卻是很可靠的一個函數\n我的意思是如果它看起來很簡單 我們怎麼能期望它辨識數字呢\n但是它是如何完成這個任務的？ 這個網路是如何只透過讀取數據來學習如何調整權重和偏置的？\n這就是下一集的內容了 我們也會更深入更多關於網路運作的細節\n現在又到了提醒大家如果要獲得更多新影片的通知趕快訂閱\n但是大部分的時候你都沒有收到來自 YouTube 的通知吧？\n也許我該說趕快訂閱讓 YouYube 的推薦演算法神經網路\n去相信你想看到關於這個頻道的消息\n總之留意更多消息\n感謝大家在 Patreon 平台上的支持",
+        "excerpt_hash": "ee54292c0918e71d347d67f6ea2f06560a42722532be38ad081fce38cb508b66",
+        "locator_type": "TIMED_MEDIA",
+        "start_offset": null,
+        "end_offset": null,
+        "start_line": null,
+        "end_line": null,
+        "source_content_hash": null
+      },
+      {
+        "evidence_id": "129af1f23ea80e65d50fc96fc7f1a104cc6e6602443515006a5bc5cd7aca4888",
+        "video_id": "aircAruvnKk",
+        "timed_transcript_id": "timed-transcript:v1:9a40106d43c9b7573e9c11f22eee54502fa1e4238701b6ab08f52d5a039e2a26",
+        "timed_transcript_hash": "dabb101e0397f8ea84c3be7af677f1959ad60390358ff0976b417f48430ec812",
+        "start_ms": 1013589,
+        "end_ms": 1106060,
+        "excerpt": "我的機率系列影片在這個夏天進展得有點慢\n但是在這個系列結束後我會回到那個系列 所以大家可以留意新消息\n在影片的結尾 我邀請了 Lisha Li\n她在博士研究是關於深度學習的理論 現在一個叫做 Amplify Partners 的創投公司任職\n他們慷慨的贊助了這個影片\n所以 Lisha 我們想要快速的提一下「Sigmoid」這個函數\n據我所知早期的神經網路都會使用這個函數來讓權重介於 0 到 1 之間\n用來模仿生物學上的神經元是處於活耀還是不活耀的狀態 (Lisha) 沒錯\n但是現在神經網路幾乎沒有使用「Sigmoid」函數，是因為它已經太老套了是嗎？\n(Lisha) 沒錯，更準確的說是使用 ReLU 更容易訓練 (3B1B) ReLU 的全名是「線性整流函數」 對吧\n(Lisha) 對，這個函數會返回 0 跟輸入值的最大值\n我的解釋是使用這個函數比較符合\n生物學的原理\n類似於\n神經元在甚麼時候活耀或不活耀 當它超過一個門檻的時候\n它就像恆等函數一樣\n但如果它沒有超過則輸出 0 所以它是一個很簡單的函數\n使用「Sigmoid」並沒有幫助訓練或是說它很難以訓練\n後來有人嘗試了 ReLU\n發現它的表現難以置信的好\n在深度神經網路\n謝謝 Lisha",
+        "excerpt_hash": "e3e8684d9a9bed9fd0d65fbea89cf3e73784ea1f5449dd8d567292211431d069",
+        "locator_type": "TIMED_MEDIA",
+        "start_offset": null,
+        "end_offset": null,
+        "start_line": null,
+        "end_line": null,
+        "source_content_hash": null
+      }
+    ],
+    "bindings": [
+      {
+        "evidence_id": "129af1f23ea80e65d50fc96fc7f1a104cc6e6602443515006a5bc5cd7aca4888",
+        "timed_transcript_id": "timed-transcript:v1:9a40106d43c9b7573e9c11f22eee54502fa1e4238701b6ab08f52d5a039e2a26",
+        "start_cue_index": 209,
+        "end_cue_index": 231,
+        "excerpt": "我的機率系列影片在這個夏天進展得有點慢\n但是在這個系列結束後我會回到那個系列 所以大家可以留意新消息\n在影片的結尾 我邀請了 Lisha Li\n她在博士研究是關於深度學習的理論 現在一個叫做 Amplify Partners 的創投公司任職\n他們慷慨的贊助了這個影片\n所以 Lisha 我們想要快速的提一下「Sigmoid」這個函數\n據我所知早期的神經網路都會使用這個函數來讓權重介於 0 到 1 之間\n用來模仿生物學上的神經元是處於活耀還是不活耀的狀態 (Lisha) 沒錯\n但是現在神經網路幾乎沒有使用「Sigmoid」函數，是因為它已經太老套了是嗎？\n(Lisha) 沒錯，更準確的說是使用 ReLU 更容易訓練 (3B1B) ReLU 的全名是「線性整流函數」 對吧\n(Lisha) 對，這個函數會返回 0 跟輸入值的最大值\n我的解釋是使用這個函數比較符合\n生物學的原理\n類似於\n神經元在甚麼時候活耀或不活耀 當它超過一個門檻的時候\n它就像恆等函數一樣\n但如果它沒有超過則輸出 0 所以它是一個很簡單的函數\n使用「Sigmoid」並沒有幫助訓練或是說它很難以訓練\n後來有人嘗試了 ReLU\n發現它的表現難以置信的好\n在深度神經網路\n謝謝 Lisha",
+        "excerpt_hash": "e3e8684d9a9bed9fd0d65fbea89cf3e73784ea1f5449dd8d567292211431d069",
+        "timed_transcript_hash": "dabb101e0397f8ea84c3be7af677f1959ad60390358ff0976b417f48430ec812",
+        "created_at": "2026-10-12T09:56:23.446432Z"
+      },
+      {
+        "evidence_id": "546ecbbd475cc62183c4f3c11e181e81e73fb57924464cde20f50d827bc8d753",
+        "timed_transcript_id": "timed-transcript:v1:9a40106d43c9b7573e9c11f22eee54502fa1e4238701b6ab08f52d5a039e2a26",
+        "start_cue_index": 36,
+        "end_cue_index": 69,
+        "excerpt": "而且與此同時你也將看到神經網路不盡人意的地方\n神經網路一如其名，是啟發自生物的大腦神經結構\n讓我們來剖析它吧\n何謂神經元，又是什麼機制讓它們連在一起的?\n現在，當我說「神經元」，我要你聯想到它是乘載一個數字的容器\n基本是介於 0 和 1 之間的數字，但實際上不止於此\n例如：神經網路以輸入圖像的每個像素，對應到每個神經元作為輸入\n也就是說輸入層總共有 784 個神經元，每個都有乘載數字 ，每個數字代表了對應像素的灰階值\n灰階值 0 即黑色，1 即白色\n這些在神經元中的數字稱為「激勵值」\n在此你可能注意到\n每當神經元激勵值越高，該神經元就越亮\n於是全部的 784 個神經元，組成了神經網路的第一層\n我們現在跳到最後一層，這層有 10 個神經元，各自表示 0 到 9 的數字\n同樣在這邊的神經元也各自有著介於 0 到 1 的激勵值\n表示對於給定的圖像，神經網路對於實際數字的判斷結果\n在輸入層和輸出層之間，有數個「隱藏層」\n現在在本入門影片裡\n對於神經網路是如何進行判斷的，我們只能先把它看做是巨大的問號\n本影片展示的視覺化神經網路，我設計了兩個隱層，個別搭載16個神經元\n這只是擺好看的設定\n老實說之所以選擇兩個隱層，是基於視覺化讓你看得清楚的考量，待會解釋\n而安排 16 個神經元，只是為了符合版面，也是為了讓你看得清楚\n在實際應用上，神經網路的結構經實驗不斷調整可以變得非常巨大且特殊\n神經網路操作一層激勵值的方式，會決定下一層的激勵值\n這正是神經網路的核心價值，不同以往的資料處理技術，現在發展成只要輸入\n激勵值從上一層傳到下一層，最後輸出足夠正確的結果\n神經網路的本質就是模仿生物的大腦，就像一叢腦細胞被激發\n引發其他神經細胞的串聯反應\n我現在展示的\n這個神經網路已經訓練完成了，可以準確辨識圖像中的數字\n讓我來解釋「傳遞激勵值」這點\n意思是：當你輸入一張 28x28 像素的圖像，它將點亮",
+        "excerpt_hash": "7de66db5f86738b420fd90ab8842f7a8f02b379f299b46911726a31b2a7cb026",
+        "timed_transcript_hash": "dabb101e0397f8ea84c3be7af677f1959ad60390358ff0976b417f48430ec812",
+        "created_at": "2026-10-12T09:56:23.446432Z"
+      },
+      {
+        "evidence_id": "5759b57960b510e5678cbb68931f89827f279b5a54079cc7af6057889541fcf2",
+        "timed_transcript_id": "timed-transcript:v1:9a40106d43c9b7573e9c11f22eee54502fa1e4238701b6ab08f52d5a039e2a26",
+        "start_cue_index": 102,
+        "end_cue_index": 136,
+        "excerpt": "這個我們在知道怎樣了訓練網絡之後我在回過來講\n但至少我們可能有點希望 像是一種以這樣分層結構為目標的\n你可以進一步想像怎樣能來檢測像這樣的邊和式樣對其他的圖像識別功能真是有用的\n並甚至在圖像識別之外做各種各樣智能的東西也許你也想分解成一些抽象的層\n例如句子的分析涉及到把原始的語音提出一些獨特的聲音構成一些音節再構成\n詞再構成詞組以及更為抽象的思想等。\n但回到這些實際是怎樣工作的把你自己現在就放到這個的情景怎樣來設計\n如何在讓這層中的激勵函數可以決定下一層的激勵函數呢？\n這目標是有一些機能它想起來可以集中到一個特定的樣本來把一些像素結合成\n邊或者把邊結合成式樣或者式樣成爲數字 在這個特別的例子裡面\n我們希望第二層的這一個神經元\n可以正確的辨識出這個圖像裡有沒有一條邊\n現在我們想知道的是網路裡有哪些參數\n要怎麼調整這些參數才能讓完整的表達出是這個圖案\n還是其他的圖案或是由數個邊組合成的圓圈之類的\n我們會分配給神經元和輸入層間的每一個連接線一個權重\n權重單純只是一個數字而已\n然後計算所有激勵函數的加權總和\n把這些權重整理成一個圖像應該更好理解\n我把正的權重值標記為綠色 負的權重值標記為紅色\n當顏色越亮代表它的值跟 0 差距越大\n除了我們所關注的區域以外\n所有的權重值都改為 0\n然後去取得所有像素的加權總合\n幾乎就等於只有我們所關注的區域的值提升了\n如果知道這裡是不是真的存在一條邊\n你只需要在周圍加上負的權重\n這樣當中間的像素亮但是周圍的像素暗 就可以得到最大的加權總和\n當你計算加權總和時 它的值可能是任意實數\n但是在這裡我們想要計算完的結果介於 0 跟 1 之間\n所以我們通常會把這個值丟進一個函數裡面\n把這個實數軸壓縮成一個介於 0 到 1 之間\n有一個常見的函數叫做「Sigmoid」也被稱為「邏輯函數」\n基本上越小的數會越來越接近 0 越大的數會越來越接近 1",
+        "excerpt_hash": "01ffa786a24c1bb207f841894463e69b80a57b8ffcb6b50e4f99bbc9ac19feb1",
+        "timed_transcript_hash": "dabb101e0397f8ea84c3be7af677f1959ad60390358ff0976b417f48430ec812",
+        "created_at": "2026-10-12T09:56:23.446432Z"
+      },
+      {
+        "evidence_id": "c58edf84b40f2e7ca1e45211289ae0aa4aa6f65895cdbe2a2eccddfaaf412b47",
+        "timed_transcript_id": "timed-transcript:v1:9a40106d43c9b7573e9c11f22eee54502fa1e4238701b6ab08f52d5a039e2a26",
+        "start_cue_index": 0,
+        "end_cue_index": 36,
+        "excerpt": "這是一個隨意書寫的28*28像素、解析度很低的數字 3\n但你的大腦一看見就能輕鬆辨識出來 ，我想要你好好欣賞這點\n人腦能夠毫無障礙地辨識是非常厲害的\n我的意思是，這個、這個、還有這個，都能被識別為 3\n即使前後圖像的圖形組成有很大差異\n當你看到這張 3 在眼中所激發的感光細胞\n跟當你看到這張 3 所激發的感光細胞是非常不同的\n但在你驚人聰明的視覺皮層的處理下\n能將這兩個 3 視為同一個概念，同時將其他圖像視為不同的概念\n要是我要你：「嘿！坐下來幫我寫個程式， 」\n「輸入像這個 28*28 像素的數字圖像」\n「接著輸出該程式認為的 0 到 10 之間的一個數字 ，必須跟你認為的一樣。」\n這個任務將不再是家常便飯，而變得嚇死人的困難\n除非你是山頂洞人\n我想不用再強調機器學習和神經網路之間，對未來發展的關聯性和重要性\n我現在要向你展示神經網路究竟是什麼\n假設你沒有相關背景知識\n我會視覺化神經網路的運作\n並且把它當作一門數學，不僅僅是當下流行詞語\n我希望你將能理解為什麼神經網路是長這個樣子\n當你看到或聽到機器藉著神經網路來「學習」時 是了解其意涵的\n這支影片將解釋神經網路的構造\n而下一部影片將解釋機器學習\n我們要做的是打造一個可以辨識手寫數字的神經網路\n這是介紹這種主題很典型的範例\n我樂於保持這種模式，因為在看完兩支影片後\n我會給你一些很好的網站，你可以在那裡學到很多，並且下載程式碼\n在你的電腦裡好好研究\n神經網路發展成很多很多不同類型\n而且近年來對這些的研究有爆炸性的趨勢\n但這兩支入門影片只會帶你來認識，最簡單的一種神經網路：「多層感知機」(MLP) 最基本的樣子\n這是必要的入門知識\n對於將來要理解現在任何一種強大的神經網路\n而且相信我，今天的主題已經夠複雜了，足以讓你腦袋打結\n即使是這麼簡單的神經網路也可以經由學習來分辨手寫數字\n這對電腦來說是非常酷的一件事",
+        "excerpt_hash": "98ee935e93babdb5a47aaf32e11de9c070a6a95714de9b6de41a757f4d01a00f",
+        "timed_transcript_hash": "dabb101e0397f8ea84c3be7af677f1959ad60390358ff0976b417f48430ec812",
+        "created_at": "2026-10-12T09:56:23.446432Z"
+      },
+      {
+        "evidence_id": "e724a780dfbbdf78f33a842d2123ec854b4a9d8b27d9cf96335609ee60465dab",
+        "timed_transcript_id": "timed-transcript:v1:9a40106d43c9b7573e9c11f22eee54502fa1e4238701b6ab08f52d5a039e2a26",
+        "start_cue_index": 69,
+        "end_cue_index": 102,
+        "excerpt": "所有 784 個神經元 每個都比照對應像素的灰階值，來決定自己的激勵值\n決定的數值分布狀態會影響下一層被啟動的神經元的分布\n又會導致下一層不同的分布\n最後抵達輸出層，輸出層的神經元也會有特定的分布\n而最亮的那個就是神經網路所認為最有可能答對的答案\n但在一腳踏進數學之前，要先知道上層如何影響下層，而且機器學習為什麼會有用\n為什麼我們認為層狀結構會像這樣聰明地運作是非常合理的？\n我們在期待什麼呢？ 我們最想要神經網路的隱藏層怎麼運作呢？\n在你或我在辨識圖中的數字時我們會把各種筆畫拼湊在一起。\n一個 9 字，上面有圓圈，而在右邊有一條直線\n一個 8 字，上面也有一个圓圈但在下面與另一個圓圈相連\n一個 4 基本上可以拆解成就像那些特定的筆畫\n一個理想的情況中我們會希望第二層的每個神經元\n能識別這些筆劃的其中之一\n每次你輸入一個有頂部有個圓圈的圖像如 9 或 8 時\n隱層第二層的某些特定神經元的激勵值就會接近 1\n而我要的並不是單單適用這種圓圈，而是更廣泛的各種圓圈皆適用\n如此，在隱層第二層到輸出層的神經元\n只需要學習對應於數字的筆畫的組合\n當然這又丟出了一道難題\n因為你怎麼讓那些神經元知道那些數字該對應到那些特定的筆畫？\n而我甚至還沒開始講上一層怎麼影響下一層，但是再聽我解釋一下這裡\n辨識一個圓圈的問題也可以分解成辨識一些較小零件的問題\n一個合理的方法是認出組成它的各式各樣的邊\n同樣的道理，你在數字 1，4 或者 7 中所看到的一條長線\n真的就是好幾小條的短線，根據特定筆畫順序，組合成的長線\n所以我們期望在這網絡第二層\n對應著各式各樣的一些小邊\n也許出現一個像這樣的一個圖像就點亮\n所有大約有 8 到 10 種有關的特定神經元\n它接著點亮後上方的圓圈和一根垂直的長線以及點亮和一條線相聯的神經元\n最後點亮數字 9 的神經元\n不管這個是不是我們最終的網絡實際上的實施是另一個問題",
+        "excerpt_hash": "ec3deb63eb9df12a36be08f3595520f4f260ad824d4398606981fee0a2ffa617",
+        "timed_transcript_hash": "dabb101e0397f8ea84c3be7af677f1959ad60390358ff0976b417f48430ec812",
+        "created_at": "2026-10-12T09:56:23.446432Z"
+      },
+      {
+        "evidence_id": "f7a22e87f2868ceec729a71aa66b2f0a52ac44e50f4b7524769bf5615a8e6d59",
+        "timed_transcript_id": "timed-transcript:v1:9a40106d43c9b7573e9c11f22eee54502fa1e4238701b6ab08f52d5a039e2a26",
+        "start_cue_index": 136,
+        "end_cue_index": 174,
+        "excerpt": "輸入值在 0 附近的會平穩增長\n所以從神經網路得到的激勵函數基本上就代表加權總和的大小\n但是不是每次只要加權總和大於零的時候就點亮神經元\n也許你只想要在它大於 10 的時候啟動\n所以要加入一個門檻來確保它不會隨便啟動\n我們只要在加權總和後面加上一個像是 負10 之類的數\n再把它塞進邏輯函數裡\n這個附加的數字就叫做偏置\n所以權重告訴我們下一層的神經元所關注的圖樣\n偏置則告訴我們加權總和要超過什麼程度才是有意義的\n以上只是一個神經元的情況\n在這一層的每個神經元都會連接第一層共 784 個神經元\n而且這 784 條連接線都各有一個屬於自己的權重\n還有每一個神經元都會在計算完加權總和後再加上自己的偏置再用邏輯函數輸出自己的結果\n讓我們看看這個有著 16 個神經元的隱藏層\n這 16 個神經元都各有 784 個自己的權重和 16 個偏置\n這些還只是第一層和第二層的連接而已\n在其他層裡還有他們各自的權重和偏置\n整體來說整個網路使用了\n大約 13,000 個權重和偏置\n13,000 個可以調整的參數來讓網路可以呈現不同的結果\n所以當我們談到學習的時候\n就是在說如何讓電腦去找到一大堆正確的參數\n讓它解決問題\n有一個仔細想想會很嚇人的情況\n想像一下如果你需要手動調整這些權重和偏置\n設定這些數字來讓第二層識別一條邊 然後讓第三層識別圖案\n我個人認為這樣想像會比把它整個當成一個黑盒子更好\n因為當網路的輸出和你的認知有所差異時\n如果你能足夠了解權重與偏置的關係\n就更容易該怎麼改變結構來修正\n或是網路能輸出正確的結果但是過程跟你想像中有差異\n那麼去挖掘權重和偏置的實際境況對於測試你的認知有幫助\n和找出所有可能的解決方案\n順帶一提 你不覺得這個公式看起來有點複雜嗎？\n所以讓我來示範以簡單的符號來表達整個公式\n如果你以後想要繼續鑽研神經網路就會很常看到\n我們把這一層的激勵函數放到一個向量中",
+        "excerpt_hash": "47b52ad2b5ae8bd5962554d1f2517434ef63446649635c7b48337f1bfd9e34d7",
+        "timed_transcript_hash": "dabb101e0397f8ea84c3be7af677f1959ad60390358ff0976b417f48430ec812",
+        "created_at": "2026-10-12T09:56:23.446432Z"
+      },
+      {
+        "evidence_id": "fcbc10e86faf9fa52ee93fc674b58b70eaa79d8a31155293924ca35bc02683c6",
+        "timed_transcript_id": "timed-transcript:v1:9a40106d43c9b7573e9c11f22eee54502fa1e4238701b6ab08f52d5a039e2a26",
+        "start_cue_index": 174,
+        "end_cue_index": 209,
+        "excerpt": "然後把所有的權重放到矩陣中\n在這個陣列裡的每一列將會對應到這一層和下一層的所有連線的權重\n這代表矩陣相乘後的每一項都代表其中一個神經元的激勵函數\n矩陣相乘的結果就是對應的神經元激勵函數\n順道一提 學習機器學習需要對線性代數有一定的了解\n所以任何想要透過視覺化的教學理解矩陣和矩陣乘法可以去看我的以前做的線性代數系列影片\n特別是第三篇\n會到正題 當我要加上偏置時也會把每一個偏置\n放到矩陣裡在和前面算出來的結果做矩陣加法\n最後一步\n我會用邏輯函數把整個結果包起來\n意思是把最後得到的向量一個一個丟進邏輯函數中\n來計算出每一個結果\n現在當我們用簡單的符號來寫下公式\n就可以很清楚完整的表達每一層之間的關係\n還有這也讓我們更簡單快速的編寫程式碼 像是很多的對於矩陣運算有最佳化的函式庫\n還記得我一開始說神經元只是一個簡單承載數字的東西嗎\n當然 它裡面所裝得數字取決於你給他的圖像\n所以更準確地說應該把神經元當作一個函數\n它的輸出是取決於上一層所有的神經元然後轉換成一個介於 0 到 1 的數字\n其實也可以把整個神經網路當作一個函數\n有著 784 個輸入值和 10 輸出值的函數\n它是一個非常複雜的函數\n用來選擇正確圖案的權重和偏置參數就有 13000 個\n還會不停地用到矩陣乘法和邏輯函數\n即便它看起來很複雜但卻是很可靠的一個函數\n我的意思是如果它看起來很簡單 我們怎麼能期望它辨識數字呢\n但是它是如何完成這個任務的？ 這個網路是如何只透過讀取數據來學習如何調整權重和偏置的？\n這就是下一集的內容了 我們也會更深入更多關於網路運作的細節\n現在又到了提醒大家如果要獲得更多新影片的通知趕快訂閱\n但是大部分的時候你都沒有收到來自 YouTube 的通知吧？\n也許我該說趕快訂閱讓 YouYube 的推薦演算法神經網路\n去相信你想看到關於這個頻道的消息\n總之留意更多消息\n感謝大家在 Patreon 平台上的支持",
+        "excerpt_hash": "ee54292c0918e71d347d67f6ea2f06560a42722532be38ad081fce38cb508b66",
+        "timed_transcript_hash": "dabb101e0397f8ea84c3be7af677f1959ad60390358ff0976b417f48430ec812",
+        "created_at": "2026-10-12T09:56:23.446432Z"
+      }
+    ],
+    "summary_pointer": {
+      "video_id": "aircAruvnKk",
+      "result_identity": null,
+      "analysis_artifact_id": "summary/dfc5e4c5079d471fb0279ad81902a7628c2d638d8bdfae9535b21764ba57dd67/structured",
+      "output_language": "en",
+      "updated_at": "2026-10-12T09:56:31.575467Z"
+    },
+    "summary_artifact": {
+      "artifact_id": "summary/dfc5e4c5079d471fb0279ad81902a7628c2d638d8bdfae9535b21764ba57dd67/structured",
+      "artifact_key": "summary/dfc5e4c5079d471fb0279ad81902a7628c2d638d8bdfae9535b21764ba57dd67/structured",
+      "video_id": "aircAruvnKk",
+      "job_id": null,
+      "kind": "analysis_structured",
+      "storage_root": "DATA",
+      "relative_path": "transcripts/summaries/dfc5e4c5079d471fb0279ad81902a7628c2d638d8bdfae9535b21764ba57dd67.json",
+      "content_hash": "3130d3ca3d33f1d343edfa8ebac500bf56090b3b641a46991c453ea223408a9a",
+      "provider": "extractive-source",
+      "model": "deterministic-excerpts-v2",
+      "producer_version": "extractive-summary-v2",
+      "retention_class": "LONG_LIVED",
+      "created_at": "2026-10-12T09:56:31.575467Z",
+      "expires_at": null,
+      "deleted_at": null
+    },
+    "summary_json": {
+      "one_sentence_summary": "這是一個隨意書寫的28*28像素、解析度很低的數字 3\n但你的大腦一看見就能輕鬆辨識出來 ，我想要你好好欣賞這點\n人腦能夠毫無障礙地辨識是非常厲害的\n我的意思是，這個、這個、還有這個，都能被識別為 3\n即使前後圖像的圖形組成有很大差異\n當你看到這張 3 在眼中所激發的感光細胞\n跟當你看到這張 3 所激發的感光細胞是非常不同的\n但在你驚人聰明的視覺皮層的處理下\n能將這兩個 3 視為同一個概念，同時將其他圖像視為不同的概念\n要是我要你：「嘿！坐下來幫我寫個程式， 」\n「輸入像這個 28*28 像素的數字圖像」\n「接著輸出該程式認為的 0 到 10 之間的一個數字 ，必須跟你認為的一樣。」\n這個任務將不再是家常便飯，而變得嚇死人的困難\n除非你是山頂洞人\n我想不用再強調機器學習和神經網路之間，對未來發展的關聯性和重要性\n我現在要向你展示神經網路究竟是什麼\n假設你沒有相關背景知識\n我會視覺化神經網路的運作\n並且把它當作一門數學，不僅僅是當下流行詞語\n我希望你將能理解為什麼神經網路是長這個樣子\n當你看到或聽到機器藉著神經網路來「學習」時 是了解其意涵的\n這支影片將解釋神經網路的構造\n而下一部影片將",
+      "core_points": [
+        {
+          "text": "這是一個隨意書寫的28*28像素、解析度很低的數字 3\n但你的大腦一看見就能輕鬆辨識出來 ，我想要你好好欣賞這點\n人腦能夠毫無障礙地辨識是非常厲害的\n我的意思是，這個、這個、還有這個，都能被識別為 3\n即使前後圖像的圖形組成有很大差異\n當你看到這張 3 在眼中所激發的感光細胞\n跟當你看到這張 3 所激發的感光細胞是非常不同的\n但在你驚人聰明的視覺皮層的處理下\n能將這兩個 3 視為同一個概念，同時將其他圖像視為不同的概念\n要是我要你：「嘿！坐下來幫我寫個程式， 」\n「輸入像這個 28*28 像素的數字圖像」\n「接著輸出該程式認為的 0 到 10 之間的一個數字 ，必須跟你認為的一樣。」\n這個任務將不再是家常便飯，而變得嚇死人的困難\n除非你是山頂洞人\n我想不用再強調機器學習和神經網路之間，對未來發展的關聯性和重要性\n我現在要向你展示神經網路究竟是什麼\n假設你沒有相關背景知識\n我會視覺化神經網路的運作\n並且把它當作一門數學，不僅僅是當下流行詞語\n我希望你將能理解為什麼神經網路是長這個樣子\n當你看到或聽到機器藉著神經網路來「學習」時 是了解其意涵的\n這支影片將解釋神經網路的構造\n而下一部影片將解釋機器學習\n我們要做的是打造一個可以辨識手寫數字的神經網路\n這是介紹這種主題很典型的範例\n我樂於保持這種模式，因為在看完兩支影片後\n我會給你一些很好的網站，你可以在那裡學到很多，並且下載程式碼\n在你的電腦裡好好研究\n神經網路發展成很多很多不同類型\n而且近年來對這些的研究有爆炸性的趨勢\n但這兩支入門影片只會帶你來認識，最簡單的一種神經網路：「多層感知機」(MLP) 最基本的樣子\n這是必要的入門知識\n對於將來要理解現在任何一種強大的神經網路\n而且相信我，今天的主題已經夠複雜了，足以讓你腦袋打結\n即使是這麼簡單的神經網路也可以經由學習來分辨手寫數字\n這對電腦來說是非常酷的一件事",
+          "kind": "fact",
+          "evidence_ids": [
+            "cc6a2cec6a5dc56b22751987c98701c33ed5648be6949f6357d3c2d86252422c"
+          ]
+        },
+        {
+          "text": "而且與此同時你也將看到神經網路不盡人意的地方\n神經網路一如其名，是啟發自生物的大腦神經結構\n讓我們來剖析它吧\n何謂神經元，又是什麼機制讓它們連在一起的?\n現在，當我說「神經元」，我要你聯想到它是乘載一個數字的容器\n基本是介於 0 和 1 之間的數字，但實際上不止於此\n例如：神經網路以輸入圖像的每個像素，對應到每個神經元作為輸入\n也就是說輸入層總共有 784 個神經元，每個都有乘載數字 ，每個數字代表了對應像素的灰階值\n灰階值 0 即黑色，1 即白色\n這些在神經元中的數字稱為「激勵值」\n在此你可能注意到\n每當神經元激勵值越高，該神經元就越亮\n於是全部的 784 個神經元，組成了神經網路的第一層\n我們現在跳到最後一層，這層有 10 個神經元，各自表示 0 到 9 的數字\n同樣在這邊的神經元也各自有著介於 0 到 1 的激勵值\n表示對於給定的圖像，神經網路對於實際數字的判斷結果\n在輸入層和輸出層之間，有數個「隱藏層」\n現在在本入門影片裡\n對於神經網路是如何進行判斷的，我們只能先把它看做是巨大的問號\n本影片展示的視覺化神經網路，我設計了兩個隱層，個別搭載16個神經元\n這只是擺好看的設定\n老實說之所以選擇兩個隱層，是基於視覺化讓你看得清楚的考量，待會解釋\n而安排 16 個神經元，只是為了符合版面，也是為了讓你看得清楚\n在實際應用上，神經網路的結構經實驗不斷調整可以變得非常巨大且特殊\n神經網路操作一層激勵值的方式，會決定下一層的激勵值\n這正是神經網路的核心價值，不同以往的資料處理技術，現在發展成只要輸入\n激勵值從上一層傳到下一層，最後輸出足夠正確的結果\n神經網路的本質就是模仿生物的大腦，就像一叢腦細胞被激發\n引發其他神經細胞的串聯反應\n我現在展示的\n這個神經網路已經訓練完成了，可以準確辨識圖像中的數字\n讓我來解釋「傳遞激勵值」這點\n意思是：當你輸入一張 28x28 像素的圖像，它將點亮",
+          "kind": "fact",
+          "evidence_ids": [
+            "08f6a71d5ff16c71839d4f0cf7aff9c1910a922f4fc6642601d014f0db3931f7"
+          ]
+        },
+        {
+          "text": "所有 784 個神經元 每個都比照對應像素的灰階值，來決定自己的激勵值\n決定的數值分布狀態會影響下一層被啟動的神經元的分布\n又會導致下一層不同的分布\n最後抵達輸出層，輸出層的神經元也會有特定的分布\n而最亮的那個就是神經網路所認為最有可能答對的答案\n但在一腳踏進數學之前，要先知道上層如何影響下層，而且機器學習為什麼會有用\n為什麼我們認為層狀結構會像這樣聰明地運作是非常合理的？\n我們在期待什麼呢？ 我們最想要神經網路的隱藏層怎麼運作呢？\n在你或我在辨識圖中的數字時我們會把各種筆畫拼湊在一起。\n一個 9 字，上面有圓圈，而在右邊有一條直線\n一個 8 字，上面也有一个圓圈但在下面與另一個圓圈相連\n一個 4 基本上可以拆解成就像那些特定的筆畫\n一個理想的情況中我們會希望第二層的每個神經元\n能識別這些筆劃的其中之一\n每次你輸入一個有頂部有個圓圈的圖像如 9 或 8 時\n隱層第二層的某些特定神經元的激勵值就會接近 1\n而我要的並不是單單適用這種圓圈，而是更廣泛的各種圓圈皆適用\n如此，在隱層第二層到輸出層的神經元\n只需要學習對應於數字的筆畫的組合\n當然這又丟出了一道難題\n因為你怎麼讓那些神經元知道那些數字該對應到那些特定的筆畫？\n而我甚至還沒開始講上一層怎麼影響下一層，但是再聽我解釋一下這裡\n辨識一個圓圈的問題也可以分解成辨識一些較小零件的問題\n一個合理的方法是認出組成它的各式各樣的邊\n同樣的道理，你在數字 1，4 或者 7 中所看到的一條長線\n真的就是好幾小條的短線，根據特定筆畫順序，組合成的長線\n所以我們期望在這網絡第二層\n對應著各式各樣的一些小邊\n也許出現一個像這樣的一個圖像就點亮\n所有大約有 8 到 10 種有關的特定神經元\n它接著點亮後上方的圓圈和一根垂直的長線以及點亮和一條線相聯的神經元\n最後點亮數字 9 的神經元\n不管這個是不是我們最終的網絡實際上的實施是另一個問題",
+          "kind": "fact",
+          "evidence_ids": [
+            "405e2e88aa9abd6dfe50213f0a737cdd2d4b877e25e4c0f05e5dc70b2f0f2970"
+          ]
+        },
+        {
+          "text": "這個我們在知道怎樣了訓練網絡之後我在回過來講\n但至少我們可能有點希望 像是一種以這樣分層結構為目標的\n你可以進一步想像怎樣能來檢測像這樣的邊和式樣對其他的圖像識別功能真是有用的\n並甚至在圖像識別之外做各種各樣智能的東西也許你也想分解成一些抽象的層\n例如句子的分析涉及到把原始的語音提出一些獨特的聲音構成一些音節再構成\n詞再構成詞組以及更為抽象的思想等。\n但回到這些實際是怎樣工作的把你自己現在就放到這個的情景怎樣來設計\n如何在讓這層中的激勵函數可以決定下一層的激勵函數呢？\n這目標是有一些機能它想起來可以集中到一個特定的樣本來把一些像素結合成\n邊或者把邊結合成式樣或者式樣成爲數字 在這個特別的例子裡面\n我們希望第二層的這一個神經元\n可以正確的辨識出這個圖像裡有沒有一條邊\n現在我們想知道的是網路裡有哪些參數\n要怎麼調整這些參數才能讓完整的表達出是這個圖案\n還是其他的圖案或是由數個邊組合成的圓圈之類的\n我們會分配給神經元和輸入層間的每一個連接線一個權重\n權重單純只是一個數字而已\n然後計算所有激勵函數的加權總和\n把這些權重整理成一個圖像應該更好理解\n我把正的權重值標記為綠色 負的權重值標記為紅色\n當顏色越亮代表它的值跟 0 差距越大\n除了我們所關注的區域以外\n所有的權重值都改為 0\n然後去取得所有像素的加權總合\n幾乎就等於只有我們所關注的區域的值提升了\n如果知道這裡是不是真的存在一條邊\n你只需要在周圍加上負的權重\n這樣當中間的像素亮但是周圍的像素暗 就可以得到最大的加權總和\n當你計算加權總和時 它的值可能是任意實數\n但是在這裡我們想要計算完的結果介於 0 跟 1 之間\n所以我們通常會把這個值丟進一個函數裡面\n把這個實數軸壓縮成一個介於 0 到 1 之間\n有一個常見的函數叫做「Sigmoid」也被稱為「邏輯函數」\n基本上越小的數會越來越接近 0 越大的數會越來越接近 1",
+          "kind": "fact",
+          "evidence_ids": [
+            "eb5015000f96726eadd1d0c64294ce3781adf9431caa17e55f63707327ed37cc"
+          ]
+        },
+        {
+          "text": "輸入值在 0 附近的會平穩增長\n所以從神經網路得到的激勵函數基本上就代表加權總和的大小\n但是不是每次只要加權總和大於零的時候就點亮神經元\n也許你只想要在它大於 10 的時候啟動\n所以要加入一個門檻來確保它不會隨便啟動\n我們只要在加權總和後面加上一個像是 負10 之類的數\n再把它塞進邏輯函數裡\n這個附加的數字就叫做偏置\n所以權重告訴我們下一層的神經元所關注的圖樣\n偏置則告訴我們加權總和要超過什麼程度才是有意義的\n以上只是一個神經元的情況\n在這一層的每個神經元都會連接第一層共 784 個神經元\n而且這 784 條連接線都各有一個屬於自己的權重\n還有每一個神經元都會在計算完加權總和後再加上自己的偏置再用邏輯函數輸出自己的結果\n讓我們看看這個有著 16 個神經元的隱藏層\n這 16 個神經元都各有 784 個自己的權重和 16 個偏置\n這些還只是第一層和第二層的連接而已\n在其他層裡還有他們各自的權重和偏置\n整體來說整個網路使用了\n大約 13,000 個權重和偏置\n13,000 個可以調整的參數來讓網路可以呈現不同的結果\n所以當我們談到學習的時候\n就是在說如何讓電腦去找到一大堆正確的參數\n讓它解決問題\n有一個仔細想想會很嚇人的情況\n想像一下如果你需要手動調整這些權重和偏置\n設定這些數字來讓第二層識別一條邊 然後讓第三層識別圖案\n我個人認為這樣想像會比把它整個當成一個黑盒子更好\n因為當網路的輸出和你的認知有所差異時\n如果你能足夠了解權重與偏置的關係\n就更容易該怎麼改變結構來修正\n或是網路能輸出正確的結果但是過程跟你想像中有差異\n那麼去挖掘權重和偏置的實際境況對於測試你的認知有幫助\n和找出所有可能的解決方案\n順帶一提 你不覺得這個公式看起來有點複雜嗎？\n所以讓我來示範以簡單的符號來表達整個公式\n如果你以後想要繼續鑽研神經網路就會很常看到\n我們把這一層的激勵函數放到一個向量中",
+          "kind": "fact",
+          "evidence_ids": [
+            "f931c69aaf9074872fcc2df5081b55c3a6050d78e512892b51e6887f33fc9870"
+          ]
+        },
+        {
+          "text": "然後把所有的權重放到矩陣中\n在這個陣列裡的每一列將會對應到這一層和下一層的所有連線的權重\n這代表矩陣相乘後的每一項都代表其中一個神經元的激勵函數\n矩陣相乘的結果就是對應的神經元激勵函數\n順道一提 學習機器學習需要對線性代數有一定的了解\n所以任何想要透過視覺化的教學理解矩陣和矩陣乘法可以去看我的以前做的線性代數系列影片\n特別是第三篇\n會到正題 當我要加上偏置時也會把每一個偏置\n放到矩陣裡在和前面算出來的結果做矩陣加法\n最後一步\n我會用邏輯函數把整個結果包起來\n意思是把最後得到的向量一個一個丟進邏輯函數中\n來計算出每一個結果\n現在當我們用簡單的符號來寫下公式\n就可以很清楚完整的表達每一層之間的關係\n還有這也讓我們更簡單快速的編寫程式碼 像是很多的對於矩陣運算有最佳化的函式庫\n還記得我一開始說神經元只是一個簡單承載數字的東西嗎\n當然 它裡面所裝得數字取決於你給他的圖像\n所以更準確地說應該把神經元當作一個函數\n它的輸出是取決於上一層所有的神經元然後轉換成一個介於 0 到 1 的數字\n其實也可以把整個神經網路當作一個函數\n有著 784 個輸入值和 10 輸出值的函數\n它是一個非常複雜的函數\n用來選擇正確圖案的權重和偏置參數就有 13000 個\n還會不停地用到矩陣乘法和邏輯函數\n即便它看起來很複雜但卻是很可靠的一個函數\n我的意思是如果它看起來很簡單 我們怎麼能期望它辨識數字呢\n但是它是如何完成這個任務的？ 這個網路是如何只透過讀取數據來學習如何調整權重和偏置的？\n這就是下一集的內容了 我們也會更深入更多關於網路運作的細節\n現在又到了提醒大家如果要獲得更多新影片的通知趕快訂閱\n但是大部分的時候你都沒有收到來自 YouTube 的通知吧？\n也許我該說趕快訂閱讓 YouYube 的推薦演算法神經網路\n去相信你想看到關於這個頻道的消息\n總之留意更多消息\n感謝大家在 Patreon 平台上的支持",
+          "kind": "fact",
+          "evidence_ids": [
+            "7c379ce388f56fedc7435de8f158eee30ddc30bbd3abba2f656f0b6f727e6386"
+          ]
+        }
+      ],
+      "key_facts": [],
+      "product_opportunities": [],
+      "business_opportunities": [],
+      "actionable_directions": [],
+      "hypotheses_to_validate": [],
+      "action_recommendations": [],
+      "risks": [],
+      "keywords": [
+        "source excerpts"
+      ],
+      "evidence": [
+        {
+          "evidence_id": "cc6a2cec6a5dc56b22751987c98701c33ed5648be6949f6357d3c2d86252422c",
+          "source": "transcript_sample",
+          "excerpt": "這是一個隨意書寫的28*28像素、解析度很低的數字 3\n但你的大腦一看見就能輕鬆辨識出來 ，我想要你好好欣賞這點\n人腦能夠毫無障礙地辨識是非常厲害的\n我的意思是，這個、這個、還有這個，都能被識別為 3\n即使前後圖像的圖形組成有很大差異\n當你看到這張 3 在眼中所激發的感光細胞\n跟當你看到這張 3 所激發的感光細胞是非常不同的\n但在你驚人聰明的視覺皮層的處理下\n能將這兩個 3 視為同一個概念，同時將其他圖像視為不同的概念\n要是我要你：「嘿！坐下來幫我寫個程式， 」\n「輸入像這個 28*28 像素的數字圖像」\n「接著輸出該程式認為的 0 到 10 之間的一個數字 ，必須跟你認為的一樣。」\n這個任務將不再是家常便飯，而變得嚇死人的困難\n除非你是山頂洞人\n我想不用再強調機器學習和神經網路之間，對未來發展的關聯性和重要性\n我現在要向你展示神經網路究竟是什麼\n假設你沒有相關背景知識\n我會視覺化神經網路的運作\n並且把它當作一門數學，不僅僅是當下流行詞語\n我希望你將能理解為什麼神經網路是長這個樣子\n當你看到或聽到機器藉著神經網路來「學習」時 是了解其意涵的\n這支影片將解釋神經網路的構造\n而下一部影片將解釋機器學習\n我們要做的是打造一個可以辨識手寫數字的神經網路\n這是介紹這種主題很典型的範例\n我樂於保持這種模式，因為在看完兩支影片後\n我會給你一些很好的網站，你可以在那裡學到很多，並且下載程式碼\n在你的電腦裡好好研究\n神經網路發展成很多很多不同類型\n而且近年來對這些的研究有爆炸性的趨勢\n但這兩支入門影片只會帶你來認識，最簡單的一種神經網路：「多層感知機」(MLP) 最基本的樣子\n這是必要的入門知識\n對於將來要理解現在任何一種強大的神經網路\n而且相信我，今天的主題已經夠複雜了，足以讓你腦袋打結\n即使是這麼簡單的神經網路也可以經由學習來分辨手寫數字\n這對電腦來說是非常酷的一件事",
+          "start_seconds": null,
+          "end_seconds": null
+        },
+        {
+          "evidence_id": "08f6a71d5ff16c71839d4f0cf7aff9c1910a922f4fc6642601d014f0db3931f7",
+          "source": "transcript_sample",
+          "excerpt": "而且與此同時你也將看到神經網路不盡人意的地方\n神經網路一如其名，是啟發自生物的大腦神經結構\n讓我們來剖析它吧\n何謂神經元，又是什麼機制讓它們連在一起的?\n現在，當我說「神經元」，我要你聯想到它是乘載一個數字的容器\n基本是介於 0 和 1 之間的數字，但實際上不止於此\n例如：神經網路以輸入圖像的每個像素，對應到每個神經元作為輸入\n也就是說輸入層總共有 784 個神經元，每個都有乘載數字 ，每個數字代表了對應像素的灰階值\n灰階值 0 即黑色，1 即白色\n這些在神經元中的數字稱為「激勵值」\n在此你可能注意到\n每當神經元激勵值越高，該神經元就越亮\n於是全部的 784 個神經元，組成了神經網路的第一層\n我們現在跳到最後一層，這層有 10 個神經元，各自表示 0 到 9 的數字\n同樣在這邊的神經元也各自有著介於 0 到 1 的激勵值\n表示對於給定的圖像，神經網路對於實際數字的判斷結果\n在輸入層和輸出層之間，有數個「隱藏層」\n現在在本入門影片裡\n對於神經網路是如何進行判斷的，我們只能先把它看做是巨大的問號\n本影片展示的視覺化神經網路，我設計了兩個隱層，個別搭載16個神經元\n這只是擺好看的設定\n老實說之所以選擇兩個隱層，是基於視覺化讓你看得清楚的考量，待會解釋\n而安排 16 個神經元，只是為了符合版面，也是為了讓你看得清楚\n在實際應用上，神經網路的結構經實驗不斷調整可以變得非常巨大且特殊\n神經網路操作一層激勵值的方式，會決定下一層的激勵值\n這正是神經網路的核心價值，不同以往的資料處理技術，現在發展成只要輸入\n激勵值從上一層傳到下一層，最後輸出足夠正確的結果\n神經網路的本質就是模仿生物的大腦，就像一叢腦細胞被激發\n引發其他神經細胞的串聯反應\n我現在展示的\n這個神經網路已經訓練完成了，可以準確辨識圖像中的數字\n讓我來解釋「傳遞激勵值」這點\n意思是：當你輸入一張 28x28 像素的圖像，它將點亮",
+          "start_seconds": null,
+          "end_seconds": null
+        },
+        {
+          "evidence_id": "405e2e88aa9abd6dfe50213f0a737cdd2d4b877e25e4c0f05e5dc70b2f0f2970",
+          "source": "transcript_sample",
+          "excerpt": "所有 784 個神經元 每個都比照對應像素的灰階值，來決定自己的激勵值\n決定的數值分布狀態會影響下一層被啟動的神經元的分布\n又會導致下一層不同的分布\n最後抵達輸出層，輸出層的神經元也會有特定的分布\n而最亮的那個就是神經網路所認為最有可能答對的答案\n但在一腳踏進數學之前，要先知道上層如何影響下層，而且機器學習為什麼會有用\n為什麼我們認為層狀結構會像這樣聰明地運作是非常合理的？\n我們在期待什麼呢？ 我們最想要神經網路的隱藏層怎麼運作呢？\n在你或我在辨識圖中的數字時我們會把各種筆畫拼湊在一起。\n一個 9 字，上面有圓圈，而在右邊有一條直線\n一個 8 字，上面也有一个圓圈但在下面與另一個圓圈相連\n一個 4 基本上可以拆解成就像那些特定的筆畫\n一個理想的情況中我們會希望第二層的每個神經元\n能識別這些筆劃的其中之一\n每次你輸入一個有頂部有個圓圈的圖像如 9 或 8 時\n隱層第二層的某些特定神經元的激勵值就會接近 1\n而我要的並不是單單適用這種圓圈，而是更廣泛的各種圓圈皆適用\n如此，在隱層第二層到輸出層的神經元\n只需要學習對應於數字的筆畫的組合\n當然這又丟出了一道難題\n因為你怎麼讓那些神經元知道那些數字該對應到那些特定的筆畫？\n而我甚至還沒開始講上一層怎麼影響下一層，但是再聽我解釋一下這裡\n辨識一個圓圈的問題也可以分解成辨識一些較小零件的問題\n一個合理的方法是認出組成它的各式各樣的邊\n同樣的道理，你在數字 1，4 或者 7 中所看到的一條長線\n真的就是好幾小條的短線，根據特定筆畫順序，組合成的長線\n所以我們期望在這網絡第二層\n對應著各式各樣的一些小邊\n也許出現一個像這樣的一個圖像就點亮\n所有大約有 8 到 10 種有關的特定神經元\n它接著點亮後上方的圓圈和一根垂直的長線以及點亮和一條線相聯的神經元\n最後點亮數字 9 的神經元\n不管這個是不是我們最終的網絡實際上的實施是另一個問題",
+          "start_seconds": null,
+          "end_seconds": null
+        },
+        {
+          "evidence_id": "eb5015000f96726eadd1d0c64294ce3781adf9431caa17e55f63707327ed37cc",
+          "source": "transcript_sample",
+          "excerpt": "這個我們在知道怎樣了訓練網絡之後我在回過來講\n但至少我們可能有點希望 像是一種以這樣分層結構為目標的\n你可以進一步想像怎樣能來檢測像這樣的邊和式樣對其他的圖像識別功能真是有用的\n並甚至在圖像識別之外做各種各樣智能的東西也許你也想分解成一些抽象的層\n例如句子的分析涉及到把原始的語音提出一些獨特的聲音構成一些音節再構成\n詞再構成詞組以及更為抽象的思想等。\n但回到這些實際是怎樣工作的把你自己現在就放到這個的情景怎樣來設計\n如何在讓這層中的激勵函數可以決定下一層的激勵函數呢？\n這目標是有一些機能它想起來可以集中到一個特定的樣本來把一些像素結合成\n邊或者把邊結合成式樣或者式樣成爲數字 在這個特別的例子裡面\n我們希望第二層的這一個神經元\n可以正確的辨識出這個圖像裡有沒有一條邊\n現在我們想知道的是網路裡有哪些參數\n要怎麼調整這些參數才能讓完整的表達出是這個圖案\n還是其他的圖案或是由數個邊組合成的圓圈之類的\n我們會分配給神經元和輸入層間的每一個連接線一個權重\n權重單純只是一個數字而已\n然後計算所有激勵函數的加權總和\n把這些權重整理成一個圖像應該更好理解\n我把正的權重值標記為綠色 負的權重值標記為紅色\n當顏色越亮代表它的值跟 0 差距越大\n除了我們所關注的區域以外\n所有的權重值都改為 0\n然後去取得所有像素的加權總合\n幾乎就等於只有我們所關注的區域的值提升了\n如果知道這裡是不是真的存在一條邊\n你只需要在周圍加上負的權重\n這樣當中間的像素亮但是周圍的像素暗 就可以得到最大的加權總和\n當你計算加權總和時 它的值可能是任意實數\n但是在這裡我們想要計算完的結果介於 0 跟 1 之間\n所以我們通常會把這個值丟進一個函數裡面\n把這個實數軸壓縮成一個介於 0 到 1 之間\n有一個常見的函數叫做「Sigmoid」也被稱為「邏輯函數」\n基本上越小的數會越來越接近 0 越大的數會越來越接近 1",
+          "start_seconds": null,
+          "end_seconds": null
+        },
+        {
+          "evidence_id": "f931c69aaf9074872fcc2df5081b55c3a6050d78e512892b51e6887f33fc9870",
+          "source": "transcript_sample",
+          "excerpt": "輸入值在 0 附近的會平穩增長\n所以從神經網路得到的激勵函數基本上就代表加權總和的大小\n但是不是每次只要加權總和大於零的時候就點亮神經元\n也許你只想要在它大於 10 的時候啟動\n所以要加入一個門檻來確保它不會隨便啟動\n我們只要在加權總和後面加上一個像是 負10 之類的數\n再把它塞進邏輯函數裡\n這個附加的數字就叫做偏置\n所以權重告訴我們下一層的神經元所關注的圖樣\n偏置則告訴我們加權總和要超過什麼程度才是有意義的\n以上只是一個神經元的情況\n在這一層的每個神經元都會連接第一層共 784 個神經元\n而且這 784 條連接線都各有一個屬於自己的權重\n還有每一個神經元都會在計算完加權總和後再加上自己的偏置再用邏輯函數輸出自己的結果\n讓我們看看這個有著 16 個神經元的隱藏層\n這 16 個神經元都各有 784 個自己的權重和 16 個偏置\n這些還只是第一層和第二層的連接而已\n在其他層裡還有他們各自的權重和偏置\n整體來說整個網路使用了\n大約 13,000 個權重和偏置\n13,000 個可以調整的參數來讓網路可以呈現不同的結果\n所以當我們談到學習的時候\n就是在說如何讓電腦去找到一大堆正確的參數\n讓它解決問題\n有一個仔細想想會很嚇人的情況\n想像一下如果你需要手動調整這些權重和偏置\n設定這些數字來讓第二層識別一條邊 然後讓第三層識別圖案\n我個人認為這樣想像會比把它整個當成一個黑盒子更好\n因為當網路的輸出和你的認知有所差異時\n如果你能足夠了解權重與偏置的關係\n就更容易該怎麼改變結構來修正\n或是網路能輸出正確的結果但是過程跟你想像中有差異\n那麼去挖掘權重和偏置的實際境況對於測試你的認知有幫助\n和找出所有可能的解決方案\n順帶一提 你不覺得這個公式看起來有點複雜嗎？\n所以讓我來示範以簡單的符號來表達整個公式\n如果你以後想要繼續鑽研神經網路就會很常看到\n我們把這一層的激勵函數放到一個向量中",
+          "start_seconds": null,
+          "end_seconds": null
+        },
+        {
+          "evidence_id": "7c379ce388f56fedc7435de8f158eee30ddc30bbd3abba2f656f0b6f727e6386",
+          "source": "transcript_sample",
+          "excerpt": "然後把所有的權重放到矩陣中\n在這個陣列裡的每一列將會對應到這一層和下一層的所有連線的權重\n這代表矩陣相乘後的每一項都代表其中一個神經元的激勵函數\n矩陣相乘的結果就是對應的神經元激勵函數\n順道一提 學習機器學習需要對線性代數有一定的了解\n所以任何想要透過視覺化的教學理解矩陣和矩陣乘法可以去看我的以前做的線性代數系列影片\n特別是第三篇\n會到正題 當我要加上偏置時也會把每一個偏置\n放到矩陣裡在和前面算出來的結果做矩陣加法\n最後一步\n我會用邏輯函數把整個結果包起來\n意思是把最後得到的向量一個一個丟進邏輯函數中\n來計算出每一個結果\n現在當我們用簡單的符號來寫下公式\n就可以很清楚完整的表達每一層之間的關係\n還有這也讓我們更簡單快速的編寫程式碼 像是很多的對於矩陣運算有最佳化的函式庫\n還記得我一開始說神經元只是一個簡單承載數字的東西嗎\n當然 它裡面所裝得數字取決於你給他的圖像\n所以更準確地說應該把神經元當作一個函數\n它的輸出是取決於上一層所有的神經元然後轉換成一個介於 0 到 1 的數字\n其實也可以把整個神經網路當作一個函數\n有著 784 個輸入值和 10 輸出值的函數\n它是一個非常複雜的函數\n用來選擇正確圖案的權重和偏置參數就有 13000 個\n還會不停地用到矩陣乘法和邏輯函數\n即便它看起來很複雜但卻是很可靠的一個函數\n我的意思是如果它看起來很簡單 我們怎麼能期望它辨識數字呢\n但是它是如何完成這個任務的？ 這個網路是如何只透過讀取數據來學習如何調整權重和偏置的？\n這就是下一集的內容了 我們也會更深入更多關於網路運作的細節\n現在又到了提醒大家如果要獲得更多新影片的通知趕快訂閱\n但是大部分的時候你都沒有收到來自 YouTube 的通知吧？\n也許我該說趕快訂閱讓 YouYube 的推薦演算法神經網路\n去相信你想看到關於這個頻道的消息\n總之留意更多消息\n感謝大家在 Patreon 平台上的支持",
+          "start_seconds": null,
+          "end_seconds": null
+        }
+      ],
+      "schema_version": "analysis-result-v1",
+      "provider": "extractive-source",
+      "model": "deterministic-excerpts-v2",
+      "prompt_version": "analysis-prompt-v6",
+      "request_hash": "dfc5e4c5079d471fb0279ad81902a7628c2d638d8bdfae9535b21764ba57dd67"
+    },
+    "summary_file_sha256": "3130d3ca3d33f1d343edfa8ebac500bf56090b3b641a46991c453ea223408a9a",
+    "source_policy": {
+      "source_id": "210df891-9699-44c7-9ae5-bd79e647dd1d",
+      "initial_history_count": 5,
+      "per_run_max_new_videos": 5,
+      "focus_rules": [
+        "AI reasoning and mathematical research: reliability, human verification, and test-time exploration"
+      ],
+      "ignore_rules": [],
+      "distillation_style": "BALANCED",
+      "global_revision_id": "source-policy:global:frozen-case-focus",
+      "source_policy_revision_id": null,
+      "applied_revision_id": null
+    },
+    "DATA_manifest": [
+      {
+        "path": "transcripts/0eMzc-WnBfQ/26b7b378e3172004893907ad3952439d688f1bf53fecdc8df6846f00e3212962/canonical.5483658bb76e53619555cbb3798b6060e4d06a28de663050eff1fd58b1896cec.r.txt",
+        "size": 89221,
+        "sha256": "a7d3bd04a3a3d5cc7b7d000df790daf5577bf2641583ca973a13cf79e34fccf9"
+      },
+      {
+        "path": "transcripts/0eMzc-WnBfQ/26b7b378e3172004893907ad3952439d688f1bf53fecdc8df6846f00e3212962/source.WyJhdXRvX3N1YnRpdGxlIiwiZW4iLCJlbiIsImpzb24zIl0.json3",
+        "size": 873916,
+        "sha256": "934957b468f8fc59a4bd5d57844e66702a65a78943c056a3472fed77b166caae"
+      },
+      {
+        "path": "transcripts/0eMzc-WnBfQ/26b7b378e3172004893907ad3952439d688f1bf53fecdc8df6846f00e3212962/source.WyJhdXRvX3N1YnRpdGxlIiwiZW4iLCJlbiIsInZ0dCJd.vtt",
+        "size": 415676,
+        "sha256": "1ce80bdb4602f3ad248ae11ae181435ccec6150159d5da22202b3ef3a36f3e88"
+      },
+      {
+        "path": "transcripts/0eMzc-WnBfQ/5b613e294b5b1f0ced13dd533e7ba3b003243b4f011e734f49e4198a7025d140/canonical.36b9e9352363504b41d173533055a2e9878d92d6afb5910594303d99b2cd121a.-.txt",
+        "size": 45130,
+        "sha256": "22a72834367d8025fe81de10adbca9ed101e8eaae9f67d1a6669f97382d2a9b1"
+      },
+      {
+        "path": "transcripts/0eMzc-WnBfQ/5b613e294b5b1f0ced13dd533e7ba3b003243b4f011e734f49e4198a7025d140/source.WyJhdXRvX3N1YnRpdGxlIiwiZW4iLCJlbiIsImpzb24zIl0.json3",
+        "size": 873916,
+        "sha256": "934957b468f8fc59a4bd5d57844e66702a65a78943c056a3472fed77b166caae"
+      },
+      {
+        "path": "transcripts/0eMzc-WnBfQ/ad8dba167b57c7405ee503a02a243dfe13bd6c71b2ad48a961753370a9bfc4dc/canonical.5483658bb76e53619555cbb3798b6060e4d06a28de663050eff1fd58b1896cec.r.txt",
+        "size": 89221,
+        "sha256": "a7d3bd04a3a3d5cc7b7d000df790daf5577bf2641583ca973a13cf79e34fccf9"
+      },
+      {
+        "path": "transcripts/0eMzc-WnBfQ/ad8dba167b57c7405ee503a02a243dfe13bd6c71b2ad48a961753370a9bfc4dc/source.WyJhdXRvX3N1YnRpdGxlIiwiZW4iLCJlbiIsImpzb24zIl0.json3",
+        "size": 873916,
+        "sha256": "934957b468f8fc59a4bd5d57844e66702a65a78943c056a3472fed77b166caae"
+      },
+      {
+        "path": "transcripts/0eMzc-WnBfQ/ad8dba167b57c7405ee503a02a243dfe13bd6c71b2ad48a961753370a9bfc4dc/source.WyJhdXRvX3N1YnRpdGxlIiwiZW4iLCJlbiIsInZ0dCJd.vtt",
+        "size": 415676,
+        "sha256": "1ce80bdb4602f3ad248ae11ae181435ccec6150159d5da22202b3ef3a36f3e88"
+      },
+      {
+        "path": "transcripts/IwglW_hIL_g/19348d479b0435a2fd5b67ffb2d0156a194ffdfc79a5bad65c6adb6230700954/canonical.c9130409650bd583987deec52bd3e3dd303f30a5e730508f1e094886b753825c.r.txt",
+        "size": 3224,
+        "sha256": "0b392e8425066ff9ffd82662efec63634347f50442c0cd0addded81d0b1bdbe1"
+      },
+      {
+        "path": "transcripts/IwglW_hIL_g/19348d479b0435a2fd5b67ffb2d0156a194ffdfc79a5bad65c6adb6230700954/source.WyJhdXRvX3N1YnRpdGxlIiwiZW4iLCJlbiIsImpzb24zIl0.json3",
+        "size": 26643,
+        "sha256": "475e93baf9a8cc33dc9f4820aa8857f40d1413dcfaa1325ee19851096c14d69a"
+      },
+      {
+        "path": "transcripts/IwglW_hIL_g/19348d479b0435a2fd5b67ffb2d0156a194ffdfc79a5bad65c6adb6230700954/source.WyJhdXRvX3N1YnRpdGxlIiwiZW4iLCJlbiIsInZ0dCJd.vtt",
+        "size": 15674,
+        "sha256": "f7314e9fd036e3590ee99e5a68808202361a5fcd123f1b464dc68170ec098cbc"
+      },
+      {
+        "path": "transcripts/QoXRfTb7ves/db52c966c54f251398de2aea25fff73cb09cb973eb96b0c568f29b71aba37871/canonical.255e116efef46cf2ac7537657b10f04ca50eda48f3357129f16a1fb851e6d614.-.txt",
+        "size": 931,
+        "sha256": "67c965b3254c6240b8fe5c9d2ad120e62aaa6b884780f91e4e27004769df71a6"
+      },
+      {
+        "path": "transcripts/QoXRfTb7ves/db52c966c54f251398de2aea25fff73cb09cb973eb96b0c568f29b71aba37871/source.WyJtYW51YWxfc3VidGl0bGUiLCJlbiIsImVuLUdCIiwianNvbjMiXQ.json3",
+        "size": 2770,
+        "sha256": "c3e3dfb5228373098c826f54dea066e9c3ed559ce4f167c87958dc12e2580cfe"
+      },
+      {
+        "path": "transcripts/aircAruvnKk/4f58a216276b7eee4c252efc294618069a18d4f290412e3c8037adaf491b8178/canonical.bcf755d2c8486670976fa4909998e04a959ff039b2926b139dad815181a1d436.-.txt",
+        "size": 14633,
+        "sha256": "edf4e024d8f13b26e28c04a0248dc222788ade2217c3d8119baeb0c782579508"
+      },
+      {
+        "path": "transcripts/aircAruvnKk/4f58a216276b7eee4c252efc294618069a18d4f290412e3c8037adaf491b8178/source.WyJtYW51YWxfc3VidGl0bGUiLCJ6aCIsInpoIiwianNvbjMiXQ.json3",
+        "size": 36956,
+        "sha256": "13c048e7346c94fb41a66c62162579af98567a0d7ce75f111926c6b0482e4d5a"
+      },
+      {
+        "path": "transcripts/summaries/09f9b7456f5d83c63be6a3e0ddf7cac47acdc215069c0756baa91130a6a2ec1d.json",
+        "size": 9002,
+        "sha256": "72e771994382a5fa6ae8866026de3abb7b94cfecf34e9bc0aa36c0e8d6c7d8b1"
+      },
+      {
+        "path": "transcripts/summaries/8baf80d8c4b1e90062c50df1ff40b38aac4166cdefed564f9c8fb0b7d8ae94c8.json",
+        "size": 3426,
+        "sha256": "85793150e2caca3da08a879df9c05f957fffc533f28250289679535505d5fdda"
+      },
+      {
+        "path": "transcripts/summaries/8be368702264b0d5bb3f1fe34b496b4a57467d375792cddf45e08ba6f3622071.json",
+        "size": 12279,
+        "sha256": "37847e4e92f80565336530a5564adf0ee53c30f12093b4d9c4370e3c0170f601"
+      },
+      {
+        "path": "transcripts/summaries/dfc5e4c5079d471fb0279ad81902a7628c2d638d8bdfae9535b21764ba57dd67.json",
+        "size": 30614,
+        "sha256": "3130d3ca3d33f1d343edfa8ebac500bf56090b3b641a46991c453ea223408a9a"
+      }
+    ],
+    "existing_zero_call_history_preserved": [
+      {
+        "selected_provider": "ollama",
+        "selected_model": "qwen3:8b",
+        "status": "WAITING_MODEL",
+        "invocation_count": 0
+      }
+    ],
+    "normal_model_qualification": false,
+    "new_model_invocations": 0
+  },
+  "source_snapshot_sha256": "5de4d66c7120c8f0944b851e7d7c63fd85ceba0b6cf35fdd4f68aae0fe428481",
+  "full_231_cues_in_snapshot": true,
+  "full_7_canonical_Evidence_in_snapshot": true,
+  "actual_summary_sha256": "3130d3ca3d33f1d343edfa8ebac500bf56090b3b641a46991c453ea223408a9a",
+  "actual_summary_shape": {
+    "one_sentence_bytes": 1384,
+    "core_point_count": 6,
+    "evidence_count": 6
+  },
+  "factual_rules": [
+    {
+      "id": "F01",
+      "cues": [
+        0,
+        43,
+        44,
+        48,
+        49,
+        195
+      ],
+      "rule": "示例输入28×28=784灰阶值，0黑1白；输出10个神经元对应0–9。开头字幕一处0到10与后文不一致，不能据此发明11个输出。"
+    },
+    {
+      "id": "F02",
+      "cues": [
+        30,
+        55,
+        56,
+        57,
+        58,
+        59
+      ],
+      "rule": "MLP示例两隐藏层各16个神经元出于可视化版面，不是普遍最优结构/最低需求或已证实设计准则。"
+    },
+    {
+      "id": "F03",
+      "cues": [
+        81,
+        82,
+        95,
+        101,
+        102,
+        103
+      ],
+      "rule": "边→笔画/圈→数字是期望的层次解释；源明确保留实际训练内部是否如此的问题。不得写成已实测证明这套内部层级。"
+    },
+    {
+      "id": "F04",
+      "cues": [
+        117,
+        119,
+        121,
+        128,
+        129,
+        134,
+        135,
+        141,
+        143,
+        144,
+        145
+      ],
+      "rule": "权重可正可负、加权和加偏置后经激活；sigmoid映射激活至0–1。不能把所有权重说成0–1，尾访谈字幕该用语与前文明示冲突，可明确归因而非无条件陈述。"
+    },
+    {
+      "id": "F05",
+      "cues": [
+        151,
+        155,
+        156,
+        157,
+        158,
+        197
+      ],
+      "rule": "约13000个权重/偏置是此演示网络可调参数量，保留约数；不是样本数、神经元数、token量、准确率或费用。"
+    },
+    {
+      "id": "F06",
+      "cues": [
+        163,
+        164,
+        165,
+        166,
+        167,
+        168,
+        169
+      ],
+      "rule": "讲者建议通过权重/偏置理解与检查来修正设计或检验自己对内部过程的认识；输出正确并不自动证明过程符合解释。若转化为验收建议须标SYSTEM_INFERENCE并保持条件与可验证性。"
+    },
+    {
+      "id": "F07",
+      "cues": [
+        174,
+        175,
+        181,
+        184,
+        185,
+        189,
+        195
+      ],
+      "rule": "向量/矩阵表达前向传播和实现效率；不能凭此发明训练准确率、收敛保证或推理资源收益数字。"
+    },
+    {
+      "id": "F08",
+      "cues": [
+        201,
+        202
+      ],
+      "rule": "训练/如何找到参数留给下一集；本片没有给出并验证具体反向传播或优化器训练方案，不能把外部常识冒充本源实证。"
+    },
+    {
+      "id": "F09",
+      "cues": [
+        211,
+        212,
+        214,
+        215,
+        216,
+        217,
+        218,
+        219,
+        223,
+        224,
+        225,
+        226,
+        227,
+        228,
+        229
+      ],
+      "rule": "结尾与Lisha Li访谈谈ReLU=max(0,x)、相对sigmoid更易训练。历史视频内观点须归因/保持当时语境，不能无条件保证2026所有模型不用sigmoid或ReLU处处最优。"
+    },
+    {
+      "id": "F10",
+      "cues": [
+        209,
+        210,
+        213,
+        203,
+        208
+      ],
+      "rule": "订阅、Patreon、系列预告/赞助属低价值背景，不得成为AI推理、数学可靠性焦点的主要洞察。"
+    }
+  ],
+  "acceptance": {
+    "quality_standard": "Existing factual/evidence/attribution/modality and beyond-Summary standards unchanged; no case-specific prompt hints.",
+    "output_language": "zh-CN; source Traditional Chinese can be expressed in Simplified Chinese without changing facts.",
+    "positive_options": [
+      "Correctly attributed, bounded new fact from final interview absent from the actual extractive Summary, useful to original focus; no unsupported modern universal or performance claims.",
+      "Explicit SYSTEM_INFERENCE connecting the demonstrated-vs-aspirational hierarchy and inspecting internals with reliability/validation, clearly conditional and supported rather than invented experiment."
+    ],
+    "no_new": "NO_NEW is valid safety behavior but not a positive Intelligence qualification or successful Save/Topic path.",
+    "beyond_summary": "Compare with real Summary file, not an invented concise summary. Pure architecture/784/16/13000 paraphrase already in excerpts is insufficient by itself.",
+    "fairness": [
+      "Do not require correcting caption mistranscription using off-input world knowledge.",
+      "Do not require metadata/name/date/description not actually sent by the final frozen request.",
+      "No expectation that the model outputs any specific desired conclusion, numeric quota or business opportunity.",
+      "New protocol may safely resolve fixed ref to canonical location; factual support still independently assessed.",
+      "Citation reference/timing correctness is necessary but does not establish semantic truth."
+    ],
+    "execution": "No model authorized by this oracle. New codec must be accepted first, then exact public input/request/price/one-attempt freeze; any actual execution stops afterward."
+  },
+  "read_only_preparation_note": "Initial no-checkpoint assumption disproved: one original Ollama WAITING_MODEL/invocation0 exists; retained and explicitly recorded. No prior GLM generation. No row/file was changed."
+}

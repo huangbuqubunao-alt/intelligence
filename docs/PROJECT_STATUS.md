@@ -1,3 +1,5 @@
+> 2026-10-29引用任务已启动：唯一writer /root/cloud_preview_writer 在readiness-bound-evidence-reference/baseee3f82d，纯codec+明确qualificationv3+必要finite绑定/取消匹配，零模型/Native/network；原claims/语义标准不变，不修旧输出。可信origin hash由adapter/result传递，不让模型再抄64位hash；旧20上限明确拒绝不截断。Root独立冻结未见中文公开airc的231cue/7Evidence/真实Summary及完整oracle，未给writer原始文本或预期结论，零新调用。
+
 > 2026-10-29当前：云WAIT0/43/有限429与准确UI706+af经同一2094414累计APPROVE，Root2c16/460/a8整合。Root46新后端、完整front1102/42、TS/build/strict124/Ruff/compile/diff通过；实际GUI双取消/另一项仍blocked/重启不复活/ZIP恢复83SQL19DATA全等。此工程任务DONE候选，主Goal未完成，main未动。新同请求受限诊断e90cd1e0已真实1次HTTP200/55085ms/2480in3598out，证据ea68结束68590≠真实37190，原validator离线拒绝明确；REJECTED_OUTPUT1/no insight，原83行+19DATA保留/Backupready，无重试。原429原因仍未知未复现。累计GLM3次真实尝试，normal/local资格仍关闭、billUNKNOWN；开始最小固定证据引用协议方案，绝不改原失败/位置或降低质量。
 
 > 2026-10-28当前43候选706b165：629受影响后端PASS、44新增及静态/前端相关检查有据。一次独审83关键+11前端/TS/static通过；Root真实Mac页面从42不可取消→同库43可取消，迁移81旧表仅登记变/19DATA等，取消一项后另一项仍阻塞，实际服务重启不复活。唯一已发现P2为云端WAIT0误用本地模型说明，原writer最小DTO/文案修复中，当前review只复核这项delta，不重新审旧成果。Root使用fixed706导出运行隔离6198/6199，全凭据/出站禁用；正式采用仍未满足。

@@ -13,3 +13,5 @@
 一份固定候选的针对性代码检查即可；不重审已接受的整个历史、不重复全套629或6000。任何真正的安全问题修后仅验证对应增量。接线且审查通过前零模型/Native/Keychain/network。后续真实验收另由Root冻结未见公开样例与原标准oracle，先最多一例、任何失败即停；旧失败不能算作独立新通过。此提案不授权真实调用，不放行生产或改main。
 
 风险：把表示适配误做语义修补、映射未绑定input、alias漏项或错误地授予旧profile许可。以精确版本/完整输入hash/严格codec/旧byte保护/旧失败不回写约束。若最小接线需要大规模重构或新持久化则停止扩张并报告替代最小方案。
+
+Root补充决定：不要求模型复写64位输入hash。request-origin hash由实际adapter绑定到独立新result，service与当前完整verified input核对后独立重算normalization，跨input/result拒绝；模型只返回固定protocol marker、短ref/stance和原claims。原已有20项上限在_normalize_reservation_evidence_ids及_legal_evidence，沿用明确拒绝>20，不新增截断或丢弃。新编号范围完整映射原1–20输入，能力范围不扩张。
