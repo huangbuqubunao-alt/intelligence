@@ -1,3 +1,5 @@
+> 2026-10-29续作检查点见 `docs/validation/end-to-end-user-readiness/CURRENT_RESUME_STATUS_2026_10_29.md`：繁忙1305真实GUI恢复83表19文件全等/手册90图；schema43完整backend正在冻结运行，未宣称全绿。5.3仅离线请求准备、零key/调用，待具体付费决定；不先扩Schema44。当前主Goal未完成，main/actual origin仍73ee7e7。
+
 > 2026-10-29最新：引用v3工程已接受；真实中文HTTP200/5478in2957out仍独立872d05语义REJECT（1P1/2P2），Root45d5494保留原输出，停止GLM-4.7-Flash真实路线，累计5次请求/billUNKNOWN/normal及local资格关闭。Schema43测试维护aef30053经Root窄审整合50abfbc；32文件898PASS/1真实doctor失败保留，单函数版本42→43修后两完整相关文件47PASS。新的完整backend正冻结运行，未宣称全绿。付费GLM-5.3最多8次/总8元具体授权待用户答复，零付费调用；最小可配置边界仅只读侦察，不重开发。main未动。
 
 > 2026-10-29引用任务已启动：唯一writer /root/cloud_preview_writer 在readiness-bound-evidence-reference/baseee3f82d，纯codec+明确qualificationv3+必要finite绑定/取消匹配，零模型/Native/network；原claims/语义标准不变，不修旧输出。可信origin hash由adapter/result传递，不让模型再抄64位hash；旧20上限明确拒绝不截断。Root独立冻结未见中文公开airc的231cue/7Evidence/真实Summary及完整oracle，未给writer原始文本或预期结论，零新调用。

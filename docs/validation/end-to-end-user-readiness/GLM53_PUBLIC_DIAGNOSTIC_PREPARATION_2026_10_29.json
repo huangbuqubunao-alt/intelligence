@@ -1,0 +1,34 @@
+{
+  "kind": "QA_FILE_ONLY_PUBLIC_DIAGNOSTIC_NOT_PRODUCT_AUTHORITY",
+  "provider": "zhipu_bigmodel",
+  "model": "glm-5.3",
+  "profile_id": "bigmodel-glm-5.3-low-json-bound-reference-public-diagnostic-v1",
+  "video_id": "aircAruvnKk",
+  "wire_sha256": "f2562b6a324e25c879fd5873fb3fa220bd3e8c3d1160fe2794dfe3e1d95b0fe2",
+  "wire_bytes": 19090,
+  "diagnostic_request_identity": "961b27b8feb995b03596f7800da0b444f3a1d608bf6d6d54619eb6ed4374a666",
+  "unchanged_messages": true,
+  "differences_from_4_7_request": [
+    "model glm-4.7-flash -> glm-5.3",
+    "explicit official reasoning_effort low"
+  ],
+  "maximum_calls_this_preparation": 1,
+  "execution_state": "NOT_EXECUTED",
+  "credentials_read": false,
+  "user_paid_approval_received": false,
+  "formal_product_qualification": false,
+  "cost_upper_bound_verified": false,
+  "required_before_execution": [
+    "concrete user paid approval",
+    "independent bounded request/capture/once/cost gate review",
+    "provable <=1 CNY reserve bound",
+    "new own durable spent record outside Restore before key/send"
+  ],
+  "official_model_doc": "https://docs.bigmodel.cn/cn/guide/models/text/glm-5.3.md",
+  "private_local_package": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/glm53-public-zh-offline-preparation-20261029",
+  "official_document_snapshots": {
+    "intelligence-glm53-model-20261029.txt": "29029ab6b8214b08a7875ff4aa287812754f875c2cacfe99453cdd25078b22ba",
+    "intelligence-bigmodel-thinking-20261029.txt": "77ebad75df798e78eb29214c673a359131c47b392f4626917742b5b61d69f27e",
+    "intelligence-bigmodel-doc-index-20261029.txt": "09a4db5348bfb44434f5907160828bc6ff9ae5fee9eeeaa870afd98878587ee8"
+  }
+}
