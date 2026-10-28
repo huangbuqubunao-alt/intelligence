@@ -1,0 +1,21 @@
+{
+  "kind": "primary_public_document_only",
+  "no_account_or_model_qualification_claim": true,
+  "sources": {
+    "intelligence-cerebras-limits-20261029.txt": {
+      "sha256": "8fab1a11bf141baa6affbd26efb2f6d1c9c52b2c5576328ee8f368e4cbda038a",
+      "bytes": 81819,
+      "local_snapshot": "/tmp/intelligence-cerebras-limits-20261029.txt"
+    },
+    "intelligence-groq-limits-20261029.txt": {
+      "sha256": "39fbdb737f6748b5bac68efaf0d9aedceab9afd25f9c65385b5bb0eeb21960e6",
+      "bytes": 4287,
+      "local_snapshot": "/tmp/intelligence-groq-limits-20261029.txt"
+    },
+    "intelligence-groq-data-20261029.txt": {
+      "sha256": "4cb691e333c75007a9b7118d213ac5eb26d1deea19a37cb776b4dcc004d0ac0d",
+      "bytes": 15623,
+      "local_snapshot": "/tmp/intelligence-groq-data-20261029.txt"
+    }
+  }
+}

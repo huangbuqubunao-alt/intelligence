@@ -1,0 +1,36 @@
+{
+  "all_83_SQL_tables_every_row_and_schema_equal": true,
+  "all_19_DATA_files_byte_equal": true,
+  "real_1305_observation_preserved": [
+    [
+      "distillation:reservation:v3:4fecdafff7a47b995259c3c19c346bdc4d2a997a07a9a09f5819aaa3db1e5fcc",
+      "zhipu_bigmodel",
+      "glm-4.7-flash",
+      429,
+      "1305",
+      "2026-10-28T18:28:43.420248Z"
+    ]
+  ],
+  "readiness": {
+    "ready": true,
+    "reasons": [],
+    "message": "Core data is quiescent and ready for backup.",
+    "restore_pending": false,
+    "last_restore": {
+      "completed_at": "2026-10-28T23:04:17Z",
+      "message": "Restore completed successfully.",
+      "restore_id": "7b4345eb9214418d8aa3a21e7b102581",
+      "state": "APPLIED"
+    }
+  },
+  "ZIP": {
+    "bytes": 880792,
+    "sha256": "dfd593747270aab188d678c9af93905ac6b359c924df807b9d165cb94d55ea5d"
+  },
+  "flow": "actual headed Chrome create/download/browser input/stage/RESTORE/normal service restart",
+  "model_calls_by_this_flow": 0,
+  "credentials": "NoCredentials; no Native access",
+  "formal_data_changed": false,
+  "outbound_denials_count": 36,
+  "denials_explanation": "All attempted runtime probes refused before outbound connection; no provider wire/key access."
+}

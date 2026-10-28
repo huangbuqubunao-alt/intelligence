@@ -11,3 +11,8 @@ GLM-4.7-Flash v1真实语义失败、v2引用错误、v3短引用位置正确但
 现有框架和证据/持久化/备份标准继续复用。会先核对当前exact-model约束的最小配置化范围，避免每换一个模型就复制实现或从头开发。必要兼容Schema只能追加、保持旧34–43数据/备份恢复，不改写旧模型失败或原Schema历史；属于用户当前standing授权的隔离代码工作，费用授权只约束实际收费调用。
 
 来源： https://www.bigmodel.cn/pricing （29日当前完整公开网页读取保存/tmp/intelligence-cloud-model-pricing-20261029.txt）；https://console.groq.com/docs/rate-limits 。
+
+
+补充官网核验（同日，未注册/未读凭据/未调用模型）：Cerebras当前不适合作为无需付费方式的免费默认候选：官方明确新账号需验证支付方式才启用API，赠送5美元仅30天且没有永久免费层。因此本轮不让用户为所谓免费路径绑定卡片。来源：[Cerebras Rate Limits](https://inference-docs.cerebras.ai/support/rate-limits)。Groq当前官方例表仍为gpt-oss-120b 30RPM/1K RPD/8K TPM/200K TPD，账号实际限制需本人核对；输入和输出合计可能先触发8K TPM，不保证原长输入一次成功。其隐私规则为推理内容默认不保留，但可靠性/滥用监控情形可暂存最长30天；所有客户可在Data Controls启用ZDR，应用状态型功能另有保留。来源：[Groq Rate Limits](https://console.groq.com/docs/rate-limits)、[Your Data in GroqCloud](https://console.groq.com/docs/your-data)。这仍是文档核实，非账号权益、地区网络、实际质量或产品集成PASS。只发送本轮公开/合成测试材料；没有私人数据上传授权。
+
+最小投入顺序：当前只读侦察确认旧025–027/042/043均有精确model约束，不能假装修改一个模型字符串即可正常放行。先做有界公开质量诊断的离线包准备，不继承4.7资格、不写产品成功记录；只有具体调用费用获准且候选质量真实通过，才投入必要的追加持久化/正常运行接线。避免在候选质量未知时先做大规模Schema开发。
