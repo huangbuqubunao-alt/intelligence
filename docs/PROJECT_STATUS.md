@@ -1,3 +1,5 @@
+> 2026-10-28当前43候选706b165：629受影响后端PASS、44新增及静态/前端相关检查有据。一次独审83关键+11前端/TS/static通过；Root真实Mac页面从42不可取消→同库43可取消，迁移81旧表仅登记变/19DATA等，取消一项后另一项仍阻塞，实际服务重启不复活。唯一已发现P2为云端WAIT0误用本地模型说明，原writer最小DTO/文案修复中，当前review只复核这项delta，不重新审旧成果。Root使用fixed706导出运行隔离6198/6199，全凭据/出站禁用；正式采用仍未满足。
+
 > 2026-10-28当前21点续作：用户明确确认已轮换并更新隔离页，凭据安全阻塞已解除（USER_CONFIRMED_ROTATED_AND_UPDATED）；Root只在65bb6b/867606f固定prepared35ba7475包执行一次。真实HTTP429/REJECTED_OUTPUT/invocation1，无public final，立即停止，未重试；旧adapter未保留业务码，具体原因与新版语义质量均未验证，实际费用UNKNOWN。原once/result保留，模型资格/普通预算关闭。Root只读Backup readiness=true、全部81SQL/19DATA在该检查前后相等，未重复ZIP恢复。累计真实GLM尝试2次（v1语义REJECT、v2 HTTP429），main未动。详见GROUNDING_V2_PUBLIC_HTTP429_2026_10_28.md。
 
 > 2026-10-28继续offline安全整改：已用fake v1/v2×缺key/knownTLS-beforePOST复现合法WAIT0无法取消且Backup被DISTILLATION_ACTIVE阻塞。BudgetDecision仅allowed/state，capsule真实预算标签PUBLIC_DIAGNOSTIC_ANTICIPATED_FREE_MAX_ONE；checkpoint没有request_identity_json，不能补造。Root记录精确43追加12字段cloud取消table/guards，并在同一未发布43加入6字段非权威429有限业务码观察方案，保留037/001–042、CP/usage/consent/Evidence、未知/PENDING/RUNNING/BUDGET failclosed及42旧备份支持；同一writer在readiness-cloud-wait-zero-cancel/basee46f9a3隔离实施，固定后仅一次针对性独审；不放行模型，不依赖凭据。
