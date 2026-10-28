@@ -1,4 +1,6 @@
-> 2026-10-28当前：单服务商密钥输入区92059a1经91fa独审APPROVE，Root整合c119d18/9471e24；完整前端1084PASS/42files20.20s、TS/build通过，后端逐字等e495910。真实Chrome仅智谱输入区、旧Moonshot折叠，未保存草稿清空且Native QA configured/KEYCHAIN保留；81表19DATA全等。手册85图追加当前真实已配置截图，仍NOT_VERIFIED/CLOSED。单个公开视频诊断脚本离线107PASS58.37s，固定包准备零key/wire，待固定提交与独立具体包预执行审查；实际BigModel调用仍0，正式main未动。
+> 2026-10-28当前08:15：真实BigModel首例已执行且停止，HTTP200/56196ms/invocation1/1120in2927out，工程SUCCEEDED但f329e218独审语义REJECT（2P1/2P2，确定性/数字放大/年代与角色错误），资格false/实际billUNKNOWN，绝无下一例或重试。prepared d31ae035/原oracle/请求不变，原REJECT4ce与fixture自足修复7e7/独审APPROVE4292均保留；Root整合52489c3/7b94c12/6510fe5，独审语义0553f99。Root107PASS58.77s/compile124/strict123/Ruff/diff；真实请求后BackupRestore全部81表每行+19DATA/once/result相等，readytrue/APPLIED，ZIP880026B。当前仅零调用分析模型能力与普适指令缺口，不修补输出或重试本例，不大规模开发。详见BIGMODEL_PUBLIC_FIRST_CASE_REAL_2026_10_28.md；正式main/origin仍73ee7e7，未发布，整个Goal未通过。
+
+> 2026-10-28设置片段：单服务商密钥输入区92059a1经91fa独审APPROVE，Root整合c119d18/9471e24；完整前端1084PASS/42files20.20s、TS/build通过，后端逐字等e495910。真实Chrome仅智谱输入区、旧Moonshot折叠，未保存草稿清空且Native QA configured/KEYCHAIN保留；81表19DATA全等。手册85图追加当前真实已配置截图，仍NOT_VERIFIED/CLOSED。此片段验收时实际BigModel调用仍0；随后首例的真实失败见上条。
 
 > 2026-10-28已审State56+transport a7/007组合由5af独审APPROVE；Root整合6d0640f/5ab18bd/36e2d52/e495910，src/frontend/tests=3ca，Root213PASS75.77s/strict122/Ruff/compile122，保留原两个REJECT。用户QA Keychain已配置，保存前后81SQL表/19DATA全等，真实模型仍0/生产资格及预算关闭。官方定价今日只读快照确认GLM-4.7-Flash输入/输出/缓存免费、本人未充值，账号权益和实际账单仍未知。新public诊断副本81表19DATA/QoXR，准备单例英文原oracle诊断小包：先零key/零网络冻结与独审，Root最多一次公共请求，任何结果停且不授资格；后续多case/真实GUI/full回归与发布另验。UI editor isolation writer续作中。
 
