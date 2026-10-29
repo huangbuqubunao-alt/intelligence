@@ -1,0 +1,1 @@
+Implementer pure SYSTEM_SYNTHESIS contract ONLY; read exact task/decision and repo docs. FreshWT/base assigned. Rootreview once. No legacy changes/model/key/network, oldfailedrawcannotpassnewcodec, no prompted desiredfacts. Minimalnewmodule/test/handoff; preservestandards, finalfixedcommitcleanSTOP.

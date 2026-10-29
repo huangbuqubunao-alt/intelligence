@@ -1,0 +1,15 @@
+# 最小整改决定：来源可复验的系统分析
+
+当前普通用户任务要求：通过合适可配置模型完成核心操作，不大规模重开发。保留前两次Kimi原输出与REJECT；当前profile不放行、不再调用。
+
+已复现边界：单卡既允许来源陈述，又要求个性化应用分析，却将所有字段折叠为一个模型自报claim_kind。最新原始输出的事实、引用和新增价值通过，但自己的使用建议被包在来源陈述类型里。单纯靠重复口头提示再付费重试没有工程保证。
+
+为新的、明确限于“系统分析”的profile，将生成来源作为调用前由后端固定的元数据，而非让模型自报来源事实权威。新任务只生成系统基于Evidence的分析/判断，整卡始终显式SYSTEM_INFERENCE；来源原话仍来自原始Evidence单独回跳，并在正文正确归因。它不提供FACT/OPINION等来源卡类型，不改变旧profile的claim_kind含义或旧数据。不能用新协议重新接纳两份旧失败输出。
+
+这是一个受限的新输出合同，不是运行后根据关键词改标。新wire正向恰七字段：core_conclusion、user_relevant_information、important_new_information、meaningful_details、filtered_noise、evidence、reference_protocol。claim_kind由调用前的系统分析操作定义，模型返回该字段/额外字段必须拒绝，不能删除后再接受。NO_NEW仍原三字段，完整refs且不得强制正向。
+
+新解码器返回独立的typed系统分析结果，保留rawhash、request origin、profile与完整Summary proof。未来normal adapter显式将该请求类型映射为既有SYSTEM_INFERENCE领域卡；这一映射是请求前固定任务含义，不是对旧输出补标或将失败改成功。该pure解码器本身不得拥有执行、入卡、资格或费用权威。
+
+完整Summary十字段、原始源/Evidence、引用位置、数字/范围/模态/归因、推断依据与待验证限制、distinct value标准均保留。新请求不允许事实错误，不用SYSTEM_INFERENCE为虚构事实开脱。纯重复/空泛总结仍NO_NEW；真实语义验收与普通用户完整链路仍须通过。
+
+先实施最小pure合同与合成离线测试，审这一新增边界一次。随后接现有执行/预算/取消/保存/主题/恢复，兼容迁移如必要先记录准确范围。全部工作在隔离候选；模型门禁持续关闭直到新profile真实质量验收。新真实付费调用需另一个明确有界授权，本决定不新增费用，不读其它凭据，不改变正式数据。
