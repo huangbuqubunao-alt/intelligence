@@ -1,3 +1,5 @@
+> 2026-10-29最新：用户可测试版本继续实施。新system-synthesis-v1纯合同已整合65220b6，85相关unit/strict127通过，真实只读草包20613B/零调用；旧失败原文严格拒绝且保留。正常持久化/界面尚未接；SYNTHESIS-PERSISTENCE44 READY，先精确迁移记录、隔离实现/恢复。Paid仍STOP/资格关闭/main保持73ee7e7。
+
 > 2026-10-29本次明确获批Kimi续试完成：完整Summary已发送，事实/引用/新增价值PASS，独立b7c34cf仍REJECT（1P2：整卡混合来源陈述和系统建议分类不符）。累计2次，1943326微元预留保留、真实账单UNKNOWN；QK83SQL19DATA全等、Backup ready。一次授权已耗尽，不再扣费；资格关闭/普通链路未完成/main未采用。最终单例报告KIMI_SUMMARY_AWARE_FINAL_TRIAL_REPORT_2026_10_29.json。
 
 > 2026-10-29最新：Summary-aware QA capsule4fee→Root59f技术窄审通过，43新unit/strict/Ruff；真实schema43 readonly包21463B、完整Summary已绑定，256源文件不变。预估单次0.991208元，加旧预留累计1.943326元，待新的具体一次续试决定，零新调用/资格关闭/main不动。详见CURRENT_RESUME_STATUS及新capsule验收JSON。

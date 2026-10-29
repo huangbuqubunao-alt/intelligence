@@ -1,0 +1,40 @@
+{
+  "decision": "ACCEPT_NEW_PURE_CONTRACT_ONLY",
+  "accepted_commits": [
+    "770abb3e55f948eaecc6ed98c52230c2d57aba07",
+    "b0fc1ad46462917e34c7b711df598dd0d45d62b9"
+  ],
+  "root_integrated": "65220b6da74f184116b7beff83d5b92f659ee4af",
+  "root_review": "One bounded full component review plus only one bounded preference-policy delta; previous failed outputs remain rejected",
+  "checks": {
+    "related_unit": "........................................................................ [ 84%]\n.............                                                            [100%]\n85 passed in 0.38s",
+    "strict_all_src": "Success: no issues found in 127 source files",
+    "ruff": "All checks passed!",
+    "compile": "writer2PASS/root source import actual builder PASS",
+    "diff": "PASS"
+  },
+  "actual_readonly_public_proof": {
+    "actual_calls": 0,
+    "both_prior_failed_raw_outputs_rejected_without_relabel": [
+      "public-aircAruvnKk-zh-kimi-k3.1-pro",
+      "public-aircAruvnKk-zh-kimi-k3.1-pro-summary-aware-1"
+    ],
+    "credential_reads": 0,
+    "estimate_not_billing_guarantee": true,
+    "full_projection_rebuild_exact": true,
+    "full_summary_context_sha256": "dfc047f1279b04203b216e2513a2f7cccb2f47c4a46c2d4e5323b95ed0a4258f",
+    "messages": 4,
+    "normal_runtime_wired": false,
+    "origin_sha256": "f6eafc7836a60f9932b029b9138a660f8f910c592c056d97a0ca6c85bc1295e6",
+    "original_task_source_messages_unchanged": true,
+    "reserve_estimate_microunits": 969966,
+    "source_all256files_unchanged": true,
+    "status": "READONLY_DRAFT_NOT_EXECUTION_PERMIT",
+    "wire_bytes": 20613,
+    "wire_sha256": "b6af08888f17735cbd74f049b1cf9a763796f9c30085f724e5c6217e18a89526"
+  },
+  "production_qualification": "CLOSED",
+  "actual_new_model_calls": 0,
+  "normal_runtime_wired": false,
+  "main_adopted": false
+}
