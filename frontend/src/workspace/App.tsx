@@ -432,7 +432,7 @@ function initialEvidenceTarget(): string | null {
 
 function initialPage(): Page {
   const raw = location.hash.slice(1);
-  if (/^Settings\/models\/bigmodel(?:\?return=[^#]+)?$/.test(raw)) return "Settings";
+  if (/^Settings\/models\/(?:bigmodel|moonshot)(?:\?return=[^#]+)?$/.test(raw)) return "Settings";
   if (/^Settings\/transcription(?:\/[^/]+)?$/.test(raw)) return "Settings";
   if (raw.startsWith("Content/")) return "Content";
   if (/^Research(?:\/[a-f0-9]{64}(?:\/history\/[a-f0-9]{64}|\/diff\/[a-f0-9]{64}\/[a-f0-9]{64})?)?$/.test(raw)) return "Research";

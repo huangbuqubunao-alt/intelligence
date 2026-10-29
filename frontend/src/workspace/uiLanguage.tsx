@@ -14,7 +14,9 @@ const chinese: Record<string, string> = {
   "BigModel reported an incompatible API key type. Check the standard API key in Settings; this task will not retry automatically.": "智谱报告 API 密钥类型不匹配。请在设置中核对标准 API 密钥；本次不会自动重试。",
 
   "Choose which service's key to edit. This does not change the model used for execution.": "选择要编辑密钥的服务商，不会改变执行任务使用的模型。",
-  "Moonshot / kimi-k2.6 credential setup": "Moonshot / kimi-k2.6 密钥设置",
+  "Kimi / Moonshot API credential setup": "Kimi / Moonshot API 密钥设置",
+  "Public YouTube Content only": "仅限公开 YouTube 内容",
+  "This provider key does not select or activate an execution model. Cloud Intelligence still requires a qualified model, budget and separate authorization.": "此服务商密钥不会选择或启用执行模型。云端洞察仍需要合格模型、预算及单独授权。",
   "Moonshot API key": "Moonshot API 密钥",
   "Save Moonshot key securely": "安全保存 Moonshot 密钥",
   "Confirm Moonshot key deletion": "确认删除 Moonshot 密钥",

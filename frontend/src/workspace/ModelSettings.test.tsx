@@ -3,8 +3,8 @@ import { ModelSettings } from "./ModelSettings";
 import { UiLanguageProvider } from "./uiLanguage";
 
 const candidate = { provider: "zhipu_bigmodel", model: "glm-4.7-flash", qualification: "NOT_VERIFIED", budget: "CLOSED" };
-function setup(language = "en") {
-  history.replaceState(null, "", "#Settings");
+function setup(language = "en", hash = "#Settings", outerOpen = true) {
+  history.replaceState(null, "", hash);
   localStorage.setItem("yia.ui-language", language);
   const stores = { big: "synthetic-saved-big", old: "synthetic-saved-moonshot" };
   const calls: { path: string; method: string }[] = [];
@@ -19,12 +19,12 @@ function setup(language = "en") {
     return { ok: true, json: async () => ({ ...(isNew ? candidate : {}), configured: !!value, source: value ? "KEYCHAIN" : "NONE" }) };
   });
   vi.stubGlobal("fetch", fetch);
-  const view = render(<UiLanguageProvider><details open><summary>Outer Cloud setup</summary><ModelSettings
+  const view = render(<UiLanguageProvider><details open={outerOpen}><summary>Outer Cloud setup</summary><ModelSettings
     credential={{ configured: true, source: "KEYCHAIN" }} onSaved={vi.fn()} message="" setMessage={vi.fn()} /></details></UiLanguageProvider>);
   return { ...view, stores, calls, fetch };
 }
 const newToggle = () => screen.getByText("BigModel GLM-4.7-Flash candidate setup");
-const oldToggle = () => screen.getByText("Moonshot / kimi-k2.6 credential setup");
+const oldToggle = () => screen.getByText("Kimi / Moonshot API credential setup");
 const passwords = () => document.querySelectorAll('input[type="password"]');
 
 test("only an explicitly selected service mounts a password; switching never transfers drafts or changes saved keys", async () => {
@@ -97,7 +97,7 @@ test("switch away and back during a save neither repeats it nor revives drafts; 
 
 test.each(["en", "zh-CN"])("legacy editor still saves/deletes only Moonshot with service-specific controls (%s)", async language => {
   const { stores, calls } = setup(language);
-  fireEvent.click(screen.getByText(language === "en" ? "Moonshot / kimi-k2.6 credential setup" : "Moonshot / kimi-k2.6 密钥设置"));
+  fireEvent.click(screen.getByText(language === "en" ? "Kimi / Moonshot API credential setup" : "Kimi / Moonshot API 密钥设置"));
   const input = await screen.findByLabelText(language === "en" ? "Moonshot API key" : "Moonshot API 密钥");
   fireEvent.change(input, { target: { value: "synthetic-old-save" } });
   fireEvent.click(screen.getByRole("button", { name: language === "en" ? "Save Moonshot key securely" : "安全保存 Moonshot 密钥" }));
@@ -169,4 +169,70 @@ test("unmount during save keeps the dispatched write, with no replay or hidden e
   expect(calls.filter(c => c.method !== "GET")).toEqual([{ path: "/api/v1/settings/bigmodel-credential", method: "PUT" }]);
   expect(stores.old).toBe("synthetic-saved-moonshot");
   expect(stores.big).toBe("synthetic-unmount-save");
+});
+
+test.each(["en", "zh-CN"])("Kimi provider direct link opens only its editor and retains safe Content return (%s)", async language => {
+  const { container, calls, stores } = setup(language, "#Settings/models/moonshot?return=%23Content%2Fvideo-1%2FEvidence%2Fevidence-1", false);
+  expect(await screen.findByLabelText(language === "en" ? "Moonshot API key" : "Moonshot API 密钥")).toBeTruthy();
+  expect(screen.getByText(language === "en" ? "Kimi / Moonshot API credential setup" : "Kimi / Moonshot API 密钥设置")).toBeTruthy();
+  expect(container.querySelectorAll("details[open]")).toHaveLength(2);
+  expect(document.activeElement?.id).toBe("moonshot-settings");
+  expect(passwords()).toHaveLength(1);
+  expect(screen.queryByLabelText(language === "en" ? "BigModel API key" : "智谱 API 密钥")).toBeNull();
+  expect(container.textContent).not.toContain("kimi-k2.6");
+  expect(screen.getByText(language === "en" ? "Public YouTube Content only" : "仅限公开 YouTube 内容")).toBeTruthy();
+  expect(screen.getByRole("link", { name: language === "en" ? "Back to Content" : "返回内容" }).getAttribute("href")).toBe("#Content/video-1/Evidence/evidence-1");
+  expect(calls.filter(call => call.method !== "GET")).toEqual([]);
+  expect(stores).toEqual({ big: "synthetic-saved-big", old: "synthetic-saved-moonshot" });
+});
+
+test.each(["https://evil.example", "javascript:alert(1)", "#Settings", "#Content/video-1#Settings", "#Content/video-\u0000"])("Kimi return refuses non-Content or control target %s", async target => {
+  setup("en", `#Settings/models/moonshot?return=${encodeURIComponent(target)}`);
+  await screen.findByLabelText("Moonshot API key");
+  expect(screen.queryByRole("link", { name: "Back to Content" })).toBeNull();
+});
+
+test("Kimi hash navigation clears both drafts and deletion confirmations without saving", async () => {
+  const { calls, stores } = setup();
+  fireEvent.click(newToggle());
+  fireEvent.change(await screen.findByLabelText("BigModel API key"), { target: { value: "synthetic-big-deep-draft" } });
+  fireEvent.click(await screen.findByLabelText("Confirm BigModel key deletion"));
+  await act(async () => { location.hash = "#Settings/models/moonshot"; window.dispatchEvent(new HashChangeEvent("hashchange")); });
+  const moonshot = await screen.findByLabelText("Moonshot API key") as HTMLInputElement;
+  expect(moonshot.value).toBe("");
+  expect(passwords()).toHaveLength(1);
+  fireEvent.change(moonshot, { target: { value: "synthetic-kimi-deep-draft" } });
+  fireEvent.click(screen.getByLabelText("Confirm Moonshot key deletion"));
+  await act(async () => { location.hash = "#Settings/models/bigmodel"; window.dispatchEvent(new HashChangeEvent("hashchange")); });
+  expect((await screen.findByLabelText("BigModel API key") as HTMLInputElement).value).toBe("");
+  expect((screen.getByLabelText("Confirm BigModel key deletion") as HTMLInputElement).checked).toBe(false);
+  await act(async () => { location.hash = "#Settings/models/moonshot"; window.dispatchEvent(new HashChangeEvent("hashchange")); });
+  expect((await screen.findByLabelText("Moonshot API key") as HTMLInputElement).value).toBe("");
+  expect((screen.getByLabelText("Confirm Moonshot key deletion") as HTMLInputElement).checked).toBe(false);
+  await act(async () => { location.hash = "#Content/video-1"; window.dispatchEvent(new HashChangeEvent("hashchange")); });
+  expect(passwords()).toHaveLength(0);
+  expect(calls.filter(call => call.method !== "GET")).toEqual([]);
+  expect(stores).toEqual({ big: "synthetic-saved-big", old: "synthetic-saved-moonshot" });
+});
+
+test("Kimi direct entry opens every ancestor and folding an outer ancestor discards the draft", async () => {
+  history.replaceState(null, "", "#Settings/models/moonshot");
+  localStorage.setItem("yia.ui-language", "en");
+  const fetch = vi.fn(async (_path: string, _init?: RequestInit) => ({ ok: true, json: async () => ({ configured: true, source: "KEYCHAIN" }) }));
+  vi.stubGlobal("fetch", fetch);
+  const { container } = render(<UiLanguageProvider><details><summary>Advanced outer</summary>
+    <details><summary>Cloud inner</summary><ModelSettings credential={{ configured: true, source: "KEYCHAIN" }}
+      onSaved={vi.fn()} message="" setMessage={vi.fn()} /></details></details></UiLanguageProvider>);
+  const input = await screen.findByLabelText("Moonshot API key");
+  expect(container.querySelectorAll("details[open]")).toHaveLength(3);
+  fireEvent.change(input, { target: { value: "synthetic-outer-draft" } });
+  fireEvent.click(screen.getByLabelText("Confirm Moonshot key deletion"));
+  fireEvent.click(screen.getByText("Advanced outer"));
+  await waitFor(() => expect(passwords()).toHaveLength(0));
+  fireEvent.click(screen.getByText("Advanced outer"));
+  expect(passwords()).toHaveLength(0);
+  fireEvent.click(screen.getByText("Kimi / Moonshot API credential setup"));
+  expect((await screen.findByLabelText("Moonshot API key") as HTMLInputElement).value).toBe("");
+  expect((screen.getByLabelText("Confirm Moonshot key deletion") as HTMLInputElement).checked).toBe(false);
+  expect(fetch.mock.calls.every(([, init]) => (init?.method ?? "GET") === "GET")).toBe(true);
 });

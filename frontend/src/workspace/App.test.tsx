@@ -109,7 +109,7 @@ test("Settings saves discovered candidate and secure credential without generati
   fireEvent.change(await screen.findByLabelText("Discovered candidate"), { target: { value: "candidate:7b" } });
   fireEvent.click(screen.getByRole("button", { name: "Save candidate preference" }));
   await waitFor(() => expect(writes[0]?.data).toEqual({ provider: "Local", model: "candidate:7b" }));
-  fireEvent.click(screen.getByText("Moonshot / kimi-k2.6 credential setup"));
+  fireEvent.click(screen.getByText("Kimi / Moonshot API credential setup"));
   fireEvent.change(await screen.findByLabelText("Moonshot API key"), { target: { value: "synthetic-closure-ui" } });
   fireEvent.click(screen.getByRole("button", { name: "Save Moonshot key securely" }));
   await screen.findByText("Credential saved in macOS Keychain. Every cloud execution still needs separate consent.");
@@ -3236,6 +3236,26 @@ test("BigModel settings deep link opens the exact candidate and returns to Conte
   expect(document.getElementById("bigmodel-settings")?.getAttribute("open")).not.toBeNull();
   expect(screen.getByRole("link", { name: "Back to Content" }).getAttribute("href")).toBe("#Content/video-1/Evidence/evidence-1");
   expect(screen.getAllByRole("navigation")[0].querySelectorAll("button")).toHaveLength(6);
+});
+
+test("Kimi provider deep link survives reload and same-page hash navigation with safe Content return", async () => {
+  location.hash = "#Settings/models/moonshot?return=%23Content%2Fvideo-1%2FEvidence%2Fevidence-1";
+  let view = render(<App />);
+  await screen.findByLabelText("Moonshot API key");
+  await waitFor(() => expect(document.activeElement?.id).toBe("moonshot-settings"));
+  expect(screen.getByRole("link", { name: "Back to Content" }).getAttribute("href")).toBe("#Content/video-1/Evidence/evidence-1");
+  expect(document.querySelectorAll('input[type="password"]')).toHaveLength(1);
+  fireEvent.change(screen.getByLabelText("Moonshot API key"), { target: { value: "synthetic-before-reload" } });
+  view.unmount();
+  view = render(<App />);
+  expect((await screen.findByLabelText("Moonshot API key") as HTMLInputElement).value).toBe("");
+  await act(async () => { location.hash = "#Settings/models/bigmodel"; window.dispatchEvent(new HashChangeEvent("hashchange")); });
+  await screen.findByLabelText("BigModel API key");
+  await act(async () => { location.hash = "#Settings/models/moonshot?return=%23Content%2Fvideo-1%2FEvidence%2Fevidence-1"; window.dispatchEvent(new HashChangeEvent("hashchange")); });
+  expect((await screen.findByLabelText("Moonshot API key") as HTMLInputElement).value).toBe("");
+  fireEvent.click(screen.getByRole("link", { name: "Back to Content" }));
+  await waitFor(() => expect(location.hash).toBe("#Content/video-1/Evidence/evidence-1"));
+  await waitFor(() => expect(document.querySelectorAll('input[type="password"]')).toHaveLength(0));
 });
 
 

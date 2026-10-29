@@ -5,6 +5,11 @@ import { useUiLanguage } from "./uiLanguage";
 
 type Credential = { configured: boolean; source: string };
 
+function moonshotContentReturn(): string | null {
+  const target = new URLSearchParams(location.hash.split("?")[1] ?? "").get("return");
+  return target && /^#Content\/[^/?#]+(?:\/Evidence\/[^/?#]+)?$/.test(target) && !/[\p{Cc}\p{Cs}]/u.test(target) ? target : null;
+}
+
 export function ModelSettings({ credential, preference, onSaved, message, setMessage }: {
   credential?: Credential;
   preference?: { desired_provider: string | null; desired_model: string | null };
@@ -15,6 +20,8 @@ export function ModelSettings({ credential, preference, onSaved, message, setMes
   const { t } = useUiLanguage();
   const [editor, setEditor] = useState<"bigmodel" | "moonshot" | null>(null);
   const panel = useRef<HTMLElement>(null);
+  const moonshotPanel = useRef<HTMLDetailsElement>(null);
+  const [returnHash, setReturnHash] = useState(moonshotContentReturn);
   const pending = useRef(false);
   const selectEditor = (next: "bigmodel" | "moonshot" | null) => {
     setKey(""); setConfirmed(false); setEditor(next);
@@ -37,8 +44,18 @@ export function ModelSettings({ credential, preference, onSaved, message, setMes
   useEffect(() => {
     const clear = () => {
       setKey(""); setConfirmed(false);
-      setEditor(location.hash.startsWith("#Settings/models/bigmodel") ? "bigmodel" : null);
+      setReturnHash(moonshotContentReturn());
+      const moonshot = /^#Settings\/models\/moonshot(?:\?return=[^#]+)?$/.test(location.hash);
+      setEditor(moonshot ? "moonshot" : location.hash.startsWith("#Settings/models/bigmodel") ? "bigmodel" : null);
+      if (moonshot) {
+        onSaved();
+        const element = moonshotPanel.current;
+        let ancestor = element?.parentElement?.closest("details");
+        while (ancestor) { ancestor.open = true; ancestor = ancestor.parentElement?.closest("details"); }
+        element?.scrollIntoView?.({ block: "start" }); element?.focus({ preventScroll: true });
+      }
     };
+    clear();
     const parents: HTMLDetailsElement[] = [];
     let parent = panel.current?.parentElement?.closest("details");
     while (parent) { parents.push(parent); parent = parent.parentElement?.closest("details"); }
@@ -94,13 +111,14 @@ export function ModelSettings({ credential, preference, onSaved, message, setMes
     </details>
     <p className="hint">{t("Choose which service's key to edit. This does not change the model used for execution.")}</p>
     <BigModelSettings selected={editor === "bigmodel"} onSelectionChange={open => selectEditor(open ? "bigmodel" : null)} />
-    <details open={editor === "moonshot"} onToggle={event => {
+    <details id="moonshot-settings" ref={moonshotPanel} tabIndex={-1} open={editor === "moonshot"} onToggle={event => {
       if (event.currentTarget.open !== (editor === "moonshot")) selectEditor(event.currentTarget.open ? "moonshot" : null);
     }}>
-    <summary onClick={event => { event.preventDefault(); selectEditor(editor === "moonshot" ? null : "moonshot"); }}>{t("Moonshot / kimi-k2.6 credential setup")}</summary>
+    <summary onClick={event => { event.preventDefault(); selectEditor(editor === "moonshot" ? null : "moonshot"); }}>{t("Kimi / Moonshot API credential setup")}</summary>
     {editor === "moonshot" && <>
     <h3>{t("Cloud Intelligence credential")}</h3>
-    <p>Moonshot / kimi-k2.6 · {t("Video Distillation only")}</p>
+    <p>Kimi / Moonshot API · <span>{t("Public YouTube Content only")}</span></p>
+    <p className="hint">{t("This provider key does not select or activate an execution model. Cloud Intelligence still requires a qualified model, budget and separate authorization.")}</p>
     <p>{t(credential?.source === "KEYCHAIN" ? "Configured in macOS Keychain" : credential?.source === "ENVIRONMENT" ? "Using development environment variable" : credential?.source === "UNAVAILABLE" ? "System credential store is unavailable." : "Not configured")}</p>
     <label className="field">{t("Moonshot API key")}
       <input id="moonshot-api-key" name="moonshot-api-key" type="password" aria-label={t("Moonshot API key")} disabled={busy} value={key} onChange={event => setKey(event.target.value)} autoComplete="off" spellCheck={false} />
@@ -112,6 +130,7 @@ export function ModelSettings({ credential, preference, onSaved, message, setMes
     </> : null}
     <p className="hint">{t("Saving a credential does not call a provider, prove availability, qualify Deep Analysis or authorize paid work.")}</p>
     {message ? <p role="status">{message}</p> : null}
+    {returnHash && <a className="button button-secondary" href={returnHash}>{t("Back to Content")}</a>}
     </>}
     </details>
   </section>;
