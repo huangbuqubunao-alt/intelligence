@@ -97,7 +97,7 @@ def test_proven_cloud_wait_cancel_is_append_only_restart_and_backup_safe(tmp_pat
 
 def test_new_receipt_is_exactly_twelve_fields_and_schema43(tmp_path):
     repo = SQLiteStateRepository(tmp_path / 'state.sqlite3')
-    assert repo.initialize(now=NOW).version == 43
+    assert repo.initialize(now=NOW).version == 44
     with repo._connect() as c:
         assert tuple(row[1] for row in c.execute('PRAGMA table_info('+TABLE+')')) == (
             'execution_id','source_id','video_id','reason','use_case','selected_provider',
@@ -257,7 +257,7 @@ def test_populated42_migrates_all81_tables_and19_data_unchanged(tmp_path):
     data=tmp_path/'DATA'
     files={str(p.relative_to(data)):p.read_bytes() for p in data.rglob('*') if p.is_file()}
     assert len(files)==19
-    assert repo.initialize(now=NOW).version==43
+    assert repo.initialize(now=NOW).version==44
     with repo._connect() as c:
         for table,rows in tables.items():
             if table!='schema_migrations':

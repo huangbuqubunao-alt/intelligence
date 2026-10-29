@@ -305,6 +305,20 @@ def provider_model_statuses(
             ),
         ),
         ProviderModelStatus(
+            provider="moonshot",
+            model="kimi-k3.1-pro",
+            configured=desired_provider == "moonshot" and desired_model == "kimi-k3.1-pro",
+            credential_status="AVAILABLE" if moonshot_credential_available else "BLOCKED",
+            adapter_available=True,
+            qualification_status="UNQUALIFIED",
+            authorized=False,
+            production_eligible=False,
+            scope="PUBLIC_YOUTUBE_TIMED_MEDIA",
+            reason=(
+                "kimi-k3.1-pro system synthesis requires independent quality qualification and explicit per-request authorization; normal spending remains closed."
+            ),
+        ),
+        ProviderModelStatus(
             provider="NVIDIA NIM",
             model="moonshotai/kimi-k3",
             configured=desired_provider == "NVIDIA NIM"

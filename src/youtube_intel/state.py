@@ -24,6 +24,7 @@ from youtube_intel.tracked_retry_context import (
 
 if TYPE_CHECKING:
     from youtube_intel.backup_restore import BackupRestoreService
+    from youtube_intel.system_synthesis_persistence import Completion
     from youtube_intel.transcripts import TranscriptJobContext
 
 from youtube_intel.domain import (
@@ -72,6 +73,7 @@ from .cloud_audit import (
     ZHIPU_FAILURES,
     ZHIPU_PAIR,
 )
+from .system_synthesis_profile import PAIR as SYNTHESIS_PAIR
 
 #: The sole post-migration scoring lineage generation (schema v2).  Every
 #: post-migration SCORING Job receives exactly this literal at creation; the
@@ -79,6 +81,7 @@ from .cloud_audit import (
 SCORING_LINEAGE_VERSION_V1: Final = "task016c-scoring-lineage-v1"
 
 _CLOUD_AUDIT_TABLES: Final[dict[tuple[str, str], tuple[str, str | None]]] = {
+    SYNTHESIS_PAIR: ("system_synthesis_cloud_authorizations", None),
     ZHIPU_PAIR: (ZHIPU_AUTHORIZATIONS, None),
     ("nvidia_nim", "moonshotai/kimi-k3"): (
         "distillation_cloud_authorizations",
@@ -1823,6 +1826,7 @@ class SQLiteStateRepository:
             "041_add_long_distillation_provenance.sql",
             "042_add_zhipu_cloud_execution_audit.sql",
             "043_add_cloud_wait_zero_cancellation.sql",
+            "044_add_system_synthesis_provenance.sql",
         )
         migrations: list[_Migration] = []
         for name in names:
@@ -1934,6 +1938,8 @@ class SQLiteStateRepository:
                 msg = "migration history mismatch: no applied migration"
                 raise MigrationError(msg)
             self.verify_cloud_audit_database(connection)
+            from .system_synthesis_persistence import verify_database
+            verify_database(self, connection)
             return version
         finally:
             connection.close()
@@ -4700,6 +4706,12 @@ class SQLiteStateRepository:
             for trigger in ("distillation_no_new_http_status_bound", "distillation_resource_usage_http_status_bound", "distillation_cloud_failure_outcome_finite"):
                 expected.executescript(f"CREATE TRIGGER {trigger} BEFORE INSERT ON distillation_resource_usage BEGIN SELECT 1; END;")
             expected.executescript(latest.sql)
+            if int(connection.execute("PRAGMA user_version").fetchone()[0]) >= 44:
+                delta = next(m.sql for m in self._load_migrations() if m.version == 44)
+                changed = ("distillation_no_new_http_status_bound", "distillation_resource_usage_http_status_bound", "distillation_cloud_failure_outcome_finite")
+                for statement in _migration_statements(delta):
+                    if any(statement.lstrip().startswith(prefix + name) for name in changed for prefix in ("DROP TRIGGER ", "CREATE TRIGGER ")):
+                        expected.execute(statement)
             if [tuple(row) for row in connection.execute(query, schema_parameters)] != expected.execute(query, schema_parameters).fetchall():
                 raise IntegrityConflict("BigModel audit schema constraints are incompatible")
         # Table names come solely from the finite application-owned descriptor.
@@ -10277,7 +10289,7 @@ class SQLiteStateRepository:
                 (result["actual_provider"] == "nvidia_nim" and result["actual_model"] == "moonshotai/kimi-k3")
                 or (result["actual_provider"] == "openai" and result["actual_model"] == "gpt-4.1")
                 or (result["actual_provider"] == "moonshot" and result["actual_model"] in {"kimi-k2.6", "kimi-k3"})
-                or (result["actual_provider"], result["actual_model"]) == ZHIPU_PAIR
+                or (result["actual_provider"], result["actual_model"]) in {ZHIPU_PAIR, SYNTHESIS_PAIR}
             )
         ):
             raise StateStoreError("no-new Intelligence HTTP status is invalid")
@@ -10291,6 +10303,9 @@ class SQLiteStateRepository:
             if row is None:
                 return None
             self._validate_zhipu_execution(connection, row)
+            from . import system_synthesis_persistence as synthesis
+            if synthesis.owns(row):
+                synthesis.verify_execution(self, connection, execution_id)
             from .long_distillation_persistence import is_long, verify_execution
             if is_long(execution_id):
                 try:
@@ -10298,7 +10313,7 @@ class SQLiteStateRepository:
                 except (ValueError, KeyError, TypeError, sqlite3.Error) as error:
                     raise StateStoreError("long execution failed historical validation") from error
             from . import cloud_wait_cancellation, distillation_cancellation
-            proof = cloud_wait_cancellation if row["selected_provider"] == ZHIPU_PAIR[0] else distillation_cancellation
+            proof = synthesis if synthesis.owns(row) else cloud_wait_cancellation if row["selected_provider"] == ZHIPU_PAIR[0] else distillation_cancellation
             try:
                 cancellation = proof.read_cancellation(connection, row, repository=self)
             except ValueError as error:
@@ -10492,6 +10507,7 @@ class SQLiteStateRepository:
     ) -> DistillationExecutionRecord:
         """Append a terminal receipt without changing a request, usage or Evidence."""
         from . import cloud_wait_cancellation, distillation_cancellation
+        from . import system_synthesis_persistence as synthesis
 
         connection = self._connect()
         try:
@@ -10505,12 +10521,12 @@ class SQLiteStateRepository:
                 from .long_distillation_persistence import is_long, verify_execution
                 if is_long(execution_id):
                     verify_execution(self, connection, execution_id)
-                proof = cloud_wait_cancellation if checkpoint["selected_provider"] == ZHIPU_PAIR[0] else distillation_cancellation
+                proof = synthesis if synthesis.owns(checkpoint) else cloud_wait_cancellation if checkpoint["selected_provider"] == ZHIPU_PAIR[0] else distillation_cancellation
                 cancellation = proof.read_cancellation(connection, checkpoint, repository=self)
                 if cancellation is None:
                     proof.verify_wait(connection, checkpoint, repository=self)
                     values = {key: checkpoint[key] for key in proof.BINDINGS}
-                    values["outcome"] = cloud_wait_cancellation.OUTCOME if checkpoint["selected_provider"] == ZHIPU_PAIR[0] else "CANCELLED_BEFORE_MODEL_INVOCATION"
+                    values["outcome"] = proof.OUTCOME if proof is synthesis or checkpoint["selected_provider"] == ZHIPU_PAIR[0] else "CANCELLED_BEFORE_MODEL_INVOCATION"
                     values.update(checkpoint_updated_at=checkpoint["updated_at"], cancelled_at=format_utc_datetime(now))
                     connection.execute(
                         f"INSERT INTO {proof.TABLE} (execution_id, source_id, video_id, reason, use_case, "
@@ -10547,6 +10563,7 @@ class SQLiteStateRepository:
 
     def can_cancel_waiting_model_execution(self, execution_id: str) -> bool:
         from . import cloud_wait_cancellation, distillation_cancellation
+        from . import system_synthesis_persistence as synthesis
         try:
             with closing(self._connect()) as connection, _read_snapshot(connection):
                 row = connection.execute(
@@ -10554,7 +10571,7 @@ class SQLiteStateRepository:
                 ).fetchone()
                 if row is None:
                     return False
-                proof = cloud_wait_cancellation if row["selected_provider"] == ZHIPU_PAIR[0] else distillation_cancellation
+                proof = synthesis if synthesis.owns(row) else cloud_wait_cancellation if row["selected_provider"] == ZHIPU_PAIR[0] else distillation_cancellation
                 if not proof.has_table(connection) or proof.read_cancellation(connection, row, repository=self) is not None:
                     return False
                 proof.verify_wait(connection, row, repository=self)
@@ -11140,6 +11157,7 @@ class SQLiteStateRepository:
         duration_ms: int | None,
         now: datetime,
         http_status_code: int | None = None,
+        synthesis_completion: Completion | None = None,
     ) -> DistillationExecutionRecord:
         from .long_distillation_persistence import reject_generic
         reject_generic(execution_id)
@@ -11194,6 +11212,8 @@ class SQLiteStateRepository:
                 ).fetchone()
                 if row is None:
                     raise StateStoreError("distillation terminal state was not saved")
+                from .system_synthesis_persistence import append_receipt
+                append_receipt(self, connection, execution_id, synthesis_completion)
                 return self._distillation_execution_from_row(row)
         except sqlite3.IntegrityError as error:
             raise IntegrityConflict("distillation terminal state violates the ledger contract") from error
@@ -11276,6 +11296,7 @@ class SQLiteStateRepository:
         http_status_code: int | None,
         now: datetime,
         bigmodel_error_code: str | None = None,
+        synthesis_completion: Completion | None = None,
     ) -> DistillationExecutionRecord:
         """Persist a finite failure classification for one confirmed cloud response."""
         from .long_distillation_persistence import reject_generic
@@ -11379,6 +11400,8 @@ class SQLiteStateRepository:
                     self._validate_zhipu_execution(connection, row)
                     connection.execute(f"INSERT INTO {TABLE} VALUES (?, 'zhipu_bigmodel', 'glm-4.7-flash', 429, ?, ?)",
                         (execution_id, bigmodel_error_code, timestamp))
+                from .system_synthesis_persistence import append_receipt
+                append_receipt(self, connection, execution_id, synthesis_completion)
                 return self._distillation_execution_from_row(row)
         except sqlite3.IntegrityError as error:
             raise IntegrityConflict(
@@ -11403,6 +11426,7 @@ class SQLiteStateRepository:
         now: datetime,
         http_status_code: int | None = None,
         local_content_context_hash: str | None = None,
+        synthesis_completion: Completion | None = None,
     ) -> DistillationExecutionRecord:
         from .long_distillation_persistence import reject_generic
         reject_generic(execution_id)
@@ -11449,7 +11473,7 @@ class SQLiteStateRepository:
                 (actual_provider == "nvidia_nim" and actual_model == "moonshotai/kimi-k3")
                 or (actual_provider == "openai" and actual_model == "gpt-4.1")
                 or (actual_provider == "moonshot" and actual_model in {"kimi-k2.6", "kimi-k3"})
-                or (actual_provider, actual_model) == ZHIPU_PAIR
+                or (actual_provider, actual_model) in {ZHIPU_PAIR, SYNTHESIS_PAIR}
             )
         ):
             raise ValueError("no-new Intelligence HTTP status is invalid")
@@ -11571,6 +11595,8 @@ class SQLiteStateRepository:
                 ).fetchone()
                 if row is None:
                     raise StateStoreError("no-new Intelligence execution disappeared")
+                from .system_synthesis_persistence import append_receipt
+                append_receipt(self, connection, execution_id, synthesis_completion)
                 return self._distillation_execution_from_row(
                     row, status_override="SUCCEEDED_NO_NEW_INTELLIGENCE"
                 )
@@ -11657,6 +11683,7 @@ class SQLiteStateRepository:
         now: datetime,
         http_status_code: int | None = None,
         local_content_context_hash: str | None = None,
+        synthesis_completion: Completion | None = None,
     ) -> DistillationExecutionRecord:
         from .long_distillation_persistence import reject_generic
         reject_generic(execution_id)
@@ -11765,6 +11792,8 @@ class SQLiteStateRepository:
                 ).fetchone()
                 if row is None:
                     raise StateStoreError("distillation admission was not saved")
+                from .system_synthesis_persistence import append_receipt
+                append_receipt(self, connection, execution_id, synthesis_completion)
                 return self._distillation_execution_from_row(row)
         except sqlite3.IntegrityError as error:
             raise IntegrityConflict("distillation admission violates the evidence contract") from error
@@ -11803,6 +11832,10 @@ class SQLiteStateRepository:
         self, connection: sqlite3.Connection, execution_id: str
     ) -> DistillationResourceUsageRecord:
         self._validate_long_resource_usage_authority(connection, execution_id)
+        from . import system_synthesis_persistence as synthesis
+        synthesis_row = connection.execute("SELECT * FROM distillation_execution_checkpoints WHERE execution_id=?", (execution_id,)).fetchone()
+        if synthesis_row is not None and synthesis.owns(synthesis_row):
+            synthesis.verify_execution(self, connection, execution_id)
         row = connection.execute(
             "SELECT * FROM distillation_resource_usage WHERE execution_id = :execution_id",
             {"execution_id": execution_id},

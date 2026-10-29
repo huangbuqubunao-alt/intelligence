@@ -240,6 +240,9 @@ class AuthoritativeIntelligenceReader:
 
     def _read_card(self, verified: VerifiedIntelligenceRead) -> IntelligenceCard:
         try:
+            from .system_synthesis_persistence import verify_revision
+            with self._repository._connect() as connection:
+                verify_revision(self._repository, connection, verified.revision_id)
             revision = self._repository.get_intelligence_revision(verified.revision_id)
             card = self._repository.get_distillation_card(verified.revision_id)
             if revision is None or card is None:

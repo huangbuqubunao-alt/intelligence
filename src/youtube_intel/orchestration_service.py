@@ -189,7 +189,7 @@ class ProductOrchestrationService:
     ) -> GlobalModelPreferenceRecord:
         if provider is None and model is not None:
             raise ValueError("a model requires a provider")
-        if provider is not None and provider not in {"OpenAI", "Kimi", "Local"}:
+        if provider is not None and provider not in {"OpenAI", "Kimi", "Local", "moonshot"}:
             raise ValueError("unknown provider preference")
         return self._repository.save_global_model_preference(
             desired_provider=provider, desired_model=model, now=self._now()

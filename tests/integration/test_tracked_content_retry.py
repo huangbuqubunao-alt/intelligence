@@ -683,7 +683,7 @@ def test_retry_terminal_backup_restores_all_tables_and_data(tmp_path,monkeypatch
     backup.confirm_restore(staged.restore_id)
     backup.recover_and_apply_pending_restore()
     restarted=SQLiteStateRepository(repo._database_path)
-    assert restarted.initialize(now=fixture.now).version==43
+    assert restarted.initialize(now=fixture.now).version==44
     with restarted._connect() as connection:
         assert {row[0]:[tuple(r) for r in connection.execute(f'SELECT * FROM "{row[0]}"')] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}==tables
     assert {str(p.relative_to(service.data_root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in service.data_root.rglob('*') if p.is_file()}==files

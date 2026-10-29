@@ -53,7 +53,7 @@ def test_content_caption_summary_evidence_restart_offline(tmp_path: Path) -> Non
     repo, provider, fixture = setup(tmp_path)
     result = provider.import_input(BV)
     assert result.status == "READY"
-    assert repo.schema_version().version == 43  # type: ignore[union-attr]
+    assert repo.schema_version().version == 44  # type: ignore[union-attr]
     content = repo.get_video(result.content_id)
     assert content is not None and content.provider == "BILIBILI"
     assert content.default_language == "zh-CN"

@@ -480,7 +480,7 @@ def test_old_manifest_contract_restores_then_adds_empty_archive_table(
     backup.confirm_restore(staged.restore_id)
     backup.recover_and_apply_pending_restore()
     assert _tables(repo) == tables and _files(root) == files
-    assert repo.initialize(now=backup_support.NOW).version == 43
+    assert repo.initialize(now=backup_support.NOW).version == 44
     with repo._connect() as connection:
         assert (
             connection.execute(
