@@ -1,0 +1,1 @@
+Independent Reviewer only. Read absolute Root task TASK-READINESS-KIMI-SUMMARY-AWARE-SEMANTIC. New WT/base assigned by Root. One new output review, exact frozen policy/source/oracle/actual Summary, report only. No model/key/Native/network or full code review. Preserve old failure, no forcedpositive, commit fixed newhandoff and STOP.

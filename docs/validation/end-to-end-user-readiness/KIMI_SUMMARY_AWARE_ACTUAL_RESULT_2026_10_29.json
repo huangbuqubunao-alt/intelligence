@@ -1,0 +1,50 @@
+{
+  "actual_result": {
+    "actual_bill": "UNKNOWN",
+    "actual_model": "kimi-k3.1-pro",
+    "case": "public-aircAruvnKk-zh-kimi-k3.1-pro-summary-aware-1",
+    "finish_reason": "stop",
+    "http_status": 200,
+    "model": "kimi-k3.1-pro",
+    "public_final_sha256": "b411ec2f8bd0a1050322d728a4ae5a6793a0d08aa2dcbba1cfc2de4efa7594a3",
+    "reserve_microunits": 991208,
+    "response_body_sha256": "cdd39628a62dd089534413b1cbd4d88faf2ba5c9f4ae3e21c761328e99ee14c1",
+    "semantic": "NOT_REVIEWED",
+    "send_attempted": true,
+    "status": "PUBLIC_FINAL_REVIEW_ONLY",
+    "usage": {
+      "cache_write_tokens": 6400,
+      "cached_tokens": 0,
+      "completion_tokens": 566,
+      "prompt_tokens": 6583,
+      "reasoning_tokens_included": 287,
+      "total_tokens": 7149,
+      "worst_cost_microunits": 209646
+    }
+  },
+  "result_sha256": "b11c07040fbd2f72d3aeb8d001a5f61df161ab1f96773c617827f9b4844f333b",
+  "source_immutability": {
+    "case": "public-aircAruvnKk-zh-kimi-k3.1-pro-summary-aware-1",
+    "new_actual_send_attempted": true,
+    "no_automatic_continuation": true,
+    "normal_runtime_writes": false,
+    "old_parent_hashes_unchanged": true,
+    "result_sha256": "b11c07040fbd2f72d3aeb8d001a5f61df161ab1f96773c617827f9b4844f333b",
+    "source_before_after_identical": true,
+    "source_files": 256,
+    "status": "PUBLIC_FINAL_REVIEW_ONLY"
+  },
+  "paid_authorization": "explicit user call_66bd77e1efb844cf89f9182ef7e00575; cc5b4a3",
+  "new_actual_attempts": 1,
+  "cumulative_kimi_attempts": 2,
+  "held_reserve_microunits": 1943326,
+  "all_current_reservations": {
+    "public-aircAruvnKk-zh-kimi-k3.1-pro-summary-aware-1.reservation.json": "10f274fd3169812d414248a06792d4df6e0e3170d8b4ee803bd484d4b1e6be41",
+    "public-aircAruvnKk-zh-kimi-k3.1-pro.reservation.json": "5eb8fa2aa42851afa778aa7983294e2e7e6cd4788ed1ebb188b32ec1372586de"
+  },
+  "semantic_verdict": "PENDING_INDEPENDENT_REVIEW",
+  "production_qualification": "CLOSED",
+  "normal_runtime_wired": false,
+  "main_adopted": false,
+  "further_actual_generations": "STOP; one-shot consumed"
+}
