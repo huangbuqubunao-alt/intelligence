@@ -1,0 +1,69 @@
+{
+  "decision": "APPROVE_TECHNICAL_CAPSULE_NOT_EXECUTION",
+  "writer_commit": "4fee24531f4cb340aac5fbe1ae08a0c4643061df",
+  "root_integrated": "59f6fdd46a588a7ee8d4ca3cbdfed796b0362dcb",
+  "review": "Root independent bounded review of entire new wrapper and tests; accepted helpers unchanged; no findings requiring repair",
+  "checks": {
+    "writer_wt_unit": "43 PASS/2.41s",
+    "root_unit": "...........................................                              [100%]\n43 passed in 2.44s",
+    "root_strict": "Success: no issues found in 2 source files",
+    "root_ruff": "All checks passed!",
+    "compile": "2 PASS",
+    "diff_check": "PASS"
+  },
+  "actual_readonly_prepare": {
+    "actual_calls": 0,
+    "credential_reads": 0,
+    "origin_sha256": "5e4159f7448293c80eda7e18113a92037e13cf8a3085fac339452ae7cd41db2f",
+    "prepared_sha256": "bf128398898afae5bcb16ac78af0c81c37edcafc874c6eee0c016026560e99aa",
+    "prior_reserved_microunits": 952118,
+    "reserve_microunits": 991208,
+    "schema_version": 43,
+    "source_all_files_before_after_identical": true,
+    "source_files": 256,
+    "summary_context_sha256": "dfc047f1279b04203b216e2513a2f7cccb2f47c4a46c2d4e5323b95ed0a4258f",
+    "wire_bytes": 21463,
+    "wire_sha256": "0e464d158d2d1253c51d9c083a3e39be04cc814d8e94affcdb8d7a9a4e97f8d2"
+  },
+  "real_packet": {
+    "prepared_sha256": "bf128398898afae5bcb16ac78af0c81c37edcafc874c6eee0c016026560e99aa",
+    "wire_sha256": "0e464d158d2d1253c51d9c083a3e39be04cc814d8e94affcdb8d7a9a4e97f8d2",
+    "wire_bytes": 21463,
+    "messages": 5,
+    "original_three_messages_exact": true,
+    "complete_summary_context_matches_accepted_actual_proof": true,
+    "summary_context_sha256": "dfc047f1279b04203b216e2513a2f7cccb2f47c4a46c2d4e5323b95ed0a4258f",
+    "profile": {
+      "billing_guarantee": false,
+      "deadline_seconds": 300,
+      "diagnostic_only": true,
+      "endpoint": "https://api.moonshot.cn/v1/chat/completions",
+      "framing_token_assumption": 2048,
+      "id": "qa-kimi-k31-summary-aware-bound-reference-20261029",
+      "input_cny_per_million_worst": 26,
+      "max_completion_tokens": 5888,
+      "model": "kimi-k3.1-pro",
+      "output_cny_per_million": 68,
+      "prompt_cache_options": {
+        "mode": "implicit",
+        "ttl": "5m"
+      },
+      "reasoning_effort": "low",
+      "response_format": {
+        "type": "json_object"
+      },
+      "retries": 0,
+      "stream": false
+    },
+    "reserve_microunits": 991208,
+    "previous_reserve_held": 952118,
+    "total_after_proposed_attempt": 1943326,
+    "actual_billing": "UNKNOWN; reserve is a conservative estimate, not a provider billing guarantee"
+  },
+  "continuation_decision": "PENDING_NEW_CONCRETE_OWNER_DECISION; old one-shot spent and quality-failure STOP preserved",
+  "actual_kimi_attempts_so_far": 1,
+  "new_attempts": 0,
+  "normal_runtime_wired": false,
+  "production_qualification": "CLOSED",
+  "main_adopted": false
+}
