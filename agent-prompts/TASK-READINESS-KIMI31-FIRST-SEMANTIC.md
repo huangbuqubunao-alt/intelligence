@@ -1,0 +1,1 @@
+Read Root absolute tasks/TASK-READINESS-KIMI31-FIRST-SEMANTIC.md; independent Reviewer for this one NEW actual Kimi output only. Basea05a990/newWT. No model/Native/key/network/implementation or prior wholeaudit. Fixedreportcommit and STOP.

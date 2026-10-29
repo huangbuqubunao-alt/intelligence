@@ -1,0 +1,47 @@
+{
+  "execution_result": {
+    "actual_bill": "UNKNOWN",
+    "actual_model": "kimi-k3.1-pro",
+    "case": "public-aircAruvnKk-zh-kimi-k3.1-pro",
+    "finish_reason": "stop",
+    "http_status": 200,
+    "model": "kimi-k3.1-pro",
+    "public_final_sha256": "5a14748751402859b84034873b6b36937e9dc6984930c1ce979c22e81ddfd434",
+    "reserve_microunits": 952118,
+    "response_body_sha256": "8514bcd4c43890a799431b70101561e061855a0e6482e742f70114686b05f2dc",
+    "semantic": "NOT_REVIEWED",
+    "send_attempted": true,
+    "status": "PUBLIC_FINAL_REVIEW_ONLY",
+    "usage": {
+      "cache_write_tokens": 5888,
+      "cached_tokens": 0,
+      "completion_tokens": 1007,
+      "prompt_tokens": 5941,
+      "reasoning_tokens_included": 494,
+      "total_tokens": 6948,
+      "worst_cost_microunits": 222942
+    }
+  },
+  "reservation": {
+    "bill": "UNKNOWN",
+    "case": "public-aircAruvnKk-zh-kimi-k3.1-pro",
+    "created_at": "2026-10-29T06:30:53.091971+00:00",
+    "model": "kimi-k3.1-pro",
+    "prepared_sha256": "03eed52f88e2455607c4b47cd70c3ba8749bf6d74a89729a213f49057ce66f39",
+    "replay": "FORBIDDEN",
+    "reserve_microunits": 952118
+  },
+  "all83_SQL_rows_and19_DATA_byte_equal": true,
+  "new_product_CP_consent_or_card_writes": 0,
+  "actual_Kimi_generation_attempts": 1,
+  "previous_GLM_attempts_untouched": 5,
+  "normal_qualification_and_paid_budget": "CLOSED",
+  "semantic_verdict": "PENDING",
+  "reserve_released": false,
+  "actual_bill": "UNKNOWN",
+  "model_reasoning_or_full_envelope_saved": false,
+  "key_value_in_output_files_or_argv": false,
+  "credentials": "user-entered dedicated QA Native Keychain only",
+  "private_content_sent": false,
+  "formal_data_or_config_changed": false
+}
