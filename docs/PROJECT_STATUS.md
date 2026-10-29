@@ -1,3 +1,5 @@
+> 2026-10-29本次明确获批Kimi续试完成：完整Summary已发送，事实/引用/新增价值PASS，独立b7c34cf仍REJECT（1P2：整卡混合来源陈述和系统建议分类不符）。累计2次，1943326微元预留保留、真实账单UNKNOWN；QK83SQL19DATA全等、Backup ready。一次授权已耗尽，不再扣费；资格关闭/普通链路未完成/main未采用。最终单例报告KIMI_SUMMARY_AWARE_FINAL_TRIAL_REPORT_2026_10_29.json。
+
 > 2026-10-29最新：Summary-aware QA capsule4fee→Root59f技术窄审通过，43新unit/strict/Ruff；真实schema43 readonly包21463B、完整Summary已绑定，256源文件不变。预估单次0.991208元，加旧预留累计1.943326元，待新的具体一次续试决定，零新调用/资格关闭/main不动。详见CURRENT_RESUME_STATUS及新capsule验收JSON。
 
 > 2026-10-29最新20b7155：摘要比较pure组件已实际readonly接线验证，10字段原样还原、51unit/strict126通过；尚未接入正常执行。完整新policy在6144超单次1元预估，已在新profile调用前固定5888（991208微元），无实际发送。新的单次capsule正隔离实现，须新owner continuationreceipt且父失败/预留计入总8次8元，当前Kimi实际1次不变。main不动、模型资格和正常预算关闭。

@@ -1,0 +1,59 @@
+{
+  "trial": "COMPLETED_ONCE_AND_STOPPED",
+  "semantic_decision": {
+    "decision": "REJECT_POSITIVE_INTELLIGENCE",
+    "reviewer": "Root",
+    "independent_review_commit": "b7c34cf37c7a841eea37cbb330bf2fa369a347f6",
+    "public_final_sha256": "b411ec2f8bd0a1050322d728a4ae5a6793a0d08aa2dcbba1cfc2de4efa7594a3",
+    "factual_P0_P1": false,
+    "P2_count": 1,
+    "distinct_value_beyond_actual_summary": true,
+    "source_summary_sent": true,
+    "failure": "WHOLE_CARD_CLASSIFICATION_MIXES_SOURCE_STATEMENT_AND_SYSTEM_RECOMMENDATION",
+    "normal_qualification": "CLOSED",
+    "next_actual_call": "STOPPED",
+    "reserve_released": false
+  },
+  "independent_report": "handoffs/REVIEW-READINESS-KIMI-SUMMARY-AWARE-SEMANTIC.md",
+  "passed": [
+    "complete actual Summary roundtrip and inclusion",
+    "distinct useful E07 content beyond real Summary",
+    "core factual accuracy/attribution/modality",
+    "Evidence references/stance/canonical positions",
+    "strict positive JSON structure and language"
+  ],
+  "remaining_issue": "user_relevant_information contains system evaluation guidance while whole card declares EVIDENCE_BACKED_STATEMENT; actual whole-card contract requires SYSTEM_INFERENCE for substantive own guidance",
+  "diagnosis_limits": "No contradictory wire/schema instructions found in this bounded check: empty relevance list is allowed and SYSTEM_INFERENCE is available. This actual output failed a clear classification rule. No demonstrated deterministic code fix for model semantic compliance; do not add a guessed keyword classifier, relabel/repair output or lower the oracle standard. A new profile/representation would need separately frozen evidence before any further actual request.",
+  "safety": {
+    "all83_SQL_rows_and19_DATA_byte_equal": true,
+    "tables": 83,
+    "data_files": 19,
+    "new_product_CP_consent_or_card_writes": 0,
+    "actual_Kimi_generation_attempts": 2,
+    "normal_qualification_and_paid_budget": "CLOSED",
+    "reserve_released": false,
+    "actual_bill": "UNKNOWN",
+    "model_reasoning_or_full_envelope_saved": false,
+    "credentials": "dedicated QA Native Keychain; no key output",
+    "formal_data_or_config_changed": false
+  },
+  "backup_readiness": {
+    "status": {
+      "ready": true,
+      "reasons": [],
+      "message": "Core data is quiescent and ready for backup.",
+      "restore_pending": false,
+      "last_restore": null
+    }
+  },
+  "new_actual_generations": 1,
+  "cumulative_kimi_generations": 2,
+  "cumulative_held_reserve_CNY": "1.943326",
+  "this_usage_cost_estimate_CNY": "0.209646",
+  "actual_bill": "UNKNOWN",
+  "normal_runtime_wired": false,
+  "qualification": "CLOSED",
+  "main_adopted": false,
+  "goal_complete": false,
+  "further_paid_authorization": "NONE; this explicit one-shot consumed"
+}
