@@ -1,3 +1,5 @@
+> 2026-10-29最新：完整backend6438PASS/1SKIP，已有词表补跑完整文件8PASS0SKIP，485源测试全程冻结。用户具体改选Kimi（可付费）且已有API账号，沿用8次/单次1元/合计8元边界；K3.1Pro首公开诊断+provider级凭据UI分别隔离实现，Root各窄审一次，零实际Kimi调用，不扩Schema/不启生产资格，main不动。
+
 > 2026-10-29续作检查点见 `docs/validation/end-to-end-user-readiness/CURRENT_RESUME_STATUS_2026_10_29.md`：繁忙1305真实GUI恢复83表19文件全等/手册90图；schema43完整backend正在冻结运行，未宣称全绿。5.3仅离线请求准备、零key/调用，待具体付费决定；不先扩Schema44。当前主Goal未完成，main/actual origin仍73ee7e7。
 
 > 2026-10-29最新：引用v3工程已接受；真实中文HTTP200/5478in2957out仍独立872d05语义REJECT（1P1/2P2），Root45d5494保留原输出，停止GLM-4.7-Flash真实路线，累计5次请求/billUNKNOWN/normal及local资格关闭。Schema43测试维护aef30053经Root窄审整合50abfbc；32文件898PASS/1真实doctor失败保留，单函数版本42→43修后两完整相关文件47PASS。新的完整backend正冻结运行，未宣称全绿。付费GLM-5.3最多8次/总8元具体授权待用户答复，零付费调用；最小可配置边界仅只读侦察，不重开发。main未动。

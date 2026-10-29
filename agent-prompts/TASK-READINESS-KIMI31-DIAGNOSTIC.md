@@ -1,0 +1,1 @@
+Implement only Root task card at absolute Root/tasks/TASK-READINESS-KIMI31-DIAGNOSTIC.md. Separate WT/baseb080; actual model/key/network strictly forbidden. Read repo instructions. Independent Root bounded review, no extra review loops. Fixed commit and STOP.

@@ -1,0 +1,1 @@
+Implement Root task card at absolute Root/tasks/TASK-READINESS-KIMI-PROVIDER-SETTINGS.md. Role is Implementer for this NEW UI-only task, not previous semantic review. Separate WT b080; no model/key/Native/network. Root narrow independent review, fixedcommit and STOP.

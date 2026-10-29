@@ -1,0 +1,19 @@
+{
+  "source_and_test_files": 485,
+  "unchanged_entire_run": true,
+  "source_head": "50abfbc8773f2059997bd78aa1e8e09afe165a7f",
+  "exit": {
+    "exit_code": 0,
+    "finished": "2026-10-28T23:48:35.531554+00:00"
+  },
+  "result": "6438 passed, 1 skipped, 2 warnings in 2837.50s",
+  "complete_backend_run": true,
+  "supplemental_provisioned_tokenizer_file": "tests/unit/test_o200k_provisioning.py",
+  "supplemental_result": "8 passed in 0.45s; includes previously skipped canonical golden-vector case",
+  "asset": "existing .var/final-regression-assets/tokenizers/o200k_base.tiktoken; no download",
+  "pytest_log_sha256": "faabeb3479ebe316a633341d5da52f131826e430a87fbf85b2e9ef035cc78673",
+  "supplement_log_sha256": "118039d1b180bf00c6a4bcc955814c36df624d9c3de352c75ac5d83fe572f47d",
+  "mypy": "strict src125 PASS",
+  "ruff": "src PASS",
+  "warning_scope": "two pre-existing negative-test warnings: deliberate duplicate ZIP path and invalid enum construction"
+}
