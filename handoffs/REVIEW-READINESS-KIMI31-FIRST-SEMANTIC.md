@@ -79,3 +79,19 @@ Selected E02/E05/E06 `supporting` and E03 `conditional` are genuine same-input a
 - Only this report is changed. `git diff --check` and `git diff --cached --check` passed before the scoped report commit. Root remains responsible for its separately running database/data-preservation verification; this report does not claim a Backup/Restore test.
 
 This report assesses only the new Kimi public final. It preserves both the factual/format passes and the two admission/classification failures. One case would not grant production qualification even if it passed; this case is rejected and does not authorize further execution.
+
+## Factual attribution addendum — missing comparison baseline
+
+The original REJECT and observations above remain unchanged. **The actual Kimi three-message request did not contain the real stored Summary.** Its second message has only `focus`, `ignore`, `output_language`, `personalization`, `style`; its source message has only `evidence`, `reference_protocol`, `source_display_name`, `video_id`, `video_title`. The inherited verified input has `context_json: null`. The original H1 v3 package's `prepared.json` explicitly records top-level `source_summary_sent: false`; Kimi's own prepared file has no such field, so that H1 flag must not be misreported as a Kimi prepared-file field. The actual outgoing Kimi fields independently establish the same absence.
+
+Consequently, the overlap with Summary is a real **output/admission observation**, but it cannot establish that this model failed to compare against a baseline it had never received. The instruction to reject Summary restatements did not supply that missing baseline. The current engineering input contract lacks the comparison material needed to evaluate novelty against the actual stored Summary. Do not attribute that engineering gap solely to model capability, or interpret this one result as evidence that Kimi cannot perform an informed comparison. This supplement does not silently change the frozen standard, repair the raw output, reverse the verdict or authorize another request.
+
+For precision about classification, these are the original system sentences, unchanged:
+
+> For admitted Intelligence, return one object with exactly these keys: core_conclusion, user_relevant_information, important_new_information, meaningful_details, filtered_noise, claim_kind, evidence, reference_protocol.
+
+> claim_kind must be exactly one of FACT, EVIDENCE_BACKED_STATEMENT, OPINION, PREDICTION, RUMOR, SYSTEM_INFERENCE.
+
+> Classify your own interpretation or inference as SYSTEM_INFERENCE, state its supporting basis and what remains to be validated, and keep it revisable.
+
+The wire has one `claim_kind` field on that object. These sentences do **not** explicitly say “only the core conclusion” or specify a separate per-subclaim classification scheme. P2-02 records the tension between the actual recommendation/inference and the explicit inference instruction/F06; it must not be read as a newly invented policy that every relevance sentence automatically requires a whole-card inference classification. Root owns any further contract clarification. No source/output review, generation or product change was repeated for this addendum.
