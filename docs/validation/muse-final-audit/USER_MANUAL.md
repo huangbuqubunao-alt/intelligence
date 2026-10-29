@@ -537,6 +537,12 @@ Intelligence 优先在本机整理内容。部分内容可直接从原文提取�
 
 ![已保存到隔离钥匙串，当前只展开智谱输入区；执行仍未开放](../end-to-end-user-readiness/screenshots/bigmodel-settings-single-editor-configured-zh-20261028.png)
 
+Kimi 密钥设置按服务商区分，不代表选择或启用某个执行型号。打开 **Kimi / Moonshot API 密钥设置**，使用开放平台的 API 密钥，点击 **安全保存 Moonshot 密钥**。密钥只保存到本机系统钥匙串；保存不会发送内容、调用模型或自动启用付费。切换服务商或离开页面时，未保存草稿会清空。
+
+Kimi 网页/App 会员与 API 额度是不同项目。执行前还需核对所选型号的预算、付费余额与代金券适用范围；没有合格模型时，保存密钥也不会生成洞察。下图来自当前候选隔离环境，Kimi 新候选的实际质量仍待验证，不能当作正式放行证明。
+
+![真实 Kimi 服务商密钥设置；空字段、保存不会执行模型](../end-to-end-user-readiness/screenshots/kimi-provider-key-empty-real-zh-20261029.png)
+
 云端任务尚未开始、但缺少执行条件时，本轮候选会提示核对对应的 API 密钥或网络。可点击 **设置** 前往智谱配置，使用 **返回内容** 回到原任务；只有确认尚未执行的任务才显示 **取消本次提炼**。取消后没有生成洞察，原文、字幕、摘要和 Evidence 都保留。未知或已开始的任务不会被错误取消。
 
 ![真实云端等待与取消入口](../end-to-end-user-readiness/screenshots/cloud-wait-cancel-real-zh-20261028.png)

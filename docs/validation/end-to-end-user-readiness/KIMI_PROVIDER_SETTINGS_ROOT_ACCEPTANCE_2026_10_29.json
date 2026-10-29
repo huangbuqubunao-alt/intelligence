@@ -1,0 +1,14 @@
+{
+  "direct_kimi_route_verified": true,
+  "one_editor_and_unsaved_draft_cleared_by_switch_verified": true,
+  "all83_tables_every_row_and19_DATA_equal": true,
+  "model_calls": 0,
+  "credential_saves": 0,
+  "new_QA_namespace_only": true,
+  "full_frontend": "1112 PASS /42 files/19.79s",
+  "typecheck_and_build": "PASS",
+  "writer_commit": "b46768494c172f27a4e69f1c1aa46c65437f21ed",
+  "root_integrated_commit": "fdf40f5",
+  "review": "Root independent narrow diff review; no new backend/credentials/API authority change",
+  "auxiliary_browser_issue": "Initial owned browser daemon retained about:blank; offline doctor PASS and explicit navigation corrected before any user input. No product error or secret access."
+}
