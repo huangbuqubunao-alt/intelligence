@@ -36,12 +36,15 @@
   "actual_Kimi_generation_attempts": 1,
   "previous_GLM_attempts_untouched": 5,
   "normal_qualification_and_paid_budget": "CLOSED",
-  "semantic_verdict": "PENDING",
+  "semantic_verdict": "REJECT_POSITIVE_INTELLIGENCE",
   "reserve_released": false,
   "actual_bill": "UNKNOWN",
   "model_reasoning_or_full_envelope_saved": false,
   "key_value_in_output_files_or_argv": false,
   "credentials": "user-entered dedicated QA Native Keychain only",
   "private_content_sent": false,
-  "formal_data_or_config_changed": false
+  "formal_data_or_config_changed": false,
+  "semantic_review_commit": "5e739d8c3be8d8185698e8a398c41fdb403d7fe3",
+  "baseline_input_defect": "REAL_STORED_SUMMARY_NOT_SENT",
+  "scope_correction": "Overlap is real but blind comparison cannot establish model incapability; original raw/receipt remain immutable."
 }

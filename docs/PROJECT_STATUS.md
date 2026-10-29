@@ -1,3 +1,5 @@
+> 2026-10-29当前：Kimi仅1次真实请求、HTTP200且事实/格式/refs通过，但正向准入REJECT。Root发现请求根本未发真实已有Summary，盲比较缺基线是工程输入问题，不能直接判模型能力；原输出/扣费预留保留，资格/正常预算关闭，后续实际调用STOP。正在pure Summary context零调用修复，真实原型已完整10字段lossless还原、20753B仍原1元预估内，未批准发送。权威续作细节见 CURRENT_RESUME_STATUS_2026_10_29.md；不扩Schema/不动main。
+
 > 2026-10-29最新：完整backend6438PASS/1SKIP，已有词表补跑完整文件8PASS0SKIP，485源测试全程冻结。用户具体改选Kimi（可付费）且已有API账号，沿用8次/单次1元/合计8元边界；K3.1Pro首公开诊断+provider级凭据UI分别隔离实现，Root各窄审一次，零实际Kimi调用，不扩Schema/不启生产资格，main不动。
 
 > 2026-10-29续作检查点见 `docs/validation/end-to-end-user-readiness/CURRENT_RESUME_STATUS_2026_10_29.md`：繁忙1305真实GUI恢复83表19文件全等/手册90图；schema43完整backend正在冻结运行，未宣称全绿。5.3仅离线请求准备、零key/调用，待具体付费决定；不先扩Schema44。当前主Goal未完成，main/actual origin仍73ee7e7。

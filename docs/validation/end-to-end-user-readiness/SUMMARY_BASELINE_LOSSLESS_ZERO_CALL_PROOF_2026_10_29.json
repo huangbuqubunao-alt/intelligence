@@ -1,0 +1,16 @@
+{
+  "kind": "READONLY_ZERO_CALL_PROTOTYPE_NOT_PRODUCTION_ADAPTER_OR_EXECUTION_PERMIT",
+  "raw_summary_sha256": "3130d3ca3d33f1d343edfa8ebac500bf56090b3b641a46991c453ea223408a9a",
+  "summary_schema": "analysis-result-v1",
+  "full_semantic_projection_sha256": "887260affbe011d434aacc2bc0de2849959836abc27919cdbad0e3b3b4433688",
+  "roundtrip_exact": true,
+  "all10_semantic_fields_preserved": true,
+  "exact_ref_text_replacements": 7,
+  "baseline_wire_bytes": 1155,
+  "draft_request_bytes": 20753,
+  "original_source_and_task_messages_equal_except_declared_generic_policy": true,
+  "reserve_estimate_microunits_at_6144": 991014,
+  "within_previous_1_CNY_reserve": true,
+  "model_or_Native_or_network_calls": 0,
+  "prototype_not_reviewed_or_approved_to_send": true
+}

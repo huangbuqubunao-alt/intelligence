@@ -1,0 +1,38 @@
+{
+  "model_request_missing_baseline": true,
+  "old_prepared_source_summary_sent": false,
+  "messages": [
+    {
+      "role": "system",
+      "fields": "schema+grounding; no existing Summary text"
+    },
+    {
+      "role": "system",
+      "fields": [
+        "focus",
+        "ignore",
+        "output_language",
+        "personalization",
+        "style"
+      ]
+    },
+    {
+      "role": "user",
+      "fields": [
+        "evidence",
+        "reference_protocol",
+        "source_display_name",
+        "video_id",
+        "video_title"
+      ]
+    }
+  ],
+  "verified_input": {
+    "input_json": null,
+    "context_json": null
+  },
+  "production_code_path": "_compose_verified_input -> _distillation_prompt_messages -> grounding_v2 -> bound_evidence prompt -> wire",
+  "needed_fix": "bind actual stored Summary as non-authoritative comparison context; retain authoritative source Evidence only",
+  "old_result_preserved": true,
+  "model_global_capability_conclusion": "NOT_ESTABLISHED_BY_BLIND_SUMMARY_COMPARISON"
+}

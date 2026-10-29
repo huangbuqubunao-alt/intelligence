@@ -1,0 +1,1 @@
+Implement only Root absolute task card TASK-READINESS-SUMMARY-BASELINE-CONTEXT.md, new WT/base specified. Previous semantic review role finished; current role sole Implementer. Pure opt-in Summary context + fake tests only; no real cases/oracle/model/key/network/Schema/legacy edits. Preserve failures and all old bytes. Root one narrowreview, fixedcommit cleanSTOP.
