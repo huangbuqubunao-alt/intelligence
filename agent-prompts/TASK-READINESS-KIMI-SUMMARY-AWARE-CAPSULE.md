@@ -1,0 +1,1 @@
+Implement Root absolute TASK-READINESS-KIMI-SUMMARY-AWARE-CAPSULE card, newWT/base. Only new QA wrapper/tests/handoff, reuse accepted helpers no oldfile edits/globalmonkeypatch. Oldactual STOP/reserve preserved; newconcrete ownerreceipt required. No actualprepare/model/key/Native/network/oracle. Fixedsmallcommit and STOP; Root one boundedreview.

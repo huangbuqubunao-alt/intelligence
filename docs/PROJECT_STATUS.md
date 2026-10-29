@@ -1,3 +1,5 @@
+> 2026-10-29最新20b7155：摘要比较pure组件已实际readonly接线验证，10字段原样还原、51unit/strict126通过；尚未接入正常执行。完整新policy在6144超单次1元预估，已在新profile调用前固定5888（991208微元），无实际发送。新的单次capsule正隔离实现，须新owner continuationreceipt且父失败/预留计入总8次8元，当前Kimi实际1次不变。main不动、模型资格和正常预算关闭。
+
 > 2026-10-29当前：Kimi仅1次真实请求、HTTP200且事实/格式/refs通过，但正向准入REJECT。Root发现请求根本未发真实已有Summary，盲比较缺基线是工程输入问题，不能直接判模型能力；原输出/扣费预留保留，资格/正常预算关闭，后续实际调用STOP。正在pure Summary context零调用修复，真实原型已完整10字段lossless还原、20753B仍原1元预估内，未批准发送。权威续作细节见 CURRENT_RESUME_STATUS_2026_10_29.md；不扩Schema/不动main。
 
 > 2026-10-29最新：完整backend6438PASS/1SKIP，已有词表补跑完整文件8PASS0SKIP，485源测试全程冻结。用户具体改选Kimi（可付费）且已有API账号，沿用8次/单次1元/合计8元边界；K3.1Pro首公开诊断+provider级凭据UI分别隔离实现，Root各窄审一次，零实际Kimi调用，不扩Schema/不启生产资格，main不动。

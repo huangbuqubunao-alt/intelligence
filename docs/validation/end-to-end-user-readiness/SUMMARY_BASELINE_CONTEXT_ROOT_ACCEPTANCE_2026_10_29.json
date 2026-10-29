@@ -1,0 +1,51 @@
+{
+  "accepted_commits": [
+    "636cd90958fe08229e3d9b7588007935776f0767",
+    "18b06b1944bb42cf87628488fb4954c4995a9670"
+  ],
+  "root_integrated": "20b715550bfb9e76014ec5f4d9780212da878e95",
+  "root_review": "Full new component review; one missing-expiry failclosed finding fixed with RED->GREEN; only delta rechecked",
+  "checks": {
+    "new_unit_file": "51 PASS /0.27s",
+    "mypy": "strict all126 src PASS",
+    "ruff": "new source/test PASS",
+    "legacy_bytes": "610 files unchanged per writer; no legacy behavioral edits"
+  },
+  "actual_readonly_module_proof": {
+    "root_integrated_source": "20b7155",
+    "actual_summary_roundtrip_all10_fields_exact": true,
+    "context_sha256": "dfc047f1279b04203b216e2513a2f7cccb2f47c4a46c2d4e5323b95ed0a4258f",
+    "semantic_sha256": "887260affbe011d434aacc2bc0de2849959836abc27919cdbad0e3b3b4433688",
+    "original_three_messages_unchanged": true,
+    "five_messages": 5,
+    "wire_bytes": 21463,
+    "wire_sha256": "9c5c9a9f88a66dbbe23e3f690f91a4824a635bda08cc6cbac0493967dcde82f9",
+    "reserve_estimate_at6144_microunits": 1008616,
+    "within1_CNY": false,
+    "model_Native_network_calls": 0,
+    "execution_permission": "NONE",
+    "normal_runtime_wired": false
+  },
+  "new_fixed_profile_plan": {
+    "kind": "NEW_FIXED_PROFILE_PLAN_NOT_A_PER_CASE_OVERRIDE",
+    "model": "kimi-k3.1-pro",
+    "reasoning_effort": "low",
+    "max_completion_tokens": 5888,
+    "why": "complete Summary comparison plus full generic safety policy did not fit1CNY estimate at6144; choose one fixed new-profile ceiling before any generation",
+    "reserve_estimate_microunits": 991208,
+    "wire_sha256": "0e464d158d2d1253c51d9c083a3e39be04cc814d8e94affcdb8d7a9a4e97f8d2",
+    "actual_calls": 0,
+    "owner_continuation_decision": "PENDING",
+    "does_not_repair_old_output": true,
+    "total_previous_Kimi_reserve_still_held": 952118,
+    "global_budget_CNY": 8
+  },
+  "source_binding_compatibility": {
+    "prior_summary_ids_differ_from_outgoing_refs": true,
+    "raw_transcript_sample_seconds": null,
+    "old6_bindings_same_video_capture_hash_and_exact_text": true,
+    "raw_summary_edited": false
+  },
+  "permission": "NO_ACTUAL_CONTINUATION_GRANTED",
+  "normal_runtime_wired": false
+}
