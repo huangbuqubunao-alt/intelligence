@@ -1,0 +1,11 @@
+# Kimi K3.1Pro 首公开诊断接受记录
+
+Root一次完整源审92f9829，独立fake重现两项P2：真实case点号误拒、length安全用量丢失；原证明和92保留。作者dce33d8仅修这两项，Root复核delta后原子整合5e33ff0。Root完整45新fake通过，再接受作者在容量中断前已完整落盘的纯测试日期隔离（artifact e633a0723efdf9ef7e1ec3c320641a37557f6f36b73dd271815d49424729a32c），逐字整合，不改真实script DATE。最终完整新文件46PASS1.84s、strict2/Ruff通过；没有重跑历史整组。对不受控今天的依赖已消除，次日拒绝在key前仍有反证。原作者WT未覆盖。
+
+实际准备包 03eed52f88e2455607c4b47cd70c3ba8749bf6d74a89729a213f49057ce66f39；wire d66094159b50986b594cc448d9626fb315df3273a4075dc73fcdebfbdd217960，19112B，原3条公开中文消息完全不变；目标为kimi-k3.1-pro/low/6144/JSON/5m缓存，旧4.7仅作源provenance，不继承其身份或资格。源和官方资料以及126脚本/Python文件均冻结。Root独立确认包参数、hash、无tools/sampling/额外请求，尚无reviewgrant/实际ledger/请求时完成上述准备。Root代码和原产品src不变。
+
+费用按输入13+5m缓存写入13、输出68元/百万token保守估计。18503UTF8bytes加2048 framing估计，合计预留0.952118元，不超过单次1元；2048并非厂商硬保证，本记录不把它当真实token测量或账单保证。只接受这一公开小包，不将该假设推广为一般用户输入预算。实际计数异常/越界即停止，UNKNOWN账单和预留保留，无自动重试/充值；完整新额度最多8次/8元，本包仅1次授权，任何结果停止并审查。没有放行普通用户付费或模型资格。
+
+用户已具体改选可付费Kimi，确认已有API账号，并本人在6278隔离页保存且确认API付费余额。Root只GET configured=true/source=KEYCHAIN；保存前后83SQL全部行、19DATA字节相等，未输出/复制密钥值。新QA Native namespace与脚本一致；旧M12/正式/智谱Key不读、不复用。关闭Root自有浏览器后才请求用户输入，不对用户输入后页面截图、AX或密码字段读取。
+
+实际请求仅由冻结脚本的显式execute触发：Root将以本接受记录所在commit作为review_commit，写时限20分钟、max_calls1的grant；文件外部once先于key/send，1POST/无跳转重试、300s、2MiB，完整secret检查后仅保存公共final及白名单观测。任何失败保持STOP/不续例，成功也只是PUBLIC_FINAL_REVIEW_ONLY；独立语义结果尚未产生，正式资格与main不动。

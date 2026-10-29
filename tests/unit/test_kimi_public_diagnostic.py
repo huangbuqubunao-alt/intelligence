@@ -4,7 +4,7 @@ from __future__ import annotations
 import importlib.util
 import json
 from concurrent.futures import ThreadPoolExecutor
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, tzinfo
 from pathlib import Path
 from typing import Any, cast
 
@@ -24,6 +24,18 @@ def qa(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Any:
     assert spec is not None and spec.loader is not None
     module: Any = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    class Clock:
+        current = datetime(2026, 10, 29, 12, tzinfo=UTC)
+
+        @classmethod
+        def now(cls, tz: tzinfo | None = None) -> datetime:
+            return cls.current.astimezone(tz) if tz is not None else cls.current.replace(tzinfo=None)
+
+        @staticmethod
+        def fromisoformat(value: str) -> datetime:
+            return datetime.fromisoformat(value)
+
+    monkeypatch.setattr(module, 'datetime', Clock)
     monkeypatch.setattr(module.QACredentialStore, 'get', lambda *_: pytest.fail('Native credential access'))
     module.SOURCE = tmp_path / 'source'
     module.PACKAGE = tmp_path / 'package'
@@ -52,7 +64,7 @@ def approve(qa: Any) -> dict[str, Any]:
         'decision': 'APPROVE', 'prepared_sha256': prepared['prepared_sha256'],
         'review_commit': 'a' * 40, 'reviewer': 'Root', 'max_calls': 1,
         'total_authorized_microunits': 8_000_000,
-        'expires_at': (datetime.now(UTC) + timedelta(minutes=10)).isoformat(),
+        'expires_at': (qa.datetime.now(UTC) + timedelta(minutes=10)).isoformat(),
     }))
     return cast(dict[str, Any], prepared)
 
@@ -369,3 +381,18 @@ def test_secret_envelope_denied_before_any_metadata_observation(qa: Any, field: 
     assert not {'actual_model', 'finish_reason', 'usage', 'failure_reason'} & result.keys()
     assert not qa.final_path().exists()
     assert secret not in qa.result_path().read_text()
+
+
+def test_fixed_clock_next_day_refuses_prepare_and_execute_before_key(qa: Any) -> None:
+    assert qa.datetime.now(UTC) == datetime(2026, 10, 29, 12, tzinfo=UTC)
+    approve(qa)
+    review = json.loads((qa.PACKAGE / 'review.json').read_bytes())
+    assert review['expires_at'] == '2026-10-29T12:10:00+00:00'
+    qa.datetime.current += timedelta(days=1)
+    assert qa.datetime.now(UTC).date().isoformat() == '2026-10-30'
+    assert qa.DATE == '2026-10-29'
+    with pytest.raises(qa.Refused):
+        qa.prepare()
+    with pytest.raises(qa.Refused):
+        qa.execute(credential=lambda: pytest.fail('next-day key'), wire=lambda *_: pytest.fail('next-day wire'))
+    assert not qa.LEDGER.exists()
