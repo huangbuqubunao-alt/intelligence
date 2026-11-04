@@ -55,3 +55,26 @@ Other new cases cover positive/NO_NEW, old eight fields, wrong refs/model, HTTP4
 - No real cloud/model/Native Keychain access, credential write, paid action or new qualification receipt. No production configuration/data, original Antigravity worktree or formal owner data touched. No main merge/push/deployment.
 - Full global backend regression and real headed macOS/core user acceptance remain for the final accepted source freeze. Frontend build is an isolated artifact, not a served revision claim.
 - Root delta review pending. Suggested status **IN_REVIEW**; implementer clean STOP after the bounded commits. No final Goal/main-adoption success asserted.
+
+## Root delta follow-up — 2026-11-04
+
+Root's first independent review requested three local corrections, then reproduced a fourth P1 on a retained public-data fixture. These are resolved in one bounded follow-up, without new schema, policy authority, credentials or model calls:
+
+- Complete-Summary disclosure now requires the new profile **and** the actual outgoing Summary message marker, after a review exists. Legacy English/Chinese reviews explicitly assert that the claim is absent.
+- Both finite Moonshot routes link directly to `#Settings/models/moonshot` with the current Content return hash. Legacy bilingual and new-profile deep-link assertions cover the route. `CLOUD_EXECUTION_DISABLED` has separate clear English/Chinese copy; it is not called model unqualification.
+- Each raw/missing-receipt/proof tamper case now creates a real Topic association before corruption, restores exact trigger DDL, refuses a new Topic association after corruption, and reads the existing Topic as DEGRADED with unavailable contribution. The fresh Topic remains empty; existing read_current/Save/Backup rejection assertions remain.
+- Root's public-fixture startup failed in `initialize → verify_execution → _replay → _file` with `StateStoreError: Synthesis source file unavailable`: factory initialization preceded the trusted DATA binding. The minimal fix binds the factory's already-resolved configured DATA root before `initialize`; RuntimeOperations may bind the same root again, as the existing binding contract permits. No path is inferred from user source files.
+- Two new regression cases use the actual runtime factory, which constructs fresh repositories itself, with no manual pre-initialize bind. Positive Save/Topic state and zero-call cancelled proof both survive factory restart; factory Backup/Restore followed by another actual factory startup preserves all table rows/DATA hashes, reports APPLIED and does not dispatch again. Fake credential stores and disabled environment fallback/cloud execution isolate the tests.
+
+Actual follow-up checks:
+
+| Check | Result |
+|---|---|
+| Complete new runtime test file (including Topic tamper and actual-factory cases) | **29 PASS, 34.98s**, `.var/synthesis-runtime/root-delta-runtime-tests.log` |
+| Complete existing runtime-composition + QA-launch-isolation files | **44 PASS, 47.12s**, `.var/synthesis-runtime/root-delta-factory-regressions.log` |
+| Complete cloud preview UI test file, final assertions | **32 PASS, 2.15s** |
+| Strict source + new runtime test | **131 files PASS** |
+| Ruff on changed Python files, compileall, delta diff check | **PASS** |
+| Final TypeScript and isolated production build | **PASS**, 53 modules |
+
+The original515-case affected batch was not repeated. The real production model qualification and configurable bounded spending-policy blockers remain unchanged. Root's follow-up acceptance is still pending.

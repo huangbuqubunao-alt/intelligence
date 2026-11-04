@@ -522,6 +522,7 @@ def build_local_source_run_runtime(
     )
     backup_restore.recover_and_apply_pending_restore()
     repository = SQLiteStateRepository(database)
+    repository.bind_source_storage(data_root)
     repository.initialize(now=now_fn())
     runtime = RuntimeOperations(
         config=config,

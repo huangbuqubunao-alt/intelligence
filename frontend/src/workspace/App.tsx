@@ -10,7 +10,6 @@ import { TranscriptionSetup } from "./TranscriptionSetup";
 import { LocalIntelligenceSetup } from "./LocalIntelligenceSetup";
 import { ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { ApiRequestError, api, patch, post, put, uploadZip } from "../api/client";
-import { bigModelSettingsHref } from "./BigModelSettings";
 import { ModelSettings } from "./ModelSettings";
 import { Logo } from "./Logo";
 import { FirstRunOnboarding, completeOnboarding, onboardingCompleted } from "./Onboarding";
@@ -1788,6 +1787,7 @@ const cloudBlockerCopy: Record<string, string> = {
   MODEL_UNQUALIFIED: "This model has not qualified for this Intelligence task.",
   MODEL_UNAVAILABLE: "The selected cloud model is currently unavailable.",
   CLOUD_SPENDING_POLICY_REQUIRED: "A backend spending policy is required before cloud execution.",
+  CLOUD_EXECUTION_DISABLED: "Cloud execution is disabled in this environment. Reviewing or configuring a model does not enable paid requests.",
   INPUT_NOT_SUPPORTED: "The selected model does not support this input or output language.",
   EXECUTION_ALREADY_EXISTS: "An execution already exists for this request. Check its current state before continuing.",
 };
@@ -1823,6 +1823,11 @@ function CloudIntelligencePreview({ id, manual, onSettled }: { id: string; manua
   const blockers: string[] = readinessValid ? readiness.blockers as string[] : [];
   const expired = review !== null && Date.parse(review.expires_at) <= clock;
   const canConfirm = Boolean(review && readinessValid && readiness.can_confirm === true && blockers.length === 0 && review.outputLimit !== null && !expired && !busy);
+  const outgoingRequest = review?.raw.outgoing_request;
+  const includesSummary = review?.profile_id === "moonshot-k31-system-synthesis-v1-20261029"
+    && localObject(outgoingRequest) && Array.isArray(outgoingRequest.messages)
+    && outgoingRequest.messages.some(item => localObject(item) && typeof item.content === "string"
+      && item.content.startsWith("UNTRUSTED_CURRENT_SUMMARY_BASELINE="));
   const prepare = async () => {
     if (busyRef.current) return;
     const generation = ++requestGeneration.current;
@@ -1868,12 +1873,12 @@ function CloudIntelligencePreview({ id, manual, onSettled }: { id: string; manua
           {profiles.data.profiles.map(profile => <option key={profile.profile_id} value={profile.profile_id}>{profile.provider} · {profile.model}{profile.qualified ? "" : ` · ${t("Not qualified")}`}</option>)}
         </select>
       </label>}
-      <p>{t("The reviewed request includes the complete stored Summary as comparison context. Review all outgoing data before authorization.")}</p>
+      {includesSummary && <p>{t("The reviewed request includes the complete stored Summary as comparison context. Review all outgoing data before authorization.")}</p>}
       <p>{t("Only bounded, verified Evidence excerpts and the task context needed for this Intelligence judgment would leave this device. The full database, unrelated Content, Followings, library, and credentials are excluded. Your original Evidence remains authoritative here.")}</p>
       <p>{t("Preparing a review does not create a task. Confirming authorizes exactly one request for the reviewed Evidence and task context.")}</p>
       <div className="button-row"><button type="button" className="button button-secondary" disabled={busy} onClick={() => void prepare()}>{t(busy ? "Working…" : "Prepare one request for review")}</button>
         <button type="button" className="button button-ghost" onClick={clear}>{t("Dismiss cloud review")}</button>
-        <a className="button button-ghost" href={bigModelSettingsHref()}>{t("Open model settings")}</a></div>
+        <a className="button button-ghost" href={`#Settings/models/moonshot?return=${encodeURIComponent(location.hash)}`}>{t("Open model settings")}</a></div>
       {review && <div>
         <p>{t("Provider/model")}: {review.provider} · {review.model}</p>
         <p>{t("Source")}: {review.source_id} · {t("Output language")}: {review.output_language} · {t("Maximum output tokens")}: {review.outputLimit ?? t("Unavailable")}</p>

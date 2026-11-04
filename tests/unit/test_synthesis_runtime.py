@@ -250,6 +250,13 @@ def test_current_save_topic_reject_changed_proof_with_original_trigger_ddl_resto
     value = review(app, video)
     _, result = confirm(app, video, value)
     intelligence = result["execution"]["intelligence_id"]
+    _, existing_topic = app.handle("POST", "/api/v1/topics", b'{"command_id":"before-corruption","name":"Existing topic"}')
+    existing_topic_id = existing_topic["topic"]["topic_id"]
+    association_body = json.dumps({"intelligence_id": intelligence, "association_kind": "NEW_INFORMATION"}).encode()
+    assert app.handle("POST", f"/api/v1/topics/{existing_topic_id}/associations", association_body)[0] == 201
+    assert app.handle("GET", f"/api/v1/topics/{existing_topic_id}")[1]["topic"]["contributions"][0]["available"] is True
+    _, fresh_topic = app.handle("POST", "/api/v1/topics", b'{"command_id":"after-corruption","name":"New topic"}')
+    fresh_topic_id = fresh_topic["topic"]["topic_id"]
     table = p.PROOFS if corruption == "proof" else p.RECEIPTS
     with repo._connect() as c:
         triggers = c.execute("SELECT name,sql FROM sqlite_master WHERE type='trigger' AND tbl_name=?", (table,)).fetchall()
@@ -267,6 +274,12 @@ def test_current_save_topic_reject_changed_proof_with_original_trigger_ddl_resto
         AuthoritativeIntelligenceReader(repo).read_current(intelligence)
     with pytest.raises(ApiError):
         app.handle("POST", "/api/v1/saved-intelligence/save", json.dumps({"intelligence_id": intelligence}).encode())
+    with pytest.raises(ApiError):
+        app.handle("POST", f"/api/v1/topics/{fresh_topic_id}/associations", association_body)
+    status, existing = app.handle("GET", f"/api/v1/topics/{existing_topic_id}")
+    assert status == 200 and existing["topic"]["current_state"] == "DEGRADED"
+    assert existing["topic"]["contributions"][0]["available"] is False
+    assert app.handle("GET", f"/api/v1/topics/{fresh_topic_id}")[1]["topic"]["contributions"] == []
     assert not BackupRestoreService(database=repo._database_path, data_root=root).readiness()["ready"]
 
 
@@ -357,3 +370,67 @@ def test_cancel_and_claim_race_never_creates_a_cancelled_invocation(tmp_path: Pa
     assert (execution.status, execution.invocation_count) in {("CANCELLED", 0), ("PENDING", 1)}
     assert ("cancelled" in outcomes) != ("claimed" in outcomes)
     assert not calls
+
+
+@pytest.mark.parametrize("branch", ["positive", "cancelled"])
+def test_actual_factory_restarts_and_restores_proven_synthesis_without_manual_data_binding(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, branch: str,
+) -> None:
+    from youtube_intel.config import load_app_config
+    from youtube_intel.runtime_composition import build_local_source_run_runtime
+
+    runtime_support = _load_module("test_runtime_composition")
+    qa_support = _load_module("test_qa_launch_isolation")
+    project = runtime_support._project(tmp_path)
+    repo, root, source, video, service, app_for, calls, credentials, clock = setup(project)
+    app = app_for()
+    intelligence = None
+    topic_id = None
+    if branch == "positive":
+        _, result = confirm(app, video, review(app, video))
+        execution_id = result["execution"]["execution_id"]
+        intelligence = result["execution"]["intelligence_id"]
+        app.handle("POST", "/api/v1/saved-intelligence/save", json.dumps({"intelligence_id": intelligence}).encode())
+        _, topic = app.handle("POST", "/api/v1/topics", b'{"command_id":"factory-topic","name":"Factory topic"}')
+        topic_id = topic["topic"]["topic_id"]
+        app.handle("POST", f"/api/v1/topics/{topic_id}/associations",
+            json.dumps({"intelligence_id": intelligence, "association_kind": "NEW_INFORMATION"}).encode())
+    else:
+        prepared = p.prepare(repo, source_id=source, video_id=video, command_id="factory-cancelled", output_language="en", now=clock[0])
+        execution_id = prepared.execution_id
+        p.reserve(repo, prepared, now=clock[0])
+        app.handle("POST", f"/api/v1/videos/{video}/intelligence/cancel", json.dumps({"execution_id": execution_id}).encode())
+    record = repo.get_distillation_execution(execution_id)
+    config = load_app_config(project / "config/channels.yaml", project / "config/settings.yaml")
+    monkeypatch.setattr("youtube_intel.runtime_composition.local_models", lambda *args: {"models": []})
+    monkeypatch.setattr("youtube_intel.runtime_composition.local_runtime_version", lambda *args: {})
+
+    def factory() -> Any:
+        # The factory constructs a NEW repository itself. No manual bind is
+        # performed on its repository before its real initialize boundary.
+        return build_local_source_run_runtime(config=config, project_root=project, database=repo._database_path,
+            credential_store=qa_support.FakeStore(), bigmodel_credential_store=qa_support.FakeStore(),
+            allow_environment_credentials=False, allow_cloud_execution=False,
+            now=lambda: clock[0] + timedelta(minutes=3))
+
+    runtime = factory()
+    assert runtime.repository is not repo and runtime.repository._source_data_root == root.resolve()
+    assert runtime.repository.get_distillation_execution(execution_id) == record
+    assert runtime.application._cloud_synthesis_qualified is False
+    assert runtime.application._cloud_synthesis_service._synthesis_budget is None
+    assert runtime.backup_restore.readiness()["ready"]
+    before = support._inventory(runtime.repository, root)
+    download = runtime.backup_restore.backup_download(runtime.backup_restore.create_backup().backup_id)
+    assert download is not None
+    preview = runtime.backup_restore.stage_restore(download[0].read_bytes())
+    runtime.backup_restore.confirm_restore(preview.restore_id)
+    restored = factory()  # Actual startup applies Restore, binds DATA, validates provenance.
+    last_restore = restored.backup_restore.readiness()["last_restore"]
+    assert isinstance(last_restore, dict) and last_restore["state"] == "APPLIED"
+    assert support._inventory(restored.repository, root) == before
+    assert restored.repository.get_distillation_execution(execution_id) == record
+    if intelligence is not None:
+        assert restored.application.handle("GET", f"/api/v1/intelligence/{intelligence}")[1]["intelligence"]["trusted"]
+        assert restored.application.handle("GET", f"/api/v1/topics/{topic_id}")[1]["topic"]["contributions"][0]["available"]
+        assert restored.application.handle("GET", "/api/v1/saved-intelligence")[0] == 200
+    assert len(calls) == (1 if branch == "positive" else 0)

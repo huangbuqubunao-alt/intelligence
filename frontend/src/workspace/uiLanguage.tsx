@@ -1184,6 +1184,7 @@ const chinese: Record<string, string> = {
   "Review high-quality Intelligence": "查看云端洞察选项",
   "Cloud Intelligence disclosure": "云端洞察数据与费用说明",
   "Cloud model profile": "云端洞察模型方案",
+  "Cloud execution is disabled in this environment. Reviewing or configuring a model does not enable paid requests.": "此环境已禁用云端执行。查看或配置模型不会启用付费请求。",
   "The reviewed request includes the complete stored Summary as comparison context. Review all outgoing data before authorization.": "待审核请求包含完整的已有摘要作为比较上下文。授权前请查看全部待发送数据。",
   "Provider: Moonshot · Model: kimi-k2.6 (thinking disabled).": "服务商：Moonshot；模型：kimi-k2.6（关闭思考模式）。",
   "Only bounded, verified Evidence excerpts and the task context needed for this Intelligence judgment would leave this device. The full database, unrelated Content, Followings, library, and credentials are excluded. Your original Evidence remains authoritative here.": "只有本次判断所需、经过验证且范围受限的证据片段和任务上下文会离开设备。完整数据库、无关内容、关注列表、资料库和凭据均不会发送。原始证据仍是本地溯源依据。",

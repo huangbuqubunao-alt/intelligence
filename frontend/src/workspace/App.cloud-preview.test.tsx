@@ -69,18 +69,23 @@ it.each(["en", "zh-CN"])("opens a keyless read-only review with actual bounded d
   expect(screen.getByText(/My fixture interest/, { selector: "p" })).toBeTruthy();
   expect(screen.getByText(/Fixture focus/, { selector: "p" })).toBeTruthy();
   expect(screen.getByText(/8192/, { selector: "p" })).toBeTruthy();
-  expect(within(screen.getByRole("region", { name: language === "en" ? "Cloud Intelligence disclosure" : "云端洞察数据与费用说明" })).getByRole("link", { name: language === "en" ? "Open model settings" : "打开模型设置" }).getAttribute("href")).toBe("#Settings/models/bigmodel?return=%23Content%2Fcloud-content");
+  expect(within(screen.getByRole("region", { name: language === "en" ? "Cloud Intelligence disclosure" : "云端洞察数据与费用说明" })).getByRole("link", { name: language === "en" ? "Open model settings" : "打开模型设置" }).getAttribute("href")).toBe("#Settings/models/moonshot?return=%23Content%2Fcloud-content");
   expect((screen.getByRole("button", { name: language === "en" ? "Authorize this one cloud execution" : "授权本次云端执行" }) as HTMLButtonElement).disabled).toBe(true);
   expect(document.body.textContent).not.toMatch(/¥6\.50|Moonshot API usage/);
   expect(requests.filter(path => /credential|cloud-intelligence\/confirm/.test(path))).toEqual([]);
   expect(confirmations).toEqual([]);
+  expect(screen.queryByText(/complete stored Summary as comparison context|待审核请求包含完整的已有摘要/)).toBeNull();
 });
 
-it.each(["CREDENTIAL_REQUIRED", "MODEL_UNQUALIFIED", "MODEL_UNAVAILABLE", "CLOUD_SPENDING_POLICY_REQUIRED", "INPUT_NOT_SUPPORTED", "EXECUTION_ALREADY_EXISTS", "UNRECOGNIZED_BLOCKER"])("keeps blocker %s closed", async blocker => {
+it.each(["CREDENTIAL_REQUIRED", "MODEL_UNQUALIFIED", "MODEL_UNAVAILABLE", "CLOUD_SPENDING_POLICY_REQUIRED", "CLOUD_EXECUTION_DISABLED", "INPUT_NOT_SUPPORTED", "EXECUTION_ALREADY_EXISTS", "UNRECOGNIZED_BLOCKER"])("keeps blocker %s closed", async blocker => {
   returnedReview = review({ readiness: { can_confirm: true, blockers: [blocker], budget_state: "BUDGET_UNVERIFIED" } });
   render(<App />); await prepare(); await screen.findByText(/offline-preview-provider/);
   const confirm = screen.getByRole("button", { name: "Authorize this one cloud execution" });
   expect((confirm as HTMLButtonElement).disabled).toBe(true);
+  if (blocker === "CLOUD_EXECUTION_DISABLED") {
+    expect(screen.getByText("Cloud execution is disabled in this environment. Reviewing or configuring a model does not enable paid requests.")).toBeTruthy();
+    expect(screen.queryByText("This model has not qualified for this Intelligence task.")).toBeNull();
+  }
   fireEvent.click(confirm); expect(confirmations).toEqual([]);
 });
 it.each([undefined, null, {}, { can_confirm: "yes", blockers: [] }, { can_confirm: true, blockers: "none" }])("fails closed for malformed readiness %j", async readiness => {
@@ -225,15 +230,17 @@ it("reviews a finite backend synthesis profile with its own output bound and sen
   profiles = [{ profile_id: "legacy", provider: "moonshot", model: "kimi-k2.6", adapter_available: true, qualified: true },
     { profile_id: "moonshot-k31-system-synthesis-v1-20261029", provider: "moonshot", model: "kimi-k3.1-pro", adapter_available: true, qualified: false }];
   returnedReview = review({ profile_id: "moonshot-k31-system-synthesis-v1-20261029",
-    outgoing_request: { model: "offline-preview-model", max_completion_tokens: 5888, messages: [] },
+    outgoing_request: { model: "offline-preview-model", max_completion_tokens: 5888, messages: [{ role: "user", content: 'UNTRUSTED_CURRENT_SUMMARY_BASELINE={"summary":"complete synthetic fixture"}' }] },
     readiness: { can_confirm: true, blockers: [], budget_state: "OFFLINE_TEST_ONLY" } });
   render(<App />);
   fireEvent.click(await screen.findByRole("button", { name: "Review cloud Intelligence" }));
   fireEvent.change(await screen.findByRole("combobox", { name: "Cloud model profile" }), { target: { value: "moonshot-k31-system-synthesis-v1-20261029" } });
+  expect(screen.queryByText(/complete stored Summary as comparison context/)).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Prepare one request for review" }));
   await screen.findByText(/offline-preview-provider/);
   expect(screen.getByText(/5888/, { selector: "p" })).toBeTruthy();
   expect(screen.getByText(/complete stored Summary as comparison context/)).toBeTruthy();
+  expect(within(screen.getByRole("region", { name: "Cloud Intelligence disclosure" })).getByRole("link", { name: "Open model settings" }).getAttribute("href")).toBe("#Settings/models/moonshot?return=%23Content%2Fcloud-content");
   fireEvent.click(screen.getByRole("button", { name: "Authorize this one cloud execution" }));
   await waitFor(() => expect(confirmations).toEqual([{ execution_id: "offline-execution", review_hash: ticket, authorize: true,
     profile_id: "moonshot-k31-system-synthesis-v1-20261029" }]));
