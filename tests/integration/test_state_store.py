@@ -79,6 +79,10 @@ REQUEST_HASH = build_provider_request_hash(
 )
 
 EXPECTED_TABLES = {
+    "system_synthesis_input_proofs",
+    "system_synthesis_cloud_authorizations",
+    "system_synthesis_result_receipts",
+    "system_synthesis_wait_cancellations",
     "distillation_cloud_waiting_model_cancellations",
     "distillation_zhipu_http429_observations",
     "distillation_zhipu_cloud_authorizations",
@@ -856,12 +860,12 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
 
     sql = (
         resources.files("youtube_intel")
-        .joinpath("migrations", "043_add_cloud_wait_zero_cancellation.sql")
+        .joinpath("migrations", "044_add_system_synthesis_provenance.sql")
         .read_bytes()
     )
     assert first == second
     assert first.version == 44
-    assert first.name == "043_add_cloud_wait_zero_cancellation.sql"
+    assert first.name == "044_add_system_synthesis_provenance.sql"
     assert first.checksum == hashlib.sha256(sql).hexdigest()
 
     with _raw_connection(path) as connection:
@@ -876,7 +880,7 @@ def test_initialize_is_repeatable_and_records_packaged_checksum(tmp_path: Path) 
             "SELECT COUNT(*) FROM schema_migrations"
         ).fetchone()[0]
     assert tables == EXPECTED_TABLES
-    assert migration_count == 42
+    assert migration_count == 43
     with _raw_connection(path) as connection:
         failure_columns = {
             row["name"]
