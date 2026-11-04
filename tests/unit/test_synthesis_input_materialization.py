@@ -47,6 +47,15 @@ def test_stored_synthetic_parents_replay_after_restore_without_invocation(
     assert proof['command']['output_language'] == language
     assert len(proof['capture']['source_refs']) == (3 if injection else 2)
     assert module.profile.canonical(body) == proof['provider_wire']
+    messages = body['messages']
+    assert messages[1]['content'].startswith('TASK_AND_PERSONALIZATION=')
+    task = json.loads(messages[1]['content'].removeprefix('TASK_AND_PERSONALIZATION='))
+    focus = module.SYNTHETIC_FOCUS[language]
+    assert task['focus'] == [focus]
+    assert 'NO_NEW' not in focus.upper()
+    # The trusted preference uses the existing task context only. It does not
+    # rewrite the first system contract or become source/quoted Summary text.
+    assert all(focus not in messages[index]['content'] for index in (0, 2, 3))
 
 
 def test_corrupt_data_copy_cannot_change_trusted_cues_and_blocks_preparation_and_backup(tmp_path: Path) -> None:

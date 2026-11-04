@@ -9,7 +9,26 @@
 - Scope: one offline validation script, focused tests and this handoff. No product/frontend/source, schema, dependency, profile or other worktree changes.
 - Reuse DIRECT actual runtime factory, normal review and output-language APIs, existing finite transport/proof builders, repository domain methods, extractive Summary, Backup/Restore and stdlib. No second execution engine or copied external implementation.
 
-## Actual prepared package
+## Current r4 — pre-execution interest clarification, 2026-11-05
+
+Root's input-only oracle Nov5 addendum narrows only the four synthetic fixtures' trusted interest to new measured performance results absent from the existing Summary; generic implementation advice/restated policy is outside that interest. No output label, template, quality exemption or safety override is placed in the preference. No model output was consulted. Source facts, complete Summary, injection, immutable profile and all quality standards remain unchanged.
+
+Current package: `.var/synthesis-input-materialization/prepared-20261105-r4/`, manifest SHA **`01d7020ba1fe621a4b59d566e1b4816086463c0365ebffdb79807c5ecac1e621`**; copied input-only oracle/addendum SHA **`0b6dbae640f06539660d5c112069d6af7a210fbff68ed52ee9a486caaf77e29d`**. Status remains **PREPARED_NOT_AUTHORIZED** and final-source replay pending. The original r3/manifest below remains intact and is historical, not the final synthetic negative-case fee package.
+
+Actual `.var/materialization-checks/r4-versus-r3.json` compares all8: **the four real public provider bodies and prepared proofs are byte-identical to r3**. For every synthetic case, first system contract, untrusted source, quoted complete Summary, raw Summary artifact and canonical refs are identical. Only the normal `TASK_AND_PERSONALIZATION.focus` wire field changes. The existing second-message role/structure is retained, not moved into the first system contract or source. Tests assert placement and absence of NO_NEW answer labels in focus. The input is a legitimate restricted user interest, not a request to manufacture a result.
+
+| New synthetic case | r4 proof SHA256 | r4 provider body SHA256 | Reserve microCNY |
+|---|---|---|---:|
+| no-new-en | c222353cc77892c81decd1a7d81dd3f4e4aaddbc7677658e346a9b1ce05ff030 | 0e4517aa880260f231e206c88f3e13da41bfe0b25d133341adcb31a58b71e13f | 577652 |
+| no-new-zh-CN | d0a955efea2f2bfd9077b3d2373a0b274286bd13bc78ee49af3d463619859399 | 441021f2b53123b6025045d24d985f4bd68af82bce6f1bdd94e9a5bd9e71afba | 575806 |
+| injection-en | 7e2296ea843ede134220fcd719db7a0d9bb7223e9f02d832459ede15cb9f28ef | 818ca61b7f0b14d8612029f812bcc5478fa7cc53852456f766f19506f78b8a6c | 589300 |
+| injection-zh-CN | 9c87fe2ee4a2dff58d275942bcaa120517b579a4ccce1cc1e6df49c53240b1b8 | f9c12825b702ad46f2b19a7f1bb2186d09e8092f33e6d4de550c8f38e9facfe0 | 586752 |
+
+r4 actual8-case preparation includes managed-parent byte/hash preflight, unchanged-review inventories and four real synthetic Backup/Restore/replays. Original seed remains87 SQL tables/19 DATA files unchanged. New total reserve **5,599,830 microCNY**; with unchanged historical1,943,326, prospective total **7,543,156 microCNY / 10 attempts**. The old eight-call grant still does not cover this batch. Zero actual model/credential/network/fee actions; no model confirm/claim.
+
+Checks for this narrow delta: complete focused file **9 PASS,14.81s** (`focused-tests-r4.log`); all8 real offline preparation PASS (`end-to-end-r4.log`); strict changed tool/test **2 files PASS** (`strict-r4.log`); Ruff, compile and delta whitespace checks PASS. No unnecessary full product rerun. Root owns one input/delta review and comparison with the final budget-integrated source before any paid decision.
+
+## Historical r3 prepared package
 
 `/Users/hua/Documents/yia-worktrees/readiness-synthesis-input-materialization/.var/synthesis-input-materialization/prepared-20261104-r3/`
 
