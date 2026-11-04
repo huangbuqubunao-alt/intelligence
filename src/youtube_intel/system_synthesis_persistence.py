@@ -850,7 +850,7 @@ def _schema(c: sqlite3.Connection) -> list[tuple[str, str, str]]:
     tables = ",".join("?" for _ in TABLES)
     guards = ",".join("?" for _ in CLOUD_GUARDS)
     return [
-        (r[0], r[1], "".join(r[2].split()).rstrip(";"))
+        (r[0], r[1], r[2].strip())  # Preserve quoted literals, comments and SQL token boundaries.
         for r in c.execute(
             f"SELECT type,name,sql FROM sqlite_master WHERE sql IS NOT NULL AND (tbl_name IN ({tables}) OR name LIKE 'system_synthesis_%' OR name LIKE 'synthesis_%' OR name IN ({guards})) ORDER BY type,name",
             (*TABLES, *CLOUD_GUARDS),

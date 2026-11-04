@@ -1305,6 +1305,14 @@ class BackupRestoreService:
         version_row = connection.execute("PRAGMA user_version").fetchone()
         if version_row is None or int(version_row[0]) not in {34, 35, 36, 37, 38, 39, 40, 41, 42, 43, LATEST_SCHEMA_VERSION}:
             raise BackupRestoreError("SQLite database schema is not compatible with this version.")
+        # Schema guards protect execution even before the first synthesis row exists.
+        from .system_synthesis_persistence import (
+            verify_schema as verify_synthesis_schema,
+        )
+        try:
+            verify_synthesis_schema(connection)
+        except Exception as error:
+            raise BackupRestoreError("System synthesis provenance failed validation.") from error
         if int(version_row[0]) >= 40:
             from .tracked_retry_reader import verify_schema
             try:
