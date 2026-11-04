@@ -551,6 +551,7 @@ class LocalApiApplication:
         distillation_service: PersonalizedDistillationService | None = None,
         cloud_distillation_service: PersonalizedDistillationService | None = None,
         cloud_intelligence_qualified: bool = False,
+        cloud_execution_enabled: bool = True,
         cloud_credential_available: bool = False,
         model_settings: ModelSettingsService | None = None,
         bigmodel_settings: BigModelCredentialSettings | None = None,
@@ -589,6 +590,8 @@ class LocalApiApplication:
         )
         self._cloud_distillation_service = cloud_distillation_service
         self._cloud_intelligence_qualified = cloud_intelligence_qualified
+        # Trusted composition restriction; never writable by a request body.
+        self._cloud_execution_enabled = cloud_execution_enabled
         self._cloud_credential_available = cloud_credential_available
         self._model_settings = model_settings
         self._bigmodel_settings = bigmodel_settings
@@ -1156,20 +1159,26 @@ class LocalApiApplication:
                         raise ApiError(HTTPStatus.CONFLICT, "EVIDENCE_UNAVAILABLE",
                                        "No eligible source and Evidence are available for this Content.")
                     cloud_evidence_ids = self._repository.list_canonical_coverage_evidence_ids(video_id)
-                    return HTTPStatus.OK, {
-                        "review": self._cloud_distillation_service.preview_cloud_execution(
+                    review = self._cloud_distillation_service.preview_cloud_execution(
                             source_id=sorted(candidates)[0], video_id=video_id,
                             evidence_ids=cloud_evidence_ids, manual_command_id=manual_command_id,
                             qualified=self._cloud_intelligence_qualified,
                             credential_available=self._cloud_credential_available,
                         )
-                    }
+                    if not self._cloud_execution_enabled:
+                        readiness = cast(dict[str, object], review["readiness"])
+                        readiness["can_confirm"] = False
+                        cast(list[str], readiness["blockers"]).append("CLOUD_EXECUTION_DISABLED")
+                    return HTTPStatus.OK, {"review": review}
                 self._only_keys(data, {"execution_id", "review_hash", "authorize"})
                 if data.get("authorize") is not True:
                     raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY, "CONSENT_REQUIRED",
                                    "Cloud execution requires affirmative confirmation.")
                 execution_id = self._string(data, "execution_id", required=True) or ""
                 review_hash = self._string(data, "review_hash", required=True) or ""
+                if not self._cloud_execution_enabled:
+                    raise ApiError(HTTPStatus.CONFLICT, "CLOUD_EXECUTION_DISABLED",
+                                   "Cloud execution is disabled for this runtime.")
                 if not self._cloud_intelligence_qualified or not self._cloud_credential_available:
                     raise ApiError(HTTPStatus.CONFLICT, "CLOUD_INTELLIGENCE_UNAVAILABLE",
                                    "Qualified Cloud Intelligence requires an available backend credential.")
@@ -2605,7 +2614,7 @@ class LocalApiApplication:
                     for wait in self._repository.list_waiting_model_executions_for_video(video.video_id)
                 ],
                 "cloud_intelligence_available": (
-                    video.provider == "YOUTUBE" and self._cloud_intelligence_qualified and self._cloud_credential_available
+                    self._cloud_execution_enabled and video.provider == "YOUTUBE" and self._cloud_intelligence_qualified and self._cloud_credential_available
                 ),
                 "history": self._history_projection(video.video_id),
             }
@@ -2679,6 +2688,7 @@ class LocalApiApplication:
                     "output_language_updated_at": _timestamp(language.updated_at),
                 },
                 "cloud_credential": {"configured": self._cloud_credential_available, "source": "ENVIRONMENT" if self._cloud_credential_available else "NONE"} if self._model_settings is None else self._model_settings.credential_status(),
+                "cloud_execution_enabled": self._cloud_execution_enabled,
                 "model_preference": {
                     "desired_provider": None
                     if preference is None
@@ -2692,7 +2702,9 @@ class LocalApiApplication:
                 "local_intelligence": self._local_intelligence_status(),
                 "content_processing": {"status": "READY", "method": "EXTRACTIVE_SOURCE", "requires_cloud": False},
                 "providers": [
-                    asdict(item)
+                    asdict(item) | ({"production_eligible": False,
+                        "reason": "Cloud execution is disabled for this runtime; model qualification is unchanged."}
+                        if not self._cloud_execution_enabled and item.provider == "moonshot" else {})
                     for item in provider_model_statuses(
                         None if preference is None else preference.desired_provider,
                         None if preference is None else preference.desired_model,

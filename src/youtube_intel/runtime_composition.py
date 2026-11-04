@@ -488,9 +488,15 @@ def build_local_source_run_runtime(
     dependencies: RuntimeDependencies | None = None,
     credential_store: CredentialStore | None = None,
     bigmodel_credential_store: CredentialStore | None = None,
+    allow_environment_credentials: bool = True,
+    allow_cloud_execution: bool = True,
     now: Callable[[], datetime] | None = None,
 ) -> LocalSourceRunRuntime:
-    """Compose the GUI, scheduler, ingestion, and worker onto one durable authority."""
+    """Compose the GUI, scheduler, ingestion, and worker onto one durable authority.
+
+    Trusted QA callers may restrict credential fallback and cloud execution;
+    these switches are not selectable through HTTP and grant no qualification.
+    """
 
     now_fn = now or (lambda: datetime.now(UTC))
     data_root = (project_root / config.settings.storage.data_dir).resolve()
@@ -547,9 +553,10 @@ def build_local_source_run_runtime(
     from .local_intelligence_settings import LocalIntelligenceSettings
 
     model_settings = ModelSettingsService(
-        credential_store or MacOSKeychainCredentialStore(),
+        credential_store if credential_store is not None else MacOSKeychainCredentialStore(),
         tags_fetch=lambda: local_models(config.settings.local_scoring.base_url),
         version_fetch=lambda: local_runtime_version(config.settings.local_scoring.base_url),
+        allow_environment_credentials=allow_environment_credentials,
     )
     machine_settings = LocalIntelligenceSettings(backup_restore, probe=model_settings.fixed_local_identity)
     intelligence_config = config.settings.local_scoring
@@ -580,7 +587,8 @@ def build_local_source_run_runtime(
             transport._long_capacity_session = LocalCapacitySession(repository=repository, data_root=data_root,
                 backup_restore=backup_restore, profile_id=LONG_CURRENT, api_base_url=intelligence_config.base_url)
     # One independently reviewed K2.6 qualification passed. The UI still
-    # requires a separate consent for each normal cloud execution.
+    # requires a separate consent for each normal cloud execution. Runtime
+    # spending restrictions are independent of this historical qualification.
     m12_moonshot_qualified = True
     eligibility = M12QualifiedCloudProductionAuthorizationAuthority.resolve(
         provider="moonshot", model="kimi-k2.6",
@@ -591,7 +599,7 @@ def build_local_source_run_runtime(
         cloud_transport = MoonshotK26NonThinkingCloudDistillationTransport(
             authorization=CloudDistillationAuthorization.for_normal_production(
                 eligibility=eligibility,
-                cloud_enabled=m12_moonshot_qualified,
+                cloud_enabled=m12_moonshot_qualified and allow_cloud_execution,
                 credential_available=bool(model_settings.credential()),
             ),
             credential_resolver=model_settings.credential,
@@ -661,6 +669,7 @@ def build_local_source_run_runtime(
         distillation_service=distillation,
         cloud_distillation_service=cloud_distillation,
         cloud_intelligence_qualified=m12_moonshot_qualified,
+        cloud_execution_enabled=allow_cloud_execution,
         cloud_credential_available=bool(model_settings.credential()),
         model_settings=model_settings,
         bigmodel_settings=BigModelCredentialSettings(

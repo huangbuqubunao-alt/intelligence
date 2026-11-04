@@ -100,6 +100,12 @@ class MacOSKeychainCredentialStore:
             core.CFRelease(item)
 
 
+class MacOSMoonshotQACredentialStore(MacOSKeychainCredentialStore):
+    """Trusted-code-only QA identity, independent of production credentials."""
+
+    _service = b"com.huangbuqubunao.intelligence.qa.kimi-public-20261029"
+
+
 class MacOSBigModelCredentialStore(MacOSKeychainCredentialStore):
     """Fixed candidate namespace, independent of historical Moonshot credentials."""
 
@@ -167,10 +173,12 @@ def _local_metadata(base_url: str, endpoint: str) -> object:
 
 class ModelSettingsService:
     def __init__(self, store: CredentialStore, *, tags_fetch: Callable[[], object] = local_models,
-        version_fetch: Callable[[], object] = local_runtime_version) -> None:
+        version_fetch: Callable[[], object] = local_runtime_version,
+        allow_environment_credentials: bool = True) -> None:
         self._store = store
         self._tags_fetch = tags_fetch
         self._version_fetch = version_fetch
+        self._allow_environment_credentials = allow_environment_credentials
 
     def fixed_local_identity(self, candidate: InstalledCandidate | None = None) -> str:
         """Only bounded metadata for the one fixed candidate; no inference."""
@@ -192,17 +200,20 @@ class ModelSettingsService:
 
     def credential(self) -> str:
         try:
-            return self._store.get() or os.environ.get("MOONSHOT_API_KEY", "")
+            return self._store.get() or self._environment_credential()
         except CredentialStoreError:
             # Preserve the previously accepted explicit development credential
             # path when native storage is unavailable; this grants no authority.
-            return os.environ.get("MOONSHOT_API_KEY", "")
+            return self._environment_credential()
+
+    def _environment_credential(self) -> str:
+        return os.environ.get("MOONSHOT_API_KEY", "") if self._allow_environment_credentials else ""
 
     def credential_status(self) -> dict[str, object]:
         try:
-            source = "KEYCHAIN" if self._store.get() else "ENVIRONMENT" if os.environ.get("MOONSHOT_API_KEY") else "NONE"
+            source = "KEYCHAIN" if self._store.get() else "ENVIRONMENT" if self._environment_credential() else "NONE"
         except CredentialStoreError:
-            source = "ENVIRONMENT" if os.environ.get("MOONSHOT_API_KEY") else "UNAVAILABLE"
+            source = "ENVIRONMENT" if self._environment_credential() else "UNAVAILABLE"
         return {"configured": source in {"KEYCHAIN", "ENVIRONMENT"}, "source": source}
 
     def save_credential(self, secret: str) -> None:
