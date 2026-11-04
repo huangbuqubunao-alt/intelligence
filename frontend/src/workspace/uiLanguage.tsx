@@ -1185,6 +1185,8 @@ const chinese: Record<string, string> = {
   "Cloud Intelligence disclosure": "云端洞察数据与费用说明",
   "Cloud model profile": "云端洞察模型方案",
   "Cloud spending limits": "云端费用额度",
+  "Enter a whole request count from 1 to 1000.": "请输入 1 至 1000 之间的整数次数。",
+  "Use positive CNY amounts with up to six decimal places, a total no higher than CNY 10,000, and a per-request cap no higher than the total. The backend verifies all limits.": "金额须为正数，最多六位小数，累计不超过 10,000 元，单次上限不得超过累计预算。所有限额仍由后端核验。",
   "These limits apply to kimi-k3.1-pro. In Content, open cloud review and choose that model profile. Model qualification and separate request confirmation are still required.": "这些额度适用于 kimi-k3.1-pro。请在内容页打开云端预览，并选择该模型方案；仍需通过模型资格及逐次明确确认。",
   "The finite spending settings cover kimi-k3.1-pro. For that policy, choose kimi-k3.1-pro in the cloud model profile list and prepare a new review.": "有限费用设置适用于 kimi-k3.1-pro。要使用该策略，请在云端模型方案列表中选择 kimi-k3.1-pro，再重新预览。",
   "These cumulative limits apply only to normal system-synthesis requests. They do not reset monthly, qualify a model or authorize a request.": "这些累计额度仅用于正常的系统提炼请求，不按月重置，不授予模型资格，也不代表单次调用授权。",

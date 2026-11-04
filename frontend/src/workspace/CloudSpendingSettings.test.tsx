@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { CloudSpendingSettings } from "./CloudSpendingSettings";
 import { UiLanguageProvider } from "./uiLanguage";
@@ -85,4 +86,29 @@ it("provides Chinese cumulative limits and the no-execution explanation", async 
   expect(await screen.findByLabelText("累计预留预算（元）")).toBeTruthy();
   expect(screen.getByText(/不按月重置，不授予模型资格/)).toBeTruthy();
   expect(mutations).toEqual([]);
+});
+
+it.each(["10000", "abc", "0", "-1", "1.5", "1001"])("explains invalid count %s, keeps the draft and prevents a silent save", async invalid => {
+  const user = userEvent.setup(); view(); await fill();
+  const input = screen.getByLabelText("Maximum cumulative requests") as HTMLInputElement;
+  await user.clear(input); await user.type(input, invalid);
+  expect(screen.getByRole("alert").textContent).toBe("Enter a whole request count from 1 to 1000.");
+  expect(input.getAttribute("aria-invalid")).toBe("true");
+  const save = screen.getByRole("button", { name: "Save finite spending limits" }) as HTMLButtonElement;
+  expect(save.disabled).toBe(true); await user.click(save);
+  expect(input.value).toBe(invalid);
+  expect((screen.getByLabelText("Cumulative reservation budget (CNY)") as HTMLInputElement).value).toBe("8.000000");
+  expect(mutations).toEqual([]);
+  expect(paths.every(path => path.endsWith("/settings/cloud-spending-policy"))).toBe(true);
+});
+
+it.each(["1", "1000"])("accepts the inclusive count boundary %s through the settings endpoint only", async count => {
+  const user = userEvent.setup(); view(); await fill();
+  const input = screen.getByLabelText("Maximum cumulative requests") as HTMLInputElement;
+  await user.clear(input); await user.type(input, count);
+  expect(screen.queryByRole("alert")).toBeNull();
+  await user.click(screen.getByRole("button", { name: "Save finite spending limits" }));
+  await waitFor(() => expect(mutations).toHaveLength(1));
+  expect(mutations[0].max_calls).toBe(Number(count));
+  expect(paths.every(path => path.endsWith("/settings/cloud-spending-policy"))).toBe(true);
 });
