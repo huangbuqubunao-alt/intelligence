@@ -11,6 +11,7 @@ import { LocalIntelligenceSetup } from "./LocalIntelligenceSetup";
 import { ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { ApiRequestError, api, patch, post, put, uploadZip } from "../api/client";
 import { ModelSettings } from "./ModelSettings";
+import { formatMicroCny } from "./CloudSpendingSettings";
 import { Logo } from "./Logo";
 import { FirstRunOnboarding, completeOnboarding, onboardingCompleted } from "./Onboarding";
 import { DeltaTarget, KnowledgeDelta } from "./KnowledgeDelta";
@@ -1780,7 +1781,7 @@ function readCloudReview(value: unknown, id: string): CloudReview | null {
     output_language: String(value.output_language), cost_status: value.cost_status, readiness: value.readiness,
     evidence: evidence.map(item => ({ evidence_id: String(item.evidence_id), excerpt: String(item.excerpt) })),
     context: { personalization: data.personalization, focus: data.source_focus_rules, ignore: data.source_ignore_rules, style: data.distillation_style },
-    outputLimit: typeof outputLimit === "number" ? outputLimit : null, raw: { outgoing_data: data, outgoing_request: request } };
+    outputLimit: typeof outputLimit === "number" ? outputLimit : null, raw: { outgoing_data: data, outgoing_request: request, spending: value.spending } };
 }
 const cloudBlockerCopy: Record<string, string> = {
   CREDENTIAL_REQUIRED: "Configure a cloud credential in Settings before confirming.",
@@ -1788,6 +1789,18 @@ const cloudBlockerCopy: Record<string, string> = {
   MODEL_UNAVAILABLE: "The selected cloud model is currently unavailable.",
   CLOUD_SPENDING_POLICY_REQUIRED: "A backend spending policy is required before cloud execution.",
   CLOUD_EXECUTION_DISABLED: "Cloud execution is disabled in this environment. Reviewing or configuring a model does not enable paid requests.",
+  CLOUD_PER_REQUEST_CAP_EXCEEDED: "This request exceeds the per-request reservation cap. Review spending settings before proceeding.",
+  CLOUD_BUDGET_EXHAUSTED: "The cumulative reservation budget is exhausted. Held and unknown charges remain counted.",
+  CLOUD_REQUEST_COUNT_EXHAUSTED: "The cumulative request limit is reached. Changing a limit does not erase earlier reservations.",
+  CLOUD_PRICE_ACCEPTANCE_REQUIRED: "Review and accept the current profile and price reference in spending settings.",
+  CLOUD_POLICY_CHANGED_REVIEW_REQUIRED: "Spending settings changed after this review. Prepare a new review before confirming.",
+  CLOUD_EXECUTION_REPLAY_BLOCKED: "This exact request was already reserved or attempted. Check its history; it will not be sent again.",
+  CLOUD_PRECLAIM_ABORTED: "This request stopped safely before execution. No model was called; its original record is kept.",
+  CLOUD_JOURNAL_HISTORY_MISSING: "Retained spending history is missing. Cloud execution is blocked; restore its machine-local history before continuing.",
+  CLOUD_JOURNAL_UNAVAILABLE: "Spending history could not be verified. Cloud execution remains blocked.",
+  CLOUD_JOURNAL_CORRUPT: "Spending history could not be verified. Cloud execution remains blocked.",
+  CLOUD_JOURNAL_UNSAFE: "Spending history could not be verified. Cloud execution remains blocked.",
+  CLOUD_JOURNAL_FULL: "The retained spending journal is full. Cloud execution is blocked until its history is safely maintained.",
   INPUT_NOT_SUPPORTED: "The selected model does not support this input or output language.",
   EXECUTION_ALREADY_EXISTS: "An execution already exists for this request. Check its current state before continuing.",
 };
@@ -1824,6 +1837,9 @@ function CloudIntelligencePreview({ id, manual, onSettled }: { id: string; manua
   const expired = review !== null && Date.parse(review.expires_at) <= clock;
   const canConfirm = Boolean(review && readinessValid && readiness.can_confirm === true && blockers.length === 0 && review.outputLimit !== null && !expired && !busy);
   const outgoingRequest = review?.raw.outgoing_request;
+  const spending = review?.raw.spending;
+  const reserveEstimate = localObject(spending) && typeof spending.reserve_microunits === "number"
+    && Number.isSafeInteger(spending.reserve_microunits) && spending.reserve_microunits > 0 ? spending.reserve_microunits : null;
   const includesSummary = review?.profile_id === "moonshot-k31-system-synthesis-v1-20261029"
     && localObject(outgoingRequest) && Array.isArray(outgoingRequest.messages)
     && outgoingRequest.messages.some(item => localObject(item) && typeof item.content === "string"
@@ -1855,9 +1871,11 @@ function CloudIntelligencePreview({ id, manual, onSettled }: { id: string; manua
       await post(`/videos/${id}/cloud-intelligence/confirm`, { execution_id: current.execution_id, review_hash: current.review_hash, authorize: true, ...(current.profile_id === "legacy" ? {} : { profile_id: current.profile_id }) });
       if (generation !== requestGeneration.current) return;
       setMessage("Cloud confirmation returned. Check this Content's current Intelligence status."); onSettled();
-    } catch {
+    } catch (error) {
       if (generation === requestGeneration.current) {
-        setError("Cloud confirmation was refused or could not be verified. Check the current task and model settings before preparing another review. Nothing is retried automatically.");
+        if (error instanceof ApiRequestError && error.code === "CLOUD_PRECLAIM_ABORTED") manualCommand.current = commandId();
+        setError(error instanceof ApiRequestError && cloudBlockerCopy[error.code] ? cloudBlockerCopy[error.code]
+          : "Cloud confirmation was refused or could not be verified. Check the current task and model settings before preparing another review. Nothing is retried automatically.");
         onSettled();
       }
     } finally {
@@ -1879,10 +1897,13 @@ function CloudIntelligencePreview({ id, manual, onSettled }: { id: string; manua
       <div className="button-row"><button type="button" className="button button-secondary" disabled={busy} onClick={() => void prepare()}>{t(busy ? "Working…" : "Prepare one request for review")}</button>
         <button type="button" className="button button-ghost" onClick={clear}>{t("Dismiss cloud review")}</button>
         <a className="button button-ghost" href={`#Settings/models/moonshot?return=${encodeURIComponent(location.hash)}`}>{t("Open model settings")}</a></div>
+      <a className="source-link" href={`#Settings/models/moonshot?return=${encodeURIComponent(location.hash)}&panel=spending`}>{t("Configure spending limits")}</a>
+      {manual && review?.profile_id === "legacy" && blockers.includes("CLOUD_SPENDING_POLICY_REQUIRED") && <p>{t("The finite spending settings cover kimi-k3.1-pro. For that policy, choose kimi-k3.1-pro in the cloud model profile list and prepare a new review.")}</p>}
       {review && <div>
         <p>{t("Provider/model")}: {review.provider} · {review.model}</p>
         <p>{t("Source")}: {review.source_id} · {t("Output language")}: {review.output_language} · {t("Maximum output tokens")}: {review.outputLimit ?? t("Unavailable")}</p>
         <p>{t("Cost status")}: {t(review.cost_status === "UNKNOWN" ? "Unknown" : review.cost_status)}. {t("An unknown cost or an unverified budget is not a promise of free usage. The backend rechecks budget before execution.")}</p>
+        {reserveEstimate !== null && <p>{t("Estimated reservation for this request")}: CNY {formatMicroCny(reserveEstimate)} · {t("Unknown charges stay held after restart or Restore.")}</p>}
         <h4>{t("Evidence that would be sent")}</h4>
         {review.evidence.map(item => <blockquote key={item.evidence_id}><p>{item.excerpt}</p><a href={`#Content/${encodeURIComponent(id)}/Evidence/${encodeURIComponent(item.evidence_id)}`}>{t("View original Evidence")}</a></blockquote>)}
         <h4>{t("Task context that would be sent")}</h4>

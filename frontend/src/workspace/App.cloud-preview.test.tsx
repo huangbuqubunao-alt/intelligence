@@ -2,6 +2,7 @@ import React from "react";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { App } from "./App";
+import { ApiRequestError } from "../api/client";
 
 // Offline UI fixtures only. These are not provider qualification or real calls.
 const inputHash = "a".repeat(64), ticket = "b".repeat(64);
@@ -28,6 +29,7 @@ function detail(id = "cloud-content", provider = "YOUTUBE") {
 }
 let returnedReview: unknown, confirmations: object[], requests: string[], provider = "YOUTUBE";
 let profiles: object[], manual = false;
+let reviewCommands: unknown[];
 let reviewResponse: (() => Promise<unknown>) | null, confirmResponse: (() => Promise<unknown>) | null;
 const response = (body: unknown, ok = true) => Promise.resolve({ ok, json: async () => body } as Response);
 beforeEach(() => {
@@ -36,11 +38,12 @@ beforeEach(() => {
   location.hash = "#Content/cloud-content";
   provider = "YOUTUBE"; returnedReview = review(); confirmations = []; requests = [];
   profiles = []; manual = false;
+  reviewCommands = [];
   reviewResponse = null; confirmResponse = null;
   vi.stubGlobal("fetch", vi.fn(async (input: string, init?: RequestInit) => {
     requests.push(input);
     if (input.endsWith("/cloud-intelligence/profiles")) return response({ profiles });
-    if (input.endsWith("/cloud-intelligence/review")) return response({ review: await (reviewResponse?.() ?? returnedReview) });
+    if (input.endsWith("/cloud-intelligence/review")) { reviewCommands.push(JSON.parse(String(init?.body)).command_id); return response({ review: await (reviewResponse?.() ?? returnedReview) }); }
     if (input.endsWith("/cloud-intelligence/confirm")) {
       confirmations.push(JSON.parse(String(init?.body)));
       return response(await (confirmResponse?.() ?? { execution: { status: "SUCCEEDED" } }));
@@ -267,4 +270,39 @@ it("offers safe cancellation for a backend-proven unclaimed synthesis reservatio
   await waitFor(() => expect(requests.filter(path => path.endsWith("/intelligence/cancel"))).toHaveLength(1));
   expect(screen.getByText("Retained local Summary.")).toBeTruthy();
   expect(confirmations).toEqual([]);
+});
+
+it("shows the exact conservative reservation and actionable exhausted-budget link without dispatch", async () => {
+  returnedReview = review({ spending: { reserve_microunits: 991_208, currency: "CNY" },
+    readiness: { can_confirm: false, blockers: ["CLOUD_BUDGET_EXHAUSTED"], budget_state: "CLOUD_BUDGET_EXHAUSTED" } });
+  render(<App />); await prepare();
+  await screen.findByText(/CNY 0\.991208/);
+  expect(screen.getByText("The cumulative reservation budget is exhausted. Held and unknown charges remain counted.")).toBeTruthy();
+  expect(screen.getByRole("link", { name: "Configure spending limits" }).getAttribute("href")).toBe("#Settings/models/moonshot?return=%23Content%2Fcloud-content&panel=spending");
+  expect((screen.getByRole("button", { name: "Authorize this one cloud execution" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(confirmations).toEqual([]);
+});
+
+it("guides a legacy review to the explicitly chosen synthesis profile for its separate finite policy", async () => {
+  manual = true;
+  profiles = [{ profile_id: "legacy", provider: "moonshot", model: "kimi-k2.6", adapter_available: true, qualified: true },
+    { profile_id: "moonshot-k31-system-synthesis-v1-20261029", provider: "moonshot", model: "kimi-k3.1-pro", adapter_available: true, qualified: false }];
+  returnedReview = review({ readiness: { can_confirm: false, blockers: ["CLOUD_SPENDING_POLICY_REQUIRED"], budget_state: "CLOUD_SPENDING_POLICY_REQUIRED" } });
+  render(<App />); await prepare();
+  expect(await screen.findByText("The finite spending settings cover kimi-k3.1-pro. For that policy, choose kimi-k3.1-pro in the cloud model profile list and prepare a new review.")).toBeTruthy();
+  expect((screen.getByRole("combobox", { name: "Cloud model profile" }) as HTMLSelectElement).value).toBe("legacy");
+  expect(confirmations).toEqual([]);
+});
+
+it("permits a fresh explicit review after proven zero-call abort, without resubmitting confirmation", async () => {
+  manual = true;
+  returnedReview = review({ readiness: { can_confirm: true, blockers: [], budget_state: "POLICY_READY" } });
+  confirmResponse = async () => { throw new ApiRequestError({ code: "CLOUD_PRECLAIM_ABORTED", message: "synthetic preclaim abort" }); };
+  render(<App />); await prepare(); await screen.findByText(/offline-preview-provider/);
+  fireEvent.click(screen.getByRole("button", { name: "Authorize this one cloud execution" }));
+  await screen.findByText("This request stopped safely before execution. No model was called; its original record is kept.");
+  fireEvent.click(screen.getByRole("button", { name: "Prepare one request for review" }));
+  await waitFor(() => expect(reviewCommands).toHaveLength(2));
+  expect(reviewCommands[0]).toBeTruthy(); expect(reviewCommands[1]).not.toBe(reviewCommands[0]);
+  expect(confirmations).toHaveLength(1);
 });

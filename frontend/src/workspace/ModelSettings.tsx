@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { BigModelSettings } from "./BigModelSettings";
+import { CloudSpendingSettings } from "./CloudSpendingSettings";
 import { api, post, put } from "../api/client";
 import { useUiLanguage } from "./uiLanguage";
 
@@ -129,6 +130,7 @@ export function ModelSettings({ credential, preference, onSaved, message, setMes
       <button type="button" disabled={busy || !confirmed} onClick={() => void run("delete")}>{t("Delete Moonshot key")}</button>
     </> : null}
     <p className="hint">{t("Saving a credential does not call a provider, prove availability, qualify Deep Analysis or authorize paid work.")}</p>
+    <CloudSpendingSettings />
     {message ? <p role="status">{message}</p> : null}
     {returnHash && <a className="button button-secondary" href={returnHash}>{t("Back to Content")}</a>}
     </>}
