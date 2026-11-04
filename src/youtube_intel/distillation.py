@@ -20,7 +20,7 @@ from dataclasses import asdict, dataclass, field, fields, replace
 from datetime import UTC, datetime, timedelta
 from enum import Enum
 from http.client import HTTPException, HTTPResponse, HTTPSConnection
-from typing import Any, Protocol, cast
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from youtube_intel import bound_evidence_reference, system_synthesis
 from youtube_intel import system_synthesis_persistence as synthesis_persistence
@@ -50,6 +50,9 @@ from youtube_intel.state import (
     SQLiteStateRepository,
     StateStoreError,
 )
+
+if TYPE_CHECKING:
+    from .cloud_spending_policy import CloudSpendingPolicy
 
 
 class DistillationExecutionStatus(str, Enum):
@@ -3622,6 +3625,7 @@ class PersonalizedDistillationService:
         now: Callable[[], datetime],
         output_language_for_video: Callable[[str], str] | None = None,
         synthesis_budget: synthesis_persistence.SynthesisBudget | None = None,
+        cloud_spending_policy: CloudSpendingPolicy | None = None,
     ) -> None:
         kind = getattr(transport, "transport_kind", None)
         if kind is None and transport.is_offline_test_transport:
@@ -3650,6 +3654,10 @@ class PersonalizedDistillationService:
         self._transport = transport
         self._budget = budget
         self._synthesis_budget = synthesis_budget
+        self._spending_policy = cloud_spending_policy
+        self._cloud_policy_revisions: dict[str, int | None] = {}
+        if synthesis_budget is not None and cloud_spending_policy is not None:
+            raise ValueError("Choose one trusted synthesis fee authority")
         self._synthesis = (transport.actual_provider, transport.actual_model) == synthesis_profile.PAIR
         if self._synthesis:
             from .synthesis_runtime import MoonshotSystemSynthesisTransport
@@ -3841,8 +3849,19 @@ class PersonalizedDistillationService:
         # The real production budget advertises its fixed missing-policy state;
         # other injected policies remain unverified until explicit confirmation.
         budget_state = getattr(self._budget, "cloud_preview_state", "BUDGET_UNVERIFIED")
+        spending = None
         if self._synthesis:
-            budget_state = "BUDGET_UNVERIFIED" if self._synthesis_budget is not None else "CLOUD_SPENDING_POLICY_REQUIRED"
+            if self._spending_policy is not None:
+                from .synthesis_runtime import prepared_input
+                spending = self._spending_policy.preview(prepared_input(value))
+                budget_state = spending["blocker"] or "POLICY_READY"
+                with self._cloud_preview_lock:
+                    self._cloud_policy_revisions = {key: revision for key, revision in self._cloud_policy_revisions.items() if key in self._cloud_previews}
+                    self._cloud_policy_revisions[token] = spending.get("policy_revision")
+                if spending["blocker"] and spending["blocker"] != "CLOUD_SPENDING_POLICY_REQUIRED":
+                    blockers.append(spending["blocker"])
+            else:
+                budget_state = "BUDGET_UNVERIFIED" if self._synthesis_budget is not None else "CLOUD_SPENDING_POLICY_REQUIRED"
         if budget_state == "CLOUD_SPENDING_POLICY_REQUIRED":
             blockers.append(budget_state)
         return {"execution_id": command.execution_id, "source_id": source_id, "video_id": video_id,
@@ -3851,6 +3870,7 @@ class PersonalizedDistillationService:
             "expires_at": expires.isoformat(), "output_language": value.output_language,
             "evidence_ids": list(value.evidence_ids), "outgoing_data": verified_distillation_input_projection(value),
             "outgoing_request": request,
+            "spending": spending,
             "cost_status": "UNKNOWN",
             "profile_id": synthesis_profile.PROFILE_ID if self._synthesis else None,
             "disclosure_version": "system-synthesis-disclosure-v1" if self._synthesis else "m12-cloud-intelligence-v1",
@@ -3885,7 +3905,7 @@ class PersonalizedDistillationService:
                 or not self._transport.available or not self._preflight_available()):
                 raise ValueError("cloud model or credential is unavailable")
             if self._synthesis:
-                if type(self._synthesis_budget) is not synthesis_persistence.SynthesisBudget:
+                if self._spending_policy is None and type(self._synthesis_budget) is not synthesis_persistence.SynthesisBudget:
                     raise CloudPreviewRejected("CLOUD_BUDGET_REFUSED", "CLOUD_SPENDING_POLICY_REQUIRED")
                 decision = BudgetDecision(True, "ADMITTED")
             else:
@@ -3895,8 +3915,16 @@ class PersonalizedDistillationService:
 
         if self._synthesis:
             from .synthesis_runtime import prepared_input
-            validate_current()
             prepared = prepared_input(value)
+            if self._spending_policy is not None:
+                from .cloud_spending_policy import SpendingPolicyRejected
+                try:
+                    self._spending_policy.claim(prepared, validate_current=validate_current, now=self._now(),
+                        expected_policy_revision=self._cloud_policy_revisions.get(review_hash))
+                except SpendingPolicyRejected as error:
+                    raise CloudPreviewRejected(error.code, error.code) from None
+                return "synthesis-consent:" + prepared.proof_sha256, self._dispatch_and_admit(command, value, decision)
+            validate_current()
             assert self._synthesis_budget is not None
             try:
                 synthesis_persistence.reserve(self._repository, prepared, now=self._now())

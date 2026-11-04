@@ -611,8 +611,10 @@ def build_local_source_run_runtime(
         )
 
     cloud_distillation = cloud_service()
+    from .cloud_spending_policy import CloudSpendingPolicy
     from .synthesis_runtime import MoonshotSystemSynthesisTransport
     from .system_synthesis_profile import PAIR as SYNTHESIS_PAIR
+    cloud_spending = CloudSpendingPolicy(repository, backup_restore)
 
     def synthesis_service() -> PersonalizedDistillationService:
         # A configured adapter is not a quality receipt or spending permission.
@@ -625,7 +627,7 @@ def build_local_source_run_runtime(
             credential_resolver=model_settings.credential)
         return PersonalizedDistillationService(repository, source_policy, synthesis_transport,
             ProductionDistillationBudget(), now=now_fn,
-            output_language_for_video=runtime._intelligence_output_language)
+            output_language_for_video=runtime._intelligence_output_language, cloud_spending_policy=cloud_spending)
 
     cloud_synthesis = synthesis_service()
     evidence_translation = EvidenceTranslationPresentationService(
@@ -687,6 +689,7 @@ def build_local_source_run_runtime(
         distillation_service=distillation,
         cloud_distillation_service=cloud_distillation,
         cloud_synthesis_service=cloud_synthesis,
+        cloud_spending_policy=cloud_spending,
         cloud_synthesis_qualified=False,
         cloud_intelligence_qualified=m12_moonshot_qualified,
         cloud_execution_enabled=allow_cloud_execution,

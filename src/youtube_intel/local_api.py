@@ -31,6 +31,10 @@ from youtube_intel.backup_restore import (
 )
 from youtube_intel.bilibili_content import BilibiliContentProvider
 from youtube_intel.brief import WeeklyBrief, WeeklyBriefService
+from youtube_intel.cloud_spending_policy import (
+    CloudSpendingPolicy,
+    SpendingPolicyRejected,
+)
 from youtube_intel.content_summary_read import (
     AuthoritativeContentSummaryReader,
     ContentSummaryReadRejected,
@@ -551,6 +555,7 @@ class LocalApiApplication:
         distillation_service: PersonalizedDistillationService | None = None,
         cloud_distillation_service: PersonalizedDistillationService | None = None,
         cloud_synthesis_service: PersonalizedDistillationService | None = None,
+        cloud_spending_policy: CloudSpendingPolicy | None = None,
         cloud_synthesis_qualified: bool = False,
         cloud_intelligence_qualified: bool = False,
         cloud_execution_enabled: bool = True,
@@ -593,6 +598,7 @@ class LocalApiApplication:
         )
         self._cloud_distillation_service = cloud_distillation_service
         self._cloud_synthesis_service = cloud_synthesis_service
+        self._cloud_spending_policy = cloud_spending_policy
         self._cloud_synthesis_qualified = cloud_synthesis_qualified
         self._refresh_cloud_synthesis = refresh_cloud_synthesis
         self._cloud_intelligence_qualified = cloud_intelligence_qualified
@@ -1025,6 +1031,24 @@ class LocalApiApplication:
                         "preview": staged.preview,
                     }
                 }
+            if route == "/api/v1/settings/cloud-spending-policy" and method in {"GET", "PUT"}:
+                if self._cloud_spending_policy is None:
+                    raise ApiError(HTTPStatus.CONFLICT, "CLOUD_POLICY_UNAVAILABLE", "Cloud spending settings are unavailable in this runtime.")
+                if urlparse(path).query:
+                    raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY, "VALIDATION_ERROR", "Request contains unsupported fields.")
+                policy_data = self._body(body)
+                if method == "GET":
+                    self._only_keys(policy_data, set())
+                    return HTTPStatus.OK, {"spending_policy": self._cloud_spending_policy.status()}
+                self._only_keys(policy_data, {"expected_revision", "enabled", "total_cny", "per_request_cny", "max_calls", "accept_price_hash", "acknowledge"})
+                try:
+                    policy_result = self._cloud_spending_policy.update(expected_revision=policy_data.get("expected_revision"),
+                        enabled=policy_data.get("enabled"), total_cny=policy_data.get("total_cny"), per_request_cny=policy_data.get("per_request_cny"),
+                        max_calls=policy_data.get("max_calls"), accept_price_hash=policy_data.get("accept_price_hash"), acknowledge=policy_data.get("acknowledge"))
+                except SpendingPolicyRejected as error:
+                    raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY if error.code == "CLOUD_POLICY_INVALID" else HTTPStatus.CONFLICT,
+                        error.code, "Cloud spending settings were not changed. Keep this draft and check current policy or retained reservations.") from None
+                return HTTPStatus.OK, {"spending_policy": policy_result}
             if method == "GET" and route == "/api/v1/saved-intelligence":
                 return HTTPStatus.OK, self._saved_list(path)
             if route in {"/api/v1/settings/bigmodel-credential", "/api/v1/settings/bigmodel-credential/delete"}:
