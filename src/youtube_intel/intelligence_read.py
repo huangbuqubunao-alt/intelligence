@@ -430,6 +430,9 @@ class AuthoritativeIntelligenceReader:
         if revision.claim_kind is IntelligenceClaimKind.UNCLASSIFIED:
             raise IntelligenceReadRejected("CLAIM_KIND_UNCLASSIFIED", "claim classification is unclassified")
         self._validate_long_revision(revision.revision_id)
+        from .system_synthesis_persistence import verify_revision
+        with self._repository._connect() as connection:
+            verify_revision(self._repository, connection, revision.revision_id)
         state_event = self._validate_history(revision, revisions)
         evidence_ids = self._repository.list_intelligence_revision_evidence(revision.revision_id)
         if not evidence_ids:

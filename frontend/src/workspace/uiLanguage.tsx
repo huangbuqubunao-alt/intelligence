@@ -1183,6 +1183,8 @@ const chinese: Record<string, string> = {
   "Waiting for the local service. Nothing is retried automatically.": "正在等待本地服务响应；应用不会自动重试。",
   "Review high-quality Intelligence": "查看云端洞察选项",
   "Cloud Intelligence disclosure": "云端洞察数据与费用说明",
+  "Cloud model profile": "云端洞察模型方案",
+  "The reviewed request includes the complete stored Summary as comparison context. Review all outgoing data before authorization.": "待审核请求包含完整的已有摘要作为比较上下文。授权前请查看全部待发送数据。",
   "Provider: Moonshot · Model: kimi-k2.6 (thinking disabled).": "服务商：Moonshot；模型：kimi-k2.6（关闭思考模式）。",
   "Only bounded, verified Evidence excerpts and the task context needed for this Intelligence judgment would leave this device. The full database, unrelated Content, Followings, library, and credentials are excluded. Your original Evidence remains authoritative here.": "只有本次判断所需、经过验证且范围受限的证据片段和任务上下文会离开设备。完整数据库、无关内容、关注列表、资料库和凭据均不会发送。原始证据仍是本地溯源依据。",
   "Moonshot API usage is billed separately and may incur charges. Cost for this execution: UNKNOWN before the response. Published China-platform K2.6 rates: ¥6.50 per million uncached input tokens, ¥1.10 per million cached input tokens, and ¥27 per million output tokens. This request allows up to 8,192 output tokens.": "Moonshot API 单独计费，可能产生费用。本次执行在返回结果前的费用：UNKNOWN。中国平台公开的 K2.6 费率：未缓存输入每百万 token ¥6.50、缓存输入 ¥1.10、输出 ¥27。本次请求最多允许 8,192 个输出 token。",

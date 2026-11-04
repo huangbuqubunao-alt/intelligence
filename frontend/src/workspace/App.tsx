@@ -178,6 +178,7 @@ type ContentItem = {
 type ContentDetail = {
   local_intelligence?: unknown;
   video: ContentItem;
+  pending_synthesis_executions?: { execution_id: string; updated_at: string; can_cancel: boolean; selected_provider?: string }[];
   waiting_model_executions?: { execution_id: string; updated_at: string; can_cancel: boolean; selected_provider?: string }[];
   cloud_intelligence_available?: boolean;
   manual_intelligence_eligible?: boolean;
@@ -1749,7 +1750,7 @@ function ContentPage(
     );
 }
 type CloudReview = {
-  execution_id: string; review_hash: string; provider: string; model: string; source_id: string;
+  profile_id: string; execution_id: string; review_hash: string; provider: string; model: string; source_id: string;
   expires_at: string; output_language: string; cost_status: string; readiness: unknown;
   evidence: { evidence_id: string; excerpt: string }[];
   context: { personalization: string[]; focus: string[]; ignore: string[]; style: string | null };
@@ -1767,7 +1768,7 @@ function readCloudReview(value: unknown, id: string): CloudReview | null {
     || !localObject(value.outgoing_data) || !(value.outgoing_request === null || localObject(value.outgoing_request))) return null;
   const data = value.outgoing_data, request = value.outgoing_request;
   const evidence = data.evidence, evidenceIds = value.evidence_ids;
-  const outputLimit = request === null ? null : request.max_tokens ?? request.max_output_tokens;
+  const outputLimit = request === null ? null : request.max_tokens ?? request.max_output_tokens ?? request.max_completion_tokens;
   if (!Array.isArray(evidence) || evidence.length !== value.evidence_ids.length
     || !evidence.every(item => localObject(item) && localText(item.evidence_id) && typeof item.excerpt === "string")
     || evidence.some((item, index) => item.evidence_id !== evidenceIds[index])
@@ -1775,7 +1776,7 @@ function readCloudReview(value: unknown, id: string): CloudReview | null {
     || !strings(data.personalization) || !strings(data.source_focus_rules) || !strings(data.source_ignore_rules)
     || !(data.distillation_style === null || typeof data.distillation_style === "string")
     || (request !== null && (request.model !== value.model || typeof outputLimit !== "number" || !Number.isSafeInteger(outputLimit) || outputLimit <= 0))) return null;
-  return { execution_id: String(value.execution_id), review_hash: value.review_hash, provider: String(value.provider),
+  return { profile_id: typeof value.profile_id === "string" ? value.profile_id : "legacy", execution_id: String(value.execution_id), review_hash: value.review_hash, provider: String(value.provider),
     model: String(value.model), source_id: String(value.source_id), expires_at: value.expires_at,
     output_language: String(value.output_language), cost_status: value.cost_status, readiness: value.readiness,
     evidence: evidence.map(item => ({ evidence_id: String(item.evidence_id), excerpt: String(item.excerpt) })),
@@ -1792,6 +1793,8 @@ const cloudBlockerCopy: Record<string, string> = {
 };
 function CloudIntelligencePreview({ id, manual, onSettled }: { id: string; manual: boolean; onSettled: () => void }) {
   const { t } = useUiLanguage();
+  const profiles = useRemote<{ profiles: { profile_id: string; provider: string; model: string; adapter_available: boolean; qualified: boolean }[] }>("/cloud-intelligence/profiles");
+  const [selectedProfile, setSelectedProfile] = useState("legacy");
   const [open, setOpen] = useState(false), [review, setReview] = useState<CloudReview | null>(null);
   const [busy, setBusy] = useState(false), [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null), [clock, setClock] = useState(Date.now);
@@ -1825,7 +1828,7 @@ function CloudIntelligencePreview({ id, manual, onSettled }: { id: string; manua
     const generation = ++requestGeneration.current;
     busyRef.current = true; setBusy(true); setReview(null); setMessage(null); setError(null);
     try {
-      const response = await post<{ review?: unknown }>(`/videos/${id}/cloud-intelligence/review`, manual ? { command_id: manualCommand.current } : {});
+      const response = await post<{ review?: unknown }>(`/videos/${id}/cloud-intelligence/review`, manual ? { command_id: manualCommand.current, ...(selectedProfile === "legacy" ? {} : { profile_id: selectedProfile }) } : {});
       if (generation !== requestGeneration.current) return;
       const current = readCloudReview(response.review, id);
       if (!current) throw new Error("INVALID_REVIEW");
@@ -1844,7 +1847,7 @@ function CloudIntelligencePreview({ id, manual, onSettled }: { id: string; manua
     const current = review;
     setReview(null); // A dispatched ticket is never reused, even after a lost response.
     try {
-      await post(`/videos/${id}/cloud-intelligence/confirm`, { execution_id: current.execution_id, review_hash: current.review_hash, authorize: true });
+      await post(`/videos/${id}/cloud-intelligence/confirm`, { execution_id: current.execution_id, review_hash: current.review_hash, authorize: true, ...(current.profile_id === "legacy" ? {} : { profile_id: current.profile_id }) });
       if (generation !== requestGeneration.current) return;
       setMessage("Cloud confirmation returned. Check this Content's current Intelligence status."); onSettled();
     } catch {
@@ -1860,6 +1863,12 @@ function CloudIntelligencePreview({ id, manual, onSettled }: { id: string; manua
     <button type="button" className="button button-secondary" onClick={() => open ? clear() : setOpen(true)}>{t("Review cloud Intelligence")}</button>
     {open && <section className="semantic-state state-neutral" aria-label={t("Cloud Intelligence disclosure")}>
       <h3>{t("Cloud Intelligence disclosure")}</h3>
+      {manual && profiles.data && Array.isArray(profiles.data.profiles) && profiles.data.profiles.length > 0 && <label>{t("Cloud model profile")}
+        <select disabled={busy} value={selectedProfile} onChange={event => { setSelectedProfile(event.target.value); setReview(null); manualCommand.current = commandId(); }}>
+          {profiles.data.profiles.map(profile => <option key={profile.profile_id} value={profile.profile_id}>{profile.provider} · {profile.model}{profile.qualified ? "" : ` · ${t("Not qualified")}`}</option>)}
+        </select>
+      </label>}
+      <p>{t("The reviewed request includes the complete stored Summary as comparison context. Review all outgoing data before authorization.")}</p>
       <p>{t("Only bounded, verified Evidence excerpts and the task context needed for this Intelligence judgment would leave this device. The full database, unrelated Content, Followings, library, and credentials are excluded. Your original Evidence remains authoritative here.")}</p>
       <p>{t("Preparing a review does not create a task. Confirming authorizes exactly one request for the reviewed Evidence and task context.")}</p>
       <div className="button-row"><button type="button" className="button button-secondary" disabled={busy} onClick={() => void prepare()}>{t(busy ? "Working…" : "Prepare one request for review")}</button>
@@ -1978,9 +1987,9 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
             : intelligenceResultCopy(data.intelligence_result.status, data.intelligence_result.cloud_http429_code, data.intelligence_result.selected_provider, data.intelligence_result.can_cancel))}</p>
           {(cloudWait || (data.intelligence_result.status === "REJECTED_OUTPUT" && data.intelligence_result.cloud_http429_code === "1315")) && <a className="source-link" href={`#Settings/models/bigmodel?return=${encodeURIComponent(`#Content/${id}`)}`}>{t("Settings")}</a>}
           {cancelFeedback && data.intelligence_result.status !== "CANCELLED" && <p role="status">{cancelFeedback}</p>}
-          {Boolean(data.waiting_model_executions?.length) && <div>
-            {data.waiting_model_executions?.map((wait) => <div key={wait.execution_id}>
-              {wait.selected_provider === "zhipu_bigmodel"
+          {Boolean(data.waiting_model_executions?.length || data.pending_synthesis_executions?.length) && <div>
+            {[...(data.waiting_model_executions ?? []), ...(data.pending_synthesis_executions ?? [])].map((wait) => <div key={wait.execution_id}>
+              {data.pending_synthesis_executions?.some(pending => pending.execution_id === wait.execution_id) ? <p>{t("This extraction has not run. You can safely cancel it, then request extraction again.")}</p> : wait.selected_provider === "zhipu_bigmodel"
                 ? <><p>{t(intelligenceResultCopy("WAITING_MODEL", undefined, wait.selected_provider, wait.can_cancel))}</p>
                   <a className="source-link" href={`#Settings/models/bigmodel?return=${encodeURIComponent(`#Content/${id}`)}`}>{t("Settings")}</a></>
                 : (!unstartedLongWait || localCapability?.qualification_status === "NOT_QUALIFIED")
@@ -4151,9 +4160,9 @@ function Settings({ refresh }: { refresh: number }) {
   }
   const globalPolicy = policy.data.policy;
   const videoDistillation = settings.data.providers.find((provider) =>
-    provider.provider === "moonshot" && provider.model === "kimi-k2.6" &&
-    provider.scope === "V1_VIDEO_DISTILLATION_ONLY"
-  );
+    provider.configured && provider.adapter_available &&
+    ["V1_VIDEO_DISTILLATION_ONLY", "PUBLIC_YOUTUBE_TIMED_MEDIA"].includes(provider.scope)
+  ) ?? settings.data.providers.find(provider => provider.adapter_available && provider.scope === "V1_VIDEO_DISTILLATION_ONLY");
   const localFoundation = settings.data.providers.find((provider) =>
     provider.provider === "Local" && provider.scope === "SCORING_SUMMARY_ONLY"
   );

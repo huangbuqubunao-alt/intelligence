@@ -550,12 +550,15 @@ class LocalApiApplication:
         scoring_reader: AuthoritativeScoringReader | None = None,
         distillation_service: PersonalizedDistillationService | None = None,
         cloud_distillation_service: PersonalizedDistillationService | None = None,
+        cloud_synthesis_service: PersonalizedDistillationService | None = None,
+        cloud_synthesis_qualified: bool = False,
         cloud_intelligence_qualified: bool = False,
         cloud_execution_enabled: bool = True,
         cloud_credential_available: bool = False,
         model_settings: ModelSettingsService | None = None,
         bigmodel_settings: BigModelCredentialSettings | None = None,
         refresh_cloud_distillation: Callable[[], PersonalizedDistillationService] | None = None,
+        refresh_cloud_synthesis: Callable[[], PersonalizedDistillationService] | None = None,
         processing_orchestrator: DurableProcessingOrchestrator | None = None,
         data_root: Path | None = None,
         vault_root: Path | None = None,
@@ -589,6 +592,9 @@ class LocalApiApplication:
             repository, vault_root=vault_root
         )
         self._cloud_distillation_service = cloud_distillation_service
+        self._cloud_synthesis_service = cloud_synthesis_service
+        self._cloud_synthesis_qualified = cloud_synthesis_qualified
+        self._refresh_cloud_synthesis = refresh_cloud_synthesis
         self._cloud_intelligence_qualified = cloud_intelligence_qualified
         # Trusted composition restriction; never writable by a request body.
         self._cloud_execution_enabled = cloud_execution_enabled
@@ -1074,6 +1080,8 @@ class LocalApiApplication:
                 self._cloud_credential_available = bool(self._model_settings.credential())
                 if self._refresh_cloud_distillation is not None:
                     self._cloud_distillation_service = self._refresh_cloud_distillation()
+                if self._refresh_cloud_synthesis is not None:
+                    self._cloud_synthesis_service = self._refresh_cloud_synthesis()
                 return HTTPStatus.OK, self._model_settings.credential_status()
             if method == "POST" and route.startswith("/api/v1/videos/") and route.endswith("/deep-analysis/obsidian"):
                 content_id = self._obsidian_content_id(route)
@@ -1123,6 +1131,11 @@ class LocalApiApplication:
                 execution_id = self._string(data, "execution_id", required=True) or ""
                 from .state import StateStoreError
                 try:
+                    from . import system_synthesis_persistence as synthesis
+                    current = self._repository.get_distillation_execution(execution_id)
+                    if (current is not None and current.video_id == video_id
+                        and self._synthesis_pending_cancelable(current)):
+                        synthesis.abandon_unclaimed(self._repository, execution_id, now=self._now())
                     execution = self._repository.cancel_waiting_model_execution(
                         execution_id, video_id=video_id, now=self._now(),
                     )
@@ -1131,11 +1144,31 @@ class LocalApiApplication:
                                    "This task cannot be safely cancelled. Refresh its current state.") from None
                 return HTTPStatus.OK, {"execution": self._distillation_execution_dto(execution)}
             cloud_prefix = "/api/v1/videos/"
+            if method == "GET" and route == "/api/v1/cloud-intelligence/profiles":
+                from .system_synthesis_profile import PROFILE_ID
+                profiles = []
+                for profile_id, candidate_service, qualified in (
+                    ("legacy", self._cloud_distillation_service, self._cloud_intelligence_qualified),
+                    (PROFILE_ID, self._cloud_synthesis_service, self._cloud_synthesis_qualified),
+                ):
+                    if candidate_service is not None:
+                        profiles.append({"profile_id": profile_id,
+                            "provider": candidate_service._selected_provider, "model": candidate_service._selected_model,
+                            "adapter_available": True, "qualified": qualified,
+                            "execution_enabled": self._cloud_execution_enabled,
+                            "credential_available": self._cloud_credential_available})
+                return HTTPStatus.OK, {"profiles": profiles}
             if method == "POST" and route.startswith(cloud_prefix) and (
                 route.endswith("/cloud-intelligence/review")
                 or route.endswith("/cloud-intelligence/confirm")
             ):
-                if self._cloud_distillation_service is None:
+                from .system_synthesis_profile import PROFILE_ID
+                selected_profile = data.get("profile_id", "legacy")
+                if not isinstance(selected_profile, str) or selected_profile not in {"legacy", PROFILE_ID}:
+                    raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY, "CLOUD_PROFILE_UNKNOWN", "Select a supported backend model profile.")
+                cloud_service = self._cloud_synthesis_service if selected_profile == PROFILE_ID else self._cloud_distillation_service
+                cloud_qualified = self._cloud_synthesis_qualified if selected_profile == PROFILE_ID else self._cloud_intelligence_qualified
+                if cloud_service is None:
                     raise ApiError(HTTPStatus.CONFLICT, "CLOUD_INTELLIGENCE_UNAVAILABLE",
                                    "Cloud Intelligence preview is unavailable.")
                 video_id, _, cloud_action = route.removeprefix(cloud_prefix).partition("/")
@@ -1144,7 +1177,7 @@ class LocalApiApplication:
                 if not video_id or self._repository.get_video(video_id) is None:
                     raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Video was not found.")
                 if route.endswith("/cloud-intelligence/review"):
-                    self._only_keys(data, {"command_id"})
+                    self._only_keys(data, {"command_id", "profile_id"})
                     manual_command_id = self._string(data, "command_id")
                     manual_source = self._manual_content_source(video_id) if manual_command_id else None
                     candidates = (manual_source,) if manual_source else tuple(
@@ -1159,10 +1192,10 @@ class LocalApiApplication:
                         raise ApiError(HTTPStatus.CONFLICT, "EVIDENCE_UNAVAILABLE",
                                        "No eligible source and Evidence are available for this Content.")
                     cloud_evidence_ids = self._repository.list_canonical_coverage_evidence_ids(video_id)
-                    review = self._cloud_distillation_service.preview_cloud_execution(
+                    review = cloud_service.preview_cloud_execution(
                             source_id=sorted(candidates)[0], video_id=video_id,
                             evidence_ids=cloud_evidence_ids, manual_command_id=manual_command_id,
-                            qualified=self._cloud_intelligence_qualified,
+                            qualified=cloud_qualified,
                             credential_available=self._cloud_credential_available,
                         )
                     if not self._cloud_execution_enabled:
@@ -1170,7 +1203,7 @@ class LocalApiApplication:
                         readiness["can_confirm"] = False
                         cast(list[str], readiness["blockers"]).append("CLOUD_EXECUTION_DISABLED")
                     return HTTPStatus.OK, {"review": review}
-                self._only_keys(data, {"execution_id", "review_hash", "authorize"})
+                self._only_keys(data, {"execution_id", "review_hash", "authorize", "profile_id"})
                 if data.get("authorize") is not True:
                     raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY, "CONSENT_REQUIRED",
                                    "Cloud execution requires affirmative confirmation.")
@@ -1179,13 +1212,13 @@ class LocalApiApplication:
                 if not self._cloud_execution_enabled:
                     raise ApiError(HTTPStatus.CONFLICT, "CLOUD_EXECUTION_DISABLED",
                                    "Cloud execution is disabled for this runtime.")
-                if not self._cloud_intelligence_qualified or not self._cloud_credential_available:
+                if not cloud_qualified or not self._cloud_credential_available:
                     raise ApiError(HTTPStatus.CONFLICT, "CLOUD_INTELLIGENCE_UNAVAILABLE",
                                    "Qualified Cloud Intelligence requires an available backend credential.")
                 from .distillation import CloudPreviewRejected
                 from .state import StateStoreError
                 try:
-                    authorization_id, cloud_result = self._cloud_distillation_service.confirm_cloud_preview(
+                    authorization_id, cloud_result = cloud_service.confirm_cloud_preview(
                         video_id=video_id, execution_id=execution_id, review_hash=review_hash,
                     )
                 except CloudPreviewRejected as error:
@@ -2025,10 +2058,34 @@ class LocalApiApplication:
             execution_id = str(getattr(execution, "execution_id"))
             if result["status"] == "WAITING_MODEL":
                 result["can_cancel"] = self._repository.can_cancel_waiting_model_execution(execution_id)
+            elif result["status"] == "PENDING":
+                result["can_cancel"] = self._synthesis_pending_cancelable(execution)
             code = self._repository.get_bigmodel_http429_code(execution_id)
             if code is not None:
                 result["cloud_http429_code"] = code
         return result
+
+    def _synthesis_pending_cancelable(self, execution: object) -> bool:
+        from . import system_synthesis_persistence as synthesis
+        from .state import StateStoreError
+        if (getattr(execution, "status", None) != "PENDING"
+            or getattr(execution, "invocation_count", None) != 0
+            or not synthesis.is_synthesis(str(getattr(execution, "execution_id", "")))):
+            return False
+        try:
+            with self._repository._connect() as connection:
+                synthesis.verify_execution(self._repository, connection, str(getattr(execution, "execution_id")))
+            return True
+        except (StateStoreError, ValueError, sqlite3.Error):
+            return False
+
+    def _pending_synthesis_executions(self, video_id: str) -> list[dict[str, object]]:
+        with self._repository._connect() as connection:
+            identities = [str(row[0]) for row in connection.execute(
+                "SELECT execution_id FROM distillation_execution_checkpoints WHERE video_id=? AND status='PENDING' "
+                "AND invocation_count=0 AND execution_id LIKE 'distillation:system-synthesis-%'", (video_id,))]
+        return [self._distillation_execution_dto(execution) for identity in identities
+            if (execution := self._repository.get_distillation_execution(identity)) is not None]
 
     def _content_local_intelligence_status(self, video_id: str, source_id: str | None) -> dict[str, object]:
         matrix = self._local_intelligence_status()
@@ -2609,6 +2666,7 @@ class LocalApiApplication:
                 ),
                 "manual_intelligence_eligible": manual_source is not None,
                 "local_intelligence": self._content_local_intelligence_status(video.video_id, manual_source),
+                "pending_synthesis_executions": self._pending_synthesis_executions(video.video_id),
                 "waiting_model_executions": [
                     self._distillation_execution_dto(wait)
                     for wait in self._repository.list_waiting_model_executions_for_video(video.video_id)

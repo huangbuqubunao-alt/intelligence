@@ -22,7 +22,9 @@ from enum import Enum
 from http.client import HTTPException, HTTPResponse, HTTPSConnection
 from typing import Any, Protocol, cast
 
-from youtube_intel import bound_evidence_reference
+from youtube_intel import bound_evidence_reference, system_synthesis
+from youtube_intel import system_synthesis_persistence as synthesis_persistence
+from youtube_intel import system_synthesis_profile as synthesis_profile
 from youtube_intel.analysis import EnvironmentCredentialResolver
 from youtube_intel.cloud_audit import CLOUD_PROVIDERS, ZHIPU_PAIR
 from youtube_intel.config import LocalScoringSettings, _validate_loopback_http_base_url
@@ -810,6 +812,7 @@ _SUPPORTED_CLOUD_DISTILLATION_PAIRS = frozenset(
         ("openai", "gpt-4.1"),
         ("moonshot", "kimi-k2.6"),
         ("moonshot", "kimi-k3"),
+        synthesis_profile.PAIR,
         ZHIPU_PAIR,
     }
 )
@@ -3618,6 +3621,7 @@ class PersonalizedDistillationService:
         *,
         now: Callable[[], datetime],
         output_language_for_video: Callable[[str], str] | None = None,
+        synthesis_budget: synthesis_persistence.SynthesisBudget | None = None,
     ) -> None:
         kind = getattr(transport, "transport_kind", None)
         if kind is None and transport.is_offline_test_transport:
@@ -3645,6 +3649,12 @@ class PersonalizedDistillationService:
         self._source_policy = source_policy
         self._transport = transport
         self._budget = budget
+        self._synthesis_budget = synthesis_budget
+        self._synthesis = (transport.actual_provider, transport.actual_model) == synthesis_profile.PAIR
+        if self._synthesis:
+            from .synthesis_runtime import MoonshotSystemSynthesisTransport
+            if not isinstance(transport, MoonshotSystemSynthesisTransport):
+                raise ValueError("synthesis requires the finite prepared-proof transport")
         self._cloud_previews: dict[str, tuple[DistillationCommand, VerifiedDistillationInput, datetime]] = {}
         self._cloud_preview_lock = threading.Lock()
         self._now = now
@@ -3743,6 +3753,25 @@ class PersonalizedDistillationService:
         self, *, source_id: str, video_id: str, evidence_ids: tuple[str, ...],
         manual_command_id: str | None = None,
     ) -> tuple[DistillationCommand, VerifiedDistillationInput]:
+        if self._synthesis:
+            if manual_command_id is None:
+                raise ValueError("synthesis requires an explicit manual Content command")
+            language = self.capability_output_language(video_id)
+            if language is None:
+                raise ValueError("synthesis Content language is unavailable")
+            prepared = synthesis_persistence.prepare(self._repository, source_id=source_id,
+                video_id=video_id, command_id=manual_command_id,
+                output_language=language, now=self._now())
+            proof = synthesis_persistence.loads(prepared.proof_json)
+            ids = tuple(sorted(r["evidence_id"] for r in proof["capture"]["source_refs"]))
+            if not set(ids) <= set(evidence_ids):
+                raise ValueError("synthesis review Evidence differs")
+            command, value = self._reserved_command(source_id=source_id, video_id=video_id,
+                evidence_ids=ids, output_language=cast(ScoringOutputLanguage, proof["command"]["output_language"]),
+                reason=proof["command"]["reason"])
+            return replace(command, execution_id=prepared.execution_id), replace(value,
+                semantic_hash=prepared.proof_sha256, wire_version=synthesis_profile.PROFILE_ID,
+                input_json=prepared.proof_json)
         if self._selected_provider not in CLOUD_PROVIDERS:
             raise ValueError("cloud review is unavailable for this transport")
         video = self._repository.get_video(video_id)
@@ -3812,6 +3841,8 @@ class PersonalizedDistillationService:
         # The real production budget advertises its fixed missing-policy state;
         # other injected policies remain unverified until explicit confirmation.
         budget_state = getattr(self._budget, "cloud_preview_state", "BUDGET_UNVERIFIED")
+        if self._synthesis:
+            budget_state = "BUDGET_UNVERIFIED" if self._synthesis_budget is not None else "CLOUD_SPENDING_POLICY_REQUIRED"
         if budget_state == "CLOUD_SPENDING_POLICY_REQUIRED":
             blockers.append(budget_state)
         return {"execution_id": command.execution_id, "source_id": source_id, "video_id": video_id,
@@ -3821,7 +3852,8 @@ class PersonalizedDistillationService:
             "evidence_ids": list(value.evidence_ids), "outgoing_data": verified_distillation_input_projection(value),
             "outgoing_request": request,
             "cost_status": "UNKNOWN",
-            "disclosure_version": "m12-cloud-intelligence-v1",
+            "profile_id": synthesis_profile.PROFILE_ID if self._synthesis else None,
+            "disclosure_version": "system-synthesis-disclosure-v1" if self._synthesis else "m12-cloud-intelligence-v1",
             "readiness": {"can_confirm": not blockers, "blockers": blockers, "budget_state": budget_state}}
 
     def confirm_cloud_preview(
@@ -3852,10 +3884,35 @@ class PersonalizedDistillationService:
             if (not self._transport_permits(current_value, normal_production=True)
                 or not self._transport.available or not self._preflight_available()):
                 raise ValueError("cloud model or credential is unavailable")
-            decision = self._budget.check(current_command)
+            if self._synthesis:
+                if type(self._synthesis_budget) is not synthesis_persistence.SynthesisBudget:
+                    raise CloudPreviewRejected("CLOUD_BUDGET_REFUSED", "CLOUD_SPENDING_POLICY_REQUIRED")
+                decision = BudgetDecision(True, "ADMITTED")
+            else:
+                decision = self._budget.check(current_command)
             if not decision.allowed:
                 raise CloudPreviewRejected("CLOUD_BUDGET_REFUSED", decision.state)
 
+        if self._synthesis:
+            from .synthesis_runtime import prepared_input
+            validate_current()
+            prepared = prepared_input(value)
+            assert self._synthesis_budget is not None
+            try:
+                synthesis_persistence.reserve(self._repository, prepared, now=self._now())
+            except sqlite3.IntegrityError:
+                raise StateStoreError("Synthesis request already exists or conflicts") from None
+            try:
+                synthesis_persistence.confirm_and_claim(self._repository, prepared,
+                    budget=self._synthesis_budget, consent_kind="USER_CONFIRMATION", now=self._now())
+            except Exception as error:
+                record = self._repository.get_distillation_execution(prepared.execution_id)
+                if record is not None and record.status == "PENDING" and record.invocation_count == 0:
+                    synthesis_persistence.abandon_unclaimed(self._repository, prepared.execution_id, now=self._now())
+                if isinstance(error, sqlite3.Error):
+                    raise StateStoreError("Synthesis claim was refused") from error
+                raise
+            return "synthesis-consent:" + prepared.proof_sha256, self._dispatch_and_admit(command, value, decision)
         authorization_id = f"cloud-consent:{secrets.token_hex(16)}"
         self._repository.confirm_and_claim_cloud_execution(
             DistillationExecutionWrite(execution_id=command.execution_id, source_id=command.source_id,
@@ -4348,6 +4405,17 @@ class PersonalizedDistillationService:
             http_status_code=http_status_code,
         )
 
+    @staticmethod
+    def _synthesis_completion(
+        execution_id: str, result: DistillationTransportResult | None = None, *, admitted: bool = False,
+    ) -> synthesis_persistence.Completion | None:
+        if not synthesis_persistence.is_synthesis(execution_id):
+            return None
+        return synthesis_persistence.Completion(
+            raw_text=result.raw if admitted and result is not None else None,
+            raw_sha256=hashlib.sha256(result.raw.encode()).hexdigest() if result is not None else None,
+        )
+
     def _finish_execution(
         self,
         *,
@@ -4360,6 +4428,7 @@ class PersonalizedDistillationService:
         http_status_code: int | None = None,
     ) -> DistillationResult:
         record = self._repository.finish_distillation_without_admission(
+            synthesis_completion=self._synthesis_completion(execution_id, result),
             execution_id=execution_id,
             status=status.value,
             budget_state=budget_state,
@@ -4601,6 +4670,9 @@ class PersonalizedDistillationService:
             return self._finish_or_recover(projection, status=DistillationExecutionStatus.AMBIGUOUS,
                 budget_state=decision.state, outcome="RESERVED_DISPATCH_OUTCOME_UNKNOWN", invocation_count=1)
         except CloudDistillationPreDispatchError:
+            if self._synthesis:
+                return self._finish_or_recover(projection, status=DistillationExecutionStatus.AMBIGUOUS,
+                    budget_state=decision.state, outcome="RESERVED_DISPATCH_OUTCOME_UNKNOWN", invocation_count=1)
             return self._finish_or_recover(
                 projection,
                 status=DistillationExecutionStatus.WAITING_MODEL,
@@ -4625,6 +4697,7 @@ class PersonalizedDistillationService:
             if http_status is not None and not 200 <= http_status <= 299:
                 failure_outcome = "CLOUD_HTTP_ERROR"
                 record = self._repository.finish_distillation_cloud_response_failure(
+                    synthesis_completion=self._synthesis_completion(projection.execution_id),
                     execution_id=projection.execution_id,
                     budget_state=decision.state,
                     outcome=failure_outcome,
@@ -4652,6 +4725,7 @@ class PersonalizedDistillationService:
                 else:
                     failure_outcome = "CLOUD_HTTP_RESPONSE_MALFORMED"
                 record = self._repository.finish_distillation_cloud_response_failure(
+                    synthesis_completion=self._synthesis_completion(projection.execution_id),
                     execution_id=projection.execution_id,
                     budget_state=decision.state,
                     outcome=failure_outcome,
@@ -4665,6 +4739,7 @@ class PersonalizedDistillationService:
                 or cloud_result.actual_model != projection.selected_model
             ):
                 record = self._repository.finish_distillation_cloud_response_failure(
+                    synthesis_completion=self._synthesis_completion(projection.execution_id),
                     execution_id=projection.execution_id,
                     budget_state=decision.state,
                     outcome="HTTP_RESPONSE_MODEL_IDENTITY_INVALID",
@@ -4719,6 +4794,7 @@ class PersonalizedDistillationService:
         ):
             if projection.selected_provider in CLOUD_PROVIDERS:
                 record = self._repository.finish_distillation_cloud_response_failure(
+                    synthesis_completion=self._synthesis_completion(projection.execution_id),
                     execution_id=projection.execution_id,
                     budget_state=decision.state,
                     outcome="HTTP_RESPONSE_MODEL_IDENTITY_INVALID",
@@ -4749,6 +4825,7 @@ class PersonalizedDistillationService:
             if isinstance(candidate, _NoNewCandidate):
                 record = self._repository.record_distillation_no_new_intelligence(
                     local_content_context_hash=verified_input.local_content_context_hash,
+                    synthesis_completion=self._synthesis_completion(projection.execution_id, response, admitted=True),
                     execution_id=projection.execution_id,
                     evidence_ids=candidate.evidence_ids,
                     budget_state=decision.state,
@@ -4764,6 +4841,7 @@ class PersonalizedDistillationService:
             else:
                 record = self._repository.admit_distillation(
                     local_content_context_hash=verified_input.local_content_context_hash,
+                    synthesis_completion=self._synthesis_completion(projection.execution_id, response, admitted=True),
                     execution_id=projection.execution_id,
                     intelligence_id=f"intelligence:distillation:{projection.execution_id}",
                     revision_id=f"revision:distillation:{projection.execution_id}",
@@ -5102,6 +5180,16 @@ class PersonalizedDistillationService:
         command: DistillationCommand,
         verified_input: VerifiedDistillationInput,
     ) -> _Candidate | _NoNewCandidate:
+        if verified_input.wire_version == synthesis_profile.PROFILE_ID:
+            from .synthesis_runtime import prepared_input
+            prepared = prepared_input(verified_input)
+            request = synthesis_persistence.request_from_proof(prepared)
+            decoded = system_synthesis.decode_system_synthesis(raw, request,
+                request_origin_sha256=request.origin_sha256)
+            # Only this predeclared operation maps the typed candidate. Authentic
+            # response text remains unchanged in the schema44 receipt.
+            return self._parse_candidate(json.dumps(decoded.candidate_projection()), command,
+                replace(verified_input, wire_version=None))
         if verified_input.wire_version == _LOCAL_TEXT_WIRE_VERSION:
             return self._parse_text_candidate(raw, command, verified_input)
         if verified_input.wire_version is not None:

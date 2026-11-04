@@ -27,6 +27,7 @@ function detail(id = "cloud-content", provider = "YOUTUBE") {
     cloud_intelligence_available: false, history: [] };
 }
 let returnedReview: unknown, confirmations: object[], requests: string[], provider = "YOUTUBE";
+let profiles: object[], manual = false;
 let reviewResponse: (() => Promise<unknown>) | null, confirmResponse: (() => Promise<unknown>) | null;
 const response = (body: unknown, ok = true) => Promise.resolve({ ok, json: async () => body } as Response);
 beforeEach(() => {
@@ -34,16 +35,18 @@ beforeEach(() => {
   localStorage.setItem("intelligence.onboarding.completed.v1", "true");
   location.hash = "#Content/cloud-content";
   provider = "YOUTUBE"; returnedReview = review(); confirmations = []; requests = [];
+  profiles = []; manual = false;
   reviewResponse = null; confirmResponse = null;
   vi.stubGlobal("fetch", vi.fn(async (input: string, init?: RequestInit) => {
     requests.push(input);
+    if (input.endsWith("/cloud-intelligence/profiles")) return response({ profiles });
     if (input.endsWith("/cloud-intelligence/review")) return response({ review: await (reviewResponse?.() ?? returnedReview) });
     if (input.endsWith("/cloud-intelligence/confirm")) {
       confirmations.push(JSON.parse(String(init?.body)));
       return response(await (confirmResponse?.() ?? { execution: { status: "SUCCEEDED" } }));
     }
     const id = /\/videos\/([^/]+)$/.exec(input)?.[1];
-    if (id) return response(detail(id, provider));
+    if (id) return response({ ...detail(id, provider), manual_intelligence_eligible: manual });
     if (input.endsWith("/evidence")) return response({ evidence: [] });
     if (input.endsWith("/videos")) return response({ videos: [detail().video] });
     return response({});
@@ -215,4 +218,46 @@ it.each(["en", "zh-CN"])("fresh eligible public Content can preview without open
   expect(confirmations).toEqual([]);
   expect(screen.getByText("Retained local Summary.")).toBeTruthy();
   expect((extract as HTMLButtonElement).disabled).toBe(true);
+});
+
+it("reviews a finite backend synthesis profile with its own output bound and sends only its matching ticket", async () => {
+  manual = true;
+  profiles = [{ profile_id: "legacy", provider: "moonshot", model: "kimi-k2.6", adapter_available: true, qualified: true },
+    { profile_id: "moonshot-k31-system-synthesis-v1-20261029", provider: "moonshot", model: "kimi-k3.1-pro", adapter_available: true, qualified: false }];
+  returnedReview = review({ profile_id: "moonshot-k31-system-synthesis-v1-20261029",
+    outgoing_request: { model: "offline-preview-model", max_completion_tokens: 5888, messages: [] },
+    readiness: { can_confirm: true, blockers: [], budget_state: "OFFLINE_TEST_ONLY" } });
+  render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: "Review cloud Intelligence" }));
+  fireEvent.change(await screen.findByRole("combobox", { name: "Cloud model profile" }), { target: { value: "moonshot-k31-system-synthesis-v1-20261029" } });
+  fireEvent.click(screen.getByRole("button", { name: "Prepare one request for review" }));
+  await screen.findByText(/offline-preview-provider/);
+  expect(screen.getByText(/5888/, { selector: "p" })).toBeTruthy();
+  expect(screen.getByText(/complete stored Summary as comparison context/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Authorize this one cloud execution" }));
+  await waitFor(() => expect(confirmations).toEqual([{ execution_id: "offline-execution", review_hash: ticket, authorize: true,
+    profile_id: "moonshot-k31-system-synthesis-v1-20261029" }]));
+});
+
+it("offers safe cancellation for a backend-proven unclaimed synthesis reservation while preserving Content", async () => {
+  let pending = true;
+  const previousFetch = fetch;
+  vi.stubGlobal("fetch", vi.fn(async (input: string, init?: RequestInit) => {
+    if (input.endsWith("/videos/cloud-content") && !init?.method) return response({
+      ...detail(), intelligence_result: { status: pending ? "PENDING" : "CANCELLED", execution_id: "synthesis-unclaimed", has_new_intelligence: false },
+      pending_synthesis_executions: pending ? [{ execution_id: "synthesis-unclaimed", updated_at: "2026-11-04T00:00:00Z", can_cancel: true, selected_provider: "moonshot" }] : [] });
+    if (input.endsWith("/intelligence/cancel")) {
+      requests.push(input);
+      expect(JSON.parse(String(init?.body))).toEqual({ execution_id: "synthesis-unclaimed" });
+      pending = false;
+      return response({ execution: { status: "CANCELLED", invocation_count: 0 } });
+    }
+    return previousFetch(input, init);
+  }));
+  render(<App />);
+  expect(await screen.findByText("This extraction has not run. You can safely cancel it, then request extraction again.")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Cancel this extraction" }));
+  await waitFor(() => expect(requests.filter(path => path.endsWith("/intelligence/cancel"))).toHaveLength(1));
+  expect(screen.getByText("Retained local Summary.")).toBeTruthy();
+  expect(confirmations).toEqual([]);
 });
