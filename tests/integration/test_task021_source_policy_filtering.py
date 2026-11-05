@@ -113,7 +113,7 @@ def test_fresh_database_reaches_current_schema_and_preserves_m013(tmp_path: Path
         )
     finally:
         connection.close()
-    assert migrations[-28:] == (
+    assert migrations[-29:] == (
         "015_add_timed_transcript_evidence_bindings.sql",
         "016_add_ambiguous_resource_ledger_outcome.sql",
         "017_add_current_content_summary.sql",
@@ -142,6 +142,7 @@ def test_fresh_database_reaches_current_schema_and_preserves_m013(tmp_path: Path
         "041_add_long_distillation_provenance.sql",
         "042_add_zhipu_cloud_execution_audit.sql",
         "043_add_cloud_wait_zero_cancellation.sql",
+        "044_add_system_synthesis_provenance.sql",
     )
 
 

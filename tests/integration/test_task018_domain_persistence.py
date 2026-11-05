@@ -139,8 +139,8 @@ def test_fresh_database_applies_m006_with_exact_domain_schema(tmp_path: Path) ->
     version = repository.initialize(now=NOW)
 
     assert (version.version, version.name) == (
-        43,
-        "043_add_cloud_wait_zero_cancellation.sql",
+        44,
+        "044_add_system_synthesis_provenance.sql",
     )
     with _connection(_database_path(tmp_path)) as connection:
         assert connection.execute("PRAGMA user_version").fetchone()[0] == 44

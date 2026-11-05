@@ -536,7 +536,7 @@ def test_migration38_ddl_fault_rolls_back_and_preserves37_exactly(
             is None
         )
     monkeypatch.setattr(repo, "_load_migrations", lambda: migrations)
-    assert repo.initialize(now=datetime.now(UTC)).version == 43
+    assert repo.initialize(now=datetime.now(UTC)).version == 44
     assert {
         k: v
         for k, v in _tables(repo).items()

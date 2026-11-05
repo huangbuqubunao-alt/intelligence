@@ -516,3 +516,49 @@ def test_text_wrong_source_cross_content_and_duplicate_json_keys_are_closed(tmp_
     transport.raw = transport.raw.replace('"wire_version":', '"wire_version":"wrong-version","wire_version":', 1)
     assert service.continue_reserved_distillation(reservation.execution_id).status.value == "REJECTED_OUTPUT"
     assert transport.calls == 1
+
+
+@pytest.mark.parametrize("entry", ["current", "card", "recorded"])
+@pytest.mark.parametrize("failure", [False, True])
+def test_text_authority_owned_connections_close_without_gc(tmp_path, monkeypatch, entry, failure):
+    import sqlite3
+
+    from youtube_intel import system_synthesis_persistence as synthesis
+    from youtube_intel.intelligence_read import (
+        AuthoritativeIntelligenceReader,
+        IntelligenceReadRejected,
+    )
+    from youtube_intel.state import StateStoreError
+
+    repository, _provider, cid, ids, refs, transport, service = _workspace(tmp_path)
+    transport.raw = json.dumps(_positive(refs))
+    reservation = service.reserve_distillation_execution(source_id=LOCAL_SOURCE_ID, video_id=cid,
+        evidence_ids=ids, manual_command_id="connection-lifetime")
+    result = service.continue_reserved_distillation(reservation.execution_id)
+    assert result.status.value == "SUCCEEDED"
+    original = synthesis.verify_revision
+    connections = []  # strong references deliberately prevent GC from masking the leak
+
+    def verify(repo, connection, revision_id):
+        connections.append(connection)
+        original(repo, connection, revision_id)
+        if failure:
+            raise StateStoreError("owned synthetic validation failure")
+
+    monkeypatch.setattr(synthesis, "verify_revision", verify)
+    reader = AuthoritativeIntelligenceReader(repository)
+    def read():
+        if entry == "current":
+            return reader.read_current(result.intelligence_id)
+        if entry == "card":
+            return reader.read_current_card(result.intelligence_id)
+        return reader.read_recorded_card(result.intelligence_id, result.revision_id)
+    if failure:
+        with pytest.raises(IntelligenceReadRejected):
+            read()
+    else:
+        read()
+    assert connections
+    for connection in connections:
+        with pytest.raises(sqlite3.ProgrammingError, match="closed"):
+            connection.execute("SELECT 1")

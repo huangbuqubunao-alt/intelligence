@@ -241,7 +241,7 @@ class AuthoritativeIntelligenceReader:
     def _read_card(self, verified: VerifiedIntelligenceRead) -> IntelligenceCard:
         try:
             from .system_synthesis_persistence import verify_revision
-            with self._repository._connect() as connection:
+            with closing(self._repository._connect()) as connection:
                 verify_revision(self._repository, connection, verified.revision_id)
             revision = self._repository.get_intelligence_revision(verified.revision_id)
             card = self._repository.get_distillation_card(verified.revision_id)
@@ -431,7 +431,7 @@ class AuthoritativeIntelligenceReader:
             raise IntelligenceReadRejected("CLAIM_KIND_UNCLASSIFIED", "claim classification is unclassified")
         self._validate_long_revision(revision.revision_id)
         from .system_synthesis_persistence import verify_revision
-        with self._repository._connect() as connection:
+        with closing(self._repository._connect()) as connection:
             verify_revision(self._repository, connection, revision.revision_id)
         state_event = self._validate_history(revision, revisions)
         evidence_ids = self._repository.list_intelligence_revision_evidence(revision.revision_id)
