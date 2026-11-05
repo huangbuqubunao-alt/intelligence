@@ -612,22 +612,27 @@ def build_local_source_run_runtime(
 
     cloud_distillation = cloud_service()
     from .cloud_spending_policy import CloudSpendingPolicy
+    from .distillation import ReviewedSynthesisProductionAuthorizationAuthority
     from .synthesis_runtime import (
         MoonshotAttributionSynthesisTransport,
         MoonshotSystemSynthesisTransport,
     )
     from .system_synthesis_profile import PAIR as SYNTHESIS_PAIR
+    from .system_synthesis_qualification import read_reviewed_qualifications
     cloud_spending = CloudSpendingPolicy(repository, backup_restore)
 
     def synthesis_service(*, attribution: bool = False) -> PersonalizedDistillationService:
-        # A configured adapter is not a quality receipt or spending permission.
+        # The old adapter remains closed; v2 uses only reviewed package evidence.
         closed_eligibility = M12QualifiedCloudProductionAuthorizationAuthority.resolve(
             provider=SYNTHESIS_PAIR[0], model=SYNTHESIS_PAIR[1],
             capability_scope=DistillationCapabilityScope.V1_VIDEO_DISTILLATION, available=True)
         adapter = MoonshotAttributionSynthesisTransport if attribution else MoonshotSystemSynthesisTransport
+        candidate_eligibility = (ReviewedSynthesisProductionAuthorizationAuthority.resolve(
+            authority=read_reviewed_qualifications(), available=True) if attribution else closed_eligibility)
         synthesis_transport = adapter(
             authorization=CloudDistillationAuthorization.for_normal_production(
-                eligibility=closed_eligibility, cloud_enabled=False, credential_available=False),
+                eligibility=candidate_eligibility, cloud_enabled=attribution and allow_cloud_execution,
+                credential_available=attribution and bool(model_settings.credential())),
             credential_resolver=model_settings.credential)
         return PersonalizedDistillationService(repository, source_policy, synthesis_transport,
             ProductionDistillationBudget(), now=now_fn,

@@ -53,6 +53,7 @@ from youtube_intel.state import (
 
 if TYPE_CHECKING:
     from .cloud_spending_policy import CloudSpendingPolicy
+    from .system_synthesis_qualification import SynthesisQualificationAuthority
 
 
 class DistillationExecutionStatus(str, Enum):
@@ -106,6 +107,7 @@ class ProviderProductionEligibility:
     qualified: bool
     authorized: bool
     production_eligible: bool
+    _synthesis_qualification: SynthesisQualificationAuthority | None
     _seal: object
 
     def __init__(self, *args: object, **kwargs: object) -> None:
@@ -152,6 +154,7 @@ class NormalV1ProductionAuthorizationAuthority:
         object.__setattr__(eligibility, "qualified", authorized)
         object.__setattr__(eligibility, "authorized", authorized)
         object.__setattr__(eligibility, "production_eligible", available and authorized)
+        object.__setattr__(eligibility, "_synthesis_qualification", None)
         object.__setattr__(eligibility, "_seal", _PRODUCTION_ELIGIBILITY_SEAL)
         return eligibility
 
@@ -163,6 +166,25 @@ class M12QualifiedCloudProductionAuthorizationAuthority(
 
     _PROVIDER = "moonshot"
     _MODEL = "kimi-k2.6"
+
+
+class ReviewedSynthesisProductionAuthorizationAuthority:
+    """A finite v2 mint backed by reviewed package evidence, never M12/trial."""
+
+    @staticmethod
+    def resolve(*, authority: SynthesisQualificationAuthority, available: bool) -> ProviderProductionEligibility:
+        from .system_synthesis_qualification import SynthesisQualificationAuthority
+
+        if type(authority) is not SynthesisQualificationAuthority or type(available) is not bool:
+            raise TypeError("reviewed synthesis eligibility requires the package authority")
+        qualified = all(authority.permits(synthesis_profile.ATTRIBUTION_PROFILE_ID, language) for language in ("en", "zh-CN"))
+        eligibility = object.__new__(ProviderProductionEligibility)
+        for name, value in {"provider": synthesis_profile.PAIR[0], "model": synthesis_profile.PAIR[1],
+            "capability_scope": DistillationCapabilityScope.V1_VIDEO_DISTILLATION, "available": available,
+            "qualified": qualified, "authorized": qualified, "production_eligible": available and qualified,
+            "_synthesis_qualification": authority, "_seal": _PRODUCTION_ELIGIBILITY_SEAL}.items():
+            object.__setattr__(eligibility, name, value)
+        return eligibility
 
 
 @dataclass(frozen=True, slots=True)
@@ -777,6 +799,14 @@ class CloudDistillationAuthorization:
         eligibility = self._normal_eligibility
         return eligibility is not None and eligibility.production_eligible
 
+    def reviewed_synthesis_qualified(self, language: str) -> bool:
+        from .system_synthesis_qualification import SynthesisQualificationAuthority
+
+        eligibility = self._normal_eligibility
+        authority = eligibility._synthesis_qualification if eligibility is not None else None
+        return (type(authority) is SynthesisQualificationAuthority
+            and authority.permits(synthesis_profile.ATTRIBUTION_PROFILE_ID, language))
+
     def permits(self, verified_input: VerifiedDistillationInput) -> bool:
         if not (
             self.cloud_enabled
@@ -795,6 +825,10 @@ class CloudDistillationAuthorization:
             and self._normal_eligibility.capability_scope
             is DistillationCapabilityScope.V1_VIDEO_DISTILLATION
         )
+        if normal and self._normal_eligibility is not None and self._normal_eligibility._synthesis_qualification is not None:
+            normal = (verified_input.wire_version == synthesis_profile.ATTRIBUTION_PROFILE_ID
+                and _cloud_source_allowed(verified_input)
+                and self.reviewed_synthesis_qualified(verified_input.output_language))
         qualification = (
             isinstance(self.qualification_input_hash, str)
             and len(self.qualification_input_hash) == 64
@@ -2244,11 +2278,18 @@ class MoonshotK26CloudDistillationTransport:
             raise CloudDistillationPreDispatchError("Moonshot credential is unavailable")
         started = time.monotonic()
         try:
-            response = self._wire_transport(request, credential, self._TIMEOUT_SECONDS, 0)
-        except KnownCloudDistillationResponseError:
-            raise
-        except Exception:
-            raise RuntimeError("Moonshot transport outcome is not confirmed") from None
+            # Resolve credentials first, then recheck the exact current
+            # authority immediately before the shared send, with zero retries.
+            if not self.is_authorized_for(verified_input):
+                raise CloudDistillationPreDispatchError("Moonshot execution authority changed before dispatch")
+            try:
+                response = self._wire_transport(request, credential, self._TIMEOUT_SECONDS, 0)
+            except KnownCloudDistillationResponseError:
+                raise
+            except Exception:
+                # Errors from a possibly sent request keep their old unknown
+                # classification, even if the wire raises a predispatch type.
+                raise RuntimeError("Moonshot transport outcome is not confirmed") from None
         finally:
             credential = ""
         duration_ms = max(0, int((time.monotonic() - started) * 1000))
@@ -3705,6 +3746,14 @@ class PersonalizedDistillationService:
         except Exception:
             return None
 
+    def reviewed_synthesis_qualified(self, language: str | None = None) -> bool:
+        """Current quality only; credentials, budget and consent stay separate."""
+        from .synthesis_runtime import MoonshotAttributionSynthesisTransport
+
+        return (type(self._transport) is MoonshotAttributionSynthesisTransport
+            and all(self._transport._authorization.reviewed_synthesis_qualified(item)
+                for item in ((language,) if language is not None else ("en", "zh-CN"))))
+
     def _transport_permits(
         self,
         verified_input: VerifiedDistillationInput,
@@ -3827,6 +3876,8 @@ class PersonalizedDistillationService:
         """Project exact trusted input without persistence, credentials or budget checks."""
         command, value = self._prospective_cloud_command(source_id=source_id, video_id=video_id,
             evidence_ids=evidence_ids, manual_command_id=manual_command_id)
+        if self._synthesis_profile_id == synthesis_profile.ATTRIBUTION_PROFILE_ID:
+            qualified = self.reviewed_synthesis_qualified(value.output_language)
         now = self._now()
         expires = now + timedelta(minutes=5)
         token = secrets.token_hex(32)

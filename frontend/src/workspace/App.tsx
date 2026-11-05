@@ -1804,7 +1804,7 @@ const cloudBlockerCopy: Record<string, string> = {
   INPUT_NOT_SUPPORTED: "The selected model does not support this input or output language.",
   EXECUTION_ALREADY_EXISTS: "An execution already exists for this request. Check its current state before continuing.",
 };
-function CloudIntelligencePreview({ id, manual, onSettled }: { id: string; manual: boolean; onSettled: () => void }) {
+function CloudIntelligencePreview({ id, manual, executionKey, onSettled }: { id: string; manual: boolean; executionKey: string; onSettled: () => void }) {
   const { t } = useUiLanguage();
   const profiles = useRemote<{ profiles: { profile_id: string; provider: string; model: string; adapter_available: boolean; qualified: boolean }[] }>("/cloud-intelligence/profiles");
   const [selectedProfile, setSelectedProfile] = useState("legacy");
@@ -1812,10 +1812,16 @@ function CloudIntelligencePreview({ id, manual, onSettled }: { id: string; manua
   const [busy, setBusy] = useState(false), [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null), [clock, setClock] = useState(Date.now);
   const requestGeneration = useRef(0), busyRef = useRef(false), manualCommand = useRef(commandId());
+  const previousExecution = useRef(executionKey);
   const clear = () => {
     requestGeneration.current += 1; busyRef.current = false;
     setOpen(false); setReview(null); setBusy(false); setError(null); setMessage(null);
   };
+  useEffect(() => {
+    if (previousExecution.current === executionKey) return;
+    previousExecution.current = executionKey;
+    clear(); manualCommand.current = commandId();
+  }, [executionKey]);
   useEffect(() => {
     const leave = (event: HashChangeEvent) => {
       if (event.newURL && new URL(event.newURL).hash !== location.hash) return;
@@ -2058,9 +2064,10 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
             )
             : null}
           {data.video.provider === "YOUTUBE" && (data.intelligence_result.status === "WAITING_MODEL"
-            || (data.intelligence_result.status === "NOT_PROCESSED" && data.manual_intelligence_eligible === true))
+            || (["NOT_PROCESSED", "CANCELLED", "REJECTED_OUTPUT"].includes(data.intelligence_result.status) && data.manual_intelligence_eligible === true))
             && note?.status === "AVAILABLE" && transcript.status === "AVAILABLE" && (
             <CloudIntelligencePreview key={id} id={id} manual={data.manual_intelligence_eligible === true}
+              executionKey={`${data.intelligence_result.execution_id ?? ""}:${data.intelligence_result.status}`}
               onSettled={() => setRefresh(value => value + 1)} />
           )}
         </div>

@@ -228,6 +228,85 @@ it.each(["en", "zh-CN"])("fresh eligible public Content can preview without open
   expect((extract as HTMLButtonElement).disabled).toBe(true);
 });
 
+it.each(["CANCELLED", "REJECTED_OUTPUT"].flatMap(status => ["en", "zh-CN"].map(language => ({ status, language }))))(
+  "offers a new explicit manual cloud review after $status ($language), retaining original Content", async ({ status, language }) => {
+    localStorage.setItem("yia.ui-language", language);
+    const previousFetch = fetch;
+    vi.stubGlobal("fetch", vi.fn((input: string, init?: RequestInit) => {
+      if (input.endsWith("/videos/cloud-content")) return response({ ...detail(), manual_intelligence_eligible: true,
+        waiting_model_executions: [], intelligence_result: { status, execution_id: "retained-old-execution", has_new_intelligence: false },
+        local_intelligence: { request_state: "CONFIGURATION_REQUIRED", qualification_status: "NOT_QUALIFIED" } });
+      return previousFetch(input, init);
+    }));
+    render(<App />);
+    const button = await screen.findByRole("button", { name: language === "en" ? "Review cloud Intelligence" : "查看云端洞察预览" });
+    expect(screen.getByText("Retained original transcript.")).toBeTruthy();
+    expect(screen.getByText("Retained local Summary.")).toBeTruthy();
+    expect(reviewCommands).toEqual([]); expect(confirmations).toEqual([]);
+    fireEvent.click(button);
+    expect(reviewCommands).toEqual([]);
+    fireEvent.click(screen.getByRole("button", { name: language === "en" ? "Prepare one request for review" : "准备审核本次请求" }));
+    await screen.findByText(/offline-preview-provider/);
+    expect(reviewCommands).toHaveLength(1); expect(reviewCommands[0]).toBeTruthy();
+    expect(reviewCommands[0]).not.toBe("retained-old-execution");
+    expect((screen.getByRole("button", { name: language === "en" ? "Authorize this one cloud execution" : "授权本次云端执行" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(confirmations).toEqual([]);
+    expect(screen.getByText("Retained local Summary.")).toBeTruthy();
+  },
+);
+
+it.each(["PENDING", "RUNNING", "AMBIGUOUS", "WAITING_BUDGET"])("does not add a cloud retry entry for protected %s", async status => {
+  const previousFetch = fetch;
+  vi.stubGlobal("fetch", vi.fn((input: string, init?: RequestInit) => input.endsWith("/videos/cloud-content")
+    ? response({ ...detail(), manual_intelligence_eligible: true, intelligence_result: { status, execution_id: "protected-old-execution" } })
+    : previousFetch(input, init)));
+  render(<App />); await screen.findByText("Retained local Summary.");
+  expect(screen.queryByRole("button", { name: "Review cloud Intelligence" })).toBeNull();
+  expect(requests.some(path => path.includes("cloud-intelligence"))).toBe(false);
+  expect(reviewCommands).toEqual([]); expect(confirmations).toEqual([]);
+});
+
+it.each(["CANCELLED", "REJECTED_OUTPUT"])("requires backend manual eligibility before terminal %s cloud retry", async status => {
+  const previousFetch = fetch;
+  vi.stubGlobal("fetch", vi.fn((input: string, init?: RequestInit) => input.endsWith("/videos/cloud-content")
+    ? response({ ...detail(), manual_intelligence_eligible: false, intelligence_result: { status, execution_id: "ineligible-old-execution" } })
+    : previousFetch(input, init)));
+  render(<App />); await screen.findByText("Retained local Summary.");
+  expect(screen.queryByRole("button", { name: "Review cloud Intelligence" })).toBeNull();
+  expect(reviewCommands).toEqual([]); expect(confirmations).toEqual([]);
+});
+
+it("discards the old ticket after a new rejected execution and reviews with a fresh manual command", async () => {
+  const v2 = "moonshot-k31-system-synthesis-v2-attribution-20261105";
+  let execution = "retained-old-rejection";
+  const previousFetch = fetch;
+  profiles = [{ profile_id: "legacy", provider: "moonshot", model: "kimi-k2.6", qualified: false },
+    { profile_id: v2, provider: "moonshot", model: "kimi-k3.1-pro", qualified: true }];
+  returnedReview = review({ profile_id: v2, readiness: { can_confirm: true, blockers: [], budget_state: "OFFLINE_TEST_ONLY" } });
+  confirmResponse = async () => { execution = "retained-new-rejection"; return { execution: { status: "REJECTED_OUTPUT" } }; };
+  vi.stubGlobal("fetch", vi.fn((input: string, init?: RequestInit) => input.endsWith("/videos/cloud-content")
+    ? response({ ...detail(), manual_intelligence_eligible: true,
+      intelligence_result: { status: "REJECTED_OUTPUT", execution_id: execution, has_new_intelligence: false } })
+    : previousFetch(input, init)));
+  render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: "Review cloud Intelligence" }));
+  fireEvent.change(await screen.findByRole("combobox", { name: "Cloud model profile" }), { target: { value: v2 } });
+  fireEvent.click(screen.getByRole("button", { name: "Prepare one request for review" }));
+  await screen.findByText(/offline-preview-provider/);
+  fireEvent.click(screen.getByRole("button", { name: "Authorize this one cloud execution" }));
+  await waitFor(() => expect(confirmations).toHaveLength(1));
+  await waitFor(() => expect(screen.queryByRole("region", { name: "Cloud Intelligence disclosure" })).toBeNull());
+  expect(screen.getByText("Retained local Summary.")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Review cloud Intelligence" }));
+  expect((screen.getByRole("combobox", { name: "Cloud model profile" }) as HTMLSelectElement).value).toBe(v2);
+  fireEvent.click(screen.getByRole("button", { name: "Prepare one request for review" }));
+  await screen.findByText(/offline-preview-provider/);
+  expect(reviewCommands).toHaveLength(2);
+  expect(reviewCommands[0]).toBeTruthy(); expect(reviewCommands[1]).not.toBe(reviewCommands[0]);
+  expect(confirmations).toHaveLength(1);
+  expect(confirmations[0]).toEqual({ execution_id: "offline-execution", review_hash: ticket, authorize: true, profile_id: v2 });
+});
+
 it("reviews a finite backend synthesis profile with its own output bound and sends only its matching ticket", async () => {
   manual = true;
   profiles = [{ profile_id: "legacy", provider: "moonshot", model: "kimi-k2.6", adapter_available: true, qualified: true },

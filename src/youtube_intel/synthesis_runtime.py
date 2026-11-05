@@ -12,6 +12,7 @@ from .distillation import (
     MoonshotK26CloudDistillationTransport,
     VerifiedDistillationInput,
 )
+from .state import StateStoreError
 
 
 def prepared_input(value: VerifiedDistillationInput) -> persistence.PreparedSynthesis:
@@ -35,6 +36,16 @@ def prepared_input(value: VerifiedDistillationInput) -> persistence.PreparedSynt
         or sorted(r["evidence_id"] for r in proof["capture"]["source_refs"]) != sorted(value.evidence_ids)
     ):
         raise ValueError("Synthesis input binding differs")
+    if value.wire_version == profile.ATTRIBUTION_PROFILE_ID:
+        try:
+            capture = proof["capture"]
+            if (proof["source_scope"] != "PUBLIC_YOUTUBE_TIMED_MEDIA"
+                or capture["source"]["provider"] != "YOUTUBE" or capture["video"]["provider"] != "YOUTUBE"
+                or capture["video"]["availability"] != "public"
+                or persistence._assemble(proof["command"], capture, profile_id=value.wire_version) != prepared):
+                raise ValueError("Synthesis public timed scope or complete capture differs")
+        except (KeyError, TypeError, StateStoreError):
+            raise ValueError("Synthesis public timed scope or complete capture is invalid") from None
     persistence.request_from_proof(prepared)
     return prepared
 
@@ -74,3 +85,10 @@ class MoonshotAttributionSynthesisTransport(MoonshotSystemSynthesisTransport):
     _REQUEST_PROFILE_VERSION = profile.ATTRIBUTION_PROFILE_ID
     _PROMPT_VERSION = "system-synthesis-v2-attribution"
     synthesis_profile_id = profile.ATTRIBUTION_PROFILE_ID
+
+    def is_authorized_for(self, verified_input: VerifiedDistillationInput) -> bool:
+        if type(verified_input) is not VerifiedDistillationInput:
+            return False
+        if self._authorization.production_eligible and not self._authorization.reviewed_synthesis_qualified(verified_input.output_language):
+            return False
+        return super().is_authorized_for(verified_input)

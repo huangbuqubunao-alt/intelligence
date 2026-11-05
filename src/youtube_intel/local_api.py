@@ -604,6 +604,8 @@ class LocalApiApplication:
         self._cloud_synthesis_v2_service = cloud_synthesis_v2_service
         self._cloud_spending_policy = cloud_spending_policy
         self._cloud_synthesis_qualified = cloud_synthesis_qualified
+        # Compatibility metadata only: every v2 quality gate below derives from
+        # the actual service's reviewed package authority, never this boolean.
         self._cloud_synthesis_v2_qualified = cloud_synthesis_v2_qualified
         self._refresh_cloud_synthesis = refresh_cloud_synthesis
         self._refresh_cloud_synthesis_v2 = refresh_cloud_synthesis_v2
@@ -1086,7 +1088,8 @@ class LocalApiApplication:
                 for profile_id, candidate_service, qualified in (
                     ("legacy", self._cloud_distillation_service, self._cloud_intelligence_qualified),
                     (PROFILE_ID, self._cloud_synthesis_service, self._cloud_synthesis_qualified),
-                    (ATTRIBUTION_PROFILE_ID, self._cloud_synthesis_v2_service, self._cloud_synthesis_v2_qualified),
+                    (ATTRIBUTION_PROFILE_ID, self._cloud_synthesis_v2_service,
+                        self._cloud_synthesis_v2_service.reviewed_synthesis_qualified() if self._cloud_synthesis_v2_service else False),
                 ):
                     if candidate_service is not None:
                         profiles.append({"profile_id": profile_id,
@@ -1200,7 +1203,8 @@ class LocalApiApplication:
                 if not isinstance(selected_profile, str) or selected_profile not in {"legacy", PROFILE_ID, ATTRIBUTION_PROFILE_ID}:
                     raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY, "CLOUD_PROFILE_UNKNOWN", "Select a supported backend model profile.")
                 if selected_profile == ATTRIBUTION_PROFILE_ID:
-                    cloud_service, cloud_qualified = self._cloud_synthesis_v2_service, self._cloud_synthesis_v2_qualified
+                    cloud_service = self._cloud_synthesis_v2_service
+                    cloud_qualified = cloud_service.reviewed_synthesis_qualified() if cloud_service else False
                 elif selected_profile == PROFILE_ID:
                     cloud_service, cloud_qualified = self._cloud_synthesis_service, self._cloud_synthesis_qualified
                 else:
