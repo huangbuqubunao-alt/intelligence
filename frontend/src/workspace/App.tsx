@@ -1840,7 +1840,7 @@ function CloudIntelligencePreview({ id, manual, onSettled }: { id: string; manua
   const spending = review?.raw.spending;
   const reserveEstimate = localObject(spending) && typeof spending.reserve_microunits === "number"
     && Number.isSafeInteger(spending.reserve_microunits) && spending.reserve_microunits > 0 ? spending.reserve_microunits : null;
-  const includesSummary = review?.profile_id === "moonshot-k31-system-synthesis-v1-20261029"
+  const includesSummary = ["moonshot-k31-system-synthesis-v1-20261029", "moonshot-k31-system-synthesis-v2-attribution-20261105"].includes(review?.profile_id ?? "")
     && localObject(outgoingRequest) && Array.isArray(outgoingRequest.messages)
     && outgoingRequest.messages.some(item => localObject(item) && typeof item.content === "string"
       && item.content.startsWith("UNTRUSTED_CURRENT_SUMMARY_BASELINE="));
@@ -1852,7 +1852,7 @@ function CloudIntelligencePreview({ id, manual, onSettled }: { id: string; manua
       const response = await post<{ review?: unknown }>(`/videos/${id}/cloud-intelligence/review`, manual ? { command_id: manualCommand.current, ...(selectedProfile === "legacy" ? {} : { profile_id: selectedProfile }) } : {});
       if (generation !== requestGeneration.current) return;
       const current = readCloudReview(response.review, id);
-      if (!current) throw new Error("INVALID_REVIEW");
+      if (!current || current.profile_id !== selectedProfile) throw new Error("INVALID_REVIEW");
       setClock(Date.now()); setReview(current);
     } catch {
       if (generation === requestGeneration.current) setError("The cloud review could not be verified. Keep reading this Content, then prepare a new review or check model settings.");
@@ -1888,7 +1888,7 @@ function CloudIntelligencePreview({ id, manual, onSettled }: { id: string; manua
       <h3>{t("Cloud Intelligence disclosure")}</h3>
       {manual && profiles.data && Array.isArray(profiles.data.profiles) && profiles.data.profiles.length > 0 && <label>{t("Cloud model profile")}
         <select disabled={busy} value={selectedProfile} onChange={event => { setSelectedProfile(event.target.value); setReview(null); manualCommand.current = commandId(); }}>
-          {profiles.data.profiles.map(profile => <option key={profile.profile_id} value={profile.profile_id}>{profile.provider} · {profile.model}{profile.qualified ? "" : ` · ${t("Not qualified")}`}</option>)}
+          {profiles.data.profiles.map(profile => <option key={profile.profile_id} value={profile.profile_id}>{profile.provider} · {profile.model}{profile.profile_id === "moonshot-k31-system-synthesis-v2-attribution-20261105" ? ` · ${t("Explicit speaker attribution policy")}` : ""}{profile.qualified ? "" : ` · ${t("Not qualified")}`}</option>)}
         </select>
       </label>}
       {includesSummary && <p>{t("The reviewed request includes the complete stored Summary as comparison context. Review all outgoing data before authorization.")}</p>}

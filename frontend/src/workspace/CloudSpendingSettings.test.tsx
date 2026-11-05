@@ -112,3 +112,31 @@ it.each(["1", "1000"])("accepts the inclusive count boundary %s through the sett
   expect(mutations[0].max_calls).toBe(Number(count));
   expect(paths.every(path => path.endsWith("/settings/cloud-spending-policy"))).toBe(true);
 });
+
+it("requires a fresh acknowledgement for the declared attribution policy while retaining all limits and holds", async () => {
+  const original = initial(), v2 = { ...original.price, profile_id: "moonshot-k31-system-synthesis-v2-attribution-20261105", price_hash: "b".repeat(64) };
+  state = { ...original, held_microunits: 700_000, held_requests: 1, prices: [original.price, v2] };
+  vi.stubGlobal("fetch", vi.fn(async (path: string, options?: RequestInit) => {
+    paths.push(path);
+    if (options?.method === "PUT") {
+      const body = JSON.parse(String(options.body)); mutations.push(body);
+      state = { ...original, price: v2, prices: [original.price, v2], revision: 1, held_microunits: 700_000, held_requests: 1,
+        policy: { enabled: true, total_microunits: 8_000_000, per_request_microunits: 1_000_000, max_calls: 8, price_hash: v2.price_hash } };
+    }
+    return { ok: true, json: async () => ({ spending_policy: state }) } as Response;
+  }));
+  view(); await fill();
+  fireEvent.change(screen.getByRole("combobox", { name: "Model policy and price reference" }), { target: { value: v2.profile_id } });
+  const ack = screen.getByLabelText("I accept this exact profile and price reference, and understand that each request needs separate confirmation.") as HTMLInputElement;
+  expect(ack.checked).toBe(false);
+  expect((screen.getByRole("button", { name: "Save finite spending limits" }) as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByLabelText("Cumulative reservation budget (CNY)") as HTMLInputElement).value).toBe("8.000000");
+  expect((screen.getByLabelText("Maximum cumulative requests") as HTMLInputElement).value).toBe("8");
+  expect(mutations).toHaveLength(0);
+  fireEvent.click(ack); fireEvent.click(screen.getByRole("button", { name: "Save finite spending limits" }));
+  await waitFor(() => expect(mutations).toHaveLength(1));
+  expect(mutations[0].accept_price_hash).toBe(v2.price_hash);
+  expect((screen.getByRole("combobox", { name: "Model policy and price reference" }) as HTMLSelectElement).value).toBe(v2.profile_id);
+  expect(screen.getByText(/CNY 0\.700000/)).toBeTruthy();
+  expect(paths.every(path => path.endsWith("/settings/cloud-spending-policy"))).toBe(true);
+});

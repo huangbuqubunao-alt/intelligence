@@ -555,8 +555,10 @@ class LocalApiApplication:
         distillation_service: PersonalizedDistillationService | None = None,
         cloud_distillation_service: PersonalizedDistillationService | None = None,
         cloud_synthesis_service: PersonalizedDistillationService | None = None,
+        cloud_synthesis_v2_service: PersonalizedDistillationService | None = None,
         cloud_spending_policy: CloudSpendingPolicy | None = None,
         cloud_synthesis_qualified: bool = False,
+        cloud_synthesis_v2_qualified: bool = False,
         cloud_intelligence_qualified: bool = False,
         cloud_execution_enabled: bool = True,
         cloud_credential_available: bool = False,
@@ -564,6 +566,7 @@ class LocalApiApplication:
         bigmodel_settings: BigModelCredentialSettings | None = None,
         refresh_cloud_distillation: Callable[[], PersonalizedDistillationService] | None = None,
         refresh_cloud_synthesis: Callable[[], PersonalizedDistillationService] | None = None,
+        refresh_cloud_synthesis_v2: Callable[[], PersonalizedDistillationService] | None = None,
         processing_orchestrator: DurableProcessingOrchestrator | None = None,
         data_root: Path | None = None,
         vault_root: Path | None = None,
@@ -598,9 +601,12 @@ class LocalApiApplication:
         )
         self._cloud_distillation_service = cloud_distillation_service
         self._cloud_synthesis_service = cloud_synthesis_service
+        self._cloud_synthesis_v2_service = cloud_synthesis_v2_service
         self._cloud_spending_policy = cloud_spending_policy
         self._cloud_synthesis_qualified = cloud_synthesis_qualified
+        self._cloud_synthesis_v2_qualified = cloud_synthesis_v2_qualified
         self._refresh_cloud_synthesis = refresh_cloud_synthesis
+        self._refresh_cloud_synthesis_v2 = refresh_cloud_synthesis_v2
         self._cloud_intelligence_qualified = cloud_intelligence_qualified
         # Trusted composition restriction; never writable by a request body.
         self._cloud_execution_enabled = cloud_execution_enabled
@@ -1074,6 +1080,21 @@ class LocalApiApplication:
                 elif method == "POST":
                     self._bigmodel_settings.delete()
                 return HTTPStatus.OK, self._bigmodel_settings.status()
+            if method == "GET" and route == "/api/v1/cloud-intelligence/profiles":
+                from .system_synthesis_profile import ATTRIBUTION_PROFILE_ID, PROFILE_ID
+                profiles = []
+                for profile_id, candidate_service, qualified in (
+                    ("legacy", self._cloud_distillation_service, self._cloud_intelligence_qualified),
+                    (PROFILE_ID, self._cloud_synthesis_service, self._cloud_synthesis_qualified),
+                    (ATTRIBUTION_PROFILE_ID, self._cloud_synthesis_v2_service, self._cloud_synthesis_v2_qualified),
+                ):
+                    if candidate_service is not None:
+                        profiles.append({"profile_id": profile_id,
+                            "provider": candidate_service._selected_provider, "model": candidate_service._selected_model,
+                            "adapter_available": True, "qualified": qualified,
+                            "execution_enabled": self._cloud_execution_enabled,
+                            "credential_available": self._cloud_credential_available})
+                return HTTPStatus.OK, {"profiles": profiles}
             if method == "GET":
                 return HTTPStatus.OK, self._get(route)
             # Local provider capability is explicit: source material never
@@ -1106,6 +1127,8 @@ class LocalApiApplication:
                     self._cloud_distillation_service = self._refresh_cloud_distillation()
                 if self._refresh_cloud_synthesis is not None:
                     self._cloud_synthesis_service = self._refresh_cloud_synthesis()
+                if self._refresh_cloud_synthesis_v2 is not None:
+                    self._cloud_synthesis_v2_service = self._refresh_cloud_synthesis_v2()
                 return HTTPStatus.OK, self._model_settings.credential_status()
             if method == "POST" and route.startswith("/api/v1/videos/") and route.endswith("/deep-analysis/obsidian"):
                 content_id = self._obsidian_content_id(route)
@@ -1168,33 +1191,25 @@ class LocalApiApplication:
                                    "This task cannot be safely cancelled. Refresh its current state.") from None
                 return HTTPStatus.OK, {"execution": self._distillation_execution_dto(execution)}
             cloud_prefix = "/api/v1/videos/"
-            if method == "GET" and route == "/api/v1/cloud-intelligence/profiles":
-                from .system_synthesis_profile import PROFILE_ID
-                profiles = []
-                for profile_id, candidate_service, qualified in (
-                    ("legacy", self._cloud_distillation_service, self._cloud_intelligence_qualified),
-                    (PROFILE_ID, self._cloud_synthesis_service, self._cloud_synthesis_qualified),
-                ):
-                    if candidate_service is not None:
-                        profiles.append({"profile_id": profile_id,
-                            "provider": candidate_service._selected_provider, "model": candidate_service._selected_model,
-                            "adapter_available": True, "qualified": qualified,
-                            "execution_enabled": self._cloud_execution_enabled,
-                            "credential_available": self._cloud_credential_available})
-                return HTTPStatus.OK, {"profiles": profiles}
             if method == "POST" and route.startswith(cloud_prefix) and (
                 route.endswith("/cloud-intelligence/review")
                 or route.endswith("/cloud-intelligence/confirm")
             ):
-                from .system_synthesis_profile import PROFILE_ID
+                from .system_synthesis_profile import ATTRIBUTION_PROFILE_ID, PROFILE_ID
                 selected_profile = data.get("profile_id", "legacy")
-                if not isinstance(selected_profile, str) or selected_profile not in {"legacy", PROFILE_ID}:
+                if not isinstance(selected_profile, str) or selected_profile not in {"legacy", PROFILE_ID, ATTRIBUTION_PROFILE_ID}:
                     raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY, "CLOUD_PROFILE_UNKNOWN", "Select a supported backend model profile.")
-                cloud_service = self._cloud_synthesis_service if selected_profile == PROFILE_ID else self._cloud_distillation_service
-                cloud_qualified = self._cloud_synthesis_qualified if selected_profile == PROFILE_ID else self._cloud_intelligence_qualified
+                if selected_profile == ATTRIBUTION_PROFILE_ID:
+                    cloud_service, cloud_qualified = self._cloud_synthesis_v2_service, self._cloud_synthesis_v2_qualified
+                elif selected_profile == PROFILE_ID:
+                    cloud_service, cloud_qualified = self._cloud_synthesis_service, self._cloud_synthesis_qualified
+                else:
+                    cloud_service, cloud_qualified = self._cloud_distillation_service, self._cloud_intelligence_qualified
                 if cloud_service is None:
                     raise ApiError(HTTPStatus.CONFLICT, "CLOUD_INTELLIGENCE_UNAVAILABLE",
                                    "Cloud Intelligence preview is unavailable.")
+                if selected_profile != "legacy" and cloud_service._synthesis_profile_id != selected_profile:
+                    raise ApiError(HTTPStatus.CONFLICT, "CLOUD_PROFILE_UNKNOWN", "Selected synthesis policy differs from its adapter.")
                 video_id, _, cloud_action = route.removeprefix(cloud_prefix).partition("/")
                 if cloud_action not in {"cloud-intelligence/review", "cloud-intelligence/confirm"}:
                     raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Cloud Intelligence route was not found.")

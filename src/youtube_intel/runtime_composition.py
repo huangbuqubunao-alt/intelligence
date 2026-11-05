@@ -612,16 +612,20 @@ def build_local_source_run_runtime(
 
     cloud_distillation = cloud_service()
     from .cloud_spending_policy import CloudSpendingPolicy
-    from .synthesis_runtime import MoonshotSystemSynthesisTransport
+    from .synthesis_runtime import (
+        MoonshotAttributionSynthesisTransport,
+        MoonshotSystemSynthesisTransport,
+    )
     from .system_synthesis_profile import PAIR as SYNTHESIS_PAIR
     cloud_spending = CloudSpendingPolicy(repository, backup_restore)
 
-    def synthesis_service() -> PersonalizedDistillationService:
+    def synthesis_service(*, attribution: bool = False) -> PersonalizedDistillationService:
         # A configured adapter is not a quality receipt or spending permission.
         closed_eligibility = M12QualifiedCloudProductionAuthorizationAuthority.resolve(
             provider=SYNTHESIS_PAIR[0], model=SYNTHESIS_PAIR[1],
             capability_scope=DistillationCapabilityScope.V1_VIDEO_DISTILLATION, available=True)
-        synthesis_transport = MoonshotSystemSynthesisTransport(
+        adapter = MoonshotAttributionSynthesisTransport if attribution else MoonshotSystemSynthesisTransport
+        synthesis_transport = adapter(
             authorization=CloudDistillationAuthorization.for_normal_production(
                 eligibility=closed_eligibility, cloud_enabled=False, credential_available=False),
             credential_resolver=model_settings.credential)
@@ -689,8 +693,10 @@ def build_local_source_run_runtime(
         distillation_service=distillation,
         cloud_distillation_service=cloud_distillation,
         cloud_synthesis_service=cloud_synthesis,
+        cloud_synthesis_v2_service=synthesis_service(attribution=True),
         cloud_spending_policy=cloud_spending,
         cloud_synthesis_qualified=False,
+        cloud_synthesis_v2_qualified=False,
         cloud_intelligence_qualified=m12_moonshot_qualified,
         cloud_execution_enabled=allow_cloud_execution,
         cloud_credential_available=bool(model_settings.credential()),
@@ -700,6 +706,7 @@ def build_local_source_run_runtime(
         local_intelligence_settings=machine_settings,
         refresh_cloud_distillation=cloud_service,
         refresh_cloud_synthesis=synthesis_service,
+        refresh_cloud_synthesis_v2=lambda: synthesis_service(attribution=True),
         processing_orchestrator=orchestrator,
         data_root=data_root,
         vault_root=(

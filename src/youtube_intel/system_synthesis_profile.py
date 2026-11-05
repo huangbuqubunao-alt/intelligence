@@ -6,9 +6,12 @@ import hashlib
 import json
 from typing import Any, Final
 
+from . import system_synthesis as synthesis
 from .system_synthesis import SystemSynthesisRequest
 
 PROFILE_ID: Final = "moonshot-k31-system-synthesis-v1-20261029"
+ATTRIBUTION_PROFILE_ID: Final = "moonshot-k31-system-synthesis-v2-attribution-20261105"
+PROFILE_IDS: Final = (PROFILE_ID, ATTRIBUTION_PROFILE_ID)
 PAIR: Final = ("moonshot", "kimi-k3.1-pro")
 
 
@@ -20,7 +23,19 @@ def sha(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+def policy_id(profile_id: str) -> str:
+    if profile_id == PROFILE_ID:
+        return synthesis.PROFILE_ID
+    if profile_id == ATTRIBUTION_PROFILE_ID:
+        return synthesis.ATTRIBUTION_PROFILE_ID
+    raise ValueError("Unknown system synthesis transport profile")
+
+
 def resolve_profile(profile_id: str) -> dict[str, Any]:
+    if profile_id == ATTRIBUTION_PROFILE_ID:
+        policy = synthesis.profile_projection(synthesis.ATTRIBUTION_PROFILE_ID)
+        return {**resolve_profile(PROFILE_ID), "id": profile_id,
+            "policy_id": synthesis.ATTRIBUTION_PROFILE_ID, "policy_sha256": sha(canonical(policy))}
     if profile_id != PROFILE_ID:
         raise ValueError("Unknown system synthesis transport profile")
     return {
@@ -54,6 +69,9 @@ def resolve_profile(profile_id: str) -> dict[str, Any]:
 
 def provider_wire(request: SystemSynthesisRequest, profile_id: str = PROFILE_ID) -> tuple[str, int]:
     profile = resolve_profile(profile_id)
+    if type(request) is not SystemSynthesisRequest or request.profile_id != policy_id(profile_id):
+        raise ValueError("System synthesis transport/policy mixture")
+    synthesis._request(request)
     messages = json.loads(request.wire_json)["messages"]
     wire = canonical(
         {

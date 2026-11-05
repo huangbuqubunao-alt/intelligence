@@ -17,7 +17,7 @@ from .distillation import (
 def prepared_input(value: VerifiedDistillationInput) -> persistence.PreparedSynthesis:
     if (
         type(value) is not VerifiedDistillationInput
-        or value.wire_version != profile.PROFILE_ID
+        or value.wire_version not in profile.PROFILE_IDS
         or (value.selected_provider, value.selected_model) != profile.PAIR
         or value.input_json is None
         or profile.sha(value.input_json) != value.semantic_hash
@@ -28,6 +28,8 @@ def prepared_input(value: VerifiedDistillationInput) -> persistence.PreparedSynt
     )
     proof = persistence.loads(prepared.proof_json)
     if (
+        proof["transport"]["id"] != value.wire_version
+        or
         proof["command"]["video_id"] != value.video_id
         or proof["command"]["output_language"] != value.output_language
         or sorted(r["evidence_id"] for r in proof["capture"]["source_refs"]) != sorted(value.evidence_ids)
@@ -48,10 +50,27 @@ class MoonshotSystemSynthesisTransport(MoonshotK26CloudDistillationTransport):
     @classmethod
     def _request(cls, verified_input: VerifiedDistillationInput) -> dict[str, object]:
         try:
+            if verified_input.wire_version != cls.synthesis_profile_id:
+                raise ValueError("Synthesis transport profile differs")
             prepared = prepared_input(verified_input)
             request = persistence.request_from_proof(prepared)
-            wire, _ = profile.provider_wire(request)
+            wire, _ = profile.provider_wire(request, cls.synthesis_profile_id)
             body: dict[str, object] = json.loads(wire)
         except (ValueError, KeyError):
             raise CloudDistillationPreDispatchError("Synthesis prepared request is invalid") from None
         return {**body, "endpoint_identity": _MOONSHOT_ENDPOINT_IDENTITY, "max_retries": 0}
+
+    def is_authorized_for(self, verified_input: VerifiedDistillationInput) -> bool:
+        try:
+            self._request(verified_input)
+        except CloudDistillationPreDispatchError:
+            return False
+        return super().is_authorized_for(verified_input)
+
+
+class MoonshotAttributionSynthesisTransport(MoonshotSystemSynthesisTransport):
+    """Explicit v2 contract; no inherited qualification or new HTTP engine."""
+
+    _REQUEST_PROFILE_VERSION = profile.ATTRIBUTION_PROFILE_ID
+    _PROMPT_VERSION = "system-synthesis-v2-attribution"
+    synthesis_profile_id = profile.ATTRIBUTION_PROFILE_ID

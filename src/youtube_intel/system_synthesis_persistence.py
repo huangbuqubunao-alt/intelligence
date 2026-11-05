@@ -141,7 +141,7 @@ class Completion:
     raw_sha256: str | None = None
 
 
-def _assemble(command: dict[str, Any], capture: dict[str, Any]) -> PreparedSynthesis:
+def _assemble(command: dict[str, Any], capture: dict[str, Any], *, profile_id: str = profile.PROFILE_ID) -> PreparedSynthesis:
     refs = capture["source_refs"]
     context = baseline.build_summary_baseline(
         expected_video_id=command["video_id"],
@@ -197,9 +197,10 @@ def _assemble(command: dict[str, Any], capture: dict[str, Any]) -> PreparedSynth
         summary_baseline=context,
         source_refs=refs,
         output_language=command["output_language"],
+        profile_id=profile.policy_id(profile_id),
     )
-    descriptor = profile.resolve_profile(profile.PROFILE_ID)
-    wire, reserve = profile.provider_wire(request)
+    descriptor = profile.resolve_profile(profile_id)
+    wire, reserve = profile.provider_wire(request, profile_id)
     proof = {
         "command": command,
         "capture": capture,
@@ -229,7 +230,9 @@ def _prepare(
     command_id: str,
     output_language: str,
     now: datetime,
+    profile_id: str = profile.PROFILE_ID,
 ) -> PreparedSynthesis:
+    profile.resolve_profile(profile_id)
     if re.fullmatch(r"[A-Za-z0-9._:-]{1,80}", command_id) is None or output_language not in {"en", "zh-CN"}:
         raise ValueError("Synthesis command invalid")
     source = _row(c, "source_subscriptions", "source_id", source_id)
@@ -294,11 +297,12 @@ def _prepare(
         "policy": policy,
         "preferences": preferences,
     }
-    return _assemble(command, capture)
+    return _assemble(command, capture, profile_id=profile_id)
 
 
 def prepare(
-    repo: SQLiteStateRepository, *, source_id: str, video_id: str, command_id: str, output_language: str, now: datetime
+    repo: SQLiteStateRepository, *, source_id: str, video_id: str, command_id: str, output_language: str, now: datetime,
+    profile_id: str = profile.PROFILE_ID,
 ) -> PreparedSynthesis:
     with closing(repo._connect()) as c, _read_snapshot(c):
         return _prepare(
@@ -309,11 +313,16 @@ def prepare(
             command_id=command_id,
             output_language=output_language,
             now=now,
+            profile_id=profile_id,
         )
 
 
 def request_from_proof(prepared: PreparedSynthesis) -> synthesis.SystemSynthesisRequest:
     p = loads(prepared.proof_json)
+    profile_id = p["transport"]["id"]
+    descriptor = profile.resolve_profile(profile_id)
+    if p["transport"] != descriptor or p["transport_sha256"] != sha(canonical(descriptor)):
+        raise StateStoreError("Synthesis transport descriptor differs")
     r = p["request"]
     summary = baseline.SummaryBaseline(canonical(r["summary_context"]), r["summary_context_sha256"])
     request = synthesis.build_system_synthesis_request(
@@ -321,12 +330,13 @@ def request_from_proof(prepared: PreparedSynthesis) -> synthesis.SystemSynthesis
         summary_baseline=summary,
         source_refs=r["source_refs"],
         output_language=r["output_language"],
+        profile_id=profile.policy_id(profile_id),
     )
     if (
         loads(request.projection_json) != r
         or request.wire_json != p["pure_wire"]
         or request.origin_sha256 != p["origin_sha256"]
-        or profile.provider_wire(request) != (p["provider_wire"], p["reserve_microunits"])
+        or profile.provider_wire(request, profile_id) != (p["provider_wire"], p["reserve_microunits"])
     ):
         raise StateStoreError("Full synthesis projection/wire/origin replay differs")
     return request
@@ -339,8 +349,9 @@ def _replay(repo: SQLiteStateRepository, c: sqlite3.Connection, row: dict[str, A
         canonical(p) != prepared.proof_json
         or sha(prepared.proof_json) != prepared.proof_sha256
         or prepared.execution_id != PREFIX + prepared.proof_sha256
-        or row["profile_id"] != profile.PROFILE_ID
-        or _assemble(p["command"], p["capture"]) != prepared
+        or row["profile_id"] not in profile.PROFILE_IDS
+        or row["profile_id"] != p["transport"]["id"]
+        or _assemble(p["command"], p["capture"], profile_id=row["profile_id"]) != prepared
     ):
         raise StateStoreError("Synthesis complete proof differs")
     request_from_proof(prepared)
@@ -386,13 +397,14 @@ def reserve(repo: SQLiteStateRepository, prepared: PreparedSynthesis, *, now: da
             command_id=cmd["reason"][15:],
             output_language=cmd["output_language"],
             now=now,
+            profile_id=p["transport"]["id"],
         )
         if current != prepared:
             raise StateStoreError("Synthesis prepared input changed before reservation")
         timestamp = format_utc_datetime(now)
         c.execute(
             f"INSERT INTO {PROOFS} VALUES (?,?,?,?,?)",
-            (prepared.execution_id, profile.PROFILE_ID, prepared.proof_json, prepared.proof_sha256, timestamp),
+            (prepared.execution_id, p["transport"]["id"], prepared.proof_json, prepared.proof_sha256, timestamp),
         )
         repo._inject_failure("synthesis_after_proof")
         c.execute(
@@ -458,6 +470,7 @@ def confirm_and_claim(
                 command_id=cmd["reason"][15:],
                 output_language=cmd["output_language"],
                 now=now,
+                profile_id=p["transport"]["id"],
             )
             != prepared
         ):

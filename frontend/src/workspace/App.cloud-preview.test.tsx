@@ -306,3 +306,27 @@ it("permits a fresh explicit review after proven zero-call abort, without resubm
   expect(reviewCommands[0]).toBeTruthy(); expect(reviewCommands[1]).not.toBe(reviewCommands[0]);
   expect(confirmations).toHaveLength(1);
 });
+
+it.each([true, false])("uses the explicitly selected attribution descriptor and rejects a mismatched review (%s)", async matching => {
+  const v2 = "moonshot-k31-system-synthesis-v2-attribution-20261105";
+  manual = true;
+  profiles = [{ profile_id: "legacy", provider: "moonshot", model: "kimi-k2.6", qualified: false },
+    { profile_id: "moonshot-k31-system-synthesis-v1-20261029", provider: "moonshot", model: "kimi-k3.1-pro", qualified: false },
+    { profile_id: v2, provider: "moonshot", model: "kimi-k3.1-pro", qualified: false }];
+  returnedReview = review({ profile_id: matching ? v2 : "moonshot-k31-system-synthesis-v1-20261029",
+    outgoing_request: { model: "offline-preview-model", max_completion_tokens: 5888, messages: [{ role: "user", content: 'UNTRUSTED_CURRENT_SUMMARY_BASELINE={"summary":"retained"}' }] },
+    readiness: { can_confirm: false, blockers: ["MODEL_UNQUALIFIED"], budget_state: "POLICY_READY" } });
+  render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: "Review cloud Intelligence" }));
+  const select = await screen.findByRole("combobox", { name: "Cloud model profile" });
+  expect(within(select).getByRole("option", { name: /Explicit speaker attribution policy/ })).toBeTruthy();
+  fireEvent.change(select, { target: { value: v2 } });
+  fireEvent.click(screen.getByRole("button", { name: "Prepare one request for review" }));
+  if (matching) {
+    await screen.findByText(/complete stored Summary as comparison context/);
+    expect((screen.getByRole("button", { name: "Authorize this one cloud execution" }) as HTMLButtonElement).disabled).toBe(true);
+  } else await screen.findByText("The cloud review could not be verified. Keep reading this Content, then prepare a new review or check model settings.");
+  const post = vi.mocked(fetch).mock.calls.find(([path]) => String(path).endsWith("/cloud-intelligence/review"));
+  expect(JSON.parse(String(post?.[1]?.body)).profile_id).toBe(v2);
+  expect(confirmations).toHaveLength(0);
+});

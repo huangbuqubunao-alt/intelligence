@@ -3659,10 +3659,13 @@ class PersonalizedDistillationService:
         if synthesis_budget is not None and cloud_spending_policy is not None:
             raise ValueError("Choose one trusted synthesis fee authority")
         self._synthesis = (transport.actual_provider, transport.actual_model) == synthesis_profile.PAIR
+        self._synthesis_profile_id: str | None = None
         if self._synthesis:
             from .synthesis_runtime import MoonshotSystemSynthesisTransport
             if not isinstance(transport, MoonshotSystemSynthesisTransport):
                 raise ValueError("synthesis requires the finite prepared-proof transport")
+            self._synthesis_profile_id = transport.synthesis_profile_id
+            synthesis_profile.resolve_profile(self._synthesis_profile_id)
         self._cloud_previews: dict[str, tuple[DistillationCommand, VerifiedDistillationInput, datetime]] = {}
         self._cloud_preview_lock = threading.Lock()
         self._now = now
@@ -3767,9 +3770,10 @@ class PersonalizedDistillationService:
             language = self.capability_output_language(video_id)
             if language is None:
                 raise ValueError("synthesis Content language is unavailable")
+            assert self._synthesis_profile_id is not None
             prepared = synthesis_persistence.prepare(self._repository, source_id=source_id,
                 video_id=video_id, command_id=manual_command_id,
-                output_language=language, now=self._now())
+                output_language=language, now=self._now(), profile_id=self._synthesis_profile_id)
             proof = synthesis_persistence.loads(prepared.proof_json)
             ids = tuple(sorted(r["evidence_id"] for r in proof["capture"]["source_refs"]))
             if not set(ids) <= set(evidence_ids):
@@ -3778,7 +3782,7 @@ class PersonalizedDistillationService:
                 evidence_ids=ids, output_language=cast(ScoringOutputLanguage, proof["command"]["output_language"]),
                 reason=proof["command"]["reason"])
             return replace(command, execution_id=prepared.execution_id), replace(value,
-                semantic_hash=prepared.proof_sha256, wire_version=synthesis_profile.PROFILE_ID,
+                semantic_hash=prepared.proof_sha256, wire_version=self._synthesis_profile_id,
                 input_json=prepared.proof_json)
         if self._selected_provider not in CLOUD_PROVIDERS:
             raise ValueError("cloud review is unavailable for this transport")
@@ -3872,7 +3876,7 @@ class PersonalizedDistillationService:
             "outgoing_request": request,
             "spending": spending,
             "cost_status": "UNKNOWN",
-            "profile_id": synthesis_profile.PROFILE_ID if self._synthesis else None,
+            "profile_id": self._synthesis_profile_id,
             "disclosure_version": "system-synthesis-disclosure-v1" if self._synthesis else "m12-cloud-intelligence-v1",
             "readiness": {"can_confirm": not blockers, "blockers": blockers, "budget_state": budget_state}}
 
@@ -5269,7 +5273,7 @@ class PersonalizedDistillationService:
         command: DistillationCommand,
         verified_input: VerifiedDistillationInput,
     ) -> _Candidate | _NoNewCandidate:
-        if verified_input.wire_version == synthesis_profile.PROFILE_ID:
+        if verified_input.wire_version in synthesis_profile.PROFILE_IDS:
             from .synthesis_runtime import prepared_input
             prepared = prepared_input(verified_input)
             request = synthesis_persistence.request_from_proof(prepared)

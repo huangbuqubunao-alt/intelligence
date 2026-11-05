@@ -47,9 +47,9 @@ def money(value: object) -> int:
     return result
 
 
-def price_disclosure() -> dict[str, object]:
-    descriptor = profile.resolve_profile(profile.PROFILE_ID)
-    return {"profile_id": profile.PROFILE_ID, "provider": profile.PAIR[0], "model": profile.PAIR[1],
+def price_disclosure(profile_id: str = profile.PROFILE_ID) -> dict[str, object]:
+    descriptor = profile.resolve_profile(profile_id)
+    return {"profile_id": profile_id, "provider": profile.PAIR[0], "model": profile.PAIR[1],
         "price_hash": profile.sha(profile.canonical(descriptor)), "price_date": descriptor["price_date"],
         "input_microcny_per_token_worst": descriptor["input_microcny_per_token_worst"],
         "output_microcny_per_token": descriptor["output_microcny_per_token"],
@@ -243,28 +243,35 @@ class CloudSpendingPolicy:
     def _totals(entries: dict[str, dict[str, Any]]) -> tuple[int, int]:
         return sum(e["amount"] for e in entries.values() if e["held"]), sum(1 for e in entries.values() if e["held"])
 
-    def _status(self, loaded: tuple[dict[str, Any] | None, dict[str, dict[str, Any]], dict[str, Any] | None]) -> dict[str, Any]:
+    def _status(self, loaded: tuple[dict[str, Any] | None, dict[str, dict[str, Any]], dict[str, Any] | None],
+        *, profile_id: str | None = None) -> dict[str, Any]:
         journal, entries, policy = loaded
         held, count = self._totals(entries)
+        if profile_id is None:
+            profile_id = (profile.ATTRIBUTION_PROFILE_ID if policy is not None
+                and policy["price_hash"] == price_disclosure(profile.ATTRIBUTION_PROFILE_ID)["price_hash"] else profile.PROFILE_ID)
+        price = price_disclosure(profile_id)
         code = "CLOUD_SPENDING_POLICY_REQUIRED" if policy is None or not policy["enabled"] else (
-            "CLOUD_PRICE_ACCEPTANCE_REQUIRED" if policy["price_hash"] != price_disclosure()["price_hash"] else None)
+            "CLOUD_PRICE_ACCEPTANCE_REQUIRED" if policy["price_hash"] != price["price_hash"] else None)
         return {"revision": 0 if journal is None else len(journal["events"]), "policy": policy,
             "policy_revision": None if journal is None else max(e["sequence"] for e in journal["events"] if e["kind"] == "POLICY"),
             "held_microunits": held, "held_requests": count, "consumed_execution_ids": len(entries),
             "remaining_microunits": 0 if policy is None else max(0, policy["total_microunits"] - held),
             "remaining_requests": 0 if policy is None else max(0, policy["max_calls"] - count),
-            "actual_cost_status": "UNKNOWN", "price": price_disclosure(), "blocker": code,
+            "actual_cost_status": "UNKNOWN", "price": price, "blocker": code,
+            "prices": [price_disclosure(p) for p in profile.PROFILE_IDS],
             "currency": "CNY", "scope": "CUMULATIVE_NORMAL_SYNTHESIS_RESERVATIONS"}
 
-    def status(self) -> dict[str, Any]:
+    def status(self, *, profile_id: str | None = None) -> dict[str, Any]:
         try:
             if not self.anchor.exists() and not self.anchor.is_symlink() and not self.root.exists() and not self.root.is_symlink():
-                return self._status(self._load())  # Physically readonly virgin preview.
+                return self._status(self._load(), profile_id=profile_id)  # Physically readonly virgin preview.
             with self._locked(write=False):
-                return self._status(self._load())
+                return self._status(self._load(), profile_id=profile_id)
         except (OSError, ValueError, StateStoreError, sqlite3.Error, KeyError, TypeError, RuntimeError) as error:
             code = error.code if isinstance(error, SpendingPolicyRejected) else "CLOUD_JOURNAL_UNAVAILABLE"
             return {"revision": None, "policy": None, "blocker": code, "price": price_disclosure(),
+                "prices": [price_disclosure(p) for p in profile.PROFILE_IDS],
                 "held_microunits": None, "held_requests": None, "actual_cost_status": "UNKNOWN", "currency": "CNY"}
 
     def update(self, *, expected_revision: object, enabled: object, total_cny: object, per_request_cny: object,
@@ -272,7 +279,7 @@ class CloudSpendingPolicy:
         total, per = money(total_cny), money(per_request_cny)
         if (type(expected_revision) is not int or expected_revision < 0 or type(enabled) is not bool
             or type(max_calls) is not int or not 1 <= max_calls <= MAX_CALLS or per > total
-            or acknowledge is not True or accept_price_hash != price_disclosure()["price_hash"]):
+            or acknowledge is not True or accept_price_hash not in tuple(price_disclosure(p)["price_hash"] for p in profile.PROFILE_IDS)):
             raise SpendingPolicyRejected("CLOUD_POLICY_INVALID")
         try:
             with self._locked(write=True):
@@ -298,8 +305,9 @@ class CloudSpendingPolicy:
             raise SpendingPolicyRejected("CLOUD_JOURNAL_UNAVAILABLE") from None
 
     def preview(self, prepared: synthesis.PreparedSynthesis) -> dict[str, Any]:
-        state = self.status()
+        synthesis.request_from_proof(prepared)
         proof = synthesis.loads(prepared.proof_json)
+        state = self.status(profile_id=proof["transport"]["id"])
         reserve = proof["reserve_microunits"]
         blocker = state["blocker"]
         if blocker is None:
@@ -329,10 +337,10 @@ class CloudSpendingPolicy:
                     raise SpendingPolicyRejected("CLOUD_POLICY_CHANGED_REVIEW_REQUIRED")
                 if not self.backup.background_allowed:
                     raise SpendingPolicyRejected("CLOUD_EXECUTION_DISABLED")
-                if policy["price_hash"] != price_disclosure()["price_hash"]:
-                    raise SpendingPolicyRejected("CLOUD_PRICE_ACCEPTANCE_REQUIRED")
                 synthesis.request_from_proof(prepared)
                 proof = synthesis.loads(prepared.proof_json)
+                if policy["price_hash"] != price_disclosure(proof["transport"]["id"])["price_hash"]:
+                    raise SpendingPolicyRejected("CLOUD_PRICE_ACCEPTANCE_REQUIRED")
                 amount = proof["reserve_microunits"]
                 held, count = self._totals(entries)
                 if prepared.execution_id in entries:
