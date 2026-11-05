@@ -13,6 +13,7 @@ const result = {
   nativeMacOSAcceptance: 'NOT_PERFORMED', modelQuality: 'NOT_PERFORMED',
   exactSchemaVerification: 'NOT_PERFORMED_BACKEND_CHECKS_SEPARATE',
   onboarding: 'NOT_PERFORMED_POPULATED_FIXTURE_SCOPE', restoreObservations: [], archiveSchemaVersion: null,
+  downloadNavigationAborted: false, downloadSaved: false,
 };
 class Failure extends Error { constructor(code) { super(code); this.code = code; } }
 const require = (ok, code) => { if (!ok) throw new Failure(code); };
@@ -20,7 +21,7 @@ const save = (name, value) => writeFileSync(join(output, name), JSON.stringify(v
 const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 let step = 'arguments', browser, context, page, restarting = false, observing = true;
-let base, api, timeout = 15000, restoreTimeout = 60000;
+let base, api, timeout = 15000, restoreTimeout = 60000, expectedDownloadURL = null;
 const diagnostics = new Set();
 function loopback(value) {
   const u = new URL(value);
@@ -112,15 +113,41 @@ try {
   context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, acceptDownloads: true });
   await context.route('**/*', async route => {
     const r = route.request(), u = new URL(r.url()), m = r.method();
-    const permitted = (m === 'PUT' && u.pathname === '/api/v1/settings/output-language') || (m === 'POST' && ['/api/v1/backup-restore/backups', '/api/v1/backup-restore/restore/stage', '/api/v1/backup-restore/restore/confirm'].includes(u.pathname));
+    // Native jobs is the origin-protected read listing used on initial mount;
+    // chooser/confirm/cancel routes remain outside this settings/restore scope.
+    const permitted = (m === 'PUT' && u.pathname === '/api/v1/settings/output-language') || (m === 'POST' && ['/api/v1/backup-restore/backups', '/api/v1/backup-restore/restore/stage', '/api/v1/backup-restore/restore/confirm', '/api/v1/local/native/jobs'].includes(u.pathname));
     if (![base, api].includes(u.origin) || (!['GET', 'HEAD', 'OPTIONS'].includes(m) && !permitted)) { result.errors.push('OUT_OF_SCOPE_NETWORK_OR_MUTATION_BLOCKED'); await route.abort(); }
     else await route.continue();
   });
   page = await context.newPage(); page.setDefaultTimeout(timeout);
+  // Chrome can evict binary-upload responses from its inspector cache. Observe
+  // only these two real fetch responses in-page, without changing or resending
+  // the request/response, rather than relying on Network.getResponseBody.
+  await page.addInitScript(() => {
+    window.__yiaRestoreReceipts = {};
+    const original = window.fetch;
+    window.fetch = async function (...args) {
+      const response = await original.apply(this, args);
+      const input = args[0], options = args[1];
+      const path = new URL(typeof input === 'string' ? input : input.url ?? String(input), location.href).pathname;
+      const method = options?.method ?? (input instanceof Request ? input.method : 'GET');
+      if (method === 'POST' && ['/api/v1/backup-restore/restore/stage', '/api/v1/backup-restore/restore/confirm'].includes(path)) {
+        try { window.__yiaRestoreReceipts[path] = { status: response.status, body: await response.clone().json() }; }
+        catch { window.__yiaRestoreReceipts[path] = { status: response.status, unreadable: true }; }
+      }
+      return response;
+    };
+  });
   page.on('pageerror', () => { if (observing) result.errors.push('PAGE_ERROR'); });
   page.on('response', r => { if (observing && r.status() >= 400) diagnostic(async () => { if (!await proxyReconnect(r.url(), r.request().method(), r.status())) result.errors.push(`HTTP_${r.status()}`); }); });
   page.on('requestfailed', r => {
     if (!observing) return;
+    // A real Chrome download cancels only its navigation. Correlate the exact
+    // pending GET; a missing/failed download still fails the required step.
+    if (r.method() === 'GET' && r.url() === expectedDownloadURL
+      && r.failure()?.errorText === 'net::ERR_ABORTED' && !result.downloadNavigationAborted) {
+      result.downloadNavigationAborted = true; return;
+    }
     const transient = restarting && r.method() === 'GET' && reconnectPath(new URL(r.url()).pathname) && /ERR_CONNECTION_REFUSED|ERR_CONNECTION_RESET|ERR_EMPTY_RESPONSE|ERR_CONNECTION_CLOSED/.test(r.failure()?.errorText ?? '');
     if (transient) result.restoreObservations.push('BROWSER_RECONNECTING'); else result.errors.push('REQUEST_FAILED');
   });
@@ -156,25 +183,37 @@ try {
   let backupPath;
   await checked('backupCreated', async () => {
     const { status } = await json(api, '/api/v1/backup-restore/status'); require(status.ready === true && status.restore_pending === false, 'BACKUP_NOT_READY');
-    const button = page.getByRole('button', { name: /^(创建备份|Create Backup)$/ }); require(await button.isEnabled(), 'BACKUP_BUTTON_DISABLED'); await button.click();
+    const button = page.getByRole('button', { name: /^(创建备份|Create Backup)$/ });
+    // The panel polls independently: a fresh backend response does not mean
+    // its last rendered readiness has caught up. Wait for the real UI only.
+    const enabledDeadline = Date.now() + timeout;
+    while (!await button.isEnabled() && Date.now() < enabledDeadline) await pause(100);
+    require(await button.isEnabled(), 'BACKUP_BUTTON_DISABLED'); await button.click();
     const link = page.getByRole('link', { name: /保存备份文件|Save backup file/ }); await link.waitFor();
+    expectedDownloadURL = new URL(await link.getAttribute('href'), base).href;
+    require(new URL(expectedDownloadURL).origin === base
+      && /^\/api\/v1\/backup-restore\/backups\/[a-f0-9]{32}\/download$/.test(new URL(expectedDownloadURL).pathname), 'BACKUP_DOWNLOAD_TARGET_INVALID');
     const pending = page.waitForEvent('download'); pending.catch(() => {});
     await link.click(); const download = await pending;
     require(await download.failure() === null, 'BACKUP_DOWNLOAD_FAILED'); backupPath = join(output, 'candidate-backup.zip'); await download.saveAs(backupPath);
-    require(statSync(backupPath).size > 0, 'BACKUP_FILE_MISSING');
+    require(statSync(backupPath).size > 0, 'BACKUP_FILE_MISSING'); result.downloadSaved = true;
   });
   await checked('restoreApplied', async () => {
-    const staged = page.waitForResponse(r => new URL(r.url()).pathname === '/api/v1/backup-restore/restore/stage' && r.request().method() === 'POST');
-    staged.catch(() => {}); // still rejects when awaited; avoid an orphan rejection if the preceding UI action fails
+    const stagePath = '/api/v1/backup-restore/restore/stage';
     await page.getByLabel(/选择备份文件|Choose backup file/).setInputFiles(backupPath);
-    const response = await staged; require(response.ok(), 'RESTORE_STAGE_FAILED'); const { restore } = await response.json();
+    await page.waitForFunction(path => Boolean(window.__yiaRestoreReceipts?.[path]), stagePath, { timeout });
+    const stageReceipt = await page.evaluate(path => window.__yiaRestoreReceipts[path], stagePath);
+    require(stageReceipt.status === 200 && !stageReceipt.unreadable, 'RESTORE_STAGE_FAILED');
+    const { restore } = stageReceipt.body;
     require(typeof restore.restore_id === 'string' && /^[a-f0-9]{32}$/.test(restore.restore_id) && restore.preview.content_count > 0 && restore.preview.evidence_count > 0 && restore.preview.data_file_count > 0, 'POPULATED_RESTORE_PREVIEW_REQUIRED');
     result.archiveSchemaVersion = restore.preview.schema_version; // Actual archive version, not exact-schema verification.
     await page.getByRole('button', { name: /恢复此备份|Restore this backup/ }).click(); await page.getByLabel(/输入 RESTORE 以确认|Type RESTORE to confirm/).fill('RESTORE');
-    const confirmed = page.waitForResponse(r => new URL(r.url()).pathname === '/api/v1/backup-restore/restore/confirm' && r.request().method() === 'POST');
-    confirmed.catch(() => {});
+    const confirmPath = '/api/v1/backup-restore/restore/confirm';
     restarting = true; await page.getByRole('button', { name: /确认恢复并重启|Confirm Restore and restart/ }).click();
-    const confirmation = await confirmed; require(confirmation.ok(), 'RESTORE_CONFIRM_FAILED'); const ack = (await confirmation.json()).restore;
+    await page.waitForFunction(path => Boolean(window.__yiaRestoreReceipts?.[path]), confirmPath, { timeout });
+    const confirmation = await page.evaluate(path => window.__yiaRestoreReceipts[path], confirmPath);
+    require(confirmation.status >= 200 && confirmation.status < 300 && !confirmation.unreadable, 'RESTORE_CONFIRM_FAILED');
+    const ack = confirmation.body.restore;
     require(ack.restore_id === restore.restore_id && ack.pending === true && ack.restart_required === true, 'RESTORE_PENDING_ACK_REQUIRED');
     result.restoreObservations.push('CONFIRMED_PENDING_RESTART_REQUIRED'); await waitApplied(restore.restore_id); await qaGuard();
     await page.getByText(/备份已恢复，重启后的数据检查已通过。|Restore completed successfully\./).waitFor(); restarting = false;
