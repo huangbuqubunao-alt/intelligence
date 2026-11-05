@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import fcntl
 import signal
+import subprocess
 import threading
 from pathlib import Path
 from types import FrameType
@@ -20,6 +21,7 @@ from youtube_intel.model_settings import (
     MacOSBigModelQACredentialStore,
     MacOSMoonshotQACredentialStore,
 )
+from youtube_intel.native_picker_build import prepare_native_picker
 from youtube_intel.runtime_composition import build_local_source_run_runtime
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -58,10 +60,16 @@ def candidate_config(project_root: Path, *, repository_root: Path = REPOSITORY_R
     return AppConfig(channels=(), settings=AppSettings.model_validate(settings))
 
 
-def serve_candidate(*, port: int = 6378, repository_root: Path = REPOSITORY_ROOT) -> None:
-    if not 1024 <= port <= 65535:
-        raise ValueError("QA port must be between 1024 and 65535")
-    root = repository_root.resolve(strict=True) / ".var" / CANDIDATE_DIRECTORY
+def serve_candidate(
+    *, port: int = 6378, frontend_port: int = 6379, repository_root: Path = REPOSITORY_ROOT,
+) -> None:
+    for value in (port, frontend_port):
+        if type(value) is not int or not 1024 <= value <= 65535:
+            raise ValueError("QA ports must be integers between 1024 and 65535")
+    if port == frontend_port:
+        raise ValueError("QA API and frontend ports must be different")
+    repository_root = repository_root.resolve(strict=True)
+    root = repository_root / ".var" / CANDIDATE_DIRECTORY
     config = candidate_config(root, repository_root=repository_root)
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
     # Keep one owner across all restore restarts. No separate scheduler process
@@ -73,6 +81,10 @@ def serve_candidate(*, port: int = 6378, repository_root: Path = REPOSITORY_ROOT
             raise ValueError("This QA candidate already has a running owner") from None
         for directory in ("data", "logs", "templates", "vault"):
             (root / directory).mkdir(exist_ok=True, mode=0o700)
+        # Reuse the tracked selector and installed Apple tools, before opening
+        # SQLite or constructing credential stores. No executable override.
+        picker = prepare_native_picker(repository_root)
+        origins = (f"http://127.0.0.1:{frontend_port}", f"http://localhost:{frontend_port}")
         stop_requested = False
         while True:
             validate_candidate_root(root, repository_root=repository_root)
@@ -82,22 +94,27 @@ def serve_candidate(*, port: int = 6378, repository_root: Path = REPOSITORY_ROOT
                 bigmodel_credential_store=MacOSBigModelQACredentialStore(),
                 allow_environment_credentials=False, allow_cloud_execution=False,
             )
-            server = serve_loopback(composition.application, port=port)
-
-            def request_stop(signum: int, frame: FrameType | None) -> None:
-                nonlocal stop_requested
-                stop_requested = True
-                threading.Thread(target=server.shutdown, daemon=True).start()
-
-            previous_handlers = {
-                sig: signal.signal(sig, request_stop)
-                for sig in (signal.SIGTERM, signal.SIGINT)
-            } if threading.current_thread() is threading.main_thread() else {}
+            server = None
+            previous_handlers = {}
             try:
+                composition.application.enable_native_import(origins, picker_executable=picker)
+                server = serve_loopback(composition.application, port=port)
+
+                def request_stop(signum: int, frame: FrameType | None) -> None:
+                    nonlocal stop_requested
+                    stop_requested = True
+                    if server is not None:
+                        threading.Thread(target=server.shutdown, daemon=True).start()
+
+                previous_handlers = {
+                    sig: signal.signal(sig, request_stop)
+                    for sig in (signal.SIGTERM, signal.SIGINT)
+                } if threading.current_thread() is threading.main_thread() else {}
                 composition.worker.start()
                 server.serve_forever()
             finally:
-                server.server_close()
+                if server is not None:
+                    server.server_close()
                 composition.application.shutdown_native_import()
                 composition.worker.stop()
                 for sig, handler in previous_handlers.items():
@@ -109,11 +126,12 @@ def serve_candidate(*, port: int = 6378, repository_root: Path = REPOSITORY_ROOT
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", type=int, default=6378)
+    parser.add_argument("--frontend-port", type=int, default=6379)
     args = parser.parse_args(argv)
     try:
-        serve_candidate(port=args.port)
-    except (OSError, ValueError):
-        print("QA startup refused: check isolated paths, ownership and loopback port.")
+        serve_candidate(port=args.port, frontend_port=args.frontend_port)
+    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
+        print("QA startup refused: check isolated paths, ownership, separate loopback ports, and installed macOS native selector tools.")
         return 2
     return 0
 

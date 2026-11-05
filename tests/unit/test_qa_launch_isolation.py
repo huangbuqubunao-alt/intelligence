@@ -206,6 +206,7 @@ def test_candidate_refuses_symlink_escapes_before_composition(
     def forbidden(*args: object, **kwargs: object) -> None:
         pytest.fail("invalid QA path reached runtime/credential composition")
     monkeypatch.setattr(app, "build_local_source_run_runtime", forbidden)
+    monkeypatch.setattr(app, "prepare_native_picker", forbidden, raising=False)
     with pytest.raises(ValueError, match="(symbolic links|link to another data owner)"):
         app.serve_candidate(repository_root=repo)
     assert sentinel.read_bytes() == b"synthetic-owner-database-do-not-open"
@@ -224,25 +225,42 @@ def test_candidate_refuses_hardlinked_database(tmp_path: Path) -> None:
     assert not (root / "qa-launch.lock").exists()
 
 
-def test_candidate_rejects_ports_and_remote_host_before_state_creation(tmp_path: Path) -> None:
+def test_candidate_rejects_ports_and_remote_host_before_state_creation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     app = launcher()
     repo, root = qa_repository(tmp_path)
-    for port in (0, 1023, 65536):
-        with pytest.raises(ValueError, match="port"):
-            app.serve_candidate(port=port, repository_root=repo)
+    def forbidden(*args: object, **kwargs: object) -> None:
+        pytest.fail("invalid ports reached helper, credentials or SQLite")
+    monkeypatch.setattr(app, "prepare_native_picker", forbidden, raising=False)
+    monkeypatch.setattr(app, "build_local_source_run_runtime", forbidden)
+    monkeypatch.setattr(app, "MacOSMoonshotQACredentialStore", forbidden)
+    monkeypatch.setattr(app, "MacOSBigModelQACredentialStore", forbidden)
+    for parameter in ("port", "frontend_port"):
+        for port in (0, 1023, 65536, 6378.5, True):
+            with pytest.raises(ValueError, match="port"):
+                app.serve_candidate(**{parameter: port}, repository_root=repo)
+    with pytest.raises(ValueError, match="different"):
+        app.serve_candidate(port=6378, frontend_port=6378, repository_root=repo)
     with pytest.raises(SystemExit) as rejected:
         app.main(["--host", "0.0.0.0"])
     assert rejected.value.code == 2
     assert not root.exists()
 
 
+@pytest.mark.parametrize("frontend_port", [6379, 6479])
 def test_candidate_retains_ownership_and_stops_worker_across_restore_restart(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, frontend_port: int
 ) -> None:
     app = launcher()
     repo, root = qa_repository(tmp_path)
     events: list[str] = []
     compositions: list[Any] = []
+    picker = repo / ".var/native-picker/synthetic/IntelligenceFilePicker"
+    def prepare(project: Path) -> Path:
+        assert project == repo
+        events.append("prepare")
+        return picker
     def build(**kwargs: Any) -> Any:
         assert kwargs["database"] == root / "state.sqlite3"
         assert kwargs["project_root"] == root
@@ -252,8 +270,13 @@ def test_candidate_retains_ownership_and_stops_worker_across_restore_restart(
         assert kwargs["bigmodel_credential_store"]._service == b"com.huangbuqubunao.intelligence.qa.zhipu-bigmodel"
         assert not kwargs["config"].settings.cloud.enabled
         n = len(compositions)
+        def enable(origins: tuple[str, ...], *, picker_executable: Path) -> None:
+            assert origins == (f"http://127.0.0.1:{frontend_port}", f"http://localhost:{frontend_port}")
+            assert picker_executable == picker
+            events.append(f"native-enable{n}")
         current = SimpleNamespace(
-            application=SimpleNamespace(shutdown_native_import=lambda: events.append(f"native-stop{n}")),
+            application=SimpleNamespace(enable_native_import=enable,
+                shutdown_native_import=lambda: events.append(f"native-stop{n}")),
             worker=SimpleNamespace(start=lambda: events.append(f"start{n}"), stop=lambda: events.append(f"stop{n}")),
             backup_restore=SimpleNamespace(restart_requested=n == 0),
         )
@@ -269,12 +292,13 @@ def test_candidate_retains_ownership_and_stops_worker_across_restore_restart(
                 app.serve_candidate(repository_root=repo)
         return SimpleNamespace(serve_forever=serve, server_close=lambda: events.append(f"close{n}"))
     previous = {sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM)}
+    monkeypatch.setattr(app, "prepare_native_picker", prepare, raising=False)
     monkeypatch.setattr(app, "build_local_source_run_runtime", build)
     monkeypatch.setattr(app, "serve_loopback", server)
-    app.serve_candidate(repository_root=repo)
+    app.serve_candidate(repository_root=repo, frontend_port=frontend_port)
     assert len(compositions) == 2
-    assert events == ["start0", "serve0", "close0", "native-stop0", "stop0",
-        "start1", "serve1", "close1", "native-stop1", "stop1"]
+    assert events == ["prepare", "native-enable0", "start0", "serve0", "close0", "native-stop0", "stop0",
+        "native-enable1", "start1", "serve1", "close1", "native-stop1", "stop1"]
     assert all(signal.getsignal(sig) == handler for sig, handler in previous.items())
 
 
@@ -297,6 +321,7 @@ def test_candidate_real_loopback_start_and_stop_with_test_stores(
     monkeypatch.setenv("MOONSHOT_API_KEY", "synthetic-owner-environment-must-not-appear")
     monkeypatch.setattr(app, "MacOSMoonshotQACredentialStore", FakeStore)
     monkeypatch.setattr(app, "MacOSBigModelQACredentialStore", FakeStore)
+    monkeypatch.setattr(app, "prepare_native_picker", lambda project: repo / ".var/native-picker/synthetic", raising=False)
     monkeypatch.setattr(app, "serve_loopback", listen)
     monkeypatch.setattr("youtube_intel.runtime_composition.local_models", lambda *args: {"models": []})
     monkeypatch.setattr("youtube_intel.runtime_composition.local_runtime_version", lambda *args: {})
@@ -319,6 +344,10 @@ def test_candidate_real_loopback_start_and_stop_with_test_stores(
             assert response.status == 200
             assert json.loads(body)["cloud_credential"] == {"configured": False, "source": "NONE"}
             assert b"synthetic-owner-environment" not in body
+            connection.request("GET", "/api/v1/local/native/capability")
+            capability = connection.getresponse()
+            assert capability.status == 200
+            assert json.loads(capability.read()) == {"capability": {"available": True}}
         finally:
             connection.close()
     finally:
@@ -327,3 +356,75 @@ def test_candidate_real_loopback_start_and_stop_with_test_stores(
         thread.join(10)
     assert not thread.is_alive() and errors == []
     assert (root / "state.sqlite3").is_file()
+
+
+def test_candidate_refuses_missing_native_tools_before_credentials_or_database(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    app = launcher()
+    repo, root = qa_repository(tmp_path)
+    def unavailable(project: Path) -> Path:
+        assert project == repo
+        raise RuntimeError("The installed Apple compiler is unavailable")
+    def forbidden(*args: object, **kwargs: object) -> None:
+        pytest.fail("unavailable selector reached credentials or database")
+    monkeypatch.setattr(app, "prepare_native_picker", unavailable, raising=False)
+    monkeypatch.setattr(app, "build_local_source_run_runtime", forbidden)
+    monkeypatch.setattr(app, "MacOSMoonshotQACredentialStore", forbidden)
+    monkeypatch.setattr(app, "MacOSBigModelQACredentialStore", forbidden)
+    with pytest.raises(RuntimeError, match="compiler"):
+        app.serve_candidate(repository_root=repo)
+    assert not (root / "state.sqlite3").exists()
+    assert list((root / "vault").iterdir()) == []
+
+
+@pytest.mark.parametrize("failure", ["enable", "bind", "worker"])
+def test_candidate_cleans_native_service_when_startup_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str
+) -> None:
+    app = launcher()
+    repo, _ = qa_repository(tmp_path)
+    events: list[str] = []
+    def enable(*args: object, **kwargs: object) -> None:
+        events.append("enable")
+        if failure == "enable":
+            raise ValueError("controlled enable refusal")
+    def start() -> None:
+        events.append("start")
+        raise ValueError("controlled worker refusal")
+    current = SimpleNamespace(
+        application=SimpleNamespace(enable_native_import=enable,
+            shutdown_native_import=lambda: events.append("native-stop")),
+        worker=SimpleNamespace(start=start, stop=lambda: events.append("stop")),
+        backup_restore=SimpleNamespace(restart_requested=False),
+    )
+    def listen(*args: object, **kwargs: object) -> Any:
+        events.append("bind")
+        if failure == "bind":
+            raise OSError("controlled bind refusal")
+        return SimpleNamespace(server_close=lambda: events.append("close"))
+    previous = {sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM)}
+    monkeypatch.setattr(app, "prepare_native_picker", lambda project: repo / ".var/native-picker/synthetic", raising=False)
+    monkeypatch.setattr(app, "build_local_source_run_runtime", lambda **kwargs: current)
+    monkeypatch.setattr(app, "serve_loopback", listen)
+    with pytest.raises((ValueError, OSError), match="controlled"):
+        app.serve_candidate(repository_root=repo)
+    expected = ["enable"] + (["bind"] if failure != "enable" else [])
+    if failure == "worker":
+        expected += ["start", "close"]
+    assert events == expected + ["native-stop", "stop"]
+    assert all(signal.getsignal(sig) == handler for sig, handler in previous.items())
+
+
+def test_candidate_cli_accepts_frontend_port_and_reports_native_refusal(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    app = launcher()
+    calls: list[dict[str, int]] = []
+    def serve(**kwargs: int) -> None:
+        calls.append(kwargs)
+        raise RuntimeError("Native file selection requires macOS")
+    monkeypatch.setattr(app, "serve_candidate", serve)
+    assert app.main(["--port", "6478", "--frontend-port", "6479"]) == 2
+    assert calls == [{"port": 6478, "frontend_port": 6479}]
+    assert "native" in capsys.readouterr().out.lower()
