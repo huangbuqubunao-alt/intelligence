@@ -3951,6 +3951,67 @@ class PersonalizedDistillationService:
             validate_current=validate_current, now=self._now())
         return authorization_id, self._dispatch_and_admit(command, value, decision)
 
+    def confirm_synthesis_qualification(
+        self, *, video_id: str, execution_id: str, review_hash: str,
+        budget: synthesis_persistence.SynthesisBudget,
+    ) -> DistillationResult:
+        """Backend-only exact-input owner trial; never normal UI eligibility.
+
+        The caller owns the durable external once-only fee reservation. This
+        seam reuses ordinary trusted preview, claim and admission, without
+        accepting a caller-built command or weakening the normal confirmation.
+        """
+        from .synthesis_runtime import MoonshotSystemSynthesisTransport, prepared_input
+
+        if (not self._synthesis or type(budget) is not synthesis_persistence.SynthesisBudget
+            or not isinstance(self._transport, MoonshotSystemSynthesisTransport)):
+            raise ValueError("Exact synthesis qualification authority is required")
+        with self._cloud_preview_lock:
+            entry = self._cloud_previews.get(review_hash)
+        if entry is None:
+            raise ValueError("cloud preview is missing or expired; review again")
+        command, value, expires = entry
+        if (self._now() >= expires or command.video_id != video_id or command.execution_id != execution_id):
+            raise ValueError("cloud qualification preview identity or expiry differs")
+        prepared = prepared_input(value)
+        auth = self._transport._authorization
+        if (type(auth) is not CloudDistillationAuthorization or auth.production_eligible
+            or auth.qualification_input_hash != prepared.proof_sha256 or auth.qualification_max_calls != 1
+            or type(auth.qualification_max_calls) is not int
+            or budget.max_calls != 1 or budget.prior_calls != 0
+            or type(budget.max_calls) is not int or type(budget.limit_microunits) is not int
+            or budget.prior_reserved_microunits != 0
+            or not 0 < synthesis_persistence.loads(prepared.proof_json)["reserve_microunits"] <= budget.limit_microunits <= 1_000_000):
+            raise ValueError("Exact one-call qualification authority or budget differs")
+        manual_id = (command.reason.removeprefix(self._MANUAL_CONTENT_PREFIX)
+            if command.reason.startswith(self._MANUAL_CONTENT_PREFIX) else None)
+        current_command, current_value = self._prospective_cloud_command(source_id=command.source_id,
+            video_id=video_id, evidence_ids=command.evidence_ids, manual_command_id=manual_id)
+        if current_command != command or current_value != value:
+            raise ValueError("cloud preview changed; review current Evidence again")
+        self._cloud_request_preview(current_value)
+        if not self._transport_permits(current_value) or not self._model_ready(command, current_value, qualification=True):
+            raise ValueError("Exact qualification model or credential is unavailable")
+        if self._now() >= expires:
+            raise ValueError("cloud qualification preview expired before reservation")
+        # reserve and confirm both replay the proof inside their existing SQLite
+        # writer transactions. An existing/unknown claim is never resumed here.
+        try:
+            synthesis_persistence.reserve(self._repository, prepared, now=self._now())
+        except sqlite3.IntegrityError:
+            raise StateStoreError("Synthesis qualification already exists or conflicts") from None
+        try:
+            if self._now() >= expires:
+                raise ValueError("cloud qualification preview expired before claim")
+            synthesis_persistence.confirm_and_claim(self._repository, prepared, budget=budget,
+                consent_kind="OWNER_QUALIFICATION", now=self._now())
+        except Exception:
+            record = self._repository.get_distillation_execution(execution_id)
+            if record is not None and record.status == "PENDING" and record.invocation_count == 0:
+                synthesis_persistence.abandon_unclaimed(self._repository, execution_id, now=self._now())
+            raise
+        return self._dispatch_and_admit(command, value, BudgetDecision(True, "OWNER_QUALIFICATION"))
+
     def authorize_reserved_cloud_execution(
         self, execution_id: str, *, consent_kind: str = "USER_CONFIRMATION"
     ) -> str:
