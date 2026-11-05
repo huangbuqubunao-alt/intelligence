@@ -12,6 +12,7 @@ import shutil
 import sqlite3
 import stat
 import threading
+import time
 import uuid
 import zipfile
 from collections.abc import Iterator
@@ -52,6 +53,7 @@ MAX_ARCHIVE_FILES = 10_002
 MAX_MEMBER_BYTES = 2 * 1024 * 1024 * 1024
 MAX_DATA_FILE_BYTES = 2 * 1024 * 1024 * 1024
 MAX_TOTAL_BYTES = 8 * 1024 * 1024 * 1024
+_PASSIVE_ADMISSION_WAIT_SECONDS = 5.0
 _ID = re.compile(r"^[a-f0-9]{32}$")
 _SHA256 = re.compile(r"^[a-f0-9]{64}$")
 _BACKUP_FILE_NAME = re.compile(r"^Intelligence-Backup-\d{4}-\d{2}-\d{2}\.zip$")
@@ -208,6 +210,7 @@ class BackupRestoreService:
         self._maintenance_condition = threading.Condition()
         self._passive_maintenance_owner: int | None = None
         self._maintenance_command = False
+        self._ordinary_admission_waiters = 0
         self._ensure_control_root()
         if not self.marker_path.exists():
             self._cleanup_unconfirmed_staging()
@@ -271,6 +274,40 @@ class BackupRestoreService:
                 stack.enter_context(store_lock(self.database, exclusive=exclusive))
             yield
 
+    @contextmanager
+    def ordinary_admission_lock(self) -> Iterator[None]:
+        """Let a known local status read finish before one ordinary admission.
+
+        Never wait for an OS lock or a real maintenance command. Ownership and
+        SH acquisition share the condition, so a fresh passive poll cannot enter
+        the release/acquire gap. The condition is released before caller IO.
+        """
+        from contextlib import ExitStack
+
+        from .tracked_retry_context import RetryConflict
+
+        deadline = time.monotonic() + _PASSIVE_ADMISSION_WAIT_SECONDS
+        with ExitStack() as stack:
+            with self._maintenance_condition:
+                self._ordinary_admission_waiters += 1
+                try:
+                    while self._passive_maintenance_owner is not None:
+                        if self._maintenance_command or self._passive_maintenance_owner == threading.get_ident():
+                            raise RetryConflict("Protected maintenance prevents ordinary admission")
+                        remaining = deadline - time.monotonic()
+                        if remaining <= 0:
+                            raise RetryConflict("Passive status verification did not finish in time")
+                        self._maintenance_condition.wait(remaining)
+                    if self._maintenance_command:
+                        raise RetryConflict("Protected maintenance prevents ordinary admission")
+                    # Existing store locks stay nonblocking. An unknown external
+                    # holder or unsafe inode is never reclassified as passive.
+                    stack.enter_context(self.admission_lock())
+                finally:
+                    self._ordinary_admission_waiters -= 1
+                    self._maintenance_condition.notify_all()
+            yield
+
     @property
     def background_allowed(self) -> bool:
         with self._background_lock:
@@ -320,14 +357,16 @@ class BackupRestoreService:
         # Only this instance's passive status verification may be waited for.
         # Actual commands and OS lock holders remain explicit busy blockers.
         with self._maintenance_condition:
-            if self._maintenance_command or self._passive_maintenance_owner == threading.get_ident():
+            if (self._maintenance_command or self._passive_maintenance_owner == threading.get_ident()
+                or (passive and self._ordinary_admission_waiters)):
                 raise _MaintenanceActive("Another Backup, Restore or model configuration operation is in progress.")
             if not passive:
                 self._maintenance_command = True
+                self._maintenance_condition.notify_all()
             try:
                 while self._passive_maintenance_owner is not None:
                     self._maintenance_condition.wait()
-                    if passive and self._maintenance_command:
+                    if passive and (self._maintenance_command or self._ordinary_admission_waiters):
                         raise _MaintenanceActive("Another Backup, Restore or model configuration operation is in progress.")
                 if passive:
                     self._passive_maintenance_owner = threading.get_ident()

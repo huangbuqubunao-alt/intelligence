@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
 
 import pytest
 from conftest import _load_module
@@ -1464,4 +1465,302 @@ def test_maintenance_queue_never_waits_for_an_external_writer(tmp_path):
         writer.communicate("release\n", timeout=5)
     assert writer.returncode == 0
     assert backup.readiness()["ready"]
+    assert long._inventory(repo, data) == original
+
+
+@pytest.mark.parametrize("read_fails", [False, True])
+def test_first_http_language_save_waits_for_own_passive_poll_and_applies_once(tmp_path, monkeypatch, read_fails):
+    import threading
+    from http.client import HTTPConnection
+
+    from youtube_intel.local_api import LocalApiApplication, serve_loopback
+    from youtube_intel.orchestration_service import ProductOrchestrationService
+
+    repo, data, backup, settings = setup(tmp_path)
+    app = LocalApiApplication(repo, ProductOrchestrationService(repo), data_root=data,
+        local_intelligence_settings=settings, backup_restore_service=backup)
+    original = long._inventory(repo, data)
+    entered, release, attempted, finished = (threading.Event() for _ in range(4))
+    inspect = backup._live_artifacts
+    readiness = backup.readiness
+    handle = app.handle
+    set_language = app._output_language_service.set
+    saves = []
+
+    def hold_passive(connection):
+        if threading.current_thread().name == "passive-language-readiness":
+            entered.set()
+            assert release.wait(5)
+            if read_fails:
+                raise OSError("controlled passive inspection failure")
+        return inspect(connection)
+
+    def named_readiness():
+        threading.current_thread().name = "passive-language-readiness"
+        return readiness()
+
+    def observed_handle(method, path, body=b""):
+        if method == "PUT":
+            attempted.set()
+        return handle(method, path, body)
+
+    def counted_set(**kwargs):
+        saves.append(kwargs)
+        return set_language(**kwargs)
+
+    monkeypatch.setattr(backup, "_live_artifacts", hold_passive)
+    monkeypatch.setattr(backup, "readiness", named_readiness)
+    monkeypatch.setattr(app, "handle", observed_handle)
+    monkeypatch.setattr(app._output_language_service, "set", counted_set)
+    server = serve_loopback(app, port=0)
+    serving = threading.Thread(target=server.serve_forever, daemon=True)
+    serving.start()
+    results = {}
+
+    def request(key, method, path, body=None):
+        client = HTTPConnection("127.0.0.1", server.server_port, timeout=8)
+        try:
+            client.request(method, path, body, headers={"X-YIA-Request": "local-ui", "Content-Type": "application/json"})
+            response = client.getresponse()
+            results[key] = response.status, json.loads(response.read())
+        finally:
+            client.close()
+            if key == "language":
+                finished.set()
+
+    reader = threading.Thread(target=request, args=("readiness", "GET", "/api/v1/backup-restore/status"), daemon=True)
+    writer = threading.Thread(target=request, args=("language", "PUT", "/api/v1/settings/output-language", '{"output_language":"en"}'), daemon=True)
+    try:
+        reader.start()
+        assert entered.wait(3)
+        writer.start()
+        assert attempted.wait(3)
+        assert not finished.wait(0.2), results
+        assert saves == []
+    finally:
+        release.set()
+        reader.join(8)
+        if writer.ident is not None:
+            writer.join(8)
+        server.shutdown()
+        serving.join(3)
+        server.server_close()
+    assert not reader.is_alive() and not writer.is_alive()
+    assert results["readiness"][0] == 200
+    assert results["readiness"][1]["status"]["ready"] is (not read_fails)
+    assert results["language"][0] == 200, results["language"]
+    assert results["language"][1]["output_language"] == "en"
+    assert len(saves) == 1
+    after = long._inventory(repo, data)
+    assert after[1] == original[1]
+    assert {k: v for k, v in after[0].items() if k != "global_user_settings"} == {
+        k: v for k, v in original[0].items() if k != "global_user_settings"}
+
+
+@contextmanager
+def _hold_owned_passive(backup, monkeypatch):
+    import threading
+
+    entered, release = threading.Event(), threading.Event()
+    inspect = backup._live_artifacts
+    results = []
+
+    def hold(connection):
+        if threading.current_thread().name == "owned-passive-holder":
+            entered.set()
+            assert release.wait(5)
+        return inspect(connection)
+
+    monkeypatch.setattr(backup, "_live_artifacts", hold)
+    reader = threading.Thread(target=lambda: results.append(backup.readiness()),
+        name="owned-passive-holder", daemon=True)
+    try:
+        reader.start()
+        assert entered.wait(3)
+        yield release
+    finally:
+        release.set()
+        reader.join(6)
+    assert not reader.is_alive() and results and results[0]["ready"]
+
+
+def _observe_ordinary_wait(backup, monkeypatch):
+    import threading
+
+    entered = threading.Event()
+    wait = backup._maintenance_condition.wait
+
+    def observe(timeout=None):
+        if threading.current_thread().name == "ordinary-admission-waiter":
+            entered.set()
+        return wait(timeout)
+
+    monkeypatch.setattr(backup._maintenance_condition, "wait", observe)
+    return entered
+
+
+def test_ordinary_wait_is_bounded_and_does_not_leave_priority_or_mutate_data(tmp_path, monkeypatch):
+    import time
+
+    from youtube_intel import backup_restore
+
+    repo, data, backup, settings = setup(tmp_path)
+    original = long._inventory(repo, data)
+    monkeypatch.setattr(backup_restore, "_PASSIVE_ADMISSION_WAIT_SECONDS", 0.05)
+    with _hold_owned_passive(backup, monkeypatch):
+        started = time.monotonic()
+        with settings.admission() as allowed:
+            assert not allowed
+        assert time.monotonic() - started < 2
+        assert backup._passive_maintenance_owner is not None
+        assert backup._ordinary_admission_waiters == 0
+    with settings.admission() as allowed:
+        assert allowed
+    assert long._inventory(repo, data) == original
+
+
+def test_ordinary_admission_never_waits_on_its_own_passive_thread(tmp_path, monkeypatch):
+    repo, data, backup, settings = setup(tmp_path)
+    original = long._inventory(repo, data)
+    inspect = backup._live_artifacts
+    outcomes = []
+
+    def never_wait(*args, **kwargs):
+        pytest.fail("ordinary admission waited on its own passive thread")
+
+    def nested(connection):
+        with settings.admission() as allowed:
+            outcomes.append(allowed)
+        return inspect(connection)
+
+    monkeypatch.setattr(backup._maintenance_condition, "wait", never_wait)
+    monkeypatch.setattr(backup, "_live_artifacts", nested)
+    assert backup.readiness()["ready"]
+    assert outcomes == [False] and backup._ordinary_admission_waiters == 0
+    assert long._inventory(repo, data) == original
+
+
+def test_waiting_mutation_has_priority_over_new_polls_and_keeps_nested_shared_guard(tmp_path, monkeypatch):
+    import threading
+
+    repo, data, backup, settings = setup(tmp_path)
+    original = long._inventory(repo, data)
+    waiting = _observe_ordinary_wait(backup, monkeypatch)
+    admitted, release_mutation = threading.Event(), threading.Event()
+    outcomes = []
+
+    def ordinary():
+        with settings.admission() as allowed:
+            assert allowed
+            with backup.background_work() as nested:
+                outcomes.append(nested)
+                admitted.set()
+                assert release_mutation.wait(5)
+
+    writer = threading.Thread(target=ordinary, name="ordinary-admission-waiter", daemon=True)
+    try:
+        with _hold_owned_passive(backup, monkeypatch) as release_passive:
+            writer.start()
+            assert waiting.wait(3)
+            assert backup._ordinary_admission_waiters == 1
+            for _ in range(4):
+                assert backup.readiness()["reasons"] == ["MAINTENANCE_ACTIVE"]
+            release_passive.set()
+            assert admitted.wait(3)
+            assert not backup.readiness()["ready"]  # the caller's real SH/work guard still excludes EX
+    finally:
+        release_mutation.set()
+        writer.join(6)
+    assert not writer.is_alive() and outcomes == [True]
+    assert backup._ordinary_admission_waiters == 0 and backup.readiness()["ready"]
+    assert long._inventory(repo, data) == original
+
+
+def test_real_command_intent_interrupts_an_ordinary_passive_wait(tmp_path, monkeypatch):
+    import threading
+
+    repo, data, backup, settings = setup(tmp_path)
+    original = long._inventory(repo, data)
+    waiting = _observe_ordinary_wait(backup, monkeypatch)
+    command_intent, ordinary_finished = threading.Event(), threading.Event()
+    notify = backup._maintenance_condition.notify_all
+    outcomes, packages = [], []
+
+    def observe_intent():
+        if backup._maintenance_command:
+            command_intent.set()
+        notify()
+
+    def ordinary():
+        try:
+            with settings.admission() as allowed:
+                outcomes.append(allowed)
+        finally:
+            ordinary_finished.set()
+
+    monkeypatch.setattr(backup._maintenance_condition, "notify_all", observe_intent)
+    writer = threading.Thread(target=ordinary, name="ordinary-admission-waiter", daemon=True)
+    command = threading.Thread(target=lambda: packages.append(backup.create_backup()), daemon=True)
+    try:
+        with _hold_owned_passive(backup, monkeypatch):
+            writer.start()
+            assert waiting.wait(3)
+            command.start()
+            assert command_intent.wait(3)
+            assert ordinary_finished.wait(1), "real command intent must not join the passive-only wait"
+            assert outcomes == [False] and packages == []
+    finally:
+        writer.join(6)
+        if command.ident is not None:
+            command.join(6)
+    assert not writer.is_alive() and not command.is_alive() and len(packages) == 1
+    assert backup._ordinary_admission_waiters == 0
+    assert long._inventory(repo, data) == original
+
+
+@pytest.mark.parametrize("boundary", ["real-command", "external-ex", "stale-etag", "restore-pending"])
+def test_ordinary_mutation_keeps_real_protection_fail_closed_without_waiting(tmp_path, monkeypatch, boundary):
+    import subprocess
+    import sys
+    from contextlib import ExitStack
+
+    from youtube_intel.local_api import ApiError, LocalApiApplication
+    from youtube_intel.orchestration_service import ProductOrchestrationService
+
+    repo, data, backup, settings = setup(tmp_path)
+    app = LocalApiApplication(repo, ProductOrchestrationService(repo), data_root=data,
+        local_intelligence_settings=settings, backup_restore_service=backup)
+    original = long._inventory(repo, data)
+
+    def never_wait(*args, **kwargs):
+        pytest.fail("ordinary mutation waited for actual or external protection")
+
+    monkeypatch.setattr(backup._maintenance_condition, "wait", never_wait)
+    writer = None
+    try:
+        with ExitStack() as stack:
+            if boundary == "real-command":
+                stack.enter_context(backup._protect_background())
+            elif boundary == "external-ex":
+                writer = subprocess.Popen([sys.executable, "-c",
+                    "from pathlib import Path; import sys; from youtube_intel.tracked_retry_context import store_lock; "
+                    "guard=store_lock(Path(sys.argv[1]),exclusive=True); guard.__enter__(); print('LOCKED',flush=True); "
+                    "sys.stdin.readline(); guard.__exit__(None,None,None)",
+                    str(backup.machine_configuration_root / ".admission")],
+                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+                assert writer.stdout.readline().strip() == "LOCKED"
+            elif boundary == "stale-etag":
+                settings.bound_etag = "f" * 64
+            else:
+                download = backup.backup_download(backup.create_backup().backup_id)
+                staged = backup.stage_restore(download[0].read_bytes())
+                backup.confirm_restore(staged.restore_id)
+            with pytest.raises(ApiError) as refused:
+                app.handle("PUT", "/api/v1/settings/output-language", b'{"output_language":"en"}')
+            assert refused.value.code == "CONFIGURATION_APPLYING"
+    finally:
+        if writer is not None:
+            writer.communicate("release\n", timeout=5)
+            assert writer.returncode == 0
+    assert backup._ordinary_admission_waiters == 0
     assert long._inventory(repo, data) == original

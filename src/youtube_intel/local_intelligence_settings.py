@@ -321,7 +321,7 @@ class LocalIntelligenceSettings:
     def admission(self, *, maintenance: bool = False) -> Iterator[bool]:
         with ExitStack() as stack:
             try:
-                stack.enter_context(self.backup.admission_lock())
+                stack.enter_context(self.backup.ordinary_admission_lock())
             except (RetryConflict, RetryIntegrity):
                 yield False
                 return
