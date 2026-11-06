@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
+import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import ExitStack
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +27,7 @@ from youtube_intel.local_api import ApiError, LocalApiApplication
 from youtube_intel.orchestration_service import ProductOrchestrationService
 
 runtime_tests = _load_module("test_synthesis_runtime")
+settings_tests = _load_module("test_local_intelligence_settings")
 
 
 def setup(tmp_path: Path, branch: str = "positive", *, qualified: bool = True, execution: bool = True) -> Any:
@@ -83,6 +89,139 @@ def test_configure_review_confirm_restart_deduplicates_database_and_journal(tmp_
     with pytest.raises(ApiError):
         runtime_tests.confirm(app, video, value)
     assert len(calls) == 1 and restarted.status()["held_requests"] == 1
+
+
+@pytest.mark.parametrize("operation", ["status", "update"])
+def test_policy_waits_for_owned_passive_readiness_then_completes_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, operation: str,
+) -> None:
+    repo, root, source, video, service, app, policy, backup, calls, clock = setup(tmp_path)
+    configure(app)
+    runtime_tests.confirm(app, video, runtime_tests.review(app, video))
+    previous = policy.status()
+    inventory = runtime_tests.support._inventory(repo, root)
+    original_journal = policy.path.read_bytes()
+    appended: list[str] = []
+    append = policy._append
+
+    def observe_append(journal: dict[str, Any], kind: str, value: dict[str, Any]) -> None:
+        appended.append(kind)
+        append(journal, kind, value)
+
+    monkeypatch.setattr(policy, "_append", observe_append)
+    waiting = settings_tests._observe_ordinary_wait(backup, monkeypatch)
+    outcomes: list[Any] = []
+    finished = threading.Event()
+
+    def request() -> None:
+        try:
+            if operation == "status":
+                outcomes.append(app.handle("GET", "/api/v1/settings/cloud-spending-policy"))
+            else:
+                body = {"expected_revision": previous["revision"], "enabled": False, "total_cny": "9",
+                    "per_request_cny": "1", "max_calls": 8, "accept_price_hash": previous["price"]["price_hash"],
+                    "acknowledge": True}
+                outcomes.append(app.handle("PUT", "/api/v1/settings/cloud-spending-policy", json.dumps(body).encode()))
+        except Exception as error:
+            outcomes.append(error)
+        finally:
+            finished.set()
+
+    reader = threading.Thread(target=request, name="ordinary-admission-waiter", daemon=True)
+    try:
+        with settings_tests._hold_owned_passive(backup, monkeypatch) as release:
+            reader.start()
+            assert waiting.wait(3), "policy request must wait for its known passive reader"
+            assert not finished.is_set()
+            assert backup.readiness()["reasons"] == ["MAINTENANCE_ACTIVE"]
+            release.set()
+            assert finished.wait(3)
+    finally:
+        reader.join(6)
+    assert not reader.is_alive() and len(outcomes) == 1
+    assert not isinstance(outcomes[0], Exception), outcomes
+    status, response = outcomes[0]
+    current = response["spending_policy"]
+    assert status == 200 and current["revision"] == previous["revision"] + (operation == "update")
+    assert current["held_microunits"] == previous["held_microunits"] > 0
+    assert current["held_requests"] == previous["held_requests"] == 1
+    assert current["actual_cost_status"] == "UNKNOWN" and len(calls) == 1
+    assert appended == (["POLICY"] if operation == "update" else [])
+    if operation == "status":
+        assert current == previous and policy.path.read_bytes() == original_journal
+    else:
+        assert current["policy"]["enabled"] is False and current["policy"]["total_microunits"] == 9_000_000
+    assert backup._ordinary_admission_waiters == 0 and backup.readiness()["ready"]
+    assert runtime_tests.support._inventory(repo, root) == inventory
+
+
+def test_policy_passive_wait_times_out_without_resetting_or_replaying_history(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from youtube_intel import backup_restore
+
+    repo, root, source, video, service, app, policy, backup, calls, clock = setup(tmp_path)
+    previous = configure(app)
+    inventory = runtime_tests.support._inventory(repo, root)
+    journal = policy.path.read_bytes()
+    monkeypatch.setattr(backup_restore, "_PASSIVE_ADMISSION_WAIT_SECONDS", 0.02)
+    with settings_tests._hold_owned_passive(backup, monkeypatch):
+        started = time.monotonic()
+        assert policy.status()["held_microunits"] is None
+        with pytest.raises(SpendingPolicyRejected) as refused:
+            policy.update(expected_revision=previous["revision"], enabled=False, total_cny="8", per_request_cny="1",
+                max_calls=8, accept_price_hash=previous["price"]["price_hash"], acknowledge=True)
+        assert refused.value.code == "CLOUD_JOURNAL_UNAVAILABLE" and time.monotonic() - started < 1
+        assert backup._ordinary_admission_waiters == 0
+        assert policy.path.read_bytes() == journal
+    assert policy.status() == previous and calls == []
+    assert runtime_tests.support._inventory(repo, root) == inventory
+
+
+@pytest.mark.parametrize("boundary", ["real-command", "external-ex", "unsafe-inode"])
+def test_policy_keeps_real_and_unknown_protection_closed_without_waiting(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, boundary: str,
+) -> None:
+    repo, root, source, video, service, app, policy, backup, calls, clock = setup(tmp_path)
+    previous = configure(app)
+    inventory = runtime_tests.support._inventory(repo, root)
+    journal = policy.path.read_bytes()
+
+    def never_wait(*args: Any, **kwargs: Any) -> None:
+        pytest.fail("cloud policy waited for actual maintenance or unknown OS protection")
+
+    monkeypatch.setattr(backup._maintenance_condition, "wait", never_wait)
+    writer = None
+    try:
+        with ExitStack() as stack:
+            if boundary == "real-command":
+                stack.enter_context(backup._protect_background())
+            elif boundary == "external-ex":
+                writer = subprocess.Popen([sys.executable, "-c",
+                    "from pathlib import Path; import sys; from youtube_intel.tracked_retry_context import store_lock; "
+                    "guard=store_lock(Path(sys.argv[1]),exclusive=True); guard.__enter__(); print('LOCKED',flush=True); "
+                    "sys.stdin.readline(); guard.__exit__(None,None,None)",
+                    str(backup.machine_configuration_root / ".admission")],
+                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+                assert writer.stdout is not None and writer.stdout.readline().strip() == "LOCKED"
+            else:
+                admission = backup.machine_configuration_root / ".tracked-content-retry-locks" / "store.lock"
+                (tmp_path / "unsafe-admission-hardlink").hardlink_to(admission)
+            status, response = app.handle("GET", "/api/v1/settings/cloud-spending-policy")
+            assert status == 200 and response["spending_policy"]["revision"] is None
+            assert response["spending_policy"]["held_microunits"] is None
+            body = {"expected_revision": previous["revision"], "enabled": False, "total_cny": "8",
+                "per_request_cny": "1", "max_calls": 8, "accept_price_hash": previous["price"]["price_hash"],
+                "acknowledge": True}
+            with pytest.raises(ApiError) as refused:
+                app.handle("PUT", "/api/v1/settings/cloud-spending-policy", json.dumps(body).encode())
+            assert refused.value.code == "CLOUD_JOURNAL_UNAVAILABLE"
+    finally:
+        if writer is not None:
+            writer.communicate("release\n", timeout=5)
+            assert writer.returncode == 0
+    assert backup._ordinary_admission_waiters == 0 and policy.path.read_bytes() == journal and calls == []
+    assert runtime_tests.support._inventory(repo, root) == inventory
 
 
 @pytest.mark.parametrize("extra", [{"price": 0}, {"eligibility": True}, {"consent_kind": "OWNER_QUALIFICATION"},

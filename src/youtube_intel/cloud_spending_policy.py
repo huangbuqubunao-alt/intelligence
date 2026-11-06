@@ -125,7 +125,7 @@ class CloudSpendingPolicy:
 
     @contextmanager
     def _locked(self, *, write: bool) -> Iterator[None]:
-        with self.backup.admission_lock(), managed_directory(self.control) as directory:
+        with self.backup.ordinary_admission_lock(), managed_directory(self.control) as directory:
             self._owned(os.fstat(directory), directory=True)
             flags = os.O_RDWR | os.O_NOFOLLOW | (os.O_CREAT if write else 0)
             fd = os.open(self.lock.name, flags, 0o600, dir_fd=directory)
