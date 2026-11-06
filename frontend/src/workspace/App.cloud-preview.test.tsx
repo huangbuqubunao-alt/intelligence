@@ -436,3 +436,30 @@ it.each([{ language: "en", matching: true }, { language: "zh-CN", matching: true
     expect(confirmations).toHaveLength(0);
   },
 );
+
+it.each([{ language: "en", matching: true }, { language: "zh-CN", matching: true }, { language: "en", matching: false }])(
+  "distinguishes the readable-summary profile and verifies its explicit review ($language, $matching)", async ({ language, matching }) => {
+    localStorage.setItem("yia.ui-language", language);
+    const v4 = "moonshot-k31-system-synthesis-v4-readable-summary-20261107";
+    manual = true;
+    profiles = [{ profile_id: "moonshot-k31-system-synthesis-v1-20261029", provider: "moonshot", model: "kimi-k3.1-pro", qualified: false },
+      { profile_id: "moonshot-k31-system-synthesis-v2-attribution-20261105", provider: "moonshot", model: "kimi-k3.1-pro", qualified: false },
+      { profile_id: "moonshot-k31-system-synthesis-v3-source-level-20261106", provider: "moonshot", model: "kimi-k3.1-pro", qualified: false },
+      { profile_id: v4, provider: "moonshot", model: "kimi-k3.1-pro", qualified: false }];
+    returnedReview = review({ profile_id: matching ? v4 : "moonshot-k31-system-synthesis-v2-attribution-20261105",
+      readiness: { can_confirm: false, blockers: ["MODEL_UNQUALIFIED"], budget_state: "POLICY_READY" } });
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: language === "en" ? "Review cloud Intelligence" : "查看云端洞察预览" }));
+    const select = await screen.findByRole("combobox", { name: language === "en" ? "Cloud model profile" : "云端洞察模型方案" });
+    expect(within(select).getByRole("option", { name: language === "en" ? /Complete Summary comparison/ : /完整摘要对照/ })).toBeTruthy();
+    expect(new Set(Array.from((select as HTMLSelectElement).options).map(option => option.textContent)).size).toBe(4);
+    expect(reviewCommands).toHaveLength(0); expect(confirmations).toHaveLength(0);
+    fireEvent.change(select, { target: { value: v4 } });
+    fireEvent.click(screen.getByRole("button", { name: language === "en" ? "Prepare one request for review" : "准备审核本次请求" }));
+    if (matching) await screen.findByText(/offline-preview-provider/);
+    else await screen.findByText("The cloud review could not be verified. Keep reading this Content, then prepare a new review or check model settings.");
+    const post = vi.mocked(fetch).mock.calls.find(([path]) => String(path).endsWith("/cloud-intelligence/review"));
+    expect(JSON.parse(String(post?.[1]?.body)).profile_id).toBe(v4);
+    expect(confirmations).toHaveLength(0);
+  },
+);

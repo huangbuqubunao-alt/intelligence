@@ -1,4 +1,4 @@
-"""Finite reviewed v2/v3 package evidence; neither user DATA nor spending consent.
+"""Finite reviewed v2/v3/v4 package evidence; neither user DATA nor spending consent.
 
 Only the fixed package loader seals authority. Raw fixtures can validate a record
 but cannot qualify a runtime. Resource bytes are excluded from the code binding
@@ -21,6 +21,7 @@ from .local_distillation_qualification import sha, strict_object, timestamp
 
 VERSION = "system-synthesis-reviewed-qualification-v1"
 SOURCE_LEVEL_VERSION = "system-synthesis-source-level-reviewed-qualification-v1"
+READABLE_SUMMARY_VERSION = "system-synthesis-readable-summary-reviewed-qualification-v1"
 SCOPE = "PUBLIC_YOUTUBE_TIMED"
 CASE_LANGUAGES = {
     "public-aircAruvnKk-en": "en", "public-aircAruvnKk-zh-CN": "zh-CN",
@@ -44,7 +45,7 @@ def digest(value: object) -> str:
 
 
 def qualification_binding(profile_id: str = profile.ATTRIBUTION_PROFILE_ID) -> dict[str, str]:
-    if profile_id not in {profile.ATTRIBUTION_PROFILE_ID, profile.SOURCE_LEVEL_PROFILE_ID}:
+    if profile_id not in {profile.ATTRIBUTION_PROFILE_ID, profile.SOURCE_LEVEL_PROFILE_ID, profile.READABLE_SUMMARY_PROFILE_ID}:
         raise ValueError("Unknown reviewed synthesis profile")
     package = resources.files("youtube_intel")
     descriptor = profile.resolve_profile(profile_id)
@@ -120,7 +121,8 @@ class CaseReceipt(_Strict):
 
 
 class QualificationRecord(_Strict):
-    version: Literal["system-synthesis-reviewed-qualification-v1", "system-synthesis-source-level-reviewed-qualification-v1"]
+    version: Literal["system-synthesis-reviewed-qualification-v1", "system-synthesis-source-level-reviewed-qualification-v1",
+        "system-synthesis-readable-summary-reviewed-qualification-v1"]
     binding: dict[str, str]
     generated_at: str
     freeze_sha256: str
@@ -132,8 +134,9 @@ class QualificationRecord(_Strict):
     def permits(self, profile_id: str, scope: str, language: str, now: datetime) -> bool:
         try:
             generated = timestamp(self.generated_at)
-            return (profile_id in {profile.ATTRIBUTION_PROFILE_ID, profile.SOURCE_LEVEL_PROFILE_ID}
-                and self.version == (VERSION if profile_id == profile.ATTRIBUTION_PROFILE_ID else SOURCE_LEVEL_VERSION)
+            return (profile_id in {profile.ATTRIBUTION_PROFILE_ID, profile.SOURCE_LEVEL_PROFILE_ID, profile.READABLE_SUMMARY_PROFILE_ID}
+                and self.version == (VERSION if profile_id == profile.ATTRIBUTION_PROFILE_ID else
+                    READABLE_SUMMARY_VERSION if profile_id == profile.READABLE_SUMMARY_PROFILE_ID else SOURCE_LEVEL_VERSION)
                 and scope == SCOPE and language in {"en", "zh-CN"}
                 and now.tzinfo is not None and generated <= now
                 and self.binding == qualification_binding(profile_id)
@@ -189,6 +192,8 @@ def read_reviewed_qualifications(raw: bytes | None = None, *,
             version, resource = VERSION, "resources/system_synthesis_qualification_v1.json"
         elif profile_id == profile.SOURCE_LEVEL_PROFILE_ID:
             version, resource = SOURCE_LEVEL_VERSION, "resources/system_synthesis_source_level_qualification_v1.json"
+        elif profile_id == profile.READABLE_SUMMARY_PROFILE_ID:
+            version, resource = READABLE_SUMMARY_VERSION, "resources/system_synthesis_readable_summary_qualification_v1.json"
         else:
             return SynthesisQualificationAuthority()
         package_source = raw is None

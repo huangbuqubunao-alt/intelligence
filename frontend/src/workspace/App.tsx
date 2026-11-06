@@ -1894,7 +1894,7 @@ function CloudIntelligencePreview({ id, manual, executionKey, onSettled }: { id:
       <h3>{t("Cloud Intelligence disclosure")}</h3>
       {manual && profiles.data && Array.isArray(profiles.data.profiles) && profiles.data.profiles.length > 0 && <label>{t("Cloud model profile")}
         <select disabled={busy} value={selectedProfile} onChange={event => { setSelectedProfile(event.target.value); setReview(null); manualCommand.current = commandId(); }}>
-          {profiles.data.profiles.map(profile => <option key={profile.profile_id} value={profile.profile_id}>{profile.provider} · {profile.model}{profile.profile_id === "moonshot-k31-system-synthesis-v2-attribution-20261105" ? ` · ${t("Explicit speaker attribution policy")}` : profile.profile_id === "moonshot-k31-system-synthesis-v3-source-level-20261106" ? ` · ${t("Source-level attribution")}` : ""}{profile.qualified ? "" : ` · ${t("Not qualified")}`}</option>)}
+          {profiles.data.profiles.map(profile => <option key={profile.profile_id} value={profile.profile_id}>{profile.provider} · {profile.model}{profile.profile_id === "moonshot-k31-system-synthesis-v2-attribution-20261105" ? ` · ${t("Explicit speaker attribution policy")}` : profile.profile_id === "moonshot-k31-system-synthesis-v4-readable-summary-20261107" ? ` · ${t("Complete Summary comparison")}` : profile.profile_id === "moonshot-k31-system-synthesis-v3-source-level-20261106" ? ` · ${t("Source-level attribution")}` : ""}{profile.qualified ? "" : ` · ${t("Not qualified")}`}</option>)}
         </select>
       </label>}
       {includesSummary && <p>{t("The reviewed request includes the complete stored Summary as comparison context. Review all outgoing data before authorization.")}</p>}

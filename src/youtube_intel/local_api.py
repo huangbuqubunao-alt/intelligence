@@ -557,6 +557,7 @@ class LocalApiApplication:
         cloud_synthesis_service: PersonalizedDistillationService | None = None,
         cloud_synthesis_v2_service: PersonalizedDistillationService | None = None,
         cloud_synthesis_v3_service: PersonalizedDistillationService | None = None,
+        cloud_synthesis_v4_service: PersonalizedDistillationService | None = None,
         cloud_spending_policy: CloudSpendingPolicy | None = None,
         cloud_synthesis_qualified: bool = False,
         cloud_synthesis_v2_qualified: bool = False,
@@ -569,6 +570,7 @@ class LocalApiApplication:
         refresh_cloud_synthesis: Callable[[], PersonalizedDistillationService] | None = None,
         refresh_cloud_synthesis_v2: Callable[[], PersonalizedDistillationService] | None = None,
         refresh_cloud_synthesis_v3: Callable[[], PersonalizedDistillationService] | None = None,
+        refresh_cloud_synthesis_v4: Callable[[], PersonalizedDistillationService] | None = None,
         processing_orchestrator: DurableProcessingOrchestrator | None = None,
         data_root: Path | None = None,
         vault_root: Path | None = None,
@@ -605,6 +607,7 @@ class LocalApiApplication:
         self._cloud_synthesis_service = cloud_synthesis_service
         self._cloud_synthesis_v2_service = cloud_synthesis_v2_service
         self._cloud_synthesis_v3_service = cloud_synthesis_v3_service
+        self._cloud_synthesis_v4_service = cloud_synthesis_v4_service
         self._cloud_spending_policy = cloud_spending_policy
         self._cloud_synthesis_qualified = cloud_synthesis_qualified
         # Compatibility metadata only: every v2 quality gate below derives from
@@ -613,6 +616,7 @@ class LocalApiApplication:
         self._refresh_cloud_synthesis = refresh_cloud_synthesis
         self._refresh_cloud_synthesis_v2 = refresh_cloud_synthesis_v2
         self._refresh_cloud_synthesis_v3 = refresh_cloud_synthesis_v3
+        self._refresh_cloud_synthesis_v4 = refresh_cloud_synthesis_v4
         self._cloud_intelligence_qualified = cloud_intelligence_qualified
         # Trusted composition restriction; never writable by a request body.
         self._cloud_execution_enabled = cloud_execution_enabled
@@ -1090,6 +1094,7 @@ class LocalApiApplication:
                 from .system_synthesis_profile import (
                     ATTRIBUTION_PROFILE_ID,
                     PROFILE_ID,
+                    READABLE_SUMMARY_PROFILE_ID,
                     SOURCE_LEVEL_PROFILE_ID,
                 )
                 profiles = []
@@ -1100,6 +1105,8 @@ class LocalApiApplication:
                         self._cloud_synthesis_v2_service.reviewed_synthesis_qualified() if self._cloud_synthesis_v2_service else False),
                     (SOURCE_LEVEL_PROFILE_ID, self._cloud_synthesis_v3_service,
                         self._cloud_synthesis_v3_service.reviewed_synthesis_qualified() if self._cloud_synthesis_v3_service else False),
+                    (READABLE_SUMMARY_PROFILE_ID, self._cloud_synthesis_v4_service,
+                        self._cloud_synthesis_v4_service.reviewed_synthesis_qualified() if self._cloud_synthesis_v4_service else False),
                 ):
                     if candidate_service is not None:
                         profiles.append({"profile_id": profile_id,
@@ -1144,6 +1151,8 @@ class LocalApiApplication:
                     self._cloud_synthesis_v2_service = self._refresh_cloud_synthesis_v2()
                 if self._refresh_cloud_synthesis_v3 is not None:
                     self._cloud_synthesis_v3_service = self._refresh_cloud_synthesis_v3()
+                if self._refresh_cloud_synthesis_v4 is not None:
+                    self._cloud_synthesis_v4_service = self._refresh_cloud_synthesis_v4()
                 return HTTPStatus.OK, self._model_settings.credential_status()
             if method == "POST" and route.startswith("/api/v1/videos/") and route.endswith("/deep-analysis/obsidian"):
                 content_id = self._obsidian_content_id(route)
@@ -1213,12 +1222,16 @@ class LocalApiApplication:
                 from .system_synthesis_profile import (
                     ATTRIBUTION_PROFILE_ID,
                     PROFILE_ID,
+                    READABLE_SUMMARY_PROFILE_ID,
                     SOURCE_LEVEL_PROFILE_ID,
                 )
                 selected_profile = data.get("profile_id", "legacy")
-                if not isinstance(selected_profile, str) or selected_profile not in {"legacy", PROFILE_ID, ATTRIBUTION_PROFILE_ID, SOURCE_LEVEL_PROFILE_ID}:
+                if not isinstance(selected_profile, str) or selected_profile not in {"legacy", PROFILE_ID, ATTRIBUTION_PROFILE_ID, SOURCE_LEVEL_PROFILE_ID, READABLE_SUMMARY_PROFILE_ID}:
                     raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY, "CLOUD_PROFILE_UNKNOWN", "Select a supported backend model profile.")
-                if selected_profile == SOURCE_LEVEL_PROFILE_ID:
+                if selected_profile == READABLE_SUMMARY_PROFILE_ID:
+                    cloud_service = self._cloud_synthesis_v4_service
+                    cloud_qualified = cloud_service.reviewed_synthesis_qualified() if cloud_service else False
+                elif selected_profile == SOURCE_LEVEL_PROFILE_ID:
                     cloud_service = self._cloud_synthesis_v3_service
                     cloud_qualified = cloud_service.reviewed_synthesis_qualified() if cloud_service else False
                 elif selected_profile == ATTRIBUTION_PROFILE_ID:

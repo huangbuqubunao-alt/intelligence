@@ -19,6 +19,7 @@ from .bound_evidence_reference import PROTOCOL
 PROFILE_ID: Final = "system-synthesis-v1"
 ATTRIBUTION_PROFILE_ID: Final = "system-synthesis-v2-attribution"
 SOURCE_LEVEL_PROFILE_ID: Final = "system-synthesis-v3-source-level"
+READABLE_SUMMARY_PROFILE_ID: Final = "system-synthesis-v4-readable-summary"
 GENERATION_ROLE: Final = "SYSTEM_INFERENCE"
 _MAX_INPUT = 128_000
 _MAX_RESPONSE = 2 * 1024 * 1024
@@ -85,7 +86,7 @@ def _contract(profile_id: str) -> str:
         return _CONTRACT
     if profile_id == ATTRIBUTION_PROFILE_ID:
         return _CONTRACT + " " + _ATTRIBUTION_POLICY
-    if profile_id == SOURCE_LEVEL_PROFILE_ID:
+    if profile_id in {SOURCE_LEVEL_PROFILE_ID, READABLE_SUMMARY_PROFILE_ID}:
         return _CONTRACT + " " + _SOURCE_LEVEL_POLICY
     raise ValueError("Unknown system analysis policy")
 
@@ -172,7 +173,13 @@ def _messages(
     contract = (
         _contract(profile_id) + f" There are exactly {len(refs)} original Evidence items. Write generated analysis in {language}."
     )
-    return [{"role": "system", "content": contract}, dict(original[1]), dict(original[2]), dict(checked[-1])]
+    summary_message = dict(checked[-1])
+    if profile_id == READABLE_SUMMARY_PROFILE_ID:
+        summary_message["content"] = "UNTRUSTED_CURRENT_SUMMARY_BASELINE=" + _json({
+            "protocol": baseline.PROTOCOL,
+            "summary": baseline.restore_summary_baseline(summary, source_refs=refs),
+        })
+    return [{"role": "system", "content": contract}, dict(original[1]), dict(original[2]), summary_message]
 
 
 @dataclass(frozen=True, slots=True, init=False)
@@ -232,7 +239,7 @@ def _request(request: SystemSynthesisRequest) -> tuple[dict[str, object], list[d
     if (
         type(request) is not SystemSynthesisRequest
         or getattr(request, "_seal", None) is not _REQUEST_SEAL
-        or request.profile_id not in {PROFILE_ID, ATTRIBUTION_PROFILE_ID, SOURCE_LEVEL_PROFILE_ID}
+        or request.profile_id not in {PROFILE_ID, ATTRIBUTION_PROFILE_ID, SOURCE_LEVEL_PROFILE_ID, READABLE_SUMMARY_PROFILE_ID}
         or request.generation_role != GENERATION_ROLE
     ):
         raise ValueError("Foreign/unsealed system analysis context")

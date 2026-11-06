@@ -616,6 +616,7 @@ def build_local_source_run_runtime(
     from .distillation import ReviewedSynthesisProductionAuthorizationAuthority
     from .synthesis_runtime import (
         MoonshotAttributionSynthesisTransport,
+        MoonshotReadableSummarySynthesisTransport,
         MoonshotSourceLevelSynthesisTransport,
         MoonshotSystemSynthesisTransport,
     )
@@ -629,7 +630,10 @@ def build_local_source_run_runtime(
             provider=SYNTHESIS_PAIR[0], model=SYNTHESIS_PAIR[1],
             capability_scope=DistillationCapabilityScope.V1_VIDEO_DISTILLATION, available=True)
         adapter: type[MoonshotSystemSynthesisTransport]
-        if profile_id == synthesis_profile.SOURCE_LEVEL_PROFILE_ID:
+        if profile_id == synthesis_profile.READABLE_SUMMARY_PROFILE_ID:
+            adapter = MoonshotReadableSummarySynthesisTransport
+            authority = read_reviewed_qualifications(profile_id=profile_id)
+        elif profile_id == synthesis_profile.SOURCE_LEVEL_PROFILE_ID:
             adapter = MoonshotSourceLevelSynthesisTransport
             authority = read_reviewed_qualifications(profile_id=profile_id)
         elif profile_id == synthesis_profile.ATTRIBUTION_PROFILE_ID:
@@ -714,6 +718,7 @@ def build_local_source_run_runtime(
         cloud_synthesis_service=cloud_synthesis,
         cloud_synthesis_v2_service=synthesis_service(profile_id=synthesis_profile.ATTRIBUTION_PROFILE_ID),
         cloud_synthesis_v3_service=synthesis_service(profile_id=synthesis_profile.SOURCE_LEVEL_PROFILE_ID),
+        cloud_synthesis_v4_service=synthesis_service(profile_id=synthesis_profile.READABLE_SUMMARY_PROFILE_ID),
         cloud_spending_policy=cloud_spending,
         cloud_synthesis_qualified=False,
         cloud_synthesis_v2_qualified=False,
@@ -728,6 +733,7 @@ def build_local_source_run_runtime(
         refresh_cloud_synthesis=synthesis_service,
         refresh_cloud_synthesis_v2=lambda: synthesis_service(profile_id=synthesis_profile.ATTRIBUTION_PROFILE_ID),
         refresh_cloud_synthesis_v3=lambda: synthesis_service(profile_id=synthesis_profile.SOURCE_LEVEL_PROFILE_ID),
+        refresh_cloud_synthesis_v4=lambda: synthesis_service(profile_id=synthesis_profile.READABLE_SUMMARY_PROFILE_ID),
         processing_orchestrator=orchestrator,
         data_root=data_root,
         vault_root=(
