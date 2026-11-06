@@ -268,7 +268,8 @@ def test_actual_normal_confirm_save_topic_restart_restore_and_holds(tmp_path, mo
     configure(app)
     with module.offline():
         profiles = app.handle("GET", "/api/v1/cloud-intelligence/profiles")[1]["profiles"]
-        assert profiles[-1]["qualified"] and not profiles[-2]["qualified"]
+        assert next(row for row in profiles if row["profile_id"] == profile.ATTRIBUTION_PROFILE_ID)["qualified"]
+        assert not next(row for row in profiles if row["profile_id"] == profile.PROFILE_ID)["qualified"]
         old = review(app, video, profile.PROFILE_ID)
         assert "MODEL_UNQUALIFIED" in old["readiness"]["blockers"]
         value = review(app, video)
@@ -331,7 +332,8 @@ def test_permit_checks_exact_proof_scope_language_and_current_binding_at_boundar
     binding = q.qualification_binding()
     monkeypatch.setattr(q, "qualification_binding", lambda: {**binding, "code_sha256": "0" * 64})
     assert not service.reviewed_synthesis_qualified()
-    assert not app.handle("GET", "/api/v1/cloud-intelligence/profiles")[1]["profiles"][-1]["qualified"]
+    assert not next(row for row in app.handle("GET", "/api/v1/cloud-intelligence/profiles")[1]["profiles"]
+        if row["profile_id"] == profile.ATTRIBUTION_PROFILE_ID)["qualified"]
     with pytest.raises(ApiError):
         confirm(app, video, value)
     with pytest.raises(CloudDistillationPreDispatchError):
@@ -409,7 +411,7 @@ def test_invalid_authority_reaches_no_normal_api_service_or_transport_claim(tmp_
     seal_record(record)
     if damage == "raw":
         unsealed = q.read_reviewed_qualifications(payload(record))
-        monkeypatch.setattr(q, "read_reviewed_qualifications", lambda: unsealed)
+        monkeypatch.setattr(q, "read_reviewed_qualifications", lambda **kwargs: unsealed)
     module, root, video, composition, service, calls = actual_factory(tmp_path, monkeypatch,
         qualified=damage != "raw", record=record)
     app = composition.application

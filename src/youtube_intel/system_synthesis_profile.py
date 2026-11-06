@@ -11,7 +11,8 @@ from .system_synthesis import SystemSynthesisRequest
 
 PROFILE_ID: Final = "moonshot-k31-system-synthesis-v1-20261029"
 ATTRIBUTION_PROFILE_ID: Final = "moonshot-k31-system-synthesis-v2-attribution-20261105"
-PROFILE_IDS: Final = (PROFILE_ID, ATTRIBUTION_PROFILE_ID)
+SOURCE_LEVEL_PROFILE_ID: Final = "moonshot-k31-system-synthesis-v3-source-level-20261106"
+PROFILE_IDS: Final = (PROFILE_ID, ATTRIBUTION_PROFILE_ID, SOURCE_LEVEL_PROFILE_ID)
 PAIR: Final = ("moonshot", "kimi-k3.1-pro")
 
 
@@ -28,10 +29,16 @@ def policy_id(profile_id: str) -> str:
         return synthesis.PROFILE_ID
     if profile_id == ATTRIBUTION_PROFILE_ID:
         return synthesis.ATTRIBUTION_PROFILE_ID
+    if profile_id == SOURCE_LEVEL_PROFILE_ID:
+        return synthesis.SOURCE_LEVEL_PROFILE_ID
     raise ValueError("Unknown system synthesis transport profile")
 
 
 def resolve_profile(profile_id: str) -> dict[str, Any]:
+    if profile_id == SOURCE_LEVEL_PROFILE_ID:
+        policy = synthesis.profile_projection(synthesis.SOURCE_LEVEL_PROFILE_ID)
+        return {**resolve_profile(PROFILE_ID), "id": profile_id,
+            "policy_id": synthesis.SOURCE_LEVEL_PROFILE_ID, "policy_sha256": sha(canonical(policy))}
     if profile_id == ATTRIBUTION_PROFILE_ID:
         policy = synthesis.profile_projection(synthesis.ATTRIBUTION_PROFILE_ID)
         return {**resolve_profile(PROFILE_ID), "id": profile_id,

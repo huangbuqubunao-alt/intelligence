@@ -169,15 +169,18 @@ class M12QualifiedCloudProductionAuthorizationAuthority(
 
 
 class ReviewedSynthesisProductionAuthorizationAuthority:
-    """A finite v2 mint backed by reviewed package evidence, never M12/trial."""
+    """A finite version-bound mint backed by reviewed package evidence, never M12/trial."""
 
     @staticmethod
-    def resolve(*, authority: SynthesisQualificationAuthority, available: bool) -> ProviderProductionEligibility:
+    def resolve(*, authority: SynthesisQualificationAuthority, available: bool,
+        profile_id: str = synthesis_profile.ATTRIBUTION_PROFILE_ID) -> ProviderProductionEligibility:
         from .system_synthesis_qualification import SynthesisQualificationAuthority
 
         if type(authority) is not SynthesisQualificationAuthority or type(available) is not bool:
             raise TypeError("reviewed synthesis eligibility requires the package authority")
-        qualified = all(authority.permits(synthesis_profile.ATTRIBUTION_PROFILE_ID, language) for language in ("en", "zh-CN"))
+        if profile_id not in {synthesis_profile.ATTRIBUTION_PROFILE_ID, synthesis_profile.SOURCE_LEVEL_PROFILE_ID}:
+            raise ValueError("Unknown reviewed synthesis profile")
+        qualified = all(authority.permits(profile_id, language) for language in ("en", "zh-CN"))
         eligibility = object.__new__(ProviderProductionEligibility)
         for name, value in {"provider": synthesis_profile.PAIR[0], "model": synthesis_profile.PAIR[1],
             "capability_scope": DistillationCapabilityScope.V1_VIDEO_DISTILLATION, "available": available,
@@ -799,13 +802,14 @@ class CloudDistillationAuthorization:
         eligibility = self._normal_eligibility
         return eligibility is not None and eligibility.production_eligible
 
-    def reviewed_synthesis_qualified(self, language: str) -> bool:
+    def reviewed_synthesis_qualified(self, language: str, *,
+        profile_id: str = synthesis_profile.ATTRIBUTION_PROFILE_ID) -> bool:
         from .system_synthesis_qualification import SynthesisQualificationAuthority
 
         eligibility = self._normal_eligibility
         authority = eligibility._synthesis_qualification if eligibility is not None else None
         return (type(authority) is SynthesisQualificationAuthority
-            and authority.permits(synthesis_profile.ATTRIBUTION_PROFILE_ID, language))
+            and authority.permits(profile_id, language))
 
     def permits(self, verified_input: VerifiedDistillationInput) -> bool:
         if not (
@@ -826,9 +830,9 @@ class CloudDistillationAuthorization:
             is DistillationCapabilityScope.V1_VIDEO_DISTILLATION
         )
         if normal and self._normal_eligibility is not None and self._normal_eligibility._synthesis_qualification is not None:
-            normal = (verified_input.wire_version == synthesis_profile.ATTRIBUTION_PROFILE_ID
+            normal = (verified_input.wire_version in {synthesis_profile.ATTRIBUTION_PROFILE_ID, synthesis_profile.SOURCE_LEVEL_PROFILE_ID}
                 and _cloud_source_allowed(verified_input)
-                and self.reviewed_synthesis_qualified(verified_input.output_language))
+                and self.reviewed_synthesis_qualified(verified_input.output_language, profile_id=verified_input.wire_version))
         qualification = (
             isinstance(self.qualification_input_hash, str)
             and len(self.qualification_input_hash) == 64
@@ -3748,10 +3752,14 @@ class PersonalizedDistillationService:
 
     def reviewed_synthesis_qualified(self, language: str | None = None) -> bool:
         """Current quality only; credentials, budget and consent stay separate."""
-        from .synthesis_runtime import MoonshotAttributionSynthesisTransport
+        from .synthesis_runtime import (
+            MoonshotAttributionSynthesisTransport,
+            MoonshotSourceLevelSynthesisTransport,
+        )
 
-        return (type(self._transport) is MoonshotAttributionSynthesisTransport
-            and all(self._transport._authorization.reviewed_synthesis_qualified(item)
+        return ((type(self._transport) is MoonshotAttributionSynthesisTransport
+                or type(self._transport) is MoonshotSourceLevelSynthesisTransport)
+            and all(self._transport._authorization.reviewed_synthesis_qualified(item, profile_id=self._transport.synthesis_profile_id)
                 for item in ((language,) if language is not None else ("en", "zh-CN"))))
 
     def _transport_permits(
@@ -3876,7 +3884,7 @@ class PersonalizedDistillationService:
         """Project exact trusted input without persistence, credentials or budget checks."""
         command, value = self._prospective_cloud_command(source_id=source_id, video_id=video_id,
             evidence_ids=evidence_ids, manual_command_id=manual_command_id)
-        if self._synthesis_profile_id == synthesis_profile.ATTRIBUTION_PROFILE_ID:
+        if self._synthesis_profile_id in {synthesis_profile.ATTRIBUTION_PROFILE_ID, synthesis_profile.SOURCE_LEVEL_PROFILE_ID}:
             qualified = self.reviewed_synthesis_qualified(value.output_language)
         now = self._now()
         expires = now + timedelta(minutes=5)

@@ -36,7 +36,7 @@ def prepared_input(value: VerifiedDistillationInput) -> persistence.PreparedSynt
         or sorted(r["evidence_id"] for r in proof["capture"]["source_refs"]) != sorted(value.evidence_ids)
     ):
         raise ValueError("Synthesis input binding differs")
-    if value.wire_version == profile.ATTRIBUTION_PROFILE_ID:
+    if value.wire_version in {profile.ATTRIBUTION_PROFILE_ID, profile.SOURCE_LEVEL_PROFILE_ID}:
         try:
             capture = proof["capture"]
             if (proof["source_scope"] != "PUBLIC_YOUTUBE_TIMED_MEDIA"
@@ -89,6 +89,14 @@ class MoonshotAttributionSynthesisTransport(MoonshotSystemSynthesisTransport):
     def is_authorized_for(self, verified_input: VerifiedDistillationInput) -> bool:
         if type(verified_input) is not VerifiedDistillationInput:
             return False
-        if self._authorization.production_eligible and not self._authorization.reviewed_synthesis_qualified(verified_input.output_language):
+        if self._authorization.production_eligible and not self._authorization.reviewed_synthesis_qualified(verified_input.output_language, profile_id=self.synthesis_profile_id):
             return False
         return super().is_authorized_for(verified_input)
+
+
+class MoonshotSourceLevelSynthesisTransport(MoonshotAttributionSynthesisTransport):
+    """Finite v3 source-level policy, sharing the exact guarded send boundary."""
+
+    _REQUEST_PROFILE_VERSION = profile.SOURCE_LEVEL_PROFILE_ID
+    _PROMPT_VERSION = "system-synthesis-v3-source-level"
+    synthesis_profile_id = profile.SOURCE_LEVEL_PROFILE_ID

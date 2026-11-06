@@ -611,28 +611,42 @@ def build_local_source_run_runtime(
         )
 
     cloud_distillation = cloud_service()
+    from . import system_synthesis_profile as synthesis_profile
     from .cloud_spending_policy import CloudSpendingPolicy
     from .distillation import ReviewedSynthesisProductionAuthorizationAuthority
     from .synthesis_runtime import (
         MoonshotAttributionSynthesisTransport,
+        MoonshotSourceLevelSynthesisTransport,
         MoonshotSystemSynthesisTransport,
     )
     from .system_synthesis_profile import PAIR as SYNTHESIS_PAIR
     from .system_synthesis_qualification import read_reviewed_qualifications
     cloud_spending = CloudSpendingPolicy(repository, backup_restore)
 
-    def synthesis_service(*, attribution: bool = False) -> PersonalizedDistillationService:
-        # The old adapter remains closed; v2 uses only reviewed package evidence.
+    def synthesis_service(*, profile_id: str = synthesis_profile.PROFILE_ID) -> PersonalizedDistillationService:
+        # Reviewed versions each require their own exact package evidence.
         closed_eligibility = M12QualifiedCloudProductionAuthorizationAuthority.resolve(
             provider=SYNTHESIS_PAIR[0], model=SYNTHESIS_PAIR[1],
             capability_scope=DistillationCapabilityScope.V1_VIDEO_DISTILLATION, available=True)
-        adapter = MoonshotAttributionSynthesisTransport if attribution else MoonshotSystemSynthesisTransport
+        adapter: type[MoonshotSystemSynthesisTransport]
+        if profile_id == synthesis_profile.SOURCE_LEVEL_PROFILE_ID:
+            adapter = MoonshotSourceLevelSynthesisTransport
+            authority = read_reviewed_qualifications(profile_id=profile_id)
+        elif profile_id == synthesis_profile.ATTRIBUTION_PROFILE_ID:
+            adapter = MoonshotAttributionSynthesisTransport
+            authority = read_reviewed_qualifications()
+        elif profile_id == synthesis_profile.PROFILE_ID:
+            adapter = MoonshotSystemSynthesisTransport
+            authority = None
+        else:
+            raise ValueError("Unknown synthesis service profile")
+        reviewed = authority is not None
         candidate_eligibility = (ReviewedSynthesisProductionAuthorizationAuthority.resolve(
-            authority=read_reviewed_qualifications(), available=True) if attribution else closed_eligibility)
+            authority=authority, available=True, profile_id=profile_id) if authority is not None else closed_eligibility)
         synthesis_transport = adapter(
             authorization=CloudDistillationAuthorization.for_normal_production(
-                eligibility=candidate_eligibility, cloud_enabled=attribution and allow_cloud_execution,
-                credential_available=attribution and bool(model_settings.credential())),
+                eligibility=candidate_eligibility, cloud_enabled=reviewed and allow_cloud_execution,
+                credential_available=reviewed and bool(model_settings.credential())),
             credential_resolver=model_settings.credential)
         return PersonalizedDistillationService(repository, source_policy, synthesis_transport,
             ProductionDistillationBudget(), now=now_fn,
@@ -698,7 +712,8 @@ def build_local_source_run_runtime(
         distillation_service=distillation,
         cloud_distillation_service=cloud_distillation,
         cloud_synthesis_service=cloud_synthesis,
-        cloud_synthesis_v2_service=synthesis_service(attribution=True),
+        cloud_synthesis_v2_service=synthesis_service(profile_id=synthesis_profile.ATTRIBUTION_PROFILE_ID),
+        cloud_synthesis_v3_service=synthesis_service(profile_id=synthesis_profile.SOURCE_LEVEL_PROFILE_ID),
         cloud_spending_policy=cloud_spending,
         cloud_synthesis_qualified=False,
         cloud_synthesis_v2_qualified=False,
@@ -711,7 +726,8 @@ def build_local_source_run_runtime(
         local_intelligence_settings=machine_settings,
         refresh_cloud_distillation=cloud_service,
         refresh_cloud_synthesis=synthesis_service,
-        refresh_cloud_synthesis_v2=lambda: synthesis_service(attribution=True),
+        refresh_cloud_synthesis_v2=lambda: synthesis_service(profile_id=synthesis_profile.ATTRIBUTION_PROFILE_ID),
+        refresh_cloud_synthesis_v3=lambda: synthesis_service(profile_id=synthesis_profile.SOURCE_LEVEL_PROFILE_ID),
         processing_orchestrator=orchestrator,
         data_root=data_root,
         vault_root=(

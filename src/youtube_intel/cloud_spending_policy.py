@@ -248,8 +248,8 @@ class CloudSpendingPolicy:
         journal, entries, policy = loaded
         held, count = self._totals(entries)
         if profile_id is None:
-            profile_id = (profile.ATTRIBUTION_PROFILE_ID if policy is not None
-                and policy["price_hash"] == price_disclosure(profile.ATTRIBUTION_PROFILE_ID)["price_hash"] else profile.PROFILE_ID)
+            profile_id = next((identity for identity in profile.PROFILE_IDS if policy is not None
+                and policy["price_hash"] == price_disclosure(identity)["price_hash"]), profile.PROFILE_ID)
         price = price_disclosure(profile_id)
         code = "CLOUD_SPENDING_POLICY_REQUIRED" if policy is None or not policy["enabled"] else (
             "CLOUD_PRICE_ACCEPTANCE_REQUIRED" if policy["price_hash"] != price["price_hash"] else None)

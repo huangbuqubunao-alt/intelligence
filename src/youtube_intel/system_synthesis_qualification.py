@@ -1,4 +1,4 @@
-"""Finite reviewed v2 package evidence; neither user DATA nor spending consent.
+"""Finite reviewed v2/v3 package evidence; neither user DATA nor spending consent.
 
 Only the fixed package loader seals authority. Raw fixtures can validate a record
 but cannot qualify a runtime. Resource bytes are excluded from the code binding
@@ -20,6 +20,7 @@ from . import system_synthesis_profile as profile
 from .local_distillation_qualification import sha, strict_object, timestamp
 
 VERSION = "system-synthesis-reviewed-qualification-v1"
+SOURCE_LEVEL_VERSION = "system-synthesis-source-level-reviewed-qualification-v1"
 SCOPE = "PUBLIC_YOUTUBE_TIMED"
 CASE_LANGUAGES = {
     "public-aircAruvnKk-en": "en", "public-aircAruvnKk-zh-CN": "zh-CN",
@@ -42,13 +43,15 @@ def digest(value: object) -> str:
     return profile.sha(profile.canonical(value))
 
 
-def qualification_binding() -> dict[str, str]:
+def qualification_binding(profile_id: str = profile.ATTRIBUTION_PROFILE_ID) -> dict[str, str]:
+    if profile_id not in {profile.ATTRIBUTION_PROFILE_ID, profile.SOURCE_LEVEL_PROFILE_ID}:
+        raise ValueError("Unknown reviewed synthesis profile")
     package = resources.files("youtube_intel")
-    descriptor = profile.resolve_profile(profile.ATTRIBUTION_PROFILE_ID)
-    return {"profile_id": profile.ATTRIBUTION_PROFILE_ID, "scope": SCOPE,
+    descriptor = profile.resolve_profile(profile_id)
+    return {"profile_id": profile_id, "scope": SCOPE,
         "provider": profile.PAIR[0], "model": profile.PAIR[1],
-        "profile_sha256": digest(descriptor), "policy_id": synthesis.ATTRIBUTION_PROFILE_ID,
-        "policy_sha256": digest(synthesis.profile_projection(synthesis.ATTRIBUTION_PROFILE_ID)),
+        "profile_sha256": digest(descriptor), "policy_id": profile.policy_id(profile_id),
+        "policy_sha256": digest(synthesis.profile_projection(profile.policy_id(profile_id))),
         "code_sha256": digest({name: hashlib.sha256(package.joinpath(name).read_bytes()).hexdigest()
             for name in CODE_FILES})}
 
@@ -117,7 +120,7 @@ class CaseReceipt(_Strict):
 
 
 class QualificationRecord(_Strict):
-    version: Literal["system-synthesis-reviewed-qualification-v1"]
+    version: Literal["system-synthesis-reviewed-qualification-v1", "system-synthesis-source-level-reviewed-qualification-v1"]
     binding: dict[str, str]
     generated_at: str
     freeze_sha256: str
@@ -129,9 +132,11 @@ class QualificationRecord(_Strict):
     def permits(self, profile_id: str, scope: str, language: str, now: datetime) -> bool:
         try:
             generated = timestamp(self.generated_at)
-            return (profile_id == profile.ATTRIBUTION_PROFILE_ID and scope == SCOPE and language in {"en", "zh-CN"}
+            return (profile_id in {profile.ATTRIBUTION_PROFILE_ID, profile.SOURCE_LEVEL_PROFILE_ID}
+                and self.version == (VERSION if profile_id == profile.ATTRIBUTION_PROFILE_ID else SOURCE_LEVEL_VERSION)
+                and scope == SCOPE and language in {"en", "zh-CN"}
                 and now.tzinfo is not None and generated <= now
-                and self.binding == qualification_binding()
+                and self.binding == qualification_binding(profile_id)
                 and all(sha(h) for h in (self.freeze_sha256, self.oracle_sha256, self.matrix_sha256))
                 and self.record_sha256 == digest(self.model_dump(exclude={"record_sha256"}))
                 and [(c.case_id, c.output_language) for c in self.cases] == list(CASE_LANGUAGES.items())
@@ -163,7 +168,7 @@ class QualificationRecord(_Strict):
 
 @dataclass(frozen=True, slots=True, init=False)
 class SynthesisQualificationAuthority:
-    """Only a package-sealed complete record may support a normal v2 permit."""
+    """Only a package-sealed complete record may support a normal version-bound permit."""
 
     _record: QualificationRecord | None = None
     _seal: object | None = None
@@ -177,20 +182,29 @@ class SynthesisQualificationAuthority:
             and self._record.permits(profile_id, scope, language, now or datetime.now(UTC)))
 
 
-def read_reviewed_qualifications(raw: bytes | None = None) -> SynthesisQualificationAuthority:
+def read_reviewed_qualifications(raw: bytes | None = None, *,
+    profile_id: str = profile.ATTRIBUTION_PROFILE_ID) -> SynthesisQualificationAuthority:
     try:
+        if profile_id == profile.ATTRIBUTION_PROFILE_ID:
+            version, resource = VERSION, "resources/system_synthesis_qualification_v1.json"
+        elif profile_id == profile.SOURCE_LEVEL_PROFILE_ID:
+            version, resource = SOURCE_LEVEL_VERSION, "resources/system_synthesis_source_level_qualification_v1.json"
+        else:
+            return SynthesisQualificationAuthority()
         package_source = raw is None
         if raw is None:
-            path = resources.files("youtube_intel").joinpath("resources/system_synthesis_qualification_v1.json")
+            path = resources.files("youtube_intel").joinpath(resource)
             with path.open("rb") as stream:
                 raw = stream.read(262145)
         if type(raw) is not bytes or len(raw) > 262144:
             return SynthesisQualificationAuthority()
         value = json.loads(raw, object_pairs_hook=strict_object)
         if (not isinstance(value, dict) or set(value) != {"version", "records"}
-            or value["version"] != VERSION or not isinstance(value["records"], list) or len(value["records"]) != 1):
+            or value["version"] != version or not isinstance(value["records"], list) or len(value["records"]) != 1):
             return SynthesisQualificationAuthority()
         record = QualificationRecord.model_validate(value["records"][0])
+        if record.version != version or record.binding.get("profile_id") != profile_id:
+            return SynthesisQualificationAuthority()
         authority = SynthesisQualificationAuthority()
         object.__setattr__(authority, "_record", record)
         if package_source:
