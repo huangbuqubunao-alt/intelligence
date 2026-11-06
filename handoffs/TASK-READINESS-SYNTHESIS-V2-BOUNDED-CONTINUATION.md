@@ -71,3 +71,24 @@ The proposed actual cost totals remain 3 historical calls / 2913136 microCNY, ne
 No GUI helper is included. The accepted authority slice `d81a8e3` adds no GUI execution interface. A future optional ninth-call helper must read eight real exact receipt/raw-final/stop/model/call/token/reservation records plus independently hash-linked Root semantic PASS and a genuine accepted qualification record. It must bind current accepted source/qualification and one ordinary UI review/proof/full-wire to the separately approved GUI purpose and cap, reserve externally once before ordinary confirmation, then record the ordinary service receipt. Normal policy remains max_calls=1. The controller must never call GUI dispatch, patch eligibility/private state, grant qualification or use its old frozen source grant silently after source changes. Root owns that future minimal seam and actual qualification resource registration.
 
 No complete product/backend/frontend suite, actual model quality, GUI smoke, real billing, backup recovery of actual owner controls or combined-source real eight-case replay was claimed. Those boundaries require Root's later integration and owner decision. Suggested tooling state is IN_REVIEW with actual v2 preparation awaiting Root’s independent location-only witness. Main, live services, production data/configuration, Schema, dependencies and the authority writer's files were untouched. Stop after the scoped commit with a clean worktree.
+
+## Root-assigned r2 preparation-path followup, 2026-11-06
+
+Root accepted this task's `5c86125902658f9f3477f576ebe031abe96bc5ca` into its combined `913bc27` source and independently passed 53 tests and real eight-case r1 materialization/replay/prepare. Root's later combined cold strict check identified 11 pre-existing ASR-script annotation errors, assigned to the separate ASR writer. This followup advances only two finite v2 preparation paths and this handoff, from the original 5c861 worktree. Root owns final combined cold strict/full checks and actual r2 freeze/replay.
+
+The r2 package path is `/Users/hua/Documents/yia-worktrees/readiness-bounded-synthesis-v2-trial/.var/bounded-synthesis-v2-trial/prepared-20261106-r2`. The r2 control path is `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/bounded-synthesis-v2-trial-20261106-r2`. They use the existing finite `v2-r1` variant, attribution profile and limits, including 3 historical calls/2913136 held microCNY, eight runner calls plus optional one ordinary GUI, maximum 12 cumulative calls and 10000000 microCNY. Revision r2 is a new frozen preparation location.
+
+Before changing either constant, a separate standard-library-only readonly check required the r1 control to contain exactly anchor/ledger/approval-skeleton/lock, no grant and no attempt files, ledger attempts=[], skeleton approved=false. The retained r1 binding is `36d273f171e8f840bbf2a50a00dea1a7e97ffb90202517dcef258f3627c982f8`. Original package `/Users/hua/Documents/yia-worktrees/readiness-bounded-synthesis-v2-trial/.var/bounded-synthesis-v2-trial/prepared-20261105-r1` and control `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/bounded-synthesis-v2-trial-20261105` remain retained evidence. Readonly file checks used nofollow and verified regular owned single-link files. Their recorded SHA256 values follow.
+
+| Retained r1 item | SHA256 |
+|---|---|
+| package manifest.json | `ff22c9dbe3ce1156481482851d59d84381356538f682afa0d9b069e828d2b463` |
+| package input-only-oracle.md | `0b6dbae640f06539660d5c112069d6af7a210fbff68ed52ee9a486caaf77e29d` |
+| package source-code-inventory.json | `4e1ec45a3daed80a8f9cefda34badbb85ce31cd89328fec015082d8d6a967e1d` |
+| control anchor.json and sibling initialized marker | `4a5c078a9270432d67910b8a2a6aea2979b558204a1c61c723762dc4003fc6f0` |
+| control ledger.json | `6412e8abed35cc04f665251a50d355f71843e5531a368e7fbb1a4f52bcec691b` |
+| control approval-skeleton.json | `b9d3e6e400b57804821fd483f26f482addd1aa34a4745ef28f28d44fc23f64a6` |
+| control lock | `44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a` |
+| Root location-only witness | `ac14a8e3eb871cf04d82ae783cb1033fc28cc22652b2155f88b43de7e8141b2a` |
+
+Scope checks show exactly the two constant replacements in the controller plus this handoff append. `-m py_compile scripts/validation/bounded_synthesis_trial.py`, `-m ruff check scripts/validation/bounded_synthesis_trial.py` and `git diff --check` passed with the existing Python environment. Root requested literal-only verification for this delta, with comprehensive combined validation and actual r2 preparation assigned to Root. Worker real credential, network, model and fee calls remain zero, and the actual r1 files were read-only throughout.

@@ -49,8 +49,8 @@ LIMITS = {'historical_calls': 2, 'historical_held_microcny': 1943326, 'runner_ne
     'optional_gui_calls': 1, 'max_new_calls': 9, 'max_total_calls': 11, 'per_call_microcny': 1000000,
     'total_microcny': 9000000, 'runner_held_microcny': 5599830, 'gui_held_microcny': 969966,
     'prospective_total_microcny': 8513122}
-V2_PACKAGE = Path('/Users/hua/Documents/yia-worktrees/readiness-bounded-synthesis-v2-trial/.var/bounded-synthesis-v2-trial/prepared-20261105-r1')
-V2_CONTROL = Path('/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/bounded-synthesis-v2-trial-20261105')
+V2_PACKAGE = Path('/Users/hua/Documents/yia-worktrees/readiness-bounded-synthesis-v2-trial/.var/bounded-synthesis-v2-trial/prepared-20261106-r2')
+V2_CONTROL = Path('/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/bounded-synthesis-v2-trial-20261106-r2')
 PARENT_SUMMARY = Path('/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/fee-parent-v2-20261105.json')
 PARENT_SUMMARY_SHA = '80eac13761caba485618f69ec444f2676a24ed83779522f951d5a33eb8f51fb6'
 PARENT_LOCATION_PROOF = PARENT_SUMMARY.with_name('fee-parent-location-v2-20261105.json')
