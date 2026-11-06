@@ -53,6 +53,7 @@ from youtube_intel.state import (
 )
 from youtube_intel.synthesis_runtime import (
     MoonshotAttributionSynthesisTransport,
+    MoonshotSourceLevelSynthesisTransport,
     MoonshotSystemSynthesisTransport,
     prepared_input,
 )
@@ -278,7 +279,8 @@ def ordinary_review(active: LocalSourceRunRuntime, video: str, case: str,
     require(status == 200, 'ORDINARY_REVIEW_FAILED')
     review = cast(dict[str, Any], response['review'])
     require(isinstance(review, dict) and not review['readiness']['can_confirm'], 'PREPARATION_MUST_REMAIN_CLOSED')
-    service = (active.application._cloud_synthesis_v2_service if profile_id == profile.ATTRIBUTION_PROFILE_ID
+    service = (active.application._cloud_synthesis_v3_service if profile_id == profile.SOURCE_LEVEL_PROFILE_ID
+        else active.application._cloud_synthesis_v2_service if profile_id == profile.ATTRIBUTION_PROFILE_ID
         else active.application._cloud_synthesis_service)
     if service is None:
         raise ValueError('SYNTHESIS_SERVICE_REQUIRED')
@@ -296,7 +298,9 @@ def negative_replay(value: Any) -> dict[str, bool]:
     results = {}
     for name, invalid in samples.items():
         try:
-            adapter = MoonshotAttributionSynthesisTransport if value.wire_version == profile.ATTRIBUTION_PROFILE_ID else MoonshotSystemSynthesisTransport
+            adapter = (MoonshotSourceLevelSynthesisTransport if value.wire_version == profile.SOURCE_LEVEL_PROFILE_ID
+                else MoonshotAttributionSynthesisTransport if value.wire_version == profile.ATTRIBUTION_PROFILE_ID
+                else MoonshotSystemSynthesisTransport)
             adapter._request(invalid)
         except (CloudDistillationPreDispatchError, StateStoreError):
             results[name] = True
@@ -312,9 +316,11 @@ def materialize_case(root: Path, artifacts: Path, case: str, video: str, languag
     if profile_id == profile.PROFILE_ID:
         status, _ = active.application.handle('PUT', '/api/v1/settings/output-language', encoded({'output_language': language}))
         require(status == 200, 'LANGUAGE_SETTING_FAILED')
-    candidate_service = (active.application._cloud_synthesis_v2_service if profile_id == profile.ATTRIBUTION_PROFILE_ID
+    candidate_service = (active.application._cloud_synthesis_v3_service if profile_id == profile.SOURCE_LEVEL_PROFILE_ID
+        else active.application._cloud_synthesis_v2_service if profile_id == profile.ATTRIBUTION_PROFILE_ID
         else active.application._cloud_synthesis_service)
-    qualified = (active.application._cloud_synthesis_v2_qualified if profile_id == profile.ATTRIBUTION_PROFILE_ID
+    qualified = (candidate_service.reviewed_synthesis_qualified() if profile_id == profile.SOURCE_LEVEL_PROFILE_ID and candidate_service is not None
+        else active.application._cloud_synthesis_v2_qualified if profile_id == profile.ATTRIBUTION_PROFILE_ID
         else active.application._cloud_synthesis_qualified)
     require(qualified is False, 'QUALIFICATION_MUST_REMAIN_CLOSED')
     require(active.application._cloud_execution_enabled is False, 'EXECUTION_MUST_REMAIN_CLOSED')

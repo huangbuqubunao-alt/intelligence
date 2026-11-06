@@ -14,10 +14,14 @@ _specification.loader.exec_module(trial)
 
 def materialize(spec: dict[str, Any] | None = None) -> dict[str, Any]:
     selected = trial.trial_spec('v2-r1') if spec is None else spec
-    trial.require(selected['variant'] == 'v2-r1', 'V2_MATERIALIZATION_ONLY')
+    trial.require(selected['variant'] in {'v2-r1', 'v3-r1'}, 'FINITE_MATERIALIZATION_ONLY')
     original = selected['original']
-    source_binding = trial.package_binding('v1-r4', _spec=original)
-    parent = trial.parent_binding(selected)
+    if selected['variant'] == 'v3-r1':
+        parent = trial.stopped_v2_parent(selected)
+        source_binding = trial.parsed(original['package'] / 'proposal-not-authorized.json')['binding']
+    else:
+        source_binding = trial.package_binding('v1-r4', _spec=original)
+        parent = trial.parent_binding(selected)
     source_package: Path = original['package']
     destination: Path = selected['package']
     trial.require(not destination.exists() and not destination.is_symlink(), 'EXISTING_V2_BUNDLE_REFUSED')
@@ -50,15 +54,15 @@ def materialize(spec: dict[str, Any] | None = None) -> dict[str, Any]:
     inputs.save(destination / 'immutable-profile.json', trial.profile.resolve_profile(selected['profile_id']))
     inventory = trial.code_hashes()
     inputs.save(destination / 'source-code-inventory.json', inventory)
-    manifest = {'variant': 'v2-r1', 'status': 'PREPARED_NOT_AUTHORIZED', 'qualification': 'CLOSED',
+    manifest = {'variant': selected['variant'], 'status': 'PREPARED_NOT_AUTHORIZED', 'qualification': 'CLOSED',
         'case_count': 8, 'cases': rows, 'parent_input_manifest_sha256': source_binding['manifest_sha256'],
-        'parent_summary_sha256': parent['summary_sha256'], 'oracle_sha256': source_binding['oracle_sha256'],
+        'parent_summary_sha256': trial.sha(trial.encoded(parent)) if selected['variant'] == 'v3-r1' else parent['summary_sha256'], 'oracle_sha256': source_binding['oracle_sha256'],
         'source_code_inventory_sha256': trial.sha(trial.encoded(inventory)),
         'official_supplement': source_manifest['official_supplement'],
         'historical_calls': parent['historical_calls'], 'historical_held_microcny': parent['historical_held_microcny'],
         'actual_bill': 'UNKNOWN', 'model_calls': 0, 'credential_access': 0}
     inputs.save(destination / 'manifest.json', manifest)
-    proposal: dict[str, Any] = trial.Trial(variant='v2-r1', _spec=selected).proposal()
+    proposal: dict[str, Any] = trial.Trial(variant=selected['variant'], _spec=selected).proposal()
     trial.require(proposal['approval']['approved'] is False, 'PREPARATION_MUST_NOT_AUTHORIZE')
     inputs.save(destination / 'proposal-not-authorized.json', proposal)
     return proposal
