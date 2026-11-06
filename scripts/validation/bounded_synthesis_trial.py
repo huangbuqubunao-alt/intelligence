@@ -33,7 +33,10 @@ from youtube_intel.distillation import (
 )
 from youtube_intel.model_settings import MacOSKeychainCredentialStore
 from youtube_intel.state import SQLiteStateRepository
-from youtube_intel.synthesis_runtime import MoonshotSystemSynthesisTransport
+from youtube_intel.synthesis_runtime import (
+    MoonshotAttributionSynthesisTransport,
+    MoonshotSystemSynthesisTransport,
+)
 
 REPO = Path(__file__).resolve().parents[2]
 PACKAGE = Path('/Users/hua/Documents/yia-worktrees/readiness-synthesis-input-materialization/.var/synthesis-input-materialization/prepared-20261105-r4')
@@ -46,6 +49,15 @@ LIMITS = {'historical_calls': 2, 'historical_held_microcny': 1943326, 'runner_ne
     'optional_gui_calls': 1, 'max_new_calls': 9, 'max_total_calls': 11, 'per_call_microcny': 1000000,
     'total_microcny': 9000000, 'runner_held_microcny': 5599830, 'gui_held_microcny': 969966,
     'prospective_total_microcny': 8513122}
+V2_PACKAGE = Path('/Users/hua/Documents/yia-worktrees/readiness-bounded-synthesis-v2-trial/.var/bounded-synthesis-v2-trial/prepared-20261105-r1')
+V2_CONTROL = Path('/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/bounded-synthesis-v2-trial-20261105')
+PARENT_SUMMARY = Path('/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/fee-parent-v2-20261105.json')
+PARENT_SUMMARY_SHA = '80eac13761caba485618f69ec444f2676a24ed83779522f951d5a33eb8f51fb6'
+PARENT_LOCATION_PROOF = PARENT_SUMMARY.with_name('fee-parent-location-v2-20261105.json')
+PARENT_TERMINAL = Path('/Users/hua/Documents/yia-worktrees/readiness-final-acceptance/.var/bounded-synthesis-trial-runs/public-aircAruvnKk-en')
+V2_LIMITS = {**LIMITS, 'historical_calls': 3, 'historical_held_microcny': 2913136,
+    'max_total_calls': 12, 'total_microcny': 10000000, 'runner_held_microcny': 5713190,
+    'gui_held_microcny': 984136, 'prospective_total_microcny': 9610462}
 ALLOWED_WRITES = frozenset({'system_synthesis_input_proofs', 'system_synthesis_cloud_authorizations',
     'system_synthesis_result_receipts', 'system_synthesis_wait_cancellations',
     'distillation_execution_checkpoints', 'distillation_resource_usage', 'distillation_cloud_response_failures',
@@ -56,6 +68,26 @@ assert _spec is not None and _spec.loader is not None
 inputs: Any = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(inputs)  # definitions only; never materialize or acquire
 Wire = Callable[[Mapping[str, object], str, float, int], _MoonshotWireResponse]
+
+
+def trial_spec(variant: str = 'v1-r4') -> dict[str, Any]:
+    """Two finite operator choices. No arbitrary CLI path/model/budget inputs."""
+    one = {'variant': 'v1-r4', 'package': PACKAGE, 'manifest_sha256': MANIFEST_SHA,
+        'control': CONTROL, 'runs': RUNS, 'order': ORDER, 'seed': inputs.SEED,
+        'profile_id': profile.PROFILE_ID, 'limits': dict(LIMITS),
+        'purpose': 'ROOT_RECORDED_PAID_QUALIFICATION'}
+    if variant == 'v1-r4':
+        return one
+    if variant == 'v2-r1':
+        return {**one, 'variant': variant, 'package': V2_PACKAGE, 'manifest_sha256': None,
+            'control': V2_CONTROL, 'runs': REPO / '.var/bounded-synthesis-v2-trial-runs',
+            'profile_id': profile.ATTRIBUTION_PROFILE_ID, 'limits': dict(V2_LIMITS),
+            'purpose': 'ROOT_RECORDED_ATTRIBUTION_V2_CONTINUATION', 'original': one,
+            'parent_summary': PARENT_SUMMARY, 'parent_summary_sha256': PARENT_SUMMARY_SHA,
+            'bundle_parent_summary_sha256': PARENT_SUMMARY_SHA,
+            'parent_location_proof': PARENT_LOCATION_PROOF, 'parent_terminal': PARENT_TERMINAL,
+            'parent_location_transition': {'old_device': 16777234, 'current_device': 16777231, 'inode': 144261833}}
+    raise ValueError('TRIAL_VARIANT_UNKNOWN')
 
 
 def require(ok: object, code: str) -> None:
@@ -148,6 +180,9 @@ def code_hashes() -> dict[str, str]:
     paths = [*sorted((REPO / 'src').rglob('*.py')), *sorted((REPO / 'src').rglob('*.sql')),
         Path(__file__).resolve(), Path(inputs.__file__).resolve(), REPO / 'config/settings.example.yaml',
         REPO / 'pyproject.toml', REPO / 'uv.lock']
+    v2_helper = Path(__file__).with_name('materialize_synthesis_v2_inputs.py')
+    if v2_helper.exists():
+        paths.append(v2_helper)
     result = {str(path.relative_to(REPO)): sha(read(path)) for path in paths}
     for name, module in list(sys.modules.items()):
         if name == 'youtube_intel' or name.startswith('youtube_intel.'):
@@ -159,21 +194,202 @@ def code_hashes() -> dict[str, str]:
     return result
 
 
-def package_binding() -> dict[str, Any]:
-    require(sha(read(PACKAGE / 'manifest.json')) == MANIFEST_SHA, 'MANIFEST_CHANGED')
-    manifest = parsed(PACKAGE / 'manifest.json')
+def parent_history(spec: dict[str, Any]) -> dict[str, Any]:
+    """Historical rejected invocation is a held cost, never new consent."""
+    try:
+        summary_path: Path = spec['parent_summary']
+        summary_raw = read(summary_path, private=True)
+        require(sha(summary_raw) == spec['parent_summary_sha256'], 'PARENT_SUMMARY_CHANGED')
+        summary = parsed(summary_path, private=True)
+        require(set(summary) == {'status', 'parent_control', 'parent_hashes', 'historical_calls',
+            'historical_held_microcny', 'actual_bill', 'parent_semantic', 'further_calls_authorized'}
+            and summary['status'] == 'HISTORICAL_PARENT_ONLY_NOT_NEW_FEE_AUTHORIZATION'
+            and summary['actual_bill'] == 'UNKNOWN' and summary['parent_semantic'] == 'REJECT'
+            and summary['further_calls_authorized'] is False, 'PARENT_SUMMARY_INVALID')
+        original = spec['original']
+        parent = Path(summary['parent_control'])
+        require(parent == original['control'], 'PARENT_CONTROL_DIFFERS')
+        directory(parent)
+        case = original['order'][0]
+        names = ('anchor.json', 'ledger.json', 'grant.json', 'attempt-1.json',
+            case + '.result.json', case + '.final.json', case + '.semantic.json')
+        require(set(summary['parent_hashes']) == set(names)
+            and {f.name for f in parent.iterdir()} == set(names) | {'lock', 'approval-skeleton.json'}, 'PARENT_UNKNOWN_ATTEMPT')
+        files = {}
+        values = {}
+        for name in names:
+            path = parent / name
+            raw = read(path, private=True)
+            require(sha(raw) == summary['parent_hashes'][name], 'PARENT_FILE_CHANGED')
+            meta = path.stat()
+            files[name] = {'sha256': sha(raw), 'device': meta.st_dev, 'inode': meta.st_ino, 'bytes': len(raw)}
+            values[name] = parsed(path, private=True)
+        anchor, ledger, grant, attempt = (values[name] for name in names[:4])
+        result, final, decision = (values[name] for name in names[4:])
+        require(anchor == {'binding_sha256': ledger['binding_sha256'], 'control_inode': parent.stat().st_ino,
+            'control_device': anchor['control_device']} and ledger['attempts'] == [attempt]
+            and set(ledger) == {'binding_sha256', 'attempts'}, 'PARENT_ANCHOR_LEDGER_INVALID')
+        require(set(grant) == {'approved', 'purpose', 'decision_id', 'expires_at', 'binding_sha256', 'limits'}
+            and grant['approved'] is True and grant['purpose'] == original['purpose']
+            and grant['limits'] == original['limits'] and encoded(grant['limits']) == encoded(original['limits'])
+            and grant['binding_sha256'] == anchor['binding_sha256']
+            and isinstance(grant['decision_id'], str) and 0 < len(grant['decision_id']) <= 160
+            and datetime.fromisoformat(grant['expires_at']).tzinfo is not None, 'PARENT_OLD_GRANT_INVALID')
+        old_manifest = parsed(original['package'] / 'manifest.json')
+        require(sha(read(original['package'] / 'manifest.json')) == original['manifest_sha256'], 'PARENT_INPUT_MANIFEST_CHANGED')
+        first = old_manifest['cases'][0]
+        require(set(attempt) == {'case', 'execution_id', 'proof_sha256', 'wire_sha256', 'reserve_microcny', 'grant_sha256'}
+            and all(attempt[k] == first[k] for k in attempt if k != 'grant_sha256')
+            and attempt['case'] == case and attempt['grant_sha256'] == files['grant.json']['sha256']
+            and type(attempt['reserve_microcny']) is int and 0 < attempt['reserve_microcny'] <= original['limits']['per_call_microcny'], 'PARENT_ATTEMPT_INVALID')
+        receipt = result['receipt']
+        require(all(result[k] == attempt[k] for k in attempt) and result['status'] == 'TECHNICAL_PASS_AWAITING_ROOT'
+            and result['execution_status'] in {'SUCCEEDED', 'SUCCEEDED_NO_NEW_INTELLIGENCE'}
+            and type(result['invocation_count']) is int and result['invocation_count'] == 1 and result['send_attempted'] is True
+            and result['actual_bill'] == 'UNKNOWN' and result['qualification'] == 'CLOSED'
+            and result['normal_execution_enabled'] is False and result['source_parents_unchanged'] is True
+            and result['trace_status'] == 'VERIFIED_PERSISTED_STATE'
+            and result['receipt_sha256'] == sha(encoded(receipt))
+            and final == {'raw_text': receipt['raw_text'], 'sha256': result['final_sha256']}
+            and final['sha256'] == sha(final['raw_text'].encode()) == receipt['raw_sha256'], 'PARENT_RESULT_FINAL_INVALID')
+        trace = result['state_trace']
+        require(trace['system_synthesis_result_receipts'] == [receipt]
+            and len(trace['distillation_execution_checkpoints']) == 1
+            and len(trace['system_synthesis_cloud_authorizations']) == 1, 'PARENT_TRACE_INVALID')
+        checkpoint, authorization = trace['distillation_execution_checkpoints'][0], trace['system_synthesis_cloud_authorizations'][0]
+        require(checkpoint['execution_id'] == attempt['execution_id'] and checkpoint['invocation_count'] == 1
+            and type(checkpoint['invocation_count']) is int
+            and checkpoint['status'] == ('PENDING' if result['execution_status'] == 'SUCCEEDED_NO_NEW_INTELLIGENCE' else 'SUCCEEDED')
+            and receipt['execution_id'] == attempt['execution_id']
+            and receipt['proof_sha256'] == attempt['proof_sha256']
+            and authorization['execution_id'] == attempt['execution_id']
+            and authorization['verified_input_hash'] == attempt['proof_sha256']
+            and (authorization['provider'], authorization['model']) == profile.PAIR
+            and authorization['consent_kind'] == 'OWNER_QUALIFICATION' and authorization['max_calls'] == 1
+            and type(authorization['max_calls']) is int and authorization['prior_calls'] == 0
+            and authorization['prior_reserved_microunits'] == 0
+            and authorization['reserve_microunits'] == attempt['reserve_microcny'], 'PARENT_CLAIM_INVALID')
+        authorized_at = datetime.fromisoformat(authorization['authorized_at'])
+        require(authorized_at.tzinfo is not None
+            and authorized_at < datetime.fromisoformat(grant['expires_at']), 'PARENT_INVOCATION_OUTSIDE_GRANT')
+        observation = p.loads(receipt['observation_json'])
+        require(observation['table'] == ('distillation_no_new_intelligence_results'
+            if result['execution_status'] == 'SUCCEEDED_NO_NEW_INTELLIGENCE' else 'distillation_resource_usage')
+            and trace[observation['table']] == [observation['row']]
+            and sum(len(trace[table]) for table in ('distillation_resource_usage',
+                'distillation_no_new_intelligence_results', 'distillation_cloud_response_failures')) == 1
+            and observation['row']['execution_id'] == attempt['execution_id']
+            and (observation['row']['actual_provider'], observation['row']['actual_model']) == profile.PAIR,
+            'PARENT_OBSERVATION_INVALID')
+        require(decision == {'case': case, 'decision': 'REJECT', 'reviewer': 'ROOT',
+            'decision_id': decision['decision_id'], 'result_sha256': files[case + '.result.json']['sha256'],
+            'receipt_sha256': result['receipt_sha256'], 'oracle_sha256': old_manifest['oracle_sha256']}
+            and isinstance(decision['decision_id'], str) and 0 < len(decision['decision_id']) <= 160, 'PARENT_REJECTION_INVALID')
+        calls = grant['limits']['historical_calls'] + 1
+        held = grant['limits']['historical_held_microcny'] + attempt['reserve_microcny']
+        require(type(calls) is int and type(held) is int and calls == summary['historical_calls'] == spec['limits']['historical_calls']
+            and held == summary['historical_held_microcny'] == spec['limits']['historical_held_microcny'], 'PARENT_HISTORY_TOTALS_INVALID')
+        read(parent / 'lock', private=True)
+        lock_meta = (parent / 'lock').stat()
+        return {'summary_sha256': sha(summary_raw), 'summary_inode': summary_path.stat().st_ino,
+            'parent_control': str(parent), 'parent_inode': parent.stat().st_ino, 'parent_device': parent.stat().st_dev,
+            'lock_inode': lock_meta.st_ino, 'lock_device': lock_meta.st_dev, 'files': files,
+            'historical_calls': calls, 'historical_held_microcny': held, 'actual_bill': 'UNKNOWN', 'parent_semantic': 'REJECT', 'anchor': anchor}
+    except (OSError, ValueError, TypeError, KeyError, IndexError):
+        raise ValueError('PARENT_HISTORY_UNVERIFIABLE') from None
+
+
+def parent_location_evidence(spec: dict[str, Any], history: dict[str, Any]) -> dict[str, Any]:
+    """One pinned historical location transition, with the original DB intact."""
+    parent = Path(history['parent_control'])
+    anchor = history['anchor']
+    transition = {'old_device': anchor['control_device'], 'current_device': parent.stat().st_dev,
+        'inode': parent.stat().st_ino}
+    require(transition == spec['parent_location_transition']
+        and transition['old_device'] != transition['current_device'], 'PARENT_LOCATION_TRANSITION_NOT_APPROVED')
+    root: Path = spec['parent_terminal']
+    inputs.safe_tree(root)
+    database = root / 'state.sqlite3'
+    database_sha = sha(read(database))
+    repository = SQLiteStateRepository(database)
+    repository.bind_source_storage(root / 'data')
+    case = spec['original']['order'][0]
+    result = parsed(parent / (case + '.result.json'), private=True)
+    with sqlite3.connect(database.as_uri() + '?mode=ro', uri=True) as connection:
+        connection.row_factory = sqlite3.Row
+        p.verify_database(repository, connection)
+        for table, expected in result['state_trace'].items():
+            require(table in {'distillation_execution_checkpoints', 'system_synthesis_cloud_authorizations',
+                'system_synthesis_result_receipts', 'distillation_resource_usage',
+                'distillation_cloud_response_failures', 'distillation_no_new_intelligence_results'}, 'PARENT_TRACE_TABLE_INVALID')
+            actual = [dict(row) for row in connection.execute(
+                f'SELECT * FROM {table} WHERE execution_id=?', (result['execution_id'],))]
+            require(actual == expected, 'PARENT_TERMINAL_DATABASE_DIFFERS')
+    require(database_sha == sha(read(database)), 'PARENT_TERMINAL_DATABASE_CHANGED')
+    summary = parsed(spec['parent_summary'], private=True)
+    return {'parent_control': str(parent), 'parent_summary_sha256': history['summary_sha256'],
+        'parent_hashes': summary['parent_hashes'],
+        'old_identity': {'device': anchor['control_device'], 'inode': anchor['control_inode'],
+            'owner_uid': os.getuid(), 'mode': 0o700},
+        'current_identity': {'device': parent.stat().st_dev, 'inode': parent.stat().st_ino,
+            'owner_uid': parent.stat().st_uid, 'mode': stat.S_IMODE(parent.stat().st_mode)},
+        'terminal_root': str(root), 'terminal_database_sha256': database_sha,
+        'terminal_inventory_sha256': sha(encoded(inputs.inventory(root))),
+        'receipt_sha256': result['receipt_sha256'], 'historical_calls': history['historical_calls'],
+        'historical_held_microcny': history['historical_held_microcny'],
+        'actual_bill': 'UNKNOWN', 'parent_semantic': 'REJECT'}
+
+
+def parent_location_proposal(spec: dict[str, Any] | None = None) -> dict[str, Any]:
+    selected = trial_spec('v2-r1') if spec is None else spec
+    require(selected['variant'] == 'v2-r1', 'V2_LOCATION_PROPOSAL_ONLY')
+    history = parent_history(selected)
+    return {'approved': False, 'purpose': 'PARENT_LOCATION_ONLY', 'decision_id': '',
+        'binding': parent_location_evidence(selected, history)}
+
+
+def parent_binding(spec: dict[str, Any]) -> dict[str, Any]:
+    try:
+        history = parent_history(spec)
+        anchor = history.pop('anchor')
+        history['location_recovery'] = None
+        if anchor['control_device'] == history['parent_device']:
+            require(not spec['parent_location_proof'].exists(), 'PARENT_LOCATION_PROOF_NOT_APPLICABLE')
+            return history
+        evidence = parent_location_evidence(spec, {**history, 'anchor': anchor})
+        proof: Path = spec['parent_location_proof']
+        value = parsed(proof, private=True)
+        require(value == {'approved': True, 'purpose': 'PARENT_LOCATION_ONLY',
+            'decision_id': value['decision_id'], 'binding': evidence}
+            and value['approved'] is True and encoded(value['binding']) == encoded(evidence)
+            and isinstance(value['decision_id'], str) and 0 < len(value['decision_id']) <= 160,
+            'PARENT_LOCATION_PROOF_REQUIRED_OR_INVALID')
+        history['location_recovery'] = {'sha256': sha(read(proof, private=True)), 'path': str(proof),
+            'device': proof.stat().st_dev, 'inode': proof.stat().st_ino, 'binding': evidence}
+        return history
+    except (OSError, ValueError, KeyError, TypeError, sqlite3.DatabaseError):
+        raise ValueError('PARENT_LOCATION_OR_HISTORY_UNVERIFIABLE') from None
+
+
+def package_binding(variant: str = 'v1-r4', *, _spec: dict[str, Any] | None = None) -> dict[str, Any]:
+    spec = trial_spec(variant) if _spec is None else _spec
+    require(spec['variant'] == variant, 'TRIAL_VARIANT_UNKNOWN')
+    package: Path = spec['package']
+    manifest_sha = sha(read(package / 'manifest.json'))
+    require(spec['manifest_sha256'] is None or manifest_sha == spec['manifest_sha256'], 'MANIFEST_CHANGED')
+    manifest = parsed(package / 'manifest.json')
     require(manifest['status'] == 'PREPARED_NOT_AUTHORIZED' and manifest['qualification'] == 'CLOSED'
-        and manifest['case_count'] == 8 and tuple(c['case'] for c in manifest['cases']) == ORDER, 'CASE_SET_CHANGED')
-    require(sha(read(PACKAGE / 'input-only-oracle.md')) == manifest['oracle_sha256'], 'ORACLE_CHANGED')
-    require(parsed(PACKAGE / 'immutable-profile.json') == profile.resolve_profile(profile.PROFILE_ID), 'PROFILE_CHANGED')
-    require(sha(read(PACKAGE / 'source-code-inventory.json')) == manifest['source_code_inventory_sha256'], 'INPUT_SOURCE_INVENTORY_CHANGED')
-    seed_before = parsed(PACKAGE / 'source-before.json')
-    require(seed_before == parsed(PACKAGE / 'source-after.json') == inputs.inventory(inputs.SEED), 'SEED_CHANGED')
+        and manifest['case_count'] == 8 and tuple(c['case'] for c in manifest['cases']) == tuple(spec['order']), 'CASE_SET_CHANGED')
+    require(sha(read(package / 'input-only-oracle.md')) == manifest['oracle_sha256'], 'ORACLE_CHANGED')
+    require(parsed(package / 'immutable-profile.json') == profile.resolve_profile(spec['profile_id']), 'PROFILE_CHANGED')
+    require(sha(read(package / 'source-code-inventory.json')) == manifest['source_code_inventory_sha256'], 'INPUT_SOURCE_INVENTORY_CHANGED')
+    seed_before = parsed(package / 'source-before.json')
+    require(seed_before == parsed(package / 'source-after.json') == inputs.inventory(spec['seed']), 'SEED_CHANGED')
     for name, expected in manifest['official_supplement']['document_hashes'].items():
-        require(sha(read(PACKAGE / 'official-supplement' / Path(name).name)) == expected, 'PRICE_DOCUMENT_CHANGED')
+        require(sha(read(package / 'official-supplement' / Path(name).name)) == expected, 'PRICE_DOCUMENT_CHANGED')
     cases = []
     for row in manifest['cases']:
-        root = PACKAGE / 'cases' / row['case'] / 'project'
+        root = package / 'cases' / row['case'] / 'project'
         artifacts = root.parent / 'artifacts'
         require(str(root) == row['data_root'] and str(artifacts) == row['artifacts'], 'CASE_PATH_CHANGED')
         for name, expected in row['semantic_files'].items():
@@ -188,19 +404,38 @@ def package_binding() -> dict[str, Any]:
             and sha(proof['capture']['summary_raw'].encode()) == row['summary_sha256']
             and sha(encoded(proof['capture']['source_refs'])) == row['source_refs_sha256']
             and proof['reserve_microunits'] == row['reserve_microcny']
-            and proof['transport'] == profile.resolve_profile(profile.PROFILE_ID), 'PROOF_CHANGED')
+            and proof['transport'] == profile.resolve_profile(spec['profile_id']), 'PROOF_CHANGED')
         require(profile.canonical(parsed(artifacts / 'provider-body.json')) == proof['provider_wire'], 'BODY_CHANGED')
         p.request_from_proof(p.PreparedSynthesis(row['execution_id'], profile.canonical(proof), row['proof_sha256']))
         cases.append({key: row[key] for key in ('case', 'execution_id', 'proof_sha256', 'wire_sha256',
             'reserve_microcny', 'language', 'video_id', 'source_identity', 'source_refs_sha256', 'summary_sha256', 'expected')})
-    require(sum(c['reserve_microcny'] for c in cases) == LIMITS['runner_held_microcny']
+    require(sum(c['reserve_microcny'] for c in cases) == spec['limits']['runner_held_microcny']
         and all(type(c['reserve_microcny']) is int and 0 < c['reserve_microcny'] <= 1000000 for c in cases), 'RESERVE_CHANGED')
-    return {'manifest_sha256': MANIFEST_SHA, 'oracle_sha256': manifest['oracle_sha256'],
-        'profile': profile.resolve_profile(profile.PROFILE_ID), 'source_hashes': code_hashes(),
+    binding = {'manifest_sha256': manifest_sha, 'oracle_sha256': manifest['oracle_sha256'],
+        'profile': profile.resolve_profile(spec['profile_id']), 'source_hashes': code_hashes(),
         'seed_inventory_sha256': sha(encoded(seed_before)),
         'supplementary_price_documents': manifest['official_supplement'],
         'source_revision': subprocess.check_output(['git', '-C', str(REPO), 'rev-parse', 'HEAD'], text=True).strip(),
         'cases': cases}
+
+    if variant == 'v2-r1':
+        original = package_binding('v1-r4', _spec=spec['original'])
+        require(manifest.get('variant') == variant
+            and manifest.get('parent_input_manifest_sha256') == original['manifest_sha256']
+            and manifest['oracle_sha256'] == original['oracle_sha256'], 'V2_INPUT_PARENT_DIFFERS')
+        old_package = spec['original']['package']
+        for row, old in zip(manifest['cases'], original['cases'], strict=True):
+            require(all(row[k] == old[k] for k in ('case', 'video_id', 'language', 'source_identity',
+                'summary_sha256', 'source_refs_sha256', 'expected')), 'V2_SOURCE_METADATA_CHANGED')
+            old_proof = parsed(old_package / 'cases' / old['case'] / 'artifacts/prepared-proof.json')
+            new_proof = parsed(package / 'cases' / row['case'] / 'artifacts/prepared-proof.json')
+            require(new_proof['capture'] == old_proof['capture'] and new_proof['command'] == old_proof['command']
+                and inputs.inventory(package / 'cases' / row['case'] / 'project')
+                == inputs.inventory(old_package / 'cases' / old['case'] / 'project'), 'V2_SOURCE_SNAPSHOT_CHANGED')
+        parent = parent_binding(spec)
+        require(manifest.get('parent_summary_sha256') == spec['bundle_parent_summary_sha256'], 'V2_PARENT_SUMMARY_DIFFERS')
+        binding.update(variant=variant, parent=parent, original_manifest_sha256=original['manifest_sha256'])
+    return binding
 
 
 class QACredentialStore(MacOSKeychainCredentialStore):
@@ -209,20 +444,36 @@ class QACredentialStore(MacOSKeychainCredentialStore):
 
 
 class Trial:
-    def __init__(self, *, control: Path = CONTROL, runs: Path = RUNS) -> None:
+    def __init__(self, *, variant: str = 'v1-r4', control: Path | None = None, runs: Path | None = None,
+        _spec: dict[str, Any] | None = None) -> None:
         # Internal injection for isolated tests only. CLI offers no path/key/model overrides.
-        self.control, self.runs = control, runs
+        self.spec = trial_spec(variant) if _spec is None else _spec
+        require(self.spec['variant'] == variant, 'TRIAL_VARIANT_UNKNOWN')
+        self.variant = variant
+        self.control = control if control is not None else self.spec['control']
+        self.runs = runs if runs is not None else self.spec['runs']
+
+    def initialization_marker(self) -> Path:
+        return Path(self.control).with_name(Path(self.control).name + '-initialized.json')
+
+    def proposal(self) -> dict[str, Any]:
+        binding = package_binding(self.variant, _spec=self.spec)
+        return {'status': 'NOT_AUTHORIZED', 'binding': binding, 'limits': self.spec['limits'],
+            'approval': {'approved': False, 'purpose': self.spec['purpose'],
+                'decision_id': '', 'expires_at': '', 'binding_sha256': sha(encoded(binding)),
+                'limits': self.spec['limits']}}
 
     def prepare(self) -> dict[str, Any]:
-        binding = package_binding()
-        report = {'status': 'NOT_AUTHORIZED', 'binding': binding, 'limits': LIMITS,
-            'approval': {'approved': False, 'purpose': 'ROOT_RECORDED_PAID_QUALIFICATION',
-                'decision_id': '', 'expires_at': '', 'binding_sha256': sha(encoded(binding)),
-                'limits': LIMITS}}
+        report = self.proposal()
+        binding = report['binding']
         directory(self.control, create=True)
         anchor, ledger = self.control / 'anchor.json', self.control / 'ledger.json'
         if not anchor.exists():
             require(not any(self.control.iterdir()), 'LEDGER_INITIALIZATION_REFUSED')
+            if self.variant == 'v2-r1':
+                require(not self.initialization_marker().exists() and not self.runs.exists(), 'CHILD_INITIALIZATION_ALREADY_CONSUMED')
+                once(self.initialization_marker(), {'binding_sha256': sha(encoded(binding)),
+                    'control_inode': self.control.stat().st_ino, 'control_device': self.control.stat().st_dev})
             once(anchor, {'binding_sha256': sha(encoded(binding)), 'control_inode': self.control.stat().st_ino,
                 'control_device': self.control.stat().st_dev})
             once(ledger, {'binding_sha256': sha(encoded(binding)), 'attempts': []})
@@ -237,12 +488,21 @@ class Trial:
         directory(self.control)
         read(self.control / 'lock', private=True)
         fd = os.open(self.control / 'lock', os.O_RDONLY | os.O_NOFOLLOW)
+        parent_fd = None
         try:
+            if self.variant == 'v2-r1':
+                parent = parent_binding(self.spec)
+                parent_fd = os.open(Path(parent['parent_control']) / 'lock', os.O_RDONLY | os.O_NOFOLLOW)
+                fcntl.flock(parent_fd, fcntl.LOCK_SH)
+                require(parent_binding(self.spec) == parent, 'PARENT_CHANGED_WHILE_LOCKING')
             fcntl.flock(fd, fcntl.LOCK_EX)
             yield
         finally:
             fcntl.flock(fd, fcntl.LOCK_UN)
             os.close(fd)
+            if parent_fd is not None:
+                fcntl.flock(parent_fd, fcntl.LOCK_UN)
+                os.close(parent_fd)
 
     def ledger(self, binding: dict[str, Any]) -> dict[str, Any]:
         try:
@@ -250,6 +510,8 @@ class Trial:
             value = parsed(self.control / 'ledger.json', private=True)
             require(anchor == {'binding_sha256': sha(encoded(binding)), 'control_inode': self.control.stat().st_ino,
                 'control_device': self.control.stat().st_dev}, 'LEDGER_ANCHOR_DIFFERS')
+            if self.variant == 'v2-r1':
+                require(parsed(self.initialization_marker(), private=True) == anchor, 'CHILD_INITIALIZATION_HISTORY_MISSING')
             require(set(value) == {'binding_sha256', 'attempts'} and value['binding_sha256'] == sha(encoded(binding))
                 and isinstance(value['attempts'], list) and len(value['attempts']) <= 8, 'LEDGER_INVALID')
             for index, attempt in enumerate(value['attempts']):
@@ -266,12 +528,14 @@ class Trial:
 
     def grant(self, binding: dict[str, Any]) -> tuple[dict[str, Any], str]:
         try:
+            if self.variant == 'v2-r1':
+                require(parent_binding(self.spec) == binding['parent'], 'PARENT_CHANGED')
             value = parsed(self.control / 'grant.json', private=True)
             require(set(value) == {'approved', 'purpose', 'decision_id', 'expires_at', 'binding_sha256', 'limits'}
-                and value['approved'] is True and value['purpose'] == 'ROOT_RECORDED_PAID_QUALIFICATION'
+                and value['approved'] is True and value['purpose'] == self.spec['purpose']
                 and isinstance(value['decision_id'], str) and 1 <= len(value['decision_id']) <= 160
-                and value['binding_sha256'] == sha(encoded(binding)) and value['limits'] == LIMITS
-                and encoded(value['limits']) == encoded(LIMITS), 'GRANT_INVALID')
+                and value['binding_sha256'] == sha(encoded(binding)) and value['limits'] == self.spec['limits']
+                and encoded(value['limits']) == encoded(self.spec['limits']), 'GRANT_INVALID')
             expiry = datetime.fromisoformat(value['expires_at'])
             require(expiry.tzinfo is not None and datetime.now(UTC) < expiry, 'GRANT_EXPIRED')
             return value, sha(read(self.control / 'grant.json', private=True))
@@ -311,7 +575,7 @@ class Trial:
                 raise ValueError('PREVIOUS_UNKNOWN_FAILED_OR_NOT_APPROVED_STOP') from None
 
     def execute(self, *, credential: Callable[[], str | None] | None = None, wire: Wire | None = None) -> dict[str, Any]:
-        binding = package_binding()
+        binding = package_binding(self.variant, _spec=self.spec)
         with self.locked():
             _, grant_sha = self.grant(binding)  # before clone/credentials/claim
             ledger = self.ledger(binding)
@@ -322,23 +586,23 @@ class Trial:
             directory(self.runs, create=True)
             root = self.runs / row['case']
             with inputs.offline():
-                inputs.clone(PACKAGE / 'cases' / row['case'] / 'project', root)
+                inputs.clone(self.spec['package'] / 'cases' / row['case'] / 'project', root)
                 require(inputs.inventory(root)['schema'] == 44, 'QUALIFICATION_REQUIRES_SCHEMA44')
                 active = inputs.runtime(root, [datetime.now(UTC)])
                 before = inputs.inventory(root)
-                require(before == inputs.inventory(PACKAGE / 'cases' / row['case'] / 'project'), 'FACTORY_CHANGED_SOURCE')
-                review, value = inputs.ordinary_review(active, row['video_id'], row['case'])
+                require(before == inputs.inventory(self.spec['package'] / 'cases' / row['case'] / 'project'), 'FACTORY_CHANGED_SOURCE')
+                review, value = inputs.ordinary_review(active, row['video_id'], row['case'], profile_id=self.spec['profile_id'])
                 require(review['verified_input_hash'] == row['proof_sha256']
                     and review['execution_id'] == row['execution_id']
-                    and value.input_json == profile.canonical(parsed(PACKAGE / 'cases' / row['case'] / 'artifacts/prepared-proof.json'))
+                    and value.input_json == profile.canonical(parsed(self.spec['package'] / 'cases' / row['case'] / 'artifacts/prepared-proof.json'))
                     and inputs.inventory(root) == before, 'NORMAL_REVIEW_CHANGED')
             self.grant(binding)
             require(code_hashes() == binding['source_hashes'], 'SOURCE_CHANGED_BEFORE_RESERVATION')
             attempt = {k: row[k] for k in ('case', 'execution_id', 'proof_sha256', 'wire_sha256', 'reserve_microcny')}
             attempt['grant_sha256'] = grant_sha
             ledger['attempts'].append(attempt)
-            require(LIMITS['historical_held_microcny'] + sum(a['reserve_microcny'] for a in ledger['attempts'])
-                + LIMITS['gui_held_microcny'] <= LIMITS['total_microcny'], 'CUMULATIVE_BUDGET_EXCEEDED')
+            require(self.spec['limits']['historical_held_microcny'] + sum(a['reserve_microcny'] for a in ledger['attempts'])
+                + self.spec['limits']['gui_held_microcny'] <= self.spec['limits']['total_microcny'], 'CUMULATIVE_BUDGET_EXCEEDED')
             # Immutable reservation detects journal rollback/truncation. A crash
             # between these writes is an orphaned hold and permanently blocks,
             # never evidence that the invocation was free or safe to replay.
@@ -353,6 +617,7 @@ class Trial:
                 secret = (credential or QACredentialStore().get)()
                 require(isinstance(secret, str) and secret and '\r' not in secret and '\n' not in secret, 'CREDENTIAL_UNAVAILABLE')
                 assert isinstance(secret, str)
+                require(self.grant(binding)[1] == grant_sha and self.ledger(binding) == ledger, 'AUTHORITY_CHANGED_AFTER_KEY')
                 return secret
 
             def guarded(request: Mapping[str, object], credential: str, timeout_seconds: float, max_retries: int) -> _MoonshotWireResponse:
@@ -378,12 +643,14 @@ class Trial:
                 return response
 
             try:
-                original = active.application._cloud_synthesis_service
+                original = (active.application._cloud_synthesis_v2_service if self.variant == 'v2-r1'
+                    else active.application._cloud_synthesis_service)
                 require(original is not None, 'SYNTHESIS_SERVICE_REQUIRED')
                 authorization = CloudDistillationAuthorization(cloud_enabled=True, provider=profile.PAIR[0],
                     model=profile.PAIR[1], credential_available=True, provider_available=True,
                     qualification_input_hash=row['proof_sha256'], qualification_max_calls=1)
-                transport = MoonshotSystemSynthesisTransport(authorization=authorization,
+                adapter = MoonshotAttributionSynthesisTransport if self.variant == 'v2-r1' else MoonshotSystemSynthesisTransport
+                transport = adapter(authorization=authorization,
                     credential_resolver=resolve, wire_transport=guarded)
                 service = PersonalizedDistillationService(active.repository, original._source_policy, transport,
                     original._budget, now=lambda: datetime.now(UTC), output_language_for_video=original._output_language_for_video)
@@ -395,6 +662,7 @@ class Trial:
                 assert isinstance(readiness, dict) and isinstance(token, str)
                 require(not readiness['can_confirm']
                     and approved_review['verified_input_hash'] == row['proof_sha256'], 'NORMAL_ELIGIBILITY_MUST_STAY_CLOSED')
+                require(self.grant(binding)[1] == grant_sha and self.ledger(binding) == ledger, 'AUTHORITY_CHANGED_BEFORE_CLAIM')
                 outcome = service.confirm_synthesis_qualification(video_id=row['video_id'], execution_id=row['execution_id'],
                     review_hash=token, budget=p.SynthesisBudget('owner-trial:' + row['proof_sha256'], row['reserve_microcny'], 1))
                 with active.repository._connect() as c:
@@ -436,7 +704,7 @@ class Trial:
                 result['final_sha256'] = sha(final[0].encode())
             # Recheck frozen seed/cases after execution, including physical DATA.
             try:
-                require(package_binding() == binding, 'FROZEN_PACKAGE_CHANGED')
+                require(package_binding(self.variant, _spec=self.spec) == binding, 'FROZEN_PACKAGE_CHANGED')
             except Exception:
                 result['status'] = 'UNKNOWN_STOP'
             once(self.control / (row['case'] + '.result.json'), result)
@@ -445,16 +713,30 @@ class Trial:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=('prepare', 'check', 'execute'), default='prepare', nargs='?')
+    parser.add_argument('action', choices=('prepare', 'check', 'execute', 'describe', 'materialize', 'location-proposal'), default='prepare', nargs='?')
+    parser.add_argument('--variant', choices=('v1-r4', 'v2-r1'), default='v1-r4')
     args = parser.parse_args()
-    trial = Trial()
+    trial = Trial(variant=args.variant)
     if args.action == 'prepare':
         report = trial.prepare()
     elif args.action == 'check':
-        binding = package_binding()
+        binding = package_binding(args.variant)
         with trial.locked():
             ledger = trial.ledger(binding)
-        report = {'status': 'CHECKED_NOT_AUTHORIZED', 'binding': binding, 'limits': LIMITS, 'attempts': ledger['attempts']}
+        report = {'status': 'CHECKED_NOT_AUTHORIZED', 'binding': binding, 'limits': trial.spec['limits'], 'attempts': ledger['attempts']}
+    elif args.action == 'location-proposal':
+        require(args.variant == 'v2-r1', 'V2_LOCATION_PROPOSAL_ONLY')
+        with inputs.offline():
+            report = parent_location_proposal(trial.spec)
+    elif args.action == 'describe':
+        report = trial.proposal()
+    elif args.action == 'materialize':
+        require(args.variant == 'v2-r1', 'V2_MATERIALIZATION_ONLY')
+        specification = importlib.util.spec_from_file_location('_finite_v2_materializer', Path(__file__).with_name('materialize_synthesis_v2_inputs.py'))
+        assert specification is not None and specification.loader is not None
+        module = importlib.util.module_from_spec(specification)
+        specification.loader.exec_module(module)
+        report = module.materialize(trial.spec)
     else:
         report = trial.execute()
     print(profile.canonical(report))

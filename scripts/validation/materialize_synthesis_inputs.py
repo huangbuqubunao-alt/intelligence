@@ -52,6 +52,7 @@ from youtube_intel.state import (
     build_evidence_id,
 )
 from youtube_intel.synthesis_runtime import (
+    MoonshotAttributionSynthesisTransport,
     MoonshotSystemSynthesisTransport,
     prepared_input,
 )
@@ -269,13 +270,16 @@ def seed_synthetic(root: Path, case: str, language: str, injection: bool) -> str
     return video
 
 
-def ordinary_review(active: LocalSourceRunRuntime, video: str, case: str) -> tuple[dict[str, Any], Any]:
+def ordinary_review(active: LocalSourceRunRuntime, video: str, case: str,
+    *, profile_id: str = profile.PROFILE_ID) -> tuple[dict[str, Any], Any]:
+    profile.resolve_profile(profile_id)
     status, response = active.application.handle('POST', f'/api/v1/videos/{video}/cloud-intelligence/review',
-        encoded({'profile_id': profile.PROFILE_ID, 'command_id': 'materialize-' + case}))
+        encoded({'profile_id': profile_id, 'command_id': 'materialize-' + case}))
     require(status == 200, 'ORDINARY_REVIEW_FAILED')
     review = cast(dict[str, Any], response['review'])
     require(isinstance(review, dict) and not review['readiness']['can_confirm'], 'PREPARATION_MUST_REMAIN_CLOSED')
-    service = active.application._cloud_synthesis_service
+    service = (active.application._cloud_synthesis_v2_service if profile_id == profile.ATTRIBUTION_PROFILE_ID
+        else active.application._cloud_synthesis_service)
     if service is None:
         raise ValueError('SYNTHESIS_SERVICE_REQUIRED')
     _, value, _ = service._cloud_previews[review['review_hash']]
@@ -292,7 +296,8 @@ def negative_replay(value: Any) -> dict[str, bool]:
     results = {}
     for name, invalid in samples.items():
         try:
-            MoonshotSystemSynthesisTransport._request(invalid)
+            adapter = MoonshotAttributionSynthesisTransport if value.wire_version == profile.ATTRIBUTION_PROFILE_ID else MoonshotSystemSynthesisTransport
+            adapter._request(invalid)
         except (CloudDistillationPreDispatchError, StateStoreError):
             results[name] = True
         else:
@@ -301,25 +306,30 @@ def negative_replay(value: Any) -> dict[str, bool]:
 
 
 def materialize_case(root: Path, artifacts: Path, case: str, video: str, language: str,
-    *, synthetic: bool, injection: bool, clock: list[datetime]) -> dict[str, Any]:
+    *, synthetic: bool, injection: bool, clock: list[datetime], profile_id: str = profile.PROFILE_ID) -> dict[str, Any]:
     parents = managed_parent_preflight(root)
     active = runtime(root, clock)
-    status, _ = active.application.handle('PUT', '/api/v1/settings/output-language', encoded({'output_language': language}))
-    require(status == 200, 'LANGUAGE_SETTING_FAILED')
-    require(active.application._cloud_synthesis_qualified is False, 'QUALIFICATION_MUST_REMAIN_CLOSED')
+    if profile_id == profile.PROFILE_ID:
+        status, _ = active.application.handle('PUT', '/api/v1/settings/output-language', encoded({'output_language': language}))
+        require(status == 200, 'LANGUAGE_SETTING_FAILED')
+    candidate_service = (active.application._cloud_synthesis_v2_service if profile_id == profile.ATTRIBUTION_PROFILE_ID
+        else active.application._cloud_synthesis_service)
+    qualified = (active.application._cloud_synthesis_v2_qualified if profile_id == profile.ATTRIBUTION_PROFILE_ID
+        else active.application._cloud_synthesis_qualified)
+    require(qualified is False, 'QUALIFICATION_MUST_REMAIN_CLOSED')
     require(active.application._cloud_execution_enabled is False, 'EXECUTION_MUST_REMAIN_CLOSED')
-    require(active.application._cloud_synthesis_service is not None
-        and active.application._cloud_synthesis_service._synthesis_budget is None, 'NO_SPENDING_POLICY_ALLOWED')
+    require(candidate_service is not None and candidate_service._synthesis_budget is None, 'NO_SPENDING_POLICY_ALLOWED')
     before = inventory(root)
-    review, value = ordinary_review(active, video, case)
+    review, value = ordinary_review(active, video, case, profile_id=profile_id)
     prepared = prepared_input(value)
     proof = persistence.loads(prepared.proof_json)
+    require(proof['command']['output_language'] == language, 'FROZEN_OUTPUT_LANGUAGE_DIFFERS')
     require(prepared.execution_id == review['execution_id'] and prepared.proof_sha256 == review['verified_input_hash'], 'API_PROOF_IDENTITY_DIFFERS')
     require(review['output_language'] == language, 'NORMAL_LANGUAGE_RESOLUTION_DIFFERS')
     provider_body = {k: v for k, v in review['outgoing_request'].items() if k not in {'endpoint_identity', 'max_retries'}}
     require(profile.canonical(provider_body) == proof['provider_wire'], 'NORMAL_API_WIRE_DIFFERS')
     request = persistence.request_from_proof(prepared)
-    require(profile.provider_wire(request) == (proof['provider_wire'], proof['reserve_microunits']), 'EXACT_PROVIDER_REBUILD_DIFFERS')
+    require(profile.provider_wire(request, profile_id) == (proof['provider_wire'], proof['reserve_microunits']), 'EXACT_PROVIDER_REBUILD_DIFFERS')
     summary_raw = proof['capture']['summary_raw'].encode()
     require(len(proof['request']['summary_context']['summary']) == 10, 'FULL_TEN_FIELD_SUMMARY_REQUIRED')
     if not synthetic:
@@ -342,7 +352,7 @@ def materialize_case(root: Path, artifacts: Path, case: str, video: str, languag
             require(all(attack not in message['content'] for message in provider_body['messages'] if message['role'] == 'system'), 'INJECTION_ESCAPED_SOURCE_BOUNDARY')
     refused = negative_replay(value)
     clock[0] += timedelta(seconds=3)
-    later, later_value = ordinary_review(active, video, case)
+    later, later_value = ordinary_review(active, video, case, profile_id=profile_id)
     require(prepared_input(later_value) == prepared, 'LATER_VALID_CLOCK_PROOF_DIFFERS')
     require(later['review_hash'] != review['review_hash'] and later['expires_at'] != review['expires_at'], 'EPHEMERAL_REVIEW_DID_NOT_REFRESH')
     require(inventory(root) == before, 'REVIEW_WROTE_SQL_OR_DATA')
@@ -373,7 +383,7 @@ def materialize_case(root: Path, artifacts: Path, case: str, video: str, languag
         last = restored.backup_restore.readiness()['last_restore']
         require(isinstance(last, dict) and last['restore_id'] == staged.restore_id and last['state'] == 'APPLIED', 'SYNTHETIC_RESTORE_NOT_APPLIED')
         require(inventory(root) == before, 'SYNTHETIC_SQL_DATA_RESTORE_DIFFERS')
-        _, restored_value = ordinary_review(restored, video, case)
+        _, restored_value = ordinary_review(restored, video, case, profile_id=profile_id)
         require(prepared_input(restored_value) == prepared and inventory(root) == before, 'RESTORED_PARENT_REPLAY_DIFFERS')
         restore = 'PASS_OWNED_SYNTHETIC_STORAGE_ONLY'
     require(managed_parent_preflight(root) == parents, 'MANAGED_PARENTS_CHANGED_DURING_PREPARATION')
