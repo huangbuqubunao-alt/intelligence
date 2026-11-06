@@ -411,8 +411,9 @@ it.each([true, false])("uses the explicitly selected attribution descriptor and 
 });
 
 
-it.each([{ language: "en", matching: true }, { language: "zh-CN", matching: true }, { language: "en", matching: false }])(
-  "distinguishes the source-level profile and verifies its explicit review ($language, $matching)", async ({ language, matching }) => {
+it.each([{ language: "en", matching: true, baseline: true }, { language: "zh-CN", matching: true, baseline: true },
+  { language: "en", matching: false, baseline: true }, { language: "en", matching: true, baseline: false }])(
+  "distinguishes the source-level profile and verifies its explicit review ($language, $matching, $baseline)", async ({ language, matching, baseline }) => {
     localStorage.setItem("yia.ui-language", language);
     const v3 = "moonshot-k31-system-synthesis-v3-source-level-20261106";
     manual = true;
@@ -420,6 +421,8 @@ it.each([{ language: "en", matching: true }, { language: "zh-CN", matching: true
       { profile_id: "moonshot-k31-system-synthesis-v2-attribution-20261105", provider: "moonshot", model: "kimi-k3.1-pro", qualified: false },
       { profile_id: v3, provider: "moonshot", model: "kimi-k3.1-pro", qualified: false }];
     returnedReview = review({ profile_id: matching ? v3 : "moonshot-k31-system-synthesis-v2-attribution-20261105",
+      outgoing_request: { model: "offline-preview-model", max_completion_tokens: 5888, messages: baseline
+        ? [{ role: "user", content: 'UNTRUSTED_CURRENT_SUMMARY_BASELINE={"summary":"complete synthetic fixture"}' }] : [] },
       readiness: { can_confirm: false, blockers: ["MODEL_UNQUALIFIED"], budget_state: "POLICY_READY" } });
     render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: language === "en" ? "Review cloud Intelligence" : "查看云端洞察预览" }));
@@ -429,16 +432,22 @@ it.each([{ language: "en", matching: true }, { language: "zh-CN", matching: true
     expect(reviewCommands).toHaveLength(0); expect(confirmations).toHaveLength(0);
     fireEvent.change(select, { target: { value: v3 } });
     fireEvent.click(screen.getByRole("button", { name: language === "en" ? "Prepare one request for review" : "准备审核本次请求" }));
-    if (matching) await screen.findByText(/offline-preview-provider/);
-    else await screen.findByText("The cloud review could not be verified. Keep reading this Content, then prepare a new review or check model settings.");
+    if (matching) {
+      await screen.findByText(/offline-preview-provider/);
+      expect((screen.getByRole("button", { name: language === "en" ? "Authorize this one cloud execution" : "授权本次云端执行" }) as HTMLButtonElement).disabled).toBe(true);
+    } else await screen.findByText("The cloud review could not be verified. Keep reading this Content, then prepare a new review or check model settings.");
+    const summaryDisclosure = screen.queryByText(/complete stored Summary as comparison context|待审核请求包含完整的已有摘要/);
+    if (matching && baseline) expect(summaryDisclosure).toBeTruthy();
+    else expect(summaryDisclosure).toBeNull();
     const post = vi.mocked(fetch).mock.calls.find(([path]) => String(path).endsWith("/cloud-intelligence/review"));
     expect(JSON.parse(String(post?.[1]?.body)).profile_id).toBe(v3);
     expect(confirmations).toHaveLength(0);
   },
 );
 
-it.each([{ language: "en", matching: true }, { language: "zh-CN", matching: true }, { language: "en", matching: false }])(
-  "distinguishes the readable-summary profile and verifies its explicit review ($language, $matching)", async ({ language, matching }) => {
+it.each([{ language: "en", matching: true, baseline: true }, { language: "zh-CN", matching: true, baseline: true },
+  { language: "en", matching: false, baseline: true }, { language: "en", matching: true, baseline: false }])(
+  "distinguishes the readable-summary profile and verifies its explicit review ($language, $matching, $baseline)", async ({ language, matching, baseline }) => {
     localStorage.setItem("yia.ui-language", language);
     const v4 = "moonshot-k31-system-synthesis-v4-readable-summary-20261107";
     manual = true;
@@ -447,6 +456,8 @@ it.each([{ language: "en", matching: true }, { language: "zh-CN", matching: true
       { profile_id: "moonshot-k31-system-synthesis-v3-source-level-20261106", provider: "moonshot", model: "kimi-k3.1-pro", qualified: false },
       { profile_id: v4, provider: "moonshot", model: "kimi-k3.1-pro", qualified: false }];
     returnedReview = review({ profile_id: matching ? v4 : "moonshot-k31-system-synthesis-v2-attribution-20261105",
+      outgoing_request: { model: "offline-preview-model", max_completion_tokens: 5888, messages: baseline
+        ? [{ role: "user", content: 'UNTRUSTED_CURRENT_SUMMARY_BASELINE={"summary":"complete synthetic fixture"}' }] : [] },
       readiness: { can_confirm: false, blockers: ["MODEL_UNQUALIFIED"], budget_state: "POLICY_READY" } });
     render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: language === "en" ? "Review cloud Intelligence" : "查看云端洞察预览" }));
@@ -456,8 +467,13 @@ it.each([{ language: "en", matching: true }, { language: "zh-CN", matching: true
     expect(reviewCommands).toHaveLength(0); expect(confirmations).toHaveLength(0);
     fireEvent.change(select, { target: { value: v4 } });
     fireEvent.click(screen.getByRole("button", { name: language === "en" ? "Prepare one request for review" : "准备审核本次请求" }));
-    if (matching) await screen.findByText(/offline-preview-provider/);
-    else await screen.findByText("The cloud review could not be verified. Keep reading this Content, then prepare a new review or check model settings.");
+    if (matching) {
+      await screen.findByText(/offline-preview-provider/);
+      expect((screen.getByRole("button", { name: language === "en" ? "Authorize this one cloud execution" : "授权本次云端执行" }) as HTMLButtonElement).disabled).toBe(true);
+    } else await screen.findByText("The cloud review could not be verified. Keep reading this Content, then prepare a new review or check model settings.");
+    const summaryDisclosure = screen.queryByText(/complete stored Summary as comparison context|待审核请求包含完整的已有摘要/);
+    if (matching && baseline) expect(summaryDisclosure).toBeTruthy();
+    else expect(summaryDisclosure).toBeNull();
     const post = vi.mocked(fetch).mock.calls.find(([path]) => String(path).endsWith("/cloud-intelligence/review"));
     expect(JSON.parse(String(post?.[1]?.body)).profile_id).toBe(v4);
     expect(confirmations).toHaveLength(0);

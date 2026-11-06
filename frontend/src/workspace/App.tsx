@@ -1846,7 +1846,8 @@ function CloudIntelligencePreview({ id, manual, executionKey, onSettled }: { id:
   const spending = review?.raw.spending;
   const reserveEstimate = localObject(spending) && typeof spending.reserve_microunits === "number"
     && Number.isSafeInteger(spending.reserve_microunits) && spending.reserve_microunits > 0 ? spending.reserve_microunits : null;
-  const includesSummary = ["moonshot-k31-system-synthesis-v1-20261029", "moonshot-k31-system-synthesis-v2-attribution-20261105"].includes(review?.profile_id ?? "")
+  const includesSummary = ["moonshot-k31-system-synthesis-v1-20261029", "moonshot-k31-system-synthesis-v2-attribution-20261105",
+    "moonshot-k31-system-synthesis-v3-source-level-20261106", "moonshot-k31-system-synthesis-v4-readable-summary-20261107"].includes(review?.profile_id ?? "")
     && localObject(outgoingRequest) && Array.isArray(outgoingRequest.messages)
     && outgoingRequest.messages.some(item => localObject(item) && typeof item.content === "string"
       && item.content.startsWith("UNTRUSTED_CURRENT_SUMMARY_BASELINE="));

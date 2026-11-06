@@ -69,3 +69,14 @@ Graph discovery was attempted first but the available indexes returned no releva
 ## 交接与剩余验证
 
 Suggested status is `IN_REVIEW`. Root owns fixed-delta independent review, actual public-source normal-entry replay, final full-backend integration checks, design acceptance and any future fee decision. The task-card public-case byte measurements are Root's prior offline evidence. This implementation independently proves the exact ceiling and arithmetic, and uses owned synthetic fixtures for normal-factory language/lifecycle verification. No actual model semantic qualification is claimed. The new package resource remains empty.
+
+## Root actual-QA follow-up — Summary disclosure
+
+Root's actual normal-server AIRC v4 preview at `ea93cc6` exposed a UI omission. `App.tsx`'s `includesSummary` finite identity list contained v1/v2, so v3/v4's real outgoing baseline did not trigger the existing explicit complete-Summary paragraph. Root assigned a two-file UI correction plus this handoff.
+
+The finite list now also includes exact v3/v4 transport IDs. The existing check for an actual `UNTRUSTED_CURRENT_SUMMARY_BASELINE=` message is retained. Existing v3/v4 UI cases now supply the real outgoing baseline shape and assert the disclosure in both languages. Their existing mismatched-review cases assert absence of the paragraph and zero confirms. Each profile has one absent-baseline case, which keeps the paragraph absent and the unqualified confirmation blocked.
+
+- Regression evidence before the fix used `npm --prefix frontend test -- --run src/workspace/App.cloud-preview.test.tsx -t 'source-level profile|readable-summary profile'`. Exactly the four v3/v4 × en/zh baseline-present cases failed with `expected null to be truthy` at test lines 440/475. The other four relevant cases passed.
+- After the finite-list correction, `npm --prefix frontend test -- --run src/workspace/App.cloud-preview.test.tsx` passed **56 tests in 2.86s**.
+- `npm --prefix frontend run typecheck` and `git diff --check` passed.
+- Diff review covers only `App.tsx`, its existing cloud-preview test file and this handoff. The UI tests use controlled responses. Root owns the actual-server recheck and final integrated frontend suite, as explicitly assigned.
