@@ -140,3 +140,63 @@ it("requires a fresh acknowledgement for the declared attribution policy while r
   expect(screen.getByText(/CNY 0\.700000/)).toBeTruthy();
   expect(paths.every(path => path.endsWith("/settings/cloud-spending-policy"))).toBe(true);
 });
+
+it("accepts the three declared policies and saves the source-level price only after fresh acknowledgement", async () => {
+  const original = initial();
+  const v2 = { ...original.price, profile_id: "moonshot-k31-system-synthesis-v2-attribution-20261105", price_hash: "b".repeat(64) };
+  const v3 = { ...original.price, profile_id: "moonshot-k31-system-synthesis-v3-source-level-20261106", price_hash: "c".repeat(64) };
+  const prices = [original.price, v2, v3];
+  state = { ...original, held_microunits: 700_000, held_requests: 1, prices };
+  vi.stubGlobal("fetch", vi.fn(async (path: string, options?: RequestInit) => {
+    paths.push(path);
+    if (options?.method === "PUT") {
+      const body = JSON.parse(String(options.body)); mutations.push(body);
+      state = { ...original, price: v3, prices, revision: 1, held_microunits: 700_000, held_requests: 1,
+        policy: { enabled: true, total_microunits: 8_000_000, per_request_microunits: 1_000_000, max_calls: 8, price_hash: v3.price_hash } };
+    }
+    return { ok: true, json: async () => ({ spending_policy: state }) } as Response;
+  }));
+  view(); await fill();
+  expect(screen.getByRole("option", { name: "kimi-k3.1-pro · Original synthesis policy" })).toBeTruthy();
+  expect(screen.getByRole("option", { name: "kimi-k3.1-pro · Explicit speaker attribution policy" })).toBeTruthy();
+  expect(screen.getByRole("option", { name: "kimi-k3.1-pro · Source-level attribution" })).toBeTruthy();
+  const select = screen.getByRole("combobox", { name: "Model policy and price reference" });
+  fireEvent.change(select, { target: { value: v3.profile_id } });
+  const acknowledgement = screen.getByLabelText("I accept this exact profile and price reference, and understand that each request needs separate confirmation.") as HTMLInputElement;
+  expect(acknowledgement.checked).toBe(false);
+  expect((screen.getByRole("button", { name: "Save finite spending limits" }) as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByLabelText("Cumulative reservation budget (CNY)") as HTMLInputElement).value).toBe("8.000000");
+  expect(screen.getByText(/CNY 0\.700000/)).toBeTruthy();
+  expect(mutations).toEqual([]);
+  fireEvent.click(acknowledgement);
+  fireEvent.click(screen.getByRole("button", { name: "Save finite spending limits" }));
+  await screen.findByText("Spending limits saved. No request was authorized or sent, and model qualification is unchanged.");
+  expect(mutations).toEqual([{ expected_revision: 0, enabled: true, total_cny: "8.000000", per_request_cny: "1.000000",
+    max_calls: 8, accept_price_hash: v3.price_hash, acknowledge: true }]);
+  expect((select as HTMLSelectElement).value).toBe(v3.profile_id);
+  expect(screen.getByText(/CNY 0\.700000/)).toBeTruthy();
+  expect(paths.every(path => path.endsWith("/settings/cloud-spending-policy"))).toBe(true);
+});
+
+it("names the source-level policy in Chinese", async () => {
+  const original = initial();
+  state = { ...original, prices: [original.price,
+    { ...original.price, profile_id: "moonshot-k31-system-synthesis-v3-source-level-20261106", price_hash: "c".repeat(64) }] };
+  localStorage.setItem("yia.ui-language", "zh-CN"); view();
+  expect(await screen.findByRole("option", { name: "kimi-k3.1-pro · 按来源归因" })).toBeTruthy();
+  expect(mutations).toEqual([]);
+});
+
+it.each(["unknown", "duplicate", "fourth"])("refuses a %s profile catalog without offering a spending save", async invalid => {
+  const original = initial();
+  const prices = [original.price,
+    { ...original.price, profile_id: "moonshot-k31-system-synthesis-v2-attribution-20261105", price_hash: "b".repeat(64) },
+    { ...original.price, profile_id: "moonshot-k31-system-synthesis-v3-source-level-20261106", price_hash: "c".repeat(64) }];
+  if (invalid === "unknown") prices[2] = { ...prices[2], profile_id: "unknown-policy" };
+  if (invalid === "duplicate") prices[2] = prices[1];
+  if (invalid === "fourth") prices.push({ ...original.price, profile_id: "unknown-policy" });
+  state = { ...original, prices }; view();
+  await screen.findByText("Spending history could not be verified. Cloud execution remains blocked.");
+  expect(screen.queryByRole("button", { name: "Save finite spending limits" })).toBeNull();
+  expect(mutations).toEqual([]);
+});

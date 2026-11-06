@@ -17,8 +17,8 @@ function valid(value: unknown): value is Spending {
     || !integer(value.price.input_microcny_per_token_worst) || !integer(value.price.output_microcny_per_token)
     || value.price.billing_guarantee !== false || !(value.held_microunits === null || integer(value.held_microunits))
     || !(value.held_requests === null || integer(value.held_requests))) return false;
-  if (value.prices !== undefined && (!Array.isArray(value.prices) || value.prices.length < 1 || value.prices.length > 2
-    || value.prices.some(price => !object(price) || !["moonshot-k31-system-synthesis-v1-20261029", "moonshot-k31-system-synthesis-v2-attribution-20261105"].includes(String(price.profile_id))
+  if (value.prices !== undefined && (!Array.isArray(value.prices) || value.prices.length < 1 || value.prices.length > 3
+    || value.prices.some(price => !object(price) || !["moonshot-k31-system-synthesis-v1-20261029", "moonshot-k31-system-synthesis-v2-attribution-20261105", "moonshot-k31-system-synthesis-v3-source-level-20261106"].includes(String(price.profile_id))
       || typeof price.price_hash !== "string" || !/^[a-f0-9]{64}$/.test(price.price_hash) || typeof price.model !== "string"
       || typeof price.price_date !== "string" || !integer(price.input_microcny_per_token_worst) || !integer(price.output_microcny_per_token)
       || price.billing_guarantee !== false)
@@ -86,7 +86,10 @@ export function CloudSpendingSettings() {
     <p>{t("These cumulative limits apply only to normal system-synthesis requests. They do not reset monthly, qualify a model or authorize a request.")}</p>
     {state && <>
       {prices.length > 1 && <label className="field">{t("Model policy and price reference")}<select value={price?.profile_id} disabled={busy} onChange={event => { setSelectedProfile(event.target.value); setAcknowledged(false); }}>
-        {prices.map(item => <option key={item.profile_id} value={item.profile_id}>{item.model} · {t(item.profile_id === "moonshot-k31-system-synthesis-v2-attribution-20261105" ? "Explicit speaker attribution policy" : "Original synthesis policy")}</option>)}
+        {prices.map(item => <option key={item.profile_id} value={item.profile_id}>{item.model} · {t(
+          item.profile_id === "moonshot-k31-system-synthesis-v3-source-level-20261106" ? "Source-level attribution"
+            : item.profile_id === "moonshot-k31-system-synthesis-v2-attribution-20261105" ? "Explicit speaker attribution policy"
+              : "Original synthesis policy")}</option>)}
       </select></label>}
       <p>{t("Switching policy keeps all held reservations and requires a new price acknowledgement.")}</p>
       <p>{t("For this price reference, choose the same analysis policy in Content before preparing a cloud review.")}</p>
