@@ -53,6 +53,7 @@ from youtube_intel.state import (
 )
 from youtube_intel.synthesis_runtime import (
     MoonshotAttributionSynthesisTransport,
+    MoonshotReadableSummarySynthesisTransport,
     MoonshotSourceLevelSynthesisTransport,
     MoonshotSystemSynthesisTransport,
     prepared_input,
@@ -279,7 +280,8 @@ def ordinary_review(active: LocalSourceRunRuntime, video: str, case: str,
     require(status == 200, 'ORDINARY_REVIEW_FAILED')
     review = cast(dict[str, Any], response['review'])
     require(isinstance(review, dict) and not review['readiness']['can_confirm'], 'PREPARATION_MUST_REMAIN_CLOSED')
-    service = (active.application._cloud_synthesis_v3_service if profile_id == profile.SOURCE_LEVEL_PROFILE_ID
+    service = (active.application._cloud_synthesis_v4_service if profile_id == profile.READABLE_SUMMARY_PROFILE_ID
+        else active.application._cloud_synthesis_v3_service if profile_id == profile.SOURCE_LEVEL_PROFILE_ID
         else active.application._cloud_synthesis_v2_service if profile_id == profile.ATTRIBUTION_PROFILE_ID
         else active.application._cloud_synthesis_service)
     if service is None:
@@ -298,7 +300,8 @@ def negative_replay(value: Any) -> dict[str, bool]:
     results = {}
     for name, invalid in samples.items():
         try:
-            adapter = (MoonshotSourceLevelSynthesisTransport if value.wire_version == profile.SOURCE_LEVEL_PROFILE_ID
+            adapter = (MoonshotReadableSummarySynthesisTransport if value.wire_version == profile.READABLE_SUMMARY_PROFILE_ID
+                else MoonshotSourceLevelSynthesisTransport if value.wire_version == profile.SOURCE_LEVEL_PROFILE_ID
                 else MoonshotAttributionSynthesisTransport if value.wire_version == profile.ATTRIBUTION_PROFILE_ID
                 else MoonshotSystemSynthesisTransport)
             adapter._request(invalid)
@@ -316,10 +319,11 @@ def materialize_case(root: Path, artifacts: Path, case: str, video: str, languag
     if profile_id == profile.PROFILE_ID:
         status, _ = active.application.handle('PUT', '/api/v1/settings/output-language', encoded({'output_language': language}))
         require(status == 200, 'LANGUAGE_SETTING_FAILED')
-    candidate_service = (active.application._cloud_synthesis_v3_service if profile_id == profile.SOURCE_LEVEL_PROFILE_ID
+    candidate_service = (active.application._cloud_synthesis_v4_service if profile_id == profile.READABLE_SUMMARY_PROFILE_ID
+        else active.application._cloud_synthesis_v3_service if profile_id == profile.SOURCE_LEVEL_PROFILE_ID
         else active.application._cloud_synthesis_v2_service if profile_id == profile.ATTRIBUTION_PROFILE_ID
         else active.application._cloud_synthesis_service)
-    qualified = (candidate_service.reviewed_synthesis_qualified() if profile_id == profile.SOURCE_LEVEL_PROFILE_ID and candidate_service is not None
+    qualified = (candidate_service.reviewed_synthesis_qualified() if profile_id in {profile.SOURCE_LEVEL_PROFILE_ID, profile.READABLE_SUMMARY_PROFILE_ID} and candidate_service is not None
         else active.application._cloud_synthesis_v2_qualified if profile_id == profile.ATTRIBUTION_PROFILE_ID
         else active.application._cloud_synthesis_qualified)
     require(qualified is False, 'QUALIFICATION_MUST_REMAIN_CLOSED')
@@ -338,6 +342,12 @@ def materialize_case(root: Path, artifacts: Path, case: str, video: str, languag
     require(profile.provider_wire(request, profile_id) == (proof['provider_wire'], proof['reserve_microunits']), 'EXACT_PROVIDER_REBUILD_DIFFERS')
     summary_raw = proof['capture']['summary_raw'].encode()
     require(len(proof['request']['summary_context']['summary']) == 10, 'FULL_TEN_FIELD_SUMMARY_REQUIRED')
+    if profile_id == profile.READABLE_SUMMARY_PROFILE_ID:
+        from youtube_intel.summary_baseline import SEMANTIC_FIELDS
+        raw_summary = json.loads(summary_raw)
+        outgoing_summary = json.loads(provider_body['messages'][-1]['content'].removeprefix('UNTRUSTED_CURRENT_SUMMARY_BASELINE='))
+        require(outgoing_summary['summary'] == {field: raw_summary[field] for field in SEMANTIC_FIELDS}
+            and len(outgoing_summary['summary']) == 10, 'V4_LITERAL_SUMMARY_CHANGED')
     if not synthetic:
         require(sha(summary_raw) == PUBLIC_SUMMARY_SHA[video], 'PUBLIC_SUMMARY_FROZEN_SHA_DIFFERS')
     refs = proof['capture']['source_refs']
