@@ -7,6 +7,9 @@ import json
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
+
+from pydantic import JsonValue
 
 from youtube_intel import offline_transcription as boundary
 from youtube_intel.acoustic_qualification import (
@@ -30,21 +33,21 @@ MODEL = Path('/Users/hua/Documents/yia-worktrees/v1x-acoustic-qualification/.var
 FROZEN = Path('docs/validation/readiness-asr/run03')
 
 
-def product_evidence(report, samples, frozen_bytes):
+def product_evidence(report: dict[str, Any], samples: list[dict[str, Any]], frozen_bytes: bytes) -> QualificationEvidence:
     """Bind every real product authority requirement to qualification."""
     positive = tuple(SampleResult(name=s['id'],source_sha256=s['source_sha256'],expected_sha256=next(x['expected_sha256'] for x in samples if x['id']==s['id']),error_rate=s.get('score',{}).get('error_rate'),duration_seconds=next(x['duration_seconds'] for x in samples if x['id']==s['id']),processing_seconds=s['product_wall_seconds'],completed=bool(s['passed'] and s['status']['status'] == 'READY' and s['trusted_timed_transcript'] and s['summary'] and s['evidence_resolves']),timestamps_valid=s['trusted_timed_transcript'],coverage_passed=s.get('coverage',{}).get('passed',False),no_omission=bool(s.get('recalls')) and all(r >= .5 for r in s.get('recalls',[]))) for s in report['samples'] if not s['id'].startswith('negative-'))
     negative = tuple(NegativeControlResult(name=s['id'],source_sha256=s['source_sha256'],processing_seconds=s['product_wall_seconds'],observed_outcome=s['acoustic_guard'],decoder_invocations=s['decoder_invocations'],no_authority=bool(s['passed'] and s['status']['status'] == 'FAILED' and s['no_authority'])) for s in report['samples'] if s['id'].startswith('negative-'))
     return QualificationEvidence(corpus_sha256=hashlib.sha256(frozen_bytes).hexdigest(),samples=positive,negative_controls=negative,offline=True,cloud_dispatches=0,source_uploads=0)
 
 
-def seal_product_result(machine, identity, result, report, audit):
+def seal_product_result(machine: Path, identity: dict[str, JsonValue], result: QualificationEvidence, report: dict[str, Any], audit: bytes) -> None:
     """Refuse inconsistent evidence before any receipt can be written."""
     if evaluate(result) != report['verdict']:
         raise ValueError('product verdict and complete evidence differ before sealing')
     seal_record(machine, identity, evidence=result, audit=audit)
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument('root', type=Path)
     parser.add_argument('--freeze', type=Path, default=Path('docs/validation/readiness-asr/product-freeze-review-p1.json'))
@@ -55,14 +58,14 @@ def main():
     for filename, digest in policy['implementation_sha256'].items():
         assert hashlib.sha256(Path(filename).read_bytes()).hexdigest() == digest, 'frozen product code changed'
     frozen_bytes = (FROZEN/'FROZEN_CORPUS.json').read_bytes()
-    samples = json.loads(frozen_bytes)['samples']
+    samples: list[dict[str, Any]] = json.loads(frozen_bytes)['samples']
     original_run = boundary.run_bounded
     active = {'id':'capability'}
-    observations = []
-    def measured(command, **kwargs):
+    observations: list[dict[str, Any]] = []
+    def measured(args: list[str], **kwargs: Any) -> bytes:
         t = time.monotonic()
-        raw = original_run(command, **kwargs)
-        if '--transcribe' in command:
+        raw = original_run(args, **kwargs)
+        if '--transcribe' in args:
             (root/(active['id']+'.raw.json')).write_bytes(raw)
             observations.append({'id': active['id'], 'wall_seconds': time.monotonic()-t})
         return raw
@@ -80,16 +83,18 @@ def main():
         time.sleep(.1)
     cap = jobs.capability()
     assert cap['state'] == 'READY' and not cap['production_eligible']
-    report = {'profile': boundary.PROFILE, 'capability_before':cap, 'engineering_seam':True, 'owner_data_access':False, 'offline':True, 'cloud_dispatches':0, 'source_uploads':0, 'samples':[], 'worker_observations':observations}
+    execution_identity = cap['execution_identity']
+    assert isinstance(execution_identity, str)
+    report: dict[str, Any] = {'profile': boundary.PROFILE, 'capability_before':cap, 'engineering_seam':True, 'owner_data_access':False, 'offline':True, 'cloud_dispatches':0, 'source_uploads':0, 'samples':[], 'worker_observations':observations}
     for sample in samples:
         source = Path(sample['source'])
         assert hashlib.sha256(source.read_bytes()).hexdigest() == sample['sha256']
         active['id'] = sample['id']
         imported = provider.import_bytes(sample['id']+source.suffix, source.read_bytes())
         start = time.monotonic()
-        jobs.start(imported.content_id, cap['execution_identity'])
+        jobs.start(imported.content_id, execution_identity)
         deadline = time.monotonic()+1950
-        responsive = []
+        responsive: list[float] = []
         while True:
             read_start = time.monotonic()
             code, _ = app.handle('GET','/api/v1/local/transcription/capability')
@@ -106,7 +111,7 @@ def main():
         summary = repo.current_local_summary_pointer(imported.content_id)
         evidence = repo.list_evidence_for_presentation(imported.content_id)
         elapsed = time.monotonic()-start
-        entry = {'id':sample['id'],'content_id':imported.content_id,'source_sha256':sample['sha256'],'status':status,'product_wall_seconds':elapsed,'max_API_read_seconds':max(responsive),'trusted_timed_transcript':timed is not None,'summary':summary is not None,'evidence_ids':list(evidence)}
+        entry: dict[str, Any] = {'id':sample['id'],'content_id':imported.content_id,'source_sha256':sample['sha256'],'status':status,'product_wall_seconds':elapsed,'max_API_read_seconds':max(responsive),'trusted_timed_transcript':timed is not None,'summary':summary is not None,'evidence_ids':list(evidence)}
         if raw:
             entry['decoder_invocations'] = sum(c['guard'] == 'DECODE' for c in raw['native_chunks'])
             entry['acoustic_guard'] = raw['acoustic_guard']

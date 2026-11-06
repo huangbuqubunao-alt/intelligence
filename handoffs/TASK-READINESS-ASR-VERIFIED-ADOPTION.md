@@ -88,3 +88,30 @@ Settings subsequently uses its existing model.json selection and normal factory 
 Root owns independent fixed-delta review, application of the accepted tool to its isolated GUI target, genuine short-audio Native import, normal transcription/Summary/Evidence and restart/Restore, followed by any separately authorized formal installation. No actual GUI/model run was performed by this worker. The original seventeen real acoustic cases are reused only after exact current validation, and do not establish natural-speech population accuracy.
 
 No production dependency, Schema, model/profile/decoder, ASR eligibility standard, unrelated script, Intelligence/cloud route, launcher, formal owner config/DB/DATA, download, provider Keychain, external network, new model inference or fees changed. No existing tests/assertions were deleted, skipped or weakened. Suggested state is IN_REVIEW. Fixed commit SHA is reported separately. Worker clean STOP after commit.
+
+## Nov6 bounded cold-strict correction after 04e885b
+
+Root explicitly authorized a minimal follow-up in `scripts/qualify_readiness_asr_product.py` after its final combined check exposed eleven existing runner type errors. The original 133-file PASS above used `PYTHONPATH=src:.`. Read-only cold reproduction demonstrated that the trailing repository root is the relevant difference, independent of cache state. Installed mypy adds interpreter sys.path entries to package_path and silences errors in imported modules under those paths. Thus the original explicitly listed targets were strict-checked, but the imported legacy runner's errors were implicitly silenced. That PASS did not establish a strict-clean transitive runner and must not be represented as one. Root's original eleven-error log is preserved at release-validation `.var/final-checks/static-913bc27/mypy.log`; this worker also preserves the reproduced cold baseline in `typed-harness/cold-before.log`.
+
+`--explicit-package-bases` is appropriate because scripts and scripts/validation are real namespace packages without __init__.py. It produces their actual scripts.validation module names. This flag alone does not fix or hide the eleven legacy errors. Faithful validation keeps the repository root in MYPYPATH, with `PYTHONPATH=src`, and includes the legacy runner explicitly. No ignore/skip/silent-import flags or dynamic-import substitution were added.
+
+The follow-up adds only function/JSON container/result annotations, annotates the forwarding wrapper and matches its private first parameter spelling to the existing run_bounded `args` interface, and narrows the already-READY capability's execution identity with an explicit string assertion before starting samples. The wrapper continues to forward the original positional arguments and kwargs unchanged. Product evidence and issuer helper ASTs are identical after removing annotations. The complete main AST is identical after removing annotations and normalizing only that private parameter spelling and the explicit identity type guard. No decoder, thresholds, report output, frozen sample, timing, issuer behavior or model invocation changed.
+
+The historical product-freeze and product-freeze-review-p1 files do bind the old runner SHA `0f822e45f208f92bcbb6f4e3cd572b5edb6300a9c7d09f00da7e5957fafd8615` and remain byte-identical. A future new experiment invoking the annotated runner with that historical freeze will correctly refuse `frozen product code changed`. No historical hash was replaced. Current acoustic qualification's twelve implementation bindings exclude this runner, so the old genuine receipt and current tuple remain valid. Full existing donor verification still returns identity ab0c9eab.../PASSED, and replayed original product evidence is canonically byte-identical. The annotated runner SHA is `705eaff7cdc202ea4cf5d350bbfe6553e994a61fb695f037b7dca02862ccaea5`.
+
+Follow-up evidence is ignored `.var/asr-verified-adoption/typed-harness/`.
+
+| Check | Result | Evidence |
+|---|---|---|
+| Cold strict all src, adoption tool and explicit legacy runner | PASS, 134 source files, zero suppressions | `cold-fixed.log` |
+| Adoption/original ASR group plus five original product-evidence/issuer regressions | 196 passed, 42.61s | `related-final.log`, 13 complete test files |
+| Ruff / compile / diff | PASS | `ruff-final.log`, exit 0 |
+| AST equivalence and genuine original proof replay | PASS | `equivalence-and-real-proof.json` |
+
+Faithful worker command is below. Root's newer three controller files are outside this worktree baseline, so Root owns the final combined check after integration.
+
+```sh
+PYTHONPATH=src MYPYPATH=src:. "$PYTHON" -m mypy --strict --explicit-package-bases --cache-dir=/dev/null src scripts/validation/adopt_verified_asr.py scripts/qualify_readiness_asr_product.py
+```
+
+Only the legacy runner and this existing handoff change in the follow-up. No formal owner or donor writes, new model execution, Keychain, network, fee, freeze update, dependency change or suppression occurred. Root913 source and its ongoing full regression remained untouched. Exact follow-up commit SHA is reported separately. Clean STOP after the fixed delta.
