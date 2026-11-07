@@ -14,10 +14,11 @@ _specification.loader.exec_module(trial)
 
 def materialize(spec: dict[str, Any] | None = None) -> dict[str, Any]:
     selected = trial.trial_spec('v2-r1') if spec is None else spec
-    trial.require(selected['variant'] in {'v2-r1', 'v3-r1', 'v4-r1'}, 'FINITE_MATERIALIZATION_ONLY')
+    trial.require(selected['variant'] in {'v2-r1', 'v3-r1', 'v4-r1', 'v4-r2'}, 'FINITE_MATERIALIZATION_ONLY')
     original = selected['original']
-    if selected['variant'] in {'v3-r1', 'v4-r1'}:
-        parent = trial.stopped_v3_parent(selected) if selected['variant'] == 'v4-r1' else trial.stopped_v2_parent(selected)
+    if selected['variant'] in {'v3-r1', 'v4-r1', 'v4-r2'}:
+        parent = (trial.stopped_preclaim_parent(selected) if selected['variant'] == 'v4-r2'
+            else trial.stopped_v3_parent(selected) if selected['variant'] == 'v4-r1' else trial.stopped_v2_parent(selected))
         source_binding = trial.parsed(original['package'] / 'proposal-not-authorized.json')['binding']
     else:
         source_binding = trial.package_binding('v1-r4', _spec=original)
@@ -44,7 +45,7 @@ def materialize(spec: dict[str, Any] | None = None) -> dict[str, Any]:
             new_proof = trial.parsed(Path(row['artifacts']) / 'prepared-proof.json')
             trial.require(new_proof['command'] == old_proof['command'] and new_proof['capture'] == old_proof['capture']
                 and inputs.inventory(root) == before == inputs.inventory(source), 'V2_CHANGED_FROZEN_SOURCE')
-            if selected['variant'] == 'v4-r1':
+            if selected['variant'] in {'v4-r1', 'v4-r2'}:
                 old_body = trial.parsed(Path(old['artifacts']) / 'provider-body.json')
                 new_body = trial.parsed(Path(row['artifacts']) / 'provider-body.json')
                 trial.require(new_body['messages'][:3] == old_body['messages'][:3], 'V4_CHANGED_SOURCE_MESSAGES')
@@ -60,11 +61,14 @@ def materialize(spec: dict[str, Any] | None = None) -> dict[str, Any]:
     inputs.save(destination / 'source-code-inventory.json', inventory)
     manifest = {'variant': selected['variant'], 'status': 'PREPARED_NOT_AUTHORIZED', 'qualification': 'CLOSED',
         'case_count': 8, 'cases': rows, 'parent_input_manifest_sha256': source_binding['manifest_sha256'],
-        'parent_summary_sha256': trial.sha(trial.encoded(parent)) if selected['variant'] in {'v3-r1', 'v4-r1'} else parent['summary_sha256'], 'oracle_sha256': source_binding['oracle_sha256'],
+        'parent_summary_sha256': trial.sha(trial.encoded(parent)) if selected['variant'] in {'v3-r1', 'v4-r1', 'v4-r2'} else parent['summary_sha256'], 'oracle_sha256': source_binding['oracle_sha256'],
         'source_code_inventory_sha256': trial.sha(trial.encoded(inventory)),
         'official_supplement': source_manifest['official_supplement'],
         'historical_calls': parent['historical_calls'], 'historical_held_microcny': parent['historical_held_microcny'],
         'actual_bill': 'UNKNOWN', 'model_calls': 0, 'credential_access': 0}
+    if selected['variant'] == 'v4-r2':
+        manifest.update(known_real_invocations=parent['known_real_invocations'],
+            preclaim_stop_slots=parent['preclaim_stop_slots'])
     inputs.save(destination / 'manifest.json', manifest)
     proposal: dict[str, Any] = trial.Trial(variant=selected['variant'], _spec=selected).proposal()
     trial.require(proposal['approval']['approved'] is False, 'PREPARATION_MUST_NOT_AUTHORIZE')
