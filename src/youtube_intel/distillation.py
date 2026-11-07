@@ -4039,14 +4039,17 @@ class PersonalizedDistillationService:
         if (self._now() >= expires or command.video_id != video_id or command.execution_id != execution_id):
             raise ValueError("cloud qualification preview identity or expiry differs")
         prepared = prepared_input(value)
+        qualification_limit = (1_500_000 if value.wire_version == synthesis_profile.READABLE_SUMMARY_PROFILE_ID
+            else 1_000_000)
         auth = self._transport._authorization
         if (type(auth) is not CloudDistillationAuthorization or auth.production_eligible
             or auth.qualification_input_hash != prepared.proof_sha256 or auth.qualification_max_calls != 1
             or type(auth.qualification_max_calls) is not int
             or budget.max_calls != 1 or budget.prior_calls != 0
             or type(budget.max_calls) is not int or type(budget.limit_microunits) is not int
+            or type(budget.prior_calls) is not int or type(budget.prior_reserved_microunits) is not int
             or budget.prior_reserved_microunits != 0
-            or not 0 < synthesis_persistence.loads(prepared.proof_json)["reserve_microunits"] <= budget.limit_microunits <= 1_000_000):
+            or not 0 < synthesis_persistence.loads(prepared.proof_json)["reserve_microunits"] <= budget.limit_microunits <= qualification_limit):
             raise ValueError("Exact one-call qualification authority or budget differs")
         manual_id = (command.reason.removeprefix(self._MANUAL_CONTENT_PREFIX)
             if command.reason.startswith(self._MANUAL_CONTENT_PREFIX) else None)
