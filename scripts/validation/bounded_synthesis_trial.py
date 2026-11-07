@@ -21,7 +21,7 @@ from collections.abc import Callable, Iterator, Mapping
 from contextlib import closing, contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 from youtube_intel import system_synthesis_persistence as p
 from youtube_intel import system_synthesis_profile as profile
@@ -76,6 +76,10 @@ V4_R2_LIMITS = {**V4_LIMITS, 'historical_calls': 7, 'historical_held_microcny': 
     'max_total_calls': 16, 'total_microcny': 16000000, 'prospective_total_microcny': 15302344}
 V4_R2_WITNESS = CONTROL.with_name('fee-parent-v4-r2-20261107.json')
 V4_R2_WITNESS_SHA = '041db3e008b5a5f97f3640cbbb715f2b17dd832a2e8c4cafe8e36ff85e88a84b'
+DEVICE_CONTINUITY = {'path': CONTROL.with_name('fee-device-continuity-20261107.json'),
+    'sha256': '0a1744f92194421d2ba36adda89fad02fd4325f84f47558a1a6cff3cb2217e85',
+    'historical_device': 16777231, 'current_device': 16777232,
+    'decision_id': 'ROOT_DEVICE_CONTINUITY_31_TO_32_20261107'}
 V4_PARENT_SUMMARY = CONTROL.with_name('fee-parent-v4-20261107.json')
 V4_PARENT_SUMMARY_SHA = '33cdd1fb69d6ce4805fdf882cd3ccb3a8d8e0830eadc0edd03ef8face569b59c'
 V2_PARENT_PINS = {
@@ -156,6 +160,7 @@ def trial_spec(variant: str = 'v1-r4') -> dict[str, Any]:
         return {**four, 'variant': variant, 'original': four, 'package': V4_R2_PACKAGE, 'control': V4_R2_CONTROL,
             'runs': REPO / '.var/bounded-synthesis-v4-r2-trial-runs', 'limits': dict(V4_R2_LIMITS),
             'purpose': 'ROOT_RECORDED_READABLE_SUMMARY_V4_R2_CONTINUATION',
+            'device_continuity': dict(DEVICE_CONTINUITY),
             'preclaim_parent_witness': V4_R2_WITNESS, 'preclaim_parent_witness_sha256': V4_R2_WITNESS_SHA,
             'frozen_parent_source': frozen_r1, 'parent_runs': frozen_r1 / '.var/bounded-synthesis-v4-trial-runs',
             'historical_revision': '469f11a2307c4ed841f533b42e067c0c800ce247',
@@ -271,7 +276,106 @@ def code_hashes(*, source_root: Path = REPO) -> dict[str, str]:
     return result
 
 
-def parent_history(spec: dict[str, Any]) -> dict[str, Any]:
+def physical_identity(path: Path, *, directory_only: bool = False) -> dict[str, Any]:
+    """Actual identity only; historical metadata never changes filesystem APIs."""
+    if directory_only:
+        directory(path)
+        meta = path.stat()
+    else:
+        raw = read(path)
+        meta = path.stat()
+    value: dict[str, Any] = {'current_device': meta.st_dev, 'inode': meta.st_ino, 'owner_uid': meta.st_uid,
+        'mode': stat.S_IMODE(meta.st_mode), 'nlink': meta.st_nlink}
+    if not directory_only:
+        value.update(mtime_ns=meta.st_mtime_ns, bytes=len(raw), sha256=sha(raw))
+        require(meta == path.stat(), 'CONTINUITY_FILE_CHANGED_DURING_READ')
+    return value
+
+
+class HistoricalMetadata(NamedTuple):
+    path: Path
+    raw: bytes
+    identity_json: bytes
+
+    def device(self, path: Path) -> int:
+        value = json.loads(self.raw)
+        is_directory = str(path) in value['controls']
+        record = (value['controls'] if is_directory else value['files']).get(str(path))
+        require(record is not None, 'CONTINUITY_UNPINNED_PATH')
+        expected = {key: child for key, child in record.items() if key not in {'historical_device', 'anchor_device'}}
+        require(physical_identity(path, directory_only=is_directory) == expected, 'CONTINUITY_IDENTITY_CHANGED')
+        result: int = record['historical_device']
+        return result
+
+    def evidence(self) -> dict[str, Any]:
+        value = json.loads(self.raw)
+        return {'path': str(self.path), 'sha256': sha(self.raw), 'witness_identity': json.loads(self.identity_json),
+            'transition': value['transition'], 'new_fee_authorized': False,
+            'current_controls': {name: {key: child for key, child in record.items()
+                if key not in {'historical_device', 'anchor_device'}} for name, record in value['controls'].items()},
+            'current_files': {name: {key: child for key, child in record.items() if key != 'historical_device'}
+                for name, record in value['files'].items()}}
+
+
+def historical_metadata(spec: dict[str, Any]) -> HistoricalMetadata | None:
+    configured = spec.get('device_continuity')
+    if configured is None:
+        return None
+    require(spec['variant'] == 'v4-r2', 'CONTINUITY_R2_ONLY')
+    path: Path = configured['path']
+    raw = read(path, private=True)
+    require(sha(raw) == configured['sha256'], 'CONTINUITY_WITNESS_CHANGED')
+    value = parsed(path, private=True)
+    transition = {key: configured[key] for key in ('historical_device', 'current_device')}
+    require(set(value) == {'baseline_snapshot', 'comparison_report', 'controls', 'decision_id', 'files',
+        'new_fee_authorized', 'purpose', 'transition', 'version'}
+        and value['version'] == 'bounded-trial-apfs-device-continuity-v1'
+        and value['purpose'] == 'HISTORICAL_METADATA_ONLY_NOT_FEE_AUTHORIZATION'
+        and value['decision_id'] == configured['decision_id'] and value['new_fee_authorized'] is False
+        and encoded(value['transition']) == encoded(transition)
+        and all(type(number) is int and number > 0 for number in transition.values())
+        and transition['historical_device'] != transition['current_device'], 'CONTINUITY_WITNESS_INVALID')
+    original = spec['original']
+    controls = {str(original['control']), str(original['original']['control']),
+        str(original['original']['original']['control']), str(original['original']['original']['original']['control'])}
+    require(set(value['controls']) == controls and value['files'], 'CONTINUITY_PATH_SET_DIFFERS')
+    context = HistoricalMetadata(path, raw, encoded(physical_identity(path)))
+    require(json.loads(context.identity_json)['current_device'] == transition['current_device'],
+        'CONTINUITY_WITNESS_DEVICE_DIFFERS')
+    for group, names in (('files', {'mtime_ns', 'bytes', 'sha256'}), ('controls', {'anchor_device'})):
+        for name, record in value[group].items():
+            target = Path(name)
+            require(target.is_absolute() and str(target) == name and '..' not in target.parts
+                and target != path and set(record) == names | {'historical_device', 'current_device', 'inode',
+                    'owner_uid', 'mode', 'nlink'} and all(type(child) is int and child >= 0
+                    for key, child in record.items() if key != 'sha256')
+                and record['historical_device'] == transition['historical_device']
+                and record['current_device'] == transition['current_device']
+                and record['owner_uid'] == os.getuid(), 'CONTINUITY_RECORD_INVALID')
+            context.device(target)
+            if group == 'controls':
+                anchor = parsed(target / 'anchor.json', private=True)
+                require(anchor['control_device'] == record['anchor_device'] and anchor['control_inode'] == record['inode']
+                    and {str(child) for child in target.iterdir()}
+                    == {child for child in value['files'] if Path(child).parent == target}, 'CONTINUITY_CONTROL_DIFFERS')
+    for key in ('baseline_snapshot', 'comparison_report'):
+        support = value[key]
+        target = Path(support['path'])
+        require(set(support) == {'path', 'sha256'} and str(target) not in value['files']
+            and str(target) not in value['controls'] and target != path
+            and sha(read(target)) == support['sha256']
+            and physical_identity(target)['current_device'] == transition['current_device'], 'CONTINUITY_SUPPORT_CHANGED')
+    return context
+
+
+def historical_device(path: Path, context: HistoricalMetadata | None) -> int:
+    if context is not None:
+        return context.device(path)
+    actual: int = physical_identity(path, directory_only=path.is_dir())['current_device']
+    return actual
+
+
+def parent_history(spec: dict[str, Any], *, _history: HistoricalMetadata | None = None) -> dict[str, Any]:
     """Historical rejected invocation is a held cost, never new consent."""
     try:
         summary_path: Path = spec['parent_summary']
@@ -299,7 +403,7 @@ def parent_history(spec: dict[str, Any]) -> dict[str, Any]:
             raw = read(path, private=True)
             require(sha(raw) == summary['parent_hashes'][name], 'PARENT_FILE_CHANGED')
             meta = path.stat()
-            files[name] = {'sha256': sha(raw), 'device': meta.st_dev, 'inode': meta.st_ino, 'bytes': len(raw)}
+            files[name] = {'sha256': sha(raw), 'device': historical_device(path, _history), 'inode': meta.st_ino, 'bytes': len(raw)}
             values[name] = parsed(path, private=True)
         anchor, ledger, grant, attempt = (values[name] for name in names[:4])
         result, final, decision = (values[name] for name in names[4:])
@@ -369,18 +473,19 @@ def parent_history(spec: dict[str, Any]) -> dict[str, Any]:
         read(parent / 'lock', private=True)
         lock_meta = (parent / 'lock').stat()
         return {'summary_sha256': sha(summary_raw), 'summary_inode': summary_path.stat().st_ino,
-            'parent_control': str(parent), 'parent_inode': parent.stat().st_ino, 'parent_device': parent.stat().st_dev,
-            'lock_inode': lock_meta.st_ino, 'lock_device': lock_meta.st_dev, 'files': files,
+            'parent_control': str(parent), 'parent_inode': parent.stat().st_ino, 'parent_device': historical_device(parent, _history),
+            'lock_inode': lock_meta.st_ino, 'lock_device': historical_device(parent / 'lock', _history), 'files': files,
             'historical_calls': calls, 'historical_held_microcny': held, 'actual_bill': 'UNKNOWN', 'parent_semantic': 'REJECT', 'anchor': anchor}
     except (OSError, ValueError, TypeError, KeyError, IndexError):
         raise ValueError('PARENT_HISTORY_UNVERIFIABLE') from None
 
 
-def parent_location_evidence(spec: dict[str, Any], history: dict[str, Any]) -> dict[str, Any]:
+def parent_location_evidence(spec: dict[str, Any], history: dict[str, Any], *,
+    _history: HistoricalMetadata | None = None) -> dict[str, Any]:
     """One pinned historical location transition, with the original DB intact."""
     parent = Path(history['parent_control'])
     anchor = history['anchor']
-    transition = {'old_device': anchor['control_device'], 'current_device': parent.stat().st_dev,
+    transition = {'old_device': anchor['control_device'], 'current_device': historical_device(parent, _history),
         'inode': parent.stat().st_ino}
     require(transition == spec['parent_location_transition']
         and transition['old_device'] != transition['current_device'], 'PARENT_LOCATION_TRANSITION_NOT_APPROVED')
@@ -408,7 +513,7 @@ def parent_location_evidence(spec: dict[str, Any], history: dict[str, Any]) -> d
         'parent_hashes': summary['parent_hashes'],
         'old_identity': {'device': anchor['control_device'], 'inode': anchor['control_inode'],
             'owner_uid': os.getuid(), 'mode': 0o700},
-        'current_identity': {'device': parent.stat().st_dev, 'inode': parent.stat().st_ino,
+        'current_identity': {'device': historical_device(parent, _history), 'inode': parent.stat().st_ino,
             'owner_uid': parent.stat().st_uid, 'mode': stat.S_IMODE(parent.stat().st_mode)},
         'terminal_root': str(root), 'terminal_database_sha256': database_sha,
         'terminal_inventory_sha256': sha(encoded(inputs.inventory(root))),
@@ -425,15 +530,15 @@ def parent_location_proposal(spec: dict[str, Any] | None = None) -> dict[str, An
         'binding': parent_location_evidence(selected, history)}
 
 
-def parent_binding(spec: dict[str, Any]) -> dict[str, Any]:
+def parent_binding(spec: dict[str, Any], *, _history: HistoricalMetadata | None = None) -> dict[str, Any]:
     try:
-        history = parent_history(spec)
+        history = parent_history(spec, _history=_history)
         anchor = history.pop('anchor')
         history['location_recovery'] = None
         if anchor['control_device'] == history['parent_device']:
             require(not spec['parent_location_proof'].exists(), 'PARENT_LOCATION_PROOF_NOT_APPLICABLE')
             return history
-        evidence = parent_location_evidence(spec, {**history, 'anchor': anchor})
+        evidence = parent_location_evidence(spec, {**history, 'anchor': anchor}, _history=_history)
         proof: Path = spec['parent_location_proof']
         value = parsed(proof, private=True)
         require(value == {'approved': True, 'purpose': 'PARENT_LOCATION_ONLY',
@@ -442,7 +547,7 @@ def parent_binding(spec: dict[str, Any]) -> dict[str, Any]:
             and isinstance(value['decision_id'], str) and 0 < len(value['decision_id']) <= 160,
             'PARENT_LOCATION_PROOF_REQUIRED_OR_INVALID')
         history['location_recovery'] = {'sha256': sha(read(proof, private=True)), 'path': str(proof),
-            'device': proof.stat().st_dev, 'inode': proof.stat().st_ino, 'binding': evidence}
+            'device': historical_device(proof, _history), 'inode': proof.stat().st_ino, 'binding': evidence}
         return history
     except (OSError, ValueError, KeyError, TypeError, sqlite3.DatabaseError):
         raise ValueError('PARENT_LOCATION_OR_HISTORY_UNVERIFIABLE') from None
@@ -521,18 +626,18 @@ def verified_stopped_terminal(original: dict[str, Any], binding: dict[str, Any],
         'decision': verdict}
 
 
-def stopped_v2_parent(spec: dict[str, Any]) -> dict[str, Any]:
+def stopped_v2_parent(spec: dict[str, Any], *, _history: HistoricalMetadata | None = None) -> dict[str, Any]:
     """Verify the frozen stopped two-call parent and retain all five held costs."""
     try:
         original = spec['original']
         frozen = spec['frozen_parent_source']
         saved = parsed(original['package'] / 'proposal-not-authorized.json')
-        binding = package_binding('v2-r1', _spec=original, _source_root=frozen)
+        binding = package_binding('v2-r1', _spec=original, _source_root=frozen, _history=_history)
         require(binding == saved['binding']
             and sha(encoded(binding)) == spec['historical_binding_sha256']
             and binding['manifest_sha256'] == spec['historical_manifest_sha256']
             and binding['source_revision'] == spec['historical_revision'], 'V3_FROZEN_PARENT_SOURCE_DIFFERS')
-        nested = parent_binding(original)
+        nested = parent_binding(original, _history=_history)
         require(nested == binding['parent'] and nested['historical_calls'] == 3
             and nested['historical_held_microcny'] == original['limits']['historical_held_microcny'],
             'V3_NESTED_HISTORY_DIFFERS')
@@ -549,11 +654,11 @@ def stopped_v2_parent(spec: dict[str, Any]) -> dict[str, Any]:
             raw = read(path, private=True)
             require(sha(raw) == expected, 'V3_PARENT_HASH_DIFFERS')
             meta = path.stat()
-            files[name] = {'sha256': sha(raw), 'device': meta.st_dev, 'inode': meta.st_ino, 'bytes': len(raw)}
+            files[name] = {'sha256': sha(raw), 'device': historical_device(path, _history), 'inode': meta.st_ino, 'bytes': len(raw)}
             values[name] = parsed(path, private=True)
         anchor, ledger, grant = (values[name] for name in ('anchor.json', 'ledger.json', 'grant.json'))
         require(anchor == {'binding_sha256': sha(encoded(binding)), 'control_inode': control.stat().st_ino,
-            'control_device': control.stat().st_dev}, 'V3_PARENT_IDENTITY_DIFFERS')
+            'control_device': historical_device(control, _history)}, 'V3_PARENT_IDENTITY_DIFFERS')
         marker = control.with_name(control.name + '-initialized.json')
         require(parsed(marker, private=True) == anchor and sha(read(marker, private=True)) == spec['historical_marker_sha256'],
             'V3_PARENT_INITIALIZATION_DIFFERS')
@@ -586,7 +691,7 @@ def stopped_v2_parent(spec: dict[str, Any]) -> dict[str, Any]:
         require(held == spec['limits']['historical_held_microcny']
             and nested['historical_calls'] + len(attempts) == spec['limits']['historical_calls'], 'V3_HISTORY_TOTALS_DIFFER')
         return {'nested_v1': nested, 'files': files, 'parent_control': str(control),
-            'control_inode': control.stat().st_ino, 'control_device': control.stat().st_dev,
+            'control_inode': control.stat().st_ino, 'control_device': historical_device(control, _history),
             'marker_inode': marker.stat().st_ino, 'marker_sha256': sha(read(marker, private=True)),
             'manifest_sha256': binding['manifest_sha256'], 'binding_sha256': sha(encoded(binding)),
             'terminals': terminals, 'restore_report_sha256': sha(restore_raw),
@@ -595,7 +700,7 @@ def stopped_v2_parent(spec: dict[str, Any]) -> dict[str, Any]:
         raise ValueError('V3_STOPPED_PARENT_UNVERIFIABLE') from None
 
 
-def stopped_v3_parent(spec: dict[str, Any]) -> dict[str, Any]:
+def stopped_v3_parent(spec: dict[str, Any], *, _history: HistoricalMetadata | None = None) -> dict[str, Any]:
     """Retain the one rejected v3 call over the complete five-call parent."""
     try:
         summary_path: Path = spec['stopped_v3_summary']
@@ -610,12 +715,12 @@ def stopped_v3_parent(spec: dict[str, Any]) -> dict[str, Any]:
         original = spec['original']
         frozen: Path = spec['frozen_parent_source']
         saved = parsed(original['package'] / 'proposal-not-authorized.json')
-        binding = package_binding('v3-r1', _spec=original, _source_root=frozen)
+        binding = package_binding('v3-r1', _spec=original, _source_root=frozen, _history=_history)
         require(binding == saved['binding'] and sha(encoded(binding)) == summary['binding_sha256']
             == spec['historical_binding_sha256'] and binding['manifest_sha256'] == summary['manifest_sha256']
             == spec['historical_manifest_sha256'] and binding['source_revision'] == summary['source_revision']
             == spec['historical_revision'] and str(frozen) == summary['parent_source'], 'V4_FROZEN_PARENT_SOURCE_DIFFERS')
-        nested = stopped_v2_parent(original)
+        nested = stopped_v2_parent(original, _history=_history)
         require(nested == binding['parent'] and nested['historical_calls'] == 5
             and nested['historical_held_microcny'] == original['limits']['historical_held_microcny'],
             'V4_NESTED_HISTORY_DIFFERS')
@@ -634,11 +739,11 @@ def stopped_v3_parent(spec: dict[str, Any]) -> dict[str, Any]:
             raw = read(path, private=True)
             require(sha(raw) == expected, 'V4_PARENT_HASH_DIFFERS')
             meta = path.stat()
-            files[name] = {'sha256': sha(raw), 'device': meta.st_dev, 'inode': meta.st_ino, 'bytes': len(raw)}
+            files[name] = {'sha256': sha(raw), 'device': historical_device(path, _history), 'inode': meta.st_ino, 'bytes': len(raw)}
             values[name] = parsed(path, private=True)
         anchor, ledger, grant = (values[name] for name in ('anchor.json', 'ledger.json', 'grant.json'))
         require(anchor == {'binding_sha256': sha(encoded(binding)), 'control_inode': control.stat().st_ino,
-            'control_device': control.stat().st_dev}, 'V4_PARENT_IDENTITY_DIFFERS')
+            'control_device': historical_device(control, _history)}, 'V4_PARENT_IDENTITY_DIFFERS')
         marker = control.with_name(control.name + '-initialized.json')
         require(parsed(marker, private=True) == anchor
             and sha(read(marker, private=True)) == summary['pins']['anchor.json'], 'V4_PARENT_INITIALIZATION_DIFFERS')
@@ -667,7 +772,7 @@ def stopped_v3_parent(spec: dict[str, Any]) -> dict[str, Any]:
             == summary['historical_calls'] == spec['limits']['historical_calls'], 'V4_HISTORY_TOTALS_DIFFER')
         return {'nested_v2': nested, 'summary_sha256': sha(summary_raw), 'summary_inode': summary_path.stat().st_ino,
             'files': files, 'parent_control': str(control), 'control_inode': control.stat().st_ino,
-            'control_device': control.stat().st_dev, 'marker_inode': marker.stat().st_ino,
+            'control_device': historical_device(control, _history), 'marker_inode': marker.stat().st_ino,
             'marker_sha256': sha(read(marker, private=True)), 'manifest_sha256': binding['manifest_sha256'],
             'binding_sha256': sha(encoded(binding)), 'terminals': [terminal], 'restore_report_sha256': sha(restore_raw),
             'historical_calls': 6, 'historical_held_microcny': held, 'actual_bill': 'UNKNOWN', 'parent_semantic': 'REJECT'}
@@ -678,6 +783,7 @@ def stopped_v3_parent(spec: dict[str, Any]) -> dict[str, Any]:
 def stopped_preclaim_parent(spec: dict[str, Any]) -> dict[str, Any]:
     """Preserve a stopped fee slot without inventing an invocation or output."""
     try:
+        context = historical_metadata(spec)
         witness_path: Path = spec['preclaim_parent_witness']
         raw_witness = read(witness_path, private=True)
         require(sha(raw_witness) == spec['preclaim_parent_witness_sha256'], 'PRECLAIM_WITNESS_CHANGED')
@@ -693,12 +799,12 @@ def stopped_preclaim_parent(spec: dict[str, Any]) -> dict[str, Any]:
         original = spec['original']
         frozen: Path = spec['frozen_parent_source']
         saved = parsed(original['package'] / 'proposal-not-authorized.json')
-        binding = package_binding('v4-r1', _spec=original, _source_root=frozen)
+        binding = package_binding('v4-r1', _spec=original, _source_root=frozen, _history=context)
         require(binding == saved['binding'] and sha(encoded(binding)) == witness['binding_sha256']
             == spec['historical_binding_sha256'] and binding['manifest_sha256'] == witness['manifest_sha256']
             == spec['historical_manifest_sha256'] and binding['source_revision'] == witness['source_revision']
             == spec['historical_revision'] and str(frozen) == witness['parent_source'], 'PRECLAIM_SOURCE_DIFFERS')
-        nested = stopped_v3_parent(original)
+        nested = stopped_v3_parent(original, _history=context)
         require(nested == binding['parent'] and nested['historical_calls'] == 6
             and nested['historical_held_microcny'] == original['limits']['historical_held_microcny'],
             'PRECLAIM_NESTED_HISTORY_DIFFERS')
@@ -718,11 +824,11 @@ def stopped_preclaim_parent(spec: dict[str, Any]) -> dict[str, Any]:
             raw = read(path, private=True)
             require(sha(raw) == expected, 'PRECLAIM_FILE_CHANGED')
             meta = path.stat()
-            files[name] = {'sha256': sha(raw), 'device': meta.st_dev, 'inode': meta.st_ino, 'bytes': len(raw)}
+            files[name] = {'sha256': sha(raw), 'device': historical_device(path, None), 'inode': meta.st_ino, 'bytes': len(raw)}
             values[name] = parsed(path, private=True)
         anchor, ledger, grant = (values[name] for name in ('anchor.json', 'ledger.json', 'grant.json'))
         require(anchor == {'binding_sha256': sha(encoded(binding)), 'control_inode': control.stat().st_ino,
-            'control_device': control.stat().st_dev}, 'PRECLAIM_CONTROL_IDENTITY_DIFFERS')
+            'control_device': historical_device(control, context)}, 'PRECLAIM_CONTROL_IDENTITY_DIFFERS')
         marker = control.with_name(control.name + '-initialized.json')
         require(parsed(marker, private=True) == anchor and sha(read(marker, private=True)) == witness['marker_sha256'],
             'PRECLAIM_MARKER_DIFFERS')
@@ -802,9 +908,11 @@ def stopped_preclaim_parent(spec: dict[str, Any]) -> dict[str, Any]:
             and witness['historical_calls'] == spec['limits']['historical_calls'] == nested['historical_calls'] + 1
             and witness['historical_held_microcny'] == spec['limits']['historical_held_microcny'] == held,
             'PRECLAIM_ACCOUNTING_DIFFERS')
-        return {'nested_v4': nested, 'witness_sha256': sha(raw_witness), 'witness_inode': witness_path.stat().st_ino,
+        require(historical_metadata(spec) == context, 'CONTINUITY_CHANGED_DURING_HISTORY_READ')
+        current = {} if context is None else {'device_continuity': context.evidence()}
+        return {**current, 'nested_v4': nested, 'witness_sha256': sha(raw_witness), 'witness_inode': witness_path.stat().st_ino,
             'files': files, 'parent_control': str(control), 'control_inode': control.stat().st_ino,
-            'control_device': control.stat().st_dev, 'marker_inode': marker.stat().st_ino,
+            'control_device': historical_device(control, None), 'marker_inode': marker.stat().st_ino,
             'marker_sha256': sha(read(marker, private=True)), 'manifest_sha256': binding['manifest_sha256'],
             'binding_sha256': sha(encoded(binding)), 'database_sha256': database_sha,
             'inventory_sha256': sha(encoded(inventory)), 'historical_calls': 7, 'known_real_invocations': 6,
@@ -814,7 +922,7 @@ def stopped_preclaim_parent(spec: dict[str, Any]) -> dict[str, Any]:
 
 
 def package_binding(variant: str = 'v1-r4', *, _spec: dict[str, Any] | None = None,
-    _source_root: Path = REPO) -> dict[str, Any]:
+    _source_root: Path = REPO, _history: HistoricalMetadata | None = None) -> dict[str, Any]:
     spec = trial_spec(variant) if _spec is None else _spec
     require(spec['variant'] == variant, 'TRIAL_VARIANT_UNKNOWN')
     package: Path = spec['package']
@@ -862,7 +970,7 @@ def package_binding(variant: str = 'v1-r4', *, _spec: dict[str, Any] | None = No
         'cases': cases}
 
     if variant == 'v2-r1':
-        original = package_binding('v1-r4', _spec=spec['original'], _source_root=_source_root)
+        original = package_binding('v1-r4', _spec=spec['original'], _source_root=_source_root, _history=_history)
         require(manifest.get('variant') == variant
             and manifest.get('parent_input_manifest_sha256') == original['manifest_sha256']
             and manifest['oracle_sha256'] == original['oracle_sha256'], 'V2_INPUT_PARENT_DIFFERS')
@@ -875,12 +983,12 @@ def package_binding(variant: str = 'v1-r4', *, _spec: dict[str, Any] | None = No
             require(new_proof['capture'] == old_proof['capture'] and new_proof['command'] == old_proof['command']
                 and inputs.inventory(package / 'cases' / row['case'] / 'project')
                 == inputs.inventory(old_package / 'cases' / old['case'] / 'project'), 'V2_SOURCE_SNAPSHOT_CHANGED')
-        parent = parent_binding(spec)
+        parent = parent_binding(spec, _history=_history)
         require(manifest.get('parent_summary_sha256') == spec['bundle_parent_summary_sha256'], 'V2_PARENT_SUMMARY_DIFFERS')
         binding.update(variant=variant, parent=parent, original_manifest_sha256=original['manifest_sha256'])
     if variant in {'v3-r1', 'v4-r1', 'v4-r2'}:
         parent = (stopped_preclaim_parent(spec) if variant == 'v4-r2'
-            else stopped_v3_parent(spec) if variant == 'v4-r1' else stopped_v2_parent(spec))
+            else stopped_v3_parent(spec, _history=_history) if variant == 'v4-r1' else stopped_v2_parent(spec, _history=_history))
         old_package = spec['original']['package']
         old_manifest = parsed(old_package / 'manifest.json')
         require(manifest.get('variant') == variant

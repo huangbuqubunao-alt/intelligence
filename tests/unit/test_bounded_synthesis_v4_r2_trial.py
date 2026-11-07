@@ -113,7 +113,7 @@ def template(tmp_path_factory: pytest.TempPathFactory) -> Any:
     witness_path = root / 'synthetic-preclaim-witness.json'
     m.once(witness_path, witness)
     r2 = m.trial_spec('v4-r2')
-    r2.update(original=four, package=root / 'r2-package', order=four['order'], seed=four['seed'],
+    r2.update(original=four, package=root / 'r2-package', order=four['order'], seed=four['seed'], device_continuity=None,
         frozen_parent_source=frozen, parent_runs=parent.runs, preclaim_parent_witness=witness_path,
         preclaim_parent_witness_sha256=m.sha(m.encoded(witness)), historical_revision=approval['source_revision'],
         historical_binding_sha256=approval['binding_sha256'], historical_manifest_sha256=witness['manifest_sha256'])
