@@ -84,7 +84,8 @@ def test_v3_golden_and_v4_source_policy_and_proof_binding_do_not_mix():
     assert json.loads(new.wire_json)['messages'][:3] == json.loads(old.wire_json)['messages'][:3]
     assert json.loads(new.projection_json)['summary_context'] == json.loads(old.projection_json)['summary_context']
     assert new.origin_sha256 != old.origin_sha256
-    for transport in profile.PROFILE_IDS[:-1]:
+    # Every other transport (older ones and the later v5) must refuse the v4 policy.
+    for transport in (identity for identity in profile.PROFILE_IDS if identity != V4):
         with pytest.raises(ValueError):
             profile.provider_wire(new, transport)
     with pytest.raises(ValueError):
@@ -110,7 +111,8 @@ def test_only_v4_has_40kib_ceiling_and_reserves_every_literal_byte():
     assert reserve == (sum(len(m['content'].encode()) for m in json.loads(wire)['messages']) + 2048) * 26 + 5888 * 68
     with pytest.raises(ValueError, match='byte bound'):
         profile.provider_wire(request(40961 - len(profile.provider_wire(first, V4)[0].encode())), V4)
-    assert [profile.resolve_profile(p)['max_request_bytes'] for p in profile.PROFILE_IDS] == [32768] * 3 + [40960]
+    # v1-v3 keep 32 KiB; v4 and the later v5 (same readable Summary view) use 40 KiB.
+    assert [profile.resolve_profile(p)['max_request_bytes'] for p in profile.PROFILE_IDS] == [32768] * 3 + [40960] * 2
     with pytest.raises(ValueError, match='oversized'):
         request(128001)
 

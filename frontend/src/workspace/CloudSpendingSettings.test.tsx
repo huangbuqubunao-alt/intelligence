@@ -250,3 +250,32 @@ it("names the readable-summary policy in Chinese", async () => {
   expect(await screen.findByRole("option", { name: "kimi-k3.1-pro · 完整摘要对照" })).toBeTruthy();
   expect(mutations).toEqual([]);
 });
+
+it("accepts the v5 judgment policy as a fifth declared price reference and labels it", async () => {
+  const original = initial();
+  const ids = ["moonshot-k31-system-synthesis-v2-attribution-20261105", "moonshot-k31-system-synthesis-v3-source-level-20261106",
+    "moonshot-k31-system-synthesis-v4-readable-summary-20261107", "moonshot-k31-system-synthesis-v5-judgment-20261112"];
+  const prices = [original.price, ...ids.map((profile_id, index) => ({ ...original.price, profile_id, price_hash: "bcde"[index].repeat(64) }))];
+  state = { ...original, prices };
+  vi.stubGlobal("fetch", vi.fn(async (path: string) => {
+    paths.push(path);
+    return { ok: true, json: async () => ({ spending_policy: state }) } as Response;
+  }));
+  view(); await fill();
+  expect(screen.getByRole("option", { name: "kimi-k3.1-pro · Judgment beyond the complete Summary" })).toBeTruthy();
+  expect(screen.getByRole("option", { name: "kimi-k3.1-pro · Complete Summary comparison" })).toBeTruthy();
+  expect(mutations).toEqual([]);
+});
+
+it("still rejects an undeclared sixth price reference", async () => {
+  const original = initial();
+  const prices = [original.price, ...["a", "b", "c", "d", "e"].map(letter => ({ ...original.price, price_hash: letter.repeat(64) }))];
+  state = { ...original, prices };
+  vi.stubGlobal("fetch", vi.fn(async (path: string) => {
+    paths.push(path);
+    return { ok: true, json: async () => ({ spending_policy: state }) } as Response;
+  }));
+  view();
+  await waitFor(() => expect(paths.length).toBeGreaterThan(0));
+  expect(screen.queryByRole("option", { name: /Judgment beyond the complete Summary/ })).toBeNull();
+});

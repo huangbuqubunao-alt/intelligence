@@ -20,6 +20,12 @@ PROFILE_ID: Final = "system-synthesis-v1"
 ATTRIBUTION_PROFILE_ID: Final = "system-synthesis-v2-attribution"
 SOURCE_LEVEL_PROFILE_ID: Final = "system-synthesis-v3-source-level"
 READABLE_SUMMARY_PROFILE_ID: Final = "system-synthesis-v4-readable-summary"
+# v5 keeps every v4 rule and readable Summary view, and only restores the
+# Intelligence definition/field semantics that v1-v4 dropped from TASK-022.
+JUDGMENT_PROFILE_ID: Final = "system-synthesis-v5-judgment"
+PROFILE_IDS: Final = (PROFILE_ID, ATTRIBUTION_PROFILE_ID, SOURCE_LEVEL_PROFILE_ID, READABLE_SUMMARY_PROFILE_ID,
+    JUDGMENT_PROFILE_ID)
+_READABLE_SUMMARY_IDS: Final = frozenset({READABLE_SUMMARY_PROFILE_ID, JUDGMENT_PROFILE_ID})
 GENERATION_ROLE: Final = "SYSTEM_INFERENCE"
 _MAX_INPUT = 128_000
 _MAX_RESPONSE = 2 * 1024 * 1024
@@ -80,6 +86,30 @@ _SOURCE_LEVEL_POLICY = (
     "provenance. People and organizations may remain as supported subject-matter entities, never as owners of utterances."
 )
 
+# Generic (source/case independent) definition of the positive threshold and of
+# each positive field. It names no topic, keyword, recommendation template or
+# expected answer; it only restores the TASK-022 Intelligence definition that the
+# earlier system contracts replaced, and makes the NO_NEW decision explicit.
+_JUDGMENT_POLICY = (
+    "What counts as Intelligence: an evidence-backed, revisable judgment worth retaining beyond the complete "
+    "stored Summary, such as a substantive conclusion, interpretation, implication or decision consideration "
+    "that follows from the cited Evidence for the TASK focus and is not already stated in the Summary. It is "
+    "your system analysis: give its basis in the cited Evidence, its conditions or scope, and what would "
+    "confirm or revise it. Field meanings for a positive result: core_conclusion states that retained judgment "
+    "itself, not an overview of the source; user_relevant_information states what the judgment changes or "
+    "implies for the TASK focus; important_new_information lists only attributed source content absent from "
+    "the Summary on which the judgment depends, and is an empty array when the judgment rests only on content "
+    "the Summary already contains; meaningful_details lists only qualifications, conditions or limits needed "
+    "to apply the judgment correctly. Empty arrays are valid; never fill a field just to make it nonempty. "
+    "Decide before writing: first identify candidate judgments relevant to the TASK focus; then compare each "
+    "with the complete Summary, including any verbatim source text it contains; discard a candidate that is a "
+    "translation, paraphrase, condensation or reordering of Summary or source text, a statement that the "
+    "source does not address the TASK focus, or a generic caution that would fit almost any source. Source "
+    "content missing from the Summary is input for a judgment, not a judgment by itself. If no candidate "
+    "survives, return NO_NEW_INTELLIGENCE. If one survives, build the positive result around it and do not "
+    "pad it with restatements."
+)
+
 
 def _contract(profile_id: str) -> str:
     if profile_id == PROFILE_ID:
@@ -88,6 +118,8 @@ def _contract(profile_id: str) -> str:
         return _CONTRACT + " " + _ATTRIBUTION_POLICY
     if profile_id in {SOURCE_LEVEL_PROFILE_ID, READABLE_SUMMARY_PROFILE_ID}:
         return _CONTRACT + " " + _SOURCE_LEVEL_POLICY
+    if profile_id == JUDGMENT_PROFILE_ID:
+        return _CONTRACT + " " + _SOURCE_LEVEL_POLICY + " " + _JUDGMENT_POLICY
     raise ValueError("Unknown system analysis policy")
 
 
@@ -174,7 +206,7 @@ def _messages(
         _contract(profile_id) + f" There are exactly {len(refs)} original Evidence items. Write generated analysis in {language}."
     )
     summary_message = dict(checked[-1])
-    if profile_id == READABLE_SUMMARY_PROFILE_ID:
+    if profile_id in _READABLE_SUMMARY_IDS:
         summary_message["content"] = "UNTRUSTED_CURRENT_SUMMARY_BASELINE=" + _json({
             "protocol": baseline.PROTOCOL,
             "summary": baseline.restore_summary_baseline(summary, source_refs=refs),
@@ -239,7 +271,7 @@ def _request(request: SystemSynthesisRequest) -> tuple[dict[str, object], list[d
     if (
         type(request) is not SystemSynthesisRequest
         or getattr(request, "_seal", None) is not _REQUEST_SEAL
-        or request.profile_id not in {PROFILE_ID, ATTRIBUTION_PROFILE_ID, SOURCE_LEVEL_PROFILE_ID, READABLE_SUMMARY_PROFILE_ID}
+        or request.profile_id not in PROFILE_IDS
         or request.generation_role != GENERATION_ROLE
     ):
         raise ValueError("Foreign/unsealed system analysis context")

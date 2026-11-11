@@ -178,7 +178,7 @@ class ReviewedSynthesisProductionAuthorizationAuthority:
 
         if type(authority) is not SynthesisQualificationAuthority or type(available) is not bool:
             raise TypeError("reviewed synthesis eligibility requires the package authority")
-        if profile_id not in {synthesis_profile.ATTRIBUTION_PROFILE_ID, synthesis_profile.SOURCE_LEVEL_PROFILE_ID, synthesis_profile.READABLE_SUMMARY_PROFILE_ID}:
+        if profile_id not in synthesis_profile.REVIEWED_PROFILE_IDS:
             raise ValueError("Unknown reviewed synthesis profile")
         qualified = all(authority.permits(profile_id, language) for language in ("en", "zh-CN"))
         eligibility = object.__new__(ProviderProductionEligibility)
@@ -830,7 +830,7 @@ class CloudDistillationAuthorization:
             is DistillationCapabilityScope.V1_VIDEO_DISTILLATION
         )
         if normal and self._normal_eligibility is not None and self._normal_eligibility._synthesis_qualification is not None:
-            normal = (verified_input.wire_version in {synthesis_profile.ATTRIBUTION_PROFILE_ID, synthesis_profile.SOURCE_LEVEL_PROFILE_ID, synthesis_profile.READABLE_SUMMARY_PROFILE_ID}
+            normal = (verified_input.wire_version in synthesis_profile.REVIEWED_PROFILE_IDS
                 and _cloud_source_allowed(verified_input)
                 and self.reviewed_synthesis_qualified(verified_input.output_language, profile_id=verified_input.wire_version))
         qualification = (
@@ -3754,13 +3754,15 @@ class PersonalizedDistillationService:
         """Current quality only; credentials, budget and consent stay separate."""
         from .synthesis_runtime import (
             MoonshotAttributionSynthesisTransport,
+            MoonshotJudgmentSynthesisTransport,
             MoonshotReadableSummarySynthesisTransport,
             MoonshotSourceLevelSynthesisTransport,
         )
 
         return ((type(self._transport) is MoonshotAttributionSynthesisTransport
                 or type(self._transport) is MoonshotSourceLevelSynthesisTransport
-                or type(self._transport) is MoonshotReadableSummarySynthesisTransport)
+                or type(self._transport) is MoonshotReadableSummarySynthesisTransport
+                or type(self._transport) is MoonshotJudgmentSynthesisTransport)
             and all(self._transport._authorization.reviewed_synthesis_qualified(item, profile_id=self._transport.synthesis_profile_id)
                 for item in ((language,) if language is not None else ("en", "zh-CN"))))
 
@@ -3886,7 +3888,7 @@ class PersonalizedDistillationService:
         """Project exact trusted input without persistence, credentials or budget checks."""
         command, value = self._prospective_cloud_command(source_id=source_id, video_id=video_id,
             evidence_ids=evidence_ids, manual_command_id=manual_command_id)
-        if self._synthesis_profile_id in {synthesis_profile.ATTRIBUTION_PROFILE_ID, synthesis_profile.SOURCE_LEVEL_PROFILE_ID, synthesis_profile.READABLE_SUMMARY_PROFILE_ID}:
+        if self._synthesis_profile_id in synthesis_profile.REVIEWED_PROFILE_IDS:
             qualified = self.reviewed_synthesis_qualified(value.output_language)
         now = self._now()
         expires = now + timedelta(minutes=5)
@@ -4039,7 +4041,8 @@ class PersonalizedDistillationService:
         if (self._now() >= expires or command.video_id != video_id or command.execution_id != execution_id):
             raise ValueError("cloud qualification preview identity or expiry differs")
         prepared = prepared_input(value)
-        qualification_limit = (1_500_000 if value.wire_version == synthesis_profile.READABLE_SUMMARY_PROFILE_ID
+        qualification_limit = (2_000_000 if value.wire_version == synthesis_profile.JUDGMENT_PROFILE_ID
+            else 1_500_000 if value.wire_version == synthesis_profile.READABLE_SUMMARY_PROFILE_ID
             else 1_000_000)
         auth = self._transport._authorization
         if (type(auth) is not CloudDistillationAuthorization or auth.production_eligible

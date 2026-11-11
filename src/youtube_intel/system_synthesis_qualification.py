@@ -1,4 +1,4 @@
-"""Finite reviewed v2/v3/v4 package evidence; neither user DATA nor spending consent.
+"""Finite reviewed v2/v3/v4/v5 package evidence; neither user DATA nor spending consent.
 
 Only the fixed package loader seals authority. Raw fixtures can validate a record
 but cannot qualify a runtime. Resource bytes are excluded from the code binding
@@ -22,6 +22,7 @@ from .local_distillation_qualification import sha, strict_object, timestamp
 VERSION = "system-synthesis-reviewed-qualification-v1"
 SOURCE_LEVEL_VERSION = "system-synthesis-source-level-reviewed-qualification-v1"
 READABLE_SUMMARY_VERSION = "system-synthesis-readable-summary-reviewed-qualification-v1"
+JUDGMENT_VERSION = "system-synthesis-judgment-reviewed-qualification-v1"
 SCOPE = "PUBLIC_YOUTUBE_TIMED"
 CASE_LANGUAGES = {
     "public-aircAruvnKk-en": "en", "public-aircAruvnKk-zh-CN": "zh-CN",
@@ -29,6 +30,19 @@ CASE_LANGUAGES = {
     "no-new-en": "en", "no-new-zh-CN": "zh-CN",
     "injection-en": "en", "injection-zh-CN": "zh-CN",
 }
+# v5 runs the identical eight cases and oracle, fixed BEFORE any v5 call, with the
+# public source that leaves the most room for a positive judgment first, so a
+# stop-on-failure batch falsifies the positive-capability hypothesis earliest.
+JUDGMENT_CASE_LANGUAGES = {
+    "public-IwglW_hIL_g-en": "en", "public-IwglW_hIL_g-zh-CN": "zh-CN",
+    "public-aircAruvnKk-en": "en", "public-aircAruvnKk-zh-CN": "zh-CN",
+    "no-new-en": "en", "no-new-zh-CN": "zh-CN",
+    "injection-en": "en", "injection-zh-CN": "zh-CN",
+}
+
+
+def case_languages(profile_id: str) -> dict[str, str]:
+    return JUDGMENT_CASE_LANGUAGES if profile_id == profile.JUDGMENT_PROFILE_ID else CASE_LANGUAGES
 CODE_FILES = (
     "system_synthesis.py", "system_synthesis_profile.py", "system_synthesis_persistence.py",
     "system_synthesis_qualification.py", "summary_baseline.py", "synthesis_runtime.py",
@@ -45,7 +59,7 @@ def digest(value: object) -> str:
 
 
 def qualification_binding(profile_id: str = profile.ATTRIBUTION_PROFILE_ID) -> dict[str, str]:
-    if profile_id not in {profile.ATTRIBUTION_PROFILE_ID, profile.SOURCE_LEVEL_PROFILE_ID, profile.READABLE_SUMMARY_PROFILE_ID}:
+    if profile_id not in profile.REVIEWED_PROFILE_IDS:
         raise ValueError("Unknown reviewed synthesis profile")
     package = resources.files("youtube_intel")
     descriptor = profile.resolve_profile(profile_id)
@@ -108,7 +122,8 @@ class CaseReceipt(_Strict):
     def passes(self, binding: dict[str, str], generated: datetime) -> bool:
         review = self.review
         return (self.mode == "LIVE_MODEL" and self.generation_count == self.ledger_invocation_count == 1
-            and self.done_reason == "stop" and self.prompt_tokens > 0 and 0 < self.output_tokens < 5888
+            and self.done_reason == "stop" and self.prompt_tokens > 0
+            and 0 < self.output_tokens < profile.resolve_profile(binding["profile_id"])["max_completion_tokens"]
             and self.profile_sha256 == binding["profile_sha256"] and self.code_sha256 == binding["code_sha256"]
             and all(sha(getattr(self, key)) for key in type(self).model_fields if key.endswith("_sha256"))
             and review.reviewer_id != self.producer_id and review.verdict == "PASS"
@@ -122,7 +137,8 @@ class CaseReceipt(_Strict):
 
 class QualificationRecord(_Strict):
     version: Literal["system-synthesis-reviewed-qualification-v1", "system-synthesis-source-level-reviewed-qualification-v1",
-        "system-synthesis-readable-summary-reviewed-qualification-v1"]
+        "system-synthesis-readable-summary-reviewed-qualification-v1",
+        "system-synthesis-judgment-reviewed-qualification-v1"]
     binding: dict[str, str]
     generated_at: str
     freeze_sha256: str
@@ -134,15 +150,16 @@ class QualificationRecord(_Strict):
     def permits(self, profile_id: str, scope: str, language: str, now: datetime) -> bool:
         try:
             generated = timestamp(self.generated_at)
-            return (profile_id in {profile.ATTRIBUTION_PROFILE_ID, profile.SOURCE_LEVEL_PROFILE_ID, profile.READABLE_SUMMARY_PROFILE_ID}
+            return (profile_id in profile.REVIEWED_PROFILE_IDS
                 and self.version == (VERSION if profile_id == profile.ATTRIBUTION_PROFILE_ID else
-                    READABLE_SUMMARY_VERSION if profile_id == profile.READABLE_SUMMARY_PROFILE_ID else SOURCE_LEVEL_VERSION)
+                    READABLE_SUMMARY_VERSION if profile_id == profile.READABLE_SUMMARY_PROFILE_ID else
+                    JUDGMENT_VERSION if profile_id == profile.JUDGMENT_PROFILE_ID else SOURCE_LEVEL_VERSION)
                 and scope == SCOPE and language in {"en", "zh-CN"}
                 and now.tzinfo is not None and generated <= now
                 and self.binding == qualification_binding(profile_id)
                 and all(sha(h) for h in (self.freeze_sha256, self.oracle_sha256, self.matrix_sha256))
                 and self.record_sha256 == digest(self.model_dump(exclude={"record_sha256"}))
-                and [(c.case_id, c.output_language) for c in self.cases] == list(CASE_LANGUAGES.items())
+                and [(c.case_id, c.output_language) for c in self.cases] == list(case_languages(profile_id).items())
                 and len({c.execution_id for c in self.cases}) == 8
                 and all(c.passes(self.binding, generated) for c in self.cases)
                 and all((c.freeze_sha256, c.oracle_sha256) == (self.freeze_sha256, self.oracle_sha256) for c in self.cases)
@@ -156,8 +173,9 @@ class QualificationRecord(_Strict):
             return False
 
     def _source_and_outcome_coverage(self) -> bool:
-        for left, right, identity in ((self.cases[0], self.cases[1], "aircAruvnKk"),
-            (self.cases[2], self.cases[3], "IwglW_hIL_g")):
+        pairs = {c.case_id: c for c in self.cases}
+        for left, right, identity in ((pairs["public-aircAruvnKk-en"], pairs["public-aircAruvnKk-zh-CN"], "aircAruvnKk"),
+            (pairs["public-IwglW_hIL_g-en"], pairs["public-IwglW_hIL_g-zh-CN"], "IwglW_hIL_g")):
             if (left.source_origin != "PUBLIC_SNAPSHOT" or right.source_origin != "PUBLIC_SNAPSHOT"
                 or left.source_id != identity or right.source_id != identity
                 or (left.snapshot_sha256, left.summary_sha256, left.evidence_sha256)
@@ -194,6 +212,8 @@ def read_reviewed_qualifications(raw: bytes | None = None, *,
             version, resource = SOURCE_LEVEL_VERSION, "resources/system_synthesis_source_level_qualification_v1.json"
         elif profile_id == profile.READABLE_SUMMARY_PROFILE_ID:
             version, resource = READABLE_SUMMARY_VERSION, "resources/system_synthesis_readable_summary_qualification_v1.json"
+        elif profile_id == profile.JUDGMENT_PROFILE_ID:
+            version, resource = JUDGMENT_VERSION, "resources/system_synthesis_judgment_qualification_v1.json"
         else:
             return SynthesisQualificationAuthority()
         package_source = raw is None

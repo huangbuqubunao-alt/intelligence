@@ -426,5 +426,27 @@ def test_candidate_cli_accepts_frontend_port_and_reports_native_refusal(
         raise RuntimeError("Native file selection requires macOS")
     monkeypatch.setattr(app, "serve_candidate", serve)
     assert app.main(["--port", "6478", "--frontend-port", "6479"]) == 2
-    assert calls == [{"port": 6478, "frontend_port": 6479}]
+    # Paid cloud execution stays off unless the operator opts in explicitly.
+    assert calls == [{"port": 6478, "frontend_port": 6479, "allow_qualified_cloud_execution": False}]
     assert "native" in capsys.readouterr().out.lower()
+    assert app.main(["--allow-qualified-cloud-execution"]) == 2
+    assert calls[-1] == {"port": 6378, "frontend_port": 6379, "allow_qualified_cloud_execution": True}
+
+
+def test_candidate_cloud_opt_in_is_passed_only_when_explicit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    app = launcher()
+    repo, _ = qa_repository(tmp_path)
+    seen: list[object] = []
+    def build(**kwargs: Any) -> Any:
+        seen.append(kwargs["allow_cloud_execution"])
+        raise RuntimeError("stop after composition arguments are observed")
+    monkeypatch.setattr(app, "prepare_native_picker", lambda project: project / "picker", raising=False)
+    monkeypatch.setattr(app, "build_local_source_run_runtime", build)
+    for flag in (False, True):
+        with pytest.raises(RuntimeError, match="observed"):
+            app.serve_candidate(repository_root=repo, allow_qualified_cloud_execution=flag)
+    assert seen == [False, True]
+    with pytest.raises(ValueError, match="explicit"):
+        app.serve_candidate(repository_root=repo, allow_qualified_cloud_execution=1)  # type: ignore[arg-type]

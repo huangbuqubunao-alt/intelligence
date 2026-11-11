@@ -36,7 +36,7 @@ def prepared_input(value: VerifiedDistillationInput) -> persistence.PreparedSynt
         or sorted(r["evidence_id"] for r in proof["capture"]["source_refs"]) != sorted(value.evidence_ids)
     ):
         raise ValueError("Synthesis input binding differs")
-    if value.wire_version in {profile.ATTRIBUTION_PROFILE_ID, profile.SOURCE_LEVEL_PROFILE_ID, profile.READABLE_SUMMARY_PROFILE_ID}:
+    if value.wire_version in profile.SOURCE_LEVEL_PROFILE_IDS:
         try:
             capture = proof["capture"]
             if (proof["source_scope"] != "PUBLIC_YOUTUBE_TIMED_MEDIA"
@@ -108,3 +108,11 @@ class MoonshotReadableSummarySynthesisTransport(MoonshotAttributionSynthesisTran
     _REQUEST_PROFILE_VERSION = profile.READABLE_SUMMARY_PROFILE_ID
     _PROMPT_VERSION = "system-synthesis-v4-readable-summary"
     synthesis_profile_id = profile.READABLE_SUMMARY_PROFILE_ID
+
+
+class MoonshotJudgmentSynthesisTransport(MoonshotAttributionSynthesisTransport):
+    """Finite v5: v4 rules plus restored Intelligence/field definition; same send boundary."""
+
+    _REQUEST_PROFILE_VERSION = profile.JUDGMENT_PROFILE_ID
+    _PROMPT_VERSION = "system-synthesis-v5-judgment"
+    synthesis_profile_id = profile.JUDGMENT_PROFILE_ID

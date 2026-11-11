@@ -1188,6 +1188,7 @@ const chinese: Record<string, string> = {
   "Explicit speaker attribution policy": "明确说话者归属策略",
   "Source-level attribution": "按来源归因",
   "Complete Summary comparison": "完整摘要对照",
+  "Judgment beyond the complete Summary": "超越完整摘要的新判断",
   "Original synthesis policy": "原洞察策略",
   "Switching policy keeps all held reservations and requires a new price acknowledgement.": "切换策略会保留全部费用预留，并需要重新确认价格参考。",
   "For this price reference, choose the same analysis policy in Content before preparing a cloud review.": "返回内容后，请选择与本价格参考相同的分析策略，再准备云端预览。",

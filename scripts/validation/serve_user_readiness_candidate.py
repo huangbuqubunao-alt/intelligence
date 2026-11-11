@@ -3,6 +3,11 @@
 Run from this checkout with PYTHONPATH=src. No arbitrary configuration, host,
 database, vault or credential namespace overrides are accepted. This launcher
 does not qualify a model or authorize a paid validation batch.
+
+``--allow-qualified-cloud-execution`` (default off) only lets the ordinary UI
+use a cloud profile that already holds a package-sealed reviewed qualification,
+with the isolated QA credential and the normal per-request review/consent and
+spending policy. It never qualifies a profile or bypasses those gates.
 """
 
 from __future__ import annotations
@@ -62,7 +67,10 @@ def candidate_config(project_root: Path, *, repository_root: Path = REPOSITORY_R
 
 def serve_candidate(
     *, port: int = 6378, frontend_port: int = 6379, repository_root: Path = REPOSITORY_ROOT,
+    allow_qualified_cloud_execution: bool = False,
 ) -> None:
+    if type(allow_qualified_cloud_execution) is not bool:
+        raise ValueError("Cloud execution opt-in must be explicit")
     for value in (port, frontend_port):
         if type(value) is not int or not 1024 <= value <= 65535:
             raise ValueError("QA ports must be integers between 1024 and 65535")
@@ -92,7 +100,7 @@ def serve_candidate(
                 config=config, project_root=root, database=root / "state.sqlite3",
                 credential_store=MacOSMoonshotQACredentialStore(),
                 bigmodel_credential_store=MacOSBigModelQACredentialStore(),
-                allow_environment_credentials=False, allow_cloud_execution=False,
+                allow_environment_credentials=False, allow_cloud_execution=allow_qualified_cloud_execution,
             )
             server = None
             previous_handlers = {}
@@ -127,9 +135,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", type=int, default=6378)
     parser.add_argument("--frontend-port", type=int, default=6379)
+    parser.add_argument("--allow-qualified-cloud-execution", action="store_true")
     args = parser.parse_args(argv)
     try:
-        serve_candidate(port=args.port, frontend_port=args.frontend_port)
+        serve_candidate(port=args.port, frontend_port=args.frontend_port,
+            allow_qualified_cloud_execution=args.allow_qualified_cloud_execution)
     except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
         print("QA startup refused: check isolated paths, ownership, separate loopback ports, and installed macOS native selector tools.")
         return 2

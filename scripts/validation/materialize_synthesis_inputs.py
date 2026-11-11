@@ -280,7 +280,8 @@ def ordinary_review(active: LocalSourceRunRuntime, video: str, case: str,
     require(status == 200, 'ORDINARY_REVIEW_FAILED')
     review = cast(dict[str, Any], response['review'])
     require(isinstance(review, dict) and not review['readiness']['can_confirm'], 'PREPARATION_MUST_REMAIN_CLOSED')
-    service = (active.application._cloud_synthesis_v4_service if profile_id == profile.READABLE_SUMMARY_PROFILE_ID
+    service = (active.application._cloud_synthesis_v5_service if profile_id == profile.JUDGMENT_PROFILE_ID
+        else active.application._cloud_synthesis_v4_service if profile_id == profile.READABLE_SUMMARY_PROFILE_ID
         else active.application._cloud_synthesis_v3_service if profile_id == profile.SOURCE_LEVEL_PROFILE_ID
         else active.application._cloud_synthesis_v2_service if profile_id == profile.ATTRIBUTION_PROFILE_ID
         else active.application._cloud_synthesis_service)
