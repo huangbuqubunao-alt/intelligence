@@ -14,8 +14,12 @@ Intentional differences, all fixed BEFORE any v5 call:
   then the four synthetic controls. Stop on any technical/unknown/semantic
   failure, and also when an IwglW case returns NO_NEW (the positive-capability
   hypothesis is then falsified for that language and must be re-diagnosed).
-* Only Root writes grant.json (after an explicit user approval) and per-case
+* Only Root writes grants (after an explicit user approval) and per-case
   semantic decisions bound to an independent review. No retries, no output repair.
+* A grant states exactly how many leading cases (approved_cases) and how much new
+  conservative reservation (approved_new_microcny) the user approved. A later user
+  decision is recorded as an append-only successor grant-N.json with the same
+  binding; earlier grants and attempts are never rewritten.
 """
 from __future__ import annotations
 
@@ -203,24 +207,55 @@ class JudgmentTrial:
         except (ValueError, KeyError, TypeError):
             raise ValueError('LEDGER_MISSING_CORRUPT_OR_CHANGED') from None
 
-    def grant(self, value: dict[str, Any]) -> str:
+    def grants(self, value: dict[str, Any]) -> list[tuple[dict[str, Any], str]]:
+        """All recorded grants in order; each is validated, scopes only widen."""
         try:
-            grant = parsed(self.control / 'grant.json', private=True)
-            require(set(grant) == {'approved', 'purpose', 'decision_id', 'expires_at', 'binding_sha256', 'limits'}
-                and grant['approved'] is True and grant['purpose'] == PURPOSE
-                and isinstance(grant['decision_id'], str) and 1 <= len(grant['decision_id']) <= 200
-                and grant['binding_sha256'] == sha(encoded(value)) and encoded(grant['limits']) == encoded(LIMITS), 'GRANT_INVALID')
-            expiry = datetime.fromisoformat(grant['expires_at'])
-            require(expiry.tzinfo is not None and datetime.now(UTC) < expiry, 'GRANT_EXPIRED')
-            return sha(read(self.control / 'grant.json', private=True))
-        except (ValueError, KeyError, TypeError):
+            paths = [self.control / 'grant.json']
+            names = {f.name for f in self.control.glob('grant*.json')}
+            index = 2
+            while f'grant-{index}.json' in names:
+                paths.append(self.control / f'grant-{index}.json')
+                index += 1
+            require(names == {path.name for path in paths}, 'GRANT_SEQUENCE_INVALID')
+            result: list[tuple[dict[str, Any], str]] = []
+            for path in paths:
+                grant = parsed(path, private=True)
+                require(set(grant) == {'approved', 'purpose', 'decision_id', 'expires_at', 'binding_sha256', 'limits',
+                        'approved_cases', 'approved_new_microcny'}
+                    and grant['approved'] is True and grant['purpose'] == PURPOSE
+                    and isinstance(grant['decision_id'], str) and 1 <= len(grant['decision_id']) <= 200
+                    and grant['binding_sha256'] == sha(encoded(value)) and encoded(grant['limits']) == encoded(LIMITS)
+                    and type(grant['approved_cases']) is int and 1 <= grant['approved_cases'] <= 8
+                    and type(grant['approved_new_microcny']) is int
+                    and sum(c['reserve_microcny'] for c in value['cases'][:grant['approved_cases']])
+                        <= grant['approved_new_microcny'] <= LIMITS['new_total_microcny'], 'GRANT_INVALID')
+                if result:
+                    require(grant['approved_cases'] > result[-1][0]['approved_cases']
+                        and grant['approved_new_microcny'] >= result[-1][0]['approved_new_microcny'], 'GRANT_SCOPE_NOT_WIDENED')
+                result.append((grant, sha(read(path, private=True))))
+            return result
+        except (ValueError, KeyError, TypeError, OSError):
             raise ValueError('GRANT_REQUIRED_OR_INVALID') from None
 
+    def grant(self, value: dict[str, Any]) -> str:
+        current, digest = self.grants(value)[-1]
+        try:
+            expiry = datetime.fromisoformat(current['expires_at'])
+            require(expiry.tzinfo is not None and datetime.now(UTC) < expiry, 'GRANT_EXPIRED')
+        except (ValueError, TypeError):
+            raise ValueError('GRANT_REQUIRED_OR_INVALID') from None
+        return digest
+
+    def current_scope(self, value: dict[str, Any]) -> tuple[int, int]:
+        current = self.grants(value)[-1][0]
+        return current['approved_cases'], current['approved_new_microcny']
+
     def previous(self, ledger: dict[str, Any], value: dict[str, Any], grant_sha: str) -> None:
+        recorded = [digest for _, digest in self.grants(value)]
         for attempt in ledger['attempts']:
             case = attempt['case']
             try:
-                require(attempt['grant_sha256'] == grant_sha, 'GRANT_CHANGED_AFTER_ATTEMPT')
+                require(attempt['grant_sha256'] in recorded and grant_sha == recorded[-1], 'GRANT_CHANGED_AFTER_ATTEMPT')
                 result = parsed(self.control / (case + '.result.json'), private=True)
                 decision = parsed(self.control / (case + '.semantic.json'), private=True)
                 final = parsed(self.control / (case + '.final.json'), private=True)
@@ -259,7 +294,8 @@ class JudgmentTrial:
             ledger = self.ledger(value)
             self.previous(ledger, value, grant_sha)
             index = len(ledger['attempts'])
-            require(index < 8, 'EIGHT_CASES_EXHAUSTED')
+            approved_cases, approved_microcny = self.current_scope(value)
+            require(index < approved_cases, 'APPROVED_CASES_EXHAUSTED_ASK_USER')
             row = value['cases'][index]
             directory(self.runs, create=True)
             root = self.runs / row['case']
@@ -283,7 +319,8 @@ class JudgmentTrial:
             attempt = {k: row[k] for k in ('case', 'execution_id', 'proof_sha256', 'wire_sha256', 'reserve_microcny')}
             attempt['grant_sha256'] = grant_sha
             ledger['attempts'].append(attempt)
-            require(sum(a['reserve_microcny'] for a in ledger['attempts']) + LIMITS['gui_held_microcny']
+            require(sum(a['reserve_microcny'] for a in ledger['attempts']) <= approved_microcny
+                and sum(a['reserve_microcny'] for a in ledger['attempts']) + LIMITS['gui_held_microcny']
                 <= LIMITS['new_total_microcny'], 'CUMULATIVE_BUDGET_EXCEEDED')
             once(self.control / f'attempt-{index + 1}.json', attempt)
             replace_ledger(self.control / 'ledger.json', ledger)  # BEFORE key/claim/wire
