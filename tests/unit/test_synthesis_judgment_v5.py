@@ -55,13 +55,18 @@ def test_v5_policy_contains_no_digits_or_quoted_answer_text():
     assert '"' not in synthesis._JUDGMENT_POLICY
 
 
-def test_v5_profile_changes_only_reasoning_completion_and_policy():
+def test_v5_profile_changes_only_reasoning_completion_stream_and_policy():
     v4, v5 = profile.resolve_profile(V4), profile.resolve_profile(V5)
     changed = {key for key in v4.keys() | v5.keys() if v4.get(key) != v5.get(key)}
-    assert changed == {'id', 'reasoning_effort', 'max_completion_tokens', 'policy_id', 'policy_sha256'}
+    assert changed == {'id', 'reasoning_effort', 'max_completion_tokens', 'stream', 'stream_options', 'policy_id', 'policy_sha256'}
     assert (v5['reasoning_effort'], v5['max_completion_tokens']) == ('high', 12288)
+    assert v5['stream'] is True and v5['stream_options'] == {'include_usage': True}
     assert v5['qualified'] is False and v5['normal_spending_authorized'] is False and v5['retries'] == 0
     assert profile.policy_id(V5) == POLICY and V5 in profile.REVIEWED_PROFILE_IDS and V5 in profile.PROFILE_IDS
+    retired = profile.JUDGMENT_NONSTREAM_PROFILE_ID
+    assert retired in profile.KNOWN_PROFILE_IDS and retired not in profile.PROFILE_IDS
+    assert retired not in profile.REVIEWED_PROFILE_IDS and profile.policy_id(retired) == POLICY
+    assert profile.resolve_profile(retired)['stream'] is False
 
 
 def test_v5_wire_keeps_task_source_and_readable_summary_messages_of_v4():
@@ -72,6 +77,11 @@ def test_v5_wire_keeps_task_source_and_readable_summary_messages_of_v4():
     wire, reserve = profile.provider_wire(v5, V5)
     body = json.loads(wire)
     assert body['reasoning_effort'] == 'high' and body['max_completion_tokens'] == 12288
+    assert body['stream'] is True and body['stream_options'] == {'include_usage': True}
+    nonstream_wire, nonstream_reserve = profile.provider_wire(v5, profile.JUDGMENT_NONSTREAM_PROFILE_ID)
+    nonstream_body = json.loads(nonstream_wire)
+    assert nonstream_body['stream'] is False and 'stream_options' not in nonstream_body
+    assert nonstream_reserve == reserve
     assert reserve == (sum(len(m['content'].encode()) for m in body['messages']) + 2048) * 26 + 12288 * 68
     with pytest.raises(ValueError, match='mixture'):
         profile.provider_wire(v5, V4)

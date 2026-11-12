@@ -13,15 +13,18 @@ PROFILE_ID: Final = "moonshot-k31-system-synthesis-v1-20261029"
 ATTRIBUTION_PROFILE_ID: Final = "moonshot-k31-system-synthesis-v2-attribution-20261105"
 SOURCE_LEVEL_PROFILE_ID: Final = "moonshot-k31-system-synthesis-v3-source-level-20261106"
 READABLE_SUMMARY_PROFILE_ID: Final = "moonshot-k31-system-synthesis-v4-readable-summary-20261107"
-JUDGMENT_PROFILE_ID: Final = "moonshot-k31-system-synthesis-v5-judgment-20261112"
+JUDGMENT_NONSTREAM_PROFILE_ID: Final = "moonshot-k31-system-synthesis-v5-judgment-20261112"
+JUDGMENT_PROFILE_ID: Final = "moonshot-k31-system-synthesis-v5-judgment-stream-20261112"
 PROFILE_IDS: Final = (PROFILE_ID, ATTRIBUTION_PROFILE_ID, SOURCE_LEVEL_PROFILE_ID, READABLE_SUMMARY_PROFILE_ID,
     JUDGMENT_PROFILE_ID)
+# Retired diagnostic profiles stay replayable for persisted receipts/backups only.
+KNOWN_PROFILE_IDS: Final = (*PROFILE_IDS, JUDGMENT_NONSTREAM_PROFILE_ID)
 # Profiles whose normal use requires a package-sealed reviewed qualification.
 REVIEWED_PROFILE_IDS: Final = frozenset({ATTRIBUTION_PROFILE_ID, SOURCE_LEVEL_PROFILE_ID,
     READABLE_SUMMARY_PROFILE_ID, JUDGMENT_PROFILE_ID})
 # Profiles that send the source-level policy over public timed captures only.
 SOURCE_LEVEL_PROFILE_IDS: Final = frozenset({ATTRIBUTION_PROFILE_ID, SOURCE_LEVEL_PROFILE_ID,
-    READABLE_SUMMARY_PROFILE_ID, JUDGMENT_PROFILE_ID})
+    READABLE_SUMMARY_PROFILE_ID, JUDGMENT_NONSTREAM_PROFILE_ID, JUDGMENT_PROFILE_ID})
 PAIR: Final = ("moonshot", "kimi-k3.1-pro")
 
 
@@ -42,16 +45,22 @@ def policy_id(profile_id: str) -> str:
         return synthesis.SOURCE_LEVEL_PROFILE_ID
     if profile_id == READABLE_SUMMARY_PROFILE_ID:
         return synthesis.READABLE_SUMMARY_PROFILE_ID
-    if profile_id == JUDGMENT_PROFILE_ID:
+    if profile_id in {JUDGMENT_NONSTREAM_PROFILE_ID, JUDGMENT_PROFILE_ID}:
         return synthesis.JUDGMENT_PROFILE_ID
     raise ValueError("Unknown system synthesis transport profile")
 
 
 def resolve_profile(profile_id: str) -> dict[str, Any]:
     if profile_id == JUDGMENT_PROFILE_ID:
-        # Same endpoint/model/price/cache/deadline/retry bounds as v4. Only the
-        # documented reasoning strength (official: low/high/max, default max)
-        # and the completion ceiling that must contain that reasoning change.
+        # SSE streaming keeps the socket active across upstream 60s idle gateway
+        # timeouts when reasoning_effort="high" exceeds 60s; usage arrives in the
+        # final chunk via stream_options.include_usage=True.
+        policy = synthesis.profile_projection(synthesis.JUDGMENT_PROFILE_ID)
+        return {**resolve_profile(PROFILE_ID), "id": profile_id, "max_request_bytes": 40960,
+            "reasoning_effort": "high", "max_completion_tokens": 12288,
+            "stream": True, "stream_options": {"include_usage": True},
+            "policy_id": synthesis.JUDGMENT_PROFILE_ID, "policy_sha256": sha(canonical(policy))}
+    if profile_id == JUDGMENT_NONSTREAM_PROFILE_ID:
         policy = synthesis.profile_projection(synthesis.JUDGMENT_PROFILE_ID)
         return {**resolve_profile(PROFILE_ID), "id": profile_id, "max_request_bytes": 40960,
             "reasoning_effort": "high", "max_completion_tokens": 12288,
@@ -105,22 +114,23 @@ def provider_wire(request: SystemSynthesisRequest, profile_id: str = PROFILE_ID)
         raise ValueError("System synthesis transport/policy mixture")
     synthesis._request(request)
     messages = json.loads(request.wire_json)["messages"]
-    wire = canonical(
-        {
-            "model": profile["model"],
-            "messages": messages,
-            **{
-                key: profile[key]
-                for key in (
-                    "reasoning_effort",
-                    "max_completion_tokens",
-                    "stream",
-                    "response_format",
-                    "prompt_cache_options",
-                )
-            },
-        }
-    )
+    body: dict[str, Any] = {
+        "model": profile["model"],
+        "messages": messages,
+        **{
+            key: profile[key]
+            for key in (
+                "reasoning_effort",
+                "max_completion_tokens",
+                "stream",
+                "response_format",
+                "prompt_cache_options",
+            )
+        },
+    }
+    if "stream_options" in profile:
+        body["stream_options"] = profile["stream_options"]
+    wire = canonical(body)
     if len(wire.encode()) > profile["max_request_bytes"]:
         raise ValueError("System synthesis request exceeds fixed byte bound")
     reserve = ((sum(len(m["content"].encode()) for m in messages) + profile["framing_token_assumption"])

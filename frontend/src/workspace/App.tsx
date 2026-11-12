@@ -1848,7 +1848,7 @@ function CloudIntelligencePreview({ id, manual, executionKey, onSettled }: { id:
     && Number.isSafeInteger(spending.reserve_microunits) && spending.reserve_microunits > 0 ? spending.reserve_microunits : null;
   const includesSummary = ["moonshot-k31-system-synthesis-v1-20261029", "moonshot-k31-system-synthesis-v2-attribution-20261105",
     "moonshot-k31-system-synthesis-v3-source-level-20261106", "moonshot-k31-system-synthesis-v4-readable-summary-20261107",
-    "moonshot-k31-system-synthesis-v5-judgment-20261112"].includes(review?.profile_id ?? "")
+    "moonshot-k31-system-synthesis-v5-judgment-stream-20261112"].includes(review?.profile_id ?? "")
     && localObject(outgoingRequest) && Array.isArray(outgoingRequest.messages)
     && outgoingRequest.messages.some(item => localObject(item) && typeof item.content === "string"
       && item.content.startsWith("UNTRUSTED_CURRENT_SUMMARY_BASELINE="));
@@ -1896,7 +1896,7 @@ function CloudIntelligencePreview({ id, manual, executionKey, onSettled }: { id:
       <h3>{t("Cloud Intelligence disclosure")}</h3>
       {manual && profiles.data && Array.isArray(profiles.data.profiles) && profiles.data.profiles.length > 0 && <label>{t("Cloud model profile")}
         <select disabled={busy} value={selectedProfile} onChange={event => { setSelectedProfile(event.target.value); setReview(null); manualCommand.current = commandId(); }}>
-          {profiles.data.profiles.map(profile => <option key={profile.profile_id} value={profile.profile_id}>{profile.provider} · {profile.model}{profile.profile_id === "moonshot-k31-system-synthesis-v2-attribution-20261105" ? ` · ${t("Explicit speaker attribution policy")}` : profile.profile_id === "moonshot-k31-system-synthesis-v5-judgment-20261112" ? ` · ${t("Judgment beyond the complete Summary")}` : profile.profile_id === "moonshot-k31-system-synthesis-v4-readable-summary-20261107" ? ` · ${t("Complete Summary comparison")}` : profile.profile_id === "moonshot-k31-system-synthesis-v3-source-level-20261106" ? ` · ${t("Source-level attribution")}` : ""}{profile.qualified ? "" : ` · ${t("Not qualified")}`}</option>)}
+          {profiles.data.profiles.map(profile => <option key={profile.profile_id} value={profile.profile_id}>{profile.provider} · {profile.model}{profile.profile_id === "moonshot-k31-system-synthesis-v2-attribution-20261105" ? ` · ${t("Explicit speaker attribution policy")}` : profile.profile_id === "moonshot-k31-system-synthesis-v5-judgment-stream-20261112" ? ` · ${t("Judgment beyond the complete Summary")}` : profile.profile_id === "moonshot-k31-system-synthesis-v4-readable-summary-20261107" ? ` · ${t("Complete Summary comparison")}` : profile.profile_id === "moonshot-k31-system-synthesis-v3-source-level-20261106" ? ` · ${t("Source-level attribution")}` : ""}{profile.qualified ? "" : ` · ${t("Not qualified")}`}</option>)}
         </select>
       </label>}
       {includesSummary && <p>{t("The reviewed request includes the complete stored Summary as comparison context. Review all outgoing data before authorization.")}</p>}

@@ -349,7 +349,7 @@ def _replay(repo: SQLiteStateRepository, c: sqlite3.Connection, row: dict[str, A
         canonical(p) != prepared.proof_json
         or sha(prepared.proof_json) != prepared.proof_sha256
         or prepared.execution_id != PREFIX + prepared.proof_sha256
-        or row["profile_id"] not in profile.PROFILE_IDS
+        or row["profile_id"] not in profile.KNOWN_PROFILE_IDS
         or row["profile_id"] != p["transport"]["id"]
         or _assemble(p["command"], p["capture"], profile_id=row["profile_id"]) != prepared
     ):

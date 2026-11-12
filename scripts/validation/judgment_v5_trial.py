@@ -61,8 +61,8 @@ PACKAGE = core.V4_R2_PACKAGE
 PACKAGE_MANIFEST_SHA = '4f399f0d9e709200b00a75a3763400b7d963029058c6b1e512a6f82ea09ccdc2'
 ORACLE_SHA = '0b6dbae640f06539660d5c112069d6af7a210fbff68ed52ee9a486caaf77e29d'
 ADDENDUM = REPO / 'docs/validation/antigravity-readiness-20261112/V5_ORACLE_ADDENDUM_2026_11_12.md'
-CONTROL = REPO / '.var/judgment-v5-control-20261112'
-RUNS = REPO / '.var/judgment-v5-runs-20261112'
+CONTROL = REPO / '.var/judgment-v5-r2-control-20261112'
+RUNS = REPO / '.var/judgment-v5-r2-runs-20261112'
 ORDER = tuple(JUDGMENT_CASE_LANGUAGES)
 PARENT_CONTROL = core.V4_R2_CONTROL
 PARENT_PINS = {
@@ -75,17 +75,30 @@ PARENT_PINS = {
     'public-aircAruvnKk-en.final.json': 'a07d0f4f189ddcff49cb85b597223139eef6cedf1f52fef247c56c2080ba9929',
     'public-aircAruvnKk-en.result.json': '53df574a574577cca7a16bd66ab3ec2dd7d9e813fbdcbad5ddf6365bf25557e0',
     'public-aircAruvnKk-en.semantic.json': 'd7d0feeec006aac7a472256c5726832e898ab6f68adcd20833a99eca25232962'}
-PARENT_HISTORY = {'known_real_model_calls': 7, 'unsent_hold_slots': 1, 'held_microcny': 8608798,
+V5_R1_CONTROL = Path('/Users/hua/Documents/yia-worktrees/antigravity-readiness-20261112/.var/judgment-v5-control-20261112')
+V5_R1_PINS = {
+    'anchor.json': 'ee73ac579a995827ad0f2c64e1257c853af4c1da15bd52e6fe189b589d836d1f',
+    'approval-skeleton.json': '2c80e60e20f28e90c07e78c1e86c10053ca6603722df413fc55a9edb9073c574',
+    'attempt-1.json': 'df55505442512f276faa57803be2ea00a81acf8b2d3c18263d77a5676eac1538',
+    'attempt-2.json': 'a5cc0324a18faeb19f9c01efe3d84a4077bc71d5c628297020160836f3d573dc',
+    'grant.json': 'c32a39cdaada7ed0161aa76b520c1418d44681f7ca62f8f4a0b38dc4f3a18872',
+    'ledger.json': 'd7236aad6132256b68bd08ada89f36985b2589ab18b9f38fcaec2293ba544044',
+    'lock': '44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a',
+    'public-IwglW_hIL_g-en.final.json': '53c8698570f8e21adbbdfb3cf15df4a7fad46a39701a44c40b8f8e55b61ad34d',
+    'public-IwglW_hIL_g-en.result.json': 'b5f19c1032d2ee466b9ea79e70f4e8743d0b402719d0c3d4c2a836eaf39d8049',
+    'public-IwglW_hIL_g-en.semantic.json': '733279d6bc932fe3dd97750de6f67fa83b5192b529bc296d3e67c1e652478ee1',
+    'public-IwglW_hIL_g-zh-CN.result.json': '17a19445eae2f26322b326eee2d5c18b9da322ae902fb64b849adbf1b6c3bdb1'}
+PARENT_HISTORY = {'known_real_model_calls': 9, 'unsent_hold_slots': 1, 'held_microcny': 11121430,
     'actual_bill': 'UNKNOWN', 'holds_released': False}
 LIMITS = {'runner_new_calls': 8, 'optional_gui_calls': 2, 'max_new_calls': 10,
     'per_call_microcny': 1900000, 'gui_held_microcny': 3698492, 'new_total_microcny': 15000000}
-PURPOSE = 'ROOT_RECORDED_V5_JUDGMENT_QUALIFICATION'
+PURPOSE = 'ROOT_RECORDED_V5_STREAM_JUDGMENT_QUALIFICATION'
 QACredentialStore = core.QACredentialStore
 Wire = Callable[[Mapping[str, object], str, float, int], _MoonshotWireResponse]
 
 
 def parent_history() -> dict[str, Any]:
-    """Read-only pin of the stopped v4-r2 control; never writes or releases anything."""
+    """Read-only pin of stopped v4-r2 + stopped non-stream v5-r1 controls; never writes or releases anything."""
     directory(PARENT_CONTROL)
     names = {f.name for f in PARENT_CONTROL.iterdir()}
     require(names == set(PARENT_PINS), 'PARENT_CONTROL_FILES_CHANGED')
@@ -94,11 +107,26 @@ def parent_history() -> dict[str, Any]:
     grant = parsed(PARENT_CONTROL / 'grant.json', private=True)
     attempt = parsed(PARENT_CONTROL / 'attempt-1.json', private=True)
     semantic = parsed(PARENT_CONTROL / 'public-aircAruvnKk-en.semantic.json', private=True)
-    held = grant['limits']['historical_held_microcny'] + attempt['reserve_microcny']
-    require(held == PARENT_HISTORY['held_microcny'] and grant['limits']['historical_calls'] == 7
+    v4_held = grant['limits']['historical_held_microcny'] + attempt['reserve_microcny']
+    require(v4_held == 8608798 and grant['limits']['historical_calls'] == 7
         and semantic['decision'] == 'REJECT', 'PARENT_ACCOUNTING_DIFFERS')
-    return {'control': str(PARENT_CONTROL), 'pins': dict(PARENT_PINS), **PARENT_HISTORY,
-        'parent_semantic': 'REJECT', 'parent_status': 'STOPPED_NOT_CONTINUED'}
+    directory(V5_R1_CONTROL)
+    r1_names = {f.name for f in V5_R1_CONTROL.iterdir()}
+    require(r1_names == set(V5_R1_PINS), 'V5_R1_CONTROL_FILES_CHANGED')
+    for name, expected in V5_R1_PINS.items():
+        require(sha(read(V5_R1_CONTROL / name, private=True)) == expected, 'V5_R1_CONTROL_CHANGED')
+    r1_ledger = parsed(V5_R1_CONTROL / 'ledger.json', private=True)
+    r1_en_sem = parsed(V5_R1_CONTROL / 'public-IwglW_hIL_g-en.semantic.json', private=True)
+    r1_zh_res = parsed(V5_R1_CONTROL / 'public-IwglW_hIL_g-zh-CN.result.json', private=True)
+    r1_held = sum(a['reserve_microcny'] for a in r1_ledger['attempts'])
+    require(len(r1_ledger['attempts']) == 2 and r1_held == 2512632
+        and v4_held + r1_held == PARENT_HISTORY['held_microcny']
+        and r1_en_sem['decision'] == 'PASS'
+        and r1_zh_res['execution_status'] == 'AMBIGUOUS', 'V5_R1_ACCOUNTING_DIFFERS')
+    return {'control': str(PARENT_CONTROL), 'pins': dict(PARENT_PINS),
+        'v5_r1_control': str(V5_R1_CONTROL), 'v5_r1_pins': dict(V5_R1_PINS),
+        'v5_r1_held_microcny': r1_held, 'v5_r1_status': 'STOPPED_NONSTREAM_60S_IDLE_DROP',
+        **PARENT_HISTORY, 'parent_semantic': 'REJECT', 'parent_status': 'STOPPED_NOT_CONTINUED'}
 
 
 def code_hashes() -> dict[str, str]:
@@ -141,7 +169,7 @@ def binding() -> dict[str, Any]:
     require(all(0 < c['reserve_microcny'] <= LIMITS['per_call_microcny'] for c in cases), 'RESERVE_CHANGED')
     require(sum(c['reserve_microcny'] for c in cases) + LIMITS['gui_held_microcny'] <= LIMITS['new_total_microcny'],
         'BUDGET_CHANGED')
-    return {'variant': 'v5-judgment-r1', 'package_manifest_sha256': PACKAGE_MANIFEST_SHA, 'oracle_sha256': ORACLE_SHA,
+    return {'variant': 'v5-judgment-stream-r2', 'package_manifest_sha256': PACKAGE_MANIFEST_SHA, 'oracle_sha256': ORACLE_SHA,
         'addendum_sha256': sha(read(ADDENDUM)), 'profile': profile.resolve_profile(profile.JUDGMENT_PROFILE_ID),
         'parent_history': parent_history(), 'source_hashes': code_hashes(),
         'source_revision': subprocess.check_output(['git', '-C', str(REPO), 'rev-parse', 'HEAD'], text=True).strip(),
@@ -178,9 +206,10 @@ class JudgmentTrial:
         directory(self.control)
         fds = []
         try:
-            fd = os.open(PARENT_CONTROL / 'lock', os.O_RDONLY | os.O_NOFOLLOW)
-            fds.append(fd)
-            fcntl.flock(fd, fcntl.LOCK_SH)
+            for parent_lock in (PARENT_CONTROL / 'lock', V5_R1_CONTROL / 'lock'):
+                fd = os.open(parent_lock, os.O_RDONLY | os.O_NOFOLLOW)
+                fds.append(fd)
+                fcntl.flock(fd, fcntl.LOCK_SH)
             fd = os.open(self.control / 'lock', os.O_RDONLY | os.O_NOFOLLOW)
             fds.append(fd)
             fcntl.flock(fd, fcntl.LOCK_EX)

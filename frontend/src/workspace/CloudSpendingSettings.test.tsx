@@ -254,7 +254,7 @@ it("names the readable-summary policy in Chinese", async () => {
 it("accepts the v5 judgment policy as a fifth declared price reference and labels it", async () => {
   const original = initial();
   const ids = ["moonshot-k31-system-synthesis-v2-attribution-20261105", "moonshot-k31-system-synthesis-v3-source-level-20261106",
-    "moonshot-k31-system-synthesis-v4-readable-summary-20261107", "moonshot-k31-system-synthesis-v5-judgment-20261112"];
+    "moonshot-k31-system-synthesis-v4-readable-summary-20261107", "moonshot-k31-system-synthesis-v5-judgment-stream-20261112"];
   const prices = [original.price, ...ids.map((profile_id, index) => ({ ...original.price, profile_id, price_hash: "bcde"[index].repeat(64) }))];
   state = { ...original, prices };
   vi.stubGlobal("fetch", vi.fn(async (path: string) => {
