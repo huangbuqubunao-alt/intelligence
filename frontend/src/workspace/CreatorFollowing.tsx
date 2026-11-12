@@ -397,17 +397,18 @@ export function InterestRulesEditor({ kind, label: customLabel, rows, onChange: 
   useEffect(() => { if (ruleFocus) document.getElementById(ruleFocus.id)?.focus(); }, [ruleFocus]);
   const label = customLabel ?? (kind === "focus" ? "Focus" : "Ignore");
   return <div className="source-interest-rule-editor" role="group" aria-label={t(kind === "focus" ? "Focus rules" : "Ignore rules")}>
-    {rows.map((row, index) => <div key={row.id}>
-      <label className="field" htmlFor={row.id}>{t(label)}{index > 0 ? ` ${index + 1}` : ""}
-        <textarea id={row.id} aria-label={`${t(label)}${index > 0 ? ` ${index + 1}` : ""}`} rows={2} value={row.value}
-          onChange={event => { change(rows.map(item => item.id === row.id ? { ...item, value: event.target.value } : item)); }} />
-      </label>
-      <button type="button" className="button button-secondary" aria-label={`${t(kind === "focus" ? "Remove focus rule" : "Remove ignore rule")} ${index + 1}`} onClick={() => {
-        const remaining = rows.filter(item => item.id !== row.id);
-        change(remaining); setRuleFocus({ id: remaining[Math.min(index, remaining.length - 1)]?.id ?? addId });
-      }}>{t("Remove rule")} {index + 1}</button>
+    {rows.map((row, index) => <div className="interest-rule-row" key={row.id}>
+      <div className="interest-rule-head">
+        <label className="field-label" htmlFor={row.id}>{t(label)}{index > 0 ? ` ${index + 1}` : ""}</label>
+        <button type="button" className="button button-ghost button-small" aria-label={`${t(kind === "focus" ? "Remove focus rule" : "Remove ignore rule")} ${index + 1}`} onClick={() => {
+          const remaining = rows.filter(item => item.id !== row.id);
+          change(remaining); setRuleFocus({ id: remaining[Math.min(index, remaining.length - 1)]?.id ?? addId });
+        }}>{t("Remove rule")} {index + 1}</button>
+      </div>
+      <textarea id={row.id} aria-label={`${t(label)}${index > 0 ? ` ${index + 1}` : ""}`} rows={2} value={row.value}
+        onChange={event => { change(rows.map(item => item.id === row.id ? { ...item, value: event.target.value } : item)); }} />
     </div>)}
-    <button type="button" id={addId} className="button button-secondary" disabled={rows.length >= 20} onClick={() => {
+    <button type="button" id={addId} className="button button-secondary button-small" disabled={rows.length >= 20} onClick={() => {
       const row = ruleDrafts([""])[0]; change([...rows, row]); setRuleFocus({ id: row.id });
     }}>{t(kind === "focus" ? "Add focus rule" : "Add ignore rule")}</button>
   </div>;

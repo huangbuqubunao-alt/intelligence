@@ -105,8 +105,8 @@ export function ModelSettings({ credential, preference, onSaved, message, setMes
       </select>
     </label>
     <div className="button-row">
-      <button type="button" disabled={busy} onClick={() => void scan()}>{t("Rescan local models")}</button>
-      <button type="button" disabled={busy || !models.some(model => model.model === candidate)} onClick={() => void run("candidate")}>{t("Save candidate preference")}</button>
+      <button type="button" className="button button-secondary" disabled={busy} onClick={() => void scan()}>{t("Rescan local models")}</button>
+      <button type="button" className="button button-primary" disabled={busy || !models.some(model => model.model === candidate)} onClick={() => void run("candidate")}>{t("Save candidate preference")}</button>
     </div>
     <p className="hint">{t("This preference changes neither the configured Scoring/Summary model nor reviewed Deep Analysis qualification.")}</p>
     </details>
@@ -124,10 +124,12 @@ export function ModelSettings({ credential, preference, onSaved, message, setMes
     <label className="field">{t("Moonshot API key")}
       <input id="moonshot-api-key" name="moonshot-api-key" type="password" aria-label={t("Moonshot API key")} disabled={busy} value={key} onChange={event => setKey(event.target.value)} autoComplete="off" spellCheck={false} />
     </label>
-    <button type="button" disabled={busy || !key.trim()} onClick={() => void run("save")}>{t("Save Moonshot key securely")}</button>
+    <div className="button-row">
+      <button type="button" className="button button-primary" disabled={busy || !key.trim()} onClick={() => void run("save")}>{t("Save Moonshot key securely")}</button>
+    </div>
     {credential?.source === "KEYCHAIN" ? <>
       <label className="credential-confirm"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} />{t("Confirm Moonshot key deletion")}</label>
-      <button type="button" disabled={busy || !confirmed} onClick={() => void run("delete")}>{t("Delete Moonshot key")}</button>
+      <button type="button" className="button danger-button" disabled={busy || !confirmed} onClick={() => void run("delete")}>{t("Delete Moonshot key")}</button>
     </> : null}
     <p className="hint">{t("Saving a credential does not call a provider, prove availability, qualify Deep Analysis or authorize paid work.")}</p>
     <CloudSpendingSettings />

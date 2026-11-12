@@ -10,9 +10,11 @@ import { TranscriptionSetup } from "./TranscriptionSetup";
 import { LocalIntelligenceSetup } from "./LocalIntelligenceSetup";
 import { ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { ApiRequestError, api, patch, post, put, uploadZip } from "../api/client";
+import { cleanCaptionText, cleanTimedSegments } from "./captionClean";
 import { ModelSettings } from "./ModelSettings";
 import { formatMicroCny } from "./CloudSpendingSettings";
 import { Logo } from "./Logo";
+import { BookmarkSparkIcon, DistillOrbitIcon, NavIcon, pulseCelebration, runViewTransition, VerifiedSealIcon } from "./motion";
 import { FirstRunOnboarding, completeOnboarding, onboardingCompleted } from "./Onboarding";
 import { DeltaTarget, KnowledgeDelta } from "./KnowledgeDelta";
 import { Research } from "./Research";
@@ -929,6 +931,27 @@ function evidenceSourceMatchesTarget(
   return false;
 }
 
+function CaptionCleanBar({
+  collapsedCount,
+  showVerbatim,
+  onToggle,
+}: {
+  collapsedCount: number;
+  showVerbatim: boolean;
+  onToggle: () => void;
+}) {
+  const { t } = useUiLanguage();
+  if (collapsedCount <= 0) return null;
+  return (
+    <div className="caption-clean-bar">
+      <span className="hint">{t("Duplicate rolling caption lines merged for clean reading.")}</span>
+      <button type="button" className="button button-ghost button-small" onClick={onToggle}>
+        {t(showVerbatim ? "Show clean reading" : "Show verbatim lines")}
+      </button>
+    </div>
+  );
+}
+
 function Evidence(
   { item, onOpenContent }: {
     item: Intelligence;
@@ -937,6 +960,7 @@ function Evidence(
 ) {
   const { language, t } = useUiLanguage();
   const [selectedMode, setSelectedMode] = useState<EvidenceDisplayMode | null>(null);
+  const [showVerbatim, setShowVerbatim] = useState(false);
   const [translationBusy, setTranslationBusy] = useState(false);
   const [translationError, setTranslationError] = useState<string | null>(null);
   const [createdTranslations, setCreatedTranslations] = useState<Record<
@@ -946,6 +970,10 @@ function Evidence(
   const card = item.card;
   const links = card?.evidence_links ?? [];
   if (!card || !links.length) return null;
+  const collapsedTotal = links.reduce(
+    (sum, link) => sum + (link.original_excerpt ? cleanCaptionText(link.original_excerpt).collapsedCount : 0),
+    0,
+  );
   const hasPreferredTranslation = links.some((link) => {
     const localTranslation = createdTranslations[link.evidence_id];
     const target = link.translation_target_language
@@ -1013,6 +1041,11 @@ function Evidence(
           <strong>{card.video_title || card.video_id}</strong>
         </div>
       </div>
+      <CaptionCleanBar
+        collapsedCount={collapsedTotal}
+        showVerbatim={showVerbatim}
+        onToggle={() => setShowVerbatim(current => !current)}
+      />
       <div className="evidence-trace-list">
         {links.map((link) => (
           <article className="evidence-item evidence-trace-item" key={link.evidence_id}>
@@ -1093,7 +1126,7 @@ function Evidence(
                       <div>
                         <strong>{t("Original · authoritative source")} · {link.language}</strong>
                         {link.original_excerpt
-                          ? <blockquote>{link.original_excerpt}</blockquote>
+                          ? <blockquote>{showVerbatim ? link.original_excerpt : cleanCaptionText(link.original_excerpt).text}</blockquote>
                           : (
                             <p className="hint">
                               {t("Source excerpt unavailable for this historical Evidence. It is not reconstructed or guessed.")}
@@ -1161,6 +1194,7 @@ function IntelligenceCard(
 ) {
   const { t } = useUiLanguage();
   const [busy, setBusy] = useState(false);
+  const saveBtnRef = useRef<HTMLButtonElement>(null);
   const [showTopicForm, setShowTopicForm] = useState(false);
   const [topicName, setTopicName] = useState(item.card?.video_title ?? "");
   const [topicBusy, setTopicBusy] = useState(false);
@@ -1168,11 +1202,13 @@ function IntelligenceCard(
   const [createdTopic, setCreatedTopic] = useState<string | null>(null);
   const toggle = async () => {
     setBusy(true);
+    const willSave = !saved;
     try {
       await post(
         saved ? "/saved-intelligence/unsave" : "/saved-intelligence/save",
         { intelligence_id: item.intelligence_id },
       );
+      if (willSave) pulseCelebration(saveBtnRef.current);
       onSaved();
     } finally {
       setBusy(false);
@@ -1188,9 +1224,8 @@ function IntelligenceCard(
   }
   const card = item.card;
   return (
-    <article className="panel intelligence-card">
+    <article className={`panel intelligence-card${saved ? " is-saved-card" : ""}`}>
       <header className="intelligence-conclusion">
-        <p className="section-label">{t("Conclusion")}</p>
         <h2>{card.core_conclusion}</h2>
       </header>
       <section className="intelligence-section">
@@ -1230,10 +1265,12 @@ function IntelligenceCard(
       </section>
       <Evidence item={item} onOpenContent={onOpenContent} />
       <button
-        className="button button-secondary"
+        ref={saveBtnRef}
+        className={`button ${saved ? "button-saved" : "button-secondary"}`}
         disabled={busy}
         onClick={toggle}
       >
+        <BookmarkSparkIcon saved={saved} />
         {t(busy ? "Saving…" : saved ? "Unsave" : "Save")}
       </button>
       {item.intelligence_id && !createdTopic
@@ -1270,7 +1307,7 @@ function IntelligenceCard(
                     <input value={topicName} maxLength={120} required
                       onChange={(event) => setTopicName(event.target.value)} />
                   </label>
-                  <button type="submit" className="button" disabled={topicBusy}>
+                  <button type="submit" className="button button-primary" disabled={topicBusy}>
                     {t(topicBusy ? "Adding…" : "Create Topic and link Intelligence")}
                   </button>
                   {topicError && <p className="form-error" role="alert">{topicError}</p>}
@@ -1356,28 +1393,34 @@ function Workspace() {
     location.hash = hash;
   };
   const navigate = (next: Page) => {
-    setImported(false);
-    setResearchReturn(null); setResearchEvidence(null);
-    setContentTarget(null);
-    setDeltaTarget(null);
     changeHash(next);
-    setPage(next);
+    runViewTransition(() => {
+      setImported(false);
+      setResearchReturn(null); setResearchEvidence(null);
+      setContentTarget(null);
+      setDeltaTarget(null);
+      setPage(next);
+    });
   };
   const openContent = (videoId: string, evidenceId?: string) => {
-    setDeltaTarget(null);
-    setContentTarget(videoId);
-    setResearchEvidence(evidenceId ?? null);
     changeHash(`Content/${encodeURIComponent(videoId)}${evidenceId ? `/Evidence/${encodeURIComponent(evidenceId)}` : ""}`);
-    setPage("Content");
+    runViewTransition(() => {
+      setDeltaTarget(null);
+      setContentTarget(videoId);
+      setResearchEvidence(evidenceId ?? null);
+      setPage("Content");
+    });
   };
   const openDelta = (target: DeltaTarget) => {
     const destinations: Record<DeltaTarget["kind"], Page> = {
       content: "Content", intelligence: "Intelligence", topic: "Topics", source: "Following",
     };
-    setDeltaTarget(target);
-    setContentTarget(target.kind === "content" ? target.id : null);
     changeHash(target.kind === "content" ? `Content/${encodeURIComponent(target.id)}` : destinations[target.kind]);
-    setPage(destinations[target.kind]);
+    runViewTransition(() => {
+      setDeltaTarget(target);
+      setContentTarget(target.kind === "content" ? target.id : null);
+      setPage(destinations[target.kind]);
+    });
   };
   return (
     <div className="app-shell">
@@ -1404,16 +1447,16 @@ function Workspace() {
               }}
               onClick={() => navigate(item)}
             >
+              <NavIcon name={item} />
               {t(item)}
             </button>
           ))}
         </nav>
-        <div className="sidebar-foot">{t("Evidence stays reachable")}</div>
+        <div className="sidebar-foot"><span className="service-dot" aria-hidden="true" />{t("Evidence stays reachable")}</div>
       </aside>
       <main className="workspace-main">
         <header className="page-header">
           <div>
-            <p className="eyebrow">{t("INTELLIGENCE")}</p>
             <h1>{t(page)}</h1>
             <p className="page-subtitle">{t(subtitles[page])}</p>
           </div>
@@ -1804,18 +1847,54 @@ const cloudBlockerCopy: Record<string, string> = {
   INPUT_NOT_SUPPORTED: "The selected model does not support this input or output language.",
   EXECUTION_ALREADY_EXISTS: "An execution already exists for this request. Check its current state before continuing.",
 };
+function cloudProfileOptionLabel(
+  profile: { profile_id: string; provider: string; model: string; qualified: boolean },
+  t: (text: string) => string,
+) {
+  const detail = profile.profile_id === "moonshot-k31-system-synthesis-v2-attribution-20261105"
+    ? ` · ${t("Explicit speaker attribution policy")}`
+    : profile.profile_id === "moonshot-k31-system-synthesis-v5-judgment-stream-20261112"
+      ? ` · ${t("Judgment beyond the complete Summary")}`
+      : profile.profile_id === "moonshot-k31-system-synthesis-v4-readable-summary-20261107"
+        ? ` · ${t("Complete Summary comparison")}`
+        : profile.profile_id === "moonshot-k31-system-synthesis-v3-source-level-20261106"
+          ? ` · ${t("Source-level attribution")}`
+          : "";
+  return `${profile.provider} · ${profile.model}${detail}${profile.qualified ? "" : ` · ${t("Not qualified")}`}`;
+}
+
 function CloudIntelligencePreview({ id, manual, executionKey, onSettled }: { id: string; manual: boolean; executionKey: string; onSettled: () => void }) {
   const { t } = useUiLanguage();
   const profiles = useRemote<{ profiles: { profile_id: string; provider: string; model: string; adapter_available: boolean; qualified: boolean }[] }>("/cloud-intelligence/profiles");
   const [selectedProfile, setSelectedProfile] = useState("legacy");
+  const userChoseProfile = useRef(false);
   const [open, setOpen] = useState(false), [review, setReview] = useState<CloudReview | null>(null);
-  const [busy, setBusy] = useState(false), [message, setMessage] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false), [confirming, setConfirming] = useState(false), [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null), [clock, setClock] = useState(Date.now);
   const requestGeneration = useRef(0), busyRef = useRef(false), manualCommand = useRef(commandId());
   const previousExecution = useRef(executionKey);
+  useEffect(() => {
+    const list = profiles.data?.profiles;
+    if (userChoseProfile.current || !Array.isArray(list) || !list.length) return;
+    const preferred = list.find(item => item.qualified) ?? list[0];
+    if (preferred && preferred.profile_id !== selectedProfile) {
+      setSelectedProfile(preferred.profile_id);
+    }
+  }, [profiles.data]);
+  useEffect(() => {
+    if (!confirming) {
+      setElapsedSeconds(0);
+      return;
+    }
+    const timer = window.setInterval(() => {
+      setElapsedSeconds(value => value + 1);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [confirming]);
   const clear = () => {
     requestGeneration.current += 1; busyRef.current = false;
-    setOpen(false); setReview(null); setBusy(false); setError(null); setMessage(null);
+    setOpen(false); setReview(null); setBusy(false); setConfirming(false); setError(null); setMessage(null);
   };
   useEffect(() => {
     if (previousExecution.current === executionKey) return;
@@ -1872,7 +1951,7 @@ function CloudIntelligencePreview({ id, manual, executionKey, onSettled }: { id:
     if (busyRef.current || !canConfirm || !review) return;
     if (Date.parse(review.expires_at) <= Date.now()) { setClock(Date.now()); return; }
     const generation = ++requestGeneration.current;
-    busyRef.current = true; setBusy(true); setError(null); setMessage(null);
+    busyRef.current = true; setBusy(true); setConfirming(true); setElapsedSeconds(0); setError(null); setMessage(null);
     const current = review;
     setReview(null); // A dispatched ticket is never reused, even after a lost response.
     try {
@@ -1887,16 +1966,35 @@ function CloudIntelligencePreview({ id, manual, executionKey, onSettled }: { id:
         onSettled();
       }
     } finally {
-      if (generation === requestGeneration.current) { busyRef.current = false; setBusy(false); }
+      if (generation === requestGeneration.current) { busyRef.current = false; setBusy(false); setConfirming(false); }
     }
   };
-  return <div>
+  const profileList = manual && profiles.data && Array.isArray(profiles.data.profiles) ? profiles.data.profiles : [];
+  const qualifiedProfiles = profileList.filter(item => item.qualified);
+  const archivedProfiles = profileList.filter(item => !item.qualified);
+  const activeProfile = profileList.find(item => item.profile_id === selectedProfile);
+  const elapsedFormatted = `${Math.floor(elapsedSeconds / 60)}:${String(elapsedSeconds % 60).padStart(2, "0")}`;
+
+  return <div className="cloud-preview-block">
     <button type="button" className="button button-secondary" onClick={() => open ? clear() : setOpen(true)}>{t("Review cloud Intelligence")}</button>
-    {open && <section className="semantic-state state-neutral" aria-label={t("Cloud Intelligence disclosure")}>
+    {open && <section className="semantic-state state-neutral cloud-disclosure-panel" aria-label={t("Cloud Intelligence disclosure")}>
       <h3>{t("Cloud Intelligence disclosure")}</h3>
-      {manual && profiles.data && Array.isArray(profiles.data.profiles) && profiles.data.profiles.length > 0 && <label>{t("Cloud model profile")}
-        <select disabled={busy} value={selectedProfile} onChange={event => { setSelectedProfile(event.target.value); setReview(null); manualCommand.current = commandId(); }}>
-          {profiles.data.profiles.map(profile => <option key={profile.profile_id} value={profile.profile_id}>{profile.provider} · {profile.model}{profile.profile_id === "moonshot-k31-system-synthesis-v2-attribution-20261105" ? ` · ${t("Explicit speaker attribution policy")}` : profile.profile_id === "moonshot-k31-system-synthesis-v5-judgment-stream-20261112" ? ` · ${t("Judgment beyond the complete Summary")}` : profile.profile_id === "moonshot-k31-system-synthesis-v4-readable-summary-20261107" ? ` · ${t("Complete Summary comparison")}` : profile.profile_id === "moonshot-k31-system-synthesis-v3-source-level-20261106" ? ` · ${t("Source-level attribution")}` : ""}{profile.qualified ? "" : ` · ${t("Not qualified")}`}</option>)}
+      {activeProfile?.qualified && (
+        <p className="verified-route-pill">
+          <VerifiedSealIcon />
+          <span>{t("Recommended verified route selected")}: {activeProfile.provider} · {activeProfile.model}</span>
+        </p>
+      )}
+      {profileList.length > 0 && <label className="field">{t("Cloud model profile")}
+        <select disabled={busy} value={selectedProfile} onChange={event => { userChoseProfile.current = true; setSelectedProfile(event.target.value); setReview(null); manualCommand.current = commandId(); }}>
+          {qualifiedProfiles.length > 0 && archivedProfiles.length > 0 ? <>
+            <optgroup label={t("Recommended · quality verified")}>
+              {qualifiedProfiles.map(profile => <option key={profile.profile_id} value={profile.profile_id}>{cloudProfileOptionLabel(profile, t)}</option>)}
+            </optgroup>
+            <optgroup label={t("Archived history · not qualified")}>
+              {archivedProfiles.map(profile => <option key={profile.profile_id} value={profile.profile_id}>{cloudProfileOptionLabel(profile, t)}</option>)}
+            </optgroup>
+          </> : profileList.map(profile => <option key={profile.profile_id} value={profile.profile_id}>{cloudProfileOptionLabel(profile, t)}</option>)}
         </select>
       </label>}
       {includesSummary && <p>{t("The reviewed request includes the complete stored Summary as comparison context. Review all outgoing data before authorization.")}</p>}
@@ -1907,11 +2005,11 @@ function CloudIntelligencePreview({ id, manual, executionKey, onSettled }: { id:
         <a className="button button-ghost" href={`#Settings/models/moonshot?return=${encodeURIComponent(location.hash)}`}>{t("Open model settings")}</a></div>
       <a className="source-link" href={`#Settings/models/moonshot?return=${encodeURIComponent(location.hash)}&panel=spending`}>{t("Configure spending limits")}</a>
       {manual && review?.profile_id === "legacy" && blockers.includes("CLOUD_SPENDING_POLICY_REQUIRED") && <p>{t("The finite spending settings cover kimi-k3.1-pro. For that policy, choose kimi-k3.1-pro in the cloud model profile list and prepare a new review.")}</p>}
-      {review && <div>
+      {review && <div className="cloud-review-ticket">
         <p>{t("Provider/model")}: {review.provider} · {review.model}</p>
-        <p>{t("Source")}: {review.source_id} · {t("Output language")}: {review.output_language} · {t("Maximum output tokens")}: {review.outputLimit ?? t("Unavailable")}</p>
+        <p className="tabular-nums">{t("Source")}: {review.source_id} · {t("Output language")}: {review.output_language} · {t("Maximum output tokens")}: {review.outputLimit ?? t("Unavailable")}</p>
         <p>{t("Cost status")}: {t(review.cost_status === "UNKNOWN" ? "Unknown" : review.cost_status)}. {t("An unknown cost or an unverified budget is not a promise of free usage. The backend rechecks budget before execution.")}</p>
-        {reserveEstimate !== null && <p>{t("Estimated reservation for this request")}: CNY {formatMicroCny(reserveEstimate)} · {t("Unknown charges stay held after restart or Restore.")}</p>}
+        {reserveEstimate !== null && <p className="tabular-nums">{t("Estimated reservation for this request")}: CNY {formatMicroCny(reserveEstimate)} · {t("Unknown charges stay held after restart or Restore.")}</p>}
         <h4>{t("Evidence that would be sent")}</h4>
         {review.evidence.map(item => <blockquote key={item.evidence_id}><p>{item.excerpt}</p><a href={`#Content/${encodeURIComponent(id)}/Evidence/${encodeURIComponent(item.evidence_id)}`}>{t("View original Evidence")}</a></blockquote>)}
         <h4>{t("Task context that would be sent")}</h4>
@@ -1924,11 +2022,27 @@ function CloudIntelligencePreview({ id, manual, executionKey, onSettled }: { id:
           {blockers.map((code, index) => <p key={`${code}:${index}`}>{t(cloudBlockerCopy[code] ?? "Cloud confirmation is unavailable. Prepare a new review or check model settings.")}</p>)}
           {!readiness.can_confirm && !blockers.length && <p>{t("Cloud confirmation is unavailable. Prepare a new review or check model settings.")}</p>}</>}
         {expired && <p role="status">{t("This review expired. Prepare a new review before confirming.")}</p>}
-        <details><summary>{t("Exact outgoing request details")}</summary><pre className="transcript-copy">{JSON.stringify(review.raw, null, 2)}</pre></details>
-        <button type="button" className="button" disabled={!canConfirm} onClick={() => void confirm()}>{t("Authorize this one cloud execution")}</button>
+        <details className="provenance"><summary>{t("Exact outgoing request details")}</summary><pre className="transcript-copy">{JSON.stringify(review.raw, null, 2)}</pre></details>
+        <div className="button-row">
+          <button type="button" className="button button-primary" disabled={!canConfirm} onClick={() => void confirm()}>{t("Authorize this one cloud execution")}</button>
+        </div>
       </div>}
+      {confirming && (
+        <div className="distill-live-card" data-testid="distill-live-progress">
+          <div className="distill-live-head">
+            <span className="distill-live-title"><DistillOrbitIcon /><strong>{t("Kimi deep judgment in progress")}</strong></span>
+            <span className="distill-live-timer tabular-nums">{elapsedFormatted}</span>
+          </div>
+          <p className="hint">{t("Usually takes 1–2.5 minutes for full-transcript cross-paragraph judgment.")}</p>
+          <ol className="distill-stages">
+            <li className={elapsedSeconds < 5 ? "is-active" : "is-done"}>{t("Verifying budget & locking Evidence excerpts")}</li>
+            <li className={elapsedSeconds >= 5 && elapsedSeconds < 75 ? "is-active" : elapsedSeconds >= 75 ? "is-done" : ""}>{t("Cross-checking complete Summary & reasoning")}</li>
+            <li className={elapsedSeconds >= 75 ? "is-active" : ""}>{t("Streaming & verifying source citations")}</li>
+          </ol>
+        </div>
+      )}
       {busy && <p role="status">{t("Waiting for the local service. Nothing is retried automatically.")}</p>}
-      {error && <p role="alert">{t(error)}</p>}{message && <p role="status">{t(message)}</p>}
+      {error && <p role="alert" className="form-error">{t(error)}</p>}{message && <p role="status" className="status-banner">{t(message)}</p>}
     </section>}
   </div>;
 }
@@ -1948,6 +2062,8 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
   const trackedRetryCommands = useRef(new Map<string, string>());
   const [retryBusy, setRetryBusy] = useState(false);
   const [retryFeedback, setRetryFeedback] = useState<string | null>(null);
+  const [transcriptVerbatim, setTranscriptVerbatim] = useState(false);
+  const [summaryVerbatim, setSummaryVerbatim] = useState(false);
   const completedRetry = readTrackedRetry(data?.video.tracked_content_retry, id)?.request;
   const captionResultIdentity = completedRetry?.state === "SUCCEEDED"
     ? `${completedRetry.request_id}:${completedRetry.revision}` : null;
@@ -2078,9 +2194,24 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
         {isBilibili && <BilibiliCaptionStatus id={id} status={data.video.processing_status} onCompleted={() => { setRefresh(value => value + 1); setEvidenceRefresh(value => value + 1); }} />}
         {isLocalMedia && <LocalTranscription id={id} onStatusChange={setTranscriptionStatus} onCompleted={() => { if (transcriptionRefreshId.current === id) return; transcriptionRefreshId.current = id; setRefresh(value => value + 1); setEvidenceRefresh(value => value + 1); }} />}
         {transcript.status === "AVAILABLE" && transcript.text
-          ? transcript.timed_segments?.length
-            ? <ol className="timed-transcript">{transcript.timed_segments.map((segment, index) => <li key={index}><time>{(segment.start_ms / 1000).toFixed(3)}s – {(segment.end_ms / 1000).toFixed(3)}s</time><span>{segment.text}</span></li>)}</ol>
-            : <div className="transcript-copy">{transcript.text}</div>
+          ? (() => {
+            const timedClean = transcript.timed_segments?.length ? cleanTimedSegments(transcript.timed_segments) : null;
+            const plainClean = !timedClean ? cleanCaptionText(transcript.text) : null;
+            const collapsed = timedClean ? timedClean.collapsedCount : (plainClean?.collapsedCount ?? 0);
+            const displaySegments = timedClean ? (transcriptVerbatim ? transcript.timed_segments! : timedClean.segments) : null;
+            return (
+              <>
+                <CaptionCleanBar
+                  collapsedCount={collapsed}
+                  showVerbatim={transcriptVerbatim}
+                  onToggle={() => setTranscriptVerbatim(current => !current)}
+                />
+                {displaySegments
+                  ? <ol className="timed-transcript">{displaySegments.map((segment, index) => <li key={index}><time className="tabular-nums">{(segment.start_ms / 1000).toFixed(3)}s – {(segment.end_ms / 1000).toFixed(3)}s</time><span>{segment.text}</span></li>)}</ol>
+                  : <div className="transcript-copy">{transcriptVerbatim ? transcript.text : plainClean!.text}</div>}
+              </>
+            );
+          })()
           : isLocalMedia || isBilibili ? null : (
             <div className="semantic-state state-neutral">
               <Status {...contentStatus(data.video.provider, transcript.status)} />
@@ -2096,68 +2227,84 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
       </Panel>
       <Panel title={data.video.provider === "LOCAL" || isBilibili ? "Summary" : "Summary / Video Notes"}>
         {note?.status === "AVAILABLE"
-          ? (
-            <div className="summary-note">
-              <div className="reading-meta">
-                <Status value="AVAILABLE" />
-                <span>{note.method === "SOURCE_EXCERPTS"
-                  ? t("Original source language (unchanged)")
-                  : !note.language || note.language === "und" ? t("Language unavailable") : note.language}</span>
+          ? (() => {
+            const summaryClean = note.summary ? cleanCaptionText(note.summary) : { text: "", collapsedCount: 0 };
+            const cleanedPoints = (note.core_points ?? []).map(point => cleanCaptionText(point));
+            const cleanedTimedPoints = (note.timestamped_key_points ?? []).map(point => ({
+              point,
+              cleaned: cleanCaptionText(point.text),
+            }));
+            const totalCollapsed = summaryClean.collapsedCount
+              + cleanedPoints.reduce((sum, item) => sum + item.collapsedCount, 0)
+              + cleanedTimedPoints.reduce((sum, item) => sum + item.cleaned.collapsedCount, 0);
+            return (
+              <div className="summary-note">
+                <div className="reading-meta">
+                  <Status value="AVAILABLE" />
+                  <span>{note.method === "SOURCE_EXCERPTS"
+                    ? t("Original source language (unchanged)")
+                    : !note.language || note.language === "und" ? t("Language unavailable") : note.language}</span>
+                </div>
+                {note.method === "SOURCE_EXCERPTS" && <p className="hint">{t("These are original source excerpts, selected deterministically without a model or new interpretation.")}</p>}
+                <CaptionCleanBar
+                  collapsedCount={totalCollapsed}
+                  showVerbatim={summaryVerbatim}
+                  onToggle={() => setSummaryVerbatim(current => !current)}
+                />
+                {note.summary ? <><h3>{t("Summary")}</h3><p className="summary-copy">{summaryVerbatim ? note.summary : summaryClean.text}</p></> : null}
+                {note.core_points?.length
+                  ? <><h3>{t("Key points")}</h3><ul>{note.core_points.map((point, idx) => <li key={`${idx}:${point}`}>{summaryVerbatim ? point : cleanedPoints[idx].text}</li>)}</ul></>
+                  : null}
+                {note.timestamped_key_points?.length
+                  ? (
+                    <>
+                      <h3>{t("Timestamped key points")}</h3>
+                      <ol>
+                        {cleanedTimedPoints.map(({ point, cleaned }) => (
+                          <li key={`${point.start_seconds}:${point.text}`}>
+                            {data.video.source_url
+                              ? (
+                                <a
+                                  className="source-link tabular-nums"
+                                  href={videoAt(data.video.source_url, point.start_seconds * 1000)}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  {timestamp(point.start_seconds * 1000)}
+                                </a>
+                              )
+                              : <strong className="tabular-nums">{timestamp(point.start_seconds * 1000)}</strong>} · {summaryVerbatim ? point.text : cleaned.text}
+                          </li>
+                        ))}
+                      </ol>
+                      <p className="hint">
+                        {t("Timestamps appear only when the cited trusted Evidence has a timed-subtitle position.")}
+                      </p>
+                    </>
+                  )
+                  : null}
+                {note.evidence_references?.length
+                  ? (
+                    <details className="provenance">
+                      <summary>{t("Evidence references")}</summary>
+                      <ul>
+                        {note.evidence_references.map((reference) => (
+                          <li key={reference.evidence_id}>
+                            <strong>{reference.evidence_id}</strong>
+                            {reference.start_seconds === null ? "" : ` · ${Math.round(reference.start_seconds)}s`}
+                            <p>{summaryVerbatim ? reference.excerpt : cleanCaptionText(reference.excerpt).text}</p>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )
+                  : null}
+                <p className="hint">
+                  {t("This is the current verified version for this Content. Failed or unverified newer attempts do not replace it.")}
+                </p>
               </div>
-              {note.method === "SOURCE_EXCERPTS" && <p className="hint">{t("These are original source excerpts, selected deterministically without a model or new interpretation.")}</p>}
-              {note.summary ? <><h3>{t("Summary")}</h3><p>{note.summary}</p></> : null}
-              {note.core_points?.length
-                ? <><h3>{t("Key points")}</h3><ul>{note.core_points.map((point) => <li key={point}>{point}</li>)}</ul></>
-                : null}
-              {note.timestamped_key_points?.length
-                ? (
-                  <>
-                    <h3>{t("Timestamped key points")}</h3>
-                    <ol>
-                      {note.timestamped_key_points.map((point) => (
-                        <li key={`${point.start_seconds}:${point.text}`}>
-                          {data.video.source_url
-                            ? (
-                              <a
-                                className="source-link"
-                                href={videoAt(data.video.source_url, point.start_seconds * 1000)}
-                                target="_blank"
-                                rel="noreferrer"
-                              >
-                                {timestamp(point.start_seconds * 1000)}
-                              </a>
-                            )
-                            : <strong>{timestamp(point.start_seconds * 1000)}</strong>} · {point.text}
-                        </li>
-                      ))}
-                    </ol>
-                    <p className="hint">
-                      {t("Timestamps appear only when the cited trusted Evidence has a timed-subtitle position.")}
-                    </p>
-                  </>
-                )
-                : null}
-              {note.evidence_references?.length
-                ? (
-                  <details className="provenance">
-                    <summary>{t("Evidence references")}</summary>
-                    <ul>
-                      {note.evidence_references.map((reference) => (
-                        <li key={reference.evidence_id}>
-                          <strong>{reference.evidence_id}</strong>
-                          {reference.start_seconds === null ? "" : ` · ${Math.round(reference.start_seconds)}s`}
-                          <p>{reference.excerpt}</p>
-                        </li>
-                      ))}
-                    </ul>
-                  </details>
-                )
-                : null}
-              <p className="hint">
-                {t("This is the current verified version for this Content. Failed or unverified newer attempts do not replace it.")}
-              </p>
-            </div>
-          )
+            );
+          })()
           : (
             <div className="semantic-state state-neutral">
               <Status value="UNAVAILABLE" />
@@ -2561,6 +2708,7 @@ function ContentEvidencePanel(
     refresh,
   );
   const [selectedMode, setSelectedMode] = useState<EvidenceDisplayMode | null>(null);
+  const [evidenceVerbatim, setEvidenceVerbatim] = useState(false);
   const [translationBusy, setTranslationBusy] = useState<string | null>(null);
   const [translationError, setTranslationError] = useState<string | null>(null);
   const [createdTranslations, setCreatedTranslations] = useState<Record<
@@ -2580,6 +2728,10 @@ function ContentEvidencePanel(
     return <Panel title={evidencePanelTitle}><Empty>Loading canonical Evidence…</Empty></Panel>;
   }
   const evidence = data.evidence ?? [];
+  const collapsedEvidenceLines = evidence.reduce(
+    (sum, item) => sum + cleanCaptionText(item.original_excerpt).collapsedCount,
+    0,
+  );
   const hasPreferredTranslation = evidence.some((item) => {
     const local = createdTranslations[item.evidence_id];
     const language = local?.language ?? item.translated_language;
@@ -2630,6 +2782,11 @@ function ContentEvidencePanel(
       {evidence.length
         ? (
           <div className="evidence-trace-list">
+            <CaptionCleanBar
+              collapsedCount={collapsedEvidenceLines}
+              showVerbatim={evidenceVerbatim}
+              onToggle={() => setEvidenceVerbatim(current => !current)}
+            />
             {evidence.map((item) => {
               const local = createdTranslations[item.evidence_id];
               const translatedExcerpt = local?.excerpt ?? item.translated_excerpt;
@@ -2698,7 +2855,7 @@ function ContentEvidencePanel(
                     ? (
                       <div>
                         <strong>{t("Original · authoritative source")} · {item.source_language}</strong>
-                        <blockquote>{item.original_excerpt}</blockquote>
+                        <blockquote>{evidenceVerbatim ? item.original_excerpt : cleanCaptionText(item.original_excerpt).text}</blockquote>
                       </div>
                     )
                     : null}
@@ -4003,7 +4160,7 @@ function BackupRestorePanel() {
         {readiness.items.length > 0 && ` ${readiness.items.map((item) => t(item)).join(" ")}`}
       </p> : null}
       <div className="button-row">
-        <button type="button" onClick={createBackup} disabled={busy || !status?.ready}>
+        <button type="button" className="button button-primary" onClick={createBackup} disabled={busy || !status?.ready}>
           {t(busy ? "Working…" : "Create Backup")}
         </button>
         <label className="button secondary-button">
