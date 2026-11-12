@@ -160,3 +160,18 @@ Implementer 仍须重新核实版本、许可证和维护状态，Reviewer 独�
   <https://github.com/openai/openai-python/blob/v2.46.0/src/openai/__init__.py>
 - Jinja sandbox：<https://jinja.palletsprojects.com/en/stable/sandbox/>
 - Jinja2：<https://pypi.org/project/Jinja2/>
+
+## 9. 前端开源 UI/UX 设计系统与阅读工作台复用登记（2026-11-12）
+
+本节登记普通用户完整链路 UI/UX 改造的开源组件评估、许可证审计与适配边界。严格遵守
+`AGENTS.md` 第 4.1 与第 5 节：优先适配（`ADAPT`）MIT 开源组件源码，**不新增生产运行时依赖、
+不修改 `frontend/package.json` 或 `frontend/package-lock.json`**；对 AGPL-3.0 协议的整套端到端阅读器
+产品仅作交互布局参考（`REFERENCE`），严禁复制任何代码。
+
+| 组件 / 仓库 | 复用决策 | 上游精确基线与许可证证据 | 适配位置与修改说明 |
+|---|---|---|---|
+| `shadcn-ui/ui` | `ADAPT` | <https://github.com/shadcn-ui/ui>，commit `dd41d19e2f80ff6891951f7ced74c2c9a650b065`（2026-11-11），SPDX **MIT**；参考 `apps/v4/app/(app)/(styles)/sera/style.css`、`apps/v4/registry/styles/style-nova.css`、`apps/v4/registry/new-york-v4/ui/command.tsx` | 适配至 `frontend/src/workspace/styles.css` 与 `frontend/src/workspace/ui/theme.tsx`：引入三层语义化 Token（OKLCH + sRGB 回退），提供默认深色「黑曜石（Obsidian Dark）」与护眼浅色「暖纸阅读（Warm Paper Light）」双主题，并对齐 Card、Badge、Segmented Tabs 与 Command 浮层视觉层级 |
+| `phosphor-icons/core` | `ADAPT` | <https://github.com/phosphor-icons/core>，commit `2b75f3ad12b420c9504ef05df8d2564a28f8500e`（2026-01-06），SPDX **MIT**；直接提取 `assets/regular/*.svg` 与 `assets/fill/*.svg` 官方 256×256 几何矢量路径 | 适配至 `frontend/src/workspace/ui/phosphorIcons.tsx`（及 `motion.tsx` 导出桥接）：全面替换手写 SVG 占位图形，主导航未激活态采用 `regular` 字重、激活态切换为 `fill` 实心字重，统一所有图标 `aria-hidden="true"` 装饰契约 |
+| `dip/cmdk` (`pacocoursey/cmdk`) | `ADAPT` | <https://github.com/dip/cmdk>，commit `dd2250ed608443e8f32bafc5fa2d1d07a3746aa3`（2025-10-29），SPDX **MIT**；适配 `cmdk/src/command-score.ts` 连续字符/词首跳跃/转置模糊打分算法与无障碍列表键盘状态机 | 适配至 `frontend/src/workspace/ui/CommandPalette.tsx`：零依赖实现全局 `⌘K` / `Ctrl+K` 命令与内容库瞬时检索面板，补充中文/CJK 子串权重增强，支持一键直达六大视图、已加载视频 Content、已验证洞察、Topic、导入入口与中英/深浅色切换 |
+| `argyleink/open-props` | `ADAPT` | <https://github.com/argyleink/open-props>，commit `f39ab7c377a0e047f930982e3611bbc95254a260`（2026-10-11），SPDX **MIT**；参考 `src/props.easing.css` 与 `src/props.shadows.css` | 适配至 `frontend/src/workspace/styles.css`：引入 `--ease-out-3`、`--ease-out-4`、`--ease-out-5` 自然减速曲线与多层环境光阴影梯度（`--shadow-1`、`--shadow-2`），消除生硬过渡并严守 `prefers-reduced-motion: reduce` |
+| `RSSNext/Folo` / `karakeep-app/karakeep` | `REJECT`（代码）/ `REFERENCE`（UX） | Folo commit `577846bd1db5c5c8341c96709219d2b72f34a027`（**AGPL-3.0**）；Karakeep commit `f7119ca01004f4840b8a7189d2899945ea3966a3`（**AGPL-3.0**） | 因 AGPL-3.0 传染性协议明确拒绝任何代码复制与嵌入；仅借鉴现代知识阅读器信息架构：桌面双栏非对称工作台、长文详情吸顶章节速跳栏（Sticky TOC）、内容列表即时筛选栏与纸感浅色阅读模式 |

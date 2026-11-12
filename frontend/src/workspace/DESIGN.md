@@ -170,3 +170,25 @@ only fixed installed model/runtime identities with an explicit radio selection.
 Save and apply reconnects to the local service; success requires a fresh actual
 route read. Preserve drafts on busy/conflict/network errors, link unfinished
 Content, and never equate installation selection with quality qualification.
+
+## Open-source design system & reader workbench (Phase 14 UI/UX)
+
+Adapt MIT-licensed tokens and primitives from `shadcn-ui/ui`, `phosphor-icons/core`
+(256x256 `regular` + `fill` icons), `argyleink/open-props` easing/elevation scales,
+and `dip/cmdk` (`⌘K` / `Ctrl+K` Command Palette) as recorded in `docs/REUSE_REGISTER.md` §9,
+with zero runtime package additions.
+
+- **Dual reading themes**: Default to **Obsidian Dark** (`data-theme="dark"`), with
+  user-selectable **Warm Paper Light** (`data-theme="light"`) persisted in
+  `localStorage` (`yia.ui-theme`). Both themes preserve >= 4.5:1 WCAG AA body text
+  contrast and keep emerald (`--accent`) as the singular focal action hue.
+- **Primary navigation & keyboard order**: Keep the exact six primary `<button>`
+  destinations inside `<nav aria-label="Primary navigation">` as the first focusable
+  elements in the document so keyboard `Tab` / `Shift+Tab` traversal stays intact.
+  Place workspace utilities (`⌘K` Command Search, Quick Add, Theme toggle) after
+  primary navigation.
+- **Workbench & reader ergonomics**: Use an asymmetric 2-column desktop workbench on
+  Home (`1120px+`) so `What matters now` pairs with a sticky `Pinned Topics` /
+  `Needs Attention` rail. Keep `Intelligence result` before `Transcript` and
+  `Evidence` in DOM order on Content detail, paired with a sticky section jump bar
+  and non-destructive client-side Content search & provider filter chips.

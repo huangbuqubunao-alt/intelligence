@@ -14,10 +14,13 @@ import { cleanCaptionText, cleanTimedSegments } from "./captionClean";
 import { ModelSettings } from "./ModelSettings";
 import { formatMicroCny } from "./CloudSpendingSettings";
 import { Logo } from "./Logo";
-import { BookmarkSparkIcon, DistillOrbitIcon, NavIcon, pulseCelebration, runViewTransition, VerifiedSealIcon } from "./motion";
+import { BookmarkSparkIcon, DistillOrbitIcon, NavIcon, prefersReducedMotion, pulseCelebration, runViewTransition, VerifiedSealIcon } from "./motion";
 import { FirstRunOnboarding, completeOnboarding, onboardingCompleted } from "./Onboarding";
 import { DeltaTarget, KnowledgeDelta } from "./KnowledgeDelta";
 import { Research } from "./Research";
+import { CommandPalette, CommandPaletteAction } from "./ui/CommandPalette";
+import { PhosphorIcon, PhosphorIconName } from "./ui/phosphorIcons";
+import { UiThemeProvider, useUiTheme } from "./ui/theme";
 import { savedLanguage, UiLanguageProvider, useUiLanguage } from "./uiLanguage";
 
 type Page =
@@ -599,12 +602,23 @@ function contentStatus(provider: string | undefined, status: string, label?: str
           : undefined),
   };
 }
-function Panel({ title, children }: { title: string; children: ReactNode }) {
+function Panel({ title, id, icon, className, actions, children }: {
+  title: string;
+  id?: string;
+  icon?: PhosphorIconName;
+  className?: string;
+  actions?: ReactNode;
+  children: ReactNode;
+}) {
   const { t } = useUiLanguage();
   return (
-    <section className="panel">
+    <section id={id} className={`panel${className ? ` ${className}` : ""}`}>
       <div className="panel-heading">
-        <h2>{t(title)}</h2>
+        <div className="panel-heading-title">
+          {icon && <PhosphorIcon name={icon} size={16} className="panel-heading-icon" />}
+          <h2>{t(title)}</h2>
+        </div>
+        {actions && <div className="panel-heading-actions">{actions}</div>}
       </div>
       {children}
     </section>
@@ -1323,15 +1337,17 @@ function IntelligenceCard(
 }
 
 export function App() {
-  return <UiLanguageProvider><Workspace /></UiLanguageProvider>;
+  return <UiLanguageProvider><UiThemeProvider><Workspace /></UiThemeProvider></UiLanguageProvider>;
 }
 
 function Workspace() {
-  const { t } = useUiLanguage();
+  const { language, setLanguage, t } = useUiLanguage();
+  const { theme, toggleTheme } = useUiTheme();
   const [page, setPage] = useState<Page>(initialPage);
   const [refresh, setRefresh] = useState(0);
   // Add lives above refreshed/navigated pages: file chooser focus must not unmount it.
   const [addProvider, setAddProvider] = useState<"YOUTUBE" | "LOCAL" | null>(null);
+  const [cmdkOpen, setCmdkOpen] = useState(false);
   const [imported, setImported] = useState(false);
   const [contentTarget, setContentTarget] = useState<string | null>(initialContentTarget);
   // Tracks the hash produced by in-app navigation so the hashchange listener
@@ -1422,6 +1438,29 @@ function Workspace() {
       setPage(destinations[target.kind]);
     });
   };
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setCmdkOpen(current => !current);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+  const staticCommands: CommandPaletteAction[] = [
+    { id: "nav:Home", group: "navigation", label: t("Home"), subtitle: t(subtitles.Home), icon: "house", aliases: ["home", "首页"], onSelect: () => navigate("Home") },
+    { id: "nav:Following", group: "navigation", label: t("Following"), subtitle: t(subtitles.Following), icon: "rss", aliases: ["following", "sources", "关注"], onSelect: () => navigate("Following") },
+    { id: "nav:Content", group: "navigation", label: t("Content"), subtitle: t(subtitles.Content), icon: "play-circle", aliases: ["content", "videos", "内容", "视频"], onSelect: () => navigate("Content") },
+    { id: "nav:Intelligence", group: "navigation", label: t("Intelligence"), subtitle: t(subtitles.Intelligence), icon: "sparkle", aliases: ["intelligence", "insights", "洞察"], onSelect: () => navigate("Intelligence") },
+    { id: "nav:Topics", group: "navigation", label: t("Topics"), subtitle: t(subtitles.Topics), icon: "stack", aliases: ["topics", "主题"], onSelect: () => navigate("Topics") },
+    { id: "nav:Research", group: "navigation", label: t("Research"), subtitle: t(subtitles.Research), icon: "quotes", aliases: ["research", "研究"], onSelect: () => navigate("Research") },
+    { id: "nav:Settings", group: "navigation", label: t("Settings"), subtitle: t(subtitles.Settings), icon: "sliders-horizontal", aliases: ["settings", "设置", "model", "budget"], onSelect: () => navigate("Settings") },
+    { id: "act:add-video", group: "actions", label: t("Add video or follow channel"), icon: "plus", aliases: ["add", "import", "youtube", "bilibili", "导入", "添加"], onSelect: () => setAddProvider("YOUTUBE") },
+    { id: "act:add-local", group: "actions", label: t("Import local file"), icon: "file-text", aliases: ["local", "file", "本地文件", "转写"], onSelect: () => setAddProvider("LOCAL") },
+    { id: "act:theme", group: "actions", label: t(theme === "dark" ? "Switch to Warm Paper Light theme" : "Switch to Obsidian Dark theme"), icon: theme === "dark" ? "sun" : "moon", aliases: ["theme", "dark", "light", "主题", "浅色", "深色"], onSelect: toggleTheme },
+    { id: "act:lang", group: "actions", label: t(language === "zh-CN" ? "Switch interface to English" : "Switch interface to Chinese"), icon: "translate", aliases: ["language", "english", "chinese", "中文", "语言"], onSelect: () => setLanguage(language === "zh-CN" ? "en" : "zh-CN") },
+  ];
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -1433,24 +1472,27 @@ function Workspace() {
           </div>
         </div>
         <nav className="sidebar-nav" aria-label={t("Primary navigation")}>
-          {pages.map((item) => (
-            <button
-              type="button"
-              key={item}
-              className={`nav-item ${page === item || (page === "Research" && item === "Intelligence") ? "active" : ""}`}
-              aria-current={page === item || (page === "Research" && item === "Intelligence") ? "page" : undefined}
-              onFocus={event => {
-                const nav = event.currentTarget.parentElement;
-                if (nav && nav.scrollWidth > nav.clientWidth) {
-                  event.currentTarget.scrollIntoView({ block: "nearest", inline: "nearest" });
-                }
-              }}
-              onClick={() => navigate(item)}
-            >
-              <NavIcon name={item} />
-              {t(item)}
-            </button>
-          ))}
+          {pages.map((item) => {
+            const isActive = page === item || (page === "Research" && item === "Intelligence");
+            return (
+              <button
+                type="button"
+                key={item}
+                className={`nav-item ${isActive ? "active" : ""}`}
+                aria-current={isActive ? "page" : undefined}
+                onFocus={event => {
+                  const nav = event.currentTarget.parentElement;
+                  if (nav && nav.scrollWidth > nav.clientWidth) {
+                    event.currentTarget.scrollIntoView({ block: "nearest", inline: "nearest" });
+                  }
+                }}
+                onClick={() => navigate(item)}
+              >
+                <NavIcon name={item} active={isActive} />
+                {t(item)}
+              </button>
+            );
+          })}
         </nav>
         <div className="sidebar-foot"><span className="service-dot" aria-hidden="true" />{t("Evidence stays reachable")}</div>
       </aside>
@@ -1474,7 +1516,12 @@ function Workspace() {
         {page === "Home" && (
           <div className="dashboard-stack">
             <KnowledgeDelta refresh={refresh} onOpen={openDelta} />
-            <Dashboard refresh={refresh} navigate={navigate} openContent={openContent} />
+            <Dashboard
+              refresh={refresh}
+              navigate={navigate}
+              openContent={openContent}
+              onOpenTopic={id => openDelta({ kind: "topic", id })}
+            />
           </div>
         )}
         {page === "Following" && (
@@ -1499,6 +1546,39 @@ function Workspace() {
         {page === "Topics" && <Topics refresh={refresh} targetTopicId={deltaTarget?.kind === "topic" ? deltaTarget.id : null} />}
         {page === "Settings" && <Settings refresh={refresh} />}
       </main>
+      <div className="workspace-utility-dock" role="region" aria-label={t("Quick actions")}>
+        <button
+          type="button"
+          className="utility-cmdk-btn"
+          aria-label={`${t("Search or jump")} (⌘K)`}
+          onClick={() => setCmdkOpen(true)}
+        >
+          <PhosphorIcon name="magnifying-glass" size={15} />
+          <span className="utility-cmdk-label">{t("Search or jump")}</span>
+          <kbd className="cmdk-kbd" aria-hidden="true">⌘K</kbd>
+        </button>
+        <button
+          type="button"
+          className="utility-theme-btn"
+          aria-label={t(theme === "dark" ? "Switch to Warm Paper Light theme" : "Switch to Obsidian Dark theme")}
+          title={t(theme === "dark" ? "Switch to Warm Paper Light theme" : "Switch to Obsidian Dark theme")}
+          onClick={event => {
+            pulseCelebration(event.currentTarget);
+            toggleTheme();
+          }}
+        >
+          <PhosphorIcon name={theme === "dark" ? "sun" : "moon"} size={15} className="theme-toggle-glyph" key={theme} />
+          <span className="utility-theme-label">{t(theme === "dark" ? "Paper Light" : "Obsidian Dark")}</span>
+        </button>
+      </div>
+      <CommandPalette
+        open={cmdkOpen}
+        onClose={() => setCmdkOpen(false)}
+        staticActions={staticCommands}
+        onOpenContent={id => openContent(id)}
+        onOpenIntelligence={id => openDelta({ kind: "intelligence", id })}
+        onOpenTopic={id => openDelta({ kind: "topic", id })}
+      />
       {addProvider !== null && <AddEntry initialLocal={addProvider === "LOCAL"} onClose={() => setAddProvider(null)} onSaved={() => { setAddProvider(null); setRefresh(value => value + 1); }} onImported={id => {
         setAddProvider(null); setRefresh(value => value + 1); setImported(true); openContent(id);
       }} />}
@@ -1506,10 +1586,11 @@ function Workspace() {
   );
 }
 function Dashboard(
-  { refresh, navigate, openContent }: {
+  { refresh, navigate, openContent, onOpenTopic }: {
     refresh: number;
     navigate: (page: Page) => void;
     openContent: (videoId: string, evidenceId?: string) => void;
+    onOpenTopic: (topicId: string) => void;
   },
 ) {
   const { t } = useUiLanguage();
@@ -1540,7 +1621,7 @@ function Dashboard(
   if (!intelligence.length && !topics.length && !attention.length) {
     return (
       <div className="dashboard-stack">
-        <Panel title="No important new intelligence yet.">
+        <Panel title="No important new intelligence yet." icon="sparkle">
           <p>
             {t((data.operations?.source_count ?? 0) > 0
               ? "Open Following to check your saved sources or add something new. Content is organized first; generating Intelligence is optional."
@@ -1557,42 +1638,59 @@ function Dashboard(
     );
   }
   return (
-    <div className="dashboard-stack">
-      <Panel title="What matters now">
-        {intelligence.length
-          ? intelligence.map((item) => (
-            <IntelligenceCard
-              key={item.intelligence_id ?? item.code}
-              item={item}
-              saved={false}
-              onSaved={() => undefined}
-              onOpenContent={openContent}
-            />
-          ))
-          : <Empty>No important new intelligence yet.</Empty>}
-        <button
-          className="button button-ghost"
-          onClick={() => navigate("Intelligence")}
-        >
-          {t("See all Intelligence")}
-        </button>
-      </Panel>
-      <Panel title="Pinned Topics">
-        {topics.length
-          ? topics.map((topic) => (
-            <p key={topic.topic_id}>
-              <strong>{topic.name}</strong> · {t(statusLabel(topic.current_state))}
-            </p>
-          ))
-          : <Empty>No pinned Topics yet.</Empty>}
-      </Panel>
-      {attention.length
-        ? (
-          <Panel title="Needs Attention">
-            {attention.map((run) => <Attention key={run.run_id} run={run} />)}
-          </Panel>
-        )
-        : null}
+    <div className="home-workbench-grid">
+      <div className="home-primary-col">
+        <Panel title="What matters now" icon="sparkle">
+          {intelligence.length
+            ? intelligence.map((item) => (
+              <IntelligenceCard
+                key={item.intelligence_id ?? item.code}
+                item={item}
+                saved={false}
+                onSaved={() => undefined}
+                onOpenContent={openContent}
+              />
+            ))
+            : <Empty>No important new intelligence yet.</Empty>}
+          <button
+            className="button button-ghost"
+            onClick={() => navigate("Intelligence")}
+          >
+            {t("See all Intelligence")}
+          </button>
+        </Panel>
+      </div>
+      <div className="home-side-rail">
+        <Panel title="Pinned Topics" icon="stack">
+          {topics.length
+            ? (
+              <div className="pinned-topic-list">
+                {topics.map((topic) => (
+                  <button
+                    type="button"
+                    className="pinned-topic-pill"
+                    key={topic.topic_id}
+                    onClick={() => onOpenTopic(topic.topic_id)}
+                  >
+                    <PhosphorIcon name="stack" weight="fill" size={14} className="pinned-topic-icon" />
+                    <span className="pinned-topic-copy">
+                      <strong>{topic.name}</strong> · {t(statusLabel(topic.current_state))}
+                    </span>
+                    <PhosphorIcon name="caret-right" size={13} className="pinned-topic-arrow" />
+                  </button>
+                ))}
+              </div>
+            )
+            : <Empty>No pinned Topics yet.</Empty>}
+        </Panel>
+        {attention.length
+          ? (
+            <Panel title="Needs Attention" icon="warning-circle">
+              {attention.map((run) => <Attention key={run.run_id} run={run} />)}
+            </Panel>
+          )
+          : null}
+      </div>
     </div>
   );
 }
@@ -1756,6 +1854,8 @@ function ContentPage(
 ) {
   const { t } = useUiLanguage();
   const [revision, setRevision] = useState(0);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [providerFilter, setProviderFilter] = useState<"ALL" | "YOUTUBE" | "BILIBILI" | "LOCAL">("ALL");
   const list = useRemote<{ videos: ContentItem[] }>("/videos", refresh + revision);
   useEffect(() => {
     if (targetVideoId || !list.data?.videos.some(item => ["WAITING", "FETCHING", "READING_CAPTIONS", "ORGANIZING", "TRANSCRIPT_READY", "RETRY_PENDING", "RUNNING", "PENDING"].includes(item.processing_status))) return;
@@ -1767,22 +1867,85 @@ function ContentPage(
   if (targetVideoId) {
     return <ContentDetailPanel key={targetVideoId} id={targetVideoId} onClose={onClose} />;
   }
-  return list.data.videos.length
+  const videos = list.data.videos;
+  const hasMultiProviders = new Set(videos.map(v => v.provider ?? "YOUTUBE")).size > 1;
+  const trimmedSearch = searchQuery.trim().toLowerCase();
+  const filteredVideos = videos.filter(item => {
+    const itemProvider = item.provider ?? "YOUTUBE";
+    if (providerFilter !== "ALL" && itemProvider !== providerFilter) return false;
+    if (!trimmedSearch) return true;
+    const haystack = `${item.title ?? ""} ${item.channel_name ?? ""} ${item.video_id}`.toLowerCase();
+    return haystack.includes(trimmedSearch);
+  });
+  return videos.length
     ? (
-      <div className="compact-list">
-        {list.data.videos.map((item) => (
-          <button
-            className="list-row"
-            key={item.video_id}
-            onClick={() => onOpen(item.video_id)}
-          >
-            <span>
-              <strong>{item.title ?? item.video_id}</strong>
-              <small>{item.provider === "LOCAL" ? t("Local") : item.provider === "BILIBILI" ? `${t("Bilibili")} · ${item.channel_name ?? ""}` : item.channel_name} · {humanDate(item.provider === "BILIBILI" ? item.published_at : item.imported_at ?? item.published_at)}</small>
-            </span>
-            <Status {...contentStatus(item.provider, item.processing_status)} />
-          </button>
-        ))}
+      <div className="content-library-shell">
+        <div className="library-filter-bar">
+          <div className="search-field-wrap">
+            <PhosphorIcon name="magnifying-glass" size={15} className="search-field-icon" />
+            <input
+              type="search"
+              aria-label={t("Search Content library")}
+              placeholder={t("Filter by title or channel…")}
+              value={searchQuery}
+              onChange={event => setSearchQuery(event.target.value)}
+            />
+          </div>
+          {hasMultiProviders && (
+            <div className="segmented library-provider-chips" role="group" aria-label={t("All sources")}>
+              {([
+                ["ALL", t("All sources")],
+                ["YOUTUBE", "YouTube"],
+                ["BILIBILI", t("Bilibili")],
+                ["LOCAL", t("Local")],
+              ] as const)
+                .filter(([key]) => key === "ALL" || videos.some(v => (v.provider ?? "YOUTUBE") === key))
+                .map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    aria-pressed={providerFilter === key}
+                    className={providerFilter === key ? "active" : ""}
+                    onClick={() => setProviderFilter(key)}
+                  >
+                    {label}
+                  </button>
+                ))}
+            </div>
+          )}
+        </div>
+        {filteredVideos.length ? (
+          <div className="compact-list content-media-list">
+            {filteredVideos.map((item) => (
+              <button
+                className="list-row content-media-row"
+                key={item.video_id}
+                onClick={() => onOpen(item.video_id)}
+              >
+                <span className="content-media-lead">
+                  <span className={`provider-glyph provider-${(item.provider ?? "YOUTUBE").toLowerCase()}`} aria-hidden="true">
+                    <PhosphorIcon
+                      name={item.provider === "LOCAL" ? "file-text" : item.provider === "BILIBILI" ? "television" : "youtube-logo"}
+                      size={16}
+                    />
+                  </span>
+                  <span className="content-media-copy">
+                    <strong>{item.title ?? item.video_id}</strong>
+                    <small>{item.provider === "LOCAL" ? t("Local") : item.provider === "BILIBILI" ? `${t("Bilibili")} · ${item.channel_name ?? ""}` : item.channel_name} · {humanDate(item.provider === "BILIBILI" ? item.published_at : item.imported_at ?? item.published_at)}</small>
+                  </span>
+                </span>
+                <Status {...contentStatus(item.provider, item.processing_status)} />
+              </button>
+            ))}
+          </div>
+        ) : (
+          <Empty>
+            <p>{t("No Content matches your current search or filter.")}</p>
+            <button type="button" className="button button-secondary" onClick={() => { setSearchQuery(""); setProviderFilter("ALL"); }}>
+              {t("Clear filter")}
+            </button>
+          </Empty>
+        )}
       </div>
     )
     : (
@@ -2047,9 +2210,58 @@ function CloudIntelligencePreview({ id, manual, executionKey, onSettled }: { id:
   </div>;
 }
 
+const READER_SECTION_IDS = [
+  "section-intelligence",
+  "section-summary",
+  "section-evidence",
+  "section-transcript",
+  "section-history",
+] as const;
+
+const SETTINGS_SECTION_IDS = [
+  "settings-language",
+  "settings-interests",
+  "settings-models",
+  "settings-backup",
+] as const;
+
+function useActiveSection(sectionIds: readonly string[], resetKey?: string): [string, (sectionId: string) => void] {
+  const [activeId, setActiveId] = useState<string>(() => sectionIds[0] ?? "");
+  useEffect(() => {
+    setActiveId(sectionIds[0] ?? "");
+  }, [resetKey, sectionIds]);
+  useEffect(() => {
+    const onScroll = () => {
+      if (typeof window === "undefined" || window.scrollY <= 8) return;
+      let current = sectionIds[0] ?? "";
+      for (const id of sectionIds) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        const rect = el.getBoundingClientRect();
+        if (rect.height === 0 && rect.top === 0) continue;
+        if (rect.top <= 132) {
+          current = id;
+        }
+      }
+      setActiveId(current);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [sectionIds]);
+  const jumpTo = useCallback((sectionId: string) => {
+    setActiveId(sectionId);
+    const el = document.getElementById(sectionId);
+    if (!el) return;
+    el.scrollIntoView?.({ block: "start", behavior: prefersReducedMotion() ? "auto" : "smooth" });
+    pulseCelebration(el);
+  }, []);
+  return [activeId, jumpTo];
+}
+
 function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }) {
   const creatorCapability = useCreatorFollowingCapability();
   const { t } = useUiLanguage();
+  const [activeSection, scrollToSection] = useActiveSection(READER_SECTION_IDS, id);
   const [refresh, setRefresh] = useState(0);
   const { data, error, errorCode, reload } = useRemote<ContentDetail>(`/videos/${id}`, refresh, undefined, true);
   const [evidenceRefresh, setEvidenceRefresh] = useState(0);
@@ -2105,9 +2317,12 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
           : data.video.processing_status,
       );
   return (
-    <div className="dashboard-stack">
-      <button className="button button-ghost" onClick={onClose}>{t("Back to Content")}</button>
-      <Panel title={data.video.title ?? data.video.video_id}>
+    <div className="dashboard-stack reader-detail-stack">
+      <button className="button button-ghost" onClick={onClose}>
+        <PhosphorIcon name="arrow-left" size={14} />
+        {t("Back to Content")}
+      </button>
+      <Panel title={data.video.title ?? data.video.video_id} className="reader-hero-panel">
         <div className={`reading-meta${isLocalMedia || isBilibili ? " local-media-meta" : ""}`}>
           <Status {...readingStatus} />
           <span>{data.video.provider === "LOCAL" ? t("Local") : isBilibili ? `${t("Bilibili")} · ${data.video.channel_name ?? ""}` : data.video.channel_name} · {humanDate(isBilibili ? data.video.published_at : data.video.imported_at ?? data.video.published_at)}</span>
@@ -2123,12 +2338,35 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
           )
           : null}
       </Panel>
+      <div role="toolbar" aria-label={t("Section jump")} className="reader-jump-bar">
+        {([
+          ["section-intelligence", "sparkle", "Jump · Intelligence"],
+          ["section-summary", "file-text", "Jump · Summary"],
+          ["section-evidence", "shield-check", "Jump · Evidence"],
+          ["section-transcript", "quotes", "Jump · Transcript"],
+          ["section-history", "clock", "Jump · History"],
+        ] as const).map(([secId, iconName, labelKey]) => {
+          const isActive = activeSection === secId;
+          return (
+            <button
+              key={secId}
+              type="button"
+              aria-current={isActive ? "location" : undefined}
+              className={`reader-jump-chip${isActive ? " is-active" : ""}`}
+              onClick={() => scrollToSection(secId)}
+            >
+              <PhosphorIcon name={iconName} weight={isActive ? "fill" : "regular"} size={13} />
+              {t(labelKey)}
+            </button>
+          );
+        })}
+      </div>
       <TrackedContentRetry id={id} value={data.video.tracked_content_retry} commands={trackedRetryCommands} onRefresh={() => { setRefresh(value => value + 1); setEvidenceRefresh(value => value + 1); }} />
       {data.video.caption_timing_status === "UNAVAILABLE" && !data.video.source_id && <Panel title="Processing needs attention"><p>{t("The captured captions have no verified source timing. Content needs timed captions before Summary and source references can be prepared.")}</p></Panel>}
       {data.video.source_id && (["RETRY_REQUIRED", "FAILED"].includes(data.video.processing_status) || data.video.caption_timing_status === "UNAVAILABLE") && <Panel title="Processing needs attention">{data.video.caption_timing_status === "UNAVAILABLE" && <p>{t("The captured captions have no verified source timing. Content needs timed captions before Summary and source references can be prepared.")}</p>}<p>{t(data.video.retry_allowed === false ? "This Content needs source or processing readiness review before it can be processed again." : data.video.summary_preparation_status === "NEEDS_ATTENTION" ? "Timed captions are saved, but the Summary could not be prepared. Retry to organize this Content; your captured text and source references are kept." : data.video.caption_timing_status === "UNAVAILABLE" ? "Retry to check this source for native timed captions. Your captured text and history are kept." : "Processing needs attention. Check the source and processing history before retrying; retry may still fail.")}</p><button className="button button-secondary" disabled={retryBusy || data.video.retry_allowed === false} onClick={async () => { setRetryBusy(true); setRetryFeedback(null); try { await post(`/sources/${data.video.source_id}/check`, { command_id: commandId() }); setRetryFeedback("Retry accepted. Processing status will update here."); setRefresh(value => value + 1); } catch { setRetryFeedback("The source could not be checked. Try again later."); } finally { setRetryBusy(false); } }}>{t(retryBusy ? "Retrying…" : "Retry")}</button>{retryFeedback && <p role="status">{t(retryFeedback)}</p>}</Panel>}
       {isBilibili && data.video.processing_status !== "SOURCE_UNAVAILABLE" && <FollowCreatorFromContent id={id} capability={creatorCapability} />}
       {data.video.provider === "YOUTUBE" && data.video.channel_id && /^UC[A-Za-z0-9_-]{22}$/.test(data.video.channel_id) && <FollowCreatorFromContent id={id} provider="YOUTUBE" />}
-      <Panel title="Intelligence result">
+      <Panel id="section-intelligence" icon="sparkle" title="Intelligence result">
         <LocalIntelligencePresentation content={localCapability} onReload={reload} />
         <div className="semantic-state state-neutral">
           <Status value={data.intelligence_result.status} label={cloudWait ? "Waiting for cloud execution prerequisites" : unstartedLongWait ? "Extraction has not started" : undefined} />
@@ -2190,7 +2428,7 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
           )}
         </div>
       </Panel>
-      <Panel title={data.video.provider === "LOCAL" && data.video.media_kind === "TEXT" ? "Source text" : "Transcript"}>
+      <Panel id="section-transcript" icon="quotes" title={data.video.provider === "LOCAL" && data.video.media_kind === "TEXT" ? "Source text" : "Transcript"}>
         {isBilibili && <BilibiliCaptionStatus id={id} status={data.video.processing_status} onCompleted={() => { setRefresh(value => value + 1); setEvidenceRefresh(value => value + 1); }} />}
         {isLocalMedia && <LocalTranscription id={id} onStatusChange={setTranscriptionStatus} onCompleted={() => { if (transcriptionRefreshId.current === id) return; transcriptionRefreshId.current = id; setRefresh(value => value + 1); setEvidenceRefresh(value => value + 1); }} />}
         {transcript.status === "AVAILABLE" && transcript.text
@@ -2225,7 +2463,7 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
             </div>
           )}
       </Panel>
-      <Panel title={data.video.provider === "LOCAL" || isBilibili ? "Summary" : "Summary / Video Notes"}>
+      <Panel id="section-summary" icon="file-text" title={data.video.provider === "LOCAL" || isBilibili ? "Summary" : "Summary / Video Notes"}>
         {note?.status === "AVAILABLE"
           ? (() => {
             const summaryClean = note.summary ? cleanCaptionText(note.summary) : { text: "", collapsedCount: 0 };
@@ -2322,7 +2560,7 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
         sourceUrl={data.video.source_url}
         refresh={evidenceRefresh}
       />
-      <Panel title="Processing history">
+      <Panel id="section-history" icon="clock" title="Processing history">
         {visibleHistory.length
           ? visibleHistory.slice(0, 12).map((event, index) => (
             <div className="metadata-row" key={`${event.timestamp}:${event.summary}:${index}`}>
@@ -2718,14 +2956,14 @@ function ContentEvidencePanel(
   const evidencePanelTitle = data?.evidence?.some(item => item.locator_type === "TEXT_RANGE") ? "Evidence · source text" : "Evidence · source transcript";
   if (error) {
     return (
-      <Panel title={evidencePanelTitle}>
+      <Panel id="section-evidence" icon="shield-check" title={evidencePanelTitle}>
         <p className="hint">{t("Canonical Evidence could not be loaded. The Summary remains available with its own recorded references.")}</p>
         <ErrorState error={error} code={errorCode} onReload={reload} hideRawMessage />
       </Panel>
     );
   }
   if (!data) {
-    return <Panel title={evidencePanelTitle}><Empty>Loading canonical Evidence…</Empty></Panel>;
+    return <Panel id="section-evidence" icon="shield-check" title={evidencePanelTitle}><Empty>Loading canonical Evidence…</Empty></Panel>;
   }
   const evidence = data.evidence ?? [];
   const collapsedEvidenceLines = evidence.reduce(
@@ -2778,7 +3016,7 @@ function ContentEvidencePanel(
     }
   };
   return (
-    <Panel title={evidencePanelTitle}>
+    <Panel id="section-evidence" icon="shield-check" title={evidencePanelTitle}>
       {evidence.length
         ? (
           <div className="evidence-trace-list">
@@ -2910,21 +3148,30 @@ function Topics({ refresh, targetTopicId }: { refresh: number; targetTopicId?: s
     return (
       <>
         {list.data.topics.length
-          ? list.data.topics.map((topic) => (
-            <button
-              className="list-row"
-              key={topic.topic_id}
-              onClick={() => setSelected(topic.topic_id)}
-            >
-              <span>
-                <strong>{topic.name}</strong>
-                <small>
-                  {t("Current understanding")}: {t(statusLabel(topic.current_state))}
-                </small>
-              </span>
-              <Status value={topic.pinned ? "PINNED" : topic.lifecycle} />
-            </button>
-          ))
+          ? (
+            <div className="compact-list content-media-list">
+              {list.data.topics.map((topic) => (
+                <button
+                  className="list-row content-media-row"
+                  key={topic.topic_id}
+                  onClick={() => setSelected(topic.topic_id)}
+                >
+                  <span className="content-media-lead">
+                    <span className="provider-glyph provider-local" aria-hidden="true">
+                      <PhosphorIcon name="stack" weight={topic.pinned ? "fill" : "regular"} size={16} />
+                    </span>
+                    <span className="content-media-copy">
+                      <strong>{topic.name}</strong>
+                      <small>
+                        {t("Current understanding")}: {t(statusLabel(topic.current_state))}
+                      </small>
+                    </span>
+                  </span>
+                  <Status value={topic.pinned ? "PINNED" : topic.lifecycle} />
+                </button>
+              ))}
+            </div>
+          )
           : <Empty>No Topics yet.</Empty>}
       </>
     );
@@ -2934,9 +3181,10 @@ function Topics({ refresh, targetTopicId }: { refresh: number; targetTopicId?: s
   return (
     <div className="dashboard-stack">
       <button className="button button-ghost" onClick={() => setSelected(null)}>
+        <PhosphorIcon name="arrow-left" size={14} />
         {t("Back to Topics")}
       </button>
-      <Panel title={topic.name}>
+      <Panel title={topic.name} icon="stack">
         <h3>{t("Current understanding")}</h3>
         <p>{t(statusLabel(topic.current_state))}.</p>
         <p>
@@ -2946,14 +3194,17 @@ function Topics({ refresh, targetTopicId }: { refresh: number; targetTopicId?: s
         </p>
         <button
           className="button button-secondary"
-          onClick={() =>
-            post(`/topics/${topic.topic_id}/pin`, { pinned: !topic.pinned })
-              .then(() => setSelected(null))}
+          onClick={event => {
+            pulseCelebration(event.currentTarget);
+            void post(`/topics/${topic.topic_id}/pin`, { pinned: !topic.pinned })
+              .then(() => setSelected(null));
+          }}
         >
+          <PhosphorIcon name="push-pin" weight={topic.pinned ? "fill" : "regular"} size={14} />
           {t(topic.pinned ? "Unpin Topic" : "Pin Topic")}
         </button>
       </Panel>
-      <Panel title="Evidence">
+      <Panel title="Evidence" icon="shield-check">
         {topic.contributions.length
           ? topic.contributions.map((contribution) => (
             <article
@@ -2978,7 +3229,7 @@ function Topics({ refresh, targetTopicId }: { refresh: number; targetTopicId?: s
           ))
           : <Empty>No current supporting information.</Empty>}
       </Panel>
-      <Panel title="Timeline">
+      <Panel title="Timeline" icon="clock">
         {topic.timeline.length
           ? topic.timeline.map((event) => (
             <p key={event.event_id}>
@@ -2987,7 +3238,7 @@ function Topics({ refresh, targetTopicId }: { refresh: number; targetTopicId?: s
           ))
           : <Empty>No historical events.</Empty>}
       </Panel>
-      <Panel title="Related Topics">
+      <Panel title="Related Topics" icon="stack">
         {topic.relations.length
           ? topic.relations.map((relation) => (
             <p key={relation.related_topic_id}>{t("Related topic")}</p>
@@ -3079,11 +3330,22 @@ function Sources(
                   onClick={() =>
                     setSelected(source.source_id)}
                 >
-                  <span>
-                    <strong>{source.provider === "LOCAL" ? t("Local library") : sourceLabel(source)}</strong>
-                    <small>
-                      {t(sourceSummary(source, creatorFollowingWithdrawn))} · {source.provider === "LOCAL" ? t("Local") : source.provider === "BILIBILI" ? t("Bilibili") : "YouTube"}
-                    </small>
+                  <span className="content-media-lead">
+                    <span
+                      className={`provider-glyph provider-${(source.provider ?? "YOUTUBE").toLowerCase()}`}
+                      aria-hidden="true"
+                    >
+                      <PhosphorIcon
+                        name={source.provider === "LOCAL" ? "folder-open" : source.provider === "BILIBILI" ? "television" : "rss"}
+                        size={16}
+                      />
+                    </span>
+                    <span className="content-media-copy">
+                      <strong>{source.provider === "LOCAL" ? t("Local library") : sourceLabel(source)}</strong>
+                      <small>
+                        {t(sourceSummary(source, creatorFollowingWithdrawn))} · {source.provider === "LOCAL" ? t("Local") : source.provider === "BILIBILI" ? t("Bilibili") : "YouTube"}
+                      </small>
+                    </span>
                   </span>
                 </button>
                 <div className="source-actions">
@@ -4153,7 +4415,7 @@ function BackupRestorePanel() {
   const receiptDate = typeof receipt?.completed_at === "string" && Number.isFinite(Date.parse(receipt.completed_at))
     ? humanDate(receipt.completed_at) : null;
   return (
-    <Panel title="Backup and Restore">
+    <Panel id="settings-backup" icon="archive" title="Backup and Restore">
       <p>{t("Backups include Intelligence core data and persisted settings. External Vault content, credentials, and model files are excluded.")}</p>
       {!statusError ? <p className="hint" role="status">
         {t(readiness.lead)}
@@ -4286,7 +4548,7 @@ function GlobalInterests({ policy, onSaved }: { policy: SourcePolicy; onSaved: (
       setBusy(false);
     }
   };
-  return <Panel title="My interests">
+  return <Panel id="settings-interests" icon="funnel" title="My interests">
     <p className="hint">{t("These are defaults for future insight selection. A Following can use them or set its own focus. Summaries remain faithful to source content; existing insights and Topics do not change.")}</p>
     {!editing ? <><p>{t("What I focus on")}: {policy.focus_rules.join(", ") || t("Not set")}</p><button className="button button-secondary" onClick={() => setEditing(true)}>{t("Edit interests")}</button></> : <>
     <InterestRulesEditor kind="focus" label="What I focus on" rows={focus} onChange={setFocus} />
@@ -4342,6 +4604,7 @@ function Settings({ refresh }: { refresh: number }) {
     "/settings/resource-usage",
     refresh,
   );
+  const [activeSettingSection, jumpToSetting] = useActiveSection(SETTINGS_SECTION_IDS);
   const failedReads = [settings, prefs, policy, usage].filter(read => read.error);
   if (failedReads.length) {
     return <ErrorState error={failedReads[0].error ?? ""} code={failedReads[0].errorCode}
@@ -4381,7 +4644,29 @@ function Settings({ refresh }: { refresh: number }) {
   };
   return (
     <div className="settings-stack">
-      <Panel title="Language">
+      <div role="toolbar" aria-label={t("Settings sections")} className="reader-jump-bar settings-jump-bar">
+        {([
+          ["settings-language", "translate", "Jump · Language"],
+          ["settings-interests", "funnel", "Jump · Interests"],
+          ["settings-models", "sparkle", "Jump · Models"],
+          ["settings-backup", "archive", "Jump · Backup"],
+        ] as const).map(([secId, iconName, labelKey]) => {
+          const isActive = activeSettingSection === secId;
+          return (
+            <button
+              key={secId}
+              type="button"
+              aria-current={isActive ? "location" : undefined}
+              className={`reader-jump-chip${isActive ? " is-active" : ""}`}
+              onClick={() => jumpToSetting(secId)}
+            >
+              <PhosphorIcon name={iconName} weight={isActive ? "fill" : "regular"} size={13} />
+              {t(labelKey)}
+            </button>
+          );
+        })}
+      </div>
+      <Panel id="settings-language" icon="translate" title="Language">
         {!editingLanguage ? <>
           <p>{t("Interface language")}: {language === "zh-CN" ? "中文" : "English"} · {t("Generated output")}: {settings.data.general.output_language === "zh-CN" ? "中文" : "English"}</p>
           <button className="button button-secondary" onClick={() => { setInterfaceDraft(language); setOutputDraft(settings.data!.general.output_language); setEditingLanguage(true); }}>{t("Edit language")}</button>
@@ -4395,7 +4680,7 @@ function Settings({ refresh }: { refresh: number }) {
         {languageError ? <p className="form-error" role="alert">{languageError}</p> : null}
       </Panel>
       <GlobalInterests key={JSON.stringify(globalPolicy)} policy={globalPolicy} onSaved={() => setRevision(current => current + 1)} />
-      <Panel title="Models and processing">
+      <Panel id="settings-models" icon="sparkle" title="Models and processing">
         <h3>{t("Content processing")}</h3><p>{t("Ready. Content is saved and organized locally when source text or captions are available. Cloud Intelligence is optional.")}</p>
         <h3>{t("Local model for scoring and Summary")}</h3><p>{settings.data.runtime_local_model?.model ?? localFoundation?.model ?? t("Not configured")} · {t(settings.data.runtime_local_model?.status === "READY" ? "Installed; identity verified" : "Readiness needs attention")}</p>
         <p className="hint">{t("Installation and identity checks do not qualify a model for Intelligence.")}</p>
