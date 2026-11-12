@@ -312,9 +312,11 @@ function CreatorFollowingDetailContent({ id, capability, onClose, onRefresh, ref
           finally { if (mounted.current) setBusy(false); }
         }}><option value="ORGANIZE_CONTENT">{t("Organize content")}</option><option value="EXTRACT_INTELLIGENCE">{t("Also extract Intelligence")}</option></select>
       </label>}
-      <button className="button button-secondary" disabled={busy || reading || readError} onClick={() => setInterestOpen(true)}>{t("Edit interests")}</button>
+      <div className="button-row">
+        <button className="button button-secondary" disabled={busy || reading || readError} onClick={() => setInterestOpen(true)}>{t("Edit interests")}</button>
+        <a className="button button-ghost" href={source.canonical_url} target="_blank" rel="noreferrer">{t("Open Source")}</a>
+      </div>
       {interestOpen && <SourceInterestEditor key={id} id={id} onClose={() => setInterestOpen(false)} />}
-      <a href={source.canonical_url} target="_blank" rel="noreferrer">{t("Open Source")}</a>
       <dl className="creator-tracking">
         <dt>{t(off ? "Last recorded source health" : "Source health")}</dt><dd>{t(trackingCopy(source.tracking.health, source.provider))}</dd>
         <dt>{t("Starting point established")}</dt><dd>{baselineEstablished ? t("Yes") : t("No, no successful check has completed yet")}</dd>

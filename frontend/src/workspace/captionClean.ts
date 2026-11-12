@@ -108,3 +108,79 @@ export function cleanTimedSegments(segments: TimedSegment[]): {
 
   return { segments: result, collapsedCount };
 }
+
+const TRANSLATION_META_NOTE_RE =
+  /[ \t]*[（(][^（）()\n]{0,120}(?:为原文中|未翻译的|保留原样|译注|注：|此处保留)[^（）()\n]{0,120}[）)]/g;
+
+const REPEATED_SENTENCE_RE =
+  /([^。！？.!?\n]{4,}[。！？.!?])[ \t]*\1+/g;
+
+export function cleanTranslatedCaptionText(raw: string): string {
+  if (!raw) return raw;
+  const withoutNotes = raw.replace(TRANSLATION_META_NOTE_RE, "");
+  const lineCleaned = cleanCaptionText(withoutNotes).text;
+  return lineCleaned
+    .split(/\r?\n/)
+    .map(line => line.replace(REPEATED_SENTENCE_RE, "$1").trim())
+    .filter((line, idx, arr) => line.length > 0 || (idx > 0 && arr[idx - 1] !== ""))
+    .join("\n")
+    .trim();
+}
+
+export function dedupeSummaryPoints(summary: string, points: string[]): string[] {
+  if (!points.length) return [];
+  const summaryNorm = normalizeLine(cleanCaptionText(summary).text);
+  const seen = new Set<string>();
+  const kept: string[] = [];
+  for (const raw of points) {
+    const cleaned = cleanCaptionText(raw).text.trim();
+    const norm = normalizeLine(cleaned);
+    if (!norm || seen.has(norm)) continue;
+    seen.add(norm);
+    kept.push(cleaned);
+  }
+  if (kept.length === 1 && summaryNorm && normalizeLine(kept[0]) === summaryNorm) {
+    return [];
+  }
+  return kept;
+}
+
+export function buildMarkdownVideoNote(input: {
+  title: string;
+  channelName?: string | null;
+  sourceUrl?: string | null;
+  publishedAt?: string | null;
+  summary?: string | null;
+  chineseGuide?: string[];
+  corePoints?: string[];
+}): string {
+  const lines: string[] = [`# ${input.title || "Untitled"}`];
+  const meta: string[] = [];
+  if (input.channelName) meta.push(input.channelName);
+  if (input.publishedAt) meta.push(input.publishedAt);
+  if (input.sourceUrl) meta.push(input.sourceUrl);
+  if (meta.length) {
+    lines.push("", `> ${meta.join(" · ")}`);
+  }
+  if (input.chineseGuide && input.chineseGuide.length > 0) {
+    const uniqueGuide = Array.from(
+      new Map(input.chineseGuide.map(seg => [normalizeLine(seg), seg])).values(),
+    ).filter(Boolean);
+    if (uniqueGuide.length > 0) {
+      lines.push("", "## 中文导读", "");
+      for (const seg of uniqueGuide) {
+        lines.push(`- ${seg}`);
+      }
+    }
+  }
+  if (input.summary && input.summary.trim()) {
+    lines.push("", "## 摘要 / 原文摘录", "", input.summary.trim());
+  }
+  if (input.corePoints && input.corePoints.length > 0) {
+    lines.push("", "## 核心要点", "");
+    for (const point of input.corePoints) {
+      lines.push(`- ${point}`);
+    }
+  }
+  return `${lines.join("\n")}\n`;
+}

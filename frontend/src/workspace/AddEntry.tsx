@@ -83,16 +83,20 @@ export function AddEntry({ onClose, onSaved, onImported, initialLocal = false }:
           <label><input type="radio" name="processing-mode" checked={mode === "EXTRACT_INTELLIGENCE"} onChange={() => setMode("EXTRACT_INTELLIGENCE")} /> {t("Also extract Intelligence")}<small>{t("After organizing content, consider which information deserves lasting knowledge. A qualified model and any required consent are needed.")}</small></label>
         </fieldset>}
         {error && <p className="form-error" role="alert">{t(error)}</p>}
-        <button className="button button-primary" disabled={busy || !input.trim()}>{t(busy ? recognized?.kind === "YOUTUBE_CHANNEL" ? "Establishing tracking…" : "Starting import…" : recognized?.kind === "YOUTUBE_CHANNEL" ? "Follow channel" : "Confirm import")}</button>
+        <div className="button-row">
+          <button className="button button-primary" disabled={busy || !input.trim()}>{t(busy ? recognized?.kind === "YOUTUBE_CHANNEL" ? "Establishing tracking…" : "Starting import…" : recognized?.kind === "YOUTUBE_CHANNEL" ? "Follow channel" : "Confirm import")}</button>
+          <button type="button" className="button button-secondary" disabled={busy} onClick={() => setLocal(true)}>{t("Import local file")}</button>
+        </div>
       </form>
-      <button className="button button-secondary" disabled={busy} onClick={() => setLocal(true)}>{t("Import local file")}</button>
       <p className="hint">{t("YouTube · Local files · Bilibili public-video import")}</p>
     </>}
     {busy && <p role="status" aria-live="polite">{t(recognized?.kind === "YOUTUBE_CHANNEL" ? "Establishing tracking…" : "Starting import…")}</p>}
     {result && <div role="status" aria-live="polite"><p>{t(result.kind === "YOUTUBE_CHANNEL" ? "Channel followed. Check Following for its starting point and source health." : "Import accepted. Processing and any required attention appear in Content.")}</p>
       {result.status && <p>{t(bilibiliStatus(result.status))}</p>}
-      {result.content_id && <a href={`#Content/${result.content_id}`} onClick={onSaved}>{t("Open Content")}</a>}
-      <button className="button button-primary" onClick={onSaved}>{t("Done")}</button>
+      <div className="button-row">
+        {result.content_id && <a className="button button-secondary" href={`#Content/${result.content_id}`} onClick={onSaved}>{t("Open Content")}</a>}
+        <button className="button button-primary" onClick={onSaved}>{t("Done")}</button>
+      </div>
     </div>}
   </section></div>;
 }

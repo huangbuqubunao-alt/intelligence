@@ -112,7 +112,7 @@ export function CloudSpendingSettings() {
     ? Math.min(100, Math.round((heldMicro / policyTotal) * 100))
     : 0;
 
-  return <section ref={panel} className="spending-settings-card" aria-label={t("Cloud spending limits")}>
+  return <section id="cloud-spending-settings" ref={panel} className="spending-settings-card" aria-label={t("Cloud spending limits")}>
     <h3>{t("Cloud spending limits")}</h3>
     <p className="hint">{t("These limits apply to kimi-k3.1-pro. In Content, open cloud review and choose that model profile. Model qualification and separate request confirmation are still required.")}</p>
     <p className="hint">{t("These cumulative limits apply only to normal system-synthesis requests. They do not reset monthly, qualify a model or authorize a request.")}</p>
@@ -130,7 +130,7 @@ export function CloudSpendingSettings() {
           {state.remaining_microunits !== undefined && (
             <div>
               <span>{t("Remaining reservation capacity")}</span>
-              <strong className="tabular-nums">CNY {formatMicroCny(state.remaining_microunits)} · {state.remaining_requests}</strong>
+              <strong className="tabular-nums">CNY {formatMicroCny(state.remaining_microunits)} · {t("Remaining calls")}{t("Remaining calls") === "Remaining calls" ? ": " : "："}{state.remaining_requests}</strong>
             </div>
           )}
         </div>

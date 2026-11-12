@@ -46,14 +46,23 @@ export function ModelSettings({ credential, preference, onSaved, message, setMes
     const clear = () => {
       setKey(""); setConfirmed(false);
       setReturnHash(moonshotContentReturn());
-      const moonshot = /^#Settings\/models\/moonshot(?:\?return=[^#]+)?$/.test(location.hash);
+      const moonshot = /^#Settings\/models\/moonshot(?:\?[^#]+)?$/.test(location.hash);
       setEditor(moonshot ? "moonshot" : location.hash.startsWith("#Settings/models/bigmodel") ? "bigmodel" : null);
       if (moonshot) {
         onSaved();
         const element = moonshotPanel.current;
         let ancestor = element?.parentElement?.closest("details");
         while (ancestor) { ancestor.open = true; ancestor = ancestor.parentElement?.closest("details"); }
-        element?.scrollIntoView?.({ block: "start" }); element?.focus({ preventScroll: true });
+        const queryIndex = location.hash.indexOf("?");
+        const wantSpending = queryIndex >= 0 && new URLSearchParams(location.hash.slice(queryIndex + 1)).get("panel") === "spending";
+        element?.focus({ preventScroll: true });
+        if (wantSpending) {
+          requestAnimationFrame(() => {
+            (document.getElementById("cloud-spending-settings") ?? element)?.scrollIntoView?.({ block: "start" });
+          });
+        } else {
+          element?.scrollIntoView?.({ block: "start" });
+        }
       }
     };
     clear();

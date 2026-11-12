@@ -10,7 +10,13 @@ import { TranscriptionSetup } from "./TranscriptionSetup";
 import { LocalIntelligenceSetup } from "./LocalIntelligenceSetup";
 import { ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { ApiRequestError, api, patch, post, put, uploadZip } from "../api/client";
-import { cleanCaptionText, cleanTimedSegments } from "./captionClean";
+import {
+  buildMarkdownVideoNote,
+  cleanCaptionText,
+  cleanTimedSegments,
+  cleanTranslatedCaptionText,
+  dedupeSummaryPoints,
+} from "./captionClean";
 import { ModelSettings } from "./ModelSettings";
 import { formatMicroCny } from "./CloudSpendingSettings";
 import { Logo } from "./Logo";
@@ -288,23 +294,26 @@ function LocalIntelligencePresentation({ matrix, content, onReload }: { matrix?:
   const { t } = useUiLanguage();
   const known = readLocalMatrix(matrix);
   const label = content !== undefined ? "Local Intelligence for this Content" : "Local Intelligence qualification";
-  return <section role="region" aria-label={t(label)}>
+  return <section role="region" aria-label={t(label)} className={content !== undefined ? "local-route-compact" : undefined}>
     {known ? <>
       <p>{t("Target local Intelligence model")}: {known.model}</p>
       <ul>{known.scopes.map(row => <li key={`${row.scope}/${row.output_language}`}>{t(localScopeLabel(row.scope))} · {localLanguageLabel(row.output_language)} · {t(row.status === "QUALIFIED" ? "Quality verification passed" : "Quality verification not passed")}</li>)}</ul>
       <details><summary>{t("Verification profile")}</summary><p className="hint">{known.profile_id}</p></details>
     </> : content ? <>
-      <p>{t("Target local Intelligence model")}: {content.model}</p>
-      <p>{t(localScopeLabel(content.scope))} · {localLanguageLabel(content.output_language)}</p>
-      <p>{t("Current execution route")}: {content.runtime_binding.model}</p>
-      <p>{t(({ MODEL_CONFIGURATION_REQUIRED: "Configure the local Intelligence model in Settings before requesting extraction. No task will be created with the current route.", NOT_QUALIFIED: "This source type and output language have not passed local Intelligence quality verification. A request will wait without running a model.",
+      <div className="local-route-chips">
+        <span>{t("Target local Intelligence model")}: {content.model}</span>
+        <span>{t(localScopeLabel(content.scope))} · {localLanguageLabel(content.output_language)}</span>
+        <span>{t("Current execution route")}: {content.runtime_binding.model}</span>
+        <a className="source-link" href="#Settings">{t("Open model settings")}</a>
+      </div>
+      <p className="hint">{t(({ MODEL_CONFIGURATION_REQUIRED: "Configure the local Intelligence model in Settings before requesting extraction. No task will be created with the current route.", NOT_QUALIFIED: "This source type and output language have not passed local Intelligence quality verification. A request will wait without running a model.",
         ROUTE_REINITIALIZATION_REQUIRED: "The verified model does not match the current route. Restart the local service to reinitialize it; extraction will wait.",
         MODEL_UNAVAILABLE: "The qualified model is unavailable. A request will wait; check local model setup.",
         RESOURCE_STATUS_UNKNOWN: "Local model resource status is unknown. Read the status again before requesting extraction.",
         ADMISSION_CHECKS_REQUIRED: "Qualified for this source and output language. Admission checks still apply." } as Record<string, string>)[content.reason])}</p>
     </> : <p role="status">{t("Local Intelligence status is unknown. Read the status again before requesting extraction.")}</p>}
     {(!known && !content || content?.request_state === "UNKNOWN") && <button type="button" className="button button-secondary" onClick={onReload}>{t("Retry local Intelligence status")}</button>}
-    {content !== undefined && <a href="#Settings">{t("Open model settings")}</a>}
+    {content !== undefined && !content && <a href="#Settings">{t("Open model settings")}</a>}
   </section>;
 }
 type DeepAnalysisRole = {
@@ -438,7 +447,7 @@ function initialEvidenceTarget(): string | null {
 
 function initialPage(): Page {
   const raw = location.hash.slice(1);
-  if (/^Settings\/models\/(?:bigmodel|moonshot)(?:\?return=[^#]+)?$/.test(raw)) return "Settings";
+  if (/^Settings\/models\/(?:bigmodel|moonshot)(?:\?[^#]+)?$/.test(raw)) return "Settings";
   if (/^Settings\/transcription(?:\/[^/]+)?$/.test(raw)) return "Settings";
   if (raw.startsWith("Content/")) return "Content";
   if (/^Research(?:\/[a-f0-9]{64}(?:\/history\/[a-f0-9]{64}|\/diff\/[a-f0-9]{64}\/[a-f0-9]{64})?)?$/.test(raw)) return "Research";
@@ -1045,7 +1054,7 @@ function Evidence(
         <div>
           <span>{t("Source")}</span>
           <strong>{card.source_display_name || t("Source name unavailable")}</strong>
-          <small>{card.source_id} · {card.video_id}</small>
+          {!card.source_display_name && <small>{card.source_id} · {card.video_id}</small>}
           {card.source_url
             ? <a href={card.source_url} target="_blank" rel="noreferrer">{t("Open Source")}</a>
             : null}
@@ -1107,7 +1116,7 @@ function Evidence(
                       <div>
                         <strong>{t("Translation")} · {target}</strong>
                         {translationAvailable
-                          ? <blockquote>{translatedExcerpt}</blockquote>
+                          ? <blockquote>{showVerbatim ? translatedExcerpt : cleanTranslatedCaptionText(translatedExcerpt!)}</blockquote>
                           : sourceMatchesTarget
                           ? <p className="hint">{t("Original Evidence already matches the requested output language.")}</p>
                           : (
@@ -1535,7 +1544,7 @@ function Workspace() {
         {page === "Content" && (
           <>
             {imported && <p role="status" aria-live="polite">{t("File imported. Its processing status appears below.")}</p>}
-            <ContentPage refresh={refresh} targetVideoId={contentTarget} onOpen={openContent} onClose={() => navigate("Content")} onAdd={() => setAddProvider("YOUTUBE")} />
+            <ContentPage refresh={refresh} targetVideoId={contentTarget} highlightedEvidenceId={researchEvidence} onOpen={openContent} onClose={() => navigate("Content")} onAdd={() => setAddProvider("YOUTUBE")} />
           </>
         )}
         {page === "Intelligence" && (
@@ -1547,6 +1556,19 @@ function Workspace() {
         {page === "Settings" && <Settings refresh={refresh} />}
       </main>
       <div className="workspace-utility-dock" role="region" aria-label={t("Quick actions")}>
+        <button
+          type="button"
+          className="utility-import-btn"
+          aria-label={t("Quick import")}
+          title={t("Add video or follow channel")}
+          onClick={event => {
+            pulseCelebration(event.currentTarget);
+            setAddProvider("YOUTUBE");
+          }}
+        >
+          <PhosphorIcon name="plus" size={14} />
+          <span className="utility-import-label">{t("+ Import")}</span>
+        </button>
         <button
           type="button"
           className="utility-cmdk-btn"
@@ -1844,9 +1866,10 @@ function SavedCard(
   );
 }
 function ContentPage(
-  { refresh, targetVideoId, onOpen, onClose, onAdd }: {
+  { refresh, targetVideoId, highlightedEvidenceId, onOpen, onClose, onAdd }: {
     refresh: number;
     targetVideoId?: string | null;
+    highlightedEvidenceId?: string | null;
     onOpen: (id: string) => void;
     onClose: () => void;
     onAdd: () => void;
@@ -1865,7 +1888,7 @@ function ContentPage(
   if (list.error) return <ErrorState error={list.error} code={list.errorCode} onReload={list.reload} />;
   if (!list.data) return <Empty>Loading Content…</Empty>;
   if (targetVideoId) {
-    return <ContentDetailPanel key={targetVideoId} id={targetVideoId} onClose={onClose} />;
+    return <ContentDetailPanel key={targetVideoId} id={targetVideoId} highlightedEvidenceId={highlightedEvidenceId} onClose={onClose} />;
   }
   const videos = list.data.videos;
   const hasMultiProviders = new Set(videos.map(v => v.provider ?? "YOUTUBE")).size > 1;
@@ -2165,8 +2188,8 @@ function CloudIntelligencePreview({ id, manual, executionKey, onSettled }: { id:
       <p>{t("Preparing a review does not create a task. Confirming authorizes exactly one request for the reviewed Evidence and task context.")}</p>
       <div className="button-row"><button type="button" className="button button-secondary" disabled={busy} onClick={() => void prepare()}>{t(busy ? "Working…" : "Prepare one request for review")}</button>
         <button type="button" className="button button-ghost" onClick={clear}>{t("Dismiss cloud review")}</button>
-        <a className="button button-ghost" href={`#Settings/models/moonshot?return=${encodeURIComponent(location.hash)}`}>{t("Open model settings")}</a></div>
-      <a className="source-link" href={`#Settings/models/moonshot?return=${encodeURIComponent(location.hash)}&panel=spending`}>{t("Configure spending limits")}</a>
+        <a className="button button-ghost" href={`#Settings/models/moonshot?return=${encodeURIComponent(location.hash)}`}>{t("Open model settings")}</a>
+        <a className={`button ${blockers.some(code => code.startsWith("CLOUD_")) ? "button-primary" : "button-secondary"}`} href={`#Settings/models/moonshot?return=${encodeURIComponent(location.hash)}&panel=spending`}>{t("Configure spending limits")}</a></div>
       {manual && review?.profile_id === "legacy" && blockers.includes("CLOUD_SPENDING_POLICY_REQUIRED") && <p>{t("The finite spending settings cover kimi-k3.1-pro. For that policy, choose kimi-k3.1-pro in the cloud model profile list and prepare a new review.")}</p>}
       {review && <div className="cloud-review-ticket">
         <p>{t("Provider/model")}: {review.provider} · {review.model}</p>
@@ -2232,7 +2255,11 @@ function useActiveSection(sectionIds: readonly string[], resetKey?: string): [st
   }, [resetKey, sectionIds]);
   useEffect(() => {
     const onScroll = () => {
-      if (typeof window === "undefined" || window.scrollY <= 8) return;
+      if (typeof window === "undefined") return;
+      if (window.scrollY <= 24) {
+        setActiveId(sectionIds[0] ?? "");
+        return;
+      }
       let current = sectionIds[0] ?? "";
       for (const id of sectionIds) {
         const el = document.getElementById(id);
@@ -2258,9 +2285,19 @@ function useActiveSection(sectionIds: readonly string[], resetKey?: string): [st
   return [activeId, jumpTo];
 }
 
-function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }) {
+function formatHumanDuration(seconds: number): string {
+  const rounded = Math.ceil(seconds);
+  if (rounded < 60) return `${rounded}s`;
+  const mins = Math.floor(rounded / 60);
+  const secs = rounded % 60;
+  return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+}
+
+function ContentDetailPanel(
+  { id, highlightedEvidenceId, onClose }: { id: string; highlightedEvidenceId?: string | null; onClose: () => void },
+) {
   const creatorCapability = useCreatorFollowingCapability();
-  const { t } = useUiLanguage();
+  const { language, t } = useUiLanguage();
   const [activeSection, scrollToSection] = useActiveSection(READER_SECTION_IDS, id);
   const [refresh, setRefresh] = useState(0);
   const { data, error, errorCode, reload } = useRemote<ContentDetail>(`/videos/${id}`, refresh, undefined, true);
@@ -2276,6 +2313,15 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
   const [retryFeedback, setRetryFeedback] = useState<string | null>(null);
   const [transcriptVerbatim, setTranscriptVerbatim] = useState(false);
   const [summaryVerbatim, setSummaryVerbatim] = useState(false);
+  const [loadedEvidence, setLoadedEvidence] = useState<ContentEvidence[]>([]);
+  const [sharedTranslations, setSharedTranslations] = useState<Record<string, { excerpt: string; language: "zh-CN" | "en" }>>({});
+  const [guideMode, setGuideMode] = useState<"译文" | "双语" | "原文">("译文");
+  const [guideProgress, setGuideProgress] = useState<{ current: number; total: number } | null>(null);
+  const [guideError, setGuideError] = useState<string | null>(null);
+  const [copiedMarkdown, setCopiedMarkdown] = useState(false);
+  const recordSharedTranslation = useCallback((evidenceId: string, excerpt: string, lang: "zh-CN" | "en") => {
+    setSharedTranslations(current => ({ ...current, [evidenceId]: { excerpt, language: lang } }));
+  }, []);
   const completedRetry = readTrackedRetry(data?.video.tracked_content_retry, id)?.request;
   const captionResultIdentity = completedRetry?.state === "SUCCEEDED"
     ? `${completedRetry.request_id}:${completedRetry.revision}` : null;
@@ -2328,15 +2374,49 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
           <span>{data.video.provider === "LOCAL" ? t("Local") : isBilibili ? `${t("Bilibili")} · ${data.video.channel_name ?? ""}` : data.video.channel_name} · {humanDate(isBilibili ? data.video.published_at : data.video.imported_at ?? data.video.published_at)}</span>
           {data.video.media_kind && <span>{t(({TEXT:"Text",AUDIO:"Audio",VIDEO:"Video"} as Record<string,string>)[data.video.media_kind])}{isBilibili ? "" : ` · ${data.video.format}`}</span>}
           {data.video.source_language && <span>{t("Source language")}: {data.video.source_language === "und" ? t("Language unavailable") : data.video.source_language}</span>}
-          {data.video.duration_seconds != null && <span>{t("Media duration")}: {Math.ceil(data.video.duration_seconds)}s</span>}
+          {data.video.duration_seconds != null && <span>{t("Media duration")}: {formatHumanDuration(data.video.duration_seconds)}</span>}
         </div>
-        {data.video.source_url
-          ? (
-            <a className="source-link" href={data.video.source_url} target="_blank" rel="noreferrer">
-              {t("Open original source")}
-            </a>
-          )
-          : null}
+        <div className="button-row">
+          {data.video.source_url
+            ? (
+              <a className="button button-ghost button-small" href={data.video.source_url} target="_blank" rel="noreferrer">
+                {t("Open original source")}
+              </a>
+            )
+            : null}
+          <button
+            type="button"
+            className="button button-secondary button-small"
+            onClick={event => {
+              pulseCelebration(event.currentTarget);
+              const guideLines = loadedEvidence
+                .map(ev => {
+                  const tr = sharedTranslations[ev.evidence_id]?.excerpt ?? ev.translated_excerpt;
+                  if (!tr) return null;
+                  const range = ev.locator_type === "TEXT_RANGE" ? "" : `[${timestampRange(ev.start_ms, ev.end_ms)}] `;
+                  return `${range}${cleanTranslatedCaptionText(tr)}`;
+                })
+                .filter((v): v is string => Boolean(v));
+              const cleanedSummary = note?.summary ? cleanCaptionText(note.summary).text : "";
+              const cleanedPts = note?.core_points ? dedupeSummaryPoints(cleanedSummary, note.core_points) : [];
+              const md = buildMarkdownVideoNote({
+                title: data.video.title ?? data.video.video_id,
+                channelName: data.video.channel_name,
+                sourceUrl: data.video.source_url,
+                publishedAt: humanDate(data.video.published_at ?? data.video.imported_at),
+                summary: cleanedSummary,
+                chineseGuide: guideLines,
+                corePoints: cleanedPts,
+              });
+              void navigator.clipboard?.writeText(md);
+              setCopiedMarkdown(true);
+              setTimeout(() => setCopiedMarkdown(false), 2200);
+            }}
+          >
+            <PhosphorIcon name="file-text" size={13} />
+            {t(copiedMarkdown ? "Copied Markdown note" : "Copy Markdown note")}
+          </button>
+        </div>
       </Panel>
       <div role="toolbar" aria-label={t("Section jump")} className="reader-jump-bar">
         {([
@@ -2428,53 +2508,77 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
           )}
         </div>
       </Panel>
-      <Panel id="section-transcript" icon="quotes" title={data.video.provider === "LOCAL" && data.video.media_kind === "TEXT" ? "Source text" : "Transcript"}>
-        {isBilibili && <BilibiliCaptionStatus id={id} status={data.video.processing_status} onCompleted={() => { setRefresh(value => value + 1); setEvidenceRefresh(value => value + 1); }} />}
-        {isLocalMedia && <LocalTranscription id={id} onStatusChange={setTranscriptionStatus} onCompleted={() => { if (transcriptionRefreshId.current === id) return; transcriptionRefreshId.current = id; setRefresh(value => value + 1); setEvidenceRefresh(value => value + 1); }} />}
-        {transcript.status === "AVAILABLE" && transcript.text
-          ? (() => {
-            const timedClean = transcript.timed_segments?.length ? cleanTimedSegments(transcript.timed_segments) : null;
-            const plainClean = !timedClean ? cleanCaptionText(transcript.text) : null;
-            const collapsed = timedClean ? timedClean.collapsedCount : (plainClean?.collapsedCount ?? 0);
-            const displaySegments = timedClean ? (transcriptVerbatim ? transcript.timed_segments! : timedClean.segments) : null;
-            return (
-              <>
-                <CaptionCleanBar
-                  collapsedCount={collapsed}
-                  showVerbatim={transcriptVerbatim}
-                  onToggle={() => setTranscriptVerbatim(current => !current)}
-                />
-                {displaySegments
-                  ? <ol className="timed-transcript">{displaySegments.map((segment, index) => <li key={index}><time className="tabular-nums">{(segment.start_ms / 1000).toFixed(3)}s – {(segment.end_ms / 1000).toFixed(3)}s</time><span>{segment.text}</span></li>)}</ol>
-                  : <div className="transcript-copy">{transcriptVerbatim ? transcript.text : plainClean!.text}</div>}
-              </>
-            );
-          })()
-          : isLocalMedia || isBilibili ? null : (
-            <div className="semantic-state state-neutral">
-              <Status {...contentStatus(data.video.provider, transcript.status)} />
-              <p>{t(({
-                TRANSCRIPTION_UNAVAILABLE: "Media snapshots are saved. A provisioned offline transcription adapter is required for transcript, Summary and Evidence; nothing is sent to a cloud service.",
-                TRANSCRIPTION_FAILED: "Local transcription failed",
-                NOT_PROCESSED: "No canonical transcript has been recorded for this video.",
-                FAILED: "Transcript processing ended without a canonical transcript.",
-                UNAVAILABLE: "The recorded canonical transcript cannot be safely read.",
-              } as Record<string, string>)[transcript.status] ?? "A readable transcript is not available yet.")}</p>
-            </div>
-          )}
-      </Panel>
       <Panel id="section-summary" icon="file-text" title={data.video.provider === "LOCAL" || isBilibili ? "Summary" : "Summary / Video Notes"}>
         {note?.status === "AVAILABLE"
           ? (() => {
             const summaryClean = note.summary ? cleanCaptionText(note.summary) : { text: "", collapsedCount: 0 };
             const cleanedPoints = (note.core_points ?? []).map(point => cleanCaptionText(point));
+            const dedupedPoints = note.core_points ? dedupeSummaryPoints(summaryClean.text, note.core_points) : [];
             const cleanedTimedPoints = (note.timestamped_key_points ?? []).map(point => ({
               point,
               cleaned: cleanCaptionText(point.text),
             }));
             const totalCollapsed = summaryClean.collapsedCount
               + cleanedPoints.reduce((sum, item) => sum + item.collapsedCount, 0)
+              + Math.max(0, (note.core_points?.length ?? 0) - dedupedPoints.length)
               + cleanedTimedPoints.reduce((sum, item) => sum + item.cleaned.collapsedCount, 0);
+            const rawTranslatable = language === "zh-CN"
+              ? loadedEvidence.filter(ev => ev.translation_target_language === "zh-CN" && !evidenceSourceMatchesTarget(ev.source_language, "zh-CN"))
+              : [];
+            const dedupedGuideMap = new Map<string, ContentEvidence>();
+            for (const ev of rawTranslatable) {
+              const sig = `${ev.start_ms ?? ""}:${ev.end_ms ?? ""}:${ev.start_line ?? ""}:${ev.end_line ?? ""}:${cleanCaptionText(ev.original_excerpt).text.trim().toLowerCase()}`;
+              const existing = dedupedGuideMap.get(sig);
+              const hasTr = Boolean((sharedTranslations[ev.evidence_id]?.excerpt ?? ev.translated_excerpt) && (sharedTranslations[ev.evidence_id]?.language ?? ev.translated_language) === "zh-CN");
+              const existingHasTr = existing
+                ? Boolean((sharedTranslations[existing.evidence_id]?.excerpt ?? existing.translated_excerpt) && (sharedTranslations[existing.evidence_id]?.language ?? existing.translated_language) === "zh-CN")
+                : false;
+              if (!existing || (hasTr && !existingHasTr)) {
+                dedupedGuideMap.set(sig, ev);
+              }
+            }
+            const translatableEvidence = Array.from(dedupedGuideMap.values());
+            const translatedGuideRows = translatableEvidence
+              .map(ev => {
+                const tr = sharedTranslations[ev.evidence_id]?.excerpt ?? ev.translated_excerpt;
+                const trLang = sharedTranslations[ev.evidence_id]?.language ?? ev.translated_language;
+                return tr && trLang === "zh-CN"
+                  ? { item: ev, zh: cleanTranslatedCaptionText(tr), orig: cleanCaptionText(ev.original_excerpt).text }
+                  : null;
+              })
+              .filter((row): row is { item: ContentEvidence; zh: string; orig: string } => row !== null);
+            const untranslatedGuideItems = translatableEvidence.filter(ev => {
+              const tr = sharedTranslations[ev.evidence_id]?.excerpt ?? ev.translated_excerpt;
+              const trLang = sharedTranslations[ev.evidence_id]?.language ?? ev.translated_language;
+              return !(tr && trLang === "zh-CN");
+            });
+            const runChineseGuide = async () => {
+              if (guideProgress || !untranslatedGuideItems.length) return;
+              setGuideError(null);
+              setGuideProgress({ current: 0, total: untranslatedGuideItems.length });
+              try {
+                for (let idx = 0; idx < untranslatedGuideItems.length; idx++) {
+                  const targetItem = untranslatedGuideItems[idx];
+                  setGuideProgress({ current: idx + 1, total: untranslatedGuideItems.length });
+                  const result = await post<{
+                    evidence_id: string;
+                    translated_excerpt: string | null;
+                    translated_language: "zh-CN" | "en" | null;
+                    translation_target_language: "zh-CN" | "en";
+                  }>(`/videos/${encodeURIComponent(id)}/evidence/${encodeURIComponent(targetItem.evidence_id)}/translation`, {});
+                  if (result.evidence_id !== targetItem.evidence_id || !result.translated_excerpt || result.translated_language !== result.translation_target_language) {
+                    throw new Error("INCOMPLETE_GUIDE");
+                  }
+                  recordSharedTranslation(targetItem.evidence_id, result.translated_excerpt, result.translated_language);
+                }
+                setGuideMode("译文");
+              } catch {
+                setGuideError("Could not create a verified local translation. Original Evidence is still available.");
+              } finally {
+                setGuideProgress(null);
+              }
+            };
+            const visiblePoints = summaryVerbatim ? (note.core_points ?? []) : dedupedPoints;
             return (
               <div className="summary-note">
                 <div className="reading-meta">
@@ -2483,15 +2587,78 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
                     ? t("Original source language (unchanged)")
                     : !note.language || note.language === "und" ? t("Language unavailable") : note.language}</span>
                 </div>
+                {translatableEvidence.length > 0 && (
+                  <div className="chinese-guide-box">
+                    <div className="chinese-guide-head">
+                      <strong>{t("Chinese guide · Local Qwen3")}</strong>
+                      <div className="button-row">
+                        {translatedGuideRows.length > 0 && (
+                          <div className="segmented" role="group" aria-label={t("Chinese reading guide")}>
+                            {([
+                              ["译文", t("Chinese reading guide")],
+                              ["双语", t("Bilingual comparison")],
+                              ["原文", t("Original summary")],
+                            ] as const).map(([key, label]) => (
+                              <button
+                                key={key}
+                                type="button"
+                                aria-pressed={guideMode === key}
+                                className={guideMode === key ? "active" : ""}
+                                onClick={() => setGuideMode(key)}
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {untranslatedGuideItems.length > 0 && (
+                          <button
+                            type="button"
+                            className="button button-primary button-small"
+                            disabled={guideProgress !== null}
+                            onClick={event => {
+                              pulseCelebration(event.currentTarget);
+                              void runChineseGuide();
+                            }}
+                          >
+                            {guideProgress
+                              ? `${t("Generating local Chinese reading guide")} ${guideProgress.current}/${guideProgress.total}…`
+                              : translatedGuideRows.length > 0
+                                ? `${t("Complete Chinese reading guide (free local)")} (${translatedGuideRows.length}/${translatableEvidence.length})`
+                                : t("Generate Chinese reading guide (free local)")}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    {guideError && <p className="hint" role="alert">{t(guideError)}</p>}
+                    {translatedGuideRows.length > 0 && guideMode !== "原文" && (
+                      <ol className="chinese-guide-list">
+                        {translatedGuideRows.map(({ item: ev, zh, orig }) => (
+                          <li key={ev.evidence_id}>
+                            <span className="chinese-guide-time tabular-nums">
+                              {ev.locator_type === "TEXT_RANGE" ? textLineRange(ev.start_line, ev.end_line, t) : timestampRange(ev.start_ms, ev.end_ms)}
+                            </span>
+                            <div>
+                              <p className="summary-copy">{zh}</p>
+                              {guideMode === "双语" && <p className="hint">{orig}</p>}
+                            </div>
+                          </li>
+                        ))}
+                      </ol>
+                    )}
+                  </div>
+                )}
                 {note.method === "SOURCE_EXCERPTS" && <p className="hint">{t("These are original source excerpts, selected deterministically without a model or new interpretation.")}</p>}
                 <CaptionCleanBar
                   collapsedCount={totalCollapsed}
                   showVerbatim={summaryVerbatim}
                   onToggle={() => setSummaryVerbatim(current => !current)}
                 />
-                {note.summary ? <><h3>{t("Summary")}</h3><p className="summary-copy">{summaryVerbatim ? note.summary : summaryClean.text}</p></> : null}
-                {note.core_points?.length
-                  ? <><h3>{t("Key points")}</h3><ul>{note.core_points.map((point, idx) => <li key={`${idx}:${point}`}>{summaryVerbatim ? point : cleanedPoints[idx].text}</li>)}</ul></>
+                {note.summary && (translatedGuideRows.length === 0 || guideMode !== "译文" || summaryVerbatim)
+                  ? <><h3>{t("Summary")}</h3><p className="summary-copy">{summaryVerbatim ? note.summary : summaryClean.text}</p></>
+                  : null}
+                {visiblePoints.length
+                  ? <><h3>{t("Key points")}</h3><ul>{visiblePoints.map((point, idx) => <li key={`${idx}:${point}`}>{point}</li>)}</ul></>
                   : null}
                 {note.timestamped_key_points?.length
                   ? (
@@ -2550,15 +2717,56 @@ function ContentDetailPanel({ id, onClose }: { id: string; onClose: () => void }
             </div>
           )}
       </Panel>
-      <DeepAnalysisPanel
-        videoId={data.video.video_id}
-        inputRefresh={captionResultRefresh}
-        onCompleted={() => setEvidenceRefresh((value) => value + 1)}
-      />
       <ContentEvidencePanel
         videoId={data.video.video_id}
         sourceUrl={data.video.source_url}
         refresh={evidenceRefresh}
+        highlightedEvidenceId={highlightedEvidenceId}
+        externalTranslations={sharedTranslations}
+        onTranslateSuccess={recordSharedTranslation}
+        onEvidenceLoaded={setLoadedEvidence}
+      />
+      <Panel id="section-transcript" icon="quotes" title={data.video.provider === "LOCAL" && data.video.media_kind === "TEXT" ? "Source text" : "Transcript"}>
+        {isBilibili && <BilibiliCaptionStatus id={id} status={data.video.processing_status} onCompleted={() => { setRefresh(value => value + 1); setEvidenceRefresh(value => value + 1); }} />}
+        {isLocalMedia && <LocalTranscription id={id} onStatusChange={setTranscriptionStatus} onCompleted={() => { if (transcriptionRefreshId.current === id) return; transcriptionRefreshId.current = id; setRefresh(value => value + 1); setEvidenceRefresh(value => value + 1); }} />}
+        {transcript.status === "AVAILABLE" && transcript.text
+          ? (() => {
+            const timedClean = transcript.timed_segments?.length ? cleanTimedSegments(transcript.timed_segments) : null;
+            const plainClean = !timedClean ? cleanCaptionText(transcript.text) : null;
+            const collapsed = timedClean ? timedClean.collapsedCount : (plainClean?.collapsedCount ?? 0);
+            const displaySegments = timedClean ? (transcriptVerbatim ? transcript.timed_segments! : timedClean.segments) : null;
+            return (
+              <>
+                <CaptionCleanBar
+                  collapsedCount={collapsed}
+                  showVerbatim={transcriptVerbatim}
+                  onToggle={() => setTranscriptVerbatim(current => !current)}
+                />
+                <div className="transcript-scroll-box">
+                  {displaySegments
+                    ? <ol className="timed-transcript">{displaySegments.map((segment, index) => <li key={index}><time className="tabular-nums">{timestampRange(segment.start_ms, segment.end_ms)}</time><span>{segment.text}</span></li>)}</ol>
+                    : <div className="transcript-copy">{transcriptVerbatim ? transcript.text : plainClean!.text}</div>}
+                </div>
+              </>
+            );
+          })()
+          : isLocalMedia || isBilibili ? null : (
+            <div className="semantic-state state-neutral">
+              <Status {...contentStatus(data.video.provider, transcript.status)} />
+              <p>{t(({
+                TRANSCRIPTION_UNAVAILABLE: "Media snapshots are saved. A provisioned offline transcription adapter is required for transcript, Summary and Evidence; nothing is sent to a cloud service.",
+                TRANSCRIPTION_FAILED: "Local transcription failed",
+                NOT_PROCESSED: "No canonical transcript has been recorded for this video.",
+                FAILED: "Transcript processing ended without a canonical transcript.",
+                UNAVAILABLE: "The recorded canonical transcript cannot be safely read.",
+              } as Record<string, string>)[transcript.status] ?? "A readable transcript is not available yet.")}</p>
+            </div>
+          )}
+      </Panel>
+      <DeepAnalysisPanel
+        videoId={data.video.video_id}
+        inputRefresh={captionResultRefresh}
+        onCompleted={() => setEvidenceRefresh((value) => value + 1)}
       />
       <Panel id="section-history" icon="clock" title="Processing history">
         {visibleHistory.length
@@ -2938,7 +3146,23 @@ function DeepAnalysisPublishAction({ videoId, resultIdentity }: { videoId: strin
 }
 
 function ContentEvidencePanel(
-  { videoId, sourceUrl, refresh }: { videoId: string; sourceUrl: string | null; refresh: number },
+  {
+    videoId,
+    sourceUrl,
+    refresh,
+    highlightedEvidenceId,
+    externalTranslations,
+    onTranslateSuccess,
+    onEvidenceLoaded,
+  }: {
+    videoId: string;
+    sourceUrl: string | null;
+    refresh: number;
+    highlightedEvidenceId?: string | null;
+    externalTranslations?: Record<string, { excerpt: string; language: "zh-CN" | "en" }>;
+    onTranslateSuccess?: (evidenceId: string, excerpt: string, lang: "zh-CN" | "en") => void;
+    onEvidenceLoaded?: (items: ContentEvidence[]) => void;
+  },
 ) {
   const { language, t } = useUiLanguage();
   const { data, error, errorCode, reload } = useRemote<{ evidence: ContentEvidence[] }>(
@@ -2953,6 +3177,11 @@ function ContentEvidencePanel(
     string,
     { excerpt: string; language: "zh-CN" | "en" }
   >>({});
+  useEffect(() => {
+    if (data?.evidence && onEvidenceLoaded) {
+      onEvidenceLoaded(data.evidence);
+    }
+  }, [data, onEvidenceLoaded]);
   const evidencePanelTitle = data?.evidence?.some(item => item.locator_type === "TEXT_RANGE") ? "Evidence · source text" : "Evidence · source transcript";
   if (error) {
     return (
@@ -2971,7 +3200,7 @@ function ContentEvidencePanel(
     0,
   );
   const hasPreferredTranslation = evidence.some((item) => {
-    const local = createdTranslations[item.evidence_id];
+    const local = externalTranslations?.[item.evidence_id] ?? createdTranslations[item.evidence_id];
     const language = local?.language ?? item.translated_language;
     const excerpt = local?.excerpt ?? item.translated_excerpt;
     return Boolean(
@@ -3008,6 +3237,7 @@ function ContentEvidencePanel(
           language: result.translated_language!,
         },
       }));
+      onTranslateSuccess?.(item.evidence_id, result.translated_excerpt!, result.translated_language!);
       setSelectedMode("译文");
     } catch {
       setTranslationError("Could not create a verified local translation. Original Evidence is still available.");
@@ -3025,8 +3255,8 @@ function ContentEvidencePanel(
               showVerbatim={evidenceVerbatim}
               onToggle={() => setEvidenceVerbatim(current => !current)}
             />
-            {evidence.map((item) => {
-              const local = createdTranslations[item.evidence_id];
+            {evidence.map((item, idx) => {
+              const local = externalTranslations?.[item.evidence_id] ?? createdTranslations[item.evidence_id];
               const translatedExcerpt = local?.excerpt ?? item.translated_excerpt;
               const translatedLanguage = local?.language ?? item.translated_language;
               const target = item.translation_target_language;
@@ -3041,11 +3271,21 @@ function ContentEvidencePanel(
               );
               const showTranslation = mode !== "原文";
               const showOriginal = mode !== "译文" || !translationAvailable;
+              const isTargeted = highlightedEvidenceId === item.evidence_id;
               return (
-                <article className="evidence-item evidence-trace-item" id={`content-evidence-${encodeURIComponent(item.evidence_id)}`} data-content-id={videoId} key={item.evidence_id}>
+                <article
+                  className={`evidence-item evidence-trace-item${isTargeted ? " is-targeted-evidence" : ""}`}
+                  id={`content-evidence-${encodeURIComponent(item.evidence_id)}`}
+                  data-content-id={videoId}
+                  key={item.evidence_id}
+                >
                   <div className="reading-meta">
+                    <span className="tabular-nums">#{idx + 1}</span>
+                    <strong className="tabular-nums">
+                      {item.locator_type === "TEXT_RANGE" ? textLineRange(item.start_line, item.end_line, t) : timestampRange(item.start_ms, item.end_ms)}
+                    </strong>
                     <span>{t("Source language")}: {item.source_language} · {t(item.locator_type === "TEXT_RANGE" ? "Original source text" : evidenceLineageLabel(item.lineage_kind))}</span>
-                    <strong>{item.evidence_id}</strong>
+                    {isTargeted && <span className="targeted-citation-pill">{t("Targeted citation")}</span>}
                   </div>
                   <div className="segmented evidence-display-modes" role="group" aria-label={t("Evidence presentation mode")}>
                     {(["译文", "双语", "原文"] as const).map((option) => (
@@ -3065,7 +3305,7 @@ function ContentEvidencePanel(
                       <div>
                         <strong>{t("Translation")} · {target}</strong>
                         {translationAvailable
-                          ? <blockquote>{translatedExcerpt}</blockquote>
+                          ? <blockquote>{evidenceVerbatim ? translatedExcerpt : cleanTranslatedCaptionText(translatedExcerpt!)}</blockquote>
                           : sourceMatchesTarget
                           ? <p className="hint">{t("Original Evidence already matches the requested output language.")}</p>
                           : (
@@ -3101,27 +3341,26 @@ function ContentEvidencePanel(
                     ? <p className="hint">{t("Translation unavailable.")}</p>
                     : null}
                   {translationError ? <p className="hint" role="alert">{t(translationError)}</p> : null}
-                  <div>
-                    <strong>{t("Source position")}</strong>
-                    <p>{item.locator_type === "TEXT_RANGE" ? textLineRange(item.start_line, item.end_line, t) : timestampRange(item.start_ms, item.end_ms)}</p>
+                  <div className="evidence-card-footer">
+                    {sourceUrl
+                      ? (
+                        <a
+                          className="button button-ghost button-small evidence-source-link"
+                          href={videoAt(sourceUrl, item.start_ms)}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {t(item.start_ms === null ? "Open original" : "Open original at timestamp")}
+                        </a>
+                      )
+                      : <p className="hint">{t("Source URL unavailable.")}</p>}
+                    <details className="provenance">
+                      <summary>{t("Citation details")}</summary>
+                      <p>{t("Source position")}: {item.locator_type === "TEXT_RANGE" ? textLineRange(item.start_line, item.end_line, t) : timestampRange(item.start_ms, item.end_ms)}</p>
+                      <p>{t("Provenance")}: {t(item.locator_type === "TEXT_RANGE" ? "Original source text" : evidenceLineageLabel(item.lineage_kind))} · {t(evidenceRoleLabel(item.role))}</p>
+                      <small>{item.evidence_id} · {item.artifact_id} · {item.created_at ? humanDate(item.created_at) : "Timestamp unavailable"}</small>
+                    </details>
                   </div>
-                  <div>
-                    <strong>{t("Provenance")}</strong>
-                    <p>{t(item.locator_type === "TEXT_RANGE" ? "Original source text" : evidenceLineageLabel(item.lineage_kind))} · {t(evidenceRoleLabel(item.role))}</p>
-                    <small>{item.artifact_id} · {item.created_at ? humanDate(item.created_at) : "Timestamp unavailable"}</small>
-                  </div>
-                  {sourceUrl
-                    ? (
-                      <a
-                        className="button button-ghost button-small evidence-source-link"
-                        href={videoAt(sourceUrl, item.start_ms)}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        {t(item.start_ms === null ? "Open original" : "Open original at timestamp")}
-                      </a>
-                    )
-                    : <p className="hint">{t("Source URL unavailable.")}</p>}
                 </article>
               );
             })}
@@ -3132,7 +3371,7 @@ function ContentEvidencePanel(
   );
 }
 function Topics({ refresh, targetTopicId }: { refresh: number; targetTopicId?: string | null }) {
-  const { t } = useUiLanguage();
+  const { language, t } = useUiLanguage();
   const list = useRemote<{ topics: Topic[] }>("/topics", refresh);
   const [selected, setSelected] = useState<string | null>(targetTopicId ?? null);
   const detail = useRemote<{ topic: Topic }>(
@@ -3186,7 +3425,7 @@ function Topics({ refresh, targetTopicId }: { refresh: number; targetTopicId?: s
       </button>
       <Panel title={topic.name} icon="stack">
         <h3>{t("Current understanding")}</h3>
-        <p>{t(statusLabel(topic.current_state))}.</p>
+        <p>{t(statusLabel(topic.current_state)).trim()}{language === "zh-CN" ? "。" : "."}</p>
         <p>
           {t(topic.independence === "UNKNOWN"
             ? "Not enough reliable information yet to determine how independent the supporting sources are."
@@ -3222,8 +3461,8 @@ function Topics({ refresh, targetTopicId }: { refresh: number; targetTopicId?: s
                   : t("Some supporting information is no longer available.")}
               </p>
               <details className="provenance">
-                <summary>{t("Technical evidence references")}</summary>
-                <p>{contribution.evidence_ids.join(", ")}</p>
+                <summary>{t("Technical evidence references")} ({contribution.evidence_ids.length})</summary>
+                <p className="tabular-nums">{contribution.evidence_ids.join(", ")}</p>
               </details>
             </article>
           ))
@@ -3231,11 +3470,19 @@ function Topics({ refresh, targetTopicId }: { refresh: number; targetTopicId?: s
       </Panel>
       <Panel title="Timeline" icon="clock">
         {topic.timeline.length
-          ? topic.timeline.map((event) => (
-            <p key={event.event_id}>
-              {humanDate(event.created_at)} · {t(statusLabel(event.state))}
-            </p>
-          ))
+          ? (
+            <div className="timeline">
+              {topic.timeline.map((event) => (
+                <div className="timeline-item" key={event.event_id}>
+                  <span className="timeline-dot" aria-hidden="true" />
+                  <div className="timeline-copy">
+                    <strong className="tabular-nums">{humanDate(event.created_at)}</strong>
+                    <Status value={event.state} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
           : <Empty>No historical events.</Empty>}
       </Panel>
       <Panel title="Related Topics" icon="stack">
@@ -4689,6 +4936,9 @@ function Settings({ refresh }: { refresh: number }) {
         {!readLocalMatrix(settings.data.local_intelligence) && localFoundation?.qualification_status === "INTELLIGENCE_UNQUALIFIED" && <p>{t("The current local model has not passed Intelligence quality verification. Existing Content, Summary and Evidence remain readable.")}</p>}
         <LocalIntelligencePresentation matrix={settings.data.local_intelligence} onReload={settings.reload} />
         <p>{t(videoDistillation?.production_eligible ? "Optional cloud analysis is available after your authorization for each request." : videoDistillation?.credential_status === "BLOCKED" ? "Cloud Intelligence is optional. It needs a credential and your separate authorization for each request. Content processing remains usable." : "Cloud Intelligence is optional and requires a qualified model and your separate authorization for each request. Content processing remains usable.")}</p>
+        <div className="button-row">
+          <a className="button button-secondary button-small" href="#Settings/models/moonshot?panel=spending">{t("Adjust cloud spending limits")}</a>
+        </div>
         <details><summary>{t("Cloud setup and model details")}</summary><ModelSettings message={modelMessage} setMessage={setModelMessage} credential={settings.data.cloud_credential} preference={settings.data.model_preference} onSaved={() => setRevision(current => current + 1)} /></details>
       </Panel>
       <LocalIntelligenceSetup />
