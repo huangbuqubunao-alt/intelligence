@@ -104,11 +104,17 @@ def test_v5_positive_may_leave_fields_empty_and_no_new_stays_strict():
             synthesis.decode_system_synthesis(json.dumps(zero), request, request_origin_sha256=request.origin_sha256)
 
 
-def test_v5_transport_is_distinct_and_never_inherits_v4_qualification():
+def test_v5_transport_is_distinct_and_sealed_qualification_never_cross_permits():
+    from importlib import resources
+
     assert MoonshotJudgmentSynthesisTransport.synthesis_profile_id == V5
     assert MoonshotJudgmentSynthesisTransport is not MoonshotReadableSummarySynthesisTransport
     assert MoonshotJudgmentSynthesisTransport._PROMPT_VERSION == 'system-synthesis-v5-judgment'
-    assert not qualification.read_reviewed_qualifications(profile_id=V5).permits(V5, 'en')
+    sealed = qualification.read_reviewed_qualifications(profile_id=V5)
+    assert sealed.permits(V5, 'en') and sealed.permits(V5, 'zh-CN')
+    assert not sealed.permits(V4, 'en')
+    raw = resources.files('youtube_intel').joinpath('resources/system_synthesis_judgment_qualification_v1.json').read_bytes()
+    assert not qualification.read_reviewed_qualifications(raw, profile_id=V5).permits(V5, 'en')
     assert not qualification.read_reviewed_qualifications(profile_id=V4).permits(V5, 'en')
     assert issubclass(CloudDistillationPreDispatchError, Exception)
 

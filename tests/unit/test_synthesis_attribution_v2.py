@@ -245,7 +245,11 @@ def test_actual_factory_declares_finite_profiles_and_keeps_synthesis_unqualified
         status, dto = active.application.handle('GET', '/api/v1/cloud-intelligence/profiles')
         assert status == 200
         assert [r['profile_id'] for r in dto['profiles']] == ['legacy', profile.PROFILE_ID, profile.ATTRIBUTION_PROFILE_ID, profile.SOURCE_LEVEL_PROFILE_ID, profile.READABLE_SUMMARY_PROFILE_ID, profile.JUDGMENT_PROFILE_ID]
-        assert all(not r['qualified'] and not r['execution_enabled'] for r in dto['profiles'] if r['profile_id'] != 'legacy')
+        assert all(
+            (r['qualified'] == (r['profile_id'] == profile.JUDGMENT_PROFILE_ID)) and not r['execution_enabled']
+            for r in dto['profiles']
+            if r['profile_id'] != 'legacy'
+        )
         from youtube_intel.cloud_spending_policy import price_disclosure
         status, _ = active.application.handle('PUT', '/api/v1/settings/cloud-spending-policy', module.encoded({
             'expected_revision': 0, 'enabled': True, 'total_cny': '8', 'per_request_cny': '1', 'max_calls': 8,
