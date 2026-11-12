@@ -22,6 +22,8 @@ from youtube_intel.evidence_translation import (
     TRANSLATION_PROVIDER,
     TRANSLATION_SCHEMA_VERSION,
     EvidenceTranslationPresentationService,
+    normalize_rolling_caption_excerpt,
+    strip_translation_meta_notes,
     validate_translation,
 )
 from youtube_intel.local_api import ApiError, LocalApiApplication
@@ -630,3 +632,112 @@ def test_local_transport_rejects_digest_change_before_any_model_call(
             target_language="zh-CN",
         )
     assert calls == []
+
+
+def test_rolling_caption_duplicate_lines_deduplicate_for_model_and_validate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rolling_excerpt = (
+        "Hi, my name is Tom at DeepMind.\n"
+        "Hi, my name is Tom at DeepMind.\n"
+        "We solve this within 160 limited queries.\n"
+        "We solve this within 160 limited queries.\n"
+        "Simple methods cannot track uncertainty.\n"
+        "Simple methods cannot track uncertainty."
+    )
+    expected_dedup = (
+        "Hi, my name is Tom at DeepMind.\n"
+        "We solve this within 160 limited queries.\n"
+        "Simple methods cannot track uncertainty."
+    )
+    assert normalize_rolling_caption_excerpt(rolling_excerpt) == expected_dedup
+
+    clean_zh = (
+        "你好，我是 DeepMind 的汤姆。\n"
+        "我们在 160 次有限查询内解决这个问题。\n"
+        "简单方法无法追踪不确定性。"
+    )
+    assert (
+        validate_translation(
+            excerpt=rolling_excerpt,
+            translated_excerpt=clean_zh,
+            target_language="zh-CN",
+        )
+        == clean_zh
+    )
+    # Backward compatibility: previously persisted translations with doubled counts remain valid.
+    legacy_doubled_zh = f"{clean_zh}\n{clean_zh}"
+    assert (
+        validate_translation(
+            excerpt=rolling_excerpt,
+            translated_excerpt=legacy_doubled_zh,
+            target_language="zh-CN",
+        )
+        == legacy_doubled_zh
+    )
+
+    settings = LocalAnalysisSettings(
+        model="qwen3:8b",
+        expected_model_digest=TRANSLATION_MODEL_DIGEST,
+    )
+    captured_prompts: list[str] = []
+
+    def fake_urlopen(request: Any, *, timeout: float) -> _Response:
+        assert timeout > 0
+        if request.full_url.endswith("/api/tags"):
+            return _Response(
+                json.dumps(
+                    {
+                        "models": [
+                            {
+                                "name": "qwen3:8b",
+                                "digest": TRANSLATION_MODEL_DIGEST,
+                            }
+                        ]
+                    }
+                ).encode()
+            )
+        body = json.loads(request.data)
+        captured_prompts.append(body["messages"][0]["content"])
+        noisy_output = (
+            f"{clean_zh}"
+            "（notoriously difficult 为原文中未翻译的英文短语，保留原样）"
+        )
+        return _Response(
+            json.dumps(
+                {
+                    "model": "qwen3:8b",
+                    "message": {
+                        "content": json.dumps({"translated_excerpt": noisy_output}),
+                    },
+                }
+            ).encode()
+        )
+
+    monkeypatch.setattr(
+        "youtube_intel.providers.ollama_evidence_translation.urllib.request.urlopen",
+        fake_urlopen,
+    )
+    result = OllamaEvidenceTranslator(settings=settings).translate(
+        excerpt=rolling_excerpt,
+        source_language="en",
+        target_language="zh-CN",
+    )
+    assert result == clean_zh
+    assert len(captured_prompts) == 1
+    sent_excerpt = json.loads(captured_prompts[0].split("Exact excerpt: ", 1)[1])
+    assert sent_excerpt == expected_dedup
+
+
+def test_strip_translation_meta_notes_keeps_legitimate_parentheses() -> None:
+    noisy = (
+        "我们正在看一个叫做抓鼹鼠的例子，这是一个臭名昭著的难题"
+        "（notoriously difficult 为原文中未翻译的英文短语，保留原样）"
+    )
+    assert (
+        strip_translation_meta_notes(noisy)
+        == "我们正在看一个叫做抓鼹鼠的例子，这是一个臭名昭著的难题"
+    )
+    legit = "大象有很长的鼻子 (baaaaaaaaaaahhh!!) 就这些。"
+    assert strip_translation_meta_notes(legit) == legit
+

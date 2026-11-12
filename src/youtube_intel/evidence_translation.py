@@ -62,6 +62,67 @@ def _text_hash(value: str) -> str:
     return sha256(value.encode("utf-8")).hexdigest()
 
 
+_META_NOTE_RE = re.compile(
+    r"\s*[（(][^）)\n]{0,160}?(?:为原文中|未翻译|保留原样|保留英文|译者?注\s*[：:]|translator'?s?\s+note|untranslated\s+in\s+source)[^）)\n]{0,160}?[）)]",
+    re.IGNORECASE,
+)
+_DUP_ZH_SENTENCE_RE = re.compile(r"([^。！？\n]{4,}[。！？])[ \t]*\1+")
+
+
+def normalize_rolling_caption_excerpt(excerpt: str) -> str:
+    """Collapse consecutive YouTube 2-line rolling auto-caption duplicates."""
+    if "\n" not in excerpt:
+        return excerpt
+    lines = excerpt.splitlines()
+    kept: list[str] = []
+    last_non_empty_idx = -1
+    last_norm = ""
+    collapsed = 0
+
+    for raw_line in lines:
+        trimmed_right = raw_line.rstrip(" \t")
+        norm = re.sub(r"\s+", " ", trimmed_right).strip().casefold()
+        if not norm:
+            if kept and kept[-1] != "":
+                kept.append("")
+            continue
+        if last_norm:
+            if norm == last_norm:
+                collapsed += 1
+                continue
+            if (
+                len(last_norm) >= 4
+                and norm.startswith(f"{last_norm} ")
+                and last_non_empty_idx >= 0
+            ):
+                kept[last_non_empty_idx] = trimmed_right
+                last_norm = norm
+                collapsed += 1
+                continue
+            if (
+                len(norm) >= 12
+                and len(norm.split(" ")) >= 3
+                and last_norm.endswith(f" {norm}")
+            ):
+                collapsed += 1
+                continue
+        last_non_empty_idx = len(kept)
+        kept.append(trimmed_right)
+        last_norm = norm
+
+    while kept and kept[-1] == "":
+        kept.pop()
+
+    return "\n".join(kept) if collapsed > 0 else excerpt
+
+
+def strip_translation_meta_notes(text: str) -> str:
+    """Remove accidental translator meta-commentary while preserving source parens."""
+    cleaned = _META_NOTE_RE.sub("", text)
+    cleaned = _DUP_ZH_SENTENCE_RE.sub(r"\1", cleaned)
+    return cleaned.strip()
+
+
 def validate_translation(
     *, excerpt: str, translated_excerpt: str, target_language: str
 ) -> str:
@@ -76,11 +137,18 @@ def validate_translation(
     if target_language == "en" and not re.search(r"[A-Za-z]", translated):
         raise ValueError("translation does not contain English text")
 
-    source_numbers = Counter(re.findall(r"\d+(?:[.,]\d+)*(?:%|°)?", excerpt))
+    dedup_excerpt = normalize_rolling_caption_excerpt(excerpt)
+    raw_source_numbers = Counter(re.findall(r"\d+(?:[.,]\d+)*(?:%|°)?", excerpt))
+    dedup_source_numbers = Counter(
+        re.findall(r"\d+(?:[.,]\d+)*(?:%|°)?", dedup_excerpt)
+    )
     translated_numbers = Counter(
         re.findall(r"\d+(?:[.,]\d+)*(?:%|°)?", translated)
     )
-    if source_numbers != translated_numbers:
+    if (
+        translated_numbers != raw_source_numbers
+        and translated_numbers != dedup_source_numbers
+    ):
         raise ValueError("translation changed or omitted a numeric value")
 
     source_identifiers = set(
