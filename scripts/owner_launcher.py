@@ -166,7 +166,7 @@ def launch(project: Path, *, open_browser: bool = True) -> str:
         for name, command in zip(("api", "ui"), commands):
             with (root / "logs" / f"{name}.log").open("ab") as log:
                 child_env = dict(env, YIA_API_BASE="http://127.0.0.1:5489")
-                processes.append(subprocess.Popen(command, cwd=project / "frontend", env=child_env, stdout=log, stderr=subprocess.STDOUT, start_new_session=True))
+                processes.append(subprocess.Popen(command, cwd=project / "frontend", env=child_env, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, start_new_session=True))
         for _ in range(100):
             if any(process.poll() is not None for process in processes):
                 raise RuntimeError("The application could not start. Inspect the candidate workspace logs.")
