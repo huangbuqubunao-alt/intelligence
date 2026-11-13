@@ -68,16 +68,20 @@ def tunnel(
     encoding="identity",
     chunk_delay=0,
     chunk_size=16384,
+    alpn=None,
 ):
-    seen = {"connect": [], "requests": [], "sni": []}
+    seen = {"connect": [], "requests": [], "sni": [], "alpn": []}
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.load_cert_chain(*map(str, certificates[cert]))
+    if alpn is not None:
+        context.set_alpn_protocols(alpn)
     context.set_servername_callback(lambda sock, host, ctx: seen["sni"].append(host))
 
     class Origin(socketserver.BaseRequestHandler):
         def handle(self):
             try:
                 with context.wrap_socket(self.request, server_side=True) as stream:
+                    seen["alpn"].append(stream.selected_alpn_protocol())
                     stream.settimeout(2)
                     request = b""
                     while b"\r\n\r\n" not in request:
@@ -631,3 +635,12 @@ def test_compressed_response_cannot_evade_byte_bound(monkeypatch, certificates):
         monkeypatch.setattr(net, "_macos_proxy_url", lambda: url)
         with pytest.raises(TrackingError, match="METADATA_FAILED"):
             net.channel_feed(CHANNEL)
+
+
+def test_system_proxy_advertises_http11_alpn_explicitly(monkeypatch, certificates):
+    trust(monkeypatch, certificates)
+    with tunnel(certificates, alpn=["h2", "http/1.1"]) as (url, seen):
+        monkeypatch.setattr(net, "_macos_proxy_url", lambda: url)
+        assert net.channel_page(CHANNEL) == PAGE
+        assert seen["alpn"] == ["http/1.1"]
+

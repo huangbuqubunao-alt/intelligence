@@ -146,11 +146,14 @@ def _connection() -> http.client.HTTPSConnection:
         if not addresses:
             raise TrackingError("NETWORK_UNAVAILABLE")
         return _PinnedHTTPS(_HOST, addresses[0])
+    ssl_context = ssl.create_default_context()
+    if hasattr(ssl_context, "set_alpn_protocols"):
+        ssl_context.set_alpn_protocols(["http/1.1"])
     connection = http.client.HTTPSConnection(
         _proxy_address(proxy),
         proxy.port,
         timeout=_TIMEOUT,
-        context=ssl.create_default_context(),
+        context=ssl_context,
     )
     # HTTPSConnection verifies _tunnel_host, not proxy.host; no local YouTube DNS.
     connection.set_tunnel(_HOST, 443)

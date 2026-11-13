@@ -47,6 +47,7 @@ CHECK_SECONDS = 180.0
 COOLDOWN = timedelta(minutes=15)
 LEASE = timedelta(minutes=10)
 AUTOMATIC_REFUSAL_HEALTH = frozenset({"STATE_INVALID", "RISK_CONTROLLED", "ACCESS_DENIED"})
+MANUAL_RETRY_HEALTH = frozenset({"OFFLINE", "PROVIDER_ERROR", "NOT_FOUND"})
 _CHECK_SLOTS = {provider: threading.BoundedSemaphore(1) for provider in ("BILIBILI", "YOUTUBE")}
 # Derived from the single definition of "a Source Run still holds live
 # execution", so this projection can never disagree with the Backup gate.
@@ -141,7 +142,7 @@ def tracking_due(repository: SQLiteStateRepository, source_id: str, now: datetim
         if not manual and row["health"] in AUTOMATIC_REFUSAL_HEALTH:
             return False
         try:
-            if manual and row["health"] == "OFFLINE" and row["last_checked_at"] is not None:
+            if manual and row["health"] in MANUAL_RETRY_HEALTH and row["last_checked_at"] is not None:
                 return _stamp(row["last_checked_at"]) + timedelta(seconds=5) <= now
             return _stamp(row[0]) <= now
         except (TypeError, ValueError):
@@ -263,7 +264,7 @@ class FollowingTrackingService:
             ).fetchone() is not None
             source = connection.execute("SELECT last_checked_at FROM source_subscriptions WHERE source_id=?", (source_id,)).fetchone()
             manual_check_at = row["next_check_at"]
-            if row["health"] == "OFFLINE" and source[0] is not None:
+            if row["health"] in MANUAL_RETRY_HEALTH and source[0] is not None:
                 manual_check_at = format_utc_datetime(_stamp(source[0]) + timedelta(seconds=5))
             return {**dict(row), "discovered_count": counts[0] or 0, "pending_count": counts[1] or 0,
                     "unavailable_count": counts[2] or 0, "update_count": counts[3] or 0, "checking": active, "processing_count": processing,
@@ -331,7 +332,7 @@ class FollowingTrackingService:
             if connection.execute("SELECT 1 FROM source_checks WHERE source_id=? AND status='RUNNING'", (source_id,)).fetchone():
                 return "BUSY"
             manual_network_retry = (
-                not automatic and state["health"] == "OFFLINE"
+                not automatic and state["health"] in MANUAL_RETRY_HEALTH
                 and source.last_checked_at is not None
                 and source.last_checked_at + timedelta(seconds=5) <= now
             )

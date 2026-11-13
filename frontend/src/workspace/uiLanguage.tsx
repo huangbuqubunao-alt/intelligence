@@ -1410,6 +1410,13 @@ const chinese: Record<string, string> = {
   "Application encountered an unexpected error": "界面遇到了意外错误",
   "Reload workspace": "重新加载工作台",
   "K2.6 non-thinking is retained for manual settings only; its V1 quality is insufficient.": "K2.6 非思考模式仅保留用于手动配置，其 V1 提炼质量未达标。",
+  "Recover failed captions": "恢复失败字幕",
+  "Recovering captions": "正在恢复字幕",
+  "Caption recovery finished": "字幕恢复已完成",
+  "Earlier checks could not read native captions for these followed videos. Re-read captions now to prepare Summaries and verified source references.": "早期检查未能读取这些已关注视频的原始字幕，现在可一键重新获取字幕并生成摘要与可信出处。",
+  "Retry all failed captions": "一键恢复失败字幕",
+  "Stop": "停止",
+  "Dismiss": "关闭提示",
 };
 
 type LanguageContextValue = {

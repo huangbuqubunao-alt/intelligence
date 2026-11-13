@@ -1879,18 +1879,136 @@ function ContentPage(
   const [revision, setRevision] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [providerFilter, setProviderFilter] = useState<"ALL" | "YOUTUBE" | "BILIBILI" | "LOCAL">("ALL");
+  const [batchState, setBatchState] = useState<{
+    running: boolean;
+    done: number;
+    total: number;
+    succeeded: number;
+    failed: number;
+    currentTitle: string | null;
+  } | null>(null);
+  const batchStopRef = useRef(false);
+  const batchCommandsRef = useRef(new Map<string, string>());
+  useEffect(() => () => { batchStopRef.current = true; }, []);
   const list = useRemote<{ videos: ContentItem[] }>("/videos", refresh + revision);
   useEffect(() => {
-    if (targetVideoId || !list.data?.videos.some(item => ["WAITING", "FETCHING", "READING_CAPTIONS", "ORGANIZING", "TRANSCRIPT_READY", "RETRY_PENDING", "RUNNING", "PENDING"].includes(item.processing_status))) return;
+    if (
+      targetVideoId ||
+      batchState?.running ||
+      !list.data?.videos.some(
+        (item) =>
+          trackedRetryActive(item.tracked_content_retry, item.video_id) ||
+          ["WAITING", "FETCHING", "READING_CAPTIONS", "ORGANIZING", "TRANSCRIPT_READY", "RETRY_PENDING", "RUNNING", "PENDING"].includes(item.processing_status),
+      )
+    ) return;
     const timer = setTimeout(() => setRevision(value => value + 1), 2000);
     return () => clearTimeout(timer);
-  }, [list.data, targetVideoId]);
+  }, [list.data, targetVideoId, batchState?.running]);
   if (list.error) return <ErrorState error={list.error} code={list.errorCode} onReload={list.reload} />;
   if (!list.data) return <Empty>Loading Content…</Empty>;
   if (targetVideoId) {
     return <ContentDetailPanel key={targetVideoId} id={targetVideoId} highlightedEvidenceId={highlightedEvidenceId} onClose={onClose} />;
   }
   const videos = list.data.videos;
+  const retryableVideos = videos.filter(
+    (item) =>
+      (item.provider ?? "YOUTUBE") === "YOUTUBE" &&
+      readTrackedRetry(item.tracked_content_retry, item.video_id)?.retry_allowed === true,
+  );
+  const runBatchCaptionRecovery = async (targets: ContentItem[]) => {
+    if (!targets.length || batchState?.running) return;
+    batchStopRef.current = false;
+    let succeededCount = 0;
+    let failedCount = 0;
+    setBatchState({
+      running: true,
+      done: 0,
+      total: targets.length,
+      succeeded: 0,
+      failed: 0,
+      currentTitle: targets[0]?.title ?? targets[0]?.video_id ?? null,
+    });
+    for (let idx = 0; idx < targets.length; idx += 1) {
+      if (batchStopRef.current) break;
+      const item = targets[idx];
+      setBatchState({
+        running: true,
+        done: idx,
+        total: targets.length,
+        succeeded: succeededCount,
+        failed: failedCount,
+        currentTitle: item.title ?? item.video_id,
+      });
+      try {
+        const statusResp = await api<{ tracked_content_retry?: unknown }>(
+          `/content/${encodeURIComponent(item.video_id)}/retry`,
+        );
+        const freshStatus = readTrackedRetry(
+          statusResp.tracked_content_retry ?? item.tracked_content_retry,
+          item.video_id,
+        );
+        const expectedJobId =
+          freshStatus?.expected_job_id ??
+          readTrackedRetry(item.tracked_content_retry, item.video_id)?.expected_job_id ??
+          null;
+        if (!expectedJobId || freshStatus?.retry_allowed === false) {
+          if (freshStatus?.request?.state === "SUCCEEDED") {
+            succeededCount += 1;
+          }
+          continue;
+        }
+        const cmdKey = `${item.video_id}:${expectedJobId}`;
+        let cmd = batchCommandsRef.current.get(cmdKey);
+        if (!cmd) {
+          cmd = `batch:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+          batchCommandsRef.current.set(cmdKey, cmd);
+        }
+        await post<{ tracked_content_retry?: unknown }>(
+          `/content/${encodeURIComponent(item.video_id)}/retry`,
+          { expected_job_id: expectedJobId, command_id: cmd },
+        );
+        let settledState = "QUEUED";
+        for (let poll = 0; poll < 120 && !batchStopRef.current; poll += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 400));
+          if (batchStopRef.current) break;
+          const polled = await api<{ tracked_content_retry?: unknown }>(
+            `/content/${encodeURIComponent(item.video_id)}/retry`,
+          );
+          const parsed = readTrackedRetry(polled.tracked_content_retry, item.video_id);
+          const reqState = parsed?.request?.state;
+          if (reqState && !["QUEUED", "ACQUIRING", "FINALIZING"].includes(reqState)) {
+            settledState = reqState;
+            break;
+          }
+        }
+        if (settledState === "SUCCEEDED") {
+          succeededCount += 1;
+        } else if (!batchStopRef.current) {
+          failedCount += 1;
+        }
+        if (!batchStopRef.current) {
+          setRevision((value) => value + 1);
+        }
+      } catch {
+        failedCount += 1;
+      }
+    }
+    if (!batchStopRef.current) {
+      setRevision((value) => value + 1);
+    }
+    setBatchState((prev) =>
+      prev
+        ? {
+            ...prev,
+            running: false,
+            done: batchStopRef.current ? prev.done : targets.length,
+            succeeded: succeededCount,
+            failed: failedCount,
+            currentTitle: null,
+          }
+        : null,
+    );
+  };
   const hasMultiProviders = new Set(videos.map(v => v.provider ?? "YOUTUBE")).size > 1;
   const trimmedSearch = searchQuery.trim().toLowerCase();
   const filteredVideos = videos.filter(item => {
@@ -1903,6 +2021,55 @@ function ContentPage(
   return videos.length
     ? (
       <div className="content-library-shell">
+        {(retryableVideos.length > 0 || batchState !== null) && (
+          <section className="caption-recovery-banner" role="region" aria-label={t("Recover failed captions")}>
+            <div className="caption-recovery-copy">
+              <strong>
+                {batchState?.running
+                  ? `${t("Recovering captions")} (${batchState.done + 1} / ${batchState.total})`
+                  : retryableVideos.length > 0
+                    ? `${t("Recover failed captions")} · ${retryableVideos.length}`
+                    : t("Caption recovery finished")}
+              </strong>
+              <p>
+                {batchState?.running
+                  ? `${batchState.currentTitle ?? ""}`
+                  : retryableVideos.length > 0
+                    ? t("Earlier checks could not read native captions for these followed videos. Re-read captions now to prepare Summaries and verified source references.")
+                    : `${t("Organized")}: ${batchState?.succeeded ?? 0}${batchState?.failed ? ` · ${t("Needs attention")}: ${batchState.failed}` : ""}`}
+              </p>
+            </div>
+            <div className="button-row">
+              {batchState?.running ? (
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  onClick={() => {
+                    batchStopRef.current = true;
+                  }}
+                >
+                  {t("Stop")}
+                </button>
+              ) : retryableVideos.length > 0 ? (
+                <button
+                  type="button"
+                  className="button button-primary"
+                  onClick={() => void runBatchCaptionRecovery(retryableVideos)}
+                >
+                  {t("Retry all failed captions")} ({retryableVideos.length})
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="button button-ghost"
+                  onClick={() => setBatchState(null)}
+                >
+                  {t("Dismiss")}
+                </button>
+              )}
+            </div>
+          </section>
+        )}
         <div className="library-filter-bar">
           <div className="search-field-wrap">
             <PhosphorIcon name="magnifying-glass" size={15} className="search-field-icon" />
