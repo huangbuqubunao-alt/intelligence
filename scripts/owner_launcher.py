@@ -7,6 +7,7 @@ import os
 import signal
 import socket
 import subprocess
+import sys
 import time
 from pathlib import Path
 from urllib.request import urlopen
@@ -144,6 +145,13 @@ def launch(project: Path, *, open_browser: bool = True) -> str:
     vite = project / "frontend" / "node_modules" / ".bin" / "vite"
     if not python.exists() or not vite.exists() or not (project / "frontend" / "dist" / "index.html").exists():
         raise RuntimeError("The candidate must have its existing runtime and frontend build prepared first.")
+    src_root = str((project / "src").resolve())
+    if sys.path[:1] != [src_root]:
+        sys.path.insert(0, src_root)
+    for mod_name in [name for name in list(sys.modules) if name == "youtube_intel" or name.startswith("youtube_intel.")]:
+        mod_file = getattr(sys.modules[mod_name], "__file__", None) or ""
+        if mod_file and not str(Path(mod_file).resolve()).startswith(src_root):
+            sys.modules.pop(mod_name, None)
     from youtube_intel.native_picker_build import prepare_native_picker
     picker = prepare_native_picker(project)
     env = dict(os.environ)
