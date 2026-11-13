@@ -68,8 +68,14 @@ from youtube_intel.state import (
 from youtube_intel.summary_evidence_authority import LegacySummaryNotCurrentAuthority
 from youtube_intel.tracked_content_retry import TrackedContentRetryService
 from youtube_intel.tracked_retry_context import RetryIntegrity
+from youtube_intel.workspace_intelligence_hub import WorkspaceIntelligenceHub
 
 _VIDEO_DETAIL_ROUTE = re.compile(r"^/api/v1/videos/([^/]+)$")
+_WS_AI_DISTILL_ROUTE = re.compile(r"^/api/v1/workspace-ai/videos/([^/]+)/distill$")
+_WS_AI_TRANSCRIBE_ROUTE = re.compile(
+    r"^/api/v1/workspace-ai/videos/([^/]+)/transcribe$"
+)
+_WS_AI_OBSIDIAN_ROUTE = re.compile(r"^/api/v1/workspace-ai/videos/([^/]+)/obsidian$")
 _YT_VIDEO_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
 _INLINE_HASH_MAX_BYTES = 65_536
 
@@ -1071,8 +1077,22 @@ class _RequestSnapshotContext:
 class FastReadApiApplication:
     """Drop-in wrapper around ``LocalApiApplication`` accelerating hot GET reads."""
 
-    def __init__(self, inner: LocalApiApplication) -> None:
+    def __init__(
+        self,
+        inner: LocalApiApplication,
+        *,
+        workspace_hub: WorkspaceIntelligenceHub | None = None,
+    ) -> None:
         self._inner = inner
+        self._workspace_hub = (
+            workspace_hub
+            if workspace_hub is not None
+            else WorkspaceIntelligenceHub(
+                repository=inner._repository,
+                data_root=inner._data_root,
+                now=inner._now,
+            )
+        )
         self._cache_lock = threading.Lock()
         self._mutation_epoch = 0
         self._route_cache: dict[str, tuple[tuple[object, ...], str]] = {}
@@ -1091,6 +1111,11 @@ class FastReadApiApplication:
         db_token = _sqlite_state_token(getattr(repo, "_database_path", None))
         if db_token is None:
             return None
+        hub_token = (
+            _sqlite_state_token(self._workspace_hub.db_path)
+            if self._workspace_hub.has_sidecar_db()
+            else None
+        )
         data_token = _data_root_token(self._inner._data_root)
         da_service = self._inner._deep_analysis_service
         da_route = (
@@ -1111,6 +1136,7 @@ class FastReadApiApplication:
         return (
             self._mutation_epoch,
             db_token,
+            hub_token,
             data_token,
             da_route,
             self._inner._cloud_execution_enabled,
@@ -1177,11 +1203,77 @@ class FastReadApiApplication:
                 self._route_cache[route] = (fp_after, serialized)
         return payload
 
+    def _handle_workspace_ai(
+        self, method: str, route: str, body: bytes
+    ) -> tuple[int, dict[str, object]]:
+        if method not in {"GET", "HEAD"}:
+            self._bump_mutation_epoch()
+        try:
+            if route == "/api/v1/workspace-ai/settings":
+                if method == "GET":
+                    return HTTPStatus.OK, self._workspace_hub.get_settings()
+                if method == "PUT":
+                    data = self._inner._body(body)
+                    return HTTPStatus.OK, self._workspace_hub.update_settings(data)
+                raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+            if route == "/api/v1/workspace-ai/research/sessions" and method == "GET":
+                return HTTPStatus.OK, self._workspace_hub.list_research_sessions()
+            if route == "/api/v1/workspace-ai/research/ask" and method == "POST":
+                data = self._inner._body(body)
+                return HTTPStatus.OK, self._workspace_hub.ask_research_question(data)
+            if route == "/api/v1/workspace-ai/weekly-brief" and method == "GET":
+                return HTTPStatus.OK, self._workspace_hub.get_latest_weekly_brief()
+            if (
+                route == "/api/v1/workspace-ai/weekly-brief/generate"
+                and method == "POST"
+            ):
+                self._inner._body(body)
+                return HTTPStatus.OK, self._workspace_hub.generate_weekly_brief()
+            distill_m = _WS_AI_DISTILL_ROUTE.fullmatch(route)
+            if distill_m is not None and method == "POST":
+                self._inner._body(body)
+                return HTTPStatus.OK, self._workspace_hub.distill_video(distill_m[1])
+            tx_m = _WS_AI_TRANSCRIBE_ROUTE.fullmatch(route)
+            if tx_m is not None and method == "POST":
+                self._inner._body(body)
+                return HTTPStatus.OK, self._workspace_hub.transcribe_and_distill_local_video(
+                    tx_m[1]
+                )
+            obs_m = _WS_AI_OBSIDIAN_ROUTE.fullmatch(route)
+            if obs_m is not None and method == "GET":
+                return HTTPStatus.OK, self._workspace_hub.get_video_obsidian_export(
+                    obs_m[1]
+                )
+            raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+        except ApiError as err:
+            return err.status, {
+                "error": {"code": err.code, "message": err.message}
+            }
+        except CredentialStoreError:
+            return HTTPStatus.SERVICE_UNAVAILABLE, {
+                "error": {
+                    "code": "CREDENTIAL_STORE_UNAVAILABLE",
+                    "message": "System credential store is unavailable.",
+                }
+            }
+        except (ValueError, KeyError) as err:
+            return HTTPStatus.UNPROCESSABLE_ENTITY, {
+                "error": {
+                    "code": "VALIDATION_ERROR",
+                    "message": str(err) or "Request values are invalid.",
+                }
+            }
+        finally:
+            if method not in {"GET", "HEAD"}:
+                self._bump_mutation_epoch()
+
     def handle(
         self, method: str, path: str, body: bytes = b""
     ) -> tuple[int, dict[str, object]]:
+        route = urlparse(path).path.rstrip("/") or "/"
+        if route.startswith("/api/v1/workspace-ai/"):
+            return self._handle_workspace_ai(method, route, body)
         if method == "GET":
-            route = urlparse(path).path.rstrip("/") or "/"
             detail_match = _VIDEO_DETAIL_ROUTE.fullmatch(route)
             if route in {"/api/v1/videos", "/api/v1/intelligence"} or (
                 detail_match is not None
@@ -1236,7 +1328,22 @@ class FastReadApiApplication:
         if method not in {"GET", "HEAD"}:
             self._bump_mutation_epoch()
         try:
-            return self._inner.handle(method, path, body)
+            status_code, resp_payload = self._inner.handle(method, path, body)
+            if (
+                method == "GET"
+                and status_code == HTTPStatus.OK
+                and self._workspace_hub.db_path.exists()
+            ):
+                if route == "/api/v1/dashboard":
+                    wb = self._workspace_hub.get_latest_weekly_brief().get("weekly_brief")
+                    if wb is not None:
+                        resp_payload = {**resp_payload, "workspace_weekly_brief": wb}
+                elif route == "/api/v1/settings":
+                    resp_payload = {
+                        **resp_payload,
+                        "workspace_ai": self._workspace_hub.get_settings(),
+                    }
+            return status_code, resp_payload
         finally:
             if method not in {"GET", "HEAD"}:
                 self._bump_mutation_epoch()
@@ -1281,6 +1388,14 @@ class FastReadApiApplication:
                     if item.get("provider") == "LOCAL"
                     and item.get("media_kind") in {"AUDIO", "VIDEO"}
                 )
+                briefs_map = self._workspace_hub.get_video_briefs_map()
+                if briefs_map:
+                    projected = [
+                        self._workspace_hub.enrich_video_list_item(item, brief)
+                        if (brief := briefs_map.get(str(item["video_id"]))) is not None
+                        else item
+                        for item in projected
+                    ]
                 return {"videos": projected + ctx.pending_content_work()}
             finally:
                 conn.rollback()
@@ -1491,7 +1606,7 @@ class FastReadApiApplication:
                     if has_checkpoint
                     else []
                 )
-                return {
+                detail_payload: dict[str, object] = {
                     "video": ctx.video_dto_with_deep_analysis(video),
                     "scoring": self._inner._scoring_projection(video.video_id),
                     "transcript": ctx.transcript_projection(video),
@@ -1513,6 +1628,12 @@ class FastReadApiApplication:
                     ),
                     "history": self._inner._history_projection(video.video_id),
                 }
+                brief = self._workspace_hub.get_video_brief(video.video_id)
+                if brief is not None:
+                    detail_payload = self._workspace_hub.enrich_video_detail(
+                        detail_payload, brief
+                    )
+                return detail_payload
             finally:
                 conn.rollback()
         finally:

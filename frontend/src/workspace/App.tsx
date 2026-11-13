@@ -28,6 +28,16 @@ import { CommandPalette, CommandPaletteAction } from "./ui/CommandPalette";
 import { PhosphorIcon, PhosphorIconName } from "./ui/phosphorIcons";
 import { UiThemeProvider, useUiTheme } from "./ui/theme";
 import { savedLanguage, UiLanguageProvider, useUiLanguage } from "./uiLanguage";
+import {
+  AiScoreBadge,
+  readVideoAiBrief,
+  readWeeklyAiBrief,
+  VideoAiBrief,
+  WeeklyAiBriefPanel,
+  WorkspaceAiSettingsPanel,
+  WorkspaceVideoAiActions,
+  WorkspaceVideoAiBriefCard,
+} from "./WorkspaceAiWidgets";
 
 type Page =
   | "Home"
@@ -177,6 +187,7 @@ type ContentItem = {
   imported_at?: string;
   source_language?: string | null;
   duration_seconds?: number | null;
+  ai_brief?: unknown;
   video_id: string;
   channel_id: string;
   channel_name: string;
@@ -188,6 +199,7 @@ type ContentItem = {
 };
 type ContentDetail = {
   local_intelligence?: unknown;
+  obsidian_markdown?: string;
   video: ContentItem;
   pending_synthesis_executions?: { execution_id: string; updated_at: string; can_cancel: boolean; selected_provider?: string }[];
   waiting_model_executions?: { execution_id: string; updated_at: string; can_cancel: boolean; selected_provider?: string }[];
@@ -1683,6 +1695,7 @@ function Dashboard(
       weekly_v1?: unknown[];
       needs_attention?: SourceRun[];
       operations?: { source_count?: number };
+      workspace_weekly_brief?: unknown;
     }
   >("/dashboard", refresh, undefined, true, true);
   const [onboardingDone, setOnboardingDone] = useState(onboardingCompleted);
@@ -1694,13 +1707,14 @@ function Dashboard(
     ),
     attention = data.needs_attention ?? [],
     topics = data.pinned_topics ?? [],
-    hasWeeklyHistory = (data.weekly_v1 ?? []).length > 0;
+    weeklyBrief = readWeeklyAiBrief(data.workspace_weekly_brief),
+    hasWeeklyHistory = (data.weekly_v1 ?? []).length > 0 || weeklyBrief !== null;
   const isFreshLibrary = data.operations?.source_count === 0 &&
     !intelligence.length && !topics.length && !hasWeeklyHistory && !attention.length;
   if (isFreshLibrary && !onboardingDone) {
     return <FirstRunOnboarding onSkip={finishOnboarding} onAddFollowing={() => { finishOnboarding(); navigate("Following"); }} />;
   }
-  if (!intelligence.length && !topics.length && !attention.length) {
+  if (!intelligence.length && !topics.length && !attention.length && !weeklyBrief) {
     return (
       <div className="dashboard-stack">
         <Panel title="No important new intelligence yet." icon="sparkle">
@@ -1722,6 +1736,11 @@ function Dashboard(
   return (
     <div className="home-workbench-grid">
       <div className="home-primary-col">
+        <WeeklyAiBriefPanel
+          initialBrief={weeklyBrief}
+          onOpenContent={(id) => openContent(id)}
+          onOpenResearch={() => navigate("Research")}
+        />
         <Panel title="What matters now" icon="sparkle">
           {intelligence.length
             ? intelligence.map((item) => (
@@ -1941,10 +1960,11 @@ function ContentPage(
     onAdd: () => void;
   },
 ) {
-  const { t } = useUiLanguage();
+  const { language, t } = useUiLanguage();
   const [revision, setRevision] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [providerFilter, setProviderFilter] = useState<"ALL" | "YOUTUBE" | "BILIBILI" | "LOCAL">("ALL");
+  const [bucketFilter, setBucketFilter] = useState<"ALL" | "MUST_WATCH" | "TUTORIAL" | "SHORTS">("ALL");
   const [batchState, setBatchState] = useState<{
     running: boolean;
     done: number;
@@ -2076,14 +2096,73 @@ function ContentPage(
     );
   };
   const hasMultiProviders = new Set(videos.map(v => v.provider ?? "YOUTUBE")).size > 1;
+  const briefByVideoId = new Map<string, VideoAiBrief>();
+  for (const item of videos) {
+    const parsed = readVideoAiBrief(item.ai_brief);
+    if (parsed) briefByVideoId.set(item.video_id, parsed);
+  }
+  const hasAiBriefs = briefByVideoId.size > 0;
   const trimmedSearch = searchQuery.trim().toLowerCase();
   const filteredVideos = videos.filter(item => {
     const itemProvider = item.provider ?? "YOUTUBE";
     if (providerFilter !== "ALL" && itemProvider !== providerFilter) return false;
+    const brief = briefByVideoId.get(item.video_id) ?? null;
+    if (bucketFilter === "MUST_WATCH") {
+      if (!brief || brief.is_short_noise || brief.recommendation_tier !== "MUST_WATCH") return false;
+    } else if (bucketFilter === "TUTORIAL") {
+      if (!brief || brief.content_bucket !== "TUTORIAL") return false;
+    } else if (bucketFilter === "SHORTS") {
+      const isShort = brief
+        ? brief.is_short_noise || brief.content_bucket === "SHORTS_PROMO"
+        : itemProvider === "YOUTUBE" && (item.duration_seconds ?? 9999) <= 95;
+      if (!isShort) return false;
+    }
     if (!trimmedSearch) return true;
-    const haystack = `${item.title ?? ""} ${item.channel_name ?? ""} ${item.video_id}`.toLowerCase();
+    const haystack = `${item.title ?? ""} ${item.channel_name ?? ""} ${item.video_id} ${brief?.headline_zh ?? ""} ${brief?.topic_cluster_zh ?? ""}`.toLowerCase();
     return haystack.includes(trimmedSearch);
   });
+  const shouldFoldShorts = hasAiBriefs && bucketFilter === "ALL" && !trimmedSearch;
+  const primaryVideos = shouldFoldShorts
+    ? [...filteredVideos.filter(item => !briefByVideoId.get(item.video_id)?.is_short_noise)].sort(
+        (a, b) => (briefByVideoId.get(b.video_id)?.score ?? -1) - (briefByVideoId.get(a.video_id)?.score ?? -1),
+      )
+    : filteredVideos;
+  const foldedShorts = shouldFoldShorts
+    ? filteredVideos.filter(item => Boolean(briefByVideoId.get(item.video_id)?.is_short_noise))
+    : [];
+  const renderContentRow = (item: ContentItem) => {
+    const brief = briefByVideoId.get(item.video_id) ?? null;
+    return (
+      <button
+        className="list-row content-media-row"
+        key={item.video_id}
+        onClick={() => onOpen(item.video_id)}
+      >
+        <span className="content-media-lead">
+          <span className={`provider-glyph provider-${(item.provider ?? "YOUTUBE").toLowerCase()}`} aria-hidden="true">
+            <PhosphorIcon
+              name={item.provider === "LOCAL" ? "file-text" : item.provider === "BILIBILI" ? "television" : "youtube-logo"}
+              size={16}
+            />
+          </span>
+          <span className="content-media-copy">
+            <strong>{item.title ?? item.video_id}</strong>
+            {brief ? <span className="content-ai-headline">{brief.headline_zh}</span> : null}
+            <small>
+              {item.provider === "LOCAL" ? t("Local") : item.provider === "BILIBILI" ? `${t("Bilibili")} · ${item.channel_name ?? ""}` : item.channel_name}
+              {" · "}
+              {humanDate(item.provider === "BILIBILI" ? item.published_at : item.imported_at ?? item.published_at)}
+              {item.duration_seconds != null ? ` · ${formatHumanDuration(item.duration_seconds)}` : ""}
+            </small>
+          </span>
+        </span>
+        <span className="content-row-trailing">
+          {brief ? <AiScoreBadge brief={brief} compact /> : null}
+          <Status {...contentStatus(item.provider, item.processing_status)} />
+        </span>
+      </button>
+    );
+  };
   return videos.length
     ? (
       <div className="content-library-shell">
@@ -2147,6 +2226,32 @@ function ContentPage(
               onChange={event => setSearchQuery(event.target.value)}
             />
           </div>
+          {hasAiBriefs && (
+            <div
+              className="segmented library-bucket-chips"
+              role="group"
+              aria-label={language === "zh-CN" ? "内容价值分流" : "Value filter"}
+            >
+              {(
+                [
+                  ["ALL", language === "zh-CN" ? "全部" : "All"],
+                  ["MUST_WATCH", language === "zh-CN" ? "必看长视频" : "Must-watch"],
+                  ["TUTORIAL", language === "zh-CN" ? "实操教程" : "Tutorials"],
+                  ["SHORTS", language === "zh-CN" ? "Shorts 短片" : "Shorts"],
+                ] as const
+              ).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={bucketFilter === key}
+                  className={bucketFilter === key ? "active" : ""}
+                  onClick={() => setBucketFilter(key)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
           {hasMultiProviders && (
             <div className="segmented library-provider-chips" role="group" aria-label={t("All sources")}>
               {([
@@ -2171,33 +2276,32 @@ function ContentPage(
           )}
         </div>
         {filteredVideos.length ? (
-          <div className="compact-list content-media-list">
-            {filteredVideos.map((item) => (
-              <button
-                className="list-row content-media-row"
-                key={item.video_id}
-                onClick={() => onOpen(item.video_id)}
-              >
-                <span className="content-media-lead">
-                  <span className={`provider-glyph provider-${(item.provider ?? "YOUTUBE").toLowerCase()}`} aria-hidden="true">
-                    <PhosphorIcon
-                      name={item.provider === "LOCAL" ? "file-text" : item.provider === "BILIBILI" ? "television" : "youtube-logo"}
-                      size={16}
-                    />
+          <>
+            {primaryVideos.length > 0 ? (
+              <div className="compact-list content-media-list">
+                {primaryVideos.map(renderContentRow)}
+              </div>
+            ) : null}
+            {foldedShorts.length > 0 ? (
+              <details className="shorts-fold-drawer">
+                <summary className="tabular-nums">
+                  <PhosphorIcon name="funnel" size={14} />
+                  <span>
+                    {language === "zh-CN"
+                      ? `已自动折叠 ${foldedShorts.length} 条 Shorts 宣传短片（点击展开查看）`
+                      : `${foldedShorts.length} Shorts promo clips auto-folded (click to expand)`}
                   </span>
-                  <span className="content-media-copy">
-                    <strong>{item.title ?? item.video_id}</strong>
-                    <small>{item.provider === "LOCAL" ? t("Local") : item.provider === "BILIBILI" ? `${t("Bilibili")} · ${item.channel_name ?? ""}` : item.channel_name} · {humanDate(item.provider === "BILIBILI" ? item.published_at : item.imported_at ?? item.published_at)}</small>
-                  </span>
-                </span>
-                <Status {...contentStatus(item.provider, item.processing_status)} />
-              </button>
-            ))}
-          </div>
+                </summary>
+                <div className="compact-list content-media-list shorts-folded-list">
+                  {foldedShorts.map(renderContentRow)}
+                </div>
+              </details>
+            ) : null}
+          </>
         ) : (
           <Empty>
             <p>{t("No Content matches your current search or filter.")}</p>
-            <button type="button" className="button button-secondary" onClick={() => { setSearchQuery(""); setProviderFilter("ALL"); }}>
+            <button type="button" className="button button-secondary" onClick={() => { setSearchQuery(""); setProviderFilter("ALL"); setBucketFilter("ALL"); }}>
               {t("Clear filter")}
             </button>
           </Empty>
@@ -2576,6 +2680,7 @@ function ContentDetailPanel(
   const isBilibili = data.video.provider === "BILIBILI";
   const isLocalMedia = data.video.provider === "LOCAL" && data.video.media_kind !== "TEXT";
   const note = data.note.v2;
+  const aiBrief = readVideoAiBrief(data.video.ai_brief);
   const localCapability = readContentLocal(data.local_intelligence, data.video, id);
   const cloudWait = data.intelligence_result.status === "WAITING_MODEL" && data.intelligence_result.selected_provider === "zhipu_bigmodel";
   const unstartedLongWait = data.intelligence_result.status === "WAITING_MODEL"
@@ -2649,6 +2754,18 @@ function ContentDetailPanel(
             <PhosphorIcon name="file-text" size={13} />
             {t(copiedMarkdown ? "Copied Markdown note" : "Copy Markdown note")}
           </button>
+          <WorkspaceVideoAiActions
+            videoId={data.video.video_id}
+            title={data.video.title ?? data.video.video_id}
+            isLocalMedia={isLocalMedia}
+            transcriptAvailable={transcript.status === "AVAILABLE"}
+            aiBrief={aiBrief}
+            obsidianMarkdown={data.obsidian_markdown}
+            onCompleted={() => {
+              setRefresh(value => value + 1);
+              setEvidenceRefresh(value => value + 1);
+            }}
+          />
         </div>
       </Panel>
       <div role="toolbar" aria-label={t("Section jump")} className="reader-jump-bar">
@@ -2742,6 +2859,7 @@ function ContentDetailPanel(
         </div>
       </Panel>
       <Panel id="section-summary" icon="file-text" title={data.video.provider === "LOCAL" || isBilibili ? "Summary" : "Summary / Video Notes"}>
+        <WorkspaceVideoAiBriefCard brief={aiBrief} obsidianMarkdown={data.obsidian_markdown} />
         {note?.status === "AVAILABLE"
           ? (() => {
             const summaryClean = note.summary ? cleanCaptionText(note.summary) : { text: "", collapsedCount: 0 };
@@ -5066,6 +5184,7 @@ function Settings({ refresh }: { refresh: number }) {
     content_processing?: { status: string; requires_cloud: boolean };
     cloud_credential?: { configured: boolean; source: string };
     model_preference?: { desired_provider: string | null; desired_model: string | null };
+    workspace_ai?: unknown;
   }>(
     "/settings",
     refresh + revision,
@@ -5174,6 +5293,7 @@ function Settings({ refresh }: { refresh: number }) {
         </div>
         <details><summary>{t("Cloud setup and model details")}</summary><ModelSettings message={modelMessage} setMessage={setModelMessage} credential={settings.data.cloud_credential} preference={settings.data.model_preference} onSaved={() => setRevision(current => current + 1)} /></details>
       </Panel>
+      <WorkspaceAiSettingsPanel initial={settings.data.workspace_ai} />
       <LocalIntelligenceSetup />
       <TranscriptionSetup />
       <BackupRestorePanel />

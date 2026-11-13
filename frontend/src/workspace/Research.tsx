@@ -6,6 +6,7 @@ import { ResearchForm } from "./ResearchForm";
 import { ResearchResult } from "./ResearchResult";
 import { OpenResearchSource, ResearchListing, ResearchResult as Result, researchErrorCopy } from "./ResearchTypes";
 import { useUiLanguage } from "./uiLanguage";
+import { WorkspaceAiResearchPanel } from "./WorkspaceAiWidgets";
 
 export function Research({ onOpen }: { onOpen: OpenResearchSource }) {
   const { t, language } = useUiLanguage();
@@ -74,6 +75,7 @@ export function Research({ onOpen }: { onOpen: OpenResearchSource }) {
     finally { setBusy(false); }
   };
   return <div className="research-stack">
+    {!creating && !activeId && !comparison && <WorkspaceAiResearchPanel onOpen={onOpen} />}
     <p className="hint">{t("Research uses only your existing library. No web exploration or model call.")}</p>
     {!creating && <div className="button-row">
       <button className="button button-primary" disabled={busy} onClick={newResearch}>{t("New Research")}</button>
