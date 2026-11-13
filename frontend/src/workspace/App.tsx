@@ -8,7 +8,7 @@ import { NativeImportActivity } from "./NativeLocalImport";
 import { LocalTranscription, transcriptionCopy } from "./LocalTranscription";
 import { TranscriptionSetup } from "./TranscriptionSetup";
 import { LocalIntelligenceSetup } from "./LocalIntelligenceSetup";
-import { ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { ChangeEvent, createContext, FormEvent, ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { ApiRequestError, api, patch, post, put, uploadZip } from "../api/client";
 import {
   buildMarkdownVideoNote,
@@ -460,11 +460,31 @@ function initialPage(): Page {
   return pages.includes(candidate as Page) ? candidate as Page : "Home";
 }
 
-function useRemote<T>(path: string, refresh = 0, validate?: (value: unknown) => boolean, retainOnRefresh = false) {
+type RemoteSwrStore = {
+  cache: Map<string, unknown>;
+  inflight: Map<string, Promise<unknown>>;
+};
+
+const RemoteSwrContext = createContext<RemoteSwrStore | null>(null);
+
+function useRemote<T>(
+  path: string,
+  refresh = 0,
+  validate?: (value: unknown) => boolean,
+  retainOnRefresh = false,
+  swr = false,
+) {
+  const swrStore = useContext(RemoteSwrContext);
+  const readSwrCache = (targetPath: string): T | null => {
+    if (!swr || !swrStore || !swrStore.cache.has(targetPath)) return null;
+    const cached = swrStore.cache.get(targetPath);
+    if (validate && !validate(cached)) return null;
+    return cached as T;
+  };
   const [readRevision, setReadRevision] = useState(0);
   const requestPath = useRef(path);
   const [reading, setReading] = useState(true);
-  const [data, setData] = useState<T | null>(null);
+  const [data, setData] = useState<T | null>(() => readSwrCache(path));
   const [error, setError] = useState<string | null>(null);
   // Keep the stable machine code so failures can be localized by code instead of
   // rendering backend English prose.
@@ -474,17 +494,43 @@ function useRemote<T>(path: string, refresh = 0, validate?: (value: unknown) => 
     const samePath = requestPath.current === path;
     requestPath.current = path;
     setReading(true);
-    if (!retainOnRefresh || !samePath) setData(null);
-    if (!retainOnRefresh || !samePath || !data) {
+    const cached = readSwrCache(path);
+    if (cached !== null && (!samePath || data === null)) {
+      setData(cached);
+    } else if (!retainOnRefresh || !samePath) {
+      setData(null);
+    }
+    if (!retainOnRefresh || !samePath || (!data && cached === null)) {
       setError(null); setErrorCode(undefined);
     }
-    api<T>(path).then((value) => {
+    const loadPromise: Promise<T> = (() => {
+      if (swr && swrStore) {
+        const existing = swrStore.inflight.get(path) as Promise<T> | undefined;
+        if (existing) return existing;
+        const created = api<T>(path);
+        swrStore.inflight.set(path, created);
+        created.finally(() => {
+          if (swrStore.inflight.get(path) === created) {
+            swrStore.inflight.delete(path);
+          }
+        }).catch(() => {});
+        return created;
+      }
+      return api<T>(path);
+    })();
+    loadPromise.then((value) => {
       if (!alive) return;
       if (validate && !validate(value)) {
         throw new ApiRequestError({ code: "READ_RESPONSE_INVALID", message: "The policy response could not be read." });
       }
+      if (swr && swrStore) {
+        swrStore.cache.set(path, value);
+      }
       setData(value); setError(null); setErrorCode(undefined);
     }).catch((reason: Error) => {
+      if (swr && swrStore) {
+        swrStore.cache.delete(path);
+      }
       if (!alive) return;
       setError(reason.message);
       setErrorCode(reason instanceof ApiRequestError ? reason.code : undefined);
@@ -492,12 +538,18 @@ function useRemote<T>(path: string, refresh = 0, validate?: (value: unknown) => 
     return () => {
       alive = false;
     };
-  }, [path, refresh, readRevision, validate, retainOnRefresh]);
+  }, [path, refresh, readRevision, validate, retainOnRefresh, swr, swrStore]);
   // A path change must never expose another resource's retained snapshot,
   // including the render before the new effect has cleared it.
   const currentPath = !retainOnRefresh || requestPath.current === path;
-  return { data: currentPath ? data : null, error: currentPath ? error : null,
-    errorCode: currentPath ? errorCode : undefined, reading, reload: () => setReadRevision(value => value + 1) };
+  const fallbackSwr = !currentPath ? readSwrCache(path) : null;
+  return {
+    data: currentPath ? data : fallbackSwr,
+    error: currentPath ? error : null,
+    errorCode: currentPath ? errorCode : undefined,
+    reading,
+    reload: () => setReadRevision(value => value + 1),
+  };
 }
 function statusLabel(value: string) {
   const labels: Record<string, string> = {
@@ -1346,7 +1398,15 @@ function IntelligenceCard(
 }
 
 export function App() {
-  return <UiLanguageProvider><UiThemeProvider><Workspace /></UiThemeProvider></UiLanguageProvider>;
+  const swrStoreRef = useRef<RemoteSwrStore | null>(null);
+  if (swrStoreRef.current === null) {
+    swrStoreRef.current = { cache: new Map(), inflight: new Map() };
+  }
+  return (
+    <RemoteSwrContext.Provider value={swrStoreRef.current}>
+      <UiLanguageProvider><UiThemeProvider><Workspace /></UiThemeProvider></UiLanguageProvider>
+    </RemoteSwrContext.Provider>
+  );
 }
 
 function Workspace() {
@@ -1624,7 +1684,7 @@ function Dashboard(
       needs_attention?: SourceRun[];
       operations?: { source_count?: number };
     }
-  >("/dashboard", refresh);
+  >("/dashboard", refresh, undefined, true, true);
   const [onboardingDone, setOnboardingDone] = useState(onboardingCompleted);
   const finishOnboarding = () => { completeOnboarding(); setOnboardingDone(true); };
   if (error) return <ErrorState error={error} code={errorCode} onReload={reload} />;
@@ -1754,10 +1814,16 @@ function IntelligencePage(
   const current = useRemote<{ intelligence: Intelligence[]; activity?: { video_id: string; title: string; status: string; cloud_http429_code?: string; selected_provider?: string; can_cancel?: boolean }[] }>(
     "/intelligence",
     refresh + revision,
+    undefined,
+    true,
+    true,
   );
   const saved = useRemote<{ saved: Saved[] }>(
     "/saved-intelligence",
     refresh + revision,
+    undefined,
+    true,
+    true,
   );
   const source = view === "Current"
     ? current
@@ -1890,7 +1956,7 @@ function ContentPage(
   const batchStopRef = useRef(false);
   const batchCommandsRef = useRef(new Map<string, string>());
   useEffect(() => () => { batchStopRef.current = true; }, []);
-  const list = useRemote<{ videos: ContentItem[] }>("/videos", refresh + revision);
+  const list = useRemote<{ videos: ContentItem[] }>("/videos", refresh + revision, undefined, true, true);
   useEffect(() => {
     if (
       targetVideoId ||
@@ -2467,7 +2533,7 @@ function ContentDetailPanel(
   const { language, t } = useUiLanguage();
   const [activeSection, scrollToSection] = useActiveSection(READER_SECTION_IDS, id);
   const [refresh, setRefresh] = useState(0);
-  const { data, error, errorCode, reload } = useRemote<ContentDetail>(`/videos/${id}`, refresh, undefined, true);
+  const { data, error, errorCode, reload } = useRemote<ContentDetail>(`/videos/${id}`, refresh, undefined, true, true);
   const [evidenceRefresh, setEvidenceRefresh] = useState(0);
   const [captionResultRefresh, setCaptionResultRefresh] = useState(0);
   const transcriptionRefreshId = useRef<string | null>(null);
@@ -3539,7 +3605,7 @@ function ContentEvidencePanel(
 }
 function Topics({ refresh, targetTopicId }: { refresh: number; targetTopicId?: string | null }) {
   const { language, t } = useUiLanguage();
-  const list = useRemote<{ topics: Topic[] }>("/topics", refresh);
+  const list = useRemote<{ topics: Topic[] }>("/topics", refresh, undefined, true, true);
   const [selected, setSelected] = useState<string | null>(targetTopicId ?? null);
   const detail = useRemote<{ topic: Topic }>(
     selected ? `/topics/${selected}` : "/topics",
@@ -3692,7 +3758,7 @@ function Sources(
   { refresh, onRefresh, targetSourceId, onAdd }: { refresh: number; onRefresh: () => void; targetSourceId?: string | null; onAdd: (provider: "YOUTUBE" | "LOCAL") => void },
 ) {
   const { t } = useUiLanguage();
-  const { data, error, errorCode, reading, reload } = useRemote<{ sources: Source[] }>("/sources", refresh, validSourcesRead, true);
+  const { data, error, errorCode, reading, reload } = useRemote<{ sources: Source[] }>("/sources", refresh, validSourcesRead, true, true);
   const [selected, setSelected] = useState<string | null>(targetSourceId ?? null);
   const [filter, setFilter] = useState("all");
   const [rowBusy, setRowBusy] = useState<string | null>(null);

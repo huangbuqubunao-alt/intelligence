@@ -125,6 +125,8 @@ def _format_number(value: int | float) -> str:
 def _escape_string(value: str) -> str:
     """Serialize one string with RFC 8785 / ECMAScript escaping."""
 
+    if value.isascii() and '"' not in value and "\\" not in value and min((ord(c) for c in value), default=0x20) >= 0x20:
+        return f'"{value}"'
     parts: list[str] = ['"']
     for character in value:
         code_point = ord(character)
@@ -154,14 +156,22 @@ def _serialize_value(value: object) -> str:
     if isinstance(value, (list, tuple)):
         return "[" + ",".join(_serialize_value(item) for item in value) + "]"
     if isinstance(value, dict):
+        if not value:
+            return "{}"
+        all_ascii = True
         string_items: list[tuple[str, object]] = []
         for key, item in value.items():
             if not isinstance(key, str):
                 msg = "H2 JCS object keys must be strings"
                 raise ValueError(msg)
+            if all_ascii and not key.isascii():
+                all_ascii = False
             string_items.append((key, item))
-        # RFC 8785: sort by UTF-16 code-unit order of the property names.
-        string_items.sort(key=lambda pair: pair[0].encode("utf-16-be"))
+        if all_ascii:
+            string_items.sort(key=lambda pair: pair[0])
+        else:
+            # RFC 8785: sort by UTF-16 code-unit order of the property names.
+            string_items.sort(key=lambda pair: pair[0].encode("utf-16-be"))
         body = ",".join(
             _escape_string(key) + ":" + _serialize_value(item)
             for key, item in string_items
