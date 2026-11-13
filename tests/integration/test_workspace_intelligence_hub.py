@@ -19,7 +19,11 @@ from youtube_intel.domain import (
 from youtube_intel.extractive_summary import ExtractiveSummaryService
 from youtube_intel.fast_read_api import FastReadApiApplication
 from youtube_intel.intelligence_read import AuthoritativeIntelligenceReader
-from youtube_intel.local_content import LocalContentProvider, MediaTranscript
+from youtube_intel.local_content import (
+    LocalContentProvider,
+    MediaTranscript,
+    validate_media_transcript,
+)
 from youtube_intel.offline_transcription import media_tool
 from youtube_intel.orchestration import ProcessingPolicy
 from youtube_intel.runtime_composition import build_local_source_run_runtime
@@ -39,7 +43,10 @@ from youtube_intel.state import (
     TimedTranscriptWrite,
     build_evidence_id,
 )
-from youtube_intel.workspace_intelligence_hub import WorkspaceIntelligenceHub
+from youtube_intel.workspace_intelligence_hub import (
+    WorkspaceIntelligenceHub,
+    _normalize_mlx_lecture_segments,
+)
 
 NOW = datetime(2026, 11, 13, 10, 0, tzinfo=UTC)
 
@@ -809,3 +816,29 @@ def test_cross_video_grounded_research_qa_and_weekly_brief_with_obsidian_export(
 
     # Red-line check: zero files written into external vault directory!
     assert [p for p in env["vault_root"].rglob("*") if p.is_file()] == []
+
+
+def test_normalize_mlx_lecture_segments_merges_over_4096_and_satisfies_media_transcript_contract() -> None:
+    duration_seconds = 5637.549
+    raw_segments: list[dict[str, object]] = []
+    # Simulate 4,500 short clauses across a 94-minute Chinese course lecture,
+    # including slight floating-point overlaps, empty strings, and end jitter.
+    step = duration_seconds / 4500.0
+    for idx in range(4500):
+        start = max(0.0, idx * step - (0.015 if idx % 7 == 0 else 0.0))
+        end = (idx + 1) * step + (0.08 if idx == 4499 else 0.0)
+        text = "" if idx % 100 == 50 else f"第{idx + 1}句实战讲解：Agent工具契约与多模态状态机设计\ufffd\x07。"
+        raw_segments.append({"start": start, "end": end, "text": text})
+
+    transcript = _normalize_mlx_lecture_segments(
+        raw_segments,
+        duration_seconds=duration_seconds,
+        language="zh",
+        provenance='{"contract":"offline-mlx-lecture-v1"}',
+    )
+    validate_media_transcript(transcript, duration_seconds)
+    assert 1 <= len(transcript.cues) <= 2600
+    assert transcript.language == "zh"
+    assert "\ufffd" not in transcript.cues[0].text
+    assert "\x07" not in transcript.cues[0].text
+
