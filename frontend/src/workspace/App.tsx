@@ -2124,6 +2124,7 @@ function ContentPage(
   const hasAiBriefs = briefByVideoId.size > 0;
   const pendingAiSyncVideos = hasAiBriefs
     ? videos.filter(item => {
+        if (item.work_kind === "PENDING_CONTENT_WORK") return false;
         const brief = briefByVideoId.get(item.video_id) ?? null;
         if (!brief) {
           return (item.provider ?? "YOUTUBE") === "YOUTUBE"
@@ -2132,7 +2133,8 @@ function ContentPage(
         }
         return (
           brief.source_basis === "METADATA_ONLY" &&
-          ["READY", "ORGANIZED"].includes(item.processing_status)
+          (item.caption_timing_status === "AVAILABLE" ||
+            ["READY", "ORGANIZED"].includes(item.processing_status))
         );
       })
     : [];
@@ -5305,6 +5307,7 @@ function Settings({ refresh }: { refresh: number }) {
   const [revision, setRevision] = useState(0);
   const [savingLanguage, setSavingLanguage] = useState(false);
   const [editingLanguage, setEditingLanguage] = useState(false);
+  const [legacyDiagOpen, setLegacyDiagOpen] = useState(false);
   const [interfaceDraft, setInterfaceDraft] = useState(language);
   const [outputDraft, setOutputDraft] = useState<"zh-CN" | "en">("zh-CN");
   const [languageError, setLanguageError] = useState<string | null>(null);
@@ -5437,15 +5440,24 @@ function Settings({ refresh }: { refresh: number }) {
         return hasWorkspaceAi ? (
           <>
             <WorkspaceAiSettingsPanel id="settings-models" initial={settings.data.workspace_ai} />
-            <details className="settings-advanced legacy-model-diagnostics">
+            <details
+              className="settings-advanced legacy-model-diagnostics"
+              onToggle={event =>
+                setLegacyDiagOpen((event.currentTarget as HTMLDetailsElement).open)
+              }
+            >
               <summary>
                 {language === "zh-CN"
                   ? "底层模型资格校验与受控云端账单诊断（工程高级项）"
                   : "Underlying model qualification & cloud billing diagnostics"}
               </summary>
-              {legacyModelsPanel}
-              <LocalIntelligenceSetup />
-              <TranscriptionSetup />
+              {legacyDiagOpen ? (
+                <>
+                  {legacyModelsPanel}
+                  <LocalIntelligenceSetup />
+                  <TranscriptionSetup />
+                </>
+              ) : null}
             </details>
           </>
         ) : (
