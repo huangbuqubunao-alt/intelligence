@@ -3412,3 +3412,165 @@ dl.creator-tracking dd {
 .legacy-model-diagnostics > *:last-child {
   margin-bottom: 0;
 }
+
+/* Round 2: Scoped Comparative Research Q&A + Topic Insight Evolution */
+.ai-scope-filter-bar {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-subtle);
+  padding: 10px 12px;
+}
+
+.ai-scope-filter-bar .ai-suggested-pills {
+  margin: 0;
+}
+
+.ai-scope-secondary-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+
+.ai-scope-inline-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 550;
+}
+
+.ai-scope-inline-field select {
+  min-height: 30px;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+}
+
+.ai-video-compare-picker {
+  display: grid;
+  gap: 4px;
+  max-height: 210px;
+  overflow-y: auto;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+.ai-video-compare-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.ai-video-compare-option:hover,
+.ai-video-compare-option.is-checked {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+}
+
+.ai-video-compare-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text-strong);
+  overflow-wrap: anywhere;
+}
+
+.ai-qa-answer-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin-bottom: 8px;
+}
+
+.ai-qa-answer-head h3 {
+  margin: 0;
+}
+
+.ai-action-items-block {
+  margin: 12px 0;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.ai-action-items-block h4 {
+  margin: 0 0 6px;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: var(--text-strong);
+}
+
+.ai-action-items-block ul {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 5px;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.topic-evolution-list {
+  display: grid;
+  gap: 12px;
+}
+
+.topic-evolution-card {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+}
+
+.topic-evolution-card:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.topic-evolution-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.topic-evolution-title-btn {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  color: var(--text-strong);
+  font-size: 14px;
+  line-height: 1.45;
+  cursor: pointer;
+}
+
+.topic-evolution-title-btn:hover strong {
+  color: var(--accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.topic-evolution-headline {
+  margin: 6px 0 6px;
+  color: var(--text-strong);
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.55;
+  max-width: 72ch;
+}
+
+.topic-opp-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}

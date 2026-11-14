@@ -957,4 +957,368 @@ describe("Workspace AI Upgrade (P0 + P1 + P2)", () => {
     expect(clickSpy).toHaveBeenCalledTimes(1);
     expect(await screen.findByText(/已导出 AI 摘要、周报与问答快照/)).toBeTruthy();
   });
+
+  it("supports scoped and multi-video comparative Research Q&A, renders action_items_zh, and collapses legacy non-AI research copy", async () => {
+    location.hash = "#Research";
+    const askBodies: Record<string, unknown>[] = [];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string, init?: RequestInit) => {
+        if (input.endsWith("/workspace-ai/research/sessions") && !init?.method) {
+          return okJson({
+            sessions: [],
+            suggested_questions: ["对比这两条视频的 Agent 变现路径？"],
+            scope_options: {
+              channels: [
+                { key: "Greg Isenberg", label: "Greg Isenberg", count: 12 },
+                { key: "LOCAL", label: "本地实战课", count: 3 },
+              ],
+              topic_clusters: [{ name: "AI 产品机会与一人公司变现", count: 18 }],
+              videos: [
+                {
+                  video_id: "vidGreg1",
+                  title: "Micro-SaaS Playbook",
+                  channel_name: "Greg Isenberg",
+                  score: 9.2,
+                },
+                {
+                  video_id: "vidLocal1",
+                  title: "3. Agent.mp4",
+                  channel_name: "本地实战课",
+                  score: 9.5,
+                },
+              ],
+            },
+          });
+        }
+        if (input.endsWith("/workspace-ai/research/ask") && init?.method === "POST") {
+          const parsed = JSON.parse(String(init.body));
+          askBodies.push(parsed);
+          return okJson({
+            session: {
+              session_id: "qa-scoped-01",
+              question: parsed.question,
+              scope_label_zh: "对比已选 2 条视频",
+              answer_zh: "两条视频均建议从高频垂直表单切入 [E1] [E2]。",
+              key_takeaways_zh: ["优先切入高客单价 B2B 审批流 [E1]"],
+              action_items_zh: [
+                "本周挑选 1 个行业高频 PDF 审核环节做最小闭环原型",
+                "按处理单量设置阶梯年费验证付费意愿",
+              ],
+              citations: [
+                {
+                  ref_label: "E1",
+                  video_id: "vidGreg1",
+                  video_title: "Micro-SaaS Playbook",
+                  channel_name: "Greg Isenberg",
+                  evidence_id: "ev_g1",
+                  start_ms: 12000,
+                  end_ms: 24000,
+                  timestamp_label: "00:12",
+                  excerpt: "Pick one painful B2B PDF workflow.",
+                },
+              ],
+              obsidian_markdown: "# 定向对比问答",
+              provider: "ollama",
+              model: "qwen3.5:9b",
+              created_at: "2026-11-15T01:00:00Z",
+            },
+          });
+        }
+        if (input === "/api/v1/research" && !init?.method) {
+          return okJson({ research: [], total: 0, offset: 0, limit: 25 });
+        }
+        return okJson({});
+      }),
+    );
+
+    const { container } = render(
+      <UiLanguageProvider>
+        <Research onOpen={vi.fn()} />
+      </UiLanguageProvider>,
+    );
+
+    const sourceChip = await screen.findByRole("button", { name: /本地实战课.*3/ });
+    expect(sourceChip).toBeTruthy();
+
+    // Legacy "不调用模型" packet builder must be tucked into a closed <details> drawer when AI sessions load
+    const legacyDrawer = container.querySelector(
+      "details.legacy-model-diagnostics",
+    ) as HTMLDetailsElement | null;
+    expect(legacyDrawer).not.toBeNull();
+    expect(legacyDrawer?.open).toBe(false);
+
+    // Open multi-video comparison picker and select both videos
+    const compareToggle = screen.getByRole("button", { name: /指定多视频对比/ });
+    fireEvent.click(compareToggle);
+    fireEvent.click(screen.getByLabelText(/Micro-SaaS Playbook/));
+    fireEvent.click(screen.getByLabelText(/3\. Agent\.mp4/));
+
+    const input = screen.getByLabelText("跨视频提问");
+    fireEvent.change(input, { target: { value: "对比这两条视频的 Agent 变现路径" } });
+    fireEvent.click(screen.getByRole("button", { name: "AI 提问" }));
+
+    await waitFor(() => expect(askBodies).toHaveLength(1));
+    expect(askBodies[0]).toMatchObject({
+      question: "对比这两条视频的 Agent 变现路径",
+      video_ids: ["vidGreg1", "vidLocal1"],
+    });
+    expect(await screen.findByText("对比已选 2 条视频")).toBeTruthy();
+    expect(screen.getByText("本周挑选 1 个行业高频 PDF 审核环节做最小闭环原型")).toBeTruthy();
+  });
+
+  it("renders chronological Chinese AI insight evolution in Topics, collapses repetitive contribution boilerplate, and jumps to scoped Research Q&A", async () => {
+    location.hash = "#Topics";
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string) => {
+        if (input.endsWith("/topics")) {
+          return okJson({
+            topics: [
+              {
+                topic_id: "topic-monetize",
+                name: "AI 产品机会与一人公司变现",
+                pinned: true,
+                lifecycle: "ACTIVE",
+                current_state: "SINGLE_SOURCE",
+                independence: "SINGLE_SOURCE",
+                contributions: [],
+                timeline: [],
+                relations: [],
+                ai_evolution: {
+                  video_count: 18,
+                  must_watch_count: 9,
+                  avg_score: 8.9,
+                  latest_headline_zh: "垂直行业表单流自动化是一人公司高毛利切口。",
+                  source_channels: ["Greg Isenberg", "本地实战课"],
+                },
+              },
+            ],
+          });
+        }
+        if (input.endsWith("/topics/topic-monetize")) {
+          return okJson({
+            topic: {
+              topic_id: "topic-monetize",
+              name: "AI 产品机会与一人公司变现",
+              pinned: true,
+              lifecycle: "ACTIVE",
+              current_state: "SINGLE_SOURCE",
+              independence: "SINGLE_SOURCE",
+              contributions: [
+                {
+                  intelligence_id: "intel-1",
+                  claim_kind: "OPPORTUNITY",
+                  state: "SINGLE_SOURCE",
+                  available: true,
+                  evidence_ids: ["ev-1"],
+                },
+              ],
+              timeline: [
+                {
+                  event_id: "evt-1",
+                  event_kind: "CREATED",
+                  state: "SINGLE_SOURCE",
+                  created_at: "2026-11-14T10:00:00Z",
+                },
+              ],
+              relations: [
+                {
+                  related_topic_id: "topic-agent",
+                  related_topic_name: "AI Agent 与自动化架构",
+                },
+              ],
+              ai_evolution: {
+                video_count: 2,
+                must_watch_count: 2,
+                avg_score: 9.3,
+                latest_headline_zh: "垂直行业表单流自动化是一人公司高毛利切口。",
+                source_channels: ["Greg Isenberg", "本地实战课"],
+                entries: [
+                  {
+                    video_id: "vidGreg1",
+                    title: "Micro-SaaS Playbook",
+                    channel_name: "Greg Isenberg",
+                    published_at: "2026-11-14T08:00:00Z",
+                    score: 9.2,
+                    recommendation_tier: "MUST_WATCH",
+                    source_basis: "TRANSCRIPT",
+                    headline_zh: "垂直行业表单流自动化是一人公司高毛利切口。",
+                    summary_zh: "拆解从痛点访谈到首月 MRR 的实操路径。",
+                    product_opportunities_zh: ["合规表单自动核验 SaaS"],
+                    business_opportunities_zh: ["按席位+单量阶梯年费"],
+                  },
+                ],
+              },
+            },
+          });
+        }
+        if (input.endsWith("/workspace-ai/research/sessions")) {
+          return okJson({
+            sessions: [],
+            suggested_questions: [],
+            scope_options: {
+              channels: [],
+              topic_clusters: [{ name: "AI 产品机会与一人公司变现", count: 18 }],
+              videos: [],
+            },
+          });
+        }
+        if (input.endsWith("/research")) {
+          return okJson({ research: [], total: 0, offset: 0, limit: 25 });
+        }
+        return okJson({});
+      }),
+    );
+
+    const { container } = render(<App />);
+    expect(await screen.findByText(/18 条内容 · 9 条必看/)).toBeTruthy();
+    expect(screen.getByText("垂直行业表单流自动化是一人公司高毛利切口。")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /AI 产品机会与一人公司变现/ }));
+    expect(await screen.findByText("Micro-SaaS Playbook")).toBeTruthy();
+    expect(screen.getByText("AI Agent 与自动化架构")).toBeTruthy();
+
+    // Repetitive boilerplate contribution rows are collapsed inside <details>
+    const rawContribDrawer = container.querySelector(
+      "details.topic-raw-contributions",
+    ) as HTMLDetailsElement | null;
+    expect(rawContribDrawer).not.toBeNull();
+    expect(rawContribDrawer?.open).toBe(false);
+
+    // Clicking "围绕本专题跨视频提问" jumps to #Research with that topic pre-selected
+    fireEvent.click(screen.getByRole("button", { name: "围绕本专题跨视频提问" }));
+    await waitFor(() => expect(location.hash).toBe("#Research"));
+    const topicSelect = (await screen.findByLabelText("限定专题")) as HTMLSelectElement;
+    expect(topicSelect.value).toBe("AI 产品机会与一人公司变现");
+  });
+
+  it("imports and restores AI knowledge snapshot JSON in Settings and triggers inline 1-click Retry check for OFFLINE sources in Following", async () => {
+    location.hash = "#Settings";
+    let restoredPayload: unknown = null;
+    let retriedSourceCheck = false;
+
+    const fetchMock = vi.fn((path: string, init?: RequestInit) => {
+      if (path.endsWith("/workspace-ai/restore") && init?.method === "POST") {
+        restoredPayload = JSON.parse(String(init.body));
+        return okJson({
+          restored: {
+            video_ai_briefs: 3,
+            weekly_ai_briefs: 1,
+            ai_research_sessions: 2,
+          },
+        });
+      }
+      if (path.endsWith("/sources/youtube-channel-greg/check") && init?.method === "POST") {
+        retriedSourceCheck = true;
+        return okJson({ source_run: { run_id: "run-retry-1" } });
+      }
+      if (path.endsWith("/sources")) {
+        return okJson({
+          sources: [
+            {
+              source_id: "youtube-channel-greg",
+              provider: "YOUTUBE",
+              source_type: "CHANNEL",
+              display_name: "Greg Isenberg",
+              canonical_url: "https://www.youtube.com/@GregIsenberg",
+              enabled: true,
+              processing_policy: "DISCOVER_ONLY",
+              last_error: { code: "OFFLINE" },
+              tracking: {
+                health: retriedSourceCheck ? "HEALTHY" : "OFFLINE",
+                coverage: "COMPLETE",
+                baseline_at: "2026-11-12T00:00:00Z",
+                update_count: 12,
+                pending_count: 0,
+                checking: false,
+              },
+            },
+          ],
+        });
+      }
+      if (path.endsWith("/settings/local-intelligence")) {
+        return okJson({
+          local_intelligence: {
+            status: "NOT_CONFIGURED",
+            etag: "b".repeat(64),
+            selected_candidate_id: null,
+            actual_route: { provider: "ollama", model: "qwen3:8b", profile_id: null },
+            blocking_work: [],
+            candidates: [],
+          },
+        });
+      }
+      if (path.endsWith("/settings")) {
+        return okJson({
+          general: {
+            timezone: "Asia/Shanghai",
+            output_language: "zh-CN",
+            output_language_source: "USER",
+            output_language_updated_at: null,
+          },
+          providers: [],
+          cloud_credential: { configured: false, source: "NONE" },
+          workspace_ai: {
+            active_mode: "local_ollama",
+            ollama_base_url: "http://127.0.0.1:11434",
+            ollama_model: "qwen3.5:9b",
+            ollama_reachable: true,
+            installed_ollama_models: ["qwen3.5:9b"],
+            cloud_provider: "deepseek",
+            cloud_base_url: "https://api.deepseek.com/v1",
+            cloud_model: "deepseek-chat",
+            cloud_key_configured: false,
+          },
+        });
+      }
+      if (path.endsWith("/settings/preferences")) return okJson({ active: [], history: [] });
+      if (path.endsWith("/settings/source-policy")) {
+        return okJson({
+          policy: {
+            initial_history_count: 5,
+            per_run_max_new_videos: 5,
+            focus_rules: [],
+            ignore_rules: [],
+            distillation_style: "BALANCED",
+          },
+        });
+      }
+      if (path.endsWith("/settings/resource-usage")) return okJson({ usage: [] });
+      if (path.endsWith("/settings/local-models")) return okJson({ connection: "REACHABLE", models: [] });
+      return okJson({});
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    const restoreInput = (await screen.findByLabelText(
+      "导入 AI 知识库快照文件",
+    )) as HTMLInputElement;
+    const snapshotFile = new File(
+      [
+        JSON.stringify({
+          schema_version: "workspace-ai-backup-v1",
+          video_ai_briefs: [{ video_id: "v1" }],
+          weekly_ai_briefs: [],
+          ai_research_sessions: [],
+        }),
+      ],
+      "workspace-ai-backup-2026-11-15.json",
+      { type: "application/json" },
+    );
+    fireEvent.change(restoreInput, { target: { files: [snapshotFile] } });
+
+    await waitFor(() => expect(restoredPayload).not.toBeNull());
+    expect(await screen.findByText(/已恢复 3 条中文摘要、1 份周报与 2 条跨视频问答记录/)).toBeTruthy();
+
+    // Navigate to Following and click inline 1-click "立即重检" on the OFFLINE Greg Isenberg row
+    const primaryNav = screen.getByRole("navigation", { name: "主导航" });
+    fireEvent.click(within(primaryNav).getByRole("button", { name: "关注" }));
+    const retryBtn = await screen.findByRole("button", { name: "立即重检" });
+    fireEvent.click(retryBtn);
+
+    await waitFor(() => expect(retriedSourceCheck).toBe(true));
+  });
 });
