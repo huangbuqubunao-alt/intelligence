@@ -30,6 +30,8 @@ import { UiThemeProvider, useUiTheme } from "./ui/theme";
 import { savedLanguage, UiLanguageProvider, useUiLanguage } from "./uiLanguage";
 import {
   AiScoreBadge,
+  exportObsidianVaultBundle,
+  isKeyboardShortcutBlocked,
   readTopicAiEvolution,
   readVideoAiBrief,
   readWeeklyAiBrief,
@@ -1544,6 +1546,7 @@ function Workspace() {
     { id: "nav:Research", group: "navigation", label: t("Research"), subtitle: t(subtitles.Research), icon: "quotes", aliases: ["research", "研究", "qa", "问答", "跨视频"], onSelect: () => navigate("Research") },
     { id: "nav:Settings", group: "navigation", label: t("Settings"), subtitle: t(subtitles.Settings), icon: "sliders-horizontal", aliases: ["settings", "设置", "model", "budget"], onSelect: () => navigate("Settings") },
     { id: "act:ai-qa", group: "actions", label: language === "zh-CN" ? "AI 跨视频深度问答" : "Ask cross-video AI Q&A", icon: "sparkle", aliases: ["qa", "ask", "ai", "问答", "跨视频", "提问"], onSelect: () => navigate("Research") },
+    { id: "act:export-obsidian-zip", group: "actions", label: language === "zh-CN" ? "导出 Obsidian 双链知识库包 (.zip)" : "Export Obsidian Vault bundle (.zip)", icon: "archive", aliases: ["obsidian", "vault", "zip", "wikilinks", "双链", "导出", "知识库"], onSelect: () => { void exportObsidianVaultBundle("must_watch"); } },
     { id: "act:add-video", group: "actions", label: t("Add video or follow channel"), icon: "plus", aliases: ["add", "import", "youtube", "bilibili", "导入", "添加"], onSelect: () => setAddProvider("YOUTUBE") },
     { id: "act:add-local", group: "actions", label: t("Import local file"), icon: "file-text", aliases: ["local", "file", "本地文件", "转写"], onSelect: () => setAddProvider("LOCAL") },
     { id: "act:theme", group: "actions", label: t(theme === "dark" ? "Switch to Warm Paper Light theme" : "Switch to Obsidian Dark theme"), icon: theme === "dark" ? "sun" : "moon", aliases: ["theme", "dark", "light", "主题", "浅色", "深色"], onSelect: toggleTheme },
@@ -2126,6 +2129,27 @@ function ContentPage(
   const [bucketFilter, setBucketFilter] = useState<
     "ALL" | "UNREAD" | "MUST_WATCH" | "STARRED" | "TUTORIAL" | "SHORTS"
   >("ALL");
+  const [topicFilter, setTopicFilter] = useState<string>("ALL");
+  const [kbActiveId, setKbActiveId] = useState<string | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const kbContextRef = useRef<{
+    isListActive: boolean;
+    primaryIds: string[];
+    activeId: string | null;
+    briefMap: Map<string, VideoAiBrief>;
+    toggleRowCuration: (
+      videoId: string,
+      patchBody: { starred?: boolean; is_read?: boolean },
+    ) => Promise<void>;
+    onOpen: (id: string) => void;
+  }>({
+    isListActive: false,
+    primaryIds: [],
+    activeId: null,
+    briefMap: new Map(),
+    toggleRowCuration: async () => {},
+    onOpen,
+  });
   const [curationBusyId, setCurationBusyId] = useState<string | null>(null);
   const [aiSyncState, setAiSyncState] = useState<{
     running: boolean;
@@ -2157,6 +2181,70 @@ function ContentPage(
     const timer = setTimeout(() => setRevision(value => value + 1), 2000);
     return () => clearTimeout(timer);
   }, [list.data, targetVideoId, batchState?.running]);
+  kbContextRef.current.isListActive = false;
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const ctx = kbContextRef.current;
+      if (!ctx.isListActive) return;
+      if (isKeyboardShortcutBlocked(event)) return;
+      if (event.key === "/") {
+        if (searchInputRef.current) {
+          event.preventDefault();
+          searchInputRef.current.focus();
+          searchInputRef.current.select?.();
+        }
+        return;
+      }
+      if (ctx.primaryIds.length === 0) return;
+      const currentIdx = ctx.activeId ? ctx.primaryIds.indexOf(ctx.activeId) : 0;
+      const resolvedIdx = currentIdx >= 0 ? currentIdx : 0;
+      const currentId = ctx.primaryIds[resolvedIdx];
+      const key = event.key.toLowerCase();
+      if (key === "j" || key === "k") {
+        event.preventDefault();
+        if (
+          document.activeElement instanceof HTMLElement &&
+          document.activeElement !== document.body
+        ) {
+          document.activeElement.blur();
+        }
+        const nextIdx =
+          key === "j"
+            ? Math.min(ctx.primaryIds.length - 1, resolvedIdx + 1)
+            : Math.max(0, resolvedIdx - 1);
+        const nextId = ctx.primaryIds[nextIdx];
+        setKbActiveId(nextId);
+        const safeSelectorId =
+          typeof CSS !== "undefined" && typeof CSS.escape === "function"
+            ? CSS.escape(nextId)
+            : nextId.replace(/"/g, '\\"');
+        const rowEl = document.querySelector(`[data-kb-video-id="${safeSelectorId}"]`);
+        rowEl?.scrollIntoView?.({ block: "nearest" });
+      } else if (key === "s" && currentId) {
+        const brief = ctx.briefMap.get(currentId);
+        if (!brief) return;
+        event.preventDefault();
+        void ctx.toggleRowCuration(currentId, { starred: !brief.starred });
+      } else if (key === "e" && currentId) {
+        const brief = ctx.briefMap.get(currentId);
+        if (!brief) return;
+        event.preventDefault();
+        void ctx.toggleRowCuration(currentId, { is_read: !brief.is_read });
+      } else if (event.key === "Enter" && currentId) {
+        const interactiveFocused =
+          (event.target instanceof HTMLElement &&
+            event.target.closest("button, a, summary, details, [role='button']")) ||
+          (document.activeElement instanceof HTMLElement &&
+            document.activeElement !== document.body &&
+            document.activeElement.closest("button, a, summary, details, [role='button']"));
+        if (interactiveFocused) return;
+        event.preventDefault();
+        ctx.onOpen(currentId);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
   if (list.error) return <ErrorState error={list.error} code={list.errorCode} onReload={list.reload} />;
   if (!list.data) return <Empty>Loading Content…</Empty>;
   if (targetVideoId) {
@@ -2358,9 +2446,63 @@ function ContentPage(
     }
   };
   const trimmedSearch = searchQuery.trim().toLowerCase();
-  const filteredVideos = videos.filter(item => {
+  const isAutoFoldedItem = (item: ContentItem) =>
+    Boolean(
+      briefByVideoId.get(item.video_id)?.is_short_noise ||
+        item.work_kind === "DURABLE_CONTENT_IDENTITY",
+    );
+  const topicCountMap = new Map<string, number>();
+  for (const item of videos) {
+    const itemProvider = item.provider ?? "YOUTUBE";
+    if (providerFilter !== "ALL" && itemProvider !== providerFilter) continue;
+    if (item.work_kind === "DURABLE_CONTENT_IDENTITY") continue;
+    const b = briefByVideoId.get(item.video_id);
+    if (!b || b.is_short_noise || !b.topic_cluster_zh.trim()) continue;
+    const cluster = b.topic_cluster_zh.trim();
+    topicCountMap.set(cluster, (topicCountMap.get(cluster) ?? 0) + 1);
+  }
+  const topicClusterCounts = Array.from(topicCountMap.entries()).sort(
+    (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
+  );
+  const providerAndTopicVideos = videos.filter((item) => {
     const itemProvider = item.provider ?? "YOUTUBE";
     if (providerFilter !== "ALL" && itemProvider !== providerFilter) return false;
+    if (topicFilter !== "ALL") {
+      const b = briefByVideoId.get(item.video_id);
+      if (!b || b.topic_cluster_zh.trim() !== topicFilter) return false;
+    }
+    return true;
+  });
+  const bucketCounts: Record<
+    "ALL" | "UNREAD" | "MUST_WATCH" | "STARRED" | "TUTORIAL" | "SHORTS",
+    number
+  > = {
+    ALL: providerAndTopicVideos.filter((item) => !isAutoFoldedItem(item)).length,
+    UNREAD: providerAndTopicVideos.filter((item) => {
+      if (item.work_kind === "DURABLE_CONTENT_IDENTITY") return false;
+      const b = briefByVideoId.get(item.video_id);
+      return Boolean(b && !b.is_short_noise && !b.is_read);
+    }).length,
+    MUST_WATCH: providerAndTopicVideos.filter((item) => {
+      const b = briefByVideoId.get(item.video_id);
+      return Boolean(b && !b.is_short_noise && b.recommendation_tier === "MUST_WATCH");
+    }).length,
+    STARRED: providerAndTopicVideos.filter((item) =>
+      Boolean(briefByVideoId.get(item.video_id)?.starred),
+    ).length,
+    TUTORIAL: providerAndTopicVideos.filter(
+      (item) => briefByVideoId.get(item.video_id)?.content_bucket === "TUTORIAL",
+    ).length,
+    SHORTS: providerAndTopicVideos.filter((item) => {
+      const b = briefByVideoId.get(item.video_id);
+      const p = item.provider ?? "YOUTUBE";
+      return b
+        ? b.is_short_noise || b.content_bucket === "SHORTS_PROMO"
+        : p === "YOUTUBE" && (item.duration_seconds ?? 9999) <= 95;
+    }).length,
+  };
+  const filteredVideos = providerAndTopicVideos.filter(item => {
+    const itemProvider = item.provider ?? "YOUTUBE";
     const brief = briefByVideoId.get(item.video_id) ?? null;
     if (bucketFilter === "UNREAD") {
       if (item.work_kind === "DURABLE_CONTENT_IDENTITY") return false;
@@ -2382,16 +2524,22 @@ function ContentPage(
     return haystack.includes(trimmedSearch);
   });
   const shouldFoldShorts = hasAiBriefs && bucketFilter === "ALL" && !trimmedSearch;
-  const isAutoFoldedItem = (item: ContentItem) =>
-    Boolean(
-      briefByVideoId.get(item.video_id)?.is_short_noise ||
-        item.work_kind === "DURABLE_CONTENT_IDENTITY",
-    );
   const primaryVideos = shouldFoldShorts
     ? [...filteredVideos.filter(item => !isAutoFoldedItem(item))].sort(
         (a, b) => (briefByVideoId.get(b.video_id)?.score ?? -1) - (briefByVideoId.get(a.video_id)?.score ?? -1),
       )
     : filteredVideos;
+  const primaryIds = primaryVideos.map((v) => v.video_id);
+  const effectiveKbActiveId =
+    kbActiveId && primaryIds.includes(kbActiveId) ? kbActiveId : (primaryIds[0] ?? null);
+  kbContextRef.current = {
+    isListActive: videos.length > 0,
+    primaryIds,
+    activeId: effectiveKbActiveId,
+    briefMap: briefByVideoId,
+    toggleRowCuration,
+    onOpen,
+  };
   const foldedShorts = shouldFoldShorts
     ? filteredVideos.filter(isAutoFoldedItem)
     : [];
@@ -2401,6 +2549,7 @@ function ContentPage(
   const foldedShortClipCount = foldedShorts.length - foldedPlaceholderCount;
   const renderContentRow = (item: ContentItem) => {
     const brief = briefByVideoId.get(item.video_id) ?? null;
+    const isKbActive = effectiveKbActiveId === item.video_id;
     const isMetadataOnlyYoutube =
       brief?.source_basis === "METADATA_ONLY" &&
       (item.provider ?? "YOUTUBE") === "YOUTUBE" &&
@@ -2413,11 +2562,14 @@ function ContentPage(
           label: language === "zh-CN" ? "无原生字幕" : "No native captions",
         }
       : contentStatus(item.provider, item.processing_status);
+    const hasShell = hasAiBriefs && Boolean(brief) && !item.work_kind;
     const rowButton = (
       <button
         type="button"
-        className={`list-row content-media-row${brief?.is_read ? " is-read-row" : ""}`}
-        key={hasAiBriefs && brief && !item.work_kind ? undefined : item.video_id}
+        className={`list-row content-media-row${brief?.is_read ? " is-read-row" : ""}${!hasShell && isKbActive ? " is-kb-active" : ""}`}
+        key={hasShell ? undefined : item.video_id}
+        data-kb-video-id={hasShell ? undefined : item.video_id}
+        data-kb-active={!hasShell && isKbActive ? "true" : undefined}
         onClick={() => onOpen(item.video_id)}
       >
         <span className="content-media-lead">
@@ -2460,15 +2612,18 @@ function ContentPage(
         </span>
       </button>
     );
-    if (!hasAiBriefs || !brief || item.work_kind) {
+    if (!hasShell || !brief) {
       return rowButton;
     }
     const zh = language === "zh-CN";
     const rowBusy = curationBusyId === item.video_id;
     return (
       <div
-        className={`content-row-shell${brief.is_read ? " is-read-shell" : ""}`}
+        className={`content-row-shell${brief.is_read ? " is-read-shell" : ""}${isKbActive ? " is-kb-active" : ""}`}
         key={item.video_id}
+        data-kb-video-id={item.video_id}
+        data-kb-active={isKbActive ? "true" : undefined}
+        onMouseEnter={() => setKbActiveId(item.video_id)}
       >
         {rowButton}
         <div
@@ -2646,6 +2801,7 @@ function ContentPage(
           <div className="search-field-wrap">
             <PhosphorIcon name="magnifying-glass" size={15} className="search-field-icon" />
             <input
+              ref={searchInputRef}
               type="search"
               aria-label={t("Search Content library")}
               placeholder={t("Filter by title or channel…")}
@@ -2672,14 +2828,35 @@ function ContentPage(
                 <button
                   key={key}
                   type="button"
+                  aria-label={label}
                   aria-pressed={bucketFilter === key}
                   className={bucketFilter === key ? "active" : ""}
                   onClick={() => setBucketFilter(key)}
                 >
-                  {label}
+                  <span>{label}</span>
+                  <span className="bucket-count-badge tabular-nums" aria-hidden="true">
+                    {bucketCounts[key]}
+                  </span>
                 </button>
               ))}
             </div>
+          )}
+          {hasAiBriefs && topicClusterCounts.length > 1 && (
+            <select
+              className="content-topic-select tabular-nums"
+              aria-label={language === "zh-CN" ? "按专题筛选内容" : "Filter Content by topic"}
+              value={topicFilter}
+              onChange={(event) => setTopicFilter(event.target.value)}
+            >
+              <option value="ALL">
+                {language === "zh-CN" ? "全部专题" : "All topics"}
+              </option>
+              {topicClusterCounts.map(([clusterName, count]) => (
+                <option key={clusterName} value={clusterName}>
+                  {clusterName} ({count})
+                </option>
+              ))}
+            </select>
           )}
           {hasMultiProviders && (
             <div className="segmented library-provider-chips" role="group" aria-label={t("All sources")}>
@@ -2702,6 +2879,13 @@ function ContentPage(
                   </button>
                 ))}
             </div>
+          )}
+          {hasAiBriefs && primaryVideos.length > 0 && (
+            <span className="kb-shortcut-hint" aria-hidden="true">
+              {language === "zh-CN"
+                ? "快捷键：/ 搜索 · J/K 选行 · Enter 阅读 · S 收藏 · E 已读"
+                : "Keys: / search · J/K move · Enter open · S star · E read"}
+            </span>
           )}
         </div>
         {filteredVideos.length ? (
@@ -2738,7 +2922,7 @@ function ContentPage(
         ) : (
           <Empty>
             <p>{t("No Content matches your current search or filter.")}</p>
-            <button type="button" className="button button-secondary" onClick={() => { setSearchQuery(""); setProviderFilter("ALL"); setBucketFilter("ALL"); }}>
+            <button type="button" className="button button-secondary" onClick={() => { setSearchQuery(""); setProviderFilter("ALL"); setBucketFilter("ALL"); setTopicFilter("ALL"); }}>
               {t("Clear filter")}
             </button>
           </Empty>
@@ -3224,6 +3408,7 @@ function ContentDetailPanel(
             obsidianMarkdown={data.obsidian_markdown}
             nextUnreadVideo={nextUnreadVideo}
             onAdvanceToVideo={onAdvanceToVideo}
+            onBack={onClose}
             onCompleted={() => {
               setRefresh(value => value + 1);
               setEvidenceRefresh(value => value + 1);

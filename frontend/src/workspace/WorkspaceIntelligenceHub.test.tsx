@@ -2120,4 +2120,365 @@ describe("Workspace AI Upgrade (P0 + P1 + P2)", () => {
     await waitFor(() => expect(location.hash).toBe("#Content/vid-read-2"));
     expect(await screen.findByText("5. Hidden Beyond Forty.mp4")).toBeTruthy();
   });
+
+  it("R5: surfaces Weekly Brief incremental freshness banner with 1-click regenerate and exports Obsidian [[wikilinks]] Vault .zip bundle", async () => {
+    location.hash = "#Home";
+    let refreshed = false;
+    const bundleCalls: string[] = [];
+    const createObjectURL = vi.fn(() => "blob:obsidian-vault-zip");
+    const revokeObjectURL = vi.fn();
+    Object.assign(URL, { createObjectURL, revokeObjectURL });
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+
+    const staleBrief = {
+      brief_id: "wb-2026-w46-stale",
+      week_label: "2026-W46",
+      title_zh: "《本周 AI 产品与商业情报周报》",
+      executive_summary_zh: "旧版周报摘要：涵盖前序 34 篇内容。",
+      core_trends_zh: ["端侧推理与受控 Agent 融合"],
+      product_opportunities_zh: ["私有情报工作台"],
+      business_opportunities_zh: ["年费订阅制"],
+      must_watch_picks: [],
+      funnel_stats: {
+        total_videos: 113,
+        distilled_count: 34,
+        must_watch_count: 29,
+        shorts_filtered_count: 79,
+      },
+      freshness: {
+        is_archive: false,
+        is_stale: true,
+        new_videos_count: 2,
+        new_must_watch_count: 1,
+        new_titles: ["OpenAI Agent SDK Deep Dive", "Solo SaaS Pricing"],
+      },
+      obsidian_markdown: "# 旧版周报\n\n- [[AI Agent 与自动化架构]]",
+      provider: "ollama",
+      model: "qwen3.5:9b",
+      created_at: "2026-11-14T16:44:00Z",
+      history: [
+        {
+          brief_id: "wb-2026-w46-stale",
+          title_zh: "《本周 AI 产品与商业情报周报》",
+          created_at: "2026-11-14T16:44:00Z",
+          must_watch_count: 29,
+          distilled_count: 34,
+          total_videos: 113,
+        },
+      ],
+    };
+
+    const freshBrief = {
+      ...staleBrief,
+      brief_id: "wb-2026-w46-fresh",
+      executive_summary_zh: "最新版周报摘要：已纳入最新 2 篇深度干货。",
+      funnel_stats: {
+        total_videos: 115,
+        distilled_count: 36,
+        must_watch_count: 30,
+        shorts_filtered_count: 79,
+      },
+      freshness: {
+        is_archive: false,
+        is_stale: false,
+        new_videos_count: 0,
+        new_must_watch_count: 0,
+        new_titles: [],
+      },
+    };
+
+    const fetchMock = vi.fn((input: string, init?: RequestInit) => {
+      if (input.endsWith("/workspace-ai/weekly-brief/generate") && init?.method === "POST") {
+        refreshed = true;
+        return okJson({ weekly_brief: freshBrief, history: freshBrief.history });
+      }
+      if (input.includes("/workspace-ai/obsidian-bundle")) {
+        bundleCalls.push(input);
+        return okJson({
+          filename: "Obsidian-AI情报知识库-all-2026-11-15.zip",
+          scope: "all",
+          counts: {
+            total_files: 8,
+            video_notes: 4,
+            topic_mocs: 2,
+            weekly_briefs: 1,
+            research_qa_notes: 1,
+          },
+          index_markdown: "# AI 情报知识库总览 (MOC)",
+          archive_base64: "UEsFBgAAAAAAAAAAAAAAAAAAAAAAAA==",
+        });
+      }
+      if (input.endsWith("/dashboard")) {
+        return okJson({
+          intelligence: [],
+          pinned_topics: [],
+          needs_attention: [],
+          operations: { source_count: 3 },
+          workspace_weekly_brief: refreshed ? freshBrief : staleBrief,
+        });
+      }
+      if (input.includes("/changes/recent")) {
+        return okJson({
+          window: {
+            start_at: "2026-11-08T00:00:00Z",
+            end_at: "2026-11-15T00:00:00Z",
+            timezone: "Asia/Shanghai",
+            days: 7,
+          },
+          status: "COMPLETE",
+          degraded_sections: [],
+          counts: {
+            intelligence_added: 0,
+            intelligence_updated: 0,
+            topics_changed: 0,
+            content_processed: 0,
+            sources_needing_attention: 0,
+          },
+          groups: {
+            intelligence_added: [],
+            intelligence_updated: [],
+            topics_changed: [],
+            content_processed: [],
+            sources_needing_attention: [],
+          },
+        });
+      }
+      return okJson({});
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    expect(await screen.findByText(/自上次生成周报以来新增 2 篇干货（含 1 篇必看）/)).toBeTruthy();
+    expect(screen.getByText(/OpenAI Agent SDK Deep Dive/)).toBeTruthy();
+
+    // 1-click refresh incorporates new videos and clears the staleness banner
+    fireEvent.click(screen.getByRole("button", { name: "立即纳入刷新周报" }));
+    expect(await screen.findByText("最新版周报摘要：已纳入最新 2 篇深度干货。")).toBeTruthy();
+    expect(screen.queryByText(/自上次生成周报以来新增/)).toBeNull();
+
+    // Select scope "all" and export Obsidian Vault .zip bundle
+    const scopeSelect = screen.getByRole("combobox", { name: "Obsidian 知识库包导出范围" });
+    fireEvent.change(scopeSelect, { target: { value: "all" } });
+    fireEvent.click(screen.getByRole("button", { name: "导出 Obsidian 知识库包 (.zip)" }));
+
+    await waitFor(() =>
+      expect(bundleCalls.some((url) => url.includes("scope=all"))).toBe(true),
+    );
+    expect(await screen.findByText(/已导出 Obsidian 双链知识库包（共 8 篇 \.md 笔记/)).toBeTruthy();
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("R5: displays live bucket counts, filters Content by AI topic cluster, and supports guarded keyboard triage in list and detail reader", async () => {
+    location.hash = "#Content";
+    const starredIds = new Set<string>();
+    const readIds = new Set<string>();
+    const curationCalls: Array<{ id: string; body: { starred?: boolean; is_read?: boolean } }> = [];
+
+    const buildItems = () => [
+      {
+        video_id: "vid-agent",
+        provider: "YOUTUBE" as const,
+        channel_id: "UC-openai",
+        channel_name: "OpenAI",
+        title: "Agent Orchestration Masterclass",
+        source_url: "https://www.youtube.com/watch?v=vid-agent",
+        published_at: "2026-11-14T10:00:00Z",
+        processing_status: "READY",
+        duration_seconds: 1800,
+        last_updated: "2026-11-14T10:05:00Z",
+        ai_brief: {
+          video_id: "vid-agent",
+          source_basis: "TRANSCRIPT" as const,
+          headline_zh: "状态机编排让多步 Agent 可恢复可审计。",
+          summary_zh: "详解长任务恢复机制。",
+          score: 9.4,
+          score_reason_zh: "架构干货密度极高",
+          recommendation_tier: "MUST_WATCH" as const,
+          content_bucket: "DEEP_DIVE" as const,
+          is_short_noise: false,
+          starred: starredIds.has("vid-agent"),
+          is_read: readIds.has("vid-agent"),
+          topics_zh: ["Agent"],
+          topic_cluster_zh: "AI Agent 与自动化架构",
+          product_opportunities_zh: [],
+          business_opportunities_zh: [],
+        },
+      },
+      {
+        video_id: "vid-biz",
+        provider: "YOUTUBE" as const,
+        channel_id: "UC-greg",
+        channel_name: "Greg Isenberg",
+        title: "Solo SaaS Pricing Tutorial",
+        source_url: "https://www.youtube.com/watch?v=vid-biz",
+        published_at: "2026-11-13T10:00:00Z",
+        processing_status: "READY",
+        duration_seconds: 1500,
+        last_updated: "2026-11-13T10:05:00Z",
+        ai_brief: {
+          video_id: "vid-biz",
+          source_basis: "TRANSCRIPT" as const,
+          headline_zh: "围绕高客单价年费阶梯设计一人公司定价。",
+          summary_zh: "实操定价教程。",
+          score: 8.6,
+          score_reason_zh: "实操框架清晰",
+          recommendation_tier: "MUST_WATCH" as const,
+          content_bucket: "TUTORIAL" as const,
+          is_short_noise: false,
+          starred: starredIds.has("vid-biz"),
+          is_read: readIds.has("vid-biz"),
+          topics_zh: ["定价"],
+          topic_cluster_zh: "AI 产品机会与一人公司变现",
+          product_opportunities_zh: [],
+          business_opportunities_zh: [],
+        },
+      },
+      {
+        video_id: "vid-short",
+        provider: "YOUTUBE" as const,
+        channel_id: "UC-openai",
+        channel_name: "OpenAI",
+        title: "Teaser Clip #1",
+        source_url: "https://www.youtube.com/watch?v=vid-short",
+        published_at: "2026-11-12T10:00:00Z",
+        processing_status: "ORGANIZED",
+        duration_seconds: 42,
+        last_updated: "2026-11-12T10:05:00Z",
+        ai_brief: {
+          video_id: "vid-short",
+          source_basis: "TRANSCRIPT" as const,
+          headline_zh: "发布会预热短片",
+          summary_zh: "短片",
+          score: 2.8,
+          score_reason_zh: "短片",
+          recommendation_tier: "SKIP_NOISE" as const,
+          content_bucket: "SHORTS_PROMO" as const,
+          is_short_noise: true,
+          starred: false,
+          is_read: false,
+          topics_zh: ["短片"],
+          topic_cluster_zh: "大模型演进与多模态实战",
+          product_opportunities_zh: [],
+          business_opportunities_zh: [],
+        },
+      },
+    ];
+
+    const fetchMock = vi.fn((input: string, init?: RequestInit) => {
+      const curMatch = input.match(/\/workspace-ai\/videos\/([^/]+)\/curation$/);
+      if (curMatch && init?.method === "POST") {
+        const vid = decodeURIComponent(curMatch[1]);
+        const body = JSON.parse(String(init.body)) as { starred?: boolean; is_read?: boolean };
+        curationCalls.push({ id: vid, body });
+        if (typeof body.starred === "boolean") {
+          if (body.starred) starredIds.add(vid);
+          else starredIds.delete(vid);
+        }
+        if (typeof body.is_read === "boolean") {
+          if (body.is_read) readIds.add(vid);
+          else readIds.delete(vid);
+        }
+        return okJson({
+          video_id: vid,
+          starred: starredIds.has(vid),
+          is_read: readIds.has(vid),
+        });
+      }
+      if (input.endsWith("/videos")) {
+        return okJson({ videos: buildItems() });
+      }
+      if (input.endsWith("/videos/vid-agent")) {
+        return okJson({
+          video: buildItems()[0],
+          transcript: { status: "AVAILABLE", text: "Agent orchestration transcript." },
+          note: { v2: { status: "UNAVAILABLE" } },
+          intelligence_result: { status: "NOT_PROCESSED" },
+          history: [],
+        });
+      }
+      if (input.endsWith("/videos/vid-biz")) {
+        return okJson({
+          video: buildItems()[1],
+          transcript: { status: "AVAILABLE", text: "Pricing tutorial transcript." },
+          note: { v2: { status: "UNAVAILABLE" } },
+          intelligence_result: { status: "NOT_PROCESSED" },
+          history: [],
+        });
+      }
+      if (input.endsWith("/evidence")) return okJson({ evidence: [] });
+      if (input.endsWith("/intelligence")) return okJson({ intelligence: [] });
+      if (input.endsWith("/topics")) return okJson({ topics: [] });
+      return okJson({});
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { container } = render(<App />);
+    expect(await screen.findByText("Agent Orchestration Masterclass")).toBeTruthy();
+
+    // 1) Live numerical bucket counts while keeping exact accessible names
+    const filterGroup = screen.getByRole("group", { name: "内容价值分流" });
+    const allBtn = within(filterGroup).getByRole("button", { name: "全部" });
+    const unreadBtn = within(filterGroup).getByRole("button", { name: "未读干货" });
+    const starredBtn = within(filterGroup).getByRole("button", { name: "已收藏" });
+    const tutorialBtn = within(filterGroup).getByRole("button", { name: "实操教程" });
+    const shortsBtn = within(filterGroup).getByRole("button", { name: "Shorts 短片" });
+    expect(allBtn.querySelector(".bucket-count-badge")?.textContent).toBe("2");
+    expect(unreadBtn.querySelector(".bucket-count-badge")?.textContent).toBe("2");
+    expect(starredBtn.querySelector(".bucket-count-badge")?.textContent).toBe("0");
+    expect(tutorialBtn.querySelector(".bucket-count-badge")?.textContent).toBe("1");
+    expect(shortsBtn.querySelector(".bucket-count-badge")?.textContent).toBe("1");
+
+    // 2) Filter by AI Topic Cluster dropdown
+    const topicSelect = screen.getByRole("combobox", { name: "按专题筛选内容" });
+    fireEvent.change(topicSelect, { target: { value: "AI 产品机会与一人公司变现" } });
+    expect(screen.queryByText("Agent Orchestration Masterclass")).toBeNull();
+    expect(screen.getByText("Solo SaaS Pricing Tutorial")).toBeTruthy();
+
+    // Reset topic filter back to ALL
+    fireEvent.change(topicSelect, { target: { value: "ALL" } });
+    expect(screen.getByText("Agent Orchestration Masterclass")).toBeTruthy();
+    expect(screen.getByText("Solo SaaS Pricing Tutorial")).toBeTruthy();
+
+    // 3) Guarded keyboard triage: "/" focuses search input; typing "s" inside input is ignored
+    const searchInput = screen.getByRole("searchbox", { name: "搜索内容库" }) as HTMLInputElement;
+    fireEvent.keyDown(window, { key: "/" });
+    expect(document.activeElement).toBe(searchInput);
+    fireEvent.keyDown(searchInput, { key: "s" });
+    expect(curationCalls.length).toBe(0);
+
+    // Blur search input -> j / k navigates rows -> s stars active row -> Enter opens detail
+    searchInput.blur();
+    fireEvent.keyDown(window, { key: "j" });
+    await waitFor(() => {
+      const activeShell = container.querySelector('[data-kb-active="true"]');
+      expect(activeShell?.textContent).toContain("Solo SaaS Pricing Tutorial");
+    });
+    fireEvent.keyDown(window, { key: "k" });
+    await waitFor(() => {
+      const activeShell = container.querySelector('[data-kb-active="true"]');
+      expect(activeShell?.textContent).toContain("Agent Orchestration Masterclass");
+    });
+
+    fireEvent.keyDown(window, { key: "s" });
+    await waitFor(() =>
+      expect(curationCalls).toContainEqual({ id: "vid-agent", body: { starred: true } }),
+    );
+    await waitFor(() =>
+      expect(starredBtn.querySelector(".bucket-count-badge")?.textContent).toBe("1"),
+    );
+
+    fireEvent.keyDown(document.body, { key: "Enter" });
+    await waitFor(() => expect(location.hash).toBe("#Content/vid-agent"));
+    expect(await screen.findByRole("button", { name: "返回内容" })).toBeTruthy();
+
+    // 4) Detail reader keyboard shortcuts: "e" marks read & advances to vid-biz; "u" returns to #Content
+    fireEvent.keyDown(window, { key: "e" });
+    await waitFor(() => expect(readIds.has("vid-agent")).toBe(true));
+    await waitFor(() => expect(location.hash).toBe("#Content/vid-biz"));
+    expect(await screen.findByText("Solo SaaS Pricing Tutorial")).toBeTruthy();
+
+    fireEvent.keyDown(window, { key: "u" });
+    await waitFor(() => expect(location.hash).toBe("#Content"));
+  });
 });
