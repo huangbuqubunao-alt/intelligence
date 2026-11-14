@@ -281,10 +281,23 @@ class YouTubeFollowingProvider:
             canonical_channel(identity.channel_id, name)
         except (ValueError, ET.ParseError, AdapterError):
             raise TrackingError('METADATA_FAILED') from None
+        def _anchor_matches(prior_item: Candidate, feed_item: Candidate) -> bool:
+            if feed_item == prior_item:
+                return True
+            return (
+                feed_item.identity == prior_item.identity
+                and prior_item.published_at.time() == datetime.min.time()
+                and abs((feed_item.published_at - prior_item.published_at).total_seconds()) <= 48 * 3600
+            )
+
         # The newest three identities from the last verified window form an
         # overlap boundary. A missing anchor, empty changed shape or window jump
         # cannot close the gap. Failed scans never replace this boundary.
-        complete = initial or (bool(prior) and all(item.identity in items and items[item.identity] == item for item in prior)) or (not known and len(items) < MAX_ENTRIES)
+        complete = (
+            initial
+            or (bool(prior) and all(item.identity in items and _anchor_matches(item, items[item.identity]) for item in prior))
+            or (not known and len(items) < MAX_ENTRIES)
+        )
         return Enumeration(name, tuple(items.values()), complete, 1)
 
     def _enumerate_uploads(
