@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 import { ApiRequestError, api, post, put } from "../api/client";
 import { pulseCelebration } from "./motion";
 import { OpenResearchSource } from "./ResearchTypes";
@@ -65,14 +65,63 @@ export type AiResearchCitation = {
 export type AiResearchSession = {
   session_id: string;
   question: string;
+  scope_label_zh: string;
   answer_zh: string;
   key_takeaways_zh: string[];
+  action_items_zh: string[];
   citations: AiResearchCitation[];
   obsidian_markdown: string;
   provider: string;
   model: string;
   created_at: string;
 };
+
+export type ResearchScopeOptions = {
+  channels: { key: string; label: string; count: number }[];
+  topic_clusters: { name: string; count: number }[];
+  videos: {
+    video_id: string;
+    title: string;
+    channel_name: string;
+    score: number | null;
+    topic_cluster_zh?: string;
+  }[];
+};
+
+export type TopicAiEvolutionEntry = {
+  video_id: string;
+  title: string;
+  channel_name: string;
+  published_at: string;
+  score: number;
+  recommendation_tier: "MUST_WATCH" | "WORTH_SKIMMING" | "SKIP_NOISE";
+  source_basis: "TRANSCRIPT" | "METADATA_ONLY";
+  headline_zh: string;
+  summary_zh: string;
+  product_opportunities_zh: string[];
+  business_opportunities_zh: string[];
+};
+
+export type TopicAiEvolution = {
+  video_count: number;
+  must_watch_count: number;
+  avg_score: number | null;
+  latest_headline_zh: string;
+  source_channels: string[];
+  entries: TopicAiEvolutionEntry[];
+};
+
+let pendingResearchTopicCluster = "";
+
+export function setPendingResearchTopicCluster(topicName: string): void {
+  pendingResearchTopicCluster = topicName.trim();
+}
+
+export function consumePendingResearchTopicCluster(): string {
+  const next = pendingResearchTopicCluster;
+  pendingResearchTopicCluster = "";
+  return next;
+}
 
 export type WorkspaceAiSettings = {
   active_mode: "local_ollama" | "cloud_byok";
@@ -192,13 +241,92 @@ function readAiResearchSession(raw: unknown): AiResearchSession | null {
   return {
     session_id: raw.session_id,
     question: typeof raw.question === "string" ? raw.question : "",
+    scope_label_zh: typeof raw.scope_label_zh === "string" ? raw.scope_label_zh : "",
     answer_zh: raw.answer_zh,
     key_takeaways_zh: strArr(raw.key_takeaways_zh),
+    action_items_zh: strArr(raw.action_items_zh),
     citations,
     obsidian_markdown: typeof raw.obsidian_markdown === "string" ? raw.obsidian_markdown : "",
     provider: typeof raw.provider === "string" ? raw.provider : "ollama",
     model: typeof raw.model === "string" ? raw.model : "qwen3.5:9b",
     created_at: typeof raw.created_at === "string" ? raw.created_at : "",
+  };
+}
+
+function readResearchScopeOptions(raw: unknown): ResearchScopeOptions | null {
+  if (!isRec(raw)) return null;
+  const channels = Array.isArray(raw.channels)
+    ? raw.channels
+        .filter(isRec)
+        .map((ch) => ({
+          key: typeof ch.key === "string" ? ch.key.trim() : "",
+          label: typeof ch.label === "string" ? ch.label.trim() : "",
+          count: typeof ch.count === "number" ? ch.count : 0,
+        }))
+        .filter((ch) => ch.key.length > 0 && ch.label.length > 0)
+    : [];
+  const topic_clusters = Array.isArray(raw.topic_clusters)
+    ? raw.topic_clusters
+        .filter(isRec)
+        .map((tc) => ({
+          name: typeof tc.name === "string" ? tc.name.trim() : "",
+          count: typeof tc.count === "number" ? tc.count : 0,
+        }))
+        .filter((tc) => tc.name.length > 0)
+    : [];
+  const videos = Array.isArray(raw.videos)
+    ? raw.videos
+        .filter(isRec)
+        .map((v) => ({
+          video_id: typeof v.video_id === "string" ? v.video_id.trim() : "",
+          title: typeof v.title === "string" && v.title.trim() ? v.title.trim() : String(v.video_id ?? ""),
+          channel_name: typeof v.channel_name === "string" ? v.channel_name.trim() : "",
+          score: typeof v.score === "number" ? v.score : null,
+          topic_cluster_zh: typeof v.topic_cluster_zh === "string" ? v.topic_cluster_zh : undefined,
+        }))
+        .filter((v) => v.video_id.length > 0)
+    : [];
+  return { channels, topic_clusters, videos };
+}
+
+export function readTopicAiEvolution(raw: unknown): TopicAiEvolution | null {
+  if (!isRec(raw) || typeof raw.video_count !== "number") return null;
+  const entries: TopicAiEvolutionEntry[] = Array.isArray(raw.entries)
+    ? raw.entries
+        .filter(isRec)
+        .map((e): TopicAiEvolutionEntry => {
+          const score = typeof e.score === "number" ? e.score : 8.0;
+          const tier = e.recommendation_tier;
+          return {
+            video_id: typeof e.video_id === "string" ? e.video_id : "",
+            title: typeof e.title === "string" && e.title.trim() ? e.title : String(e.video_id ?? ""),
+            channel_name: typeof e.channel_name === "string" ? e.channel_name : "",
+            published_at: typeof e.published_at === "string" ? e.published_at : "",
+            score,
+            recommendation_tier:
+              tier === "MUST_WATCH" || tier === "WORTH_SKIMMING" || tier === "SKIP_NOISE"
+                ? tier
+                : score >= 8
+                  ? "MUST_WATCH"
+                  : score >= 5
+                    ? "WORTH_SKIMMING"
+                    : "SKIP_NOISE",
+            source_basis: e.source_basis === "METADATA_ONLY" ? "METADATA_ONLY" : "TRANSCRIPT",
+            headline_zh: typeof e.headline_zh === "string" ? e.headline_zh : "",
+            summary_zh: typeof e.summary_zh === "string" ? e.summary_zh : "",
+            product_opportunities_zh: strArr(e.product_opportunities_zh),
+            business_opportunities_zh: strArr(e.business_opportunities_zh),
+          };
+        })
+        .filter((e) => e.video_id.length > 0)
+    : [];
+  return {
+    video_count: raw.video_count,
+    must_watch_count: typeof raw.must_watch_count === "number" ? raw.must_watch_count : 0,
+    avg_score: typeof raw.avg_score === "number" ? raw.avg_score : null,
+    latest_headline_zh: typeof raw.latest_headline_zh === "string" ? raw.latest_headline_zh : "",
+    source_channels: strArr(raw.source_channels),
+    entries,
   };
 }
 
@@ -711,11 +839,22 @@ const FALLBACK_QUESTIONS_ZH = [
   "多模态与智能助理课程里有哪些可以直接复用的产品交互模式？",
 ];
 
-export function WorkspaceAiResearchPanel({ onOpen }: { onOpen: OpenResearchSource }) {
+export function WorkspaceAiResearchPanel({
+  onOpen,
+  onAiReady,
+}: {
+  onOpen: OpenResearchSource;
+  onAiReady?: () => void;
+}) {
   const { language } = useUiLanguage();
   const zh = language === "zh-CN";
   const [sessions, setSessions] = useState<AiResearchSession[]>([]);
   const [suggested, setSuggested] = useState<string[]>(FALLBACK_QUESTIONS_ZH);
+  const [scopeOptions, setScopeOptions] = useState<ResearchScopeOptions | null>(null);
+  const [selectedChannel, setSelectedChannel] = useState("");
+  const [selectedTopic, setSelectedTopic] = useState(() => consumePendingResearchTopicCluster());
+  const [comparePickerOpen, setComparePickerOpen] = useState(false);
+  const [selectedVideoIds, setSelectedVideoIds] = useState<string[]>([]);
   const [activeSession, setActiveSession] = useState<AiResearchSession | null>(null);
   const [questionInput, setQuestionInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -724,18 +863,25 @@ export function WorkspaceAiResearchPanel({ onOpen }: { onOpen: OpenResearchSourc
 
   useEffect(() => {
     let alive = true;
-    api<{ sessions?: unknown; suggested_questions?: unknown }>("/workspace-ai/research/sessions")
+    api<{ sessions?: unknown; suggested_questions?: unknown; scope_options?: unknown }>(
+      "/workspace-ai/research/sessions",
+    )
       .then((res) => {
         if (!alive || !isRec(res)) return;
+        if (Array.isArray(res.sessions)) {
+          onAiReady?.();
+        }
         const parsedSessions = Array.isArray(res.sessions)
           ? res.sessions
               .map(readAiResearchSession)
               .filter((s): s is AiResearchSession => s !== null)
           : [];
         const parsedQuestions = strArr(res.suggested_questions);
+        const parsedScopes = readResearchScopeOptions(res.scope_options);
         setSessions(parsedSessions);
         if (parsedSessions.length > 0) setActiveSession(parsedSessions[0]);
         if (parsedQuestions.length > 0) setSuggested(parsedQuestions);
+        if (parsedScopes) setScopeOptions(parsedScopes);
       })
       .catch(() => {
         /* Silently keep fallback suggestions when backend is unenriched */
@@ -745,15 +891,32 @@ export function WorkspaceAiResearchPanel({ onOpen }: { onOpen: OpenResearchSourc
     };
   }, []);
 
+  const hasActiveScope = Boolean(selectedChannel || selectedTopic || selectedVideoIds.length > 0);
+
+  const toggleComparedVideo = (videoId: string) => {
+    setSelectedVideoIds((prev) =>
+      prev.includes(videoId)
+        ? prev.filter((id) => id !== videoId)
+        : prev.length >= 12
+          ? prev
+          : [...prev, videoId],
+    );
+  };
+
   const ask = async (qText: string) => {
     const clean = qText.trim();
     if (!clean || busy) return;
     setBusy(true);
     setError(null);
     try {
-      const res = await post<{ session?: unknown }>("/workspace-ai/research/ask", {
-        question: clean,
-      });
+      const payload: Record<string, unknown> = { question: clean };
+      if (selectedVideoIds.length > 0) {
+        payload.video_ids = selectedVideoIds;
+      } else {
+        if (selectedChannel) payload.channel_key = selectedChannel;
+        if (selectedTopic) payload.topic_cluster = selectedTopic;
+      }
+      const res = await post<{ session?: unknown }>("/workspace-ai/research/ask", payload);
       const session = readAiResearchSession(res.session);
       if (!session) throw new Error("INVALID_SESSION");
       setActiveSession(session);
@@ -763,9 +926,13 @@ export function WorkspaceAiResearchPanel({ onOpen }: { onOpen: OpenResearchSourc
       const code = err instanceof ApiRequestError ? err.code : undefined;
       setError(
         code === "INSUFFICIENT_MATERIAL"
-          ? zh
-            ? "当前资料库尚无带时间轴字幕的内容可供跨视频问答。"
-            : "No timed transcript content is available in your library yet."
+          ? hasActiveScope
+            ? zh
+              ? "当前筛选范围内暂无带时间轴字幕的内容，请放宽来源或专题范围后重试。"
+              : "No timed transcript content matched the selected scope."
+            : zh
+              ? "当前资料库尚无带时间轴字幕的内容可供跨视频问答。"
+              : "No timed transcript content is available in your library yet."
           : zh
             ? "跨视频 AI 问答未能完成，请检查本机 Ollama 或云端引擎配置。"
             : "Cross-video AI Q&A could not complete.",
@@ -780,6 +947,26 @@ export function WorkspaceAiResearchPanel({ onOpen }: { onOpen: OpenResearchSourc
     void ask(questionInput);
   };
 
+  const availableTopics = scopeOptions?.topic_clusters ?? [];
+  const topicNames = new Set(availableTopics.map((t) => t.name));
+  const candidateVideos = (scopeOptions?.videos ?? []).filter((v) => {
+    if (selectedChannel && v.channel_name !== selectedChannel && !(selectedChannel === "LOCAL" && v.channel_name === "本地实战课")) {
+      return false;
+    }
+    if (selectedTopic && v.topic_cluster_zh && v.topic_cluster_zh !== selectedTopic) {
+      return false;
+    }
+    return true;
+  });
+
+  const showScopeBar = Boolean(
+    selectedTopic ||
+      (scopeOptions &&
+        (scopeOptions.channels.length > 0 ||
+          scopeOptions.topic_clusters.length > 0 ||
+          scopeOptions.videos.length > 0)),
+  );
+
   return (
     <section
       className="panel ai-research-qa-panel"
@@ -793,9 +980,127 @@ export function WorkspaceAiResearchPanel({ onOpen }: { onOpen: OpenResearchSourc
       </div>
       <p className="hint">
         {zh
-          ? "跨 OpenAI、Greg Isenberg 与本地实战课自动检索高相关时间轴原话，生成带时间戳引用跳转的中文综合解答。"
-          : "Synthesize grounded answers across your entire video library with clickable timestamped Evidence citations."}
+          ? "支持全库综合提问，也可限定特定频道、专题或勾选多条视频做头对头观点对比，所有结论均附可点击验证的时间轴原话。"
+          : "Synthesize grounded answers across your full library, or scope to a specific source, topic, or multi-video comparison."}
       </p>
+
+      {showScopeBar ? (
+        <div className="ai-scope-filter-bar">
+          {(scopeOptions?.channels.length ?? 0) > 0 ? (
+            <div className="ai-suggested-pills" role="group" aria-label={zh ? "限定来源" : "Filter by source"}>
+              <button
+                type="button"
+                className={`ai-question-chip${!selectedChannel && selectedVideoIds.length === 0 ? " is-active" : ""}`}
+                disabled={busy}
+                onClick={() => {
+                  setSelectedChannel("");
+                  setSelectedVideoIds([]);
+                }}
+              >
+                {zh ? "全部来源" : "All sources"}
+              </button>
+              {scopeOptions?.channels.map((ch) => (
+                <button
+                  key={ch.key}
+                  type="button"
+                  className={`ai-question-chip tabular-nums${selectedChannel === ch.key && selectedVideoIds.length === 0 ? " is-active" : ""}`}
+                  disabled={busy}
+                  onClick={() => {
+                    setSelectedVideoIds([]);
+                    setSelectedChannel((prev) => (prev === ch.key ? "" : ch.key));
+                  }}
+                >
+                  {`${ch.label} (${ch.count})`}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          <div className="ai-scope-secondary-row">
+            {availableTopics.length > 0 || selectedTopic ? (
+              <label className="ai-scope-inline-field">
+                <span>{zh ? "限定专题" : "Topic"}</span>
+                <select
+                  aria-label={zh ? "限定专题" : "Topic scope"}
+                  value={selectedTopic}
+                  disabled={busy}
+                  onChange={(e) => {
+                    setSelectedVideoIds([]);
+                    setSelectedTopic(e.target.value);
+                  }}
+                >
+                  <option value="">{zh ? "全部专题" : "All topics"}</option>
+                  {selectedTopic && !topicNames.has(selectedTopic) ? (
+                    <option value={selectedTopic}>{selectedTopic}</option>
+                  ) : null}
+                  {availableTopics.map((tc) => (
+                    <option key={tc.name} value={tc.name}>
+                      {`${tc.name} (${tc.count})`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+
+            {(scopeOptions?.videos.length ?? 0) > 0 ? (
+              <button
+                type="button"
+                className={`ai-question-chip tabular-nums${comparePickerOpen || selectedVideoIds.length > 0 ? " is-active" : ""}`}
+                disabled={busy}
+                onClick={() => setComparePickerOpen((v) => !v)}
+              >
+                <PhosphorIcon name="funnel" size={12} />
+                {" "}
+                {selectedVideoIds.length > 0
+                  ? zh
+                    ? `指定多视频对比 (已选 ${selectedVideoIds.length})`
+                    : `Compare videos (${selectedVideoIds.length})`
+                  : zh
+                    ? "指定多视频对比"
+                    : "Compare specific videos"}
+              </button>
+            ) : null}
+
+            {hasActiveScope ? (
+              <button
+                type="button"
+                className="button button-ghost button-small"
+                disabled={busy}
+                onClick={() => {
+                  setSelectedChannel("");
+                  setSelectedTopic("");
+                  setSelectedVideoIds([]);
+                  setComparePickerOpen(false);
+                }}
+              >
+                {zh ? "重置范围" : "Reset scope"}
+              </button>
+            ) : null}
+          </div>
+
+          {comparePickerOpen && candidateVideos.length > 0 ? (
+            <div className="ai-video-compare-picker" role="group" aria-label={zh ? "勾选对比视频" : "Select videos to compare"}>
+              {candidateVideos.map((v) => {
+                const checked = selectedVideoIds.includes(v.video_id);
+                return (
+                  <label key={v.video_id} className={`ai-video-compare-option${checked ? " is-checked" : ""}`}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      disabled={busy}
+                      onChange={() => toggleComparedVideo(v.video_id)}
+                    />
+                    <span className="ai-video-compare-title">{v.title}</span>
+                    <small className="tabular-nums">
+                      {[v.channel_name, v.score !== null ? v.score.toFixed(1) : null].filter(Boolean).join(" · ")}
+                    </small>
+                  </label>
+                );
+              })}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       <form className="ai-research-ask-form" onSubmit={handleSubmit}>
         <input
@@ -837,7 +1142,12 @@ export function WorkspaceAiResearchPanel({ onOpen }: { onOpen: OpenResearchSourc
 
       {activeSession ? (
         <div className="ai-qa-answer-box">
-          <h3>{activeSession.question}</h3>
+          <div className="ai-qa-answer-head">
+            <h3>{activeSession.question}</h3>
+            {activeSession.scope_label_zh ? (
+              <span className="ai-basis-pill">{activeSession.scope_label_zh}</span>
+            ) : null}
+          </div>
           <p className="summary-copy">{activeSession.answer_zh}</p>
 
           {activeSession.key_takeaways_zh.length > 0 ? (
@@ -846,6 +1156,17 @@ export function WorkspaceAiResearchPanel({ onOpen }: { onOpen: OpenResearchSourc
                 <li key={idx}>{item}</li>
               ))}
             </ul>
+          ) : null}
+
+          {activeSession.action_items_zh.length > 0 ? (
+            <div className="ai-action-items-block">
+              <h4>{zh ? "下一步可执行动作" : "Next actionable steps"}</h4>
+              <ul>
+                {activeSession.action_items_zh.map((item, idx) => (
+                  <li key={idx}>{item}</li>
+                ))}
+              </ul>
+            </div>
           ) : null}
 
           {activeSession.citations.length > 0 ? (
@@ -968,6 +1289,8 @@ export function WorkspaceAiSettingsPanel({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [exportingBackup, setExportingBackup] = useState(false);
+  const [restoringBackup, setRestoringBackup] = useState(false);
+  const restoreInputRef = useRef<HTMLInputElement | null>(null);
   const [modeDraft, setModeDraft] = useState<"local_ollama" | "cloud_byok">(
     parsedInitial?.active_mode ?? "local_ollama",
   );
@@ -1073,6 +1396,48 @@ export function WorkspaceAiSettingsPanel({
     }
   };
 
+  const handleRestoreFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || restoringBackup) return;
+    setRestoringBackup(true);
+    setFeedback(null);
+    setError(null);
+    try {
+      const rawText =
+        typeof file.text === "function"
+          ? await file.text()
+          : await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(String(reader.result ?? ""));
+              reader.onerror = () => reject(reader.error ?? new Error("READ_FAILED"));
+              reader.readAsText(file);
+            });
+      const parsed: unknown = JSON.parse(rawText);
+      if (!isRec(parsed) || parsed.schema_version !== "workspace-ai-backup-v1") {
+        throw new Error("INVALID_SNAPSHOT_SCHEMA");
+      }
+      const res = await post<{ restored?: unknown }>("/workspace-ai/restore", parsed);
+      const counts = isRec(res.restored) ? res.restored : {};
+      const videoCount = typeof counts.video_ai_briefs === "number" ? counts.video_ai_briefs : 0;
+      const weeklyCount = typeof counts.weekly_ai_briefs === "number" ? counts.weekly_ai_briefs : 0;
+      const qaCount = typeof counts.ai_research_sessions === "number" ? counts.ai_research_sessions : 0;
+      setFeedback(
+        zh
+          ? `已恢复 ${videoCount} 条中文摘要、${weeklyCount} 份周报与 ${qaCount} 条跨视频问答记录。`
+          : `Restored ${videoCount} AI briefs, ${weeklyCount} weekly digests, and ${qaCount} Q&A sessions.`,
+      );
+    } catch {
+      setError(
+        zh
+          ? "未能导入恢复快照，请选择有效的 workspace-ai-backup-v1 .json 文件。"
+          : "Could not restore snapshot. Choose a valid workspace-ai-backup-v1 .json file.",
+      );
+    } finally {
+      setRestoringBackup(false);
+    }
+  };
+
   const currentSummary =
     config?.active_mode === "cloud_byok"
       ? `${config.cloud_provider} · ${config.cloud_model}${config.cloud_key_configured ? (zh ? "（钥匙串已就绪）" : " (Keychain ready)") : zh ? "（未填 Key）" : " (No key)"}`
@@ -1100,6 +1465,15 @@ export function WorkspaceAiSettingsPanel({
           : "Runs free on local Ollama by default, with optional BYOK OpenAI-compatible cloud routing."}
       </p>
 
+      <input
+        ref={restoreInputRef}
+        type="file"
+        accept=".json,application/json"
+        aria-label={zh ? "导入 AI 知识库快照文件" : "Import AI knowledge snapshot file"}
+        hidden
+        onChange={(e) => void handleRestoreFile(e)}
+      />
+
       {!open ? (
         <>
           <div className="button-row">
@@ -1109,7 +1483,7 @@ export function WorkspaceAiSettingsPanel({
             <button
               type="button"
               className="button button-ghost"
-              disabled={exportingBackup}
+              disabled={exportingBackup || restoringBackup}
               onClick={() => void exportBackup()}
             >
               <PhosphorIcon name="archive" size={13} />
@@ -1120,6 +1494,21 @@ export function WorkspaceAiSettingsPanel({
                 : zh
                   ? "导出 AI 知识库快照 (.json)"
                   : "Export AI knowledge snapshot (.json)"}
+            </button>
+            <button
+              type="button"
+              className="button button-ghost"
+              disabled={exportingBackup || restoringBackup}
+              onClick={() => restoreInputRef.current?.click()}
+            >
+              <PhosphorIcon name="folder-open" size={13} />
+              {restoringBackup
+                ? zh
+                  ? "正在恢复快照…"
+                  : "Restoring…"
+                : zh
+                  ? "导入并恢复快照 (.json)"
+                  : "Restore AI snapshot (.json)"}
             </button>
           </div>
           {feedback ? <p role="status">{feedback}</p> : null}

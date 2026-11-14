@@ -70,5 +70,5 @@
 
 - [x] **Step 0**：完成 `.var/owner` 全表核验、UI 7 大页面源码审计与 Round 2 迭代状态建档
 - [x] **Slice 1（后端 TDD）**：`ask_research_question` 来源/专题/多视频定向对比 + `scope_options` + `scope_json` 持久化与备份兼容、`enrich_topics_list_dto` / `enrich_topic_detail_dto` 专题演进富化、`owner_launcher.py` `Ollama.app` 路径兜底（`ruff` + `mypy` 0 错误，`24/24` Pytest 全绿）
-- [ ] **Slice 2（前端 TDD）**：`WorkspaceAiResearchPanel` 范围筛选与多视频对比选择器 + `action_items_zh` 渲染、`Research.tsx` 旧版冲突文案折叠、`Topics` 演进时间线与一键专题提问联动、`WorkspaceAiSettingsPanel` 一键导入恢复 JSON 快照、`#Following` 异常源行内一键重检
+- [x] **Slice 2（前端 TDD）**：`WorkspaceAiResearchPanel` 范围筛选与多视频对比选择器 + `action_items_zh` 渲染、`Research.tsx` 旧版冲突文案折叠、`Topics` 演进时间线与一键专题提问联动、`WorkspaceAiSettingsPanel` 一键导入恢复 JSON 快照、`#Following` 异常源行内一键重检（49 个 Vitest 测试文件共 `1,193/1,193` 全绿，`tsc -b && vite build` 0 报错，`impeccable detect` 0 违规）
 - [ ] **Slice 3（生产同步与独立真实验收）**：Cherry-pick 至 `v1x-local-main`、重建前端与启动器、重启 `:5489` API 服务、重检恢复在线源、独立 Browser E2E 全链路走查验收并封板提交

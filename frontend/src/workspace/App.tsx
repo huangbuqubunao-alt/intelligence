@@ -30,9 +30,11 @@ import { UiThemeProvider, useUiTheme } from "./ui/theme";
 import { savedLanguage, UiLanguageProvider, useUiLanguage } from "./uiLanguage";
 import {
   AiScoreBadge,
+  readTopicAiEvolution,
   readVideoAiBrief,
   readWeeklyAiBrief,
   readWorkspaceAiSettings,
+  setPendingResearchTopicCluster,
   VideoAiBrief,
   WeeklyAiBriefPanel,
   WorkspaceAiSettingsPanel,
@@ -99,6 +101,7 @@ type Topic = {
   lifecycle: string;
   current_state: string;
   independence: string;
+  ai_evolution?: unknown;
   contributions: {
     intelligence_id: string;
     claim_kind: string;
@@ -112,7 +115,7 @@ type Topic = {
     state: string;
     created_at: string;
   }[];
-  relations: { related_topic_id: string }[];
+  relations: { related_topic_id: string; related_topic_name?: string }[];
 };
 type Source = {
   source_type?: string;
@@ -1627,7 +1630,17 @@ function Workspace() {
             ? <IntelligenceDetail id={deltaTarget.id} openContent={openContent} onBack={() => navigate("Intelligence")} />
             : <IntelligencePage refresh={refresh} openContent={openContent} openResearch={() => navigate("Research")} />
         )}
-        {page === "Topics" && <Topics refresh={refresh} targetTopicId={deltaTarget?.kind === "topic" ? deltaTarget.id : null} />}
+        {page === "Topics" && (
+          <Topics
+            refresh={refresh}
+            targetTopicId={deltaTarget?.kind === "topic" ? deltaTarget.id : null}
+            onOpenContent={(id) => openContent(id)}
+            onAskTopicResearch={(topicName) => {
+              setPendingResearchTopicCluster(topicName);
+              navigate("Research");
+            }}
+          />
+        )}
         {page === "Settings" && <Settings refresh={refresh} />}
       </main>
       <div className="workspace-utility-dock" role="region" aria-label={t("Quick actions")}>
@@ -1782,20 +1795,29 @@ function Dashboard(
           {topics.length
             ? (
               <div className="pinned-topic-list">
-                {topics.map((topic) => (
-                  <button
-                    type="button"
-                    className="pinned-topic-pill"
-                    key={topic.topic_id}
-                    onClick={() => onOpenTopic(topic.topic_id)}
-                  >
-                    <PhosphorIcon name="stack" weight="fill" size={14} className="pinned-topic-icon" />
-                    <span className="pinned-topic-copy">
-                      <strong>{topic.name}</strong> · {t(statusLabel(topic.current_state))}
-                    </span>
-                    <PhosphorIcon name="caret-right" size={13} className="pinned-topic-arrow" />
-                  </button>
-                ))}
+                {topics.map((topic) => {
+                  const evo = readTopicAiEvolution(topic.ai_evolution);
+                  return (
+                    <button
+                      type="button"
+                      className="pinned-topic-pill"
+                      key={topic.topic_id}
+                      onClick={() => onOpenTopic(topic.topic_id)}
+                    >
+                      <PhosphorIcon name="stack" weight="fill" size={14} className="pinned-topic-icon" />
+                      <span className="pinned-topic-copy tabular-nums">
+                        <strong>{topic.name}</strong>
+                        {" · "}
+                        {evo && evo.video_count > 0
+                          ? t("Home") === "首页"
+                            ? `${evo.video_count} 篇 · ${evo.must_watch_count} 必看`
+                            : `${evo.video_count} items · ${evo.must_watch_count} must-watch`
+                          : t(statusLabel(topic.current_state))}
+                      </span>
+                      <PhosphorIcon name="caret-right" size={13} className="pinned-topic-arrow" />
+                    </button>
+                  );
+                })}
               </div>
             )
             : <Empty>No pinned Topics yet.</Empty>}
@@ -3873,8 +3895,19 @@ function ContentEvidencePanel(
     </Panel>
   );
 }
-function Topics({ refresh, targetTopicId }: { refresh: number; targetTopicId?: string | null }) {
+function Topics({
+  refresh,
+  targetTopicId,
+  onOpenContent,
+  onAskTopicResearch,
+}: {
+  refresh: number;
+  targetTopicId?: string | null;
+  onOpenContent?: (videoId: string) => void;
+  onAskTopicResearch?: (topicName: string) => void;
+}) {
   const { language, t } = useUiLanguage();
+  const zh = language === "zh-CN";
   const list = useRemote<{ topics: Topic[] }>("/topics", refresh, undefined, true, true);
   const [selected, setSelected] = useState<string | null>(targetTopicId ?? null);
   const detail = useRemote<{ topic: Topic }>(
@@ -3892,26 +3925,48 @@ function Topics({ refresh, targetTopicId }: { refresh: number; targetTopicId?: s
         {list.data.topics.length
           ? (
             <div className="compact-list content-media-list">
-              {list.data.topics.map((topic) => (
-                <button
-                  className="list-row content-media-row"
-                  key={topic.topic_id}
-                  onClick={() => setSelected(topic.topic_id)}
-                >
-                  <span className="content-media-lead">
-                    <span className="provider-glyph provider-local" aria-hidden="true">
-                      <PhosphorIcon name="stack" weight={topic.pinned ? "fill" : "regular"} size={16} />
+              {list.data.topics.map((topic) => {
+                const evo = readTopicAiEvolution(topic.ai_evolution);
+                return (
+                  <button
+                    className="list-row content-media-row"
+                    key={topic.topic_id}
+                    onClick={() => setSelected(topic.topic_id)}
+                  >
+                    <span className="content-media-lead">
+                      <span className="provider-glyph provider-local" aria-hidden="true">
+                        <PhosphorIcon name="stack" weight={topic.pinned ? "fill" : "regular"} size={16} />
+                      </span>
+                      <span className="content-media-copy">
+                        <strong>{topic.name}</strong>
+                        {evo?.latest_headline_zh ? (
+                          <span className="content-ai-headline">{evo.latest_headline_zh}</span>
+                        ) : null}
+                        <small className="tabular-nums">
+                          {evo && evo.video_count > 0
+                            ? [
+                                zh
+                                  ? `${evo.video_count} 条内容 · ${evo.must_watch_count} 条必看`
+                                  : `${evo.video_count} items · ${evo.must_watch_count} must-watch`,
+                                evo.avg_score !== null
+                                  ? zh
+                                    ? `均分 ${evo.avg_score.toFixed(1)}`
+                                    : `Avg ${evo.avg_score.toFixed(1)}`
+                                  : null,
+                                evo.source_channels.length > 0
+                                  ? evo.source_channels.join(" / ")
+                                  : null,
+                              ]
+                                .filter(Boolean)
+                                .join(" · ")
+                            : `${t("Current understanding")}: ${t(statusLabel(topic.current_state))}`}
+                        </small>
+                      </span>
                     </span>
-                    <span className="content-media-copy">
-                      <strong>{topic.name}</strong>
-                      <small>
-                        {t("Current understanding")}: {t(statusLabel(topic.current_state))}
-                      </small>
-                    </span>
-                  </span>
-                  <Status value={topic.pinned ? "PINNED" : topic.lifecycle} />
-                </button>
-              ))}
+                    <Status value={topic.pinned ? "PINNED" : topic.lifecycle} />
+                  </button>
+                );
+              })}
             </div>
           )
           : <Empty>No Topics yet.</Empty>}
@@ -3920,6 +3975,26 @@ function Topics({ refresh, targetTopicId }: { refresh: number; targetTopicId?: s
   }
   if (!detail.data?.topic) return <Empty>Loading Topic detail…</Empty>;
   const topic = detail.data.topic;
+  const evo = readTopicAiEvolution(topic.ai_evolution);
+  const hasEvoEntries = Boolean(evo && evo.entries.length > 0);
+  const contributionNodes = topic.contributions.map((contribution) => (
+    <article key={`${contribution.intelligence_id}:${contribution.claim_kind}`}>
+      <Claim kind={contribution.claim_kind} />{" "}
+      <Status value={contribution.available ? contribution.state : "UNAVAILABLE"} />
+      <p>
+        {contribution.available
+          ? t("A current contribution supports this topic.")
+          : t("Some supporting information is no longer available.")}
+      </p>
+      <details className="provenance">
+        <summary>
+          {t("Technical evidence references")} ({contribution.evidence_ids.length})
+        </summary>
+        <p className="tabular-nums">{contribution.evidence_ids.join(", ")}</p>
+      </details>
+    </article>
+  ));
+
   return (
     <div className="dashboard-stack">
       <button className="button button-ghost" onClick={() => setSelected(null)}>
@@ -3927,48 +4002,120 @@ function Topics({ refresh, targetTopicId }: { refresh: number; targetTopicId?: s
         {t("Back to Topics")}
       </button>
       <Panel title={topic.name} icon="stack">
+        {evo && evo.video_count > 0 ? (
+          <p className="weekly-funnel-strip tabular-nums">
+            <span>
+              {zh
+                ? `已聚合 ${evo.video_count} 条相关内容 · ${evo.must_watch_count} 条必看干货${evo.avg_score !== null ? ` · 平均评分 ${evo.avg_score.toFixed(1)}` : ""}`
+                : `${evo.video_count} items · ${evo.must_watch_count} must-watch${evo.avg_score !== null ? ` · Avg ${evo.avg_score.toFixed(1)}` : ""}`}
+            </span>
+            {evo.source_channels.length > 0 ? <span>{evo.source_channels.join(" · ")}</span> : null}
+          </p>
+        ) : null}
         <h3>{t("Current understanding")}</h3>
-        <p>{t(statusLabel(topic.current_state)).trim()}{language === "zh-CN" ? "。" : "."}</p>
+        <p>{t(statusLabel(topic.current_state)).trim()}{zh ? "。" : "."}</p>
         <p>
           {t(topic.independence === "UNKNOWN"
             ? "Not enough reliable information yet to determine how independent the supporting sources are."
             : "This understanding is based on the available supporting sources.")}
         </p>
-        <button
-          className="button button-secondary"
-          onClick={event => {
-            pulseCelebration(event.currentTarget);
-            void post(`/topics/${topic.topic_id}/pin`, { pinned: !topic.pinned })
-              .then(() => setSelected(null));
-          }}
-        >
-          <PhosphorIcon name="push-pin" weight={topic.pinned ? "fill" : "regular"} size={14} />
-          {t(topic.pinned ? "Unpin Topic" : "Pin Topic")}
-        </button>
+        <div className="button-row">
+          {onAskTopicResearch ? (
+            <button
+              type="button"
+              className="button button-primary"
+              onClick={event => {
+                pulseCelebration(event.currentTarget);
+                onAskTopicResearch(topic.name);
+              }}
+            >
+              <PhosphorIcon name="sparkle" size={14} />
+              {zh ? "围绕本专题跨视频提问" : "Ask AI across this topic"}
+            </button>
+          ) : null}
+          <button
+            className="button button-secondary"
+            onClick={event => {
+              pulseCelebration(event.currentTarget);
+              void post(`/topics/${topic.topic_id}/pin`, { pinned: !topic.pinned })
+                .then(() => setSelected(null));
+            }}
+          >
+            <PhosphorIcon name="push-pin" weight={topic.pinned ? "fill" : "regular"} size={14} />
+            {t(topic.pinned ? "Unpin Topic" : "Pin Topic")}
+          </button>
+        </div>
       </Panel>
+      {hasEvoEntries && evo ? (
+        <Panel title={zh ? "专题核心脉络与时间演进" : "Topic Insight Evolution"} icon="sparkle">
+          <div className="topic-evolution-list">
+            {evo.entries.map((entry) => (
+              <article className="topic-evolution-card" key={entry.video_id}>
+                <div className="topic-evolution-head tabular-nums">
+                  <button
+                    type="button"
+                    className="topic-evolution-title-btn"
+                    onClick={() => onOpenContent?.(entry.video_id)}
+                  >
+                    <strong>{entry.title}</strong>
+                  </button>
+                  <div className="content-row-trailing">
+                    {entry.source_basis === "METADATA_ONLY" ? (
+                      <span className="ai-basis-pill is-compact">
+                        {zh ? "简介速览" : "Metadata"}
+                      </span>
+                    ) : null}
+                    <span
+                      className={`ai-score-pill is-compact tabular-nums ${
+                        entry.score >= 8 ? "ai-score-high" : entry.score >= 5 ? "ai-score-mid" : "ai-score-noise"
+                      }`}
+                    >
+                      <strong>{entry.score.toFixed(1)}</strong>
+                    </span>
+                  </div>
+                </div>
+                <small className="hint tabular-nums">
+                  {[entry.channel_name, entry.published_at ? humanDate(entry.published_at) : null]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </small>
+                <p className="topic-evolution-headline">{entry.headline_zh}</p>
+                {entry.summary_zh && entry.summary_zh.trim() !== entry.headline_zh.trim() ? (
+                  <p className="summary-copy">{entry.summary_zh}</p>
+                ) : null}
+                {entry.product_opportunities_zh.length > 0 || entry.business_opportunities_zh.length > 0 ? (
+                  <div className="topic-opp-pills">
+                    {entry.product_opportunities_zh.slice(0, 2).map((opp, idx) => (
+                      <span key={`p:${idx}`} className="ai-basis-pill">
+                        {zh ? `产品切口：${opp}` : opp}
+                      </span>
+                    ))}
+                    {entry.business_opportunities_zh.slice(0, 2).map((opp, idx) => (
+                      <span key={`b:${idx}`} className="ai-basis-pill">
+                        {zh ? `变现模型：${opp}` : opp}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+              </article>
+            ))}
+          </div>
+        </Panel>
+      ) : null}
       <Panel title="Evidence" icon="shield-check">
         {topic.contributions.length
-          ? topic.contributions.map((contribution) => (
-            <article
-              key={`${contribution.intelligence_id}:${contribution.claim_kind}`}
-            >
-              <Claim kind={contribution.claim_kind} />{" "}
-              <Status
-                value={contribution.available
-                  ? contribution.state
-                  : "UNAVAILABLE"}
-              />
-              <p>
-                {contribution.available
-                  ? t("A current contribution supports this topic.")
-                  : t("Some supporting information is no longer available.")}
-              </p>
-              <details className="provenance">
-                <summary>{t("Technical evidence references")} ({contribution.evidence_ids.length})</summary>
-                <p className="tabular-nums">{contribution.evidence_ids.join(", ")}</p>
+          ? hasEvoEntries
+            ? (
+              <details className="topic-raw-contributions legacy-model-diagnostics">
+                <summary>
+                  {zh
+                    ? `底层技术证据溯源记录 (${topic.contributions.length})`
+                    : `Technical contribution records (${topic.contributions.length})`}
+                </summary>
+                {contributionNodes}
               </details>
-            </article>
-          ))
+            )
+            : contributionNodes
           : <Empty>No current supporting information.</Empty>}
       </Panel>
       <Panel title="Timeline" icon="clock">
@@ -3990,9 +4137,24 @@ function Topics({ refresh, targetTopicId }: { refresh: number; targetTopicId?: s
       </Panel>
       <Panel title="Related Topics" icon="stack">
         {topic.relations.length
-          ? topic.relations.map((relation) => (
-            <p key={relation.related_topic_id}>{t("Related topic")}</p>
-          ))
+          ? (
+            <div className="ai-suggested-pills">
+              {topic.relations.map((relation) =>
+                relation.related_topic_name ? (
+                  <button
+                    type="button"
+                    className="ai-question-chip"
+                    key={relation.related_topic_id}
+                    onClick={() => setSelected(relation.related_topic_id)}
+                  >
+                    {relation.related_topic_name}
+                  </button>
+                ) : (
+                  <p key={relation.related_topic_id}>{t("Related topic")}</p>
+                ),
+              )}
+            </div>
+          )
           : <Empty>No related Topics.</Empty>}
       </Panel>
     </div>
@@ -4027,7 +4189,7 @@ function FollowingReadNotice({ reading, error, errorCode, onReload, detail = fal
 function Sources(
   { refresh, onRefresh, targetSourceId, onAdd }: { refresh: number; onRefresh: () => void; targetSourceId?: string | null; onAdd: (provider: "YOUTUBE" | "LOCAL") => void },
 ) {
-  const { t } = useUiLanguage();
+  const { language, t } = useUiLanguage();
   const { data, error, errorCode, reading, reload } = useRemote<{ sources: Source[] }>("/sources", refresh, validSourcesRead, true, true);
   const [selected, setSelected] = useState<string | null>(targetSourceId ?? null);
   const [filter, setFilter] = useState("all");
@@ -4099,6 +4261,54 @@ function Sources(
                   </span>
                 </button>
                 <div className="source-actions">
+                  {source.tracking &&
+                    source.enabled &&
+                    !source.tracking.checking &&
+                    !(source.provider === "BILIBILI" && creatorFollowingWithdrawn) &&
+                    [
+                      "OFFLINE",
+                      "NETWORK_UNAVAILABLE",
+                      "PROVIDER_ERROR",
+                      "RATE_LIMITED",
+                      "UPDATE_GAP",
+                      "CHECK_INCOMPLETE",
+                    ].includes(source.tracking.health) && (
+                      <button
+                        type="button"
+                        className="button button-primary button-small"
+                        disabled={rowBusy !== null}
+                        onClick={async () => {
+                          setRowBusy(`check:${source.source_id}`);
+                          setRowMessage(null);
+                          try {
+                            const result = await post<{ status?: string }>(
+                              `/sources/${source.source_id}/check`,
+                              { command_id: commandId() },
+                            );
+                            if (result.status === "CAPABILITY_UNAVAILABLE") {
+                              setRowMessage(trackingCopy("CAPABILITY_UNAVAILABLE"));
+                            } else {
+                              setRowMessage(
+                                language === "zh-CN"
+                                  ? "已发起来源重检，最新状态即将刷新。"
+                                  : "Source check started.",
+                              );
+                            }
+                            onRefresh();
+                          } catch {
+                            setRowMessage("The source could not be checked. Try again later.");
+                          } finally {
+                            setRowBusy(null);
+                          }
+                        }}
+                      >
+                        {rowBusy === `check:${source.source_id}`
+                          ? t("Checking…")
+                          : language === "zh-CN"
+                            ? "立即重检"
+                            : "Retry check"}
+                      </button>
+                    )}
                   {source.tracking && <button className="button button-secondary" disabled={rowBusy !== null} onClick={async () => {
                     setRowBusy(source.source_id); setRowMessage(null);
                     try { await patch(`/sources/${source.source_id}`, { enabled: !source.enabled }); setRowMessage(source.enabled ? "Following paused. Existing content is preserved." : "Following resumed. New content will be checked while the app is running."); onRefresh(); }
