@@ -29,7 +29,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from http import HTTPStatus
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 from urllib.parse import urlparse
 
 from youtube_intel.brief import WeeklyBriefError, WeeklyBriefService
@@ -105,7 +105,18 @@ SUGGESTED_RESEARCH_QUESTIONS: tuple[str, ...] = (
     "OpenAI、Greg Isenberg 与本地 AI 实战课对 AI Agent 产品落地有哪些核心共识与分歧？",
     "基于当前订阅库，最适合一人公司或小团队切入的 3 个高变现 AI 产品机会是什么？",
     "生产级 Agent 与多模态应用在工具边界、评测闭环和交互设计上有哪些必踩的坑？",
-    "OpenAI 近期技术访谈透露了哪些底层模型能力演进信号？哪些属于会被模型吞噬的壳应用？",
+    "OpenAI 近期在浏览器安全（GPT-6 Cyber）与底层模型演进上透露了哪些关键信号？",
+)
+
+_BILINGUAL_SYNONYM_GROUPS: tuple[tuple[str, ...], ...] = (
+    ("漏洞", "安全", "攻击", "防御", "补丁", "修复", "内存", "模糊测试", "vulnerability", "vulnerabilities", "security", "cyber", "patch", "patched", "patches", "fix", "fixes", "memory", "fuzzing", "exploit", "bug", "bugs", "cve"),
+    ("浏览器", "网页", "前端", "browser", "firefox", "mozilla", "chrome", "web", "dom"),
+    ("智能体", "代理", "工具", "状态机", "编排", "自动化", "工作流", "agent", "agents", "tool", "tools", "workflow", "workflows", "state", "machine", "orchestration", "autonomy", "autonomous"),
+    ("评测", "测试", "基准", "可靠性", "确定性", "验证", "回滚", "eval", "evals", "evaluation", "benchmark", "benchmarks", "reliability", "reliable", "deterministic", "harness", "verify"),
+    ("商业", "变现", "赚钱", "定价", "收费", "订阅", "年费", "客户", "一人公司", "创业", "产品", "business", "monetization", "revenue", "pricing", "price", "saas", "buy", "paid", "customer", "customers", "startup", "product", "founder", "solo"),
+    ("多模态", "语音", "音频", "图像", "视频", "视觉", "实时", "对话", "multimodal", "voice", "audio", "image", "images", "video", "vision", "visual", "realtime", "live", "avatar"),
+    ("代码", "编程", "编码", "开发", "开发者", "工程", "仓库", "重构", "code", "coding", "codex", "developer", "engineering", "software", "repo", "repository", "refactor"),
+    ("模型", "推理", "训练", "微调", "上下文", "提示词", "记忆", "检索", "model", "models", "reasoning", "training", "finetune", "context", "prompt", "prompts", "memory", "rag", "retrieval"),
 )
 
 
@@ -677,7 +688,8 @@ class WorkspaceIntelligenceHub:
                 provider TEXT NOT NULL,
                 model TEXT NOT NULL,
                 obsidian_markdown TEXT NOT NULL,
-                updated_at TEXT NOT NULL
+                updated_at TEXT NOT NULL,
+                source_basis TEXT NOT NULL DEFAULT 'TRANSCRIPT'
             );
             CREATE TABLE IF NOT EXISTS research_qa_sessions (
                 session_id TEXT PRIMARY KEY,
@@ -708,6 +720,15 @@ class WorkspaceIntelligenceHub:
             );
             """
         )
+        cols = {
+            str(r[1])
+            for r in conn.execute("PRAGMA table_info(video_ai_briefs)").fetchall()
+        }
+        if "source_basis" not in cols:
+            conn.execute(
+                "ALTER TABLE video_ai_briefs "
+                "ADD COLUMN source_basis TEXT NOT NULL DEFAULT 'TRANSCRIPT'"
+            )
         return conn
 
     # ------------------------------------------------------------------
@@ -1309,6 +1330,7 @@ class WorkspaceIntelligenceHub:
         business_opportunities: Sequence[str],
         provider: str,
         model: str,
+        source_basis: str = "TRANSCRIPT",
     ) -> str:
         tier_zh = {
             "MUST_WATCH": "必看干货",
@@ -1325,6 +1347,7 @@ class WorkspaceIntelligenceHub:
             f"score: {score:.1f}",
             f'tier: "{recommendation_tier}"',
             f'bucket: "{content_bucket}"',
+            f'source_basis: "{source_basis}"',
             f'duration: "{_format_mmss(duration_seconds)}"',
             f'published_at: "{published_at or ""}"',
             f'source_url: "{source_url or ""}"',
@@ -1337,6 +1360,11 @@ class WorkspaceIntelligenceHub:
             f"# {title}",
             "",
             f"> **核心一句话结论（{score:.1f}/10 · {tier_zh}）**：{headline_zh}",
+            (
+                "> *说明：当前源站暂未提供公开时间轴字幕，本速览仅基于官方标题与简介提炼，未生成原话证据点。*"
+                if source_basis == "METADATA_ONLY"
+                else ""
+            ),
             "",
             f"**关联主题双链**：{wikilinks}" if wikilinks else "",
             f"**来源频道**：`{channel_name or '本地课程库'}` · **时长**：`{_format_mmss(duration_seconds)}`",
@@ -1345,20 +1373,20 @@ class WorkspaceIntelligenceHub:
             summary_zh,
             "",
             f"- **评分依据**：{score_reason_zh}",
-            "",
-            "## 2. 带时间戳关键论点与原话证据",
         ]
-        for pt in timestamped_points:
-            raw_start = pt.get("start_seconds")
-            ts_label = _format_mmss(
-                float(raw_start)
-                if isinstance(raw_start, (int, float))
-                else 0.0
-            )
-            lines.append(f"- **[{ts_label}]** {pt.get('text', '')}")
-            excerpt = _clean_text(pt.get("excerpt", ""), max_len=240)
-            if excerpt:
-                lines.append(f"  > 原话摘录：{excerpt}")
+        if timestamped_points:
+            lines.extend(["", "## 2. 带时间戳关键论点与原话证据"])
+            for pt in timestamped_points:
+                raw_start = pt.get("start_seconds")
+                ts_label = _format_mmss(
+                    float(raw_start)
+                    if isinstance(raw_start, (int, float))
+                    else 0.0
+                )
+                lines.append(f"- **[{ts_label}]** {pt.get('text', '')}")
+                excerpt = _clean_text(pt.get("excerpt", ""), max_len=240)
+                if excerpt:
+                    lines.append(f"  > 原话摘录：{excerpt}")
         if product_opportunities:
             lines.extend(["", "## 3. AI 产品化启发"])
             for item in product_opportunities:
@@ -1368,7 +1396,256 @@ class WorkspaceIntelligenceHub:
             for item in business_opportunities:
                 lines.append(f"- {item}")
         lines.append("")
-        return "\n".join(line for line in lines if line is not None)
+        return "\n".join(line for line in lines if line != "")
+
+    def _upsert_video_brief_row(
+        self,
+        *,
+        video_id: str,
+        headline_zh: str,
+        summary_zh: str,
+        score: float,
+        score_reason_zh: str,
+        tier: str,
+        bucket: str,
+        is_short_noise: bool,
+        duration_seconds: int | None,
+        topics_zh: Sequence[str],
+        topic_cluster_zh: str,
+        hydrated_points: Sequence[Mapping[str, object]],
+        product_opps: Sequence[str],
+        business_opps: Sequence[str],
+        filtered_noise: Sequence[str],
+        intelligence_id: str | None,
+        revision_id: str | None,
+        provider_label: str,
+        model_label: str,
+        obsidian_md: str,
+        updated_at: str,
+        source_basis: str,
+    ) -> None:
+        conn = self._connect_write()
+        try:
+            with conn:
+                conn.execute(
+                    """
+                    INSERT INTO video_ai_briefs (
+                        video_id, headline_zh, summary_zh, score, score_reason_zh,
+                        recommendation_tier, content_bucket, is_short_noise, duration_seconds,
+                        topics_json, topic_cluster_zh, core_points_json,
+                        product_opportunities_json, business_opportunities_json,
+                        filtered_noise_json, intelligence_id, revision_id,
+                        provider, model, obsidian_markdown, updated_at, source_basis
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(video_id) DO UPDATE SET
+                        headline_zh = excluded.headline_zh,
+                        summary_zh = excluded.summary_zh,
+                        score = excluded.score,
+                        score_reason_zh = excluded.score_reason_zh,
+                        recommendation_tier = excluded.recommendation_tier,
+                        content_bucket = excluded.content_bucket,
+                        is_short_noise = excluded.is_short_noise,
+                        duration_seconds = excluded.duration_seconds,
+                        topics_json = excluded.topics_json,
+                        topic_cluster_zh = excluded.topic_cluster_zh,
+                        core_points_json = excluded.core_points_json,
+                        product_opportunities_json = excluded.product_opportunities_json,
+                        business_opportunities_json = excluded.business_opportunities_json,
+                        filtered_noise_json = excluded.filtered_noise_json,
+                        intelligence_id = excluded.intelligence_id,
+                        revision_id = excluded.revision_id,
+                        provider = excluded.provider,
+                        model = excluded.model,
+                        obsidian_markdown = excluded.obsidian_markdown,
+                        updated_at = excluded.updated_at,
+                        source_basis = excluded.source_basis
+                    """,
+                    (
+                        video_id,
+                        headline_zh,
+                        summary_zh,
+                        score,
+                        score_reason_zh,
+                        tier,
+                        bucket,
+                        1 if is_short_noise else 0,
+                        duration_seconds,
+                        json.dumps(list(topics_zh), ensure_ascii=False),
+                        topic_cluster_zh,
+                        json.dumps([dict(p) for p in hydrated_points], ensure_ascii=False),
+                        json.dumps(list(product_opps), ensure_ascii=False),
+                        json.dumps(list(business_opps), ensure_ascii=False),
+                        json.dumps(list(filtered_noise), ensure_ascii=False),
+                        intelligence_id,
+                        revision_id,
+                        provider_label,
+                        model_label,
+                        obsidian_md,
+                        updated_at,
+                        source_basis,
+                    ),
+                )
+        finally:
+            conn.close()
+
+    def _distill_metadata_only_youtube_video(
+        self,
+        video: Any,
+        *,
+        duration_seconds: int | None,
+    ) -> dict[str, object]:
+        is_short_duration = (
+            duration_seconds is not None and duration_seconds <= 95
+        )
+        clusters_str = " | ".join(CANONICAL_TOPIC_CLUSTERS)
+        system_prompt = (
+            "你是资深 AI 产品总监与商业分析师（METADATA_DISTILL_SCHEMA）。"
+            "当前视频在 YouTube 上暂无公开时间轴字幕，请严格仅依据标题、频道与官方简介，"
+            "输出诚实的简体中文速览 JSON 对象。严禁编造原话细节或未提及的数字。\n"
+            "输出 JSON 字段契约：\n"
+            "{\n"
+            '  "headline_zh": "基于标题与简介提炼的一句话中文速览（20-60字）",\n'
+            '  "summary_zh": "2句精炼中文说明该视频主题与关注点（40-150字）",\n'
+            '  "score": 0.0到10.0一位小数（无字幕长视频参考上限7.5，<=95秒宣传短片1.5-4.0）,\n'
+            '  "score_reason_zh": "简明中文打分依据（注明基于官方标题与简介评估）",\n'
+            '  "recommendation_tier": "WORTH_SKIMMING | SKIP_NOISE",\n'
+            '  "content_bucket": "DEEP_DIVE | TUTORIAL | SHORTS_PROMO",\n'
+            '  "topics_zh": ["1到3个精炼中文标签"],\n'
+            f'  "topic_cluster_zh": "优先从 [{clusters_str}] 中选择最契合的一项",\n'
+            '  "product_opportunities_zh": ["0-2条产品方向参考，宣传短片为空数组"],\n'
+            '  "business_opportunities_zh": ["0-2条商业参考，宣传短片为空数组"],\n'
+            '  "filtered_noise_zh": ["官方未提供时间轴字幕，仅作简介速览"]\n'
+            "}"
+        )
+        desc_text = _clean_text(getattr(video, "description", None), max_len=1200)
+        user_prompt = (
+            f"title: {video.title}\n"
+            f"channel: {video.channel_name or video.provider}\n"
+            f"duration_seconds: {duration_seconds if duration_seconds is not None else 'unknown'}\n"
+            "<untrusted_metadata_description>\n"
+            f"{desc_text or '(no description)'}\n"
+            "</untrusted_metadata_description>"
+        )
+        parsed, provider_label, model_label = self._complete_json(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            max_tokens=1000,
+        )
+        raw_score = parsed.get("score", 2.8 if is_short_duration else 6.4)
+        try:
+            score = round(min(7.8, max(0.0, float(raw_score))), 1)
+        except (TypeError, ValueError):
+            score = 2.8 if is_short_duration else 6.4
+
+        bucket = str(parsed.get("content_bucket", "")).strip().upper()
+        if is_short_duration:
+            bucket = "SHORTS_PROMO"
+        elif bucket not in VALID_BUCKETS:
+            bucket = "DEEP_DIVE"
+
+        tier = str(parsed.get("recommendation_tier", "")).strip().upper()
+        if is_short_duration or score < 5.0:
+            tier = "SKIP_NOISE"
+        elif tier not in {"WORTH_SKIMMING", "SKIP_NOISE"}:
+            tier = "WORTH_SKIMMING"
+
+        is_short_noise = bool(bucket == "SHORTS_PROMO" or is_short_duration)
+        headline_zh = _clean_text(
+            parsed.get("headline_zh"),
+            fallback=f"{video.title}（官方无字幕，基于简介速览）",
+            max_len=240,
+        )
+        summary_zh = _clean_text(
+            parsed.get("summary_zh"),
+            fallback=headline_zh,
+            max_len=700,
+        )
+        score_reason_zh = _clean_text(
+            parsed.get("score_reason_zh"),
+            fallback="源站暂未提供时间轴字幕，基于官方标题与简介评估参考价值。",
+            max_len=300,
+        )
+        topics_zh = _clean_string_list(parsed.get("topics_zh"), max_items=4, max_len=60) or [
+            "AI 行业动态"
+        ]
+        topic_cluster_zh = _clean_text(
+            parsed.get("topic_cluster_zh"),
+            fallback=CANONICAL_TOPIC_CLUSTERS[0],
+            max_len=120,
+        )
+        product_opps = (
+            []
+            if is_short_noise
+            else _clean_string_list(
+                parsed.get("product_opportunities_zh"), max_items=3, max_len=300
+            )
+        )
+        business_opps = (
+            []
+            if is_short_noise
+            else _clean_string_list(
+                parsed.get("business_opportunities_zh"), max_items=3, max_len=300
+            )
+        )
+        filtered_noise = _clean_string_list(
+            parsed.get("filtered_noise_zh"), max_items=3, max_len=300
+        ) or ["源站暂无公开时间轴字幕"]
+
+        now = self._now()
+        published_str = (
+            format_utc_datetime(video.published_at)
+            if video.published_at is not None
+            else None
+        )
+        obsidian_md = self._build_video_obsidian_markdown(
+            video_id=video.video_id,
+            title=video.title or video.video_id,
+            channel_name=video.channel_name,
+            source_url=video.source_url,
+            published_at=published_str,
+            duration_seconds=duration_seconds,
+            headline_zh=headline_zh,
+            summary_zh=summary_zh,
+            score=score,
+            score_reason_zh=score_reason_zh,
+            recommendation_tier=tier,
+            content_bucket=bucket,
+            topic_cluster_zh=topic_cluster_zh,
+            topics_zh=topics_zh,
+            timestamped_points=(),
+            product_opportunities=product_opps,
+            business_opportunities=business_opps,
+            provider=provider_label,
+            model=model_label,
+            source_basis="METADATA_ONLY",
+        )
+        self._upsert_video_brief_row(
+            video_id=video.video_id,
+            headline_zh=headline_zh,
+            summary_zh=summary_zh,
+            score=score,
+            score_reason_zh=score_reason_zh,
+            tier=tier,
+            bucket=bucket,
+            is_short_noise=is_short_noise,
+            duration_seconds=duration_seconds,
+            topics_zh=topics_zh,
+            topic_cluster_zh=topic_cluster_zh,
+            hydrated_points=(),
+            product_opps=product_opps,
+            business_opps=business_opps,
+            filtered_noise=filtered_noise,
+            intelligence_id=None,
+            revision_id=None,
+            provider_label=provider_label,
+            model_label=model_label,
+            obsidian_md=obsidian_md,
+            updated_at=format_utc_datetime(now),
+            source_basis="METADATA_ONLY",
+        )
+        brief_dto = self.get_video_brief(video.video_id)
+        assert brief_dto is not None
+        return {"video_id": video.video_id, "ai_brief": brief_dto}
 
     def distill_video(
         self,
@@ -1379,15 +1656,18 @@ class WorkspaceIntelligenceHub:
         video = self._repository.get_video(video_id)
         if video is None:
             raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "未找到对应视频内容。")
+        duration_seconds = self._resolve_video_duration_seconds(video_id)
         timed = self._repository.get_verified_timed_transcript(video_id=video_id)
         if timed is None or not timed.cues:
+            if video.provider == "YOUTUBE" and (video.title or "").strip():
+                return self._distill_metadata_only_youtube_video(
+                    video, duration_seconds=duration_seconds
+                )
             raise ApiError(
                 HTTPStatus.CONFLICT,
                 "TRANSCRIPT_REQUIRED",
                 "当前内容尚未生成可验证的时间轴字幕，请先执行字幕获取或本地语音转写。",
             )
-
-        duration_seconds = self._resolve_video_duration_seconds(video_id)
         is_short_duration = (
             video.provider == "YOUTUBE"
             and duration_seconds is not None
@@ -1645,70 +1925,34 @@ class WorkspaceIntelligenceHub:
             business_opportunities=business_opps,
             provider=provider_label,
             model=model_label,
+            source_basis="TRANSCRIPT",
         )
 
         updated_at = format_utc_datetime(now)
-        conn = self._connect_write()
-        try:
-            with conn:
-                conn.execute(
-                    """
-                    INSERT INTO video_ai_briefs (
-                        video_id, headline_zh, summary_zh, score, score_reason_zh,
-                        recommendation_tier, content_bucket, is_short_noise, duration_seconds,
-                        topics_json, topic_cluster_zh, core_points_json,
-                        product_opportunities_json, business_opportunities_json,
-                        filtered_noise_json, intelligence_id, revision_id,
-                        provider, model, obsidian_markdown, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(video_id) DO UPDATE SET
-                        headline_zh = excluded.headline_zh,
-                        summary_zh = excluded.summary_zh,
-                        score = excluded.score,
-                        score_reason_zh = excluded.score_reason_zh,
-                        recommendation_tier = excluded.recommendation_tier,
-                        content_bucket = excluded.content_bucket,
-                        is_short_noise = excluded.is_short_noise,
-                        duration_seconds = excluded.duration_seconds,
-                        topics_json = excluded.topics_json,
-                        topic_cluster_zh = excluded.topic_cluster_zh,
-                        core_points_json = excluded.core_points_json,
-                        product_opportunities_json = excluded.product_opportunities_json,
-                        business_opportunities_json = excluded.business_opportunities_json,
-                        filtered_noise_json = excluded.filtered_noise_json,
-                        intelligence_id = excluded.intelligence_id,
-                        revision_id = excluded.revision_id,
-                        provider = excluded.provider,
-                        model = excluded.model,
-                        obsidian_markdown = excluded.obsidian_markdown,
-                        updated_at = excluded.updated_at
-                    """,
-                    (
-                        video_id,
-                        headline_zh,
-                        summary_zh,
-                        score,
-                        score_reason_zh,
-                        tier,
-                        bucket,
-                        1 if is_short_noise else 0,
-                        duration_seconds,
-                        json.dumps(topics_zh, ensure_ascii=False),
-                        topic_cluster_zh,
-                        json.dumps(hydrated_points, ensure_ascii=False),
-                        json.dumps(product_opps, ensure_ascii=False),
-                        json.dumps(business_opps, ensure_ascii=False),
-                        json.dumps(filtered_noise, ensure_ascii=False),
-                        intelligence_id,
-                        revision_id,
-                        provider_label,
-                        model_label,
-                        obsidian_md,
-                        updated_at,
-                    ),
-                )
-        finally:
-            conn.close()
+        self._upsert_video_brief_row(
+            video_id=video_id,
+            headline_zh=headline_zh,
+            summary_zh=summary_zh,
+            score=score,
+            score_reason_zh=score_reason_zh,
+            tier=tier,
+            bucket=bucket,
+            is_short_noise=is_short_noise,
+            duration_seconds=duration_seconds,
+            topics_zh=topics_zh,
+            topic_cluster_zh=topic_cluster_zh,
+            hydrated_points=hydrated_points,
+            product_opps=product_opps,
+            business_opps=business_opps,
+            filtered_noise=filtered_noise,
+            intelligence_id=intelligence_id,
+            revision_id=revision_id,
+            provider_label=provider_label,
+            model_label=model_label,
+            obsidian_md=obsidian_md,
+            updated_at=updated_at,
+            source_basis="TRANSCRIPT",
+        )
 
         brief_dto = self.get_video_brief(video_id)
         assert brief_dto is not None
@@ -1792,6 +2036,12 @@ class WorkspaceIntelligenceHub:
 
     @staticmethod
     def _brief_from_row(row: sqlite3.Row) -> dict[str, Any]:
+        row_keys = row.keys()
+        source_basis = (
+            str(row["source_basis"])
+            if "source_basis" in row_keys and row["source_basis"]
+            else "TRANSCRIPT"
+        )
         return {
             "video_id": str(row["video_id"]),
             "headline_zh": str(row["headline_zh"]),
@@ -1828,6 +2078,7 @@ class WorkspaceIntelligenceHub:
             "model": str(row["model"]),
             "obsidian_markdown": str(row["obsidian_markdown"]),
             "updated_at": str(row["updated_at"]),
+            "source_basis": source_basis,
         }
 
     def get_video_brief(self, video_id: str) -> dict[str, Any] | None:
@@ -1856,11 +2107,94 @@ class WorkspaceIntelligenceHub:
         finally:
             conn.close()
 
+    def _classify_pending_videos(
+        self,
+    ) -> tuple[list[str], list[str], list[str], int, int]:
+        videos = self._repository.list_videos(limit=300)
+        briefs_map = self.get_video_briefs_map()
+        pending_transcript: list[str] = []
+        pending_upgrade: list[str] = []
+        pending_metadata_only: list[str] = []
+        for v in videos:
+            brief = briefs_map.get(v.video_id)
+            timed = self._repository.get_verified_timed_transcript(video_id=v.video_id)
+            has_tx = timed is not None and bool(timed.cues)
+            if brief is None:
+                if has_tx:
+                    pending_transcript.append(v.video_id)
+                elif v.provider == "YOUTUBE" and bool((v.title or "").strip()):
+                    pending_metadata_only.append(v.video_id)
+            elif brief.get("source_basis") == "METADATA_ONLY" and has_tx:
+                pending_upgrade.append(v.video_id)
+        return (
+            pending_transcript,
+            pending_upgrade,
+            pending_metadata_only,
+            len(videos),
+            len(briefs_map),
+        )
+
+    def get_sync_status(self) -> dict[str, object]:
+        (
+            pending_transcript,
+            pending_upgrade,
+            pending_metadata_only,
+            total_videos,
+            briefed_count,
+        ) = self._classify_pending_videos()
+        ordered_pending = [
+            *pending_transcript,
+            *pending_upgrade,
+            *pending_metadata_only,
+        ]
+        return {
+            "total_videos": total_videos,
+            "briefed_count": briefed_count,
+            "pending_count": len(ordered_pending),
+            "pending_transcript_count": len(pending_transcript) + len(pending_upgrade),
+            "pending_transcript_upgrade_count": len(pending_upgrade),
+            "pending_metadata_only_count": len(pending_metadata_only),
+            "pending_video_ids": ordered_pending,
+        }
+
+    def sync_pending_videos(self, *, limit: int = 20) -> dict[str, object]:
+        bounded_limit = max(1, min(int(limit), 50))
+        (
+            pending_transcript,
+            pending_upgrade,
+            pending_metadata_only,
+            _,
+            _,
+        ) = self._classify_pending_videos()
+        ordered_pending = [
+            *pending_transcript,
+            *pending_upgrade,
+            *pending_metadata_only,
+        ]
+        synced_ids: list[str] = []
+        errors: list[dict[str, str]] = []
+        for vid in ordered_pending[:bounded_limit]:
+            try:
+                self.distill_video(vid)
+                synced_ids.append(vid)
+            except Exception as err:
+                errors.append({"video_id": vid, "error": str(err)})
+        if synced_ids:
+            self._write_rolling_snapshot_quietly()
+        after_status = self.get_sync_status()
+        return {
+            "synced_count": len(synced_ids),
+            "synced_video_ids": synced_ids,
+            "remaining_count": int(cast(int, after_status["pending_count"])),
+            "errors": errors,
+        }
+
     def enrich_video_list_item(
         self, item: dict[str, object], brief: Mapping[str, Any]
     ) -> dict[str, object]:
         enriched = dict(item)
         summary_brief = {
+            "video_id": brief["video_id"],
             "headline_zh": brief["headline_zh"],
             "summary_zh": brief["summary_zh"],
             "score": brief["score"],
@@ -1871,10 +2205,13 @@ class WorkspaceIntelligenceHub:
             "duration_seconds": brief["duration_seconds"],
             "topics_zh": brief["topics_zh"],
             "topic_cluster_zh": brief["topic_cluster_zh"],
+            "product_opportunities_zh": brief.get("product_opportunities_zh", []),
+            "business_opportunities_zh": brief.get("business_opportunities_zh", []),
             "intelligence_id": brief["intelligence_id"],
             "provider": brief["provider"],
             "model": brief["model"],
             "updated_at": brief["updated_at"],
+            "source_basis": brief.get("source_basis", "TRANSCRIPT"),
         }
         enriched["ai_brief"] = summary_brief
         if enriched.get("duration_seconds") is None and brief["duration_seconds"] is not None:
@@ -1927,9 +2264,12 @@ class WorkspaceIntelligenceHub:
                 },
             }
 
+        is_transcript_backed = brief.get("source_basis", "TRANSCRIPT") == "TRANSCRIPT"
         note_wrapper = dict(cast_dict(enriched.get("note")))
         v2 = dict(cast_dict(note_wrapper.get("v2")))
-        if v2.get("status") != "AVAILABLE" or v2.get("method") == "SOURCE_EXCERPTS":
+        if is_transcript_backed and (
+            v2.get("status") != "AVAILABLE" or v2.get("method") == "SOURCE_EXCERPTS"
+        ):
             core_pts = list(brief["core_points"])
             ev_refs = [
                 {
@@ -2016,6 +2356,258 @@ class WorkspaceIntelligenceHub:
                 zh_grams.add(chunk[i : i + 2])
         return en_tokens | zh_grams
 
+    @classmethod
+    def _expand_bilingual_tokens(cls, text: str) -> set[str]:
+        tokens = set(cls._tokenize_query(text))
+        lower = text.lower()
+        for group in _BILINGUAL_SYNONYM_GROUPS:
+            if any(term in lower or term in tokens for term in group):
+                for syn in group:
+                    tokens.add(syn.lower())
+                    tokens |= cls._tokenize_query(syn)
+        return tokens
+
+    @staticmethod
+    def _score_cues_with_fts5(
+        timed_by_video: Mapping[str, Any],
+        expanded_tokens: set[str],
+    ) -> tuple[dict[str, float], dict[str, dict[int, float]]]:
+        fts_terms = sorted(
+            t
+            for t in expanded_tokens
+            if re.fullmatch(r"[a-z0-9\u4e00-\u9fff]{2,}", t)
+        )[:48]
+        if not fts_terms or not timed_by_video:
+            return {}, {}
+        fts_query = " OR ".join(f'"{term}"' for term in fts_terms)
+        video_scores: dict[str, float] = {}
+        cue_scores: dict[str, dict[int, float]] = {}
+        mem_conn = sqlite3.connect(":memory:")
+        try:
+            mem_conn.execute(
+                "CREATE VIRTUAL TABLE cue_fts USING fts5("
+                "video_id UNINDEXED, cue_idx UNINDEXED, content, tokenize='unicode61')"
+            )
+            rows_to_insert: list[tuple[str, int, str]] = []
+            for vid, timed in timed_by_video.items():
+                for idx, cue in enumerate(timed.cues):
+                    rows_to_insert.append((vid, idx, cue.text))
+            mem_conn.executemany(
+                "INSERT INTO cue_fts (video_id, cue_idx, content) VALUES (?, ?, ?)",
+                rows_to_insert,
+            )
+            matched = mem_conn.execute(
+                "SELECT video_id, cue_idx, bm25(cue_fts) AS rank "
+                "FROM cue_fts WHERE cue_fts MATCH ? ORDER BY rank LIMIT 120",
+                (fts_query,),
+            ).fetchall()
+            for vid_raw, idx_raw, rank_raw in matched:
+                vid = str(vid_raw)
+                idx = int(idx_raw)
+                strength = max(0.5, -float(rank_raw))
+                cue_scores.setdefault(vid, {})[idx] = strength
+                video_scores[vid] = video_scores.get(vid, 0.0) + strength
+        except sqlite3.Error:
+            return {}, {}
+        finally:
+            mem_conn.close()
+        return video_scores, cue_scores
+
+    def _select_video_evidence_candidates(
+        self,
+        *,
+        video: Any,
+        brief: Mapping[str, Any] | None,
+        timed: Any,
+        expanded_tokens: set[str],
+        fts_cue_scores: Mapping[int, float],
+        now: datetime,
+    ) -> list[dict[str, Any]]:
+        scored_items: list[tuple[float, float, dict[str, Any]]] = []
+        covered_ms: list[int] = []
+
+        if brief is not None and brief.get("core_points"):
+            for pt in brief["core_points"][:3]:
+                if not isinstance(pt, dict):
+                    continue
+                ev_ids = pt.get("evidence_ids") or []
+                if not ev_ids:
+                    continue
+                ev_id = str(ev_ids[0])
+                start_sec = float(pt.get("start_seconds", 0.0))
+                end_sec = float(pt.get("end_seconds", start_sec))
+                pt_tokens = self._tokenize_query(
+                    f"{pt.get('text', '')} {pt.get('excerpt', '')}"
+                )
+                overlap = len(expanded_tokens & pt_tokens)
+                pt_score = overlap * 2.5 + 1.0
+                covered_ms.append(round(start_sec * 1000))
+                scored_items.append(
+                    (
+                        pt_score,
+                        start_sec,
+                        {
+                            "video_id": video.video_id,
+                            "video_title": video.title,
+                            "channel_name": video.channel_name or video.provider,
+                            "evidence_id": ev_id,
+                            "start_seconds": start_sec,
+                            "end_seconds": end_sec,
+                            "start_ms": round(start_sec * 1000),
+                            "end_ms": round(end_sec * 1000),
+                            "timestamp_label": _format_mmss(start_sec),
+                            "point_zh": str(pt.get("text", "")),
+                            "excerpt": _clean_text(pt.get("excerpt", ""), max_len=280),
+                        },
+                    )
+                )
+
+        cues = list(timed.cues)
+        cue_hits: list[tuple[float, int]] = []
+        for idx, cue in enumerate(cues):
+            overlap = len(expanded_tokens & self._tokenize_query(cue.text))
+            fts_hit = float(fts_cue_scores.get(idx, 0.0))
+            total = fts_hit * 2.5 + overlap * 2.5
+            if total > 0:
+                cue_hits.append((total, idx))
+        cue_hits.sort(key=lambda item: (-item[0], item[1]))
+
+        picked_cue_starts: list[int] = []
+        for hit_score, idx in cue_hits:
+            if len(picked_cue_starts) >= 2:
+                break
+            start_ms = int(cues[idx].start_ms)
+            if any(abs(start_ms - prev) < 18_000 for prev in picked_cue_starts):
+                continue
+            if any(
+                abs(start_ms - cov) < 18_000 and existing_score >= hit_score
+                for existing_score, _, cand in scored_items
+                for cov in (int(cand["start_ms"]),)
+            ):
+                continue
+            end_excl_idx = idx + 1
+            end_ms = int(cues[idx].end_ms)
+            char_len = len(cues[idx].text)
+            while end_excl_idx < len(cues) and (end_excl_idx - idx) < 3:
+                nxt = cues[end_excl_idx]
+                if int(nxt.start_ms) - end_ms > 12_000:
+                    break
+                if char_len + len(nxt.text) > 260:
+                    break
+                char_len += len(nxt.text)
+                end_ms = int(nxt.end_ms)
+                end_excl_idx += 1
+            exact_excerpt = "\n".join(
+                cues[i].text for i in range(idx, end_excl_idx)
+            )
+            if not exact_excerpt.strip():
+                continue
+            ev_id = build_evidence_id(
+                video_id=video.video_id,
+                artifact_id=timed.canonical_artifact_id,
+                start_ms=start_ms,
+                end_ms=end_ms,
+                lineage_kind=EvidenceLineageKind.EXTRACTION,
+                role=EvidenceRole.PRIMARY_ORIGINAL,
+            )
+            ev_write = EvidenceWrite(
+                evidence_id=ev_id,
+                video_id=video.video_id,
+                artifact_id=timed.canonical_artifact_id,
+                start_ms=start_ms,
+                end_ms=end_ms,
+                lineage_kind=EvidenceLineageKind.EXTRACTION,
+                role=EvidenceRole.PRIMARY_ORIGINAL,
+                language=video.default_language or "und",
+                availability=EvidenceAvailability.AVAILABLE,
+            )
+            binding_write = EvidenceTextBindingWrite.from_timed_transcript(
+                evidence=ev_write,
+                timed_transcript_id=timed.timed_transcript_id,
+                start_cue_index=idx,
+                end_cue_index=end_excl_idx,
+                excerpt=exact_excerpt,
+            )
+            self._repository.promote_summary_evidence(ev_write, binding_write, now=now)
+            picked_cue_starts.append(start_ms)
+            start_sec = start_ms / 1000
+            end_sec = end_ms / 1000
+            scored_items.append(
+                (
+                    hit_score + 0.25,
+                    start_sec,
+                    {
+                        "video_id": video.video_id,
+                        "video_title": video.title,
+                        "channel_name": video.channel_name or video.provider,
+                        "evidence_id": ev_id,
+                        "start_seconds": start_sec,
+                        "end_seconds": end_sec,
+                        "start_ms": start_ms,
+                        "end_ms": end_ms,
+                        "timestamp_label": _format_mmss(start_sec),
+                        "point_zh": "",
+                        "excerpt": _clean_text(exact_excerpt, max_len=280),
+                    },
+                )
+            )
+
+        if not scored_items:
+            for win in self._build_cue_windows(cues, max_windows=2):
+                ev_id = build_evidence_id(
+                    video_id=video.video_id,
+                    artifact_id=timed.canonical_artifact_id,
+                    start_ms=win.start_ms,
+                    end_ms=win.end_ms,
+                    lineage_kind=EvidenceLineageKind.EXTRACTION,
+                    role=EvidenceRole.PRIMARY_ORIGINAL,
+                )
+                ev_write = EvidenceWrite(
+                    evidence_id=ev_id,
+                    video_id=video.video_id,
+                    artifact_id=timed.canonical_artifact_id,
+                    start_ms=win.start_ms,
+                    end_ms=win.end_ms,
+                    lineage_kind=EvidenceLineageKind.EXTRACTION,
+                    role=EvidenceRole.PRIMARY_ORIGINAL,
+                    language=video.default_language or "und",
+                    availability=EvidenceAvailability.AVAILABLE,
+                )
+                binding_write = EvidenceTextBindingWrite.from_timed_transcript(
+                    evidence=ev_write,
+                    timed_transcript_id=timed.timed_transcript_id,
+                    start_cue_index=win.start_cue_index,
+                    end_cue_index=win.end_cue_index,
+                    excerpt=win.excerpt,
+                )
+                self._repository.promote_summary_evidence(
+                    ev_write, binding_write, now=now
+                )
+                start_sec = win.start_ms / 1000
+                end_sec = win.end_ms / 1000
+                scored_items.append(
+                    (
+                        0.1,
+                        start_sec,
+                        {
+                            "video_id": video.video_id,
+                            "video_title": video.title,
+                            "channel_name": video.channel_name or video.provider,
+                            "evidence_id": ev_id,
+                            "start_seconds": start_sec,
+                            "end_seconds": end_sec,
+                            "start_ms": win.start_ms,
+                            "end_ms": win.end_ms,
+                            "timestamp_label": _format_mmss(start_sec),
+                            "point_zh": "",
+                            "excerpt": _clean_text(win.excerpt, max_len=280),
+                        },
+                    )
+                )
+
+        scored_items.sort(key=lambda item: (-item[0], item[1]))
+        return [item[2] for item in scored_items[:3]]
+
     def ask_research_question(self, payload: Mapping[str, object]) -> dict[str, object]:
         question = _clean_text(payload.get("question"), max_len=500)
         if not question:
@@ -2027,9 +2619,10 @@ class WorkspaceIntelligenceHub:
 
         briefs_map = self.get_video_briefs_map()
         videos = self._repository.list_videos(limit=200)
-        q_tokens = self._tokenize_query(question)
+        expanded_tokens = self._expand_bilingual_tokens(question)
 
-        scored_videos: list[tuple[float, Any, dict[str, Any] | None]] = []
+        eligible_videos: list[tuple[Any, dict[str, Any] | None, Any]] = []
+        timed_by_video: dict[str, Any] = {}
         for video in videos:
             if explicit_ids is not None and video.video_id not in explicit_ids:
                 continue
@@ -2039,7 +2632,23 @@ class WorkspaceIntelligenceHub:
             timed = self._repository.get_verified_timed_transcript(video_id=video.video_id)
             if timed is None or not timed.cues:
                 continue
-            corpus_text = " ".join(
+            eligible_videos.append((video, brief, timed))
+            timed_by_video[video.video_id] = timed
+
+        if not eligible_videos:
+            raise ApiError(
+                HTTPStatus.CONFLICT,
+                "NO_GROUNDED_CONTENT",
+                "当前没有可用于跨视频溯源问答的已转写内容。",
+            )
+
+        fts_video_scores, fts_cue_scores = self._score_cues_with_fts5(
+            timed_by_video, expanded_tokens
+        )
+
+        scored_videos: list[tuple[float, Any, dict[str, Any] | None, Any]] = []
+        for video, brief, timed in eligible_videos:
+            meta_corpus = " ".join(
                 [
                     video.title or "",
                     video.channel_name or "",
@@ -2048,115 +2657,66 @@ class WorkspaceIntelligenceHub:
                     "" if brief is None else " ".join(brief["topics_zh"]),
                 ]
             )
-            doc_tokens = self._tokenize_query(corpus_text)
-            overlap = len(q_tokens & doc_tokens)
+            cue_sample = " ".join(c.text for c in timed.cues[:120])
+            meta_overlap = len(expanded_tokens & self._tokenize_query(meta_corpus))
+            cue_overlap = len(expanded_tokens & self._tokenize_query(cue_sample))
+            fts_bonus = float(fts_video_scores.get(video.video_id, 0.0))
             base_score = float(brief["score"]) if brief is not None else 6.0
-            rank_score = overlap * 3.0 + base_score
-            scored_videos.append((rank_score, video, brief))
-
-        if not scored_videos:
-            raise ApiError(
-                HTTPStatus.CONFLICT,
-                "NO_GROUNDED_CONTENT",
-                "当前没有可用于跨视频溯源问答的已转写内容。",
+            rank_score = (
+                meta_overlap * 3.5
+                + cue_overlap * 2.5
+                + fts_bonus * 3.0
+                + base_score
             )
+            scored_videos.append((rank_score, video, brief, timed))
+
         scored_videos.sort(key=lambda item: item[0], reverse=True)
         selected_videos = scored_videos[:8]
 
+        now = self._now()
+        per_video_candidates: list[list[dict[str, Any]]] = []
+        for _, video, brief, timed in selected_videos:
+            per_video_candidates.append(
+                self._select_video_evidence_candidates(
+                    video=video,
+                    brief=brief,
+                    timed=timed,
+                    expanded_tokens=expanded_tokens,
+                    fts_cue_scores=fts_cue_scores.get(video.video_id, {}),
+                    now=now,
+                )
+            )
+
+        # Interleave Round 1 (the #1 best match per video) before Round 2+ so [E1..E8]
+        # span multiple videos while preserving the #1 ranked video's sharpest match at [E1].
+        ordered_raw_candidates: list[dict[str, Any]] = []
+        for round_idx in range(3):
+            for v_cands in per_video_candidates:
+                if round_idx < len(v_cands):
+                    ordered_raw_candidates.append(v_cands[round_idx])
+                    if len(ordered_raw_candidates) >= 18:
+                        break
+            if len(ordered_raw_candidates) >= 18:
+                break
+
         candidates: dict[str, dict[str, Any]] = {}
         prompt_blocks: list[str] = []
-        ref_counter = 1
-        now = self._now()
-
-        for _, video, brief in selected_videos:
-            if ref_counter > 18:
-                break
-            if brief is not None and brief["core_points"]:
-                for pt in brief["core_points"][:3]:
-                    if ref_counter > 18:
-                        break
-                    ev_ids = pt.get("evidence_ids") or []
-                    if not ev_ids:
-                        continue
-                    ev_id = str(ev_ids[0])
-                    start_sec = float(pt.get("start_seconds", 0.0))
-                    end_sec = float(pt.get("end_seconds", start_sec))
-                    ref_label = f"E{ref_counter}"
-                    ref_counter += 1
-                    candidates[ref_label] = {
-                        "ref_label": ref_label,
-                        "video_id": video.video_id,
-                        "video_title": video.title,
-                        "channel_name": video.channel_name or video.provider,
-                        "evidence_id": ev_id,
-                        "start_seconds": start_sec,
-                        "end_seconds": end_sec,
-                        "timestamp_label": _format_mmss(start_sec),
-                        "point_zh": str(pt.get("text", "")),
-                        "excerpt": _clean_text(pt.get("excerpt", ""), max_len=280),
-                    }
-                    prompt_blocks.append(
-                        f"[{ref_label}] 视频《{video.title}》({video.channel_name or video.provider}) "
-                        f"时间 {_format_mmss(start_sec)} | 中文要点：{pt.get('text', '')} | "
-                        f"原话摘录：{_clean_text(pt.get('excerpt', ''), max_len=220)}"
-                    )
-            else:
-                timed = self._repository.get_verified_timed_transcript(
-                    video_id=video.video_id
+        for ref_counter, raw_cand in enumerate(ordered_raw_candidates, start=1):
+            ref_label = f"E{ref_counter}"
+            cand = {**raw_cand, "ref_label": ref_label}
+            candidates[ref_label] = cand
+            if cand.get("point_zh"):
+                prompt_blocks.append(
+                    f"[{ref_label}] 视频《{cand['video_title']}》({cand['channel_name']}) "
+                    f"时间 {cand['timestamp_label']} | 中文要点：{cand['point_zh']} | "
+                    f"原话摘录：{_clean_text(cand['excerpt'], max_len=220)}"
                 )
-                if timed is None or not timed.cues:
-                    continue
-                for win in self._build_cue_windows(timed.cues, max_windows=2):
-                    if ref_counter > 18:
-                        break
-                    ev_id = build_evidence_id(
-                        video_id=video.video_id,
-                        artifact_id=timed.canonical_artifact_id,
-                        start_ms=win.start_ms,
-                        end_ms=win.end_ms,
-                        lineage_kind=EvidenceLineageKind.EXTRACTION,
-                        role=EvidenceRole.PRIMARY_ORIGINAL,
-                    )
-                    ev_write = EvidenceWrite(
-                        evidence_id=ev_id,
-                        video_id=video.video_id,
-                        artifact_id=timed.canonical_artifact_id,
-                        start_ms=win.start_ms,
-                        end_ms=win.end_ms,
-                        lineage_kind=EvidenceLineageKind.EXTRACTION,
-                        role=EvidenceRole.PRIMARY_ORIGINAL,
-                        language=video.default_language or "und",
-                        availability=EvidenceAvailability.AVAILABLE,
-                    )
-                    binding_write = EvidenceTextBindingWrite.from_timed_transcript(
-                        evidence=ev_write,
-                        timed_transcript_id=timed.timed_transcript_id,
-                        start_cue_index=win.start_cue_index,
-                        end_cue_index=win.end_cue_index,
-                        excerpt=win.excerpt,
-                    )
-                    self._repository.promote_summary_evidence(
-                        ev_write, binding_write, now=now
-                    )
-                    ref_label = f"E{ref_counter}"
-                    ref_counter += 1
-                    start_sec = win.start_ms / 1000
-                    candidates[ref_label] = {
-                        "ref_label": ref_label,
-                        "video_id": video.video_id,
-                        "video_title": video.title,
-                        "channel_name": video.channel_name or video.provider,
-                        "evidence_id": ev_id,
-                        "start_seconds": start_sec,
-                        "end_seconds": win.end_ms / 1000,
-                        "timestamp_label": _format_mmss(start_sec),
-                        "point_zh": "",
-                        "excerpt": _clean_text(win.excerpt, max_len=280),
-                    }
-                    prompt_blocks.append(
-                        f"[{ref_label}] 视频《{video.title}》 时间 {_format_mmss(start_sec)} | "
-                        f"原话摘录：{_clean_text(win.excerpt, max_len=240)}"
-                    )
+            else:
+                prompt_blocks.append(
+                    f"[{ref_label}] 视频《{cand['video_title']}》({cand['channel_name']}) "
+                    f"时间 {cand['timestamp_label']} | "
+                    f"原话摘录：{_clean_text(cand['excerpt'], max_len=240)}"
+                )
 
         system_prompt = (
             "你是跨视频 AI 产品与商业研究顾问（RESEARCH_QA_SCHEMA）。"
@@ -2398,19 +2958,34 @@ class WorkspaceIntelligenceHub:
             ).fetchone()
             if row is None:
                 return {"weekly_brief": None, "funnel_stats": funnel_stats}
+            top_shifts = json.loads(str(row["top_shifts_json"]))
+            prod_opps = json.loads(str(row["product_opportunities_json"]))
+            biz_monetization = json.loads(str(row["business_monetization_json"]))
+            raw_picks = json.loads(str(row["must_watch_picks_json"]))
+            hydrated_picks = [
+                {
+                    **p,
+                    "reason_zh": str(p.get("reason_zh") or p.get("headline_zh") or ""),
+                }
+                for p in raw_picks
+                if isinstance(p, dict)
+            ]
+            core_trends_zh = [
+                f"{s.get('title_zh', '')}：{s.get('detail_zh', '')}".strip("：")
+                for s in top_shifts
+                if isinstance(s, dict) and (s.get("title_zh") or s.get("detail_zh"))
+            ]
             return {
                 "weekly_brief": {
                     "brief_id": str(row["brief_id"]),
                     "title_zh": str(row["title_zh"]),
                     "executive_summary_zh": str(row["executive_summary_zh"]),
-                    "top_shifts_zh": json.loads(str(row["top_shifts_json"])),
-                    "product_opportunities_zh": json.loads(
-                        str(row["product_opportunities_json"])
-                    ),
-                    "business_monetization_zh": json.loads(
-                        str(row["business_monetization_json"])
-                    ),
-                    "must_watch_picks": json.loads(str(row["must_watch_picks_json"])),
+                    "top_shifts_zh": top_shifts,
+                    "core_trends_zh": core_trends_zh,
+                    "product_opportunities_zh": prod_opps,
+                    "business_monetization_zh": biz_monetization,
+                    "business_opportunities_zh": list(biz_monetization),
+                    "must_watch_picks": hydrated_picks,
                     "funnel_stats": json.loads(str(row["funnel_stats_json"])),
                     "provider": str(row["provider"]),
                     "model": str(row["model"]),
@@ -2621,7 +3196,255 @@ class WorkspaceIntelligenceHub:
         finally:
             conn.close()
 
+        self._write_rolling_snapshot_quietly()
         return self.get_latest_weekly_brief()
+
+    # ------------------------------------------------------------------
+    # Sidecar Backup & Restore (Zero-Secret Portable Snapshot)
+    # ------------------------------------------------------------------
+
+    def _write_rolling_snapshot_quietly(self) -> None:
+        try:
+            snap = self.export_backup_snapshot()
+            snap_path = self.db_path.parent / "hub-snapshot.json"
+            snap_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+            snap_path.write_text(
+                json.dumps(snap, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+        except OSError:
+            pass
+
+    def export_backup_snapshot(self) -> dict[str, object]:
+        cfg = self._raw_engine_config()
+        safe_config = {
+            "active_mode": cfg.get("active_mode", "local_ollama"),
+            "ollama_base_url": cfg.get("ollama_base_url", DEFAULT_OLLAMA_BASE_URL),
+            "ollama_model": cfg.get("ollama_model", DEFAULT_OLLAMA_MODEL),
+            "cloud_provider": cfg.get("cloud_provider", DEFAULT_CLOUD_PROVIDER),
+            "cloud_base_url": cfg.get("cloud_base_url", DEFAULT_CLOUD_BASE_URL),
+            "cloud_model": cfg.get("cloud_model", DEFAULT_CLOUD_MODEL),
+        }
+        briefs: list[dict[str, object]] = []
+        sessions: list[dict[str, object]] = []
+        weekly_briefs: list[dict[str, object]] = []
+        conn = self._connect_read()
+        if conn is not None:
+            try:
+                for row in conn.execute(
+                    "SELECT * FROM video_ai_briefs ORDER BY updated_at DESC, video_id ASC"
+                ).fetchall():
+                    briefs.append(dict(row))
+                for row in conn.execute(
+                    "SELECT * FROM research_qa_sessions ORDER BY created_at DESC, session_id ASC"
+                ).fetchall():
+                    sessions.append(dict(row))
+                for row in conn.execute(
+                    "SELECT * FROM weekly_ai_briefs ORDER BY created_at DESC, brief_id ASC"
+                ).fetchall():
+                    weekly_briefs.append(dict(row))
+            except sqlite3.Error:
+                pass
+            finally:
+                conn.close()
+        return {
+            "schema_version": "workspace-ai-backup-v1",
+            "exported_at": format_utc_datetime(self._now()),
+            "counts": {
+                "briefs": len(briefs),
+                "research_sessions": len(sessions),
+                "weekly_briefs": len(weekly_briefs),
+            },
+            "engine_config": safe_config,
+            "video_ai_briefs": briefs,
+            "research_qa_sessions": sessions,
+            "weekly_ai_briefs": weekly_briefs,
+        }
+
+    def restore_backup_snapshot(
+        self, payload: Mapping[str, object]
+    ) -> dict[str, object]:
+        if payload.get("schema_version") != "workspace-ai-backup-v1":
+            raise ValueError("Unsupported workspace AI backup schema_version.")
+        raw_cfg = payload.get("engine_config")
+        if isinstance(raw_cfg, Mapping):
+            cfg_patch: dict[str, object] = {}
+            for key in (
+                "active_mode",
+                "ollama_base_url",
+                "ollama_model",
+                "cloud_provider",
+                "cloud_base_url",
+                "cloud_model",
+            ):
+                if isinstance(raw_cfg.get(key), str):
+                    cfg_patch[key] = raw_cfg[key]
+            if cfg_patch:
+                self.update_settings(cfg_patch)
+
+        raw_briefs = payload.get("video_ai_briefs")
+        raw_sessions = payload.get("research_qa_sessions")
+        raw_weekly = payload.get("weekly_ai_briefs")
+
+        restored_briefs = 0
+        restored_sessions = 0
+        restored_weekly = 0
+
+        conn = self._connect_write()
+        try:
+            with conn:
+                if isinstance(raw_briefs, list):
+                    for item in raw_briefs:
+                        if not isinstance(item, Mapping) or not item.get("video_id"):
+                            continue
+                        conn.execute(
+                            """
+                            INSERT INTO video_ai_briefs (
+                                video_id, headline_zh, summary_zh, score, score_reason_zh,
+                                recommendation_tier, content_bucket, is_short_noise, duration_seconds,
+                                topics_json, topic_cluster_zh, core_points_json,
+                                product_opportunities_json, business_opportunities_json,
+                                filtered_noise_json, intelligence_id, revision_id,
+                                provider, model, obsidian_markdown, updated_at, source_basis
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            ON CONFLICT(video_id) DO UPDATE SET
+                                headline_zh = excluded.headline_zh,
+                                summary_zh = excluded.summary_zh,
+                                score = excluded.score,
+                                score_reason_zh = excluded.score_reason_zh,
+                                recommendation_tier = excluded.recommendation_tier,
+                                content_bucket = excluded.content_bucket,
+                                is_short_noise = excluded.is_short_noise,
+                                duration_seconds = excluded.duration_seconds,
+                                topics_json = excluded.topics_json,
+                                topic_cluster_zh = excluded.topic_cluster_zh,
+                                core_points_json = excluded.core_points_json,
+                                product_opportunities_json = excluded.product_opportunities_json,
+                                business_opportunities_json = excluded.business_opportunities_json,
+                                filtered_noise_json = excluded.filtered_noise_json,
+                                intelligence_id = excluded.intelligence_id,
+                                revision_id = excluded.revision_id,
+                                provider = excluded.provider,
+                                model = excluded.model,
+                                obsidian_markdown = excluded.obsidian_markdown,
+                                updated_at = excluded.updated_at,
+                                source_basis = excluded.source_basis
+                            """,
+                            (
+                                str(item["video_id"]),
+                                str(item.get("headline_zh", "")),
+                                str(item.get("summary_zh", "")),
+                                float(cast(float, item.get("score", 6.0))),
+                                str(item.get("score_reason_zh", "")),
+                                str(item.get("recommendation_tier", "WORTH_SKIMMING")),
+                                str(item.get("content_bucket", "DEEP_DIVE")),
+                                int(bool(item.get("is_short_noise", 0))),
+                                (
+                                    None
+                                    if item.get("duration_seconds") is None
+                                    else int(cast(int, item["duration_seconds"]))
+                                ),
+                                str(item.get("topics_json", "[]")),
+                                str(item.get("topic_cluster_zh", CANONICAL_TOPIC_CLUSTERS[0])),
+                                str(item.get("core_points_json", "[]")),
+                                str(item.get("product_opportunities_json", "[]")),
+                                str(item.get("business_opportunities_json", "[]")),
+                                str(item.get("filtered_noise_json", "[]")),
+                                (
+                                    None
+                                    if item.get("intelligence_id") is None
+                                    else str(item["intelligence_id"])
+                                ),
+                                (
+                                    None
+                                    if item.get("revision_id") is None
+                                    else str(item["revision_id"])
+                                ),
+                                str(item.get("provider", "local_ollama")),
+                                str(item.get("model", DEFAULT_OLLAMA_MODEL)),
+                                str(item.get("obsidian_markdown", "")),
+                                str(
+                                    item.get("updated_at")
+                                    or format_utc_datetime(self._now())
+                                ),
+                                str(item.get("source_basis") or "TRANSCRIPT"),
+                            ),
+                        )
+                        restored_briefs += 1
+
+                if isinstance(raw_sessions, list):
+                    for item in raw_sessions:
+                        if not isinstance(item, Mapping) or not item.get("session_id"):
+                            continue
+                        conn.execute(
+                            """
+                            INSERT OR REPLACE INTO research_qa_sessions (
+                                session_id, question, answer_zh, key_takeaways_json,
+                                action_items_json, citations_json, video_count,
+                                provider, model, obsidian_markdown, created_at
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """,
+                            (
+                                str(item["session_id"]),
+                                str(item.get("question", "")),
+                                str(item.get("answer_zh", "")),
+                                str(item.get("key_takeaways_json", "[]")),
+                                str(item.get("action_items_json", "[]")),
+                                str(item.get("citations_json", "[]")),
+                                int(cast(int, item.get("video_count", 0))),
+                                str(item.get("provider", "local_ollama")),
+                                str(item.get("model", DEFAULT_OLLAMA_MODEL)),
+                                str(item.get("obsidian_markdown", "")),
+                                str(
+                                    item.get("created_at")
+                                    or format_utc_datetime(self._now())
+                                ),
+                            ),
+                        )
+                        restored_sessions += 1
+
+                if isinstance(raw_weekly, list):
+                    for item in raw_weekly:
+                        if not isinstance(item, Mapping) or not item.get("brief_id"):
+                            continue
+                        conn.execute(
+                            """
+                            INSERT OR REPLACE INTO weekly_ai_briefs (
+                                brief_id, title_zh, executive_summary_zh, top_shifts_json,
+                                product_opportunities_json, business_monetization_json,
+                                must_watch_picks_json, funnel_stats_json,
+                                provider, model, obsidian_markdown, created_at
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """,
+                            (
+                                str(item["brief_id"]),
+                                str(item.get("title_zh", "")),
+                                str(item.get("executive_summary_zh", "")),
+                                str(item.get("top_shifts_json", "[]")),
+                                str(item.get("product_opportunities_json", "[]")),
+                                str(item.get("business_monetization_json", "[]")),
+                                str(item.get("must_watch_picks_json", "[]")),
+                                str(item.get("funnel_stats_json", "{}")),
+                                str(item.get("provider", "local_ollama")),
+                                str(item.get("model", DEFAULT_OLLAMA_MODEL)),
+                                str(item.get("obsidian_markdown", "")),
+                                str(
+                                    item.get("created_at")
+                                    or format_utc_datetime(self._now())
+                                ),
+                            ),
+                        )
+                        restored_weekly += 1
+        finally:
+            conn.close()
+
+        return {
+            "restored": {
+                "briefs": restored_briefs,
+                "research_sessions": restored_sessions,
+                "weekly_briefs": restored_weekly,
+            }
+        }
 
 
 def cast_dict(value: object) -> Mapping[str, Any]:
