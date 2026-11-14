@@ -3261,69 +3261,94 @@ function ContentDetailPanel(
       {isBilibili && data.video.processing_status !== "SOURCE_UNAVAILABLE" && <FollowCreatorFromContent id={id} capability={creatorCapability} />}
       {data.video.provider === "YOUTUBE" && data.video.channel_id && /^UC[A-Za-z0-9_-]{22}$/.test(data.video.channel_id) && <FollowCreatorFromContent id={id} provider="YOUTUBE" />}
       <Panel id="section-intelligence" icon="sparkle" title="Intelligence result">
-        <LocalIntelligencePresentation content={localCapability} onReload={reload} />
-        <div className="semantic-state state-neutral">
-          <Status value={data.intelligence_result.status} label={cloudWait ? "Waiting for cloud execution prerequisites" : unstartedLongWait ? "Extraction has not started" : undefined} />
-          <p role={data.intelligence_result.status === "CANCELLED" ? "status" : undefined}>{t(unstartedLongWait
-            ? "This extraction has not run. You can safely cancel it, then request extraction again."
-            : intelligenceResultCopy(data.intelligence_result.status, data.intelligence_result.cloud_http429_code, data.intelligence_result.selected_provider, data.intelligence_result.can_cancel))}</p>
-          {(cloudWait || (data.intelligence_result.status === "REJECTED_OUTPUT" && data.intelligence_result.cloud_http429_code === "1315")) && <a className="source-link" href={`#Settings/models/bigmodel?return=${encodeURIComponent(`#Content/${id}`)}`}>{t("Settings")}</a>}
-          {cancelFeedback && data.intelligence_result.status !== "CANCELLED" && <p role="status">{cancelFeedback}</p>}
-          {Boolean(data.waiting_model_executions?.length || data.pending_synthesis_executions?.length) && <div>
-            {[...(data.waiting_model_executions ?? []), ...(data.pending_synthesis_executions ?? [])].map((wait) => <div key={wait.execution_id}>
-              {data.pending_synthesis_executions?.some(pending => pending.execution_id === wait.execution_id) ? <p>{t("This extraction has not run. You can safely cancel it, then request extraction again.")}</p> : wait.selected_provider === "zhipu_bigmodel"
-                ? <><p>{t(intelligenceResultCopy("WAITING_MODEL", undefined, wait.selected_provider, wait.can_cancel))}</p>
-                  <a className="source-link" href={`#Settings/models/bigmodel?return=${encodeURIComponent(`#Content/${id}`)}`}>{t("Settings")}</a></>
-                : (!unstartedLongWait || localCapability?.qualification_status === "NOT_QUALIFIED")
-                  && <p>{t("No qualified Intelligence model is currently available.")}</p>}
-              <div className="button-row">
-              <span className="hint">{humanDate(wait.updated_at)}</span>
-              {wait.can_cancel === true ? <button type="button" className="button button-secondary" disabled={cloudBusy} onClick={async () => {
-                setCloudBusy(true); setCloudError(null);
-                try {
-                  await post(`/videos/${id}/intelligence/cancel`, { execution_id: wait.execution_id });
-                  setCancelFeedback(t(intelligenceResultCopy("CANCELLED")));
-                  setRefresh(value => value + 1);
-                } catch {
-                  setCloudError(t("This task cannot be safely cancelled. Refresh its current state."));
-                  setRefresh(value => value + 1);
-                } finally { setCloudBusy(false); }
-              }}>{t(cloudBusy ? "Cancelling…" : "Cancel this extraction")}</button>
-                : <p>{t("This task cannot be safely cancelled. Refresh its current state.")}</p>}
+        <WorkspaceVideoAiBriefCard brief={aiBrief} obsidianMarkdown={data.obsidian_markdown} />
+        {(() => {
+          const hasActiveLegacyExecution = Boolean(
+            cloudWait ||
+              unstartedLongWait ||
+              data.waiting_model_executions?.length ||
+              data.pending_synthesis_executions?.length ||
+              ["RUNNING", "PENDING"].includes(data.intelligence_result.status),
+          );
+          const legacyIntelBody = (
+            <>
+              <LocalIntelligencePresentation content={localCapability} onReload={reload} />
+              <div className="semantic-state state-neutral">
+                <Status value={data.intelligence_result.status} label={cloudWait ? "Waiting for cloud execution prerequisites" : unstartedLongWait ? "Extraction has not started" : undefined} />
+                <p role={data.intelligence_result.status === "CANCELLED" ? "status" : undefined}>{t(unstartedLongWait
+                  ? "This extraction has not run. You can safely cancel it, then request extraction again."
+                  : intelligenceResultCopy(data.intelligence_result.status, data.intelligence_result.cloud_http429_code, data.intelligence_result.selected_provider, data.intelligence_result.can_cancel))}</p>
+                {(cloudWait || (data.intelligence_result.status === "REJECTED_OUTPUT" && data.intelligence_result.cloud_http429_code === "1315")) && <a className="source-link" href={`#Settings/models/bigmodel?return=${encodeURIComponent(`#Content/${id}`)}`}>{t("Settings")}</a>}
+                {cancelFeedback && data.intelligence_result.status !== "CANCELLED" && <p role="status">{cancelFeedback}</p>}
+                {Boolean(data.waiting_model_executions?.length || data.pending_synthesis_executions?.length) && <div>
+                  {[...(data.waiting_model_executions ?? []), ...(data.pending_synthesis_executions ?? [])].map((wait) => <div key={wait.execution_id}>
+                    {data.pending_synthesis_executions?.some(pending => pending.execution_id === wait.execution_id) ? <p>{t("This extraction has not run. You can safely cancel it, then request extraction again.")}</p> : wait.selected_provider === "zhipu_bigmodel"
+                      ? <><p>{t(intelligenceResultCopy("WAITING_MODEL", undefined, wait.selected_provider, wait.can_cancel))}</p>
+                        <a className="source-link" href={`#Settings/models/bigmodel?return=${encodeURIComponent(`#Content/${id}`)}`}>{t("Settings")}</a></>
+                      : (!unstartedLongWait || localCapability?.qualification_status === "NOT_QUALIFIED")
+                        && <p>{t("No qualified Intelligence model is currently available.")}</p>}
+                    <div className="button-row">
+                    <span className="hint">{humanDate(wait.updated_at)}</span>
+                    {wait.can_cancel === true ? <button type="button" className="button button-secondary" disabled={cloudBusy} onClick={async () => {
+                      setCloudBusy(true); setCloudError(null);
+                      try {
+                        await post(`/videos/${id}/intelligence/cancel`, { execution_id: wait.execution_id });
+                        setCancelFeedback(t(intelligenceResultCopy("CANCELLED")));
+                        setRefresh(value => value + 1);
+                      } catch {
+                        setCloudError(t("This task cannot be safely cancelled. Refresh its current state."));
+                        setRefresh(value => value + 1);
+                      } finally { setCloudBusy(false); }
+                    }}>{t(cloudBusy ? "Cancelling…" : "Cancel this extraction")}</button>
+                      : <p>{t("This task cannot be safely cancelled. Refresh its current state.")}</p>}
+                    </div>
+                  </div>)}
+                </div>}
+                {data.manual_intelligence_eligible && <div className="button-row">
+                  <button type="button" className="button button-primary" disabled={cloudBusy || !localCapability || ["UNKNOWN", "CONFIGURATION_REQUIRED"].includes(localCapability.request_state) || Boolean(data.waiting_model_executions?.length)} onClick={async () => {
+                    setCloudBusy(true); setCloudError(null); setCancelFeedback(null);
+                    try { await post(`/videos/${id}/intelligence`, { command_id: commandId() }); setRefresh(value => value + 1); }
+                    catch (error) { setCloudError(t(error instanceof ApiRequestError && error.code === "MODEL_CONFIGURATION_REQUIRED" ? "Configure the local Intelligence model in Settings before requesting extraction. No task will be created with the current route." : "Intelligence could not start. Check model readiness and try again.")); }
+                    finally { setCloudBusy(false); }
+                  }}>{t(cloudBusy ? "Considering Content…" : "Extract Intelligence")}</button>
+                  <p className="hint">{t("Uses qualified local processing when available. Cloud processing requires a separate review and explicit authorization.")}</p>
+                </div>}
+                {cloudError ? <p role="alert">{cloudError}</p> : null}
+                {data.intelligence_result.status === "WAITING_MODEL" && data.cloud_intelligence_available === false
+                  ? <p>{t("Cloud Intelligence is currently unavailable because the provider or its runtime credential is unavailable. Existing Summary and Evidence remain usable.")}</p>
+                  : null}
+                {data.intelligence_result.status === "SUCCEEDED_NO_NEW_INTELLIGENCE"
+                  ? (
+                    <p className="hint">
+                      {t("This is a completed processing result, not an Intelligence validation posture or numeric confidence score.")}
+                    </p>
+                  )
+                  : null}
+                {data.video.provider === "YOUTUBE" && (data.intelligence_result.status === "WAITING_MODEL"
+                  || (["NOT_PROCESSED", "CANCELLED", "REJECTED_OUTPUT"].includes(data.intelligence_result.status) && data.manual_intelligence_eligible === true))
+                  && note?.status === "AVAILABLE" && transcript.status === "AVAILABLE" && (
+                  <CloudIntelligencePreview key={id} id={id} manual={data.manual_intelligence_eligible === true}
+                    executionKey={`${data.intelligence_result.execution_id ?? ""}:${data.intelligence_result.status}`}
+                    onSettled={() => setRefresh(value => value + 1)} />
+                )}
               </div>
-            </div>)}
-          </div>}
-          {data.manual_intelligence_eligible && <div className="button-row">
-            <button type="button" className="button button-primary" disabled={cloudBusy || !localCapability || ["UNKNOWN", "CONFIGURATION_REQUIRED"].includes(localCapability.request_state) || Boolean(data.waiting_model_executions?.length)} onClick={async () => {
-              setCloudBusy(true); setCloudError(null); setCancelFeedback(null);
-              try { await post(`/videos/${id}/intelligence`, { command_id: commandId() }); setRefresh(value => value + 1); }
-              catch (error) { setCloudError(t(error instanceof ApiRequestError && error.code === "MODEL_CONFIGURATION_REQUIRED" ? "Configure the local Intelligence model in Settings before requesting extraction. No task will be created with the current route." : "Intelligence could not start. Check model readiness and try again.")); }
-              finally { setCloudBusy(false); }
-            }}>{t(cloudBusy ? "Considering Content…" : "Extract Intelligence")}</button>
-            <p className="hint">{t("Uses qualified local processing when available. Cloud processing requires a separate review and explicit authorization.")}</p>
-          </div>}
-          {cloudError ? <p role="alert">{cloudError}</p> : null}
-          {data.intelligence_result.status === "WAITING_MODEL" && data.cloud_intelligence_available === false
-            ? <p>{t("Cloud Intelligence is currently unavailable because the provider or its runtime credential is unavailable. Existing Summary and Evidence remain usable.")}</p>
-            : null}
-          {data.intelligence_result.status === "SUCCEEDED_NO_NEW_INTELLIGENCE"
-            ? (
-              <p className="hint">
-                {t("This is a completed processing result, not an Intelligence validation posture or numeric confidence score.")}
-              </p>
-            )
-            : null}
-          {data.video.provider === "YOUTUBE" && (data.intelligence_result.status === "WAITING_MODEL"
-            || (["NOT_PROCESSED", "CANCELLED", "REJECTED_OUTPUT"].includes(data.intelligence_result.status) && data.manual_intelligence_eligible === true))
-            && note?.status === "AVAILABLE" && transcript.status === "AVAILABLE" && (
-            <CloudIntelligencePreview key={id} id={id} manual={data.manual_intelligence_eligible === true}
-              executionKey={`${data.intelligence_result.execution_id ?? ""}:${data.intelligence_result.status}`}
-              onSettled={() => setRefresh(value => value + 1)} />
-          )}
-        </div>
+            </>
+          );
+          return aiBrief && !hasActiveLegacyExecution ? (
+            <details className="legacy-model-diagnostics">
+              <summary>
+                {language === "zh-CN"
+                  ? "底层离线模型路由与手动核验诊断"
+                  : "Underlying local model route & manual diagnostics"}
+              </summary>
+              {legacyIntelBody}
+            </details>
+          ) : (
+            legacyIntelBody
+          );
+        })()}
       </Panel>
       <Panel id="section-summary" icon="file-text" title={data.video.provider === "LOCAL" || isBilibili ? "Summary" : "Summary / Video Notes"}>
-        <WorkspaceVideoAiBriefCard brief={aiBrief} obsidianMarkdown={data.obsidian_markdown} />
         {note?.status === "AVAILABLE"
           ? (() => {
             const summaryClean = note.summary ? cleanCaptionText(note.summary) : { text: "", collapsedCount: 0 };
@@ -3542,7 +3567,13 @@ function ContentDetailPanel(
               <Status value="UNAVAILABLE" />
               <p>{t("Summary / Video Notes are not available for this Content yet. No summary is fabricated from missing output.")}</p>
             </div>
-          ) : null}
+          ) : (
+            <p className="hint">
+              {language === "zh-CN"
+                ? "AI 中文核心结论与洞察切口已展示在上方「洞察处理结果」卡片中；分段原话时间轴请查阅下方「原始证据」与「原始字幕」。"
+                : "The Chinese AI executive summary is shown in the Intelligence Result card above; check Evidence and Transcript below for timestamped quotes."}
+            </p>
+          )}
       </Panel>
       <ContentEvidencePanel
         videoId={data.video.video_id}

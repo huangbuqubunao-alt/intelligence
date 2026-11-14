@@ -2094,6 +2094,13 @@ describe("Workspace AI Upgrade (P0 + P1 + P2)", () => {
     render(<App />);
     expect(await screen.findByText("1. First Lecture.mp4")).toBeTruthy();
 
+    // Distilled Chinese AI Brief sits front-and-center inside #section-intelligence while legacy NOT_PROCESSED diagnostics is collapsed
+    const intelSection = document.getElementById("section-intelligence")!;
+    expect(within(intelSection).getByText("第一讲：Agent 工具沙箱隔离与权限最小化。")).toBeTruthy();
+    const legacyDiag = intelSection.querySelector("details.legacy-model-diagnostics") as HTMLDetailsElement | null;
+    expect(legacyDiag).toBeTruthy();
+    expect(legacyDiag?.open).toBe(false);
+
     // Open ⌘K Command Palette and search Chinese AI conclusion of video #46 ("高隐蔽性浏览器漏洞")
     fireEvent.click(screen.getByRole("button", { name: /搜索与直达/ }));
     const cmdkInput = await screen.findByRole("combobox", {
