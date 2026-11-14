@@ -7,6 +7,7 @@ import { useUiLanguage } from "./uiLanguage";
 
 export type VideoAiBrief = {
   video_id: string;
+  source_basis?: "TRANSCRIPT" | "METADATA_ONLY";
   headline_zh: string;
   summary_zh: string;
   score: number;
@@ -99,6 +100,7 @@ export function readVideoAiBrief(raw: unknown): VideoAiBrief | null {
   const bucket = raw.content_bucket;
   return {
     video_id: typeof raw.video_id === "string" ? raw.video_id : "",
+    source_basis: raw.source_basis === "METADATA_ONLY" ? "METADATA_ONLY" : "TRANSCRIPT",
     headline_zh: raw.headline_zh,
     summary_zh: typeof raw.summary_zh === "string" ? raw.summary_zh : "",
     score: raw.score,
@@ -225,6 +227,22 @@ export function downloadObsidianMarkdown(filename: string, markdown: string) {
   if (!markdown || typeof URL === "undefined" || typeof URL.createObjectURL !== "function") return;
   const safeName = filename.endsWith(".md") ? filename : `${filename}.md`;
   const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
+  const href = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = href;
+  anchor.download = safeName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(href);
+}
+
+function downloadJsonSnapshot(filename: string, payload: unknown) {
+  if (typeof URL === "undefined" || typeof URL.createObjectURL !== "function") return;
+  const safeName = filename.endsWith(".json") ? filename : `${filename}.json`;
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {
+    type: "application/json;charset=utf-8",
+  });
   const href = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = href;
@@ -461,6 +479,7 @@ export function WeeklyAiBriefPanel({
 export function WorkspaceVideoAiActions({
   videoId,
   title,
+  provider,
   isLocalMedia,
   transcriptAvailable,
   aiBrief,
@@ -469,6 +488,7 @@ export function WorkspaceVideoAiActions({
 }: {
   videoId: string;
   title: string;
+  provider?: "YOUTUBE" | "LOCAL" | "BILIBILI";
   isLocalMedia: boolean;
   transcriptAvailable: boolean;
   aiBrief: VideoAiBrief | null;
@@ -482,6 +502,8 @@ export function WorkspaceVideoAiActions({
   const [copiedObsidian, setCopiedObsidian] = useState(false);
 
   const mdContent = obsidianMarkdown ?? aiBrief?.obsidian_markdown ?? "";
+  const canMetadataPreview =
+    !isLocalMedia && !transcriptAvailable && (provider ?? "YOUTUBE") === "YOUTUBE";
 
   const runAction = async (kind: "distill" | "transcribe") => {
     setBusyKind(kind);
@@ -554,6 +576,29 @@ export function WorkspaceVideoAiActions({
                 ? "AI 提炼中文总结与洞察"
                 : "Distill AI Chinese brief"}
         </button>
+      ) : canMetadataPreview ? (
+        <button
+          type="button"
+          className="button button-secondary button-small"
+          disabled={busyKind !== null}
+          onClick={(event) => {
+            pulseCelebration(event.currentTarget);
+            void runAction("distill");
+          }}
+        >
+          <PhosphorIcon name="sparkle" size={13} />
+          {busyKind === "distill"
+            ? zh
+              ? "正在生成简介速览…"
+              : "Summarizing metadata…"
+            : aiBrief
+              ? zh
+                ? "重新生成简介中文速览"
+                : "Refresh metadata preview"
+              : zh
+                ? "AI 生成简介中文速览"
+                : "AI metadata preview"}
+        </button>
       ) : null}
       {mdContent ? (
         <>
@@ -610,12 +655,22 @@ export function WorkspaceVideoAiBriefCard({
     <div className="video-ai-brief-card">
       <div className="video-ai-brief-top">
         <AiScoreBadge brief={brief} />
+        {brief.source_basis === "METADATA_ONLY" ? (
+          <span className="ai-basis-pill">
+            {zh
+              ? "基于标题与官方简介速览（原视频暂无字幕）"
+              : "Metadata-only preview (no captions on source)"}
+          </span>
+        ) : null}
         {brief.topic_cluster_zh ? (
           <span className="ai-topic-tag">[[{brief.topic_cluster_zh}]]</span>
         ) : null}
         {brief.score_reason_zh ? <span className="hint">{brief.score_reason_zh}</span> : null}
       </div>
       <p className="video-ai-headline">{brief.headline_zh}</p>
+      {brief.summary_zh && brief.summary_zh.trim() !== brief.headline_zh.trim() ? (
+        <p className="summary-copy video-ai-summary-body">{brief.summary_zh}</p>
+      ) : null}
       {brief.product_opportunities_zh.length > 0 || brief.business_opportunities_zh.length > 0 ? (
         <div className="weekly-insight-columns video-ai-opp-grid">
           {brief.product_opportunities_zh.length > 0 ? (
@@ -898,7 +953,13 @@ const CLOUD_PRESETS: Record<string, { label: string; baseUrl: string; model: str
   },
 };
 
-export function WorkspaceAiSettingsPanel({ initial }: { initial?: unknown }) {
+export function WorkspaceAiSettingsPanel({
+  id,
+  initial,
+}: {
+  id?: string;
+  initial?: unknown;
+}) {
   const { language } = useUiLanguage();
   const zh = language === "zh-CN";
   const parsedInitial = readWorkspaceAiSettings(initial);
@@ -906,6 +967,7 @@ export function WorkspaceAiSettingsPanel({ initial }: { initial?: unknown }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [exportingBackup, setExportingBackup] = useState(false);
   const [modeDraft, setModeDraft] = useState<"local_ollama" | "cloud_byok">(
     parsedInitial?.active_mode ?? "local_ollama",
   );
@@ -986,6 +1048,31 @@ export function WorkspaceAiSettingsPanel({ initial }: { initial?: unknown }) {
     }
   };
 
+  const exportBackup = async () => {
+    if (exportingBackup) return;
+    setExportingBackup(true);
+    setFeedback(null);
+    setError(null);
+    try {
+      const snapshot = await api<unknown>("/workspace-ai/backup");
+      const dateStamp = new Date().toISOString().slice(0, 10);
+      downloadJsonSnapshot(`workspace-ai-backup-${dateStamp}.json`, snapshot);
+      setFeedback(
+        zh
+          ? "已导出 AI 摘要、周报与问答快照（不含任何密钥）。"
+          : "Exported AI briefs, weekly digests, and Q&A snapshot (zero secrets).",
+      );
+    } catch {
+      setError(
+        zh
+          ? "未能导出 AI 知识库快照，请稍后重试。"
+          : "Could not export AI knowledge snapshot.",
+      );
+    } finally {
+      setExportingBackup(false);
+    }
+  };
+
   const currentSummary =
     config?.active_mode === "cloud_byok"
       ? `${config.cloud_provider} · ${config.cloud_model}${config.cloud_key_configured ? (zh ? "（钥匙串已就绪）" : " (Keychain ready)") : zh ? "（未填 Key）" : " (No key)"}`
@@ -993,6 +1080,7 @@ export function WorkspaceAiSettingsPanel({ initial }: { initial?: unknown }) {
 
   return (
     <section
+      id={id}
       className="panel"
       aria-label={zh ? "AI 摘要、评分与跨视频问答引擎" : "AI Summary, Scoring & Q&A Engine"}
     >
@@ -1013,9 +1101,34 @@ export function WorkspaceAiSettingsPanel({ initial }: { initial?: unknown }) {
       </p>
 
       {!open ? (
-        <button type="button" className="button button-secondary" onClick={() => void openEditor()}>
-          {zh ? "配置 AI 摘要与问答引擎" : "Configure AI summary & Q&A engine"}
-        </button>
+        <>
+          <div className="button-row">
+            <button type="button" className="button button-secondary" onClick={() => void openEditor()}>
+              {zh ? "配置 AI 摘要与问答引擎" : "Configure AI summary & Q&A engine"}
+            </button>
+            <button
+              type="button"
+              className="button button-ghost"
+              disabled={exportingBackup}
+              onClick={() => void exportBackup()}
+            >
+              <PhosphorIcon name="archive" size={13} />
+              {exportingBackup
+                ? zh
+                  ? "正在导出快照…"
+                  : "Exporting…"
+                : zh
+                  ? "导出 AI 知识库快照 (.json)"
+                  : "Export AI knowledge snapshot (.json)"}
+            </button>
+          </div>
+          {feedback ? <p role="status">{feedback}</p> : null}
+          {error ? (
+            <p className="form-error" role="alert">
+              {error}
+            </p>
+          ) : null}
+        </>
       ) : (
         <div className="ai-settings-form">
           {loading ? (

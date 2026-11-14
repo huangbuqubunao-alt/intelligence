@@ -32,6 +32,7 @@ import {
   AiScoreBadge,
   readVideoAiBrief,
   readWeeklyAiBrief,
+  readWorkspaceAiSettings,
   VideoAiBrief,
   WeeklyAiBriefPanel,
   WorkspaceAiSettingsPanel,
@@ -1535,8 +1536,9 @@ function Workspace() {
     { id: "nav:Content", group: "navigation", label: t("Content"), subtitle: t(subtitles.Content), icon: "play-circle", aliases: ["content", "videos", "内容", "视频"], onSelect: () => navigate("Content") },
     { id: "nav:Intelligence", group: "navigation", label: t("Intelligence"), subtitle: t(subtitles.Intelligence), icon: "sparkle", aliases: ["intelligence", "insights", "洞察"], onSelect: () => navigate("Intelligence") },
     { id: "nav:Topics", group: "navigation", label: t("Topics"), subtitle: t(subtitles.Topics), icon: "stack", aliases: ["topics", "主题"], onSelect: () => navigate("Topics") },
-    { id: "nav:Research", group: "navigation", label: t("Research"), subtitle: t(subtitles.Research), icon: "quotes", aliases: ["research", "研究"], onSelect: () => navigate("Research") },
+    { id: "nav:Research", group: "navigation", label: t("Research"), subtitle: t(subtitles.Research), icon: "quotes", aliases: ["research", "研究", "qa", "问答", "跨视频"], onSelect: () => navigate("Research") },
     { id: "nav:Settings", group: "navigation", label: t("Settings"), subtitle: t(subtitles.Settings), icon: "sliders-horizontal", aliases: ["settings", "设置", "model", "budget"], onSelect: () => navigate("Settings") },
+    { id: "act:ai-qa", group: "actions", label: language === "zh-CN" ? "AI 跨视频深度问答" : "Ask cross-video AI Q&A", icon: "sparkle", aliases: ["qa", "ask", "ai", "问答", "跨视频", "提问"], onSelect: () => navigate("Research") },
     { id: "act:add-video", group: "actions", label: t("Add video or follow channel"), icon: "plus", aliases: ["add", "import", "youtube", "bilibili", "导入", "添加"], onSelect: () => setAddProvider("YOUTUBE") },
     { id: "act:add-local", group: "actions", label: t("Import local file"), icon: "file-text", aliases: ["local", "file", "本地文件", "转写"], onSelect: () => setAddProvider("LOCAL") },
     { id: "act:theme", group: "actions", label: t(theme === "dark" ? "Switch to Warm Paper Light theme" : "Switch to Obsidian Dark theme"), icon: theme === "dark" ? "sun" : "moon", aliases: ["theme", "dark", "light", "主题", "浅色", "深色"], onSelect: toggleTheme },
@@ -1640,6 +1642,19 @@ function Workspace() {
         >
           <PhosphorIcon name="plus" size={14} />
           <span className="utility-import-label">{t("+ Import")}</span>
+        </button>
+        <button
+          type="button"
+          className={`utility-qa-btn${page === "Research" ? " is-active" : ""}`}
+          aria-label={language === "zh-CN" ? "AI 跨视频问答" : "Cross-video AI Q&A"}
+          title={language === "zh-CN" ? "跨视频检索时间轴原话并生成中文解答" : "Ask grounded questions across your video library"}
+          onClick={event => {
+            pulseCelebration(event.currentTarget);
+            navigate("Research");
+          }}
+        >
+          <PhosphorIcon name="sparkle" weight={page === "Research" ? "fill" : "regular"} size={15} />
+          <span className="utility-qa-label">{language === "zh-CN" ? "AI 跨视频问答" : "AI Q&A"}</span>
         </button>
         <button
           type="button"
@@ -1965,6 +1980,11 @@ function ContentPage(
   const [searchQuery, setSearchQuery] = useState("");
   const [providerFilter, setProviderFilter] = useState<"ALL" | "YOUTUBE" | "BILIBILI" | "LOCAL">("ALL");
   const [bucketFilter, setBucketFilter] = useState<"ALL" | "MUST_WATCH" | "TUTORIAL" | "SHORTS">("ALL");
+  const [aiSyncState, setAiSyncState] = useState<{
+    running: boolean;
+    processedCount: number;
+    error: string | null;
+  } | null>(null);
   const [batchState, setBatchState] = useState<{
     running: boolean;
     done: number;
@@ -2102,6 +2122,44 @@ function ContentPage(
     if (parsed) briefByVideoId.set(item.video_id, parsed);
   }
   const hasAiBriefs = briefByVideoId.size > 0;
+  const pendingAiSyncVideos = hasAiBriefs
+    ? videos.filter(item => {
+        const brief = briefByVideoId.get(item.video_id) ?? null;
+        if (!brief) {
+          return (item.provider ?? "YOUTUBE") === "YOUTUBE"
+            ? Boolean(item.title?.trim())
+            : item.processing_status === "READY";
+        }
+        return (
+          brief.source_basis === "METADATA_ONLY" &&
+          ["READY", "ORGANIZED"].includes(item.processing_status)
+        );
+      })
+    : [];
+  const runPendingAiSync = async () => {
+    if (aiSyncState?.running) return;
+    setAiSyncState({ running: true, processedCount: 0, error: null });
+    try {
+      const res = await post<{ processed_count?: number }>("/workspace-ai/sync-pending", {
+        limit: Math.max(10, pendingAiSyncVideos.length),
+      });
+      setAiSyncState({
+        running: false,
+        processedCount: typeof res.processed_count === "number" ? res.processed_count : pendingAiSyncVideos.length,
+        error: null,
+      });
+      setRevision(value => value + 1);
+    } catch {
+      setAiSyncState({
+        running: false,
+        processedCount: 0,
+        error:
+          language === "zh-CN"
+            ? "未能完成增量中文摘要同步，请检查本机 Ollama 或云端引擎连接。"
+            : "Could not sync pending Chinese AI briefs.",
+      });
+    }
+  };
   const trimmedSearch = searchQuery.trim().toLowerCase();
   const filteredVideos = videos.filter(item => {
     const itemProvider = item.provider ?? "YOUTUBE";
@@ -2157,6 +2215,11 @@ function ContentPage(
           </span>
         </span>
         <span className="content-row-trailing">
+          {brief?.source_basis === "METADATA_ONLY" && !brief.is_short_noise ? (
+            <span className="ai-basis-pill is-compact">
+              {language === "zh-CN" ? "简介速览" : "Metadata"}
+            </span>
+          ) : null}
           {brief ? <AiScoreBadge brief={brief} compact /> : null}
           <Status {...contentStatus(item.provider, item.processing_status)} />
         </span>
@@ -2208,6 +2271,67 @@ function ContentPage(
                   type="button"
                   className="button button-ghost"
                   onClick={() => setBatchState(null)}
+                >
+                  {t("Dismiss")}
+                </button>
+              )}
+            </div>
+          </section>
+        )}
+        {(pendingAiSyncVideos.length > 0 || aiSyncState !== null) && (
+          <section
+            className="ai-sync-pending-strip"
+            role="region"
+            aria-label={language === "zh-CN" ? "增量 AI 摘要同步" : "Incremental AI brief sync"}
+          >
+            <div className="caption-recovery-copy">
+              <strong>
+                {aiSyncState?.running
+                  ? language === "zh-CN"
+                    ? "正在增量生成中文摘要与评分…"
+                    : "Syncing Chinese AI briefs…"
+                  : pendingAiSyncVideos.length > 0
+                    ? language === "zh-CN"
+                      ? `发现 ${pendingAiSyncVideos.length} 条新内容待生成中文摘要与评分`
+                      : `${pendingAiSyncVideos.length} new items awaiting Chinese AI brief`
+                    : language === "zh-CN"
+                      ? `已完成 ${aiSyncState?.processedCount ?? 0} 条内容的中文摘要同步`
+                      : `Synced ${aiSyncState?.processedCount ?? 0} Chinese AI briefs`}
+              </strong>
+              {aiSyncState?.error ? (
+                <p className="form-error" role="alert">
+                  {aiSyncState.error}
+                </p>
+              ) : (
+                <p>
+                  {language === "zh-CN"
+                    ? "有字幕视频提炼完整洞察，暂未开放字幕视频将诚实生成基于官方简介的中文速览。"
+                    : "Transcript-backed items get full grounded insights; captionless items receive an honest metadata preview."}
+                </p>
+              )}
+            </div>
+            <div className="button-row">
+              {pendingAiSyncVideos.length > 0 ? (
+                <button
+                  type="button"
+                  className="button button-primary button-small"
+                  disabled={aiSyncState?.running === true}
+                  onClick={() => void runPendingAiSync()}
+                >
+                  <PhosphorIcon name="sparkle" size={13} />
+                  {aiSyncState?.running
+                    ? language === "zh-CN"
+                      ? "同步中…"
+                      : "Syncing…"
+                    : language === "zh-CN"
+                      ? `一键同步中文摘要 (${pendingAiSyncVideos.length})`
+                      : `Sync AI briefs (${pendingAiSyncVideos.length})`}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="button button-ghost button-small"
+                  onClick={() => setAiSyncState(null)}
                 >
                   {t("Dismiss")}
                 </button>
@@ -2757,6 +2881,7 @@ function ContentDetailPanel(
           <WorkspaceVideoAiActions
             videoId={data.video.video_id}
             title={data.video.title ?? data.video.video_id}
+            provider={data.video.provider}
             isLocalMedia={isLocalMedia}
             transcriptAvailable={transcript.status === "AVAILABLE"}
             aiBrief={aiBrief}
@@ -2930,7 +3055,7 @@ function ContentDetailPanel(
               }
             };
             const visiblePoints = summaryVerbatim ? (note.core_points ?? []) : dedupedPoints;
-            return (
+            const summaryNoteNode = (
               <div className="summary-note">
                 <div className="reading-meta">
                   <Status value="AVAILABLE" />
@@ -3060,13 +3185,25 @@ function ContentDetailPanel(
                 </p>
               </div>
             );
+            return aiBrief && note.note_identity?.startsWith("workspace-ai/") ? (
+              <details className="provenance workspace-ai-note-details">
+                <summary>
+                  {language === "zh-CN"
+                    ? "查看分段要点、时间戳跳转与证据引用明细"
+                    : "View timestamped key points & evidence references"}
+                </summary>
+                {summaryNoteNode}
+              </details>
+            ) : (
+              summaryNoteNode
+            );
           })()
-          : (
+          : !aiBrief ? (
             <div className="semantic-state state-neutral">
               <Status value="UNAVAILABLE" />
               <p>{t("Summary / Video Notes are not available for this Content yet. No summary is fabricated from missing output.")}</p>
             </div>
-          )}
+          ) : null}
       </Panel>
       <ContentEvidencePanel
         videoId={data.video.video_id}
@@ -5279,23 +5416,47 @@ function Settings({ refresh }: { refresh: number }) {
         {languageError ? <p className="form-error" role="alert">{languageError}</p> : null}
       </Panel>
       <GlobalInterests key={JSON.stringify(globalPolicy)} policy={globalPolicy} onSaved={() => setRevision(current => current + 1)} />
-      <Panel id="settings-models" icon="sparkle" title="Models and processing">
-        <h3>{t("Content processing")}</h3><p>{t("Ready. Content is saved and organized locally when source text or captions are available. Cloud Intelligence is optional.")}</p>
-        <h3>{t("Local model for scoring and Summary")}</h3><p>{settings.data.runtime_local_model?.model ?? localFoundation?.model ?? t("Not configured")} · {t(settings.data.runtime_local_model?.status === "READY" ? "Installed; identity verified" : "Readiness needs attention")}</p>
-        <p className="hint">{t("Installation and identity checks do not qualify a model for Intelligence.")}</p>
-        <p className="hint">{t("Scoring and model-based Summary use this runtime configuration. Candidate preferences in Advanced do not change it.")}</p>
-        <h3>{t("Intelligence")}</h3>
-        {!readLocalMatrix(settings.data.local_intelligence) && localFoundation?.qualification_status === "INTELLIGENCE_UNQUALIFIED" && <p>{t("The current local model has not passed Intelligence quality verification. Existing Content, Summary and Evidence remain readable.")}</p>}
-        <LocalIntelligencePresentation matrix={settings.data.local_intelligence} onReload={settings.reload} />
-        <p>{t(videoDistillation?.production_eligible ? "Optional cloud analysis is available after your authorization for each request." : videoDistillation?.credential_status === "BLOCKED" ? "Cloud Intelligence is optional. It needs a credential and your separate authorization for each request. Content processing remains usable." : "Cloud Intelligence is optional and requires a qualified model and your separate authorization for each request. Content processing remains usable.")}</p>
-        <div className="button-row">
-          <a className="button button-secondary button-small" href="#Settings/models/moonshot?panel=spending">{t("Adjust cloud spending limits")}</a>
-        </div>
-        <details><summary>{t("Cloud setup and model details")}</summary><ModelSettings message={modelMessage} setMessage={setModelMessage} credential={settings.data.cloud_credential} preference={settings.data.model_preference} onSaved={() => setRevision(current => current + 1)} /></details>
-      </Panel>
-      <WorkspaceAiSettingsPanel initial={settings.data.workspace_ai} />
-      <LocalIntelligenceSetup />
-      <TranscriptionSetup />
+      {(() => {
+        const hasWorkspaceAi = Boolean(readWorkspaceAiSettings(settings.data.workspace_ai));
+        const legacyModelsPanel = (
+          <Panel id={hasWorkspaceAi ? undefined : "settings-models"} icon="sparkle" title="Models and processing">
+            <h3>{t("Content processing")}</h3><p>{t("Ready. Content is saved and organized locally when source text or captions are available. Cloud Intelligence is optional.")}</p>
+            <h3>{t("Local model for scoring and Summary")}</h3><p>{settings.data.runtime_local_model?.model ?? localFoundation?.model ?? t("Not configured")} · {t(settings.data.runtime_local_model?.status === "READY" ? "Installed; identity verified" : "Readiness needs attention")}</p>
+            <p className="hint">{t("Installation and identity checks do not qualify a model for Intelligence.")}</p>
+            <p className="hint">{t("Scoring and model-based Summary use this runtime configuration. Candidate preferences in Advanced do not change it.")}</p>
+            <h3>{t("Intelligence")}</h3>
+            {!readLocalMatrix(settings.data.local_intelligence) && localFoundation?.qualification_status === "INTELLIGENCE_UNQUALIFIED" && <p>{t("The current local model has not passed Intelligence quality verification. Existing Content, Summary and Evidence remain readable.")}</p>}
+            <LocalIntelligencePresentation matrix={settings.data.local_intelligence} onReload={settings.reload} />
+            <p>{t(videoDistillation?.production_eligible ? "Optional cloud analysis is available after your authorization for each request." : videoDistillation?.credential_status === "BLOCKED" ? "Cloud Intelligence is optional. It needs a credential and your separate authorization for each request. Content processing remains usable." : "Cloud Intelligence is optional and requires a qualified model and your separate authorization for each request. Content processing remains usable.")}</p>
+            <div className="button-row">
+              <a className="button button-secondary button-small" href="#Settings/models/moonshot?panel=spending">{t("Adjust cloud spending limits")}</a>
+            </div>
+            <details><summary>{t("Cloud setup and model details")}</summary><ModelSettings message={modelMessage} setMessage={setModelMessage} credential={settings.data.cloud_credential} preference={settings.data.model_preference} onSaved={() => setRevision(current => current + 1)} /></details>
+          </Panel>
+        );
+        return hasWorkspaceAi ? (
+          <>
+            <WorkspaceAiSettingsPanel id="settings-models" initial={settings.data.workspace_ai} />
+            <details className="settings-advanced legacy-model-diagnostics">
+              <summary>
+                {language === "zh-CN"
+                  ? "底层模型资格校验与受控云端账单诊断（工程高级项）"
+                  : "Underlying model qualification & cloud billing diagnostics"}
+              </summary>
+              {legacyModelsPanel}
+              <LocalIntelligenceSetup />
+              <TranscriptionSetup />
+            </details>
+          </>
+        ) : (
+          <>
+            {legacyModelsPanel}
+            <WorkspaceAiSettingsPanel initial={settings.data.workspace_ai} />
+            <LocalIntelligenceSetup />
+            <TranscriptionSetup />
+          </>
+        );
+      })()}
       <BackupRestorePanel />
       <Panel title="Data and privacy (read-only)"><p>{t("Local-first means local persistence by default. Credential values are never shown.")}</p></Panel>
       <details className="settings-advanced"><summary>{t("Advanced and diagnostics")}</summary>

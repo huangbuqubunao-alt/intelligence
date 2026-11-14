@@ -598,4 +598,347 @@ describe("Workspace AI Upgrade (P0 + P1 + P2)", () => {
     await waitFor(() => expect(keyInput.value).toBe(""));
     expect(JSON.stringify(localStorage)).not.toContain("sk-live-secret-999");
   });
+
+  it("launches Cross-Video AI Q&A from global utility dock or Cmd+K palette while keeping 6-item primary navigation intact", async () => {
+    location.hash = "#Home";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string) => {
+        if (input.endsWith("/dashboard")) {
+          return okJson({
+            intelligence: [],
+            pinned_topics: [],
+            needs_attention: [],
+            operations: { source_count: 2 },
+          });
+        }
+        if (input.includes("/changes/recent")) {
+          return okJson({
+            window: {
+              start_at: "2026-11-06T00:00:00Z",
+              end_at: "2026-11-13T00:00:00Z",
+              timezone: "Asia/Shanghai",
+              days: 7,
+            },
+            status: "COMPLETE",
+            degraded_sections: [],
+            counts: {
+              intelligence_added: 0,
+              intelligence_updated: 0,
+              topics_changed: 0,
+              content_processed: 0,
+              sources_needing_attention: 0,
+            },
+            groups: {
+              intelligence_added: [],
+              intelligence_updated: [],
+              topics_changed: [],
+              content_processed: [],
+              sources_needing_attention: [],
+            },
+          });
+        }
+        if (input.endsWith("/workspace-ai/research/sessions")) {
+          return okJson({ sessions: [], suggested_questions: ["跨视频测试问题？"] });
+        }
+        if (input.includes("/research")) {
+          return okJson({ research: [], total: 0, offset: 0, limit: 25 });
+        }
+        return okJson({});
+      }),
+    );
+
+    render(<App />);
+    const primaryNav = await screen.findByRole("navigation", { name: "主导航" });
+    expect(within(primaryNav).getAllByRole("button")).toHaveLength(6);
+
+    const dock = screen.getByRole("region", { name: "快捷操作" });
+    const qaDockBtn = within(dock).getByRole("button", { name: "AI 跨视频问答" });
+    fireEvent.click(qaDockBtn);
+
+    await waitFor(() => expect(location.hash).toBe("#Research"));
+    expect(await screen.findByRole("region", { name: "AI 跨视频深度问答" })).toBeTruthy();
+
+    // Navigate back to Home, then open Cmd+K and trigger AI Q&A action
+    fireEvent.click(within(primaryNav).getByRole("button", { name: "首页" }));
+    await waitFor(() => expect(location.hash).toBe("#Home"));
+
+    fireEvent.keyDown(window, { key: "k", metaKey: true });
+    const cmdOption = await screen.findByRole("option", { name: /AI 跨视频深度问答/ });
+    fireEvent.click(cmdOption);
+    await waitFor(() => expect(location.hash).toBe("#Research"));
+  });
+
+  it("syncs pending unbriefed videos in 1 click, displays honest Metadata-only badges, and supports captionless YouTube preview distillation", async () => {
+    location.hash = "#Content";
+    let synced = false;
+
+    const fetchMock = vi.fn((input: string, init?: RequestInit) => {
+      if (input.endsWith("/workspace-ai/sync-pending") && init?.method === "POST") {
+        synced = true;
+        return okJson({
+          processed_count: 1,
+          processed: [{ video_id: "vidNewNoCap", source_basis: "METADATA_ONLY", score: 5.8 }],
+          errors: [],
+          sync_status: { total_videos: 2, briefed_count: 2, pending_count: 0 },
+        });
+      }
+      if (input.endsWith("/workspace-ai/videos/vidNewNoCap/distill") && init?.method === "POST") {
+        synced = true;
+        return okJson({
+          ai_brief: {
+            video_id: "vidNewNoCap",
+            source_basis: "METADATA_ONLY",
+            headline_zh: "基于官方简介：展示 Firefox 安全漏洞自动定位与补丁验证流程。",
+            summary_zh: "官方暂未开放英文字幕，本速览仅依据视频标题与频道简介提炼，不含时间轴引用。",
+            score: 6.2,
+            score_reason_zh: "原视频暂无字幕，基于官方简介生成速览。",
+            recommendation_tier: "WORTH_SKIMMING",
+            content_bucket: "DEEP_DIVE",
+            is_short_noise: false,
+            topics_zh: ["网络安全", "自动化补丁"],
+            topic_cluster_zh: "AI Agent 与自动化架构",
+            product_opportunities_zh: [],
+            business_opportunities_zh: [],
+          },
+        });
+      }
+      if (input.endsWith("/videos")) {
+        return okJson({
+          videos: [
+            {
+              video_id: "vidReady1",
+              provider: "YOUTUBE",
+              channel_id: "UC1111111111111111111111",
+              channel_name: "OpenAI",
+              title: "Structured Outputs Deep Dive",
+              published_at: "2026-11-12T08:00:00Z",
+              processing_status: "ORGANIZED",
+              last_updated: "2026-11-12T08:00:00Z",
+              duration_seconds: 1200,
+              ai_brief: {
+                video_id: "vidReady1",
+                source_basis: "TRANSCRIPT",
+                headline_zh: "严格 JSON Schema 契约消除生产环境工具调用解析失败。",
+                summary_zh: "带完整字幕验证的深度技术分享。",
+                score: 9.1,
+                score_reason_zh: "一手工程架构。",
+                recommendation_tier: "MUST_WATCH",
+                content_bucket: "DEEP_DIVE",
+                is_short_noise: false,
+                topics_zh: ["Schema"],
+                topic_cluster_zh: "AI Agent 与自动化架构",
+                product_opportunities_zh: [],
+                business_opportunities_zh: [],
+              },
+            },
+            {
+              video_id: "vidNewNoCap",
+              provider: "YOUTUBE",
+              channel_id: "UC1111111111111111111111",
+              channel_name: "OpenAI",
+              title: "Live Security Demo (No Captions Yet)",
+              published_at: "2026-11-14T08:00:00Z",
+              processing_status: "METADATA_READY",
+              last_updated: "2026-11-14T08:00:00Z",
+              duration_seconds: 860,
+              ...(synced
+                ? {
+                    ai_brief: {
+                      video_id: "vidNewNoCap",
+                      source_basis: "METADATA_ONLY",
+                      headline_zh: "基于官方简介：展示 Firefox 安全漏洞自动定位与补丁验证流程。",
+                      summary_zh:
+                        "官方暂未开放英文字幕，本速览仅依据视频标题与频道简介提炼，不含时间轴引用。",
+                      score: 6.2,
+                      score_reason_zh: "原视频暂无字幕，基于官方简介生成速览。",
+                      recommendation_tier: "WORTH_SKIMMING",
+                      content_bucket: "DEEP_DIVE",
+                      is_short_noise: false,
+                      topics_zh: ["网络安全"],
+                      topic_cluster_zh: "AI Agent 与自动化架构",
+                      product_opportunities_zh: [],
+                      business_opportunities_zh: [],
+                    },
+                  }
+                : {}),
+            },
+          ],
+        });
+      }
+      if (input.endsWith("/videos/vidNewNoCap")) {
+        return okJson({
+          video: {
+            video_id: "vidNewNoCap",
+            provider: "YOUTUBE",
+            channel_id: "UC1111111111111111111111",
+            channel_name: "OpenAI",
+            title: "Live Security Demo (No Captions Yet)",
+            source_url: "https://www.youtube.com/watch?v=vidNewNoCap",
+            published_at: "2026-11-14T08:00:00Z",
+            processing_status: "METADATA_READY",
+            last_updated: "2026-11-14T08:00:00Z",
+            duration_seconds: 860,
+            ai_brief: {
+              video_id: "vidNewNoCap",
+              source_basis: "METADATA_ONLY",
+              headline_zh: "基于官方简介：展示 Firefox 安全漏洞自动定位与补丁验证流程。",
+              summary_zh:
+                "官方暂未开放英文字幕，本速览仅依据视频标题与频道简介提炼，不含时间轴引用。",
+              score: 6.2,
+              score_reason_zh: "原视频暂无字幕，基于官方简介生成速览。",
+              recommendation_tier: "WORTH_SKIMMING",
+              content_bucket: "DEEP_DIVE",
+              is_short_noise: false,
+              topics_zh: ["网络安全"],
+              topic_cluster_zh: "AI Agent 与自动化架构",
+              product_opportunities_zh: [],
+              business_opportunities_zh: [],
+            },
+          },
+          transcript: { status: "UNAVAILABLE" },
+          note: { v2: { status: "UNAVAILABLE" } },
+          intelligence_result: {
+            status: "NOT_PROCESSED",
+            execution_id: null,
+            has_new_intelligence: null,
+            intelligence_id: null,
+            revision_id: null,
+            updated_at: null,
+          },
+          history: [],
+        });
+      }
+      if (input.endsWith("/evidence")) return okJson({ evidence: [] });
+      if (input.endsWith("/deep-analysis")) {
+        return okJson({
+          deep_analysis: {
+            status: {
+              availability: "NOT_QUALIFIED",
+              reason_code: "NO_QUALIFIED_MODEL",
+              reason: null,
+              route_id: null,
+              model_id: null,
+              provider_id: null,
+              qualified: false,
+              consent_required: false,
+            },
+            result: null,
+          },
+        });
+      }
+      return okJson({});
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    const syncBtn = await screen.findByRole("button", { name: /一键同步中文摘要/ });
+    fireEvent.click(syncBtn);
+
+    expect(await screen.findByText(/基于官方简介：展示 Firefox 安全漏洞自动定位/)).toBeTruthy();
+    expect(screen.getByText("简介速览")).toBeTruthy();
+
+    // Open detail page of the captionless YouTube video
+    fireEvent.click(screen.getByRole("button", { name: /Live Security Demo/ }));
+    expect(await screen.findByText(/基于标题与官方简介速览/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /重新生成简介中文速览/ })).toBeTruthy();
+    // Should NOT render a contradictory "暂无总结 / 视频笔记" empty banner right below the brief card!
+    expect(screen.queryByText(/暂无总结.*不会根据缺失输出编造内容/)).toBeNull();
+  });
+
+  it("collapses legacy model qualification diagnostics on Settings when workspace_ai is active and exports zero-secret AI backup JSON", async () => {
+    location.hash = "#Settings";
+    const createObjectURL = vi.fn(() => "blob:workspace-ai-backup");
+    const revokeObjectURL = vi.fn();
+    Object.assign(URL, { createObjectURL, revokeObjectURL });
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+
+    const fetchMock = vi.fn((path: string) => {
+      if (path.endsWith("/workspace-ai/backup")) {
+        return okJson({
+          schema_version: "workspace-ai-backup-v1",
+          exported_at: "2026-11-15T00:00:00Z",
+          video_ai_briefs: [{ video_id: "vid1", headline_zh: "备份测试" }],
+          weekly_ai_briefs: [],
+          ai_research_sessions: [],
+        });
+      }
+      if (path.endsWith("/settings/local-intelligence")) {
+        return okJson({
+          local_intelligence: {
+            status: "NOT_CONFIGURED",
+            etag: "b".repeat(64),
+            selected_candidate_id: null,
+            actual_route: { provider: "ollama", model: "qwen3:8b", profile_id: null },
+            blocking_work: [],
+            candidates: [],
+          },
+        });
+      }
+      if (path.endsWith("/settings")) {
+        return okJson({
+          general: {
+            timezone: "Asia/Shanghai",
+            output_language: "zh-CN",
+            output_language_source: "USER",
+            output_language_updated_at: null,
+          },
+          providers: [],
+          cloud_credential: { configured: false, source: "NONE" },
+          workspace_ai: {
+            active_mode: "local_ollama",
+            ollama_base_url: "http://127.0.0.1:11434",
+            ollama_model: "qwen3.5:9b",
+            ollama_reachable: true,
+            installed_ollama_models: ["qwen3.5:9b"],
+            cloud_provider: "deepseek",
+            cloud_base_url: "https://api.deepseek.com/v1",
+            cloud_model: "deepseek-chat",
+            cloud_key_configured: false,
+          },
+        });
+      }
+      if (path.endsWith("/settings/preferences")) return okJson({ active: [], history: [] });
+      if (path.endsWith("/settings/source-policy")) {
+        return okJson({
+          policy: {
+            initial_history_count: 5,
+            per_run_max_new_videos: 5,
+            focus_rules: [],
+            ignore_rules: [],
+            distillation_style: "BALANCED",
+          },
+        });
+      }
+      if (path.endsWith("/settings/resource-usage")) return okJson({ usage: [] });
+      if (path.endsWith("/settings/local-models")) return okJson({ connection: "REACHABLE", models: [] });
+      if (path.endsWith("/local/transcription/capability")) {
+        return okJson({ capability: { state: "READY", runtime_available: true, model_present: true } });
+      }
+      return okJson({});
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { container } = render(<App />);
+    const aiEnginePanel = await screen.findByRole("region", {
+      name: "AI 摘要、评分与跨视频问答引擎",
+    });
+    expect(aiEnginePanel.id).toBe("settings-models");
+
+    const legacyDrawer = container.querySelector("details.legacy-model-diagnostics") as HTMLDetailsElement | null;
+    expect(legacyDrawer).not.toBeNull();
+    expect(legacyDrawer?.open).toBe(false);
+
+    const exportBtn = within(aiEnginePanel).getByRole("button", {
+      name: "导出 AI 知识库快照 (.json)",
+    });
+    fireEvent.click(exportBtn);
+
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.some(([p]) => String(p).endsWith("/workspace-ai/backup"))).toBe(true),
+    );
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText(/已导出 AI 摘要、周报与问答快照/)).toBeTruthy();
+  });
 });
