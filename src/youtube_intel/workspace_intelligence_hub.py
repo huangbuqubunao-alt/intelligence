@@ -702,7 +702,8 @@ class WorkspaceIntelligenceHub:
                 provider TEXT NOT NULL,
                 model TEXT NOT NULL,
                 obsidian_markdown TEXT NOT NULL,
-                created_at TEXT NOT NULL
+                created_at TEXT NOT NULL,
+                scope_json TEXT NOT NULL DEFAULT '{}'
             );
             CREATE TABLE IF NOT EXISTS weekly_ai_briefs (
                 brief_id TEXT PRIMARY KEY,
@@ -728,6 +729,15 @@ class WorkspaceIntelligenceHub:
             conn.execute(
                 "ALTER TABLE video_ai_briefs "
                 "ADD COLUMN source_basis TEXT NOT NULL DEFAULT 'TRANSCRIPT'"
+            )
+        qa_cols = {
+            str(r[1])
+            for r in conn.execute("PRAGMA table_info(research_qa_sessions)").fetchall()
+        }
+        if "scope_json" not in qa_cols:
+            conn.execute(
+                "ALTER TABLE research_qa_sessions "
+                "ADD COLUMN scope_json TEXT NOT NULL DEFAULT '{}'"
             )
         return conn
 
@@ -2608,14 +2618,118 @@ class WorkspaceIntelligenceHub:
         scored_items.sort(key=lambda item: (-item[0], item[1]))
         return [item[2] for item in scored_items[:3]]
 
+    @staticmethod
+    def _video_channel_key_and_label(video: Any) -> tuple[str, str]:
+        raw_name = str(getattr(video, "channel_name", None) or "").strip()
+        provider = str(getattr(video, "provider", None) or "YOUTUBE").strip().upper()
+        if provider == "LOCAL" and (not raw_name or raw_name.lower() in {"local", "local library"}):
+            return "LOCAL", "本地实战课"
+        if raw_name:
+            return raw_name, raw_name
+        return provider, provider
+
+    def _build_research_scope_options(self) -> dict[str, object]:
+        briefs_map = self.get_video_briefs_map()
+        videos = self._repository.list_videos(limit=200)
+        channel_counts: dict[str, dict[str, Any]] = {}
+        cluster_counts: dict[str, int] = {}
+        grounded_videos: list[dict[str, Any]] = []
+
+        for video in videos:
+            brief = briefs_map.get(video.video_id)
+            if brief is not None and brief["is_short_noise"]:
+                continue
+            timed = self._repository.get_verified_timed_transcript(video_id=video.video_id)
+            if timed is None or not timed.cues:
+                continue
+            ch_key, ch_label = self._video_channel_key_and_label(video)
+            provider_str = str(video.provider or "YOUTUBE")
+            entry = channel_counts.setdefault(
+                ch_key,
+                {
+                    "key": ch_key,
+                    "label": ch_label,
+                    "provider": provider_str,
+                    "video_count": 0,
+                },
+            )
+            entry["video_count"] += 1
+            cluster_name = (
+                str(brief["topic_cluster_zh"]).strip()
+                if brief is not None and brief.get("topic_cluster_zh")
+                else ""
+            )
+            if cluster_name:
+                cluster_counts[cluster_name] = cluster_counts.get(cluster_name, 0) + 1
+            score_val = float(brief["score"]) if brief is not None else 6.0
+            pub_str = (
+                format_utc_datetime(video.published_at)
+                if video.published_at is not None
+                else ""
+            )
+            grounded_videos.append(
+                {
+                    "video_id": video.video_id,
+                    "title": video.title or video.video_id,
+                    "channel_name": ch_label,
+                    "channel_key": ch_key,
+                    "provider": provider_str,
+                    "score": score_val,
+                    "topic_cluster_zh": cluster_name,
+                    "published_at": pub_str or None,
+                    "_sort_pub": pub_str,
+                }
+            )
+
+        grounded_videos.sort(
+            key=lambda item: (-float(item["score"]), item["_sort_pub"], item["video_id"])
+        )
+        # Re-sort ties cleanly with newest published_at first among equal scores
+        grounded_videos.sort(
+            key=lambda item: item["_sort_pub"], reverse=True
+        )
+        grounded_videos.sort(
+            key=lambda item: float(item["score"]), reverse=True
+        )
+        cleaned_videos = [
+            {k: v for k, v in item.items() if k != "_sort_pub"}
+            for item in grounded_videos[:80]
+        ]
+        channels = sorted(
+            channel_counts.values(),
+            key=lambda c: (-int(c["video_count"]), str(c["label"])),
+        )
+        clusters = [
+            {"name": name, "video_count": cnt}
+            for name, cnt in sorted(
+                cluster_counts.items(), key=lambda kv: (-kv[1], kv[0])
+            )
+        ]
+        return {
+            "channels": channels,
+            "topic_clusters": clusters,
+            "videos": cleaned_videos,
+        }
+
     def ask_research_question(self, payload: Mapping[str, object]) -> dict[str, object]:
         question = _clean_text(payload.get("question"), max_len=500)
         if not question:
             raise ValueError("question must be a non-empty string")
         raw_video_ids = payload.get("video_ids")
-        explicit_ids: set[str] | None = None
+        explicit_ids: list[str] = []
         if isinstance(raw_video_ids, list) and raw_video_ids:
-            explicit_ids = {str(v).strip() for v in raw_video_ids if str(v).strip()}
+            seen_vids: set[str] = set()
+            for v in raw_video_ids:
+                vid_s = str(v).strip()
+                if vid_s and vid_s not in seen_vids:
+                    seen_vids.add(vid_s)
+                    explicit_ids.append(vid_s)
+            explicit_ids = explicit_ids[:12]
+        explicit_set: set[str] | None = set(explicit_ids) if explicit_ids else None
+
+        channel_key_filter = _clean_text(payload.get("channel_key"), max_len=120)
+        provider_filter = _clean_text(payload.get("provider_filter"), max_len=32).upper()
+        topic_cluster_filter = _clean_text(payload.get("topic_cluster"), max_len=120)
 
         briefs_map = self.get_video_briefs_map()
         videos = self._repository.list_videos(limit=200)
@@ -2623,12 +2737,27 @@ class WorkspaceIntelligenceHub:
 
         eligible_videos: list[tuple[Any, dict[str, Any] | None, Any]] = []
         timed_by_video: dict[str, Any] = {}
+        matched_channel_label = channel_key_filter
         for video in videos:
-            if explicit_ids is not None and video.video_id not in explicit_ids:
+            if explicit_set is not None and video.video_id not in explicit_set:
                 continue
             brief = briefs_map.get(video.video_id)
-            if brief is not None and brief["is_short_noise"] and explicit_ids is None:
+            if brief is not None and brief["is_short_noise"] and explicit_set is None:
                 continue
+            ch_key, ch_label = self._video_channel_key_and_label(video)
+            if provider_filter and str(video.provider or "").upper() != provider_filter:
+                continue
+            if channel_key_filter and ch_key != channel_key_filter and ch_label != channel_key_filter:
+                continue
+            if channel_key_filter and ch_key == channel_key_filter:
+                matched_channel_label = ch_label
+            if topic_cluster_filter:
+                if brief is None:
+                    continue
+                cluster_val = str(brief.get("topic_cluster_zh") or "")
+                topics_list = [str(t) for t in brief.get("topics_zh", ())]
+                if cluster_val != topic_cluster_filter and topic_cluster_filter not in topics_list:
+                    continue
             timed = self._repository.get_verified_timed_transcript(video_id=video.video_id)
             if timed is None or not timed.cues:
                 continue
@@ -2639,8 +2768,32 @@ class WorkspaceIntelligenceHub:
             raise ApiError(
                 HTTPStatus.CONFLICT,
                 "NO_GROUNDED_CONTENT",
-                "当前没有可用于跨视频溯源问答的已转写内容。",
+                "当前筛选范围内没有可用于跨视频溯源问答的已转写内容。",
             )
+
+        scope_parts: list[str] = []
+        if explicit_set is not None:
+            scope_parts.append(
+                f"对比 {len(eligible_videos)} 条指定视频"
+                if len(eligible_videos) >= 2
+                else "限定 1 条指定视频"
+            )
+        else:
+            if channel_key_filter:
+                scope_parts.append(f"来源：{matched_channel_label}")
+            elif provider_filter:
+                scope_parts.append(f"平台：{provider_filter}")
+            if topic_cluster_filter:
+                scope_parts.append(f"专题：{topic_cluster_filter}")
+        scope_label_zh = " · ".join(scope_parts)
+        scope_meta: dict[str, object] = {
+            "scope_label_zh": scope_label_zh,
+            "channel_key": channel_key_filter or None,
+            "provider_filter": provider_filter or None,
+            "topic_cluster": topic_cluster_filter or None,
+            "video_ids": explicit_ids if explicit_ids else None,
+            "matched_video_count": len(eligible_videos),
+        }
 
         fts_video_scores, fts_cue_scores = self._score_cues_with_fts5(
             timed_by_video, expanded_tokens
@@ -2671,21 +2824,24 @@ class WorkspaceIntelligenceHub:
             scored_videos.append((rank_score, video, brief, timed))
 
         scored_videos.sort(key=lambda item: item[0], reverse=True)
-        selected_videos = scored_videos[:8]
+        max_selected = max(8, len(explicit_ids)) if explicit_set is not None else 8
+        selected_videos = scored_videos[:max_selected]
 
         now = self._now()
         per_video_candidates: list[list[dict[str, Any]]] = []
         for _, video, brief, timed in selected_videos:
-            per_video_candidates.append(
-                self._select_video_evidence_candidates(
-                    video=video,
-                    brief=brief,
-                    timed=timed,
-                    expanded_tokens=expanded_tokens,
-                    fts_cue_scores=fts_cue_scores.get(video.video_id, {}),
-                    now=now,
-                )
+            _, ch_label = self._video_channel_key_and_label(video)
+            raw_cands = self._select_video_evidence_candidates(
+                video=video,
+                brief=brief,
+                timed=timed,
+                expanded_tokens=expanded_tokens,
+                fts_cue_scores=fts_cue_scores.get(video.video_id, {}),
+                now=now,
             )
+            for c in raw_cands:
+                c["channel_name"] = ch_label
+            per_video_candidates.append(raw_cands)
 
         # Interleave Round 1 (the #1 best match per video) before Round 2+ so [E1..E8]
         # span multiple videos while preserving the #1 ranked video's sharpest match at [E1].
@@ -2730,8 +2886,14 @@ class WorkspaceIntelligenceHub:
             '  "citations": [{"ref": "E1", "note_zh": "该证据支撑的核心论据说明"}]\n'
             "}"
         )
+        scope_directive = (
+            f"当前检索范围：{scope_label_zh}。\n" if scope_label_zh else ""
+        )
+        if explicit_set is not None and len(eligible_videos) >= 2:
+            scope_directive += "用户指定了多条对比视频，请明确对比各视频的核心共识与关键侧重差异。\n"
         user_prompt = (
-            f"用户研究问题：{question}\n\n"
+            f"用户研究问题：{question}\n"
+            f"{scope_directive}\n"
             "<untrusted_evidence_candidates>\n"
             + "\n".join(prompt_blocks)
             + "\n</untrusted_evidence_candidates>"
@@ -2791,9 +2953,9 @@ class WorkspaceIntelligenceHub:
         created_at = format_utc_datetime(now)
         session_id = (
             "qa-"
-            + hashlib.sha256(f"{question}\0{created_at}".encode("utf-8")).hexdigest()[
-                :16
-            ]
+            + hashlib.sha256(
+                f"{question}\0{scope_label_zh}\0{created_at}".encode("utf-8")
+            ).hexdigest()[:16]
         )
 
         md_lines = [
@@ -2807,10 +2969,16 @@ class WorkspaceIntelligenceHub:
             "",
             f"# 研究问题：{question}",
             "",
-            "## 综合结论",
-            answer_zh,
-            "",
         ]
+        if scope_label_zh:
+            md_lines.extend([f"> **研究范围**：{scope_label_zh}", ""])
+        md_lines.extend(
+            [
+                "## 综合结论",
+                answer_zh,
+                "",
+            ]
+        )
         if takeaways:
             md_lines.append("## 跨视频核心共识与分歧")
             md_lines.extend(f"- {item}" for item in takeaways)
@@ -2837,8 +3005,8 @@ class WorkspaceIntelligenceHub:
                     INSERT INTO research_qa_sessions (
                         session_id, question, answer_zh, key_takeaways_json,
                         action_items_json, citations_json, video_count,
-                        provider, model, obsidian_markdown, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        provider, model, obsidian_markdown, created_at, scope_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         session_id,
@@ -2852,6 +3020,7 @@ class WorkspaceIntelligenceHub:
                         model_label,
                         obsidian_md,
                         created_at,
+                        json.dumps(scope_meta, ensure_ascii=False),
                     ),
                 )
         finally:
@@ -2865,6 +3034,8 @@ class WorkspaceIntelligenceHub:
             "action_items_zh": actions,
             "citations": hydrated_citations,
             "video_count": len(distinct_vids),
+            "scope_label_zh": scope_label_zh,
+            "scope": scope_meta,
             "provider": provider_label,
             "model": model_label,
             "obsidian_markdown": obsidian_md,
@@ -2881,6 +3052,19 @@ class WorkspaceIntelligenceHub:
                     "SELECT * FROM research_qa_sessions ORDER BY created_at DESC LIMIT 30"
                 ).fetchall()
                 for row in rows:
+                    row_keys = set(row.keys())
+                    raw_scope_json = (
+                        str(row["scope_json"])
+                        if "scope_json" in row_keys and row["scope_json"]
+                        else "{}"
+                    )
+                    try:
+                        parsed_scope = json.loads(raw_scope_json)
+                        if not isinstance(parsed_scope, dict):
+                            parsed_scope = {}
+                    except ValueError:
+                        parsed_scope = {}
+                    scope_label_zh = str(parsed_scope.get("scope_label_zh") or "")
                     sessions.append(
                         {
                             "session_id": str(row["session_id"]),
@@ -2894,6 +3078,8 @@ class WorkspaceIntelligenceHub:
                             ),
                             "citations": json.loads(str(row["citations_json"])),
                             "video_count": int(row["video_count"]),
+                            "scope_label_zh": scope_label_zh,
+                            "scope": parsed_scope,
                             "provider": str(row["provider"]),
                             "model": str(row["model"]),
                             "obsidian_markdown": str(row["obsidian_markdown"]),
@@ -2907,6 +3093,172 @@ class WorkspaceIntelligenceHub:
         return {
             "sessions": sessions,
             "suggested_questions": list(SUGGESTED_RESEARCH_QUESTIONS),
+            "scope_options": self._build_research_scope_options(),
+        }
+
+    # ------------------------------------------------------------------
+    # P2: Topic Chronological AI Evolution Enrichment
+    # ------------------------------------------------------------------
+
+    def _collect_topic_brief_entries(
+        self,
+    ) -> dict[str, list[dict[str, Any]]]:
+        briefs_map = self.get_video_briefs_map()
+        if not briefs_map:
+            return {}
+        videos_by_id = {
+            v.video_id: v for v in self._repository.list_videos(limit=300)
+        }
+        grouped: dict[str, list[dict[str, Any]]] = {}
+        seen_per_topic: dict[str, set[str]] = {}
+        for vid, brief in briefs_map.items():
+            video = videos_by_id.get(vid)
+            if video is None:
+                continue
+            _, ch_label = self._video_channel_key_and_label(video)
+            pub_str = (
+                format_utc_datetime(video.published_at)
+                if video.published_at is not None
+                else None
+            )
+            sort_stamp = pub_str or str(brief.get("updated_at") or "")
+            entry = {
+                "video_id": vid,
+                "title": video.title or vid,
+                "channel_name": ch_label,
+                "provider": str(video.provider or "YOUTUBE"),
+                "published_at": pub_str,
+                "updated_at": str(brief.get("updated_at") or ""),
+                "score": float(brief["score"]),
+                "recommendation_tier": str(brief["recommendation_tier"]),
+                "is_short_noise": bool(brief["is_short_noise"]),
+                "source_basis": str(brief.get("source_basis") or "TRANSCRIPT"),
+                "headline_zh": str(brief["headline_zh"]),
+                "summary_zh": str(brief["summary_zh"]),
+                "product_opportunities_zh": list(
+                    brief.get("product_opportunities_zh", ())
+                ),
+                "business_opportunities_zh": list(
+                    brief.get("business_opportunities_zh", ())
+                ),
+                "_sort_stamp": sort_stamp,
+            }
+            candidate_names = [str(brief.get("topic_cluster_zh") or "").strip()] + [
+                str(t).strip() for t in brief.get("topics_zh", ())
+            ]
+            for tname in candidate_names:
+                if not tname:
+                    continue
+                bucket = seen_per_topic.setdefault(tname, set())
+                if vid in bucket:
+                    continue
+                bucket.add(vid)
+                grouped.setdefault(tname, []).append(entry)
+
+        for tname, items in list(grouped.items()):
+            non_shorts = [item for item in items if not item["is_short_noise"]]
+            effective = non_shorts if non_shorts else items
+            effective.sort(
+                key=lambda item: (item["_sort_stamp"], float(item["score"]), item["video_id"]),
+                reverse=True,
+            )
+            grouped[tname] = effective
+        return grouped
+
+    @staticmethod
+    def _summarize_topic_evolution(
+        entries: list[dict[str, Any]], *, include_entries: bool
+    ) -> dict[str, object]:
+        if not entries:
+            summary: dict[str, object] = {
+                "video_count": 0,
+                "must_watch_count": 0,
+                "avg_score": 0.0,
+                "latest_headline_zh": "",
+                "source_channels": [],
+            }
+            if include_entries:
+                summary["entries"] = []
+            return summary
+        must_watch = sum(
+            1 for item in entries if item["recommendation_tier"] == "MUST_WATCH"
+        )
+        avg_score = round(
+            sum(float(item["score"]) for item in entries) / len(entries), 1
+        )
+        channels: list[str] = []
+        for item in entries:
+            ch = str(item["channel_name"])
+            if ch and ch not in channels:
+                channels.append(ch)
+        result: dict[str, object] = {
+            "video_count": len(entries),
+            "must_watch_count": must_watch,
+            "avg_score": avg_score,
+            "latest_headline_zh": str(entries[0]["headline_zh"]),
+            "source_channels": channels[:6],
+        }
+        if include_entries:
+            result["entries"] = [
+                {k: v for k, v in item.items() if not k.startswith("_")}
+                for item in entries[:24]
+            ]
+        return result
+
+    def enrich_topics_items(self, raw_topics: object) -> list[dict[str, object]]:
+        if not isinstance(raw_topics, list):
+            return []
+        grouped = self._collect_topic_brief_entries()
+        enriched: list[dict[str, object]] = []
+        for item in raw_topics:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name") or "").strip()
+            evo = self._summarize_topic_evolution(
+                grouped.get(name, []), include_entries=False
+            )
+            enriched.append({**item, "ai_evolution": evo})
+        return enriched
+
+    def enrich_topics_list_dto(self, payload: Mapping[str, object]) -> dict[str, object]:
+        return {
+            **payload,
+            "topics": self.enrich_topics_items(payload.get("topics")),
+        }
+
+    def enrich_topic_detail_dto(self, payload: Mapping[str, object]) -> dict[str, object]:
+        raw_topic = payload.get("topic")
+        if not isinstance(raw_topic, dict):
+            return dict(payload)
+        grouped = self._collect_topic_brief_entries()
+        name = str(raw_topic.get("name") or "").strip()
+        evo = self._summarize_topic_evolution(
+            grouped.get(name, []), include_entries=True
+        )
+        topic_names_by_id = {
+            t.topic_id: t.name for t in self._repository.list_topics()
+        }
+        raw_relations = raw_topic.get("relations")
+        relations_out: list[dict[str, object]] | object = raw_relations
+        if isinstance(raw_relations, list):
+            relations_out = [
+                {
+                    **rel,
+                    "related_topic_name": topic_names_by_id.get(
+                        str(rel.get("related_topic_id") or ""), ""
+                    ),
+                }
+                if isinstance(rel, dict)
+                else rel
+                for rel in raw_relations
+            ]
+        return {
+            **payload,
+            "topic": {
+                **raw_topic,
+                "relations": relations_out,
+                "ai_evolution": evo,
+            },
         }
 
     # ------------------------------------------------------------------
@@ -3381,8 +3733,8 @@ class WorkspaceIntelligenceHub:
                             INSERT OR REPLACE INTO research_qa_sessions (
                                 session_id, question, answer_zh, key_takeaways_json,
                                 action_items_json, citations_json, video_count,
-                                provider, model, obsidian_markdown, created_at
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                provider, model, obsidian_markdown, created_at, scope_json
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                             """,
                             (
                                 str(item["session_id"]),
@@ -3399,6 +3751,7 @@ class WorkspaceIntelligenceHub:
                                     item.get("created_at")
                                     or format_utc_datetime(self._now())
                                 ),
+                                str(item.get("scope_json") or "{}"),
                             ),
                         )
                         restored_sessions += 1
