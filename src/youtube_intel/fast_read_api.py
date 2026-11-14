@@ -1183,6 +1183,36 @@ class FastReadApiApplication:
     def backup_download(
         self, path: str
     ) -> tuple[int, dict[str, str], bytes | Path] | None:
+        parsed = urlparse(path)
+        if parsed.path.rstrip("/") == "/api/v1/workspace-ai/obsidian-bundle.zip":
+            q_params = parse_qs(parsed.query, keep_blank_values=False) if parsed.query else {}
+            req_scope = (q_params.get("scope") or ["must_watch"])[0]
+            try:
+                filename, zip_bytes, _, _ = self._workspace_hub.build_obsidian_vault_zip(
+                    scope=req_scope
+                )
+            except ValueError as err:
+                err_bytes = json.dumps(
+                    {
+                        "error": {
+                            "code": "VALIDATION_ERROR",
+                            "message": str(err) or "Request values are invalid.",
+                        }
+                    }
+                ).encode("utf-8")
+                return (
+                    int(HTTPStatus.UNPROCESSABLE_ENTITY),
+                    {"Content-Type": "application/json; charset=utf-8"},
+                    err_bytes,
+                )
+            return (
+                int(HTTPStatus.OK),
+                {
+                    "Content-Type": "application/zip",
+                    "Content-Disposition": f'attachment; filename="{filename}"',
+                },
+                zip_bytes,
+            )
         return self._inner.backup_download(path)
 
     def _cached_or_compute(
@@ -1250,6 +1280,12 @@ class FastReadApiApplication:
                 )
             if route == "/api/v1/workspace-ai/backup" and method == "GET":
                 return HTTPStatus.OK, self._workspace_hub.export_backup_snapshot()
+            if route == "/api/v1/workspace-ai/obsidian-bundle" and method == "GET":
+                q_params = parse_qs(query, keep_blank_values=False) if query else {}
+                req_scope = (q_params.get("scope") or ["must_watch"])[0]
+                return HTTPStatus.OK, self._workspace_hub.export_obsidian_vault_bundle(
+                    scope=req_scope
+                )
             if route == "/api/v1/workspace-ai/restore" and method == "POST":
                 data = self._inner._body(body)
                 return HTTPStatus.OK, self._workspace_hub.restore_backup_snapshot(data)
