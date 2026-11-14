@@ -1882,6 +1882,230 @@ def test_round4_intelligence_activity_convergence_topic_synthesis_and_weekly_his
     assert "[[AI 产品机会与一人公司变现]]" in evo["obsidian_markdown"]
 
 
+def test_round5_weekly_brief_freshness_and_obsidian_vault_zip_bundle(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import base64
+    import io
+    import zipfile
+
+    env = _build_env(tmp_path, monkeypatch)
+    fast_app: Any = env["fast_app"]
+    repo: SQLiteStateRepository = env["repo"]
+    hub: WorkspaceIntelligenceHub = env["hub"]
+    source_id: str = env["source"].source_id
+
+    clock = [NOW]
+    hub._now = lambda: clock[0]
+
+    # Store a sensitive BYOK secret in memory store to verify zero secret leakage in zip exports
+    secret_marker = "sk-r5-top-secret-key-998877"
+    fast_app.handle(
+        "PUT",
+        "/api/v1/workspace-ai/settings",
+        json.dumps(
+            {
+                "active_mode": "local_ollama",
+                "cloud_provider": "deepseek",
+                "cloud_base_url": "https://api.deepseek.com/v1",
+                "cloud_model": "deepseek-chat",
+                "cloud_api_key": secret_marker,
+            }
+        ).encode("utf-8"),
+    )
+
+    _seed_youtube_video(
+        repo,
+        env["data_root"],
+        source_id=source_id,
+        video_id="vidR5Agent01",
+        channel_id="UC1111111111111111111111",
+        channel_name="OpenAI",
+        title="Deterministic Agent Loops",
+        duration_seconds=1820,
+        cues=(
+            TimedTranscriptCueWrite(
+                start_ms=0,
+                end_ms=8000,
+                text="Deterministic tool loops eliminate silent retries.",
+            ),
+        ),
+        now=clock[0],
+    )
+    _seed_youtube_video(
+        repo,
+        env["data_root"],
+        source_id=source_id,
+        video_id="vidR5Biz0002",
+        channel_id="UC2222222222222222222222",
+        channel_name="Greg Isenberg",
+        title="Vertical AI Pricing Models",
+        duration_seconds=1640,
+        cues=(
+            TimedTranscriptCueWrite(
+                start_ms=0,
+                end_ms=8000,
+                text="Monetize vertical workflows with annual outcome contracts.",
+            ),
+        ),
+        now=clock[0],
+    )
+    fast_app.handle("POST", "/api/v1/workspace-ai/videos/vidR5Agent01/distill", b"{}")
+    fast_app.handle("POST", "/api/v1/workspace-ai/videos/vidR5Biz0002/distill", b"{}")
+    fast_app.handle(
+        "POST",
+        "/api/v1/workspace-ai/research/ask",
+        json.dumps({"question": "Agent 架构与垂直定价怎么结合？"}).encode("utf-8"),
+    )
+
+    # Generate Weekly Brief #1 at t = NOW + 5m
+    clock[0] = NOW + timedelta(minutes=5)
+    wb1_status, wb1_res = fast_app.handle(
+        "POST", "/api/v1/workspace-ai/weekly-brief/generate", b"{}"
+    )
+    assert wb1_status == HTTPStatus.OK
+    wb1_id = wb1_res["weekly_brief"]["brief_id"]
+    fresh0 = wb1_res["weekly_brief"]["freshness"]
+    assert fresh0["is_stale"] is False
+    assert fresh0["new_videos_count"] == 0
+    assert fresh0["new_must_watch_count"] == 0
+
+    # Distilling a <=90s Short promo after Weekly Brief #1 MUST NOT trigger false staleness!
+    clock[0] = NOW + timedelta(minutes=12)
+    _seed_youtube_video(
+        repo,
+        env["data_root"],
+        source_id=source_id,
+        video_id="vidR5Short99",
+        channel_id="UC1111111111111111111111",
+        channel_name="OpenAI",
+        title="Quick 30s Teaser #shorts",
+        duration_seconds=30,
+        cues=(
+            TimedTranscriptCueWrite(
+                start_ms=0, end_ms=4000, text="Short promo clip."
+            ),
+        ),
+        now=clock[0],
+    )
+    fast_app.handle("POST", "/api/v1/workspace-ai/videos/vidR5Short99/distill", b"{}")
+    _, after_short = fast_app.handle("GET", "/api/v1/workspace-ai/weekly-brief")
+    assert after_short["weekly_brief"]["freshness"]["is_stale"] is False
+    assert after_short["weekly_brief"]["freshness"]["new_videos_count"] == 0
+
+    # Distill a new high-value Must-Watch long video at t = NOW + 25m -> marks Weekly Brief stale!
+    clock[0] = NOW + timedelta(minutes=25)
+    _seed_youtube_video(
+        repo,
+        env["data_root"],
+        source_id=source_id,
+        video_id="vidR5NewDeep",
+        channel_id="UC1111111111111111111111",
+        channel_name="OpenAI",
+        title="Autonomous Security Verification",
+        duration_seconds=2150,
+        cues=(
+            TimedTranscriptCueWrite(
+                start_ms=0,
+                end_ms=9000,
+                text="Automated security verification catches memory bugs pre-merge.",
+            ),
+        ),
+        now=clock[0],
+    )
+    fast_app.handle("POST", "/api/v1/workspace-ai/videos/vidR5NewDeep/distill", b"{}")
+
+    _, stale_wb = fast_app.handle("GET", "/api/v1/workspace-ai/weekly-brief")
+    fresh_stale = stale_wb["weekly_brief"]["freshness"]
+    assert fresh_stale["is_stale"] is True
+    assert fresh_stale["new_videos_count"] == 1
+    assert fresh_stale["new_must_watch_count"] == 1
+    assert "Autonomous Security Verification" in fresh_stale["new_titles"]
+
+    _, dash_stale = fast_app.handle("GET", "/api/v1/dashboard")
+    assert dash_stale["workspace_weekly_brief"]["freshness"]["is_stale"] is True
+    assert dash_stale["workspace_weekly_brief"]["freshness"]["new_videos_count"] == 1
+
+    # Regenerate Weekly Brief #2 at t = NOW + 35m -> clears staleness; archived wb1 marks is_archive=True
+    clock[0] = NOW + timedelta(minutes=35)
+    _, wb2_res = fast_app.handle(
+        "POST", "/api/v1/workspace-ai/weekly-brief/generate", b"{}"
+    )
+    assert wb2_res["weekly_brief"]["freshness"]["is_stale"] is False
+    assert wb2_res["weekly_brief"]["freshness"]["new_videos_count"] == 0
+
+    _, wb1_arch = fast_app.handle(
+        "GET", f"/api/v1/workspace-ai/weekly-brief?brief_id={wb1_id}"
+    )
+    assert wb1_arch["weekly_brief"]["freshness"]["is_archive"] is True
+    assert wb1_arch["weekly_brief"]["freshness"]["is_stale"] is False
+
+    # Star vidR5NewDeep and export Obsidian Vault Pack (.zip) with scope=starred
+    fast_app.handle(
+        "POST",
+        "/api/v1/workspace-ai/videos/vidR5NewDeep/curation",
+        json.dumps({"starred": True}).encode("utf-8"),
+    )
+
+    bundle_code, bundle_json = fast_app.handle(
+        "GET", "/api/v1/workspace-ai/obsidian-bundle?scope=starred"
+    )
+    assert bundle_code == HTTPStatus.OK
+    assert bundle_json["scope"] == "starred"
+    assert bundle_json["filename"].endswith(".zip")
+    assert bundle_json["counts"]["videos"] == 1
+    assert bundle_json["counts"]["topics"] >= 1
+    assert bundle_json["counts"]["weekly_briefs"] >= 1
+    assert bundle_json["counts"]["research_sessions"] == 1
+
+    raw_zip = base64.b64decode(bundle_json["archive_base64"])
+    assert secret_marker.encode("utf-8") not in raw_zip
+    with zipfile.ZipFile(io.BytesIO(raw_zip), "r") as zf:
+        assert zf.testzip() is None
+        names = zf.namelist()
+        assert all(not n.startswith("/") and ".." not in n for n in names)
+        assert "00-AI情报知识库总览 Index.md" in names
+        assert "02-专题演化MOC/AI Agent 与自动化架构.md" in names
+        assert "03-视频深度笔记/Autonomous Security Verification.md" in names
+        assert not any("Deterministic Agent Loops" in n for n in names if n.startswith("03-"))
+        assert not any("Quick 30s Teaser" in n for n in names)
+        index_md = zf.read("00-AI情报知识库总览 Index.md").decode("utf-8")
+        assert "[[AI Agent 与自动化架构]]" in index_md
+        assert "[[Autonomous Security Verification]]" in index_md
+
+    # Binary .zip download via backup_download(scope=all) includes all 3 non-Short videos & 0 Shorts
+    bin_dl = fast_app.backup_download("/api/v1/workspace-ai/obsidian-bundle.zip?scope=all")
+    assert bin_dl is not None
+    dl_status, dl_headers, dl_bytes = bin_dl
+    assert dl_status == int(HTTPStatus.OK)
+    assert dl_headers["Content-Type"] == "application/zip"
+    assert "attachment; filename=" in dl_headers["Content-Disposition"]
+    assert isinstance(dl_bytes, bytes)
+    assert secret_marker.encode("utf-8") not in dl_bytes
+    with zipfile.ZipFile(io.BytesIO(dl_bytes), "r") as zf_all:
+        assert zf_all.testzip() is None
+        video_notes = [n for n in zf_all.namelist() if n.startswith("03-视频深度笔记/")]
+        assert len(video_notes) == 3
+        assert "03-视频深度笔记/Deterministic Agent Loops.md" in video_notes
+        assert "03-视频深度笔记/Vertical AI Pricing Models.md" in video_notes
+        assert "03-视频深度笔记/Autonomous Security Verification.md" in video_notes
+
+    # Invalid scope returns 422 VALIDATION_ERROR cleanly
+    bad_code, _ = fast_app.handle(
+        "GET", "/api/v1/workspace-ai/obsidian-bundle?scope=bad_scope"
+    )
+    assert bad_code == HTTPStatus.UNPROCESSABLE_ENTITY
+    bad_bin = fast_app.backup_download(
+        "/api/v1/workspace-ai/obsidian-bundle.zip?scope=bad_scope"
+    )
+    assert bad_bin is not None
+    assert bad_bin[0] == int(HTTPStatus.UNPROCESSABLE_ENTITY)
+
+    # Strict Red Line: external vault directory remains 100% untouched on disk!
+    assert [p for p in env["vault_root"].rglob("*") if p.is_file()] == []
+
+
+
 
 
 

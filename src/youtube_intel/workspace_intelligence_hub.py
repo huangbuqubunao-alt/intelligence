@@ -13,7 +13,9 @@ Weekly V1 light up natively.
 
 from __future__ import annotations
 
+import base64
 import hashlib
+import io
 import ipaddress
 import json
 import math
@@ -24,6 +26,7 @@ import sys
 import tempfile
 import urllib.error
 import urllib.request
+import zipfile
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -250,8 +253,8 @@ def _clean_string_list(
 
 def _safe_obsidian_title(title: str) -> str:
     cleaned = re.sub(r'[\\/:*?"<>|#^\[\]]+', " ", title)
-    cleaned = re.sub(r"\s+", " ", cleaned).strip()
-    return cleaned[:120] or "Untitled Video"
+    cleaned = re.sub(r"\s+", " ", cleaned).strip(". ")
+    return cleaned[:120].strip(". ") or "Untitled Video"
 
 
 def _probe_ollama_models_default(base_url: str) -> tuple[bool, tuple[str, ...]]:
@@ -3601,6 +3604,83 @@ class WorkspaceIntelligenceHub:
             "topics_count": active_topics,
         }
 
+    def _compute_weekly_brief_freshness(
+        self,
+        briefs_map: Mapping[str, Mapping[str, Any]],
+        *,
+        brief_created_at: str,
+        is_archive: bool,
+    ) -> dict[str, object]:
+        if is_archive:
+            return {
+                "is_archive": True,
+                "is_stale": False,
+                "new_videos_count": 0,
+                "new_must_watch_count": 0,
+                "new_titles": [],
+            }
+        try:
+            brief_dt = datetime.fromisoformat(brief_created_at.replace("Z", "+00:00"))
+        except ValueError:
+            brief_dt = None
+
+        newer_non_shorts: list[Mapping[str, Any]] = []
+        for b in briefs_map.values():
+            if b.get("is_short_noise"):
+                continue
+            raw_up = str(b.get("updated_at") or "").strip()
+            if not raw_up:
+                continue
+            is_newer = False
+            if brief_dt is not None:
+                try:
+                    up_dt = datetime.fromisoformat(raw_up.replace("Z", "+00:00"))
+                    is_newer = up_dt > brief_dt
+                except ValueError:
+                    is_newer = raw_up > brief_created_at
+            else:
+                is_newer = raw_up > brief_created_at
+            if is_newer:
+                newer_non_shorts.append(b)
+
+        if not newer_non_shorts:
+            return {
+                "is_archive": False,
+                "is_stale": False,
+                "new_videos_count": 0,
+                "new_must_watch_count": 0,
+                "new_titles": [],
+            }
+
+        newer_non_shorts.sort(
+            key=lambda b: (str(b.get("updated_at") or ""), float(b.get("score", 0.0))),
+            reverse=True,
+        )
+        videos_by_id = {v.video_id: v for v in self._repository.list_videos(limit=300)}
+        new_titles: list[str] = []
+        for b in newer_non_shorts[:3]:
+            vid = str(b.get("video_id") or "")
+            v_obj = videos_by_id.get(vid)
+            title = (
+                (v_obj.title if v_obj is not None else None)
+                or str(b.get("headline_zh") or "")
+                or vid
+            )
+            if title and title not in new_titles:
+                new_titles.append(title)
+        new_must_watch = sum(
+            1
+            for b in newer_non_shorts
+            if b.get("recommendation_tier") == "MUST_WATCH"
+        )
+        return {
+            "is_archive": False,
+            "is_stale": True,
+            "new_videos_count": len(newer_non_shorts),
+            "new_must_watch_count": new_must_watch,
+            "new_titles": new_titles,
+        }
+
     def get_latest_weekly_brief(
         self, *, brief_id: str | None = None
     ) -> dict[str, object]:
@@ -3668,6 +3748,15 @@ class WorkspaceIntelligenceHub:
                     "funnel_stats": funnel_stats,
                     "history": [],
                 }
+            latest_brief_id = str(history[0]["brief_id"]) if history else str(row["brief_id"])
+            row_brief_id = str(row["brief_id"])
+            row_created_at = str(row["created_at"])
+            is_archive = bool(clean_req_id and row_brief_id != latest_brief_id)
+            freshness = self._compute_weekly_brief_freshness(
+                briefs_map,
+                brief_created_at=row_created_at,
+                is_archive=is_archive,
+            )
             top_shifts = json.loads(str(row["top_shifts_json"]))
             prod_opps = json.loads(str(row["product_opportunities_json"]))
             biz_monetization = json.loads(str(row["business_monetization_json"]))
@@ -3687,7 +3776,7 @@ class WorkspaceIntelligenceHub:
             ]
             return {
                 "weekly_brief": {
-                    "brief_id": str(row["brief_id"]),
+                    "brief_id": row_brief_id,
                     "title_zh": str(row["title_zh"]),
                     "executive_summary_zh": str(row["executive_summary_zh"]),
                     "top_shifts_zh": top_shifts,
@@ -3700,8 +3789,9 @@ class WorkspaceIntelligenceHub:
                     "provider": str(row["provider"]),
                     "model": str(row["model"]),
                     "obsidian_markdown": str(row["obsidian_markdown"]),
-                    "created_at": str(row["created_at"]),
+                    "created_at": row_created_at,
                     "history": history,
+                    "freshness": freshness,
                 },
                 "funnel_stats": funnel_stats,
                 "history": history,
@@ -4198,6 +4288,248 @@ class WorkspaceIntelligenceHub:
                 "weekly_briefs": restored_weekly,
                 "curation_states": restored_curation,
             }
+        }
+
+    # ------------------------------------------------------------------
+    # Round 5: Portable Zero-Secret Obsidian Vault Pack (.zip) Export
+    # ------------------------------------------------------------------
+
+    def build_obsidian_vault_zip(
+        self, *, scope: str = "must_watch"
+    ) -> tuple[str, bytes, dict[str, int], str]:
+        clean_scope = (scope or "must_watch").strip().lower()
+        if clean_scope not in {"must_watch", "all", "starred"}:
+            raise ValueError("scope must be 'must_watch', 'all', or 'starred'")
+
+        now = self._now()
+        exported_at = format_utc_datetime(now)
+        date_stamp = exported_at[:10]
+        zip_time = (
+            now.year,
+            now.month,
+            now.day,
+            now.hour,
+            now.minute,
+            now.second,
+        )
+
+        briefs_map = self.get_video_briefs_map()
+        videos_by_id = {v.video_id: v for v in self._repository.list_videos(limit=300)}
+        grouped_topics = self._collect_topic_brief_entries()
+
+        ordered_topic_names: list[str] = []
+        for t in self._repository.list_topics():
+            t_clean = t.name.strip()
+            if (
+                t.lifecycle is TopicLifecycle.ACTIVE
+                and t_clean
+                and grouped_topics.get(t_clean)
+                and t_clean not in ordered_topic_names
+            ):
+                ordered_topic_names.append(t_clean)
+        for k_name, k_entries in grouped_topics.items():
+            k_clean = k_name.strip()
+            if k_clean and k_entries and k_clean not in ordered_topic_names:
+                ordered_topic_names.append(k_clean)
+
+        if clean_scope == "all":
+            selected_briefs = [
+                b for b in briefs_map.values() if not b.get("is_short_noise")
+            ]
+        elif clean_scope == "starred":
+            selected_briefs = [
+                b for b in briefs_map.values() if bool(b.get("starred", False))
+            ]
+        else:
+            selected_briefs = [
+                b
+                for b in briefs_map.values()
+                if not b.get("is_short_noise")
+                and b.get("recommendation_tier") == "MUST_WATCH"
+            ]
+        selected_briefs.sort(
+            key=lambda b: (
+                float(b.get("score", 0.0)),
+                str(b.get("updated_at") or ""),
+            ),
+            reverse=True,
+        )
+
+        weekly_rows: list[dict[str, str]] = []
+        qa_rows: list[dict[str, str]] = []
+        conn = self._connect_read()
+        if conn is not None:
+            try:
+                for wrow in conn.execute(
+                    "SELECT brief_id, title_zh, created_at, obsidian_markdown "
+                    "FROM weekly_ai_briefs ORDER BY created_at DESC, rowid DESC LIMIT 12"
+                ).fetchall():
+                    md = str(wrow["obsidian_markdown"] or "").strip()
+                    if md:
+                        weekly_rows.append(
+                            {
+                                "brief_id": str(wrow["brief_id"]),
+                                "title_zh": str(wrow["title_zh"]),
+                                "created_at": str(wrow["created_at"]),
+                                "markdown": md + "\n",
+                            }
+                        )
+                for qrow in conn.execute(
+                    "SELECT session_id, question, created_at, obsidian_markdown "
+                    "FROM research_qa_sessions ORDER BY created_at DESC, session_id ASC LIMIT 50"
+                ).fetchall():
+                    md = str(qrow["obsidian_markdown"] or "").strip()
+                    if md:
+                        qa_rows.append(
+                            {
+                                "session_id": str(qrow["session_id"]),
+                                "question": str(qrow["question"]),
+                                "created_at": str(qrow["created_at"]),
+                                "markdown": md + "\n",
+                            }
+                        )
+            except sqlite3.Error:
+                pass
+            finally:
+                conn.close()
+
+        used_paths: set[str] = set()
+        files_to_write: list[tuple[str, str]] = []
+
+        def _alloc(folder: str, raw_name: str, fallback_id: str) -> tuple[str, str]:
+            stem = _safe_obsidian_title(raw_name)
+            rel_path = f"{folder}/{stem}.md"
+            if rel_path in used_paths:
+                stem = f"{stem} ({_safe_obsidian_title(fallback_id)[:16]})"
+                rel_path = f"{folder}/{stem}.md"
+            used_paths.add(rel_path)
+            return rel_path, stem
+
+        weekly_links: list[str] = []
+        for w_item in weekly_rows:
+            w_date = w_item["created_at"][:10] or date_stamp
+            w_path, w_stem = _alloc(
+                "01-AI情报周报",
+                f"{w_date} {w_item['title_zh']}",
+                w_item["brief_id"],
+            )
+            files_to_write.append((w_path, w_item["markdown"]))
+            weekly_links.append(f"- [[{w_stem}]]（`{w_date}`）")
+
+        topic_links: list[str] = []
+        for t_name in ordered_topic_names:
+            t_entries = grouped_topics.get(t_name, [])
+            siblings = [other for other in ordered_topic_names if other != t_name]
+            evo = self._summarize_topic_evolution(
+                t_entries,
+                include_entries=True,
+                topic_name=t_name,
+                related_topic_names=siblings,
+            )
+            t_md = str(evo.get("obsidian_markdown") or "").strip()
+            if not t_md:
+                continue
+            t_path, t_stem = _alloc("02-专题演化MOC", t_name, t_name)
+            files_to_write.append((t_path, t_md + "\n"))
+            topic_links.append(
+                f"- [[{t_stem}]] — 收录 `{evo.get('video_count', 0)}` 篇 · "
+                f"必看 `{evo.get('must_watch_count', 0)}` 篇 · 均分 `{evo.get('avg_score', 0.0)}`"
+            )
+
+        video_links: list[str] = []
+        for b in selected_briefs:
+            v_md = str(b.get("obsidian_markdown") or "").strip()
+            if not v_md:
+                continue
+            vid = str(b.get("video_id") or "")
+            v_obj = videos_by_id.get(vid)
+            v_title = (v_obj.title if v_obj is not None else None) or vid
+            v_channel = (
+                (v_obj.channel_name or v_obj.provider)
+                if v_obj is not None
+                else "Source"
+            )
+            v_path, v_stem = _alloc("03-视频深度笔记", v_title, vid)
+            files_to_write.append((v_path, v_md + "\n"))
+            video_links.append(
+                f"- **[{float(b.get('score', 0.0)):.1f}/10]** [[{v_stem}]] "
+                f"(`{v_channel}`) — {b.get('headline_zh', '')}"
+            )
+
+        qa_links: list[str] = []
+        for q_item in qa_rows:
+            q_date = q_item["created_at"][:10] or date_stamp
+            q_path, q_stem = _alloc(
+                "04-跨视频深度问答",
+                f"{q_date} {q_item['question'][:72]}",
+                q_item["session_id"],
+            )
+            files_to_write.append((q_path, q_item["markdown"]))
+            qa_links.append(f"- [[{q_stem}]] — {q_item['question']}")
+
+        scope_label_map = {
+            "must_watch": "必看精选干货",
+            "all": "全部深度内容",
+            "starred": "个人收藏干货",
+        }
+        index_lines = [
+            "---",
+            'title: "AI 情报知识库总览 Index"',
+            f'exported_at: "{exported_at}"',
+            f'scope: "{clean_scope}"',
+            "tags:",
+            "  - youtube-intel/vault-index",
+            "---",
+            "",
+            "# AI 情报知识库总览 Index",
+            "",
+            f"> **导出范围**：{scope_label_map[clean_scope]} · **导出时间**：`{exported_at}`",
+            f"> **资产统计**：`{len(weekly_links)}` 份情报周报 · `{len(topic_links)}` 个专题演化 MOC · "
+            f"`{len(video_links)}` 篇视频深度笔记 · `{len(qa_links)}` 条跨视频深度问答",
+            "",
+        ]
+        if topic_links:
+            index_lines.extend(["## 1. 核心专题演化索引（MOC）", *topic_links, ""])
+        if weekly_links:
+            index_lines.extend(["## 2. AI 产品与商业情报周报", *weekly_links, ""])
+        if video_links:
+            index_lines.extend(["## 3. 精选深度视频笔记", *video_links, ""])
+        if qa_links:
+            index_lines.extend(["## 4. 跨视频深度问答沉淀", *qa_links, ""])
+        index_markdown = "\n".join(index_lines).rstrip() + "\n"
+
+        all_entries = [("00-AI情报知识库总览 Index.md", index_markdown), *files_to_write]
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+            for rel_path, content_str in all_entries:
+                zinfo = zipfile.ZipInfo(filename=rel_path, date_time=zip_time)
+                zinfo.compress_type = zipfile.ZIP_DEFLATED
+                zinfo.external_attr = 0o644 << 16
+                zf.writestr(zinfo, content_str.encode("utf-8"))
+
+        counts = {
+            "total_files": len(all_entries),
+            "weekly_briefs": len(weekly_links),
+            "topics": len(topic_links),
+            "videos": len(video_links),
+            "research_sessions": len(qa_links),
+        }
+        filename = f"obsidian-ai-vault-{clean_scope}-{date_stamp}.zip"
+        return filename, buf.getvalue(), counts, index_markdown
+
+    def export_obsidian_vault_bundle(
+        self, *, scope: str = "must_watch"
+    ) -> dict[str, object]:
+        filename, zip_bytes, counts, index_markdown = self.build_obsidian_vault_zip(
+            scope=scope
+        )
+        return {
+            "filename": filename,
+            "scope": (scope or "must_watch").strip().lower(),
+            "exported_at": format_utc_datetime(self._now()),
+            "counts": counts,
+            "index_markdown": index_markdown,
+            "archive_base64": base64.b64encode(zip_bytes).decode("ascii"),
         }
 
 
