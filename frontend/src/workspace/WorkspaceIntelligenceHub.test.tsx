@@ -763,6 +763,17 @@ describe("Workspace AI Upgrade (P0 + P1 + P2)", () => {
                   }
                 : {}),
             },
+            {
+              video_id: "virtualPendingWork01",
+              provider: "YOUTUBE",
+              work_kind: "PENDING_CONTENT_WORK",
+              channel_id: "UC1111111111111111111111",
+              channel_name: "OpenAI",
+              title: "Queued Source Run Placeholder",
+              published_at: "2026-11-14T09:00:00Z",
+              processing_status: "WAITING",
+              last_updated: "2026-11-14T09:00:00Z",
+            },
           ],
         });
       }
@@ -837,6 +848,7 @@ describe("Workspace AI Upgrade (P0 + P1 + P2)", () => {
 
     expect(await screen.findByText(/基于官方简介：展示 Firefox 安全漏洞自动定位/)).toBeTruthy();
     expect(screen.getByText("简介速览")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /一键同步中文摘要/ })).toBeNull();
 
     // Open detail page of the captionless YouTube video
     fireEvent.click(screen.getByRole("button", { name: /Live Security Demo/ }));
@@ -928,6 +940,9 @@ describe("Workspace AI Upgrade (P0 + P1 + P2)", () => {
     const legacyDrawer = container.querySelector("details.legacy-model-diagnostics") as HTMLDetailsElement | null;
     expect(legacyDrawer).not.toBeNull();
     expect(legacyDrawer?.open).toBe(false);
+    expect(
+      fetchMock.mock.calls.some(([p]) => String(p).includes("/local/transcription/capability")),
+    ).toBe(false);
 
     const exportBtn = within(aiEnginePanel).getByRole("button", {
       name: "导出 AI 知识库快照 (.json)",
