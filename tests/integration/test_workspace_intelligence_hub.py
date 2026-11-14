@@ -1459,4 +1459,226 @@ def test_topics_and_dashboard_pinned_topics_enriched_with_chronological_ai_evolu
     assert pinned_agent["ai_evolution"]["video_count"] == 2
 
 
+def test_video_curation_star_and_read_states_enrich_videos_and_roundtrip_backup_snapshot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    env = _build_env(tmp_path, monkeypatch)
+    fast_app: Any = env["fast_app"]
+
+    _seed_youtube_video(
+        env["repo"],
+        env["data_root"],
+        source_id=env["source"].source_id,
+        video_id="vidCur00001",
+        channel_id="UC1111111111111111111111",
+        channel_name="OpenAI",
+        title="Agent Curation Episode 1",
+        duration_seconds=1800,
+        cues=(
+            TimedTranscriptCueWrite(start_ms=0, end_ms=8000, text="Reliable agent evals."),
+        ),
+        now=NOW,
+    )
+    fast_app.handle("POST", "/api/v1/workspace-ai/videos/vidCur00001/distill", b"{}")
+
+    _, initial_list = fast_app.handle("GET", "/api/v1/videos")
+    item0 = next(v for v in initial_list["videos"] if v["video_id"] == "vidCur00001")
+    assert item0["ai_brief"]["starred"] is False
+    assert item0["ai_brief"]["is_read"] is False
+
+    # Partial update: star first, then mark read -> both stay True
+    s_code, s_res = fast_app.handle(
+        "POST",
+        "/api/v1/workspace-ai/videos/vidCur00001/curation",
+        json.dumps({"starred": True}).encode("utf-8"),
+    )
+    assert s_code == HTTPStatus.OK
+    assert s_res["starred"] is True
+    assert s_res["is_read"] is False
+
+    r_code, r_res = fast_app.handle(
+        "POST",
+        "/api/v1/workspace-ai/videos/vidCur00001/curation",
+        json.dumps({"is_read": True}).encode("utf-8"),
+    )
+    assert r_code == HTTPStatus.OK
+    assert r_res["starred"] is True
+    assert r_res["is_read"] is True
+
+    # Unknown video returns 404; empty/non-boolean payload returns 422
+    miss_code, _ = fast_app.handle(
+        "POST",
+        "/api/v1/workspace-ai/videos/missingVid99/curation",
+        json.dumps({"starred": True}).encode("utf-8"),
+    )
+    assert miss_code == HTTPStatus.NOT_FOUND
+
+    bad_code, _ = fast_app.handle(
+        "POST",
+        "/api/v1/workspace-ai/videos/vidCur00001/curation",
+        b"{}",
+    )
+    assert bad_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+    # Enriched list and detail immediately reflect curated state
+    _, after_list = fast_app.handle("GET", "/api/v1/videos")
+    item1 = next(v for v in after_list["videos"] if v["video_id"] == "vidCur00001")
+    assert item1["ai_brief"]["starred"] is True
+    assert item1["ai_brief"]["is_read"] is True
+
+    _, after_det = fast_app.handle("GET", "/api/v1/videos/vidCur00001")
+    assert after_det["video"]["ai_brief"]["starred"] is True
+    assert after_det["video"]["ai_brief"]["is_read"] is True
+    assert after_det["ai_brief"]["starred"] is True
+    assert after_det["ai_brief"]["is_read"] is True
+
+    # Backup & restore roundtrips curation states and stays backward-compatible when omitted
+    _, snap = fast_app.handle("GET", "/api/v1/workspace-ai/backup")
+    assert snap["counts"]["curation_states"] == 1
+    assert len(snap["video_curation_states"]) == 1
+
+    (env["project_root"] / ".workspace-ai" / "hub.sqlite3").unlink()
+    rs_code, rs_body = fast_app.handle(
+        "POST", "/api/v1/workspace-ai/restore", json.dumps(snap).encode("utf-8")
+    )
+    assert rs_code == HTTPStatus.OK
+    assert rs_body["restored"]["curation_states"] == 1
+
+    _, restored_det = fast_app.handle("GET", "/api/v1/videos/vidCur00001")
+    assert restored_det["ai_brief"]["starred"] is True
+    assert restored_det["ai_brief"]["is_read"] is True
+
+    legacy_snap = {k: v for k, v in snap.items() if k != "video_curation_states"}
+    leg_code, leg_body = fast_app.handle(
+        "POST", "/api/v1/workspace-ai/restore", json.dumps(legacy_snap).encode("utf-8")
+    )
+    assert leg_code == HTTPStatus.OK
+    assert leg_body["restored"]["curation_states"] == 0
+
+
+def test_topic_detail_obsidian_moc_markdown_and_dashboard_saved_ids_plus_fully_distilled_attention_hygiene(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    env = _build_env(tmp_path, monkeypatch)
+    fast_app: Any = env["fast_app"]
+    repo: SQLiteStateRepository = env["repo"]
+
+    _seed_youtube_video(
+        repo,
+        env["data_root"],
+        source_id=env["source"].source_id,
+        video_id="vidOlder012",
+        channel_id="UC1111111111111111111111",
+        channel_name="OpenAI",
+        title="Agent Archive Deep Dive",
+        duration_seconds=1600,
+        cues=(
+            TimedTranscriptCueWrite(start_ms=0, end_ms=8000, text="Historical agent architecture."),
+        ),
+        now=NOW - timedelta(days=12),
+    )
+    _seed_youtube_video(
+        repo,
+        env["data_root"],
+        source_id=env["source"].source_id,
+        video_id="vidRecent02",
+        channel_id="UC2222222222222222222222",
+        channel_name="Greg Isenberg",
+        title="Agent Recent Deep Dive",
+        duration_seconds=2100,
+        cues=(
+            TimedTranscriptCueWrite(start_ms=0, end_ms=8000, text="Fresh weekly workflow playbook."),
+        ),
+        now=NOW - timedelta(days=2),
+    )
+    fast_app.handle("POST", "/api/v1/workspace-ai/videos/vidOlder012/distill", b"{}")
+    fast_app.handle("POST", "/api/v1/workspace-ai/videos/vidRecent02/distill", b"{}")
+
+    # 1) Topics list exposes recent_7d_count and Topic detail exposes Obsidian MOC markdown
+    _, list_body = fast_app.handle("GET", "/api/v1/topics")
+    agent_topic = next(
+        t for t in list_body["topics"] if t["name"] == "AI Agent 与自动化架构"
+    )
+    assert agent_topic["ai_evolution"]["recent_7d_count"] == 1
+
+    _, det_body = fast_app.handle("GET", f"/api/v1/topics/{agent_topic['topic_id']}")
+    det_evo = det_body["topic"]["ai_evolution"]
+    assert det_evo["recent_7d_count"] == 1
+    moc_md = det_evo["obsidian_markdown"]
+    assert "youtube-intel/topic-moc" in moc_md
+    assert "[[AI Agent 与自动化架构]]" in moc_md
+    assert "[[Agent Recent Deep Dive]]" in moc_md
+    assert "[[Agent Archive Deep Dive]]" in moc_md
+    assert [p for p in env["vault_root"].rglob("*") if p.is_file()] == []
+
+    # 2) Dashboard exposes saved_intelligence_ids matching persisted saved_intelligences
+    intel_id = "intelligence:workspace-ai:vidRecent02"
+    _, dash0 = fast_app.handle("GET", "/api/v1/dashboard")
+    assert dash0["saved_intelligence_ids"] == []
+
+    sv_code, _ = fast_app.handle(
+        "POST",
+        "/api/v1/saved-intelligence/save",
+        json.dumps({"intelligence_id": intel_id}).encode("utf-8"),
+    )
+    assert sv_code == HTTPStatus.OK
+    _, dash1 = fast_app.handle("GET", "/api/v1/dashboard")
+    assert dash1["saved_intelligence_ids"] == [intel_id]
+
+    un_code, _ = fast_app.handle(
+        "POST",
+        "/api/v1/saved-intelligence/unsave",
+        json.dumps({"intelligence_id": intel_id}).encode("utf-8"),
+    )
+    assert un_code == HTTPStatus.OK
+    _, dash2 = fast_app.handle("GET", "/api/v1/dashboard")
+    assert dash2["saved_intelligence_ids"] == []
+
+    # 3) Empty-child EXECUTION_CONDITION_UNRESOLVED run (e.g. >20 evidence chunks on a healthy channel)
+    # is suppressed when Workspace AI has already distilled all linked videos of that source,
+    # yet still surfaces if a linked video remains undistilled!
+    run = repo.create_source_run(
+        SourceRunWrite.manual_check_now(
+            source_id=env["source"].source_id,
+            command_id="cmd-empty-child-unresolved",
+            priority=SourceRunPriority.P1,
+            created_at=NOW - timedelta(minutes=10),
+        )
+    )
+    repo.transition_source_run(
+        run.run_id, to_state=SourceRunState.RUNNING, now=NOW - timedelta(minutes=10)
+    )
+    repo.transition_source_run(
+        run.run_id,
+        to_state=SourceRunState.NEEDS_ATTENTION,
+        attention_reason=SourceRunAttentionReason.EXECUTION_CONDITION_UNRESOLVED,
+        now=NOW - timedelta(minutes=9),
+    )
+
+    _, dash_clean = fast_app.handle("GET", "/api/v1/dashboard")
+    assert dash_clean["needs_attention"] == []
+
+    _seed_youtube_video(
+        repo,
+        env["data_root"],
+        source_id=env["source"].source_id,
+        video_id="vidUndist03",
+        channel_id="UC2222222222222222222222",
+        channel_name="Greg Isenberg",
+        title="New Undistilled Episode",
+        duration_seconds=1500,
+        cues=(
+            TimedTranscriptCueWrite(start_ms=0, end_ms=8000, text="Brand new episode."),
+        ),
+        now=NOW,
+    )
+    _, dash_pending = fast_app.handle("GET", "/api/v1/dashboard")
+    assert len(dash_pending["needs_attention"]) == 1
+
+    fast_app.handle("POST", "/api/v1/workspace-ai/videos/vidUndist03/distill", b"{}")
+    _, dash_healed = fast_app.handle("GET", "/api/v1/dashboard")
+    assert dash_healed["needs_attention"] == []
+
+
+
 
