@@ -582,11 +582,14 @@ class DurableProcessingOrchestrator:
             if not evidence_ids:
                 return SourceRunAttentionReason.EXECUTION_CONDITION_UNRESOLVED
             # TASK-023B must mint the canonical execution before m012 child bind.
-            reservation = self._distillation.reserve_distillation_execution(
-                source_id=run.source_id,
-                video_id=candidate.video_id,
-                evidence_ids=evidence_ids,
-            )
+            try:
+                reservation = self._distillation.reserve_distillation_execution(
+                    source_id=run.source_id,
+                    video_id=candidate.video_id,
+                    evidence_ids=evidence_ids,
+                )
+            except (ValueError, StateStoreError):
+                return SourceRunAttentionReason.EXECUTION_CONDITION_UNRESOLVED
             child = self._repository.record_source_run_child(
                 run.run_id,
                 video_id=candidate.video_id,

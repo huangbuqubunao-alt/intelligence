@@ -231,3 +231,136 @@ def test_manual_check_recovers_during_automatic_provider_error_or_not_found_back
         assert tracker.check(source.source_id, automatic=False) == "COMPLETE"
         assert tracker.projection(source.source_id)["health"] == "HEALTHY"
 
+
+def test_enumerate_rss_recovery_matches_midnight_anchors_from_uploads_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When a channel recovers from _enumerate_uploads (midnight UTC approximate_date)
+    back to Atom RSS (exact second-precision timestamp within ±48h), overlap anchors
+    must still match so enumeration completes cleanly instead of sticking in UPDATE_GAP."""
+    monkeypatch.setattr(yt, "public_operation", lambda op: op())
+    rss_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns:yt="http://www.youtube.com/xml/schemas/2015"
+      xmlns="http://www.w3.org/2005/Atom">
+  <yt:channelId>{CHANNEL[2:]}</yt:channelId>
+  <title>Greg Isenberg</title>
+  <entry>
+    <yt:videoId>MnW6mm_dHpM</yt:videoId>
+    <yt:channelId>{CHANNEL}</yt:channelId>
+    <title>Upcoming Live</title>
+    <published>2026-11-11T21:24:51+00:00</published>
+  </entry>
+  <entry>
+    <yt:videoId>6DT8Cy2rnd0</yt:videoId>
+    <yt:channelId>{CHANNEL}</yt:channelId>
+    <title>Episode 2</title>
+    <published>2026-11-11T21:22:35+00:00</published>
+  </entry>
+  <entry>
+    <yt:videoId>1cWZ7Ekff6E</yt:videoId>
+    <yt:channelId>{CHANNEL}</yt:channelId>
+    <title>Episode 1</title>
+    <published>2026-11-11T18:00:16+00:00</published>
+  </entry>
+</feed>""".encode("utf-8")
+    monkeypatch.setattr(yt, "channel_feed", lambda _cid: rss_xml)
+    provider = yt.YouTubeFollowingProvider()
+    midnight_anchors = (
+        Candidate("MnW6mm_dHpM", datetime(2026, 11, 12, 0, 0, 0, tzinfo=UTC)),
+        Candidate("6DT8Cy2rnd0", datetime(2026, 11, 12, 0, 0, 0, tzinfo=UTC)),
+        Candidate("1cWZ7Ekff6E", datetime(2026, 11, 12, 0, 0, 0, tzinfo=UTC)),
+    )
+    result = provider.enumerate(
+        yt.canonical_channel(CHANNEL, "Greg Isenberg"),
+        initial=False,
+        next_page=1,
+        known=midnight_anchors,
+        verified_at=datetime(2026, 11, 14, 7, 4, 33, tzinfo=UTC),
+    )
+    assert result.complete is True
+    assert result.next_page == 1
+
+
+def test_prepare_selected_children_settles_needs_attention_when_reservation_exceeds_short_bound(
+    tmp_path: Any,
+) -> None:
+    """When a STANDARD_INTELLIGENCE source has a long video (>20 evidence items) on a
+    local model without a paired long profile, _prepare_selected_children must settle
+    to NEEDS_ATTENTION (EXECUTION_CONDITION_UNRESOLVED) rather than raising an uncaught
+    ValueError that corrupts tracked channel health into PROVIDER_ERROR."""
+    from pathlib import Path
+    from unittest.mock import MagicMock
+
+    from youtube_intel.domain import (
+        Availability,
+        LiveStatus,
+        PipelineStatus,
+        VideoMetadata,
+    )
+    from youtube_intel.orchestration import ProcessingPolicy
+    from youtube_intel.orchestration_service import ProductOrchestrationService
+    from youtube_intel.processing_orchestrator import DurableProcessingOrchestrator
+    from youtube_intel.source_policy import SourcePolicyApplicationService
+    from youtube_intel.source_run import SourceRunAttentionReason, SourceRunState
+    from youtube_intel.state import (
+        DistillationStyle,
+        SQLiteStateRepository,
+    )
+
+    root = Path(tmp_path)
+    repo = SQLiteStateRepository(root / "state.sqlite")
+    repo.initialize(now=VERIFIED_AT)
+    source = ProductOrchestrationService(repo, now=lambda: VERIFIED_AT).add_source(
+        url="https://www.youtube.com/channel/" + CHANNEL,
+        processing_policy=ProcessingPolicy.STANDARD_INTELLIGENCE,
+    )
+    source_id = source.source_id
+    source_policy = SourcePolicyApplicationService(repo, now=lambda: VERIFIED_AT)
+    source_policy.update_global(
+        command_id="policy-greg",
+        initial_history_count=5,
+        per_run_max_new_videos=5,
+        focus_rules=("AI",),
+        ignore_rules=("sponsor",),
+        distillation_style=DistillationStyle.BALANCED,
+    )
+    meta = VideoMetadata(
+        video_id="6DT8Cy2rnd0",
+        channel_id=CHANNEL,
+        channel_name="Greg Isenberg",
+        title="Long AI Podcast",
+        description="Deep dive",
+        source_url="https://www.youtube.com/watch?v=6DT8Cy2rnd0",
+        published_at=VERIFIED_AT,
+        duration_seconds=2700,
+        default_language="en",
+        available_languages=("en",),
+        live_status=LiveStatus.NONE,
+        availability=Availability.PUBLIC,
+    )
+    repo.upsert_video_metadata(meta, pipeline_version="v1", now=VERIFIED_AT)
+    repo.link_source_video(source_id, "6DT8Cy2rnd0", discovered_at=VERIFIED_AT)
+    repo.advance_pipeline(
+        "6DT8Cy2rnd0",
+        expected_status=PipelineStatus.DISCOVERED,
+        target_status=PipelineStatus.METADATA_READY,
+        pipeline_version="v1",
+        now=VERIFIED_AT,
+    )
+    distillation = MagicMock()
+    distillation.reservation_evidence_ids.return_value = tuple(f"ev-{i}" for i in range(21))
+    distillation.reserve_distillation_execution.side_effect = ValueError("reservation evidence is invalid")
+
+    orchestrator = DurableProcessingOrchestrator(
+        repo,
+        source_policy=source_policy,
+        distillation=distillation,
+        preparation=MagicMock(prepare=lambda _vid: True),
+        now=lambda: VERIFIED_AT,
+    )
+    run = orchestrator.enqueue_manual_check_now(source_id=source_id, command_id="cmd-long-1")
+    settled = orchestrator.resume(run.run_id)
+    assert settled.state is SourceRunState.NEEDS_ATTENTION
+    assert settled.attention_reason is SourceRunAttentionReason.EXECUTION_CONDITION_UNRESOLVED
+
+
