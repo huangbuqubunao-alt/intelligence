@@ -125,6 +125,7 @@ def ensure_local_ollama_if_available(root: Path) -> None:
             for candidate in (
                 Path("/opt/homebrew/bin/ollama"),
                 Path("/usr/local/bin/ollama"),
+                Path("/Applications/Ollama.app/Contents/Resources/ollama"),
             )
             if candidate.is_file() and os.access(candidate, os.X_OK)
         ),

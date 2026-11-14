@@ -137,3 +137,42 @@ def test_healthy_old_launcher_cannot_be_reused_when_revision_changes(tmp_path: P
         with pytest.raises(RuntimeError, match='prepared'):
             launcher.launch(root, open_browser=False)
         stop.assert_called_once_with(root)
+
+
+def test_ensure_local_ollama_if_available_discovers_macos_ollama_app_bundle(
+    tmp_path: Path,
+) -> None:
+    app_ollama = Path("/Applications/Ollama.app/Contents/Resources/ollama")
+
+    def fake_is_file(self: Path) -> bool:
+        return self == app_ollama
+
+    def fake_access(path: object, mode: int) -> bool:
+        return Path(str(path)) == app_ollama
+
+    conn_calls = 0
+
+    class _DummySock:
+        def __enter__(self) -> "_DummySock":
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+    def fake_connect(*args: object, **kwargs: object) -> _DummySock:
+        nonlocal conn_calls
+        conn_calls += 1
+        if conn_calls == 1:
+            raise ConnectionRefusedError()
+        return _DummySock()
+
+    with (
+        patch.object(Path, "is_file", fake_is_file),
+        patch.object(launcher.os, "access", side_effect=fake_access),
+        patch.object(launcher.socket, "create_connection", side_effect=fake_connect),
+        patch.object(launcher.subprocess, "Popen") as popen_mock,
+    ):
+        launcher.ensure_local_ollama_if_available(tmp_path)
+        popen_mock.assert_called_once()
+        assert popen_mock.call_args.args[0] == [str(app_ollama), "serve"]
+

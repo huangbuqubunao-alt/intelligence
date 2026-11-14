@@ -1248,3 +1248,215 @@ def test_dashboard_filters_superseded_execution_condition_attention_and_sidecar_
     assert env["hub"].get_settings()["ollama_model"] == "qwen2.5:7b"
 
 
+def test_scoped_and_comparative_research_qa_filters_by_channel_topic_and_multi_video_selection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    env = _build_env(tmp_path, monkeypatch)
+    fast_app: Any = env["fast_app"]
+    llm: Any = env["completer"]
+
+    _seed_youtube_video(
+        env["repo"],
+        env["data_root"],
+        source_id=env["source"].source_id,
+        video_id="vidOpenAI01",
+        channel_id="UC1111111111111111111111",
+        channel_name="OpenAI",
+        title="OpenAI Agent Architecture Deep Dive",
+        duration_seconds=1800,
+        cues=(
+            TimedTranscriptCueWrite(
+                start_ms=10000,
+                end_ms=25000,
+                text="Deterministic tool contracts keep multi-step agents reliable.",
+            ),
+        ),
+        now=NOW - timedelta(hours=3),
+    )
+    _seed_youtube_video(
+        env["repo"],
+        env["data_root"],
+        source_id=env["source"].source_id,
+        video_id="vidGreg0002",
+        channel_id="UC2222222222222222222222",
+        channel_name="Greg Isenberg",
+        title="Solo Founder $1M AI Workflow Playbook",
+        duration_seconds=2100,
+        cues=(
+            TimedTranscriptCueWrite(
+                start_ms=45000,
+                end_ms=60000,
+                text="Niche B2B workflow automation beats horizontal wrappers.",
+            ),
+        ),
+        now=NOW - timedelta(hours=1),
+    )
+    fast_app.handle("POST", "/api/v1/workspace-ai/videos/vidOpenAI01/distill", b"{}")
+    fast_app.handle("POST", "/api/v1/workspace-ai/videos/vidGreg0002/distill", b"{}")
+    # Place vidGreg0002 into a distinct topic cluster for topic-scoping verification
+    with env["hub"]._connect_write() as conn:
+        conn.execute(
+            "UPDATE video_ai_briefs SET topic_cluster_zh = ? WHERE video_id = ?",
+            ("AI 产品机会与一人公司变现", "vidGreg0002"),
+        )
+
+    # 1) Scope options endpoint exposes channels, topic_clusters, and grounded videos
+    opt_code, opt_body = fast_app.handle("GET", "/api/v1/workspace-ai/research/sessions")
+    assert opt_code == HTTPStatus.OK
+    scope_opts = opt_body["scope_options"]
+    channel_keys = {c["key"]: c for c in scope_opts["channels"]}
+    assert "OpenAI" in channel_keys
+    assert channel_keys["OpenAI"]["video_count"] == 1
+    assert "Greg Isenberg" in channel_keys
+    assert channel_keys["Greg Isenberg"]["video_count"] == 1
+    cluster_names = {c["name"]: c for c in scope_opts["topic_clusters"]}
+    assert cluster_names["AI Agent 与自动化架构"]["video_count"] == 1
+    assert cluster_names["AI 产品机会与一人公司变现"]["video_count"] == 1
+    assert {v["video_id"] for v in scope_opts["videos"]} == {"vidOpenAI01", "vidGreg0002"}
+
+    # 2) Channel-scoped query restricts retrieval strictly to Greg Isenberg
+    ch_code, ch_res = fast_app.handle(
+        "POST",
+        "/api/v1/workspace-ai/research/ask",
+        json.dumps(
+            {
+                "question": "一人公司应该切入什么 AI 方向？",
+                "channel_key": "Greg Isenberg",
+            }
+        ).encode("utf-8"),
+    )
+    assert ch_code == HTTPStatus.OK
+    ch_session = ch_res["session"]
+    assert {c["video_id"] for c in ch_session["citations"]} == {"vidGreg0002"}
+    assert "Greg Isenberg" in ch_session["scope_label_zh"]
+
+    # 3) Topic-cluster-scoped query restricts retrieval strictly to AI Agent 与自动化架构
+    tp_code, tp_res = fast_app.handle(
+        "POST",
+        "/api/v1/workspace-ai/research/ask",
+        json.dumps(
+            {
+                "question": "Agent 可靠性的核心前提是什么？",
+                "topic_cluster": "AI Agent 与自动化架构",
+            }
+        ).encode("utf-8"),
+    )
+    assert tp_code == HTTPStatus.OK
+    tp_session = tp_res["session"]
+    assert {c["video_id"] for c in tp_session["citations"]} == {"vidOpenAI01"}
+    assert "AI Agent 与自动化架构" in tp_session["scope_label_zh"]
+
+    # 4) Multi-video comparative selection guarantees both chosen videos feed E1 & E2
+    cmp_code, cmp_res = fast_app.handle(
+        "POST",
+        "/api/v1/workspace-ai/research/ask",
+        json.dumps(
+            {
+                "question": "对比 OpenAI 与 Greg Isenberg 的侧重点异同",
+                "video_ids": ["vidOpenAI01", "vidGreg0002"],
+            }
+        ).encode("utf-8"),
+    )
+    assert cmp_code == HTTPStatus.OK
+    cmp_session = cmp_res["session"]
+    assert {c["video_id"] for c in cmp_session["citations"]} == {"vidOpenAI01", "vidGreg0002"}
+    assert "2" in cmp_session["scope_label_zh"]
+    assert "Solo Founder $1M AI Workflow Playbook" in llm.calls[-1]["user_prompt"]
+    assert "OpenAI Agent Architecture Deep Dive" in llm.calls[-1]["user_prompt"]
+
+    # 5) Unmatched scope returns honest 409 NO_GROUNDED_CONTENT
+    empty_code, empty_res = fast_app.handle(
+        "POST",
+        "/api/v1/workspace-ai/research/ask",
+        json.dumps(
+            {
+                "question": "不存在的频道内容",
+                "channel_key": "GhostChannel",
+            }
+        ).encode("utf-8"),
+    )
+    assert empty_code == HTTPStatus.CONFLICT
+    assert empty_res["error"]["code"] == "NO_GROUNDED_CONTENT"
+
+    # 6) Backup & restore roundtrips scope_label_zh cleanly
+    _, snap = fast_app.handle("GET", "/api/v1/workspace-ai/backup")
+    (env["project_root"] / ".workspace-ai" / "hub.sqlite3").unlink()
+    rs_status, _ = fast_app.handle(
+        "POST", "/api/v1/workspace-ai/restore", json.dumps(snap).encode("utf-8")
+    )
+    assert rs_status == HTTPStatus.OK
+    _, restored_sessions = fast_app.handle("GET", "/api/v1/workspace-ai/research/sessions")
+    by_sid = {s["session_id"]: s for s in restored_sessions["sessions"]}
+    assert "Greg Isenberg" in by_sid[ch_session["session_id"]]["scope_label_zh"]
+
+
+def test_topics_and_dashboard_pinned_topics_enriched_with_chronological_ai_evolution(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    env = _build_env(tmp_path, monkeypatch)
+    fast_app: Any = env["fast_app"]
+
+    _seed_youtube_video(
+        env["repo"],
+        env["data_root"],
+        source_id=env["source"].source_id,
+        video_id="vidOlder001",
+        channel_id="UC1111111111111111111111",
+        channel_name="OpenAI",
+        title="Agent Foundations Part 1",
+        duration_seconds=1500,
+        cues=(
+            TimedTranscriptCueWrite(start_ms=0, end_ms=8000, text="Early tool-use baseline."),
+        ),
+        now=NOW - timedelta(days=3),
+    )
+    _seed_youtube_video(
+        env["repo"],
+        env["data_root"],
+        source_id=env["source"].source_id,
+        video_id="vidNewer002",
+        channel_id="UC2222222222222222222222",
+        channel_name="Greg Isenberg",
+        title="Agent Production Workflows Part 2",
+        duration_seconds=2200,
+        cues=(
+            TimedTranscriptCueWrite(start_ms=0, end_ms=8000, text="Production multi-step workflows."),
+        ),
+        now=NOW,
+    )
+    fast_app.handle("POST", "/api/v1/workspace-ai/videos/vidOlder001/distill", b"{}")
+    fast_app.handle("POST", "/api/v1/workspace-ai/videos/vidNewer002/distill", b"{}")
+
+    list_code, list_body = fast_app.handle("GET", "/api/v1/topics")
+    assert list_code == HTTPStatus.OK
+    agent_topic = next(
+        t for t in list_body["topics"] if t["name"] == "AI Agent 与自动化架构"
+    )
+    evo = agent_topic["ai_evolution"]
+    assert evo["video_count"] == 2
+    assert evo["must_watch_count"] == 2
+    assert evo["avg_score"] == pytest.approx(9.2)
+    assert set(evo["source_channels"]) == {"OpenAI", "Greg Isenberg"}
+    assert evo["latest_headline_zh"]
+
+    det_code, det_body = fast_app.handle(
+        "GET", f"/api/v1/topics/{agent_topic['topic_id']}"
+    )
+    assert det_code == HTTPStatus.OK
+    entries = det_body["topic"]["ai_evolution"]["entries"]
+    assert [e["video_id"] for e in entries] == ["vidNewer002", "vidOlder001"]
+    assert entries[0]["title"] == "Agent Production Workflows Part 2"
+    assert entries[0]["channel_name"] == "Greg Isenberg"
+    assert entries[0]["score"] == pytest.approx(9.2)
+    assert entries[0]["headline_zh"]
+    assert len(entries[0]["product_opportunities_zh"]) >= 1
+
+    dash_code, dash_body = fast_app.handle("GET", "/api/v1/dashboard")
+    assert dash_code == HTTPStatus.OK
+    pinned_agent = next(
+        t for t in dash_body["pinned_topics"] if t["name"] == "AI Agent 与自动化架构"
+    )
+    assert pinned_agent["ai_evolution"]["video_count"] == 2
+
+
+

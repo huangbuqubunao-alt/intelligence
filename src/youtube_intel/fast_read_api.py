@@ -1352,13 +1352,21 @@ class FastReadApiApplication:
                     filtered_attention = self._filter_superseded_dashboard_attention(
                         resp_payload.get("needs_attention")
                     )
+                    enriched_pinned = self._workspace_hub.enrich_topics_items(
+                        resp_payload.get("pinned_topics")
+                    )
                     resp_payload = {
                         **resp_payload,
+                        "pinned_topics": enriched_pinned,
                         "needs_attention": filtered_attention,
                         "workspace_sync_status": self._workspace_hub.get_sync_status(),
                     }
                     if wb is not None:
                         resp_payload["workspace_weekly_brief"] = wb
+                elif route == "/api/v1/topics":
+                    resp_payload = self._workspace_hub.enrich_topics_list_dto(resp_payload)
+                elif route.startswith("/api/v1/topics/"):
+                    resp_payload = self._workspace_hub.enrich_topic_detail_dto(resp_payload)
                 elif route == "/api/v1/settings":
                     resp_payload = {
                         **resp_payload,
