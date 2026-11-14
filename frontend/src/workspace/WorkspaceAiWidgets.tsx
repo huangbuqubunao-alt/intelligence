@@ -33,6 +33,24 @@ export type WeeklyBriefHistoryItem = {
   total_videos: number;
 };
 
+export type WeeklyBriefFreshness = {
+  is_archive: boolean;
+  is_stale: boolean;
+  new_videos_count: number;
+  new_must_watch_count: number;
+  new_titles: string[];
+};
+
+export type ObsidianBundleScope = "must_watch" | "all" | "starred";
+
+export type ObsidianVaultBundleResult = {
+  filename: string;
+  scope: ObsidianBundleScope;
+  totalFiles: number;
+  videoNotes: number;
+  topicMocs: number;
+};
+
 export type WeeklyAiBrief = {
   brief_id: string;
   week_label: string;
@@ -55,6 +73,7 @@ export type WeeklyAiBrief = {
     shorts_filtered_count: number;
     local_courses_count?: number;
   };
+  freshness?: WeeklyBriefFreshness;
   obsidian_markdown: string;
   provider: string;
   model: string;
@@ -237,6 +256,20 @@ export function readWeeklyAiBrief(raw: unknown): WeeklyAiBrief | null {
         .filter((p) => p.video_id.length > 0)
     : [];
   const history = readWeeklyHistoryList(raw.history);
+  const rawFreshness = isRec(raw.freshness) ? raw.freshness : null;
+  const freshness: WeeklyBriefFreshness | undefined = rawFreshness
+    ? {
+        is_archive: Boolean(rawFreshness.is_archive),
+        is_stale: Boolean(rawFreshness.is_stale),
+        new_videos_count:
+          typeof rawFreshness.new_videos_count === "number" ? rawFreshness.new_videos_count : 0,
+        new_must_watch_count:
+          typeof rawFreshness.new_must_watch_count === "number"
+            ? rawFreshness.new_must_watch_count
+            : 0,
+        new_titles: strArr(rawFreshness.new_titles),
+      }
+    : undefined;
   return {
     brief_id: raw.brief_id,
     week_label: typeof raw.week_label === "string" ? raw.week_label : "",
@@ -256,6 +289,7 @@ export function readWeeklyAiBrief(raw: unknown): WeeklyAiBrief | null {
       local_courses_count:
         typeof stats.local_courses_count === "number" ? stats.local_courses_count : undefined,
     },
+    ...(freshness ? { freshness } : {}),
     obsidian_markdown: typeof raw.obsidian_markdown === "string" ? raw.obsidian_markdown : "",
     provider: typeof raw.provider === "string" ? raw.provider : "ollama",
     model: typeof raw.model === "string" ? raw.model : "qwen3.5:9b",
@@ -447,6 +481,86 @@ function downloadJsonSnapshot(filename: string, payload: unknown) {
   URL.revokeObjectURL(href);
 }
 
+export function isKeyboardShortcutBlocked(event: KeyboardEvent): boolean {
+  if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) {
+    return true;
+  }
+  if (
+    typeof document !== "undefined" &&
+    document.querySelector("dialog[open], [aria-modal='true']") !== null
+  ) {
+    return true;
+  }
+  const isEditable = (node: EventTarget | null): boolean => {
+    if (!(node instanceof HTMLElement)) return false;
+    if (node.isContentEditable) return true;
+    return (
+      node.closest("input, textarea, select, [contenteditable='true'], [role='combobox']") !== null
+    );
+  };
+  return (
+    isEditable(event.target) ||
+    (typeof document !== "undefined" && isEditable(document.activeElement))
+  );
+}
+
+export function downloadBase64ZipArchive(filename: string, archiveBase64: string): void {
+  if (!archiveBase64 || typeof URL === "undefined" || typeof URL.createObjectURL !== "function") {
+    return;
+  }
+  const safeName = filename.endsWith(".zip") ? filename : `${filename}.zip`;
+  let buffer: ArrayBuffer;
+  try {
+    const binary = atob(archiveBase64);
+    buffer = new ArrayBuffer(binary.length);
+    const bytes = new Uint8Array(buffer);
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+  } catch {
+    return;
+  }
+  const blob = new Blob([buffer], { type: "application/zip" });
+  const href = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = href;
+  anchor.download = safeName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(href);
+}
+
+export async function exportObsidianVaultBundle(
+  scope: ObsidianBundleScope = "must_watch",
+): Promise<ObsidianVaultBundleResult> {
+  const res = await api<{
+    filename?: unknown;
+    scope?: unknown;
+    counts?: unknown;
+    archive_base64?: unknown;
+  }>(`/workspace-ai/obsidian-bundle?scope=${encodeURIComponent(scope)}`);
+  const counts = isRec(res.counts) ? res.counts : {};
+  const totalFiles = typeof counts.total_files === "number" ? counts.total_files : 0;
+  const videoNotes = typeof counts.video_notes === "number" ? counts.video_notes : 0;
+  const topicMocs = typeof counts.topic_mocs === "number" ? counts.topic_mocs : 0;
+  const dateStamp = new Date().toISOString().slice(0, 10);
+  const filename =
+    typeof res.filename === "string" && res.filename.trim()
+      ? res.filename.trim()
+      : `Obsidian-AI情报知识库-${scope}-${dateStamp}.zip`;
+  if (typeof res.archive_base64 === "string" && res.archive_base64.length > 0) {
+    downloadBase64ZipArchive(filename, res.archive_base64);
+  }
+  return {
+    filename,
+    scope,
+    totalFiles,
+    videoNotes,
+    topicMocs,
+  };
+}
+
 export function AiScoreBadge({
   brief,
   compact = false,
@@ -503,6 +617,9 @@ export function WeeklyAiBriefPanel({
   );
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [bundleScope, setBundleScope] = useState<ObsidianBundleScope>("must_watch");
+  const [exportingBundle, setExportingBundle] = useState(false);
+  const [bundleStatus, setBundleStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -559,6 +676,29 @@ export function WeeklyAiBriefPanel({
       setError(zh ? "未能刷新本周情报周报，请检查本机或云端 AI 引擎状态。" : "Could not refresh the weekly AI brief.");
     } finally {
       setBusy(false);
+    }
+  };
+
+  const handleExportBundle = async () => {
+    if (exportingBundle) return;
+    setExportingBundle(true);
+    setBundleStatus(null);
+    setError(null);
+    try {
+      const out = await exportObsidianVaultBundle(bundleScope);
+      setBundleStatus(
+        zh
+          ? `已导出 Obsidian 双链知识库包（共 ${out.totalFiles} 篇 .md 笔记，含总览 MOC、专题演化与双链互引）`
+          : `Exported Obsidian Vault bundle (${out.totalFiles} interlinked .md notes)`,
+      );
+    } catch {
+      setError(
+        zh
+          ? "未能导出 Obsidian 知识库包，请稍后重试。"
+          : "Could not export Obsidian Vault bundle.",
+      );
+    } finally {
+      setExportingBundle(false);
     }
   };
 
@@ -624,6 +764,45 @@ export function WeeklyAiBriefPanel({
         </span>
         {brief.week_label ? <span>{brief.week_label}</span> : null}
       </div>
+
+      {brief.freshness?.is_stale &&
+      !brief.freshness.is_archive &&
+      brief.freshness.new_videos_count > 0 ? (
+        <div
+          className="weekly-freshness-banner tabular-nums"
+          role="region"
+          aria-label={zh ? "周报增量更新提示" : "Weekly brief freshness notice"}
+        >
+          <div className="weekly-freshness-copy">
+            <strong>
+              {zh
+                ? `自上次生成周报以来新增 ${brief.freshness.new_videos_count} 篇干货${brief.freshness.new_must_watch_count > 0 ? `（含 ${brief.freshness.new_must_watch_count} 篇必看）` : ""}`
+                : `${brief.freshness.new_videos_count} new distilled videos since this brief${brief.freshness.new_must_watch_count > 0 ? ` (${brief.freshness.new_must_watch_count} must-watch)` : ""}`}
+            </strong>
+            {brief.freshness.new_titles.length > 0 ? (
+              <span>
+                {zh ? "最新提炼：" : "Latest: "}
+                {brief.freshness.new_titles.slice(0, 2).join(" · ")}
+              </span>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            className="button button-primary button-small"
+            disabled={busy}
+            onClick={() => void regenerate()}
+          >
+            <PhosphorIcon name="lightning" size={13} />
+            {busy
+              ? zh
+                ? "正在刷新…"
+                : "Refreshing…"
+              : zh
+                ? "立即纳入刷新周报"
+                : "Refresh brief with new items"}
+          </button>
+        </div>
+      ) : null}
 
       {error ? (
         <p className="form-error" role="alert">
@@ -691,47 +870,87 @@ export function WeeklyAiBriefPanel({
         </div>
       ) : null}
 
-      {brief.obsidian_markdown ? (
-        <div className="obsidian-export-bar">
-          <div className="button-row">
-            <button
-              type="button"
-              className="button button-secondary button-small"
-              onClick={(event) => {
-                pulseCelebration(event.currentTarget);
-                void navigator.clipboard?.writeText(brief.obsidian_markdown);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 2200);
-              }}
-            >
-              <PhosphorIcon name="file-text" size={13} />
-              {copied
-                ? zh
-                  ? "已复制双链周报"
-                  : "Copied wikilinks brief"
-                : zh
-                  ? "复制双链周报"
-                  : "Copy Obsidian brief"}
-            </button>
-            <button
-              type="button"
-              className="button button-ghost button-small"
-              onClick={() =>
-                downloadObsidianMarkdown(
-                  `AI情报周报-${brief.week_label || brief.brief_id}.md`,
-                  brief.obsidian_markdown,
-                )
-              }
-            >
-              {zh ? "下载 .md 周报" : "Download .md"}
-            </button>
-          </div>
+      <div className="obsidian-export-bar">
+        <div className="button-row">
+          {brief.obsidian_markdown ? (
+            <>
+              <button
+                type="button"
+                className="button button-secondary button-small"
+                onClick={(event) => {
+                  pulseCelebration(event.currentTarget);
+                  void navigator.clipboard?.writeText(brief.obsidian_markdown);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2200);
+                }}
+              >
+                <PhosphorIcon name="file-text" size={13} />
+                {copied
+                  ? zh
+                    ? "已复制双链周报"
+                    : "Copied wikilinks brief"
+                  : zh
+                    ? "复制双链周报"
+                    : "Copy Obsidian brief"}
+              </button>
+              <button
+                type="button"
+                className="button button-ghost button-small"
+                onClick={() =>
+                  downloadObsidianMarkdown(
+                    `AI情报周报-${brief.week_label || brief.brief_id}.md`,
+                    brief.obsidian_markdown,
+                  )
+                }
+              >
+                {zh ? "下载 .md 周报" : "Download .md"}
+              </button>
+            </>
+          ) : null}
+          <select
+            className="weekly-history-select obsidian-scope-select"
+            aria-label={zh ? "Obsidian 知识库包导出范围" : "Obsidian Vault bundle scope"}
+            value={bundleScope}
+            disabled={exportingBundle}
+            onChange={(event: ChangeEvent<HTMLSelectElement>) =>
+              setBundleScope(event.target.value as ObsidianBundleScope)
+            }
+          >
+            <option value="must_watch">{zh ? "必看精选（推荐）" : "Must-watch (recommended)"}</option>
+            <option value="all">{zh ? "全部干货" : "All distilled notes"}</option>
+            <option value="starred">{zh ? "已收藏清单" : "Starred only"}</option>
+          </select>
+          <button
+            type="button"
+            className="button button-secondary button-small"
+            disabled={exportingBundle}
+            onClick={(event) => {
+              pulseCelebration(event.currentTarget);
+              void handleExportBundle();
+            }}
+          >
+            <PhosphorIcon name="archive" size={13} />
+            {exportingBundle
+              ? zh
+                ? "正在打包…"
+                : "Bundling…"
+              : zh
+                ? "导出 Obsidian 知识库包 (.zip)"
+                : "Export Obsidian Vault (.zip)"}
+          </button>
+        </div>
+        {bundleStatus ? (
+          <p className="obsidian-bundle-status tabular-nums" role="status">
+            {bundleStatus}
+          </p>
+        ) : null}
+        {brief.obsidian_markdown ? (
           <details className="obsidian-preview-drawer">
             <summary>{zh ? "预览 Obsidian 双链 Markdown" : "Preview Obsidian Markdown"}</summary>
             <pre className="obsidian-preview-pre">{brief.obsidian_markdown}</pre>
           </details>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
     </section>
   );
 }
@@ -746,6 +965,7 @@ export function WorkspaceVideoAiActions({
   obsidianMarkdown,
   nextUnreadVideo,
   onAdvanceToVideo,
+  onBack,
   onCompleted,
 }: {
   videoId: string;
@@ -757,6 +977,7 @@ export function WorkspaceVideoAiActions({
   obsidianMarkdown?: string;
   nextUnreadVideo?: { videoId: string; title: string; remainingCount: number } | null;
   onAdvanceToVideo?: (nextId: string) => void;
+  onBack?: () => void;
   onCompleted: () => void;
 }) {
   const { language } = useUiLanguage();
@@ -803,6 +1024,47 @@ export function WorkspaceVideoAiActions({
       setBusyKind(null);
     }
   };
+
+  const shortcutRef = useRef({
+    aiBrief,
+    nextUnreadVideo,
+    onAdvanceToVideo,
+    onBack,
+    toggleCuration,
+    markReadAndAdvance,
+  });
+  shortcutRef.current = {
+    aiBrief,
+    nextUnreadVideo,
+    onAdvanceToVideo,
+    onBack,
+    toggleCuration,
+    markReadAndAdvance,
+  };
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (isKeyboardShortcutBlocked(event)) return;
+      const cur = shortcutRef.current;
+      const key = event.key.toLowerCase();
+      if (key === "s" && cur.aiBrief) {
+        event.preventDefault();
+        void cur.toggleCuration({ starred: !cur.aiBrief.starred });
+      } else if (key === "e" && cur.aiBrief) {
+        event.preventDefault();
+        if (cur.nextUnreadVideo && cur.onAdvanceToVideo) {
+          void cur.markReadAndAdvance();
+        } else {
+          void cur.toggleCuration({ is_read: !cur.aiBrief.is_read });
+        }
+      } else if ((key === "u" || event.key === "[") && cur.onBack) {
+        event.preventDefault();
+        cur.onBack();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   const runAction = async (kind: "distill" | "transcribe") => {
     setBusyKind(kind);
@@ -996,6 +1258,9 @@ export function WorkspaceVideoAiActions({
                 : `Mark read & next (${nextUnreadVideo.remainingCount})`}
             </button>
           ) : null}
+          <span className="kb-shortcut-hint" aria-hidden="true">
+            {zh ? "快捷键：S 收藏 · E 已读下一篇 · U 返回" : "Keys: S star · E read/next · U back"}
+          </span>
         </>
       ) : null}
       {error ? (
@@ -1583,6 +1848,7 @@ export function WorkspaceAiSettingsPanel({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [exportingBackup, setExportingBackup] = useState(false);
+  const [exportingObsidianZip, setExportingObsidianZip] = useState(false);
   const [restoringBackup, setRestoringBackup] = useState(false);
   const restoreInputRef = useRef<HTMLInputElement | null>(null);
   const [modeDraft, setModeDraft] = useState<"local_ollama" | "cloud_byok">(
@@ -1690,6 +1956,29 @@ export function WorkspaceAiSettingsPanel({
     }
   };
 
+  const exportObsidianZipFromSettings = async () => {
+    if (exportingObsidianZip) return;
+    setExportingObsidianZip(true);
+    setFeedback(null);
+    setError(null);
+    try {
+      const out = await exportObsidianVaultBundle("all");
+      setFeedback(
+        zh
+          ? `已导出 Obsidian 双链知识库包（共 ${out.totalFiles} 篇 .md 笔记，不含任何密钥）。`
+          : `Exported Obsidian Vault bundle (${out.totalFiles} interlinked .md notes, zero secrets).`,
+      );
+    } catch {
+      setError(
+        zh
+          ? "未能导出 Obsidian 知识库包，请稍后重试。"
+          : "Could not export Obsidian Vault bundle.",
+      );
+    } finally {
+      setExportingObsidianZip(false);
+    }
+  };
+
   const handleRestoreFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -1794,7 +2083,22 @@ export function WorkspaceAiSettingsPanel({
             <button
               type="button"
               className="button button-ghost"
-              disabled={exportingBackup || restoringBackup}
+              disabled={exportingBackup || exportingObsidianZip || restoringBackup}
+              onClick={() => void exportObsidianZipFromSettings()}
+            >
+              <PhosphorIcon name="stack" size={13} />
+              {exportingObsidianZip
+                ? zh
+                  ? "正在打包 Obsidian…"
+                  : "Bundling Obsidian…"
+                : zh
+                  ? "导出 Obsidian 知识库包 (.zip)"
+                  : "Export Obsidian Vault (.zip)"}
+            </button>
+            <button
+              type="button"
+              className="button button-ghost"
+              disabled={exportingBackup || exportingObsidianZip || restoringBackup}
               onClick={() => void exportBackup()}
             >
               <PhosphorIcon name="archive" size={13} />
