@@ -1059,6 +1059,27 @@ def test_ytdlp_http_status_classification_order() -> None:
         assert err.message.startswith("yt-dlp") or err.message.startswith("video content")
 
 
+def test_ytdlp_upcoming_live_premiere_and_members_only_map_to_content_unavailable() -> None:
+    """Scheduled live events, premieres, and members-only DownloadErrors must classify as
+    non-retryable CONTENT_UNAVAILABLE so Following channel checks do not falsely mark
+    the entire creator subscription OFFLINE."""
+    cases = [
+        "ERROR: [youtube] MnW6mm_dHpM: This live event will begin in a few moments.",
+        "ERROR: [youtube] vid_prem_01: Premieres in 2 hours",
+        "ERROR: [youtube] vid_live_02: This live stream recording is not available.",
+        "ERROR: [youtube] vid_memb_03: Join this channel to get access to members-only content",
+    ]
+    for message in cases:
+        err = youtube_mod._map_ytdlp_exception(
+            DownloadError(message),
+            video_id="MnW6mm_dHpM",
+        ).error
+        assert err.code is ErrorCode.CONTENT_UNAVAILABLE, message
+        assert err.retryable is False, message
+        assert err.message.startswith("video content unavailable ("), message
+        assert message not in err.message
+
+
 def test_rss_response_closed_on_read_timeout() -> None:
     """P2: response must close on read failures, not only success."""
 

@@ -648,12 +648,18 @@ def _map_ytdlp_exception(exc: BaseException, *, video_id: str) -> AdapterError:
         or "region" in lower
         or "who has blocked it" in lower
         or "confirm your age" in lower
+        or "members-only" in lower
+        or "join this channel" in lower
     )
     unavailable = (
         "video unavailable" in lower
         or "is unavailable" in lower
         or "unavailable" in lower
         or "sign in to confirm" in lower
+        or "live event will begin" in lower
+        or "premieres in" in lower
+        or "live stream recording is not available" in lower
+        or "video is not available" in lower
     )
     if private:
         return AdapterError(
