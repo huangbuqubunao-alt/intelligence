@@ -4,7 +4,7 @@
 - **正式交付运行区**：`main`（`/Users/hua/Documents/yia-worktrees/v1x-local-main`，起始基线 `74c275f`）
 - **只读对照工作区（严禁修改）**：`codex/readiness-v4-budget-final-validation`（`18f366b`）
 - **前置轮次状态**：Round 1 已 100% 完成并验收（`docs/ITERATION_STATE_2026_11_14.md`，生产库 `115/115` 视频中文摘要全覆盖、Shorts 噪音自动折叠、一页纸周报、SQLite `FTS5` 跨语种检索、后台增量自动同步守护）。
-- **当前阶段**：`ROUND_2_IN_PROGRESS`
+- **当前阶段**：`ROUND_2_COMPLETED`
 
 ---
 
@@ -69,6 +69,41 @@
 ## 四、第四阶段：小批次 TDD 执行进度记录
 
 - [x] **Step 0**：完成 `.var/owner` 全表核验、UI 7 大页面源码审计与 Round 2 迭代状态建档
-- [x] **Slice 1（后端 TDD）**：`ask_research_question` 来源/专题/多视频定向对比 + `scope_options` + `scope_json` 持久化与备份兼容、`enrich_topics_list_dto` / `enrich_topic_detail_dto` 专题演进富化、`owner_launcher.py` `Ollama.app` 路径兜底（`ruff` + `mypy` 0 错误，`24/24` Pytest 全绿）
-- [x] **Slice 2（前端 TDD）**：`WorkspaceAiResearchPanel` 范围筛选与多视频对比选择器 + `action_items_zh` 渲染、`Research.tsx` 旧版冲突文案折叠、`Topics` 演进时间线与一键专题提问联动、`WorkspaceAiSettingsPanel` 一键导入恢复 JSON 快照、`#Following` 异常源行内一键重检（49 个 Vitest 测试文件共 `1,193/1,193` 全绿，`tsc -b && vite build` 0 报错，`impeccable detect` 0 违规）
-- [ ] **Slice 3（生产同步与独立真实验收）**：Cherry-pick 至 `v1x-local-main`、重建前端与启动器、重启 `:5489` API 服务、重检恢复在线源、独立 Browser E2E 全链路走查验收并封板提交
+- [x] **Slice 1（后端 TDD — `ca3780f` / `main` `9c349bc`）**：`ask_research_question` 来源/专题/多视频定向对比 + `scope_options` + `scope_json` 持久化与备份兼容、`enrich_topics_list_dto` / `enrich_topic_detail_dto` 专题演进富化、`owner_launcher.py` `Ollama.app` 路径兜底（`ruff` + `mypy` 0 错误，`24/24` Pytest 全绿）
+- [x] **Slice 2（前端 TDD — `394cd04` / `main` `252d5a5`）**：`WorkspaceAiResearchPanel` 范围筛选与多视频对比选择器 + `action_items_zh` 渲染、`Research.tsx` 旧版冲突文案折叠、`Topics` 演进时间线与一键专题提问联动、`WorkspaceAiSettingsPanel` 一键导入恢复 JSON 快照、`#Following` 异常源行内一键重检（49 个 Vitest 测试文件共 `1,193/1,193` 全绿，`tsc -b && vite build` 0 报错，`impeccable detect` 0 违规）
+- [x] **Slice 3（生产真实验收触发的级联根因 TDD 修复 — `87a733c` + `0e509ef` / `main` `7975457` + `f4fab1c`）**：
+  - 在真实点击 `#Following` 行内 `立即重检` 验收 `Greg Isenberg` 频道时，循着真实线上数据定位并彻底根治了导致该频道长期反复掉入 `OFFLINE` / `UPDATE_GAP` / `PROVIDER_ERROR` 的 **3 层级联缺陷**：
+    1. `providers/youtube.py`：未开播预约直播占位流（如 `MnW6mm_dHpM`：`This live event will begin in a few moments.`）、首映预告（`Premieres in ...`）与会员专享报错此前落入 `PROVIDER_UNAVAILABLE -> NETWORK_UNAVAILABLE`，导致单个未开播占位流把整个创作者频道标为 `OFFLINE`；现修复为非可重试 `CONTENT_UNAVAILABLE -> NOT_FOUND -> UNAVAILABLE`（`133/133` Pytest 全绿）。
+    2. `providers/youtube_channel.py`：频道曾降级走 `_enumerate_uploads`（`youtubetab` 记录 UTC 零点近似日期 `00:00:00Z`）后重新恢复至 Atom RSS（精确到秒的时间戳，如 `2026-11-11T21:24:51Z` vs `2026-11-12T00:00:00Z`）时，重叠锚点因时区零点截断失配而永久卡在 `UPDATE_GAP`；现增加零点锚点 ±48h 同一 `video_id` 对齐判定，保持非零点精确锚点严格相等防篡改语义不变。
+    3. `processing_orchestrator.py`：`STANDARD_INTELLIGENCE` 关注频道包含 >20 条证据片段的长播客且本地运行模型未绑定专用长上下文 Profile（如 `qwen3.5:9b`）时，`_prepare_selected_children` 未捕获 `reserve_distillation_execution` 抛出的 `ValueError("reservation evidence is invalid")`，导致后台 Worker 触发 `settle_local_failure` 将已成功完成 RSS 检查的频道反向覆写为 `PROVIDER_ERROR`；现平滑收敛为 `SourceRunState.NEEDS_ATTENTION`（`EXECUTION_CONDITION_UNRESOLVED`），不再误伤频道健康度（`110/110` Pytest 全绿）。
+- [x] **Slice 4（正式环境同步、`.var/Intelligence.app` 重打包与独立 Browser E2E 全量闭环验收）**：`OpenAI` 与 `Greg Isenberg` 双频道在 `.var/owner/state.sqlite3` 均已真实恢复为 `health='HEALTHY'`、`coverage='COMPLETE'`，全部 7 大视图零控制台报错、零 HTTP 4xx/5xx。
+
+---
+
+## 五、第五阶段：独立客观质量验收矩阵（2026-11-15）
+
+| 检查维度 | 状态 | 真实命令 / 客观证据 |
+| --- | --- | --- |
+| Python 代码规范与静态类型（Ruff + Mypy） | **PASS** | `ruff check`（`All checks passed!`）+ `mypy` 检查 `workspace_intelligence_hub.py`、`fast_read_api.py`、`youtube.py`、`youtube_channel.py`、`processing_orchestrator.py`（`0` 错误） |
+| 后端单元与集成测试套件（Pytest） | **PASS** | Workspace AI + Launcher + FastReadAPI `24/24 passed`；Discovery + YouTube Following `133/133 passed`；Following Uploads Fallback + TASK-024 Orchestration `110/110 passed` |
+| 前端全量自动化测试套件（Vitest） | **PASS** | `49 passed (49)` 测试文件、**`1,193 passed (1,193)`** 测试用例全绿（新增 3 项 Round 2 组件与交互回归测试，零破坏既有契约断言） |
+| 前端 TypeScript 编译与生产构建 | **PASS** | `npm run build`（`tsc -b && vite build`，耗时 `684ms`，退出码 `0`）+ `build_owner_launcher.sh` 重建 `.var/Intelligence.app` 且 `build-provenance.json` 与 `main` `HEAD` 一致 |
+| UI 反模板化与工艺基线扫描（Impeccable） | **PASS** | `npx impeccable detect --json` 扫描 `WorkspaceAiWidgets.tsx`、`Research.tsx`、`App.tsx`、`styles.css` 返回 `[]`（`0` 违规） |
+| 独立 Browser Subagent 全链路真实验收 | **PASS** | Host 核验源 `http://127.0.0.1:5488`（`blocked_origins: none`），截图证据 `final_step_69.png`（Research 多视频对比问答与行动建议）与 `final_step_168.png`（`Greg Isenberg` 与 `OpenAI` 双频道恢复 `来源检查正常`，行内 `立即重检` 自动收起）；全程 `0` Console Error、`0` HTTP 4xx/5xx |
+
+---
+
+## 六、第六阶段：可恢复交接状态与下一轮（Round 3）候选路线图
+
+### 当前正式运行区基线（`.var/owner`）
+- **内容与中文提炼覆盖**：`115 / 115` 条视频 100% 具备中文一句话结论、核心要点、商业启发、分层评分与 `FTS5` 跨语种检索索引。
+- **关注源实时健康度**：
+  - `OpenAI`（`UCXZCJLdBC09xxGZ6gcdrc6A`）：`HEALTHY` / `COMPLETE`
+  - `Greg Isenberg`（`UCPjNBjflYl0-HQtUvOx0Ibw`）：`HEALTHY` / `COMPLETE`
+  - `本地资料库`（`local-library`）：`关注中`（4 门长课时实战课全部完成本地 ASR 转写与高分中文提炼）
+
+### 下一轮（Round 3）高价值候选任务（供后续按需启动）
+1. **R3-1（P2 — 跨周趋势对比与主题热度变化雷达）**：在 `#Home` 周报与 `#Topics` 顶部增加“本周 vs 上周新增必看与新兴子话题对比”，让创作者/研究者一眼捕捉赛道风向拐点。
+2. **R3-2（P2 — 研究问答与专题演化一键导出 Markdown 简报）**：在 `#Research` 深度对比回答卡与 `#Topics` 专题详情页支持一键复制/下载带时间戳原片锚点链接的结构化 Markdown 研究简报（纯浏览器端/只读导出，不自动写外部 Vault）。
+3. **R3-3（P2 — 单条失败字幕视频显式轻量重抓入口优化）**：针对极个别历史因 YouTube 瞬时 `429 RATE_LIMITED` 留存在 `METADATA_READY` 的单条旧视频（如 `jEOUUAPC1sc`），在 `#Content` 列表筛选器中提供清晰的“待补抓字幕（1）”快捷视图与一键后台温和重抓。
+
