@@ -3,7 +3,7 @@
 - **迭代分支（开发工作区）**：`antigravity/task-user-readiness-20261112`（`/Users/hua/Documents/yia-worktrees/antigravity-readiness-20261112`，起始基线 `3dc8fbd1f90e346b4c04f6cf2cd1aa6eacc1db80`）
 - **正式交付运行区**：`main`（`/Users/hua/Documents/yia-worktrees/v1x-local-main`，起始基线 `71557160505f03ce2075655bb0dcb7809b9e0fa3`）
 - **只读对照工作区（严禁修改）**：`codex/readiness-v4-budget-final-validation`（`18f366b80e9f184795e44d7716f49d0ac418fb7f`）
-- **当前阶段**：`IN_PROGRESS`（已完成第一阶段现状核验、第二阶段六维诊断、第三阶段优先级裁定，正在执行第四阶段 TDD 小批次改造）
+- **当前阶段**：`ROUND_1_COMPLETED`（全部 P0/P1 目标已完成开发、测试、生产库 115/115 回填、独立浏览器真实验收及现场问题闭环修复，可随时无缝衔接 Round 2）
 
 ---
 
@@ -66,4 +66,20 @@
 - [x] **Step 0**：核验仓库分支、Git 状态、宿主机进程与 `.var/owner` 真实库状态（`115` 视频，`102` 已提炼，`13` 待同步），落盘本状态文件
 - [x] **Slice 1（后端 TDD）**：无字幕 `METADATA_ONLY` 诚实速览、`sync_pending_videos` + 后台守护同步线程、SQLite `FTS5` 双语检索、Dashboard 幽灵告警过滤、Sidecar 快照备份恢复、`owner_launcher.py` Ollama 自愈启动（验证：`test_workspace_intelligence_hub.py` + `test_owner_launcher.py` 20 passed，`test_fast_read_api.py` 1 passed，Ruff & Mypy 0 errors）
 - [x] **Slice 2（前端 TDD）**：顶栏 `AI 跨视频问答` 按钮 + `⌘K` 命令面板直达、`#Settings` 旧版工程面板折叠收纳 + Sidecar 备份导出按钮、内容列表增量同步状态条与 `基于标题与官方简介速览` 诚实徽标（验证：全量 49 文件 `1190 passed`，`tsc -b && vite build` 成功，`impeccable detect` 0 违例）
-- [ ] **Slice 3（生产同步与独立真实验收）**：同步至 `v1x-local-main`、拉起 `ollama serve`、完成全部 **115/115** 视频中文提炼与最新周报更新、启动 `:5488/:5489` 服务、运行独立 Browser E2E 验收并更新最终证据
+- [x] **Slice 3（生产同步与独立真实验收）**：同步至 `v1x-local-main`、完成全部 **115/115** 视频中文提炼（105 条有字幕精炼 + 10 条无字幕诚实速览）与最新 115 条全量周报更新、启动 `:5488/:5489` 常驻服务、执行独立 Browser E2E 五大链路验收，并闭环修复真实验收捕获的 2 项现场细节（`DURABLE_CONTENT_IDENTITY` 占位行误触发同步条与 `1970` 空日期回退、`#Settings` 折叠抽屉按需懒挂载消除 `/local/transcription/capability` 500 噪音）
+
+---
+
+## 五、第五阶段：独立验收结论与下一轮接续点（Round 2 Ready）
+
+- **自动化门禁结果（PASS）**：
+  - Python：`test_workspace_intelligence_hub.py` + `test_owner_launcher.py` `20 passed`；`test_fast_read_api.py` `1 passed`；`ruff check` 0 errors；`mypy` 0 issues。
+  - Frontend：全量 `49 passed` 测试文件（`1190 passed` 用例）；`tsc -b && vite build` 零报错；`impeccable detect --json` `[]`（0 违例）。
+- **生产库与备份门禁（PASS）**：
+  - `.var/owner/`：`total_videos = 115`，`briefed_count = 115`，`pending_count = 0`；首页 `needs_attention = []`；核心备份 `POST /api/v1/backup-restore/backups` 返回 `201`；Sidecar 快照 `GET /api/v1/workspace-ai/backup` 返回 `200`（含 115 条摘要，零密钥）。
+- **独立浏览器 E2E 验收（PASS）**：
+  - 现场验证截图：`final_step_49.png`（`#Home` 周报与快捷栏）、`final_step_71.png`（`#Content` 零误报横幅与 9.2 排序列表）；`#Research` 中文提问直达英文 `PkAmyub12K8` 时间轴原话 `[E1] 06:23`；`#Settings` 28 个请求全部 `200 OK`、零 `500` 报错。
+- **下一轮（Round 2）按价值排序候选**：
+  1. **首选推荐（最高 ROI）**：在 `#Research` 增加“限定频道 / 主题 / 多选视频范围”的定向对比提问器（让用户可一键对比某 2–3 个竞品视频或本地课章节的异同）。
+  2. **次选（P2）**：在 `#Topics` 主题详情页合入按发布时间排序的“观点演进对比卡片”，直观展示同一主题在数周内的技术/商业判断变化。
+  3. **第三候选（P2）**：针对创作者抓取遇到临时网络波动（如 `Greg Isenberg` 偶发代理超时），提供带指数退避的后台静默重试状态提示与一键单源重检快捷入口。
