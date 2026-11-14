@@ -28,6 +28,14 @@ from youtube_intel.offline_transcription import media_tool
 from youtube_intel.orchestration import ProcessingPolicy
 from youtube_intel.runtime_composition import build_local_source_run_runtime
 from youtube_intel.source_authority import sha256, write_managed
+from youtube_intel.source_policy import DistillationStyle
+from youtube_intel.source_run import (
+    SourceRunAttentionReason,
+    SourceRunChildState,
+    SourceRunPriority,
+    SourceRunState,
+    SourceRunWrite,
+)
 from youtube_intel.state import (
     ArtifactKind,
     ArtifactWrite,
@@ -139,6 +147,39 @@ class _FakeDualTrackCompleter:
                     "business_monetization_zh": [
                         "采用本机零成本推理获客 + 高阶云端 BYOK / 团队知识库增值变现",
                     ],
+                },
+                provider,
+                model,
+            )
+        if "METADATA_DISTILL_SCHEMA" in system_prompt:
+            is_short = "duration_seconds: 35" in user_prompt
+            return (
+                {
+                    "headline_zh": (
+                        "ChatGPT Images 2.6 35 秒功能预热短片（官方无字幕，基于简介速览）"
+                        if is_short
+                        else "围绕真实付费意愿构建高转化 AI 产品思路（官方无字幕，基于简介速览）"
+                    ),
+                    "summary_zh": (
+                        "官方简介显示本次更新新增参考图与 GIF 支持，属功能预告短片。"
+                        if is_short
+                        else "基于官方标题与简介梳理：探讨如何利用新一代模型构建用户愿意直接付费购买的实用型 AI 产品。"
+                    ),
+                    "score": 2.8 if is_short else 6.8,
+                    "score_reason_zh": (
+                        "35 秒无字幕功能预告短片，自动归入 Shorts 噪音抽屉。"
+                        if is_short
+                        else "当前源站暂无公开字幕，仅基于标题与官方简介评估参考价值。"
+                    ),
+                    "recommendation_tier": "SKIP_NOISE" if is_short else "WORTH_SKIMMING",
+                    "content_bucket": "SHORTS_PROMO" if is_short else "DEEP_DIVE",
+                    "topics_zh": ["多模态生成"] if is_short else ["AI 产品变现", "商业验证"],
+                    "topic_cluster_zh": (
+                        "大模型演进与多模态实战" if is_short else "AI 产品机会与一人公司变现"
+                    ),
+                    "product_opportunities_zh": [] if is_short else ["从用户明确付费痛点倒推最小可用 AI 工具"],
+                    "business_opportunities_zh": [] if is_short else ["先验证真实客单价再投入复杂工程"],
+                    "filtered_noise_zh": ["官方未提供时间轴字幕，未生成原话证据点"],
                 },
                 provider,
                 model,
@@ -841,4 +882,369 @@ def test_normalize_mlx_lecture_segments_merges_over_4096_and_satisfies_media_tra
     assert transcript.language == "zh"
     assert "\ufffd" not in transcript.cues[0].text
     assert "\x07" not in transcript.cues[0].text
+
+
+def _seed_metadata_only_youtube_video(
+    repo: SQLiteStateRepository,
+    *,
+    source_id: str,
+    video_id: str,
+    channel_id: str,
+    channel_name: str,
+    title: str,
+    description: str,
+    duration_seconds: int,
+    now: datetime,
+) -> None:
+    repo.upsert_video_metadata(
+        VideoMetadata(
+            video_id=video_id,
+            channel_id=channel_id,
+            channel_name=channel_name,
+            title=title,
+            description=description,
+            source_url=f"https://www.youtube.com/watch?v={video_id}",
+            published_at=now - timedelta(hours=2),
+            duration_seconds=duration_seconds,
+            default_language="en",
+            available_languages=(),
+            live_status=LiveStatus.NONE,
+            availability=Availability.PUBLIC,
+        ),
+        pipeline_version="v1",
+        now=now,
+    )
+    repo.advance_pipeline(
+        video_id,
+        expected_status=PipelineStatus.DISCOVERED,
+        target_status=PipelineStatus.METADATA_READY,
+        pipeline_version="v1",
+        now=now,
+    )
+    with repo._connect() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO source_video_links (source_id, video_id, discovered_at) VALUES (?, ?, ?)",
+            (source_id, video_id, now.strftime("%Y-%m-%dT%H:%M:%SZ")),
+        )
+
+
+def test_metadata_only_youtube_distillation_and_incremental_sync_pending_with_upgrade(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    env = _build_env(tmp_path, monkeypatch)
+    fast_app: Any = env["fast_app"]
+
+    _seed_metadata_only_youtube_video(
+        env["repo"],
+        source_id=env["source"].source_id,
+        video_id="vidMetaSh35",
+        channel_id="UC1111111111111111111111",
+        channel_name="OpenAI",
+        title="Introducing ChatGPT Images 2.6",
+        description="Images, upgraded—introducing ChatGPT Images 2.6 with GIFs and reference images.",
+        duration_seconds=35,
+        now=NOW,
+    )
+    _seed_metadata_only_youtube_video(
+        env["repo"],
+        source_id=env["source"].source_id,
+        video_id="vidMetaLg01",
+        channel_id="UC1111111111111111111111",
+        channel_name="Greg Isenberg",
+        title="Make cool things with AI that people buy",
+        description="Deep dive on building practical AI products that customers actually pay for.",
+        duration_seconds=1850,
+        now=NOW,
+    )
+    _seed_youtube_video(
+        env["repo"],
+        env["data_root"],
+        source_id=env["source"].source_id,
+        video_id="vidNewTx001",
+        channel_id="UC1111111111111111111111",
+        channel_name="OpenAI",
+        title="How Mozilla uses GPT-6 Cyber to find and fix Firefox vulnerabilities",
+        duration_seconds=1219,
+        cues=(
+            TimedTranscriptCueWrite(
+                start_ms=0,
+                end_ms=9000,
+                text="Mozilla uses GPT-6 Cyber to find and patch Firefox vulnerabilities.",
+            ),
+            TimedTranscriptCueWrite(
+                start_ms=9000,
+                end_ms=20000,
+                text="Automated reproduction harnesses verify security fixes deterministically.",
+            ),
+        ),
+        now=NOW,
+    )
+
+    st_code, sync_st = fast_app.handle("GET", "/api/v1/workspace-ai/sync-status")
+    assert st_code == HTTPStatus.OK
+    assert sync_st["pending_count"] == 3
+    assert sync_st["pending_transcript_count"] == 1
+    assert sync_st["pending_metadata_only_count"] == 2
+
+    run_code, run_res = fast_app.handle(
+        "POST", "/api/v1/workspace-ai/sync-pending", json.dumps({"limit": 10}).encode("utf-8")
+    )
+    assert run_code == HTTPStatus.OK
+    assert run_res["synced_count"] == 3
+    assert run_res["remaining_count"] == 0
+
+    # Captionless 35s Short folds cleanly without fabricating transcript evidence or Intelligence cards
+    sh_brief = env["hub"].get_video_brief("vidMetaSh35")
+    assert sh_brief is not None
+    assert sh_brief["source_basis"] == "METADATA_ONLY"
+    assert sh_brief["is_short_noise"] is True
+    assert sh_brief["core_points"] == []
+    assert sh_brief["intelligence_id"] is None
+
+    # Captionless 1850s podcast gets honest metadata brief without fabricating note.v2 MODEL_SUMMARY
+    lg_code, lg_detail = fast_app.handle("GET", "/api/v1/videos/vidMetaLg01")
+    assert lg_code == HTTPStatus.OK
+    assert lg_detail["video"]["ai_brief"]["source_basis"] == "METADATA_ONLY"
+    assert lg_detail["ai_brief"]["core_points"] == []
+    assert lg_detail["ai_brief"]["intelligence_id"] is None
+    assert lg_detail["note"]["v2"]["status"] != "AVAILABLE"
+
+    # When captions later arrive for vidMetaLg01, sync-pending automatically upgrades it to TRANSCRIPT!
+    env["repo"].advance_pipeline(
+        "vidMetaLg01",
+        expected_status=PipelineStatus.METADATA_READY,
+        target_status=PipelineStatus.TRANSCRIPT_READY,
+        pipeline_version="v1",
+        now=NOW + timedelta(minutes=5),
+    )
+    rel = "transcripts/canonical/vidMetaLg01.txt"
+    cues = (
+        TimedTranscriptCueWrite(start_ms=0, end_ms=6000, text="Customers pay for clear workflow ROI."),
+        TimedTranscriptCueWrite(start_ms=6000, end_ms=15000, text="Ship vertical AI SaaS with fast onboarding."),
+    )
+    raw_txt = "\n".join(c.text for c in cues).encode("utf-8")
+    write_managed(env["data_root"], rel, raw_txt)
+    env["repo"].upsert_artifact(
+        ArtifactWrite(
+            artifact_id="canonical:vidMetaLg01",
+            artifact_key="canonical:vidMetaLg01",
+            video_id="vidMetaLg01",
+            job_id=None,
+            kind=ArtifactKind.TRANSCRIPT_CANONICAL,
+            storage_root=StorageRoot.DATA,
+            relative_path=rel,
+            content_hash=sha256(raw_txt),
+            provider="youtube",
+            model=None,
+            producer_version="v1",
+            retention_class=RetentionClass.LONG_LIVED,
+            expires_at=None,
+        ),
+        now=NOW + timedelta(minutes=5),
+    )
+    env["repo"].create_timed_transcript(
+        TimedTranscriptWrite.from_cues(
+            video_id="vidMetaLg01",
+            canonical_artifact_id="canonical:vidMetaLg01",
+            cues=cues,
+        ),
+        now=NOW + timedelta(minutes=5),
+    )
+
+    st_after_code, sync_after = fast_app.handle("GET", "/api/v1/workspace-ai/sync-status")
+    assert st_after_code == HTTPStatus.OK
+    assert sync_after["pending_count"] == 1
+    assert sync_after["pending_transcript_upgrade_count"] == 1
+
+    up_code, up_res = fast_app.handle("POST", "/api/v1/workspace-ai/sync-pending", b"{}")
+    assert up_code == HTTPStatus.OK
+    assert up_res["synced_count"] == 1
+    upgraded = env["hub"].get_video_brief("vidMetaLg01")
+    assert upgraded["source_basis"] == "TRANSCRIPT"
+    assert upgraded["intelligence_id"] == "intelligence:workspace-ai:vidMetaLg01"
+    assert len(upgraded["core_points"]) >= 1
+
+
+def test_bilingual_fts5_research_retrieval_matches_english_cues_from_chinese_query(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    env = _build_env(tmp_path, monkeypatch)
+    fast_app: Any = env["fast_app"]
+
+    # Seed 9 distractor videos + 1 target English security video WITHOUT distilling Chinese briefs first!
+    for idx in range(9):
+        _seed_youtube_video(
+            env["repo"],
+            env["data_root"],
+            source_id=env["source"].source_id,
+            video_id=f"vidFiller0{idx}",
+            channel_id="UC1111111111111111111111",
+            channel_name="General Channel",
+            title=f"Weekly Office Vlog Episode {idx}",
+            duration_seconds=1500,
+            cues=(
+                TimedTranscriptCueWrite(
+                    start_ms=0,
+                    end_ms=8000,
+                    text="Welcome back to our casual coffee chat and travel diary.",
+                ),
+            ),
+            now=NOW,
+        )
+
+    _seed_youtube_video(
+        env["repo"],
+        env["data_root"],
+        source_id=env["source"].source_id,
+        video_id="PkAmyub12K8",
+        channel_id="UC1111111111111111111111",
+        channel_name="OpenAI",
+        title="Engineering Deep Dive with Brian Grinstead",
+        duration_seconds=1219,
+        cues=(
+            TimedTranscriptCueWrite(
+                start_ms=0,
+                end_ms=10000,
+                text="Thanks for joining our engineering conversation today.",
+            ),
+            TimedTranscriptCueWrite(
+                start_ms=300000,
+                end_ms=310000,
+                text="We started reviewing legacy modules across the repository.",
+            ),
+            TimedTranscriptCueWrite(
+                start_ms=860000,
+                end_ms=875000,
+                text=(
+                    "Firefox browser memory safety vulnerabilities are automatically "
+                    "discovered by fuzzing harnesses and patched before release."
+                ),
+            ),
+            TimedTranscriptCueWrite(
+                start_ms=1180000,
+                end_ms=1195000,
+                text="Thanks everyone for watching.",
+            ),
+        ),
+        now=NOW,
+    )
+
+    # Pure Chinese query sharing ZERO literal English tokens with the transcript!
+    ask_code, ask_res = fast_app.handle(
+        "POST",
+        "/api/v1/workspace-ai/research/ask",
+        json.dumps({"question": "浏览器安全漏洞是如何自动发现和打补丁修复的？"}).encode("utf-8"),
+    )
+    assert ask_code == HTTPStatus.OK
+    citations = ask_res["session"]["citations"]
+    cited_videos = {c["video_id"] for c in citations}
+    assert "PkAmyub12K8" in cited_videos
+    firefox_cite = next(c for c in citations if c["video_id"] == "PkAmyub12K8")
+    # Must match the exact 860s (14:20) cue window via FTS5 cue search rather than only 00:00!
+    assert firefox_cite["start_seconds"] == pytest.approx(860.0)
+    assert "vulnerabilities" in firefox_cite["excerpt"]
+
+
+def test_dashboard_filters_superseded_execution_condition_attention_and_sidecar_backup_roundtrip(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    env = _build_env(tmp_path, monkeypatch)
+    fast_app: Any = env["fast_app"]
+    repo: SQLiteStateRepository = env["repo"]
+
+    _seed_youtube_video(
+        repo,
+        env["data_root"],
+        source_id=env["source"].source_id,
+        video_id="vidHist0001",
+        channel_id="UC1111111111111111111111",
+        channel_name="Greg Isenberg",
+        title="AI Startup Playbook",
+        duration_seconds=1600,
+        cues=(
+            TimedTranscriptCueWrite(start_ms=0, end_ms=5000, text="Focus on niche B2B workflows."),
+        ),
+        now=NOW,
+    )
+
+    run = repo.create_source_run(
+        SourceRunWrite.manual_check_now(
+            source_id=env["source"].source_id,
+            command_id="cmd-old-unresolved",
+            priority=SourceRunPriority.P1,
+            created_at=NOW - timedelta(days=1),
+        )
+    )
+    repo.transition_source_run(run.run_id, to_state=SourceRunState.RUNNING, now=NOW - timedelta(days=1))
+    repo.record_source_run_child(
+        run.run_id,
+        video_id="vidHist0001",
+        state=SourceRunChildState.PENDING,
+        distillation_execution_id=None,
+        now=NOW - timedelta(days=1),
+    )
+    repo.transition_source_run_child(
+        run.run_id,
+        video_id="vidHist0001",
+        to_state=SourceRunChildState.WAITING,
+        now=NOW - timedelta(days=1),
+    )
+    repo.transition_source_run(
+        run.run_id,
+        to_state=SourceRunState.NEEDS_ATTENTION,
+        attention_reason=SourceRunAttentionReason.EXECUTION_CONDITION_UNRESOLVED,
+        now=NOW - timedelta(days=1),
+    )
+
+    # Distill video so sidecar DB exists
+    fast_app.handle("POST", "/api/v1/workspace-ai/videos/vidHist0001/distill", b"{}")
+
+    # While focus_rules are still empty AND child is WAITING, warning MUST still surface!
+    _, dash_before = fast_app.handle("GET", "/api/v1/dashboard")
+    assert len(dash_before["needs_attention"]) == 1
+
+    # Settle child to terminal FAILED and configure global focus_rules -> superseded warning clears!
+    repo.transition_source_run_child(
+        run.run_id,
+        video_id="vidHist0001",
+        to_state=SourceRunChildState.FAILED,
+        now=NOW,
+    )
+    policy_svc = env["raw_app"]._source_policy_service
+    policy_svc.update_global(
+        command_id="cmd-set-global-focus",
+        initial_history_count=5,
+        per_run_max_new_videos=5,
+        focus_rules=("AI Agent", "Startup Ideas"),
+        ignore_rules=("#shorts",),
+        distillation_style=DistillationStyle.BALANCED,
+    )
+    _, dash_after = fast_app.handle("GET", "/api/v1/dashboard")
+    assert dash_after["needs_attention"] == []
+
+    # Sidecar backup & restore roundtrip (must never include BYOK secret!)
+    secret_val = "sk-never-export-in-sidecar-backup"
+    fast_app.handle(
+        "PUT",
+        "/api/v1/workspace-ai/settings",
+        json.dumps({"cloud_api_key": secret_val, "ollama_model": "qwen2.5:7b"}).encode("utf-8"),
+    )
+    bk_code, bk_snap = fast_app.handle("GET", "/api/v1/workspace-ai/backup")
+    assert bk_code == HTTPStatus.OK
+    assert bk_snap["schema_version"] == "workspace-ai-backup-v1"
+    assert bk_snap["counts"]["briefs"] == 1
+    assert secret_val not in json.dumps(bk_snap)
+
+    # Simulate fresh/wiped sidecar DB and restore from snapshot
+    (env["project_root"] / ".workspace-ai" / "hub.sqlite3").unlink()
+    assert env["hub"].get_video_brief("vidHist0001") is None
+
+    rs_code, rs_body = fast_app.handle(
+        "POST", "/api/v1/workspace-ai/restore", json.dumps(bk_snap).encode("utf-8")
+    )
+    assert rs_code == HTTPStatus.OK
+    assert rs_body["restored"]["briefs"] == 1
+    assert env["hub"].get_video_brief("vidHist0001") is not None
+    assert env["hub"].get_settings()["ollama_model"] == "qwen2.5:7b"
+
 

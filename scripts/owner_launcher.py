@@ -112,6 +112,46 @@ def check_port_available(port: int) -> None:
             raise RuntimeError(f"Intelligence cannot start: local port {port} is in use. Close the application using it and reopen Intelligence.") from error
 
 
+def ensure_local_ollama_if_available(root: Path) -> None:
+    """Auto-start local Ollama daemon if installed and not yet listening on 127.0.0.1:11434."""
+    try:
+        with socket.create_connection(("127.0.0.1", 11434), timeout=0.4):
+            return
+    except OSError:
+        pass
+    ollama_bin = next(
+        (
+            candidate
+            for candidate in (
+                Path("/opt/homebrew/bin/ollama"),
+                Path("/usr/local/bin/ollama"),
+            )
+            if candidate.is_file() and os.access(candidate, os.X_OK)
+        ),
+        None,
+    )
+    if ollama_bin is None:
+        return
+    try:
+        (root / "logs").mkdir(parents=True, exist_ok=True)
+        with (root / "logs" / "ollama.log").open("ab") as log_file:
+            subprocess.Popen(
+                [str(ollama_bin), "serve"],
+                stdin=subprocess.DEVNULL,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+            )
+        for _ in range(25):
+            try:
+                with socket.create_connection(("127.0.0.1", 11434), timeout=0.25):
+                    return
+            except OSError:
+                time.sleep(0.1)
+    except OSError:
+        return
+
+
 def launch(project: Path, *, open_browser: bool = True) -> str:
     identity = prepare_frontend(project)
     root = prepare_workspace(project)
@@ -154,6 +194,7 @@ def launch(project: Path, *, open_browser: bool = True) -> str:
             sys.modules.pop(mod_name, None)
     from youtube_intel.native_picker_build import prepare_native_picker
     picker = prepare_native_picker(project)
+    ensure_local_ollama_if_available(root)
     env = dict(os.environ)
     inherited_paths = [str(Path(p).resolve()) for p in env.get("PYTHONPATH", "").split(os.pathsep) if p]
     env["PYTHONPATH"] = os.pathsep.join([str(project / "src"), *inherited_paths])

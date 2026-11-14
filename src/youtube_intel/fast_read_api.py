@@ -1229,6 +1229,19 @@ class FastReadApiApplication:
             ):
                 self._inner._body(body)
                 return HTTPStatus.OK, self._workspace_hub.generate_weekly_brief()
+            if route == "/api/v1/workspace-ai/sync-status" and method == "GET":
+                return HTTPStatus.OK, self._workspace_hub.get_sync_status()
+            if route == "/api/v1/workspace-ai/sync-pending" and method == "POST":
+                data = self._inner._body(body) if body.strip() else {}
+                raw_limit = data.get("limit", 20) if isinstance(data, dict) else 20
+                return HTTPStatus.OK, self._workspace_hub.sync_pending_videos(
+                    limit=int(cast(int, raw_limit))
+                )
+            if route == "/api/v1/workspace-ai/backup" and method == "GET":
+                return HTTPStatus.OK, self._workspace_hub.export_backup_snapshot()
+            if route == "/api/v1/workspace-ai/restore" and method == "POST":
+                data = self._inner._body(body)
+                return HTTPStatus.OK, self._workspace_hub.restore_backup_snapshot(data)
             distill_m = _WS_AI_DISTILL_ROUTE.fullmatch(route)
             if distill_m is not None and method == "POST":
                 self._inner._body(body)
@@ -1332,12 +1345,20 @@ class FastReadApiApplication:
             if (
                 method == "GET"
                 and status_code == HTTPStatus.OK
-                and self._workspace_hub.db_path.exists()
+                and self._workspace_hub.has_sidecar_db()
             ):
                 if route == "/api/v1/dashboard":
                     wb = self._workspace_hub.get_latest_weekly_brief().get("weekly_brief")
+                    filtered_attention = self._filter_superseded_dashboard_attention(
+                        resp_payload.get("needs_attention")
+                    )
+                    resp_payload = {
+                        **resp_payload,
+                        "needs_attention": filtered_attention,
+                        "workspace_sync_status": self._workspace_hub.get_sync_status(),
+                    }
                     if wb is not None:
-                        resp_payload = {**resp_payload, "workspace_weekly_brief": wb}
+                        resp_payload["workspace_weekly_brief"] = wb
                 elif route == "/api/v1/settings":
                     resp_payload = {
                         **resp_payload,
@@ -1347,6 +1368,52 @@ class FastReadApiApplication:
         finally:
             if method not in {"GET", "HEAD"}:
                 self._bump_mutation_epoch()
+
+    def _filter_superseded_dashboard_attention(
+        self, raw_items: object
+    ) -> list[dict[str, object]]:
+        if not isinstance(raw_items, list):
+            return []
+        policy_svc = getattr(self._inner, "_source_policy_service", None)
+        if policy_svc is None:
+            return [item for item in raw_items if isinstance(item, dict)]
+        conn = self._inner._repository._connect(read_only=True)
+        try:
+            kept: list[dict[str, object]] = []
+            for item in raw_items:
+                if not isinstance(item, dict):
+                    continue
+                if item.get("attention_reason") != "EXECUTION_CONDITION_UNRESOLVED":
+                    kept.append(item)
+                    continue
+                source_id = item.get("source_id")
+                run_id = item.get("run_id")
+                if not isinstance(source_id, str) or not isinstance(run_id, str):
+                    kept.append(item)
+                    continue
+                try:
+                    eff_policy = policy_svc.effective_policy(source_id)
+                except Exception:
+                    kept.append(item)
+                    continue
+                if not getattr(eff_policy, "focus_rules", ()):
+                    kept.append(item)
+                    continue
+                child_states = [
+                    str(r[0])
+                    for r in conn.execute(
+                        "SELECT state FROM source_run_video_executions WHERE run_id = ?",
+                        (run_id,),
+                    ).fetchall()
+                ]
+                if child_states and all(
+                    st in {"COMPLETED", "FAILED", "SKIPPED"} for st in child_states
+                ):
+                    continue
+                kept.append(item)
+            return kept
+        finally:
+            conn.close()
 
     def _fast_get_videos(self) -> dict[str, object]:
         repo = self._inner._repository
@@ -1695,9 +1762,30 @@ def run_cli_with_fast_reads(argv: Sequence[str] | None = None) -> ExitCode:
                 else {}
             )
             composition.worker.start()
+            auto_sync_stop = threading.Event()
+
+            def _auto_sync_loop() -> None:
+                while not auto_sync_stop.wait(45.0):
+                    try:
+                        if not fast_app._workspace_hub.has_sidecar_db():
+                            continue
+                        st = fast_app._workspace_hub.get_sync_status()
+                        if int(cast(int, st.get("pending_count", 0))) <= 0:
+                            continue
+                        res = fast_app._workspace_hub.sync_pending_videos(limit=3)
+                        if int(cast(int, res.get("synced_count", 0))) > 0:
+                            fast_app._bump_mutation_epoch()
+                    except Exception:
+                        continue
+
+            auto_sync_thread = threading.Thread(
+                target=_auto_sync_loop, name="workspace-ai-auto-sync", daemon=True
+            )
+            auto_sync_thread.start()
             try:
                 server.serve_forever()
             finally:
+                auto_sync_stop.set()
                 server.server_close()
                 composition.application.shutdown_native_import()
                 composition.worker.stop()
