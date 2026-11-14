@@ -65,5 +65,5 @@
 
 - [x] **Step 0**：核验仓库分支、Git 状态、宿主机进程与 `.var/owner` 真实库状态（`115` 视频，`102` 已提炼，`13` 待同步），落盘本状态文件
 - [x] **Slice 1（后端 TDD）**：无字幕 `METADATA_ONLY` 诚实速览、`sync_pending_videos` + 后台守护同步线程、SQLite `FTS5` 双语检索、Dashboard 幽灵告警过滤、Sidecar 快照备份恢复、`owner_launcher.py` Ollama 自愈启动（验证：`test_workspace_intelligence_hub.py` + `test_owner_launcher.py` 20 passed，`test_fast_read_api.py` 1 passed，Ruff & Mypy 0 errors）
-- [ ] **Slice 2（前端 TDD）**：顶栏 `AI 跨视频问答` 按钮 + `⌘K` 命令面板直达、`#Settings` 旧版工程面板折叠收纳 + Sidecar 备份导出按钮、内容列表增量同步状态条与 `基于标题与官方简介速览` 诚实徽标
+- [x] **Slice 2（前端 TDD）**：顶栏 `AI 跨视频问答` 按钮 + `⌘K` 命令面板直达、`#Settings` 旧版工程面板折叠收纳 + Sidecar 备份导出按钮、内容列表增量同步状态条与 `基于标题与官方简介速览` 诚实徽标（验证：全量 49 文件 `1190 passed`，`tsc -b && vite build` 成功，`impeccable detect` 0 违例）
 - [ ] **Slice 3（生产同步与独立真实验收）**：同步至 `v1x-local-main`、拉起 `ollama serve`、完成全部 **115/115** 视频中文提炼与最新周报更新、启动 `:5488/:5489` 服务、运行独立 Browser E2E 验收并更新最终证据
