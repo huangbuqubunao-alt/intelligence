@@ -26,7 +26,7 @@ import urllib.error
 import urllib.request
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
 from pathlib import Path
 from typing import Any, Protocol, cast
@@ -718,6 +718,12 @@ class WorkspaceIntelligenceHub:
                 model TEXT NOT NULL,
                 obsidian_markdown TEXT NOT NULL,
                 created_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS video_curation_states (
+                video_id TEXT PRIMARY KEY,
+                starred INTEGER NOT NULL DEFAULT 0,
+                is_read INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL
             );
             """
         )
@@ -2091,6 +2097,74 @@ class WorkspaceIntelligenceHub:
             "source_basis": source_basis,
         }
 
+    @staticmethod
+    def _read_curation_map_on_conn(
+        conn: sqlite3.Connection,
+    ) -> dict[str, tuple[bool, bool]]:
+        try:
+            rows = conn.execute(
+                "SELECT video_id, starred, is_read FROM video_curation_states"
+            ).fetchall()
+            return {
+                str(r["video_id"]): (bool(r["starred"]), bool(r["is_read"]))
+                for r in rows
+            }
+        except sqlite3.Error:
+            return {}
+
+    def update_video_curation(
+        self, video_id: str, payload: Mapping[str, object]
+    ) -> dict[str, object]:
+        if self._repository.get_video(video_id) is None:
+            raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Video was not found.")
+        allowed_keys = {"starred", "is_read"}
+        if (
+            not isinstance(payload, Mapping)
+            or not payload
+            or set(payload.keys()) - allowed_keys
+        ):
+            raise ValueError("starred and/or is_read boolean fields are required.")
+        for key, val in payload.items():
+            if type(val) is not bool:
+                raise ValueError(f"{key} must be a boolean.")
+
+        ts = format_utc_datetime(self._now())
+        conn = self._connect_write()
+        try:
+            with conn:
+                existing = conn.execute(
+                    "SELECT starred, is_read FROM video_curation_states WHERE video_id = ?",
+                    (video_id,),
+                ).fetchone()
+                cur_starred = False if existing is None else bool(existing["starred"])
+                cur_read = False if existing is None else bool(existing["is_read"])
+                next_starred = (
+                    bool(payload["starred"]) if "starred" in payload else cur_starred
+                )
+                next_read = (
+                    bool(payload["is_read"]) if "is_read" in payload else cur_read
+                )
+                conn.execute(
+                    """
+                    INSERT INTO video_curation_states (video_id, starred, is_read, updated_at)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(video_id) DO UPDATE SET
+                        starred = excluded.starred,
+                        is_read = excluded.is_read,
+                        updated_at = excluded.updated_at
+                    """,
+                    (video_id, int(next_starred), int(next_read), ts),
+                )
+        finally:
+            conn.close()
+        self._write_rolling_snapshot_quietly()
+        return {
+            "video_id": video_id,
+            "starred": next_starred,
+            "is_read": next_read,
+            "updated_at": ts,
+        }
+
     def get_video_brief(self, video_id: str) -> dict[str, Any] | None:
         conn = self._connect_read()
         if conn is None:
@@ -2099,7 +2173,15 @@ class WorkspaceIntelligenceHub:
             row = conn.execute(
                 "SELECT * FROM video_ai_briefs WHERE video_id = ?", (video_id,)
             ).fetchone()
-            return None if row is None else self._brief_from_row(row)
+            if row is None:
+                return None
+            brief = self._brief_from_row(row)
+            curation = self._read_curation_map_on_conn(conn).get(
+                video_id, (False, False)
+            )
+            brief["starred"] = curation[0]
+            brief["is_read"] = curation[1]
+            return brief
         except sqlite3.Error:
             return None
         finally:
@@ -2110,8 +2192,17 @@ class WorkspaceIntelligenceHub:
         if conn is None:
             return {}
         try:
+            curation_map = self._read_curation_map_on_conn(conn)
             rows = conn.execute("SELECT * FROM video_ai_briefs").fetchall()
-            return {str(row["video_id"]): self._brief_from_row(row) for row in rows}
+            out: dict[str, dict[str, Any]] = {}
+            for row in rows:
+                vid = str(row["video_id"])
+                brief = self._brief_from_row(row)
+                cur = curation_map.get(vid, (False, False))
+                brief["starred"] = cur[0]
+                brief["is_read"] = cur[1]
+                out[vid] = brief
+            return out
         except sqlite3.Error:
             return {}
         finally:
@@ -2222,6 +2313,8 @@ class WorkspaceIntelligenceHub:
             "model": brief["model"],
             "updated_at": brief["updated_at"],
             "source_basis": brief.get("source_basis", "TRANSCRIPT"),
+            "starred": bool(brief.get("starred", False)),
+            "is_read": bool(brief.get("is_read", False)),
         }
         enriched["ai_brief"] = summary_brief
         if enriched.get("duration_seconds") is None and brief["duration_seconds"] is not None:
@@ -3166,23 +3259,93 @@ class WorkspaceIntelligenceHub:
         return grouped
 
     @staticmethod
+    def _build_topic_obsidian_markdown(
+        *,
+        topic_name: str,
+        summary: Mapping[str, object],
+        entries: Sequence[Mapping[str, Any]],
+        related_topic_names: Sequence[str],
+        exported_at: str,
+    ) -> str:
+        safe_topic = _safe_obsidian_title(topic_name)
+        rel_links = " ".join(
+            f"[[{_safe_obsidian_title(r)}]]" for r in related_topic_names if r
+        )
+        lines = [
+            "---",
+            f'title: "专题脉络 - {safe_topic}"',
+            f'topic_name: "{safe_topic}"',
+            f"video_count: {summary.get('video_count', 0)}",
+            f"must_watch_count: {summary.get('must_watch_count', 0)}",
+            f"avg_score: {summary.get('avg_score', 0.0)}",
+            f'exported_at: "{exported_at}"',
+            "tags:",
+            "  - youtube-intel/topic-moc",
+            "---",
+            "",
+            f"# 专题知识索引（MOC）：[[{safe_topic}]]",
+            "",
+            f"> **聚合统计**：收录 `{summary.get('video_count', 0)}` 条内容 · 必看干货 `{summary.get('must_watch_count', 0)}` 条 · 近 7 天新增 `{summary.get('recent_7d_count', 0)}` 条 · 平均评分 `{summary.get('avg_score', 0.0)}`",
+        ]
+        if rel_links:
+            lines.extend(["", f"**关联专题双链**：{rel_links}"])
+        if entries:
+            lines.extend(["", "## 按时间演进核心观点脉络"])
+            for idx, item in enumerate(entries, start=1):
+                safe_title = _safe_obsidian_title(str(item.get("title") or item.get("video_id") or ""))
+                pub = str(item.get("published_at") or "")[:10]
+                ch = str(item.get("channel_name") or "")
+                sc = float(item.get("score", 0.0))
+                lines.append(
+                    f"### {idx}. [[{safe_title}]]（{sc:.1f}/10 · {ch}{f' · {pub}' if pub else ''}）"
+                )
+                lines.append(f"- **一句话结论**：{item.get('headline_zh', '')}")
+                summary_zh = str(item.get("summary_zh") or "").strip()
+                if summary_zh and summary_zh != str(item.get("headline_zh") or "").strip():
+                    lines.append(f"- **核心摘要**：{summary_zh}")
+                for opp in list(item.get("product_opportunities_zh") or ())[:2]:
+                    lines.append(f"- **产品切口**：{opp}")
+                for bopp in list(item.get("business_opportunities_zh") or ())[:2]:
+                    lines.append(f"- **商业模型**：{bopp}")
+                lines.append("")
+        return "\n".join(lines).rstrip() + "\n"
+
     def _summarize_topic_evolution(
-        entries: list[dict[str, Any]], *, include_entries: bool
+        self,
+        entries: list[dict[str, Any]],
+        *,
+        include_entries: bool,
+        topic_name: str = "",
+        related_topic_names: Sequence[str] = (),
     ) -> dict[str, object]:
+        now = self._now()
+        cutoff_7d = now - timedelta(days=7)
         if not entries:
             summary: dict[str, object] = {
                 "video_count": 0,
                 "must_watch_count": 0,
+                "recent_7d_count": 0,
                 "avg_score": 0.0,
                 "latest_headline_zh": "",
                 "source_channels": [],
             }
             if include_entries:
                 summary["entries"] = []
+                summary["obsidian_markdown"] = ""
             return summary
         must_watch = sum(
             1 for item in entries if item["recommendation_tier"] == "MUST_WATCH"
         )
+        recent_7d = 0
+        for item in entries:
+            stamp_raw = str(item.get("published_at") or item.get("updated_at") or "").strip()
+            if stamp_raw:
+                try:
+                    dt = datetime.fromisoformat(stamp_raw.replace("Z", "+00:00"))
+                    if dt >= cutoff_7d:
+                        recent_7d += 1
+                except ValueError:
+                    pass
         avg_score = round(
             sum(float(item["score"]) for item in entries) / len(entries), 1
         )
@@ -3194,15 +3357,24 @@ class WorkspaceIntelligenceHub:
         result: dict[str, object] = {
             "video_count": len(entries),
             "must_watch_count": must_watch,
+            "recent_7d_count": recent_7d,
             "avg_score": avg_score,
             "latest_headline_zh": str(entries[0]["headline_zh"]),
             "source_channels": channels[:6],
         }
         if include_entries:
-            result["entries"] = [
+            clean_entries = [
                 {k: v for k, v in item.items() if not k.startswith("_")}
                 for item in entries[:24]
             ]
+            result["entries"] = clean_entries
+            result["obsidian_markdown"] = self._build_topic_obsidian_markdown(
+                topic_name=topic_name or "专题脉络",
+                summary=result,
+                entries=clean_entries,
+                related_topic_names=related_topic_names,
+                exported_at=format_utc_datetime(now),
+            )
         return result
 
     def enrich_topics_items(self, raw_topics: object) -> list[dict[str, object]]:
@@ -3215,7 +3387,7 @@ class WorkspaceIntelligenceHub:
                 continue
             name = str(item.get("name") or "").strip()
             evo = self._summarize_topic_evolution(
-                grouped.get(name, []), include_entries=False
+                grouped.get(name, []), include_entries=False, topic_name=name
             )
             enriched.append({**item, "ai_evolution": evo})
         return enriched
@@ -3232,26 +3404,31 @@ class WorkspaceIntelligenceHub:
             return dict(payload)
         grouped = self._collect_topic_brief_entries()
         name = str(raw_topic.get("name") or "").strip()
-        evo = self._summarize_topic_evolution(
-            grouped.get(name, []), include_entries=True
-        )
         topic_names_by_id = {
             t.topic_id: t.name for t in self._repository.list_topics()
         }
         raw_relations = raw_topic.get("relations")
         relations_out: list[dict[str, object]] | object = raw_relations
+        related_names: list[str] = []
         if isinstance(raw_relations, list):
-            relations_out = [
-                {
-                    **rel,
-                    "related_topic_name": topic_names_by_id.get(
+            hydrated_rels: list[dict[str, object]] = []
+            for rel in raw_relations:
+                if isinstance(rel, dict):
+                    rname = topic_names_by_id.get(
                         str(rel.get("related_topic_id") or ""), ""
-                    ),
-                }
-                if isinstance(rel, dict)
-                else rel
-                for rel in raw_relations
-            ]
+                    )
+                    if rname and rname not in related_names:
+                        related_names.append(rname)
+                    hydrated_rels.append({**rel, "related_topic_name": rname})
+                else:
+                    hydrated_rels.append(rel)
+            relations_out = hydrated_rels
+        evo = self._summarize_topic_evolution(
+            grouped.get(name, []),
+            include_entries=True,
+            topic_name=name,
+            related_topic_names=related_names,
+        )
         return {
             **payload,
             "topic": {
@@ -3580,6 +3757,7 @@ class WorkspaceIntelligenceHub:
         briefs: list[dict[str, object]] = []
         sessions: list[dict[str, object]] = []
         weekly_briefs: list[dict[str, object]] = []
+        curation_states: list[dict[str, object]] = []
         conn = self._connect_read()
         if conn is not None:
             try:
@@ -3595,6 +3773,13 @@ class WorkspaceIntelligenceHub:
                     "SELECT * FROM weekly_ai_briefs ORDER BY created_at DESC, brief_id ASC"
                 ).fetchall():
                     weekly_briefs.append(dict(row))
+                try:
+                    for row in conn.execute(
+                        "SELECT * FROM video_curation_states ORDER BY updated_at DESC, video_id ASC"
+                    ).fetchall():
+                        curation_states.append(dict(row))
+                except sqlite3.Error:
+                    pass
             except sqlite3.Error:
                 pass
             finally:
@@ -3606,11 +3791,13 @@ class WorkspaceIntelligenceHub:
                 "briefs": len(briefs),
                 "research_sessions": len(sessions),
                 "weekly_briefs": len(weekly_briefs),
+                "curation_states": len(curation_states),
             },
             "engine_config": safe_config,
             "video_ai_briefs": briefs,
             "research_qa_sessions": sessions,
             "weekly_ai_briefs": weekly_briefs,
+            "video_curation_states": curation_states,
         }
 
     def restore_backup_snapshot(
@@ -3637,10 +3824,12 @@ class WorkspaceIntelligenceHub:
         raw_briefs = payload.get("video_ai_briefs")
         raw_sessions = payload.get("research_qa_sessions")
         raw_weekly = payload.get("weekly_ai_briefs")
+        raw_curation = payload.get("video_curation_states")
 
         restored_briefs = 0
         restored_sessions = 0
         restored_weekly = 0
+        restored_curation = 0
 
         conn = self._connect_write()
         try:
@@ -3788,6 +3977,28 @@ class WorkspaceIntelligenceHub:
                             ),
                         )
                         restored_weekly += 1
+
+                if isinstance(raw_curation, list):
+                    for item in raw_curation:
+                        if not isinstance(item, Mapping) or not item.get("video_id"):
+                            continue
+                        conn.execute(
+                            """
+                            INSERT OR REPLACE INTO video_curation_states (
+                                video_id, starred, is_read, updated_at
+                            ) VALUES (?, ?, ?, ?)
+                            """,
+                            (
+                                str(item["video_id"]),
+                                int(bool(item.get("starred", 0))),
+                                int(bool(item.get("is_read", 0))),
+                                str(
+                                    item.get("updated_at")
+                                    or format_utc_datetime(self._now())
+                                ),
+                            ),
+                        )
+                        restored_curation += 1
         finally:
             conn.close()
 
@@ -3796,6 +4007,7 @@ class WorkspaceIntelligenceHub:
                 "briefs": restored_briefs,
                 "research_sessions": restored_sessions,
                 "weekly_briefs": restored_weekly,
+                "curation_states": restored_curation,
             }
         }
 

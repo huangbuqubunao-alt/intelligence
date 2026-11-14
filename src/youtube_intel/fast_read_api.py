@@ -76,6 +76,7 @@ _WS_AI_TRANSCRIBE_ROUTE = re.compile(
     r"^/api/v1/workspace-ai/videos/([^/]+)/transcribe$"
 )
 _WS_AI_OBSIDIAN_ROUTE = re.compile(r"^/api/v1/workspace-ai/videos/([^/]+)/obsidian$")
+_WS_AI_CURATION_ROUTE = re.compile(r"^/api/v1/workspace-ai/videos/([^/]+)/curation$")
 _YT_VIDEO_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
 _INLINE_HASH_MAX_BYTES = 65_536
 
@@ -1257,6 +1258,12 @@ class FastReadApiApplication:
                 return HTTPStatus.OK, self._workspace_hub.get_video_obsidian_export(
                     obs_m[1]
                 )
+            cur_m = _WS_AI_CURATION_ROUTE.fullmatch(route)
+            if cur_m is not None and method == "POST":
+                data = self._inner._body(body)
+                return HTTPStatus.OK, self._workspace_hub.update_video_curation(
+                    cur_m[1], data
+                )
             raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
         except ApiError as err:
             return err.status, {
@@ -1359,6 +1366,7 @@ class FastReadApiApplication:
                         **resp_payload,
                         "pinned_topics": enriched_pinned,
                         "needs_attention": filtered_attention,
+                        "saved_intelligence_ids": self._read_saved_intelligence_ids(),
                         "workspace_sync_status": self._workspace_hub.get_sync_status(),
                     }
                     if wb is not None:
@@ -1377,14 +1385,26 @@ class FastReadApiApplication:
             if method not in {"GET", "HEAD"}:
                 self._bump_mutation_epoch()
 
+    def _read_saved_intelligence_ids(self) -> list[str]:
+        conn = self._inner._repository._connect(read_only=True)
+        try:
+            rows = conn.execute(
+                "SELECT intelligence_id FROM saved_intelligences "
+                "ORDER BY saved_at DESC, intelligence_id ASC LIMIT 200"
+            ).fetchall()
+            return [str(r[0]) for r in rows]
+        except sqlite3.Error:
+            return []
+        finally:
+            conn.close()
+
     def _filter_superseded_dashboard_attention(
         self, raw_items: object
     ) -> list[dict[str, object]]:
         if not isinstance(raw_items, list):
             return []
         policy_svc = getattr(self._inner, "_source_policy_service", None)
-        if policy_svc is None:
-            return [item for item in raw_items if isinstance(item, dict)]
+        briefs_map = self._workspace_hub.get_video_briefs_map()
         conn = self._inner._repository._connect(read_only=True)
         try:
             kept: list[dict[str, object]] = []
@@ -1399,14 +1419,6 @@ class FastReadApiApplication:
                 if not isinstance(source_id, str) or not isinstance(run_id, str):
                     kept.append(item)
                     continue
-                try:
-                    eff_policy = policy_svc.effective_policy(source_id)
-                except Exception:
-                    kept.append(item)
-                    continue
-                if not getattr(eff_policy, "focus_rules", ()):
-                    kept.append(item)
-                    continue
                 child_states = [
                     str(r[0])
                     for r in conn.execute(
@@ -1414,9 +1426,28 @@ class FastReadApiApplication:
                         (run_id,),
                     ).fetchall()
                 ]
-                if child_states and all(
-                    st in {"COMPLETED", "FAILED", "SKIPPED"} for st in child_states
+                if any(
+                    st not in {"COMPLETED", "FAILED", "SKIPPED"} for st in child_states
                 ):
+                    kept.append(item)
+                    continue
+                has_focus = False
+                if policy_svc is not None:
+                    try:
+                        eff_policy = policy_svc.effective_policy(source_id)
+                        has_focus = bool(getattr(eff_policy, "focus_rules", ()))
+                    except Exception:
+                        has_focus = False
+                if has_focus and child_states:
+                    continue
+                linked_vids = [
+                    str(r[0])
+                    for r in conn.execute(
+                        "SELECT video_id FROM source_video_links WHERE source_id = ?",
+                        (source_id,),
+                    ).fetchall()
+                ]
+                if linked_vids and all(vid in briefs_map for vid in linked_vids):
                     continue
                 kept.append(item)
             return kept
