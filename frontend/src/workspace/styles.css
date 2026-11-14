@@ -3664,3 +3664,44 @@ dl.creator-tracking dd {
   display: grid;
   gap: 8px;
 }
+
+/* Round 4: Intelligence Search/Source Filter, Weekly History Switcher & Topic Synthesis */
+.weekly-history-select {
+  min-height: 30px;
+  max-width: 240px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface-subtle);
+  color: var(--text-strong);
+  padding: 3px 12px;
+  font-size: 12px;
+  font-weight: 550;
+  cursor: pointer;
+}
+
+.intel-filter-toolbar {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-subtle);
+  padding: 12px 14px;
+}
+
+.intel-filter-toolbar .ai-suggested-pills {
+  margin: 0;
+}
+
+.intel-search-input {
+  width: 100%;
+  min-height: 36px;
+}
+
+.topic-timeline-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin-bottom: 2px;
+}

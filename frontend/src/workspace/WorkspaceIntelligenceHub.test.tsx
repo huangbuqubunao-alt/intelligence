@@ -1647,4 +1647,470 @@ describe("Workspace AI Upgrade (P0 + P1 + P2)", () => {
     );
     expect(screen.getByRole("button", { name: "下载专题 .md" })).toBeTruthy();
   });
+
+  it("R4: filters Intelligence cards by search & source, renders Topic cross-source synthesis + sibling jumps without contradictory UNRESOLVED copy, and switches Weekly Brief history", async () => {
+    // 1) Home Weekly Brief historical snapshot switcher
+    location.hash = "#Home";
+    const historyList = [
+      {
+        brief_id: "wb-2026-w46-new",
+        title_zh: "《本周 AI 产品与商业情报周报》",
+        created_at: "2026-11-15T06:00:00Z",
+        provider: "ollama",
+        model: "qwen3.5:9b",
+        must_watch_count: 18,
+        distilled_count: 112,
+        total_videos: 115,
+      },
+      {
+        brief_id: "wb-2026-w45-old",
+        title_zh: "《上周 AI 工程化情报周报》",
+        created_at: "2026-11-08T06:00:00Z",
+        provider: "ollama",
+        model: "qwen3.5:9b",
+        must_watch_count: 11,
+        distilled_count: 74,
+        total_videos: 80,
+      },
+    ];
+    const latestBrief = {
+      brief_id: "wb-2026-w46-new",
+      week_label: "",
+      title_zh: "《本周 AI 产品与商业情报周报》",
+      executive_summary_zh: "最新一期：聚焦受控状态机与垂直 SaaS 定价。",
+      core_trends_zh: ["状态机编排成为主流"],
+      product_opportunities_zh: ["本地优先研究工作台"],
+      business_opportunities_zh: ["高客单价年费订阅"],
+      must_watch_picks: [],
+      funnel_stats: {
+        total_videos: 115,
+        distilled_count: 112,
+        must_watch_count: 18,
+        shorts_filtered_count: 64,
+      },
+      obsidian_markdown: "# 最新周报",
+      provider: "ollama",
+      model: "qwen3.5:9b",
+      created_at: "2026-11-15T06:00:00Z",
+      history: historyList,
+    };
+    const olderBrief = {
+      ...latestBrief,
+      brief_id: "wb-2026-w45-old",
+      title_zh: "《上周 AI 工程化情报周报》",
+      executive_summary_zh: "历史存档：聚焦早期多模态评测基准与成本优化。",
+      created_at: "2026-11-08T06:00:00Z",
+    };
+
+    const makeCard = (
+      id: string,
+      conclusion: string,
+      sourceName: string,
+      videoTitle: string,
+    ) => ({
+      intelligence_id: id,
+      status: "AVAILABLE",
+      trusted: true,
+      claim_kind: "ANALYSIS",
+      state: "CONFIRMED",
+      confirmed: true,
+      evidence_ids: [`ev-${id}`],
+      card: {
+        core_conclusion: conclusion,
+        user_relevant_information: ["核心拆解"],
+        important_new_information: [],
+        meaningful_details: [],
+        filtered_noise: [],
+        source_id: `src-${sourceName}`,
+        source_display_name: sourceName,
+        video_id: `vid-${id}`,
+        video_title: videoTitle,
+        evidence_links: [],
+        preference_ids: [],
+        source_policy_revision_id: null,
+      },
+    });
+
+    const fetchMock = vi.fn((input: string) => {
+      if (input.includes("/workspace-ai/weekly-brief?brief_id=wb-2026-w45-old")) {
+        return okJson({ weekly_brief: olderBrief, history: historyList });
+      }
+      if (input.endsWith("/dashboard")) {
+        return okJson({
+          intelligence: [],
+          pinned_topics: [],
+          needs_attention: [],
+          operations: { source_count: 3 },
+          workspace_weekly_brief: latestBrief,
+        });
+      }
+      if (input.includes("/changes/recent")) {
+        return okJson({
+          window: { start_at: "2026-11-08T00:00:00Z", end_at: "2026-11-15T00:00:00Z", timezone: "Asia/Shanghai", days: 7 },
+          status: "COMPLETE",
+          degraded_sections: [],
+          counts: { intelligence_added: 0, intelligence_updated: 0, topics_changed: 0, content_processed: 0, sources_needing_attention: 0 },
+          groups: { intelligence_added: [], intelligence_updated: [], topics_changed: [], content_processed: [], sources_needing_attention: [] },
+        });
+      }
+      if (input.endsWith("/intelligence")) {
+        return okJson({
+          intelligence: [
+            makeCard("i1", "GPT-6 Cyber 在真实代码库自动定位高危安全漏洞。", "OpenAI", "Mozilla Firefox Security Case"),
+            makeCard("i2", "一人公司高毛利 AI 产品需优先绑定行业合规表单。", "Greg Isenberg", "Solo AI SaaS Playbook"),
+            makeCard("i3", "本地离线语音转写结合双链笔记构建私有第二大脑。", "本地实战课", "3. Agent.mp4"),
+            makeCard("i4", "多模态实时语音交互延迟已压降至可商用阈值。", "OpenAI", "Realtime Voice Update"),
+          ],
+          activity: [],
+        });
+      }
+      if (input.endsWith("/saved-intelligence")) {
+        return okJson({ saved: [] });
+      }
+      if (input.endsWith("/topics")) {
+        return okJson({
+          topics: [
+            {
+              topic_id: "topic-agent",
+              name: "AI Agent 与自动化架构",
+              pinned: true,
+              lifecycle: "ACTIVE",
+              current_state: "UNRESOLVED",
+              independence: "UNKNOWN",
+              contributions: [],
+              timeline: [{ event_id: "ev1", state: "UNRESOLVED", created_at: "2026-11-14T10:00:00Z" }],
+              relations: [],
+              ai_evolution: {
+                video_count: 26,
+                must_watch_count: 21,
+                recent_7d_count: 13,
+                avg_score: 8.4,
+                latest_headline_zh: "受控工具契约是生产级 Agent 落地前提。",
+                source_channels: ["OpenAI", "本地实战课", "Greg Isenberg"],
+              },
+            },
+            {
+              topic_id: "topic-biz",
+              name: "AI 产品机会与一人公司变现",
+              pinned: false,
+              lifecycle: "ACTIVE",
+              current_state: "UNRESOLVED",
+              independence: "UNKNOWN",
+              contributions: [],
+              timeline: [],
+              relations: [],
+              ai_evolution: {
+                video_count: 9,
+                must_watch_count: 7,
+                recent_7d_count: 4,
+                avg_score: 8.7,
+                latest_headline_zh: "按可量化 ROI 定价优于按席位收费。",
+                source_channels: ["Greg Isenberg"],
+              },
+            },
+          ],
+        });
+      }
+      if (input.endsWith("/topics/topic-agent")) {
+        return okJson({
+          topic: {
+            topic_id: "topic-agent",
+            name: "AI Agent 与自动化架构",
+            pinned: true,
+            lifecycle: "ACTIVE",
+            current_state: "UNRESOLVED",
+            independence: "UNKNOWN",
+            contributions: [],
+            timeline: [{ event_id: "ev1", state: "UNRESOLVED", created_at: "2026-11-14T10:00:00Z" }],
+            relations: [],
+            ai_evolution: {
+              video_count: 26,
+              must_watch_count: 21,
+              recent_7d_count: 13,
+              avg_score: 8.4,
+              latest_headline_zh: "受控工具契约是生产级 Agent 落地前提。",
+              synthesis_zh: "受控工具契约是生产级 Agent 落地前提；结合确定性状态机与离线评测集才能支撑企业级交付。",
+              independence_summary_zh: "已汇聚 OpenAI、本地实战课、Greg Isenberg 共 3 个独立来源交叉印证（共 26 篇内容，21 篇必看干货）。",
+              top_opportunities_zh: ["带原话时间戳溯源的垂直情报工作台"],
+              source_channels: ["OpenAI", "本地实战课", "Greg Isenberg"],
+              related_topics: [
+                {
+                  topic_id: "topic-biz",
+                  name: "AI 产品机会与一人公司变现",
+                  video_count: 9,
+                  must_watch_count: 7,
+                  avg_score: 8.7,
+                  shared_sources: ["Greg Isenberg"],
+                },
+              ],
+              obsidian_markdown: "# AI Agent MOC",
+              entries: [
+                {
+                  video_id: "vid-1",
+                  title: "Mozilla Firefox Security Case",
+                  channel_name: "OpenAI",
+                  published_at: "2026-11-14T10:00:00Z",
+                  score: 9.2,
+                  recommendation_tier: "MUST_WATCH",
+                  source_basis: "TRANSCRIPT",
+                  headline_zh: "受控工具契约是生产级 Agent 落地前提。",
+                  summary_zh: "详解安全审计闭环。",
+                  product_opportunities_zh: [],
+                  business_opportunities_zh: [],
+                },
+              ],
+            },
+          },
+        });
+      }
+      if (input.endsWith("/topics/topic-biz")) {
+        return okJson({
+          topic: {
+            topic_id: "topic-biz",
+            name: "AI 产品机会与一人公司变现",
+            pinned: false,
+            lifecycle: "ACTIVE",
+            current_state: "UNRESOLVED",
+            independence: "UNKNOWN",
+            contributions: [],
+            timeline: [],
+            relations: [],
+            ai_evolution: {
+              video_count: 9,
+              must_watch_count: 7,
+              recent_7d_count: 4,
+              avg_score: 8.7,
+              latest_headline_zh: "按可量化 ROI 定价优于按席位收费。",
+              synthesis_zh: "围绕高痛点 B2B 合规流切入一人公司年费订阅。",
+              independence_summary_zh: "当前聚合自单一来源（Greg Isenberg，共 9 篇内容），可结合更多独立频道交叉印证。",
+              top_opportunities_zh: [],
+              source_channels: ["Greg Isenberg"],
+              related_topics: [],
+              obsidian_markdown: "# 商业变现 MOC",
+              entries: [
+                {
+                  video_id: "vid-2",
+                  title: "Solo AI SaaS Playbook",
+                  channel_name: "Greg Isenberg",
+                  published_at: "2026-11-13T10:00:00Z",
+                  score: 8.9,
+                  recommendation_tier: "MUST_WATCH",
+                  source_basis: "TRANSCRIPT",
+                  headline_zh: "按可量化 ROI 定价优于按席位收费。",
+                  summary_zh: "定价实操拆解。",
+                  product_opportunities_zh: [],
+                  business_opportunities_zh: [],
+                },
+              ],
+            },
+          },
+        });
+      }
+      return okJson({});
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    // Clean single "+" import label (no "+ + 导入")
+    const quickImportBtn = await screen.findByRole("button", { name: "快捷导入" });
+    expect(quickImportBtn.textContent?.trim()).toBe("导入");
+
+    // Weekly Brief historical switcher
+    expect(await screen.findByText("最新一期：聚焦受控状态机与垂直 SaaS 定价。")).toBeTruthy();
+    const historySelect = screen.getByRole("combobox", { name: "切换历史周报期次" });
+    fireEvent.change(historySelect, { target: { value: "wb-2026-w45-old" } });
+    expect(await screen.findByText("历史存档：聚焦早期多模态评测基准与成本优化。")).toBeTruthy();
+
+    // Navigate to #Intelligence and filter by source + Chinese keyword
+    const primaryNav = screen.getByRole("navigation", { name: "主导航" });
+    fireEvent.click(within(primaryNav).getByRole("button", { name: "洞察" }));
+    expect(await screen.findByText(/自动定位高危安全漏洞/)).toBeTruthy();
+    expect(screen.getByText(/一人公司高毛利 AI 产品/)).toBeTruthy();
+
+    const sourceGroup = screen.getByRole("group", { name: "按来源筛选洞察" });
+    fireEvent.click(within(sourceGroup).getByRole("button", { name: /OpenAI/ }));
+    expect(screen.getByText(/自动定位高危安全漏洞/)).toBeTruthy();
+    expect(screen.queryByText(/一人公司高毛利 AI 产品/)).toBeNull();
+
+    const intelSearch = screen.getByRole("searchbox", { name: "搜索洞察结论或视频标题" });
+    fireEvent.change(intelSearch, { target: { value: "实时语音" } });
+    expect(screen.getByText(/多模态实时语音交互延迟/)).toBeTruthy();
+    expect(screen.queryByText(/自动定位高危安全漏洞/)).toBeNull();
+
+    // Navigate to #Topics -> Topic detail shows grounded synthesis & jumps to sibling topic without "来源仍有分歧"
+    fireEvent.click(within(primaryNav).getByRole("button", { name: "主题" }));
+    fireEvent.click(await screen.findByRole("button", { name: /AI Agent 与自动化架构/ }));
+    expect(await screen.findByText(/结合确定性状态机与离线评测集才能支撑企业级交付/)).toBeTruthy();
+    expect(screen.getByText(/共 3 个独立来源交叉印证/)).toBeTruthy();
+    expect(screen.queryByText(/来源仍有分歧/)).toBeNull();
+    expect(screen.queryByText(/目前缺少足够的可靠信息/)).toBeNull();
+
+    // Preserves required Panel headings Timeline ("时间线") and Related Topics ("关联主题")
+    expect(screen.getByRole("heading", { name: /时间线/ })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: /关联主题/ })).toBeTruthy();
+
+    // Click sibling topic chip in Related Topics -> navigates directly to topic-biz
+    fireEvent.click(screen.getByRole("button", { name: /AI 产品机会与一人公司变现/ }));
+    expect(await screen.findByText(/围绕高痛点 B2B 合规流切入一人公司年费订阅/)).toBeTruthy();
+  });
+
+  it("R4: indexes beyond 40 videos with Chinese AI headlines in ⌘K CommandPalette and supports 1-click Mark Read & Next Unread in Content detail", async () => {
+    location.hash = "#Content/vid-read-1";
+    const readIds = new Set<string>();
+
+    // Generate 45 Short promos FIRST + 2 high-value deep dives at indices 45 & 46 to prove 40-item truncation is gone
+    const fillerShorts = Array.from({ length: 45 }, (_, idx) => ({
+      video_id: `vid-short-${idx}`,
+      provider: "YOUTUBE",
+      channel_id: "UC-openai",
+      channel_name: "OpenAI",
+      title: `Short Promo Clip #${idx}`,
+      published_at: "2026-11-14T10:00:00Z",
+      processing_status: "ORGANIZED",
+      duration_seconds: 35,
+      last_updated: "2026-11-14T10:00:00Z",
+      ai_brief: {
+        video_id: `vid-short-${idx}`,
+        headline_zh: "短视频宣传预热片段",
+        summary_zh: "短片",
+        score: 2.5,
+        score_reason_zh: "短片",
+        recommendation_tier: "SKIP_NOISE",
+        content_bucket: "SHORTS_PROMO",
+        is_short_noise: true,
+        starred: false,
+        is_read: false,
+        topics_zh: ["短片"],
+        topic_cluster_zh: "大模型演进与多模态实战",
+        product_opportunities_zh: [],
+        business_opportunities_zh: [],
+      },
+    }));
+
+    const buildDeepVideo = (
+      id: string,
+      title: string,
+      headlineZh: string,
+      score: number,
+      starred: boolean,
+    ) => ({
+      video_id: id,
+      provider: "LOCAL",
+      media_kind: "VIDEO",
+      format: "mp4",
+      channel_id: "local",
+      channel_name: "Local",
+      title,
+      published_at: "2026-11-10T10:00:00Z",
+      processing_status: "READY",
+      duration_seconds: 3600,
+      last_updated: "2026-11-10T10:00:00Z",
+      ai_brief: {
+        video_id: id,
+        headline_zh: headlineZh,
+        summary_zh: headlineZh,
+        score,
+        score_reason_zh: "高价值实战课",
+        recommendation_tier: "MUST_WATCH",
+        content_bucket: "TUTORIAL",
+        is_short_noise: false,
+        starred,
+        is_read: readIds.has(id),
+        topics_zh: ["安全漏洞", "一人公司"],
+        topic_cluster_zh: "AI Agent 与自动化架构",
+        product_opportunities_zh: [],
+        business_opportunities_zh: [],
+      },
+    });
+
+    const fetchMock = vi.fn((input: string, init?: RequestInit) => {
+      const curMatch = input.match(/\/workspace-ai\/videos\/([^/]+)\/curation$/);
+      if (curMatch && init?.method === "POST") {
+        const vid = decodeURIComponent(curMatch[1]);
+        const body = JSON.parse(String(init.body)) as { is_read?: boolean };
+        if (body.is_read) readIds.add(vid);
+        return okJson({ video_id: vid, starred: false, is_read: readIds.has(vid) });
+      }
+      if (input.endsWith("/videos")) {
+        return okJson({
+          videos: [
+            ...fillerShorts,
+            buildDeepVideo(
+              "vid-read-1",
+              "1. First Lecture.mp4",
+              "第一讲：Agent 工具沙箱隔离与权限最小化。",
+              9.1,
+              false,
+            ),
+            buildDeepVideo(
+              "vid-read-2",
+              "5. Hidden Beyond Forty.mp4",
+              "第五讲：用确定性回放捕获高隐蔽性浏览器漏洞。",
+              9.6,
+              true,
+            ),
+          ],
+        });
+      }
+      if (input.endsWith("/videos/vid-read-1")) {
+        const v = buildDeepVideo(
+          "vid-read-1",
+          "1. First Lecture.mp4",
+          "第一讲：Agent 工具沙箱隔离与权限最小化。",
+          9.1,
+          false,
+        );
+        return okJson({
+          video: v,
+          transcript: { status: "AVAILABLE", text: "Sandbox isolation." },
+          note: { v2: { status: "UNAVAILABLE" } },
+          intelligence_result: { status: "NOT_PROCESSED" },
+          history: [],
+        });
+      }
+      if (input.endsWith("/videos/vid-read-2")) {
+        const v = buildDeepVideo(
+          "vid-read-2",
+          "5. Hidden Beyond Forty.mp4",
+          "第五讲：用确定性回放捕获高隐蔽性浏览器漏洞。",
+          9.6,
+          true,
+        );
+        return okJson({
+          video: v,
+          transcript: { status: "AVAILABLE", text: "Deterministic replay." },
+          note: { v2: { status: "UNAVAILABLE" } },
+          intelligence_result: { status: "NOT_PROCESSED" },
+          history: [],
+        });
+      }
+      if (input.endsWith("/evidence")) return okJson({ evidence: [] });
+      if (input.endsWith("/intelligence")) return okJson({ intelligence: [] });
+      if (input.endsWith("/topics")) return okJson({ topics: [] });
+      return okJson({});
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    expect(await screen.findByText("1. First Lecture.mp4")).toBeTruthy();
+
+    // Open ⌘K Command Palette and search Chinese AI conclusion of video #46 ("高隐蔽性浏览器漏洞")
+    fireEvent.click(screen.getByRole("button", { name: /搜索与直达/ }));
+    const cmdkInput = await screen.findByRole("combobox", {
+      name: "搜索页面、内容、洞察或命令",
+    });
+    fireEvent.change(cmdkInput, { target: { value: "浏览器漏洞" } });
+    expect(await screen.findByText("5. Hidden Beyond Forty.mp4")).toBeTruthy();
+    fireEvent.keyDown(cmdkInput, { key: "Escape" });
+
+    // Click 1-click "标已读并看下一篇" -> marks vid-read-1 read and navigates directly to vid-read-2!
+    const markAndNextBtn = await screen.findByRole("button", {
+      name: /标已读并看下一篇/,
+    });
+    fireEvent.click(markAndNextBtn);
+
+    await waitFor(() => expect(readIds.has("vid-read-1")).toBe(true));
+    await waitFor(() => expect(location.hash).toBe("#Content/vid-read-2"));
+    expect(await screen.findByText("5. Hidden Beyond Forty.mp4")).toBeTruthy();
+  });
 });
