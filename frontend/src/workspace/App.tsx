@@ -8,7 +8,7 @@ import { NativeImportActivity } from "./NativeLocalImport";
 import { LocalTranscription, transcriptionCopy } from "./LocalTranscription";
 import { TranscriptionSetup } from "./TranscriptionSetup";
 import { LocalIntelligenceSetup } from "./LocalIntelligenceSetup";
-import { ChangeEvent, createContext, FormEvent, ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { ChangeEvent, createContext, FormEvent, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { ApiRequestError, api, patch, post, put, uploadZip } from "../api/client";
 import {
   buildMarkdownVideoNote,
@@ -1656,7 +1656,7 @@ function Workspace() {
           }}
         >
           <PhosphorIcon name="plus" size={14} />
-          <span className="utility-import-label">{t("+ Import")}</span>
+          <span className="utility-import-label">{language === "zh-CN" ? "导入" : "Import"}</span>
         </button>
         <button
           type="button"
@@ -1875,9 +1875,12 @@ function IntelligencePage(
     openResearch: () => void;
   },
 ) {
-  const { t } = useUiLanguage();
+  const { language, t } = useUiLanguage();
+  const zh = language === "zh-CN";
   const [view, setView] = useState<"Current" | "Saved">("Current");
   const [revision, setRevision] = useState(0);
+  const [intelSearch, setIntelSearch] = useState("");
+  const [intelSourceFilter, setIntelSourceFilter] = useState<string>("ALL");
   const current = useRemote<{ intelligence: Intelligence[]; activity?: { video_id: string; title: string; status: string; cloud_http429_code?: string; selected_provider?: string; can_cancel?: boolean }[] }>(
     "/intelligence",
     refresh + revision,
@@ -1895,9 +1898,49 @@ function IntelligencePage(
   const source = view === "Current"
     ? current
     : saved;
-  const currentAvailable = (current.data?.intelligence ?? []).filter((item) =>
-    item.status === "AVAILABLE" && item.trusted
+  const currentAvailable = useMemo(
+    () =>
+      (current.data?.intelligence ?? []).filter(
+        (item) => item.status === "AVAILABLE" && item.trusted,
+      ),
+    [current.data?.intelligence],
   );
+  const intelSources = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const item of currentAvailable) {
+      const name = item.card?.source_display_name?.trim();
+      if (name) counts.set(name, (counts.get(name) ?? 0) + 1);
+    }
+    return Array.from(counts.entries()).map(([name, count]) => ({ name, count }));
+  }, [currentAvailable]);
+  const effectiveIntelSource =
+    intelSourceFilter === "ALL" || intelSources.some((s) => s.name === intelSourceFilter)
+      ? intelSourceFilter
+      : "ALL";
+  const filteredAvailable = useMemo(() => {
+    const q = intelSearch.trim().toLowerCase();
+    return currentAvailable.filter((item) => {
+      if (
+        effectiveIntelSource !== "ALL" &&
+        (item.card?.source_display_name?.trim() ?? "") !== effectiveIntelSource
+      ) {
+        return false;
+      }
+      if (!q) return true;
+      const haystack = [
+        item.card?.core_conclusion,
+        item.card?.video_title,
+        item.card?.source_display_name,
+        ...(item.card?.user_relevant_information ?? []),
+        ...(item.card?.important_new_information ?? []),
+        ...(item.card?.meaningful_details ?? []),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [currentAvailable, effectiveIntelSource, intelSearch]);
   const savedIdSet = new Set((saved.data?.saved ?? []).map((entry) => entry.intelligence_id));
   const researchEntry = <div className="button-row"><button type="button" className="button button-secondary" onClick={openResearch}>{t("Research")}</button></div>;
   if (source.error) return <>{researchEntry}<ErrorState error={source.error} code={source.errorCode} onReload={source.reload} /></>;
@@ -1917,6 +1960,53 @@ function IntelligencePage(
           </button>
         ))}
       </div>
+      {view === "Current" && currentAvailable.length >= 4 ? (
+        <div className="intel-filter-toolbar">
+          <input
+            type="search"
+            className="intel-search-input"
+            aria-label={
+              zh
+                ? "搜索洞察结论或视频标题"
+                : "Search Intelligence conclusions or video titles"
+            }
+            placeholder={
+              zh
+                ? "搜索洞察结论、关键要点或视频标题…"
+                : "Search conclusions, key points, or video titles…"
+            }
+            value={intelSearch}
+            onChange={(event) => setIntelSearch(event.target.value)}
+          />
+          {intelSources.length > 1 ? (
+            <div
+              className="ai-suggested-pills tabular-nums"
+              role="group"
+              aria-label={zh ? "按来源筛选洞察" : "Filter Intelligence by source"}
+            >
+              <button
+                type="button"
+                className={`ai-question-chip${effectiveIntelSource === "ALL" ? " is-active" : ""}`}
+                aria-pressed={effectiveIntelSource === "ALL"}
+                onClick={() => setIntelSourceFilter("ALL")}
+              >
+                {zh ? `全部 (${currentAvailable.length})` : `All (${currentAvailable.length})`}
+              </button>
+              {intelSources.map((src) => (
+                <button
+                  key={src.name}
+                  type="button"
+                  className={`ai-question-chip${effectiveIntelSource === src.name ? " is-active" : ""}`}
+                  aria-pressed={effectiveIntelSource === src.name}
+                  onClick={() => setIntelSourceFilter(src.name)}
+                >
+                  {`${src.name} (${src.count})`}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       {view === "Current" && current.data?.activity?.length ? <Panel title="Analysis activity">
         {current.data.activity.map(item => <article className="metadata-row" key={`${item.video_id}:${item.status}`}>
           <div><strong>{item.title}</strong><p>{t(intelligenceResultCopy(item.status, item.cloud_http429_code, item.selected_provider, item.can_cancel))}</p>
@@ -1927,15 +2017,35 @@ function IntelligencePage(
       {view === "Current" && (!current.data
         ? <Empty>Loading verified Intelligence…</Empty>
         : currentAvailable.length
-        ? currentAvailable.map((item) => (
-          <IntelligenceCard
-            key={item.intelligence_id ?? item.code}
-            item={item}
-            saved={Boolean(item.intelligence_id && savedIdSet.has(item.intelligence_id))}
-            onSaved={() => setRevision((value) => value + 1)}
-            onOpenContent={openContent}
-          />
-        ))
+        ? filteredAvailable.length
+          ? filteredAvailable.map((item) => (
+            <IntelligenceCard
+              key={item.intelligence_id ?? item.code}
+              item={item}
+              saved={Boolean(item.intelligence_id && savedIdSet.has(item.intelligence_id))}
+              onSaved={() => setRevision((value) => value + 1)}
+              onOpenContent={openContent}
+            />
+          ))
+          : (
+            <Panel title={zh ? "未找到匹配的洞察卡片" : "No matching Intelligence cards"}>
+              <p className="hint">
+                {zh
+                  ? "当前搜索词或来源筛选下暂无匹配项。"
+                  : "No verified Intelligence cards match your current search or source filter."}
+              </p>
+              <button
+                type="button"
+                className="button button-secondary button-small"
+                onClick={() => {
+                  setIntelSearch("");
+                  setIntelSourceFilter("ALL");
+                }}
+              >
+                {zh ? "清除筛选" : "Clear filters"}
+              </button>
+            </Panel>
+          )
         : current.data.activity?.length ? null : <Empty>No verified Intelligence yet.</Empty>)}
       {view === "Saved" && (!saved.data
         ? <Empty>Loading saved Intelligence…</Empty>
@@ -2038,7 +2148,7 @@ function ContentPage(
     if (
       targetVideoId ||
       batchState?.running ||
-      !list.data?.videos.some(
+      !list.data?.videos?.some(
         (item) =>
           trackedRetryActive(item.tracked_content_retry, item.video_id) ||
           ["WAITING", "FETCHING", "READING_CAPTIONS", "ORGANIZING", "TRANSCRIPT_READY", "RETRY_PENDING", "RUNNING", "PENDING"].includes(item.processing_status),
@@ -2050,7 +2160,39 @@ function ContentPage(
   if (list.error) return <ErrorState error={list.error} code={list.errorCode} onReload={list.reload} />;
   if (!list.data) return <Empty>Loading Content…</Empty>;
   if (targetVideoId) {
-    return <ContentDetailPanel key={targetVideoId} id={targetVideoId} highlightedEvidenceId={highlightedEvidenceId} onClose={onClose} />;
+    const rawVideos = Array.isArray(list.data.videos) ? list.data.videos : [];
+    const unreadCandidates = rawVideos
+      .filter((item) => {
+        if (item.work_kind || item.video_id === targetVideoId) return false;
+        const brief = readVideoAiBrief(item.ai_brief);
+        return Boolean(brief && !brief.is_short_noise && !brief.is_read);
+      })
+      .sort((a, b) => {
+        const sa = readVideoAiBrief(a.ai_brief)?.score ?? 0;
+        const sb = readVideoAiBrief(b.ai_brief)?.score ?? 0;
+        return sb - sa;
+      });
+    const nextUnread = unreadCandidates[0]
+      ? {
+          videoId: unreadCandidates[0].video_id,
+          title: unreadCandidates[0].title ?? unreadCandidates[0].video_id,
+          remainingCount: unreadCandidates.length,
+        }
+      : null;
+    return (
+      <ContentDetailPanel
+        key={targetVideoId}
+        id={targetVideoId}
+        highlightedEvidenceId={highlightedEvidenceId}
+        onClose={onClose}
+        nextUnreadVideo={nextUnread}
+        onAdvanceToVideo={(nextId) => {
+          setRevision((value) => value + 1);
+          onOpen(nextId);
+        }}
+        onListChanged={() => setRevision((value) => value + 1)}
+      />
+    );
   }
   const videos = list.data.videos;
   const retryableVideos = videos.filter(
@@ -2926,7 +3068,21 @@ function formatHumanDuration(seconds: number): string {
 }
 
 function ContentDetailPanel(
-  { id, highlightedEvidenceId, onClose }: { id: string; highlightedEvidenceId?: string | null; onClose: () => void },
+  {
+    id,
+    highlightedEvidenceId,
+    onClose,
+    nextUnreadVideo,
+    onAdvanceToVideo,
+    onListChanged,
+  }: {
+    id: string;
+    highlightedEvidenceId?: string | null;
+    onClose: () => void;
+    nextUnreadVideo?: { videoId: string; title: string; remainingCount: number } | null;
+    onAdvanceToVideo?: (nextId: string) => void;
+    onListChanged?: () => void;
+  },
 ) {
   const creatorCapability = useCreatorFollowingCapability();
   const { language, t } = useUiLanguage();
@@ -3066,9 +3222,12 @@ function ContentDetailPanel(
             transcriptAvailable={transcript.status === "AVAILABLE"}
             aiBrief={aiBrief}
             obsidianMarkdown={data.obsidian_markdown}
+            nextUnreadVideo={nextUnreadVideo}
+            onAdvanceToVideo={onAdvanceToVideo}
             onCompleted={() => {
               setRefresh(value => value + 1);
               setEvidenceRefresh(value => value + 1);
+              onListChanged?.();
             }}
           />
         </div>
@@ -4161,12 +4320,39 @@ function Topics({
           </p>
         ) : null}
         <h3>{t("Current understanding")}</h3>
-        <p>{t(statusLabel(topic.current_state)).trim()}{zh ? "。" : "."}</p>
-        <p>
-          {t(topic.independence === "UNKNOWN"
-            ? "Not enough reliable information yet to determine how independent the supporting sources are."
-            : "This understanding is based on the available supporting sources.")}
-        </p>
+        {hasEvoEntries && evo ? (
+          <>
+            <p className="summary-copy">{evo.synthesis_zh || evo.latest_headline_zh}</p>
+            <p className="hint">
+              {evo.independence_summary_zh ||
+                (evo.source_channels.length >= 2
+                  ? zh
+                    ? `已汇聚 ${evo.source_channels.join("、")} 共 ${evo.source_channels.length} 个独立来源交叉印证（共 ${evo.video_count} 篇内容）。`
+                    : `Cross-referenced across ${evo.source_channels.length} independent sources (${evo.video_count} items).`
+                  : zh
+                    ? `当前基于 ${evo.video_count} 篇已提炼内容持续追踪。`
+                    : `Grounded in ${evo.video_count} distilled items.`)}
+            </p>
+            {evo.top_opportunities_zh.length > 0 ? (
+              <div className="topic-opp-pills">
+                {evo.top_opportunities_zh.map((opp, idx) => (
+                  <span key={`top-opp:${idx}`} className="ai-basis-pill">
+                    {zh ? `高优切口：${opp}` : opp}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <>
+            <p>{t(statusLabel(topic.current_state)).trim()}{zh ? "。" : "."}</p>
+            <p>
+              {t(topic.independence === "UNKNOWN"
+                ? "Not enough reliable information yet to determine how independent the supporting sources are."
+                : "This understanding is based on the available supporting sources.")}
+            </p>
+          </>
+        )}
         <div className="button-row">
           {onAskTopicResearch ? (
             <button
@@ -4273,7 +4459,36 @@ function Topics({
           : <Empty>No current supporting information.</Empty>}
       </Panel>
       <Panel title="Timeline" icon="clock">
-        {topic.timeline.length
+        {hasEvoEntries && evo ? (
+          <div className="timeline">
+            {evo.entries.slice(0, 10).map((entry) => (
+              <div className="timeline-item" key={entry.video_id}>
+                <span className="timeline-dot" aria-hidden="true" />
+                <div className="timeline-copy">
+                  <div className="topic-timeline-meta tabular-nums">
+                    <strong>{entry.published_at ? humanDate(entry.published_at) : "—"}</strong>
+                    <span className="ai-basis-pill is-compact">
+                      {entry.recommendation_tier === "MUST_WATCH"
+                        ? zh
+                          ? "必看节点"
+                          : "Must-watch"
+                        : zh
+                          ? "收录节点"
+                          : "Indexed"}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="topic-evolution-title-btn tabular-nums"
+                    onClick={() => onOpenContent?.(entry.video_id)}
+                  >
+                    {`${entry.channel_name || (zh ? "来源" : "Source")} · 《${entry.title}》（${entry.score.toFixed(1)}）`}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : topic.timeline.length
           ? (
             <div className="timeline">
               {topic.timeline.map((event) => (
@@ -4290,26 +4505,50 @@ function Topics({
           : <Empty>No historical events.</Empty>}
       </Panel>
       <Panel title="Related Topics" icon="stack">
-        {topic.relations.length
-          ? (
-            <div className="ai-suggested-pills">
-              {topic.relations.map((relation) =>
-                relation.related_topic_name ? (
+        {(() => {
+          const mergedRelated: { id: string; name?: string; videoCount?: number }[] = [];
+          const seen = new Set<string>();
+          for (const rel of topic.relations) {
+            if (!rel.related_topic_id || seen.has(rel.related_topic_id)) continue;
+            seen.add(rel.related_topic_id);
+            mergedRelated.push({
+              id: rel.related_topic_id,
+              name: rel.related_topic_name,
+            });
+          }
+          for (const sib of evo?.related_topics ?? []) {
+            if (!sib.topic_id || seen.has(sib.topic_id)) continue;
+            seen.add(sib.topic_id);
+            mergedRelated.push({
+              id: sib.topic_id,
+              name: sib.name,
+              videoCount: sib.video_count,
+            });
+          }
+          if (!mergedRelated.length) return <Empty>No related Topics.</Empty>;
+          return (
+            <div className="ai-suggested-pills tabular-nums">
+              {mergedRelated.map((rel) =>
+                rel.name ? (
                   <button
                     type="button"
                     className="ai-question-chip"
-                    key={relation.related_topic_id}
-                    onClick={() => setSelected(relation.related_topic_id)}
+                    key={rel.id}
+                    onClick={() => setSelected(rel.id)}
                   >
-                    {relation.related_topic_name}
+                    {rel.videoCount && rel.videoCount > 0
+                      ? zh
+                        ? `${rel.name} · ${rel.videoCount} 篇`
+                        : `${rel.name} · ${rel.videoCount} items`
+                      : rel.name}
                   </button>
                 ) : (
-                  <p key={relation.related_topic_id}>{t("Related topic")}</p>
+                  <p key={rel.id}>{t("Related topic")}</p>
                 ),
               )}
             </div>
-          )
-          : <Empty>No related Topics.</Empty>}
+          );
+        })()}
       </Panel>
     </div>
   );

@@ -149,14 +149,27 @@ export type CommandPaletteAction = {
   shortcut?: string;
   icon: PhosphorIconName;
   aliases?: string[];
+  rankBonus?: number;
   onSelect: () => void;
 };
 
 type PaletteVideo = {
   video_id: string;
   provider?: string;
+  work_kind?: string;
   channel_name?: string | null;
   title?: string | null;
+  duration_seconds?: number | null;
+  ai_brief?: {
+    headline_zh?: string;
+    score?: number;
+    recommendation_tier?: string;
+    is_short_noise?: boolean;
+    starred?: boolean;
+    is_read?: boolean;
+    topic_cluster_zh?: string;
+    topics_zh?: string[];
+  } | null;
 };
 
 type PaletteIntelligence = {
@@ -174,6 +187,11 @@ type PaletteTopic = {
   topic_id: string;
   name: string;
   pinned?: boolean;
+  ai_evolution?: {
+    video_count?: number;
+    must_watch_count?: number;
+    latest_headline_zh?: string;
+  } | null;
 };
 
 export function CommandPalette({
@@ -191,7 +209,8 @@ export function CommandPalette({
   onOpenIntelligence: (intelligenceId: string) => void;
   onOpenTopic: (topicId: string) => void;
 }) {
-  const { t } = useUiLanguage();
+  const { language, t } = useUiLanguage();
+  const zh = language === "zh-CN";
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const [videos, setVideos] = useState<PaletteVideo[]>([]);
@@ -215,17 +234,31 @@ export function CommandPalette({
     ]).then(([vRes, iRes, tRes]) => {
       if (!alive) return;
       if (vRes.status === "fulfilled" && Array.isArray(vRes.value?.videos)) {
-        setVideos(vRes.value.videos.slice(0, 40));
+        const realVideos = vRes.value.videos.filter(
+          (v) => v.work_kind !== "DURABLE_CONTENT_IDENTITY",
+        );
+        const sortedVideos = [...realVideos].sort((a, b) => {
+          const aShort = Boolean(a.ai_brief?.is_short_noise);
+          const bShort = Boolean(b.ai_brief?.is_short_noise);
+          if (aShort !== bShort) return aShort ? 1 : -1;
+          const aStar = Boolean(a.ai_brief?.starred);
+          const bStar = Boolean(b.ai_brief?.starred);
+          if (aStar !== bStar) return aStar ? -1 : 1;
+          const aScore = typeof a.ai_brief?.score === "number" ? a.ai_brief.score : -1;
+          const bScore = typeof b.ai_brief?.score === "number" ? b.ai_brief.score : -1;
+          return bScore - aScore;
+        });
+        setVideos(sortedVideos.slice(0, 200));
       }
       if (iRes.status === "fulfilled" && Array.isArray(iRes.value?.intelligence)) {
         setInsights(
           iRes.value.intelligence
             .filter(item => item.status === "AVAILABLE" && item.trusted && item.intelligence_id && item.card?.core_conclusion)
-            .slice(0, 25),
+            .slice(0, 100),
         );
       }
       if (tRes.status === "fulfilled" && Array.isArray(tRes.value?.topics)) {
-        setTopics(tRes.value.topics.slice(0, 25));
+        setTopics(tRes.value.topics.slice(0, 50));
       }
     });
     return () => {
@@ -234,18 +267,56 @@ export function CommandPalette({
   }, [open]);
 
   const allItems = useMemo<CommandPaletteAction[]>(() => {
-    const dynamicContent: CommandPaletteAction[] = videos.map(video => ({
-      id: `content:${video.video_id}`,
-      group: "content",
-      label: video.title || video.video_id,
-      subtitle: [
-        video.provider === "LOCAL" ? t("Local") : video.provider === "BILIBILI" ? t("Bilibili") : "YouTube",
-        video.channel_name,
-      ].filter(Boolean).join(" · "),
-      icon: video.provider === "LOCAL" ? "file-text" : video.provider === "BILIBILI" ? "television" : "play-circle",
-      aliases: [video.video_id, video.channel_name ?? "", video.provider ?? ""],
-      onSelect: () => onOpenContent(video.video_id),
-    }));
+    const dynamicContent: CommandPaletteAction[] = videos.map(video => {
+      const brief = video.ai_brief;
+      const providerLabel =
+        video.provider === "LOCAL"
+          ? t("Local")
+          : video.provider === "BILIBILI"
+            ? t("Bilibili")
+            : "YouTube";
+      const scoreBadge =
+        typeof brief?.score === "number" ? `${brief.score.toFixed(1)}` : "";
+      const starMark = brief?.starred ? "★" : "";
+      const headlineSnippet = brief?.headline_zh
+        ? brief.headline_zh.length > 44
+          ? `${brief.headline_zh.slice(0, 44)}…`
+          : brief.headline_zh
+        : "";
+      const rankBonus =
+        !brief?.is_short_noise && (brief?.starred || brief?.recommendation_tier === "MUST_WATCH")
+          ? 0.03
+          : brief?.is_short_noise
+            ? -0.02
+            : 0;
+      return {
+        id: `content:${video.video_id}`,
+        group: "content",
+        label: video.title || video.video_id,
+        subtitle: [
+          [starMark, scoreBadge].filter(Boolean).join(" "),
+          providerLabel,
+          video.channel_name,
+          headlineSnippet,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+        icon: video.provider === "LOCAL" ? "file-text" : video.provider === "BILIBILI" ? "television" : "play-circle",
+        aliases: [
+          video.video_id,
+          video.channel_name ?? "",
+          video.provider ?? "",
+          brief?.headline_zh ?? "",
+          brief?.topic_cluster_zh ?? "",
+          ...(brief?.topics_zh ?? []),
+          brief?.starred ? "已收藏 收藏 starred" : "",
+          brief && !brief.is_read && !brief.is_short_noise ? "未读 unread" : "",
+          brief?.recommendation_tier === "MUST_WATCH" ? "必看 must watch" : "",
+        ].filter(Boolean),
+        rankBonus,
+        onSelect: () => onOpenContent(video.video_id),
+      };
+    });
 
     const dynamicInsights: CommandPaletteAction[] = insights.map(item => ({
       id: `intel:${item.intelligence_id}`,
@@ -257,18 +328,27 @@ export function CommandPalette({
       onSelect: () => onOpenIntelligence(item.intelligence_id!),
     }));
 
-    const dynamicTopics: CommandPaletteAction[] = topics.map(topic => ({
-      id: `topic:${topic.topic_id}`,
-      group: "topics",
-      label: topic.name,
-      subtitle: topic.pinned ? t("Pinned") : undefined,
-      icon: "stack",
-      aliases: [topic.topic_id],
-      onSelect: () => onOpenTopic(topic.topic_id),
-    }));
+    const dynamicTopics: CommandPaletteAction[] = topics.map(topic => {
+      const evoCount = topic.ai_evolution?.video_count ?? 0;
+      const evoMeta =
+        evoCount > 0
+          ? zh
+            ? `${evoCount} 篇 · ${topic.ai_evolution?.must_watch_count ?? 0} 必看`
+            : `${evoCount} items · ${topic.ai_evolution?.must_watch_count ?? 0} must-watch`
+          : undefined;
+      return {
+        id: `topic:${topic.topic_id}`,
+        group: "topics",
+        label: topic.name,
+        subtitle: [topic.pinned ? t("Pinned") : undefined, evoMeta].filter(Boolean).join(" · ") || undefined,
+        icon: "stack",
+        aliases: [topic.topic_id, topic.ai_evolution?.latest_headline_zh ?? ""].filter(Boolean),
+        onSelect: () => onOpenTopic(topic.topic_id),
+      };
+    });
 
     return [...staticActions, ...dynamicContent, ...dynamicInsights, ...dynamicTopics];
-  }, [staticActions, videos, insights, topics, t, onOpenContent, onOpenIntelligence, onOpenTopic]);
+  }, [staticActions, videos, insights, topics, zh, t, onOpenContent, onOpenIntelligence, onOpenTopic]);
 
   const filteredItems = useMemo(() => {
     const trimmed = query.trim();
@@ -282,15 +362,19 @@ export function CommandPalette({
       ];
     }
     return allItems
-      .map(item => ({
-        item,
-        score: commandScore(
+      .map(item => {
+        const rawScore = commandScore(
           item.label,
           trimmed,
           [item.subtitle ?? "", ...(item.aliases ?? [])],
-        ),
-      }))
-      .filter(entry => entry.score > 0.05)
+        );
+        return {
+          item,
+          rawScore,
+          score: rawScore > 0.05 ? rawScore + (item.rankBonus ?? 0) : rawScore,
+        };
+      })
+      .filter(entry => entry.rawScore > 0.05)
       .sort((a, b) => b.score - a.score)
       .slice(0, 24)
       .map(entry => entry.item);

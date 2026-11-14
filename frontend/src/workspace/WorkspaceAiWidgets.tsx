@@ -24,6 +24,15 @@ export type VideoAiBrief = {
   obsidian_markdown?: string;
 };
 
+export type WeeklyBriefHistoryItem = {
+  brief_id: string;
+  title_zh: string;
+  created_at: string;
+  must_watch_count: number;
+  distilled_count?: number;
+  total_videos: number;
+};
+
 export type WeeklyAiBrief = {
   brief_id: string;
   week_label: string;
@@ -50,6 +59,7 @@ export type WeeklyAiBrief = {
   provider: string;
   model: string;
   created_at: string;
+  history?: WeeklyBriefHistoryItem[];
 };
 
 export type AiResearchCitation = {
@@ -104,13 +114,26 @@ export type TopicAiEvolutionEntry = {
   business_opportunities_zh: string[];
 };
 
+export type TopicRelatedSummary = {
+  topic_id: string;
+  name: string;
+  video_count: number;
+  must_watch_count: number;
+  avg_score: number;
+  shared_sources: string[];
+};
+
 export type TopicAiEvolution = {
   video_count: number;
   must_watch_count: number;
   recent_7d_count: number;
   avg_score: number | null;
   latest_headline_zh: string;
+  synthesis_zh: string;
+  independence_summary_zh: string;
+  top_opportunities_zh: string[];
   source_channels: string[];
+  related_topics: TopicRelatedSummary[];
   obsidian_markdown: string;
   entries: TopicAiEvolutionEntry[];
 };
@@ -181,6 +204,21 @@ export function readVideoAiBrief(raw: unknown): VideoAiBrief | null {
   };
 }
 
+function readWeeklyHistoryList(raw: unknown): WeeklyBriefHistoryItem[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter(isRec)
+    .map((h) => ({
+      brief_id: typeof h.brief_id === "string" ? h.brief_id : "",
+      title_zh: typeof h.title_zh === "string" ? h.title_zh : "",
+      created_at: typeof h.created_at === "string" ? h.created_at : "",
+      must_watch_count: typeof h.must_watch_count === "number" ? h.must_watch_count : 0,
+      distilled_count: typeof h.distilled_count === "number" ? h.distilled_count : undefined,
+      total_videos: typeof h.total_videos === "number" ? h.total_videos : 0,
+    }))
+    .filter((h) => h.brief_id.length > 0);
+}
+
 export function readWeeklyAiBrief(raw: unknown): WeeklyAiBrief | null {
   if (!isRec(raw) || typeof raw.brief_id !== "string" || typeof raw.title_zh !== "string") {
     return null;
@@ -198,6 +236,7 @@ export function readWeeklyAiBrief(raw: unknown): WeeklyAiBrief | null {
         }))
         .filter((p) => p.video_id.length > 0)
     : [];
+  const history = readWeeklyHistoryList(raw.history);
   return {
     brief_id: raw.brief_id,
     week_label: typeof raw.week_label === "string" ? raw.week_label : "",
@@ -221,6 +260,7 @@ export function readWeeklyAiBrief(raw: unknown): WeeklyAiBrief | null {
     provider: typeof raw.provider === "string" ? raw.provider : "ollama",
     model: typeof raw.model === "string" ? raw.model : "qwen3.5:9b",
     created_at: typeof raw.created_at === "string" ? raw.created_at : "",
+    ...(history.length > 0 ? { history } : {}),
   };
 }
 
@@ -326,13 +366,31 @@ export function readTopicAiEvolution(raw: unknown): TopicAiEvolution | null {
         })
         .filter((e) => e.video_id.length > 0)
     : [];
+  const related_topics: TopicRelatedSummary[] = Array.isArray(raw.related_topics)
+    ? raw.related_topics
+        .filter(isRec)
+        .map((rt) => ({
+          topic_id: typeof rt.topic_id === "string" ? rt.topic_id : "",
+          name: typeof rt.name === "string" ? rt.name : "",
+          video_count: typeof rt.video_count === "number" ? rt.video_count : 0,
+          must_watch_count: typeof rt.must_watch_count === "number" ? rt.must_watch_count : 0,
+          avg_score: typeof rt.avg_score === "number" ? rt.avg_score : 0,
+          shared_sources: strArr(rt.shared_sources),
+        }))
+        .filter((rt) => rt.topic_id.length > 0 && rt.name.length > 0)
+    : [];
   return {
     video_count: raw.video_count,
     must_watch_count: typeof raw.must_watch_count === "number" ? raw.must_watch_count : 0,
     recent_7d_count: typeof raw.recent_7d_count === "number" ? raw.recent_7d_count : 0,
     avg_score: typeof raw.avg_score === "number" ? raw.avg_score : null,
     latest_headline_zh: typeof raw.latest_headline_zh === "string" ? raw.latest_headline_zh : "",
+    synthesis_zh: typeof raw.synthesis_zh === "string" ? raw.synthesis_zh : "",
+    independence_summary_zh:
+      typeof raw.independence_summary_zh === "string" ? raw.independence_summary_zh : "",
+    top_opportunities_zh: strArr(raw.top_opportunities_zh),
     source_channels: strArr(raw.source_channels),
+    related_topics,
     obsidian_markdown: typeof raw.obsidian_markdown === "string" ? raw.obsidian_markdown : "",
     entries,
   };
@@ -440,23 +498,63 @@ export function WeeklyAiBriefPanel({
   const { language } = useUiLanguage();
   const zh = language === "zh-CN";
   const [brief, setBrief] = useState<WeeklyAiBrief | null>(initialBrief);
+  const [historyList, setHistoryList] = useState<WeeklyBriefHistoryItem[]>(
+    initialBrief?.history ?? [],
+  );
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (initialBrief) setBrief(initialBrief);
+    if (initialBrief) {
+      setBrief(initialBrief);
+      if (initialBrief.history?.length) {
+        setHistoryList(initialBrief.history);
+      }
+    }
   }, [initialBrief]);
 
   if (!brief) return null;
+
+  const effectiveHistory = historyList.length > 0 ? historyList : brief.history ?? [];
+
+  const switchSnapshot = async (nextId: string) => {
+    if (!nextId || nextId === brief.brief_id || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api<{ weekly_brief?: unknown; history?: unknown }>(
+        `/workspace-ai/weekly-brief?brief_id=${encodeURIComponent(nextId)}`,
+      );
+      const parsed = readWeeklyAiBrief(res.weekly_brief);
+      const nextHist = readWeeklyHistoryList(res.history);
+      if (parsed) {
+        setBrief(parsed);
+        const resolvedHist = nextHist.length ? nextHist : parsed.history ?? [];
+        if (resolvedHist.length) setHistoryList(resolvedHist);
+      }
+    } catch {
+      setError(zh ? "未能加载所选历史周报期次。" : "Could not load selected weekly brief snapshot.");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const regenerate = async () => {
     setBusy(true);
     setError(null);
     try {
-      const res = await post<{ weekly_brief?: unknown }>("/workspace-ai/weekly-brief/generate", {});
+      const res = await post<{ weekly_brief?: unknown; history?: unknown }>(
+        "/workspace-ai/weekly-brief/generate",
+        {},
+      );
       const parsed = readWeeklyAiBrief(res.weekly_brief);
-      if (parsed) setBrief(parsed);
+      const nextHist = readWeeklyHistoryList(res.history);
+      if (parsed) {
+        setBrief(parsed);
+        const resolvedHist = nextHist.length ? nextHist : parsed.history ?? [];
+        if (resolvedHist.length) setHistoryList(resolvedHist);
+      }
     } catch {
       setError(zh ? "未能刷新本周情报周报，请检查本机或云端 AI 引擎状态。" : "Could not refresh the weekly AI brief.");
     } finally {
@@ -472,6 +570,32 @@ export function WeeklyAiBriefPanel({
           <span>{brief.title_zh}</span>
         </h2>
         <div className="button-row">
+          {effectiveHistory.length > 1 ? (
+            <select
+              className="weekly-history-select tabular-nums"
+              aria-label={zh ? "切换历史周报期次" : "Select weekly brief snapshot"}
+              value={brief.brief_id}
+              disabled={busy}
+              onChange={(event: ChangeEvent<HTMLSelectElement>) =>
+                void switchSnapshot(event.target.value)
+              }
+            >
+              {effectiveHistory.map((item, idx) => {
+                const shortDate = item.created_at ? item.created_at.slice(0, 10) : `#${idx + 1}`;
+                return (
+                  <option key={item.brief_id} value={item.brief_id}>
+                    {idx === 0
+                      ? zh
+                        ? `最新 · ${shortDate}（${item.must_watch_count} 必看）`
+                        : `Latest · ${shortDate} (${item.must_watch_count} must-watch)`
+                      : zh
+                        ? `存档 · ${shortDate}（${item.must_watch_count} 必看）`
+                        : `Archive · ${shortDate} (${item.must_watch_count} must-watch)`}
+                  </option>
+                );
+              })}
+            </select>
+          ) : null}
           <button
             type="button"
             className="button button-secondary button-small"
@@ -620,6 +744,8 @@ export function WorkspaceVideoAiActions({
   transcriptAvailable,
   aiBrief,
   obsidianMarkdown,
+  nextUnreadVideo,
+  onAdvanceToVideo,
   onCompleted,
 }: {
   videoId: string;
@@ -629,6 +755,8 @@ export function WorkspaceVideoAiActions({
   transcriptAvailable: boolean;
   aiBrief: VideoAiBrief | null;
   obsidianMarkdown?: string;
+  nextUnreadVideo?: { videoId: string; title: string; remainingCount: number } | null;
+  onAdvanceToVideo?: (nextId: string) => void;
   onCompleted: () => void;
 }) {
   const { language } = useUiLanguage();
@@ -650,6 +778,27 @@ export function WorkspaceVideoAiActions({
       onCompleted();
     } catch {
       setError(zh ? "未能更新阅读与收藏状态，请稍后重试。" : "Could not update reading state.");
+    } finally {
+      setBusyKind(null);
+    }
+  };
+
+  const markReadAndAdvance = async () => {
+    if (busyKind !== null || !nextUnreadVideo || !onAdvanceToVideo) return;
+    setBusyKind("curation");
+    setError(null);
+    try {
+      if (!aiBrief?.is_read) {
+        await post(`/workspace-ai/videos/${encodeURIComponent(videoId)}/curation`, {
+          is_read: true,
+        });
+      }
+      onCompleted();
+      onAdvanceToVideo(nextUnreadVideo.videoId);
+    } catch {
+      setError(
+        zh ? "未能更新阅读状态并跳转下一篇，请稍后重试。" : "Could not mark read and open next item.",
+      );
     } finally {
       setBusyKind(null);
     }
@@ -825,6 +974,28 @@ export function WorkspaceVideoAiActions({
                 ? "标记已读"
                 : "Mark read"}
           </button>
+          {nextUnreadVideo && onAdvanceToVideo ? (
+            <button
+              type="button"
+              className="button button-secondary button-small tabular-nums"
+              disabled={busyKind !== null}
+              aria-label={zh ? "标已读并看下一篇" : "Mark read & open next unread"}
+              title={
+                zh
+                  ? `下一篇未读：${nextUnreadVideo.title}`
+                  : `Next unread: ${nextUnreadVideo.title}`
+              }
+              onClick={(event) => {
+                pulseCelebration(event.currentTarget);
+                void markReadAndAdvance();
+              }}
+            >
+              <PhosphorIcon name="caret-right" size={13} />
+              {zh
+                ? `标已读并看下一篇 (${nextUnreadVideo.remainingCount})`
+                : `Mark read & next (${nextUnreadVideo.remainingCount})`}
+            </button>
+          ) : null}
         </>
       ) : null}
       {error ? (
