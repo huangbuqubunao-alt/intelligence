@@ -3317,6 +3317,7 @@ class WorkspaceIntelligenceHub:
         include_entries: bool,
         topic_name: str = "",
         related_topic_names: Sequence[str] = (),
+        related_topics: Sequence[Mapping[str, object]] = (),
     ) -> dict[str, object]:
         now = self._now()
         cutoff_7d = now - timedelta(days=7)
@@ -3331,6 +3332,10 @@ class WorkspaceIntelligenceHub:
             }
             if include_entries:
                 summary["entries"] = []
+                summary["synthesis_zh"] = ""
+                summary["independence_summary_zh"] = ""
+                summary["top_opportunities_zh"] = []
+                summary["related_topics"] = [dict(rt) for rt in related_topics]
                 summary["obsidian_markdown"] = ""
             return summary
         must_watch = sum(
@@ -3354,6 +3359,20 @@ class WorkspaceIntelligenceHub:
             ch = str(item["channel_name"])
             if ch and ch not in channels:
                 channels.append(ch)
+        source_count = len(channels)
+        if source_count >= 2:
+            preview = "、".join(channels[:4]) + (" 等" if source_count > 4 else "")
+            indep_zh = (
+                f"已汇聚 {preview} 共 {source_count} 个独立来源交叉印证"
+                f"（共 {len(entries)} 篇内容，{must_watch} 篇必看干货）。"
+            )
+        elif source_count == 1:
+            indep_zh = (
+                f"当前聚合自单一来源（{channels[0]}，共 {len(entries)} 篇内容），"
+                "可结合更多独立频道交叉印证。"
+            )
+        else:
+            indep_zh = ""
         result: dict[str, object] = {
             "video_count": len(entries),
             "must_watch_count": must_watch,
@@ -3361,18 +3380,61 @@ class WorkspaceIntelligenceHub:
             "avg_score": avg_score,
             "latest_headline_zh": str(entries[0]["headline_zh"]),
             "source_channels": channels[:6],
+            "independence_summary_zh": indep_zh,
         }
         if include_entries:
             clean_entries = [
                 {k: v for k, v in item.items() if not k.startswith("_")}
                 for item in entries[:24]
             ]
+            top_ranked = sorted(
+                entries,
+                key=lambda item: (float(item["score"]), item["_sort_stamp"]),
+                reverse=True,
+            )
+            claims: list[str] = []
+            for cand in [entries[0], *top_ranked]:
+                hl = str(cand.get("headline_zh") or "").strip().rstrip("。；;. ")
+                if hl and hl not in claims:
+                    claims.append(hl)
+                if len(claims) >= 3:
+                    break
+            if len(entries) == 1:
+                synthesis_zh = str(
+                    entries[0].get("summary_zh") or entries[0].get("headline_zh") or ""
+                ).strip()
+            else:
+                synthesis_zh = ("；".join(claims) + "。") if claims else ""
+            top_opps: list[str] = []
+            for cand in top_ranked:
+                for raw_opp in (
+                    *list(cand.get("product_opportunities_zh") or ()),
+                    *list(cand.get("business_opportunities_zh") or ()),
+                ):
+                    opp_s = str(raw_opp).strip()
+                    if opp_s and opp_s not in top_opps:
+                        top_opps.append(opp_s)
+                    if len(top_opps) >= 4:
+                        break
+                if len(top_opps) >= 4:
+                    break
+            merged_rel_names: list[str] = []
+            for rname in (
+                *related_topic_names,
+                *(str(rt.get("name") or "") for rt in related_topics),
+            ):
+                rn = rname.strip()
+                if rn and rn != topic_name and rn not in merged_rel_names:
+                    merged_rel_names.append(rn)
             result["entries"] = clean_entries
+            result["synthesis_zh"] = synthesis_zh
+            result["top_opportunities_zh"] = top_opps
+            result["related_topics"] = [dict(rt) for rt in related_topics]
             result["obsidian_markdown"] = self._build_topic_obsidian_markdown(
                 topic_name=topic_name or "专题脉络",
                 summary=result,
                 entries=clean_entries,
-                related_topic_names=related_topic_names,
+                related_topic_names=merged_rel_names,
                 exported_at=format_utc_datetime(now),
             )
         return result
@@ -3403,31 +3465,95 @@ class WorkspaceIntelligenceHub:
         if not isinstance(raw_topic, dict):
             return dict(payload)
         grouped = self._collect_topic_brief_entries()
+        cur_id = str(raw_topic.get("topic_id") or "")
         name = str(raw_topic.get("name") or "").strip()
-        topic_names_by_id = {
-            t.topic_id: t.name for t in self._repository.list_topics()
+        cur_entries = grouped.get(name, [])
+        cur_channels = {
+            str(e["channel_name"]) for e in cur_entries if e.get("channel_name")
         }
+        all_topics = self._repository.list_topics()
+        topic_names_by_id = {t.topic_id: t.name for t in all_topics}
         raw_relations = raw_topic.get("relations")
         relations_out: list[dict[str, object]] | object = raw_relations
         related_names: list[str] = []
+        explicit_rel_ids: list[str] = []
         if isinstance(raw_relations, list):
             hydrated_rels: list[dict[str, object]] = []
             for rel in raw_relations:
                 if isinstance(rel, dict):
-                    rname = topic_names_by_id.get(
-                        str(rel.get("related_topic_id") or ""), ""
-                    )
+                    rid = str(rel.get("related_topic_id") or "")
+                    rname = topic_names_by_id.get(rid, "")
+                    if rid and rid not in explicit_rel_ids:
+                        explicit_rel_ids.append(rid)
                     if rname and rname not in related_names:
                         related_names.append(rname)
                     hydrated_rels.append({**rel, "related_topic_name": rname})
                 else:
                     hydrated_rels.append(rel)
             relations_out = hydrated_rels
+
+        def _build_sibling_dto(tid: str, tname: str) -> dict[str, object]:
+            sib_items = grouped.get(tname.strip(), [])
+            sib_channels: list[str] = []
+            for e in sib_items:
+                ch = str(e.get("channel_name") or "")
+                if ch and ch not in sib_channels:
+                    sib_channels.append(ch)
+            shared = [ch for ch in sib_channels if ch in cur_channels][:3]
+            mw = sum(
+                1 for e in sib_items if e.get("recommendation_tier") == "MUST_WATCH"
+            )
+            avg_sc = (
+                round(
+                    sum(float(e["score"]) for e in sib_items) / len(sib_items),
+                    1,
+                )
+                if sib_items
+                else 0.0
+            )
+            return {
+                "topic_id": tid,
+                "name": tname,
+                "video_count": len(sib_items),
+                "must_watch_count": mw,
+                "avg_score": avg_sc,
+                "shared_sources": shared,
+            }
+
+        sibling_topics: list[dict[str, object]] = []
+        seen_sib_ids: set[str] = {cur_id}
+        for rid in explicit_rel_ids:
+            rname = topic_names_by_id.get(rid, "")
+            if rname and rid not in seen_sib_ids:
+                seen_sib_ids.add(rid)
+                sibling_topics.append(_build_sibling_dto(rid, rname))
+
+        inferred_siblings: list[tuple[tuple[int, int, float], dict[str, object]]] = []
+        for t in all_topics:
+            if (
+                t.lifecycle is not TopicLifecycle.ACTIVE
+                or t.topic_id in seen_sib_ids
+                or t.name.strip() == name
+            ):
+                continue
+            dto = _build_sibling_dto(t.topic_id, t.name)
+            v_cnt = int(cast(int, dto["video_count"]))
+            if v_cnt <= 0:
+                continue
+            shared_cnt = len(cast(list[str], dto["shared_sources"]))
+            avg_sc = float(cast(float, dto["avg_score"]))
+            seen_sib_ids.add(t.topic_id)
+            inferred_siblings.append(((shared_cnt, v_cnt, avg_sc), dto))
+        inferred_siblings.sort(key=lambda pair: pair[0], reverse=True)
+        sibling_topics.extend(dto for _, dto in inferred_siblings)
+        sibling_topics = sibling_topics[:6]
+
         evo = self._summarize_topic_evolution(
-            grouped.get(name, []),
+            cur_entries,
             include_entries=True,
             topic_name=name,
             related_topic_names=related_names,
+            related_topics=sibling_topics,
         )
         return {
             **payload,
@@ -3475,18 +3601,73 @@ class WorkspaceIntelligenceHub:
             "topics_count": active_topics,
         }
 
-    def get_latest_weekly_brief(self) -> dict[str, object]:
+    def get_latest_weekly_brief(
+        self, *, brief_id: str | None = None
+    ) -> dict[str, object]:
         briefs_map = self.get_video_briefs_map()
         funnel_stats = self._compute_funnel_stats(briefs_map)
         conn = self._connect_read()
         if conn is None:
-            return {"weekly_brief": None, "funnel_stats": funnel_stats}
+            if brief_id and brief_id.strip():
+                raise ApiError(
+                    HTTPStatus.NOT_FOUND, "NOT_FOUND", "未找到指定期次的周报存档。"
+                )
+            return {"weekly_brief": None, "funnel_stats": funnel_stats, "history": []}
         try:
-            row = conn.execute(
-                "SELECT * FROM weekly_ai_briefs ORDER BY created_at DESC LIMIT 1"
-            ).fetchone()
+            history_rows = conn.execute(
+                "SELECT brief_id, title_zh, funnel_stats_json, provider, model, created_at "
+                "FROM weekly_ai_briefs ORDER BY created_at DESC, rowid DESC LIMIT 12"
+            ).fetchall()
+            history: list[dict[str, object]] = []
+            for hrow in history_rows:
+                try:
+                    hf = json.loads(str(hrow["funnel_stats_json"]))
+                except ValueError:
+                    hf = {}
+                history.append(
+                    {
+                        "brief_id": str(hrow["brief_id"]),
+                        "title_zh": str(hrow["title_zh"]),
+                        "created_at": str(hrow["created_at"]),
+                        "provider": str(hrow["provider"]),
+                        "model": str(hrow["model"]),
+                        "must_watch_count": (
+                            int(hf.get("must_watch_count", 0))
+                            if isinstance(hf, dict)
+                            else 0
+                        ),
+                        "distilled_count": (
+                            int(hf.get("distilled_count", 0))
+                            if isinstance(hf, dict)
+                            else 0
+                        ),
+                        "total_videos": (
+                            int(hf.get("total_videos", 0))
+                            if isinstance(hf, dict)
+                            else 0
+                        ),
+                    }
+                )
+            clean_req_id = brief_id.strip() if isinstance(brief_id, str) else ""
+            if clean_req_id:
+                row = conn.execute(
+                    "SELECT * FROM weekly_ai_briefs WHERE brief_id = ?",
+                    (clean_req_id,),
+                ).fetchone()
+                if row is None:
+                    raise ApiError(
+                        HTTPStatus.NOT_FOUND, "NOT_FOUND", "未找到指定期次的周报存档。"
+                    )
+            else:
+                row = conn.execute(
+                    "SELECT * FROM weekly_ai_briefs ORDER BY created_at DESC, rowid DESC LIMIT 1"
+                ).fetchone()
             if row is None:
-                return {"weekly_brief": None, "funnel_stats": funnel_stats}
+                return {
+                    "weekly_brief": None,
+                    "funnel_stats": funnel_stats,
+                    "history": [],
+                }
             top_shifts = json.loads(str(row["top_shifts_json"]))
             prod_opps = json.loads(str(row["product_opportunities_json"]))
             biz_monetization = json.loads(str(row["business_monetization_json"]))
@@ -3512,19 +3693,21 @@ class WorkspaceIntelligenceHub:
                     "top_shifts_zh": top_shifts,
                     "core_trends_zh": core_trends_zh,
                     "product_opportunities_zh": prod_opps,
-                    "business_monetization_zh": biz_monetization,
                     "business_opportunities_zh": list(biz_monetization),
+                    "business_monetization_zh": biz_monetization,
                     "must_watch_picks": hydrated_picks,
                     "funnel_stats": json.loads(str(row["funnel_stats_json"])),
                     "provider": str(row["provider"]),
                     "model": str(row["model"]),
                     "obsidian_markdown": str(row["obsidian_markdown"]),
                     "created_at": str(row["created_at"]),
+                    "history": history,
                 },
                 "funnel_stats": funnel_stats,
+                "history": history,
             }
         except sqlite3.Error:
-            return {"weekly_brief": None, "funnel_stats": funnel_stats}
+            return {"weekly_brief": None, "funnel_stats": funnel_stats, "history": []}
         finally:
             conn.close()
 
@@ -3644,12 +3827,6 @@ class WorkspaceIntelligenceHub:
             pass
 
         created_at = format_utc_datetime(now)
-        brief_id = (
-            "wb-"
-            + hashlib.sha256(
-                f"{title_zh}\0{created_at}".encode("utf-8")
-            ).hexdigest()[:16]
-        )
 
         active_topic_links = " ".join(
             f"[[{_safe_obsidian_title(t.name)}]]"
@@ -3698,6 +3875,18 @@ class WorkspaceIntelligenceHub:
         conn = self._connect_write()
         try:
             with conn:
+                seq_row = conn.execute(
+                    "SELECT COUNT(*) FROM weekly_ai_briefs"
+                ).fetchone()
+                seq = int(seq_row[0]) if seq_row is not None else 0
+                brief_id = (
+                    "wb-"
+                    + hashlib.sha256(
+                        f"{title_zh}\0{exec_summary}\0{created_at}\0{seq}".encode(
+                            "utf-8"
+                        )
+                    ).hexdigest()[:16]
+                )
                 conn.execute(
                     """
                     INSERT INTO weekly_ai_briefs (

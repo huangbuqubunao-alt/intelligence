@@ -208,6 +208,30 @@ class _FakeDualTrackCompleter:
                 provider,
                 model,
             )
+        if "Monetization Playbook" in user_prompt:
+            return (
+                {
+                    "headline_zh": "一人公司高毛利 AI 产品需优先锁定可量化 ROI 的 B2B 垂直工作流",
+                    "summary_zh": "围绕真实企业预算与明确交付指标切入微 SaaS，避免做无壁垒通用套壳工具。",
+                    "score": 8.9,
+                    "score_reason_zh": "给出清晰的定价阶梯与获客闭环。",
+                    "recommendation_tier": "MUST_WATCH",
+                    "content_bucket": "DEEP_DIVE",
+                    "topics_zh": ["一人公司变现", "B2B 定价"],
+                    "topic_cluster_zh": "AI 产品机会与一人公司变现",
+                    "core_points": [
+                        {
+                            "text_zh": "按可衡量的时间节省或线索转化结果定价",
+                            "cue_window_index": 0,
+                        }
+                    ],
+                    "product_opportunities_zh": ["面向细分行业顾问的自动化交付报告引擎"],
+                    "business_opportunities_zh": ["先用高客单价代运营验证需求再沉淀自助订阅"],
+                    "filtered_noise_zh": ["赞助商口播"],
+                },
+                provider,
+                model,
+            )
         return (
             {
                 "headline_zh": "可商用 AI Agent 必须建立在受控工具边界与可回溯证据链之上",
@@ -1678,6 +1702,185 @@ def test_topic_detail_obsidian_moc_markdown_and_dashboard_saved_ids_plus_fully_d
     fast_app.handle("POST", "/api/v1/workspace-ai/videos/vidUndist03/distill", b"{}")
     _, dash_healed = fast_app.handle("GET", "/api/v1/dashboard")
     assert dash_healed["needs_attention"] == []
+
+
+def test_round4_intelligence_activity_convergence_topic_synthesis_and_weekly_history(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    env = _build_env(tmp_path, monkeypatch)
+    fast_app: Any = env["fast_app"]
+    repo: SQLiteStateRepository = env["repo"]
+    source_id: str = env["source"].source_id
+
+    # Seed two Agent videos from distinct channels + one Monetization video + one captionless terminal FAILED video
+    _seed_youtube_video(
+        repo,
+        env["data_root"],
+        source_id=source_id,
+        video_id="vidDone0001",
+        channel_id="UC1111111111111111111111",
+        channel_name="OpenAI",
+        title="Agent Reliability Architecture",
+        duration_seconds=1800,
+        cues=(
+            TimedTranscriptCueWrite(
+                start_ms=0, end_ms=8000, text="Reliable tool contracts and deterministic state."
+            ),
+        ),
+        now=NOW - timedelta(days=3),
+    )
+    _seed_youtube_video(
+        repo,
+        env["data_root"],
+        source_id=source_id,
+        video_id="vidDone0004",
+        channel_id="UC2222222222222222222222",
+        channel_name="Greg Isenberg",
+        title="Monetization Playbook for Solo Founders",
+        duration_seconds=1650,
+        cues=(
+            TimedTranscriptCueWrite(
+                start_ms=0, end_ms=8000, text="Price on measurable B2B ROI rather than seats."
+            ),
+        ),
+        now=NOW - timedelta(days=2),
+    )
+    _seed_youtube_video(
+        repo,
+        env["data_root"],
+        source_id=source_id,
+        video_id="vidRealFail",
+        channel_id="UC3333333333333333333333",
+        channel_name="Latent Space",
+        title="Agent Evals Deep Dive",
+        duration_seconds=1950,
+        cues=(
+            TimedTranscriptCueWrite(
+                start_ms=0, end_ms=8000, text="Benchmark harnesses for multi-step agents."
+            ),
+        ),
+        now=NOW - timedelta(days=1),
+    )
+
+    # Seed captionless YouTube video in METADATA_READY pipeline_status linked to tracked STANDARD_INTELLIGENCE source
+    _seed_metadata_only_youtube_video(
+        repo,
+        source_id=source_id,
+        video_id="vidNoCap002",
+        channel_id="UC1111111111111111111111",
+        channel_name="OpenAI",
+        title="Captionless Product Keynote",
+        description="Official keynote overview without captions.",
+        duration_seconds=920,
+        now=NOW - timedelta(days=4),
+    )
+    conn = repo._connect()
+    try:
+        ts = NOW.strftime("%Y-%m-%dT%H:%M:%SZ")
+        conn.execute(
+            "INSERT INTO source_tracking_state "
+            "(source_id, contract, followed_at, next_page, coverage, health, next_check_at) "
+            "VALUES (?, 'source-tracking-v1', ?, 1, 'COMPLETE', 'HEALTHY', ?)",
+            (source_id, ts, ts),
+        )
+    finally:
+        conn.close()
+
+    # Legacy run left FAILED child executions on vidDone0001 and vidRealFail
+    run = repo.create_source_run(
+        SourceRunWrite.manual_check_now(
+            source_id=source_id,
+            command_id="cmd-r4-legacy-fail",
+            priority=SourceRunPriority.P1,
+            created_at=NOW - timedelta(hours=2),
+        )
+    )
+    with repo._connect() as conn:
+        for vid_child in ("vidDone0001", "vidRealFail"):
+            conn.execute(
+                "INSERT INTO source_run_video_executions "
+                "(run_id, video_id, state, created_at, updated_at) VALUES (?, ?, 'FAILED', ?, ?)",
+                (
+                    run.run_id,
+                    vid_child,
+                    (NOW - timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                    (NOW - timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                ),
+            )
+
+    # Before sidecar DB exists: raw parity keeps all legacy FAILED / WAITING_CONTENT activity items
+    _, intel_before = fast_app.handle("GET", "/api/v1/intelligence")
+    before_act_ids = {item["video_id"] for item in intel_before["activity"]}
+    assert {"vidDone0001", "vidRealFail", "vidNoCap002"}.issubset(before_act_ids)
+
+    # Distill vidDone0001 (AVAILABLE card), vidDone0004 (second topic), and vidNoCap002 (METADATA_ONLY brief);
+    # leave vidRealFail undistilled!
+    fast_app.handle("POST", "/api/v1/workspace-ai/videos/vidDone0001/distill", b"{}")
+    fast_app.handle("POST", "/api/v1/workspace-ai/videos/vidDone0004/distill", b"{}")
+    fast_app.handle("POST", "/api/v1/workspace-ai/videos/vidNoCap002/distill", b"{}")
+
+    # 1) R4-1: Superseded FAILED (vidDone0001) and settled captionless WAITING_CONTENT (vidNoCap002)
+    # are suppressed from activity, while genuinely undistilled vidRealFail remains visible!
+    _, intel_after = fast_app.handle("GET", "/api/v1/intelligence")
+    avail_card_vids = {
+        item["card"]["video_id"]
+        for item in intel_after["intelligence"]
+        if item.get("status") == "AVAILABLE" and isinstance(item.get("card"), dict)
+    }
+    assert {"vidDone0001", "vidDone0004"}.issubset(avail_card_vids)
+    after_act_by_vid = {item["video_id"]: item["status"] for item in intel_after["activity"]}
+    assert "vidDone0001" not in after_act_by_vid
+    assert "vidNoCap002" not in after_act_by_vid
+    assert after_act_by_vid.get("vidRealFail") == "FAILED"
+
+    # 2) R4-4: Generate Weekly Brief #1 (distilled_count == 3), then distill vidRealFail (2nd source on Agent topic)
+    # and generate Weekly Brief #2 (distilled_count == 4); verify history list & ?brief_id= lookup!
+    wb1_code, wb1 = fast_app.handle("POST", "/api/v1/workspace-ai/weekly-brief/generate", b"{}")
+    assert wb1_code == HTTPStatus.OK
+    first_brief_id = wb1["weekly_brief"]["brief_id"]
+    assert wb1["weekly_brief"]["funnel_stats"]["distilled_count"] == 3
+
+    fast_app.handle("POST", "/api/v1/workspace-ai/videos/vidRealFail/distill", b"{}")
+    wb2_code, wb2 = fast_app.handle("POST", "/api/v1/workspace-ai/weekly-brief/generate", b"{}")
+    assert wb2_code == HTTPStatus.OK
+    second_brief_id = wb2["weekly_brief"]["brief_id"]
+    assert second_brief_id != first_brief_id
+    assert [h["brief_id"] for h in wb2["history"]] == [second_brief_id, first_brief_id]
+    assert [h["brief_id"] for h in wb2["weekly_brief"]["history"]] == [
+        second_brief_id,
+        first_brief_id,
+    ]
+
+    hist_code, hist_wb1 = fast_app.handle(
+        "GET", f"/api/v1/workspace-ai/weekly-brief?brief_id={first_brief_id}"
+    )
+    assert hist_code == HTTPStatus.OK
+    assert hist_wb1["weekly_brief"]["brief_id"] == first_brief_id
+    assert hist_wb1["weekly_brief"]["funnel_stats"]["distilled_count"] == 3
+
+    miss_wb_code, _ = fast_app.handle(
+        "GET", "/api/v1/workspace-ai/weekly-brief?brief_id=wb-does-not-exist"
+    )
+    assert miss_wb_code == HTTPStatus.NOT_FOUND
+
+    # 3) R4-2: Topic detail exposes cross-video synthesis_zh, multi-source independence_summary_zh,
+    # top_opportunities_zh, and clickable sibling related_topics (+ MOC wikilinks)
+    _, topics_body = fast_app.handle("GET", "/api/v1/topics")
+    agent_topic = next(
+        t for t in topics_body["topics"] if t["name"] == "AI Agent 与自动化架构"
+    )
+    _, agent_det = fast_app.handle("GET", f"/api/v1/topics/{agent_topic['topic_id']}")
+    evo = agent_det["topic"]["ai_evolution"]
+    assert evo["video_count"] == 2
+    assert isinstance(evo.get("synthesis_zh"), str) and len(evo["synthesis_zh"]) >= 12
+    assert "2 个独立来源" in evo["independence_summary_zh"]
+    assert "OpenAI" in evo["independence_summary_zh"]
+    assert "Latent Space" in evo["independence_summary_zh"]
+    assert len(evo["top_opportunities_zh"]) >= 1
+    rel_topics = evo["related_topics"]
+    assert any(rt["name"] == "AI 产品机会与一人公司变现" for rt in rel_topics)
+    assert "[[AI 产品机会与一人公司变现]]" in evo["obsidian_markdown"]
+
 
 
 
