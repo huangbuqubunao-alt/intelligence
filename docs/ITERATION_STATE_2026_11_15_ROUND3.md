@@ -66,5 +66,5 @@
 
 - [x] **Step 0**：完成生产库全表与内存 API 投射审计、定位 3 处 `saved={false}` 硬编码 Bug 与 `EXECUTION_CONDITION_UNRESOLVED` 空子任务漏网根因，建立本状态记录
 - [x] **Slice 1（后端 TDD）**：`video_curation_states` 持久化与 `/workspace-ai/videos/<id>/curation` 路由、备份恢复往返兼容、`enrich_topic_detail_dto` 专题 MOC `obsidian_markdown` 与 `recent_7d_count`、`/api/v1/dashboard` `saved_intelligence_ids` 与已全量提炼来源的 `EXECUTION_CONDITION_UNRESOLVED` 过滤（27/27 Pytest 通过，Ruff 0 error，Mypy 0 issue）
-- [ ] **Slice 2（前端 TDD）**：`#Home` / `#Intelligence` 真实持久化收藏状态联动、`#Content` 列表与详情页 `收藏 / 已读` 控制与 `未读干货 / 已收藏` 筛选 + `无原生字幕` 诚实标签 + 裸链接占位折叠、`#Topics` 专题 MOC 双链导出按钮与预览抽屉
+- [x] **Slice 2（前端 TDD）**：`#Home` / `#Intelligence` 真实持久化收藏状态联动、`#Content` 列表与详情页 `收藏 / 已读` 控制与 `未读干货 / 已收藏` 筛选 + `无原生字幕` 诚实标签 + 裸链接占位折叠、`#Topics` 专题 MOC 双链导出按钮与预览抽屉（49/49 Vitest 文件共 1,196 项测试全绿、`tsc + vite build` 零报错、`impeccable detect` 0 违规）
 - [ ] **Slice 3（正式环境部署与独立 Browser Subagent E2E 验收）**：同步至 `v1x-local-main`、重建 `.var/Intelligence.app` 与 `build-provenance.json`、独立 `browser` 子代理完成跨页面真实点击与截图核验
