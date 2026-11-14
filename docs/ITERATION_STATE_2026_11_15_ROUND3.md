@@ -4,7 +4,7 @@
 - **正式交付运行区**：`main`（`/Users/hua/Documents/yia-worktrees/v1x-local-main`，起始基线 `5ad0704`）
 - **只读对照工作区（严禁修改）**：`codex/readiness-v4-budget-final-validation`（`18f366b`）
 - **前置轮次状态**：Round 1（`docs/ITERATION_STATE_2026_11_14.md`）与 Round 2（`docs/ITERATION_STATE_2026_11_15_ROUND2.md`）已 100% 完成并交付。
-- **当前阶段**：`PHASE_4_TDD_IN_PROGRESS`
+- **当前阶段**：`ROUND_3_COMPLETED`
 
 ---
 
@@ -67,4 +67,26 @@
 - [x] **Step 0**：完成生产库全表与内存 API 投射审计、定位 3 处 `saved={false}` 硬编码 Bug 与 `EXECUTION_CONDITION_UNRESOLVED` 空子任务漏网根因，建立本状态记录
 - [x] **Slice 1（后端 TDD）**：`video_curation_states` 持久化与 `/workspace-ai/videos/<id>/curation` 路由、备份恢复往返兼容、`enrich_topic_detail_dto` 专题 MOC `obsidian_markdown` 与 `recent_7d_count`、`/api/v1/dashboard` `saved_intelligence_ids` 与已全量提炼来源的 `EXECUTION_CONDITION_UNRESOLVED` 过滤（27/27 Pytest 通过，Ruff 0 error，Mypy 0 issue）
 - [x] **Slice 2（前端 TDD）**：`#Home` / `#Intelligence` 真实持久化收藏状态联动、`#Content` 列表与详情页 `收藏 / 已读` 控制与 `未读干货 / 已收藏` 筛选 + `无原生字幕` 诚实标签 + 裸链接占位折叠、`#Topics` 专题 MOC 双链导出按钮与预览抽屉（49/49 Vitest 文件共 1,196 项测试全绿、`tsc + vite build` 零报错、`impeccable detect` 0 违规）
-- [ ] **Slice 3（正式环境部署与独立 Browser Subagent E2E 验收）**：同步至 `v1x-local-main`、重建 `.var/Intelligence.app` 与 `build-provenance.json`、独立 `browser` 子代理完成跨页面真实点击与截图核验
+- [x] **Slice 3（正式环境部署与独立 Browser Subagent E2E 验收）**：同步至 `v1x-local-main`、重建 `.var/Intelligence.app` 与 `build-provenance.json`、独立 `browser` 子代理（`d68ad577-56c8-4b9c-8154-65906709b25c`）完成跨页面真实点击与截图核验（`final_step_43.png`、`final_step_53.png`）
+
+---
+
+## 五、第五阶段：独立真实验收证据汇总（Round 3）
+
+| 验收项 | 状态 | 真实客观证据 |
+| --- | --- | --- |
+| 后端集成与启动器契约（Pytest） | **PASS** | `tests/integration/test_workspace_intelligence_hub.py` + `tests/unit/test_owner_launcher.py`：**25/25 passed**；`tests/integration/test_fast_read_api.py`（无 Sidecar 字节级兼容与连接/延迟预算）：**2/2 passed** |
+| Python 静态检查（Ruff + Mypy） | **PASS** | `ruff check`：`All checks passed!`；`mypy`：`Success: no issues found in 2 source files` |
+| 前端全量回归测试（Vitest） | **PASS** | **49/49 test files, 1,196/1,196 tests passed**（含新增 3 组 Round 3 TDD 用例，共 14 项 `WorkspaceIntelligenceHub.test.tsx` 全绿） |
+| 前端生产构建与视觉检测 | **PASS** | `tsc -b && vite build`：exit `0`（`658ms`）；`impeccable detect --json`：`[]`（0 违规） |
+| 真实浏览器 E2E 交互核验（`http://127.0.0.1:5488`） | **PASS** | 宿主核验（`BROWSER_HOST_FACTS`）：`#Home` 幽灵 `需要处理` 告警彻底消失、`收藏 -> 取消收藏` 与 `#Intelligence`（当前/已收藏双 Tab）跨页实时同步；`#Content` 6 枚分流芯片、行内 `收藏 / 标已读` 切换、`无原生字幕` 替代误导性 `失败`（全列表 0 个 `失败` 徽章）、79 条 Shorts 与 3 条未开播占位链接自动折叠；`#Topics` 展示 `近7天 +13` 并完成专题 MOC `[[wikilinks]]` Markdown 复制与预览；全程 `0` Console Error、`0` HTTP >= 400（真机截图：`final_step_43.png`、`final_step_53.png`） |
+
+---
+
+## 六、第六阶段：可恢复接续状态与下一轮路线（Round 4 候选）
+
+1. **当前停止条件达成**：Round 3 确定的全部高价值 P1 任务（`R3-1` 洞察与视频个人收藏/已读分流闭环、`R3-2` 首页假阳性告警收敛与内容列表诚实标签/占位收纳、`R3-3` 专题 MOC 双链笔记导出）已 100% 完成并通过自动化与真实浏览器验收。
+2. **下一轮（Round 4）候选方向**（按实际使用反馈择优启动）：
+   - **R4-1（P2）**：`⌘K` 全局命令面板支持快速检索 `已收藏` 视频与按中文一句话结论模糊直达，进一步缩短高频复盘路径；
+   - **R4-2（P2）**：`#Home` 周报支持历史周次切换下拉（对比上周与本周趋势演进，复用 `weekly_ai_briefs` 既有历史表，零 Schema 破坏）；
+   - **R4-3（P2）**：当用户在 `#Content` 详情页阅读完长视频或复制双链笔记后，提供轻量的“顺手标为已读并返回未读列表”快捷动线。
