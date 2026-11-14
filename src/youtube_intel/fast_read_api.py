@@ -15,12 +15,12 @@ import signal
 import sqlite3
 import sys
 import threading
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from http import HTTPStatus
 from pathlib import Path, PurePosixPath
 from types import FrameType
 from typing import Any, BinaryIO, cast
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from youtube_intel.backup_restore import BackupRestoreError
 from youtube_intel.content_summary_read import (
@@ -1205,7 +1205,12 @@ class FastReadApiApplication:
         return payload
 
     def _handle_workspace_ai(
-        self, method: str, route: str, body: bytes
+        self,
+        method: str,
+        route: str,
+        body: bytes,
+        *,
+        query: str = "",
     ) -> tuple[int, dict[str, object]]:
         if method not in {"GET", "HEAD"}:
             self._bump_mutation_epoch()
@@ -1223,7 +1228,12 @@ class FastReadApiApplication:
                 data = self._inner._body(body)
                 return HTTPStatus.OK, self._workspace_hub.ask_research_question(data)
             if route == "/api/v1/workspace-ai/weekly-brief" and method == "GET":
-                return HTTPStatus.OK, self._workspace_hub.get_latest_weekly_brief()
+                q_params = parse_qs(query, keep_blank_values=False) if query else {}
+                vals = q_params.get("brief_id")
+                req_brief_id = vals[0] if vals else None
+                return HTTPStatus.OK, self._workspace_hub.get_latest_weekly_brief(
+                    brief_id=req_brief_id
+                )
             if (
                 route == "/api/v1/workspace-ai/weekly-brief/generate"
                 and method == "POST"
@@ -1290,9 +1300,12 @@ class FastReadApiApplication:
     def handle(
         self, method: str, path: str, body: bytes = b""
     ) -> tuple[int, dict[str, object]]:
-        route = urlparse(path).path.rstrip("/") or "/"
+        parsed_url = urlparse(path)
+        route = parsed_url.path.rstrip("/") or "/"
         if route.startswith("/api/v1/workspace-ai/"):
-            return self._handle_workspace_ai(method, route, body)
+            return self._handle_workspace_ai(
+                method, route, body, query=parsed_url.query
+            )
         if method == "GET":
             detail_match = _VIDEO_DETAIL_ROUTE.fullmatch(route)
             if route in {"/api/v1/videos", "/api/v1/intelligence"} or (
@@ -1631,11 +1644,78 @@ class FastReadApiApplication:
                                     }
                                 )
                                 seen.add(video.video_id)
+                if activity and self._workspace_hub.has_sidecar_db():
+                    activity = self._filter_superseded_intelligence_activity(
+                        conn, intelligence, activity
+                    )
                 return {"intelligence": intelligence, "activity": activity}
             finally:
                 conn.rollback()
         finally:
             conn.close()
+
+    def _filter_superseded_intelligence_activity(
+        self,
+        conn: sqlite3.Connection,
+        intelligence: Sequence[Mapping[str, object]],
+        activity: Sequence[dict[str, object]],
+    ) -> list[dict[str, object]]:
+        available_vids: set[str] = set()
+        for item in intelligence:
+            if item.get("status") != "AVAILABLE" or item.get("trusted") is not True:
+                continue
+            card = item.get("card")
+            if isinstance(card, dict) and isinstance(card.get("video_id"), str):
+                available_vids.add(str(card["video_id"]))
+            prov = item.get("source_provenance")
+            if isinstance(prov, list):
+                for p in prov:
+                    if isinstance(p, dict) and isinstance(p.get("content_id"), str):
+                        available_vids.add(str(p["content_id"]))
+        briefs_map = self._workspace_hub.get_video_briefs_map()
+        active_statuses = {
+            "RUNNING",
+            "PENDING",
+            "FETCHING",
+            "READING_CAPTIONS",
+            "ORGANIZING",
+            "WAITING_MODEL",
+        }
+        kept: list[dict[str, object]] = []
+        for act in activity:
+            vid = str(act.get("video_id") or "")
+            status = str(act.get("status") or "")
+            if act.get("can_cancel") is True or status in active_statuses:
+                kept.append(act)
+                continue
+            if vid and vid in available_vids:
+                continue
+            brief = briefs_map.get(vid) if vid else None
+            if brief is not None:
+                if bool(brief.get("is_short_noise")) or (
+                    brief.get("recommendation_tier") == "SKIP_NOISE"
+                ):
+                    continue
+                if brief.get("source_basis") == "METADATA_ONLY":
+                    has_timed = (
+                        conn.execute(
+                            "SELECT 1 FROM timed_transcripts WHERE video_id = ? LIMIT 1",
+                            (vid,),
+                        ).fetchone()
+                        is not None
+                    )
+                    has_active_job = (
+                        conn.execute(
+                            "SELECT 1 FROM jobs WHERE video_id = ? "
+                            "AND status IN ('PENDING', 'RUNNING') LIMIT 1",
+                            (vid,),
+                        ).fetchone()
+                        is not None
+                    )
+                    if not has_timed and not has_active_job:
+                        continue
+            kept.append(act)
+        return kept
 
     def _fast_get_video_detail(self, video_id: str) -> dict[str, object]:
         repo = self._inner._repository
