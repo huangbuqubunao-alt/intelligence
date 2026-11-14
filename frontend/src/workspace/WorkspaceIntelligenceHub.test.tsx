@@ -766,12 +766,12 @@ describe("Workspace AI Upgrade (P0 + P1 + P2)", () => {
             {
               video_id: "virtualPendingWork01",
               provider: "YOUTUBE",
-              work_kind: "PENDING_CONTENT_WORK",
-              channel_id: "UC1111111111111111111111",
-              channel_name: "OpenAI",
-              title: "Queued Source Run Placeholder",
-              published_at: "2026-11-14T09:00:00Z",
-              processing_status: "WAITING",
+              work_kind: "DURABLE_CONTENT_IDENTITY",
+              channel_id: null as unknown as string,
+              channel_name: null as unknown as string,
+              title: "https://www.youtube.com/watch?v=virtualPendingWork01",
+              published_at: null as unknown as string,
+              processing_status: "NEEDS_ATTENTION",
               last_updated: "2026-11-14T09:00:00Z",
             },
           ],
@@ -849,6 +849,7 @@ describe("Workspace AI Upgrade (P0 + P1 + P2)", () => {
     expect(await screen.findByText(/基于官方简介：展示 Firefox 安全漏洞自动定位/)).toBeTruthy();
     expect(screen.getByText("简介速览")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /一键同步中文摘要/ })).toBeNull();
+    expect(screen.queryByText(/1970/)).toBeNull();
 
     // Open detail page of the captionless YouTube video
     fireEvent.click(screen.getByRole("button", { name: /Live Security Demo/ }));

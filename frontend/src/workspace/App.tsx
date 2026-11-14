@@ -782,7 +782,8 @@ function localizedApiErrorCopy(code: string): string | undefined {
   };
   return known[code];
 }
-function humanDate(value: string) {
+function humanDate(value?: string | null) {
+  if (!value) return "";
   const date = new Date(value);
   return Number.isNaN(date.valueOf()) ? value : new Intl.DateTimeFormat(savedLanguage(), {
     month: "short",
@@ -2124,11 +2125,12 @@ function ContentPage(
   const hasAiBriefs = briefByVideoId.size > 0;
   const pendingAiSyncVideos = hasAiBriefs
     ? videos.filter(item => {
-        if (item.work_kind === "PENDING_CONTENT_WORK") return false;
+        if (item.work_kind) return false;
         const brief = briefByVideoId.get(item.video_id) ?? null;
         if (!brief) {
           return (item.provider ?? "YOUTUBE") === "YOUTUBE"
-            ? Boolean(item.title?.trim())
+            ? Boolean(item.title?.trim()) &&
+                ["READY", "ORGANIZED", "METADATA_READY"].includes(item.processing_status)
             : item.processing_status === "READY";
         }
         return (
@@ -2209,10 +2211,21 @@ function ContentPage(
             <strong>{item.title ?? item.video_id}</strong>
             {brief ? <span className="content-ai-headline">{brief.headline_zh}</span> : null}
             <small>
-              {item.provider === "LOCAL" ? t("Local") : item.provider === "BILIBILI" ? `${t("Bilibili")} · ${item.channel_name ?? ""}` : item.channel_name}
-              {" · "}
-              {humanDate(item.provider === "BILIBILI" ? item.published_at : item.imported_at ?? item.published_at)}
-              {item.duration_seconds != null ? ` · ${formatHumanDuration(item.duration_seconds)}` : ""}
+              {[
+                item.provider === "LOCAL"
+                  ? t("Local")
+                  : item.provider === "BILIBILI"
+                    ? `${t("Bilibili")}${item.channel_name ? ` · ${item.channel_name}` : ""}`
+                    : item.channel_name,
+                humanDate(
+                  item.provider === "BILIBILI"
+                    ? item.published_at ?? item.last_updated
+                    : item.imported_at ?? item.published_at ?? item.last_updated,
+                ),
+                item.duration_seconds != null ? formatHumanDuration(item.duration_seconds) : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
             </small>
           </span>
         </span>
