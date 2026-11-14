@@ -1321,4 +1321,330 @@ describe("Workspace AI Upgrade (P0 + P1 + P2)", () => {
 
     await waitFor(() => expect(retriedSourceCheck).toBe(true));
   });
+
+  it("persists Save/Unsave state across Home and Intelligence Current/Saved tabs", async () => {
+    location.hash = "#Home";
+    let isSaved = false;
+
+    const intelCard = {
+      status: "AVAILABLE",
+      trusted: true,
+      intelligence_id: "intel-save-1",
+      claim_kind: "FACT",
+      state: "CONFIRMED",
+      card: {
+        core_conclusion: "生产级 Agent 必须具备显式工具契约与失败回滚保护。",
+        user_relevant_information: ["直接影响一人公司自动化工作流的交付可靠性。"],
+        important_new_information: ["引入无副作用幂等校验降低误操作。"],
+        meaningful_details: ["支持本地与云端双轨回退。"],
+        source_id: "youtube-channel-openai",
+        source_display_name: "OpenAI",
+        source_url: "https://www.youtube.com/@OpenAI",
+        video_id: "vid-agent-1",
+        video_title: "Agent Reliability Guide",
+        original_video_url: "https://www.youtube.com/watch?v=vid-agent-1",
+        evidence_links: [],
+      },
+    };
+
+    const fetchMock = vi.fn((input: string, init?: RequestInit) => {
+      if (input.endsWith("/saved-intelligence/save") && init?.method === "POST") {
+        isSaved = true;
+        return okJson({ saved: true });
+      }
+      if (input.endsWith("/saved-intelligence/unsave") && init?.method === "POST") {
+        isSaved = false;
+        return okJson({ saved: false });
+      }
+      if (input.endsWith("/dashboard")) {
+        return okJson({
+          intelligence: [intelCard],
+          saved_intelligence_ids: isSaved ? ["intel-save-1"] : [],
+          pinned_topics: [],
+          needs_attention: [],
+          operations: { source_count: 1 },
+        });
+      }
+      if (input.endsWith("/knowledge-delta")) {
+        return okJson({
+          knowledge_delta: {
+            window_start: "2026-11-08T00:00:00Z",
+            window_end: "2026-11-15T00:00:00Z",
+            timezone: "Asia/Shanghai",
+            status: "available",
+            detail_limit: 2,
+            categories: [],
+          },
+        });
+      }
+      if (input.endsWith("/intelligence/intel-save-1")) {
+        return okJson({ intelligence: intelCard });
+      }
+      if (input.endsWith("/intelligence")) {
+        return okJson({ intelligence: [intelCard], activity: [] });
+      }
+      if (input.endsWith("/saved-intelligence")) {
+        return okJson({
+          saved: isSaved
+            ? [
+                {
+                  intelligence_id: "intel-save-1",
+                  saved_at: "2026-11-15T05:00:00Z",
+                  intelligence: intelCard,
+                },
+              ]
+            : [],
+        });
+      }
+      return okJson({});
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+    const homeSaveBtn = await screen.findByRole("button", { name: "收藏" });
+    fireEvent.click(homeSaveBtn);
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "取消收藏" })).toBeTruthy(),
+    );
+
+    const primaryNav = screen.getByRole("navigation", { name: "主导航" });
+    fireEvent.click(within(primaryNav).getByRole("button", { name: "洞察" }));
+
+    const currentUnsaveBtn = await screen.findByRole("button", { name: "取消收藏" });
+    fireEvent.click(currentUnsaveBtn);
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "收藏" })).toBeTruthy(),
+    );
+  });
+
+  it("supports personal Star/Read curation, Unread/Starred filters, honest no-caption status, and raw-URL placeholder folding in Content", async () => {
+    location.hash = "#Content";
+    let isStarred = false;
+    let isRead = false;
+    const curationCalls: Record<string, unknown>[] = [];
+
+    const fetchMock = vi.fn((input: string, init?: RequestInit) => {
+      if (
+        input.endsWith("/workspace-ai/videos/vid-deep/curation") &&
+        init?.method === "POST"
+      ) {
+        const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+        curationCalls.push(body);
+        if (typeof body.starred === "boolean") isStarred = body.starred;
+        if (typeof body.is_read === "boolean") isRead = body.is_read;
+        return okJson({
+          video_id: "vid-deep",
+          starred: isStarred,
+          is_read: isRead,
+        });
+      }
+      if (input.endsWith("/videos")) {
+        return okJson({
+          videos: [
+            {
+              video_id: "vid-deep",
+              provider: "YOUTUBE",
+              channel_id: "UC-openai",
+              channel_name: "OpenAI",
+              title: "Agent Orchestration Masterclass",
+              source_url: "https://www.youtube.com/watch?v=vid-deep",
+              published_at: "2026-11-14T10:00:00Z",
+              processing_status: "READY",
+              duration_seconds: 1800,
+              last_updated: "2026-11-14T10:05:00Z",
+              ai_brief: {
+                video_id: "vid-deep",
+                source_basis: "TRANSCRIPT",
+                headline_zh: "状态机编排让多步 Agent 可恢复可审计。",
+                summary_zh: "详解长任务恢复机制。",
+                score: 9.3,
+                score_reason_zh: "架构干货密度极高",
+                recommendation_tier: "MUST_WATCH",
+                content_bucket: "DEEP_DIVE",
+                is_short_noise: false,
+                starred: isStarred,
+                is_read: isRead,
+                topics_zh: ["Agent"],
+                topic_cluster_zh: "AI Agent 与自动化架构",
+                product_opportunities_zh: [],
+                business_opportunities_zh: [],
+              },
+            },
+            {
+              video_id: "vid-meta",
+              provider: "YOUTUBE",
+              channel_id: "UC-greg",
+              channel_name: "Greg Isenberg",
+              title: "Solo Founder Pricing Breakdown",
+              source_url: "https://www.youtube.com/watch?v=vid-meta",
+              published_at: "2026-11-13T10:00:00Z",
+              processing_status: "FAILED",
+              duration_seconds: 1420,
+              last_updated: "2026-11-13T10:05:00Z",
+              ai_brief: {
+                video_id: "vid-meta",
+                source_basis: "METADATA_ONLY",
+                headline_zh: "围绕高客单价年费阶梯设计一人公司定价。",
+                summary_zh: "基于官方简介提炼。",
+                score: 7.5,
+                score_reason_zh: "简介含定价框架",
+                recommendation_tier: "WORTH_SKIMMING",
+                content_bucket: "DEEP_DIVE",
+                is_short_noise: false,
+                starred: false,
+                is_read: false,
+                topics_zh: ["定价"],
+                topic_cluster_zh: "AI 产品机会与一人公司变现",
+                product_opportunities_zh: [],
+                business_opportunities_zh: [],
+              },
+            },
+            {
+              video_id: "rawPlaceholder1",
+              work_kind: "DURABLE_CONTENT_IDENTITY",
+              provider: "YOUTUBE",
+              channel_id: "UC-openai",
+              channel_name: "OpenAI",
+              title: "https://www.youtube.com/watch?v=rawPlaceholder1",
+              source_url: "https://www.youtube.com/watch?v=rawPlaceholder1",
+              published_at: "2026-11-12T10:00:00Z",
+              processing_status: "METADATA_READY",
+              duration_seconds: null,
+              last_updated: "2026-11-12T10:00:00Z",
+            },
+          ],
+        });
+      }
+      return okJson({});
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { container } = render(<App />);
+    expect(await screen.findByText("Agent Orchestration Masterclass")).toBeTruthy();
+
+    // METADATA_ONLY video shows honest "无原生字幕" instead of alarming "失败"
+    expect(screen.getByText("无原生字幕")).toBeTruthy();
+    expect(screen.queryByText("失败")).toBeNull();
+
+    // DURABLE_CONTENT_IDENTITY raw-URL placeholder is auto-folded into bottom <details>
+    const foldDrawer = container.querySelector(
+      "details.shorts-fold-drawer",
+    ) as HTMLDetailsElement | null;
+    expect(foldDrawer).not.toBeNull();
+    expect(foldDrawer?.open).toBe(false);
+    expect(within(foldDrawer!).getByText("https://www.youtube.com/watch?v=rawPlaceholder1")).toBeTruthy();
+
+    // Star vid-deep and filter by "已收藏"
+    const starBtns = screen.getAllByRole("button", { name: "收藏待看" });
+    fireEvent.click(starBtns[0]);
+    await waitFor(() => expect(curationCalls).toContainEqual({ starred: true }));
+    expect(await screen.findByRole("button", { name: "已收藏 · 取消" })).toBeTruthy();
+
+    const filterGroup = screen.getByRole("group", { name: "内容价值分流" });
+    fireEvent.click(within(filterGroup).getByRole("button", { name: "已收藏" }));
+    expect(screen.getByText("Agent Orchestration Masterclass")).toBeTruthy();
+    expect(screen.queryByText("Solo Founder Pricing Breakdown")).toBeNull();
+
+    // Switch back to "全部", mark vid-deep read, and filter by "未读干货"
+    fireEvent.click(within(filterGroup).getByRole("button", { name: "全部" }));
+    const readBtns = await screen.findAllByRole("button", { name: "标记已读" });
+    fireEvent.click(readBtns[0]);
+    await waitFor(() => expect(curationCalls).toContainEqual({ is_read: true }));
+
+    fireEvent.click(within(filterGroup).getByRole("button", { name: "未读干货" }));
+    expect(screen.queryByText("Agent Orchestration Masterclass")).toBeNull();
+    expect(screen.getByText("Solo Founder Pricing Breakdown")).toBeTruthy();
+  });
+
+  it("renders Topic MOC Obsidian [[wikilinks]] Markdown export and 7-day freshness count in Topics", async () => {
+    location.hash = "#Topics";
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string) => {
+        if (input.endsWith("/topics")) {
+          return okJson({
+            topics: [
+              {
+                topic_id: "topic-agent",
+                name: "AI Agent 与自动化架构",
+                pinned: true,
+                lifecycle: "ACTIVE",
+                current_state: "CONFIRMED",
+                independence: "MULTI_SOURCE",
+                contributions: [],
+                timeline: [],
+                relations: [],
+                ai_evolution: {
+                  video_count: 24,
+                  must_watch_count: 11,
+                  recent_7d_count: 5,
+                  avg_score: 9.0,
+                  latest_headline_zh: "多智能体协作进入确定性编排阶段。",
+                  source_channels: ["OpenAI", "本地实战课"],
+                },
+              },
+            ],
+          });
+        }
+        if (input.endsWith("/topics/topic-agent")) {
+          return okJson({
+            topic: {
+              topic_id: "topic-agent",
+              name: "AI Agent 与自动化架构",
+              pinned: true,
+              lifecycle: "ACTIVE",
+              current_state: "CONFIRMED",
+              independence: "MULTI_SOURCE",
+              contributions: [],
+              timeline: [],
+              relations: [],
+              ai_evolution: {
+                video_count: 24,
+                must_watch_count: 11,
+                recent_7d_count: 5,
+                avg_score: 9.0,
+                latest_headline_zh: "多智能体协作进入确定性编排阶段。",
+                source_channels: ["OpenAI", "本地实战课"],
+                obsidian_markdown:
+                  "# AI Agent 与自动化架构\n\n- 关联专题：[[AI 产品机会与一人公司变现]]\n- 核心必看：[[Agent Orchestration Masterclass]]",
+                entries: [
+                  {
+                    video_id: "vid-deep",
+                    title: "Agent Orchestration Masterclass",
+                    channel_name: "OpenAI",
+                    published_at: "2026-11-14T10:00:00Z",
+                    score: 9.3,
+                    recommendation_tier: "MUST_WATCH",
+                    source_basis: "TRANSCRIPT",
+                    headline_zh: "状态机编排让多步 Agent 可恢复可审计。",
+                    summary_zh: "详解长任务恢复机制。",
+                    product_opportunities_zh: [],
+                    business_opportunities_zh: [],
+                  },
+                ],
+              },
+            },
+          });
+        }
+        return okJson({});
+      }),
+    );
+
+    render(<App />);
+    expect(await screen.findByText(/近7天 \+5/)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /AI Agent 与自动化架构/ }));
+    const copyMocBtn = await screen.findByRole("button", { name: "复制专题双链笔记" });
+    fireEvent.click(copyMocBtn);
+
+    expect(writeText).toHaveBeenCalledWith(
+      expect.stringContaining("[[Agent Orchestration Masterclass]]"),
+    );
+    expect(screen.getByRole("button", { name: "下载专题 .md" })).toBeTruthy();
+  });
 });

@@ -35,6 +35,7 @@ import {
   readWeeklyAiBrief,
   readWorkspaceAiSettings,
   setPendingResearchTopicCluster,
+  TopicObsidianExportBar,
   VideoAiBrief,
   WeeklyAiBriefPanel,
   WorkspaceAiSettingsPanel,
@@ -1720,6 +1721,7 @@ function Dashboard(
   const { data, error, errorCode, reload } = useRemote<
     {
       intelligence?: Intelligence[];
+      saved_intelligence_ids?: string[];
       pinned_topics?: Topic[];
       weekly_v1?: unknown[];
       needs_attention?: SourceRun[];
@@ -1734,6 +1736,7 @@ function Dashboard(
   const intelligence = (data.intelligence ?? []).filter((item) =>
       item.status === "AVAILABLE" && item.trusted
     ),
+    savedIdSet = new Set(Array.isArray(data.saved_intelligence_ids) ? data.saved_intelligence_ids : []),
     attention = data.needs_attention ?? [],
     topics = data.pinned_topics ?? [],
     weeklyBrief = readWeeklyAiBrief(data.workspace_weekly_brief),
@@ -1776,8 +1779,8 @@ function Dashboard(
               <IntelligenceCard
                 key={item.intelligence_id ?? item.code}
                 item={item}
-                saved={false}
-                onSaved={() => undefined}
+                saved={Boolean(item.intelligence_id && savedIdSet.has(item.intelligence_id))}
+                onSaved={reload}
                 onOpenContent={openContent}
               />
             ))
@@ -1850,11 +1853,18 @@ function IntelligenceDetail({ id, openContent, onBack }: {
   const { t } = useUiLanguage();
   const [revision, setRevision] = useState(0);
   const detail = useRemote<{ intelligence: Intelligence }>(`/intelligence/${id}`, revision);
+  const savedList = useRemote<{ saved: Saved[] }>("/saved-intelligence", revision);
+  const isSaved = Boolean(
+    detail.data?.intelligence.intelligence_id &&
+      (savedList.data?.saved ?? []).some(
+        (entry) => entry.intelligence_id === detail.data?.intelligence.intelligence_id,
+      ),
+  );
   return <>
     <button type="button" className="button button-ghost" onClick={onBack}>{t("Back to Intelligence")}</button>
     {detail.error ? <ErrorState error={detail.error} code={detail.errorCode} onReload={detail.reload} hideRawMessage />
       : !detail.data ? <Empty>Loading verified Intelligence…</Empty>
-      : <IntelligenceCard item={detail.data.intelligence} saved={false}
+      : <IntelligenceCard item={detail.data.intelligence} saved={isSaved}
           onSaved={() => setRevision(value => value + 1)} onOpenContent={openContent} />}
   </>;
 }
@@ -1888,6 +1898,7 @@ function IntelligencePage(
   const currentAvailable = (current.data?.intelligence ?? []).filter((item) =>
     item.status === "AVAILABLE" && item.trusted
   );
+  const savedIdSet = new Set((saved.data?.saved ?? []).map((entry) => entry.intelligence_id));
   const researchEntry = <div className="button-row"><button type="button" className="button button-secondary" onClick={openResearch}>{t("Research")}</button></div>;
   if (source.error) return <>{researchEntry}<ErrorState error={source.error} code={source.errorCode} onReload={source.reload} /></>;
   return (
@@ -1920,7 +1931,7 @@ function IntelligencePage(
           <IntelligenceCard
             key={item.intelligence_id ?? item.code}
             item={item}
-            saved={false}
+            saved={Boolean(item.intelligence_id && savedIdSet.has(item.intelligence_id))}
             onSaved={() => setRevision((value) => value + 1)}
             onOpenContent={openContent}
           />
@@ -2002,7 +2013,10 @@ function ContentPage(
   const [revision, setRevision] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [providerFilter, setProviderFilter] = useState<"ALL" | "YOUTUBE" | "BILIBILI" | "LOCAL">("ALL");
-  const [bucketFilter, setBucketFilter] = useState<"ALL" | "MUST_WATCH" | "TUTORIAL" | "SHORTS">("ALL");
+  const [bucketFilter, setBucketFilter] = useState<
+    "ALL" | "UNREAD" | "MUST_WATCH" | "STARRED" | "TUTORIAL" | "SHORTS"
+  >("ALL");
+  const [curationBusyId, setCurationBusyId] = useState<string | null>(null);
   const [aiSyncState, setAiSyncState] = useState<{
     running: boolean;
     processedCount: number;
@@ -2186,13 +2200,33 @@ function ContentPage(
       });
     }
   };
+  const toggleRowCuration = async (
+    videoId: string,
+    patchBody: { starred?: boolean; is_read?: boolean },
+  ) => {
+    if (curationBusyId !== null) return;
+    setCurationBusyId(videoId);
+    try {
+      await post(`/workspace-ai/videos/${encodeURIComponent(videoId)}/curation`, patchBody);
+      setRevision((value) => value + 1);
+    } catch {
+      /* Preserve existing view on transient network failure */
+    } finally {
+      setCurationBusyId(null);
+    }
+  };
   const trimmedSearch = searchQuery.trim().toLowerCase();
   const filteredVideos = videos.filter(item => {
     const itemProvider = item.provider ?? "YOUTUBE";
     if (providerFilter !== "ALL" && itemProvider !== providerFilter) return false;
     const brief = briefByVideoId.get(item.video_id) ?? null;
-    if (bucketFilter === "MUST_WATCH") {
+    if (bucketFilter === "UNREAD") {
+      if (item.work_kind === "DURABLE_CONTENT_IDENTITY") return false;
+      if (!brief || brief.is_short_noise || brief.is_read) return false;
+    } else if (bucketFilter === "MUST_WATCH") {
       if (!brief || brief.is_short_noise || brief.recommendation_tier !== "MUST_WATCH") return false;
+    } else if (bucketFilter === "STARRED") {
+      if (!brief || !brief.starred) return false;
     } else if (bucketFilter === "TUTORIAL") {
       if (!brief || brief.content_bucket !== "TUTORIAL") return false;
     } else if (bucketFilter === "SHORTS") {
@@ -2206,20 +2240,42 @@ function ContentPage(
     return haystack.includes(trimmedSearch);
   });
   const shouldFoldShorts = hasAiBriefs && bucketFilter === "ALL" && !trimmedSearch;
+  const isAutoFoldedItem = (item: ContentItem) =>
+    Boolean(
+      briefByVideoId.get(item.video_id)?.is_short_noise ||
+        item.work_kind === "DURABLE_CONTENT_IDENTITY",
+    );
   const primaryVideos = shouldFoldShorts
-    ? [...filteredVideos.filter(item => !briefByVideoId.get(item.video_id)?.is_short_noise)].sort(
+    ? [...filteredVideos.filter(item => !isAutoFoldedItem(item))].sort(
         (a, b) => (briefByVideoId.get(b.video_id)?.score ?? -1) - (briefByVideoId.get(a.video_id)?.score ?? -1),
       )
     : filteredVideos;
   const foldedShorts = shouldFoldShorts
-    ? filteredVideos.filter(item => Boolean(briefByVideoId.get(item.video_id)?.is_short_noise))
+    ? filteredVideos.filter(isAutoFoldedItem)
     : [];
+  const foldedPlaceholderCount = foldedShorts.filter(
+    item => item.work_kind === "DURABLE_CONTENT_IDENTITY",
+  ).length;
+  const foldedShortClipCount = foldedShorts.length - foldedPlaceholderCount;
   const renderContentRow = (item: ContentItem) => {
     const brief = briefByVideoId.get(item.video_id) ?? null;
-    return (
+    const isMetadataOnlyYoutube =
+      brief?.source_basis === "METADATA_ONLY" &&
+      (item.provider ?? "YOUTUBE") === "YOUTUBE" &&
+      ["FAILED", "FAILED_FINAL", "FAILED_RETRYABLE", "RETRY_REQUIRED", "METADATA_READY"].includes(
+        item.processing_status,
+      );
+    const rowStatus = isMetadataOnlyYoutube
+      ? {
+          value: "METADATA_READY",
+          label: language === "zh-CN" ? "无原生字幕" : "No native captions",
+        }
+      : contentStatus(item.provider, item.processing_status);
+    const rowButton = (
       <button
-        className="list-row content-media-row"
-        key={item.video_id}
+        type="button"
+        className={`list-row content-media-row${brief?.is_read ? " is-read-row" : ""}`}
+        key={hasAiBriefs && brief && !item.work_kind ? undefined : item.video_id}
         onClick={() => onOpen(item.video_id)}
       >
         <span className="content-media-lead">
@@ -2258,9 +2314,77 @@ function ContentPage(
             </span>
           ) : null}
           {brief ? <AiScoreBadge brief={brief} compact /> : null}
-          <Status {...contentStatus(item.provider, item.processing_status)} />
+          <Status {...rowStatus} />
         </span>
       </button>
+    );
+    if (!hasAiBriefs || !brief || item.work_kind) {
+      return rowButton;
+    }
+    const zh = language === "zh-CN";
+    const rowBusy = curationBusyId === item.video_id;
+    return (
+      <div
+        className={`content-row-shell${brief.is_read ? " is-read-shell" : ""}`}
+        key={item.video_id}
+      >
+        {rowButton}
+        <div
+          className="content-curation-inline"
+          role="group"
+          aria-label={zh ? "阅读与收藏" : "Reading controls"}
+        >
+          <button
+            type="button"
+            className={`curation-pill-btn${brief.starred ? " is-active" : ""}`}
+            disabled={rowBusy}
+            aria-pressed={Boolean(brief.starred)}
+            aria-label={
+              brief.starred
+                ? zh
+                  ? "已收藏 · 取消"
+                  : "Starred · Remove"
+                : zh
+                  ? "收藏待看"
+                  : "Star for later"
+            }
+            onClick={(event) => {
+              pulseCelebration(event.currentTarget);
+              void toggleRowCuration(item.video_id, { starred: !brief.starred });
+            }}
+          >
+            <PhosphorIcon
+              name="bookmark-simple"
+              weight={brief.starred ? "fill" : "regular"}
+              size={13}
+            />
+            <span>{brief.starred ? (zh ? "已收藏" : "Starred") : zh ? "收藏" : "Star"}</span>
+          </button>
+          <button
+            type="button"
+            className={`curation-pill-btn${brief.is_read ? " is-read-active" : ""}`}
+            disabled={rowBusy}
+            aria-pressed={Boolean(brief.is_read)}
+            aria-label={
+              brief.is_read
+                ? zh
+                  ? "已读 · 标未读"
+                  : "Read · Mark unread"
+                : zh
+                  ? "标记已读"
+                  : "Mark read"
+            }
+            onClick={() => void toggleRowCuration(item.video_id, { is_read: !brief.is_read })}
+          >
+            <PhosphorIcon
+              name="check-circle"
+              weight={brief.is_read ? "fill" : "regular"}
+              size={13}
+            />
+            <span>{brief.is_read ? (zh ? "已读" : "Read") : zh ? "标已读" : "Read"}</span>
+          </button>
+        </div>
+      </div>
     );
   };
   return videos.length
@@ -2396,7 +2520,9 @@ function ContentPage(
               {(
                 [
                   ["ALL", language === "zh-CN" ? "全部" : "All"],
+                  ["UNREAD", language === "zh-CN" ? "未读干货" : "Unread"],
                   ["MUST_WATCH", language === "zh-CN" ? "必看长视频" : "Must-watch"],
+                  ["STARRED", language === "zh-CN" ? "已收藏" : "Starred"],
                   ["TUTORIAL", language === "zh-CN" ? "实操教程" : "Tutorials"],
                   ["SHORTS", language === "zh-CN" ? "Shorts 短片" : "Shorts"],
                 ] as const
@@ -2449,8 +2575,16 @@ function ContentPage(
                   <PhosphorIcon name="funnel" size={14} />
                   <span>
                     {language === "zh-CN"
-                      ? `已自动折叠 ${foldedShorts.length} 条 Shorts 宣传短片（点击展开查看）`
-                      : `${foldedShorts.length} Shorts promo clips auto-folded (click to expand)`}
+                      ? foldedPlaceholderCount > 0 && foldedShortClipCount > 0
+                        ? `已自动折叠 ${foldedShortClipCount} 条 Shorts 宣传短片与 ${foldedPlaceholderCount} 条未开播/占位链接（点击展开查看）`
+                        : foldedPlaceholderCount > 0
+                          ? `已自动折叠 ${foldedPlaceholderCount} 条未开播/原始链接占位项（点击展开查看）`
+                          : `已自动折叠 ${foldedShorts.length} 条 Shorts 宣传短片（点击展开查看）`
+                      : foldedPlaceholderCount > 0 && foldedShortClipCount > 0
+                        ? `${foldedShortClipCount} Shorts clips and ${foldedPlaceholderCount} placeholder links auto-folded (click to expand)`
+                        : foldedPlaceholderCount > 0
+                          ? `${foldedPlaceholderCount} placeholder links auto-folded (click to expand)`
+                          : `${foldedShorts.length} Shorts promo clips auto-folded (click to expand)`}
                   </span>
                 </summary>
                 <div className="compact-list content-media-list shorts-folded-list">
@@ -2855,12 +2989,21 @@ function ContentDetailPanel(
   // a run in progress is not summarised by the snapshot status behind it.
   const readingStatus = isLocalMedia && transcriptionStatus
     ? { value: transcriptionStatus, label: transcriptionCopy(transcriptionStatus) }
-    : contentStatus(
-        data.video.provider,
-        isLocalMedia && data.video.processing_status === "TRANSCRIPTION_UNAVAILABLE"
-          ? "IMPORTED"
-          : data.video.processing_status,
-      );
+    : aiBrief?.source_basis === "METADATA_ONLY" &&
+        (data.video.provider ?? "YOUTUBE") === "YOUTUBE" &&
+        ["FAILED", "FAILED_FINAL", "FAILED_RETRYABLE", "RETRY_REQUIRED", "METADATA_READY"].includes(
+          data.video.processing_status,
+        )
+      ? {
+          value: "METADATA_READY",
+          label: language === "zh-CN" ? "无原生字幕" : "No native captions",
+        }
+      : contentStatus(
+          data.video.provider,
+          isLocalMedia && data.video.processing_status === "TRANSCRIPTION_UNAVAILABLE"
+            ? "IMPORTED"
+            : data.video.processing_status,
+        );
   return (
     <div className="dashboard-stack reader-detail-stack">
       <button className="button button-ghost" onClick={onClose}>
@@ -3948,6 +4091,11 @@ function Topics({
                                 zh
                                   ? `${evo.video_count} 条内容 · ${evo.must_watch_count} 条必看`
                                   : `${evo.video_count} items · ${evo.must_watch_count} must-watch`,
+                                evo.recent_7d_count > 0
+                                  ? zh
+                                    ? `近7天 +${evo.recent_7d_count}`
+                                    : `+${evo.recent_7d_count} in 7d`
+                                  : null,
                                 evo.avg_score !== null
                                   ? zh
                                     ? `均分 ${evo.avg_score.toFixed(1)}`
@@ -4006,8 +4154,8 @@ function Topics({
           <p className="weekly-funnel-strip tabular-nums">
             <span>
               {zh
-                ? `已聚合 ${evo.video_count} 条相关内容 · ${evo.must_watch_count} 条必看干货${evo.avg_score !== null ? ` · 平均评分 ${evo.avg_score.toFixed(1)}` : ""}`
-                : `${evo.video_count} items · ${evo.must_watch_count} must-watch${evo.avg_score !== null ? ` · Avg ${evo.avg_score.toFixed(1)}` : ""}`}
+                ? `已聚合 ${evo.video_count} 条相关内容 · ${evo.must_watch_count} 条必看干货${evo.recent_7d_count > 0 ? ` · 近7天 +${evo.recent_7d_count}` : ""}${evo.avg_score !== null ? ` · 平均评分 ${evo.avg_score.toFixed(1)}` : ""}`
+                : `${evo.video_count} items · ${evo.must_watch_count} must-watch${evo.recent_7d_count > 0 ? ` · +${evo.recent_7d_count} in 7d` : ""}${evo.avg_score !== null ? ` · Avg ${evo.avg_score.toFixed(1)}` : ""}`}
             </span>
             {evo.source_channels.length > 0 ? <span>{evo.source_channels.join(" · ")}</span> : null}
           </p>
@@ -4045,6 +4193,12 @@ function Topics({
             {t(topic.pinned ? "Unpin Topic" : "Pin Topic")}
           </button>
         </div>
+        {evo?.obsidian_markdown ? (
+          <TopicObsidianExportBar
+            topicName={topic.name}
+            obsidianMarkdown={evo.obsidian_markdown}
+          />
+        ) : null}
       </Panel>
       {hasEvoEntries && evo ? (
         <Panel title={zh ? "专题核心脉络与时间演进" : "Topic Insight Evolution"} icon="sparkle">

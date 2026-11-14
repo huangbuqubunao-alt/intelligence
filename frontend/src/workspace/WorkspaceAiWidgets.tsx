@@ -15,6 +15,8 @@ export type VideoAiBrief = {
   recommendation_tier: "MUST_WATCH" | "WORTH_SKIMMING" | "SKIP_NOISE";
   content_bucket: "DEEP_DIVE" | "TUTORIAL" | "SHORTS_PROMO";
   is_short_noise: boolean;
+  starred?: boolean;
+  is_read?: boolean;
   topics_zh: string[];
   topic_cluster_zh: string;
   product_opportunities_zh: string[];
@@ -105,9 +107,11 @@ export type TopicAiEvolutionEntry = {
 export type TopicAiEvolution = {
   video_count: number;
   must_watch_count: number;
+  recent_7d_count: number;
   avg_score: number | null;
   latest_headline_zh: string;
   source_channels: string[];
+  obsidian_markdown: string;
   entries: TopicAiEvolutionEntry[];
 };
 
@@ -167,6 +171,8 @@ export function readVideoAiBrief(raw: unknown): VideoAiBrief | null {
         ? bucket
         : "DEEP_DIVE",
     is_short_noise: Boolean(raw.is_short_noise),
+    starred: Boolean(raw.starred),
+    is_read: Boolean(raw.is_read),
     topics_zh: strArr(raw.topics_zh),
     topic_cluster_zh: typeof raw.topic_cluster_zh === "string" ? raw.topic_cluster_zh : "",
     product_opportunities_zh: strArr(raw.product_opportunities_zh),
@@ -323,9 +329,11 @@ export function readTopicAiEvolution(raw: unknown): TopicAiEvolution | null {
   return {
     video_count: raw.video_count,
     must_watch_count: typeof raw.must_watch_count === "number" ? raw.must_watch_count : 0,
+    recent_7d_count: typeof raw.recent_7d_count === "number" ? raw.recent_7d_count : 0,
     avg_score: typeof raw.avg_score === "number" ? raw.avg_score : null,
     latest_headline_zh: typeof raw.latest_headline_zh === "string" ? raw.latest_headline_zh : "",
     source_channels: strArr(raw.source_channels),
+    obsidian_markdown: typeof raw.obsidian_markdown === "string" ? raw.obsidian_markdown : "",
     entries,
   };
 }
@@ -625,13 +633,27 @@ export function WorkspaceVideoAiActions({
 }) {
   const { language } = useUiLanguage();
   const zh = language === "zh-CN";
-  const [busyKind, setBusyKind] = useState<"distill" | "transcribe" | null>(null);
+  const [busyKind, setBusyKind] = useState<"distill" | "transcribe" | "curation" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copiedObsidian, setCopiedObsidian] = useState(false);
 
   const mdContent = obsidianMarkdown ?? aiBrief?.obsidian_markdown ?? "";
   const canMetadataPreview =
     !isLocalMedia && !transcriptAvailable && (provider ?? "YOUTUBE") === "YOUTUBE";
+
+  const toggleCuration = async (patchBody: { starred?: boolean; is_read?: boolean }) => {
+    if (busyKind !== null) return;
+    setBusyKind("curation");
+    setError(null);
+    try {
+      await post(`/workspace-ai/videos/${encodeURIComponent(videoId)}/curation`, patchBody);
+      onCompleted();
+    } catch {
+      setError(zh ? "未能更新阅读与收藏状态，请稍后重试。" : "Could not update reading state.");
+    } finally {
+      setBusyKind(null);
+    }
+  };
 
   const runAction = async (kind: "distill" | "transcribe") => {
     setBusyKind(kind);
@@ -758,6 +780,53 @@ export function WorkspaceVideoAiActions({
           </button>
         </>
       ) : null}
+      {aiBrief ? (
+        <>
+          <button
+            type="button"
+            className={`button button-small ${aiBrief.starred ? "button-saved" : "button-secondary"}`}
+            disabled={busyKind !== null}
+            aria-pressed={Boolean(aiBrief.starred)}
+            onClick={(event) => {
+              pulseCelebration(event.currentTarget);
+              void toggleCuration({ starred: !aiBrief.starred });
+            }}
+          >
+            <PhosphorIcon
+              name="bookmark-simple"
+              weight={aiBrief.starred ? "fill" : "regular"}
+              size={13}
+            />
+            {aiBrief.starred
+              ? zh
+                ? "已收藏"
+                : "Starred"
+              : zh
+                ? "收藏待看"
+                : "Star"}
+          </button>
+          <button
+            type="button"
+            className="button button-ghost button-small"
+            disabled={busyKind !== null}
+            aria-pressed={Boolean(aiBrief.is_read)}
+            onClick={() => void toggleCuration({ is_read: !aiBrief.is_read })}
+          >
+            <PhosphorIcon
+              name="check-circle"
+              weight={aiBrief.is_read ? "fill" : "regular"}
+              size={13}
+            />
+            {aiBrief.is_read
+              ? zh
+                ? "已读 · 标未读"
+                : "Read · Mark unread"
+              : zh
+                ? "标记已读"
+                : "Mark read"}
+          </button>
+        </>
+      ) : null}
       {error ? (
         <p className="form-error" role="alert">
           {error}
@@ -829,6 +898,60 @@ export function WorkspaceVideoAiBriefCard({
           <pre className="obsidian-preview-pre">{md}</pre>
         </details>
       ) : null}
+    </div>
+  );
+}
+
+export function TopicObsidianExportBar({
+  topicName,
+  obsidianMarkdown,
+}: {
+  topicName: string;
+  obsidianMarkdown: string;
+}) {
+  const { language } = useUiLanguage();
+  const zh = language === "zh-CN";
+  const [copied, setCopied] = useState(false);
+  if (!obsidianMarkdown.trim()) return null;
+
+  return (
+    <div className="topic-moc-export-box">
+      <div className="button-row">
+        <button
+          type="button"
+          className="button button-secondary button-small"
+          onClick={(event) => {
+            pulseCelebration(event.currentTarget);
+            void navigator.clipboard?.writeText(obsidianMarkdown);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2200);
+          }}
+        >
+          <PhosphorIcon name="file-text" size={13} />
+          {copied
+            ? zh
+              ? "已复制专题双链笔记"
+              : "Copied Topic MOC"
+            : zh
+              ? "复制专题双链笔记"
+              : "Copy Topic [[wikilinks]]"}
+        </button>
+        <button
+          type="button"
+          className="button button-ghost button-small"
+          onClick={() => downloadObsidianMarkdown(`专题MOC-${topicName}.md`, obsidianMarkdown)}
+        >
+          {zh ? "下载专题 .md" : "Download Topic .md"}
+        </button>
+      </div>
+      <details className="obsidian-preview-drawer">
+        <summary>
+          {zh
+            ? "预览专题 MOC 双链笔记 ([[wikilinks]])"
+            : "Preview Topic MOC [[wikilinks]] Markdown"}
+        </summary>
+        <pre className="obsidian-preview-pre">{obsidianMarkdown}</pre>
+      </details>
     </div>
   );
 }
@@ -1419,13 +1542,30 @@ export function WorkspaceAiSettingsPanel({
       }
       const res = await post<{ restored?: unknown }>("/workspace-ai/restore", parsed);
       const counts = isRec(res.restored) ? res.restored : {};
-      const videoCount = typeof counts.video_ai_briefs === "number" ? counts.video_ai_briefs : 0;
-      const weeklyCount = typeof counts.weekly_ai_briefs === "number" ? counts.weekly_ai_briefs : 0;
-      const qaCount = typeof counts.ai_research_sessions === "number" ? counts.ai_research_sessions : 0;
+      const videoCount =
+        typeof counts.briefs === "number"
+          ? counts.briefs
+          : typeof counts.video_ai_briefs === "number"
+            ? counts.video_ai_briefs
+            : 0;
+      const weeklyCount =
+        typeof counts.weekly_briefs === "number"
+          ? counts.weekly_briefs
+          : typeof counts.weekly_ai_briefs === "number"
+            ? counts.weekly_ai_briefs
+            : 0;
+      const qaCount =
+        typeof counts.research_sessions === "number"
+          ? counts.research_sessions
+          : typeof counts.ai_research_sessions === "number"
+            ? counts.ai_research_sessions
+            : 0;
+      const curationCount =
+        typeof counts.curation_states === "number" ? counts.curation_states : 0;
       setFeedback(
         zh
-          ? `已恢复 ${videoCount} 条中文摘要、${weeklyCount} 份周报与 ${qaCount} 条跨视频问答记录。`
-          : `Restored ${videoCount} AI briefs, ${weeklyCount} weekly digests, and ${qaCount} Q&A sessions.`,
+          ? `已恢复 ${videoCount} 条中文摘要、${weeklyCount} 份周报与 ${qaCount} 条跨视频问答记录${curationCount > 0 ? `（含 ${curationCount} 条阅读状态）` : ""}。`
+          : `Restored ${videoCount} AI briefs, ${weeklyCount} weekly digests, and ${qaCount} Q&A sessions${curationCount > 0 ? ` (${curationCount} reading states)` : ""}.`,
       );
     } catch {
       setError(

@@ -3574,3 +3574,93 @@ dl.creator-tracking dd {
   gap: 6px;
   margin-top: 8px;
 }
+
+/* Round 3: Personal Curation Triage & Topic MOC Export */
+.content-row-shell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  transition: background var(--transition);
+}
+
+.content-row-shell:last-child {
+  border-bottom: 0;
+}
+
+.content-row-shell:hover {
+  background: var(--surface-hover);
+}
+
+.content-row-shell .content-media-row {
+  flex: 1 1 320px;
+  border-bottom: 0;
+  background: transparent;
+}
+
+.content-row-shell .content-media-row:hover {
+  background: transparent;
+}
+
+.content-row-shell.is-read-shell .content-media-copy strong {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.content-curation-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px 10px 14px;
+}
+
+@media (min-width: 720px) {
+  .content-curation-inline {
+    padding: 8px 14px 8px 0;
+  }
+}
+
+.curation-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+  padding: 3px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background var(--transition),
+    border-color var(--transition),
+    color var(--transition);
+}
+
+.curation-pill-btn:hover {
+  border-color: var(--border-strong);
+  color: var(--text-strong);
+}
+
+.curation-pill-btn.is-active {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.curation-pill-btn.is-read-active {
+  border-color: var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.topic-moc-export-box {
+  margin-top: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  display: grid;
+  gap: 8px;
+}
