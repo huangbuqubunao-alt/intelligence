@@ -41,6 +41,25 @@ export type WeeklyBriefFreshness = {
   new_titles: string[];
 };
 
+export type WeeklyBriefDelta = {
+  previous_brief_id: string;
+  previous_created_at: string;
+  previous_title_zh: string;
+  total_videos_delta: number;
+  distilled_delta: number;
+  must_watch_delta: number;
+  new_picks: {
+    video_id: string;
+    title: string;
+    channel_name: string;
+    score: number;
+    headline_zh: string;
+  }[];
+  new_shifts_zh: string[];
+  new_opportunities_zh: string[];
+  summary_zh: string;
+};
+
 export type ObsidianBundleScope = "must_watch" | "all" | "starred";
 
 export type ObsidianVaultBundleResult = {
@@ -74,6 +93,7 @@ export type WeeklyAiBrief = {
     local_courses_count?: number;
   };
   freshness?: WeeklyBriefFreshness;
+  delta?: WeeklyBriefDelta;
   obsidian_markdown: string;
   provider: string;
   model: string;
@@ -108,6 +128,7 @@ export type AiResearchSession = {
 };
 
 export type ResearchScopeOptions = {
+  starred_count: number;
   channels: { key: string; label: string; count: number }[];
   topic_clusters: { name: string; count: number }[];
   videos: {
@@ -115,6 +136,7 @@ export type ResearchScopeOptions = {
     title: string;
     channel_name: string;
     score: number | null;
+    starred?: boolean;
     topic_cluster_zh?: string;
   }[];
 };
@@ -158,6 +180,7 @@ export type TopicAiEvolution = {
 };
 
 let pendingResearchTopicCluster = "";
+let pendingResearchStarredOnly = false;
 
 export function setPendingResearchTopicCluster(topicName: string): void {
   pendingResearchTopicCluster = topicName.trim();
@@ -166,6 +189,16 @@ export function setPendingResearchTopicCluster(topicName: string): void {
 export function consumePendingResearchTopicCluster(): string {
   const next = pendingResearchTopicCluster;
   pendingResearchTopicCluster = "";
+  return next;
+}
+
+export function setPendingResearchStarredOnly(enabled: boolean): void {
+  pendingResearchStarredOnly = Boolean(enabled);
+}
+
+export function consumePendingResearchStarredOnly(): boolean {
+  const next = pendingResearchStarredOnly;
+  pendingResearchStarredOnly = false;
   return next;
 }
 
@@ -270,6 +303,40 @@ export function readWeeklyAiBrief(raw: unknown): WeeklyAiBrief | null {
         new_titles: strArr(rawFreshness.new_titles),
       }
     : undefined;
+  const rawDelta =
+    isRec(raw.delta) && typeof raw.delta.previous_brief_id === "string"
+      ? raw.delta
+      : null;
+  const delta: WeeklyBriefDelta | undefined = rawDelta
+    ? {
+        previous_brief_id: String(rawDelta.previous_brief_id),
+        previous_created_at:
+          typeof rawDelta.previous_created_at === "string" ? rawDelta.previous_created_at : "",
+        previous_title_zh:
+          typeof rawDelta.previous_title_zh === "string" ? rawDelta.previous_title_zh : "",
+        total_videos_delta:
+          typeof rawDelta.total_videos_delta === "number" ? rawDelta.total_videos_delta : 0,
+        distilled_delta:
+          typeof rawDelta.distilled_delta === "number" ? rawDelta.distilled_delta : 0,
+        must_watch_delta:
+          typeof rawDelta.must_watch_delta === "number" ? rawDelta.must_watch_delta : 0,
+        new_picks: Array.isArray(rawDelta.new_picks)
+          ? rawDelta.new_picks
+              .filter(isRec)
+              .map((np) => ({
+                video_id: String(np.video_id ?? ""),
+                title: String(np.title ?? np.video_id ?? ""),
+                channel_name: String(np.channel_name ?? ""),
+                score: typeof np.score === "number" ? np.score : 8.5,
+                headline_zh: String(np.headline_zh ?? ""),
+              }))
+              .filter((np) => np.video_id.length > 0)
+          : [],
+        new_shifts_zh: strArr(rawDelta.new_shifts_zh),
+        new_opportunities_zh: strArr(rawDelta.new_opportunities_zh),
+        summary_zh: typeof rawDelta.summary_zh === "string" ? rawDelta.summary_zh : "",
+      }
+    : undefined;
   return {
     brief_id: raw.brief_id,
     week_label: typeof raw.week_label === "string" ? raw.week_label : "",
@@ -290,6 +357,7 @@ export function readWeeklyAiBrief(raw: unknown): WeeklyAiBrief | null {
         typeof stats.local_courses_count === "number" ? stats.local_courses_count : undefined,
     },
     ...(freshness ? { freshness } : {}),
+    ...(delta ? { delta } : {}),
     obsidian_markdown: typeof raw.obsidian_markdown === "string" ? raw.obsidian_markdown : "",
     provider: typeof raw.provider === "string" ? raw.provider : "ollama",
     model: typeof raw.model === "string" ? raw.model : "qwen3.5:9b",
@@ -341,7 +409,12 @@ function readResearchScopeOptions(raw: unknown): ResearchScopeOptions | null {
         .map((ch) => ({
           key: typeof ch.key === "string" ? ch.key.trim() : "",
           label: typeof ch.label === "string" ? ch.label.trim() : "",
-          count: typeof ch.count === "number" ? ch.count : 0,
+          count:
+            typeof ch.count === "number"
+              ? ch.count
+              : typeof ch.video_count === "number"
+                ? ch.video_count
+                : 0,
         }))
         .filter((ch) => ch.key.length > 0 && ch.label.length > 0)
     : [];
@@ -350,7 +423,12 @@ function readResearchScopeOptions(raw: unknown): ResearchScopeOptions | null {
         .filter(isRec)
         .map((tc) => ({
           name: typeof tc.name === "string" ? tc.name.trim() : "",
-          count: typeof tc.count === "number" ? tc.count : 0,
+          count:
+            typeof tc.count === "number"
+              ? tc.count
+              : typeof tc.video_count === "number"
+                ? tc.video_count
+                : 0,
         }))
         .filter((tc) => tc.name.length > 0)
     : [];
@@ -362,11 +440,16 @@ function readResearchScopeOptions(raw: unknown): ResearchScopeOptions | null {
           title: typeof v.title === "string" && v.title.trim() ? v.title.trim() : String(v.video_id ?? ""),
           channel_name: typeof v.channel_name === "string" ? v.channel_name.trim() : "",
           score: typeof v.score === "number" ? v.score : null,
+          starred: typeof v.starred === "boolean" ? v.starred : undefined,
           topic_cluster_zh: typeof v.topic_cluster_zh === "string" ? v.topic_cluster_zh : undefined,
         }))
         .filter((v) => v.video_id.length > 0)
     : [];
-  return { channels, topic_clusters, videos };
+  const starred_count =
+    typeof raw.starred_count === "number"
+      ? raw.starred_count
+      : videos.filter((v) => Boolean(v.starred)).length;
+  return { starred_count, channels, topic_clusters, videos };
 }
 
 export function readTopicAiEvolution(raw: unknown): TopicAiEvolution | null {
@@ -764,6 +847,43 @@ export function WeeklyAiBriefPanel({
         </span>
         {brief.week_label ? <span>{brief.week_label}</span> : null}
       </div>
+
+      {brief.delta && brief.delta.summary_zh ? (
+        <div
+          className="weekly-delta-strip tabular-nums"
+          role="region"
+          aria-label={zh ? "较上期周报演进对比" : "Changes since previous brief"}
+        >
+          <div className="weekly-delta-summary">
+            <strong>{brief.delta.summary_zh}</strong>
+            {brief.delta.previous_created_at ? (
+              <span>
+                {zh
+                  ? `对比上期 ${brief.delta.previous_created_at.slice(0, 10)}`
+                  : `vs. ${brief.delta.previous_created_at.slice(0, 10)}`}
+              </span>
+            ) : null}
+          </div>
+          {brief.delta.new_picks.length > 0 ? (
+            <div className="weekly-delta-picks">
+              <span className="weekly-delta-picks-label">
+                {zh ? "本期新上榜：" : "New picks:"}
+              </span>
+              {brief.delta.new_picks.slice(0, 3).map((pick) => (
+                <button
+                  key={pick.video_id}
+                  type="button"
+                  className="weekly-delta-pick-chip"
+                  onClick={() => onOpenContent(pick.video_id)}
+                >
+                  <span>{pick.title}</span>
+                  <small>{pick.score.toFixed(1)}</small>
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {brief.freshness?.is_stale &&
       !brief.freshness.is_archive &&
@@ -1412,6 +1532,7 @@ export function WorkspaceAiResearchPanel({
   const [scopeOptions, setScopeOptions] = useState<ResearchScopeOptions | null>(null);
   const [selectedChannel, setSelectedChannel] = useState("");
   const [selectedTopic, setSelectedTopic] = useState(() => consumePendingResearchTopicCluster());
+  const [starredOnly, setStarredOnly] = useState(() => consumePendingResearchStarredOnly());
   const [comparePickerOpen, setComparePickerOpen] = useState(false);
   const [selectedVideoIds, setSelectedVideoIds] = useState<string[]>([]);
   const [activeSession, setActiveSession] = useState<AiResearchSession | null>(null);
@@ -1450,7 +1571,9 @@ export function WorkspaceAiResearchPanel({
     };
   }, []);
 
-  const hasActiveScope = Boolean(selectedChannel || selectedTopic || selectedVideoIds.length > 0);
+  const hasActiveScope = Boolean(
+    starredOnly || selectedChannel || selectedTopic || selectedVideoIds.length > 0,
+  );
 
   const toggleComparedVideo = (videoId: string) => {
     setSelectedVideoIds((prev) =>
@@ -1472,6 +1595,7 @@ export function WorkspaceAiResearchPanel({
       if (selectedVideoIds.length > 0) {
         payload.video_ids = selectedVideoIds;
       } else {
+        if (starredOnly) payload.starred_only = true;
         if (selectedChannel) payload.channel_key = selectedChannel;
         if (selectedTopic) payload.topic_cluster = selectedTopic;
       }
@@ -1484,14 +1608,18 @@ export function WorkspaceAiResearchPanel({
     } catch (err) {
       const code = err instanceof ApiRequestError ? err.code : undefined;
       setError(
-        code === "INSUFFICIENT_MATERIAL"
-          ? hasActiveScope
+        code === "NO_GROUNDED_CONTENT" || code === "INSUFFICIENT_MATERIAL"
+          ? starredOnly
             ? zh
-              ? "当前筛选范围内暂无带时间轴字幕的内容，请放宽来源或专题范围后重试。"
-              : "No timed transcript content matched the selected scope."
-            : zh
-              ? "当前资料库尚无带时间轴字幕的内容可供跨视频问答。"
-              : "No timed transcript content is available in your library yet."
+              ? "当前已收藏清单中暂无带时间轴字幕的内容，请先在「内容」中收藏至少 1 篇深度视频，或取消「仅限已收藏」筛选。"
+              : "No timed transcript content in your starred shortlist yet."
+            : hasActiveScope
+              ? zh
+                ? "当前筛选范围内暂无带时间轴字幕的内容，请放宽来源或专题范围后重试。"
+                : "No timed transcript content matched the selected scope."
+              : zh
+                ? "当前资料库尚无带时间轴字幕的内容可供跨视频问答。"
+                : "No timed transcript content is available in your library yet."
           : zh
             ? "跨视频 AI 问答未能完成，请检查本机 Ollama 或云端引擎配置。"
             : "Cross-video AI Q&A could not complete.",
@@ -1509,6 +1637,9 @@ export function WorkspaceAiResearchPanel({
   const availableTopics = scopeOptions?.topic_clusters ?? [];
   const topicNames = new Set(availableTopics.map((t) => t.name));
   const candidateVideos = (scopeOptions?.videos ?? []).filter((v) => {
+    if (starredOnly && v.starred === false) {
+      return false;
+    }
     if (selectedChannel && v.channel_name !== selectedChannel && !(selectedChannel === "LOCAL" && v.channel_name === "本地实战课")) {
       return false;
     }
@@ -1519,9 +1650,11 @@ export function WorkspaceAiResearchPanel({
   });
 
   const showScopeBar = Boolean(
-    selectedTopic ||
+    starredOnly ||
+      selectedTopic ||
       (scopeOptions &&
-        (scopeOptions.channels.length > 0 ||
+        (scopeOptions.starred_count > 0 ||
+          scopeOptions.channels.length > 0 ||
           scopeOptions.topic_clusters.length > 0 ||
           scopeOptions.videos.length > 0)),
   );
@@ -1576,6 +1709,29 @@ export function WorkspaceAiResearchPanel({
           ) : null}
 
           <div className="ai-scope-secondary-row">
+            {starredOnly || (scopeOptions?.starred_count ?? 0) > 0 ? (
+              <button
+                type="button"
+                className={`ai-question-chip tabular-nums${starredOnly && selectedVideoIds.length === 0 ? " is-active" : ""}`}
+                aria-pressed={starredOnly && selectedVideoIds.length === 0}
+                disabled={busy}
+                onClick={() => {
+                  setSelectedVideoIds([]);
+                  setStarredOnly((prev) => !prev);
+                }}
+              >
+                <PhosphorIcon
+                  name="bookmark-simple"
+                  weight={starredOnly ? "fill" : "regular"}
+                  size={12}
+                />
+                {" "}
+                {zh
+                  ? `仅限已收藏 (${scopeOptions?.starred_count ?? 0})`
+                  : `Starred only (${scopeOptions?.starred_count ?? 0})`}
+              </button>
+            ) : null}
+
             {availableTopics.length > 0 || selectedTopic ? (
               <label className="ai-scope-inline-field">
                 <span>{zh ? "限定专题" : "Topic"}</span>
@@ -1626,6 +1782,7 @@ export function WorkspaceAiResearchPanel({
                 className="button button-ghost button-small"
                 disabled={busy}
                 onClick={() => {
+                  setStarredOnly(false);
                   setSelectedChannel("");
                   setSelectedTopic("");
                   setSelectedVideoIds([]);

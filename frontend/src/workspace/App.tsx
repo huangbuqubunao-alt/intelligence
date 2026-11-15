@@ -36,6 +36,7 @@ import {
   readVideoAiBrief,
   readWeeklyAiBrief,
   readWorkspaceAiSettings,
+  setPendingResearchStarredOnly,
   setPendingResearchTopicCluster,
   TopicObsidianExportBar,
   VideoAiBrief,
@@ -1626,7 +1627,18 @@ function Workspace() {
         {page === "Content" && (
           <>
             {imported && <p role="status" aria-live="polite">{t("File imported. Its processing status appears below.")}</p>}
-            <ContentPage refresh={refresh} targetVideoId={contentTarget} highlightedEvidenceId={researchEvidence} onOpen={openContent} onClose={() => navigate("Content")} onAdd={() => setAddProvider("YOUTUBE")} />
+            <ContentPage
+              refresh={refresh}
+              targetVideoId={contentTarget}
+              highlightedEvidenceId={researchEvidence}
+              onOpen={openContent}
+              onClose={() => navigate("Content")}
+              onAdd={() => setAddProvider("YOUTUBE")}
+              onAskStarredResearch={() => {
+                setPendingResearchStarredOnly(true);
+                navigate("Research");
+              }}
+            />
           </>
         )}
         {page === "Intelligence" && (
@@ -2113,13 +2125,22 @@ function SavedCard(
   );
 }
 function ContentPage(
-  { refresh, targetVideoId, highlightedEvidenceId, onOpen, onClose, onAdd }: {
+  {
+    refresh,
+    targetVideoId,
+    highlightedEvidenceId,
+    onOpen,
+    onClose,
+    onAdd,
+    onAskStarredResearch,
+  }: {
     refresh: number;
     targetVideoId?: string | null;
     highlightedEvidenceId?: string | null;
     onOpen: (id: string) => void;
     onClose: () => void;
     onAdd: () => void;
+    onAskStarredResearch?: () => void;
   },
 ) {
   const { language, t } = useUiLanguage();
@@ -2151,6 +2172,8 @@ function ContentPage(
     onOpen,
   });
   const [curationBusyId, setCurationBusyId] = useState<string | null>(null);
+  const [batchCurationBusy, setBatchCurationBusy] = useState(false);
+  const [lastBatchReadIds, setLastBatchReadIds] = useState<string[]>([]);
   const [aiSyncState, setAiSyncState] = useState<{
     running: boolean;
     processedCount: number;
@@ -2434,7 +2457,7 @@ function ContentPage(
     videoId: string,
     patchBody: { starred?: boolean; is_read?: boolean },
   ) => {
-    if (curationBusyId !== null) return;
+    if (curationBusyId !== null || batchCurationBusy) return;
     setCurationBusyId(videoId);
     try {
       await post(`/workspace-ai/videos/${encodeURIComponent(videoId)}/curation`, patchBody);
@@ -2443,6 +2466,39 @@ function ContentPage(
       /* Preserve existing view on transient network failure */
     } finally {
       setCurationBusyId(null);
+    }
+  };
+  const markVisibleUnreadAsRead = async (targetIds: string[]) => {
+    if (!targetIds.length || batchCurationBusy || curationBusyId !== null) return;
+    setBatchCurationBusy(true);
+    try {
+      await post("/workspace-ai/curation/batch", {
+        video_ids: targetIds,
+        is_read: true,
+      });
+      setLastBatchReadIds(targetIds);
+      setRevision((value) => value + 1);
+    } catch {
+      /* Preserve existing view on transient network failure */
+    } finally {
+      setBatchCurationBusy(false);
+    }
+  };
+  const undoLastBatchRead = async () => {
+    if (!lastBatchReadIds.length || batchCurationBusy) return;
+    const idsToRestore = [...lastBatchReadIds];
+    setBatchCurationBusy(true);
+    try {
+      await post("/workspace-ai/curation/batch", {
+        video_ids: idsToRestore,
+        is_read: false,
+      });
+      setLastBatchReadIds([]);
+      setRevision((value) => value + 1);
+    } catch {
+      /* Preserve undo banner if network call failed */
+    } finally {
+      setBatchCurationBusy(false);
     }
   };
   const trimmedSearch = searchQuery.trim().toLowerCase();
@@ -2530,6 +2586,16 @@ function ContentPage(
       )
     : filteredVideos;
   const primaryIds = primaryVideos.map((v) => v.video_id);
+  const unreadInViewIds = primaryVideos
+    .filter((item) => {
+      if (item.work_kind) return false;
+      const b = briefByVideoId.get(item.video_id);
+      return Boolean(b && !b.is_short_noise && !b.is_read);
+    })
+    .map((item) => item.video_id);
+  const totalStarredCount = Array.from(briefByVideoId.values()).filter((b) =>
+    Boolean(b.starred && !b.is_short_noise),
+  ).length;
   const effectiveKbActiveId =
     kbActiveId && primaryIds.includes(kbActiveId) ? kbActiveId : (primaryIds[0] ?? null);
   kbContextRef.current = {
@@ -2887,7 +2953,65 @@ function ContentPage(
                 : "Keys: / search · J/K move · Enter open · S star · E read"}
             </span>
           )}
+          {hasAiBriefs &&
+          ((onAskStarredResearch && totalStarredCount > 0) ||
+            (bucketFilter !== "SHORTS" && unreadInViewIds.length > 0)) ? (
+            <div className="library-batch-actions tabular-nums">
+              {onAskStarredResearch && totalStarredCount > 0 ? (
+                <button
+                  type="button"
+                  className="button button-secondary button-small"
+                  onClick={onAskStarredResearch}
+                >
+                  <PhosphorIcon name="sparkle" size={13} />
+                  {language === "zh-CN"
+                    ? `针对已收藏提问 (${totalStarredCount})`
+                    : `Ask Q&A on starred (${totalStarredCount})`}
+                </button>
+              ) : null}
+              {bucketFilter !== "SHORTS" && unreadInViewIds.length > 0 ? (
+                <button
+                  type="button"
+                  className="button button-ghost button-small"
+                  disabled={batchCurationBusy}
+                  onClick={() => void markVisibleUnreadAsRead(unreadInViewIds)}
+                >
+                  <PhosphorIcon name="check-circle" size={13} />
+                  {language === "zh-CN"
+                    ? `当前列表标已读 (${unreadInViewIds.length})`
+                    : `Mark view read (${unreadInViewIds.length})`}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
+        {lastBatchReadIds.length > 0 ? (
+          <div className="curation-undo-strip tabular-nums" role="status" aria-live="polite">
+            <span>
+              {language === "zh-CN"
+                ? `已将 ${lastBatchReadIds.length} 篇内容标记为已读`
+                : `Marked ${lastBatchReadIds.length} items as read`}
+            </span>
+            <div className="button-row">
+              <button
+                type="button"
+                className="button button-secondary button-small"
+                disabled={batchCurationBusy}
+                onClick={() => void undoLastBatchRead()}
+              >
+                {language === "zh-CN" ? "撤销" : "Undo"}
+              </button>
+              <button
+                type="button"
+                className="button button-ghost button-small"
+                disabled={batchCurationBusy}
+                onClick={() => setLastBatchReadIds([])}
+              >
+                {t("Dismiss")}
+              </button>
+            </div>
+          </div>
+        ) : null}
         {filteredVideos.length ? (
           <>
             {primaryVideos.length > 0 ? (
