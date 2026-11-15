@@ -2351,11 +2351,84 @@ function ContentPage(
   if (!list.data) return <Empty>Loading Content…</Empty>;
   if (targetVideoId) {
     const rawVideos = Array.isArray(list.data.videos) ? list.data.videos : [];
+    const trimmedQuery = searchQuery.trim().toLowerCase();
+    const isScopedQueue =
+      providerFilter !== "ALL" ||
+      channelFilter !== "ALL" ||
+      topicFilter !== "ALL" ||
+      (bucketFilter !== "ALL" && bucketFilter !== "UNREAD" && bucketFilter !== "SHORTS") ||
+      trimmedQuery.length > 0;
+    const filterParts: string[] = [];
+    if (topicFilter !== "ALL") filterParts.push(topicFilter);
+    if (channelFilter !== "ALL") {
+      const matchedCh = rawVideos.find(
+        (v) => contentItemChannelKeyAndLabel(v, language).key === channelFilter,
+      );
+      filterParts.push(
+        matchedCh
+          ? contentItemChannelKeyAndLabel(matchedCh, language).label
+          : channelFilter === "LOCAL"
+            ? language === "zh-CN"
+              ? "本地实战课"
+              : "Local courses"
+            : channelFilter,
+      );
+    }
+    if (providerFilter !== "ALL") {
+      filterParts.push(
+        providerFilter === "LOCAL"
+          ? t("Local")
+          : providerFilter === "BILIBILI"
+            ? t("Bilibili")
+            : "YouTube",
+      );
+    }
+    if (bucketFilter === "MUST_WATCH") {
+      filterParts.push(language === "zh-CN" ? "必看干货" : "Must-watch");
+    } else if (bucketFilter === "STARRED") {
+      filterParts.push(language === "zh-CN" ? "已收藏" : "Starred");
+    } else if (bucketFilter === "TUTORIAL") {
+      filterParts.push(language === "zh-CN" ? "教程拆解" : "Tutorials");
+    } else if (bucketFilter === "UNREAD") {
+      filterParts.push(language === "zh-CN" ? "仅未读" : "Unread only");
+    }
+    if (searchQuery.trim()) {
+      filterParts.push(`“${searchQuery.trim()}”`);
+    }
+    const activeFilterSummary = filterParts.length > 0 ? filterParts.join(" · ") : null;
+
     const unreadCandidates = rawVideos
       .filter((item) => {
         if (item.work_kind || item.video_id === targetVideoId) return false;
         const brief = readVideoAiBrief(item.ai_brief);
-        return Boolean(brief && !brief.is_short_noise && !brief.is_read);
+        if (!brief || brief.is_short_noise || brief.is_read) return false;
+        if (!isScopedQueue) return true;
+        const itemProvider = item.provider ?? "YOUTUBE";
+        if (providerFilter !== "ALL" && itemProvider !== providerFilter) return false;
+        if (
+          channelFilter !== "ALL" &&
+          contentItemChannelKeyAndLabel(item, language).key !== channelFilter
+        ) {
+          return false;
+        }
+        if (topicFilter !== "ALL" && brief.topic_cluster_zh.trim() !== topicFilter) {
+          return false;
+        }
+        if (bucketFilter === "MUST_WATCH" && brief.recommendation_tier !== "MUST_WATCH") {
+          return false;
+        }
+        if (bucketFilter === "STARRED" && !brief.starred) {
+          return false;
+        }
+        if (bucketFilter === "TUTORIAL" && brief.content_bucket !== "TUTORIAL") {
+          return false;
+        }
+        if (trimmedQuery) {
+          const haystack =
+            `${item.title ?? ""} ${item.channel_name ?? ""} ${item.video_id} ${brief.headline_zh} ${brief.topic_cluster_zh}`.toLowerCase();
+          if (!haystack.includes(trimmedQuery)) return false;
+        }
+        return true;
       })
       .sort((a, b) => {
         const sa = readVideoAiBrief(a.ai_brief)?.score ?? 0;
@@ -2367,6 +2440,7 @@ function ContentPage(
           videoId: unreadCandidates[0].video_id,
           title: unreadCandidates[0].title ?? unreadCandidates[0].video_id,
           remainingCount: unreadCandidates.length,
+          scoped: isScopedQueue,
         }
       : null;
     return (
@@ -2375,6 +2449,7 @@ function ContentPage(
         id={targetVideoId}
         highlightedEvidenceId={highlightedEvidenceId}
         onClose={onClose}
+        activeFilterSummary={activeFilterSummary}
         nextUnreadVideo={nextUnread}
         onAdvanceToVideo={(nextId) => {
           setRevision((value) => value + 1);
@@ -3523,6 +3598,7 @@ function ContentDetailPanel(
     id,
     highlightedEvidenceId,
     onClose,
+    activeFilterSummary,
     nextUnreadVideo,
     onAdvanceToVideo,
     onListChanged,
@@ -3531,7 +3607,13 @@ function ContentDetailPanel(
     id: string;
     highlightedEvidenceId?: string | null;
     onClose: () => void;
-    nextUnreadVideo?: { videoId: string; title: string; remainingCount: number } | null;
+    activeFilterSummary?: string | null;
+    nextUnreadVideo?: {
+      videoId: string;
+      title: string;
+      remainingCount: number;
+      scoped?: boolean;
+    } | null;
     onAdvanceToVideo?: (nextId: string) => void;
     onListChanged?: () => void;
     onSelectTopicCluster?: (clusterName: string) => void;
@@ -3615,10 +3697,20 @@ function ContentDetailPanel(
         );
   return (
     <div className="dashboard-stack reader-detail-stack">
-      <button className="button button-ghost" onClick={onClose}>
-        <PhosphorIcon name="arrow-left" size={14} />
-        {t("Back to Content")}
-      </button>
+      <div className="reader-back-row">
+        <button className="button button-ghost" onClick={onClose}>
+          <PhosphorIcon name="arrow-left" size={14} />
+          {t("Back to Content")}
+        </button>
+        {activeFilterSummary ? (
+          <span className="reader-filter-context-pill" role="status">
+            <PhosphorIcon name="funnel" size={12} />
+            {language === "zh-CN"
+              ? `当前筛选：${activeFilterSummary}`
+              : `Active filter: ${activeFilterSummary}`}
+          </span>
+        ) : null}
+      </div>
       <Panel title={data.video.title ?? data.video.video_id} className="reader-hero-panel">
         <div className={`reading-meta${isLocalMedia || isBilibili ? " local-media-meta" : ""}`}>
           <Status {...readingStatus} />
