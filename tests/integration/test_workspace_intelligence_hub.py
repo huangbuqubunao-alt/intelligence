@@ -2208,16 +2208,17 @@ def test_round6_funnel_accuracy_weekly_delta_starred_research_and_batch_curation
     assert wb1_res["weekly_brief"]["delta"] is None
     assert wb1_res["weekly_brief"]["funnel_stats"]["must_watch_count"] == 1
 
-    # Simulate legacy inflated funnel_stats_json stored on wb1 (like live DB's 48 > 115 - 79)
+    # Simulate legacy inflated funnel_stats_json stored on wb1 where total_videos had undistilled items
+    # (mirrors live archive rows: total_videos=5, shorts=1 -> cap=4, raw must_watch=5, true non-Short must_watch at wb1=1)
     with env["hub"]._connect_write() as conn:
         conn.execute(
             "UPDATE weekly_ai_briefs SET funnel_stats_json = ? WHERE brief_id = ?",
             (
                 json.dumps(
                     {
-                        "total_videos": 2,
+                        "total_videos": 5,
                         "distilled_count": 2,
-                        "must_watch_count": 2,
+                        "must_watch_count": 5,
                         "worth_skimming_count": 0,
                         "shorts_filtered_count": 1,
                         "topics_count": 1,

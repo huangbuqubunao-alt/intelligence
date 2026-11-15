@@ -3777,6 +3777,8 @@ class WorkspaceIntelligenceHub:
         raw_funnel: object,
         *,
         live_funnel: Mapping[str, int] | None = None,
+        briefs_map: Mapping[str, Mapping[str, Any]] | None = None,
+        snap_created_at: str = "",
     ) -> dict[str, int]:
         src = raw_funnel if isinstance(raw_funnel, Mapping) else {}
         total_v = int(src.get("total_videos", 0) or 0)
@@ -3796,8 +3798,47 @@ class WorkspaceIntelligenceHub:
             shorts_v = live_funnel["shorts_filtered_count"]
         elif total_v > 0:
             non_shorts_cap = max(0, total_v - shorts_v)
-            mw_v = min(mw_v, non_shorts_cap)
-            ws_v = min(ws_v, max(0, non_shorts_cap - mw_v))
+            if (
+                (mw_v > non_shorts_cap or (mw_v + ws_v) > non_shorts_cap)
+                and briefs_map is not None
+                and snap_created_at
+            ):
+                try:
+                    snap_dt = datetime.fromisoformat(
+                        snap_created_at.replace("Z", "+00:00")
+                    )
+                except ValueError:
+                    snap_dt = None
+                hist_mw = 0
+                hist_ws = 0
+                for b in briefs_map.values():
+                    if b.get("is_short_noise"):
+                        continue
+                    raw_up = str(b.get("updated_at") or "").strip()
+                    at_or_before = True
+                    if raw_up:
+                        if snap_dt is not None:
+                            try:
+                                up_dt = datetime.fromisoformat(
+                                    raw_up.replace("Z", "+00:00")
+                                )
+                                at_or_before = up_dt <= snap_dt
+                            except ValueError:
+                                at_or_before = raw_up <= snap_created_at
+                        else:
+                            at_or_before = raw_up <= snap_created_at
+                    if not at_or_before:
+                        continue
+                    tier = str(b.get("recommendation_tier") or "")
+                    if tier == "MUST_WATCH":
+                        hist_mw += 1
+                    elif tier == "WORTH_SKIMMING":
+                        hist_ws += 1
+                mw_v = min(hist_mw, non_shorts_cap)
+                ws_v = min(hist_ws, max(0, non_shorts_cap - mw_v))
+            else:
+                mw_v = min(mw_v, non_shorts_cap)
+                ws_v = min(ws_v, max(0, non_shorts_cap - mw_v))
         return {
             "total_videos": total_v,
             "distilled_count": distilled_v,
@@ -4016,6 +4057,8 @@ class WorkspaceIntelligenceHub:
                 hf = self._sanitize_stored_funnel_stats(
                     hf_raw,
                     live_funnel=funnel_stats if h_idx == 0 else None,
+                    briefs_map=briefs_map,
+                    snap_created_at=str(hrow["created_at"]),
                 )
                 history.append(
                     {
@@ -4091,6 +4134,8 @@ class WorkspaceIntelligenceHub:
                     if (not is_archive and not bool(freshness["is_stale"]))
                     else None
                 ),
+                briefs_map=briefs_map,
+                snap_created_at=row_created_at,
             )
             delta: dict[str, object] | None = None
             if prev_row is not None:
@@ -4099,7 +4144,10 @@ class WorkspaceIntelligenceHub:
                 except ValueError:
                     prev_raw_funnel = {}
                 prev_sanitized_funnel = self._sanitize_stored_funnel_stats(
-                    prev_raw_funnel, live_funnel=None
+                    prev_raw_funnel,
+                    live_funnel=None,
+                    briefs_map=briefs_map,
+                    snap_created_at=str(prev_row["created_at"]),
                 )
                 delta = self._compute_weekly_brief_delta(
                     row,
