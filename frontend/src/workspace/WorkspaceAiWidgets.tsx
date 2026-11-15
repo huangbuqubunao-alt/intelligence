@@ -127,6 +127,7 @@ export type AiResearchSession = {
   scope_label_zh: string;
   video_count?: number;
   scope?: AiResearchSessionScope;
+  pinned: boolean;
   answer_zh: string;
   key_takeaways_zh: string[];
   action_items_zh: string[];
@@ -520,12 +521,17 @@ function readAiResearchSession(raw: unknown): AiResearchSession | null {
       video_ids: rawVids.length > 0 ? rawVids : null,
     };
   }
+  const pinned =
+    typeof raw.pinned === "boolean"
+      ? raw.pinned
+      : Boolean(isRec(raw.scope) && raw.scope.pinned === true);
   return {
     session_id: raw.session_id,
     question: typeof raw.question === "string" ? raw.question : "",
     scope_label_zh: typeof raw.scope_label_zh === "string" ? raw.scope_label_zh : "",
     ...(typeof raw.video_count === "number" ? { video_count: raw.video_count } : {}),
     ...(scope ? { scope } : {}),
+    pinned,
     answer_zh: raw.answer_zh,
     key_takeaways_zh: strArr(raw.key_takeaways_zh),
     action_items_zh: strArr(raw.action_items_zh),
@@ -535,6 +541,14 @@ function readAiResearchSession(raw: unknown): AiResearchSession | null {
     model: typeof raw.model === "string" ? raw.model : "qwen3.5:9b",
     created_at: typeof raw.created_at === "string" ? raw.created_at : "",
   };
+}
+
+function sortResearchSessions(list: AiResearchSession[]): AiResearchSession[] {
+  return [...list].sort(
+    (a, b) =>
+      Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) ||
+      b.created_at.localeCompare(a.created_at),
+  );
 }
 
 function readResearchScopeOptions(raw: unknown): ResearchScopeOptions | null {
@@ -1274,7 +1288,12 @@ export function WorkspaceVideoAiActions({
   transcriptAvailable: boolean;
   aiBrief: VideoAiBrief | null;
   obsidianMarkdown?: string;
-  nextUnreadVideo?: { videoId: string; title: string; remainingCount: number } | null;
+  nextUnreadVideo?: {
+    videoId: string;
+    title: string;
+    remainingCount: number;
+    scoped?: boolean;
+  } | null;
   onAdvanceToVideo?: (nextId: string) => void;
   onBack?: () => void;
   onCompleted: () => void;
@@ -1542,9 +1561,13 @@ export function WorkspaceVideoAiActions({
               disabled={busyKind !== null}
               aria-label={zh ? "标已读并看下一篇" : "Mark read & open next unread"}
               title={
-                zh
-                  ? `下一篇未读：${nextUnreadVideo.title}`
-                  : `Next unread: ${nextUnreadVideo.title}`
+                nextUnreadVideo.scoped
+                  ? zh
+                    ? `本筛选下一篇未读：${nextUnreadVideo.title}`
+                    : `Next unread in filter: ${nextUnreadVideo.title}`
+                  : zh
+                    ? `下一篇未读：${nextUnreadVideo.title}`
+                    : `Next unread: ${nextUnreadVideo.title}`
               }
               onClick={(event) => {
                 pulseCelebration(event.currentTarget);
@@ -1552,9 +1575,13 @@ export function WorkspaceVideoAiActions({
               }}
             >
               <PhosphorIcon name="caret-right" size={13} />
-              {zh
-                ? `标已读并看下一篇 (${nextUnreadVideo.remainingCount})`
-                : `Mark read & next (${nextUnreadVideo.remainingCount})`}
+              {nextUnreadVideo.scoped
+                ? zh
+                  ? `标已读并看下一篇 (本筛选 ${nextUnreadVideo.remainingCount})`
+                  : `Mark read & next (${nextUnreadVideo.remainingCount} in filter)`
+                : zh
+                  ? `标已读并看下一篇 (${nextUnreadVideo.remainingCount})`
+                  : `Mark read & next (${nextUnreadVideo.remainingCount})`}
             </button>
           ) : null}
           <span className="kb-shortcut-hint" aria-hidden="true">
@@ -1734,6 +1761,7 @@ export function WorkspaceAiResearchPanel({
   const [questionInput, setQuestionInput] = useState("");
   const [sessionSearch, setSessionSearch] = useState("");
   const [busy, setBusy] = useState(false);
+  const [sessionMutatingId, setSessionMutatingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const questionInputRef = useRef<HTMLInputElement | null>(null);
@@ -1824,7 +1852,12 @@ export function WorkspaceAiResearchPanel({
       const session = readAiResearchSession(res.session);
       if (!session) throw new Error("INVALID_SESSION");
       setActiveSession(session);
-      setSessions((prev) => [session, ...prev.filter((item) => item.session_id !== session.session_id)]);
+      setSessions((prev) =>
+        sortResearchSessions([
+          session,
+          ...prev.filter((item) => item.session_id !== session.session_id),
+        ]),
+      );
       setQuestionInput("");
     } catch (err) {
       const code = err instanceof ApiRequestError ? err.code : undefined;
@@ -1853,6 +1886,59 @@ export function WorkspaceAiResearchPanel({
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
     void ask(questionInput);
+  };
+
+  const togglePinSession = async (target: AiResearchSession) => {
+    if (sessionMutatingId !== null) return;
+    setSessionMutatingId(target.session_id);
+    setError(null);
+    try {
+      const res = await post<{ session?: unknown }>(
+        `/workspace-ai/research/sessions/${encodeURIComponent(target.session_id)}/pin`,
+        { pinned: !target.pinned },
+      );
+      const updated =
+        readAiResearchSession(res.session) ?? { ...target, pinned: !target.pinned };
+      setSessions((prev) =>
+        sortResearchSessions(
+          prev.map((s) => (s.session_id === updated.session_id ? updated : s)),
+        ),
+      );
+      setActiveSession((prev) =>
+        prev && prev.session_id === updated.session_id ? updated : prev,
+      );
+    } catch {
+      setError(
+        zh ? "未能更新问答置顶状态，请稍后重试。" : "Could not update Q&A pin state.",
+      );
+    } finally {
+      setSessionMutatingId(null);
+    }
+  };
+
+  const deleteSession = async (target: AiResearchSession) => {
+    if (sessionMutatingId !== null) return;
+    setSessionMutatingId(target.session_id);
+    setError(null);
+    try {
+      await post(
+        `/workspace-ai/research/sessions/${encodeURIComponent(target.session_id)}/delete`,
+        {},
+      );
+      setSessions((prev) => {
+        const remaining = prev.filter((s) => s.session_id !== target.session_id);
+        setActiveSession((cur) =>
+          cur && cur.session_id === target.session_id ? (remaining[0] ?? null) : cur,
+        );
+        return remaining;
+      });
+    } catch {
+      setError(
+        zh ? "未能删除该条问答记录，请稍后重试。" : "Could not delete Q&A session.",
+      );
+    } finally {
+      setSessionMutatingId(null);
+    }
   };
 
   const availableTopics = scopeOptions?.topic_clusters ?? [];
@@ -2186,61 +2272,91 @@ export function WorkspaceAiResearchPanel({
             </div>
           ) : null}
 
-          {activeSession.obsidian_markdown || canFollowUpActiveSession ? (
-            <div className="button-row">
-              {canFollowUpActiveSession ? (
+          <div className="button-row">
+            {canFollowUpActiveSession ? (
+              <button
+                type="button"
+                className="button button-secondary button-small tabular-nums"
+                onClick={applyActiveSessionFollowUp}
+              >
+                <PhosphorIcon name="sparkle" size={13} />
+                {hasExplicitActiveScope
+                  ? zh
+                    ? "同范围继续追问"
+                    : "Follow up in this scope"
+                  : zh
+                    ? `围绕引用视频追问 (${activeCitedVideoIds.length})`
+                    : `Follow up on cited videos (${activeCitedVideoIds.length})`}
+              </button>
+            ) : null}
+            {activeSession.obsidian_markdown ? (
+              <>
                 <button
                   type="button"
-                  className="button button-secondary button-small tabular-nums"
-                  onClick={applyActiveSessionFollowUp}
+                  className="button button-secondary button-small"
+                  onClick={(event) => {
+                    pulseCelebration(event.currentTarget);
+                    void navigator.clipboard?.writeText(activeSession.obsidian_markdown);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  }}
                 >
-                  <PhosphorIcon name="sparkle" size={13} />
-                  {hasExplicitActiveScope
+                  <PhosphorIcon name="file-text" size={13} />
+                  {copied
                     ? zh
-                      ? "同范围继续追问"
-                      : "Follow up in this scope"
+                      ? "已复制双链问答"
+                      : "Copied"
                     : zh
-                      ? `围绕引用视频追问 (${activeCitedVideoIds.length})`
-                      : `Follow up on cited videos (${activeCitedVideoIds.length})`}
+                      ? "复制双链问答"
+                      : "Copy Obsidian Q&A"}
                 </button>
-              ) : null}
-              {activeSession.obsidian_markdown ? (
-                <>
-                  <button
-                    type="button"
-                    className="button button-secondary button-small"
-                    onClick={(event) => {
-                      pulseCelebration(event.currentTarget);
-                      void navigator.clipboard?.writeText(activeSession.obsidian_markdown);
-                      setCopied(true);
-                      setTimeout(() => setCopied(false), 2000);
-                    }}
-                  >
-                    <PhosphorIcon name="file-text" size={13} />
-                    {copied
-                      ? zh
-                        ? "已复制双链问答"
-                        : "Copied"
-                      : zh
-                        ? "复制双链问答"
-                        : "Copy Obsidian Q&A"}
-                  </button>
-                  <button
-                    type="button"
-                    className="button button-ghost button-small"
-                    onClick={() =>
-                      downloadObsidianMarkdown(
-                        `跨视频问答-${activeSession.session_id}`,
-                        activeSession.obsidian_markdown,
-                      )
-                    }
-                  >
-                    {zh ? "下载 .md" : "Download .md"}
-                  </button>
-                </>
-              ) : null}
-            </div>
-          ) : null}
+                <button
+                  type="button"
+                  className="button button-ghost button-small"
+                  onClick={() =>
+                    downloadObsidianMarkdown(
+                      `跨视频问答-${activeSession.session_id}`,
+                      activeSession.obsidian_markdown,
+                    )
+                  }
+                >
+                  {zh ? "下载 .md" : "Download .md"}
+                </button>
+              </>
+            ) : null}
+            <button
+              type="button"
+              className={`button button-small ${activeSession.pinned ? "button-saved" : "button-ghost"}`}
+              disabled={sessionMutatingId !== null}
+              aria-pressed={Boolean(activeSession.pinned)}
+              onClick={(event) => {
+                pulseCelebration(event.currentTarget);
+                void togglePinSession(activeSession);
+              }}
+            >
+              <PhosphorIcon
+                name="push-pin"
+                weight={activeSession.pinned ? "fill" : "regular"}
+                size={13}
+              />
+              {activeSession.pinned
+                ? zh
+                  ? "已置顶 · 取消"
+                  : "Pinned · Unpin"
+                : zh
+                  ? "置顶问答"
+                  : "Pin Q&A"}
+            </button>
+            <button
+              type="button"
+              className="button button-ghost button-small"
+              disabled={sessionMutatingId !== null}
+              onClick={() => void deleteSession(activeSession)}
+            >
+              <PhosphorIcon name="trash" size={13} />
+              {zh ? "删除问答" : "Delete Q&A"}
+            </button>
+          </div>
         </div>
       ) : null}
 
@@ -2266,12 +2382,15 @@ export function WorkspaceAiResearchPanel({
                   s.video_count && s.video_count > 0
                     ? s.video_count
                     : new Set(s.citations.map((c) => c.video_id)).size;
-                const chipLabel =
+                const baseLabel =
                   vCount > 0
                     ? zh
                       ? `${s.question} · ${vCount} 篇`
                       : `${s.question} · ${vCount} videos`
                     : s.question;
+                const chipLabel = s.pinned
+                  ? `${zh ? "[置顶] " : "[Pinned] "}${baseLabel}`
+                  : baseLabel;
                 return (
                   <button
                     key={s.session_id}
@@ -2279,6 +2398,14 @@ export function WorkspaceAiResearchPanel({
                     className={`ai-question-chip tabular-nums${activeSession?.session_id === s.session_id ? " is-active" : ""}`}
                     onClick={() => setActiveSession(s)}
                   >
+                    {s.pinned ? (
+                      <PhosphorIcon
+                        name="push-pin"
+                        weight="fill"
+                        size={11}
+                        className="ai-qa-chip-pin-icon"
+                      />
+                    ) : null}
                     {chipLabel}
                   </button>
                 );

@@ -3978,3 +3978,29 @@ dl.creator-tracking dd {
 .topic-channel-breakdown {
   margin: 8px 0 10px;
 }
+
+.reader-back-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.reader-filter-context-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 4px 10px;
+  border: 1px solid var(--accent-border);
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--text-strong);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.ai-qa-chip-pin-icon {
+  margin-right: 3px;
+  vertical-align: -1px;
+}

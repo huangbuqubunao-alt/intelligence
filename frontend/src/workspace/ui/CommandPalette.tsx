@@ -197,6 +197,7 @@ type PaletteTopic = {
 type PaletteResearchSession = {
   session_id: string;
   question: string;
+  pinned?: boolean;
   scope_label_zh?: string;
   answer_zh?: string;
   citations?: {
@@ -452,12 +453,14 @@ export function CommandPalette({
     const dynamicResearch: CommandPaletteAction[] = onOpenResearchSession
       ? qaSessions.map((session) => {
           const citeCount = session.citations?.length ?? 0;
+          const isPinned = Boolean(session.pinned);
           return {
             id: `qa:${session.session_id}`,
             group: "research",
             label: session.question,
             subtitle:
               [
+                isPinned ? (zh ? "已置顶" : "Pinned") : undefined,
                 session.scope_label_zh,
                 citeCount > 0
                   ? zh
@@ -467,14 +470,15 @@ export function CommandPalette({
               ]
                 .filter(Boolean)
                 .join(" · ") || undefined,
-            icon: "quotes",
+            icon: isPinned ? "push-pin" : "quotes",
             aliases: [
+              isPinned ? "已置顶 置顶 pinned" : "",
               session.answer_zh?.slice(0, 140) ?? "",
               ...(session.citations ?? []).map(
                 (c) => `${c.video_title ?? ""} ${c.channel_name ?? ""}`,
               ),
             ].filter(Boolean),
-            rankBonus: 0.02,
+            rankBonus: isPinned ? 0.06 : 0.02,
             onSelect: () => onOpenResearchSession(session.session_id),
           };
         })

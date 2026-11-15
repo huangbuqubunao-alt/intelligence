@@ -14,8 +14,27 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (id.includes("node_modules/react-dom") || id.includes("node_modules/react/")) {
+          if (
+            id.includes("node_modules/react-dom") ||
+            id.includes("node_modules/react/") ||
+            id.includes("node_modules/scheduler")
+          ) {
             return "vendor-react";
+          }
+          if (
+            id.includes("/src/api/") ||
+            id.includes("/src/workspace/uiLanguage") ||
+            id.includes("/src/workspace/motion") ||
+            id.includes("/src/workspace/ui/")
+          ) {
+            return "workspace-core";
+          }
+          if (
+            id.includes("/src/workspace/WorkspaceAiWidgets") ||
+            id.includes("/src/workspace/Research") ||
+            id.includes("/src/workspace/KnowledgeDelta")
+          ) {
+            return "workspace-ai-hub";
           }
           return undefined;
         }

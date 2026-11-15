@@ -3727,4 +3727,282 @@ describe("Workspace AI Upgrade (P0 + P1 + P2)", () => {
     expect(screen.queryByText("Micro-SaaS Pricing Tiers")).toBeNull();
     expect(screen.queryByText("OpenAI Cyber Security Harness")).toBeNull();
   });
+
+  it("R9: advances Mark Read & Next strictly within active Content filter scope with filter context pill, and supports pinning & deleting Cross-Video Q&A sessions", async () => {
+    location.hash = "#Content";
+    const curationCalls: { url: string; body: unknown }[] = [];
+    const qaPinCalls: { url: string; body: unknown }[] = [];
+    const qaDeleteCalls: string[] = [];
+
+    let greg1Read = false;
+    let qaSessionsState = [
+      {
+        session_id: "qa-newer-scratch",
+        question: "临时实验提问：测试模型连通性",
+        scope_label_zh: "全库检索",
+        video_count: 1,
+        pinned: false,
+        answer_zh: "这是一条临时测试提问。",
+        key_takeaways_zh: [],
+        action_items_zh: [],
+        citations: [],
+        obsidian_markdown: "# 临时实验提问",
+        provider: "ollama",
+        model: "qwen3.5:9b",
+        created_at: "2026-11-15T12:00:00Z",
+      },
+      {
+        session_id: "qa-older-core",
+        question: "核心架构沉淀：多智能体状态机如何防死循环？",
+        scope_label_zh: "限定频道：OpenAI",
+        video_count: 3,
+        pinned: false,
+        answer_zh: "显式最大步数预算与幂等状态转移是关键。",
+        key_takeaways_zh: ["显式状态机优于自由循环"],
+        action_items_zh: ["增加步数熔断器"],
+        citations: [
+          {
+            ref_label: "1",
+            video_id: "vid-openai-top",
+            video_title: "OpenAI Highest Score Harness",
+            channel_name: "OpenAI",
+            evidence_id: "ev-r9-1",
+            start_ms: 12000,
+            end_ms: 28000,
+            timestamp_label: "00:12",
+            excerpt: "Explicit state budgets stop runaway agent loops.",
+          },
+        ],
+        obsidian_markdown: "# 核心架构沉淀",
+        provider: "ollama",
+        model: "qwen3.5:9b",
+        created_at: "2026-11-14T09:00:00Z",
+      },
+    ];
+
+    const makeVideoDetail = (
+      videoId: string,
+      title: string,
+      channelName: string,
+      score: number,
+      isRead: boolean,
+      topicCluster = "AI Agent 与自动化架构",
+    ) => ({
+      video: {
+        video_id: videoId,
+        provider: "YOUTUBE",
+        channel_id: channelName === "OpenAI" ? "UC1111111111111111111111" : "UC2222222222222222222222",
+        channel_name: channelName,
+        title,
+        source_url: `https://www.youtube.com/watch?v=${videoId}`,
+        published_at: "2026-11-15T08:00:00Z",
+        processing_status: "READY",
+        duration_seconds: 1800,
+        ai_brief: {
+          video_id: videoId,
+          source_basis: "TRANSCRIPT",
+          headline_zh: `${title} 核心结论`,
+          summary_zh: `${title} 深度摘要`,
+          score,
+          score_reason_zh: "高价值工程拆解",
+          recommendation_tier: "MUST_WATCH",
+          content_bucket: "DEEP_DIVE",
+          is_short_noise: false,
+          starred: false,
+          is_read: isRead,
+          topics_zh: ["Agent 状态机"],
+          topic_cluster_zh: topicCluster,
+          product_opportunities_zh: [],
+          business_opportunities_zh: [],
+        },
+      },
+      transcript: { status: "AVAILABLE", segments: [] },
+      note: { v2: null },
+      evidence: [],
+      intelligence_result: { status: "NOT_REQUESTED" },
+      history: [],
+      obsidian_markdown: `# ${title}`,
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string, init?: RequestInit) => {
+        if (input.endsWith("/videos")) {
+          return okJson({
+            videos: [
+              {
+                video_id: "vid-openai-top",
+                provider: "YOUTUBE",
+                channel_id: "UC1111111111111111111111",
+                channel_name: "OpenAI",
+                title: "OpenAI Highest Score Harness",
+                source_url: "https://www.youtube.com/watch?v=vid-openai-top",
+                published_at: "2026-11-15T10:00:00Z",
+                processing_status: "READY",
+                duration_seconds: 2100,
+                last_updated: "2026-11-15T10:05:00Z",
+                ai_brief: makeVideoDetail("vid-openai-top", "OpenAI Highest Score Harness", "OpenAI", 9.8, false).video.ai_brief,
+              },
+              {
+                video_id: "vid-greg-biz",
+                provider: "YOUTUBE",
+                channel_id: "UC2222222222222222222222",
+                channel_name: "Greg Isenberg",
+                title: "Greg SaaS Pricing Playbook",
+                source_url: "https://www.youtube.com/watch?v=vid-greg-biz",
+                published_at: "2026-11-15T09:30:00Z",
+                processing_status: "READY",
+                duration_seconds: 1700,
+                last_updated: "2026-11-15T09:35:00Z",
+                ai_brief: makeVideoDetail(
+                  "vid-greg-biz",
+                  "Greg SaaS Pricing Playbook",
+                  "Greg Isenberg",
+                  9.5,
+                  false,
+                  "AI 产品机会与一人公司变现",
+                ).video.ai_brief,
+              },
+              {
+                video_id: "vid-greg-1",
+                provider: "YOUTUBE",
+                channel_id: "UC2222222222222222222222",
+                channel_name: "Greg Isenberg",
+                title: "Greg Agent Workflow Part 1",
+                source_url: "https://www.youtube.com/watch?v=vid-greg-1",
+                published_at: "2026-11-15T09:00:00Z",
+                processing_status: "READY",
+                duration_seconds: 1600,
+                last_updated: "2026-11-15T09:05:00Z",
+                ai_brief: makeVideoDetail("vid-greg-1", "Greg Agent Workflow Part 1", "Greg Isenberg", 9.0, greg1Read).video.ai_brief,
+              },
+              {
+                video_id: "vid-greg-2",
+                provider: "YOUTUBE",
+                channel_id: "UC2222222222222222222222",
+                channel_name: "Greg Isenberg",
+                title: "Greg Agent Workflow Part 2",
+                source_url: "https://www.youtube.com/watch?v=vid-greg-2",
+                published_at: "2026-11-15T08:00:00Z",
+                processing_status: "READY",
+                duration_seconds: 1500,
+                last_updated: "2026-11-15T08:05:00Z",
+                ai_brief: makeVideoDetail("vid-greg-2", "Greg Agent Workflow Part 2", "Greg Isenberg", 8.6, false).video.ai_brief,
+              },
+            ],
+          });
+        }
+        if (input.endsWith("/videos/vid-greg-1")) {
+          return okJson(makeVideoDetail("vid-greg-1", "Greg Agent Workflow Part 1", "Greg Isenberg", 9.0, greg1Read));
+        }
+        if (input.endsWith("/videos/vid-greg-2")) {
+          return okJson(makeVideoDetail("vid-greg-2", "Greg Agent Workflow Part 2", "Greg Isenberg", 8.6, false));
+        }
+        if (input.endsWith("/workspace-ai/videos/vid-greg-1/curation") && init?.method === "POST") {
+          const parsed = JSON.parse(String(init.body ?? "{}"));
+          curationCalls.push({ url: input, body: parsed });
+          if (typeof parsed.is_read === "boolean") greg1Read = parsed.is_read;
+          return okJson({ video_id: "vid-greg-1", starred: false, is_read: greg1Read });
+        }
+        if (input.endsWith("/workspace-ai/research/sessions")) {
+          return okJson({
+            sessions: qaSessionsState,
+            suggested_questions: [],
+            scope_options: { starred_count: 0, channels: [], topic_clusters: [], videos: [] },
+          });
+        }
+        if (input.endsWith("/workspace-ai/research/sessions/qa-older-core/pin") && init?.method === "POST") {
+          const parsed = JSON.parse(String(init.body ?? "{}"));
+          qaPinCalls.push({ url: input, body: parsed });
+          qaSessionsState = qaSessionsState
+            .map((s) => (s.session_id === "qa-older-core" ? { ...s, pinned: Boolean(parsed.pinned) } : s))
+            .sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || b.created_at.localeCompare(a.created_at));
+          const updated = qaSessionsState.find((s) => s.session_id === "qa-older-core")!;
+          return okJson({ session: updated });
+        }
+        if (input.endsWith("/workspace-ai/research/sessions/qa-newer-scratch/delete") && init?.method === "POST") {
+          qaDeleteCalls.push(input);
+          qaSessionsState = qaSessionsState.filter((s) => s.session_id !== "qa-newer-scratch");
+          return okJson({ deleted: true, session_id: "qa-newer-scratch" });
+        }
+        if (input.includes("/creator-following")) {
+          return okJson({ available: false, reason_code: "DISABLED" });
+        }
+        if (input.endsWith("/intelligence")) {
+          return okJson({ intelligence: [] });
+        }
+        if (input.endsWith("/topics")) {
+          return okJson({ topics: [] });
+        }
+        if (input.endsWith("/research")) {
+          return okJson({ research: [], total: 0, offset: 0, limit: 25 });
+        }
+        return okJson({});
+      }),
+    );
+
+    render(<App />);
+
+    // 1) R9-1: Filter #Content by Topic + Channel ("Greg Isenberg"), open item #1, verify scoped filter pill & scoped Mark Read & Next
+    const topicSelect = (await screen.findByLabelText("按专题筛选内容")) as HTMLSelectElement;
+    fireEvent.change(topicSelect, { target: { value: "AI Agent 与自动化架构" } });
+    const channelSelect = screen.getByLabelText("按频道筛选") as HTMLSelectElement;
+    fireEvent.change(channelSelect, { target: { value: "Greg Isenberg" } });
+
+    fireEvent.click(screen.getByText("Greg Agent Workflow Part 1"));
+    await waitFor(() => expect(location.hash).toBe("#Content/vid-greg-1"));
+
+    expect(
+      await screen.findByText("当前筛选：AI Agent 与自动化架构 · Greg Isenberg"),
+    ).toBeTruthy();
+
+    const markNextBtn = await screen.findByRole("button", { name: "标已读并看下一篇" });
+    expect(markNextBtn.textContent).toContain("本筛选 1");
+    expect(markNextBtn.getAttribute("title")).toContain("Greg Agent Workflow Part 2");
+
+    fireEvent.click(markNextBtn);
+    await waitFor(() => expect(curationCalls).toHaveLength(1));
+    await waitFor(() => expect(location.hash).toBe("#Content/vid-greg-2"));
+    expect(await screen.findByRole("heading", { name: "Greg Agent Workflow Part 2" })).toBeTruthy();
+
+    // 2) R9-2: Navigate to #Research, pin older landmark session -> floats to #1; delete scratch session -> removed & active falls back
+    fireEvent.click(screen.getByRole("button", { name: "AI 跨视频问答" }));
+    await waitFor(() => expect(location.hash).toBe("#Research"));
+
+    const olderChip = await screen.findByRole("button", {
+      name: /核心架构沉淀：多智能体状态机如何防死循环？ · 3 篇/,
+    });
+    fireEvent.click(olderChip);
+
+    const pinBtn = screen.getByRole("button", { name: "置顶问答" });
+    fireEvent.click(pinBtn);
+    await waitFor(() => expect(qaPinCalls).toHaveLength(1));
+    expect(qaPinCalls[0].body).toEqual({ pinned: true });
+    expect(await screen.findByRole("button", { name: "已置顶 · 取消" })).toBeTruthy();
+
+    const historyGroup = document.querySelector(".ai-session-history") as HTMLElement;
+    const historyButtons = within(historyGroup).getAllByRole("button");
+    expect(historyButtons[0].textContent).toContain("[置顶]");
+    expect(historyButtons[0].textContent).toContain("核心架构沉淀：多智能体状态机如何防死循环？");
+
+    // Select throwaway scratch session and delete it
+    fireEvent.click(
+      within(historyGroup).getByRole("button", { name: /临时实验提问：测试模型连通性/ }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "删除问答" }));
+    await waitFor(() => expect(qaDeleteCalls).toHaveLength(1));
+    expect(screen.queryByText("临时实验提问：测试模型连通性")).toBeNull();
+    expect(
+      screen.getByRole("heading", { name: "核心架构沉淀：多智能体状态机如何防死循环？" }),
+    ).toBeTruthy();
+
+    // 3) Cmd+K shows "已置顶" subtitle on pinned Q&A session
+    fireEvent.keyDown(window, { key: "k", metaKey: true });
+    const cmdInput = await screen.findByRole("combobox");
+    fireEvent.change(cmdInput, { target: { value: "状态机" } });
+    const pinnedOpt = await screen.findByRole("option", {
+      name: /核心架构沉淀：多智能体状态机如何防死循环/,
+    });
+    expect(pinnedOpt.textContent).toContain("已置顶");
+  });
 });
