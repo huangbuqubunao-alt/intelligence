@@ -30,12 +30,16 @@ import { UiThemeProvider, useUiTheme } from "./ui/theme";
 import { savedLanguage, UiLanguageProvider, useUiLanguage } from "./uiLanguage";
 import {
   AiScoreBadge,
+  consumePendingContentChannel,
   exportObsidianVaultBundle,
   isKeyboardShortcutBlocked,
+  readSourceAiSignalMap,
   readTopicAiEvolution,
   readVideoAiBrief,
   readWeeklyAiBrief,
   readWorkspaceAiSettings,
+  setPendingContentChannel,
+  setPendingResearchChannel,
   setPendingResearchStarredOnly,
   setPendingResearchTopicCluster,
   TopicObsidianExportBar,
@@ -1622,6 +1626,14 @@ function Workspace() {
             onRefresh={() => setRefresh((value) => value + 1)}
             targetSourceId={deltaTarget?.kind === "source" ? deltaTarget.id : null}
             onAdd={setAddProvider}
+            onBrowseChannelContent={(channelKey) => {
+              setPendingContentChannel(channelKey);
+              navigate("Content");
+            }}
+            onAskChannelResearch={(channelKey) => {
+              setPendingResearchChannel(channelKey);
+              navigate("Research");
+            }}
           />
         )}
         {page === "Content" && (
@@ -2124,6 +2136,23 @@ function SavedCard(
     />
   );
 }
+function contentItemChannelKeyAndLabel(
+  item: ContentItem,
+  language: "zh-CN" | "en",
+): { key: string; label: string } {
+  const rawName = (item.channel_name ?? "").trim();
+  const provider = (item.provider ?? "YOUTUBE").trim().toUpperCase();
+  if (
+    provider === "LOCAL" &&
+    (!rawName || rawName.toLowerCase() === "local" || rawName.toLowerCase() === "local library")
+  ) {
+    return { key: "LOCAL", label: language === "zh-CN" ? "本地实战课" : "Local" };
+  }
+  if (rawName) {
+    return { key: rawName, label: rawName };
+  }
+  return { key: provider, label: provider };
+}
 function ContentPage(
   {
     refresh,
@@ -2151,6 +2180,9 @@ function ContentPage(
     "ALL" | "UNREAD" | "MUST_WATCH" | "STARRED" | "TUTORIAL" | "SHORTS"
   >("ALL");
   const [topicFilter, setTopicFilter] = useState<string>("ALL");
+  const [channelFilter, setChannelFilter] = useState<string>(
+    () => consumePendingContentChannel() || "ALL",
+  );
   const [kbActiveId, setKbActiveId] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const kbContextRef = useRef<{
@@ -2507,10 +2539,35 @@ function ContentPage(
       briefByVideoId.get(item.video_id)?.is_short_noise ||
         item.work_kind === "DURABLE_CONTENT_IDENTITY",
     );
+  const channelCountMap = new Map<string, { label: string; count: number }>();
+  for (const item of videos) {
+    const itemProvider = item.provider ?? "YOUTUBE";
+    if (providerFilter !== "ALL" && itemProvider !== providerFilter) continue;
+    if (item.work_kind === "DURABLE_CONTENT_IDENTITY") continue;
+    const b = briefByVideoId.get(item.video_id);
+    if (hasAiBriefs) {
+      if (!b || b.is_short_noise) continue;
+      if (topicFilter !== "ALL" && b.topic_cluster_zh.trim() !== topicFilter) continue;
+    } else if (itemProvider === "YOUTUBE" && (item.duration_seconds ?? 9999) <= 95) {
+      continue;
+    }
+    const ch = contentItemChannelKeyAndLabel(item, language);
+    const prev = channelCountMap.get(ch.key);
+    channelCountMap.set(ch.key, { label: ch.label, count: (prev?.count ?? 0) + 1 });
+  }
+  const channelOptionEntries = Array.from(channelCountMap.entries()).sort(
+    (a, b) => b[1].count - a[1].count || a[1].label.localeCompare(b[1].label),
+  );
   const topicCountMap = new Map<string, number>();
   for (const item of videos) {
     const itemProvider = item.provider ?? "YOUTUBE";
     if (providerFilter !== "ALL" && itemProvider !== providerFilter) continue;
+    if (
+      channelFilter !== "ALL" &&
+      contentItemChannelKeyAndLabel(item, language).key !== channelFilter
+    ) {
+      continue;
+    }
     if (item.work_kind === "DURABLE_CONTENT_IDENTITY") continue;
     const b = briefByVideoId.get(item.video_id);
     if (!b || b.is_short_noise || !b.topic_cluster_zh.trim()) continue;
@@ -2523,6 +2580,12 @@ function ContentPage(
   const providerAndTopicVideos = videos.filter((item) => {
     const itemProvider = item.provider ?? "YOUTUBE";
     if (providerFilter !== "ALL" && itemProvider !== providerFilter) return false;
+    if (
+      channelFilter !== "ALL" &&
+      contentItemChannelKeyAndLabel(item, language).key !== channelFilter
+    ) {
+      return false;
+    }
     if (topicFilter !== "ALL") {
       const b = briefByVideoId.get(item.video_id);
       if (!b || b.topic_cluster_zh.trim() !== topicFilter) return false;
@@ -2907,7 +2970,29 @@ function ContentPage(
               ))}
             </div>
           )}
-          {hasAiBriefs && topicClusterCounts.length > 1 && (
+          {hasAiBriefs && (channelOptionEntries.length > 1 || channelFilter !== "ALL") && (
+            <select
+              className="content-topic-select tabular-nums"
+              aria-label={language === "zh-CN" ? "按频道筛选" : "Filter by channel"}
+              value={channelFilter}
+              onChange={(event) => setChannelFilter(event.target.value)}
+            >
+              <option value="ALL">
+                {language === "zh-CN" ? "全部频道" : "All channels"}
+              </option>
+              {channelFilter !== "ALL" && !channelCountMap.has(channelFilter) ? (
+                <option value={channelFilter}>
+                  {channelFilter === "LOCAL" && language === "zh-CN" ? "本地实战课" : channelFilter} (0)
+                </option>
+              ) : null}
+              {channelOptionEntries.map(([chKey, info]) => (
+                <option key={chKey} value={chKey}>
+                  {info.label} ({info.count})
+                </option>
+              ))}
+            </select>
+          )}
+          {hasAiBriefs && (topicClusterCounts.length > 1 || topicFilter !== "ALL") && (
             <select
               className="content-topic-select tabular-nums"
               aria-label={language === "zh-CN" ? "按专题筛选内容" : "Filter Content by topic"}
@@ -4920,10 +5005,27 @@ function FollowingReadNotice({ reading, error, errorCode, onReload, detail = fal
 }
 
 function Sources(
-  { refresh, onRefresh, targetSourceId, onAdd }: { refresh: number; onRefresh: () => void; targetSourceId?: string | null; onAdd: (provider: "YOUTUBE" | "LOCAL") => void },
+  {
+    refresh,
+    onRefresh,
+    targetSourceId,
+    onAdd,
+    onBrowseChannelContent,
+    onAskChannelResearch,
+  }: {
+    refresh: number;
+    onRefresh: () => void;
+    targetSourceId?: string | null;
+    onAdd: (provider: "YOUTUBE" | "LOCAL") => void;
+    onBrowseChannelContent?: (channelKey: string) => void;
+    onAskChannelResearch?: (channelKey: string) => void;
+  },
 ) {
   const { language, t } = useUiLanguage();
-  const { data, error, errorCode, reading, reload } = useRemote<{ sources: Source[] }>("/sources", refresh, validSourcesRead, true, true);
+  const { data, error, errorCode, reading, reload } = useRemote<{
+    sources: Source[];
+    ai_signal_by_source?: unknown;
+  }>("/sources", refresh, validSourcesRead, true, true);
   const [selected, setSelected] = useState<string | null>(targetSourceId ?? null);
   const [filter, setFilter] = useState("all");
   const [rowBusy, setRowBusy] = useState<string | null>(null);
@@ -4944,6 +5046,8 @@ function Sources(
   if (error && !data) return <ErrorState error={error} code={errorCode} onReload={reload} />;
   if (!data) return <Empty>Loading Sources…</Empty>;
   const followingSources = data.sources.filter(source => source.source_type !== "VIDEO_URL");
+  const aiSignals = readSourceAiSignalMap(data.ai_signal_by_source);
+  const hasAiSignals = Object.keys(aiSignals).length > 0;
   return (
     <>
       {!selected && <FollowingReadNotice reading={reading} error={error} errorCode={errorCode} onReload={reload} />}
@@ -4962,13 +5066,28 @@ function Sources(
           <div className="source-list">
             <label className="field">{t("Following filter")}<select value={filter} onChange={event => setFilter(event.target.value)}>
               <option value="all">{t("All Following")}</option><option value="updates">{t("Has updates")}</option>
-              <option value="insights">{t("Produces new insights")}</option><option value="attention">{t("Needs attention")}</option>
+              <option value="insights">{t("Produces new insights")}</option>
+              {hasAiSignals ? (
+                <option value="high_signal">
+                  {language === "zh-CN" ? "高干货产出（必看 ≥ 1）" : "High signal (must-watch ≥ 1)"}
+                </option>
+              ) : null}
+              <option value="attention">{t("Needs attention")}</option>
               <option value="paused">{t("Paused")}</option>
             </select></label>
             {followingSources.filter(source => !source.tracking_parent_source_ids?.length).filter(source => filter === "all" || (filter === "updates" && (source.tracking?.update_count ?? 0) > 0)
               || (filter === "insights" && (source.insight_count ?? 0) > 0)
+              || (filter === "high_signal" && (aiSignals[source.source_id]?.must_watch_count ?? 0) >= 1)
               || (filter === "attention" && Boolean((source.source_type === "CHANNEL" && !source.tracking) || (source.provider === "BILIBILI" && source.tracking && creatorFollowingWithdrawn) || source.last_error || (source.tracking?.pending_count ?? 0) > 0 || (source.tracking?.processing_count ?? 0) > 0 || (source.tracking?.unavailable_count ?? 0) > 0))
-              || (filter === "paused" && !source.enabled)).map((source) => (
+              || (filter === "paused" && !source.enabled)).map((source) => {
+              const sig = aiSignals[source.source_id] ?? null;
+              const signalCopy =
+                sig && sig.distilled_count > 0
+                  ? language === "zh-CN"
+                    ? `干货 ${sig.long_form_count}/${sig.total_videos}${sig.signal_rate_pct !== null ? ` (${sig.signal_rate_pct}%)` : ""} · 必看 ${sig.must_watch_count}${sig.avg_long_score !== null ? ` · 均分 ${sig.avg_long_score.toFixed(1)}` : ""}${sig.shorts_count > 0 ? ` · 折叠 ${sig.shorts_count} Shorts` : ""}`
+                    : `Long-form ${sig.long_form_count}/${sig.total_videos}${sig.signal_rate_pct !== null ? ` (${sig.signal_rate_pct}%)` : ""} · Must-watch ${sig.must_watch_count}${sig.avg_long_score !== null ? ` · Avg ${sig.avg_long_score.toFixed(1)}` : ""}${sig.shorts_count > 0 ? ` · ${sig.shorts_count} Shorts folded` : ""}`
+                  : null;
+              return (
               <div className="list-row source-row" key={source.source_id} data-source-id={source.source_id}>
                 <button
                   className="source-select"
@@ -4990,10 +5109,33 @@ function Sources(
                       <small>
                         {t(sourceSummary(source, creatorFollowingWithdrawn))} · {source.provider === "LOCAL" ? t("Local") : source.provider === "BILIBILI" ? t("Bilibili") : "YouTube"}
                       </small>
+                      {signalCopy ? (
+                        <span className="source-signal-strip tabular-nums">{signalCopy}</span>
+                      ) : null}
                     </span>
                   </span>
                 </button>
                 <div className="source-actions">
+                  {sig && sig.long_form_count > 0 && sig.channel_key && onBrowseChannelContent ? (
+                    <button
+                      type="button"
+                      className="button button-secondary button-small tabular-nums"
+                      onClick={() => onBrowseChannelContent(sig.channel_key)}
+                    >
+                      {language === "zh-CN"
+                        ? `看干货 (${sig.long_form_count})`
+                        : `Browse (${sig.long_form_count})`}
+                    </button>
+                  ) : null}
+                  {sig && sig.long_form_count > 0 && sig.channel_key && onAskChannelResearch ? (
+                    <button
+                      type="button"
+                      className="button button-ghost button-small"
+                      onClick={() => onAskChannelResearch(sig.channel_key)}
+                    >
+                      {language === "zh-CN" ? "问此频道" : "Ask Q&A"}
+                    </button>
+                  ) : null}
                   {source.tracking &&
                     source.enabled &&
                     !source.tracking.checking &&
@@ -5067,7 +5209,8 @@ function Sources(
                   </a>}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )
         : (

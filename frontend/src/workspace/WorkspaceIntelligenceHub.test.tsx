@@ -2768,4 +2768,479 @@ describe("Workspace AI Upgrade (P0 + P1 + P2)", () => {
     expect(await screen.findByText("仅限已收藏（1 篇）")).toBeTruthy();
     expect(screen.getByText(/已收藏的 OpenAI 视频强调评测集先行/)).toBeTruthy();
   });
+
+  it("R7: surfaces Following source signal-to-noise metrics with 1-click Content/Research handoffs, filters Content by channel, and supports Research session search + follow-up scope reuse", async () => {
+    window.localStorage.setItem("yia.onboarding.v1", "done");
+    window.localStorage.setItem("yia.uiLanguage", "zh-CN");
+    location.hash = "#Following";
+
+    const askCalls: Record<string, unknown>[] = [];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((rawInput: RequestInfo | URL, init?: RequestInit) => {
+        const input = String(rawInput);
+        if (input.endsWith("/capabilities/creator-following")) {
+          return okJson({
+            capability: {
+              available: true,
+              providers: ["YOUTUBE"],
+              reason_code: null,
+            },
+          });
+        }
+        if (input.endsWith("/sources/check-stale")) {
+          return okJson({ checked: 0 });
+        }
+        if (input.endsWith("/sources")) {
+          return okJson({
+            sources: [
+              {
+                source_id: "youtube-channel-openai",
+                provider: "YOUTUBE",
+                source_type: "CHANNEL",
+                canonical_url: "https://www.youtube.com/@OpenAI",
+                handle_or_channel_id: "@OpenAI",
+                display_name: "OpenAI",
+                enabled: true,
+                insight_count: 20,
+                tracking: {
+                  health: "HEALTHY",
+                  coverage: "CONTINUOUS",
+                  checking: false,
+                  baseline_complete: true,
+                  last_checked_at: "2026-11-15T01:00:00Z",
+                  last_new_content_at: "2026-11-15T00:30:00Z",
+                  tracked_count: 100,
+                  ready_count: 23,
+                  processing_count: 0,
+                  pending_count: 0,
+                  unavailable_count: 0,
+                  update_count: 2,
+                },
+              },
+              {
+                source_id: "youtube-channel-greg",
+                provider: "YOUTUBE",
+                source_type: "CHANNEL",
+                canonical_url: "https://www.youtube.com/@GregIsenberg",
+                handle_or_channel_id: "@GregIsenberg",
+                display_name: "Greg Isenberg",
+                enabled: true,
+                insight_count: 9,
+                tracking: {
+                  health: "HEALTHY",
+                  coverage: "CONTINUOUS",
+                  checking: false,
+                  baseline_complete: true,
+                  last_checked_at: "2026-11-15T01:00:00Z",
+                  last_new_content_at: "2026-11-15T00:40:00Z",
+                  tracked_count: 12,
+                  ready_count: 11,
+                  processing_count: 0,
+                  pending_count: 0,
+                  unavailable_count: 0,
+                  update_count: 1,
+                },
+              },
+              {
+                source_id: "youtube-channel-noisy",
+                provider: "YOUTUBE",
+                source_type: "CHANNEL",
+                canonical_url: "https://www.youtube.com/@NoisyShortsFeed",
+                handle_or_channel_id: "@NoisyShortsFeed",
+                display_name: "Noisy Shorts Feed",
+                enabled: true,
+                insight_count: 0,
+                tracking: {
+                  health: "HEALTHY",
+                  coverage: "CONTINUOUS",
+                  checking: false,
+                  baseline_complete: true,
+                  last_checked_at: "2026-11-15T01:00:00Z",
+                  last_new_content_at: null,
+                  tracked_count: 15,
+                  ready_count: 0,
+                  processing_count: 0,
+                  pending_count: 0,
+                  unavailable_count: 0,
+                  update_count: 0,
+                },
+              },
+            ],
+            ai_signal_by_source: {
+              "youtube-channel-openai": {
+                source_id: "youtube-channel-openai",
+                channel_key: "OpenAI",
+                channel_label: "OpenAI",
+                total_videos: 100,
+                distilled_count: 100,
+                long_form_count: 23,
+                shorts_count: 77,
+                must_watch_count: 20,
+                worth_skimming_count: 3,
+                unread_long_count: 5,
+                avg_long_score: 8.4,
+                signal_rate_pct: 23,
+              },
+              "youtube-channel-greg": {
+                source_id: "youtube-channel-greg",
+                channel_key: "Greg Isenberg",
+                channel_label: "Greg Isenberg",
+                total_videos: 12,
+                distilled_count: 12,
+                long_form_count: 11,
+                shorts_count: 1,
+                must_watch_count: 9,
+                worth_skimming_count: 2,
+                unread_long_count: 3,
+                avg_long_score: 8.5,
+                signal_rate_pct: 92,
+              },
+              "youtube-channel-noisy": {
+                source_id: "youtube-channel-noisy",
+                channel_key: "Noisy Shorts Feed",
+                channel_label: "Noisy Shorts Feed",
+                total_videos: 15,
+                distilled_count: 15,
+                long_form_count: 0,
+                shorts_count: 15,
+                must_watch_count: 0,
+                worth_skimming_count: 0,
+                unread_long_count: 0,
+                avg_long_score: null,
+                signal_rate_pct: 0,
+              },
+            },
+          });
+        }
+        if (input.endsWith("/videos")) {
+          return okJson({
+            videos: [
+              {
+                video_id: "vid-openai-1",
+                provider: "YOUTUBE",
+                channel_id: "UC-openai",
+                channel_name: "OpenAI",
+                title: "OpenAI Cyber Security Harness",
+                published_at: "2026-11-15T00:00:00Z",
+                processing_status: "ORGANIZED",
+                last_updated: "2026-11-15T00:00:00Z",
+                duration_seconds: 1600,
+                caption_timing_status: "AVAILABLE",
+                ai_brief: {
+                  video_id: "vid-openai-1",
+                  source_basis: "TRANSCRIPT",
+                  headline_zh: "安全评测沙箱驱动高危漏洞自动修复",
+                  summary_zh: "OpenAI 分享安全补丁闭环。",
+                  score: 9.1,
+                  score_reason_zh: "工程含金量高",
+                  recommendation_tier: "MUST_WATCH",
+                  content_bucket: "DEEP_DIVE",
+                  is_short_noise: false,
+                  starred: false,
+                  is_read: false,
+                  topics_zh: ["AI 安全"],
+                  topic_cluster_zh: "AI Agent 与自动化架构",
+                  product_opportunities_zh: [],
+                  business_opportunities_zh: [],
+                },
+              },
+              {
+                video_id: "vid-greg-1",
+                provider: "YOUTUBE",
+                channel_id: "UC-greg",
+                channel_name: "Greg Isenberg",
+                title: "Vertical AI Directory Playbook",
+                published_at: "2026-11-15T00:10:00Z",
+                processing_status: "ORGANIZED",
+                last_updated: "2026-11-15T00:10:00Z",
+                duration_seconds: 1950,
+                caption_timing_status: "AVAILABLE",
+                ai_brief: {
+                  video_id: "vid-greg-1",
+                  source_basis: "TRANSCRIPT",
+                  headline_zh: "高信噪比垂直 AI 工作流变现拆解",
+                  summary_zh: "一人公司切入高复购垂直 SaaS。",
+                  score: 9.3,
+                  score_reason_zh: "商业闭环清晰",
+                  recommendation_tier: "MUST_WATCH",
+                  content_bucket: "DEEP_DIVE",
+                  is_short_noise: false,
+                  starred: true,
+                  is_read: false,
+                  topics_zh: ["商业变现"],
+                  topic_cluster_zh: "一人公司与 AI 商业变现",
+                  product_opportunities_zh: [],
+                  business_opportunities_zh: [],
+                },
+              },
+            ],
+          });
+        }
+        if (input.endsWith("/workspace-ai/research/sessions")) {
+          return okJson({
+            sessions: [
+              {
+                session_id: "qa-hist-compare",
+                question: "本地实战课里关于 AI Agent 工程落地最核心的建议是什么？",
+                scope_label_zh: "对比 2 条指定视频",
+                scope: {
+                  scope_label_zh: "对比 2 条指定视频",
+                  starred_only: false,
+                  channel_key: null,
+                  topic_cluster: null,
+                  video_ids: ["vid-local-1", "vid-local-2"],
+                },
+                video_count: 2,
+                answer_zh: "本地实战课建议先固定确定性状态机再接入工具调用 [E1]。",
+                key_takeaways_zh: ["状态机优先于自由路由"],
+                action_items_zh: ["梳理核心节点契约"],
+                citations: [
+                  {
+                    ref_label: "E1",
+                    video_id: "vid-local-1",
+                    video_title: "3. Agent.mp4",
+                    channel_name: "本地实战课",
+                    evidence_id: "ev-loc-1",
+                    start_ms: 10000,
+                    end_ms: 20000,
+                    timestamp_label: "00:10",
+                    excerpt: "先把状态机边界定死。",
+                  },
+                ],
+                obsidian_markdown: "# 本地实战对比",
+                provider: "local_ollama",
+                model: "qwen2.5:7b",
+                created_at: "2026-11-15T01:20:00Z",
+              },
+              {
+                session_id: "qa-hist-full",
+                question: "Mozilla 是如何用 GPT-6 Cyber 扫描修复 Firefox 安全漏洞的？",
+                scope_label_zh: "",
+                scope: {},
+                video_count: 2,
+                answer_zh: "Mozilla 通过回归沙箱自动复现崩溃并验证补丁 [E1] [E2]。",
+                key_takeaways_zh: ["沙箱复现先于补丁生成"],
+                action_items_zh: ["引入漏洞回归测试集"],
+                citations: [
+                  {
+                    ref_label: "E1",
+                    video_id: "vid-openai-1",
+                    video_title: "OpenAI Cyber Security Harness",
+                    channel_name: "OpenAI",
+                    evidence_id: "ev-oa-1",
+                    start_ms: 12000,
+                    end_ms: 24000,
+                    timestamp_label: "00:12",
+                    excerpt: "Reproduce crashes inside deterministic sandboxes.",
+                  },
+                  {
+                    ref_label: "E2",
+                    video_id: "vid-greg-1",
+                    video_title: "Vertical AI Directory Playbook",
+                    channel_name: "Greg Isenberg",
+                    evidence_id: "ev-gr-1",
+                    start_ms: 30000,
+                    end_ms: 42000,
+                    timestamp_label: "00:30",
+                    excerpt: "Automated QA workflows save engineering hours.",
+                  },
+                ],
+                obsidian_markdown: "# Mozilla 安全修复",
+                provider: "local_ollama",
+                model: "qwen2.5:7b",
+                created_at: "2026-11-15T01:10:00Z",
+              },
+              {
+                session_id: "qa-hist-monetize",
+                question: "一人公司如何用垂直 AI 工作流做高毛利变现？",
+                scope_label_zh: "来源：Greg Isenberg",
+                scope: {
+                  scope_label_zh: "来源：Greg Isenberg",
+                  starred_only: false,
+                  channel_key: "Greg Isenberg",
+                  topic_cluster: null,
+                  video_ids: null,
+                },
+                video_count: 1,
+                answer_zh: "聚焦高客单价行业审批痛点按席位或结果年费定价 [E1]。",
+                key_takeaways_zh: ["卖结果而非卖聊天"],
+                action_items_zh: ["验证垂直客群付费意愿"],
+                citations: [
+                  {
+                    ref_label: "E1",
+                    video_id: "vid-greg-1",
+                    video_title: "Vertical AI Directory Playbook",
+                    channel_name: "Greg Isenberg",
+                    evidence_id: "ev-gr-2",
+                    start_ms: 45000,
+                    end_ms: 60000,
+                    timestamp_label: "00:45",
+                    excerpt: "Charge annual retainers for outcome-based workflows.",
+                  },
+                ],
+                obsidian_markdown: "# 垂直变现问答",
+                provider: "local_ollama",
+                model: "qwen2.5:7b",
+                created_at: "2026-11-15T01:00:00Z",
+              },
+            ],
+            suggested_questions: [],
+            scope_options: {
+              starred_count: 1,
+              channels: [
+                { key: "OpenAI", label: "OpenAI", provider: "YOUTUBE", video_count: 23 },
+                { key: "Greg Isenberg", label: "Greg Isenberg", provider: "YOUTUBE", video_count: 10 },
+                { key: "LOCAL", label: "本地实战课", provider: "LOCAL", video_count: 2 },
+              ],
+              topic_clusters: [
+                { name: "一人公司与 AI 商业变现", video_count: 6 },
+                { name: "AI Agent 与自动化架构", video_count: 5 },
+              ],
+              videos: [
+                {
+                  video_id: "vid-greg-1",
+                  title: "Vertical AI Directory Playbook",
+                  channel_name: "Greg Isenberg",
+                  channel_key: "Greg Isenberg",
+                  score: 9.3,
+                  starred: true,
+                  topic_cluster_zh: "一人公司与 AI 商业变现",
+                },
+                {
+                  video_id: "vid-openai-1",
+                  title: "OpenAI Cyber Security Harness",
+                  channel_name: "OpenAI",
+                  channel_key: "OpenAI",
+                  score: 9.1,
+                  starred: false,
+                  topic_cluster_zh: "AI Agent 与自动化架构",
+                },
+                {
+                  video_id: "vid-local-1",
+                  title: "3. Agent.mp4",
+                  channel_name: "本地实战课",
+                  channel_key: "LOCAL",
+                  score: 9.2,
+                  starred: false,
+                  topic_cluster_zh: "AI Agent 与自动化架构",
+                },
+                {
+                  video_id: "vid-local-2",
+                  title: "4. Multimodal.mp4",
+                  channel_name: "本地实战课",
+                  channel_key: "LOCAL",
+                  score: 9.0,
+                  starred: false,
+                  topic_cluster_zh: "AI Agent 与自动化架构",
+                },
+              ],
+            },
+          });
+        }
+        if (input.endsWith("/workspace-ai/research/ask") && init?.method === "POST") {
+          const parsed = JSON.parse(String(init.body ?? "{}")) as Record<string, unknown>;
+          askCalls.push(parsed);
+          return okJson({
+            session: {
+              session_id: "qa-followup-01",
+              question: String(parsed.question),
+              scope_label_zh: "对比 2 条指定视频",
+              scope: {
+                scope_label_zh: "对比 2 条指定视频",
+                video_ids: parsed.video_ids ?? null,
+              },
+              video_count: 2,
+              answer_zh: "追问结论：两节本地课一致建议先用离线评估集锁定工具误调率 [E1]。",
+              key_takeaways_zh: ["离线评估集锁定误调率"],
+              action_items_zh: ["补充 20 条边界用例"],
+              citations: [],
+              obsidian_markdown: "# 追问结果",
+              provider: "local_ollama",
+              model: "qwen2.5:7b",
+              created_at: "2026-11-15T01:30:00Z",
+            },
+          });
+        }
+        if (input.endsWith("/research")) {
+          return okJson({ research: [], total: 0, offset: 0, limit: 25 });
+        }
+        return okJson({});
+      }),
+    );
+
+    const { container } = render(<App />);
+
+    // 1) #Following surfaces signal-to-noise metrics per source + high-signal filter
+    expect(
+      await screen.findByText(/干货 23\/100 \(23%\) · 必看 20 · 均分 8\.4 · 折叠 77 Shorts/),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(/干货 11\/12 \(92%\) · 必看 9 · 均分 8\.5 · 折叠 1 Shorts/),
+    ).toBeTruthy();
+
+    const followingFilter = screen.getByLabelText("筛选关注") as HTMLSelectElement;
+    fireEvent.change(followingFilter, { target: { value: "high_signal" } });
+    expect(screen.queryByText("Noisy Shorts Feed")).toBeNull();
+    expect(screen.getByText("Greg Isenberg")).toBeTruthy();
+
+    // 2) 1-click "看干货 (11)" on Greg Isenberg -> #Content pre-filtered to Greg Isenberg
+    const gregRow = container.querySelector('[data-source-id="youtube-channel-greg"]') as HTMLElement;
+    expect(gregRow).not.toBeNull();
+    fireEvent.click(within(gregRow).getByRole("button", { name: /看干货 \(11\)/ }));
+
+    await waitFor(() => expect(location.hash).toBe("#Content"));
+    const channelSelect = (await screen.findByLabelText("按频道筛选")) as HTMLSelectElement;
+    expect(channelSelect.value).toBe("Greg Isenberg");
+    expect(screen.getByText("Vertical AI Directory Playbook")).toBeTruthy();
+    expect(screen.queryByText("OpenAI Cyber Security Harness")).toBeNull();
+
+    // 3) Back to #Following -> 1-click "问此频道" on Greg Isenberg -> #Research scoped to Greg Isenberg
+    fireEvent.click(screen.getByRole("button", { name: "关注" }));
+    const gregRowAgain = (await waitFor(() =>
+      container.querySelector('[data-source-id="youtube-channel-greg"]'),
+    )) as HTMLElement;
+    fireEvent.click(within(gregRowAgain).getByRole("button", { name: "问此频道" }));
+
+    await waitFor(() => expect(location.hash).toBe("#Research"));
+    const gregScopeChip = await screen.findByRole("button", { name: "Greg Isenberg (10)" });
+    expect(gregScopeChip.getAttribute("aria-pressed")).toBe("true");
+
+    // 4) Research session history shows video counts, filters via search, and supports 1-click follow-up scope reuse
+    const historySearch = screen.getByLabelText("筛选历史问答");
+    fireEvent.change(historySearch, { target: { value: "Mozilla" } });
+    expect(screen.queryByRole("button", { name: /一人公司如何用垂直 AI 工作流.*1 篇/ })).toBeNull();
+    const mozillaHistBtn = screen.getByRole("button", {
+      name: /Mozilla 是如何用 GPT-6 Cyber.*2 篇/,
+    });
+    fireEvent.click(mozillaHistBtn);
+    fireEvent.change(historySearch, { target: { value: "" } });
+
+    // Full-library session (`scope: {}`) offers 1-click follow-up on its 2 cited videos
+    const citeFollowBtn = screen.getByRole("button", { name: "围绕引用视频追问 (2)" });
+    fireEvent.click(citeFollowBtn);
+    expect(screen.getByRole("button", { name: "指定多视频对比 (已选 2)" })).toBeTruthy();
+    const qInput = screen.getByLabelText("跨视频提问");
+    expect(document.activeElement).toBe(qInput);
+
+    // Scoped comparison session (`video_ids: ["vid-local-1", "vid-local-2"]`) restores exact scope on "同范围继续追问"
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /本地实战课里关于 AI Agent 工程落地.*2 篇/,
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "同范围继续追问" }));
+    expect(screen.getByLabelText(/3\. Agent\.mp4/)).toHaveProperty("checked", true);
+    expect(screen.getByLabelText(/4\. Multimodal\.mp4/)).toHaveProperty("checked", true);
+
+    fireEvent.change(qInput, { target: { value: "这两节本地课对离线评估集怎么设计？" } });
+    fireEvent.click(screen.getByRole("button", { name: "AI 提问" }));
+
+    await waitFor(() => expect(askCalls).toHaveLength(1));
+    expect(askCalls[0]).toMatchObject({
+      question: "这两节本地课对离线评估集怎么设计？",
+      video_ids: ["vid-local-1", "vid-local-2"],
+    });
+  });
 });
