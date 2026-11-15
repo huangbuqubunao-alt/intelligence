@@ -77,6 +77,15 @@ _WS_AI_TRANSCRIBE_ROUTE = re.compile(
 )
 _WS_AI_OBSIDIAN_ROUTE = re.compile(r"^/api/v1/workspace-ai/videos/([^/]+)/obsidian$")
 _WS_AI_CURATION_ROUTE = re.compile(r"^/api/v1/workspace-ai/videos/([^/]+)/curation$")
+_WS_AI_QA_PIN_ROUTE = re.compile(
+    r"^/api/v1/workspace-ai/research/sessions/([^/]+)/pin$"
+)
+_WS_AI_QA_DELETE_POST_ROUTE = re.compile(
+    r"^/api/v1/workspace-ai/research/sessions/([^/]+)/delete$"
+)
+_WS_AI_QA_ITEM_ROUTE = re.compile(
+    r"^/api/v1/workspace-ai/research/sessions/([^/]+)$"
+)
 _YT_VIDEO_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
 _INLINE_HASH_MAX_BYTES = 65_536
 
@@ -1330,6 +1339,24 @@ class FastReadApiApplication:
                 data = self._inner._body(body)
                 return HTTPStatus.OK, self._workspace_hub.update_video_curation(
                     cur_m[1], data
+                )
+            qa_pin_m = _WS_AI_QA_PIN_ROUTE.fullmatch(route)
+            if qa_pin_m is not None and method == "POST":
+                data = self._inner._body(body)
+                return HTTPStatus.OK, self._workspace_hub.update_research_session_pin(
+                    qa_pin_m[1], data
+                )
+            qa_del_post_m = _WS_AI_QA_DELETE_POST_ROUTE.fullmatch(route)
+            if qa_del_post_m is not None and method == "POST":
+                if body.strip():
+                    self._inner._body(body)
+                return HTTPStatus.OK, self._workspace_hub.delete_research_session(
+                    qa_del_post_m[1]
+                )
+            qa_item_m = _WS_AI_QA_ITEM_ROUTE.fullmatch(route)
+            if qa_item_m is not None and method == "DELETE":
+                return HTTPStatus.OK, self._workspace_hub.delete_research_session(
+                    qa_item_m[1]
                 )
             raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
         except ApiError as err:
