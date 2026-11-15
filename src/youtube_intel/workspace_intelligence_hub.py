@@ -3376,7 +3376,7 @@ class WorkspaceIntelligenceHub:
             video = videos_by_id.get(vid)
             if video is None:
                 continue
-            _, ch_label = self._video_channel_key_and_label(video)
+            ch_key, ch_label = self._video_channel_key_and_label(video)
             pub_str = (
                 format_utc_datetime(video.published_at)
                 if video.published_at is not None
@@ -3386,6 +3386,7 @@ class WorkspaceIntelligenceHub:
             entry = {
                 "video_id": vid,
                 "title": video.title or vid,
+                "channel_key": ch_key,
                 "channel_name": ch_label,
                 "provider": str(video.provider or "YOUTUBE"),
                 "published_at": pub_str,
@@ -3393,6 +3394,7 @@ class WorkspaceIntelligenceHub:
                 "score": float(brief["score"]),
                 "recommendation_tier": str(brief["recommendation_tier"]),
                 "is_short_noise": bool(brief["is_short_noise"]),
+                "is_read": bool(brief.get("is_read", False)),
                 "source_basis": str(brief.get("source_basis") or "TRANSCRIPT"),
                 "headline_zh": str(brief["headline_zh"]),
                 "summary_zh": str(brief["summary_zh"]),
@@ -3455,6 +3457,18 @@ class WorkspaceIntelligenceHub:
             "",
             f"> **聚合统计**：收录 `{summary.get('video_count', 0)}` 条内容 · 必看干货 `{summary.get('must_watch_count', 0)}` 条 · 近 7 天新增 `{summary.get('recent_7d_count', 0)}` 条 · 平均评分 `{summary.get('avg_score', 0.0)}`",
         ]
+        raw_breakdown = summary.get("channel_breakdown")
+        if isinstance(raw_breakdown, list) and raw_breakdown:
+            ch_parts: list[str] = []
+            for ch_item in raw_breakdown[:6]:
+                if isinstance(ch_item, Mapping):
+                    lbl = str(ch_item.get("channel_label") or ch_item.get("channel_key") or "").strip()
+                    vc = int(ch_item.get("video_count", 0) or 0)
+                    mwc = int(ch_item.get("must_watch_count", 0) or 0)
+                    if lbl and vc > 0:
+                        ch_parts.append(f"{lbl}（`{vc}` 篇 · `{mwc}` 必看）")
+            if ch_parts:
+                lines.append(f"> **来源构成**：{' · '.join(ch_parts)}")
         if rel_links:
             lines.extend(["", f"**关联专题双链**：{rel_links}"])
         if entries:
@@ -3493,10 +3507,12 @@ class WorkspaceIntelligenceHub:
             summary: dict[str, object] = {
                 "video_count": 0,
                 "must_watch_count": 0,
+                "unread_count": 0,
                 "recent_7d_count": 0,
                 "avg_score": 0.0,
                 "latest_headline_zh": "",
                 "source_channels": [],
+                "channel_breakdown": [],
             }
             if include_entries:
                 summary["entries"] = []
@@ -3508,6 +3524,9 @@ class WorkspaceIntelligenceHub:
             return summary
         must_watch = sum(
             1 for item in entries if item["recommendation_tier"] == "MUST_WATCH"
+        )
+        unread_count = sum(
+            1 for item in entries if not bool(item.get("is_read", False))
         )
         recent_7d = 0
         for item in entries:
@@ -3523,10 +3542,36 @@ class WorkspaceIntelligenceHub:
             sum(float(item["score"]) for item in entries) / len(entries), 1
         )
         channels: list[str] = []
+        channel_stats: dict[str, dict[str, Any]] = {}
         for item in entries:
             ch = str(item["channel_name"])
             if ch and ch not in channels:
                 channels.append(ch)
+            ch_key = str(item.get("channel_key") or ch).strip()
+            if ch_key:
+                st = channel_stats.setdefault(
+                    ch_key,
+                    {
+                        "channel_key": ch_key,
+                        "channel_label": ch or ch_key,
+                        "video_count": 0,
+                        "must_watch_count": 0,
+                        "unread_count": 0,
+                    },
+                )
+                st["video_count"] += 1
+                if item["recommendation_tier"] == "MUST_WATCH":
+                    st["must_watch_count"] += 1
+                if not bool(item.get("is_read", False)):
+                    st["unread_count"] += 1
+        channel_breakdown = sorted(
+            channel_stats.values(),
+            key=lambda st: (
+                -int(st["video_count"]),
+                -int(st["must_watch_count"]),
+                str(st["channel_label"]),
+            ),
+        )[:8]
         source_count = len(channels)
         if source_count >= 2:
             preview = "、".join(channels[:4]) + (" 等" if source_count > 4 else "")
@@ -3544,10 +3589,12 @@ class WorkspaceIntelligenceHub:
         result: dict[str, object] = {
             "video_count": len(entries),
             "must_watch_count": must_watch,
+            "unread_count": unread_count,
             "recent_7d_count": recent_7d,
             "avg_score": avg_score,
             "latest_headline_zh": str(entries[0]["headline_zh"]),
             "source_channels": channels[:6],
+            "channel_breakdown": channel_breakdown,
             "independence_summary_zh": indep_zh,
         }
         if include_entries:
@@ -4115,13 +4162,34 @@ class WorkspaceIntelligenceHub:
                         delta_lines.append(
                             f"> - **本期新上榜必看**：{' · '.join(pick_links)}"
                         )
+                raw_new_shifts = delta.get("new_shifts_zh")
+                if isinstance(raw_new_shifts, list):
+                    shift_items = [
+                        str(s).strip() for s in raw_new_shifts[:3] if str(s).strip()
+                    ]
+                    if shift_items:
+                        delta_lines.append(
+                            f"> - **本期新趋势风向**：{' · '.join(shift_items)}"
+                        )
+                raw_new_opps = delta.get("new_opportunities_zh")
+                if isinstance(raw_new_opps, list):
+                    opp_items = [
+                        str(o).strip() for o in raw_new_opps[:3] if str(o).strip()
+                    ]
+                    if opp_items:
+                        delta_lines.append(
+                            f"> - **本期新产品切口**：{' · '.join(opp_items)}"
+                        )
 
         out_lines: list[str] = []
         inserted = False
         for line in text.splitlines():
             stripped = line.strip()
-            if stripped.startswith("> **较上期演进对比**") or stripped.startswith(
-                "> - **本期新上榜必看**："
+            if (
+                stripped.startswith("> **较上期演进对比**")
+                or stripped.startswith("> - **本期新上榜必看**：")
+                or stripped.startswith("> - **本期新趋势风向**：")
+                or stripped.startswith("> - **本期新产品切口**：")
             ):
                 continue
             if stripped.startswith("> **信噪比漏斗**："):
