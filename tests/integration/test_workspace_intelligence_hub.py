@@ -1939,7 +1939,7 @@ def test_round5_weekly_brief_freshness_and_obsidian_vault_zip_bundle(
         video_id="vidR5Biz0002",
         channel_id="UC2222222222222222222222",
         channel_name="Greg Isenberg",
-        title="Vertical AI Pricing Models",
+        title="Vertical AI Pricing Monetization Playbook",
         duration_seconds=1640,
         cues=(
             TimedTranscriptCueWrite(
@@ -2054,7 +2054,9 @@ def test_round5_weekly_brief_freshness_and_obsidian_vault_zip_bundle(
     assert bundle_json["scope"] == "starred"
     assert bundle_json["filename"].endswith(".zip")
     assert bundle_json["counts"]["videos"] == 1
-    assert bundle_json["counts"]["topics"] >= 1
+    assert bundle_json["counts"]["video_notes"] == 1
+    assert bundle_json["counts"]["topics"] == 2
+    assert bundle_json["counts"]["topic_mocs"] == 2
     assert bundle_json["counts"]["weekly_briefs"] >= 1
     assert bundle_json["counts"]["research_sessions"] == 1
 
@@ -2065,7 +2067,11 @@ def test_round5_weekly_brief_freshness_and_obsidian_vault_zip_bundle(
         names = zf.namelist()
         assert all(not n.startswith("/") and ".." not in n for n in names)
         assert "00-AI情报知识库总览 Index.md" in names
-        assert "02-专题演化MOC/AI Agent 与自动化架构.md" in names
+        moc_files = sorted(n for n in names if n.startswith("02-专题演化MOC/"))
+        assert moc_files == [
+            "02-专题演化MOC/AI Agent 与自动化架构.md",
+            "02-专题演化MOC/AI 产品机会与一人公司变现.md",
+        ]
         assert "03-视频深度笔记/Autonomous Security Verification.md" in names
         assert not any("Deterministic Agent Loops" in n for n in names if n.startswith("03-"))
         assert not any("Quick 30s Teaser" in n for n in names)
@@ -2087,7 +2093,7 @@ def test_round5_weekly_brief_freshness_and_obsidian_vault_zip_bundle(
         video_notes = [n for n in zf_all.namelist() if n.startswith("03-视频深度笔记/")]
         assert len(video_notes) == 3
         assert "03-视频深度笔记/Deterministic Agent Loops.md" in video_notes
-        assert "03-视频深度笔记/Vertical AI Pricing Models.md" in video_notes
+        assert "03-视频深度笔记/Vertical AI Pricing Monetization Playbook.md" in video_notes
         assert "03-视频深度笔记/Autonomous Security Verification.md" in video_notes
 
     # Invalid scope returns 422 VALIDATION_ERROR cleanly
@@ -2100,6 +2106,24 @@ def test_round5_weekly_brief_freshness_and_obsidian_vault_zip_bundle(
     )
     assert bad_bin is not None
     assert bad_bin[0] == int(HTTPStatus.UNPROCESSABLE_ENTITY)
+
+    # Concurrent curation write + /api/v1/videos read stress check (zero 500s / lock errors)
+    from concurrent.futures import ThreadPoolExecutor
+
+    def _worker(idx: int) -> int:
+        if idx % 2 == 0:
+            code, _ = fast_app.handle(
+                "POST",
+                "/api/v1/workspace-ai/videos/vidR5NewDeep/curation",
+                json.dumps({"is_read": bool(idx % 4 == 0)}).encode("utf-8"),
+            )
+            return int(code)
+        code, _ = fast_app.handle("GET", "/api/v1/videos")
+        return int(code)
+
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        statuses = list(pool.map(_worker, range(24)))
+    assert all(s == int(HTTPStatus.OK) for s in statuses)
 
     # Strict Red Line: external vault directory remains 100% untouched on disk!
     assert [p for p in env["vault_root"].rglob("*") if p.is_file()] == []

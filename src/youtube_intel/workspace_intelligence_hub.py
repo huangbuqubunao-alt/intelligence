@@ -19,11 +19,14 @@ import io
 import ipaddress
 import json
 import math
+import os
 import platform
 import re
 import sqlite3
 import sys
 import tempfile
+import threading
+import time
 import urllib.error
 import urllib.request
 import zipfile
@@ -636,6 +639,9 @@ class WorkspaceIntelligenceHub:
         )
         self._ollama_probe = installed_ollama_probe or _probe_ollama_models_default
         self._now = now or (lambda: datetime.now(UTC))
+        self._db_lock = threading.RLock()
+        self._schema_ready_token: tuple[int, int] | None = None
+        self._last_snapshot_mono: float = 0.0
 
     # ------------------------------------------------------------------
     # Sidecar SQLite lifecycle (strictly lazy on read!)
@@ -647,18 +653,29 @@ class WorkspaceIntelligenceHub:
     def _connect_read(self) -> sqlite3.Connection | None:
         if not self.db_path.is_file():
             return None
-        conn = sqlite3.connect(f"file:{self.db_path}?mode=ro", uri=True, timeout=5.0)
-        conn.row_factory = sqlite3.Row
-        return conn
+        conn: sqlite3.Connection | None = None
+        try:
+            conn = sqlite3.connect(
+                f"file:{self.db_path}?mode=ro", uri=True, timeout=10.0
+            )
+            conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA busy_timeout=5000")
+            return conn
+        except sqlite3.Error:
+            if conn is not None:
+                conn.close()
+            return None
 
-    def _connect_write(self) -> sqlite3.Connection:
-        parent = self.db_path.parent
-        parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-        conn = sqlite3.connect(self.db_path, timeout=10.0)
-        conn.row_factory = sqlite3.Row
+    def _ensure_schema(self, conn: sqlite3.Connection) -> None:
+        try:
+            st = os.stat(self.db_path)
+            token: tuple[int, int] | None = (st.st_dev, st.st_ino)
+        except OSError:
+            token = None
+        if token is not None and self._schema_ready_token == token:
+            return
         conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA busy_timeout=5000")
-        conn.executescript(
+        for ddl in (
             """
             CREATE TABLE IF NOT EXISTS engine_config (
                 singleton_id INTEGER PRIMARY KEY CHECK (singleton_id = 1),
@@ -669,7 +686,9 @@ class WorkspaceIntelligenceHub:
                 cloud_base_url TEXT NOT NULL,
                 cloud_model TEXT NOT NULL,
                 updated_at TEXT NOT NULL
-            );
+            )
+            """,
+            """
             CREATE TABLE IF NOT EXISTS video_ai_briefs (
                 video_id TEXT PRIMARY KEY,
                 headline_zh TEXT NOT NULL,
@@ -693,7 +712,9 @@ class WorkspaceIntelligenceHub:
                 obsidian_markdown TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 source_basis TEXT NOT NULL DEFAULT 'TRANSCRIPT'
-            );
+            )
+            """,
+            """
             CREATE TABLE IF NOT EXISTS research_qa_sessions (
                 session_id TEXT PRIMARY KEY,
                 question TEXT NOT NULL,
@@ -707,7 +728,9 @@ class WorkspaceIntelligenceHub:
                 obsidian_markdown TEXT NOT NULL,
                 created_at TEXT NOT NULL,
                 scope_json TEXT NOT NULL DEFAULT '{}'
-            );
+            )
+            """,
+            """
             CREATE TABLE IF NOT EXISTS weekly_ai_briefs (
                 brief_id TEXT PRIMARY KEY,
                 title_zh TEXT NOT NULL,
@@ -721,15 +744,18 @@ class WorkspaceIntelligenceHub:
                 model TEXT NOT NULL,
                 obsidian_markdown TEXT NOT NULL,
                 created_at TEXT NOT NULL
-            );
+            )
+            """,
+            """
             CREATE TABLE IF NOT EXISTS video_curation_states (
                 video_id TEXT PRIMARY KEY,
                 starred INTEGER NOT NULL DEFAULT 0,
                 is_read INTEGER NOT NULL DEFAULT 0,
                 updated_at TEXT NOT NULL
-            );
-            """
-        )
+            )
+            """,
+        ):
+            conn.execute(ddl)
         cols = {
             str(r[1])
             for r in conn.execute("PRAGMA table_info(video_ai_briefs)").fetchall()
@@ -748,7 +774,26 @@ class WorkspaceIntelligenceHub:
                 "ALTER TABLE research_qa_sessions "
                 "ADD COLUMN scope_json TEXT NOT NULL DEFAULT '{}'"
             )
-        return conn
+        conn.commit()
+        try:
+            st_after = os.stat(self.db_path)
+            self._schema_ready_token = (st_after.st_dev, st_after.st_ino)
+        except OSError:
+            self._schema_ready_token = None
+
+    def _connect_write(self) -> sqlite3.Connection:
+        parent = self.db_path.parent
+        parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        conn = sqlite3.connect(self.db_path, timeout=10.0)
+        conn.row_factory = sqlite3.Row
+        try:
+            conn.execute("PRAGMA busy_timeout=5000")
+            with self._db_lock:
+                self._ensure_schema(conn)
+            return conn
+        except BaseException:
+            conn.close()
+            raise
 
     # ------------------------------------------------------------------
     # Dual-track AI Engine Settings & Dispatch
@@ -851,36 +896,37 @@ class WorkspaceIntelligenceHub:
                 raise ValueError("cloud_api_key must be a string or null")
 
         ts = format_utc_datetime(self._now())
-        conn = self._connect_write()
-        try:
-            with conn:
-                conn.execute(
-                    """
-                    INSERT INTO engine_config (
-                        singleton_id, active_mode, ollama_base_url, ollama_model,
-                        cloud_provider, cloud_base_url, cloud_model, updated_at
-                    ) VALUES (1, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(singleton_id) DO UPDATE SET
-                        active_mode = excluded.active_mode,
-                        ollama_base_url = excluded.ollama_base_url,
-                        ollama_model = excluded.ollama_model,
-                        cloud_provider = excluded.cloud_provider,
-                        cloud_base_url = excluded.cloud_base_url,
-                        cloud_model = excluded.cloud_model,
-                        updated_at = excluded.updated_at
-                    """,
-                    (
-                        active_mode,
-                        ollama_base_url,
-                        ollama_model,
-                        cloud_provider,
-                        cloud_base_url,
-                        cloud_model,
-                        ts,
-                    ),
-                )
-        finally:
-            conn.close()
+        with self._db_lock:
+            conn = self._connect_write()
+            try:
+                with conn:
+                    conn.execute(
+                        """
+                        INSERT INTO engine_config (
+                            singleton_id, active_mode, ollama_base_url, ollama_model,
+                            cloud_provider, cloud_base_url, cloud_model, updated_at
+                        ) VALUES (1, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(singleton_id) DO UPDATE SET
+                            active_mode = excluded.active_mode,
+                            ollama_base_url = excluded.ollama_base_url,
+                            ollama_model = excluded.ollama_model,
+                            cloud_provider = excluded.cloud_provider,
+                            cloud_base_url = excluded.cloud_base_url,
+                            cloud_model = excluded.cloud_model,
+                            updated_at = excluded.updated_at
+                        """,
+                        (
+                            active_mode,
+                            ollama_base_url,
+                            ollama_model,
+                            cloud_provider,
+                            cloud_base_url,
+                            cloud_model,
+                            ts,
+                        ),
+                    )
+            finally:
+                conn.close()
         return self.get_settings()
 
     def _complete_json(
@@ -1443,12 +1489,13 @@ class WorkspaceIntelligenceHub:
         updated_at: str,
         source_basis: str,
     ) -> None:
-        conn = self._connect_write()
-        try:
-            with conn:
-                conn.execute(
-                    """
-                    INSERT INTO video_ai_briefs (
+        with self._db_lock:
+            conn = self._connect_write()
+            try:
+                with conn:
+                    conn.execute(
+                        """
+                        INSERT INTO video_ai_briefs (
                         video_id, headline_zh, summary_zh, score, score_reason_zh,
                         recommendation_tier, content_bucket, is_short_noise, duration_seconds,
                         topics_json, topic_cluster_zh, core_points_json,
@@ -1504,8 +1551,8 @@ class WorkspaceIntelligenceHub:
                         source_basis,
                     ),
                 )
-        finally:
-            conn.close()
+            finally:
+                conn.close()
 
     def _distill_metadata_only_youtube_video(
         self,
@@ -2132,35 +2179,36 @@ class WorkspaceIntelligenceHub:
                 raise ValueError(f"{key} must be a boolean.")
 
         ts = format_utc_datetime(self._now())
-        conn = self._connect_write()
-        try:
-            with conn:
-                existing = conn.execute(
-                    "SELECT starred, is_read FROM video_curation_states WHERE video_id = ?",
-                    (video_id,),
-                ).fetchone()
-                cur_starred = False if existing is None else bool(existing["starred"])
-                cur_read = False if existing is None else bool(existing["is_read"])
-                next_starred = (
-                    bool(payload["starred"]) if "starred" in payload else cur_starred
-                )
-                next_read = (
-                    bool(payload["is_read"]) if "is_read" in payload else cur_read
-                )
-                conn.execute(
-                    """
-                    INSERT INTO video_curation_states (video_id, starred, is_read, updated_at)
-                    VALUES (?, ?, ?, ?)
-                    ON CONFLICT(video_id) DO UPDATE SET
-                        starred = excluded.starred,
-                        is_read = excluded.is_read,
-                        updated_at = excluded.updated_at
-                    """,
-                    (video_id, int(next_starred), int(next_read), ts),
-                )
-        finally:
-            conn.close()
-        self._write_rolling_snapshot_quietly()
+        with self._db_lock:
+            conn = self._connect_write()
+            try:
+                with conn:
+                    existing = conn.execute(
+                        "SELECT starred, is_read FROM video_curation_states WHERE video_id = ?",
+                        (video_id,),
+                    ).fetchone()
+                    cur_starred = False if existing is None else bool(existing["starred"])
+                    cur_read = False if existing is None else bool(existing["is_read"])
+                    next_starred = (
+                        bool(payload["starred"]) if "starred" in payload else cur_starred
+                    )
+                    next_read = (
+                        bool(payload["is_read"]) if "is_read" in payload else cur_read
+                    )
+                    conn.execute(
+                        """
+                        INSERT INTO video_curation_states (video_id, starred, is_read, updated_at)
+                        VALUES (?, ?, ?, ?)
+                        ON CONFLICT(video_id) DO UPDATE SET
+                            starred = excluded.starred,
+                            is_read = excluded.is_read,
+                            updated_at = excluded.updated_at
+                        """,
+                        (video_id, int(next_starred), int(next_read), ts),
+                    )
+            finally:
+                conn.close()
+        self._write_rolling_snapshot_quietly(min_interval_sec=15.0)
         return {
             "video_id": video_id,
             "starred": next_starred,
@@ -3093,34 +3141,35 @@ class WorkspaceIntelligenceHub:
                 md_lines.append(f"  > {c['excerpt']}")
         obsidian_md = "\n".join(md_lines) + "\n"
 
-        conn = self._connect_write()
-        try:
-            with conn:
-                conn.execute(
-                    """
-                    INSERT INTO research_qa_sessions (
-                        session_id, question, answer_zh, key_takeaways_json,
-                        action_items_json, citations_json, video_count,
-                        provider, model, obsidian_markdown, created_at, scope_json
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        session_id,
-                        question,
-                        answer_zh,
-                        json.dumps(takeaways, ensure_ascii=False),
-                        json.dumps(actions, ensure_ascii=False),
-                        json.dumps(hydrated_citations, ensure_ascii=False),
-                        len(distinct_vids),
-                        provider_label,
-                        model_label,
-                        obsidian_md,
-                        created_at,
-                        json.dumps(scope_meta, ensure_ascii=False),
-                    ),
-                )
-        finally:
-            conn.close()
+        with self._db_lock:
+            conn = self._connect_write()
+            try:
+                with conn:
+                    conn.execute(
+                        """
+                        INSERT INTO research_qa_sessions (
+                            session_id, question, answer_zh, key_takeaways_json,
+                            action_items_json, citations_json, video_count,
+                            provider, model, obsidian_markdown, created_at, scope_json
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            session_id,
+                            question,
+                            answer_zh,
+                            json.dumps(takeaways, ensure_ascii=False),
+                            json.dumps(actions, ensure_ascii=False),
+                            json.dumps(hydrated_citations, ensure_ascii=False),
+                            len(distinct_vids),
+                            provider_label,
+                            model_label,
+                            obsidian_md,
+                            created_at,
+                            json.dumps(scope_meta, ensure_ascii=False),
+                        ),
+                    )
+            finally:
+                conn.close()
 
         session_dto = {
             "session_id": session_id,
@@ -3962,47 +4011,48 @@ class WorkspaceIntelligenceHub:
                 )
         obsidian_md = "\n".join(line for line in md_lines if line is not None) + "\n"
 
-        conn = self._connect_write()
-        try:
-            with conn:
-                seq_row = conn.execute(
-                    "SELECT COUNT(*) FROM weekly_ai_briefs"
-                ).fetchone()
-                seq = int(seq_row[0]) if seq_row is not None else 0
-                brief_id = (
-                    "wb-"
-                    + hashlib.sha256(
-                        f"{title_zh}\0{exec_summary}\0{created_at}\0{seq}".encode(
-                            "utf-8"
-                        )
-                    ).hexdigest()[:16]
-                )
-                conn.execute(
-                    """
-                    INSERT INTO weekly_ai_briefs (
-                        brief_id, title_zh, executive_summary_zh, top_shifts_json,
-                        product_opportunities_json, business_monetization_json,
-                        must_watch_picks_json, funnel_stats_json,
-                        provider, model, obsidian_markdown, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        brief_id,
-                        title_zh,
-                        exec_summary,
-                        json.dumps(top_shifts, ensure_ascii=False),
-                        json.dumps(prod_opps, ensure_ascii=False),
-                        json.dumps(biz_opps, ensure_ascii=False),
-                        json.dumps(must_watch_picks, ensure_ascii=False),
-                        json.dumps(funnel_stats, ensure_ascii=False),
-                        provider_label,
-                        model_label,
-                        obsidian_md,
-                        created_at,
-                    ),
-                )
-        finally:
-            conn.close()
+        with self._db_lock:
+            conn = self._connect_write()
+            try:
+                with conn:
+                    seq_row = conn.execute(
+                        "SELECT COUNT(*) FROM weekly_ai_briefs"
+                    ).fetchone()
+                    seq = int(seq_row[0]) if seq_row is not None else 0
+                    brief_id = (
+                        "wb-"
+                        + hashlib.sha256(
+                            f"{title_zh}\0{exec_summary}\0{created_at}\0{seq}".encode(
+                                "utf-8"
+                            )
+                        ).hexdigest()[:16]
+                    )
+                    conn.execute(
+                        """
+                        INSERT INTO weekly_ai_briefs (
+                            brief_id, title_zh, executive_summary_zh, top_shifts_json,
+                            product_opportunities_json, business_monetization_json,
+                            must_watch_picks_json, funnel_stats_json,
+                            provider, model, obsidian_markdown, created_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            brief_id,
+                            title_zh,
+                            exec_summary,
+                            json.dumps(top_shifts, ensure_ascii=False),
+                            json.dumps(prod_opps, ensure_ascii=False),
+                            json.dumps(biz_opps, ensure_ascii=False),
+                            json.dumps(must_watch_picks, ensure_ascii=False),
+                            json.dumps(funnel_stats, ensure_ascii=False),
+                            provider_label,
+                            model_label,
+                            obsidian_md,
+                            created_at,
+                        ),
+                    )
+            finally:
+                conn.close()
 
         self._write_rolling_snapshot_quietly()
         return self.get_latest_weekly_brief()
@@ -4011,16 +4061,34 @@ class WorkspaceIntelligenceHub:
     # Sidecar Backup & Restore (Zero-Secret Portable Snapshot)
     # ------------------------------------------------------------------
 
-    def _write_rolling_snapshot_quietly(self) -> None:
+    def _write_rolling_snapshot_quietly(self, *, min_interval_sec: float = 0.0) -> None:
         try:
-            snap = self.export_backup_snapshot()
-            snap_path = self.db_path.parent / "hub-snapshot.json"
-            snap_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-            snap_path.write_text(
-                json.dumps(snap, ensure_ascii=False, indent=2) + "\n",
-                encoding="utf-8",
-            )
-        except OSError:
+            with self._db_lock:
+                now_mono = time.monotonic()
+                if (
+                    min_interval_sec > 0.0
+                    and self._last_snapshot_mono > 0.0
+                    and (now_mono - self._last_snapshot_mono) < min_interval_sec
+                ):
+                    return
+                snap = self.export_backup_snapshot()
+                snap_path = self.db_path.parent / "hub-snapshot.json"
+                snap_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+                tmp_path = (
+                    self.db_path.parent
+                    / f".hub-snapshot.{os.getpid()}.{threading.get_ident()}.tmp"
+                )
+                try:
+                    tmp_path.write_text(
+                        json.dumps(snap, ensure_ascii=False, indent=2) + "\n",
+                        encoding="utf-8",
+                    )
+                    os.replace(tmp_path, snap_path)
+                    self._last_snapshot_mono = now_mono
+                finally:
+                    if tmp_path.exists():
+                        tmp_path.unlink(missing_ok=True)
+        except (OSError, sqlite3.Error):
             pass
 
     def export_backup_snapshot(self) -> dict[str, object]:
@@ -4110,8 +4178,10 @@ class WorkspaceIntelligenceHub:
         restored_weekly = 0
         restored_curation = 0
 
-        conn = self._connect_write()
+        self._db_lock.acquire()
+        conn: sqlite3.Connection | None = None
         try:
+            conn = self._connect_write()
             with conn:
                 if isinstance(raw_briefs, list):
                     for item in raw_briefs:
@@ -4279,7 +4349,11 @@ class WorkspaceIntelligenceHub:
                         )
                         restored_curation += 1
         finally:
-            conn.close()
+            try:
+                if conn is not None:
+                    conn.close()
+            finally:
+                self._db_lock.release()
 
         return {
             "restored": {
@@ -4327,10 +4401,18 @@ class WorkspaceIntelligenceHub:
                 and t_clean not in ordered_topic_names
             ):
                 ordered_topic_names.append(t_clean)
-        for k_name, k_entries in grouped_topics.items():
-            k_clean = k_name.strip()
-            if k_clean and k_entries and k_clean not in ordered_topic_names:
-                ordered_topic_names.append(k_clean)
+        canonical_clusters = sorted(
+            {
+                str(b.get("topic_cluster_zh") or "").strip()
+                for b in briefs_map.values()
+                if not b.get("is_short_noise")
+                and str(b.get("topic_cluster_zh") or "").strip()
+            },
+            key=lambda name: (-len(grouped_topics.get(name, ())), name),
+        )
+        for c_name in canonical_clusters:
+            if grouped_topics.get(c_name) and c_name not in ordered_topic_names:
+                ordered_topic_names.append(c_name)
 
         if clean_scope == "all":
             selected_briefs = [
@@ -4511,7 +4593,9 @@ class WorkspaceIntelligenceHub:
             "total_files": len(all_entries),
             "weekly_briefs": len(weekly_links),
             "topics": len(topic_links),
+            "topic_mocs": len(topic_links),
             "videos": len(video_links),
+            "video_notes": len(video_links),
             "research_sessions": len(qa_links),
         }
         filename = f"obsidian-ai-vault-{clean_scope}-{date_stamp}.zip"
