@@ -190,9 +190,18 @@ export type TopicRelatedSummary = {
   shared_sources: string[];
 };
 
+export type TopicChannelBreakdownItem = {
+  channel_key: string;
+  channel_label: string;
+  video_count: number;
+  must_watch_count: number;
+  unread_count: number;
+};
+
 export type TopicAiEvolution = {
   video_count: number;
   must_watch_count: number;
+  unread_count: number;
   recent_7d_count: number;
   avg_score: number | null;
   latest_headline_zh: string;
@@ -200,6 +209,7 @@ export type TopicAiEvolution = {
   independence_summary_zh: string;
   top_opportunities_zh: string[];
   source_channels: string[];
+  channel_breakdown: TopicChannelBreakdownItem[];
   related_topics: TopicRelatedSummary[];
   obsidian_markdown: string;
   entries: TopicAiEvolutionEntry[];
@@ -208,7 +218,10 @@ export type TopicAiEvolution = {
 let pendingResearchTopicCluster = "";
 let pendingResearchStarredOnly = false;
 let pendingResearchChannel = "";
+let pendingResearchSessionId = "";
 let pendingContentChannel = "";
+let pendingContentTopic = "";
+let pendingTopicClusterName = "";
 
 export function setPendingResearchTopicCluster(topicName: string): void {
   pendingResearchTopicCluster = topicName.trim();
@@ -240,6 +253,16 @@ export function consumePendingResearchChannel(): string {
   return next;
 }
 
+export function setPendingResearchSessionId(sessionId: string): void {
+  pendingResearchSessionId = sessionId.trim();
+}
+
+export function consumePendingResearchSessionId(): string {
+  const next = pendingResearchSessionId;
+  pendingResearchSessionId = "";
+  return next;
+}
+
 export function setPendingContentChannel(channelKey: string): void {
   pendingContentChannel = channelKey.trim();
 }
@@ -247,6 +270,26 @@ export function setPendingContentChannel(channelKey: string): void {
 export function consumePendingContentChannel(): string {
   const next = pendingContentChannel;
   pendingContentChannel = "";
+  return next;
+}
+
+export function setPendingContentTopic(topicName: string): void {
+  pendingContentTopic = topicName.trim();
+}
+
+export function consumePendingContentTopic(): string {
+  const next = pendingContentTopic;
+  pendingContentTopic = "";
+  return next;
+}
+
+export function setPendingTopicClusterName(topicName: string): void {
+  pendingTopicClusterName = topicName.trim();
+}
+
+export function consumePendingTopicClusterName(): string {
+  const next = pendingTopicClusterName;
+  pendingTopicClusterName = "";
   return next;
 }
 
@@ -590,9 +633,27 @@ export function readTopicAiEvolution(raw: unknown): TopicAiEvolution | null {
         }))
         .filter((rt) => rt.topic_id.length > 0 && rt.name.length > 0)
     : [];
+  const channel_breakdown: TopicChannelBreakdownItem[] = Array.isArray(raw.channel_breakdown)
+    ? raw.channel_breakdown
+        .filter(isRec)
+        .map((ch) => ({
+          channel_key: typeof ch.channel_key === "string" ? ch.channel_key.trim() : "",
+          channel_label:
+            typeof ch.channel_label === "string" && ch.channel_label.trim()
+              ? ch.channel_label.trim()
+              : typeof ch.channel_key === "string"
+                ? ch.channel_key.trim()
+                : "",
+          video_count: typeof ch.video_count === "number" ? ch.video_count : 0,
+          must_watch_count: typeof ch.must_watch_count === "number" ? ch.must_watch_count : 0,
+          unread_count: typeof ch.unread_count === "number" ? ch.unread_count : 0,
+        }))
+        .filter((ch) => ch.channel_key.length > 0 && ch.video_count > 0)
+    : [];
   return {
     video_count: raw.video_count,
     must_watch_count: typeof raw.must_watch_count === "number" ? raw.must_watch_count : 0,
+    unread_count: typeof raw.unread_count === "number" ? raw.unread_count : 0,
     recent_7d_count: typeof raw.recent_7d_count === "number" ? raw.recent_7d_count : 0,
     avg_score: typeof raw.avg_score === "number" ? raw.avg_score : null,
     latest_headline_zh: typeof raw.latest_headline_zh === "string" ? raw.latest_headline_zh : "",
@@ -601,6 +662,7 @@ export function readTopicAiEvolution(raw: unknown): TopicAiEvolution | null {
       typeof raw.independence_summary_zh === "string" ? raw.independence_summary_zh : "",
     top_opportunities_zh: strArr(raw.top_opportunities_zh),
     source_channels: strArr(raw.source_channels),
+    channel_breakdown,
     related_topics,
     obsidian_markdown: typeof raw.obsidian_markdown === "string" ? raw.obsidian_markdown : "",
     entries,
@@ -973,6 +1035,29 @@ export function WeeklyAiBriefPanel({
                   <span>{pick.title}</span>
                   <small>{pick.score.toFixed(1)}</small>
                 </button>
+              ))}
+            </div>
+          ) : null}
+          {brief.delta.new_shifts_zh.length > 0 ? (
+            <div className="weekly-delta-picks weekly-delta-shifts">
+              <span className="weekly-delta-picks-label">
+                {zh ? "本期新风向：" : "New shifts:"}
+              </span>
+              {brief.delta.new_shifts_zh.slice(0, 3).map((shift, idx) => (
+                <span key={`shift:${idx}`} className="weekly-delta-shift-pill">
+                  {shift}
+                </span>
+              ))}
+            </div>
+          ) : brief.delta.new_opportunities_zh.length > 0 ? (
+            <div className="weekly-delta-picks weekly-delta-shifts">
+              <span className="weekly-delta-picks-label">
+                {zh ? "本期新切口：" : "New opportunities:"}
+              </span>
+              {brief.delta.new_opportunities_zh.slice(0, 3).map((opp, idx) => (
+                <span key={`opp:${idx}`} className="weekly-delta-shift-pill">
+                  {opp}
+                </span>
               ))}
             </div>
           ) : null}
@@ -1489,9 +1574,11 @@ export function WorkspaceVideoAiActions({
 export function WorkspaceVideoAiBriefCard({
   brief,
   obsidianMarkdown,
+  onSelectTopicCluster,
 }: {
   brief: VideoAiBrief | null;
   obsidianMarkdown?: string;
+  onSelectTopicCluster?: (topicCluster: string) => void;
 }) {
   const { language } = useUiLanguage();
   const zh = language === "zh-CN";
@@ -1510,7 +1597,18 @@ export function WorkspaceVideoAiBriefCard({
           </span>
         ) : null}
         {brief.topic_cluster_zh ? (
-          <span className="ai-topic-tag">[[{brief.topic_cluster_zh}]]</span>
+          onSelectTopicCluster ? (
+            <button
+              type="button"
+              className="ai-topic-tag ai-topic-tag-btn"
+              title={zh ? `查看专题脉络：${brief.topic_cluster_zh}` : `Open Topic: ${brief.topic_cluster_zh}`}
+              onClick={() => onSelectTopicCluster(brief.topic_cluster_zh)}
+            >
+              [[{brief.topic_cluster_zh}]]
+            </button>
+          ) : (
+            <span className="ai-topic-tag">[[{brief.topic_cluster_zh}]]</span>
+          )
         ) : null}
         {brief.score_reason_zh ? <span className="hint">{brief.score_reason_zh}</span> : null}
       </div>
@@ -1615,9 +1713,11 @@ const FALLBACK_QUESTIONS_ZH = [
 export function WorkspaceAiResearchPanel({
   onOpen,
   onAiReady,
+  handoffSeq,
 }: {
   onOpen: OpenResearchSource;
   onAiReady?: () => void;
+  handoffSeq?: number;
 }) {
   const { language } = useUiLanguage();
   const zh = language === "zh-CN";
@@ -1627,6 +1727,7 @@ export function WorkspaceAiResearchPanel({
   const [selectedChannel, setSelectedChannel] = useState(() => consumePendingResearchChannel());
   const [selectedTopic, setSelectedTopic] = useState(() => consumePendingResearchTopicCluster());
   const [starredOnly, setStarredOnly] = useState(() => consumePendingResearchStarredOnly());
+  const pendingSessionIdRef = useRef<string>(consumePendingResearchSessionId());
   const [comparePickerOpen, setComparePickerOpen] = useState(false);
   const [selectedVideoIds, setSelectedVideoIds] = useState<string[]>([]);
   const [activeSession, setActiveSession] = useState<AiResearchSession | null>(null);
@@ -1636,6 +1737,23 @@ export function WorkspaceAiResearchPanel({
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const questionInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    const nextSid = consumePendingResearchSessionId();
+    if (nextSid) {
+      pendingSessionIdRef.current = nextSid;
+      const matched = sessions.find((s) => s.session_id === nextSid);
+      if (matched) {
+        setActiveSession(matched);
+        pendingSessionIdRef.current = "";
+      }
+    }
+    const nextCh = consumePendingResearchChannel();
+    if (nextCh) setSelectedChannel(nextCh);
+    const nextTp = consumePendingResearchTopicCluster();
+    if (nextTp) setSelectedTopic(nextTp);
+    if (consumePendingResearchStarredOnly()) setStarredOnly(true);
+  }, [handoffSeq, sessions]);
 
   useEffect(() => {
     let alive = true;
@@ -1655,7 +1773,14 @@ export function WorkspaceAiResearchPanel({
         const parsedQuestions = strArr(res.suggested_questions);
         const parsedScopes = readResearchScopeOptions(res.scope_options);
         setSessions(parsedSessions);
-        if (parsedSessions.length > 0) setActiveSession(parsedSessions[0]);
+        if (parsedSessions.length > 0) {
+          const wantedId = pendingSessionIdRef.current;
+          pendingSessionIdRef.current = "";
+          const matched = wantedId
+            ? parsedSessions.find((s) => s.session_id === wantedId)
+            : undefined;
+          setActiveSession(matched ?? parsedSessions[0]);
+        }
         if (parsedQuestions.length > 0) setSuggested(parsedQuestions);
         if (parsedScopes) setScopeOptions(parsedScopes);
       })
