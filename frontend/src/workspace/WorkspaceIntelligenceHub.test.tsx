@@ -4005,4 +4005,263 @@ describe("Workspace AI Upgrade (P0 + P1 + P2)", () => {
     });
     expect(pinnedOpt.textContent).toContain("已置顶");
   });
+
+  it("R10: filters Intelligence cards by linked Topic with [[Topic]] jump & 1-click Copy Insight Card, and copies plain-text brief in Cross-Video Q&A", async () => {
+    localStorage.setItem("yia.ui-language", "zh-CN");
+    localStorage.setItem("intelligence.onboarding.completed.v1", "true");
+    location.hash = "#Intelligence";
+
+    const copiedTexts: string[] = [];
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: vi.fn(async (text: string) => {
+          copiedTexts.push(text);
+        }),
+      },
+    });
+
+    const makeIntelItem = (
+      id: string,
+      conclusion: string,
+      sourceName: string,
+      videoTitle: string,
+      topicId: string,
+      topicName: string,
+    ) => ({
+      status: "AVAILABLE",
+      trusted: true,
+      intelligence_id: id,
+      claim_kind: "SYSTEM_INFERENCE",
+      state: "CORROBORATED",
+      linked_topics: [{ topic_id: topicId, name: topicName }],
+      card: {
+        core_conclusion: conclusion,
+        user_relevant_information: [`${conclusion} 对产品设计的直接启发。`],
+        important_new_information: [`${videoTitle} 给出的最新验证信号。`],
+        meaningful_details: ["关键工程指标提升 3 倍"],
+        source_id: `src-${id}`,
+        source_display_name: sourceName,
+        source_url: "https://www.youtube.com/@example",
+        video_id: `vid-${id}`,
+        video_title: videoTitle,
+        original_video_url: `https://www.youtube.com/watch?v=vid-${id}`,
+        evidence_links: [
+          {
+            evidence_id: `ev-${id}`,
+            artifact_id: `art-${id}`,
+            start_ms: 75000,
+            end_ms: 92000,
+            locator_type: "TIMED_MEDIA",
+            language: "en",
+            lineage_kind: "DIRECT_QUOTE",
+            role: "PRIMARY",
+            original_excerpt: "Vertical workflow pricing beats generic chat wrappers.",
+            translated_excerpt: null,
+            translated_language: null,
+            stance: "supporting",
+          },
+        ],
+      },
+    });
+
+    const mockIntel = [
+      makeIntelItem(
+        "intel-agent-1",
+        "状态机拆解让多智能体生产可靠性提升三倍",
+        "OpenAI",
+        "Stateful Agents Deep Dive",
+        "topic:agent-arch",
+        "AI Agent 与自动化架构",
+      ),
+      makeIntelItem(
+        "intel-agent-2",
+        "Schema 强约束工具调用可消除 90% 参数幻觉",
+        "OpenAI",
+        "Tool Contract Engineering",
+        "topic:agent-arch",
+        "AI Agent 与自动化架构",
+      ),
+      makeIntelItem(
+        "intel-agent-3",
+        "离线基准评测集是 Agent 迭代的唯一护城河",
+        "AI 实战课",
+        "Agent Eval Playbook",
+        "topic:agent-arch",
+        "AI Agent 与自动化架构",
+      ),
+      makeIntelItem(
+        "intel-biz-1",
+        "一人公司聚焦垂直行业年费工作流远优于通用聊天壳",
+        "Greg Isenberg",
+        "Solo AI SaaS Pricing",
+        "topic:solo-biz",
+        "AI 产品机会与一人公司变现",
+      ),
+    ];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((rawInput: RequestInfo | URL) => {
+        const input = String(rawInput);
+        if (input.endsWith("/intelligence")) {
+          return okJson({ intelligence: mockIntel, activity: [] });
+        }
+        if (input.endsWith("/saved-intelligence")) {
+          return okJson({ saved: [] });
+        }
+        if (input.endsWith("/topics")) {
+          return okJson({
+            topics: [
+              {
+                topic_id: "topic:agent-arch",
+                name: "AI Agent 与自动化架构",
+                pinned: true,
+                lifecycle: "ACTIVE",
+                current_state: "CORROBORATED",
+                independence: "MULTI_SOURCE",
+                contributions: [],
+                timeline: [],
+                relations: [],
+              },
+              {
+                topic_id: "topic:solo-biz",
+                name: "AI 产品机会与一人公司变现",
+                pinned: true,
+                lifecycle: "ACTIVE",
+                current_state: "CORROBORATED",
+                independence: "SINGLE_SOURCE",
+                contributions: [],
+                timeline: [],
+                relations: [],
+              },
+            ],
+          });
+        }
+        if (input.endsWith("/topics/topic:solo-biz")) {
+          return okJson({
+            topic: {
+              topic_id: "topic:solo-biz",
+              name: "AI 产品机会与一人公司变现",
+              pinned: true,
+              lifecycle: "ACTIVE",
+              current_state: "CORROBORATED",
+              independence: "SINGLE_SOURCE",
+              contributions: [],
+              timeline: [],
+              relations: [],
+              ai_evolution: {
+                topic_name: "AI 产品机会与一人公司变现",
+                video_count: 1,
+                must_watch_count: 1,
+                avg_score: 9.3,
+                recent_7d_count: 1,
+                latest_headline_zh: "一人公司垂直工作流定价策略",
+                synthesis_zh: "聚焦高客单价垂直场景。",
+                obsidian_markdown: "# AI 产品机会与一人公司变现\n",
+                entries: [
+                  {
+                    video_id: "vid-intel-biz-1",
+                    title: "Solo AI SaaS Pricing",
+                    channel_name: "Greg Isenberg",
+                    score: 9.3,
+                    recommendation_tier: "MUST_WATCH",
+                    headline_zh: "一人公司垂直工作流定价策略",
+                  },
+                ],
+              },
+            },
+          });
+        }
+        if (input.endsWith("/workspace-ai/research/sessions")) {
+          return okJson({
+            sessions: [
+              {
+                session_id: "qa-r10-1",
+                question: "垂直行业 AI SaaS 如何设计高留存定价？",
+                scope_label_zh: "频道：Greg Isenberg",
+                answer_zh: "按交付结果而非席位收费，锁定核心业务表单流转。",
+                key_takeaways_zh: ["切入高频刚需审批节点", "提供可审计人工兜底"],
+                action_items_zh: ["梳理目标行业 Top 3 重复手工单据"],
+                citations: [
+                  {
+                    ref_label: "E1",
+                    video_id: "vid-intel-biz-1",
+                    video_title: "Solo AI SaaS Pricing",
+                    channel_name: "Greg Isenberg",
+                    evidence_id: "ev-intel-biz-1",
+                    timestamp_label: "01:15",
+                    start_ms: 75000,
+                    excerpt: "Vertical workflow pricing beats generic chat wrappers.",
+                  },
+                ],
+                provider: "ollama",
+                model: "qwen3:8b",
+                obsidian_markdown: "---\ntags: [ai-qa]\n---\n# [[Solo AI SaaS Pricing]]\n",
+                created_at: "2026-11-16T00:00:00Z",
+                video_count: 1,
+                pinned: false,
+              },
+            ],
+            suggested_questions: [],
+            scope_options: { starred_count: 0, channels: [], topic_clusters: [], videos: [] },
+          });
+        }
+        if (input.endsWith("/research")) {
+          return okJson({ research: [], total: 0, offset: 0, limit: 25 });
+        }
+        if (input.includes("/creator-following")) {
+          return okJson({ available: false, reason_code: "DISABLED" });
+        }
+        return okJson({});
+      }),
+    );
+
+    render(<App />);
+
+    // 1) Filter #Intelligence by linked Topic -> narrows 4 cards down to 1
+    const intelTopicSelect = (await screen.findByLabelText("按专题筛选洞察")) as HTMLSelectElement;
+    expect(intelTopicSelect.textContent).toContain("AI Agent 与自动化架构 (3)");
+    expect(intelTopicSelect.textContent).toContain("AI 产品机会与一人公司变现 (1)");
+
+    fireEvent.change(intelTopicSelect, { target: { value: "topic:solo-biz" } });
+    expect(
+      screen.getByRole("heading", { name: "一人公司聚焦垂直行业年费工作流远优于通用聊天壳" }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("heading", { name: "状态机拆解让多智能体生产可靠性提升三倍" }),
+    ).toBeNull();
+
+    // 2) Copy Insight Card -> copies structured plain-text insight with timestamped quote
+    const copyInsightBtn = screen.getByRole("button", { name: "复制洞察卡片" });
+    fireEvent.click(copyInsightBtn);
+    await waitFor(() => expect(copiedTexts).toHaveLength(1));
+    expect(copiedTexts[0]).toContain("【验证洞察】一人公司聚焦垂直行业年费工作流远优于通用聊天壳");
+    expect(copiedTexts[0]).toContain("Greg Isenberg");
+    expect(copiedTexts[0]).toContain("Solo AI SaaS Pricing");
+    expect(copiedTexts[0]).toContain("AI 产品机会与一人公司变现");
+    expect(copiedTexts[0]).toContain("Vertical workflow pricing beats generic chat wrappers.");
+    expect(copiedTexts[0]).not.toContain("[[");
+
+    // 3) Click [[AI 产品机会与一人公司变现]] chip on IntelligenceCard -> opens that Topic detail in #Topics
+    fireEvent.click(
+      screen.getByRole("button", { name: "[[AI 产品机会与一人公司变现]]" }),
+    );
+    await waitFor(() => expect(location.hash).toBe("#Topics"));
+    expect(await screen.findByText("聚焦高客单价垂直场景。")).toBeTruthy();
+
+    // 4) Navigate to #Research and click "复制纯文本提纲" -> copies YAML-free, wikilink-free plain-text brief
+    fireEvent.click(screen.getByRole("button", { name: "AI 跨视频问答" }));
+    await waitFor(() => expect(location.hash).toBe("#Research"));
+
+    const copyPlainBtn = await screen.findByRole("button", { name: "复制纯文本提纲" });
+    fireEvent.click(copyPlainBtn);
+    await waitFor(() => expect(copiedTexts).toHaveLength(2));
+    expect(copiedTexts[1]).toContain("【跨视频深度问答】垂直行业 AI SaaS 如何设计高留存定价？");
+    expect(copiedTexts[1]).toContain("按交付结果而非席位收费，锁定核心业务表单流转。");
+    expect(copiedTexts[1]).toContain("切入高频刚需审批节点");
+    expect(copiedTexts[1]).toContain("梳理目标行业 Top 3 重复手工单据");
+    expect(copiedTexts[1]).toContain("[E1] 《Solo AI SaaS Pricing》（Greg Isenberg · 01:15）");
+    expect(copiedTexts[1]).not.toContain("---");
+    expect(copiedTexts[1]).not.toContain("[[");
+  });
 });

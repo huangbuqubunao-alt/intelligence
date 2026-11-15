@@ -4004,3 +4004,30 @@ dl.creator-tracking dd {
   margin-right: 3px;
   vertical-align: -1px;
 }
+
+/* Round 10: Linked Topic badges on verified Intelligence cards & Topic filter alignment */
+.intel-card-topics-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+
+.intel-filter-top-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+
+.intel-filter-top-row .intel-search-input {
+  flex: 1 1 240px;
+  width: auto;
+}
+
+.intel-filter-top-row .content-topic-select {
+  min-height: 36px;
+  max-width: 280px;
+}
+
