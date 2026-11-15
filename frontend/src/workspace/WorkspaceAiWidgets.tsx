@@ -113,10 +113,20 @@ export type AiResearchCitation = {
   excerpt: string;
 };
 
+export type AiResearchSessionScope = {
+  starred_only?: boolean;
+  channel_key?: string | null;
+  provider_filter?: string | null;
+  topic_cluster?: string | null;
+  video_ids?: string[] | null;
+};
+
 export type AiResearchSession = {
   session_id: string;
   question: string;
   scope_label_zh: string;
+  video_count?: number;
+  scope?: AiResearchSessionScope;
   answer_zh: string;
   key_takeaways_zh: string[];
   action_items_zh: string[];
@@ -127,6 +137,21 @@ export type AiResearchSession = {
   created_at: string;
 };
 
+export type SourceAiSignal = {
+  source_id: string;
+  channel_key: string;
+  channel_label: string;
+  total_videos: number;
+  distilled_count: number;
+  long_form_count: number;
+  shorts_count: number;
+  must_watch_count: number;
+  worth_skimming_count: number;
+  unread_long_count: number;
+  avg_long_score: number | null;
+  signal_rate_pct: number | null;
+};
+
 export type ResearchScopeOptions = {
   starred_count: number;
   channels: { key: string; label: string; count: number }[];
@@ -135,6 +160,7 @@ export type ResearchScopeOptions = {
     video_id: string;
     title: string;
     channel_name: string;
+    channel_key?: string;
     score: number | null;
     starred?: boolean;
     topic_cluster_zh?: string;
@@ -181,6 +207,8 @@ export type TopicAiEvolution = {
 
 let pendingResearchTopicCluster = "";
 let pendingResearchStarredOnly = false;
+let pendingResearchChannel = "";
+let pendingContentChannel = "";
 
 export function setPendingResearchTopicCluster(topicName: string): void {
   pendingResearchTopicCluster = topicName.trim();
@@ -199,6 +227,26 @@ export function setPendingResearchStarredOnly(enabled: boolean): void {
 export function consumePendingResearchStarredOnly(): boolean {
   const next = pendingResearchStarredOnly;
   pendingResearchStarredOnly = false;
+  return next;
+}
+
+export function setPendingResearchChannel(channelKey: string): void {
+  pendingResearchChannel = channelKey.trim();
+}
+
+export function consumePendingResearchChannel(): string {
+  const next = pendingResearchChannel;
+  pendingResearchChannel = "";
+  return next;
+}
+
+export function setPendingContentChannel(channelKey: string): void {
+  pendingContentChannel = channelKey.trim();
+}
+
+export function consumePendingContentChannel(): string {
+  const next = pendingContentChannel;
+  pendingContentChannel = "";
   return next;
 }
 
@@ -366,6 +414,29 @@ export function readWeeklyAiBrief(raw: unknown): WeeklyAiBrief | null {
   };
 }
 
+export function readSourceAiSignalMap(raw: unknown): Record<string, SourceAiSignal> {
+  if (!isRec(raw)) return {};
+  const out: Record<string, SourceAiSignal> = {};
+  for (const [sid, entry] of Object.entries(raw)) {
+    if (!isRec(entry) || typeof entry.total_videos !== "number") continue;
+    out[sid] = {
+      source_id: typeof entry.source_id === "string" && entry.source_id.trim() ? entry.source_id : sid,
+      channel_key: typeof entry.channel_key === "string" ? entry.channel_key : "",
+      channel_label: typeof entry.channel_label === "string" ? entry.channel_label : "",
+      total_videos: entry.total_videos,
+      distilled_count: typeof entry.distilled_count === "number" ? entry.distilled_count : 0,
+      long_form_count: typeof entry.long_form_count === "number" ? entry.long_form_count : 0,
+      shorts_count: typeof entry.shorts_count === "number" ? entry.shorts_count : 0,
+      must_watch_count: typeof entry.must_watch_count === "number" ? entry.must_watch_count : 0,
+      worth_skimming_count: typeof entry.worth_skimming_count === "number" ? entry.worth_skimming_count : 0,
+      unread_long_count: typeof entry.unread_long_count === "number" ? entry.unread_long_count : 0,
+      avg_long_score: typeof entry.avg_long_score === "number" ? entry.avg_long_score : null,
+      signal_rate_pct: typeof entry.signal_rate_pct === "number" ? entry.signal_rate_pct : null,
+    };
+  }
+  return out;
+}
+
 function readAiResearchSession(raw: unknown): AiResearchSession | null {
   if (!isRec(raw) || typeof raw.session_id !== "string" || typeof raw.answer_zh !== "string") {
     return null;
@@ -386,10 +457,32 @@ function readAiResearchSession(raw: unknown): AiResearchSession | null {
         }))
         .filter((c) => c.video_id.length > 0 && c.evidence_id.length > 0)
     : [];
+  let scope: AiResearchSessionScope | undefined;
+  if (isRec(raw.scope)) {
+    const rawVids = strArr(raw.scope.video_ids);
+    scope = {
+      starred_only: typeof raw.scope.starred_only === "boolean" ? raw.scope.starred_only : undefined,
+      channel_key:
+        typeof raw.scope.channel_key === "string" && raw.scope.channel_key.trim()
+          ? raw.scope.channel_key.trim()
+          : null,
+      provider_filter:
+        typeof raw.scope.provider_filter === "string" && raw.scope.provider_filter.trim()
+          ? raw.scope.provider_filter.trim()
+          : null,
+      topic_cluster:
+        typeof raw.scope.topic_cluster === "string" && raw.scope.topic_cluster.trim()
+          ? raw.scope.topic_cluster.trim()
+          : null,
+      video_ids: rawVids.length > 0 ? rawVids : null,
+    };
+  }
   return {
     session_id: raw.session_id,
     question: typeof raw.question === "string" ? raw.question : "",
     scope_label_zh: typeof raw.scope_label_zh === "string" ? raw.scope_label_zh : "",
+    ...(typeof raw.video_count === "number" ? { video_count: raw.video_count } : {}),
+    ...(scope ? { scope } : {}),
     answer_zh: raw.answer_zh,
     key_takeaways_zh: strArr(raw.key_takeaways_zh),
     action_items_zh: strArr(raw.action_items_zh),
@@ -439,6 +532,7 @@ function readResearchScopeOptions(raw: unknown): ResearchScopeOptions | null {
           video_id: typeof v.video_id === "string" ? v.video_id.trim() : "",
           title: typeof v.title === "string" && v.title.trim() ? v.title.trim() : String(v.video_id ?? ""),
           channel_name: typeof v.channel_name === "string" ? v.channel_name.trim() : "",
+          channel_key: typeof v.channel_key === "string" ? v.channel_key.trim() : undefined,
           score: typeof v.score === "number" ? v.score : null,
           starred: typeof v.starred === "boolean" ? v.starred : undefined,
           topic_cluster_zh: typeof v.topic_cluster_zh === "string" ? v.topic_cluster_zh : undefined,
@@ -1530,16 +1624,18 @@ export function WorkspaceAiResearchPanel({
   const [sessions, setSessions] = useState<AiResearchSession[]>([]);
   const [suggested, setSuggested] = useState<string[]>(FALLBACK_QUESTIONS_ZH);
   const [scopeOptions, setScopeOptions] = useState<ResearchScopeOptions | null>(null);
-  const [selectedChannel, setSelectedChannel] = useState("");
+  const [selectedChannel, setSelectedChannel] = useState(() => consumePendingResearchChannel());
   const [selectedTopic, setSelectedTopic] = useState(() => consumePendingResearchTopicCluster());
   const [starredOnly, setStarredOnly] = useState(() => consumePendingResearchStarredOnly());
   const [comparePickerOpen, setComparePickerOpen] = useState(false);
   const [selectedVideoIds, setSelectedVideoIds] = useState<string[]>([]);
   const [activeSession, setActiveSession] = useState<AiResearchSession | null>(null);
   const [questionInput, setQuestionInput] = useState("");
+  const [sessionSearch, setSessionSearch] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const questionInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -1640,8 +1736,14 @@ export function WorkspaceAiResearchPanel({
     if (starredOnly && v.starred === false) {
       return false;
     }
-    if (selectedChannel && v.channel_name !== selectedChannel && !(selectedChannel === "LOCAL" && v.channel_name === "本地实战课")) {
-      return false;
+    if (selectedChannel) {
+      const matchesKey = v.channel_key ? v.channel_key === selectedChannel : false;
+      const matchesLabel =
+        v.channel_name === selectedChannel ||
+        (selectedChannel === "LOCAL" && v.channel_name === "本地实战课");
+      if (!matchesKey && !matchesLabel) {
+        return false;
+      }
     }
     if (selectedTopic && v.topic_cluster_zh && v.topic_cluster_zh !== selectedTopic) {
       return false;
@@ -1651,13 +1753,61 @@ export function WorkspaceAiResearchPanel({
 
   const showScopeBar = Boolean(
     starredOnly ||
+      selectedChannel ||
       selectedTopic ||
+      selectedVideoIds.length > 0 ||
       (scopeOptions &&
         (scopeOptions.starred_count > 0 ||
           scopeOptions.channels.length > 0 ||
           scopeOptions.topic_clusters.length > 0 ||
           scopeOptions.videos.length > 0)),
   );
+
+  const activeScopeMeta = activeSession?.scope;
+  const activeExplicitVideoIds = activeScopeMeta?.video_ids?.filter(Boolean) ?? [];
+  const hasExplicitActiveScope = Boolean(
+    activeScopeMeta &&
+      (activeScopeMeta.starred_only ||
+        activeScopeMeta.channel_key ||
+        activeScopeMeta.topic_cluster ||
+        activeExplicitVideoIds.length > 0),
+  );
+  const activeCitedVideoIds = Array.from(
+    new Set((activeSession?.citations ?? []).map((c) => c.video_id).filter(Boolean)),
+  );
+  const canFollowUpActiveSession = Boolean(
+    activeSession && (hasExplicitActiveScope || activeCitedVideoIds.length > 0),
+  );
+
+  const applyActiveSessionFollowUp = () => {
+    if (!activeSession) return;
+    if (hasExplicitActiveScope && activeScopeMeta) {
+      setStarredOnly(Boolean(activeScopeMeta.starred_only));
+      setSelectedChannel(activeScopeMeta.channel_key ?? "");
+      setSelectedTopic(activeScopeMeta.topic_cluster ?? "");
+      setSelectedVideoIds(activeExplicitVideoIds);
+      setComparePickerOpen(activeExplicitVideoIds.length > 0);
+    } else if (activeCitedVideoIds.length > 0) {
+      setStarredOnly(false);
+      setSelectedChannel("");
+      setSelectedTopic("");
+      setSelectedVideoIds(activeCitedVideoIds.slice(0, 12));
+      setComparePickerOpen(true);
+    }
+    questionInputRef.current?.focus();
+  };
+
+  const trimmedHistoryQuery = sessionSearch.trim().toLowerCase();
+  const filteredSessions = trimmedHistoryQuery
+    ? sessions.filter((s) => {
+        const citeText = s.citations
+          .map((c) => `${c.video_title} ${c.channel_name}`)
+          .join(" ");
+        return `${s.question} ${s.scope_label_zh} ${s.answer_zh} ${citeText}`
+          .toLowerCase()
+          .includes(trimmedHistoryQuery);
+      })
+    : sessions;
 
   return (
     <section
@@ -1683,6 +1833,7 @@ export function WorkspaceAiResearchPanel({
               <button
                 type="button"
                 className={`ai-question-chip${!selectedChannel && selectedVideoIds.length === 0 ? " is-active" : ""}`}
+                aria-pressed={!selectedChannel && selectedVideoIds.length === 0}
                 disabled={busy}
                 onClick={() => {
                   setSelectedChannel("");
@@ -1696,6 +1847,7 @@ export function WorkspaceAiResearchPanel({
                   key={ch.key}
                   type="button"
                   className={`ai-question-chip tabular-nums${selectedChannel === ch.key && selectedVideoIds.length === 0 ? " is-active" : ""}`}
+                  aria-pressed={selectedChannel === ch.key && selectedVideoIds.length === 0}
                   disabled={busy}
                   onClick={() => {
                     setSelectedVideoIds([]);
@@ -1820,6 +1972,7 @@ export function WorkspaceAiResearchPanel({
 
       <form className="ai-research-ask-form" onSubmit={handleSubmit}>
         <input
+          ref={questionInputRef}
           type="text"
           aria-label={zh ? "跨视频提问" : "Ask across videos"}
           placeholder={
@@ -1908,59 +2061,109 @@ export function WorkspaceAiResearchPanel({
             </div>
           ) : null}
 
-          {activeSession.obsidian_markdown ? (
+          {activeSession.obsidian_markdown || canFollowUpActiveSession ? (
             <div className="button-row">
-              <button
-                type="button"
-                className="button button-secondary button-small"
-                onClick={(event) => {
-                  pulseCelebration(event.currentTarget);
-                  void navigator.clipboard?.writeText(activeSession.obsidian_markdown);
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 2000);
-                }}
-              >
-                <PhosphorIcon name="file-text" size={13} />
-                {copied
-                  ? zh
-                    ? "已复制双链问答"
-                    : "Copied"
-                  : zh
-                    ? "复制双链问答"
-                    : "Copy Obsidian Q&A"}
-              </button>
-              <button
-                type="button"
-                className="button button-ghost button-small"
-                onClick={() =>
-                  downloadObsidianMarkdown(
-                    `跨视频问答-${activeSession.session_id}`,
-                    activeSession.obsidian_markdown,
-                  )
-                }
-              >
-                {zh ? "下载 .md" : "Download .md"}
-              </button>
+              {canFollowUpActiveSession ? (
+                <button
+                  type="button"
+                  className="button button-secondary button-small tabular-nums"
+                  onClick={applyActiveSessionFollowUp}
+                >
+                  <PhosphorIcon name="sparkle" size={13} />
+                  {hasExplicitActiveScope
+                    ? zh
+                      ? "同范围继续追问"
+                      : "Follow up in this scope"
+                    : zh
+                      ? `围绕引用视频追问 (${activeCitedVideoIds.length})`
+                      : `Follow up on cited videos (${activeCitedVideoIds.length})`}
+                </button>
+              ) : null}
+              {activeSession.obsidian_markdown ? (
+                <>
+                  <button
+                    type="button"
+                    className="button button-secondary button-small"
+                    onClick={(event) => {
+                      pulseCelebration(event.currentTarget);
+                      void navigator.clipboard?.writeText(activeSession.obsidian_markdown);
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    }}
+                  >
+                    <PhosphorIcon name="file-text" size={13} />
+                    {copied
+                      ? zh
+                        ? "已复制双链问答"
+                        : "Copied"
+                      : zh
+                        ? "复制双链问答"
+                        : "Copy Obsidian Q&A"}
+                  </button>
+                  <button
+                    type="button"
+                    className="button button-ghost button-small"
+                    onClick={() =>
+                      downloadObsidianMarkdown(
+                        `跨视频问答-${activeSession.session_id}`,
+                        activeSession.obsidian_markdown,
+                      )
+                    }
+                  >
+                    {zh ? "下载 .md" : "Download .md"}
+                  </button>
+                </>
+              ) : null}
             </div>
           ) : null}
         </div>
       ) : null}
 
-      {sessions.length > 1 ? (
+      {sessions.length >= 1 ? (
         <div className="ai-session-history">
-          <h4>{zh ? "历史跨视频问答" : "Recent AI Q&A sessions"}</h4>
-          <div className="ai-suggested-pills">
-            {sessions.map((s) => (
-              <button
-                key={s.session_id}
-                type="button"
-                className={`ai-question-chip${activeSession?.session_id === s.session_id ? " is-active" : ""}`}
-                onClick={() => setActiveSession(s)}
-              >
-                {s.question}
-              </button>
-            ))}
+          <div className="ai-session-history-head">
+            <h4>{zh ? "历史跨视频问答" : "Recent AI Q&A sessions"}</h4>
+            {sessions.length >= 3 ? (
+              <input
+                type="search"
+                className="ai-session-search-input"
+                aria-label={zh ? "筛选历史问答" : "Filter Q&A history"}
+                placeholder={zh ? "筛选历史问题或频道…" : "Filter past Q&A…"}
+                value={sessionSearch}
+                onChange={(e) => setSessionSearch(e.target.value)}
+              />
+            ) : null}
           </div>
+          {filteredSessions.length > 0 ? (
+            <div className="ai-suggested-pills">
+              {filteredSessions.map((s) => {
+                const vCount =
+                  s.video_count && s.video_count > 0
+                    ? s.video_count
+                    : new Set(s.citations.map((c) => c.video_id)).size;
+                const chipLabel =
+                  vCount > 0
+                    ? zh
+                      ? `${s.question} · ${vCount} 篇`
+                      : `${s.question} · ${vCount} videos`
+                    : s.question;
+                return (
+                  <button
+                    key={s.session_id}
+                    type="button"
+                    className={`ai-question-chip tabular-nums${activeSession?.session_id === s.session_id ? " is-active" : ""}`}
+                    onClick={() => setActiveSession(s)}
+                  >
+                    {chipLabel}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="hint">
+              {zh ? "没有匹配的历史问答记录。" : "No matching past Q&A sessions."}
+            </p>
+          )}
         </div>
       ) : null}
     </section>
