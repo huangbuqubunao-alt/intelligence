@@ -3628,6 +3628,126 @@ class WorkspaceIntelligenceHub:
             "topics": self.enrich_topics_items(payload.get("topics")),
         }
 
+    def compute_source_ai_signals(
+        self, raw_sources: object = None
+    ) -> dict[str, dict[str, object]]:
+        briefs_map = self.get_video_briefs_map()
+        videos_by_id = {v.video_id: v for v in self._repository.list_videos(limit=500)}
+        linked_by_source: dict[str, list[str]] = {}
+        seen_per_source: dict[str, set[str]] = {}
+        repo_conn = self._repository._connect(read_only=True)
+        try:
+            for srow in repo_conn.execute(
+                "SELECT source_id, video_id FROM source_video_links "
+                "ORDER BY discovered_at DESC, video_id ASC"
+            ).fetchall():
+                sid = str(srow[0] or "").strip()
+                vid = str(srow[1] or "").strip()
+                if not sid or not vid:
+                    continue
+                seen = seen_per_source.setdefault(sid, set())
+                if vid not in seen:
+                    seen.add(vid)
+                    linked_by_source.setdefault(sid, []).append(vid)
+        except sqlite3.Error:
+            pass
+        finally:
+            repo_conn.close()
+
+        source_meta_by_id: dict[str, Mapping[str, Any]] = {}
+        if isinstance(raw_sources, list):
+            for item in raw_sources:
+                if isinstance(item, Mapping):
+                    sid = str(item.get("source_id") or "").strip()
+                    if sid:
+                        source_meta_by_id[sid] = item
+        else:
+            for sid in linked_by_source:
+                source_meta_by_id[sid] = {"source_id": sid}
+
+        signals: dict[str, dict[str, object]] = {}
+        for sid, meta in source_meta_by_id.items():
+            vids = linked_by_source.get(sid, [])
+            provider_str = str(meta.get("provider") or "").strip().upper()
+            display_name = str(meta.get("display_name") or "").strip()
+            ch_key = ""
+            ch_label = ""
+            for vid in vids:
+                v_obj = videos_by_id.get(vid)
+                if v_obj is not None:
+                    cand_key, cand_label = self._video_channel_key_and_label(v_obj)
+                    if cand_key:
+                        ch_key, ch_label = cand_key, cand_label
+                        break
+            if not ch_key:
+                if provider_str == "LOCAL":
+                    ch_key, ch_label = "LOCAL", "本地实战课"
+                elif display_name:
+                    ch_key, ch_label = display_name, display_name
+                else:
+                    ch_key, ch_label = sid, sid
+
+            total_videos = len(vids)
+            distilled_count = 0
+            shorts_count = 0
+            must_watch_count = 0
+            worth_skimming_count = 0
+            unread_long_count = 0
+            long_scores: list[float] = []
+            for vid in vids:
+                brief = briefs_map.get(vid)
+                v_obj = videos_by_id.get(vid)
+                is_short = (
+                    bool(brief.get("is_short_noise"))
+                    if brief is not None
+                    else (
+                        v_obj is not None
+                        and str(v_obj.provider or "YOUTUBE").upper() == "YOUTUBE"
+                        and v_obj.duration_seconds is not None
+                        and v_obj.duration_seconds <= 95
+                    )
+                )
+                if is_short:
+                    shorts_count += 1
+                if brief is not None:
+                    distilled_count += 1
+                    if not is_short:
+                        long_scores.append(float(brief.get("score", 0.0)))
+                        tier = str(brief.get("recommendation_tier") or "")
+                        if tier == "MUST_WATCH":
+                            must_watch_count += 1
+                        elif tier == "WORTH_SKIMMING":
+                            worth_skimming_count += 1
+                        if not bool(brief.get("is_read", False)):
+                            unread_long_count += 1
+
+            long_form_count = max(0, total_videos - shorts_count)
+            avg_long_score = (
+                round(sum(long_scores) / len(long_scores), 1)
+                if long_scores
+                else None
+            )
+            signal_rate_pct = (
+                int(round((long_form_count / total_videos) * 100))
+                if total_videos > 0
+                else None
+            )
+            signals[sid] = {
+                "source_id": sid,
+                "channel_key": ch_key,
+                "channel_label": ch_label,
+                "total_videos": total_videos,
+                "distilled_count": distilled_count,
+                "long_form_count": long_form_count,
+                "shorts_count": shorts_count,
+                "must_watch_count": must_watch_count,
+                "worth_skimming_count": worth_skimming_count,
+                "unread_long_count": unread_long_count,
+                "avg_long_score": avg_long_score,
+                "signal_rate_pct": signal_rate_pct,
+            }
+        return signals
+
     def enrich_topic_detail_dto(self, payload: Mapping[str, object]) -> dict[str, object]:
         raw_topic = payload.get("topic")
         if not isinstance(raw_topic, dict):
@@ -3954,6 +4074,76 @@ class WorkspaceIntelligenceHub:
             "summary_zh": " · ".join(summary_parts),
         }
 
+    @staticmethod
+    def _synchronize_weekly_obsidian_markdown(
+        raw_markdown: str,
+        *,
+        funnel_stats: Mapping[str, int],
+        delta: Mapping[str, object] | None,
+    ) -> str:
+        text = (raw_markdown or "").strip()
+        if not text:
+            return ""
+        calibrated_funnel_line = (
+            f"> **信噪比漏斗**：扫描 `{int(funnel_stats.get('total_videos', 0))}` 条内容 · "
+            f"自动折叠 `{int(funnel_stats.get('shorts_filtered_count', 0))}` 条短视频噪音 · "
+            f"精选 `{int(funnel_stats.get('must_watch_count', 0))}` 条必看干货"
+        )
+        delta_lines: list[str] = []
+        if isinstance(delta, Mapping):
+            summary_zh = str(delta.get("summary_zh") or "").strip()
+            if summary_zh:
+                prev_date = str(delta.get("previous_created_at") or "").strip()[:10]
+                if prev_date:
+                    delta_lines.append(
+                        f"> **较上期演进对比**（对比 `{prev_date}`）：{summary_zh}"
+                    )
+                else:
+                    delta_lines.append(f"> **较上期演进对比**：{summary_zh}")
+                raw_new_picks = delta.get("new_picks")
+                if isinstance(raw_new_picks, list) and raw_new_picks:
+                    pick_links: list[str] = []
+                    for p in raw_new_picks[:4]:
+                        if isinstance(p, Mapping):
+                            p_title = _safe_obsidian_title(
+                                str(p.get("title") or p.get("video_id") or "")
+                            )
+                            p_score = float(cast(float, p.get("score") or 0.0))
+                            if p_title:
+                                pick_links.append(f"[[{p_title}]] (`{p_score:.1f}`)")
+                    if pick_links:
+                        delta_lines.append(
+                            f"> - **本期新上榜必看**：{' · '.join(pick_links)}"
+                        )
+
+        out_lines: list[str] = []
+        inserted = False
+        for line in text.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("> **较上期演进对比**") or stripped.startswith(
+                "> - **本期新上榜必看**："
+            ):
+                continue
+            if stripped.startswith("> **信噪比漏斗**："):
+                out_lines.append(calibrated_funnel_line)
+                out_lines.extend(delta_lines)
+                inserted = True
+                continue
+            out_lines.append(line)
+
+        if not inserted:
+            rebuilt: list[str] = []
+            for line in out_lines:
+                rebuilt.append(line)
+                if not inserted and line.startswith("# "):
+                    rebuilt.extend(["", calibrated_funnel_line, *delta_lines])
+                    inserted = True
+            if not inserted:
+                rebuilt = [calibrated_funnel_line, *delta_lines, "", *out_lines]
+            out_lines = rebuilt
+
+        return "\n".join(out_lines).rstrip() + "\n"
+
     def _compute_weekly_brief_freshness(
         self,
         briefs_map: Mapping[str, Mapping[str, Any]],
@@ -4172,6 +4362,11 @@ class WorkspaceIntelligenceHub:
                 for s in top_shifts
                 if isinstance(s, dict) and (s.get("title_zh") or s.get("detail_zh"))
             ]
+            synced_markdown = self._synchronize_weekly_obsidian_markdown(
+                str(row["obsidian_markdown"]),
+                funnel_stats=cur_sanitized_funnel,
+                delta=delta,
+            )
             return {
                 "weekly_brief": {
                     "brief_id": row_brief_id,
@@ -4186,7 +4381,7 @@ class WorkspaceIntelligenceHub:
                     "funnel_stats": cur_sanitized_funnel,
                     "provider": str(row["provider"]),
                     "model": str(row["model"]),
-                    "obsidian_markdown": str(row["obsidian_markdown"]),
+                    "obsidian_markdown": synced_markdown,
                     "created_at": row_created_at,
                     "history": history,
                     "freshness": freshness,
@@ -4789,23 +4984,72 @@ class WorkspaceIntelligenceHub:
 
         weekly_rows: list[dict[str, str]] = []
         qa_rows: list[dict[str, str]] = []
+        live_funnel_stats = self._compute_funnel_stats(briefs_map)
         conn = self._connect_read()
         if conn is not None:
             try:
-                for wrow in conn.execute(
-                    "SELECT brief_id, title_zh, created_at, obsidian_markdown "
-                    "FROM weekly_ai_briefs ORDER BY created_at DESC, rowid DESC LIMIT 12"
-                ).fetchall():
-                    md = str(wrow["obsidian_markdown"] or "").strip()
-                    if md:
-                        weekly_rows.append(
-                            {
-                                "brief_id": str(wrow["brief_id"]),
-                                "title_zh": str(wrow["title_zh"]),
-                                "created_at": str(wrow["created_at"]),
-                                "markdown": md + "\n",
-                            }
+                ordered_wrows = conn.execute(
+                    "SELECT rowid AS _rowid, * FROM weekly_ai_briefs "
+                    "ORDER BY created_at DESC, rowid DESC LIMIT 13"
+                ).fetchall()
+                for w_idx, wrow in enumerate(ordered_wrows[:12]):
+                    raw_md = str(wrow["obsidian_markdown"] or "").strip()
+                    if not raw_md:
+                        continue
+                    w_created_at = str(wrow["created_at"])
+                    w_freshness = self._compute_weekly_brief_freshness(
+                        briefs_map,
+                        brief_created_at=w_created_at,
+                        is_archive=(w_idx > 0),
+                    )
+                    try:
+                        w_raw_funnel = json.loads(str(wrow["funnel_stats_json"]))
+                    except ValueError:
+                        w_raw_funnel = {}
+                    w_funnel = self._sanitize_stored_funnel_stats(
+                        w_raw_funnel,
+                        live_funnel=(
+                            live_funnel_stats
+                            if (w_idx == 0 and not bool(w_freshness["is_stale"]))
+                            else None
+                        ),
+                        briefs_map=briefs_map,
+                        snap_created_at=w_created_at,
+                    )
+                    w_delta: dict[str, object] | None = None
+                    if w_idx + 1 < len(ordered_wrows):
+                        prev_wrow = ordered_wrows[w_idx + 1]
+                        try:
+                            prev_w_raw_funnel = json.loads(
+                                str(prev_wrow["funnel_stats_json"])
+                            )
+                        except ValueError:
+                            prev_w_raw_funnel = {}
+                        prev_w_funnel = self._sanitize_stored_funnel_stats(
+                            prev_w_raw_funnel,
+                            live_funnel=None,
+                            briefs_map=briefs_map,
+                            snap_created_at=str(prev_wrow["created_at"]),
                         )
+                        w_delta = self._compute_weekly_brief_delta(
+                            wrow,
+                            prev_wrow,
+                            cur_funnel=w_funnel,
+                            prev_funnel=prev_w_funnel,
+                        )
+                    synced_w_md = self._synchronize_weekly_obsidian_markdown(
+                        raw_md,
+                        funnel_stats=w_funnel,
+                        delta=w_delta,
+                    )
+                    weekly_rows.append(
+                        {
+                            "brief_id": str(wrow["brief_id"]),
+                            "title_zh": str(wrow["title_zh"]),
+                            "created_at": w_created_at,
+                            "markdown": synced_w_md,
+                        }
+                    )
                 for qrow in conn.execute(
                     "SELECT session_id, question, created_at, obsidian_markdown "
                     "FROM research_qa_sessions ORDER BY created_at DESC, session_id ASC LIMIT 50"

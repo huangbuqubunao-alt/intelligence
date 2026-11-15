@@ -2366,8 +2366,204 @@ def test_round6_funnel_accuracy_weekly_delta_starred_research_and_batch_curation
     assert {c["video_id"] for c in star_session["citations"]} == {"vidR6Biz0002"}
 
 
+def test_round7_weekly_markdown_delta_sync_and_source_signal_metrics(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import base64
+    import io
+    import zipfile
 
+    env = _build_env(tmp_path, monkeypatch)
+    fast_app: Any = env["fast_app"]
+    repo: SQLiteStateRepository = env["repo"]
+    hub: WorkspaceIntelligenceHub = env["hub"]
+    composition: Any = env["composition"]
+    source_openai_id: str = env["source"].source_id
 
+    source_greg = composition.product.add_source(
+        url="https://www.youtube.com/channel/UC2222222222222222222222",
+        processing_policy=ProcessingPolicy.STANDARD_INTELLIGENCE,
+    )
+    source_greg_id: str = source_greg.source_id
 
+    clock = [NOW]
+    hub._now = lambda: clock[0]
 
+    # Before sidecar DB exists, GET /api/v1/sources preserves unenriched parity
+    _, pre_sources_res = fast_app.handle("GET", "/api/v1/sources")
+    assert "ai_signal_by_source" not in pre_sources_res
+
+    # Seed OpenAI: 1 deep dive + 3 short promo clips (25% signal rate)
+    _seed_youtube_video(
+        repo,
+        env["data_root"],
+        source_id=source_openai_id,
+        video_id="vidR7OpenDeep1",
+        channel_id="UC1111111111111111111111",
+        channel_name="OpenAI",
+        title="Agentic Architecture Deep Dive",
+        duration_seconds=1860,
+        cues=(
+            TimedTranscriptCueWrite(
+                start_ms=0,
+                end_ms=9000,
+                text="Long-horizon agent execution relies on deterministic tool sandboxes.",
+            ),
+        ),
+        now=clock[0] - timedelta(hours=4),
+    )
+    for idx in range(1, 4):
+        _seed_youtube_video(
+            repo,
+            env["data_root"],
+            source_id=source_openai_id,
+            video_id=f"vidR7OpenSh0{idx}",
+            channel_id="UC1111111111111111111111",
+            channel_name="OpenAI",
+            title=f"OpenAI Promo Clip {idx}",
+            duration_seconds=30 + idx,
+            cues=(
+                TimedTranscriptCueWrite(
+                    start_ms=0,
+                    end_ms=5000,
+                    text=f"Quick teaser clip {idx}.",
+                ),
+            ),
+            now=clock[0] - timedelta(hours=3, minutes=idx),
+        )
+
+    fast_app.handle("POST", "/api/v1/workspace-ai/videos/vidR7OpenDeep1/distill", b"{}")
+    for idx in range(1, 4):
+        fast_app.handle(
+            "POST", f"/api/v1/workspace-ai/videos/vidR7OpenSh0{idx}/distill", b"{}"
+        )
+
+    # Generate Weekly Brief #1 and simulate legacy inflated funnel + markdown ('精选 `48` 条必看干货')
+    clock[0] = NOW + timedelta(minutes=10)
+    _, wb1_res = fast_app.handle("POST", "/api/v1/workspace-ai/weekly-brief/generate", b"{}")
+    wb1_id = wb1_res["weekly_brief"]["brief_id"]
+    stale_md = wb1_res["weekly_brief"]["obsidian_markdown"].replace(
+        "精选 `1` 条必看干货", "精选 `48` 条必看干货"
+    )
+    assert "精选 `48` 条必看干货" in stale_md
+    with hub._connect_write() as conn:
+        conn.execute(
+            "UPDATE weekly_ai_briefs SET funnel_stats_json = ?, obsidian_markdown = ? WHERE brief_id = ?",
+            (
+                json.dumps(
+                    {
+                        "total_videos": 6,
+                        "distilled_count": 4,
+                        "must_watch_count": 48,
+                        "worth_skimming_count": 0,
+                        "shorts_filtered_count": 3,
+                        "topics_count": 1,
+                    }
+                ),
+                stale_md,
+                wb1_id,
+            ),
+        )
+
+    _, wb1_calibrated = fast_app.handle("GET", "/api/v1/workspace-ai/weekly-brief")
+    wb1_md = wb1_calibrated["weekly_brief"]["obsidian_markdown"]
+    assert "精选 `48` 条必看干货" not in wb1_md
+    assert "精选 `1` 条必看干货" in wb1_md
+
+    # Seed Greg Isenberg: 2 deep dives, 0 shorts (100% signal rate), mark one read
+    clock[0] = NOW + timedelta(minutes=25)
+    for idx, title in (
+        (1, "Vertical SaaS Monetization Playbook"),
+        (2, "Solo Founder AI Distribution Loops"),
+    ):
+        _seed_youtube_video(
+            repo,
+            env["data_root"],
+            source_id=source_greg_id,
+            video_id=f"vidR7GregDp0{idx}",
+            channel_id="UC2222222222222222222222",
+            channel_name="Greg Isenberg",
+            title=title,
+            duration_seconds=2100 + idx * 60,
+            cues=(
+                TimedTranscriptCueWrite(
+                    start_ms=0,
+                    end_ms=10000,
+                    text=f"High-margin B2B workflow insight {idx}.",
+                ),
+            ),
+            now=clock[0] + timedelta(minutes=idx),
+        )
+        fast_app.handle(
+            "POST", f"/api/v1/workspace-ai/videos/vidR7GregDp0{idx}/distill", b"{}"
+        )
+
+    fast_app.handle(
+        "POST",
+        "/api/v1/workspace-ai/videos/vidR7GregDp01/curation",
+        json.dumps({"is_read": True}).encode("utf-8"),
+    )
+
+    # Verify GET /api/v1/sources returns top-level ai_signal_by_source without mutating sources[i]
+    src_code, src_res = fast_app.handle("GET", "/api/v1/sources")
+    assert src_code == HTTPStatus.OK
+    raw_code, raw_src_res = env["raw_app"].handle("GET", "/api/v1/sources")
+    assert raw_code == HTTPStatus.OK
+    assert src_res["sources"] == raw_src_res["sources"]
+    sig_map = src_res["ai_signal_by_source"]
+    assert sig_map[source_openai_id] == {
+        "source_id": source_openai_id,
+        "channel_key": "OpenAI",
+        "channel_label": "OpenAI",
+        "total_videos": 4,
+        "distilled_count": 4,
+        "long_form_count": 1,
+        "shorts_count": 3,
+        "must_watch_count": 1,
+        "worth_skimming_count": 0,
+        "unread_long_count": 1,
+        "avg_long_score": 9.2,
+        "signal_rate_pct": 25,
+    }
+    assert sig_map[source_greg_id] == {
+        "source_id": source_greg_id,
+        "channel_key": "Greg Isenberg",
+        "channel_label": "Greg Isenberg",
+        "total_videos": 2,
+        "distilled_count": 2,
+        "long_form_count": 2,
+        "shorts_count": 0,
+        "must_watch_count": 2,
+        "worth_skimming_count": 0,
+        "unread_long_count": 1,
+        "avg_long_score": 9.1,
+        "signal_rate_pct": 100,
+    }
+
+    # Generate Weekly Brief #2 -> verify obsidian_markdown & Vault .zip include delta + calibrated funnel
+    clock[0] = NOW + timedelta(minutes=45)
+    _, wb2_res = fast_app.handle("POST", "/api/v1/workspace-ai/weekly-brief/generate", b"{}")
+    wb2_md = wb2_res["weekly_brief"]["obsidian_markdown"]
+    assert "精选 `3` 条必看干货" in wb2_md
+    assert "较上期演进对比" in wb2_md
+    assert "[[Vertical SaaS Monetization Playbook]]" in wb2_md
+
+    _, dash_res = fast_app.handle("GET", "/api/v1/dashboard")
+    assert "较上期演进对比" in dash_res["workspace_weekly_brief"]["obsidian_markdown"]
+
+    _, bundle_res = fast_app.handle(
+        "GET", "/api/v1/workspace-ai/obsidian-bundle?scope=must_watch"
+    )
+    zip_bytes = base64.b64decode(bundle_res["archive_base64"])
+    with zipfile.ZipFile(io.BytesIO(zip_bytes), "r") as zf:
+        weekly_files = sorted(
+            name for name in zf.namelist() if name.startswith("01-AI情报周报/")
+        )
+        assert len(weekly_files) == 2
+        all_weekly_md = "\n".join(
+            zf.read(name).decode("utf-8") for name in weekly_files
+        )
+        assert "精选 `48` 条必看干货" not in all_weekly_md
+        assert "较上期演进对比" in all_weekly_md
+        assert "[[Vertical SaaS Monetization Playbook]]" in all_weekly_md
 
