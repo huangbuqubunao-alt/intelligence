@@ -2129,6 +2129,243 @@ def test_round5_weekly_brief_freshness_and_obsidian_vault_zip_bundle(
     assert [p for p in env["vault_root"].rglob("*") if p.is_file()] == []
 
 
+def test_round6_funnel_accuracy_weekly_delta_starred_research_and_batch_curation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    env = _build_env(tmp_path, monkeypatch)
+    fast_app: Any = env["fast_app"]
+    repo: SQLiteStateRepository = env["repo"]
+    hub: WorkspaceIntelligenceHub = env["hub"]
+    source_id: str = env["source"].source_id
+
+    clock = [NOW]
+    hub._now = lambda: clock[0]
+
+    _seed_youtube_video(
+        repo,
+        env["data_root"],
+        source_id=source_id,
+        video_id="vidR6Deep001",
+        channel_id="UC1111111111111111111111",
+        channel_name="OpenAI",
+        title="Production Agent Eval Harness",
+        duration_seconds=1800,
+        cues=(
+            TimedTranscriptCueWrite(
+                start_ms=0,
+                end_ms=9000,
+                text="Deterministic eval harnesses keep agent releases safe.",
+            ),
+        ),
+        now=clock[0] - timedelta(hours=3),
+    )
+    # 35s Short whose cue does NOT say 'Short promo', so raw LLM output returns MUST_WATCH 9.2
+    _seed_youtube_video(
+        repo,
+        env["data_root"],
+        source_id=source_id,
+        video_id="vidR6Short01",
+        channel_id="UC1111111111111111111111",
+        channel_name="OpenAI",
+        title="Model Launch 35s Clip",
+        duration_seconds=35,
+        cues=(
+            TimedTranscriptCueWrite(
+                start_ms=0,
+                end_ms=6000,
+                text="Breakthrough launch demo teaser.",
+            ),
+        ),
+        now=clock[0] - timedelta(hours=2),
+    )
+
+    fast_app.handle("POST", "/api/v1/workspace-ai/videos/vidR6Deep001/distill", b"{}")
+    _, short_distilled = fast_app.handle(
+        "POST", "/api/v1/workspace-ai/videos/vidR6Short01/distill", b"{}"
+    )
+    assert short_distilled["ai_brief"]["is_short_noise"] is True
+    assert short_distilled["ai_brief"]["recommendation_tier"] == "SKIP_NOISE"
+
+    # Simulate legacy DB row where a Short had recommendation_tier='MUST_WATCH' alongside is_short_noise=1
+    with env["hub"]._connect_write() as conn:
+        conn.execute(
+            "UPDATE video_ai_briefs SET recommendation_tier = 'MUST_WATCH' WHERE video_id = ?",
+            ("vidR6Short01",),
+        )
+
+    _, pre_wb = fast_app.handle("GET", "/api/v1/workspace-ai/weekly-brief")
+    assert pre_wb["funnel_stats"]["total_videos"] == 2
+    assert pre_wb["funnel_stats"]["shorts_filtered_count"] == 1
+    assert pre_wb["funnel_stats"]["must_watch_count"] == 1
+
+    # Generate Weekly Brief #1 -> first edition has delta=None
+    clock[0] = NOW + timedelta(minutes=5)
+    wb1_code, wb1_res = fast_app.handle(
+        "POST", "/api/v1/workspace-ai/weekly-brief/generate", b"{}"
+    )
+    assert wb1_code == HTTPStatus.OK
+    wb1_id = wb1_res["weekly_brief"]["brief_id"]
+    assert wb1_res["weekly_brief"]["delta"] is None
+    assert wb1_res["weekly_brief"]["funnel_stats"]["must_watch_count"] == 1
+
+    # Simulate legacy inflated funnel_stats_json stored on wb1 (like live DB's 48 > 115 - 79)
+    with env["hub"]._connect_write() as conn:
+        conn.execute(
+            "UPDATE weekly_ai_briefs SET funnel_stats_json = ? WHERE brief_id = ?",
+            (
+                json.dumps(
+                    {
+                        "total_videos": 2,
+                        "distilled_count": 2,
+                        "must_watch_count": 2,
+                        "worth_skimming_count": 0,
+                        "shorts_filtered_count": 1,
+                        "topics_count": 1,
+                    }
+                ),
+                wb1_id,
+            ),
+        )
+    _, wb1_sanitized = fast_app.handle("GET", "/api/v1/workspace-ai/weekly-brief")
+    assert wb1_sanitized["weekly_brief"]["funnel_stats"]["must_watch_count"] == 1
+    assert wb1_sanitized["history"][0]["must_watch_count"] == 1
+
+    # Distill a second Must-Watch video and generate Weekly Brief #2 -> delta compares #2 vs #1
+    clock[0] = NOW + timedelta(minutes=25)
+    _seed_youtube_video(
+        repo,
+        env["data_root"],
+        source_id=source_id,
+        video_id="vidR6Biz0002",
+        channel_id="UC2222222222222222222222",
+        channel_name="Greg Isenberg",
+        title="Vertical SaaS Monetization Playbook",
+        duration_seconds=2100,
+        cues=(
+            TimedTranscriptCueWrite(
+                start_ms=0,
+                end_ms=10000,
+                text="Outcome-based pricing unlocks high-margin solo AI workflows.",
+            ),
+        ),
+        now=clock[0],
+    )
+    fast_app.handle("POST", "/api/v1/workspace-ai/videos/vidR6Biz0002/distill", b"{}")
+
+    clock[0] = NOW + timedelta(minutes=35)
+    wb2_code, wb2_res = fast_app.handle(
+        "POST", "/api/v1/workspace-ai/weekly-brief/generate", b"{}"
+    )
+    assert wb2_code == HTTPStatus.OK
+    delta = wb2_res["weekly_brief"]["delta"]
+    assert isinstance(delta, dict)
+    assert delta["previous_brief_id"] == wb1_id
+    assert delta["distilled_delta"] == 1
+    assert delta["must_watch_delta"] == 1
+    assert "vidR6Biz0002" in [p["video_id"] for p in delta["new_picks"]]
+    assert delta["summary_zh"]
+
+    _, dash_res = fast_app.handle("GET", "/api/v1/dashboard")
+    assert dash_res["workspace_weekly_brief"]["delta"]["previous_brief_id"] == wb1_id
+
+    _, wb1_arch = fast_app.handle(
+        "GET", f"/api/v1/workspace-ai/weekly-brief?brief_id={wb1_id}"
+    )
+    assert wb1_arch["weekly_brief"]["delta"] is None
+    assert wb1_arch["weekly_brief"]["funnel_stats"]["must_watch_count"] == 1
+
+    # Starred-only research when 0 videos are starred -> 409 NO_GROUNDED_CONTENT
+    empty_star_code, empty_star_res = fast_app.handle(
+        "POST",
+        "/api/v1/workspace-ai/research/ask",
+        json.dumps({"question": "一人公司怎么定价？", "starred_only": True}).encode(
+            "utf-8"
+        ),
+    )
+    assert empty_star_code == HTTPStatus.CONFLICT
+    assert empty_star_res["error"]["code"] == "NO_GROUNDED_CONTENT"
+
+    # Batch curation validation errors
+    for bad_payload in (
+        {},
+        {"video_ids": [], "is_read": True},
+        {"video_ids": ["vidR6Deep001"]},
+        {"video_ids": ["vidR6Deep001"], "is_read": "yes"},
+        {"video_ids": ["vidR6Deep001"], "is_read": True, "extra": 1},
+    ):
+        bad_code, _ = fast_app.handle(
+            "POST",
+            "/api/v1/workspace-ai/curation/batch",
+            json.dumps(bad_payload).encode("utf-8"),
+        )
+        assert bad_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+    miss_batch_code, _ = fast_app.handle(
+        "POST",
+        "/api/v1/workspace-ai/curation/batch",
+        json.dumps({"video_ids": ["vidR6Deep001", "ghostVid999"], "is_read": True}).encode(
+            "utf-8"
+        ),
+    )
+    assert miss_batch_code == HTTPStatus.NOT_FOUND
+
+    # Batch mark read + reversible batch undo
+    b_read_code, b_read_res = fast_app.handle(
+        "POST",
+        "/api/v1/workspace-ai/curation/batch",
+        json.dumps(
+            {"video_ids": ["vidR6Deep001", "vidR6Biz0002"], "is_read": True}
+        ).encode("utf-8"),
+    )
+    assert b_read_code == HTTPStatus.OK
+    assert b_read_res["updated_count"] == 2
+    _, vids_after_read = fast_app.handle("GET", "/api/v1/videos")
+    by_vid = {v["video_id"]: v for v in vids_after_read["videos"]}
+    assert by_vid["vidR6Deep001"]["ai_brief"]["is_read"] is True
+    assert by_vid["vidR6Biz0002"]["ai_brief"]["is_read"] is True
+
+    b_undo_code, _ = fast_app.handle(
+        "POST",
+        "/api/v1/workspace-ai/curation/batch",
+        json.dumps(
+            {"video_ids": ["vidR6Deep001", "vidR6Biz0002"], "is_read": False}
+        ).encode("utf-8"),
+    )
+    assert b_undo_code == HTTPStatus.OK
+    _, vids_after_undo = fast_app.handle("GET", "/api/v1/videos")
+    by_vid_undo = {v["video_id"]: v for v in vids_after_undo["videos"]}
+    assert by_vid_undo["vidR6Deep001"]["ai_brief"]["is_read"] is False
+    assert by_vid_undo["vidR6Biz0002"]["ai_brief"]["is_read"] is False
+
+    # Star vidR6Biz0002 via batch curation and run starred_only Cross-Video Research Q&A
+    b_star_code, _ = fast_app.handle(
+        "POST",
+        "/api/v1/workspace-ai/curation/batch",
+        json.dumps({"video_ids": ["vidR6Biz0002"], "starred": True}).encode("utf-8"),
+    )
+    assert b_star_code == HTTPStatus.OK
+
+    _, sessions_meta = fast_app.handle("GET", "/api/v1/workspace-ai/research/sessions")
+    assert sessions_meta["scope_options"]["starred_count"] == 1
+    opt_vids = {v["video_id"]: v for v in sessions_meta["scope_options"]["videos"]}
+    assert opt_vids["vidR6Biz0002"]["starred"] is True
+    assert opt_vids["vidR6Deep001"]["starred"] is False
+
+    star_qa_code, star_qa_res = fast_app.handle(
+        "POST",
+        "/api/v1/workspace-ai/research/ask",
+        json.dumps(
+            {"question": "一人公司应该如何切入高毛利定价？", "starred_only": True}
+        ).encode("utf-8"),
+    )
+    assert star_qa_code == HTTPStatus.OK
+    star_session = star_qa_res["session"]
+    assert star_session["scope"]["starred_only"] is True
+    assert "仅限已收藏" in star_session["scope_label_zh"]
+    assert {c["video_id"] for c in star_session["citations"]} == {"vidR6Biz0002"}
+
+
+
 
 
 
