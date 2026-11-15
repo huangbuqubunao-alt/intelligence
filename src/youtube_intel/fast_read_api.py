@@ -1304,6 +1304,12 @@ class FastReadApiApplication:
             if route == "/api/v1/workspace-ai/restore" and method == "POST":
                 data = self._inner._body(body)
                 return HTTPStatus.OK, self._workspace_hub.restore_backup_snapshot(data)
+            if route == "/api/v1/workspace-ai/curation/batch" and method == "POST":
+                data = self._inner._body(body)
+                return (
+                    HTTPStatus.OK,
+                    self._workspace_hub.batch_update_video_curation(data),
+                )
             distill_m = _WS_AI_DISTILL_ROUTE.fullmatch(route)
             if distill_m is not None and method == "POST":
                 self._inner._body(body)

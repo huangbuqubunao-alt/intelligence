@@ -1802,17 +1802,17 @@ class WorkspaceIntelligenceHub:
             )
 
         tier = str(parsed.get("recommendation_tier", "")).strip().upper()
-        if tier not in VALID_TIERS:
-            if is_short_duration and score < 6.0:
-                tier = "SKIP_NOISE"
-            elif score >= 8.0:
+        if bucket == "SHORTS_PROMO" or is_short_duration:
+            tier = "SKIP_NOISE"
+        elif tier not in VALID_TIERS:
+            if score >= 8.0:
                 tier = "MUST_WATCH"
             elif score >= 5.0:
                 tier = "WORTH_SKIMMING"
             else:
                 tier = "SKIP_NOISE"
 
-        is_short_noise = bool(bucket == "SHORTS_PROMO" or (is_short_duration and tier == "SKIP_NOISE"))
+        is_short_noise = bool(bucket == "SHORTS_PROMO" or is_short_duration)
 
         headline_zh = _clean_text(
             parsed.get("headline_zh"),
@@ -2213,6 +2213,105 @@ class WorkspaceIntelligenceHub:
             "video_id": video_id,
             "starred": next_starred,
             "is_read": next_read,
+            "updated_at": ts,
+        }
+
+    def batch_update_video_curation(
+        self, payload: Mapping[str, object]
+    ) -> dict[str, object]:
+        allowed_keys = {"video_ids", "starred", "is_read"}
+        if not isinstance(payload, Mapping) or set(payload.keys()) - allowed_keys:
+            raise ValueError(
+                "video_ids and at least one of starred/is_read are required."
+            )
+        raw_ids = payload.get("video_ids")
+        if not isinstance(raw_ids, list) or not raw_ids:
+            raise ValueError("video_ids must be a non-empty list.")
+        clean_ids: list[str] = []
+        seen_ids: set[str] = set()
+        for entry in raw_ids:
+            if not isinstance(entry, str) or not entry.strip():
+                raise ValueError("Each video_id must be a non-empty string.")
+            vid = entry.strip()
+            if vid not in seen_ids:
+                seen_ids.add(vid)
+                clean_ids.append(vid)
+        if len(clean_ids) > 200:
+            raise ValueError("At most 200 video_ids may be updated in one batch.")
+
+        has_starred = "starred" in payload
+        has_read = "is_read" in payload
+        if not has_starred and not has_read:
+            raise ValueError("starred and/or is_read boolean fields are required.")
+        if has_starred and type(payload["starred"]) is not bool:
+            raise ValueError("starred must be a boolean.")
+        if has_read and type(payload["is_read"]) is not bool:
+            raise ValueError("is_read must be a boolean.")
+
+        placeholders = ",".join("?" for _ in clean_ids)
+        with self._repository._connect(read_only=True) as ro_conn:
+            found_rows = ro_conn.execute(
+                f"SELECT video_id FROM videos WHERE video_id IN ({placeholders})",
+                tuple(clean_ids),
+            ).fetchall()
+        found_ids = {str(r["video_id"]) for r in found_rows}
+        if len(found_ids) != len(clean_ids):
+            raise ApiError(
+                HTTPStatus.NOT_FOUND, "NOT_FOUND", "One or more videos were not found."
+            )
+
+        ts = format_utc_datetime(self._now())
+        items: list[dict[str, object]] = []
+        with self._db_lock:
+            conn = self._connect_write()
+            try:
+                with conn:
+                    existing_rows = conn.execute(
+                        f"SELECT video_id, starred, is_read FROM video_curation_states "
+                        f"WHERE video_id IN ({placeholders})",
+                        tuple(clean_ids),
+                    ).fetchall()
+                    existing_map = {
+                        str(r["video_id"]): (bool(r["starred"]), bool(r["is_read"]))
+                        for r in existing_rows
+                    }
+                    params_to_upsert: list[tuple[str, int, int, str]] = []
+                    for vid in clean_ids:
+                        cur_starred, cur_read = existing_map.get(vid, (False, False))
+                        next_starred = (
+                            bool(payload["starred"]) if has_starred else cur_starred
+                        )
+                        next_read = (
+                            bool(payload["is_read"]) if has_read else cur_read
+                        )
+                        params_to_upsert.append(
+                            (vid, int(next_starred), int(next_read), ts)
+                        )
+                        items.append(
+                            {
+                                "video_id": vid,
+                                "starred": next_starred,
+                                "is_read": next_read,
+                                "updated_at": ts,
+                            }
+                        )
+                    conn.executemany(
+                        """
+                        INSERT INTO video_curation_states (video_id, starred, is_read, updated_at)
+                        VALUES (?, ?, ?, ?)
+                        ON CONFLICT(video_id) DO UPDATE SET
+                            starred = excluded.starred,
+                            is_read = excluded.is_read,
+                            updated_at = excluded.updated_at
+                        """,
+                        params_to_upsert,
+                    )
+            finally:
+                conn.close()
+        self._write_rolling_snapshot_quietly(min_interval_sec=15.0)
+        return {
+            "updated_count": len(items),
+            "items": items,
             "updated_at": ts,
         }
 
@@ -2806,6 +2905,7 @@ class WorkspaceIntelligenceHub:
             if cluster_name:
                 cluster_counts[cluster_name] = cluster_counts.get(cluster_name, 0) + 1
             score_val = float(brief["score"]) if brief is not None else 6.0
+            is_starred = bool(brief.get("starred", False)) if brief is not None else False
             pub_str = (
                 format_utc_datetime(video.published_at)
                 if video.published_at is not None
@@ -2819,6 +2919,7 @@ class WorkspaceIntelligenceHub:
                     "channel_key": ch_key,
                     "provider": provider_str,
                     "score": score_val,
+                    "starred": is_starred,
                     "topic_cluster_zh": cluster_name,
                     "published_at": pub_str or None,
                     "_sort_pub": pub_str,
@@ -2835,6 +2936,7 @@ class WorkspaceIntelligenceHub:
         grounded_videos.sort(
             key=lambda item: float(item["score"]), reverse=True
         )
+        starred_count = sum(1 for item in grounded_videos if bool(item["starred"]))
         cleaned_videos = [
             {k: v for k, v in item.items() if k != "_sort_pub"}
             for item in grounded_videos[:80]
@@ -2850,6 +2952,7 @@ class WorkspaceIntelligenceHub:
             )
         ]
         return {
+            "starred_count": starred_count,
             "channels": channels,
             "topic_clusters": clusters,
             "videos": cleaned_videos,
@@ -2859,6 +2962,10 @@ class WorkspaceIntelligenceHub:
         question = _clean_text(payload.get("question"), max_len=500)
         if not question:
             raise ValueError("question must be a non-empty string")
+        raw_starred_only = payload.get("starred_only", False)
+        if raw_starred_only is not None and type(raw_starred_only) is not bool:
+            raise ValueError("starred_only must be a boolean")
+        starred_only = bool(raw_starred_only)
         raw_video_ids = payload.get("video_ids")
         explicit_ids: list[str] = []
         if isinstance(raw_video_ids, list) and raw_video_ids:
@@ -2886,6 +2993,8 @@ class WorkspaceIntelligenceHub:
             if explicit_set is not None and video.video_id not in explicit_set:
                 continue
             brief = briefs_map.get(video.video_id)
+            if starred_only and (brief is None or not bool(brief.get("starred", False))):
+                continue
             if brief is not None and brief["is_short_noise"] and explicit_set is None:
                 continue
             ch_key, ch_label = self._video_channel_key_and_label(video)
@@ -2912,10 +3021,16 @@ class WorkspaceIntelligenceHub:
             raise ApiError(
                 HTTPStatus.CONFLICT,
                 "NO_GROUNDED_CONTENT",
-                "当前筛选范围内没有可用于跨视频溯源问答的已转写内容。",
+                (
+                    "当前已收藏清单中没有可用于跨视频溯源问答的已转写内容，请先在「内容」中收藏至少 1 篇带字幕视频。"
+                    if starred_only
+                    else "当前筛选范围内没有可用于跨视频溯源问答的已转写内容。"
+                ),
             )
 
         scope_parts: list[str] = []
+        if starred_only:
+            scope_parts.append(f"仅限已收藏（{len(eligible_videos)} 篇）")
         if explicit_set is not None:
             scope_parts.append(
                 f"对比 {len(eligible_videos)} 条指定视频"
@@ -2932,6 +3047,7 @@ class WorkspaceIntelligenceHub:
         scope_label_zh = " · ".join(scope_parts)
         scope_meta: dict[str, object] = {
             "scope_label_zh": scope_label_zh,
+            "starred_only": starred_only,
             "channel_key": channel_key_filter or None,
             "provider_filter": provider_filter or None,
             "topic_cluster": topic_cluster_filter or None,
@@ -3625,12 +3741,15 @@ class WorkspaceIntelligenceHub:
     ) -> dict[str, int]:
         videos = self._repository.list_videos(limit=300)
         must_watch = sum(
-            1 for b in briefs_map.values() if b["recommendation_tier"] == "MUST_WATCH"
+            1
+            for b in briefs_map.values()
+            if not b.get("is_short_noise") and b["recommendation_tier"] == "MUST_WATCH"
         )
         worth_skimming = sum(
             1
             for b in briefs_map.values()
-            if b["recommendation_tier"] == "WORTH_SKIMMING"
+            if not b.get("is_short_noise")
+            and b["recommendation_tier"] == "WORTH_SKIMMING"
         )
         shorts_filtered = 0
         for v in videos:
@@ -3651,6 +3770,147 @@ class WorkspaceIntelligenceHub:
             "worth_skimming_count": worth_skimming,
             "shorts_filtered_count": shorts_filtered,
             "topics_count": active_topics,
+        }
+
+    @staticmethod
+    def _sanitize_stored_funnel_stats(
+        raw_funnel: object,
+        *,
+        live_funnel: Mapping[str, int] | None = None,
+    ) -> dict[str, int]:
+        src = raw_funnel if isinstance(raw_funnel, Mapping) else {}
+        total_v = int(src.get("total_videos", 0) or 0)
+        distilled_v = int(src.get("distilled_count", 0) or 0)
+        shorts_v = int(src.get("shorts_filtered_count", 0) or 0)
+        mw_v = int(src.get("must_watch_count", 0) or 0)
+        ws_v = int(src.get("worth_skimming_count", 0) or 0)
+        topics_v = int(src.get("topics_count", 0) or 0)
+        if (
+            live_funnel is not None
+            and total_v > 0
+            and total_v == live_funnel["total_videos"]
+            and distilled_v == live_funnel["distilled_count"]
+        ):
+            mw_v = live_funnel["must_watch_count"]
+            ws_v = live_funnel["worth_skimming_count"]
+            shorts_v = live_funnel["shorts_filtered_count"]
+        elif total_v > 0:
+            non_shorts_cap = max(0, total_v - shorts_v)
+            mw_v = min(mw_v, non_shorts_cap)
+            ws_v = min(ws_v, max(0, non_shorts_cap - mw_v))
+        return {
+            "total_videos": total_v,
+            "distilled_count": distilled_v,
+            "must_watch_count": mw_v,
+            "worth_skimming_count": ws_v,
+            "shorts_filtered_count": shorts_v,
+            "topics_count": topics_v,
+        }
+
+    @staticmethod
+    def _compute_weekly_brief_delta(
+        cur_row: sqlite3.Row,
+        prev_row: sqlite3.Row,
+        *,
+        cur_funnel: Mapping[str, int],
+        prev_funnel: Mapping[str, int],
+    ) -> dict[str, object]:
+        try:
+            cur_picks_raw = json.loads(str(cur_row["must_watch_picks_json"]))
+        except ValueError:
+            cur_picks_raw = []
+        try:
+            prev_picks_raw = json.loads(str(prev_row["must_watch_picks_json"]))
+        except ValueError:
+            prev_picks_raw = []
+        prev_pick_ids = {
+            str(p.get("video_id"))
+            for p in prev_picks_raw
+            if isinstance(p, Mapping) and p.get("video_id")
+        }
+        new_picks = [
+            {
+                "video_id": str(p.get("video_id") or ""),
+                "title": str(p.get("title") or p.get("video_id") or ""),
+                "channel_name": str(p.get("channel_name") or ""),
+                "score": float(p.get("score", 0.0) or 0.0),
+                "headline_zh": str(p.get("headline_zh") or ""),
+            }
+            for p in cur_picks_raw
+            if isinstance(p, Mapping)
+            and p.get("video_id")
+            and str(p.get("video_id")) not in prev_pick_ids
+        ]
+
+        try:
+            cur_shifts = json.loads(str(cur_row["top_shifts_json"]))
+        except ValueError:
+            cur_shifts = []
+        try:
+            prev_shifts = json.loads(str(prev_row["top_shifts_json"]))
+        except ValueError:
+            prev_shifts = []
+        prev_shift_titles = {
+            str(s.get("title_zh") or "").strip()
+            for s in prev_shifts
+            if isinstance(s, Mapping) and str(s.get("title_zh") or "").strip()
+        }
+        new_shifts_zh = [
+            str(s.get("title_zh") or "").strip()
+            for s in cur_shifts
+            if isinstance(s, Mapping)
+            and str(s.get("title_zh") or "").strip()
+            and str(s.get("title_zh") or "").strip() not in prev_shift_titles
+        ][:3]
+
+        try:
+            cur_opps = json.loads(str(cur_row["product_opportunities_json"]))
+        except ValueError:
+            cur_opps = []
+        try:
+            prev_opps = json.loads(str(prev_row["product_opportunities_json"]))
+        except ValueError:
+            prev_opps = []
+        prev_opp_set = {str(x).strip() for x in prev_opps if str(x).strip()}
+        new_opps_zh = [
+            str(x).strip()
+            for x in cur_opps
+            if str(x).strip() and str(x).strip() not in prev_opp_set
+        ][:3]
+
+        total_delta = int(cur_funnel["total_videos"]) - int(prev_funnel["total_videos"])
+        distilled_delta = int(cur_funnel["distilled_count"]) - int(
+            prev_funnel["distilled_count"]
+        )
+        mw_delta = int(cur_funnel["must_watch_count"]) - int(
+            prev_funnel["must_watch_count"]
+        )
+
+        summary_parts: list[str] = []
+        if distilled_delta > 0:
+            summary_parts.append(f"较上期新增提炼 {distilled_delta} 篇")
+        elif distilled_delta == 0:
+            summary_parts.append("提炼覆盖规模与上期持平")
+        else:
+            summary_parts.append(f"较上期调整 {abs(distilled_delta)} 篇")
+        if mw_delta > 0:
+            summary_parts.append(f"新增 {mw_delta} 篇必看干货")
+        if new_picks:
+            summary_parts.append(f"{len(new_picks)} 篇新晋必看上榜")
+        if new_shifts_zh:
+            summary_parts.append(f"{len(new_shifts_zh)} 项新趋势风向")
+
+        return {
+            "previous_brief_id": str(prev_row["brief_id"]),
+            "previous_created_at": str(prev_row["created_at"]),
+            "previous_title_zh": str(prev_row["title_zh"]),
+            "total_videos_delta": total_delta,
+            "distilled_delta": distilled_delta,
+            "must_watch_delta": mw_delta,
+            "new_picks": new_picks,
+            "new_shifts_zh": new_shifts_zh,
+            "new_opportunities_zh": new_opps_zh,
+            "summary_zh": " · ".join(summary_parts),
         }
 
     def _compute_weekly_brief_freshness(
@@ -3743,16 +4003,20 @@ class WorkspaceIntelligenceHub:
                 )
             return {"weekly_brief": None, "funnel_stats": funnel_stats, "history": []}
         try:
-            history_rows = conn.execute(
-                "SELECT brief_id, title_zh, funnel_stats_json, provider, model, created_at "
-                "FROM weekly_ai_briefs ORDER BY created_at DESC, rowid DESC LIMIT 12"
+            ordered_rows = conn.execute(
+                "SELECT rowid AS _rowid, * FROM weekly_ai_briefs "
+                "ORDER BY created_at DESC, rowid DESC LIMIT 13"
             ).fetchall()
             history: list[dict[str, object]] = []
-            for hrow in history_rows:
+            for h_idx, hrow in enumerate(ordered_rows[:12]):
                 try:
-                    hf = json.loads(str(hrow["funnel_stats_json"]))
+                    hf_raw = json.loads(str(hrow["funnel_stats_json"]))
                 except ValueError:
-                    hf = {}
+                    hf_raw = {}
+                hf = self._sanitize_stored_funnel_stats(
+                    hf_raw,
+                    live_funnel=funnel_stats if h_idx == 0 else None,
+                )
                 history.append(
                     {
                         "brief_id": str(hrow["brief_id"]),
@@ -3760,44 +4024,54 @@ class WorkspaceIntelligenceHub:
                         "created_at": str(hrow["created_at"]),
                         "provider": str(hrow["provider"]),
                         "model": str(hrow["model"]),
-                        "must_watch_count": (
-                            int(hf.get("must_watch_count", 0))
-                            if isinstance(hf, dict)
-                            else 0
-                        ),
-                        "distilled_count": (
-                            int(hf.get("distilled_count", 0))
-                            if isinstance(hf, dict)
-                            else 0
-                        ),
-                        "total_videos": (
-                            int(hf.get("total_videos", 0))
-                            if isinstance(hf, dict)
-                            else 0
-                        ),
+                        "must_watch_count": hf["must_watch_count"],
+                        "distilled_count": hf["distilled_count"],
+                        "total_videos": hf["total_videos"],
                     }
                 )
             clean_req_id = brief_id.strip() if isinstance(brief_id, str) else ""
+            row: sqlite3.Row | None = None
+            prev_row: sqlite3.Row | None = None
             if clean_req_id:
-                row = conn.execute(
-                    "SELECT * FROM weekly_ai_briefs WHERE brief_id = ?",
-                    (clean_req_id,),
-                ).fetchone()
+                for idx, cand_row in enumerate(ordered_rows):
+                    if str(cand_row["brief_id"]) == clean_req_id:
+                        row = cand_row
+                        if idx + 1 < len(ordered_rows):
+                            prev_row = ordered_rows[idx + 1]
+                        break
                 if row is None:
-                    raise ApiError(
-                        HTTPStatus.NOT_FOUND, "NOT_FOUND", "未找到指定期次的周报存档。"
-                    )
-            else:
-                row = conn.execute(
-                    "SELECT * FROM weekly_ai_briefs ORDER BY created_at DESC, rowid DESC LIMIT 1"
-                ).fetchone()
+                    row = conn.execute(
+                        "SELECT rowid AS _rowid, * FROM weekly_ai_briefs WHERE brief_id = ?",
+                        (clean_req_id,),
+                    ).fetchone()
+                    if row is None:
+                        raise ApiError(
+                            HTTPStatus.NOT_FOUND, "NOT_FOUND", "未找到指定期次的周报存档。"
+                        )
+                if prev_row is None:
+                    prev_row = conn.execute(
+                        "SELECT rowid AS _rowid, * FROM weekly_ai_briefs "
+                        "WHERE created_at < ? OR (created_at = ? AND rowid < ?) "
+                        "ORDER BY created_at DESC, rowid DESC LIMIT 1",
+                        (
+                            str(row["created_at"]),
+                            str(row["created_at"]),
+                            int(row["_rowid"]),
+                        ),
+                    ).fetchone()
+            elif ordered_rows:
+                row = ordered_rows[0]
+                if len(ordered_rows) > 1:
+                    prev_row = ordered_rows[1]
             if row is None:
                 return {
                     "weekly_brief": None,
                     "funnel_stats": funnel_stats,
                     "history": [],
                 }
-            latest_brief_id = str(history[0]["brief_id"]) if history else str(row["brief_id"])
+            latest_brief_id = (
+                str(history[0]["brief_id"]) if history else str(row["brief_id"])
+            )
             row_brief_id = str(row["brief_id"])
             row_created_at = str(row["created_at"])
             is_archive = bool(clean_req_id and row_brief_id != latest_brief_id)
@@ -3806,6 +4080,33 @@ class WorkspaceIntelligenceHub:
                 brief_created_at=row_created_at,
                 is_archive=is_archive,
             )
+            try:
+                cur_raw_funnel = json.loads(str(row["funnel_stats_json"]))
+            except ValueError:
+                cur_raw_funnel = {}
+            cur_sanitized_funnel = self._sanitize_stored_funnel_stats(
+                cur_raw_funnel,
+                live_funnel=(
+                    funnel_stats
+                    if (not is_archive and not bool(freshness["is_stale"]))
+                    else None
+                ),
+            )
+            delta: dict[str, object] | None = None
+            if prev_row is not None:
+                try:
+                    prev_raw_funnel = json.loads(str(prev_row["funnel_stats_json"]))
+                except ValueError:
+                    prev_raw_funnel = {}
+                prev_sanitized_funnel = self._sanitize_stored_funnel_stats(
+                    prev_raw_funnel, live_funnel=None
+                )
+                delta = self._compute_weekly_brief_delta(
+                    row,
+                    prev_row,
+                    cur_funnel=cur_sanitized_funnel,
+                    prev_funnel=prev_sanitized_funnel,
+                )
             top_shifts = json.loads(str(row["top_shifts_json"]))
             prod_opps = json.loads(str(row["product_opportunities_json"]))
             biz_monetization = json.loads(str(row["business_monetization_json"]))
@@ -3834,13 +4135,14 @@ class WorkspaceIntelligenceHub:
                     "business_opportunities_zh": list(biz_monetization),
                     "business_monetization_zh": biz_monetization,
                     "must_watch_picks": hydrated_picks,
-                    "funnel_stats": json.loads(str(row["funnel_stats_json"])),
+                    "funnel_stats": cur_sanitized_funnel,
                     "provider": str(row["provider"]),
                     "model": str(row["model"]),
                     "obsidian_markdown": str(row["obsidian_markdown"]),
                     "created_at": row_created_at,
                     "history": history,
                     "freshness": freshness,
+                    "delta": delta,
                 },
                 "funnel_stats": funnel_stats,
                 "history": history,
