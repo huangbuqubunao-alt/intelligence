@@ -338,6 +338,7 @@ class _RequestSnapshotContext:
         *,
         videos_by_id: dict[str, VideoRecord] | None = None,
         verified_source_memo: dict[tuple[object, ...], dict[str, Any] | None] | None = None,
+        memo_lock: threading.Lock | None = None,
     ) -> None:
         self.inner = inner
         self.repo = inner._repository
@@ -348,6 +349,7 @@ class _RequestSnapshotContext:
         self._verified_source_memo = (
             {} if verified_source_memo is None else verified_source_memo
         )
+        self._memo_lock = memo_lock
         self._sources: tuple[SourceSubscriptionRecord, ...] | None = None
         self._runs: tuple[SourceRunRecord, ...] | None = None
         self._runs_by_source: dict[str, list[SourceRunRecord]] | None = None
@@ -985,11 +987,21 @@ class _RequestSnapshotContext:
                         None if art_row is None else tuple(art_row),
                         media_token,
                     )
-                    if memo_key in self._verified_source_memo:
+                    if self._memo_lock is not None:
+                        with self._memo_lock:
+                            if memo_key in self._verified_source_memo:
+                                return self._verified_source_memo[memo_key]
+                    elif memo_key in self._verified_source_memo:
                         return self._verified_source_memo[memo_key]
                     raw_verified = verify_source(snap_repo_typed, self.conn, content_id)
                     cached_val = None if raw_verified is None else dict(raw_verified)
-                    self._verified_source_memo[memo_key] = cached_val
+                    if self._memo_lock is not None:
+                        with self._memo_lock:
+                            if len(self._verified_source_memo) > 512:
+                                self._verified_source_memo.clear()
+                            self._verified_source_memo[memo_key] = cached_val
+                    else:
+                        self._verified_source_memo[memo_key] = cached_val
                     return cached_val
         raw_res = verify_source(snap_repo_typed, self.conn, content_id)
         return None if raw_res is None else dict(raw_res)
@@ -1128,14 +1140,17 @@ class FastReadApiApplication:
         li_adm = None if li_settings is None else li_settings.admission_allowed()
         tx_jobs = self._inner._transcription_jobs
         tx_states: list[tuple[str, str]] = []
-        if tx_jobs is not None and self._local_av_ids:
-            for vid in self._local_av_ids:
+        with self._cache_lock:
+            local_av_ids = self._local_av_ids
+            mutation_epoch = self._mutation_epoch
+        if tx_jobs is not None and local_av_ids:
+            for vid in local_av_ids:
                 try:
                     tx_states.append((vid, str(tx_jobs.status(vid)["status"])))
                 except OfflineError as err:
                     tx_states.append((vid, f"OFFLINE:{err.code}"))
         return (
-            self._mutation_epoch,
+            mutation_epoch,
             db_token,
             hub_token,
             data_token,
@@ -1521,6 +1536,7 @@ class FastReadApiApplication:
                     conn,
                     videos_by_id=videos_by_id,
                     verified_source_memo=self._verified_source_memo,
+                    memo_lock=self._cache_lock,
                 )
                 shared_da: tuple[str, str | None] | None = None
                 da_service = self._inner._deep_analysis_service
@@ -1537,12 +1553,14 @@ class FastReadApiApplication:
                     )
                     for video in videos
                 ]
-                self._local_av_ids = tuple(
+                next_local_av_ids = tuple(
                     str(item["video_id"])
                     for item in projected
                     if item.get("provider") == "LOCAL"
                     and item.get("media_kind") in {"AUDIO", "VIDEO"}
                 )
+                with self._cache_lock:
+                    self._local_av_ids = next_local_av_ids
                 briefs_map = self._workspace_hub.get_video_briefs_map()
                 if briefs_map:
                     projected = [
@@ -1764,6 +1782,7 @@ class FastReadApiApplication:
                     self._inner,
                     conn,
                     verified_source_memo=self._verified_source_memo,
+                    memo_lock=self._cache_lock,
                 )
                 video = ctx.snap_repo.get_video(video_id)
                 if video is None:
