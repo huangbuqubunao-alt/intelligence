@@ -2747,3 +2747,170 @@ def test_round8_weekly_delta_shifts_markdown_and_topic_channel_breakdown(
         assert "本期新产品切口" in all_weekly_md
 
 
+def test_round9_research_session_pin_delete_backup_and_vault_zip_ordering(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import base64
+    import io
+    import zipfile
+
+    env = _build_env(tmp_path, monkeypatch)
+    fast_app: Any = env["fast_app"]
+    repo: SQLiteStateRepository = env["repo"]
+    hub: WorkspaceIntelligenceHub = env["hub"]
+    source_openai_id: str = env["source"].source_id
+
+    clock = [NOW]
+    hub._now = lambda: clock[0]
+
+    _seed_youtube_video(
+        repo,
+        env["data_root"],
+        source_id=source_openai_id,
+        video_id="vidR9Open01",
+        channel_id="UC1111111111111111111111",
+        channel_name="OpenAI",
+        title="Reliable Stateful Agent Architecture",
+        duration_seconds=2400,
+        cues=(
+            TimedTranscriptCueWrite(
+                start_ms=15000,
+                end_ms=42000,
+                text="Explicit state machines and deterministic evals prevent cascading agent failures.",
+            ),
+        ),
+        now=NOW - timedelta(hours=2),
+    )
+    fast_app.handle("POST", "/api/v1/workspace-ai/videos/vidR9Open01/distill", b"{}")
+
+    # Create 3 research Q&A sessions at ascending timestamps
+    clock[0] = NOW + timedelta(minutes=1)
+    _, res_q1 = fast_app.handle(
+        "POST",
+        "/api/v1/workspace-ai/research/ask",
+        json.dumps(
+            {
+                "question": "核心共识架构：Agent 状态机如何防崩溃？",
+                "channel_key": "OpenAI",
+            },
+            ensure_ascii=False,
+        ).encode("utf-8"),
+    )
+    q1_id = res_q1["session"]["session_id"]
+    assert res_q1["session"]["pinned"] is False
+    q1_scope_label = res_q1["session"]["scope_label_zh"]
+    assert "OpenAI" in q1_scope_label
+
+    clock[0] = NOW + timedelta(minutes=2)
+    _, res_q2 = fast_app.handle(
+        "POST",
+        "/api/v1/workspace-ai/research/ask",
+        json.dumps({"question": "临时实验测试提问 123"}, ensure_ascii=False).encode("utf-8"),
+    )
+    q2_id = res_q2["session"]["session_id"]
+
+    clock[0] = NOW + timedelta(minutes=3)
+    _, res_q3 = fast_app.handle(
+        "POST",
+        "/api/v1/workspace-ai/research/ask",
+        json.dumps({"question": "最新商业化定价模型拆解"}, ensure_ascii=False).encode("utf-8"),
+    )
+    q3_id = res_q3["session"]["session_id"]
+
+    # Initially chronological newest-first: [q3, q2, q1], all unpinned
+    _, init_list = fast_app.handle("GET", "/api/v1/workspace-ai/research/sessions")
+    assert [s["session_id"] for s in init_list["sessions"]] == [q3_id, q2_id, q1_id]
+    assert all(s["pinned"] is False for s in init_list["sessions"])
+
+    # Pin oldest session q1 -> floats to #1 while preserving scope_label_zh
+    pin_code, pin_body = fast_app.handle(
+        "POST",
+        f"/api/v1/workspace-ai/research/sessions/{q1_id}/pin",
+        json.dumps({"pinned": True}).encode("utf-8"),
+    )
+    assert pin_code == HTTPStatus.OK
+    assert pin_body["session"]["session_id"] == q1_id
+    assert pin_body["session"]["pinned"] is True
+    assert pin_body["session"]["scope_label_zh"] == q1_scope_label
+
+    _, pinned_list = fast_app.handle("GET", "/api/v1/workspace-ai/research/sessions")
+    assert [s["session_id"] for s in pinned_list["sessions"]] == [q1_id, q3_id, q2_id]
+    assert pinned_list["sessions"][0]["pinned"] is True
+    assert pinned_list["sessions"][0]["scope_label_zh"] == q1_scope_label
+
+    # Validation & missing-ID guards
+    nf_code, _ = fast_app.handle(
+        "POST",
+        "/api/v1/workspace-ai/research/sessions/qa-nonexistent/pin",
+        json.dumps({"pinned": True}).encode("utf-8"),
+    )
+    assert nf_code == HTTPStatus.NOT_FOUND
+    bad_code, _ = fast_app.handle(
+        "POST",
+        f"/api/v1/workspace-ai/research/sessions/{q1_id}/pin",
+        json.dumps({"pinned": "yes"}).encode("utf-8"),
+    )
+    assert bad_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+    # Zero-DDL backup & restore preserves pinned state inside scope_json
+    _, bk_snap = fast_app.handle("GET", "/api/v1/workspace-ai/backup")
+    (env["project_root"] / ".workspace-ai" / "hub.sqlite3").unlink()
+    rs_code, _ = fast_app.handle(
+        "POST", "/api/v1/workspace-ai/restore", json.dumps(bk_snap).encode("utf-8")
+    )
+    assert rs_code == HTTPStatus.OK
+    _, after_restore = fast_app.handle("GET", "/api/v1/workspace-ai/research/sessions")
+    assert [s["session_id"] for s in after_restore["sessions"]] == [q1_id, q3_id, q2_id]
+    assert after_restore["sessions"][0]["pinned"] is True
+
+    # Delete throwaway session q2 -> removed from list & Vault .zip; repeat delete -> 404
+    del_code, del_body = fast_app.handle(
+        "POST",
+        f"/api/v1/workspace-ai/research/sessions/{q2_id}/delete",
+        b"{}",
+    )
+    assert del_code == HTTPStatus.OK
+    assert del_body == {"deleted": True, "session_id": q2_id}
+
+    del_again_code, _ = fast_app.handle(
+        "DELETE",
+        f"/api/v1/workspace-ai/research/sessions/{q2_id}",
+        b"",
+    )
+    assert del_again_code == HTTPStatus.NOT_FOUND
+
+    _, after_del = fast_app.handle("GET", "/api/v1/workspace-ai/research/sessions")
+    assert [s["session_id"] for s in after_del["sessions"]] == [q1_id, q3_id]
+
+    # Vault .zip export places pinned q1 first with **[置顶]** marker and excludes deleted q2
+    _, bundle_res = fast_app.handle(
+        "GET", "/api/v1/workspace-ai/obsidian-bundle?scope=must_watch"
+    )
+    assert bundle_res["counts"]["research_sessions"] == 2
+    idx_md = bundle_res["index_markdown"]
+    assert "临时实验测试提问 123" not in idx_md
+    pos_q1 = idx_md.index("**[置顶]**")
+    assert "核心共识架构：Agent 状态机如何防崩溃？" in idx_md[pos_q1:]
+    pos_q3 = idx_md.index("最新商业化定价模型拆解")
+    assert pos_q1 < pos_q3
+    zip_bytes = base64.b64decode(bundle_res["archive_base64"])
+    with zipfile.ZipFile(io.BytesIO(zip_bytes), "r") as zf:
+        qa_files = sorted(
+            name for name in zf.namelist() if name.startswith("04-跨视频深度问答/")
+        )
+        assert len(qa_files) == 2
+        assert all("临时实验测试提问" not in name for name in qa_files)
+
+    # Unpin q1 -> chronological order [q3, q1] restored
+    unpin_code, unpin_body = fast_app.handle(
+        "POST",
+        f"/api/v1/workspace-ai/research/sessions/{q1_id}/pin",
+        json.dumps({"pinned": False}).encode("utf-8"),
+    )
+    assert unpin_code == HTTPStatus.OK
+    assert unpin_body["session"]["pinned"] is False
+    _, final_list = fast_app.handle("GET", "/api/v1/workspace-ai/research/sessions")
+    assert [s["session_id"] for s in final_list["sessions"]] == [q3_id, q1_id]
+
+
+

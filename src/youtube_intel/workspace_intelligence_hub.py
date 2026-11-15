@@ -3287,6 +3287,7 @@ class WorkspaceIntelligenceHub:
             finally:
                 conn.close()
 
+        self._write_rolling_snapshot_quietly(min_interval_sec=15.0)
         session_dto = {
             "session_id": session_id,
             "question": question,
@@ -3297,6 +3298,7 @@ class WorkspaceIntelligenceHub:
             "video_count": len(distinct_vids),
             "scope_label_zh": scope_label_zh,
             "scope": scope_meta,
+            "pinned": False,
             "provider": provider_label,
             "model": model_label,
             "obsidian_markdown": obsidian_md,
@@ -3304,49 +3306,52 @@ class WorkspaceIntelligenceHub:
         }
         return {"session": session_dto}
 
+    @staticmethod
+    def _row_to_research_session_dto(row: sqlite3.Row) -> dict[str, object]:
+        row_keys = set(row.keys())
+        raw_scope_json = (
+            str(row["scope_json"])
+            if "scope_json" in row_keys and row["scope_json"]
+            else "{}"
+        )
+        try:
+            parsed_scope = json.loads(raw_scope_json)
+            if not isinstance(parsed_scope, dict):
+                parsed_scope = {}
+        except ValueError:
+            parsed_scope = {}
+        scope_label_zh = str(parsed_scope.get("scope_label_zh") or "")
+        pinned = bool(parsed_scope.get("pinned", False))
+        return {
+            "session_id": str(row["session_id"]),
+            "question": str(row["question"]),
+            "answer_zh": str(row["answer_zh"]),
+            "key_takeaways_zh": json.loads(str(row["key_takeaways_json"])),
+            "action_items_zh": json.loads(str(row["action_items_json"])),
+            "citations": json.loads(str(row["citations_json"])),
+            "video_count": int(row["video_count"]),
+            "scope_label_zh": scope_label_zh,
+            "scope": parsed_scope,
+            "pinned": pinned,
+            "provider": str(row["provider"]),
+            "model": str(row["model"]),
+            "obsidian_markdown": str(row["obsidian_markdown"]),
+            "created_at": str(row["created_at"]),
+        }
+
     def list_research_sessions(self) -> dict[str, object]:
         conn = self._connect_read()
         sessions: list[dict[str, object]] = []
         if conn is not None:
             try:
                 rows = conn.execute(
-                    "SELECT * FROM research_qa_sessions ORDER BY created_at DESC LIMIT 30"
+                    "SELECT rowid AS _rowid, * FROM research_qa_sessions "
+                    "ORDER BY created_at DESC, rowid DESC"
                 ).fetchall()
                 for row in rows:
-                    row_keys = set(row.keys())
-                    raw_scope_json = (
-                        str(row["scope_json"])
-                        if "scope_json" in row_keys and row["scope_json"]
-                        else "{}"
-                    )
-                    try:
-                        parsed_scope = json.loads(raw_scope_json)
-                        if not isinstance(parsed_scope, dict):
-                            parsed_scope = {}
-                    except ValueError:
-                        parsed_scope = {}
-                    scope_label_zh = str(parsed_scope.get("scope_label_zh") or "")
-                    sessions.append(
-                        {
-                            "session_id": str(row["session_id"]),
-                            "question": str(row["question"]),
-                            "answer_zh": str(row["answer_zh"]),
-                            "key_takeaways_zh": json.loads(
-                                str(row["key_takeaways_json"])
-                            ),
-                            "action_items_zh": json.loads(
-                                str(row["action_items_json"])
-                            ),
-                            "citations": json.loads(str(row["citations_json"])),
-                            "video_count": int(row["video_count"]),
-                            "scope_label_zh": scope_label_zh,
-                            "scope": parsed_scope,
-                            "provider": str(row["provider"]),
-                            "model": str(row["model"]),
-                            "obsidian_markdown": str(row["obsidian_markdown"]),
-                            "created_at": str(row["created_at"]),
-                        }
-                    )
+                    sessions.append(self._row_to_research_session_dto(row))
+                sessions.sort(key=lambda item: not bool(item.get("pinned", False)))
+                sessions = sessions[:30]
             except sqlite3.Error:
                 sessions = []
             finally:
@@ -3356,6 +3361,92 @@ class WorkspaceIntelligenceHub:
             "suggested_questions": list(SUGGESTED_RESEARCH_QUESTIONS),
             "scope_options": self._build_research_scope_options(),
         }
+
+    def update_research_session_pin(
+        self, session_id: str, payload: Mapping[str, object]
+    ) -> dict[str, object]:
+        clean_id = session_id.strip()
+        if not clean_id:
+            raise ApiError(
+                HTTPStatus.NOT_FOUND, "NOT_FOUND", "Research session was not found."
+            )
+        if (
+            not isinstance(payload, Mapping)
+            or set(payload.keys()) != {"pinned"}
+            or type(payload.get("pinned")) is not bool
+        ):
+            raise ValueError("pinned boolean field is required.")
+        next_pinned = bool(payload["pinned"])
+
+        with self._db_lock:
+            conn = self._connect_write()
+            try:
+                with conn:
+                    existing = conn.execute(
+                        "SELECT * FROM research_qa_sessions WHERE session_id = ?",
+                        (clean_id,),
+                    ).fetchone()
+                    if existing is None:
+                        raise ApiError(
+                            HTTPStatus.NOT_FOUND,
+                            "NOT_FOUND",
+                            "Research session was not found.",
+                        )
+                    row_keys = set(existing.keys())
+                    raw_scope = (
+                        str(existing["scope_json"])
+                        if "scope_json" in row_keys and existing["scope_json"]
+                        else "{}"
+                    )
+                    try:
+                        scope_obj = json.loads(raw_scope)
+                        if not isinstance(scope_obj, dict):
+                            scope_obj = {}
+                    except ValueError:
+                        scope_obj = {}
+                    if next_pinned:
+                        scope_obj["pinned"] = True
+                    else:
+                        scope_obj.pop("pinned", None)
+                    conn.execute(
+                        "UPDATE research_qa_sessions SET scope_json = ? WHERE session_id = ?",
+                        (json.dumps(scope_obj, ensure_ascii=False), clean_id),
+                    )
+                    updated_row = conn.execute(
+                        "SELECT * FROM research_qa_sessions WHERE session_id = ?",
+                        (clean_id,),
+                    ).fetchone()
+                    assert updated_row is not None
+                    session_dto = self._row_to_research_session_dto(updated_row)
+            finally:
+                conn.close()
+        self._write_rolling_snapshot_quietly()
+        return {"session": session_dto}
+
+    def delete_research_session(self, session_id: str) -> dict[str, object]:
+        clean_id = session_id.strip()
+        if not clean_id:
+            raise ApiError(
+                HTTPStatus.NOT_FOUND, "NOT_FOUND", "Research session was not found."
+            )
+        with self._db_lock:
+            conn = self._connect_write()
+            try:
+                with conn:
+                    cur = conn.execute(
+                        "DELETE FROM research_qa_sessions WHERE session_id = ?",
+                        (clean_id,),
+                    )
+                    if cur.rowcount == 0:
+                        raise ApiError(
+                            HTTPStatus.NOT_FOUND,
+                            "NOT_FOUND",
+                            "Research session was not found.",
+                        )
+            finally:
+                conn.close()
+        self._write_rolling_snapshot_quietly()
+        return {"deleted": True, "session_id": clean_id}
 
     # ------------------------------------------------------------------
     # P2: Topic Chronological AI Evolution Enrichment
@@ -5051,7 +5142,7 @@ class WorkspaceIntelligenceHub:
         )
 
         weekly_rows: list[dict[str, str]] = []
-        qa_rows: list[dict[str, str]] = []
+        qa_rows: list[dict[str, Any]] = []
         live_funnel_stats = self._compute_funnel_stats(briefs_map)
         conn = self._connect_read()
         if conn is not None:
@@ -5119,19 +5210,35 @@ class WorkspaceIntelligenceHub:
                         }
                     )
                 for qrow in conn.execute(
-                    "SELECT session_id, question, created_at, obsidian_markdown "
-                    "FROM research_qa_sessions ORDER BY created_at DESC, session_id ASC LIMIT 50"
+                    "SELECT rowid AS _rowid, session_id, question, created_at, "
+                    "obsidian_markdown, scope_json "
+                    "FROM research_qa_sessions ORDER BY created_at DESC, rowid DESC"
                 ).fetchall():
                     md = str(qrow["obsidian_markdown"] or "").strip()
                     if md:
+                        q_keys = set(qrow.keys())
+                        raw_q_scope = (
+                            str(qrow["scope_json"])
+                            if "scope_json" in q_keys and qrow["scope_json"]
+                            else "{}"
+                        )
+                        try:
+                            parsed_q_scope = json.loads(raw_q_scope)
+                            if not isinstance(parsed_q_scope, dict):
+                                parsed_q_scope = {}
+                        except ValueError:
+                            parsed_q_scope = {}
                         qa_rows.append(
                             {
                                 "session_id": str(qrow["session_id"]),
                                 "question": str(qrow["question"]),
                                 "created_at": str(qrow["created_at"]),
+                                "pinned": bool(parsed_q_scope.get("pinned", False)),
                                 "markdown": md + "\n",
                             }
                         )
+                qa_rows.sort(key=lambda item: not bool(item.get("pinned", False)))
+                qa_rows = qa_rows[:50]
             except sqlite3.Error:
                 pass
             finally:
@@ -5202,14 +5309,15 @@ class WorkspaceIntelligenceHub:
 
         qa_links: list[str] = []
         for q_item in qa_rows:
-            q_date = q_item["created_at"][:10] or date_stamp
+            q_date = str(q_item["created_at"])[:10] or date_stamp
             q_path, q_stem = _alloc(
                 "04-跨视频深度问答",
-                f"{q_date} {q_item['question'][:72]}",
-                q_item["session_id"],
+                f"{q_date} {str(q_item['question'])[:72]}",
+                str(q_item["session_id"]),
             )
-            files_to_write.append((q_path, q_item["markdown"]))
-            qa_links.append(f"- [[{q_stem}]] — {q_item['question']}")
+            files_to_write.append((q_path, str(q_item["markdown"])))
+            pin_prefix = "**[置顶]** " if bool(q_item.get("pinned", False)) else ""
+            qa_links.append(f"- {pin_prefix}[[{q_stem}]] — {q_item['question']}")
 
         scope_label_map = {
             "must_watch": "必看精选干货",
