@@ -1472,6 +1472,22 @@ class FastReadApiApplication:
                     resp_payload = self._workspace_hub.enrich_topics_list_dto(resp_payload)
                 elif route.startswith("/api/v1/topics/"):
                     resp_payload = self._workspace_hub.enrich_topic_detail_dto(resp_payload)
+                elif (
+                    route.startswith("/api/v1/intelligence/")
+                    and "/" not in route[len("/api/v1/intelligence/") :]
+                    and isinstance(resp_payload.get("intelligence"), Mapping)
+                ):
+                    conn = self._inner._repository._connect(read_only=True)
+                    try:
+                        enriched_single = self._attach_linked_topics_to_intelligence(
+                            conn, [cast(Mapping[str, object], resp_payload["intelligence"])]
+                        )[0]
+                    finally:
+                        conn.close()
+                    resp_payload = {
+                        **resp_payload,
+                        "intelligence": enriched_single,
+                    }
                 elif route == "/api/v1/settings":
                     resp_payload = {
                         **resp_payload,
@@ -1738,15 +1754,69 @@ class FastReadApiApplication:
                                     }
                                 )
                                 seen.add(video.video_id)
-                if activity and self._workspace_hub.has_sidecar_db():
-                    activity = self._filter_superseded_intelligence_activity(
-                        conn, intelligence, activity
+                if self._workspace_hub.has_sidecar_db():
+                    intelligence = self._attach_linked_topics_to_intelligence(
+                        conn, intelligence
                     )
+                    if activity:
+                        activity = self._filter_superseded_intelligence_activity(
+                            conn, intelligence, activity
+                        )
                 return {"intelligence": intelligence, "activity": activity}
             finally:
                 conn.rollback()
         finally:
             conn.close()
+
+    def _attach_linked_topics_to_intelligence(
+        self,
+        conn: sqlite3.Connection,
+        items: Sequence[Mapping[str, object]],
+    ) -> list[dict[str, object]]:
+        available_ids = [
+            str(item["intelligence_id"])
+            for item in items
+            if item.get("status") == "AVAILABLE"
+            and item.get("trusted") is True
+            and isinstance(item.get("intelligence_id"), str)
+            and str(item["intelligence_id"]).strip()
+        ]
+        topics_by_intel: dict[str, list[dict[str, str]]] = {}
+        if available_ids:
+            placeholders = ",".join("?" for _ in available_ids)
+            rows = conn.execute(
+                f"SELECT tm.intelligence_id, t.topic_id, t.name "
+                f"FROM topic_memberships tm "
+                f"JOIN topics t ON t.topic_id = tm.topic_id "
+                f"WHERE tm.intelligence_id IN ({placeholders}) "
+                f"AND t.lifecycle = 'ACTIVE' "
+                f"ORDER BY t.pinned DESC, t.name ASC, t.topic_id ASC",
+                tuple(available_ids),
+            ).fetchall()
+            seen_pairs: set[tuple[str, str]] = set()
+            for row in rows:
+                intel_id = str(row[0])
+                topic_id = str(row[1])
+                topic_name = str(row[2])
+                if (intel_id, topic_id) in seen_pairs:
+                    continue
+                seen_pairs.add((intel_id, topic_id))
+                topics_by_intel.setdefault(intel_id, []).append(
+                    {"topic_id": topic_id, "name": topic_name}
+                )
+        enriched: list[dict[str, object]] = []
+        for item in items:
+            copied = dict(item)
+            if (
+                copied.get("status") == "AVAILABLE"
+                and copied.get("trusted") is True
+                and isinstance(copied.get("intelligence_id"), str)
+            ):
+                copied["linked_topics"] = topics_by_intel.get(
+                    str(copied["intelligence_id"]), []
+                )
+            enriched.append(copied)
+        return enriched
 
     def _filter_superseded_intelligence_activity(
         self,
