@@ -2913,4 +2913,70 @@ def test_round9_research_session_pin_delete_backup_and_vault_zip_ordering(
     assert [s["session_id"] for s in final_list["sessions"]] == [q3_id, q1_id]
 
 
+def test_round10_intelligence_list_and_detail_expose_linked_topics_when_sidecar_active(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    env = _build_env(tmp_path, monkeypatch)
+    fast_app: Any = env["fast_app"]
+    repo: SQLiteStateRepository = env["repo"]
+    source_openai_id: str = env["source"].source_id
+
+    _seed_youtube_video(
+        repo,
+        env["data_root"],
+        source_id=source_openai_id,
+        video_id="vidR10Open01",
+        channel_id="UC1111111111111111111111",
+        channel_name="OpenAI",
+        title="Stateful Multi-Agent Tool Contracts",
+        duration_seconds=2100,
+        cues=(
+            TimedTranscriptCueWrite(
+                start_ms=12000,
+                end_ms=36000,
+                text="Deterministic state machines and schema-validated tool contracts keep agent loops reliable.",
+            ),
+        ),
+        now=NOW - timedelta(hours=1),
+    )
+    distill_code, _ = fast_app.handle(
+        "POST", "/api/v1/workspace-ai/videos/vidR10Open01/distill", b"{}"
+    )
+    assert distill_code == HTTPStatus.OK
+
+    list_code, list_payload = fast_app.handle("GET", "/api/v1/intelligence")
+    assert list_code == HTTPStatus.OK
+    available = [
+        item
+        for item in list_payload["intelligence"]
+        if item.get("status") == "AVAILABLE" and item.get("trusted") is True
+    ]
+    assert len(available) == 1
+    intel_item = available[0]
+    intel_id = str(intel_item["intelligence_id"])
+
+    assert "linked_topics" in intel_item
+    assert len(intel_item["linked_topics"]) == 1
+    assert intel_item["linked_topics"][0]["name"] == "AI Agent 与自动化架构"
+    assert intel_item["linked_topics"][0]["topic_id"].startswith("topic:")
+
+    detail_code, detail_payload = fast_app.handle(
+        "GET", f"/api/v1/intelligence/{intel_id}"
+    )
+    assert detail_code == HTTPStatus.OK
+    assert detail_payload["intelligence"]["linked_topics"] == intel_item["linked_topics"]
+
+    # Without sidecar DB, /api/v1/intelligence preserves exact raw LocalApiApplication parity
+    sidecar_db = env["project_root"] / ".workspace-ai" / "hub.sqlite3"
+    sidecar_backup = sidecar_db.read_bytes()
+    sidecar_db.unlink()
+    try:
+        fast_app._bump_mutation_epoch()
+        _, raw_list = fast_app.handle("GET", "/api/v1/intelligence")
+        assert "linked_topics" not in raw_list["intelligence"][0]
+    finally:
+        sidecar_db.write_bytes(sidecar_backup)
+
+
+
 
