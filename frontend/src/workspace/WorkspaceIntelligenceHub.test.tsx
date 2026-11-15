@@ -2481,4 +2481,291 @@ describe("Workspace AI Upgrade (P0 + P1 + P2)", () => {
     fireEvent.keyDown(window, { key: "u" });
     await waitFor(() => expect(location.hash).toBe("#Content"));
   });
+
+  it("R6: renders Weekly Brief period-over-period delta diff, supports reversible batch mark-read in Content, and hands off starred shortlist to Research Q&A with honest NO_GROUNDED_CONTENT recovery", async () => {
+    location.hash = "#Home";
+    const starredIds = new Set<string>(["vid-r6-1"]);
+    const readIds = new Set<string>();
+    const batchCalls: Array<{ video_ids: string[]; is_read?: boolean; starred?: boolean }> = [];
+    const askCalls: Array<Record<string, unknown>> = [];
+    let failEmptyStarredOnce = true;
+
+    const buildVideos = () => [
+      {
+        video_id: "vid-r6-1",
+        provider: "YOUTUBE" as const,
+        channel_id: "UC-openai",
+        channel_name: "OpenAI",
+        title: "Eval Driven Agent Engineering",
+        source_url: "https://www.youtube.com/watch?v=vid-r6-1",
+        published_at: "2026-11-15T01:00:00Z",
+        processing_status: "READY",
+        duration_seconds: 1920,
+        last_updated: "2026-11-15T01:05:00Z",
+        ai_brief: {
+          video_id: "vid-r6-1",
+          source_basis: "TRANSCRIPT" as const,
+          headline_zh: "评测集驱动的 Agent 迭代闭环。",
+          summary_zh: "工程拆解。",
+          score: 9.3,
+          score_reason_zh: "高密度工程实战",
+          recommendation_tier: "MUST_WATCH" as const,
+          content_bucket: "DEEP_DIVE" as const,
+          is_short_noise: false,
+          starred: starredIds.has("vid-r6-1"),
+          is_read: readIds.has("vid-r6-1"),
+          topics_zh: ["Agent"],
+          topic_cluster_zh: "AI Agent 与自动化架构",
+          product_opportunities_zh: [],
+          business_opportunities_zh: [],
+        },
+      },
+      {
+        video_id: "vid-r6-2",
+        provider: "YOUTUBE" as const,
+        channel_id: "UC-greg",
+        channel_name: "Greg Isenberg",
+        title: "Outcome Pricing for Vertical AI",
+        source_url: "https://www.youtube.com/watch?v=vid-r6-2",
+        published_at: "2026-11-14T20:00:00Z",
+        processing_status: "READY",
+        duration_seconds: 1680,
+        last_updated: "2026-11-14T20:05:00Z",
+        ai_brief: {
+          video_id: "vid-r6-2",
+          source_basis: "TRANSCRIPT" as const,
+          headline_zh: "按交付结果阶梯定价提升续费率。",
+          summary_zh: "商业定价拆解。",
+          score: 8.9,
+          score_reason_zh: "商业闭环清晰",
+          recommendation_tier: "MUST_WATCH" as const,
+          content_bucket: "DEEP_DIVE" as const,
+          is_short_noise: false,
+          starred: starredIds.has("vid-r6-2"),
+          is_read: readIds.has("vid-r6-2"),
+          topics_zh: ["定价"],
+          topic_cluster_zh: "AI 产品机会与一人公司变现",
+          product_opportunities_zh: [],
+          business_opportunities_zh: [],
+        },
+      },
+    ];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string, init?: RequestInit) => {
+        if (input.endsWith("/dashboard")) {
+          return okJson({
+            intelligence: [],
+            saved_intelligence_ids: [],
+            pinned_topics: [],
+            needs_attention: [],
+            operations: { source_count: 2 },
+            workspace_weekly_brief: {
+              brief_id: "wb-r6-latest",
+              title_zh: "《本周 AI 产品与商业情报周报》",
+              executive_summary_zh: "本期聚焦评测驱动 Agent 与按结果定价。",
+              core_trends_zh: ["评测先行成为生产级共识"],
+              product_opportunities_zh: ["自动化回归评测沙箱"],
+              business_opportunities_zh: ["按结果分成订阅"],
+              must_watch_picks: [
+                {
+                  video_id: "vid-r6-1",
+                  title: "Eval Driven Agent Engineering",
+                  channel_name: "OpenAI",
+                  score: 9.3,
+                  reason_zh: "评测集驱动闭环",
+                },
+              ],
+              funnel_stats: {
+                total_videos: 115,
+                distilled_count: 115,
+                must_watch_count: 31,
+                shorts_filtered_count: 79,
+              },
+              freshness: {
+                is_archive: false,
+                is_stale: false,
+                new_videos_count: 0,
+                new_must_watch_count: 0,
+                new_titles: [],
+              },
+              delta: {
+                previous_brief_id: "wb-r6-prev",
+                previous_created_at: "2026-11-13T10:00:00Z",
+                previous_title_zh: "《本周 AI 产品与商业情报周报》",
+                total_videos_delta: 13,
+                distilled_delta: 13,
+                must_watch_delta: 2,
+                new_picks: [
+                  {
+                    video_id: "vid-r6-1",
+                    title: "Eval Driven Agent Engineering",
+                    channel_name: "OpenAI",
+                    score: 9.3,
+                    headline_zh: "评测集驱动的 Agent 迭代闭环。",
+                  },
+                ],
+                new_shifts_zh: ["评测先行成为生产级共识"],
+                new_opportunities_zh: ["自动化回归评测沙箱"],
+                summary_zh: "较上期新增提炼 13 篇 · 新增 2 篇必看干货 · 1 篇新晋必看上榜",
+              },
+              obsidian_markdown: "# 周报",
+              provider: "local_ollama",
+              model: "qwen2.5:7b",
+              created_at: "2026-11-15T01:00:00Z",
+            },
+          });
+        }
+        if (input.endsWith("/delta")) {
+          return okJson({ delta: { since: null, items: [] } });
+        }
+        if (input.endsWith("/workspace-ai/curation/batch") && init?.method === "POST") {
+          const body = JSON.parse(String(init.body)) as {
+            video_ids: string[];
+            is_read?: boolean;
+            starred?: boolean;
+          };
+          batchCalls.push(body);
+          for (const vid of body.video_ids) {
+            if (typeof body.is_read === "boolean") {
+              if (body.is_read) readIds.add(vid);
+              else readIds.delete(vid);
+            }
+            if (typeof body.starred === "boolean") {
+              if (body.starred) starredIds.add(vid);
+              else starredIds.delete(vid);
+            }
+          }
+          return okJson({ updated_count: body.video_ids.length, items: [] });
+        }
+        if (input.endsWith("/videos")) {
+          return okJson({ videos: buildVideos() });
+        }
+        if (input.endsWith("/workspace-ai/research/sessions")) {
+          return okJson({
+            sessions: [],
+            suggested_questions: ["已收藏视频有哪些共识？"],
+            scope_options: {
+              starred_count: starredIds.size,
+              channels: [{ key: "OpenAI", label: "OpenAI", video_count: 29 }],
+              topic_clusters: [{ name: "AI Agent 与自动化架构", video_count: 14 }],
+              videos: buildVideos().map((v) => ({
+                video_id: v.video_id,
+                title: v.title,
+                channel_name: v.channel_name,
+                score: v.ai_brief.score,
+                starred: v.ai_brief.starred,
+                topic_cluster_zh: v.ai_brief.topic_cluster_zh,
+              })),
+            },
+          });
+        }
+        if (input.endsWith("/workspace-ai/research/ask") && init?.method === "POST") {
+          const parsed = JSON.parse(String(init.body)) as Record<string, unknown>;
+          askCalls.push(parsed);
+          if (failEmptyStarredOnce) {
+            failEmptyStarredOnce = false;
+            return new Response(
+              JSON.stringify({
+                error: {
+                  code: "NO_GROUNDED_CONTENT",
+                  message: "当前筛选范围内没有可用于跨视频溯源问答的已转写内容。",
+                },
+              }),
+              { status: 409, headers: { "Content-Type": "application/json" } },
+            );
+          }
+          return okJson({
+            session: {
+              session_id: "qa-r6-starred",
+              question: String(parsed.question),
+              scope_label_zh: "仅限已收藏（1 篇）",
+              answer_zh: "已收藏的 OpenAI 视频强调评测集先行 [E1]。",
+              key_takeaways_zh: ["先建离线评测再扩工具链"],
+              action_items_zh: ["落地最小评测集"],
+              citations: [
+                {
+                  ref_label: "E1",
+                  video_id: "vid-r6-1",
+                  video_title: "Eval Driven Agent Engineering",
+                  channel_name: "OpenAI",
+                  evidence_id: "ev-r6-1",
+                  start_ms: 5000,
+                  end_ms: 15000,
+                  timestamp_label: "00:05",
+                  excerpt: "Deterministic eval harnesses keep agent releases safe.",
+                },
+              ],
+              obsidian_markdown: "# 已收藏问答",
+              provider: "local_ollama",
+              model: "qwen2.5:7b",
+              created_at: "2026-11-15T01:10:00Z",
+            },
+          });
+        }
+        if (input.endsWith("/research")) {
+          return okJson({ research: [], total: 0, offset: 0, limit: 25 });
+        }
+        return okJson({});
+      }),
+    );
+
+    render(<App />);
+
+    // 1) Home Weekly Brief shows accurate 31 must-watch count + Period-over-Period Delta strip
+    expect(await screen.findByText(/精选 31 条必看干货/)).toBeTruthy();
+    const deltaRegion = screen.getByRole("region", { name: "较上期周报演进对比" });
+    expect(within(deltaRegion).getByText(/较上期新增提炼 13 篇/)).toBeTruthy();
+    expect(
+      within(deltaRegion).getByRole("button", { name: /Eval Driven Agent Engineering/ }),
+    ).toBeTruthy();
+
+    // 2) Navigate to #Content -> batch mark current list read (2) + reversible 1-click Undo
+    fireEvent.click(screen.getByRole("button", { name: "内容" }));
+    const batchReadBtn = await screen.findByRole("button", { name: /当前列表标已读.*2/ });
+    fireEvent.click(batchReadBtn);
+
+    await waitFor(() =>
+      expect(batchCalls).toContainEqual({
+        video_ids: ["vid-r6-1", "vid-r6-2"],
+        is_read: true,
+      }),
+    );
+    const undoBtn = await screen.findByRole("button", { name: "撤销" });
+    fireEvent.click(undoBtn);
+    await waitFor(() =>
+      expect(batchCalls).toContainEqual({
+        video_ids: ["vid-r6-1", "vid-r6-2"],
+        is_read: false,
+      }),
+    );
+
+    // 3) 1-click handoff from #Content starred shortlist -> #Research with starred_only=true
+    const askStarredBtn = await screen.findByRole("button", { name: /针对已收藏提问.*1/ });
+    fireEvent.click(askStarredBtn);
+    await waitFor(() => expect(location.hash).toBe("#Research"));
+
+    // Verify backend video_count (29) is parsed on source chips & starred chip is active
+    expect(await screen.findByRole("button", { name: "OpenAI (29)" })).toBeTruthy();
+    const starredScopeChip = screen.getByRole("button", { name: /仅限已收藏.*1/ });
+    expect(starredScopeChip.getAttribute("aria-pressed")).toBe("true");
+
+    // First submit triggers 409 NO_GROUNDED_CONTENT -> shows honest scope guidance (NOT Ollama error)
+    const qInput = screen.getByLabelText("跨视频提问");
+    fireEvent.change(qInput, { target: { value: "提炼已收藏内容的核心工程建议" } });
+    fireEvent.click(screen.getByRole("button", { name: "AI 提问" }));
+
+    expect(await screen.findByText(/当前已收藏清单中暂无带时间轴字幕的内容/)).toBeTruthy();
+    expect(screen.queryByText(/请检查本机 Ollama/)).toBeNull();
+    expect(askCalls[0]).toMatchObject({
+      question: "提炼已收藏内容的核心工程建议",
+      starred_only: true,
+    });
+
+    // Retry succeeds and renders grounded answer scoped to starred shortlist
+    fireEvent.click(screen.getByRole("button", { name: "AI 提问" }));
+    expect(await screen.findByText("仅限已收藏（1 篇）")).toBeTruthy();
+    expect(screen.getByText(/已收藏的 OpenAI 视频强调评测集先行/)).toBeTruthy();
+  });
 });
