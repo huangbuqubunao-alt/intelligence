@@ -1450,6 +1450,13 @@ class FastReadApiApplication:
                         **resp_payload,
                         "workspace_ai": self._workspace_hub.get_settings(),
                     }
+                elif route == "/api/v1/sources":
+                    resp_payload = {
+                        **resp_payload,
+                        "ai_signal_by_source": self._workspace_hub.compute_source_ai_signals(
+                            resp_payload.get("sources")
+                        ),
+                    }
             return status_code, resp_payload
         finally:
             if method not in {"GET", "HEAD"}:
