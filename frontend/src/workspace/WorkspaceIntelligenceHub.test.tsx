@@ -3243,4 +3243,485 @@ describe("Workspace AI Upgrade (P0 + P1 + P2)", () => {
       video_ids: ["vid-local-1", "vid-local-2"],
     });
   });
+
+  it("R8: renders Weekly Brief delta shifts when picks unchanged, links Topic channel breakdown & detail [[topic]] tag into Content filters, and indexes AI Q&A sessions + channels in Cmd+K", async () => {
+    location.hash = "#Home";
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string) => {
+        if (input.endsWith("/dashboard")) {
+          return okJson({
+            intelligence: [],
+            pinned_topics: [],
+            needs_attention: [],
+            operations: { source_count: 2 },
+            workspace_weekly_brief: {
+              brief_id: "wb-r8-latest",
+              week_label: "2026-W46",
+              title_zh: "《本周 AI 产品与商业情报周报》",
+              executive_summary_zh: "本周核心演进聚焦于长周期自主智能体与安全验证闭环。",
+              core_trends_zh: ["从‘工具’到‘员工’：长周期自主执行成为核心壁垒"],
+              product_opportunities_zh: ["长周期任务监控与自愈平台"],
+              business_opportunities_zh: ["按节省工时订阅收费"],
+              must_watch_picks: [
+                {
+                  video_id: "vid-openai-1",
+                  title: "OpenAI Cyber Security Harness",
+                  channel_name: "OpenAI",
+                  score: 9.2,
+                  reason_zh: "详解自动化漏洞定位与补丁回归验证。",
+                },
+              ],
+              funnel_stats: {
+                total_videos: 115,
+                distilled_count: 115,
+                must_watch_count: 31,
+                shorts_filtered_count: 79,
+              },
+              delta: {
+                previous_brief_id: "wb-r8-prev",
+                previous_created_at: "2026-11-13T15:15:01Z",
+                previous_title_zh: "《上周情报周报》",
+                total_videos_delta: 3,
+                distilled_delta: 13,
+                must_watch_delta: 1,
+                new_picks: [],
+                new_shifts_zh: [
+                  "从‘工具’到‘员工’：长周期自主执行成为核心壁垒",
+                  "安全工程范式转移：从人工审计到‘漏洞即代码’自动闭环",
+                ],
+                new_opportunities_zh: ["长周期任务监控平台"],
+                summary_zh: "较上期新增提炼 13 篇 · 新增 1 篇必看干货 · 2 项新趋势风向",
+              },
+              obsidian_markdown:
+                "# 《本周 AI 产品与商业情报周报》\n\n> **较上期演进对比**：2 项新趋势风向\n> - **本期新趋势风向**：从‘工具’到‘员工’：长周期自主执行成为核心壁垒",
+              provider: "ollama",
+              model: "qwen3.5:9b",
+              created_at: "2026-11-14T16:44:06Z",
+            },
+          });
+        }
+        if (input.endsWith("/knowledge-delta")) {
+          return okJson({
+            knowledge_delta: {
+              window_start: "2026-11-08T00:00:00Z",
+              window_end: "2026-11-15T00:00:00Z",
+              timezone: "Asia/Shanghai",
+              status: "available",
+              detail_limit: 2,
+              categories: [],
+            },
+          });
+        }
+        if (input.endsWith("/videos")) {
+          return okJson({
+            videos: [
+              {
+                video_id: "vid-openai-1",
+                provider: "YOUTUBE",
+                channel_id: "UC-openai",
+                channel_name: "OpenAI",
+                title: "OpenAI Cyber Security Harness",
+                source_url: "https://www.youtube.com/watch?v=vid-openai-1",
+                published_at: "2026-11-14T10:00:00Z",
+                processing_status: "READY",
+                duration_seconds: 1800,
+                last_updated: "2026-11-14T10:05:00Z",
+                ai_brief: {
+                  video_id: "vid-openai-1",
+                  source_basis: "TRANSCRIPT",
+                  headline_zh: "自动化回归沙箱让漏洞修复具备确定性闭环。",
+                  summary_zh: "详解自动化安全验证。",
+                  score: 9.2,
+                  score_reason_zh: "工程密度极高",
+                  recommendation_tier: "MUST_WATCH",
+                  content_bucket: "DEEP_DIVE",
+                  is_short_noise: false,
+                  starred: false,
+                  is_read: false,
+                  topics_zh: ["安全自动化"],
+                  topic_cluster_zh: "AI Agent 与自动化架构",
+                  product_opportunities_zh: [],
+                  business_opportunities_zh: [],
+                },
+              },
+              {
+                video_id: "vid-greg-agent",
+                provider: "YOUTUBE",
+                channel_id: "UC-greg",
+                channel_name: "Greg Isenberg",
+                title: "Building Vertical AI Agent Agencies",
+                source_url: "https://www.youtube.com/watch?v=vid-greg-agent",
+                published_at: "2026-11-14T08:00:00Z",
+                processing_status: "READY",
+                duration_seconds: 2100,
+                last_updated: "2026-11-14T08:05:00Z",
+                ai_brief: {
+                  video_id: "vid-greg-agent",
+                  source_basis: "TRANSCRIPT",
+                  headline_zh: "围绕垂直诊所与律所封装标准化虚拟员工。",
+                  summary_zh: "拆解一人公司 Agent 交付。",
+                  score: 8.8,
+                  score_reason_zh: "商业切口清晰",
+                  recommendation_tier: "MUST_WATCH",
+                  content_bucket: "DEEP_DIVE",
+                  is_short_noise: false,
+                  starred: false,
+                  is_read: false,
+                  topics_zh: ["虚拟员工"],
+                  topic_cluster_zh: "AI Agent 与自动化架构",
+                  product_opportunities_zh: [],
+                  business_opportunities_zh: [],
+                },
+              },
+              {
+                video_id: "vid-greg-biz",
+                provider: "YOUTUBE",
+                channel_id: "UC-greg",
+                channel_name: "Greg Isenberg",
+                title: "Micro-SaaS Pricing Tiers",
+                source_url: "https://www.youtube.com/watch?v=vid-greg-biz",
+                published_at: "2026-11-13T08:00:00Z",
+                processing_status: "READY",
+                duration_seconds: 1650,
+                last_updated: "2026-11-13T08:05:00Z",
+                ai_brief: {
+                  video_id: "vid-greg-biz",
+                  source_basis: "TRANSCRIPT",
+                  headline_zh: "分层年费提升微 SaaS 现金流。",
+                  summary_zh: "拆解年费定价。",
+                  score: 8.5,
+                  score_reason_zh: "实操性强",
+                  recommendation_tier: "MUST_WATCH",
+                  content_bucket: "DEEP_DIVE",
+                  is_short_noise: false,
+                  starred: false,
+                  is_read: false,
+                  topics_zh: ["定价"],
+                  topic_cluster_zh: "AI 产品机会与一人公司变现",
+                  product_opportunities_zh: [],
+                  business_opportunities_zh: [],
+                },
+              },
+            ],
+          });
+        }
+        if (input.includes("/videos/vid-openai-1") && !input.endsWith("/evidence") && !input.endsWith("/deep-analysis")) {
+          return okJson({
+            video: {
+              video_id: "vid-openai-1",
+              provider: "YOUTUBE",
+              channel_id: "UC-openai",
+              channel_name: "OpenAI",
+              title: "OpenAI Cyber Security Harness",
+              source_url: "https://www.youtube.com/watch?v=vid-openai-1",
+              published_at: "2026-11-14T10:00:00Z",
+              processing_status: "READY",
+              duration_seconds: 1800,
+              last_updated: "2026-11-14T10:05:00Z",
+              ai_brief: {
+                video_id: "vid-openai-1",
+                source_basis: "TRANSCRIPT",
+                headline_zh: "自动化回归沙箱让漏洞修复具备确定性闭环。",
+                summary_zh: "详解自动化安全验证。",
+                score: 9.2,
+                score_reason_zh: "工程密度极高",
+                recommendation_tier: "MUST_WATCH",
+                content_bucket: "DEEP_DIVE",
+                is_short_noise: false,
+                starred: false,
+                is_read: false,
+                topics_zh: ["安全自动化"],
+                topic_cluster_zh: "AI Agent 与自动化架构",
+                product_opportunities_zh: ["CI 安全自动修复插件"],
+                business_opportunities_zh: [],
+              },
+            },
+            transcript: { status: "AVAILABLE", text: "Deterministic security verification." },
+            note: {
+              v2: {
+                status: "AVAILABLE",
+                method: "SOURCE_EXCERPTS",
+                summary: "Deterministic security verification.",
+                core_points: [],
+                timestamped_key_points: [],
+                evidence_references: [],
+              },
+            },
+            intelligence_result: {
+              status: "NOT_PROCESSED",
+              has_new_intelligence: false,
+              intelligence_id: null,
+              revision_id: null,
+              updated_at: "2026-11-14T10:05:00Z",
+            },
+            history: [],
+          });
+        }
+        if (input.endsWith("/evidence")) return okJson({ evidence: [] });
+        if (input.endsWith("/deep-analysis")) {
+          return okJson({
+            deep_analysis: {
+              status: {
+                availability: "NOT_QUALIFIED",
+                reason_code: "NO_QUALIFIED_MODEL",
+                reason: null,
+                route_id: null,
+                model_id: null,
+                provider_id: null,
+                qualified: false,
+                consent_required: false,
+              },
+              result: null,
+            },
+          });
+        }
+        if (input.endsWith("/intelligence")) return okJson({ intelligence: [] });
+        if (input.endsWith("/topics")) {
+          return okJson({
+            topics: [
+              {
+                topic_id: "topic-agent-r8",
+                name: "AI Agent 与自动化架构",
+                pinned: true,
+                lifecycle: "ACTIVE",
+                current_state: "CONFIRMED",
+                independence: "MULTI_SOURCE",
+                contributions: [],
+                timeline: [],
+                relations: [],
+                ai_evolution: {
+                  video_count: 26,
+                  must_watch_count: 21,
+                  unread_count: 20,
+                  recent_7d_count: 6,
+                  avg_score: 8.7,
+                  latest_headline_zh: "自动化回归沙箱让漏洞修复具备确定性闭环。",
+                  source_channels: ["OpenAI", "Greg Isenberg"],
+                  channel_breakdown: [
+                    {
+                      channel_key: "OpenAI",
+                      channel_label: "OpenAI",
+                      video_count: 18,
+                      must_watch_count: 15,
+                      unread_count: 14,
+                    },
+                    {
+                      channel_key: "Greg Isenberg",
+                      channel_label: "Greg Isenberg",
+                      video_count: 6,
+                      must_watch_count: 4,
+                      unread_count: 6,
+                    },
+                  ],
+                },
+              },
+            ],
+          });
+        }
+        if (input.endsWith("/topics/topic-agent-r8")) {
+          return okJson({
+            topic: {
+              topic_id: "topic-agent-r8",
+              name: "AI Agent 与自动化架构",
+              pinned: true,
+              lifecycle: "ACTIVE",
+              current_state: "CONFIRMED",
+              independence: "MULTI_SOURCE",
+              contributions: [],
+              timeline: [],
+              relations: [],
+              ai_evolution: {
+                video_count: 26,
+                must_watch_count: 21,
+                unread_count: 20,
+                recent_7d_count: 6,
+                avg_score: 8.7,
+                latest_headline_zh: "自动化回归沙箱让漏洞修复具备确定性闭环。",
+                synthesis_zh: "OpenAI 与 Greg Isenberg 一致聚焦可验证 Agent 工作流。",
+                source_channels: ["OpenAI", "Greg Isenberg"],
+                channel_breakdown: [
+                  {
+                    channel_key: "OpenAI",
+                    channel_label: "OpenAI",
+                    video_count: 18,
+                    must_watch_count: 15,
+                    unread_count: 14,
+                  },
+                  {
+                    channel_key: "Greg Isenberg",
+                    channel_label: "Greg Isenberg",
+                    video_count: 6,
+                    must_watch_count: 4,
+                    unread_count: 6,
+                  },
+                ],
+                obsidian_markdown: "# 专题知识索引（MOC）：[[AI Agent 与自动化架构]]",
+                entries: [
+                  {
+                    video_id: "vid-openai-1",
+                    title: "OpenAI Cyber Security Harness",
+                    channel_name: "OpenAI",
+                    published_at: "2026-11-14T10:00:00Z",
+                    score: 9.2,
+                    recommendation_tier: "MUST_WATCH",
+                    source_basis: "TRANSCRIPT",
+                    headline_zh: "自动化回归沙箱让漏洞修复具备确定性闭环。",
+                    summary_zh: "详解自动化安全验证。",
+                    product_opportunities_zh: [],
+                    business_opportunities_zh: [],
+                  },
+                ],
+              },
+            },
+          });
+        }
+        if (input.endsWith("/workspace-ai/research/sessions")) {
+          return okJson({
+            sessions: [
+              {
+                session_id: "qa-r8-first",
+                question: "本地实战课里关于 AI Agent 工程落地最核心的建议是什么？",
+                scope_label_zh: "对比 2 条指定视频",
+                video_count: 2,
+                answer_zh: "第一条默认会话答案：本地课强调状态机。",
+                key_takeaways_zh: [],
+                action_items_zh: [],
+                citations: [],
+                obsidian_markdown: "# Q1",
+                provider: "ollama",
+                model: "qwen3.5:9b",
+                created_at: "2026-11-15T01:00:00Z",
+              },
+              {
+                session_id: "qa-r8-mozilla",
+                question: "Mozilla 是如何用 GPT-6 Cyber 发现并修复 Firefox 漏洞的？",
+                scope_label_zh: "全库 36 条长视频",
+                video_count: 36,
+                answer_zh: "Mozilla 借助确定性复现沙箱自动验证 Firefox 内存漏洞补丁 [E1]。",
+                key_takeaways_zh: ["复现脚本先于补丁合并"],
+                action_items_zh: [],
+                citations: [
+                  {
+                    ref_label: "E1",
+                    video_id: "vid-openai-1",
+                    video_title: "OpenAI Cyber Security Harness",
+                    channel_name: "OpenAI",
+                    evidence_id: "ev-1",
+                    start_ms: 12000,
+                    end_ms: 20000,
+                    timestamp_label: "00:12",
+                    excerpt: "Deterministic reproduction harness.",
+                  },
+                ],
+                obsidian_markdown: "# Q2",
+                provider: "ollama",
+                model: "qwen3.5:9b",
+                created_at: "2026-11-14T20:00:00Z",
+              },
+            ],
+            suggested_questions: [],
+            scope_options: {
+              starred_count: 0,
+              channels: [
+                { key: "OpenAI", label: "OpenAI", count: 18 },
+                { key: "Greg Isenberg", label: "Greg Isenberg", count: 11 },
+              ],
+              topic_clusters: [
+                { name: "AI Agent 与自动化架构", count: 26 },
+                { name: "AI 产品机会与一人公司变现", count: 5 },
+              ],
+              videos: [],
+            },
+          });
+        }
+        if (input.endsWith("/research")) {
+          return okJson({ research: [], total: 0, offset: 0, limit: 25 });
+        }
+        return okJson({});
+      }),
+    );
+
+    render(<App />);
+
+    // 1) R8-1: #Home Weekly Brief delta strip renders concrete new trend shifts even when new_picks is empty
+    const deltaRegion = await screen.findByRole("region", { name: "较上期周报演进对比" });
+    expect(within(deltaRegion).getByText(/2 项新趋势风向/)).toBeTruthy();
+    expect(
+      within(deltaRegion).getByText("从‘工具’到‘员工’：长周期自主执行成为核心壁垒"),
+    ).toBeTruthy();
+    expect(
+      within(deltaRegion).getByText("安全工程范式转移：从人工审计到‘漏洞即代码’自动闭环"),
+    ).toBeTruthy();
+
+    // 2) R8-3: Cmd+K indexes saved Cross-Video AI Q&A sessions and jumps directly to the matched session
+    fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+    const cmdkDialog = await screen.findByRole("dialog", { name: /全局搜索与命令面板/ });
+    const cmdkInput = within(cmdkDialog).getByRole("combobox");
+    fireEvent.change(cmdkInput, { target: { value: "Mozilla" } });
+
+    const mozillaCmdkOption = await within(cmdkDialog).findByRole("option", {
+      name: /Mozilla 是如何用 GPT-6 Cyber 发现并修复 Firefox 漏洞的/,
+    });
+    fireEvent.click(mozillaCmdkOption);
+
+    await waitFor(() => expect(location.hash).toBe("#Research"));
+    expect(
+      await screen.findByText(/Mozilla 借助确定性复现沙箱自动验证 Firefox 内存漏洞补丁/),
+    ).toBeTruthy();
+
+    // 3) R8-3 + Clear filter bugfix: Cmd+K channel quick-filter jumps to #Content pre-filtered to Greg Isenberg
+    fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+    const cmdkDialog2 = await screen.findByRole("dialog", { name: /全局搜索与命令面板/ });
+    const cmdkInput2 = within(cmdkDialog2).getByRole("combobox");
+    fireEvent.change(cmdkInput2, { target: { value: "Greg Isenberg" } });
+
+    const gregFilterOpt = await within(cmdkDialog2).findByRole("option", {
+      name: /筛选频道干货：Greg Isenberg/,
+    });
+    fireEvent.click(gregFilterOpt);
+
+    await waitFor(() => expect(location.hash).toBe("#Content"));
+    const channelSelect = (await screen.findByLabelText("按频道筛选")) as HTMLSelectElement;
+    expect(channelSelect.value).toBe("Greg Isenberg");
+    expect(screen.getByText("Building Vertical AI Agent Agencies")).toBeTruthy();
+    expect(screen.queryByText("OpenAI Cyber Security Harness")).toBeNull();
+
+    // Verify "清空筛选" resets channelFilter as well!
+    const searchBox = screen.getByRole("searchbox", { name: /搜索内容库/ });
+    fireEvent.change(searchBox, { target: { value: "不存在的检索词xyz" } });
+    fireEvent.click(await screen.findByRole("button", { name: "清空筛选" }));
+    expect((screen.getByLabelText("按频道筛选") as HTMLSelectElement).value).toBe("ALL");
+    expect(screen.getByText("OpenAI Cyber Security Harness")).toBeTruthy();
+
+    // 4) R8-2: Open video detail -> click [[AI Agent 与自动化架构]] wikilink -> opens Topic MOC -> click Greg Isenberg channel breakdown chip -> filters #Content by BOTH Topic + Channel
+    fireEvent.click(screen.getByText("OpenAI Cyber Security Harness"));
+    await waitFor(() => expect(location.hash).toBe("#Content/vid-openai-1"));
+
+    const topicWikilinkBtn = await screen.findByRole("button", {
+      name: /\[\[AI Agent 与自动化架构\]\]/,
+    });
+    fireEvent.click(topicWikilinkBtn);
+
+    await waitFor(() => expect(location.hash).toBe("#Topics"));
+    expect(
+      await screen.findByText("OpenAI 与 Greg Isenberg 一致聚焦可验证 Agent 工作流。"),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: /在内容库筛选本专题 \(26\)/ })).toBeTruthy();
+
+    const gregBreakdownChip = screen.getByRole("button", {
+      name: /Greg Isenberg · 6 篇/,
+    });
+    fireEvent.click(gregBreakdownChip);
+
+    await waitFor(() => expect(location.hash).toBe("#Content"));
+    expect((await screen.findByLabelText("按专题筛选内容") as HTMLSelectElement).value).toBe(
+      "AI Agent 与自动化架构",
+    );
+    expect((screen.getByLabelText("按频道筛选") as HTMLSelectElement).value).toBe("Greg Isenberg");
+    expect(screen.getByText("Building Vertical AI Agent Agencies")).toBeTruthy();
+    expect(screen.queryByText("Micro-SaaS Pricing Tiers")).toBeNull();
+    expect(screen.queryByText("OpenAI Cyber Security Harness")).toBeNull();
+  });
 });

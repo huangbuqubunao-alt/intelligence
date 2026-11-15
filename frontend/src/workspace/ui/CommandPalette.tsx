@@ -143,7 +143,7 @@ export function commandScore(str: string, abbreviation: string, aliases: string[
 
 export type CommandPaletteAction = {
   id: string;
-  group: "navigation" | "actions" | "content" | "intelligence" | "topics";
+  group: "navigation" | "actions" | "content" | "research" | "intelligence" | "topics";
   label: string;
   subtitle?: string;
   shortcut?: string;
@@ -194,6 +194,23 @@ type PaletteTopic = {
   } | null;
 };
 
+type PaletteResearchSession = {
+  session_id: string;
+  question: string;
+  scope_label_zh?: string;
+  answer_zh?: string;
+  citations?: {
+    video_title?: string;
+    channel_name?: string;
+  }[];
+};
+
+type PaletteChannelScope = {
+  key: string;
+  label: string;
+  count: number;
+};
+
 export function CommandPalette({
   open,
   onClose,
@@ -201,6 +218,8 @@ export function CommandPalette({
   onOpenContent,
   onOpenIntelligence,
   onOpenTopic,
+  onOpenResearchSession,
+  onFilterContentByChannel,
 }: {
   open: boolean;
   onClose: () => void;
@@ -208,6 +227,8 @@ export function CommandPalette({
   onOpenContent: (videoId: string) => void;
   onOpenIntelligence: (intelligenceId: string) => void;
   onOpenTopic: (topicId: string) => void;
+  onOpenResearchSession?: (sessionId: string) => void;
+  onFilterContentByChannel?: (channelKey: string) => void;
 }) {
   const { language, t } = useUiLanguage();
   const zh = language === "zh-CN";
@@ -216,6 +237,8 @@ export function CommandPalette({
   const [videos, setVideos] = useState<PaletteVideo[]>([]);
   const [insights, setInsights] = useState<PaletteIntelligence[]>([]);
   const [topics, setTopics] = useState<PaletteTopic[]>([]);
+  const [qaSessions, setQaSessions] = useState<PaletteResearchSession[]>([]);
+  const [channelScopes, setChannelScopes] = useState<PaletteChannelScope[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -231,7 +254,11 @@ export function CommandPalette({
       api<{ videos?: PaletteVideo[] }>("/videos"),
       api<{ intelligence?: PaletteIntelligence[] }>("/intelligence"),
       api<{ topics?: PaletteTopic[] }>("/topics"),
-    ]).then(([vRes, iRes, tRes]) => {
+      api<{
+        sessions?: PaletteResearchSession[];
+        scope_options?: { channels?: PaletteChannelScope[] };
+      }>("/workspace-ai/research/sessions"),
+    ]).then(([vRes, iRes, tRes, rRes]) => {
       if (!alive) return;
       if (vRes.status === "fulfilled" && Array.isArray(vRes.value?.videos)) {
         const realVideos = vRes.value.videos.filter(
@@ -259,6 +286,39 @@ export function CommandPalette({
       }
       if (tRes.status === "fulfilled" && Array.isArray(tRes.value?.topics)) {
         setTopics(tRes.value.topics.slice(0, 50));
+      }
+      if (rRes.status === "fulfilled" && rRes.value && typeof rRes.value === "object") {
+        if (Array.isArray(rRes.value.sessions)) {
+          setQaSessions(
+            rRes.value.sessions
+              .filter(
+                (s) =>
+                  Boolean(s) &&
+                  typeof s.session_id === "string" &&
+                  s.session_id.trim().length > 0 &&
+                  typeof s.question === "string" &&
+                  s.question.trim().length > 0,
+              )
+              .slice(0, 40),
+          );
+        }
+        const rawChannels = rRes.value.scope_options?.channels;
+        if (Array.isArray(rawChannels)) {
+          setChannelScopes(
+            rawChannels
+              .filter(
+                (ch) =>
+                  Boolean(ch) &&
+                  typeof ch.key === "string" &&
+                  ch.key.trim().length > 0 &&
+                  typeof ch.label === "string" &&
+                  ch.label.trim().length > 0 &&
+                  typeof ch.count === "number" &&
+                  ch.count > 0,
+              )
+              .slice(0, 20),
+          );
+        }
       }
     });
     return () => {
@@ -347,8 +407,75 @@ export function CommandPalette({
       };
     });
 
-    return [...staticActions, ...dynamicContent, ...dynamicInsights, ...dynamicTopics];
-  }, [staticActions, videos, insights, topics, zh, t, onOpenContent, onOpenIntelligence, onOpenTopic]);
+    const dynamicChannelActions: CommandPaletteAction[] = onFilterContentByChannel
+      ? channelScopes.map((ch) => ({
+          id: `act:channel:${ch.key}`,
+          group: "actions",
+          label: zh ? `筛选频道干货：${ch.label}` : `Filter channel: ${ch.label}`,
+          subtitle: zh
+            ? `${ch.count} 篇长视频干货 · 在内容库中查看`
+            : `${ch.count} long-form items in Content`,
+          icon: "rss",
+          aliases: [ch.key, ch.label, "channel", "频道", "干货", "filter"],
+          rankBonus: 0.025,
+          onSelect: () => onFilterContentByChannel(ch.key),
+        }))
+      : [];
+
+    const dynamicResearch: CommandPaletteAction[] = onOpenResearchSession
+      ? qaSessions.map((session) => {
+          const citeCount = session.citations?.length ?? 0;
+          return {
+            id: `qa:${session.session_id}`,
+            group: "research",
+            label: session.question,
+            subtitle:
+              [
+                session.scope_label_zh,
+                citeCount > 0
+                  ? zh
+                    ? `${citeCount} 处时间轴引用`
+                    : `${citeCount} citations`
+                  : undefined,
+              ]
+                .filter(Boolean)
+                .join(" · ") || undefined,
+            icon: "quotes",
+            aliases: [
+              session.answer_zh?.slice(0, 140) ?? "",
+              ...(session.citations ?? []).map(
+                (c) => `${c.video_title ?? ""} ${c.channel_name ?? ""}`,
+              ),
+            ].filter(Boolean),
+            rankBonus: 0.02,
+            onSelect: () => onOpenResearchSession(session.session_id),
+          };
+        })
+      : [];
+
+    return [
+      ...staticActions,
+      ...dynamicChannelActions,
+      ...dynamicContent,
+      ...dynamicResearch,
+      ...dynamicInsights,
+      ...dynamicTopics,
+    ];
+  }, [
+    staticActions,
+    channelScopes,
+    videos,
+    qaSessions,
+    insights,
+    topics,
+    zh,
+    t,
+    onOpenContent,
+    onOpenIntelligence,
+    onOpenTopic,
+    onOpenResearchSession,
+    onFilterContentByChannel,
+  ]);
 
   const filteredItems = useMemo(() => {
     const trimmed = query.trim();
@@ -357,6 +484,7 @@ export function CommandPalette({
       return [
         ...staticActions,
         ...allItems.filter(item => item.group === "content").slice(0, 6),
+        ...allItems.filter(item => item.group === "research").slice(0, 3),
         ...allItems.filter(item => item.group === "intelligence").slice(0, 4),
         ...allItems.filter(item => item.group === "topics").slice(0, 4),
       ];
@@ -393,6 +521,7 @@ export function CommandPalette({
     navigation: t("Quick navigation"),
     actions: t("Quick actions"),
     content: t("Content library"),
+    research: zh ? "AI 深度问答存档" : "Saved AI Q&A",
     intelligence: t("Verified Intelligence"),
     topics: t("Topics"),
   };
@@ -401,6 +530,7 @@ export function CommandPalette({
     "navigation",
     "actions",
     "content",
+    "research",
     "intelligence",
     "topics",
   ];

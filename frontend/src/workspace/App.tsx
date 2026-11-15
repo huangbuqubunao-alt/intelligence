@@ -31,6 +31,8 @@ import { savedLanguage, UiLanguageProvider, useUiLanguage } from "./uiLanguage";
 import {
   AiScoreBadge,
   consumePendingContentChannel,
+  consumePendingContentTopic,
+  consumePendingTopicClusterName,
   exportObsidianVaultBundle,
   isKeyboardShortcutBlocked,
   readSourceAiSignalMap,
@@ -39,9 +41,12 @@ import {
   readWeeklyAiBrief,
   readWorkspaceAiSettings,
   setPendingContentChannel,
+  setPendingContentTopic,
   setPendingResearchChannel,
+  setPendingResearchSessionId,
   setPendingResearchStarredOnly,
   setPendingResearchTopicCluster,
+  setPendingTopicClusterName,
   TopicObsidianExportBar,
   VideoAiBrief,
   WeeklyAiBriefPanel,
@@ -1478,6 +1483,7 @@ function Workspace() {
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
   const [deltaTarget, setDeltaTarget] = useState<DeltaTarget | null>(null);
+  const [handoffSeq, setHandoffSeq] = useState(0);
   const [researchReturn, setResearchReturn] = useState<string | null>(null);
   const [researchEvidence, setResearchEvidence] = useState<string | null>(initialEvidenceTarget);
   useEffect(() => {
@@ -1603,7 +1609,7 @@ function Workspace() {
           }}>{t("Back to Research")}</button>}
         </header>
         <NativeImportActivity onOpen={openContent} errors={localImportErrors} routeKey={`${page}/${contentTarget ?? ""}`} modalOpen={addProvider !== null} />
-        {page === "Research" && <Research onOpen={(kind, id, evidenceId) => {
+        {page === "Research" && <Research handoffSeq={handoffSeq} onOpen={(kind, id, evidenceId) => {
           const returnTo = location.hash.slice(1);
           if (kind === "content") { openContent(id, evidenceId); }
           else openDelta({ kind: "intelligence", id });
@@ -1628,10 +1634,13 @@ function Workspace() {
             onAdd={setAddProvider}
             onBrowseChannelContent={(channelKey) => {
               setPendingContentChannel(channelKey);
+              setPendingContentTopic("ALL");
+              setHandoffSeq((value) => value + 1);
               navigate("Content");
             }}
             onAskChannelResearch={(channelKey) => {
               setPendingResearchChannel(channelKey);
+              setHandoffSeq((value) => value + 1);
               navigate("Research");
             }}
           />
@@ -1641,6 +1650,7 @@ function Workspace() {
             {imported && <p role="status" aria-live="polite">{t("File imported. Its processing status appears below.")}</p>}
             <ContentPage
               refresh={refresh}
+              handoffSeq={handoffSeq}
               targetVideoId={contentTarget}
               highlightedEvidenceId={researchEvidence}
               onOpen={openContent}
@@ -1648,7 +1658,13 @@ function Workspace() {
               onAdd={() => setAddProvider("YOUTUBE")}
               onAskStarredResearch={() => {
                 setPendingResearchStarredOnly(true);
+                setHandoffSeq((value) => value + 1);
                 navigate("Research");
+              }}
+              onSelectTopicCluster={(clusterName) => {
+                setPendingTopicClusterName(clusterName);
+                setHandoffSeq((value) => value + 1);
+                navigate("Topics");
               }}
             />
           </>
@@ -1661,11 +1677,19 @@ function Workspace() {
         {page === "Topics" && (
           <Topics
             refresh={refresh}
+            handoffSeq={handoffSeq}
             targetTopicId={deltaTarget?.kind === "topic" ? deltaTarget.id : null}
             onOpenContent={(id) => openContent(id)}
             onAskTopicResearch={(topicName) => {
               setPendingResearchTopicCluster(topicName);
+              setHandoffSeq((value) => value + 1);
               navigate("Research");
+            }}
+            onBrowseTopicContent={(topicName, channelKey) => {
+              setPendingContentTopic(topicName);
+              setPendingContentChannel(channelKey ?? "ALL");
+              setHandoffSeq((value) => value + 1);
+              navigate("Content");
             }}
           />
         )}
@@ -1729,6 +1753,17 @@ function Workspace() {
         onOpenContent={id => openContent(id)}
         onOpenIntelligence={id => openDelta({ kind: "intelligence", id })}
         onOpenTopic={id => openDelta({ kind: "topic", id })}
+        onOpenResearchSession={sessionId => {
+          setPendingResearchSessionId(sessionId);
+          setHandoffSeq(value => value + 1);
+          navigate("Research");
+        }}
+        onFilterContentByChannel={channelKey => {
+          setPendingContentChannel(channelKey);
+          setPendingContentTopic("ALL");
+          setHandoffSeq(value => value + 1);
+          navigate("Content");
+        }}
       />
       {addProvider !== null && <AddEntry initialLocal={addProvider === "LOCAL"} onClose={() => setAddProvider(null)} onSaved={() => { setAddProvider(null); setRefresh(value => value + 1); }} onImported={id => {
         setAddProvider(null); setRefresh(value => value + 1); setImported(true); openContent(id);
@@ -2156,20 +2191,24 @@ function contentItemChannelKeyAndLabel(
 function ContentPage(
   {
     refresh,
+    handoffSeq,
     targetVideoId,
     highlightedEvidenceId,
     onOpen,
     onClose,
     onAdd,
     onAskStarredResearch,
+    onSelectTopicCluster,
   }: {
     refresh: number;
+    handoffSeq?: number;
     targetVideoId?: string | null;
     highlightedEvidenceId?: string | null;
     onOpen: (id: string) => void;
     onClose: () => void;
     onAdd: () => void;
     onAskStarredResearch?: () => void;
+    onSelectTopicCluster?: (clusterName: string) => void;
   },
 ) {
   const { language, t } = useUiLanguage();
@@ -2179,10 +2218,18 @@ function ContentPage(
   const [bucketFilter, setBucketFilter] = useState<
     "ALL" | "UNREAD" | "MUST_WATCH" | "STARRED" | "TUTORIAL" | "SHORTS"
   >("ALL");
-  const [topicFilter, setTopicFilter] = useState<string>("ALL");
+  const [topicFilter, setTopicFilter] = useState<string>(
+    () => consumePendingContentTopic() || "ALL",
+  );
   const [channelFilter, setChannelFilter] = useState<string>(
     () => consumePendingContentChannel() || "ALL",
   );
+  useEffect(() => {
+    const nextChannel = consumePendingContentChannel();
+    if (nextChannel) setChannelFilter(nextChannel);
+    const nextTopic = consumePendingContentTopic();
+    if (nextTopic) setTopicFilter(nextTopic);
+  }, [handoffSeq]);
   const [kbActiveId, setKbActiveId] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const kbContextRef = useRef<{
@@ -2334,6 +2381,7 @@ function ContentPage(
           onOpen(nextId);
         }}
         onListChanged={() => setRevision((value) => value + 1)}
+        onSelectTopicCluster={onSelectTopicCluster}
       />
     );
   }
@@ -3131,7 +3179,17 @@ function ContentPage(
         ) : (
           <Empty>
             <p>{t("No Content matches your current search or filter.")}</p>
-            <button type="button" className="button button-secondary" onClick={() => { setSearchQuery(""); setProviderFilter("ALL"); setBucketFilter("ALL"); setTopicFilter("ALL"); }}>
+            <button
+              type="button"
+              className="button button-secondary"
+              onClick={() => {
+                setSearchQuery("");
+                setProviderFilter("ALL");
+                setBucketFilter("ALL");
+                setTopicFilter("ALL");
+                setChannelFilter("ALL");
+              }}
+            >
               {t("Clear filter")}
             </button>
           </Empty>
@@ -3468,6 +3526,7 @@ function ContentDetailPanel(
     nextUnreadVideo,
     onAdvanceToVideo,
     onListChanged,
+    onSelectTopicCluster,
   }: {
     id: string;
     highlightedEvidenceId?: string | null;
@@ -3475,6 +3534,7 @@ function ContentDetailPanel(
     nextUnreadVideo?: { videoId: string; title: string; remainingCount: number } | null;
     onAdvanceToVideo?: (nextId: string) => void;
     onListChanged?: () => void;
+    onSelectTopicCluster?: (clusterName: string) => void;
   },
 ) {
   const creatorCapability = useCreatorFollowingCapability();
@@ -3655,7 +3715,11 @@ function ContentDetailPanel(
       {isBilibili && data.video.processing_status !== "SOURCE_UNAVAILABLE" && <FollowCreatorFromContent id={id} capability={creatorCapability} />}
       {data.video.provider === "YOUTUBE" && data.video.channel_id && /^UC[A-Za-z0-9_-]{22}$/.test(data.video.channel_id) && <FollowCreatorFromContent id={id} provider="YOUTUBE" />}
       <Panel id="section-intelligence" icon="sparkle" title="Intelligence result">
-        <WorkspaceVideoAiBriefCard brief={aiBrief} obsidianMarkdown={data.obsidian_markdown} />
+        <WorkspaceVideoAiBriefCard
+          brief={aiBrief}
+          obsidianMarkdown={data.obsidian_markdown}
+          onSelectTopicCluster={onSelectTopicCluster}
+        />
         {(() => {
           const hasActiveLegacyExecution = Boolean(
             cloudWait ||
@@ -4624,19 +4688,44 @@ function ContentEvidencePanel(
 }
 function Topics({
   refresh,
+  handoffSeq,
   targetTopicId,
   onOpenContent,
   onAskTopicResearch,
+  onBrowseTopicContent,
 }: {
   refresh: number;
+  handoffSeq?: number;
   targetTopicId?: string | null;
   onOpenContent?: (videoId: string) => void;
   onAskTopicResearch?: (topicName: string) => void;
+  onBrowseTopicContent?: (topicName: string, channelKey?: string) => void;
 }) {
   const { language, t } = useUiLanguage();
   const zh = language === "zh-CN";
   const list = useRemote<{ topics: Topic[] }>("/topics", refresh, undefined, true, true);
   const [selected, setSelected] = useState<string | null>(targetTopicId ?? null);
+  const [pendingClusterName, setPendingClusterName] = useState(() =>
+    consumePendingTopicClusterName(),
+  );
+  useEffect(() => {
+    if (targetTopicId) setSelected(targetTopicId);
+  }, [targetTopicId]);
+  useEffect(() => {
+    const nextName = consumePendingTopicClusterName();
+    if (nextName) setPendingClusterName(nextName);
+  }, [handoffSeq]);
+  useEffect(() => {
+    if (!pendingClusterName || !list.data?.topics) return;
+    const targetName = pendingClusterName.trim();
+    setPendingClusterName("");
+    const matched = list.data.topics.find((item) => item.name.trim() === targetName);
+    if (matched) {
+      setSelected(matched.topic_id);
+    } else {
+      onBrowseTopicContent?.(targetName, "ALL");
+    }
+  }, [pendingClusterName, list.data?.topics]);
   const detail = useRemote<{ topic: Topic }>(
     selected ? `/topics/${selected}` : "/topics",
   );
@@ -4767,6 +4856,26 @@ function Topics({
                 ))}
               </div>
             ) : null}
+            {evo.channel_breakdown.length > 0 && onBrowseTopicContent ? (
+              <div
+                className="ai-suggested-pills topic-channel-breakdown tabular-nums"
+                role="group"
+                aria-label={zh ? "按频道筛选本专题干货" : "Filter topic by channel"}
+              >
+                {evo.channel_breakdown.map((ch) => (
+                  <button
+                    key={ch.channel_key}
+                    type="button"
+                    className="ai-question-chip tabular-nums"
+                    onClick={() => onBrowseTopicContent(topic.name, ch.channel_key)}
+                  >
+                    {zh
+                      ? `${ch.channel_label} · ${ch.video_count} 篇${ch.must_watch_count > 0 ? `（${ch.must_watch_count} 必看）` : ""}`
+                      : `${ch.channel_label} · ${ch.video_count}${ch.must_watch_count > 0 ? ` (${ch.must_watch_count} must-watch)` : ""}`}
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </>
         ) : (
           <>
@@ -4790,6 +4899,21 @@ function Topics({
             >
               <PhosphorIcon name="sparkle" size={14} />
               {zh ? "围绕本专题跨视频提问" : "Ask AI across this topic"}
+            </button>
+          ) : null}
+          {evo && evo.video_count > 0 && onBrowseTopicContent ? (
+            <button
+              type="button"
+              className="button button-secondary tabular-nums"
+              onClick={event => {
+                pulseCelebration(event.currentTarget);
+                onBrowseTopicContent(topic.name, "ALL");
+              }}
+            >
+              <PhosphorIcon name="funnel" size={14} />
+              {zh
+                ? `在内容库筛选本专题 (${evo.video_count})`
+                : `Filter in Content (${evo.video_count})`}
             </button>
           ) : null}
           <button
