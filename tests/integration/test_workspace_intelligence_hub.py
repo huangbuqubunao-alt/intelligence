@@ -2567,3 +2567,183 @@ def test_round7_weekly_markdown_delta_sync_and_source_signal_metrics(
         assert "较上期演进对比" in all_weekly_md
         assert "[[Vertical SaaS Monetization Playbook]]" in all_weekly_md
 
+
+def test_round8_weekly_delta_shifts_markdown_and_topic_channel_breakdown(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import base64
+    import io
+    import zipfile
+
+    env = _build_env(tmp_path, monkeypatch)
+    fast_app: Any = env["fast_app"]
+    repo: SQLiteStateRepository = env["repo"]
+    hub: WorkspaceIntelligenceHub = env["hub"]
+    composition: Any = env["composition"]
+    source_openai_id: str = env["source"].source_id
+
+    source_greg = composition.product.add_source(
+        url="https://www.youtube.com/channel/UC2222222222222222222222",
+        processing_policy=ProcessingPolicy.STANDARD_INTELLIGENCE,
+    )
+    source_greg_id: str = source_greg.source_id
+
+    clock = [NOW]
+    hub._now = lambda: clock[0]
+
+    # Seed 2 OpenAI videos + 1 Greg Isenberg video in the same topic cluster ('AI Agent 与自动化架构')
+    for idx, (vid, src_id, cid, cname, title) in enumerate(
+        (
+            (
+                "vidR8Open01",
+                source_openai_id,
+                "UC1111111111111111111111",
+                "OpenAI",
+                "Stateful Agent Orchestration Part 1",
+            ),
+            (
+                "vidR8Open02",
+                source_openai_id,
+                "UC1111111111111111111111",
+                "OpenAI",
+                "Stateful Agent Orchestration Part 2",
+            ),
+            (
+                "vidR8Greg01",
+                source_greg_id,
+                "UC2222222222222222222222",
+                "Greg Isenberg",
+                "Building Reliable AI Agent Businesses",
+            ),
+        ),
+        start=1,
+    ):
+        _seed_youtube_video(
+            repo,
+            env["data_root"],
+            source_id=src_id,
+            video_id=vid,
+            channel_id=cid,
+            channel_name=cname,
+            title=title,
+            duration_seconds=1800 + idx * 60,
+            cues=(
+                TimedTranscriptCueWrite(
+                    start_ms=0,
+                    end_ms=9000,
+                    text=f"Deterministic agent workflows unlock enterprise reliability {idx}.",
+                ),
+            ),
+            now=clock[0] + timedelta(minutes=idx),
+        )
+        fast_app.handle("POST", f"/api/v1/workspace-ai/videos/{vid}/distill", b"{}")
+
+    # Mark one OpenAI video as read so unread_count differs across channels
+    fast_app.handle(
+        "POST",
+        "/api/v1/workspace-ai/videos/vidR8Open01/curation",
+        json.dumps({"is_read": True}).encode("utf-8"),
+    )
+
+    # 1) Verify Topic Evolution unread_count & channel_breakdown on /topics and /topics/<id>
+    topics_code, topics_res = fast_app.handle("GET", "/api/v1/topics")
+    assert topics_code == HTTPStatus.OK
+    agent_topic = next(
+        t for t in topics_res["topics"] if t["name"] == "AI Agent 与自动化架构"
+    )
+    list_evo = agent_topic["ai_evolution"]
+    assert list_evo["video_count"] == 3
+    assert list_evo["unread_count"] == 2
+    assert list_evo["channel_breakdown"] == [
+        {
+            "channel_key": "OpenAI",
+            "channel_label": "OpenAI",
+            "video_count": 2,
+            "must_watch_count": 2,
+            "unread_count": 1,
+        },
+        {
+            "channel_key": "Greg Isenberg",
+            "channel_label": "Greg Isenberg",
+            "video_count": 1,
+            "must_watch_count": 1,
+            "unread_count": 1,
+        },
+    ]
+
+    det_code, det_res = fast_app.handle(
+        "GET", f"/api/v1/topics/{agent_topic['topic_id']}"
+    )
+    assert det_code == HTTPStatus.OK
+    det_evo = det_res["topic"]["ai_evolution"]
+    assert det_evo["unread_count"] == 2
+    assert det_evo["channel_breakdown"] == list_evo["channel_breakdown"]
+    assert "来源构成" in det_evo["obsidian_markdown"]
+    assert "OpenAI" in det_evo["obsidian_markdown"]
+    assert "Greg Isenberg" in det_evo["obsidian_markdown"]
+
+    # 2) Generate Weekly Brief #1 and Weekly Brief #2 with IDENTICAL top-6 must_watch_picks (new_picks == [])
+    #    but new trend shifts & product opportunities (matching real production wb-6e7a4d04edfb65d0)
+    clock[0] = NOW + timedelta(minutes=20)
+    _, wb1_res = fast_app.handle("POST", "/api/v1/workspace-ai/weekly-brief/generate", b"{}")
+    wb1_id = wb1_res["weekly_brief"]["brief_id"]
+    with hub._connect_write() as conn:
+        conn.execute(
+            "UPDATE weekly_ai_briefs SET top_shifts_json = ?, product_opportunities_json = ? WHERE brief_id = ?",
+            (
+                json.dumps(
+                    [
+                        {
+                            "title_zh": "旧周期：单轮提示词与人工脚本拼接",
+                            "detail_zh": "早期工作流依赖人工手工串联。",
+                        }
+                    ],
+                    ensure_ascii=False,
+                ),
+                json.dumps(["旧期通用聊天机器人模板"], ensure_ascii=False),
+                wb1_id,
+            ),
+        )
+
+    clock[0] = NOW + timedelta(minutes=45)
+    _, wb2_res = fast_app.handle("POST", "/api/v1/workspace-ai/weekly-brief/generate", b"{}")
+    wb2 = wb2_res["weekly_brief"]
+    assert wb2["delta"]["new_picks"] == []
+    assert wb2["delta"]["new_shifts_zh"] == ["Agent 从 Demo 走向受控状态机与离线评测"]
+    assert wb2["delta"]["new_opportunities_zh"] == ["面向创作者与研究者的本地优先多源情报工作台"]
+    wb2_md = wb2["obsidian_markdown"]
+    assert "本期新趋势风向" in wb2_md
+    assert "Agent 从 Demo 走向受控状态机与离线评测" in wb2_md
+    assert "本期新产品切口" in wb2_md
+    assert "面向创作者与研究者的本地优先多源情报工作台" in wb2_md
+
+    # Idempotency check: re-synchronizing markdown must never duplicate delta bullets
+    resynced_md = WorkspaceIntelligenceHub._synchronize_weekly_obsidian_markdown(
+        wb2_md,
+        funnel_stats=wb2["funnel_stats"],
+        delta=wb2["delta"],
+    )
+    assert resynced_md == wb2_md
+    assert resynced_md.count("本期新趋势风向") == 1
+    assert resynced_md.count("本期新产品切口") == 1
+
+    # Verify /dashboard and Vault .zip export carry the synchronized shift & opportunity bullets
+    _, dash_res = fast_app.handle("GET", "/api/v1/dashboard")
+    assert "本期新趋势风向" in dash_res["workspace_weekly_brief"]["obsidian_markdown"]
+
+    _, bundle_res = fast_app.handle(
+        "GET", "/api/v1/workspace-ai/obsidian-bundle?scope=must_watch"
+    )
+    zip_bytes = base64.b64decode(bundle_res["archive_base64"])
+    with zipfile.ZipFile(io.BytesIO(zip_bytes), "r") as zf:
+        weekly_files = sorted(
+            name for name in zf.namelist() if name.startswith("01-AI情报周报/")
+        )
+        all_weekly_md = "\n".join(
+            zf.read(name).decode("utf-8") for name in weekly_files
+        )
+        assert "本期新趋势风向" in all_weekly_md
+        assert "Agent 从 Demo 走向受控状态机与离线评测" in all_weekly_md
+        assert "本期新产品切口" in all_weekly_md
+
+
