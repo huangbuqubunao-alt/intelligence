@@ -3477,7 +3477,10 @@ describe("Workspace AI Upgrade (P0 + P1 + P2)", () => {
             },
           });
         }
-        if (input.endsWith("/intelligence")) return okJson({ intelligence: [] });
+        if (input.endsWith("/intelligence")) {
+          // Simulate slow /intelligence endpoint so CommandPalette must populate /videos & /research/sessions without head-of-line blocking
+          return new Promise(() => {});
+        }
         if (input.endsWith("/topics")) {
           return okJson({
             topics: [
@@ -3625,12 +3628,12 @@ describe("Workspace AI Upgrade (P0 + P1 + P2)", () => {
             scope_options: {
               starred_count: 0,
               channels: [
-                { key: "OpenAI", label: "OpenAI", count: 18 },
-                { key: "Greg Isenberg", label: "Greg Isenberg", count: 11 },
+                { key: "OpenAI", label: "OpenAI", provider: "YOUTUBE", video_count: 18 },
+                { key: "Greg Isenberg", label: "Greg Isenberg", provider: "YOUTUBE", video_count: 11 },
               ],
               topic_clusters: [
-                { name: "AI Agent 与自动化架构", count: 26 },
-                { name: "AI 产品机会与一人公司变现", count: 5 },
+                { name: "AI Agent 与自动化架构", video_count: 26 },
+                { name: "AI 产品机会与一人公司变现", video_count: 5 },
               ],
               videos: [],
             },

@@ -208,7 +208,8 @@ type PaletteResearchSession = {
 type PaletteChannelScope = {
   key: string;
   label: string;
-  count: number;
+  video_count?: number;
+  count?: number;
 };
 
 export function CommandPalette({
@@ -250,18 +251,10 @@ export function CommandPalette({
     }
     let alive = true;
     queueMicrotask(() => inputRef.current?.focus());
-    Promise.allSettled([
-      api<{ videos?: PaletteVideo[] }>("/videos"),
-      api<{ intelligence?: PaletteIntelligence[] }>("/intelligence"),
-      api<{ topics?: PaletteTopic[] }>("/topics"),
-      api<{
-        sessions?: PaletteResearchSession[];
-        scope_options?: { channels?: PaletteChannelScope[] };
-      }>("/workspace-ai/research/sessions"),
-    ]).then(([vRes, iRes, tRes, rRes]) => {
-      if (!alive) return;
-      if (vRes.status === "fulfilled" && Array.isArray(vRes.value?.videos)) {
-        const realVideos = vRes.value.videos.filter(
+    api<{ videos?: PaletteVideo[] }>("/videos")
+      .then((res) => {
+        if (!alive || !Array.isArray(res?.videos)) return;
+        const realVideos = res.videos.filter(
           (v) => v.work_kind !== "DURABLE_CONTENT_IDENTITY",
         );
         const sortedVideos = [...realVideos].sort((a, b) => {
@@ -276,21 +269,42 @@ export function CommandPalette({
           return bScore - aScore;
         });
         setVideos(sortedVideos.slice(0, 200));
-      }
-      if (iRes.status === "fulfilled" && Array.isArray(iRes.value?.intelligence)) {
+      })
+      .catch(() => {});
+
+    api<{ intelligence?: PaletteIntelligence[] }>("/intelligence")
+      .then((res) => {
+        if (!alive || !Array.isArray(res?.intelligence)) return;
         setInsights(
-          iRes.value.intelligence
-            .filter(item => item.status === "AVAILABLE" && item.trusted && item.intelligence_id && item.card?.core_conclusion)
+          res.intelligence
+            .filter(
+              (item) =>
+                item.status === "AVAILABLE" &&
+                item.trusted &&
+                item.intelligence_id &&
+                item.card?.core_conclusion,
+            )
             .slice(0, 100),
         );
-      }
-      if (tRes.status === "fulfilled" && Array.isArray(tRes.value?.topics)) {
-        setTopics(tRes.value.topics.slice(0, 50));
-      }
-      if (rRes.status === "fulfilled" && rRes.value && typeof rRes.value === "object") {
-        if (Array.isArray(rRes.value.sessions)) {
+      })
+      .catch(() => {});
+
+    api<{ topics?: PaletteTopic[] }>("/topics")
+      .then((res) => {
+        if (!alive || !Array.isArray(res?.topics)) return;
+        setTopics(res.topics.slice(0, 50));
+      })
+      .catch(() => {});
+
+    api<{
+      sessions?: PaletteResearchSession[];
+      scope_options?: { channels?: PaletteChannelScope[] };
+    }>("/workspace-ai/research/sessions")
+      .then((res) => {
+        if (!alive || !res || typeof res !== "object") return;
+        if (Array.isArray(res.sessions)) {
           setQaSessions(
-            rRes.value.sessions
+            res.sessions
               .filter(
                 (s) =>
                   Boolean(s) &&
@@ -302,25 +316,35 @@ export function CommandPalette({
               .slice(0, 40),
           );
         }
-        const rawChannels = rRes.value.scope_options?.channels;
+        const rawChannels = res.scope_options?.channels;
         if (Array.isArray(rawChannels)) {
           setChannelScopes(
             rawChannels
+              .map((ch) => {
+                const countVal =
+                  typeof ch?.video_count === "number"
+                    ? ch.video_count
+                    : typeof ch?.count === "number"
+                      ? ch.count
+                      : 0;
+                return {
+                  key: typeof ch?.key === "string" ? ch.key : "",
+                  label: typeof ch?.label === "string" ? ch.label : "",
+                  video_count: countVal,
+                  count: countVal,
+                };
+              })
               .filter(
                 (ch) =>
-                  Boolean(ch) &&
-                  typeof ch.key === "string" &&
                   ch.key.trim().length > 0 &&
-                  typeof ch.label === "string" &&
                   ch.label.trim().length > 0 &&
-                  typeof ch.count === "number" &&
-                  ch.count > 0,
+                  (ch.video_count ?? 0) > 0,
               )
               .slice(0, 20),
           );
         }
-      }
-    });
+      })
+      .catch(() => {});
     return () => {
       alive = false;
     };
@@ -408,18 +432,21 @@ export function CommandPalette({
     });
 
     const dynamicChannelActions: CommandPaletteAction[] = onFilterContentByChannel
-      ? channelScopes.map((ch) => ({
-          id: `act:channel:${ch.key}`,
-          group: "actions",
-          label: zh ? `筛选频道干货：${ch.label}` : `Filter channel: ${ch.label}`,
-          subtitle: zh
-            ? `${ch.count} 篇长视频干货 · 在内容库中查看`
-            : `${ch.count} long-form items in Content`,
-          icon: "rss",
-          aliases: [ch.key, ch.label, "channel", "频道", "干货", "filter"],
-          rankBonus: 0.025,
-          onSelect: () => onFilterContentByChannel(ch.key),
-        }))
+      ? channelScopes.map((ch) => {
+          const itemCount = ch.video_count ?? ch.count ?? 0;
+          return {
+            id: `act:channel:${ch.key}`,
+            group: "actions",
+            label: zh ? `筛选频道干货：${ch.label}` : `Filter channel: ${ch.label}`,
+            subtitle: zh
+              ? `${itemCount} 篇长视频干货 · 在内容库中查看`
+              : `${itemCount} long-form items in Content`,
+            icon: "rss",
+            aliases: [ch.key, ch.label, "channel", "频道", "干货", "filter"],
+            rankBonus: 0.15,
+            onSelect: () => onFilterContentByChannel(ch.key),
+          };
+        })
       : [];
 
     const dynamicResearch: CommandPaletteAction[] = onOpenResearchSession
