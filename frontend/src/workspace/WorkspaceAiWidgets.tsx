@@ -1737,6 +1737,76 @@ const FALLBACK_QUESTIONS_ZH = [
   "多模态与智能助理课程里有哪些可以直接复用的产品交互模式？",
 ];
 
+export function formatPlainTextResearchBrief(
+  session: AiResearchSession,
+  zh: boolean,
+): string {
+  const stripWiki = (text: string) =>
+    text.replace(
+      /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
+      (_, target: string, alias?: string) => (alias ?? target).trim(),
+    );
+  const lines: string[] = [];
+  lines.push(
+    zh
+      ? `【跨视频深度问答】${stripWiki(session.question.trim())}`
+      : `[Cross-Video Q&A] ${stripWiki(session.question.trim())}`,
+  );
+  if (session.scope_label_zh?.trim()) {
+    lines.push(
+      zh
+        ? `检索范围：${stripWiki(session.scope_label_zh.trim())}`
+        : `Scope: ${stripWiki(session.scope_label_zh.trim())}`,
+    );
+  }
+  if (session.answer_zh.trim()) {
+    lines.push(
+      zh
+        ? `核心结论：\n${stripWiki(session.answer_zh.trim())}`
+        : `Answer:\n${stripWiki(session.answer_zh.trim())}`,
+    );
+  }
+  if (session.key_takeaways_zh.length > 0) {
+    lines.push(
+      [
+        zh ? "关键要点：" : "Key takeaways:",
+        ...session.key_takeaways_zh.map((item) => `• ${stripWiki(item.trim())}`),
+      ].join("\n"),
+    );
+  }
+  if (session.action_items_zh.length > 0) {
+    lines.push(
+      [
+        zh ? "可执行动作：" : "Action items:",
+        ...session.action_items_zh.map(
+          (item, idx) => `${idx + 1}. ${stripWiki(item.trim())}`,
+        ),
+      ].join("\n"),
+    );
+  }
+  if (session.citations.length > 0) {
+    lines.push(
+      [
+        zh ? "原话时间轴出处：" : "Verified citations:",
+        ...session.citations.map((c) => {
+          const meta = [c.channel_name?.trim(), c.timestamp_label?.trim()]
+            .filter(Boolean)
+            .join(" · ");
+          const titlePart = zh
+            ? `《${stripWiki(c.video_title.trim())}》`
+            : `"${stripWiki(c.video_title.trim())}"`;
+          const metaPart = meta ? (zh ? `（${meta}）` : ` (${meta})`) : "";
+          const cleanQuote = stripWiki((c.excerpt ?? "").replace(/\s+/g, " ").trim());
+          return cleanQuote
+            ? `- [${c.ref_label}] ${titlePart}${metaPart}："${cleanQuote}"`
+            : `- [${c.ref_label}] ${titlePart}${metaPart}`;
+        }),
+      ].join("\n"),
+    );
+  }
+  return lines.join("\n\n");
+}
+
 export function WorkspaceAiResearchPanel({
   onOpen,
   onAiReady,
@@ -1764,7 +1834,13 @@ export function WorkspaceAiResearchPanel({
   const [sessionMutatingId, setSessionMutatingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [copiedPlain, setCopiedPlain] = useState(false);
   const questionInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    setCopied(false);
+    setCopiedPlain(false);
+  }, [activeSession?.session_id]);
 
   useEffect(() => {
     const nextSid = consumePendingResearchSessionId();
@@ -2289,6 +2365,27 @@ export function WorkspaceAiResearchPanel({
                     : `Follow up on cited videos (${activeCitedVideoIds.length})`}
               </button>
             ) : null}
+            <button
+              type="button"
+              className="button button-secondary button-small"
+              onClick={(event) => {
+                pulseCelebration(event.currentTarget);
+                void navigator.clipboard?.writeText(
+                  formatPlainTextResearchBrief(activeSession, zh),
+                );
+                setCopiedPlain(true);
+                setTimeout(() => setCopiedPlain(false), 2000);
+              }}
+            >
+              <PhosphorIcon name="quotes" size={13} />
+              {copiedPlain
+                ? zh
+                  ? "已复制纯文本提纲"
+                  : "Copied plain-text brief"
+                : zh
+                  ? "复制纯文本提纲"
+                  : "Copy plain-text brief"}
+            </button>
             {activeSession.obsidian_markdown ? (
               <>
                 <button

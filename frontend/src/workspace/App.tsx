@@ -8,7 +8,7 @@ import { NativeImportActivity } from "./NativeLocalImport";
 import { LocalTranscription, transcriptionCopy } from "./LocalTranscription";
 import { TranscriptionSetup } from "./TranscriptionSetup";
 import { LocalIntelligenceSetup } from "./LocalIntelligenceSetup";
-import { ChangeEvent, createContext, FormEvent, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, createContext, FormEvent, ReactNode, Suspense, lazy, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { ApiRequestError, api, patch, post, put, uploadZip } from "../api/client";
 import {
   buildMarkdownVideoNote,
@@ -24,7 +24,14 @@ import { BookmarkSparkIcon, DistillOrbitIcon, NavIcon, prefersReducedMotion, pul
 import { FirstRunOnboarding, completeOnboarding, onboardingCompleted } from "./Onboarding";
 import { DeltaTarget, KnowledgeDelta } from "./KnowledgeDelta";
 import { Research } from "./Research";
-import { CommandPalette, CommandPaletteAction } from "./ui/CommandPalette";
+import type { CommandPaletteAction } from "./ui/CommandPalette";
+
+const LazyCommandPalette = lazy(() =>
+  import("./ui/CommandPalette").then((m) => ({ default: m.CommandPalette })),
+);
+const preloadCommandPalette = () => {
+  void import("./ui/CommandPalette");
+};
 import { PhosphorIcon, PhosphorIconName } from "./ui/phosphorIcons";
 import { UiThemeProvider, useUiTheme } from "./ui/theme";
 import { savedLanguage, UiLanguageProvider, useUiLanguage } from "./uiLanguage";
@@ -72,6 +79,7 @@ type Intelligence = {
   intelligence_id?: string;
   claim_kind?: string;
   state?: string;
+  linked_topics?: { topic_id: string; name: string }[];
   card?: {
     core_conclusion: string;
     user_relevant_information: string[];
@@ -1289,16 +1297,105 @@ function Evidence(
     </details>
   );
 }
+export function formatPlainTextIntelligenceCard(item: Intelligence, zh: boolean): string {
+  const card = item.card;
+  if (!card) return "";
+  const lines: string[] = [];
+  lines.push(
+    zh
+      ? `【验证洞察】${card.core_conclusion}`
+      : `[Verified Insight] ${card.core_conclusion}`,
+  );
+  const sourceLabelText = [
+    card.source_display_name?.trim(),
+    card.video_title?.trim()
+      ? zh
+        ? `《${card.video_title.trim()}》`
+        : `"${card.video_title.trim()}"`
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  if (sourceLabelText) {
+    lines.push(zh ? `来源：${sourceLabelText}` : `Source: ${sourceLabelText}`);
+  }
+  const topicNames = (item.linked_topics ?? [])
+    .map((tp) => tp.name.trim())
+    .filter(Boolean);
+  if (topicNames.length > 0) {
+    lines.push(
+      zh
+        ? `关联专题：${topicNames.join("、")}`
+        : `Linked Topics: ${topicNames.join(", ")}`,
+    );
+  }
+  if (card.user_relevant_information.length > 0) {
+    lines.push(
+      zh
+        ? `核心价值：${card.user_relevant_information.join(" ")}`
+        : `Why this matters: ${card.user_relevant_information.join(" ")}`,
+    );
+  }
+  if (card.important_new_information.length > 0) {
+    lines.push(
+      zh
+        ? `新增信号：${card.important_new_information.join(" ")}`
+        : `What is new: ${card.important_new_information.join(" ")}`,
+    );
+  }
+  if (card.meaningful_details?.length) {
+    lines.push(
+      [
+        zh ? "关键细节：" : "Key details:",
+        ...card.meaningful_details.map((d) => `• ${d}`),
+      ].join("\n"),
+    );
+  }
+  const quoteLinks = (card.evidence_links ?? []).filter((link) =>
+    Boolean(link.translated_excerpt?.trim() || link.original_excerpt?.trim()),
+  );
+  if (quoteLinks.length > 0) {
+    lines.push(
+      [
+        zh ? "原话证据出处：" : "Verified quotes:",
+        ...quoteLinks.slice(0, 3).map((link) => {
+          const rangeLabel =
+            link.locator_type === "TEXT_RANGE"
+              ? `L${link.start_line ?? "?"}-${link.end_line ?? "?"}`
+              : timestampRange(link.start_ms, link.end_ms);
+          const excerpt = (
+            (zh && link.translated_excerpt?.trim()) ||
+            link.original_excerpt?.trim() ||
+            ""
+          ).replace(/\s+/g, " ");
+          return `- [${rangeLabel}] "${excerpt}"`;
+        }),
+      ].join("\n"),
+    );
+  }
+  if (card.original_video_url) {
+    lines.push(
+      zh
+        ? `原视频：${card.original_video_url}`
+        : `Video URL: ${card.original_video_url}`,
+    );
+  }
+  return lines.join("\n\n");
+}
+
 function IntelligenceCard(
-  { item, saved, onSaved, onOpenContent }: {
+  { item, saved, onSaved, onOpenContent, onOpenTopic }: {
     item: Intelligence;
     saved: boolean;
     onSaved: () => void;
     onOpenContent?: (videoId: string, evidenceId?: string) => void;
+    onOpenTopic?: (topicId: string) => void;
   },
 ) {
-  const { t } = useUiLanguage();
+  const { language, t } = useUiLanguage();
+  const zh = language === "zh-CN";
   const [busy, setBusy] = useState(false);
+  const [copiedCard, setCopiedCard] = useState(false);
   const saveBtnRef = useRef<HTMLButtonElement>(null);
   const [showTopicForm, setShowTopicForm] = useState(false);
   const [topicName, setTopicName] = useState(item.card?.video_title ?? "");
@@ -1328,8 +1425,32 @@ function IntelligenceCard(
     );
   }
   const card = item.card;
+  const linkedTopics = item.linked_topics ?? [];
   return (
     <article className={`panel intelligence-card${saved ? " is-saved-card" : ""}`}>
+      {linkedTopics.length > 0 ? (
+        <div
+          className="intel-card-topics-row"
+          aria-label={zh ? "关联专题" : "Linked Topics"}
+        >
+          {linkedTopics.map((tp) =>
+            onOpenTopic ? (
+              <button
+                key={tp.topic_id}
+                type="button"
+                className="ai-topic-tag ai-topic-tag-btn"
+                onClick={() => onOpenTopic(tp.topic_id)}
+              >
+                {`[[${tp.name}]]`}
+              </button>
+            ) : (
+              <span key={tp.topic_id} className="ai-topic-tag">
+                {`[[${tp.name}]]`}
+              </span>
+            ),
+          )}
+        </div>
+      ) : null}
       <header className="intelligence-conclusion">
         <h2>{card.core_conclusion}</h2>
       </header>
@@ -1369,15 +1490,38 @@ function IntelligenceCard(
         </p>
       </section>
       <Evidence item={item} onOpenContent={onOpenContent} />
-      <button
-        ref={saveBtnRef}
-        className={`button ${saved ? "button-saved" : "button-secondary"}`}
-        disabled={busy}
-        onClick={toggle}
-      >
-        <BookmarkSparkIcon saved={saved} />
-        {t(busy ? "Saving…" : saved ? "Unsave" : "Save")}
-      </button>
+      <div className="button-row">
+        <button
+          ref={saveBtnRef}
+          className={`button ${saved ? "button-saved" : "button-secondary"}`}
+          disabled={busy}
+          onClick={toggle}
+        >
+          <BookmarkSparkIcon saved={saved} />
+          {t(busy ? "Saving…" : saved ? "Unsave" : "Save")}
+        </button>
+        <button
+          type="button"
+          className="button button-secondary"
+          onClick={(event) => {
+            pulseCelebration(event.currentTarget);
+            void navigator.clipboard?.writeText(
+              formatPlainTextIntelligenceCard(item, zh),
+            );
+            setCopiedCard(true);
+            setTimeout(() => setCopiedCard(false), 2000);
+          }}
+        >
+          <PhosphorIcon name="file-text" size={14} />
+          {copiedCard
+            ? zh
+              ? "已复制洞察卡片"
+              : "Copied insight card"
+            : zh
+              ? "复制洞察卡片"
+              : "Copy insight card"}
+        </button>
+      </div>
       {item.intelligence_id && !createdTopic
         ? (
           <div className="intelligence-section">
@@ -1671,8 +1815,22 @@ function Workspace() {
         )}
         {page === "Intelligence" && (
           deltaTarget?.kind === "intelligence"
-            ? <IntelligenceDetail id={deltaTarget.id} openContent={openContent} onBack={() => navigate("Intelligence")} />
-            : <IntelligencePage refresh={refresh} openContent={openContent} openResearch={() => navigate("Research")} />
+            ? (
+              <IntelligenceDetail
+                id={deltaTarget.id}
+                openContent={openContent}
+                onOpenTopic={id => openDelta({ kind: "topic", id })}
+                onBack={() => navigate("Intelligence")}
+              />
+            )
+            : (
+              <IntelligencePage
+                refresh={refresh}
+                openContent={openContent}
+                onOpenTopic={id => openDelta({ kind: "topic", id })}
+                openResearch={() => navigate("Research")}
+              />
+            )
         )}
         {page === "Topics" && (
           <Topics
@@ -1726,6 +1884,8 @@ function Workspace() {
           type="button"
           className="utility-cmdk-btn"
           aria-label={`${t("Search or jump")} (⌘K)`}
+          onMouseEnter={preloadCommandPalette}
+          onFocus={preloadCommandPalette}
           onClick={() => setCmdkOpen(true)}
         >
           <PhosphorIcon name="magnifying-glass" size={15} />
@@ -1746,25 +1906,29 @@ function Workspace() {
           <span className="utility-theme-label">{t(theme === "dark" ? "Paper Light" : "Obsidian Dark")}</span>
         </button>
       </div>
-      <CommandPalette
-        open={cmdkOpen}
-        onClose={() => setCmdkOpen(false)}
-        staticActions={staticCommands}
-        onOpenContent={id => openContent(id)}
-        onOpenIntelligence={id => openDelta({ kind: "intelligence", id })}
-        onOpenTopic={id => openDelta({ kind: "topic", id })}
-        onOpenResearchSession={sessionId => {
-          setPendingResearchSessionId(sessionId);
-          setHandoffSeq(value => value + 1);
-          navigate("Research");
-        }}
-        onFilterContentByChannel={channelKey => {
-          setPendingContentChannel(channelKey);
-          setPendingContentTopic("ALL");
-          setHandoffSeq(value => value + 1);
-          navigate("Content");
-        }}
-      />
+      {cmdkOpen ? (
+        <Suspense fallback={null}>
+          <LazyCommandPalette
+            open={cmdkOpen}
+            onClose={() => setCmdkOpen(false)}
+            staticActions={staticCommands}
+            onOpenContent={id => openContent(id)}
+            onOpenIntelligence={id => openDelta({ kind: "intelligence", id })}
+            onOpenTopic={id => openDelta({ kind: "topic", id })}
+            onOpenResearchSession={sessionId => {
+              setPendingResearchSessionId(sessionId);
+              setHandoffSeq(value => value + 1);
+              navigate("Research");
+            }}
+            onFilterContentByChannel={channelKey => {
+              setPendingContentChannel(channelKey);
+              setPendingContentTopic("ALL");
+              setHandoffSeq(value => value + 1);
+              navigate("Content");
+            }}
+          />
+        </Suspense>
+      ) : null}
       {addProvider !== null && <AddEntry initialLocal={addProvider === "LOCAL"} onClose={() => setAddProvider(null)} onSaved={() => { setAddProvider(null); setRefresh(value => value + 1); }} onImported={id => {
         setAddProvider(null); setRefresh(value => value + 1); setImported(true); openContent(id);
       }} />}
@@ -1844,6 +2008,7 @@ function Dashboard(
                 saved={Boolean(item.intelligence_id && savedIdSet.has(item.intelligence_id))}
                 onSaved={reload}
                 onOpenContent={openContent}
+                onOpenTopic={onOpenTopic}
               />
             ))
             : <Empty>No important new intelligence yet.</Empty>}
@@ -1909,8 +2074,11 @@ function Attention({ run }: { run: SourceRun }) {
     </article>
   );
 }
-function IntelligenceDetail({ id, openContent, onBack }: {
-  id: string; openContent: (videoId: string, evidenceId?: string) => void; onBack: () => void;
+function IntelligenceDetail({ id, openContent, onOpenTopic, onBack }: {
+  id: string;
+  openContent: (videoId: string, evidenceId?: string) => void;
+  onOpenTopic?: (topicId: string) => void;
+  onBack: () => void;
 }) {
   const { t } = useUiLanguage();
   const [revision, setRevision] = useState(0);
@@ -1927,13 +2095,14 @@ function IntelligenceDetail({ id, openContent, onBack }: {
     {detail.error ? <ErrorState error={detail.error} code={detail.errorCode} onReload={detail.reload} hideRawMessage />
       : !detail.data ? <Empty>Loading verified Intelligence…</Empty>
       : <IntelligenceCard item={detail.data.intelligence} saved={isSaved}
-          onSaved={() => setRevision(value => value + 1)} onOpenContent={openContent} />}
+          onSaved={() => setRevision(value => value + 1)} onOpenContent={openContent} onOpenTopic={onOpenTopic} />}
   </>;
 }
 function IntelligencePage(
-  { refresh, openContent, openResearch }: {
+  { refresh, openContent, onOpenTopic, openResearch }: {
     refresh: number;
     openContent: (videoId: string, evidenceId?: string) => void;
+    onOpenTopic?: (topicId: string) => void;
     openResearch: () => void;
   },
 ) {
@@ -1943,6 +2112,7 @@ function IntelligencePage(
   const [revision, setRevision] = useState(0);
   const [intelSearch, setIntelSearch] = useState("");
   const [intelSourceFilter, setIntelSourceFilter] = useState<string>("ALL");
+  const [intelTopicFilter, setIntelTopicFilter] = useState<string>("ALL");
   const current = useRemote<{ intelligence: Intelligence[]; activity?: { video_id: string; title: string; status: string; cloud_http429_code?: string; selected_provider?: string; can_cancel?: boolean }[] }>(
     "/intelligence",
     refresh + revision,
@@ -1975,9 +2145,29 @@ function IntelligencePage(
     }
     return Array.from(counts.entries()).map(([name, count]) => ({ name, count }));
   }, [currentAvailable]);
+  const intelTopics = useMemo(() => {
+    const byId = new Map<string, { topic_id: string; name: string; count: number }>();
+    for (const item of currentAvailable) {
+      for (const tp of item.linked_topics ?? []) {
+        const existing = byId.get(tp.topic_id);
+        if (existing) {
+          existing.count += 1;
+        } else {
+          byId.set(tp.topic_id, { topic_id: tp.topic_id, name: tp.name, count: 1 });
+        }
+      }
+    }
+    return Array.from(byId.values()).sort(
+      (a, b) => b.count - a.count || a.name.localeCompare(b.name),
+    );
+  }, [currentAvailable]);
   const effectiveIntelSource =
     intelSourceFilter === "ALL" || intelSources.some((s) => s.name === intelSourceFilter)
       ? intelSourceFilter
+      : "ALL";
+  const effectiveIntelTopic =
+    intelTopicFilter === "ALL" || intelTopics.some((tp) => tp.topic_id === intelTopicFilter)
+      ? intelTopicFilter
       : "ALL";
   const filteredAvailable = useMemo(() => {
     const q = intelSearch.trim().toLowerCase();
@@ -1988,11 +2178,18 @@ function IntelligencePage(
       ) {
         return false;
       }
+      if (
+        effectiveIntelTopic !== "ALL" &&
+        !(item.linked_topics ?? []).some((tp) => tp.topic_id === effectiveIntelTopic)
+      ) {
+        return false;
+      }
       if (!q) return true;
       const haystack = [
         item.card?.core_conclusion,
         item.card?.video_title,
         item.card?.source_display_name,
+        ...(item.linked_topics ?? []).map((tp) => tp.name),
         ...(item.card?.user_relevant_information ?? []),
         ...(item.card?.important_new_information ?? []),
         ...(item.card?.meaningful_details ?? []),
@@ -2002,7 +2199,7 @@ function IntelligencePage(
         .toLowerCase();
       return haystack.includes(q);
     });
-  }, [currentAvailable, effectiveIntelSource, intelSearch]);
+  }, [currentAvailable, effectiveIntelSource, effectiveIntelTopic, intelSearch]);
   const savedIdSet = new Set((saved.data?.saved ?? []).map((entry) => entry.intelligence_id));
   const researchEntry = <div className="button-row"><button type="button" className="button button-secondary" onClick={openResearch}>{t("Research")}</button></div>;
   if (source.error) return <>{researchEntry}<ErrorState error={source.error} code={source.errorCode} onReload={source.reload} /></>;
@@ -2022,24 +2219,43 @@ function IntelligencePage(
           </button>
         ))}
       </div>
-      {view === "Current" && currentAvailable.length >= 4 ? (
+      {view === "Current" && (currentAvailable.length >= 4 || intelTopics.length > 0) ? (
         <div className="intel-filter-toolbar">
-          <input
-            type="search"
-            className="intel-search-input"
-            aria-label={
-              zh
-                ? "搜索洞察结论或视频标题"
-                : "Search Intelligence conclusions or video titles"
-            }
-            placeholder={
-              zh
-                ? "搜索洞察结论、关键要点或视频标题…"
-                : "Search conclusions, key points, or video titles…"
-            }
-            value={intelSearch}
-            onChange={(event) => setIntelSearch(event.target.value)}
-          />
+          <div className="intel-filter-top-row">
+            <input
+              type="search"
+              className="intel-search-input"
+              aria-label={
+                zh
+                  ? "搜索洞察结论或视频标题"
+                  : "Search Intelligence conclusions or video titles"
+              }
+              placeholder={
+                zh
+                  ? "搜索洞察结论、关键要点或视频标题…"
+                  : "Search conclusions, key points, or video titles…"
+              }
+              value={intelSearch}
+              onChange={(event) => setIntelSearch(event.target.value)}
+            />
+            {intelTopics.length > 0 ? (
+              <select
+                className="content-topic-select tabular-nums"
+                aria-label={zh ? "按专题筛选洞察" : "Filter Intelligence by topic"}
+                value={effectiveIntelTopic}
+                onChange={(event) => setIntelTopicFilter(event.target.value)}
+              >
+                <option value="ALL">
+                  {zh ? "全部专题" : "All topics"}
+                </option>
+                {intelTopics.map((tp) => (
+                  <option key={tp.topic_id} value={tp.topic_id}>
+                    {`${tp.name} (${tp.count})`}
+                  </option>
+                ))}
+              </select>
+            ) : null}
+          </div>
           {intelSources.length > 1 ? (
             <div
               className="ai-suggested-pills tabular-nums"
@@ -2087,14 +2303,15 @@ function IntelligencePage(
               saved={Boolean(item.intelligence_id && savedIdSet.has(item.intelligence_id))}
               onSaved={() => setRevision((value) => value + 1)}
               onOpenContent={openContent}
+              onOpenTopic={onOpenTopic}
             />
           ))
           : (
             <Panel title={zh ? "未找到匹配的洞察卡片" : "No matching Intelligence cards"}>
               <p className="hint">
                 {zh
-                  ? "当前搜索词或来源筛选下暂无匹配项。"
-                  : "No verified Intelligence cards match your current search or source filter."}
+                  ? "当前搜索词、专题或来源筛选下暂无匹配项。"
+                  : "No verified Intelligence cards match your current search, topic, or source filter."}
               </p>
               <button
                 type="button"
@@ -2102,6 +2319,7 @@ function IntelligencePage(
                 onClick={() => {
                   setIntelSearch("");
                   setIntelSourceFilter("ALL");
+                  setIntelTopicFilter("ALL");
                 }}
               >
                 {zh ? "清除筛选" : "Clear filters"}
@@ -2120,6 +2338,7 @@ function IntelligencePage(
             onChanged={() =>
               setRevision((value) => value + 1)}
             onOpenContent={openContent}
+            onOpenTopic={onOpenTopic}
           />
         ))
         : <Empty>No saved Intelligence.</Empty>)}
@@ -2127,11 +2346,12 @@ function IntelligencePage(
   );
 }
 function SavedCard(
-  { item, revision, onChanged, onOpenContent }: {
+  { item, revision, onChanged, onOpenContent, onOpenTopic }: {
     item: Saved;
     revision: number;
     onChanged: () => void;
     onOpenContent: (videoId: string, evidenceId?: string) => void;
+    onOpenTopic?: (topicId: string) => void;
   },
 ) {
   const { t } = useUiLanguage();
@@ -2168,6 +2388,7 @@ function SavedCard(
       saved
       onSaved={onChanged}
       onOpenContent={onOpenContent}
+      onOpenTopic={onOpenTopic}
     />
   );
 }

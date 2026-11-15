@@ -25,7 +25,7 @@ export default defineConfig({
             id.includes("/src/api/") ||
             id.includes("/src/workspace/uiLanguage") ||
             id.includes("/src/workspace/motion") ||
-            id.includes("/src/workspace/ui/")
+            (id.includes("/src/workspace/ui/") && !id.includes("CommandPalette"))
           ) {
             return "workspace-core";
           }
@@ -35,6 +35,13 @@ export default defineConfig({
             id.includes("/src/workspace/KnowledgeDelta")
           ) {
             return "workspace-ai-hub";
+          }
+          if (
+            /\/src\/workspace\/(CreatorFollowing|BilibiliImport|LocalImport|NativeLocalImport|LocalTranscription|TrackedContentRetry|ModelSettings|BigModelSettings|CloudSpendingSettings|LocalIntelligenceSetup|TranscriptionSetup|AddEntry|Onboarding|captionClean)(\.tsx?|$)/.test(
+              id,
+            )
+          ) {
+            return "workspace-sources-models";
           }
           return undefined;
         }
