@@ -5638,4 +5638,304 @@ describe("Workspace AI Upgrade (P0 + P1 + P2)", () => {
     fireEvent.click(screen.getByRole("button", { name: "返回来源：内容" }));
     await waitFor(() => expect(location.hash).toBe("#Content"));
   });
+
+  it("R16: generates scope-aware suggested Q&A prompts, restores exact filter/topic state on Return-to-Origin across Content/Intelligence/Topics, and prevents inline scope label wrap", async () => {
+    location.hash = "#Content";
+    const videoCatalog = [
+      {
+        video_id: "vid-biz-1",
+        provider: "YOUTUBE",
+        channel_id: "ch-greg",
+        channel_name: "Greg Isenberg",
+        title: "Micro-SaaS Acquisition Funnel",
+        published_at: "2026-11-15T10:00:00Z",
+        duration_seconds: 1800,
+        processing_status: "ANALYZED",
+        last_updated: "2026-11-15T10:05:00Z",
+        ai_brief: {
+          video_id: "vid-biz-1",
+          score: 9.3,
+          recommendation_tier: "MUST_WATCH",
+          content_bucket: "DEEP_DIVE",
+          is_short_noise: false,
+          headline_zh: "用免费微型工具构建零获客成本漏斗",
+          tldr_zh: ["微型工具带来精准自然流量"],
+          action_items_zh: [],
+          opportunity_signals_zh: [],
+          topic_cluster_zh: "AI 产品机会与一人公司变现",
+          obsidian_markdown: "# 微型工具\n",
+          provider: "ollama",
+          model: "qwen3:8b",
+          source_basis: "TRANSCRIPT",
+          starred: false,
+          is_read: false,
+        },
+      },
+      {
+        video_id: "vid-biz-2",
+        provider: "YOUTUBE",
+        channel_id: "ch-greg",
+        channel_name: "Greg Isenberg",
+        title: "Solo AI Agency Outcome Pricing",
+        published_at: "2026-11-14T10:00:00Z",
+        duration_seconds: 1500,
+        processing_status: "ANALYZED",
+        last_updated: "2026-11-14T10:05:00Z",
+        ai_brief: {
+          video_id: "vid-biz-2",
+          score: 8.7,
+          recommendation_tier: "MUST_WATCH",
+          content_bucket: "DEEP_DIVE",
+          is_short_noise: false,
+          headline_zh: "一人 AI 服务按业务交付结果定价模型",
+          tldr_zh: ["按交付结果计费提高客单价"],
+          action_items_zh: [],
+          opportunity_signals_zh: [],
+          topic_cluster_zh: "AI 产品机会与一人公司变现",
+          obsidian_markdown: "# 结果定价\n",
+          provider: "ollama",
+          model: "qwen3:8b",
+          source_basis: "TRANSCRIPT",
+          starred: false,
+          is_read: false,
+        },
+      },
+      {
+        video_id: "vid-agent-1",
+        provider: "YOUTUBE",
+        channel_id: "ch-oai",
+        channel_name: "OpenAI",
+        title: "Codex Security Deep Dive",
+        published_at: "2026-11-13T10:00:00Z",
+        duration_seconds: 2100,
+        processing_status: "ANALYZED",
+        last_updated: "2026-11-13T10:05:00Z",
+        ai_brief: {
+          video_id: "vid-agent-1",
+          score: 9.4,
+          recommendation_tier: "WORTH_SKIMMING",
+          content_bucket: "DEEP_DIVE",
+          is_short_noise: false,
+          headline_zh: "Codex 沙箱安全边界与补丁验证闭环",
+          tldr_zh: ["隔离环境自动复现补丁"],
+          action_items_zh: [],
+          opportunity_signals_zh: [],
+          topic_cluster_zh: "AI Agent 与自动化架构",
+          obsidian_markdown: "# Codex\n",
+          provider: "ollama",
+          model: "qwen3:8b",
+          source_basis: "TRANSCRIPT",
+          starred: false,
+          is_read: false,
+        },
+      },
+    ];
+    const intelItems = [
+      {
+        intelligence_id: "intel-biz-1",
+        status: "AVAILABLE",
+        trusted: true,
+        claim_kind: "SUPPORTED_STATEMENT",
+        state: "CONFIRMED",
+        confirmed: true,
+        linked_topics: [{ topic_id: "topic:solo-biz", name: "AI 产品机会与一人公司变现" }],
+        card: {
+          core_conclusion: "免费微型工具获客成本趋近于零。",
+          user_relevant_information: ["适合独立开发者冷启动。"],
+          important_new_information: [],
+          meaningful_details: [],
+          source_id: "src-greg",
+          source_display_name: "Greg Isenberg",
+          source_url: "https://www.youtube.com/@GregIsenberg",
+          video_id: "vid-biz-1",
+          video_title: "Micro-SaaS Acquisition Funnel",
+          original_video_url: "https://www.youtube.com/watch?v=vid-biz-1",
+          evidence_links: [],
+        },
+      },
+      {
+        intelligence_id: "intel-agent-1",
+        status: "AVAILABLE",
+        trusted: true,
+        claim_kind: "FACT",
+        state: "CONFIRMED",
+        confirmed: true,
+        linked_topics: [{ topic_id: "topic:agent-arch", name: "AI Agent 与自动化架构" }],
+        card: {
+          core_conclusion: "Codex 在隔离沙箱内验证补丁回归。",
+          user_relevant_information: ["降低人工安全审计负担。"],
+          important_new_information: [],
+          meaningful_details: [],
+          source_id: "src-oai",
+          source_display_name: "OpenAI",
+          source_url: "https://www.youtube.com/@OpenAI",
+          video_id: "vid-agent-1",
+          video_title: "Codex Security Deep Dive",
+          original_video_url: "https://www.youtube.com/watch?v=vid-agent-1",
+          evidence_links: [],
+        },
+      },
+    ];
+    const soloTopic = {
+      topic_id: "topic:solo-biz",
+      name: "AI 产品机会与一人公司变现",
+      pinned: true,
+      lifecycle: "ACTIVE",
+      current_state: "CONFIRMED",
+      independence: "INDEPENDENT",
+      contributions: [
+        {
+          intelligence_id: "intel-biz-1",
+          video_id: "vid-biz-1",
+          video_title: "Micro-SaaS Acquisition Funnel",
+          source_display_name: "Greg Isenberg",
+          core_conclusion: "免费微型工具获客成本趋近于零。",
+          claim_kind: "SUPPORTED_STATEMENT",
+          state: "CONFIRMED",
+          evidence_ids: [],
+          updated_at: "2026-11-15T10:00:00Z",
+        },
+      ],
+      timeline: [],
+      relations: [],
+      ai_evolution: {
+        topic_name: "AI 产品机会与一人公司变现",
+        video_count: 2,
+        synthesis_zh: "聚焦微型工具冷启动与按结果定价飞轮。",
+        entries: [
+          {
+            video_id: "vid-biz-1",
+            title: "Micro-SaaS Acquisition Funnel",
+            channel_name: "Greg Isenberg",
+            published_at: "2026-11-15T10:00:00Z",
+            score: 9.3,
+            headline_zh: "用免费微型工具构建零获客成本漏斗",
+            tldr_zh: ["微型工具带来精准自然流量"],
+            opportunity_signals_zh: ["SEO 微工具矩阵"],
+          },
+        ],
+      },
+    };
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string) => {
+        if (input.endsWith("/videos")) return okJson({ videos: videoCatalog });
+        if (input.endsWith("/intelligence")) return okJson({ intelligence: intelItems, activity: [] });
+        if (input.endsWith("/saved-intelligence")) return okJson({ saved: [] });
+        if (input.endsWith("/topics")) return okJson({ topics: [soloTopic] });
+        if (input.includes("/topics/topic%3Asolo-biz") || input.endsWith("/topics/topic:solo-biz")) {
+          return okJson({ topic: soloTopic });
+        }
+        if (input.endsWith("/workspace-ai/research/sessions")) {
+          return okJson({
+            sessions: [],
+            suggested_questions: [
+              "OpenAI、Greg Isenberg 与本地 AI 实战课对 AI Agent 产品落地有哪些核心共识与分歧？",
+            ],
+            scope_options: {
+              starred_count: 0,
+              channels: [
+                { key: "Greg Isenberg", label: "Greg Isenberg", count: 2 },
+                { key: "OpenAI", label: "OpenAI", count: 1 },
+              ],
+              topic_clusters: [
+                { name: "AI 产品机会与一人公司变现", count: 2 },
+                { name: "AI Agent 与自动化架构", count: 1 },
+              ],
+              videos: videoCatalog.map((v) => ({
+                video_id: v.video_id,
+                title: v.title,
+                channel_name: v.channel_name,
+                score: v.ai_brief.score,
+                starred: false,
+                topic_cluster_zh: v.ai_brief.topic_cluster_zh,
+              })),
+            },
+          });
+        }
+        if (input.endsWith("/research")) return okJson({ research: [], total: 0, offset: 0, limit: 25 });
+        if (input.includes("/creator-following")) return okJson({ available: false, reason_code: "DISABLED" });
+        return okJson({});
+      }),
+    );
+
+    render(<App />);
+
+    // 1) Filter #Content by Topic "AI 产品机会与一人公司变现" AND Must-watch bucket -> hand off to #Research
+    const contentTopicSelect = (await screen.findByLabelText("按专题筛选内容")) as HTMLSelectElement;
+    fireEvent.change(contentTopicSelect, { target: { value: "AI 产品机会与一人公司变现" } });
+    fireEvent.click(screen.getByRole("button", { name: "必看长视频" }));
+    fireEvent.click(screen.getByRole("button", { name: "围绕当前筛选视频追问 (2)" }));
+
+    // 2) On #Research: suggested chips MUST adapt to the 2 locked Greg Isenberg ("AI 产品机会与一人公司变现") videos
+    // without showing the generic OpenAI full-library prompt!
+    await waitFor(() => expect(location.hash).toBe("#Research"));
+    expect(
+      await screen.findByRole("button", {
+        name: /横向对比这 2 篇指定视频（Greg Isenberg）在「AI 产品机会与一人公司变现」上的核心共识/,
+      }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("button", {
+        name: /OpenAI、Greg Isenberg 与本地 AI 实战课/,
+      }),
+    ).toBeNull();
+
+    // Clearing scope restores the full-library suggested prompt!
+    fireEvent.click(screen.getByRole("button", { name: "重置范围" }));
+    expect(
+      await screen.findByRole("button", {
+        name: /OpenAI、Greg Isenberg 与本地 AI 实战课/,
+      }),
+    ).toBeTruthy();
+
+    // Selecting Topic scope "AI Agent 与自动化架构" generates Topic-tailored suggested prompts!
+    fireEvent.change(screen.getByLabelText("限定专题"), {
+      target: { value: "AI Agent 与自动化架构" },
+    });
+    expect(
+      screen.getByRole("button", {
+        name: /围绕「AI Agent 与自动化架构」专题，不同创作者的核心共识与关键分歧是什么？/,
+      }),
+    ).toBeTruthy();
+
+    // 3) Click "返回来源：内容" -> MUST restore exact Content filter state (Topic "AI 产品机会与一人公司变现" + "必看长视频")!
+    fireEvent.click(screen.getByRole("button", { name: "返回来源：内容" }));
+    await waitFor(() => expect(location.hash).toBe("#Content"));
+    const restoredContentTopic = (await screen.findByLabelText("按专题筛选内容")) as HTMLSelectElement;
+    expect(restoredContentTopic.value).toBe("AI 产品机会与一人公司变现");
+    expect(screen.getByRole("button", { name: "必看长视频" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.queryByText("Codex Security Deep Dive")).toBeNull();
+
+    // 4) Navigate to #Intelligence -> filter by Topic "topic:solo-biz" -> hand off -> click "返回来源：洞察" -> restores Topic filter!
+    fireEvent.click(screen.getByRole("button", { name: "洞察" }));
+    const intelTopicSelect = (await screen.findByLabelText("按专题筛选洞察")) as HTMLSelectElement;
+    fireEvent.change(intelTopicSelect, { target: { value: "topic:solo-biz" } });
+    fireEvent.click(screen.getByRole("button", { name: "围绕当前洞察追问 (1)" }));
+    await waitFor(() => expect(location.hash).toBe("#Research"));
+    fireEvent.click(screen.getByRole("button", { name: "返回来源：洞察" }));
+    await waitFor(() => expect(location.hash).toBe("#Intelligence"));
+    const restoredIntelTopic = (await screen.findByLabelText("按专题筛选洞察")) as HTMLSelectElement;
+    expect(restoredIntelTopic.value).toBe("topic:solo-biz");
+    expect(screen.queryByText("Codex 在隔离沙箱内验证补丁回归。")).toBeNull();
+
+    // 5) Navigate to #Topics -> open "AI 产品机会与一人公司变现" -> click "围绕本专题跨视频提问" -> "返回来源：主题" -> restores open Topic detail!
+    fireEvent.click(screen.getByRole("button", { name: "主题" }));
+    fireEvent.click((await screen.findAllByRole("button", { name: /AI 产品机会与一人公司变现/ }))[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "围绕本专题跨视频提问" }));
+    await waitFor(() => expect(location.hash).toBe("#Research"));
+    fireEvent.click(screen.getByRole("button", { name: "返回来源：主题" }));
+    await waitFor(() => expect(location.hash).toBe("#Topics"));
+    expect(await screen.findByText("聚焦微型工具冷启动与按结果定价飞轮。")).toBeTruthy();
+
+    // 6) CSS craft guard: `.ai-scope-inline-field` must keep its label on one line (`white-space: nowrap`) and size `<select>` to `width: auto`
+    const fsSpec = "node:fs";
+    const { readFileSync } = (await import(/* @vite-ignore */ fsSpec)) as {
+      readFileSync: (path: string, encoding: string) => string;
+    };
+    const stylesCss = readFileSync("src/workspace/styles.css", "utf8");
+    expect(stylesCss).toMatch(/\.ai-scope-inline-field\s*\{[\s\S]*?white-space:\s*nowrap;/);
+    expect(stylesCss).toMatch(/\.ai-scope-inline-field\s+select\s*\{[\s\S]*?width:\s*auto;/);
+  });
 });

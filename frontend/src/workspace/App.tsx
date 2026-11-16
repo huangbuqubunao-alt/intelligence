@@ -1618,6 +1618,21 @@ export function App() {
   );
 }
 
+type ContentFilterSnapshot = {
+  searchQuery: string;
+  providerFilter: "ALL" | "YOUTUBE" | "BILIBILI" | "LOCAL";
+  bucketFilter: "ALL" | "UNREAD" | "MUST_WATCH" | "STARRED" | "TUTORIAL" | "SHORTS";
+  topicFilter: string;
+  channelFilter: string;
+};
+
+type IntelFilterSnapshot = {
+  view: "Current" | "Saved";
+  intelSearch: string;
+  intelSourceFilter: string;
+  intelTopicFilter: string;
+};
+
 function Workspace() {
   const { language, setLanguage, t } = useUiLanguage();
   const { theme, toggleTheme } = useUiTheme();
@@ -1665,6 +1680,19 @@ function Workspace() {
   const [handoffSeq, setHandoffSeq] = useState(0);
   const [researchReturn, setResearchReturn] = useState<string | null>(null);
   const [researchOriginPage, setResearchOriginPage] = useState<Exclude<Page, "Research"> | null>(null);
+  const latestContentFilterRef = useRef<ContentFilterSnapshot | null>(null);
+  const latestIntelFilterRef = useRef<IntelFilterSnapshot | null>(null);
+  const latestTopicIdRef = useRef<string | null>(null);
+  const capturedOriginSnapshotRef = useRef<{
+    content: ContentFilterSnapshot | null;
+    intel: IntelFilterSnapshot | null;
+    topicId: string | null;
+  }>({ content: null, intel: null, topicId: null });
+  const pendingOriginRestoreRef = useRef<{
+    content: ContentFilterSnapshot | null;
+    intel: IntelFilterSnapshot | null;
+    topicId: string | null;
+  } | null>(null);
   const [researchEvidence, setResearchEvidence] = useState<string | null>(initialEvidenceTarget);
   useEffect(() => {
     if (page !== "Content" || !researchEvidence) return;
@@ -1693,6 +1721,17 @@ function Workspace() {
     runViewTransition(() => {
       if (next === "Research" && page !== "Research") {
         setResearchOriginPage(page);
+        capturedOriginSnapshotRef.current = {
+          content:
+            page === "Content" && latestContentFilterRef.current
+              ? { ...latestContentFilterRef.current }
+              : null,
+          intel:
+            page === "Intelligence" && latestIntelFilterRef.current
+              ? { ...latestIntelFilterRef.current }
+              : null,
+          topicId: page === "Topics" ? latestTopicIdRef.current : null,
+        };
       }
       setImported(false);
       setResearchReturn(null); setResearchEvidence(null);
@@ -1794,7 +1833,12 @@ function Workspace() {
             <button
               type="button"
               className="button button-secondary"
-              onClick={() => navigate(researchOriginPage)}
+              onClick={() => {
+                pendingOriginRestoreRef.current = {
+                  ...capturedOriginSnapshotRef.current,
+                };
+                navigate(researchOriginPage);
+              }}
             >
               {language === "zh-CN"
                 ? `返回来源：${t(researchOriginPage)}`
@@ -1847,6 +1891,14 @@ function Workspace() {
               handoffSeq={handoffSeq}
               targetVideoId={contentTarget}
               highlightedEvidenceId={researchEvidence}
+              latestFilterRef={latestContentFilterRef}
+              consumeOriginRestore={() => {
+                const snap = pendingOriginRestoreRef.current?.content ?? null;
+                if (pendingOriginRestoreRef.current) {
+                  pendingOriginRestoreRef.current.content = null;
+                }
+                return snap;
+              }}
               onOpen={openContent}
               onClose={() => navigate("Content")}
               onAdd={() => setAddProvider("YOUTUBE")}
@@ -1882,6 +1934,14 @@ function Workspace() {
               <IntelligencePage
                 refresh={refresh}
                 handoffSeq={handoffSeq}
+                latestFilterRef={latestIntelFilterRef}
+                consumeOriginRestore={() => {
+                  const snap = pendingOriginRestoreRef.current?.intel ?? null;
+                  if (pendingOriginRestoreRef.current) {
+                    pendingOriginRestoreRef.current.intel = null;
+                  }
+                  return snap;
+                }}
                 openContent={openContent}
                 onOpenTopic={id => openDelta({ kind: "topic", id })}
                 openResearch={() => navigate("Research")}
@@ -1898,6 +1958,14 @@ function Workspace() {
             refresh={refresh}
             handoffSeq={handoffSeq}
             targetTopicId={deltaTarget?.kind === "topic" ? deltaTarget.id : null}
+            latestSelectedRef={latestTopicIdRef}
+            consumeOriginRestore={() => {
+              const tid = pendingOriginRestoreRef.current?.topicId ?? null;
+              if (pendingOriginRestoreRef.current) {
+                pendingOriginRestoreRef.current.topicId = null;
+              }
+              return tid;
+            }}
             onOpenContent={(id) => openContent(id)}
             onAskTopicResearch={(topicName) => {
               setPendingResearchTopicCluster(topicName);
@@ -2166,9 +2234,20 @@ function IntelligenceDetail({ id, openContent, onOpenTopic, onBack }: {
   </>;
 }
 function IntelligencePage(
-  { refresh, handoffSeq, openContent, onOpenTopic, openResearch, onAskFilteredResearch }: {
+  {
+    refresh,
+    handoffSeq,
+    latestFilterRef,
+    consumeOriginRestore,
+    openContent,
+    onOpenTopic,
+    openResearch,
+    onAskFilteredResearch,
+  }: {
     refresh: number;
     handoffSeq?: number;
+    latestFilterRef?: { current: IntelFilterSnapshot | null };
+    consumeOriginRestore?: () => IntelFilterSnapshot | null;
     openContent: (videoId: string, evidenceId?: string) => void;
     onOpenTopic?: (topicId: string) => void;
     openResearch: () => void;
@@ -2177,13 +2256,34 @@ function IntelligencePage(
 ) {
   const { language, t } = useUiLanguage();
   const zh = language === "zh-CN";
-  const [view, setView] = useState<"Current" | "Saved">("Current");
-  const [revision, setRevision] = useState(0);
-  const [intelSearch, setIntelSearch] = useState("");
-  const [intelSourceFilter, setIntelSourceFilter] = useState<string>("ALL");
-  const [intelTopicFilter, setIntelTopicFilter] = useState<string>(
-    () => consumePendingIntelligenceTopicId() || "ALL",
+  const restoredIntelRef = useRef<IntelFilterSnapshot | null | undefined>(undefined);
+  if (restoredIntelRef.current === undefined) {
+    restoredIntelRef.current = consumeOriginRestore?.() ?? null;
+  }
+  const [view, setView] = useState<"Current" | "Saved">(
+    () => restoredIntelRef.current?.view ?? "Current",
   );
+  const [revision, setRevision] = useState(0);
+  const [intelSearch, setIntelSearch] = useState(
+    () => restoredIntelRef.current?.intelSearch ?? "",
+  );
+  const [intelSourceFilter, setIntelSourceFilter] = useState<string>(
+    () => restoredIntelRef.current?.intelSourceFilter ?? "ALL",
+  );
+  const [intelTopicFilter, setIntelTopicFilter] = useState<string>(
+    () =>
+      consumePendingIntelligenceTopicId() ||
+      restoredIntelRef.current?.intelTopicFilter ||
+      "ALL",
+  );
+  if (latestFilterRef) {
+    latestFilterRef.current = {
+      view,
+      intelSearch,
+      intelSourceFilter,
+      intelTopicFilter,
+    };
+  }
   const [copiedFilteredDigest, setCopiedFilteredDigest] = useState(false);
   const [copiedSavedDigest, setCopiedSavedDigest] = useState(false);
   useEffect(() => {
@@ -2689,6 +2789,8 @@ function ContentPage(
     handoffSeq,
     targetVideoId,
     highlightedEvidenceId,
+    latestFilterRef,
+    consumeOriginRestore,
     onOpen,
     onClose,
     onAdd,
@@ -2700,6 +2802,8 @@ function ContentPage(
     handoffSeq?: number;
     targetVideoId?: string | null;
     highlightedEvidenceId?: string | null;
+    latestFilterRef?: { current: ContentFilterSnapshot | null };
+    consumeOriginRestore?: () => ContentFilterSnapshot | null;
     onOpen: (id: string) => void;
     onClose: () => void;
     onAdd: () => void;
@@ -2710,17 +2814,34 @@ function ContentPage(
 ) {
   const { language, t } = useUiLanguage();
   const [revision, setRevision] = useState(0);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [providerFilter, setProviderFilter] = useState<"ALL" | "YOUTUBE" | "BILIBILI" | "LOCAL">("ALL");
+  const restoredContentRef = useRef<ContentFilterSnapshot | null | undefined>(undefined);
+  if (restoredContentRef.current === undefined) {
+    restoredContentRef.current = consumeOriginRestore?.() ?? null;
+  }
+  const [searchQuery, setSearchQuery] = useState(
+    () => restoredContentRef.current?.searchQuery ?? "",
+  );
+  const [providerFilter, setProviderFilter] = useState<"ALL" | "YOUTUBE" | "BILIBILI" | "LOCAL">(
+    () => restoredContentRef.current?.providerFilter ?? "ALL",
+  );
   const [bucketFilter, setBucketFilter] = useState<
     "ALL" | "UNREAD" | "MUST_WATCH" | "STARRED" | "TUTORIAL" | "SHORTS"
-  >("ALL");
+  >(() => restoredContentRef.current?.bucketFilter ?? "ALL");
   const [topicFilter, setTopicFilter] = useState<string>(
-    () => consumePendingContentTopic() || "ALL",
+    () => consumePendingContentTopic() || restoredContentRef.current?.topicFilter || "ALL",
   );
   const [channelFilter, setChannelFilter] = useState<string>(
-    () => consumePendingContentChannel() || "ALL",
+    () => consumePendingContentChannel() || restoredContentRef.current?.channelFilter || "ALL",
   );
+  if (latestFilterRef) {
+    latestFilterRef.current = {
+      searchQuery,
+      providerFilter,
+      bucketFilter,
+      topicFilter,
+      channelFilter,
+    };
+  }
   useEffect(() => {
     const nextChannel = consumePendingContentChannel();
     if (nextChannel) setChannelFilter(nextChannel);
@@ -5362,6 +5483,8 @@ function Topics({
   refresh,
   handoffSeq,
   targetTopicId,
+  latestSelectedRef,
+  consumeOriginRestore,
   onOpenContent,
   onAskTopicResearch,
   onBrowseTopicContent,
@@ -5370,6 +5493,8 @@ function Topics({
   refresh: number;
   handoffSeq?: number;
   targetTopicId?: string | null;
+  latestSelectedRef?: { current: string | null };
+  consumeOriginRestore?: () => string | null;
   onOpenContent?: (videoId: string) => void;
   onAskTopicResearch?: (topicName: string) => void;
   onBrowseTopicContent?: (topicName: string, channelKey?: string) => void;
@@ -5378,7 +5503,12 @@ function Topics({
   const { language, t } = useUiLanguage();
   const zh = language === "zh-CN";
   const list = useRemote<{ topics: Topic[] }>("/topics", refresh, undefined, true, true);
-  const [selected, setSelected] = useState<string | null>(targetTopicId ?? null);
+  const [selected, setSelected] = useState<string | null>(
+    () => targetTopicId ?? consumeOriginRestore?.() ?? null,
+  );
+  if (latestSelectedRef) {
+    latestSelectedRef.current = selected;
+  }
   const [pendingClusterName, setPendingClusterName] = useState(() =>
     consumePendingTopicClusterName(),
   );
