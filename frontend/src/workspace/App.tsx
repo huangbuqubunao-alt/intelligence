@@ -1664,6 +1664,7 @@ function Workspace() {
   const [deltaTarget, setDeltaTarget] = useState<DeltaTarget | null>(null);
   const [handoffSeq, setHandoffSeq] = useState(0);
   const [researchReturn, setResearchReturn] = useState<string | null>(null);
+  const [researchOriginPage, setResearchOriginPage] = useState<Exclude<Page, "Research"> | null>(null);
   const [researchEvidence, setResearchEvidence] = useState<string | null>(initialEvidenceTarget);
   useEffect(() => {
     if (page !== "Content" || !researchEvidence) return;
@@ -1690,6 +1691,9 @@ function Workspace() {
   const navigate = (next: Page) => {
     changeHash(next);
     runViewTransition(() => {
+      if (next === "Research" && page !== "Research") {
+        setResearchOriginPage(page);
+      }
       setImported(false);
       setResearchReturn(null); setResearchEvidence(null);
       setContentTarget(null);
@@ -1754,7 +1758,7 @@ function Workspace() {
         </div>
         <nav className="sidebar-nav" aria-label={t("Primary navigation")}>
           {pages.map((item) => {
-            const isActive = page === item || (page === "Research" && item === "Intelligence");
+            const isActive = page === item;
             return (
               <button
                 type="button"
@@ -1786,6 +1790,17 @@ function Workspace() {
           {researchReturn && page !== "Research" && <button className="button button-secondary" onClick={() => {
             const target = researchReturn; navigate("Research"); location.hash = target;
           }}>{t("Back to Research")}</button>}
+          {page === "Research" && researchOriginPage !== null && (
+            <button
+              type="button"
+              className="button button-secondary"
+              onClick={() => navigate(researchOriginPage)}
+            >
+              {language === "zh-CN"
+                ? `返回来源：${t(researchOriginPage)}`
+                : `Return to ${t(researchOriginPage)}`}
+            </button>
+          )}
         </header>
         <NativeImportActivity onOpen={openContent} errors={localImportErrors} routeKey={`${page}/${contentTarget ?? ""}`} modalOpen={addProvider !== null} />
         {page === "Research" && <Research handoffSeq={handoffSeq} onOpen={(kind, id, evidenceId) => {
@@ -1837,6 +1852,11 @@ function Workspace() {
               onAdd={() => setAddProvider("YOUTUBE")}
               onAskStarredResearch={() => {
                 setPendingResearchStarredOnly(true);
+                setHandoffSeq((value) => value + 1);
+                navigate("Research");
+              }}
+              onAskFilteredResearch={(videoIds) => {
+                setPendingResearchVideoIds(videoIds);
                 setHandoffSeq((value) => value + 1);
                 navigate("Research");
               }}
@@ -1916,6 +1936,7 @@ function Workspace() {
         <button
           type="button"
           className={`utility-qa-btn${page === "Research" ? " is-active" : ""}`}
+          aria-current={page === "Research" ? "page" : undefined}
           aria-label={language === "zh-CN" ? "AI 跨视频问答" : "Cross-video AI Q&A"}
           title={language === "zh-CN" ? "跨视频检索时间轴原话并生成中文解答" : "Ask grounded questions across your video library"}
           onClick={event => {
@@ -2672,6 +2693,7 @@ function ContentPage(
     onClose,
     onAdd,
     onAskStarredResearch,
+    onAskFilteredResearch,
     onSelectTopicCluster,
   }: {
     refresh: number;
@@ -2682,6 +2704,7 @@ function ContentPage(
     onClose: () => void;
     onAdd: () => void;
     onAskStarredResearch?: () => void;
+    onAskFilteredResearch?: (videoIds: string[]) => void;
     onSelectTopicCluster?: (clusterName: string) => void;
   },
 ) {
@@ -3274,6 +3297,37 @@ function ContentPage(
   const totalStarredCount = Array.from(briefByVideoId.values()).filter((b) =>
     Boolean(b.starred && !b.is_short_noise),
   ).length;
+  const hasActiveContentFilter = Boolean(
+    trimmedSearch ||
+      channelFilter !== "ALL" ||
+      topicFilter !== "ALL" ||
+      providerFilter !== "ALL" ||
+      bucketFilter !== "ALL",
+  );
+  const hasCustomResearchScope = Boolean(
+    trimmedSearch ||
+      channelFilter !== "ALL" ||
+      topicFilter !== "ALL" ||
+      providerFilter !== "ALL" ||
+      (bucketFilter !== "ALL" && bucketFilter !== "STARRED" && bucketFilter !== "SHORTS"),
+  );
+  const filteredQuestionVideoIds = Array.from(
+    new Set(
+      primaryVideos
+        .filter(
+          (item) =>
+            !item.work_kind && !briefByVideoId.get(item.video_id)?.is_short_noise,
+        )
+        .map((item) => item.video_id),
+    ),
+  ).slice(0, 12);
+  const resetAllContentFilters = () => {
+    setSearchQuery("");
+    setBucketFilter("ALL");
+    setChannelFilter("ALL");
+    setTopicFilter("ALL");
+    setProviderFilter("ALL");
+  };
   const effectiveKbActiveId =
     kbActiveId && primaryIds.includes(kbActiveId) ? kbActiveId : (primaryIds[0] ?? null);
   kbContextRef.current = {
@@ -3659,9 +3713,27 @@ function ContentPage(
             </span>
           )}
           {hasAiBriefs &&
-          ((onAskStarredResearch && totalStarredCount > 0) ||
-            (bucketFilter !== "SHORTS" && unreadInViewIds.length > 0)) ? (
+          ((onAskFilteredResearch &&
+            hasCustomResearchScope &&
+            filteredQuestionVideoIds.length > 0) ||
+            (onAskStarredResearch && totalStarredCount > 0) ||
+            (bucketFilter !== "SHORTS" && unreadInViewIds.length > 0) ||
+            (hasActiveContentFilter && filteredVideos.length > 0)) ? (
             <div className="library-batch-actions tabular-nums">
+              {onAskFilteredResearch &&
+              hasCustomResearchScope &&
+              filteredQuestionVideoIds.length > 0 ? (
+                <button
+                  type="button"
+                  className="button button-secondary button-small"
+                  onClick={() => onAskFilteredResearch(filteredQuestionVideoIds)}
+                >
+                  <PhosphorIcon name="sparkle" size={13} />
+                  {language === "zh-CN"
+                    ? `围绕当前筛选视频追问 (${filteredQuestionVideoIds.length})`
+                    : `Ask Q&A on filtered (${filteredQuestionVideoIds.length})`}
+                </button>
+              ) : null}
               {onAskStarredResearch && totalStarredCount > 0 ? (
                 <button
                   type="button"
@@ -3685,6 +3757,15 @@ function ContentPage(
                   {language === "zh-CN"
                     ? `当前列表标已读 (${unreadInViewIds.length})`
                     : `Mark view read (${unreadInViewIds.length})`}
+                </button>
+              ) : null}
+              {hasActiveContentFilter && filteredVideos.length > 0 ? (
+                <button
+                  type="button"
+                  className="button button-ghost button-small"
+                  onClick={resetAllContentFilters}
+                >
+                  {language === "zh-CN" ? "重置筛选" : "Reset filters"}
                 </button>
               ) : null}
             </div>

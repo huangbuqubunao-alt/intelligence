@@ -3453,11 +3453,43 @@ dl.creator-tracking dd {
 
 .ai-video-compare-picker {
   display: grid;
-  gap: 4px;
-  max-height: 210px;
-  overflow-y: auto;
+  gap: 8px;
   border-top: 1px solid var(--border);
   padding-top: 8px;
+}
+
+.ai-compare-picker-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+
+.ai-compare-search-input {
+  flex: 1 1 200px;
+  min-height: 30px;
+  padding: 4px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-strong);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.ai-compare-search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.ai-video-compare-list {
+  display: grid;
+  gap: 4px;
+  max-height: 205px;
+  overflow-y: auto;
+}
+
+.ai-compare-empty-hint {
+  margin: 4px 2px;
 }
 
 .ai-video-compare-option {

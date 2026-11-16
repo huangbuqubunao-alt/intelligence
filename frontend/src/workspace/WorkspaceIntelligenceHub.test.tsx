@@ -5408,4 +5408,234 @@ describe("Workspace AI Upgrade (P0 + P1 + P2)", () => {
     expect(stylesCss).toMatch(/input\[type="checkbox"\],\s*input\[type="radio"\]\s*\{[\s\S]*?width:\s*16px;[\s\S]*?min-height:\s*16px;[\s\S]*?accent-color:\s*var\(--accent\);/);
     expect(stylesCss).toMatch(/\.ai-video-compare-option\s+small\s*\{[\s\S]*?white-space:\s*nowrap;/);
   });
+
+  it("R15: hands off filtered Content videos into Cross-Video Q&A, keeps Research nav single-highlighted with origin return, and supports Selected-only + search in compare picker", async () => {
+    location.hash = "#Content";
+    const mkBrief = (
+      videoId: string,
+      score: number,
+      tier: "MUST_WATCH" | "WORTH_SKIMMING",
+      headline: string,
+      cluster: string,
+    ) => ({
+      video_id: videoId,
+      score,
+      recommendation_tier: tier,
+      content_bucket: "DEEP_DIVE",
+      is_short_noise: false,
+      headline_zh: headline,
+      tldr_zh: [headline],
+      action_items_zh: [],
+      opportunity_signals_zh: [],
+      topic_cluster_zh: cluster,
+      obsidian_markdown: `# ${headline}\n`,
+      provider: "ollama",
+      model: "qwen3:8b",
+      source_basis: "TRANSCRIPT" as const,
+      starred: false,
+      is_read: false,
+    });
+    const videoCatalog = [
+      {
+        video_id: "vid-biz-1",
+        provider: "YOUTUBE",
+        channel_id: "ch-greg",
+        channel_name: "Greg Isenberg",
+        title: "Micro-SaaS Acquisition Funnel",
+        published_at: "2026-11-15T10:00:00Z",
+        duration_seconds: 1800,
+        processing_status: "ANALYZED",
+        last_updated: "2026-11-15T10:05:00Z",
+        ai_brief: mkBrief(
+          "vid-biz-1",
+          9.3,
+          "MUST_WATCH",
+          "用免费微型工具构建零获客成本漏斗",
+          "AI 产品机会与一人公司变现",
+        ),
+      },
+      {
+        video_id: "vid-biz-2",
+        provider: "YOUTUBE",
+        channel_id: "ch-greg",
+        channel_name: "Greg Isenberg",
+        title: "Solo AI Agency Outcome Pricing",
+        published_at: "2026-11-14T10:00:00Z",
+        duration_seconds: 1500,
+        processing_status: "ANALYZED",
+        last_updated: "2026-11-14T10:05:00Z",
+        ai_brief: mkBrief(
+          "vid-biz-2",
+          8.7,
+          "MUST_WATCH",
+          "一人 AI 服务按业务交付结果定价模型",
+          "AI 产品机会与一人公司变现",
+        ),
+      },
+      {
+        video_id: "vid-agent-1",
+        provider: "YOUTUBE",
+        channel_id: "ch-oai",
+        channel_name: "OpenAI",
+        title: "Codex Security Deep Dive",
+        published_at: "2026-11-13T10:00:00Z",
+        duration_seconds: 2100,
+        processing_status: "ANALYZED",
+        last_updated: "2026-11-13T10:05:00Z",
+        ai_brief: mkBrief(
+          "vid-agent-1",
+          9.4,
+          "MUST_WATCH",
+          "Codex 沙箱安全边界与补丁验证闭环",
+          "AI Agent 与自动化架构",
+        ),
+      },
+      {
+        video_id: "vid-agent-2",
+        provider: "YOUTUBE",
+        channel_id: "ch-oai",
+        channel_name: "OpenAI",
+        title: "Agentic Loops in Production",
+        published_at: "2026-11-12T10:00:00Z",
+        duration_seconds: 1900,
+        processing_status: "ANALYZED",
+        last_updated: "2026-11-12T10:05:00Z",
+        ai_brief: mkBrief(
+          "vid-agent-2",
+          9.1,
+          "MUST_WATCH",
+          "生产级多步 Agent 循环容错架构",
+          "AI Agent 与自动化架构",
+        ),
+      },
+      {
+        video_id: "vid-agent-3",
+        provider: "YOUTUBE",
+        channel_id: "ch-oai",
+        channel_name: "OpenAI",
+        title: "Realtime Multimodal Voice Agents",
+        published_at: "2026-11-11T10:00:00Z",
+        duration_seconds: 1700,
+        processing_status: "ANALYZED",
+        last_updated: "2026-11-11T10:05:00Z",
+        ai_brief: mkBrief(
+          "vid-agent-3",
+          8.8,
+          "WORTH_SKIMMING",
+          "低延迟多模态语音 Agent 打断控制",
+          "AI Agent 与自动化架构",
+        ),
+      },
+      {
+        video_id: "vid-agent-4",
+        provider: "YOUTUBE",
+        channel_id: "ch-oai",
+        channel_name: "OpenAI",
+        title: "Eval Driven Prompt Engineering",
+        published_at: "2026-11-10T10:00:00Z",
+        duration_seconds: 1600,
+        processing_status: "ANALYZED",
+        last_updated: "2026-11-10T10:05:00Z",
+        ai_brief: mkBrief(
+          "vid-agent-4",
+          8.6,
+          "WORTH_SKIMMING",
+          "评测驱动的提示词回归工程体系",
+          "AI Agent 与自动化架构",
+        ),
+      },
+    ];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string) => {
+        if (input.endsWith("/videos")) {
+          return okJson({ videos: videoCatalog });
+        }
+        if (input.endsWith("/workspace-ai/research/sessions")) {
+          return okJson({
+            sessions: [],
+            suggested_questions: [],
+            scope_options: {
+              starred_count: 0,
+              channels: [
+                { key: "OpenAI", label: "OpenAI", count: 4 },
+                { key: "Greg Isenberg", label: "Greg Isenberg", count: 2 },
+              ],
+              topic_clusters: [
+                { name: "AI Agent 与自动化架构", count: 4 },
+                { name: "AI 产品机会与一人公司变现", count: 2 },
+              ],
+              videos: videoCatalog.map((v) => ({
+                video_id: v.video_id,
+                title: v.title,
+                channel_name: v.channel_name,
+                score: v.ai_brief.score,
+                starred: false,
+                topic_cluster_zh: v.ai_brief.topic_cluster_zh,
+              })),
+            },
+          });
+        }
+        if (input.endsWith("/research")) {
+          return okJson({ research: [], total: 0, offset: 0, limit: 25 });
+        }
+        if (input.includes("/creator-following")) {
+          return okJson({ available: false, reason_code: "DISABLED" });
+        }
+        return okJson({});
+      }),
+    );
+
+    render(<App />);
+
+    // 1) Filter #Content by Topic "AI 产品机会与一人公司变现" -> verify non-empty "重置筛选" & "围绕当前筛选视频追问 (2)"
+    const topicSelect = (await screen.findByLabelText("按专题筛选内容")) as HTMLSelectElement;
+    fireEvent.change(topicSelect, { target: { value: "AI 产品机会与一人公司变现" } });
+
+    expect(screen.getByText("Micro-SaaS Acquisition Funnel")).toBeTruthy();
+    expect(screen.queryByText("Codex Security Deep Dive")).toBeNull();
+
+    const resetContentBtn = screen.getByRole("button", { name: "重置筛选" });
+    fireEvent.click(resetContentBtn);
+    expect(topicSelect.value).toBe("ALL");
+    expect(screen.getByText("Codex Security Deep Dive")).toBeTruthy();
+
+    // Re-apply Topic filter and click "围绕当前筛选视频追问 (2)"
+    fireEvent.change(topicSelect, { target: { value: "AI 产品机会与一人公司变现" } });
+    fireEvent.click(screen.getByRole("button", { name: "围绕当前筛选视频追问 (2)" }));
+
+    // 2) Lands on #Research: verify single active highlight (utility dock "AI 跨视频问答" active, primary nav "洞察" NOT active!)
+    await waitFor(() => expect(location.hash).toBe("#Research"));
+    const primaryNav = screen.getByRole("navigation", { name: "主导航" });
+    const intelNavBtn = within(primaryNav).getByRole("button", { name: "洞察" });
+    expect(intelNavBtn.getAttribute("aria-current")).toBeNull();
+    expect(intelNavBtn.className).not.toContain("active");
+
+    const utilityQaBtn = screen.getByRole("button", { name: "AI 跨视频问答" });
+    expect(utilityQaBtn.getAttribute("aria-current")).toBe("page");
+    expect(utilityQaBtn.className).toContain("is-active");
+
+    // 3) Verify compare picker defaults to "仅看已选 (2)" on handoff so unchecked OpenAI items are hidden until expanded,
+    // and supports inline candidate search across >5 videos!
+    const picker = await screen.findByRole("group", { name: "勾选对比视频" });
+    const selectedOnlyBtn = within(picker).getByRole("button", { name: "仅看已选 (2)" });
+    expect(selectedOnlyBtn.getAttribute("aria-pressed")).toBe("true");
+    expect(within(picker).getByText("Micro-SaaS Acquisition Funnel")).toBeTruthy();
+    expect(within(picker).getByText("Solo AI Agency Outcome Pricing")).toBeTruthy();
+    expect(within(picker).queryByText("Codex Security Deep Dive")).toBeNull();
+
+    fireEvent.click(within(picker).getByRole("button", { name: "显示全部候选 (6)" }));
+    expect(selectedOnlyBtn.getAttribute("aria-pressed")).toBe("false");
+    expect(within(picker).getByText("Codex Security Deep Dive")).toBeTruthy();
+
+    const compareSearch = within(picker).getByLabelText("搜索候选对比视频") as HTMLInputElement;
+    fireEvent.change(compareSearch, { target: { value: "Codex" } });
+    expect(within(picker).getByText("Codex Security Deep Dive")).toBeTruthy();
+    expect(within(picker).queryByText("Micro-SaaS Acquisition Funnel")).toBeNull();
+
+    // 4) Click origin return button "返回来源：内容" in page header -> returns directly to #Content
+    fireEvent.click(screen.getByRole("button", { name: "返回来源：内容" }));
+    await waitFor(() => expect(location.hash).toBe("#Content"));
+  });
 });
