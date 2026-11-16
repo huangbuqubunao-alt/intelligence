@@ -2872,16 +2872,41 @@ export function WorkspaceAiResearchPanel({
             }
             return suggested;
           })();
-          return activeSuggestedQuestions.map((q) => (
-            <button
-              key={q}
-              type="button"
-              className="ai-question-chip"
-              disabled={busy}
-              onClick={() => void ask(q)}
-            >
-              {q}
-            </button>
+          return activeSuggestedQuestions.map((q, idx) => (
+            <div key={q} className="ai-suggested-pill-pair">
+              <button
+                type="button"
+                className="ai-question-chip ai-question-chip-paired"
+                disabled={busy}
+                onClick={() => void ask(q)}
+              >
+                {q}
+              </button>
+              <button
+                type="button"
+                className="ai-question-fill-btn"
+                disabled={busy}
+                aria-label={
+                  zh ? `填入推荐问题 ${idx + 1} 编辑` : `Edit suggested question ${idx + 1}`
+                }
+                title={
+                  zh ? "填入提问框微调后再提问" : "Fill into input box to edit before asking"
+                }
+                onClick={() => {
+                  setQuestionInput(q);
+                  queueMicrotask(() => {
+                    const el = questionInputRef.current;
+                    if (el) {
+                      el.focus();
+                      const len = q.length;
+                      el.setSelectionRange?.(len, len);
+                    }
+                  });
+                }}
+              >
+                {zh ? "填入" : "Edit"}
+              </button>
+            </div>
           ));
         })()}
       </div>

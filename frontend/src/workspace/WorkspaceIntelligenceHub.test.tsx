@@ -5938,4 +5938,209 @@ describe("Workspace AI Upgrade (P0 + P1 + P2)", () => {
     expect(stylesCss).toMatch(/\.ai-scope-inline-field\s*\{[\s\S]*?white-space:\s*nowrap;/);
     expect(stylesCss).toMatch(/\.ai-scope-inline-field\s+select\s*\{[\s\S]*?width:\s*auto;/);
   });
+
+  it("R17: displays Content active filter count bar, copies plain-text multi-video summary digest, and fills suggested Research question into input without firing ask", async () => {
+    location.hash = "#Content";
+    const writeText = vi.fn(async () => undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    let askCallCount = 0;
+
+    const videoCatalog = [
+      {
+        video_id: "vid-biz-1",
+        provider: "YOUTUBE",
+        channel_id: "ch-greg",
+        channel_name: "Greg Isenberg",
+        title: "Micro-SaaS Acquisition Funnel",
+        source_url: "https://www.youtube.com/watch?v=vid-biz-1",
+        published_at: "2026-11-15T10:00:00Z",
+        duration_seconds: 1800,
+        processing_status: "ANALYZED",
+        last_updated: "2026-11-15T10:05:00Z",
+        ai_brief: {
+          video_id: "vid-biz-1",
+          score: 9.3,
+          recommendation_tier: "MUST_WATCH",
+          content_bucket: "DEEP_DIVE",
+          is_short_noise: false,
+          headline_zh: "用 [[免费微型工具]] 构建零获客成本漏斗",
+          summary_zh: "拆解微型免费工具矩阵获取精准搜索流量的完整闭环。",
+          product_opportunities_zh: ["微型垂直计算器引流组件"],
+          business_opportunities_zh: ["自然承接主 SaaS 付费转化"],
+          topic_cluster_zh: "AI 产品机会与一人公司变现",
+          obsidian_markdown: "# 微型工具\n",
+          provider: "ollama",
+          model: "qwen3:8b",
+          source_basis: "TRANSCRIPT",
+          starred: false,
+          is_read: false,
+        },
+      },
+      {
+        video_id: "vid-biz-2",
+        provider: "YOUTUBE",
+        channel_id: "ch-greg",
+        channel_name: "Greg Isenberg",
+        title: "Solo AI Agency Outcome Pricing",
+        source_url: "https://www.youtube.com/watch?v=vid-biz-2",
+        published_at: "2026-11-14T10:00:00Z",
+        duration_seconds: 1500,
+        processing_status: "ANALYZED",
+        last_updated: "2026-11-14T10:05:00Z",
+        ai_brief: {
+          video_id: "vid-biz-2",
+          score: 8.7,
+          recommendation_tier: "MUST_WATCH",
+          content_bucket: "DEEP_DIVE",
+          is_short_noise: false,
+          headline_zh: "一人 AI 服务按 [[业务交付结果]] 定价模型",
+          tldr_zh: ["淘汰按工时报价，绑定可量化销售线索增量"],
+          action_items_zh: [],
+          opportunity_signals_zh: [],
+          topic_cluster_zh: "AI 产品机会与一人公司变现",
+          obsidian_markdown: "# 结果定价\n",
+          provider: "ollama",
+          model: "qwen3:8b",
+          source_basis: "TRANSCRIPT",
+          starred: false,
+          is_read: false,
+        },
+      },
+      {
+        video_id: "vid-agent-1",
+        provider: "YOUTUBE",
+        channel_id: "ch-oai",
+        channel_name: "OpenAI",
+        title: "Codex Security Deep Dive",
+        source_url: "https://www.youtube.com/watch?v=vid-agent-1",
+        published_at: "2026-11-13T10:00:00Z",
+        duration_seconds: 2100,
+        processing_status: "ANALYZED",
+        last_updated: "2026-11-13T10:05:00Z",
+        ai_brief: {
+          video_id: "vid-agent-1",
+          score: 9.4,
+          recommendation_tier: "WORTH_SKIMMING",
+          content_bucket: "DEEP_DIVE",
+          is_short_noise: false,
+          headline_zh: "Codex 沙箱安全边界与补丁验证闭环",
+          tldr_zh: ["隔离环境自动复现补丁"],
+          action_items_zh: [],
+          opportunity_signals_zh: [],
+          topic_cluster_zh: "AI Agent 与自动化架构",
+          obsidian_markdown: "# Codex\n",
+          provider: "ollama",
+          model: "qwen3:8b",
+          source_basis: "TRANSCRIPT",
+          starred: false,
+          is_read: false,
+        },
+      },
+      {
+        video_id: "vid-short-noise",
+        provider: "YOUTUBE",
+        channel_id: "ch-greg",
+        channel_name: "Greg Isenberg",
+        title: "30s Short Promo",
+        published_at: "2026-11-12T10:00:00Z",
+        duration_seconds: 30,
+        processing_status: "ANALYZED",
+        last_updated: "2026-11-12T10:05:00Z",
+        ai_brief: {
+          video_id: "vid-short-noise",
+          score: 2.1,
+          recommendation_tier: "SKIP_SHORTS",
+          content_bucket: "SHORTS_PROMO",
+          is_short_noise: true,
+          headline_zh: "预告短片",
+          tldr_zh: [],
+          action_items_zh: [],
+          opportunity_signals_zh: [],
+          topic_cluster_zh: "",
+          obsidian_markdown: "",
+          provider: "ollama",
+          model: "qwen3:8b",
+          source_basis: "TRANSCRIPT",
+          starred: false,
+          is_read: false,
+        },
+      },
+    ];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string, init?: RequestInit) => {
+        if (input.endsWith("/videos")) return okJson({ videos: videoCatalog });
+        if (input.endsWith("/workspace-ai/research/ask") && init?.method === "POST") {
+          askCallCount += 1;
+          return okJson({});
+        }
+        if (input.endsWith("/workspace-ai/research/sessions")) {
+          return okJson({
+            sessions: [],
+            suggested_questions: [],
+            scope_options: {
+              starred_count: 0,
+              channels: [
+                { key: "Greg Isenberg", label: "Greg Isenberg", count: 2 },
+                { key: "OpenAI", label: "OpenAI", count: 1 },
+              ],
+              topic_clusters: [
+                { name: "AI 产品机会与一人公司变现", count: 2 },
+                { name: "AI Agent 与自动化架构", count: 1 },
+              ],
+              videos: videoCatalog
+                .filter((v) => !v.ai_brief.is_short_noise)
+                .map((v) => ({
+                  video_id: v.video_id,
+                  title: v.title,
+                  channel_name: v.channel_name,
+                  score: v.ai_brief.score,
+                  starred: false,
+                  topic_cluster_zh: v.ai_brief.topic_cluster_zh,
+                })),
+            },
+          });
+        }
+        if (input.endsWith("/research")) return okJson({ research: [], total: 0, offset: 0, limit: 25 });
+        if (input.includes("/creator-following")) return okJson({ available: false, reason_code: "DISABLED" });
+        return okJson({});
+      }),
+    );
+
+    render(<App />);
+
+    // 1) Filter #Content by Topic "AI 产品机会与一人公司变现" -> verify active filter status count "当前筛选命中 2 / 3 篇长视频"
+    // (3 long-form videos total; 1 Short is excluded from long-form baseline!)
+    const contentTopicSelect = (await screen.findByLabelText("按专题筛选内容")) as HTMLSelectElement;
+    fireEvent.change(contentTopicSelect, { target: { value: "AI 产品机会与一人公司变现" } });
+    expect(await screen.findByText("当前筛选命中 2 / 3 篇长视频")).toBeTruthy();
+
+    // 2) Click "复制当前筛选摘要合集 (2)" -> copies clean plain-text multi-video digest with zero [[wikilinks]] brackets!
+    const copyDigestBtn = screen.getByRole("button", { name: "复制当前筛选摘要合集 (2)" });
+    fireEvent.click(copyDigestBtn);
+    expect(await screen.findByRole("button", { name: "已复制摘要合集" })).toBeTruthy();
+    expect(writeText).toHaveBeenCalledTimes(1);
+    const copiedDigest = String((writeText.mock.calls[0] as unknown[])[0] ?? "");
+    expect(copiedDigest).toContain("内容库精选摘要合集（共 2 篇）");
+    expect(copiedDigest).toContain("[1] 《Micro-SaaS Acquisition Funnel》（Greg Isenberg · 评分 9.3 · AI 产品机会与一人公司变现）");
+    expect(copiedDigest).toContain("核心结论：用 免费微型工具 构建零获客成本漏斗");
+    expect(copiedDigest).toContain("摘要：拆解微型免费工具矩阵获取精准搜索流量的完整闭环。");
+    expect(copiedDigest).toContain("- 微型垂直计算器引流组件");
+    expect(copiedDigest).toContain("https://www.youtube.com/watch?v=vid-biz-1");
+    expect(copiedDigest).toContain("[2] 《Solo AI Agency Outcome Pricing》");
+    expect(copiedDigest).not.toContain("[[");
+
+    // 3) Hand off to #Research -> click "填入推荐问题 1 编辑" -> populates input & focuses WITHOUT firing POST /ask!
+    fireEvent.click(screen.getByRole("button", { name: "围绕当前筛选视频追问 (2)" }));
+    await waitFor(() => expect(location.hash).toBe("#Research"));
+    const fillBtn = await screen.findByRole("button", { name: "填入推荐问题 1 编辑" });
+    fireEvent.click(fillBtn);
+    const qaInput = screen.getByLabelText("跨视频提问") as HTMLInputElement;
+    expect(qaInput.value).toContain(
+      "横向对比这 2 篇指定视频（Greg Isenberg）在「AI 产品机会与一人公司变现」上的核心共识",
+    );
+    await waitFor(() => expect(document.activeElement).toBe(qaInput));
+    expect(askCallCount).toBe(0);
+  });
 });

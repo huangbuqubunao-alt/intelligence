@@ -1418,6 +1418,61 @@ export function formatPlainTextIntelligenceDigest(
   return [heading, ...blocks].join("\n\n");
 }
 
+function stripPlainWikilinks(text: string): string {
+  return text.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, target: string, alias?: string) =>
+    (alias ?? target).trim(),
+  );
+}
+
+export function formatPlainTextContentDigest(
+  entries: { item: ContentItem; brief: VideoAiBrief }[],
+  language: "zh-CN" | "en",
+): string {
+  if (!entries.length) return "";
+  const zh = language === "zh-CN";
+  const heading = zh
+    ? `【内容库精选摘要合集（共 ${entries.length} 篇）】`
+    : `[Content AI Summary Digest] (${entries.length} items)`;
+  const blocks = entries.map(({ item, brief }, idx) => {
+    const chLabel = contentItemChannelKeyAndLabel(item, language).label;
+    const title = stripPlainWikilinks((item.title ?? item.video_id).trim());
+    const topicClean = stripPlainWikilinks((brief.topic_cluster_zh ?? "").trim());
+    const metaParts = [
+      chLabel,
+      zh ? `评分 ${brief.score.toFixed(1)}` : `Score ${brief.score.toFixed(1)}`,
+      topicClean || null,
+    ].filter(Boolean);
+    const lines: string[] = [
+      zh
+        ? `[${idx + 1}] 《${title}》（${metaParts.join(" · ")}）`
+        : `[${idx + 1}] "${title}" (${metaParts.join(" · ")})`,
+    ];
+    const cleanHeadline = stripPlainWikilinks((brief.headline_zh ?? "").trim());
+    if (cleanHeadline) {
+      lines.push(`${zh ? "核心结论：" : "Key takeaway: "}${cleanHeadline}`);
+    }
+    const cleanSummary = stripPlainWikilinks((brief.summary_zh ?? "").trim());
+    if (cleanSummary && cleanSummary !== cleanHeadline) {
+      lines.push(`${zh ? "摘要：" : "Summary: "}${cleanSummary}`);
+    }
+    const bullets = [
+      ...(brief.product_opportunities_zh ?? []),
+      ...(brief.business_opportunities_zh ?? []),
+    ]
+      .map((pt) => stripPlainWikilinks(pt.trim()))
+      .filter((pt) => Boolean(pt) && pt !== cleanHeadline)
+      .slice(0, 2);
+    for (const pt of bullets) {
+      lines.push(`- ${pt}`);
+    }
+    if (item.source_url && /^https?:\/\//i.test(item.source_url)) {
+      lines.push(`${zh ? "原视频：" : "Video URL: "}${item.source_url}`);
+    }
+    return lines.join("\n");
+  });
+  return [heading, ...blocks].join("\n\n");
+}
+
 function IntelligenceCard(
   { item, saved, onSaved, onOpenContent, onOpenTopic }: {
     item: Intelligence;
@@ -2871,6 +2926,10 @@ function ContentPage(
   const [curationBusyId, setCurationBusyId] = useState<string | null>(null);
   const [batchCurationBusy, setBatchCurationBusy] = useState(false);
   const [lastBatchReadIds, setLastBatchReadIds] = useState<string[]>([]);
+  const [copiedContentDigest, setCopiedContentDigest] = useState(false);
+  useEffect(() => {
+    setCopiedContentDigest(false);
+  }, [searchQuery, providerFilter, bucketFilter, topicFilter, channelFilter]);
   const [aiSyncState, setAiSyncState] = useState<{
     running: boolean;
     processedCount: number;
@@ -3442,6 +3501,13 @@ function ContentPage(
         .map((item) => item.video_id),
     ),
   ).slice(0, 12);
+  const totalLongFormCount = videos.filter((item) => !isAutoFoldedItem(item)).length;
+  const digestEntries = primaryVideos
+    .flatMap((item) => {
+      const b = briefByVideoId.get(item.video_id);
+      return !item.work_kind && b ? [{ item, brief: b }] : [];
+    })
+    .slice(0, 20);
   const resetAllContentFilters = () => {
     setSearchQuery("");
     setBucketFilter("ALL");
@@ -3892,6 +3958,48 @@ function ContentPage(
             </div>
           ) : null}
         </div>
+        {hasAiBriefs && hasActiveContentFilter && primaryVideos.length > 0 ? (
+          <div
+            className="content-active-filter-bar tabular-nums"
+            role="status"
+            aria-live="polite"
+          >
+            <span>
+              {bucketFilter === "SHORTS"
+                ? language === "zh-CN"
+                  ? `当前筛选命中 ${primaryVideos.length} 条 Shorts 短片`
+                  : `Showing ${primaryVideos.length} Shorts clips`
+                : language === "zh-CN"
+                  ? `当前筛选命中 ${primaryVideos.length} / ${totalLongFormCount} 篇长视频`
+                  : `Showing ${primaryVideos.length} of ${totalLongFormCount} long-form videos`}
+            </span>
+            {digestEntries.length > 0 ? (
+              <div className="intel-filter-bar-actions">
+                <button
+                  type="button"
+                  className="button button-secondary button-small"
+                  onClick={(event) => {
+                    pulseCelebration(event.currentTarget);
+                    void navigator.clipboard?.writeText(
+                      formatPlainTextContentDigest(digestEntries, language),
+                    );
+                    setCopiedContentDigest(true);
+                    setTimeout(() => setCopiedContentDigest(false), 2200);
+                  }}
+                >
+                  <PhosphorIcon name="quotes" size={13} />
+                  {copiedContentDigest
+                    ? language === "zh-CN"
+                      ? "已复制摘要合集"
+                      : "Copied summary digest"
+                    : language === "zh-CN"
+                      ? `复制当前筛选摘要合集 (${digestEntries.length})`
+                      : `Copy filtered summaries (${digestEntries.length})`}
+                </button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         {lastBatchReadIds.length > 0 ? (
           <div className="curation-undo-strip tabular-nums" role="status" aria-live="polite">
             <span>
