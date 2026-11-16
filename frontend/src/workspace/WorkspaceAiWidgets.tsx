@@ -224,6 +224,7 @@ let pendingContentChannel = "";
 let pendingContentTopic = "";
 let pendingTopicClusterName = "";
 let pendingIntelligenceTopicId = "";
+let pendingResearchVideoIds: string[] = [];
 
 export function setPendingResearchTopicCluster(topicName: string): void {
   pendingResearchTopicCluster = topicName.trim();
@@ -302,6 +303,18 @@ export function setPendingIntelligenceTopicId(topicId: string): void {
 export function consumePendingIntelligenceTopicId(): string {
   const next = pendingIntelligenceTopicId;
   pendingIntelligenceTopicId = "";
+  return next;
+}
+
+export function setPendingResearchVideoIds(videoIds: string[]): void {
+  pendingResearchVideoIds = Array.from(
+    new Set(videoIds.map((id) => id.trim()).filter(Boolean)),
+  ).slice(0, 12);
+}
+
+export function consumePendingResearchVideoIds(): string[] {
+  const next = pendingResearchVideoIds;
+  pendingResearchVideoIds = [];
   return next;
 }
 
@@ -2168,8 +2181,16 @@ export function WorkspaceAiResearchPanel({
   const [selectedTopic, setSelectedTopic] = useState(() => consumePendingResearchTopicCluster());
   const [starredOnly, setStarredOnly] = useState(() => consumePendingResearchStarredOnly());
   const pendingSessionIdRef = useRef<string>(consumePendingResearchSessionId());
-  const [comparePickerOpen, setComparePickerOpen] = useState(false);
-  const [selectedVideoIds, setSelectedVideoIds] = useState<string[]>([]);
+  const initialPendingVideosRef = useRef<string[] | null>(null);
+  if (initialPendingVideosRef.current === null) {
+    initialPendingVideosRef.current = consumePendingResearchVideoIds();
+  }
+  const [comparePickerOpen, setComparePickerOpen] = useState(
+    () => (initialPendingVideosRef.current?.length ?? 0) > 0,
+  );
+  const [selectedVideoIds, setSelectedVideoIds] = useState<string[]>(
+    () => initialPendingVideosRef.current ?? [],
+  );
   const [activeSession, setActiveSession] = useState<AiResearchSession | null>(null);
   const [questionInput, setQuestionInput] = useState("");
   const [sessionSearch, setSessionSearch] = useState("");
@@ -2194,6 +2215,18 @@ export function WorkspaceAiResearchPanel({
         setActiveSession(matched);
         pendingSessionIdRef.current = "";
       }
+    }
+    const nextVids = consumePendingResearchVideoIds();
+    if (nextVids.length > 0) {
+      setStarredOnly(false);
+      setSelectedChannel("");
+      setSelectedTopic("");
+      setSelectedVideoIds(nextVids);
+      setComparePickerOpen(true);
+      queueMicrotask(() => questionInputRef.current?.focus());
+    } else if ((initialPendingVideosRef.current?.length ?? 0) > 0) {
+      initialPendingVideosRef.current = [];
+      queueMicrotask(() => questionInputRef.current?.focus());
     }
     const nextCh = consumePendingResearchChannel();
     if (nextCh) setSelectedChannel(nextCh);
@@ -2539,7 +2572,7 @@ export function WorkspaceAiResearchPanel({
               </label>
             ) : null}
 
-            {(scopeOptions?.videos.length ?? 0) > 0 ? (
+            {(scopeOptions?.videos.length ?? 0) > 0 || selectedVideoIds.length > 0 ? (
               <button
                 type="button"
                 className={`ai-question-chip tabular-nums${comparePickerOpen || selectedVideoIds.length > 0 ? " is-active" : ""}`}
@@ -2597,6 +2630,31 @@ export function WorkspaceAiResearchPanel({
               })}
             </div>
           ) : null}
+        </div>
+      ) : null}
+
+      {selectedVideoIds.length > 0 ? (
+        <div
+          className="ai-locked-videos-strip tabular-nums"
+          role="status"
+          aria-live="polite"
+        >
+          <span>
+            {zh
+              ? `已锁定 ${selectedVideoIds.length} 篇指定源视频进行跨视频原话对比提问`
+              : `Scoped to ${selectedVideoIds.length} selected videos for grounded Q&A`}
+          </span>
+          <button
+            type="button"
+            className="button button-ghost button-small"
+            disabled={busy}
+            onClick={() => {
+              setSelectedVideoIds([]);
+              setComparePickerOpen(false);
+            }}
+          >
+            {zh ? "清空指定视频" : "Clear selected videos"}
+          </button>
         </div>
       ) : null}
 

@@ -4065,4 +4065,20 @@ dl.creator-tracking dd {
   font-size: 12.5px;
 }
 
+.ai-locked-videos-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin: 8px 0 4px;
+  padding: 7px 12px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--text-strong);
+  font-size: 12px;
+  font-weight: 550;
+}
+
 

@@ -5106,4 +5106,296 @@ describe("Workspace AI Upgrade (P0 + P1 + P2)", () => {
     expect(copiedTexts[1]).not.toContain("---");
     expect(copiedTexts[1]).not.toContain("[[");
   });
+
+  it("R14: hands off filtered Intelligence video_ids into scoped Cross-Video Q&A with locked strip, and cross-facets Content channel/topic dropdowns without losing 0-count topic option", async () => {
+    localStorage.setItem("yia.ui-language", "zh-CN");
+    localStorage.setItem("intelligence.onboarding.completed.v1", "true");
+    location.hash = "#Intelligence";
+
+    const askBodies: Record<string, unknown>[] = [];
+
+    const mockIntel = [
+      {
+        status: "AVAILABLE",
+        trusted: true,
+        intelligence_id: "intel-biz-1",
+        claim_kind: "EVIDENCE_BACKED_STATEMENT",
+        state: "NEW",
+        linked_topics: [{ topic_id: "topic:solo-biz", name: "AI 产品机会与一人公司变现" }],
+        card: {
+          core_conclusion: "结果导向年费合约是一人公司高留存首选",
+          user_relevant_information: ["锁定高价值单据节点。"],
+          important_new_information: [],
+          meaningful_details: [],
+          source_id: "src-greg",
+          source_display_name: "Greg Isenberg",
+          source_url: "https://www.youtube.com/@greg",
+          video_id: "vid-biz-1",
+          video_title: "Outcome Pricing Playbook",
+          original_video_url: "https://www.youtube.com/watch?v=vid-biz-1",
+          evidence_links: [],
+        },
+      },
+      {
+        status: "AVAILABLE",
+        trusted: true,
+        intelligence_id: "intel-biz-2",
+        claim_kind: "FACT",
+        state: "NEW",
+        linked_topics: [{ topic_id: "topic:solo-biz", name: "AI 产品机会与一人公司变现" }],
+        card: {
+          core_conclusion: "免费高频小工具引流并沉淀行业专有数据",
+          user_relevant_information: ["降低获客成本。"],
+          important_new_information: [],
+          meaningful_details: [],
+          source_id: "src-greg",
+          source_display_name: "Greg Isenberg",
+          source_url: "https://www.youtube.com/@greg",
+          video_id: "vid-biz-2",
+          video_title: "Tool-Led Growth",
+          original_video_url: "https://www.youtube.com/watch?v=vid-biz-2",
+          evidence_links: [],
+        },
+      },
+      {
+        status: "AVAILABLE",
+        trusted: true,
+        intelligence_id: "intel-agent-1",
+        claim_kind: "SYSTEM_INFERENCE",
+        state: "NEW",
+        linked_topics: [{ topic_id: "topic:agent-arch", name: "AI Agent 与自动化架构" }],
+        card: {
+          core_conclusion: "状态机约束显著降低多代理循环失控概率",
+          user_relevant_information: ["生产可靠性核心。"],
+          important_new_information: [],
+          meaningful_details: [],
+          source_id: "src-openai",
+          source_display_name: "OpenAI",
+          source_url: "https://www.youtube.com/@OpenAI",
+          video_id: "vid-agent-1",
+          video_title: "Stateful Agents",
+          original_video_url: "https://www.youtube.com/watch?v=vid-agent-1",
+          evidence_links: [],
+        },
+      },
+      {
+        status: "AVAILABLE",
+        trusted: true,
+        intelligence_id: "intel-agent-2",
+        claim_kind: "FACT",
+        state: "NEW",
+        linked_topics: [{ topic_id: "topic:agent-arch", name: "AI Agent 与自动化架构" }],
+        card: {
+          core_conclusion: "工具契约强校验消除九成参数幻觉",
+          user_relevant_information: ["工程落地基石。"],
+          important_new_information: [],
+          meaningful_details: [],
+          source_id: "src-openai",
+          source_display_name: "OpenAI",
+          source_url: "https://www.youtube.com/@OpenAI",
+          video_id: "vid-agent-2",
+          video_title: "Strict Tool Schemas",
+          original_video_url: "https://www.youtube.com/watch?v=vid-agent-2",
+          evidence_links: [],
+        },
+      },
+    ];
+
+    const mockVideos = [
+      {
+        video_id: "vid-biz-1",
+        provider: "YOUTUBE",
+        channel_name: "Greg Isenberg",
+        title: "Outcome Pricing Playbook",
+        processing_status: "READY",
+        duration_seconds: 1800,
+        ai_brief: {
+          video_id: "vid-biz-1",
+          score: 9.3,
+          recommendation_tier: "MUST_WATCH",
+          content_bucket: "DEEP_DIVE",
+          is_short_noise: false,
+          starred: true,
+          is_read: false,
+          headline_zh: "结果导向定价",
+          summary_zh: "按交付结果收费。",
+          topic_cluster_zh: "AI 产品机会与一人公司变现",
+          product_opportunities_zh: [],
+          business_opportunities_zh: [],
+        },
+      },
+      {
+        video_id: "vid-biz-2",
+        provider: "YOUTUBE",
+        channel_name: "Greg Isenberg",
+        title: "Tool-Led Growth",
+        processing_status: "READY",
+        duration_seconds: 1500,
+        ai_brief: {
+          video_id: "vid-biz-2",
+          score: 7.4,
+          recommendation_tier: "WORTH_SKIMMING",
+          content_bucket: "DEEP_DIVE",
+          is_short_noise: false,
+          starred: false,
+          is_read: false,
+          headline_zh: "工具引流增长",
+          summary_zh: "免费工具获客。",
+          topic_cluster_zh: "AI 产品机会与一人公司变现",
+          product_opportunities_zh: [],
+          business_opportunities_zh: [],
+        },
+      },
+      {
+        video_id: "vid-agent-1",
+        provider: "YOUTUBE",
+        channel_name: "OpenAI",
+        title: "Stateful Agents",
+        processing_status: "READY",
+        duration_seconds: 2100,
+        ai_brief: {
+          video_id: "vid-agent-1",
+          score: 9.1,
+          recommendation_tier: "MUST_WATCH",
+          content_bucket: "DEEP_DIVE",
+          is_short_noise: false,
+          starred: false,
+          is_read: false,
+          headline_zh: "状态机代理",
+          summary_zh: "确定性状态转移。",
+          topic_cluster_zh: "AI Agent 与自动化架构",
+          product_opportunities_zh: [],
+          business_opportunities_zh: [],
+        },
+      },
+    ];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((rawInput: RequestInfo | URL, init?: RequestInit) => {
+        const input = String(rawInput);
+        if (input.endsWith("/intelligence")) {
+          return okJson({ intelligence: mockIntel, activity: [] });
+        }
+        if (input.endsWith("/saved-intelligence")) {
+          return okJson({ saved: [] });
+        }
+        if (input.endsWith("/videos")) {
+          return okJson({ videos: mockVideos });
+        }
+        if (input.endsWith("/workspace-ai/research/sessions")) {
+          return okJson({
+            sessions: [],
+            suggested_questions: [],
+            scope_options: {
+              starred_count: 1,
+              channels: [
+                { key: "Greg Isenberg", label: "Greg Isenberg", count: 2 },
+                { key: "OpenAI", label: "OpenAI", count: 1 },
+              ],
+              topic_clusters: [
+                { name: "AI 产品机会与一人公司变现", count: 2 },
+                { name: "AI Agent 与自动化架构", count: 1 },
+              ],
+              videos: [
+                {
+                  video_id: "vid-biz-1",
+                  title: "Outcome Pricing Playbook",
+                  channel_name: "Greg Isenberg",
+                  channel_key: "Greg Isenberg",
+                  score: 9.3,
+                  starred: true,
+                  topic_cluster_zh: "AI 产品机会与一人公司变现",
+                },
+                {
+                  video_id: "vid-biz-2",
+                  title: "Tool-Led Growth",
+                  channel_name: "Greg Isenberg",
+                  channel_key: "Greg Isenberg",
+                  score: 7.4,
+                  starred: false,
+                  topic_cluster_zh: "AI 产品机会与一人公司变现",
+                },
+              ],
+            },
+          });
+        }
+        if (input.endsWith("/workspace-ai/research/ask") && init?.method === "POST") {
+          const parsed = JSON.parse(String(init.body ?? "{}")) as Record<string, unknown>;
+          askBodies.push(parsed);
+          return okJson({
+            session: {
+              session_id: "qa-r14-1",
+              question: String(parsed.question ?? ""),
+              scope_label_zh: "指定 2 条视频对比",
+              answer_zh: "工具获客负责顶部漏斗，结果导向年费合约负责高净值留存。",
+              key_takeaways_zh: ["免费工具沉淀数据资产"],
+              action_items_zh: ["先上线单点 ROI 计算器"],
+              citations: [],
+              obsidian_markdown: "# 对比结论\n",
+              provider: "ollama",
+              model: "qwen3:8b",
+              created_at: "2026-11-16T02:00:00Z",
+              pinned: false,
+            },
+          });
+        }
+        if (input.endsWith("/research")) {
+          return okJson({ research: [], total: 0, offset: 0, limit: 25 });
+        }
+        if (input.includes("/creator-following")) {
+          return okJson({ available: false, reason_code: "DISABLED" });
+        }
+        return okJson({});
+      }),
+    );
+
+    render(<App />);
+
+    // 1) Filter #Intelligence by Topic "topic:solo-biz" -> click "围绕当前洞察追问 (2)"
+    const intelTopicSelect = (await screen.findByLabelText("按专题筛选洞察")) as HTMLSelectElement;
+    fireEvent.change(intelTopicSelect, { target: { value: "topic:solo-biz" } });
+
+    const askFilteredBtn = screen.getByRole("button", { name: "围绕当前洞察追问 (2)" });
+    fireEvent.click(askFilteredBtn);
+
+    // 2) Lands on #Research with locked 2-video strip, focused input, and submits video_ids: ["vid-biz-1", "vid-biz-2"]
+    await waitFor(() => expect(location.hash).toBe("#Research"));
+    expect(
+      await screen.findByText("已锁定 2 篇指定源视频进行跨视频原话对比提问"),
+    ).toBeTruthy();
+    const qaInput = screen.getByLabelText("跨视频提问") as HTMLInputElement;
+    fireEvent.change(qaInput, {
+      target: { value: "免费工具获客与结果定价如何组合成一人公司飞轮？" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "AI 提问" }));
+    await waitFor(() => expect(askBodies).toHaveLength(1));
+    expect(askBodies[0].video_ids).toEqual(["vid-biz-1", "vid-biz-2"]);
+
+    // Clicking "清空指定视频" clears the locked multi-video scope cleanly
+    fireEvent.click(screen.getByRole("button", { name: "清空指定视频" }));
+    expect(
+      screen.queryByText("已锁定 2 篇指定源视频进行跨视频原话对比提问"),
+    ).toBeNull();
+
+    // 3) Navigate to #Content -> verify bucketFilter ("必看长视频") cross-facets channel & topic dropdown counts,
+    // and selecting a 0-match combination preserves the selected topic with "(0)" instead of losing <select>.value!
+    fireEvent.click(screen.getByRole("button", { name: "内容" }));
+    const chSelect = (await screen.findByLabelText("按频道筛选")) as HTMLSelectElement;
+    expect(chSelect.textContent).toContain("Greg Isenberg (2)");
+    expect(chSelect.textContent).toContain("OpenAI (1)");
+
+    // Click "必看长视频" bucket -> Greg Isenberg has 1 must-watch (9.3) and 1 worth-skimming (7.4), so count updates to (1)!
+    fireEvent.click(screen.getByRole("button", { name: "必看长视频" }));
+    expect(chSelect.textContent).toContain("Greg Isenberg (1)");
+    expect(chSelect.textContent).not.toContain("Greg Isenberg (2)");
+
+    // Select Topic "AI 产品机会与一人公司变现", then switch Channel to "OpenAI" (0 items in that topic):
+    // topicSelect MUST retain value "AI 产品机会与一人公司变现" via fallback "(0)" option!
+    const tpSelect = screen.getByLabelText("按专题筛选内容") as HTMLSelectElement;
+    fireEvent.change(tpSelect, { target: { value: "AI 产品机会与一人公司变现" } });
+    fireEvent.change(chSelect, { target: { value: "OpenAI" } });
+    expect(tpSelect.value).toBe("AI 产品机会与一人公司变现");
+    expect(tpSelect.textContent).toContain("AI 产品机会与一人公司变现 (0)");
+  });
 });

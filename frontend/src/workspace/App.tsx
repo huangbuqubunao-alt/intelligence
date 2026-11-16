@@ -55,6 +55,7 @@ import {
   setPendingResearchSessionId,
   setPendingResearchStarredOnly,
   setPendingResearchTopicCluster,
+  setPendingResearchVideoIds,
   setPendingTopicClusterName,
   TopicObsidianExportBar,
   VideoAiBrief,
@@ -1864,6 +1865,11 @@ function Workspace() {
                 openContent={openContent}
                 onOpenTopic={id => openDelta({ kind: "topic", id })}
                 openResearch={() => navigate("Research")}
+                onAskFilteredResearch={(videoIds) => {
+                  setPendingResearchVideoIds(videoIds);
+                  setHandoffSeq((value) => value + 1);
+                  navigate("Research");
+                }}
               />
             )
         )}
@@ -2139,12 +2145,13 @@ function IntelligenceDetail({ id, openContent, onOpenTopic, onBack }: {
   </>;
 }
 function IntelligencePage(
-  { refresh, handoffSeq, openContent, onOpenTopic, openResearch }: {
+  { refresh, handoffSeq, openContent, onOpenTopic, openResearch, onAskFilteredResearch }: {
     refresh: number;
     handoffSeq?: number;
     openContent: (videoId: string, evidenceId?: string) => void;
     onOpenTopic?: (topicId: string) => void;
     openResearch: () => void;
+    onAskFilteredResearch?: (videoIds: string[]) => void;
   },
 ) {
   const { language, t } = useUiLanguage();
@@ -2302,6 +2309,17 @@ function IntelligencePage(
       (item) => (item.card?.source_display_name?.trim() ?? "") === effectiveIntelSource,
     );
   }, [sourceBaseAvailable, effectiveIntelSource]);
+  const filteredVideoIds = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          filteredAvailable
+            .map((item) => item.card?.video_id?.trim())
+            .filter((id): id is string => Boolean(id)),
+        ),
+      ).slice(0, 12),
+    [filteredAvailable],
+  );
   const hasActiveIntelFilter =
     effectiveIntelTopic !== "ALL" ||
     effectiveIntelSource !== "ALL" ||
@@ -2401,6 +2419,21 @@ function IntelligencePage(
                   : `Showing ${filteredAvailable.length} of ${currentAvailable.length} verified insights`}
               </span>
               <div className="intel-filter-bar-actions">
+                {filteredVideoIds.length > 0 && onAskFilteredResearch ? (
+                  <button
+                    type="button"
+                    className="button button-primary button-small"
+                    onClick={(event) => {
+                      pulseCelebration(event.currentTarget);
+                      onAskFilteredResearch(filteredVideoIds);
+                    }}
+                  >
+                    <PhosphorIcon name="sparkle" size={13} />
+                    {zh
+                      ? `围绕当前洞察追问 (${filteredVideoIds.length})`
+                      : `Ask AI on filtered (${filteredVideoIds.length})`}
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   className="button button-secondary button-small"
@@ -2487,6 +2520,13 @@ function IntelligencePage(
           const availableSavedItems = saved.data.saved
             .map((entry) => entry.intelligence)
             .filter((it) => it.status === "AVAILABLE" && Boolean(it.card));
+          const savedVideoIds = Array.from(
+            new Set(
+              availableSavedItems
+                .map((it) => it.card?.video_id?.trim())
+                .filter((id): id is string => Boolean(id)),
+            ),
+          ).slice(0, 12);
           return (
             <>
               {availableSavedItems.length > 0 ? (
@@ -2496,31 +2536,48 @@ function IntelligencePage(
                       ? `已收藏 ${availableSavedItems.length} 张可用验证洞察`
                       : `${availableSavedItems.length} saved verified insights`}
                   </span>
-                  <button
-                    type="button"
-                    className="button button-secondary button-small"
-                    onClick={(event) => {
-                      pulseCelebration(event.currentTarget);
-                      void navigator.clipboard?.writeText(
-                        formatPlainTextIntelligenceDigest(
-                          availableSavedItems,
-                          zh,
-                          "saved",
-                        ),
-                      );
-                      setCopiedSavedDigest(true);
-                      setTimeout(() => setCopiedSavedDigest(false), 2200);
-                    }}
-                  >
-                    <PhosphorIcon name="quotes" size={13} />
-                    {copiedSavedDigest
-                      ? zh
-                        ? "已复制收藏合集"
-                        : "Copied saved digest"
-                      : zh
-                        ? `复制已收藏洞察合集 (${availableSavedItems.length})`
-                        : `Copy saved digest (${availableSavedItems.length})`}
-                  </button>
+                  <div className="intel-filter-bar-actions">
+                    {savedVideoIds.length > 0 && onAskFilteredResearch ? (
+                      <button
+                        type="button"
+                        className="button button-primary button-small"
+                        onClick={(event) => {
+                          pulseCelebration(event.currentTarget);
+                          onAskFilteredResearch(savedVideoIds);
+                        }}
+                      >
+                        <PhosphorIcon name="sparkle" size={13} />
+                        {zh
+                          ? `围绕收藏洞察追问 (${savedVideoIds.length})`
+                          : `Ask AI on saved (${savedVideoIds.length})`}
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      className="button button-secondary button-small"
+                      onClick={(event) => {
+                        pulseCelebration(event.currentTarget);
+                        void navigator.clipboard?.writeText(
+                          formatPlainTextIntelligenceDigest(
+                            availableSavedItems,
+                            zh,
+                            "saved",
+                          ),
+                        );
+                        setCopiedSavedDigest(true);
+                        setTimeout(() => setCopiedSavedDigest(false), 2200);
+                      }}
+                    >
+                      <PhosphorIcon name="quotes" size={13} />
+                      {copiedSavedDigest
+                        ? zh
+                          ? "已复制收藏合集"
+                          : "Copied saved digest"
+                        : zh
+                          ? `复制已收藏洞察合集 (${availableSavedItems.length})`
+                          : `Copy saved digest (${availableSavedItems.length})`}
+                    </button>
+                  </div>
                 </div>
               ) : null}
               {saved.data.saved.map((item) => (
@@ -3079,18 +3136,54 @@ function ContentPage(
       briefByVideoId.get(item.video_id)?.is_short_noise ||
         item.work_kind === "DURABLE_CONTENT_IDENTITY",
     );
+  const matchesContentSearch = (item: ContentItem, brief: VideoAiBrief | null) => {
+    if (!trimmedSearch) return true;
+    const ch = contentItemChannelKeyAndLabel(item, language);
+    const haystack = `${item.title ?? ""} ${item.channel_name ?? ""} ${ch.label} ${item.video_id} ${brief?.headline_zh ?? ""} ${brief?.topic_cluster_zh ?? ""}`.toLowerCase();
+    return haystack.includes(trimmedSearch);
+  };
+  const matchesContentBucket = (item: ContentItem, brief: VideoAiBrief | null) => {
+    const itemProvider = item.provider ?? "YOUTUBE";
+    if (bucketFilter === "UNREAD") {
+      if (item.work_kind === "DURABLE_CONTENT_IDENTITY") return false;
+      if (!brief || brief.is_short_noise || brief.is_read) return false;
+    } else if (bucketFilter === "MUST_WATCH") {
+      if (!brief || brief.is_short_noise || brief.recommendation_tier !== "MUST_WATCH") return false;
+    } else if (bucketFilter === "STARRED") {
+      if (!brief || !brief.starred) return false;
+    } else if (bucketFilter === "TUTORIAL") {
+      if (!brief || brief.content_bucket !== "TUTORIAL") return false;
+    } else if (bucketFilter === "SHORTS") {
+      const isShort = brief
+        ? brief.is_short_noise || brief.content_bucket === "SHORTS_PROMO"
+        : itemProvider === "YOUTUBE" && (item.duration_seconds ?? 9999) <= 95;
+      if (!isShort) return false;
+    }
+    return true;
+  };
+  const allChannelKeys = new Set<string>();
+  const allTopicClusters = new Set<string>();
+  for (const item of videos) {
+    if (item.work_kind === "DURABLE_CONTENT_IDENTITY") continue;
+    allChannelKeys.add(contentItemChannelKeyAndLabel(item, language).key);
+    const b = briefByVideoId.get(item.video_id);
+    if (b && !b.is_short_noise && b.topic_cluster_zh.trim()) {
+      allTopicClusters.add(b.topic_cluster_zh.trim());
+    }
+  }
   const channelCountMap = new Map<string, { label: string; count: number }>();
   for (const item of videos) {
     const itemProvider = item.provider ?? "YOUTUBE";
     if (providerFilter !== "ALL" && itemProvider !== providerFilter) continue;
     if (item.work_kind === "DURABLE_CONTENT_IDENTITY") continue;
-    const b = briefByVideoId.get(item.video_id);
-    if (hasAiBriefs) {
+    const b = briefByVideoId.get(item.video_id) ?? null;
+    if (hasAiBriefs && bucketFilter !== "SHORTS") {
       if (!b || b.is_short_noise) continue;
       if (topicFilter !== "ALL" && b.topic_cluster_zh.trim() !== topicFilter) continue;
-    } else if (itemProvider === "YOUTUBE" && (item.duration_seconds ?? 9999) <= 95) {
+    } else if (!hasAiBriefs && itemProvider === "YOUTUBE" && (item.duration_seconds ?? 9999) <= 95) {
       continue;
     }
+    if (!matchesContentBucket(item, b) || !matchesContentSearch(item, b)) continue;
     const ch = contentItemChannelKeyAndLabel(item, language);
     const prev = channelCountMap.get(ch.key);
     channelCountMap.set(ch.key, { label: ch.label, count: (prev?.count ?? 0) + 1 });
@@ -3109,8 +3202,9 @@ function ContentPage(
       continue;
     }
     if (item.work_kind === "DURABLE_CONTENT_IDENTITY") continue;
-    const b = briefByVideoId.get(item.video_id);
+    const b = briefByVideoId.get(item.video_id) ?? null;
     if (!b || b.is_short_noise || !b.topic_cluster_zh.trim()) continue;
+    if (!matchesContentBucket(item, b) || !matchesContentSearch(item, b)) continue;
     const cluster = b.topic_cluster_zh.trim();
     topicCountMap.set(cluster, (topicCountMap.get(cluster) ?? 0) + 1);
   }
@@ -3130,7 +3224,7 @@ function ContentPage(
       const b = briefByVideoId.get(item.video_id);
       if (!b || b.topic_cluster_zh.trim() !== topicFilter) return false;
     }
-    return true;
+    return matchesContentSearch(item, briefByVideoId.get(item.video_id) ?? null);
   });
   const bucketCounts: Record<
     "ALL" | "UNREAD" | "MUST_WATCH" | "STARRED" | "TUTORIAL" | "SHORTS",
@@ -3160,28 +3254,9 @@ function ContentPage(
         : p === "YOUTUBE" && (item.duration_seconds ?? 9999) <= 95;
     }).length,
   };
-  const filteredVideos = providerAndTopicVideos.filter(item => {
-    const itemProvider = item.provider ?? "YOUTUBE";
-    const brief = briefByVideoId.get(item.video_id) ?? null;
-    if (bucketFilter === "UNREAD") {
-      if (item.work_kind === "DURABLE_CONTENT_IDENTITY") return false;
-      if (!brief || brief.is_short_noise || brief.is_read) return false;
-    } else if (bucketFilter === "MUST_WATCH") {
-      if (!brief || brief.is_short_noise || brief.recommendation_tier !== "MUST_WATCH") return false;
-    } else if (bucketFilter === "STARRED") {
-      if (!brief || !brief.starred) return false;
-    } else if (bucketFilter === "TUTORIAL") {
-      if (!brief || brief.content_bucket !== "TUTORIAL") return false;
-    } else if (bucketFilter === "SHORTS") {
-      const isShort = brief
-        ? brief.is_short_noise || brief.content_bucket === "SHORTS_PROMO"
-        : itemProvider === "YOUTUBE" && (item.duration_seconds ?? 9999) <= 95;
-      if (!isShort) return false;
-    }
-    if (!trimmedSearch) return true;
-    const haystack = `${item.title ?? ""} ${item.channel_name ?? ""} ${item.video_id} ${brief?.headline_zh ?? ""} ${brief?.topic_cluster_zh ?? ""}`.toLowerCase();
-    return haystack.includes(trimmedSearch);
-  });
+  const filteredVideos = providerAndTopicVideos.filter((item) =>
+    matchesContentBucket(item, briefByVideoId.get(item.video_id) ?? null),
+  );
   const shouldFoldShorts = hasAiBriefs && bucketFilter === "ALL" && !trimmedSearch;
   const primaryVideos = shouldFoldShorts
     ? [...filteredVideos.filter(item => !isAutoFoldedItem(item))].sort(
@@ -3510,7 +3585,7 @@ function ContentPage(
               ))}
             </div>
           )}
-          {hasAiBriefs && (channelOptionEntries.length > 1 || channelFilter !== "ALL") && (
+          {hasAiBriefs && (allChannelKeys.size > 1 || channelFilter !== "ALL") && (
             <select
               className="content-topic-select tabular-nums"
               aria-label={language === "zh-CN" ? "按频道筛选" : "Filter by channel"}
@@ -3532,7 +3607,7 @@ function ContentPage(
               ))}
             </select>
           )}
-          {hasAiBriefs && (topicClusterCounts.length > 1 || topicFilter !== "ALL") && (
+          {hasAiBriefs && (allTopicClusters.size > 1 || topicFilter !== "ALL") && (
             <select
               className="content-topic-select tabular-nums"
               aria-label={language === "zh-CN" ? "按专题筛选内容" : "Filter Content by topic"}
@@ -3542,6 +3617,11 @@ function ContentPage(
               <option value="ALL">
                 {language === "zh-CN" ? "全部专题" : "All topics"}
               </option>
+              {topicFilter !== "ALL" && !topicCountMap.has(topicFilter) ? (
+                <option value={topicFilter}>
+                  {topicFilter} (0)
+                </option>
+              ) : null}
               {topicClusterCounts.map(([clusterName, count]) => (
                 <option key={clusterName} value={clusterName}>
                   {clusterName} ({count})
