@@ -39,6 +39,7 @@ import {
   AiScoreBadge,
   consumePendingContentChannel,
   consumePendingContentTopic,
+  consumePendingIntelligenceTopicId,
   consumePendingTopicClusterName,
   exportObsidianVaultBundle,
   isKeyboardShortcutBlocked,
@@ -49,6 +50,7 @@ import {
   readWorkspaceAiSettings,
   setPendingContentChannel,
   setPendingContentTopic,
+  setPendingIntelligenceTopicId,
   setPendingResearchChannel,
   setPendingResearchSessionId,
   setPendingResearchStarredOnly,
@@ -824,7 +826,7 @@ function Claim({ kind }: { kind: string }) {
     RUMOR: "Unconfirmed rumor",
     SYSTEM_INFERENCE: "System inference",
   };
-  return <Status value={labels[kind] ?? kind} />;
+  return <Status value={kind} label={labels[kind] ?? kind} />;
 }
 export function intelligenceValidationCopy(state: string) {
   return ({
@@ -1826,6 +1828,7 @@ function Workspace() {
             : (
               <IntelligencePage
                 refresh={refresh}
+                handoffSeq={handoffSeq}
                 openContent={openContent}
                 onOpenTopic={id => openDelta({ kind: "topic", id })}
                 openResearch={() => navigate("Research")}
@@ -1848,6 +1851,11 @@ function Workspace() {
               setPendingContentChannel(channelKey ?? "ALL");
               setHandoffSeq((value) => value + 1);
               navigate("Content");
+            }}
+            onBrowseTopicIntelligence={(topicId) => {
+              setPendingIntelligenceTopicId(topicId);
+              setHandoffSeq((value) => value + 1);
+              navigate("Intelligence");
             }}
           />
         )}
@@ -2099,8 +2107,9 @@ function IntelligenceDetail({ id, openContent, onOpenTopic, onBack }: {
   </>;
 }
 function IntelligencePage(
-  { refresh, openContent, onOpenTopic, openResearch }: {
+  { refresh, handoffSeq, openContent, onOpenTopic, openResearch }: {
     refresh: number;
+    handoffSeq?: number;
     openContent: (videoId: string, evidenceId?: string) => void;
     onOpenTopic?: (topicId: string) => void;
     openResearch: () => void;
@@ -2112,7 +2121,16 @@ function IntelligencePage(
   const [revision, setRevision] = useState(0);
   const [intelSearch, setIntelSearch] = useState("");
   const [intelSourceFilter, setIntelSourceFilter] = useState<string>("ALL");
-  const [intelTopicFilter, setIntelTopicFilter] = useState<string>("ALL");
+  const [intelTopicFilter, setIntelTopicFilter] = useState<string>(
+    () => consumePendingIntelligenceTopicId() || "ALL",
+  );
+  useEffect(() => {
+    const nextTopicId = consumePendingIntelligenceTopicId();
+    if (nextTopicId) {
+      setView("Current");
+      setIntelTopicFilter(nextTopicId);
+    }
+  }, [handoffSeq]);
   const current = useRemote<{ intelligence: Intelligence[]; activity?: { video_id: string; title: string; status: string; cloud_http429_code?: string; selected_provider?: string; can_cancel?: boolean }[] }>(
     "/intelligence",
     refresh + revision,
@@ -2278,7 +2296,7 @@ function IntelligencePage(
                   aria-pressed={effectiveIntelSource === src.name}
                   onClick={() => setIntelSourceFilter(src.name)}
                 >
-                  {`${src.name} (${src.count})`}
+                  {`${t(src.name)} (${src.count})`}
                 </button>
               ))}
             </div>
@@ -3983,6 +4001,8 @@ function ContentDetailPanel(
           <WorkspaceVideoAiActions
             videoId={data.video.video_id}
             title={data.video.title ?? data.video.video_id}
+            channelName={data.video.channel_name}
+            sourceUrl={data.video.source_url}
             provider={data.video.provider}
             isLocalMedia={isLocalMedia}
             transcriptAvailable={transcript.status === "AVAILABLE"}
@@ -5006,6 +5026,7 @@ function Topics({
   onOpenContent,
   onAskTopicResearch,
   onBrowseTopicContent,
+  onBrowseTopicIntelligence,
 }: {
   refresh: number;
   handoffSeq?: number;
@@ -5013,6 +5034,7 @@ function Topics({
   onOpenContent?: (videoId: string) => void;
   onAskTopicResearch?: (topicName: string) => void;
   onBrowseTopicContent?: (topicName: string, channelKey?: string) => void;
+  onBrowseTopicIntelligence?: (topicId: string) => void;
 }) {
   const { language, t } = useUiLanguage();
   const zh = language === "zh-CN";
@@ -5111,6 +5133,11 @@ function Topics({
   const topic = detail.data.topic;
   const evo = readTopicAiEvolution(topic.ai_evolution);
   const hasEvoEntries = Boolean(evo && evo.entries.length > 0);
+  const availableIntelCount = new Set(
+    topic.contributions
+      .filter((c) => c.available)
+      .map((c) => c.intelligence_id),
+  ).size;
   const contributionNodes = topic.contributions.map((contribution) => (
     <article key={`${contribution.intelligence_id}:${contribution.claim_kind}`}>
       <Claim kind={contribution.claim_kind} />{" "}
@@ -5142,7 +5169,7 @@ function Topics({
               {zh
                 ? `已聚合 ${evo.video_count} 条相关内容 · ${evo.must_watch_count} 条必看干货${evo.recent_7d_count > 0 ? ` · 近7天 +${evo.recent_7d_count}` : ""}${evo.avg_score !== null ? ` · 平均评分 ${evo.avg_score.toFixed(1)}` : ""}`
                 : `${evo.video_count} items · ${evo.must_watch_count} must-watch${evo.recent_7d_count > 0 ? ` · +${evo.recent_7d_count} in 7d` : ""}${evo.avg_score !== null ? ` · Avg ${evo.avg_score.toFixed(1)}` : ""}`}
-            </span>
+            </span>{" "}
             {evo.source_channels.length > 0 ? <span>{evo.source_channels.join(" · ")}</span> : null}
           </p>
         ) : null}
@@ -5227,6 +5254,21 @@ function Topics({
               {zh
                 ? `在内容库筛选本专题 (${evo.video_count})`
                 : `Filter in Content (${evo.video_count})`}
+            </button>
+          ) : null}
+          {availableIntelCount > 0 && onBrowseTopicIntelligence ? (
+            <button
+              type="button"
+              className="button button-secondary tabular-nums"
+              onClick={event => {
+                pulseCelebration(event.currentTarget);
+                onBrowseTopicIntelligence(topic.topic_id);
+              }}
+            >
+              <PhosphorIcon name="shield-check" size={14} />
+              {zh
+                ? `查看本专题验证洞察 (${availableIntelCount})`
+                : `View verified insights (${availableIntelCount})`}
             </button>
           ) : null}
           <button
