@@ -864,6 +864,87 @@ export function AiScoreBadge({
   );
 }
 
+export function formatPlainTextWeeklyBrief(
+  brief: WeeklyAiBrief,
+  zh: boolean,
+): string {
+  const stripWiki = (text: string) =>
+    text.replace(
+      /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
+      (_, target: string, alias?: string) => (alias ?? target).trim(),
+    );
+  const lines: string[] = [];
+  const weekSuffix = brief.week_label?.trim()
+    ? zh
+      ? `（${brief.week_label.trim()}）`
+      : ` (${brief.week_label.trim()})`
+    : "";
+  lines.push(
+    zh
+      ? `【AI 情报周报】${stripWiki(brief.title_zh.trim())}${weekSuffix}`
+      : `[Weekly AI Brief] ${stripWiki(brief.title_zh.trim())}${weekSuffix}`,
+  );
+  lines.push(
+    zh
+      ? `统计范围：收录 ${brief.funnel_stats.total_videos} 条内容 · 自动折叠 ${brief.funnel_stats.shorts_filtered_count} 条短片 · 精选 ${brief.funnel_stats.must_watch_count} 条必看干货`
+      : `Scope: ${brief.funnel_stats.total_videos} items · ${brief.funnel_stats.shorts_filtered_count} Shorts folded · ${brief.funnel_stats.must_watch_count} must-watch picks`,
+  );
+  if (brief.executive_summary_zh.trim()) {
+    lines.push(
+      zh
+        ? `核心综述：\n${stripWiki(brief.executive_summary_zh.trim())}`
+        : `Executive summary:\n${stripWiki(brief.executive_summary_zh.trim())}`,
+    );
+  }
+  if (brief.core_trends_zh.length > 0) {
+    lines.push(
+      [
+        zh ? "核心趋势判断：" : "Core trends:",
+        ...brief.core_trends_zh.map((item) => `• ${stripWiki(item.trim())}`),
+      ].join("\n"),
+    );
+  }
+  if (brief.product_opportunities_zh.length > 0) {
+    lines.push(
+      [
+        zh ? "AI 产品化启发：" : "Product takeaways:",
+        ...brief.product_opportunities_zh.map((item) => `• ${stripWiki(item.trim())}`),
+      ].join("\n"),
+    );
+  }
+  if (brief.business_opportunities_zh.length > 0) {
+    lines.push(
+      [
+        zh ? "商业变现切口：" : "Monetization angles:",
+        ...brief.business_opportunities_zh.map((item) => `• ${stripWiki(item.trim())}`),
+      ].join("\n"),
+    );
+  }
+  if (brief.must_watch_picks.length > 0) {
+    lines.push(
+      [
+        zh ? "本周必看精选：" : "Must-watch picks:",
+        ...brief.must_watch_picks.map((pick, idx) => {
+          const titlePart = zh
+            ? `《${stripWiki(pick.title.trim())}》`
+            : `"${stripWiki(pick.title.trim())}"`;
+          const meta = [
+            pick.channel_name?.trim() ? stripWiki(pick.channel_name.trim()) : "",
+            `${pick.score.toFixed(1)}/10`,
+          ]
+            .filter(Boolean)
+            .join(" · ");
+          const reason = stripWiki(pick.reason_zh.trim());
+          return reason
+            ? `${idx + 1}. ${titlePart}（${meta}）：${reason}`
+            : `${idx + 1}. ${titlePart}（${meta}）`;
+        }),
+      ].join("\n"),
+    );
+  }
+  return lines.join("\n\n");
+}
+
 export function WeeklyAiBriefPanel({
   initialBrief,
   onOpenContent,
@@ -881,10 +962,16 @@ export function WeeklyAiBriefPanel({
   );
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copiedPlain, setCopiedPlain] = useState(false);
   const [bundleScope, setBundleScope] = useState<ObsidianBundleScope>("must_watch");
   const [exportingBundle, setExportingBundle] = useState(false);
   const [bundleStatus, setBundleStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setCopied(false);
+    setCopiedPlain(false);
+  }, [brief?.brief_id]);
 
   useEffect(() => {
     if (initialBrief) {
@@ -1025,7 +1112,7 @@ export function WeeklyAiBriefPanel({
           {zh
             ? `收录 ${brief.funnel_stats.total_videos} 条内容 · 自动折叠 ${brief.funnel_stats.shorts_filtered_count} 条 Shorts 宣传短片 · 精选 ${brief.funnel_stats.must_watch_count} 条必看干货`
             : `${brief.funnel_stats.total_videos} items · ${brief.funnel_stats.shorts_filtered_count} Shorts auto-folded · ${brief.funnel_stats.must_watch_count} must-watch picks`}
-        </span>
+        </span>{" "}
         {brief.week_label ? <span>{brief.week_label}</span> : null}
       </div>
 
@@ -1196,6 +1283,27 @@ export function WeeklyAiBriefPanel({
 
       <div className="obsidian-export-bar">
         <div className="button-row">
+          <button
+            type="button"
+            className="button button-secondary button-small"
+            onClick={(event) => {
+              pulseCelebration(event.currentTarget);
+              void navigator.clipboard?.writeText(
+                formatPlainTextWeeklyBrief(brief, zh),
+              );
+              setCopiedPlain(true);
+              setTimeout(() => setCopiedPlain(false), 2200);
+            }}
+          >
+            <PhosphorIcon name="quotes" size={13} />
+            {copiedPlain
+              ? zh
+                ? "已复制纯文本周报"
+                : "Copied plain-text brief"
+              : zh
+                ? "复制纯文本周报"
+                : "Copy plain-text brief"}
+          </button>
           {brief.obsidian_markdown ? (
             <>
               <button
@@ -1804,21 +1912,129 @@ export function WorkspaceVideoAiBriefCard({
   );
 }
 
+export function formatPlainTextTopicBrief(
+  topicName: string,
+  evo: TopicAiEvolution,
+  zh: boolean,
+): string {
+  const stripWiki = (text: string) =>
+    text.replace(
+      /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
+      (_, target: string, alias?: string) => (alias ?? target).trim(),
+    );
+  const lines: string[] = [];
+  lines.push(
+    zh
+      ? `【专题脉络总览】${stripWiki(topicName.trim())}`
+      : `[Topic Synthesis] ${stripWiki(topicName.trim())}`,
+  );
+  const statParts = [
+    zh ? `${evo.video_count} 篇相关内容` : `${evo.video_count} items`,
+    zh ? `${evo.must_watch_count} 篇必看干货` : `${evo.must_watch_count} must-watch`,
+    evo.avg_score !== null
+      ? zh
+        ? `平均评分 ${evo.avg_score.toFixed(1)}/10`
+        : `Avg ${evo.avg_score.toFixed(1)}/10`
+      : "",
+    evo.source_channels.length > 0
+      ? zh
+        ? `来源：${evo.source_channels.join("、")}`
+        : `Sources: ${evo.source_channels.join(", ")}`
+      : "",
+  ].filter(Boolean);
+  lines.push(
+    zh ? `聚合规模：${statParts.join(" · ")}` : `Coverage: ${statParts.join(" · ")}`,
+  );
+  const synthesisText = stripWiki(
+    (evo.synthesis_zh || evo.latest_headline_zh || "").trim(),
+  );
+  if (synthesisText) {
+    lines.push(
+      zh
+        ? `核心共识与脉络：\n${synthesisText}`
+        : `Synthesis:\n${synthesisText}`,
+    );
+  }
+  if (evo.top_opportunities_zh.length > 0) {
+    lines.push(
+      [
+        zh ? "高优产品与变现切口：" : "Top opportunities:",
+        ...evo.top_opportunities_zh.map((opp) => `• ${stripWiki(opp.trim())}`),
+      ].join("\n"),
+    );
+  }
+  if (evo.entries.length > 0) {
+    lines.push(
+      [
+        zh ? "代表性收录内容：" : "Key entries:",
+        ...evo.entries.slice(0, 8).map((entry, idx) => {
+          const titlePart = zh
+            ? `《${stripWiki(entry.title.trim())}》`
+            : `"${stripWiki(entry.title.trim())}"`;
+          const meta = [
+            entry.channel_name?.trim() ? stripWiki(entry.channel_name.trim()) : "",
+            `${entry.score.toFixed(1)}/10`,
+          ]
+            .filter(Boolean)
+            .join(" · ");
+          const headline = stripWiki(entry.headline_zh.trim());
+          return headline
+            ? `${idx + 1}. ${titlePart}（${meta}）：${headline}`
+            : `${idx + 1}. ${titlePart}（${meta}）`;
+        }),
+      ].join("\n"),
+    );
+  }
+  return lines.join("\n\n");
+}
+
 export function TopicObsidianExportBar({
   topicName,
   obsidianMarkdown,
+  evolution,
 }: {
   topicName: string;
   obsidianMarkdown: string;
+  evolution?: TopicAiEvolution | null;
 }) {
   const { language } = useUiLanguage();
   const zh = language === "zh-CN";
   const [copied, setCopied] = useState(false);
-  if (!obsidianMarkdown.trim()) return null;
+  const [copiedPlain, setCopiedPlain] = useState(false);
+
+  useEffect(() => {
+    setCopied(false);
+    setCopiedPlain(false);
+  }, [topicName]);
+
+  if (!obsidianMarkdown.trim() && !evolution) return null;
 
   return (
     <div className="topic-moc-export-box">
       <div className="button-row">
+        {evolution ? (
+          <button
+            type="button"
+            className="button button-secondary button-small"
+            onClick={(event) => {
+              pulseCelebration(event.currentTarget);
+              void navigator.clipboard?.writeText(
+                formatPlainTextTopicBrief(topicName, evolution, zh),
+              );
+              setCopiedPlain(true);
+              setTimeout(() => setCopiedPlain(false), 2200);
+            }}
+          >
+            <PhosphorIcon name="quotes" size={13} />
+            {copiedPlain
+              ? zh
+                ? "已复制纯文本专题提纲"
+                : "Copied plain-text outline"
+              : zh
+                ? "复制纯文本专题提纲"
+                : "Copy plain-text outline"}
+          </button>
+        ) : null}
         <button
           type="button"
           className="button button-secondary button-small"

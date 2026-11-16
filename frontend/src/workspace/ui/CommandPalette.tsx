@@ -176,6 +176,7 @@ type PaletteIntelligence = {
   intelligence_id?: string;
   status: string;
   trusted?: boolean;
+  linked_topics?: { topic_id: string; name: string }[];
   card?: {
     core_conclusion: string;
     video_title?: string;
@@ -403,15 +404,31 @@ export function CommandPalette({
       };
     });
 
-    const dynamicInsights: CommandPaletteAction[] = insights.map(item => ({
-      id: `intel:${item.intelligence_id}`,
-      group: "intelligence",
-      label: item.card!.core_conclusion,
-      subtitle: item.card?.video_title || item.card?.source_display_name,
-      icon: "sparkle",
-      aliases: [item.card?.video_title ?? "", item.card?.source_display_name ?? ""],
-      onSelect: () => onOpenIntelligence(item.intelligence_id!),
-    }));
+    const dynamicInsights: CommandPaletteAction[] = insights.map(item => {
+      const topicNames = (item.linked_topics ?? [])
+        .map(tp => tp.name?.trim())
+        .filter((name): name is string => Boolean(name));
+      const topicBadge = topicNames.length > 0 ? `[[${topicNames[0]}]]` : undefined;
+      const rawSource = item.card?.source_display_name?.trim();
+      const localizedSource = rawSource ? t(rawSource) : undefined;
+      return {
+        id: `intel:${item.intelligence_id}`,
+        group: "intelligence",
+        label: item.card!.core_conclusion,
+        subtitle:
+          [topicBadge, localizedSource, item.card?.video_title]
+            .filter(Boolean)
+            .join(" · ") || undefined,
+        icon: "sparkle",
+        aliases: [
+          item.card?.video_title ?? "",
+          rawSource ?? "",
+          localizedSource ?? "",
+          ...topicNames,
+        ].filter(Boolean),
+        onSelect: () => onOpenIntelligence(item.intelligence_id!),
+      };
+    });
 
     const dynamicTopics: CommandPaletteAction[] = topics.map(topic => {
       const evoCount = topic.ai_evolution?.video_count ?? 0;

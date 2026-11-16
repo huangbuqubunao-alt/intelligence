@@ -2218,6 +2218,10 @@ function IntelligencePage(
       return haystack.includes(q);
     });
   }, [currentAvailable, effectiveIntelSource, effectiveIntelTopic, intelSearch]);
+  const hasActiveIntelFilter =
+    effectiveIntelTopic !== "ALL" ||
+    effectiveIntelSource !== "ALL" ||
+    intelSearch.trim().length > 0;
   const savedIdSet = new Set((saved.data?.saved ?? []).map((entry) => entry.intelligence_id));
   const researchEntry = <div className="button-row"><button type="button" className="button button-secondary" onClick={openResearch}>{t("Research")}</button></div>;
   if (source.error) return <>{researchEntry}<ErrorState error={source.error} code={source.errorCode} onReload={source.reload} /></>;
@@ -2299,6 +2303,30 @@ function IntelligencePage(
                   {`${t(src.name)} (${src.count})`}
                 </button>
               ))}
+            </div>
+          ) : null}
+          {hasActiveIntelFilter && filteredAvailable.length > 0 ? (
+            <div
+              className="intel-active-filter-bar tabular-nums"
+              role="status"
+              aria-live="polite"
+            >
+              <span>
+                {zh
+                  ? `当前筛选命中 ${filteredAvailable.length} / ${currentAvailable.length} 张验证洞察`
+                  : `Showing ${filteredAvailable.length} of ${currentAvailable.length} verified insights`}
+              </span>
+              <button
+                type="button"
+                className="button button-ghost button-small"
+                onClick={() => {
+                  setIntelSearch("");
+                  setIntelSourceFilter("ALL");
+                  setIntelTopicFilter("ALL");
+                }}
+              >
+                {zh ? "重置筛选" : "Reset filters"}
+              </button>
             </div>
           ) : null}
         </div>
@@ -5287,6 +5315,7 @@ function Topics({
           <TopicObsidianExportBar
             topicName={topic.name}
             obsidianMarkdown={evo.obsidian_markdown}
+            evolution={evo}
           />
         ) : null}
       </Panel>
