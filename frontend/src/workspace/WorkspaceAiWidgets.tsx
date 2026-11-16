@@ -2203,7 +2203,16 @@ export function WorkspaceAiResearchPanel({
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [copiedPlain, setCopiedPlain] = useState(false);
-  const questionInputRef = useRef<HTMLInputElement | null>(null);
+  const questionInputRef = useRef<HTMLTextAreaElement | null>(null);
+
+  useEffect(() => {
+    const el = questionInputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    if (el.scrollHeight > 0) {
+      el.style.height = `${Math.min(el.scrollHeight, 116)}px`;
+    }
+  }, [questionInput]);
 
   useEffect(() => {
     setCopied(false);
@@ -2749,19 +2758,42 @@ export function WorkspaceAiResearchPanel({
       ) : null}
 
       <form className="ai-research-ask-form" onSubmit={handleSubmit}>
-        <input
-          ref={questionInputRef}
-          type="text"
-          aria-label={zh ? "跨视频提问" : "Ask across videos"}
-          placeholder={
-            zh
-              ? "输入你想跨视频对比的产品、技术或商业变现问题…"
-              : "Ask a product, technical, or business question across your library…"
-          }
-          value={questionInput}
-          disabled={busy}
-          onChange={(e) => setQuestionInput(e.target.value)}
-        />
+        <div className="ai-research-input-wrap">
+          <textarea
+            ref={questionInputRef}
+            rows={1}
+            className="ai-research-textarea"
+            aria-label={zh ? "跨视频提问" : "Ask across videos"}
+            placeholder={
+              zh
+                ? "输入你想跨视频对比的产品、技术或商业变现问题（Enter 提问 · Shift+Enter 换行）…"
+                : "Ask a product, technical, or business question across your library…"
+            }
+            value={questionInput}
+            disabled={busy}
+            onChange={(e) => setQuestionInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                void ask(questionInput);
+              }
+            }}
+          />
+          {questionInput.length > 0 && !busy ? (
+            <button
+              type="button"
+              className="ai-research-clear-btn"
+              aria-label={zh ? "清空提问草稿" : "Clear question draft"}
+              title={zh ? "清空输入内容" : "Clear input"}
+              onClick={() => {
+                setQuestionInput("");
+                questionInputRef.current?.focus();
+              }}
+            >
+              {zh ? "清空" : "Clear"}
+            </button>
+          ) : null}
+        </div>
         <button type="submit" className="button button-primary" disabled={busy || !questionInput.trim()}>
           {busy ? (zh ? "正在检索并推演…" : "Synthesizing…") : zh ? "AI 提问" : "Ask AI"}
         </button>
