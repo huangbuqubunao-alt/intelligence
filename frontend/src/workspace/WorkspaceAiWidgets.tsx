@@ -2191,6 +2191,10 @@ export function WorkspaceAiResearchPanel({
   const [selectedVideoIds, setSelectedVideoIds] = useState<string[]>(
     () => initialPendingVideosRef.current ?? [],
   );
+  const [compareSelectedOnly, setCompareSelectedOnly] = useState(
+    () => (initialPendingVideosRef.current?.length ?? 0) > 0,
+  );
+  const [compareSearch, setCompareSearch] = useState("");
   const [activeSession, setActiveSession] = useState<AiResearchSession | null>(null);
   const [questionInput, setQuestionInput] = useState("");
   const [sessionSearch, setSessionSearch] = useState("");
@@ -2223,6 +2227,8 @@ export function WorkspaceAiResearchPanel({
       setSelectedTopic("");
       setSelectedVideoIds(nextVids);
       setComparePickerOpen(true);
+      setCompareSelectedOnly(true);
+      setCompareSearch("");
       queueMicrotask(() => questionInputRef.current?.focus());
     } else if ((initialPendingVideosRef.current?.length ?? 0) > 0) {
       initialPendingVideosRef.current = [];
@@ -2602,6 +2608,8 @@ export function WorkspaceAiResearchPanel({
                   setSelectedTopic("");
                   setSelectedVideoIds([]);
                   setComparePickerOpen(false);
+                  setCompareSelectedOnly(false);
+                  setCompareSearch("");
                 }}
               >
                 {zh ? "重置范围" : "Reset scope"}
@@ -2609,27 +2617,107 @@ export function WorkspaceAiResearchPanel({
             ) : null}
           </div>
 
-          {comparePickerOpen && candidateVideos.length > 0 ? (
-            <div className="ai-video-compare-picker" role="group" aria-label={zh ? "勾选对比视频" : "Select videos to compare"}>
-              {candidateVideos.map((v) => {
-                const checked = selectedVideoIds.includes(v.video_id);
-                return (
-                  <label key={v.video_id} className={`ai-video-compare-option${checked ? " is-checked" : ""}`}>
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      disabled={busy}
-                      onChange={() => toggleComparedVideo(v.video_id)}
-                    />
-                    <span className="ai-video-compare-title">{v.title}</span>
-                    <small className="tabular-nums">
-                      {[v.channel_name, v.score !== null ? v.score.toFixed(1) : null].filter(Boolean).join(" · ")}
-                    </small>
-                  </label>
-                );
-              })}
-            </div>
-          ) : null}
+          {comparePickerOpen && candidateVideos.length > 0 ? (() => {
+            const effectiveSelectedOnly =
+              compareSelectedOnly &&
+              selectedVideoIds.length > 0 &&
+              candidateVideos.some((v) => selectedVideoIds.includes(v.video_id));
+            const trimmedCompareQuery = compareSearch.trim().toLowerCase();
+            const visibleCompareVideos = candidateVideos.filter((v) => {
+              if (effectiveSelectedOnly && !selectedVideoIds.includes(v.video_id)) {
+                return false;
+              }
+              if (trimmedCompareQuery) {
+                const hay = `${v.title} ${v.channel_name} ${v.topic_cluster_zh}`.toLowerCase();
+                if (!hay.includes(trimmedCompareQuery)) return false;
+              }
+              return true;
+            });
+            return (
+              <div
+                className="ai-video-compare-picker"
+                role="group"
+                aria-label={zh ? "勾选对比视频" : "Select videos to compare"}
+              >
+                {candidateVideos.length > 5 || selectedVideoIds.length > 0 ? (
+                  <div className="ai-compare-picker-toolbar">
+                    {candidateVideos.length > 5 ? (
+                      <input
+                        type="search"
+                        className="ai-compare-search-input"
+                        aria-label={zh ? "搜索候选对比视频" : "Filter candidate videos"}
+                        placeholder={
+                          zh ? "搜索候选视频标题或频道…" : "Filter candidate videos…"
+                        }
+                        value={compareSearch}
+                        disabled={busy}
+                        onChange={(e) => setCompareSearch(e.target.value)}
+                      />
+                    ) : null}
+                    {selectedVideoIds.length > 0 ? (
+                      <button
+                        type="button"
+                        className={`ai-question-chip tabular-nums${effectiveSelectedOnly ? " is-active" : ""}`}
+                        aria-pressed={effectiveSelectedOnly}
+                        disabled={busy}
+                        onClick={() => setCompareSelectedOnly((prev) => !prev)}
+                      >
+                        {zh
+                          ? `仅看已选 (${selectedVideoIds.length})`
+                          : `Selected only (${selectedVideoIds.length})`}
+                      </button>
+                    ) : null}
+                    {effectiveSelectedOnly &&
+                    candidateVideos.length > visibleCompareVideos.length ? (
+                      <button
+                        type="button"
+                        className="button button-ghost button-small tabular-nums"
+                        disabled={busy}
+                        onClick={() => setCompareSelectedOnly(false)}
+                      >
+                        {zh
+                          ? `显示全部候选 (${candidateVideos.length})`
+                          : `Show all (${candidateVideos.length})`}
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+                <div className="ai-video-compare-list">
+                  {visibleCompareVideos.length > 0 ? (
+                    visibleCompareVideos.map((v) => {
+                      const checked = selectedVideoIds.includes(v.video_id);
+                      return (
+                        <label
+                          key={v.video_id}
+                          className={`ai-video-compare-option${checked ? " is-checked" : ""}`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            disabled={busy}
+                            onChange={() => toggleComparedVideo(v.video_id)}
+                          />
+                          <span className="ai-video-compare-title">{v.title}</span>
+                          <small className="tabular-nums">
+                            {[
+                              v.channel_name,
+                              v.score !== null ? v.score.toFixed(1) : null,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </small>
+                        </label>
+                      );
+                    })
+                  ) : (
+                    <p className="hint ai-compare-empty-hint">
+                      {zh ? "没有匹配当前搜索词的候选视频。" : "No matching candidate videos."}
+                    </p>
+                  )}
+                </div>
+              </div>
+            );
+          })() : null}
         </div>
       ) : null}
 
@@ -2651,6 +2739,8 @@ export function WorkspaceAiResearchPanel({
             onClick={() => {
               setSelectedVideoIds([]);
               setComparePickerOpen(false);
+              setCompareSelectedOnly(false);
+              setCompareSearch("");
             }}
           >
             {zh ? "清空指定视频" : "Clear selected videos"}
