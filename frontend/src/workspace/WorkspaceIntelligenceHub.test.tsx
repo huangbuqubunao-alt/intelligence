@@ -4264,4 +4264,330 @@ describe("Workspace AI Upgrade (P0 + P1 + P2)", () => {
     expect(copiedTexts[1]).not.toContain("---");
     expect(copiedTexts[1]).not.toContain("[[");
   });
+
+  it("R11: hands off Topic detail to filtered Intelligence cards, localizes Chinese Claim & Local library pills without gluing Topic stats, and copies plain-text Video AI summary", async () => {
+    localStorage.setItem("yia.ui-language", "zh-CN");
+    localStorage.setItem("intelligence.onboarding.completed.v1", "true");
+    location.hash = "#Topics";
+
+    const copiedTexts: string[] = [];
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: vi.fn(async (text: string) => {
+          copiedTexts.push(text);
+        }),
+      },
+    });
+
+    const makeCard = (
+      id: string,
+      claimKind: string,
+      conclusion: string,
+      sourceName: string,
+      videoId: string,
+      videoTitle: string,
+      topicId: string,
+      topicName: string,
+    ) => ({
+      status: "AVAILABLE",
+      trusted: true,
+      intelligence_id: id,
+      claim_kind: claimKind,
+      state: "NEW",
+      linked_topics: [{ topic_id: topicId, name: topicName }],
+      card: {
+        core_conclusion: conclusion,
+        user_relevant_information: [`${conclusion} 的落地路径。`],
+        important_new_information: [],
+        meaningful_details: [],
+        source_id: `src-${id}`,
+        source_display_name: sourceName,
+        source_url: sourceName === "Local library" ? null : "https://www.youtube.com/@greg",
+        video_id: videoId,
+        video_title: videoTitle,
+        original_video_url:
+          sourceName === "Local library"
+            ? null
+            : `https://www.youtube.com/watch?v=${videoId}`,
+        evidence_links: [
+          {
+            evidence_id: `ev-${id}`,
+            artifact_id: `art-${id}`,
+            start_ms: 30000,
+            end_ms: 45000,
+            locator_type: "TIMED_MEDIA",
+            language: "en",
+            lineage_kind: "DIRECT_QUOTE",
+            role: "PRIMARY",
+            original_excerpt: "Charge for verified outcomes, not seats.",
+            translated_excerpt: null,
+            translated_language: null,
+            stance: "supporting",
+          },
+        ],
+      },
+    });
+
+    const mockIntel = [
+      makeCard(
+        "intel-biz-1",
+        "EVIDENCE_BACKED_STATEMENT",
+        "垂直工作流按交付结果定价留存率翻倍",
+        "Greg Isenberg",
+        "vid-biz-1",
+        "Outcome Pricing Playbook",
+        "topic:solo-biz",
+        "AI 产品机会与一人公司变现",
+      ),
+      makeCard(
+        "intel-biz-2",
+        "FACT",
+        "年付合同显著降低一人公司现金流波动",
+        "Greg Isenberg",
+        "vid-biz-2",
+        "Annual Plans for Solo Founders",
+        "topic:solo-biz",
+        "AI 产品机会与一人公司变现",
+      ),
+      makeCard(
+        "intel-local-1",
+        "RUMOR",
+        "端侧小模型推理延迟已可支撑实时语音代理",
+        "Local library",
+        "vid-local-1",
+        "Local Voice Agent Workshop",
+        "topic:agent-arch",
+        "AI Agent 与自动化架构",
+      ),
+      makeCard(
+        "intel-agent-2",
+        "SYSTEM_INFERENCE",
+        "确定性状态机优于纯提示词自治循环",
+        "OpenAI",
+        "vid-agent-2",
+        "Deterministic Agent Graphs",
+        "topic:agent-arch",
+        "AI Agent 与自动化架构",
+      ),
+    ];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((rawInput: RequestInfo | URL) => {
+        const input = String(rawInput);
+        if (input.endsWith("/topics")) {
+          return okJson({
+            topics: [
+              {
+                topic_id: "topic:solo-biz",
+                name: "AI 产品机会与一人公司变现",
+                pinned: true,
+                lifecycle: "ACTIVE",
+                current_state: "CORROBORATED",
+                independence: "SINGLE_SOURCE",
+                contributions: [
+                  {
+                    intelligence_id: "intel-biz-1",
+                    claim_kind: "EVIDENCE_BACKED_STATEMENT",
+                    state: "NEW",
+                    available: true,
+                    evidence_ids: ["ev-intel-biz-1"],
+                  },
+                  {
+                    intelligence_id: "intel-biz-2",
+                    claim_kind: "FACT",
+                    state: "NEW",
+                    available: true,
+                    evidence_ids: ["ev-intel-biz-2"],
+                  },
+                ],
+                timeline: [],
+                relations: [],
+              },
+            ],
+          });
+        }
+        if (input.endsWith("/topics/topic:solo-biz")) {
+          return okJson({
+            topic: {
+              topic_id: "topic:solo-biz",
+              name: "AI 产品机会与一人公司变现",
+              pinned: true,
+              lifecycle: "ACTIVE",
+              current_state: "CORROBORATED",
+              independence: "SINGLE_SOURCE",
+              contributions: [
+                {
+                  intelligence_id: "intel-biz-1",
+                  claim_kind: "EVIDENCE_BACKED_STATEMENT",
+                  state: "NEW",
+                  available: true,
+                  evidence_ids: ["ev-intel-biz-1"],
+                },
+                {
+                  intelligence_id: "intel-biz-2",
+                  claim_kind: "FACT",
+                  state: "NEW",
+                  available: true,
+                  evidence_ids: ["ev-intel-biz-2"],
+                },
+              ],
+              timeline: [],
+              relations: [],
+              ai_evolution: {
+                topic_name: "AI 产品机会与一人公司变现",
+                video_count: 2,
+                must_watch_count: 2,
+                avg_score: 8.6,
+                recent_7d_count: 1,
+                source_channels: ["Greg Isenberg"],
+                latest_headline_zh: "结果导向定价模型",
+                synthesis_zh: "一人公司应围绕高价值垂直结果收费。",
+                obsidian_markdown: "# AI 产品机会与一人公司变现\n",
+                entries: [
+                  {
+                    video_id: "vid-biz-1",
+                    title: "Outcome Pricing Playbook",
+                    channel_name: "Greg Isenberg",
+                    score: 8.6,
+                    recommendation_tier: "MUST_WATCH",
+                    headline_zh: "结果导向定价模型",
+                  },
+                ],
+              },
+            },
+          });
+        }
+        if (input.endsWith("/intelligence")) {
+          return okJson({ intelligence: mockIntel, activity: [] });
+        }
+        if (input.endsWith("/saved-intelligence")) {
+          return okJson({ saved: [] });
+        }
+        if (input.endsWith("/videos/vid-biz-1/evidence")) {
+          return okJson({
+            video_id: "vid-biz-1",
+            source_url: "https://www.youtube.com/watch?v=vid-biz-1",
+            evidence: [],
+          });
+        }
+        if (input.endsWith("/videos/vid-biz-1/deep-analysis")) {
+          return okJson({
+            deep_analysis: {
+              status: { availability: "NOT_REQUESTED", qualified: false },
+              result: null,
+            },
+          });
+        }
+        if (input.endsWith("/videos/vid-biz-1")) {
+          return okJson({
+            video: {
+              video_id: "vid-biz-1",
+              provider: "YOUTUBE",
+              channel_id: "UC2222222222222222222222",
+              title: "Outcome Pricing Playbook",
+              channel_name: "Greg Isenberg",
+              source_url: "https://www.youtube.com/watch?v=vid-biz-1",
+              published_at: "2026-11-15T00:00:00Z",
+              processing_status: "READY",
+              duration_seconds: 1800,
+              ai_brief: {
+                video_id: "vid-biz-1",
+                score: 9.2,
+                recommendation_tier: "MUST_WATCH",
+                content_bucket: "DEEP_DIVE",
+                is_short_noise: false,
+                source_basis: "TRANSCRIPT",
+                topics_zh: ["结果定价"],
+                topic_cluster_zh: "AI 产品机会与一人公司变现",
+                score_reason_zh: "给出了可复制的结果付费合同结构",
+                headline_zh: "告别按席位收费：垂直 AI 工作流按业务结果定价留存率翻倍",
+                summary_zh: "拆解了单人 SaaS 如何将定价锚定在客户节省的人工工时与成交单量上。",
+                product_opportunities_zh: ["内置可审计 ROI 看板展示每周自动处理单量"],
+                business_opportunities_zh: ["采用基础年费加超额结果分成混合订阅"],
+                obsidian_markdown: "---\ntags: [ai-video]\n---\n# [[Outcome Pricing Playbook]]\n",
+                provider: "ollama",
+                model: "qwen3:8b",
+                starred: true,
+                is_read: false,
+              },
+            },
+            transcript: { status: "AVAILABLE", segments: [] },
+            note: { v2: null },
+            evidence: [],
+            intelligence_result: { status: "NOT_REQUESTED" },
+            history: [],
+            obsidian_markdown: "---\ntags: [ai-video]\n---\n# [[Outcome Pricing Playbook]]\n",
+          });
+        }
+        if (input.endsWith("/videos")) {
+          return okJson({ videos: [] });
+        }
+        if (input.includes("/creator-following")) {
+          return okJson({ available: false, reason_code: "DISABLED" });
+        }
+        return okJson({});
+      }),
+    );
+
+    render(<App />);
+
+    // 1) Open Topic detail on #Topics -> verify stats text isn't glued ("8.6Greg Isenberg") & click "查看本专题验证洞察 (2)"
+    fireEvent.click(await screen.findByRole("button", { name: /AI 产品机会与一人公司变现/ }));
+    expect(await screen.findByText("一人公司应围绕高价值垂直结果收费。")).toBeTruthy();
+    const funnelStrip = document.querySelector(".weekly-funnel-strip");
+    expect(funnelStrip?.textContent ?? "").not.toContain("8.6Greg");
+    expect(funnelStrip?.textContent ?? "").toContain("8.6");
+
+    const jumpIntelBtn = screen.getByRole("button", { name: "查看本专题验证洞察 (2)" });
+    fireEvent.click(jumpIntelBtn);
+
+    // 2) Lands on #Intelligence pre-filtered to "topic:solo-biz" with localized Chinese Claim badges!
+    await waitFor(() => expect(location.hash).toBe("#Intelligence"));
+    const intelTopicSelect = (await screen.findByLabelText("按专题筛选洞察")) as HTMLSelectElement;
+    expect(intelTopicSelect.value).toBe("topic:solo-biz");
+    expect(
+      screen.getByRole("heading", { name: "垂直工作流按交付结果定价留存率翻倍" }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("heading", { name: "端侧小模型推理延迟已可支撑实时语音代理" }),
+    ).toBeNull();
+
+    // Verify Chinese Claim localization (no raw English "Supported statement" or "Fact")
+    expect(screen.getByText("有证据支撑的陈述")).toBeTruthy();
+    expect(screen.getByText("事实")).toBeTruthy();
+    expect(screen.queryByText("Supported statement")).toBeNull();
+
+    // Reset Topic filter to ALL -> verify "Local library" source pill is localized to "本地资料库 (1)" and "RUMOR" -> "待核实传闻"
+    fireEvent.change(intelTopicSelect, { target: { value: "ALL" } });
+    expect(screen.getByText("待核实传闻")).toBeTruthy();
+    const localPill = screen.getByRole("button", { name: "本地资料库 (1)" });
+    expect(screen.queryByRole("button", { name: "Local library (1)" })).toBeNull();
+    fireEvent.click(localPill);
+    expect(
+      screen.getByRole("heading", { name: "端侧小模型推理延迟已可支撑实时语音代理" }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("heading", { name: "垂直工作流按交付结果定价留存率翻倍" }),
+    ).toBeNull();
+
+    // 3) Reset source filter, open Content detail from first card, and click "复制纯文本摘要"
+    fireEvent.click(screen.getByRole("button", { name: "全部 (4)" }));
+    const detailsToggle = screen.getAllByText("证据与原始来源")[0];
+    fireEvent.click(detailsToggle);
+    fireEvent.click(screen.getAllByRole("button", { name: "打开内容" })[0]);
+
+    const copyPlainSummaryBtn = await screen.findByRole("button", { name: "复制纯文本摘要" });
+    fireEvent.click(copyPlainSummaryBtn);
+    await waitFor(() => expect(copiedTexts).toHaveLength(1));
+    expect(copiedTexts[0]).toContain("【视频深度摘要】《Outcome Pricing Playbook》");
+    expect(copiedTexts[0]).toContain("Greg Isenberg");
+    expect(copiedTexts[0]).toContain("9.2/10");
+    expect(copiedTexts[0]).toContain("告别按席位收费：垂直 AI 工作流按业务结果定价留存率翻倍");
+    expect(copiedTexts[0]).toContain("内置可审计 ROI 看板展示每周自动处理单量");
+    expect(copiedTexts[0]).toContain("采用基础年费加超额结果分成混合订阅");
+    expect(copiedTexts[0]).toContain("https://www.youtube.com/watch?v=vid-biz-1");
+    expect(copiedTexts[0]).not.toContain("---");
+    expect(copiedTexts[0]).not.toContain("[[");
+  });
 });

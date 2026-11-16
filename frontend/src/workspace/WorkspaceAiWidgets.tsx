@@ -223,6 +223,7 @@ let pendingResearchSessionId = "";
 let pendingContentChannel = "";
 let pendingContentTopic = "";
 let pendingTopicClusterName = "";
+let pendingIntelligenceTopicId = "";
 
 export function setPendingResearchTopicCluster(topicName: string): void {
   pendingResearchTopicCluster = topicName.trim();
@@ -291,6 +292,16 @@ export function setPendingTopicClusterName(topicName: string): void {
 export function consumePendingTopicClusterName(): string {
   const next = pendingTopicClusterName;
   pendingTopicClusterName = "";
+  return next;
+}
+
+export function setPendingIntelligenceTopicId(topicId: string): void {
+  pendingIntelligenceTopicId = topicId.trim();
+}
+
+export function consumePendingIntelligenceTopicId(): string {
+  const next = pendingIntelligenceTopicId;
+  pendingIntelligenceTopicId = "";
   return next;
 }
 
@@ -1268,9 +1279,90 @@ export function WeeklyAiBriefPanel({
   );
 }
 
+export function formatPlainTextVideoBrief(
+  brief: VideoAiBrief,
+  title: string,
+  opts?: { channelName?: string | null; sourceUrl?: string | null; zh?: boolean },
+): string {
+  const zh = opts?.zh ?? true;
+  const stripWiki = (text: string) =>
+    text.replace(
+      /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,
+      (_, target: string, alias?: string) => (alias ?? target).trim(),
+    );
+  const cleanTitle = stripWiki(title.trim());
+  const lines: string[] = [];
+  lines.push(
+    zh
+      ? `【视频深度摘要】《${cleanTitle}》`
+      : `[Video AI Brief] "${cleanTitle}"`,
+  );
+  const metaParts = [
+    opts?.channelName?.trim()
+      ? zh
+        ? `来源：${stripWiki(opts.channelName.trim())}`
+        : `Source: ${stripWiki(opts.channelName.trim())}`
+      : "",
+    zh
+      ? `评分：${brief.score.toFixed(1)}/10`
+      : `Score: ${brief.score.toFixed(1)}/10`,
+    brief.topic_cluster_zh?.trim()
+      ? zh
+        ? `专题：${stripWiki(brief.topic_cluster_zh.trim())}`
+        : `Topic: ${stripWiki(brief.topic_cluster_zh.trim())}`
+      : "",
+  ].filter(Boolean);
+  if (metaParts.length > 0) {
+    lines.push(metaParts.join(" · "));
+  }
+  if (brief.headline_zh.trim()) {
+    lines.push(
+      zh
+        ? `核心结论：\n${stripWiki(brief.headline_zh.trim())}`
+        : `Key takeaway:\n${stripWiki(brief.headline_zh.trim())}`,
+    );
+  }
+  if (
+    brief.summary_zh.trim() &&
+    brief.summary_zh.trim() !== brief.headline_zh.trim()
+  ) {
+    lines.push(
+      zh
+        ? `深度提炼：\n${stripWiki(brief.summary_zh.trim())}`
+        : `Summary:\n${stripWiki(brief.summary_zh.trim())}`,
+    );
+  }
+  if (brief.product_opportunities_zh.length > 0) {
+    lines.push(
+      [
+        zh ? "AI 产品化启发：" : "Product takeaways:",
+        ...brief.product_opportunities_zh.map((item) => `• ${stripWiki(item.trim())}`),
+      ].join("\n"),
+    );
+  }
+  if (brief.business_opportunities_zh.length > 0) {
+    lines.push(
+      [
+        zh ? "商业变现与切入机会：" : "Monetization opportunities:",
+        ...brief.business_opportunities_zh.map((item) => `• ${stripWiki(item.trim())}`),
+      ].join("\n"),
+    );
+  }
+  if (opts?.sourceUrl?.trim()) {
+    lines.push(
+      zh
+        ? `原视频：${opts.sourceUrl.trim()}`
+        : `Video URL: ${opts.sourceUrl.trim()}`,
+    );
+  }
+  return lines.join("\n\n");
+}
+
 export function WorkspaceVideoAiActions({
   videoId,
   title,
+  channelName,
+  sourceUrl,
   provider,
   isLocalMedia,
   transcriptAvailable,
@@ -1283,6 +1375,8 @@ export function WorkspaceVideoAiActions({
 }: {
   videoId: string;
   title: string;
+  channelName?: string | null;
+  sourceUrl?: string | null;
   provider?: "YOUTUBE" | "LOCAL" | "BILIBILI";
   isLocalMedia: boolean;
   transcriptAvailable: boolean;
@@ -1303,6 +1397,12 @@ export function WorkspaceVideoAiActions({
   const [busyKind, setBusyKind] = useState<"distill" | "transcribe" | "curation" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copiedObsidian, setCopiedObsidian] = useState(false);
+  const [copiedPlainBrief, setCopiedPlainBrief] = useState(false);
+
+  useEffect(() => {
+    setCopiedObsidian(false);
+    setCopiedPlainBrief(false);
+  }, [videoId]);
 
   const mdContent = obsidianMarkdown ?? aiBrief?.obsidian_markdown ?? "";
   const canMetadataPreview =
@@ -1477,6 +1577,33 @@ export function WorkspaceVideoAiActions({
               : zh
                 ? "AI 生成简介中文速览"
                 : "AI metadata preview"}
+        </button>
+      ) : null}
+      {aiBrief ? (
+        <button
+          type="button"
+          className="button button-secondary button-small"
+          onClick={(event) => {
+            pulseCelebration(event.currentTarget);
+            void navigator.clipboard?.writeText(
+              formatPlainTextVideoBrief(aiBrief, title || videoId, {
+                channelName,
+                sourceUrl,
+                zh,
+              }),
+            );
+            setCopiedPlainBrief(true);
+            setTimeout(() => setCopiedPlainBrief(false), 2200);
+          }}
+        >
+          <PhosphorIcon name="quotes" size={13} />
+          {copiedPlainBrief
+            ? zh
+              ? "已复制纯文本摘要"
+              : "Copied plain-text summary"
+            : zh
+              ? "复制纯文本摘要"
+              : "Copy plain-text summary"}
         </button>
       ) : null}
       {mdContent ? (
