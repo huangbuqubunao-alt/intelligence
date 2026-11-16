@@ -2628,7 +2628,7 @@ export function WorkspaceAiResearchPanel({
                 return false;
               }
               if (trimmedCompareQuery) {
-                const hay = `${v.title} ${v.channel_name} ${v.topic_cluster_zh}`.toLowerCase();
+                const hay = `${v.title ?? ""} ${v.channel_name ?? ""} ${v.topic_cluster_zh ?? ""}`.toLowerCase();
                 if (!hay.includes(trimmedCompareQuery)) return false;
               }
               return true;
@@ -2768,17 +2768,122 @@ export function WorkspaceAiResearchPanel({
       </form>
 
       <div className="ai-suggested-pills">
-        {suggested.map((q) => (
-          <button
-            key={q}
-            type="button"
-            className="ai-question-chip"
-            disabled={busy}
-            onClick={() => void ask(q)}
-          >
-            {q}
-          </button>
-        ))}
+        {(() => {
+          const activeSuggestedQuestions = (() => {
+            if (selectedVideoIds.length > 0) {
+              const matched = (scopeOptions?.videos ?? []).filter((v) =>
+                selectedVideoIds.includes(v.video_id),
+              );
+              if (selectedVideoIds.length === 1) {
+                const singleTitle = matched[0]?.title?.trim();
+                if (singleTitle) {
+                  return zh
+                    ? [
+                        `围绕《${singleTitle}》提炼最核心的方法论、关键论据与可落地步骤`,
+                        `《${singleTitle}》提出了哪些反直觉判断、数据指标与避坑警示？`,
+                      ]
+                    : [
+                        `Extract the core methodology, evidence, and actionable steps from "${singleTitle}"`,
+                        `What counter-intuitive claims, metrics, and pitfalls appear in "${singleTitle}"?`,
+                      ];
+                }
+                return zh
+                  ? [
+                      "提炼这篇指定视频最核心的方法论、关键论据与可落地步骤",
+                      "这篇指定视频提出了哪些反直觉判断与实战避坑警示？",
+                    ]
+                  : [
+                      "Extract the core methodology, evidence, and actionable steps from this selected video",
+                      "What counter-intuitive claims and practical pitfalls appear in this selected video?",
+                    ];
+              }
+              const uniqChannels = Array.from(
+                new Set(matched.map((v) => (v.channel_name ?? "").trim()).filter(Boolean)),
+              );
+              const uniqTopics = Array.from(
+                new Set(matched.map((v) => (v.topic_cluster_zh ?? "").trim()).filter(Boolean)),
+              );
+              const channelTag =
+                uniqChannels.length === 1
+                  ? `（${uniqChannels[0]}）`
+                  : uniqChannels.length > 1
+                    ? `（${uniqChannels.slice(0, 3).join(" vs ")}）`
+                    : "";
+              const topicTag = uniqTopics.length === 1 ? `在「${uniqTopics[0]}」上` : "";
+              return zh
+                ? [
+                    `横向对比这 ${selectedVideoIds.length} 篇指定视频${channelTag}${topicTag}的核心共识、观点分歧与演进脉络`,
+                    `综合这 ${selectedVideoIds.length} 篇视频的时间轴原话，提炼最值得立即执行的 3 个实操动作与产品切入点`,
+                    `这 ${selectedVideoIds.length} 篇视频揭示了哪些容易踩坑的误区、边界条件或商业化前提？`,
+                  ]
+                : [
+                    `Compare core consensus, disagreements, and evolution across these ${selectedVideoIds.length} selected videos`,
+                    `Synthesize the top 3 actionable steps and product opportunities grounded in these ${selectedVideoIds.length} videos`,
+                    `What key pitfalls, boundary conditions, or monetization prerequisites emerge across these ${selectedVideoIds.length} videos?`,
+                  ];
+            }
+            if (selectedTopic) {
+              const chLabel = selectedChannel
+                ? scopeOptions?.channels.find((c) => c.key === selectedChannel)?.label ??
+                  (selectedChannel === "LOCAL" && zh ? "本地实战课" : selectedChannel)
+                : "";
+              return zh
+                ? [
+                    chLabel
+                      ? `${chLabel} 在「${selectedTopic}」专题下有哪些核心判断与代表性实战案例？`
+                      : `围绕「${selectedTopic}」专题，不同创作者的核心共识与关键分歧是什么？`,
+                    `综合「${selectedTopic}」专题原话，提炼最具确定性的落地路径与产品机会`,
+                    `「${selectedTopic}」专题在工程落地或商业验证中有哪些高频避坑点？`,
+                  ]
+                : [
+                    chLabel
+                      ? `What are ${chLabel}'s core claims and practical cases in "${selectedTopic}"?`
+                      : `What are the key consensus and disagreements across creators on "${selectedTopic}"?`,
+                    `Synthesize the highest-conviction implementation paths and product opportunities in "${selectedTopic}"`,
+                    `What are the top engineering or business pitfalls highlighted in "${selectedTopic}"?`,
+                  ];
+            }
+            if (selectedChannel) {
+              const chLabel =
+                scopeOptions?.channels.find((c) => c.key === selectedChannel)?.label ??
+                (selectedChannel === "LOCAL" && zh ? "本地实战课" : selectedChannel);
+              return zh
+                ? [
+                    `总结 ${chLabel} 近期内容的核心方法论、高频主题与关键判断变化`,
+                    `${chLabel} 提出了哪些可直接复用的产品设计、工程实践或商业变现动作？`,
+                    `${chLabel} 重点强调了哪些反直觉结论与实战避坑建议？`,
+                  ]
+                : [
+                    `Summarize ${chLabel}'s core methodology, recurring themes, and key shifts`,
+                    `What reusable product, engineering, or monetization actions does ${chLabel} recommend?`,
+                    `What counter-intuitive conclusions and practical pitfalls does ${chLabel} emphasize?`,
+                  ];
+            }
+            if (starredOnly) {
+              return zh
+                ? [
+                    "综合我收藏的高价值视频，提炼最值得优先落地的核心洞察与行动清单",
+                    "我收藏的这些视频在技术路线与商业判断上有哪些互补与碰撞？",
+                  ]
+                : [
+                    "Synthesize top insights and priority action items across my starred videos",
+                    "How do my starred videos complement or challenge each other on tech and business?",
+                  ];
+            }
+            return suggested;
+          })();
+          return activeSuggestedQuestions.map((q) => (
+            <button
+              key={q}
+              type="button"
+              className="ai-question-chip"
+              disabled={busy}
+              onClick={() => void ask(q)}
+            >
+              {q}
+            </button>
+          ));
+        })()}
       </div>
 
       {error ? (
