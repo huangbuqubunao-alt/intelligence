@@ -4590,4 +4590,306 @@ describe("Workspace AI Upgrade (P0 + P1 + P2)", () => {
     expect(copiedTexts[0]).not.toContain("---");
     expect(copiedTexts[0]).not.toContain("[[");
   });
+
+  it("R12: copies plain-text Weekly Brief & Topic MOC outline, indexes linked_topics in Cmd+K, and shows active filter count + 1-click reset on Intelligence", async () => {
+    localStorage.setItem("yia.ui-language", "zh-CN");
+    localStorage.setItem("intelligence.onboarding.completed.v1", "true");
+    location.hash = "#Home";
+
+    const copiedTexts: string[] = [];
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: vi.fn(async (text: string) => {
+          copiedTexts.push(text);
+        }),
+      },
+    });
+
+    const mockIntel = [
+      {
+        status: "AVAILABLE",
+        trusted: true,
+        intelligence_id: "intel-biz-1",
+        claim_kind: "EVIDENCE_BACKED_STATEMENT",
+        state: "NEW",
+        linked_topics: [{ topic_id: "topic:solo-biz", name: "AI 产品机会与一人公司变现" }],
+        card: {
+          core_conclusion: "结果导向年费合约是一人公司最佳高留存变现形态",
+          user_relevant_information: ["聚焦可量化业务交付结果。"],
+          important_new_information: [],
+          meaningful_details: [],
+          source_id: "src-greg",
+          source_display_name: "Greg Isenberg",
+          source_url: "https://www.youtube.com/@greg",
+          video_id: "vid-biz-1",
+          video_title: "Outcome Pricing Playbook",
+          original_video_url: "https://www.youtube.com/watch?v=vid-biz-1",
+          evidence_links: [],
+        },
+      },
+      {
+        status: "AVAILABLE",
+        trusted: true,
+        intelligence_id: "intel-local-1",
+        claim_kind: "SYSTEM_INFERENCE",
+        state: "NEW",
+        linked_topics: [{ topic_id: "topic:agent-arch", name: "AI Agent 与自动化架构" }],
+        card: {
+          core_conclusion: "离线语音流式状态机显著降低本地工作流中断率",
+          user_relevant_information: ["保障本地隐私与确定性恢复。"],
+          important_new_information: [],
+          meaningful_details: [],
+          source_id: "src-local",
+          source_display_name: "Local library",
+          source_url: null,
+          video_id: "vid-local-1",
+          video_title: "Local Agent Workshop",
+          original_video_url: null,
+          evidence_links: [],
+        },
+      },
+      {
+        status: "AVAILABLE",
+        trusted: true,
+        intelligence_id: "intel-agent-2",
+        claim_kind: "FACT",
+        state: "NEW",
+        linked_topics: [{ topic_id: "topic:agent-arch", name: "AI Agent 与自动化架构" }],
+        card: {
+          core_conclusion: "工具调用强类型校验减少 90% 重试开销",
+          user_relevant_information: ["提升多步推理吞吐。"],
+          important_new_information: [],
+          meaningful_details: [],
+          source_id: "src-openai",
+          source_display_name: "OpenAI",
+          source_url: "https://www.youtube.com/@OpenAI",
+          video_id: "vid-agent-2",
+          video_title: "Strict Tool Schemas",
+          original_video_url: "https://www.youtube.com/watch?v=vid-agent-2",
+          evidence_links: [],
+        },
+      },
+      {
+        status: "AVAILABLE",
+        trusted: true,
+        intelligence_id: "intel-agent-3",
+        claim_kind: "FACT",
+        state: "NEW",
+        linked_topics: [{ topic_id: "topic:agent-arch", name: "AI Agent 与自动化架构" }],
+        card: {
+          core_conclusion: "端到端回归评测集是模型升级零回退的前提",
+          user_relevant_information: ["防止提示词漂移。"],
+          important_new_information: [],
+          meaningful_details: [],
+          source_id: "src-openai",
+          source_display_name: "OpenAI",
+          source_url: "https://www.youtube.com/@OpenAI",
+          video_id: "vid-agent-3",
+          video_title: "Eval Driven Agent Releases",
+          original_video_url: "https://www.youtube.com/watch?v=vid-agent-3",
+          evidence_links: [],
+        },
+      },
+    ];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((rawInput: RequestInfo | URL) => {
+        const input = String(rawInput);
+        if (input.endsWith("/dashboard")) {
+          return okJson({
+            intelligence: mockIntel.slice(0, 1),
+            saved_intelligence_ids: [],
+            pinned_topics: [
+              {
+                topic_id: "topic:solo-biz",
+                name: "AI 产品机会与一人公司变现",
+                pinned: true,
+                lifecycle: "ACTIVE",
+                current_state: "CORROBORATED",
+                independence: "SINGLE_SOURCE",
+                contributions: [],
+                timeline: [],
+                relations: [],
+              },
+            ],
+            needs_attention: [],
+            operations: { source_count: 3 },
+            workspace_weekly_brief: {
+              brief_id: "wb-r12",
+              week_label: "2026-W46",
+              title_zh: "本周 AI 情报必看周报",
+              executive_summary_zh: "垂直行业 AI 工作流正加速从按席位订阅转向按业务结果计费。",
+              core_trends_zh: ["多智能体进入状态机工程化阶段"],
+              product_opportunities_zh: ["围绕高价值重复单据构建自动审计闭环"],
+              business_opportunities_zh: ["一人公司优先切入年费结果分成"],
+              must_watch_picks: [
+                {
+                  video_id: "vid-biz-1",
+                  title: "Outcome Pricing Playbook",
+                  channel_name: "Greg Isenberg",
+                  score: 9.4,
+                  reason_zh: "完整拆解结果导向定价合同模板。",
+                },
+              ],
+              funnel_stats: {
+                total_videos: 42,
+                distilled_count: 30,
+                must_watch_count: 8,
+                shorts_filtered_count: 12,
+              },
+              obsidian_markdown: "---\ntags: [weekly-brief]\n---\n# [[Outcome Pricing Playbook]]\n",
+              provider: "ollama",
+              model: "qwen3:8b",
+              created_at: "2026-11-16T00:00:00Z",
+            },
+          });
+        }
+        if (input.endsWith("/knowledge-delta")) {
+          return okJson({ status: "NO_PRIOR_BASELINE", items: [] });
+        }
+        if (input.endsWith("/topics")) {
+          return okJson({
+            topics: [
+              {
+                topic_id: "topic:solo-biz",
+                name: "AI 产品机会与一人公司变现",
+                pinned: true,
+                lifecycle: "ACTIVE",
+                current_state: "CORROBORATED",
+                independence: "SINGLE_SOURCE",
+                contributions: [
+                  {
+                    intelligence_id: "intel-biz-1",
+                    claim_kind: "EVIDENCE_BACKED_STATEMENT",
+                    state: "NEW",
+                    available: true,
+                    evidence_ids: [],
+                  },
+                ],
+                timeline: [],
+                relations: [],
+              },
+            ],
+          });
+        }
+        if (input.endsWith("/topics/topic:solo-biz")) {
+          return okJson({
+            topic: {
+              topic_id: "topic:solo-biz",
+              name: "AI 产品机会与一人公司变现",
+              pinned: true,
+              lifecycle: "ACTIVE",
+              current_state: "CORROBORATED",
+              independence: "SINGLE_SOURCE",
+              contributions: [
+                {
+                  intelligence_id: "intel-biz-1",
+                  claim_kind: "EVIDENCE_BACKED_STATEMENT",
+                  state: "NEW",
+                  available: true,
+                  evidence_ids: [],
+                },
+              ],
+              timeline: [],
+              relations: [],
+              ai_evolution: {
+                topic_name: "AI 产品机会与一人公司变现",
+                video_count: 1,
+                must_watch_count: 1,
+                avg_score: 9.4,
+                recent_7d_count: 1,
+                source_channels: ["Greg Isenberg"],
+                latest_headline_zh: "结果导向定价模型",
+                synthesis_zh: "高毛利垂直工作流是一人公司确定性最高的切入点。",
+                top_opportunities_zh: ["自动化合规单据核验订阅"],
+                obsidian_markdown: "---\ntags: [topic-moc]\n---\n# [[AI 产品机会与一人公司变现]]\n",
+                entries: [
+                  {
+                    video_id: "vid-biz-1",
+                    title: "Outcome Pricing Playbook",
+                    channel_name: "Greg Isenberg",
+                    score: 9.4,
+                    recommendation_tier: "MUST_WATCH",
+                    headline_zh: "结果导向定价模型",
+                  },
+                ],
+              },
+            },
+          });
+        }
+        if (input.endsWith("/intelligence")) {
+          return okJson({ intelligence: mockIntel, activity: [] });
+        }
+        if (input.endsWith("/saved-intelligence")) {
+          return okJson({ saved: [] });
+        }
+        if (input.endsWith("/videos")) {
+          return okJson({ videos: [] });
+        }
+        if (input.endsWith("/workspace-ai/research/sessions")) {
+          return okJson({
+            sessions: [],
+            suggested_questions: [],
+            scope_options: { starred_count: 0, channels: [], topic_clusters: [], videos: [] },
+          });
+        }
+        if (input.includes("/creator-following")) {
+          return okJson({ available: false, reason_code: "DISABLED" });
+        }
+        return okJson({});
+      }),
+    );
+
+    render(<App />);
+
+    // 1) #Home Weekly Brief: check funnel spacing + click "复制纯文本周报"
+    const copyPlainWeeklyBtn = await screen.findByRole("button", { name: "复制纯文本周报" });
+    const homeFunnel = document.querySelector(".weekly-ai-brief-panel .weekly-funnel-strip");
+    expect(homeFunnel?.textContent ?? "").not.toContain("条必看干货2026-W46");
+    fireEvent.click(copyPlainWeeklyBtn);
+    await waitFor(() => expect(copiedTexts).toHaveLength(1));
+    expect(copiedTexts[0]).toContain("【AI 情报周报】本周 AI 情报必看周报（2026-W46）");
+    expect(copiedTexts[0]).toContain("垂直行业 AI 工作流正加速从按席位订阅转向按业务结果计费。");
+    expect(copiedTexts[0]).toContain("多智能体进入状态机工程化阶段");
+    expect(copiedTexts[0]).toContain("Outcome Pricing Playbook");
+    expect(copiedTexts[0]).not.toContain("---");
+    expect(copiedTexts[0]).not.toContain("[[");
+
+    // 2) Open Cmd+K and search by linked_topics / localized "本地资料库" -> matches verified Intelligence card with [[Topic]] subtitle!
+    fireEvent.click(screen.getByRole("button", { name: /搜索与直达/ }));
+    const cmdkInput = await screen.findByRole("combobox", {
+      name: "搜索页面、内容、洞察或命令",
+    });
+    fireEvent.change(cmdkInput, { target: { value: "本地资料库" } });
+    const localIntelOption = await screen.findByRole("option", {
+      name: /离线语音流式状态机显著降低本地工作流中断率/,
+    });
+    expect(localIntelOption.textContent).toContain("[[AI Agent 与自动化架构]]");
+    expect(localIntelOption.textContent).toContain("本地资料库");
+    fireEvent.keyDown(cmdkInput, { key: "Escape" });
+
+    // 3) Open #Topics via [[Topic]] / Pinned Topic button on #Home -> click "复制纯文本专题提纲", then click "查看本专题验证洞察 (1)"
+    fireEvent.click(
+      screen.getAllByRole("button", { name: /AI 产品机会与一人公司变现/ })[0],
+    );
+    const copyPlainTopicBtn = await screen.findByRole("button", { name: "复制纯文本专题提纲" });
+    fireEvent.click(copyPlainTopicBtn);
+    await waitFor(() => expect(copiedTexts).toHaveLength(2));
+    expect(copiedTexts[1]).toContain("【专题脉络总览】AI 产品机会与一人公司变现");
+    expect(copiedTexts[1]).toContain("高毛利垂直工作流是一人公司确定性最高的切入点。");
+    expect(copiedTexts[1]).toContain("自动化合规单据核验订阅");
+    expect(copiedTexts[1]).toContain("Outcome Pricing Playbook");
+    expect(copiedTexts[1]).not.toContain("---");
+    expect(copiedTexts[1]).not.toContain("[[");
+
+    // 4) Jump to #Intelligence -> verify active filter count bar "当前筛选命中 1 / 4 张验证洞察" + 1-click "重置筛选"
+    fireEvent.click(screen.getByRole("button", { name: "查看本专题验证洞察 (1)" }));
+    expect(await screen.findByText("当前筛选命中 1 / 4 张验证洞察")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "重置筛选" }));
+    expect(screen.queryByText("当前筛选命中 1 / 4 张验证洞察")).toBeNull();
+    expect(
+      screen.getByRole("heading", { name: "工具调用强类型校验减少 90% 重试开销" }),
+    ).toBeTruthy();
+  });
 });
