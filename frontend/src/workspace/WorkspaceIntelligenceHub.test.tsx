@@ -5397,5 +5397,15 @@ describe("Workspace AI Upgrade (P0 + P1 + P2)", () => {
     fireEvent.change(chSelect, { target: { value: "OpenAI" } });
     expect(tpSelect.value).toBe("AI 产品机会与一人公司变现");
     expect(tpSelect.textContent).toContain("AI 产品机会与一人公司变现 (0)");
+
+    // 4) CSS craft guard: checkboxes & radios must override global `input { width: 100%; min-height: 40px }`
+    // so `.ai-video-compare-option` rows stay compact with single-line channel/score metadata.
+    const fsSpec = "node:fs";
+    const { readFileSync } = (await import(/* @vite-ignore */ fsSpec)) as {
+      readFileSync: (path: string, encoding: string) => string;
+    };
+    const stylesCss = readFileSync("src/workspace/styles.css", "utf8");
+    expect(stylesCss).toMatch(/input\[type="checkbox"\],\s*input\[type="radio"\]\s*\{[\s\S]*?width:\s*16px;[\s\S]*?min-height:\s*16px;[\s\S]*?accent-color:\s*var\(--accent\);/);
+    expect(stylesCss).toMatch(/\.ai-video-compare-option\s+small\s*\{[\s\S]*?white-space:\s*nowrap;/);
   });
 });
