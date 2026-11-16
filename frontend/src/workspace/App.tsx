@@ -1385,6 +1385,38 @@ export function formatPlainTextIntelligenceCard(item: Intelligence, zh: boolean)
   return lines.join("\n\n");
 }
 
+export function formatPlainTextIntelligenceDigest(
+  items: Intelligence[],
+  zh: boolean,
+  kind: "filtered" | "saved" = "filtered",
+): string {
+  const valid = items.filter(
+    (it) => it.status === "AVAILABLE" && Boolean(it.card),
+  );
+  if (valid.length === 0) return "";
+  const heading =
+    kind === "saved"
+      ? zh
+        ? `【已收藏洞察合集】（共 ${valid.length} 条）`
+        : `[Saved Insights Digest] (${valid.length} items)`
+      : zh
+        ? `【已验证洞察合集】（共 ${valid.length} 条）`
+        : `[Verified Insights Digest] (${valid.length} items)`;
+  const blocks = valid.map((item, idx) => {
+    const raw = formatPlainTextIntelligenceCard(item, zh);
+    return zh
+      ? raw.replace(
+          /^【验证洞察】/,
+          `【验证洞察 ${idx + 1}/${valid.length}】`,
+        )
+      : raw.replace(
+          /^\[Verified Insight\]/,
+          `[Verified Insight ${idx + 1}/${valid.length}]`,
+        );
+  });
+  return [heading, ...blocks].join("\n\n");
+}
+
 function IntelligenceCard(
   { item, saved, onSaved, onOpenContent, onOpenTopic }: {
     item: Intelligence;
@@ -2124,6 +2156,8 @@ function IntelligencePage(
   const [intelTopicFilter, setIntelTopicFilter] = useState<string>(
     () => consumePendingIntelligenceTopicId() || "ALL",
   );
+  const [copiedFilteredDigest, setCopiedFilteredDigest] = useState(false);
+  const [copiedSavedDigest, setCopiedSavedDigest] = useState(false);
   useEffect(() => {
     const nextTopicId = consumePendingIntelligenceTopicId();
     if (nextTopicId) {
@@ -2155,58 +2189,40 @@ function IntelligencePage(
       ),
     [current.data?.intelligence],
   );
-  const intelSources = useMemo(() => {
-    const counts = new Map<string, number>();
+  const allKnownSources = useMemo(() => {
+    const set = new Set<string>();
     for (const item of currentAvailable) {
       const name = item.card?.source_display_name?.trim();
-      if (name) counts.set(name, (counts.get(name) ?? 0) + 1);
+      if (name) set.add(name);
     }
-    return Array.from(counts.entries()).map(([name, count]) => ({ name, count }));
+    return set;
   }, [currentAvailable]);
-  const intelTopics = useMemo(() => {
-    const byId = new Map<string, { topic_id: string; name: string; count: number }>();
+  const allKnownTopics = useMemo(() => {
+    const map = new Map<string, string>();
     for (const item of currentAvailable) {
       for (const tp of item.linked_topics ?? []) {
-        const existing = byId.get(tp.topic_id);
-        if (existing) {
-          existing.count += 1;
-        } else {
-          byId.set(tp.topic_id, { topic_id: tp.topic_id, name: tp.name, count: 1 });
-        }
+        if (!map.has(tp.topic_id)) map.set(tp.topic_id, tp.name);
       }
     }
-    return Array.from(byId.values()).sort(
-      (a, b) => b.count - a.count || a.name.localeCompare(b.name),
-    );
+    return map;
   }, [currentAvailable]);
   const effectiveIntelSource =
-    intelSourceFilter === "ALL" || intelSources.some((s) => s.name === intelSourceFilter)
+    intelSourceFilter === "ALL" || allKnownSources.has(intelSourceFilter)
       ? intelSourceFilter
       : "ALL";
   const effectiveIntelTopic =
-    intelTopicFilter === "ALL" || intelTopics.some((tp) => tp.topic_id === intelTopicFilter)
+    intelTopicFilter === "ALL" || allKnownTopics.has(intelTopicFilter)
       ? intelTopicFilter
       : "ALL";
-  const filteredAvailable = useMemo(() => {
-    const q = intelSearch.trim().toLowerCase();
-    return currentAvailable.filter((item) => {
-      if (
-        effectiveIntelSource !== "ALL" &&
-        (item.card?.source_display_name?.trim() ?? "") !== effectiveIntelSource
-      ) {
-        return false;
-      }
-      if (
-        effectiveIntelTopic !== "ALL" &&
-        !(item.linked_topics ?? []).some((tp) => tp.topic_id === effectiveIntelTopic)
-      ) {
-        return false;
-      }
+  const matchesIntelQuery = useCallback(
+    (item: Intelligence, q: string) => {
       if (!q) return true;
+      const rawSrc = item.card?.source_display_name?.trim() ?? "";
       const haystack = [
         item.card?.core_conclusion,
         item.card?.video_title,
-        item.card?.source_display_name,
+        rawSrc,
+        rawSrc ? t(rawSrc) : "",
         ...(item.linked_topics ?? []).map((tp) => tp.name),
         ...(item.card?.user_relevant_information ?? []),
         ...(item.card?.important_new_information ?? []),
@@ -2216,8 +2232,76 @@ function IntelligencePage(
         .join(" ")
         .toLowerCase();
       return haystack.includes(q);
+    },
+    [t],
+  );
+  const sourceBaseAvailable = useMemo(() => {
+    const q = intelSearch.trim().toLowerCase();
+    return currentAvailable.filter((item) => {
+      if (
+        effectiveIntelTopic !== "ALL" &&
+        !(item.linked_topics ?? []).some((tp) => tp.topic_id === effectiveIntelTopic)
+      ) {
+        return false;
+      }
+      return matchesIntelQuery(item, q);
     });
-  }, [currentAvailable, effectiveIntelSource, effectiveIntelTopic, intelSearch]);
+  }, [currentAvailable, effectiveIntelTopic, intelSearch, matchesIntelQuery]);
+  const topicBaseAvailable = useMemo(() => {
+    const q = intelSearch.trim().toLowerCase();
+    return currentAvailable.filter((item) => {
+      if (
+        effectiveIntelSource !== "ALL" &&
+        (item.card?.source_display_name?.trim() ?? "") !== effectiveIntelSource
+      ) {
+        return false;
+      }
+      return matchesIntelQuery(item, q);
+    });
+  }, [currentAvailable, effectiveIntelSource, intelSearch, matchesIntelQuery]);
+  const intelSources = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const item of sourceBaseAvailable) {
+      const name = item.card?.source_display_name?.trim();
+      if (name) counts.set(name, (counts.get(name) ?? 0) + 1);
+    }
+    if (effectiveIntelSource !== "ALL" && !counts.has(effectiveIntelSource)) {
+      counts.set(effectiveIntelSource, 0);
+    }
+    return Array.from(counts.entries()).map(([name, count]) => ({ name, count }));
+  }, [sourceBaseAvailable, effectiveIntelSource]);
+  const intelTopics = useMemo(() => {
+    const byId = new Map<string, { topic_id: string; name: string; count: number }>();
+    for (const item of topicBaseAvailable) {
+      for (const tp of item.linked_topics ?? []) {
+        const existing = byId.get(tp.topic_id);
+        if (existing) {
+          existing.count += 1;
+        } else {
+          byId.set(tp.topic_id, { topic_id: tp.topic_id, name: tp.name, count: 1 });
+        }
+      }
+    }
+    if (effectiveIntelTopic !== "ALL" && !byId.has(effectiveIntelTopic)) {
+      const knownName = allKnownTopics.get(effectiveIntelTopic);
+      if (knownName) {
+        byId.set(effectiveIntelTopic, {
+          topic_id: effectiveIntelTopic,
+          name: knownName,
+          count: 0,
+        });
+      }
+    }
+    return Array.from(byId.values()).sort(
+      (a, b) => b.count - a.count || a.name.localeCompare(b.name),
+    );
+  }, [topicBaseAvailable, effectiveIntelTopic, allKnownTopics]);
+  const filteredAvailable = useMemo(() => {
+    if (effectiveIntelSource === "ALL") return sourceBaseAvailable;
+    return sourceBaseAvailable.filter(
+      (item) => (item.card?.source_display_name?.trim() ?? "") === effectiveIntelSource,
+    );
+  }, [sourceBaseAvailable, effectiveIntelSource]);
   const hasActiveIntelFilter =
     effectiveIntelTopic !== "ALL" ||
     effectiveIntelSource !== "ALL" ||
@@ -2241,7 +2325,7 @@ function IntelligencePage(
           </button>
         ))}
       </div>
-      {view === "Current" && (currentAvailable.length >= 4 || intelTopics.length > 0) ? (
+      {view === "Current" && (currentAvailable.length >= 4 || allKnownTopics.size > 0) ? (
         <div className="intel-filter-toolbar">
           <div className="intel-filter-top-row">
             <input
@@ -2260,7 +2344,7 @@ function IntelligencePage(
               value={intelSearch}
               onChange={(event) => setIntelSearch(event.target.value)}
             />
-            {intelTopics.length > 0 ? (
+            {allKnownTopics.size > 0 ? (
               <select
                 className="content-topic-select tabular-nums"
                 aria-label={zh ? "按专题筛选洞察" : "Filter Intelligence by topic"}
@@ -2278,7 +2362,7 @@ function IntelligencePage(
               </select>
             ) : null}
           </div>
-          {intelSources.length > 1 ? (
+          {allKnownSources.size > 1 && intelSources.length > 0 ? (
             <div
               className="ai-suggested-pills tabular-nums"
               role="group"
@@ -2290,7 +2374,7 @@ function IntelligencePage(
                 aria-pressed={effectiveIntelSource === "ALL"}
                 onClick={() => setIntelSourceFilter("ALL")}
               >
-                {zh ? `全部 (${currentAvailable.length})` : `All (${currentAvailable.length})`}
+                {zh ? `全部 (${sourceBaseAvailable.length})` : `All (${sourceBaseAvailable.length})`}
               </button>
               {intelSources.map((src) => (
                 <button
@@ -2316,17 +2400,40 @@ function IntelligencePage(
                   ? `当前筛选命中 ${filteredAvailable.length} / ${currentAvailable.length} 张验证洞察`
                   : `Showing ${filteredAvailable.length} of ${currentAvailable.length} verified insights`}
               </span>
-              <button
-                type="button"
-                className="button button-ghost button-small"
-                onClick={() => {
-                  setIntelSearch("");
-                  setIntelSourceFilter("ALL");
-                  setIntelTopicFilter("ALL");
-                }}
-              >
-                {zh ? "重置筛选" : "Reset filters"}
-              </button>
+              <div className="intel-filter-bar-actions">
+                <button
+                  type="button"
+                  className="button button-secondary button-small"
+                  onClick={(event) => {
+                    pulseCelebration(event.currentTarget);
+                    void navigator.clipboard?.writeText(
+                      formatPlainTextIntelligenceDigest(filteredAvailable, zh, "filtered"),
+                    );
+                    setCopiedFilteredDigest(true);
+                    setTimeout(() => setCopiedFilteredDigest(false), 2200);
+                  }}
+                >
+                  <PhosphorIcon name="quotes" size={13} />
+                  {copiedFilteredDigest
+                    ? zh
+                      ? "已复制筛选洞察"
+                      : "Copied filtered insights"
+                    : zh
+                      ? `复制当前筛选洞察 (${filteredAvailable.length})`
+                      : `Copy filtered insights (${filteredAvailable.length})`}
+                </button>
+                <button
+                  type="button"
+                  className="button button-ghost button-small"
+                  onClick={() => {
+                    setIntelSearch("");
+                    setIntelSourceFilter("ALL");
+                    setIntelTopicFilter("ALL");
+                  }}
+                >
+                  {zh ? "重置筛选" : "Reset filters"}
+                </button>
+              </div>
             </div>
           ) : null}
         </div>
@@ -2376,17 +2483,60 @@ function IntelligencePage(
       {view === "Saved" && (!saved.data
         ? <Empty>Loading saved Intelligence…</Empty>
         : saved.data.saved.length
-        ? saved.data.saved.map((item) => (
-          <SavedCard
-            key={item.intelligence_id}
-            item={item}
-            revision={revision}
-            onChanged={() =>
-              setRevision((value) => value + 1)}
-            onOpenContent={openContent}
-            onOpenTopic={onOpenTopic}
-          />
-        ))
+        ? (() => {
+          const availableSavedItems = saved.data.saved
+            .map((entry) => entry.intelligence)
+            .filter((it) => it.status === "AVAILABLE" && Boolean(it.card));
+          return (
+            <>
+              {availableSavedItems.length > 0 ? (
+                <div className="intel-saved-digest-bar tabular-nums">
+                  <span>
+                    {zh
+                      ? `已收藏 ${availableSavedItems.length} 张可用验证洞察`
+                      : `${availableSavedItems.length} saved verified insights`}
+                  </span>
+                  <button
+                    type="button"
+                    className="button button-secondary button-small"
+                    onClick={(event) => {
+                      pulseCelebration(event.currentTarget);
+                      void navigator.clipboard?.writeText(
+                        formatPlainTextIntelligenceDigest(
+                          availableSavedItems,
+                          zh,
+                          "saved",
+                        ),
+                      );
+                      setCopiedSavedDigest(true);
+                      setTimeout(() => setCopiedSavedDigest(false), 2200);
+                    }}
+                  >
+                    <PhosphorIcon name="quotes" size={13} />
+                    {copiedSavedDigest
+                      ? zh
+                        ? "已复制收藏合集"
+                        : "Copied saved digest"
+                      : zh
+                        ? `复制已收藏洞察合集 (${availableSavedItems.length})`
+                        : `Copy saved digest (${availableSavedItems.length})`}
+                  </button>
+                </div>
+              ) : null}
+              {saved.data.saved.map((item) => (
+                <SavedCard
+                  key={item.intelligence_id}
+                  item={item}
+                  revision={revision}
+                  onChanged={() =>
+                    setRevision((value) => value + 1)}
+                  onOpenContent={openContent}
+                  onOpenTopic={onOpenTopic}
+                />
+              ))}
+            </>
+          );
+        })()
         : <Empty>No saved Intelligence.</Empty>)}
     </>
   );

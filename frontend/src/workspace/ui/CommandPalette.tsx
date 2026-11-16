@@ -375,14 +375,26 @@ export function CommandPalette({
           : brief?.is_short_noise
             ? -0.02
             : 0;
+      const rawChannel = video.channel_name?.trim() ?? "";
+      const localizedChannel = rawChannel ? t(rawChannel) : "";
+      const rawVideoTitle = (video.title || video.video_id).trim();
+      const displayVideoTitle =
+        rawChannel && localizedChannel && rawChannel !== localizedChannel
+          ? rawVideoTitle.replace(rawChannel, localizedChannel)
+          : rawVideoTitle;
+      const titleHasChannel = Boolean(
+        localizedChannel &&
+          (displayVideoTitle.toLowerCase().includes(localizedChannel.toLowerCase()) ||
+            (rawChannel && displayVideoTitle.toLowerCase().includes(rawChannel.toLowerCase()))),
+      );
       return {
         id: `content:${video.video_id}`,
         group: "content",
-        label: video.title || video.video_id,
+        label: displayVideoTitle,
         subtitle: [
           [starMark, scoreBadge].filter(Boolean).join(" "),
           providerLabel,
-          video.channel_name,
+          titleHasChannel ? "" : localizedChannel,
           headlineSnippet,
         ]
           .filter(Boolean)
@@ -390,7 +402,8 @@ export function CommandPalette({
         icon: video.provider === "LOCAL" ? "file-text" : video.provider === "BILIBILI" ? "television" : "play-circle",
         aliases: [
           video.video_id,
-          video.channel_name ?? "",
+          rawChannel,
+          localizedChannel,
           video.provider ?? "",
           brief?.headline_zh ?? "",
           brief?.topic_cluster_zh ?? "",
@@ -411,17 +424,33 @@ export function CommandPalette({
       const topicBadge = topicNames.length > 0 ? `[[${topicNames[0]}]]` : undefined;
       const rawSource = item.card?.source_display_name?.trim();
       const localizedSource = rawSource ? t(rawSource) : undefined;
+      const rawTitle = item.card?.video_title?.trim() ?? "";
+      const localizedTitle =
+        rawSource && localizedSource && rawSource !== localizedSource
+          ? rawTitle.replace(rawSource, localizedSource)
+          : rawTitle;
+      const lowerTitle = localizedTitle.toLowerCase();
+      const titleHasSource = Boolean(
+        localizedTitle &&
+          ((localizedSource && lowerTitle.includes(localizedSource.toLowerCase())) ||
+            (rawSource && lowerTitle.includes(rawSource.toLowerCase()))),
+      );
       return {
         id: `intel:${item.intelligence_id}`,
         group: "intelligence",
         label: item.card!.core_conclusion,
         subtitle:
-          [topicBadge, localizedSource, item.card?.video_title]
+          [
+            topicBadge,
+            titleHasSource ? undefined : localizedSource,
+            localizedTitle || undefined,
+          ]
             .filter(Boolean)
             .join(" · ") || undefined,
         icon: "sparkle",
         aliases: [
-          item.card?.video_title ?? "",
+          rawTitle,
+          localizedTitle,
           rawSource ?? "",
           localizedSource ?? "",
           ...topicNames,

@@ -4892,4 +4892,218 @@ describe("Workspace AI Upgrade (P0 + P1 + P2)", () => {
       screen.getByRole("heading", { name: "工具调用强类型校验减少 90% 重试开销" }),
     ).toBeTruthy();
   });
+
+  it("R13: cross-facets Intelligence source/topic counts, deduplicates Cmd+K fallback video_title sources, and copies multi-card filtered & saved insight digests", async () => {
+    localStorage.setItem("yia.ui-language", "zh-CN");
+    localStorage.setItem("intelligence.onboarding.completed.v1", "true");
+    location.hash = "#Intelligence";
+
+    const copiedTexts: string[] = [];
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: vi.fn(async (text: string) => {
+          copiedTexts.push(text);
+        }),
+      },
+    });
+
+    const mockIntel = [
+      {
+        status: "AVAILABLE",
+        trusted: true,
+        intelligence_id: "intel-biz-1",
+        claim_kind: "EVIDENCE_BACKED_STATEMENT",
+        state: "NEW",
+        linked_topics: [{ topic_id: "topic:solo-biz", name: "AI 产品机会与一人公司变现" }],
+        card: {
+          core_conclusion: "TaaS 工具即服务通过沉淀专有行业数据构建复利壁垒",
+          user_relevant_information: ["免费工具获客并转化为高毛利数据订阅。"],
+          important_new_information: [],
+          meaningful_details: [],
+          source_id: "src-greg",
+          source_display_name: "Greg Isenberg",
+          source_url: "https://www.youtube.com/@greg",
+          video_id: "vid-biz-1",
+          video_title: "2026年10月30日 · Greg Isenberg",
+          original_video_url: "https://www.youtube.com/watch?v=vid-biz-1",
+          evidence_links: [],
+        },
+      },
+      {
+        status: "AVAILABLE",
+        trusted: true,
+        intelligence_id: "intel-biz-2",
+        claim_kind: "FACT",
+        state: "NEW",
+        linked_topics: [{ topic_id: "topic:solo-biz", name: "AI 产品机会与一人公司变现" }],
+        card: {
+          core_conclusion: "垂直行业 AI 代运营向结果分成 SaaS 演进客单价提升五倍",
+          user_relevant_information: ["用标准化 Agent 流水线替代重人工交付。"],
+          important_new_information: [],
+          meaningful_details: [],
+          source_id: "src-greg",
+          source_display_name: "Greg Isenberg",
+          source_url: "https://www.youtube.com/@greg",
+          video_id: "vid-biz-2",
+          video_title: "Productized AI Agencies",
+          original_video_url: "https://www.youtube.com/watch?v=vid-biz-2",
+          evidence_links: [],
+        },
+      },
+      {
+        status: "AVAILABLE",
+        trusted: true,
+        intelligence_id: "intel-local-1",
+        claim_kind: "SYSTEM_INFERENCE",
+        state: "NEW",
+        linked_topics: [{ topic_id: "topic:agent-arch", name: "AI Agent 与自动化架构" }],
+        card: {
+          core_conclusion: "本地 SQLite 单快照隔离保障多代理并发读写一致性",
+          user_relevant_information: ["消除长事务锁竞争。"],
+          important_new_information: [],
+          meaningful_details: [],
+          source_id: "src-local",
+          source_display_name: "Local library",
+          source_url: null,
+          video_id: "vid-local-1",
+          video_title: "2026年11月10日 · Local library",
+          original_video_url: null,
+          evidence_links: [],
+        },
+      },
+      {
+        status: "AVAILABLE",
+        trusted: true,
+        intelligence_id: "intel-openai-1",
+        claim_kind: "FACT",
+        state: "NEW",
+        linked_topics: [{ topic_id: "topic:agent-arch", name: "AI Agent 与自动化架构" }],
+        card: {
+          core_conclusion: "自动化红队循环显著缩短零日漏洞补丁验证周期",
+          user_relevant_information: ["安全补丁生成与回归验证闭环。"],
+          important_new_information: [],
+          meaningful_details: [],
+          source_id: "src-openai",
+          source_display_name: "OpenAI",
+          source_url: "https://www.youtube.com/@OpenAI",
+          video_id: "vid-openai-1",
+          video_title: "Automated Red Teaming",
+          original_video_url: "https://www.youtube.com/watch?v=vid-openai-1",
+          evidence_links: [],
+        },
+      },
+    ];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((rawInput: RequestInfo | URL) => {
+        const input = String(rawInput);
+        if (input.endsWith("/intelligence")) {
+          return okJson({ intelligence: mockIntel, activity: [] });
+        }
+        if (input.endsWith("/intelligence/intel-biz-1")) {
+          return okJson({ intelligence: mockIntel[0] });
+        }
+        if (input.endsWith("/intelligence/intel-local-1")) {
+          return okJson({ intelligence: mockIntel[2] });
+        }
+        if (input.endsWith("/saved-intelligence")) {
+          return okJson({
+            saved: [
+              {
+                intelligence_id: "intel-biz-1",
+                saved_at: "2026-11-16T01:00:00Z",
+                intelligence: mockIntel[0],
+              },
+              {
+                intelligence_id: "intel-local-1",
+                saved_at: "2026-11-16T00:30:00Z",
+                intelligence: mockIntel[2],
+              },
+            ],
+          });
+        }
+        if (input.endsWith("/topics")) {
+          return okJson({ topics: [] });
+        }
+        if (input.endsWith("/videos")) {
+          return okJson({ videos: [] });
+        }
+        if (input.endsWith("/workspace-ai/research/sessions")) {
+          return okJson({
+            sessions: [],
+            suggested_questions: [],
+            scope_options: { starred_count: 0, channels: [], topic_clusters: [], videos: [] },
+          });
+        }
+        if (input.includes("/creator-following")) {
+          return okJson({ available: false, reason_code: "DISABLED" });
+        }
+        return okJson({});
+      }),
+    );
+
+    render(<App />);
+
+    // 1) Cross-faceted counts: selecting Topic "topic:solo-biz" updates source pills to "全部 (2)" + "Greg Isenberg (2)"
+    const intelTopicSelect = (await screen.findByLabelText("按专题筛选洞察")) as HTMLSelectElement;
+    fireEvent.change(intelTopicSelect, { target: { value: "topic:solo-biz" } });
+
+    const sourceGroup = screen.getByRole("group", { name: "按来源筛选洞察" });
+    expect(within(sourceGroup).getByRole("button", { name: "全部 (2)" })).toBeTruthy();
+    expect(within(sourceGroup).getByRole("button", { name: "Greg Isenberg (2)" })).toBeTruthy();
+    expect(within(sourceGroup).queryByRole("button", { name: /OpenAI/ })).toBeNull();
+
+    // Copy filtered insights digest (2 cards) directly from active filter bar
+    const copyFilteredBtn = screen.getByRole("button", { name: "复制当前筛选洞察 (2)" });
+    fireEvent.click(copyFilteredBtn);
+    await waitFor(() => expect(copiedTexts).toHaveLength(1));
+    expect(copiedTexts[0]).toContain("【已验证洞察合集】（共 2 条）");
+    expect(copiedTexts[0]).toContain("【验证洞察 1/2】TaaS 工具即服务通过沉淀专有行业数据构建复利壁垒");
+    expect(copiedTexts[0]).toContain("【验证洞察 2/2】垂直行业 AI 代运营向结果分成 SaaS 演进客单价提升五倍");
+    expect(copiedTexts[0]).not.toContain("---");
+    expect(copiedTexts[0]).not.toContain("[[");
+
+    // Reset filters, then type localized "本地资料库" into #Intelligence search input -> matches Local library card!
+    fireEvent.click(screen.getByRole("button", { name: "重置筛选" }));
+    const searchInput = screen.getByLabelText("搜索洞察结论或视频标题");
+    fireEvent.change(searchInput, { target: { value: "本地资料库" } });
+    expect(
+      screen.getByRole("heading", { name: "本地 SQLite 单快照隔离保障多代理并发读写一致性" }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("heading", { name: "自动化红队循环显著缩短零日漏洞补丁验证周期" }),
+    ).toBeNull();
+
+    // 2) Open Cmd+K -> verify fallback video_title subtitles do NOT duplicate source names!
+    fireEvent.click(screen.getByRole("button", { name: /搜索与直达/ }));
+    const cmdkInput = await screen.findByRole("combobox", {
+      name: "搜索页面、内容、洞察或命令",
+    });
+    fireEvent.change(cmdkInput, { target: { value: "TaaS" } });
+    const taasOpt = await screen.findByRole("option", {
+      name: /TaaS 工具即服务通过沉淀专有行业数据构建复利壁垒/,
+    });
+    expect(taasOpt.textContent).toContain("[[AI 产品机会与一人公司变现]] · 2026年10月30日 · Greg Isenberg");
+    expect(taasOpt.textContent).not.toContain("Greg Isenberg · 2026年10月30日 · Greg Isenberg");
+
+    fireEvent.change(cmdkInput, { target: { value: "SQLite" } });
+    const sqliteOpt = await screen.findByRole("option", {
+      name: /本地 SQLite 单快照隔离保障多代理并发读写一致性/,
+    });
+    expect(sqliteOpt.textContent).toContain("[[AI Agent 与自动化架构]] · 2026年11月10日 · 本地资料库");
+    expect(sqliteOpt.textContent).not.toContain("本地资料库 · 2026年11月10日 · 本地资料库");
+    fireEvent.keyDown(cmdkInput, { key: "Escape" });
+
+    // 3) Switch to "已收藏" (Saved) tab -> click "复制已收藏洞察合集 (2)"
+    fireEvent.click(screen.getByRole("button", { name: "已收藏" }));
+    const copySavedBtn = await screen.findByRole("button", { name: "复制已收藏洞察合集 (2)" });
+    fireEvent.click(copySavedBtn);
+    await waitFor(() => expect(copiedTexts).toHaveLength(2));
+    expect(copiedTexts[1]).toContain("【已收藏洞察合集】（共 2 条）");
+    expect(copiedTexts[1]).toContain("TaaS 工具即服务通过沉淀专有行业数据构建复利壁垒");
+    expect(copiedTexts[1]).toContain("本地 SQLite 单快照隔离保障多代理并发读写一致性");
+    expect(copiedTexts[1]).not.toContain("---");
+    expect(copiedTexts[1]).not.toContain("[[");
+  });
 });
