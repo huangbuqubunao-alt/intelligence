@@ -2116,6 +2116,12 @@ function Workspace() {
               setHandoffSeq(value => value + 1);
               navigate("Content");
             }}
+            onFilterContentByTopic={topicCluster => {
+              setPendingContentTopic(topicCluster);
+              setPendingContentChannel("ALL");
+              setHandoffSeq(value => value + 1);
+              navigate("Content");
+            }}
           />
         </Suspense>
       ) : null}
@@ -6085,6 +6091,7 @@ function Sources(
   }>("/sources", refresh, validSourcesRead, true, true);
   const [selected, setSelected] = useState<string | null>(targetSourceId ?? null);
   const [filter, setFilter] = useState("all");
+  const [sortMode, setSortMode] = useState<"default" | "must_watch" | "avg_score">("default");
   const [rowBusy, setRowBusy] = useState<string | null>(null);
   const [rowMessage, setRowMessage] = useState<string | null>(null);
   useEffect(() => {
@@ -6105,6 +6112,55 @@ function Sources(
   const followingSources = data.sources.filter(source => source.source_type !== "VIDEO_URL");
   const aiSignals = readSourceAiSignalMap(data.ai_signal_by_source);
   const hasAiSignals = Object.keys(aiSignals).length > 0;
+  const topLevelSources = followingSources.filter(
+    source => !source.tracking_parent_source_ids?.length,
+  );
+  const totalSignalSummary = hasAiSignals
+    ? topLevelSources.reduce(
+        (acc, src) => {
+          const sig = aiSignals[src.source_id];
+          if (sig) {
+            acc.longForm += sig.long_form_count;
+            acc.mustWatch += sig.must_watch_count;
+            acc.shorts += sig.shorts_count;
+          }
+          return acc;
+        },
+        { longForm: 0, mustWatch: 0, shorts: 0 },
+      )
+    : null;
+  const filteredFollowing = topLevelSources.filter(
+    source =>
+      filter === "all" ||
+      (filter === "updates" && (source.tracking?.update_count ?? 0) > 0) ||
+      (filter === "insights" && (source.insight_count ?? 0) > 0) ||
+      (filter === "high_signal" && (aiSignals[source.source_id]?.must_watch_count ?? 0) >= 1) ||
+      (filter === "attention" &&
+        Boolean(
+          (source.source_type === "CHANNEL" && !source.tracking) ||
+            (source.provider === "BILIBILI" && source.tracking && creatorFollowingWithdrawn) ||
+            source.last_error ||
+            (source.tracking?.pending_count ?? 0) > 0 ||
+            (source.tracking?.processing_count ?? 0) > 0 ||
+            (source.tracking?.unavailable_count ?? 0) > 0,
+        )) ||
+      (filter === "paused" && !source.enabled),
+  );
+  const orderedFollowing =
+    sortMode === "default"
+      ? filteredFollowing
+      : [...filteredFollowing].sort((a, b) => {
+          const sigA = aiSignals[a.source_id];
+          const sigB = aiSignals[b.source_id];
+          if (sortMode === "must_watch") {
+            const mwDiff = (sigB?.must_watch_count ?? -1) - (sigA?.must_watch_count ?? -1);
+            if (mwDiff !== 0) return mwDiff;
+            return (sigB?.avg_long_score ?? -1) - (sigA?.avg_long_score ?? -1);
+          }
+          const avgDiff = (sigB?.avg_long_score ?? -1) - (sigA?.avg_long_score ?? -1);
+          if (avgDiff !== 0) return avgDiff;
+          return (sigB?.must_watch_count ?? -1) - (sigA?.must_watch_count ?? -1);
+        });
   return (
     <>
       {!selected && <FollowingReadNotice reading={reading} error={error} errorCode={errorCode} onReload={reload} />}
@@ -6132,11 +6188,42 @@ function Sources(
               <option value="attention">{t("Needs attention")}</option>
               <option value="paused">{t("Paused")}</option>
             </select></label>
-            {followingSources.filter(source => !source.tracking_parent_source_ids?.length).filter(source => filter === "all" || (filter === "updates" && (source.tracking?.update_count ?? 0) > 0)
-              || (filter === "insights" && (source.insight_count ?? 0) > 0)
-              || (filter === "high_signal" && (aiSignals[source.source_id]?.must_watch_count ?? 0) >= 1)
-              || (filter === "attention" && Boolean((source.source_type === "CHANNEL" && !source.tracking) || (source.provider === "BILIBILI" && source.tracking && creatorFollowingWithdrawn) || source.last_error || (source.tracking?.pending_count ?? 0) > 0 || (source.tracking?.processing_count ?? 0) > 0 || (source.tracking?.unavailable_count ?? 0) > 0))
-              || (filter === "paused" && !source.enabled)).map((source) => {
+            {hasAiSignals &&
+            topLevelSources.length > 1 &&
+            totalSignalSummary &&
+            totalSignalSummary.longForm > 0 ? (
+              <div className="following-signal-overview tabular-nums">
+                <span>
+                  {language === "zh-CN"
+                    ? `共 ${topLevelSources.length} 个订阅源 · 累计沉淀 ${totalSignalSummary.longForm} 篇长视频干货 · ${totalSignalSummary.mustWatch} 篇必看${totalSignalSummary.shorts > 0 ? ` · 已折叠 ${totalSignalSummary.shorts} 条 Shorts` : ""}`
+                    : `${topLevelSources.length} sources · ${totalSignalSummary.longForm} long-form items · ${totalSignalSummary.mustWatch} must-watch`}
+                </span>
+                <div
+                  className="segmented"
+                  role="group"
+                  aria-label={language === "zh-CN" ? "关注信源排序" : "Sort Following"}
+                >
+                  {(
+                    [
+                      ["default", language === "zh-CN" ? "默认顺序" : "Default"],
+                      ["must_watch", language === "zh-CN" ? "必看产出优先" : "Most must-watch"],
+                      ["avg_score", language === "zh-CN" ? "干货均分优先" : "Highest avg score"],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      aria-pressed={sortMode === key}
+                      className={sortMode === key ? "active" : ""}
+                      onClick={() => setSortMode(key)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {orderedFollowing.map((source) => {
               const sig = aiSignals[source.source_id] ?? null;
               const signalCopy =
                 sig && sig.distilled_count > 0

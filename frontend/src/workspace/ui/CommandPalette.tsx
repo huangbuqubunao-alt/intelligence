@@ -223,6 +223,7 @@ export function CommandPalette({
   onOpenTopic,
   onOpenResearchSession,
   onFilterContentByChannel,
+  onFilterContentByTopic,
 }: {
   open: boolean;
   onClose: () => void;
@@ -232,6 +233,7 @@ export function CommandPalette({
   onOpenTopic: (topicId: string) => void;
   onOpenResearchSession?: (sessionId: string) => void;
   onFilterContentByChannel?: (channelKey: string) => void;
+  onFilterContentByTopic?: (topicCluster: string) => void;
 }) {
   const { language, t } = useUiLanguage();
   const zh = language === "zh-CN";
@@ -496,6 +498,33 @@ export function CommandPalette({
         })
       : [];
 
+    const dynamicTopicFilterActions: CommandPaletteAction[] = onFilterContentByTopic
+      ? (() => {
+          const counts = new Map<string, number>();
+          for (const video of videos) {
+            if (video.ai_brief?.is_short_noise) continue;
+            const cluster = video.ai_brief?.topic_cluster_zh?.trim();
+            if (cluster) {
+              counts.set(cluster, (counts.get(cluster) ?? 0) + 1);
+            }
+          }
+          return Array.from(counts.entries())
+            .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+            .map(([cluster, count]) => ({
+              id: `act:topic-content:${cluster}`,
+              group: "actions" as const,
+              label: zh ? `筛选专题内容：${cluster}` : `Filter topic content: ${cluster}`,
+              subtitle: zh
+                ? `${count} 篇长视频干货 · 在内容库中按专题查看`
+                : `${count} long-form items in Content`,
+              icon: "funnel" as const,
+              aliases: [cluster, "topic", "专题", "筛选", "内容", "片单"],
+              rankBonus: 0.14,
+              onSelect: () => onFilterContentByTopic(cluster),
+            }));
+        })()
+      : [];
+
     const dynamicResearch: CommandPaletteAction[] = onOpenResearchSession
       ? qaSessions.map((session) => {
           const citeCount = session.citations?.length ?? 0;
@@ -533,6 +562,7 @@ export function CommandPalette({
     return [
       ...staticActions,
       ...dynamicChannelActions,
+      ...dynamicTopicFilterActions,
       ...dynamicContent,
       ...dynamicResearch,
       ...dynamicInsights,
@@ -552,6 +582,7 @@ export function CommandPalette({
     onOpenTopic,
     onOpenResearchSession,
     onFilterContentByChannel,
+    onFilterContentByTopic,
   ]);
 
   const filteredItems = useMemo(() => {

@@ -6143,4 +6143,260 @@ describe("Workspace AI Upgrade (P0 + P1 + P2)", () => {
     await waitFor(() => expect(document.activeElement).toBe(qaInput));
     expect(askCallCount).toBe(0);
   });
+
+  it("R18: sorts Following sources by must-watch and avg score, filters Content by Topic via Cmd+K, and supports auto-growing multiline Research textarea with draft clear & Enter/Shift+Enter", async () => {
+    location.hash = "#Following";
+    const askPayloads: Record<string, unknown>[] = [];
+
+    const videoCatalog = [
+      {
+        video_id: "vid-biz-1",
+        provider: "YOUTUBE",
+        channel_id: "ch-greg",
+        channel_name: "Greg Isenberg",
+        title: "Micro-SaaS Acquisition Funnel",
+        source_url: "https://www.youtube.com/watch?v=vid-biz-1",
+        published_at: "2026-11-15T10:00:00Z",
+        duration_seconds: 1800,
+        processing_status: "ANALYZED",
+        last_updated: "2026-11-15T10:05:00Z",
+        ai_brief: {
+          video_id: "vid-biz-1",
+          score: 9.5,
+          recommendation_tier: "MUST_WATCH",
+          content_bucket: "DEEP_DIVE",
+          is_short_noise: false,
+          headline_zh: "微型工具零成本冷启动漏斗",
+          summary_zh: "拆解微型免费工具引流闭环。",
+          topics_zh: ["Micro-SaaS"],
+          topic_cluster_zh: "AI 产品机会与一人公司变现",
+          product_opportunities_zh: [],
+          business_opportunities_zh: [],
+        },
+      },
+      {
+        video_id: "vid-agent-1",
+        provider: "YOUTUBE",
+        channel_id: "ch-oai",
+        channel_name: "OpenAI",
+        title: "Codex Security Deep Dive",
+        source_url: "https://www.youtube.com/watch?v=vid-agent-1",
+        published_at: "2026-11-13T10:00:00Z",
+        duration_seconds: 2100,
+        processing_status: "ANALYZED",
+        last_updated: "2026-11-13T10:05:00Z",
+        ai_brief: {
+          video_id: "vid-agent-1",
+          score: 9.0,
+          recommendation_tier: "MUST_WATCH",
+          content_bucket: "DEEP_DIVE",
+          is_short_noise: false,
+          headline_zh: "Codex 沙箱安全边界与补丁验证",
+          summary_zh: "隔离环境自动复现补丁。",
+          topics_zh: ["Codex"],
+          topic_cluster_zh: "AI Agent 与自动化架构",
+          product_opportunities_zh: [],
+          business_opportunities_zh: [],
+        },
+      },
+    ];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string, init?: RequestInit) => {
+        if (input.endsWith("/sources")) {
+          return okJson({
+            sources: [
+              {
+                source_id: "youtube-channel-greg",
+                provider: "YOUTUBE",
+                source_type: "CHANNEL",
+                canonical_url: "https://www.youtube.com/@GregIsenberg",
+                handle_or_channel_id: "@GregIsenberg",
+                display_name: "Greg Isenberg",
+                enabled: true,
+                insight_count: 5,
+                tracking: {
+                  health: "HEALTHY",
+                  coverage: "CONTINUOUS",
+                  checking: false,
+                  baseline_complete: true,
+                  last_checked_at: "2026-11-16T01:00:00Z",
+                  last_new_content_at: "2026-11-15T10:00:00Z",
+                  tracked_count: 11,
+                  ready_count: 11,
+                  processing_count: 0,
+                  pending_count: 0,
+                  unavailable_count: 0,
+                  update_count: 0,
+                },
+              },
+              {
+                source_id: "youtube-channel-openai",
+                provider: "YOUTUBE",
+                source_type: "CHANNEL",
+                canonical_url: "https://www.youtube.com/@OpenAI",
+                handle_or_channel_id: "@OpenAI",
+                display_name: "OpenAI",
+                enabled: true,
+                insight_count: 25,
+                tracking: {
+                  health: "HEALTHY",
+                  coverage: "CONTINUOUS",
+                  checking: false,
+                  baseline_complete: true,
+                  last_checked_at: "2026-11-16T01:00:00Z",
+                  last_new_content_at: "2026-11-14T10:00:00Z",
+                  tracked_count: 100,
+                  ready_count: 23,
+                  processing_count: 0,
+                  pending_count: 0,
+                  unavailable_count: 0,
+                  update_count: 0,
+                },
+              },
+            ],
+            ai_signal_by_source: {
+              "youtube-channel-greg": {
+                source_id: "youtube-channel-greg",
+                channel_key: "Greg Isenberg",
+                channel_label: "Greg Isenberg",
+                total_videos: 11,
+                distilled_count: 11,
+                long_form_count: 2,
+                shorts_count: 9,
+                must_watch_count: 1,
+                worth_skimming_count: 1,
+                unread_long_count: 1,
+                avg_long_score: 9.5,
+                signal_rate_pct: 18,
+              },
+              "youtube-channel-openai": {
+                source_id: "youtube-channel-openai",
+                channel_key: "OpenAI",
+                channel_label: "OpenAI",
+                total_videos: 100,
+                distilled_count: 100,
+                long_form_count: 4,
+                shorts_count: 96,
+                must_watch_count: 3,
+                worth_skimming_count: 1,
+                unread_long_count: 2,
+                avg_long_score: 9.0,
+                signal_rate_pct: 4,
+              },
+            },
+          });
+        }
+        if (input.endsWith("/videos")) return okJson({ videos: videoCatalog });
+        if (input.endsWith("/intelligence")) return okJson({ intelligence: [], activity: [] });
+        if (input.endsWith("/topics")) return okJson({ topics: [] });
+        if (input.endsWith("/workspace-ai/research/sessions")) {
+          return okJson({
+            sessions: [],
+            suggested_questions: [],
+            scope_options: {
+              starred_count: 0,
+              channels: [
+                { key: "OpenAI", label: "OpenAI", count: 4 },
+                { key: "Greg Isenberg", label: "Greg Isenberg", count: 2 },
+              ],
+              topic_clusters: [
+                { name: "AI Agent 与自动化架构", count: 4 },
+                { name: "AI 产品机会与一人公司变现", count: 2 },
+              ],
+              videos: videoCatalog.map((v) => ({
+                video_id: v.video_id,
+                title: v.title,
+                channel_name: v.channel_name,
+                score: v.ai_brief.score,
+                starred: false,
+                topic_cluster_zh: v.ai_brief.topic_cluster_zh,
+              })),
+            },
+          });
+        }
+        if (input.endsWith("/workspace-ai/research/ask") && init?.method === "POST") {
+          const parsed = JSON.parse(String(init.body)) as Record<string, unknown>;
+          askPayloads.push(parsed);
+          return okJson({
+            session: {
+              session_id: "qa-r18",
+              question: String(parsed.question ?? ""),
+              scope: { video_ids: parsed.video_ids ?? [] },
+              scope_label_zh: "指定 1 篇对比",
+              answer_zh: "微型工具可构建自然搜索冷启动飞轮。",
+              key_takeaways_zh: ["零获客成本"],
+              action_items_zh: [],
+              citations: [],
+              obsidian_markdown: "# 结论\n",
+              provider: "ollama",
+              model: "qwen3:8b",
+              created_at: "2026-11-16T11:00:00Z",
+              pinned: false,
+            },
+          });
+        }
+        if (input.endsWith("/research")) return okJson({ research: [], total: 0, offset: 0, limit: 25 });
+        if (input.includes("/creator-following")) return okJson({ available: false, reason_code: "DISABLED" });
+        return okJson({});
+      }),
+    );
+
+    const { container } = render(<App />);
+
+    // 1) R18-3: Verify #Following signal summary & sort toggle ("必看产出优先" vs "干货均分优先")
+    expect(await screen.findByText(/累计沉淀 6 篇长视频干货 · 4 篇必看/)).toBeTruthy();
+    const readRowOrder = () =>
+      Array.from(container.querySelectorAll(".source-row")).map(
+        (el) => el.getAttribute("data-source-id"),
+      );
+    expect(readRowOrder()).toEqual(["youtube-channel-greg", "youtube-channel-openai"]);
+
+    const sortGroup = screen.getByRole("group", { name: "关注信源排序" });
+    fireEvent.click(within(sortGroup).getByRole("button", { name: "必看产出优先" }));
+    expect(readRowOrder()).toEqual(["youtube-channel-openai", "youtube-channel-greg"]);
+
+    fireEvent.click(within(sortGroup).getByRole("button", { name: "干货均分优先" }));
+    expect(readRowOrder()).toEqual(["youtube-channel-greg", "youtube-channel-openai"]);
+
+    // 2) R18-2: Open Cmd+K from #Following -> search "变现" -> click "筛选专题内容：AI 产品机会与一人公司变现" -> lands on #Content pre-filtered!
+    fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+    const cmdkDialog = await screen.findByRole("dialog", { name: /全局搜索与命令面板/ });
+    const cmdkInput = within(cmdkDialog).getByRole("combobox");
+    fireEvent.change(cmdkInput, { target: { value: "变现" } });
+    const topicContentOpt = await within(cmdkDialog).findByRole("option", {
+      name: /筛选专题内容：AI 产品机会与一人公司变现/,
+    });
+    fireEvent.click(topicContentOpt);
+
+    await waitFor(() => expect(location.hash).toBe("#Content"));
+    const contentTopicSelect = (await screen.findByLabelText("按专题筛选内容")) as HTMLSelectElement;
+    expect(contentTopicSelect.value).toBe("AI 产品机会与一人公司变现");
+    expect(screen.getByText("Micro-SaaS Acquisition Funnel")).toBeTruthy();
+    expect(screen.queryByText("Codex Security Deep Dive")).toBeNull();
+
+    // 3) R18-1: Hand off to #Research -> verify multiline <textarea>, 1-click "清空提问草稿", Shift+Enter no-submit, and Enter submit!
+    fireEvent.click(screen.getByRole("button", { name: "围绕当前筛选视频追问 (1)" }));
+    await waitFor(() => expect(location.hash).toBe("#Research"));
+
+    const qaBox = (await screen.findByLabelText("跨视频提问")) as HTMLTextAreaElement;
+    expect(qaBox.tagName).toBe("TEXTAREA");
+
+    fireEvent.click(await screen.findByRole("button", { name: "填入推荐问题 1 编辑" }));
+    expect(qaBox.value.length).toBeGreaterThan(15);
+
+    const clearDraftBtn = screen.getByRole("button", { name: "清空提问草稿" });
+    fireEvent.click(clearDraftBtn);
+    expect(qaBox.value).toBe("");
+    expect(screen.queryByRole("button", { name: "清空提问草稿" })).toBeNull();
+
+    fireEvent.change(qaBox, { target: { value: "微型工具如何衔接主产品转化？" } });
+    fireEvent.keyDown(qaBox, { key: "Enter", shiftKey: true });
+    expect(askPayloads).toHaveLength(0);
+
+    fireEvent.keyDown(qaBox, { key: "Enter", shiftKey: false });
+    await waitFor(() => expect(askPayloads).toHaveLength(1));
+    expect(askPayloads[0].question).toBe("微型工具如何衔接主产品转化？");
+  });
 });

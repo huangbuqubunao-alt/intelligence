@@ -3207,13 +3207,65 @@ dl.creator-tracking dd {
 .ai-research-ask-form {
   display: flex;
   flex-wrap: wrap;
+  align-items: flex-start;
   gap: 8px;
   margin: 10px 0;
 }
 
-.ai-research-ask-form input[type="text"] {
+.ai-research-input-wrap {
+  position: relative;
   flex: 1 1 280px;
-  min-height: 38px;
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+}
+
+.ai-research-textarea {
+  width: 100%;
+  min-height: 40px;
+  max-height: 116px;
+  resize: none;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--input);
+  color: var(--text);
+  padding: 9px 54px 9px 11px;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-y: auto;
+}
+
+.ai-research-textarea::placeholder {
+  color: var(--text-muted);
+}
+
+.ai-research-textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(50, 174, 121, 0.14);
+  outline: none;
+}
+
+.ai-research-clear-btn {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-muted);
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 550;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: border-color var(--transition), color var(--transition), background var(--transition);
+}
+
+.ai-research-clear-btn:hover {
+  border-color: var(--accent-border);
+  color: var(--accent-text);
+  background: var(--accent-soft);
 }
 
 .ai-suggested-pills {
@@ -4201,6 +4253,22 @@ input[type="radio"] {
   background: var(--accent-soft);
   color: var(--accent-text);
 }
+
+.following-signal-overview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 14px;
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 
 
 
