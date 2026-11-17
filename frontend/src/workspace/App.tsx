@@ -47,6 +47,7 @@ import {
   readTopicAiEvolution,
   readVideoAiBrief,
   readWeeklyAiBrief,
+  readWorkspaceAiCapabilities,
   readWorkspaceAiSettings,
   setPendingContentChannel,
   setPendingContentTopic,
@@ -228,6 +229,7 @@ type ContentItem = {
 type ContentDetail = {
   local_intelligence?: unknown;
   obsidian_markdown?: string;
+  workspace_ai_capabilities?: unknown;
   video: ContentItem;
   pending_synthesis_executions?: { execution_id: string; updated_at: string; can_cancel: boolean; selected_provider?: string }[];
   waiting_model_executions?: { execution_id: string; updated_at: string; can_cancel: boolean; selected_provider?: string }[];
@@ -1042,10 +1044,10 @@ export function ScoringTab(
 }
 
 function evidenceSourceMatchesTarget(
-  sourceLanguage: string,
+  sourceLanguage: string | null | undefined,
   targetLanguage: string,
 ): boolean {
-  const source = sourceLanguage.trim().replace(/_/g, "-").toLowerCase();
+  const source = (sourceLanguage ?? "").trim().replace(/_/g, "-").toLowerCase();
   if (targetLanguage === "en") return source === "en" || source.startsWith("en-");
   if (targetLanguage === "zh-CN") {
     return ["zh-cn", "zh-hans", "zh-hans-cn"].includes(source);
@@ -5096,6 +5098,12 @@ function ContentDetailPanel(
   const [guideProgress, setGuideProgress] = useState<{ current: number; total: number } | null>(null);
   const [guideError, setGuideError] = useState<string | null>(null);
   const [copiedMarkdown, setCopiedMarkdown] = useState(false);
+  const [wsTranscribeRunning, setWsTranscribeRunning] = useState<{ running: boolean; stage?: string }>({ running: false });
+  const [wsActionRequest, setWsActionRequest] = useState<{ nonce: number; kind: "transcribe" | "distill" } | null>(null);
+  useEffect(() => {
+    setWsTranscribeRunning({ running: false });
+    setWsActionRequest(null);
+  }, [id]);
   const recordSharedTranslation = useCallback((evidenceId: string, excerpt: string, lang: "zh-CN" | "en") => {
     setSharedTranslations(current => ({ ...current, [evidenceId]: { excerpt, language: lang } }));
   }, []);
@@ -5121,6 +5129,13 @@ function ContentDetailPanel(
   const isLocalMedia = data.video.provider === "LOCAL" && data.video.media_kind !== "TEXT";
   const note = data.note.v2;
   const aiBrief = readVideoAiBrief(data.video.ai_brief);
+  const wsCapabilities = readWorkspaceAiCapabilities(data.workspace_ai_capabilities);
+  const wsAiReady = Boolean(wsCapabilities?.ready || aiBrief);
+  const wsTranscriberReady = Boolean(wsCapabilities?.transcriber_ready);
+  const wsTranscribeJobActive =
+    wsTranscribeRunning.running || wsCapabilities?.transcribe_job?.status === "RUNNING";
+  const wsTranscribeStage =
+    wsTranscribeRunning.stage ?? wsCapabilities?.transcribe_job?.stage ?? "TRANSCRIBING";
   const localCapability = readContentLocal(data.local_intelligence, data.video, id);
   const cloudWait = data.intelligence_result.status === "WAITING_MODEL" && data.intelligence_result.selected_provider === "zhipu_bigmodel";
   const unstartedLongWait = data.intelligence_result.status === "WAITING_MODEL"
@@ -5132,23 +5147,43 @@ function ContentDetailPanel(
   );
   // The offline transcription job owns the displayed state once it has one, so
   // a run in progress is not summarised by the snapshot status behind it.
-  const readingStatus = isLocalMedia && transcriptionStatus
-    ? { value: transcriptionStatus, label: transcriptionCopy(transcriptionStatus) }
-    : aiBrief?.source_basis === "METADATA_ONLY" &&
-        (data.video.provider ?? "YOUTUBE") === "YOUTUBE" &&
-        ["FAILED", "FAILED_FINAL", "FAILED_RETRYABLE", "RETRY_REQUIRED", "METADATA_READY"].includes(
-          data.video.processing_status,
-        )
+  const readingStatus = isLocalMedia && wsTranscribeJobActive
+    ? {
+        value: "RUNNING",
+        label:
+          language === "zh-CN"
+            ? wsTranscribeStage === "DISTILLING"
+              ? "正在提炼中文洞察…"
+              : "正在离线语音转写…"
+            : "Transcribing…",
+      }
+    : isLocalMedia && wsTranscriberReady && transcript.status !== "AVAILABLE"
       ? {
-          value: "METADATA_READY",
-          label: language === "zh-CN" ? "无原生字幕" : "No native captions",
+          value: "IMPORTED",
+          label: language === "zh-CN" ? "已导入 · 待语音转写" : "Imported · Ready to transcribe",
         }
-      : contentStatus(
-          data.video.provider,
-          isLocalMedia && data.video.processing_status === "TRANSCRIPTION_UNAVAILABLE"
-            ? "IMPORTED"
-            : data.video.processing_status,
-        );
+      : isLocalMedia && aiBrief && transcript.status === "AVAILABLE"
+        ? {
+            value: "READY",
+            label: language === "zh-CN" ? "已完成转写与洞察" : "Transcribed & distilled",
+          }
+        : isLocalMedia && transcriptionStatus
+          ? { value: transcriptionStatus, label: transcriptionCopy(transcriptionStatus) }
+          : aiBrief?.source_basis === "METADATA_ONLY" &&
+              (data.video.provider ?? "YOUTUBE") === "YOUTUBE" &&
+              ["FAILED", "FAILED_FINAL", "FAILED_RETRYABLE", "RETRY_REQUIRED", "METADATA_READY"].includes(
+                data.video.processing_status,
+              )
+            ? {
+                value: "METADATA_READY",
+                label: language === "zh-CN" ? "无原生字幕" : "No native captions",
+              }
+            : contentStatus(
+                data.video.provider,
+                isLocalMedia && data.video.processing_status === "TRANSCRIPTION_UNAVAILABLE"
+                  ? "IMPORTED"
+                  : data.video.processing_status,
+              );
   return (
     <div className="dashboard-stack reader-detail-stack">
       <div className="reader-back-row">
@@ -5223,6 +5258,11 @@ function ContentDetailPanel(
             transcriptAvailable={transcript.status === "AVAILABLE"}
             aiBrief={aiBrief}
             obsidianMarkdown={data.obsidian_markdown}
+            initialTranscribeJob={wsCapabilities?.transcribe_job}
+            actionRequest={wsActionRequest}
+            onTranscribeStateChange={(running, stage) =>
+              setWsTranscribeRunning({ running, stage })
+            }
             nextUnreadVideo={nextUnreadVideo}
             onAdvanceToVideo={onAdvanceToVideo}
             onBack={onClose}
@@ -5340,15 +5380,108 @@ function ContentDetailPanel(
               </div>
             </>
           );
-          return aiBrief && !hasActiveLegacyExecution ? (
-            <details className="legacy-model-diagnostics">
-              <summary>
-                {language === "zh-CN"
-                  ? "底层离线模型路由与手动核验诊断"
-                  : "Underlying local model route & manual diagnostics"}
-              </summary>
-              {legacyIntelBody}
-            </details>
+          const wsReadyGuide =
+            wsAiReady && !aiBrief && !hasActiveLegacyExecution ? (
+              <div className="semantic-state state-neutral">
+                {isLocalMedia && transcript.status !== "AVAILABLE" ? (
+                  wsTranscribeJobActive ? (
+                    <>
+                      <span className="status status-neutral">
+                        {language === "zh-CN"
+                          ? wsTranscribeStage === "DISTILLING"
+                            ? "语音听写完成 · 正在提炼中文洞察"
+                            : "正在本机免费离线听写语音"
+                          : "Transcribing offline on this Mac"}
+                      </span>
+                      <p role="status">
+                        {language === "zh-CN"
+                          ? "正在你电脑本机将整段课程录音转成带时间戳的逐字稿，并提炼中文核心结论（长视频约需几分钟，期间切去浏览其他页面也不会中断，完成后这里会自动刷新）。"
+                          : "Transcribing the full lecture audio locally and distilling Chinese insights. Longer videos take a few minutes; switching pages will not interrupt progress."}
+                      </p>
+                    </>
+                  ) : wsTranscriberReady ? (
+                    <>
+                      <span className="status status-neutral">
+                        {language === "zh-CN" ? "已就绪 · 待一键转写与提炼" : "Ready · Awaiting 1-click transcription"}
+                      </span>
+                      <p>
+                        {language === "zh-CN"
+                          ? "音视频已安全保存在本机。点击下方按钮即可在本机免费完成语音听写，自动生成完整时间轴字幕、中文摘要与干货洞察。"
+                          : "Media is saved locally. Click below to transcribe speech offline on this Mac and generate timestamped captions, Chinese summary, and key insights."}
+                      </p>
+                      <div className="button-row">
+                        <button
+                          type="button"
+                          className="button button-primary button-small"
+                          onClick={(event) => {
+                            pulseCelebration(event.currentTarget);
+                            setWsActionRequest((prev) => ({
+                              nonce: (prev?.nonce ?? 0) + 1,
+                              kind: "transcribe",
+                            }));
+                          }}
+                        >
+                          <PhosphorIcon name="sparkle" size={13} />
+                          {language === "zh-CN"
+                            ? "开始离线语音转写并提炼中文洞察"
+                            : "Start offline transcription & Chinese insight"}
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <span className="status status-neutral">
+                        {language === "zh-CN" ? "待配置本机语音模型" : "Offline speech model required"}
+                      </span>
+                      <p>
+                        {language === "zh-CN"
+                          ? "当前尚未检测到可用的本机 Whisper 语音模型，请前往设置完成配置后再转写。"
+                          : "No local Whisper speech model was detected yet. Configure it in Settings first."}
+                      </p>
+                    </>
+                  )
+                ) : transcript.status === "AVAILABLE" ? (
+                  <>
+                    <span className="status status-neutral">
+                      {language === "zh-CN" ? "字幕已就绪 · 待提炼洞察" : "Transcript ready · Awaiting insight"}
+                    </span>
+                    <p>
+                      {language === "zh-CN"
+                        ? "原始字幕已准备完毕。点击下方按钮即可自动提炼中文总结、评分与核心洞察。"
+                        : "Transcript is ready. Click below to distill Chinese summary, score, and insights."}
+                    </p>
+                    <div className="button-row">
+                      <button
+                        type="button"
+                        className="button button-primary button-small"
+                        onClick={(event) => {
+                          pulseCelebration(event.currentTarget);
+                          setWsActionRequest((prev) => ({
+                            nonce: (prev?.nonce ?? 0) + 1,
+                            kind: "distill",
+                          }));
+                        }}
+                      >
+                        <PhosphorIcon name="sparkle" size={13} />
+                        {language === "zh-CN" ? "AI 提炼中文总结与洞察" : "Distill AI Chinese brief"}
+                      </button>
+                    </div>
+                  </>
+                ) : null}
+              </div>
+            ) : null;
+          return (aiBrief || wsAiReady) && !hasActiveLegacyExecution ? (
+            <>
+              {wsReadyGuide}
+              <details className="legacy-model-diagnostics">
+                <summary>
+                  {language === "zh-CN"
+                    ? "底层离线模型路由与手动核验诊断"
+                    : "Underlying local model route & manual diagnostics"}
+                </summary>
+                {legacyIntelBody}
+              </details>
+            </>
           ) : (
             legacyIntelBody
           );
@@ -5569,10 +5702,23 @@ function ContentDetailPanel(
             );
           })()
           : !aiBrief ? (
-            <div className="semantic-state state-neutral">
-              <Status value="UNAVAILABLE" />
-              <p>{t("Summary / Video Notes are not available for this Content yet. No summary is fabricated from missing output.")}</p>
-            </div>
+            isLocalMedia && wsTranscriberReady && transcript.status !== "AVAILABLE" ? (
+              <div className="semantic-state state-neutral">
+                <span className="status status-neutral">
+                  {language === "zh-CN" ? "待语音转写后生成" : "Pending transcription"}
+                </span>
+                <p>
+                  {language === "zh-CN"
+                    ? "完成上方「离线语音转写并提炼中文洞察」后，这里会自动展示结构化中文导读与关键时间点。"
+                    : "Complete offline speech transcription above to view structured Chinese summary and timestamped key points here."}
+                </p>
+              </div>
+            ) : (
+              <div className="semantic-state state-neutral">
+                <Status value="UNAVAILABLE" />
+                <p>{t("Summary / Video Notes are not available for this Content yet. No summary is fabricated from missing output.")}</p>
+              </div>
+            )
           ) : (
             <p className="hint">
               {language === "zh-CN"
@@ -5592,7 +5738,56 @@ function ContentDetailPanel(
       />
       <Panel id="section-transcript" icon="quotes" title={data.video.provider === "LOCAL" && data.video.media_kind === "TEXT" ? "Source text" : "Transcript"}>
         {isBilibili && <BilibiliCaptionStatus id={id} status={data.video.processing_status} onCompleted={() => { setRefresh(value => value + 1); setEvidenceRefresh(value => value + 1); }} />}
-        {isLocalMedia && <LocalTranscription id={id} onStatusChange={setTranscriptionStatus} onCompleted={() => { if (transcriptionRefreshId.current === id) return; transcriptionRefreshId.current = id; setRefresh(value => value + 1); setEvidenceRefresh(value => value + 1); }} />}
+        {isLocalMedia && wsTranscriberReady && transcript.status !== "AVAILABLE" ? (
+          <>
+            <div className="semantic-state state-neutral">
+              <span className="status status-neutral">
+                {language === "zh-CN"
+                  ? wsTranscribeJobActive
+                    ? "正在离线听写逐字稿…"
+                    : "本机离线语音模型已就绪"
+                  : wsTranscribeJobActive
+                    ? "Transcribing speech…"
+                    : "Offline speech model ready"}
+              </span>
+              <p>
+                {language === "zh-CN"
+                  ? "已内置 Whisper 离线语音识别模型（全程在本机运行，音视频不会上传云端）。完成语音转写后，完整带时间戳的原始逐字稿会保存在这里。"
+                  : "Built-in offline Whisper speech model is ready on this Mac. Once transcribed, the full timestamped transcript will be saved here."}
+              </p>
+            </div>
+            <details className="legacy-model-diagnostics">
+              <summary>
+                {language === "zh-CN"
+                  ? "底层本地转写器高级设置与诊断"
+                  : "Advanced local transcriber settings & diagnostics"}
+              </summary>
+              <LocalTranscription
+                id={id}
+                onStatusChange={setTranscriptionStatus}
+                onCompleted={() => {
+                  if (transcriptionRefreshId.current === id) return;
+                  transcriptionRefreshId.current = id;
+                  setRefresh(value => value + 1);
+                  setEvidenceRefresh(value => value + 1);
+                }}
+              />
+            </details>
+          </>
+        ) : (
+          isLocalMedia && (
+            <LocalTranscription
+              id={id}
+              onStatusChange={setTranscriptionStatus}
+              onCompleted={() => {
+                if (transcriptionRefreshId.current === id) return;
+                transcriptionRefreshId.current = id;
+                setRefresh(value => value + 1);
+                setEvidenceRefresh(value => value + 1);
+              }}
+            />
+          )
+        )}
         {transcript.status === "AVAILABLE" && transcript.text
           ? (() => {
             const timedClean = transcript.timed_segments?.length ? cleanTimedSegments(transcript.timed_segments) : null;
@@ -5627,11 +5822,26 @@ function ContentDetailPanel(
             </div>
           )}
       </Panel>
-      <DeepAnalysisPanel
-        videoId={data.video.video_id}
-        inputRefresh={captionResultRefresh}
-        onCompleted={() => setEvidenceRefresh((value) => value + 1)}
-      />
+      {wsAiReady ? (
+        <details className="legacy-model-diagnostics">
+          <summary>
+            {language === "zh-CN"
+              ? "高级实验性功能：多模型对照深度分析与资格诊断"
+              : "Experimental: Multi-model Deep Analysis & qualification diagnostics"}
+          </summary>
+          <DeepAnalysisPanel
+            videoId={data.video.video_id}
+            inputRefresh={captionResultRefresh}
+            onCompleted={() => setEvidenceRefresh((value) => value + 1)}
+          />
+        </details>
+      ) : (
+        <DeepAnalysisPanel
+          videoId={data.video.video_id}
+          inputRefresh={captionResultRefresh}
+          onCompleted={() => setEvidenceRefresh((value) => value + 1)}
+        />
+      )}
       <Panel id="section-history" icon="clock" title="Processing history">
         {visibleHistory.length
           ? visibleHistory.slice(0, 12).map((event, index) => (

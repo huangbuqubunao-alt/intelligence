@@ -4,11 +4,23 @@ import { apiProxyTarget } from "./src/api/proxy";
 export default defineConfig({
   server: {
     host: "127.0.0.1",
-    proxy: { "/api": apiProxyTarget(process.env.YIA_API_BASE) }
+    proxy: {
+      "/api": {
+        target: apiProxyTarget(process.env.YIA_API_BASE),
+        timeout: 3600000,
+        proxyTimeout: 3600000,
+      },
+    },
   },
   preview: {
     host: "127.0.0.1",
-    proxy: { "/api": apiProxyTarget(process.env.YIA_API_BASE) }
+    proxy: {
+      "/api": {
+        target: apiProxyTarget(process.env.YIA_API_BASE),
+        timeout: 3600000,
+        proxyTimeout: 3600000,
+      },
+    },
   },
   build: {
     rollupOptions: {

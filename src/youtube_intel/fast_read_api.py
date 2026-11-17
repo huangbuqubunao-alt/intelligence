@@ -109,6 +109,9 @@ _WS_AI_DISTILL_ROUTE = re.compile(r"^/api/v1/workspace-ai/videos/([^/]+)/distill
 _WS_AI_TRANSCRIBE_ROUTE = re.compile(
     r"^/api/v1/workspace-ai/videos/([^/]+)/transcribe$"
 )
+_WS_AI_TRANSCRIBE_STATUS_ROUTE = re.compile(
+    r"^/api/v1/workspace-ai/videos/([^/]+)/transcribe-status$"
+)
 _WS_AI_OBSIDIAN_ROUTE = re.compile(r"^/api/v1/workspace-ai/videos/([^/]+)/obsidian$")
 _WS_AI_CURATION_ROUTE = re.compile(r"^/api/v1/workspace-ai/videos/([^/]+)/curation$")
 _WS_AI_QA_PIN_ROUTE = re.compile(
@@ -859,13 +862,30 @@ class _RequestSnapshotContext:
         video = self.snap_repo.get_video(video_id)
         note = self.note_projection(video_id).get("v2")
         if video is not None and video.provider == "LOCAL":
+            snapshot = self.verified_source(video_id)
+            if (
+                snapshot is None
+                or snapshot.get("status") != "READY"
+                or self.local_summary_pointer(video_id) is None
+            ):
+                return None
+            target_source_id = snapshot.get("source_id")
             for source in self.sources():
                 if (
+                    source.provider != "LOCAL"
+                    or source.source_id != target_source_id
+                ):
+                    continue
+                if snapshot.get("media_kind") == "TEXT":
+                    if (
+                        self.repo._manual_local_text_context_hash(
+                            self.conn, source.source_id, video_id
+                        )
+                        is not None
+                    ):
+                        return source.source_id
+                elif (
                     self.repo._manual_local_timed_context_hash(
-                        self.conn, source.source_id, video_id
-                    )
-                    is not None
-                    or self.repo._manual_local_text_context_hash(
                         self.conn, source.source_id, video_id
                     )
                     is not None
@@ -999,15 +1019,38 @@ class _RequestSnapshotContext:
             video.provider == "LOCAL"
             and self.inner._transcription_jobs is not None
             and projection.get("media_kind") in {"AUDIO", "VIDEO"}
+            and projection.get("processing_status") != "SOURCE_UNAVAILABLE"
         ):
-            try:
-                state = self.inner._transcription_jobs.status(video.video_id)["status"]
-                if state in {"RUNNING", "FAILED", "INTERRUPTED"}:
-                    projection["processing_status"] = (
-                        "TRANSCRIPTION_FAILED" if state == "FAILED" else state
-                    )
-            except OfflineError:
-                projection["processing_status"] = "SOURCE_UNAVAILABLE"
+            tx_job_row = self.conn.execute(
+                "SELECT status, last_error_code FROM jobs WHERE video_id=? "
+                "AND pipeline_version LIKE 'offline-transcription:%' "
+                "ORDER BY created_at DESC, rowid DESC LIMIT 1",
+                (video.video_id,),
+            ).fetchone()
+            if tx_job_row is not None and str(tx_job_row["status"]) in {
+                "PENDING",
+                "RUNNING",
+                "RETRY_PENDING",
+            }:
+                try:
+                    state = self.inner._transcription_jobs.status(video.video_id)[
+                        "status"
+                    ]
+                    if state in {"RUNNING", "FAILED", "INTERRUPTED"}:
+                        projection["processing_status"] = (
+                            "TRANSCRIPTION_FAILED" if state == "FAILED" else state
+                        )
+                except OfflineError:
+                    projection["processing_status"] = "SOURCE_UNAVAILABLE"
+            elif projection.get("processing_status") == "READY":
+                if self.local_summary_pointer(video.video_id) is None:
+                    projection["processing_status"] = "INTERRUPTED"
+            elif tx_job_row is not None and str(tx_job_row["status"]) == "FAILED_FINAL":
+                projection["processing_status"] = (
+                    "INTERRUPTED"
+                    if tx_job_row["last_error_code"] == "INTERRUPTED"
+                    else "TRANSCRIPTION_FAILED"
+                )
         if video.provider == "YOUTUBE":
             retry_sources = self.yt_retry_sources_by_video().get(video.video_id, ())
             if retry_sources:
@@ -1729,16 +1772,18 @@ class FastReadApiApplication:
         li_settings = self._inner._local_intelligence_settings
         li_adm = None if li_settings is None else li_settings.admission_allowed()
         tx_jobs = self._inner._transcription_jobs
-        tx_states: list[tuple[str, str]] = []
+        tx_cap: tuple[object, ...] | None = None
+        if tx_jobs is not None:
+            cap = tx_jobs.capability()
+            tx_cap = (
+                cap.get("state"),
+                cap.get("checking"),
+                cap.get("qualification_state"),
+                cap.get("model_identity"),
+            )
+        ws_tx_fp = self._workspace_hub.transcribe_jobs_fingerprint()
         with self._cache_lock:
-            local_av_ids = self._local_av_ids
             mutation_epoch = self._mutation_epoch
-        if tx_jobs is not None and local_av_ids:
-            for vid in local_av_ids:
-                try:
-                    tx_states.append((vid, str(tx_jobs.status(vid)["status"])))
-                except OfflineError as err:
-                    tx_states.append((vid, f"OFFLINE:{err.code}"))
         now_minute = int(self._inner._now().timestamp() // 60)
         return (
             mutation_epoch,
@@ -1751,7 +1796,8 @@ class FastReadApiApplication:
             self._inner._cloud_credential_available,
             self._inner._local_distillation_available,
             li_adm,
-            tuple(tx_states),
+            tx_cap,
+            ws_tx_fp,
             now_minute,
         )
 
@@ -1822,6 +1868,20 @@ class FastReadApiApplication:
             )
         return self._inner.backup_download(path)
 
+    @staticmethod
+    def _run_with_sqlite_retry(compute: Callable[[], Any]) -> Any:
+        delays = (0.04, 0.12, 0.25, 0.5)
+        for attempt, delay in enumerate(delays):
+            try:
+                return compute()
+            except sqlite3.OperationalError as err:
+                msg = str(err).lower()
+                if ("locked" in msg or "busy" in msg) and attempt < len(delays) - 1:
+                    time.sleep(delay)
+                    continue
+                raise
+        return compute()
+
     def _cached_or_compute(
         self,
         route: str,
@@ -1835,7 +1895,7 @@ class FastReadApiApplication:
                 cached = self._route_cache.get(route)
             if cached is not None and cached[0] == fp_before:
                 return cast(dict[str, object], json.loads(cached[1]))
-        payload = compute()
+        payload = cast(dict[str, object], self._run_with_sqlite_retry(compute))
         fp_after = self._cache_fingerprint(include_da_route=include_da_route)
         if fp_after is not None:
             serialized = json.dumps(payload, ensure_ascii=False)
@@ -1914,9 +1974,25 @@ class FastReadApiApplication:
             if distill_m is not None and method == "POST":
                 self._inner._body(body)
                 return HTTPStatus.OK, self._workspace_hub.distill_video(distill_m[1])
+            tx_status_m = _WS_AI_TRANSCRIBE_STATUS_ROUTE.fullmatch(route)
+            if tx_status_m is not None and method == "GET":
+                vid = tx_status_m[1]
+                return HTTPStatus.OK, {
+                    "video_id": vid,
+                    "transcriber_ready": self._workspace_hub.has_media_transcriber(),
+                    "job": self._workspace_hub.get_transcribe_job(vid),
+                }
             tx_m = _WS_AI_TRANSCRIBE_ROUTE.fullmatch(route)
             if tx_m is not None and method == "POST":
-                self._inner._body(body)
+                tx_data = self._inner._body(body) if body.strip() else {}
+                if isinstance(tx_data, dict) and tx_data.get("async") is True:
+                    return (
+                        HTTPStatus.OK,
+                        self._workspace_hub.start_async_transcribe_and_distill(
+                            tx_m[1],
+                            on_state_change=self._bump_mutation_epoch,
+                        ),
+                    )
                 return HTTPStatus.OK, self._workspace_hub.transcribe_and_distill_local_video(
                     tx_m[1]
                 )
@@ -2099,7 +2175,15 @@ class FastReadApiApplication:
             self._bump_mutation_epoch()
         mutated = method not in {"GET", "HEAD"} and not is_check_stale
         try:
-            status_code, resp_payload = self._inner.handle(method, path, body)
+            if method in {"GET", "HEAD"}:
+                status_code, resp_payload = cast(
+                    tuple[int, dict[str, object]],
+                    self._run_with_sqlite_retry(
+                        lambda: self._inner.handle(method, path, body)
+                    ),
+                )
+            else:
+                status_code, resp_payload = self._inner.handle(method, path, body)
             if is_check_stale and (
                 status_code != HTTPStatus.ACCEPTED or bool(resp_payload.get("checks"))
             ):
@@ -2951,6 +3035,13 @@ class FastReadApiApplication:
                     detail_payload = self._workspace_hub.enrich_video_detail(
                         detail_payload, brief
                     )
+                tx_job = self._workspace_hub.get_transcribe_job(video.video_id)
+                if self._workspace_hub.has_sidecar_db() or tx_job is not None:
+                    detail_payload["workspace_ai_capabilities"] = {
+                        "ready": True,
+                        "transcriber_ready": self._workspace_hub.has_media_transcriber(),
+                        "transcribe_job": tx_job,
+                    }
                 return detail_payload
             finally:
                 conn.rollback()
