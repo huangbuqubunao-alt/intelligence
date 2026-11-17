@@ -15,7 +15,9 @@ import signal
 import sqlite3
 import sys
 import threading
+import time
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import replace
 from http import HTTPStatus
 from pathlib import Path, PurePosixPath
 from types import FrameType
@@ -23,6 +25,7 @@ from typing import Any, BinaryIO, cast
 from urllib.parse import parse_qs, urlparse
 
 from youtube_intel.backup_restore import BackupRestoreError
+from youtube_intel.brief import WeeklyBriefService
 from youtube_intel.content_summary_read import (
     AuthoritativeContentSummaryReader,
     ContentSummaryReadRejected,
@@ -33,32 +36,59 @@ from youtube_intel.domain import (
     PipelineStatus,
     ProcessingStage,
 )
+from youtube_intel.evidence_translation import (
+    EvidenceTranslationPresentationService,
+    source_matches_target,
+)
 from youtube_intel.extractive_summary import (
     PROVIDER as EXTRACTIVE_PROVIDER,
 )
 from youtube_intel.extractive_summary import (
     ExtractiveSummaryService,
 )
+from youtube_intel.following_tracking import FollowingTrackingService
+from youtube_intel.intelligence_read import (
+    AuthoritativeIntelligenceReader,
+    IntelligenceReadRejected,
+    VerifiedIntelligenceRead,
+)
 from youtube_intel.local_api import (
     ApiError,
     LocalApiApplication,
+    _filter_decision_dto,
+    _saved_item_dto,
+    _saved_relation_dto,
+    _source_dto,
+    _source_policy_dto,
+    _source_run_dto,
     _timestamp,
+    _topic_dto,
     _video_dto,
     serve_loopback,
 )
 from youtube_intel.model_settings import CredentialStoreError
 from youtube_intel.offline_transcription import OfflineError
 from youtube_intel.operations import ExitCode
-from youtube_intel.source_authority import MAX_TEXT_BYTES, read_managed, verify_source
+from youtube_intel.orchestration import ScheduleFrequency, next_scheduled_for
+from youtube_intel.saved_intelligence import SavedIntelligenceService
+from youtube_intel.source_authority import (
+    MAX_TEXT_BYTES,
+    read_managed,
+    resolve_source_range,
+    verify_source,
+)
+from youtube_intel.source_policy import SourcePolicyApplicationService
 from youtube_intel.source_run import SourceRunChildState, SourceRunRecord
 from youtube_intel.state import (
     ArtifactKind,
     ArtifactRecord,
+    AutomationScheduleRecord,
     CurrentLocalSummaryPointer,
     EvidenceLineageKind,
     EvidenceRecord,
     IntegrityConflict,
     JobRecord,
+    SavedIntelligenceRecord,
     SourceSubscriptionRecord,
     SQLiteStateRepository,
     VerifiedEvidenceText,
@@ -66,11 +96,15 @@ from youtube_intel.state import (
     VideoRecord,
 )
 from youtube_intel.summary_evidence_authority import LegacySummaryNotCurrentAuthority
+from youtube_intel.topic import TopicApplicationService, TopicRead
 from youtube_intel.tracked_content_retry import TrackedContentRetryService
 from youtube_intel.tracked_retry_context import RetryIntegrity
 from youtube_intel.workspace_intelligence_hub import WorkspaceIntelligenceHub
 
 _VIDEO_DETAIL_ROUTE = re.compile(r"^/api/v1/videos/([^/]+)$")
+_SOURCE_DETAIL_ROUTE = re.compile(r"^/api/v1/sources/([^/]+)$")
+_TOPIC_DETAIL_ROUTE = re.compile(r"^/api/v1/topics/([^/]+)$")
+_INTEL_DETAIL_ROUTE = re.compile(r"^/api/v1/intelligence/([^/]+)$")
 _WS_AI_DISTILL_ROUTE = re.compile(r"^/api/v1/workspace-ai/videos/([^/]+)/distill$")
 _WS_AI_TRANSCRIBE_ROUTE = re.compile(
     r"^/api/v1/workspace-ai/videos/([^/]+)/transcribe$"
@@ -88,6 +122,8 @@ _WS_AI_QA_ITEM_ROUTE = re.compile(
 )
 _YT_VIDEO_ID = re.compile(r"^[A-Za-z0-9_-]{11}$")
 _INLINE_HASH_MAX_BYTES = 65_536
+_INLINE_DIGEST_MEMO_LOCK = threading.Lock()
+_INLINE_DIGEST_MEMO: dict[tuple[object, ...], bytes] = {}
 
 
 def _media_fast_token(path: Path) -> tuple[object, ...] | None:
@@ -168,14 +204,30 @@ def _data_root_token(data_root: Path | None) -> tuple[object, ...]:
         filenames.sort()
         for fname in filenames:
             fpath = os.path.join(dirpath, fname)
+            rel_path = fpath[len(root_str) :]
             try:
                 st = os.stat(fpath, follow_symlinks=False)
                 if st.st_size <= _INLINE_HASH_MAX_BYTES and os.path.isfile(fpath):
-                    with open(fpath, "rb") as handle:
-                        digest = hashlib.sha256(handle.read()).digest()
+                    stat_key = (
+                        fpath,
+                        st.st_dev,
+                        st.st_ino,
+                        st.st_size,
+                        st.st_mtime_ns,
+                        st.st_ctime_ns,
+                    )
+                    with _INLINE_DIGEST_MEMO_LOCK:
+                        digest = _INLINE_DIGEST_MEMO.get(stat_key)
+                    if digest is None:
+                        with open(fpath, "rb") as handle:
+                            digest = hashlib.sha256(handle.read()).digest()
+                        with _INLINE_DIGEST_MEMO_LOCK:
+                            if len(_INLINE_DIGEST_MEMO) > 4096:
+                                _INLINE_DIGEST_MEMO.clear()
+                            _INLINE_DIGEST_MEMO[stat_key] = digest
                     entries.append(
                         (
-                            fpath[len(root_str) :],
+                            rel_path,
                             st.st_dev,
                             st.st_ino,
                             st.st_size,
@@ -185,7 +237,7 @@ def _data_root_token(data_root: Path | None) -> tuple[object, ...]:
                 else:
                     entries.append(
                         (
-                            fpath[len(root_str) :],
+                            rel_path,
                             st.st_dev,
                             st.st_ino,
                             st.st_size,
@@ -194,7 +246,7 @@ def _data_root_token(data_root: Path | None) -> tuple[object, ...]:
                         )
                     )
             except OSError:
-                entries.append((fpath[len(root_str) :], None))
+                entries.append((rel_path, None))
     return tuple(entries)
 
 
@@ -213,6 +265,17 @@ class _PinnedSnapshotConnection:
     def close(self) -> None:
         return None
 
+    def commit(self) -> None:
+        return None
+
+    def rollback(self) -> None:
+        return None
+
+    def execute(self, sql: str, *args: Any) -> sqlite3.Cursor:
+        if sql.strip().upper() == "BEGIN" and self._connection.in_transaction:
+            return self._connection.cursor()
+        return self._connection.execute(sql, *args)
+
     def __getattr__(self, name: str) -> Any:
         return getattr(self._connection, name)
 
@@ -226,10 +289,13 @@ class _SnapshotReadRepository:
         connection: sqlite3.Connection,
         *,
         videos_by_id: dict[str, VideoRecord] | None = None,
+        verified_source_fn: Callable[[str], dict[str, Any] | None] | None = None,
     ) -> None:
         self._repository = repository
         self._connection = connection
         self._pinned = _PinnedSnapshotConnection(connection)
+        self._verified_source_fn = verified_source_fn
+        self._user_version: int | None = None
         self._videos: dict[str, VideoRecord | None] = (
             {} if videos_by_id is None else dict(videos_by_id)
         )
@@ -237,9 +303,16 @@ class _SnapshotReadRepository:
         self._evidence: dict[str, EvidenceRecord | None] = {}
         self._timed: dict[str, VerifiedTimedTranscript | None] = {}
         self._verified_text: dict[str, VerifiedEvidenceText | None] = {}
+        self._source_hashes: dict[str, str | None] = {}
 
     def _connect(self, *, read_only: bool = False) -> sqlite3.Connection:  # noqa: ARG002
         return cast(sqlite3.Connection, self._pinned)
+
+    def _schema_user_version(self) -> int:
+        if self._user_version is None:
+            row = self._connection.execute("PRAGMA user_version").fetchone()
+            self._user_version = 0 if row is None else int(row[0])
+        return self._user_version
 
     def bind_source_storage(self, data_root: Path) -> None:
         self._repository.bind_source_storage(data_root)
@@ -322,19 +395,118 @@ class _SnapshotReadRepository:
             )
         return self._timed[video_id]
 
+    def _resolve_verified_evidence_text_in_transaction(
+        self, connection: sqlite3.Connection, evidence_id: str
+    ) -> VerifiedEvidenceText | None:
+        if evidence_id in self._verified_text:
+            return self._verified_text[evidence_id]
+        ev = self.get_evidence(evidence_id)
+        if ev is None:
+            self._verified_text[evidence_id] = None
+            return None
+        vid = self.get_video(ev.video_id)
+        u_ver = self._schema_user_version()
+        if u_ver >= 32:
+            if getattr(ev, "locator_type", None) == "TEXT_RANGE" or ev.start_ms is None:
+                src_range = resolve_source_range(
+                    cast(SQLiteStateRepository, self), connection, evidence_id
+                )
+                if src_range is not None:
+                    self._verified_text[evidence_id] = src_range
+                    return src_range
+            if vid is not None and vid.provider in {"LOCAL", "BILIBILI"}:
+                if getattr(ev, "locator_type", None) != "TIMED_MEDIA":
+                    self._verified_text[evidence_id] = None
+                    return None
+                verified_src = (
+                    self._verified_source_fn(vid.video_id)
+                    if self._verified_source_fn is not None
+                    else verify_source(
+                        cast(SQLiteStateRepository, self), connection, vid.video_id
+                    )
+                )
+                if verified_src is None:
+                    self._verified_text[evidence_id] = None
+                    return None
+        row = connection.execute(
+            "SELECT e.evidence_id, e.video_id, e.artifact_id, e.start_ms, e.end_ms, e.availability, "
+            "a.kind, a.deleted_at, a.video_id AS artifact_video_id, b.timed_transcript_id, "
+            "b.start_cue_index, b.end_cue_index, b.excerpt, b.excerpt_hash, b.timed_transcript_hash, "
+            "t.video_id AS timed_video_id, t.canonical_artifact_id, t.timed_transcript_hash AS actual_timed_hash "
+            "FROM evidence e "
+            "JOIN artifacts a ON a.artifact_id = e.artifact_id "
+            "JOIN evidence_text_bindings b ON b.evidence_id = e.evidence_id "
+            "JOIN timed_transcripts t ON t.timed_transcript_id = b.timed_transcript_id "
+            "WHERE e.evidence_id = ?",
+            (evidence_id,),
+        ).fetchone()
+        if row is None:
+            self._verified_text[evidence_id] = None
+            return None
+        cues = connection.execute(
+            "SELECT cue_index, start_ms, end_ms, cue_text, cue_text_hash "
+            "FROM timed_transcript_cues "
+            "WHERE timed_transcript_id = ? AND cue_index >= ? AND cue_index < ? "
+            "ORDER BY cue_index ASC",
+            (row["timed_transcript_id"], row["start_cue_index"], row["end_cue_index"]),
+        ).fetchall()
+        verified = self._repository._verified_evidence_text_from_rows(row, cues)
+        if verified is not None and u_ver >= 32:
+            if verified.video_id not in self._source_hashes:
+                src_hash_row = connection.execute(
+                    "SELECT source_hash FROM content_source_snapshots WHERE content_id=?",
+                    (verified.video_id,),
+                ).fetchone()
+                self._source_hashes[verified.video_id] = (
+                    None if src_hash_row is None else str(src_hash_row[0])
+                )
+            src_hash = self._source_hashes[verified.video_id]
+            if src_hash is not None:
+                verified = replace(verified, source_content_hash=src_hash)
+        self._verified_text[evidence_id] = verified
+        return verified
+
     def resolve_verified_evidence_text(
         self, evidence_id: str
     ) -> VerifiedEvidenceText | None:
-        if evidence_id not in self._verified_text:
-            self._verified_text[evidence_id] = (
-                self._repository._resolve_verified_evidence_text_in_transaction(
-                    self._connection, evidence_id
-                )
-            )
-        return self._verified_text[evidence_id]
+        return self._resolve_verified_evidence_text_in_transaction(
+            self._connection, evidence_id
+        )
 
     def __getattr__(self, name: str) -> Any:
+        if name in self._repository.__dict__:
+            return self._repository.__dict__[name]
+        for base in type(self._repository).__mro__:
+            if name in base.__dict__:
+                raw_desc = base.__dict__[name]
+                if isinstance(raw_desc, (staticmethod, classmethod)):
+                    return getattr(self._repository, name)
+                if hasattr(raw_desc, "__get__"):
+                    return raw_desc.__get__(self, type(self))
+                return raw_desc
         return getattr(self._repository, name)
+
+
+class _MemoizedSnapshotIntelligenceReader(AuthoritativeIntelligenceReader):
+    """Per-snapshot memoized wrapper over ``AuthoritativeIntelligenceReader``."""
+
+    def __init__(self, repository: SQLiteStateRepository) -> None:
+        super().__init__(repository)
+        self._memo: dict[str, VerifiedIntelligenceRead | IntelligenceReadRejected] = {}
+
+    def read_current(self, intelligence_id: str) -> VerifiedIntelligenceRead:
+        if intelligence_id in self._memo:
+            cached = self._memo[intelligence_id]
+            if isinstance(cached, IntelligenceReadRejected):
+                raise cached
+            return cached
+        try:
+            verified = super().read_current(intelligence_id)
+        except IntelligenceReadRejected as error:
+            self._memo[intelligence_id] = error
+            raise
+        self._memo[intelligence_id] = verified
+        return verified
 
 
 class _RequestSnapshotContext:
@@ -352,14 +524,18 @@ class _RequestSnapshotContext:
         self.inner = inner
         self.repo = inner._repository
         self.conn = connection
-        self.snap_repo = _SnapshotReadRepository(
-            self.repo, connection, videos_by_id=videos_by_id
-        )
         self._verified_source_memo = (
             {} if verified_source_memo is None else verified_source_memo
         )
         self._memo_lock = memo_lock
+        self.snap_repo = _SnapshotReadRepository(
+            self.repo,
+            connection,
+            videos_by_id=videos_by_id,
+            verified_source_fn=self.verified_source,
+        )
         self._sources: tuple[SourceSubscriptionRecord, ...] | None = None
+        self._sources_by_id: dict[str, SourceSubscriptionRecord] | None = None
         self._runs: tuple[SourceRunRecord, ...] | None = None
         self._runs_by_source: dict[str, list[SourceRunRecord]] | None = None
         self._yt_retry_sources: dict[str, tuple[SourceSubscriptionRecord, ...]] | None = None
@@ -370,6 +546,15 @@ class _RequestSnapshotContext:
         self._newest_transcript_job: dict[str, JobRecord] = {}
         self._retry_video_ids: set[str] | None = None
         self._snap_retry_service: TrackedContentRetryService | None = None
+        self._intel_reader: _MemoizedSnapshotIntelligenceReader | None = None
+        self._intel_projections: dict[str, dict[str, object]] = {}
+        self._snap_translation_service: EvidenceTranslationPresentationService | None = None
+        self._snap_topic_service: TopicApplicationService | None = None
+        self._snap_tracking_service: FollowingTrackingService | None = None
+        self._snap_policy_service: SourcePolicyApplicationService | None = None
+        self._snap_saved_service: SavedIntelligenceService | None = None
+        self._snap_weekly_service: WeeklyBriefService | None = None
+        self._target_language: str | None = None
 
     def sources(self) -> tuple[SourceSubscriptionRecord, ...]:
         if self._sources is None:
@@ -713,15 +898,24 @@ class _RequestSnapshotContext:
                     "SELECT DISTINCT video_id FROM tracked_content_retry_requests"
                 )
             }
-        if (
-            video.video_id not in self._retry_video_ids
-            and video.pipeline_status is not PipelineStatus.METADATA_READY
-        ):
-            return {
-                "request": None,
-                "retry_allowed": False,
-                "expected_job_id": None,
-            }
+        if video.video_id not in self._retry_video_ids:
+            if video.pipeline_status is not PipelineStatus.METADATA_READY:
+                return {
+                    "request": None,
+                    "retry_allowed": False,
+                    "expected_job_id": None,
+                }
+            latest_job = self.latest_content_job(video.video_id)
+            if (
+                latest_job is None
+                or latest_job.status is not JobStatus.FAILED_FINAL
+                or latest_job.target_stage is not ProcessingStage.TRANSCRIPT
+            ):
+                return {
+                    "request": None,
+                    "retry_allowed": False,
+                    "expected_job_id": None,
+                }
         if self._snap_retry_service is None:
             orig_retry = self.inner._tracked_content_retry
             self._snap_retry_service = TrackedContentRetryService(
@@ -982,10 +1176,24 @@ class _RequestSnapshotContext:
                     "SELECT * FROM artifacts WHERE artifact_id=?",
                     (snap_row["snapshot_artifact_id"],),
                 ).fetchone()
+                can_row = (
+                    self.conn.execute(
+                        "SELECT * FROM artifacts WHERE artifact_id=?",
+                        (snap_row["canonical_artifact_id"],),
+                    ).fetchone()
+                    if snap_row["status"] == "READY"
+                    and snap_row["canonical_artifact_id"] is not None
+                    else None
+                )
                 media_token = (
                     None
                     if art_row is None
                     else _media_fast_token(root / str(art_row["relative_path"]))
+                )
+                can_token = (
+                    None
+                    if can_row is None
+                    else _media_fast_token(root / str(can_row["relative_path"]))
                 )
                 if media_token is not None:
                     memo_key: tuple[object, ...] = (
@@ -994,7 +1202,9 @@ class _RequestSnapshotContext:
                         None if vid_row is None else tuple(vid_row),
                         None if sub_row is None else tuple(sub_row),
                         None if art_row is None else tuple(art_row),
+                        None if can_row is None else tuple(can_row),
                         media_token,
+                        can_token,
                     )
                     if self._memo_lock is not None:
                         with self._memo_lock:
@@ -1014,6 +1224,357 @@ class _RequestSnapshotContext:
                     return cached_val
         raw_res = verify_source(snap_repo_typed, self.conn, content_id)
         return None if raw_res is None else dict(raw_res)
+
+    def source_by_id(self, source_id: str) -> SourceSubscriptionRecord | None:
+        if self._sources_by_id is None:
+            self._sources_by_id = {src.source_id: src for src in self.sources()}
+        return self._sources_by_id.get(source_id)
+
+    def intel_reader(self) -> _MemoizedSnapshotIntelligenceReader:
+        if self._intel_reader is None:
+            self._intel_reader = _MemoizedSnapshotIntelligenceReader(
+                cast(SQLiteStateRepository, self.snap_repo)
+            )
+        return self._intel_reader
+
+    def is_intelligence_available(self, intelligence_id: str) -> bool:
+        try:
+            self.intel_reader().read_current(intelligence_id)
+            return True
+        except IntelligenceReadRejected:
+            return False
+
+    def target_output_language(self) -> str:
+        if self._target_language is None:
+            from youtube_intel.output_language import OutputLanguagePreferenceService
+
+            orig_out = self.inner._output_language_service
+            snap_out = OutputLanguagePreferenceService(
+                cast(SQLiteStateRepository, self.snap_repo),
+                bootstrap_default=orig_out._bootstrap_default,
+            )
+            self._target_language = snap_out.effective().value
+        return self._target_language
+
+    def translation_service(self) -> EvidenceTranslationPresentationService | None:
+        orig_trans = self.inner._evidence_translation_service
+        if orig_trans is None:
+            return None
+        if self._snap_translation_service is None:
+            self._snap_translation_service = EvidenceTranslationPresentationService(
+                cast(SQLiteStateRepository, self.snap_repo),
+                orig_trans._translator,
+                now=orig_trans._now,
+            )
+        return self._snap_translation_service
+
+    def intelligence_projection(self, intelligence_id: str) -> dict[str, object]:
+        if intelligence_id in self._intel_projections:
+            return self._intel_projections[intelligence_id]
+        reader = self.intel_reader()
+        try:
+            verified = reader.read_current(intelligence_id)
+        except IntelligenceReadRejected as error:
+            rejected = {"status": "UNAVAILABLE", "trusted": False, "code": error.code}
+            self._intel_projections[intelligence_id] = rejected
+            return rejected
+        projection: dict[str, object] = {
+            "status": "AVAILABLE",
+            "trusted": True,
+            "intelligence_id": verified.intelligence_id,
+            "revision_id": verified.revision_id,
+            "claim_kind": verified.claim_kind.value,
+            "state": verified.state.value,
+            "evidence_ids": list(verified.evidence_ids),
+            "confirmed": verified.is_confirmed,
+        }
+        provenance: list[dict[str, object]] = []
+        for evidence_id in verified.evidence_ids:
+            evidence = self.snap_repo.get_evidence(evidence_id)
+            text = self.snap_repo.resolve_verified_evidence_text(evidence_id)
+            if evidence is None or text is None:
+                continue
+            content = self.snap_repo.get_video(evidence.video_id)
+            provenance.append(
+                {
+                    "evidence_id": evidence_id,
+                    "content_id": evidence.video_id,
+                    "provider": None
+                    if content is None
+                    else getattr(content, "provider", "YOUTUBE"),
+                    "locator_type": getattr(text, "locator_type", "TIMED_MEDIA"),
+                    "start_ms": text.start_ms,
+                    "end_ms": text.end_ms,
+                    "start_line": getattr(text, "start_line", None),
+                    "end_line": getattr(text, "end_line", None),
+                    "excerpt": text.excerpt,
+                }
+            )
+        if provenance:
+            projection["source_provenance"] = provenance
+        try:
+            card = reader._read_card(verified)
+        except IntelligenceReadRejected:
+            self._intel_projections[intelligence_id] = projection
+            return projection
+        video = self.snap_repo.get_video(card.video_id)
+        source = self.source_by_id(card.source_id)
+        relations = {
+            item.evidence_id: item
+            for item in self.snap_repo.list_intelligence_revision_evidence_relations(
+                card.verified.revision_id
+            )
+        }
+        if set(relations) != set(card.verified.evidence_ids):
+            self._intel_projections[intelligence_id] = projection
+            return projection
+        target_language = self.target_output_language()
+        trans_svc = self.translation_service()
+        evidence_links: list[dict[str, object]] = []
+        for evidence_id in card.verified.evidence_ids:
+            evidence = self.snap_repo.get_evidence(evidence_id)
+            verified_text = self.snap_repo.resolve_verified_evidence_text(evidence_id)
+            relation = relations.get(evidence_id)
+            if (
+                evidence is None
+                or relation is None
+                or evidence.video_id != card.video_id
+            ):
+                self._intel_projections[intelligence_id] = projection
+                return projection
+            translation = None
+            if trans_svc is not None and not source_matches_target(
+                evidence.language, target_language
+            ):
+                translation = trans_svc.read(
+                    evidence_id=evidence_id,
+                    target_language=target_language,
+                )
+            evidence_links.append(
+                {
+                    "evidence_id": evidence.evidence_id,
+                    "artifact_id": evidence.artifact_id,
+                    "start_ms": evidence.start_ms,
+                    "end_ms": evidence.end_ms,
+                    **(
+                        {
+                            "locator_type": verified_text.locator_type,
+                            "start_offset": verified_text.start_offset,
+                            "end_offset": verified_text.end_offset,
+                            "start_line": verified_text.start_line,
+                            "end_line": verified_text.end_line,
+                        }
+                        if verified_text is not None
+                        and verified_text.locator_type == "TEXT_RANGE"
+                        else {}
+                    ),
+                    "language": evidence.language,
+                    "lineage_kind": evidence.lineage_kind.value,
+                    "role": evidence.role.value,
+                    "original_excerpt": (
+                        verified_text.excerpt
+                        if verified_text is not None
+                        else evidence.source_excerpt
+                    ),
+                    "translated_excerpt": (
+                        None if translation is None else translation.translated_excerpt
+                    ),
+                    "translated_language": (
+                        None if translation is None else translation.target_language
+                    ),
+                    "translation_target_language": target_language,
+                    "stance": None
+                    if relation.stance is None
+                    else relation.stance.value,
+                }
+            )
+        source_display_name = None
+        if source is not None and source.display_name:
+            source_display_name = source.display_name
+        elif video is not None and video.channel_name:
+            source_display_name = video.channel_name
+        elif source is not None:
+            source_display_name = source.channel_id or source.video_id
+        projection["card"] = {
+            "core_conclusion": card.core_conclusion,
+            "user_relevant_information": list(card.user_relevant_information),
+            "important_new_information": list(card.important_new_information),
+            "meaningful_details": list(card.meaningful_details),
+            "filtered_noise": list(card.filtered_noise),
+            "source_id": card.source_id,
+            "source_display_name": source_display_name,
+            "source_url": None
+            if source is None or getattr(source, "provider", None) == "LOCAL"
+            else source.canonical_url,
+            "video_id": card.video_id,
+            "video_title": None if video is None else video.title,
+            "original_video_url": None
+            if video is None or getattr(video, "provider", None) == "LOCAL"
+            else video.source_url,
+            "evidence_links": evidence_links,
+            "preference_ids": list(card.preference_ids),
+            "source_policy_revision_id": card.source_policy_revision_id,
+        }
+        self._intel_projections[intelligence_id] = projection
+        return projection
+
+    def tracking_service(self) -> FollowingTrackingService | None:
+        orig_tracking = self.inner._source_tracking
+        if orig_tracking is None:
+            return None
+        if self._snap_tracking_service is None:
+            import copy
+
+            cloned = copy.copy(orig_tracking)
+            object.__setattr__(
+                cloned, "repository", cast(SQLiteStateRepository, self.snap_repo)
+            )
+            self._snap_tracking_service = cloned
+        return self._snap_tracking_service
+
+    def source_projection(self, source: SourceSubscriptionRecord) -> dict[str, object]:
+        projection = _source_dto(source)
+        tracking_svc = self.tracking_service()
+        projection["tracking"] = (
+            None if tracking_svc is None else tracking_svc.projection(source.source_id)
+        )
+        projection["tracking_parent_source_ids"] = (
+            [
+                row[0]
+                for row in self.conn.execute(
+                    "SELECT source_id FROM source_observations "
+                    "WHERE content_id=? AND enrollment='ENROLLED' ORDER BY source_id",
+                    (source.video_id,),
+                )
+            ]
+            if source.video_id is not None
+            else []
+        )
+        candidates = tuple(
+            str(row[0])
+            for row in self.conn.execute(
+                "SELECT DISTINCT i.intelligence_id FROM intelligences i "
+                "JOIN intelligence_revision_evidence r ON r.revision_id=i.current_revision_id "
+                "JOIN evidence e USING(evidence_id) "
+                "JOIN source_video_links l ON l.video_id=e.video_id "
+                "WHERE l.source_id=? LIMIT 100",
+                (source.source_id,),
+            )
+        )
+        projection["insight_count"] = sum(
+            self.is_intelligence_available(identity) for identity in candidates
+        )
+        friendly_name = source.display_name
+        if friendly_name is None:
+            vid_row = self.conn.execute(
+                "SELECT v.title, v.channel_name FROM source_video_links AS link "
+                "JOIN videos AS v ON v.video_id = link.video_id "
+                "WHERE link.source_id = ? "
+                "ORDER BY link.discovered_at DESC, v.video_id DESC LIMIT 1",
+                (source.source_id,),
+            ).fetchone()
+            if vid_row is not None:
+                friendly_name = (
+                    vid_row["title"]
+                    if source.video_id is not None
+                    else vid_row["channel_name"]
+                )
+        projection["friendly_name"] = (
+            friendly_name
+            or (
+                urlparse(source.canonical_url).path.split("/")[1]
+                if "/@" in source.canonical_url
+                else None
+            )
+            or source.channel_id
+            or source.video_id
+        )
+        projection["needs_attention"] = (
+            source.source_type.value == "CHANNEL" and not projection["tracking"]
+        )
+        return projection
+
+    def topic_service(self) -> TopicApplicationService:
+        if self._snap_topic_service is None:
+            orig_topic = self.inner._topic_service
+            svc = TopicApplicationService(
+                cast(SQLiteStateRepository, self.snap_repo),
+                now=orig_topic._now,
+            )
+            svc._reader = self.intel_reader()
+            self._snap_topic_service = svc
+        return self._snap_topic_service
+
+    def read_topic(self, topic_id: str) -> TopicRead:
+        return self.topic_service().read_topic(topic_id)
+
+    def policy_service(self) -> SourcePolicyApplicationService:
+        if self._snap_policy_service is None:
+            orig_pol = self.inner._source_policy_service
+            self._snap_policy_service = SourcePolicyApplicationService(
+                cast(SQLiteStateRepository, self.snap_repo),
+                now=orig_pol._now,
+            )
+        return self._snap_policy_service
+
+    def saved_service(self) -> SavedIntelligenceService:
+        if self._snap_saved_service is None:
+            orig_saved = self.inner._saved_service
+            svc = SavedIntelligenceService(
+                cast(SQLiteStateRepository, self.snap_repo),
+                now=orig_saved._now,
+            )
+            svc._reader = self.intel_reader()
+            self._snap_saved_service = svc
+        return self._snap_saved_service
+
+    def weekly_service(self) -> WeeklyBriefService:
+        if self._snap_weekly_service is None:
+            orig_weekly = self.inner._weekly_brief_service
+            svc = WeeklyBriefService(
+                cast(SQLiteStateRepository, self.snap_repo),
+                timezone=orig_weekly._timezone,
+                now=orig_weekly._now,
+            )
+            svc._reader = self.intel_reader()
+            self._snap_weekly_service = svc
+        return self._snap_weekly_service
+
+    def schedule_dto(
+        self,
+        schedule: AutomationScheduleRecord,
+        *,
+        completed_runs: Sequence[Any],
+    ) -> dict[str, object]:
+        next_run = next_scheduled_for(
+            frequency=schedule.frequency,
+            weekday=schedule.weekday,
+            local_time=schedule.local_time,
+            timezone=schedule.timezone,
+            after=self.inner._now(),
+        )
+        matching = [
+            run
+            for run in completed_runs
+            if run.schedule_id == schedule.schedule_id and run.finished_at is not None
+        ]
+        last_run = max(
+            matching,
+            key=lambda run: run.finished_at or run.scheduled_for,
+            default=None,
+        )
+        return {
+            "schedule_id": schedule.schedule_id,
+            "target_type": schedule.target_type.value,
+            "target_id": schedule.target_id,
+            "frequency": schedule.frequency.value,
+            "weekday": schedule.weekday,
+            "local_time": schedule.local_time,
+            "timezone": schedule.timezone,
+            "enabled": schedule.enabled,
+            "last_run": None if last_run is None else _timestamp(last_run.finished_at),
+            "next_run": _timestamp(next_run),
+        }
 
     def transcript_projection(self, video: VideoRecord) -> dict[str, object]:
         if video.provider in {"LOCAL", "BILIBILI"}:
@@ -1120,13 +1681,33 @@ class FastReadApiApplication:
         self._route_cache: dict[str, tuple[tuple[object, ...], str]] = {}
         self._local_av_ids: tuple[str, ...] = ()
         self._verified_source_memo: dict[tuple[object, ...], dict[str, Any] | None] = {}
+        self._da_route_memo: tuple[int, float, object | None] | None = None
 
     def _bump_mutation_epoch(self) -> None:
         with self._cache_lock:
             self._mutation_epoch += 1
             self._route_cache.clear()
+            self._da_route_memo = None
 
-    def _cache_fingerprint(self) -> tuple[object, ...] | None:
+    def _current_da_execution_route(self) -> object | None:
+        da_service = self._inner._deep_analysis_service
+        if da_service is None:
+            return None
+        now_mono = time.monotonic()
+        with self._cache_lock:
+            epoch = self._mutation_epoch
+            memo = self._da_route_memo
+        if memo is not None and memo[0] == epoch and (now_mono - memo[1]) < 2.0:
+            return memo[2]
+        resolved = da_service._capability.execution_route()
+        with self._cache_lock:
+            if self._mutation_epoch == epoch:
+                self._da_route_memo = (epoch, now_mono, resolved)
+        return resolved
+
+    def _cache_fingerprint(
+        self, *, include_da_route: bool = True
+    ) -> tuple[object, ...] | None:
         repo = self._inner._repository
         if "latest_distillation_execution_for_video" in repo.__dict__:
             return None
@@ -1142,8 +1723,8 @@ class FastReadApiApplication:
         da_service = self._inner._deep_analysis_service
         da_route = (
             None
-            if da_service is None
-            else str(da_service._capability.execution_route())
+            if not include_da_route or da_service is None
+            else str(self._current_da_execution_route())
         )
         li_settings = self._inner._local_intelligence_settings
         li_adm = None if li_settings is None else li_settings.admission_allowed()
@@ -1158,6 +1739,7 @@ class FastReadApiApplication:
                     tx_states.append((vid, str(tx_jobs.status(vid)["status"])))
                 except OfflineError as err:
                     tx_states.append((vid, f"OFFLINE:{err.code}"))
+        now_minute = int(self._inner._now().timestamp() // 60)
         return (
             mutation_epoch,
             db_token,
@@ -1170,6 +1752,7 @@ class FastReadApiApplication:
             self._inner._local_distillation_available,
             li_adm,
             tuple(tx_states),
+            now_minute,
         )
 
     def enable_native_import(
@@ -1240,20 +1823,24 @@ class FastReadApiApplication:
         return self._inner.backup_download(path)
 
     def _cached_or_compute(
-        self, route: str, compute: Callable[[], dict[str, object]]
+        self,
+        route: str,
+        compute: Callable[[], dict[str, object]],
+        *,
+        include_da_route: bool = True,
     ) -> dict[str, object]:
-        fp_before = self._cache_fingerprint()
+        fp_before = self._cache_fingerprint(include_da_route=include_da_route)
         if fp_before is not None:
             with self._cache_lock:
                 cached = self._route_cache.get(route)
             if cached is not None and cached[0] == fp_before:
                 return cast(dict[str, object], json.loads(cached[1]))
         payload = compute()
-        fp_after = self._cache_fingerprint()
+        fp_after = self._cache_fingerprint(include_da_route=include_da_route)
         if fp_after is not None:
             serialized = json.dumps(payload, ensure_ascii=False)
             with self._cache_lock:
-                if len(self._route_cache) > 64:
+                if len(self._route_cache) > 96:
                     self._route_cache.clear()
                 self._route_cache[route] = (fp_after, serialized)
         return payload
@@ -1277,7 +1864,11 @@ class FastReadApiApplication:
                     return HTTPStatus.OK, self._workspace_hub.update_settings(data)
                 raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
             if route == "/api/v1/workspace-ai/research/sessions" and method == "GET":
-                return HTTPStatus.OK, self._workspace_hub.list_research_sessions()
+                return HTTPStatus.OK, self._cached_or_compute(
+                    route,
+                    self._workspace_hub.list_research_sessions,
+                    include_da_route=False,
+                )
             if route == "/api/v1/workspace-ai/research/ask" and method == "POST":
                 data = self._inner._body(body)
                 return HTTPStatus.OK, self._workspace_hub.ask_research_question(data)
@@ -1392,22 +1983,83 @@ class FastReadApiApplication:
             )
         if method == "GET":
             detail_match = _VIDEO_DETAIL_ROUTE.fullmatch(route)
-            if route in {"/api/v1/videos", "/api/v1/intelligence"} or (
-                detail_match is not None
+            source_detail_match = _SOURCE_DETAIL_ROUTE.fullmatch(route)
+            topic_detail_match = _TOPIC_DETAIL_ROUTE.fullmatch(route)
+            intel_detail_match = _INTEL_DETAIL_ROUTE.fullmatch(route)
+            if (
+                route
+                in {
+                    "/api/v1/videos",
+                    "/api/v1/intelligence",
+                    "/api/v1/sources",
+                    "/api/v1/topics",
+                    "/api/v1/saved-intelligence",
+                    "/api/v1/dashboard",
+                }
+                or detail_match is not None
+                or source_detail_match is not None
+                or topic_detail_match is not None
+                or intel_detail_match is not None
             ):
                 try:
                     if route == "/api/v1/videos":
                         return HTTPStatus.OK, self._cached_or_compute(
-                            route, self._fast_get_videos
+                            route, self._fast_get_videos, include_da_route=True
                         )
                     if route == "/api/v1/intelligence":
                         return HTTPStatus.OK, self._cached_or_compute(
-                            route, self._fast_get_intelligence
+                            route, self._fast_get_intelligence, include_da_route=False
                         )
-                    assert detail_match is not None
-                    vid = detail_match[1]
+                    if route == "/api/v1/sources":
+                        return HTTPStatus.OK, self._cached_or_compute(
+                            route, self._fast_get_sources, include_da_route=False
+                        )
+                    if route == "/api/v1/topics":
+                        return HTTPStatus.OK, self._cached_or_compute(
+                            route, self._fast_get_topics, include_da_route=False
+                        )
+                    if route == "/api/v1/saved-intelligence":
+                        cache_key = (
+                            f"{route}?{parsed_url.query}"
+                            if parsed_url.query
+                            else route
+                        )
+                        return HTTPStatus.OK, self._cached_or_compute(
+                            cache_key,
+                            lambda: self._fast_get_saved_intelligence(path),
+                            include_da_route=False,
+                        )
+                    if route == "/api/v1/dashboard":
+                        return HTTPStatus.OK, self._cached_or_compute(
+                            route, self._fast_get_dashboard, include_da_route=False
+                        )
+                    if detail_match is not None:
+                        vid = detail_match[1]
+                        return HTTPStatus.OK, self._cached_or_compute(
+                            route,
+                            lambda: self._fast_get_video_detail(vid),
+                            include_da_route=True,
+                        )
+                    if source_detail_match is not None:
+                        sid = source_detail_match[1]
+                        return HTTPStatus.OK, self._cached_or_compute(
+                            route,
+                            lambda: self._fast_get_source_detail(sid),
+                            include_da_route=True,
+                        )
+                    if topic_detail_match is not None:
+                        tid = topic_detail_match[1]
+                        return HTTPStatus.OK, self._cached_or_compute(
+                            route,
+                            lambda: self._fast_get_topic_detail(tid),
+                            include_da_route=False,
+                        )
+                    assert intel_detail_match is not None
+                    iid = intel_detail_match[1]
                     return HTTPStatus.OK, self._cached_or_compute(
-                        route, lambda: self._fast_get_video_detail(vid)
+                        route,
+                        lambda: self._fast_get_intelligence_detail(iid),
+                        include_da_route=False,
                     )
                 except OfflineError as error:
                     return HTTPStatus.CONFLICT, {
@@ -1442,73 +2094,40 @@ class FastReadApiApplication:
                         "VALIDATION_ERROR",
                         "Request values are invalid or unavailable.",
                     ) from error
-        if method not in {"GET", "HEAD"}:
+        is_check_stale = method == "POST" and route == "/api/v1/sources/check-stale"
+        if method not in {"GET", "HEAD"} and not is_check_stale:
             self._bump_mutation_epoch()
+        mutated = method not in {"GET", "HEAD"} and not is_check_stale
         try:
             status_code, resp_payload = self._inner.handle(method, path, body)
+            if is_check_stale and (
+                status_code != HTTPStatus.ACCEPTED or bool(resp_payload.get("checks"))
+            ):
+                mutated = True
             if (
                 method == "GET"
                 and status_code == HTTPStatus.OK
                 and self._workspace_hub.has_sidecar_db()
             ):
-                if route == "/api/v1/dashboard":
-                    wb = self._workspace_hub.get_latest_weekly_brief().get("weekly_brief")
-                    filtered_attention = self._filter_superseded_dashboard_attention(
-                        resp_payload.get("needs_attention")
-                    )
-                    enriched_pinned = self._workspace_hub.enrich_topics_items(
-                        resp_payload.get("pinned_topics")
-                    )
-                    resp_payload = {
-                        **resp_payload,
-                        "pinned_topics": enriched_pinned,
-                        "needs_attention": filtered_attention,
-                        "saved_intelligence_ids": self._read_saved_intelligence_ids(),
-                        "workspace_sync_status": self._workspace_hub.get_sync_status(),
-                    }
-                    if wb is not None:
-                        resp_payload["workspace_weekly_brief"] = wb
-                elif route == "/api/v1/topics":
-                    resp_payload = self._workspace_hub.enrich_topics_list_dto(resp_payload)
-                elif route.startswith("/api/v1/topics/"):
-                    resp_payload = self._workspace_hub.enrich_topic_detail_dto(resp_payload)
-                elif (
-                    route.startswith("/api/v1/intelligence/")
-                    and "/" not in route[len("/api/v1/intelligence/") :]
-                    and isinstance(resp_payload.get("intelligence"), Mapping)
-                ):
-                    conn = self._inner._repository._connect(read_only=True)
-                    try:
-                        enriched_single = self._attach_linked_topics_to_intelligence(
-                            conn, [cast(Mapping[str, object], resp_payload["intelligence"])]
-                        )[0]
-                    finally:
-                        conn.close()
-                    resp_payload = {
-                        **resp_payload,
-                        "intelligence": enriched_single,
-                    }
-                elif route == "/api/v1/settings":
+                if route == "/api/v1/settings":
                     resp_payload = {
                         **resp_payload,
                         "workspace_ai": self._workspace_hub.get_settings(),
                     }
-                elif route == "/api/v1/sources":
-                    resp_payload = {
-                        **resp_payload,
-                        "ai_signal_by_source": self._workspace_hub.compute_source_ai_signals(
-                            resp_payload.get("sources")
-                        ),
-                    }
             return status_code, resp_payload
         finally:
-            if method not in {"GET", "HEAD"}:
+            if mutated:
                 self._bump_mutation_epoch()
 
-    def _read_saved_intelligence_ids(self) -> list[str]:
-        conn = self._inner._repository._connect(read_only=True)
+    def _read_saved_intelligence_ids(
+        self, conn: sqlite3.Connection | None = None
+    ) -> list[str]:
+        own_conn = conn is None
+        active_conn = (
+            self._inner._repository._connect(read_only=True) if conn is None else conn
+        )
         try:
-            rows = conn.execute(
+            rows = active_conn.execute(
                 "SELECT intelligence_id FROM saved_intelligences "
                 "ORDER BY saved_at DESC, intelligence_id ASC LIMIT 200"
             ).fetchall()
@@ -1516,16 +2135,28 @@ class FastReadApiApplication:
         except sqlite3.Error:
             return []
         finally:
-            conn.close()
+            if own_conn:
+                active_conn.close()
 
     def _filter_superseded_dashboard_attention(
-        self, raw_items: object
+        self,
+        raw_items: object,
+        *,
+        conn: sqlite3.Connection | None = None,
+        policy_svc: Any = None,
     ) -> list[dict[str, object]]:
         if not isinstance(raw_items, list):
             return []
-        policy_svc = getattr(self._inner, "_source_policy_service", None)
+        eff_policy_svc = (
+            policy_svc
+            if policy_svc is not None
+            else getattr(self._inner, "_source_policy_service", None)
+        )
         briefs_map = self._workspace_hub.get_video_briefs_map()
-        conn = self._inner._repository._connect(read_only=True)
+        own_conn = conn is None
+        active_conn = (
+            self._inner._repository._connect(read_only=True) if conn is None else conn
+        )
         try:
             kept: list[dict[str, object]] = []
             for item in raw_items:
@@ -1541,7 +2172,7 @@ class FastReadApiApplication:
                     continue
                 child_states = [
                     str(r[0])
-                    for r in conn.execute(
+                    for r in active_conn.execute(
                         "SELECT state FROM source_run_video_executions WHERE run_id = ?",
                         (run_id,),
                     ).fetchall()
@@ -1552,9 +2183,9 @@ class FastReadApiApplication:
                     kept.append(item)
                     continue
                 has_focus = False
-                if policy_svc is not None:
+                if eff_policy_svc is not None:
                     try:
-                        eff_policy = policy_svc.effective_policy(source_id)
+                        eff_policy = eff_policy_svc.effective_policy(source_id)
                         has_focus = bool(getattr(eff_policy, "focus_rules", ()))
                     except Exception:
                         has_focus = False
@@ -1562,7 +2193,7 @@ class FastReadApiApplication:
                     continue
                 linked_vids = [
                     str(r[0])
-                    for r in conn.execute(
+                    for r in active_conn.execute(
                         "SELECT video_id FROM source_video_links WHERE source_id = ?",
                         (source_id,),
                     ).fetchall()
@@ -1571,6 +2202,342 @@ class FastReadApiApplication:
                     continue
                 kept.append(item)
             return kept
+        finally:
+            if own_conn:
+                active_conn.close()
+
+    def _fast_get_sources(self) -> dict[str, object]:
+        repo = self._inner._repository
+        conn = repo._connect(read_only=True)
+        try:
+            conn.execute("BEGIN")
+            try:
+                ctx = _RequestSnapshotContext(
+                    self._inner,
+                    conn,
+                    verified_source_memo=self._verified_source_memo,
+                    memo_lock=self._cache_lock,
+                )
+                sources_dto = [
+                    ctx.source_projection(source) for source in ctx.sources()
+                ]
+                resp_payload: dict[str, object] = {"sources": sources_dto}
+                if self._workspace_hub.has_sidecar_db():
+                    resp_payload["ai_signal_by_source"] = (
+                        self._workspace_hub.compute_source_ai_signals(
+                            sources_dto, repo_conn=conn
+                        )
+                    )
+                return resp_payload
+            finally:
+                conn.rollback()
+        finally:
+            conn.close()
+
+    def _fast_get_source_detail(self, source_id: str) -> dict[str, object]:
+        repo = self._inner._repository
+        conn = repo._connect(read_only=True)
+        try:
+            conn.execute("BEGIN")
+            try:
+                ctx = _RequestSnapshotContext(
+                    self._inner,
+                    conn,
+                    verified_source_memo=self._verified_source_memo,
+                    memo_lock=self._cache_lock,
+                )
+                source = ctx.source_by_id(source_id)
+                if source is None:
+                    raise ApiError(
+                        HTTPStatus.NOT_FOUND, "NOT_FOUND", "Source was not found."
+                    )
+                effective_policy, source_policy_revision = (
+                    ctx.policy_service().policy_snapshot(source.source_id)
+                )
+                all_schedules = ctx.snap_repo.list_automation_schedules()
+                target_schedules = [
+                    item
+                    for item in all_schedules
+                    if item.target_id == source.source_id
+                ]
+                completed_runs = (
+                    ctx.snap_repo.list_automation_runs(limit=100)
+                    if target_schedules
+                    else ()
+                )
+                recent_records = ctx.snap_repo.list_source_videos(
+                    source.source_id, limit=10
+                )
+                for v_rec in recent_records:
+                    ctx.snap_repo._videos.setdefault(v_rec.video_id, v_rec)
+                shared_da: tuple[str, str | None] | None = None
+                da_service = self._inner._deep_analysis_service
+                if (
+                    da_service is not None
+                    and recent_records
+                    and da_service._capability.execution_route() is None
+                ):
+                    da_status = da_service.status(content_id=recent_records[0].video_id)
+                    shared_da = (da_status.availability.value, da_status.reason)
+                recent_videos: list[dict[str, object]] = []
+                for video in recent_records:
+                    decision = ctx.snap_repo.current_filter_decision(
+                        source.source_id, video.video_id
+                    )
+                    recent_videos.append(
+                        {
+                            "video_id": video.video_id,
+                            "title": video.title,
+                            "published_at": _timestamp(video.published_at),
+                            "processing_status": ctx.video_dto_with_deep_analysis(
+                                video, shared_da_status=shared_da
+                            )["processing_status"],
+                            "filter": None
+                            if decision is None
+                            else _filter_decision_dto(decision),
+                            "navigation": {"video_id": video.video_id},
+                        }
+                    )
+                source_runs = [
+                    _source_run_dto(run)
+                    for run in ctx.snap_repo.list_source_runs()
+                    if run.source_id == source.source_id
+                ][-20:]
+                return {
+                    "source": ctx.source_projection(source),
+                    "policy": _source_policy_dto(effective_policy),
+                    "policy_modes": {
+                        "focus": "INHERIT"
+                        if source_policy_revision is None
+                        else source_policy_revision.focus_mode.value,
+                        "ignore": "INHERIT"
+                        if source_policy_revision is None
+                        else source_policy_revision.ignore_mode.value,
+                        "style": "INHERIT"
+                        if source_policy_revision is None
+                        else source_policy_revision.distillation_style_mode.value,
+                    },
+                    "schedules": [
+                        ctx.schedule_dto(item, completed_runs=completed_runs)
+                        for item in target_schedules
+                    ],
+                    "recent_videos": recent_videos,
+                    "source_runs": source_runs,
+                }
+            finally:
+                conn.rollback()
+        finally:
+            conn.close()
+
+    def _fast_get_topics(self) -> dict[str, object]:
+        repo = self._inner._repository
+        conn = repo._connect(read_only=True)
+        try:
+            conn.execute("BEGIN")
+            try:
+                ctx = _RequestSnapshotContext(
+                    self._inner,
+                    conn,
+                    verified_source_memo=self._verified_source_memo,
+                    memo_lock=self._cache_lock,
+                )
+                topics = ctx.snap_repo.list_topics()
+                resp_payload: dict[str, object] = {
+                    "topics": [
+                        _topic_dto(ctx.read_topic(topic.topic_id)) for topic in topics
+                    ]
+                }
+                if self._workspace_hub.has_sidecar_db():
+                    resp_payload = self._workspace_hub.enrich_topics_list_dto(
+                        resp_payload, repo_conn=conn
+                    )
+                return resp_payload
+            finally:
+                conn.rollback()
+        finally:
+            conn.close()
+
+    def _fast_get_topic_detail(self, topic_id: str) -> dict[str, object]:
+        if not topic_id or "/" in topic_id:
+            raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+        repo = self._inner._repository
+        conn = repo._connect(read_only=True)
+        try:
+            conn.execute("BEGIN")
+            try:
+                ctx = _RequestSnapshotContext(
+                    self._inner,
+                    conn,
+                    verified_source_memo=self._verified_source_memo,
+                    memo_lock=self._cache_lock,
+                )
+                resp_payload: dict[str, object] = {
+                    "topic": _topic_dto(ctx.read_topic(topic_id))
+                }
+                if self._workspace_hub.has_sidecar_db():
+                    resp_payload = self._workspace_hub.enrich_topic_detail_dto(
+                        resp_payload, repo_conn=conn
+                    )
+                return resp_payload
+            finally:
+                conn.rollback()
+        finally:
+            conn.close()
+
+    def _fast_get_intelligence_detail(
+        self, intelligence_id: str
+    ) -> dict[str, object]:
+        repo = self._inner._repository
+        conn = repo._connect(read_only=True)
+        try:
+            conn.execute("BEGIN")
+            try:
+                ctx = _RequestSnapshotContext(
+                    self._inner,
+                    conn,
+                    verified_source_memo=self._verified_source_memo,
+                    memo_lock=self._cache_lock,
+                )
+                projected = ctx.intelligence_projection(intelligence_id)
+                if self._workspace_hub.has_sidecar_db():
+                    projected = self._attach_linked_topics_to_intelligence(
+                        conn, [projected]
+                    )[0]
+                return {"intelligence": projected}
+            finally:
+                conn.rollback()
+        finally:
+            conn.close()
+
+    def _fast_get_saved_intelligence(self, path: str) -> dict[str, object]:
+        query = parse_qs(
+            urlparse(path).query, keep_blank_values=True, max_num_fields=3
+        )
+        if set(query) - {"limit", "after_id", "after_saved_at"} or any(
+            len(v) != 1 for v in query.values()
+        ):
+            raise ValueError("unsupported Saved query")
+        limit = int(query.get("limit", ["100"])[0])
+        after = None
+        if "after_id" in query or "after_saved_at" in query:
+            if "after_id" not in query or "after_saved_at" not in query:
+                raise ValueError("incomplete Saved cursor")
+            after = SavedIntelligenceRecord(
+                query["after_id"][0],
+                self._inner._utc_timestamp(
+                    {"saved_at": query["after_saved_at"][0]}, "saved_at"
+                ),
+            )
+        repo = self._inner._repository
+        conn = repo._connect(read_only=True)
+        try:
+            conn.execute("BEGIN")
+            try:
+                ctx = _RequestSnapshotContext(
+                    self._inner,
+                    conn,
+                    verified_source_memo=self._verified_source_memo,
+                    memo_lock=self._cache_lock,
+                )
+                page = ctx.saved_service().list_saved(limit=limit, after=after)
+                return {
+                    "saved": [_saved_item_dto(item) for item in page.items],
+                    "next_cursor": None
+                    if page.next_cursor is None
+                    else _saved_relation_dto(page.next_cursor),
+                }
+            finally:
+                conn.rollback()
+        finally:
+            conn.close()
+
+    def _fast_get_dashboard(self) -> dict[str, object]:
+        repo = self._inner._repository
+        conn = repo._connect(read_only=True)
+        try:
+            conn.execute("BEGIN")
+            try:
+                ctx = _RequestSnapshotContext(
+                    self._inner,
+                    conn,
+                    verified_source_memo=self._verified_source_memo,
+                    memo_lock=self._cache_lock,
+                )
+                sources = ctx.sources()
+                source_runs = ctx.snap_repo.list_source_runs()
+                current_ids = ctx.snap_repo.list_current_intelligence_ids(limit=5)
+                topics = ctx.snap_repo.list_topics()
+                schedules = ctx.snap_repo.list_automation_schedules()
+                next_sched = next(
+                    (
+                        item
+                        for item in schedules
+                        if item.enabled and item.frequency is not ScheduleFrequency.MANUAL
+                    ),
+                    None,
+                )
+                completed_runs = (
+                    ()
+                    if next_sched is None
+                    else ctx.snap_repo.list_automation_runs(limit=100)
+                )
+                resp_payload: dict[str, object] = {
+                    "intelligence": [
+                        ctx.intelligence_projection(iid) for iid in current_ids
+                    ],
+                    "pinned_topics": [
+                        _topic_dto(ctx.read_topic(topic.topic_id))
+                        for topic in topics
+                        if topic.pinned
+                    ],
+                    "weekly_v1": [
+                        self._inner._weekly_v1_dto(item)
+                        for item in ctx.weekly_service().list_finalized()[:3]
+                    ],
+                    "needs_attention": [
+                        _source_run_dto(run)
+                        for run in source_runs
+                        if run.attention_reason is not None
+                        or run.state.value == "NEEDS_ATTENTION"
+                    ][:10],
+                    "operations": {
+                        "source_count": len(sources),
+                        "next_scheduled_run": None
+                        if next_sched is None
+                        else ctx.schedule_dto(
+                            next_sched, completed_runs=completed_runs
+                        ),
+                    },
+                }
+                if self._workspace_hub.has_sidecar_db():
+                    wb = self._workspace_hub.get_latest_weekly_brief(
+                        repo_conn=conn
+                    ).get("weekly_brief")
+                    filtered_attention = self._filter_superseded_dashboard_attention(
+                        resp_payload.get("needs_attention"),
+                        conn=conn,
+                        policy_svc=ctx.policy_service(),
+                    )
+                    enriched_pinned = self._workspace_hub.enrich_topics_items(
+                        resp_payload.get("pinned_topics"),
+                        repo_conn=conn,
+                    )
+                    resp_payload = {
+                        **resp_payload,
+                        "pinned_topics": enriched_pinned,
+                        "needs_attention": filtered_attention,
+                        "saved_intelligence_ids": self._read_saved_intelligence_ids(
+                            conn
+                        ),
+                        "workspace_sync_status": self._workspace_hub.get_sync_status(
+                            repo_conn=conn
+                        ),
+                    }
+                    if wb is not None:
+                        resp_payload["workspace_weekly_brief"] = wb
+                return resp_payload
+            finally:
+                conn.rollback()
         finally:
             conn.close()
 
@@ -1599,7 +2566,7 @@ class FastReadApiApplication:
                 if (
                     da_service is not None
                     and videos
-                    and da_service._capability.execution_route() is None
+                    and self._current_da_execution_route() is None
                 ):
                     da_status = da_service.status(content_id=videos[0].video_id)
                     shared_da = (da_status.availability.value, da_status.reason)
@@ -1646,8 +2613,21 @@ class FastReadApiApplication:
                         "ORDER BY created_at DESC, intelligence_id ASC LIMIT 100"
                     )
                 ]
+                top_videos = [
+                    repo._video_from_row(row)
+                    for row in conn.execute(
+                        "SELECT * FROM videos ORDER BY updated_at DESC, video_id LIMIT 100"
+                    )
+                ]
+                ctx = _RequestSnapshotContext(
+                    self._inner,
+                    conn,
+                    videos_by_id={v.video_id: v for v in top_videos},
+                    verified_source_memo=self._verified_source_memo,
+                    memo_lock=self._cache_lock,
+                )
                 intelligence = [
-                    self._inner._intelligence_projection(intelligence_id)
+                    ctx.intelligence_projection(intelligence_id)
                     for intelligence_id in current_ids
                 ]
                 checkpoint_video_ids = {
@@ -1656,18 +2636,15 @@ class FastReadApiApplication:
                         "SELECT DISTINCT video_id FROM distillation_execution_checkpoints"
                     )
                 }
-                top_videos = [
-                    repo._video_from_row(row)
-                    for row in conn.execute(
-                        "SELECT * FROM videos ORDER BY updated_at DESC, video_id LIMIT 100"
-                    )
-                ]
+                exec_lookup = (
+                    repo.latest_distillation_execution_for_video
+                    if custom_latest_exec
+                    else ctx.snap_repo.latest_distillation_execution_for_video
+                )
                 activity: list[dict[str, object]] = []
                 for video in top_videos:
                     if custom_latest_exec or video.video_id in checkpoint_video_ids:
-                        execution = repo.latest_distillation_execution_for_video(
-                            video.video_id
-                        )
+                        execution = exec_lookup(video.video_id)
                         if execution is not None and execution.status != "SUCCEEDED":
                             activity.append(
                                 {
@@ -1714,11 +2691,6 @@ class FastReadApiApplication:
                     )
                 ]
                 if tracked_std_sources:
-                    ctx = _RequestSnapshotContext(
-                        self._inner,
-                        conn,
-                        videos_by_id={v.video_id: v for v in top_videos},
-                    )
                     for source_id in tracked_std_sources:
                         src_videos = [
                             repo._video_from_row(row)
@@ -1736,12 +2708,7 @@ class FastReadApiApplication:
                             ctx.snap_repo._videos.setdefault(video.video_id, video)
                             has_exec = False
                             if custom_latest_exec or video.video_id in checkpoint_video_ids:
-                                has_exec = (
-                                    repo.latest_distillation_execution_for_video(
-                                        video.video_id
-                                    )
-                                    is not None
-                                )
+                                has_exec = exec_lookup(video.video_id) is not None
                             if (
                                 not has_exec
                                 and ctx.manual_content_source(video.video_id) is None
@@ -2048,6 +3015,27 @@ def run_cli_with_fast_reads(argv: Sequence[str] | None = None) -> ExitCode:
             composition.worker.start()
             auto_sync_stop = threading.Event()
 
+            def _warm_hot_routes() -> None:
+                for warm_route in (
+                    "/api/v1/dashboard",
+                    "/api/v1/sources",
+                    "/api/v1/videos",
+                    "/api/v1/topics",
+                    "/api/v1/intelligence",
+                    "/api/v1/saved-intelligence",
+                    "/api/v1/workspace-ai/research/sessions",
+                ):
+                    if auto_sync_stop.is_set():
+                        return
+                    try:
+                        fast_app.handle("GET", warm_route)
+                    except Exception:
+                        continue
+
+            threading.Thread(
+                target=_warm_hot_routes, name="fast-read-cache-warmup", daemon=True
+            ).start()
+
             def _auto_sync_loop() -> None:
                 while not auto_sync_stop.wait(45.0):
                     try:
@@ -2059,6 +3047,7 @@ def run_cli_with_fast_reads(argv: Sequence[str] | None = None) -> ExitCode:
                         res = fast_app._workspace_hub.sync_pending_videos(limit=3)
                         if int(cast(int, res.get("synced_count", 0))) > 0:
                             fast_app._bump_mutation_epoch()
+                            _warm_hot_routes()
                     except Exception:
                         continue
 

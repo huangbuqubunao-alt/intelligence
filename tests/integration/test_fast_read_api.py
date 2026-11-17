@@ -480,3 +480,157 @@ def test_fast_read_api_matches_raw_payloads_and_stays_within_connection_and_late
         with pytest.raises(type(raw_err)) as fast_err:
             fast.handle("GET", "/api/v1/videos/DoesNotExist999")
         assert getattr(fast_err.value, "code", None) == getattr(raw_err, "code", None)
+
+
+def test_fast_read_api_accelerates_sources_topics_dashboard_intelligence_and_noop_stale_check(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from youtube_intel.workspace_intelligence_hub import WorkspaceIntelligenceHub
+
+    composition, raw, _unused_fast, data_root = _build_realistic_runtime(tmp_path, monkeypatch)
+    repo = composition.repository
+    project_root = data_root.parent
+
+    def fake_completer(**kwargs: Any) -> tuple[dict[str, Any], str, str]:
+        return (
+            {
+                "headline_zh": "高价值 AI 架构深度拆解",
+                "summary_zh": "系统梳理了生产级 Agent 状态机、评测闭环与确定性工具契约。",
+                "key_takeaways_zh": ["确定性状态机优于自由散漫的循环", "离线评测集决定上线下限"],
+                "product_opportunities_zh": ["本地优先多源情报工作台"],
+                "business_opportunities_zh": ["个人免费获客 + 专业版增值订阅"],
+                "topic_cluster_zh": "AI Agent 与自动化架构",
+                "recommendation_tier": "MUST_WATCH",
+                "score": 8.8,
+                "evidence_Indices": [0, 1],
+            },
+            "ollama",
+            "qwen3.5:9b",
+        )
+
+    hub = WorkspaceIntelligenceHub(
+        repository=repo,
+        data_root=data_root,
+        project_root=project_root,
+        byok_credential_store=_FakeSecretStore(),
+        llm_completer=fake_completer,
+        installed_ollama_probe=lambda _url: (True, ("qwen3.5:9b",)),
+        now=lambda: NOW,
+    )
+    # Distill 12 videos so intelligences, distillation_cards, topics, and memberships exist
+    for idx in range(12):
+        hub.distill_video(f"vidOrg{idx:05d}")
+
+    fast_no_sidecar = FastReadApiApplication(
+        raw,
+        workspace_hub=WorkspaceIntelligenceHub(
+            repository=repo,
+            data_root=data_root,
+            project_root=tmp_path / "empty_no_sidecar",
+            now=lambda: NOW,
+        ),
+    )
+    fast = FastReadApiApplication(raw, workspace_hub=hub)
+
+    # Save one intelligence item and pin one topic so /saved-intelligence & /dashboard exercise full paths
+    intel_ids = repo.list_current_intelligence_ids(limit=5)
+    assert len(intel_ids) >= 2
+    fast.handle(
+        "POST",
+        "/api/v1/saved-intelligence/save",
+        json.dumps({"intelligence_id": intel_ids[0]}).encode("utf-8"),
+    )
+    topics_list = repo.list_topics()
+    assert len(topics_list) >= 1
+    topic_id = topics_list[0].topic_id
+    fast.handle(
+        "POST",
+        f"/api/v1/topics/{topic_id}/pin",
+        json.dumps({"pinned": True}).encode("utf-8"),
+    )
+    source_id = repo.list_source_subscriptions()[0].source_id
+
+    # 1. Exact parity without sidecar against LocalApiApplication across ALL hot navigation routes
+    for check_route in (
+        "/api/v1/sources",
+        f"/api/v1/sources/{source_id}",
+        "/api/v1/topics",
+        f"/api/v1/topics/{topic_id}",
+        "/api/v1/intelligence",
+        f"/api/v1/intelligence/{intel_ids[0]}",
+        "/api/v1/saved-intelligence",
+        "/api/v1/dashboard",
+    ):
+        assert fast_no_sidecar.handle("GET", check_route) == raw.handle("GET", check_route), (
+            f"Parity mismatch on {check_route}"
+        )
+
+    # 2. Cold snapshot connection budget (<= 3 SQLite connections per route, zero N+1 storm!)
+    original_connect = repo._connect
+    connect_calls = 0
+
+    def counted_connect(*args: Any, **kwargs: Any) -> Any:
+        nonlocal connect_calls
+        connect_calls += 1
+        return original_connect(*args, **kwargs)
+
+    with patch.object(repo, "_connect", side_effect=counted_connect):
+        for hot_route in (
+            "/api/v1/sources",
+            f"/api/v1/sources/{source_id}",
+            "/api/v1/videos",
+            "/api/v1/topics",
+            f"/api/v1/topics/{topic_id}",
+            "/api/v1/intelligence",
+            f"/api/v1/intelligence/{intel_ids[0]}",
+            "/api/v1/saved-intelligence",
+            "/api/v1/dashboard",
+            "/api/v1/workspace-ai/research/sessions",
+        ):
+            connect_calls = 0
+            t_start = time.perf_counter()
+            st, body = fast.handle("GET", hot_route)
+            elapsed_ms = (time.perf_counter() - t_start) * 1000.0
+            assert st == 200, f"{hot_route} returned {st}: {body}"
+            assert connect_calls <= 3, (
+                f"Cold {hot_route} opened {connect_calls} SQLite connections (expected <= 3)"
+            )
+            assert elapsed_ms < 120.0, f"Cold {hot_route} took {elapsed_ms:.1f}ms"
+
+        # 3. Warm cache hits must open 0 SQLite connections and finish in < 20ms
+        for warm_route in (
+            "/api/v1/sources",
+            "/api/v1/videos",
+            "/api/v1/topics",
+            "/api/v1/intelligence",
+            "/api/v1/saved-intelligence",
+            "/api/v1/dashboard",
+            "/api/v1/workspace-ai/research/sessions",
+        ):
+            connect_calls = 0
+            t_warm = time.perf_counter()
+            st_w, _ = fast.handle("GET", warm_route)
+            warm_ms = (time.perf_counter() - t_warm) * 1000.0
+            assert st_w == 200
+            assert connect_calls == 0, f"Warm {warm_route} opened {connect_calls} connections"
+            assert warm_ms < 25.0, f"Warm {warm_route} took {warm_ms:.1f}ms"
+
+        # 4. No-op POST /api/v1/sources/check-stale (when checks == []) MUST NOT wipe warm caches!
+        stale_status, stale_body = fast.handle("POST", "/api/v1/sources/check-stale", b"{}")
+        assert stale_status == 202
+        assert stale_body == {"checks": []}
+
+        for post_stale_route in (
+            "/api/v1/sources",
+            "/api/v1/videos",
+            "/api/v1/topics",
+            "/api/v1/intelligence",
+        ):
+            connect_calls = 0
+            st_after, _ = fast.handle("GET", post_stale_route)
+            assert st_after == 200
+            assert connect_calls == 0, (
+                f"{post_stale_route} cache was wiped by no-op check-stale ({connect_calls} connects)"
+            )
+
