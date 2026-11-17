@@ -39,7 +39,7 @@ const reasons: Record<string, string> = {
   EXECUTOR_IDENTITY_CHANGED: "The selected executor or model changed. Review the current selection before retrying.",
   TRANSCRIPTION_BUSY: "Another local transcription is running. Try again shortly.",
   MEDIA_TOOL_UNAVAILABLE: "Local transcription requires compatible ffmpeg and ffprobe tools.",
-  LOCAL_INVALID_MEDIA: "This media file is malformed, has a mismatched format or exceeds two hours.",
+  LOCAL_INVALID_MEDIA: "This media file is malformed, has a mismatched format or exceeds four hours.",
   INTERRUPTED: "Transcription was interrupted. You can start a new attempt.",
   ACOUSTIC_NOT_QUALIFIED: "Installed models require acoustic qualification before new transcription. Existing transcripts remain readable.",
 };

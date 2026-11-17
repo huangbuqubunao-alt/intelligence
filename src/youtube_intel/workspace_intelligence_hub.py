@@ -297,7 +297,7 @@ def _normalize_mlx_lecture_segments(
     """Normalize streaming MLX Whisper segments for up to 2-hour lectures into
     strictly monotonic, non-overlapping ``MediaTranscript`` cues (<= 2400 cues).
     """
-    if not math.isfinite(duration_seconds) or not 0 < duration_seconds <= 7200:
+    if not math.isfinite(duration_seconds) or not 0 < duration_seconds <= 14400:
         raise OfflineError("TRANSCRIPT_INVALID")
 
     cleaned: list[tuple[float, float, str]] = []
@@ -491,12 +491,12 @@ class _FastOfflineMlxLectureTranscriber:
                     "-c:a",
                     "pcm_s16le",
                     "-t",
-                    "7200",
+                    "14400",
                     "-fs",
                     str(MAX_AUDIO),
                     str(audio),
                 ],
-                timeout=180,
+                timeout=240,
                 maximum=65536,
             )
             if (

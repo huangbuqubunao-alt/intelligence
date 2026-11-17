@@ -5,7 +5,7 @@ import { NativeImportActivity, NativeJob } from "./NativeLocalImport";
 import { UiLanguageProvider } from "./uiLanguage";
 
 const errors = {
-  LOCAL_MEDIA_TOO_LONG: "This media exceeds the two-hour duration limit. Choose a shorter recording.",
+  LOCAL_MEDIA_TOO_LONG: "This media exceeds the four-hour duration limit. Choose a shorter recording.",
 };
 const pendingFile = {
   filename: "short-video.mp4", byte_count: 1024, phase: "VERIFYING", loaded: 1024,
@@ -88,7 +88,7 @@ it("reports each current batch result after a background import completes", asyn
   render(<UiLanguageProvider><NativeImportActivity onOpen={onOpen} errors={errors} /></UiLanguageProvider>);
   await screen.findByText("Verifying imported file…");
   await api.update([mixedComplete("current")]);
-  expect((await screen.findByRole("alert")).textContent).toContain("two-hour duration limit");
+  expect((await screen.findByRole("alert")).textContent).toContain("four-hour duration limit");
   expect(screen.getByText("Import failed")).toBeTruthy();
   expect(screen.getByText("Import successful. File saved.")).toBeTruthy();
   expect(screen.getByText("File saved. Local transcription status appears in Content.")).toBeTruthy();
@@ -101,14 +101,14 @@ it("dismisses a completed notice without suppressing errors from a later import"
   render(<UiLanguageProvider><NativeImportActivity onOpen={vi.fn()} errors={errors} /></UiLanguageProvider>);
   await screen.findByText("Verifying imported file…");
   await api.update([mixedComplete("first")]);
-  expect((await screen.findByRole("alert")).textContent).toContain("two-hour duration limit");
+  expect((await screen.findByRole("alert")).textContent).toContain("four-hour duration limit");
   await userEvent.click(screen.getByRole("button", { name: "Dismiss import notice" }));
   expect(screen.queryByRole("alert")).toBeNull();
   expect(screen.queryByRole("region", { name: "Local imports" })).toBeNull();
   await api.update([mixedComplete("first"), importing("second")]);
   expect(await screen.findByText("Verifying imported file…")).toBeTruthy();
   await api.update([mixedComplete("first"), mixedComplete("second")]);
-  expect((await screen.findByRole("alert")).textContent).toContain("two-hour duration limit");
+  expect((await screen.findByRole("alert")).textContent).toContain("four-hour duration limit");
   expect(screen.getByRole("button", { name: "Open Content: short-video.mp4" })).toBeTruthy();
   expect(api.fetch.mock.calls.some(([path]) => path.endsWith("/cancel"))).toBe(false);
 });
@@ -138,7 +138,7 @@ it("clears only terminal notices on route changes while another import remains v
   expect(screen.queryByRole("alert")).toBeNull();
   expect(screen.getByText("Verifying imported file…")).toBeTruthy();
   await api.update([mixedComplete("done"), mixedComplete("active")]);
-  expect((await screen.findByRole("alert")).textContent).toContain("two-hour duration limit");
+  expect((await screen.findByRole("alert")).textContent).toContain("four-hour duration limit");
   expect(screen.getAllByRole("button", { name: "Open Content: short-video.mp4" })).toHaveLength(1);
 });
 
@@ -165,7 +165,7 @@ it("shows background failure after selection in a dialog without acknowledging i
   await screen.findByText("Verifying imported file…");
   view.rerender(<UiLanguageProvider><NativeImportActivity routeKey="Content" onOpen={vi.fn()} errors={errors} /></UiLanguageProvider>);
   await api.update([{ ...mixedComplete("selected"), state: "FAILED" }]);
-  expect((await screen.findByRole("alert")).textContent).toContain("two-hour duration limit");
+  expect((await screen.findByRole("alert")).textContent).toContain("four-hour duration limit");
 });
 
 it("does not hide an unrelated background result while another Add dialog is open", async () => {
@@ -174,7 +174,7 @@ it("does not hide an unrelated background result while another Add dialog is ope
   await screen.findByText("Verifying imported file…");
   view.rerender(<UiLanguageProvider><NativeImportActivity modalOpen onOpen={vi.fn()} errors={errors} /></UiLanguageProvider>);
   await api.update([mixedComplete("background")]);
-  expect((await screen.findByRole("alert")).textContent).toContain("two-hour duration limit");
+  expect((await screen.findByRole("alert")).textContent).toContain("four-hour duration limit");
 });
 
 it("expires a terminal notice while preserving its backend history", async () => {

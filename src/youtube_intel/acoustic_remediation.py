@@ -155,7 +155,7 @@ def transcribe_pcm(path: Path, decode: Callable[[NDArray[np.float32]], dict[str,
         if (wav.getnchannels(), wav.getsampwidth(), wav.getframerate()) != (1, 2, RATE):
             raise ValueError('bounded mono16k PCM required')
         frames = wav.getnframes()
-        if not 0 < frames <= 7200 * RATE:
+        if not 0 < frames <= 14400 * RATE:
             raise ValueError('PCM duration bounds')
         source = wav.readframes(frames)
         if len(source) != frames * 2:

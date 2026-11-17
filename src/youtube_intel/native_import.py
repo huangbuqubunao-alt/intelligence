@@ -66,8 +66,11 @@ def macos_pick(cancelled: Callable[[], bool], *, executable: Path) -> list[Path]
                 process.wait()
 
 
-def _identity(metadata: os.stat_result) -> tuple[int, int, int, int, int]:
-    return metadata.st_dev, metadata.st_ino, metadata.st_size, metadata.st_mtime_ns, metadata.st_ctime_ns
+def _identity(metadata: os.stat_result) -> tuple[int, int, int, int]:
+    # Ignore st_ctime_ns: macOS NSOpenPanel / Finder / Spotlight asynchronously
+    # attaches com.apple.lastuseddate#PS / com.apple.macl xattrs right after
+    # selection, bumping ctime while file device, inode, size, and mtime stay intact.
+    return metadata.st_dev, metadata.st_ino, metadata.st_size, metadata.st_mtime_ns
 
 
 @dataclass
@@ -91,7 +94,7 @@ class NativeFile:
 @dataclass
 class Grant:
     source: BinaryIO
-    identity: tuple[int, int, int, int, int]
+    identity: tuple[int, int, int, int]
     view: NativeFile
 
 
