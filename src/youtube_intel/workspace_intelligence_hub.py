@@ -1252,7 +1252,17 @@ class WorkspaceIntelligenceHub:
 
         conn = self._repository._connect()
         try:
-            conn.execute("BEGIN IMMEDIATE")
+            for lock_attempt, lock_delay in enumerate((0.05, 0.15, 0.35, 0.75)):
+                try:
+                    conn.execute("BEGIN IMMEDIATE")
+                    break
+                except sqlite3.OperationalError as err:
+                    if lock_attempt < 3 and (
+                        "locked" in str(err).lower() or "busy" in str(err).lower()
+                    ):
+                        time.sleep(lock_delay)
+                        continue
+                    raise
             try:
                 existing_revs = conn.execute(
                     "SELECT revision_id, revision_number FROM intelligence_revisions "
