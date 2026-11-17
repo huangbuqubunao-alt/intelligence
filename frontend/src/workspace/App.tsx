@@ -8152,7 +8152,17 @@ function BackupRestorePanel() {
   );
 }
 
-function GlobalInterests({ policy, onSaved }: { policy: SourcePolicy; onSaved: () => void }) {
+function GlobalInterests({
+  policy,
+  savedNotice,
+  onClearNotice,
+  onSaved,
+}: {
+  policy: SourcePolicy;
+  savedNotice?: boolean;
+  onClearNotice?: () => void;
+  onSaved: () => void;
+}) {
   const { t } = useUiLanguage();
   const [focus, setFocus] = useState<InterestRuleDraft[]>(() => ruleDrafts(policy.focus_rules));
   const [ignore, setIgnore] = useState<InterestRuleDraft[]>(() => ruleDrafts(policy.ignore_rules));
@@ -8160,21 +8170,55 @@ function GlobalInterests({ policy, onSaved }: { policy: SourcePolicy; onSaved: (
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const cancelEdit = () => {
+    setFocus(ruleDrafts(policy.focus_rules));
+    setIgnore(ruleDrafts(policy.ignore_rules));
+    setStyle(policy.distillation_style);
+    setError(null);
+    setEditing(false);
+  };
   const save = async () => {
-    if (![...interestRuleValues(focus), ...interestRuleValues(ignore)].every(validInterestRule)) {
+    const focusValues = interestRuleValues(focus);
+    const ignoreValues = interestRuleValues(ignore);
+    if (![...focusValues, ...ignoreValues].every(validInterestRule)) {
       setError(t("Each rule needs text without leading or trailing whitespace, up to 160 characters.")); return;
+    }
+    const hasDuplicates = (values: string[]) => {
+      const seen = new Set<string>();
+      for (const item of values) {
+        const folded = item.toLocaleLowerCase();
+        if (seen.has(folded)) return true;
+        seen.add(folded);
+      }
+      return false;
+    };
+    if (hasDuplicates(focusValues) || hasDuplicates(ignoreValues)) {
+      setError(t("Preferences could not be saved: duplicate rules found. Remove duplicates and save again."));
+      return;
     }
     setBusy(true);
     setError(null);
+    const cmdId = commandId();
     try {
-      await put("/settings/source-policy", {
-        command_id: commandId(),
-        initial_history_count: policy.initial_history_count,
-        per_run_max_new_videos: policy.per_run_max_new_videos,
-        focus_rules: interestRuleValues(focus),
-        ignore_rules: interestRuleValues(ignore),
-        distillation_style: style,
-      });
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        try {
+          await put("/settings/source-policy", {
+            command_id: cmdId,
+            initial_history_count: policy.initial_history_count,
+            per_run_max_new_videos: policy.per_run_max_new_videos,
+            focus_rules: focusValues,
+            ignore_rules: ignoreValues,
+            distillation_style: style,
+          });
+          break;
+        } catch (err) {
+          if (err instanceof ApiRequestError && err.code === "CONFIGURATION_APPLYING" && attempt < 3) {
+            await new Promise(resolve => setTimeout(resolve, 550));
+            continue;
+          }
+          throw err;
+        }
+      }
       setEditing(false);
       onSaved();
     } catch {
@@ -8183,9 +8227,16 @@ function GlobalInterests({ policy, onSaved }: { policy: SourcePolicy; onSaved: (
       setBusy(false);
     }
   };
+  const styleLabel = STYLES.find(([value]) => value === policy.distillation_style)?.[1] ?? policy.distillation_style;
   return <Panel id="settings-interests" icon="funnel" title="My interests">
     <p className="hint">{t("These are defaults for future insight selection. A Following can use them or set its own focus. Summaries remain faithful to source content; existing insights and Topics do not change.")}</p>
-    {!editing ? <><p>{t("What I focus on")}: {policy.focus_rules.join(", ") || t("Not set")}</p><button className="button button-secondary" onClick={() => setEditing(true)}>{t("Edit interests")}</button></> : <>
+    {!editing ? <>
+      <p>{t("What I focus on")}: {policy.focus_rules.join(", ") || t("Not set")}</p>
+      <p>{t("Less of / ignore")}: {policy.ignore_rules.join(", ") || t("Not set")}</p>
+      <p>{t("Insight style")}: {t(styleLabel)}</p>
+      {savedNotice ? <p className="hint">{t("Preferences saved.")}</p> : null}
+      <button type="button" className="button button-secondary" onClick={() => { onClearNotice?.(); setError(null); setEditing(true); }}>{t("Edit interests")}</button>
+    </> : <div onKeyDown={event => { if (event.key === "Escape" && !busy) { event.stopPropagation(); cancelEdit(); } }}>
     <InterestRulesEditor kind="focus" label="What I focus on" rows={focus} onChange={setFocus} />
     <InterestRulesEditor kind="ignore" label="Less of / ignore" rows={ignore} onChange={setIgnore} />
     <p className="hint">{t("Each row is one rule. Commas and line breaks stay in that rule. Blank rows are omitted.")}</p>
@@ -8194,8 +8245,11 @@ function GlobalInterests({ policy, onSaved }: { policy: SourcePolicy; onSaved: (
         {STYLES.map(([value, label]) => <option value={value} key={value}>{t(label)}</option>)}
       </select>
     </label>
-    <button type="button" className="button button-primary" disabled={busy} onClick={save}>{t(busy ? "Saving…" : "Save preferences")}</button>
-    {error ? <p className="form-error" role="alert">{error}</p> : null}</>}
+    <div className="button-row">
+      <button type="button" className="button button-primary" disabled={busy} onClick={save}>{t(busy ? "Saving…" : "Save preferences")}</button>
+      <button type="button" className="button button-secondary" disabled={busy} onClick={cancelEdit}>{t("Cancel")}</button>
+    </div>
+    {error ? <p className="form-error" role="alert">{error}</p> : null}</div>}
   </Panel>;
 }
 
@@ -8203,6 +8257,7 @@ function Settings({ refresh }: { refresh: number }) {
   const [modelMessage, setModelMessage] = useState("");
   const { language, setLanguage, t } = useUiLanguage();
   const [revision, setRevision] = useState(0);
+  const [interestsSavedNotice, setInterestsSavedNotice] = useState(false);
   const [savingLanguage, setSavingLanguage] = useState(false);
   const [editingLanguage, setEditingLanguage] = useState(false);
   const [legacyDiagOpen, setLegacyDiagOpen] = useState(false);
@@ -8316,7 +8371,16 @@ function Settings({ refresh }: { refresh: number }) {
         <p className="hint">{t("Source language is detected automatically. Language choices apply to future output; existing content is preserved.")}</p>
         {languageError ? <p className="form-error" role="alert">{languageError}</p> : null}
       </Panel>
-      <GlobalInterests key={JSON.stringify(globalPolicy)} policy={globalPolicy} onSaved={() => setRevision(current => current + 1)} />
+      <GlobalInterests
+        key={JSON.stringify(globalPolicy)}
+        policy={globalPolicy}
+        savedNotice={interestsSavedNotice}
+        onClearNotice={() => setInterestsSavedNotice(false)}
+        onSaved={() => {
+          setInterestsSavedNotice(true);
+          setRevision(current => current + 1);
+        }}
+      />
       {(() => {
         const hasWorkspaceAi = Boolean(readWorkspaceAiSettings(settings.data.workspace_ai));
         const legacyModelsPanel = (
