@@ -46,6 +46,7 @@ test("Intelligence text Evidence displays real lines and links its internal Evid
   }));
   location.hash = "Intelligence";
   render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: /^View details:/ }));
   expect(await screen.findByText("Lines 2–4")).toBeTruthy();
   await act(async () => fireEvent.click(screen.getByRole("button", { name: "Open Content" })));
   expect(location.hash).toBe("#Content/video-1/Evidence/evidence-1");
@@ -62,6 +63,7 @@ test.each(["en", "zh-CN"])("Text Evidence retains honest missing-position copy i
   }));
   location.hash = "Intelligence";
   render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: language === "en" ? /^View details:/ : /^查看详情：/ }));
   expect(await screen.findByText(language === "en" ? "Text position unavailable" : "文字位置不可用")).toBeTruthy();
   expect(document.body.textContent).not.toContain("null–null");
 });
@@ -1206,6 +1208,7 @@ test("Evidence stance and availability states are rendered without inference", a
 
   render(<App />);
   fireEvent.click(screen.getByRole("button", { name: "Intelligence" }));
+  fireEvent.click(await screen.findByRole("button", { name: /^View details:/ }));
   fireEvent.click(await screen.findByText("Evidence and source"));
   fireEvent.click(screen.getAllByRole("button", { name: "Translation" })[0]);
   expect(screen.getByText("Supporting")).toBeTruthy();
@@ -1244,6 +1247,7 @@ test("Evidence can switch between translated, bilingual, and authoritative origi
 
   render(<App />);
   fireEvent.click(screen.getByRole("button", { name: "Intelligence" }));
+  fireEvent.click(await screen.findByRole("button", { name: /^View details:/ }));
   fireEvent.click(await screen.findByText("Evidence and source"));
   expect(
     await screen.findByText("译文：每个词元都可以关注其他词元的相关上下文。"),
@@ -1308,6 +1312,7 @@ test("Evidence translation is generated only by an explicit UI action", async ()
 
   render(<App />);
   fireEvent.click(screen.getByRole("button", { name: "Intelligence" }));
+  fireEvent.click(await screen.findByRole("button", { name: /^View details:/ }));
   fireEvent.click(await screen.findByText("Evidence and source"));
   expect(fetchMock.mock.calls.some(([input]) =>
     String(input).endsWith("/evidence/evidence-1/translation")
@@ -1510,6 +1515,7 @@ test("verified Intelligence explains its disputed validation posture without inv
   render(<App />);
   fireEvent.click(screen.getByRole("button", { name: "Intelligence" }));
   expect(await screen.findByText("A rumor remains unresolved.")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: /^View details:/ }));
   expect(screen.queryByText("This Intelligence is not available as current information."))
     .toBeNull();
   expect(screen.getByText("Unconfirmed rumor")).toBeTruthy();
@@ -1547,6 +1553,7 @@ test("verified Intelligence explains its disputed validation posture without inv
 test("Intelligence hierarchy labels relevance, new information, and supporting detail before Evidence", async () => {
   render(<App />);
   fireEvent.click(screen.getByRole("button", { name: "Intelligence" }));
+  fireEvent.click(await screen.findByRole("button", { name: /^View details:/ }));
   const why = await screen.findByText("Why this matters");
   const changed = screen.getByText("What is new");
   const details = screen.getByText("Important details");
@@ -1773,6 +1780,7 @@ test("an admitted Intelligence can create and link a Topic through the UI", asyn
   vi.stubGlobal("fetch", fetchMock);
   render(<App />);
   fireEvent.click(screen.getByRole("button", { name: "Intelligence" }));
+  fireEvent.click(await screen.findByRole("button", { name: /^View details:/ }));
   fireEvent.click(await screen.findByRole("button", { name: "Add to a Topic" }));
   fireEvent.change(screen.getByLabelText("Topic name"), {
     target: { value: "Transformer research" },

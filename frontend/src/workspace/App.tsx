@@ -1686,6 +1686,9 @@ type IntelFilterSnapshot = {
   intelSearch: string;
   intelSourceFilter: string;
   intelTopicFilter: string;
+  currentPage?: number;
+  savedPage?: number;
+  pageSize?: 10 | 20;
 };
 
 function Workspace() {
@@ -1722,6 +1725,7 @@ function Workspace() {
     [page, swrStore],
   );
   const [refresh, setRefresh] = useState(0);
+  const [intelListResetSeq, setIntelListResetSeq] = useState(0);
   // Add lives above refreshed/navigated pages: file chooser focus must not unmount it.
   const [addProvider, setAddProvider] = useState<"YOUTUBE" | "LOCAL" | null>(null);
   const [cmdkOpen, setCmdkOpen] = useState(false);
@@ -1821,6 +1825,9 @@ function Workspace() {
       setResearchReturn(null); setResearchEvidence(null);
       setContentTarget(null);
       setDeltaTarget(null);
+      if (next === "Intelligence") {
+        setIntelListResetSeq((value) => value + 1);
+      }
       setPage(next);
     });
   };
@@ -2019,6 +2026,7 @@ function Workspace() {
               <IntelligencePage
                 refresh={refresh}
                 handoffSeq={handoffSeq}
+                listResetSeq={intelListResetSeq}
                 latestFilterRef={latestIntelFilterRef}
                 consumeOriginRestore={() => {
                   const snap = pendingOriginRestoreRef.current?.intel ?? null;
@@ -2324,10 +2332,350 @@ function IntelligenceDetail({ id, openContent, onOpenTopic, onBack }: {
           onSaved={() => setRevision(value => value + 1)} onOpenContent={openContent} onOpenTopic={onOpenTopic} />}
   </>;
 }
+function getIntelligenceRowKey(item: Intelligence, fallbackIndex: number): string {
+  return (
+    item.intelligence_id ||
+    item.code ||
+    `${item.card?.video_id ?? "intel"}:${item.card?.core_conclusion ?? fallbackIndex}`
+  );
+}
+
+function scrollWorkspaceToTop() {
+  if (typeof navigator !== "undefined" && /jsdom/i.test(navigator.userAgent)) {
+    return;
+  }
+  if (typeof window !== "undefined" && typeof window.scrollTo === "function") {
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }
+  if (typeof document !== "undefined") {
+    const main = document.querySelector(".workspace-main");
+    if (main && typeof main.scrollTo === "function") {
+      main.scrollTo({ top: 0, behavior: "auto" });
+    }
+  }
+}
+
+function buildPageNumberTokens(
+  currentPage: number,
+  totalPages: number,
+): (number | "ellipsis-start" | "ellipsis-end")[] {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, idx) => idx + 1);
+  }
+  const tokens: (number | "ellipsis-start" | "ellipsis-end")[] = [1];
+  const windowStart = Math.max(2, currentPage - 1);
+  const windowEnd = Math.min(totalPages - 1, currentPage + 1);
+  if (windowStart > 2) tokens.push("ellipsis-start");
+  for (let p = windowStart; p <= windowEnd; p += 1) {
+    tokens.push(p);
+  }
+  if (windowEnd < totalPages - 1) tokens.push("ellipsis-end");
+  tokens.push(totalPages);
+  return tokens;
+}
+
+function IntelPaginationBar({
+  currentPage,
+  totalPages,
+  totalItems,
+  pageSize,
+  zh,
+  onPageChange,
+  onPageSizeChange,
+}: {
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  pageSize: 10 | 20;
+  zh: boolean;
+  onPageChange: (nextPage: number) => void;
+  onPageSizeChange: (nextSize: 10 | 20) => void;
+}) {
+  if (totalItems <= 0 || (totalPages <= 1 && pageSize === 10 && totalItems < 6)) {
+    return null;
+  }
+  const pageTokens = buildPageNumberTokens(currentPage, totalPages);
+  return (
+    <nav
+      className="intel-pagination-bar tabular-nums"
+      aria-label={zh ? "洞察分页导航" : "Intelligence pagination"}
+    >
+      <div className="intel-pagination-summary">
+        <span>
+          {zh
+            ? `第 ${currentPage} / ${totalPages} 页 · 共 ${totalItems} 条洞察`
+            : `Page ${currentPage} of ${totalPages} · ${totalItems} insights`}
+        </span>
+        {totalItems > 10 || pageSize !== 10 ? (
+          <div
+            className="intel-page-size-group"
+            role="group"
+            aria-label={zh ? "每页显示条数" : "Items per page"}
+          >
+            {([10, 20] as const).map((size) => (
+              <button
+                key={size}
+                type="button"
+                aria-pressed={pageSize === size}
+                className={`intel-page-size-btn${pageSize === size ? " is-active" : ""}`}
+                onClick={() => {
+                  if (pageSize !== size) onPageSizeChange(size);
+                }}
+              >
+                {zh ? `${size} 条/页` : `${size} / page`}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+      {totalPages > 1 ? (
+        <div className="intel-pagination-controls">
+          <button
+            type="button"
+            className="button button-secondary button-small"
+            disabled={currentPage <= 1}
+            onClick={() => onPageChange(currentPage - 1)}
+          >
+            {zh ? "上一页" : "Previous"}
+          </button>
+          <div className="intel-pagination-pages">
+            {pageTokens.map((token) =>
+              typeof token === "number" ? (
+                <button
+                  key={token}
+                  type="button"
+                  aria-label={zh ? `第 ${token} 页` : `Page ${token}`}
+                  aria-current={token === currentPage ? "page" : undefined}
+                  className={`intel-page-btn${token === currentPage ? " is-active" : ""}`}
+                  onClick={() => onPageChange(token)}
+                >
+                  {token}
+                </button>
+              ) : (
+                <span key={token} className="intel-page-ellipsis" aria-hidden="true">
+                  …
+                </span>
+              ),
+            )}
+          </div>
+          <button
+            type="button"
+            className="button button-secondary button-small"
+            disabled={currentPage >= totalPages}
+            onClick={() => onPageChange(currentPage + 1)}
+          >
+            {zh ? "下一页" : "Next"}
+          </button>
+        </div>
+      ) : null}
+    </nav>
+  );
+}
+
+function IntelligenceListRow({
+  item,
+  saved,
+  onSaved,
+  onOpenDetail,
+  onOpenTopic,
+}: {
+  item: Intelligence;
+  saved: boolean;
+  onSaved: () => void;
+  onOpenDetail: () => void;
+  onOpenTopic?: (topicId: string) => void;
+}) {
+  const { language, t } = useUiLanguage();
+  const zh = language === "zh-CN";
+  const [busy, setBusy] = useState(false);
+  const saveBtnRef = useRef<HTMLButtonElement>(null);
+  const toggleSave = async () => {
+    if (!item.intelligence_id) return;
+    setBusy(true);
+    const willSave = !saved;
+    try {
+      await post(
+        saved ? "/saved-intelligence/unsave" : "/saved-intelligence/save",
+        { intelligence_id: item.intelligence_id },
+      );
+      if (willSave) pulseCelebration(saveBtnRef.current);
+      onSaved();
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (item.status !== "AVAILABLE" || !item.card) {
+    return (
+      <div className="semantic-state state-neutral">
+        <Status value="UNAVAILABLE" />
+        <p>{t("This Intelligence is not available as current information.")}</p>
+      </div>
+    );
+  }
+  const card = item.card;
+  const linkedTopics = item.linked_topics ?? [];
+  const summaryPreview = (
+    card.user_relevant_information.find((line) => line.trim().length > 0) ??
+    card.important_new_information.find((line) => line.trim().length > 0) ??
+    ""
+  ).trim();
+  const rawSourceName = card.source_display_name?.trim() ?? "";
+  const sourceLabel = rawSourceName
+    ? t(rawSourceName)
+    : card.video_title?.trim() || card.source_id;
+  const evidenceCount = card.evidence_links?.length ?? 0;
+
+  return (
+    <article
+      className={`intel-list-row${saved ? " is-saved-row" : ""}`}
+      onClick={(event) => {
+        const target = event.target as HTMLElement | null;
+        if (target?.closest("button, a, input, select, summary, details")) return;
+        onOpenDetail();
+      }}
+    >
+      <div className="intel-row-header">
+        <h2 className="intel-row-title">
+          <button
+            type="button"
+            className="intel-row-title-btn"
+            onClick={onOpenDetail}
+          >
+            {card.core_conclusion}
+          </button>
+        </h2>
+        <div className="intel-row-actions">
+          {item.intelligence_id ? (
+            <button
+              ref={saveBtnRef}
+              type="button"
+              className={`button button-small ${saved ? "button-saved" : "button-secondary"}`}
+              disabled={busy}
+              onClick={(event) => {
+                event.stopPropagation();
+                void toggleSave();
+              }}
+            >
+              <BookmarkSparkIcon saved={saved} />
+              {t(busy ? "Saving…" : saved ? "Unsave" : "Save")}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="intel-row-open-btn"
+            aria-label={
+              zh
+                ? `查看详情：${card.core_conclusion}`
+                : `View details: ${card.core_conclusion}`
+            }
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpenDetail();
+            }}
+          >
+            <span>{zh ? "查看详情" : "View details"}</span>
+            <PhosphorIcon name="caret-right" size={13} />
+          </button>
+        </div>
+      </div>
+      {summaryPreview ? (
+        <p className="intel-row-summary">{summaryPreview}</p>
+      ) : null}
+      <div className="intel-row-meta">
+        <span className="intel-row-source">{sourceLabel}</span>
+        {linkedTopics.map((tp) =>
+          onOpenTopic ? (
+            <button
+              key={tp.topic_id}
+              type="button"
+              className="ai-topic-tag ai-topic-tag-btn"
+              onClick={(event) => {
+                event.stopPropagation();
+                onOpenTopic(tp.topic_id);
+              }}
+            >
+              {`[[${tp.name}]]`}
+            </button>
+          ) : (
+            <span key={tp.topic_id} className="ai-topic-tag">
+              {`[[${tp.name}]]`}
+            </span>
+          ),
+        )}
+        <span
+          className="intel-row-badges"
+          aria-label={t("Claim type and current state")}
+        >
+          <Claim kind={item.claim_kind ?? "SYSTEM_INFERENCE"} />
+          <Status value={intelligenceStateLabel(item.state)} />
+        </span>
+        {evidenceCount > 0 ? (
+          <span className="intel-row-evidence-count tabular-nums">
+            <PhosphorIcon name="quotes" size={12} />
+            {zh
+              ? `${evidenceCount} 处原片证据`
+              : `${evidenceCount} ${evidenceCount === 1 ? "evidence quote" : "evidence quotes"}`}
+          </span>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
+function SavedDetailFallbackCard({
+  intelligenceId,
+  revision,
+  saved,
+  onSaved,
+  onOpenContent,
+  onOpenTopic,
+}: {
+  intelligenceId: string;
+  revision: number;
+  saved: boolean;
+  onSaved: () => void;
+  onOpenContent: (videoId: string, evidenceId?: string) => void;
+  onOpenTopic?: (topicId: string) => void;
+}) {
+  const detail = useRemote<{ intelligence: Intelligence }>(
+    `/intelligence/${intelligenceId}`,
+    revision,
+    undefined,
+    true,
+    true,
+  );
+  if (detail.error) {
+    return (
+      <ErrorState
+        error={detail.error}
+        code={detail.errorCode}
+        onReload={detail.reload}
+      />
+    );
+  }
+  if (!detail.data) return <Empty>Loading current saved Intelligence…</Empty>;
+  return (
+    <IntelligenceCard
+      item={detail.data.intelligence}
+      saved={saved}
+      onSaved={onSaved}
+      onOpenContent={openContentPassthrough(onOpenContent)}
+      onOpenTopic={onOpenTopic}
+    />
+  );
+}
+
+function openContentPassthrough(
+  fn: (videoId: string, evidenceId?: string) => void,
+) {
+  return fn;
+}
+
 function IntelligencePage(
   {
     refresh,
     handoffSeq,
+    listResetSeq,
     latestFilterRef,
     consumeOriginRestore,
     openContent,
@@ -2337,6 +2685,7 @@ function IntelligencePage(
   }: {
     refresh: number;
     handoffSeq?: number;
+    listResetSeq?: number;
     latestFilterRef?: { current: IntelFilterSnapshot | null };
     consumeOriginRestore?: () => IntelFilterSnapshot | null;
     openContent: (videoId: string, evidenceId?: string) => void;
@@ -2367,12 +2716,35 @@ function IntelligencePage(
       restoredIntelRef.current?.intelTopicFilter ||
       "ALL",
   );
+  const [pageSize, setPageSize] = useState<10 | 20>(
+    () => restoredIntelRef.current?.pageSize ?? 10,
+  );
+  const [currentPage, setCurrentPage] = useState<number>(
+    () => restoredIntelRef.current?.currentPage ?? 1,
+  );
+  const [savedPage, setSavedPage] = useState<number>(
+    () => restoredIntelRef.current?.savedPage ?? 1,
+  );
+  const [selectedDetail, setSelectedDetail] = useState<{
+    key: string;
+    item: Intelligence;
+  } | null>(null);
+  const prevListResetSeqRef = useRef(listResetSeq);
+  useEffect(() => {
+    if (prevListResetSeqRef.current !== listResetSeq) {
+      prevListResetSeqRef.current = listResetSeq;
+      setSelectedDetail(null);
+    }
+  }, [listResetSeq]);
   if (latestFilterRef) {
     latestFilterRef.current = {
       view,
       intelSearch,
       intelSourceFilter,
       intelTopicFilter,
+      currentPage,
+      savedPage,
+      pageSize,
     };
   }
   const [copiedFilteredDigest, setCopiedFilteredDigest] = useState(false);
@@ -2382,6 +2754,8 @@ function IntelligencePage(
     if (nextTopicId) {
       setView("Current");
       setIntelTopicFilter(nextTopicId);
+      setCurrentPage(1);
+      setSelectedDetail(null);
     }
   }, [handoffSeq]);
   const current = useRemote<{ intelligence: Intelligence[]; activity?: { video_id: string; title: string; status: string; cloud_http429_code?: string; selected_provider?: string; can_cancel?: boolean }[] }>(
@@ -2408,6 +2782,13 @@ function IntelligencePage(
       ),
     [current.data?.intelligence],
   );
+  const currentById = useMemo(() => {
+    const map = new Map<string, Intelligence>();
+    for (const item of currentAvailable) {
+      if (item.intelligence_id) map.set(item.intelligence_id, item);
+    }
+    return map;
+  }, [currentAvailable]);
   const allKnownSources = useMemo(() => {
     const set = new Set<string>();
     for (const item of currentAvailable) {
@@ -2536,9 +2917,173 @@ function IntelligencePage(
     effectiveIntelTopic !== "ALL" ||
     effectiveIntelSource !== "ALL" ||
     intelSearch.trim().length > 0;
-  const savedIdSet = new Set((saved.data?.saved ?? []).map((entry) => entry.intelligence_id));
+  const savedIdSet = useMemo(
+    () => new Set((saved.data?.saved ?? []).map((entry) => entry.intelligence_id)),
+    [saved.data?.saved],
+  );
+
+  const currentTotalPages = Math.max(1, Math.ceil(filteredAvailable.length / pageSize));
+  const safeCurrentPage = Math.min(Math.max(1, currentPage), currentTotalPages);
+  const pagedCurrentAvailable = useMemo(() => {
+    const start = (safeCurrentPage - 1) * pageSize;
+    return filteredAvailable.slice(start, start + pageSize);
+  }, [filteredAvailable, safeCurrentPage, pageSize]);
+
+  const savedEntries = saved.data?.saved ?? [];
+  const savedTotalPages = Math.max(1, Math.ceil(savedEntries.length / pageSize));
+  const safeSavedPage = Math.min(Math.max(1, savedPage), savedTotalPages);
+  const pagedSavedEntries = useMemo(() => {
+    const start = (safeSavedPage - 1) * pageSize;
+    return savedEntries.slice(start, start + pageSize);
+  }, [savedEntries, safeSavedPage, pageSize]);
+
+  const detailList = useMemo(() => {
+    if (view === "Current") {
+      return filteredAvailable.map((it, idx) => ({
+        key: getIntelligenceRowKey(it, idx),
+        item: it,
+      }));
+    }
+    return savedEntries
+      .filter((entry) => entry.intelligence.status === "AVAILABLE")
+      .map((entry, idx) => {
+        const resolved = currentById.get(entry.intelligence_id) ?? entry.intelligence;
+        return {
+          key: entry.intelligence_id || getIntelligenceRowKey(resolved, idx),
+          item: resolved,
+        };
+      });
+  }, [view, filteredAvailable, savedEntries, currentById]);
+
+  const handleBackToList = useCallback(() => {
+    runViewTransition(() => {
+      setSelectedDetail(null);
+    });
+    scrollWorkspaceToTop();
+  }, []);
+
+  useEffect(() => {
+    if (!selectedDetail) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !isKeyboardShortcutBlocked(event)) {
+        event.preventDefault();
+        handleBackToList();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [selectedDetail, handleBackToList]);
+
   const researchEntry = <div className="button-row"><button type="button" className="button button-secondary" onClick={openResearch}>{t("Research")}</button></div>;
   if (source.error) return <>{researchEntry}<ErrorState error={source.error} code={source.errorCode} onReload={source.reload} /></>;
+
+  if (selectedDetail) {
+    const detailIndex = detailList.findIndex((entry) => entry.key === selectedDetail.key);
+    const activeDetailItem =
+      (detailIndex >= 0 ? detailList[detailIndex].item : null) ??
+      (selectedDetail.item.intelligence_id
+        ? currentById.get(selectedDetail.item.intelligence_id)
+        : undefined) ??
+      selectedDetail.item;
+    const activeTotalPages = view === "Current" ? currentTotalPages : savedTotalPages;
+    const activePage = view === "Current" ? safeCurrentPage : safeSavedPage;
+    const backLabel =
+      activeTotalPages > 1
+        ? zh
+          ? `返回洞察列表（第 ${activePage} 页）`
+          : `Back to Intelligence list (Page ${activePage})`
+        : zh
+          ? "返回洞察列表"
+          : "Back to Intelligence list";
+    const isActiveSaved = Boolean(
+      activeDetailItem.intelligence_id &&
+        savedIdSet.has(activeDetailItem.intelligence_id),
+    );
+    const stepDetail = (delta: -1 | 1) => {
+      if (detailIndex < 0) return;
+      const nextIdx = detailIndex + delta;
+      if (nextIdx < 0 || nextIdx >= detailList.length) return;
+      const nextEntry = detailList[nextIdx];
+      runViewTransition(() => {
+        setSelectedDetail(nextEntry);
+        if (view === "Current") {
+          setCurrentPage(Math.floor(nextIdx / pageSize) + 1);
+        } else {
+          const fullSavedIdx = savedEntries.findIndex(
+            (s) => s.intelligence_id === nextEntry.item.intelligence_id,
+          );
+          setSavedPage(
+            Math.floor((fullSavedIdx >= 0 ? fullSavedIdx : nextIdx) / pageSize) + 1,
+          );
+        }
+      });
+      scrollWorkspaceToTop();
+    };
+
+    return (
+      <div className="intel-detail-view">
+        <div className="intel-detail-nav-bar">
+          <button
+            type="button"
+            className="button button-secondary intel-detail-back-btn"
+            onClick={handleBackToList}
+          >
+            <PhosphorIcon name="arrow-left" size={14} />
+            <span>{backLabel}</span>
+          </button>
+          {detailIndex >= 0 && detailList.length > 1 ? (
+            <div
+              className="intel-detail-stepper tabular-nums"
+              role="group"
+              aria-label={zh ? "切换相邻洞察" : "Navigate adjacent insights"}
+            >
+              <span className="intel-detail-stepper-pos">
+                {zh
+                  ? `第 ${detailIndex + 1} / ${detailList.length} 条`
+                  : `${detailIndex + 1} of ${detailList.length}`}
+              </span>
+              <button
+                type="button"
+                className="button button-secondary button-small"
+                disabled={detailIndex <= 0}
+                onClick={() => stepDetail(-1)}
+              >
+                {zh ? "上一条" : "Previous"}
+              </button>
+              <button
+                type="button"
+                className="button button-secondary button-small"
+                disabled={detailIndex >= detailList.length - 1}
+                onClick={() => stepDetail(1)}
+              >
+                {zh ? "下一条" : "Next"}
+              </button>
+            </div>
+          ) : null}
+        </div>
+        {!activeDetailItem.card && activeDetailItem.intelligence_id ? (
+          <SavedDetailFallbackCard
+            intelligenceId={activeDetailItem.intelligence_id}
+            revision={revision}
+            saved={isActiveSaved}
+            onSaved={() => setRevision((value) => value + 1)}
+            onOpenContent={openContent}
+            onOpenTopic={onOpenTopic}
+          />
+        ) : (
+          <IntelligenceCard
+            key={selectedDetail.key}
+            item={activeDetailItem}
+            saved={isActiveSaved}
+            onSaved={() => setRevision((value) => value + 1)}
+            onOpenContent={openContent}
+            onOpenTopic={onOpenTopic}
+          />
+        )}
+      </div>
+    );
+  }
+
   return (
     <>
       {researchEntry}
@@ -2549,7 +3094,10 @@ function IntelligencePage(
             type="button"
             aria-pressed={view === item}
             className={view === item ? "active" : ""}
-            onClick={() => setView(item)}
+            onClick={() => {
+              setView(item);
+              setSelectedDetail(null);
+            }}
           >
             {t(item)}
           </button>
@@ -2572,14 +3120,20 @@ function IntelligencePage(
                   : "Search conclusions, key points, or video titles…"
               }
               value={intelSearch}
-              onChange={(event) => setIntelSearch(event.target.value)}
+              onChange={(event) => {
+                setIntelSearch(event.target.value);
+                setCurrentPage(1);
+              }}
             />
             {allKnownTopics.size > 0 ? (
               <select
                 className="content-topic-select tabular-nums"
                 aria-label={zh ? "按专题筛选洞察" : "Filter Intelligence by topic"}
                 value={effectiveIntelTopic}
-                onChange={(event) => setIntelTopicFilter(event.target.value)}
+                onChange={(event) => {
+                  setIntelTopicFilter(event.target.value);
+                  setCurrentPage(1);
+                }}
               >
                 <option value="ALL">
                   {zh ? "全部专题" : "All topics"}
@@ -2602,7 +3156,10 @@ function IntelligencePage(
                 type="button"
                 className={`ai-question-chip${effectiveIntelSource === "ALL" ? " is-active" : ""}`}
                 aria-pressed={effectiveIntelSource === "ALL"}
-                onClick={() => setIntelSourceFilter("ALL")}
+                onClick={() => {
+                  setIntelSourceFilter("ALL");
+                  setCurrentPage(1);
+                }}
               >
                 {zh ? `全部 (${sourceBaseAvailable.length})` : `All (${sourceBaseAvailable.length})`}
               </button>
@@ -2612,7 +3169,10 @@ function IntelligencePage(
                   type="button"
                   className={`ai-question-chip${effectiveIntelSource === src.name ? " is-active" : ""}`}
                   aria-pressed={effectiveIntelSource === src.name}
-                  onClick={() => setIntelSourceFilter(src.name)}
+                  onClick={() => {
+                    setIntelSourceFilter(src.name);
+                    setCurrentPage(1);
+                  }}
                 >
                   {`${t(src.name)} (${src.count})`}
                 </button>
@@ -2674,6 +3234,7 @@ function IntelligencePage(
                     setIntelSearch("");
                     setIntelSourceFilter("ALL");
                     setIntelTopicFilter("ALL");
+                    setCurrentPage(1);
                   }}
                 >
                   {zh ? "重置筛选" : "Reset filters"}
@@ -2694,16 +3255,49 @@ function IntelligencePage(
         ? <Empty>Loading verified Intelligence…</Empty>
         : currentAvailable.length
         ? filteredAvailable.length
-          ? filteredAvailable.map((item) => (
-            <IntelligenceCard
-              key={item.intelligence_id ?? item.code}
-              item={item}
-              saved={Boolean(item.intelligence_id && savedIdSet.has(item.intelligence_id))}
-              onSaved={() => setRevision((value) => value + 1)}
-              onOpenContent={openContent}
-              onOpenTopic={onOpenTopic}
-            />
-          ))
+          ? (
+            <>
+              <div className="intel-list-surface">
+                {pagedCurrentAvailable.map((item, localIdx) => {
+                  const globalIdx = (safeCurrentPage - 1) * pageSize + localIdx;
+                  const rowKey = getIntelligenceRowKey(item, globalIdx);
+                  return (
+                    <IntelligenceListRow
+                      key={rowKey}
+                      item={item}
+                      saved={Boolean(
+                        item.intelligence_id && savedIdSet.has(item.intelligence_id),
+                      )}
+                      onSaved={() => setRevision((value) => value + 1)}
+                      onOpenDetail={() => {
+                        runViewTransition(() => {
+                          setSelectedDetail({ key: rowKey, item });
+                        });
+                        scrollWorkspaceToTop();
+                      }}
+                      onOpenTopic={onOpenTopic}
+                    />
+                  );
+                })}
+              </div>
+              <IntelPaginationBar
+                currentPage={safeCurrentPage}
+                totalPages={currentTotalPages}
+                totalItems={filteredAvailable.length}
+                pageSize={pageSize}
+                zh={zh}
+                onPageChange={(next) => {
+                  setCurrentPage(next);
+                  scrollWorkspaceToTop();
+                }}
+                onPageSizeChange={(size) => {
+                  setPageSize(size);
+                  setCurrentPage(1);
+                  scrollWorkspaceToTop();
+                }}
+              />
+            </>
+          )
           : (
             <Panel title={zh ? "未找到匹配的洞察卡片" : "No matching Intelligence cards"}>
               <p className="hint">
@@ -2718,6 +3312,7 @@ function IntelligencePage(
                   setIntelSearch("");
                   setIntelSourceFilter("ALL");
                   setIntelTopicFilter("ALL");
+                  setCurrentPage(1);
                 }}
               >
                 {zh ? "清除筛选" : "Clear filters"}
@@ -2727,10 +3322,10 @@ function IntelligencePage(
         : current.data.activity?.length ? null : <Empty>No verified Intelligence yet.</Empty>)}
       {view === "Saved" && (!saved.data
         ? <Empty>Loading saved Intelligence…</Empty>
-        : saved.data.saved.length
+        : savedEntries.length
         ? (() => {
-          const availableSavedItems = saved.data.saved
-            .map((entry) => entry.intelligence)
+          const availableSavedItems = savedEntries
+            .map((entry) => currentById.get(entry.intelligence_id) ?? entry.intelligence)
             .filter((it) => it.status === "AVAILABLE" && Boolean(it.card));
           const savedVideoIds = Array.from(
             new Set(
@@ -2792,69 +3387,79 @@ function IntelligencePage(
                   </div>
                 </div>
               ) : null}
-              {saved.data.saved.map((item) => (
-                <SavedCard
-                  key={item.intelligence_id}
-                  item={item}
-                  revision={revision}
-                  onChanged={() =>
-                    setRevision((value) => value + 1)}
-                  onOpenContent={openContent}
-                  onOpenTopic={onOpenTopic}
-                />
-              ))}
+              <div className="intel-list-surface">
+                {pagedSavedEntries.map((entry, localIdx) => {
+                  if (entry.intelligence.status !== "AVAILABLE") {
+                    return (
+                      <div
+                        key={entry.intelligence_id}
+                        className="semantic-state state-neutral intel-saved-unavailable-row"
+                      >
+                        <Status value="UNAVAILABLE" />
+                        <p>
+                          {t("This saved item is no longer available as current Intelligence. Its saved reference remains until you choose Unsave.")}
+                        </p>
+                        <button
+                          type="button"
+                          className="button button-secondary button-small"
+                          onClick={async () => {
+                            await post("/saved-intelligence/unsave", {
+                              intelligence_id: entry.intelligence_id,
+                            });
+                            setRevision((value) => value + 1);
+                          }}
+                        >
+                          {t("Unsave")}
+                        </button>
+                      </div>
+                    );
+                  }
+                  const resolvedItem =
+                    currentById.get(entry.intelligence_id) ?? entry.intelligence;
+                  const rowKey =
+                    entry.intelligence_id ||
+                    getIntelligenceRowKey(
+                      resolvedItem,
+                      (safeSavedPage - 1) * pageSize + localIdx,
+                    );
+                  return (
+                    <IntelligenceListRow
+                      key={rowKey}
+                      item={resolvedItem}
+                      saved
+                      onSaved={() => setRevision((value) => value + 1)}
+                      onOpenDetail={() => {
+                        runViewTransition(() => {
+                          setSelectedDetail({ key: rowKey, item: resolvedItem });
+                        });
+                        scrollWorkspaceToTop();
+                      }}
+                      onOpenTopic={onOpenTopic}
+                    />
+                  );
+                })}
+              </div>
+              <IntelPaginationBar
+                currentPage={safeSavedPage}
+                totalPages={savedTotalPages}
+                totalItems={savedEntries.length}
+                pageSize={pageSize}
+                zh={zh}
+                onPageChange={(next) => {
+                  setSavedPage(next);
+                  scrollWorkspaceToTop();
+                }}
+                onPageSizeChange={(size) => {
+                  setPageSize(size);
+                  setSavedPage(1);
+                  scrollWorkspaceToTop();
+                }}
+              />
             </>
           );
         })()
         : <Empty>No saved Intelligence.</Empty>)}
     </>
-  );
-}
-function SavedCard(
-  { item, revision, onChanged, onOpenContent, onOpenTopic }: {
-    item: Saved;
-    revision: number;
-    onChanged: () => void;
-    onOpenContent: (videoId: string, evidenceId?: string) => void;
-    onOpenTopic?: (topicId: string) => void;
-  },
-) {
-  const { t } = useUiLanguage();
-  const detail = useRemote<{ intelligence: Intelligence }>(
-    `/intelligence/${item.intelligence_id}`,
-    revision,
-  );
-  if (item.intelligence.status !== "AVAILABLE") {
-    return (
-      <div className="semantic-state state-neutral">
-        <Status value="UNAVAILABLE" />
-        <p>
-          {t("This saved item is no longer available as current Intelligence. Its saved reference remains until you choose Unsave.")}
-        </p>
-        <button
-          className="button button-secondary"
-          onClick={async () => {
-            await post("/saved-intelligence/unsave", {
-              intelligence_id: item.intelligence_id,
-            });
-            onChanged();
-          }}
-        >
-          {t("Unsave")}
-        </button>
-      </div>
-    );
-  }
-  if (detail.error) return <ErrorState error={detail.error} code={detail.errorCode} onReload={detail.reload} />;
-  if (!detail.data) return <Empty>Loading current saved Intelligence…</Empty>;
-  return (
-    <IntelligenceCard
-      item={detail.data.intelligence}
-      saved
-      onSaved={onChanged}
-      onOpenContent={onOpenContent}
-      onOpenTopic={onOpenTopic}
-    />
   );
 }
 function contentItemChannelKeyAndLabel(

@@ -4231,8 +4231,11 @@ describe("Workspace AI Upgrade (P0 + P1 + P2)", () => {
       screen.queryByRole("heading", { name: "状态机拆解让多智能体生产可靠性提升三倍" }),
     ).toBeNull();
 
-    // 2) Copy Insight Card -> copies structured plain-text insight with timestamped quote
-    const copyInsightBtn = screen.getByRole("button", { name: "复制洞察卡片" });
+    // 2) Open insight detail -> Copy Insight Card -> copies structured plain-text insight with timestamped quote
+    fireEvent.click(
+      screen.getByRole("button", { name: /^查看详情：一人公司聚焦垂直行业年费工作流/ }),
+    );
+    const copyInsightBtn = await screen.findByRole("button", { name: "复制洞察卡片" });
     fireEvent.click(copyInsightBtn);
     await waitFor(() => expect(copiedTexts).toHaveLength(1));
     expect(copiedTexts[0]).toContain("【验证洞察】一人公司聚焦垂直行业年费工作流远优于通用聊天壳");
@@ -4571,8 +4574,9 @@ describe("Workspace AI Upgrade (P0 + P1 + P2)", () => {
       screen.queryByRole("heading", { name: "垂直工作流按交付结果定价留存率翻倍" }),
     ).toBeNull();
 
-    // 3) Reset source filter, open Content detail from first card, and click "复制纯文本摘要"
+    // 3) Reset source filter, open first card detail -> open Content detail, and click "复制纯文本摘要"
     fireEvent.click(screen.getByRole("button", { name: "全部 (4)" }));
+    fireEvent.click(screen.getAllByRole("button", { name: /^查看详情：/ })[0]);
     const detailsToggle = screen.getAllByText("证据与原始来源")[0];
     fireEvent.click(detailsToggle);
     fireEvent.click(screen.getAllByRole("button", { name: "打开内容" })[0]);
