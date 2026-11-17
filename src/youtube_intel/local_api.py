@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import re
 import select
@@ -3922,7 +3923,13 @@ def serve_loopback(
                     self.close_connection = True
             except (BrokenPipeError, ConnectionResetError):
                 self.close_connection = True
-            except Exception:
+            except Exception as unhandled:
+                logging.getLogger(__name__).error(
+                    "Local API unhandled %s on %s %s",
+                    type(unhandled).__name__,
+                    self.command,
+                    urlparse(self.path).path,
+                )
                 self._send(
                     HTTPStatus.INTERNAL_SERVER_ERROR,
                     {
