@@ -434,7 +434,7 @@ class _FastOfflineMlxLectureTranscriber:
         *,
         model_path: Path,
         temporary_root: Path,
-        timeout: float = 1800,
+        timeout: float = 3600,
     ) -> None:
         self.model_path = model_path
         self.temporary_root = temporary_root
@@ -496,7 +496,7 @@ class _FastOfflineMlxLectureTranscriber:
                     str(MAX_AUDIO),
                     str(audio),
                 ],
-                timeout=240,
+                timeout=600,
                 maximum=65536,
             )
             if (
@@ -640,8 +640,32 @@ class WorkspaceIntelligenceHub:
         self._ollama_probe = installed_ollama_probe or _probe_ollama_models_default
         self._now = now or (lambda: datetime.now(UTC))
         self._db_lock = threading.RLock()
+        self._transcribe_lock = threading.Lock()
+        self._transcribe_jobs: dict[str, dict[str, Any]] = {}
         self._schema_ready_token: tuple[int, int] | None = None
         self._last_snapshot_mono: float = 0.0
+
+    def has_media_transcriber(self) -> bool:
+        return self._media_transcriber is not None
+
+    def get_transcribe_job(self, video_id: str) -> dict[str, Any] | None:
+        with self._transcribe_lock:
+            job = self._transcribe_jobs.get(video_id)
+            return None if job is None else dict(job)
+
+    def transcribe_jobs_fingerprint(self) -> tuple[tuple[str, str, str, str], ...]:
+        with self._transcribe_lock:
+            return tuple(
+                sorted(
+                    (
+                        vid,
+                        str(info.get("status") or ""),
+                        str(info.get("stage") or ""),
+                        str(info.get("updated_at") or ""),
+                    )
+                    for vid, info in self._transcribe_jobs.items()
+                )
+            )
 
     # ------------------------------------------------------------------
     # Sidecar SQLite lifecycle (strictly lazy on read!)
@@ -2028,7 +2052,9 @@ class WorkspaceIntelligenceHub:
     # Local .mp4 Course Transcription + Auto-Distillation
     # ------------------------------------------------------------------
 
-    def transcribe_and_distill_local_video(self, video_id: str) -> dict[str, object]:
+    def _validate_local_transcribe_target(
+        self, video_id: str
+    ) -> tuple[Any, dict[str, Any]]:
         if self._data_root is None:
             raise ApiError(
                 HTTPStatus.CONFLICT,
@@ -2058,16 +2084,136 @@ class WorkspaceIntelligenceHub:
                 "LOCAL_NOT_MEDIA",
                 "文本内容无需语音转写。",
             )
+        if source["status"] != "READY" and self._media_transcriber is None:
+            raise ApiError(
+                HTTPStatus.CONFLICT,
+                "TRANSCRIBER_UNAVAILABLE",
+                "未检测到本机离线 MLX Whisper 模型。",
+            )
+        return video, dict(source)
+
+    def _set_transcribe_job_state(
+        self,
+        video_id: str,
+        *,
+        status: str,
+        stage: str,
+        started_at: str,
+        error_code: str | None = None,
+        on_state_change: Callable[[], None] | None = None,
+    ) -> dict[str, Any]:
+        updated_at = self._now().strftime("%Y-%m-%dT%H:%M:%SZ")
+        snapshot: dict[str, Any] = {
+            "status": status,
+            "stage": stage,
+            "started_at": started_at,
+            "updated_at": updated_at,
+            "error_code": error_code,
+        }
+        with self._transcribe_lock:
+            self._transcribe_jobs[video_id] = snapshot
+        if on_state_change is not None:
+            on_state_change()
+        return dict(snapshot)
+
+    def start_async_transcribe_and_distill(
+        self,
+        video_id: str,
+        *,
+        on_state_change: Callable[[], None] | None = None,
+    ) -> dict[str, object]:
+        _, source = self._validate_local_transcribe_target(video_id)
+        with self._transcribe_lock:
+            existing = self._transcribe_jobs.get(video_id)
+            if existing is not None and existing.get("status") == "RUNNING":
+                return {
+                    "video_id": video_id,
+                    "transcription_status": "RUNNING",
+                    "stage": existing.get("stage", "TRANSCRIBING"),
+                    "job": dict(existing),
+                }
+            now_iso = self._now().strftime("%Y-%m-%dT%H:%M:%SZ")
+            initial_stage = "DISTILLING" if source["status"] == "READY" else "TRANSCRIBING"
+            initial_job: dict[str, Any] = {
+                "status": "RUNNING",
+                "stage": initial_stage,
+                "started_at": now_iso,
+                "updated_at": now_iso,
+                "error_code": None,
+            }
+            self._transcribe_jobs[video_id] = initial_job
+        if on_state_change is not None:
+            on_state_change()
+
+        def _worker() -> None:
+            try:
+                self.transcribe_and_distill_local_video(
+                    video_id,
+                    _started_at=now_iso,
+                    _on_state_change=on_state_change,
+                )
+            except ApiError as err:
+                self._set_transcribe_job_state(
+                    video_id,
+                    status="FAILED",
+                    stage="FAILED",
+                    started_at=now_iso,
+                    error_code=err.code,
+                    on_state_change=on_state_change,
+                )
+            except Exception:
+                self._set_transcribe_job_state(
+                    video_id,
+                    status="FAILED",
+                    stage="FAILED",
+                    started_at=now_iso,
+                    error_code="TRANSCRIPTION_FAILED",
+                    on_state_change=on_state_change,
+                )
+
+        threading.Thread(
+            target=_worker,
+            name=f"ws-ai-transcribe-{video_id[:24]}",
+            daemon=True,
+        ).start()
+        return {
+            "video_id": video_id,
+            "transcription_status": "RUNNING",
+            "stage": initial_stage,
+            "job": dict(initial_job),
+        }
+
+    def transcribe_and_distill_local_video(
+        self,
+        video_id: str,
+        *,
+        _started_at: str | None = None,
+        _on_state_change: Callable[[], None] | None = None,
+    ) -> dict[str, object]:
+        assert self._data_root is not None or True
+        _, source = self._validate_local_transcribe_target(video_id)
+        assert self._data_root is not None
+        started_at = _started_at or self._now().strftime("%Y-%m-%dT%H:%M:%SZ")
 
         if source["status"] != "READY":
-            if self._media_transcriber is None:
-                raise ApiError(
-                    HTTPStatus.CONFLICT,
-                    "TRANSCRIBER_UNAVAILABLE",
-                    "未检测到本机离线 MLX Whisper 模型。",
-                )
+            assert self._media_transcriber is not None
+            self._set_transcribe_job_state(
+                video_id,
+                status="RUNNING",
+                stage="TRANSCRIBING",
+                started_at=started_at,
+                on_state_change=_on_state_change,
+            )
             artifact = self._repository.get_artifact(str(source["snapshot_artifact_id"]))
             if artifact is None:
+                self._set_transcribe_job_state(
+                    video_id,
+                    status="FAILED",
+                    stage="FAILED",
+                    started_at=started_at,
+                    error_code="LOCAL_SOURCE_UNTRUSTED",
+                    on_state_change=_on_state_change,
+                )
                 raise ApiError(
                     HTTPStatus.CONFLICT,
                     "LOCAL_SOURCE_UNTRUSTED",
@@ -2083,13 +2229,47 @@ class WorkspaceIntelligenceHub:
                     self._repository, self._data_root, now=self._now
                 ).accept_transcript(video_id, transcript)
             except (OfflineError, LocalImportError) as err:
+                err_code = getattr(err, "code", "TRANSCRIPTION_FAILED")
+                self._set_transcribe_job_state(
+                    video_id,
+                    status="FAILED",
+                    stage="FAILED",
+                    started_at=started_at,
+                    error_code=err_code,
+                    on_state_change=_on_state_change,
+                )
                 raise ApiError(
                     HTTPStatus.CONFLICT,
-                    getattr(err, "code", "TRANSCRIPTION_FAILED"),
+                    err_code,
                     "本地离线语音转写未完成。",
                 ) from err
 
-        distilled = self.distill_video(video_id, persist_intelligence_card=True)
+        self._set_transcribe_job_state(
+            video_id,
+            status="RUNNING",
+            stage="DISTILLING",
+            started_at=started_at,
+            on_state_change=_on_state_change,
+        )
+        try:
+            distilled = self.distill_video(video_id, persist_intelligence_card=True)
+        except ApiError as err:
+            self._set_transcribe_job_state(
+                video_id,
+                status="FAILED",
+                stage="FAILED",
+                started_at=started_at,
+                error_code=err.code,
+                on_state_change=_on_state_change,
+            )
+            raise
+        self._set_transcribe_job_state(
+            video_id,
+            status="READY",
+            stage="READY",
+            started_at=started_at,
+            on_state_change=_on_state_change,
+        )
         return {
             "video_id": video_id,
             "transcription_status": "READY",

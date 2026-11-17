@@ -330,6 +330,20 @@ export type WorkspaceAiSettings = {
   cloud_key_configured: boolean;
 };
 
+export type WorkspaceAiTranscribeJob = {
+  status: "RUNNING" | "READY" | "FAILED";
+  stage: "TRANSCRIBING" | "DISTILLING" | "READY" | "FAILED";
+  started_at: string;
+  updated_at: string;
+  error_code: string | null;
+};
+
+export type WorkspaceAiCapabilities = {
+  ready: boolean;
+  transcriber_ready: boolean;
+  transcribe_job: WorkspaceAiTranscribeJob | null;
+};
+
 const isRec = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === "object" && !Array.isArray(v);
 
@@ -704,6 +718,36 @@ export function readTopicAiEvolution(raw: unknown): TopicAiEvolution | null {
     related_topics,
     obsidian_markdown: typeof raw.obsidian_markdown === "string" ? raw.obsidian_markdown : "",
     entries,
+  };
+}
+
+export function readWorkspaceAiTranscribeJob(raw: unknown): WorkspaceAiTranscribeJob | null {
+  if (!isRec(raw)) return null;
+  const status = raw.status;
+  if (status !== "RUNNING" && status !== "READY" && status !== "FAILED") {
+    return null;
+  }
+  const stage = raw.stage;
+  return {
+    status,
+    stage:
+      stage === "TRANSCRIBING" || stage === "DISTILLING" || stage === "READY" || stage === "FAILED"
+        ? stage
+        : status === "RUNNING"
+          ? "TRANSCRIBING"
+          : status,
+    started_at: typeof raw.started_at === "string" ? raw.started_at : "",
+    updated_at: typeof raw.updated_at === "string" ? raw.updated_at : "",
+    error_code: typeof raw.error_code === "string" ? raw.error_code : null,
+  };
+}
+
+export function readWorkspaceAiCapabilities(raw: unknown): WorkspaceAiCapabilities | null {
+  if (!isRec(raw)) return null;
+  return {
+    ready: Boolean(raw.ready),
+    transcriber_ready: Boolean(raw.transcriber_ready),
+    transcribe_job: readWorkspaceAiTranscribeJob(raw.transcribe_job),
   };
 }
 
@@ -1489,6 +1533,9 @@ export function WorkspaceVideoAiActions({
   transcriptAvailable,
   aiBrief,
   obsidianMarkdown,
+  initialTranscribeJob,
+  actionRequest,
+  onTranscribeStateChange,
   nextUnreadVideo,
   onAdvanceToVideo,
   onBack,
@@ -1503,6 +1550,9 @@ export function WorkspaceVideoAiActions({
   transcriptAvailable: boolean;
   aiBrief: VideoAiBrief | null;
   obsidianMarkdown?: string;
+  initialTranscribeJob?: WorkspaceAiTranscribeJob | null;
+  actionRequest?: { nonce: number; kind: "transcribe" | "distill" } | null;
+  onTranscribeStateChange?: (running: boolean, stage?: string) => void;
   nextUnreadVideo?: {
     videoId: string;
     title: string;
@@ -1516,13 +1566,27 @@ export function WorkspaceVideoAiActions({
   const { language } = useUiLanguage();
   const zh = language === "zh-CN";
   const [busyKind, setBusyKind] = useState<"distill" | "transcribe" | "curation" | null>(null);
+  const [transcribeStage, setTranscribeStage] = useState<string>("TRANSCRIBING");
   const [error, setError] = useState<string | null>(null);
   const [copiedObsidian, setCopiedObsidian] = useState(false);
   const [copiedPlainBrief, setCopiedPlainBrief] = useState(false);
+  const aliveRef = useRef(true);
+  const pollingVideoRef = useRef<string | null>(null);
+  const handledNonceRef = useRef<number>(0);
+
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => {
+      aliveRef.current = false;
+      pollingVideoRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     setCopiedObsidian(false);
     setCopiedPlainBrief(false);
+    setError(null);
+    pollingVideoRef.current = null;
   }, [videoId]);
 
   const mdContent = obsidianMarkdown ?? aiBrief?.obsidian_markdown ?? "";
@@ -1605,13 +1669,112 @@ export function WorkspaceVideoAiActions({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  const pollAsyncTranscribeUntilSettled = async (targetId: string, startStage?: string) => {
+    if (pollingVideoRef.current === targetId) return;
+    pollingVideoRef.current = targetId;
+    const pollDelayMs =
+      typeof navigator !== "undefined" && /jsdom/i.test(navigator.userAgent) ? 80 : 2500;
+    let curStage = startStage || "TRANSCRIBING";
+    setBusyKind("transcribe");
+    setTranscribeStage(curStage);
+    onTranscribeStateChange?.(true, curStage);
+    try {
+      while (aliveRef.current && pollingVideoRef.current === targetId) {
+        await new Promise((resolve) => setTimeout(resolve, pollDelayMs));
+        if (!aliveRef.current || pollingVideoRef.current !== targetId) return;
+        const pollRes = await api<{ job?: unknown }>(
+          `/workspace-ai/videos/${encodeURIComponent(targetId)}/transcribe-status`,
+        );
+        const job = readWorkspaceAiTranscribeJob(pollRes.job);
+        if (!job) {
+          break;
+        }
+        if (job.status === "RUNNING") {
+          if (job.stage !== curStage) {
+            curStage = job.stage;
+            setTranscribeStage(curStage);
+            onTranscribeStateChange?.(true, curStage);
+          }
+          continue;
+        }
+        if (job.status === "READY") {
+          pollingVideoRef.current = null;
+          setBusyKind(null);
+          onTranscribeStateChange?.(false, "READY");
+          onCompleted();
+          return;
+        }
+        pollingVideoRef.current = null;
+        setBusyKind(null);
+        onTranscribeStateChange?.(false, "FAILED");
+        setError(
+          job.error_code === "CLOUD_CREDENTIAL_MISSING"
+            ? zh
+              ? "当前选为云端模式但尚未填写 API Key，请在设置中保存 Key 或切回本机免费 Ollama。"
+              : "Cloud API key is missing in Settings."
+            : zh
+              ? "本地离线语音转写未能完成，请检查本地转写模型与音视频文件。"
+              : "Offline local transcription could not complete.",
+        );
+        return;
+      }
+    } catch {
+      if (aliveRef.current && pollingVideoRef.current === targetId) {
+        setError(
+          zh
+            ? "转写进度读取中断，后台仍在继续处理，请稍后刷新页面查看。"
+            : "Transcription status check interrupted; reload shortly.",
+        );
+      }
+    } finally {
+      if (pollingVideoRef.current === targetId) {
+        pollingVideoRef.current = null;
+      }
+      if (aliveRef.current) {
+        setBusyKind(null);
+        onTranscribeStateChange?.(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (
+      isLocalMedia &&
+      !transcriptAvailable &&
+      initialTranscribeJob?.status === "RUNNING" &&
+      pollingVideoRef.current !== videoId
+    ) {
+      void pollAsyncTranscribeUntilSettled(videoId, initialTranscribeJob.stage);
+    }
+  }, [videoId, isLocalMedia, transcriptAvailable, initialTranscribeJob?.status]);
+
   const runAction = async (kind: "distill" | "transcribe") => {
+    if (busyKind !== null) return;
     setBusyKind(kind);
     setError(null);
+    if (kind === "transcribe") {
+      setTranscribeStage("TRANSCRIBING");
+      onTranscribeStateChange?.(true, "TRANSCRIBING");
+    }
     try {
-      await post(`/workspace-ai/videos/${encodeURIComponent(videoId)}/${kind}`, {});
+      const res = await post<{ transcription_status?: string; stage?: string }>(
+        `/workspace-ai/videos/${encodeURIComponent(videoId)}/${kind}`,
+        kind === "transcribe" ? { async: true } : {},
+      );
+      if (kind === "transcribe" && res?.transcription_status === "RUNNING") {
+        await pollAsyncTranscribeUntilSettled(videoId, res.stage);
+        return;
+      }
+      if (kind === "transcribe") {
+        onTranscribeStateChange?.(false, "READY");
+      }
+      setBusyKind(null);
       onCompleted();
     } catch (err) {
+      if (kind === "transcribe") {
+        onTranscribeStateChange?.(false, "FAILED");
+      }
+      setBusyKind(null);
       const code = err instanceof ApiRequestError ? err.code : undefined;
       if (code === "CLOUD_CREDENTIAL_MISSING") {
         setError(zh ? "当前选为云端模式但尚未填写 API Key，请在设置中保存 Key 或切回本机免费 Ollama。" : "Cloud API key is missing in Settings.");
@@ -1626,10 +1789,14 @@ export function WorkspaceVideoAiActions({
               : "AI distillation could not complete.",
         );
       }
-    } finally {
-      setBusyKind(null);
     }
   };
+
+  useEffect(() => {
+    if (!actionRequest || actionRequest.nonce === handledNonceRef.current) return;
+    handledNonceRef.current = actionRequest.nonce;
+    void runAction(actionRequest.kind);
+  }, [actionRequest]);
 
   return (
     <>
@@ -1645,9 +1812,13 @@ export function WorkspaceVideoAiActions({
         >
           <PhosphorIcon name="sparkle" size={13} />
           {busyKind === "transcribe"
-            ? zh
-              ? "正在离线转写并提炼中文洞察…"
-              : "Transcribing & distilling…"
+            ? transcribeStage === "DISTILLING"
+              ? zh
+                ? "语音听写完成，正在提炼中文洞察…"
+                : "Distilling Chinese insight…"
+              : zh
+                ? "正在离线转写语音（长视频约需数分钟）…"
+                : "Transcribing & distilling…"
             : zh
               ? "离线语音转写并提炼中文洞察"
               : "Transcribe offline & distill Chinese insight"}
