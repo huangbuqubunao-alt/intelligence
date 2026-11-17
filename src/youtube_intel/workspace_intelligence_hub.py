@@ -2360,16 +2360,42 @@ class WorkspaceIntelligenceHub:
 
     def _classify_pending_videos(
         self,
+        *,
+        repo_conn: sqlite3.Connection | None = None,
     ) -> tuple[list[str], list[str], list[str], int, int]:
-        videos = self._repository.list_videos(limit=300)
+        own_conn = repo_conn is None
+        active_conn = (
+            self._repository._connect(read_only=True)
+            if repo_conn is None
+            else repo_conn
+        )
+        try:
+            videos = [
+                self._repository._video_from_row(row)
+                for row in active_conn.execute(
+                    "SELECT * FROM videos ORDER BY updated_at DESC, video_id LIMIT 300"
+                )
+            ]
+            grounded_video_ids = {
+                str(row[0])
+                for row in active_conn.execute(
+                    "SELECT DISTINCT t.video_id FROM timed_transcripts t "
+                    "WHERE EXISTS ("
+                    "  SELECT 1 FROM timed_transcript_cues c "
+                    "  WHERE c.timed_transcript_id = t.timed_transcript_id"
+                    ")"
+                )
+            }
+        finally:
+            if own_conn:
+                active_conn.close()
         briefs_map = self.get_video_briefs_map()
         pending_transcript: list[str] = []
         pending_upgrade: list[str] = []
         pending_metadata_only: list[str] = []
         for v in videos:
             brief = briefs_map.get(v.video_id)
-            timed = self._repository.get_verified_timed_transcript(video_id=v.video_id)
-            has_tx = timed is not None and bool(timed.cues)
+            has_tx = v.video_id in grounded_video_ids
             if brief is None:
                 if has_tx:
                     pending_transcript.append(v.video_id)
@@ -2385,14 +2411,16 @@ class WorkspaceIntelligenceHub:
             len(briefs_map),
         )
 
-    def get_sync_status(self) -> dict[str, object]:
+    def get_sync_status(
+        self, *, repo_conn: sqlite3.Connection | None = None
+    ) -> dict[str, object]:
         (
             pending_transcript,
             pending_upgrade,
             pending_metadata_only,
             total_videos,
             briefed_count,
-        ) = self._classify_pending_videos()
+        ) = self._classify_pending_videos(repo_conn=repo_conn)
         ordered_pending = [
             *pending_transcript,
             *pending_upgrade,
@@ -2873,7 +2901,26 @@ class WorkspaceIntelligenceHub:
 
     def _build_research_scope_options(self) -> dict[str, object]:
         briefs_map = self.get_video_briefs_map()
-        videos = self._repository.list_videos(limit=200)
+        conn = self._repository._connect(read_only=True)
+        try:
+            videos = [
+                self._repository._video_from_row(row)
+                for row in conn.execute(
+                    "SELECT * FROM videos ORDER BY updated_at DESC, video_id LIMIT 200"
+                )
+            ]
+            grounded_video_ids = {
+                str(row[0])
+                for row in conn.execute(
+                    "SELECT DISTINCT t.video_id FROM timed_transcripts t "
+                    "WHERE EXISTS ("
+                    "  SELECT 1 FROM timed_transcript_cues c "
+                    "  WHERE c.timed_transcript_id = t.timed_transcript_id"
+                    ")"
+                )
+            }
+        finally:
+            conn.close()
         channel_counts: dict[str, dict[str, Any]] = {}
         cluster_counts: dict[str, int] = {}
         grounded_videos: list[dict[str, Any]] = []
@@ -2882,8 +2929,7 @@ class WorkspaceIntelligenceHub:
             brief = briefs_map.get(video.video_id)
             if brief is not None and brief["is_short_noise"]:
                 continue
-            timed = self._repository.get_verified_timed_transcript(video_id=video.video_id)
-            if timed is None or not timed.cues:
+            if video.video_id not in grounded_video_ids:
                 continue
             ch_key, ch_label = self._video_channel_key_and_label(video)
             provider_str = str(video.provider or "YOUTUBE")
@@ -3454,13 +3500,24 @@ class WorkspaceIntelligenceHub:
 
     def _collect_topic_brief_entries(
         self,
+        *,
+        repo_conn: sqlite3.Connection | None = None,
     ) -> dict[str, list[dict[str, Any]]]:
         briefs_map = self.get_video_briefs_map()
         if not briefs_map:
             return {}
-        videos_by_id = {
-            v.video_id: v for v in self._repository.list_videos(limit=300)
-        }
+        if repo_conn is not None:
+            videos_by_id = {
+                v.video_id: v
+                for row in repo_conn.execute(
+                    "SELECT * FROM videos ORDER BY updated_at DESC, video_id LIMIT 300"
+                )
+                if (v := self._repository._video_from_row(row)) is not None
+            }
+        else:
+            videos_by_id = {
+                v.video_id: v for v in self._repository.list_videos(limit=300)
+            }
         grouped: dict[str, list[dict[str, Any]]] = {}
         seen_per_topic: dict[str, set[str]] = {}
         for vid, brief in briefs_map.items():
@@ -3745,10 +3802,15 @@ class WorkspaceIntelligenceHub:
             )
         return result
 
-    def enrich_topics_items(self, raw_topics: object) -> list[dict[str, object]]:
+    def enrich_topics_items(
+        self,
+        raw_topics: object,
+        *,
+        repo_conn: sqlite3.Connection | None = None,
+    ) -> list[dict[str, object]]:
         if not isinstance(raw_topics, list):
             return []
-        grouped = self._collect_topic_brief_entries()
+        grouped = self._collect_topic_brief_entries(repo_conn=repo_conn)
         enriched: list[dict[str, object]] = []
         for item in raw_topics:
             if not isinstance(item, dict):
@@ -3760,22 +3822,43 @@ class WorkspaceIntelligenceHub:
             enriched.append({**item, "ai_evolution": evo})
         return enriched
 
-    def enrich_topics_list_dto(self, payload: Mapping[str, object]) -> dict[str, object]:
+    def enrich_topics_list_dto(
+        self,
+        payload: Mapping[str, object],
+        *,
+        repo_conn: sqlite3.Connection | None = None,
+    ) -> dict[str, object]:
         return {
             **payload,
-            "topics": self.enrich_topics_items(payload.get("topics")),
+            "topics": self.enrich_topics_items(
+                payload.get("topics"), repo_conn=repo_conn
+            ),
         }
 
     def compute_source_ai_signals(
-        self, raw_sources: object = None
+        self,
+        raw_sources: object = None,
+        *,
+        repo_conn: sqlite3.Connection | None = None,
     ) -> dict[str, dict[str, object]]:
         briefs_map = self.get_video_briefs_map()
-        videos_by_id = {v.video_id: v for v in self._repository.list_videos(limit=500)}
+        own_conn = repo_conn is None
+        active_conn = (
+            self._repository._connect(read_only=True)
+            if repo_conn is None
+            else repo_conn
+        )
         linked_by_source: dict[str, list[str]] = {}
         seen_per_source: dict[str, set[str]] = {}
-        repo_conn = self._repository._connect(read_only=True)
         try:
-            for srow in repo_conn.execute(
+            videos_by_id = {
+                v.video_id: v
+                for row in active_conn.execute(
+                    "SELECT * FROM videos ORDER BY updated_at DESC, video_id LIMIT 500"
+                )
+                if (v := self._repository._video_from_row(row)) is not None
+            }
+            for srow in active_conn.execute(
                 "SELECT source_id, video_id FROM source_video_links "
                 "ORDER BY discovered_at DESC, video_id ASC"
             ).fetchall():
@@ -3788,9 +3871,10 @@ class WorkspaceIntelligenceHub:
                     seen.add(vid)
                     linked_by_source.setdefault(sid, []).append(vid)
         except sqlite3.Error:
-            pass
+            videos_by_id = {}
         finally:
-            repo_conn.close()
+            if own_conn:
+                active_conn.close()
 
         source_meta_by_id: dict[str, Mapping[str, Any]] = {}
         if isinstance(raw_sources, list):
@@ -3886,18 +3970,31 @@ class WorkspaceIntelligenceHub:
             }
         return signals
 
-    def enrich_topic_detail_dto(self, payload: Mapping[str, object]) -> dict[str, object]:
+    def enrich_topic_detail_dto(
+        self,
+        payload: Mapping[str, object],
+        *,
+        repo_conn: sqlite3.Connection | None = None,
+    ) -> dict[str, object]:
         raw_topic = payload.get("topic")
         if not isinstance(raw_topic, dict):
             return dict(payload)
-        grouped = self._collect_topic_brief_entries()
+        grouped = self._collect_topic_brief_entries(repo_conn=repo_conn)
         cur_id = str(raw_topic.get("topic_id") or "")
         name = str(raw_topic.get("name") or "").strip()
         cur_entries = grouped.get(name, [])
         cur_channels = {
             str(e["channel_name"]) for e in cur_entries if e.get("channel_name")
         }
-        all_topics = self._repository.list_topics()
+        if repo_conn is not None:
+            all_topics = [
+                self._repository._topic_from_row(row)
+                for row in repo_conn.execute(
+                    "SELECT * FROM topics ORDER BY pinned DESC, updated_at DESC, topic_id ASC"
+                )
+            ]
+        else:
+            all_topics = list(self._repository.list_topics())
         topic_names_by_id = {t.topic_id: t.name for t in all_topics}
         raw_relations = raw_topic.get("relations")
         relations_out: list[dict[str, object]] | object = raw_relations
@@ -3995,9 +4092,25 @@ class WorkspaceIntelligenceHub:
     # ------------------------------------------------------------------
 
     def _compute_funnel_stats(
-        self, briefs_map: Mapping[str, Mapping[str, Any]]
+        self,
+        briefs_map: Mapping[str, Mapping[str, Any]],
+        *,
+        repo_conn: sqlite3.Connection | None = None,
     ) -> dict[str, int]:
-        videos = self._repository.list_videos(limit=300)
+        if repo_conn is not None:
+            videos = [
+                self._repository._video_from_row(row)
+                for row in repo_conn.execute(
+                    "SELECT * FROM videos ORDER BY updated_at DESC, video_id LIMIT 300"
+                )
+            ]
+            topics_list = [
+                self._repository._topic_from_row(row)
+                for row in repo_conn.execute("SELECT * FROM topics")
+            ]
+        else:
+            videos = list(self._repository.list_videos(limit=300))
+            topics_list = list(self._repository.list_topics())
         must_watch = sum(
             1
             for b in briefs_map.values()
@@ -4017,9 +4130,7 @@ class WorkspaceIntelligenceHub:
             elif b is None and v.duration_seconds is not None and v.duration_seconds <= 95:
                 shorts_filtered += 1
         active_topics = sum(
-            1
-            for t in self._repository.list_topics()
-            if t.lifecycle is TopicLifecycle.ACTIVE
+            1 for t in topics_list if t.lifecycle is TopicLifecycle.ACTIVE
         )
         return {
             "total_videos": len(videos),
@@ -4381,10 +4492,13 @@ class WorkspaceIntelligenceHub:
         }
 
     def get_latest_weekly_brief(
-        self, *, brief_id: str | None = None
+        self,
+        *,
+        brief_id: str | None = None,
+        repo_conn: sqlite3.Connection | None = None,
     ) -> dict[str, object]:
         briefs_map = self.get_video_briefs_map()
-        funnel_stats = self._compute_funnel_stats(briefs_map)
+        funnel_stats = self._compute_funnel_stats(briefs_map, repo_conn=repo_conn)
         conn = self._connect_read()
         if conn is None:
             if brief_id and brief_id.strip():

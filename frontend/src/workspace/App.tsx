@@ -1689,9 +1689,38 @@ type IntelFilterSnapshot = {
 };
 
 function Workspace() {
+  const swrStore = useContext(RemoteSwrContext);
   const { language, setLanguage, t } = useUiLanguage();
   const { theme, toggleTheme } = useUiTheme();
   const [page, setPage] = useState<Page>(initialPage);
+  const prefetchNavPage = useCallback(
+    (target: Page) => {
+      if (!swrStore || target === page) return;
+      const pathsByPage: Partial<Record<Page, string[]>> = {
+        Home: ["/dashboard"],
+        Following: ["/sources"],
+        Content: ["/videos"],
+        Topics: ["/topics"],
+        Intelligence: ["/intelligence", "/saved-intelligence"],
+      };
+      for (const targetPath of pathsByPage[target] ?? []) {
+        if (swrStore.cache.has(targetPath) || swrStore.inflight.has(targetPath)) continue;
+        const req = api<unknown>(targetPath);
+        swrStore.inflight.set(targetPath, req);
+        req
+          .then((val) => {
+            swrStore.cache.set(targetPath, val);
+          })
+          .catch(() => {})
+          .finally(() => {
+            if (swrStore.inflight.get(targetPath) === req) {
+              swrStore.inflight.delete(targetPath);
+            }
+          });
+      }
+    },
+    [page, swrStore],
+  );
   const [refresh, setRefresh] = useState(0);
   // Add lives above refreshed/navigated pages: file chooser focus must not unmount it.
   const [addProvider, setAddProvider] = useState<"YOUTUBE" | "LOCAL" | null>(null);
@@ -1859,6 +1888,7 @@ function Workspace() {
                 key={item}
                 className={`nav-item ${isActive ? "active" : ""}`}
                 aria-current={isActive ? "page" : undefined}
+                onMouseEnter={() => prefetchNavPage(item)}
                 onFocus={event => {
                   const nav = event.currentTarget.parentElement;
                   if (nav && nav.scrollWidth > nav.clientWidth) {
@@ -5646,6 +5676,10 @@ function Topics({
   }, [pendingClusterName, list.data?.topics]);
   const detail = useRemote<{ topic: Topic }>(
     selected ? `/topics/${selected}` : "/topics",
+    refresh,
+    undefined,
+    true,
+    true,
   );
   const failedReads = [list, detail].filter(read => read.error);
   if (failedReads.length) {
@@ -6100,7 +6134,17 @@ function Sources(
     return () => clearTimeout(timer);
   }, [data, reading]);
   useEffect(() => {
-    const check = () => { if (document.visibilityState !== "hidden") void post("/sources/check-stale", {}).then(onRefresh).catch(() => {}); };
+    const check = () => {
+      if (document.visibilityState !== "hidden") {
+        void post<{ checks?: unknown[] }>("/sources/check-stale", {})
+          .then((res) => {
+            if (!Array.isArray(res?.checks) || res.checks.length > 0) {
+              onRefresh();
+            }
+          })
+          .catch(() => {});
+      }
+    };
     check(); window.addEventListener("focus", check);
     return () => window.removeEventListener("focus", check);
   }, []);

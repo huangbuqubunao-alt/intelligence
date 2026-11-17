@@ -190,3 +190,92 @@ it("retains existing Content list during 2-second background status polling inst
   });
   expect(screen.getByText("正在读取字幕的视频")).toBeTruthy();
 });
+
+it("deduplicates initial /topics read and avoids redundant /sources reload when check-stale returns empty checks", async () => {
+  localStorage.setItem("yia.ui-language", "zh-CN");
+  localStorage.setItem("intelligence.onboarding.completed.v1", "true");
+  location.hash = "#Topics";
+
+  let topicsReads = 0;
+  let sourcesReads = 0;
+  const fetchMock = vi.fn((path: string) => {
+    if (path.endsWith("/topics")) {
+      topicsReads += 1;
+      return Promise.resolve(
+        jsonResponse({
+          topics: [
+            {
+              topic_id: "topic-agent-arch",
+              name: "AI Agent 架构演进",
+              pinned: true,
+              lifecycle: "ACTIVE",
+              current_state: "CONSENSUS",
+              independence: "UNKNOWN",
+              contributions: [],
+              timeline: [],
+              relations: [],
+            },
+          ],
+        }),
+      );
+    }
+    if (path.endsWith("/sources/check-stale")) {
+      return Promise.resolve({ ok: true, status: 202, json: async () => ({ checks: [] }) });
+    }
+    if (path.endsWith("/sources")) {
+      sourcesReads += 1;
+      return Promise.resolve(
+        jsonResponse({
+          sources: [
+            {
+              source_id: "src-openai",
+              provider: "YOUTUBE",
+              source_type: "CHANNEL",
+              canonical_url: "https://www.youtube.com/@OpenAI",
+              channel_id: "UCXZCJLdBC09xxGZ6gcdrc6A",
+              video_id: null,
+              display_name: "OpenAI",
+              friendly_name: "OpenAI",
+              enabled: true,
+              processing_policy: "STANDARD_INTELLIGENCE",
+              processing_mode: "EXTRACT_INTELLIGENCE",
+              last_checked_at: null,
+              last_success_at: null,
+              last_error: null,
+              tracking: {
+                checking: false,
+                health: "HEALTHY",
+                coverage: "COMPLETE",
+                update_count: 3,
+                pending_count: 0,
+              },
+              tracking_parent_source_ids: [],
+              insight_count: 5,
+            },
+          ],
+        }),
+      );
+    }
+    if (path.endsWith("/settings")) {
+      return Promise.resolve(jsonResponse({ bilibili: { creator_following: { available: false } } }));
+    }
+    if (path.endsWith("/videos")) {
+      return Promise.resolve(jsonResponse({ videos: [] }));
+    }
+    return Promise.resolve(jsonResponse({}));
+  });
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<App />);
+  expect(await screen.findByText("AI Agent 架构演进")).toBeTruthy();
+  // Initial Topics mount MUST NOT fire two separate /topics GET requests!
+  expect(topicsReads).toBe(1);
+
+  // Switch to Following (#Following): no-op check-stale ({ checks: [] }) MUST NOT trigger a second /sources fetch!
+  fireEvent.click(screen.getByRole("button", { name: "关注" }));
+  expect(await screen.findByText("OpenAI")).toBeTruthy();
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(sourcesReads).toBe(1);
+});
