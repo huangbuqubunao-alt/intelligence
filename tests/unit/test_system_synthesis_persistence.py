@@ -112,7 +112,7 @@ def test_existing_terminal_paths_have_one_authentic_receipt_and_replay(tmp_path,
         assert receipt['raw_text'] is not None if branch in {'positive','zero'} else receipt['raw_text'] is None
     restarted=p.SQLiteStateRepository(repo._database_path)
     restarted.bind_source_storage(root)
-    assert restarted.initialize(now=NOW).version==44
+    assert restarted.initialize(now=NOW).version==45
     assert restarted.get_distillation_execution(prepared.execution_id)==result
     assert restarted.get_distillation_resource_usage(prepared.execution_id).invocation_count==1
     if branch=='positive':
@@ -197,7 +197,7 @@ def test_every_old_backup_verifies_original_schema_then_migrates_preserving_rows
     backup.confirm_restore(preview.restore_id)
     backup.recover_and_apply_pending_restore()
     assert support._inventory(repo,root)==before
-    assert repo.initialize(now=NOW).version==44
+    assert repo.initialize(now=NOW).version==45
     after, files=support._inventory(repo,root)
     assert {k:v for k,v in after.items() if k in before[0] and k!='schema_migrations'}=={k:v for k,v in before[0].items() if k!='schema_migrations'}
     assert files==before[1] and all(not after[table] for table in p.TABLES)

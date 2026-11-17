@@ -26,8 +26,9 @@ from youtube_intel.state import TimedTranscriptCueWrite
 
 CONTRACT = "offline-timed-transcription-v1"
 PROFILE = "mlx-source-silence-native-word-auto-t0-v4"
-MAX_RESULT = 4 * 1024 * 1024
-MAX_AUDIO = 7200 * 16000 * 2 + 4096
+MAX_DURATION_SECONDS = 14400
+MAX_RESULT = 8 * 1024 * 1024
+MAX_AUDIO = MAX_DURATION_SECONDS * 16000 * 2 + 4096
 
 
 class OfflineError(ValueError):
@@ -157,7 +158,7 @@ def validate_result(
         if (
             not 0 < len(raw) <= MAX_RESULT
             or not math.isfinite(duration_seconds)
-            or not 0 < duration_seconds <= 7200
+            or not 0 < duration_seconds <= MAX_DURATION_SECONDS
         ):
             raise ValueError("bounds")
         def finite_number(value: str) -> float:
@@ -175,7 +176,7 @@ def validate_result(
         if not isinstance(response, dict):
             raise ValueError("object")
         segments = response.get("segments")
-        if not isinstance(segments, list) or not 1 <= len(segments) <= 4096:
+        if not isinstance(segments, list) or not 1 <= len(segments) <= 8192:
             raise ValueError("segments")
         language = response.get("language")
         if language is None:
@@ -550,12 +551,12 @@ class MlxTimedExecutor:
                     "-c:a",
                     "pcm_s16le",
                     "-t",
-                    "7200",
+                    str(MAX_DURATION_SECONDS),
                     "-fs",
                     str(MAX_AUDIO),
                     str(audio),
                 ],
-                timeout=120,
+                timeout=240,
                 maximum=65536,
             )
             if (

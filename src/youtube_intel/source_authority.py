@@ -316,7 +316,12 @@ def stage_native(root: Path, source: BinaryIO, *, maximum: int,
             with stage_stream(root, source, length, maximum=maximum, cancelled=cancelled,
                               progress=lambda value: progress("COPYING", value, length, "STREAM_COPY")) as staged:
                 after = os.fstat(source.fileno())
-                if (before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (after.st_size, after.st_mtime_ns, after.st_ctime_ns):
+                if (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns) != (
+                    after.st_dev,
+                    after.st_ino,
+                    after.st_size,
+                    after.st_mtime_ns,
+                ):
                     raise ValueError("selected source changed during copying")
                 progress("VERIFYING", length, length, "STREAM_COPY")
                 yield staged
@@ -324,7 +329,12 @@ def stage_native(root: Path, source: BinaryIO, *, maximum: int,
         own = os.stat(name, dir_fd=directory, follow_symlinks=False)
         try:
             after = os.fstat(source.fileno())
-            if (before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (after.st_size, after.st_mtime_ns, after.st_ctime_ns):
+            if (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns) != (
+                after.st_dev,
+                after.st_ino,
+                after.st_size,
+                after.st_mtime_ns,
+            ):
                 raise ValueError("selected source changed during cloning")
             fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_EXLOCK", 0), dir_fd=directory)
             with os.fdopen(fd, "rb") as output:

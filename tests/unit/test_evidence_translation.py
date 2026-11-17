@@ -75,7 +75,7 @@ class _Translator:
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 44
+    assert repository.initialize(now=NOW).version == 45
     return repository
 
 
@@ -328,7 +328,7 @@ def test_v022_upgrade_preserves_evidence_and_does_not_backfill_translation(
     original = repository.get_evidence(evidence_id)
     monkeypatch.setattr(repository, "_load_migrations", lambda: migrations)
 
-    assert repository.initialize(now=NOW).version == 44
+    assert repository.initialize(now=NOW).version == 45
     assert repository.get_evidence(evidence_id) == original
     assert _count(repository, "evidence_translation_presentations") == 0
     connection = repository._connect()

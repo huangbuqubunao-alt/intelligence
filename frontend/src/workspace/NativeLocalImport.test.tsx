@@ -81,7 +81,7 @@ it("shows actual fallback bytes and reports duration errors independently", asyn
   expect(screen.getByText("50%")).toBeTruthy();
   expect(screen.getByRole("progressbar").getAttribute("max")).toBe(String(file.byte_count));
   job = { ...job, state: "COMPLETE", files: [{ ...file, phase: "FAILED", error_code: "LOCAL_MEDIA_TOO_LONG" }] };
-  expect((await screen.findByRole("alert")).textContent).toContain("two-hour duration limit");
+  expect((await screen.findByRole("alert")).textContent).toContain("four-hour duration limit");
   expect(screen.queryByRole("progressbar")).toBeNull();
 });
 
@@ -98,9 +98,9 @@ it("reports an independent duration error after the modal closes", async () => {
   view();
   cleanup();
   job = { ...job, state: "IMPORTING", files: [{ ...file, phase: "VERIFYING" }] };
-  render(<UiLanguageProvider><NativeImportActivity onOpen={vi.fn()} errors={{ LOCAL_MEDIA_TOO_LONG: "This media exceeds the two-hour duration limit. Choose a shorter recording." }} /></UiLanguageProvider>);
+  render(<UiLanguageProvider><NativeImportActivity onOpen={vi.fn()} errors={{ LOCAL_MEDIA_TOO_LONG: "This media exceeds the four-hour duration limit. Choose a shorter recording." }} /></UiLanguageProvider>);
   await screen.findByText("Verifying imported file…");
   job = { ...job, state: "COMPLETE", files: [{ ...file, phase: "FAILED", error_code: "LOCAL_MEDIA_TOO_LONG" }] };
   act(() => window.dispatchEvent(new Event("native-imports-changed")));
-  expect((await screen.findByRole("alert")).textContent).toContain("two-hour duration limit");
+  expect((await screen.findByRole("alert")).textContent).toContain("four-hour duration limit");
 });

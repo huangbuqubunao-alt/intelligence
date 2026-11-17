@@ -173,7 +173,7 @@ def test_real_feed_shape_establishes_baseline_without_history(tmp_path, monkeypa
     assert reopened.check(source.source_id) == "COMPLETE"
     with repo._connect() as db:
         verify_tracking(db, repository=repo)
-        assert db.execute("PRAGMA user_version").fetchone()[0] == 44
+        assert db.execute("PRAGMA user_version").fetchone()[0] == 45
         for pragma in ("quick_check", "integrity_check"):
             assert db.execute("PRAGMA " + pragma).fetchone()[0] == "ok"
         assert db.execute("PRAGMA foreign_key_check").fetchall() == []

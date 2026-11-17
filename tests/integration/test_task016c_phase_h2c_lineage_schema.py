@@ -142,10 +142,10 @@ def test_v1_database_upgrades_through_v24_with_exact_history(
 
     version = repository.initialize(now=NOW + td(hours=1))
 
-    assert version.version == 44
-    assert version.name == "044_add_system_synthesis_provenance.sql"
+    assert version.version == 45
+    assert version.name == "045_expand_local_media_duration_limit.sql"
     with _raw_connection(path) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 44
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 45
         history = tuple(
             connection.execute(
                 "SELECT version, name FROM schema_migrations ORDER BY version"
@@ -195,14 +195,15 @@ def test_v1_database_upgrades_through_v24_with_exact_history(
         (42, "042_add_zhipu_cloud_execution_audit.sql"),
         (43, "043_add_cloud_wait_zero_cancellation.sql"),
         (44, "044_add_system_synthesis_provenance.sql"),
+        (45, "045_expand_local_media_duration_limit.sql"),
     ]
 
 
 def test_fresh_database_applies_all_migrations_to_v24(tmp_path: Path) -> None:
     repository = SQLiteStateRepository(_database_path(tmp_path))
     version = repository.initialize(now=NOW)
-    assert version.version == 44
-    assert repository.schema_version().version == 44
+    assert version.version == 45
+    assert repository.schema_version().version == 45
 
 
 def test_migration_002_adds_exact_columns(tmp_path: Path) -> None:
@@ -400,14 +401,14 @@ def test_unsupported_schema_versions_fail_closed(
     with _raw_connection(path) as connection:
         connection.execute(
             "INSERT INTO schema_migrations (version, name, checksum, applied_at) "
-            "VALUES (45, '045_future.sql', ?, ?)",
+            "VALUES (46, '046_future.sql', ?, ?)",
             ("f" * 64, NOW.isoformat()),
         )
-        connection.execute("PRAGMA user_version = 45")
+        connection.execute("PRAGMA user_version = 46")
     with pytest.raises(MigrationError, match="unsupported"):
         repository.initialize(now=NOW)
     with _raw_connection(path) as connection:
-        connection.execute("DELETE FROM schema_migrations WHERE version = 45")
+        connection.execute("DELETE FROM schema_migrations WHERE version = 46")
         connection.execute("PRAGMA user_version = 40")
 
     # A malformed history (missing user_version agreement) fails closed.
@@ -417,7 +418,7 @@ def test_unsupported_schema_versions_fail_closed(
         repository.initialize(now=NOW)
 
 
-def test_doctor_database_check_accepts_exactly_version_44(tmp_path: Path) -> None:
+def test_doctor_database_check_accepts_exactly_version_45(tmp_path: Path) -> None:
     path = _database_path(tmp_path)
     repository = SQLiteStateRepository(path)
     repository.initialize(now=NOW)
@@ -427,16 +428,16 @@ def test_doctor_database_check_accepts_exactly_version_44(tmp_path: Path) -> Non
         connection.execute("PRAGMA user_version = 1")
     assert _database_check(path).status == "FAIL"
     with _raw_connection(path) as connection:
-        connection.execute("PRAGMA user_version = 43")
+        connection.execute("PRAGMA user_version = 44")
     assert _database_check(path).status == "FAIL"
     with _raw_connection(path) as connection:
-        connection.execute("PRAGMA user_version = 45")
+        connection.execute("PRAGMA user_version = 46")
     assert _database_check(path).status == "FAIL"
     with _raw_connection(path) as connection:
         connection.execute("PRAGMA user_version = 40")
     assert _database_check(path).status == "FAIL"
     with _raw_connection(path) as connection:
-        connection.execute("PRAGMA user_version = 44")
+        connection.execute("PRAGMA user_version = 45")
     assert _database_check(path).status == "PASS"
 
 

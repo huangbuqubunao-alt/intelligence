@@ -69,7 +69,7 @@ def failed_tracked(tmp_path, monkeypatch):
 
 def test_schema40_adds_only_empty_protocol_tables(tmp_path):
     repo = SQLiteStateRepository(tmp_path / "state.sqlite")
-    assert repo.initialize(now=datetime(2026, 10, 16, tzinfo=UTC)).version == 44
+    assert repo.initialize(now=datetime(2026, 10, 16, tzinfo=UTC)).version == 45
     with repo._connect() as connection:
         for table in ("tracked_content_retry_requests", "tracked_content_retry_executions", "tracked_content_retry_files"):
             assert connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == 0
@@ -683,7 +683,7 @@ def test_retry_terminal_backup_restores_all_tables_and_data(tmp_path,monkeypatch
     backup.confirm_restore(staged.restore_id)
     backup.recover_and_apply_pending_restore()
     restarted=SQLiteStateRepository(repo._database_path)
-    assert restarted.initialize(now=fixture.now).version==44
+    assert restarted.initialize(now=fixture.now).version==45
     with restarted._connect() as connection:
         assert {row[0]:[tuple(r) for r in connection.execute(f'SELECT * FROM "{row[0]}"')] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}==tables
     assert {str(p.relative_to(service.data_root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in service.data_root.rglob('*') if p.is_file()}==files
@@ -1369,7 +1369,7 @@ def test_rehashed_restore_must_reject_counter_not_bound_to_real_events(tmp_path,
     src.write_bytes(members['database/state.sqlite'])
     with sqlite3.connect(src) as c:
         snapshot_version=c.execute('PRAGMA user_version').fetchone()[0]
-        assert snapshot_version==44
+        assert snapshot_version==45
         schema=c.execute("SELECT name,sql FROM sqlite_master WHERE type='trigger' ORDER BY name").fetchall()
         columns=[r[1] for r in c.execute('PRAGMA table_info(tracked_content_retry_executions)')]
         row=list(c.execute('SELECT * FROM tracked_content_retry_executions').fetchone())

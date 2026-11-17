@@ -53,6 +53,7 @@ FORMATS = {
     ".mov": "VIDEO",
     ".m4v": "VIDEO",
 }
+MAX_LOCAL_MEDIA_DURATION_SECONDS = 14400
 LOCAL_SOURCE_ID = "local-library"
 _IMPORT_LOCK = threading.RLock()
 
@@ -64,7 +65,7 @@ class LocalImportError(ValueError):
 
 
 def validate_media_transcript(transcript: MediaTranscript, duration: float) -> None:
-    if not isinstance(transcript, MediaTranscript) or not 1 <= len(transcript.cues) <= 4096:
+    if not isinstance(transcript, MediaTranscript) or not 1 <= len(transcript.cues) <= 8192:
         raise ValueError("invalid transcript")
     if not isinstance(transcript.language, str) or not transcript.language.strip() or len(transcript.language) > 64:
         raise ValueError("invalid language")
@@ -185,7 +186,7 @@ def probe_media(path: Path, extension: str) -> float:
         duration = float(result["format"]["duration"])
         if not math.isfinite(duration) or duration <= 0:
             raise ValueError("invalid media duration")
-        if duration > 7200:
+        if duration > MAX_LOCAL_MEDIA_DURATION_SECONDS:
             raise LocalImportError("LOCAL_MEDIA_TOO_LONG")
         return duration
     except LocalImportError:
@@ -303,6 +304,8 @@ class LocalContentProvider(SourceContentPublisher):
         except ValueError as error:
             if isinstance(error, LocalImportError):
                 raise
+            if "selected source changed" in str(error):
+                raise LocalImportError("LOCAL_SELECTED_FILE_CHANGED") from None
             raise LocalImportError("LOCAL_SOURCE_UNTRUSTED") from None
         except OSError as error:
             raise LocalImportError("LOCAL_DISK_SPACE_INSUFFICIENT" if error.errno == errno.ENOSPC else "LOCAL_FILE_UNREADABLE") from None
@@ -348,6 +351,8 @@ class LocalContentProvider(SourceContentPublisher):
         except ValueError as error:
             if isinstance(error, LocalImportError):
                 raise
+            if "selected source changed" in str(error):
+                raise LocalImportError("LOCAL_SELECTED_FILE_CHANGED") from None
             raise LocalImportError("LOCAL_SOURCE_UNTRUSTED") from None
         except OSError as error:
             raise LocalImportError("LOCAL_DISK_SPACE_INSUFFICIENT" if error.errno == errno.ENOSPC else "LOCAL_FILE_UNREADABLE") from None

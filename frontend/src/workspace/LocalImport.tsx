@@ -11,7 +11,7 @@ export const localImportErrors: Record<string, string> = {
   LOCAL_INVALID_MEDIA: "This media file is malformed or has a mismatched format.",
   LOCAL_FILE_TOO_LARGE: "Choose text up to 2 MiB or media up to 2 GiB.",
   LOCAL_BACKUP_CAPACITY_EXCEEDED: "The local library has reached its safe backup capacity. This file was not saved.",
-  LOCAL_MEDIA_TOO_LONG: "This media exceeds the two-hour duration limit. Choose a shorter recording.",
+  LOCAL_MEDIA_TOO_LONG: "This media exceeds the four-hour duration limit. Choose a shorter recording.",
   LOCAL_EMPTY_FILE: "This file is empty. Choose a file containing text or media.",
   LOCAL_DISK_SPACE_INSUFFICIENT: "There is not enough available disk space. Free space on this device and retry.",
   LOCAL_FILE_UNREADABLE: "Local storage could not be written safely. Check its availability and permissions.",
@@ -121,7 +121,7 @@ export function LocalImport({ onClose, onSaved, onImported, onYouTube, onBilibil
     <div className="modal-head"><h2 id="local-import-title">{t("Add local files")}</h2><button className="button button-ghost" disabled={busy} onClick={finished ? done : onClose}>{t(finished ? "Done" : "Cancel")}</button></div>
     {!finished && <div className="button-row" aria-label={t("Source provider")}><button className="button button-secondary" disabled={busy} onClick={onYouTube}>YouTube</button><button className="button button-primary" aria-pressed="true" disabled={busy}>{t("Local files")}</button>{onBilibili && <button className="button button-secondary" disabled={busy} onClick={onBilibili}>{t("Bilibili")}</button>}</div>}
     <p>{t("Import a private snapshot into your Local library. Originals stay untouched; moving, deleting or editing them does not change imported Content.")}</p>
-    <p className="hint">{t("TXT / MD: UTF-8, up to 2 MiB. Audio / video: up to 2 GiB. Media duration: up to two hours. Everything stays on this device.")}</p>
+    <p className="hint">{t("TXT / MD: UTF-8, up to 2 MiB. Audio / video: up to 2 GiB. Media duration: up to four hours. Everything stays on this device.")}</p>
     <p className="hint">{t("Importing a video saves the file. Transcript, Summary and Evidence require usable source text. You can also import an existing TXT or MD transcript; no cloud service is used for local transcription.")}</p>
     <button className="button button-ghost" disabled={busy} onClick={() => { onClose(); location.hash = "Settings/transcription"; }}>{t("Set up local transcription")}</button>
     {!finished && <label className="field">{t("Choose local files")}<input type="file" aria-label={t("Choose local files")} multiple accept=".txt,.md,.mp3,.m4a,.wav,.mp4,.mov,.m4v" disabled={busy} onChange={event => {

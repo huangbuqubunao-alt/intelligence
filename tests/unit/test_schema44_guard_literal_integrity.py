@@ -52,7 +52,7 @@ def test_quoted_predicate_whitespace_is_rejected_without_any_sidecars(
         assert all(
             connection.execute("SELECT count(*) FROM " + table).fetchone()[0] == 0 for table in persistence.TABLES
         )
-    assert repo.initialize(now=support.NOW).version == 44
+    assert repo.initialize(now=support.NOW).version == 45
     backup = BackupRestoreService(database=repo._database_path, data_root=data)
     assert backup.readiness()["ready"]
     with repo._connect() as connection:

@@ -1827,6 +1827,7 @@ class SQLiteStateRepository:
             "042_add_zhipu_cloud_execution_audit.sql",
             "043_add_cloud_wait_zero_cancellation.sql",
             "044_add_system_synthesis_provenance.sql",
+            "045_expand_local_media_duration_limit.sql",
         )
         migrations: list[_Migration] = []
         for name in names:
@@ -1905,7 +1906,7 @@ class SQLiteStateRepository:
             for migration in migrations[len(rows) :]:
                 # SQLite's documented table-rebuild procedure: disable FK enforcement
                 # outside the atomic migration, verify the complete graph before commit.
-                if migration.version in {32, 33, 34, 36}:
+                if migration.version in {32, 33, 34, 36, 45}:
                     connection.execute("PRAGMA foreign_keys = OFF")
                     connection.execute("PRAGMA legacy_alter_table = ON")
                 try:
@@ -1924,7 +1925,7 @@ class SQLiteStateRepository:
                             },
                         )
                         connection.execute(f"PRAGMA user_version = {migration.version}")
-                        if migration.version in {32, 33, 34, 36} and connection.execute("PRAGMA foreign_key_check").fetchall():
+                        if migration.version in {32, 33, 34, 36, 45} and connection.execute("PRAGMA foreign_key_check").fetchall():
                             raise MigrationError("provider migration broke foreign keys")
                 except (sqlite3.Error, MigrationError) as error:
                     msg = f"failed to apply migration {migration.version}"

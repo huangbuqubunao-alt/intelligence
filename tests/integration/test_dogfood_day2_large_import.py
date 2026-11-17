@@ -205,14 +205,14 @@ def test_backup_capacity_prevents_success_that_cannot_be_backed_up(provider, mon
     assert list((provider.data_root / ".imports").iterdir()) == []
 
 
-def test_real_two_hour_duration_is_a_separate_rejection(tmp_path):
-    # Real ffprobe parses a sparse, valid PCM WAV with >2-hour sample count;
+def test_real_four_hour_duration_is_a_separate_rejection(tmp_path):
+    # Real ffprobe parses a sparse, valid PCM WAV with >4-hour sample count;
     # no large Python allocation and no full-length playback/model invocation.
     path = tmp_path / "long.wav"
-    frames = 16000 * 7201
+    frames = 16000 * 14401
     data_size = frames * 2
     with path.open("wb") as output:
-        output.write(struct.pack("<4sI4s4sIHHIIHH4sI", b"RIFF", data_size + 36, b"WAVE", b"fmt ", 16, 1, 1, 16000, 32000, 2, 16, b"data", data_size))
+        output.write(struct.pack("<4sI4s4sIHHIIHH4sI", b"RIFF", min(data_size + 36, 0xFFFFFFFF), b"WAVE", b"fmt ", 16, 1, 1, 16000, 32000, 2, 16, b"data", min(data_size, 0xFFFFFFFF)))
         output.truncate(data_size + 44)
     with pytest.raises(LocalImportError, match="LOCAL_MEDIA_TOO_LONG"):
         local_content.probe_media(path, ".wav")

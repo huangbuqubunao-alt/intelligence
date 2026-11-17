@@ -115,7 +115,7 @@ class _BlockingTransport(_Transport):
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 44
+    assert repository.initialize(now=NOW).version == 45
     return repository
 
 
@@ -366,7 +366,7 @@ def test_reopen_continues_only_from_persisted_reservation_state(tmp_path: Path) 
         source_id=source_id, video_id=video_id, evidence_ids=(evidence_id,)
     )
     reopened = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert reopened.initialize(now=NOW).version == 44
+    assert reopened.initialize(now=NOW).version == 45
     transport = _Transport(_raw(evidence_id))
 
     result = _service(reopened, transport).continue_reserved_distillation(reservation.execution_id)
@@ -451,7 +451,7 @@ def test_v020_upgrade_keeps_historical_distillation_language_unknown(
     assert historical.output_language is None
 
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 44
+    assert upgraded.initialize(now=NOW).version == 45
     preserved = upgraded.get_distillation_execution("historical-v020-execution")
     assert preserved is not None and preserved.output_language is None
     with upgraded._connect() as connection:
@@ -645,7 +645,7 @@ def test_model_identity_is_owned_by_task022_and_migrations_remain_frozen(tmp_pat
     assert alternate_transport.calls == 0
     connection = repository._connect()
     try:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 44
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 45
         migrations = tuple(row["name"] for row in connection.execute("SELECT name FROM schema_migrations"))
     finally:
         connection.close()

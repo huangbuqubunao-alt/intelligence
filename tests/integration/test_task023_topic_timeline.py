@@ -42,7 +42,7 @@ NOW = datetime(2026, 9, 7, 9, 0, tzinfo=UTC)
 
 def _repository(tmp_path: Path) -> SQLiteStateRepository:
     repository = SQLiteStateRepository(tmp_path / "state.sqlite3")
-    assert repository.initialize(now=NOW).version == 44
+    assert repository.initialize(now=NOW).version == 45
     return repository
 
 
@@ -199,7 +199,7 @@ def test_topic_contract_remains_available_with_m013_weekly_foundation(tmp_path: 
 
     connection = repository._connect()
     try:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 44
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 45
         migrations = tuple(
             row["name"]
             for row in connection.execute("SELECT name FROM schema_migrations ORDER BY version")
@@ -211,7 +211,7 @@ def test_topic_contract_remains_available_with_m013_weekly_foundation(tmp_path: 
     finally:
         connection.close()
 
-    assert migrations[-29:] == (
+    assert migrations[-30:] == (
         "015_add_timed_transcript_evidence_bindings.sql",
         "016_add_ambiguous_resource_ledger_outcome.sql",
         "017_add_current_content_summary.sql",
@@ -241,6 +241,7 @@ def test_topic_contract_remains_available_with_m013_weekly_foundation(tmp_path: 
         "042_add_zhipu_cloud_execution_audit.sql",
         "043_add_cloud_wait_zero_cancellation.sql",
         "044_add_system_synthesis_provenance.sql",
+        "045_expand_local_media_duration_limit.sql",
     )
     assert {"topics", "topic_memberships", "topic_timeline_events", "topic_relations"} <= tables
 
@@ -256,7 +257,7 @@ def test_v010_upgrade_preserves_data_and_creates_no_synthetic_topic_truth(
     monkeypatch.undo()
 
     upgraded = SQLiteStateRepository(path)
-    assert upgraded.initialize(now=NOW).version == 44
+    assert upgraded.initialize(now=NOW).version == 45
     assert upgraded.get_intelligence("preserved-intelligence").intelligence_id == "preserved-intelligence"
     assert upgraded.list_topics() == ()
 
