@@ -1637,9 +1637,12 @@ class WorkspaceIntelligenceHub:
         except (TypeError, ValueError):
             score = 2.8 if is_short_duration else 6.4
 
+        is_long_duration = duration_seconds is not None and duration_seconds > 180
         bucket = str(parsed.get("content_bucket", "")).strip().upper()
         if is_short_duration:
             bucket = "SHORTS_PROMO"
+        elif is_long_duration and bucket == "SHORTS_PROMO":
+            bucket = "DEEP_DIVE"
         elif bucket not in VALID_BUCKETS:
             bucket = "DEEP_DIVE"
 
@@ -1649,7 +1652,7 @@ class WorkspaceIntelligenceHub:
         elif tier not in {"WORTH_SKIMMING", "SKIP_NOISE"}:
             tier = "WORTH_SKIMMING"
 
-        is_short_noise = bool(bucket == "SHORTS_PROMO" or is_short_duration)
+        is_short_noise = bool((bucket == "SHORTS_PROMO" or is_short_duration) and not is_long_duration)
         headline_zh = _clean_text(
             parsed.get("headline_zh"),
             fallback=f"{video.title}（官方无字幕，基于简介速览）",
@@ -1822,10 +1825,13 @@ class WorkspaceIntelligenceHub:
         except (TypeError, ValueError):
             score = 3.2 if is_short_duration else 7.8
 
+        is_long_duration = duration_seconds is not None and duration_seconds > 180
         bucket = str(parsed.get("content_bucket", "")).strip().upper()
         if is_short_duration:
             bucket = "SHORTS_PROMO"
-        elif bucket not in VALID_BUCKETS:
+        elif bucket not in VALID_BUCKETS or (
+            is_long_duration and bucket == "SHORTS_PROMO"
+        ):
             bucket = (
                 "TUTORIAL"
                 if any(
@@ -1838,7 +1844,7 @@ class WorkspaceIntelligenceHub:
         tier = str(parsed.get("recommendation_tier", "")).strip().upper()
         if bucket == "SHORTS_PROMO" or is_short_duration:
             tier = "SKIP_NOISE"
-        elif tier not in VALID_TIERS:
+        elif tier not in VALID_TIERS or (is_long_duration and tier == "SKIP_NOISE" and score >= 5.0):
             if score >= 8.0:
                 tier = "MUST_WATCH"
             elif score >= 5.0:
@@ -1846,7 +1852,7 @@ class WorkspaceIntelligenceHub:
             else:
                 tier = "SKIP_NOISE"
 
-        is_short_noise = bool(bucket == "SHORTS_PROMO" or is_short_duration)
+        is_short_noise = bool((bucket == "SHORTS_PROMO" or is_short_duration) and not is_long_duration)
 
         headline_zh = _clean_text(
             parsed.get("headline_zh"),
@@ -2298,6 +2304,13 @@ class WorkspaceIntelligenceHub:
             if "source_basis" in row_keys and row["source_basis"]
             else "TRANSCRIPT"
         )
+        duration_sec = (
+            None
+            if row["duration_seconds"] is None
+            else int(row["duration_seconds"])
+        )
+        long_form = duration_sec is not None and duration_sec > 180
+        raw_bucket = str(row["content_bucket"])
         return {
             "video_id": str(row["video_id"]),
             "headline_zh": str(row["headline_zh"]),
@@ -2305,13 +2318,11 @@ class WorkspaceIntelligenceHub:
             "score": float(row["score"]),
             "score_reason_zh": str(row["score_reason_zh"]),
             "recommendation_tier": str(row["recommendation_tier"]),
-            "content_bucket": str(row["content_bucket"]),
-            "is_short_noise": bool(row["is_short_noise"]),
-            "duration_seconds": (
-                None
-                if row["duration_seconds"] is None
-                else int(row["duration_seconds"])
+            "content_bucket": (
+                "DEEP_DIVE" if (long_form and raw_bucket == "SHORTS_PROMO") else raw_bucket
             ),
+            "is_short_noise": False if long_form else bool(row["is_short_noise"]),
+            "duration_seconds": duration_sec,
             "topics_zh": json.loads(str(row["topics_json"])),
             "topic_cluster_zh": str(row["topic_cluster_zh"]),
             "core_points": json.loads(str(row["core_points_json"])),

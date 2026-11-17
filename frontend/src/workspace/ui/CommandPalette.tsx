@@ -9,6 +9,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../api/client";
+import { compareContentNewestFirst, isEffectiveVideoShortNoise } from "../WorkspaceAiWidgets";
 import { useUiLanguage } from "../uiLanguage";
 import { PhosphorIcon, PhosphorIconName } from "./phosphorIcons";
 
@@ -159,11 +160,15 @@ type PaletteVideo = {
   work_kind?: string;
   channel_name?: string | null;
   title?: string | null;
+  imported_at?: string | null;
+  published_at?: string | null;
+  last_updated?: string | null;
   duration_seconds?: number | null;
   ai_brief?: {
     headline_zh?: string;
     score?: number;
     recommendation_tier?: string;
+    content_bucket?: string;
     is_short_noise?: boolean;
     starred?: boolean;
     is_read?: boolean;
@@ -262,12 +267,11 @@ export function CommandPalette({
           (v) => v.work_kind !== "DURABLE_CONTENT_IDENTITY",
         );
         const sortedVideos = [...realVideos].sort((a, b) => {
-          const aShort = Boolean(a.ai_brief?.is_short_noise);
-          const bShort = Boolean(b.ai_brief?.is_short_noise);
+          const aShort = isEffectiveVideoShortNoise(a, a.ai_brief);
+          const bShort = isEffectiveVideoShortNoise(b, b.ai_brief);
           if (aShort !== bShort) return aShort ? 1 : -1;
-          const aStar = Boolean(a.ai_brief?.starred);
-          const bStar = Boolean(b.ai_brief?.starred);
-          if (aStar !== bStar) return aStar ? -1 : 1;
+          const timeOrder = compareContentNewestFirst(a, b);
+          if (timeOrder !== 0) return timeOrder;
           const aScore = typeof a.ai_brief?.score === "number" ? a.ai_brief.score : -1;
           const bScore = typeof b.ai_brief?.score === "number" ? b.ai_brief.score : -1;
           return bScore - aScore;
@@ -371,10 +375,11 @@ export function CommandPalette({
           ? `${brief.headline_zh.slice(0, 44)}…`
           : brief.headline_zh
         : "";
+      const shortNoise = isEffectiveVideoShortNoise(video, brief);
       const rankBonus =
-        !brief?.is_short_noise && (brief?.starred || brief?.recommendation_tier === "MUST_WATCH")
+        !shortNoise && (brief?.starred || brief?.recommendation_tier === "MUST_WATCH")
           ? 0.03
-          : brief?.is_short_noise
+          : shortNoise
             ? -0.02
             : 0;
       const rawChannel = video.channel_name?.trim() ?? "";
@@ -411,7 +416,7 @@ export function CommandPalette({
           brief?.topic_cluster_zh ?? "",
           ...(brief?.topics_zh ?? []),
           brief?.starred ? "已收藏 收藏 starred" : "",
-          brief && !brief.is_read && !brief.is_short_noise ? "未读 unread" : "",
+          brief && !brief.is_read && !shortNoise ? "未读 unread" : "",
           brief?.recommendation_tier === "MUST_WATCH" ? "必看 must watch" : "",
         ].filter(Boolean),
         rankBonus,
@@ -502,7 +507,7 @@ export function CommandPalette({
       ? (() => {
           const counts = new Map<string, number>();
           for (const video of videos) {
-            if (video.ai_brief?.is_short_noise) continue;
+            if (isEffectiveVideoShortNoise(video, video.ai_brief)) continue;
             const cluster = video.ai_brief?.topic_cluster_zh?.trim();
             if (cluster) {
               counts.set(cluster, (counts.get(cluster) ?? 0) + 1);

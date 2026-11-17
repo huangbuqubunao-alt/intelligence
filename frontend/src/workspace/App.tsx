@@ -64,6 +64,7 @@ import {
   WorkspaceAiSettingsPanel,
   WorkspaceVideoAiActions,
   WorkspaceVideoAiBriefCard,
+  compareContentNewestFirst,
 } from "./WorkspaceAiWidgets";
 
 type Page =
@@ -3537,6 +3538,7 @@ function ContentPage(
   const [channelFilter, setChannelFilter] = useState<string>(
     () => consumePendingContentChannel() || restoredContentRef.current?.channelFilter || "ALL",
   );
+  const [contentSortMode, setContentSortMode] = useState<"newest" | "score">("newest");
   if (latestFilterRef) {
     latestFilterRef.current = {
       searchQuery,
@@ -3726,7 +3728,7 @@ function ContentPage(
     const unreadCandidates = rawVideos
       .filter((item) => {
         if (item.work_kind || item.video_id === targetVideoId) return false;
-        const brief = readVideoAiBrief(item.ai_brief);
+        const brief = readVideoAiBrief(item.ai_brief, item.duration_seconds);
         if (!brief || brief.is_short_noise || brief.is_read) return false;
         if (!isScopedQueue) return true;
         const itemProvider = item.provider ?? "YOUTUBE";
@@ -3757,8 +3759,15 @@ function ContentPage(
         return true;
       })
       .sort((a, b) => {
-        const sa = readVideoAiBrief(a.ai_brief)?.score ?? 0;
-        const sb = readVideoAiBrief(b.ai_brief)?.score ?? 0;
+        if (contentSortMode === "score") {
+          const sa = readVideoAiBrief(a.ai_brief, a.duration_seconds)?.score ?? 0;
+          const sb = readVideoAiBrief(b.ai_brief, b.duration_seconds)?.score ?? 0;
+          if (sb !== sa) return sb - sa;
+        }
+        const timeOrder = compareContentNewestFirst(a, b);
+        if (timeOrder !== 0) return timeOrder;
+        const sa = readVideoAiBrief(a.ai_brief, a.duration_seconds)?.score ?? 0;
+        const sb = readVideoAiBrief(b.ai_brief, b.duration_seconds)?.score ?? 0;
         return sb - sa;
       });
     const nextUnread = unreadCandidates[0]
@@ -3889,7 +3898,7 @@ function ContentPage(
   const hasMultiProviders = new Set(videos.map(v => v.provider ?? "YOUTUBE")).size > 1;
   const briefByVideoId = new Map<string, VideoAiBrief>();
   for (const item of videos) {
-    const parsed = readVideoAiBrief(item.ai_brief);
+    const parsed = readVideoAiBrief(item.ai_brief, item.duration_seconds);
     if (parsed) briefByVideoId.set(item.video_id, parsed);
   }
   const hasAiBriefs = briefByVideoId.size > 0;
@@ -4109,12 +4118,24 @@ function ContentPage(
   const filteredVideos = providerAndTopicVideos.filter((item) =>
     matchesContentBucket(item, briefByVideoId.get(item.video_id) ?? null),
   );
+  const sortedFilteredVideos = [...filteredVideos].sort((a, b) => {
+    if (contentSortMode === "score" && hasAiBriefs) {
+      const scoreDiff =
+        (briefByVideoId.get(b.video_id)?.score ?? -1) -
+        (briefByVideoId.get(a.video_id)?.score ?? -1);
+      if (scoreDiff !== 0) return scoreDiff;
+    }
+    const timeOrder = compareContentNewestFirst(a, b);
+    if (timeOrder !== 0) return timeOrder;
+    return (
+      (briefByVideoId.get(b.video_id)?.score ?? -1) -
+      (briefByVideoId.get(a.video_id)?.score ?? -1)
+    );
+  });
   const shouldFoldShorts = hasAiBriefs && bucketFilter === "ALL" && !trimmedSearch;
   const primaryVideos = shouldFoldShorts
-    ? [...filteredVideos.filter(item => !isAutoFoldedItem(item))].sort(
-        (a, b) => (briefByVideoId.get(b.video_id)?.score ?? -1) - (briefByVideoId.get(a.video_id)?.score ?? -1),
-      )
-    : filteredVideos;
+    ? sortedFilteredVideos.filter((item) => !isAutoFoldedItem(item))
+    : sortedFilteredVideos;
   const primaryIds = primaryVideos.map((v) => v.video_id);
   const unreadInViewIds = primaryVideos
     .filter((item) => {
@@ -4175,7 +4196,7 @@ function ContentPage(
     onOpen,
   };
   const foldedShorts = shouldFoldShorts
-    ? filteredVideos.filter(isAutoFoldedItem)
+    ? sortedFilteredVideos.filter(isAutoFoldedItem)
     : [];
   const foldedPlaceholderCount = foldedShorts.filter(
     item => item.work_kind === "DURABLE_CONTENT_IDENTITY",
@@ -4539,6 +4560,30 @@ function ContentPage(
                     {label}
                   </button>
                 ))}
+            </div>
+          )}
+          {hasAiBriefs && (
+            <div
+              className="segmented library-sort-chips"
+              role="group"
+              aria-label={language === "zh-CN" ? "排序方式" : "Sort order"}
+            >
+              {(
+                [
+                  ["newest", language === "zh-CN" ? "最新优先" : "Newest first"],
+                  ["score", language === "zh-CN" ? "高分优先" : "Top score"],
+                ] as const
+              ).map(([mode, label]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  aria-pressed={contentSortMode === mode}
+                  className={contentSortMode === mode ? "active" : ""}
+                  onClick={() => setContentSortMode(mode)}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
           )}
           {hasAiBriefs && primaryVideos.length > 0 && (
@@ -5128,7 +5173,7 @@ function ContentDetailPanel(
   const isBilibili = data.video.provider === "BILIBILI";
   const isLocalMedia = data.video.provider === "LOCAL" && data.video.media_kind !== "TEXT";
   const note = data.note.v2;
-  const aiBrief = readVideoAiBrief(data.video.ai_brief);
+  const aiBrief = readVideoAiBrief(data.video.ai_brief, data.video.duration_seconds);
   const wsCapabilities = readWorkspaceAiCapabilities(data.workspace_ai_capabilities);
   const wsAiReady = Boolean(wsCapabilities?.ready || aiBrief);
   const wsTranscriberReady = Boolean(wsCapabilities?.transcriber_ready);

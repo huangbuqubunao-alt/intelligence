@@ -369,3 +369,197 @@ def test_with_repository_connect_closes_file_descriptors_without_gc(
         "(would exhaust macOS 256-FD daemon soft limit and trigger OperationalError across all routes)"
     )
 
+
+def test_long_duration_video_never_classified_as_short_noise(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    transcriber = _SlowMediaTranscriber()
+    env = _build_runtime(tmp_path, monkeypatch, transcriber=transcriber)
+    hub: WorkspaceIntelligenceHub = env["hub"]
+    repo = env["repo"]
+
+    class _ShortMisclassifyingCompleter:
+        def __call__(
+            self,
+            *,
+            system_prompt: str,
+            user_prompt: str,
+            mode: str,
+            provider: str,
+            model: str,
+            max_tokens: int = 1800,
+        ) -> tuple[dict[str, Any], str, str]:
+            _ = (system_prompt, user_prompt, mode, max_tokens)
+            return (
+                {
+                    "headline_zh": "课程导学概述",
+                    "summary_zh": "课程介绍视频，小模型误输出 SHORTS_PROMO 桶标签。",
+                    "score": 2.5,
+                    "score_reason_zh": "测试误标恢复。",
+                    "recommendation_tier": "SKIP_NOISE",
+                    "content_bucket": "SHORTS_PROMO",
+                    "topics_zh": ["大模型全栈"],
+                    "topic_cluster_zh": "AI Agent 工程架构",
+                    "core_points": [],
+                    "product_opportunities_zh": [],
+                    "business_opportunities_zh": [],
+                    "filtered_noise_zh": [],
+                },
+                provider,
+                model,
+            )
+
+    hub._llm_completer = _ShortMisclassifyingCompleter()
+
+    from youtube_intel.domain import (
+        Availability,
+        LiveStatus,
+        PipelineStatus,
+        VideoMetadata,
+    )
+    from youtube_intel.source_authority import sha256, write_managed
+    from youtube_intel.state import (
+        ArtifactKind,
+        ArtifactWrite,
+        RetentionClass,
+        StorageRoot,
+        TimedTranscriptWrite,
+    )
+
+    video_id = "longVid001"
+    repo.upsert_video_metadata(
+        VideoMetadata(
+            video_id=video_id,
+            channel_id="UCtestlong00000000000001",
+            channel_name="AI Engineering",
+            title="1.简介 - AI 大模型全栈工程师_ev.mp4",
+            description="Long form course introduction video over 6 minutes.",
+            source_url=f"https://www.youtube.com/watch?v={video_id}",
+            published_at=NOW,
+            duration_seconds=360,
+            default_language="zh",
+            available_languages=("zh",),
+            live_status=LiveStatus.NONE,
+            availability=Availability.PUBLIC,
+        ),
+        pipeline_version="v1",
+        now=NOW,
+    )
+    repo.advance_pipeline(
+        video_id,
+        expected_status=PipelineStatus.DISCOVERED,
+        target_status=PipelineStatus.METADATA_READY,
+        pipeline_version="v1",
+        now=NOW,
+    )
+    repo.advance_pipeline(
+        video_id,
+        expected_status=PipelineStatus.METADATA_READY,
+        target_status=PipelineStatus.TRANSCRIPT_READY,
+        pipeline_version="v1",
+        now=NOW,
+    )
+    cues = (
+        TimedTranscriptCueWrite(
+            start_ms=0,
+            end_ms=4000,
+            text="这是一节超过六分钟的大模型全栈工程师完整导学课。",
+        ),
+    )
+    canonical_text = "\n".join(c.text for c in cues).encode("utf-8")
+    rel = f"transcripts/canonical/{video_id}.txt"
+    write_managed(env["data_root"], rel, canonical_text)
+    art_id = f"canonical:{video_id}"
+    repo.upsert_artifact(
+        ArtifactWrite(
+            artifact_id=art_id,
+            artifact_key=art_id,
+            video_id=video_id,
+            job_id=None,
+            kind=ArtifactKind.TRANSCRIPT_CANONICAL,
+            storage_root=StorageRoot.DATA,
+            relative_path=rel,
+            content_hash=sha256(canonical_text),
+            provider="youtube",
+            model=None,
+            producer_version="v1",
+            retention_class=RetentionClass.LONG_LIVED,
+            expires_at=None,
+        ),
+        now=NOW,
+    )
+    repo.create_timed_transcript(
+        TimedTranscriptWrite.from_cues(
+            video_id=video_id,
+            canonical_artifact_id=art_id,
+            cues=cues,
+        ),
+        now=NOW,
+    )
+
+    distilled = hub.distill_video(video_id)
+    brief = distilled["ai_brief"]
+    assert isinstance(brief, dict)
+    assert brief["content_bucket"] != "SHORTS_PROMO"
+    assert brief["is_short_noise"] is False
+
+    video_row = repo.get_video(video_id)
+    assert video_row is not None
+    meta_distilled = hub._distill_metadata_only_youtube_video(
+        video_row, duration_seconds=360
+    )
+    meta_brief = meta_distilled["ai_brief"]
+    assert isinstance(meta_brief, dict)
+    assert meta_brief["content_bucket"] != "SHORTS_PROMO"
+    assert meta_brief["is_short_noise"] is False
+
+    # Pre-existing persisted >180s rows wrongly tagged as SHORTS_PROMO / is_short_noise=1
+    # must normalize cleanly on read without requiring hub.sqlite3 mutations.
+    hub_conn = sqlite3.connect(hub.db_path)
+    try:
+        hub_conn.execute(
+            """
+            INSERT OR REPLACE INTO video_ai_briefs (
+                video_id, headline_zh, summary_zh, score, score_reason_zh,
+                recommendation_tier, content_bucket, is_short_noise, duration_seconds,
+                topics_json, topic_cluster_zh, core_points_json,
+                product_opportunities_json, business_opportunities_json, filtered_noise_json,
+                intelligence_id, revision_id, provider, model, obsidian_markdown,
+                updated_at, source_basis
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "legacyLong8236",
+                "历史遗留长视频误标样本",
+                "旧模型在 8236 秒本地长视频上误持久化为短片。",
+                2.5,
+                "历史测试样本",
+                "SKIP_NOISE",
+                "SHORTS_PROMO",
+                1,
+                8236,
+                "[]",
+                "AI Agent 工程架构",
+                "[]",
+                "[]",
+                "[]",
+                "[]",
+                None,
+                None,
+                "ollama",
+                "qwen3.5:9b",
+                "",
+                NOW.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "TRANSCRIPT",
+            ),
+        )
+        hub_conn.commit()
+    finally:
+        hub_conn.close()
+
+    read_back = hub.get_video_brief("legacyLong8236")
+    assert read_back is not None
+    assert read_back["is_short_noise"] is False
+    assert read_back["content_bucket"] == "DEEP_DIVE"
+
+

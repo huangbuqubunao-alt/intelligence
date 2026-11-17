@@ -350,12 +350,77 @@ const isRec = (v: unknown): v is Record<string, unknown> =>
 const strArr = (v: unknown): string[] =>
   Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && x.trim().length > 0) : [];
 
-export function readVideoAiBrief(raw: unknown): VideoAiBrief | null {
+function parseIsoTimestampMs(value?: string | null): number {
+  if (!value) return 0;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+export function contentEffectiveTimeMs(item: {
+  provider?: string | null;
+  imported_at?: string | null;
+  published_at?: string | null;
+  last_updated?: string | null;
+}): number {
+  const raw =
+    (item.provider ?? "YOUTUBE") === "BILIBILI"
+      ? item.published_at ?? item.last_updated
+      : item.imported_at ?? item.published_at ?? item.last_updated;
+  return parseIsoTimestampMs(raw) || parseIsoTimestampMs(item.last_updated);
+}
+
+export function compareContentNewestFirst(
+  a: {
+    video_id: string;
+    provider?: string | null;
+    imported_at?: string | null;
+    published_at?: string | null;
+    last_updated?: string | null;
+  },
+  b: {
+    video_id: string;
+    provider?: string | null;
+    imported_at?: string | null;
+    published_at?: string | null;
+    last_updated?: string | null;
+  },
+): number {
+  const diff = contentEffectiveTimeMs(b) - contentEffectiveTimeMs(a);
+  if (diff !== 0) return diff;
+  const updDiff = parseIsoTimestampMs(b.last_updated) - parseIsoTimestampMs(a.last_updated);
+  if (updDiff !== 0) return updDiff;
+  return a.video_id.localeCompare(b.video_id);
+}
+
+export function isEffectiveVideoShortNoise(
+  item: {
+    provider?: string | null;
+    duration_seconds?: number | null;
+  },
+  brief?: {
+    is_short_noise?: boolean;
+    content_bucket?: string;
+  } | null,
+): boolean {
+  if (typeof item.duration_seconds === "number" && item.duration_seconds > 180) {
+    return false;
+  }
+  if (brief) {
+    return Boolean(brief.is_short_noise || brief.content_bucket === "SHORTS_PROMO");
+  }
+  return (item.provider ?? "YOUTUBE") === "YOUTUBE" && (item.duration_seconds ?? 9999) <= 95;
+}
+
+export function readVideoAiBrief(
+  raw: unknown,
+  durationSeconds?: number | null,
+): VideoAiBrief | null {
   if (!isRec(raw) || typeof raw.headline_zh !== "string" || typeof raw.score !== "number") {
     return null;
   }
   const tier = raw.recommendation_tier;
   const bucket = raw.content_bucket;
+  const longFormGuard = typeof durationSeconds === "number" && durationSeconds > 180;
   return {
     video_id: typeof raw.video_id === "string" ? raw.video_id : "",
     source_basis: raw.source_basis === "METADATA_ONLY" ? "METADATA_ONLY" : "TRANSCRIPT",
@@ -373,9 +438,11 @@ export function readVideoAiBrief(raw: unknown): VideoAiBrief | null {
             : "SKIP_NOISE",
     content_bucket:
       bucket === "DEEP_DIVE" || bucket === "TUTORIAL" || bucket === "SHORTS_PROMO"
-        ? bucket
+        ? longFormGuard && bucket === "SHORTS_PROMO"
+          ? "DEEP_DIVE"
+          : bucket
         : "DEEP_DIVE",
-    is_short_noise: Boolean(raw.is_short_noise),
+    is_short_noise: longFormGuard ? false : Boolean(raw.is_short_noise),
     starred: Boolean(raw.starred),
     is_read: Boolean(raw.is_read),
     topics_zh: strArr(raw.topics_zh),
