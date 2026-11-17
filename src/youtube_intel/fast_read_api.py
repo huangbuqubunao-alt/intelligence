@@ -7,10 +7,13 @@ persistent SQLite locks between HTTP requests.
 
 from __future__ import annotations
 
+import gc
 import hashlib
 import json
+import logging
 import os
 import re
+import resource
 import signal
 import sqlite3
 import sys
@@ -1876,9 +1879,18 @@ class FastReadApiApplication:
                 return compute()
             except sqlite3.OperationalError as err:
                 msg = str(err).lower()
+                if "unable to open" in msg or "too many open files" in msg:
+                    gc.collect()
+                    if attempt < len(delays) - 1:
+                        time.sleep(delay)
+                        continue
                 if ("locked" in msg or "busy" in msg) and attempt < len(delays) - 1:
                     time.sleep(delay)
                     continue
+                logging.getLogger(__name__).error(
+                    "FastRead SQLite OperationalError exhausted retries: %r",
+                    err,
+                )
                 raise
         return compute()
 
@@ -3052,6 +3064,20 @@ class FastReadApiApplication:
         return getattr(self._inner, name)
 
 
+def _raise_open_file_limit(target_soft: int = 65536) -> None:
+    try:
+        soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+        desired = (
+            target_soft
+            if hard == resource.RLIM_INFINITY or hard < 0
+            else min(target_soft, hard)
+        )
+        if desired > soft:
+            resource.setrlimit(resource.RLIMIT_NOFILE, (desired, hard))
+    except (OSError, ValueError):
+        return
+
+
 def run_cli_with_fast_reads(argv: Sequence[str] | None = None) -> ExitCode:
     """CLI entrypoint wrapper activating ``FastReadApiApplication`` for ``serve-api``."""
 
@@ -3059,6 +3085,7 @@ def run_cli_with_fast_reads(argv: Sequence[str] | None = None) -> ExitCode:
     from youtube_intel.config import ConfigError
     from youtube_intel.runtime_composition import build_local_source_run_runtime
 
+    _raise_open_file_limit()
     effective_argv = tuple(sys.argv[1:] if argv is None else argv)
     parser = cli._build_parser()
     try:

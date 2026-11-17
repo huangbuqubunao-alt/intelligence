@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import os
+import resource
 import signal
 import socket
 import subprocess
@@ -265,6 +266,13 @@ def choose_vault(project: Path) -> None:
 
 
 if __name__ == "__main__":
+    try:
+        soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+        desired = 65536 if hard == resource.RLIM_INFINITY or hard < 0 else min(65536, hard)
+        if desired > soft:
+            resource.setrlimit(resource.RLIMIT_NOFILE, (desired, hard))
+    except (OSError, ValueError):
+        pass
     parser = argparse.ArgumentParser()
     parser.add_argument("--project-root", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--no-browser", action="store_true")

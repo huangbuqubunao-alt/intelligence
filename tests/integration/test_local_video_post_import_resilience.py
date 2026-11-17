@@ -330,3 +330,42 @@ def test_async_local_video_transcribe_job_status_and_workspace_capabilities(
     assert st_det_done == HTTPStatus.OK
     assert det_done["transcript"]["status"] == "AVAILABLE"
     assert det_done["video"]["ai_brief"]["recommendation_tier"] == "MUST_WATCH"
+
+
+def test_with_repository_connect_closes_file_descriptors_without_gc(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import gc
+    import os
+
+    transcriber = _SlowMediaTranscriber()
+    env = _build_runtime(tmp_path, monkeypatch, transcriber=transcriber)
+    repo = env["repo"]
+
+    def count_open_fds() -> int:
+        return len(os.listdir("/dev/fd"))
+
+    gc.collect()
+    before_fds = count_open_fds()
+    gc_was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        leaked_refs = []
+        for _ in range(120):
+            with repo._connect() as conn:
+                conn.execute("SELECT 1").fetchone()
+                leaked_refs.append(conn)
+            with repo._connect(read_only=True) as ro_conn:
+                ro_conn.execute("SELECT 1").fetchone()
+                leaked_refs.append(ro_conn)
+        after_fds = count_open_fds()
+    finally:
+        if gc_was_enabled:
+            gc.enable()
+
+    fd_delta = after_fds - before_fds
+    assert fd_delta <= 8, (
+        f"`with repo._connect()` leaked {fd_delta} open file descriptors across 240 calls "
+        "(would exhaust macOS 256-FD daemon soft limit and trigger OperationalError across all routes)"
+    )
+

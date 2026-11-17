@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gc
 import hashlib
 import json
 import math
@@ -14,7 +15,8 @@ from datetime import datetime, timedelta
 from enum import Enum
 from importlib import resources
 from pathlib import Path, PurePosixPath
-from typing import TYPE_CHECKING, Final, cast
+from types import TracebackType
+from typing import TYPE_CHECKING, Final, Literal, cast
 
 from youtube_intel.tracked_retry_context import (
     generic_job_filter,
@@ -1717,6 +1719,21 @@ _ACTIVE_SOURCE_RUN_PARAMS = {
 }
 
 
+class _ClosingSQLiteConnection(sqlite3.Connection):
+    """SQLite connection whose context manager commits/rolls back and closes FDs."""
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> Literal[False]:
+        try:
+            return super().__exit__(exc_type, exc_val, exc_tb)
+        finally:
+            self.close()
+
+
 class SQLiteStateRepository:
     """Owns the approved SQLite schema and repository transaction semantics."""
 
@@ -1738,13 +1755,31 @@ class SQLiteStateRepository:
         """Test seam for proving transaction rollback at named boundaries."""
 
     def _connect(self, *, read_only: bool = False) -> sqlite3.Connection:
-        connection = sqlite3.connect(
+        target = (
             self._database_path.resolve().as_uri() + "?mode=ro"
-            if read_only else self._database_path,
-            uri=read_only,
-            isolation_level=None,
-            timeout=5.0,
+            if read_only
+            else self._database_path
         )
+        try:
+            connection = sqlite3.connect(
+                target,
+                uri=read_only,
+                isolation_level=None,
+                timeout=5.0,
+                factory=_ClosingSQLiteConnection,
+            )
+        except sqlite3.OperationalError as err:
+            msg = str(err).lower()
+            if "unable to open" not in msg and "too many open files" not in msg:
+                raise
+            gc.collect()
+            connection = sqlite3.connect(
+                target,
+                uri=read_only,
+                isolation_level=None,
+                timeout=5.0,
+                factory=_ClosingSQLiteConnection,
+            )
         connection.row_factory = sqlite3.Row
         try:
             connection.execute("PRAGMA foreign_keys = ON")
