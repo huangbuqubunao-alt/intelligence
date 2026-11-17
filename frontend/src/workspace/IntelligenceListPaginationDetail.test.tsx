@@ -268,4 +268,30 @@ describe("Intelligence L1 compact list, pagination, and Plan A L2 detail view", 
       await screen.findByRole("heading", { name: "第 12 条核心洞察结论：高密度列表架构验证" }),
     ).toBeTruthy();
   });
+
+  it("shows general local service recovery copy instead of misleading Deep Analysis failure copy when a primary page returns INTERNAL_ERROR", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              error: { code: "INTERNAL_ERROR", message: "Local service failed safely." },
+            }),
+            { status: 500, headers: { "Content-Type": "application/json" } },
+          ),
+        ),
+      ),
+    );
+
+    render(<App />);
+    expect(
+      await screen.findByText(/本地服务暂时不可用/),
+    ).toBeTruthy();
+    expect(
+      screen.queryByText(/深度分析因本地服务失败而无法完成/),
+    ).toBeNull();
+    expect(document.body.textContent ?? "").not.toContain("Local service failed safely.");
+    expect(document.body.textContent ?? "").not.toContain("INTERNAL_ERROR");
+  });
 });

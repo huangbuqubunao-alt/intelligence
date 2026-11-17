@@ -730,11 +730,13 @@ function Empty({ children }: { children: ReactNode }) {
   return <div className="empty-state">{typeof children === "string" ? t(children) : children}</div>;
 }
 function ErrorState(
-  { error, code, hideRawMessage, onReload }: {
+  { error, code, hideRawMessage, deepAnalysisSurface, onReload }: {
     error: string;
     code?: string;
     /** Hide raw backend prose; used by normal Deep Analysis product UI. */
     hideRawMessage?: boolean;
+    /** Scope Deep Analysis-specific INTERNAL_ERROR copy to Deep Analysis surfaces only. */
+    deepAnalysisSurface?: boolean;
     /** Retry this failed GET loader only; never replay a user command. */
     onReload?: () => void;
   },
@@ -748,11 +750,15 @@ function ErrorState(
       {onReload && <button type="button" className="button button-secondary" onClick={onReload}>{t("Retry")}</button>}
     </div>;
   }
-  if (code === "READ_SERVICE_UNAVAILABLE" || code === "READ_RESPONSE_INVALID") {
+  if (
+    code === "READ_SERVICE_UNAVAILABLE" ||
+    code === "READ_RESPONSE_INVALID" ||
+    (code === "INTERNAL_ERROR" && !deepAnalysisSurface)
+  ) {
     return <div className="semantic-state state-danger" role="alert">
-      <p>{t(code === "READ_SERVICE_UNAVAILABLE"
-        ? "The local service is temporarily unavailable. Wait for it to recover, then reload this page."
-        : "The page could not be loaded because the local service returned an unreadable response. Reload this page to try reading it again.")}</p>
+      <p>{t(code === "READ_RESPONSE_INVALID"
+        ? "The page could not be loaded because the local service returned an unreadable response. Reload this page to try reading it again."
+        : "The local service is temporarily unavailable. Wait for it to recover, then reload this page.")}</p>
       {readReload}
     </div>;
   }
@@ -5852,7 +5858,7 @@ function DeepAnalysisPanel(
       <p className="hint">
         {t("Summary explains what this content says. Deep Analysis is a separate, on-demand action for the conclusions, evidence, uncertainty, what it means for you, and what to investigate next.")}
       </p>
-      {error ? <ErrorState error={error} code={errorCode} onReload={reload} hideRawMessage /> : null}
+      {error ? <ErrorState error={error} code={errorCode} onReload={reload} hideRawMessage deepAnalysisSurface /> : null}
       {actionError ? (
         <p className="semantic-state state-neutral">{t(actionError)}</p>
       ) : null}
@@ -5996,7 +6002,7 @@ function DeepAnalysisPublishAction({ videoId, resultIdentity }: { videoId: strin
         {busy ? t("Working…") : t("Publish to Obsidian")}
       </button>
       <p className="hint">{t("Publishing updates the managed note. Your My thoughts section is preserved.")}</p>
-      {error && <ErrorState error={error} code={errorCode} onReload={reload} hideRawMessage />}
+      {error && <ErrorState error={error} code={errorCode} onReload={reload} hideRawMessage deepAnalysisSurface />}
       {state && state !== "AVAILABLE" ? <p role="status" className="hint">{t(copy[state] ?? copy.WRITE_FAILED)}</p> : null}
       {outcome?.relative_path ? <p className="hint deep-analysis-publish-path">{outcome.relative_path}</p> : null}
     </div>
