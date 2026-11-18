@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
+import { runViewTransition } from "./motion";
 
 const okJson = (body: unknown, status = 200) =>
   Promise.resolve({
@@ -440,6 +441,40 @@ describe("Content chronological ordering and long-video Shorts guard", () => {
       container.querySelectorAll(".content-media-list .content-media-copy > strong"),
     ).map((el) => (el.textContent ?? "").trim());
     expect(topicNames).toEqual(["AI Agent 与自动化架构", "开发者工具与工程效能"]);
+  });
+
+  it("skips document.startViewTransition on Chromium user agents and commits synchronously", () => {
+    const originalUaDescriptor = Object.getOwnPropertyDescriptor(
+      window.navigator,
+      "userAgent",
+    );
+    const startViewTransition = vi.fn((cb: () => void) => {
+      cb();
+      return { finished: Promise.resolve() };
+    });
+    Object.defineProperty(document, "startViewTransition", {
+      configurable: true,
+      value: startViewTransition,
+    });
+    Object.defineProperty(window.navigator, "userAgent", {
+      configurable: true,
+      value:
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.8103.78 Safari/537.36",
+    });
+
+    try {
+      let committed = 0;
+      runViewTransition(() => {
+        committed += 1;
+      });
+      expect(committed).toBe(1);
+      expect(startViewTransition).not.toHaveBeenCalled();
+    } finally {
+      Reflect.deleteProperty(document, "startViewTransition");
+      if (originalUaDescriptor) {
+        Object.defineProperty(window.navigator, "userAgent", originalUaDescriptor);
+      }
+    }
   });
 });
 

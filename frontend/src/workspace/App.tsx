@@ -4488,11 +4488,11 @@ function ContentPage(
                       <span className="hint">
                         {pendingItem.processing_status === "NEEDS_ATTENTION"
                           ? language === "zh-CN"
-                            ? "· 需要处理（受 YouTube 匿名访问/机器人验证限制）"
-                            : "· Needs attention (YouTube anonymous check blocked)"
+                            ? "需要处理（受 YouTube 匿名访问/机器人验证限制）"
+                            : "Needs attention (YouTube anonymous check blocked)"
                           : language === "zh-CN"
-                            ? "· 正在获取视频信息…"
-                            : "· Fetching video details…"}
+                            ? "正在获取视频信息…"
+                            : "Fetching video details…"}
                       </span>
                     </span>
                     <span className="button-row" style={{ margin: 0 }}>

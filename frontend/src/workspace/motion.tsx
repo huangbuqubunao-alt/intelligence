@@ -16,13 +16,24 @@ export function prefersReducedMotion(): boolean {
   }
 }
 
+function isChromiumAccessibilityTransitionUnsafe(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent ?? "";
+  return /(?:Chrome|Chromium|Edg)\//.test(ua);
+}
+
 /**
  * Reuses the native Web Platform View Transitions API (`document.startViewTransition`)
  * paired with React's `flushSync` when available and motion is allowed, falling back
- * synchronously in jsdom and older browsers.
+ * synchronously in jsdom, older browsers, and Chromium browsers where View Transitions
+ * under OS Accessibility trees can trigger renderer SIGTRAP crashes.
  */
 export function runViewTransition(commit: () => void): void {
-  if (typeof document === "undefined" || prefersReducedMotion()) {
+  if (
+    typeof document === "undefined" ||
+    prefersReducedMotion() ||
+    isChromiumAccessibilityTransitionUnsafe()
+  ) {
     commit();
     return;
   }
