@@ -199,4 +199,247 @@ describe("Content chronological ordering and long-video Shorts guard", () => {
       ]);
     });
   });
+
+  it("renders clear actionable guidance on pending single-video YouTube import NEEDS_ATTENTION detail view and supports removing it", async () => {
+    location.hash = "#Content/2hJkprFnzhY";
+    let removed = false;
+
+    const fetchMock = vi.fn((input: string, init?: RequestInit) => {
+      if (input.endsWith("/sources/src-single-yt-1") && init?.method === "PATCH") {
+        removed = true;
+        return okJson({
+          source: { source_id: "src-single-yt-1", enabled: false },
+        });
+      }
+      if (input.endsWith("/videos/2hJkprFnzhY")) {
+        return okJson({
+          video: {
+            video_id: "2hJkprFnzhY",
+            provider: "YOUTUBE",
+            work_kind: "DURABLE_CONTENT_IDENTITY",
+            source_id: "src-single-yt-1",
+            title: "https://www.youtube.com/watch?v=2hJkprFnzhY",
+            source_url: "https://www.youtube.com/watch?v=2hJkprFnzhY",
+            channel_id: null,
+            channel_name: null,
+            published_at: null,
+            processing_status: "NEEDS_ATTENTION",
+            last_updated: "2026-11-18T01:50:30Z",
+          },
+          transcript: { status: "NOT_AVAILABLE" },
+          note: { v2: { status: "UNAVAILABLE" } },
+          scoring: { status: "NOT_AVAILABLE" },
+          intelligence_result: { status: "NOT_PROCESSED" },
+          history: [],
+        });
+      }
+      if (input.endsWith("/videos")) {
+        return okJson({
+          videos: removed
+            ? []
+            : [
+                {
+                  video_id: "2hJkprFnzhY",
+                  provider: "YOUTUBE",
+                  work_kind: "DURABLE_CONTENT_IDENTITY",
+                  source_id: "src-single-yt-1",
+                  title: "https://www.youtube.com/watch?v=2hJkprFnzhY",
+                  source_url: "https://www.youtube.com/watch?v=2hJkprFnzhY",
+                  channel_id: null,
+                  channel_name: null,
+                  published_at: null,
+                  processing_status: "NEEDS_ATTENTION",
+                  last_updated: "2026-11-18T01:50:30Z",
+                },
+              ],
+        });
+      }
+      return okJson({});
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+
+    // Wait for pending single-video detail screen
+    expect(await screen.findByText(/YouTube 视频导入详情/)).toBeTruthy();
+    // Should NOT show circular "请在内容页查看处理进度和需要处理的问题" inside #Content
+    expect(screen.queryByText(/请在内容页查看处理进度和需要处理的问题/)).toBeNull();
+    // Should explain plainly why YouTube link needs attention
+    expect(screen.getByText("需要处理的原因")).toBeTruthy();
+    expect(screen.getByText(/机器人验证限制/)).toBeTruthy();
+
+    // Action buttons are clearly separated & usable
+    expect(screen.getByRole("button", { name: "改用本地文件导入" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "重新尝试获取" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "在浏览器打开原视频" })).toBeTruthy();
+
+    const removeBtn = screen.getByRole("button", { name: "从列表移除此记录" });
+    fireEvent.click(removeBtn);
+
+    await waitFor(() => {
+      expect(removed).toBe(true);
+      expect(location.hash).toBe("#Content");
+    });
+  });
+
+  it("sorts Intelligence newest-first by effective_published_at with visible dates, and Topics newest-first by latest_published_at", async () => {
+    location.hash = "#Intelligence";
+
+    const intelligenceItems = [
+      {
+        status: "AVAILABLE",
+        trusted: true,
+        intelligence_id: "intel-oct10",
+        claim_kind: "EVIDENCE_BACKED_STATEMENT",
+        state: "NEW",
+        effective_published_at: "2026-10-10T12:00:00Z",
+        linked_topics: [{ topic_id: "t-agent", name: "AI Agent 与自动化架构" }],
+        card: {
+          core_conclusion: "十月本地课程旧洞察",
+          user_relevant_information: ["旧内容。"],
+          important_new_information: [],
+          meaningful_details: [],
+          source_id: "local-library",
+          source_display_name: "Local library",
+          source_url: null,
+          video_id: "local-oct",
+          video_title: "3. Agent.mp4",
+          original_video_url: null,
+          evidence_links: [],
+        },
+      },
+      {
+        status: "AVAILABLE",
+        trusted: true,
+        intelligence_id: "intel-nov18",
+        claim_kind: "EVIDENCE_BACKED_STATEMENT",
+        state: "NEW",
+        effective_published_at: "2026-11-18T01:00:00Z",
+        linked_topics: [{ topic_id: "t-agent", name: "AI Agent 与自动化架构" }],
+        card: {
+          core_conclusion: "十一月最新大模型课程洞察",
+          user_relevant_information: ["最新内容。"],
+          important_new_information: [],
+          meaningful_details: [],
+          source_id: "local-library",
+          source_display_name: "Local library",
+          source_url: null,
+          video_id: "local-nov18",
+          video_title: "1.简介 - AI 大模型全栈工程师_ev.mp4",
+          original_video_url: null,
+          evidence_links: [],
+        },
+      },
+      {
+        status: "AVAILABLE",
+        trusted: true,
+        intelligence_id: "intel-nov12",
+        claim_kind: "EVIDENCE_BACKED_STATEMENT",
+        state: "NEW",
+        effective_published_at: "2026-11-12T10:00:00Z",
+        linked_topics: [{ topic_id: "t-dev", name: "开发者工具与工程效能" }],
+        card: {
+          core_conclusion: "十一月十二日 OpenAI 洞察",
+          user_relevant_information: ["中段内容。"],
+          important_new_information: [],
+          meaningful_details: [],
+          source_id: "yt-openai",
+          source_display_name: "OpenAI",
+          source_url: null,
+          video_id: "yt-nov12",
+          video_title: "Nov 12 Release",
+          original_video_url: null,
+          evidence_links: [],
+        },
+      },
+    ];
+
+    const topicsItems = [
+      {
+        topic_id: "t-dev",
+        name: "开发者工具与工程效能",
+        pinned: true,
+        lifecycle: "ACTIVE",
+        current_state: "NEW",
+        independence: "SINGLE_SOURCE",
+        contributions: [],
+        timeline: [],
+        relations: [],
+        ai_evolution: {
+          video_count: 4,
+          must_watch_count: 3,
+          unread_count: 4,
+          recent_7d_count: 4,
+          avg_score: 8.5,
+          latest_headline_zh: "工具链演化",
+          latest_published_at: "2026-11-17T00:00:00Z",
+          source_channels: ["OpenAI"],
+          channel_breakdown: [],
+        },
+      },
+      {
+        topic_id: "t-agent",
+        name: "AI Agent 与自动化架构",
+        pinned: true,
+        lifecycle: "ACTIVE",
+        current_state: "NEW",
+        independence: "MULTI_SOURCE",
+        contributions: [],
+        timeline: [],
+        relations: [],
+        ai_evolution: {
+          video_count: 24,
+          must_watch_count: 20,
+          unread_count: 24,
+          recent_7d_count: 10,
+          avg_score: 8.7,
+          latest_headline_zh: "全栈智能体最新实践",
+          latest_published_at: "2026-11-18T01:00:00Z",
+          source_channels: ["OpenAI", "本地内容库"],
+          channel_breakdown: [],
+        },
+      },
+    ];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string) => {
+        if (input.endsWith("/intelligence")) {
+          return okJson({ intelligence: intelligenceItems, activity: [] });
+        }
+        if (input.endsWith("/saved-intelligence")) {
+          return okJson({ saved: [] });
+        }
+        if (input.endsWith("/topics")) {
+          return okJson({ topics: topicsItems });
+        }
+        return okJson({});
+      }),
+    );
+
+    const { container } = render(<App />);
+
+    expect(await screen.findByText("十一月最新大模型课程洞察")).toBeTruthy();
+    const intelTitles = Array.from(container.querySelectorAll(".intel-row-title-btn")).map((el) =>
+      (el.textContent ?? "").trim(),
+    );
+    expect(intelTitles).toEqual([
+      "十一月最新大模型课程洞察",
+      "十一月十二日 OpenAI 洞察",
+      "十月本地课程旧洞察",
+    ]);
+    // Visible dates rendered on Intelligence rows
+    expect(container.textContent).toContain("2026年11月18日");
+    expect(container.textContent).toContain("2026年11月12日");
+    expect(container.textContent).toContain("2026年10月10日");
+
+    // Switch to Topics and verify chronological sorting + visible latest updated date
+    fireEvent.click(screen.getByRole("button", { name: "主题" }));
+    expect(await screen.findByText(/最近更新\s*2026年11月18日/)).toBeTruthy();
+    const topicNames = Array.from(
+      container.querySelectorAll(".content-media-list .content-media-copy > strong"),
+    ).map((el) => (el.textContent ?? "").trim());
+    expect(topicNames).toEqual(["AI Agent 与自动化架构", "开发者工具与工程效能"]);
+  });
 });
+

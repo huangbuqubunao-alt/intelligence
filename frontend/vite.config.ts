@@ -4,6 +4,7 @@ import { apiProxyTarget } from "./src/api/proxy";
 export default defineConfig({
   server: {
     host: "127.0.0.1",
+    headers: { "Cache-Control": "no-cache" },
     proxy: {
       "/api": {
         target: apiProxyTarget(process.env.YIA_API_BASE),
@@ -14,6 +15,7 @@ export default defineConfig({
   },
   preview: {
     host: "127.0.0.1",
+    headers: { "Cache-Control": "no-cache" },
     proxy: {
       "/api": {
         target: apiProxyTarget(process.env.YIA_API_BASE),

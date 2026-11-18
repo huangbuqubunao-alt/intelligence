@@ -3726,9 +3726,10 @@ class WorkspaceIntelligenceHub:
             if video is None:
                 continue
             ch_key, ch_label = self._video_channel_key_and_label(video)
+            effective_dt = video.published_at or video.discovered_at
             pub_str = (
-                format_utc_datetime(video.published_at)
-                if video.published_at is not None
+                format_utc_datetime(effective_dt)
+                if effective_dt is not None
                 else None
             )
             sort_stamp = pub_str or str(brief.get("updated_at") or "")
@@ -3860,6 +3861,7 @@ class WorkspaceIntelligenceHub:
                 "recent_7d_count": 0,
                 "avg_score": 0.0,
                 "latest_headline_zh": "",
+                "latest_published_at": "",
                 "source_channels": [],
                 "channel_breakdown": [],
             }
@@ -3942,6 +3944,9 @@ class WorkspaceIntelligenceHub:
             "recent_7d_count": recent_7d,
             "avg_score": avg_score,
             "latest_headline_zh": str(entries[0]["headline_zh"]),
+            "latest_published_at": str(
+                entries[0].get("published_at") or entries[0].get("updated_at") or ""
+            ),
             "source_channels": channels[:6],
             "channel_breakdown": channel_breakdown,
             "independence_summary_zh": indep_zh,
@@ -4021,6 +4026,18 @@ class WorkspaceIntelligenceHub:
                 grouped.get(name, []), include_entries=False, topic_name=name
             )
             enriched.append({**item, "ai_evolution": evo})
+        def _topic_sort_key(item: dict[str, object]) -> tuple[int, str, int]:
+            evo = item.get("ai_evolution")
+            if isinstance(evo, Mapping):
+                latest = str(evo.get("latest_published_at") or "")
+                raw_vc = evo.get("video_count")
+                vc = raw_vc if isinstance(raw_vc, int) else 0
+            else:
+                latest = ""
+                vc = 0
+            return (1 if item.get("pinned") else 0, latest, vc)
+
+        enriched.sort(key=_topic_sort_key, reverse=True)
         return enriched
 
     def enrich_topics_list_dto(

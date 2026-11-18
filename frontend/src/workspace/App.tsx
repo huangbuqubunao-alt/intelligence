@@ -84,6 +84,7 @@ type Intelligence = {
   intelligence_id?: string;
   claim_kind?: string;
   state?: string;
+  effective_published_at?: string | null;
   linked_topics?: { topic_id: string; name: string }[];
   card?: {
     core_conclusion: string;
@@ -165,6 +166,10 @@ type SourceRun = {
   attention_reason: string | null;
   trigger: string;
   updated_at: string;
+  source_id?: string;
+  source_type?: string;
+  video_id?: string | null;
+  source_label?: string | null;
 };
 type SourcePolicy = {
   source_policy_revision_id?: string | null;
@@ -1580,6 +1585,9 @@ function IntelligenceCard(
       <div className="reading-meta" aria-label={t("Claim type and current state")}>
         <Claim kind={item.claim_kind ?? "SYSTEM_INFERENCE"} />
         <Status value={intelligenceStateLabel(item.state)} />
+        {item.effective_published_at ? (
+          <span className="tabular-nums">{humanDate(item.effective_published_at)}</span>
+        ) : null}
       </div>
       <section className="intelligence-section">
         <h3>{t("Validation posture")}</h3>
@@ -2003,6 +2011,7 @@ function Workspace() {
               onOpen={openContent}
               onClose={() => navigate("Content")}
               onAdd={() => setAddProvider("YOUTUBE")}
+              onAddLocal={() => setAddProvider("LOCAL")}
               onAskStarredResearch={() => {
                 setPendingResearchStarredOnly(true);
                 setHandoffSeq((value) => value + 1);
@@ -2178,6 +2187,40 @@ function Workspace() {
     </div>
   );
 }
+function sortIntelligenceNewestFirst(items: Intelligence[]): Intelligence[] {
+  if (!items.some((item) => Boolean(item.effective_published_at))) {
+    return items;
+  }
+  return [...items].sort((a, b) => {
+    const msA = a.effective_published_at ? Date.parse(a.effective_published_at) : NaN;
+    const msB = b.effective_published_at ? Date.parse(b.effective_published_at) : NaN;
+    const valA = Number.isFinite(msA) ? msA : 0;
+    const valB = Number.isFinite(msB) ? msB : 0;
+    if (valB !== valA) return valB - valA;
+    return (b.intelligence_id ?? "").localeCompare(a.intelligence_id ?? "");
+  });
+}
+
+function sortTopicsNewestFirst(topics: Topic[]): Topic[] {
+  if (!topics.some((tp) => Boolean(readTopicAiEvolution(tp.ai_evolution)?.latest_published_at))) {
+    return topics;
+  }
+  return [...topics].sort((a, b) => {
+    const pinDiff = (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0);
+    if (pinDiff !== 0) return pinDiff;
+    const ta = readTopicAiEvolution(a.ai_evolution)?.latest_published_at ?? "";
+    const tb = readTopicAiEvolution(b.ai_evolution)?.latest_published_at ?? "";
+    const msA = ta ? Date.parse(ta) : NaN;
+    const msB = tb ? Date.parse(tb) : NaN;
+    const valA = Number.isFinite(msA) ? msA : 0;
+    const valB = Number.isFinite(msB) ? msB : 0;
+    if (valB !== valA) return valB - valA;
+    const cntA = readTopicAiEvolution(a.ai_evolution)?.video_count ?? 0;
+    const cntB = readTopicAiEvolution(b.ai_evolution)?.video_count ?? 0;
+    return cntB - cntA;
+  });
+}
+
 function Dashboard(
   { refresh, navigate, openContent, onOpenTopic }: {
     refresh: number;
@@ -2202,12 +2245,12 @@ function Dashboard(
   const finishOnboarding = () => { completeOnboarding(); setOnboardingDone(true); };
   if (error) return <ErrorState error={error} code={errorCode} onReload={reload} />;
   if (!data) return <Empty>Loading Home…</Empty>;
-  const intelligence = (data.intelligence ?? []).filter((item) =>
-      item.status === "AVAILABLE" && item.trusted
+  const intelligence = sortIntelligenceNewestFirst(
+      (data.intelligence ?? []).filter((item) => item.status === "AVAILABLE" && item.trusted),
     ),
     savedIdSet = new Set(Array.isArray(data.saved_intelligence_ids) ? data.saved_intelligence_ids : []),
     attention = data.needs_attention ?? [],
-    topics = data.pinned_topics ?? [],
+    topics = sortTopicsNewestFirst(data.pinned_topics ?? []),
     weeklyBrief = readWeeklyAiBrief(data.workspace_weekly_brief),
     hasWeeklyHistory = (data.weekly_v1 ?? []).length > 0 || weeklyBrief !== null;
   const isFreshLibrary = data.operations?.source_count === 0 &&
@@ -2298,7 +2341,14 @@ function Dashboard(
         {attention.length
           ? (
             <Panel title="Needs Attention" icon="warning-circle">
-              {attention.map((run) => <Attention key={run.run_id} run={run} />)}
+              {attention.map((run) => (
+                <Attention
+                  key={run.run_id}
+                  run={run}
+                  onOpenContent={openContent}
+                  onOpenFollowing={() => navigate("Following")}
+                />
+              ))}
             </Panel>
           )
           : null}
@@ -2306,14 +2356,49 @@ function Dashboard(
     </div>
   );
 }
-function Attention({ run }: { run: SourceRun }) {
-  const { t } = useUiLanguage();
+function Attention({
+  run,
+  onOpenContent,
+  onOpenFollowing,
+}: {
+  run: SourceRun;
+  onOpenContent?: (videoId: string) => void;
+  onOpenFollowing?: () => void;
+}) {
+  const { language, t } = useUiLanguage();
+  const zh = language === "zh-CN";
   const [title, safety, action] = attentionCopy(run.attention_reason);
   return (
     <article className="semantic-state state-blocked">
       <strong>{t(title)}</strong>
+      {run.source_label ? (
+        <p className="hint">
+          <strong>{run.source_label}</strong>
+        </p>
+      ) : null}
       <p>{t(safety)}</p>
       <p>{t(action)}</p>
+      {run.video_id && onOpenContent ? (
+        <div className="button-row">
+          <button
+            type="button"
+            className="button button-secondary button-small"
+            onClick={() => onOpenContent(run.video_id!)}
+          >
+            {zh ? "查看处理方式" : "View details"}
+          </button>
+        </div>
+      ) : run.source_id && onOpenFollowing ? (
+        <div className="button-row">
+          <button
+            type="button"
+            className="button button-secondary button-small"
+            onClick={onOpenFollowing}
+          >
+            {zh ? "查看关注列表" : "Review Following"}
+          </button>
+        </div>
+      ) : null}
     </article>
   );
 }
@@ -2592,6 +2677,11 @@ function IntelligenceListRow({
       ) : null}
       <div className="intel-row-meta">
         <span className="intel-row-source">{sourceLabel}</span>
+        {item.effective_published_at ? (
+          <span className="intel-row-date tabular-nums">
+            {humanDate(item.effective_published_at)}
+          </span>
+        ) : null}
         {linkedTopics.map((tp) =>
           onOpenTopic ? (
             <button
@@ -2786,8 +2876,10 @@ function IntelligencePage(
     : saved;
   const currentAvailable = useMemo(
     () =>
-      (current.data?.intelligence ?? []).filter(
-        (item) => item.status === "AVAILABLE" && item.trusted,
+      sortIntelligenceNewestFirst(
+        (current.data?.intelligence ?? []).filter(
+          (item) => item.status === "AVAILABLE" && item.trusted,
+        ),
       ),
     [current.data?.intelligence],
   );
@@ -3499,6 +3591,7 @@ function ContentPage(
     onOpen,
     onClose,
     onAdd,
+    onAddLocal,
     onAskStarredResearch,
     onAskFilteredResearch,
     onSelectTopicCluster,
@@ -3512,6 +3605,7 @@ function ContentPage(
     onOpen: (id: string) => void;
     onClose: () => void;
     onAdd: () => void;
+    onAddLocal?: () => void;
     onAskStarredResearch?: () => void;
     onAskFilteredResearch?: (videoIds: string[]) => void;
     onSelectTopicCluster?: (clusterName: string) => void;
@@ -3784,6 +3878,7 @@ function ContentPage(
         id={targetVideoId}
         highlightedEvidenceId={highlightedEvidenceId}
         onClose={onClose}
+        onAddLocal={onAddLocal}
         activeFilterSummary={activeFilterSummary}
         nextUnreadVideo={nextUnread}
         onAdvanceToVideo={(nextId) => {
@@ -3796,6 +3891,23 @@ function ContentPage(
     );
   }
   const videos = list.data.videos;
+  const isManualPendingImport = (item: ContentItem) =>
+    item.work_kind === "DURABLE_CONTENT_IDENTITY" &&
+    Boolean(item.source_id && !item.source_id.startsWith("youtube-channel-"));
+  const manualPendingVideos = [...videos.filter(isManualPendingImport)].sort(
+    compareContentNewestFirst,
+  );
+  const removeManualPendingImport = async (sourceId: string) => {
+    setBatchCurationBusy(true);
+    try {
+      await patch(`/sources/${sourceId}`, { enabled: false });
+      setRevision((value) => value + 1);
+    } catch {
+      /* Preserve current list when request cannot reach local API. */
+    } finally {
+      setBatchCurationBusy(false);
+    }
+  };
   const retryableVideos = videos.filter(
     (item) =>
       (item.provider ?? "YOUTUBE") === "YOUTUBE" &&
@@ -4236,7 +4348,19 @@ function ContentPage(
           </span>
           <span className="content-media-copy">
             <strong>{item.title ?? item.video_id}</strong>
-            {brief ? <span className="content-ai-headline">{brief.headline_zh}</span> : null}
+            {brief ? (
+              <span className="content-ai-headline">{brief.headline_zh}</span>
+            ) : item.work_kind === "DURABLE_CONTENT_IDENTITY" ? (
+              <span className="content-ai-headline">
+                {item.processing_status === "NEEDS_ATTENTION"
+                  ? language === "zh-CN"
+                    ? "暂未获取到视频信息（受 YouTube 匿名访问验证限制）· 点击查看解决办法"
+                    : "Video details blocked by YouTube anonymous check · Click for options"
+                  : language === "zh-CN"
+                    ? "正在连接来源获取视频标题、简介与字幕…"
+                    : "Fetching video metadata and captions…"}
+              </span>
+            ) : null}
             <small>
               {[
                 item.provider === "LOCAL"
@@ -4342,6 +4466,60 @@ function ContentPage(
   return videos.length
     ? (
       <div className="content-library-shell">
+        {manualPendingVideos.length > 0 &&
+        bucketFilter === "ALL" &&
+        (providerFilter === "ALL" || providerFilter === "YOUTUBE") ? (
+          <section
+            className="caption-recovery-banner"
+            role="region"
+            aria-label={language === "zh-CN" ? "手动导入视频状态" : "Manual video imports"}
+          >
+            <div className="caption-recovery-copy">
+              <strong>
+                {language === "zh-CN"
+                  ? `你有 ${manualPendingVideos.length} 条手动添加的视频尚未完成拉取`
+                  : `${manualPendingVideos.length} manually added YouTube link(s) need attention or are loading`}
+              </strong>
+              <ul className="manual-pending-list" style={{ margin: "0.5rem 0 0", paddingLeft: "1.1rem", display: "grid", gap: "0.5rem" }}>
+                {manualPendingVideos.map((pendingItem) => (
+                  <li key={pendingItem.video_id} style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: "0.75rem" }}>
+                    <span>
+                      <strong>{language === "zh-CN" ? `YouTube 视频 · ${pendingItem.video_id}` : `YouTube · ${pendingItem.video_id}`}</strong>{" "}
+                      <span className="hint">
+                        {pendingItem.processing_status === "NEEDS_ATTENTION"
+                          ? language === "zh-CN"
+                            ? "· 需要处理（受 YouTube 匿名访问/机器人验证限制）"
+                            : "· Needs attention (YouTube anonymous check blocked)"
+                          : language === "zh-CN"
+                            ? "· 正在获取视频信息…"
+                            : "· Fetching video details…"}
+                      </span>
+                    </span>
+                    <span className="button-row" style={{ margin: 0 }}>
+                      <button
+                        type="button"
+                        className="button button-secondary button-small"
+                        onClick={() => onOpen(pendingItem.video_id)}
+                      >
+                        {language === "zh-CN" ? "查看处理方式" : "View options"}
+                      </button>
+                      {pendingItem.source_id ? (
+                        <button
+                          type="button"
+                          className="button button-ghost button-small"
+                          disabled={batchCurationBusy}
+                          onClick={() => void removeManualPendingImport(pendingItem.source_id!)}
+                        >
+                          {language === "zh-CN" ? "移除记录" : "Remove"}
+                        </button>
+                      ) : null}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </section>
+        ) : null}
         {(retryableVideos.length > 0 || batchState !== null) && (
           <section className="caption-recovery-banner" role="region" aria-label={t("Recover failed captions")}>
             <div className="caption-recovery-copy">
@@ -5094,11 +5272,183 @@ function formatHumanDuration(seconds: number): string {
   return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
 }
 
+function PendingContentDetailView({
+  video,
+  onClose,
+  onAddLocal,
+  onRetry,
+  onRemoved,
+}: {
+  video: ContentItem;
+  onClose: () => void;
+  onAddLocal?: () => void;
+  onRetry: () => void;
+  onRemoved: () => void;
+}) {
+  const { language, t } = useUiLanguage();
+  const zh = language === "zh-CN";
+  const [retryBusy, setRetryBusy] = useState(false);
+  const [removeBusy, setRemoveBusy] = useState(false);
+  const [statusNote, setStatusNote] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const needsAttention = video.processing_status === "NEEDS_ATTENTION";
+  const canRemove = Boolean(
+    video.source_id && !video.source_id.startsWith("youtube-channel-"),
+  );
+
+  const handleRetry = async () => {
+    if (!video.source_id || retryBusy || removeBusy) return;
+    setRetryBusy(true);
+    setActionError(null);
+    setStatusNote(null);
+    try {
+      await post(`/sources/${video.source_id}/check`, { command_id: commandId() });
+      setStatusNote(
+        zh
+          ? "已重新发起获取；若数秒后仍显示“需要处理”，说明 YouTube 匿名访问验证限制尚未解除，建议改用本地文件导入。"
+          : "Retry started. If this item stays in Needs attention, YouTube is still blocking anonymous access — consider importing a local file.",
+      );
+      onRetry();
+    } catch {
+      setActionError(
+        zh
+          ? "暂时无法发起重试，请确认本地服务正常运行后再试。"
+          : t("The source could not be checked. Try again later."),
+      );
+    } finally {
+      setRetryBusy(false);
+    }
+  };
+
+  const handleRemove = async () => {
+    if (!video.source_id || !canRemove || removeBusy || retryBusy) return;
+    setRemoveBusy(true);
+    setActionError(null);
+    setStatusNote(null);
+    try {
+      await patch(`/sources/${video.source_id}`, { enabled: false });
+      onRemoved();
+    } catch {
+      setActionError(
+        zh
+          ? "移除记录失败，请稍后重试。"
+          : "Could not remove this pending entry. Please try again.",
+      );
+    } finally {
+      setRemoveBusy(false);
+    }
+  };
+
+  return (
+    <div className="dashboard-stack">
+      <button type="button" className="button button-ghost" onClick={onClose}>
+        <PhosphorIcon name="arrow-left" size={14} />
+        {t("Back to Content")}
+      </button>
+      <Panel
+        title={
+          zh
+            ? `YouTube 视频导入详情 · ${video.video_id}`
+            : `YouTube video import · ${video.video_id}`
+        }
+      >
+        <div className="reading-meta">
+          <Status {...contentStatus(video.provider, video.processing_status)} />
+          {video.last_updated ? (
+            <span className="tabular-nums">{humanDate(video.last_updated)}</span>
+          ) : null}
+          {video.source_url ? <span className="hint">{video.source_url}</span> : null}
+        </div>
+        {needsAttention ? (
+          <div className="semantic-state state-neutral">
+            <strong>{zh ? "需要处理的原因" : "Why this video needs attention"}</strong>
+            <p>
+              {zh
+                ? "YouTube 当前对该链接触发了匿名访问与机器人验证限制（例如要求登录确认非机器人），或该视频存在访问权限限制。为保护账号安全，本应用不会在后台读取你的浏览器登录状态，因此暂时无法自动拉取标题与字幕。"
+                : "YouTube blocked anonymous access to this video (for example, requiring sign-in bot verification or permission checks). Because Intelligence never reads browser cookies behind your back, metadata and captions could not be fetched automatically."}
+            </p>
+            <p className="hint">
+              {zh
+                ? "你可以将该视频或字幕文件下载到电脑后直接导入离线转写分析，也可以稍后重新尝试获取，或从列表中移除这条未完成记录。"
+                : "You can import a local video or transcript file for offline analysis, retry fetching later, or remove this unfinished entry."}
+            </p>
+          </div>
+        ) : (
+          <p role="status">
+            {zh
+              ? "正在连接 YouTube 获取视频标题、简介与字幕，获取完成后本页会自动刷新为完整阅读详情页。"
+              : "Fetching video metadata and captions from YouTube. This page will automatically refresh to the full reader once ready."}
+          </p>
+        )}
+        <div className="button-row">
+          {onAddLocal ? (
+            <button
+              type="button"
+              className="button button-primary"
+              disabled={retryBusy || removeBusy}
+              onClick={onAddLocal}
+            >
+              {zh ? "改用本地文件导入" : "Import local file instead"}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="button button-secondary"
+            disabled={!video.source_id || retryBusy || removeBusy}
+            onClick={() => void handleRetry()}
+          >
+            {retryBusy
+              ? zh
+                ? "正在重试…"
+                : "Retrying…"
+              : zh
+                ? "重新尝试获取"
+                : t("Retry")}
+          </button>
+          {video.source_url ? (
+            <a
+              className="button button-secondary"
+              href={video.source_url}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {zh ? "在浏览器打开原视频" : t("Open original source")}
+            </a>
+          ) : null}
+          {canRemove ? (
+            <button
+              type="button"
+              className="button button-ghost"
+              disabled={removeBusy || retryBusy}
+              onClick={() => void handleRemove()}
+            >
+              {removeBusy
+                ? zh
+                  ? "正在移除…"
+                  : "Removing…"
+                : zh
+                  ? "从列表移除此记录"
+                  : "Remove from list"}
+            </button>
+          ) : null}
+        </div>
+        {statusNote ? (
+          <p className="hint" role="status">
+            {statusNote}
+          </p>
+        ) : null}
+        {actionError ? <p role="alert">{actionError}</p> : null}
+      </Panel>
+    </div>
+  );
+}
+
 function ContentDetailPanel(
   {
     id,
     highlightedEvidenceId,
     onClose,
+    onAddLocal,
     activeFilterSummary,
     nextUnreadVideo,
     onAdvanceToVideo,
@@ -5108,6 +5458,7 @@ function ContentDetailPanel(
     id: string;
     highlightedEvidenceId?: string | null;
     onClose: () => void;
+    onAddLocal?: () => void;
     activeFilterSummary?: string | null;
     nextUnreadVideo?: {
       videoId: string;
@@ -5168,7 +5519,20 @@ function ContentDetailPanel(
   }, [data]);
   if (error) return <ErrorState error={error} code={errorCode} onReload={reload} />;
   if (!data || data.video.video_id !== id) return <Empty>Loading Content detail…</Empty>;
-  if (data.video.work_kind) return <div className="dashboard-stack"><button className="button button-ghost" onClick={onClose}>{t("Back to Content")}</button><Panel title={data.video.title ?? id}><Status {...contentStatus(data.video.provider, data.video.processing_status)} /><p>{t("Import accepted. Processing and any required attention appear in Content.")}</p><a href={data.video.source_url ?? undefined} target="_blank" rel="noreferrer">{t("Open original source")}</a><button className="button button-secondary" onClick={async () => { try { await post(`/sources/${data.video.source_id}/check`, { command_id: commandId() }); setRefresh(value => value + 1); } catch { setCloudError("The source could not be checked. Try again later."); } }}>{t("Retry")}</button>{cloudError && <p role="alert">{t(cloudError)}</p>}</Panel></div>;
+  if (data.video.work_kind) {
+    return (
+      <PendingContentDetailView
+        video={data.video}
+        onClose={onClose}
+        onAddLocal={onAddLocal}
+        onRetry={() => setRefresh((value) => value + 1)}
+        onRemoved={() => {
+          onListChanged?.();
+          onClose();
+        }}
+      />
+    );
+  }
   const transcript = data.transcript;
   const isBilibili = data.video.provider === "BILIBILI";
   const isLocalMedia = data.video.provider === "LOCAL" && data.video.media_kind !== "TEXT";
@@ -6559,7 +6923,7 @@ function Topics({
         {list.data.topics.length
           ? (
             <div className="compact-list content-media-list">
-              {list.data.topics.map((topic) => {
+              {sortTopicsNewestFirst(list.data.topics).map((topic) => {
                 const evo = readTopicAiEvolution(topic.ai_evolution);
                 return (
                   <button
@@ -6579,6 +6943,11 @@ function Topics({
                         <small className="tabular-nums">
                           {evo && evo.video_count > 0
                             ? [
+                                evo.latest_published_at
+                                  ? zh
+                                    ? `最近更新 ${humanDate(evo.latest_published_at)}`
+                                    : `Updated ${humanDate(evo.latest_published_at)}`
+                                  : null,
                                 zh
                                   ? `${evo.video_count} 条内容 · ${evo.must_watch_count} 条必看`
                                   : `${evo.video_count} items · ${evo.must_watch_count} must-watch`,

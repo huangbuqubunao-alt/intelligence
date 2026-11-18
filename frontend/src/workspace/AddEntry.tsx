@@ -55,6 +55,10 @@ export function AddEntry({ onClose, onSaved, onImported, initialLocal = false }:
   return <div className="overlay"><section className="modal local-import" role="dialog" aria-modal="true" aria-labelledby="add-entry-title">
     <div className="modal-head"><h2 id="add-entry-title">{t("Add a Source")}</h2><button className="button button-ghost" aria-label={t("Close")} disabled={busy} onClick={result ? onSaved : onClose}>{t(result ? "Done" : "Close")}</button></div>
     {!result && <>
+      <div className="button-row" aria-label={t("Source provider")}>
+        <button type="button" className="button button-primary" aria-pressed="true" disabled={busy}>YouTube / Bilibili</button>
+        <button type="button" className="button button-secondary" disabled={busy} onClick={() => setLocal(true)}>{t("Local files")}</button>
+      </div>
       <p>{t("Paste a YouTube or Bilibili link. We will recognize it before you add it.")}</p>
       <form onSubmit={async event => {
         event.preventDefault(); if (busy) return;
