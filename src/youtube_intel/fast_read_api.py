@@ -1158,7 +1158,7 @@ class _RequestSnapshotContext:
         rows = self.conn.execute(
             "SELECT s.source_id,s.video_id,s.canonical_url,s.created_at,NULL AS enrollment "
             "FROM source_subscriptions s LEFT JOIN videos v ON v.video_id=s.video_id "
-            "WHERE s.provider='YOUTUBE' AND s.source_type='VIDEO_URL' AND v.video_id IS NULL "
+            "WHERE s.provider='YOUTUBE' AND s.source_type='VIDEO_URL' AND s.enabled=1 AND v.video_id IS NULL "
             "UNION ALL SELECT o.source_id,o.canonical_identity,'https://www.youtube.com/watch?v='||o.canonical_identity,o.observed_at,o.enrollment "
             "FROM source_observations o JOIN source_subscriptions s USING(source_id) "
             "LEFT JOIN videos v ON v.video_id=o.canonical_identity "
@@ -2255,13 +2255,40 @@ class FastReadApiApplication:
         )
         try:
             kept: list[dict[str, object]] = []
-            for item in raw_items:
-                if not isinstance(item, dict):
+            for raw_item in raw_items:
+                if not isinstance(raw_item, dict):
                     continue
+                item = dict(raw_item)
+                source_id = item.get("source_id")
+                src_row = (
+                    active_conn.execute(
+                        "SELECT source_type, display_name, video_id, canonical_url, enabled "
+                        "FROM source_subscriptions WHERE source_id = ?",
+                        (source_id,),
+                    ).fetchone()
+                    if isinstance(source_id, str) and source_id
+                    else None
+                )
+                if src_row is not None:
+                    if int(src_row["enabled"]) == 0:
+                        continue
+                    item["source_type"] = str(src_row["source_type"])
+                    if src_row["video_id"] is not None:
+                        item["video_id"] = str(src_row["video_id"])
+                    disp = (
+                        str(src_row["display_name"]).strip()
+                        if src_row["display_name"] is not None
+                        else ""
+                    )
+                    if disp:
+                        item["source_label"] = disp
+                    elif src_row["video_id"] is not None:
+                        item["source_label"] = f"YouTube 视频 ({src_row['video_id']})"
+                    elif src_row["canonical_url"] is not None:
+                        item["source_label"] = str(src_row["canonical_url"])
                 if item.get("attention_reason") != "EXECUTION_CONDITION_UNRESOLVED":
                     kept.append(item)
                     continue
-                source_id = item.get("source_id")
                 run_id = item.get("run_id")
                 if not isinstance(source_id, str) or not isinstance(run_id, str):
                     kept.append(item)
@@ -2609,6 +2636,18 @@ class FastReadApiApplication:
                     wb = self._workspace_hub.get_latest_weekly_brief(
                         repo_conn=conn
                     ).get("weekly_brief")
+                    all_current_ids = ctx.snap_repo.list_current_intelligence_ids(
+                        limit=100
+                    )
+                    top_intel = self._sort_enriched_intelligence_by_recency(
+                        self._attach_linked_topics_to_intelligence(
+                            conn,
+                            [
+                                ctx.intelligence_projection(iid)
+                                for iid in all_current_ids
+                            ],
+                        )
+                    )[:5]
                     filtered_attention = self._filter_superseded_dashboard_attention(
                         resp_payload.get("needs_attention"),
                         conn=conn,
@@ -2620,6 +2659,7 @@ class FastReadApiApplication:
                     )
                     resp_payload = {
                         **resp_payload,
+                        "intelligence": top_intel,
                         "pinned_topics": enriched_pinned,
                         "needs_attention": filtered_attention,
                         "saved_intelligence_ids": self._read_saved_intelligence_ids(
@@ -2818,8 +2858,10 @@ class FastReadApiApplication:
                                 )
                                 seen.add(video.video_id)
                 if self._workspace_hub.has_sidecar_db():
-                    intelligence = self._attach_linked_topics_to_intelligence(
-                        conn, intelligence
+                    intelligence = self._sort_enriched_intelligence_by_recency(
+                        self._attach_linked_topics_to_intelligence(
+                            conn, intelligence
+                        )
                     )
                     if activity:
                         activity = self._filter_superseded_intelligence_activity(
@@ -2830,6 +2872,29 @@ class FastReadApiApplication:
                 conn.rollback()
         finally:
             conn.close()
+
+    @staticmethod
+    def _sort_enriched_intelligence_by_recency(
+        items: Sequence[dict[str, object]],
+    ) -> list[dict[str, object]]:
+        available = [
+            item
+            for item in items
+            if item.get("status") == "AVAILABLE" and item.get("trusted") is True
+        ]
+        other = [
+            item
+            for item in items
+            if not (item.get("status") == "AVAILABLE" and item.get("trusted") is True)
+        ]
+        available.sort(
+            key=lambda item: (
+                str(item.get("effective_published_at") or ""),
+                str(item.get("intelligence_id") or ""),
+            ),
+            reverse=True,
+        )
+        return available + other
 
     def _attach_linked_topics_to_intelligence(
         self,
@@ -2845,6 +2910,8 @@ class FastReadApiApplication:
             and str(item["intelligence_id"]).strip()
         ]
         topics_by_intel: dict[str, list[dict[str, str]]] = {}
+        intel_created_by_id: dict[str, str] = {}
+        video_dates_by_id: dict[str, tuple[str | None, str | None, str | None]] = {}
         if available_ids:
             placeholders = ",".join("?" for _ in available_ids)
             rows = conn.execute(
@@ -2867,6 +2934,35 @@ class FastReadApiApplication:
                 topics_by_intel.setdefault(intel_id, []).append(
                     {"topic_id": topic_id, "name": topic_name}
                 )
+            for row in conn.execute(
+                f"SELECT intelligence_id, created_at FROM intelligences "
+                f"WHERE intelligence_id IN ({placeholders})",
+                tuple(available_ids),
+            ).fetchall():
+                if row[1] is not None:
+                    intel_created_by_id[str(row[0])] = str(row[1])
+        video_ids: list[str] = []
+        seen_vids: set[str] = set()
+        for item in items:
+            if item.get("status") != "AVAILABLE" or item.get("trusted") is not True:
+                continue
+            card = item.get("card")
+            vid = card.get("video_id") if isinstance(card, Mapping) else None
+            if isinstance(vid, str) and vid.strip() and vid not in seen_vids:
+                seen_vids.add(vid)
+                video_ids.append(vid)
+        if video_ids:
+            v_placeholders = ",".join("?" for _ in video_ids)
+            for row in conn.execute(
+                f"SELECT video_id, published_at, discovered_at, updated_at "
+                f"FROM videos WHERE video_id IN ({v_placeholders})",
+                tuple(video_ids),
+            ).fetchall():
+                video_dates_by_id[str(row[0])] = (
+                    None if row[1] is None else str(row[1]),
+                    None if row[2] is None else str(row[2]),
+                    None if row[3] is None else str(row[3]),
+                )
         enriched: list[dict[str, object]] = []
         for item in items:
             copied = dict(item)
@@ -2875,8 +2971,18 @@ class FastReadApiApplication:
                 and copied.get("trusted") is True
                 and isinstance(copied.get("intelligence_id"), str)
             ):
-                copied["linked_topics"] = topics_by_intel.get(
-                    str(copied["intelligence_id"]), []
+                iid = str(copied["intelligence_id"])
+                copied["linked_topics"] = topics_by_intel.get(iid, [])
+                card = copied.get("card")
+                vid = card.get("video_id") if isinstance(card, Mapping) else None
+                pub_at, disc_at, upd_at = (
+                    video_dates_by_id.get(str(vid), (None, None, None))
+                    if isinstance(vid, str) and vid.strip()
+                    else (None, None, None)
+                )
+                created_at = intel_created_by_id.get(iid)
+                copied["effective_published_at"] = (
+                    pub_at or disc_at or created_at or upd_at
                 )
             enriched.append(copied)
         return enriched

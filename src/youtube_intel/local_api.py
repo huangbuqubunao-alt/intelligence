@@ -2093,7 +2093,7 @@ class LocalApiApplication:
         """Real durable video import/discovery identities; never baseline history."""
         with self._repository._connect() as connection:
             rows = connection.execute(
-                "SELECT s.source_id,s.video_id,s.canonical_url,s.created_at,NULL AS enrollment FROM source_subscriptions s LEFT JOIN videos v ON v.video_id=s.video_id WHERE s.provider='YOUTUBE' AND s.source_type='VIDEO_URL' AND v.video_id IS NULL "
+                "SELECT s.source_id,s.video_id,s.canonical_url,s.created_at,NULL AS enrollment FROM source_subscriptions s LEFT JOIN videos v ON v.video_id=s.video_id WHERE s.provider='YOUTUBE' AND s.source_type='VIDEO_URL' AND s.enabled=1 AND v.video_id IS NULL "
                 "UNION ALL SELECT o.source_id,o.canonical_identity,'https://www.youtube.com/watch?v='||o.canonical_identity,o.observed_at,o.enrollment FROM source_observations o JOIN source_subscriptions s USING(source_id) LEFT JOIN videos v ON v.video_id=o.canonical_identity WHERE s.provider='YOUTUBE' AND o.baseline=0 AND v.video_id IS NULL LIMIT 100"
             ).fetchall()
         runs = self._repository.list_source_runs()

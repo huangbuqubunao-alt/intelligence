@@ -206,6 +206,7 @@ export type TopicAiEvolution = {
   recent_7d_count: number;
   avg_score: number | null;
   latest_headline_zh: string;
+  latest_published_at: string;
   synthesis_zh: string;
   independence_summary_zh: string;
   top_opportunities_zh: string[];
@@ -776,6 +777,10 @@ export function readTopicAiEvolution(raw: unknown): TopicAiEvolution | null {
     recent_7d_count: typeof raw.recent_7d_count === "number" ? raw.recent_7d_count : 0,
     avg_score: typeof raw.avg_score === "number" ? raw.avg_score : null,
     latest_headline_zh: typeof raw.latest_headline_zh === "string" ? raw.latest_headline_zh : "",
+    latest_published_at:
+      typeof raw.latest_published_at === "string"
+        ? raw.latest_published_at
+        : (entries[0]?.published_at ?? ""),
     synthesis_zh: typeof raw.synthesis_zh === "string" ? raw.synthesis_zh : "",
     independence_summary_zh:
       typeof raw.independence_summary_zh === "string" ? raw.independence_summary_zh : "",

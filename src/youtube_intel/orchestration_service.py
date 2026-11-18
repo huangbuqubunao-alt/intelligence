@@ -12,6 +12,7 @@ from youtube_intel.orchestration import (
     AutomationTargetType,
     ProcessingPolicy,
     ScheduleFrequency,
+    SourceType,
     due_scheduled_for,
     normalize_source_url,
     validate_policy,
@@ -117,6 +118,18 @@ class ProductOrchestrationService:
                 normalized.canonical_url
             )
             if existing is not None:
+                if (
+                    not existing.enabled
+                    and existing.source_type is SourceType.VIDEO_URL
+                ):
+                    return (
+                        self.update_source(
+                            existing.source_id,
+                            enabled=True,
+                            processing_policy=processing_policy,
+                        )
+                        or existing
+                    )
                 return existing
             raise error
 
