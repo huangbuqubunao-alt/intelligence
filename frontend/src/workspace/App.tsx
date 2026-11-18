@@ -20,7 +20,7 @@ import {
 import { ModelSettings } from "./ModelSettings";
 import { formatMicroCny } from "./CloudSpendingSettings";
 import { Logo } from "./Logo";
-import { BookmarkSparkIcon, DistillOrbitIcon, NavIcon, prefersReducedMotion, pulseCelebration, runViewTransition, VerifiedSealIcon } from "./motion";
+import { BookmarkSparkIcon, DistillOrbitIcon, NavIcon, prefersReducedMotion, pulseCelebration, readCurrentLogicalHash, runViewTransition, scheduleSafeHashUpdate, VerifiedSealIcon } from "./motion";
 import { FirstRunOnboarding, completeOnboarding, onboardingCompleted } from "./Onboarding";
 import { DeltaTarget, KnowledgeDelta } from "./KnowledgeDelta";
 import { Research } from "./Research";
@@ -1778,8 +1778,13 @@ function Workspace() {
       setContentTarget(null); setDeltaTarget(null);
       setPage(next);
     };
+    const onPopState = () => onHashChange(new HashChangeEvent("hashchange"));
     window.addEventListener("hashchange", onHashChange);
-    return () => window.removeEventListener("hashchange", onHashChange);
+    window.addEventListener("popstate", onPopState);
+    return () => {
+      window.removeEventListener("hashchange", onHashChange);
+      window.removeEventListener("popstate", onPopState);
+    };
   }, []);
   const [deltaTarget, setDeltaTarget] = useState<DeltaTarget | null>(null);
   const [handoffSeq, setHandoffSeq] = useState(0);
@@ -1817,9 +1822,13 @@ function Workspace() {
     const next = `#${hash}`;
     // A no-op emits no event. Preserve a marker for an already queued real
     // assignment, but never create one for a no-op.
-    if (location.hash === next) return;
-    programmaticHash.current = next;
-    location.hash = hash;
+    if (readCurrentLogicalHash() === next) return;
+    scheduleSafeHashUpdate(next, {
+      emitHashChange: true,
+      onBeforeWrite: (fullHash) => {
+        programmaticHash.current = fullHash;
+      },
+    });
   };
   const navigate = (next: Page) => {
     changeHash(next);
@@ -1936,7 +1945,7 @@ function Workspace() {
             <p className="page-subtitle">{t(subtitles[page])}</p>
           </div>
           {researchReturn && page !== "Research" && <button className="button button-secondary" onClick={() => {
-            const target = researchReturn; navigate("Research"); location.hash = target;
+            const target = researchReturn; navigate("Research"); scheduleSafeHashUpdate(target, { emitHashChange: true });
           }}>{t("Back to Research")}</button>}
           {page === "Research" && researchOriginPage !== null && (
             <button
@@ -1957,7 +1966,7 @@ function Workspace() {
         </header>
         <NativeImportActivity onOpen={openContent} errors={localImportErrors} routeKey={`${page}/${contentTarget ?? ""}`} modalOpen={addProvider !== null} />
         {page === "Research" && <Research handoffSeq={handoffSeq} onOpen={(kind, id, evidenceId) => {
-          const returnTo = location.hash.slice(1);
+          const returnTo = readCurrentLogicalHash().slice(1);
           if (kind === "content") { openContent(id, evidenceId); }
           else openDelta({ kind: "intelligence", id });
           setResearchReturn(returnTo);
