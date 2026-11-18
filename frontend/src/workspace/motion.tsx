@@ -22,6 +22,78 @@ function isChromiumAccessibilityTransitionUnsafe(): boolean {
   return /(?:Chrome|Chromium|Edg)\//.test(ua);
 }
 
+type PendingHashUpdate = {
+  fullHash: string;
+  emitHashChange: boolean;
+  onBeforeWrite?: (fullHash: string) => void;
+};
+
+let pendingChromiumHashUpdate: PendingHashUpdate | null = null;
+
+/**
+ * Applies any queued hash update from a timer registered outside interactive
+ * event handlers so Chromium's SoftNavigationHeuristics does not bind the URL
+ * change to a click TaskAttribution context.
+ */
+export function flushPendingChromiumHashUpdate(): void {
+  if (!pendingChromiumHashUpdate || typeof window === "undefined") return;
+  const { fullHash, emitHashChange, onBeforeWrite } = pendingChromiumHashUpdate;
+  pendingChromiumHashUpdate = null;
+  if (window.location.hash === fullHash) return;
+  const oldURL = window.location.href;
+  onBeforeWrite?.(fullHash);
+  if (typeof window.history?.pushState === "function") {
+    window.history.pushState(null, "", fullHash);
+  } else {
+    window.location.hash = fullHash.slice(1);
+    return;
+  }
+  if (emitHashChange) {
+    window.dispatchEvent(
+      new HashChangeEvent("hashchange", {
+        oldURL,
+        newURL: window.location.href,
+      }),
+    );
+  }
+}
+
+if (typeof window !== "undefined" && isChromiumAccessibilityTransitionUnsafe()) {
+  window.setInterval(flushPendingChromiumHashUpdate, 35);
+}
+
+export function readCurrentLogicalHash(): string {
+  if (pendingChromiumHashUpdate) return pendingChromiumHashUpdate.fullHash;
+  return typeof window !== "undefined" ? window.location.hash : "";
+}
+
+export function scheduleSafeHashUpdate(
+  hash: string,
+  options?: {
+    emitHashChange?: boolean;
+    onBeforeWrite?: (fullHash: string) => void;
+  },
+): void {
+  if (typeof window === "undefined") return;
+  const fullHash = hash.startsWith("#") ? hash : `#${hash}`;
+  if (!isChromiumAccessibilityTransitionUnsafe()) {
+    if (window.location.hash === fullHash) return;
+    options?.onBeforeWrite?.(fullHash);
+    if (options?.emitHashChange === false && typeof window.history?.pushState === "function") {
+      window.history.pushState(null, "", fullHash);
+    } else {
+      window.location.hash = fullHash.slice(1);
+    }
+    return;
+  }
+  if (readCurrentLogicalHash() === fullHash) return;
+  pendingChromiumHashUpdate = {
+    fullHash,
+    emitHashChange: options?.emitHashChange ?? true,
+    onBeforeWrite: options?.onBeforeWrite,
+  };
+}
+
 /**
  * Reuses the native Web Platform View Transitions API (`document.startViewTransition`)
  * paired with React's `flushSync` when available and motion is allowed, falling back

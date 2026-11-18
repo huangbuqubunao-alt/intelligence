@@ -1,7 +1,12 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
-import { runViewTransition } from "./motion";
+import {
+  flushPendingChromiumHashUpdate,
+  readCurrentLogicalHash,
+  runViewTransition,
+  scheduleSafeHashUpdate,
+} from "./motion";
 
 const okJson = (body: unknown, status = 200) =>
   Promise.resolve({
@@ -471,6 +476,51 @@ describe("Content chronological ordering and long-video Shorts guard", () => {
       expect(startViewTransition).not.toHaveBeenCalled();
     } finally {
       Reflect.deleteProperty(document, "startViewTransition");
+      if (originalUaDescriptor) {
+        Object.defineProperty(window.navigator, "userAgent", originalUaDescriptor);
+      }
+    }
+  });
+
+  it("defers URL mutations out of interactive callbacks on Chromium user agents and flushes pushState + hashchange cleanly", () => {
+    location.hash = "#Content";
+    const originalUaDescriptor = Object.getOwnPropertyDescriptor(
+      window.navigator,
+      "userAgent",
+    );
+    Object.defineProperty(window.navigator, "userAgent", {
+      configurable: true,
+      value:
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.8103.78 Safari/537.36",
+    });
+
+    const pushStateSpy = vi.spyOn(window.history, "pushState");
+    const hashEvents: string[] = [];
+    const onHash = () => hashEvents.push(location.hash);
+    window.addEventListener("hashchange", onHash);
+    const beforeWriteHashes: string[] = [];
+
+    try {
+      scheduleSafeHashUpdate("#Topics", {
+        emitHashChange: true,
+        onBeforeWrite: (fullHash) => beforeWriteHashes.push(fullHash),
+      });
+
+      // URL must NOT mutate synchronously inside the click handler's task context.
+      expect(location.hash).toBe("#Content");
+      expect(pushStateSpy).not.toHaveBeenCalled();
+      expect(readCurrentLogicalHash()).toBe("#Topics");
+      expect(beforeWriteHashes).toEqual([]);
+
+      // Unattributed timer flush updates URL via pushState and fires hashchange.
+      flushPendingChromiumHashUpdate();
+      expect(beforeWriteHashes).toEqual(["#Topics"]);
+      expect(pushStateSpy).toHaveBeenCalledWith(null, "", "#Topics");
+      expect(location.hash).toBe("#Topics");
+      expect(readCurrentLogicalHash()).toBe("#Topics");
+      expect(hashEvents).toEqual(["#Topics"]);
+    } finally {
+      window.removeEventListener("hashchange", onHash);
       if (originalUaDescriptor) {
         Object.defineProperty(window.navigator, "userAgent", originalUaDescriptor);
       }

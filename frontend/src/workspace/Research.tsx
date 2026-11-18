@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, ApiRequestError, post } from "../api/client";
+import { readCurrentLogicalHash, scheduleSafeHashUpdate } from "./motion";
 import { ResearchDiff } from "./ResearchDiff";
 import { ResearchHistory } from "./ResearchHistory";
 import { ResearchForm } from "./ResearchForm";
@@ -10,7 +11,7 @@ import { WorkspaceAiResearchPanel } from "./WorkspaceAiWidgets";
 
 export function Research({ onOpen, handoffSeq }: { onOpen: OpenResearchSource; handoffSeq?: number }) {
   const { t, language } = useUiLanguage();
-  const initialRoute = /^#Research\/([a-f0-9]{64})(?:\/history\/([a-f0-9]{64})|\/diff\/([a-f0-9]{64})\/([a-f0-9]{64}))?$/.exec(location.hash);
+  const initialRoute = /^#Research\/([a-f0-9]{64})(?:\/history\/([a-f0-9]{64})|\/diff\/([a-f0-9]{64})\/([a-f0-9]{64}))?$/.exec(readCurrentLogicalHash());
   const initialId = initialRoute?.[1] ?? null;
   const [comparison, setComparison] = useState<string | null>(initialRoute?.[3] ? `${initialRoute[3]}/${initialRoute[4]}` : null);
   const [historicalId, setHistoricalId] = useState<string | null>(initialRoute?.[2] ?? null);
@@ -59,12 +60,12 @@ export function Research({ onOpen, handoffSeq }: { onOpen: OpenResearchSource; h
     }).catch(reason => { if (alive) setError(researchErrorCopy(reason instanceof ApiRequestError ? reason.code : undefined)); });
     return () => { alive = false; };
   }, [activeId, historicalId, revision, comparison]);
-  const open = (id: string) => { setComparison(null); setHistoricalId(null); setActiveId(id); setCreating(false); location.hash = `Research/${id}`; };
-  const openRevision = (id: string) => { setComparison(null); setHistoricalId(id); setResult(null); setError(null); location.hash = `Research/${activeId}/history/${id}`; };
-  const compare = (base: string, target: string) => { setComparison(`${base}/${target}`); setHistoricalId(null); setError(null); location.hash = `Research/${activeId}/diff/${base}/${target}`; };
+  const open = (id: string) => { setComparison(null); setHistoricalId(null); setActiveId(id); setCreating(false); scheduleSafeHashUpdate(`Research/${id}`); };
+  const openRevision = (id: string) => { setComparison(null); setHistoricalId(id); setResult(null); setError(null); scheduleSafeHashUpdate(`Research/${activeId}/history/${id}`); };
+  const compare = (base: string, target: string) => { setComparison(`${base}/${target}`); setHistoricalId(null); setError(null); scheduleSafeHashUpdate(`Research/${activeId}/diff/${base}/${target}`); };
   const newResearch = () => {
     setComparison(null); setHistoricalId(null); setActiveId(null); setResult(null); setError(null); setCreating(true);
-    if (location.hash !== "#Research") history.pushState(null, "", "#Research");
+    if (readCurrentLogicalHash() !== "#Research") scheduleSafeHashUpdate("Research", { emitHashChange: false });
   };
   const run = async (question: string, contentIds: string[]) => {
     setBusy(true); setError(null);
@@ -101,7 +102,7 @@ export function Research({ onOpen, handoffSeq }: { onOpen: OpenResearchSource; h
     {!collapseLegacyBuilder && <p className="hint">{t("Research uses only your existing library. No web exploration or model call.")}</p>}
     {!creating && !collapseLegacyBuilder && <div className="button-row">
       <button className="button button-primary" disabled={busy} onClick={newResearch}>{t("New Research")}</button>
-      {activeId && <button className="button button-secondary" disabled={busy} onClick={() => { setComparison(null); setHistoricalId(null); setActiveId(null); setResult(null); setError(null); location.hash = "Research"; }}>{t("Current Research items")}</button>}
+      {activeId && <button className="button button-secondary" disabled={busy} onClick={() => { setComparison(null); setHistoricalId(null); setActiveId(null); setResult(null); setError(null); scheduleSafeHashUpdate("Research"); }}>{t("Current Research items")}</button>}
     </div>}
     {!comparison && error && <p className="form-error" role="alert">{t(error)} <button disabled={busy} onClick={() => setRevision(value => value + 1)}>{t("Retry")}</button></p>}
     {creating && <ResearchForm busy={busy} onRun={(question, ids) => void run(question, ids)} onCancel={() => setCreating(false)} />}
@@ -118,7 +119,7 @@ export function Research({ onOpen, handoffSeq }: { onOpen: OpenResearchSource; h
     {!creating && comparison && activeId && <ResearchDiff key={`${activeId}:${comparison}`} researchId={activeId} baseId={comparison.split("/")[0]} targetId={comparison.split("/")[1]} onOpen={onOpen} onRevision={openRevision} onClose={() => openRevision(comparison.split("/")[1])} />}
     {!comparison && !creating && activeId && <ResearchHistory key={`${activeId}:${revision}`} researchId={activeId} selectedRevisionId={result?.result_identity ?? historicalId} onCompare={compare} onOpen={id => {
       if (id === historicalId) return;
-      setHistoricalId(id); setResult(null); setError(null); location.hash = `Research/${activeId}/history/${id}`;
+      setHistoricalId(id); setResult(null); setError(null); scheduleSafeHashUpdate(`Research/${activeId}/history/${id}`);
     }} />}
     {collapseLegacyBuilder ? (
       <details className="legacy-model-diagnostics">

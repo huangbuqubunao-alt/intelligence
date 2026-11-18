@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ApiRequestError, api, post } from "../api/client";
+import { scheduleSafeHashUpdate } from "./motion";
 import { useUiLanguage } from "./uiLanguage";
 
 export type NativeFileState = {
@@ -77,7 +78,7 @@ export function NativeLocalImport({ available, onClose, onSaved, onImported, onY
     <p>{t("Choose files in the macOS selector. Intelligence creates independent local snapshots; file contents are not uploaded through the browser.")}</p>
     <p className="hint">{t("TXT / MD: UTF-8, up to 2 MiB. Audio / video: up to 2 GiB. Media duration: up to four hours. Everything stays on this device.")}</p>
     <p className="hint">{t("Importing a video saves the file. Transcript, Summary and Evidence require usable source text. You can also import an existing TXT or MD transcript; no cloud service is used for local transcription.")}</p>
-    <button className="button button-ghost" disabled={busy || pending} onClick={() => void close().then(() => { location.hash = "Settings/transcription"; })}>{t("Set up local transcription")}</button>
+    <button className="button button-ghost" disabled={busy || pending} onClick={() => void close().then(() => { scheduleSafeHashUpdate("Settings/transcription"); })}>{t("Set up local transcription")}</button>
     {available === null && <p role="status">{t("Checking native file selection…")}</p>}
     {available === false && <p role="alert" className="form-error">{t("Native file selection is unavailable. Reopen Intelligence using its current launcher.")}</p>}
     {error && <p role="alert" className="form-error">{t(error)}</p>}
