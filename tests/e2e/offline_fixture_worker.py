@@ -47,7 +47,7 @@ else:
     if mode == "timeout":
         time.sleep(60)
     if mode == "flood":
-        print("x" * 5000000)
+        print("x" * (9 * 1024 * 1024))
         raise SystemExit()
     if mode == "malformed":
         print("{broken")

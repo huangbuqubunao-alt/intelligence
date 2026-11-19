@@ -20,7 +20,7 @@ import {
 import { ModelSettings } from "./ModelSettings";
 import { formatMicroCny } from "./CloudSpendingSettings";
 import { Logo } from "./Logo";
-import { BookmarkSparkIcon, DistillOrbitIcon, NavIcon, prefersReducedMotion, pulseCelebration, readCurrentLogicalHash, runViewTransition, scheduleSafeHashUpdate, VerifiedSealIcon } from "./motion";
+import { BookmarkSparkIcon, cancelPendingChromiumHashUpdate, DistillOrbitIcon, NavIcon, prefersReducedMotion, pulseCelebration, readCurrentLogicalHash, runViewTransition, scheduleSafeHashUpdate, VerifiedSealIcon } from "./motion";
 import { FirstRunOnboarding, completeOnboarding, onboardingCompleted } from "./Onboarding";
 import { DeltaTarget, KnowledgeDelta } from "./KnowledgeDelta";
 import { Research } from "./Research";
@@ -1778,7 +1778,11 @@ function Workspace() {
       setContentTarget(null); setDeltaTarget(null);
       setPage(next);
     };
-    const onPopState = () => onHashChange(new HashChangeEvent("hashchange"));
+    const onPopState = () => {
+      if (programmaticHash.current === location.hash) return;
+      cancelPendingChromiumHashUpdate();
+      onHashChange(new HashChangeEvent("hashchange", { newURL: location.href }));
+    };
     window.addEventListener("hashchange", onHashChange);
     window.addEventListener("popstate", onPopState);
     return () => {
@@ -8803,6 +8807,13 @@ function GlobalInterests({
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const policySignature = JSON.stringify([policy.focus_rules, policy.ignore_rules, policy.distillation_style]);
+  useEffect(() => {
+    if (editing) return;
+    setFocus(ruleDrafts(policy.focus_rules));
+    setIgnore(ruleDrafts(policy.ignore_rules));
+    setStyle(policy.distillation_style);
+  }, [editing, policySignature]);
   const cancelEdit = () => {
     setFocus(ruleDrafts(policy.focus_rules));
     setIgnore(ruleDrafts(policy.ignore_rules));
@@ -8868,7 +8879,20 @@ function GlobalInterests({
       <p>{t("Less of / ignore")}: {policy.ignore_rules.join(", ") || t("Not set")}</p>
       <p>{t("Insight style")}: {t(styleLabel)}</p>
       {savedNotice ? <p className="hint">{t("Preferences saved.")}</p> : null}
-      <button type="button" className="button button-secondary" onClick={() => { onClearNotice?.(); setError(null); setEditing(true); }}>{t("Edit interests")}</button>
+      <button
+        type="button"
+        className="button button-secondary"
+        onClick={() => {
+          onClearNotice?.();
+          setFocus(ruleDrafts(policy.focus_rules));
+          setIgnore(ruleDrafts(policy.ignore_rules));
+          setStyle(policy.distillation_style);
+          setError(null);
+          setEditing(true);
+        }}
+      >
+        {t("Edit interests")}
+      </button>
     </> : <div onKeyDown={event => { if (event.key === "Escape" && !busy) { event.stopPropagation(); cancelEdit(); } }}>
     <InterestRulesEditor kind="focus" label="What I focus on" rows={focus} onChange={setFocus} />
     <InterestRulesEditor kind="ignore" label="Less of / ignore" rows={ignore} onChange={setIgnore} />
@@ -9005,7 +9029,6 @@ function Settings({ refresh }: { refresh: number }) {
         {languageError ? <p className="form-error" role="alert">{languageError}</p> : null}
       </Panel>
       <GlobalInterests
-        key={JSON.stringify(globalPolicy)}
         policy={globalPolicy}
         savedNotice={interestsSavedNotice}
         onClearNotice={() => setInterestsSavedNotice(false)}

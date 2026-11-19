@@ -58,6 +58,10 @@ export function flushPendingChromiumHashUpdate(): void {
   }
 }
 
+export function cancelPendingChromiumHashUpdate(): void {
+  pendingChromiumHashUpdate = null;
+}
+
 if (typeof window !== "undefined" && isChromiumAccessibilityTransitionUnsafe()) {
   window.setInterval(flushPendingChromiumHashUpdate, 35);
 }

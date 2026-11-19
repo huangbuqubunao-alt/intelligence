@@ -168,8 +168,6 @@ def _sqlite_state_token(db_path: object) -> tuple[object, ...] | None:
     wal_token: tuple[object, ...] = ()
     try:
         wal_st = os.stat(wal_path)
-        wal_head = b""
-        wal_tail = b""
         if wal_st.st_size > 0:
             with wal_path.open("rb") as wal_file:
                 wal_head = wal_file.read(32)
@@ -178,14 +176,14 @@ def _sqlite_state_token(db_path: object) -> tuple[object, ...] | None:
                 else:
                     wal_file.seek(0)
                 wal_tail = wal_file.read(64)
-        wal_token = (
-            wal_st.st_dev,
-            wal_st.st_ino,
-            wal_st.st_size,
-            wal_st.st_mtime_ns,
-            wal_head,
-            wal_tail,
-        )
+            wal_token = (
+                wal_st.st_dev,
+                wal_st.st_ino,
+                wal_st.st_size,
+                wal_st.st_mtime_ns,
+                wal_head,
+                wal_tail,
+            )
     except OSError:
         wal_token = ()
     journal_exists = os.path.exists(f"{db_path}-journal")

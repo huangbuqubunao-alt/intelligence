@@ -3379,3 +3379,62 @@ test("mixed waiting rows keep cloud unknown conservative and cancel only the pro
   fireEvent.click(screen.getByRole("button", { name: "Cancel this extraction" }));
   await waitFor(() => expect(commands).toEqual([{ execution_id: "local-proven" }]));
 });
+
+test("popstate navigation updates route and clears import notice while programmatic hash preserves it", async () => {
+  const baseFetch = vi.mocked(fetch);
+  vi.stubGlobal("fetch", vi.fn((input: string, init?: RequestInit) => {
+    if (input.includes("/local/imports") && init?.method === "POST")
+      return response({ import: { content_id: "video-9", filename: "note.txt", status: "READY", duplicate: false } });
+    if (input.endsWith("/videos/video-9")) return response({ ...daVideoDetail, video: { ...daVideoDetail.video, video_id: "video-9" } });
+    return baseFetch(input, init);
+  }));
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Following" }));
+  const addButtons = await screen.findAllByRole("button", { name: "Add Source" });
+  fireEvent.click(addButtons[addButtons.length - 1]);
+  fireEvent.click(screen.getByRole("button", { name: "Import local file" }));
+  fireEvent.change(screen.getByLabelText("Choose local files"), { target: { files: [new File(["hello"], "note.txt", { type: "text/plain" })] } });
+  fireEvent.click(screen.getByRole("button", { name: "Confirm import" }));
+  await screen.findByText("File imported. Its processing status appears below.");
+  expect(location.hash).toBe("#Content/video-9");
+
+  history.replaceState(null, "", "#Home");
+  window.dispatchEvent(new PopStateEvent("popstate"));
+  await screen.findByRole("heading", { name: "Home" });
+  expect(screen.queryByText("File imported. Its processing status appears below.")).toBeNull();
+});
+
+test("GlobalInterests keeps open editing form and typed draft across background policy refresh", async () => {
+  const baseFetch = vi.mocked(globalThis.fetch);
+  let policyVersion = 1;
+  vi.stubGlobal("fetch", vi.fn((input: string, init?: RequestInit) => {
+    if (input === "/api/v1/settings/source-policy" && (!init?.method || init.method === "GET")) {
+      return response({
+        policy: {
+          command_id: `cmd-${policyVersion}`,
+          initial_history_count: 5,
+          per_run_max_new_videos: 10,
+          focus_rules: ["Initial Rule"],
+          ignore_rules: [],
+          distillation_style: "BALANCED",
+          updated_at: `2026-11-19T00:00:0${policyVersion}Z`,
+        },
+      });
+    }
+    return baseFetch(input, init);
+  }));
+  location.hash = "#Settings";
+  render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: "Edit interests" }));
+  const firstRule = await screen.findByLabelText("What I focus on");
+  fireEvent.change(firstRule, { target: { value: "Draft Unsaved Topic" } });
+
+  // Simulate background SWR refetch changing updated_at/command_id while user is editing
+  policyVersion = 2;
+  window.dispatchEvent(new Event("focus"));
+  await new Promise((resolve) => setTimeout(resolve, 60));
+
+  expect((screen.getByLabelText("What I focus on") as HTMLTextAreaElement).value).toBe("Draft Unsaved Topic");
+  expect(screen.getByRole("button", { name: "Save preferences" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Cancel" })).toBeTruthy();
+});

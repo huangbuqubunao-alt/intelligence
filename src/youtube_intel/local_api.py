@@ -949,7 +949,7 @@ class LocalApiApplication:
                 unavailable: list[str] = []
                 # Scheduling follows the oldest due frontier, not the UI list's
                 # creation order, so newer follows cannot starve older providers.
-                with self._repository._connect() as connection:
+                with self._repository._connect(read_only=True) as connection:
                     sources = connection.execute("SELECT s.source_id FROM source_tracking_state t JOIN source_subscriptions s USING(source_id) WHERE s.enabled=1 ORDER BY t.next_check_at,s.source_id").fetchall()
                 for row in sources:
                     if len(results) >= 3:
@@ -964,7 +964,7 @@ class LocalApiApplication:
                         from youtube_intel.following_scheduler import (
                             AUTOMATIC_CHECK_PREFIX,
                         )
-                        with self._repository._connect() as connection:
+                        with self._repository._connect(read_only=True) as connection:
                             due = connection.execute("SELECT next_check_at FROM source_tracking_state WHERE source_id=?", (source_id,)).fetchone()[0]
                         result = self._service.check_source(source_id, command_id=AUTOMATIC_CHECK_PREFIX + source_id + ":" + due, automatic=True)
                         results.append(result.status.value)
