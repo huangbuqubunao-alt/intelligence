@@ -1,0 +1,260 @@
+{
+  "started_at": "2026-11-19T07:16:01.402Z",
+  "ui_url": "http://127.0.0.1:6488",
+  "api_url": "http://127.0.0.1:6491",
+  "steps": [
+    {
+      "name": "onboarding_empty_library_complete_and_persist",
+      "passed": true,
+      "duration_ms": 1423,
+      "detail": {
+        "screenshots": [
+          "qa/evidence/screenshots/00_onboarding.png"
+        ],
+        "onboarding_persisted": true
+      }
+    },
+    {
+      "name": "home_dashboard_panels_render",
+      "passed": true,
+      "duration_ms": 1260,
+      "detail": {
+        "screenshots": [
+          "qa/evidence/screenshots/01_home.png"
+        ]
+      }
+    },
+    {
+      "name": "quick_import_modal_invalid_close_and_local_md_import",
+      "passed": true,
+      "duration_ms": 3771,
+      "detail": {
+        "screenshots": [
+          "qa/evidence/screenshots/02_import_modal.png",
+          "qa/evidence/screenshots/03_imported_detail.png"
+        ],
+        "macNativeAlert": "原生文件选择不可用。请使用当前启动器重新打开 Intelligence。",
+        "importedHash": "#Content/local-f0d4eb0a878c7ebe30a95829a88dae4898b0eed158271c0d32004a7e23f02232",
+        "noticeVisible": true,
+        "detailHeading": "内容"
+      }
+    },
+    {
+      "name": "following_list_modal_cancel_and_source_interests",
+      "passed": true,
+      "duration_ms": 1036,
+      "detail": {
+        "screenshots": [
+          "qa/evidence/screenshots/04_following.png"
+        ],
+        "channel_visible": true
+      }
+    },
+    {
+      "name": "content_ordering_shorts_curation_detail_and_history",
+      "passed": true,
+      "duration_ms": 3082,
+      "detail": {
+        "screenshots": [
+          "qa/evidence/screenshots/05_content_list.png",
+          "qa/evidence/screenshots/06_content_detail.png"
+        ],
+        "idxLatest": 1,
+        "idxOlder": 6,
+        "listTitles": [
+          "qa-live-import.md",
+          "Production LLM Reliability Systems #shorts",
+          "8.5",
+          "Pending Manual Attention Video",
+          "Local-First Knowledge Graph Architecture",
+          "8.5",
+          "Agentic Workflows Older Deep Dive",
+          "8.5",
+          "seeded-baseline.txt",
+          "",
+          ""
+        ],
+        "hashAfterBack": "#Content"
+      }
+    },
+    {
+      "name": "intelligence_list_save_reload_and_tabs",
+      "passed": true,
+      "duration_ms": 2432,
+      "detail": {
+        "screenshots": [
+          "qa/evidence/screenshots/07_intelligence.png"
+        ],
+        "savedPersisted": "收藏 -> persisted across reload"
+      }
+    },
+    {
+      "name": "topics_pin_persist_and_timeline_detail",
+      "passed": true,
+      "duration_ms": 1982,
+      "detail": {
+        "screenshots": [
+          "qa/evidence/screenshots/08_topics.png"
+        ],
+        "topicTitle": "AI Systems"
+      }
+    },
+    {
+      "name": "research_qa_and_manual_packet_flow",
+      "passed": true,
+      "duration_ms": 1404,
+      "detail": {
+        "screenshots": [
+          "qa/evidence/screenshots/09_research.png"
+        ],
+        "createdPacket": true
+      }
+    },
+    {
+      "name": "settings_language_interests_unchanged_save_and_backup",
+      "passed": true,
+      "duration_ms": 7814,
+      "detail": {
+        "screenshots": [
+          "qa/evidence/screenshots/10_settings.png"
+        ],
+        "unchanged_save_ok": true
+      }
+    },
+    {
+      "name": "command_palette_and_theme_toggle",
+      "passed": true,
+      "duration_ms": 1359,
+      "detail": {
+        "screenshots": [
+          "qa/evidence/screenshots/11_cmdk_dark.png"
+        ],
+        "themeAfterClick": "light",
+        "themeAfterReload": "light"
+      }
+    },
+    {
+      "name": "responsive_desktop_and_mobile_no_overflow",
+      "passed": true,
+      "duration_ms": 2900,
+      "detail": {
+        "screenshots": [
+          "qa/evidence/screenshots/12_mobile_375.png"
+        ],
+        "checks_count": 10
+      }
+    },
+    {
+      "name": "zero_uncaught_pageerror_5xx_or_unexpected_console_errors",
+      "passed": true,
+      "duration_ms": 0,
+      "detail": {
+        "total_console_errors": 1,
+        "unexpected": 0
+      }
+    }
+  ],
+  "pageerrors": [],
+  "console_errors": [
+    {
+      "text": "Failed to load resource: the server responded with a status of 409 (Conflict)",
+      "expected_in_negative_test": true
+    }
+  ],
+  "server_5xx": [],
+  "responsive": [
+    {
+      "viewport": "desktop",
+      "route": "#Home",
+      "scrollW": 1440,
+      "innerW": 1440,
+      "ok": true
+    },
+    {
+      "viewport": "desktop",
+      "route": "#Content",
+      "scrollW": 1440,
+      "innerW": 1440,
+      "ok": true
+    },
+    {
+      "viewport": "desktop",
+      "route": "#Intelligence",
+      "scrollW": 1440,
+      "innerW": 1440,
+      "ok": true
+    },
+    {
+      "viewport": "desktop",
+      "route": "#Topics",
+      "scrollW": 1440,
+      "innerW": 1440,
+      "ok": true
+    },
+    {
+      "viewport": "desktop",
+      "route": "#Settings",
+      "scrollW": 1440,
+      "innerW": 1440,
+      "ok": true
+    },
+    {
+      "viewport": "mobile",
+      "route": "#Home",
+      "scrollW": 375,
+      "innerW": 375,
+      "ok": true
+    },
+    {
+      "viewport": "mobile",
+      "route": "#Content",
+      "scrollW": 375,
+      "innerW": 375,
+      "ok": true
+    },
+    {
+      "viewport": "mobile",
+      "route": "#Intelligence",
+      "scrollW": 375,
+      "innerW": 375,
+      "ok": true
+    },
+    {
+      "viewport": "mobile",
+      "route": "#Topics",
+      "scrollW": 375,
+      "innerW": 375,
+      "ok": true
+    },
+    {
+      "viewport": "mobile",
+      "route": "#Settings",
+      "scrollW": 375,
+      "innerW": 375,
+      "ok": true
+    }
+  ],
+  "summary": {
+    "total": 12,
+    "passed": 12,
+    "failed": 0
+  },
+  "seed": {
+    "e2e_root": "/Users/hua/Documents/yia-worktrees/antigravity-readiness-20261112/.var/qa-audit/e2e-run",
+    "db_path": "/Users/hua/Documents/yia-worktrees/antigravity-readiness-20261112/.var/qa-audit/e2e-run/state.sqlite3",
+    "source_id": "54651737-98f6-4165-b173-91e09beff4fb",
+    "backup_ready": true,
+    "videos_seeded": [
+      "vidE2E00001",
+      "vidE2E00002",
+      "vidE2E00003",
+      "vidShort001",
+      "vidPend0001"
+    ],
+    "intel_count": 3,
+    "topics": [
+      "AI Systems",
+      "Older Seed Topic"
+    ]
+  }
+}
