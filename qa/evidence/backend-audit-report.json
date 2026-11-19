@@ -1,0 +1,831 @@
+{
+  "started_at": "2026-11-19T15:08:38+0800",
+  "base_url": "http://127.0.0.1:6491",
+  "checks": [
+    {
+      "name": "server_boot_and_system_health",
+      "category": "boot",
+      "passed": true,
+      "detail": {
+        "boot_ms": 3737.4
+      },
+      "latency_ms": 3737.44
+    },
+    {
+      "name": "get_/api/v1/system",
+      "category": "read_surface",
+      "passed": true,
+      "detail": {
+        "cold_status": 200,
+        "warm_status": 200,
+        "cold_ms": 1.13,
+        "warm_ms": 1.43
+      },
+      "latency_ms": 1.13
+    },
+    {
+      "name": "get_/api/v1/dashboard",
+      "category": "read_surface",
+      "passed": true,
+      "detail": {
+        "cold_status": 200,
+        "warm_status": 200,
+        "cold_ms": 1.71,
+        "warm_ms": 2.44
+      },
+      "latency_ms": 1.71
+    },
+    {
+      "name": "get_/api/v1/knowledge-delta",
+      "category": "read_surface",
+      "passed": true,
+      "detail": {
+        "cold_status": 200,
+        "warm_status": 200,
+        "cold_ms": 45.58,
+        "warm_ms": 49.42
+      },
+      "latency_ms": 45.58
+    },
+    {
+      "name": "get_/api/v1/activity",
+      "category": "read_surface",
+      "passed": true,
+      "detail": {
+        "cold_status": 200,
+        "warm_status": 200,
+        "cold_ms": 27.55,
+        "warm_ms": 32.94
+      },
+      "latency_ms": 27.55
+    },
+    {
+      "name": "get_/api/v1/settings",
+      "category": "read_surface",
+      "passed": true,
+      "detail": {
+        "cold_status": 200,
+        "warm_status": 200,
+        "cold_ms": 78.78,
+        "warm_ms": 38.27
+      },
+      "latency_ms": 78.78
+    },
+    {
+      "name": "get_/api/v1/sources",
+      "category": "read_surface",
+      "passed": true,
+      "detail": {
+        "cold_status": 200,
+        "warm_status": 200,
+        "cold_ms": 3.52,
+        "warm_ms": 3.36
+      },
+      "latency_ms": 3.52
+    },
+    {
+      "name": "get_/api/v1/videos",
+      "category": "read_surface",
+      "passed": true,
+      "detail": {
+        "cold_status": 200,
+        "warm_status": 200,
+        "cold_ms": 1.82,
+        "warm_ms": 1.64
+      },
+      "latency_ms": 1.82
+    },
+    {
+      "name": "get_/api/v1/intelligence",
+      "category": "read_surface",
+      "passed": true,
+      "detail": {
+        "cold_status": 200,
+        "warm_status": 200,
+        "cold_ms": 1.95,
+        "warm_ms": 1.92
+      },
+      "latency_ms": 1.95
+    },
+    {
+      "name": "get_/api/v1/saved-intelligence",
+      "category": "read_surface",
+      "passed": true,
+      "detail": {
+        "cold_status": 200,
+        "warm_status": 200,
+        "cold_ms": 1.83,
+        "warm_ms": 1.64
+      },
+      "latency_ms": 1.83
+    },
+    {
+      "name": "get_/api/v1/topics",
+      "category": "read_surface",
+      "passed": true,
+      "detail": {
+        "cold_status": 200,
+        "warm_status": 200,
+        "cold_ms": 1.62,
+        "warm_ms": 1.6
+      },
+      "latency_ms": 1.62
+    },
+    {
+      "name": "get_/api/v1/research",
+      "category": "read_surface",
+      "passed": true,
+      "detail": {
+        "cold_status": 200,
+        "warm_status": 200,
+        "cold_ms": 13.13,
+        "warm_ms": 11.57
+      },
+      "latency_ms": 13.13
+    },
+    {
+      "name": "get_/api/v1/research/capability",
+      "category": "read_surface",
+      "passed": true,
+      "detail": {
+        "cold_status": 200,
+        "warm_status": 200,
+        "cold_ms": 1.69,
+        "warm_ms": 1.61
+      },
+      "latency_ms": 1.69
+    },
+    {
+      "name": "get_/api/v1/research/scope",
+      "category": "read_surface",
+      "passed": true,
+      "detail": {
+        "cold_status": 200,
+        "warm_status": 200,
+        "cold_ms": 11.85,
+        "warm_ms": 11.4
+      },
+      "latency_ms": 11.85
+    },
+    {
+      "name": "get_/api/v1/backup-restore/status",
+      "category": "read_surface",
+      "passed": true,
+      "detail": {
+        "cold_status": 200,
+        "warm_status": 200,
+        "cold_ms": 1888.31,
+        "warm_ms": 81.88
+      },
+      "latency_ms": 1888.31
+    },
+    {
+      "name": "get_/api/v1/deep-analysis/capability",
+      "category": "read_surface",
+      "passed": true,
+      "detail": {
+        "cold_status": 200,
+        "warm_status": 200,
+        "cold_ms": 5.35,
+        "warm_ms": 4.87
+      },
+      "latency_ms": 5.35
+    },
+    {
+      "name": "get_/api/v1/cloud-intelligence/profiles",
+      "category": "read_surface",
+      "passed": true,
+      "detail": {
+        "cold_status": 200,
+        "warm_status": 200,
+        "cold_ms": 3.42,
+        "warm_ms": 3.79
+      },
+      "latency_ms": 3.42
+    },
+    {
+      "name": "get_/api/v1/local/native/capability",
+      "category": "read_surface",
+      "passed": true,
+      "detail": {
+        "cold_status": 200,
+        "warm_status": 200,
+        "cold_ms": 0.95,
+        "warm_ms": 1.11
+      },
+      "latency_ms": 0.95
+    },
+    {
+      "name": "get_/api/v1/local/transcription/capability",
+      "category": "read_surface",
+      "passed": true,
+      "detail": {
+        "cold_status": 200,
+        "warm_status": 200,
+        "cold_ms": 96.51,
+        "warm_ms": 5.2
+      },
+      "latency_ms": 96.51
+    },
+    {
+      "name": "get_/api/v1/workspace-ai/settings",
+      "category": "read_surface",
+      "passed": true,
+      "detail": {
+        "cold_status": 200,
+        "warm_status": 200,
+        "cold_ms": 39.38,
+        "warm_ms": 16.19
+      },
+      "latency_ms": 39.38
+    },
+    {
+      "name": "get_/api/v1/workspace-ai/sync-status",
+      "category": "read_surface",
+      "passed": true,
+      "detail": {
+        "cold_status": 200,
+        "warm_status": 200,
+        "cold_ms": 13.8,
+        "warm_ms": 15.21
+      },
+      "latency_ms": 13.8
+    },
+    {
+      "name": "get_/api/v1/workspace-ai/weekly-brief",
+      "category": "read_surface",
+      "passed": true,
+      "detail": {
+        "cold_status": 200,
+        "warm_status": 200,
+        "cold_ms": 31.02,
+        "warm_ms": 27.77
+      },
+      "latency_ms": 31.02
+    },
+    {
+      "name": "get_/api/v1/workspace-ai/research/sessions",
+      "category": "read_surface",
+      "passed": true,
+      "detail": {
+        "cold_status": 200,
+        "warm_status": 200,
+        "cold_ms": 16.52,
+        "warm_ms": 2.93
+      },
+      "latency_ms": 16.52
+    },
+    {
+      "name": "get_/api/v1/workspace-ai/backup",
+      "category": "read_surface",
+      "passed": true,
+      "detail": {
+        "cold_status": 200,
+        "warm_status": 200,
+        "cold_ms": 3.53,
+        "warm_ms": 1.08
+      },
+      "latency_ms": 3.53
+    },
+    {
+      "name": "get_/api/v1/workspace-ai/obsidian-bundle",
+      "category": "read_surface",
+      "passed": true,
+      "detail": {
+        "cold_status": 200,
+        "warm_status": 200,
+        "cold_ms": 58.21,
+        "warm_ms": 53.64
+      },
+      "latency_ms": 58.21
+    },
+    {
+      "name": "get_obsidian_bundle_zip",
+      "category": "read_surface",
+      "passed": true,
+      "detail": {
+        "status": 200,
+        "bytes": 478,
+        "content_type": "application/zip",
+        "zip_valid": true
+      },
+      "latency_ms": 47.88
+    },
+    {
+      "name": "reject_mutation_without_ui_header",
+      "category": "security",
+      "passed": true,
+      "detail": {
+        "status": 403,
+        "body": {
+          "error": {
+            "code": "ORIGIN_REJECTED",
+            "message": "Unsafe local mutation request was rejected."
+          }
+        }
+      },
+      "latency_ms": 0.82
+    },
+    {
+      "name": "reject_mutation_evil_origin",
+      "category": "security",
+      "passed": true,
+      "detail": {
+        "status": 403,
+        "body": {
+          "error": {
+            "code": "ORIGIN_REJECTED",
+            "message": "Unsafe local mutation request was rejected."
+          }
+        }
+      },
+      "latency_ms": 0.71
+    },
+    {
+      "name": "native_route_rejects_evil_origin_or_unavailable",
+      "category": "security",
+      "passed": true,
+      "detail": {
+        "status": 404,
+        "body": {
+          "error": {
+            "code": "LOCAL_NATIVE_PICKER_UNAVAILABLE",
+            "message": "Native selection is unavailable."
+          }
+        }
+      },
+      "latency_ms": 0.92
+    },
+    {
+      "name": "settings_redaction_no_raw_secrets",
+      "category": "security",
+      "passed": true,
+      "detail": {
+        "cloud_credential": {
+          "configured": false,
+          "source": "NONE"
+        }
+      }
+    },
+    {
+      "name": "malformed_json_returns_4xx",
+      "category": "validation",
+      "passed": true,
+      "detail": {
+        "status": 400,
+        "body": {
+          "error": {
+            "code": "INVALID_JSON",
+            "message": "Request must contain valid JSON."
+          }
+        }
+      },
+      "latency_ms": 3.49
+    },
+    {
+      "name": "unknown_route_404",
+      "category": "validation",
+      "passed": true,
+      "detail": {
+        "status": 404,
+        "body": {
+          "error": {
+            "code": "NOT_FOUND",
+            "message": "Route was not found."
+          }
+        }
+      },
+      "latency_ms": 1.6
+    },
+    {
+      "name": "missing_video_404",
+      "category": "validation",
+      "passed": true,
+      "detail": {
+        "status": 404,
+        "body": {
+          "error": {
+            "code": "NOT_FOUND",
+            "message": "Video was not found."
+          }
+        }
+      },
+      "latency_ms": 17.97
+    },
+    {
+      "name": "wrong_method_settings_4xx",
+      "category": "validation",
+      "passed": true,
+      "detail": {
+        "status": 404,
+        "body": {
+          "error": {
+            "code": "NOT_FOUND",
+            "message": "Route was not found."
+          }
+        }
+      },
+      "latency_ms": 6.83
+    },
+    {
+      "name": "invalid_output_language_422",
+      "category": "validation",
+      "passed": true,
+      "detail": {
+        "status": 422,
+        "body": {
+          "error": {
+            "code": "VALIDATION_ERROR",
+            "message": "output_language must be zh-CN or en."
+          }
+        }
+      },
+      "latency_ms": 4.71
+    },
+    {
+      "name": "import_path_traversal_neutralized_or_rejected",
+      "category": "security",
+      "passed": true,
+      "detail": {
+        "traversal_txt_status": 201,
+        "sanitized_filename": "passwd.txt",
+        "dotdot_status": 422,
+        "dotdot_body": {
+          "error": {
+            "code": "LOCAL_UNSUPPORTED_FORMAT",
+            "message": "The selected file could not be imported."
+          }
+        }
+      },
+      "latency_ms": 247.2
+    },
+    {
+      "name": "local_import_requires_octet_stream_415",
+      "category": "validation",
+      "passed": true,
+      "detail": {
+        "status": 415,
+        "body": {
+          "error": {
+            "code": "LOCAL_INVALID_CONTENT_TYPE",
+            "message": "Select a supported file."
+          }
+        }
+      },
+      "latency_ms": 2.75
+    },
+    {
+      "name": "local_import_valid_txt",
+      "category": "import",
+      "passed": true,
+      "detail": {
+        "status": 201,
+        "body": {
+          "import": {
+            "content_id": "local-7011d916b414415c8c84a247375fb4fa3113afd876e8eb0a978b72cb1b6af821",
+            "filename": "qa-note.txt",
+            "status": "READY",
+            "duplicate": false,
+            "source_id": "local-library",
+            "provider": "LOCAL"
+          }
+        }
+      },
+      "latency_ms": 295.59
+    },
+    {
+      "name": "local_import_duplicate_idempotent",
+      "category": "import",
+      "passed": true,
+      "detail": {
+        "status": 200,
+        "body": {
+          "import": {
+            "content_id": "local-7011d916b414415c8c84a247375fb4fa3113afd876e8eb0a978b72cb1b6af821",
+            "filename": "qa-note.txt",
+            "status": "READY",
+            "duplicate": true,
+            "source_id": "local-library",
+            "provider": "LOCAL"
+          }
+        }
+      },
+      "latency_ms": 40.88
+    },
+    {
+      "name": "local_import_valid_md",
+      "category": "import",
+      "passed": true,
+      "detail": {
+        "status": 201,
+        "body": {
+          "import": {
+            "content_id": "local-74d796fc3ecfac1adaa79599dacfcc5fae96717d603ab0e46cfd724d9f912c4b",
+            "filename": "qa-doc.md",
+            "status": "READY",
+            "duplicate": false,
+            "source_id": "local-library",
+            "provider": "LOCAL"
+          }
+        }
+      },
+      "latency_ms": 379.86
+    },
+    {
+      "name": "local_import_reject_empty",
+      "category": "import",
+      "passed": true,
+      "detail": {
+        "status": 422,
+        "body": {
+          "error": {
+            "code": "LOCAL_EMPTY_FILE",
+            "message": "The selected file could not be imported."
+          }
+        }
+      },
+      "latency_ms": 6.15
+    },
+    {
+      "name": "local_import_reject_exe",
+      "category": "import",
+      "passed": true,
+      "detail": {
+        "status": 422,
+        "body": {
+          "error": {
+            "code": "LOCAL_UNSUPPORTED_FORMAT",
+            "message": "The selected file could not be imported."
+          }
+        }
+      },
+      "latency_ms": 5.48
+    },
+    {
+      "name": "local_import_reject_invalid_utf8",
+      "category": "import",
+      "passed": true,
+      "detail": {
+        "status": 422,
+        "body": {
+          "error": {
+            "code": "LOCAL_INVALID_TEXT",
+            "message": "The selected file could not be imported."
+          }
+        }
+      },
+      "latency_ms": 6.4
+    },
+    {
+      "name": "imported_video_and_evidence_readable",
+      "category": "import",
+      "passed": true,
+      "detail": {
+        "video_status": 200,
+        "evidence_status": 200,
+        "evidence_count": 3
+      },
+      "latency_ms": 1572.34
+    },
+    {
+      "name": "output_language_roundtrip",
+      "category": "settings",
+      "passed": true,
+      "detail": {
+        "en_status": 200,
+        "zh_status": 200
+      },
+      "latency_ms": 21.07
+    },
+    {
+      "name": "preferences_create_and_patch",
+      "category": "settings",
+      "passed": true,
+      "detail": {
+        "create_status": 201,
+        "patch_status": 200,
+        "pref_id": "preference:qa-pref-1",
+        "body": {
+          "preference": {
+            "preference_id": "preference:qa-pref-1",
+            "horizon": "LONG_TERM",
+            "provenance": "EXPLICIT",
+            "scope": "GLOBAL_CONTENT",
+            "target_id": null,
+            "statement": "Focus on agent architecture",
+            "starts_at": null,
+            "expires_at": null,
+            "supersedes_preference_id": null,
+            "created_at": "2026-11-19T07:08:47.523964Z"
+          }
+        }
+      },
+      "latency_ms": 22.2
+    },
+    {
+      "name": "topics_crud_and_sqli_xss_literal_safety",
+      "category": "topics",
+      "passed": true,
+      "detail": {
+        "create": 201,
+        "rename": 200,
+        "pin": 200,
+        "topic_id": "topic:qa-top-1"
+      },
+      "latency_ms": 64.05
+    },
+    {
+      "name": "spending_policy_stale_revision_conflict",
+      "category": "settings",
+      "passed": true,
+      "detail": {
+        "status": 422,
+        "body": {
+          "error": {
+            "code": "CLOUD_POLICY_INVALID",
+            "message": "Cloud spending settings were not changed. Keep this draft and check current policy or retained reservations."
+          }
+        }
+      },
+      "latency_ms": 4.48
+    },
+    {
+      "name": "research_create_read_and_invalid_rejects",
+      "category": "research",
+      "passed": true,
+      "detail": {
+        "create": 201,
+        "read": 200,
+        "blank_q": 422,
+        "empty_scope": 422,
+        "research_id": "a9051d421dc2f978291e07d45fff8f08e0427f9be29e26527d87bdc193ab927e"
+      },
+      "latency_ms": 48.48
+    },
+    {
+      "name": "workspace_ai_curation_and_ask_validation",
+      "category": "workspace_ai",
+      "passed": true,
+      "detail": {
+        "curation_status": 200,
+        "ask_empty_status": 422,
+        "ask_valid_status": 409,
+        "ask_valid": {
+          "error": {
+            "code": "NO_GROUNDED_CONTENT",
+            "message": "当前筛选范围内没有可用于跨视频溯源问答的已转写内容。"
+          }
+        }
+      },
+      "latency_ms": 21.89
+    },
+    {
+      "name": "backup_download_corrupt_reject_stage_cancel",
+      "category": "backup_restore",
+      "passed": true,
+      "detail": {
+        "backup_status": 201,
+        "download_status": 200,
+        "backup_bytes": 90589,
+        "zip_valid": true,
+        "corrupt_stage_status": 409,
+        "valid_stage_status": 200,
+        "cancel_status": 200
+      },
+      "latency_ms": 1128.14
+    },
+    {
+      "name": "restart_persistence_videos_topics_research",
+      "category": "persistence",
+      "passed": true,
+      "detail": {
+        "boot2_ms": 944.9,
+        "videos_count": 3,
+        "topic_persisted": {
+          "topic_id": "topic:qa-top-1",
+          "name": "QA Benchmark Topic",
+          "pinned": true,
+          "lifecycle": "ACTIVE",
+          "merged_into_topic_id": null,
+          "current_event_id": null,
+          "current_state": "UNRESOLVED",
+          "independence": "UNKNOWN",
+          "contributions": [],
+          "timeline": [],
+          "relations": [],
+          "ai_evolution": {
+            "video_count": 0,
+            "must_watch_count": 0,
+            "unread_count": 0,
+            "recent_7d_count": 0,
+            "avg_score": 0.0,
+            "latest_headline_zh": "",
+            "latest_published_at": "",
+            "source_channels": [],
+            "channel_breakdown": []
+          }
+        },
+        "research_persisted": true
+      },
+      "latency_ms": 944.92
+    },
+    {
+      "name": "concurrency_20threads_80requests",
+      "category": "concurrency",
+      "passed": true,
+      "detail": {
+        "completed": 80,
+        "exceptions": [],
+        "server_5xx": 0,
+        "unexpected_status": [],
+        "p50_ms": 219.93,
+        "p95_ms": 1522.03
+      }
+    },
+    {
+      "name": "sqlite_integrity_and_fk_check",
+      "category": "database",
+      "passed": true,
+      "detail": {
+        "state.sqlite3": {
+          "integrity_check": [
+            "ok"
+          ],
+          "foreign_key_check": [],
+          "row_counts": {
+            "videos": 3,
+            "evidence": 7,
+            "artifacts": 9,
+            "topics": 1,
+            "preferences": 2
+          },
+          "ok": true
+        },
+        ".workspace-ai/hub.sqlite3": {
+          "integrity_check": [
+            "ok"
+          ],
+          "foreign_key_check": [],
+          "row_counts": {},
+          "ok": true
+        }
+      }
+    },
+    {
+      "name": "cli_doctor_safe_handling",
+      "category": "cli",
+      "passed": true,
+      "detail": {
+        "empty_rc": 2,
+        "qa_rc": 3
+      }
+    }
+  ],
+  "latencies_ms": {
+    "samples": 48,
+    "p50_ms": 5.03,
+    "p95_ms": 78.78,
+    "max_ms": 1888.31
+  },
+  "cli": {
+    "doctor_uninitialized": {
+      "returncode": 2,
+      "stdout": "",
+      "stderr": "ERROR: Configuration or command arguments are invalid. Run `youtube-intel --help` and `youtube-intel doctor`.\n"
+    },
+    "doctor_initialized_qa": {
+      "returncode": 3,
+      "stdout": "PASS: Config — configuration is valid.\nPASS: Data directory — project data directory exists.\nFAIL: SQLite — state database is missing. Run `youtube-intel check` to initialize it.\nPASS: Vault — managed test Vault directory exists.\nPASS: yt-dlp — Python provider is installed.\nPASS: MLX Whisper — runtime package is installed; model weights are checked only when transcription is needed.\nPASS: Ollama — loopback service responded safely.\nPASS: Local scoring model — configured model and digest are available.\nOFF: Cloud — cloud analysis is disabled; no credential will be read.\n",
+      "stderr": ""
+    }
+  },
+  "sqlite_integrity": {
+    "state.sqlite3": {
+      "integrity_check": [
+        "ok"
+      ],
+      "foreign_key_check": [],
+      "row_counts": {
+        "videos": 3,
+        "evidence": 7,
+        "artifacts": 9,
+        "topics": 1,
+        "preferences": 2
+      },
+      "ok": true
+    },
+    ".workspace-ai/hub.sqlite3": {
+      "integrity_check": [
+        "ok"
+      ],
+      "foreign_key_check": [],
+      "row_counts": {},
+      "ok": true
+    }
+  },
+  "summary": {
+    "total": 55,
+    "passed": 55,
+    "failed": 0
+  }
+}

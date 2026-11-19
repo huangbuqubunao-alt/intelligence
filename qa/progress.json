@@ -1,0 +1,153 @@
+{
+  "worktree": "/Users/hua/Documents/yia-worktrees/antigravity-readiness-20261112",
+  "branch": "antigravity/task-user-readiness-20261112",
+  "base_sha": "07a86fe624e82821f594231c78847cd603b00304",
+  "fix_sha": "f3f19be57fac9846ed4c2ae009fe39be0c670a3d",
+  "environment": {
+    "os": "macOS 26.3.1 (Build 25D2128)",
+    "python": "3.12.11",
+    "node": "v22.22.3",
+    "npm": "10.9.8",
+    "sqlite": "3.51.0",
+    "disk_free_bytes_statvfs": 5030719488
+  },
+  "started_at": "2026-11-19T12:46:22+08:00",
+  "batches": {
+    "batch_1_static_and_unit_baselines": "COMPLETED",
+    "batch_2_backend_http_db_security_audit": "COMPLETED",
+    "batch_3_playwright_real_e2e_ux": "COMPLETED",
+    "batch_4_fixes_and_regression": "COMPLETED",
+    "batch_5_final_report": "COMPLETED"
+  },
+  "post_fix_verification": {
+    "fe_build": "Exit 0 (792ms)",
+    "ruff_check": "Exit 0",
+    "mypy_src": "Exit 0 (134 files)",
+    "vitest_full": {
+      "files_passed": 53,
+      "files_failed": 0,
+      "tests_passed": 1227,
+      "tests_failed": 0,
+      "log": "qa/evidence/vitest_post_fix.log"
+    },
+    "pytest_targeted_integration": {
+      "passed": 65,
+      "failed": 0,
+      "duration_s": 170.88,
+      "log": "qa/evidence/pytest_targeted_post_fix.log"
+    },
+    "backend_audit": {
+      "total": 55,
+      "passed": 55,
+      "failed": 0,
+      "p50_ms": 5.03,
+      "p95_ms": 78.78,
+      "report": "qa/evidence/backend-audit-report.json"
+    },
+    "playwright_e2e": {
+      "total": 12,
+      "passed": 12,
+      "failed": 0,
+      "server_5xx": 0,
+      "pageerrors": 0,
+      "console_errors_total": 1,
+      "console_errors_unexpected": 0,
+      "screenshots": 13,
+      "report": "qa/evidence/playwright-e2e-report.json"
+    }
+  },
+  "batch_3_playwright_e2e_prefixed": {
+    "total": 12,
+    "passed": 11,
+    "failed": 1,
+    "server_5xx": 0,
+    "pageerrors": 0,
+    "failed_step": "settings_language_interests_unchanged_save_and_backup (DEF-004)",
+    "report": "qa/evidence/playwright-e2e-report.json"
+  },
+  "batch_2_backend_audit": {
+    "total": 55,
+    "passed": 55,
+    "failed": 0,
+    "p50_ms": 9.63,
+    "p95_ms": 65.32,
+    "max_ms": 759.1,
+    "concurrency_wave_p50_ms": 228.02,
+    "concurrency_wave_p95_ms": 1220.14,
+    "sqlite_integrity": "ok (state.sqlite3 + .workspace-ai/hub.sqlite3)",
+    "report": "qa/evidence/backend-audit-report.json"
+  },
+  "baselines": {
+    "security_scan": {
+      "command": "bash scripts/security_scan.sh",
+      "exit_code": 1,
+      "findings": 17,
+      "src_findings": 0,
+      "frontend_findings": 0,
+      "scope_breakdown": {
+        "tests": 16,
+        "docs": 1
+      },
+      "log": "qa/evidence/security_scan.log",
+      "classification": "SEC-001"
+    },
+    "ruff_check": {
+      "command": "uv run --frozen ruff check src tests",
+      "exit_code": 0,
+      "log": "qa/evidence/ruff_check.log"
+    },
+    "mypy_check": {
+      "command": "uv run --frozen mypy src",
+      "exit_code": 0,
+      "files_checked": 134,
+      "log": "qa/evidence/mypy_check.log"
+    },
+    "fe_build": {
+      "command": "cd frontend && npm run build",
+      "exit_code": 0,
+      "log": "qa/evidence/fe_build.log"
+    },
+    "vitest_full": {
+      "command": "cd frontend && npx vitest run",
+      "exit_code": 1,
+      "files_passed": 51,
+      "files_failed": 2,
+      "tests_passed": 1221,
+      "tests_failed": 4,
+      "log": "qa/evidence/vitest_full.log",
+      "defect_ids": ["DEF-001"]
+    },
+    "pytest_unit": {
+      "command": "uv run --frozen python -m pytest tests/unit -q --tb=short",
+      "exit_code": 1,
+      "passed": 3997,
+      "failed": 37,
+      "errors": 153,
+      "skipped": 1,
+      "triage": {
+        "source_inventory_changed_schema44_frozen": 188,
+        "sealed_qualification_code_sha_drift": 2
+      },
+      "log": "qa/evidence/pytest_unit.log",
+      "classification": "GOV-001"
+    },
+    "pytest_integration": {
+      "command": "uv run --frozen python -m pytest tests/integration -q --tb=short",
+      "exit_code": 1,
+      "passed": 3077,
+      "failed": 3,
+      "standalone_env_001_rerun": "1 passed, 38 deselected in 21.80s",
+      "log": "qa/evidence/pytest_integration.log",
+      "defect_ids": ["DEF-002", "DEF-003", "ENV-001"]
+    }
+  },
+  "defects_count": {
+    "P0": 0,
+    "P1": 3,
+    "P2": 1,
+    "P3": 0,
+    "ENV": 1,
+    "GOV": 1,
+    "SEC": 1
+  }
+}
