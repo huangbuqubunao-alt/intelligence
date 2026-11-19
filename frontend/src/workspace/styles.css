@@ -550,6 +550,7 @@ small, .hint, .muted {
 }
 .status {
   display: inline-flex;
+  align-self: flex-start;
   min-height: 22px;
   /* A resolved status is a localized sentence, not a token: its length is a
      property of the interface language and cannot be fixed in advance.  The
@@ -646,6 +647,7 @@ small, .hint, .muted {
 }
 .dashboard-stack, .settings-stack, .report-stack {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
 }
 .attention-strip {
@@ -1451,14 +1453,28 @@ td small {
   }
   .toolbar {
     flex-wrap: wrap;
+    min-width: 0;
+    max-width: 100%;
   }
   .toolbar input {
     width: 100%;
     margin-right: 0;
   }
   .segmented {
-    overflow-x: auto;
+    min-width: 0;
     max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .segmented::-webkit-scrollbar {
+    display: none;
+  }
+  .segmented button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+  .kb-shortcut-hint {
+    display: none;
   }
   .drawer-layer {
     grid-template-columns: 1fr;
@@ -1698,6 +1714,13 @@ dialog p {
 /* Disabled is distinct from a secondary action at every viewport. */
 button:disabled, input:disabled, select:disabled {
   opacity: .48; cursor: not-allowed; border-style: dashed; box-shadow: none;
+}
+.button-primary:disabled {
+  background: var(--surface-subtle);
+  border-color: var(--border-strong);
+  color: var(--text-muted);
+  opacity: 0.65;
+  box-shadow: none;
 }
 .settings-advanced { border-top: 1px solid var(--border); padding-top: 1rem; }
 .settings-advanced > summary { cursor: pointer; padding: .5rem 0; }
@@ -2300,6 +2323,7 @@ h1, h2 {
 /* Content Library Filter Bar & Provider Media Rows */
 .content-library-shell {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
 }
 
@@ -2309,6 +2333,7 @@ h1, h2 {
   align-items: center;
   justify-content: space-between;
   gap: 10px 12px;
+  min-width: 0;
 }
 
 .search-field-wrap {
@@ -2415,7 +2440,7 @@ h1, h2 {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   padding: 5px 7px;
-  box-shadow: 0 -14px 0 8px var(--bg), var(--shadow-2);
+  box-shadow: var(--shadow-2);
 }
 
 .reader-jump-bar::-webkit-scrollbar {
@@ -4600,6 +4625,68 @@ input[type="radio"] {
   .intel-row-summary {
     -webkit-line-clamp: 2;
   }
+}
+
+/* AI capability overview, collapsed diagnostics, and backup callout */
+.local-route-summary-row,
+.deep-analysis-compact-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.local-route-details,
+.deep-analysis-routes-details {
+  margin-top: 8px;
+}
+
+.local-route-details > summary,
+.deep-analysis-routes-details > summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ai-overview-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.ai-overview-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-subtle);
+}
+
+.ai-overview-meta {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.metadata-row.backup-result-card {
+  grid-template-columns: minmax(0, 1fr);
+}
+.backup-unsaved-callout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
 }
 
 

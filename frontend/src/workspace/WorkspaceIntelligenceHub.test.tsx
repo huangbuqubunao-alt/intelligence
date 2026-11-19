@@ -3703,11 +3703,11 @@ describe("Workspace AI Upgrade (P0 + P1 + P2)", () => {
     await waitFor(() => expect(location.hash).toBe("#Content/vid-openai-1"));
 
     const topicWikilinkBtn = await screen.findByRole("button", {
-      name: /\[\[AI Agent 与自动化架构\]\]/,
+      name: /^AI Agent 与自动化架构$/,
     });
     fireEvent.click(topicWikilinkBtn);
 
-    await waitFor(() => expect(location.hash).toBe("#Topics"));
+    await waitFor(() => expect(location.hash).toBe("#Topics/topic-agent-r8"));
     expect(
       await screen.findByText("OpenAI 与 Greg Isenberg 一致聚焦可验证 Agent 工作流。"),
     ).toBeTruthy();
@@ -4245,11 +4245,11 @@ describe("Workspace AI Upgrade (P0 + P1 + P2)", () => {
     expect(copiedTexts[0]).toContain("Vertical workflow pricing beats generic chat wrappers.");
     expect(copiedTexts[0]).not.toContain("[[");
 
-    // 3) Click [[AI 产品机会与一人公司变现]] chip on IntelligenceCard -> opens that Topic detail in #Topics
+    // 3) Click AI 产品机会与一人公司变现 chip on IntelligenceCard -> opens that Topic detail in #Topics
     fireEvent.click(
-      screen.getByRole("button", { name: "[[AI 产品机会与一人公司变现]]" }),
+      screen.getByRole("button", { name: "AI 产品机会与一人公司变现" }),
     );
-    await waitFor(() => expect(location.hash).toBe("#Topics"));
+    await waitFor(() => expect(location.hash).toBe("#Topics/topic%3Asolo-biz"));
     expect(await screen.findByText("聚焦高客单价垂直场景。")).toBeTruthy();
 
     // 4) Navigate to #Research and click "复制纯文本提纲" -> copies YAML-free, wikilink-free plain-text brief
@@ -4869,7 +4869,7 @@ describe("Workspace AI Upgrade (P0 + P1 + P2)", () => {
     const localIntelOption = await screen.findByRole("option", {
       name: /离线语音流式状态机显著降低本地工作流中断率/,
     });
-    expect(localIntelOption.textContent).toContain("[[AI Agent 与自动化架构]]");
+    expect(localIntelOption.textContent).toContain("AI Agent 与自动化架构");
     expect(localIntelOption.textContent).toContain("本地资料库");
     fireEvent.keyDown(cmdkInput, { key: "Escape" });
 
@@ -5088,14 +5088,14 @@ describe("Workspace AI Upgrade (P0 + P1 + P2)", () => {
     const taasOpt = await screen.findByRole("option", {
       name: /TaaS 工具即服务通过沉淀专有行业数据构建复利壁垒/,
     });
-    expect(taasOpt.textContent).toContain("[[AI 产品机会与一人公司变现]] · 2026年10月30日 · Greg Isenberg");
+    expect(taasOpt.textContent).toContain("AI 产品机会与一人公司变现 · 2026年10月30日 · Greg Isenberg");
     expect(taasOpt.textContent).not.toContain("Greg Isenberg · 2026年10月30日 · Greg Isenberg");
 
     fireEvent.change(cmdkInput, { target: { value: "SQLite" } });
     const sqliteOpt = await screen.findByRole("option", {
       name: /本地 SQLite 单快照隔离保障多代理并发读写一致性/,
     });
-    expect(sqliteOpt.textContent).toContain("[[AI Agent 与自动化架构]] · 2026年11月10日 · 本地资料库");
+    expect(sqliteOpt.textContent).toContain("AI Agent 与自动化架构 · 2026年11月10日 · 本地资料库");
     expect(sqliteOpt.textContent).not.toContain("本地资料库 · 2026年11月10日 · 本地资料库");
     fireEvent.keyDown(cmdkInput, { key: "Escape" });
 
@@ -6402,5 +6402,227 @@ describe("Workspace AI Upgrade (P0 + P1 + P2)", () => {
     fireEvent.keyDown(qaBox, { key: "Enter", shiftKey: false });
     await waitFor(() => expect(askPayloads).toHaveLength(1));
     expect(askPayloads[0].question).toBe("微型工具如何衔接主产品转化？");
+  });
+
+  it("UX Audit D1: shows setup transcription link when transcriberReady=false and surfaces 409 TRANSCRIPT_REQUIRED without blaming Ollama", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string, init?: RequestInit) => {
+        if (input.endsWith("/videos/vid-d1-local")) {
+          return okJson({
+            video: {
+              video_id: "vid-d1-local",
+              provider: "LOCAL",
+              media_kind: "VIDEO",
+              format: "mp4",
+              title: "Local Lecture Without Model",
+              channel_name: "本地导入",
+              published_at: "2026-11-18T10:00:00Z",
+              duration_seconds: 1200,
+              processing_status: "TRANSCRIPTION_UNAVAILABLE",
+            },
+            transcript: { status: "MISSING", content: "" },
+            note: { v2: null },
+            intelligence_result: { status: "NOT_STARTED", state: "NOT_STARTED", items: [] },
+            history: [],
+            workspace_ai_capabilities: {
+              ready: true,
+              local_ready: true,
+              cloud_ready: false,
+              active_mode: "local_ollama",
+              active_model: "qwen2.5:7b",
+              transcriber_ready: false,
+              transcribe_job: null,
+            },
+          });
+        }
+        if (input.endsWith("/videos/vid-d1-yt")) {
+          return okJson({
+            video: {
+              video_id: "vid-d1-yt",
+              provider: "YOUTUBE",
+              title: "YouTube Video Without Captions",
+              channel_name: "OpenAI",
+              published_at: "2026-11-18T10:00:00Z",
+              duration_seconds: 1500,
+              processing_status: "METADATA_READY",
+            },
+            transcript: { status: "MISSING", content: "" },
+            note: { v2: null },
+            intelligence_result: { status: "NOT_STARTED", state: "NOT_STARTED", items: [] },
+            history: [],
+            workspace_ai_capabilities: {
+              ready: true,
+              local_ready: true,
+              cloud_ready: false,
+              active_mode: "local_ollama",
+              active_model: "qwen2.5:7b",
+              transcriber_ready: false,
+              transcribe_job: null,
+            },
+          });
+        }
+        if (input.endsWith("/videos/vid-d1-yt/distill") && init?.method === "POST") {
+          return okJson(
+            {
+              error: {
+                code: "TRANSCRIPT_REQUIRED",
+                message: "此视频暂无字幕，请等待字幕抓取或先进行转写。",
+              },
+            },
+            409,
+          );
+        }
+        if (input.endsWith("/evidence")) return okJson({ evidence: [] });
+        if (input.endsWith("/deep-analysis")) return okJson({ available: false, routes: [] });
+        return okJson({});
+      }),
+    );
+
+    location.hash = "#Content/vid-d1-local";
+    render(<App />);
+    const setupLinks = await screen.findAllByRole("link", { name: "先设置本地转写 →" });
+    expect(setupLinks.length).toBeGreaterThanOrEqual(1);
+    expect(setupLinks.every((el) => el.getAttribute("href") === "#Settings/transcription")).toBe(true);
+
+    location.hash = "#Content/vid-d1-yt";
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+    const distillBtn = await screen.findByRole("button", { name: "AI 生成简介中文速览" });
+    fireEvent.click(distillBtn);
+    expect(await screen.findByText(/此视频暂无字幕，请等待字幕抓取或先进行转写/)).toBeTruthy();
+    expect(screen.queryByText(/请检查本机 Ollama/)).toBeNull();
+  });
+
+  it("UX Audit E1 + C6 + G1: renders Settings 3-row AI overview, auto-expands #Settings/transcription, strips UI wikilink brackets, and avoids hardcoded Research names", async () => {
+    const wsAiSettings = {
+      active_mode: "local_ollama",
+      ollama_base_url: "http://127.0.0.1:11434",
+      ollama_model: "qwen2.5:7b",
+      ollama_reachable: true,
+      installed_ollama_models: ["qwen2.5:7b"],
+      local_ollama_ready: true,
+      local_mlx_Whisper_ready: false,
+      cloud_provider: "deepseek",
+      cloud_base_url: "https://api.deepseek.com/v1",
+      cloud_model: "deepseek-chat",
+      cloud_key_configured: false,
+      ready: true,
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string) => {
+        if (input.endsWith("/workspace-ai/settings")) {
+          return okJson(wsAiSettings);
+        }
+        if (input.endsWith("/settings")) {
+          return okJson({
+            general: {
+              timezone: "Asia/Shanghai",
+              output_language: "zh-CN",
+              output_language_source: "USER",
+              output_language_updated_at: null,
+            },
+            providers: [],
+            cloud_credential: { configured: false, source: "NONE" },
+            workspace_ai: wsAiSettings,
+          });
+        }
+        if (input.endsWith("/settings/preferences")) return okJson({ active: [], history: [] });
+        if (input.endsWith("/settings/resource-usage")) return okJson({ usage: [] });
+        if (input.endsWith("/settings/models")) return okJson({ models: [], capabilities: { deep_analysis_ready: false } });
+        if (input.endsWith("/settings/transcription")) {
+          return okJson({ model_directory: null, selected_model: null, available_models: [], status: "MISSING_MODEL" });
+        }
+        if (input.endsWith("/settings/source-policy")) {
+          return okJson({
+            policy: {
+              initial_history_count: 5,
+              per_run_max_new_videos: 10,
+              focus_rules: [],
+              ignore_rules: [],
+              distillation_style: "BALANCED",
+            },
+          });
+        }
+        if (input.endsWith("/backup-restore/status")) {
+          return okJson({ status: { ready: true, reasons: [], restore_pending: false, last_restore: null } });
+        }
+        if (input.endsWith("/deep-analysis/status")) return okJson({ available: false, routes: [] });
+        if (input.endsWith("/cloud-intelligence/profiles")) return okJson({ profiles: [] });
+        if (input.endsWith("/local-intelligence")) return okJson({});
+        if (input.endsWith("/videos/vid-c6-1")) {
+          return okJson({
+            video: {
+              video_id: "vid-c6-1",
+              provider: "YOUTUBE",
+              title: "Clean Topic Chip Demo",
+              channel_name: "OpenAI",
+              published_at: "2026-11-18T10:00:00Z",
+              duration_seconds: 1200,
+              processing_status: "ANALYZED",
+              ai_brief: {
+                video_id: "vid-c6-1",
+                score: 9.0,
+                recommendation_tier: "MUST_WATCH",
+                content_bucket: "DEEP_DIVE",
+                is_short_noise: false,
+                headline_zh: "结构化要点演示",
+                summary_zh: "纯文本芯片展示，不含双链括号。",
+                topic_cluster_zh: "Agent 工具协议",
+                obsidian_markdown: "# Demo\n",
+                provider: "ollama",
+                model: "qwen2.5:7b",
+                source_basis: "TRANSCRIPT",
+              },
+            },
+            transcript: { status: "AVAILABLE", content: "Sample transcript" },
+            note: { v2: { status: "AVAILABLE", timestamped_key_points: [], summary: "Demo", topics: ["Agent 工具协议"] } },
+            intelligence_result: { status: "NOT_STARTED", state: "NOT_STARTED", items: [] },
+            history: [],
+            workspace_ai_capabilities: { ready: true, local_ready: true, active_mode: "local_ollama", active_model: "qwen2.5:7b", transcriber_ready: false },
+          });
+        }
+        if (input.endsWith("/workspace-ai/research/sessions")) {
+          return okJson({ sessions: [], suggested_questions: [] });
+        }
+        if (input.endsWith("/research")) return okJson({ research: [], total: 0, offset: 0, limit: 25 });
+        if (input.endsWith("/videos")) return okJson({ videos: [] });
+        if (input.endsWith("/evidence")) return okJson({ evidence: [] });
+        if (input.endsWith("/deep-analysis")) return okJson({ available: false, routes: [] });
+        return okJson({});
+      }),
+    );
+
+    location.hash = "#Settings";
+    const { container } = render(<App />);
+    await screen.findByText("AI 能力总览");
+    const overviewCard = container.querySelector("#settings-ai-overview .ai-overview-grid") as HTMLElement | null;
+    expect(overviewCard).toBeTruthy();
+    expect(within(overviewCard!).getByText("日常总结、评分与问答")).toBeTruthy();
+    expect(within(overviewCard!).getByText("音视频离线转写")).toBeTruthy();
+    expect(within(overviewCard!).getByText("深度分析（高级）")).toBeTruthy();
+
+    location.hash = "#Settings/transcription";
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+    await waitFor(() => {
+      const detailsEl = container.querySelector("details.legacy-model-diagnostics") as HTMLDetailsElement | null;
+      expect(detailsEl?.open).toBe(true);
+    });
+
+    location.hash = "#Content/vid-c6-1";
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+    const pill = await waitFor(() => {
+      const el = container.querySelector(".ai-topic-tag");
+      expect(el).toBeTruthy();
+      return el as HTMLElement;
+    });
+    expect(pill.textContent).toContain("Agent 工具协议");
+    expect(pill.textContent).not.toContain("[[");
+
+    location.hash = "#Research";
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+    await screen.findByLabelText("跨视频提问");
+    expect(document.body.textContent).not.toContain("Greg Isenberg");
+    expect(document.body.textContent).not.toContain("GPT-6 Cyber");
   });
 });

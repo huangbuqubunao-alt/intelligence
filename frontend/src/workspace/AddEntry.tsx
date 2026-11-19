@@ -37,13 +37,32 @@ export function recognizeLink(value: string): RecognizedLink | null {
   return null;
 }
 
+function linkHint(value: string, zh: boolean): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (/^http:\/\//i.test(trimmed)) {
+    return zh
+      ? "请使用 https:// 开头（出于安全限制不支持明文 http://）。"
+      : "Use https:// at the start (plaintext http:// is not supported).";
+  }
+  if (/^(www\.)?(youtube\.com|youtu\.be|bilibili\.com|m\.bilibili\.com)\b/i.test(trimmed)) {
+    return zh
+      ? "请补全 https:// 开头，例如 https://www.youtube.com/watch?v=..."
+      : "Include https:// at the start, e.g. https://www.youtube.com/watch?v=...";
+  }
+  return zh
+    ? "支持 https:// YouTube 视频或频道、@用户名，或 B 站 BV 号。"
+    : "Supports https:// YouTube video/channel links, @handle, or Bilibili BV ID.";
+}
+
 const confirmation: Record<RecognizedLink["kind"], string> = {
   YOUTUBE_CHANNEL: "YouTube channel — keep following future content. Existing videos are not imported.",
   YOUTUBE_VIDEO: "YouTube video — process this video only. Its channel will not be followed.",
   BILIBILI_VIDEO: "Bilibili video — import this public video only. Its creator will not be followed.",
 };
-export function AddEntry({ onClose, onSaved, onImported, initialLocal = false }: { onClose: () => void; onSaved: () => void; onImported?: (contentId: string) => void; initialLocal?: boolean }) {
-  const { t } = useUiLanguage();
+export function AddEntry({ onClose, onSaved, onImported, initialLocal = false }: { onClose: () => void; onSaved: () => void; onImported?: (contentId: string, sourceKind?: "LOCAL" | "YOUTUBE_VIDEO" | "BILIBILI_VIDEO") => void; initialLocal?: boolean }) {
+  const { language, t } = useUiLanguage();
+  const zh = language === "zh-CN";
   const [local, setLocal] = useState(initialLocal);
   const [input, setInput] = useState("");
   const [mode, setMode] = useState("ORGANIZE_CONTENT");
@@ -51,7 +70,7 @@ export function AddEntry({ onClose, onSaved, onImported, initialLocal = false }:
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ kind: RecognizedLink["kind"]; content_id?: string; status?: string } | null>(null);
   const recognized = recognizeLink(input);
-  if (local) return <LocalImport onClose={onClose} onSaved={onSaved} onImported={onImported} onYouTube={() => setLocal(false)} />;
+  if (local) return <LocalImport onClose={onClose} onSaved={onSaved} onImported={onImported ? id => onImported(id, "LOCAL") : undefined} onYouTube={() => setLocal(false)} />;
   return <div className="overlay"><section className="modal local-import" role="dialog" aria-modal="true" aria-labelledby="add-entry-title">
     <div className="modal-head"><h2 id="add-entry-title">{t("Add a Source")}</h2><button className="button button-ghost" aria-label={t("Close")} disabled={busy} onClick={result ? onSaved : onClose}>{t(result ? "Done" : "Close")}</button></div>
     {!result && <>
@@ -70,9 +89,17 @@ export function AddEntry({ onClose, onSaved, onImported, initialLocal = false }:
             setResult({ kind: recognized.kind });
           } else if (recognized.kind === "BILIBILI_VIDEO") {
             const response = await post<{ import: { content_id: string; processing_status: string } }>("/bilibili/imports", { input: recognized.canonical });
+            if (onImported) {
+              onImported(response.import.content_id, recognized.kind);
+              return;
+            }
             setResult({ kind: recognized.kind, content_id: response.import.content_id, status: response.import.processing_status });
           } else {
             const response = await post<{ source: { video_id: string } }>("/sources/import", { url: recognized.canonical, command_id: crypto.randomUUID() });
+            if (onImported) {
+              onImported(response.source.video_id, recognized.kind);
+              return;
+            }
             setResult({ kind: recognized.kind, content_id: response.source.video_id });
           }
         } catch (reason) {
@@ -80,8 +107,9 @@ export function AddEntry({ onClose, onSaved, onImported, initialLocal = false }:
           setError(code.includes("INVALID") || code.includes("UNSUPPORTED") ? invalidLinkCopy : recognized.kind === "BILIBILI_VIDEO" ? bilibiliStatus(code) : trackingCopy(code.replace(/^YOUTUBE_/, ""), "YOUTUBE"));
         } finally { setBusy(false); }
       }}>
-        <label className="field">{t("Paste link")}<input autoFocus aria-label={t("Paste link")} value={input} maxLength={2048} disabled={busy} onChange={event => { setInput(event.target.value); setError(null); }} placeholder="https://www.youtube.com/@channel/videos" /></label>
-        {recognized && <p className="semantic-state state-neutral" role="status">{t(confirmation[recognized.kind])}</p>}
+        <label className="field">{t("Paste link")}<input autoFocus aria-label={t("Paste link")} value={input} maxLength={2048} disabled={busy} onChange={event => { setInput(event.target.value); setError(null); }} placeholder={zh ? "粘贴 YouTube 视频/频道链接，或 B 站 BV 链接" : "https://www.youtube.com/watch?v=..., @channel, or BV..."} /></label>
+        {recognized && <p className="semantic-state state-neutral" role="status">{zh ? "✓ 已识别 · " : "✓ Recognized · "}{t(confirmation[recognized.kind])}</p>}
+        {!recognized && !error && input.trim().length > 0 && <p className="hint" role="status">{linkHint(input, zh)}</p>}
         {recognized?.kind === "YOUTUBE_CHANNEL" && <fieldset disabled={busy} className="processing-modes"><legend>{t("When new content is found")}</legend>
           <label><input type="radio" name="processing-mode" checked={mode === "ORGANIZE_CONTENT"} onChange={() => setMode("ORGANIZE_CONTENT")} /> {t("Organize content")}<small>{t("Automatically save new content with readable summaries and verifiable source references.")}</small></label>
           <label><input type="radio" name="processing-mode" checked={mode === "EXTRACT_INTELLIGENCE"} onChange={() => setMode("EXTRACT_INTELLIGENCE")} /> {t("Also extract Intelligence")}<small>{t("After organizing content, consider which information deserves lasting knowledge. A qualified model and any required consent are needed.")}</small></label>

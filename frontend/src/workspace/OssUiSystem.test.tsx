@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
@@ -242,7 +242,7 @@ describe("Content library search/filter toolbar & Reader sticky section jump bar
 
     const pinnedBtn = await screen.findByRole("button", { name: /AI 推理可靠性与核验/ });
     await user.click(pinnedBtn);
-    expect(location.hash).toBe("#Topics");
+    await waitFor(() => expect(location.hash).toBe("#Topics/topic-reasoning"));
     expect(await screen.findByRole("button", { name: /取消置顶主题|返回主题/ })).toBeTruthy();
     expect(screen.getByRole("heading", { name: /时间线/ })).toBeTruthy();
     expect(screen.getByRole("heading", { name: /关联主题/ })).toBeTruthy();

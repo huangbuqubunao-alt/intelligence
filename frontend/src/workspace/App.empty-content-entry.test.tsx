@@ -64,7 +64,7 @@ it.each(["en", "zh-CN"])("opens the shared Add dialog from empty Content with Ta
   for (let index = 0; index < 7; index++) await user.tab();
   expect(document.activeElement).toBe(add);
   await user.keyboard("{Enter}");
-  expect(screen.getByRole("dialog", { name: t("Add a Source", "添加关注") })).toBeTruthy();
+  expect(screen.getByRole("dialog", { name: t("Add a Source", "添加内容") })).toBeTruthy();
   expect(document.activeElement).toBe(screen.getByRole("textbox", { name: t("Paste link", "粘贴链接") }));
   expect(screen.getByRole("button", { name: t("Import local file", "导入本地文件") })).toBeTruthy();
   await user.click(screen.getByRole("button", { name: t("Close", "关闭") }));
@@ -80,7 +80,6 @@ it.each(["en", "zh-CN"])("uses the existing URL importer and opens its saved Con
   await user.click(await screen.findByRole("button", { name: t("Add content", "添加内容") }));
   await user.type(screen.getByRole("textbox", { name: t("Paste link", "粘贴链接") }), "https://youtu.be/abcdefghijk");
   await user.click(screen.getByRole("button", { name: t("Confirm import", "确认导入") }));
-  await user.click(await screen.findByRole("link", { name: t("Open Content", "打开内容") }));
   expect(await screen.findByRole("heading", { name: video.title })).toBeTruthy();
   expect(location.hash).toBe(`#Content/${video.video_id}`);
   expect(screen.queryByRole("dialog")).toBeNull();

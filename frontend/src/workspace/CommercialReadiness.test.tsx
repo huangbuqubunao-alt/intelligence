@@ -316,6 +316,6 @@ describe("1-click local Chinese reading guide, Markdown copy, Evidence spotlight
     });
     const quickImport = await screen.findByRole("button", { name: "快捷导入" });
     await user.click(quickImport);
-    expect(await screen.findByRole("dialog", { name: "添加关注" })).toBeTruthy();
+    expect(await screen.findByRole("dialog", { name: "添加内容" })).toBeTruthy();
   });
 });

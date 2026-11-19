@@ -2978,5 +2978,117 @@ def test_round10_intelligence_list_and_detail_expose_linked_topics_when_sidecar_
         sidecar_db.write_bytes(sidecar_backup)
 
 
+def test_ux_audit_d1_local_markdown_distill_omits_fake_timestamps_while_video_requires_transcript(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    env = _build_env(tmp_path, monkeypatch)
+    fast_app: Any = env["fast_app"]
+
+    md_code, md_imp = fast_app.handle(
+        "POST",
+        "/api/v1/local/imports?filename=agent-notes.md",
+        b"# Agent Notes\n\nDeterministic tool contracts prevent silent failures in agent workflows.\n",
+    )
+    assert md_code == HTTPStatus.CREATED
+    md_id = md_imp["import"]["content_id"]
+
+    distill_code, distill_body = fast_app.handle(
+        "POST", f"/api/v1/workspace-ai/videos/{md_id}/distill", b"{}"
+    )
+    assert distill_code == HTTPStatus.OK
+    assert "[00:00]" not in distill_body["ai_brief"]["obsidian_markdown"]
+
+    detail_code, detail_payload = fast_app.handle("GET", f"/api/v1/videos/{md_id}")
+    assert detail_code == HTTPStatus.OK
+    assert "[00:00]" not in detail_payload["obsidian_markdown"]
+    assert all(
+        not pt.get("timestamp") and pt.get("start_ms") is None
+        for pt in detail_payload["note"]["v2"]["timestamped_key_points"]
+    )
+
+    mp4_path = tmp_path / "no-captions.mp4"
+    subprocess.run(
+        [
+            media_tool("ffmpeg"),
+            "-v",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "color=c=blue:s=32x32:r=5:d=1",
+            str(mp4_path),
+        ],
+        check=True,
+        capture_output=True,
+        timeout=20,
+    )
+    vid_code, vid_imp = fast_app.handle(
+        "POST",
+        "/api/v1/local/imports?filename=no-captions.mp4",
+        mp4_path.read_bytes(),
+    )
+    assert vid_code == HTTPStatus.CREATED
+    vid_id = vid_imp["import"]["content_id"]
+
+    fail_code, fail_body = fast_app.handle(
+        "POST", f"/api/v1/workspace-ai/videos/{vid_id}/distill", b"{}"
+    )
+    assert fail_code == HTTPStatus.CONFLICT
+    assert fail_body["error"]["code"] == "TRANSCRIPT_REQUIRED"
+
+
+def test_ux_audit_g1_research_suggested_questions_grounded_without_hardcoded_names(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    env = _build_env(tmp_path, monkeypatch)
+    fast_app: Any = env["fast_app"]
+
+    empty_code, empty_payload = fast_app.handle(
+        "GET", "/api/v1/workspace-ai/research/sessions"
+    )
+    assert empty_code == HTTPStatus.OK
+    empty_questions = empty_payload["suggested_questions"]
+    assert len(empty_questions) >= 2
+    assert all(
+        "Greg Isenberg" not in q and "GPT-6 Cyber" not in q for q in empty_questions
+    )
+
+    _seed_youtube_video(
+        env["repo"],
+        env["data_root"],
+        source_id=env["source"].source_id,
+        video_id="vidG1Karp01",
+        channel_id="UC2222222222222222222222",
+        channel_name="Andrej Karpathy",
+        title="Tokenization and Transformer Internals",
+        duration_seconds=2400,
+        cues=(
+            TimedTranscriptCueWrite(
+                start_ms=1000,
+                end_ms=20000,
+                text="Byte pair encoding and deterministic evals shape model behavior.",
+            ),
+        ),
+        now=NOW - timedelta(hours=1),
+    )
+    distill_code, _ = fast_app.handle(
+        "POST", "/api/v1/workspace-ai/videos/vidG1Karp01/distill", b"{}"
+    )
+    assert distill_code == HTTPStatus.OK
+
+    seeded_code, seeded_payload = fast_app.handle(
+        "GET", "/api/v1/workspace-ai/research/sessions"
+    )
+    assert seeded_code == HTTPStatus.OK
+    seeded_questions = seeded_payload["suggested_questions"]
+    assert all(
+        "Greg Isenberg" not in q and "GPT-6 Cyber" not in q for q in seeded_questions
+    )
+    assert any(
+        "Andrej Karpathy" in q or "AI Agent 与自动化架构" in q
+        for q in seeded_questions
+    )
+
+
 
 

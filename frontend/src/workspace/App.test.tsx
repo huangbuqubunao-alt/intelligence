@@ -1426,7 +1426,9 @@ test("fresh onboarding explains local processing, multiple sources and remembers
   expect(screen.queryByText(/production Following configuration path/)).toBeNull();
   expect(fetchMock.mock.calls.some(([, init]) => ["POST", "PUT", "PATCH", "DELETE"].includes(init?.method ?? "GET"))).toBe(false);
   fireEvent.click(screen.getByRole("button", { name: "Add something" }));
-  expect(await screen.findByText(/Set up your first Source/)).toBeTruthy();
+  expect(await screen.findByRole("dialog", { name: "Add a Source" })).toBeTruthy();
+  expect(screen.getByRole("textbox", { name: "Paste link" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Close" }));
   fireEvent.click(screen.getByRole("button", { name: "Home" }));
   expect(await screen.findByText("No important new intelligence yet.")).toBeTruthy();
   expect(screen.queryByText(/FIRST RUN/)).toBeNull();
@@ -1735,6 +1737,23 @@ test("single video Add creates durable Content work without schedule or continuo
   const fetchMock = vi.fn((input: string, init?: RequestInit) => {
     if (input.endsWith("/sources/import") && init?.method === "POST") return response({ source: { source_id: "source-new", video_id: "abcdefghijk" }, source_run: { state: "QUEUED" } });
     if (input.endsWith("/sources")) return response({ sources: [] });
+    if (input.endsWith("/videos/abcdefghijk")) {
+      return response({
+        video: {
+          video_id: "abcdefghijk",
+          title: "Single video abcdefghijk",
+          channel_name: "Channel",
+          published_at: "2026-11-19T10:00:00Z",
+          processing_status: "READY",
+        },
+        transcript: { status: "MISSING", content: "" },
+        note: { v2: null },
+        intelligence_result: { status: "NOT_STARTED", state: "NOT_STARTED", items: [] },
+        history: [],
+      });
+    }
+    if (input.endsWith("/videos/abcdefghijk/evidence")) return response({ evidence: [] });
+    if (input.endsWith("/videos/abcdefghijk/deep-analysis")) return response({ available: false, routes: [] });
     return response({});
   });
   vi.stubGlobal("fetch", fetchMock);
@@ -1744,12 +1763,12 @@ test("single video Add creates durable Content work without schedule or continuo
   fireEvent.change(screen.getByLabelText("Paste link"), { target: { value: "https://youtu.be/abcdefghijk" } });
   expect(screen.getByText(/Its channel will not be followed/)).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Confirm import" }));
-  expect(await screen.findByText("Import accepted. Processing and any required attention appear in Content.")).toBeTruthy();
+  await waitFor(() => expect(window.location.hash).toBe("#Content/abcdefghijk"));
+  expect(screen.queryByRole("dialog")).toBeNull();
   const writes = fetchMock.mock.calls.filter(([path, init]) => init?.method === "POST" && !path.endsWith("/sources/check-stale"));
   expect(writes).toHaveLength(1);
   expect(writes[0][0]).toBe("/api/v1/sources/import");
   expect(JSON.parse(String(writes[0][1]?.body))).toEqual({ url: "https://www.youtube.com/watch?v=abcdefghijk", command_id: expect.any(String) });
-  expect(screen.getByRole("link", { name: "Open Content" }).getAttribute("href")).toBe("#Content/abcdefghijk");
   expect(writes.some(([path]) => /automation|channels|creators/.test(path))).toBe(false);
 });
 
@@ -3437,4 +3456,149 @@ test("GlobalInterests keeps open editing form and typed draft across background 
   expect((screen.getByLabelText("What I focus on") as HTMLTextAreaElement).value).toBe("Draft Unsaved Topic");
   expect(screen.getByRole("button", { name: "Save preferences" })).toBeTruthy();
   expect(screen.getByRole("button", { name: "Cancel" })).toBeTruthy();
+});
+
+test("B3: AddEntry displays live https hints for http:// and bare domains and live recognition for valid links", async () => {
+  const defaultFetch = globalThis.fetch;
+  const writes: string[] = [];
+  vi.stubGlobal("fetch", vi.fn((path: string, init?: RequestInit) => {
+    if (init?.method === "POST" && !path.endsWith("/sources/check-stale")) writes.push(path);
+    return defaultFetch(path, init);
+  }));
+  render(<App />);
+  fireEvent.click(screen.getByRole("button", { name: "Following" }));
+  const addButtons = await screen.findAllByRole("button", { name: "Add Source" });
+  fireEvent.click(addButtons[addButtons.length - 1]);
+
+  const input = screen.getByLabelText("Paste link");
+  const confirm = screen.getByRole("button", { name: "Confirm import" }) as HTMLButtonElement;
+
+  fireEvent.change(input, { target: { value: "http://youtube.com/watch?v=abcdefghijk" } });
+  expect(await screen.findByText(/Use https:\/\/ at the start \(plaintext http:\/\/ is not supported\)\./)).toBeTruthy();
+  fireEvent.click(confirm);
+  expect(await screen.findByRole("alert")).toBeTruthy();
+  expect(writes).toHaveLength(0);
+
+  fireEvent.change(input, { target: { value: "youtube.com/watch?v=abcdefghijk" } });
+  expect(await screen.findByText(/Include https:\/\/ at the start, e\.g\. https:\/\/www\.youtube\.com\/watch\?v=/)).toBeTruthy();
+
+  fireEvent.change(input, { target: { value: "https://youtu.be/abcdefghijk" } });
+  expect(await screen.findByText(/✓ Recognized · YouTube video — process this video only\. Its channel will not be followed\./)).toBeTruthy();
+  expect(confirm.disabled).toBe(false);
+});
+
+test("F2: Backup result highlights top unsaved callout and promotes Save backup file as primary action", async () => {
+  const defaultFetch = globalThis.fetch;
+  vi.stubGlobal("fetch", vi.fn((path: string, init?: RequestInit) => {
+    if (path.endsWith("/backup-restore/status")) {
+      return response({
+        status: { ready: true, reasons: [], restore_pending: false, last_restore: null },
+      });
+    }
+    if (path.endsWith("/backup-restore/backups") && init?.method === "POST") {
+      return response({
+        backup: {
+          backup_id: "bak-f2",
+          file_name: "intelligence-bak-f2.zip",
+          created_at: "2026-11-19T12:00:00Z",
+          size_bytes: 2048,
+          preview: {
+            sources: 1,
+            videos: 2,
+            transcripts: 2,
+            intelligences: 1,
+            topics: 1,
+            saved_intelligence: 0,
+            research_sessions: 0,
+          },
+        },
+      });
+    }
+    return defaultFetch(path, init);
+  }));
+  location.hash = "#Settings";
+  const { container } = render(<App />);
+  fireEvent.click(await screen.findByRole("button", { name: "Create Backup" }));
+  const calloutMsg = await screen.findByText(/Backup generated, not yet saved to disk — download it to save locally\./);
+  const calloutEl = calloutMsg.closest(".backup-unsaved-callout");
+  expect(calloutEl).toBeTruthy();
+  const downloadLink = screen.getByRole("link", { name: "Save backup file" });
+  expect(downloadLink.className).toContain("button-primary");
+  expect(downloadLink.getAttribute("href")).toBe("/api/v1/backup-restore/backups/bak-f2/download");
+  expect(container.querySelector(".backup-unsaved-callout")).toBeTruthy();
+});
+
+test("C5: Intelligence, Topics, and Following detail views update hash routes and restore lists on browser Back popstate", async () => {
+  const defaultFetch = globalThis.fetch;
+  const c5Intel = {
+    ...intelligence,
+    intelligence_id: "intel-c5-1",
+    card: {
+      ...intelligence.card,
+      core_conclusion: "Intelligence C5 conclusion",
+      video_title: "Intelligence C5 Video",
+    },
+  };
+  const c5Topic = {
+    ...topic,
+    topic_id: "topic:c5",
+    name: "Agent Routing",
+  };
+  const c5Source = {
+    source_id: "src-c5",
+    display_name: "Alpha Channel",
+    friendly_name: "Alpha Channel",
+    channel_id: "UC_alpha_c5",
+    canonical_url: "https://www.youtube.com/@alpha",
+    provider: "YOUTUBE",
+    enabled: true,
+    processing_policy: "STANDARD_INTELLIGENCE",
+    last_error: null,
+  };
+  vi.stubGlobal("fetch", vi.fn((path: string, init?: RequestInit) => {
+    if (path.endsWith("/intelligence")) {
+      return response({ intelligence: [c5Intel], total: 1 });
+    }
+    if (path.endsWith("/intelligence/intel-c5-1")) {
+      return response({ intelligence: c5Intel });
+    }
+    if (path.endsWith("/topics")) {
+      return response({ topics: [c5Topic] });
+    }
+    if (path.endsWith("/topics/topic%3Ac5")) {
+      return response({ topic: c5Topic });
+    }
+    if (path.endsWith("/sources")) {
+      return response({ sources: [c5Source] });
+    }
+    if (path.endsWith("/sources/src-c5")) {
+      return response({ source: c5Source, videos: [], runs: [] });
+    }
+    return defaultFetch(path, init);
+  }));
+
+  location.hash = "#Intelligence";
+  render(<App />);
+  fireEvent.click(await screen.findByText("Intelligence C5 conclusion"));
+  await waitFor(() => expect(location.hash).toBe("#Intelligence/intel-c5-1"));
+  history.replaceState(null, "", "#Intelligence");
+  window.dispatchEvent(new PopStateEvent("popstate"));
+  await screen.findByRole("heading", { name: "Intelligence" });
+  expect(await screen.findByText("Intelligence C5 conclusion")).toBeTruthy();
+
+  fireEvent.click(screen.getByRole("button", { name: "Topics" }));
+  fireEvent.click(await screen.findByText("Agent Routing"));
+  await waitFor(() => expect(location.hash).toBe("#Topics/topic%3Ac5"));
+  history.replaceState(null, "", "#Topics");
+  window.dispatchEvent(new PopStateEvent("popstate"));
+  await screen.findByRole("heading", { name: "Topics" });
+  expect(await screen.findByText("Agent Routing")).toBeTruthy();
+
+  fireEvent.click(screen.getByRole("button", { name: "Following" }));
+  fireEvent.click(await screen.findByText("Alpha Channel"));
+  await waitFor(() => expect(location.hash).toBe("#Following/src-c5"));
+  history.replaceState(null, "", "#Following");
+  window.dispatchEvent(new PopStateEvent("popstate"));
+  await screen.findByRole("heading", { name: "Following" });
+  expect(await screen.findByText("Alpha Channel")).toBeTruthy();
 });

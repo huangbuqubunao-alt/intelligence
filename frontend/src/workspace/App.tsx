@@ -339,19 +339,23 @@ function readContentLocal(value: unknown, video: ContentItem, id: string): Conte
 const localScopeLabel = (scope: LocalScope) => ({ YT_TIMED: "YouTube timed captions", LOCAL_TIMED: "Local audio/video", LOCAL_TEXT: "Local text documents" })[scope];
 const localLanguageLabel = (language: "en" | "zh-CN") => language === "en" ? "English" : "中文";
 function LocalIntelligencePresentation({ matrix, content, onReload }: { matrix?: unknown; content?: ContentLocalCapability | null; onReload: () => void }) {
-  const { t } = useUiLanguage();
+  const { language, t } = useUiLanguage();
+  const zh = language === "zh-CN";
   const known = readLocalMatrix(matrix);
   const label = content !== undefined ? "Local Intelligence for this Content" : "Local Intelligence qualification";
+  const contentReady = content?.request_state === "ELIGIBLE_FOR_ADMISSION";
   return <section role="region" aria-label={t(label)} className={content !== undefined ? "local-route-compact" : undefined}>
     {known ? <>
       <p>{t("Target local Intelligence model")}: {known.model}</p>
       <ul>{known.scopes.map(row => <li key={`${row.scope}/${row.output_language}`}>{t(localScopeLabel(row.scope))} · {localLanguageLabel(row.output_language)} · {t(row.status === "QUALIFIED" ? "Quality verification passed" : "Quality verification not passed")}</li>)}</ul>
       <details><summary>{t("Verification profile")}</summary><p className="hint">{known.profile_id}</p></details>
     </> : content ? <>
-      <div className="local-route-chips">
-        <span>{t("Target local Intelligence model")}: {content.model}</span>
-        <span>{t(localScopeLabel(content.scope))} · {localLanguageLabel(content.output_language)}</span>
-        <span>{t("Current execution route")}: {content.runtime_binding.model}</span>
+      <div className="local-route-summary-row">
+        <span className={`status ${contentReady ? "status-success" : "status-neutral"}`}>
+          {contentReady
+            ? (zh ? "本地 AI：可用" : "Local AI: Ready")
+            : (zh ? "本地 AI：需设置" : "Local AI: Setup needed")}
+        </span>
         <a className="source-link" href="#Settings">{t("Open model settings")}</a>
       </div>
       <p className="hint">{t(({ MODEL_CONFIGURATION_REQUIRED: "Configure the local Intelligence model in Settings before requesting extraction. No task will be created with the current route.", NOT_QUALIFIED: "This source type and output language have not passed local Intelligence quality verification. A request will wait without running a model.",
@@ -359,6 +363,14 @@ function LocalIntelligencePresentation({ matrix, content, onReload }: { matrix?:
         MODEL_UNAVAILABLE: "The qualified model is unavailable. A request will wait; check local model setup.",
         RESOURCE_STATUS_UNKNOWN: "Local model resource status is unknown. Read the status again before requesting extraction.",
         ADMISSION_CHECKS_REQUIRED: "Qualified for this source and output language. Admission checks still apply." } as Record<string, string>)[content.reason])}</p>
+      <details className="local-route-details">
+        <summary>{zh ? "查看模型路由诊断" : "Model route details"}</summary>
+        <div className="local-route-chips">
+          <span>{t("Target local Intelligence model")}: {content.model}</span>
+          <span>{t(localScopeLabel(content.scope))} · {localLanguageLabel(content.output_language)}</span>
+          <span>{t("Current execution route")}: {content.runtime_binding.model}</span>
+        </div>
+      </details>
     </> : <p role="status">{t("Local Intelligence status is unknown. Read the status again before requesting extraction.")}</p>}
     {(!known && !content || content?.request_state === "UNKNOWN") && <button type="button" className="button button-secondary" onClick={onReload}>{t("Retry local Intelligence status")}</button>}
     {content !== undefined && !content && <a href="#Settings">{t("Open model settings")}</a>}
@@ -477,20 +489,46 @@ const STYLES = [[
   "Lead with the wider trend and attributed viewpoints.",
 ]] as const;
 
-function initialContentTarget(): string | null {
-  const match = /^#Content\/([^/]+)(?:\/Evidence\/[^/]+)?$/.exec(location.hash);
+function decodeRouteParam(pattern: RegExp, maxLen = 256): string | null {
+  const match = pattern.exec(location.hash);
   if (!match) return null;
-  try { const value = decodeURIComponent(match[1]); return value && value.length <= 256 && !/[\p{Cc}\p{Cs}]/u.test(value) ? value : null; } catch { return null; }
+  try {
+    const value = decodeURIComponent(match[1]);
+    return value && value.length <= maxLen && !/[\p{Cc}\p{Cs}]/u.test(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function initialContentTarget(): string | null {
+  return decodeRouteParam(/^#Content\/([^/]+)(?:\/Evidence\/[^/]+)?$/);
 }
 
 function initialEvidenceTarget(): string | null {
   if (!initialContentTarget()) return null;
-  const match = /^#Content\/[^/]+\/Evidence\/([^/]+)$/.exec(location.hash);
-  if (!match) return null;
-  try {
-    const value = decodeURIComponent(match[1]);
-    return value && value.length <= 512 && !/[\p{Cc}\p{Cs}]/u.test(value) ? value : null;
-  } catch { return null; }
+  return decodeRouteParam(/^#Content\/[^/]+\/Evidence\/([^/]+)$/, 512);
+}
+
+function initialIntelligenceTarget(): string | null {
+  return decodeRouteParam(/^#Intelligence\/([^/]+)$/);
+}
+
+function initialTopicTarget(): string | null {
+  return decodeRouteParam(/^#Topics\/([^/]+)$/);
+}
+
+function initialFollowingTarget(): string | null {
+  return decodeRouteParam(/^#Following\/([^/]+)$/);
+}
+
+function initialDeltaTarget(): DeltaTarget | null {
+  const intelId = initialIntelligenceTarget();
+  if (intelId) return { kind: "intelligence", id: intelId };
+  const topicId = initialTopicTarget();
+  if (topicId) return { kind: "topic", id: topicId };
+  const sourceId = initialFollowingTarget();
+  if (sourceId) return { kind: "source", id: sourceId };
+  return null;
 }
 
 function initialPage(): Page {
@@ -498,6 +536,9 @@ function initialPage(): Page {
   if (/^Settings\/models\/(?:bigmodel|moonshot)(?:\?[^#]+)?$/.test(raw)) return "Settings";
   if (/^Settings\/transcription(?:\/[^/]+)?$/.test(raw)) return "Settings";
   if (raw.startsWith("Content/")) return "Content";
+  if (raw.startsWith("Intelligence/")) return "Intelligence";
+  if (raw.startsWith("Topics/")) return "Topics";
+  if (raw.startsWith("Following/")) return "Following";
   if (/^Research(?:\/[a-f0-9]{64}(?:\/history\/[a-f0-9]{64}|\/diff\/[a-f0-9]{64}\/[a-f0-9]{64})?)?$/.test(raw)) return "Research";
   const legacy: Record<string, Page> = {
     Dashboard: "Home",
@@ -1545,11 +1586,11 @@ function IntelligenceCard(
                 className="ai-topic-tag ai-topic-tag-btn"
                 onClick={() => onOpenTopic(tp.topic_id)}
               >
-                {`[[${tp.name}]]`}
+                {tp.name}
               </button>
             ) : (
               <span key={tp.topic_id} className="ai-topic-tag">
-                {`[[${tp.name}]]`}
+                {tp.name}
               </span>
             ),
           )}
@@ -1743,6 +1784,8 @@ function Workspace() {
   );
   const [refresh, setRefresh] = useState(0);
   const [intelListResetSeq, setIntelListResetSeq] = useState(0);
+  const [topicListResetSeq, setTopicListResetSeq] = useState(0);
+  const [sourceListResetSeq, setSourceListResetSeq] = useState(0);
   // Add lives above refreshed/navigated pages: file chooser focus must not unmount it.
   const [addProvider, setAddProvider] = useState<"YOUTUBE" | "LOCAL" | null>(null);
   const [cmdkOpen, setCmdkOpen] = useState(false);
@@ -1772,10 +1815,16 @@ function Workspace() {
         setPage("Content"); setContentTarget(target); setDeltaTarget(null); setResearchReturn(null);
         return;
       }
+      const nextDelta = initialDeltaTarget();
       const next = initialPage();
       setImported(false);
       setResearchReturn(null); setResearchEvidence(null);
-      setContentTarget(null); setDeltaTarget(null);
+      setContentTarget(null); setDeltaTarget(nextDelta);
+      if (!nextDelta) {
+        if (next === "Intelligence") setIntelListResetSeq((value) => value + 1);
+        else if (next === "Topics") setTopicListResetSeq((value) => value + 1);
+        else if (next === "Following") setSourceListResetSeq((value) => value + 1);
+      }
       setPage(next);
     };
     const onPopState = () => {
@@ -1790,7 +1839,7 @@ function Workspace() {
       window.removeEventListener("popstate", onPopState);
     };
   }, []);
-  const [deltaTarget, setDeltaTarget] = useState<DeltaTarget | null>(null);
+  const [deltaTarget, setDeltaTarget] = useState<DeltaTarget | null>(initialDeltaTarget);
   const [handoffSeq, setHandoffSeq] = useState(0);
   const [researchReturn, setResearchReturn] = useState<string | null>(null);
   const [researchOriginPage, setResearchOriginPage] = useState<Exclude<Page, "Research"> | null>(null);
@@ -1857,6 +1906,10 @@ function Workspace() {
       setDeltaTarget(null);
       if (next === "Intelligence") {
         setIntelListResetSeq((value) => value + 1);
+      } else if (next === "Topics" && !pendingOriginRestoreRef.current?.topicId) {
+        setTopicListResetSeq((value) => value + 1);
+      } else if (next === "Following") {
+        setSourceListResetSeq((value) => value + 1);
       }
       setPage(next);
     });
@@ -1874,7 +1927,13 @@ function Workspace() {
     const destinations: Record<DeltaTarget["kind"], Page> = {
       content: "Content", intelligence: "Intelligence", topic: "Topics", source: "Following",
     };
-    changeHash(target.kind === "content" ? `Content/${encodeURIComponent(target.id)}` : destinations[target.kind]);
+    const detailHashes: Record<DeltaTarget["kind"], string> = {
+      content: `Content/${encodeURIComponent(target.id)}`,
+      intelligence: `Intelligence/${encodeURIComponent(target.id)}`,
+      topic: `Topics/${encodeURIComponent(target.id)}`,
+      source: `Following/${encodeURIComponent(target.id)}`,
+    };
+    changeHash(detailHashes[target.kind]);
     runViewTransition(() => {
       setDeltaTarget(target);
       setContentTarget(target.kind === "content" ? target.id : null);
@@ -1983,14 +2042,19 @@ function Workspace() {
               navigate={navigate}
               openContent={openContent}
               onOpenTopic={id => openDelta({ kind: "topic", id })}
+              onAddContent={() => setAddProvider("YOUTUBE")}
             />
           </div>
         )}
         {page === "Following" && (
           <Sources
             refresh={refresh}
+            listResetSeq={sourceListResetSeq}
             onRefresh={() => setRefresh((value) => value + 1)}
             targetSourceId={deltaTarget?.kind === "source" ? deltaTarget.id : null}
+            onHashTargetChange={(sourceId) =>
+              changeHash(sourceId ? `Following/${encodeURIComponent(sourceId)}` : "Following")
+            }
             onAdd={setAddProvider}
             onBrowseChannelContent={(channelKey) => {
               setPendingContentChannel(channelKey);
@@ -2066,6 +2130,11 @@ function Workspace() {
                   }
                   return snap;
                 }}
+                onHashTargetChange={(detailId) =>
+                  changeHash(
+                    detailId ? `Intelligence/${encodeURIComponent(detailId)}` : "Intelligence",
+                  )
+                }
                 openContent={openContent}
                 onOpenTopic={id => openDelta({ kind: "topic", id })}
                 openResearch={() => navigate("Research")}
@@ -2081,6 +2150,7 @@ function Workspace() {
           <Topics
             refresh={refresh}
             handoffSeq={handoffSeq}
+            listResetSeq={topicListResetSeq}
             targetTopicId={deltaTarget?.kind === "topic" ? deltaTarget.id : null}
             latestSelectedRef={latestTopicIdRef}
             consumeOriginRestore={() => {
@@ -2090,6 +2160,9 @@ function Workspace() {
               }
               return tid;
             }}
+            onHashTargetChange={(topicId) =>
+              changeHash(topicId ? `Topics/${encodeURIComponent(topicId)}` : "Topics")
+            }
             onOpenContent={(id) => openContent(id)}
             onAskTopicResearch={(topicName) => {
               setPendingResearchTopicCluster(topicName);
@@ -2194,8 +2267,8 @@ function Workspace() {
           />
         </Suspense>
       ) : null}
-      {addProvider !== null && <AddEntry initialLocal={addProvider === "LOCAL"} onClose={() => setAddProvider(null)} onSaved={() => { setAddProvider(null); setRefresh(value => value + 1); }} onImported={id => {
-        setAddProvider(null); setRefresh(value => value + 1); setImported(true); openContent(id);
+      {addProvider !== null && <AddEntry initialLocal={addProvider === "LOCAL"} onClose={() => setAddProvider(null)} onSaved={() => { setAddProvider(null); setRefresh(value => value + 1); }} onImported={(id, sourceKind) => {
+        setAddProvider(null); setRefresh(value => value + 1); setImported(!sourceKind || sourceKind === "LOCAL"); openContent(id);
       }} />}
     </div>
   );
@@ -2235,14 +2308,16 @@ function sortTopicsNewestFirst(topics: Topic[]): Topic[] {
 }
 
 function Dashboard(
-  { refresh, navigate, openContent, onOpenTopic }: {
+  { refresh, navigate, openContent, onOpenTopic, onAddContent }: {
     refresh: number;
     navigate: (page: Page) => void;
     openContent: (videoId: string, evidenceId?: string) => void;
     onOpenTopic: (topicId: string) => void;
+    onAddContent?: () => void;
   },
 ) {
-  const { t } = useUiLanguage();
+  const { language, t } = useUiLanguage();
+  const zh = language === "zh-CN";
   const { data, error, errorCode, reload } = useRemote<
     {
       intelligence?: Intelligence[];
@@ -2269,23 +2344,58 @@ function Dashboard(
   const isFreshLibrary = data.operations?.source_count === 0 &&
     !intelligence.length && !topics.length && !hasWeeklyHistory && !attention.length;
   if (isFreshLibrary && !onboardingDone) {
-    return <FirstRunOnboarding onSkip={finishOnboarding} onAddFollowing={() => { finishOnboarding(); navigate("Following"); }} />;
+    return (
+      <FirstRunOnboarding
+        onSkip={finishOnboarding}
+        onAddFollowing={() => {
+          finishOnboarding();
+          if (onAddContent) onAddContent();
+          else navigate("Following");
+        }}
+      />
+    );
   }
   if (!intelligence.length && !topics.length && !attention.length && !weeklyBrief) {
+    const hasSources = (data.operations?.source_count ?? 0) > 0;
     return (
       <div className="dashboard-stack">
         <Panel title="No important new intelligence yet." icon="sparkle">
           <p>
-            {t((data.operations?.source_count ?? 0) > 0
+            {t(hasSources
               ? "Open Following to check your saved sources or add something new. Content is organized first; generating Intelligence is optional."
               : "Paste a YouTube or Bilibili video link, follow a YouTube channel, or import a local file.")}
           </p>
-          <button
-            className="button button-primary"
-            onClick={() => navigate("Following")}
-          >
-            {t((data.operations?.source_count ?? 0) > 0 ? "Review Following" : "Add Source")}
-          </button>
+          <div className="button-row">
+            {hasSources ? (
+              <>
+                <button
+                  className="button button-primary"
+                  onClick={() => navigate("Content")}
+                >
+                  {zh ? "查看内容与提炼洞察" : t("Review Content")}
+                </button>
+                <button
+                  className="button button-secondary"
+                  onClick={() => onAddContent ? onAddContent() : navigate("Following")}
+                >
+                  {zh ? "导入新内容" : t("Add content")}
+                </button>
+                <button
+                  className="button button-ghost"
+                  onClick={() => navigate("Following")}
+                >
+                  {t("Review Following")}
+                </button>
+              </>
+            ) : (
+              <button
+                className="button button-primary"
+                onClick={() => onAddContent ? onAddContent() : navigate("Following")}
+              >
+                {zh ? "导入第一个内容" : t("Add Source")}
+              </button>
+            )}
+          </div>
         </Panel>
       </div>
     );
@@ -2706,11 +2816,11 @@ function IntelligenceListRow({
                 onOpenTopic(tp.topic_id);
               }}
             >
-              {`[[${tp.name}]]`}
+              {tp.name}
             </button>
           ) : (
             <span key={tp.topic_id} className="ai-topic-tag">
-              {`[[${tp.name}]]`}
+              {tp.name}
             </span>
           ),
         )}
@@ -2790,6 +2900,7 @@ function IntelligencePage(
     listResetSeq,
     latestFilterRef,
     consumeOriginRestore,
+    onHashTargetChange,
     openContent,
     onOpenTopic,
     openResearch,
@@ -2800,6 +2911,7 @@ function IntelligencePage(
     listResetSeq?: number;
     latestFilterRef?: { current: IntelFilterSnapshot | null };
     consumeOriginRestore?: () => IntelFilterSnapshot | null;
+    onHashTargetChange?: (detailId: string | null) => void;
     openContent: (videoId: string, evidenceId?: string) => void;
     onOpenTopic?: (topicId: string) => void;
     openResearch: () => void;
@@ -3070,11 +3182,12 @@ function IntelligencePage(
   }, [view, filteredAvailable, savedEntries, currentById]);
 
   const handleBackToList = useCallback(() => {
+    onHashTargetChange?.(null);
     runViewTransition(() => {
       setSelectedDetail(null);
     });
     scrollWorkspaceToTop();
-  }, []);
+  }, [onHashTargetChange]);
 
   useEffect(() => {
     if (!selectedDetail) return;
@@ -3118,6 +3231,7 @@ function IntelligencePage(
       const nextIdx = detailIndex + delta;
       if (nextIdx < 0 || nextIdx >= detailList.length) return;
       const nextEntry = detailList[nextIdx];
+      onHashTargetChange?.(nextEntry.item.intelligence_id || nextEntry.key);
       runViewTransition(() => {
         setSelectedDetail(nextEntry);
         if (view === "Current") {
@@ -3211,6 +3325,7 @@ function IntelligencePage(
             onClick={() => {
               setView(item);
               setSelectedDetail(null);
+              onHashTargetChange?.(null);
             }}
           >
             {t(item)}
@@ -3384,6 +3499,7 @@ function IntelligencePage(
                       )}
                       onSaved={() => setRevision((value) => value + 1)}
                       onOpenDetail={() => {
+                        onHashTargetChange?.(item.intelligence_id || rowKey);
                         runViewTransition(() => {
                           setSelectedDetail({ key: rowKey, item });
                         });
@@ -3543,6 +3659,7 @@ function IntelligencePage(
                       saved
                       onSaved={() => setRevision((value) => value + 1)}
                       onOpenDetail={() => {
+                        onHashTargetChange?.(resolvedItem.intelligence_id || rowKey);
                         runViewTransition(() => {
                           setSelectedDetail({ key: rowKey, item: resolvedItem });
                         });
@@ -5516,7 +5633,7 @@ function ContentDetailPanel(
   const recordSharedTranslation = useCallback((evidenceId: string, excerpt: string, lang: "zh-CN" | "en") => {
     setSharedTranslations(current => ({ ...current, [evidenceId]: { excerpt, language: lang } }));
   }, []);
-  const completedRetry = readTrackedRetry(data?.video.tracked_content_retry, id)?.request;
+  const completedRetry = readTrackedRetry(data?.video?.tracked_content_retry, id)?.request;
   const captionResultIdentity = completedRetry?.state === "SUCCEEDED"
     ? `${completedRetry.request_id}:${completedRetry.revision}` : null;
   useEffect(() => {
@@ -5526,12 +5643,12 @@ function ContentDetailPanel(
     }
   }, [id, captionResultIdentity]);
   useEffect(() => {
-    if (!data || (!trackedRetryActive(data.video.tracked_content_retry, id) && !["WAITING", "FETCHING", "READING_CAPTIONS", "ORGANIZING", "TRANSCRIPT_READY", "RETRY_PENDING", "RUNNING", "PENDING"].includes(data.video.processing_status))) return;
+    if (!data?.video || (!trackedRetryActive(data.video.tracked_content_retry, id) && !["WAITING", "FETCHING", "READING_CAPTIONS", "ORGANIZING", "TRANSCRIPT_READY", "RETRY_PENDING", "RUNNING", "PENDING"].includes(data.video.processing_status))) return;
     const timer = setTimeout(() => setRefresh(value => value + 1), 2000);
     return () => clearTimeout(timer);
   }, [data]);
   if (error) return <ErrorState error={error} code={errorCode} onReload={reload} />;
-  if (!data || data.video.video_id !== id) return <Empty>Loading Content detail…</Empty>;
+  if (!data?.video || data.video.video_id !== id) return <Empty>Loading Content detail…</Empty>;
   if (data.video.work_kind) {
     return (
       <PendingContentDetailView
@@ -5678,6 +5795,7 @@ function ContentDetailPanel(
             provider={data.video.provider}
             isLocalMedia={isLocalMedia}
             transcriptAvailable={transcript.status === "AVAILABLE"}
+            transcriberReady={wsCapabilities ? wsCapabilities.transcriber_ready : undefined}
             aiBrief={aiBrief}
             obsidianMarkdown={data.obsidian_markdown}
             initialTranscribeJob={wsCapabilities?.transcribe_job}
@@ -5695,6 +5813,14 @@ function ContentDetailPanel(
             }}
           />
         </div>
+        {isBilibili && data.video.processing_status !== "SOURCE_UNAVAILABLE" && (
+          <FollowCreatorFromContent id={id} capability={creatorCapability} />
+        )}
+        {data.video.provider === "YOUTUBE" &&
+          data.video.channel_id &&
+          /^UC[A-Za-z0-9_-]{22}$/.test(data.video.channel_id) && (
+            <FollowCreatorFromContent id={id} provider="YOUTUBE" />
+          )}
       </Panel>
       <div role="toolbar" aria-label={t("Section jump")} className="reader-jump-bar">
         {([
@@ -5722,8 +5848,6 @@ function ContentDetailPanel(
       <TrackedContentRetry id={id} value={data.video.tracked_content_retry} commands={trackedRetryCommands} onRefresh={() => { setRefresh(value => value + 1); setEvidenceRefresh(value => value + 1); }} />
       {data.video.caption_timing_status === "UNAVAILABLE" && !data.video.source_id && <Panel title="Processing needs attention"><p>{t("The captured captions have no verified source timing. Content needs timed captions before Summary and source references can be prepared.")}</p></Panel>}
       {data.video.source_id && (["RETRY_REQUIRED", "FAILED"].includes(data.video.processing_status) || data.video.caption_timing_status === "UNAVAILABLE") && <Panel title="Processing needs attention">{data.video.caption_timing_status === "UNAVAILABLE" && <p>{t("The captured captions have no verified source timing. Content needs timed captions before Summary and source references can be prepared.")}</p>}<p>{t(data.video.retry_allowed === false ? "This Content needs source or processing readiness review before it can be processed again." : data.video.summary_preparation_status === "NEEDS_ATTENTION" ? "Timed captions are saved, but the Summary could not be prepared. Retry to organize this Content; your captured text and source references are kept." : data.video.caption_timing_status === "UNAVAILABLE" ? "Retry to check this source for native timed captions. Your captured text and history are kept." : "Processing needs attention. Check the source and processing history before retrying; retry may still fail.")}</p><button className="button button-secondary" disabled={retryBusy || data.video.retry_allowed === false} onClick={async () => { setRetryBusy(true); setRetryFeedback(null); try { await post(`/sources/${data.video.source_id}/check`, { command_id: commandId() }); setRetryFeedback("Retry accepted. Processing status will update here."); setRefresh(value => value + 1); } catch { setRetryFeedback("The source could not be checked. Try again later."); } finally { setRetryBusy(false); } }}>{t(retryBusy ? "Retrying…" : "Retry")}</button>{retryFeedback && <p role="status">{t(retryFeedback)}</p>}</Panel>}
-      {isBilibili && data.video.processing_status !== "SOURCE_UNAVAILABLE" && <FollowCreatorFromContent id={id} capability={creatorCapability} />}
-      {data.video.provider === "YOUTUBE" && data.video.channel_id && /^UC[A-Za-z0-9_-]{22}$/.test(data.video.channel_id) && <FollowCreatorFromContent id={id} provider="YOUTUBE" />}
       <Panel id="section-intelligence" icon="sparkle" title="Intelligence result">
         <WorkspaceVideoAiBriefCard
           brief={aiBrief}
@@ -5860,6 +5984,11 @@ function ContentDetailPanel(
                           ? "当前尚未检测到可用的本机 Whisper 语音模型，请前往设置完成配置后再转写。"
                           : "No local Whisper speech model was detected yet. Configure it in Settings first."}
                       </p>
+                      <div className="button-row">
+                        <a className="button button-secondary button-small" href="#Settings/transcription">
+                          {language === "zh-CN" ? "先设置本地转写 →" : "Set up local transcription →"}
+                        </a>
+                      </div>
                     </>
                   )
                 ) : transcript.status === "AVAILABLE" ? (
@@ -6420,7 +6549,8 @@ function costDisclosureCopy(state: string) {
 function DeepAnalysisPanel(
   { videoId, onCompleted, inputRefresh = 0 }: { videoId: string; onCompleted: () => void; inputRefresh?: number },
 ) {
-  const { t } = useUiLanguage();
+  const { language, t } = useUiLanguage();
+  const zh = language === "zh-CN";
   const [refresh, setRefresh] = useState(0);
   const { data, error, errorCode, reload } = useRemote<DeepAnalysisEnvelope>(
     `/videos/${videoId}/deep-analysis`,
@@ -6484,12 +6614,16 @@ function DeepAnalysisPanel(
     && (status?.production_eligible === undefined || typeof status.production_eligible === "boolean")
     && (status?.consent_required === undefined || typeof status.consent_required === "boolean");
   const canRun = !error && statusRead && (status?.production_eligible ?? status?.qualified) === true && !busy && !dispatchBlocked && !preflight;
+  const routesList = error || !statusRead ? [] : status?.routes ?? [];
+  const isCompactUnavailable = !error && statusRead && !result && !canRun && !preflight;
 
   return (
     <Panel title={t("Deep Analysis")}>
-      <p className="hint">
-        {t("Summary explains what this content says. Deep Analysis is a separate, on-demand action for the conclusions, evidence, uncertainty, what it means for you, and what to investigate next.")}
-      </p>
+      {!isCompactUnavailable ? (
+        <p className="hint">
+          {t("Summary explains what this content says. Deep Analysis is a separate, on-demand action for the conclusions, evidence, uncertainty, what it means for you, and what to investigate next.")}
+        </p>
+      ) : null}
       {error ? <ErrorState error={error} code={errorCode} onReload={reload} hideRawMessage deepAnalysisSurface /> : null}
       {actionError ? (
         <p className="semantic-state state-neutral">{t(actionError)}</p>
@@ -6541,21 +6675,44 @@ function DeepAnalysisPanel(
           </p>
         </div>
       ) : (
-        <div className="semantic-state state-neutral">
-          <span className="status status-neutral">
-            <DeepAnalysisStatusLabel value={availability!} />
-          </span>
+        <div className="semantic-state state-neutral deep-analysis-compact-state">
+          <div className="deep-analysis-compact-head">
+            <span className="status status-neutral">
+              <DeepAnalysisStatusLabel value={availability!} />
+            </span>
+            {isCompactUnavailable ? (
+              <span className="ai-basis-pill">
+                {zh ? "高级 · 可选（未启用）" : "Advanced · Optional"}
+              </span>
+            ) : null}
+          </div>
           <p>{t(deepAnalysisReasonCopy(availability!, status?.reason_code ?? null))}</p>
         </div>
       )}
-      {(error || !statusRead ? [] : status?.routes ?? []).map((route) => (
-        <div className="semantic-state state-neutral" key={route.route_id}>
-          <p>{route.provider_id} · {route.model_id}</p>
-          <p>{t(route.configured ? "Route configured" : "Route not configured")} · {t(route.credential_configured ? "Credential available" : "Credential missing")}</p>
-          <p>{t(route.reachability === "REACHABLE" ? "Provider reachable" : route.reachability === "NOT_CHECKED" ? "Reachability not checked" : "Provider unavailable")}</p>
-          <p>{t(qualificationCopy(route.qualification_status))} · {t(route.production_eligible ? "Eligible for an explicit run" : "Production activation unavailable")}</p>
-        </div>
-      ))}
+      {isCompactUnavailable && routesList.length > 0 ? (
+        <details className="deep-analysis-routes-details">
+          <summary>
+            {zh ? "查看模型路由与启用说明（高级 · 可选）" : "Model routes & setup details (Advanced · Optional)"}
+          </summary>
+          {routesList.map((route) => (
+            <div className="semantic-state state-neutral" key={route.route_id}>
+              <p>{route.provider_id} · {route.model_id}</p>
+              <p>{t(route.configured ? "Route configured" : "Route not configured")} · {t(route.credential_configured ? "Credential available" : "Credential missing")}</p>
+              <p>{t(route.reachability === "REACHABLE" ? "Provider reachable" : route.reachability === "NOT_CHECKED" ? "Reachability not checked" : "Provider unavailable")}</p>
+              <p>{t(qualificationCopy(route.qualification_status))} · {t(route.production_eligible ? "Eligible for an explicit run" : "Production activation unavailable")}</p>
+            </div>
+          ))}
+        </details>
+      ) : !isCompactUnavailable ? (
+        routesList.map((route) => (
+          <div className="semantic-state state-neutral" key={route.route_id}>
+            <p>{route.provider_id} · {route.model_id}</p>
+            <p>{t(route.configured ? "Route configured" : "Route not configured")} · {t(route.credential_configured ? "Credential available" : "Credential missing")}</p>
+            <p>{t(route.reachability === "REACHABLE" ? "Provider reachable" : route.reachability === "NOT_CHECKED" ? "Reachability not checked" : "Provider unavailable")}</p>
+            <p>{t(qualificationCopy(route.qualification_status))} · {t(route.production_eligible ? "Eligible for an explicit run" : "Production activation unavailable")}</p>
+          </div>
+        ))
+      ) : null}
       {preflight ? (
         <div className="semantic-state state-neutral" role="region" aria-label={t("Cloud Deep Analysis preflight")}>
           <p>{t("You selected a cloud route for this Content.")}</p>
@@ -6869,9 +7026,11 @@ function ContentEvidencePanel(
 function Topics({
   refresh,
   handoffSeq,
+  listResetSeq,
   targetTopicId,
   latestSelectedRef,
   consumeOriginRestore,
+  onHashTargetChange,
   onOpenContent,
   onAskTopicResearch,
   onBrowseTopicContent,
@@ -6879,9 +7038,11 @@ function Topics({
 }: {
   refresh: number;
   handoffSeq?: number;
+  listResetSeq?: number;
   targetTopicId?: string | null;
   latestSelectedRef?: { current: string | null };
   consumeOriginRestore?: () => string | null;
+  onHashTargetChange?: (topicId: string | null) => void;
   onOpenContent?: (videoId: string) => void;
   onAskTopicResearch?: (topicName: string) => void;
   onBrowseTopicContent?: (topicName: string, channelKey?: string) => void;
@@ -6893,6 +7054,17 @@ function Topics({
   const [selected, setSelected] = useState<string | null>(
     () => targetTopicId ?? consumeOriginRestore?.() ?? null,
   );
+  const selectTopic = (nextId: string | null) => {
+    setSelected(nextId);
+    onHashTargetChange?.(nextId);
+  };
+  const prevListResetSeqRef = useRef(listResetSeq);
+  useEffect(() => {
+    if (prevListResetSeqRef.current !== listResetSeq) {
+      prevListResetSeqRef.current = listResetSeq;
+      setSelected(null);
+    }
+  }, [listResetSeq]);
   if (latestSelectedRef) {
     latestSelectedRef.current = selected;
   }
@@ -6912,7 +7084,7 @@ function Topics({
     setPendingClusterName("");
     const matched = list.data.topics.find((item) => item.name.trim() === targetName);
     if (matched) {
-      setSelected(matched.topic_id);
+      selectTopic(matched.topic_id);
     } else {
       onBrowseTopicContent?.(targetName, "ALL");
     }
@@ -6942,7 +7114,7 @@ function Topics({
                   <button
                     className="list-row content-media-row"
                     key={topic.topic_id}
-                    onClick={() => setSelected(topic.topic_id)}
+                    onClick={() => selectTopic(topic.topic_id)}
                   >
                     <span className="content-media-lead">
                       <span className="provider-glyph provider-local" aria-hidden="true">
@@ -7023,7 +7195,7 @@ function Topics({
 
   return (
     <div className="dashboard-stack">
-      <button className="button button-ghost" onClick={() => setSelected(null)}>
+      <button className="button button-ghost" onClick={() => selectTopic(null)}>
         <PhosphorIcon name="arrow-left" size={14} />
         {t("Back to Topics")}
       </button>
@@ -7141,7 +7313,7 @@ function Topics({
             onClick={event => {
               pulseCelebration(event.currentTarget);
               void post(`/topics/${topic.topic_id}/pin`, { pinned: !topic.pinned })
-                .then(() => setSelected(null));
+                .then(() => selectTopic(null));
             }}
           >
             <PhosphorIcon name="push-pin" weight={topic.pinned ? "fill" : "regular"} size={14} />
@@ -7304,7 +7476,7 @@ function Topics({
                     type="button"
                     className="ai-question-chip"
                     key={rel.id}
-                    onClick={() => setSelected(rel.id)}
+                    onClick={() => selectTopic(rel.id)}
                   >
                     {rel.videoCount && rel.videoCount > 0
                       ? zh
@@ -7352,15 +7524,19 @@ function FollowingReadNotice({ reading, error, errorCode, onReload, detail = fal
 function Sources(
   {
     refresh,
+    listResetSeq,
     onRefresh,
     targetSourceId,
+    onHashTargetChange,
     onAdd,
     onBrowseChannelContent,
     onAskChannelResearch,
   }: {
     refresh: number;
+    listResetSeq?: number;
     onRefresh: () => void;
     targetSourceId?: string | null;
+    onHashTargetChange?: (sourceId: string | null) => void;
     onAdd: (provider: "YOUTUBE" | "LOCAL") => void;
     onBrowseChannelContent?: (channelKey: string) => void;
     onAskChannelResearch?: (channelKey: string) => void;
@@ -7372,6 +7548,20 @@ function Sources(
     ai_signal_by_source?: unknown;
   }>("/sources", refresh, validSourcesRead, true, true);
   const [selected, setSelected] = useState<string | null>(targetSourceId ?? null);
+  const selectSource = (nextId: string | null) => {
+    setSelected(nextId);
+    onHashTargetChange?.(nextId);
+  };
+  useEffect(() => {
+    if (targetSourceId) setSelected(targetSourceId);
+  }, [targetSourceId]);
+  const prevSourceResetRef = useRef(listResetSeq);
+  useEffect(() => {
+    if (prevSourceResetRef.current !== listResetSeq) {
+      prevSourceResetRef.current = listResetSeq;
+      setSelected(null);
+    }
+  }, [listResetSeq]);
   const [filter, setFilter] = useState("all");
   const [sortMode, setSortMode] = useState<"default" | "must_watch" | "avg_score">("default");
   const [rowBusy, setRowBusy] = useState<string | null>(null);
@@ -7528,7 +7718,7 @@ function Sources(
                 <button
                   className="source-select"
                   onClick={() =>
-                    setSelected(source.source_id)}
+                    selectSource(source.source_id)}
                 >
                   <span className="content-media-lead">
                     <span
@@ -7667,8 +7857,8 @@ function Sources(
         <SourceDetail
           id={selected}
           refreshNotice={<FollowingReadNotice reading={reading} error={error} errorCode={errorCode} onReload={reload} />}
-          onAddLocal={() => { setSelected(null); onAdd("LOCAL"); }}
-          onClose={() => setSelected(null)}
+          onAddLocal={() => { selectSource(null); onAdd("LOCAL"); }}
+          onClose={() => selectSource(null)}
           onRefresh={onRefresh}
         />
       )}
@@ -8449,7 +8639,7 @@ function backupReadiness(status: BackupRestoreStatus | null) {
   };
 }
 function BackupRestorePanel() {
-  const { t } = useUiLanguage();
+  const { language, t } = useUiLanguage();
   const [status, setStatus] = useState<BackupRestoreStatus | null>(null);
   const [backup, setBackup] = useState<{
     backup_id: string;
@@ -8712,14 +8902,25 @@ function BackupRestorePanel() {
         {t("Choose an Intelligence .zip backup. Invalid files are rejected; you can choose another file.")}
       </p>
       {backup ? (
-        <article className="metadata-row" aria-label={t("Backup result")}>
+        <article className="metadata-row backup-result-card" aria-label={t("Backup result")}>
           <div>
+            <div className="backup-unsaved-callout" role="status">
+              <span>
+                {language === "zh-CN"
+                  ? "备份包已生成，尚未保存到磁盘 — 请点击右侧按钮下载到本地。"
+                  : "Backup generated, not yet saved to disk — download it to save locally."}
+              </span>
+              <a
+                className="button button-primary button-small"
+                href={`/api/v1/backup-restore/backups/${backup.backup_id}/download`}
+                download={backup.file_name}
+              >
+                {t("Save backup file")}
+              </a>
+            </div>
             <strong>{backup.file_name}</strong>
             <p>{humanDate(backup.created_at)} · {byteSize(backup.size_bytes)}</p>
             {preview(backup.preview)}
-            <a href={`/api/v1/backup-restore/backups/${backup.backup_id}/download`}>
-              {t("Save backup file")}
-            </a>
           </div>
         </article>
       ) : null}
@@ -8917,7 +9118,18 @@ function Settings({ refresh }: { refresh: number }) {
   const [interestsSavedNotice, setInterestsSavedNotice] = useState(false);
   const [savingLanguage, setSavingLanguage] = useState(false);
   const [editingLanguage, setEditingLanguage] = useState(false);
-  const [legacyDiagOpen, setLegacyDiagOpen] = useState(false);
+  const [legacyDiagOpen, setLegacyDiagOpen] = useState(() =>
+    location.hash.startsWith("#Settings/transcription"),
+  );
+  useEffect(() => {
+    const syncSubRoute = () => {
+      if (location.hash.startsWith("#Settings/transcription")) {
+        setLegacyDiagOpen(true);
+      }
+    };
+    window.addEventListener("hashchange", syncSubRoute);
+    return () => window.removeEventListener("hashchange", syncSubRoute);
+  }, []);
   const [interfaceDraft, setInterfaceDraft] = useState(language);
   const [outputDraft, setOutputDraft] = useState<"zh-CN" | "en">("zh-CN");
   const [languageError, setLanguageError] = useState<string | null>(null);
@@ -9038,7 +9250,79 @@ function Settings({ refresh }: { refresh: number }) {
         }}
       />
       {(() => {
-        const hasWorkspaceAi = Boolean(readWorkspaceAiSettings(settings.data.workspace_ai));
+        const zh = language === "zh-CN";
+        const wsAi = readWorkspaceAiSettings(settings.data.workspace_ai);
+        const hasWorkspaceAi = Boolean(wsAi);
+        const transcriberReadyFlag = wsAi?.local_mlx_Whisper_ready;
+        const runtimeModelName = settings.data.runtime_local_model?.model ?? localFoundation?.model;
+        const dailySummaryStatus = wsAi
+          ? wsAi.active_mode === "cloud_byok"
+            ? wsAi.cloud_key_configured
+              ? (zh ? `✅ 云端自带 Key 可用（${wsAi.cloud_provider} / ${wsAi.cloud_model}）` : `✅ Cloud BYOK ready (${wsAi.cloud_provider} / ${wsAi.cloud_model})`)
+              : (zh ? `⚠️ 已选云端模式但尚未填写 API Key` : "⚠️ Cloud mode selected without API key")
+            : wsAi.ollama_reachable
+              ? (zh ? `✅ 本地 Ollama 可用（免费 / ${wsAi.ollama_model}）` : `✅ Local Ollama ready (Free / ${wsAi.ollama_model})`)
+              : (zh ? `⚪ 本地 Ollama 待启动（目标 ${wsAi.ollama_model}）` : `⚪ Local Ollama offline (${wsAi.ollama_model})`)
+          : settings.data.runtime_local_model?.status === "READY"
+            ? (zh ? `✅ 本地基础摘要可用（${runtimeModelName ?? "Local"}）` : `✅ Local runtime ready (${runtimeModelName ?? "Local"})`)
+            : (zh ? "⚪ 待检查模型就绪状态" : "⚪ Setup needed");
+        const transcriptionStatusCopy =
+          transcriberReadyFlag === true
+            ? (zh ? "✅ 本地 Whisper 已就绪（完全离线）" : "✅ Offline Whisper ready")
+            : transcriberReadyFlag === false
+              ? (zh ? "❌ 尚未设置（仅导入音视频转文字时需要）" : "❌ Not configured yet (needed only for local audio/video speech-to-text)")
+              : (zh ? "⚪ 点击下方查看本地转写目录状态" : "⚪ Check local speech model setup");
+        const deepAnalysisStatusCopy = videoDistillation?.production_eligible
+          ? (zh ? "✅ 已启用（每次调用前单独确认费用）" : "✅ Enabled (explicit per-run consent)")
+          : (zh ? "⚪ 可选，未启用（不影响日常中文总结与问答）" : "⚪ Optional, not enabled (daily summaries & Q&A still work)");
+        const overviewPanel = (
+          <Panel
+            id="settings-ai-overview"
+            icon="sparkle"
+            title={zh ? "AI 能力总览" : "AI Capability Overview"}
+          >
+            <div className="ai-overview-grid">
+              <div className="ai-overview-row">
+                <div className="ai-overview-meta">
+                  <strong>{zh ? "日常总结、评分与问答" : "Daily summaries, scoring & Q&A"}</strong>
+                  <span className="hint">{dailySummaryStatus}</span>
+                </div>
+                <button
+                  type="button"
+                  className="button button-secondary button-small"
+                  onClick={() => document.getElementById("settings-models")?.scrollIntoView?.({ behavior: "smooth", block: "start" })}
+                >
+                  {zh ? (wsAi?.active_mode === "cloud_byok" && !wsAi.cloud_key_configured ? "配置 API Key ›" : "切换或查看 ›") : "Configure ›"}
+                </button>
+              </div>
+              <div className="ai-overview-row">
+                <div className="ai-overview-meta">
+                  <strong>{zh ? "音视频离线转写" : "Offline audio/video transcription"}</strong>
+                  <span className="hint">{transcriptionStatusCopy}</span>
+                </div>
+                <a className="button button-secondary button-small" href="#Settings/transcription">
+                  {zh ? (transcriberReadyFlag === true ? "查看设置 ›" : "去设置（约 2 分钟） ›") : "Set up ›"}
+                </a>
+              </div>
+              <div className="ai-overview-row">
+                <div className="ai-overview-meta">
+                  <strong>{zh ? "深度分析（高级）" : "Deep Analysis (Advanced)"}</strong>
+                  <span className="hint">{deepAnalysisStatusCopy}</span>
+                </div>
+                <button
+                  type="button"
+                  className="button button-ghost button-small"
+                  onClick={() => {
+                    setLegacyDiagOpen(true);
+                    setTimeout(() => document.getElementById("settings-legacy-diagnostics")?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 20);
+                  }}
+                >
+                  {zh ? "了解详情 ›" : "Learn more ›"}
+                </button>
+              </div>
+            </div>
+          </Panel>
+        );
         const legacyModelsPanel = (
           <Panel id={hasWorkspaceAi ? undefined : "settings-models"} icon="sparkle" title="Models and processing">
             <h3>{t("Content processing")}</h3><p>{t("Ready. Content is saved and organized locally when source text or captions are available. Cloud Intelligence is optional.")}</p>
@@ -9057,9 +9341,12 @@ function Settings({ refresh }: { refresh: number }) {
         );
         return hasWorkspaceAi ? (
           <>
+            {overviewPanel}
             <WorkspaceAiSettingsPanel id="settings-models" initial={settings.data.workspace_ai} />
             <details
+              id="settings-legacy-diagnostics"
               className="settings-advanced legacy-model-diagnostics"
+              open={legacyDiagOpen}
               onToggle={event =>
                 setLegacyDiagOpen((event.currentTarget as HTMLDetailsElement).open)
               }
@@ -9080,6 +9367,7 @@ function Settings({ refresh }: { refresh: number }) {
           </>
         ) : (
           <>
+            {overviewPanel}
             {legacyModelsPanel}
             <WorkspaceAiSettingsPanel initial={settings.data.workspace_ai} />
             <LocalIntelligenceSetup />
