@@ -428,7 +428,7 @@ export function CommandPalette({
       const topicNames = (item.linked_topics ?? [])
         .map(tp => tp.name?.trim())
         .filter((name): name is string => Boolean(name));
-      const topicBadge = topicNames.length > 0 ? `[[${topicNames[0]}]]` : undefined;
+      const topicBadge = topicNames.length > 0 ? topicNames[0] : undefined;
       const rawSource = item.card?.source_display_name?.trim();
       const localizedSource = rawSource ? t(rawSource) : undefined;
       const rawTitle = item.card?.video_title?.trim() ?? "";

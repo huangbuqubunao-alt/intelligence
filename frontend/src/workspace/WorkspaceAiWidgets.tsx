@@ -329,6 +329,7 @@ export type WorkspaceAiSettings = {
   cloud_base_url: string;
   cloud_model: string;
   cloud_key_configured: boolean;
+  local_mlx_Whisper_ready?: boolean;
 };
 
 export type WorkspaceAiTranscribeJob = {
@@ -841,6 +842,9 @@ export function readWorkspaceAiSettings(raw: unknown): WorkspaceAiSettings | nul
         : "https://api.deepseek.com/v1",
     cloud_model: typeof raw.cloud_model === "string" ? raw.cloud_model : "deepseek-chat",
     cloud_key_configured: Boolean(raw.cloud_key_configured),
+    ...(typeof raw.local_mlx_Whisper_ready === "boolean"
+      ? { local_mlx_Whisper_ready: raw.local_mlx_Whisper_ready }
+      : {}),
   };
 }
 
@@ -1603,6 +1607,7 @@ export function WorkspaceVideoAiActions({
   provider,
   isLocalMedia,
   transcriptAvailable,
+  transcriberReady,
   aiBrief,
   obsidianMarkdown,
   initialTranscribeJob,
@@ -1620,6 +1625,7 @@ export function WorkspaceVideoAiActions({
   provider?: "YOUTUBE" | "LOCAL" | "BILIBILI";
   isLocalMedia: boolean;
   transcriptAvailable: boolean;
+  transcriberReady?: boolean;
   aiBrief: VideoAiBrief | null;
   obsidianMarkdown?: string;
   initialTranscribeJob?: WorkspaceAiTranscribeJob | null;
@@ -1640,6 +1646,7 @@ export function WorkspaceVideoAiActions({
   const [busyKind, setBusyKind] = useState<"distill" | "transcribe" | "curation" | null>(null);
   const [transcribeStage, setTranscribeStage] = useState<string>("TRANSCRIBING");
   const [error, setError] = useState<string | null>(null);
+  const [errorAction, setErrorAction] = useState<{ label: string; href: string } | null>(null);
   const [copiedObsidian, setCopiedObsidian] = useState(false);
   const [copiedPlainBrief, setCopiedPlainBrief] = useState(false);
   const aliveRef = useRef(true);
@@ -1658,6 +1665,7 @@ export function WorkspaceVideoAiActions({
     setCopiedObsidian(false);
     setCopiedPlainBrief(false);
     setError(null);
+    setErrorAction(null);
     pollingVideoRef.current = null;
   }, [videoId]);
 
@@ -1669,6 +1677,7 @@ export function WorkspaceVideoAiActions({
     if (busyKind !== null) return;
     setBusyKind("curation");
     setError(null);
+    setErrorAction(null);
     try {
       await post(`/workspace-ai/videos/${encodeURIComponent(videoId)}/curation`, patchBody);
       onCompleted();
@@ -1683,6 +1692,7 @@ export function WorkspaceVideoAiActions({
     if (busyKind !== null || !nextUnreadVideo || !onAdvanceToVideo) return;
     setBusyKind("curation");
     setError(null);
+    setErrorAction(null);
     try {
       if (!aiBrief?.is_read) {
         await post(`/workspace-ai/videos/${encodeURIComponent(videoId)}/curation`, {
@@ -1779,15 +1789,37 @@ export function WorkspaceVideoAiActions({
         pollingVideoRef.current = null;
         setBusyKind(null);
         onTranscribeStateChange?.(false, "FAILED");
-        setError(
-          job.error_code === "CLOUD_CREDENTIAL_MISSING"
-            ? zh
+        if (job.error_code === "CLOUD_CREDENTIAL_MISSING") {
+          setError(
+            zh
               ? "当前选为云端模式但尚未填写 API Key，请在设置中保存 Key 或切回本机免费 Ollama。"
-              : "Cloud API key is missing in Settings."
-            : zh
+              : "Cloud API key is missing in Settings.",
+          );
+          setErrorAction({
+            label: zh ? "前往模型设置 →" : "Open model settings →",
+            href: "#Settings",
+          });
+        } else if (job.error_code === "TRANSCRIBER_UNAVAILABLE") {
+          setError(
+            zh
+              ? "未检测到本机离线语音转写模型，请先前往设置配置。"
+              : "Local offline transcription model is not configured.",
+          );
+          setErrorAction({
+            label: zh ? "先设置本地转写 →" : "Set up local transcription →",
+            href: "#Settings/transcription",
+          });
+        } else {
+          setError(
+            zh
               ? "本地离线语音转写未能完成，请检查本地转写模型与音视频文件。"
               : "Offline local transcription could not complete.",
-        );
+          );
+          setErrorAction({
+            label: zh ? "查看转写设置 →" : "Transcription settings →",
+            href: "#Settings/transcription",
+          });
+        }
         return;
       }
     } catch {
@@ -1824,6 +1856,7 @@ export function WorkspaceVideoAiActions({
     if (busyKind !== null) return;
     setBusyKind(kind);
     setError(null);
+    setErrorAction(null);
     if (kind === "transcribe") {
       setTranscribeStage("TRANSCRIBING");
       onTranscribeStateChange?.(true, "TRANSCRIBING");
@@ -1848,17 +1881,81 @@ export function WorkspaceVideoAiActions({
       }
       setBusyKind(null);
       const code = err instanceof ApiRequestError ? err.code : undefined;
+      const rawServerMsg =
+        err instanceof ApiRequestError
+          ? (err.technicalMessage || err.message || "").trim()
+          : "";
+      const meaningfulServerMsg =
+        rawServerMsg &&
+        rawServerMsg !== "Request failed" &&
+        rawServerMsg !== "The local service rejected this request." &&
+        !/^HTTP \d+/i.test(rawServerMsg)
+          ? rawServerMsg
+          : "";
       if (code === "CLOUD_CREDENTIAL_MISSING") {
-        setError(zh ? "当前选为云端模式但尚未填写 API Key，请在设置中保存 Key 或切回本机免费 Ollama。" : "Cloud API key is missing in Settings.");
-      } else {
         setError(
+          zh
+            ? "当前选为云端模式但尚未填写 API Key，请在设置中保存 Key 或切回本机免费 Ollama。"
+            : "Cloud API key is missing in Settings.",
+        );
+        setErrorAction({
+          label: zh ? "前往模型设置 →" : "Open model settings →",
+          href: "#Settings",
+        });
+      } else if (code === "TRANSCRIBER_UNAVAILABLE") {
+        setError(
+          meaningfulServerMsg ||
+            (zh
+              ? "未检测到本机离线语音转写模型，请先前往设置配置。"
+              : "Local offline transcription model is not configured."),
+        );
+        setErrorAction({
+          label: zh ? "先设置本地转写 →" : "Set up local transcription →",
+          href: "#Settings/transcription",
+        });
+      } else if (code === "TRANSCRIPT_REQUIRED") {
+        setError(
+          meaningfulServerMsg ||
+            (zh
+              ? "当前内容尚未生成可用字幕，无法直接提炼。"
+              : "A transcript is required before distilling."),
+        );
+        setErrorAction(
+          isLocalMedia
+            ? {
+                label: zh ? "先设置本地转写 →" : "Set up local transcription →",
+                href: "#Settings/transcription",
+              }
+            : null,
+        );
+      } else if (code === "LOCAL_SOURCE_UNTRUSTED" || code === "LOCAL_NOT_MEDIA") {
+        setError(
+          meaningfulServerMsg ||
+            (zh ? "当前本地内容暂不支持此操作。" : "This local item cannot run this action."),
+        );
+        setErrorAction(null);
+      } else {
+        const fallback =
           kind === "transcribe"
             ? zh
               ? "本地离线语音转写未能完成，请检查本地转写模型与音视频文件。"
               : "Offline local transcription could not complete."
             : zh
               ? "AI 中文提炼未能完成，请检查本机 Ollama 或云端引擎配置。"
-              : "AI distillation could not complete.",
+              : "AI distillation could not complete.";
+        setError(meaningfulServerMsg || fallback);
+        setErrorAction(
+          kind === "transcribe"
+            ? {
+                label: zh ? "查看转写设置 →" : "Transcription settings →",
+                href: "#Settings/transcription",
+              }
+            : !meaningfulServerMsg || /ollama|model|模型|cloud|云端/i.test(`${code ?? ""} ${meaningfulServerMsg}`)
+              ? {
+                  label: zh ? "前往模型设置 →" : "Open model settings →",
+                  href: "#Settings",
+                }
+              : null,
         );
       }
     }
@@ -1873,28 +1970,35 @@ export function WorkspaceVideoAiActions({
   return (
     <>
       {isLocalMedia && !transcriptAvailable ? (
-        <button
-          type="button"
-          className="button button-primary button-small"
-          disabled={busyKind !== null}
-          onClick={(event) => {
-            pulseCelebration(event.currentTarget);
-            void runAction("transcribe");
-          }}
-        >
-          <PhosphorIcon name="sparkle" size={13} />
-          {busyKind === "transcribe"
-            ? transcribeStage === "DISTILLING"
-              ? zh
-                ? "语音听写完成，正在提炼中文洞察…"
-                : "Distilling Chinese insight…"
+        transcriberReady === false && busyKind === null ? (
+          <a className="button button-secondary button-small" href="#Settings/transcription">
+            <PhosphorIcon name="sparkle" size={13} />
+            {zh ? "先设置本地转写 →" : "Set up local transcription →"}
+          </a>
+        ) : (
+          <button
+            type="button"
+            className="button button-primary button-small"
+            disabled={busyKind !== null}
+            onClick={(event) => {
+              pulseCelebration(event.currentTarget);
+              void runAction("transcribe");
+            }}
+          >
+            <PhosphorIcon name="sparkle" size={13} />
+            {busyKind === "transcribe"
+              ? transcribeStage === "DISTILLING"
+                ? zh
+                  ? "语音听写完成，正在提炼中文洞察…"
+                  : "Distilling Chinese insight…"
+                : zh
+                  ? "正在离线转写语音（长视频约需数分钟）…"
+                  : "Transcribing & distilling…"
               : zh
-                ? "正在离线转写语音（长视频约需数分钟）…"
-                : "Transcribing & distilling…"
-            : zh
-              ? "离线语音转写并提炼中文洞察"
-              : "Transcribe offline & distill Chinese insight"}
-        </button>
+                ? "离线语音转写并提炼中文洞察"
+                : "Transcribe offline & distill Chinese insight"}
+          </button>
+        )
       ) : null}
       {transcriptAvailable ? (
         <button
@@ -2082,7 +2186,15 @@ export function WorkspaceVideoAiActions({
       ) : null}
       {error ? (
         <p className="form-error" role="alert">
-          {error}
+          <span>{error}</span>
+          {errorAction ? (
+            <>
+              {" "}
+              <a className="source-link" href={errorAction.href}>
+                {errorAction.label}
+              </a>
+            </>
+          ) : null}
         </p>
       ) : null}
     </>
@@ -2122,10 +2234,10 @@ export function WorkspaceVideoAiBriefCard({
               title={zh ? `查看专题脉络：${brief.topic_cluster_zh}` : `Open Topic: ${brief.topic_cluster_zh}`}
               onClick={() => onSelectTopicCluster(brief.topic_cluster_zh)}
             >
-              [[{brief.topic_cluster_zh}]]
+              {brief.topic_cluster_zh}
             </button>
           ) : (
-            <span className="ai-topic-tag">[[{brief.topic_cluster_zh}]]</span>
+            <span className="ai-topic-tag">{brief.topic_cluster_zh}</span>
           )
         ) : null}
         {brief.score_reason_zh ? <span className="hint">{brief.score_reason_zh}</span> : null}
@@ -2331,10 +2443,50 @@ export function TopicObsidianExportBar({
 }
 
 const FALLBACK_QUESTIONS_ZH = [
-  "OpenAI、Greg Isenberg 与本地实战课对 AI Agent 产品落地有什么共识与分歧？",
-  "从现有内容库中，适合一人公司切入的高毛利 AI SaaS 方向有哪些？",
-  "多模态与智能助理课程里有哪些可以直接复用的产品交互模式？",
+  "基于当前内容库，不同来源在核心方法论上有哪些主要共识与关键分歧？",
+  "从已沉淀的高分内容中，提炼最值得优先落地的 3 个产品方向或工程实践是什么？",
+  "跨来源原话指出了哪些高频避坑点、边界条件或前置假设？",
 ];
+
+const FALLBACK_QUESTIONS_EN = [
+  "What are the main points of consensus and disagreement across sources in my library?",
+  "What are the top 3 actionable product or engineering takeaways from my highest-rated items?",
+  "Which common pitfalls or boundary conditions appear across multiple sources?",
+];
+
+function buildDynamicFallbackQuestions(
+  scopes: ResearchScopeOptions | null,
+  zh: boolean,
+): string[] {
+  const defaults = zh ? FALLBACK_QUESTIONS_ZH : FALLBACK_QUESTIONS_EN;
+  if (!scopes) return defaults;
+  const out: string[] = [];
+  if (scopes.channels.length >= 2) {
+    out.push(
+      zh
+        ? `${scopes.channels[0].label} 与 ${scopes.channels[1].label} 在核心观点上有哪些共识与分歧？`
+        : `How do ${scopes.channels[0].label} and ${scopes.channels[1].label} agree or differ in key conclusions?`,
+    );
+  } else if (scopes.channels.length === 1) {
+    out.push(
+      zh
+        ? `梳理 ${scopes.channels[0].label} 已沉淀内容中的核心方法论与可落地结论`
+        : `Summarize the core methodology and actionable takeaways from ${scopes.channels[0].label}`,
+    );
+  }
+  if (scopes.topic_clusters.length >= 1) {
+    out.push(
+      zh
+        ? `围绕「${scopes.topic_clusters[0].name}」专题，综合各来源给出落地建议与避坑指南`
+        : `Synthesize practical takeaways and pitfalls across sources in "${scopes.topic_clusters[0].name}"`,
+    );
+  }
+  for (const q of defaults) {
+    if (out.length >= 3) break;
+    if (!out.includes(q)) out.push(q);
+  }
+  return out;
+}
 
 export function formatPlainTextResearchBrief(
   session: AiResearchSession,
@@ -2418,7 +2570,9 @@ export function WorkspaceAiResearchPanel({
   const { language } = useUiLanguage();
   const zh = language === "zh-CN";
   const [sessions, setSessions] = useState<AiResearchSession[]>([]);
-  const [suggested, setSuggested] = useState<string[]>(FALLBACK_QUESTIONS_ZH);
+  const [suggested, setSuggested] = useState<string[]>(() =>
+    zh ? FALLBACK_QUESTIONS_ZH : FALLBACK_QUESTIONS_EN,
+  );
   const [scopeOptions, setScopeOptions] = useState<ResearchScopeOptions | null>(null);
   const [selectedChannel, setSelectedChannel] = useState(() => consumePendingResearchChannel());
   const [selectedTopic, setSelectedTopic] = useState(() => consumePendingResearchTopicCluster());
@@ -2519,8 +2673,12 @@ export function WorkspaceAiResearchPanel({
             : undefined;
           setActiveSession(matched ?? parsedSessions[0]);
         }
-        if (parsedQuestions.length > 0) setSuggested(parsedQuestions);
         if (parsedScopes) setScopeOptions(parsedScopes);
+        if (parsedQuestions.length > 0) {
+          setSuggested(parsedQuestions);
+        } else {
+          setSuggested(buildDynamicFallbackQuestions(parsedScopes, zh));
+        }
       })
       .catch(() => {
         /* Silently keep fallback suggestions when backend is unenriched */
