@@ -1,18 +1,21 @@
-# Private / Limited Distribution Notice
+YouTube Intelligence Agent
+Copyright 2026 墨竹
 
-Copyright © 2026 墨竹
+This product includes software developed under the Apache License, Version 2.0
+(see LICENSE).
 
-All rights reserved.
+“墨竹” is the pseudonymous project-owner attribution identifier used for this
+first-party repository and source distribution.
 
-This repository and its artifacts are proprietary and may be provided only for
-controlled testing when explicitly authorized under this project notice. No
-permission is granted to redistribute, modify, sublicense, publish, or make
-the project or its artifacts publicly available.
-
-“墨竹” is a pseudonymous project-owner attribution identifier for this current
-controlled posture. It is not a verified legal name, legal entity, trademark,
-copyright registration, or IP-assignment record.
-
-Before an action requiring verified legal identity or a broader external
-distribution, the required legal record and definitive first-party license or
-notice must be established separately. No such legal record is made here.
+Third-Party Runtime Boundary Notice
+-----------------------------------
+The source, sdist, and wheel distributions of this project do NOT vendor or
+redistribute third-party dependencies, binary bundles, external CLI tools,
+tokenizers, or model weights. When installed by the operator/environment:
+- Third-party Python packages (such as openai, tiktoken, jinja2, spacy,
+  yt-dlp and its transitive dependencies such as mutagen [GPL-2.0-or-later],
+  and optional mac-whisper / mlx-whisper) remain governed by their own
+  respective licenses (see docs/THIRD_PARTY_NOTICES.md and docs/SBOM.md).
+- External tools and model runtimes (ffmpeg, Ollama, Whisper models,
+  and pre-provisioned o200k_base.tiktoken files) are separately installed
+  and managed by the user.

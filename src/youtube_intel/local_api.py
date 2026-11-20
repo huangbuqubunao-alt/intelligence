@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import mimetypes
 import os
 import re
 import select
@@ -21,7 +22,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path, PurePosixPath
 from typing import BinaryIO, Callable, Final, cast
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 from pydantic import ValidationError
 
@@ -2865,7 +2866,8 @@ class LocalApiApplication:
             }
         if route == "/api/v1/system":
             return {
-                "release_posture": "NO-GO",
+                "release_posture": "PUBLIC_BETA",
+                "deep_analysis_tier": "EXPERIMENTAL",
                 "version": "0.1.0",
                 "doctor": {"status": "NOT_RUN"},
                 "backup": {"status": "NOT_RUN"},
@@ -3748,10 +3750,38 @@ UPLOAD_IDLE_TIMEOUT_SECONDS = 120
 _LOCAL_ORIGIN = re.compile(r"^http://(localhost|127\.0\.0\.1)(:\d+)?$")
 
 
+_STATIC_MIME_TYPES: Final[dict[str, str]] = {
+    ".html": "text/html; charset=utf-8",
+    ".js": "application/javascript; charset=utf-8",
+    ".mjs": "application/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".svg": "image/svg+xml",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".ico": "image/x-icon",
+    ".json": "application/json; charset=utf-8",
+    ".woff": "font/woff",
+    ".woff2": "font/woff2",
+    ".map": "application/json; charset=utf-8",
+}
+_SPA_CSP: Final[str] = (
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; "
+    "style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; "
+    "font-src 'self' data:; connect-src 'self'"
+)
+
+
 def serve_loopback(
-    application: LocalApiApplication, *, port: int = 8765
+    application: LocalApiApplication,
+    *,
+    port: int = 8765,
+    static_dir: Path | None = None,
 ) -> ThreadingHTTPServer:
     """Create, but do not start, a loopback-only server with mutation protection."""
+
+    static_root = static_dir.resolve() if static_dir is not None else None
 
     class DrainingHTTPServer(ThreadingHTTPServer):
         # server_close must join every accepted request before a new runtime
@@ -3768,6 +3798,86 @@ def serve_loopback(
 
         def log_message(self, format: str, *args: object) -> None:  # noqa: A002
             return
+
+        def _send_static_response(
+            self,
+            status: HTTPStatus,
+            content_type: str,
+            body: bytes,
+            *,
+            cache_control: str = "no-store",
+        ) -> None:
+            self.send_response(status)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", cache_control)
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("X-Frame-Options", "DENY")
+            self.send_header("Content-Security-Policy", _SPA_CSP)
+            self.end_headers()
+            if self.command != "HEAD":
+                self.wfile.write(body)
+
+        def _serve_static(self, raw_path: str) -> None:
+            if static_root is None:
+                self._send_static_response(
+                    HTTPStatus.NOT_FOUND, "text/plain; charset=utf-8", b"Not found"
+                )
+                return
+            decoded_path = unquote(urlparse(raw_path).path)
+            if "\x00" in decoded_path or "\\" in decoded_path:
+                self._send_static_response(
+                    HTTPStatus.NOT_FOUND, "text/plain; charset=utf-8", b"Not found"
+                )
+                return
+            if ".." in PurePosixPath(decoded_path).parts:
+                self._send_static_response(
+                    HTTPStatus.NOT_FOUND, "text/plain; charset=utf-8", b"Not found"
+                )
+                return
+            rel = decoded_path.lstrip("/")
+            index_file = (static_root / "index.html").resolve()
+            if not rel:
+                target = index_file
+            else:
+                candidate = (static_root / rel).resolve()
+                if not candidate.is_relative_to(static_root):
+                    self._send_static_response(
+                        HTTPStatus.NOT_FOUND, "text/plain; charset=utf-8", b"Not found"
+                    )
+                    return
+                if candidate.is_file():
+                    target = candidate
+                elif "." not in Path(rel).name:
+                    target = index_file
+                else:
+                    self._send_static_response(
+                        HTTPStatus.NOT_FOUND, "text/plain; charset=utf-8", b"Not found"
+                    )
+                    return
+            if not target.is_relative_to(static_root) or not target.is_file():
+                self._send_static_response(
+                    HTTPStatus.NOT_FOUND, "text/plain; charset=utf-8", b"Not found"
+                )
+                return
+            payload = target.read_bytes()
+            suffix = target.suffix.lower()
+            content_type = (
+                _STATIC_MIME_TYPES.get(suffix)
+                or mimetypes.guess_type(target.name)[0]
+                or "application/octet-stream"
+            )
+            cache_control = (
+                "public, max-age=31536000, immutable"
+                if rel.startswith("assets/") and target != index_file
+                else "no-store"
+            )
+            self._send_static_response(
+                HTTPStatus.OK,
+                content_type,
+                payload,
+                cache_control=cache_control,
+            )
 
         def _send(self, status: int, payload: dict[str, object]) -> None:
             encoded = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -3807,6 +3917,15 @@ def serve_loopback(
             return False
 
         def _handle(self) -> None:
+            parsed_path = urlparse(self.path).path
+            if (
+                static_root is not None
+                and self.command in {"GET", "HEAD"}
+                and parsed_path != "/api"
+                and not parsed_path.startswith("/api/")
+            ):
+                self._serve_static(self.path)
+                return
             is_mutation = self.command not in {"GET", "HEAD"}
             origin = self.headers.get("Origin")
             native_route = urlparse(self.path).path.rstrip("/")
@@ -3945,6 +4064,17 @@ def serve_loopback(
                     application._backup_restore_service.cancel_restore(staged_restore_id)
                 if acquired:
                     application._local_import_slot.release()
+
+        def do_HEAD(self) -> None:
+            parsed_path = urlparse(self.path).path
+            if (
+                static_root is not None
+                and parsed_path != "/api"
+                and not parsed_path.startswith("/api/")
+            ):
+                self._serve_static(self.path)
+                return
+            self.send_error(HTTPStatus.NOT_IMPLEMENTED, "Unsupported method ('HEAD')")
 
         do_GET = _handle
         do_POST = _handle

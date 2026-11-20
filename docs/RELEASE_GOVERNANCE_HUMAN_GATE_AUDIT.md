@@ -301,3 +301,12 @@ the named independent Security/Privacy, separate TL/QA, and final multi-role
 requirements are deferred for the current posture only. No human gate was
 silently closed, no signature was fabricated, and all retained PO and technical
 gates remain as stated in the adoption table.
+
+## PO Addendum — 2026-11-20 (Public Beta, Apache-2.0 Source Release & Cross-Platform Dependencies)
+
+On `2026-11-20`, the Product Owner explicitly authorized transitioning the repository from private proprietary evaluation to a cross-platform **`PUBLIC_BETA`** source release under **Apache-2.0**:
+
+- **`G-OWNER` & License Trigger Resolved for Source Release**: Root `LICENSE` carries **Apache-2.0** (`Copyright 2026 墨竹`) and `NOTICE` attributes first-party code while preserving the unbundled third-party runtime boundary (no GPL binary/wheel bundling).
+- **`G-PO-OUTPUT` Scoped to `EXPERIMENTAL` Legacy Deep Analysis**: The legacy governed Deep Analysis qualification pipeline (`TASK-016`) stays fail-closed and is surfaced as `"deep_analysis_tier": "EXPERIMENTAL"`, decoupled from blocking the core Workspace AI Hub `PUBLIC_BETA` posture.
+- **`mlx-whisper` Optional Extra**: `mlx-whisper>=0.4.3,<0.5` is moved to `[project.optional-dependencies].mac-whisper` in `pyproject.toml` and `uv.lock` for non-macOS / non-Apple-Silicon portability.
+- **`PUBLIC_BETA` Runtime Posture**: `GET /api/v1/system` now reports `"release_posture": "PUBLIC_BETA"` alongside `"deep_analysis_tier": "EXPERIMENTAL"`.

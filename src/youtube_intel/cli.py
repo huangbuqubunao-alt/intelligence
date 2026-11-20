@@ -66,6 +66,16 @@ def _build_parser() -> argparse.ArgumentParser:
     api.add_argument("--port", type=int, default=8765)
     api.add_argument("--native-import-origin", action="append", default=[])
     api.add_argument("--native-picker-executable", type=Path)
+    api.add_argument("--web-dir", type=Path)
+    demo = commands.add_parser(
+        "demo",
+        help="launch an isolated zero-config showcase workspace with sample data",
+    )
+    demo.add_argument("--port", type=int, default=8765)
+    demo.add_argument("--reset", action="store_true")
+    demo.add_argument("--demo-root", type=Path)
+    demo.add_argument("--web-dir", type=Path)
+    demo.add_argument("--no-web", action="store_true")
     commands.add_parser(
         "doctor", help="read-only configuration and local-resource checks"
     )
@@ -132,6 +142,20 @@ def main(
                     break
             print(f"Claimed {len(runs)} durable automation run(s).")
             return ExitCode.OK
+        if args.command == "demo":
+            from youtube_intel.demo_showcase import serve_demo_showcase
+
+            if args.port < 1024 or args.port > 65535:
+                return ExitCode.USAGE_OR_CONFIGURATION
+            project_root = _project_root(args.project_root)
+            return serve_demo_showcase(
+                project_root,
+                port=args.port,
+                demo_root=args.demo_root,
+                reset=bool(args.reset),
+                web_dir=args.web_dir,
+                serve_web=not bool(args.no_web),
+            )
         if args.command == "serve-api":
             from youtube_intel.local_api import serve_loopback
             from youtube_intel.runtime_composition import (
@@ -156,6 +180,7 @@ def main(
                 server = serve_loopback(
                     composition.application,
                     port=args.port,
+                    static_dir=args.web_dir,
                 )
                 def request_stop(signum: int, frame: FrameType | None) -> None:
                     nonlocal stop_requested

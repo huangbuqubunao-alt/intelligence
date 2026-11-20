@@ -3219,6 +3219,7 @@ def run_cli_with_fast_reads(argv: Sequence[str] | None = None) -> ExitCode:
             server = serve_loopback(
                 cast(LocalApiApplication, fast_app),
                 port=args.port,
+                static_dir=args.web_dir,
             )
 
             def request_stop(signum: int, frame: FrameType | None) -> None:

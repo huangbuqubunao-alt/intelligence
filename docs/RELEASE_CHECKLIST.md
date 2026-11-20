@@ -146,3 +146,12 @@ Security Reviewer 或 Privacy Reviewer 填写组织角色表。该处理只来�
 当前项目只有在所有非 deferred `BLOCKED` 项有可审计的关闭证据、所选动作所需的明确 PO
 授权已经记录、且发行形态与 SBOM/NOTICE 一致时，才可能从 `NO-GO` 变化；本政策本身不作
 该授权。否则维持 `NO-GO` 并开立范围明确的后续任务。
+
+## PO Decision Addendum — 2026-11-20 (Public Beta & Apache-2.0 Source Posture)
+
+On `2026-11-20`, the Product Owner explicitly recorded the following scoped scope-and-distribution transition decisions on working branch `antigravity/task-user-readiness-20261112`:
+
+1. **Open-source license adopted for source distribution**: First-party code adopts **Apache-2.0** ([`LICENSE`](../LICENSE) and [`NOTICE`](../NOTICE)), replacing the prior proprietary no-redistribution restriction. Third-party runtime dependencies (`yt-dlp` transitive `mutagen`, `ffmpeg`, `Ollama`, `mlx-whisper`, and `o200k_base.tiktoken`) remain unbundled and separately installed by the user/environment.
+2. **Release posture upgraded to `PUBLIC_BETA`**: Core local-first Workspace AI Hub (`YouTube`, `Bilibili`, local `.mp4/.wav/.mp3/.m4a/.md/.txt` ingestion, Ollama / BYOK distillation, Weekly Brief, Topic Evolution, Cross-Video Grounded Q&A, Obsidian export, and backup/restore) transitions from `NO-GO` to `PUBLIC_BETA` (`GET /api/v1/system` reports `"release_posture": "PUBLIC_BETA"`).
+3. **Governed multi-model Deep Analysis classified as `EXPERIMENTAL`**: Legacy governed multi-model Deep Analysis qualification gates (`TASK-016` / `"deep_analysis_tier": "EXPERIMENTAL"`) remain strictly fail-closed unless explicitly qualified by the operator, and no longer block the `PUBLIC_BETA` release of the main workbench.
+4. **Cross-platform packaging**: `mlx-whisper` (Apple Silicon only) is moved from core `dependencies` into `[project.optional-dependencies].mac-whisper` in `pyproject.toml` so Linux, Windows, and Intel macOS environments can install core dependencies cleanly.

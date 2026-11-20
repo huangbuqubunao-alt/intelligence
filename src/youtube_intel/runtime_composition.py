@@ -490,6 +490,7 @@ def build_local_source_run_runtime(
     bigmodel_credential_store: CredentialStore | None = None,
     allow_environment_credentials: bool = True,
     allow_cloud_execution: bool = True,
+    probe_local_runtime: bool = True,
     now: Callable[[], datetime] | None = None,
 ) -> LocalSourceRunRuntime:
     """Compose the GUI, scheduler, ingestion, and worker onto one durable authority.
@@ -555,8 +556,16 @@ def build_local_source_run_runtime(
 
     model_settings = ModelSettingsService(
         credential_store if credential_store is not None else MacOSKeychainCredentialStore(),
-        tags_fetch=lambda: local_models(config.settings.local_scoring.base_url),
-        version_fetch=lambda: local_runtime_version(config.settings.local_scoring.base_url),
+        tags_fetch=(
+            (lambda: local_models(config.settings.local_scoring.base_url))
+            if probe_local_runtime
+            else (lambda: {"models": []})
+        ),
+        version_fetch=(
+            (lambda: local_runtime_version(config.settings.local_scoring.base_url))
+            if probe_local_runtime
+            else (lambda: {})
+        ),
         allow_environment_credentials=allow_environment_credentials,
     )
     machine_settings = LocalIntelligenceSettings(backup_restore, probe=model_settings.fixed_local_identity)
@@ -706,7 +715,11 @@ def build_local_source_run_runtime(
     # explicitly through the service constructor instead of an env flag.
     deep_analysis = DeepAnalysisService(
         repository=repository,
-        capability=_deep_analysis_production_capability(),
+        capability=(
+            _deep_analysis_production_capability()
+            if probe_local_runtime
+            else DeepAnalysisCapability(())
+        ),
         scoring_reader=reader.read,
         transcript_reader=repository.get_verified_timed_transcript,
         evidence_reader=repository.list_canonical_coverage_evidence_ids,
@@ -752,7 +765,9 @@ def build_local_source_run_runtime(
         source_run_wakeup=worker.notify,
         tracked_content_retry=tracked_content_retry,
         source_tracking=source_tracking,
-        local_distillation_available=transport.available,
+        local_distillation_available=(
+            transport.available if probe_local_runtime else False
+        ),
         local_distillation_capabilities=local_distillation_capabilities,
         runtime_model=config.settings.local_scoring.model,
         runtime_model_digest=config.settings.local_scoring.expected_model_digest,
