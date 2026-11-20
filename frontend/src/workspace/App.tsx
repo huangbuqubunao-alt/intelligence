@@ -212,6 +212,7 @@ type ContentItem = {
   work_kind?: string;
   source_id?: string;
   retry_allowed?: boolean;
+  last_error_code?: string | null;
   tracked_content_retry?: unknown;
   caption_timing_status?: string;
   summary_preparation_status?: string;
@@ -5573,6 +5574,40 @@ function PendingContentDetailView({
   );
 }
 
+function failedContentReasonCopy(video: ContentItem, zh: boolean): string | null {
+  const errCode = (video.last_error_code ?? video.processing_job?.error_code ?? "").trim().toUpperCase();
+  const codeMap: Record<string, { zh: string; en: string }> = {
+    CAPABILITY_UNAVAILABLE: {
+      zh: "当前来源抓取能力受限（例如平台要求登录验证或未开放公开字幕）。你可以导入本地文件/字幕替代，或直接生成简介速览。",
+      en: "Capture capability is restricted on this source (for example sign-in verification or no public captions). You can import a local file/transcript instead or generate a metadata preview.",
+    },
+    TRANSCRIPT_UNAVAILABLE: {
+      zh: "源站暂未提供可用的时间轴字幕，可导入本地文件或先生成基于简介的中文速览。",
+      en: "Timed captions are unavailable on the source. Import a local file or generate a metadata preview.",
+    },
+    CAPTION_TIMING_UNAVAILABLE: {
+      zh: "抓取到的字幕缺少时间轴戳，暂无法建立时间轴证据引用。建议上传带时间轴的本地音视频/字幕，或先生成简介速览。",
+      en: "Captured captions lack verified timestamps. Upload a timed local file or generate a metadata preview.",
+    },
+    SOURCE_UNAVAILABLE: {
+      zh: "原始视频页面暂时不可访问、已被隐藏或下线。如有本地副本，可通过下方按钮导入替代。",
+      en: "The original video page is currently unavailable or private. Import a local copy below if you have one.",
+    },
+    RATE_LIMITED: {
+      zh: "平台访问频率受限，请稍后重试或改用本地导入。",
+      en: "Source access was rate-limited. Retry later or import locally.",
+    },
+    NETWORK_TIMEOUT: {
+      zh: "读取公开来源超时，请检查网络连接后重试或改用本地导入。",
+      en: "Fetching the public source timed out. Retry shortly or import locally.",
+    },
+  };
+  if (errCode && codeMap[errCode]) {
+    return zh ? codeMap[errCode].zh : codeMap[errCode].en;
+  }
+  return null;
+}
+
 function ContentDetailPanel(
   {
     id,
@@ -5755,38 +5790,40 @@ function ContentDetailPanel(
               </a>
             )
             : null}
-          <button
-            type="button"
-            className="button button-secondary button-small"
-            onClick={event => {
-              pulseCelebration(event.currentTarget);
-              const guideLines = loadedEvidence
-                .map(ev => {
-                  const tr = sharedTranslations[ev.evidence_id]?.excerpt ?? ev.translated_excerpt;
-                  if (!tr) return null;
-                  const range = ev.locator_type === "TEXT_RANGE" ? "" : `[${timestampRange(ev.start_ms, ev.end_ms)}] `;
-                  return `${range}${cleanTranslatedCaptionText(tr)}`;
-                })
-                .filter((v): v is string => Boolean(v));
-              const cleanedSummary = note?.summary ? cleanCaptionText(note.summary).text : "";
-              const cleanedPts = note?.core_points ? dedupeSummaryPoints(cleanedSummary, note.core_points) : [];
-              const md = buildMarkdownVideoNote({
-                title: data.video.title ?? data.video.video_id,
-                channelName: data.video.channel_name,
-                sourceUrl: data.video.source_url,
-                publishedAt: humanDate(data.video.published_at ?? data.video.imported_at),
-                summary: cleanedSummary,
-                chineseGuide: guideLines,
-                corePoints: cleanedPts,
-              });
-              void navigator.clipboard?.writeText(md);
-              setCopiedMarkdown(true);
-              setTimeout(() => setCopiedMarkdown(false), 2200);
-            }}
-          >
-            <PhosphorIcon name="file-text" size={13} />
-            {t(copiedMarkdown ? "Copied Markdown note" : "Copy Markdown note")}
-          </button>
+          {!(aiBrief && data.obsidian_markdown) ? (
+            <button
+              type="button"
+              className="button button-secondary button-small"
+              onClick={event => {
+                pulseCelebration(event.currentTarget);
+                const guideLines = loadedEvidence
+                  .map(ev => {
+                    const tr = sharedTranslations[ev.evidence_id]?.excerpt ?? ev.translated_excerpt;
+                    if (!tr) return null;
+                    const range = ev.locator_type === "TEXT_RANGE" ? "" : `[${timestampRange(ev.start_ms, ev.end_ms)}] `;
+                    return `${range}${cleanTranslatedCaptionText(tr)}`;
+                  })
+                  .filter((v): v is string => Boolean(v));
+                const cleanedSummary = note?.summary ? cleanCaptionText(note.summary).text : "";
+                const cleanedPts = note?.core_points ? dedupeSummaryPoints(cleanedSummary, note.core_points) : [];
+                const md = buildMarkdownVideoNote({
+                  title: data.video.title ?? data.video.video_id,
+                  channelName: data.video.channel_name,
+                  sourceUrl: data.video.source_url,
+                  publishedAt: humanDate(data.video.published_at ?? data.video.imported_at),
+                  summary: cleanedSummary,
+                  chineseGuide: guideLines,
+                  corePoints: cleanedPts,
+                });
+                void navigator.clipboard?.writeText(md);
+                setCopiedMarkdown(true);
+                setTimeout(() => setCopiedMarkdown(false), 2200);
+              }}
+            >
+              <PhosphorIcon name="file-text" size={13} />
+              {t(copiedMarkdown ? "Copied Markdown note" : "Copy Markdown note")}
+            </button>
+          ) : null}
           <WorkspaceVideoAiActions
             videoId={data.video.video_id}
             title={data.video.title ?? data.video.video_id}
@@ -5846,8 +5883,94 @@ function ContentDetailPanel(
         })}
       </div>
       <TrackedContentRetry id={id} value={data.video.tracked_content_retry} commands={trackedRetryCommands} onRefresh={() => { setRefresh(value => value + 1); setEvidenceRefresh(value => value + 1); }} />
-      {data.video.caption_timing_status === "UNAVAILABLE" && !data.video.source_id && <Panel title="Processing needs attention"><p>{t("The captured captions have no verified source timing. Content needs timed captions before Summary and source references can be prepared.")}</p></Panel>}
-      {data.video.source_id && (["RETRY_REQUIRED", "FAILED"].includes(data.video.processing_status) || data.video.caption_timing_status === "UNAVAILABLE") && <Panel title="Processing needs attention">{data.video.caption_timing_status === "UNAVAILABLE" && <p>{t("The captured captions have no verified source timing. Content needs timed captions before Summary and source references can be prepared.")}</p>}<p>{t(data.video.retry_allowed === false ? "This Content needs source or processing readiness review before it can be processed again." : data.video.summary_preparation_status === "NEEDS_ATTENTION" ? "Timed captions are saved, but the Summary could not be prepared. Retry to organize this Content; your captured text and source references are kept." : data.video.caption_timing_status === "UNAVAILABLE" ? "Retry to check this source for native timed captions. Your captured text and history are kept." : "Processing needs attention. Check the source and processing history before retrying; retry may still fail.")}</p><button className="button button-secondary" disabled={retryBusy || data.video.retry_allowed === false} onClick={async () => { setRetryBusy(true); setRetryFeedback(null); try { await post(`/sources/${data.video.source_id}/check`, { command_id: commandId() }); setRetryFeedback("Retry accepted. Processing status will update here."); setRefresh(value => value + 1); } catch { setRetryFeedback("The source could not be checked. Try again later."); } finally { setRetryBusy(false); } }}>{t(retryBusy ? "Retrying…" : "Retry")}</button>{retryFeedback && <p role="status">{t(retryFeedback)}</p>}</Panel>}
+      {(["RETRY_REQUIRED", "FAILED", "FAILED_FINAL", "FAILED_RETRYABLE"].includes(data.video.processing_status) ||
+        data.video.caption_timing_status === "UNAVAILABLE") && (() => {
+        const zh = language === "zh-CN";
+        const translatedReason = failedContentReasonCopy(data.video, zh);
+        const canRetrySource = Boolean(data.video.source_id && data.video.retry_allowed !== false);
+        const canMetaFallback =
+          (data.video.provider ?? "YOUTUBE") === "YOUTUBE" &&
+          Boolean((data.video.title ?? "").trim()) &&
+          transcript.status !== "AVAILABLE" &&
+          wsAiReady;
+        return (
+          <Panel title="Processing needs attention">
+            {translatedReason ? (
+              <p>{translatedReason}</p>
+            ) : (
+              <>
+                {data.video.caption_timing_status === "UNAVAILABLE" && (
+                  <p>{t("The captured captions have no verified source timing. Content needs timed captions before Summary and source references can be prepared.")}</p>
+                )}
+                <p>
+                  {t(
+                    data.video.retry_allowed === false
+                      ? "This Content needs source or processing readiness review before it can be processed again."
+                      : data.video.summary_preparation_status === "NEEDS_ATTENTION"
+                        ? "Timed captions are saved, but the Summary could not be prepared. Retry to organize this Content; your captured text and source references are kept."
+                        : data.video.caption_timing_status === "UNAVAILABLE"
+                          ? "Retry to check this source for native timed captions. Your captured text and history are kept."
+                          : "Processing needs attention. Check the source and processing history before retrying; retry may still fail.",
+                  )}
+                </p>
+              </>
+            )}
+            <div className="button-row">
+              {data.video.source_id ? (
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  disabled={retryBusy || !canRetrySource}
+                  onClick={async () => {
+                    setRetryBusy(true);
+                    setRetryFeedback(null);
+                    try {
+                      await post(`/sources/${data.video.source_id}/check`, { command_id: commandId() });
+                      setRetryFeedback("Retry accepted. Processing status will update here.");
+                      setRefresh(value => value + 1);
+                    } catch {
+                      setRetryFeedback("The source could not be checked. Try again later.");
+                    } finally {
+                      setRetryBusy(false);
+                    }
+                  }}
+                >
+                  {t(retryBusy ? "Retrying…" : "Retry")}
+                </button>
+              ) : null}
+              {onAddLocal ? (
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  onClick={onAddLocal}
+                >
+                  {zh ? "导入本地文件替代" : "Import local file instead"}
+                </button>
+              ) : null}
+              {canMetaFallback ? (
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  onClick={() => setWsActionRequest({ nonce: Date.now(), kind: "distill" })}
+                >
+                  {zh ? "生成简介中文速览" : "Generate metadata preview"}
+                </button>
+              ) : null}
+              {data.video.source_url ? (
+                <a
+                  className="button button-ghost"
+                  href={data.video.source_url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {t("Open original source")}
+                </a>
+              ) : null}
+            </div>
+            {retryFeedback && <p role="status">{t(retryFeedback)}</p>}
+          </Panel>
+        );
+      })()}
       <Panel id="section-intelligence" icon="sparkle" title="Intelligence result">
         <WorkspaceVideoAiBriefCard
           brief={aiBrief}

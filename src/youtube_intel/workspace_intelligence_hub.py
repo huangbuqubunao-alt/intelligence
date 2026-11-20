@@ -198,6 +198,25 @@ def _validate_cloud_url(url: str) -> str:
     return cleaned
 
 
+def _parse_bounded_index(raw: object, upper_bound: int) -> int | None:
+    """Parse a strict non-boolean integer index in ``[0, upper_bound)`` or return None."""
+
+    if upper_bound <= 0 or isinstance(raw, bool):
+        return None
+    if isinstance(raw, int):
+        idx = raw
+    elif isinstance(raw, str):
+        token = raw.strip()
+        if not token.lstrip("+-").isdigit():
+            return None
+        idx = int(token)
+    else:
+        return None
+    if idx < 0 or idx >= upper_bound:
+        return None
+    return idx
+
+
 def _extract_json_object(raw_text: str) -> dict[str, Any]:
     stripped = raw_text.strip()
     if stripped.startswith("```"):
@@ -2131,11 +2150,10 @@ class WorkspaceIntelligenceHub:
                 pt_text = _clean_text(entry.get("text_zh"), max_len=400)
                 if not pt_text:
                     continue
-                try:
-                    s_idx = int(entry.get("section_index", 0))
-                except (TypeError, ValueError):
-                    s_idx = 0
-                sec_excerpt = sections[max(0, min(len(sections) - 1, s_idx))]
+                s_idx = _parse_bounded_index(entry.get("section_index"), len(sections))
+                if s_idx is None:
+                    continue
+                sec_excerpt = sections[s_idx]
                 hydrated_points.append(
                     {
                         "text": pt_text,
@@ -2145,16 +2163,6 @@ class WorkspaceIntelligenceHub:
                         "excerpt": sec_excerpt[:280],
                     }
                 )
-        if not hydrated_points:
-            hydrated_points.append(
-                {
-                    "text": headline_zh,
-                    "start_seconds": None,
-                    "end_seconds": None,
-                    "evidence_ids": [],
-                    "excerpt": sections[0][:280],
-                }
-            )
 
         now = self._now()
         published_str = (
@@ -2383,11 +2391,10 @@ class WorkspaceIntelligenceHub:
                 pt_text = _clean_text(entry.get("text_zh"), max_len=400)
                 if not pt_text:
                     continue
-                try:
-                    w_idx = int(entry.get("cue_window_index", 0))
-                except (TypeError, ValueError):
-                    w_idx = 0
-                win = windows[max(0, min(len(windows) - 1, w_idx))]
+                w_idx = _parse_bounded_index(entry.get("cue_window_index"), len(windows))
+                if w_idx is None:
+                    continue
+                win = windows[w_idx]
                 ev_id = build_evidence_id(
                     video_id=video_id,
                     artifact_id=timed.canonical_artifact_id,
@@ -2428,50 +2435,13 @@ class WorkspaceIntelligenceHub:
                     }
                 )
 
-        if not hydrated_points and windows:
-            win = windows[0]
-            ev_id = build_evidence_id(
-                video_id=video_id,
-                artifact_id=timed.canonical_artifact_id,
-                start_ms=win.start_ms,
-                end_ms=win.end_ms,
-                lineage_kind=EvidenceLineageKind.EXTRACTION,
-                role=EvidenceRole.PRIMARY_ORIGINAL,
-            )
-            ev_write = EvidenceWrite(
-                evidence_id=ev_id,
-                video_id=video_id,
-                artifact_id=timed.canonical_artifact_id,
-                start_ms=win.start_ms,
-                end_ms=win.end_ms,
-                lineage_kind=EvidenceLineageKind.EXTRACTION,
-                role=EvidenceRole.PRIMARY_ORIGINAL,
-                language=lang,
-                availability=EvidenceAvailability.AVAILABLE,
-            )
-            binding_write = EvidenceTextBindingWrite.from_timed_transcript(
-                evidence=ev_write,
-                timed_transcript_id=timed.timed_transcript_id,
-                start_cue_index=win.start_cue_index,
-                end_cue_index=win.end_cue_index,
-                excerpt=win.excerpt,
-            )
-            self._repository.promote_summary_evidence(ev_write, binding_write, now=now)
-            promoted_ids.append(ev_id)
-            hydrated_points.append(
-                {
-                    "text": headline_zh,
-                    "start_seconds": win.start_ms / 1000,
-                    "end_seconds": win.end_ms / 1000,
-                    "evidence_ids": [ev_id],
-                    "excerpt": win.excerpt,
-                }
-            )
-
         should_persist_card = (
-            persist_intelligence_card
-            if persist_intelligence_card is not None
-            else (not is_short_noise and tier != "SKIP_NOISE")
+            bool(promoted_ids)
+            and (
+                persist_intelligence_card
+                if persist_intelligence_card is not None
+                else (not is_short_noise and tier != "SKIP_NOISE")
+            )
         )
         intelligence_id: str | None = None
         revision_id: str | None = None
@@ -3885,10 +3855,13 @@ class WorkspaceIntelligenceHub:
         system_prompt = (
             "你是跨视频 AI 产品与商业研究顾问（RESEARCH_QA_SCHEMA）。"
             "请严格依据候选证据编号 [E1]..[En] 用简体中文深度回答用户问题，并在行文中用 [E1] 等标注出处。"
+            "如果候选证据不足以直接回答问题，或只是字面无关/缺乏核心依据，必须把 answerable 设为 false 并保持 citations 为空数组，严禁硬凑或编造。"
             "严禁编造候选列表之外的编号或时间戳。\n"
             "输出 JSON 契约：\n"
             "{\n"
-            '  "answer_zh": "结构清晰的跨视频综合中文解答（150-450字，内含 [E1] 等引用标记）",\n'
+            '  "answerable": true 或 false,\n'
+            '  "refusal_reason_zh": "仅当 answerable 为 false 时填写：简明说明当前候选证据缺什么依据",\n'
+            '  "answer_zh": "结构清晰的跨视频综合中文解答（150-450字，内含 [E1] 等引用标记；若 answerable 为 false 则说明证据不足）",\n'
             '  "key_takeaways_zh": ["2-4条跨视频核心共识或分歧洞察"],\n'
             '  "action_items_zh": ["2-3条可直接执行的下一步产品/研究动作"],\n'
             '  "citations": [{"ref": "E1", "note_zh": "该证据支撑的核心论据说明"}]\n'
@@ -3944,20 +3917,41 @@ class WorkspaceIntelligenceHub:
                 base = dict(candidates[inline_ref])
                 base["note_zh"] = base.get("point_zh", "")
                 hydrated_citations.append(base)
-        if not hydrated_citations and candidates:
-            first_ref = next(iter(candidates))
-            base = dict(candidates[first_ref])
-            base["note_zh"] = base.get("point_zh", "")
-            hydrated_citations.append(base)
 
-        # Strip any unissued [Exxx] markers from answer_zh so UI never shows dangling refs
-        answer_zh = re.sub(
-            r"\[(E\d+)\]",
-            lambda m: m.group(0) if m.group(1) in candidates else "",
-            answer_zh,
-        ).strip()
+        model_refused = parsed.get("answerable") is False
+        refused = model_refused or len(hydrated_citations) == 0
+        answer_status = "REFUSED_INSUFFICIENT_EVIDENCE" if refused else "GROUNDED"
+        if refused:
+            hydrated_citations = []
+            takeaways = []
+            actions = []
+            refusal_reason_zh = _clean_text(
+                parsed.get("refusal_reason_zh"),
+                fallback="当前资料库已检索片段中未找到可直接支撑该问题的有效原文证据，已拒绝无根据作答。",
+                max_len=400,
+            )
+            answer_zh = f"证据不足，无法基于当前资料库可靠回答：{refusal_reason_zh}"
+            related_excerpts: list[dict[str, Any]] = [
+                dict(item) for item in list(candidates.values())[:3]
+            ]
+        else:
+            refusal_reason_zh = ""
+            related_excerpts = []
+            # Strip any unissued [Exxx] markers from answer_zh so UI never shows dangling refs
+            answer_zh = re.sub(
+                r"\[(E\d+)\]",
+                lambda m: m.group(0) if m.group(1) in candidates else "",
+                answer_zh,
+            ).strip()
 
-        distinct_vids = {c["video_id"] for c in hydrated_citations}
+        scope_meta["answer_status"] = answer_status
+        scope_meta["refused"] = refused
+        scope_meta["refusal_reason_zh"] = refusal_reason_zh
+        scope_meta["related_excerpts"] = related_excerpts
+
+        distinct_vids = {
+            c["video_id"] for c in (related_excerpts if refused else hydrated_citations)
+        }
         created_at = format_utc_datetime(now)
         session_id = (
             "qa-"
@@ -3971,6 +3965,7 @@ class WorkspaceIntelligenceHub:
             f'title: "跨视频研究问答 - {_safe_obsidian_title(question[:48])}"',
             f'created_at: "{created_at}"',
             f'ai_engine: "{provider_label}/{model_label}"',
+            f'answer_status: "{answer_status}"',
             "tags:",
             "  - youtube-intel/research",
             "---",
@@ -3980,29 +3975,46 @@ class WorkspaceIntelligenceHub:
         ]
         if scope_label_zh:
             md_lines.extend([f"> **研究范围**：{scope_label_zh}", ""])
-        md_lines.extend(
-            [
-                "## 综合结论",
-                answer_zh,
-                "",
-            ]
-        )
-        if takeaways:
-            md_lines.append("## 跨视频核心共识与分歧")
-            md_lines.extend(f"- {item}" for item in takeaways)
-            md_lines.append("")
-        if actions:
-            md_lines.append("## 下一步行动建议")
-            md_lines.extend(f"- {item}" for item in actions)
-            md_lines.append("")
-        md_lines.append("## 时间戳原话证据链")
-        for c in hydrated_citations:
-            md_lines.append(
-                f"- **[{c['ref_label']}]** [[{_safe_obsidian_title(c['video_title'])}]] "
-                f"`{c['timestamp_label']}` ({c['channel_name']})：{c.get('note_zh') or c.get('point_zh') or ''}"
+        if refused:
+            md_lines.extend(
+                [
+                    "## 核验结论（证据不足拒答）",
+                    answer_zh,
+                    "",
+                    "## 相关原始片段（仅供参考查阅，未作为支持引用）",
+                ]
             )
-            if c.get("excerpt"):
-                md_lines.append(f"  > {c['excerpt']}")
+            for c in related_excerpts:
+                md_lines.append(
+                    f"- **[{c['ref_label']}]** [[{_safe_obsidian_title(c['video_title'])}]] "
+                    f"`{c['timestamp_label']}` ({c['channel_name']})"
+                )
+                if c.get("excerpt"):
+                    md_lines.append(f"  > {c['excerpt']}")
+        else:
+            md_lines.extend(
+                [
+                    "## 综合结论",
+                    answer_zh,
+                    "",
+                ]
+            )
+            if takeaways:
+                md_lines.append("## 跨视频核心共识与分歧")
+                md_lines.extend(f"- {item}" for item in takeaways)
+                md_lines.append("")
+            if actions:
+                md_lines.append("## 下一步行动建议")
+                md_lines.extend(f"- {item}" for item in actions)
+                md_lines.append("")
+            md_lines.append("## 时间戳原话证据链")
+            for c in hydrated_citations:
+                md_lines.append(
+                    f"- **[{c['ref_label']}]** [[{_safe_obsidian_title(c['video_title'])}]] "
+                    f"`{c['timestamp_label']}` ({c['channel_name']})：{c.get('note_zh') or c.get('point_zh') or ''}"
+                )
+                if c.get("excerpt"):
+                    md_lines.append(f"  > {c['excerpt']}")
         obsidian_md = "\n".join(md_lines) + "\n"
 
         with self._db_lock:
@@ -4039,10 +4051,14 @@ class WorkspaceIntelligenceHub:
         session_dto = {
             "session_id": session_id,
             "question": question,
+            "answer_status": answer_status,
+            "refused": refused,
+            "refusal_reason_zh": refusal_reason_zh,
             "answer_zh": answer_zh,
             "key_takeaways_zh": takeaways,
             "action_items_zh": actions,
             "citations": hydrated_citations,
+            "related_excerpts": related_excerpts,
             "video_count": len(distinct_vids),
             "scope_label_zh": scope_label_zh,
             "scope": scope_meta,
@@ -4070,13 +4086,25 @@ class WorkspaceIntelligenceHub:
             parsed_scope = {}
         scope_label_zh = str(parsed_scope.get("scope_label_zh") or "")
         pinned = bool(parsed_scope.get("pinned", False))
+        refused = bool(parsed_scope.get("refused", False))
+        answer_status = str(
+            parsed_scope.get("answer_status")
+            or ("REFUSED_INSUFFICIENT_EVIDENCE" if refused else "GROUNDED")
+        )
+        refusal_reason_zh = str(parsed_scope.get("refusal_reason_zh") or "")
+        raw_related = parsed_scope.get("related_excerpts")
+        related_excerpts = raw_related if isinstance(raw_related, list) else []
         return {
             "session_id": str(row["session_id"]),
             "question": str(row["question"]),
+            "answer_status": answer_status,
+            "refused": refused,
+            "refusal_reason_zh": refusal_reason_zh,
             "answer_zh": str(row["answer_zh"]),
             "key_takeaways_zh": json.loads(str(row["key_takeaways_json"])),
             "action_items_zh": json.loads(str(row["action_items_json"])),
             "citations": json.loads(str(row["citations_json"])),
+            "related_excerpts": related_excerpts,
             "video_count": int(row["video_count"]),
             "scope_label_zh": scope_label_zh,
             "scope": parsed_scope,

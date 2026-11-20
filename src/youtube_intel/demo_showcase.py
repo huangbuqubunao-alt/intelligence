@@ -383,6 +383,8 @@ class _DemoShowcaseCompleter:
                 citations = []
             return (
                 {
+                    "answerable": bool(refs),
+                    "refusal_reason_zh": "" if refs else "当前限定范围内暂无匹配的带时间轴字幕片段。",
                     "answer_zh": answer_zh,
                     "key_takeaways_zh": [
                         "先做确定性状态与证据存证，再交给模型生成结构化洞察",
