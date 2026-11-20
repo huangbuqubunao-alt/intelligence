@@ -35,28 +35,38 @@ flowchart LR
 
 ---
 
-## 60-Second Zero-Config Quickstart · 60 秒零配置评审体验 (`demo`)
+## Offline Demo Quickstart · 离线体验模式 (`demo`)
 
-无需配置 Ollama、云端 API Key、FFmpeg 或访问外网，三条命令即可在一个隔离沙盒目录（`.var/demo-showcase`）中启动带完整多源样例数据的 Web 工作台（默认中文界面，可在设置页一键切换中/英文）：
+先在联网环境完成一次性冷安装与前端构建（`uv sync` + `npm ci && npm run build`）；完成后即可在**完全断网环境**下用一条命令于隔离目录（`.var/demo-showcase`）启动带合成回放样例数据的 Web 工作台（默认中文界面，可在设置页切换中/英文）。
 
-Run a completely offline, pre-seeded multi-source workbench in an isolated sandbox (`.var/demo-showcase`) without touching Keychain, `.env`, or external APIs:
+> **诚实说明 · Synthetic Replay Notice**: `youtube-intel demo` 演示模式内置 **6 条合成多源样例与 `demo-replay` 模板回放回答器**，用于无模型/无外网环境验证交互链路，不代表真实大模型的跨视频理解上限；日常连接本机 Ollama 或云端 BYOK 模型请使用下方 `serve-api` 入口。
 
 ```bash
-# 1. Install cross-platform Python dependencies via uv
+# Step A (One-time setup, requires network): Install deps & build frontend
 uv sync
-
-# 2. Build the React frontend bundle
 cd frontend && npm ci && npm run build && cd ..
 
-# 3. Launch the single-port UI + API Public Beta showcase
+# Step B (100% offline runtime launch): Start single-port Demo UI + API
 uv run youtube-intel demo
 ```
 
 打开浏览器访问 / Open in browser: **http://127.0.0.1:8765/**
 
-> Demo 命令行选项 / Options:
+> Demo 命令行选项与目录安全规则 / Options & Directory Safety:
 > - `uv run youtube-intel demo --port 8877` — 自定义端口 / custom port
-> - `uv run youtube-intel demo --reset` — 重置演示库 / reset showcase dataset
+> - `uv run youtube-intel demo --reset` — 仅重置带有 `.demo-showcase-v1.json` 归属标记的演示数据，不会删除用户自有文件
+> - 首次运行遇到**非空且无演示标记**的目录会直接安全退出拒绝覆写 / Refuses non-empty unknown directories without touching user files
+
+---
+
+## Platform Support Matrix · 平台支持矩阵
+
+| Platform · 平台 | Dependency Install (`uv sync`) | Offline Demo (`demo`) & Daily Server (`serve-api`) | Offline Media Transcription (`mac-whisper`) |
+|---|---|---|---|
+| **macOS (Apple Silicon)** | Supported (Python 3.12) | **Verified** | Supported via `uv sync --extra mac-whisper` |
+| **macOS (Intel) & Linux** | Supported (Python 3.12) | **Supported** (POSIX CI tested on Ubuntu 24.04 + Python 3.12) | Excluded from base install (`--extra mac-whisper` skipped) |
+| **Windows 11 / 10 (WSL2)** | Supported inside WSL2 | **Supported via WSL2** | Excluded from base install |
+| **Native Windows (non-WSL)** | Base `uv sync` resolves without `mlx-whisper` | **Blocked at runtime** (`fcntl` advisory locks require POSIX/WSL2) | Unsupported |
 
 ---
 
@@ -64,13 +74,11 @@ uv run youtube-intel demo
 
 ### 1. Choose Your AI Backend · 选择 AI 引擎
 - **Local Free (Recommended · 零费用本机运行)**: Install [Ollama](https://ollama.com/), pull a local model (e.g. `ollama pull qwen3.5:9b` or `qwen2.5:7b`), and configure/verify it on `#Settings`.
-- **Cloud BYOK (可控自带密钥)**: Choose DeepSeek, OpenAI, Kimi, or OpenAI-compatible HTTPS endpoints on `#Settings`. API keys are stored in OS Keychain / isolated secret stores and never leaked in API responses or backups.
+- **Cloud BYOK (可控自带密钥 + 零静默后台扣费)**: Choose DeepSeek, OpenAI, Kimi, or OpenAI-compatible HTTPS endpoints on `#Settings`. API keys are stored in OS Keychain / isolated secret stores; **background auto-sync (`_auto_sync_loop`) strictly blocks BYOK cloud calls and only runs local models**, snapshot restores revoke prior cloud endpoint authorization until re-confirmed, and an explicit daily cloud call cap (`cloud_daily_call_limit`, default 30) enforces reservations before outbound requests.
 - **Optional Apple Silicon Offline Transcription (`mac-whisper`)**:
-  - Core `uv sync` works across **macOS, Linux, and Windows** (CPU/non-Apple-Silicon safe).
-  - On Apple Silicon Macs wanting offline `.mp4`/`.wav`/`.mp3`/`.m4a` speech-to-text, install the optional extra:
-    ```bash
-    uv sync --extra mac-whisper
-    ```
+  ```bash
+  uv sync --extra mac-whisper
+  ```
 
 ### 2. Initialize & Run Your Workspace · 初始化并启动日常服务
 

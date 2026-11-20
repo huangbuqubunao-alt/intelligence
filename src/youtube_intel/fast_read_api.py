@@ -13,7 +13,6 @@ import json
 import logging
 import os
 import re
-import resource
 import signal
 import sqlite3
 import sys
@@ -103,6 +102,11 @@ from youtube_intel.topic import TopicApplicationService, TopicRead
 from youtube_intel.tracked_content_retry import TrackedContentRetryService
 from youtube_intel.tracked_retry_context import RetryIntegrity
 from youtube_intel.workspace_intelligence_hub import WorkspaceIntelligenceHub
+
+try:
+    import resource as _resource
+except ImportError:
+    _resource = None  # type: ignore[assignment]
 
 _VIDEO_DETAIL_ROUTE = re.compile(r"^/api/v1/videos/([^/]+)$")
 _SOURCE_DETAIL_ROUTE = re.compile(r"^/api/v1/sources/([^/]+)$")
@@ -3169,16 +3173,18 @@ class FastReadApiApplication:
 
 
 def _raise_open_file_limit(target_soft: int = 65536) -> None:
+    if _resource is None:
+        return
     try:
-        soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+        soft, hard = _resource.getrlimit(_resource.RLIMIT_NOFILE)
         desired = (
             target_soft
-            if hard == resource.RLIM_INFINITY or hard < 0
+            if hard == _resource.RLIM_INFINITY or hard < 0
             else min(target_soft, hard)
         )
         if desired > soft:
-            resource.setrlimit(resource.RLIMIT_NOFILE, (desired, hard))
-    except (OSError, ValueError):
+            _resource.setrlimit(_resource.RLIMIT_NOFILE, (desired, hard))
+    except (OSError, ValueError, AttributeError):
         return
 
 
@@ -3267,7 +3273,9 @@ def run_cli_with_fast_reads(argv: Sequence[str] | None = None) -> ExitCode:
                         st = fast_app._workspace_hub.get_sync_status()
                         if int(cast(int, st.get("pending_count", 0))) <= 0:
                             continue
-                        res = fast_app._workspace_hub.sync_pending_videos(limit=3)
+                        res = fast_app._workspace_hub.sync_pending_videos(
+                            limit=3, background=True
+                        )
                         if int(cast(int, res.get("synced_count", 0))) > 0:
                             fast_app._bump_mutation_epoch()
                             _warm_hot_routes()

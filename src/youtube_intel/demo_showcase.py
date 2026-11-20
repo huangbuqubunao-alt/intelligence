@@ -62,6 +62,21 @@ from youtube_intel.state import (
 from youtube_intel.workspace_intelligence_hub import WorkspaceIntelligenceHub
 
 _DEMO_MARKER: Final[str] = ".demo-showcase-v1.json"
+_DEMO_OWNER: Final[str] = "youtube-intel-demo-showcase"
+_DEMO_OWNED_ENTRIES: Final[frozenset[str]] = frozenset(
+    {
+        _DEMO_MARKER,
+        "state.sqlite3",
+        "state.sqlite3-wal",
+        "state.sqlite3-shm",
+        ".workspace-ai",
+        "config",
+        "data",
+        "logs",
+        "templates",
+        "vault",
+    }
+)
 _DEMO_BASE_NOW: Final[datetime] = datetime(2026, 11, 18, 9, 0, tzinfo=UTC)
 _TOPIC_AGENT: Final[str] = "AI Agent 工程架构"
 _TOPIC_SOLO: Final[str] = "一人公司与 AI 产品化"
@@ -71,6 +86,34 @@ def default_demo_root(project_root: Path) -> Path:
     """Return the isolated runtime directory for the public showcase demo."""
 
     return project_root.resolve() / ".var" / "demo-showcase"
+
+
+def _has_valid_demo_marker(demo_dir: Path) -> bool:
+    """Return True only when ``demo_dir`` holds a valid showcase ownership marker."""
+
+    marker = demo_dir / _DEMO_MARKER
+    if not marker.exists() or marker.is_symlink() or not marker.is_file():
+        return False
+    try:
+        data = json.loads(marker.read_text(encoding="utf-8"))
+    except (OSError, ValueError, UnicodeDecodeError):
+        return False
+    if not isinstance(data, dict):
+        return False
+    return data.get("demo_owner") == _DEMO_OWNER or (
+        data.get("version") == 1 and isinstance(data.get("seeded_items"), list)
+    )
+
+
+def _clean_demo_owned_entries(demo_dir: Path) -> None:
+    """Remove only known showcase-owned paths inside ``demo_dir``."""
+
+    for entry_name in _DEMO_OWNED_ENTRIES:
+        target = demo_dir / entry_name
+        if target.is_symlink() or target.is_file():
+            target.unlink()
+        elif target.is_dir():
+            shutil.rmtree(target)
 
 
 class _DemoSecretStore:
@@ -102,7 +145,7 @@ class _DemoBilibiliAdapter(BilibiliAdapter):
             cid=91002341,
             title="本地优先知识库与反幻觉证据链实战架构（B站技术公开课）",
             uploader_id="88012345",
-            uploader_name="极客产品实战",
+            uploader_name="极客架构演示室（Demo）",
             published_at=self._now - timedelta(hours=18),
             duration=1320.0,
             acquired_at=self._now,
@@ -161,7 +204,7 @@ _YOUTUBE_DEMO_VIDEOS: Final[tuple[_DemoVideoSpec, ...]] = (
         video_id="vidDemoAgt1",
         title="Deterministic State Machines for Production AI Agents",
         channel_id="UC_DEMO_OAI_111111111111",
-        channel_name="OpenAI Developers",
+        channel_name="Atlas Agent Lab (Demo)",
         duration_seconds=2040,
         published_offset_hours=6,
         cues=(
@@ -186,7 +229,7 @@ _YOUTUBE_DEMO_VIDEOS: Final[tuple[_DemoVideoSpec, ...]] = (
         video_id="vidDemoSol2",
         title="Building High-Margin Local-First AI Tools Solo Builders Love",
         channel_id="UC_DEMO_LAB_222222222222",
-        channel_name="AI Engineering Lab",
+        channel_name="Local-First Foundry (Demo)",
         duration_seconds=1680,
         published_offset_hours=12,
         cues=(
@@ -211,7 +254,7 @@ _YOUTUBE_DEMO_VIDEOS: Final[tuple[_DemoVideoSpec, ...]] = (
         video_id="vidDemoEvl4",
         title="Closing the Eval Loop: Citations Over Blind Summarization",
         channel_id="UC_DEMO_OAI_111111111111",
-        channel_name="OpenAI Developers",
+        channel_name="Atlas Agent Lab (Demo)",
         duration_seconds=1560,
         published_offset_hours=24,
         cues=(
@@ -231,7 +274,7 @@ _YOUTUBE_DEMO_VIDEOS: Final[tuple[_DemoVideoSpec, ...]] = (
         video_id="vidDemoSh05",
         title="New Model Teaser in 42 Seconds! #shorts",
         channel_id="UC_DEMO_LAB_222222222222",
-        channel_name="AI Engineering Lab",
+        channel_name="Local-First Foundry (Demo)",
         duration_seconds=42,
         published_offset_hours=30,
         cues=(
@@ -317,7 +360,7 @@ class _DemoShowcaseCompleter:
             if refs:
                 ref_tags = "、".join(f"[{r}]" for r, _ in refs)
                 answer_zh = (
-                    f"围绕「{question_text}」，结合当前资料库已验证证据（{ref_tags}）："
+                    f"【离线合成样例回放】围绕「{question_text}」，结合当前资料库已验证证据（{ref_tags}）："
                     f"首先，生产级 AI 工作流必须通过确定性状态机收敛工具权限与副作用边界 [{refs[0][0]}]，"
                     "并在落盘源码与字幕哈希后再执行模型总结。"
                 )
@@ -333,7 +376,10 @@ class _DemoShowcaseCompleter:
                     for ref_id, desc in refs
                 ]
             else:
-                answer_zh = f"当前范围内尚无足够的带时间戳字幕证据回答「{question_text}」，请放宽筛选范围或补充带字幕资料。"
+                answer_zh = (
+                    f"【离线合成样例回放】当前范围内尚无足够的带时间戳字幕证据回答「{question_text}」，"
+                    "请放宽筛选范围或补充带字幕资料。"
+                )
                 citations = []
             return (
                 {
@@ -348,8 +394,8 @@ class _DemoShowcaseCompleter:
                     ],
                     "citations": citations,
                 },
-                provider,
-                model,
+                "demo-replay",
+                "synthetic-showcase-v1",
             )
 
         # Content / video / local text distillation payloads
@@ -668,15 +714,33 @@ def prepare_demo_showcase(
     resolved_demo = (demo_root or default_demo_root(resolved_project)).resolve()
     if resolved_demo in {resolved_project, resolved_project / ".var", resolved_project / ".var" / "owner"}:
         raise ValueError("Refusing to use protected workspace path as demo root")
+    if resolved_demo.is_symlink() or (resolved_demo.exists() and not resolved_demo.is_dir()):
+        raise ValueError("Refusing to use non-directory or symlink path as demo root")
 
     marker = resolved_demo / _DEMO_MARKER
     db_path = resolved_demo / "state.sqlite3"
     sidecar_path = resolved_demo / ".workspace-ai" / "hub.sqlite3"
-    already_seeded = marker.is_file() and db_path.is_file() and sidecar_path.is_file()
+    has_marker = _has_valid_demo_marker(resolved_demo)
+    already_seeded = has_marker and db_path.is_file() and sidecar_path.is_file()
+
+    if reset:
+        if resolved_demo.exists() and any(resolved_demo.iterdir()):
+            if not has_marker:
+                raise ValueError(
+                    "Refusing to reset non-empty directory without a valid demo showcase marker; original files were preserved."
+                )
+            _clean_demo_owned_entries(resolved_demo)
+    elif not already_seeded:
+        if resolved_demo.exists() and any(resolved_demo.iterdir()):
+            if has_marker:
+                raise ValueError(
+                    "Demo showcase workspace is incomplete or corrupted; original files were preserved. Re-run with --reset to rebuild owned demo files."
+                )
+            raise ValueError(
+                "Refusing to initialize demo showcase in a non-empty directory without a demo marker; original files were preserved."
+            )
 
     if reset or not already_seeded:
-        if resolved_demo.exists():
-            shutil.rmtree(resolved_demo)
         for sub in ("data", "logs", "templates", "vault"):
             (resolved_demo / sub).mkdir(parents=True, exist_ok=True)
 
@@ -739,11 +803,11 @@ def prepare_demo_showcase(
         with repo._connect() as conn:
             conn.execute(
                 "UPDATE source_subscriptions SET display_name = ? WHERE source_id = ?",
-                ("OpenAI Developers", src_oai.source_id),
+                ("Atlas Agent Lab (Demo)", src_oai.source_id),
             )
             conn.execute(
                 "UPDATE source_subscriptions SET display_name = ? WHERE source_id = ?",
-                ("AI Engineering Lab", src_lab.source_id),
+                ("Local-First Foundry (Demo)", src_lab.source_id),
             )
             for src_item in (src_oai, src_lab):
                 followed_iso = src_item.created_at.astimezone(UTC).strftime(
@@ -837,7 +901,11 @@ def prepare_demo_showcase(
         )
 
         marker.write_text(
-            json.dumps({"version": 1, "seeded_items": all_ids}, ensure_ascii=False, indent=2),
+            json.dumps(
+                {"version": 1, "demo_owner": _DEMO_OWNER, "seeded_items": all_ids},
+                ensure_ascii=False,
+                indent=2,
+            ),
             encoding="utf-8",
         )
         readiness = composition.backup_restore.readiness()

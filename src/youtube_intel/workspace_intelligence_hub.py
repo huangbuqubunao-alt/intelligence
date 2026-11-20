@@ -29,6 +29,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+import uuid
 import zipfile
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -92,6 +93,7 @@ DEFAULT_OLLAMA_MODEL = "qwen3.5:9b"
 DEFAULT_CLOUD_PROVIDER = "deepseek"
 DEFAULT_CLOUD_BASE_URL = "https://api.deepseek.com/v1"
 DEFAULT_CLOUD_MODEL = "deepseek-chat"
+DEFAULT_CLOUD_DAILY_CALL_LIMIT = 30
 
 VALID_MODES = frozenset({"local_ollama", "cloud_byok"})
 VALID_CLOUD_PROVIDERS = frozenset(
@@ -777,8 +779,37 @@ class WorkspaceIntelligenceHub:
                 updated_at TEXT NOT NULL
             )
             """,
+            """
+            CREATE TABLE IF NOT EXISTS cloud_call_ledger (
+                call_id TEXT PRIMARY KEY,
+                day_utc TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                model TEXT NOT NULL,
+                endpoint TEXT NOT NULL,
+                status TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """,
         ):
             conn.execute(ddl)
+        engine_cols = {
+            str(r[1])
+            for r in conn.execute("PRAGMA table_info(engine_config)").fetchall()
+        }
+        if "cloud_authorized_endpoint" not in engine_cols:
+            conn.execute(
+                "ALTER TABLE engine_config ADD COLUMN cloud_authorized_endpoint TEXT"
+            )
+            conn.execute(
+                "UPDATE engine_config SET cloud_authorized_endpoint = cloud_base_url "
+                "WHERE cloud_authorized_endpoint IS NULL"
+            )
+        if "cloud_daily_call_limit" not in engine_cols:
+            conn.execute(
+                "ALTER TABLE engine_config "
+                f"ADD COLUMN cloud_daily_call_limit INTEGER NOT NULL DEFAULT {DEFAULT_CLOUD_DAILY_CALL_LIMIT}"
+            )
         cols = {
             str(r[1])
             for r in conn.execute("PRAGMA table_info(video_ai_briefs)").fetchall()
@@ -822,6 +853,18 @@ class WorkspaceIntelligenceHub:
     # Dual-track AI Engine Settings & Dispatch
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _parse_daily_limit(raw: object) -> int:
+        if isinstance(raw, bool) or raw is None:
+            return DEFAULT_CLOUD_DAILY_CALL_LIMIT
+        if isinstance(raw, int):
+            val = raw
+        elif isinstance(raw, str) and raw.strip().lstrip("+-").isdigit():
+            val = int(raw.strip())
+        else:
+            return DEFAULT_CLOUD_DAILY_CALL_LIMIT
+        return max(1, min(500, val))
+
     def _raw_engine_config(self) -> dict[str, str]:
         defaults = {
             "active_mode": "local_ollama",
@@ -830,6 +873,9 @@ class WorkspaceIntelligenceHub:
             "cloud_provider": DEFAULT_CLOUD_PROVIDER,
             "cloud_base_url": DEFAULT_CLOUD_BASE_URL,
             "cloud_model": DEFAULT_CLOUD_MODEL,
+            "cloud_authorized_endpoint": "",
+            "cloud_daily_call_limit": str(DEFAULT_CLOUD_DAILY_CALL_LIMIT),
+            "has_row": "0",
         }
         conn = self._connect_read()
         if conn is None:
@@ -840,16 +886,51 @@ class WorkspaceIntelligenceHub:
             ).fetchone()
             if row is None:
                 return defaults
+            row_keys = set(row.keys())
+            cloud_base = str(row["cloud_base_url"])
+            auth_ep = (
+                str(row["cloud_authorized_endpoint"] or "")
+                if "cloud_authorized_endpoint" in row_keys
+                else cloud_base
+            )
+            limit_val = (
+                str(self._parse_daily_limit(row["cloud_daily_call_limit"]))
+                if "cloud_daily_call_limit" in row_keys
+                else str(DEFAULT_CLOUD_DAILY_CALL_LIMIT)
+            )
             return {
                 "active_mode": str(row["active_mode"]),
                 "ollama_base_url": str(row["ollama_base_url"]),
                 "ollama_model": str(row["ollama_model"]),
                 "cloud_provider": str(row["cloud_provider"]),
-                "cloud_base_url": str(row["cloud_base_url"]),
+                "cloud_base_url": cloud_base,
                 "cloud_model": str(row["cloud_model"]),
+                "cloud_authorized_endpoint": auth_ep,
+                "cloud_daily_call_limit": limit_val,
+                "has_row": "1",
             }
         except sqlite3.Error:
             return defaults
+        finally:
+            conn.close()
+
+    def _count_cloud_calls_today(self) -> int:
+        conn = self._connect_read()
+        if conn is None:
+            return 0
+        day_utc = self._now().astimezone(UTC).strftime("%Y-%m-%d")
+        try:
+            row = conn.execute(
+                """
+                SELECT COUNT(*) AS cnt FROM cloud_call_ledger
+                WHERE day_utc = ?
+                  AND status IN ('RESERVED', 'SUCCEEDED', 'AMBIGUOUS_TIMEOUT')
+                """,
+                (day_utc,),
+            ).fetchone()
+            return int(row["cnt"]) if row is not None else 0
+        except sqlite3.Error:
+            return 0
         finally:
             conn.close()
 
@@ -863,6 +944,11 @@ class WorkspaceIntelligenceHub:
     def get_settings(self) -> dict[str, object]:
         cfg = self._raw_engine_config()
         reachable, installed = self._ollama_probe(cfg["ollama_base_url"])
+        daily_limit = self._parse_daily_limit(cfg.get("cloud_daily_call_limit"))
+        reauth_required = bool(
+            cfg.get("has_row") == "1"
+            and cfg.get("cloud_authorized_endpoint", "") != cfg["cloud_base_url"]
+        )
         return {
             "active_mode": cfg["active_mode"],
             "ollama_base_url": cfg["ollama_base_url"],
@@ -874,13 +960,20 @@ class WorkspaceIntelligenceHub:
             "cloud_model": cfg["cloud_model"],
             "cloud_key_configured": self._has_byok_key(),
             "local_mlx_Whisper_ready": self._media_transcriber is not None,
+            "background_auto_sync_cloud_allowed": False,
+            "cloud_daily_call_limit": daily_limit,
+            "cloud_calls_used_today": self._count_cloud_calls_today(),
+            "cloud_reauth_required": reauth_required,
         }
 
-    def update_settings(self, payload: Mapping[str, object]) -> dict[str, object]:
+    def update_settings(
+        self, payload: Mapping[str, object], *, from_restore: bool = False
+    ) -> dict[str, object]:
         current = self._raw_engine_config()
-        active_mode = str(payload.get("active_mode", current["active_mode"])).strip()
-        if active_mode not in VALID_MODES:
+        requested_mode = str(payload.get("active_mode", current["active_mode"])).strip()
+        if requested_mode not in VALID_MODES:
             raise ValueError("active_mode must be 'local_ollama' or 'cloud_byok'")
+        active_mode = requested_mode
         ollama_base_url = _validate_ollama_url(
             str(payload.get("ollama_base_url", current["ollama_base_url"]))
         )
@@ -906,7 +999,20 @@ class WorkspaceIntelligenceHub:
         if not cloud_model:
             raise ValueError("cloud_model must be non-empty")
 
-        if "cloud_api_key" in payload:
+        daily_limit = self._parse_daily_limit(current.get("cloud_daily_call_limit"))
+        if "cloud_daily_call_limit" in payload and payload["cloud_daily_call_limit"] is not None:
+            raw_limit = payload["cloud_daily_call_limit"]
+            if isinstance(raw_limit, bool) or not isinstance(raw_limit, (int, str)):
+                raise ValueError("cloud_daily_call_limit must be an integer between 1 and 500")
+            try:
+                parsed_limit = int(raw_limit)
+            except ValueError as err:
+                raise ValueError("cloud_daily_call_limit must be an integer between 1 and 500") from err
+            if parsed_limit < 1 or parsed_limit > 500:
+                raise ValueError("cloud_daily_call_limit must be an integer between 1 and 500")
+            daily_limit = parsed_limit
+
+        if not from_restore and "cloud_api_key" in payload:
             raw_key = payload["cloud_api_key"]
             if raw_key is None or (isinstance(raw_key, str) and not raw_key.strip()):
                 self._byok_store.delete()
@@ -918,6 +1024,31 @@ class WorkspaceIntelligenceHub:
             else:
                 raise ValueError("cloud_api_key must be a string or null")
 
+        if from_restore:
+            if (
+                requested_mode == "cloud_byok"
+                or cloud_base_url != current["cloud_base_url"]
+                or cloud_provider != current["cloud_provider"]
+            ):
+                active_mode = "local_ollama"
+                cloud_authorized_endpoint = ""
+            else:
+                cloud_authorized_endpoint = current.get("cloud_authorized_endpoint", "")
+        else:
+            explicit_cloud_save = (
+                "cloud_base_url" in payload
+                or "cloud_provider" in payload
+                or payload.get("authorize_cloud_endpoint") is True
+                or (
+                    current.get("has_row") == "0"
+                    and ("cloud_api_key" in payload or requested_mode == "cloud_byok")
+                )
+            )
+            if explicit_cloud_save:
+                cloud_authorized_endpoint = cloud_base_url
+            else:
+                cloud_authorized_endpoint = current.get("cloud_authorized_endpoint", "")
+
         ts = format_utc_datetime(self._now())
         with self._db_lock:
             conn = self._connect_write()
@@ -927,8 +1058,9 @@ class WorkspaceIntelligenceHub:
                         """
                         INSERT INTO engine_config (
                             singleton_id, active_mode, ollama_base_url, ollama_model,
-                            cloud_provider, cloud_base_url, cloud_model, updated_at
-                        ) VALUES (1, ?, ?, ?, ?, ?, ?, ?)
+                            cloud_provider, cloud_base_url, cloud_model, updated_at,
+                            cloud_authorized_endpoint, cloud_daily_call_limit
+                        ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ON CONFLICT(singleton_id) DO UPDATE SET
                             active_mode = excluded.active_mode,
                             ollama_base_url = excluded.ollama_base_url,
@@ -936,7 +1068,9 @@ class WorkspaceIntelligenceHub:
                             cloud_provider = excluded.cloud_provider,
                             cloud_base_url = excluded.cloud_base_url,
                             cloud_model = excluded.cloud_model,
-                            updated_at = excluded.updated_at
+                            updated_at = excluded.updated_at,
+                            cloud_authorized_endpoint = excluded.cloud_authorized_endpoint,
+                            cloud_daily_call_limit = excluded.cloud_daily_call_limit
                         """,
                         (
                             active_mode,
@@ -946,11 +1080,70 @@ class WorkspaceIntelligenceHub:
                             cloud_base_url,
                             cloud_model,
                             ts,
+                            cloud_authorized_endpoint,
+                            daily_limit,
                         ),
                     )
             finally:
                 conn.close()
         return self.get_settings()
+
+    def _reserve_cloud_call(
+        self,
+        *,
+        provider: str,
+        model: str,
+        endpoint: str,
+        daily_limit: int,
+    ) -> str:
+        now = self._now()
+        now_iso = format_utc_datetime(now)
+        day_utc = now.astimezone(UTC).strftime("%Y-%m-%d")
+        call_id = f"cloud-{uuid.uuid4().hex}"
+        with self._db_lock:
+            conn = self._connect_write()
+            try:
+                with conn:
+                    row = conn.execute(
+                        """
+                        SELECT COUNT(*) AS cnt FROM cloud_call_ledger
+                        WHERE day_utc = ?
+                          AND status IN ('RESERVED', 'SUCCEEDED', 'AMBIGUOUS_TIMEOUT')
+                        """,
+                        (day_utc,),
+                    ).fetchone()
+                    used = int(row["cnt"]) if row is not None else 0
+                    if used >= daily_limit:
+                        raise ApiError(
+                            HTTPStatus.TOO_MANY_REQUESTS,
+                            "CLOUD_DAILY_BUDGET_EXCEEDED",
+                            f"已达到今日云端调用上限（{daily_limit} 次），为防止静默超额扣费已阻断本次请求。",
+                        )
+                    conn.execute(
+                        """
+                        INSERT INTO cloud_call_ledger (
+                            call_id, day_utc, provider, model, endpoint,
+                            status, created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, 'RESERVED', ?, ?)
+                        """,
+                        (call_id, day_utc, provider, model, endpoint, now_iso, now_iso),
+                    )
+            finally:
+                conn.close()
+        return call_id
+
+    def _finalize_cloud_call(self, call_id: str, *, status: str) -> None:
+        now_iso = format_utc_datetime(self._now())
+        with self._db_lock:
+            conn = self._connect_write()
+            try:
+                with conn:
+                    conn.execute(
+                        "UPDATE cloud_call_ledger SET status = ?, updated_at = ? WHERE call_id = ?",
+                        (status, now_iso, call_id),
+                    )
+            finally:
+                conn.close()
 
     def _complete_json(
         self,
@@ -958,10 +1151,23 @@ class WorkspaceIntelligenceHub:
         system_prompt: str,
         user_prompt: str,
         max_tokens: int = 1800,
+        allow_cloud: bool = True,
     ) -> tuple[dict[str, Any], str, str]:
         cfg = self._raw_engine_config()
         mode = cfg["active_mode"]
         if mode == "cloud_byok":
+            if not allow_cloud:
+                raise ApiError(
+                    HTTPStatus.CONFLICT,
+                    "BACKGROUND_CLOUD_NOT_AUTHORIZED",
+                    "后台自动同步默认仅使用本机免费模型，已阻断未经单独授权的云端调用。",
+                )
+            if cfg.get("cloud_authorized_endpoint", "") != cfg["cloud_base_url"]:
+                raise ApiError(
+                    HTTPStatus.CONFLICT,
+                    "CLOUD_ENDPOINT_REAUTH_REQUIRED",
+                    "云端 API 端点尚未经过当前用户授权（可能来自快照恢复），请在设置页重新确认后再调用。",
+                )
             secret = self._byok_store.get()
             if not secret or not secret.strip():
                 raise ApiError(
@@ -971,43 +1177,59 @@ class WorkspaceIntelligenceHub:
                 )
             provider = cfg["cloud_provider"]
             model = cfg["cloud_model"]
-            if self._llm_completer is not None:
-                return self._llm_completer(
-                    system_prompt=system_prompt,
-                    user_prompt=user_prompt,
-                    mode=mode,
-                    provider=provider,
-                    model=model,
-                    max_tokens=max_tokens,
-                )
-            endpoint = f"{_validate_cloud_url(cfg['cloud_base_url'])}/chat/completions"
-            req_body = json.dumps(
-                {
-                    "model": model,
-                    "temperature": 0.2,
-                    "max_tokens": max_tokens,
-                    "response_format": {"type": "json_object"},
-                    "messages": [
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt},
-                    ],
-                }
-            ).encode("utf-8")
-            req = urllib.request.Request(
-                endpoint,
-                data=req_body,
-                method="POST",
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {secret.strip()}",
-                },
+            validated_cloud_base = _validate_cloud_url(cfg["cloud_base_url"])
+            daily_limit = self._parse_daily_limit(cfg.get("cloud_daily_call_limit"))
+            call_id = self._reserve_cloud_call(
+                provider=provider,
+                model=model,
+                endpoint=validated_cloud_base,
+                daily_limit=daily_limit,
             )
             try:
+                if self._llm_completer is not None:
+                    result = self._llm_completer(
+                        system_prompt=system_prompt,
+                        user_prompt=user_prompt,
+                        mode=mode,
+                        provider=provider,
+                        model=model,
+                        max_tokens=max_tokens,
+                    )
+                    self._finalize_cloud_call(call_id, status="SUCCEEDED")
+                    return result
+                endpoint = f"{validated_cloud_base}/chat/completions"
+                req_body = json.dumps(
+                    {
+                        "model": model,
+                        "temperature": 0.2,
+                        "max_tokens": max_tokens,
+                        "response_format": {"type": "json_object"},
+                        "messages": [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt},
+                        ],
+                    }
+                ).encode("utf-8")
+                req = urllib.request.Request(
+                    endpoint,
+                    data=req_body,
+                    method="POST",
+                    headers={
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {secret.strip()}",
+                    },
+                )
                 with urllib.request.urlopen(req, timeout=90) as resp:  # noqa: S310
                     raw_resp = json.loads(resp.read().decode("utf-8"))
                 content = str(raw_resp["choices"][0]["message"]["content"])
-                return _extract_json_object(content), provider, model
-            except (urllib.error.URLError, KeyError, ValueError, TimeoutError) as err:
+                parsed_json = _extract_json_object(content)
+                self._finalize_cloud_call(call_id, status="SUCCEEDED")
+                return parsed_json, provider, model
+            except ApiError:
+                self._finalize_cloud_call(call_id, status="AMBIGUOUS_TIMEOUT")
+                raise
+            except (urllib.error.URLError, KeyError, ValueError, TimeoutError, OSError) as err:
+                self._finalize_cloud_call(call_id, status="AMBIGUOUS_TIMEOUT")
                 raise ApiError(
                     HTTPStatus.BAD_GATEWAY,
                     "CLOUD_MODEL_CALL_FAILED",
@@ -1602,6 +1824,7 @@ class WorkspaceIntelligenceHub:
         video: Any,
         *,
         duration_seconds: int | None,
+        allow_cloud: bool = True,
     ) -> dict[str, object]:
         is_short_duration = (
             duration_seconds is not None and duration_seconds <= 95
@@ -1639,6 +1862,7 @@ class WorkspaceIntelligenceHub:
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             max_tokens=1000,
+            allow_cloud=allow_cloud,
         )
         raw_score = parsed.get("score", 2.8 if is_short_duration else 6.4)
         try:
@@ -1799,6 +2023,7 @@ class WorkspaceIntelligenceHub:
         *,
         text: str,
         duration_seconds: int | None,
+        allow_cloud: bool = True,
     ) -> dict[str, object]:
         sections = self._build_text_sections(text)
         if not sections:
@@ -1841,6 +2066,7 @@ class WorkspaceIntelligenceHub:
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             max_tokens=1600,
+            allow_cloud=allow_cloud,
         )
         raw_score = parsed.get("score", 7.6)
         try:
@@ -1992,6 +2218,7 @@ class WorkspaceIntelligenceHub:
         video_id: str,
         *,
         persist_intelligence_card: bool | None = None,
+        allow_cloud: bool = True,
     ) -> dict[str, object]:
         video = self._repository.get_video(video_id)
         if video is None:
@@ -2001,7 +2228,9 @@ class WorkspaceIntelligenceHub:
         if timed is None or not timed.cues:
             if video.provider == "YOUTUBE" and (video.title or "").strip():
                 return self._distill_metadata_only_youtube_video(
-                    video, duration_seconds=duration_seconds
+                    video,
+                    duration_seconds=duration_seconds,
+                    allow_cloud=allow_cloud,
                 )
             if video.provider == "LOCAL":
                 with self._repository._connect(read_only=True) as ro_conn:
@@ -2017,6 +2246,7 @@ class WorkspaceIntelligenceHub:
                             video,
                             text=raw_text,
                             duration_seconds=duration_seconds,
+                            allow_cloud=allow_cloud,
                         )
             raise ApiError(
                 HTTPStatus.CONFLICT,
@@ -2069,6 +2299,7 @@ class WorkspaceIntelligenceHub:
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             max_tokens=1600,
+            allow_cloud=allow_cloud,
         )
 
         raw_score = parsed.get("score", 3.2 if is_short_duration else 7.8)
@@ -2889,7 +3120,24 @@ class WorkspaceIntelligenceHub:
             "pending_video_ids": ordered_pending,
         }
 
-    def sync_pending_videos(self, *, limit: int = 20) -> dict[str, object]:
+    def sync_pending_videos(
+        self,
+        *,
+        limit: int = 20,
+        allow_cloud: bool = True,
+        background: bool = False,
+    ) -> dict[str, object]:
+        effective_allow_cloud = False if background else allow_cloud
+        cfg = self._raw_engine_config()
+        if not effective_allow_cloud and cfg["active_mode"] == "cloud_byok":
+            after_status = self.get_sync_status()
+            return {
+                "synced_count": 0,
+                "synced_video_ids": [],
+                "remaining_count": int(cast(int, after_status["pending_count"])),
+                "errors": [],
+                "skipped_reason": "BACKGROUND_CLOUD_BLOCKED",
+            }
         bounded_limit = max(1, min(int(limit), 50))
         (
             pending_transcript,
@@ -2907,7 +3155,7 @@ class WorkspaceIntelligenceHub:
         errors: list[dict[str, str]] = []
         for vid in ordered_pending[:bounded_limit]:
             try:
-                self.distill_video(vid)
+                self.distill_video(vid, allow_cloud=effective_allow_cloud)
                 synced_ids.append(vid)
             except Exception as err:
                 errors.append({"video_id": vid, "error": str(err)})
@@ -5481,8 +5729,10 @@ class WorkspaceIntelligenceHub:
     ) -> dict[str, object]:
         if payload.get("schema_version") != "workspace-ai-backup-v1":
             raise ValueError("Unsupported workspace AI backup schema_version.")
+        cloud_reauth_required = False
         raw_cfg = payload.get("engine_config")
         if isinstance(raw_cfg, Mapping):
+            current_cfg = self._raw_engine_config()
             cfg_patch: dict[str, object] = {}
             for key in (
                 "active_mode",
@@ -5494,8 +5744,28 @@ class WorkspaceIntelligenceHub:
             ):
                 if isinstance(raw_cfg.get(key), str):
                     cfg_patch[key] = raw_cfg[key]
+            if (
+                isinstance(raw_cfg.get("cloud_daily_call_limit"), (int, str))
+                and not isinstance(raw_cfg.get("cloud_daily_call_limit"), bool)
+            ):
+                cfg_patch["cloud_daily_call_limit"] = raw_cfg["cloud_daily_call_limit"]
             if cfg_patch:
-                self.update_settings(cfg_patch)
+                req_mode = str(
+                    cfg_patch.get("active_mode", current_cfg["active_mode"])
+                ).strip()
+                req_base = str(
+                    cfg_patch.get("cloud_base_url", current_cfg["cloud_base_url"])
+                ).strip().rstrip("/")
+                req_prov = str(
+                    cfg_patch.get("cloud_provider", current_cfg["cloud_provider"])
+                ).strip()
+                if (
+                    req_mode == "cloud_byok"
+                    or req_base != current_cfg["cloud_base_url"]
+                    or req_prov != current_cfg["cloud_provider"]
+                ):
+                    cloud_reauth_required = True
+                self.update_settings(cfg_patch, from_restore=True)
 
         raw_briefs = payload.get("video_ai_briefs")
         raw_sessions = payload.get("research_qa_sessions")
@@ -5690,7 +5960,8 @@ class WorkspaceIntelligenceHub:
                 "research_sessions": restored_sessions,
                 "weekly_briefs": restored_weekly,
                 "curation_states": restored_curation,
-            }
+            },
+            "cloud_reauth_required": cloud_reauth_required,
         }
 
     # ------------------------------------------------------------------

@@ -1,6 +1,10 @@
 # V1 Release Checklist
 
-- 当前结论：`NO-GO — 2026-08-31 final sign-off completed; mandatory release gates remain blocked`
+> **Current Status (2026-11-20 PO Addendum):** First-party Apache-2.0 source and the core Workspace AI Hub run under **`PUBLIC_BETA`** (`GET /api/v1/system` returns `release_posture: "PUBLIC_BETA"`, `deep_analysis_tier: "EXPERIMENTAL"`). Public promotional Release Tag remains deferred pending unknown-material grounding/refusal evaluation and security/artifact gates below.
+>
+> **Preserved Historical Baseline (2026-08-31):** The original controlled pre-release checklist below is kept verbatim for auditability alongside the 2026-11-20 Addendum at the bottom of this file.
+
+- 历史基线结论：`NO-GO — 2026-08-31 final sign-off completed; mandatory release gates remain blocked`
 - 当前受控发行治理：依据 `RELEASE_GOVERNANCE_HUMAN_GATE_AUDIT.md` 的
   `026e9b8` 审计及其后的 PO 决定，独立 Security/Privacy Reviewer、单独 TL、单独
   QA 和多角色签署表均为未来触发控制，不是当前阻塞项。技术证据与明确的 PO

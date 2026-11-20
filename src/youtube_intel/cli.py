@@ -148,14 +148,18 @@ def main(
             if args.port < 1024 or args.port > 65535:
                 return ExitCode.USAGE_OR_CONFIGURATION
             project_root = _project_root(args.project_root)
-            return serve_demo_showcase(
-                project_root,
-                port=args.port,
-                demo_root=args.demo_root,
-                reset=bool(args.reset),
-                web_dir=args.web_dir,
-                serve_web=not bool(args.no_web),
-            )
+            try:
+                return serve_demo_showcase(
+                    project_root,
+                    port=args.port,
+                    demo_root=args.demo_root,
+                    reset=bool(args.reset),
+                    web_dir=args.web_dir,
+                    serve_web=not bool(args.no_web),
+                )
+            except ValueError as exc:
+                print(f"Error: {exc}", file=sys.stderr)
+                return ExitCode.USAGE_OR_CONFIGURATION
         if args.command == "serve-api":
             from youtube_intel.local_api import serve_loopback
             from youtube_intel.runtime_composition import (

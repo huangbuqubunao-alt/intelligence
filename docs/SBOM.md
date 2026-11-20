@@ -1,12 +1,14 @@
 # Release SBOM — Controlled Source/Wheel/Sdist and Target Runtime
 
-- Status: `COMPLETE FOR THE CURRENT CONTROLLED TARGET — NOT A PUBLIC-RELEASE APPROVAL`
+> **2026-11-20 Update (PO Decision):** First-party source distribution is now licensed under **Apache-2.0** (`LICENSE`, `NOTICE`, `pyproject.toml`) with `PUBLIC_BETA` posture for the core Workspace AI Hub, and Apple-Silicon-only `mlx-whisper` has moved out of core dependencies into the optional `mac-whisper` extra. The 2026-08-31 historical controlled inventory (`main@d198be7`) below is preserved verbatim for audit traceability.
+
+- Historical inventory status: `COMPLETE FOR THE CURRENT CONTROLLED TARGET — NOT A PUBLIC-RELEASE APPROVAL`
 - Evidence baseline: `main@d198be7`, `pyproject.toml`, `uv.lock`, locked offline sync, and a fresh offline wheel/sdist build inspected on 2026-08-31.
 - This is a technical inventory, not legal advice, legal approval, or a change to ADR-008 or ADR-028.
 
 ## Frozen distribution boundary
 
-The present, and only present, controlled-release boundary is **first-party source repository, project sdist, and project wheel**. Python dependencies are declared in project metadata and normally resolved as separate distributions by the environment package manager. This release does not distribute a materialized virtualenv/site-packages tree, dependency wheels, an application bundle, container image, or OS installer. A future source repository is not a grant for public publication; the controlled posture remains private/proprietary.
+The present historical controlled-release record below documents the **2026-08-31 private/proprietary baseline** (`first-party source repository, project sdist, and project wheel`; superseded for first-party Apache-2.0 source publication by the 2026-11-20 PO Addendum in `docs/RELEASE_CHECKLIST.md`). Python dependencies are declared in project metadata and normally resolved as separate distributions by the environment package manager. This release does not distribute a materialized virtualenv/site-packages tree, dependency wheels, an application bundle, container image, or OS installer.
 
 | Candidate form | Current target? | Physical relationship |
 | --- | --- | --- |
