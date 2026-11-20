@@ -516,8 +516,8 @@ class _DemoShowcaseCompleter:
                     "topics_zh": ["架构笔记", "本地知识库"],
                     "topic_cluster_zh": _TOPIC_SOLO,
                     "core_points": [
-                        {"text_zh": "调用任何大模型前先保存源码哈希与原文切片", "cue_window_index": 0},
-                        {"text_zh": "支持零成本本地 Ollama 与按需云端 BYOK 无缝切换", "cue_window_index": 1},
+                        {"text_zh": "调用任何大模型前先保存源码哈希与原文切片", "section_index": 2},
+                        {"text_zh": "支持零成本本地 Ollama 与按需云端 BYOK 无缝切换", "section_index": 3},
                     ],
                     "product_opportunities_zh": ["本地 Markdown 笔记与视频证据库统一索引"],
                     "business_opportunities_zh": ["知识工作者的个人数字图书馆会员"],

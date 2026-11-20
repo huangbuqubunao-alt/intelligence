@@ -157,6 +157,29 @@ class _CueWindow:
     excerpt: str
 
 
+@dataclass(frozen=True, slots=True)
+class _TextEvidenceSegment:
+    evidence_id: str
+    paragraph_index: int
+    start_offset: int
+    end_offset: int
+    text: str
+
+    @property
+    def locator_label(self) -> str:
+        return f"P{self.paragraph_index} ({self.start_offset}–{self.end_offset})"
+
+
+@dataclass(frozen=True, slots=True)
+class _TextEvidenceSection:
+    text: str
+    evidence_ids: tuple[str, ...]
+    paragraph_index: int
+    start_offset: int
+    end_offset: int
+    locator_label: str
+
+
 def _validate_ollama_url(url: str) -> str:
     if not isinstance(url, str) or not url.strip():
         raise ValueError("ollama_base_url must be a non-empty loopback HTTP URL")
@@ -1732,7 +1755,11 @@ class WorkspaceIntelligenceHub:
                     ts_label = _format_mmss(float(raw_start))
                     lines.append(f"- **[{ts_label}]** {pt.get('text', '')}")
                 else:
-                    lines.append(f"- {pt.get('text', '')}")
+                    loc_label = _clean_text(pt.get("locator_label"), max_len=64)
+                    if loc_label:
+                        lines.append(f"- **[{loc_label}]** {pt.get('text', '')}")
+                    else:
+                        lines.append(f"- {pt.get('text', '')}")
                 excerpt = _clean_text(pt.get("excerpt", ""), max_len=240)
                 if excerpt:
                     lines.append(f"  > 原话摘录：{excerpt}")
@@ -2036,6 +2063,123 @@ class WorkspaceIntelligenceHub:
             sections.append(current)
         return sections[:max_sections]
 
+    def _load_verified_local_text_segments(
+        self,
+        video_id: str,
+        *,
+        ro_conn: sqlite3.Connection | None = None,
+    ) -> tuple[_TextEvidenceSegment, ...]:
+        def _query(conn: sqlite3.Connection) -> tuple[_TextEvidenceSegment, ...]:
+            source = verify_source(self._repository, conn, video_id)
+            if (
+                source is None
+                or source["status"] != "READY"
+                or source["media_kind"] != "TEXT"
+            ):
+                return ()
+            rows = conn.execute(
+                "SELECT evidence_id, start_offset, end_offset, source_excerpt "
+                "FROM evidence "
+                "WHERE video_id = ? "
+                "  AND locator_type = 'TEXT_RANGE' "
+                "  AND availability = 'AVAILABLE' "
+                "  AND start_offset IS NOT NULL "
+                "  AND end_offset IS NOT NULL "
+                "ORDER BY start_offset ASC, end_offset ASC, evidence_id ASC",
+                (video_id,),
+            ).fetchall()
+            out: list[_TextEvidenceSegment] = []
+            for row in rows:
+                excerpt = str(row["source_excerpt"] or "").strip()
+                if not excerpt:
+                    continue
+                out.append(
+                    _TextEvidenceSegment(
+                        evidence_id=str(row["evidence_id"]),
+                        paragraph_index=len(out) + 1,
+                        start_offset=int(row["start_offset"]),
+                        end_offset=int(row["end_offset"]),
+                        text=re.sub(r"\s+", " ", excerpt).strip(),
+                    )
+                )
+            return tuple(out)
+
+        if ro_conn is not None:
+            return _query(ro_conn)
+        with self._repository._connect(read_only=True) as conn:
+            return _query(conn)
+
+    @staticmethod
+    def _build_text_evidence_sections(
+        segments: Sequence[_TextEvidenceSegment],
+        *,
+        max_sections: int = 8,
+        max_chars_per_section: int = 500,
+    ) -> list[_TextEvidenceSection]:
+        if not segments:
+            return []
+        if len(segments) <= max_sections:
+            return [
+                _TextEvidenceSection(
+                    text=seg.text[:max_chars_per_section].strip(),
+                    evidence_ids=(seg.evidence_id,),
+                    paragraph_index=seg.paragraph_index,
+                    start_offset=seg.start_offset,
+                    end_offset=seg.end_offset,
+                    locator_label=seg.locator_label,
+                )
+                for seg in segments
+            ]
+        total_chars = sum(len(seg.text) for seg in segments)
+        target_chars = max(
+            120, min(max_chars_per_section, (total_chars // max_sections) + 1)
+        )
+        sections: list[_TextEvidenceSection] = []
+        bucket: list[_TextEvidenceSegment] = []
+        bucket_chars = 0
+        for idx, seg in enumerate(segments):
+            remaining_segs = len(segments) - idx
+            remaining_slots = max_sections - len(sections)
+            if (
+                bucket
+                and remaining_slots > 1
+                and remaining_segs >= remaining_slots
+                and (
+                    bucket_chars + len(seg.text) > max_chars_per_section
+                    or bucket_chars >= target_chars
+                )
+            ):
+                first = bucket[0]
+                last = bucket[-1]
+                sections.append(
+                    _TextEvidenceSection(
+                        text=" ".join(item.text for item in bucket)[:max_chars_per_section].strip(),
+                        evidence_ids=tuple(item.evidence_id for item in bucket[:4]),
+                        paragraph_index=first.paragraph_index,
+                        start_offset=first.start_offset,
+                        end_offset=last.end_offset,
+                        locator_label=f"P{first.paragraph_index} ({first.start_offset}–{last.end_offset})",
+                    )
+                )
+                bucket = []
+                bucket_chars = 0
+            bucket.append(seg)
+            bucket_chars += len(seg.text) + 1
+        if bucket:
+            first = bucket[0]
+            last = bucket[-1]
+            sections.append(
+                _TextEvidenceSection(
+                    text=" ".join(item.text for item in bucket)[:max_chars_per_section].strip(),
+                    evidence_ids=tuple(item.evidence_id for item in bucket[:4]),
+                    paragraph_index=first.paragraph_index,
+                    start_offset=first.start_offset,
+                    end_offset=last.end_offset,
+                    locator_label=f"P{first.paragraph_index} ({first.start_offset}–{last.end_offset})",
+                )
+            )
+        return sections[:max_sections]
+
     def _distill_local_text_document(
         self,
         video: Any,
@@ -2044,14 +2188,31 @@ class WorkspaceIntelligenceHub:
         duration_seconds: int | None,
         allow_cloud: bool = True,
     ) -> dict[str, object]:
-        sections = self._build_text_sections(text)
-        if not sections:
+        segments = self._load_verified_local_text_segments(video.video_id)
+        if segments:
+            evidence_sections = self._build_text_evidence_sections(segments)
+        else:
+            raw_sections = self._build_text_sections(text)
+            evidence_sections = [
+                _TextEvidenceSection(
+                    text=sec,
+                    evidence_ids=(),
+                    paragraph_index=idx + 1,
+                    start_offset=0,
+                    end_offset=0,
+                    locator_label="",
+                )
+                for idx, sec in enumerate(raw_sections)
+            ]
+        if not evidence_sections:
             raise ApiError(
                 HTTPStatus.CONFLICT,
                 "TRANSCRIPT_REQUIRED",
                 "当前文本文档内容为空，无法提炼中文洞察。",
             )
-        sections_block = "\n".join(f"[S{idx}] {sec}" for idx, sec in enumerate(sections))
+        sections_block = "\n".join(
+            f"[S{idx}] {sec.text}" for idx, sec in enumerate(evidence_sections)
+        )
         clusters_str = " | ".join(CANONICAL_TOPIC_CLUSTERS)
         system_prompt = (
             "你是资深 AI 产品总监与创业投资分析师（LOCAL_TEXT_DISTILL_SCHEMA）。"
@@ -2150,19 +2311,26 @@ class WorkspaceIntelligenceHub:
                 pt_text = _clean_text(entry.get("text_zh"), max_len=400)
                 if not pt_text:
                     continue
-                s_idx = _parse_bounded_index(entry.get("section_index"), len(sections))
+                s_idx = _parse_bounded_index(
+                    entry.get("section_index"), len(evidence_sections)
+                )
                 if s_idx is None:
                     continue
-                sec_excerpt = sections[s_idx]
-                hydrated_points.append(
-                    {
-                        "text": pt_text,
-                        "start_seconds": None,
-                        "end_seconds": None,
-                        "evidence_ids": [],
-                        "excerpt": sec_excerpt[:280],
-                    }
-                )
+                sec_obj = evidence_sections[s_idx]
+                point_entry: dict[str, object] = {
+                    "text": pt_text,
+                    "start_seconds": None,
+                    "end_seconds": None,
+                    "evidence_ids": list(sec_obj.evidence_ids[:1]),
+                    "excerpt": sec_obj.text[:280],
+                }
+                if sec_obj.evidence_ids:
+                    point_entry["locator_type"] = "TEXT_RANGE"
+                    point_entry["locator_label"] = sec_obj.locator_label
+                    point_entry["paragraph_index"] = sec_obj.paragraph_index
+                    point_entry["start_offset"] = sec_obj.start_offset
+                    point_entry["end_offset"] = sec_obj.end_offset
+                hydrated_points.append(point_entry)
 
         now = self._now()
         published_str = (
@@ -3324,16 +3492,19 @@ class WorkspaceIntelligenceHub:
     def _score_cues_with_fts5(
         timed_by_video: Mapping[str, Any],
         expanded_tokens: set[str],
+        *,
+        text_segments_by_video: Mapping[str, Sequence[_TextEvidenceSegment]] | None = None,
     ) -> tuple[dict[str, float], dict[str, dict[int, float]]]:
         fts_terms = sorted(
             t
             for t in expanded_tokens
             if re.fullmatch(r"[a-z0-9\u4e00-\u9fff]{2,}", t)
         )[:48]
-        if not fts_terms or not timed_by_video:
+        if not fts_terms or (not timed_by_video and not text_segments_by_video):
             return {}, {}
         fts_query = " OR ".join(f'"{term}"' for term in fts_terms)
-        video_scores: dict[str, float] = {}
+        peak_by_video: dict[str, float] = {}
+        sum_by_video: dict[str, float] = {}
         cue_scores: dict[str, dict[int, float]] = {}
         mem_conn = sqlite3.connect(":memory:")
         try:
@@ -3345,25 +3516,35 @@ class WorkspaceIntelligenceHub:
             for vid, timed in timed_by_video.items():
                 for idx, cue in enumerate(timed.cues):
                     rows_to_insert.append((vid, idx, cue.text))
+            if text_segments_by_video:
+                for vid, segs in text_segments_by_video.items():
+                    for idx, seg in enumerate(segs):
+                        rows_to_insert.append((vid, idx, seg.text))
             mem_conn.executemany(
                 "INSERT INTO cue_fts (video_id, cue_idx, content) VALUES (?, ?, ?)",
                 rows_to_insert,
             )
             matched = mem_conn.execute(
                 "SELECT video_id, cue_idx, bm25(cue_fts) AS rank "
-                "FROM cue_fts WHERE cue_fts MATCH ? ORDER BY rank LIMIT 120",
+                "FROM cue_fts WHERE cue_fts MATCH ? ORDER BY rank LIMIT 400",
                 (fts_query,),
             ).fetchall()
             for vid_raw, idx_raw, rank_raw in matched:
                 vid = str(vid_raw)
                 idx = int(idx_raw)
-                strength = max(0.5, -float(rank_raw))
+                strength = max(0.05, -float(rank_raw))
                 cue_scores.setdefault(vid, {})[idx] = strength
-                video_scores[vid] = video_scores.get(vid, 0.0) + strength
+                if strength > peak_by_video.get(vid, 0.0):
+                    peak_by_video[vid] = strength
+                sum_by_video[vid] = sum_by_video.get(vid, 0.0) + strength
         except sqlite3.Error:
             return {}, {}
         finally:
             mem_conn.close()
+        video_scores = {
+            vid: peak_by_video[vid] + 0.2 * sum_by_video[vid]
+            for vid in peak_by_video
+        }
         return video_scores, cue_scores
 
     def _select_video_evidence_candidates(
@@ -3403,6 +3584,8 @@ class WorkspaceIntelligenceHub:
                             "video_id": video.video_id,
                             "video_title": video.title,
                             "channel_name": video.channel_name or video.provider,
+                            "provider": str(video.provider or "YOUTUBE"),
+                            "locator_type": "TIME_RANGE",
                             "evidence_id": ev_id,
                             "start_seconds": start_sec,
                             "end_seconds": end_sec,
@@ -3493,6 +3676,8 @@ class WorkspaceIntelligenceHub:
                         "video_id": video.video_id,
                         "video_title": video.title,
                         "channel_name": video.channel_name or video.provider,
+                        "provider": str(video.provider or "YOUTUBE"),
+                        "locator_type": "TIME_RANGE",
                         "evidence_id": ev_id,
                         "start_seconds": start_sec,
                         "end_seconds": end_sec,
@@ -3546,6 +3731,8 @@ class WorkspaceIntelligenceHub:
                             "video_id": video.video_id,
                             "video_title": video.title,
                             "channel_name": video.channel_name or video.provider,
+                            "provider": str(video.provider or "YOUTUBE"),
+                            "locator_type": "TIME_RANGE",
                             "evidence_id": ev_id,
                             "start_seconds": start_sec,
                             "end_seconds": end_sec,
@@ -3555,6 +3742,105 @@ class WorkspaceIntelligenceHub:
                             "point_zh": "",
                             "excerpt": _clean_text(win.excerpt, max_len=280),
                         },
+                    )
+                )
+
+        scored_items.sort(key=lambda item: (-item[0], item[1]))
+        return [item[2] for item in scored_items[:3]]
+
+    def _select_text_evidence_candidates(
+        self,
+        *,
+        video: Any,
+        brief: Mapping[str, Any] | None,
+        segments: Sequence[_TextEvidenceSegment],
+        expanded_tokens: set[str],
+        fts_cue_scores: Mapping[int, float],
+        channel_name: str,
+    ) -> list[dict[str, Any]]:
+        if not segments:
+            return []
+        segments_by_id = {seg.evidence_id: seg for seg in segments}
+        scored_items: list[tuple[float, int, dict[str, Any]]] = []
+        seen_ev_ids: set[str] = set()
+
+        def _make_candidate(seg: _TextEvidenceSegment, *, point_zh: str) -> dict[str, Any]:
+            return {
+                "video_id": video.video_id,
+                "video_title": video.title or video.video_id,
+                "channel_name": channel_name,
+                "provider": str(video.provider or "LOCAL"),
+                "locator_type": "TEXT_RANGE",
+                "evidence_id": seg.evidence_id,
+                "start_seconds": None,
+                "end_seconds": None,
+                "start_ms": None,
+                "end_ms": None,
+                "start_offset": seg.start_offset,
+                "end_offset": seg.end_offset,
+                "paragraph_index": seg.paragraph_index,
+                "timestamp_label": seg.locator_label,
+                "point_zh": point_zh,
+                "excerpt": _clean_text(seg.text, max_len=280),
+            }
+
+        if brief is not None and brief.get("core_points"):
+            for pt in brief["core_points"][:3]:
+                if not isinstance(pt, dict):
+                    continue
+                ev_ids = pt.get("evidence_ids") or []
+                if not ev_ids:
+                    continue
+                ev_id = str(ev_ids[0])
+                seg = segments_by_id.get(ev_id)
+                if seg is None or ev_id in seen_ev_ids:
+                    continue
+                seen_ev_ids.add(ev_id)
+                pt_tokens = self._tokenize_query(
+                    f"{pt.get('text', '')} {seg.text}"
+                )
+                overlap = len(expanded_tokens & pt_tokens)
+                pt_score = overlap * 2.5 + 1.0
+                scored_items.append(
+                    (
+                        pt_score,
+                        seg.paragraph_index,
+                        _make_candidate(seg, point_zh=str(pt.get("text", ""))),
+                    )
+                )
+
+        seg_hits: list[tuple[float, int, _TextEvidenceSegment]] = []
+        for idx, seg in enumerate(segments):
+            overlap = len(expanded_tokens & self._tokenize_query(seg.text))
+            fts_hit = float(fts_cue_scores.get(idx, 0.0))
+            total = fts_hit * 2.5 + overlap * 2.5
+            if total > 0:
+                seg_hits.append((total, idx, seg))
+        seg_hits.sort(key=lambda item: (-item[0], item[1]))
+
+        picked_extra = 0
+        for hit_score, _, seg in seg_hits:
+            if picked_extra >= 2:
+                break
+            if seg.evidence_id in seen_ev_ids:
+                continue
+            seen_ev_ids.add(seg.evidence_id)
+            picked_extra += 1
+            scored_items.append(
+                (
+                    hit_score + 0.25,
+                    seg.paragraph_index,
+                    _make_candidate(seg, point_zh=""),
+                )
+            )
+
+        if not scored_items:
+            for seg in segments[:2]:
+                scored_items.append(
+                    (
+                        0.1,
+                        seg.paragraph_index,
+                        _make_candidate(seg, point_zh=""),
                     )
                 )
 
@@ -3578,10 +3864,10 @@ class WorkspaceIntelligenceHub:
             videos = [
                 self._repository._video_from_row(row)
                 for row in conn.execute(
-                    "SELECT * FROM videos ORDER BY updated_at DESC, video_id LIMIT 200"
+                    "SELECT * FROM videos ORDER BY updated_at DESC, video_id LIMIT 500"
                 )
             ]
-            grounded_video_ids = {
+            grounded_timed_ids = {
                 str(row[0])
                 for row in conn.execute(
                     "SELECT DISTINCT t.video_id FROM timed_transcripts t "
@@ -3591,6 +3877,27 @@ class WorkspaceIntelligenceHub:
                     ")"
                 )
             }
+            candidate_text_ids = [
+                str(row[0])
+                for row in conn.execute(
+                    "SELECT DISTINCT e.video_id "
+                    "FROM evidence e "
+                    "JOIN videos v ON v.video_id = e.video_id "
+                    "WHERE v.provider = 'LOCAL' "
+                    "  AND e.locator_type = 'TEXT_RANGE' "
+                    "  AND e.availability = 'AVAILABLE'"
+                )
+            ]
+            verified_text_ids: set[str] = set()
+            for vid in candidate_text_ids:
+                src = verify_source(self._repository, conn, vid)
+                if (
+                    src is not None
+                    and src["status"] == "READY"
+                    and src["media_kind"] == "TEXT"
+                ):
+                    verified_text_ids.add(vid)
+            grounded_video_ids = grounded_timed_ids | verified_text_ids
         finally:
             conn.close()
         channel_counts: dict[str, dict[str, Any]] = {}
@@ -3605,6 +3912,12 @@ class WorkspaceIntelligenceHub:
                 continue
             ch_key, ch_label = self._video_channel_key_and_label(video)
             provider_str = str(video.provider or "YOUTUBE")
+            locator_kind = (
+                "TEXT_RANGE"
+                if video.video_id in verified_text_ids
+                and video.video_id not in grounded_timed_ids
+                else "TIME_RANGE"
+            )
             entry = channel_counts.setdefault(
                 ch_key,
                 {
@@ -3636,6 +3949,7 @@ class WorkspaceIntelligenceHub:
                     "channel_name": ch_label,
                     "channel_key": ch_key,
                     "provider": provider_str,
+                    "locator_kind": locator_kind,
                     "score": score_val,
                     "starred": is_starred,
                     "topic_cluster_zh": cluster_name,
@@ -3701,59 +4015,99 @@ class WorkspaceIntelligenceHub:
         topic_cluster_filter = _clean_text(payload.get("topic_cluster"), max_len=120)
 
         briefs_map = self.get_video_briefs_map()
-        videos = self._repository.list_videos(limit=200)
+        videos = list(self._repository.list_videos(limit=500))
+        if explicit_set is not None:
+            seen_listed = {v.video_id for v in videos}
+            for req_vid in explicit_ids:
+                if req_vid not in seen_listed:
+                    extra_video = self._repository.get_video(req_vid)
+                    if extra_video is not None:
+                        videos.append(extra_video)
+                        seen_listed.add(req_vid)
         expanded_tokens = self._expand_bilingual_tokens(question)
 
-        eligible_videos: list[tuple[Any, dict[str, Any] | None, Any]] = []
+        eligible_items: list[
+            tuple[Any, dict[str, Any] | None, Any | None, tuple[_TextEvidenceSegment, ...]]
+        ] = []
         timed_by_video: dict[str, Any] = {}
+        text_segments_by_video: dict[str, tuple[_TextEvidenceSegment, ...]] = {}
         matched_channel_label = channel_key_filter
-        for video in videos:
-            if explicit_set is not None and video.video_id not in explicit_set:
-                continue
-            brief = briefs_map.get(video.video_id)
-            if starred_only and (brief is None or not bool(brief.get("starred", False))):
-                continue
-            if brief is not None and brief["is_short_noise"] and explicit_set is None:
-                continue
-            ch_key, ch_label = self._video_channel_key_and_label(video)
-            if provider_filter and str(video.provider or "").upper() != provider_filter:
-                continue
-            if channel_key_filter and ch_key != channel_key_filter and ch_label != channel_key_filter:
-                continue
-            if channel_key_filter and ch_key == channel_key_filter:
-                matched_channel_label = ch_label
-            if topic_cluster_filter:
-                if brief is None:
+        timed_tx_fn = getattr(
+            self._repository, "_get_verified_timed_transcript_in_transaction", None
+        )
+        with self._repository._connect(read_only=True) as ro_conn:
+            for video in videos:
+                if explicit_set is not None and video.video_id not in explicit_set:
                     continue
-                cluster_val = str(brief.get("topic_cluster_zh") or "")
-                topics_list = [str(t) for t in brief.get("topics_zh", ())]
-                if cluster_val != topic_cluster_filter and topic_cluster_filter not in topics_list:
+                brief = briefs_map.get(video.video_id)
+                if starred_only and (
+                    brief is None or not bool(brief.get("starred", False))
+                ):
                     continue
-            timed = self._repository.get_verified_timed_transcript(video_id=video.video_id)
-            if timed is None or not timed.cues:
-                continue
-            eligible_videos.append((video, brief, timed))
-            timed_by_video[video.video_id] = timed
+                if brief is not None and brief["is_short_noise"] and explicit_set is None:
+                    continue
+                ch_key, ch_label = self._video_channel_key_and_label(video)
+                if (
+                    provider_filter
+                    and str(video.provider or "").upper() != provider_filter
+                ):
+                    continue
+                if (
+                    channel_key_filter
+                    and ch_key != channel_key_filter
+                    and ch_label != channel_key_filter
+                ):
+                    continue
+                if channel_key_filter and ch_key == channel_key_filter:
+                    matched_channel_label = ch_label
+                if topic_cluster_filter:
+                    if brief is None:
+                        continue
+                    cluster_val = str(brief.get("topic_cluster_zh") or "")
+                    topics_list = [str(t) for t in brief.get("topics_zh", ())]
+                    if (
+                        cluster_val != topic_cluster_filter
+                        and topic_cluster_filter not in topics_list
+                    ):
+                        continue
+                timed = (
+                    timed_tx_fn(ro_conn, video.video_id)
+                    if callable(timed_tx_fn)
+                    else self._repository.get_verified_timed_transcript(
+                        video_id=video.video_id
+                    )
+                )
+                if timed is not None and getattr(timed, "cues", None):
+                    eligible_items.append((video, brief, timed, ()))
+                    timed_by_video[video.video_id] = timed
+                    continue
+                if str(video.provider or "").upper() == "LOCAL":
+                    text_segs = self._load_verified_local_text_segments(
+                        video.video_id, ro_conn=ro_conn
+                    )
+                    if text_segs:
+                        eligible_items.append((video, brief, None, text_segs))
+                        text_segments_by_video[video.video_id] = text_segs
 
-        if not eligible_videos:
+        if not eligible_items:
             raise ApiError(
                 HTTPStatus.CONFLICT,
                 "NO_GROUNDED_CONTENT",
                 (
-                    "当前已收藏清单中没有可用于跨视频溯源问答的已转写内容，请先在「内容」中收藏至少 1 篇带字幕视频。"
+                    "当前已收藏清单中没有可用于跨来源溯源问答的已转写视频或已核验本地文本文档，请先在「内容」中收藏至少 1 篇可核验资料。"
                     if starred_only
-                    else "当前筛选范围内没有可用于跨视频溯源问答的已转写内容。"
+                    else "当前筛选范围内没有可用于跨来源溯源问答的已转写视频或已核验本地文本文档。"
                 ),
             )
 
         scope_parts: list[str] = []
         if starred_only:
-            scope_parts.append(f"仅限已收藏（{len(eligible_videos)} 篇）")
+            scope_parts.append(f"仅限已收藏（{len(eligible_items)} 篇）")
         if explicit_set is not None:
             scope_parts.append(
-                f"对比 {len(eligible_videos)} 条指定视频"
-                if len(eligible_videos) >= 2
-                else "限定 1 条指定视频"
+                f"对比 {len(eligible_items)} 条指定资料"
+                if len(eligible_items) >= 2
+                else "限定 1 条指定资料"
             )
         else:
             if channel_key_filter:
@@ -3770,15 +4124,25 @@ class WorkspaceIntelligenceHub:
             "provider_filter": provider_filter or None,
             "topic_cluster": topic_cluster_filter or None,
             "video_ids": explicit_ids if explicit_ids else None,
-            "matched_video_count": len(eligible_videos),
+            "matched_video_count": len(eligible_items),
         }
 
         fts_video_scores, fts_cue_scores = self._score_cues_with_fts5(
-            timed_by_video, expanded_tokens
+            timed_by_video,
+            expanded_tokens,
+            text_segments_by_video=text_segments_by_video,
         )
 
-        scored_videos: list[tuple[float, Any, dict[str, Any] | None, Any]] = []
-        for video, brief, timed in eligible_videos:
+        scored_videos: list[
+            tuple[
+                float,
+                Any,
+                dict[str, Any] | None,
+                Any | None,
+                tuple[_TextEvidenceSegment, ...],
+            ]
+        ] = []
+        for video, brief, timed, text_segs in eligible_items:
             meta_corpus = " ".join(
                 [
                     video.title or "",
@@ -3788,7 +4152,11 @@ class WorkspaceIntelligenceHub:
                     "" if brief is None else " ".join(brief["topics_zh"]),
                 ]
             )
-            cue_sample = " ".join(c.text for c in timed.cues[:120])
+            cue_sample = (
+                " ".join(c.text for c in timed.cues[:120])
+                if timed is not None
+                else " ".join(seg.text for seg in text_segs[:120])
+            )
             meta_overlap = len(expanded_tokens & self._tokenize_query(meta_corpus))
             cue_overlap = len(expanded_tokens & self._tokenize_query(cue_sample))
             fts_bonus = float(fts_video_scores.get(video.video_id, 0.0))
@@ -3799,30 +4167,50 @@ class WorkspaceIntelligenceHub:
                 + fts_bonus * 3.0
                 + base_score
             )
-            scored_videos.append((rank_score, video, brief, timed))
+            scored_videos.append((rank_score, video, brief, timed, text_segs))
 
         scored_videos.sort(key=lambda item: item[0], reverse=True)
         max_selected = max(8, len(explicit_ids)) if explicit_set is not None else 8
         selected_videos = scored_videos[:max_selected]
 
+        covered_sources: list[dict[str, object]] = []
         now = self._now()
         per_video_candidates: list[list[dict[str, Any]]] = []
-        for _, video, brief, timed in selected_videos:
+        for _, video, brief, timed, text_segs in selected_videos:
             _, ch_label = self._video_channel_key_and_label(video)
-            raw_cands = self._select_video_evidence_candidates(
-                video=video,
-                brief=brief,
-                timed=timed,
-                expanded_tokens=expanded_tokens,
-                fts_cue_scores=fts_cue_scores.get(video.video_id, {}),
-                now=now,
+            covered_sources.append(
+                {
+                    "video_id": video.video_id,
+                    "title": video.title or video.video_id,
+                    "provider": str(video.provider or "YOUTUBE"),
+                    "channel_name": ch_label,
+                    "locator_type": "TIME_RANGE" if timed is not None else "TEXT_RANGE",
+                }
             )
+            if timed is not None:
+                raw_cands = self._select_video_evidence_candidates(
+                    video=video,
+                    brief=brief,
+                    timed=timed,
+                    expanded_tokens=expanded_tokens,
+                    fts_cue_scores=fts_cue_scores.get(video.video_id, {}),
+                    now=now,
+                )
+            else:
+                raw_cands = self._select_text_evidence_candidates(
+                    video=video,
+                    brief=brief,
+                    segments=text_segs,
+                    expanded_tokens=expanded_tokens,
+                    fts_cue_scores=fts_cue_scores.get(video.video_id, {}),
+                    channel_name=ch_label,
+                )
             for c in raw_cands:
                 c["channel_name"] = ch_label
             per_video_candidates.append(raw_cands)
 
         # Interleave Round 1 (the #1 best match per video) before Round 2+ so [E1..E8]
-        # span multiple videos while preserving the #1 ranked video's sharpest match at [E1].
+        # span multiple sources while preserving the #1 ranked source's sharpest match at [E1].
         ordered_raw_candidates: list[dict[str, Any]] = []
         for round_idx in range(3):
             for v_cands in per_video_candidates:
@@ -3839,16 +4227,20 @@ class WorkspaceIntelligenceHub:
             ref_label = f"E{ref_counter}"
             cand = {**raw_cand, "ref_label": ref_label}
             candidates[ref_label] = cand
+            is_text_cand = cand.get("locator_type") == "TEXT_RANGE"
+            loc_prefix = (
+                f"本地文档《{cand['video_title']}》({cand['channel_name']}) 段落 {cand['timestamp_label']}"
+                if is_text_cand
+                else f"视频《{cand['video_title']}》({cand['channel_name']}) 时间 {cand['timestamp_label']}"
+            )
             if cand.get("point_zh"):
                 prompt_blocks.append(
-                    f"[{ref_label}] 视频《{cand['video_title']}》({cand['channel_name']}) "
-                    f"时间 {cand['timestamp_label']} | 中文要点：{cand['point_zh']} | "
+                    f"[{ref_label}] {loc_prefix} | 中文要点：{cand['point_zh']} | "
                     f"原话摘录：{_clean_text(cand['excerpt'], max_len=220)}"
                 )
             else:
                 prompt_blocks.append(
-                    f"[{ref_label}] 视频《{cand['video_title']}》({cand['channel_name']}) "
-                    f"时间 {cand['timestamp_label']} | "
+                    f"[{ref_label}] {loc_prefix} | "
                     f"原话摘录：{_clean_text(cand['excerpt'], max_len=240)}"
                 )
 
@@ -3870,8 +4262,8 @@ class WorkspaceIntelligenceHub:
         scope_directive = (
             f"当前检索范围：{scope_label_zh}。\n" if scope_label_zh else ""
         )
-        if explicit_set is not None and len(eligible_videos) >= 2:
-            scope_directive += "用户指定了多条对比视频，请明确对比各视频的核心共识与关键侧重差异。\n"
+        if explicit_set is not None and len(eligible_items) >= 2:
+            scope_directive += "用户指定了多条对比资料，请明确对比各来源的核心共识与关键侧重差异。\n"
         user_prompt = (
             f"用户研究问题：{question}\n"
             f"{scope_directive}\n"
@@ -3948,6 +4340,8 @@ class WorkspaceIntelligenceHub:
         scope_meta["refused"] = refused
         scope_meta["refusal_reason_zh"] = refusal_reason_zh
         scope_meta["related_excerpts"] = related_excerpts
+        scope_meta["covered_sources"] = covered_sources
+        scope_meta["covered_source_count"] = len(covered_sources)
 
         distinct_vids = {
             c["video_id"] for c in (related_excerpts if refused else hydrated_citations)
@@ -4007,7 +4401,14 @@ class WorkspaceIntelligenceHub:
                 md_lines.append("## 下一步行动建议")
                 md_lines.extend(f"- {item}" for item in actions)
                 md_lines.append("")
-            md_lines.append("## 时间戳原话证据链")
+            has_text_cites = any(
+                c.get("locator_type") == "TEXT_RANGE" for c in hydrated_citations
+            )
+            md_lines.append(
+                "## 原文证据链（时间戳 / 段落定位）"
+                if has_text_cites
+                else "## 时间戳原话证据链"
+            )
             for c in hydrated_citations:
                 md_lines.append(
                     f"- **[{c['ref_label']}]** [[{_safe_obsidian_title(c['video_title'])}]] "
@@ -4059,6 +4460,8 @@ class WorkspaceIntelligenceHub:
             "action_items_zh": actions,
             "citations": hydrated_citations,
             "related_excerpts": related_excerpts,
+            "covered_sources": covered_sources,
+            "covered_source_count": len(covered_sources),
             "video_count": len(distinct_vids),
             "scope_label_zh": scope_label_zh,
             "scope": scope_meta,
@@ -4094,6 +4497,13 @@ class WorkspaceIntelligenceHub:
         refusal_reason_zh = str(parsed_scope.get("refusal_reason_zh") or "")
         raw_related = parsed_scope.get("related_excerpts")
         related_excerpts = raw_related if isinstance(raw_related, list) else []
+        raw_covered = parsed_scope.get("covered_sources")
+        covered_sources = raw_covered if isinstance(raw_covered, list) else []
+        covered_source_count = (
+            int(parsed_scope["covered_source_count"])
+            if isinstance(parsed_scope.get("covered_source_count"), int)
+            else len(covered_sources)
+        )
         return {
             "session_id": str(row["session_id"]),
             "question": str(row["question"]),
@@ -4105,6 +4515,8 @@ class WorkspaceIntelligenceHub:
             "action_items_zh": json.loads(str(row["action_items_json"])),
             "citations": json.loads(str(row["citations_json"])),
             "related_excerpts": related_excerpts,
+            "covered_sources": covered_sources,
+            "covered_source_count": covered_source_count,
             "video_count": int(row["video_count"]),
             "scope_label_zh": scope_label_zh,
             "scope": parsed_scope,
@@ -4286,7 +4698,7 @@ class WorkspaceIntelligenceHub:
             }
         else:
             videos_by_id = {
-                v.video_id: v for v in self._repository.list_videos(limit=300)
+                v.video_id: v for v in self._repository.list_videos(limit=500)
             }
         grouped: dict[str, list[dict[str, Any]]] = {}
         seen_per_topic: dict[str, set[str]] = {}
@@ -4896,7 +5308,7 @@ class WorkspaceIntelligenceHub:
                 for row in repo_conn.execute("SELECT * FROM topics")
             ]
         else:
-            videos = list(self._repository.list_videos(limit=300))
+            videos = list(self._repository.list_videos(limit=500))
             topics_list = list(self._repository.list_topics())
         must_watch = sum(
             1
@@ -5253,7 +5665,7 @@ class WorkspaceIntelligenceHub:
             key=lambda b: (str(b.get("updated_at") or ""), float(b.get("score", 0.0))),
             reverse=True,
         )
-        videos_by_id = {v.video_id: v for v in self._repository.list_videos(limit=300)}
+        videos_by_id = {v.video_id: v for v in self._repository.list_videos(limit=500)}
         new_titles: list[str] = []
         for b in newer_non_shorts[:3]:
             vid = str(b.get("video_id") or "")
@@ -5427,6 +5839,12 @@ class WorkspaceIntelligenceHub:
                 funnel_stats=cur_sanitized_funnel,
                 delta=delta,
             )
+            raw_window = (
+                cur_raw_funnel.get("window")
+                if isinstance(cur_raw_funnel, Mapping)
+                else None
+            )
+            window_dto = dict(raw_window) if isinstance(raw_window, Mapping) else None
             return {
                 "weekly_brief": {
                     "brief_id": row_brief_id,
@@ -5439,6 +5857,7 @@ class WorkspaceIntelligenceHub:
                     "business_monetization_zh": biz_monetization,
                     "must_watch_picks": hydrated_picks,
                     "funnel_stats": cur_sanitized_funnel,
+                    "window": window_dto,
                     "provider": str(row["provider"]),
                     "model": str(row["model"]),
                     "obsidian_markdown": synced_markdown,
@@ -5455,6 +5874,28 @@ class WorkspaceIntelligenceHub:
         finally:
             conn.close()
 
+    @staticmethod
+    def _resolve_brief_window_dt(
+        brief: Mapping[str, Any], video: Any
+    ) -> datetime | None:
+        pub = getattr(video, "published_at", None) if video is not None else None
+        if isinstance(pub, datetime):
+            return (
+                pub.astimezone(UTC) if pub.tzinfo is not None else pub.replace(tzinfo=UTC)
+            )
+        raw_up = str(brief.get("updated_at") or "").strip()
+        if not raw_up:
+            return None
+        try:
+            parsed = datetime.fromisoformat(raw_up.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        return (
+            parsed.astimezone(UTC)
+            if parsed.tzinfo is not None
+            else parsed.replace(tzinfo=UTC)
+        )
+
     def generate_weekly_brief(self) -> dict[str, object]:
         briefs_map = self.get_video_briefs_map()
         if not briefs_map:
@@ -5463,17 +5904,65 @@ class WorkspaceIntelligenceHub:
                 "NO_DISTILLED_VIDEOS",
                 "尚未提炼任何视频摘要，请先提炼高价值视频后再生成周报。",
             )
-        videos_by_id = {v.video_id: v for v in self._repository.list_videos(limit=300)}
-        ranked = sorted(
-            (b for b in briefs_map.values() if not b["is_short_noise"]),
-            key=lambda b: float(b["score"]),
-            reverse=True,
+        now = self._now()
+        window_days = 7
+        window_end = (
+            now.astimezone(UTC) if now.tzinfo is not None else now.replace(tzinfo=UTC)
         )
-        if not ranked:
-            ranked = sorted(
-                briefs_map.values(), key=lambda b: float(b["score"]), reverse=True
+        window_start = window_end - timedelta(days=window_days)
+        window_start_date = window_start.strftime("%Y-%m-%d")
+        window_end_date = window_end.strftime("%Y-%m-%d")
+
+        videos_by_id = {v.video_id: v for v in self._repository.list_videos(limit=500)}
+        non_shorts = [b for b in briefs_map.values() if not b["is_short_noise"]]
+        in_window_non_shorts: list[dict[str, Any]] = []
+        older_non_shorts: list[dict[str, Any]] = []
+        for brief_item in non_shorts:
+            eff_dt = self._resolve_brief_window_dt(
+                brief_item, videos_by_id.get(brief_item["video_id"])
             )
-        top_items = ranked[:12]
+            if eff_dt is not None and eff_dt < window_start:
+                older_non_shorts.append(brief_item)
+            else:
+                in_window_non_shorts.append(brief_item)
+
+        funnel_stats = self._compute_funnel_stats(briefs_map)
+        top_items: list[dict[str, Any]] = []
+        excluded_older_count = len(older_non_shorts)
+        window_empty = False
+        if in_window_non_shorts:
+            top_items = sorted(
+                in_window_non_shorts, key=lambda b: float(b["score"]), reverse=True
+            )[:12]
+        elif not non_shorts:
+            in_window_all: list[dict[str, Any]] = []
+            older_all_count = 0
+            for brief_item in briefs_map.values():
+                eff_dt = self._resolve_brief_window_dt(
+                    brief_item, videos_by_id.get(brief_item["video_id"])
+                )
+                if eff_dt is not None and eff_dt < window_start:
+                    older_all_count += 1
+                else:
+                    in_window_all.append(brief_item)
+            excluded_older_count = older_all_count
+            if in_window_all:
+                top_items = sorted(
+                    in_window_all, key=lambda b: float(b["score"]), reverse=True
+                )[:12]
+            else:
+                window_empty = True
+        else:
+            window_empty = True
+
+        window_meta: dict[str, object] = {
+            "days": window_days,
+            "start": format_utc_datetime(window_start),
+            "end": format_utc_datetime(window_end),
+            "in_window_count": len(in_window_non_shorts),
+            "excluded_older_count": excluded_older_count,
+            "window_empty": window_empty,
+        }
 
         digest_lines: list[str] = []
         must_watch_picks: list[dict[str, object]] = []
@@ -5498,71 +5987,84 @@ class WorkspaceIntelligenceHub:
                     }
                 )
 
-        funnel_stats = self._compute_funnel_stats(briefs_map)
-        system_prompt = (
-            "你是服务于 AI 产品经理与创业者的高级商业情报主编（WEEKLY_BRIEF_SCHEMA）。"
-            "请基于本周已提炼的高分视频结论，输出一页纸高信噪比简体中文 JSON 周报：\n"
-            "{\n"
-            '  "title_zh": "《本周 AI 产品与商业情报周报》",\n'
-            '  "executive_summary_zh": "100-220字本周全局执行摘要（点明技术风向与商业切口）",\n'
-            '  "top_shifts_zh": [{"title_zh": "关键趋势标题", "detail_zh": "趋势深度解读", "topic_name": "对应主题名"}],\n'
-            '  "product_opportunities_zh": ["3条具体可落地的AI产品设计/工作流机会"],\n'
-            '  "business_monetization_zh": ["3条一人公司/B2B变现与定价增长策略"]\n'
-            "}"
-        )
-        user_prompt = (
-            f"本周漏斗统计：共扫描 {funnel_stats['total_videos']} 条内容，"
-            f"自动折叠 {funnel_stats['shorts_filtered_count']} 条短视频噪音，"
-            f"精选 {funnel_stats['must_watch_count']} 条必看长视频。\n"
-            "<top_distilled_videos>\n"
-            + "\n".join(digest_lines)
-            + "\n</top_distilled_videos>"
-        )
-        parsed, provider_label, model_label = self._complete_json(
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-            max_tokens=1800,
-        )
+        if window_empty:
+            title_zh = "《本周 AI 产品与商业情报周报（近 7 天暂无新入库）》"
+            exec_summary = (
+                f"统计窗口 {window_start_date} 至 {window_end_date}（近 7 天）内暂无新提炼的长视频或本地文档入库。"
+                f"资料库中另有 {excluded_older_count} 篇早于 7 天的历史高价值内容，为保持周报时效性未混入本周清单；"
+                "请前往「内容」或「情报」按时间回顾，或同步新材料后重新生成。"
+            )
+            top_shifts: list[dict[str, str]] = []
+            prod_opps: list[str] = []
+            biz_opps: list[str] = []
+            provider_label = "local-rule"
+            model_label = "weekly-window-empty"
+        else:
+            system_prompt = (
+                "你是服务于 AI 产品经理与创业者的高级商业情报主编（WEEKLY_BRIEF_SCHEMA）。"
+                "请基于本周已提炼的高分视频结论，输出一页纸高信噪比简体中文 JSON 周报：\n"
+                "{\n"
+                '  "title_zh": "《本周 AI 产品与商业情报周报》",\n'
+                '  "executive_summary_zh": "100-220字本周全局执行摘要（点明技术风向与商业切口）",\n'
+                '  "top_shifts_zh": [{"title_zh": "关键趋势标题", "detail_zh": "趋势深度解读", "topic_name": "对应主题名"}],\n'
+                '  "product_opportunities_zh": ["3条具体可落地的AI产品设计/工作流机会"],\n'
+                '  "business_monetization_zh": ["3条一人公司/B2B变现与定价增长策略"]\n'
+                "}"
+            )
+            user_prompt = (
+                f"统计窗口：近 7 天（{window_start_date} 至 {window_end_date}），"
+                f"窗口内有效内容 {len(in_window_non_shorts)} 条（已排除 7 天前历史内容 {excluded_older_count} 条）。\n"
+                f"全库漏斗参考：共扫描 {funnel_stats['total_videos']} 条内容，"
+                f"自动折叠 {funnel_stats['shorts_filtered_count']} 条短视频噪音，"
+                f"精选 {funnel_stats['must_watch_count']} 条必看长内容。\n"
+                "<top_distilled_videos>\n"
+                + "\n".join(digest_lines)
+                + "\n</top_distilled_videos>"
+            )
+            parsed, provider_label, model_label = self._complete_json(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                max_tokens=1800,
+            )
 
-        title_zh = _clean_text(
-            parsed.get("title_zh"),
-            fallback="《本周 AI 产品与商业情报周报》",
-            max_len=120,
-        )
-        exec_summary = _clean_text(
-            parsed.get("executive_summary_zh"),
-            fallback="本周重点聚焦生产级 AI Agent 架构演进、多模态实战工作流与垂直场景商业化。",
-            max_len=1200,
-        )
-        raw_shifts = parsed.get("top_shifts_zh")
-        top_shifts: list[dict[str, str]] = []
-        if isinstance(raw_shifts, list):
-            for entry in raw_shifts[:5]:
-                if isinstance(entry, dict):
-                    t_str = _clean_text(entry.get("title_zh"), max_len=160)
-                    d_str = _clean_text(entry.get("detail_zh"), max_len=500)
-                    top_name = _clean_text(
-                        entry.get("topic_name"),
-                        fallback=CANONICAL_TOPIC_CLUSTERS[0],
-                        max_len=120,
-                    )
-                    if t_str and d_str:
-                        top_shifts.append(
-                            {
-                                "title_zh": t_str,
-                                "detail_zh": d_str,
-                                "topic_name": top_name,
-                            }
+            title_zh = _clean_text(
+                parsed.get("title_zh"),
+                fallback="《本周 AI 产品与商业情报周报》",
+                max_len=120,
+            )
+            exec_summary = _clean_text(
+                parsed.get("executive_summary_zh"),
+                fallback="本周重点聚焦生产级 AI Agent 架构演进、多模态实战工作流与垂直场景商业化。",
+                max_len=1200,
+            )
+            raw_shifts = parsed.get("top_shifts_zh")
+            top_shifts = []
+            if isinstance(raw_shifts, list):
+                for entry in raw_shifts[:5]:
+                    if isinstance(entry, dict):
+                        t_str = _clean_text(entry.get("title_zh"), max_len=160)
+                        d_str = _clean_text(entry.get("detail_zh"), max_len=500)
+                        top_name = _clean_text(
+                            entry.get("topic_name"),
+                            fallback=CANONICAL_TOPIC_CLUSTERS[0],
+                            max_len=120,
                         )
-        prod_opps = _clean_string_list(
-            parsed.get("product_opportunities_zh"), max_items=5, max_len=360
-        )
-        biz_opps = _clean_string_list(
-            parsed.get("business_monetization_zh"), max_items=5, max_len=360
-        )
+                        if t_str and d_str:
+                            top_shifts.append(
+                                {
+                                    "title_zh": t_str,
+                                    "detail_zh": d_str,
+                                    "topic_name": top_name,
+                                }
+                            )
+            prod_opps = _clean_string_list(
+                parsed.get("product_opportunities_zh"), max_items=5, max_len=360
+            )
+            biz_opps = _clean_string_list(
+                parsed.get("business_monetization_zh"), max_items=5, max_len=360
+            )
 
         # Also finalize native Weekly V1 snapshot so /api/v1/dashboard.weekly_v1 lights up!
-        now = self._now()
         try:
             WeeklyBriefService(
                 self._repository, timezone="Asia/Shanghai", now=lambda: now
@@ -5589,6 +6091,7 @@ class WorkspaceIntelligenceHub:
             f"# {title_zh}",
             "",
             f"> **信噪比漏斗**：扫描 `{funnel_stats['total_videos']}` 条内容 · 自动折叠 `{funnel_stats['shorts_filtered_count']}` 条短视频噪音 · 精选 `{funnel_stats['must_watch_count']}` 条必看干货",
+            f"> **统计窗口（近 7 天）**：`{window_start_date}` 至 `{window_end_date}` · 窗口内 `{len(in_window_non_shorts)}` 篇 · 已排除 7 天前历史内容 `{excluded_older_count}` 篇",
             "",
             f"**核心主题双链**：{active_topic_links}" if active_topic_links else "",
             "",
@@ -5597,10 +6100,13 @@ class WorkspaceIntelligenceHub:
             "",
             "## 2. 本周关键技术与产品风向",
         ]
-        for shift in top_shifts:
-            md_lines.append(
-                f"- **{shift['title_zh']}**（[[{_safe_obsidian_title(shift['topic_name'])}]]）：{shift['detail_zh']}"
-            )
+        if top_shifts:
+            for shift in top_shifts:
+                md_lines.append(
+                    f"- **{shift['title_zh']}**（[[{_safe_obsidian_title(shift['topic_name'])}]]）：{shift['detail_zh']}"
+                )
+        else:
+            md_lines.append("- 本统计窗口内暂无新趋势条目。")
         if prod_opps:
             md_lines.extend(["", "## 3. 产品化切入机会"])
             md_lines.extend(f"- {item}" for item in prod_opps)
@@ -5615,6 +6121,10 @@ class WorkspaceIntelligenceHub:
                     f"(`{pick['channel_name']}`) — {pick['headline_zh']}"
                 )
         obsidian_md = "\n".join(line for line in md_lines if line is not None) + "\n"
+        stored_funnel_payload: dict[str, object] = {
+            **funnel_stats,
+            "window": window_meta,
+        }
 
         with self._db_lock:
             conn = self._connect_write()
@@ -5649,7 +6159,7 @@ class WorkspaceIntelligenceHub:
                             json.dumps(prod_opps, ensure_ascii=False),
                             json.dumps(biz_opps, ensure_ascii=False),
                             json.dumps(must_watch_picks, ensure_ascii=False),
-                            json.dumps(funnel_stats, ensure_ascii=False),
+                            json.dumps(stored_funnel_payload, ensure_ascii=False),
                             provider_label,
                             model_label,
                             obsidian_md,
@@ -6016,7 +6526,7 @@ class WorkspaceIntelligenceHub:
         )
 
         briefs_map = self.get_video_briefs_map()
-        videos_by_id = {v.video_id: v for v in self._repository.list_videos(limit=300)}
+        videos_by_id = {v.video_id: v for v in self._repository.list_videos(limit=500)}
         grouped_topics = self._collect_topic_brief_entries()
 
         ordered_topic_names: list[str] = []

@@ -503,7 +503,12 @@ def test_fast_read_api_accelerates_sources_topics_dashboard_intelligence_and_noo
                 "topic_cluster_zh": "AI Agent 与自动化架构",
                 "recommendation_tier": "MUST_WATCH",
                 "score": 8.8,
-                "evidence_Indices": [0, 1],
+                "core_points": [
+                    {
+                        "text_zh": "确定性状态机优于自由散漫的循环",
+                        "cue_window_index": 0,
+                    }
+                ],
             },
             "ollama",
             "qwen3.5:9b",
