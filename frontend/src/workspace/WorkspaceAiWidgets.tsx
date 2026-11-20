@@ -124,6 +124,9 @@ export type AiResearchSessionScope = {
 export type AiResearchSession = {
   session_id: string;
   question: string;
+  answer_status?: "GROUNDED" | "REFUSED_INSUFFICIENT_EVIDENCE" | string;
+  refused?: boolean;
+  refusal_reason_zh?: string;
   scope_label_zh: string;
   video_count?: number;
   scope?: AiResearchSessionScope;
@@ -132,6 +135,7 @@ export type AiResearchSession = {
   key_takeaways_zh: string[];
   action_items_zh: string[];
   citations: AiResearchCitation[];
+  related_excerpts?: AiResearchCitation[];
   obsidian_markdown: string;
   provider: string;
   model: string;
@@ -588,26 +592,30 @@ export function readSourceAiSignalMap(raw: unknown): Record<string, SourceAiSign
   return out;
 }
 
+function parseCitationArray(raw: unknown): AiResearchCitation[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter(isRec)
+    .map((c) => ({
+      ref_label: String(c.ref_label ?? ""),
+      video_id: String(c.video_id ?? ""),
+      video_title: String(c.video_title ?? c.video_id ?? ""),
+      channel_name: String(c.channel_name ?? ""),
+      evidence_id: String(c.evidence_id ?? ""),
+      start_ms: typeof c.start_ms === "number" ? c.start_ms : null,
+      end_ms: typeof c.end_ms === "number" ? c.end_ms : null,
+      timestamp_label: String(c.timestamp_label ?? "00:00"),
+      excerpt: String(c.excerpt ?? ""),
+    }))
+    .filter((c) => c.video_id.length > 0 && c.evidence_id.length > 0);
+}
+
 function readAiResearchSession(raw: unknown): AiResearchSession | null {
   if (!isRec(raw) || typeof raw.session_id !== "string" || typeof raw.answer_zh !== "string") {
     return null;
   }
-  const citations: AiResearchCitation[] = Array.isArray(raw.citations)
-    ? raw.citations
-        .filter(isRec)
-        .map((c) => ({
-          ref_label: String(c.ref_label ?? ""),
-          video_id: String(c.video_id ?? ""),
-          video_title: String(c.video_title ?? c.video_id ?? ""),
-          channel_name: String(c.channel_name ?? ""),
-          evidence_id: String(c.evidence_id ?? ""),
-          start_ms: typeof c.start_ms === "number" ? c.start_ms : null,
-          end_ms: typeof c.end_ms === "number" ? c.end_ms : null,
-          timestamp_label: String(c.timestamp_label ?? "00:00"),
-          excerpt: String(c.excerpt ?? ""),
-        }))
-        .filter((c) => c.video_id.length > 0 && c.evidence_id.length > 0)
-    : [];
+  const citations = parseCitationArray(raw.citations);
+  const relatedExcerpts = parseCitationArray(raw.related_excerpts);
   let scope: AiResearchSessionScope | undefined;
   if (isRec(raw.scope)) {
     const rawVids = strArr(raw.scope.video_ids);
@@ -632,9 +640,29 @@ function readAiResearchSession(raw: unknown): AiResearchSession | null {
     typeof raw.pinned === "boolean"
       ? raw.pinned
       : Boolean(isRec(raw.scope) && raw.scope.pinned === true);
+  const refused =
+    typeof raw.refused === "boolean"
+      ? raw.refused
+      : raw.answer_status === "REFUSED_INSUFFICIENT_EVIDENCE" ||
+        Boolean(isRec(raw.scope) && raw.scope.refused === true);
+  const answerStatus =
+    typeof raw.answer_status === "string" && raw.answer_status.trim()
+      ? raw.answer_status
+      : refused
+        ? "REFUSED_INSUFFICIENT_EVIDENCE"
+        : "GROUNDED";
+  const refusalReason =
+    typeof raw.refusal_reason_zh === "string"
+      ? raw.refusal_reason_zh
+      : isRec(raw.scope) && typeof raw.scope.refusal_reason_zh === "string"
+        ? raw.scope.refusal_reason_zh
+        : "";
   return {
     session_id: raw.session_id,
     question: typeof raw.question === "string" ? raw.question : "",
+    answer_status: answerStatus,
+    refused,
+    refusal_reason_zh: refusalReason,
     scope_label_zh: typeof raw.scope_label_zh === "string" ? raw.scope_label_zh : "",
     ...(typeof raw.video_count === "number" ? { video_count: raw.video_count } : {}),
     ...(scope ? { scope } : {}),
@@ -643,6 +671,7 @@ function readAiResearchSession(raw: unknown): AiResearchSession | null {
     key_takeaways_zh: strArr(raw.key_takeaways_zh),
     action_items_zh: strArr(raw.action_items_zh),
     citations,
+    ...(relatedExcerpts.length > 0 ? { related_excerpts: relatedExcerpts } : {}),
     obsidian_markdown: typeof raw.obsidian_markdown === "string" ? raw.obsidian_markdown : "",
     provider: typeof raw.provider === "string" ? raw.provider : "ollama",
     model: typeof raw.model === "string" ? raw.model : "qwen3.5:9b",
@@ -3354,11 +3383,27 @@ export function WorkspaceAiResearchPanel({
         <div className="ai-qa-answer-box">
           <div className="ai-qa-answer-head">
             <h3>{activeSession.question}</h3>
+            {activeSession.provider === "demo-replay" ? (
+              <span className="ai-basis-pill">
+                {zh ? "离线合成样例回放" : "Offline synthetic replay"}
+              </span>
+            ) : null}
+            {activeSession.refused ? (
+              <span className="status status-warning">
+                {zh ? "证据不足 · 已诚实拒答" : "Refused · Insufficient Evidence"}
+              </span>
+            ) : null}
             {activeSession.scope_label_zh ? (
               <span className="ai-basis-pill">{activeSession.scope_label_zh}</span>
             ) : null}
           </div>
-          <p className="summary-copy">{activeSession.answer_zh}</p>
+          {activeSession.refused ? (
+            <div className="semantic-state state-warning" role="status">
+              <p>{activeSession.answer_zh}</p>
+            </div>
+          ) : (
+            <p className="summary-copy">{activeSession.answer_zh}</p>
+          )}
 
           {activeSession.key_takeaways_zh.length > 0 ? (
             <ul>
@@ -3386,6 +3431,33 @@ export function WorkspaceAiResearchPanel({
                 {activeSession.citations.map((c) => (
                   <button
                     key={`${c.ref_label}:${c.evidence_id}`}
+                    type="button"
+                    className="ai-citation-card"
+                    onClick={() => onOpen("content", c.video_id, c.evidence_id)}
+                  >
+                    <div className="ai-citation-head tabular-nums">
+                      <span className="ai-citation-ref">[{c.ref_label}]</span>
+                      <strong>{c.video_title}</strong>
+                      <span className="ai-citation-time">{c.timestamp_label}</span>
+                    </div>
+                    <p>{c.excerpt}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {activeSession.refused && (activeSession.related_excerpts?.length ?? 0) > 0 ? (
+            <div className="ai-citations-section ai-related-excerpts-section">
+              <h4>
+                {zh
+                  ? "相关原始片段（仅供参考查阅，未作为支持结论的引用）"
+                  : "Related source excerpts (inspection only — not supporting citations)"}
+              </h4>
+              <div className="ai-citation-list">
+                {activeSession.related_excerpts?.map((c) => (
+                  <button
+                    key={`rel:${c.ref_label}:${c.evidence_id}`}
                     type="button"
                     className="ai-citation-card"
                     onClick={() => onOpen("content", c.video_id, c.evidence_id)}

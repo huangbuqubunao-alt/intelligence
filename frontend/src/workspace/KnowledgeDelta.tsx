@@ -64,10 +64,12 @@ export function KnowledgeDelta({ refresh, onOpen }: { refresh: number; onOpen: (
       {empty && <p className="delta-empty">{t("No meaningful knowledge changes in the last 7 days.")}</p>}
       {delta && !unavailable && !empty && <>
         <dl className="delta-counts">
-          {delta.categories.map(category => <div key={category.kind}>
-            <dt>{t(categoryLabels[category.kind])}</dt>
-            <dd>{category.count === null ? t("Unavailable") : category.count}</dd>
-          </div>)}
+          {delta.categories
+            .filter(category => category.count === null || category.count > 0)
+            .map(category => <div key={category.kind}>
+              <dt>{t(categoryLabels[category.kind])}</dt>
+              <dd>{category.count === null ? t("Unavailable") : category.count}</dd>
+            </div>)}
         </dl>
         <div className="delta-groups">
           {delta.categories.filter(category => category.items.length > 0).map(category => <div key={category.kind}>
