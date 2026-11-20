@@ -1,0 +1,62 @@
+name: Public Beta CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  python-ci:
+    name: Python Lint, Typecheck & Public Beta Integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify lockfile & sync dependencies
+        run: |
+          uv lock --check
+          uv sync --frozen --dev
+      - name: Lint with ruff
+        run: uv run --frozen ruff check src tests
+      - name: Type-check with mypy
+        run: uv run --frozen mypy src
+      - name: Run Public Beta verification suite
+        # Scope note: runs contracts, console entry, offline demo showcase, cloud cost/reauth
+        # safety, Workspace AI Hub, Fast-Read API, and PO demo E2E checks on the candidate SHA.
+        # Historical sealed TASK-016 trial fixtures (GOV-001) fail closed on current tree hashes
+        # by design and are tracked separately in qa/defects.md.
+        run: |
+          uv run --frozen python -m pytest \
+            tests/unit/test_contracts.py \
+            tests/integration/test_console_entry.py \
+            tests/integration/test_public_beta_demo_showcase.py \
+            tests/integration/test_workspace_cloud_safety.py \
+            tests/integration/test_workspace_intelligence_hub.py \
+            tests/integration/test_fast_read_api.py \
+            tests/e2e/test_po_demo.py \
+            -q --tb=short
+
+  frontend-ci:
+    name: Frontend Build & Vitest
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Build production bundle
+        run: npm run build
+      - name: Run Vitest suite
+        run: npx vitest run

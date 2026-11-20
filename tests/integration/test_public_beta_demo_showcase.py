@@ -12,8 +12,10 @@ from typing import cast
 
 import pytest
 
+from youtube_intel import cli
 from youtube_intel.demo_showcase import prepare_demo_showcase
 from youtube_intel.local_api import LocalApiApplication, serve_loopback
+from youtube_intel.operations import ExitCode
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -61,6 +63,10 @@ def test_demo_showcase_prepare_is_offline_and_populates_multi_source_hub(
     assert len(videos) == 6
     providers = {str(v.get("provider")) for v in videos}
     assert providers == {"YOUTUBE", "BILIBILI", "LOCAL"}
+    channels = {str(v.get("channel_name") or "") for v in videos}
+    assert "OpenAI Developers" not in channels
+    assert "Atlas Agent Lab (Demo)" in channels
+    assert "Local-First Foundry (Demo)" in channels
 
     md_video = next(v for v in videos if v.get("provider") == "LOCAL")
     md_id = str(md_video["video_id"])
@@ -79,7 +85,10 @@ def test_demo_showcase_prepare_is_offline_and_populates_multi_source_hub(
 
     res_code, res_body = app.handle("GET", "/api/v1/workspace-ai/research/sessions")
     assert res_code == 200
-    assert len(cast(list[object], res_body["sessions"])) == 2
+    seeded_sessions = cast(list[dict[str, object]], res_body["sessions"])
+    assert len(seeded_sessions) == 2
+    assert all("离线合成样例回放" in str(s.get("answer_zh") or "") for s in seeded_sessions)
+    assert all(s.get("provider") == "demo-replay" for s in seeded_sessions)
 
     ask_code, ask_body = app.handle(
         "POST",
@@ -90,7 +99,9 @@ def test_demo_showcase_prepare_is_offline_and_populates_multi_source_hub(
     session = cast(dict[str, object], ask_body["session"])
     citations = cast(list[object], session["citations"])
     assert len(citations) >= 1
+    assert "【离线合成样例回放】" in str(session["answer_zh"])
     assert "为什么要用确定性状态机和可追溯证据引用" in str(session["answer_zh"])
+    assert session["provider"] == "demo-replay"
 
     # Re-opening without reset preserves interactive Q&A session state
     reopened = prepare_demo_showcase(REPO_ROOT, demo_root=demo_root, reset=False)
@@ -177,3 +188,44 @@ def test_single_port_static_spa_server_serves_assets_and_enforces_api_guards(
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
+
+
+
+def test_demo_showcase_refuses_unknown_nonempty_directory_and_preserves_files(
+    tmp_path: Path,
+) -> None:
+    user_dir = tmp_path / "user-existing-dir"
+    user_dir.mkdir()
+    user_note = user_dir / "notes.txt"
+    user_note.write_text("important personal research notes", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="non-empty"):
+        prepare_demo_showcase(REPO_ROOT, demo_root=user_dir, reset=False)
+    assert user_note.read_text(encoding="utf-8") == "important personal research notes"
+
+    with pytest.raises(ValueError, match="demo showcase marker"):
+        prepare_demo_showcase(REPO_ROOT, demo_root=user_dir, reset=True)
+    assert user_note.read_text(encoding="utf-8") == "important personal research notes"
+
+    exit_code = cli.main(["demo", "--demo-root", str(user_dir)])
+    assert exit_code == ExitCode.USAGE_OR_CONFIGURATION
+    assert user_note.read_text(encoding="utf-8") == "important personal research notes"
+
+
+def test_demo_showcase_corrupted_workspace_preserves_user_files_on_refusal_and_reset(
+    tmp_path: Path,
+) -> None:
+    demo_dir = tmp_path / "seeded-demo-dir"
+    prepare_demo_showcase(REPO_ROOT, demo_root=demo_dir, reset=True)
+
+    keep_file = demo_dir / "keep-me.txt"
+    keep_file.write_text("keep-this-file-safe", encoding="utf-8")
+    (demo_dir / "state.sqlite3").unlink()
+
+    with pytest.raises(ValueError, match="incomplete or corrupted"):
+        prepare_demo_showcase(REPO_ROOT, demo_root=demo_dir, reset=False)
+    assert keep_file.read_text(encoding="utf-8") == "keep-this-file-safe"
+
+    rebuilt = prepare_demo_showcase(REPO_ROOT, demo_root=demo_dir, reset=True)
+    assert rebuilt.seeded_videos == 6
+    assert keep_file.read_text(encoding="utf-8") == "keep-this-file-safe"
