@@ -162,3 +162,96 @@ it("hides zero-count KnowledgeDelta KPI tiles while preserving non-zero and Unav
   expect(within(region).queryByText("洞察修订")).toBeNull();
   expect(within(region).queryByText("来源健康变化")).toBeNull();
 });
+
+it("renders covered_sources strip and Markdown TEXT_RANGE paragraph locators without 00:00", async () => {
+  const fetchMock = vi.fn(async (input: string) => {
+    if (input.endsWith("/workspace-ai/research/sessions")) {
+      return okJson({
+        sessions: [
+          {
+            session_id: "qa-cross-md-1",
+            question: "对比视频原话与本地 Markdown 架构笔记的证据机制",
+            answer_status: "GROUNDED",
+            refused: false,
+            refusal_reason_zh: "",
+            answer_zh: "视频采用时间轴定位 [E1]，本地 Markdown 采用字符起止区间定位 [E2]。",
+            key_takeaways_zh: ["统一绑定核心库 evidence_id"],
+            action_items_zh: ["同时核验两类原文引用"],
+            covered_source_count: 2,
+            covered_sources: [
+              {
+                video_id: "vidYT01",
+                title: "State Machines Talk",
+                provider: "YOUTUBE",
+                channel_name: "Alpha Lab",
+                locator_type: "TIME_RANGE",
+              },
+              {
+                video_id: "local-md-01",
+                title: "architecture-notes.md",
+                provider: "LOCAL",
+                channel_name: "本地实战课",
+                locator_type: "TEXT_RANGE",
+              },
+            ],
+            citations: [
+              {
+                ref_label: "E1",
+                video_id: "vidYT01",
+                video_title: "State Machines Talk",
+                channel_name: "Alpha Lab",
+                evidence_id: "ev-yt-1",
+                locator_type: "TIME_RANGE",
+                start_ms: 10000,
+                end_ms: 22000,
+                timestamp_label: "00:10",
+                excerpt: "Checkpoints prevent silent failures.",
+              },
+              {
+                ref_label: "E2",
+                video_id: "local-md-01",
+                video_title: "architecture-notes.md",
+                channel_name: "本地实战课",
+                evidence_id: "ev-md-2",
+                locator_type: "TEXT_RANGE",
+                paragraph_index: 2,
+                start_offset: 48,
+                end_offset: 142,
+                start_ms: null,
+                end_ms: null,
+                timestamp_label: "P2 (48–142)",
+                excerpt: "Persist TEXT_RANGE offsets before model distillation.",
+              },
+            ],
+            video_count: 2,
+            scope_label_zh: "",
+            pinned: false,
+            provider: "ollama",
+            model: "qwen3.5:9b",
+            obsidian_markdown: "# 跨源对比",
+            created_at: "2026-11-20T13:00:00Z",
+          },
+        ],
+        suggested_questions: [],
+        scope_options: { channels: [], topic_clusters: [], videos: [], starred_count: 0 },
+      });
+    }
+    return okJson({});
+  });
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(
+    <UiLanguageProvider>
+      <WorkspaceAiResearchPanel onOpen={vi.fn()} />
+    </UiLanguageProvider>,
+  );
+
+  expect(await screen.findByText(/本次检索覆盖 2 份可核验材料/)).toBeTruthy();
+  const strip = screen.getByRole("group", { name: "本次检索覆盖的可核验材料" });
+  expect(within(strip).getByText("State Machines Talk")).toBeTruthy();
+  expect(within(strip).getByText("architecture-notes.md")).toBeTruthy();
+  expect(within(strip).getByText("文档")).toBeTruthy();
+  expect(screen.getByText("可验证原话出处（时间戳 / 段落定位，点击直达原文）")).toBeTruthy();
+  expect(screen.getByText("P2 (48–142)")).toBeTruthy();
+  expect(screen.queryByText("00:00")).toBeNull();
+});

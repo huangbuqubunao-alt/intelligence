@@ -107,10 +107,22 @@ export type AiResearchCitation = {
   video_title: string;
   channel_name: string;
   evidence_id: string;
+  locator_type?: string;
+  paragraph_index?: number | null;
+  start_offset?: number | null;
+  end_offset?: number | null;
   start_ms: number | null;
   end_ms: number | null;
   timestamp_label: string;
   excerpt: string;
+};
+
+export type AiResearchCoveredSource = {
+  video_id: string;
+  title: string;
+  provider: string;
+  channel_name: string;
+  locator_type: string;
 };
 
 export type AiResearchSessionScope = {
@@ -129,6 +141,8 @@ export type AiResearchSession = {
   refusal_reason_zh?: string;
   scope_label_zh: string;
   video_count?: number;
+  covered_sources?: AiResearchCoveredSource[];
+  covered_source_count?: number;
   scope?: AiResearchSessionScope;
   pinned: boolean;
   answer_zh: string;
@@ -596,17 +610,43 @@ function parseCitationArray(raw: unknown): AiResearchCitation[] {
   if (!Array.isArray(raw)) return [];
   return raw
     .filter(isRec)
-    .map((c) => ({
-      ref_label: String(c.ref_label ?? ""),
-      video_id: String(c.video_id ?? ""),
-      video_title: String(c.video_title ?? c.video_id ?? ""),
-      channel_name: String(c.channel_name ?? ""),
-      evidence_id: String(c.evidence_id ?? ""),
-      start_ms: typeof c.start_ms === "number" ? c.start_ms : null,
-      end_ms: typeof c.end_ms === "number" ? c.end_ms : null,
-      timestamp_label: String(c.timestamp_label ?? "00:00"),
-      excerpt: String(c.excerpt ?? ""),
-    }))
+    .map((c) => {
+      const locatorType =
+        typeof c.locator_type === "string" && c.locator_type.trim()
+          ? c.locator_type.trim()
+          : undefined;
+      const paragraphIndex =
+        typeof c.paragraph_index === "number" ? c.paragraph_index : null;
+      const startOffset =
+        typeof c.start_offset === "number" ? c.start_offset : null;
+      const endOffset =
+        typeof c.end_offset === "number" ? c.end_offset : null;
+      const rawLabel =
+        typeof c.timestamp_label === "string" ? c.timestamp_label.trim() : "";
+      const timestampLabel =
+        rawLabel.length > 0
+          ? rawLabel
+          : locatorType === "TEXT_RANGE"
+            ? paragraphIndex !== null
+              ? `P${paragraphIndex}`
+              : "原文段落"
+            : "00:00";
+      return {
+        ref_label: String(c.ref_label ?? ""),
+        video_id: String(c.video_id ?? ""),
+        video_title: String(c.video_title ?? c.video_id ?? ""),
+        channel_name: String(c.channel_name ?? ""),
+        evidence_id: String(c.evidence_id ?? ""),
+        locator_type: locatorType,
+        paragraph_index: paragraphIndex,
+        start_offset: startOffset,
+        end_offset: endOffset,
+        start_ms: typeof c.start_ms === "number" ? c.start_ms : null,
+        end_ms: typeof c.end_ms === "number" ? c.end_ms : null,
+        timestamp_label: timestampLabel,
+        excerpt: String(c.excerpt ?? ""),
+      };
+    })
     .filter((c) => c.video_id.length > 0 && c.evidence_id.length > 0);
 }
 
@@ -616,6 +656,27 @@ function readAiResearchSession(raw: unknown): AiResearchSession | null {
   }
   const citations = parseCitationArray(raw.citations);
   const relatedExcerpts = parseCitationArray(raw.related_excerpts);
+  const rawCovered = Array.isArray(raw.covered_sources)
+    ? raw.covered_sources
+    : isRec(raw.scope) && Array.isArray(raw.scope.covered_sources)
+      ? raw.scope.covered_sources
+      : [];
+  const coveredSources: AiResearchCoveredSource[] = rawCovered
+    .filter(isRec)
+    .map((src) => ({
+      video_id: String(src.video_id ?? "").trim(),
+      title: String(src.title ?? src.video_id ?? "").trim(),
+      provider: String(src.provider ?? "YOUTUBE").trim(),
+      channel_name: String(src.channel_name ?? "").trim(),
+      locator_type: String(src.locator_type ?? "TIME_RANGE").trim(),
+    }))
+    .filter((src) => src.video_id.length > 0);
+  const coveredSourceCount =
+    typeof raw.covered_source_count === "number"
+      ? raw.covered_source_count
+      : isRec(raw.scope) && typeof raw.scope.covered_source_count === "number"
+        ? raw.scope.covered_source_count
+        : coveredSources.length;
   let scope: AiResearchSessionScope | undefined;
   if (isRec(raw.scope)) {
     const rawVids = strArr(raw.scope.video_ids);
@@ -665,6 +726,9 @@ function readAiResearchSession(raw: unknown): AiResearchSession | null {
     refusal_reason_zh: refusalReason,
     scope_label_zh: typeof raw.scope_label_zh === "string" ? raw.scope_label_zh : "",
     ...(typeof raw.video_count === "number" ? { video_count: raw.video_count } : {}),
+    ...(coveredSources.length > 0
+      ? { covered_sources: coveredSources, covered_source_count: coveredSourceCount }
+      : {}),
     ...(scope ? { scope } : {}),
     pinned,
     answer_zh: raw.answer_zh,
@@ -3397,6 +3461,38 @@ export function WorkspaceAiResearchPanel({
               <span className="ai-basis-pill">{activeSession.scope_label_zh}</span>
             ) : null}
           </div>
+          {(activeSession.covered_sources?.length ?? 0) > 0 ? (
+            <div
+              className="ai-covered-sources-strip"
+              role="group"
+              aria-label={zh ? "本次检索覆盖的可核验材料" : "Covered verifiable sources"}
+            >
+              <span className="ai-covered-sources-label tabular-nums">
+                {zh
+                  ? `本次检索覆盖 ${activeSession.covered_source_count ?? activeSession.covered_sources?.length ?? 0} 份可核验材料：`
+                  : `Searched ${activeSession.covered_source_count ?? activeSession.covered_sources?.length ?? 0} verifiable sources:`}
+              </span>
+              {(activeSession.covered_sources ?? []).slice(0, 6).map((src) => (
+                <button
+                  key={`cov:${src.video_id}`}
+                  type="button"
+                  className="ai-covered-source-chip"
+                  onClick={() => onOpen("content", src.video_id)}
+                  title={src.title}
+                >
+                  <span>{src.title}</span>
+                  {src.locator_type === "TEXT_RANGE" ? (
+                    <small>{zh ? "文档" : "Doc"}</small>
+                  ) : null}
+                </button>
+              ))}
+              {(activeSession.covered_sources?.length ?? 0) > 6 ? (
+                <span className="ai-basis-pill is-compact tabular-nums">
+                  {`+${(activeSession.covered_sources?.length ?? 0) - 6}`}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
           {activeSession.refused ? (
             <div className="semantic-state state-warning" role="status">
               <p>{activeSession.answer_zh}</p>
@@ -3426,7 +3522,15 @@ export function WorkspaceAiResearchPanel({
 
           {activeSession.citations.length > 0 ? (
             <div className="ai-citations-section">
-              <h4>{zh ? "可验证原话时间轴出处（点击直达对应视频与证据）" : "Verified timestamped citations"}</h4>
+              <h4>
+                {activeSession.citations.some((c) => c.locator_type === "TEXT_RANGE")
+                  ? zh
+                    ? "可验证原话出处（时间戳 / 段落定位，点击直达原文）"
+                    : "Verified citations (timestamps / paragraphs)"
+                  : zh
+                    ? "可验证原话时间轴出处（点击直达对应视频与证据）"
+                    : "Verified timestamped citations"}
+              </h4>
               <div className="ai-citation-list">
                 {activeSession.citations.map((c) => (
                   <button
