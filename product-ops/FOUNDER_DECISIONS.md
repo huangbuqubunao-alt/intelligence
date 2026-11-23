@@ -6,12 +6,16 @@
 
 *当前无待裁决的阻塞性 L3 审批请求（`Pending Founder Decisions: 0`）。*
 
-> 注：`FD-007` 已按创始人最新批复完成执行——Iteration #8（`BL-011`：`e540b28` 连同第 13 组视觉关键帧 CI 测试接线）已线性合入 `main@092951b` 并获 GitHub Actions [`#45201809374`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45201809374) 双端绿灯（`55/55` / `1247/1247` 前端 + 13 组 `151/151` 后端）；仓库继续严守被动 `PUBLIC`、零外宣、零 Release Tag 与内部阶段边界（`EXP-001` 维持 `HOLD`）。
+> 注：`FD-008` 已按创始人最新批复完成执行——Iteration #9（`BL-012` / Round 19：`3a92efb`）已线性合入 `main@c54b818` 并获 GitHub Actions [`#45216029723`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45216029723) 双端绿灯（`56/56` / `1249/1249` 前端 + 13 组 `152/152` 后端）；仓库继续严守被动 `PUBLIC`、零外宣、零 Release Tag 与内部阶段边界（`EXP-001` 维持 `HOLD`）。
 
 ---
 
-## 历史已完结 L3 决策归档（2026-11-23）
+## 历史已完结 L3 决策归档（2026-11-23 ~ 11-24）
 
+- **`FD-008`（`COMPLETED` — 创始人批复将 Iteration #9 / `BL-012` 合流 `main` 并留存云端绿标）**：
+  1. **线性合流 `main`**：将研发分支 `antigravity/task-user-readiness-20261112` 提交 `3a92efb`（含 Round 19 `⌘K` 深入专题洞察/追问动作、`#Topics` 搜索排序、提问框防遮挡细滚动条、`--check-only` 一行式就绪结论及新增测试）在临时隔离 worktree 线性合入 `main@c54b8184df45b7befb9944d4763d2fa59ed2bd5e` 并推送 `origin/main`；
+  2. **云端 GitHub Actions 双端全绿验收**：[`Public Beta CI #45216029723`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45216029723) 双作业 `success`——`Frontend Build & Vitest` `1m7s`（`vite build` `1.08s` + `56/56` / `1249/1249` tests passed）与 `Python Lint, Typecheck & Public Beta Integration` `5m0s`（仅失败重跑：首轮云端 VM 出现 1 次 `test_fast_read_api.py` `149.3ms > 120ms` 瞬时抖动，未改源码也未放宽阈值，重跑即 `ruff`/`mypy` 137 文件 0 错 + 13 组全量 **`152 passed in 256.97s`**）；
+  3. **严守被动公开与内部阶段红线**：核验仓库维持 `PUBLIC`（`Stars: 0`、`Forks: 0`、`no releases found`）、零外部推广，真人试点 `EXP-001` 与 `BL-009` 继续维持 `HOLD`。
 - **`FD-007`（`COMPLETED` — 创始人批复将 Iteration #8 / `BL-011` 合流 `main` 并留存云端 13 组绿标）**：
   1. **线性合流 `main`**：将研发分支 `antigravity/task-user-readiness-20261112` 提交 `e540b28`（含按需轻量关键帧融合分析 MVP、`WorkspaceVisualKeyframes.test.tsx`、`test_visual_keyframe_analysis.py` 及 `.github/workflows/ci.yml` 第 13 组 CI 接线）在临时隔离 worktree 线性合入 `main@092951bfb19a4664cc1f0cc36fa631120b217f8c` 并推送 `origin/main`；
   2. **云端 GitHub Actions 双端全绿验收**：[`Public Beta CI #45201809374`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45201809374) 双作业 `success`——`Frontend Build & Vitest` `1m19s`（`vite build` `1.30s` + `55/55` / `1247/1247` tests passed in `60.13s`）与 `Python Lint, Typecheck & Public Beta Integration` `19m59s`（`ruff` / `mypy` 137 文件 0 错 + 13 组完整套件 `151 passed in 305.18s`）；

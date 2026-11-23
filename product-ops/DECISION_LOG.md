@@ -20,7 +20,7 @@
 | **DEC-OPS-010** | **Iteration #7 (`BL-010`)**：4h 音频与 300KB 长 Markdown 均匀边界加固 + Obsidian `.zip` 真解压安全与排版修复 + 阶段退出门禁清单 | L1 | **COMPLETED (`main@aec26da`)** | **CI `#45187713845` (`146/146` 含长媒体/ZIP)** | `6 × 2.5 × 0.90 / 0.6 = 22.5` |
 | **DEC-OPS-011** | **执行 `FD-006`**：将 Iteration #4–#7 与 12 组全量 CI 接线合流 `main@c15cf06` 并获云端双端绿标 | L3 (`FD-006`) | **COMPLETED (`main@c15cf06`)** | **CI `#45187713845` 双作业 `success`** | `10 × 2.5 × 0.95 / 0.3 = 79.2` |
 | **DEC-OPS-012** | **Iteration #8 (`BL-011`) + `FD-007`**：按需轻量本地视频关键帧抽取、dHash 去重与原话字幕融合分析 MVP 合流 `main` | L1 + L3 (`FD-007`) | **COMPLETED (`main@092951b`)** | **CI `#45201809374` (`151/151` + `1247/1247`) + `gemma3:4b` + Chromium PASS** | `7 × 2.5 × 0.90 / 0.8 = 19.7` |
-| **DEC-OPS-013** | **Iteration #9 (`BL-012` / Round 19)**：`⌘K` 深入专题动作、`#Topics` 检索与多维排序、提问细滚动条及 `--check-only` 就绪结论 | L1 / L2（已隔离交付，待创始人按 L3 裁决合 `main`） | **COMPLETED (分支 `antigravity/task-user-readiness-20261112`)** | **全量 13 组 `152/152` + `56/56` (`1249/1249`) + `8795` Chromium + `--check-only` PASS** | `7 × 1.5 × 0.90 / 0.4 = 23.6` |
+| **DEC-OPS-013** | **Iteration #9 (`BL-012` / Round 19) + `FD-008`**：`⌘K` 深入专题动作、`#Topics` 检索与多维排序、提问细滚动条及 `--check-only` 就绪结论合流 `main` | L1 + L3 (`FD-008`) | **COMPLETED (`main@c54b818`)** | **CI `#45216029723` (`152/152` + `1249/1249`) + `8795` Chromium + `--check-only` PASS** | `7 × 1.5 × 0.90 / 0.4 = 23.6` |
 
 ---
 
