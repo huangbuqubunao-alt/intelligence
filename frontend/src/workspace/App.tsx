@@ -3889,7 +3889,157 @@ function ContentPage(
   const batchStopRef = useRef(false);
   const batchCommandsRef = useRef(new Map<string, string>());
   useEffect(() => () => { batchStopRef.current = true; }, []);
-  const list = useRemote<{ videos: ContentItem[] }>("/videos", refresh + revision, undefined, true, true);
+  type VideosPagination = {
+    limit: number;
+    offset: number;
+    total_count: number;
+    returned_count: number;
+    has_more: boolean;
+    q?: string;
+  };
+  const [probedPagination, setProbedPagination] = useState<VideosPagination | null>(null);
+  const [extraVideos, setExtraVideos] = useState<ContentItem[]>([]);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
+  const [remoteSearchVideos, setRemoteSearchVideos] = useState<ContentItem[] | null>(null);
+  const list = useRemote<{ videos: ContentItem[]; pagination?: VideosPagination }>(
+    "/videos",
+    refresh + revision,
+    undefined,
+    true,
+    true,
+  );
+  useEffect(() => {
+    setExtraVideos([]);
+    setProbedPagination(null);
+    setLoadMoreError(null);
+    setRemoteSearchVideos(null);
+  }, [refresh, revision]);
+  useEffect(() => {
+    const initial = list.data;
+    if (!initial || !Array.isArray(initial.videos)) return;
+    if (initial.pagination) {
+      setProbedPagination(initial.pagination);
+      return;
+    }
+    if (initial.videos.length < 200) return;
+    let alive = true;
+    api<{ videos?: ContentItem[]; pagination?: VideosPagination }>("/videos?limit=200&offset=0")
+      .then((res) => {
+        if (alive && res?.pagination) setProbedPagination(res.pagination);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [list.data]);
+  const baseVideos = useMemo(() => {
+    const merged: ContentItem[] = [];
+    const seen = new Set<string>();
+    for (const v of list.data?.videos ?? []) {
+      if (!seen.has(v.video_id)) {
+        seen.add(v.video_id);
+        merged.push(v);
+      }
+    }
+    for (const v of extraVideos) {
+      if (!seen.has(v.video_id)) {
+        seen.add(v.video_id);
+        merged.push(v);
+      }
+    }
+    return merged;
+  }, [list.data?.videos, extraVideos]);
+  const effectivePagination = probedPagination ?? list.data?.pagination ?? null;
+  const loadedPrimaryCount = baseVideos.filter((v) => !v.work_kind).length;
+  const serverTotalCount = effectivePagination
+    ? Math.max(effectivePagination.total_count, loadedPrimaryCount)
+    : loadedPrimaryCount;
+  const hasMorePages = Boolean(effectivePagination?.has_more);
+  const trimmedRawSearch = searchQuery.trim();
+  const hasUnloadedLibraryItems = Boolean(
+    hasMorePages ||
+      (effectivePagination && effectivePagination.total_count > loadedPrimaryCount) ||
+      (list.data?.videos?.length ?? 0) >= 200,
+  );
+  useEffect(() => {
+    if (!trimmedRawSearch || !hasUnloadedLibraryItems) {
+      setRemoteSearchVideos(null);
+      return;
+    }
+    let alive = true;
+    const timer = window.setTimeout(() => {
+      api<{ videos?: ContentItem[] }>(
+        `/videos?q=${encodeURIComponent(trimmedRawSearch)}&limit=100&offset=0`,
+      )
+        .then((res) => {
+          if (!alive || !Array.isArray(res?.videos)) return;
+          setRemoteSearchVideos(res.videos);
+        })
+        .catch(() => {});
+    }, 60);
+    return () => {
+      alive = false;
+      window.clearTimeout(timer);
+    };
+  }, [trimmedRawSearch, hasUnloadedLibraryItems]);
+  const mergedLoadedAndSearchVideos = useMemo(() => {
+    if (!trimmedRawSearch || !remoteSearchVideos || remoteSearchVideos.length === 0) {
+      return baseVideos;
+    }
+    const merged: ContentItem[] = [];
+    const seen = new Set<string>();
+    for (const v of remoteSearchVideos) {
+      if (!seen.has(v.video_id)) {
+        seen.add(v.video_id);
+        merged.push(v);
+      }
+    }
+    for (const v of baseVideos) {
+      if (!seen.has(v.video_id)) {
+        seen.add(v.video_id);
+        merged.push(v);
+      }
+    }
+    return merged;
+  }, [baseVideos, remoteSearchVideos, trimmedRawSearch]);
+  const loadMoreVideos = async () => {
+    if (loadingMore) return;
+    const nextOffset = effectivePagination
+      ? Math.max(loadedPrimaryCount, effectivePagination.offset + effectivePagination.returned_count)
+      : loadedPrimaryCount;
+    setLoadingMore(true);
+    setLoadMoreError(null);
+    try {
+      const res = await api<{
+        videos?: ContentItem[];
+        pagination?: VideosPagination;
+      }>(`/videos?limit=200&offset=${nextOffset}`);
+      const batch = Array.isArray(res?.videos) ? res.videos : [];
+      setExtraVideos((prev) => {
+        const seen = new Set(prev.map((v) => v.video_id));
+        const merged = [...prev];
+        for (const item of batch) {
+          if (!seen.has(item.video_id)) {
+            seen.add(item.video_id);
+            merged.push(item);
+          }
+        }
+        return merged;
+      });
+      if (res?.pagination) {
+        setProbedPagination(res.pagination);
+      }
+    } catch {
+      setLoadMoreError(
+        language === "zh-CN"
+          ? "未能加载下一页内容，请稍后重试。"
+          : "Could not load the next page of content.",
+      );
+    } finally {
+      setLoadingMore(false);
+    }
+  };
   useEffect(() => {
     if (
       targetVideoId ||
@@ -3970,7 +4120,7 @@ function ContentPage(
   if (list.error) return <ErrorState error={list.error} code={list.errorCode} onReload={list.reload} />;
   if (!list.data) return <Empty>Loading Content…</Empty>;
   if (targetVideoId) {
-    const rawVideos = Array.isArray(list.data.videos) ? list.data.videos : [];
+    const rawVideos = mergedLoadedAndSearchVideos;
     const trimmedQuery = searchQuery.trim().toLowerCase();
     const isScopedQueue =
       providerFilter !== "ALL" ||
@@ -4088,7 +4238,7 @@ function ContentPage(
       />
     );
   }
-  const videos = list.data.videos;
+  const videos = mergedLoadedAndSearchVideos;
   const isManualPendingImport = (item: ContentItem) =>
     item.work_kind === "DURABLE_CONTENT_IDENTITY" &&
     Boolean(item.source_id && !item.source_id.startsWith("youtube-channel-"));
@@ -4310,7 +4460,7 @@ function ContentPage(
   const matchesContentSearch = (item: ContentItem, brief: VideoAiBrief | null) => {
     if (!trimmedSearch) return true;
     const ch = contentItemChannelKeyAndLabel(item, language);
-    const haystack = `${item.title ?? ""} ${item.channel_name ?? ""} ${ch.label} ${item.video_id} ${brief?.headline_zh ?? ""} ${brief?.topic_cluster_zh ?? ""}`.toLowerCase();
+    const haystack = `${item.title ?? ""} ${item.channel_name ?? ""} ${ch.label} ${item.video_id} ${brief?.headline_zh ?? ""} ${brief?.topic_cluster_zh ?? ""} ${brief?.summary_zh ?? ""}`.toLowerCase();
     return haystack.includes(trimmedSearch);
   };
   const matchesContentBucket = (item: ContentItem, brief: VideoAiBrief | null) => {
@@ -5126,6 +5276,29 @@ function ContentPage(
                   {foldedShorts.map(renderContentRow)}
                 </div>
               </details>
+            ) : null}
+            {hasMorePages && !trimmedSearch ? (
+              <div className="content-pagination-footer">
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  disabled={loadingMore}
+                  onClick={() => void loadMoreVideos()}
+                >
+                  {loadingMore
+                    ? language === "zh-CN"
+                      ? "正在加载更多…"
+                      : "Loading more…"
+                    : language === "zh-CN"
+                      ? `加载更多内容 (已显示 ${loadedPrimaryCount} / 共 ${serverTotalCount})`
+                      : `Load more (${loadedPrimaryCount} / ${serverTotalCount})`}
+                </button>
+                {loadMoreError ? (
+                  <p className="form-error" role="alert">
+                    {loadMoreError}
+                  </p>
+                ) : null}
+              </div>
             ) : null}
           </>
         ) : (
@@ -7042,13 +7215,26 @@ function ContentEvidencePanel(
   },
 ) {
   const { language, t } = useUiLanguage();
-  const { data, error, errorCode, reload } = useRemote<{ evidence: ContentEvidence[] }>(
-    `/videos/${encodeURIComponent(videoId)}/evidence`,
+  const evidencePath = `/videos/${encodeURIComponent(videoId)}/evidence`;
+  const { data, error, errorCode, reload } = useRemote<{
+    evidence: ContentEvidence[];
+    target_evidence_status?: "FOUND" | "MISSING_OR_STALE" | string;
+    target_evidence_id?: string;
+    target_evidence_reason?: string;
+  }>(
+    evidencePath,
     refresh,
     undefined,
     true,
     true,
   );
+  const [targetLookup, setTargetLookup] = useState<{
+    id: string;
+    settled: boolean;
+    extraItems: ContentEvidence[];
+    missing: boolean;
+    reason?: string;
+  } | null>(null);
   const [selectedMode, setSelectedMode] = useState<EvidenceDisplayMode | null>(null);
   const [evidenceVerbatim, setEvidenceVerbatim] = useState(false);
   const [translationBusy, setTranslationBusy] = useState<string | null>(null);
@@ -7058,11 +7244,76 @@ function ContentEvidencePanel(
     { excerpt: string; language: "zh-CN" | "en" }
   >>({});
   useEffect(() => {
-    if (data?.evidence && onEvidenceLoaded) {
-      onEvidenceLoaded(data.evidence);
+    if (!highlightedEvidenceId) {
+      setTargetLookup(null);
+      return;
     }
-  }, [data, onEvidenceLoaded]);
-  const evidencePanelTitle = data?.evidence?.some(item => item.locator_type === "TEXT_RANGE") ? "Evidence · source text" : "Evidence · source transcript";
+    if (!data?.evidence) return;
+    if (data.evidence.some((item) => item.evidence_id === highlightedEvidenceId)) {
+      setTargetLookup(null);
+      return;
+    }
+    let alive = true;
+    setTargetLookup({
+      id: highlightedEvidenceId,
+      settled: false,
+      extraItems: [],
+      missing: false,
+    });
+    api<{
+      evidence?: ContentEvidence[];
+      target_evidence_status?: string;
+      target_evidence_reason?: string;
+    }>(
+      `/videos/${encodeURIComponent(videoId)}/evidence?evidence_id=${encodeURIComponent(highlightedEvidenceId)}`,
+    )
+      .then((res) => {
+        if (!alive) return;
+        const items = Array.isArray(res?.evidence) ? res.evidence : [];
+        const found = items.some((item) => item.evidence_id === highlightedEvidenceId);
+        const missing = res?.target_evidence_status === "MISSING_OR_STALE" || !found;
+        setTargetLookup({
+          id: highlightedEvidenceId,
+          settled: true,
+          extraItems: items,
+          missing,
+          reason: res?.target_evidence_reason,
+        });
+      })
+      .catch(() => {
+        if (!alive) return;
+        setTargetLookup({
+          id: highlightedEvidenceId,
+          settled: true,
+          extraItems: [],
+          missing: true,
+        });
+      });
+    return () => {
+      alive = false;
+    };
+  }, [videoId, highlightedEvidenceId, data, refresh]);
+  const evidence = useMemo(() => {
+    const base = data?.evidence ?? [];
+    if (!highlightedEvidenceId || targetLookup?.id !== highlightedEvidenceId || !targetLookup.extraItems.length) {
+      return base;
+    }
+    const merged = [...base];
+    const seen = new Set(base.map((item) => item.evidence_id));
+    for (const item of targetLookup.extraItems) {
+      if (!seen.has(item.evidence_id)) {
+        seen.add(item.evidence_id);
+        merged.push(item);
+      }
+    }
+    return merged;
+  }, [data?.evidence, highlightedEvidenceId, targetLookup]);
+  useEffect(() => {
+    if (data?.evidence && onEvidenceLoaded) {
+      onEvidenceLoaded(evidence);
+    }
+  }, [data, evidence, onEvidenceLoaded]);
+  const evidencePanelTitle = evidence.some(item => item.locator_type === "TEXT_RANGE") ? "Evidence · source text" : "Evidence · source transcript";
   if (error) {
     return (
       <Panel id="section-evidence" icon="shield-check" title={evidencePanelTitle}>
@@ -7074,7 +7325,6 @@ function ContentEvidencePanel(
   if (!data) {
     return <Panel id="section-evidence" icon="shield-check" title={evidencePanelTitle}><Empty>Loading canonical Evidence…</Empty></Panel>;
   }
-  const evidence = data.evidence ?? [];
   const collapsedEvidenceLines = evidence.reduce(
     (sum, item) => sum + cleanCaptionText(item.original_excerpt).collapsedCount,
     0,
@@ -7125,8 +7375,29 @@ function ContentEvidencePanel(
       setTranslationBusy(null);
     }
   };
+  const targetMissing = Boolean(
+    highlightedEvidenceId &&
+      !evidence.some((item) => item.evidence_id === highlightedEvidenceId) &&
+      (data.target_evidence_status === "MISSING_OR_STALE" ||
+        (targetLookup?.id === highlightedEvidenceId && targetLookup.settled && targetLookup.missing)),
+  );
+  const missingReason =
+    targetLookup?.reason?.trim() ||
+    data.target_evidence_reason?.trim() ||
+    (language === "zh-CN"
+      ? "未能定位所引用的原文片段：该片段可能已被删除或原文档/字幕内容已发生变化。"
+      : "Could not locate the cited original excerpt: the segment may have been removed or the source text has changed.");
   return (
     <Panel id="section-evidence" icon="shield-check" title={evidencePanelTitle}>
+      {targetMissing ? (
+        <div
+          className="semantic-state state-warning"
+          role="status"
+          data-testid="targeted-evidence-missing"
+        >
+          <p>{missingReason}</p>
+        </div>
+      ) : null}
       {evidence.length
         ? (
           <div className="evidence-trace-list">

@@ -46,6 +46,7 @@ jobs:
             tests/integration/test_fast_read_api.py \
             tests/integration/test_long_media_and_obsidian_vault.py \
             tests/integration/test_visual_keyframe_analysis.py \
+            tests/integration/test_codex_review_remediation.py \
             tests/e2e/test_po_demo.py \
             -q --tb=short
 

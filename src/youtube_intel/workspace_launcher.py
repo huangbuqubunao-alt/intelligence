@@ -27,6 +27,8 @@ from youtube_intel.runtime_composition import (
 from youtube_intel.workspace_intelligence_hub import (
     DEFAULT_OLLAMA_BASE_URL,
     WorkspaceIntelligenceHub,
+    _infer_ollama_model_vision_by_name,
+    _probe_ollama_model_vision_http,
     _probe_ollama_models_default,
 )
 
@@ -55,6 +57,8 @@ class WorkspacePreflight:
     yt_dlp_available: bool
     ffmpeg_available: bool
     web_dir: Path
+    ollama_vision_ready: bool | None = None
+    ollama_vision_models: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,14 +93,30 @@ def collect_workspace_preflight(
         reachable, models = probe(ollama_url)
     except Exception:
         reachable, models = False, ()
+    clean_models = tuple(models)
+    vision_models: list[str] = []
+    if reachable and clean_models:
+        for model_name in clean_models[:8]:
+            name_hint = _infer_ollama_model_vision_by_name(model_name)
+            if name_hint is True:
+                vision_models.append(model_name)
+                continue
+            if name_hint is False:
+                continue
+            if ollama_probe is None:
+                probed = _probe_ollama_model_vision_http(ollama_url, model_name)
+                if probed is True:
+                    vision_models.append(model_name)
     return WorkspacePreflight(
         platform_supported=importlib.util.find_spec("fcntl") is not None,
         frontend_ready=(resolved_web / "index.html").is_file(),
         ollama_reachable=bool(reachable),
-        ollama_models=tuple(models),
+        ollama_models=clean_models,
         yt_dlp_available=importlib.util.find_spec("yt_dlp") is not None,
         ffmpeg_available=media_tool("ffmpeg") is not None,
         web_dir=resolved_web,
+        ollama_vision_ready=bool(vision_models),
+        ollama_vision_models=tuple(vision_models),
     )
 
 
@@ -299,6 +319,19 @@ def prepare_local_workspace(
     )
 
 
+def _resolve_preflight_vision(pf: WorkspacePreflight) -> tuple[bool, tuple[str, ...]]:
+    if pf.ollama_vision_ready is not None:
+        return pf.ollama_vision_ready, pf.ollama_vision_models
+    if pf.ollama_reachable and pf.ollama_models:
+        inferred = tuple(
+            m for m in pf.ollama_models if _infer_ollama_model_vision_by_name(m) is True
+        )
+        if not inferred and pf.ollama_vision_models:
+            return True, pf.ollama_vision_models
+        return bool(inferred), inferred
+    return False, pf.ollama_vision_models
+
+
 def _format_readiness_verdict(pf: WorkspacePreflight, *, serve_web: bool) -> str:
     """Summarize launch readiness into an actionable single-line verdict."""
 
@@ -312,14 +345,24 @@ def _format_readiness_verdict(pf: WorkspacePreflight, *, serve_web: bool) -> str
             "[ACTION NEEDED] Web UI bundle missing — run: cd frontend && npm ci && npm run build "
             "(or pass --no-web) / 前端未构建，请先构建或加 --no-web"
         )
+    vision_ready, _ = _resolve_preflight_vision(pf)
     gaps: list[str] = []
     if not pf.ollama_reachable or not pf.ollama_models:
         gaps.append("Ollama model")
+    elif not vision_ready:
+        gaps.append("Ollama vision model")
     if not pf.yt_dlp_available:
         gaps.append("yt-dlp")
     if not pf.ffmpeg_available:
         gaps.append("ffmpeg")
     if gaps:
+        if pf.ollama_reachable and pf.ollama_models and not vision_ready:
+            return (
+                "[READY WITH WARNINGS] Launchable now (`uv run youtube-intel start`) "
+                "for text AI & browsing; frame extraction (`ffmpeg`) is "
+                f"{'ready' if pf.ffmpeg_available else 'missing'}, while current Ollama models are text-only "
+                f"(setup: {', '.join(gaps)} — pull e.g. `gemma3:4b` or `qwen3.5:9b` for visual interpretation)."
+            )
         return (
             "[READY WITH WARNINGS] Launchable now (`uv run youtube-intel start`) "
             f"for browsing & .md import; optional setup ({', '.join(gaps)}) unlocks "
@@ -327,7 +370,7 @@ def _format_readiness_verdict(pf: WorkspacePreflight, *, serve_web: bool) -> str
         )
     return (
         "[ALL READY] Launch now with `uv run youtube-intel start` — "
-        "local AI, media import & visual keyframes enabled."
+        "local AI, media import & visual keyframes ready."
     )
 
 
@@ -341,6 +384,7 @@ def format_startup_banner(
     """Format a bilingual status banner with actionable fixes for any missing prereqs."""
 
     pf = runtime.preflight
+    vision_ready, vision_models = _resolve_preflight_vision(pf)
     mode_tag = "Preflight Checklist (--check-only)" if check_only else "Workspace Ready"
     ui_url = (
         f"http://127.0.0.1:{port}/"
@@ -380,14 +424,19 @@ def format_startup_banner(
             else "    [WARN] Ollama     : Local Ollama offline (optional for browsing/import; install at https://ollama.com/ then run: ollama pull qwen3.5:9b)"
         ),
         (
+            f"    [OK]   Vision     : Local multimodal interpretation ready ({', '.join(vision_models[:3])})"
+            if vision_ready
+            else "    [WARN] Vision     : No vision-capable Ollama model detected (text-only models cannot interpret keyframe images; run: ollama pull gemma3:4b or qwen3.5:9b)"
+        ),
+        (
             "    [OK]   yt-dlp     : Installed (YouTube & Bilibili captions ready)"
             if pf.yt_dlp_available
             else "    [WARN] yt-dlp     : Missing from Python env; reinstall deps via: uv sync"
         ),
         (
-            "    [OK]   ffmpeg     : Installed (audio/video import, transcription & visual keyframes ready)"
+            "    [OK]   ffmpeg     : Installed (audio/video import, transcription & frame extraction ready)"
             if pf.ffmpeg_available
-            else "    [WARN] ffmpeg     : Optional media tool missing (needed for .mp4/.m4a import & visual keyframes); install via `brew install ffmpeg` or `apt install ffmpeg`"
+            else "    [WARN] ffmpeg     : Optional media tool missing (needed for .mp4/.m4a import & frame extraction); install via `brew install ffmpeg` or `apt install ffmpeg`"
         ),
         f"  Readiness / 就绪结论 : {_format_readiness_verdict(pf, serve_web=serve_web)}",
         "  15-Min Verification / 15分钟体验指南:",

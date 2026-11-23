@@ -21,7 +21,7 @@ from functools import partial
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path, PurePosixPath
-from typing import BinaryIO, Callable, Final, cast
+from typing import Any, BinaryIO, Callable, Final, cast
 from urllib.parse import parse_qs, unquote, urlparse
 
 from pydantic import ValidationError
@@ -229,6 +229,46 @@ class ApiError(Exception):
         super().__init__(message)
 
 
+MAX_WORKSPACE_AI_BACKUP_BYTES = 64 * 1024 * 1024
+
+
+def _escape_sql_like(text: str) -> str:
+    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _parse_videos_query(path: str) -> tuple[int, int, str]:
+    query = parse_qs(urlparse(path).query, keep_blank_values=True, max_num_fields=4)
+    if set(query) - {"limit", "offset", "q"} or any(len(v) != 1 for v in query.values()):
+        raise ApiError(
+            HTTPStatus.BAD_REQUEST,
+            "INVALID_QUERY",
+            "Unsupported or out-of-range videos pagination query.",
+        )
+    try:
+        limit = int(query["limit"][0]) if "limit" in query else 200
+        offset = int(query["offset"][0]) if "offset" in query else 0
+    except ValueError:
+        raise ApiError(
+            HTTPStatus.BAD_REQUEST,
+            "INVALID_QUERY",
+            "Unsupported or out-of-range videos pagination query.",
+        ) from None
+    if limit < 1 or limit > 500 or offset < 0 or offset > 100_000:
+        raise ApiError(
+            HTTPStatus.BAD_REQUEST,
+            "INVALID_QUERY",
+            "Unsupported or out-of-range videos pagination query.",
+        )
+    raw_q = query["q"][0].strip() if "q" in query else ""
+    if len(raw_q) > 200:
+        raise ApiError(
+            HTTPStatus.BAD_REQUEST,
+            "INVALID_QUERY",
+            "Search query exceeds maximum length.",
+        )
+    return limit, offset, raw_q
+
+
 def _parse_videos_page_query(path: str) -> tuple[int, int]:
     query = parse_qs(urlparse(path).query, keep_blank_values=True, max_num_fields=4)
     if set(query) - {"limit", "offset"} or any(len(v) != 1 for v in query.values()):
@@ -253,6 +293,27 @@ def _parse_videos_page_query(path: str) -> tuple[int, int]:
             "Unsupported or out-of-range videos pagination query.",
         )
     return limit, offset
+
+
+def _parse_video_evidence_query(path: str) -> str | None:
+    raw_query = urlparse(path).query
+    if not raw_query:
+        return None
+    query = parse_qs(raw_query, keep_blank_values=True, max_num_fields=2)
+    if set(query) != {"evidence_id"} or len(query["evidence_id"]) != 1:
+        raise ApiError(
+            HTTPStatus.BAD_REQUEST,
+            "INVALID_QUERY",
+            "Unsupported video evidence query.",
+        )
+    evidence_id = query["evidence_id"][0].strip()
+    if not evidence_id or len(evidence_id) > 256:
+        raise ApiError(
+            HTTPStatus.BAD_REQUEST,
+            "INVALID_QUERY",
+            "Unsupported or empty evidence_id query parameter.",
+        )
+    return evidence_id
 
 
 #: Error-detail keys safe to expose over the local HTTP boundary.
@@ -761,7 +822,11 @@ class LocalApiApplication:
 
     @staticmethod
     def _body(body: bytes) -> dict[str, object]:
-        if len(body) > 32_768:
+        return LocalApiApplication._body_with_limit(body, max_bytes=32_768)
+
+    @staticmethod
+    def _body_with_limit(body: bytes, *, max_bytes: int) -> dict[str, object]:
+        if len(body) > max_bytes:
             raise ApiError(
                 HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
                 "PAYLOAD_TOO_LARGE",
@@ -1101,6 +1166,14 @@ class LocalApiApplication:
                 return HTTPStatus.OK, self._saved_list(path)
             if method == "GET" and route == "/api/v1/videos" and urlparse(path).query:
                 return HTTPStatus.OK, self._videos_page(path)
+            if method == "GET" and route.startswith("/api/v1/videos/") and route.endswith("/evidence") and urlparse(path).query:
+                video_id = route.removeprefix("/api/v1/videos/").removesuffix("/evidence")
+                if not video_id or "/" in video_id:
+                    raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+                target_evidence_id = _parse_video_evidence_query(path)
+                return HTTPStatus.OK, self._content_evidence_projection(
+                    video_id, target_evidence_id=target_evidence_id
+                )
             if route in {"/api/v1/settings/bigmodel-credential", "/api/v1/settings/bigmodel-credential/delete"}:
                 if urlparse(path).query:
                     raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY, "VALIDATION_ERROR", "Request contains unsupported fields.")
@@ -2535,19 +2608,69 @@ class LocalApiApplication:
         }
 
     def _videos_page(self, path: str) -> dict[str, object]:
-        limit, offset = _parse_videos_page_query(path)
-        total_count = self._repository.count_videos()
-        videos = self._repository.list_videos(limit=limit, offset=offset)
+        limit, offset, search_q = _parse_videos_query(path)
+        if not search_q:
+            total_count = self._repository.count_videos()
+            videos = self._repository.list_videos(limit=limit, offset=offset)
+            projected = [self._video_dto_with_deep_analysis(video) for video in videos]
+            items = projected + (self._pending_content_work() if offset == 0 else [])
+            return {
+                "videos": items,
+                "pagination": {
+                    "limit": limit,
+                    "offset": offset,
+                    "total_count": total_count,
+                    "returned_count": len(projected),
+                    "has_more": (offset + len(projected)) < total_count,
+                },
+            }
+        lower_q = search_q.lower()
+        like_pat = f"%{_escape_sql_like(lower_q)}%"
+        where_sql = (
+            "LOWER(video_id) LIKE ? ESCAPE '\\' "
+            "OR LOWER(COALESCE(title, '')) LIKE ? ESCAPE '\\' "
+            "OR LOWER(COALESCE(channel_name, '')) LIKE ? ESCAPE '\\' "
+            "OR LOWER(COALESCE(source_url, '')) LIKE ? ESCAPE '\\'"
+        )
+        where_params: list[object] = [like_pat, like_pat, like_pat, like_pat]
+        with self._repository._connect(read_only=True) as conn:
+            total_count = int(
+                conn.execute(
+                    f"SELECT COUNT(*) FROM videos WHERE {where_sql}",  # noqa: S608
+                    where_params,
+                ).fetchone()[0]
+            )
+            videos = tuple(
+                self._repository._video_from_row(row)
+                for row in conn.execute(
+                    f"SELECT * FROM videos WHERE {where_sql} "  # noqa: S608
+                    "ORDER BY updated_at DESC, video_id LIMIT ? OFFSET ?",
+                    [*where_params, limit, offset],
+                )
+            )
         projected = [self._video_dto_with_deep_analysis(video) for video in videos]
-        items = projected + (self._pending_content_work() if offset == 0 else [])
+        pending_items = (
+            [
+                item
+                for item in self._pending_content_work()
+                if lower_q
+                in " ".join(
+                    str(item.get(k) or "")
+                    for k in ("video_id", "title", "channel_name", "source_url")
+                ).lower()
+            ]
+            if offset == 0
+            else []
+        )
         return {
-            "videos": items,
+            "videos": projected + pending_items,
             "pagination": {
                 "limit": limit,
                 "offset": offset,
                 "total_count": total_count,
                 "returned_count": len(projected),
                 "has_more": (offset + len(projected)) < total_count,
+                "q": search_q,
             },
         }
 
@@ -3064,12 +3187,76 @@ class LocalApiApplication:
             return parts[4], parts[6]
         return None
 
-    def _content_evidence_projection(self, video_id: str) -> dict[str, object]:
+    def _build_evidence_card_dict(
+        self,
+        *,
+        video: Any,
+        evidence: Any,
+        verified: Any,
+        target_language: str,
+        targeted_extension: bool = False,
+    ) -> dict[str, object]:
+        translated_excerpt: str | None = None
+        translated_language: str | None = None
+        translation_status = (
+            "NOT_REQUIRED"
+            if source_matches_target(evidence.language, target_language)
+            else "UNAVAILABLE"
+        )
+        if (
+            translation_status != "NOT_REQUIRED"
+            and self._evidence_translation_service is not None
+        ):
+            try:
+                presentation = self._evidence_translation_service.read(
+                    evidence_id=evidence.evidence_id,
+                    target_language=target_language,
+                )
+            except (IntegrityConflict, ValueError):
+                presentation = None
+            if presentation is not None:
+                translated_excerpt = presentation.translated_excerpt
+                translated_language = presentation.target_language
+                translation_status = "AVAILABLE"
+        card: dict[str, object] = {
+            "evidence_id": evidence.evidence_id,
+            "artifact_id": evidence.artifact_id,
+            "lineage_kind": evidence.lineage_kind.value,
+            "role": evidence.role.value,
+            "source_language": evidence.language,
+            "language": evidence.language,
+            "original_excerpt": verified.excerpt,
+            "translated_excerpt": translated_excerpt,
+            "translated_language": translated_language,
+            "translation_target_language": target_language,
+            "translation_status": translation_status,
+            "start_ms": verified.start_ms,
+            "end_ms": verified.end_ms,
+            "locator_type": verified.locator_type,
+            "start_offset": verified.start_offset,
+            "end_offset": verified.end_offset,
+            "start_line": verified.start_line,
+            "end_line": verified.end_line,
+            "provider": video.provider,
+            "created_at": _timestamp(evidence.created_at),
+            "source_url": video.source_url,
+        }
+        if targeted_extension:
+            card["targeted_extension"] = True
+        return card
+
+    def _content_evidence_projection(
+        self,
+        video_id: str,
+        *,
+        target_evidence_id: str | None = None,
+    ) -> dict[str, object]:
         video = self._repository.get_video(video_id)
         if video is None:
             raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Video was not found.")
         target_language = self._output_language_service.effective().value
         evidence_cards: list[dict[str, object]] = []
+        seen_ids: set[str] = set()
         local_pairs = self._repository.get_verified_local_media_evidence(video_id) if video.provider in {"LOCAL", "BILIBILI"} else None
         local_verified = {} if local_pairs is None else {e.evidence_id: (e, verified) for e, verified in local_pairs}
         evidence_ids = self._repository.list_evidence_for_presentation(video_id) if local_pairs is None else tuple(local_verified)
@@ -3087,52 +3274,52 @@ class LocalApiApplication:
                 or verified.evidence_id != evidence_id
             ):
                 continue
-            translated_excerpt: str | None = None
-            translated_language: str | None = None
-            translation_status = "NOT_REQUIRED" if source_matches_target(
-                evidence.language, target_language
-            ) else "UNAVAILABLE"
-            if (
-                translation_status != "NOT_REQUIRED"
-                and self._evidence_translation_service is not None
-            ):
-                try:
-                    presentation = self._evidence_translation_service.read(
-                        evidence_id=evidence_id,
-                        target_language=target_language,
-                    )
-                except (IntegrityConflict, ValueError):
-                    presentation = None
-                if presentation is not None:
-                    translated_excerpt = presentation.translated_excerpt
-                    translated_language = presentation.target_language
-                    translation_status = "AVAILABLE"
+            seen_ids.add(evidence.evidence_id)
             evidence_cards.append(
-                {
-                    "evidence_id": evidence.evidence_id,
-                    "artifact_id": evidence.artifact_id,
-                    "lineage_kind": evidence.lineage_kind.value,
-                    "role": evidence.role.value,
-                    "source_language": evidence.language,
-                    "language": evidence.language,
-                    "original_excerpt": verified.excerpt,
-                    "translated_excerpt": translated_excerpt,
-                    "translated_language": translated_language,
-                    "translation_target_language": target_language,
-                    "translation_status": translation_status,
-                    "start_ms": verified.start_ms,
-                    "end_ms": verified.end_ms,
-                    "locator_type": verified.locator_type,
-                    "start_offset": verified.start_offset,
-                    "end_offset": verified.end_offset,
-                    "start_line": verified.start_line,
-                    "end_line": verified.end_line,
-                    "provider": video.provider,
-                    "created_at": _timestamp(evidence.created_at),
-                    "source_url": video.source_url,
-                }
+                self._build_evidence_card_dict(
+                    video=video,
+                    evidence=evidence,
+                    verified=verified,
+                    target_language=target_language,
+                )
             )
-        return {"evidence": evidence_cards}
+        if target_evidence_id is None:
+            return {"evidence": evidence_cards}
+        if target_evidence_id in seen_ids:
+            return {
+                "evidence": evidence_cards,
+                "target_evidence_status": "FOUND",
+                "target_evidence_id": target_evidence_id,
+            }
+        target_ev = self._repository.get_evidence(target_evidence_id)
+        target_verified = self._repository.resolve_verified_evidence_text(target_evidence_id)
+        if (
+            target_ev is not None
+            and target_verified is not None
+            and target_ev.video_id == video_id
+            and target_verified.video_id == video_id
+            and target_verified.evidence_id == target_evidence_id
+        ):
+            evidence_cards.append(
+                self._build_evidence_card_dict(
+                    video=video,
+                    evidence=target_ev,
+                    verified=target_verified,
+                    target_language=target_language,
+                    targeted_extension=True,
+                )
+            )
+            return {
+                "evidence": evidence_cards,
+                "target_evidence_status": "FOUND",
+                "target_evidence_id": target_evidence_id,
+            }
+        return {
+            "evidence": evidence_cards,
+            "target_evidence_status": "MISSING_OR_STALE",
+            "target_evidence_id": target_evidence_id,
+            "target_evidence_reason": "该引用对应的原文片段已不存在或源文件已变更，无法精确定位该条出处。",
+        }
 
     def _translate_content_evidence(
         self, *, video_id: str, evidence_id: str
@@ -4024,9 +4211,21 @@ def serve_loopback(
                     self._send(HTTPStatus.BAD_REQUEST, {"error": {"code": "INVALID_LENGTH", "message": "Request size is invalid."}})
                     return
                 length = int(raw_length)
-                is_stage = self.command == "POST" and urlparse(self.path).path.rstrip("/") == "/api/v1/backup-restore/restore/stage"
-                is_local_import = self.command == "POST" and urlparse(self.path).path.rstrip("/") == "/api/v1/local/imports"
-                maximum = 4096 if is_native else MAX_ARCHIVE_BYTES if is_stage else MAX_MEDIA_BYTES if is_local_import else 2 * 1024 * 1024
+                req_route = urlparse(self.path).path.rstrip("/")
+                is_stage = self.command == "POST" and req_route == "/api/v1/backup-restore/restore/stage"
+                is_local_import = self.command == "POST" and req_route == "/api/v1/local/imports"
+                is_ws_ai_restore = self.command == "POST" and req_route == "/api/v1/workspace-ai/restore"
+                maximum = (
+                    4096
+                    if is_native
+                    else MAX_ARCHIVE_BYTES
+                    if is_stage
+                    else MAX_WORKSPACE_AI_BACKUP_BYTES
+                    if is_ws_ai_restore
+                    else MAX_MEDIA_BYTES
+                    if is_local_import
+                    else 2 * 1024 * 1024
+                )
                 if is_local_import:
                     names=parse_qs(urlparse(self.path).query).get('filename',[])
                     if len(names)==1 and Path(safe_filename(names[0])).suffix.lower() in {'.txt','.md'}:

@@ -15,6 +15,7 @@ import os
 import re
 import signal
 import sqlite3
+import stat
 import sys
 import threading
 import time
@@ -24,7 +25,7 @@ from http import HTTPStatus
 from pathlib import Path, PurePosixPath
 from types import FrameType
 from typing import TYPE_CHECKING, Any, BinaryIO, cast
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
 if TYPE_CHECKING:
     from youtube_intel.config import AppConfig
@@ -59,10 +60,13 @@ from youtube_intel.intelligence_read import (
     VerifiedIntelligenceRead,
 )
 from youtube_intel.local_api import (
+    MAX_WORKSPACE_AI_BACKUP_BYTES,
     ApiError,
     LocalApiApplication,
+    _escape_sql_like,
     _filter_decision_dto,
-    _parse_videos_page_query,
+    _parse_video_evidence_query,
+    _parse_videos_query,
     _saved_item_dto,
     _saved_relation_dto,
     _source_dto,
@@ -218,19 +222,47 @@ def _sqlite_state_token(db_path: object) -> tuple[object, ...] | None:
 
 
 def _data_root_token(data_root: Path | None) -> tuple[object, ...]:
-    if data_root is None or not data_root.is_dir():
-        return ()
+    if data_root is None or data_root.is_symlink() or not data_root.is_dir():
+        return ("__SYMLINK_ROOT__",) if (data_root is not None and data_root.is_symlink()) else ()
     entries: list[tuple[object, ...]] = []
     root_str = str(data_root)
-    for dirpath, dirnames, filenames in os.walk(root_str):
-        dirnames.sort()
-        filenames.sort()
-        for fname in filenames:
-            fpath = os.path.join(dirpath, fname)
-            rel_path = fpath[len(root_str) :]
+    dir_flags = (
+        os.O_RDONLY
+        | getattr(os, "O_DIRECTORY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
+    file_flags = (
+        os.O_RDONLY
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_NONBLOCK", 0)
+    )
+
+    def _walk_fd(cur_fd: int, prefix: str) -> None:
+        names = sorted(os.listdir(cur_fd))
+        for fname in names:
+            rel_path = f"{prefix}/{fname}"
             try:
-                st = os.stat(fpath, follow_symlinks=False)
-                if st.st_size <= _INLINE_HASH_MAX_BYTES and os.path.isfile(fpath):
+                st = os.stat(fname, dir_fd=cur_fd, follow_symlinks=False)
+                if stat.S_ISLNK(st.st_mode):
+                    entries.append(
+                        (
+                            rel_path,
+                            "SYMLINK",
+                            st.st_dev,
+                            st.st_ino,
+                            st.st_mtime_ns,
+                        )
+                    )
+                    continue
+                if stat.S_ISDIR(st.st_mode):
+                    child_fd = os.open(fname, dir_flags, dir_fd=cur_fd)
+                    try:
+                        _walk_fd(child_fd, rel_path)
+                    finally:
+                        os.close(child_fd)
+                    continue
+                if stat.S_ISREG(st.st_mode) and st.st_size <= _INLINE_HASH_MAX_BYTES:
+                    fpath = f"{root_str}{rel_path}"
                     stat_key = (
                         fpath,
                         st.st_dev,
@@ -242,8 +274,31 @@ def _data_root_token(data_root: Path | None) -> tuple[object, ...]:
                     with _INLINE_DIGEST_MEMO_LOCK:
                         digest = _INLINE_DIGEST_MEMO.get(stat_key)
                     if digest is None:
-                        with open(fpath, "rb") as handle:
-                            digest = hashlib.sha256(handle.read()).digest()
+                        file_fd = os.open(fname, file_flags, dir_fd=cur_fd)
+                        try:
+                            f_st1 = os.fstat(file_fd)
+                            if not stat.S_ISREG(f_st1.st_mode) or f_st1.st_size > _INLINE_HASH_MAX_BYTES:
+                                entries.append((rel_path, None))
+                                continue
+                            chunks: list[bytes] = []
+                            total = 0
+                            while chunk := os.read(file_fd, 65536):
+                                total += len(chunk)
+                                if total > _INLINE_HASH_MAX_BYTES:
+                                    break
+                                chunks.append(chunk)
+                            f_st2 = os.fstat(file_fd)
+                            if (
+                                total > _INLINE_HASH_MAX_BYTES
+                                or (f_st1.st_ino, f_st1.st_size, f_st1.st_mtime_ns)
+                                != (f_st2.st_ino, f_st2.st_size, f_st2.st_mtime_ns)
+                                or total != f_st1.st_size
+                            ):
+                                entries.append((rel_path, None))
+                                continue
+                            digest = hashlib.sha256(b"".join(chunks)).digest()
+                        finally:
+                            os.close(file_fd)
                         with _INLINE_DIGEST_MEMO_LOCK:
                             if len(_INLINE_DIGEST_MEMO) > 4096:
                                 _INLINE_DIGEST_MEMO.clear()
@@ -270,6 +325,15 @@ def _data_root_token(data_root: Path | None) -> tuple[object, ...]:
                     )
             except OSError:
                 entries.append((rel_path, None))
+
+    try:
+        root_fd = os.open(data_root, dir_flags)
+    except OSError:
+        return (("__UNOPENABLE__",),)
+    try:
+        _walk_fd(root_fd, "")
+    finally:
+        os.close(root_fd)
     return tuple(entries)
 
 
@@ -1783,6 +1847,7 @@ class FastReadApiApplication:
         self._cache_lock = threading.Lock()
         self._mutation_epoch = 0
         self._route_cache: dict[str, tuple[tuple[object, ...], str]] = {}
+        self._last_read_timings: dict[str, dict[str, object]] = {}
         self._local_av_ids: tuple[str, ...] = ()
         self._verified_source_memo: dict[tuple[object, ...], dict[str, Any] | None] = {}
         self._note_projection_memo: dict[tuple[object, ...], str] = {}
@@ -2061,6 +2126,17 @@ class FastReadApiApplication:
                 raise
         return compute()
 
+    def get_last_read_timings(self, route: str) -> dict[str, object] | None:
+        with self._cache_lock:
+            entry = self._last_read_timings.get(route)
+            return None if entry is None else dict(entry)
+
+    def _record_read_timing(self, route: str, metrics: dict[str, object]) -> None:
+        with self._cache_lock:
+            if len(self._last_read_timings) > 96:
+                self._last_read_timings.clear()
+            self._last_read_timings[route] = metrics
+
     def _cached_or_compute(
         self,
         route: str,
@@ -2068,12 +2144,28 @@ class FastReadApiApplication:
         *,
         include_da_route: bool = True,
     ) -> dict[str, object]:
+        t_total_start = time.perf_counter()
+        t_fp1_start = time.perf_counter()
         fp_before = self._cache_fingerprint(include_da_route=include_da_route)
+        fp_before_ms = round((time.perf_counter() - t_fp1_start) * 1000.0, 3)
         if fp_before is not None:
             with self._cache_lock:
                 cached = self._route_cache.get(route)
             if cached is not None and cached[0] == fp_before:
-                return cast(dict[str, object], json.loads(cached[1]))
+                decoded = cast(dict[str, object], json.loads(cached[1]))
+                self._record_read_timing(
+                    route,
+                    {
+                        "cache_hit": True,
+                        "published_to_cache": False,
+                        "fingerprint_before_ms": fp_before_ms,
+                        "compute_ms": 0.0,
+                        "fingerprint_after_ms": 0.0,
+                        "serialize_ms": 0.0,
+                        "total_ms": round((time.perf_counter() - t_total_start) * 1000.0, 3),
+                    },
+                )
+                return decoded
         active_token = (
             (fp_before[1], fp_before[3])
             if fp_before is not None and self._inner._data_root is not None
@@ -2081,17 +2173,38 @@ class FastReadApiApplication:
         )
         prev_token = getattr(self._active_tokens, "note_memo_token", None)
         self._active_tokens.note_memo_token = active_token
+        t_comp_start = time.perf_counter()
         try:
             payload = cast(dict[str, object], self._run_with_sqlite_retry(compute))
         finally:
             self._active_tokens.note_memo_token = prev_token
+        compute_ms = round((time.perf_counter() - t_comp_start) * 1000.0, 3)
+        t_fp2_start = time.perf_counter()
         fp_after = self._cache_fingerprint(include_da_route=include_da_route)
-        if fp_after is not None:
+        fp_after_ms = round((time.perf_counter() - t_fp2_start) * 1000.0, 3)
+        serialize_ms = 0.0
+        published = False
+        if fp_before is not None and fp_after is not None and fp_after == fp_before:
+            t_ser_start = time.perf_counter()
             serialized = json.dumps(payload, ensure_ascii=False)
+            serialize_ms = round((time.perf_counter() - t_ser_start) * 1000.0, 3)
             with self._cache_lock:
                 if len(self._route_cache) > 96:
                     self._route_cache.clear()
                 self._route_cache[route] = (fp_after, serialized)
+            published = True
+        self._record_read_timing(
+            route,
+            {
+                "cache_hit": False,
+                "published_to_cache": published,
+                "fingerprint_before_ms": fp_before_ms,
+                "compute_ms": compute_ms,
+                "fingerprint_after_ms": fp_after_ms,
+                "serialize_ms": serialize_ms,
+                "total_ms": round((time.perf_counter() - t_total_start) * 1000.0, 3),
+            },
+        )
         return payload
 
     def _handle_workspace_ai(
@@ -2151,7 +2264,9 @@ class FastReadApiApplication:
                     scope=req_scope
                 )
             if route == "/api/v1/workspace-ai/restore" and method == "POST":
-                data = self._inner._body(body)
+                data = self._inner._body_with_limit(
+                    body, max_bytes=MAX_WORKSPACE_AI_BACKUP_BYTES
+                )
                 return HTTPStatus.OK, self._workspace_hub.restore_backup_snapshot(data)
             if route == "/api/v1/workspace-ai/curation/batch" and method == "POST":
                 data = self._inner._body(body)
@@ -2291,13 +2406,17 @@ class FastReadApiApplication:
                 try:
                     if route == "/api/v1/videos":
                         if parsed_url.query:
-                            page_limit, page_offset = _parse_videos_page_query(path)
-                            cache_key = f"{route}?limit={page_limit}&offset={page_offset}"
+                            page_limit, page_offset, search_q = _parse_videos_query(path)
+                            cache_key = (
+                                f"{route}?limit={page_limit}&offset={page_offset}"
+                                f"&q={quote(search_q, safe='')}"
+                            )
                             return HTTPStatus.OK, self._cached_or_compute(
                                 cache_key,
                                 lambda: self._fast_get_videos(
                                     limit=page_limit,
                                     offset=page_offset,
+                                    search_query=search_q,
                                     include_pagination=True,
                                 ),
                                 include_da_route=True,
@@ -2341,9 +2460,19 @@ class FastReadApiApplication:
                         )
                     if evidence_match is not None:
                         vid = evidence_match[1]
+                        target_eid = (
+                            _parse_video_evidence_query(path) if parsed_url.query else None
+                        )
+                        ev_cache_key = (
+                            f"{route}?evidence_id={target_eid}"
+                            if target_eid is not None
+                            else route
+                        )
                         return HTTPStatus.OK, self._cached_or_compute(
-                            route,
-                            lambda: self._fast_get_video_evidence(vid),
+                            ev_cache_key,
+                            lambda: self._fast_get_video_evidence(
+                                vid, target_evidence_id=target_eid
+                            ),
                             include_da_route=False,
                         )
                     if source_detail_match is not None:
@@ -2900,30 +3029,68 @@ class FastReadApiApplication:
         *,
         limit: int = 200,
         offset: int = 0,
+        search_query: str = "",
         include_pagination: bool = False,
     ) -> dict[str, object]:
         repo = self._inner._repository
+        clean_q = search_query.strip()
+        brief_match_ids = (
+            sorted(self._workspace_hub.search_brief_video_ids(clean_q))
+            if clean_q
+            else []
+        )
         conn = repo._connect(read_only=True)
         try:
             conn.execute("BEGIN")
             try:
-                videos = [
-                    repo._video_from_row(row)
-                    for row in conn.execute(
-                        "SELECT * FROM videos ORDER BY updated_at DESC, video_id LIMIT ? OFFSET ?",
-                        (limit, offset),
-                    )
-                ]
-                total_count = 0
-                if include_pagination:
-                    count_fn = getattr(repo, "count_videos_in_connection", None)
-                    total_count = (
-                        int(count_fn(conn))
-                        if callable(count_fn)
-                        else int(
-                            conn.execute("SELECT COUNT(*) FROM videos").fetchone()[0]
+                if not clean_q:
+                    videos = [
+                        repo._video_from_row(row)
+                        for row in conn.execute(
+                            "SELECT * FROM videos ORDER BY updated_at DESC, video_id LIMIT ? OFFSET ?",
+                            (limit, offset),
                         )
+                    ]
+                    total_count = 0
+                    if include_pagination:
+                        count_fn = getattr(repo, "count_videos_in_connection", None)
+                        total_count = (
+                            int(count_fn(conn))
+                            if callable(count_fn)
+                            else int(
+                                conn.execute("SELECT COUNT(*) FROM videos").fetchone()[0]
+                            )
+                        )
+                else:
+                    lower_q = clean_q.lower()
+                    like_pat = f"%{_escape_sql_like(lower_q)}%"
+                    clauses = [
+                        "LOWER(video_id) LIKE ? ESCAPE '\\'",
+                        "LOWER(COALESCE(title, '')) LIKE ? ESCAPE '\\'",
+                        "LOWER(COALESCE(channel_name, '')) LIKE ? ESCAPE '\\'",
+                        "LOWER(COALESCE(source_url, '')) LIKE ? ESCAPE '\\'",
+                    ]
+                    params: list[object] = [like_pat, like_pat, like_pat, like_pat]
+                    for i in range(0, len(brief_match_ids), 400):
+                        chunk = brief_match_ids[i : i + 400]
+                        placeholders = ", ".join("?" for _ in chunk)
+                        clauses.append(f"video_id IN ({placeholders})")
+                        params.extend(chunk)
+                    where_sql = " OR ".join(clauses)
+                    total_count = int(
+                        conn.execute(
+                            f"SELECT COUNT(*) FROM videos WHERE {where_sql}",  # noqa: S608
+                            params,
+                        ).fetchone()[0]
                     )
+                    videos = [
+                        repo._video_from_row(row)
+                        for row in conn.execute(
+                            f"SELECT * FROM videos WHERE {where_sql} "  # noqa: S608
+                            "ORDER BY updated_at DESC, video_id LIMIT ? OFFSET ?",
+                            [*params, limit, offset],
+                        )
+                    ]
                 videos_by_id = {video.video_id: video for video in videos}
                 ctx = _RequestSnapshotContext(
                     self._inner,
@@ -2953,7 +3120,7 @@ class FastReadApiApplication:
                     )
                     for video in videos
                 ]
-                if not include_pagination:
+                if not include_pagination and not clean_q:
                     next_local_av_ids = tuple(
                         str(item["video_id"])
                         for item in projected
@@ -2962,7 +3129,10 @@ class FastReadApiApplication:
                     )
                     with self._cache_lock:
                         self._local_av_ids = next_local_av_ids
-                briefs_map = self._workspace_hub.get_video_briefs_map()
+                briefs_map = self._workspace_hub.get_video_briefs_map_for_ids(
+                    [str(item["video_id"]) for item in projected],
+                    include_markdown=False,
+                )
                 if briefs_map:
                     projected = [
                         self._workspace_hub.enrich_video_list_item(item, brief)
@@ -2970,17 +3140,32 @@ class FastReadApiApplication:
                         else item
                         for item in projected
                     ]
-                items = projected + (ctx.pending_content_work() if offset == 0 else [])
+                pending_work = ctx.pending_content_work() if offset == 0 else []
+                if clean_q and pending_work:
+                    lower_q = clean_q.lower()
+                    pending_work = [
+                        item
+                        for item in pending_work
+                        if lower_q
+                        in " ".join(
+                            str(item.get(k) or "")
+                            for k in ("video_id", "title", "channel_name", "source_url")
+                        ).lower()
+                    ]
+                items = projected + pending_work
                 if include_pagination:
+                    pagination: dict[str, object] = {
+                        "limit": limit,
+                        "offset": offset,
+                        "total_count": total_count,
+                        "returned_count": len(projected),
+                        "has_more": (offset + len(projected)) < total_count,
+                    }
+                    if clean_q:
+                        pagination["q"] = clean_q
                     return {
                         "videos": items,
-                        "pagination": {
-                            "limit": limit,
-                            "offset": offset,
-                            "total_count": total_count,
-                            "returned_count": len(projected),
-                            "has_more": (offset + len(projected)) < total_count,
-                        },
+                        "pagination": pagination,
                     }
                 return {"videos": items}
             finally:
@@ -3431,7 +3616,9 @@ class FastReadApiApplication:
         finally:
             conn.close()
 
-    def _fast_get_video_evidence(self, video_id: str) -> dict[str, object]:
+    def _fast_get_video_evidence(
+        self, video_id: str, *, target_evidence_id: str | None = None
+    ) -> dict[str, object]:
         """Single-snapshot fail-closed Evidence projection matching ``LocalApiApplication``."""
 
         repo = self._inner._repository
@@ -3452,7 +3639,64 @@ class FastReadApiApplication:
                     )
                 target_language = ctx.target_output_language()
                 trans_service = ctx.translation_service()
+
+                def _to_card(
+                    evidence: EvidenceRecord,
+                    verified: VerifiedEvidenceText,
+                    *,
+                    targeted_extension: bool = False,
+                ) -> dict[str, object]:
+                    translated_excerpt: str | None = None
+                    translated_language: str | None = None
+                    translation_status = (
+                        "NOT_REQUIRED"
+                        if source_matches_target(evidence.language, target_language)
+                        else "UNAVAILABLE"
+                    )
+                    if (
+                        translation_status != "NOT_REQUIRED"
+                        and trans_service is not None
+                    ):
+                        try:
+                            presentation = trans_service.read(
+                                evidence_id=evidence.evidence_id,
+                                target_language=target_language,
+                            )
+                        except (IntegrityConflict, ValueError):
+                            presentation = None
+                        if presentation is not None:
+                            translated_excerpt = presentation.translated_excerpt
+                            translated_language = presentation.target_language
+                            translation_status = "AVAILABLE"
+                    card: dict[str, object] = {
+                        "evidence_id": evidence.evidence_id,
+                        "artifact_id": evidence.artifact_id,
+                        "lineage_kind": evidence.lineage_kind.value,
+                        "role": evidence.role.value,
+                        "source_language": evidence.language,
+                        "language": evidence.language,
+                        "original_excerpt": verified.excerpt,
+                        "translated_excerpt": translated_excerpt,
+                        "translated_language": translated_language,
+                        "translation_target_language": target_language,
+                        "translation_status": translation_status,
+                        "start_ms": verified.start_ms,
+                        "end_ms": verified.end_ms,
+                        "locator_type": verified.locator_type,
+                        "start_offset": verified.start_offset,
+                        "end_offset": verified.end_offset,
+                        "start_line": verified.start_line,
+                        "end_line": verified.end_line,
+                        "provider": video.provider,
+                        "created_at": _timestamp(evidence.created_at),
+                        "source_url": video.source_url,
+                    }
+                    if targeted_extension:
+                        card["targeted_extension"] = True
+                    return card
+
                 evidence_cards: list[dict[str, object]] = []
+                seen_ids: set[str] = set()
                 local_pairs = (
                     ctx.snap_repo.get_verified_local_media_evidence(video_id)
                     if video.provider in {"LOCAL", "BILIBILI"}
@@ -3484,54 +3728,42 @@ class FastReadApiApplication:
                         or verified.evidence_id != evidence_id
                     ):
                         continue
-                    translated_excerpt: str | None = None
-                    translated_language: str | None = None
-                    translation_status = (
-                        "NOT_REQUIRED"
-                        if source_matches_target(evidence.language, target_language)
-                        else "UNAVAILABLE"
-                    )
-                    if (
-                        translation_status != "NOT_REQUIRED"
-                        and trans_service is not None
-                    ):
-                        try:
-                            presentation = trans_service.read(
-                                evidence_id=evidence_id,
-                                target_language=target_language,
-                            )
-                        except (IntegrityConflict, ValueError):
-                            presentation = None
-                        if presentation is not None:
-                            translated_excerpt = presentation.translated_excerpt
-                            translated_language = presentation.target_language
-                            translation_status = "AVAILABLE"
+                    seen_ids.add(evidence.evidence_id)
+                    evidence_cards.append(_to_card(evidence, verified))
+
+                if target_evidence_id is None:
+                    return {"evidence": evidence_cards}
+                if target_evidence_id in seen_ids:
+                    return {
+                        "evidence": evidence_cards,
+                        "target_evidence_status": "FOUND",
+                        "target_evidence_id": target_evidence_id,
+                    }
+                target_ev = ctx.snap_repo.get_evidence(target_evidence_id)
+                target_verified = ctx.snap_repo.resolve_verified_evidence_text(
+                    target_evidence_id
+                )
+                if (
+                    target_ev is not None
+                    and target_verified is not None
+                    and target_ev.video_id == video_id
+                    and target_verified.video_id == video_id
+                    and target_verified.evidence_id == target_evidence_id
+                ):
                     evidence_cards.append(
-                        {
-                            "evidence_id": evidence.evidence_id,
-                            "artifact_id": evidence.artifact_id,
-                            "lineage_kind": evidence.lineage_kind.value,
-                            "role": evidence.role.value,
-                            "source_language": evidence.language,
-                            "language": evidence.language,
-                            "original_excerpt": verified.excerpt,
-                            "translated_excerpt": translated_excerpt,
-                            "translated_language": translated_language,
-                            "translation_target_language": target_language,
-                            "translation_status": translation_status,
-                            "start_ms": verified.start_ms,
-                            "end_ms": verified.end_ms,
-                            "locator_type": verified.locator_type,
-                            "start_offset": verified.start_offset,
-                            "end_offset": verified.end_offset,
-                            "start_line": verified.start_line,
-                            "end_line": verified.end_line,
-                            "provider": video.provider,
-                            "created_at": _timestamp(evidence.created_at),
-                            "source_url": video.source_url,
-                        }
+                        _to_card(target_ev, target_verified, targeted_extension=True)
                     )
-                return {"evidence": evidence_cards}
+                    return {
+                        "evidence": evidence_cards,
+                        "target_evidence_status": "FOUND",
+                        "target_evidence_id": target_evidence_id,
+                    }
+                return {
+                    "evidence": evidence_cards,
+                    "target_evidence_status": "MISSING_OR_STALE",
+                    "target_evidence_id": target_evidence_id,
+                    "target_evidence_reason": "该引用对应的原文片段已不存在或源文件已变更，无法精确定位该条出处。",
+                }
             finally:
                 conn.rollback()
         finally:
