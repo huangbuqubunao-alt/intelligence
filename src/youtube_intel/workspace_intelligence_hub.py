@@ -36,6 +36,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Protocol, cast
 from urllib.parse import parse_qsl, urlencode, urlparse, urlsplit, urlunsplit
 
@@ -3950,16 +3951,62 @@ class WorkspaceIntelligenceHub:
             return raw_name, raw_name
         return provider, provider
 
+    def _load_all_videos(
+        self,
+        *,
+        repo_conn: sqlite3.Connection | None = None,
+        max_videos: int = 10_000,
+    ) -> list[Any]:
+        if repo_conn is not None:
+            list_in_conn = getattr(
+                self._repository, "list_all_videos_in_connection", None
+            )
+            if callable(list_in_conn):
+                return [
+                    v
+                    for v in cast(
+                        Sequence[Any],
+                        list_in_conn(repo_conn, max_videos=max_videos),
+                    )
+                    if v is not None
+                ]
+            collected: list[Any] = []
+            offset = 0
+            batch_size = 500
+            while len(collected) < max_videos:
+                take = min(batch_size, max_videos - len(collected))
+                rows = repo_conn.execute(
+                    "SELECT * FROM videos ORDER BY updated_at DESC, video_id LIMIT ? OFFSET ?",
+                    (take, offset),
+                ).fetchall()
+                if not rows:
+                    break
+                for row in rows:
+                    v = self._repository._video_from_row(row)
+                    if v is not None:
+                        collected.append(v)
+                if len(rows) < take:
+                    break
+                offset += len(rows)
+            return collected
+        list_all = getattr(self._repository, "list_all_videos", None)
+        if callable(list_all):
+            return [
+                v
+                for v in cast(Sequence[Any], list_all(max_videos=max_videos))
+                if v is not None
+            ]
+        return [
+            v
+            for v in self._repository.list_videos(limit=min(500, max_videos))
+            if v is not None
+        ]
+
     def _build_research_scope_options(self) -> dict[str, object]:
         briefs_map = self.get_video_briefs_map()
         conn = self._repository._connect(read_only=True)
         try:
-            videos = [
-                self._repository._video_from_row(row)
-                for row in conn.execute(
-                    "SELECT * FROM videos ORDER BY updated_at DESC, video_id LIMIT 500"
-                )
-            ]
+            videos = self._load_all_videos(repo_conn=conn)
             grounded_timed_ids = {
                 str(row[0])
                 for row in conn.execute(
@@ -4108,7 +4155,7 @@ class WorkspaceIntelligenceHub:
         topic_cluster_filter = _clean_text(payload.get("topic_cluster"), max_len=120)
 
         briefs_map = self.get_video_briefs_map()
-        videos = list(self._repository.list_videos(limit=500))
+        videos = self._load_all_videos()
         if explicit_set is not None:
             seen_listed = {v.video_id for v in videos}
             for req_vid in explicit_ids:
@@ -4804,14 +4851,11 @@ class WorkspaceIntelligenceHub:
         if repo_conn is not None:
             videos_by_id = {
                 v.video_id: v
-                for row in repo_conn.execute(
-                    "SELECT * FROM videos ORDER BY updated_at DESC, video_id LIMIT 300"
-                )
-                if (v := self._repository._video_from_row(row)) is not None
+                for v in self._load_all_videos(repo_conn=repo_conn)
             }
         else:
             videos_by_id = {
-                v.video_id: v for v in self._repository.list_videos(limit=500)
+                v.video_id: v for v in self._load_all_videos()
             }
         grouped: dict[str, list[dict[str, Any]]] = {}
         seen_per_topic: dict[str, set[str]] = {}
@@ -5162,14 +5206,26 @@ class WorkspaceIntelligenceHub:
         )
         linked_by_source: dict[str, list[str]] = {}
         seen_per_source: dict[str, set[str]] = {}
+        videos_by_id: dict[str, Any] = {}
         try:
-            videos_by_id = {
-                v.video_id: v
-                for row in active_conn.execute(
-                    "SELECT * FROM videos ORDER BY updated_at DESC, video_id LIMIT 500"
-                )
-                if (v := self._repository._video_from_row(row)) is not None
-            }
+            try:
+                videos_by_id = {
+                    str(vrow[0]): SimpleNamespace(
+                        video_id=str(vrow[0]),
+                        channel_name=vrow[1],
+                        provider=str(vrow[2] or "YOUTUBE"),
+                        duration_seconds=vrow[3],
+                    )
+                    for vrow in active_conn.execute(
+                        "SELECT video_id, channel_name, provider, duration_seconds "
+                        "FROM videos ORDER BY updated_at DESC, video_id LIMIT 10000"
+                    ).fetchall()
+                }
+            except sqlite3.OperationalError:
+                videos_by_id = {
+                    v.video_id: v
+                    for v in self._load_all_videos(repo_conn=active_conn)
+                }
             for srow in active_conn.execute(
                 "SELECT source_id, video_id FROM source_video_links "
                 "ORDER BY discovered_at DESC, video_id ASC"
@@ -5410,18 +5466,13 @@ class WorkspaceIntelligenceHub:
         repo_conn: sqlite3.Connection | None = None,
     ) -> dict[str, int]:
         if repo_conn is not None:
-            videos = [
-                self._repository._video_from_row(row)
-                for row in repo_conn.execute(
-                    "SELECT * FROM videos ORDER BY updated_at DESC, video_id LIMIT 300"
-                )
-            ]
+            videos = self._load_all_videos(repo_conn=repo_conn)
             topics_list = [
                 self._repository._topic_from_row(row)
                 for row in repo_conn.execute("SELECT * FROM topics")
             ]
         else:
-            videos = list(self._repository.list_videos(limit=500))
+            videos = self._load_all_videos()
             topics_list = list(self._repository.list_topics())
         must_watch = sum(
             1
@@ -5778,7 +5829,7 @@ class WorkspaceIntelligenceHub:
             key=lambda b: (str(b.get("updated_at") or ""), float(b.get("score", 0.0))),
             reverse=True,
         )
-        videos_by_id = {v.video_id: v for v in self._repository.list_videos(limit=500)}
+        videos_by_id = {v.video_id: v for v in self._load_all_videos()}
         new_titles: list[str] = []
         for b in newer_non_shorts[:3]:
             vid = str(b.get("video_id") or "")
@@ -6026,7 +6077,7 @@ class WorkspaceIntelligenceHub:
         window_start_date = window_start.strftime("%Y-%m-%d")
         window_end_date = window_end.strftime("%Y-%m-%d")
 
-        videos_by_id = {v.video_id: v for v in self._repository.list_videos(limit=500)}
+        videos_by_id = {v.video_id: v for v in self._load_all_videos()}
         non_shorts = [b for b in briefs_map.values() if not b["is_short_noise"]]
         in_window_non_shorts: list[dict[str, Any]] = []
         older_non_shorts: list[dict[str, Any]] = []
@@ -6289,6 +6340,67 @@ class WorkspaceIntelligenceHub:
     # Sidecar Backup & Restore (Zero-Secret Portable Snapshot)
     # ------------------------------------------------------------------
 
+    def _create_sqlite_hot_snapshot_unlocked(
+        self,
+        target_path: Path | None = None,
+        *,
+        pages: int = 256,
+    ) -> dict[str, object]:
+        self.ensure_ready()
+        dest = (
+            target_path.resolve()
+            if target_path is not None
+            else (self.db_path.parent / "hub-snapshot.sqlite3")
+        )
+        dest.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        tmp_path = (
+            dest.parent / f".{dest.name}.{os.getpid()}.{threading.get_ident()}.tmp"
+        )
+        t0 = time.perf_counter()
+        try:
+            src = sqlite3.connect(
+                self.db_path.resolve().as_uri() + "?mode=ro",
+                uri=True,
+                timeout=10.0,
+            )
+            dst = sqlite3.connect(tmp_path)
+            try:
+                src.backup(dst, pages=pages, sleep=0.005)
+                dst.commit()
+                integrity = dst.execute("PRAGMA integrity_check").fetchone()
+                if integrity is None or str(integrity[0]).lower() != "ok":
+                    raise RuntimeError("SQLite hot snapshot integrity_check failed.")
+            finally:
+                dst.close()
+                src.close()
+            os.chmod(tmp_path, 0o600)
+            os.replace(tmp_path, dest)
+        except Exception:
+            if tmp_path.exists():
+                tmp_path.unlink(missing_ok=True)
+            raise
+        elapsed_ms = (time.perf_counter() - t0) * 1000.0
+        return {
+            "path": str(dest),
+            "size_bytes": dest.stat().st_size,
+            "elapsed_ms": round(elapsed_ms, 2),
+            "integrity_ok": True,
+            "zero_secret": True,
+        }
+
+    def create_sqlite_hot_snapshot(
+        self,
+        target_path: Path | None = None,
+        *,
+        pages: int = 256,
+    ) -> dict[str, object]:
+        """Create a consistent zero-secret hot backup of hub.sqlite3 via SQLite backup()."""
+        with self._db_lock:
+            return self._create_sqlite_hot_snapshot_unlocked(
+                target_path=target_path,
+                pages=pages,
+            )
+
     def _write_rolling_snapshot_quietly(self, *, min_interval_sec: float = 0.0) -> None:
         try:
             with self._db_lock:
@@ -6308,15 +6420,20 @@ class WorkspaceIntelligenceHub:
                 )
                 try:
                     tmp_path.write_text(
-                        json.dumps(snap, ensure_ascii=False, indent=2) + "\n",
+                        json.dumps(
+                            snap, ensure_ascii=False, separators=(",", ":")
+                        )
+                        + "\n",
                         encoding="utf-8",
                     )
+                    os.chmod(tmp_path, 0o600)
                     os.replace(tmp_path, snap_path)
+                    self._create_sqlite_hot_snapshot_unlocked()
                     self._last_snapshot_mono = now_mono
                 finally:
                     if tmp_path.exists():
                         tmp_path.unlink(missing_ok=True)
-        except (OSError, sqlite3.Error):
+        except (OSError, sqlite3.Error, RuntimeError):
             pass
 
     def export_backup_snapshot(self) -> dict[str, object]:
@@ -6639,7 +6756,7 @@ class WorkspaceIntelligenceHub:
         )
 
         briefs_map = self.get_video_briefs_map()
-        videos_by_id = {v.video_id: v for v in self._repository.list_videos(limit=500)}
+        videos_by_id = {v.video_id: v for v in self._load_all_videos()}
         grouped_topics = self._collect_topic_brief_entries()
 
         ordered_topic_names: list[str] = []

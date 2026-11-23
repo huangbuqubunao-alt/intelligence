@@ -62,6 +62,7 @@ from youtube_intel.local_api import (
     ApiError,
     LocalApiApplication,
     _filter_decision_dto,
+    _parse_videos_page_query,
     _saved_item_dto,
     _saved_relation_dto,
     _source_dto,
@@ -533,6 +534,8 @@ class _RequestSnapshotContext:
         videos_by_id: dict[str, VideoRecord] | None = None,
         verified_source_memo: dict[tuple[object, ...], dict[str, Any] | None] | None = None,
         memo_lock: threading.Lock | None = None,
+        note_projection_memo: dict[tuple[object, ...], str] | None = None,
+        note_memo_token: tuple[object, ...] | None = None,
     ) -> None:
         self.inner = inner
         self.repo = inner._repository
@@ -541,6 +544,8 @@ class _RequestSnapshotContext:
             {} if verified_source_memo is None else verified_source_memo
         )
         self._memo_lock = memo_lock
+        self._note_projection_memo = note_projection_memo
+        self._note_memo_token = note_memo_token
         self.snap_repo = _SnapshotReadRepository(
             self.repo,
             connection,
@@ -657,6 +662,7 @@ class _RequestSnapshotContext:
         local_pointer = self.local_summary_pointer(video_id)
         analysis_reader = self.inner._analysis_reader
         snap_repo_typed = cast(SQLiteStateRepository, self.snap_repo)
+        extractive_memo_key: tuple[object, ...] | None = None
         if local_pointer is not None:
             artifact = self.snap_repo.get_artifact(local_pointer.artifact_id)
             if (
@@ -664,6 +670,27 @@ class _RequestSnapshotContext:
                 and artifact.provider == EXTRACTIVE_PROVIDER
                 and self.inner._data_root is not None
             ):
+                if (
+                    self._note_projection_memo is not None
+                    and self._note_memo_token is not None
+                ):
+                    extractive_memo_key = (
+                        self._note_memo_token,
+                        video_id,
+                        local_pointer.artifact_id,
+                        local_pointer.output_language,
+                    )
+                    if self._memo_lock is not None:
+                        with self._memo_lock:
+                            cached_note = self._note_projection_memo.get(
+                                extractive_memo_key
+                            )
+                    else:
+                        cached_note = self._note_projection_memo.get(
+                            extractive_memo_key
+                        )
+                    if cached_note is not None:
+                        return cast(dict[str, object], json.loads(cached_note))
                 analysis_reader = ExtractiveSummaryService(
                     snap_repo_typed, self.inner._data_root
                 ).read
@@ -738,7 +765,7 @@ class _RequestSnapshotContext:
                             "evidence_ids": list(point.evidence_ids),
                         }
                     )
-            return {
+            projected_note: dict[str, object] = {
                 "v1": {"status": "UNAVAILABLE", "code": "NOTE_REF_NOT_PERSISTED"},
                 "v2": {
                     "status": "AVAILABLE",
@@ -774,6 +801,21 @@ class _RequestSnapshotContext:
                     ],
                 },
             }
+            if (
+                extractive_memo_key is not None
+                and self._note_projection_memo is not None
+            ):
+                serialized_note = json.dumps(projected_note, ensure_ascii=False)
+                if self._memo_lock is not None:
+                    with self._memo_lock:
+                        if len(self._note_projection_memo) > 2048:
+                            self._note_projection_memo.clear()
+                        self._note_projection_memo[extractive_memo_key] = serialized_note
+                else:
+                    if len(self._note_projection_memo) > 2048:
+                        self._note_projection_memo.clear()
+                    self._note_projection_memo[extractive_memo_key] = serialized_note
+            return projected_note
         try:
             current = AuthoritativeContentSummaryReader(snap_repo_typed).read_current(
                 video_id
@@ -1734,29 +1776,88 @@ class FastReadApiApplication:
         self._route_cache: dict[str, tuple[tuple[object, ...], str]] = {}
         self._local_av_ids: tuple[str, ...] = ()
         self._verified_source_memo: dict[tuple[object, ...], dict[str, Any] | None] = {}
-        self._da_route_memo: tuple[int, float, object | None] | None = None
+        self._note_projection_memo: dict[tuple[object, ...], str] = {}
+        self._active_tokens = threading.local()
+        self._da_route_memo: (
+            tuple[int, float, object | None, tuple[str, str | None] | None] | None
+        ) = None
 
     def _bump_mutation_epoch(self) -> None:
         with self._cache_lock:
             self._mutation_epoch += 1
             self._route_cache.clear()
+            self._note_projection_memo.clear()
             self._da_route_memo = None
 
-    def _current_da_execution_route(self) -> object | None:
+    def _note_memo_token(self) -> tuple[object, ...] | None:
+        active = getattr(self._active_tokens, "note_memo_token", None)
+        if active is not None:
+            return cast(tuple[object, ...], active)
+        data_root = self._inner._data_root
+        if data_root is None:
+            return None
+        db_token = _sqlite_state_token(
+            getattr(self._inner._repository, "_database_path", None)
+        )
+        if db_token is None:
+            return None
+        return (db_token, _data_root_token(data_root))
+
+    def _current_da_resolution(
+        self,
+    ) -> tuple[object | None, tuple[str, str | None] | None]:
         da_service = self._inner._deep_analysis_service
         if da_service is None:
-            return None
+            return None, None
         now_mono = time.monotonic()
         with self._cache_lock:
             epoch = self._mutation_epoch
             memo = self._da_route_memo
         if memo is not None and memo[0] == epoch and (now_mono - memo[1]) < 2.0:
-            return memo[2]
-        resolved = da_service._capability.execution_route()
+            return memo[2], memo[3]
+        cap = getattr(da_service, "_capability", None)
+        shared_unavailable: tuple[str, str | None] | None = None
+        if (
+            cap is not None
+            and getattr(cap, "authority", None) is not None
+            and hasattr(cap, "_candidates")
+            and hasattr(cap, "describe")
+        ):
+            states = tuple(cap.describe())
+            candidates = tuple(cap._candidates)
+            eligible = [
+                route_obj
+                for route_obj, st in zip(candidates, states)
+                if bool(st.get("production_eligible"))
+            ]
+            resolved = next((r for r in eligible if r.is_local), None) or (
+                eligible[0] if eligible else None
+            )
+            if resolved is None:
+                qualified_route = next(
+                    (st for st in states if bool(st.get("qualified"))), None
+                )
+                shared_unavailable = (
+                    (
+                        "UNAVAILABLE",
+                        "A qualified Deep Analysis route cannot execute in this environment.",
+                    )
+                    if qualified_route is not None
+                    else (
+                        "NOT_QUALIFIED",
+                        "No Deep Analysis model is currently qualified. "
+                        "Deep Analysis is unavailable; Summary and Evidence remain usable.",
+                    )
+                )
+        else:
+            resolved = da_service._capability.execution_route()
         with self._cache_lock:
             if self._mutation_epoch == epoch:
-                self._da_route_memo = (epoch, now_mono, resolved)
-        return resolved
+                self._da_route_memo = (epoch, now_mono, resolved, shared_unavailable)
+        return resolved, shared_unavailable
+
+    def _current_da_execution_route(self) -> object | None:
+        return self._current_da_resolution()[0]
 
     def _cache_fingerprint(
         self, *, include_da_route: bool = True
@@ -1914,7 +2015,17 @@ class FastReadApiApplication:
                 cached = self._route_cache.get(route)
             if cached is not None and cached[0] == fp_before:
                 return cast(dict[str, object], json.loads(cached[1]))
-        payload = cast(dict[str, object], self._run_with_sqlite_retry(compute))
+        active_token = (
+            (fp_before[1], fp_before[3])
+            if fp_before is not None and self._inner._data_root is not None
+            else None
+        )
+        prev_token = getattr(self._active_tokens, "note_memo_token", None)
+        self._active_tokens.note_memo_token = active_token
+        try:
+            payload = cast(dict[str, object], self._run_with_sqlite_retry(compute))
+        finally:
+            self._active_tokens.note_memo_token = prev_token
         fp_after = self._cache_fingerprint(include_da_route=include_da_route)
         if fp_after is not None:
             serialized = json.dumps(payload, ensure_ascii=False)
@@ -2100,6 +2211,18 @@ class FastReadApiApplication:
             ):
                 try:
                     if route == "/api/v1/videos":
+                        if parsed_url.query:
+                            page_limit, page_offset = _parse_videos_page_query(path)
+                            cache_key = f"{route}?limit={page_limit}&offset={page_offset}"
+                            return HTTPStatus.OK, self._cached_or_compute(
+                                cache_key,
+                                lambda: self._fast_get_videos(
+                                    limit=page_limit,
+                                    offset=page_offset,
+                                    include_pagination=True,
+                                ),
+                                include_da_route=True,
+                            )
                         return HTTPStatus.OK, self._cached_or_compute(
                             route, self._fast_get_videos, include_da_route=True
                         )
@@ -2693,7 +2816,13 @@ class FastReadApiApplication:
         finally:
             conn.close()
 
-    def _fast_get_videos(self) -> dict[str, object]:
+    def _fast_get_videos(
+        self,
+        *,
+        limit: int = 200,
+        offset: int = 0,
+        include_pagination: bool = False,
+    ) -> dict[str, object]:
         repo = self._inner._repository
         conn = repo._connect(read_only=True)
         try:
@@ -2702,9 +2831,20 @@ class FastReadApiApplication:
                 videos = [
                     repo._video_from_row(row)
                     for row in conn.execute(
-                        "SELECT * FROM videos ORDER BY updated_at DESC, video_id LIMIT 200"
+                        "SELECT * FROM videos ORDER BY updated_at DESC, video_id LIMIT ? OFFSET ?",
+                        (limit, offset),
                     )
                 ]
+                total_count = 0
+                if include_pagination:
+                    count_fn = getattr(repo, "count_videos_in_connection", None)
+                    total_count = (
+                        int(count_fn(conn))
+                        if callable(count_fn)
+                        else int(
+                            conn.execute("SELECT COUNT(*) FROM videos").fetchone()[0]
+                        )
+                    )
                 videos_by_id = {video.video_id: video for video in videos}
                 ctx = _RequestSnapshotContext(
                     self._inner,
@@ -2712,30 +2852,37 @@ class FastReadApiApplication:
                     videos_by_id=videos_by_id,
                     verified_source_memo=self._verified_source_memo,
                     memo_lock=self._cache_lock,
+                    note_projection_memo=self._note_projection_memo,
+                    note_memo_token=self._note_memo_token(),
                 )
                 shared_da: tuple[str, str | None] | None = None
                 da_service = self._inner._deep_analysis_service
+                resolved_route, memo_shared_da = self._current_da_resolution()
                 if (
                     da_service is not None
                     and videos
-                    and self._current_da_execution_route() is None
+                    and resolved_route is None
                 ):
-                    da_status = da_service.status(content_id=videos[0].video_id)
-                    shared_da = (da_status.availability.value, da_status.reason)
+                    if memo_shared_da is not None:
+                        shared_da = memo_shared_da
+                    else:
+                        da_status = da_service.status(content_id=videos[0].video_id)
+                        shared_da = (da_status.availability.value, da_status.reason)
                 projected = [
                     ctx.video_dto_with_deep_analysis(
                         video, shared_da_status=shared_da
                     )
                     for video in videos
                 ]
-                next_local_av_ids = tuple(
-                    str(item["video_id"])
-                    for item in projected
-                    if item.get("provider") == "LOCAL"
-                    and item.get("media_kind") in {"AUDIO", "VIDEO"}
-                )
-                with self._cache_lock:
-                    self._local_av_ids = next_local_av_ids
+                if not include_pagination:
+                    next_local_av_ids = tuple(
+                        str(item["video_id"])
+                        for item in projected
+                        if item.get("provider") == "LOCAL"
+                        and item.get("media_kind") in {"AUDIO", "VIDEO"}
+                    )
+                    with self._cache_lock:
+                        self._local_av_ids = next_local_av_ids
                 briefs_map = self._workspace_hub.get_video_briefs_map()
                 if briefs_map:
                     projected = [
@@ -2744,7 +2891,19 @@ class FastReadApiApplication:
                         else item
                         for item in projected
                     ]
-                return {"videos": projected + ctx.pending_content_work()}
+                items = projected + (ctx.pending_content_work() if offset == 0 else [])
+                if include_pagination:
+                    return {
+                        "videos": items,
+                        "pagination": {
+                            "limit": limit,
+                            "offset": offset,
+                            "total_count": total_count,
+                            "returned_count": len(projected),
+                            "has_more": (offset + len(projected)) < total_count,
+                        },
+                    }
+                return {"videos": items}
             finally:
                 conn.rollback()
         finally:
@@ -2777,6 +2936,8 @@ class FastReadApiApplication:
                     videos_by_id={v.video_id: v for v in top_videos},
                     verified_source_memo=self._verified_source_memo,
                     memo_lock=self._cache_lock,
+                    note_projection_memo=self._note_projection_memo,
+                    note_memo_token=self._note_memo_token(),
                 )
                 intelligence = [
                     ctx.intelligence_projection(intelligence_id)

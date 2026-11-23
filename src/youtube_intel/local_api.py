@@ -229,6 +229,32 @@ class ApiError(Exception):
         super().__init__(message)
 
 
+def _parse_videos_page_query(path: str) -> tuple[int, int]:
+    query = parse_qs(urlparse(path).query, keep_blank_values=True, max_num_fields=4)
+    if set(query) - {"limit", "offset"} or any(len(v) != 1 for v in query.values()):
+        raise ApiError(
+            HTTPStatus.BAD_REQUEST,
+            "INVALID_QUERY",
+            "Unsupported or out-of-range videos pagination query.",
+        )
+    try:
+        limit = int(query["limit"][0]) if "limit" in query else 200
+        offset = int(query["offset"][0]) if "offset" in query else 0
+    except ValueError:
+        raise ApiError(
+            HTTPStatus.BAD_REQUEST,
+            "INVALID_QUERY",
+            "Unsupported or out-of-range videos pagination query.",
+        ) from None
+    if limit < 1 or limit > 500 or offset < 0 or offset > 100_000:
+        raise ApiError(
+            HTTPStatus.BAD_REQUEST,
+            "INVALID_QUERY",
+            "Unsupported or out-of-range videos pagination query.",
+        )
+    return limit, offset
+
+
 #: Error-detail keys safe to expose over the local HTTP boundary.
 #:
 #: Only stable, non-secret machine fields are allowed. Stack traces, file
@@ -1073,6 +1099,8 @@ class LocalApiApplication:
                 return HTTPStatus.OK, {"spending_policy": policy_result}
             if method == "GET" and route == "/api/v1/saved-intelligence":
                 return HTTPStatus.OK, self._saved_list(path)
+            if method == "GET" and route == "/api/v1/videos" and urlparse(path).query:
+                return HTTPStatus.OK, self._videos_page(path)
             if route in {"/api/v1/settings/bigmodel-credential", "/api/v1/settings/bigmodel-credential/delete"}:
                 if urlparse(path).query:
                     raise ApiError(HTTPStatus.UNPROCESSABLE_ENTITY, "VALIDATION_ERROR", "Request contains unsupported fields.")
@@ -2504,6 +2532,23 @@ class LocalApiApplication:
             "next_cursor": None
             if page.next_cursor is None
             else _saved_relation_dto(page.next_cursor),
+        }
+
+    def _videos_page(self, path: str) -> dict[str, object]:
+        limit, offset = _parse_videos_page_query(path)
+        total_count = self._repository.count_videos()
+        videos = self._repository.list_videos(limit=limit, offset=offset)
+        projected = [self._video_dto_with_deep_analysis(video) for video in videos]
+        items = projected + (self._pending_content_work() if offset == 0 else [])
+        return {
+            "videos": items,
+            "pagination": {
+                "limit": limit,
+                "offset": offset,
+                "total_count": total_count,
+                "returned_count": len(projected),
+                "has_more": (offset + len(projected)) < total_count,
+            },
         }
 
     def _get(self, route: str) -> dict[str, object]:
