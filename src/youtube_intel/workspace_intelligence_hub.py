@@ -347,10 +347,49 @@ def _clean_string_list(
     return out
 
 
-def _safe_obsidian_title(title: str) -> str:
-    cleaned = re.sub(r'[\\/:*?"<>|#^\[\]]+', " ", title)
+_WINDOWS_RESERVED_STEMS = frozenset(
+    {
+        "CON",
+        "PRN",
+        "AUX",
+        "NUL",
+        *(f"COM{idx}" for idx in range(1, 10)),
+        *(f"LPT{idx}" for idx in range(1, 10)),
+    }
+)
+
+
+def _truncate_utf8_bytes(text: str, max_bytes: int) -> str:
+    if max_bytes <= 0:
+        return ""
+    if len(text.encode("utf-8")) <= max_bytes:
+        return text
+    total = 0
+    chars: list[str] = []
+    for ch in text:
+        b_len = len(ch.encode("utf-8"))
+        if total + b_len > max_bytes:
+            break
+        chars.append(ch)
+        total += b_len
+    return "".join(chars)
+
+
+def _safe_obsidian_title(title: str, *, max_bytes: int = 180) -> str:
+    cleaned = re.sub(r"[\x00-\x1f\x7f]+", " ", str(title or ""))
+    cleaned = re.sub(r'[\\/:*?"<>|#^\[\]]+', " ", cleaned)
     cleaned = re.sub(r"\s+", " ", cleaned).strip(". ")
-    return cleaned[:120].strip(". ") or "Untitled Video"
+    cleaned = _truncate_utf8_bytes(cleaned[:120], max_bytes).strip(". ")
+    if not cleaned:
+        return "Untitled Video"
+    if cleaned.upper() in _WINDOWS_RESERVED_STEMS:
+        cleaned = f"_{cleaned}"
+    return cleaned
+
+
+def _yaml_quoted(value: object) -> str:
+    cleaned = re.sub(r"[\x00-\x1f\x7f]+", " ", str(value or "")).strip()
+    return json.dumps(cleaned, ensure_ascii=False)
 
 
 def _probe_ollama_models_default(base_url: str) -> tuple[bool, tuple[str, ...]]:
@@ -1767,19 +1806,29 @@ class WorkspaceIntelligenceHub:
         }.get(recommendation_tier, recommendation_tier)
         all_links = list(dict.fromkeys([topic_cluster_zh, *topics_zh]))
         wikilinks = " ".join(f"[[{_safe_obsidian_title(t)}]]" for t in all_links if t)
-        lines = [
+        duration_label = (
+            _format_mmss(duration_seconds)
+            if duration_seconds is not None and duration_seconds > 0
+            else ""
+        )
+        source_meta_line = (
+            f"**来源频道**：`{channel_name or '本地课程库'}` · **时长**：`{duration_label}`"
+            if duration_label
+            else f"**来源**：`{channel_name or '本地研究文档'}` · **载体**：`文本 / Markdown`"
+        )
+        lines: list[str | None] = [
             "---",
-            f'title: "{_safe_obsidian_title(title)}"',
-            f'video_id: "{video_id}"',
-            f'channel: "{_safe_obsidian_title(channel_name or "Local Library")}"',
+            f"title: {_yaml_quoted(_safe_obsidian_title(title))}",
+            f"video_id: {_yaml_quoted(video_id)}",
+            f"channel: {_yaml_quoted(_safe_obsidian_title(channel_name or 'Local Library'))}",
             f"score: {score:.1f}",
-            f'tier: "{recommendation_tier}"',
-            f'bucket: "{content_bucket}"',
-            f'source_basis: "{source_basis}"',
-            f'duration: "{_format_mmss(duration_seconds)}"',
-            f'published_at: "{published_at or ""}"',
-            f'source_url: "{source_url or ""}"',
-            f'ai_engine: "{provider}/{model}"',
+            f"tier: {_yaml_quoted(recommendation_tier)}",
+            f"bucket: {_yaml_quoted(content_bucket)}",
+            f"source_basis: {_yaml_quoted(source_basis)}",
+            f"duration: {_yaml_quoted(duration_label)}",
+            f"published_at: {_yaml_quoted(published_at or '')}",
+            f"source_url: {_yaml_quoted(source_url or '')}",
+            f"ai_engine: {_yaml_quoted(f'{provider}/{model}')}",
             "tags:",
             "  - youtube-intel",
             f"  - tier/{recommendation_tier.lower()}",
@@ -1791,11 +1840,11 @@ class WorkspaceIntelligenceHub:
             (
                 "> *说明：当前源站暂未提供公开时间轴字幕，本速览仅基于官方标题与简介提炼，未生成原话证据点。*"
                 if source_basis == "METADATA_ONLY"
-                else ""
+                else None
             ),
             "",
-            f"**关联主题双链**：{wikilinks}" if wikilinks else "",
-            f"**来源频道**：`{channel_name or '本地课程库'}` · **时长**：`{_format_mmss(duration_seconds)}`",
+            f"**关联主题双链**：{wikilinks}" if wikilinks else None,
+            source_meta_line,
             "",
             "## 1. 精炼中文摘要",
             summary_zh,
@@ -1845,8 +1894,14 @@ class WorkspaceIntelligenceHub:
             lines.extend(["", "## 4. 商业变现与切入机会"])
             for item in business_opportunities:
                 lines.append(f"- {item}")
-        lines.append("")
-        return "\n".join(line for line in lines if line != "")
+        clean_lines: list[str] = []
+        for line in lines:
+            if line is None:
+                continue
+            if line == "" and clean_lines and clean_lines[-1] == "":
+                continue
+            clean_lines.append(line)
+        return "\n".join(clean_lines).rstrip() + "\n"
 
     def _upsert_video_brief_row(
         self,
@@ -2192,7 +2247,8 @@ class WorkspaceIntelligenceHub:
     ) -> list[_TextEvidenceSection]:
         if not segments:
             return []
-        if len(segments) <= max_sections:
+        total = len(segments)
+        if total <= max_sections:
             return [
                 _TextEvidenceSection(
                     text=seg.text[:max_chars_per_section].strip(),
@@ -2205,6 +2261,47 @@ class WorkspaceIntelligenceHub:
                 for seg in segments
             ]
         total_chars = sum(len(seg.text) for seg in segments)
+        if total_chars > max_sections * max_chars_per_section:
+            anchors: list[int] = []
+            for win_idx in range(max_sections):
+                anchor = min(
+                    total - 1,
+                    int(round(win_idx * (total - 1) / max(1, max_sections - 1))),
+                )
+                if not anchors or anchor > anchors[-1]:
+                    anchors.append(anchor)
+            uniform_sections: list[_TextEvidenceSection] = []
+            for slot_idx, anchor in enumerate(anchors):
+                next_anchor = (
+                    anchors[slot_idx + 1] if slot_idx + 1 < len(anchors) else total
+                )
+                uniform_bucket = [segments[anchor]]
+                char_len = len(segments[anchor].text)
+                end_idx = anchor + 1
+                while (
+                    end_idx < next_anchor
+                    and (end_idx - anchor) < 4
+                    and char_len + 1 + len(segments[end_idx].text)
+                    <= max_chars_per_section
+                ):
+                    uniform_bucket.append(segments[end_idx])
+                    char_len += 1 + len(segments[end_idx].text)
+                    end_idx += 1
+                u_first = uniform_bucket[0]
+                u_last = uniform_bucket[-1]
+                uniform_sections.append(
+                    _TextEvidenceSection(
+                        text=" ".join(item.text for item in uniform_bucket)[
+                            :max_chars_per_section
+                        ].strip(),
+                        evidence_ids=tuple(item.evidence_id for item in uniform_bucket),
+                        paragraph_index=u_first.paragraph_index,
+                        start_offset=u_first.start_offset,
+                        end_offset=u_last.end_offset,
+                        locator_label=f"P{u_first.paragraph_index} ({u_first.start_offset}–{u_last.end_offset})",
+                    )
+                )
+            return uniform_sections[:max_sections]
         target_chars = max(
             120, min(max_chars_per_section, (total_chars // max_sections) + 1)
         )
@@ -4496,10 +4593,10 @@ class WorkspaceIntelligenceHub:
 
         md_lines = [
             "---",
-            f'title: "跨视频研究问答 - {_safe_obsidian_title(question[:48])}"',
-            f'created_at: "{created_at}"',
-            f'ai_engine: "{provider_label}/{model_label}"',
-            f'answer_status: "{answer_status}"',
+            f"title: {_yaml_quoted(f'跨视频研究问答 - {_safe_obsidian_title(question[:48])}')}",
+            f"created_at: {_yaml_quoted(created_at)}",
+            f"ai_engine: {_yaml_quoted(f'{provider_label}/{model_label}')}",
+            f"answer_status: {_yaml_quoted(answer_status)}",
             "tags:",
             "  - youtube-intel/research",
             "---",
@@ -4931,12 +5028,12 @@ class WorkspaceIntelligenceHub:
         )
         lines = [
             "---",
-            f'title: "专题脉络 - {safe_topic}"',
-            f'topic_name: "{safe_topic}"',
+            f"title: {_yaml_quoted(f'专题脉络 - {safe_topic}')}",
+            f"topic_name: {_yaml_quoted(safe_topic)}",
             f"video_count: {summary.get('video_count', 0)}",
             f"must_watch_count: {summary.get('must_watch_count', 0)}",
             f"avg_score: {summary.get('avg_score', 0.0)}",
-            f'exported_at: "{exported_at}"',
+            f"exported_at: {_yaml_quoted(exported_at)}",
             "tags:",
             "  - youtube-intel/topic-moc",
             "---",
@@ -6243,11 +6340,11 @@ class WorkspaceIntelligenceHub:
             for t in self._repository.list_topics()
             if t.lifecycle is TopicLifecycle.ACTIVE
         )
-        md_lines = [
+        md_lines: list[str | None] = [
             "---",
-            f'title: "{_safe_obsidian_title(title_zh)}"',
-            f'created_at: "{created_at}"',
-            f'ai_engine: "{provider_label}/{model_label}"',
+            f"title: {_yaml_quoted(_safe_obsidian_title(title_zh))}",
+            f"created_at: {_yaml_quoted(created_at)}",
+            f"ai_engine: {_yaml_quoted(f'{provider_label}/{model_label}')}",
             "tags:",
             "  - youtube-intel/weekly-brief",
             "---",
@@ -6257,7 +6354,7 @@ class WorkspaceIntelligenceHub:
             f"> **信噪比漏斗**：扫描 `{funnel_stats['total_videos']}` 条内容 · 自动折叠 `{funnel_stats['shorts_filtered_count']}` 条短视频噪音 · 精选 `{funnel_stats['must_watch_count']}` 条必看干货",
             f"> **统计窗口（近 7 天）**：`{window_start_date}` 至 `{window_end_date}` · 窗口内 `{len(in_window_non_shorts)}` 篇 · 已排除 7 天前历史内容 `{excluded_older_count}` 篇",
             "",
-            f"**核心主题双链**：{active_topic_links}" if active_topic_links else "",
+            f"**核心主题双链**：{active_topic_links}" if active_topic_links else None,
             "",
             "## 1. 执行摘要",
             exec_summary,
@@ -6284,7 +6381,14 @@ class WorkspaceIntelligenceHub:
                     f"- **[{pick['score']:.1f}/10]** [[{_safe_obsidian_title(str(pick['title']))}]] "
                     f"(`{pick['channel_name']}`) — {pick['headline_zh']}"
                 )
-        obsidian_md = "\n".join(line for line in md_lines if line is not None) + "\n"
+        clean_md_lines: list[str] = []
+        for line in md_lines:
+            if line is None:
+                continue
+            if line == "" and clean_md_lines and clean_md_lines[-1] == "":
+                continue
+            clean_md_lines.append(line)
+        obsidian_md = "\n".join(clean_md_lines).rstrip() + "\n"
         stored_funnel_payload: dict[str, object] = {
             **funnel_stats,
             "window": window_meta,
@@ -6908,16 +7012,24 @@ class WorkspaceIntelligenceHub:
             finally:
                 conn.close()
 
-        used_paths: set[str] = set()
+        used_paths_lower: set[str] = set()
         files_to_write: list[tuple[str, str]] = []
 
         def _alloc(folder: str, raw_name: str, fallback_id: str) -> tuple[str, str]:
-            stem = _safe_obsidian_title(raw_name)
+            stem = _safe_obsidian_title(raw_name, max_bytes=180)
             rel_path = f"{folder}/{stem}.md"
-            if rel_path in used_paths:
-                stem = f"{stem} ({_safe_obsidian_title(fallback_id)[:16]})"
+            if rel_path.lower() in used_paths_lower:
+                base = _safe_obsidian_title(raw_name, max_bytes=150)
+                fb_suffix = _safe_obsidian_title(fallback_id, max_bytes=24)[:16]
+                stem = f"{base} ({fb_suffix})"
                 rel_path = f"{folder}/{stem}.md"
-            used_paths.add(rel_path)
+            counter = 2
+            while rel_path.lower() in used_paths_lower:
+                base = _safe_obsidian_title(raw_name, max_bytes=140)
+                stem = f"{base} ({counter})"
+                rel_path = f"{folder}/{stem}.md"
+                counter += 1
+            used_paths_lower.add(rel_path.lower())
             return rel_path, stem
 
         weekly_links: list[str] = []
@@ -6928,7 +7040,7 @@ class WorkspaceIntelligenceHub:
                 f"{w_date} {w_item['title_zh']}",
                 w_item["brief_id"],
             )
-            files_to_write.append((w_path, w_item["markdown"]))
+            files_to_write.append((w_path, w_item["markdown"].rstrip() + "\n"))
             weekly_links.append(f"- [[{w_stem}]]（`{w_date}`）")
 
         topic_links: list[str] = []
@@ -6979,7 +7091,7 @@ class WorkspaceIntelligenceHub:
                 f"{q_date} {str(q_item['question'])[:72]}",
                 str(q_item["session_id"]),
             )
-            files_to_write.append((q_path, str(q_item["markdown"])))
+            files_to_write.append((q_path, str(q_item["markdown"]).rstrip() + "\n"))
             pin_prefix = "**[置顶]** " if bool(q_item.get("pinned", False)) else ""
             qa_links.append(f"- {pin_prefix}[[{q_stem}]] — {q_item['question']}")
 
@@ -6990,9 +7102,9 @@ class WorkspaceIntelligenceHub:
         }
         index_lines = [
             "---",
-            'title: "AI 情报知识库总览 Index"',
-            f'exported_at: "{exported_at}"',
-            f'scope: "{clean_scope}"',
+            f"title: {_yaml_quoted('AI 情报知识库总览 Index')}",
+            f"exported_at: {_yaml_quoted(exported_at)}",
+            f"scope: {_yaml_quoted(clean_scope)}",
             "tags:",
             "  - youtube-intel/vault-index",
             "---",

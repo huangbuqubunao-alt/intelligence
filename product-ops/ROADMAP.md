@@ -18,17 +18,15 @@
 - [x] **Iteration #5 (`BL-007` · `2be958f` on `antigravity/task-user-readiness-20261112`)**：
   - 首轮三步引导升级可点击步骤导航条、祖母绿品牌进度条与 3 来源结构化卡片，空态首页补齐格式提示；
   - 补全 `Organized`/`Review Content`/`Position unavailable`/`Investigations` 等缺失中文词条并清理 `UNKNOWN`/冗长提示，`54/54` (`1244/1244`) Vitest 全绿并通过 Obsidian Dark 桌面 + Warm Paper Light 移动实机核验。
-- [x] **Iteration #6 (`BL-008` 提前交付完成 · `antigravity/task-user-readiness-20261112`)**：
+- [x] **Iteration #6 (`BL-008` · `dbc7e89` on `antigravity/task-user-readiness-20261112`)**：
   - 突破 500 条视频硬截断：向后兼容 `/api/v1/videos?limit=&offset=` 分页与 8 处全库分块读取（600 条实测跨库问答 `0.23s`、3 页分页 `48–98ms`）；
   - 交付 SQLite 原生 `.backup()` 零密钥热快照 `hub-snapshot.sqlite3`（`5.5ms` / `0o600` / `integrity_ok`），冷启动路径提速至 `68.56ms`/`21.90ms`，11 组 CI `pytest` `143/143` + 备份 `27/27` 全绿；复核 `#Settings` 已默认折叠收起保持零 UI 扰动。
+- [x] **Iteration #7 (`BL-010` 提前交付完成 · `antigravity/task-user-readiness-20261112`)**：
+  - 修复 4 小时课程（`14390s`）& 300KB+ Markdown 全篇均匀边界采样、`<=180B` UTF-8 中文安全标题、Windows 保留文件名防护（`_CON`）、大小写碰撞防覆盖、全量 YAML 转义、CommonMark 空行修复与文本笔记无 `00:00` 假时长；新增 `test_long_media_and_obsidian_vault.py` (`3/3` PASS) + `143/143` CI 全绿；
+  - 提前梳理落地六维阶段退出检查单 [`RELEASE_READINESS_GATE.md`](./RELEASE_READINESS_GATE.md)（标记内部能力就绪与外部 L3 放行前提）。
 
-## Week 2（11/30 – 12/06）：长视频多轮边界压测 & Obsidian 实机目录走查（L1/L2 内部打磨）
-- [ ] **长视频多轮边界与大库恢复抽检**：在隔离环境中抽检真实多小时本地课程与混合 Markdown 长文本在 600+ 条库存下的端到端导出与备份恢复稳定度。
-
-## Week 3（12/07 – 12/13）：可恢复性、离线打包边界与商业前提自查
-- [ ] **离线打包边界与极简脚本预设评估**：梳理真实安装报错与单机运行前置检查体验（正式发行评估 `BL-009` 仍需等未来真人首测放行后校准）。
-- [ ] **Obsidian Vault 导出目录结构实机美化**：在隔离 `.var/workspace/vault` 验证导出 `.zip` 与文件夹解压后在真实 Markdown 结构中的 `[[wikilinks]]`、Frontmatter 与 `?t=` 点击流畅度（不触碰创始人真实个人 Obsidian Vault）。
-- [ ] **梳理阶段退出检查单（Ready-for-Human-Testing Gate）**：逐项核对 `P0/P1` 遗留缺陷 = `0`、安装成功一键检查完善、支持材料（FAQ/5分钟教程）完备，整理呈报创始人审阅。
+## Week 2–3（11/30 – 12/13）：持续内部巡检与极简安装边界储备（L1/L2 内部打磨）
+- [ ] **增量文档/引导清晰度走查与安装报错预设检查**：在不开启新战线前提下复核新用户首次运行 `--check-only` 的错误引导可读性（正式发行打包 `BL-009` 仍待未来真人首测放行后再定）。
 
 ## Week 4（12/14 – 12/22）：内部全量审计收口 & 等待创始人阶段放行裁决
 - [ ] **全仓库二次全面审计与代码瘦身**：剔除未复用临时组件，确保安全扫描零新增、CI 套件继续保持零 skip 100% 全绿。

@@ -17,7 +17,8 @@
 | **BL-005** | Docs/Eval | 基于公开技术演讲语料体系（Obsidian/Agent/B站双语）将反幻觉与冲突分辨 Eval 集由 20 例扩充至 32 例（不含个人隐私文件），顺带加固 Offline Demo 停用词与词形拒答 | Stage B 竞争差异化要求 | 8 | 2.5 | 0.85 | 0.6 | **28.3** | **DONE (Iteration #4)** |
 | **BL-006** | UX/Flow | 根治 `#Content/<id>` 首次展开 `证据 · 来源字幕` 延迟与 `正在加载原始证据…` 闪烁（新增 `FastReadApiApplication` 单快照 `/evidence` 加速 + 前端 SWR 保持）并重排顶部 9 按钮为两层信息流 | Stage A `vidDemoAgt1` 实机审计 | 7 | 1.5 | 0.85 | 0.4 | **22.3** | **DONE (Iteration #4)** |
 | **BL-007** | UX/Copy | 统一优化首页首run三步引导（交互步骤条、结构化来源卡、Warm Paper Light + `375px` 响应式对齐与品牌绿主色）及补全缺失中文词条/清除非断言残留英文（100% 保留既有测试契约） | Stage A `Onboarding` & 走查 | 6 | 1.5 | 0.80 | 0.4 | **18.0** | **DONE (Iteration #5)** |
-| **BL-008** | Reliability | 大库扩展性演进：支持 >500 条视频全库分页（`/api/v1/videos?limit=&offset=`）、全库分块检索与 SQLite 原生 `.backup()` 零密钥热快照（零核心 Schema 变更）；同步复核 `#Settings` 次级工程说明默认折叠无需二次 UI 改版 | Stage A 架构审计（`TECH-04`） | 4 | 2.0 | 0.70 | 1.0 | **5.6** | **DONE (Iteration #6)** |
+| **BL-008** | Reliability | 大库扩展性演进：支持 >500 条视频全库分页（`/api/v1/videos?limit=&offset=`）、全库分块检索与 SQLite 原生 `.backup()` 零密钥热快照（零核心 Schema 变更）；同步复核 `#Settings` 次级工程说明默认折叠无需二次 UI 改版 | Stage A 架构审计（`TECH-04`） | 4 | 2.0 | 0.70 | 1.0 | **5.6** | **DONE (`dbc7e89`)** |
+| **BL-010** | Reliability/Vault | 长视频 4h（`14390s`）与 300KB+ Markdown 全篇均匀边界加固、Obsidian `.zip` 真实解压安全（>255B 中文标题截断/`_CON`/大小写碰撞/YAML 转义/CommonMark 空行/文本禁 `00:00`）与 `RELEASE_READINESS_GATE.md` | Week 2 隔离边界与导出排查 | 6 | 2.5 | 0.90 | 0.6 | **22.5** | **DONE (Iteration #7)** |
 | **BL-009** | Distribution | 一键桌面打包 / homebrew cask / WSL 极简脚本可行性评估（需待获批真人首测验证安装卡点分布后再定） | Stage B `anything-llm`/`BiliNote` 对照 | 9 | 2.5 | 0.50 | 2.5 | **4.5** | **HOLD (待真人冷启动样本)** |
 
 ---
