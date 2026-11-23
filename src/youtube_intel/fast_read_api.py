@@ -23,8 +23,12 @@ from dataclasses import replace
 from http import HTTPStatus
 from pathlib import Path, PurePosixPath
 from types import FrameType
-from typing import Any, BinaryIO, cast
+from typing import TYPE_CHECKING, Any, BinaryIO, cast
 from urllib.parse import parse_qs, urlparse
+
+if TYPE_CHECKING:
+    from youtube_intel.config import AppConfig
+    from youtube_intel.runtime_composition import LocalSourceRunRuntime
 
 from youtube_intel.backup_restore import BackupRestoreError
 from youtube_intel.brief import WeeklyBriefService
@@ -3188,6 +3192,129 @@ def _raise_open_file_limit(target_soft: int = 65536) -> None:
         return
 
 
+def diagnose_vault_root_error(config: AppConfig, err: OSError) -> bool:
+    """Print an actionable vault_root diagnostic when storage.vault_root is missing."""
+
+    vault_path = Path(config.settings.storage.vault_root)
+    if vault_path.is_dir():
+        return False
+    print(
+        f"ERROR: Configured storage.vault_root does not exist: {vault_path} ({err}).\n"
+        "  Edit config/settings.yaml to point storage.vault_root to an existing Obsidian vault directory,\n"
+        "  or launch the zero-config local workspace with: uv run youtube-intel start",
+        file=sys.stderr,
+    )
+    return True
+
+
+def run_fast_read_server_loop(
+    *,
+    compose_runtime: Callable[[], LocalSourceRunRuntime],
+    port: int,
+    static_dir: Path | None = None,
+    native_import_origins: Sequence[str] = (),
+    native_picker_executable: Path | None = None,
+    hub_factory: Callable[[LocalSourceRunRuntime], WorkspaceIntelligenceHub] | None = None,
+    on_listening: Callable[[LocalSourceRunRuntime, FastReadApiApplication], None] | None = None,
+) -> ExitCode:
+    """Serve ``FastReadApiApplication`` with cache warmup, local auto-sync, and restart handling."""
+
+    _raise_open_file_limit()
+    stop_requested = False
+    first_start = True
+    while True:
+        composition = compose_runtime()
+        if native_import_origins:
+            if native_picker_executable is None:
+                raise ValueError("Native import requires its prepared selector")
+            composition.application.enable_native_import(
+                tuple(native_import_origins),
+                picker_executable=native_picker_executable,
+            )
+        hub = hub_factory(composition) if hub_factory is not None else None
+        fast_app = FastReadApiApplication(composition.application, workspace_hub=hub)
+        server = serve_loopback(
+            cast(LocalApiApplication, fast_app),
+            port=port,
+            static_dir=static_dir,
+        )
+
+        def request_stop(signum: int, frame: FrameType | None) -> None:
+            nonlocal stop_requested
+            del signum, frame
+            stop_requested = True
+            threading.Thread(target=server.shutdown, daemon=True).start()
+
+        previous_handlers = (
+            {
+                sig: signal.signal(sig, request_stop)
+                for sig in (signal.SIGTERM, signal.SIGINT)
+            }
+            if threading.current_thread() is threading.main_thread()
+            else {}
+        )
+        composition.worker.start()
+        auto_sync_stop = threading.Event()
+
+        def _warm_hot_routes() -> None:
+            for warm_route in (
+                "/api/v1/dashboard",
+                "/api/v1/sources",
+                "/api/v1/videos",
+                "/api/v1/topics",
+                "/api/v1/intelligence",
+                "/api/v1/saved-intelligence",
+                "/api/v1/workspace-ai/research/sessions",
+            ):
+                if auto_sync_stop.is_set():
+                    return
+                try:
+                    fast_app.handle("GET", warm_route)
+                except Exception:
+                    continue
+
+        threading.Thread(
+            target=_warm_hot_routes, name="fast-read-cache-warmup", daemon=True
+        ).start()
+
+        def _auto_sync_loop() -> None:
+            while not auto_sync_stop.wait(45.0):
+                try:
+                    if not fast_app._workspace_hub.has_sidecar_db():
+                        continue
+                    st = fast_app._workspace_hub.get_sync_status()
+                    if int(cast(int, st.get("pending_count", 0))) <= 0:
+                        continue
+                    res = fast_app._workspace_hub.sync_pending_videos(
+                        limit=3, background=True
+                    )
+                    if int(cast(int, res.get("synced_count", 0))) > 0:
+                        fast_app._bump_mutation_epoch()
+                        _warm_hot_routes()
+                except Exception:
+                    continue
+
+        auto_sync_thread = threading.Thread(
+            target=_auto_sync_loop, name="workspace-ai-auto-sync", daemon=True
+        )
+        auto_sync_thread.start()
+        if first_start and on_listening is not None:
+            first_start = False
+            on_listening(composition, fast_app)
+        try:
+            server.serve_forever()
+        finally:
+            auto_sync_stop.set()
+            server.server_close()
+            composition.application.shutdown_native_import()
+            composition.worker.stop()
+            for sig, handler in previous_handlers.items():
+                signal.signal(sig, handler)
+        if stop_requested or not composition.backup_restore.restart_requested:
+            break
+    return ExitCode.OK
+
+
 def run_cli_with_fast_reads(argv: Sequence[str] | None = None) -> ExitCode:
     """CLI entrypoint wrapper activating ``FastReadApiApplication`` for ``serve-api``."""
 
@@ -3207,96 +3334,38 @@ def run_cli_with_fast_reads(argv: Sequence[str] | None = None) -> ExitCode:
             return ExitCode.USAGE_OR_CONFIGURATION
         project_root = cli._project_root(args.project_root)
         config = cli._load_config(project_root, args.settings, args.channels)
-        stop_requested = False
-        while True:
-            composition = build_local_source_run_runtime(
-                config=config,
-                project_root=project_root,
-                database=args.database,
+
+        def _announce(_comp: LocalSourceRunRuntime, _app: FastReadApiApplication) -> None:
+            has_web = (
+                args.web_dir is not None
+                and (args.web_dir.resolve() / "index.html").is_file()
             )
-            if args.native_import_origin:
-                if args.native_picker_executable is None:
-                    raise ValueError("Native import requires its prepared selector")
-                composition.application.enable_native_import(
-                    tuple(args.native_import_origin),
-                    picker_executable=args.native_picker_executable,
-                )
-            fast_app = FastReadApiApplication(composition.application)
-            server = serve_loopback(
-                cast(LocalApiApplication, fast_app),
+            url = (
+                f"http://127.0.0.1:{args.port}/"
+                if has_web
+                else f"http://127.0.0.1:{args.port}/api/v1/system"
+            )
+            print(
+                f"[youtube-intel serve-api] Ready at {url} (Press Ctrl+C to stop)",
+                flush=True,
+            )
+
+        try:
+            return run_fast_read_server_loop(
+                compose_runtime=lambda: build_local_source_run_runtime(
+                    config=config,
+                    project_root=project_root,
+                    database=args.database,
+                ),
                 port=args.port,
                 static_dir=args.web_dir,
+                native_import_origins=tuple(args.native_import_origin),
+                native_picker_executable=args.native_picker_executable,
+                on_listening=_announce,
             )
-
-            def request_stop(signum: int, frame: FrameType | None) -> None:
-                nonlocal stop_requested
-                stop_requested = True
-                threading.Thread(target=server.shutdown, daemon=True).start()
-
-            previous_handlers = (
-                {
-                    sig: signal.signal(sig, request_stop)
-                    for sig in (signal.SIGTERM, signal.SIGINT)
-                }
-                if threading.current_thread() is threading.main_thread()
-                else {}
-            )
-            composition.worker.start()
-            auto_sync_stop = threading.Event()
-
-            def _warm_hot_routes() -> None:
-                for warm_route in (
-                    "/api/v1/dashboard",
-                    "/api/v1/sources",
-                    "/api/v1/videos",
-                    "/api/v1/topics",
-                    "/api/v1/intelligence",
-                    "/api/v1/saved-intelligence",
-                    "/api/v1/workspace-ai/research/sessions",
-                ):
-                    if auto_sync_stop.is_set():
-                        return
-                    try:
-                        fast_app.handle("GET", warm_route)
-                    except Exception:
-                        continue
-
-            threading.Thread(
-                target=_warm_hot_routes, name="fast-read-cache-warmup", daemon=True
-            ).start()
-
-            def _auto_sync_loop() -> None:
-                while not auto_sync_stop.wait(45.0):
-                    try:
-                        if not fast_app._workspace_hub.has_sidecar_db():
-                            continue
-                        st = fast_app._workspace_hub.get_sync_status()
-                        if int(cast(int, st.get("pending_count", 0))) <= 0:
-                            continue
-                        res = fast_app._workspace_hub.sync_pending_videos(
-                            limit=3, background=True
-                        )
-                        if int(cast(int, res.get("synced_count", 0))) > 0:
-                            fast_app._bump_mutation_epoch()
-                            _warm_hot_routes()
-                    except Exception:
-                        continue
-
-            auto_sync_thread = threading.Thread(
-                target=_auto_sync_loop, name="workspace-ai-auto-sync", daemon=True
-            )
-            auto_sync_thread.start()
-            try:
-                server.serve_forever()
-            finally:
-                auto_sync_stop.set()
-                server.server_close()
-                composition.application.shutdown_native_import()
-                composition.worker.stop()
-                for sig, handler in previous_handlers.items():
-                    signal.signal(sig, handler)
-            if stop_requested or not composition.backup_restore.restart_requested:
-                break
-        return ExitCode.OK
+        except OSError as err:
+            if diagnose_vault_root_error(config, err):
+                return ExitCode.LOCAL_RESOURCE
+            raise
     except (ConfigError, OSError, ValueError):
         return cli.main(effective_argv)

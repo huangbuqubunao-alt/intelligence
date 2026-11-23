@@ -80,10 +80,28 @@ uv run youtube-intel demo
   uv sync --extra mac-whisper
   ```
 
-### 2. Initialize & Run Your Workspace · 初始化并启动日常服务
+### 2. Zero-Config Quickstart (`start` · 5 分钟真实工作台上手)
 
 ```bash
-# 1. Copy example configs (never commit personal config/secrets)
+# 1. Check prerequisites without starting the server (auto-creates .var/workspace)
+uv run youtube-intel start --check-only
+
+# 2. Launch your real local-first workspace (http://127.0.0.1:8765/)
+uv run youtube-intel start
+
+# Optional: point exports directly at your own Obsidian vault & custom port
+uv run youtube-intel start --vault /path/to/your/ObsidianVault --port 8765
+```
+
+**5-Minute First-Run Checklist · 首次 5 分钟验收清单**：
+1. Run `ollama pull qwen3.5:9b` (or `qwen2.5:7b`) for free local AI; install `ffmpeg` (`brew install ffmpeg` / `apt install ffmpeg`) only if importing local `.mp4`/`.m4a` media without captions.
+2. Import **1 YouTube/Bilibili URL + 1 local `.md` note** in the UI (`http://127.0.0.1:8765/`).
+3. Ask **1 cross-source comparison question** and verify clickable `?t=` / `P#` evidence; ask **1 trick out-of-corpus question** and verify honest `REFUSED_INSUFFICIENT_EVIDENCE` refusal; export Markdown into Obsidian.
+
+### 3. Advanced: Custom Config (`serve-api`)
+
+```bash
+# 1. Copy example configs and set storage.vault_root to an existing directory
 cp config/settings.example.yaml config/settings.yaml
 cp config/channels.example.yaml config/channels.yaml
 

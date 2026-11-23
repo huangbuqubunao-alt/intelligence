@@ -52,3 +52,18 @@
 - **你推荐的方案**：**方案 A**（日常日报交给 Antigravity 自动化调度；系统级 `launchd` 等真正跑日常真库采集时再单独批）。
 - **推荐依据与信心程度**：脚本 [generate_daily_ops_report.py](../scripts/generate_daily_ops_report.py) 已内置只读安全与防覆盖保护并经 pytest 验收，信心 **90%**。
 - **如果暂不决定会发生什么**：每日 21:00 无法实现无人值守自动产报，须靠您主动打开对话触发手动更新。
+
+---
+
+## FD-004：将迭代 #2（零配置 `youtube-intel start` 冷启动修复）同步上公开 `main` 分支
+
+- **状态**：`PENDING`（等待创始人 L3 审批；推荐在对外发出 `EXP-001` 邀请前批准）
+- **需要决定什么**：是否批准将分支 `antigravity/task-user-readiness-20261112` 上刚完成并全量验收的零配置 `youtube-intel start` 启动器、前置检查清单、`serve-api` `vault_root` 友好提示、5 个新增集成测试及新版 `README.md` 5 分钟上手指南整合回公开的 `main` 与 `origin/main`（仍保持 `PUBLIC_BETA` 不打正式推广 Release Tag）。
+- **为什么现在需要决定**：按原 README 直接运行 `serve-api` 在纯新克隆机器上会因 `settings.example.yaml` 占位路径 `/absolute/path/to/obsidian/vault` 直接以 `Exit Code 2` 崩溃；现在仓库已转为 `PUBLIC`，若不在发出 `EXP-001` 邀请前同步上 `main`，外测用户拿到手第一条命令就会失败触发冷启动止损。
+- **方案 A / B / C**：
+  - **方案 A（推荐）**：立即整合至 `main` 并推送 `origin/main` 等 GitHub Actions（11 组 Python 套件 + Frontend Vitest）全绿，随后再用 1 条 `uv run youtube-intel start` 版文案发出 `EXP-001` 邀请。
+  - **方案 B**：暂不更新 `main`，改在邀请消息里私聊提醒测试者手工修改 `config/settings.yaml` 的 `vault_root`（仍有漏看导致首次必崩风险）。
+  - **方案 C**：维持旧 `main` 不动，暂不发邀请。
+- **成本、收益及风险**：成本约 5 分钟 Git 整合 + CI 运行、**$0**；收益直接消除首个 100% 冷启动阻断；风险极低（已通过本地 `uv lock`、`ruff`、`mypy --strict` 及全套 CI Pytest）。
+- **你推荐的方案**：**方案 A**（信心 **95%**）。
+- **如果暂不决定会发生什么**：公开仓库 `main` 默认上手流程仍存在 `vault_root` 首次崩溃坑，`EXP-001` 邀测只能先用手工修改配置绕过。

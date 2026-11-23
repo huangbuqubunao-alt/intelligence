@@ -38,6 +38,7 @@ jobs:
             tests/integration/test_console_entry.py \
             tests/integration/test_public_beta_demo_showcase.py \
             tests/integration/test_workspace_cloud_safety.py \
+            tests/integration/test_workspace_start_launcher.py \
             tests/integration/test_grounding_refusal_eval.py \
             tests/integration/test_cross_source_markdown_and_scale.py \
             tests/integration/test_portable_citations_and_ops.py \
