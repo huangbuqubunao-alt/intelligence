@@ -14,10 +14,11 @@
 | **DEC-OPS-004** | 用真实本机 `ollama/qwen3.5:9b` 跑通陌生双语对照基准 (`EXP-002`) | L2 | **EXECUTED (`2026-11-23`)** | 3/3 有据 + 2/2 拒答 (`227.6s`) | `9 × 3 × 0.70 / 1.0 = 18.9` |
 | **DEC-OPS-005** | 推出零配置 `youtube-intel start` 启动器消除首次冷启动必崩 | L1 + L3 (`FD-004`) | **COMPLETED (`main@a820152`)** | CI `#45137542384` 全绿 | `10 × 3 × 0.95 / 0.8 = 35.6` |
 | **DEC-OPS-006** | **Stage D Iteration #3**：根治 Demo 越域假问答、macOS 浏览器本地上传死路、空库 409 与冷启动 Settings 误报 | L1 | **COMPLETED (`main@f23954f`)** | **CI `#45149288840` 双端全绿** | `10 × 3 × 0.95 / 0.7 = 40.7` |
-| **DEC-OPS-007** | **Iteration #4 (`BL-006` + `BL-005`)**：单快照加速 `/evidence`（713ms→4ms 级）+ 两层详情动作栏 + 32 例多源冲突 Eval & Demo 词形拒答加固 | L1 | **EXECUTED (`6760028`)** | **本地全绿 + Chromium 桌面/移动复检** | `8 × 2.5 × 0.85 / 0.8 = 21.3` |
-| **DEC-OPS-008** | **Iteration #5 (`BL-007`)**：首轮三步引导可跳转步骤条与来源矩阵 + 双主题移动端适配 + 补全缺失中文与移除 `UNKNOWN` 费用生硬词 | L1 | **EXECUTED (`2be958f`)** | **`54/54` (`1244/1244`) Vitest 全绿 + 双主题实机** | `6 × 1.5 × 0.80 / 0.4 = 18.0` |
-| **DEC-OPS-009** | **Iteration #6 (`BL-008`)**：>500 大库全库分块检索与 `/videos` 分页 + SQLite `.backup()` 零密钥热快照 + 冷启动路径加速 + `#Settings` 零扰动复审 | L1 | **EXECUTED (`dbc7e89`)** | **`143/143` CI Pytest + `27/27` 备份全绿** | `4 × 2.0 × 0.70 / 1.0 = 5.6` |
-| **DEC-OPS-010** | **Iteration #7 (`BL-010`)**：4h 音频与 300KB 长 Markdown 均匀边界加固 + Obsidian `.zip` 真解压安全与排版修复 + 阶段退出门禁清单 | L1 | **EXECUTED (Iteration #7)** | **`143/143` CI + `3/3` 边界真解压专项全绿** | `6 × 2.5 × 0.90 / 0.6 = 22.5` |
+| **DEC-OPS-007** | **Iteration #4 (`BL-006` + `BL-005`)**：单快照加速 `/evidence`（713ms→4ms 级）+ 两层详情动作栏 + 32 例多源冲突 Eval & Demo 词形拒答加固 | L1 | **COMPLETED (`main@aec26da`)** | **CI `#45187713845` + Chromium 复检全绿** | `8 × 2.5 × 0.85 / 0.8 = 21.3` |
+| **DEC-OPS-008** | **Iteration #5 (`BL-007`)**：首轮三步引导可跳转步骤条与来源矩阵 + 双主题移动端适配 + 补全缺失中文与移除 `UNKNOWN` 费用生硬词 | L1 | **COMPLETED (`main@aec26da`)** | **CI `#45187713845` (`1244/1244`) + 双主题实机** | `6 × 1.5 × 0.80 / 0.4 = 18.0` |
+| **DEC-OPS-009** | **Iteration #6 (`BL-008`)**：>500 大库全库分块检索与 `/videos` 分页 + SQLite `.backup()` 零密钥热快照 + 冷启动路径加速 + `#Settings` 零扰动复审 | L1 | **COMPLETED (`main@aec26da`)** | **CI `#45187713845` + `27/27` 备份全绿** | `4 × 2.0 × 0.70 / 1.0 = 5.6` |
+| **DEC-OPS-010** | **Iteration #7 (`BL-010`)**：4h 音频与 300KB 长 Markdown 均匀边界加固 + Obsidian `.zip` 真解压安全与排版修复 + 阶段退出门禁清单 | L1 | **COMPLETED (`main@aec26da`)** | **CI `#45187713845` (`146/146` 含长媒体/ZIP)** | `6 × 2.5 × 0.90 / 0.6 = 22.5` |
+| **DEC-OPS-011** | **执行 `FD-006`**：将 Iteration #4–#7 与 12 组全量 CI 接线合流 `main@aec26da` 并获云端双端绿标 | L3 (`FD-006`) | **COMPLETED (`main@aec26da`)** | **CI `#45187713845` 双作业 `success`** | `10 × 2.5 × 0.95 / 0.3 = 79.2` |
 
 ---
 
@@ -89,3 +90,15 @@
 | **三方案对比** | **方案 A（已选并执行，RICE `22.5`）**：<br>1. `workspace_intelligence_hub.py`：新增 UTF-8 字节级安全截断（`<=180B`）、控制符剥离、`CON` 等 Windows 保留字加前缀 `_`、`json.dumps` 安全 YAML 标量引用 `_yaml_quoted`、视频/周报 CommonMark 空行修复、纯文本笔记去 `00:00` 改显 `载体：文本 / Markdown`、`used_paths_lower` 大小写不敏感增量防覆盖，以及 `_build_text_evidence_sections()` 超过预算后按全篇均匀多锚点采样（0%–96%+）；<br>2. 新增全链集成测试 [`test_long_media_and_obsidian_vault.py`](../tests/integration/test_long_media_and_obsidian_vault.py) 覆盖 4 小时讲座、300KB/2900 行 Markdown 与真实 `.zip` 落盘解压解析；<br>3. 梳理六维阶段退出检查单 [`RELEASE_READINESS_GATE.md`](./RELEASE_READINESS_GATE.md)。<br>**方案 B（放开单证据界面 `/evidence` 对 >21 片段的全量无上限加载）**：会直接拖垮首屏详情读性能且跨出既有前后端契约，**拒绝**（维持前 21 条展示有界，尾段由 FTS5 跨源问答直接检索与后端核验）。<br>**方案 C（把个人真实 Obsidian Vault 直接接入自动化测试目录）**：直接触犯零污染与隐私红线，**坚决拒绝**。 |
 | **工程成本与副作用** | 修改 1 个后端模块 `workspace_intelligence_hub.py`，新增 1 套集成测试文件及 `RELEASE_READINESS_GATE.md`；零 DB Schema 变更，零依赖新增，零 `frontend/` 改动，零触碰个人真实 Vault。 |
 | **验证结果与回滚条件** | `ruff check` & `mypy src`（136 文件）0 错；新增专项 [`test_long_media_and_obsidian_vault.py`](../tests/integration/test_long_media_and_obsidian_vault.py) **`3/3 passed in 19.04s`**；完整 11 组 Public Beta CI `pytest` 独跑 **`143/143 passed in 437.61s`**（0 failed, 0 skipped）；`security_scan.sh` 无新增告警、`product-ops/` 个人路径泄漏为 `0`。可按单提交粒度安全回滚。 |
+
+---
+
+### DEC-OPS-011：执行创始人 `FD-006` 裁决——合流 Iteration #4–#7 上 `main` 并扩充云端 CI 守卫（2026-11-23）
+
+| 评估维度 | 详细分析与证据 |
+|---|---|
+| **触发问题（L3 授权执行）** | Iteration #4–#7（`6760028`/`2be958f`/`dbc7e89`/`f908d95`）已在研发分支本地全绿验证，其中新引入的 4h 长课/300KB Markdown/Obsidian ZIP 真解压集成测试尚不在 `.github/workflows/ci.yml` 默认跑批之列；创始人批复“可以”准予合流 `main` 并验收云端 CI 绿标。 |
+| **用户价值与预期收益** | 让公开主线 `main` 实时囊括所有已验收的性能加速、三步引导、>500 分页、`.backup()` 热快照与长媒体/Obsidian `.zip` 可靠性加固，并使后续每一次 `main` 推送或 PR 自动回归 12 组全量后端套件（146 tests），阻断跨平台导出或大库退化。 |
+| **三方案对比** | **方案 A（已选并执行，RICE `79.2`）**：<br>1. 在 `.github/workflows/ci.yml` 将 `tests/integration/test_long_media_and_obsidian_vault.py` 纳入 `Run Public Beta verification suite`（提交 `028d10e`）；<br>2. 在独立临时 worktree 从 `main@f23954f` 线性拣选合入 `6760028`、`2be958f`、`dbc7e89`、`f908d95`、`028d10e` 并推送 `origin/main`（`aec26da`），严守零冲突与零冗余文件；<br>3. 严守被动 `PUBLIC`（0 Release / 0 外宣 / `EXP-001` 维持 `HOLD`）。<br>**方案 B（仅合代码不扩 `ci.yml`）**：新加的 Obsidian `.zip` 真解压边界缺云端 Linux 持续回归保护，**拒绝**。<br>**方案 C（在 `main` 上执行整支盲 merge 产生分叉 merge commit）**：因前期 `FD-001`/`FD-004`/`FD-005` 采用线性拣选，整支 merge 会制造重复分叉历史，**拒绝**。 |
+| **工程成本与副作用** | 修改 `.github/workflows/ci.yml`（+1 行）及 `product-ops/` 台账同步，临时 worktree 用后清理；零产品代码或 Schema 更改。 |
+| **验证结果与回滚条件** | `main@aec26da` 触发 GitHub Actions [`Public Beta CI #45187713845`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45187713845) 双端 `success`：`Frontend Build & Vitest` `1m43s`（`vite build` `1.52s` + `54/54` / `1244/1244`）与 `Python Lint, Typecheck & Public Beta Integration` `4m42s`（12 组全量 **`146 passed in 231.25s`**）；仓库继续保持被动 `PUBLIC`、0 Release。若需撤回 `ci.yml` 变动可按单提交粒度安全回滚。 |
