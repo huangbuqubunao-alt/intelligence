@@ -37,7 +37,7 @@ from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
 from pathlib import Path
 from typing import Any, Protocol, cast
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlencode, urlparse, urlsplit, urlunsplit
 
 from youtube_intel.brief import WeeklyBriefError, WeeklyBriefService
 from youtube_intel.config import _validate_loopback_http_base_url
@@ -269,6 +269,55 @@ def _format_mmss(seconds: float | int | None) -> str:
     if hrs > 0:
         return f"{hrs:02d}:{mins:02d}:{secs:02d}"
     return f"{mins:02d}:{secs:02d}"
+
+
+def _build_citation_deep_url(
+    source_url: str | None,
+    *,
+    provider: str = "",
+    start_seconds: float | int | None = None,
+) -> str | None:
+    """Build an HTTPS deep-linked timestamp URL for YouTube or Bilibili sources."""
+    if (
+        not source_url
+        or not isinstance(source_url, str)
+        or start_seconds is None
+        or isinstance(start_seconds, bool)
+        or start_seconds < 0
+    ):
+        return None
+    parts = urlsplit(source_url.strip())
+    if parts.scheme.lower() != "https" or not parts.netloc:
+        return None
+    host = (parts.hostname or "").lower()
+    sec = max(0, int(start_seconds))
+    prov = provider.strip().upper()
+    if prov == "YOUTUBE" or host in {
+        "youtube.com",
+        "www.youtube.com",
+        "m.youtube.com",
+        "youtu.be",
+    }:
+        params = [
+            (k, v)
+            for k, v in parse_qsl(parts.query, keep_blank_values=True)
+            if k != "t"
+        ]
+        params.append(("t", f"{sec}s"))
+        return urlunsplit(("https", parts.netloc, parts.path, urlencode(params), ""))
+    if prov == "BILIBILI" or host in {
+        "bilibili.com",
+        "www.bilibili.com",
+        "m.bilibili.com",
+    }:
+        params = [
+            (k, v)
+            for k, v in parse_qsl(parts.query, keep_blank_values=True)
+            if k != "t"
+        ]
+        params.append(("t", str(sec)))
+        return urlunsplit(("https", parts.netloc, parts.path, urlencode(params), ""))
+    return None
 
 
 def _clean_text(value: object, *, fallback: str = "", max_len: int = 1800) -> str:
@@ -1753,7 +1802,15 @@ class WorkspaceIntelligenceHub:
                 raw_start = pt.get("start_seconds")
                 if isinstance(raw_start, (int, float)):
                     ts_label = _format_mmss(float(raw_start))
-                    lines.append(f"- **[{ts_label}]** {pt.get('text', '')}")
+                    deep_url = _build_citation_deep_url(
+                        source_url, start_seconds=float(raw_start)
+                    )
+                    if deep_url:
+                        lines.append(
+                            f"- **[{ts_label} ↗]({deep_url})** {pt.get('text', '')}"
+                        )
+                    else:
+                        lines.append(f"- **[{ts_label}]** {pt.get('text', '')}")
                 else:
                     loc_label = _clean_text(pt.get("locator_label"), max_len=64)
                     if loc_label:
@@ -3585,6 +3642,7 @@ class WorkspaceIntelligenceHub:
                             "video_title": video.title,
                             "channel_name": video.channel_name or video.provider,
                             "provider": str(video.provider or "YOUTUBE"),
+                            "source_url": video.source_url,
                             "locator_type": "TIME_RANGE",
                             "evidence_id": ev_id,
                             "start_seconds": start_sec,
@@ -3592,6 +3650,11 @@ class WorkspaceIntelligenceHub:
                             "start_ms": round(start_sec * 1000),
                             "end_ms": round(end_sec * 1000),
                             "timestamp_label": _format_mmss(start_sec),
+                            "citation_url": _build_citation_deep_url(
+                                video.source_url,
+                                provider=str(video.provider or "YOUTUBE"),
+                                start_seconds=start_sec,
+                            ),
                             "point_zh": str(pt.get("text", "")),
                             "excerpt": _clean_text(pt.get("excerpt", ""), max_len=280),
                         },
@@ -3677,6 +3740,7 @@ class WorkspaceIntelligenceHub:
                         "video_title": video.title,
                         "channel_name": video.channel_name or video.provider,
                         "provider": str(video.provider or "YOUTUBE"),
+                        "source_url": video.source_url,
                         "locator_type": "TIME_RANGE",
                         "evidence_id": ev_id,
                         "start_seconds": start_sec,
@@ -3684,6 +3748,11 @@ class WorkspaceIntelligenceHub:
                         "start_ms": start_ms,
                         "end_ms": end_ms,
                         "timestamp_label": _format_mmss(start_sec),
+                        "citation_url": _build_citation_deep_url(
+                            video.source_url,
+                            provider=str(video.provider or "YOUTUBE"),
+                            start_seconds=start_sec,
+                        ),
                         "point_zh": "",
                         "excerpt": _clean_text(exact_excerpt, max_len=280),
                     },
@@ -3732,6 +3801,7 @@ class WorkspaceIntelligenceHub:
                             "video_title": video.title,
                             "channel_name": video.channel_name or video.provider,
                             "provider": str(video.provider or "YOUTUBE"),
+                            "source_url": video.source_url,
                             "locator_type": "TIME_RANGE",
                             "evidence_id": ev_id,
                             "start_seconds": start_sec,
@@ -3739,6 +3809,11 @@ class WorkspaceIntelligenceHub:
                             "start_ms": win.start_ms,
                             "end_ms": win.end_ms,
                             "timestamp_label": _format_mmss(start_sec),
+                            "citation_url": _build_citation_deep_url(
+                                video.source_url,
+                                provider=str(video.provider or "YOUTUBE"),
+                                start_seconds=start_sec,
+                            ),
                             "point_zh": "",
                             "excerpt": _clean_text(win.excerpt, max_len=280),
                         },
@@ -3770,6 +3845,7 @@ class WorkspaceIntelligenceHub:
                 "video_title": video.title or video.video_id,
                 "channel_name": channel_name,
                 "provider": str(video.provider or "LOCAL"),
+                "source_url": None,
                 "locator_type": "TEXT_RANGE",
                 "evidence_id": seg.evidence_id,
                 "start_seconds": None,
@@ -3780,6 +3856,7 @@ class WorkspaceIntelligenceHub:
                 "end_offset": seg.end_offset,
                 "paragraph_index": seg.paragraph_index,
                 "timestamp_label": seg.locator_label,
+                "citation_url": None,
                 "point_zh": point_zh,
                 "excerpt": _clean_text(seg.text, max_len=280),
             }
@@ -4367,8 +4444,34 @@ class WorkspaceIntelligenceHub:
             f"# 研究问题：{question}",
             "",
         ]
+        def _format_citation_md_line(
+            c: Mapping[str, Any], *, with_note: bool
+        ) -> str:
+            ts_label = str(c.get("timestamp_label") or "")
+            cit_url = str(c.get("citation_url") or "").strip()
+            loc_md = f"[`{ts_label} ↗`]({cit_url})" if cit_url else f"`{ts_label}`"
+            ev_raw = str(c.get("evidence_id") or "").strip()
+            ev_tag = f" `ev:{ev_raw[:12]}`" if ev_raw else ""
+            head = (
+                f"- **[{c['ref_label']}]** [[{_safe_obsidian_title(str(c['video_title']))}]] "
+                f"{loc_md} ({c['channel_name']}){ev_tag}"
+            )
+            if with_note:
+                note_str = str(c.get("note_zh") or c.get("point_zh") or "").strip()
+                return f"{head}：{note_str}" if note_str else head
+            return head
+
         if scope_label_zh:
             md_lines.extend([f"> **研究范围**：{scope_label_zh}", ""])
+        if covered_sources:
+            cov_labels = " · ".join(
+                f"[[{_safe_obsidian_title(str(s['title']))}]]"
+                + (" (`文档`)" if s.get("locator_type") == "TEXT_RANGE" else "")
+                for s in covered_sources[:8]
+            )
+            md_lines.extend(
+                [f"> **核验覆盖材料（{len(covered_sources)} 份）**：{cov_labels}", ""]
+            )
         if refused:
             md_lines.extend(
                 [
@@ -4379,10 +4482,7 @@ class WorkspaceIntelligenceHub:
                 ]
             )
             for c in related_excerpts:
-                md_lines.append(
-                    f"- **[{c['ref_label']}]** [[{_safe_obsidian_title(c['video_title'])}]] "
-                    f"`{c['timestamp_label']}` ({c['channel_name']})"
-                )
+                md_lines.append(_format_citation_md_line(c, with_note=False))
                 if c.get("excerpt"):
                     md_lines.append(f"  > {c['excerpt']}")
         else:
@@ -4410,10 +4510,7 @@ class WorkspaceIntelligenceHub:
                 else "## 时间戳原话证据链"
             )
             for c in hydrated_citations:
-                md_lines.append(
-                    f"- **[{c['ref_label']}]** [[{_safe_obsidian_title(c['video_title'])}]] "
-                    f"`{c['timestamp_label']}` ({c['channel_name']})：{c.get('note_zh') or c.get('point_zh') or ''}"
-                )
+                md_lines.append(_format_citation_md_line(c, with_note=True))
                 if c.get("excerpt"):
                     md_lines.append(f"  > {c['excerpt']}")
         obsidian_md = "\n".join(md_lines) + "\n"
