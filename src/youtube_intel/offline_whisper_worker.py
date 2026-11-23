@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import importlib
 import importlib.metadata
 import json
 import socket
 import sys
 from pathlib import Path
-from typing import NoReturn
+from typing import Any, NoReturn
 
 
 def _offline(*args: object, **kwargs: object) -> NoReturn:
@@ -26,8 +27,8 @@ def main() -> None:
     socket.socket.connect = _offline  # type: ignore[method-assign]
     socket.create_connection = _offline
     with contextlib.redirect_stdout(sys.stderr):
-        import mlx_whisper  # type: ignore[import-untyped]
-        import mlx_whisper.load_models as loader  # type: ignore[import-untyped]
+        mlx_whisper: Any = importlib.import_module("mlx_whisper")
+        loader: Any = importlib.import_module("mlx_whisper.load_models")
 
         loader.snapshot_download = _offline
         if args.probe:
