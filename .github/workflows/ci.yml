@@ -44,6 +44,7 @@ jobs:
             tests/integration/test_portable_citations_and_ops.py \
             tests/integration/test_workspace_intelligence_hub.py \
             tests/integration/test_fast_read_api.py \
+            tests/integration/test_long_media_and_obsidian_vault.py \
             tests/e2e/test_po_demo.py \
             -q --tb=short
 
