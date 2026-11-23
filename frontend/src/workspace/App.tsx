@@ -46,6 +46,7 @@ import {
   readSourceAiSignalMap,
   readTopicAiEvolution,
   readVideoAiBrief,
+  readVideoVisualAnalysis,
   readWeeklyAiBrief,
   readWorkspaceAiCapabilities,
   readWorkspaceAiSettings,
@@ -64,6 +65,7 @@ import {
   WorkspaceAiSettingsPanel,
   WorkspaceVideoAiActions,
   WorkspaceVideoAiBriefCard,
+  WorkspaceVisualKeyframePanel,
   compareContentNewestFirst,
 } from "./WorkspaceAiWidgets";
 
@@ -237,6 +239,7 @@ type ContentDetail = {
   local_intelligence?: unknown;
   obsidian_markdown?: string;
   workspace_ai_capabilities?: unknown;
+  visual_analysis?: unknown;
   video: ContentItem;
   pending_synthesis_executions?: { execution_id: string; updated_at: string; can_cancel: boolean; selected_provider?: string }[];
   waiting_model_executions?: { execution_id: string; updated_at: string; can_cancel: boolean; selected_provider?: string }[];
@@ -6017,6 +6020,19 @@ function ContentDetailPanel(
           brief={aiBrief}
           obsidianMarkdown={data.obsidian_markdown}
           onSelectTopicCluster={onSelectTopicCluster}
+        />
+        <WorkspaceVisualKeyframePanel
+          videoId={id}
+          isLocalVideo={
+            wsCapabilities?.visual_analysis_eligible === true ||
+            (data.video.provider === "LOCAL" && data.video.media_kind === "VIDEO")
+          }
+          ffmpegAvailable={wsCapabilities?.ffmpeg_available}
+          visualAnalysis={readVideoVisualAnalysis(data.visual_analysis)}
+          onCompleted={() => {
+            setRefresh(value => value + 1);
+            onListChanged?.();
+          }}
         />
         {(() => {
           const hasActiveLegacyExecution = Boolean(

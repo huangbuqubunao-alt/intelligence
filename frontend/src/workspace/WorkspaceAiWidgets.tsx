@@ -364,6 +364,38 @@ export type WorkspaceAiCapabilities = {
   ready: boolean;
   transcriber_ready: boolean;
   transcribe_job: WorkspaceAiTranscribeJob | null;
+  visual_analysis_eligible?: boolean;
+  ffmpeg_available?: boolean;
+};
+
+export type VideoVisualKeyframe = {
+  frame_index: number;
+  frame_id: string;
+  filename: string;
+  obsidian_asset_name?: string;
+  timestamp_ms: number;
+  timestamp_label: string;
+  selection_reason: string;
+  frame_kind: string;
+  has_visual_info: boolean;
+  title_zh: string;
+  visual_detail_zh: string;
+  transcript_fusion_zh: string;
+  nearby_transcript: string;
+  image_url: string;
+  image_available: boolean;
+};
+
+export type VideoVisualAnalysis = {
+  video_id: string;
+  visual_summary_zh: string;
+  visual_takeaways_zh: string[];
+  frames: VideoVisualKeyframe[];
+  frame_count: number;
+  informative_frame_count: number;
+  provider: string;
+  model: string;
+  updated_at: string;
 };
 
 const isRec = (v: unknown): v is Record<string, unknown> =>
@@ -922,6 +954,54 @@ export function readWorkspaceAiCapabilities(raw: unknown): WorkspaceAiCapabiliti
     ready: Boolean(raw.ready),
     transcriber_ready: Boolean(raw.transcriber_ready),
     transcribe_job: readWorkspaceAiTranscribeJob(raw.transcribe_job),
+    ...(typeof raw.visual_analysis_eligible === "boolean"
+      ? { visual_analysis_eligible: raw.visual_analysis_eligible }
+      : {}),
+    ...(typeof raw.ffmpeg_available === "boolean"
+      ? { ffmpeg_available: raw.ffmpeg_available }
+      : {}),
+  };
+}
+
+export function readVideoVisualAnalysis(raw: unknown): VideoVisualAnalysis | null {
+  if (!isRec(raw) || typeof raw.video_id !== "string" || !Array.isArray(raw.frames)) {
+    return null;
+  }
+  const frames: VideoVisualKeyframe[] = raw.frames
+    .filter(isRec)
+    .map((f, idx) => ({
+      frame_index: typeof f.frame_index === "number" ? f.frame_index : idx + 1,
+      frame_id: typeof f.frame_id === "string" ? f.frame_id : `f-${idx + 1}`,
+      filename: typeof f.filename === "string" ? f.filename : "",
+      obsidian_asset_name:
+        typeof f.obsidian_asset_name === "string" ? f.obsidian_asset_name : undefined,
+      timestamp_ms: typeof f.timestamp_ms === "number" ? f.timestamp_ms : 0,
+      timestamp_label: typeof f.timestamp_label === "string" ? f.timestamp_label : "00:00",
+      selection_reason: typeof f.selection_reason === "string" ? f.selection_reason : "UNIFORM",
+      frame_kind: typeof f.frame_kind === "string" ? f.frame_kind : "OTHER",
+      has_visual_info: typeof f.has_visual_info === "boolean" ? f.has_visual_info : true,
+      title_zh: typeof f.title_zh === "string" ? f.title_zh : "",
+      visual_detail_zh: typeof f.visual_detail_zh === "string" ? f.visual_detail_zh : "",
+      transcript_fusion_zh:
+        typeof f.transcript_fusion_zh === "string" ? f.transcript_fusion_zh : "",
+      nearby_transcript: typeof f.nearby_transcript === "string" ? f.nearby_transcript : "",
+      image_url: typeof f.image_url === "string" ? f.image_url : "",
+      image_available: typeof f.image_available === "boolean" ? f.image_available : Boolean(f.image_url),
+    }))
+    .filter((f) => f.image_url.length > 0);
+  return {
+    video_id: raw.video_id,
+    visual_summary_zh: typeof raw.visual_summary_zh === "string" ? raw.visual_summary_zh : "",
+    visual_takeaways_zh: strArr(raw.visual_takeaways_zh),
+    frames,
+    frame_count: typeof raw.frame_count === "number" ? raw.frame_count : frames.length,
+    informative_frame_count:
+      typeof raw.informative_frame_count === "number"
+        ? raw.informative_frame_count
+        : frames.filter((f) => f.has_visual_info).length,
+    provider: typeof raw.provider === "string" ? raw.provider : "ollama",
+    model: typeof raw.model === "string" ? raw.model : "",
+    updated_at: typeof raw.updated_at === "string" ? raw.updated_at : "",
   };
 }
 
@@ -2411,6 +2491,412 @@ export function WorkspaceVideoAiBriefCard({
         </details>
       ) : null}
     </div>
+  );
+}
+
+const FRAME_KIND_LABELS: Record<string, { zh: string; en: string }> = {
+  SLIDE: { zh: "PPT", en: "Slide" },
+  CHART: { zh: "图表", en: "Chart" },
+  CODE: { zh: "代码", en: "Code" },
+  DEMO: { zh: "演示", en: "Demo" },
+  ARCHITECTURE: { zh: "架构图", en: "Diagram" },
+  SPEAKER: { zh: "讲者", en: "Speaker" },
+  OTHER: { zh: "画面", en: "Frame" },
+};
+
+export function WorkspaceVisualKeyframePanel({
+  videoId,
+  isLocalVideo,
+  ffmpegAvailable,
+  visualAnalysis,
+  onCompleted,
+}: {
+  videoId: string;
+  isLocalVideo: boolean;
+  ffmpegAvailable?: boolean;
+  visualAnalysis: VideoVisualAnalysis | null;
+  onCompleted: () => void;
+}) {
+  const { language } = useUiLanguage();
+  const zh = language === "zh-CN";
+  const [localAnalysis, setLocalAnalysis] = useState<VideoVisualAnalysis | null>(
+    visualAnalysis,
+  );
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [errorAction, setErrorAction] = useState<{ label: string; href: string } | null>(
+    null,
+  );
+  const [informativeOnly, setInformativeOnly] = useState(false);
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    setLocalAnalysis(visualAnalysis);
+    setError(null);
+    setErrorAction(null);
+    setActiveIndex(null);
+    setInformativeOnly(false);
+  }, [videoId, visualAnalysis]);
+
+  const analysis = localAnalysis ?? visualAnalysis;
+  const allFrames = analysis?.frames ?? [];
+  const hasSpeakerFrames = allFrames.some((f) => !f.has_visual_info);
+  const hasInformativeFrames = allFrames.some((f) => f.has_visual_info);
+  const canToggleFilter = hasSpeakerFrames && hasInformativeFrames;
+  const visibleFrames =
+    informativeOnly && canToggleFilter
+      ? allFrames.filter((f) => f.has_visual_info)
+      : allFrames;
+
+  useEffect(() => {
+    if (activeIndex === null) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        setActiveIndex(null);
+      } else if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        setActiveIndex((prev) => (prev !== null && prev > 0 ? prev - 1 : prev));
+      } else if (event.key === "ArrowRight") {
+        event.preventDefault();
+        setActiveIndex((prev) =>
+          prev !== null && prev < visibleFrames.length - 1 ? prev + 1 : prev,
+        );
+      }
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [activeIndex, visibleFrames.length]);
+
+  if (!isLocalVideo && !analysis) {
+    return null;
+  }
+
+  const runVisualAnalysis = async () => {
+    if (busy || ffmpegAvailable === false) return;
+    setBusy(true);
+    setError(null);
+    setErrorAction(null);
+    try {
+      const res = await post<{ analysis?: unknown }>(
+        `/workspace-ai/videos/${encodeURIComponent(videoId)}/visual-analysis`,
+        {},
+      );
+      const parsed = readVideoVisualAnalysis(res?.analysis);
+      if (parsed) {
+        setLocalAnalysis(parsed);
+      }
+      onCompleted();
+    } catch (err) {
+      const code = err instanceof ApiRequestError ? err.code : undefined;
+      const serverMsg =
+        err instanceof ApiRequestError
+          ? (err.technicalMessage || err.message || "").trim()
+          : "";
+      if (code === "LOCAL_VISION_MODEL_UNSUPPORTED") {
+        setError(
+          serverMsg ||
+            (zh
+              ? "当前本机模型暂不支持图片视觉解读，请在设置中切换至支持视觉的模型（如 gemma3:4b 或 qwen3.5:9b）。"
+              : "Current local Ollama model does not support vision inputs. Switch to a vision model such as gemma3:4b or qwen3.5:9b in Settings."),
+        );
+        setErrorAction({
+          label: zh ? "前往模型设置切换视觉模型 →" : "Switch vision model in Settings →",
+          href: "#Settings",
+        });
+      } else if (
+        code === "CLOUD_DAILY_BUDGET_EXCEEDED" ||
+        code === "CLOUD_ENDPOINT_REAUTH_REQUIRED" ||
+        code === "CLOUD_CREDENTIAL_MISSING"
+      ) {
+        setError(
+          serverMsg ||
+            (zh
+              ? "云端视觉分析已受预算或安全凭据门禁阻断，请先检查设置。"
+              : "Cloud vision call blocked by budget or credential safety guard."),
+        );
+        setErrorAction({
+          label: zh ? "查看引擎与预算设置 →" : "Open engine & budget settings →",
+          href: "#Settings",
+        });
+      } else if (code === "VISUAL_FFMPEG_UNAVAILABLE") {
+        setError(
+          serverMsg ||
+            (zh
+              ? "未检测到系统 ffmpeg，请安装 ffmpeg 后再试。"
+              : "Trusted ffmpeg executable was not found."),
+        );
+        setErrorAction(null);
+      } else {
+        setError(
+          serverMsg ||
+            (zh
+              ? "关键画面与视觉融合分析未完成，请确认模型服务运行正常后重试。"
+              : "Could not complete visual keyframe analysis."),
+        );
+        setErrorAction({
+          label: zh ? "前往模型设置 →" : "Open model settings →",
+          href: "#Settings",
+        });
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const activeFrame =
+    activeIndex !== null && activeIndex >= 0 && activeIndex < visibleFrames.length
+      ? visibleFrames[activeIndex]
+      : null;
+
+  const packHref = `/api/v1/workspace-ai/videos/${encodeURIComponent(videoId)}/visual-pack.zip`;
+
+  return (
+    <section
+      className="visual-keyframe-panel"
+      aria-label={zh ? "关键画面与字幕融合分析" : "Visual Keyframe & Transcript Fusion"}
+    >
+      {!analysis ? (
+        <div className="visual-keyframe-idle">
+          <div className="visual-keyframe-idle-copy">
+            <h3 className="visual-keyframe-heading">
+              {zh ? "关键画面与字幕融合分析" : "Key Video Frames & Transcript Fusion"}
+            </h3>
+            <p className="visual-keyframe-subcopy">
+              {ffmpegAvailable === false
+                ? zh
+                  ? "未检测到本机 ffmpeg，安装 ffmpeg 后即可按场景切换自动提取 PPT/架构图关键帧。"
+                  : "Install ffmpeg to enable scene-change keyframe extraction."
+                : zh
+                  ? "仅针对当前视频按需抽帧并去重，结合原话字幕识别 PPT、图表与架构细节（零后台静默扣费）。"
+                  : "On-demand scene keyframe extraction fused with spoken transcript context (zero background spend)."}
+            </p>
+          </div>
+          <div className="visual-keyframe-actions">
+            <button
+              type="button"
+              className="button button-secondary button-small"
+              disabled={busy || ffmpegAvailable === false}
+              onClick={(event) => {
+                pulseCelebration(event.currentTarget);
+                void runVisualAnalysis();
+              }}
+            >
+              <PhosphorIcon name="sparkle" size={13} />
+              {busy
+                ? zh
+                  ? "正在提取关键画面并融合解读…"
+                  : "Extracting frames & analyzing…"
+                : zh
+                  ? "结合画面分析关键帧"
+                  : "Analyze key frames"}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="visual-keyframe-header">
+            <div className="visual-keyframe-title-row">
+              <h3 className="visual-keyframe-heading">
+                {zh ? "关键画面与字幕融合解读" : "Key Frames & Visual Insights"}
+              </h3>
+              <span className="visual-keyframe-meta-pill">
+                {zh
+                  ? `${analysis.frame_count} 帧 · ${analysis.informative_frame_count} 帧含 PPT/图表`
+                  : `${analysis.frame_count} frames · ${analysis.informative_frame_count} visual`}
+              </span>
+              {analysis.model ? (
+                <span className="ai-topic-tag">
+                  {analysis.provider}/{analysis.model}
+                </span>
+              ) : null}
+            </div>
+            <div className="visual-keyframe-actions">
+              {canToggleFilter ? (
+                <button
+                  type="button"
+                  className="button button-ghost button-small"
+                  aria-pressed={informativeOnly}
+                  onClick={() => {
+                    setActiveIndex(null);
+                    setInformativeOnly((prev) => !prev);
+                  }}
+                >
+                  {informativeOnly
+                    ? zh
+                      ? "显示全部帧"
+                      : "Show all frames"
+                    : zh
+                      ? "仅看含 PPT/图表帧"
+                      : "Slides & charts only"}
+                </button>
+              ) : null}
+              <a
+                className="button button-secondary button-small"
+                href={packHref}
+                download
+              >
+                <PhosphorIcon name="stack" size={13} />
+                {zh ? "下载带图笔记包 (.zip)" : "Download visual pack (.zip)"}
+              </a>
+              <button
+                type="button"
+                className="button button-ghost button-small"
+                disabled={busy || ffmpegAvailable === false}
+                onClick={() => void runVisualAnalysis()}
+              >
+                {busy
+                  ? zh
+                    ? "正在提取关键画面并融合解读…"
+                    : "Re-analyzing frames…"
+                  : zh
+                    ? "重新分析画面"
+                    : "Re-analyze frames"}
+              </button>
+            </div>
+          </div>
+
+          <div className="visual-keyframe-summary">
+            <p className="visual-keyframe-summary-text">{analysis.visual_summary_zh}</p>
+            {analysis.visual_takeaways_zh.length > 0 ? (
+              <ul className="visual-keyframe-takeaways">
+                {analysis.visual_takeaways_zh.map((item, idx) => (
+                  <li key={idx}>{item}</li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+
+          <div className="visual-keyframe-grid">
+            {visibleFrames.map((frame, idx) => {
+              const kindEntry = FRAME_KIND_LABELS[frame.frame_kind] ?? FRAME_KIND_LABELS.OTHER;
+              const kindLabel = zh ? kindEntry.zh : kindEntry.en;
+              return (
+                <button
+                  key={frame.frame_id}
+                  type="button"
+                  className="visual-keyframe-card"
+                  onClick={() => setActiveIndex(idx)}
+                >
+                  <div className="visual-keyframe-thumb-wrap">
+                    <img
+                      className="visual-keyframe-thumb"
+                      src={frame.image_url}
+                      alt={`${frame.timestamp_label} ${frame.title_zh}`}
+                      loading="lazy"
+                    />
+                    <span className="visual-keyframe-timecode">{frame.timestamp_label}</span>
+                    <span className="visual-keyframe-kind-badge">{kindLabel}</span>
+                  </div>
+                  <div className="visual-keyframe-card-body">
+                    <p className="visual-keyframe-card-title">{frame.title_zh}</p>
+                    <p className="visual-keyframe-card-detail">{frame.visual_detail_zh}</p>
+                    {frame.transcript_fusion_zh ? (
+                      <p className="visual-keyframe-card-fusion">
+                        {frame.transcript_fusion_zh}
+                      </p>
+                    ) : null}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {error ? (
+        <p className="form-error" role="alert">
+          <span>{error}</span>
+          {errorAction ? (
+            <>
+              {" "}
+              <a className="source-link" href={errorAction.href}>
+                {errorAction.label}
+              </a>
+            </>
+          ) : null}
+        </p>
+      ) : null}
+
+      {activeFrame !== null && activeIndex !== null ? (
+        <div
+          className="visual-keyframe-lightbox-backdrop"
+          onClick={() => setActiveIndex(null)}
+        >
+          <div
+            className="visual-keyframe-lightbox"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="visual-lightbox-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="visual-keyframe-lightbox-head">
+              <h4 id="visual-lightbox-title" className="visual-keyframe-lightbox-title">
+                [{activeFrame.timestamp_label}] {activeFrame.title_zh}
+              </h4>
+              <button
+                type="button"
+                className="button button-ghost button-small"
+                onClick={() => setActiveIndex(null)}
+              >
+                {zh ? "关闭 (Esc)" : "Close (Esc)"}
+              </button>
+            </div>
+            <img
+              className="visual-keyframe-lightbox-img"
+              src={activeFrame.image_url}
+              alt={`${activeFrame.timestamp_label} ${activeFrame.title_zh}`}
+            />
+            <div className="visual-keyframe-lightbox-meta">
+              <p className="visual-keyframe-card-detail">
+                <strong>{zh ? "画面信息：" : "Visual: "}</strong>
+                {activeFrame.visual_detail_zh}
+              </p>
+              {activeFrame.transcript_fusion_zh ? (
+                <p className="visual-keyframe-card-detail">
+                  <strong>{zh ? "音画融合：" : "Transcript fusion: "}</strong>
+                  {activeFrame.transcript_fusion_zh}
+                </p>
+              ) : null}
+              {activeFrame.nearby_transcript ? (
+                <p className="visual-keyframe-card-fusion">
+                  <strong>{zh ? "附近原话字幕：" : "Nearby transcript: "}</strong>
+                  {activeFrame.nearby_transcript}
+                </p>
+              ) : null}
+            </div>
+            <div className="visual-keyframe-lightbox-nav">
+              <button
+                type="button"
+                className="button button-secondary button-small"
+                disabled={activeIndex <= 0}
+                onClick={() =>
+                  setActiveIndex((prev) => (prev !== null && prev > 0 ? prev - 1 : prev))
+                }
+              >
+                {zh ? "← 上一帧" : "← Previous"}
+              </button>
+              <span className="visual-keyframe-meta-pill">
+                {activeIndex + 1} / {visibleFrames.length}
+              </span>
+              <button
+                type="button"
+                className="button button-secondary button-small"
+                disabled={activeIndex >= visibleFrames.length - 1}
+                onClick={() =>
+                  setActiveIndex((prev) =>
+                    prev !== null && prev < visibleFrames.length - 1 ? prev + 1 : prev,
+                  )
+                }
+              >
+                {zh ? "下一帧 →" : "Next →"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </section>
   );
 }
 
