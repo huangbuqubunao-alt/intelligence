@@ -3006,10 +3006,13 @@ def test_ux_audit_d1_local_markdown_distill_omits_fake_timestamps_while_video_re
         for pt in detail_payload["note"]["v2"]["timestamped_key_points"]
     )
 
+    ffmpeg_bin = media_tool("ffmpeg")
+    if ffmpeg_bin is None:
+        pytest.skip("ffmpeg unavailable")
     mp4_path = tmp_path / "no-captions.mp4"
     subprocess.run(
         [
-            media_tool("ffmpeg"),
+            ffmpeg_bin,
             "-v",
             "error",
             "-f",

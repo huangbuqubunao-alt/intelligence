@@ -25,6 +25,8 @@ jobs:
         run: uv run --frozen ruff check src tests
       - name: Type-check with mypy
         run: uv run --frozen mypy src
+      - name: Install ffmpeg for media integration tests
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
       - name: Run Public Beta verification suite
         # Scope note: runs contracts, console entry, offline demo showcase, cloud cost/reauth
         # safety, Workspace AI Hub, Fast-Read API, and PO demo E2E checks on the candidate SHA.

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
@@ -360,3 +361,20 @@ def test_raise_open_file_limit_safely_noops_without_resource_module(
 ) -> None:
     monkeypatch.setattr(fast_read_api, "_resource", None)
     fast_read_api._raise_open_file_limit()
+
+
+def test_ensure_schema_recovers_when_linux_reuses_unlinked_inode(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    hub, _ = _setup_hub(tmp_path / "inode", monkeypatch, completer=_RecordingCompleter(), video_ids=("vidInode01",))
+    hub.update_settings({"ollama_model": "qwen3.5:9b"})
+    assert hub.db_path.is_file()
+
+    hub.db_path.unlink()
+    hub.db_path.write_bytes(b"")
+    st = os.stat(hub.db_path)
+    # Simulate Linux tmpfs/ext4 inode reuse after unlink + recreate
+    hub._schema_ready_token = (st.st_dev, st.st_ino)
+
+    updated = hub.update_settings({"ollama_model": "qwen2.5:7b"})
+    assert updated["ollama_model"] == "qwen2.5:7b"
