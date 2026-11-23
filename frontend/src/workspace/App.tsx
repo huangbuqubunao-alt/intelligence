@@ -2368,6 +2368,13 @@ function Dashboard(
               ? "Open Following to check your saved sources or add something new. Content is organized first; generating Intelligence is optional."
               : "Paste a YouTube or Bilibili video link, follow a YouTube channel, or import a local file.")}
           </p>
+          {!hasSources ? (
+            <p className="hint">
+              {zh
+                ? "支持：YouTube 视频/频道 · Bilibili 公开视频 · 本地 .md / .txt / 音视频"
+                : "Supports: YouTube videos/channels · Bilibili public videos · local .md / .txt / media"}
+            </p>
+          ) : null}
           <div className="button-row">
             {hasSources ? (
               <>
@@ -8712,13 +8719,13 @@ function SourceDetail(
   );
 }
 function Investigations() {
+  const { t } = useUiLanguage();
   return (
     <div className="semantic-state state-neutral">
       <Status value="UNAVAILABLE" />
-      <h2>Investigations are not active in V1</h2>
+      <h2>{t("Investigations are not active in V1")}</h2>
       <p>
-        This is planned beyond V1. Evidence Expansion, external validation, and
-        Deep Analysis are not available.
+        {t("This is planned beyond V1. Evidence Expansion, external validation, and Deep Analysis are not available.")}
       </p>
     </div>
   );
@@ -9571,7 +9578,9 @@ function Settings({ refresh }: { refresh: number }) {
                 <p>
                   {t(preferenceCopy(preference))}
                   {preference.expires_at
-                    ? ` Expires ${humanDate(preference.expires_at)}.`
+                    ? language === "zh-CN"
+                      ? ` 有效期至 ${humanDate(preference.expires_at)}。`
+                      : ` Expires ${humanDate(preference.expires_at)}.`
                     : ""}
                 </p>
               </div>

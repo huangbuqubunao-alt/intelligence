@@ -1,7 +1,7 @@
 # 全维度测试与质量验收台账（QA & Verification Log）
 
 - **更新日期**：2026-11-23（`Asia/Shanghai`）
-- **当前活跃基线（分支 `antigravity/task-user-readiness-20261112`）**：Iteration #4（基于 `256a058` 完成 `BL-006` & `BL-005`；公开主线 `main` 已同步至 `f23954f`）
+- **当前活跃基线（分支 `antigravity/task-user-readiness-20261112`）**：Iteration #5（基于 `6760028` 完成 `BL-007` 首轮引导与双语精修；`main` 已同步至 `f23954f`）
 - **台账纪律**：严格采用四态标识 **`PASS / FAIL / BLOCKED / NOT_TESTED`**。仅当测试命令在对应代码版本实际执行完毕且见到真实输出时方能标 `PASS`；修复前失败与修复后复检分列存档，绝不涂改历史、绝不跳过或弱化断言。
 
 ---
@@ -10,8 +10,8 @@
 
 | 质量域 | 验收状态 | 覆盖范围与真实命令/动作 | 真实结果摘要（观测日期：2026-11-23） |
 |---|---|---|---|
-| **1. 前端单元测试与类型构建** | **PASS**（含范围说明） | `cd frontend && npm run build`；`npx vitest run --minWorkers=1 --maxWorkers=4` | **`vite build` (`tsc -b && vite build`) 在最终 CSS 修复后耗时 `2.36s` 构建成功（`index-C0tHMUoi.css`）**；全量 Vitest 在最终 4 行移动端 CSS `@media (max-width: 768px)` 调整前实测通过 **`Test Files 54 passed (54) / Tests 1241 passed (1241)`**（含 `GroundingAndRecovery.test.tsx` `7/7 passed`，0 failed, 0 skipped），随后由 `npm run build` + Chromium `375×812` 实机复检完成最终 CSS 验证。 |
-| **2. 浏览器真实端到端 E2E（Demo + 全新空工作区）** | **PASS（AI 模拟复检）** | Chromium 实机访问 `http://127.0.0.1:8799/`（Demo 含 Iteration #4 新包）`1440×900` & `375×812`（叠加 `main@f23954f` 双端口复检基线） | **Iteration #4（`BL-006`）实机复检 `PASS`**：<br>· `#Content/vidDemoAgt1` 首次进入即直接渲染 9 张 `Evidence · source transcript` 证据卡片，无冷启动卡顿闪烁；<br>· 详情顶部动作区收敛为双层主次结构（导出操作组 + 次级来源/重算/提示），精选切换时由 SWR `retainOnRefresh` 保留既有证据；<br>· `375×812` 移动端 `0px` 横向溢出、自动隐藏 `.kb-shortcut-hint`、0 console errors、0 HTTP `>= 400`。<br>· （`main@f23954f` 已验证 Demo 越域拒答、空库零 `409`、Settings 自检、浏览器 `.md` `201` 上传及 `Escape` 关窗。） |
+| **1. 前端单元测试与类型构建** | **PASS** | `cd frontend && npm run build && npx vitest run --minWorkers=1 --maxWorkers=2` | **`vite build` (`tsc -b && vite build`) 在 Iteration #5 最终代码后耗时 `3.23s` 零报错构建成功**；全量 Vitest **2 并发实测 `Test Files 54 passed (54) / Tests 1244 passed (1244)`**（耗时 `88.35s`，含 `Onboarding.test.tsx` `7/7`、步骤条跳转及缺失中文化回归；`0 failed`, `0 skipped`）。 |
+| **2. 浏览器真实端到端 E2E（Demo + 全新空工作区）** | **PASS（AI 模拟复检）** | Chromium 实机访问未缓存空库 `http://127.0.0.1:8797/#Home`（`1440×900` Obsidian Dark & `375×812` Warm Paper Light）+ `http://127.0.0.1:8798/#Home`（跳过引导后空库），叠加 Demo `8799`（Iteration #4）与 `main@f23954f` | **Iteration #5（`BL-007`）实机复检 `PASS`**：<br>· Obsidian Dark `1440×900`：Steps 1–3 可点击步骤条切换顺畅，祖母绿进度条、Step 2 双链接按钮组（`8px` 间距）与 Step 3 三栏来源卡片并排工整，0 报错；<br>· Warm Paper Light `375×812`：Steps 1–3 全宽度 `364px` 内容区零横向溢出/零裁切，单列卡片与全宽按钮对齐清晰、文字对比鲜明，0 console errors、0 HTTP `>= 400`；<br>· 跳过后空首页正常呈现支持格式提示与 `"导入第一个内容"` 主 CTA。（Demo `8799` `#Content` 秒开与 `main@f23954f` 拒答/上传 `201` 保持全绿。） |
 | **3. 后端静态检查与类型安全** | **PASS** | `uv run --frozen ruff check src tests scripts && uv run --frozen mypy src` | 全部 `.py` 改动完成后实跑：`ruff`: `All checks passed!`；`mypy`: `Success: no issues found in 136 source files`。 |
 | **4. 后端合同与核心集成套件（11 组 CI Pytest）** | **PASS（合跑 + 竞争复跑）** | 11 组 CI `pytest` 合跑；随后无 `.py` 改动单跑 `uv run --frozen python -m pytest tests/integration/test_fast_read_api.py -v` | 11 组套件合跑实测 **141 passed, 1 failed**：唯一未过项为并发高负载下 `tests/integration/test_fast_read_api.py:448` 性能耗时门限（实测 `217.6ms < 120.0ms`，当时宿主机存在高并发进程与 Vite/Chromium 竞争），其余 141 项含全部功能与新增 32 例 Eval 均一次通过；随后无任何 `.py` 修改单独复跑 `test_fast_read_api.py` **`2 passed in 210.42s`**（0 failed, 0 skipped），完整覆盖全部 142 条 CI 用例。 |
 | **5. 反幻觉评测与本机模型基准（`EXP-002` + `BL-005`）** | **PASS** | `tests/integration/test_grounding_refusal_eval.py`（`32` 例）+ `tests/integration/test_public_beta_demo_showcase.py`；隔离临时工作区 + 本机 `ollama/qwen3.5:9b` | 离线/回放基准由 `20` 例扩充至 **`32` 例（`8/8` 测试函数全绿）**：新增 12 例双语多源冲突分辨、时序锚点与越界拒答用例，强化 Demo 拒答词根与框架停用词过滤；本机模型真机 `EXP-002` 保持 **3/3 `GROUNDED` + 2/2 `REFUSED_INSUFFICIENT_EVIDENCE`**，云端开销 `$0`。 |

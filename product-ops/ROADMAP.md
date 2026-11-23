@@ -12,13 +12,15 @@
 - [x] **Iteration #3 (`fee43f4`) & `FD-005` 主线 CI 合流 (`main@f23954f`)**：
   - 根治 Demo 越域对抗问题伪引用、`youtube-intel start` macOS 浏览器本地文件上传阻塞、冷启动 Settings 假“待检查”、空库 `#Research` HTTP 409 死路与 `Escape` 关闭缺失；
   - 补全 15 份运营文档与 CPO 日报体系；同步上 `main@f23954f` 达成 GitHub Actions `#45149288840` 双端全绿。
-- [x] **Iteration #4 (`BL-006` + `BL-005` 提前交付完成 · `antigravity/task-user-readiness-20261112`)**：
+- [x] **Iteration #4 (`BL-006` + `BL-005` · `6760028` on `antigravity/task-user-readiness-20261112`)**：
   - 交付 `FastReadApiApplication` 单快照 `/evidence` 加速（实测冷读 `39.6ms` / 热读 `3.8–5.8ms`）+ 前端 SWR 无闪烁保留 + `.reader-action-bar` 两层重构与移动端快捷键徽章收敛；
   - 扩充多源反幻觉与冲突归因 Eval 集至 32 例，并加固 Demo 复合域外问题诚实拒答。
+- [x] **Iteration #5 (`BL-007` 提前交付完成 · `antigravity/task-user-readiness-20261112`)**：
+  - 首轮三步引导升级可点击步骤导航条、祖母绿品牌进度条与 3 来源结构化卡片，空态首页补齐格式提示；
+  - 补全 `Organized`/`Review Content`/`Position unavailable`/`Investigations` 等缺失中文词条并清理 `UNKNOWN`/冗长提示，`54/54` (`1244/1244`) Vitest 全绿并通过 Obsidian Dark 桌面 + Warm Paper Light 移动实机核验。
 
-## Week 2（11/30 – 12/06）：信息架构精简 · 引导文案净化与大库性能摸底（L1/L2 内部打磨）
-- [ ] **`BL-007`（NEXT P1）引导与可读文案精修**：统一梳理首页三步冷启动引导与非断言区中英文混杂词条（100% 保持历史单测稳定，践行 craft-floor 极简主义）。
-- [ ] **大库 `BL-008` 评估与双主题微调**：复查 `#Settings` 次级卡片文案与双主题对比度，对 >500 条视频摘要索引与 `.backup()` 热快照做压测与基准评估。
+## Week 2（11/30 – 12/06）：大库性能摸底 · `#Settings` 层级收拢与热备份评估（L1/L2 内部打磨）
+- [ ] **大库 `BL-008`（NEXT P2 Evaluation）与 `#Settings` 文案收拢**：对 >500 条视频摘要索引与 SQLite `.backup()` 热快照做原型基准评估，并持续复查 `#Settings` 次级工程说明与双主题对比度。
 
 ## Week 3（12/07 – 12/13）：可恢复性、离线打包边界与商业前提自查
 - [ ] **大库备份恢复与长视频边界压测**：验证 500 条以内真实规模库下的 backup/restore 全链路一致性与 JSON 导出耗时。
