@@ -21,9 +21,9 @@
 - [x] **Iteration #6 (`BL-008` · `dbc7e89` on `antigravity/task-user-readiness-20261112`)**：
   - 突破 500 条视频硬截断：向后兼容 `/api/v1/videos?limit=&offset=` 分页与 8 处全库分块读取（600 条实测跨库问答 `0.23s`、3 页分页 `48–98ms`）；
   - 交付 SQLite 原生 `.backup()` 零密钥热快照 `hub-snapshot.sqlite3`（`5.5ms` / `0o600` / `integrity_ok`），冷启动路径提速至 `68.56ms`/`21.90ms`，11 组 CI `pytest` `143/143` + 备份 `27/27` 全绿；复核 `#Settings` 已默认折叠收起保持零 UI 扰动。
-- [x] **Iteration #7 (`BL-010` 提前交付完成 · `antigravity/task-user-readiness-20261112`)**：
-  - 修复 4 小时课程（`14390s`）& 300KB+ Markdown 全篇均匀边界采样、`<=180B` UTF-8 中文安全标题、Windows 保留文件名防护（`_CON`）、大小写碰撞防覆盖、全量 YAML 转义、CommonMark 空行修复与文本笔记无 `00:00` 假时长；新增 `test_long_media_and_obsidian_vault.py` (`3/3` PASS) + `143/143` CI 全绿；
-  - 提前梳理落地六维阶段退出检查单 [`RELEASE_READINESS_GATE.md`](./RELEASE_READINESS_GATE.md)（标记内部能力就绪与外部 L3 放行前提）。
+- [x] **Iteration #7（`BL-010` 交付完成）& `FD-006` 主线 CI 合流（`main@aec26da`）**：
+  - 修复 4 小时课程（`14390s`）& 300KB+ Markdown 全篇均匀边界采样、`<=180B` UTF-8 中文安全标题、Windows 保留文件名防护（`_CON`）、大小写碰撞防覆盖、全量 YAML 转义、CommonMark 空行修复与文本笔记无 `00:00` 假时长；新增 `test_long_media_and_obsidian_vault.py` 接入 `.github/workflows/ci.yml`（`028d10e`）并落地 [`RELEASE_READINESS_GATE.md`](./RELEASE_READINESS_GATE.md)；
+  - 按创始人 **`FD-006`** 批复完成 Iteration #4–#7 + CI 接线合流 `main@aec26da`，GitHub Actions [`Public Beta CI #45187713845`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45187713845) 双端全绿（`1244/1244` 前端 + `146/146` 后端）。
 
 ## Week 2–3（11/30 – 12/13）：持续内部巡检与极简安装边界储备（L1/L2 内部打磨）
 - [ ] **增量文档/引导清晰度走查与安装报错预设检查**：在不开启新战线前提下复核新用户首次运行 `--check-only` 的错误引导可读性（正式发行打包 `BL-009` 仍待未来真人首测放行后再定）。

@@ -6,12 +6,16 @@
 
 *当前无待裁决的阻塞性 L3 审批请求（`Pending Founder Decisions: 0`）。*
 
-> 注：内部自主迭代工作（Iteration #4–#7：`BL-005` / `BL-006` / `BL-007` / `BL-008` / `BL-010`）已在 `antigravity/task-user-readiness-20261112` 完成验证，并已配套生成阶段退出门禁清单 [`RELEASE_READINESS_GATE.md`](./RELEASE_READINESS_GATE.md)；按既定规则留存在研发分支，待里程碑成熟后再视需要提请合流 `main` 或评估后续阶段切换。
+> 注：`FD-006` 已按创始人最新批复完成执行——Iteration #4–#7（`6760028` / `2be958f` / `dbc7e89` / `f908d95`）连同 12 组全量后端测试 CI 接线（`028d10e`）已零冲突合并上 `main@aec26da`，GitHub Actions 双端绿灯通过；仓库继续严守被动 `PUBLIC`、零外宣、零 Release Tag 与内部阶段边界（`EXP-001` 维持 `HOLD`）。
 
 ---
 
 ## 历史已完结 L3 决策归档（2026-11-23）
 
+- **`FD-006`（`COMPLETED` — 创始人批复将 Iteration #4–#7 合流 `main` 并留存云端绿标）**：
+  1. **合流 `main` 与扩展云端 CI 守卫**：将 Iteration #4–#7 全部验证成果（`6760028` / `2be958f` / `dbc7e89` / `f908d95`）连同 [`test_long_media_and_obsidian_vault.py`](../tests/integration/test_long_media_and_obsidian_vault.py) 接入 `.github/workflows/ci.yml`（`028d10e`），线性合入 `main@aec26da2190a235f03be0b0013080b76b06c5b15` 并推送 `origin/main`；
+  2. **云端 GitHub Actions 双端全绿验收**：[`Public Beta CI #45187713845`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45187713845) 双作业 `success`——`Frontend Build & Vitest` `1m43s`（`vite build` `1.52s` + `54/54` / `1244/1244` tests passed）与 `Python Lint, Typecheck & Public Beta Integration` `4m42s`（`ruff`/`mypy` 0 错 + 12 组套件 `146 passed in 231.25s`）；
+  3. **严守被动公开与内部阶段红线**：核验仓库维持 `PUBLIC`（`Stars: 0`、`Forks: 0`）、零 Release Tag、零外部推广，真人试点 `EXP-001` 与 `BL-009` 继续维持 `HOLD`。
 - **`FD-005`（`COMPLETED` — 创始人明确批复执行三项裁定）**：
   1. **仓库维持 `PUBLIC` 被动状态且严守零外宣**：仅保持代码可见，零 Release Tag、零外部推流、零真人私信或招募；
   2. **批准合流 `main` 并激活最新云端绿标**：已将 Iteration #3 与 Stage C/E 全套验证提交（`b8759e0`、`fee43f4`、`256a058`）同步合入 `main@f23954f9f1f7922ce626e3bbdafe4ee2d8ca01aa`，GitHub Actions [`Public Beta CI #45149288840`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45149288840) 双端全绿（`Frontend Build & Vitest` `1m43s` + `Python Lint, Typecheck & Public Beta Integration` `3m14s`）；

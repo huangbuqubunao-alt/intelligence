@@ -1,7 +1,7 @@
 # 全维度测试与质量验收台账（QA & Verification Log）
 
 - **更新日期**：2026-11-23（`Asia/Shanghai`）
-- **当前活跃基线（分支 `antigravity/task-user-readiness-20261112`）**：Iteration #7（基于 `dbc7e89` 完成 `BL-010` 4h 音频/300KB 长 Markdown 均匀边界加固、Obsidian `.zip` 真解压安全修复与阶段退出门禁 `RELEASE_READINESS_GATE.md`；`main` 已同步至 `f23954f`）
+- **当前活跃基线（分支 `antigravity/task-user-readiness-20261112` 与 `main@aec26da` 同步）**：Iteration #7 + 12 组全量 CI 接线（`028d10e` / `main@aec26da`，GitHub Actions [`#45187713845`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45187713845) 双端全绿）
 - **台账纪律**：严格采用四态标识 **`PASS / FAIL / BLOCKED / NOT_TESTED`**。仅当测试命令在对应代码版本实际执行完毕且见到真实输出时方能标 `PASS`；修复前失败与修复后复检分列存档，绝不涂改历史、绝不跳过或弱化断言。
 
 ---
@@ -19,7 +19,7 @@
 | **7. 反幻觉评测与本机模型基准（`EXP-002` + `BL-005`）** | **PASS** | `tests/integration/test_grounding_refusal_eval.py`（`32` 例）+ `tests/integration/test_public_beta_demo_showcase.py`；本机 `ollama/qwen3.5:9b` | **32 / 32 (100%) PASS**（包含于 Iteration #7 `143/143` 全绿）；本机 `EXP-002` 保持 **3/3 `GROUNDED` + 2/2 `REFUSED_INSUFFICIENT_EVIDENCE`**（`$0` 云开销）。 |
 | **8. 数据库热快照、迁移与恢复校验** | **PASS** | `tests/integration/test_v1x_phase1b_backup_restore.py` + `tests/integration/test_research_backup_restore.py` + 600 条核心备份 & `.backup()` 热快照 | `dbc7e89` 备份恢复专项 **`27 passed in 59.89s`**（本轮 `backup_restore.py`/`state.py` 零改动）；600 条库 `BackupRestoreService.create_backup()` 校验 `content_count=600`（`1398.2ms`），`create_sqlite_hot_snapshot()` `5.5ms`、`0o600`、`PRAGMA integrity_check == "ok"`。 |
 | **9. 安全基线扫描 & 零个人目录泄漏** | **PASS** | `bash scripts/security_scan.sh` & 个人主目录路径排查 | 源码 `src/`、`frontend/`、`scripts/`、`product-ops/` 与新增测试文件全部 **0 命中**（仅历史测试假密钥哨兵 17 条；`product-ops/` 个人主目录路径泄漏 `0`）。 |
-| **10. 跨平台及外部受控环境兼容性** | **PARTIAL (`PASS` Linux CI @ `main@f23954f` / `NOT_TESTED` WSL2)** | GitHub Actions `ubuntu-latest` (`main@f23954f`, Run `#45149288840`) / Windows WSL2 / 公网免 Cookie YouTube 抓取 | · Ubuntu Linux CI：已按 `FD-005` 同步至 `main@f23954f` 并双端 **PASS**（[`#45149288840`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45149288840)：`Frontend Build & Vitest` `1m43s` + `Python Lint, Typecheck & Public Beta Integration` `3m14s`）；Iteration #4–#7 保留在开发分支待按里程碑合流；<br>· Windows WSL2 实机：**`NOT_TESTED`**（手头无 Windows 物理机）；<br>· 公网免 Cookie `yt-dlp` YouTube 字幕抓取：**`BLOCKED`**（触发反机器人验证，依安全准则严禁绕过）。 |
+| **10. 跨平台及外部受控环境兼容性** | **PARTIAL (`PASS` Linux CI @ `main@aec26da` / `NOT_TESTED` WSL2)** | GitHub Actions `ubuntu-latest` (`main@aec26da`, Run `#45187713845`) / Windows WSL2 / 公网免 Cookie YouTube 抓取 | · Ubuntu Linux CI：已按 `FD-006` 同步至 `main@aec26da` 并双端 **PASS**（[`#45187713845`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45187713845)：`Frontend Build & Vitest` `1m43s` [`54/54` / `1244/1244`] + `Python Lint, Typecheck & Public Beta Integration` `4m42s` [12 组全量 **`146 passed in 231.25s`**，含 `test_long_media_and_obsidian_vault.py`]）；<br>· Windows WSL2 实机：**`NOT_TESTED`**（手头无 Windows 物理机）；<br>· 公网免 Cookie `yt-dlp` YouTube 字幕抓取：**`BLOCKED`**（触发反机器人验证，依安全准则严禁绕过）。 |
 
 ---
 

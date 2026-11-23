@@ -1,9 +1,9 @@
 # 阶段退出检查单与合流门禁（Release & Stage Exit Readiness Gate）
 
 - **更新日期**：2026-11-23（`Asia/Shanghai`）
-- **评估对象分支**：`antigravity/task-user-readiness-20261112`（Iteration #4–#7，已完成 `BL-005` / `BL-006` / `BL-007` / `BL-008` / `BL-010`）
-- **公开主线对照**：`main@f23954f`（GitHub Actions [`#45149288840`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45149288840) 双端绿灯，严格被动 `PUBLIC`、零外宣）
-- **门禁用途**：供创始人裁决以下两项 L3 动作前的客观就绪度盘点——（1）将研发分支 Iteration #4–#7 合并同步至 `main`；（2）未来是否授权解除内部阶段限制并开启首批小范围真人试跑（`EXP-001`）。
+- **评估对象分支**：`antigravity/task-user-readiness-20261112`（Iteration #4–#7：`BL-005` / `BL-006` / `BL-007` / `BL-008` / `BL-010` + 12 组全量 CI 接线 `028d10e`）
+- **公开主线对照**：`main@aec26da`（已按 `FD-006` 完成同步，GitHub Actions [`#45187713845`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45187713845) 双端绿灯，严格被动 `PUBLIC`、零外宣、零 Release Tag）
+- **门禁用途**：供创始人裁决未来是否授权解除内部阶段限制并开启首批小范围真人试跑（`EXP-001`）的客观就绪度盘点（`main` 合流项已通过 `FD-006` 完成）。
 
 ---
 
@@ -15,8 +15,8 @@
 | **2. 反幻觉防线与 Fail-Closed 安全隔离** | **PASS** | 离线 Eval 集扩充至 `32/32 (100%)`；Demo 越界问题显式 `REFUSED_INSUFFICIENT_EVIDENCE` 拒答且隔离 `related_excerpts`；macOS Keychain BYOK 隔离、每日预算账本、反 SSRF 与路径锁定均已通过单测；`scripts/security_scan.sh` 源码/前端/脚本/运营区 **0 告警**。 | 真实长视频在多变外网字幕格式下的真实模型幻觉率：**`当前不可评估`**（内部本机仅实测 `EXP-002` `qwen3.5:9b` 5 问样本）。 |
 | **3. 大库容量、4 小时课程与 Obsidian Vault 导出可靠性** | **PASS** | Iteration #6–#7 实测：<br>· **600 条库**：分页 3 页 `[97.9, 48.1, 53.8]ms` 全遍历、跨库问答命中第 561 条仅 `0.23s`、SQLite `.backup()` 零密钥热快照 `5.5ms`；<br>· **4 小时课程与 300KB 长文本**：`14390s` / `3200` 片段归一化并召回 `03:52` 锚点；`300KB+` / `2900+` 行 Markdown 均匀全篇采样并精确召回 96% 处段落（`> 14400s` 与 `> 2MiB` 均确定性拒绝）；<br>· **Obsidian `.zip` 实机解压**：超长中文（>340 字节安全截断至 `<=180` 字节防 `NAME_MAX` 崩溃）、`CON` 保留字隔离、大小写/重名防覆盖、全量 YAML Frontmatter 合法性、空行排版与全索引 `[[wikilinks]]` 闭合全部 `3/3` 实测通过；文本笔记不再带出 `00:00` 假时长。 | 单个内容页 `/api/v1/videos/<id>/evidence` 为控制首屏体积有意按前 21 条展示窗口切片截断，超长内容尾段由跨源问答全库 FTS5 检索引擎与后端权威校验直接触达（已建边界说明）。 |
 | **4. 前端可用性、双主题与响应式无障碍** | **PASS（`@2be958f`）** | `vite build` `3.23s` 零报错；全量 Vitest **`54/54` 文件 / `1244/1244` tests passed in `88.35s`**；未缓存空库 Chromium 实机验证 Obsidian Dark `1440×900` 与 Warm Paper Light `375×812` 首轮三步引导及跳过首页 `0` 横向溢出、`0` console error、`0` HTTP `>=400`；`#Settings` 次级诊断默认折叠且维持零 UI 扰动。 | Iteration #6–#7 零前端代码改动（无参列表与导出契约完全向后兼容）。 |
-| **5. 跨平台及外部受控环境兼容性** | **PARTIAL / KNOWN LIMIT** | Ubuntu Linux CI (`main@f23954f`, [`#45149288840`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45149288840)) 双端全绿；本地最新 11 套件 CI Pytest **`143/143 passed in 437.61s`** + 备份恢复 **`27/27 passed`** + 长媒体/Obsidian 专项 **`3/3 passed`**；`ruff` 与 `mypy` (136 文件) 0 错。 | ① **Windows WSL2 实机：`NOT_TESTED`**（无物理环境）；<br>② **公网免 Cookie YouTube 抓取：`BLOCKED`**（触发平台反机器人核验，严格不绕过）；<br>③ **安装包分发 (`BL-009`)**：维持 `HOLD`，待未来真人首测明确安装卡点后再决策。 |
-| **6. 创始人 L3 治理与零隐私遥测边界** | **HOLD（等待 L3 裁决）** | `product-ops/` 全部台账零个人路径泄漏（`grep` 退出码 `1`）；Zero-Telemetry 无任何外部埋点上报；CPO 日报自动化检测 `pending_founder_decisions: 0`。 | ① **合并 Iteration #4–#7 至 `main` 并触发云端最新绿标 CI**：研发分支已就绪，待创始人确认合流窗口后执行；<br>② **外部首批真人试跑（`EXP-001`）**：在创始人明确批复退出内部完善阶段前严格维持 `HOLD`。 |
+| **5. 跨平台及外部受控环境兼容性** | **PARTIAL / KNOWN LIMIT** | Ubuntu Linux CI（`main@aec26da`, [`#45187713845`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45187713845)）双端全绿：`Frontend Build & Vitest` `1m43s`（`54/54` / `1244/1244`）+ `Python Lint, Typecheck & Public Beta Integration` `4m42s`（12 组套件 **`146 passed in 231.25s`**，已含 `test_long_media_and_obsidian_vault.py`）；本地最新 `143/143` + `3/3` + 备份 `27/27`；`ruff` 与 `mypy` (136 文件) 0 错。 | ① **Windows WSL2 实机：`NOT_TESTED`**（无物理环境）；<br>② **公网免 Cookie YouTube 抓取：`BLOCKED`**（触发平台反机器人核验，严格不绕过）；<br>③ **安装包分发 (`BL-009`)**：维持 `HOLD`，待未来真人首测明确安装卡点后再决策。 |
+| **6. 创始人 L3 治理与零隐私遥测边界** | **PASS（主线同步已闭环 · `EXP-001` 维持 `HOLD`）** | `product-ops/` 全部台账零个人路径泄漏（`grep` 退出码 `1`）；Zero-Telemetry 无任何外部埋点上报；CPO 日报自动化检测 `pending_founder_decisions: 0`；**`FD-006` 已完成 Iteration #4–#7 合流 `main@aec26da` 且仓库保持 `PUBLIC`（0 Stars / 0 Forks / 0 Releases）**。 | **外部首批真人试跑（`EXP-001`）**：在创始人明确批复退出内部完善阶段前严格维持 `HOLD`。 |
 
 ---
 
