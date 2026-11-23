@@ -76,6 +76,16 @@ def _build_parser() -> argparse.ArgumentParser:
     demo.add_argument("--demo-root", type=Path)
     demo.add_argument("--web-dir", type=Path)
     demo.add_argument("--no-web", action="store_true")
+    start = commands.add_parser(
+        "start",
+        help="launch a zero-config local workspace with real Ollama / Obsidian support",
+    )
+    start.add_argument("--port", type=int, default=8765)
+    start.add_argument("--workspace-root", type=Path)
+    start.add_argument("--vault", type=Path)
+    start.add_argument("--web-dir", type=Path)
+    start.add_argument("--no-web", action="store_true")
+    start.add_argument("--check-only", action="store_true")
     commands.add_parser(
         "doctor", help="read-only configuration and local-resource checks"
     )
@@ -160,7 +170,30 @@ def main(
             except ValueError as exc:
                 print(f"Error: {exc}", file=sys.stderr)
                 return ExitCode.USAGE_OR_CONFIGURATION
+        if args.command == "start":
+            from youtube_intel.workspace_launcher import serve_local_workspace
+
+            if args.port < 1024 or args.port > 65535:
+                return ExitCode.USAGE_OR_CONFIGURATION
+            project_root = _project_root(args.project_root)
+            try:
+                return serve_local_workspace(
+                    project_root,
+                    port=args.port,
+                    workspace_root=args.workspace_root,
+                    vault_dir=args.vault,
+                    web_dir=args.web_dir,
+                    serve_web=not bool(args.no_web),
+                    check_only=bool(args.check_only),
+                )
+            except (ConfigError, ValueError) as exc:
+                print(f"Error: {exc}", file=sys.stderr)
+                return ExitCode.USAGE_OR_CONFIGURATION
+            except OSError as exc:
+                print(f"Error: {exc}", file=sys.stderr)
+                return ExitCode.LOCAL_RESOURCE
         if args.command == "serve-api":
+            from youtube_intel.fast_read_api import diagnose_vault_root_error
             from youtube_intel.local_api import serve_loopback
             from youtube_intel.runtime_composition import (
                 build_local_source_run_runtime,
@@ -172,11 +205,16 @@ def main(
             config = _load_config(project_root, args.settings, args.channels)
             stop_requested = False
             while True:
-                composition = build_local_source_run_runtime(
-                    config=config,
-                    project_root=project_root,
-                    database=args.database,
-                )
+                try:
+                    composition = build_local_source_run_runtime(
+                        config=config,
+                        project_root=project_root,
+                        database=args.database,
+                    )
+                except OSError as err:
+                    if diagnose_vault_root_error(config, err):
+                        return ExitCode.LOCAL_RESOURCE
+                    raise
                 if args.native_import_origin:
                     if args.native_picker_executable is None:
                         raise ValueError("Native import requires its prepared selector")

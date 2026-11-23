@@ -12,6 +12,7 @@
 | **DEC-OPS-002** | 将已验证的分支提交整合进 `main` 并开启 GitHub Actions | L3 | **COMPLETED (`main@9f65417`)** | **已合流且 CI `#45132090574` 双端全绿** | `10 × 3 × 0.95 / 0.3 = 95.0` |
 | **DEC-OPS-003** | 暂缓 V2 全网爬虫（X/网页正文/RSS）与自动 `hybrid` 云端路由 | L1 | **DECIDED (DEFER)** | **延后至 10 人留存后** | `—`（主动止损） |
 | **DEC-OPS-004** | 用本机真实 Ollama 对陌生双语材料建立实测对照证明包（`EXP-002`） | L2 | **EXECUTED (`2026-11-23`)** | **通过（`qwen3.5:9b` 3/3 问答 + 2/2 拒答）** | `9 × 3 × 0.70 / 1.0 = 18.9` |
+| **DEC-OPS-005** | 消除首次 Clone 冷启动必崩摩擦：推出零配置 `youtube-intel start` 启动器与 5 分钟自检清单 | L1 + L3(`FD-004`) | **EXECUTED (分支已落地 · 待 `FD-004` 上 `main`)** | **立即交付并提请更新 `main`** | `10 × 3 × 0.95 / 0.8 = 35.6` |
 
 ---
 
@@ -72,3 +73,16 @@
 | **实现成本** | 低（本地已有 `ollama`、`yt-dlp`、`ffmpeg`，需先检查本机已拉取模型或由隔离目录执行，零云端花费） |
 | **方案对比 A / B / C** | **A（推荐）**：用本机开源 Ollama 对 2 条真实公开技术视频 + 1 份自写测试笔记跑 5 问对照包（3 个跨源问答 + 2 个诱骗无依据问题）并保存真实 JSON/Markdown 证据。<br>**B**：只保留 `demo-replay` 合成演示（审稿评委/极客一问即知未经真实长文检验，风险高）。<br>**C**：跳过实测直接开源宣传（易在前 5 个体验者手里因 Prompt/模型格式兼容性翻车）。 |
 | **退出条件** | 若本机 `9B` 以下开源模型在 `RESEARCH_QA_SCHEMA` 上拒答误判率 `>30%`，优先迭代本地 Prompt 约束与重试修复，而不轻率默认放行云端计费 |
+
+---
+
+### DEC-OPS-005：推出零配置 `youtube-intel start` 消除新用户首次冷启动崩溃（2026-11-23 · 迭代 #2）
+
+| 评估项 | 评估结论 |
+|---|---|
+| **发现的真实卡点** | 团队模拟纯新用户按原 README 复制 `settings.example.yaml` 启动 `serve-api` 时**100% 崩溃（Exit Code 2）**：模板中 `vault_root: /absolute/path/to/obsidian/vault` 触发 `FileNotFoundError`，且报错未提示原因 |
+| **用户价值** | 将新用户从“手动改配置 + 排错 `FileNotFoundError`”压缩成“1 条 `uv run youtube-intel start` + `--check-only` 可操作自检清单” |
+| **竞品对比** | `open-notebook` 与 `BiliNote` 均支持开箱拉起；若不在 `EXP-001` 邀测发出前消灭首次命令崩溃，首批 10 位种子用户可能超过一半卡死在安装阶段（直接触发止损线） |
+| **方案对比 A / B / C** | **A（已选）**：新增零配置 `youtube-intel start`（自动在 `.var/workspace/` 初始化有效本地配置、`local-only` 默认、支持 `--vault`、`--check-only` 并挂载完整 `WorkspaceIntelligenceHub`），同时修复 `serve-api` 缺 `vault_root` 模糊报错，提取共用 `run_fast_read_server_loop` 避免重复代码。<br>**B**：只改 README 文字警告“请手动替换 `settings.yaml`”（文档防呆极弱，仍会在手滑或脚本复现中 Exit Code 2 崩溃，拒绝）。<br>**C**：自动把 `settings.example.yaml` 改成相对路径 `./vault`（会改变既有 `cli.py` 绝对路径契约并污染现有测试，拒绝）。 |
+| **验证方法** | 新增 5 组集成测试 [test_workspace_start_launcher.py](../tests/integration/test_workspace_start_launcher.py) 覆盖冷启动、幂等保留自定配置、`--vault`、双入口 CLI `--check-only` 与 `serve-api` 提示 + 接入 CI |
+| **退出/合流条件** | 提请创始人批复 **`FD-004`** 同步至 `main` 并看 CI 绿灯后再外发 `EXP-001` 邀请 |
