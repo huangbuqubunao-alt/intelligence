@@ -6,10 +6,10 @@
 
 ## FD-001：将工作分支 4 笔已全量验证提交整合进 `main` 并推送 `origin/main` 激活 GitHub Actions
 
-- **状态**：`PENDING`（等待创始人审批）
-- **需要决定什么**：是否批准将分支 `antigravity/task-user-readiness-20261112` 上的 4 笔新增验证提交（Batch 1 安全/成本防线 `0fc61a7`、Batch 2 反幻觉拒答与 C4 恢复 `c85625b`、Batch 3 Markdown `TEXT_RANGE`+周报 7 天窗口+250 库检索 `89a9878`、Batch A 深链出处与日报引擎 `09f98d4`，以及随后的 `product-ops/` 文档提交）cherry-pick / 整合回本地 `main` 并 `git push origin main`（同时维持 `PUBLIC_BETA` 定位，**暂不打对外正式 Release Tag**）。
+- **状态**：`APPROVED (方案 A · 2026-11-23)` — 执行中
+- **需要决定什么**：是否批准将分支 `antigravity/task-user-readiness-20261112` 上的新增验证提交（Batch 1 安全/成本防线 `0fc61a7`、Batch 2 反幻觉拒答与 C4 恢复 `c85625b`、Batch 3 Markdown `TEXT_RANGE`+周报 7 天窗口+250 库检索 `89a9878`、Batch A 深链出处与日报引擎 `09f98d4`，以及 `product-ops/` 运营台账）cherry-pick / 整合回本地 `main` 并 `git push origin main`（同时维持 `PUBLIC_BETA` 定位，**暂不打对外正式 Release Tag**）。
 - **为什么现在需要决定**：目前 `main` 与 `origin/main` 仍停留在 `4c034b7`，缺少上述安全修复、20 例反幻觉基准、跨源 Markdown 支持与可携带深链导出，且 GitHub Actions 在 `main` 上仍显示 `0` 次运行，阻塞后续对外试跑。
-- **已有市场和用户证据**：Codex 独立源码评审指出的 Demo 误删与静默云端扣费阻塞均在分支已修并通过验证，[ci.yml](file:///Users/hua/Documents/yia-worktrees/antigravity-readiness-20261112/.github/workflows/ci.yml) 已落地只待推主线触发云端双端运行。
+- **已有市场和用户证据**：Codex 独立源码评审指出的 Demo 误删与静默云端扣费阻塞均在分支已修并通过验证，[ci.yml](../.github/workflows/ci.yml) 已落地只待推主线触发云端双端运行。
 - **方案 A / B / C**：
   - **方案 A（推荐）**：立即整合至 `main` 并推送 `origin/main`，观察 GitHub Actions（Python + Frontend）云端首跑全绿；仍保留 `PUBLIC_BETA` 与 Private 可见性，直到 `FD-002` 与 `EXP-002` 实机基准就绪。
   - **方案 B**：仅整合到局部测试分支暂不推 `origin/main`（导致线上主线滞后且 CI 始终无运行记录）。
@@ -23,7 +23,7 @@
 
 ## FD-002：授权将 GitHub 仓库转为 `PUBLIC` 并开展限额 5–10 名种子用户内测（`EXP-001`）
 
-- **状态**：`PENDING`（等待创始人审批）
+- **状态**：`APPROVED (方案 A · 2026-11-23)` — 前置执行中（须在 `FD-001` 主线 CI 全绿且 `EXP-002` 基准与合规扫描确认后执行）
 - **需要决定什么**：在 `FD-001`（主线同步 + CI 绿灯）与 `EXP-002`（真实 Ollama 陌生双语样本验证）完成后，是否授权将 `https://github.com/huangbuqubunao-alt/intelligence` 由 **`PRIVATE`** 转为 **`PUBLIC`**（Apache-2.0 协议），并允许整理发帖文案供您在目标小圈子内邀请 5–10 名外部双语研究者试用。
 - **为什么现在需要决定**：`gh repo view` 显示仓库当前 `PRIVATE`，只要它不对外公开且没有真实使用者，产品的“核心价值/激活率/留存率”将永远停留在 `暂无数据`，产品就无法脱离工程阶段进入真实市场经营。
 - **已有市场和用户证据**：2026-11-23 外部调研确认开源本地研究助手（`open-notebook` 4.2 万★ / `BiliNote` 7.8 千★）及 Reddit `r/notebooklm` 对“反幻觉 + 本地隐私 + Obsidian 联动”需求明确，但尚缺本产品自身的一手留存实证。
@@ -40,7 +40,7 @@
 
 ## FD-003：授权开启每晚 21:00 (Asia/Shanghai) 自动巡检与运营日报 Sidecar 调度
 
-- **状态**：`PENDING`（已准备就绪但处于**未启用/禁用默认态**，等待创始人手动启用授权）
+- **状态**：`APPROVED (方案 A · 2026-11-23)` — 已完成试跑与权限校验，待创始人在 Antigravity Automations 面板一键开启
 - **需要决定什么**：是否由您在 Antigravity 面板启用已创建的 **`Intelligence 每日产品负责人运营日报`** 定时任务（每天北京时间 `21:00` 自动巡检仓库 Git、CI、市场竞品动向与 `product-ops/CURRENT_STATE.md` 并产出 `product-ops/reports/daily/<YYYY-MM-DD>.md`），以及未来是否授权配置项目自带 `config/launchd/` 模板用于本机内容定时采集。
 - **为什么现在需要决定**：依据安全与系统指令纪律，AI 绝对不得擅自修改调度激活配置（`user_config.json`）或注册 `launchd`，否则“声称无人值守运行”即属虚假承诺；需要您显式授权或在控制台开关启用。
 - **已有市场和用户证据**：工程上每天都有代码/CI/外部 GitHub 竞品变化，固定 21:00 落盘结构化日报能大幅压缩创始人管理负担。
@@ -50,5 +50,5 @@
   - **方案 C**：完全不维护日报（不符合持续产品运营要求）。
 - **成本、收益及风险**：若本机 Antigravity 常驻开机，每天 21:00 自动刷新一次日报，**无额外第三方 SaaS 预算开销**（消耗 Antigravity 本身对话配额）；若电脑休眠/未开启对应自动化则会跳过当天触发。
 - **你推荐的方案**：**方案 A**（日常日报交给 Antigravity 自动化调度；系统级 `launchd` 等真正跑日常真库采集时再单独批）。
-- **推荐依据与信心程度**：脚本 [generate_daily_ops_report.py](file:///Users/hua/Documents/yia-worktrees/antigravity-readiness-20261112/scripts/generate_daily_ops_report.py) 已内置只读安全与防覆盖保护并经 pytest 验收，信心 **90%**。
+- **推荐依据与信心程度**：脚本 [generate_daily_ops_report.py](../scripts/generate_daily_ops_report.py) 已内置只读安全与防覆盖保护并经 pytest 验收，信心 **90%**。
 - **如果暂不决定会发生什么**：每日 21:00 无法实现无人值守自动产报，须靠您主动打开对话触发手动更新。

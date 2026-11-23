@@ -30,4 +30,4 @@
 
 ## 三、本地隐私安全的最小计量工具
 
-项目新增的 [generate_daily_ops_report.py](file:///Users/hua/Documents/yia-worktrees/antigravity-readiness-20261112/scripts/generate_daily_ops_report.py) 支持 **纯本地只读统计**：仅在操作者显式传入 `--hub-db <隔离/测试库路径>` 时以 `mode=ro` 统计本地 `video_ai_briefs`、`research_qa_sessions`（区分 grounded/refused）及 `weekly_ai_briefs` 数量，**永远不上传任何网络遥测、永远不自动扫描或导出个人 `.var/owner` 明文内容**。
+项目新增的 [generate_daily_ops_report.py](../scripts/generate_daily_ops_report.py) 支持 **纯本地只读统计**：仅在操作者显式传入 `--hub-db <隔离/测试库路径>` 时以 `mode=ro` 统计本地 `video_ai_briefs`、`research_qa_sessions`（区分 grounded/refused）及 `weekly_ai_briefs` 数量，**永远不上传任何网络遥测、永远不自动扫描或导出个人 `.var/owner` 明文内容**。

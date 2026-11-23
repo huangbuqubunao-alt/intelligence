@@ -2,7 +2,7 @@
 
 - **审计日期**：2026-11-23（`Asia/Shanghai`）
 - **审计人**：AI 产品负责人（CPO / Tech Lead / Growth & Ops）
-- **工作区与基线分支**：`/Users/hua/Documents/yia-worktrees/antigravity-readiness-20261112`（分支 `antigravity/task-user-readiness-20261112`，最新已验证代码提交 `09f98d4fb764a1a5936b03963fbf520c1bc5a0a2`）
+- **工作区与基线分支**：分支 `antigravity/task-user-readiness-20261112`（基线产品代码提交 `09f98d4fb764a1a5936b03963fbf520c1bc5a0a2`）
 - **主线对照基线**：`main` & `origin/main` @ `4c034b7b298b57b87f037e08877518f8c6d18086`（tree 等价于 `bb06de9`，尚落后本分支 4 笔关键加固与迭代提交：`0fc61a7`、`c85625b`、`89a9878`、`09f98d4`）
 
 ---
