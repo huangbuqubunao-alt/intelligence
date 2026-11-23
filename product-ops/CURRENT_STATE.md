@@ -9,7 +9,7 @@
 ## 核心运行状态快照
 
 - **当前产品目标**：通过 `EXP-001` 定向邀请首批 5–10 名 Obsidian / 双语研究者完成真实冷启动、跨源核验与导出闭环，并回收首轮激活与留存数据。
-- **正在进行的任务**：等待创始人在 Antigravity Automations 面板一键开启 **`Intelligence 每日产品负责人运营日报`**，并发出首批 `EXP-001` 定向内测邀请。
+- **正在进行的任务**：发出首批 `EXP-001` 定向内测邀请，并由每晚 `21:00 (Asia/Shanghai)` 已启用的自动化巡检追踪反馈与 GitHub 公开漏斗。
 - **最近完成的步骤**：
   1. 完成全面产品/技术现状审计与 2026-11-23 一手市场及 10 竞品调研；
   2. 完成 L1 高价值迭代 #1（`09f98d4`）及全套本地门禁校验；
@@ -23,7 +23,7 @@
 - **L3 创始人裁决与执行状态（2026-11-23）**：
   - **`FD-001`**：`COMPLETED`（`main@9f65417` + CI `#45132090574` 双端绿灯）；
   - **`FD-002`**：`COMPLETED`（仓库已转 `PUBLIC`，备妥 `EXP-001` 邀请文案）；
-  - **`FD-003`**：`APPROVED & VERIFIED, PENDING DASHBOARD TOGGLE`（请创始人在 `[Open Automations Dashboard](sidecar://dashboard)` 开启 **`Intelligence 每日产品负责人运营日报`**；`launchd` 继续暂不注册）。
+  - **`FD-003`**：`COMPLETED`（已由创始人在 Automations 面板启用 **`Intelligence 每日产品负责人运营日报`**，`CRON_TZ=Asia/Shanghai 0 21 * * *`；`launchd` 继续保持未注册）。
 - **下一步安全可执行动作（中断恢复指引）**：
   1. 先检查 `git status -s` 与 `git log -n 3 --oneline` 与 `gh repo view huangbuqubunao-alt/intelligence`；
   2. 记录外部试用者的 `EXP-001` 安装/冷启动耗时、报错点与 Week-1 回访结果至 `product-ops/USER_INSIGHTS.md` 与 `product-ops/EXPERIMENTS.md`。
