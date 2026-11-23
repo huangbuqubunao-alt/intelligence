@@ -164,6 +164,7 @@ def render_daily_ops_markdown(
     hub_usage: HubUsageFacts,
     pending_decisions: tuple[str, ...],
     current_goal: str,
+    template: str = "legacy",
 ) -> str:
     commits_md = "\n".join(f"  - `{c}`" for c in git.recent_commits) or "  - 暂无记录"
     ahead_str = (
@@ -171,6 +172,57 @@ def render_daily_ops_markdown(
         if git.ahead_of_main is not None
         else "无法对比 `main`"
     )
+    decisions_block = (
+        "\n".join(f"- **{item}**（详见 `product-ops/FOUNDER_DECISIONS.md`）" for item in pending_decisions)
+        if pending_decisions
+        else "- 无需决策"
+    )
+
+    if template == "cpo":
+        if hub_usage.available:
+            internal_data_block = (
+                f"- 隔离本地工作区核验：已提炼卡片 `{hub_usage.distilled_briefs}`、"
+                f"跨源问答 `{hub_usage.qa_sessions}`（有证据作答 `{hub_usage.qa_grounded}` · 诚实拒答 `{hub_usage.qa_refused}`）、"
+                f"周报 `{hub_usage.weekly_briefs}`。"
+            )
+        else:
+            internal_data_block = (
+                "- 本地隔离测试实例：未传入 `--hub-db`，严格不读取个人库或历史私有数据。"
+            )
+        return (
+            f"# AI 产品负责人日报｜{report_date}\n\n"
+            "## 1. 产品整体状态\n\n"
+            f"- **当前版本及发布状态**：`v0.1.0` · `PUBLIC_BETA`（Apache-2.0，分支 `{git.branch}` @ `{git.short_sha}`，{ahead_str}，未打对外推广 Release Tag）\n"
+            "- **当前生命周期阶段**：**内部自主迭代与产品完善阶段**（严格边界：现阶段不启动真实用户测试与外部邀测）\n"
+            f"- **当前最重要目标**：{current_goal}\n"
+            f"- **工作区与基线健康度**：已跟踪未提交改动 `{git.dirty_tracked_count}` 项；最近提交：\n"
+            f"{commits_md}\n\n"
+            "## 2. 今日工作完成情况\n\n"
+            "- 已按既定只读采集逻辑完成仓库 Git 状态、`product-ops/` 运营台账与决策队列自动巡检（当日具体产品/UI/工程研发交付详见人工或会话追加记录）。\n\n"
+            "## 3. 市场与竞品新情报\n\n"
+            "- 无重要变化（每周周期巡检与来源等级登记见 `product-ops/MARKET_INTELLIGENCE.md` 与 `product-ops/COMPETITOR_MATRIX.md`）。\n\n"
+            "## 4. 产品与测试数据\n\n"
+            "- **真实外部用户指标（日活 / W1 留存 / NPS / 真实付费转化）**：**当前不可评估**（处于内部自主迭代阶段，严格 Zero-Telemetry 且未开展真人测试）。\n"
+            f"{internal_data_block}\n"
+            "- 内部评测与模拟验证证据汇总见 `product-ops/METRICS.md` 与 `product-ops/TEST_LOG.md`。\n\n"
+            "## 5. 测试与质量情况\n\n"
+            "- 各类自动化与模拟 E2E 验收状态请严格对照 `product-ops/TEST_LOG.md`（按 `PASS / FAIL / BLOCKED / NOT_TESTED` 四态核对最新跑批时间与命令输出；未经当轮运行不得沿用旧结果）。\n\n"
+            "## 6. 今日关键决策\n\n"
+            "- 严守内部完善阶段边界（禁止将 AI 模拟验证结果冒充真实用户需求），维持 Zero-Telemetry 与零静默云花费护栏，决策详情见 `product-ops/DECISION_LOG.md`。\n\n"
+            "## 7. 风险与阻塞\n\n"
+            "- **外部需求未经真人证实**：真实用户安装激活率、第 7 天留存及付费意愿在获创始人 L3 批准进入真人测试前仍属 **`[待真实用户验证假设]`**。\n"
+            "- `main` 与开发分支若存在提交差，须等验证完备及创始人在 L3 批准后同步。\n\n"
+            "## 8. 需要你决策的事项\n\n"
+            f"{decisions_block}\n\n"
+            "## 9. 明日计划\n\n"
+            "1. 继续推进 `product-ops/BACKLOG.md` 中高 RICE 内部 UX / 可靠性打磨切片并全量回归测试 + Chromium 实机验证。\n"
+            "2. 追踪最新 GitHub 开源竞品更新，及时同步至 `product-ops/MARKET_INTELLIGENCE.md`。\n"
+            "3. 跟进上述 L3 待创始人裁决事项。\n"
+        )
+
+    if template != "legacy":
+        raise ValueError(f"Unsupported daily report template: {template}")
+
     if hub_usage.available:
         usage_block = (
             f"- 已提炼内容卡片：`{hub_usage.distilled_briefs}`\n"
@@ -180,21 +232,15 @@ def render_daily_ops_markdown(
         )
     else:
         usage_block = (
-            "- 核心北极星（周真实可核验研究收获人数 / WAU）：**暂无数据**（零遥测，等待首批受邀用户实验 `EXP-001`）\n"
+            "- 核心北极星（周真实可核验研究收获人数 / WAU）：**当前不可评估**（内部自主迭代阶段 + 零遥测）\n"
             "- 本地只读实例统计：未传入 `--hub-db` 隔离库路径，未读取个人真实库"
         )
-
-    decisions_block = (
-        "\n".join(f"- **{item}**（详见 `product-ops/FOUNDER_DECISIONS.md`）" for item in pending_decisions)
-        if pending_decisions
-        else "- 无需决策"
-    )
 
     return (
         f"# 产品自主运营日报｜{report_date}\n\n"
         "### 1. 产品整体状态\n\n"
         f"- **当前版本及发布状态**：`v0.1.0` · `PUBLIC_BETA`（开源 Apache-2.0，独立分支 `{git.branch}` @ `{git.short_sha}`，{ahead_str}）\n"
-        "- **产品阶段**：Pre-Launch / 首批真实外部用户价值验证前期（工程主干与反幻觉闭环已收敛，外部激活与留存为 `暂无数据`）\n"
+        "- **产品阶段**：内部自主迭代与产品完善阶段（外部激活与留存为 `当前不可评估`）\n"
         f"- **当前最重要目标**：{current_goal}\n"
         f"- **总体健康状况**：工作区已跟踪未提交改动 `{git.dirty_tracked_count}` 项；最近本地提交：\n"
         f"{commits_md}\n"
@@ -205,18 +251,18 @@ def render_daily_ops_markdown(
         "- 无重要变化（每周周期巡检记录见 `product-ops/MARKET_INTELLIGENCE.md` 与 `product-ops/COMPETITOR_MATRIX.md`）。\n\n"
         "### 4. 用户及产品数据\n\n"
         f"{usage_block}\n"
-        "- GitHub 仓库可见性及社区转化：仓库当前若仍为 Private，自然 Star/Issue 为 0，外部留存**暂无数据**。\n\n"
+        "- 外部真实用户行为样本为 0，留存与转化**当前不可评估**。\n\n"
         "### 5. 今日关键决策\n\n"
-        "- 保持本地优先与 Zero-Telemetry 边界；仅在明确决策记录与验证门禁通过后推进对外发布与用户实验（参见 `product-ops/DECISION_LOG.md`）。\n\n"
+        "- 保持本地优先与 Zero-Telemetry 边界，严守内部完善阶段约束；详情参见 `product-ops/DECISION_LOG.md`。\n\n"
         "### 6. 风险及阻塞\n\n"
-        "- `main` 分支与工作分支存在提交差，且仓库私有状态阻塞公开发布验证与自然获客。\n"
+        "- `main` 分支与工作分支若存在提交差，需在内部验证收口并获 L3 批准后决定合并节奏。\n"
         "- 外部真实用户行为样本为 0，所有转化与定价判断均保留为 `待验证假设`。\n\n"
         "### 7. 需要创始人决定的事项\n\n"
         f"{decisions_block}\n\n"
         "### 8. 明日计划\n\n"
-        "1. 若 `FD-001` 获批：整合已验证提交至 `main` 并核验 GitHub Actions 首轮全绿。\n"
-        "2. 推进真实本机模型处理陌生双语材料的端到端对照包与录屏证据（`EXP-002`）。\n"
-        "3. 完成首批目标研究者试用的任务脚本与反馈收集模版准备（`EXP-001`）。\n\n"
+        "1. 推进 `product-ops/BACKLOG.md` 中高 RICE 内部可用性与可靠性改进并保持全量测试及浏览器实机复检全绿。\n"
+        "2. 追踪最新竞品动态与 `product-ops/TEST_LOG.md` 质量台账。\n"
+        "3. 跟进创始人 L3 待决策事项。\n\n"
         "### 9. 本周目标进度\n\n"
         "- 见 `product-ops/ROADMAP.md` 与 `product-ops/reports/weekly/`。\n"
     )
@@ -240,6 +286,7 @@ def generate_report(
     hub_db: Path | None = None,
     output_path: Path | None = None,
     overwrite: bool = False,
+    template: str = "legacy",
 ) -> OpsReportSummary:
     resolved_root = repo_root.resolve()
     target = (
@@ -272,6 +319,7 @@ def generate_report(
         hub_usage=hub_usage,
         pending_decisions=pending,
         current_goal=goal,
+        template=template,
     )
     target.write_text(markdown, encoding="utf-8")
     return OpsReportSummary(
@@ -322,6 +370,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="Print JSON operational summary to stdout",
     )
+    parser.add_argument(
+        "--template",
+        choices=("legacy", "cpo"),
+        default="legacy",
+        help="Markdown report layout ('legacy' or Section-10 'cpo')",
+    )
     args = parser.parse_args(list(argv) if argv is not None else None)
     summary = generate_report(
         repo_root=args.repo_root,
@@ -329,6 +383,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         hub_db=args.hub_db,
         output_path=args.output,
         overwrite=bool(args.overwrite),
+        template=str(args.template),
     )
     if args.json_summary:
         print(json.dumps(asdict(summary), ensure_ascii=False, indent=2))

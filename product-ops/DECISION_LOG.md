@@ -1,88 +1,39 @@
 # 产品决策记录（Product Decision Log）
 
-- **决策原则**：禁止“因为能做所以做”，任何重要决策必须对比三方案（A 当前方案 / B 轻量实验或替代方式 / C 暂不做并继续收证），使用 RICE 评分并注明缺失数据的不确定性，同时预设退出/回滚条件。
+- **决策原则**：任何重要产品、技术与运营决策必须比较至少三种候选方案（A 当前实施 / B 轻量或替代路径 / C 延后或取消），附带 RICE 评分、成本收益、风险与回滚条件；严禁在无证据下“为了做而做”。
 
 ---
 
-## 总览索引
+## 决策总览索引
 
-| 决策 ID | 主题 | 层级 | 状态 | 结论 | RICE (R·I·C/E) |
+| 决策 ID | 决策主题 | 审批层级 | 当前状态 | 结论 | RICE 评估 (`R·I·C/E`) |
 |---|---|---|---|---|---|
-| **DEC-OPS-001** | 导出 Markdown/纯文本与问答卡片补齐原片 HTTPS 深链与出处指纹 | L1 | **EXECUTED** (`09f98d4`) | **立即实施** | `8 × 3 × 0.85 / 0.5 = 40.8` |
-| **DEC-OPS-002** | 将已验证的分支提交整合进 `main` 并开启 GitHub Actions | L3 | **COMPLETED (`main@9f65417`)** | **已合流且 CI `#45132090574` 双端全绿** | `10 × 3 × 0.95 / 0.3 = 95.0` |
-| **DEC-OPS-003** | 暂缓 V2 全网爬虫（X/网页正文/RSS）与自动 `hybrid` 云端路由 | L1 | **DECIDED (DEFER)** | **延后至 10 人留存后** | `—`（主动止损） |
-| **DEC-OPS-004** | 用本机真实 Ollama 对陌生双语材料建立实测对照证明包（`EXP-002`） | L2 | **EXECUTED (`2026-11-23`)** | **通过（`qwen3.5:9b` 3/3 问答 + 2/2 拒答）** | `9 × 3 × 0.70 / 1.0 = 18.9` |
-| **DEC-OPS-005** | 消除首次 Clone 冷启动必崩摩擦：推出零配置 `youtube-intel start` 启动器与 5 分钟自检清单 | L1 + L3(`FD-004`) | **COMPLETED (`main@a820152`)** | **已合流且 CI `#45137542384` 双端全绿** | `10 × 3 × 0.95 / 0.8 = 35.6` |
+| **DEC-OPS-001** | 导出笔记与问答卡片补齐安全 HTTPS `?t=` 原片深链与出处指纹 | L1 | **EXECUTED (`09f98d4`)** | 已上线，测试全绿 | `8 × 3 × 0.85 / 0.5 = 40.8` |
+| **DEC-OPS-002** | 将安全加固提交同步上 `main` 并激活 GitHub Actions | L3 (`FD-001`) | **COMPLETED (`main@9f65417`)** | CI `#45132090574` 全绿 | `10 × 3 × 0.95 / 0.3 = 95.0` |
+| **DEC-OPS-003** | 坚决延后 V2 全网爬虫、自动 `hybrid` 路由与多图 VLM | L1 | **DECIDED (DEFER)** | 内部完善期冻结，防功能膨胀 | `—` |
+| **DEC-OPS-004** | 用真实本机 `ollama/qwen3.5:9b` 跑通陌生双语对照基准 (`EXP-002`) | L2 | **EXECUTED (`2026-11-23`)** | 3/3 有据 + 2/2 拒答 (`227.6s`) | `9 × 3 × 0.70 / 1.0 = 18.9` |
+| **DEC-OPS-005** | 推出零配置 `youtube-intel start` 启动器消除首次冷启动必崩 | L1 + L3 (`FD-004`) | **COMPLETED (`main@a820152`)** | CI `#45137542384` 全绿 | `10 × 3 × 0.95 / 0.8 = 35.6` |
+| **DEC-OPS-006** | **Stage D Iteration #3**：根治 Demo 越域假问答、macOS 浏览器本地上传死路、空库 409 与冷启动 Settings 误报 | L1 | **EXECUTED (`fee43f4`)** | **实测全绿（140 pytest + 1240 Vitest + Chromium 复检）** | `10 × 3 × 0.95 / 0.7 = 40.7` |
 
 ---
 
-## 详细评估记录
+## 详细决策记录
 
-### DEC-OPS-001：为导出笔记与研究卡片补齐可携带深链时间戳与出处指纹（2026-11-23）
-
-| 评估项 | 评估结论 |
-|---|---|
-| **用户价值** | 解决研究者把 Obsidian 笔记带离工作台后“只能看见 `[01:15]` 文字，点不开原片对应位置核对原话”的真实断点 |
-| **市场依据** | Reddit `r/notebooklm` 与中文社区对 SaaS 工具“离开平台后引用断裂 / 与 Obsidian 割裂”的长期高频抱怨；Codex 评审明确将“带走一篇引用依然可用的研究笔记”列为核心竞争指标 |
-| **竞品情况** | Google NotebookLM 仅在其网页端内部高亮原话；BibiGPT 基础档锁死平台端或高价 Pro；BiliNote 专注单视频而非跨源对照导出 |
-| **产品匹配度** | **100% 契合**：“带走可复用、可自证清白的普通 Markdown”正是 Intelligence 区别于聊天套壳产品的护城河 |
-| **预期收益** | 让每条导出的 YouTube/B 站证据点附带安全 HTTPS 深链（`?t=75s` / `?t=65`）与 `ev:` ID 前缀，提高研究笔记在 Obsidian 中的长期留存复用率（待 `EXP-001` 验证真实点击） |
-| **实现成本** | 极低：纯后端 URL 安全构造 helper（仅放行 `https://` 且限 YT/Bili 域名）+ 前端同级 `<a>` 标签 + 2 个新测试文件；不改核心 DB Schema |
-| **机会成本** | 仅占用半日开发窗口，未挤占大块路线图工作 |
-| **风险** | ① URL 解析漏洞或非 `https` XSS 注入风险（已通过白名单 `https` + scheme 拒绝 + Vitest 注入测试闭环）；<br>② 若与按钮嵌套违反 HTML 语义（已采用 `<div class="ai-citation-row">` 同级渲染） |
-| **方案对比 A / B / C** | **A（已选）**：在单视频提炼 Markdown、跨源问答 Markdown、纯文本复制和前端卡片上统一生成安全 HTTPS `?t=` 深链，局部本地文档零时间戳污染。<br>**B**：只改跨源问答 Markdown 不改 UI/纯文本复制（体验割裂，拒绝）。<br>**C**：暂不做（出口链路残留致命缺口，影响首轮用户口碑，拒绝）。 |
-| **验证方法** | 单元单测覆盖 `youtube`/`youtu.be`/`bilibili`/`LOCAL`/`javascript:`/`http:`；全量 `pytest` 133/133 与 `vitest` 54/54（1237 用例）通过（已达成） |
-| **退出条件** | 若任何回归发现损坏 Obsidian 导入兼容或触发非安全外链跳转，可直接按单笔 Commit `09f98d4` 完整回滚 |
+### DEC-OPS-001 ~ DEC-OPS-005（历史已执行决策摘要）
+- **`DEC-OPS-001` (`09f98d4`)**：在单视频/跨源问答导出 Markdown、纯文本与 UI 中植入经过 `https://` 白名单校验的 YouTube/B 站秒级跳转链接与 `ev:` ID 前缀，同时保护本地 Markdown `TEXT_RANGE` 免受 `00:00` 假时间戳污染。
+- **`DEC-OPS-002` (`9f65417`)**：合并提交并补齐 Linux inode 复用守护、`mlx_whisper` 动态类型兼容、timer 1ms 抖动修复与 CI `ffmpeg`，达成双端 CI 全绿。
+- **`DEC-OPS-003` (DEFER)**：针对 `Open Notebook` (42k★) 与 `SurfSense` (17k★) 的广连接策略主动做减法，冻结 V2 全网抓站，集中打穿核验闭环。
+- **`DEC-OPS-004` (`EXP-002`)**：隔离验证 `qwen3.5:9b`（`$0`）在中英对照与诱导性问题上的 JSON Strict 遵守能力，验证默认零花费路线可行。
+- **`DEC-OPS-005` (`a820152`)**：根治按 `settings.example.yaml` 启动 `serve-api` 因占位路径 `Exit Code 2` 崩溃的问题，交付 `youtube-intel start` 与 `--check-only` 检查表。
 
 ---
 
-### DEC-OPS-002：整合 `0fc61a7..09f98d4` 上主线 `main` 并激活真实 GitHub Actions CI（2026-11-23）
+### DEC-OPS-006：解决 Stage A 实机审计暴露的四大体验断裂点（2026-11-23 · Iteration #3）
 
-| 评估项 | 评估结论 |
+| 评估维度 | 详细分析与证据 |
 |---|---|
-| **用户价值** | 让公开发布主线与开源包拥有全部安全护栏（零误删/零静默扣费/零伪造引用/跨源 Markdown）及真实 CI 绿标背书 |
-| **市场依据** | 技术用户查看开源仓库前普遍核查最近 commit 与 Actions 构建通过状态；当前 `main` 上 CI 运行为 0 |
-| **竞品情况** | 头部开源竞品均具备自动化公开 CI 流水线 |
-| **产品匹配度** | 主干同步前置基础工程动作 |
-| **预期收益** | 打消外部试用者安装疑虑，保证 `git clone` 默认即拿到最新加固版本 |
-| **实现成本** | 极低（~15 分钟 cherry-pick + 完整回归验证） |
-| **机会成本** | 几乎无 |
-| **风险** | 需要创始人显式放行才能改动 `main` 和推送 `origin/main`（遵循仓库 `AGENTS.md` 红线） |
-| **方案对比 A / B / C** | **A（推荐，待 `FD-001`）**：由创始人批准后 cleanly 整合进 `main` 并 `git push` 触发 Actions，同时保留 `PUBLIC_BETA`（暂不发推广 Tag）。<br>**B**：先不开仓库仅局部 cherry-pick 上 `main`。<br>**C**：继续留在特性分支不动（会导致默认主分支停留在未修伪引用的旧提交，不可取）。 |
-| **验证方法** | `main` 推送后 `gh run list` 显示首次 Actions workflow 成功变绿 |
-| **退出条件** | 任何 CI fail 立即停止后续公开动作 |
-
----
-
-### DEC-OPS-003：暂缓 V2 全网链接爬虫、自动 `hybrid` 路由与多图 VLM（2026-11-23）
-
-| 评估项 | 评估结论 |
-|---|---|
-| **用户价值** | V2 抓取虽然听起来全能，但尚未证明能帮首位核心研究者更快获得“核回原话并带进 Obsidian”的核心收益 |
-| **市场依据** | 竞品 `SurfSense`（16.9k★）与 `Open Notebook`（42k★）已主打全源连接；我们在无 10 名真实留存用户证明主航道前分散研发精力会稀释唯一优势 |
-| **产品匹配度** | 符合“以价值、留存和证据衡量，而非功能数量”的最高准则 |
-| **结论与重启门槛** | **延后（DEFER）**。仅当 `EXP-001` 验证 >=10 名目标用户对核心视频+Markdown 流满意（Day-7 留存 >=30%）且其中 >=4 人明确因“缺少网页文章/播客抓取”卡壳时，才重新提请立项 |
-
----
-
-### DEC-OPS-004：用真实本机 Ollama 模型执行陌生双语对照实验 `EXP-002`（2026-11-23）
-
-| 评估项 | 评估结论 |
-|---|---|
-| **用户价值** | 用非合成的真实陌生视频验证“本机零收费大模型能否稳定吐出合法 `[E1]..[En]` 与拒答”，弥补 mock 单测之外的最大真实可信度盲区 |
-| **实现成本** | 低（本地已有 `ollama`、`yt-dlp`、`ffmpeg`，需先检查本机已拉取模型或由隔离目录执行，零云端花费） |
-| **方案对比 A / B / C** | **A（推荐）**：用本机开源 Ollama 对 2 条真实公开技术视频 + 1 份自写测试笔记跑 5 问对照包（3 个跨源问答 + 2 个诱骗无依据问题）并保存真实 JSON/Markdown 证据。<br>**B**：只保留 `demo-replay` 合成演示（审稿评委/极客一问即知未经真实长文检验，风险高）。<br>**C**：跳过实测直接开源宣传（易在前 5 个体验者手里因 Prompt/模型格式兼容性翻车）。 |
-| **退出条件** | 若本机 `9B` 以下开源模型在 `RESEARCH_QA_SCHEMA` 上拒答误判率 `>30%`，优先迭代本地 Prompt 约束与重试修复，而不轻率默认放行云端计费 |
-
----
-
-### DEC-OPS-005：推出零配置 `youtube-intel start` 消除新用户首次冷启动崩溃（2026-11-23 · 迭代 #2）
-
-| 评估项 | 评估结论 |
-|---|---|
-| **发现的真实卡点** | 团队模拟纯新用户按原 README 复制 `settings.example.yaml` 启动 `serve-api` 时**100% 崩溃（Exit Code 2）**：模板中 `vault_root: /absolute/path/to/obsidian/vault` 触发 `FileNotFoundError`，且报错未提示原因 |
-| **用户价值** | 将新用户从“手动改配置 + 排错 `FileNotFoundError`”压缩成“1 条 `uv run youtube-intel start` + `--check-only` 可操作自检清单” |
-| **竞品对比** | `open-notebook` 与 `BiliNote` 均支持开箱拉起；若不在 `EXP-001` 邀测发出前消灭首次命令崩溃，首批 10 位种子用户可能超过一半卡死在安装阶段（直接触发止损线） |
-| **方案对比 A / B / C** | **A（已选）**：新增零配置 `youtube-intel start`（自动在 `.var/workspace/` 初始化有效本地配置、`local-only` 默认、支持 `--vault`、`--check-only` 并挂载完整 `WorkspaceIntelligenceHub`），同时修复 `serve-api` 缺 `vault_root` 模糊报错，提取共用 `run_fast_read_server_loop` 避免重复代码。<br>**B**：只改 README 文字警告“请手动替换 `settings.yaml`”（文档防呆极弱，仍会在手滑或脚本复现中 Exit Code 2 崩溃，拒绝）。<br>**C**：自动把 `settings.example.yaml` 改成相对路径 `./vault`（会改变既有 `cli.py` 绝对路径契约并污染现有测试，拒绝）。 |
-| **验证方法** | 新增 5 组集成测试 [test_workspace_start_launcher.py](../tests/integration/test_workspace_start_launcher.py) 覆盖冷启动、幂等保留自定配置、`--vault`、双入口 CLI `--check-only` 与 `serve-api` 提示 + 接入 CI |
-| **退出/合流条件** | 提请创始人批复 **`FD-004`** 同步至 `main` 并看 CI 绿灯后再外发 `EXP-001` 邀请 |
+| **触发问题（Stage A 实机实证）** | ① Offline Demo 对跨领域无解问题（“量子引力场在火星大气层实测数值”）误返回 `GROUNDED` + 3 条无关引用；<br>② 通过 CLI `youtube-intel start` 在 macOS 浏览器打开工作台时，因 `/local/native/capability = false` 导致用户彻底无法上传任何 `.md`/`.txt`/音视频文件；<br>③ 全新工作区因 `hub.sqlite3` 尚未懒建，导致 `#Settings` `AI 能力总览` 误报 `⚪ 待检查模型就绪状态` 且强行摊开底层工程诊断壁；<br>④ 空库访问 `#Research`/`#Topics`/`#Intelligence` 缺导入引导且空提交触发 HTTP `409`、模态窗 `Escape` 键无效、移动端 `.nav-item` 偏矮（`34px`）。 |
+| **用户价值与预期收益** | 把“新用户体验 Demo 立即打穿反幻觉认知”及“首次跑起 `youtube-intel start` 亲手传入第一份本地 `.md`、看清 Ollama 状态、在各空页顺畅行动”从阻断拉回流畅可用；预期大幅降低未来真人体检期的首次掉队风险（具体留存转化影响：`[待真实用户验证假设]`）。 |
+| **三方案对比** | **方案 A（已选并执行，RICE `40.7`）**：<br>1. Demo 问答 `_DemoShowcaseCompleter` 增加全词边界匹配与中文停用/虚词切分（`_demo_question_has_evidence_support`），无直接证据即显式拒答并保留分离 `related_excerpts`；<br>2. `WorkspaceIntelligenceHub.ensure_ready()` 在 `prepare_local_workspace()` 时幂等建表，保证全新工作区首开 `#Settings` 即亮绿且收起工程诊断，同时仅在 `save()` 时同步 `liveWorkspaceAi` 防止打断表单编辑态；<br>3. `NativeLocalImport` 在 `available === false` 时保持原有原生警告不变，下方额外提供一键“使用浏览器本地上传（`.md / .txt / 音视频`）”切入现有 `/api/v1/local/imports` 回环上传器，兼顾 `AddEntry` / `LocalImport` / `NativeLocalImport` `Escape` 关窗；<br>4. `#Research`/`#Topics`/`#Intelligence` 配备空库引导与直达导入 CTA，移动端导航按钮最低 `40px`。<br>**方案 B（轻改文档说明）**：只在 README 说明“CLI 启动下 macOS 无法传本地文件、Demo 遇到无关问题不会拒答”——会直接摧毁第一次试用的直觉口碑，**拒绝**。<br>**方案 C（在浏览器强行屏蔽所有 macOS 原生桥接代码）**：会破坏既有 macOS 打包原生文件选择器契约及 8 个既有单测，**拒绝**。 |
+| **工程成本与副作用** | 修改 3 个后端文件 + 8 个前端组件/样式文件 + 5 个测试文件（共 16 文件）；严格不修改核心 DB Schema、不引入新外部依赖、不影响 `.var/owner`。 |
+| **验证结果与回滚条件** | 提交 **`fee43f4`**：`ruff` / `mypy` (136 文件) 0 错、`11` 组 CI `pytest` **140/140 passed**、`npm run build` 成功、Vitest **54/54 文件 / 1240/1240 passed**；Chromium 实机双端口（`8799` & `8798`）全部 4 项修复目测与接口 `200`/`201` 确认且 `0` console error / `0` 横向溢出。<br>回滚条件：若未来任一场景暴露 macOS 原生文件选择与回环上传回退冲突，可按 Commit `fee43f4` 精准撤回对应片段。 |

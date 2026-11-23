@@ -511,3 +511,42 @@ def test_daily_ops_report_generator_is_readonly_deterministic_and_non_clobbering
     assert second.skipped_existing is True
     assert second.hub_usage.available is False
     assert out_file.read_text(encoding="utf-8") == "# custom manual report\n"
+
+
+def test_daily_ops_report_generator_cpo_template_enforces_internal_stage_sections(
+    tmp_path: Path,
+) -> None:
+    script_path = REPO_ROOT / "scripts" / "generate_daily_ops_report.py"
+    spec = importlib.util.spec_from_file_location("generate_daily_ops_report_cpo", script_path)
+    assert spec is not None and spec.loader is not None
+    mod: Any = importlib.util.module_from_spec(spec)
+    sys.modules["generate_daily_ops_report_cpo"] = mod
+    spec.loader.exec_module(mod)
+
+    out_file = tmp_path / "reports" / "cpo-2026-11-23.md"
+    summary = mod.generate_report(
+        repo_root=REPO_ROOT,
+        report_date="2026-11-23",
+        hub_db=None,
+        output_path=out_file,
+        overwrite=False,
+        template="cpo",
+    )
+    assert summary.written is True
+    rendered = out_file.read_text(encoding="utf-8")
+    for heading in (
+        "# AI 产品负责人日报｜2026-11-23",
+        "## 1. 产品整体状态",
+        "## 2. 今日工作完成情况",
+        "## 3. 市场与竞品新情报",
+        "## 4. 产品与测试数据",
+        "## 5. 测试与质量情况",
+        "## 6. 今日关键决策",
+        "## 7. 风险与阻塞",
+        "## 8. 需要你决策的事项",
+        "## 9. 明日计划",
+    ):
+        assert heading in rendered
+    assert "当前不可评估" in rendered
+    assert "内部自主迭代与产品完善阶段" in rendered
+    assert "/Users/" not in rendered
