@@ -4808,6 +4808,64 @@ input[type="radio"] {
   justify-self: center;
 }
 
+.reader-action-bar {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.reader-action-primary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  min-width: 0;
+}
+
+.reader-action-flow,
+.reader-export-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.reader-export-group {
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-subtle);
+}
+
+.reader-action-secondary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  min-width: 0;
+}
+
+.reader-action-secondary .kb-shortcut-hint {
+  margin-left: auto;
+}
+
+@media (max-width: 768px) {
+  .reader-action-primary,
+  .reader-action-flow,
+  .reader-export-group,
+  .reader-action-secondary {
+    max-width: 100%;
+  }
+  .reader-action-secondary .kb-shortcut-hint,
+  .kb-shortcut-hint {
+    display: none;
+  }
+}
+
 
 
 

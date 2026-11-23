@@ -5798,48 +5798,7 @@ function ContentDetailPanel(
           {data.video.source_language && <span>{t("Source language")}: {data.video.source_language === "und" ? t("Language unavailable") : data.video.source_language}</span>}
           {data.video.duration_seconds != null && <span>{t("Media duration")}: {formatHumanDuration(data.video.duration_seconds)}</span>}
         </div>
-        <div className="button-row">
-          {data.video.source_url
-            ? (
-              <a className="button button-ghost button-small" href={data.video.source_url} target="_blank" rel="noreferrer">
-                {t("Open original source")}
-              </a>
-            )
-            : null}
-          {!(aiBrief && data.obsidian_markdown) ? (
-            <button
-              type="button"
-              className="button button-secondary button-small"
-              onClick={event => {
-                pulseCelebration(event.currentTarget);
-                const guideLines = loadedEvidence
-                  .map(ev => {
-                    const tr = sharedTranslations[ev.evidence_id]?.excerpt ?? ev.translated_excerpt;
-                    if (!tr) return null;
-                    const range = ev.locator_type === "TEXT_RANGE" ? "" : `[${timestampRange(ev.start_ms, ev.end_ms)}] `;
-                    return `${range}${cleanTranslatedCaptionText(tr)}`;
-                  })
-                  .filter((v): v is string => Boolean(v));
-                const cleanedSummary = note?.summary ? cleanCaptionText(note.summary).text : "";
-                const cleanedPts = note?.core_points ? dedupeSummaryPoints(cleanedSummary, note.core_points) : [];
-                const md = buildMarkdownVideoNote({
-                  title: data.video.title ?? data.video.video_id,
-                  channelName: data.video.channel_name,
-                  sourceUrl: data.video.source_url,
-                  publishedAt: humanDate(data.video.published_at ?? data.video.imported_at),
-                  summary: cleanedSummary,
-                  chineseGuide: guideLines,
-                  corePoints: cleanedPts,
-                });
-                void navigator.clipboard?.writeText(md);
-                setCopiedMarkdown(true);
-                setTimeout(() => setCopiedMarkdown(false), 2200);
-              }}
-            >
-              <PhosphorIcon name="file-text" size={13} />
-              {t(copiedMarkdown ? "Copied Markdown note" : "Copy Markdown note")}
-            </button>
-          ) : null}
+        <div className="reader-action-bar">
           <WorkspaceVideoAiActions
             videoId={data.video.video_id}
             title={data.video.title ?? data.video.video_id}
@@ -5859,6 +5818,65 @@ function ContentDetailPanel(
             nextUnreadVideo={nextUnreadVideo}
             onAdvanceToVideo={onAdvanceToVideo}
             onBack={onClose}
+            sourceLinkNode={
+              data.video.source_url ? (
+                <a
+                  className="button button-ghost button-small"
+                  href={data.video.source_url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {t("Open original source")}
+                </a>
+              ) : null
+            }
+            legacyCopyNode={
+              !(aiBrief && data.obsidian_markdown) ? (
+                <button
+                  type="button"
+                  className="button button-secondary button-small"
+                  onClick={event => {
+                    pulseCelebration(event.currentTarget);
+                    const guideLines = loadedEvidence
+                      .map(ev => {
+                        const tr =
+                          sharedTranslations[ev.evidence_id]?.excerpt ??
+                          ev.translated_excerpt;
+                        if (!tr) return null;
+                        const range =
+                          ev.locator_type === "TEXT_RANGE"
+                            ? ""
+                            : `[${timestampRange(ev.start_ms, ev.end_ms)}] `;
+                        return `${range}${cleanTranslatedCaptionText(tr)}`;
+                      })
+                      .filter((v): v is string => Boolean(v));
+                    const cleanedSummary = note?.summary
+                      ? cleanCaptionText(note.summary).text
+                      : "";
+                    const cleanedPts = note?.core_points
+                      ? dedupeSummaryPoints(cleanedSummary, note.core_points)
+                      : [];
+                    const md = buildMarkdownVideoNote({
+                      title: data.video.title ?? data.video.video_id,
+                      channelName: data.video.channel_name,
+                      sourceUrl: data.video.source_url,
+                      publishedAt: humanDate(
+                        data.video.published_at ?? data.video.imported_at,
+                      ),
+                      summary: cleanedSummary,
+                      chineseGuide: guideLines,
+                      corePoints: cleanedPts,
+                    });
+                    void navigator.clipboard?.writeText(md);
+                    setCopiedMarkdown(true);
+                    setTimeout(() => setCopiedMarkdown(false), 2200);
+                  }}
+                >
+                  <PhosphorIcon name="file-text" size={13} />
+                  {t(copiedMarkdown ? "Copied Markdown note" : "Copy Markdown note")}
+                </button>
+              ) : null
+            }
             onCompleted={() => {
               setRefresh(value => value + 1);
               setEvidenceRefresh(value => value + 1);
@@ -6960,6 +6978,9 @@ function ContentEvidencePanel(
   const { data, error, errorCode, reload } = useRemote<{ evidence: ContentEvidence[] }>(
     `/videos/${encodeURIComponent(videoId)}/evidence`,
     refresh,
+    undefined,
+    true,
+    true,
   );
   const [selectedMode, setSelectedMode] = useState<EvidenceDisplayMode | null>(null);
   const [evidenceVerbatim, setEvidenceVerbatim] = useState(false);

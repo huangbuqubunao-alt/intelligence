@@ -354,6 +354,30 @@ _DEMO_EN_STOPWORDS: Final[frozenset[str]] = frozenset(
         "many",
         "much",
         "some",
+        "demo",
+        "showcase",
+        "video",
+        "videos",
+        "channel",
+        "channels",
+        "content",
+        "corpus",
+        "material",
+        "materials",
+        "mention",
+        "mentioned",
+        "mentions",
+        "exact",
+        "were",
+        "was",
+        "benchmark",
+        "benchmarked",
+        "measured",
+        "report",
+        "reported",
+        "compare",
+        "explain",
+        "describe",
     }
 )
 _DEMO_ZH_PARTICLES_RE: Final[re.Pattern[str]] = re.compile(
@@ -394,6 +418,24 @@ _DEMO_ZH_STOP_BIGRAMS: Final[frozenset[str]] = frozenset(
         "真的",
         "到底",
         "究竟",
+        "这份",
+        "这个",
+        "在线",
+        "知识",
+        "识库",
+        "展示",
+        "示里",
+        "里提",
+        "提到",
+        "分别",
+        "样例",
+        "示例",
+        "这里",
+        "里面",
+        "给出",
+        "介绍",
+        "总结",
+        "对比",
     }
 )
 _DEMO_CORPUS_META_PHRASES: Final[tuple[str, ...]] = (
@@ -425,6 +467,9 @@ def _demo_question_has_evidence_support(question_text: str, user_prompt: str) ->
     if scope_match:
         evidence_hay = f"{evidence_hay}\n{scope_match.group(1).lower()}"
     evidence_en_words = set(re.findall(r"[a-z][a-z0-9_-]{2,}", evidence_hay))
+    evidence_en_stems = evidence_en_words | {
+        w[:-1] for w in evidence_en_words if len(w) > 3 and w.endswith("s")
+    }
 
     q_lower = question_text.lower()
     en_tokens = [
@@ -440,7 +485,11 @@ def _demo_question_has_evidence_support(question_text: str, user_prompt: str) ->
             if bg not in _DEMO_ZH_STOP_BIGRAMS:
                 zh_bigrams.append(bg)
 
-    if any(tok in evidence_en_words for tok in en_tokens):
+    if any(
+        tok in evidence_en_stems
+        or (len(tok) > 3 and tok.endswith("s") and tok[:-1] in evidence_en_stems)
+        for tok in en_tokens
+    ):
         return True
     if any(bg in evidence_hay for bg in zh_bigrams):
         return True

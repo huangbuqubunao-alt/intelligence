@@ -113,6 +113,7 @@ except ImportError:
     _resource = None  # type: ignore[assignment]
 
 _VIDEO_DETAIL_ROUTE = re.compile(r"^/api/v1/videos/([^/]+)$")
+_VIDEO_EVIDENCE_ROUTE = re.compile(r"^/api/v1/videos/([^/]+)/evidence$")
 _SOURCE_DETAIL_ROUTE = re.compile(r"^/api/v1/sources/([^/]+)$")
 _TOPIC_DETAIL_ROUTE = re.compile(r"^/api/v1/topics/([^/]+)$")
 _INTEL_DETAIL_ROUTE = re.compile(r"^/api/v1/intelligence/([^/]+)$")
@@ -2077,6 +2078,7 @@ class FastReadApiApplication:
             )
         if method == "GET":
             detail_match = _VIDEO_DETAIL_ROUTE.fullmatch(route)
+            evidence_match = _VIDEO_EVIDENCE_ROUTE.fullmatch(route)
             source_detail_match = _SOURCE_DETAIL_ROUTE.fullmatch(route)
             topic_detail_match = _TOPIC_DETAIL_ROUTE.fullmatch(route)
             intel_detail_match = _INTEL_DETAIL_ROUTE.fullmatch(route)
@@ -2091,6 +2093,7 @@ class FastReadApiApplication:
                     "/api/v1/dashboard",
                 }
                 or detail_match is not None
+                or evidence_match is not None
                 or source_detail_match is not None
                 or topic_detail_match is not None
                 or intel_detail_match is not None
@@ -2133,6 +2136,13 @@ class FastReadApiApplication:
                             route,
                             lambda: self._fast_get_video_detail(vid),
                             include_da_route=True,
+                        )
+                    if evidence_match is not None:
+                        vid = evidence_match[1]
+                        return HTTPStatus.OK, self._cached_or_compute(
+                            route,
+                            lambda: self._fast_get_video_evidence(vid),
+                            include_da_route=False,
                         )
                     if source_detail_match is not None:
                         sid = source_detail_match[1]
@@ -3167,6 +3177,112 @@ class FastReadApiApplication:
                         "transcribe_job": tx_job,
                     }
                 return detail_payload
+            finally:
+                conn.rollback()
+        finally:
+            conn.close()
+
+    def _fast_get_video_evidence(self, video_id: str) -> dict[str, object]:
+        """Single-snapshot fail-closed Evidence projection matching ``LocalApiApplication``."""
+
+        repo = self._inner._repository
+        conn = repo._connect(read_only=True)
+        try:
+            conn.execute("BEGIN")
+            try:
+                ctx = _RequestSnapshotContext(
+                    self._inner,
+                    conn,
+                    verified_source_memo=self._verified_source_memo,
+                    memo_lock=self._cache_lock,
+                )
+                video = ctx.snap_repo.get_video(video_id)
+                if video is None:
+                    raise ApiError(
+                        HTTPStatus.NOT_FOUND, "NOT_FOUND", "Video was not found."
+                    )
+                target_language = ctx.target_output_language()
+                trans_service = ctx.translation_service()
+                evidence_cards: list[dict[str, object]] = []
+                local_pairs = (
+                    ctx.snap_repo.get_verified_local_media_evidence(video_id)
+                    if video.provider in {"LOCAL", "BILIBILI"}
+                    else None
+                )
+                local_verified = (
+                    {}
+                    if local_pairs is None
+                    else {e.evidence_id: (e, verified) for e, verified in local_pairs}
+                )
+                evidence_ids = (
+                    ctx.snap_repo.list_evidence_for_presentation(video_id)
+                    if local_pairs is None
+                    else tuple(local_verified)
+                )
+                for evidence_id in evidence_ids:
+                    if local_pairs is None:
+                        evidence = ctx.snap_repo.get_evidence(evidence_id)
+                        verified = ctx.snap_repo.resolve_verified_evidence_text(
+                            evidence_id
+                        )
+                    else:
+                        evidence, verified = local_verified[evidence_id]
+                    if (
+                        evidence is None
+                        or evidence.video_id != video_id
+                        or verified is None
+                        or verified.video_id != video_id
+                        or verified.evidence_id != evidence_id
+                    ):
+                        continue
+                    translated_excerpt: str | None = None
+                    translated_language: str | None = None
+                    translation_status = (
+                        "NOT_REQUIRED"
+                        if source_matches_target(evidence.language, target_language)
+                        else "UNAVAILABLE"
+                    )
+                    if (
+                        translation_status != "NOT_REQUIRED"
+                        and trans_service is not None
+                    ):
+                        try:
+                            presentation = trans_service.read(
+                                evidence_id=evidence_id,
+                                target_language=target_language,
+                            )
+                        except (IntegrityConflict, ValueError):
+                            presentation = None
+                        if presentation is not None:
+                            translated_excerpt = presentation.translated_excerpt
+                            translated_language = presentation.target_language
+                            translation_status = "AVAILABLE"
+                    evidence_cards.append(
+                        {
+                            "evidence_id": evidence.evidence_id,
+                            "artifact_id": evidence.artifact_id,
+                            "lineage_kind": evidence.lineage_kind.value,
+                            "role": evidence.role.value,
+                            "source_language": evidence.language,
+                            "language": evidence.language,
+                            "original_excerpt": verified.excerpt,
+                            "translated_excerpt": translated_excerpt,
+                            "translated_language": translated_language,
+                            "translation_target_language": target_language,
+                            "translation_status": translation_status,
+                            "start_ms": verified.start_ms,
+                            "end_ms": verified.end_ms,
+                            "locator_type": verified.locator_type,
+                            "start_offset": verified.start_offset,
+                            "end_offset": verified.end_offset,
+                            "start_line": verified.start_line,
+                            "end_line": verified.end_line,
+                            "provider": video.provider,
+                            "created_at": _timestamp(evidence.created_at),
+                            "source_url": video.source_url,
+                        }
+                    )
+                return {"evidence": evidence_cards}
             finally:
                 conn.rollback()
         finally:

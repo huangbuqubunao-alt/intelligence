@@ -13,7 +13,8 @@
 | **DEC-OPS-003** | 坚决延后 V2 全网爬虫、自动 `hybrid` 路由与多图 VLM | L1 | **DECIDED (DEFER)** | 内部完善期冻结，防功能膨胀 | `—` |
 | **DEC-OPS-004** | 用真实本机 `ollama/qwen3.5:9b` 跑通陌生双语对照基准 (`EXP-002`) | L2 | **EXECUTED (`2026-11-23`)** | 3/3 有据 + 2/2 拒答 (`227.6s`) | `9 × 3 × 0.70 / 1.0 = 18.9` |
 | **DEC-OPS-005** | 推出零配置 `youtube-intel start` 启动器消除首次冷启动必崩 | L1 + L3 (`FD-004`) | **COMPLETED (`main@a820152`)** | CI `#45137542384` 全绿 | `10 × 3 × 0.95 / 0.8 = 35.6` |
-| **DEC-OPS-006** | **Stage D Iteration #3**：根治 Demo 越域假问答、macOS 浏览器本地上传死路、空库 409 与冷启动 Settings 误报 | L1 | **EXECUTED (`fee43f4`)** | **实测全绿（140 pytest + 1240 Vitest + Chromium 复检）** | `10 × 3 × 0.95 / 0.7 = 40.7` |
+| **DEC-OPS-006** | **Stage D Iteration #3**：根治 Demo 越域假问答、macOS 浏览器本地上传死路、空库 409 与冷启动 Settings 误报 | L1 | **COMPLETED (`main@f23954f`)** | **CI `#45149288840` 双端全绿** | `10 × 3 × 0.95 / 0.7 = 40.7` |
+| **DEC-OPS-007** | **Iteration #4 (`BL-006` + `BL-005`)**：单快照加速 `/evidence`（713ms→4ms 级）+ 两层详情动作栏 + 32 例多源冲突 Eval & Demo 词形拒答加固 | L1 | **EXECUTED (Iteration #4)** | **本地全绿 + Chromium 桌面/移动复检** | `8 × 2.5 × 0.85 / 0.8 = 21.3` |
 
 ---
 
@@ -36,4 +37,16 @@
 | **用户价值与预期收益** | 把“新用户体验 Demo 立即打穿反幻觉认知”及“首次跑起 `youtube-intel start` 亲手传入第一份本地 `.md`、看清 Ollama 状态、在各空页顺畅行动”从阻断拉回流畅可用；预期大幅降低未来真人体检期的首次掉队风险（具体留存转化影响：`[待真实用户验证假设]`）。 |
 | **三方案对比** | **方案 A（已选并执行，RICE `40.7`）**：<br>1. Demo 问答 `_DemoShowcaseCompleter` 增加全词边界匹配与中文停用/虚词切分（`_demo_question_has_evidence_support`），无直接证据即显式拒答并保留分离 `related_excerpts`；<br>2. `WorkspaceIntelligenceHub.ensure_ready()` 在 `prepare_local_workspace()` 时幂等建表，保证全新工作区首开 `#Settings` 即亮绿且收起工程诊断，同时仅在 `save()` 时同步 `liveWorkspaceAi` 防止打断表单编辑态；<br>3. `NativeLocalImport` 在 `available === false` 时保持原有原生警告不变，下方额外提供一键“使用浏览器本地上传（`.md / .txt / 音视频`）”切入现有 `/api/v1/local/imports` 回环上传器，兼顾 `AddEntry` / `LocalImport` / `NativeLocalImport` `Escape` 关窗；<br>4. `#Research`/`#Topics`/`#Intelligence` 配备空库引导与直达导入 CTA，移动端导航按钮最低 `40px`。<br>**方案 B（轻改文档说明）**：只在 README 说明“CLI 启动下 macOS 无法传本地文件、Demo 遇到无关问题不会拒答”——会直接摧毁第一次试用的直觉口碑，**拒绝**。<br>**方案 C（在浏览器强行屏蔽所有 macOS 原生桥接代码）**：会破坏既有 macOS 打包原生文件选择器契约及 8 个既有单测，**拒绝**。 |
 | **工程成本与副作用** | 修改 3 个后端文件 + 8 个前端组件/样式文件 + 5 个测试文件（共 16 文件）；严格不修改核心 DB Schema、不引入新外部依赖、不影响 `.var/owner`。 |
-| **验证结果与回滚条件** | 提交 **`fee43f4`**：`ruff` / `mypy` (136 文件) 0 错、`11` 组 CI `pytest` **140/140 passed**、`npm run build` 成功、Vitest **54/54 文件 / 1240/1240 passed**；Chromium 实机双端口（`8799` & `8798`）全部 4 项修复目测与接口 `200`/`201` 确认且 `0` console error / `0` 横向溢出。<br>回滚条件：若未来任一场景暴露 macOS 原生文件选择与回环上传回退冲突，可按 Commit `fee43f4` 精准撤回对应片段。 |
+| **验证结果与回滚条件** | 提交 **`fee43f4`**：`ruff` / `mypy` (136 文件) 0 错、`11` 组 CI `pytest` **140/140 passed**、`npm run build` 成功、Vitest **54/54 文件 / 1240/1240 passed**；Chromium 实机双端口（`8799` & `8798`）全部 4 项修复目测与接口 `200`/`201` 确认且 `0` console error / `0` 横向溢出；随后在 **`FD-005`** 批复后整合 `b8759e0`/`fee43f4`/`256a058` 至 `main@f23954f`，GitHub Actions [`#45149288840`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45149288840) 双端全绿。<br>回滚条件：若未来任一场景暴露 macOS 原生文件选择与回环上传回退冲突，可按 Commit `fee43f4` 精准撤回对应片段。 |
+
+---
+
+### DEC-OPS-007：加速单内容原始证据读取、精简详情动作层级并扩充至 32 例跨源反幻觉 Eval（2026-11-23 · Iteration #4）
+
+| 评估维度 | 详细分析与证据 |
+|---|---|
+| **触发问题（Stage A + Eval 复盘）** | ① `GET /api/v1/videos/<id>/evidence` 未纳入 `FastReadApiApplication` 单快照缓存，单条内容打开耗时达 `583–713ms`，且刷新收藏/提炼态时无 SWR 保持导致闪烁 `正在加载原始证据…`；<br>② `#Content/<id>` 详情页顶部 9 个平铺按钮跨 3 行拥挤，`AI 重新提炼中文总结` 与主流程抢视觉焦点，且 `.kb-shortcut-hint` 在 `375px` 移动端被样式覆盖意外漏出；<br>③ 20 例 Eval 集未覆盖跨语言检索深链、Markdown+Video 混排冲突、混合非法引用清洗及 Demo “知识库展示+跨domain复合词”拒答盲区。 |
+| **用户价值与预期收益** | 进入任意内容详情时原文证据几乎瞬间就位、操作收藏不闪白且阅读流 vs 导出组视觉清晰；同时用 32 例多维评测阻断 Demo 对“部分搭边关键词 + 无关财务/医学数值”的幻觉作答。 |
+| **三方案对比** | **方案 A（已选并执行，RICE `21.3`）**：<br>1. `FastReadApiApplication` 新增 `_VIDEO_EVIDENCE_ROUTE` 与 `_fast_get_video_evidence()` 单事务快照投影，保留 100% fail-closed 校验 parity，接口从 `583–713ms` 降至冷读 `39.6ms` / 热读 `3.8–5.8ms`；<br>2. 前端 `ContentEvidencePanel` 开启 `retainOnRefresh + swr`，`ContentDetail` 与 `WorkspaceVideoAiActions` 拆成 `.reader-action-primary`（左侧阅读推进 + 右侧收纳导出组）与 `.reader-action-secondary`（原片外链 + 幽灵态重新提炼 + 仅桌面端快捷键提示），保留全部可访问标签与原有单测契约；<br>3. `tests/integration/test_grounding_refusal_eval.py` 保留原 20 例基准不动并追加 Cases 21–32（32 例全量评测），同步在 `demo_showcase.py` 加固元叙述词表及词干匹配，拦截复合域外伪前提提问。<br>**方案 B（把次要导出按钮藏进下拉菜单）**：会破坏已有高价值单测直接点击 `复制双链笔记` / `下载 .md` 习惯，且增加一步点击摩擦，**拒绝**。<br>**方案 C（在 `demo_showcase.py` 强设中文固定百分比阈值 `25%`）**：实际验证对正当中文综合题 `为什么生产级 AI Agent 要用状态机约束工具调用？` 产生误杀，**已实测淘汰**，改用纯净元叙述词扩展 + 词干对齐。 |
+| **工程成本与副作用** | 改动 2 个后端模块 + 3 个前端源码 + 1 个样式文件 + 3 个测试文件；零数据库 Schema 迁移，零新依赖，无隐私数据写入。 |
+| **验证结果与回滚条件** | `fast_read_api` 冷/热实测 `39.6ms`/`3.8–5.8ms`，32 例 Eval + Demo 测试全绿，Chromium `1440×900` & `375×812` 验证 9 条证据瞬载、收藏稳态保留与移动 0 溢出 0 console errors。可按单提交粒度安全回滚。 |
