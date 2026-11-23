@@ -2270,6 +2270,16 @@ function Workspace() {
               setHandoffSeq(value => value + 1);
               navigate("Content");
             }}
+            onFilterIntelligenceByTopic={topicId => {
+              setPendingIntelligenceTopicId(topicId);
+              setHandoffSeq(value => value + 1);
+              navigate("Intelligence");
+            }}
+            onAskTopicResearch={topicName => {
+              setPendingResearchTopicCluster(topicName);
+              setHandoffSeq(value => value + 1);
+              navigate("Research");
+            }}
           />
         </Suspense>
       ) : null}
@@ -2310,6 +2320,40 @@ function sortTopicsNewestFirst(topics: Topic[]): Topic[] {
     const cntA = readTopicAiEvolution(a.ai_evolution)?.video_count ?? 0;
     const cntB = readTopicAiEvolution(b.ai_evolution)?.video_count ?? 0;
     return cntB - cntA;
+  });
+}
+
+function sortTopicsByMode(
+  topics: Topic[],
+  mode: "newest" | "count" | "score",
+): Topic[] {
+  if (mode === "newest") {
+    return sortTopicsNewestFirst(topics);
+  }
+  return [...topics].sort((a, b) => {
+    const pinDiff = (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0);
+    if (pinDiff !== 0) return pinDiff;
+    const evoA = readTopicAiEvolution(a.ai_evolution);
+    const evoB = readTopicAiEvolution(b.ai_evolution);
+    if (mode === "count") {
+      const cntDiff = (evoB?.video_count ?? 0) - (evoA?.video_count ?? 0);
+      if (cntDiff !== 0) return cntDiff;
+      const mustDiff = (evoB?.must_watch_count ?? 0) - (evoA?.must_watch_count ?? 0);
+      if (mustDiff !== 0) return mustDiff;
+      const msA = evoA?.latest_published_at ? Date.parse(evoA.latest_published_at) : NaN;
+      const msB = evoB?.latest_published_at ? Date.parse(evoB.latest_published_at) : NaN;
+      const timeDiff = (Number.isFinite(msB) ? msB : 0) - (Number.isFinite(msA) ? msA : 0);
+      if (timeDiff !== 0) return timeDiff;
+      return a.name.localeCompare(b.name);
+    }
+    const scoreA = evoA?.avg_score ?? -1;
+    const scoreB = evoB?.avg_score ?? -1;
+    if (scoreB !== scoreA) return scoreB - scoreA;
+    const mustDiff = (evoB?.must_watch_count ?? 0) - (evoA?.must_watch_count ?? 0);
+    if (mustDiff !== 0) return mustDiff;
+    const cntDiff = (evoB?.video_count ?? 0) - (evoA?.video_count ?? 0);
+    if (cntDiff !== 0) return cntDiff;
+    return a.name.localeCompare(b.name);
   });
 }
 
@@ -7239,6 +7283,9 @@ function Topics({
   const [selected, setSelected] = useState<string | null>(
     () => targetTopicId ?? consumeOriginRestore?.() ?? null,
   );
+  const [topicSearch, setTopicSearch] = useState("");
+  const [topicSortMode, setTopicSortMode] = useState<"newest" | "count" | "score">("newest");
+  const [pinnedOnly, setPinnedOnly] = useState(false);
   const selectTopic = (nextId: string | null) => {
     setSelected(nextId);
     onHashTargetChange?.(nextId);
@@ -7248,6 +7295,8 @@ function Topics({
     if (prevListResetSeqRef.current !== listResetSeq) {
       prevListResetSeqRef.current = listResetSeq;
       setSelected(null);
+      setTopicSearch("");
+      setPinnedOnly(false);
     }
   }, [listResetSeq]);
   if (latestSelectedRef) {
@@ -7288,81 +7337,168 @@ function Topics({
   }
   if (!list.data) return <Empty>Loading Topics…</Empty>;
   if (!selected) {
+    const allTopics = list.data.topics;
+    if (!allTopics.length) {
+      return (
+        <div className="empty-state-stack">
+          <Empty>No Topics yet.</Empty>
+          <p className="hint empty-state-guidance">
+            {zh
+              ? "导入 YouTube / B 站视频或本地笔记并完成提炼后，系统会自动按主题聚类并生成观点演进时间线。"
+              : "Topics and viewpoint timelines appear automatically after importing and distilling videos or local notes."}
+          </p>
+          {onAddContent ? (
+            <button type="button" className="button button-primary empty-state-action" onClick={onAddContent}>
+              {t("Add content")}
+            </button>
+          ) : null}
+        </div>
+      );
+    }
+    const hasPinnedTopics = allTopics.some((tp) => Boolean(tp.pinned));
+    const normalizedTopicQuery = topicSearch.trim().toLowerCase();
+    const visibleTopics = sortTopicsByMode(allTopics, topicSortMode).filter((topic) => {
+      if (pinnedOnly && !topic.pinned) return false;
+      if (!normalizedTopicQuery) return true;
+      const evo = readTopicAiEvolution(topic.ai_evolution);
+      const haystack = [
+        topic.name,
+        evo?.latest_headline_zh ?? "",
+        evo?.synthesis_zh ?? "",
+        ...(evo?.source_channels ?? []),
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(normalizedTopicQuery);
+    });
     return (
-      <>
-        {list.data.topics.length
-          ? (
-            <div className="compact-list content-media-list">
-              {sortTopicsNewestFirst(list.data.topics).map((topic) => {
-                const evo = readTopicAiEvolution(topic.ai_evolution);
-                return (
-                  <button
-                    className="list-row content-media-row"
-                    key={topic.topic_id}
-                    onClick={() => selectTopic(topic.topic_id)}
-                  >
-                    <span className="content-media-lead">
-                      <span className="provider-glyph provider-local" aria-hidden="true">
-                        <PhosphorIcon name="stack" weight={topic.pinned ? "fill" : "regular"} size={16} />
-                      </span>
-                      <span className="content-media-copy">
-                        <strong>{topic.name}</strong>
-                        {evo?.latest_headline_zh ? (
-                          <span className="content-ai-headline">{evo.latest_headline_zh}</span>
-                        ) : null}
-                        <small className="tabular-nums">
-                          {evo && evo.video_count > 0
-                            ? [
-                                evo.latest_published_at
-                                  ? zh
-                                    ? `最近更新 ${humanDate(evo.latest_published_at)}`
-                                    : `Updated ${humanDate(evo.latest_published_at)}`
-                                  : null,
-                                zh
-                                  ? `${evo.video_count} 条内容 · ${evo.must_watch_count} 条必看`
-                                  : `${evo.video_count} items · ${evo.must_watch_count} must-watch`,
-                                evo.recent_7d_count > 0
-                                  ? zh
-                                    ? `近7天 +${evo.recent_7d_count}`
-                                    : `+${evo.recent_7d_count} in 7d`
-                                  : null,
-                                evo.avg_score !== null
-                                  ? zh
-                                    ? `均分 ${evo.avg_score.toFixed(1)}`
-                                    : `Avg ${evo.avg_score.toFixed(1)}`
-                                  : null,
-                                evo.source_channels.length > 0
-                                  ? evo.source_channels.join(" / ")
-                                  : null,
-                              ]
-                                .filter(Boolean)
-                                .join(" · ")
-                            : `${t("Current understanding")}: ${t(statusLabel(topic.current_state))}`}
-                        </small>
-                      </span>
-                    </span>
-                    <Status value={topic.pinned ? "PINNED" : topic.lifecycle} />
-                  </button>
-                );
-              })}
-            </div>
-          )
-          : (
-            <div className="empty-state-stack">
-              <Empty>No Topics yet.</Empty>
-              <p className="hint empty-state-guidance">
-                {zh
-                  ? "导入 YouTube / B 站视频或本地笔记并完成提炼后，系统会自动按主题聚类并生成观点演进时间线。"
-                  : "Topics and viewpoint timelines appear automatically after importing and distilling videos or local notes."}
-              </p>
-              {onAddContent ? (
-                <button type="button" className="button button-primary empty-state-action" onClick={onAddContent}>
-                  {t("Add content")}
+      <div className="content-library-shell">
+        <div className="library-filter-bar topics-filter-bar">
+          <div className="search-field-wrap">
+            <PhosphorIcon name="magnifying-glass" size={15} className="search-field-icon" />
+            <input
+              type="search"
+              aria-label={zh ? "搜索主题" : "Search Topics"}
+              placeholder={
+                zh
+                  ? "按主题名、最新结论或来源频道筛选…"
+                  : "Filter by topic, takeaway, or channel…"
+              }
+              value={topicSearch}
+              onChange={(event) => setTopicSearch(event.target.value)}
+            />
+          </div>
+          {hasPinnedTopics ? (
+            <button
+              type="button"
+              aria-pressed={pinnedOnly}
+              className={
+                pinnedOnly
+                  ? "button button-small active topics-pinned-toggle"
+                  : "button button-ghost button-small topics-pinned-toggle"
+              }
+              onClick={() => setPinnedOnly((value) => !value)}
+            >
+              {zh ? "仅看已置顶" : "Pinned only"}
+            </button>
+          ) : null}
+          {allTopics.length > 1 ? (
+            <div
+              className="segmented library-sort-chips"
+              role="group"
+              aria-label={zh ? "主题排序" : "Sort Topics"}
+            >
+              {(
+                [
+                  ["newest", zh ? "最近更新" : "Recently updated"],
+                  ["count", zh ? "内容最多" : "Most items"],
+                  ["score", zh ? "高分优先" : "Top score"],
+                ] as const
+              ).map(([mode, label]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  aria-pressed={topicSortMode === mode}
+                  className={topicSortMode === mode ? "active" : ""}
+                  onClick={() => setTopicSortMode(mode)}
+                >
+                  {label}
                 </button>
-              ) : null}
+              ))}
             </div>
-          )}
-      </>
+          ) : null}
+        </div>
+        {visibleTopics.length ? (
+          <div className="compact-list content-media-list">
+            {visibleTopics.map((topic) => {
+              const evo = readTopicAiEvolution(topic.ai_evolution);
+              return (
+                <button
+                  className="list-row content-media-row"
+                  key={topic.topic_id}
+                  onClick={() => selectTopic(topic.topic_id)}
+                >
+                  <span className="content-media-lead">
+                    <span className="provider-glyph provider-local" aria-hidden="true">
+                      <PhosphorIcon name="stack" weight={topic.pinned ? "fill" : "regular"} size={16} />
+                    </span>
+                    <span className="content-media-copy">
+                      <strong>{topic.name}</strong>
+                      {evo?.latest_headline_zh ? (
+                        <span className="content-ai-headline">{evo.latest_headline_zh}</span>
+                      ) : null}
+                      <small className="tabular-nums">
+                        {evo && evo.video_count > 0
+                          ? [
+                              evo.latest_published_at
+                                ? zh
+                                  ? `最近更新 ${humanDate(evo.latest_published_at)}`
+                                  : `Updated ${humanDate(evo.latest_published_at)}`
+                                : null,
+                              zh
+                                ? `${evo.video_count} 条内容 · ${evo.must_watch_count} 条必看`
+                                : `${evo.video_count} items · ${evo.must_watch_count} must-watch`,
+                              evo.recent_7d_count > 0
+                                ? zh
+                                  ? `近7天 +${evo.recent_7d_count}`
+                                  : `+${evo.recent_7d_count} in 7d`
+                                : null,
+                              evo.avg_score !== null
+                                ? zh
+                                  ? `均分 ${evo.avg_score.toFixed(1)}`
+                                  : `Avg ${evo.avg_score.toFixed(1)}`
+                                : null,
+                              evo.source_channels.length > 0
+                                ? evo.source_channels.join(" / ")
+                                : null,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")
+                          : `${t("Current understanding")}: ${t(statusLabel(topic.current_state))}`}
+                      </small>
+                    </span>
+                  </span>
+                  <Status value={topic.pinned ? "PINNED" : topic.lifecycle} />
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="empty-state-stack">
+            <Empty>{zh ? "没有匹配的主题。" : "No matching Topics."}</Empty>
+            <button
+              type="button"
+              className="button button-secondary button-small"
+              onClick={() => {
+                setTopicSearch("");
+                setPinnedOnly(false);
+              }}
+            >
+              {zh ? "重置筛选" : "Reset filters"}
+            </button>
+          </div>
+        )}
+      </div>
     );
   }
   if (!detail.data?.topic) return <Empty>Loading Topic detail…</Empty>;

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+from dataclasses import replace
 from http import HTTPStatus
 from pathlib import Path
 
@@ -12,6 +13,8 @@ from youtube_intel import cli
 from youtube_intel.fast_read_api import run_cli_with_fast_reads
 from youtube_intel.operations import ExitCode
 from youtube_intel.workspace_launcher import (
+    WorkspacePreflight,
+    format_startup_banner,
     prepare_local_workspace,
 )
 
@@ -303,3 +306,75 @@ def test_serve_api_reports_actionable_hint_when_vault_root_placeholder_is_missin
     assert rc2 == ExitCode.LOCAL_RESOURCE
     assert "storage.vault_root does not exist" in err2
     assert "uv run youtube-intel start" in err2
+
+
+def test_format_startup_banner_readiness_verdicts_and_model_overflow(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("youtube_intel.runtime_composition.local_models", lambda *_: {"models": []})
+    monkeypatch.setattr("youtube_intel.runtime_composition.local_runtime_version", lambda *_: {})
+    monkeypatch.setattr(
+        "youtube_intel.deep_analysis_activation._local_probe", lambda *_: "MODEL_UNAVAILABLE"
+    )
+
+    runtime = prepare_local_workspace(
+        REPO_ROOT,
+        workspace_root=tmp_path / "ws_verdicts",
+        ollama_probe=lambda _url: (False, ()),
+        byok_credential_store=_MemorySecret(),
+    )
+
+    all_ready_pf = WorkspacePreflight(
+        platform_supported=True,
+        frontend_ready=True,
+        ollama_reachable=True,
+        ollama_models=("qwen3.5:9b", "gemma3:4b", "llama3.1:8b", "phi4-mini", "mistral", "nomic-embed"),
+        yt_dlp_available=True,
+        ffmpeg_available=True,
+        web_dir=(REPO_ROOT / "frontend" / "dist").resolve(),
+    )
+    banner_all_ready = format_startup_banner(
+        replace(runtime, preflight=all_ready_pf),
+        port=8765,
+        serve_web=True,
+        check_only=True,
+    )
+    assert "Readiness / 就绪结论 : [ALL READY]" in banner_all_ready
+    assert "(+2 more)" in banner_all_ready
+    assert "visual keyframes ready" in banner_all_ready
+
+    warn_pf = replace(
+        all_ready_pf,
+        ollama_reachable=False,
+        ollama_models=(),
+        ffmpeg_available=False,
+    )
+    banner_warn = format_startup_banner(
+        replace(runtime, preflight=warn_pf),
+        port=8765,
+        serve_web=True,
+        check_only=True,
+    )
+    assert "Readiness / 就绪结论 : [READY WITH WARNINGS]" in banner_warn
+    assert "Ollama model, ffmpeg" in banner_warn
+    assert "visual keyframes" in banner_warn
+
+    no_web_pf = replace(all_ready_pf, frontend_ready=False)
+    banner_action = format_startup_banner(
+        replace(runtime, preflight=no_web_pf),
+        port=8765,
+        serve_web=True,
+        check_only=True,
+    )
+    assert "Readiness / 就绪结论 : [ACTION NEEDED]" in banner_action
+    assert "npm run build" in banner_action
+
+    blocked_pf = replace(all_ready_pf, platform_supported=False)
+    banner_blocked = format_startup_banner(
+        replace(runtime, preflight=blocked_pf),
+        port=8765,
+        serve_web=True,
+        check_only=True,
+    )
+    assert "Readiness / 就绪结论 : [BLOCKED]" in banner_blocked
+    assert "WSL2" in banner_blocked

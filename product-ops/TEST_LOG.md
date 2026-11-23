@@ -1,19 +1,19 @@
 # 全维度测试与质量验收台账（QA & Verification Log）
 
-- **更新日期**：2026-11-23（`Asia/Shanghai`）
-- **当前活跃基线**：公开主线 `main@092951b`（已按 `FD-007` 同步 Iteration #8 `BL-011` 与第 13 组视觉 CI，GitHub Actions [`#45201809374`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45201809374) 双端全绿），研发分支 `antigravity/task-user-readiness-20261112` 代码对齐。
+- **更新日期**：2026-11-24（`Asia/Shanghai`）
+- **当前活跃基线**：研发分支 `antigravity/task-user-readiness-20261112`（含 Iteration #9 `BL-012` / Round 19 易用性与 `--check-only` 就绪结论，待按 L3 批准合流 `main`）；公开主线对照 `main@4d24df4`（GitHub Actions [`#45201809374`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45201809374) & [`#45206505478`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45206505478) 双端全绿）
 - **台账纪律**：严格采用四态标识 **`PASS / FAIL / BLOCKED / NOT_TESTED`**。仅当测试命令在对应代码版本实际执行完毕且见到真实输出时方能标 `PASS`；修复前失败与修复后复检分列存档，绝不涂改历史、绝不跳过或弱化断言。
 
 ---
 
 ## 一、质量域当前最新验收总览
 
-| 质量域 | 验收状态 | 覆盖范围与真实命令/动作 | 真实结果摘要（观测日期：2026-11-23） |
+| 质量域 | 验收状态 | 覆盖范围与真实命令/动作 | 真实结果摘要（观测日期：2026-11-24） |
 |---|---|---|---|
-| **1. 前端单元测试与类型构建** | **PASS（Iteration #8 最新改动后）** | `cd frontend && npm run build && npx vitest run --minWorkers=1 --maxWorkers=2` | **`vite build` (`tsc -b && vite build`) 耗时 `875ms` 零报错**；全量 Vitest **`Test Files 55 passed (55) / Tests 1247 passed (1247)`**（耗时 `63.51s`，`0 failed`, `0 skipped`，含新增 `WorkspaceVisualKeyframes.test.tsx` `3/3`）。 |
-| **2. 浏览器真实端到端 E2E（Demo + 空库 + 关键帧视觉分析）** | **PASS（Iteration #8 Chromium 实机）** | Chromium 实机访问隔离端口 `http://127.0.0.1:8796` 覆盖 3 条 fixture（已分析 MP4 + 未分析 MP4 + 纯文本 `.md`）× 桌面 Obsidian Dark `1440×900` & 移动 Warm Paper Light `375×812`；叠加 `2be958f` 首轮引导与 Demo `8799` | **Iteration #8（`BL-011`）实机复检 `PASS`**：4 张关键帧 HTTP `200` 渲染与中文融合洞察无原始 JSON；筛选切换 `4 <-> 3` 正常；Lightbox `[role="dialog"]` `ArrowRight`（`1/4 -> 2/4`）+ `Escape` 关闭正常；`visual-pack.zip` 下载 `200`（`application/zip`, `7826B`）；未分析视频展示 CTA、纯文本笔记隐藏；双主题桌面与 `375px` 移动均 `0px` 横向溢出、`0` console error、`0` HTTP `>=400`。 |
-| **3. 后端静态检查与类型安全** | **PASS** | `uv run --frozen ruff check src tests scripts && uv run --frozen mypy src` | Iteration #8 全部最终改动后实跑：`ruff`: `All checks passed!`；`mypy`: `Success: no issues found in 137 source files`。 |
-| **4. 后端合同与核心集成套件（13 组完整 CI Pytest）** | **PASS** | Iteration #8 最终改动后独立运行 `.github/workflows/ci.yml` 全部 13 组套件 `-q --tb=short` | **13 组完整 CI 套件一次全绿：`151 passed in 367.69s (0:06:07)`**（`0 failed`, `0 skipped`，含新增 `test_visual_keyframe_analysis.py`、`test_long_media_and_obsidian_vault.py`、600 条大库、fast-read 延迟与 32 例 Eval）。 |
+| **1. 前端单元测试与类型构建** | **PASS（Iteration #9 最新改动后）** | `cd frontend && npm run build && npx vitest run --minWorkers=1 --maxWorkers=2` | **`vite build` (`tsc -b && vite build`) 耗时 `1.03s` 零报错**；全量 Vitest **`Test Files 56 passed (56) / Tests 1249 passed (1249)`**（耗时 `93.45s`，`0 failed`, `0 skipped`，含新增 `Round19Ergonomics.test.tsx` `2/2`）。 |
+| **2. 浏览器真实端到端 E2E（Demo + 空库 + 关键帧 + Round 19）** | **PASS（Iteration #9 Chromium 实机）** | Chromium 实机访问隔离演示服务 `http://127.0.0.1:8795`（Obsidian Dark `1440×900` & Warm Paper Light `375×812`）叠加 Iteration #8 `8796` 关键帧、Iteration #5 `8797` 引导与 `8799` | **Iteration #9（`BL-012`）实机复检 `PASS`**：`#Topics` 搜索/仅看置顶/三模式排序与无匹配 `重置筛选` 正常；`⌘K` 空查询隐藏动态专题项、搜 `Agent` 点击 `查看专题洞察`（`#Intelligence` 过滤 3/4）与 `围绕专题追问`（`#Research` 预选专题）正常；6 行草稿框内 `清空` 按钮保留 `10px` 边距；双主题与 `375×812` 均 `0px` 横向溢出、`0` console/page error、`0` HTTP `>=400`（注：其后对 `.topics-pinned-toggle` 补加边框微调并重跑构建与全量 Vitest `1249/1249` 通过）。 |
+| **3. 后端静态检查与类型安全** | **PASS** | `uv run --frozen ruff check src tests scripts && uv run --frozen mypy src` | Iteration #9 全部最终改动后实跑：`ruff`: `All checks passed!`；`mypy`: `Success: no issues found in 137 source files`。 |
+| **4. 后端合同与核心集成套件（13 组完整 CI Pytest）** | **PASS** | Iteration #9 最终改动后独立运行 `.github/workflows/ci.yml` 全部 13 组套件 `-q --tb=short` | **13 组完整 CI 套件一次全绿：`152 passed in 527.50s (0:08:47)`**（`0 failed`, `0 skipped`，含新增 `test_format_startup_banner_readiness_verdicts_and_model_overflow`、关键帧、长媒体与 fast-read 套件）。 |
 | **5. 按需本地视频关键帧融合与真视觉模型专项（`BL-011`）** | **PASS** | `pytest tests/integration/test_visual_keyframe_analysis.py` + 本机 `ollama/gemma3:4b` `$0` 隔离实跑 | · 集成套件（`5/5` 已计入 13 组 `151 passed`）：真 `ffmpeg lavfi` 5 段多场景 MP4 精确用 dHash 去重重复页、`0o700`/`0o600` 权限、音频/文本 `409 VISUAL_MEDIA_REQUIRED`、路径穿越 `404`、BYOK 预算拦截保历史帧、`409 LOCAL_VISION_MODEL_UNSUPPORTED`、`/keyframes/*.jpg` + `visual-pack.zip` + 全库 `obsidian-bundle.zip` `assets/*.jpg` & `yaml.safe_load` + Sidecar 还原；<br>· 本机真 `ollama/gemma3:4b`（`$0`）：4 去重帧 / 3 信息帧与中文视觉对齐摘要实机生成通过。 |
 | **6. 4 小时课程、300KB 长文本、600 条大库与冷读基准（`BL-008`/`BL-010`）** | **PASS** | Iteration #8 全量 13 组 `151 passed` 已完整复跑 `test_long_media_and_obsidian_vault.py` + `test_cross_source_markdown_and_scale.py` + `test_fast_read_api.py` | 全部持续 **PASS**：4h（`14390s`）讲座 `03:52` 锚点、`>300KB` 尾段均匀采样、Obsidian `.zip` 实解压、`600` 条库分页/问答与 fast-read 毫秒预算全绿。 |
 | **7. 反幻觉评测与本机模型基准（`EXP-002` + `BL-005`）** | **PASS** | `tests/integration/test_grounding_refusal_eval.py`（`32` 例）+ `tests/integration/test_public_beta_demo_showcase.py`；本机 `ollama/qwen3.5:9b` | **32 / 32 (100%) PASS**（包含于 Iteration #8 `151/151` 全绿）；本机 `EXP-002` 保持 **3/3 `GROUNDED` + 2/2 `REFUSED_INSUFFICIENT_EVIDENCE`**（`$0` 云开销）。 |
