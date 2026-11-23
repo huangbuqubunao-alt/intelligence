@@ -376,3 +376,183 @@ test("empty Research library shows actionable import CTA and prevents empty 409 
   fireEvent.click(importBtn);
   expect(onOpenImport).toHaveBeenCalledOnce();
 });
+
+it("renders two-tier reader action bar on distilled Content detail and retains evidence across curation refresh", async () => {
+  location.hash = "#Content/vidAct01";
+  let starred = false;
+  let evidenceCalls = 0;
+  let releaseSecondEvidence: () => void = () => {};
+  const secondEvidenceGate = new Promise<void>((resolve) => {
+    releaseSecondEvidence = resolve;
+  });
+
+  const makeBrief = (isStarred: boolean) => ({
+    video_id: "vidAct01",
+    source_basis: "TRANSCRIPT",
+    headline_zh: "确定性状态机架构解析",
+    summary_zh: "使用 SQLite 检查点保障 Agent 工具调用可恢复性。",
+    score: 9.0,
+    score_reason_zh: "工程密度高",
+    recommendation_tier: "MUST_WATCH",
+    content_bucket: "DEEP_DIVE",
+    is_short_noise: false,
+    starred: isStarred,
+    is_read: false,
+    topics_zh: ["Agent"],
+    topic_cluster_zh: "AI Agent 工程架构",
+    product_opportunities_zh: [],
+    business_opportunities_zh: [],
+    obsidian_markdown: "# 确定性状态机架构解析\n",
+  });
+
+  const makeVideosPayload = () => ({
+    videos: [
+      {
+        video_id: "vidAct01",
+        provider: "YOUTUBE",
+        title: "Deterministic State Machines",
+        channel_id: "UC1111111111111111111111",
+        channel_name: "Atlas Lab",
+        duration_seconds: 1800,
+        processing_status: "ORGANIZED",
+        published_at: "2026-11-20T10:00:00Z",
+        last_updated: "2026-11-20T10:05:00Z",
+        ai_brief: makeBrief(starred),
+      },
+      {
+        video_id: "vidAct02",
+        provider: "YOUTUBE",
+        title: "Next Unread Engineering Talk",
+        channel_id: "UC1111111111111111111111",
+        channel_name: "Atlas Lab",
+        duration_seconds: 1200,
+        processing_status: "ORGANIZED",
+        published_at: "2026-11-19T10:00:00Z",
+        last_updated: "2026-11-19T10:05:00Z",
+        ai_brief: { ...makeBrief(false), video_id: "vidAct02", headline_zh: "下一篇未读材料" },
+      },
+    ],
+  });
+
+  const evidenceItem = {
+    evidence_id: "ev-act-1",
+    artifact_id: "canonical:vidAct01",
+    lineage_kind: "ORIGINAL_TRANSCRIPT",
+    role: "PRIMARY_ORIGINAL",
+    source_language: "en",
+    language: "en",
+    original_excerpt: "Deterministic state machines beat unstructured loops.",
+    translated_excerpt: "确定性状态机优于非结构化循环。",
+    translated_language: "zh-CN",
+    translation_target_language: "zh-CN",
+    translation_status: "AVAILABLE",
+    start_ms: 0,
+    end_ms: 15000,
+    locator_type: "TIMED_MEDIA",
+    start_offset: null,
+    end_offset: null,
+    start_line: null,
+    end_line: null,
+    provider: "YOUTUBE",
+    created_at: "2026-11-20T10:00:00Z",
+    source_url: "https://www.youtube.com/watch?v=vidAct01",
+  };
+
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: string, init?: RequestInit) => {
+      if (input === "/api/v1/videos") {
+        return okJson(makeVideosPayload());
+      }
+      if (input === "/api/v1/videos/vidAct01") {
+        return okJson({
+          video: {
+            video_id: "vidAct01",
+            provider: "YOUTUBE",
+            title: "Deterministic State Machines",
+            channel_id: "UC1111111111111111111111",
+            channel_name: "Atlas Lab",
+            source_url: "https://www.youtube.com/watch?v=vidAct01",
+            duration_seconds: 1800,
+            published_at: "2026-11-20T10:00:00Z",
+            processing_status: "ORGANIZED",
+            last_updated: "2026-11-20T10:05:00Z",
+            ai_brief: makeBrief(starred),
+          },
+          transcript: { status: "AVAILABLE", text: "Deterministic state machines beat unstructured loops." },
+          note: { v1: { status: "UNAVAILABLE" }, v2: { status: "AVAILABLE", summary: "Summary", core_points: [] } },
+          intelligence_result: { status: "NOT_PROCESSED" },
+          obsidian_markdown: "# 确定性状态机架构解析\n",
+          history: [],
+        });
+      }
+      if (input === "/api/v1/videos/vidAct01/evidence") {
+        evidenceCalls += 1;
+        if (evidenceCalls >= 2) {
+          await secondEvidenceGate;
+        }
+        return okJson({ evidence: [evidenceItem] });
+      }
+      if (input === "/api/v1/videos/vidAct01/deep-analysis") {
+        return okJson({
+          deep_analysis: {
+            status: {
+              availability: "NOT_QUALIFIED",
+              qualified: false,
+              production_eligible: false,
+              consent_required: false,
+              routes: [],
+            },
+            result: null,
+          },
+        });
+      }
+      if (input === "/api/v1/videos/vidAct01/deep-analysis/obsidian") {
+        return okJson({ publish: { state: "NO_VAULT" } });
+      }
+      if (
+        input === "/api/v1/workspace-ai/videos/vidAct01/curation" &&
+        init?.method === "POST"
+      ) {
+        starred = true;
+        return okJson({ ok: true, starred: true });
+      }
+      return okJson({});
+    }),
+  );
+
+  const { container } = render(<App />);
+
+  expect(await screen.findByText("确定性状态机优于非结构化循环。")).toBeTruthy();
+  const actionBar = container.querySelector(".reader-action-bar") as HTMLElement;
+  expect(actionBar).toBeTruthy();
+
+  const primaryTier = actionBar.querySelector(".reader-action-primary") as HTMLElement;
+  const exportGroup = primaryTier.querySelector(".reader-export-group") as HTMLElement;
+  const secondaryTier = actionBar.querySelector(".reader-action-secondary") as HTMLElement;
+  expect(primaryTier).toBeTruthy();
+  expect(exportGroup).toBeTruthy();
+  expect(secondaryTier).toBeTruthy();
+
+  const nextUnreadBtn = within(primaryTier).getByRole("button", { name: "标已读并看下一篇" });
+  expect(nextUnreadBtn.className).toContain("button-primary");
+  expect(within(exportGroup).getByRole("button", { name: "复制双链笔记" })).toBeTruthy();
+  expect(within(exportGroup).getByRole("button", { name: "复制纯文本摘要" })).toBeTruthy();
+  expect(within(exportGroup).getByRole("button", { name: "下载 .md" })).toBeTruthy();
+
+  const redistillBtn = within(secondaryTier).getByRole("button", { name: "AI 重新提炼中文总结" });
+  expect(redistillBtn.className).toContain("button-ghost");
+  expect(within(secondaryTier).getByRole("link", { name: "打开原始来源" })).toBeTruthy();
+
+  const evidencePanel = document.getElementById("section-evidence") as HTMLElement;
+  expect(evidencePanel).toBeTruthy();
+
+  // Trigger curation update -> refreshes detail and evidence, keeping loaded evidence visible!
+  fireEvent.click(within(primaryTier).getByRole("button", { name: "收藏待看" }));
+  expect(await screen.findByRole("button", { name: "已收藏" })).toBeTruthy();
+  expect(within(evidencePanel).getByText("确定性状态机优于非结构化循环。")).toBeTruthy();
+  expect(within(evidencePanel).queryByText("正在加载原始证据…")).toBeNull();
+
+  releaseSecondEvidence();
+  expect(await within(evidencePanel).findByText("确定性状态机优于非结构化循环。")).toBeTruthy();
+});

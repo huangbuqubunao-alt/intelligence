@@ -25,6 +25,6 @@
 | 模拟角色 | 执行版本 | 核心发现（真实界面与网络表现） |
 |---|---|---|
 | **1. 纯新手首次使用者**（全新空库 `youtube-intel start`） | Stage A (`a820152`) → Stage D (`fee43f4`) | **修复前（FAIL）**：macOS 浏览器无法传任何本地 `.md`/音视频（按钮全灰）、Settings 亮 `⚪ 待检查` 矛盾提示、空 `#Topics`/`#Intelligence`/`#Research` 缺行动引导。<br>**修复后（PASS）**：Settings 显示 `✅ 本地 Ollama 可用（免费 / qwen3.5:9b）`、空态全部有清晰引导 CTA、成功用浏览器上传 `verify-note.md`（HTTP `201`）并打开 `#Content/...` 详情阅读。 |
-| **2. 深度双语研究者**（Demo 工作台多源对照与导出） | Stage A → Stage D (`fee43f4`) | Demo 预置跨 YouTube + B 站 + 本地 `.md` 会话可点击 `?t=` 外链、段落锚点 `P1 (0–31)`、正常下载 `.md` 笔记；历史问题与话题时间线跳转流畅。发现 `#Content/vidDemoAgt1` 上有 9 个动作按钮换行略密（记入 `BACKLOG.md` `BL-007` P2 精简优化）。 |
+| **2. 深度双语研究者**（Demo 工作台多源对照与导出） | Stage A → Iteration #4 | Demo 预置跨 YouTube + B 站 + 本地 `.md` 会话可点击 `?t=` 外链、段落锚点 `P1 (0–31)`、正常下载 `.md` 笔记；话题时间线跳转流畅。原 `#Content/vidDemoAgt1` 顶部 9 按钮拥挤与原始证据首次加载延迟已于 Iteration #4（`BL-006`）修复：接口冷读提速至 `39.6ms` 且界面分层收敛；后续将聚焦 `#Settings` 设置层级减负（`BL-007`）。 |
 | **3. 边界、异常与对抗输入用户** | Stage A → Stage D (`fee43f4`) | 非法 URL 客户端立即给出可执行中文纠错提示；**修复前** Demo 越域乱答且模态窗按 `Escape` 无反应；**修复后** Demo 对越域问题返回 `证据不足 · 已诚实拒答`（0 条伪引用）、空库 `#Research` 禁用提交消除 `409 Conflict`、Import 弹窗支持 `Escape` 关闭。 |
 | **4. 移动端与键盘可访问性检查（`375×812` & `Cmd+K`）** | Stage A → Stage D (`fee43f4`) | 修复前移动端无横向溢出但顶部导航按钮高度仅 `34px` 且 `#Research` 态视觉微偏；修复后 `375×812` **0px 横向滚动偏移**、`.nav-item` 统一 `>= 40px`、`首页` 不再误高亮、`Cmd+K` 面板与 `Escape` 键盘闭环完整。 |

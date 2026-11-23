@@ -4,32 +4,19 @@
 
 ---
 
-## FD-005：内部自主迭代阶段的仓库公开姿态、`main` 分支合流节奏与真人测试准入门槛确认
+*当前无待裁决的阻塞性 L3 审批请求（`Pending Founder Decisions: 0`）。*
 
-- **状态**：**`PENDING（待创始人裁决 · 2026-11-23）`**
-- **触发背景**：根据最新 `/goal` 总控指令边界（Section 二），项目已明确进入 **“内部自主迭代与产品完善阶段”**——现阶段 **严禁招募、联系真实用户或开展公测/闭测**，此前针对外部用户的 `EXP-001` 邀测计划已立即置为 `HOLD`。但目前存在三个需要您拍板的 L3 治理问题：
-  1. GitHub 仓库 `huangbuqubunao-alt/intelligence` 在此前 `FD-002` 下已转为 `PUBLIC`（0 Star / 0 Fork / 0 外部 PR），在内部完善期间是否保持 `PUBLIC`（仅代码公开，主动不推广、不发外测）还是先临时切回 `PRIVATE`？
-  2. 分支 `antigravity/task-user-readiness-20261112` 今日已完成并全绿验收 **Iteration #3（`fee43f4`）** 及相关 `product-ops/` 升级（`main` 目前仍停在 `a820152`），后续内部迭代是**每批验证通过后即合流上 `main` 跑一次云端 Actions 绿灯**，还是**攒到整个内部完善阶段收口时再一次性并回 `main`**？
-  3. 希望您预先明确未来何时、满足什么门槛时，才会授权退出“内部完善阶段”并进入“首批真人受控试跑”。
-- **已有市场和产品证据**：
-  - 当前代码已完成 140 项 CI Pytest + 1240 项 Vitest + Stage D 双端口 Chromium 实机复检，安全扫描源码/文档 0 风险；
-  - 市场竞争高度聚焦“冷启动一次跑通”与“反幻觉可信度”（Stage A 审计及时揪出了 macOS CLI 下本地 `.md` 上传中断与 Demo 越域乱答两个致命问题并已修复）。
-- **子决策 1 — 仓库可见性方案对比**：
-  - **方案 A（推荐）：维持 `PUBLIC`，保持只展示不推流、不发正式 Release Tag**——省去反复切换可见性导致的 GitHub Actions/徽章/链接断档；安全与零密钥扫描已完成。（前提：仍严守禁止任何外部推广与招募）
-  - **方案 B**：在内部打磨未结束前，临时调回 `PRIVATE`（`gh repo edit --visibility private`），等您批准启动真人体检那天再重新 `PUBLIC`。
-  - **方案 C**：维持现状并立刻放开外部招募（**违背现行内部阶段硬边界，禁止**）。
-- **子决策 2 — `main` 同步与云端 CI 节奏对比**：
-  - **方案 A（推荐）：按已验证里程碑批次（如本次 `fee43f4` + 运营提交）批准合流至 `main` 并触发 Actions CI**——避免主线滞后分支过久、也持续验证 Linux CI。
-  - **方案 B**：本阶段全部留在本工作分支开发测试，阶段结束再一次性 PR/Merge 上 `main`。
-- **成本、收益及风险**：操作本身 **$0**；方案 A 最大收益是公网主线始终与最优质量版本一致且每次均有云端 CI 绿标护航，风险仅在于若暂不加分支保护可能使公开浏览者看到持续迭代记录（目前几乎零自然流量，影响极低）。
-- **AI 建议与信心度**：建议 **子决策 1 选方案 A（维持 `PUBLIC` 被动状态、不推广不召人）+ 子决策 2 选方案 A（本批核验通过后允许并入 `main` 跑通云端 CI）**；信心 **90%**。
-- **如果您暂不决定会发生什么**：AI 产品团队会严守规章，**保持仓库和 `main` 原样不动（继续在 `antigravity/task-user-readiness-20261112` 分支安全做 L1/L2 内部优化与夜间巡检）**，等待您下一步批复。
+> 注：下一批内部完善工作（Iteration #4：`BL-006` + `BL-005`）仍在 `antigravity/task-user-readiness-20261112` 分支验证与打磨中，按既定规则留待该轮验证完成后再视需要提请下一次 `main` 合流。
 
 ---
 
 ## 历史已完结 L3 决策归档（2026-11-23）
 
-- **`FD-001`（`COMPLETED`）**：历史基线同步至 `main@9f65417` 且 CI [`#45132090574`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45132090574) 双端全绿。
-- **`FD-002`（`COMPLETED` — 仅完成仓库 `PUBLIC` 公开；其附带外部 `EXP-001` 邀测已随现行内部完善边界裁定暂置 `HOLD`）**。
-- **`FD-003`（`COMPLETED`）**：创始人在 Antigravity Automations 面板启用每晚 `21:00 (Asia/Shanghai)` 自动巡检与日报侧车（`launchd` 继续未注册）。
+- **`FD-005`（`COMPLETED` — 创始人明确批复执行三项裁定）**：
+  1. **仓库维持 `PUBLIC` 被动状态且严守零外宣**：仅保持代码可见，零 Release Tag、零外部推流、零真人私信或招募；
+  2. **批准合流 `main` 并激活最新云端绿标**：已将 Iteration #3 与 Stage C/E 全套验证提交（`b8759e0`、`fee43f4`、`256a058`）同步合入 `main@f23954f9f1f7922ce626e3bbdafe4ee2d8ca01aa`，GitHub Actions [`Public Beta CI #45149288840`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45149288840) 双端全绿（`Frontend Build & Vitest` `1m43s` + `Python Lint, Typecheck & Public Beta Integration` `3m14s`）；
+  3. **继续 `/goal` 内部自主迭代、真人测试再缓缓**：保持当前“内部自主迭代与产品完善阶段”硬边界，`EXP-001` 维持 `HOLD`，直至创始人另行批准退出阶段门槛。
 - **`FD-004`（`COMPLETED`）**：Iteration #2（零配置 `youtube-intel start`）同步上 `main@a820152` 且 CI [`#45137542384`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45137542384) 双端全绿。
+- **`FD-003`（`COMPLETED`）**：创始人在 Antigravity Automations 面板启用每晚 `21:00 (Asia/Shanghai)` 自动巡检与日报侧车（`launchd` 继续未注册）。
+- **`FD-002`（`COMPLETED` — 仅完成仓库 `PUBLIC` 公开；其附带外部 `EXP-001` 邀测已随现行内部完善边界裁定暂置 `HOLD`）**。
+- **`FD-001`（`COMPLETED`）**：历史基线同步至 `main@9f65417` 且 CI [`#45132090574`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45132090574) 双端全绿。

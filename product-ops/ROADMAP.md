@@ -9,16 +9,16 @@
 - [x] **Day 1 – Stage A/B 全面接管与研究**：完成 10 维产品技术基线审计、双端口 Chromium（Demo + 新建 `youtube-intel start` 空库）AI 模拟巡检、以及 NotebookLM / BibiGPT / Readwise Reader / Open Notebook / Obsidian BYOK 市场与定价交叉研究。
 - [x] **Iteration #1 (`09f98d4`) & `EXP-002` 本机模型实测**：补齐全导出链路安全 HTTPS `?t=` 原片深链与 `ev:` 出处指纹；用真实本机 `ollama/qwen3.5:9b` 跑通 3/3 跨源问答 + 2/2 诱骗拒答。
 - [x] **Iteration #2 (`a820152`) 零配置冷启动**：交付 `uv run youtube-intel start`、`--check-only` 环境清单、`serve-api` `vault_root` 友善提示及新版 `README.md` 5 分钟极速指引，CI `#45137542384` 双端全绿。
-- [x] **Iteration #3 (`fee43f4`) & Stage C/E 全系统对齐（今日完成）**：
+- [x] **Iteration #3 (`fee43f4`) & `FD-005` 主线 CI 合流 (`main@f23954f`)**：
   - 根治 Demo 越域对抗问题伪引用、`youtube-intel start` macOS 浏览器本地文件上传阻塞、冷启动 Settings 假“待检查”、空库 `#Research` HTTP 409 死路与 `Escape` 关闭缺失；
-  - 补全 `BACKLOG.md`、`COMMERCIALIZATION.md`、`OPS_ASSETS.md`、`TEST_LOG.md`，日报脚本升级支持 `--template cpo` 与严格内部边界守护。
+  - 补全 15 份运营文档与 CPO 日报体系；同步上 `main@f23954f` 达成 GitHub Actions `#45149288840` 双端全绿。
+- [x] **Iteration #4 (`BL-006` + `BL-005` 提前交付完成 · `antigravity/task-user-readiness-20261112`)**：
+  - 交付 `FastReadApiApplication` 单快照 `/evidence` 加速（实测冷读 `39.6ms` / 热读 `3.8–5.8ms`）+ 前端 SWR 无闪烁保留 + `.reader-action-bar` 两层重构与移动端快捷键徽章收敛；
+  - 扩充多源反幻觉与冲突归因 Eval 集至 32 例，并加固 Demo 复合域外问题诚实拒答。
 
-## Week 2（11/30 – 12/06）：信息架构精简 · 核心交互手感与性能磨平（L1/L2 内部打磨）
-- [ ] **UI Craft 精简化收敛（基于 Stage A/D 走查反馈）**：
-  - `BL-007`：精简 `#Content/<id>` 详情页顶部 9 按钮多行换行冗余，收敛次要动作为二级折叠菜单，突出“原文证据核对 + 一键拷贝/导出”；
-  - `BL-008`：排查并解决 `#Content/vidDemoAgt1` 展开证据偶发短时停留加载提示的 SWR 预热体验，优化大库检索分页响应；
-  - `BL-009`：复查 `Settings` 次级卡片文案与“暖纸浅色 / 黑曜石深色”双主题对比度，践行 craft-floor 极简原则，删掉不必要的说明文字。
-- [ ] **内部基准扩充（`$0` 本机运行）**：用 `qwen3.5:9b` 与 `gemma4:12b` 在不同硬件窗口尺寸下测试 1 小时以上长文本切片与多篇 `.md` 混排冲突检测，完善自动化 Eval（目标 >=30 例）。
+## Week 2（11/30 – 12/06）：信息架构精简 · 引导文案净化与大库性能摸底（L1/L2 内部打磨）
+- [ ] **`BL-007`（NEXT P1）引导与可读文案精修**：统一梳理首页三步冷启动引导与非断言区中英文混杂词条（100% 保持历史单测稳定，践行 craft-floor 极简主义）。
+- [ ] **大库 `BL-008` 评估与双主题微调**：复查 `#Settings` 次级卡片文案与双主题对比度，对 >500 条视频摘要索引与 `.backup()` 热快照做压测与基准评估。
 
 ## Week 3（12/07 – 12/13）：可恢复性、离线打包边界与商业前提自查
 - [ ] **大库备份恢复与长视频边界压测**：验证 500 条以内真实规模库下的 backup/restore 全链路一致性与 JSON 导出耗时。

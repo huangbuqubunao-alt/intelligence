@@ -1,4 +1,4 @@
-import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import { ApiRequestError, api, post, put } from "../api/client";
 import { pulseCelebration } from "./motion";
 import { OpenResearchSource } from "./ResearchTypes";
@@ -1717,6 +1717,8 @@ export function WorkspaceVideoAiActions({
   nextUnreadVideo,
   onAdvanceToVideo,
   onBack,
+  sourceLinkNode,
+  legacyCopyNode,
   onCompleted,
 }: {
   videoId: string;
@@ -1740,6 +1742,8 @@ export function WorkspaceVideoAiActions({
   } | null;
   onAdvanceToVideo?: (nextId: string) => void;
   onBack?: () => void;
+  sourceLinkNode?: ReactNode;
+  legacyCopyNode?: ReactNode;
   onCompleted: () => void;
 }) {
   const { language } = useUiLanguage();
@@ -2068,222 +2072,251 @@ export function WorkspaceVideoAiActions({
     void runAction(actionRequest.kind);
   }, [actionRequest]);
 
-  return (
-    <>
-      {isLocalMedia && !transcriptAvailable ? (
-        transcriberReady === false && busyKind === null ? (
-          <a className="button button-secondary button-small" href="#Settings/transcription">
-            <PhosphorIcon name="sparkle" size={13} />
-            {zh ? "先设置本地转写 →" : "Set up local transcription →"}
-          </a>
-        ) : (
-          <button
-            type="button"
-            className="button button-primary button-small"
-            disabled={busyKind !== null}
-            onClick={(event) => {
-              pulseCelebration(event.currentTarget);
-              void runAction("transcribe");
-            }}
-          >
-            <PhosphorIcon name="sparkle" size={13} />
-            {busyKind === "transcribe"
-              ? transcribeStage === "DISTILLING"
-                ? zh
-                  ? "语音听写完成，正在提炼中文洞察…"
-                  : "Distilling Chinese insight…"
-                : zh
-                  ? "正在离线转写语音（长视频约需数分钟）…"
-                  : "Transcribing & distilling…"
-              : zh
-                ? "离线语音转写并提炼中文洞察"
-                : "Transcribe offline & distill Chinese insight"}
-          </button>
-        )
-      ) : null}
-      {transcriptAvailable ? (
+  const transcribeActionNode =
+    isLocalMedia && !transcriptAvailable ? (
+      transcriberReady === false && busyKind === null ? (
+        <a className="button button-secondary button-small" href="#Settings/transcription">
+          <PhosphorIcon name="sparkle" size={13} />
+          {zh ? "先设置本地转写 →" : "Set up local transcription →"}
+        </a>
+      ) : (
         <button
           type="button"
           className="button button-primary button-small"
           disabled={busyKind !== null}
           onClick={(event) => {
             pulseCelebration(event.currentTarget);
-            void runAction("distill");
+            void runAction("transcribe");
           }}
         >
           <PhosphorIcon name="sparkle" size={13} />
-          {busyKind === "distill"
-            ? zh
-              ? "正在提炼中文结论…"
-              : "Distilling Chinese summary…"
-            : aiBrief
+          {busyKind === "transcribe"
+            ? transcribeStage === "DISTILLING"
               ? zh
-                ? "AI 重新提炼中文总结"
-                : "Re-distill AI Chinese brief"
+                ? "语音听写完成，正在提炼中文洞察…"
+                : "Distilling Chinese insight…"
               : zh
-                ? "AI 提炼中文总结与洞察"
-                : "Distill AI Chinese brief"}
-        </button>
-      ) : canMetadataPreview ? (
-        <button
-          type="button"
-          className="button button-secondary button-small"
-          disabled={busyKind !== null}
-          onClick={(event) => {
-            pulseCelebration(event.currentTarget);
-            void runAction("distill");
-          }}
-        >
-          <PhosphorIcon name="sparkle" size={13} />
-          {busyKind === "distill"
-            ? zh
-              ? "正在生成简介速览…"
-              : "Summarizing metadata…"
-            : aiBrief
-              ? zh
-                ? "重新生成简介中文速览"
-                : "Refresh metadata preview"
-              : zh
-                ? "AI 生成简介中文速览"
-                : "AI metadata preview"}
-        </button>
-      ) : null}
-      {aiBrief ? (
-        <button
-          type="button"
-          className="button button-secondary button-small"
-          onClick={(event) => {
-            pulseCelebration(event.currentTarget);
-            void navigator.clipboard?.writeText(
-              formatPlainTextVideoBrief(aiBrief, title || videoId, {
-                channelName,
-                sourceUrl,
-                zh,
-              }),
-            );
-            setCopiedPlainBrief(true);
-            setTimeout(() => setCopiedPlainBrief(false), 2200);
-          }}
-        >
-          <PhosphorIcon name="quotes" size={13} />
-          {copiedPlainBrief
-            ? zh
-              ? "已复制纯文本摘要"
-              : "Copied plain-text summary"
+                ? "正在离线转写语音（长视频约需数分钟）…"
+                : "Transcribing & distilling…"
             : zh
-              ? "复制纯文本摘要"
-              : "Copy plain-text summary"}
+              ? "离线语音转写并提炼中文洞察"
+              : "Transcribe offline & distill Chinese insight"}
         </button>
-      ) : null}
-      {mdContent ? (
-        <>
-          <button
-            type="button"
-            className="button button-secondary button-small"
-            onClick={(event) => {
-              pulseCelebration(event.currentTarget);
-              void navigator.clipboard?.writeText(mdContent);
-              setCopiedObsidian(true);
-              setTimeout(() => setCopiedObsidian(false), 2200);
-            }}
-          >
-            <PhosphorIcon name="stack" size={13} />
-            {copiedObsidian
-              ? zh
-                ? "已复制双链笔记"
-                : "Copied Obsidian note"
-              : zh
-                ? "复制双链笔记"
-                : "Copy Obsidian wikilinks"}
-          </button>
-          <button
-            type="button"
-            className="button button-ghost button-small"
-            onClick={() => downloadObsidianMarkdown(title || videoId, mdContent)}
-          >
-            {zh ? "下载 .md" : "Download .md"}
-          </button>
-        </>
-      ) : null}
-      {aiBrief ? (
-        <>
-          <button
-            type="button"
-            className={`button button-small ${aiBrief.starred ? "button-saved" : "button-secondary"}`}
-            disabled={busyKind !== null}
-            aria-pressed={Boolean(aiBrief.starred)}
-            onClick={(event) => {
-              pulseCelebration(event.currentTarget);
-              void toggleCuration({ starred: !aiBrief.starred });
-            }}
-          >
-            <PhosphorIcon
-              name="bookmark-simple"
-              weight={aiBrief.starred ? "fill" : "regular"}
-              size={13}
-            />
-            {aiBrief.starred
-              ? zh
-                ? "已收藏"
-                : "Starred"
-              : zh
-                ? "收藏待看"
-                : "Star"}
-          </button>
-          <button
-            type="button"
-            className="button button-ghost button-small"
-            disabled={busyKind !== null}
-            aria-pressed={Boolean(aiBrief.is_read)}
-            onClick={() => void toggleCuration({ is_read: !aiBrief.is_read })}
-          >
-            <PhosphorIcon
-              name="check-circle"
-              weight={aiBrief.is_read ? "fill" : "regular"}
-              size={13}
-            />
-            {aiBrief.is_read
-              ? zh
-                ? "已读 · 标未读"
-                : "Read · Mark unread"
-              : zh
-                ? "标记已读"
-                : "Mark read"}
-          </button>
-          {nextUnreadVideo && onAdvanceToVideo ? (
-            <button
-              type="button"
-              className="button button-secondary button-small tabular-nums"
-              disabled={busyKind !== null}
-              aria-label={zh ? "标已读并看下一篇" : "Mark read & open next unread"}
-              title={
-                nextUnreadVideo.scoped
+      )
+    ) : null;
+
+  const distillActionNode = transcriptAvailable ? (
+    <button
+      type="button"
+      className={`button button-small ${aiBrief ? "button-ghost" : "button-primary"}`}
+      disabled={busyKind !== null}
+      onClick={(event) => {
+        pulseCelebration(event.currentTarget);
+        void runAction("distill");
+      }}
+    >
+      <PhosphorIcon name="sparkle" size={13} />
+      {busyKind === "distill"
+        ? zh
+          ? "正在提炼中文结论…"
+          : "Distilling Chinese summary…"
+        : aiBrief
+          ? zh
+            ? "AI 重新提炼中文总结"
+            : "Re-distill AI Chinese brief"
+          : zh
+            ? "AI 提炼中文总结与洞察"
+            : "Distill AI Chinese brief"}
+    </button>
+  ) : canMetadataPreview ? (
+    <button
+      type="button"
+      className={`button button-small ${aiBrief ? "button-ghost" : "button-secondary"}`}
+      disabled={busyKind !== null}
+      onClick={(event) => {
+        pulseCelebration(event.currentTarget);
+        void runAction("distill");
+      }}
+    >
+      <PhosphorIcon name="sparkle" size={13} />
+      {busyKind === "distill"
+        ? zh
+          ? "正在生成简介速览…"
+          : "Summarizing metadata…"
+        : aiBrief
+          ? zh
+            ? "重新生成简介中文速览"
+            : "Refresh metadata preview"
+          : zh
+            ? "AI 生成简介中文速览"
+            : "AI metadata preview"}
+    </button>
+  ) : null;
+
+  const hasExportGroup = Boolean(mdContent || aiBrief || legacyCopyNode);
+  const hasSecondaryFooter = Boolean(sourceLinkNode || (aiBrief && distillActionNode));
+
+  return (
+    <>
+      <div className="reader-action-primary">
+        <div className="reader-action-flow">
+          {!aiBrief ? (
+            <>
+              {transcribeActionNode}
+              {distillActionNode}
+            </>
+          ) : (
+            <>
+              {transcribeActionNode}
+              {nextUnreadVideo && onAdvanceToVideo ? (
+                <button
+                  type="button"
+                  className="button button-primary button-small tabular-nums"
+                  disabled={busyKind !== null}
+                  aria-label={zh ? "标已读并看下一篇" : "Mark read & open next unread"}
+                  title={
+                    nextUnreadVideo.scoped
+                      ? zh
+                        ? `本筛选下一篇未读：${nextUnreadVideo.title}`
+                        : `Next unread in filter: ${nextUnreadVideo.title}`
+                      : zh
+                        ? `下一篇未读：${nextUnreadVideo.title}`
+                        : `Next unread: ${nextUnreadVideo.title}`
+                  }
+                  onClick={(event) => {
+                    pulseCelebration(event.currentTarget);
+                    void markReadAndAdvance();
+                  }}
+                >
+                  <PhosphorIcon name="caret-right" size={13} />
+                  {nextUnreadVideo.scoped
+                    ? zh
+                      ? `标已读并看下一篇 (本筛选 ${nextUnreadVideo.remainingCount})`
+                      : `Mark read & next (${nextUnreadVideo.remainingCount} in filter)`
+                    : zh
+                      ? `标已读并看下一篇 (${nextUnreadVideo.remainingCount})`
+                      : `Mark read & next (${nextUnreadVideo.remainingCount})`}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className={`button button-small ${aiBrief.starred ? "button-saved" : "button-secondary"}`}
+                disabled={busyKind !== null}
+                aria-pressed={Boolean(aiBrief.starred)}
+                onClick={(event) => {
+                  pulseCelebration(event.currentTarget);
+                  void toggleCuration({ starred: !aiBrief.starred });
+                }}
+              >
+                <PhosphorIcon
+                  name="bookmark-simple"
+                  weight={aiBrief.starred ? "fill" : "regular"}
+                  size={13}
+                />
+                {aiBrief.starred
                   ? zh
-                    ? `本筛选下一篇未读：${nextUnreadVideo.title}`
-                    : `Next unread in filter: ${nextUnreadVideo.title}`
+                    ? "已收藏"
+                    : "Starred"
                   : zh
-                    ? `下一篇未读：${nextUnreadVideo.title}`
-                    : `Next unread: ${nextUnreadVideo.title}`
-              }
-              onClick={(event) => {
-                pulseCelebration(event.currentTarget);
-                void markReadAndAdvance();
-              }}
-            >
-              <PhosphorIcon name="caret-right" size={13} />
-              {nextUnreadVideo.scoped
-                ? zh
-                  ? `标已读并看下一篇 (本筛选 ${nextUnreadVideo.remainingCount})`
-                  : `Mark read & next (${nextUnreadVideo.remainingCount} in filter)`
-                : zh
-                  ? `标已读并看下一篇 (${nextUnreadVideo.remainingCount})`
-                  : `Mark read & next (${nextUnreadVideo.remainingCount})`}
-            </button>
+                    ? "收藏待看"
+                    : "Star"}
+              </button>
+              <button
+                type="button"
+                className="button button-ghost button-small"
+                disabled={busyKind !== null}
+                aria-pressed={Boolean(aiBrief.is_read)}
+                onClick={() => void toggleCuration({ is_read: !aiBrief.is_read })}
+              >
+                <PhosphorIcon
+                  name="check-circle"
+                  weight={aiBrief.is_read ? "fill" : "regular"}
+                  size={13}
+                />
+                {aiBrief.is_read
+                  ? zh
+                    ? "已读 · 标未读"
+                    : "Read · Mark unread"
+                  : zh
+                    ? "标记已读"
+                    : "Mark read"}
+              </button>
+            </>
+          )}
+        </div>
+        {hasExportGroup ? (
+          <div className="reader-export-group">
+            {legacyCopyNode}
+            {mdContent ? (
+              <button
+                type="button"
+                className="button button-secondary button-small"
+                onClick={(event) => {
+                  pulseCelebration(event.currentTarget);
+                  void navigator.clipboard?.writeText(mdContent);
+                  setCopiedObsidian(true);
+                  setTimeout(() => setCopiedObsidian(false), 2200);
+                }}
+              >
+                <PhosphorIcon name="stack" size={13} />
+                {copiedObsidian
+                  ? zh
+                    ? "已复制双链笔记"
+                    : "Copied Obsidian note"
+                  : zh
+                    ? "复制双链笔记"
+                    : "Copy Obsidian wikilinks"}
+              </button>
+            ) : null}
+            {aiBrief ? (
+              <button
+                type="button"
+                className="button button-secondary button-small"
+                onClick={(event) => {
+                  pulseCelebration(event.currentTarget);
+                  void navigator.clipboard?.writeText(
+                    formatPlainTextVideoBrief(aiBrief, title || videoId, {
+                      channelName,
+                      sourceUrl,
+                      zh,
+                    }),
+                  );
+                  setCopiedPlainBrief(true);
+                  setTimeout(() => setCopiedPlainBrief(false), 2200);
+                }}
+              >
+                <PhosphorIcon name="quotes" size={13} />
+                {copiedPlainBrief
+                  ? zh
+                    ? "已复制纯文本摘要"
+                    : "Copied plain-text summary"
+                  : zh
+                    ? "复制纯文本摘要"
+                    : "Copy plain-text summary"}
+              </button>
+            ) : null}
+            {mdContent ? (
+              <button
+                type="button"
+                className="button button-ghost button-small"
+                onClick={() => downloadObsidianMarkdown(title || videoId, mdContent)}
+              >
+                {zh ? "下载 .md" : "Download .md"}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+      {hasSecondaryFooter ? (
+        <div className="reader-action-secondary">
+          {sourceLinkNode}
+          {aiBrief ? distillActionNode : null}
+          {aiBrief ? (
+            <span className="kb-shortcut-hint" aria-hidden="true">
+              {zh ? "快捷键：S 收藏 · E 已读下一篇 · U 返回" : "Keys: S star · E read/next · U back"}
+            </span>
           ) : null}
-          <span className="kb-shortcut-hint" aria-hidden="true">
-            {zh ? "快捷键：S 收藏 · E 已读下一篇 · U 返回" : "Keys: S star · E read/next · U back"}
-          </span>
-        </>
+        </div>
       ) : null}
       {error ? (
         <p className="form-error" role="alert">

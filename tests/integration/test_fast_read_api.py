@@ -566,10 +566,19 @@ def test_fast_read_api_accelerates_sources_topics_dashboard_intelligence_and_noo
         f"/api/v1/intelligence/{intel_ids[0]}",
         "/api/v1/saved-intelligence",
         "/api/v1/dashboard",
+        "/api/v1/videos/vidOrg00000/evidence",
     ):
         assert fast_no_sidecar.handle("GET", check_route) == raw.handle("GET", check_route), (
             f"Parity mismatch on {check_route}"
         )
+
+    # 404 parity on nonexistent evidence route
+    try:
+        raw.handle("GET", "/api/v1/videos/DoesNotExist999/evidence")
+    except Exception as raw_ev_err:
+        with pytest.raises(type(raw_ev_err)) as fast_ev_err:
+            fast_no_sidecar.handle("GET", "/api/v1/videos/DoesNotExist999/evidence")
+        assert getattr(fast_ev_err.value, "code", None) == getattr(raw_ev_err, "code", None)
 
     # 2. Cold snapshot connection budget (<= 3 SQLite connections per route, zero N+1 storm!)
     original_connect = repo._connect
@@ -585,6 +594,7 @@ def test_fast_read_api_accelerates_sources_topics_dashboard_intelligence_and_noo
             "/api/v1/sources",
             f"/api/v1/sources/{source_id}",
             "/api/v1/videos",
+            "/api/v1/videos/vidOrg00000/evidence",
             "/api/v1/topics",
             f"/api/v1/topics/{topic_id}",
             "/api/v1/intelligence",
@@ -607,6 +617,7 @@ def test_fast_read_api_accelerates_sources_topics_dashboard_intelligence_and_noo
         for warm_route in (
             "/api/v1/sources",
             "/api/v1/videos",
+            "/api/v1/videos/vidOrg00000/evidence",
             "/api/v1/topics",
             "/api/v1/intelligence",
             "/api/v1/saved-intelligence",
