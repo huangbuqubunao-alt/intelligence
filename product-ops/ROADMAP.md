@@ -24,9 +24,9 @@
 - [x] **Iteration #7（`BL-010` 交付完成）& `FD-006` 主线 CI 合流（`main@aec26da`）**：
   - 修复 4 小时课程（`14390s`）& 300KB+ Markdown 全篇均匀边界采样、`<=180B` UTF-8 中文安全标题、Windows 保留文件名防护（`_CON`）、大小写碰撞防覆盖、全量 YAML 转义、CommonMark 空行修复与文本笔记无 `00:00` 假时长；新增 `test_long_media_and_obsidian_vault.py` 接入 `.github/workflows/ci.yml`（`028d10e`）并落地 [`RELEASE_READINESS_GATE.md`](./RELEASE_READINESS_GATE.md)；
   - 按创始人 **`FD-006`** 批复完成 Iteration #4–#7 + CI 接线合流 `main@c15cf06`，GitHub Actions [`Public Beta CI #45187713845`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45187713845) 双端全绿（`1244/1244` 前端 + `146/146` 后端）。
-- [x] **Iteration #8（`BL-011` 在研发分支交付完成 · 待 L3 批准合流 `main`）**：
+- [x] **Iteration #8（`BL-011` 交付完成）& `FD-007` 主线 CI 合流（`main@092951b`）**：
   - 交付按需轻量本地视频关键帧抽取 + 64 位 dHash 去重（3–12 帧、`<=960px` JPEG、`0o700`/`0o600`）+ 原话字幕时间对齐融合分析 MVP；复用 BYOK 安全/预算账本与原生 Ollama `/api/chat` `images`（`409 LOCAL_VISION_MODEL_UNSUPPORTED` 防盲发）、原子暂存与 Sidecar 备份还原；
-  - 交付双主题关键帧图卡、讲者/PPT 筛选、Lightbox 键盘导航（`ArrowRight`/`Escape`）、单视频 `visual-pack.zip` 及全库 Vault `obsidian-bundle.zip` `assets/*.jpg` 导出；通过 13 组完整 CI `151/151`、Vitest `55/55`（`1247/1247`）、真机 `ollama/gemma3:4b` `$0` 及双主题 Chromium E2E 全通。
+  - 交付双主题关键帧图卡、讲者/PPT 筛选、Lightbox 键盘导航（`ArrowRight`/`Escape`）、单视频 `visual-pack.zip` 及全库 Vault `obsidian-bundle.zip` `assets/*.jpg` 导出；通过真实 `ollama/gemma3:4b` `$0` 实机与双主题 Chromium E2E，并按创始人 **`FD-007`** 批复线性合并 `main@092951b`，GitHub Actions [`#45201809374`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45201809374) 双端全绿（`55/55` / `1247/1247` 前端 + 13 组 `151/151` 后端）。
 
 ## Week 2–3（11/30 – 12/13）：持续内部巡检与极简安装边界储备（L1/L2 内部打磨）
 - [ ] **增量文档/引导清晰度走查与安装报错预设检查**：在不开启新战线前提下复核新用户首次运行 `--check-only` 的错误引导可读性（正式发行打包 `BL-009` 仍待未来真人首测放行后再定）。
