@@ -1,7 +1,7 @@
 # 全维度测试与质量验收台账（QA & Verification Log）
 
 - **更新日期**：2026-11-24（`Asia/Shanghai`）
-- **当前活跃基线**：研发分支 `antigravity/task-user-readiness-20261112`（含 Iteration #9 `BL-012` / Round 19 易用性与 `--check-only` 就绪结论，待按 L3 批准合流 `main`）；公开主线对照 `main@4d24df4`（GitHub Actions [`#45201809374`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45201809374) & [`#45206505478`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45206505478) 双端全绿）
+- **当前活跃基线**：公开主线 `main@c54b818`（已按 `FD-008` 同步 Iteration #9 / `BL-012`，GitHub Actions [`#45216029723`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45216029723) 双端全绿），研发分支 `antigravity/task-user-readiness-20261112` 代码对齐。
 - **台账纪律**：严格采用四态标识 **`PASS / FAIL / BLOCKED / NOT_TESTED`**。仅当测试命令在对应代码版本实际执行完毕且见到真实输出时方能标 `PASS`；修复前失败与修复后复检分列存档，绝不涂改历史、绝不跳过或弱化断言。
 
 ---
@@ -19,7 +19,7 @@
 | **7. 反幻觉评测与本机模型基准（`EXP-002` + `BL-005`）** | **PASS** | `tests/integration/test_grounding_refusal_eval.py`（`32` 例）+ `tests/integration/test_public_beta_demo_showcase.py`；本机 `ollama/qwen3.5:9b` | **32 / 32 (100%) PASS**（包含于 Iteration #8 `151/151` 全绿）；本机 `EXP-002` 保持 **3/3 `GROUNDED` + 2/2 `REFUSED_INSUFFICIENT_EVIDENCE`**（`$0` 云开销）。 |
 | **8. 数据库热快照、迁移与恢复校验** | **PASS** | Iteration #8 最终改动后实跑 `pytest tests/integration/test_v1x_phase1b_backup_restore.py tests/integration/test_research_backup_restore.py -q` | **`27 passed in 39.46s`**（`0 failed`, `0 skipped`），且 `video_visual_analyses` + `keyframes/*.jpg` 随 Sidecar 快照备份还原验证通过（`test_visual_keyframe_analysis.py`）。 |
 | **9. 安全基线扫描 & 零个人目录泄漏** | **PASS** | `bash scripts/security_scan.sh` & 个人主目录路径排查 | Iteration #8 最终改动后复扫：`status=findings count=17`（仅历史测试假密钥哨兵，新增代码与测试全部 **0 命中**；`product-ops/` 个人路径泄漏为 `0`）。 |
-| **10. 跨平台及外部受控环境兼容性** | **PARTIAL (`PASS` Linux CI @ `main@092951b` / `NOT_TESTED` WSL2)** | GitHub Actions `ubuntu-latest` (`main@092951b`, Run `#45201809374`) / Windows WSL2 / 公网免 Cookie YouTube 抓取 | · Ubuntu Linux CI（`main@092951b` 含 Iteration #8 + 第 13 组视觉测试）：[`#45201809374`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45201809374) 双作业 **PASS**——`Frontend Build & Vitest` `1m19s`（`vite build` `1.30s` + **`55/55` / `1247/1247 passed in 60.13s`**）与 `Python Lint, Typecheck & Public Beta Integration` `19m59s`（`ruff` / `mypy` 137 文件 0 错 + 13 组全量 **`151 passed in 305.18s`**）；<br>· Windows WSL2 实机：**`NOT_TESTED`**（无 Windows 物理机）；<br>· 公网免 Cookie `yt-dlp` YouTube 字幕抓取：**`BLOCKED`**（触发反机器人验证，严禁绕过）。 |
+| **10. 跨平台及外部受控环境兼容性** | **PARTIAL (`PASS` Linux CI @ `main@c54b818` / `NOT_TESTED` WSL2)** | GitHub Actions `ubuntu-latest` (`main@c54b818`, Run `#45216029723`) / Windows WSL2 / 公网免 Cookie YouTube 抓取 | · Ubuntu Linux CI（`main@c54b818` 含 Iteration #9）：[`#45216029723`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45216029723) 双作业 **PASS**——`Frontend Build & Vitest` `1m7s`（`vite build` `1.08s` + **`56/56` / `1249/1249 passed`**）与 `Python Lint, Typecheck & Public Beta Integration` `5m0s`（仅失败重跑即全绿，解决首轮共享 VM `/api/v1/videos` `149.3ms > 120ms` 瞬时抖动：`ruff` / `mypy` 137 文件 0 错 + 13 组全量 **`152 passed in 256.97s`**）；<br>· Windows WSL2 实机：**`NOT_TESTED`**（无 Windows 物理机）；<br>· 公网免 Cookie `yt-dlp` YouTube 字幕抓取：**`BLOCKED`**（触发反机器人验证，严禁绕过）。 |
 
 ---
 

@@ -27,9 +27,9 @@
 - [x] **Iteration #8（`BL-011` 交付完成）& `FD-007` 主线 CI 合流（`main@092951b`）**：
   - 交付按需轻量本地视频关键帧抽取 + 64 位 dHash 去重（3–12 帧、`<=960px` JPEG、`0o700`/`0o600`）+ 原话字幕时间对齐融合分析 MVP；复用 BYOK 安全/预算账本与原生 Ollama `/api/chat` `images`（`409 LOCAL_VISION_MODEL_UNSUPPORTED` 防盲发）、原子暂存与 Sidecar 备份还原；
   - 交付双主题关键帧图卡、讲者/PPT 筛选、Lightbox 键盘导航（`ArrowRight`/`Escape`）、单视频 `visual-pack.zip` 及全库 Vault `obsidian-bundle.zip` `assets/*.jpg` 导出；通过真实 `ollama/gemma3:4b` `$0` 实机与双主题 Chromium E2E，并按创始人 **`FD-007`** 批复线性合并 `main@092951b`，GitHub Actions [`#45201809374`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45201809374) 双端全绿（`55/55` / `1247/1247` 前端 + 13 组 `151/151` 后端）。
-- [x] **Iteration #9（`BL-012` · Round 19 工作台易用性与 `--check-only` 可读性打磨 · 分支待 L3 批准合流 `main`）**：
+- [x] **Iteration #9（`BL-012` 交付完成）& `FD-008` 主线 CI 合流（`main@c54b818`）**：
   - 交付 `⌘K` 「查看专题洞察」与「围绕专题追问」直达动作、`#Topics` 搜索/仅看置顶/三模式排序工具条、Research 多行输入防遮挡与 `5px` 双主题细滚动条；
-  - 交付 `youtube-intel start --check-only` 一行式就绪结论（`[ALL READY]`/`[READY WITH WARNINGS]`/`[ACTION NEEDED]`/`[BLOCKED]`）、Ollama 模型溢出计数 `(+N more)` 与 `ffmpeg` 关键帧提示；通过 13 组 `152/152`、Vitest `56/56` (`1249/1249`)、实机 CLI `--check-only` 与 Chromium 双主题 `8795` 实机验收。
+  - 交付 `youtube-intel start --check-only` 一行式就绪结论（`[ALL READY]`/`[READY WITH WARNINGS]`/`[ACTION NEEDED]`/`[BLOCKED]`）、Ollama 模型溢出计数 `(+N more)` 与 `ffmpeg` 关键帧提示；按创始人 **`FD-008`** 批复线性合并 `main@c54b818`，GitHub Actions [`#45216029723`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45216029723) 双端全绿（`56/56` / `1249/1249` 前端 + 13 组 `152/152` 后端）。
 
 ## Week 2–3（11/30 – 12/13）：持续内部巡检与极简安装边界储备（L1/L2 内部打磨）
 - [ ] **增量文档/引导清晰度走查与安装报错预设检查**：在不开启新战线前提下复核新用户首次运行 `--check-only` 的错误引导可读性（正式发行打包 `BL-009` 仍待未来真人首测放行后再定）。
