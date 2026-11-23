@@ -2529,14 +2529,25 @@ export function WorkspaceVisualKeyframePanel({
   );
   const [informativeOnly, setInformativeOnly] = useState(false);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const lightboxRef = useRef<HTMLDivElement | null>(null);
+  const closeBtnRef = useRef<HTMLButtonElement | null>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  const prevActiveIndexRef = useRef<number | null>(null);
+
+  const analysisKey = visualAnalysis
+    ? `${visualAnalysis.video_id}|${visualAnalysis.updated_at}|${visualAnalysis.frame_count}`
+    : "";
 
   useEffect(() => {
     setLocalAnalysis(visualAnalysis);
+  }, [visualAnalysis]);
+
+  useEffect(() => {
     setError(null);
     setErrorAction(null);
     setActiveIndex(null);
     setInformativeOnly(false);
-  }, [videoId, visualAnalysis]);
+  }, [videoId, analysisKey]);
 
   const analysis = localAnalysis ?? visualAnalysis;
   const allFrames = analysis?.frames ?? [];
@@ -2547,6 +2558,24 @@ export function WorkspaceVisualKeyframePanel({
     informativeOnly && canToggleFilter
       ? allFrames.filter((f) => f.has_visual_info)
       : allFrames;
+
+  useEffect(() => {
+    const prev = prevActiveIndexRef.current;
+    prevActiveIndexRef.current = activeIndex;
+    if (prev === null && activeIndex !== null) {
+      if (
+        returnFocusRef.current === null &&
+        typeof document !== "undefined" &&
+        document.activeElement instanceof HTMLElement
+      ) {
+        returnFocusRef.current = document.activeElement;
+      }
+      closeBtnRef.current?.focus();
+    } else if (prev !== null && activeIndex === null) {
+      returnFocusRef.current?.focus();
+      returnFocusRef.current = null;
+    }
+  }, [activeIndex]);
 
   useEffect(() => {
     if (activeIndex === null) return;
@@ -2563,6 +2592,29 @@ export function WorkspaceVisualKeyframePanel({
         setActiveIndex((prev) =>
           prev !== null && prev < visibleFrames.length - 1 ? prev + 1 : prev,
         );
+      } else if (event.key === "Tab" && lightboxRef.current) {
+        const focusables = Array.from(
+          lightboxRef.current.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]):not([disabled])',
+          ),
+        );
+        if (focusables.length === 0) {
+          event.preventDefault();
+          lightboxRef.current.focus();
+          return;
+        }
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        const active = document.activeElement;
+        if (event.shiftKey) {
+          if (active === first || !lightboxRef.current.contains(active)) {
+            event.preventDefault();
+            last.focus();
+          }
+        } else if (active === last || !lightboxRef.current.contains(active)) {
+          event.preventDefault();
+          first.focus();
+        }
       }
     };
     window.addEventListener("keydown", onKeyDown, true);
@@ -2777,7 +2829,10 @@ export function WorkspaceVisualKeyframePanel({
                   key={frame.frame_id}
                   type="button"
                   className="visual-keyframe-card"
-                  onClick={() => setActiveIndex(idx)}
+                  onClick={(e) => {
+                    returnFocusRef.current = e.currentTarget;
+                    setActiveIndex(idx);
+                  }}
                 >
                   <div className="visual-keyframe-thumb-wrap">
                     <img
@@ -2825,6 +2880,8 @@ export function WorkspaceVisualKeyframePanel({
           onClick={() => setActiveIndex(null)}
         >
           <div
+            ref={lightboxRef}
+            tabIndex={-1}
             className="visual-keyframe-lightbox"
             role="dialog"
             aria-modal="true"
@@ -2836,6 +2893,7 @@ export function WorkspaceVisualKeyframePanel({
                 [{activeFrame.timestamp_label}] {activeFrame.title_zh}
               </h4>
               <button
+                ref={closeBtnRef}
                 type="button"
                 className="button button-ghost button-small"
                 onClick={() => setActiveIndex(null)}
@@ -3198,22 +3256,48 @@ export function WorkspaceAiResearchPanel({
   );
   const [scopeOptions, setScopeOptions] = useState<ResearchScopeOptions | null>(null);
   const [scopeLoaded, setScopeLoaded] = useState(false);
-  const [selectedChannel, setSelectedChannel] = useState(() => consumePendingResearchChannel());
-  const [selectedTopic, setSelectedTopic] = useState(() => consumePendingResearchTopicCluster());
-  const [starredOnly, setStarredOnly] = useState(() => consumePendingResearchStarredOnly());
-  const pendingSessionIdRef = useRef<string>(consumePendingResearchSessionId());
-  const initialPendingVideosRef = useRef<string[] | null>(null);
-  if (initialPendingVideosRef.current === null) {
-    initialPendingVideosRef.current = consumePendingResearchVideoIds();
+  const initialPendingRef = useRef<{
+    videoIds: string[];
+    topic: string;
+    channel: string;
+    starredOnly: boolean;
+  } | null>(null);
+  if (initialPendingRef.current === null) {
+    const rawVids = consumePendingResearchVideoIds();
+    const rawTopic = consumePendingResearchTopicCluster();
+    const rawChannel = consumePendingResearchChannel();
+    const rawStarred = consumePendingResearchStarredOnly();
+    if (rawVids.length > 0) {
+      initialPendingRef.current = { videoIds: rawVids, topic: "", channel: "", starredOnly: false };
+    } else if (rawTopic) {
+      initialPendingRef.current = { videoIds: [], topic: rawTopic, channel: "", starredOnly: false };
+    } else if (rawChannel) {
+      initialPendingRef.current = { videoIds: [], topic: "", channel: rawChannel, starredOnly: false };
+    } else {
+      initialPendingRef.current = { videoIds: [], topic: "", channel: "", starredOnly: rawStarred };
+    }
   }
+  const [selectedChannel, setSelectedChannel] = useState(
+    () => initialPendingRef.current?.channel ?? "",
+  );
+  const [selectedTopic, setSelectedTopic] = useState(
+    () => initialPendingRef.current?.topic ?? "",
+  );
+  const [starredOnly, setStarredOnly] = useState(
+    () => initialPendingRef.current?.starredOnly ?? false,
+  );
+  const pendingSessionIdRef = useRef<string>("");
+  const hasInitialVideosHandoffRef = useRef<boolean>(
+    (initialPendingRef.current?.videoIds.length ?? 0) > 0,
+  );
   const [comparePickerOpen, setComparePickerOpen] = useState(
-    () => (initialPendingVideosRef.current?.length ?? 0) > 0,
+    () => (initialPendingRef.current?.videoIds.length ?? 0) > 0,
   );
   const [selectedVideoIds, setSelectedVideoIds] = useState<string[]>(
-    () => initialPendingVideosRef.current ?? [],
+    () => initialPendingRef.current?.videoIds ?? [],
   );
   const [compareSelectedOnly, setCompareSelectedOnly] = useState(
-    () => (initialPendingVideosRef.current?.length ?? 0) > 0,
+    () => (initialPendingRef.current?.videoIds.length ?? 0) > 0,
   );
   const [compareSearch, setCompareSearch] = useState("");
   const [activeSession, setActiveSession] = useState<AiResearchSession | null>(null);
@@ -3240,35 +3324,87 @@ export function WorkspaceAiResearchPanel({
     setCopiedPlain(false);
   }, [activeSession?.session_id]);
 
+  const resetCompareUi = () => {
+    setComparePickerOpen(false);
+    setCompareSelectedOnly(false);
+    setCompareSearch("");
+  };
+
+  const applyVideoCompareScope = (ids: string[]) => {
+    setStarredOnly(false);
+    setSelectedChannel("");
+    setSelectedTopic("");
+    setSelectedVideoIds(ids);
+    setComparePickerOpen(true);
+    setCompareSelectedOnly(true);
+    setCompareSearch("");
+    queueMicrotask(() => questionInputRef.current?.focus());
+  };
+
+  const applyChannelScope = (channelKey: string) => {
+    setSelectedVideoIds([]);
+    setSelectedTopic("");
+    setStarredOnly(false);
+    resetCompareUi();
+    setSelectedChannel(channelKey);
+    queueMicrotask(() => questionInputRef.current?.focus());
+  };
+
+  const applyTopicScope = (topicCluster: string) => {
+    setSelectedVideoIds([]);
+    setSelectedChannel("");
+    setStarredOnly(false);
+    resetCompareUi();
+    setSelectedTopic(topicCluster);
+    queueMicrotask(() => questionInputRef.current?.focus());
+  };
+
+  const applyStarredScope = (enabled: boolean) => {
+    setSelectedVideoIds([]);
+    setSelectedChannel("");
+    setSelectedTopic("");
+    resetCompareUi();
+    setStarredOnly(enabled);
+    queueMicrotask(() => questionInputRef.current?.focus());
+  };
+
+  const resetAllScopes = () => {
+    setStarredOnly(false);
+    setSelectedChannel("");
+    setSelectedTopic("");
+    setSelectedVideoIds([]);
+    resetCompareUi();
+  };
+
   useEffect(() => {
     const nextSid = consumePendingResearchSessionId();
     if (nextSid) {
       pendingSessionIdRef.current = nextSid;
-      const matched = sessions.find((s) => s.session_id === nextSid);
+    }
+    const wantedSid = pendingSessionIdRef.current;
+    if (wantedSid && sessions.length > 0) {
+      const matched = sessions.find((s) => s.session_id === wantedSid);
       if (matched) {
         setActiveSession(matched);
         pendingSessionIdRef.current = "";
       }
     }
     const nextVids = consumePendingResearchVideoIds();
+    const nextCh = consumePendingResearchChannel();
+    const nextTp = consumePendingResearchTopicCluster();
+    const nextStarred = consumePendingResearchStarredOnly();
     if (nextVids.length > 0) {
-      setStarredOnly(false);
-      setSelectedChannel("");
-      setSelectedTopic("");
-      setSelectedVideoIds(nextVids);
-      setComparePickerOpen(true);
-      setCompareSelectedOnly(true);
-      setCompareSearch("");
-      queueMicrotask(() => questionInputRef.current?.focus());
-    } else if ((initialPendingVideosRef.current?.length ?? 0) > 0) {
-      initialPendingVideosRef.current = [];
+      applyVideoCompareScope(nextVids);
+    } else if (nextTp) {
+      applyTopicScope(nextTp);
+    } else if (nextCh) {
+      applyChannelScope(nextCh);
+    } else if (nextStarred) {
+      applyStarredScope(true);
+    } else if (hasInitialVideosHandoffRef.current) {
+      hasInitialVideosHandoffRef.current = false;
       queueMicrotask(() => questionInputRef.current?.focus());
     }
-    const nextCh = consumePendingResearchChannel();
-    if (nextCh) setSelectedChannel(nextCh);
-    const nextTp = consumePendingResearchTopicCluster();
-    if (nextTp) setSelectedTopic(nextTp);
-    if (consumePendingResearchStarredOnly()) setStarredOnly(true);
   }, [handoffSeq, sessions]);
 
   useEffect(() => {
@@ -3291,11 +3427,13 @@ export function WorkspaceAiResearchPanel({
         setSessions(parsedSessions);
         if (parsedSessions.length > 0) {
           const wantedId = pendingSessionIdRef.current;
-          pendingSessionIdRef.current = "";
           const matched = wantedId
             ? parsedSessions.find((s) => s.session_id === wantedId)
             : undefined;
-          setActiveSession(matched ?? parsedSessions[0]);
+          if (matched) {
+            pendingSessionIdRef.current = "";
+          }
+          setActiveSession((prev) => matched ?? prev ?? parsedSessions[0]);
         }
         if (parsedScopes) {
           setScopeOptions(parsedScopes);
@@ -3320,13 +3458,16 @@ export function WorkspaceAiResearchPanel({
   );
 
   const toggleComparedVideo = (videoId: string) => {
-    setSelectedVideoIds((prev) =>
-      prev.includes(videoId)
-        ? prev.filter((id) => id !== videoId)
-        : prev.length >= 12
-          ? prev
-          : [...prev, videoId],
-    );
+    setSelectedVideoIds((prev) => {
+      if (prev.includes(videoId)) {
+        return prev.filter((id) => id !== videoId);
+      }
+      if (prev.length >= 12) return prev;
+      setSelectedChannel("");
+      setSelectedTopic("");
+      setStarredOnly(false);
+      return [...prev, videoId];
+    });
   };
 
   const ask = async (qText: string) => {
@@ -3496,17 +3637,19 @@ export function WorkspaceAiResearchPanel({
   const applyActiveSessionFollowUp = () => {
     if (!activeSession) return;
     if (hasExplicitActiveScope && activeScopeMeta) {
-      setStarredOnly(Boolean(activeScopeMeta.starred_only));
-      setSelectedChannel(activeScopeMeta.channel_key ?? "");
-      setSelectedTopic(activeScopeMeta.topic_cluster ?? "");
-      setSelectedVideoIds(activeExplicitVideoIds);
-      setComparePickerOpen(activeExplicitVideoIds.length > 0);
+      if (activeExplicitVideoIds.length > 0) {
+        applyVideoCompareScope(activeExplicitVideoIds);
+      } else if (activeScopeMeta.topic_cluster) {
+        applyTopicScope(activeScopeMeta.topic_cluster);
+      } else if (activeScopeMeta.channel_key) {
+        applyChannelScope(activeScopeMeta.channel_key);
+      } else if (activeScopeMeta.starred_only) {
+        applyStarredScope(true);
+      } else {
+        resetAllScopes();
+      }
     } else if (activeCitedVideoIds.length > 0) {
-      setStarredOnly(false);
-      setSelectedChannel("");
-      setSelectedTopic("");
-      setSelectedVideoIds(activeCitedVideoIds.slice(0, 12));
-      setComparePickerOpen(true);
+      applyVideoCompareScope(activeCitedVideoIds.slice(0, 12));
     }
     questionInputRef.current?.focus();
   };
@@ -3550,8 +3693,7 @@ export function WorkspaceAiResearchPanel({
                 aria-pressed={!selectedChannel && selectedVideoIds.length === 0}
                 disabled={busy}
                 onClick={() => {
-                  setSelectedChannel("");
-                  setSelectedVideoIds([]);
+                  applyChannelScope("");
                 }}
               >
                 {zh ? "全部来源" : "All sources"}
@@ -3564,8 +3706,7 @@ export function WorkspaceAiResearchPanel({
                   aria-pressed={selectedChannel === ch.key && selectedVideoIds.length === 0}
                   disabled={busy}
                   onClick={() => {
-                    setSelectedVideoIds([]);
-                    setSelectedChannel((prev) => (prev === ch.key ? "" : ch.key));
+                    applyChannelScope(selectedChannel === ch.key ? "" : ch.key);
                   }}
                 >
                   {`${ch.label} (${ch.count})`}
@@ -3582,8 +3723,7 @@ export function WorkspaceAiResearchPanel({
                 aria-pressed={starredOnly && selectedVideoIds.length === 0}
                 disabled={busy}
                 onClick={() => {
-                  setSelectedVideoIds([]);
-                  setStarredOnly((prev) => !prev);
+                  applyStarredScope(!starredOnly);
                 }}
               >
                 <PhosphorIcon
@@ -3606,8 +3746,7 @@ export function WorkspaceAiResearchPanel({
                   value={selectedTopic}
                   disabled={busy}
                   onChange={(e) => {
-                    setSelectedVideoIds([]);
-                    setSelectedTopic(e.target.value);
+                    applyTopicScope(e.target.value);
                   }}
                 >
                   <option value="">{zh ? "全部专题" : "All topics"}</option>
@@ -3648,13 +3787,7 @@ export function WorkspaceAiResearchPanel({
                 className="button button-ghost button-small"
                 disabled={busy}
                 onClick={() => {
-                  setStarredOnly(false);
-                  setSelectedChannel("");
-                  setSelectedTopic("");
-                  setSelectedVideoIds([]);
-                  setComparePickerOpen(false);
-                  setCompareSelectedOnly(false);
-                  setCompareSearch("");
+                  resetAllScopes();
                 }}
               >
                 {zh ? "重置范围" : "Reset scope"}
@@ -4012,6 +4145,10 @@ export function WorkspaceAiResearchPanel({
             {activeSession.refused ? (
               <span className="status status-warning">
                 {zh ? "证据不足 · 已诚实拒答" : "Refused · Insufficient Evidence"}
+              </span>
+            ) : activeSession.answer_status === "NEEDS_REVERIFICATION" ? (
+              <span className="status status-warning">
+                {zh ? "恢复记录 · 待核验" : "Restored · Needs Re-verification"}
               </span>
             ) : null}
             {activeSession.scope_label_zh ? (
@@ -4516,6 +4653,15 @@ export function WorkspaceAiSettingsPanel({
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file || restoringBackup) return;
+    if (typeof file.size === "number" && file.size > 64 * 1024 * 1024) {
+      setFeedback(null);
+      setError(
+        zh
+          ? "快照文件超过 64 MiB 安全上限，无法导入。"
+          : "Backup snapshot exceeds the 64 MiB safety limit.",
+      );
+      return;
+    }
     setRestoringBackup(true);
     setFeedback(null);
     setError(null);
@@ -4533,7 +4679,11 @@ export function WorkspaceAiSettingsPanel({
       if (!isRec(parsed) || parsed.schema_version !== "workspace-ai-backup-v1") {
         throw new Error("INVALID_SNAPSHOT_SCHEMA");
       }
-      const res = await post<{ restored?: unknown }>("/workspace-ai/restore", parsed);
+      const res = await post<{
+        restored?: unknown;
+        missing_visual_images?: unknown;
+        warnings?: unknown;
+      }>("/workspace-ai/restore", parsed);
       const counts = isRec(res.restored) ? res.restored : {};
       const videoCount =
         typeof counts.briefs === "number"
@@ -4555,10 +4705,39 @@ export function WorkspaceAiSettingsPanel({
             : 0;
       const curationCount =
         typeof counts.curation_states === "number" ? counts.curation_states : 0;
+      const visualImagesCount =
+        typeof counts.visual_images === "number" ? counts.visual_images : 0;
+      const missingVisualCount =
+        typeof res.missing_visual_images === "number" ? res.missing_visual_images : 0;
+      const serverWarnings = Array.isArray(res.warnings)
+        ? res.warnings.filter((w): w is string => typeof w === "string" && w.trim().length > 0)
+        : [];
+      const extraParts: string[] = [];
+      if (curationCount > 0) {
+        extraParts.push(zh ? `${curationCount} 条阅读状态` : `${curationCount} reading states`);
+      }
+      if (visualImagesCount > 0) {
+        extraParts.push(zh ? `${visualImagesCount} 张关键帧图片` : `${visualImagesCount} keyframe images`);
+      }
+      const extraLabel =
+        extraParts.length > 0
+          ? zh
+            ? `（含 ${extraParts.join("、")}）`
+            : ` (${extraParts.join(", ")})`
+          : "";
+      const warningNote =
+        serverWarnings.length > 0
+          ? ` ${serverWarnings[0]}`
+          : missingVisualCount > 0
+            ? zh
+              ? ` 注意：旧版快照缺少 ${missingVisualCount} 张关键帧图片。`
+              : ` Note: ${missingVisualCount} keyframe images are missing from this metadata-only snapshot.`
+            : "";
       setFeedback(
-        zh
-          ? `已恢复 ${videoCount} 条中文摘要、${weeklyCount} 份周报与 ${qaCount} 条跨视频问答记录${curationCount > 0 ? `（含 ${curationCount} 条阅读状态）` : ""}。`
-          : `Restored ${videoCount} AI briefs, ${weeklyCount} weekly digests, and ${qaCount} Q&A sessions${curationCount > 0 ? ` (${curationCount} reading states)` : ""}.`,
+        (zh
+          ? `已恢复 ${videoCount} 条中文摘要、${weeklyCount} 份周报与 ${qaCount} 条跨视频问答记录${extraLabel}。`
+          : `Restored ${videoCount} AI briefs, ${weeklyCount} weekly digests, and ${qaCount} Q&A sessions${extraLabel}.`) +
+          warningNote,
       );
     } catch {
       setError(

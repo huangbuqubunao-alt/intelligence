@@ -454,8 +454,83 @@ _DEMO_CORPUS_META_PHRASES: Final[tuple[str, ...]] = (
 )
 
 
+_DEMO_BILINGUAL_EQUIVALENTS: Final[tuple[tuple[str, ...], ...]] = (
+    ("状态机", "state", "machine", "machines"),
+    ("确定性", "deterministic"),
+    ("工具", "tool", "tools"),
+    ("调用", "call", "calls"),
+    ("约束", "bounded", "schema", "schemas", "fail-closed"),
+    ("崩溃", "crash", "crashes", "recovery"),
+    ("证据", "evidence", "grounded"),
+    ("验证", "可验证", "verify", "verified", "validation", "auditable"),
+    ("引用", "citation", "citations", "anchor", "anchors"),
+    ("溯源", "citation", "citations", "transcript", "verify", "verified", "auditable"),
+    ("本地", "local", "local-first"),
+    ("模型", "model", "models", "ollama"),
+    ("一人公司", "solo", "builder", "builders"),
+    ("留存", "retention"),
+    ("高毛利", "high-margin", "margin"),
+    ("工作流", "workflow", "workflows"),
+    ("生产", "production"),
+    ("字幕", "caption", "captions", "transcript"),
+    ("双链", "wikilink", "wikilinks", "obsidian"),
+    ("短片", "shorts", "3-minute", "teaser"),
+    ("噪音", "noise"),
+    ("总结", "summary", "summarization", "summaries"),
+    ("幻觉", "hallucinat", "fabricated"),
+)
+
+
+def _demo_extract_concepts(question_text: str) -> tuple[list[str], list[str]]:
+    q_lower = question_text.lower()
+    en_tokens = [
+        tok
+        for tok in re.findall(r"[a-z][a-z0-9_-]{1,}", q_lower)
+        if tok not in _DEMO_EN_STOPWORDS and len(tok) >= 2
+    ]
+    zh_clean = _DEMO_ZH_PARTICLES_RE.sub(" ", question_text)
+    zh_clean = re.sub(
+        r"(?:为什么|怎么|如何|怎样|哪些|什么|多少|是否|可以|能否|请问|对比|比较|总结|围绕|结合|打造|适合|实测|数值|目前|当前|问题|内容|材料|视频|资料|进行|一下|之间|方面|关于|以及|或者|应该|真的|到底|究竟|这份|这个|在线|知识库|展示|提到|分别|样例|示例|这里|里面|给出|介绍|共性|共识|实践|要点|结论|工作流|方案|原理|作用|好处|原因|需要)",
+        " ",
+        zh_clean,
+    )
+    zh_phrases = [
+        run
+        for run in re.findall(r"[\u4e00-\u9fff]{2,}", zh_clean)
+        if run not in _DEMO_ZH_STOP_BIGRAMS
+    ]
+    return en_tokens, zh_phrases
+
+
+def _demo_concept_supported(concept: str, evidence_hay: str, evidence_en_stems: set[str]) -> bool:
+    if concept.isascii():
+        if concept in evidence_en_stems or concept in evidence_hay:
+            return True
+        if len(concept) > 3 and concept.endswith("s") and concept[:-1] in evidence_en_stems:
+            return True
+        for group in _DEMO_BILINGUAL_EQUIVALENTS:
+            if concept in group and any(alt in evidence_hay for alt in group):
+                return True
+        return False
+    # Chinese concept phrase
+    if concept in evidence_hay:
+        return True
+    bigrams = [
+        concept[i : i + 2]
+        for i in range(len(concept) - 1)
+        if concept[i : i + 2] not in _DEMO_ZH_STOP_BIGRAMS
+    ]
+    if any(bg in evidence_hay for bg in bigrams):
+        return True
+    for group in _DEMO_BILINGUAL_EQUIVALENTS:
+        if any(g in concept for g in group if not g.isascii()):
+            if any(alt in evidence_hay for alt in group):
+                return True
+    return False
+
+
 def _demo_question_has_evidence_support(question_text: str, user_prompt: str) -> bool:
-    """Reject out-of-domain demo questions instead of fabricating citations."""
+    """Reject mixed known-entity + unsupported-attribute and off-topic questions."""
 
     cand_match = re.search(
         r"<untrusted_evidence_candidates>(.*?)</untrusted_evidence_candidates>",
@@ -466,39 +541,49 @@ def _demo_question_has_evidence_support(question_text: str, user_prompt: str) ->
     scope_match = re.search(r"当前检索范围[：:]\s*([^\n]+)", user_prompt)
     if scope_match:
         evidence_hay = f"{evidence_hay}\n{scope_match.group(1).lower()}"
-    evidence_en_words = set(re.findall(r"[a-z][a-z0-9_-]{2,}", evidence_hay))
+    evidence_en_words = set(re.findall(r"[a-z][a-z0-9_-]{1,}", evidence_hay))
     evidence_en_stems = evidence_en_words | {
         w[:-1] for w in evidence_en_words if len(w) > 3 and w.endswith("s")
     }
 
-    q_lower = question_text.lower()
-    en_tokens = [
-        tok
-        for tok in re.findall(r"[a-z][a-z0-9_-]{2,}", q_lower)
-        if tok not in _DEMO_EN_STOPWORDS
-    ]
-    zh_clean = _DEMO_ZH_PARTICLES_RE.sub(" ", question_text)
-    zh_bigrams: list[str] = []
-    for run in re.findall(r"[\u4e00-\u9fff]{2,}", zh_clean):
-        for i in range(len(run) - 1):
-            bg = run[i : i + 2]
-            if bg not in _DEMO_ZH_STOP_BIGRAMS:
-                zh_bigrams.append(bg)
+    en_tokens, zh_phrases = _demo_extract_concepts(question_text)
+    concepts = en_tokens + zh_phrases
+    matched: list[str] = []
+    unmatched: list[str] = []
+    for concept in concepts:
+        if _demo_concept_supported(concept, evidence_hay, evidence_en_stems):
+            matched.append(concept)
+        else:
+            unmatched.append(concept)
 
-    if any(
-        tok in evidence_en_stems
-        or (len(tok) > 3 and tok.endswith("s") and tok[:-1] in evidence_en_stems)
-        for tok in en_tokens
-    ):
-        return True
-    if any(bg in evidence_hay for bg in zh_bigrams):
+    is_corpus_meta = any(
+        phrase in question_text.lower() or phrase in question_text
+        for phrase in _DEMO_CORPUS_META_PHRASES
+    )
+    if is_corpus_meta and len(unmatched) == 0:
         return True
 
-    if any(phrase in q_lower or phrase in question_text for phrase in _DEMO_CORPUS_META_PHRASES):
-        unmatched_tokens = len(en_tokens) + max(0, len(zh_bigrams) // 2)
-        if unmatched_tokens <= 2:
-            return True
-    return False
+    if not matched:
+        return False
+    # Strict mixed-premise guard: "known entity (e.g. Ollama) + unsupported attribute (火星/大气/温度)"
+    if len(unmatched) >= 2:
+        return False
+    if len(unmatched) > len(matched):
+        return False
+    if unmatched:
+        coverage = len(matched) / len(concepts)
+        if coverage < 0.65:
+            return False
+    return True
+
+
+def _demo_score_candidate(desc: str, en_tokens: list[str], zh_phrases: list[str]) -> int:
+    low = desc.lower()
+    words = set(re.findall(r"[a-z][a-z0-9_-]{1,}", low))
+    stems = words | {w[:-1] for w in words if len(w) > 3 and w.endswith("s")}
+    return sum(
+        1 for c in (en_tokens + zh_phrases) if _demo_concept_supported(c, low, stems)
+    )
 
 
 class _DemoShowcaseCompleter:
@@ -550,48 +635,79 @@ class _DemoShowcaseCompleter:
 
         if "RESEARCH_QA_SCHEMA" in system_prompt:
             matches = re.findall(r"\[(E\d+)\]\s*([^\n]+)", user_prompt)
-            refs: list[tuple[str, str]] = []
+            all_refs: list[tuple[str, str]] = []
             seen_refs: set[str] = set()
             for ref_id, desc in matches:
                 if ref_id not in seen_refs:
                     seen_refs.add(ref_id)
-                    refs.append((ref_id, desc.strip()[:100]))
-                if len(refs) >= 3:
-                    break
+                    all_refs.append((ref_id, desc.strip()[:220]))
 
             q_match = re.search(r"用户(?:研究)?问题[：:]\s*(.+)", user_prompt)
             question_text = q_match.group(1).strip() if q_match else "当前所选资料的核心洞察"
-            supported = bool(refs) and _demo_question_has_evidence_support(
+            supported = bool(all_refs) and _demo_question_has_evidence_support(
                 question_text, user_prompt
             )
             if supported:
-                ref_tags = "、".join(f"[{r}]" for r, _ in refs)
+                en_toks, zh_phrs = _demo_extract_concepts(question_text)
+                scored_refs = sorted(
+                    all_refs,
+                    key=lambda item: _demo_score_candidate(item[1], en_toks, zh_phrs),
+                    reverse=True,
+                )
+                matched_refs = [
+                    r
+                    for r in scored_refs
+                    if _demo_score_candidate(r[1], en_toks, zh_phrs) > 0
+                ]
+                if not matched_refs:
+                    matched_refs = scored_refs[:3]
+                else:
+                    matched_refs = matched_refs[:3]
+
+                answer_parts: list[str] = []
+                takeaways: list[str] = []
+                for ref_id, desc in matched_refs:
+                    low_desc = desc.lower()
+                    if any(k in low_desc for k in ("state machine", "deterministic", "状态机")):
+                        answer_parts.append(
+                            f"生产级 AI 工作流应以确定性状态机收敛外部副作用与工具契约 [{ref_id}]"
+                        )
+                        takeaways.append("以确定性状态机和 SQLite 断点管理外部工具副作用")
+                    elif any(k in low_desc for k in ("ollama", "byok", "solo", "local")):
+                        answer_parts.append(
+                            f"通过本机免费 Ollama 搭配受控 BYOK 与 Obsidian 双链沉淀提升留存 [{ref_id}]"
+                        )
+                        takeaways.append("本机 Ollama 零边际成本搭配 BYOK 隔离与 Obsidian 导出")
+                    elif any(k in low_desc for k in ("citation", "evidence", "transcript", "证据", "字幕")):
+                        answer_parts.append(
+                            f"将提炼结论与原始字幕哈希、时间轴/偏移证据绑定以防幻觉 [{ref_id}]"
+                        )
+                        takeaways.append("先持久化原文哈希与证据边界，再输出带引用结论")
+                    else:
+                        snippet_m = re.search(r"原话摘录[：:]\s*(.+)$", desc)
+                        clean_snip = (snippet_m.group(1) if snippet_m else desc).strip()[:90]
+                        answer_parts.append(f"依据原文记录「{clean_snip}」[{ref_id}]")
+                        takeaways.append(f"依据 [{ref_id}] 原文记录核验关键事实")
+
+                ref_tags = "、".join(f"[{r}]" for r, _ in matched_refs)
                 answer_zh = (
                     f"【离线合成样例回放】围绕「{question_text}」，结合当前资料库已验证证据（{ref_tags}）："
-                    f"首先，生产级 AI 工作流必须通过确定性状态机收敛工具权限与副作用边界 [{refs[0][0]}]，"
-                    "并在落盘源码与字幕哈希后再执行模型总结。"
+                    + "；".join(answer_parts)
+                    + "。"
                 )
-                if len(refs) >= 2:
-                    answer_zh += (
-                        f"其次，在产品化与留存层面，将提炼结论绑定可跳转原话片段 [{refs[1][0]}]，"
-                        "并辅以本地 Ollama 零边际成本和 BYOK 凭据隔离，才能兼顾可信度与高毛利。"
-                    )
-                if len(refs) >= 3:
-                    answer_zh += f"同时配合跨视频对比与噪音短片过滤 [{refs[2][0]}]，形成可持续复用的 Obsidian 双链知识资产。"
                 citations = [
-                    {"ref": ref_id, "note_zh": f"关联原始证据：{desc}"}
-                    for ref_id, desc in refs
+                    {"ref": ref_id, "note_zh": f"关联原始证据：{desc[:100]}"}
+                    for ref_id, desc in matched_refs
                 ]
-                takeaways = [
-                    "先做确定性状态与证据存证，再交给模型生成结构化洞察",
-                    "本地 Ollama 与 BYOK 双轨路由兼顾零成本体验与按需高阶能力",
-                ]
+                dedup_takeaways = list(dict.fromkeys(takeaways))[:4]
                 actions = [
                     "点击下方证据引用直接跳转到原视频/文档对应片段核验原文",
                     "点击「导出 Obsidian 双链笔记」将跨视频结论沉淀至个人知识库",
                 ]
                 refusal_reason_zh = ""
+                refs = matched_refs
             else:
+                refs = all_refs[:3]
                 refusal_reason_zh = (
                     "当前离线样例资料库中的可核验字幕与本地笔记未包含与该问题直接相关的原文证据，"
                     "依据 Fail-Closed 反幻觉策略拒绝作答；下方「相关片段」仅作库内检索参考，不作为结论依据。"
@@ -602,14 +718,14 @@ class _DemoShowcaseCompleter:
                     f"【离线合成样例回放 · 证据不足拒答】当前样例资料库中未找到可直接支撑「{question_text}」的原文证据。"
                 )
                 citations = []
-                takeaways = []
+                dedup_takeaways = []
                 actions = []
             return (
                 {
                     "answerable": supported,
                     "refusal_reason_zh": refusal_reason_zh,
                     "answer_zh": answer_zh,
-                    "key_takeaways_zh": takeaways,
+                    "key_takeaways_zh": dedup_takeaways,
                     "action_items_zh": actions,
                     "citations": citations,
                 },

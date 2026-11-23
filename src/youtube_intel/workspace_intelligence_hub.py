@@ -24,6 +24,7 @@ import platform
 import re
 import shutil
 import sqlite3
+import stat
 import sys
 import tempfile
 import threading
@@ -36,13 +37,14 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from types import SimpleNamespace
 from typing import Any, Protocol, cast
 from urllib.parse import parse_qsl, quote, urlencode, urlparse, urlsplit, urlunsplit
 
 from youtube_intel.brief import WeeklyBriefError, WeeklyBriefService
 from youtube_intel.config import _validate_loopback_http_base_url
+from youtube_intel.distillation import _NoCloudRedirect
 from youtube_intel.intelligence_read import (
     AuthoritativeIntelligenceReader,
     IntelligenceCard,
@@ -118,6 +120,23 @@ VALID_FRAME_KINDS = frozenset(
     {"SLIDE", "CHART", "CODE", "DEMO", "ARCHITECTURE", "SPEAKER", "OTHER"}
 )
 VISUAL_SECTION_HEADING = "## 5. 关键画面与字幕融合分析"
+MAX_BACKUP_VISUAL_RAW_BYTES = 40 * 1024 * 1024
+_GENERATION_DIR_PATTERN = re.compile(r"^gen-[a-f0-9]{12,32}$")
+_SAFE_FILE_SEGMENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,180}$")
+_INTERNAL_ALLOWED_DIR_SEGMENTS = frozenset({".workspace-ai"})
+_E_REF_MARKER_RE = re.compile(r"\[E(\d+)\]")
+_STDLIB_URLOPEN = urllib.request.urlopen
+_VISION_MODEL_RE = re.compile(
+    r"(?:qwen3\.5|qwen2\.5vl|qwen2\.5-vl|qwen2-vl|qwen3-vl|gemma3|llava|bakllava|"
+    r"minicpm-v|moondream|llama3\.2-vision|llama4|pixtral|granite3\.2-vision|internvl|[:-]vl\b|vision)",
+    re.IGNORECASE,
+)
+_TEXT_ONLY_MODEL_RE = re.compile(
+    r"(?:^|/|[-:])(?:qwen3(?!\.5)(?!-vl)|qwen2\.5(?!vl)(?!-vl)|qwen2(?!-vl)|"
+    r"llama3(?:\.[012])?(?!-vision)|llama2|deepseek|mistral|mixtral|"
+    r"phi3|phi4|gemma2|gemma(?=:)|codellama|nomic-embed|bge-|mxbai-embed)",
+    re.IGNORECASE,
+)
 
 CANONICAL_TOPIC_CLUSTERS: tuple[str, ...] = (
     "AI Agent 与自动化架构",
@@ -209,6 +228,7 @@ class _TextEvidenceSection:
     start_offset: int
     end_offset: int
     locator_label: str
+    segments: tuple[_TextEvidenceSegment, ...] = ()
 
 
 def _validate_ollama_url(url: str) -> str:
@@ -377,6 +397,103 @@ def _clean_string_list(
     return out
 
 
+def _prune_ungrounded_ref_clauses(text: str, valid_labels: set[str]) -> str:
+    """Remove any clause/sub-clause anchored to an unissued [E<n>] reference.
+
+    Prevents ungrounded fabricated claims from riding alongside valid citations
+    while preserving standalone grounded statements supported by issued refs.
+    """
+    cleaned = str(text or "").strip()
+    if not cleaned:
+        return ""
+    raw_markers = _E_REF_MARKER_RE.findall(cleaned)
+    if all(f"E{num}" in valid_labels for num in raw_markers):
+        return cleaned
+
+    def _has_invalid_ref(fragment: str) -> bool:
+        return any(f"E{num}" not in valid_labels for num in _E_REF_MARKER_RE.findall(fragment))
+
+    tokens = re.split(r"([。！？!?；;\n]+)", cleaned)
+    kept_clauses: list[tuple[str, str]] = []
+    idx = 0
+    while idx < len(tokens):
+        clause = tokens[idx].strip()
+        delim = tokens[idx + 1] if idx + 1 < len(tokens) else ""
+        idx += 2
+        if not clause:
+            continue
+        if not _has_invalid_ref(clause):
+            kept_clauses.append((clause, delim))
+            continue
+        # Clause contains invalid ref(s): try splitting sub-clauses on commas.
+        sub_tokens = re.split(r"([，,]+)", clause)
+        kept_subs: list[tuple[str, str]] = []
+        s_idx = 0
+        while s_idx < len(sub_tokens):
+            sub = sub_tokens[s_idx].strip()
+            s_delim = sub_tokens[s_idx + 1] if s_idx + 1 < len(sub_tokens) else ""
+            s_idx += 2
+            if not sub or _has_invalid_ref(sub):
+                continue
+            kept_subs.append((sub, s_delim))
+        if kept_subs:
+            rebuilt_parts: list[str] = []
+            for p_i, (sub_text, sub_delim) in enumerate(kept_subs):
+                rebuilt_parts.append(sub_text)
+                if p_i < len(kept_subs) - 1:
+                    rebuilt_parts.append(sub_delim or "，")
+            rebuilt = "".join(rebuilt_parts).strip(" ，,；;")
+            if rebuilt and not _has_invalid_ref(rebuilt):
+                kept_clauses.append((rebuilt, delim or "。"))
+
+    if not kept_clauses:
+        return ""
+    out_parts: list[str] = []
+    for c_i, (c_text, c_delim) in enumerate(kept_clauses):
+        out_parts.append(c_text)
+        if c_i < len(kept_clauses) - 1:
+            out_parts.append(c_delim if c_delim else "。")
+        elif c_delim:
+            norm_end = c_delim.strip()
+            if norm_end in {";", "；"}:
+                out_parts.append("。")
+            elif norm_end:
+                out_parts.append(norm_end)
+        elif cleaned[-1] in "。！？!?":
+            out_parts.append(cleaned[-1])
+    result = re.sub(r"[ \t]+", " ", "".join(out_parts)).strip()
+    if _has_invalid_ref(result):
+        return ""
+    return result
+
+
+def _filter_ungrounded_items(items: Sequence[str], valid_labels: set[str]) -> list[str]:
+    out: list[str] = []
+    for item in items:
+        pruned = _prune_ungrounded_ref_clauses(item, valid_labels)
+        if pruned and not any(
+            f"E{num}" not in valid_labels for num in _E_REF_MARKER_RE.findall(pruned)
+        ):
+            out.append(pruned)
+    return out
+
+
+def _fts_index_text(text: str) -> str:
+    """Append space-separated CJK 2-grams alongside lowercased text for FTS5 unicode61."""
+    lowered = re.sub(r"\s+", " ", str(text or "")).strip().lower()
+    if not lowered:
+        return ""
+    bigrams: list[str] = []
+    for run in re.findall(r"[\u4e00-\u9fff]+", lowered):
+        if len(run) == 1:
+            bigrams.append(run)
+        else:
+            bigrams.extend(run[i : i + 2] for i in range(len(run) - 1))
+    if not bigrams:
+        return lowered
+    return f"{lowered} {' '.join(bigrams)}"
+
+
 _WINDOWS_RESERVED_STEMS = frozenset(
     {
         "CON",
@@ -387,6 +504,19 @@ _WINDOWS_RESERVED_STEMS = frozenset(
         *(f"LPT{idx}" for idx in range(1, 10)),
     }
 )
+
+
+def _is_windows_reserved_stem_or_name(name: str) -> bool:
+    stripped = str(name or "").strip().rstrip(". ")
+    if not stripped:
+        return False
+    first_segment = stripped.split(".", 1)[0].rstrip(" ").upper()
+    if first_segment in _WINDOWS_RESERVED_STEMS:
+        return True
+    try:
+        return PureWindowsPath(stripped).is_reserved() or PureWindowsPath(f"{stripped}.md").is_reserved()
+    except ValueError:
+        return False
 
 
 def _truncate_utf8_bytes(text: str, max_bytes: int) -> str:
@@ -405,16 +535,26 @@ def _truncate_utf8_bytes(text: str, max_bytes: int) -> str:
     return "".join(chars)
 
 
-def _safe_obsidian_title(title: str, *, max_bytes: int = 180) -> str:
+def _safe_obsidian_title(
+    title: str,
+    *,
+    max_bytes: int = 180,
+    reserve_suffix_bytes: int = 0,
+) -> str:
+    stem_budget = max(16, int(max_bytes) - max(0, int(reserve_suffix_bytes)))
     cleaned = re.sub(r"[\x00-\x1f\x7f]+", " ", str(title or ""))
     cleaned = re.sub(r'[\\/:*?"<>|#^\[\]]+', " ", cleaned)
     cleaned = re.sub(r"\s+", " ", cleaned).strip(". ")
-    cleaned = _truncate_utf8_bytes(cleaned[:120], max_bytes).strip(". ")
     if not cleaned:
         return "Untitled Video"
-    if cleaned.upper() in _WINDOWS_RESERVED_STEMS:
+    if _is_windows_reserved_stem_or_name(cleaned):
         cleaned = f"_{cleaned}"
-    return cleaned
+    cleaned = _truncate_utf8_bytes(cleaned[:160], stem_budget).strip(". ")
+    if not cleaned:
+        return "Untitled Video"
+    if _is_windows_reserved_stem_or_name(cleaned):
+        cleaned = _truncate_utf8_bytes(f"_{cleaned}", stem_budget).strip(". ")
+    return cleaned or "Untitled Video"
 
 
 def _yaml_quoted(value: object) -> str:
@@ -422,11 +562,66 @@ def _yaml_quoted(value: object) -> str:
     return json.dumps(cleaned, ensure_ascii=False)
 
 
+def _infer_ollama_model_vision_by_name(model: str) -> bool | None:
+    clean = str(model or "").strip().lower()
+    if not clean:
+        return None
+    if _VISION_MODEL_RE.search(clean):
+        return True
+    if _TEXT_ONLY_MODEL_RE.search(clean):
+        return False
+    return None
+
+
+def _probe_ollama_model_vision_http(
+    base_url: str,
+    model: str,
+    *,
+    opener: urllib.request.OpenerDirector | None = None,
+) -> bool | None:
+    try:
+        validated = _validate_ollama_url(base_url)
+        body = json.dumps({"name": model}).encode("utf-8")
+        req = urllib.request.Request(
+            f"{validated}/api/show",
+            data=body,
+            method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        active_opener = opener or urllib.request.build_opener(_NoCloudRedirect)
+        if opener is None and urllib.request.urlopen is not _STDLIB_URLOPEN:
+            ctx = urllib.request.urlopen(req, timeout=2.0)  # noqa: S310
+        else:
+            ctx = active_opener.open(req, timeout=2.0)
+        with ctx as resp:
+            data = json.loads(resp.read(262_144).decode("utf-8"))
+        if isinstance(data, Mapping):
+            caps = data.get("capabilities")
+            if isinstance(caps, list):
+                return any(str(c).strip().lower() == "vision" for c in caps)
+            if data.get("projector_info"):
+                return True
+            model_info = data.get("model_info")
+            if isinstance(model_info, Mapping):
+                if any(
+                    "vision" in str(k).lower() or "clip" in str(k).lower()
+                    for k in model_info
+                ):
+                    return True
+        return None
+    except Exception:
+        return None
+
+
 def _probe_ollama_models_default(base_url: str) -> tuple[bool, tuple[str, ...]]:
     try:
         validated = _validate_ollama_url(base_url)
         req = urllib.request.Request(f"{validated}/api/tags", method="GET")
-        with urllib.request.urlopen(req, timeout=2.5) as resp:  # noqa: S310
+        if urllib.request.urlopen is not _STDLIB_URLOPEN:
+            ctx = urllib.request.urlopen(req, timeout=2.5)  # noqa: S310
+        else:
+            ctx = urllib.request.build_opener(_NoCloudRedirect).open(req, timeout=2.5)
+        with ctx as resp:
             data = json.loads(resp.read().decode("utf-8"))
         models = tuple(
             str(m["name"])
@@ -436,6 +631,133 @@ def _probe_ollama_models_default(base_url: str) -> tuple[bool, tuple[str, ...]]:
         return True, models
     except Exception:
         return False, ()
+
+
+def _validate_single_segment(name: str) -> str | None:
+    if not isinstance(name, str):
+        return None
+    if name in {"", ".", ".."} or "/" in name or "\\" in name or "\x00" in name:
+        return None
+    if _SAFE_FILE_SEGMENT_RE.fullmatch(name) is None:
+        return None
+    return name
+
+
+def _open_nofollow_tree_fd(anchor_root: Path, dir_parts: Sequence[str]) -> int:
+    if anchor_root.is_symlink() or not anchor_root.is_dir():
+        raise OSError("Unsafe anchor directory")
+    dir_flags = (
+        os.O_RDONLY
+        | getattr(os, "O_DIRECTORY", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+    )
+    cur_fd = os.open(anchor_root, dir_flags)
+    try:
+        for raw_part in dir_parts:
+            part = (
+                raw_part
+                if raw_part in _INTERNAL_ALLOWED_DIR_SEGMENTS
+                else _validate_single_segment(raw_part)
+            )
+            if part is None:
+                raise OSError("Unsafe path segment")
+            next_fd = os.open(part, dir_flags, dir_fd=cur_fd)
+            os.close(cur_fd)
+            cur_fd = next_fd
+        return cur_fd
+    except BaseException:
+        os.close(cur_fd)
+        raise
+
+
+def _regular_file_exists_nofollow(
+    anchor_root: Path,
+    rel_parts: Sequence[str],
+    *,
+    max_bytes: int,
+) -> bool:
+    if len(rel_parts) < 1:
+        return False
+    leaf = _validate_single_segment(rel_parts[-1])
+    if leaf is None:
+        return False
+    try:
+        dir_fd = _open_nofollow_tree_fd(anchor_root, rel_parts[:-1])
+    except OSError:
+        return False
+    file_flags = (
+        os.O_RDONLY
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_NONBLOCK", 0)
+    )
+    try:
+        file_fd = os.open(leaf, file_flags, dir_fd=dir_fd)
+        try:
+            st = os.fstat(file_fd)
+            return stat.S_ISREG(st.st_mode) and 0 < st.st_size <= max_bytes
+        finally:
+            os.close(file_fd)
+    except OSError:
+        return False
+    finally:
+        os.close(dir_fd)
+
+
+def _read_regular_file_nofollow(
+    anchor_root: Path,
+    rel_parts: Sequence[str],
+    *,
+    max_bytes: int,
+    expected_sha256: str | None = None,
+) -> bytes | None:
+    if len(rel_parts) < 1:
+        return None
+    leaf = _validate_single_segment(rel_parts[-1])
+    if leaf is None:
+        return None
+    try:
+        dir_fd = _open_nofollow_tree_fd(anchor_root, rel_parts[:-1])
+    except OSError:
+        return None
+    file_flags = (
+        os.O_RDONLY
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_NONBLOCK", 0)
+    )
+    try:
+        file_fd = os.open(leaf, file_flags, dir_fd=dir_fd)
+        try:
+            st1 = os.fstat(file_fd)
+            if not stat.S_ISREG(st1.st_mode) or st1.st_size <= 0 or st1.st_size > max_bytes:
+                return None
+            chunks: list[bytes] = []
+            total = 0
+            while total <= max_bytes:
+                chunk = os.read(file_fd, min(262_144, max_bytes - total + 1))
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > max_bytes:
+                    return None
+                chunks.append(chunk)
+            st2 = os.fstat(file_fd)
+            if (
+                (st1.st_ino, st1.st_size, st1.st_mtime_ns)
+                != (st2.st_ino, st2.st_size, st2.st_mtime_ns)
+                or total != st1.st_size
+            ):
+                return None
+            raw = b"".join(chunks)
+            if expected_sha256:
+                if hashlib.sha256(raw).hexdigest() != str(expected_sha256).strip().lower():
+                    return None
+            return raw
+        finally:
+            os.close(file_fd)
+    except OSError:
+        return None
+    finally:
+        os.close(dir_fd)
 
 
 def _sanitize_cue_text(raw: object) -> str:
@@ -776,6 +1098,7 @@ class WorkspaceIntelligenceHub:
         vision_completer: VisionCompleter | None = None,
         media_transcriber: MediaTranscriber | None = None,
         installed_ollama_probe: Callable[[str], tuple[bool, tuple[str, ...]]] | None = None,
+        http_opener: urllib.request.OpenerDirector | None = None,
         now: Callable[[], datetime] | None = None,
     ) -> None:
         self._repository = repository
@@ -802,12 +1125,31 @@ class WorkspaceIntelligenceHub:
             else _discover_default_mlx_transcriber(self._project_root)
         )
         self._ollama_probe = installed_ollama_probe or _probe_ollama_models_default
+        self._http_opener = http_opener
+        self._default_no_redirect_opener = urllib.request.build_opener(_NoCloudRedirect)
         self._now = now or (lambda: datetime.now(UTC))
         self._db_lock = threading.RLock()
         self._transcribe_lock = threading.Lock()
         self._transcribe_jobs: dict[str, dict[str, Any]] = {}
         self._schema_ready_token: tuple[int, int] | None = None
         self._last_snapshot_mono: float = 0.0
+
+    def _open_url(self, req: urllib.request.Request, *, timeout: float) -> Any:
+        if self._http_opener is not None:
+            return self._http_opener.open(req, timeout=timeout)
+        if urllib.request.urlopen is not _STDLIB_URLOPEN:
+            return urllib.request.urlopen(req, timeout=timeout)  # noqa: S310
+        return self._default_no_redirect_opener.open(req, timeout=timeout)
+
+    def _probe_ollama_model_vision(self, base_url: str, model: str) -> bool | None:
+        active_opener = (
+            self._http_opener
+            if self._http_opener is not None
+            else None
+            if urllib.request.urlopen is not _STDLIB_URLOPEN
+            else self._default_no_redirect_opener
+        )
+        return _probe_ollama_model_vision_http(base_url, model, opener=active_opener)
 
     def has_media_transcriber(self) -> bool:
         return self._media_transcriber is not None
@@ -1296,31 +1638,66 @@ class WorkspaceIntelligenceHub:
         with self._db_lock:
             conn = self._connect_write()
             try:
-                with conn:
-                    row = conn.execute(
-                        """
-                        SELECT COUNT(*) AS cnt FROM cloud_call_ledger
-                        WHERE day_utc = ?
-                          AND status IN ('RESERVED', 'SUCCEEDED', 'AMBIGUOUS_TIMEOUT')
-                        """,
-                        (day_utc,),
-                    ).fetchone()
-                    used = int(row["cnt"]) if row is not None else 0
-                    if used >= daily_limit:
-                        raise ApiError(
-                            HTTPStatus.TOO_MANY_REQUESTS,
-                            "CLOUD_DAILY_BUDGET_EXCEEDED",
-                            f"已达到今日云端调用上限（{daily_limit} 次），为防止静默超额扣费已阻断本次请求。",
+                if conn.in_transaction:
+                    conn.commit()
+                conn.isolation_level = None
+                conn.execute("PRAGMA busy_timeout=5000")
+                delays = (0.005, 0.01, 0.02, 0.04, 0.08, 0.12)
+                for attempt in range(len(delays) + 1):
+                    in_tx = False
+                    try:
+                        conn.execute("BEGIN IMMEDIATE")
+                        in_tx = True
+                        row = conn.execute(
+                            """
+                            SELECT COUNT(*) AS cnt FROM cloud_call_ledger
+                            WHERE day_utc = ?
+                              AND status IN ('RESERVED', 'SUCCEEDED', 'AMBIGUOUS_TIMEOUT')
+                            """,
+                            (day_utc,),
+                        ).fetchone()
+                        used = int(row["cnt"]) if row is not None else 0
+                        if used >= daily_limit:
+                            conn.execute("ROLLBACK")
+                            in_tx = False
+                            raise ApiError(
+                                HTTPStatus.TOO_MANY_REQUESTS,
+                                "CLOUD_DAILY_BUDGET_EXCEEDED",
+                                f"已达到今日云端调用上限（{daily_limit} 次），为防止静默超额扣费已阻断本次请求。",
+                            )
+                        conn.execute(
+                            """
+                            INSERT INTO cloud_call_ledger (
+                                call_id, day_utc, provider, model, endpoint,
+                                status, created_at, updated_at
+                            ) VALUES (?, ?, ?, ?, ?, 'RESERVED', ?, ?)
+                            """,
+                            (call_id, day_utc, provider, model, endpoint, now_iso, now_iso),
                         )
-                    conn.execute(
-                        """
-                        INSERT INTO cloud_call_ledger (
-                            call_id, day_utc, provider, model, endpoint,
-                            status, created_at, updated_at
-                        ) VALUES (?, ?, ?, ?, ?, 'RESERVED', ?, ?)
-                        """,
-                        (call_id, day_utc, provider, model, endpoint, now_iso, now_iso),
-                    )
+                        conn.execute("COMMIT")
+                        in_tx = False
+                        break
+                    except sqlite3.OperationalError as err:
+                        if in_tx:
+                            try:
+                                conn.execute("ROLLBACK")
+                            except sqlite3.Error:
+                                pass
+                        msg = str(err).lower()
+                        if (
+                            ("locked" in msg or "busy" in msg)
+                            and attempt < len(delays)
+                        ):
+                            time.sleep(delays[attempt])
+                            continue
+                        raise
+                    except BaseException:
+                        if in_tx:
+                            try:
+                                conn.execute("ROLLBACK")
+                            except sqlite3.Error:
+                                pass
+                        raise
             finally:
                 conn.close()
         return call_id
@@ -1378,18 +1755,22 @@ class WorkspaceIntelligenceHub:
         encoded: list[str] = []
         total_bytes = 0
         for img_path in image_paths:
-            if img_path.is_symlink() or not img_path.is_file():
+            if img_path.is_symlink() or img_path.parent.is_symlink():
                 raise ApiError(
                     HTTPStatus.CONFLICT,
                     "VISUAL_EXTRACTION_FAILED",
                     "关键画面图像文件缺失或路径无效。",
                 )
-            raw = img_path.read_bytes()
-            if len(raw) > MAX_SINGLE_FRAME_BYTES:
+            raw = _read_regular_file_nofollow(
+                img_path.parent,
+                (img_path.name,),
+                max_bytes=MAX_SINGLE_FRAME_BYTES,
+            )
+            if raw is None:
                 raise ApiError(
                     HTTPStatus.CONFLICT,
                     "VISUAL_EXTRACTION_FAILED",
-                    "单个关键画面超出安全大小上限。",
+                    "关键画面图像文件缺失、超过大小限制或路径无效。",
                 )
             total_bytes += len(raw)
             if total_bytes > MAX_TOTAL_VISION_BYTES:
@@ -1449,7 +1830,7 @@ class WorkspaceIntelligenceHub:
                         "Authorization": f"Bearer {secret}",
                     },
                 )
-                with urllib.request.urlopen(req, timeout=90) as resp:  # noqa: S310
+                with self._open_url(req, timeout=90) as resp:
                     raw_resp = json.loads(resp.read().decode("utf-8"))
                 content = str(raw_resp["choices"][0]["message"]["content"])
                 parsed_json = _extract_json_object(content)
@@ -1458,6 +1839,19 @@ class WorkspaceIntelligenceHub:
             except ApiError:
                 self._finalize_cloud_call(call_id, status="AMBIGUOUS_TIMEOUT")
                 raise
+            except urllib.error.HTTPError as err:
+                self._finalize_cloud_call(call_id, status="AMBIGUOUS_TIMEOUT")
+                if 300 <= err.code < 400:
+                    raise ApiError(
+                        HTTPStatus.BAD_GATEWAY,
+                        "CLOUD_REDIRECT_BLOCKED",
+                        "云端 API 端点尝试重定向至未授权目标，已按安全策略拦截以保护密钥。",
+                    ) from err
+                raise ApiError(
+                    HTTPStatus.BAD_GATEWAY,
+                    "CLOUD_MODEL_CALL_FAILED",
+                    "云端模型请求失败，请检查 API Key、模型名与网络连通性。",
+                ) from err
             except (urllib.error.URLError, KeyError, ValueError, TimeoutError, OSError) as err:
                 self._finalize_cloud_call(call_id, status="AMBIGUOUS_TIMEOUT")
                 raise ApiError(
@@ -1501,7 +1895,7 @@ class WorkspaceIntelligenceHub:
             headers={"Content-Type": "application/json"},
         )
         try:
-            with urllib.request.urlopen(req, timeout=180) as resp:  # noqa: S310
+            with self._open_url(req, timeout=180) as resp:
                 raw_resp = json.loads(resp.read().decode("utf-8"))
             content = str(raw_resp["message"]["content"])
             return _extract_json_object(content), provider, model
@@ -1576,7 +1970,7 @@ class WorkspaceIntelligenceHub:
                         "Authorization": f"Bearer {secret}",
                     },
                 )
-                with urllib.request.urlopen(req, timeout=120) as resp:  # noqa: S310
+                with self._open_url(req, timeout=120) as resp:
                     raw_resp = json.loads(resp.read().decode("utf-8"))
                 content = str(raw_resp["choices"][0]["message"]["content"])
                 parsed_json = _extract_json_object(content)
@@ -1585,6 +1979,19 @@ class WorkspaceIntelligenceHub:
             except ApiError:
                 self._finalize_cloud_call(call_id, status="AMBIGUOUS_TIMEOUT")
                 raise
+            except urllib.error.HTTPError as err:
+                self._finalize_cloud_call(call_id, status="AMBIGUOUS_TIMEOUT")
+                if 300 <= err.code < 400:
+                    raise ApiError(
+                        HTTPStatus.BAD_GATEWAY,
+                        "CLOUD_REDIRECT_BLOCKED",
+                        "云端多模态 API 端点尝试重定向至未授权目标，已按安全策略拦截以保护密钥。",
+                    ) from err
+                raise ApiError(
+                    HTTPStatus.BAD_GATEWAY,
+                    "CLOUD_MODEL_CALL_FAILED",
+                    "云端多模态视觉模型请求失败，请检查 API Key、当前模型是否支持图片输入及网络连通性。",
+                ) from err
             except (urllib.error.URLError, KeyError, ValueError, TimeoutError, OSError) as err:
                 self._finalize_cloud_call(call_id, status="AMBIGUOUS_TIMEOUT")
                 raise ApiError(
@@ -1605,8 +2012,22 @@ class WorkspaceIntelligenceHub:
                 model=model,
                 max_tokens=max_tokens,
             )
-        b64_images = self._read_bounded_base64_images(image_paths)
         base_url = _validate_ollama_url(cfg["ollama_base_url"])
+        name_vision_hint = _infer_ollama_model_vision_by_name(model)
+        if name_vision_hint is False:
+            raise ApiError(
+                HTTPStatus.CONFLICT,
+                "LOCAL_VISION_MODEL_UNSUPPORTED",
+                f"当前本机模型（{model}）为纯文本模型，暂不支持图片视觉解读，请在设置中切换至支持视觉的本地模型（如 gemma3:4b、qwen3.5:9b 或 qwen2.5vl）。",
+            )
+        probe_vision = self._probe_ollama_model_vision(base_url, model)
+        if probe_vision is False:
+            raise ApiError(
+                HTTPStatus.CONFLICT,
+                "LOCAL_VISION_MODEL_UNSUPPORTED",
+                f"当前本机模型（{model}）暂不支持图片视觉解读，请在设置中切换至支持视觉的本地模型（如 gemma3:4b、qwen3.5:9b 或 qwen2.5vl）。",
+            )
+        b64_images = self._read_bounded_base64_images(image_paths)
         req_body = json.dumps(
             {
                 "model": model,
@@ -1634,7 +2055,7 @@ class WorkspaceIntelligenceHub:
             headers={"Content-Type": "application/json"},
         )
         try:
-            with urllib.request.urlopen(req, timeout=240) as resp:  # noqa: S310
+            with self._open_url(req, timeout=240) as resp:
                 raw_resp = json.loads(resp.read().decode("utf-8"))
             content = str(raw_resp["message"]["content"])
             return _extract_json_object(content), provider, model
@@ -2493,6 +2914,7 @@ class WorkspaceIntelligenceHub:
                     start_offset=seg.start_offset,
                     end_offset=seg.end_offset,
                     locator_label=seg.locator_label,
+                    segments=(seg,),
                 )
                 for seg in segments
             ]
@@ -2535,6 +2957,7 @@ class WorkspaceIntelligenceHub:
                         start_offset=u_first.start_offset,
                         end_offset=u_last.end_offset,
                         locator_label=f"P{u_first.paragraph_index} ({u_first.start_offset}–{u_last.end_offset})",
+                        segments=tuple(uniform_bucket),
                     )
                 )
             return uniform_sections[:max_sections]
@@ -2566,6 +2989,7 @@ class WorkspaceIntelligenceHub:
                         start_offset=first.start_offset,
                         end_offset=last.end_offset,
                         locator_label=f"P{first.paragraph_index} ({first.start_offset}–{last.end_offset})",
+                        segments=tuple(bucket),
                     )
                 )
                 bucket = []
@@ -2583,9 +3007,52 @@ class WorkspaceIntelligenceHub:
                     start_offset=first.start_offset,
                     end_offset=last.end_offset,
                     locator_label=f"P{first.paragraph_index} ({first.start_offset}–{last.end_offset})",
+                    segments=tuple(bucket),
                 )
             )
         return sections[:max_sections]
+
+    def _resolve_exact_text_segment(
+        self,
+        section: _TextEvidenceSection,
+        *,
+        point_zh: str,
+        evidence_quote: str = "",
+    ) -> _TextEvidenceSegment | None:
+        """Select the exact single authoritative segment within a section."""
+        if not section.segments:
+            return None
+        if len(section.segments) == 1:
+            return section.segments[0]
+        quote_norm = re.sub(r"\s+", " ", evidence_quote).strip().lower()
+        point_norm = re.sub(r"\s+", " ", point_zh).strip().lower()
+        query_tokens = self._tokenize_query(f"{evidence_quote} {point_zh}")
+        expanded_tokens = self._expand_bilingual_tokens(f"{evidence_quote} {point_zh}")
+        quote_tokens = self._tokenize_query(evidence_quote) if quote_norm else set()
+
+        best_seg = section.segments[0]
+        best_score = (-1.0, -1, -1)
+        for seg in section.segments:
+            seg_norm = re.sub(r"\s+", " ", seg.text).strip().lower()
+            seg_tokens = self._tokenize_query(seg.text)
+            score = 0.0
+            if quote_norm and len(quote_norm) >= 2:
+                if quote_norm in seg_norm:
+                    score += 1000.0
+                else:
+                    score += 25.0 * len(quote_tokens & seg_tokens)
+            if point_norm:
+                # Reward multi-char exact spans from point_zh present verbatim in seg.text
+                for span in re.findall(r"[\u4e00-\u9fff]{3,}|[a-z0-9_-]{4,}", point_norm):
+                    if span in seg_norm:
+                        score += 60.0 + len(span)
+            score += 12.0 * len(query_tokens & seg_tokens)
+            score += 3.0 * len(expanded_tokens & seg_tokens)
+            rank = (score, -seg.paragraph_index, -seg.start_offset)
+            if rank > best_score:
+                best_score = rank
+                best_seg = seg
+        return best_seg
 
     def _distill_local_text_document(
         self,
@@ -2635,7 +3102,7 @@ class WorkspaceIntelligenceHub:
             '  "content_bucket": "DEEP_DIVE | TUTORIAL",\n'
             '  "topics_zh": ["2到4个精炼中文标签"],\n'
             f'  "topic_cluster_zh": "优先从 [{clusters_str}] 中选择最契合的一项",\n'
-            '  "core_points": [{"text_zh": "核心论点或实操步骤（中文）", "section_index": 对应整数段落索引0..N}],\n'
+            '  "core_points": [{"text_zh": "核心论点或实操步骤（中文）", "section_index": 对应整数段落索引0..N, "evidence_quote": "该论点对应的原话关键片段"}],\n'
             '  "product_opportunities_zh": ["1-2条对AI产品设计的具体启发，无则空数组"],\n'
             '  "business_opportunities_zh": ["1-2条对商业变现/一人公司的启发，无则空数组"],\n'
             '  "filtered_noise_zh": ["已过滤的寒暄或冗余表述说明"]\n'
@@ -2724,19 +3191,43 @@ class WorkspaceIntelligenceHub:
                 if s_idx is None:
                     continue
                 sec_obj = evidence_sections[s_idx]
-                point_entry: dict[str, object] = {
-                    "text": pt_text,
-                    "start_seconds": None,
-                    "end_seconds": None,
-                    "evidence_ids": list(sec_obj.evidence_ids[:1]),
-                    "excerpt": sec_obj.text[:280],
-                }
-                if sec_obj.evidence_ids:
-                    point_entry["locator_type"] = "TEXT_RANGE"
-                    point_entry["locator_label"] = sec_obj.locator_label
-                    point_entry["paragraph_index"] = sec_obj.paragraph_index
-                    point_entry["start_offset"] = sec_obj.start_offset
-                    point_entry["end_offset"] = sec_obj.end_offset
+                raw_quote = _clean_text(entry.get("evidence_quote"), max_len=240)
+                chosen_seg = self._resolve_exact_text_segment(
+                    sec_obj,
+                    point_zh=pt_text,
+                    evidence_quote=raw_quote,
+                )
+                if chosen_seg is not None:
+                    point_entry: dict[str, object] = {
+                        "text": pt_text,
+                        "start_seconds": None,
+                        "end_seconds": None,
+                        "start_ms": None,
+                        "end_ms": None,
+                        "evidence_ids": [chosen_seg.evidence_id],
+                        "excerpt": chosen_seg.text[:280],
+                        "locator_type": "TEXT_RANGE",
+                        "locator_label": chosen_seg.locator_label,
+                        "paragraph_index": chosen_seg.paragraph_index,
+                        "start_offset": chosen_seg.start_offset,
+                        "end_offset": chosen_seg.end_offset,
+                    }
+                else:
+                    point_entry = {
+                        "text": pt_text,
+                        "start_seconds": None,
+                        "end_seconds": None,
+                        "start_ms": None,
+                        "end_ms": None,
+                        "evidence_ids": list(sec_obj.evidence_ids[:1]),
+                        "excerpt": sec_obj.text[:280],
+                    }
+                    if sec_obj.evidence_ids:
+                        point_entry["locator_type"] = "TEXT_RANGE"
+                        point_entry["locator_label"] = sec_obj.locator_label
+                        point_entry["paragraph_index"] = sec_obj.paragraph_index
+                        point_entry["start_offset"] = sec_obj.start_offset
+                        point_entry["end_offset"] = sec_obj.end_offset
                 hydrated_points.append(point_entry)
 
         now = self._now()
@@ -3421,33 +3912,44 @@ class WorkspaceIntelligenceHub:
         return val if val in VALID_FRAME_KINDS else "OTHER"
 
     @staticmethod
+    def _video_keyframes_rel_parts(
+        video_id: str, entry: Mapping[str, Any], filename: str
+    ) -> tuple[str, ...] | None:
+        vid_hash = hashlib.sha256(video_id.encode("utf-8")).hexdigest()[:16]
+        raw_sub = entry.get("storage_subdir")
+        if raw_sub is not None and str(raw_sub).strip():
+            sub = str(raw_sub).strip()
+            if _GENERATION_DIR_PATTERN.fullmatch(sub) is None:
+                return None
+            return (".workspace-ai", "keyframes", vid_hash, sub, filename)
+        return (".workspace-ai", "keyframes", vid_hash, filename)
+
+    @classmethod
     def _visual_analysis_from_row(
+        cls,
         row: sqlite3.Row,
         *,
         video_id: str,
-        keyframes_dir: Path,
+        project_root: Path,
     ) -> dict[str, Any]:
         raw_frames = json.loads(str(row["frames_json"]))
         raw_takeaways = json.loads(str(row["visual_takeaways_json"]))
-        kf_dir_resolved = keyframes_dir.resolve() if keyframes_dir.exists() else keyframes_dir
         frames_out: list[dict[str, Any]] = []
         for entry in raw_frames if isinstance(raw_frames, list) else []:
             if not isinstance(entry, Mapping):
                 continue
             frame_id = str(entry.get("frame_id") or "")
-            filename = str(entry.get("filename") or "")
+            raw_fname = str(entry.get("filename") or "")
+            filename = _validate_single_segment(Path(raw_fname).name) if raw_fname else None
             available = False
             if FRAME_ID_PATTERN.fullmatch(frame_id) and filename:
-                img_path = keyframes_dir / Path(filename).name
-                try:
-                    available = (
-                        img_path.exists()
-                        and not img_path.is_symlink()
-                        and img_path.resolve().is_relative_to(kf_dir_resolved)
-                        and img_path.is_file()
+                rel_parts = cls._video_keyframes_rel_parts(video_id, entry, filename)
+                if rel_parts is not None:
+                    available = _regular_file_exists_nofollow(
+                        project_root,
+                        rel_parts,
+                        max_bytes=MAX_SINGLE_FRAME_BYTES,
                     )
-                except OSError:
-                    available = False
             frame_copy = dict(entry)
             frame_copy["image_url"] = (
                 f"/api/v1/workspace-ai/videos/{quote(video_id, safe='')}/keyframes/{frame_id}.jpg"
@@ -3483,7 +3985,7 @@ class WorkspaceIntelligenceHub:
             return self._visual_analysis_from_row(
                 row,
                 video_id=video_id,
-                keyframes_dir=self._video_keyframes_dir(video_id),
+                project_root=self._project_root,
             )
         except sqlite3.Error:
             return None
@@ -3502,7 +4004,7 @@ class WorkspaceIntelligenceHub:
                 out[vid] = self._visual_analysis_from_row(
                     row,
                     video_id=vid,
-                    keyframes_dir=self._video_keyframes_dir(vid),
+                    project_root=self._project_root,
                 )
             return out
         except sqlite3.Error:
@@ -3528,25 +4030,30 @@ class WorkspaceIntelligenceHub:
         )
         if target_frame is None:
             return None
-        filename = Path(str(target_frame.get("filename") or "")).name
+        raw_fname = str(target_frame.get("filename") or "")
+        filename = _validate_single_segment(Path(raw_fname).name) if raw_fname else None
         if not filename:
             return None
-        kf_dir = self._video_keyframes_dir(video_id)
-        if not kf_dir.is_dir():
+        rel_parts = self._video_keyframes_rel_parts(video_id, target_frame, filename)
+        if rel_parts is None:
             return None
-        kf_dir_resolved = kf_dir.resolve()
-        candidate = kf_dir / filename
-        if candidate.is_symlink():
+        expected_sha = str(target_frame.get("sha256") or "").strip().lower() or None
+        raw = _read_regular_file_nofollow(
+            self._project_root,
+            rel_parts,
+            max_bytes=MAX_SINGLE_FRAME_BYTES,
+            expected_sha256=expected_sha,
+        )
+        if raw is None:
             return None
-        resolved = candidate.resolve()
-        if not resolved.is_relative_to(kf_dir_resolved) or not resolved.is_file():
-            return None
-        if resolved.stat().st_size > MAX_SINGLE_FRAME_BYTES:
-            return None
-        return resolved.read_bytes(), filename
+        return raw, filename
 
     @staticmethod
-    def _render_visual_obsidian_section(visual_analysis: Mapping[str, Any]) -> str:
+    def _render_visual_obsidian_section(
+        visual_analysis: Mapping[str, Any],
+        *,
+        available_asset_names: set[str] | None = None,
+    ) -> str:
         frame_kind_zh = {
             "SLIDE": "PPT 幻灯片",
             "CHART": "数据图表",
@@ -3581,11 +4088,15 @@ class WorkspaceIntelligenceHub:
                 str(frame.get("frame_kind") or "OTHER").upper(), "关键画面"
             )
             asset_name = str(frame.get("obsidian_asset_name") or frame.get("filename") or "")
+            safe_asset_leaf = Path(asset_name).name if asset_name else ""
             detail_zh = _clean_text(frame.get("visual_detail_zh"), max_len=500)
             fusion_zh = _clean_text(frame.get("transcript_fusion_zh"), max_len=500)
             lines.append(f"### [{ts_label}] {title_zh}（{kind_label}）")
-            if asset_name:
-                lines.append(f"![[assets/{asset_name}]]")
+            if safe_asset_leaf:
+                if available_asset_names is None or safe_asset_leaf.lower() in available_asset_names:
+                    lines.append(f"![[assets/{safe_asset_leaf}]]")
+                else:
+                    lines.append("- **图片资产状态**：当前工作区缺少该帧物理图片（可能来自仅含元数据的旧版备份快照）")
             if detail_zh:
                 lines.append(f"- **画面信息**：{detail_zh}")
             if fusion_zh:
@@ -3595,7 +4106,11 @@ class WorkspaceIntelligenceHub:
 
     @classmethod
     def _inject_visual_section_into_markdown(
-        cls, base_md: str, visual_analysis: Mapping[str, Any]
+        cls,
+        base_md: str,
+        visual_analysis: Mapping[str, Any],
+        *,
+        available_asset_names: set[str] | None = None,
     ) -> str:
         marker = f"\n{VISUAL_SECTION_HEADING}\n"
         base = str(base_md or "")
@@ -3603,7 +4118,10 @@ class WorkspaceIntelligenceHub:
         if idx == -1 and base.lstrip().startswith(VISUAL_SECTION_HEADING):
             idx = 0
         trimmed = base[:idx].rstrip() if idx != -1 else base.rstrip()
-        section = cls._render_visual_obsidian_section(visual_analysis).rstrip()
+        section = cls._render_visual_obsidian_section(
+            visual_analysis,
+            available_asset_names=available_asset_names,
+        ).rstrip()
         if not trimmed:
             return section + "\n"
         return trimmed + "\n\n" + section + "\n"
@@ -3636,7 +4154,8 @@ class WorkspaceIntelligenceHub:
                 dir=kf_root,
             )
         )
-        old_backup = kf_root / f".old-kf-{uuid.uuid4().hex[:8]}"
+        gen_id = f"gen-{uuid.uuid4().hex[:16]}"
+        gen_dir = kf_dir / gen_id
         os.chmod(stage_dir, 0o700)
         try:
             try:
@@ -3771,6 +4290,7 @@ class WorkspaceIntelligenceHub:
                         "frame_index": idx,
                         "frame_id": kf.frame_id,  # type: ignore[attr-defined]
                         "filename": kf.filename,  # type: ignore[attr-defined]
+                        "storage_subdir": gen_id,
                         "obsidian_asset_name": f"{safe_asset_prefix}-{short_vid_hash}-{kf.frame_id}.jpg",  # type: ignore[attr-defined]
                         "timestamp_ms": kf.timestamp_ms,  # type: ignore[attr-defined]
                         "timestamp_label": kf.timestamp_label,  # type: ignore[attr-defined]
@@ -3804,13 +4324,14 @@ class WorkspaceIntelligenceHub:
             takeaways_json = json.dumps(visual_takeaways_zh, ensure_ascii=False)
 
             ai_brief_updated = False
+            kf_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+            os.chmod(kf_dir, 0o700)
+            os.replace(stage_dir, gen_dir)
+            committed = False
             with self._db_lock:
                 conn = self._connect_write()
                 try:
                     with conn:
-                        if kf_dir.exists():
-                            os.replace(kf_dir, old_backup)
-                        os.replace(stage_dir, kf_dir)
                         conn.execute(
                             """
                             INSERT INTO video_visual_analyses (
@@ -3853,7 +4374,7 @@ class WorkspaceIntelligenceHub:
                                     (video_id,),
                                 ).fetchone(),
                                 video_id=video_id,
-                                keyframes_dir=kf_dir,
+                                project_root=self._project_root,
                             )
                             merged_md = self._inject_visual_section_into_markdown(
                                 str(brief_row["obsidian_markdown"] or ""),
@@ -3864,22 +4385,27 @@ class WorkspaceIntelligenceHub:
                                 (merged_md, updated_at, video_id),
                             )
                             ai_brief_updated = True
-                    if old_backup.exists():
-                        shutil.rmtree(old_backup, ignore_errors=True)
+                    committed = True
                 except BaseException:
-                    if not kf_dir.exists() and old_backup.exists():
-                        try:
-                            os.replace(old_backup, kf_dir)
-                        except OSError:
-                            pass
+                    if not committed and gen_dir.exists():
+                        shutil.rmtree(gen_dir, ignore_errors=True)
                     raise
                 finally:
                     conn.close()
+            if committed and kf_dir.is_dir():
+                for child in kf_dir.iterdir():
+                    if child.name == gen_id:
+                        continue
+                    try:
+                        if child.is_dir() and not child.is_symlink():
+                            shutil.rmtree(child, ignore_errors=True)
+                        else:
+                            child.unlink(missing_ok=True)
+                    except OSError:
+                        pass
         finally:
             if stage_dir.exists():
                 shutil.rmtree(stage_dir, ignore_errors=True)
-            if old_backup.exists() and kf_dir.exists():
-                shutil.rmtree(old_backup, ignore_errors=True)
 
         self._write_rolling_snapshot_quietly(min_interval_sec=5.0)
         saved = self.get_video_visual_analysis(video_id)
@@ -3903,9 +4429,37 @@ class WorkspaceIntelligenceHub:
         video = self._repository.get_video(video_id)
         title = (video.title if video is not None else None) or video_id
         brief = self.get_video_brief(video_id)
+
+        now = self._now()
+        zip_time = (now.year, now.month, now.day, now.hour, now.minute, now.second)
+        md_stem = _safe_obsidian_title(title, max_bytes=180, reserve_suffix_bytes=3)
+        md_name = f"{md_stem}.md"
+        packed_assets: list[tuple[str, bytes]] = []
+        used_lower: set[str] = {md_name.lower()}
+        packed_asset_names_lower: set[str] = set()
+        for frame in analysis.get("frames", []):
+            if not isinstance(frame, Mapping):
+                continue
+            frame_id = str(frame.get("frame_id") or "")
+            asset_name = str(frame.get("obsidian_asset_name") or frame.get("filename") or "")
+            if not frame_id or not asset_name:
+                continue
+            img_data = self.read_video_keyframe_image(video_id, frame_id)
+            if img_data is None:
+                continue
+            leaf_name = Path(asset_name).name
+            asset_rel = f"assets/{leaf_name}"
+            packed_asset_names_lower.add(leaf_name.lower())
+            if asset_rel.lower() in used_lower:
+                continue
+            used_lower.add(asset_rel.lower())
+            packed_assets.append((asset_rel, img_data[0]))
+
         if brief is not None and str(brief.get("obsidian_markdown") or "").strip():
             note_md = self._inject_visual_section_into_markdown(
-                str(brief["obsidian_markdown"]), analysis
+                str(brief["obsidian_markdown"]),
+                analysis,
+                available_asset_names=packed_asset_names_lower,
             )
         else:
             duration_sec = self._resolve_video_duration_seconds(video_id)
@@ -3928,28 +4482,10 @@ class WorkspaceIntelligenceHub:
                 f"**来源**：`本地课程视频` · **视觉引擎**：`{engine_label}`",
                 "",
             ]
-            note_md = "\n".join(header_lines) + self._render_visual_obsidian_section(analysis)
-
-        now = self._now()
-        zip_time = (now.year, now.month, now.day, now.hour, now.minute, now.second)
-        md_name = f"{_safe_obsidian_title(title, max_bytes=180)}.md"
-        packed_assets: list[tuple[str, bytes]] = []
-        used_lower: set[str] = {md_name.lower()}
-        for frame in analysis.get("frames", []):
-            if not isinstance(frame, Mapping):
-                continue
-            frame_id = str(frame.get("frame_id") or "")
-            asset_name = str(frame.get("obsidian_asset_name") or frame.get("filename") or "")
-            if not frame_id or not asset_name:
-                continue
-            img_data = self.read_video_keyframe_image(video_id, frame_id)
-            if img_data is None:
-                continue
-            asset_rel = f"assets/{Path(asset_name).name}"
-            if asset_rel.lower() in used_lower:
-                continue
-            used_lower.add(asset_rel.lower())
-            packed_assets.append((asset_rel, img_data[0]))
+            note_md = "\n".join(header_lines) + self._render_visual_obsidian_section(
+                analysis,
+                available_asset_names=packed_asset_names_lower,
+            )
 
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
@@ -4021,7 +4557,11 @@ class WorkspaceIntelligenceHub:
             ),
             "provider": str(row["provider"]),
             "model": str(row["model"]),
-            "obsidian_markdown": str(row["obsidian_markdown"]),
+            "obsidian_markdown": (
+                str(row["obsidian_markdown"])
+                if "obsidian_markdown" in row_keys and row["obsidian_markdown"] is not None
+                else ""
+            ),
             "updated_at": str(row["updated_at"]),
             "source_basis": source_basis,
         }
@@ -4029,8 +4569,26 @@ class WorkspaceIntelligenceHub:
     @staticmethod
     def _read_curation_map_on_conn(
         conn: sqlite3.Connection,
+        *,
+        video_ids: Sequence[str] | None = None,
     ) -> dict[str, tuple[bool, bool]]:
         try:
+            if video_ids is not None:
+                clean_ids = list(dict.fromkeys(str(v) for v in video_ids if str(v)))
+                if not clean_ids:
+                    return {}
+                out: dict[str, tuple[bool, bool]] = {}
+                for i in range(0, len(clean_ids), 200):
+                    chunk = clean_ids[i : i + 200]
+                    placeholders = ", ".join("?" for _ in chunk)
+                    rows = conn.execute(
+                        f"SELECT video_id, starred, is_read FROM video_curation_states "  # noqa: S608
+                        f"WHERE video_id IN ({placeholders})",
+                        chunk,
+                    ).fetchall()
+                    for r in rows:
+                        out[str(r["video_id"])] = (bool(r["starred"]), bool(r["is_read"]))
+                return out
             rows = conn.execute(
                 "SELECT video_id, starred, is_read FROM video_curation_states"
             ).fetchall()
@@ -4237,6 +4795,96 @@ class WorkspaceIntelligenceHub:
         finally:
             conn.close()
 
+    def get_video_briefs_map_for_ids(
+        self,
+        video_ids: Sequence[str],
+        *,
+        include_markdown: bool = False,
+    ) -> dict[str, dict[str, Any]]:
+        clean_ids = list(dict.fromkeys(str(v) for v in video_ids if str(v)))
+        if not clean_ids:
+            return {}
+        conn = self._connect_read()
+        if conn is None:
+            return {}
+        cols = (
+            "*"
+            if include_markdown
+            else (
+                "video_id, headline_zh, summary_zh, score, score_reason_zh, "
+                "recommendation_tier, content_bucket, is_short_noise, duration_seconds, "
+                "topics_json, topic_cluster_zh, core_points_json, "
+                "product_opportunities_json, business_opportunities_json, "
+                "filtered_noise_json, intelligence_id, revision_id, provider, model, "
+                "updated_at, source_basis"
+            )
+        )
+        try:
+            curation_map = self._read_curation_map_on_conn(conn, video_ids=clean_ids)
+            out: dict[str, dict[str, Any]] = {}
+            for i in range(0, len(clean_ids), 200):
+                chunk = clean_ids[i : i + 200]
+                placeholders = ", ".join("?" for _ in chunk)
+                rows = conn.execute(
+                    f"SELECT {cols} FROM video_ai_briefs WHERE video_id IN ({placeholders})",  # noqa: S608
+                    chunk,
+                ).fetchall()
+                for row in rows:
+                    vid = str(row["video_id"])
+                    brief = self._brief_from_row(row)
+                    cur = curation_map.get(vid, (False, False))
+                    brief["starred"] = cur[0]
+                    brief["is_read"] = cur[1]
+                    out[vid] = brief
+            return out
+        except sqlite3.Error:
+            return {}
+        finally:
+            conn.close()
+
+    def _read_brief_source_basis_map(self) -> dict[str, str]:
+        conn = self._connect_read()
+        if conn is None:
+            return {}
+        try:
+            rows = conn.execute(
+                "SELECT video_id, COALESCE(source_basis, 'TRANSCRIPT') AS basis FROM video_ai_briefs"
+            ).fetchall()
+            return {
+                str(row["video_id"]): str(row["basis"] or "TRANSCRIPT")
+                for row in rows
+            }
+        except sqlite3.Error:
+            return {}
+        finally:
+            conn.close()
+
+    def search_brief_video_ids(self, query: str) -> set[str]:
+        cleaned = str(query or "").strip().lower()
+        if not cleaned:
+            return set()
+        conn = self._connect_read()
+        if conn is None:
+            return set()
+        escaped = cleaned.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        pattern = f"%{escaped}%"
+        try:
+            rows = conn.execute(
+                """
+                SELECT video_id
+                FROM video_ai_briefs
+                WHERE LOWER(COALESCE(headline_zh, '')) LIKE ? ESCAPE '\\'
+                   OR LOWER(COALESCE(topic_cluster_zh, '')) LIKE ? ESCAPE '\\'
+                   OR LOWER(COALESCE(summary_zh, '')) LIKE ? ESCAPE '\\'
+                """,
+                (pattern, pattern, pattern),
+            ).fetchall()
+            return {str(row["video_id"]) for row in rows}
+        except sqlite3.Error:
+            return set()
+        finally:
+            conn.close()
+
     def _classify_pending_videos(
         self,
         *,
@@ -4249,12 +4897,9 @@ class WorkspaceIntelligenceHub:
             else repo_conn
         )
         try:
-            videos = [
-                self._repository._video_from_row(row)
-                for row in active_conn.execute(
-                    "SELECT * FROM videos ORDER BY updated_at DESC, video_id LIMIT 300"
-                )
-            ]
+            video_rows = active_conn.execute(
+                "SELECT video_id, provider, title FROM videos ORDER BY updated_at DESC, video_id"
+            ).fetchall()
             grounded_video_ids = {
                 str(row[0])
                 for row in active_conn.execute(
@@ -4268,26 +4913,29 @@ class WorkspaceIntelligenceHub:
         finally:
             if own_conn:
                 active_conn.close()
-        briefs_map = self.get_video_briefs_map()
+        basis_map = self._read_brief_source_basis_map()
         pending_transcript: list[str] = []
         pending_upgrade: list[str] = []
         pending_metadata_only: list[str] = []
-        for v in videos:
-            brief = briefs_map.get(v.video_id)
-            has_tx = v.video_id in grounded_video_ids
-            if brief is None:
+        for row in video_rows:
+            vid = str(row["video_id"])
+            provider = str(row["provider"] or "")
+            title = str(row["title"] or "").strip()
+            basis = basis_map.get(vid)
+            has_tx = vid in grounded_video_ids
+            if basis is None:
                 if has_tx:
-                    pending_transcript.append(v.video_id)
-                elif v.provider == "YOUTUBE" and bool((v.title or "").strip()):
-                    pending_metadata_only.append(v.video_id)
-            elif brief.get("source_basis") == "METADATA_ONLY" and has_tx:
-                pending_upgrade.append(v.video_id)
+                    pending_transcript.append(vid)
+                elif provider == "YOUTUBE" and bool(title):
+                    pending_metadata_only.append(vid)
+            elif basis == "METADATA_ONLY" and has_tx:
+                pending_upgrade.append(vid)
         return (
             pending_transcript,
             pending_upgrade,
             pending_metadata_only,
-            len(videos),
-            len(briefs_map),
+            len(video_rows),
+            len(basis_map),
         )
 
     def get_sync_status(
@@ -4545,6 +5193,47 @@ class WorkspaceIntelligenceHub:
                     tokens |= cls._tokenize_query(syn)
         return tokens
 
+    def _resolve_authoritative_evidence(
+        self,
+        video_id: str,
+        evidence_id: str,
+        *,
+        expected_excerpt: str | None = None,
+    ) -> Any | None:
+        """Re-verify an Evidence ID and optional excerpt against core SQLiteStateRepository."""
+        clean_vid = str(video_id or "").strip()
+        clean_eid = str(evidence_id or "").strip()
+        if not clean_vid or not clean_eid:
+            return None
+        try:
+            evidence = self._repository.get_evidence(clean_eid)
+            verified = self._repository.resolve_verified_evidence_text(clean_eid)
+        except Exception:
+            return None
+        if (
+            evidence is None
+            or verified is None
+            or evidence.video_id != clean_vid
+            or verified.video_id != clean_vid
+            or verified.evidence_id != clean_eid
+        ):
+            return None
+        if expected_excerpt is not None:
+            norm_expected = re.sub(r"\s+", " ", str(expected_excerpt)).strip()
+            norm_actual = re.sub(r"\s+", " ", str(verified.excerpt or "")).strip()
+            if norm_expected:
+                if not norm_actual:
+                    return None
+                matched = (
+                    norm_actual == norm_expected
+                    or (len(norm_expected) >= 12 and norm_actual.startswith(norm_expected))
+                    or (len(norm_expected) >= 6 and norm_expected in norm_actual)
+                    or (len(norm_actual) >= 6 and norm_actual in norm_expected)
+                )
+                if not matched:
+                    return None
+        return verified
+
     @staticmethod
     def _score_cues_with_fts5(
         timed_by_video: Mapping[str, Any],
@@ -4572,11 +5261,15 @@ class WorkspaceIntelligenceHub:
             rows_to_insert: list[tuple[str, int, str]] = []
             for vid, timed in timed_by_video.items():
                 for idx, cue in enumerate(timed.cues):
-                    rows_to_insert.append((vid, idx, cue.text))
+                    indexed = _fts_index_text(cue.text)
+                    if indexed:
+                        rows_to_insert.append((vid, idx, indexed))
             if text_segments_by_video:
                 for vid, segs in text_segments_by_video.items():
                     for idx, seg in enumerate(segs):
-                        rows_to_insert.append((vid, idx, seg.text))
+                        indexed = _fts_index_text(seg.text)
+                        if indexed:
+                            rows_to_insert.append((vid, idx, indexed))
             mem_conn.executemany(
                 "INSERT INTO cue_fts (video_id, cue_idx, content) VALUES (?, ?, ?)",
                 rows_to_insert,
@@ -4625,14 +5318,24 @@ class WorkspaceIntelligenceHub:
                 if not ev_ids:
                     continue
                 ev_id = str(ev_ids[0])
-                start_sec = float(pt.get("start_seconds", 0.0))
-                end_sec = float(pt.get("end_seconds", start_sec))
+                verified = self._resolve_authoritative_evidence(
+                    video.video_id,
+                    ev_id,
+                    expected_excerpt=str(pt.get("excerpt") or ""),
+                )
+                if verified is None or verified.locator_type != "TIMED_MEDIA":
+                    continue
+                if verified.start_ms is None or verified.end_ms is None:
+                    continue
+                start_sec = verified.start_ms / 1000
+                end_sec = verified.end_ms / 1000
+                auth_excerpt = _clean_text(verified.excerpt, max_len=280)
                 pt_tokens = self._tokenize_query(
-                    f"{pt.get('text', '')} {pt.get('excerpt', '')}"
+                    f"{pt.get('text', '')} {auth_excerpt}"
                 )
                 overlap = len(expanded_tokens & pt_tokens)
                 pt_score = overlap * 2.5 + 1.0
-                covered_ms.append(round(start_sec * 1000))
+                covered_ms.append(verified.start_ms)
                 scored_items.append(
                     (
                         pt_score,
@@ -4644,11 +5347,11 @@ class WorkspaceIntelligenceHub:
                             "provider": str(video.provider or "YOUTUBE"),
                             "source_url": video.source_url,
                             "locator_type": "TIME_RANGE",
-                            "evidence_id": ev_id,
+                            "evidence_id": verified.evidence_id,
                             "start_seconds": start_sec,
                             "end_seconds": end_sec,
-                            "start_ms": round(start_sec * 1000),
-                            "end_ms": round(end_sec * 1000),
+                            "start_ms": verified.start_ms,
+                            "end_ms": verified.end_ms,
                             "timestamp_label": _format_mmss(start_sec),
                             "citation_url": _build_citation_deep_url(
                                 video.source_url,
@@ -4656,7 +5359,7 @@ class WorkspaceIntelligenceHub:
                                 start_seconds=start_sec,
                             ),
                             "point_zh": str(pt.get("text", "")),
-                            "excerpt": _clean_text(pt.get("excerpt", ""), max_len=280),
+                            "excerpt": auth_excerpt,
                         },
                     )
                 )
@@ -4871,6 +5574,13 @@ class WorkspaceIntelligenceHub:
                 ev_id = str(ev_ids[0])
                 seg = segments_by_id.get(ev_id)
                 if seg is None or ev_id in seen_ev_ids:
+                    continue
+                verified = self._resolve_authoritative_evidence(
+                    video.video_id,
+                    ev_id,
+                    expected_excerpt=str(pt.get("excerpt") or ""),
+                )
+                if verified is None:
                     continue
                 seen_ev_ids.add(ev_id)
                 pt_tokens = self._tokenize_query(
@@ -5276,9 +5986,9 @@ class WorkspaceIntelligenceHub:
                 ]
             )
             cue_sample = (
-                " ".join(c.text for c in timed.cues[:120])
+                " ".join(c.text for c in timed.cues)
                 if timed is not None
-                else " ".join(seg.text for seg in text_segs[:120])
+                else " ".join(seg.text for seg in text_segs)
             )
             meta_overlap = len(expanded_tokens & self._tokenize_query(meta_corpus))
             cue_overlap = len(expanded_tokens & self._tokenize_query(cue_sample))
@@ -5412,6 +6122,19 @@ class WorkspaceIntelligenceHub:
             parsed.get("action_items_zh"), max_items=6, max_len=400
         )
 
+        valid_labels = set(candidates.keys())
+        ungrounded_refs_found = [
+            f"E{num}"
+            for frag in (answer_zh, *takeaways, *actions)
+            for num in _E_REF_MARKER_RE.findall(frag)
+            if f"E{num}" not in valid_labels
+        ]
+        # Prune ungrounded clauses/items BEFORE deciding whether grounded content survives.
+        if ungrounded_refs_found and parsed.get("answerable") is not False:
+            answer_zh = _prune_ungrounded_ref_clauses(answer_zh, valid_labels)
+            takeaways = _filter_ungrounded_items(takeaways, valid_labels)
+            actions = _filter_ungrounded_items(actions, valid_labels)
+
         # Hydrate citations strictly from backend-issued `candidates`!
         hydrated_citations: list[dict[str, Any]] = []
         seen_refs: set[str] = set()
@@ -5433,8 +6156,14 @@ class WorkspaceIntelligenceHub:
                 base["note_zh"] = base.get("point_zh", "")
                 hydrated_citations.append(base)
 
+        surviving_inline_valid = {
+            f"E{num}" for num in _E_REF_MARKER_RE.findall(answer_zh) if f"E{num}" in valid_labels
+        }
         model_refused = parsed.get("answerable") is False
-        refused = model_refused or len(hydrated_citations) == 0
+        no_grounded_answer_left = not answer_zh.strip() or (
+            bool(ungrounded_refs_found) and not surviving_inline_valid
+        )
+        refused = model_refused or len(hydrated_citations) == 0 or no_grounded_answer_left
         answer_status = "REFUSED_INSUFFICIENT_EVIDENCE" if refused else "GROUNDED"
         if refused:
             hydrated_citations = []
@@ -5452,12 +6181,18 @@ class WorkspaceIntelligenceHub:
         else:
             refusal_reason_zh = ""
             related_excerpts = []
-            # Strip any unissued [Exxx] markers from answer_zh so UI never shows dangling refs
-            answer_zh = re.sub(
-                r"\[(E\d+)\]",
-                lambda m: m.group(0) if m.group(1) in candidates else "",
-                answer_zh,
-            ).strip()
+            answer_zh = _prune_ungrounded_ref_clauses(answer_zh, valid_labels).strip()
+            takeaways = _filter_ungrounded_items(takeaways, valid_labels)
+            actions = _filter_ungrounded_items(actions, valid_labels)
+            if not answer_zh:
+                refused = True
+                answer_status = "REFUSED_INSUFFICIENT_EVIDENCE"
+                hydrated_citations = []
+                takeaways = []
+                actions = []
+                refusal_reason_zh = "答案中未包含可核验的有效原文引用，已按 Fail-Closed 策略拒答。"
+                answer_zh = f"证据不足，无法基于当前资料库可靠回答：{refusal_reason_zh}"
+                related_excerpts = [dict(item) for item in list(candidates.values())[:3]]
 
         scope_meta["answer_status"] = answer_status
         scope_meta["refused"] = refused
@@ -5616,8 +6351,44 @@ class WorkspaceIntelligenceHub:
         }
         return {"session": session_dto}
 
-    @staticmethod
-    def _row_to_research_session_dto(row: sqlite3.Row) -> dict[str, object]:
+    def _reverify_serialized_citation(self, raw_cite: Mapping[str, Any]) -> dict[str, Any]:
+        """Re-verify one persisted citation dict against core SQLiteStateRepository."""
+        cite = dict(raw_cite)
+        vid = str(cite.get("video_id") or "").strip()
+        eid = str(cite.get("evidence_id") or "").strip()
+        expected = str(cite.get("excerpt") or "").strip() or None
+        verified = self._resolve_authoritative_evidence(vid, eid, expected_excerpt=expected)
+        if verified is None:
+            cite["verified"] = False
+            cite["verification_status"] = "NEEDS_REVERIFICATION"
+            return cite
+        cite["evidence_id"] = verified.evidence_id
+        cite["excerpt"] = _clean_text(verified.excerpt, max_len=280)
+        if verified.locator_type == "TEXT_RANGE":
+            cite["locator_type"] = "TEXT_RANGE"
+            cite["start_seconds"] = None
+            cite["end_seconds"] = None
+            cite["start_ms"] = None
+            cite["end_ms"] = None
+            cite["start_offset"] = verified.start_offset
+            cite["end_offset"] = verified.end_offset
+            if verified.start_line is not None:
+                cite["start_line"] = verified.start_line
+            if verified.end_line is not None:
+                cite["end_line"] = verified.end_line
+        else:
+            cite["locator_type"] = "TIME_RANGE"
+            if verified.start_ms is not None and verified.end_ms is not None:
+                cite["start_ms"] = verified.start_ms
+                cite["end_ms"] = verified.end_ms
+                cite["start_seconds"] = verified.start_ms / 1000
+                cite["end_seconds"] = verified.end_ms / 1000
+                cite["timestamp_label"] = _format_mmss(verified.start_ms / 1000)
+        cite["verified"] = True
+        cite["verification_status"] = "VERIFIED"
+        return cite
+
+    def _row_to_research_session_dto(self, row: sqlite3.Row) -> dict[str, object]:
         row_keys = set(row.keys())
         raw_scope_json = (
             str(row["scope_json"])
@@ -5633,11 +6404,39 @@ class WorkspaceIntelligenceHub:
         scope_label_zh = str(parsed_scope.get("scope_label_zh") or "")
         pinned = bool(parsed_scope.get("pinned", False))
         refused = bool(parsed_scope.get("refused", False))
-        answer_status = str(
-            parsed_scope.get("answer_status")
-            or ("REFUSED_INSUFFICIENT_EVIDENCE" if refused else "GROUNDED")
-        )
+        raw_answer_status = str(parsed_scope.get("answer_status") or "").strip()
         refusal_reason_zh = str(parsed_scope.get("refusal_reason_zh") or "")
+
+        try:
+            raw_citations = json.loads(str(row["citations_json"]))
+        except ValueError:
+            raw_citations = []
+        citations: list[dict[str, Any]] = []
+        if isinstance(raw_citations, list):
+            for entry in raw_citations:
+                if isinstance(entry, Mapping):
+                    citations.append(self._reverify_serialized_citation(entry))
+
+        verified_citation_count = sum(1 for c in citations if bool(c.get("verified")))
+        all_citations_verified = bool(citations) and verified_citation_count == len(citations)
+
+        if refused or raw_answer_status == "REFUSED_INSUFFICIENT_EVIDENCE":
+            answer_status = "REFUSED_INSUFFICIENT_EVIDENCE"
+            refused = True
+            verification_status = "REFUSED"
+        elif not raw_answer_status:
+            # Never blindly default legacy rows lacking status to GROUNDED.
+            answer_status = "NEEDS_REVERIFICATION"
+            verification_status = (
+                "VERIFIED" if all_citations_verified else "NEEDS_REVERIFICATION"
+            )
+        elif not all_citations_verified:
+            answer_status = "NEEDS_REVERIFICATION"
+            verification_status = "NEEDS_REVERIFICATION"
+        else:
+            answer_status = raw_answer_status
+            verification_status = "VERIFIED"
+
         raw_related = parsed_scope.get("related_excerpts")
         related_excerpts = raw_related if isinstance(raw_related, list) else []
         raw_covered = parsed_scope.get("covered_sources")
@@ -5651,12 +6450,14 @@ class WorkspaceIntelligenceHub:
             "session_id": str(row["session_id"]),
             "question": str(row["question"]),
             "answer_status": answer_status,
+            "verification_status": verification_status,
+            "verified_citation_count": verified_citation_count,
             "refused": refused,
             "refusal_reason_zh": refusal_reason_zh,
             "answer_zh": str(row["answer_zh"]),
             "key_takeaways_zh": json.loads(str(row["key_takeaways_json"])),
             "action_items_zh": json.loads(str(row["action_items_json"])),
-            "citations": json.loads(str(row["citations_json"])),
+            "citations": citations,
             "related_excerpts": related_excerpts,
             "covered_sources": covered_sources,
             "covered_source_count": covered_source_count,
@@ -7474,6 +8275,46 @@ class WorkspaceIntelligenceHub:
                 pass
             finally:
                 conn.close()
+        visual_keyframe_assets: list[dict[str, object]] = []
+        total_visual_raw_bytes = 0
+        for row in visual_analyses:
+            vid = str(row.get("video_id") or "")
+            if not vid:
+                continue
+            try:
+                raw_frames = json.loads(str(row.get("frames_json") or "[]"))
+            except ValueError:
+                raw_frames = []
+            if not isinstance(raw_frames, list):
+                continue
+            for entry in raw_frames:
+                if not isinstance(entry, Mapping):
+                    continue
+                fid = str(entry.get("frame_id") or "")
+                if not FRAME_ID_PATTERN.fullmatch(fid):
+                    continue
+                img_data = self.read_video_keyframe_image(vid, fid)
+                if img_data is None:
+                    continue
+                raw_bytes, safe_fname = img_data
+                if total_visual_raw_bytes + len(raw_bytes) > MAX_BACKUP_VISUAL_RAW_BYTES:
+                    raise ApiError(
+                        HTTPStatus.CONFLICT,
+                        "BACKUP_TOO_LARGE",
+                        "关键帧图片资产总大小超出单份 JSON 快照安全上限（40 MiB）。",
+                    )
+                total_visual_raw_bytes += len(raw_bytes)
+                digest = hashlib.sha256(raw_bytes).hexdigest()
+                visual_keyframe_assets.append(
+                    {
+                        "video_id": vid,
+                        "frame_id": fid,
+                        "filename": safe_fname,
+                        "sha256": digest,
+                        "byte_count": len(raw_bytes),
+                        "data_base64": base64.b64encode(raw_bytes).decode("ascii"),
+                    }
+                )
         return {
             "schema_version": "workspace-ai-backup-v1",
             "exported_at": format_utc_datetime(self._now()),
@@ -7483,6 +8324,7 @@ class WorkspaceIntelligenceHub:
                 "weekly_briefs": len(weekly_briefs),
                 "curation_states": len(curation_states),
                 "visual_analyses": len(visual_analyses),
+                "visual_assets": len(visual_keyframe_assets),
             },
             "engine_config": safe_config,
             "video_ai_briefs": briefs,
@@ -7490,7 +8332,105 @@ class WorkspaceIntelligenceHub:
             "weekly_ai_briefs": weekly_briefs,
             "video_curation_states": curation_states,
             "video_visual_analyses": visual_analyses,
+            "visual_keyframe_assets": visual_keyframe_assets,
         }
+
+    def _reverify_restored_core_points(
+        self, video_id: str, raw_core_points_json: str
+    ) -> str:
+        try:
+            parsed_pts = json.loads(raw_core_points_json)
+        except ValueError:
+            return "[]"
+        if not isinstance(parsed_pts, list):
+            return "[]"
+        out: list[object] = []
+        for entry in parsed_pts:
+            if not isinstance(entry, Mapping):
+                out.append(entry)
+                continue
+            pt = dict(entry)
+            ev_ids = pt.get("evidence_ids")
+            ev_list = [str(e) for e in ev_ids] if isinstance(ev_ids, list) else []
+            if not ev_list:
+                pt["evidence_verified"] = False
+                pt["verification_status"] = "NEEDS_REVERIFICATION"
+                out.append(pt)
+                continue
+            primary_id = ev_list[0]
+            expected = str(pt.get("excerpt") or "").strip() or None
+            verified = self._resolve_authoritative_evidence(
+                video_id, primary_id, expected_excerpt=expected
+            )
+            if verified is None:
+                pt["unverified_evidence_ids"] = ev_list
+                pt["evidence_ids"] = []
+                pt["evidence_verified"] = False
+                pt["verification_status"] = "NEEDS_REVERIFICATION"
+                out.append(pt)
+                continue
+            pt["evidence_ids"] = [verified.evidence_id]
+            pt["excerpt"] = _clean_text(verified.excerpt, max_len=280)
+            if verified.locator_type == "TEXT_RANGE":
+                pt["locator_type"] = "TEXT_RANGE"
+                pt["start_seconds"] = None
+                pt["end_seconds"] = None
+                pt["start_ms"] = None
+                pt["end_ms"] = None
+                pt["start_offset"] = verified.start_offset
+                pt["end_offset"] = verified.end_offset
+            else:
+                pt["locator_type"] = "TIME_RANGE"
+                if verified.start_ms is not None and verified.end_ms is not None:
+                    pt["start_ms"] = verified.start_ms
+                    pt["end_ms"] = verified.end_ms
+                    pt["start_seconds"] = verified.start_ms / 1000
+                    pt["end_seconds"] = verified.end_ms / 1000
+            pt["evidence_verified"] = True
+            pt["verification_status"] = "VERIFIED"
+            out.append(pt)
+        return json.dumps(out, ensure_ascii=False)
+
+    def _reverify_restored_session_item(
+        self, item: Mapping[str, object]
+    ) -> tuple[str, str]:
+        raw_cites_str = str(item.get("citations_json") or "[]")
+        raw_scope_str = str(item.get("scope_json") or "{}")
+        try:
+            scope_obj = json.loads(raw_scope_str)
+            if not isinstance(scope_obj, dict):
+                scope_obj = {}
+        except ValueError:
+            scope_obj = {}
+        try:
+            cites_obj = json.loads(raw_cites_str)
+            if not isinstance(cites_obj, list):
+                cites_obj = []
+        except ValueError:
+            cites_obj = []
+
+        reverified_cites: list[dict[str, Any]] = []
+        for c in cites_obj:
+            if isinstance(c, Mapping):
+                reverified_cites.append(self._reverify_serialized_citation(c))
+
+        verified_cnt = sum(1 for c in reverified_cites if bool(c.get("verified")))
+        scope_obj["restored_from_backup"] = True
+        scope_obj["restored_verified_citations"] = verified_cnt
+        scope_obj["restored_total_citations"] = len(reverified_cites)
+        if (
+            not bool(scope_obj.get("refused", False))
+            and (
+                not str(scope_obj.get("answer_status") or "").strip()
+                or not reverified_cites
+                or verified_cnt != len(reverified_cites)
+            )
+        ):
+            scope_obj["answer_status"] = "NEEDS_REVERIFICATION"
+        return (
+            json.dumps(reverified_cites, ensure_ascii=False),
+            json.dumps(scope_obj, ensure_ascii=False),
+        )
 
     def restore_backup_snapshot(
         self, payload: Mapping[str, object]
@@ -7535,6 +8475,49 @@ class WorkspaceIntelligenceHub:
                     cloud_reauth_required = True
                 self.update_settings(cfg_patch, from_restore=True)
 
+        # Decode and SHA-256 verify all bundled visual keyframe JPEGs BEFORE mutating DB or files.
+        raw_assets = payload.get("visual_keyframe_assets")
+        verified_assets_by_key: dict[tuple[str, str], tuple[str, str, bytes]] = {}
+        if raw_assets is not None:
+            if not isinstance(raw_assets, list):
+                raise ValueError("visual_keyframe_assets must be a list.")
+            total_decoded = 0
+            for entry in raw_assets:
+                if not isinstance(entry, Mapping):
+                    raise ValueError("Each visual_keyframe_assets entry must be an object.")
+                vid = str(entry.get("video_id") or "").strip()
+                fid = str(entry.get("frame_id") or "").strip()
+                fname = _validate_single_segment(Path(str(entry.get("filename") or "")).name)
+                declared_sha = str(entry.get("sha256") or "").strip().lower()
+                b64 = entry.get("data_base64")
+                if (
+                    not vid
+                    or not FRAME_ID_PATTERN.fullmatch(fid)
+                    or fname is None
+                    or len(declared_sha) != 64
+                    or not isinstance(b64, str)
+                ):
+                    raise ValueError("Invalid visual_keyframe_assets metadata entry.")
+                try:
+                    raw_img = base64.b64decode(b64.encode("ascii"), validate=True)
+                except Exception as err:
+                    raise ValueError("Invalid base64 keyframe image in backup.") from err
+                if (
+                    len(raw_img) <= 2
+                    or len(raw_img) > MAX_SINGLE_FRAME_BYTES
+                    or raw_img[:2] != b"\xff\xd8"
+                ):
+                    raise ValueError("Restored keyframe asset is empty, oversized, or not JPEG.")
+                total_decoded += len(raw_img)
+                if total_decoded > MAX_BACKUP_VISUAL_RAW_BYTES:
+                    raise ValueError("Restored keyframe assets exceed bounded total size.")
+                if entry.get("byte_count") is not None and int(cast(int, entry["byte_count"])) != len(raw_img):
+                    raise ValueError("Restored keyframe byte_count mismatch.")
+                actual_sha = hashlib.sha256(raw_img).hexdigest()
+                if actual_sha != declared_sha:
+                    raise ValueError("Restored keyframe SHA-256 integrity mismatch.")
+                verified_assets_by_key[(vid, fid)] = (fname, actual_sha, raw_img)
+
         raw_briefs = payload.get("video_ai_briefs")
         raw_sessions = payload.get("research_qa_sessions")
         raw_weekly = payload.get("weekly_ai_briefs")
@@ -7546,16 +8529,104 @@ class WorkspaceIntelligenceHub:
         restored_weekly = 0
         restored_curation = 0
         restored_visual = 0
+        restored_visual_images = 0
+        missing_visual_images = 0
 
+        staged_visual_dirs: list[tuple[str, Path, str]] = []
+        committed = False
         self._db_lock.acquire()
         conn: sqlite3.Connection | None = None
         try:
+            # Stage and materialize verified keyframe JPEG assets before DB commit
+            visual_rows_to_write: list[tuple[dict[str, object], str, str | None]] = []
+            if isinstance(raw_visual, list):
+                kf_root = self._keyframes_root()
+                for item in raw_visual:
+                    if not isinstance(item, Mapping) or not item.get("video_id"):
+                        continue
+                    vid = str(item["video_id"])
+                    try:
+                        raw_frames = json.loads(str(item.get("frames_json", "[]")))
+                    except ValueError as err:
+                        raise ValueError("Corrupted frames_json in backup visual analysis.") from err
+                    if not isinstance(raw_frames, list):
+                        raw_frames = []
+
+                    gen_id: str | None = None
+                    gen_dir: Path | None = None
+                    updated_frames: list[object] = []
+                    for frame in raw_frames:
+                        if not isinstance(frame, Mapping):
+                            updated_frames.append(frame)
+                            continue
+                        frame_copy = dict(frame)
+                        fid = str(frame_copy.get("frame_id") or "")
+                        asset = verified_assets_by_key.get((vid, fid))
+                        if asset is not None:
+                            safe_fname, actual_sha, raw_img = asset
+                            expected_frame_sha = str(frame_copy.get("sha256") or "").strip().lower()
+                            if expected_frame_sha and expected_frame_sha != actual_sha:
+                                raise ValueError("Backup keyframe asset SHA-256 disagrees with frame metadata.")
+                            if gen_id is None:
+                                gen_id = f"gen-{uuid.uuid4().hex[:16]}"
+                                vid_kf_dir = self._video_keyframes_dir(vid)
+                                kf_root.mkdir(mode=0o700, parents=True, exist_ok=True)
+                                vid_kf_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+                                os.chmod(kf_root, 0o700)
+                                os.chmod(vid_kf_dir, 0o700)
+                                gen_dir = vid_kf_dir / gen_id
+                                gen_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+                                os.chmod(gen_dir, 0o700)
+                                staged_visual_dirs.append((vid, gen_dir, gen_id))
+                            assert gen_dir is not None
+                            dest_path = gen_dir / safe_fname
+                            dest_path.write_bytes(raw_img)
+                            os.chmod(dest_path, 0o600)
+                            frame_copy["filename"] = safe_fname
+                            frame_copy["sha256"] = actual_sha
+                            frame_copy["byte_count"] = len(raw_img)
+                            frame_copy["storage_subdir"] = gen_id
+                            restored_visual_images += 1
+                        else:
+                            # Check whether matching file already exists safely on disk under old layout
+                            raw_fname = str(frame_copy.get("filename") or "")
+                            leaf_fname = _validate_single_segment(Path(raw_fname).name) if raw_fname else None
+                            rel_parts = (
+                                self._video_keyframes_rel_parts(vid, frame_copy, leaf_fname)
+                                if leaf_fname
+                                else None
+                            )
+                            existing_ok = (
+                                rel_parts is not None
+                                and FRAME_ID_PATTERN.fullmatch(fid) is not None
+                                and _regular_file_exists_nofollow(
+                                    self._project_root,
+                                    rel_parts,
+                                    max_bytes=MAX_SINGLE_FRAME_BYTES,
+                                )
+                            )
+                            if not existing_ok:
+                                frame_copy.pop("storage_subdir", None)
+                                missing_visual_images += 1
+                        updated_frames.append(frame_copy)
+                    visual_rows_to_write.append(
+                        (
+                            dict(item),
+                            json.dumps(updated_frames, ensure_ascii=False),
+                            gen_id,
+                        )
+                    )
+
             conn = self._connect_write()
             with conn:
                 if isinstance(raw_briefs, list):
                     for item in raw_briefs:
                         if not isinstance(item, Mapping) or not item.get("video_id"):
                             continue
+                        b_vid = str(item["video_id"])
+                        verified_core_points = self._reverify_restored_core_points(
+                            b_vid, str(item.get("core_points_json", "[]"))
+                        )
                         conn.execute(
                             """
                             INSERT INTO video_ai_briefs (
@@ -7590,7 +8661,7 @@ class WorkspaceIntelligenceHub:
                                 source_basis = excluded.source_basis
                             """,
                             (
-                                str(item["video_id"]),
+                                b_vid,
                                 str(item.get("headline_zh", "")),
                                 str(item.get("summary_zh", "")),
                                 float(cast(float, item.get("score", 6.0))),
@@ -7605,7 +8676,7 @@ class WorkspaceIntelligenceHub:
                                 ),
                                 str(item.get("topics_json", "[]")),
                                 str(item.get("topic_cluster_zh", CANONICAL_TOPIC_CLUSTERS[0])),
-                                str(item.get("core_points_json", "[]")),
+                                verified_core_points,
                                 str(item.get("product_opportunities_json", "[]")),
                                 str(item.get("business_opportunities_json", "[]")),
                                 str(item.get("filtered_noise_json", "[]")),
@@ -7635,6 +8706,9 @@ class WorkspaceIntelligenceHub:
                     for item in raw_sessions:
                         if not isinstance(item, Mapping) or not item.get("session_id"):
                             continue
+                        clean_cites_json, clean_scope_json = (
+                            self._reverify_restored_session_item(item)
+                        )
                         conn.execute(
                             """
                             INSERT OR REPLACE INTO research_qa_sessions (
@@ -7649,7 +8723,7 @@ class WorkspaceIntelligenceHub:
                                 str(item.get("answer_zh", "")),
                                 str(item.get("key_takeaways_json", "[]")),
                                 str(item.get("action_items_json", "[]")),
-                                str(item.get("citations_json", "[]")),
+                                clean_cites_json,
                                 int(cast(int, item.get("video_count", 0))),
                                 str(item.get("provider", "local_ollama")),
                                 str(item.get("model", DEFAULT_OLLAMA_MODEL)),
@@ -7658,7 +8732,7 @@ class WorkspaceIntelligenceHub:
                                     item.get("created_at")
                                     or format_utc_datetime(self._now())
                                 ),
-                                str(item.get("scope_json") or "{}"),
+                                clean_scope_json,
                             ),
                         )
                         restored_sessions += 1
@@ -7718,42 +8792,63 @@ class WorkspaceIntelligenceHub:
                         )
                         restored_curation += 1
 
-                if isinstance(raw_visual, list):
-                    for item in raw_visual:
-                        if not isinstance(item, Mapping) or not item.get("video_id"):
-                            continue
-                        conn.execute(
-                            """
-                            INSERT OR REPLACE INTO video_visual_analyses (
-                                video_id, source_hash, visual_summary_zh, visual_takeaways_json,
-                                frames_json, frame_count, informative_frame_count,
-                                provider, model, updated_at
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                            """,
-                            (
-                                str(item["video_id"]),
-                                str(item.get("source_hash", "")),
-                                str(item.get("visual_summary_zh", "")),
-                                str(item.get("visual_takeaways_json", "[]")),
-                                str(item.get("frames_json", "[]")),
-                                int(cast(int, item.get("frame_count", 0))),
-                                int(cast(int, item.get("informative_frame_count", 0))),
-                                str(item.get("provider", "ollama")),
-                                str(item.get("model", DEFAULT_OLLAMA_MODEL)),
-                                str(
-                                    item.get("updated_at")
-                                    or format_utc_datetime(self._now())
-                                ),
+                for item, updated_frames_json, _ in visual_rows_to_write:
+                    conn.execute(
+                        """
+                        INSERT OR REPLACE INTO video_visual_analyses (
+                            video_id, source_hash, visual_summary_zh, visual_takeaways_json,
+                            frames_json, frame_count, informative_frame_count,
+                            provider, model, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            str(item["video_id"]),
+                            str(item.get("source_hash", "")),
+                            str(item.get("visual_summary_zh", "")),
+                            str(item.get("visual_takeaways_json", "[]")),
+                            updated_frames_json,
+                            int(cast(int, item.get("frame_count", 0))),
+                            int(cast(int, item.get("informative_frame_count", 0))),
+                            str(item.get("provider", "ollama")),
+                            str(item.get("model", DEFAULT_OLLAMA_MODEL)),
+                            str(
+                                item.get("updated_at")
+                                or format_utc_datetime(self._now())
                             ),
-                        )
-                        restored_visual += 1
+                        ),
+                    )
+                    restored_visual += 1
+            committed = True
+            if committed:
+                for vid, _, keep_gen in staged_visual_dirs:
+                    vid_kf_dir = self._video_keyframes_dir(vid)
+                    if vid_kf_dir.is_dir():
+                        for child in vid_kf_dir.iterdir():
+                            if child.name == keep_gen:
+                                continue
+                            try:
+                                if child.is_dir() and not child.is_symlink():
+                                    shutil.rmtree(child, ignore_errors=True)
+                                else:
+                                    child.unlink(missing_ok=True)
+                            except OSError:
+                                pass
         finally:
             try:
+                if not committed:
+                    for _, staged_dir, _ in staged_visual_dirs:
+                        shutil.rmtree(staged_dir, ignore_errors=True)
                 if conn is not None:
                     conn.close()
             finally:
                 self._db_lock.release()
 
+        warnings: list[str] = []
+        if missing_visual_images > 0:
+            warnings.append(
+                f"检测到 {missing_visual_images} 帧关键画面缺少物理 JPEG 图片（可能来自仅含元数据的旧版备份快照），"
+                "对应 Markdown 不会生成损坏图片链接。"
+            )
         return {
             "restored": {
                 "briefs": restored_briefs,
@@ -7761,7 +8856,10 @@ class WorkspaceIntelligenceHub:
                 "weekly_briefs": restored_weekly,
                 "curation_states": restored_curation,
                 "visual_analyses": restored_visual,
+                "visual_images": restored_visual_images,
             },
+            "missing_visual_images": missing_visual_images,
+            "warnings": warnings,
             "cloud_reauth_required": cloud_reauth_required,
         }
 
@@ -7945,16 +9043,22 @@ class WorkspaceIntelligenceHub:
         files_to_write: list[tuple[str, str]] = []
 
         def _alloc(folder: str, raw_name: str, fallback_id: str) -> tuple[str, str]:
-            stem = _safe_obsidian_title(raw_name, max_bytes=180)
+            stem = _safe_obsidian_title(raw_name, max_bytes=180, reserve_suffix_bytes=3)
             rel_path = f"{folder}/{stem}.md"
             if rel_path.lower() in used_paths_lower:
-                base = _safe_obsidian_title(raw_name, max_bytes=150)
                 fb_suffix = _safe_obsidian_title(fallback_id, max_bytes=24)[:16]
+                fb_tail_bytes = len(f" ({fb_suffix}).md".encode("utf-8"))
+                base = _safe_obsidian_title(
+                    raw_name, max_bytes=180, reserve_suffix_bytes=fb_tail_bytes
+                )
                 stem = f"{base} ({fb_suffix})"
                 rel_path = f"{folder}/{stem}.md"
             counter = 2
             while rel_path.lower() in used_paths_lower:
-                base = _safe_obsidian_title(raw_name, max_bytes=140)
+                cnt_tail_bytes = len(f" ({counter}).md".encode("utf-8"))
+                base = _safe_obsidian_title(
+                    raw_name, max_bytes=180, reserve_suffix_bytes=cnt_tail_bytes
+                )
                 stem = f"{base} ({counter})"
                 rel_path = f"{folder}/{stem}.md"
                 counter += 1
@@ -8004,7 +9108,7 @@ class WorkspaceIntelligenceHub:
             vid = str(b.get("video_id") or "")
             v_visual = visual_map.get(vid)
             if v_visual is not None:
-                v_md = self._inject_visual_section_into_markdown(v_md, v_visual).strip()
+                vid_packed_names_lower: set[str] = set()
                 for frame in v_visual.get("frames", []):
                     if not isinstance(frame, Mapping):
                         continue
@@ -8017,11 +9121,18 @@ class WorkspaceIntelligenceHub:
                     img_data = self.read_video_keyframe_image(vid, frame_id)
                     if img_data is None:
                         continue
-                    asset_rel = f"assets/{Path(asset_name).name}"
+                    leaf_asset = Path(asset_name).name
+                    asset_rel = f"assets/{leaf_asset}"
+                    vid_packed_names_lower.add(leaf_asset.lower())
                     if asset_rel.lower() in packed_assets_lower:
                         continue
                     packed_assets_lower.add(asset_rel.lower())
                     binary_entries.append((asset_rel, img_data[0]))
+                v_md = self._inject_visual_section_into_markdown(
+                    v_md,
+                    v_visual,
+                    available_asset_names=vid_packed_names_lower,
+                ).strip()
             v_obj = videos_by_id.get(vid)
             v_title = (v_obj.title if v_obj is not None else None) or vid
             v_channel = (

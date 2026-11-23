@@ -1,6 +1,6 @@
 # 产品待办与优先级池（RICE Backlog & Simplification Registry）
 
-- **更新日期**：2026-11-23
+- **更新日期**：2026-11-24
 - **当前筛选原则**：只列有明确 Stage A/B 实机或市场证据支撑的内部完善项；同步维护 **“主动减法与暂缓清单”**，坚决拒绝功能膨胀。
 - **评分公式**：$\text{RICE} = \frac{\text{Reach} \times \text{Impact} \times \text{Confidence}}{\text{Effort (人周)}}$（$R$: 1–10，$I$: 0.25–3.0，$C$: 0.5–1.0，$E$: 人周，当前外网样本未测前置信度 $C$ 保守打折）。
 
@@ -21,6 +21,7 @@
 | **BL-010** | Reliability/Vault | 长视频 4h（`14390s`）与 300KB+ Markdown 全篇均匀边界加固、Obsidian `.zip` 真实解压安全（>255B 中文标题截断/`_CON`/大小写碰撞/YAML 转义/CommonMark 空行/文本禁 `00:00`）与 `RELEASE_READINESS_GATE.md` | Week 2 隔离边界与导出排查 | 6 | 2.5 | 0.90 | 0.6 | **22.5** | **DONE (`main@c15cf06`)** |
 | **BL-011** | Multimodal/UX | 按需轻量本地视频关键帧抽取 + 感知哈希去重 + 原话字幕对齐融合分析 MVP（`$0` 本机 Ollama + 严格受控 BYOK、防覆盖原子暂存、前端图卡与 Lightbox 键盘预览、`visual-pack.zip` & 全库 Vault `assets/*.jpg` 打包及 Sidecar 备份恢复） | 创始人选型 `A`（Iteration #8 / `FD-007`） | 7 | 2.5 | 0.90 | 0.8 | **19.7** | **DONE (`main@092951b`)** |
 | **BL-012** | UX/DX | Round 19 工作台易用性与冷启动自检可读性打磨：`⌘K` 深入专题洞察（`#Intelligence`）与追问（`#Research`）快捷动作、`#Topics` 搜索/置顶筛与三模式排序工具条、Research 多行输入防遮挡细滚动条、`youtube-intel start --check-only` 一行式就绪结论（`[ALL READY]`/`[READY WITH WARNINGS]`/`[ACTION NEEDED]`/`[BLOCKED]`）与模型数量溢出展示 | Round 19 封存待办 & `FD-008` | 7 | 1.5 | 0.90 | 0.4 | **23.6** | **DONE (`main@c54b818`)** |
+| **BL-013** | Quality/Security | Codex 独立审查全部 15 项 P1 与 7 项 P2 缺陷清零与防线加固（混合无据拒答/单段 `TEXT_RANGE`/跨库复核 `NEEDS_REVERIFICATION`/Demo 混合 premise 拒答/CJK 2-gram 全库检/`?evidence_id=` 尾段直达/BYOK 拒绝重定向/64MiB 恢复与 SHA-256 JPEG 还原/原子视觉代数与 `O_NOFOLLOW`/`#Content` 200+ 分页+`?q=`+`⌘K`清对比锁+`BEGIN IMMEDIATE` 原子预算+`include_markdown=False` 列表加速+IME/Lightbox 无障碍） | Codex 审查结论 A | 10 | 3.0 | 0.95 | 1.0 | **28.5** | **DONE (Iteration #10 本地闭环 · 待 `FD-009`)** |
 | **BL-009** | Distribution | 一键桌面打包 / homebrew cask / WSL 极简脚本可行性评估（需待获批真人首测验证安装卡点分布后再定） | Stage B `anything-llm`/`BiliNote` 对照 | 9 | 2.5 | 0.50 | 2.5 | **4.5** | **HOLD (待真人冷启动样本)** |
 
 ---

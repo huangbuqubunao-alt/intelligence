@@ -249,22 +249,34 @@ export function CommandPalette({
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const [videos, setVideos] = useState<PaletteVideo[]>([]);
+  const [videosPagination, setVideosPagination] = useState<{
+    total_count?: number;
+    has_more?: boolean;
+  } | null>(null);
+  const [remoteSearchVideos, setRemoteSearchVideos] = useState<PaletteVideo[]>([]);
   const [insights, setInsights] = useState<PaletteIntelligence[]>([]);
   const [topics, setTopics] = useState<PaletteTopic[]>([]);
   const [qaSessions, setQaSessions] = useState<PaletteResearchSession[]>([]);
   const [channelScopes, setChannelScopes] = useState<PaletteChannelScope[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const isComposingRef = useRef(false);
 
   useEffect(() => {
     if (!open) {
       setQuery("");
       setActiveIndex(0);
+      setRemoteSearchVideos([]);
+      setVideosPagination(null);
+      isComposingRef.current = false;
       return;
     }
     let alive = true;
     queueMicrotask(() => inputRef.current?.focus());
-    api<{ videos?: PaletteVideo[] }>("/videos")
+    api<{
+      videos?: PaletteVideo[];
+      pagination?: { total_count?: number; has_more?: boolean };
+    }>("/videos")
       .then((res) => {
         if (!alive || !Array.isArray(res?.videos)) return;
         const realVideos = res.videos.filter(
@@ -280,7 +292,20 @@ export function CommandPalette({
           const bScore = typeof b.ai_brief?.score === "number" ? b.ai_brief.score : -1;
           return bScore - aScore;
         });
-        setVideos(sortedVideos.slice(0, 200));
+        setVideos(sortedVideos);
+        if (res.pagination) {
+          setVideosPagination(res.pagination);
+        } else if (res.videos.length >= 200) {
+          api<{ pagination?: { total_count?: number; has_more?: boolean } }>(
+            "/videos?limit=200&offset=0",
+          )
+            .then((pageRes) => {
+              if (alive && pageRes?.pagination) {
+                setVideosPagination(pageRes.pagination);
+              }
+            })
+            .catch(() => {});
+        }
       })
       .catch(() => {});
 
@@ -362,8 +387,52 @@ export function CommandPalette({
     };
   }, [open]);
 
+  const trimmedPaletteQuery = query.trim();
+  const hasUnloadedServerVideos = Boolean(
+    videosPagination?.has_more ||
+      (typeof videosPagination?.total_count === "number" &&
+        videosPagination.total_count > videos.length) ||
+      videos.length >= 200,
+  );
+  useEffect(() => {
+    if (!open || !trimmedPaletteQuery || !hasUnloadedServerVideos) {
+      setRemoteSearchVideos([]);
+      return;
+    }
+    let alive = true;
+    const timer = window.setTimeout(() => {
+      api<{ videos?: PaletteVideo[] }>(
+        `/videos?q=${encodeURIComponent(trimmedPaletteQuery)}&limit=50&offset=0`,
+      )
+        .then((res) => {
+          if (!alive || !Array.isArray(res?.videos)) return;
+          setRemoteSearchVideos(
+            res.videos.filter((v) => v.work_kind !== "DURABLE_CONTENT_IDENTITY"),
+          );
+        })
+        .catch(() => {});
+    }, 60);
+    return () => {
+      alive = false;
+      window.clearTimeout(timer);
+    };
+  }, [open, trimmedPaletteQuery, hasUnloadedServerVideos]);
+
+  const searchableVideos = useMemo(() => {
+    if (!remoteSearchVideos.length) return videos;
+    const merged: PaletteVideo[] = [];
+    const seen = new Set<string>();
+    for (const v of [...remoteSearchVideos, ...videos]) {
+      if (!seen.has(v.video_id)) {
+        seen.add(v.video_id);
+        merged.push(v);
+      }
+    }
+    return merged;
+  }, [videos, remoteSearchVideos]);
+
   const allItems = useMemo<CommandPaletteAction[]>(() => {
-    const dynamicContent: CommandPaletteAction[] = videos.map(video => {
+    const dynamicContent: CommandPaletteAction[] = searchableVideos.map(video => {
       const brief = video.ai_brief;
       const providerLabel =
         video.provider === "LOCAL"
@@ -510,7 +579,7 @@ export function CommandPalette({
     const dynamicTopicFilterActions: CommandPaletteAction[] = onFilterContentByTopic
       ? (() => {
           const counts = new Map<string, number>();
-          for (const video of videos) {
+          for (const video of searchableVideos) {
             if (isEffectiveVideoShortNoise(video, video.ai_brief)) continue;
             const cluster = video.ai_brief?.topic_cluster_zh?.trim();
             if (cluster) {
@@ -572,7 +641,7 @@ export function CommandPalette({
     const dynamicTopicAskActions: CommandPaletteAction[] = onAskTopicResearch
       ? (() => {
           const clusterCounts = new Map<string, number>();
-          for (const video of videos) {
+          for (const video of searchableVideos) {
             if (isEffectiveVideoShortNoise(video, video.ai_brief)) continue;
             const cluster = video.ai_brief?.topic_cluster_zh?.trim();
             if (cluster) {
@@ -651,7 +720,7 @@ export function CommandPalette({
   }, [
     staticActions,
     channelScopes,
-    videos,
+    searchableVideos,
     qaSessions,
     insights,
     topics,
@@ -782,6 +851,13 @@ export function CommandPalette({
             event.preventDefault();
             setActiveIndex(orderedFlat.length - 1);
           } else if (event.key === "Enter") {
+            if (
+              isComposingRef.current ||
+              event.nativeEvent?.isComposing ||
+              event.keyCode === 229
+            ) {
+              return;
+            }
             event.preventDefault();
             executeItem(resolvedActive ?? activeItem);
           }
@@ -800,6 +876,12 @@ export function CommandPalette({
             placeholder={t("Search pages, videos, insights, Topics, or type a command…")}
             className="cmdk-input"
             value={query}
+            onCompositionStart={() => {
+              isComposingRef.current = true;
+            }}
+            onCompositionEnd={() => {
+              isComposingRef.current = false;
+            }}
             onChange={event => setQuery(event.target.value)}
           />
           <kbd className="cmdk-kbd" aria-hidden="true">ESC</kbd>
