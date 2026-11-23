@@ -6,7 +6,7 @@
 
 ## FD-001：将工作分支 4 笔已全量验证提交整合进 `main` 并推送 `origin/main` 激活 GitHub Actions
 
-- **状态**：`APPROVED (方案 A · 2026-11-23)` — 执行中
+- **状态**：`COMPLETED (方案 A 已执行 · 2026-11-23)` — `main` 已同步至 `9f65417a6589823096bea5c6ae7d7580a602822a`，GitHub Actions [`Public Beta CI #45132090574`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45132090574) 双 Job 全绿通过（仍维持 `PUBLIC_BETA`，未打正式推广 Tag）。
 - **需要决定什么**：是否批准将分支 `antigravity/task-user-readiness-20261112` 上的新增验证提交（Batch 1 安全/成本防线 `0fc61a7`、Batch 2 反幻觉拒答与 C4 恢复 `c85625b`、Batch 3 Markdown `TEXT_RANGE`+周报 7 天窗口+250 库检索 `89a9878`、Batch A 深链出处与日报引擎 `09f98d4`，以及 `product-ops/` 运营台账）cherry-pick / 整合回本地 `main` 并 `git push origin main`（同时维持 `PUBLIC_BETA` 定位，**暂不打对外正式 Release Tag**）。
 - **为什么现在需要决定**：目前 `main` 与 `origin/main` 仍停留在 `4c034b7`，缺少上述安全修复、20 例反幻觉基准、跨源 Markdown 支持与可携带深链导出，且 GitHub Actions 在 `main` 上仍显示 `0` 次运行，阻塞后续对外试跑。
 - **已有市场和用户证据**：Codex 独立源码评审指出的 Demo 误删与静默云端扣费阻塞均在分支已修并通过验证，[ci.yml](../.github/workflows/ci.yml) 已落地只待推主线触发云端双端运行。
@@ -23,7 +23,7 @@
 
 ## FD-002：授权将 GitHub 仓库转为 `PUBLIC` 并开展限额 5–10 名种子用户内测（`EXP-001`）
 
-- **状态**：`APPROVED (方案 A · 2026-11-23)` — 前置执行中（须在 `FD-001` 主线 CI 全绿且 `EXP-002` 基准与合规扫描确认后执行）
+- **状态**：`COMPLETED (方案 A 已执行 · 2026-11-23)` — 在 `EXP-002`、`SEC` 合规复核及 CI `#45132090574` 双端全绿后，`https://github.com/huangbuqubunao-alt/intelligence` 已转为 **`PUBLIC`**（Apache-2.0），可直接向 5–10 名种子用户发出 `EXP-001` 内测邀请。
 - **需要决定什么**：在 `FD-001`（主线同步 + CI 绿灯）与 `EXP-002`（真实 Ollama 陌生双语样本验证）完成后，是否授权将 `https://github.com/huangbuqubunao-alt/intelligence` 由 **`PRIVATE`** 转为 **`PUBLIC`**（Apache-2.0 协议），并允许整理发帖文案供您在目标小圈子内邀请 5–10 名外部双语研究者试用。
 - **为什么现在需要决定**：`gh repo view` 显示仓库当前 `PRIVATE`，只要它不对外公开且没有真实使用者，产品的“核心价值/激活率/留存率”将永远停留在 `暂无数据`，产品就无法脱离工程阶段进入真实市场经营。
 - **已有市场和用户证据**：2026-11-23 外部调研确认开源本地研究助手（`open-notebook` 4.2 万★ / `BiliNote` 7.8 千★）及 Reddit `r/notebooklm` 对“反幻觉 + 本地隐私 + Obsidian 联动”需求明确，但尚缺本产品自身的一手留存实证。
@@ -40,7 +40,7 @@
 
 ## FD-003：授权开启每晚 21:00 (Asia/Shanghai) 自动巡检与运营日报 Sidecar 调度
 
-- **状态**：`APPROVED (方案 A · 2026-11-23)` — 已完成试跑与权限校验，待创始人在 Antigravity Automations 面板一键开启
+- **状态**：`APPROVED & VERIFIED, PENDING DASHBOARD TOGGLE (方案 A · 2026-11-23)` — 已实跑全套日报命令并核验 `daily-intelligence-cpo-report` 最小权限，`user_config.json` 与 `launchd` 未被修改，仅待创始人在 Automations 面板一键开启开关。
 - **需要决定什么**：是否由您在 Antigravity 面板启用已创建的 **`Intelligence 每日产品负责人运营日报`** 定时任务（每天北京时间 `21:00` 自动巡检仓库 Git、CI、市场竞品动向与 `product-ops/CURRENT_STATE.md` 并产出 `product-ops/reports/daily/<YYYY-MM-DD>.md`），以及未来是否授权配置项目自带 `config/launchd/` 模板用于本机内容定时采集。
 - **为什么现在需要决定**：依据安全与系统指令纪律，AI 绝对不得擅自修改调度激活配置（`user_config.json`）或注册 `launchd`，否则“声称无人值守运行”即属虚假承诺；需要您显式授权或在控制台开关启用。
 - **已有市场和用户证据**：工程上每天都有代码/CI/外部 GitHub 竞品变化，固定 21:00 落盘结构化日报能大幅压缩创始人管理负担。
