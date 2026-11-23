@@ -229,6 +229,8 @@ export function CommandPalette({
   onOpenResearchSession,
   onFilterContentByChannel,
   onFilterContentByTopic,
+  onFilterIntelligenceByTopic,
+  onAskTopicResearch,
 }: {
   open: boolean;
   onClose: () => void;
@@ -239,6 +241,8 @@ export function CommandPalette({
   onOpenResearchSession?: (sessionId: string) => void;
   onFilterContentByChannel?: (channelKey: string) => void;
   onFilterContentByTopic?: (topicCluster: string) => void;
+  onFilterIntelligenceByTopic?: (topicId: string) => void;
+  onAskTopicResearch?: (topicName: string) => void;
 }) {
   const { language, t } = useUiLanguage();
   const zh = language === "zh-CN";
@@ -530,6 +534,75 @@ export function CommandPalette({
         })()
       : [];
 
+    const dynamicTopicIntelActions: CommandPaletteAction[] = onFilterIntelligenceByTopic
+      ? (() => {
+          const intelByTopic = new Map<string, { name: string; count: number }>();
+          for (const item of insights) {
+            const seenForItem = new Set<string>();
+            for (const tp of item.linked_topics ?? []) {
+              const topicId = tp.topic_id?.trim();
+              const topicName = tp.name?.trim();
+              if (!topicId || !topicName || seenForItem.has(topicId)) continue;
+              seenForItem.add(topicId);
+              const existing = intelByTopic.get(topicId);
+              if (existing) {
+                existing.count += 1;
+              } else {
+                intelByTopic.set(topicId, { name: topicName, count: 1 });
+              }
+            }
+          }
+          return Array.from(intelByTopic.entries())
+            .sort((a, b) => b[1].count - a[1].count || a[1].name.localeCompare(b[1].name))
+            .map(([topicId, meta]) => ({
+              id: `act:topic-intel:${topicId}`,
+              group: "actions" as const,
+              label: zh ? `查看专题洞察：${meta.name}` : `Filter topic insights: ${meta.name}`,
+              subtitle: zh
+                ? `${meta.count} 条已核验洞察 · 在洞察库按专题筛选`
+                : `${meta.count} verified insights in Intelligence`,
+              icon: "sparkle" as const,
+              aliases: [meta.name, topicId, "intelligence", "insights", "洞察", "专题", "筛选"],
+              rankBonus: 0.13,
+              onSelect: () => onFilterIntelligenceByTopic(topicId),
+            }));
+        })()
+      : [];
+
+    const dynamicTopicAskActions: CommandPaletteAction[] = onAskTopicResearch
+      ? (() => {
+          const clusterCounts = new Map<string, number>();
+          for (const video of videos) {
+            if (isEffectiveVideoShortNoise(video, video.ai_brief)) continue;
+            const cluster = video.ai_brief?.topic_cluster_zh?.trim();
+            if (cluster) {
+              clusterCounts.set(cluster, (clusterCounts.get(cluster) ?? 0) + 1);
+            }
+          }
+          for (const topic of topics) {
+            const name = topic.name.trim();
+            const count = topic.ai_evolution?.video_count ?? 0;
+            if (name && count > 0) {
+              clusterCounts.set(name, Math.max(clusterCounts.get(name) ?? 0, count));
+            }
+          }
+          return Array.from(clusterCounts.entries())
+            .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+            .map(([cluster, count]) => ({
+              id: `act:topic-ask:${cluster}`,
+              group: "actions" as const,
+              label: zh ? `围绕专题追问：${cluster}` : `Ask Research about topic: ${cluster}`,
+              subtitle: zh
+                ? `${count} 篇长视频干货 · 跳转 AI 跨视频问答`
+                : `${count} long-form items · Ask in Research`,
+              icon: "quotes" as const,
+              aliases: [cluster, "ask", "research", "qa", "追问", "提问", "问答", "专题", "跨视频"],
+              rankBonus: 0.12,
+              onSelect: () => onAskTopicResearch(cluster),
+            }));
+        })()
+      : [];
+
     const dynamicResearch: CommandPaletteAction[] = onOpenResearchSession
       ? qaSessions.map((session) => {
           const citeCount = session.citations?.length ?? 0;
@@ -568,6 +641,8 @@ export function CommandPalette({
       ...staticActions,
       ...dynamicChannelActions,
       ...dynamicTopicFilterActions,
+      ...dynamicTopicIntelActions,
+      ...dynamicTopicAskActions,
       ...dynamicContent,
       ...dynamicResearch,
       ...dynamicInsights,
@@ -588,6 +663,8 @@ export function CommandPalette({
     onOpenResearchSession,
     onFilterContentByChannel,
     onFilterContentByTopic,
+    onFilterIntelligenceByTopic,
+    onAskTopicResearch,
   ]);
 
   const filteredItems = useMemo(() => {

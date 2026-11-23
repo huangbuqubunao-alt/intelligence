@@ -299,6 +299,38 @@ def prepare_local_workspace(
     )
 
 
+def _format_readiness_verdict(pf: WorkspacePreflight, *, serve_web: bool) -> str:
+    """Summarize launch readiness into an actionable single-line verdict."""
+
+    if not pf.platform_supported:
+        return (
+            "[BLOCKED] Native Windows without fcntl is unsupported — "
+            "run inside WSL2 (Ubuntu) / 原生 Windows 暂不支持，请在 WSL2 (Ubuntu) 中运行"
+        )
+    if serve_web and not pf.frontend_ready:
+        return (
+            "[ACTION NEEDED] Web UI bundle missing — run: cd frontend && npm ci && npm run build "
+            "(or pass --no-web) / 前端未构建，请先构建或加 --no-web"
+        )
+    gaps: list[str] = []
+    if not pf.ollama_reachable or not pf.ollama_models:
+        gaps.append("Ollama model")
+    if not pf.yt_dlp_available:
+        gaps.append("yt-dlp")
+    if not pf.ffmpeg_available:
+        gaps.append("ffmpeg")
+    if gaps:
+        return (
+            "[READY WITH WARNINGS] Launchable now (`uv run youtube-intel start`) "
+            f"for browsing & .md import; optional setup ({', '.join(gaps)}) unlocks "
+            "local AI / media & visual keyframes."
+        )
+    return (
+        "[ALL READY] Launch now with `uv run youtube-intel start` — "
+        "local AI, media import & visual keyframes enabled."
+    )
+
+
 def format_startup_banner(
     runtime: LocalWorkspaceRuntime,
     *,
@@ -315,6 +347,15 @@ def format_startup_banner(
         if (serve_web and pf.frontend_ready)
         else f"http://127.0.0.1:{port}/api/v1/system (API-only)"
     )
+    if pf.ollama_models:
+        preview = ", ".join(pf.ollama_models[:4])
+        ollama_models_summary = (
+            f"{preview} (+{len(pf.ollama_models) - 4} more)"
+            if len(pf.ollama_models) > 4
+            else preview
+        )
+    else:
+        ollama_models_summary = "none pulled — run: ollama pull qwen3.5:9b"
 
     lines = [
         f"[youtube-intel start] {mode_tag}",
@@ -334,7 +375,7 @@ def format_startup_banner(
             else f"    [WARN] Frontend   : Bundle missing at {pf.web_dir}. Build via: cd frontend && npm ci && npm run build"
         ),
         (
-            f"    [OK]   Ollama     : Reachable ({len(pf.ollama_models)} models: {', '.join(pf.ollama_models[:4]) or 'none pulled — run: ollama pull qwen3.5:9b'})"
+            f"    [OK]   Ollama     : Reachable ({len(pf.ollama_models)} models: {ollama_models_summary})"
             if pf.ollama_reachable
             else "    [WARN] Ollama     : Local Ollama offline (optional for browsing/import; install at https://ollama.com/ then run: ollama pull qwen3.5:9b)"
         ),
@@ -344,10 +385,11 @@ def format_startup_banner(
             else "    [WARN] yt-dlp     : Missing from Python env; reinstall deps via: uv sync"
         ),
         (
-            "    [OK]   ffmpeg     : Installed (audio/video import & transcription ready)"
+            "    [OK]   ffmpeg     : Installed (audio/video import, transcription & visual keyframes ready)"
             if pf.ffmpeg_available
-            else "    [WARN] ffmpeg     : Optional media tool missing (needed for .mp4/.m4a import); install via `brew install ffmpeg` or `apt install ffmpeg`"
+            else "    [WARN] ffmpeg     : Optional media tool missing (needed for .mp4/.m4a import & visual keyframes); install via `brew install ffmpeg` or `apt install ffmpeg`"
         ),
+        f"  Readiness / 就绪结论 : {_format_readiness_verdict(pf, serve_web=serve_web)}",
         "  15-Min Verification / 15分钟体验指南:",
         "    1) Import 1 video/URL + 1 local .md/.txt note via UI or `POST /api/v1/local/imports`",
         "    2) Ask 1 cross-source question (check clickable `?t=` & `P#` citations) + 1 trick unanswerable question (verify honest refusal)",
