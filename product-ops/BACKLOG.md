@@ -19,7 +19,7 @@
 | **BL-007** | UX/Copy | 统一优化首页首run三步引导（交互步骤条、结构化来源卡、Warm Paper Light + `375px` 响应式对齐与品牌绿主色）及补全缺失中文词条/清除非断言残留英文（100% 保留既有测试契约） | Stage A `Onboarding` & 走查 | 6 | 1.5 | 0.80 | 0.4 | **18.0** | **DONE (Iteration #5)** |
 | **BL-008** | Reliability | 大库扩展性演进：支持 >500 条视频全库分页（`/api/v1/videos?limit=&offset=`）、全库分块检索与 SQLite 原生 `.backup()` 零密钥热快照（零核心 Schema 变更）；同步复核 `#Settings` 次级工程说明默认折叠无需二次 UI 改版 | Stage A 架构审计（`TECH-04`） | 4 | 2.0 | 0.70 | 1.0 | **5.6** | **DONE (`dbc7e89`)** |
 | **BL-010** | Reliability/Vault | 长视频 4h（`14390s`）与 300KB+ Markdown 全篇均匀边界加固、Obsidian `.zip` 真实解压安全（>255B 中文标题截断/`_CON`/大小写碰撞/YAML 转义/CommonMark 空行/文本禁 `00:00`）与 `RELEASE_READINESS_GATE.md` | Week 2 隔离边界与导出排查 | 6 | 2.5 | 0.90 | 0.6 | **22.5** | **DONE (`main@c15cf06`)** |
-| **BL-011** | Multimodal/UX | 按需轻量本地视频关键帧抽取 + 感知哈希去重 + 原话字幕对齐融合分析 MVP（`$0` 本机 Ollama + 严格受控 BYOK、防覆盖原子暂存、前端图卡与 Lightbox 键盘预览、`visual-pack.zip` & 全库 Vault `assets/*.jpg` 打包及 Sidecar 备份恢复） | 创始人选型 `A`（Iteration #8） | 7 | 2.5 | 0.90 | 0.8 | **19.7** | **DONE (Iteration #8 · 分支待合 `main`)** |
+| **BL-011** | Multimodal/UX | 按需轻量本地视频关键帧抽取 + 感知哈希去重 + 原话字幕对齐融合分析 MVP（`$0` 本机 Ollama + 严格受控 BYOK、防覆盖原子暂存、前端图卡与 Lightbox 键盘预览、`visual-pack.zip` & 全库 Vault `assets/*.jpg` 打包及 Sidecar 备份恢复） | 创始人选型 `A`（Iteration #8 / `FD-007`） | 7 | 2.5 | 0.90 | 0.8 | **19.7** | **DONE (`main@092951b`)** |
 | **BL-009** | Distribution | 一键桌面打包 / homebrew cask / WSL 极简脚本可行性评估（需待获批真人首测验证安装卡点分布后再定） | Stage B `anything-llm`/`BiliNote` 对照 | 9 | 2.5 | 0.50 | 2.5 | **4.5** | **HOLD (待真人冷启动样本)** |
 
 ---

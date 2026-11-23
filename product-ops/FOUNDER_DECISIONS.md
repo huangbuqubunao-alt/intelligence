@@ -6,12 +6,16 @@
 
 *当前无待裁决的阻塞性 L3 审批请求（`Pending Founder Decisions: 0`）。*
 
-> 注：`FD-006` 已按创始人最新批复完成执行——Iteration #4–#7（`6760028` / `2be958f` / `dbc7e89` / `f908d95`）连同 12 组全量后端测试 CI 接线（`028d10e`）已零冲突合并上 `main@aec26da`，GitHub Actions 双端绿灯通过；仓库继续严守被动 `PUBLIC`、零外宣、零 Release Tag 与内部阶段边界（`EXP-001` 维持 `HOLD`）。
+> 注：`FD-007` 已按创始人最新批复完成执行——Iteration #8（`BL-011`：`e540b28` 连同第 13 组视觉关键帧 CI 测试接线）已线性合入 `main@092951b` 并获 GitHub Actions [`#45201809374`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45201809374) 双端绿灯（`55/55` / `1247/1247` 前端 + 13 组 `151/151` 后端）；仓库继续严守被动 `PUBLIC`、零外宣、零 Release Tag 与内部阶段边界（`EXP-001` 维持 `HOLD`）。
 
 ---
 
 ## 历史已完结 L3 决策归档（2026-11-23）
 
+- **`FD-007`（`COMPLETED` — 创始人批复将 Iteration #8 / `BL-011` 合流 `main` 并留存云端 13 组绿标）**：
+  1. **线性合流 `main`**：将研发分支 `antigravity/task-user-readiness-20261112` 提交 `e540b28`（含按需轻量关键帧融合分析 MVP、`WorkspaceVisualKeyframes.test.tsx`、`test_visual_keyframe_analysis.py` 及 `.github/workflows/ci.yml` 第 13 组 CI 接线）在临时隔离 worktree 线性合入 `main@092951bfb19a4664cc1f0cc36fa631120b217f8c` 并推送 `origin/main`；
+  2. **云端 GitHub Actions 双端全绿验收**：[`Public Beta CI #45201809374`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45201809374) 双作业 `success`——`Frontend Build & Vitest` `1m19s`（`vite build` `1.30s` + `55/55` / `1247/1247` tests passed in `60.13s`）与 `Python Lint, Typecheck & Public Beta Integration` `19m59s`（`ruff` / `mypy` 137 文件 0 错 + 13 组完整套件 `151 passed in 305.18s`）；
+  3. **严守被动公开与内部阶段红线**：核验仓库维持 `PUBLIC`（`Stars: 0`、`Forks: 0`）、`no releases found`、零外部推广，真人试点 `EXP-001` 与 `BL-009` 继续维持 `HOLD`。
 - **`FD-006`（`COMPLETED` — 创始人批复将 Iteration #4–#7 合流 `main` 并留存云端绿标）**：
   1. **合流 `main` 与扩展云端 CI 守卫**：将 Iteration #4–#7 全部验证成果（`6760028` / `2be958f` / `dbc7e89` / `f908d95`）连同 [`test_long_media_and_obsidian_vault.py`](../tests/integration/test_long_media_and_obsidian_vault.py) 接入 `.github/workflows/ci.yml`（`028d10e`），线性合入 `main@aec26da2190a235f03be0b0013080b76b06c5b15` 并推送 `origin/main`；
   2. **云端 GitHub Actions 双端全绿验收**：[`Public Beta CI #45187713845`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45187713845) 双作业 `success`——`Frontend Build & Vitest` `1m43s`（`vite build` `1.52s` + `54/54` / `1244/1244` tests passed）与 `Python Lint, Typecheck & Public Beta Integration` `4m42s`（`ruff`/`mypy` 0 错 + 12 组套件 `146 passed in 231.25s`）；

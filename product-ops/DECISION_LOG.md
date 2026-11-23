@@ -19,7 +19,7 @@
 | **DEC-OPS-009** | **Iteration #6 (`BL-008`)**：>500 大库全库分块检索与 `/videos` 分页 + SQLite `.backup()` 零密钥热快照 + 冷启动路径加速 + `#Settings` 零扰动复审 | L1 | **COMPLETED (`main@aec26da`)** | **CI `#45187713845` + `27/27` 备份全绿** | `4 × 2.0 × 0.70 / 1.0 = 5.6` |
 | **DEC-OPS-010** | **Iteration #7 (`BL-010`)**：4h 音频与 300KB 长 Markdown 均匀边界加固 + Obsidian `.zip` 真解压安全与排版修复 + 阶段退出门禁清单 | L1 | **COMPLETED (`main@aec26da`)** | **CI `#45187713845` (`146/146` 含长媒体/ZIP)** | `6 × 2.5 × 0.90 / 0.6 = 22.5` |
 | **DEC-OPS-011** | **执行 `FD-006`**：将 Iteration #4–#7 与 12 组全量 CI 接线合流 `main@c15cf06` 并获云端双端绿标 | L3 (`FD-006`) | **COMPLETED (`main@c15cf06`)** | **CI `#45187713845` 双作业 `success`** | `10 × 2.5 × 0.95 / 0.3 = 79.2` |
-| **DEC-OPS-012** | **Iteration #8 (`BL-011`)**：按需轻量本地视频关键帧抽取、dHash 去重与原话字幕融合分析 MVP | L1 / L2（已隔离交付，待创始人按 L3 裁决合 `main`） | **COMPLETED (分支 `antigravity/task-user-readiness-20261112`)** | **本地 13 CI `151/151` + `1247/1247` + `gemma3:4b` 实机 + Chromium 双主题 PASS** | `7 × 2.5 × 0.90 / 0.8 = 19.7` |
+| **DEC-OPS-012** | **Iteration #8 (`BL-011`) + `FD-007`**：按需轻量本地视频关键帧抽取、dHash 去重与原话字幕融合分析 MVP 合流 `main` | L1 + L3 (`FD-007`) | **COMPLETED (`main@092951b`)** | **CI `#45201809374` (`151/151` + `1247/1247`) + `gemma3:4b` + Chromium PASS** | `7 × 2.5 × 0.90 / 0.8 = 19.7` |
 
 ---
 
