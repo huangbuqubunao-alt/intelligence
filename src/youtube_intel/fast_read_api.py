@@ -24,7 +24,7 @@ from http import HTTPStatus
 from pathlib import Path, PurePosixPath
 from types import FrameType
 from typing import TYPE_CHECKING, Any, BinaryIO, cast
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 if TYPE_CHECKING:
     from youtube_intel.config import AppConfig
@@ -127,6 +127,15 @@ _WS_AI_TRANSCRIBE_STATUS_ROUTE = re.compile(
 )
 _WS_AI_OBSIDIAN_ROUTE = re.compile(r"^/api/v1/workspace-ai/videos/([^/]+)/obsidian$")
 _WS_AI_CURATION_ROUTE = re.compile(r"^/api/v1/workspace-ai/videos/([^/]+)/curation$")
+_WS_AI_VISUAL_ROUTE = re.compile(
+    r"^/api/v1/workspace-ai/videos/([^/]+)/visual-analysis$"
+)
+_WS_AI_KEYFRAME_IMG_ROUTE = re.compile(
+    r"^/api/v1/workspace-ai/videos/([^/]+)/keyframes/([^/]+)\.jpg$"
+)
+_WS_AI_VISUAL_ZIP_ROUTE = re.compile(
+    r"^/api/v1/workspace-ai/videos/([^/]+)/visual-pack\.zip$"
+)
 _WS_AI_QA_PIN_ROUTE = re.compile(
     r"^/api/v1/workspace-ai/research/sessions/([^/]+)/pin$"
 )
@@ -1948,7 +1957,8 @@ class FastReadApiApplication:
         self, path: str
     ) -> tuple[int, dict[str, str], bytes | Path] | None:
         parsed = urlparse(path)
-        if parsed.path.rstrip("/") == "/api/v1/workspace-ai/obsidian-bundle.zip":
+        clean_path = parsed.path.rstrip("/")
+        if clean_path == "/api/v1/workspace-ai/obsidian-bundle.zip":
             q_params = parse_qs(parsed.query, keep_blank_values=False) if parsed.query else {}
             req_scope = (q_params.get("scope") or ["must_watch"])[0]
             try:
@@ -1966,6 +1976,55 @@ class FastReadApiApplication:
                 ).encode("utf-8")
                 return (
                     int(HTTPStatus.UNPROCESSABLE_ENTITY),
+                    {"Content-Type": "application/json; charset=utf-8"},
+                    err_bytes,
+                )
+            return (
+                int(HTTPStatus.OK),
+                {
+                    "Content-Type": "application/zip",
+                    "Content-Disposition": f'attachment; filename="{filename}"',
+                },
+                zip_bytes,
+            )
+        img_m = _WS_AI_KEYFRAME_IMG_ROUTE.fullmatch(clean_path)
+        if img_m is not None:
+            vid = unquote(img_m[1])
+            frame_id = unquote(img_m[2])
+            found = self._workspace_hub.read_video_keyframe_image(vid, frame_id)
+            if found is None:
+                err_bytes = json.dumps(
+                    {
+                        "error": {
+                            "code": "KEYFRAME_NOT_FOUND",
+                            "message": "Visual keyframe image was not found.",
+                        }
+                    }
+                ).encode("utf-8")
+                return (
+                    int(HTTPStatus.NOT_FOUND),
+                    {"Content-Type": "application/json; charset=utf-8"},
+                    err_bytes,
+                )
+            img_bytes, _ = found
+            return (
+                int(HTTPStatus.OK),
+                {"Content-Type": "image/jpeg"},
+                img_bytes,
+            )
+        zip_m = _WS_AI_VISUAL_ZIP_ROUTE.fullmatch(clean_path)
+        if zip_m is not None:
+            vid = unquote(zip_m[1])
+            try:
+                filename, zip_bytes, _ = self._workspace_hub.build_video_visual_obsidian_zip(
+                    vid
+                )
+            except ApiError as err:
+                err_bytes = json.dumps(
+                    {"error": {"code": err.code, "message": err.message}}
+                ).encode("utf-8")
+                return (
+                    int(err.status),
                     {"Content-Type": "application/json; charset=utf-8"},
                     err_bytes,
                 )
@@ -2135,8 +2194,28 @@ class FastReadApiApplication:
             if cur_m is not None and method == "POST":
                 data = self._inner._body(body)
                 return HTTPStatus.OK, self._workspace_hub.update_video_curation(
-                    cur_m[1], data
+                    unquote(cur_m[1]), data
                 )
+            vis_m = _WS_AI_VISUAL_ROUTE.fullmatch(route)
+            if vis_m is not None:
+                vid = unquote(vis_m[1])
+                if method == "GET":
+                    cap = self._workspace_hub.get_video_visual_capability(vid)
+                    cap["analysis"] = self._workspace_hub.get_video_visual_analysis(vid)
+                    return HTTPStatus.OK, cap
+                if method == "POST":
+                    req_data = self._inner._body(body) if body.strip() else {}
+                    raw_max = (
+                        req_data.get("max_frames", 8)
+                        if isinstance(req_data, dict)
+                        else 8
+                    )
+                    if isinstance(raw_max, bool) or not isinstance(raw_max, int):
+                        raise ValueError("max_frames must be an integer.")
+                    return HTTPStatus.OK, self._workspace_hub.analyze_video_keyframes(
+                        vid, max_frames=raw_max
+                    )
+                raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
             qa_pin_m = _WS_AI_QA_PIN_ROUTE.fullmatch(route)
             if qa_pin_m is not None and method == "POST":
                 data = self._inner._body(body)
@@ -3330,12 +3409,21 @@ class FastReadApiApplication:
                     detail_payload = self._workspace_hub.enrich_video_detail(
                         detail_payload, brief
                     )
+                visual_analysis = self._workspace_hub.get_video_visual_analysis(
+                    video.video_id
+                )
+                if visual_analysis is not None:
+                    detail_payload["visual_analysis"] = visual_analysis
                 tx_job = self._workspace_hub.get_transcribe_job(video.video_id)
                 if self._workspace_hub.has_sidecar_db() or tx_job is not None:
                     detail_payload["workspace_ai_capabilities"] = {
                         "ready": True,
                         "transcriber_ready": self._workspace_hub.has_media_transcriber(),
                         "transcribe_job": tx_job,
+                        "visual_analysis_eligible": self._workspace_hub.is_video_visual_eligible(
+                            video.video_id
+                        ),
+                        "ffmpeg_available": self._workspace_hub.has_ffmpeg(),
                     }
                 return detail_payload
             finally:

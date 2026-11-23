@@ -25,14 +25,15 @@
 
 ### B. 内部研发、AI 可靠性与体验指标（已实测有明确证据）
 
-| 维度 | 指标名称 | 实测基线（2026-11-23 · 截至 `main@aec26da` / `FD-006`） | 验证方式 |
+| 维度 | 指标名称 | 实测基线（2026-11-23 · Iteration #8 分支 `antigravity/task-user-readiness-20261112` + `main@c15cf06` 对照） | 验证方式 |
 |---|---|---|---|
-| **工程构建与代码质量** | Python Lint (`ruff`) / 静态类型 (`mypy`) / 前端构建 (`tsc + vite build`) | **100% 零报错**（`ruff` 0 错、`mypy` 136 文件 0 错；云端 CI `vite build` `1.52s`、本地 `3.23s`） | 本地实跑 + GitHub Actions CI (`main@aec26da`, [`#45187713845`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45187713845) 双端 `success`) |
-| **自动化回归通过率** | CI Pytest + 长媒体/导出专项 + 备份恢复 + 前端 Vitest | **GitHub Actions Linux 12 组全量 `146/146 passed in 231.25s`**（含 `test_long_media_and_obsidian_vault.py`）+ **本地 11 组 `143/143` & 专项 `3/3`** + **Backup/Restore（`dbc7e89`）`27/27 passed`** + **Frontend `54/54` / `1244/1244` passed**（CI `73.12s` / 本地 `88.35s`） | 云端 Actions `#45187713845` + 本地全量跑批实录（详见 `TEST_LOG.md`） |
+| **工程构建与代码质量** | Python Lint (`ruff`) / 静态类型 (`mypy`) / 前端构建 (`tsc + vite build`) | **100% 零报错**（`ruff` 0 错、`mypy` **137 文件** 0 错；本地 `vite build` **`875ms`**） | Iteration #8 本地全跑 + `main@c15cf06` 云端 [`#45187713845`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45187713845) 对照 |
+| **自动化回归通过率** | 13 组完整 CI Pytest + 备份恢复 + 前端 Vitest | **Iteration #8 分支本地：13 组完整 CI `151/151 passed in 367.69s` + Backup/Restore `27/27 passed in 39.46s` + Frontend `55/55` / `1247/1247 passed in 63.51s`**（`main@c15cf06` 云端 12 组对照 `146/146` + `1244/1244`） | 本地全量独跑实录 + 详见 `TEST_LOG.md` |
+| **按需视觉关键帧融合分析（`BL-011`）** | `ffmpeg` 抽帧、dHash 去重、`gemma3:4b` 实跑、Chrome E2E 与带图包 | · **真视觉模型（`ollama/gemma3:4b`, `$0`）**：5 段多场景 MP4 实测去重抽出 **4 帧**（识别 3 信息帧 + 中文融合洞察）；<br>· **Chromium 实机（`8796`）**：Dark `1440×900` & Light `375×812` 全帧加载（`200`）、筛选 `4<->3`、Lightbox `ArrowRight`/`Escape`、`visual-pack.zip`（`7826B`, `200`）、空态 CTA 与文本屏蔽（`0` 报错 / `0px` 溢出） | `test_visual_keyframe_analysis.py` + `WorkspaceVisualKeyframes.test.tsx` + 隔离端口实机 |
 | **大库、4h 课程与 Obsidian `.zip` 边界指标（`BL-008` / `BL-010`）** | 600 条跨库检索、4h 讲座归一化、300KB 长文采样、`.zip` 解压与冷启动延迟 | · **600 条库（`dbc7e89`）**：`/videos` 3 页分页 `[97.9, 48.1, 53.8]ms`、跨库 Q&A 命中第 561 条 **`0.23s`**、SQLite `.backup()` **`5.5ms`** (`53,248B`)、核心备份 `1398.2ms`；`COLD /videos` `68.56ms`（3.5x）、`COLD /intelligence` `21.90ms`（2.2x）；<br>· **长边界与真解压（Iteration #7）**：`14390s`（3200 段）-> `03:52` 锚点命中；`>300KB`（2900 行）8 窗口均匀覆盖 0%–96%+；`.zip` 解压文件名 `<=180B`、100% YAML 合法 & 全 Index 双链闭合、文本笔记零 `00:00` | `test_cross_source_markdown_and_scale.py` + `test_long_media_and_obsidian_vault.py` + cProfile |
 | **反幻觉基准（离线 Eval）** | 32 例双语/多源冲突与拒答基准 | **32 / 32 (100%) PASS**（`8/8` 测试函数全通过，由 `20` 例扩充至 `32` 例） | `tests/integration/test_grounding_refusal_eval.py` + `test_public_beta_demo_showcase.py` |
 | **真机本机模型基准（`EXP-002`）** | `ollama/qwen3.5:9b` 处理陌生双语资料（227.6s/5 问） | **3/3 (100%) `GROUNDED`**（YT/Bili/Markdown）+ **2/2 (100%) 诱导拒答**，`$0` 云端支出 | 隔离临时工作区实跑 + 原始 JSON/Markdown 证据归档 |
-| **Demo 与空库端到端 Chromium 检查** | 首轮引导双主题 + 移动 `375×812` + 详情页 + 空库上传 | **Iteration #5 Obsidian Dark `1440×900` + Warm Paper Light `375×812` 首轮三步引导及跳过后空首页 PASS（0 溢出 / 0 报错）**；叠加 Iteration #4 `#Content` 秒开与 `main@f23954f` 拒答/上传 `201` PASS | Chromium `8797`/`8798`/`8799` 实机验证 + 截图核对 |
+| **Demo 与全场景端到端 Chromium 检查** | 关键帧图表 + 引导 + 空库上传 + 详情页 | **Iteration #8（`8796`）关键帧卡片、Lightbox、`visual-pack.zip`、空态/文本屏蔽双主题与 `375×812` PASS**；叠加 Iteration #5 `1440×900`/`375×812` 三步引导、Iteration #4 `#Content` 秒开与 `main@f23954f` 拒答/上传 `201` PASS | Chromium `8796`/`8797`/`8798`/`8799` 实机验证 + 截图核对 |
 | **Demo 接口读延迟（本地回环）** | `/api/v1/videos/vidDemoAgt1/evidence` & 核心只读接口响应 | **`/evidence` 由 `583–713ms` 降至 `39.6ms`（冷读）/ `3.8–5.8ms`（热缓存）**（9 路由压测均值 `19.5ms`）；全只读核心接口 HTTP `200` | 本地回环实时压测采样 |
 | **静态安全扫描** | `scripts/security_scan.sh` 源码与产物区告警 | **`src/`、`frontend/`、`scripts/`、`product-ops/` 全部 0 命中**（仅历史测试哨兵 17 条预置假字符串） | `bash scripts/security_scan.sh` |
 
