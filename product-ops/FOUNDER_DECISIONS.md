@@ -40,7 +40,7 @@
 
 ## FD-003：授权开启每晚 21:00 (Asia/Shanghai) 自动巡检与运营日报 Sidecar 调度
 
-- **状态**：`APPROVED & VERIFIED, PENDING DASHBOARD TOGGLE (方案 A · 2026-11-23)` — 已实跑全套日报命令并核验 `daily-intelligence-cpo-report` 最小权限，`user_config.json` 与 `launchd` 未被修改，仅待创始人在 Automations 面板一键开启开关。
+- **状态**：`COMPLETED (方案 A 已启用 · 2026-11-23)` — 已完成试跑与权限核验，并已由创始人在 Antigravity Automations 面板点击启用每晚 `21:00 (Asia/Shanghai)` 自动运行（`launchd` 继续保持未注册）。
 - **需要决定什么**：是否由您在 Antigravity 面板启用已创建的 **`Intelligence 每日产品负责人运营日报`** 定时任务（每天北京时间 `21:00` 自动巡检仓库 Git、CI、市场竞品动向与 `product-ops/CURRENT_STATE.md` 并产出 `product-ops/reports/daily/<YYYY-MM-DD>.md`），以及未来是否授权配置项目自带 `config/launchd/` 模板用于本机内容定时采集。
 - **为什么现在需要决定**：依据安全与系统指令纪律，AI 绝对不得擅自修改调度激活配置（`user_config.json`）或注册 `launchd`，否则“声称无人值守运行”即属虚假承诺；需要您显式授权或在控制台开关启用。
 - **已有市场和用户证据**：工程上每天都有代码/CI/外部 GitHub 竞品变化，固定 21:00 落盘结构化日报能大幅压缩创始人管理负担。
