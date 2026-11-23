@@ -9,7 +9,7 @@
 - [x] **Day 1（已完成）**：建立 `product-ops/` 全套运营决策基线、市场/竞品矩阵、交付 **可携带深链引用与导出出处（`09f98d4`）** 与每日日报生成器 [generate_daily_ops_report.py](../scripts/generate_daily_ops_report.py)。
 - [x] **`EXP-002`（真实本机模型实测基准包，2026-11-23 完成）**：在隔离临时工作区用真实本机 `ollama/qwen3.5:9b` 跑通跨源双语对照（3/3 `GROUNDED`，同时引用 YouTube `&t=85s` + B 站 `?t=115` + Markdown `TEXT_RANGE P2 (47–213)`）及 2/2 诱骗问题诚实拒答（`REFUSED_INSUFFICIENT_EVIDENCE`，总耗时 `227.6s`），并核验 Obsidian Markdown 深链导出零 `00:00` 伪时间戳。
 - [x] **`FD-001`（2026-11-23 已完成）**：整合核心加固/迭代及跨平台 CI 修复至 `main@9f65417a6589823096bea5c6ae7d7580a602822a`，推送 `origin/main`，GitHub Actions [`Public Beta CI #45132090574`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45132090574) Python + Frontend 双端全绿通过。
-- [x] **补充零配置启动器与首次试用 5 分钟上手清单（`DEC-OPS-005` · 2026-11-23 分支已完成，待 `FD-004` 同步 `main`）**：新增 `uv run youtube-intel start`（`--check-only` / `--vault` / `--workspace-root`）、`serve-api` `vault_root` 友好排错提示及新版 `README.md` 5 分钟清单。
+- [x] **补充零配置启动器与首次试用 5 分钟上手清单（`DEC-OPS-005` & `FD-004` · 2026-11-23 已完成并上 `main@a820152`）**：新增 `uv run youtube-intel start`（`--check-only` / `--vault` / `--workspace-root`）、`serve-api` `vault_root` 友好排错提示及新版 `README.md` 5 分钟清单；CI [`#45137542384`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45137542384) 双端全绿。
 
 ## Week 2（11/30 – 12/06）：Public Beta 对外亮剑与首批 10 位研究者实测
 - [x] **`FD-002`（2026-11-23 仓库已公开）**：GitHub 仓库 `huangbuqubunao-alt/intelligence` 已转为 **`PUBLIC`**（Apache-2.0），并备好面向 **5–10 名深度用户的 `EXP-001` 私域试用邀请文案**，待创始人发出后持续回收首轮激活与留存反馈。
