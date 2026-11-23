@@ -55,3 +55,11 @@ test.each(["en", "zh-CN"])("single YouTube and Bilibili imports never enroll cha
     view.unmount();
   }
 });
+
+test("Escape key closes AddEntry modal when idle", () => {
+  localStorage.setItem("yia.ui-language", "zh-CN");
+  const onClose = vi.fn();
+  render(<UiLanguageProvider><AddEntry onClose={onClose} onSaved={vi.fn()} /></UiLanguageProvider>);
+  fireEvent.keyDown(window, { key: "Escape" });
+  expect(onClose).toHaveBeenCalledOnce();
+});

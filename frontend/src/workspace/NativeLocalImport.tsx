@@ -27,12 +27,14 @@ function FileState({ file, errors }: { file: NativeFileState; errors?: Record<st
   </li>;
 }
 
-export function NativeLocalImport({ available, onClose, onSaved, onImported, onYouTube, onBilibili, errors }: {
+export function NativeLocalImport({ available, onClose, onSaved, onImported, onYouTube, onBilibili, onUseBrowserUpload, errors }: {
   available: boolean | null; onClose: () => void; onSaved: () => void;
   onImported?: (id: string) => void; onYouTube: () => void; onBilibili?: () => void;
+  onUseBrowserUpload?: () => void;
   errors: Record<string, string>;
 }) {
-  const { t } = useUiLanguage();
+  const { language, t } = useUiLanguage();
+  const zh = language === "zh-CN";
   const [job, setJob] = useState<NativeJob | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -72,6 +74,16 @@ export function NativeLocalImport({ available, onClose, onSaved, onImported, onY
     if (job?.state === "SELECTED" || job?.state === "SELECTING") await request("cancel");
     onClose();
   };
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !pending && !busy) {
+        event.preventDefault();
+        void close();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [pending, busy, job?.state]);
   return <div className="overlay"><section className="modal local-import" role="dialog" aria-modal="true" aria-labelledby="native-local-title">
     <div className="modal-head"><h2 id="native-local-title">{t("Add local files")}</h2><button className="button button-ghost" disabled={pending} onClick={() => void close()}>{t(busy && job?.state === "IMPORTING" ? "Continue in background" : "Cancel")}</button></div>
     <div className="button-row" aria-label={t("Source provider")}><button className="button button-secondary" disabled={busy || pending} onClick={onYouTube}>YouTube / Bilibili</button><button className="button button-primary" aria-pressed="true" disabled={busy}>{t("Local files")}</button>{onBilibili && <button className="button button-secondary" disabled={busy || pending} onClick={onBilibili}>{t("Bilibili")}</button>}</div>
@@ -80,7 +92,30 @@ export function NativeLocalImport({ available, onClose, onSaved, onImported, onY
     <p className="hint">{t("Importing a video saves the file. Transcript, Summary and Evidence require usable source text. You can also import an existing TXT or MD transcript; no cloud service is used for local transcription.")}</p>
     <button className="button button-ghost" disabled={busy || pending} onClick={() => void close().then(() => { scheduleSafeHashUpdate("Settings/transcription"); })}>{t("Set up local transcription")}</button>
     {available === null && <p role="status">{t("Checking native file selection…")}</p>}
-    {available === false && <p role="alert" className="form-error">{t("Native file selection is unavailable. Reopen Intelligence using its current launcher.")}</p>}
+    {available === false && (
+      <>
+        <p role="alert" className="form-error">{t("Native file selection is unavailable. Reopen Intelligence using its current launcher.")}</p>
+        {onUseBrowserUpload && (
+          <div className="native-browser-fallback-callout">
+            <p className="hint">
+              {zh
+                ? "若通过命令行 youtube-intel start / demo 在浏览器访问，可直接切换为浏览器本地上传（仅在本机 127.0.0.1 传输，不经云端）。"
+                : "Running via youtube-intel start / demo in a browser? Switch to direct loopback browser upload (stays on 127.0.0.1, never leaves this device)."}
+            </p>
+            <button
+              type="button"
+              className="button button-primary"
+              disabled={busy || pending}
+              onClick={onUseBrowserUpload}
+            >
+              {zh
+                ? "使用浏览器本地上传（.md / .txt / 音视频）"
+                : "Use browser local upload (.md / .txt / media)"}
+            </button>
+          </div>
+        )}
+      </>
+    )}
     {error && <p role="alert" className="form-error">{t(error)}</p>}
     {job?.error_code && <p role="alert" className="form-error">{t(errors[job.error_code] ?? "The selected file could not be imported. Try again after checking local storage.")}</p>}
     {job?.state === "SELECTING" && <p role="status">{t("Choose files in the macOS selector…")}</p>}

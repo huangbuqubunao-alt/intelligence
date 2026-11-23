@@ -297,6 +297,161 @@ _LOCAL_MD_BYTES: Final[bytes] = (
 )
 
 
+_DEMO_EN_STOPWORDS: Final[frozenset[str]] = frozenset(
+    {
+        "the",
+        "and",
+        "for",
+        "with",
+        "what",
+        "how",
+        "why",
+        "when",
+        "where",
+        "who",
+        "does",
+        "did",
+        "have",
+        "has",
+        "had",
+        "been",
+        "will",
+        "would",
+        "could",
+        "are",
+        "is",
+        "in",
+        "of",
+        "to",
+        "on",
+        "at",
+        "by",
+        "from",
+        "this",
+        "that",
+        "these",
+        "those",
+        "can",
+        "should",
+        "about",
+        "into",
+        "your",
+        "our",
+        "their",
+        "between",
+        "versus",
+        "point",
+        "points",
+        "value",
+        "values",
+        "level",
+        "rate",
+        "type",
+        "kind",
+        "part",
+        "main",
+        "most",
+        "many",
+        "much",
+        "some",
+    }
+)
+_DEMO_ZH_PARTICLES_RE: Final[re.Pattern[str]] = re.compile(
+    r"[的了是在有和与及于对把被给为用要能会都就也还又很最从向到让使]+"
+)
+_DEMO_ZH_STOP_BIGRAMS: Final[frozenset[str]] = frozenset(
+    {
+        "什么",
+        "怎么",
+        "如何",
+        "为什",
+        "哪些",
+        "可以",
+        "有没",
+        "没有",
+        "请问",
+        "多少",
+        "是否",
+        "关于",
+        "以及",
+        "或者",
+        "应该",
+        "实测",
+        "数值",
+        "目前",
+        "当前",
+        "问题",
+        "内容",
+        "材料",
+        "视频",
+        "资料",
+        "比较",
+        "一下",
+        "进行",
+        "一个",
+        "这些",
+        "那些",
+        "真的",
+        "到底",
+        "究竟",
+    }
+)
+_DEMO_CORPUS_META_PHRASES: Final[tuple[str, ...]] = (
+    "当前内容库",
+    "当前资料库",
+    "核心方法论",
+    "共识与关键分歧",
+    "共识与分歧",
+    "落地建议",
+    "避坑指南",
+    "切入机会",
+    "总结全部",
+    "全部来源",
+    "summarize",
+    "key takeaways",
+)
+
+
+def _demo_question_has_evidence_support(question_text: str, user_prompt: str) -> bool:
+    """Reject out-of-domain demo questions instead of fabricating citations."""
+
+    cand_match = re.search(
+        r"<untrusted_evidence_candidates>(.*?)</untrusted_evidence_candidates>",
+        user_prompt,
+        re.DOTALL,
+    )
+    evidence_hay = (cand_match.group(1) if cand_match else user_prompt).lower()
+    scope_match = re.search(r"当前检索范围[：:]\s*([^\n]+)", user_prompt)
+    if scope_match:
+        evidence_hay = f"{evidence_hay}\n{scope_match.group(1).lower()}"
+    evidence_en_words = set(re.findall(r"[a-z][a-z0-9_-]{2,}", evidence_hay))
+
+    q_lower = question_text.lower()
+    en_tokens = [
+        tok
+        for tok in re.findall(r"[a-z][a-z0-9_-]{2,}", q_lower)
+        if tok not in _DEMO_EN_STOPWORDS
+    ]
+    zh_clean = _DEMO_ZH_PARTICLES_RE.sub(" ", question_text)
+    zh_bigrams: list[str] = []
+    for run in re.findall(r"[\u4e00-\u9fff]{2,}", zh_clean):
+        for i in range(len(run) - 1):
+            bg = run[i : i + 2]
+            if bg not in _DEMO_ZH_STOP_BIGRAMS:
+                zh_bigrams.append(bg)
+
+    if any(tok in evidence_en_words for tok in en_tokens):
+        return True
+    if any(bg in evidence_hay for bg in zh_bigrams):
+        return True
+
+    if any(phrase in q_lower or phrase in question_text for phrase in _DEMO_CORPUS_META_PHRASES):
+        unmatched_tokens = len(en_tokens) + max(0, len(zh_bigrams) // 2)
+        if unmatched_tokens <= 2:
+            return True
+    return False
+
+
 class _DemoShowcaseCompleter:
     """Offline deterministic responder supporting curated seeds and live judge Q&A."""
 
@@ -357,7 +512,10 @@ class _DemoShowcaseCompleter:
 
             q_match = re.search(r"用户(?:研究)?问题[：:]\s*(.+)", user_prompt)
             question_text = q_match.group(1).strip() if q_match else "当前所选资料的核心洞察"
-            if refs:
+            supported = bool(refs) and _demo_question_has_evidence_support(
+                question_text, user_prompt
+            )
+            if supported:
                 ref_tags = "、".join(f"[{r}]" for r, _ in refs)
                 answer_zh = (
                     f"【离线合成样例回放】围绕「{question_text}」，结合当前资料库已验证证据（{ref_tags}）："
@@ -375,25 +533,35 @@ class _DemoShowcaseCompleter:
                     {"ref": ref_id, "note_zh": f"关联原始证据：{desc}"}
                     for ref_id, desc in refs
                 ]
+                takeaways = [
+                    "先做确定性状态与证据存证，再交给模型生成结构化洞察",
+                    "本地 Ollama 与 BYOK 双轨路由兼顾零成本体验与按需高阶能力",
+                ]
+                actions = [
+                    "点击下方证据引用直接跳转到原视频/文档对应片段核验原文",
+                    "点击「导出 Obsidian 双链笔记」将跨视频结论沉淀至个人知识库",
+                ]
+                refusal_reason_zh = ""
             else:
+                refusal_reason_zh = (
+                    "当前离线样例资料库中的可核验字幕与本地笔记未包含与该问题直接相关的原文证据，"
+                    "依据 Fail-Closed 反幻觉策略拒绝作答；下方「相关片段」仅作库内检索参考，不作为结论依据。"
+                    if refs
+                    else "当前限定范围内暂无匹配的带时间轴字幕或本地文本文档片段。"
+                )
                 answer_zh = (
-                    f"【离线合成样例回放】当前范围内尚无足够的带时间戳字幕证据回答「{question_text}」，"
-                    "请放宽筛选范围或补充带字幕资料。"
+                    f"【离线合成样例回放 · 证据不足拒答】当前样例资料库中未找到可直接支撑「{question_text}」的原文证据。"
                 )
                 citations = []
+                takeaways = []
+                actions = []
             return (
                 {
-                    "answerable": bool(refs),
-                    "refusal_reason_zh": "" if refs else "当前限定范围内暂无匹配的带时间轴字幕片段。",
+                    "answerable": supported,
+                    "refusal_reason_zh": refusal_reason_zh,
                     "answer_zh": answer_zh,
-                    "key_takeaways_zh": [
-                        "先做确定性状态与证据存证，再交给模型生成结构化洞察",
-                        "本地 Ollama 与 BYOK 双轨路由兼顾零成本体验与按需高阶能力",
-                    ],
-                    "action_items_zh": [
-                        "点击下方证据引用直接跳转到原视频/文档对应片段核验原文",
-                        "点击「导出 Obsidian 双链笔记」将跨视频结论沉淀至个人知识库",
-                    ],
+                    "key_takeaways_zh": takeaways,
+                    "action_items_zh": actions,
                     "citations": citations,
                 },
                 "demo-replay",
