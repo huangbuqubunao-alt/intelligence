@@ -572,6 +572,23 @@ def test_fast_read_api_accelerates_sources_topics_dashboard_intelligence_and_noo
             f"Parity mismatch on {check_route}"
         )
 
+    # Paginated /api/v1/videos parity & 400 validation parity (raw vs fast)
+    raw_page = raw.handle("GET", "/api/v1/videos?limit=2&offset=1")
+    fast_page = fast_no_sidecar.handle("GET", "/api/v1/videos?limit=2&offset=1")
+    assert fast_page == raw_page
+    assert fast_page[1]["pagination"]["limit"] == 2
+    assert fast_page[1]["pagination"]["offset"] == 1
+    assert fast_page[1]["pagination"]["returned_count"] == 2
+    assert fast_page[1]["pagination"]["has_more"] is True
+    for bad_route in ("/api/v1/videos?limit=0", "/api/v1/videos?unknown=1"):
+        with pytest.raises(Exception) as raw_q_err:
+            raw.handle("GET", bad_route)
+        with pytest.raises(type(raw_q_err.value)) as fast_q_err:
+            fast_no_sidecar.handle("GET", bad_route)
+        assert getattr(raw_q_err.value, "status", None) == 400
+        assert getattr(fast_q_err.value, "status", None) == 400
+        assert getattr(fast_q_err.value, "code", None) == getattr(raw_q_err.value, "code", None) == "INVALID_QUERY"
+
     # 404 parity on nonexistent evidence route
     try:
         raw.handle("GET", "/api/v1/videos/DoesNotExist999/evidence")

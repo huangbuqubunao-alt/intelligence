@@ -15,7 +15,8 @@
 | **DEC-OPS-005** | 推出零配置 `youtube-intel start` 启动器消除首次冷启动必崩 | L1 + L3 (`FD-004`) | **COMPLETED (`main@a820152`)** | CI `#45137542384` 全绿 | `10 × 3 × 0.95 / 0.8 = 35.6` |
 | **DEC-OPS-006** | **Stage D Iteration #3**：根治 Demo 越域假问答、macOS 浏览器本地上传死路、空库 409 与冷启动 Settings 误报 | L1 | **COMPLETED (`main@f23954f`)** | **CI `#45149288840` 双端全绿** | `10 × 3 × 0.95 / 0.7 = 40.7` |
 | **DEC-OPS-007** | **Iteration #4 (`BL-006` + `BL-005`)**：单快照加速 `/evidence`（713ms→4ms 级）+ 两层详情动作栏 + 32 例多源冲突 Eval & Demo 词形拒答加固 | L1 | **EXECUTED (`6760028`)** | **本地全绿 + Chromium 桌面/移动复检** | `8 × 2.5 × 0.85 / 0.8 = 21.3` |
-| **DEC-OPS-008** | **Iteration #5 (`BL-007`)**：首轮三步引导可跳转步骤条与来源矩阵 + 双主题移动端适配 + 补全缺失中文与移除 `UNKNOWN` 费用生硬词 | L1 | **EXECUTED (Iteration #5)** | **`54/54` (`1244/1244`) Vitest 全绿 + 双主题实机** | `6 × 1.5 × 0.80 / 0.4 = 18.0` |
+| **DEC-OPS-008** | **Iteration #5 (`BL-007`)**：首轮三步引导可跳转步骤条与来源矩阵 + 双主题移动端适配 + 补全缺失中文与移除 `UNKNOWN` 费用生硬词 | L1 | **EXECUTED (`2be958f`)** | **`54/54` (`1244/1244`) Vitest 全绿 + 双主题实机** | `6 × 1.5 × 0.80 / 0.4 = 18.0` |
+| **DEC-OPS-009** | **Iteration #6 (`BL-008`)**：>500 大库全库分块检索与 `/videos` 分页 + SQLite `.backup()` 零密钥热快照 + 冷启动路径加速 + `#Settings` 零扰动复审 | L1 | **EXECUTED (Iteration #6)** | **`143/143` CI Pytest + `27/27` 备份全绿** | `4 × 2.0 × 0.70 / 1.0 = 5.6` |
 
 ---
 
@@ -63,3 +64,15 @@
 | **三方案对比** | **方案 A（已选并执行，RICE `18.0`）**：<br>1. `Onboarding.tsx` & `styles.css`：进度条改用唯一品牌绿 `--accent`，加入 3 步可跳转 pill 导航条与第 3 步 3 来源结构化卡片，`<=700px` 单列堆叠与全宽按钮；<br>2. `uiLanguage.tsx` & `App.tsx`：补全 5+ 项缺失中文词条（含 `Investigations` 专题页）、`Expires` 中文化、空首页补充支持格式提示，清理 `UNKNOWN` 等生硬残留英文，同时保留全部既有 Vitest 断言字符串不作弱化；<br>3. `Onboarding.test.tsx` 追加步骤跳转与中文化回归测试。<br>**方案 B（改写已有 `App.test.tsx` 断言强推全句重写）**：违背不弱化/不动历史单测红线，**拒绝**。<br>**方案 C（仅改文案不做引导视觉与移动布局对齐）**：留有紫蓝旧渐变与第 3 步空泛文案，**拒绝**。 |
 | **工程成本与副作用** | 修改 `Onboarding.tsx`、`styles.css`、`uiLanguage.tsx`、`App.tsx` 与 `Onboarding.test.tsx` 共 5 个前端文件；后端零改动。 |
 | **验证结果与回滚条件** | `npm run build` (`3.23s`) 零报错，全量 Vitest (`--minWorkers=1 --maxWorkers=2`) **`54/54` 文件 / `1244/1244` tests passed in `88.35s`**；未缓存空工作区（`8797` + `8798`）Chromium 实机验证 Obsidian Dark `1440×900` 与 Warm Paper Light `375×812` 全通过（0 console errors、0 HTTP `>=400`、0 横向溢出）。可按单提交安全回滚。 |
+
+---
+
+### DEC-OPS-009：突破 500 条视频大库上限、落地 SQLite `.backup()` 热快照及 `#Settings` 零扰动复审（2026-11-23 · Iteration #6 · `BL-008`）
+
+| 评估维度 | 详细分析与证据 |
+|---|---|
+| **触发问题（架构审计 + 650 条基准压测）** | ① 650 条实机摸底（`state.sqlite3 = 4.94 MiB`）证实：`GET /api/v1/videos` 硬截断 200 条且缺少分页参数，`WorkspaceIntelligenceHub` 内部 8 处硬编码 `300`/`500` 条上限导致第 501 条之后的内容在跨库问答、周报汇总、专题与 Obsidian 导出中隐性失踪；<br>② Sidecar 库 `.workspace-ai/hub.sqlite3` 此前仅有 JSON 滚动快照而缺少原生 SQLite 在线一致性热备份，高并发读取路径（`/api/v1/sources`、`/api/v1/videos`、`/api/v1/intelligence`）在大库高负载下也存在重复扫描与整行反序列化冗余；<br>③ 需确认 `#Settings` 次级工程诊断区是否需要二次 UI 改版。 |
+| **用户价值与预期收益** | 深度研究用户资料库突破 500–10,000 条后仍可零遗漏检索任意旧视频/本地笔记、分页拉取清单并获得 `PRAGMA integrity_check` 级零密钥热备份，同时不改变既有桌面/前端无参数契约、不新增重 UI 认知打扰（未来真实超大库长期表现待真实用户验证：`[待真实用户验证假设]`）。 |
+| **三方案对比** | **方案 A（已选并执行，RICE `5.6`）**：<br>1. **向后兼容分页与全库分块读取（零 Schema 迁移）**：`SQLiteStateRepository` 扩展 `list_videos(*, limit=200, offset=0)`、`count_videos*` 与 `list_all_videos*`（默认 500/批、安全上限 10,000）；`LocalApiApplication` 与 `FastReadApiApplication` 在带查询串时返回 `pagination` 元数据与 `400 INVALID_QUERY` 参数校验，无查询串保持原 `{"videos": [...]}` 字节兼容；`WorkspaceIntelligenceHub` 通过 `_load_all_videos()` 替换全部 8 处 `300`/`500` 截断；<br>2. **SQLite 原生 `.backup()` 零密钥热快照**：新增 `create_sqlite_hot_snapshot()` 生成 `hub-snapshot.sqlite3`（`0o600` 原子替换 + `PRAGMA integrity_check == "ok"`），同步紧缩滚动 JSON 快照；<br>3. **冷读链路瘦身与 `#Settings` 零扰动复审**：优化 `compute_source_ai_signals` 4 列轻量查询、`FastReadApiApplication` 单次遍历 DA 解析与复用缓存指纹 `data_token` 的跨请求未篡改摘要内存索引（严格保留 fail-closed 篡改失效）；经代码复核 `#settings-legacy-diagnostics` 已在 `hasWorkspaceAi === true` 时默认折叠，决定对 `#Settings` 保持零前端改版；<br>**方案 B（修改 `videos` 核心 Schema 或强制改变无参 `/api/v1/videos` 结构）**：违背零迁移约束并会破坏已有前后端集成契约，**拒绝**；<br>**方案 C（把 `LIMIT` 简单改成硬编码 10000 并同步改写 `#Settings` 页面）**：单次全拉会拖慢首页加载并在无需求依据下平添 UI 波动，**拒绝**。 |
+| **工程成本与副作用** | 修改 `state.py`、`local_api.py`、`fast_read_api.py`、`workspace_intelligence_hub.py` 4 个后端模块及 2 个集成测试文件；零 SQLite Schema 变更、零新依赖、零 `frontend/` 改动。 |
+| **验证结果与回滚条件** | `ruff check` & `mypy src`（136 文件）0 错；**11 组 CI `pytest` 独立跑批 `143/143 passed in 505.13s`**（0 failed, 0 skipped）；Backup/Restore 专项 `27/27 passed in 59.89s`；600 条大库（`vidBig000–vidBig599`）实测分页 3 页 `[97.9, 48.1, 53.8]ms` 覆盖 600/600、跨库问答命中第 561 条（`vidBig560`）仅 **`0.23s`**、`obsidian-bundle?scope=all` & `.zip` 完整包含、核心库 `create_backup()` `1398.2ms`（600 篇）、`create_sqlite_hot_snapshot()` **`5.5ms`**（`53,248B`, `integrity_ok=True`, `zero_secret=True`）；cProfile 对比显示高负载下 `COLD /api/v1/videos` 从 `243.42ms` 降至 **`68.56ms`**（3.5x）、`COLD /api/v1/intelligence` 从 `48.92ms` 降至 **`21.90ms`**（2.2x）。可按单提交粒度安全回滚。 |

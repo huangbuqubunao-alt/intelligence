@@ -1,10 +1,14 @@
-"""Integration tests for Video + Markdown cross-source Q&A, 7-day weekly window, and 250-item scale."""
+"""Integration tests for Video + Markdown cross-source Q&A, 7-day weekly window, and 250/600-item scale."""
 
 from __future__ import annotations
 
+import gc
+import io
 import json
 import re
+import sqlite3
 import time
+import zipfile
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
 from pathlib import Path
@@ -12,6 +16,7 @@ from typing import Any
 
 import pytest
 
+from youtube_intel.backup_restore import BackupRestoreService
 from youtube_intel.bilibili_content import BilibiliContentProvider
 from youtube_intel.config import AppConfig, AppSettings, load_settings
 from youtube_intel.domain import (
@@ -22,6 +27,7 @@ from youtube_intel.domain import (
 )
 from youtube_intel.extractive_summary import ExtractiveSummaryService
 from youtube_intel.fast_read_api import FastReadApiApplication
+from youtube_intel.local_api import ApiError
 from youtube_intel.orchestration import ProcessingPolicy
 from youtube_intel.providers.bilibili import (
     BilibiliAdapter,
@@ -235,6 +241,7 @@ def _seed_timed_video(
     cues: tuple[TimedTranscriptCueWrite, ...],
     now: datetime,
     published_at: datetime | None = None,
+    create_extractive_summary: bool = True,
 ) -> list[str]:
     pub = published_at or (now - timedelta(hours=2))
     repo.upsert_video_metadata(
@@ -333,8 +340,37 @@ def _seed_timed_video(
             now=now,
         )
         created_ev_ids.append(ev_id)
-    ExtractiveSummaryService(repo, data_root).create(video_id, now=now)
+    if create_extractive_summary:
+        ExtractiveSummaryService(repo, data_root).create(video_id, now=now)
     return created_ev_ids
+
+
+def _seed_fast_timed_video(
+    repo: SQLiteStateRepository,
+    data_root: Path,
+    *,
+    source_id: str,
+    video_id: str,
+    channel_id: str,
+    channel_name: str,
+    title: str,
+    cues: tuple[TimedTranscriptCueWrite, ...],
+    now: datetime,
+    published_at: datetime | None = None,
+) -> list[str]:
+    return _seed_timed_video(
+        repo,
+        data_root,
+        source_id=source_id,
+        video_id=video_id,
+        channel_id=channel_id,
+        channel_name=channel_name,
+        title=title,
+        cues=cues,
+        now=now,
+        published_at=published_at,
+        create_extractive_summary=False,
+    )
 
 
 def _build_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
@@ -636,3 +672,188 @@ def test_250_item_library_retrieves_buried_fact_beyond_old_200_limit(
     assert exp_code == HTTPStatus.OK
     assert exp_body["session"]["refused"] is False
     assert [c["video_id"] for c in exp_body["session"]["citations"]] == [buried_id]
+
+
+def test_600_item_library_pagination_buried_retrieval_and_sqlite_hot_backups(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    env = _build_env(tmp_path, monkeypatch)
+    fast_app: FastReadApiApplication = env["fast_app"]
+    hub = env["hub"]
+    repo: SQLiteStateRepository = env["repo"]
+
+    buried_idx = 560  # Past both 200 (default page) and old 300/500 caps
+    buried_id = f"vidBig{buried_idx:03d}"
+
+    t_seed_start = time.perf_counter()
+    for idx in range(600):
+        vid = f"vidBig{idx:03d}"
+        item_time = NOW - timedelta(hours=idx)
+        is_buried = idx == buried_idx
+        text = (
+            "KestrelVault uses a 91ms deterministic WAL barrier before committing archive checkpoints."
+            if is_buried
+            else f"Routine engineering broadcast {idx} covering telemetry queues and batch compaction."
+        )
+        seeder = _seed_timed_video if is_buried else _seed_fast_timed_video
+        seeder(
+            repo,
+            env["data_root"],
+            source_id=env["source"].source_id,
+            video_id=vid,
+            channel_id="UC3333333333333333333333",
+            channel_name="Large Corpus Channel",
+            title=f"Big Scale Entry {idx:03d}",
+            cues=(TimedTranscriptCueWrite(start_ms=14000, end_ms=30000, text=text),),
+            now=item_time,
+            published_at=item_time,
+        )
+    seed_elapsed = time.perf_counter() - t_seed_start
+
+    distill_code, _ = fast_app.handle(
+        "POST", f"/api/v1/workspace-ai/videos/{buried_id}/distill", b"{}"
+    )
+    assert distill_code == HTTPStatus.OK
+
+    # 1. Backward-compatible unpaginated GET /api/v1/videos
+    t_unpaged = time.perf_counter()
+    unpaged_code, unpaged_body = fast_app.handle("GET", "/api/v1/videos")
+    unpaged_ms = (time.perf_counter() - t_unpaged) * 1000.0
+    assert unpaged_code == HTTPStatus.OK
+    assert set(unpaged_body.keys()) == {"videos"}
+    assert len(unpaged_body["videos"]) == 200
+    assert buried_id not in {v["video_id"] for v in unpaged_body["videos"]}
+
+    # 2. Paginated GET /api/v1/videos?limit=200&offset={0,200,400} covers all 600 items
+    seen_ids: set[str] = set()
+    page3_ids: set[str] = set()
+    page_timings_ms: list[float] = []
+    for page_idx, (offset, expected_has_more) in enumerate(
+        ((0, True), (200, True), (400, False))
+    ):
+        t_page = time.perf_counter()
+        p_code, p_body = fast_app.handle(
+            "GET", f"/api/v1/videos?limit=200&offset={offset}"
+        )
+        page_timings_ms.append((time.perf_counter() - t_page) * 1000.0)
+        assert p_code == HTTPStatus.OK
+        assert p_body["pagination"] == {
+            "limit": 200,
+            "offset": offset,
+            "total_count": 600,
+            "returned_count": 200,
+            "has_more": expected_has_more,
+        }
+        batch_ids = [v["video_id"] for v in p_body["videos"]]
+        assert len(batch_ids) == 200
+        seen_ids.update(batch_ids)
+        if page_idx == 2:
+            page3_ids.update(batch_ids)
+
+    assert len(seen_ids) == 600
+    assert seen_ids == {f"vidBig{idx:03d}" for idx in range(600)}
+    assert buried_id in page3_ids
+
+    # 3. Pagination validation rejects out-of-range limit and unknown params with 400 INVALID_QUERY
+    for bad_route in ("/api/v1/videos?limit=999", "/api/v1/videos?unknown=1"):
+        with pytest.raises(ApiError) as err_info:
+            fast_app.handle("GET", bad_route)
+        assert err_info.value.status == HTTPStatus.BAD_REQUEST
+        assert err_info.value.code == "INVALID_QUERY"
+
+    # 4. Cross-library research Q&A retrieves item #561 across all 600 items
+    t_ask = time.perf_counter()
+    ask_code, ask_body = fast_app.handle(
+        "POST",
+        "/api/v1/workspace-ai/research/ask",
+        json.dumps({"question": "What does KestrelVault 91ms deterministic WAL barrier do?"}).encode(
+            "utf-8"
+        ),
+    )
+    ask_elapsed = time.perf_counter() - t_ask
+    assert ask_code == HTTPStatus.OK
+    session = ask_body["session"]
+    assert session["refused"] is False
+    assert session["scope"]["matched_video_count"] == 600
+    cited_ids = {c["video_id"] for c in session["citations"]}
+    assert buried_id in cited_ids
+    buried_cite = next(c for c in session["citations"] if c["video_id"] == buried_id)
+    assert "KestrelVault" in buried_cite["excerpt"]
+    assert ask_elapsed < 15.0
+
+    # 5. Obsidian bundle JSON & ZIP include item #561 when scope=all
+    bundle_code, bundle_body = fast_app.handle(
+        "GET", "/api/v1/workspace-ai/obsidian-bundle?scope=all"
+    )
+    assert bundle_code == HTTPStatus.OK
+    assert int(bundle_body["counts"]["videos"]) >= 1
+
+    zip_dl = fast_app.backup_download("/api/v1/workspace-ai/obsidian-bundle.zip?scope=all")
+    assert zip_dl is not None
+    dl_status, _, dl_payload = zip_dl
+    assert dl_status == HTTPStatus.OK
+    raw_zip = (
+        dl_payload
+        if isinstance(dl_payload, bytes)
+        else Path(dl_payload).read_bytes()
+    )
+    with zipfile.ZipFile(io.BytesIO(raw_zip)) as zf:
+        zip_texts = [
+            zf.read(name).decode("utf-8", errors="replace")
+            for name in zf.namelist()
+            if name.endswith(".md")
+        ]
+    assert any(buried_id in text or "Big Scale Entry 560" in text for text in zip_texts)
+
+    # 6. Core SQLite backup + Workspace AI zero-secret hot SQLite snapshot
+    project_root = env["data_root"].parent
+    t_core_bak = time.perf_counter()
+    core_backup = BackupRestoreService(
+        database=project_root / "state.sqlite3",
+        data_root=env["data_root"],
+        control_root=project_root / "control",
+    ).create_backup()
+    core_bak_ms = (time.perf_counter() - t_core_bak) * 1000.0
+    assert core_backup.preview["content_count"] == 600
+    assert core_backup.size_bytes > 0
+
+    t_hub_snap = time.perf_counter()
+    hot_snap = hub.create_sqlite_hot_snapshot()
+    hub_snap_ms = (time.perf_counter() - t_hub_snap) * 1000.0
+    assert hot_snap["integrity_ok"] is True
+    assert hot_snap["zero_secret"] is True
+    snap_path = Path(str(hot_snap["path"]))
+    assert snap_path.is_file()
+    assert snap_path.name == "hub-snapshot.sqlite3"
+
+    ro_conn = sqlite3.connect(f"file:{snap_path}?mode=ro", uri=True)
+    try:
+        integrity_row = ro_conn.execute("PRAGMA integrity_check").fetchone()
+        assert integrity_row == ("ok",)
+        brief_count_row = ro_conn.execute(
+            "SELECT COUNT(*) FROM video_ai_briefs WHERE video_id = ?",
+            (buried_id,),
+        ).fetchone()
+        assert brief_count_row == (1,)
+        cfg_cols = [
+            str(row[1]).lower()
+            for row in ro_conn.execute("PRAGMA table_info(engine_config)").fetchall()
+        ]
+        assert cfg_cols
+        assert not any(
+            secret_tok in col
+            for col in cfg_cols
+            for secret_tok in ("key", "secret", "token", "password")
+        )
+    finally:
+        ro_conn.close()
+
+    print(
+        f"\n[BL-008 600-item Benchmark] seed={seed_elapsed:.2f}s "
+        f"unpaged_200={unpaged_ms:.1f}ms pages_ms={[round(x, 1) for x in page_timings_ms]} "
+        f"research_ask={ask_elapsed:.2f}s core_backup={core_bak_ms:.1f}ms "
+        f"hub_hot_snap={hub_snap_ms:.1f}ms ({hot_snap['size_bytes']}B)"
+    )
+    env.clear()
+    del fast_app, hub, repo, zip_texts, raw_zip
+    gc.collect()

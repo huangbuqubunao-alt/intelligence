@@ -2357,16 +2357,69 @@ class SQLiteStateRepository:
         finally:
             connection.close()
 
-    def list_videos(self, *, limit: int = 200) -> tuple[VideoRecord, ...]:
+    def list_videos(
+        self, *, limit: int = 200, offset: int = 0
+    ) -> tuple[VideoRecord, ...]:
         if limit <= 0 or limit > 1000:
             raise ValueError("video list limit is invalid")
+        if offset < 0 or offset > 100_000:
+            raise ValueError("video list offset is invalid")
         connection = self._connect()
         try:
             rows = connection.execute(
-                "SELECT * FROM videos ORDER BY updated_at DESC, video_id LIMIT :limit",
-                {"limit": limit},
+                "SELECT * FROM videos ORDER BY updated_at DESC, video_id LIMIT :limit OFFSET :offset",
+                {"limit": limit, "offset": offset},
             ).fetchall()
             return tuple(self._video_from_row(row) for row in rows)
+        finally:
+            connection.close()
+
+    def count_videos_in_connection(self, connection: sqlite3.Connection) -> int:
+        row = connection.execute("SELECT COUNT(*) FROM videos").fetchone()
+        return int(row[0]) if row is not None else 0
+
+    def count_videos(self) -> int:
+        connection = self._connect(read_only=True)
+        try:
+            return self.count_videos_in_connection(connection)
+        finally:
+            connection.close()
+
+    def list_all_videos_in_connection(
+        self,
+        connection: sqlite3.Connection,
+        *,
+        batch_size: int = 500,
+        max_videos: int = 10_000,
+    ) -> tuple[VideoRecord, ...]:
+        if batch_size <= 0 or batch_size > 1000:
+            raise ValueError("video batch_size is invalid")
+        if max_videos <= 0 or max_videos > 100_000:
+            raise ValueError("video max_videos is invalid")
+        collected: list[VideoRecord] = []
+        offset = 0
+        while len(collected) < max_videos:
+            take = min(batch_size, max_videos - len(collected))
+            rows = connection.execute(
+                "SELECT * FROM videos ORDER BY updated_at DESC, video_id LIMIT :limit OFFSET :offset",
+                {"limit": take, "offset": offset},
+            ).fetchall()
+            if not rows:
+                break
+            collected.extend(self._video_from_row(row) for row in rows)
+            if len(rows) < take:
+                break
+            offset += len(rows)
+        return tuple(collected)
+
+    def list_all_videos(
+        self, *, batch_size: int = 500, max_videos: int = 10_000
+    ) -> tuple[VideoRecord, ...]:
+        connection = self._connect(read_only=True)
+        try:
+            return self.list_all_videos_in_connection(
+                connection, batch_size=batch_size, max_videos=max_videos
+            )
         finally:
             connection.close()
 

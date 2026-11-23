@@ -15,15 +15,18 @@
 - [x] **Iteration #4 (`BL-006` + `BL-005` · `6760028` on `antigravity/task-user-readiness-20261112`)**：
   - 交付 `FastReadApiApplication` 单快照 `/evidence` 加速（实测冷读 `39.6ms` / 热读 `3.8–5.8ms`）+ 前端 SWR 无闪烁保留 + `.reader-action-bar` 两层重构与移动端快捷键徽章收敛；
   - 扩充多源反幻觉与冲突归因 Eval 集至 32 例，并加固 Demo 复合域外问题诚实拒答。
-- [x] **Iteration #5 (`BL-007` 提前交付完成 · `antigravity/task-user-readiness-20261112`)**：
+- [x] **Iteration #5 (`BL-007` · `2be958f` on `antigravity/task-user-readiness-20261112`)**：
   - 首轮三步引导升级可点击步骤导航条、祖母绿品牌进度条与 3 来源结构化卡片，空态首页补齐格式提示；
   - 补全 `Organized`/`Review Content`/`Position unavailable`/`Investigations` 等缺失中文词条并清理 `UNKNOWN`/冗长提示，`54/54` (`1244/1244`) Vitest 全绿并通过 Obsidian Dark 桌面 + Warm Paper Light 移动实机核验。
+- [x] **Iteration #6 (`BL-008` 提前交付完成 · `antigravity/task-user-readiness-20261112`)**：
+  - 突破 500 条视频硬截断：向后兼容 `/api/v1/videos?limit=&offset=` 分页与 8 处全库分块读取（600 条实测跨库问答 `0.23s`、3 页分页 `48–98ms`）；
+  - 交付 SQLite 原生 `.backup()` 零密钥热快照 `hub-snapshot.sqlite3`（`5.5ms` / `0o600` / `integrity_ok`），冷启动路径提速至 `68.56ms`/`21.90ms`，11 组 CI `pytest` `143/143` + 备份 `27/27` 全绿；复核 `#Settings` 已默认折叠收起保持零 UI 扰动。
 
-## Week 2（11/30 – 12/06）：大库性能摸底 · `#Settings` 层级收拢与热备份评估（L1/L2 内部打磨）
-- [ ] **大库 `BL-008`（NEXT P2 Evaluation）与 `#Settings` 文案收拢**：对 >500 条视频摘要索引与 SQLite `.backup()` 热快照做原型基准评估，并持续复查 `#Settings` 次级工程说明与双主题对比度。
+## Week 2（11/30 – 12/06）：长视频多轮边界压测 & Obsidian 实机目录走查（L1/L2 内部打磨）
+- [ ] **长视频多轮边界与大库恢复抽检**：在隔离环境中抽检真实多小时本地课程与混合 Markdown 长文本在 600+ 条库存下的端到端导出与备份恢复稳定度。
 
 ## Week 3（12/07 – 12/13）：可恢复性、离线打包边界与商业前提自查
-- [ ] **大库备份恢复与长视频边界压测**：验证 500 条以内真实规模库下的 backup/restore 全链路一致性与 JSON 导出耗时。
+- [ ] **离线打包边界与极简脚本预设评估**：梳理真实安装报错与单机运行前置检查体验（正式发行评估 `BL-009` 仍需等未来真人首测放行后校准）。
 - [ ] **Obsidian Vault 导出目录结构实机美化**：在隔离 `.var/workspace/vault` 验证导出 `.zip` 与文件夹解压后在真实 Markdown 结构中的 `[[wikilinks]]`、Frontmatter 与 `?t=` 点击流畅度（不触碰创始人真实个人 Obsidian Vault）。
 - [ ] **梳理阶段退出检查单（Ready-for-Human-Testing Gate）**：逐项核对 `P0/P1` 遗留缺陷 = `0`、安装成功一键检查完善、支持材料（FAQ/5分钟教程）完备，整理呈报创始人审阅。
 
