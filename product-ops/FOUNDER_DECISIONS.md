@@ -57,7 +57,7 @@
 
 ## FD-004：将迭代 #2（零配置 `youtube-intel start` 冷启动修复）同步上公开 `main` 分支
 
-- **状态**：`PENDING`（等待创始人 L3 审批；推荐在对外发出 `EXP-001` 邀请前批准）
+- **状态**：`COMPLETED (方案 A 已执行 · 2026-11-23)` — 迭代 #2 已同步至 `main@a8201527c5bcc7f7d97e143d605162f73db3ff23`，GitHub Actions [`Public Beta CI #45137542384`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45137542384) 双 Job 全绿通过（仍维持 `PUBLIC_BETA`，未打对外正式 Release Tag）；现已可安全发出 `EXP-001` 内测邀请。
 - **需要决定什么**：是否批准将分支 `antigravity/task-user-readiness-20261112` 上刚完成并全量验收的零配置 `youtube-intel start` 启动器、前置检查清单、`serve-api` `vault_root` 友好提示、5 个新增集成测试及新版 `README.md` 5 分钟上手指南整合回公开的 `main` 与 `origin/main`（仍保持 `PUBLIC_BETA` 不打正式推广 Release Tag）。
 - **为什么现在需要决定**：按原 README 直接运行 `serve-api` 在纯新克隆机器上会因 `settings.example.yaml` 占位路径 `/absolute/path/to/obsidian/vault` 直接以 `Exit Code 2` 崩溃；现在仓库已转为 `PUBLIC`，若不在发出 `EXP-001` 邀请前同步上 `main`，外测用户拿到手第一条命令就会失败触发冷启动止损。
 - **方案 A / B / C**：
