@@ -789,7 +789,15 @@ class WorkspaceIntelligenceHub:
         except OSError:
             token = None
         if token is not None and self._schema_ready_token == token:
-            return
+            has_engine_cfg = (
+                conn.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='engine_config'"
+                ).fetchone()
+                is not None
+            )
+            if has_engine_cfg:
+                return
+            self._schema_ready_token = None
         conn.execute("PRAGMA journal_mode=WAL")
         for ddl in (
             """
@@ -929,11 +937,14 @@ class WorkspaceIntelligenceHub:
     def _connect_write(self) -> sqlite3.Connection:
         parent = self.db_path.parent
         parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        existed = self.db_path.is_file()
         conn = sqlite3.connect(self.db_path, timeout=10.0)
         conn.row_factory = sqlite3.Row
         try:
             conn.execute("PRAGMA busy_timeout=5000")
             with self._db_lock:
+                if not existed:
+                    self._schema_ready_token = None
                 self._ensure_schema(conn)
             return conn
         except BaseException:

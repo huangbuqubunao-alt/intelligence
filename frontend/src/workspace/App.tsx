@@ -5207,9 +5207,12 @@ function CloudIntelligencePreview({ id, manual, executionKey, onSettled }: { id:
   }, [id]);
   useEffect(() => {
     if (!review) return;
-    const timer = setTimeout(() => setClock(Date.now()), Math.min(2_147_483_647, Math.max(0, Date.parse(review.expires_at) - Date.now())));
+    const expiresAtMs = Date.parse(review.expires_at);
+    if (!Number.isFinite(expiresAtMs) || expiresAtMs <= clock) return;
+    const delay = Math.min(2_147_483_647, Math.max(1, expiresAtMs - Date.now() + 16));
+    const timer = setTimeout(() => setClock(Date.now()), delay);
     return () => clearTimeout(timer);
-  }, [review]);
+  }, [review, clock]);
   const readiness = review?.readiness;
   const readinessValid = localObject(readiness) && typeof readiness.can_confirm === "boolean"
     && Array.isArray(readiness.blockers) && readiness.blockers.every(item => typeof item === "string")
