@@ -6,7 +6,7 @@
 
 *当前无待裁决的阻塞性 L3 审批请求（`Pending Founder Decisions: 0`）。*
 
-> 注：内部自主迭代工作（Iteration #4–#6：`BL-005` / `BL-006` / `BL-007` / `BL-008`）已在 `antigravity/task-user-readiness-20261112` 完成验证，按既定规则留存在研发分支，待里程碑成熟后再视需要提请合流 `main`。
+> 注：内部自主迭代工作（Iteration #4–#7：`BL-005` / `BL-006` / `BL-007` / `BL-008` / `BL-010`）已在 `antigravity/task-user-readiness-20261112` 完成验证，并已配套生成阶段退出门禁清单 [`RELEASE_READINESS_GATE.md`](./RELEASE_READINESS_GATE.md)；按既定规则留存在研发分支，待里程碑成熟后再视需要提请合流 `main` 或评估后续阶段切换。
 
 ---
 

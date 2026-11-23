@@ -25,11 +25,11 @@
 
 ### B. 内部研发、AI 可靠性与体验指标（已实测有明确证据）
 
-| 维度 | 指标名称 | 实测基线（2026-11-23 · 截至 Iteration #6 / `main@f23954f`） | 验证方式 |
+| 维度 | 指标名称 | 实测基线（2026-11-23 · 截至 Iteration #7 / `main@f23954f`） | 验证方式 |
 |---|---|---|---|
-| **工程构建与代码质量** | Python Lint (`ruff`) / 静态类型 (`mypy`) / 前端构建 (`tsc + vite build`) | **100% 零报错**（Iteration #6 `ruff` 0 错、`mypy` 136 文件 0 错；前端承接 Iteration #5 `2be958f` `vite build` `3.23s` 成功，本轮零改动） | 本地实跑 + GitHub Actions CI (`main@f23954f`, [`#45149288840`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45149288840) 双端 `success`) |
-| **自动化回归通过率** | CI Pytest 套件 + 备份恢复专项 + 前端 Vitest | **Backend 11 组全量 `143/143 passed in 505.13s`** + **Backup/Restore 专项 `27/27 passed in 59.89s`** + **Frontend（`2be958f`）`54/54` 文件 / `1244/1244` passed in `88.35s`** | 本地独立全量跑批实录（详见 `TEST_LOG.md`） |
-| **大库规模与热点快读延迟（`BL-008`）** | 600 条视频分块检索、分页列表、热快照与冷启动路径 | **600 条实测**：`/videos` 3 页分页 `[97.9, 48.1, 53.8]ms`、跨库 Q&A 命中第 561 条 **`0.23s`**、SQLite `.backup()` 热快照 **`5.5ms`** (`53,248B`)、核心库备份 `1398.2ms`；cProfile 高负载下 `COLD /videos` `243.42ms -> 68.56ms`（3.5x），`COLD /intelligence` `48.92ms -> 21.90ms`（2.2x） | `test_cross_source_markdown_and_scale.py` (`test_600_item...`) + cProfile 实测 |
+| **工程构建与代码质量** | Python Lint (`ruff`) / 静态类型 (`mypy`) / 前端构建 (`tsc + vite build`) | **100% 零报错**（Iteration #7 `ruff` 0 错、`mypy` 136 文件 0 错；前端承接 Iteration #5 `2be958f` `vite build` `3.23s` 成功，#6–#7 零改动） | 本地实跑 + GitHub Actions CI (`main@f23954f`, [`#45149288840`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45149288840) 双端 `success`) |
+| **自动化回归通过率** | CI Pytest + 长媒体/导出专项 + 备份恢复 + 前端 Vitest | **Backend 11 组全量 `143/143 passed in 437.61s`** + **4h/300KB/Obsidian ZIP `3/3 passed in 19.04s`** + **Backup/Restore（`dbc7e89`）`27/27 passed`** + **Frontend（`2be958f`）`54/54` / `1244/1244` passed in `88.35s`** | 本地独立全量跑批实录（详见 `TEST_LOG.md`） |
+| **大库、4h 课程与 Obsidian `.zip` 边界指标（`BL-008` / `BL-010`）** | 600 条跨库检索、4h 讲座归一化、300KB 长文采样、`.zip` 解压与冷启动延迟 | · **600 条库（`dbc7e89`）**：`/videos` 3 页分页 `[97.9, 48.1, 53.8]ms`、跨库 Q&A 命中第 561 条 **`0.23s`**、SQLite `.backup()` **`5.5ms`** (`53,248B`)、核心备份 `1398.2ms`；`COLD /videos` `68.56ms`（3.5x）、`COLD /intelligence` `21.90ms`（2.2x）；<br>· **长边界与真解压（Iteration #7）**：`14390s`（3200 段）-> `03:52` 锚点命中；`>300KB`（2900 行）8 窗口均匀覆盖 0%–96%+；`.zip` 解压文件名 `<=180B`、100% YAML 合法 & 全 Index 双链闭合、文本笔记零 `00:00` | `test_cross_source_markdown_and_scale.py` + `test_long_media_and_obsidian_vault.py` + cProfile |
 | **反幻觉基准（离线 Eval）** | 32 例双语/多源冲突与拒答基准 | **32 / 32 (100%) PASS**（`8/8` 测试函数全通过，由 `20` 例扩充至 `32` 例） | `tests/integration/test_grounding_refusal_eval.py` + `test_public_beta_demo_showcase.py` |
 | **真机本机模型基准（`EXP-002`）** | `ollama/qwen3.5:9b` 处理陌生双语资料（227.6s/5 问） | **3/3 (100%) `GROUNDED`**（YT/Bili/Markdown）+ **2/2 (100%) 诱导拒答**，`$0` 云端支出 | 隔离临时工作区实跑 + 原始 JSON/Markdown 证据归档 |
 | **Demo 与空库端到端 Chromium 检查** | 首轮引导双主题 + 移动 `375×812` + 详情页 + 空库上传 | **Iteration #5 Obsidian Dark `1440×900` + Warm Paper Light `375×812` 首轮三步引导及跳过后空首页 PASS（0 溢出 / 0 报错）**；叠加 Iteration #4 `#Content` 秒开与 `main@f23954f` 拒答/上传 `201` PASS | Chromium `8797`/`8798`/`8799` 实机验证 + 截图核对 |
