@@ -15,10 +15,25 @@ export function FirstRunOnboarding({ onAddFollowing, onSkip }: {
 }) {
   const { t } = useUiLanguage();
   const [step, setStep] = useState(0);
+  const steps = ["1. Core flow", "2. Local & privacy", "3. First import"] as const;
   return <section className="onboarding-panel" aria-labelledby="onboarding-title">
     <div className="onboarding-progress" aria-label={`${t("Onboarding step")} ${step + 1} / 3`}>
       <span style={{ width: `${((step + 1) / 3) * 100}%` }} />
     </div>
+    <ol className="onboarding-stepper" aria-label={t("Onboarding steps")}>
+      {steps.map((label, idx) => (
+        <li key={label}>
+          <button
+            type="button"
+            aria-current={step === idx ? "step" : undefined}
+            className={step === idx ? "is-active" : step > idx ? "is-done" : undefined}
+            onClick={() => setStep(idx)}
+          >
+            {t(label)}
+          </button>
+        </li>
+      ))}
+    </ol>
     <div className="onboarding-step">
       <p className="eyebrow">{t("FIRST RUN")} · {step + 1} / 3</p>
       <h2 id="onboarding-title">{t(["Keep up with what matters to you.", "Understand new content quickly.", "Start with a link or a local file."][step])}</h2>
@@ -35,17 +50,26 @@ export function FirstRunOnboarding({ onAddFollowing, onSkip }: {
         <p>{t("Content can be organized without cloud Intelligence. Some videos have no available captions.")}</p>
         <p>{t("Use local capability first. Never make a paid cloud call unless you explicitly opt in.")}</p>
         <p>{t("Importing a video saves the file. Transcript, Summary and Evidence require usable source text. You can also import an existing TXT or MD transcript; no cloud service is used for local transcription.")}</p>
-        <a className="button button-secondary" href="#Settings/models/bigmodel" onClick={onSkip}>{t("Explore optional cloud Intelligence setup")}</a>
-        <a className="button button-secondary" href="#Settings/transcription" onClick={onSkip}>{t("Set up local transcription")}</a>
+        <div className="button-row onboarding-setup-links">
+          <a className="button button-secondary" href="#Settings/models/bigmodel" onClick={onSkip}>{t("Explore optional cloud Intelligence setup")}</a>
+          <a className="button button-secondary" href="#Settings/transcription" onClick={onSkip}>{t("Set up local transcription")}</a>
+        </div>
       </div>}
       {step === 2 && <>
         <p>{t("Paste a YouTube video or channel link, import a public Bilibili video, or choose local files.")}</p>
+        <ul className="onboarding-source-list">
+          <li><strong>YouTube</strong><span>{t("Video link or channel follow")}</span></li>
+          <li><strong>Bilibili</strong><span>{t("Public BV video one-time import")}</span></li>
+          <li><strong>{t("Local files")}</strong><span>{t("TXT, MD notes or local audio/video")}</span></li>
+        </ul>
         <p className="hint">{t("Channels follow future uploads. Video links and local files are one-time imports. Bilibili creator following is unavailable.")}</p>
       </>}
       <div className="onboarding-actions">
         <button className="button button-ghost" onClick={onSkip}>{t("Skip for now")}</button>
-        {step > 0 && <button className="button button-secondary" onClick={() => setStep(step - 1)}>{t("Back")}</button>}
-        <button className="button button-primary" onClick={step === 2 ? onAddFollowing : () => setStep(step + 1)}>{t(step === 2 ? "Add something" : "Continue")}</button>
+        <div className="onboarding-actions-primary">
+          {step > 0 && <button className="button button-secondary" onClick={() => setStep(step - 1)}>{t("Back")}</button>}
+          <button className="button button-primary" onClick={step === 2 ? onAddFollowing : () => setStep(step + 1)}>{t(step === 2 ? "Add something" : "Continue")}</button>
+        </div>
       </div>
     </div>
   </section>;

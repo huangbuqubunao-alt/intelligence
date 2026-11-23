@@ -14,7 +14,8 @@
 | **DEC-OPS-004** | 用真实本机 `ollama/qwen3.5:9b` 跑通陌生双语对照基准 (`EXP-002`) | L2 | **EXECUTED (`2026-11-23`)** | 3/3 有据 + 2/2 拒答 (`227.6s`) | `9 × 3 × 0.70 / 1.0 = 18.9` |
 | **DEC-OPS-005** | 推出零配置 `youtube-intel start` 启动器消除首次冷启动必崩 | L1 + L3 (`FD-004`) | **COMPLETED (`main@a820152`)** | CI `#45137542384` 全绿 | `10 × 3 × 0.95 / 0.8 = 35.6` |
 | **DEC-OPS-006** | **Stage D Iteration #3**：根治 Demo 越域假问答、macOS 浏览器本地上传死路、空库 409 与冷启动 Settings 误报 | L1 | **COMPLETED (`main@f23954f`)** | **CI `#45149288840` 双端全绿** | `10 × 3 × 0.95 / 0.7 = 40.7` |
-| **DEC-OPS-007** | **Iteration #4 (`BL-006` + `BL-005`)**：单快照加速 `/evidence`（713ms→4ms 级）+ 两层详情动作栏 + 32 例多源冲突 Eval & Demo 词形拒答加固 | L1 | **EXECUTED (Iteration #4)** | **本地全绿 + Chromium 桌面/移动复检** | `8 × 2.5 × 0.85 / 0.8 = 21.3` |
+| **DEC-OPS-007** | **Iteration #4 (`BL-006` + `BL-005`)**：单快照加速 `/evidence`（713ms→4ms 级）+ 两层详情动作栏 + 32 例多源冲突 Eval & Demo 词形拒答加固 | L1 | **EXECUTED (`6760028`)** | **本地全绿 + Chromium 桌面/移动复检** | `8 × 2.5 × 0.85 / 0.8 = 21.3` |
+| **DEC-OPS-008** | **Iteration #5 (`BL-007`)**：首轮三步引导可跳转步骤条与来源矩阵 + 双主题移动端适配 + 补全缺失中文与移除 `UNKNOWN` 费用生硬词 | L1 | **EXECUTED (Iteration #5)** | **`54/54` (`1244/1244`) Vitest 全绿 + 双主题实机** | `6 × 1.5 × 0.80 / 0.4 = 18.0` |
 
 ---
 
@@ -50,3 +51,15 @@
 | **三方案对比** | **方案 A（已选并执行，RICE `21.3`）**：<br>1. `FastReadApiApplication` 新增 `_VIDEO_EVIDENCE_ROUTE` 与 `_fast_get_video_evidence()` 单事务快照投影，保留 100% fail-closed 校验 parity，接口从 `583–713ms` 降至冷读 `39.6ms` / 热读 `3.8–5.8ms`；<br>2. 前端 `ContentEvidencePanel` 开启 `retainOnRefresh + swr`，`ContentDetail` 与 `WorkspaceVideoAiActions` 拆成 `.reader-action-primary`（左侧阅读推进 + 右侧收纳导出组）与 `.reader-action-secondary`（原片外链 + 幽灵态重新提炼 + 仅桌面端快捷键提示），保留全部可访问标签与原有单测契约；<br>3. `tests/integration/test_grounding_refusal_eval.py` 保留原 20 例基准不动并追加 Cases 21–32（32 例全量评测），同步在 `demo_showcase.py` 加固元叙述词表及词干匹配，拦截复合域外伪前提提问。<br>**方案 B（把次要导出按钮藏进下拉菜单）**：会破坏已有高价值单测直接点击 `复制双链笔记` / `下载 .md` 习惯，且增加一步点击摩擦，**拒绝**。<br>**方案 C（在 `demo_showcase.py` 强设中文固定百分比阈值 `25%`）**：实际验证对正当中文综合题 `为什么生产级 AI Agent 要用状态机约束工具调用？` 产生误杀，**已实测淘汰**，改用纯净元叙述词扩展 + 词干对齐。 |
 | **工程成本与副作用** | 改动 2 个后端模块 + 3 个前端源码 + 1 个样式文件 + 3 个测试文件；零数据库 Schema 迁移，零新依赖，无隐私数据写入。 |
 | **验证结果与回滚条件** | `fast_read_api` 冷/热实测 `39.6ms`/`3.8–5.8ms`，32 例 Eval + Demo 测试全绿，Chromium `1440×900` & `375×812` 验证 9 条证据瞬载、收藏稳态保留与移动 0 溢出 0 console errors。可按单提交粒度安全回滚。 |
+
+---
+
+### DEC-OPS-008：优化首轮三步引导与双语 UI 文案精准度（2026-11-23 · Iteration #5 · `BL-007`）
+
+| 评估维度 | 详细分析与证据 |
+|---|---|
+| **触发问题（Stage A + 词条全扫）** | ① 首轮引导 `.onboarding-progress span` 仍沿用旧版紫蓝渐变、缺少步骤跳转控件、第 3 步缺来源对照卡，跳过后空首页缺少格式提示；<br>② 词条全量扫描发现 `Organized` / `Review Content` / `Position unavailable` / `Loading current saved Intelligence…` 与 `Investigations` 专题提示缺失中文，偏好过期提示 `Expires` 仅英文，且计费提示直出 `UNKNOWN` 与多条长句冗长。 |
+| **用户价值与预期收益** | 首次开启的新用户可在 3 步内直观理解“YouTube / Bilibili / 本地文件”输入路径并在 Obsidian Dark 与 Warm Paper Light 双主题下顺畅浏览，消除中文界面的生硬夹杂英文（具体首次完成率留待真人测试阶段验证：`[待真实用户验证假设]`）。 |
+| **三方案对比** | **方案 A（已选并执行，RICE `18.0`）**：<br>1. `Onboarding.tsx` & `styles.css`：进度条改用唯一品牌绿 `--accent`，加入 3 步可跳转 pill 导航条与第 3 步 3 来源结构化卡片，`<=700px` 单列堆叠与全宽按钮；<br>2. `uiLanguage.tsx` & `App.tsx`：补全 5+ 项缺失中文词条（含 `Investigations` 专题页）、`Expires` 中文化、空首页补充支持格式提示，清理 `UNKNOWN` 等生硬残留英文，同时保留全部既有 Vitest 断言字符串不作弱化；<br>3. `Onboarding.test.tsx` 追加步骤跳转与中文化回归测试。<br>**方案 B（改写已有 `App.test.tsx` 断言强推全句重写）**：违背不弱化/不动历史单测红线，**拒绝**。<br>**方案 C（仅改文案不做引导视觉与移动布局对齐）**：留有紫蓝旧渐变与第 3 步空泛文案，**拒绝**。 |
+| **工程成本与副作用** | 修改 `Onboarding.tsx`、`styles.css`、`uiLanguage.tsx`、`App.tsx` 与 `Onboarding.test.tsx` 共 5 个前端文件；后端零改动。 |
+| **验证结果与回滚条件** | `npm run build` (`3.23s`) 零报错，全量 Vitest (`--minWorkers=1 --maxWorkers=2`) **`54/54` 文件 / `1244/1244` tests passed in `88.35s`**；未缓存空工作区（`8797` + `8798`）Chromium 实机验证 Obsidian Dark `1440×900` 与 Warm Paper Light `375×812` 全通过（0 console errors、0 HTTP `>=400`、0 横向溢出）。可按单提交安全回滚。 |

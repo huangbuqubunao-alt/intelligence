@@ -16,8 +16,8 @@
 | **BL-004** | A11y/UX/P1 | Import 模态窗 `Escape` 无法关闭、空 `#Topics`/`#Intelligence` 缺导入 CTA、移动端顶部 `.nav-item` 仅 `34px` | Stage A `8798`/`8799` 桌面 & `375px` 审计 | 8 | 2.0 | 0.90 | 0.4 | **36.0** | **DONE (`fee43f4`)** |
 | **BL-005** | Docs/Eval | 基于公开技术演讲语料体系（Obsidian/Agent/B站双语）将反幻觉与冲突分辨 Eval 集由 20 例扩充至 32 例（不含个人隐私文件），顺带加固 Offline Demo 停用词与词形拒答 | Stage B 竞争差异化要求 | 8 | 2.5 | 0.85 | 0.6 | **28.3** | **DONE (Iteration #4)** |
 | **BL-006** | UX/Flow | 根治 `#Content/<id>` 首次展开 `证据 · 来源字幕` 延迟与 `正在加载原始证据…` 闪烁（新增 `FastReadApiApplication` 单快照 `/evidence` 加速 + 前端 SWR 保持）并重排顶部 9 按钮为两层信息流 | Stage A `vidDemoAgt1` 实机审计 | 7 | 1.5 | 0.85 | 0.4 | **22.3** | **DONE (Iteration #4)** |
-| **BL-007** | UX/Copy | 统一优化首页首run三步引导与 `uiLanguage.tsx` 中历史断言之外的冗余英文词/长段落（不弱化或删除旧测用例） | Stage A `Onboarding` & 走查 | 6 | 1.5 | 0.80 | 0.4 | **18.0** | **NEXT (P1)** |
-| **BL-008** | Reliability | 大库扩展性演进评估：支持超过 500 条视频的分页摘要索引与 SQLite 原生 `.backup()` 热快照方案设计（先设原型与基准，不轻易改核心 Schema） | Stage A 架构审计（`TECH-04`） | 4 | 2.0 | 0.70 | 1.0 | **5.6** | **WATCH (P2)** |
+| **BL-007** | UX/Copy | 统一优化首页首run三步引导（交互步骤条、结构化来源卡、Warm Paper Light + `375px` 响应式对齐与品牌绿主色）及补全缺失中文词条/清除非断言残留英文（100% 保留既有测试契约） | Stage A `Onboarding` & 走查 | 6 | 1.5 | 0.80 | 0.4 | **18.0** | **DONE (Iteration #5)** |
+| **BL-008** | Reliability | 大库扩展性演进评估：支持超过 500 条视频的分页摘要索引与 SQLite 原生 `.backup()` 热快照方案设计（先设原型与基准，不轻易改核心 Schema）；同步评估 `#Settings` 次级工程说明精简空间 | Stage A 架构审计（`TECH-04`） | 4 | 2.0 | 0.70 | 1.0 | **5.6** | **NEXT (P2 Evaluation)** |
 | **BL-009** | Distribution | 一键桌面打包 / homebrew cask / WSL 极简脚本可行性评估（需待获批真人首测验证安装卡点分布后再定） | Stage B `anything-llm`/`BiliNote` 对照 | 9 | 2.5 | 0.50 | 2.5 | **4.5** | **HOLD (待真人冷启动样本)** |
 
 ---

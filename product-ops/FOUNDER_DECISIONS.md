@@ -6,7 +6,7 @@
 
 *当前无待裁决的阻塞性 L3 审批请求（`Pending Founder Decisions: 0`）。*
 
-> 注：下一批内部完善工作（Iteration #4：`BL-006` + `BL-005`）仍在 `antigravity/task-user-readiness-20261112` 分支验证与打磨中，按既定规则留待该轮验证完成后再视需要提请下一次 `main` 合流。
+> 注：内部自主迭代工作（Iteration #4–#5：`BL-005` / `BL-006` / `BL-007`）已在 `antigravity/task-user-readiness-20261112` 完成验证，按既定规则留存在研发分支，待里程碑成熟后再视需要提请合流 `main`。
 
 ---
 
