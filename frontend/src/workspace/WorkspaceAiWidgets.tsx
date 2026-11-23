@@ -114,6 +114,8 @@ export type AiResearchCitation = {
   start_ms: number | null;
   end_ms: number | null;
   timestamp_label: string;
+  source_url?: string | null;
+  citation_url?: string | null;
   excerpt: string;
 };
 
@@ -631,6 +633,10 @@ function parseCitationArray(raw: unknown): AiResearchCitation[] {
               ? `P${paragraphIndex}`
               : "原文段落"
             : "00:00";
+      const safeHttps = (v: unknown): string | null =>
+        typeof v === "string" && v.trim().toLowerCase().startsWith("https://")
+          ? v.trim()
+          : null;
       return {
         ref_label: String(c.ref_label ?? ""),
         video_id: String(c.video_id ?? ""),
@@ -644,6 +650,8 @@ function parseCitationArray(raw: unknown): AiResearchCitation[] {
         start_ms: typeof c.start_ms === "number" ? c.start_ms : null,
         end_ms: typeof c.end_ms === "number" ? c.end_ms : null,
         timestamp_label: timestampLabel,
+        source_url: safeHttps(c.source_url),
+        citation_url: safeHttps(c.citation_url),
         excerpt: String(c.excerpt ?? ""),
       };
     })
@@ -2640,10 +2648,11 @@ export function formatPlainTextResearchBrief(
             ? `《${stripWiki(c.video_title.trim())}》`
             : `"${stripWiki(c.video_title.trim())}"`;
           const metaPart = meta ? (zh ? `（${meta}）` : ` (${meta})`) : "";
+          const urlPart = c.citation_url?.trim() ? ` (${c.citation_url.trim()})` : "";
           const cleanQuote = stripWiki((c.excerpt ?? "").replace(/\s+/g, " ").trim());
           return cleanQuote
-            ? `- [${c.ref_label}] ${titlePart}${metaPart}："${cleanQuote}"`
-            : `- [${c.ref_label}] ${titlePart}${metaPart}`;
+            ? `- [${c.ref_label}] ${titlePart}${metaPart}${urlPart}："${cleanQuote}"`
+            : `- [${c.ref_label}] ${titlePart}${metaPart}${urlPart}`;
         }),
       ].join("\n"),
     );
@@ -3533,19 +3542,35 @@ export function WorkspaceAiResearchPanel({
               </h4>
               <div className="ai-citation-list">
                 {activeSession.citations.map((c) => (
-                  <button
-                    key={`${c.ref_label}:${c.evidence_id}`}
-                    type="button"
-                    className="ai-citation-card"
-                    onClick={() => onOpen("content", c.video_id, c.evidence_id)}
-                  >
-                    <div className="ai-citation-head tabular-nums">
-                      <span className="ai-citation-ref">[{c.ref_label}]</span>
-                      <strong>{c.video_title}</strong>
-                      <span className="ai-citation-time">{c.timestamp_label}</span>
-                    </div>
-                    <p>{c.excerpt}</p>
-                  </button>
+                  <div key={`${c.ref_label}:${c.evidence_id}`} className="ai-citation-row">
+                    <button
+                      type="button"
+                      className="ai-citation-card"
+                      onClick={() => onOpen("content", c.video_id, c.evidence_id)}
+                    >
+                      <div className="ai-citation-head tabular-nums">
+                        <span className="ai-citation-ref">[{c.ref_label}]</span>
+                        <strong>{c.video_title}</strong>
+                        <span className="ai-citation-time">{c.timestamp_label}</span>
+                      </div>
+                      <p>{c.excerpt}</p>
+                    </button>
+                    {c.citation_url ? (
+                      <a
+                        className="ai-citation-ext-link tabular-nums"
+                        href={c.citation_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={
+                          zh
+                            ? `跳转原片 ${c.timestamp_label}`
+                            : `Open source at ${c.timestamp_label}`
+                        }
+                      >
+                        {zh ? `原片 ${c.timestamp_label} ↗` : `Source ${c.timestamp_label} ↗`}
+                      </a>
+                    ) : null}
+                  </div>
                 ))}
               </div>
             </div>
@@ -3560,19 +3585,35 @@ export function WorkspaceAiResearchPanel({
               </h4>
               <div className="ai-citation-list">
                 {activeSession.related_excerpts?.map((c) => (
-                  <button
-                    key={`rel:${c.ref_label}:${c.evidence_id}`}
-                    type="button"
-                    className="ai-citation-card"
-                    onClick={() => onOpen("content", c.video_id, c.evidence_id)}
-                  >
-                    <div className="ai-citation-head tabular-nums">
-                      <span className="ai-citation-ref">[{c.ref_label}]</span>
-                      <strong>{c.video_title}</strong>
-                      <span className="ai-citation-time">{c.timestamp_label}</span>
-                    </div>
-                    <p>{c.excerpt}</p>
-                  </button>
+                  <div key={`rel:${c.ref_label}:${c.evidence_id}`} className="ai-citation-row">
+                    <button
+                      type="button"
+                      className="ai-citation-card"
+                      onClick={() => onOpen("content", c.video_id, c.evidence_id)}
+                    >
+                      <div className="ai-citation-head tabular-nums">
+                        <span className="ai-citation-ref">[{c.ref_label}]</span>
+                        <strong>{c.video_title}</strong>
+                        <span className="ai-citation-time">{c.timestamp_label}</span>
+                      </div>
+                      <p>{c.excerpt}</p>
+                    </button>
+                    {c.citation_url ? (
+                      <a
+                        className="ai-citation-ext-link tabular-nums"
+                        href={c.citation_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={
+                          zh
+                            ? `跳转原片 ${c.timestamp_label}`
+                            : `Open source at ${c.timestamp_label}`
+                        }
+                      >
+                        {zh ? `原片 ${c.timestamp_label} ↗` : `Source ${c.timestamp_label} ↗`}
+                      </a>
+                    ) : null}
+                  </div>
                 ))}
               </div>
             </div>

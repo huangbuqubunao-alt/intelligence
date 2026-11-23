@@ -2,7 +2,10 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { KnowledgeDelta, KnowledgeDeltaProjection } from "./KnowledgeDelta";
-import { WorkspaceAiResearchPanel } from "./WorkspaceAiWidgets";
+import {
+  formatPlainTextResearchBrief,
+  WorkspaceAiResearchPanel,
+} from "./WorkspaceAiWidgets";
 import { UiLanguageProvider } from "./uiLanguage";
 
 const okJson = (body: unknown) => ({
@@ -254,4 +257,94 @@ it("renders covered_sources strip and Markdown TEXT_RANGE paragraph locators wit
   expect(screen.getByText("可验证原话出处（时间戳 / 段落定位，点击直达原文）")).toBeTruthy();
   expect(screen.getByText("P2 (48–142)")).toBeTruthy();
   expect(screen.queryByText("00:00")).toBeNull();
+});
+
+it("renders safe https citation_url sibling link, filters javascript: URLs, and includes deep links in plain-text copy", async () => {
+  const sampleSession = {
+    session_id: "qa-deep-1",
+    question: "导出笔记是否支持外链回跳原片？",
+    answer_status: "GROUNDED",
+    refused: false,
+    refusal_reason_zh: "",
+    answer_zh: "视频引用保留 HTTPS 深链 [E1]，文档引用无伪造链接 [E2]。",
+    key_takeaways_zh: ["导出即可脱离本地页面继续点检原片"],
+    action_items_zh: ["点击外链验证跳转秒数"],
+    citations: [
+      {
+        ref_label: "E1",
+        video_id: "vidYT01",
+        video_title: "State Machines Talk",
+        channel_name: "Alpha Lab",
+        evidence_id: "ev-yt-1",
+        locator_type: "TIME_RANGE",
+        start_ms: 75000,
+        end_ms: 90000,
+        timestamp_label: "01:15",
+        citation_url: "https://www.youtube.com/watch?v=vidYT01&t=75s",
+        excerpt: "Portable links preserve exact start offsets.",
+      },
+      {
+        ref_label: "E2",
+        video_id: "local-md-01",
+        video_title: "architecture-notes.md",
+        channel_name: "本地实战课",
+        evidence_id: "ev-md-2",
+        locator_type: "TEXT_RANGE",
+        paragraph_index: 2,
+        start_offset: 10,
+        end_offset: 60,
+        start_ms: null,
+        end_ms: null,
+        timestamp_label: "P2 (10–60)",
+        citation_url: "javascript:alert(1)",
+        excerpt: "Unsafe schemes must be rejected on parse.",
+      },
+    ],
+    video_count: 2,
+    scope_label_zh: "",
+    pinned: false,
+    provider: "ollama",
+    model: "qwen3.5:9b",
+    obsidian_markdown: "# 外链验证",
+    created_at: "2026-11-23T06:00:00Z",
+  };
+  const fetchMock = vi.fn(async (input: string) => {
+    if (input.endsWith("/workspace-ai/research/sessions")) {
+      return okJson({
+        sessions: [sampleSession],
+        suggested_questions: [],
+        scope_options: { channels: [], topic_clusters: [], videos: [], starred_count: 0 },
+      });
+    }
+    return okJson({});
+  });
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(
+    <UiLanguageProvider>
+      <WorkspaceAiResearchPanel onOpen={vi.fn()} />
+    </UiLanguageProvider>,
+  );
+
+  const extLink = (await screen.findByRole("link", {
+    name: "跳转原片 01:15",
+  })) as HTMLAnchorElement;
+  expect(extLink.href).toBe("https://www.youtube.com/watch?v=vidYT01&t=75s");
+  expect(extLink.target).toBe("_blank");
+  expect(extLink.rel).toContain("noopener");
+  expect(extLink.closest("button")).toBeNull();
+  expect(screen.queryByRole("link", { name: /P2/ })).toBeNull();
+
+  const plainText = formatPlainTextResearchBrief(
+    {
+      ...sampleSession,
+      citations: [
+        sampleSession.citations[0],
+        { ...sampleSession.citations[1], citation_url: null },
+      ],
+    },
+    true,
+  );
+  expect(plainText).toContain("https://www.youtube.com/watch?v=vidYT01&t=75s");
+  expect(plainText).not.toContain("javascript:");
 });
