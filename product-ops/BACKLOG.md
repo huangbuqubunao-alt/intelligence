@@ -1,0 +1,33 @@
+# 产品待办与优先级池（RICE Backlog & Simplification Registry）
+
+- **更新日期**：2026-11-23
+- **当前筛选原则**：只列有明确 Stage A/B 实机或市场证据支撑的内部完善项；同步维护 **“主动减法与暂缓清单”**，坚决拒绝功能膨胀。
+- **评分公式**：$\text{RICE} = \frac{\text{Reach} \times \text{Impact} \times \text{Confidence}}{\text{Effort (人周)}}$（$R$: 1–10，$I$: 0.25–3.0，$C$: 0.5–1.0，$E$: 人周，当前外网样本未测前置信度 $C$ 保守打折）。
+
+---
+
+## 一、待办优先级排期（内部完善阶段）
+
+| 排名 / ID | 类别 | 问题与改进项 | 来源依据（Stage A/B/D） | R | I | C | E | RICE 分 | 状态 |
+|---|---|---|---|---:|---:|---:|---:|---:|---|
+| **BL-001** | Bug/Trust | Demo 工作台对越域对抗问题强行编造 `GROUNDED` + 3 条无关引用 | Stage A `step_6_shot_1_demo_refusal_1440` | 10 | 3.0 | 0.95 | 0.4 | **71.3** | **DONE (`fee43f4`)** |
+| **BL-002** | Onboarding/P0 | macOS 运行 `youtube-intel start` 时浏览器无法导入本地 `.md`/音视频 | Stage A `8798` 实机 `NativeLocalImport` | 10 | 3.0 | 0.95 | 0.5 | **57.0** | **DONE (`fee43f4`)** |
+| **BL-003** | UX/P0 | 全新空工作区 `#Settings` 误报 `待检查` 且摊开工程诊断，空 `#Research` 误触发 HTTP `409` | Stage A `8798` 实机审计 | 10 | 2.5 | 0.95 | 0.5 | **47.5** | **DONE (`fee43f4`)** |
+| **BL-004** | A11y/UX/P1 | Import 模态窗 `Escape` 无法关闭、空 `#Topics`/`#Intelligence` 缺导入 CTA、移动端顶部 `.nav-item` 仅 `34px` | Stage A `8798`/`8799` 桌面 & `375px` 审计 | 8 | 2.0 | 0.90 | 0.4 | **36.0** | **DONE (`fee43f4`)** |
+| **BL-005** | Docs/Eval | 构建基于公开权威科技长演讲（CC/合规公开文本）的 30 例双语自动化 Eval + 差异对照示例包（不含隐私文件） | Stage B 竞争差异化要求 | 8 | 2.5 | 0.85 | 0.6 | **28.3** | **NEXT (P1)** |
+| **BL-006** | UX/Flow | 修复 Demo/新导入内容首次展开 `证据 · 来源字幕` 偶发停在 `正在加载原始证据…` 并精简 `#Content/<id>` 顶部 9 按钮拥挤 | Stage A `vidDemoAgt1` 实机审计 | 7 | 1.5 | 0.85 | 0.4 | **22.3** | **NEXT (P1)** |
+| **BL-007** | UX/Copy | 统一优化首页首run三步引导与 `uiLanguage.tsx` 中历史断言之外的冗余英文词/长段落（不弱化或删除旧测用例） | Stage A `Onboarding` & 走查 | 6 | 1.5 | 0.80 | 0.4 | **18.0** | **READY (P2)** |
+| **BL-008** | Reliability | 大库扩展性演进评估：支持超过 500 条视频的分页摘要索引与 SQLite 原生 `.backup()` 热快照方案设计（先设原型与基准，不轻易改核心 Schema） | Stage A 架构审计（`TECH-04`） | 4 | 2.0 | 0.70 | 1.0 | **5.6** | **WATCH (P2)** |
+| **BL-009** | Distribution | 一键桌面打包 / homebrew cask / WSL 极简脚本可行性评估（需待获批真人首测验证安装卡点分布后再定） | Stage B `anything-llm`/`BiliNote` 对照 | 9 | 2.5 | 0.50 | 2.5 | **4.5** | **HOLD (待真人冷启动样本)** |
+
+---
+
+## 二、主动减法、简化与暂缓清单（Anti-Bloat Guardrails）
+
+| 项目 / 模块 | 处理方式 | 裁定依据 |
+|---|---|---|
+| **V2 全网爬虫（X、小红书、播客 RSS、任意网页抓取）** | **DEFER（暂缓）** | 与 `SurfSense`/`Open Notebook` 拼“泛连接器数量”没有比较优势，反而成倍放大反爬维护与噪音；核心 YT+B站+`.md` 尚未经外部留存证伪前绝不开新战线。 |
+| **多图/视频关键帧批量 VLM 分析** | **DEFER（暂缓）** | 本地运行高显存耗时极大且云端成本高，当前痛点核心在原话文字锚点核查而非视觉截图生成。 |
+| **自动隐式 `hybrid` 云端模型切换** | **PERMANENTLY REFUSE（拒绝）** | 直接违背“零静默花费 / Fail-Closed 预算安全”底线，保持仅在显式 BYOK + 预算限额 + 端点重认证下启用。 |
+| **`#Settings` 上重度技术诊断项默认平铺暴露** | **SIMPLIFY（持续收拢）** | 非开发者完全不需要默认看见 `qwen3:8b 质量验收未通过` 等内部测试名目；已借助 `#settings-legacy-diagnostics` 默认折叠，后续观察是否进一步精简文案。 |
+| **`TASK-016` 多模型深度研究实验流暴露** | **KEEP EXPERIMENTAL / HIDDEN** | 保持默认关闭与 fail-closed 状态，避免干扰主流“导入 → 问答 → Obsidian 导出”心智。 |
