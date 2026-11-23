@@ -83,7 +83,20 @@ export function LocalImport({ onClose, onSaved, onImported, onYouTube, onBilibil
   const [progress, setProgress] = useState<{ filename: string; loaded: number; total: number } | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [failedFiles, setFailedFiles] = useState<File[]>([]);
+  const [useBrowserUpload, setUseBrowserUpload] = useState(false);
   const done = () => results.length && onImported ? onImported(results[0].content_id) : results.length ? onSaved() : onClose();
+  useEffect(() => {
+    if (nativeMac && !useBrowserUpload) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !busy) {
+        event.preventDefault();
+        if (finished) done();
+        else onClose();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [nativeMac, useBrowserUpload, busy, finished, results.length]);
   const validate = (file: File) => {
     const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
     if (!formats.has(ext)) return localImportErrors.LOCAL_UNSUPPORTED_FORMAT;
@@ -117,7 +130,7 @@ export function LocalImport({ onClose, onSaved, onImported, onYouTube, onBilibil
     // Only committed success navigates. Mixed batches keep per-file outcomes visible.
     if (!failed.length && !selectionErrors.length && accepted.length && onImported) onImported((results[0] ?? accepted[0]).content_id);
   };
-  if (nativeMac) return <NativeLocalImport available={nativeAvailable} onClose={onClose} onSaved={onSaved} onImported={onImported} onYouTube={onYouTube} onBilibili={onBilibili} errors={localImportErrors} />;
+  if (nativeMac && !useBrowserUpload) return <NativeLocalImport available={nativeAvailable} onClose={onClose} onSaved={onSaved} onImported={onImported} onYouTube={onYouTube} onBilibili={onBilibili} onUseBrowserUpload={() => setUseBrowserUpload(true)} errors={localImportErrors} />;
   return <div className="overlay"><section className="modal local-import" role="dialog" aria-modal="true" aria-labelledby="local-import-title">
     <div className="modal-head"><h2 id="local-import-title">{t("Add local files")}</h2><button className="button button-ghost" disabled={busy} onClick={finished ? done : onClose}>{t(finished ? "Done" : "Cancel")}</button></div>
     {!finished && <div className="button-row" aria-label={t("Source provider")}><button className="button button-secondary" disabled={busy} onClick={onYouTube}>YouTube / Bilibili</button><button className="button button-primary" aria-pressed="true" disabled={busy}>{t("Local files")}</button>{onBilibili && <button className="button button-secondary" disabled={busy} onClick={onBilibili}>{t("Bilibili")}</button>}</div>}

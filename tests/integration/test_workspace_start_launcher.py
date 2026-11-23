@@ -76,6 +76,13 @@ def test_prepare_local_workspace_cold_start_initializes_safe_runtime_and_routes(
     dash_code, _ = runtime.fast_app.handle("GET", "/api/v1/dashboard")
     assert dash_code == HTTPStatus.OK
 
+    settings_code, settings_body = runtime.fast_app.handle("GET", "/api/v1/settings")
+    assert settings_code == HTTPStatus.OK
+    assert "workspace_ai" in settings_body
+    assert settings_body["workspace_ai"]["active_mode"] == "local_ollama"
+    assert settings_body["workspace_ai"]["ollama_reachable"] is True
+    assert "qwen3.5:9b" in settings_body["workspace_ai"]["installed_ollama_models"]
+
     imp_code, imp_body = runtime.fast_app.handle(
         "POST",
         "/api/v1/local/imports?filename=quickstart.md",

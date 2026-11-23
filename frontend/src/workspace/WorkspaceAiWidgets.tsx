@@ -2663,10 +2663,12 @@ export function formatPlainTextResearchBrief(
 export function WorkspaceAiResearchPanel({
   onOpen,
   onAiReady,
+  onOpenImport,
   handoffSeq,
 }: {
   onOpen: OpenResearchSource;
   onAiReady?: () => void;
+  onOpenImport?: () => void;
   handoffSeq?: number;
 }) {
   const { language } = useUiLanguage();
@@ -2676,6 +2678,7 @@ export function WorkspaceAiResearchPanel({
     zh ? FALLBACK_QUESTIONS_ZH : FALLBACK_QUESTIONS_EN,
   );
   const [scopeOptions, setScopeOptions] = useState<ResearchScopeOptions | null>(null);
+  const [scopeLoaded, setScopeLoaded] = useState(false);
   const [selectedChannel, setSelectedChannel] = useState(() => consumePendingResearchChannel());
   const [selectedTopic, setSelectedTopic] = useState(() => consumePendingResearchTopicCluster());
   const [starredOnly, setStarredOnly] = useState(() => consumePendingResearchStarredOnly());
@@ -2775,7 +2778,10 @@ export function WorkspaceAiResearchPanel({
             : undefined;
           setActiveSession(matched ?? parsedSessions[0]);
         }
-        if (parsedScopes) setScopeOptions(parsedScopes);
+        if (parsedScopes) {
+          setScopeOptions(parsedScopes);
+          setScopeLoaded(true);
+        }
         if (parsedQuestions.length > 0) {
           setSuggested(parsedQuestions);
         } else {
@@ -2842,8 +2848,8 @@ export function WorkspaceAiResearchPanel({
                 ? "当前筛选范围内暂无带时间轴字幕的内容，请放宽来源或专题范围后重试。"
                 : "No timed transcript content matched the selected scope."
               : zh
-                ? "当前资料库尚无带时间轴字幕的内容可供跨视频问答。"
-                : "No timed transcript content is available in your library yet."
+                ? "当前资料库尚无已转写视频或已核验本地文本文档（.md / .txt）可供跨来源溯源问答。"
+                : "No transcribed videos or verified local text notes (.md / .txt) are available in your library yet."
           : zh
             ? "跨视频 AI 问答未能完成，请检查本机 Ollama 或云端引擎配置。"
             : "Cross-video AI Q&A could not complete.",
@@ -2931,6 +2937,14 @@ export function WorkspaceAiResearchPanel({
     }
     return true;
   });
+
+  const isEmptyLibrary = Boolean(
+    scopeLoaded &&
+      scopeOptions !== null &&
+      sessions.length === 0 &&
+      scopeOptions.videos.length === 0 &&
+      scopeOptions.channels.length === 0,
+  );
 
   const showScopeBar = Boolean(
     starredOnly ||
@@ -3273,12 +3287,12 @@ export function WorkspaceAiResearchPanel({
                 : "Ask a product, technical, or business question across your library…"
             }
             value={questionInput}
-            disabled={busy}
+            disabled={busy || isEmptyLibrary}
             onChange={(e) => setQuestionInput(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault();
-                void ask(questionInput);
+                if (!isEmptyLibrary) void ask(questionInput);
               }
             }}
           />
@@ -3297,11 +3311,25 @@ export function WorkspaceAiResearchPanel({
             </button>
           ) : null}
         </div>
-        <button type="submit" className="button button-primary" disabled={busy || !questionInput.trim()}>
+        <button type="submit" className="button button-primary" disabled={busy || isEmptyLibrary || !questionInput.trim()}>
           {busy ? (zh ? "正在检索并推演…" : "Synthesizing…") : zh ? "AI 提问" : "Ask AI"}
         </button>
       </form>
 
+      {isEmptyLibrary ? (
+        <div className="research-empty-library-guide" role="status">
+          <p>
+            {zh
+              ? "资料库尚无可核验材料。导入至少 1 条 YouTube / B 站视频或本地 .md / .txt / 音视频文件后，即可开启跨来源溯源问答与对比。"
+              : "No verifiable materials in your library yet. Import a YouTube/Bilibili video or a local .md/.txt/media file to unlock cross-source grounded Q&A."}
+          </p>
+          {onOpenImport ? (
+            <button type="button" className="button button-primary" onClick={onOpenImport}>
+              {zh ? "导入视频或本地笔记" : "Import video or local note"}
+            </button>
+          ) : null}
+        </div>
+      ) : (
       <div className="ai-suggested-pills">
         {(() => {
           const activeSuggestedQuestions = (() => {
@@ -3445,6 +3473,7 @@ export function WorkspaceAiResearchPanel({
           ));
         })()}
       </div>
+      )}
 
       {error ? (
         <p className="form-error" role="alert">
@@ -3816,9 +3845,11 @@ const CLOUD_PRESETS: Record<string, { label: string; baseUrl: string; model: str
 export function WorkspaceAiSettingsPanel({
   id,
   initial,
+  onConfigChange,
 }: {
   id?: string;
   initial?: unknown;
+  onConfigChange?: (next: WorkspaceAiSettings) => void;
 }) {
   const { language } = useUiLanguage();
   const zh = language === "zh-CN";
@@ -3893,7 +3924,10 @@ export function WorkspaceAiSettingsPanel({
       }
       const res = await put<unknown>("/workspace-ai/settings", payload);
       const parsed = readWorkspaceAiSettings(res);
-      if (parsed) syncDrafts(parsed);
+      if (parsed) {
+        syncDrafts(parsed);
+        onConfigChange?.(parsed);
+      }
       setApiKeyDraft("");
       setFeedback(
         zh

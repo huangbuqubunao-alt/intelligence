@@ -2197,9 +2197,9 @@ h1, h2 {
     gap: 2px;
   }
   .nav-item {
-    min-height: 34px;
+    min-height: 40px;
     gap: 4px;
-    padding: 6px 7px;
+    padding: 8px 7px;
     font-size: 12px;
   }
   .workspace-utility-dock {
@@ -2215,21 +2215,25 @@ h1, h2 {
   .utility-qa-btn,
   .utility-cmdk-btn,
   .utility-theme-btn {
-    width: 34px;
-    min-height: 34px;
+    width: 38px;
+    min-height: 38px;
     justify-content: center;
     padding: 0;
   }
 }
 
 @media (max-width: 420px) {
+  .brand {
+    padding-right: 92px;
+  }
   .sidebar-nav {
     justify-content: space-between;
     gap: 1px;
   }
   .nav-item {
+    min-height: 40px;
     gap: 3px;
-    padding: 5px 5.5px;
+    padding: 7px 5.5px;
     font-size: 11.5px;
   }
   .nav-item .nav-svg-icon {
@@ -4764,6 +4768,44 @@ input[type="radio"] {
   border: 1px solid var(--accent-border);
   border-radius: var(--radius-sm);
   background: var(--accent-soft);
+}
+
+.native-browser-fallback-callout,
+.research-empty-library-guide {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  padding: 12px 14px;
+  margin: 10px 0;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-subtle);
+}
+
+.native-browser-fallback-callout p,
+.research-empty-library-guide p {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.empty-state-stack {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+}
+
+.empty-state-stack .empty-state {
+  width: 100%;
+}
+
+.empty-state-guidance {
+  margin: 0;
+  max-width: 62ch;
+  text-align: center;
+}
+
+.empty-state-action {
+  justify-self: center;
 }
 
 

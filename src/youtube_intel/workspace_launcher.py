@@ -279,6 +279,7 @@ def prepare_local_workspace(
         byok_credential_store=byok_credential_store,
         installed_ollama_probe=ollama_probe,
     )
+    hub.ensure_ready()
     fast_app = FastReadApiApplication(composition.application, workspace_hub=hub)
     active_web_dir = preflight.web_dir if preflight.frontend_ready else None
     return LocalWorkspaceRuntime(

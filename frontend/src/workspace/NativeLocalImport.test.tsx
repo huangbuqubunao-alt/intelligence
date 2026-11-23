@@ -104,3 +104,25 @@ it("reports an independent duration error after the modal closes", async () => {
   act(() => window.dispatchEvent(new Event("native-imports-changed")));
   expect((await screen.findByRole("alert")).textContent).toContain("four-hour duration limit");
 });
+
+it("offers browser upload fallback on macOS when native capability is unavailable and closes on Escape", async () => {
+  localStorage.setItem("yia.ui-language", "zh-CN");
+  vi.stubGlobal("navigator", { platform: "MacIntel" });
+  const fetchMock = vi.fn(async (path: string) => {
+    if (path.endsWith("capability")) return { ok: true, json: async () => ({ capability: { available: false } }) };
+    return { ok: true, json: async () => ({}) };
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  const onClose = vi.fn();
+  render(<UiLanguageProvider><LocalImport onClose={onClose} onSaved={vi.fn()} onYouTube={vi.fn()} /></UiLanguageProvider>);
+  expect((await screen.findByRole("alert")).textContent).toContain("原生文件选择不可用");
+  expect(document.querySelector('input[type="file"]')).toBeNull();
+
+  const fallbackBtn = screen.getByRole("button", { name: "使用浏览器本地上传（.md / .txt / 音视频）" });
+  await userEvent.click(fallbackBtn);
+  const fileInput = screen.getByLabelText("选择本地文件") as HTMLInputElement;
+  expect(fileInput.type).toBe("file");
+
+  await userEvent.keyboard("{Escape}");
+  expect(onClose).toHaveBeenCalledOnce();
+});

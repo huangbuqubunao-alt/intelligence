@@ -229,3 +229,25 @@ def test_demo_showcase_corrupted_workspace_preserves_user_files_on_refusal_and_r
     rebuilt = prepare_demo_showcase(REPO_ROOT, demo_root=demo_dir, reset=True)
     assert rebuilt.seeded_videos == 6
     assert keep_file.read_text(encoding="utf-8") == "keep-this-file-safe"
+
+
+def test_demo_showcase_refuses_unanswerable_off_topic_question_without_fabricated_citations(
+    tmp_path: Path,
+) -> None:
+    runtime = prepare_demo_showcase(REPO_ROOT, demo_root=tmp_path / "demo-refuse", reset=True)
+    for off_topic in (
+        "量子引力场在火星大气层的实测数值是多少？",
+        "What is the boiling point of liquid methane on Titan?",
+    ):
+        status, body = runtime.fast_app.handle(
+            "POST",
+            "/api/v1/workspace-ai/research/ask",
+            json.dumps({"question": off_topic}).encode("utf-8"),
+        )
+        assert status == 200
+        session = cast(dict[str, object], body["session"])
+        assert session["answer_status"] == "REFUSED_INSUFFICIENT_EVIDENCE"
+        assert session["refused"] is True
+        assert session["citations"] == []
+        assert len(cast(list[object], session["related_excerpts"])) >= 1
+        assert session["provider"] == "demo-replay"

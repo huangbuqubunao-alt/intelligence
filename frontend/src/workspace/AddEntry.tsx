@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ApiRequestError, post } from "../api/client";
 import { LocalImport } from "./LocalImport";
 import { bilibiliStatus } from "./BilibiliImport";
@@ -70,6 +70,18 @@ export function AddEntry({ onClose, onSaved, onImported, initialLocal = false }:
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ kind: RecognizedLink["kind"]; content_id?: string; status?: string } | null>(null);
   const recognized = recognizeLink(input);
+  useEffect(() => {
+    if (local) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !busy) {
+        event.preventDefault();
+        if (result) onSaved();
+        else onClose();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [local, busy, result, onClose, onSaved]);
   if (local) return <LocalImport onClose={onClose} onSaved={onSaved} onImported={onImported ? id => onImported(id, "LOCAL") : undefined} onYouTube={() => setLocal(false)} />;
   return <div className="overlay"><section className="modal local-import" role="dialog" aria-modal="true" aria-labelledby="add-entry-title">
     <div className="modal-head"><h2 id="add-entry-title">{t("Add a Source")}</h2><button className="button button-ghost" aria-label={t("Close")} disabled={busy} onClick={result ? onSaved : onClose}>{t(result ? "Done" : "Close")}</button></div>

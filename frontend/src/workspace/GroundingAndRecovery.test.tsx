@@ -348,3 +348,31 @@ it("renders safe https citation_url sibling link, filters javascript: URLs, and 
   expect(plainText).toContain("https://www.youtube.com/watch?v=vidYT01&t=75s");
   expect(plainText).not.toContain("javascript:");
 });
+
+test("empty Research library shows actionable import CTA and prevents empty 409 submission", async () => {
+  localStorage.setItem("yia.ui-language", "zh-CN");
+  const fetchMock = vi.fn(async (input: string) => {
+    if (input.endsWith("/workspace-ai/research/sessions")) {
+      return okJson({
+        sessions: [],
+        suggested_questions: [],
+        scope_options: { channels: [], topic_clusters: [], videos: [], starred_count: 0 },
+      });
+    }
+    return okJson({});
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  const onOpenImport = vi.fn();
+
+  render(
+    <UiLanguageProvider>
+      <WorkspaceAiResearchPanel onOpen={vi.fn()} onOpenImport={onOpenImport} />
+    </UiLanguageProvider>,
+  );
+
+  const importBtn = await screen.findByRole("button", { name: "导入视频或本地笔记" });
+  expect(screen.getByText(/资料库尚无可核验材料/)).toBeTruthy();
+  expect((screen.getByRole("button", { name: "AI 提问" }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(importBtn);
+  expect(onOpenImport).toHaveBeenCalledOnce();
+});

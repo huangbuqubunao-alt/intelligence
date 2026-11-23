@@ -2029,7 +2029,7 @@ function Workspace() {
           )}
         </header>
         <NativeImportActivity onOpen={openContent} errors={localImportErrors} routeKey={`${page}/${contentTarget ?? ""}`} modalOpen={addProvider !== null} />
-        {page === "Research" && <Research handoffSeq={handoffSeq} onOpen={(kind, id, evidenceId) => {
+        {page === "Research" && <Research handoffSeq={handoffSeq} onOpenImport={() => setAddProvider("YOUTUBE")} onOpen={(kind, id, evidenceId) => {
           const returnTo = readCurrentLogicalHash().slice(1);
           if (kind === "content") { openContent(id, evidenceId); }
           else openDelta({ kind: "intelligence", id });
@@ -2139,6 +2139,7 @@ function Workspace() {
                 openContent={openContent}
                 onOpenTopic={id => openDelta({ kind: "topic", id })}
                 openResearch={() => navigate("Research")}
+                onAddContent={() => setAddProvider("YOUTUBE")}
                 onAskFilteredResearch={(videoIds) => {
                   setPendingResearchVideoIds(videoIds);
                   setHandoffSeq((value) => value + 1);
@@ -2181,6 +2182,7 @@ function Workspace() {
               setHandoffSeq((value) => value + 1);
               navigate("Intelligence");
             }}
+            onAddContent={() => setAddProvider("YOUTUBE")}
           />
         )}
         {page === "Settings" && <Settings refresh={refresh} />}
@@ -2905,6 +2907,7 @@ function IntelligencePage(
     openContent,
     onOpenTopic,
     openResearch,
+    onAddContent,
     onAskFilteredResearch,
   }: {
     refresh: number;
@@ -2916,6 +2919,7 @@ function IntelligencePage(
     openContent: (videoId: string, evidenceId?: string) => void;
     onOpenTopic?: (topicId: string) => void;
     openResearch: () => void;
+    onAddContent?: () => void;
     onAskFilteredResearch?: (videoIds: string[]) => void;
   },
 ) {
@@ -3550,7 +3554,16 @@ function IntelligencePage(
               </button>
             </Panel>
           )
-        : current.data.activity?.length ? null : <Empty>No verified Intelligence yet.</Empty>)}
+        : current.data.activity?.length ? null : (
+          <div className="empty-state-stack">
+            <Empty>No verified Intelligence yet.</Empty>
+            {onAddContent ? (
+              <button type="button" className="button button-primary empty-state-action" onClick={onAddContent}>
+                {t("Add content")}
+              </button>
+            ) : null}
+          </div>
+        ))}
       {view === "Saved" && (!saved.data
         ? <Empty>Loading saved Intelligence…</Empty>
         : savedEntries.length
@@ -7161,6 +7174,7 @@ function Topics({
   onAskTopicResearch,
   onBrowseTopicContent,
   onBrowseTopicIntelligence,
+  onAddContent,
 }: {
   refresh: number;
   handoffSeq?: number;
@@ -7173,6 +7187,7 @@ function Topics({
   onAskTopicResearch?: (topicName: string) => void;
   onBrowseTopicContent?: (topicName: string, channelKey?: string) => void;
   onBrowseTopicIntelligence?: (topicId: string) => void;
+  onAddContent?: () => void;
 }) {
   const { language, t } = useUiLanguage();
   const zh = language === "zh-CN";
@@ -7288,7 +7303,21 @@ function Topics({
               })}
             </div>
           )
-          : <Empty>No Topics yet.</Empty>}
+          : (
+            <div className="empty-state-stack">
+              <Empty>No Topics yet.</Empty>
+              <p className="hint empty-state-guidance">
+                {zh
+                  ? "导入 YouTube / B 站视频或本地笔记并完成提炼后，系统会自动按主题聚类并生成观点演进时间线。"
+                  : "Topics and viewpoint timelines appear automatically after importing and distilling videos or local notes."}
+              </p>
+              {onAddContent ? (
+                <button type="button" className="button button-primary empty-state-action" onClick={onAddContent}>
+                  {t("Add content")}
+                </button>
+              ) : null}
+            </div>
+          )}
       </>
     );
   }
@@ -9259,6 +9288,7 @@ function Settings({ refresh }: { refresh: number }) {
   const [interfaceDraft, setInterfaceDraft] = useState(language);
   const [outputDraft, setOutputDraft] = useState<"zh-CN" | "en">("zh-CN");
   const [languageError, setLanguageError] = useState<string | null>(null);
+  const [liveWorkspaceAi, setLiveWorkspaceAi] = useState<ReturnType<typeof readWorkspaceAiSettings>>(null);
   const settings = useRemote<{
     general: {
       timezone: string;
@@ -9377,8 +9407,9 @@ function Settings({ refresh }: { refresh: number }) {
       />
       {(() => {
         const zh = language === "zh-CN";
-        const wsAi = readWorkspaceAiSettings(settings.data.workspace_ai);
-        const hasWorkspaceAi = Boolean(wsAi);
+        const initialWsAi = readWorkspaceAiSettings(settings.data.workspace_ai);
+        const wsAi = liveWorkspaceAi ?? initialWsAi;
+        const hasWorkspaceAi = Boolean(initialWsAi);
         const transcriberReadyFlag = wsAi?.local_mlx_Whisper_ready;
         const runtimeModelName = settings.data.runtime_local_model?.model ?? localFoundation?.model;
         const dailySummaryStatus = wsAi
@@ -9468,7 +9499,7 @@ function Settings({ refresh }: { refresh: number }) {
         return hasWorkspaceAi ? (
           <>
             {overviewPanel}
-            <WorkspaceAiSettingsPanel id="settings-models" initial={settings.data.workspace_ai} />
+            <WorkspaceAiSettingsPanel id="settings-models" initial={settings.data.workspace_ai} onConfigChange={setLiveWorkspaceAi} />
             <details
               id="settings-legacy-diagnostics"
               className="settings-advanced legacy-model-diagnostics"
@@ -9495,7 +9526,7 @@ function Settings({ refresh }: { refresh: number }) {
           <>
             {overviewPanel}
             {legacyModelsPanel}
-            <WorkspaceAiSettingsPanel initial={settings.data.workspace_ai} />
+            <WorkspaceAiSettingsPanel initial={settings.data.workspace_ai} onConfigChange={setLiveWorkspaceAi} />
             <LocalIntelligenceSetup />
             <TranscriptionSetup />
           </>

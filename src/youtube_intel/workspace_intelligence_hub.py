@@ -766,6 +766,11 @@ class WorkspaceIntelligenceHub:
     def has_sidecar_db(self) -> bool:
         return self.db_path.is_file()
 
+    def ensure_ready(self) -> None:
+        """Idempotently initialize the sidecar SQLite schema without network calls."""
+        conn = self._connect_write()
+        conn.close()
+
     def _connect_read(self) -> sqlite3.Connection | None:
         if not self.db_path.is_file():
             return None

@@ -9,7 +9,15 @@ import { OpenResearchSource, ResearchListing, ResearchResult as Result, research
 import { useUiLanguage } from "./uiLanguage";
 import { WorkspaceAiResearchPanel } from "./WorkspaceAiWidgets";
 
-export function Research({ onOpen, handoffSeq }: { onOpen: OpenResearchSource; handoffSeq?: number }) {
+export function Research({
+  onOpen,
+  onOpenImport,
+  handoffSeq,
+}: {
+  onOpen: OpenResearchSource;
+  onOpenImport?: () => void;
+  handoffSeq?: number;
+}) {
   const { t, language } = useUiLanguage();
   const initialRoute = /^#Research\/([a-f0-9]{64})(?:\/history\/([a-f0-9]{64})|\/diff\/([a-f0-9]{64})\/([a-f0-9]{64}))?$/.exec(readCurrentLogicalHash());
   const initialId = initialRoute?.[1] ?? null;
@@ -98,7 +106,7 @@ export function Research({ onOpen, handoffSeq }: { onOpen: OpenResearchSource; h
     </section>
   );
   return <div className="research-stack">
-    {!creating && !activeId && !comparison && <WorkspaceAiResearchPanel onOpen={onOpen} handoffSeq={handoffSeq} onAiReady={() => setAiReady(true)} />}
+    {!creating && !activeId && !comparison && <WorkspaceAiResearchPanel onOpen={onOpen} onOpenImport={onOpenImport} handoffSeq={handoffSeq} onAiReady={() => setAiReady(true)} />}
     {!collapseLegacyBuilder && <p className="hint">{t("Research uses only your existing library. No web exploration or model call.")}</p>}
     {!creating && !collapseLegacyBuilder && <div className="button-row">
       <button className="button button-primary" disabled={busy} onClick={newResearch}>{t("New Research")}</button>
