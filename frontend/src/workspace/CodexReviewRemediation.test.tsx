@@ -676,4 +676,98 @@ describe("Codex Review Remediation Frontend Regression Suite", () => {
 
     expect(await screen.findByText("回答二：按页精准读取非 Markdown 摘要。")).toBeTruthy();
   });
+
+  it("N10: #Content search pagination loads page 2 and Cmd+K displays match truncation notice", async () => {
+    const initial200 = Array.from({ length: 200 }, (_, i) => makeVideoItem(i + 1));
+    const searchPage1 = Array.from({ length: 100 }, (_, i) =>
+      makeVideoItem(1000 + i, { title: `量子检索命中-${i + 1}` }),
+    );
+    const searchPage2 = [
+      makeVideoItem(1140, { title: "量子检索尾页-101" }),
+    ];
+    const requestedUrls: string[] = [];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string) => {
+        requestedUrls.push(input);
+        return baseHandlers(input, (path) => {
+          if (path.endsWith("/videos")) return okJson({ videos: initial200 });
+          if (path.includes("/videos?limit=200&offset=0")) {
+            return okJson({
+              videos: initial200,
+              pagination: {
+                limit: 200,
+                offset: 0,
+                total_count: 520,
+                returned_count: 200,
+                has_more: true,
+              },
+            });
+          }
+          if (path.includes("/videos?q=") && path.includes("limit=100&offset=0")) {
+            return okJson({
+              videos: searchPage1,
+              pagination: {
+                limit: 100,
+                offset: 0,
+                total_count: 140,
+                returned_count: 100,
+                has_more: true,
+              },
+            });
+          }
+          if (path.includes("/videos?q=") && path.includes("limit=100&offset=100")) {
+            return okJson({
+              videos: searchPage2,
+              pagination: {
+                limit: 100,
+                offset: 100,
+                total_count: 140,
+                returned_count: 1,
+                has_more: false,
+              },
+            });
+          }
+          if (path.includes("/videos?q=") && path.includes("limit=50&offset=0")) {
+            return okJson({
+              videos: searchPage1.slice(0, 50),
+              pagination: {
+                limit: 50,
+                offset: 0,
+                total_count: 85,
+                returned_count: 50,
+                has_more: true,
+              },
+            });
+          }
+          return null;
+        });
+      }),
+    );
+
+    location.hash = "#Content";
+    render(<App />);
+    const searchBox = await screen.findByRole("searchbox");
+    fireEvent.change(searchBox, { target: { value: "量子检索" } });
+
+    const loadMoreSearchBtn = await screen.findByRole("button", {
+      name: /加载更多搜索结果.*100 \/ 共 140/,
+    });
+    expect(loadMoreSearchBtn).toBeTruthy();
+
+    fireEvent.click(loadMoreSearchBtn);
+    expect(await screen.findByText("量子检索尾页-101")).toBeTruthy();
+
+    fireEvent.change(searchBox, { target: { value: "" } });
+    fireEvent.keyDown(window, { key: "k", metaKey: true });
+    const dialog = await screen.findByRole("dialog");
+    const cmdInput = within(dialog).getByRole("combobox");
+    fireEvent.change(cmdInput, { target: { value: "量子检索" } });
+
+    expect(
+      await within(dialog).findByText(/库内命中共 85 条/),
+    ).toBeTruthy();
+    expect(requestedUrls.some((u) => u.includes("limit=100&offset=100"))).toBe(true);
+  });
 });

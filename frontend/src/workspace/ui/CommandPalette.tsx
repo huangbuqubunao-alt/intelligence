@@ -254,6 +254,10 @@ export function CommandPalette({
     has_more?: boolean;
   } | null>(null);
   const [remoteSearchVideos, setRemoteSearchVideos] = useState<PaletteVideo[]>([]);
+  const [remoteSearchPagination, setRemoteSearchPagination] = useState<{
+    total_count?: number;
+    has_more?: boolean;
+  } | null>(null);
   const [insights, setInsights] = useState<PaletteIntelligence[]>([]);
   const [topics, setTopics] = useState<PaletteTopic[]>([]);
   const [qaSessions, setQaSessions] = useState<PaletteResearchSession[]>([]);
@@ -267,6 +271,7 @@ export function CommandPalette({
       setQuery("");
       setActiveIndex(0);
       setRemoteSearchVideos([]);
+      setRemoteSearchPagination(null);
       setVideosPagination(null);
       isComposingRef.current = false;
       return;
@@ -397,11 +402,15 @@ export function CommandPalette({
   useEffect(() => {
     if (!open || !trimmedPaletteQuery || !hasUnloadedServerVideos) {
       setRemoteSearchVideos([]);
+      setRemoteSearchPagination(null);
       return;
     }
     let alive = true;
     const timer = window.setTimeout(() => {
-      api<{ videos?: PaletteVideo[] }>(
+      api<{
+        videos?: PaletteVideo[];
+        pagination?: { total_count?: number; has_more?: boolean };
+      }>(
         `/videos?q=${encodeURIComponent(trimmedPaletteQuery)}&limit=50&offset=0`,
       )
         .then((res) => {
@@ -409,6 +418,7 @@ export function CommandPalette({
           setRemoteSearchVideos(
             res.videos.filter((v) => v.work_kind !== "DURABLE_CONTENT_IDENTITY"),
           );
+          setRemoteSearchPagination(res.pagination ?? null);
         })
         .catch(() => {});
     }, 60);
@@ -736,19 +746,20 @@ export function CommandPalette({
     onAskTopicResearch,
   ]);
 
-  const filteredItems = useMemo(() => {
+  const { filteredItems, totalMatchCount } = useMemo(() => {
     const trimmed = query.trim();
     if (!trimmed) {
       // Show concise default set when query is empty
-      return [
+      const defaults = [
         ...staticActions,
         ...allItems.filter(item => item.group === "content").slice(0, 6),
         ...allItems.filter(item => item.group === "research").slice(0, 3),
         ...allItems.filter(item => item.group === "intelligence").slice(0, 4),
         ...allItems.filter(item => item.group === "topics").slice(0, 4),
       ];
+      return { filteredItems: defaults, totalMatchCount: defaults.length };
     }
-    return allItems
+    const scored = allItems
       .map(item => {
         const rawScore = commandScore(
           item.label,
@@ -762,9 +773,11 @@ export function CommandPalette({
         };
       })
       .filter(entry => entry.rawScore > 0.05)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 24)
-      .map(entry => entry.item);
+      .sort((a, b) => b.score - a.score);
+    return {
+      filteredItems: scored.slice(0, 24).map(entry => entry.item),
+      totalMatchCount: scored.length,
+    };
   }, [allItems, staticActions, query]);
 
   useEffect(() => {
@@ -925,6 +938,18 @@ export function CommandPalette({
             ))
           )}
         </div>
+
+        {(trimmedPaletteQuery &&
+          ((remoteSearchPagination &&
+            (remoteSearchPagination.has_more ||
+              (remoteSearchPagination.total_count ?? 0) > remoteSearchVideos.length)) ||
+            totalMatchCount > filteredItems.length)) ? (
+          <div className="cmdk-truncation-notice" role="status" aria-live="polite" style={{ padding: "6px 14px", fontSize: "12px", opacity: 0.8 }}>
+            {zh
+              ? `当前仅展示前 ${filteredItems.length} 条最相关结果（库内命中共 ${Math.max(totalMatchCount, remoteSearchPagination?.total_count ?? 0)} 条，可细化关键词或前往内容库分页查看）`
+              : `Showing top ${filteredItems.length} of ${Math.max(totalMatchCount, remoteSearchPagination?.total_count ?? 0)} matches — refine keywords or paginate in Content.`}
+          </div>
+        ) : null}
 
         <footer className="cmdk-footer" aria-hidden="true">
           <span><kbd className="cmdk-kbd">↑↓</kbd> {t("Select")}</span>

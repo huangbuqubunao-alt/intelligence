@@ -2595,12 +2595,15 @@ class FastReadApiApplication:
             if policy_svc is not None
             else getattr(self._inner, "_source_policy_service", None)
         )
-        briefs_map = self._workspace_hub.get_video_briefs_map()
         own_conn = conn is None
         active_conn = (
             self._inner._repository._connect(read_only=True) if conn is None else conn
         )
         try:
+            briefs_map = self._workspace_hub.get_video_briefs_map(
+                include_markdown=False,
+                repo_conn=active_conn,
+            )
             kept: list[dict[str, object]] = []
             for raw_item in raw_items:
                 if not isinstance(raw_item, dict):
@@ -3446,7 +3449,10 @@ class FastReadApiApplication:
                 for p in prov:
                     if isinstance(p, dict) and isinstance(p.get("content_id"), str):
                         available_vids.add(str(p["content_id"]))
-        briefs_map = self._workspace_hub.get_video_briefs_map()
+        briefs_map = self._workspace_hub.get_video_briefs_map(
+            include_markdown=False,
+            check_repo=False,
+        )
         active_statuses = {
             "RUNNING",
             "PENDING",

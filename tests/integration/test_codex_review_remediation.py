@@ -7,6 +7,7 @@ import hashlib
 import io
 import json
 import subprocess
+import threading
 import urllib.error
 import urllib.request
 import zipfile
@@ -21,11 +22,10 @@ import pytest
 
 from youtube_intel.config import AppConfig, AppSettings, load_settings
 from youtube_intel.demo_showcase import prepare_demo_showcase
-from youtube_intel.distillation import _NoCloudRedirect
 from youtube_intel.domain import Availability, LiveStatus, PipelineStatus, VideoMetadata
 from youtube_intel.extractive_summary import ExtractiveSummaryService
 from youtube_intel.fast_read_api import FastReadApiApplication, _data_root_token
-from youtube_intel.local_api import ApiError
+from youtube_intel.local_api import MAX_WORKSPACE_AI_BACKUP_BYTES, ApiError
 from youtube_intel.local_content import LocalContentProvider
 from youtube_intel.offline_transcription import media_tool
 from youtube_intel.runtime_composition import build_local_source_run_runtime
@@ -38,9 +38,16 @@ from youtube_intel.state import (
     TimedTranscriptCueWrite,
     TimedTranscriptWrite,
 )
-from youtube_intel.workspace_intelligence_hub import WorkspaceIntelligenceHub
+from youtube_intel.workspace_intelligence_hub import (
+    MAX_BACKUP_EXPORT_JSON_BYTES,
+    MAX_BACKUP_VISUAL_RAW_BYTES,
+    SUGGESTED_RESEARCH_QUESTIONS,
+    WorkspaceIntelligenceHub,
+    _infer_ollama_model_vision_by_name,
+)
 from youtube_intel.workspace_launcher import (
     WorkspacePreflight,
+    collect_workspace_preflight,
     format_startup_banner,
     prepare_local_workspace,
 )
@@ -613,25 +620,36 @@ def test_p1_03_restored_sidecar_reverification_enforces_current_core_db(
 
 def test_p1_04_demo_showcase_refuses_mixed_premise_question(tmp_path: Path) -> None:
     runtime = prepare_demo_showcase(REPO_ROOT, demo_root=tmp_path / "demo_remed", reset=True)
-    res_code, res_body = runtime.fast_app.handle(
-        "POST",
-        "/api/v1/workspace-ai/research/ask",
-        json.dumps({"question": "Ollama 在火星大气层的实测温度是多少？"}).encode("utf-8"),
-    )
-    assert res_code == HTTPStatus.OK
-    session = res_body["session"]
-    assert session["answer_status"] == "REFUSED_INSUFFICIENT_EVIDENCE"
-    assert session["refused"] is True
-    assert session["citations"] == []
+    for mixed_trap in (
+        "Ollama 在火星大气层的实测温度是多少？",
+        "Ollama 本地模型的价格是多少？",
+        "Ollama本地模型价格是多少？",
+        "Obsidian 双链的市值是多少？",
+        "基于当前内容库，Ollama 本地模型价格是多少？",
+    ):
+        res_code, res_body = runtime.fast_app.handle(
+            "POST",
+            "/api/v1/workspace-ai/research/ask",
+            json.dumps({"question": mixed_trap}).encode("utf-8"),
+        )
+        assert res_code == HTTPStatus.OK
+        session = res_body["session"]
+        assert session["answer_status"] == "REFUSED_INSUFFICIENT_EVIDENCE", mixed_trap
+        assert session["refused"] is True
+        assert session["citations"] == []
 
-    ok_code, ok_body = runtime.fast_app.handle(
-        "POST",
-        "/api/v1/workspace-ai/research/ask",
-        json.dumps({"question": "为什么要用确定性状态机和可追溯证据引用？"}).encode("utf-8"),
-    )
-    assert ok_code == HTTPStatus.OK
-    assert ok_body["session"]["answer_status"] == "GROUNDED"
-    assert len(ok_body["session"]["citations"]) >= 1
+    for valid_q in (
+        "为什么要用确定性状态机和可追溯证据引用？",
+        *SUGGESTED_RESEARCH_QUESTIONS,
+    ):
+        ok_code, ok_body = runtime.fast_app.handle(
+            "POST",
+            "/api/v1/workspace-ai/research/ask",
+            json.dumps({"question": valid_q}).encode("utf-8"),
+        )
+        assert ok_code == HTTPStatus.OK
+        assert ok_body["session"]["answer_status"] == "GROUNDED", valid_q
+        assert len(ok_body["session"]["citations"]) >= 1
 
 
 def test_p1_05_cjk_full_library_qa_hits_note9_paragraph121(
@@ -738,19 +756,48 @@ def test_p1_07_byok_text_and_vision_dispatch_block_http_redirects(
 ) -> None:
     requests_seen: list[str] = []
 
-    class _Mock302Handler(urllib.request.HTTPSHandler):
-        def https_open(self, req: urllib.request.Request) -> Any:
-            requests_seen.append(req.full_url)
-            headers = email.message.Message()
-            headers["Location"] = "https://attacker.invalid/steal-key"
-            fp = io.BytesIO(b"redirect")
-            raise urllib.error.HTTPError(
-                req.full_url, 302, "Found", headers, fp
-            )
+    class _Mock302Response(io.BytesIO):
+        def __init__(self, url: str, headers: email.message.Message) -> None:
+            super().__init__(b"redirect")
+            self.url = url
+            self.status = 302
+            self.code = 302
+            self.msg = "Found"
+            self.reason = "Found"
+            self.headers = headers
 
-    opener = urllib.request.build_opener(_Mock302Handler(), _NoCloudRedirect())
-    env = _build_env(tmp_path, monkeypatch, http_opener=opener)
+        def info(self) -> email.message.Message:
+            return self.headers
+
+        def geturl(self) -> str:
+            return self.url
+
+    env = _build_env(tmp_path, monkeypatch)
     hub: WorkspaceIntelligenceHub = env["hub"]
+    assert hub._http_opener is None
+
+    # Prove N8/N9: even if third-party code patches stdlib urllib.request.urlopen,
+    # production cloud dispatch never bypasses _default_no_redirect_opener.
+    monkeypatch.setattr(
+        urllib.request,
+        "urlopen",
+        lambda *_a, **_k: pytest.fail("Production dispatch must not call urllib.request.urlopen"),
+    )
+    https_handlers = [
+        h
+        for h in hub._default_no_redirect_opener.handlers
+        if isinstance(h, urllib.request.HTTPSHandler)
+    ]
+    assert https_handlers
+
+    def _fake_https_open(req: urllib.request.Request) -> _Mock302Response:
+        requests_seen.append(req.full_url)
+        headers = email.message.Message()
+        headers["Location"] = "https://attacker.invalid/steal-key"
+        return _Mock302Response(req.full_url, headers)
+
+    monkeypatch.setattr(https_handlers[0], "https_open", _fake_https_open)
+
     _seed_video_with_cues(env, "vidByokRedir", title="Redirect Check", cues=((0, 3000, "Test content"),))
     hub.update_settings(
         {
@@ -1243,3 +1290,583 @@ def test_p2_01_p2_02_p2_06_vision_gate_cloud_race_and_windows_zip_names(
         assert any(n.startswith("_CON") for n in names)
         assert any(n.startswith("_AUX") for n in names)
         assert any(n.startswith("_NUL") for n in names)
+
+
+def test_n1_p1_01_comma_brackets_bare_ref_and_uncited_sentence_pruning(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scenarios: dict[str, dict[str, Any]] = {
+        "comma_split_mix": {
+            "answerable": True,
+            "answer_zh": (
+                "核心方案已落地双库隔离[E1]。"
+                "另外该方案由 Google 官方开发，参见[E88]。"
+                "此外年营收已达十亿美元。"
+            ),
+            "key_takeaways_zh": ["双库隔离保障一致性[E1]", "销售额暴涨十倍，[E99]"],
+            "action_items_zh": ["核验隔离逻辑[E1]", "核对传闻 E88"],
+            "citations": [{"ref": "E1", "note_zh": "有效依据"}, {"ref": "E88", "note_zh": "假"}],
+        },
+        "same_sentence_comma_ride": {
+            "answerable": True,
+            "answer_zh": "核心方案采用双库隔离[E1]，而且该方案由 Google 开发，参见[E88]。",
+            "key_takeaways_zh": ["包含全角【E77】", "包含空格[ E88 ]", "复合[E88,E1]"],
+            "action_items_zh": ["复核裸引用 E88"],
+            "citations": [{"ref": "E1", "note_zh": "有效依据"}],
+        },
+        "variant_brackets_only": {
+            "answerable": True,
+            "answer_zh": "系统由独立团队研发【E77】。此外具备[ E88 ]及[E88,E1]与裸引用E88支撑。",
+            "key_takeaways_zh": ["有效要点[E1]"],
+            "action_items_zh": [],
+            "citations": [{"ref": "E1", "note_zh": "仅占位"}],
+        },
+        "comma_stub_ref_only": {
+            "answerable": True,
+            "answer_zh": "核心方案采用双库隔离，参见[E1]，而且该方案由 Google 开发，参见[E88]。",
+            "key_takeaways_zh": [],
+            "action_items_zh": [],
+            "citations": [{"ref": "E1", "note_zh": "仅占位"}],
+        },
+    }
+
+    def _completer(
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        mode: str,
+        provider: str,
+        model: str,
+        max_tokens: int = 1800,
+    ) -> tuple[dict[str, Any], str, str]:
+        del mode, max_tokens
+        if "RESEARCH_QA_SCHEMA" in system_prompt:
+            for key, payload in scenarios.items():
+                if key in user_prompt:
+                    return dict(payload), provider, model
+        return _StubCompleter()(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            mode="local_ollama",
+            provider=provider,
+            model=model,
+        )
+
+    env = _build_env(tmp_path, monkeypatch, completer=_StubCompleter(_completer))
+    hub: WorkspaceIntelligenceHub = env["hub"]
+    _seed_video_with_cues(
+        env,
+        "vidN1",
+        title="双库隔离架构实录",
+        cues=((0, 8000, "核心方案已落地双库隔离并锁定证据。"),),
+    )
+
+    s1 = hub.ask_research_question({"question": "comma_split_mix 请回答"})["session"]
+    assert s1["answer_status"] == "GROUNDED"
+    assert "核心方案已落地双库隔离[E1]" in str(s1["answer_zh"])
+    for forbidden in ("Google", "十亿美元", "销售额暴涨十倍", "E88", "E99"):
+        assert forbidden not in str(s1["answer_zh"])
+        assert forbidden not in " ".join(s1["key_takeaways_zh"])
+        assert forbidden not in " ".join(s1["action_items_zh"])
+        assert forbidden not in str(s1["obsidian_markdown"])
+
+    hist_s1 = next(
+        s for s in hub.list_research_sessions()["sessions"] if s["session_id"] == s1["session_id"]
+    )
+    assert "Google" not in str(hist_s1["answer_zh"])
+    assert "十亿美元" not in str(hist_s1["answer_zh"])
+
+    s2 = hub.ask_research_question({"question": "same_sentence_comma_ride 请回答"})["session"]
+    assert s2["answer_status"] == "GROUNDED"
+    assert "核心方案采用双库隔离[E1]" in str(s2["answer_zh"])
+    assert len(s2["citations"]) == 1 and s2["citations"][0]["ref_label"] == "E1"
+    for forbidden in ("Google", "E77", "E88", "E99"):
+        assert forbidden not in str(s2["answer_zh"])
+        assert forbidden not in " ".join(s2["key_takeaways_zh"])
+        assert forbidden not in " ".join(s2["action_items_zh"])
+        assert forbidden not in str(s2["obsidian_markdown"])
+
+    s3 = hub.ask_research_question({"question": "variant_brackets_only 请回答"})["session"]
+    assert s3["answer_status"] == "REFUSED_INSUFFICIENT_EVIDENCE"
+    assert s3["refused"] is True
+    assert s3["citations"] == []
+
+    s4 = hub.ask_research_question({"question": "comma_stub_ref_only 请回答"})["session"]
+    assert s4["answer_status"] == "REFUSED_INSUFFICIENT_EVIDENCE"
+    assert s4["refused"] is True
+    assert s4["citations"] == []
+    assert "Google" not in str(s4["answer_zh"])
+    assert "Google" not in str(s4["obsidian_markdown"])
+
+
+def test_n2_p1_03_restored_obsidian_markdown_reverified_on_export(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def _completer(
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        mode: str,
+        provider: str,
+        model: str,
+        max_tokens: int = 1800,
+    ) -> tuple[dict[str, Any], str, str]:
+        del user_prompt, mode, max_tokens
+        if "LOCAL_TEXT_DISTILL_SCHEMA" in system_prompt:
+            return (
+                {
+                    "headline_zh": "可验证记录",
+                    "summary_zh": "摘要依赖主库核验。",
+                    "score": 9.1,
+                    "score_reason_zh": "结构完整。",
+                    "recommendation_tier": "MUST_WATCH",
+                    "content_bucket": "DEEP_DIVE",
+                    "topics_zh": ["核验"],
+                    "topic_cluster_zh": "安全边界",
+                    "core_points": [
+                        {
+                            "text_zh": "恢复记录必须重新核验",
+                            "section_index": 0,
+                            "evidence_quote": "主库原始文本不可伪造。",
+                        }
+                    ],
+                    "product_opportunities_zh": [],
+                    "business_opportunities_zh": [],
+                    "filtered_noise_zh": [],
+                },
+                provider,
+                model,
+            )
+        if "RESEARCH_QA_SCHEMA" in system_prompt:
+            return (
+                {
+                    "answerable": True,
+                    "answer_zh": "主库原始文本明确声明不可伪造[E1]。",
+                    "key_takeaways_zh": ["主库文本核验[E1]"],
+                    "action_items_zh": [],
+                    "citations": [{"ref": "E1", "note_zh": "主库原文出处"}],
+                },
+                provider,
+                model,
+            )
+        return _StubCompleter()(
+            system_prompt=system_prompt,
+            user_prompt="",
+            mode="local_ollama",
+            provider=provider,
+            model=model,
+        )
+
+    env_src = _build_env(tmp_path, monkeypatch, name="n2_src", completer=_StubCompleter(_completer))
+    imp = LocalContentProvider(env_src["repo"], env_src["data_root"], now=lambda: NOW).import_bytes(
+        "n2_source.md", "主库原始文本不可伪造。".encode("utf-8")
+    )
+    vid = imp.content_id
+    env_src["hub"].distill_video(vid)
+    env_src["hub"].ask_research_question({"question": "主库原文说了什么？", "video_ids": [vid]})
+    snapshot = json.loads(json.dumps(env_src["hub"].export_backup_snapshot()))
+
+    snapshot["video_ai_briefs"][0]["obsidian_markdown"] = (
+        "---\ntitle: \"Tampered\"\n---\n\n> 原话摘录：TAMPERED_BRIEF_QUOTE\n"
+    )
+    pts = json.loads(snapshot["video_ai_briefs"][0]["core_points_json"])
+    pts[0]["excerpt"] = "TAMPERED_BRIEF_QUOTE"
+    snapshot["video_ai_briefs"][0]["core_points_json"] = json.dumps(pts, ensure_ascii=False)
+
+    snapshot["research_qa_sessions"][0]["obsidian_markdown"] = (
+        "---\ntitle: \"Tampered QA\"\n---\n\n> TAMPERED_QA_QUOTE\n"
+    )
+    cites = json.loads(snapshot["research_qa_sessions"][0]["citations_json"])
+    cites[0]["excerpt"] = "TAMPERED_QA_QUOTE"
+    snapshot["research_qa_sessions"][0]["citations_json"] = json.dumps(cites, ensure_ascii=False)
+
+    snapshot["video_visual_analyses"] = [
+        {
+            "video_id": vid,
+            "source_hash": "src",
+            "visual_summary_zh": "视觉摘要",
+            "visual_takeaways_json": '["要点"]',
+            "frames_json": "[]",
+            "frame_count": 0,
+            "informative_frame_count": 0,
+            "provider": "ollama",
+            "model": "gemma3:4b",
+            "updated_at": "2026-11-23T12:00:00Z",
+        }
+    ]
+
+    env_dst = _build_env(tmp_path, monkeypatch, name="n2_dst")
+    dst_hub: WorkspaceIntelligenceHub = env_dst["hub"]
+    dst_hub.restore_backup_snapshot(snapshot)
+
+    brief = dst_hub.get_video_brief(vid)
+    assert brief is not None
+    assert brief["verification_status"] == "NEEDS_REVERIFICATION"
+    assert "待核验" in str(brief["obsidian_markdown"])
+    assert "TAMPERED_BRIEF_QUOTE" not in str(brief["obsidian_markdown"])
+    assert brief["core_points"][0]["excerpt"] == ""
+
+    single_md = str(dst_hub.get_video_obsidian_export(vid)["markdown"])
+    assert "待核验" in single_md and "TAMPERED_BRIEF_QUOTE" not in single_md
+
+    _, vis_zip, _ = dst_hub.build_video_visual_obsidian_zip(vid)
+    with zipfile.ZipFile(io.BytesIO(vis_zip)) as zf:
+        vis_md = zf.read(next(n for n in zf.namelist() if n.endswith(".md"))).decode("utf-8")
+    assert "待核验" in vis_md and "TAMPERED_BRIEF_QUOTE" not in vis_md
+
+    sess = dst_hub.list_research_sessions()["sessions"][0]
+    assert sess["answer_status"] == "NEEDS_REVERIFICATION"
+    assert "待核验" in str(sess["obsidian_markdown"])
+    assert "TAMPERED_QA_QUOTE" not in str(sess["obsidian_markdown"])
+
+    _, vault_zip, _, _ = dst_hub.build_obsidian_vault_zip(scope="all")
+    with zipfile.ZipFile(io.BytesIO(vault_zip)) as zf:
+        vault_texts = "\n".join(
+            zf.read(n).decode("utf-8") for n in zf.namelist() if n.endswith(".md")
+        )
+    assert "TAMPERED_BRIEF_QUOTE" not in vault_texts
+    assert "TAMPERED_QA_QUOTE" not in vault_texts
+    assert "待核验" in vault_texts
+
+
+def test_n3_backup_graceful_degradation_above_40mib_and_64mib_cap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    frame_blob = MINIMAL_JPEG + (b"\x00" * (500_000 - len(MINIMAL_JPEG)))
+    frame_sha = hashlib.sha256(frame_blob).hexdigest()
+
+    def _seed_many_keyframes(env: dict[str, Any], *, vid_count: int, frames_per_vid: int) -> None:
+        hub: WorkspaceIntelligenceHub = env["hub"]
+        for v_idx in range(vid_count):
+            vid = f"vidBkLarge{v_idx:02d}"
+            _seed_video_with_cues(
+                env, vid, title=f"Large Keyframe Video {v_idx:02d}", cues=((0, 2000, f"Cue {v_idx}"),)
+            )
+            hub.distill_video(vid)
+            vid_hash = hashlib.sha256(vid.encode("utf-8")).hexdigest()[:16]
+            gen_id = f"gen-{v_idx:016x}"
+            gen_dir = env["project_root"] / ".workspace-ai" / "keyframes" / vid_hash / gen_id
+            gen_dir.mkdir(parents=True, exist_ok=True)
+            frames_meta = []
+            for f_idx in range(1, frames_per_vid + 1):
+                fid = f"f{f_idx:02d}-{f_idx * 1000}"
+                fname = f"frame_{f_idx:02d}_{f_idx * 1000:08d}.jpg"
+                (gen_dir / fname).write_bytes(frame_blob)
+                frames_meta.append(
+                    {
+                        "frame_index": f_idx,
+                        "frame_id": fid,
+                        "filename": fname,
+                        "storage_subdir": gen_id,
+                        "obsidian_asset_name": f"kf-{v_idx}-{fid}.jpg",
+                        "timestamp_ms": f_idx * 1000,
+                        "timestamp_label": f"00:{f_idx:02d}",
+                        "selection_reason": "uniform",
+                        "frame_kind": "SLIDE",
+                        "has_visual_info": True,
+                        "title_zh": f"帧 {f_idx}",
+                        "visual_detail_zh": "大图帧",
+                        "transcript_fusion_zh": "融合",
+                        "nearby_transcript": f"Cue {v_idx}",
+                        "byte_count": len(frame_blob),
+                        "sha256": frame_sha,
+                    }
+                )
+            with hub._db_lock:
+                conn = hub._connect_write()
+                try:
+                    with conn:
+                        conn.execute(
+                            """
+                            INSERT INTO video_visual_analyses (
+                                video_id, source_hash, visual_summary_zh, visual_takeaways_json,
+                                frames_json, frame_count, informative_frame_count, provider, model, updated_at
+                            ) VALUES (?, 'src', '视觉摘要', '["要点"]', ?, ?, ?, 'ollama', 'gemma3:4b', '2026-11-24T00:00:00Z')
+                            """,
+                            (vid, json.dumps(frames_meta, ensure_ascii=False), frames_per_vid, frames_per_vid),
+                        )
+                finally:
+                    conn.close()
+
+    # Case (a): Keyframe JPEGs > 40 MiB (9 * 10 * 500KB = 45MB > 40 MiB) still exports & restores briefs/Q&A
+    env_a = _build_env(tmp_path, monkeypatch, name="n3_over_40m")
+    _seed_many_keyframes(env_a, vid_count=9, frames_per_vid=10)
+    env_a["hub"].ask_research_question({"question": "Large Keyframe Cue 0?", "video_ids": ["vidBkLarge00"]})
+
+    snap_a = env_a["hub"].export_backup_snapshot()
+    assert snap_a["counts"]["briefs"] == 9  # type: ignore[index]
+    assert snap_a["counts"]["research_sessions"] == 1  # type: ignore[index]
+    assert snap_a["counts"]["skipped_visual_assets"] > 0  # type: ignore[index]
+    assert snap_a["warnings"]
+    assert sum(int(a["byte_count"]) for a in snap_a["visual_keyframe_assets"]) <= MAX_BACKUP_VISUAL_RAW_BYTES  # type: ignore[attr-defined]
+    snap_a_bytes = json.dumps(snap_a, ensure_ascii=False).encode("utf-8")
+    assert len(snap_a_bytes) <= MAX_BACKUP_EXPORT_JSON_BYTES
+
+    env_a_dst = _build_env(tmp_path, monkeypatch, name="n3_over_40m_dst")
+    rs_a_code, rs_a_body = env_a_dst["fast_app"].handle("POST", "/api/v1/workspace-ai/restore", snap_a_bytes)
+    assert rs_a_code == HTTPStatus.OK
+    assert rs_a_body["restored"]["briefs"] == 9
+    assert rs_a_body["restored"]["research_sessions"] == 1
+
+    # Case (b): Visual assets near 40 MiB (~39 MiB raw -> ~52 MiB b64) PLUS > 10 MiB text -> trimmed <= 64 MiB & restores HTTP 200
+    env_b = _build_env(tmp_path, monkeypatch, name="n3_over_64m")
+    _seed_many_keyframes(env_b, vid_count=8, frames_per_vid=9)  # 72 * 500KB = 36MB raw (~48MB b64)
+    large_md_block = "大文本笔记内容段落。" * 70_000  # ~1.4 MiB per row
+    with env_b["hub"]._db_lock:
+        conn = env_b["hub"]._connect_write()
+        try:
+            with conn:
+                for q_i in range(12):  # ~16.8 MiB text total
+                    conn.execute(
+                        """
+                        INSERT INTO research_qa_sessions (
+                            session_id, question, answer_zh, key_takeaways_json, action_items_json,
+                            citations_json, video_count, provider, model, obsidian_markdown, created_at, scope_json
+                        ) VALUES (?, ?, ?, '[]', '[]', '[]', 1, 'local_ollama', 'qwen3.5:9b', ?, '2026-11-24T01:00:00Z', '{}')
+                        """,
+                        (f"big-qa-{q_i:02d}", f"Q{q_i}", "Ans", large_md_block),
+                    )
+        finally:
+            conn.close()
+
+    snap_b = env_b["hub"].export_backup_snapshot()
+    snap_b_bytes = json.dumps(snap_b, ensure_ascii=False).encode("utf-8")
+    assert len(snap_b_bytes) <= MAX_WORKSPACE_AI_BACKUP_BYTES
+    assert snap_b["counts"]["skipped_visual_assets"] > 0  # type: ignore[index]
+    assert snap_b["warnings"]
+
+    env_b_dst = _build_env(tmp_path, monkeypatch, name="n3_over_64m_dst")
+    rs_b_code, rs_b_body = env_b_dst["fast_app"].handle("POST", "/api/v1/workspace-ai/restore", snap_b_bytes)
+    assert rs_b_code == HTTPStatus.OK
+    assert rs_b_body["restored"]["research_sessions"] == 12
+
+
+def test_n4_p1_02_unmatched_paraphrase_does_not_fallback_to_segment_zero(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def _completer(
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        mode: str,
+        provider: str,
+        model: str,
+        max_tokens: int = 1800,
+    ) -> tuple[dict[str, Any], str, str]:
+        del user_prompt, mode, max_tokens
+        if "LOCAL_TEXT_DISTILL_SCHEMA" in system_prompt:
+            return (
+                {
+                    "headline_zh": "仓储英文意译",
+                    "summary_zh": "Summary rewritten with zero Chinese overlap.",
+                    "score": 8.0,
+                    "score_reason_zh": "Paraphrased.",
+                    "recommendation_tier": "MUST_WATCH",
+                    "content_bucket": "DEEP_DIVE",
+                    "topics_zh": ["盘点"],
+                    "topic_cluster_zh": "运营盘点",
+                    "core_points": [
+                        {
+                            "text_zh": "Warehouse safety reserve stands at single digits",
+                            "section_index": 0,
+                            "evidence_quote": "completely unmatched english paraphrase",
+                        }
+                    ],
+                    "product_opportunities_zh": [],
+                    "business_opportunities_zh": [],
+                    "filtered_noise_zh": [],
+                },
+                provider,
+                model,
+            )
+        return _StubCompleter()(
+            system_prompt=system_prompt,
+            user_prompt="",
+            mode="local_ollama",
+            provider=provider,
+            model=model,
+        )
+
+    env = _build_env(tmp_path, monkeypatch, completer=_StubCompleter(_completer))
+    note_text = "\n\n".join(
+        [
+            "周一会议纪要",
+            "库存只剩七件",
+            "周二巡检记录无异常",
+            "周三补充打包耗材",
+            "周四供应商确认到货周期",
+            "周五整理财务凭证",
+            "周六盘点货架标签",
+            "周日归档本周流水",
+            "下周计划核对退货",
+        ]
+    )
+    imp = LocalContentProvider(env["repo"], env["data_root"], now=lambda: NOW).import_bytes(
+        "paraphrase_note.txt", note_text.encode("utf-8")
+    )
+    env["hub"].distill_video(imp.content_id)
+    brief = env["hub"].get_video_brief(imp.content_id)
+    assert brief is not None
+    pt = brief["core_points"][0]
+    assert pt["evidence_ids"] == []
+    assert pt["excerpt"] == ""
+    assert "周一会议纪要" not in str(pt["excerpt"])
+    assert pt["verification_status"] == "NEEDS_REVERIFICATION"
+    assert pt["start_ms"] is None
+
+
+def test_n6_p2_01_vision_inference_edge_cases_show_override_and_beyond_8(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert _infer_ollama_model_vision_by_name("gemma3:1b") is False
+    assert _infer_ollama_model_vision_by_name("gemma3:270m") is False
+    assert _infer_ollama_model_vision_by_name("gemma3n:latest") is False
+    assert _infer_ollama_model_vision_by_name("gemma3:4b") is True
+    assert _infer_ollama_model_vision_by_name("mistral-small3.1:24b") is True
+    assert _infer_ollama_model_vision_by_name("mistral-small3.2:latest") is True
+    assert _infer_ollama_model_vision_by_name("deepseek-ocr:latest") is True
+
+    # /api/show capability result overrides name heuristics in both directions
+    class _ShowOverrideOpener:
+        def open(self, req: Any, timeout: float = 2.0) -> Any:
+            del timeout
+            url = req.full_url if hasattr(req, "full_url") else str(req)
+            if url.endswith("/api/show"):
+                payload = json.loads(req.data.decode("utf-8"))
+                name = payload["name"]
+                caps = ["completion", "vision"] if name == "custom-ocr-v1" else ["completion"]
+                return io.BytesIO(json.dumps({"capabilities": caps}).encode("utf-8"))
+            raise AssertionError(f"Unexpected chat call for {url}")
+
+    env = _build_env(tmp_path, monkeypatch, ollama_models=("gemma3:4b", "custom-ocr-v1"))
+    hub: WorkspaceIntelligenceHub = env["hub"]
+    hub._http_opener = _ShowOverrideOpener()
+    hub._vision_completer = None
+    assert hub._probe_ollama_model_vision("http://127.0.0.1:11434", "gemma3:4b") is False
+    assert hub._probe_ollama_model_vision("http://127.0.0.1:11434", "custom-ocr-v1") is True
+
+    hub.update_settings({"active_mode": "local_ollama", "ollama_model": "gemma3:4b"})
+    jpg = env["tmp"] / "vis.jpg"
+    jpg.write_bytes(MINIMAL_JPEG)
+    with pytest.raises(ApiError) as err:
+        hub._complete_vision_json(
+            system_prompt="sys",
+            user_prompt="usr",
+            image_paths=[jpg],
+            max_tokens=200,
+            allow_cloud=False,
+        )
+    assert err.value.code == "LOCAL_VISION_MODEL_UNSUPPORTED"
+
+    # collect_workspace_preflight discovers a vision model beyond index 8
+    models_10 = tuple(f"llama3.1:{i}b" for i in range(9)) + ("gemma3:4b",)
+    pf = collect_workspace_preflight(
+        REPO_ROOT,
+        ollama_probe=lambda _url: (True, models_10),
+    )
+    assert pf.ollama_vision_ready is True
+    assert "gemma3:4b" in pf.ollama_vision_models
+
+
+@pytest.mark.skipif(media_tool("ffmpeg") is None, reason="ffmpeg required for concurrent test")
+def test_n7_concurrent_visual_reanalysis_preserves_committed_generation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import time
+
+    def _slow_vis_completer(
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        image_paths: Any,
+        mode: str,
+        provider: str,
+        model: str,
+        max_tokens: int = 2200,
+    ) -> tuple[dict[str, Any], str, str]:
+        del system_prompt, user_prompt, mode, max_tokens
+        time.sleep(0.04)
+        return (
+            {
+                "visual_summary_zh": "并发抽帧分析成功",
+                "visual_takeaways_zh": ["有效帧保留"],
+                "frames": [
+                    {
+                        "frame_index": idx,
+                        "frame_kind": "ARCHITECTURE",
+                        "has_visual_info": True,
+                        "title_zh": f"并发画面 {idx}",
+                        "visual_detail_zh": "图表",
+                        "transcript_fusion_zh": "融合",
+                    }
+                    for idx in range(1, len(list(image_paths)) + 1)
+                ],
+            },
+            provider,
+            model,
+        )
+
+    env = _build_env(tmp_path, monkeypatch, vision_completer=_slow_vis_completer)
+    mp4 = _create_tiny_mp4(env["tmp"], name="concurrent_vis.mp4")
+    vid = LocalContentProvider(env["repo"], env["data_root"], now=lambda: NOW).import_file(mp4).content_id
+    hub: WorkspaceIntelligenceHub = env["hub"]
+
+    barrier = threading.Barrier(2)
+
+    def _worker(_idx: int) -> dict[str, object]:
+        barrier.wait(timeout=5)
+        return hub.analyze_video_keyframes(vid)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = [f.result() for f in [pool.submit(_worker, i) for i in range(2)]]
+    assert len(results) == 2
+
+    final_vis = hub.get_video_visual_analysis(vid)
+    assert final_vis is not None and len(final_vis["frames"]) >= 1
+    for fr in final_vis["frames"]:
+        assert fr["image_available"] is True
+        img = hub.read_video_keyframe_image(vid, fr["frame_id"])
+        assert img is not None and img[0][:2] == b"\xff\xd8"
+    gen_dirs = [p for p in hub._video_keyframes_dir(vid).iterdir() if p.is_dir()]
+    assert len(gen_dirs) == 1
+
+
+def test_n9_p2_02_cross_instance_barrier_cloud_budget_concurrency(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    env_a = _build_env(tmp_path, monkeypatch, name="shared_budget_ws")
+    hub_a: WorkspaceIntelligenceHub = env_a["hub"]
+    hub_b = WorkspaceIntelligenceHub(
+        repository=env_a["repo"],
+        data_root=env_a["data_root"],
+        project_root=env_a["project_root"],
+        byok_credential_store=env_a["byok_store"],
+        llm_completer=_StubCompleter(),
+        now=lambda: NOW,
+    )
+
+    n_threads = 8
+    barrier = threading.Barrier(n_threads)
+
+    def _race(i: int) -> str:
+        target = hub_a if i % 2 == 0 else hub_b
+        barrier.wait(timeout=5)
+        return target._reserve_cloud_call(
+            provider="openai_compatible",
+            model="gpt-4o-mini",
+            endpoint="https://api.openai.com/v1/chat/completions",
+            daily_limit=3,
+        )
+
+    with ThreadPoolExecutor(max_workers=n_threads) as pool:
+        futures = [pool.submit(_race, i) for i in range(n_threads)]
+        outcomes: list[str] = []
+        errors: list[str] = []
+        for fut in futures:
+            try:
+                outcomes.append(fut.result())
+            except ApiError as err:
+                errors.append(err.code)
+
+    assert len(outcomes) == 3
+    assert errors == ["CLOUD_DAILY_BUDGET_EXCEEDED"] * 5
