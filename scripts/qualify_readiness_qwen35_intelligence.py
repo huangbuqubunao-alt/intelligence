@@ -41,7 +41,7 @@ V1_PROFILE_ID = "readiness-qwen35-9b-official-nonthinking-v1"
 V2_PROFILE_ID = "readiness-qwen35-9b-official-thinking-v2"
 V3_PROFILE_ID = "readiness-qwen35-9b-thinking-capacity6144-single-v3"
 CAPACITY_BASELINE_ROOT = Path(
-    "/Users/hua/Documents/yia-worktrees/readiness-qwen35-thinking-v2"
+    "/Users/developer/Documents/yia-worktrees/readiness-qwen35-thinking-v2"
     "/.var/readiness-qwen35/readiness-qwen35-9b-official-thinking-v2/real-deepthink-en"
 )
 PROFILE_ID = V1_PROFILE_ID
@@ -51,7 +51,7 @@ DIGEST = "sha256:56671c2ab9385f9cfcb404638e32cd62d88e3501d44822208363c010179a3c9
 PROFILE_PATH = DOCS / "QWEN35_RESEARCH_PROFILE_V1.json"
 FREEZE_PATH = DOCS / "QWEN35_PRE_OUTPUT_FREEZE_V1.json"
 SOURCE_RUNTIME = Path(
-    "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness"
+    "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness"
     "/.var/end-to-end-user-readiness/runtime"
 )
 CASE_IDS = (

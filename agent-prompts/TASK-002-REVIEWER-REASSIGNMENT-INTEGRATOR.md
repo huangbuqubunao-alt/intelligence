@@ -9,8 +9,8 @@
 - Task: `TASK-002 reviewer reassignment sync`
 - Role: `Status Integrator`
 - Required base: `main@68ce933d9653be979503fc215039a4a232cf007e`
-- Main worktree: `/Users/hua/Documents/youtubek agent`
-- TASK-002 worktree: `/Users/hua/Documents/yia-worktrees/task-002`，严格只读
+- Main worktree: `/Users/developer/Documents/youtubek agent`
+- TASK-002 worktree: `/Users/developer/Documents/yia-worktrees/task-002`，严格只读
 - Required branch: `grok/task-002-config-domain-contracts`
 - Required source head: `8f50df2f7e93d778f32947ca471740b6713c9aff`
 
@@ -46,9 +46,9 @@ git var GIT_AUTHOR_IDENT
 git var GIT_COMMITTER_IDENT
 git diff --check
 git diff --name-only
-git -C "/Users/hua/Documents/yia-worktrees/task-002" branch --show-current
-git -C "/Users/hua/Documents/yia-worktrees/task-002" rev-parse HEAD
-git -C "/Users/hua/Documents/yia-worktrees/task-002" status --short
+git -C "/Users/developer/Documents/yia-worktrees/task-002" branch --show-current
+git -C "/Users/developer/Documents/yia-worktrees/task-002" rev-parse HEAD
+git -C "/Users/developer/Documents/yia-worktrees/task-002" status --short
 ```
 
 `user.useConfigOnly` 不是 `true`、Author/Committer 为空或包含 `.local` 时停止；不得自行改配置。

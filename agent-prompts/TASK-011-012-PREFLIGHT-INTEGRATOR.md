@@ -19,7 +19,7 @@
 
 ## 必须执行
 
-1. 核验 main identity `Mozhu <huangbuqubunao@gmail.com>`、`user.useConfigOnly=true`、分支/HEAD、empty index/worktree 与精确六文件范围。
+1. 核验 main identity `Mozhu <maintainer@example.invalid>`、`user.useConfigOnly=true`、分支/HEAD、empty index/worktree 与精确六文件范围。
 2. 对准备文件做两轮 SHA-256、LF/EOF、无尾随空白、`git diff --check`、`git diff --cached --check` 与精确暂存范围核验；字节漂移立即停止。
 3. 不运行 uv、pytest、build、imports、数据库、网络、Vault、云端、凭据、launchctl 或任何产品文件 I/O 命令。
 4. 保持 TASK-011/TASK-012=`BLOCKED/UNASSIGNED`，只登记 Scout 已授权未启动；不得预写 ADR 结论、READY、IN_PROGRESS、Reviewer 或 worktree。

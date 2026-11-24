@@ -4,7 +4,7 @@
 
 - Implementer：`/root/caption_resume`；Reviewer：`/root/intel_bounded_review`，实现者不自审。
 - Base：`a2c668bbe32d1acc4bcf83176a331eb3e850e09b`。
-- Worktree：`/Users/hua/Documents/yia-worktrees/readiness-subtitle-archive-38`。
+- Worktree：`/Users/developer/Documents/yia-worktrees/readiness-subtitle-archive-38`。
 - Branch：`codex/task-readiness-subtitle-archive-38`。
 - 具体批准：`FAILED_SUBTITLE_ARCHIVE_APPROVAL.md` / `FAILED_SUBTITLE_ARCHIVE_MIGRATION_PROPOSAL.md`；只隔离实施、迁移与验收，不授权正式数据迁移或采用。
 - 主控补充范围：`runtime.py::_database_check` 仅将现有 doctor 的当前版本判断 37→38，配套 schema38 PASS / future39 FAIL；冻结语言候选仅 `en` 与 `zh,en`，adapter 版本 `2026.7.4`，来源为主控隔离配置的非敏感字段及现有锁定版本。没有将当前配置当作旧输入。

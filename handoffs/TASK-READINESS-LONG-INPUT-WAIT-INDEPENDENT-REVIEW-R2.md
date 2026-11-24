@@ -6,8 +6,8 @@
 - Overall base: `4f7cc46ed1381782288a2f4915dce027b38c3b94`.
 - Prior rejected candidate: `4da67d55d73d3db214825d5b19368bb36caac507`.
 - R2 fixed candidate: `a2861e38dd36124a680377bbdc55f9ff105e53f3`.
-- Review worktree/branch: `/Users/hua/Documents/yia-worktrees/readiness-long-input-wait-review-r2`, `codex/review-readiness-long-input-wait-r2`; exact HEAD and clean state confirmed before review.
-- Prior REJECT report remains unchanged in separate worktree, commit `f9db3e4f74903be03b222a92412a63c1bb53f8ca`, [report](/Users/hua/Documents/yia-worktrees/readiness-long-input-wait-review/handoffs/TASK-READINESS-LONG-INPUT-WAIT-INDEPENDENT-REVIEW.md).
+- Review worktree/branch: `/Users/developer/Documents/yia-worktrees/readiness-long-input-wait-review-r2`, `codex/review-readiness-long-input-wait-r2`; exact HEAD and clean state confirmed before review.
+- Prior REJECT report remains unchanged in separate worktree, commit `f9db3e4f74903be03b222a92412a63c1bb53f8ca`, [report](/Users/developer/Documents/yia-worktrees/readiness-long-input-wait-review/handoffs/TASK-READINESS-LONG-INPUT-WAIT-INDEPENDENT-REVIEW.md).
 - Applied code-review-and-quality, read newer root task and prior report, and indexed this new worktree fast/persistence=false before graph-first code discovery. Only this report is written; no business/test changes, model/tokenizer/network/owner access, integration or task-state changes.
 
 ## Verdict: REJECT
@@ -40,7 +40,7 @@ Required repair: make reverse family enumeration match the shared reserved-famil
 
 ## Independent checks and comparison
 
-All commands ran in the R2 review worktree using `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`. Tests used `PYTHONPATH=src:tests:.`, mypy `PYTHONPATH=src`. Import proof printed R2's `src/youtube_intel/state.py`.
+All commands ran in the R2 review worktree using `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`. Tests used `PYTHONPATH=src:tests:.`, mypy `PYTHONPATH=src`. Import proof printed R2's `src/youtube_intel/state.py`.
 
 | Check | Result |
 |---|---|

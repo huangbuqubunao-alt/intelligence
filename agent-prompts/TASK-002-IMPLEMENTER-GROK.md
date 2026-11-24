@@ -26,7 +26,7 @@
 - Role: `Implementer`
 - Agent: `Grok`
 - Base: `main@46f8497e771e1461034942dd7967f19d85f79f81`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-002`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-002`
 - Branch: `grok/task-002-config-domain-contracts`
 - Reviewer: Codex 独立会话；仅在实现 commit 后由主控启动
 - Parallel now: `TASK-003`/`TASK-004` Read-only Preflight，可由其他只读会话执行

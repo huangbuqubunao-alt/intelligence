@@ -2,12 +2,12 @@
   "classification": "ISOLATED_METADATA_IMPORT_AND_BYTES_VERIFIED_NO_MODEL_EXECUTION",
   "at": "2026-10-24T05:34:23.943242+00:00",
   "canonical_manifest": {
-    "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q3ks-20261024/models/blobs/sha256-4070000a6455cb321fd5f0f07974368573e66650db4ade1e920ee384f3f279f7",
+    "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q3ks-20261024/models/blobs/sha256-4070000a6455cb321fd5f0f07974368573e66650db4ade1e920ee384f3f279f7",
     "bytes": 780,
     "sha256": "4070000a6455cb321fd5f0f07974368573e66650db4ade1e920ee384f3f279f7"
   },
   "tag_ref": {
-    "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q3ks-20261024/models/manifests-v2/ollama.com/library/intelligence-qwen35-9b-text-q3ks/3885219b",
+    "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q3ks-20261024/models/manifests-v2/ollama.com/library/intelligence-qwen35-9b-text-q3ks/3885219b",
     "link": "../../../../blobs/sha256-4070000a6455cb321fd5f0f07974368573e66650db4ade1e920ee384f3f279f7",
     "dev": 16777234,
     "inode": 140448246,
@@ -16,25 +16,25 @@
   },
   "payloads": [
     {
-      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q3ks-20261024/models/blobs/sha256-094ffa406993cb1209c4cc1faaee345dafea9091c53b6a86266313d703e8453f",
+      "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q3ks-20261024/models/blobs/sha256-094ffa406993cb1209c4cc1faaee345dafea9091c53b6a86266313d703e8453f",
       "bytes": 177,
       "sha256": "094ffa406993cb1209c4cc1faaee345dafea9091c53b6a86266313d703e8453f",
       "media_type": "application/vnd.docker.container.image.v1+json"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q3ks-20261024/models/blobs/sha256-162050d39ebae6b8a87435f282bcb7a0e3fab7b2444db730966b3fef1ed0179e",
+      "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q3ks-20261024/models/blobs/sha256-162050d39ebae6b8a87435f282bcb7a0e3fab7b2444db730966b3fef1ed0179e",
       "bytes": 4316865760,
       "sha256": "162050d39ebae6b8a87435f282bcb7a0e3fab7b2444db730966b3fef1ed0179e",
       "media_type": "application/vnd.ollama.image.model"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q3ks-20261024/models/blobs/sha256-b507b9c2f6ca642bffcd06665ea7c91f235fd32daeefdf875a0f938db05fb315",
+      "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q3ks-20261024/models/blobs/sha256-b507b9c2f6ca642bffcd06665ea7c91f235fd32daeefdf875a0f938db05fb315",
       "bytes": 13,
       "sha256": "b507b9c2f6ca642bffcd06665ea7c91f235fd32daeefdf875a0f938db05fb315",
       "media_type": "application/vnd.ollama.image.template"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q3ks-20261024/models/blobs/sha256-50cbab8a892c5f2993b8c7351a99182507472def3b1374558308605d99b86b32",
+      "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q3ks-20261024/models/blobs/sha256-50cbab8a892c5f2993b8c7351a99182507472def3b1374558308605d99b86b32",
       "bytes": 11343,
       "sha256": "50cbab8a892c5f2993b8c7351a99182507472def3b1374558308605d99b86b32",
       "media_type": "application/vnd.ollama.image.license"

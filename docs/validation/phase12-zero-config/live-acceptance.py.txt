@@ -29,7 +29,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--restart', action='store_true')
     args = parser.parse_args()
-    evidence = Path('/Users/hua/Documents/phase12-zero-config-evidence')
+    evidence = Path('/Users/developer/Documents/phase12-zero-config-evidence')
     root = Path('.var/phase12/zero-config-live').resolve()
     assert root.is_relative_to(Path.cwd().resolve() / '.var/phase12')
     root.mkdir(parents=True, exist_ok=True)

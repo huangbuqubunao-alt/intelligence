@@ -38,8 +38,8 @@
       "C": 16384,
       "required": 8824
     },
-    "server": "67013 Mon Oct 26 13:59:32 2026     /Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/pinned-ollama-0409-20261024/runtime/ollama serve",
-    "runner": "67926 Mon Oct 26 14:09:47 2026     /Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/pinned-ollama-0409-20261024/runtime/llama-server --model /Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/gemma4-e4b-20261025/models/blobs/sha256-370c2879f17648d337b0ab4e208fdce348e24d1060064e93d7645daafd56d39c --port 57912 --host 127.0.0.1 --no-webui --offline -c 16384 -np 1 --log-verbosity 4 --no-log-prefix --no-log-timestamps --no-jinja --chat-template chatml --flash-attn auto -b 512 -ub 512",
+    "server": "67013 Mon Oct 26 13:59:32 2026     /Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/pinned-ollama-0409-20261024/runtime/ollama serve",
+    "runner": "67926 Mon Oct 26 14:09:47 2026     /Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/pinned-ollama-0409-20261024/runtime/llama-server --model /Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/gemma4-e4b-20261025/models/blobs/sha256-370c2879f17648d337b0ab4e208fdce348e24d1060064e93d7645daafd56d39c --port 57912 --host 127.0.0.1 --no-webui --offline -c 16384 -np 1 --log-verbosity 4 --no-log-prefix --no-log-timestamps --no-jinja --chat-template chatml --flash-attn auto -b 512 -ub 512",
     "request_sha256": "36d15b05520ac4864ac6db99857780a79ac717b22fe6d7ba191201c60cd753d2",
     "rendered_sha256": "73d14a58ba5dd82cf7bb192056140cd4ceadba38b46db53d64f9ea23914f4ba6",
     "schema_sha256": "6af421a97de4bda10b816a4e7d40906610721a81d0cffb869e32e94c4e99d491",
@@ -82,8 +82,8 @@
   },
   "runtime_manifest_sha256": "fc56a3a85d92545c9cbd2b5091bdab68907f326eef07c0bf8233c4b1738f24d1",
   "public_artifacts": [
-    "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/gemma4-e4b-20261025/actual-first-case-20261026/public-final.txt",
-    "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/gemma4-e4b-20261025/actual-first-case-20261026/public-decoded.json"
+    "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/gemma4-e4b-20261025/actual-first-case-20261026/public-final.txt",
+    "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/gemma4-e4b-20261025/actual-first-case-20261026/public-decoded.json"
   ],
   "private_thinking": "Not inspected; only public message.content and completion/usage projected. Raw retained opaque.",
   "formal_owner_access": false,

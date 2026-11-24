@@ -8,7 +8,7 @@
 Task: TASK-014B3 — public subtitle directory diagnostics
 Role: Independent Reviewer
 Control-plane baseline: main@952014f7a09414cf506958d5e9845ba7f078763b
-Source worktree: /Users/hua/Documents/yia-worktrees/task-014b3-public-subtitle-diagnostics-implementation
+Source worktree: /Users/developer/Documents/yia-worktrees/task-014b3-public-subtitle-diagnostics-implementation
 Source branch: codex/task-014b3-public-subtitle-diagnostics-implementation
 Review HEAD: 77f2690c28ab80eb9886e8ca8eadb0e47481cd51
 Required sole parent: 9c5f08ec829629591b095bd68841ca3ce0b22532

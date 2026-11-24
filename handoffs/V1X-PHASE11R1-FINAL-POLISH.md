@@ -6,7 +6,7 @@
 - Role: `Implementer`
 - Agent/session: DeepSeek Harness, `space-bunny-free`
 - Base branch/commit: `e0841854adfe51dafcded7d1adbf3519c335cba2`（Phase 11R accepted HEAD）
-- Worktree: `/Users/hua/Documents/yia-worktrees/v1x-bilibili-final-polish`
+- Worktree: `/Users/developer/Documents/yia-worktrees/v1x-bilibili-final-polish`
 - Branch: `deepseek/phase11r1-bilibili-final-polish`
 - Head commit: 见 §Commit
 - Started: 2026-10-06

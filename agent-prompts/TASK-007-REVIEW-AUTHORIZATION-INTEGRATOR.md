@@ -7,7 +7,7 @@ TASK-007's offline review. Do not run product commands or access the active TASK
 
 - Required main base: `92740a7c68c19657c5b0f70ce8655a6a72062a1d`
 - Source branch/worktree: `codex/task-007-local-scoring` /
-  `/Users/hua/Documents/yia-worktrees/task-007`
+  `/Users/developer/Documents/yia-worktrees/task-007`
 - Required source head: `258358fcd5227e144c9294beafdf7ec6e2feea63`
 - Required source parent/base: `6b4d59c882ccdcbd0e5a6069a6661e0672921a80`
 

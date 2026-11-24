@@ -5,7 +5,7 @@
 - Reviewer：`/root/backup_reconnect_review`，独立新对话。
 - Base：`29228606ea230d1d3ccbe5b1fd2ef1e3111b0da4`。
 - Candidate：`b187e8223de16ab4472455796956ed8d4899364f`。
-- Worktree：`/Users/hua/Documents/yia-worktrees/readiness-long-input-wait-review-r6`。
+- Worktree：`/Users/developer/Documents/yia-worktrees/readiness-long-input-wait-review-r6`。
 - 范围：准确的8文件差异；唯一后端产品文件是 `backup_restore.py`，另为恢复反馈、语音保存及媒体时长文案/测试和handoff。读取了仓库角色规则、产品/设计/复用规范以及root最新任务包和真实GUI合同；未扩大任务。
 
 ## P2：已知恢复失败会被下一次读取断连改回“正在重新连接”

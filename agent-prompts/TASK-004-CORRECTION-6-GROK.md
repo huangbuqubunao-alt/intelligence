@@ -4,23 +4,23 @@
 
 ## 固定位置与起点
 
-- Main repository: `/Users/hua/Documents/youtubek agent`
-- Source worktree: `/Users/hua/Documents/yia-worktrees/task-004`
+- Main repository: `/Users/developer/Documents/youtubek agent`
+- Source worktree: `/Users/developer/Documents/yia-worktrees/task-004`
 - Branch: `grok/task-004-discovery-metadata`
 - 开始时 source HEAD 必须精确为第四次 review evidence `d510794ffccf54948f967f010685aef1c0a02f3d`
 - 该 evidence 的唯一父提交必须为 reviewed implementation `9750df2503a1aee135fdfbcca9f1706bcc9bd8de`
 - evidence commit 必须只修改 `handoffs/TASK-004.md`
 - source worktree 必须干净
-- Git identity 必须为 `Mozhu <huangbuqubunao@gmail.com>`，且 `user.useConfigOnly=true`
+- Git identity 必须为 `Mozhu <maintainer@example.invalid>`，且 `user.useConfigOnly=true`
 
 本包只有在 Status Integrator 已把它提交到 main 并返回 `INTEGRATED` 后才能执行。不要猜同步 SHA，使用：
 
 ```bash
-control_sync_head="$(git -C '/Users/hua/Documents/youtubek agent' log -1 --format=%H -- agent-prompts/TASK-004-CORRECTION-6-GROK.md)"
+control_sync_head="$(git -C '/Users/developer/Documents/youtubek agent' log -1 --format=%H -- agent-prompts/TASK-004-CORRECTION-6-GROK.md)"
 test -n "$control_sync_head"
-test "$(git -C '/Users/hua/Documents/youtubek agent' rev-parse HEAD)" = "$control_sync_head"
-test "$(git -C '/Users/hua/Documents/youtubek agent' rev-parse "$control_sync_head^")" = '6c24f4341f98cad961fa3d442d49e5982a0d97cf'
-test -z "$(git -C '/Users/hua/Documents/youtubek agent' status --short)"
+test "$(git -C '/Users/developer/Documents/youtubek agent' rev-parse HEAD)" = "$control_sync_head"
+test "$(git -C '/Users/developer/Documents/youtubek agent' rev-parse "$control_sync_head^")" = '6c24f4341f98cad961fa3d442d49e5982a0d97cf'
+test -z "$(git -C '/Users/developer/Documents/youtubek agent' status --short)"
 ```
 
 该 main 控制面提交只记录 Reviewer `REJECT`、Correction 6 和任务状态，不包含需要同步到 source 的产品依赖。**不得 merge、rebase、reset、cherry-pick 或 amend main/control commit。** source 直接从 `d510794...` 创建新的 correction commit。

@@ -4,10 +4,10 @@
 
 ## Assignment, scope and evidence
 
-- Independent Reviewer `/root/gemma_actual_review`, 2026-10-26. WT `/Users/hua/Documents/yia-worktrees/readiness-gemma4-actual-review`, branch `codex/task-readiness-gemma4-actual-review`, base `b5839abbfa7d6c88b740c295839330f1d0c4754d`.
+- Independent Reviewer `/root/gemma_actual_review`, 2026-10-26. WT `/Users/developer/Documents/yia-worktrees/readiness-gemma4-actual-review`, branch `codex/task-readiness-gemma4-actual-review`, base `b5839abbfa7d6c88b740c295839330f1d0c4754d`.
 - Read AGENTS, collaboration/status/PRD/System Design/reuse, assigned task/prompt, original isolated Gemma decision, pure/READY/recovery tasks and source/binding reviews, exact frozen source/expectation/system and user prompt/schema, actual artifacts. Applied `code-review-and-quality` across correctness, readability, architecture, security and performance. Jev remains unavailable per current status; existing strong/default independent review retained.
 - Writable scope used: this handoff plus own ignored `.var/gemma4-actual-review/**`. No product, source, tests, prompts, expected result, configuration, dependencies, Schema, credentials, qualification, task state, formal data or main edits. No subagents, HTTP, model/native/runtime/Terminal launch, process signals or application closure. Process/port checks were read-only.
-- C = `/Users/hua/Documents/yia-worktrees/readiness-gemma4-e4b-ready/.var/gemma4-e4b-ready`; Y = `/Users/hua/Documents/yia-worktrees/readiness-gemma4-preexec-recovery/.var/gemma4-preexec-recovery`; G = `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/gemma4-e4b-20261025`; A = G/`actual-first-case-20261026`.
+- C = `/Users/developer/Documents/yia-worktrees/readiness-gemma4-e4b-ready/.var/gemma4-e4b-ready`; Y = `/Users/developer/Documents/yia-worktrees/readiness-gemma4-preexec-recovery/.var/gemma4-preexec-recovery`; G = `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/gemma4-e4b-20261025`; A = G/`actual-first-case-20261026`.
 - Actual public text: A/`public-final.txt`; exact source and frozen criteria: C/`prepared-source.json` → `source`, independently equal to the original source loaded by the accepted alias adapter. Reviewer `source-cues.txt` supplies one-based cue numbers and exact times; `public-numbered.txt` supplies public line numbers. No source reconstruction or output repair was performed.
 
 ## Independent semantic findings
@@ -37,7 +37,7 @@ The frozen `NO_NEW_INTELLIGENCE` branch remains legal and must never be forced p
 
 ## Actual protocol and safety checks
 
-Own `verify_actual.py` ran using Root `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python -B`, `PYTHONDONTWRITEBYTECODE=1`, exact original author-WT `src` PYTHONPATH; exit0. It imports only fixed read-only helpers and never calls `run`, old `verify_history`, `RealBackend.validate`, RPC or runtime/cleanup methods. The old absence guards are correctly inapplicable after genuine consumption.
+Own `verify_actual.py` ran using Root `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python -B`, `PYTHONDONTWRITEBYTECODE=1`, exact original author-WT `src` PYTHONPATH; exit0. It imports only fixed read-only helpers and never calls `run`, old `verify_history`, `RealBackend.validate`, RPC or runtime/cleanup methods. The old absence guards are correctly inapplicable after genuine consumption.
 
 | Check | Independent result |
 |---|---|
@@ -68,7 +68,7 @@ The exact source/resource/host/lease gates are evidenced by frozen source plus t
 | Reviewer verification-summary.json | `c1064d87db4349476f79e6282fbbb4cf8ec03626bc2e269fe53113e3e7ccebf1` |
 | Reviewer verify_actual.py / verify.log | `8feb4a4cecda8827559a30babfcb17acfe037a2502e81ab1a681328b5ad524f3` / `7c31b90e661863bac21aa0dd6ef544682f83464daf1cff62662730571b04ae42` |
 
-Own evidence root `.var/gemma4-actual-review/`; final index SHA `ee80cc63df2e9a48229e337b4b94b12950187fd072a0dff55bcee6f0a7be08be` binds supplementary checks and source/public projections. Final supplementary recheck again matches all2518 protected hashes and16 runtime hashes, exact materialized832-byte command, owner/package-only launch delta, permitted runner flags with no draft/projector and actual post-slot sampling overrides. Verification command: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/hua/Documents/yia-worktrees/readiness-gemma4-e4b-ready/src /Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python -B .var/gemma4-actual-review/verify_actual.py`.
+Own evidence root `.var/gemma4-actual-review/`; final index SHA `ee80cc63df2e9a48229e337b4b94b12950187fd072a0dff55bcee6f0a7be08be` binds supplementary checks and source/public projections. Final supplementary recheck again matches all2518 protected hashes and16 runtime hashes, exact materialized832-byte command, owner/package-only launch delta, permitted runner flags with no draft/projector and actual post-slot sampling overrides. Verification command: `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/developer/Documents/yia-worktrees/readiness-gemma4-e4b-ready/src /Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python -B .var/gemma4-actual-review/verify_actual.py`.
 
 Two reviewer setup errors were preserved, not candidate failures: initial manifest verifier used duplicate `path` keywords for Y entries (`TypeError`, own script:31, `setup-manifest-error.log`); corrected only own argument construction. Next own SQLite count excluded internal tables but asserted79 (`AssertionError`, own script:126, `setup-sqlite-count-error.log`); independently inspected SQLite metadata, found78 application tables+empty sqlite_sequence=79, then enumerated **all** tables. Integrity/FK/nonempty assertions were unchanged. Final entire verifier passes. No failing candidate test/assertion was removed or relaxed. Guessed task/decision read paths were corrected to actual files; no source change. No repeated model attempt.
 

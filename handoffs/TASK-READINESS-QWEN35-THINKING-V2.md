@@ -4,7 +4,7 @@
 
 - Role：Implementer `/root/intel_bounded_review`，不自审；Reviewer `/root/caption_resume`。
 - Base：`4270ce6016c79ecfbe052cfaab46dbfcb25d2fb7`
-- Worktree：`/Users/hua/Documents/yia-worktrees/readiness-qwen35-thinking-v2`
+- Worktree：`/Users/developer/Documents/yia-worktrees/readiness-qwen35-thinking-v2`
 - Branch：`codex/task-readiness-qwen35-thinking-v2`
 - Reported：2026-10-14（Asia/Shanghai；冻结时间以 JSON UTC 为准）
 - 实现 SHA：本交接所属提交，提交后回传主控。

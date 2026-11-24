@@ -1,5 +1,5 @@
 [
-  "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
+  "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
   "-m",
   "pytest",
   "-q",

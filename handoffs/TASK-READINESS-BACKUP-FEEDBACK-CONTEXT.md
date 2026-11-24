@@ -3,7 +3,7 @@
 ## 元数据与范围
 
 - Implementer caption_resume，2026-10-14；base `2137409e2e2d6a4c0406bd1a480b0a63ed6c2388`。
-- Tree `/Users/hua/Documents/yia-worktrees/readiness-backup-feedback-context`，branch同slug。
+- Tree `/Users/developer/Documents/yia-worktrees/readiness-backup-feedback-context`，branch同slug。
 - 任务及开工包已读；原真实 BACKUP_PREVIOUS_RECEIPT_REPRODUCTION.json、截图与
   native-track实际错误保留。DIRECT现React/DTO/API测试与现Panel/hint/reading-meta；
   复核两份DESIGN及frontend-ui-engineering，graph-first定位现Backup组件，再核实

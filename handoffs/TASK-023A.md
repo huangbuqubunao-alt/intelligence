@@ -5,7 +5,7 @@
 - Task: `TASK-023A — Durable Source Run Orchestration Persistence Amendment`
 - Role: `Implementer / Reviewer`
 - Base commit: `02334a9a1891b363a2badfa5464f93b1fe42d841`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-023a-orchestration-persistence`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-023a-orchestration-persistence`
 - Branch: `codex/task-023a-orchestration-persistence`
 - Start commit: `02334a9a1891b363a2badfa5464f93b1fe42d841`
 - Implementation commits:

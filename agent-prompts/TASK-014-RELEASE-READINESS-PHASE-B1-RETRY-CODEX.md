@@ -15,7 +15,7 @@ Task: TASK-014 Phase B-1 — controlled environment pre-provisioning and one smo
 Role: Smoke Retry Executor
 Agent: Codex
 Control-plane baseline: main@49869c6ff2bbc53673c6a35071c5f1407c269cba
-Worktree: /Users/hua/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry
+Worktree: /Users/developer/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry
 Branch: codex/task-014-phase-b1-console-entry-retry
 Source HEAD: 49869c6ff2bbc53673c6a35071c5f1407c269cba
 Reuse decision: DIRECT — 已整合的 smoke-public-subtitles、锁定依赖与 yt-dlp Adapter；不新增或复制第三方代码

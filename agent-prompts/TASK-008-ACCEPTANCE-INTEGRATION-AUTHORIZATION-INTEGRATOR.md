@@ -5,7 +5,7 @@
 ## 固定对象
 
 - Main base：`main@da535fb9cf337e37d8179862e2086015166d0c3f`，必须干净且为唯一父基线。
-- Accepted source：`/Users/hua/Documents/yia-worktrees/task-008` / `codex/task-008-deep-analysis@6914312eaac0e3d65f1d2895ea2e3c0c2c39f4d8`，必须干净且无 `.codebase-memory/` 或其他未跟踪工件。
+- Accepted source：`/Users/developer/Documents/yia-worktrees/task-008` / `codex/task-008-deep-analysis@6914312eaac0e3d65f1d2895ea2e3c0c2c39f4d8`，必须干净且无 `.codebase-memory/` 或其他未跟踪工件。
 - Reviewer-6 evidence：唯一父为 Correction 5 `dcbbd38fe8bab79fd6db1679f43a8ca48fb472ea`，仅修改 source handoff，Verdict=`APPROVE`，P0–P3=0。
 - Original base：`473119704c7638d7afd4e68d84d00e85064ceabd`；完整 source Diff 精确为六个实际批准路径：`analysis.py`、`providers/cloud_llm.py`、`prompts/summary.md`、两份既定测试、source handoff。
 - Source 的任务/项目状态为分配前冻结快照；实时状态仅以 main 本提交为准。
@@ -28,7 +28,7 @@
 
 ## 必须执行
 
-1. 核验 main/source branch、HEAD、父链、身份 `Mozhu <huangbuqubunao@gmail.com>`、`user.useConfigOnly=true`、empty index/worktree、review handoff-only evidence 和完整 source 范围。
+1. 核验 main/source branch、HEAD、父链、身份 `Mozhu <maintainer@example.invalid>`、`user.useConfigOnly=true`、empty index/worktree、review handoff-only evidence 和完整 source 范围。
 2. 准备文件仅限上述五个路径；两轮 SHA-256、LF/EOF、无尾随空白、`git diff --check`、`git diff --cached --check` 与精确暂存范围必须通过；字节漂移立即停止。
 3. 不运行 uv、pytest、build、import、数据库、网络、Vault、云端、凭据或任何产品文件 I/O 命令。
 4. main 将 TASK-008 设为 `ACCEPTED`，记录 Reviewer 6 `APPROVE`；不得预写 merge SHA 或 `DONE`。TASK-009 必须保持 `IN_PROGRESS` 且未触碰。

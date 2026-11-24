@@ -4,8 +4,8 @@
 
 ## 固定对象
 
-- Main authorization：`git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-012-REVIEWER-CODEX.md`；main 中 TASK-012 必须为 `IN_REVIEW`。
-- Source/base/head：`/Users/hua/Documents/yia-worktrees/task-012` / `codex/task-012-cli-operations@7c83283eac83b01c88a7625b4a216790d14514b2` / `8e322f362d2ff0972ee987b7c06c8453a9dce73d`；source 唯一父为 fixed base。
+- Main authorization：`git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-012-REVIEWER-CODEX.md`；main 中 TASK-012 必须为 `IN_REVIEW`。
+- Source/base/head：`/Users/developer/Documents/yia-worktrees/task-012` / `codex/task-012-cli-operations@7c83283eac83b01c88a7625b4a216790d14514b2` / `8e322f362d2ff0972ee987b7c06c8453a9dce73d`；source 唯一父为 fixed base。
 - 完整允许范围严格为 `__main__.py`、`cli.py`、`logging.py`、`pyproject.toml`、根目录 daily/weekly plist、`docs/operations.md`、三份 package resources、`test_operations.py` 与 source handoff。
 - `pyproject.toml` 只允许 `[tool.uv.build-backend].source-include` 的归档路径；不得改变 build backend、依赖、版本、工具链或 `uv.lock`。package resources 必须与根目录文件逐字节相同。
 - Source 卡/状态为分配 base 快照；不得写回 source。TASK-013/014 source 不得读取、修改或清理。

@@ -8,7 +8,7 @@
 Task: TASK-014 Phase B-1 — directory-only observability
 Role: Read-only Scout
 Control-plane base: main@280cf150ae699b21d2ad4b1c6a37103c3ca78cde
-Evidence source worktree: /Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-execution
+Evidence source worktree: /Users/developer/Documents/yia-worktrees/task-014-phase-b1-directory-only-execution
 Evidence source branch: codex/task-014-phase-b1-directory-only-execution
 Evidence source HEAD: 1f5a1109fc306af9f3743da64c7268ca3b8111e0
 Required sole parent: 9bffb29d84868c94fc8544395183c5472856e7c8

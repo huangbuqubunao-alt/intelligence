@@ -4,7 +4,7 @@
 - Reviewer：`long_card_canonical_review_oct19`，独立于作者；2026-10-19。
 - 精确 base：`8f8c3d51fc89c06e322ec32c32d2ef5aa2da490e`。
 - 精确候选：`11ffb558c7103ee934c33ef9c51452e841ad378d`。
-- 审阅 WT：`/Users/hua/Documents/yia-worktrees/readiness-long-card-canonical-review`；branch `codex/review-readiness-long-card-canonical`。
+- 审阅 WT：`/Users/developer/Documents/yia-worktrees/readiness-long-card-canonical-review`；branch `codex/review-readiness-long-card-canonical`。
 - 唯一新增跟踪文件为本报告；未修改实现、测试、状态、配置、依赖、Schema、资格、注册表、owner/source、模型、tokenizer 或凭据。无网络、main、push 或发布操作。
 
 ## 范围、标准与证据来源
@@ -52,7 +52,7 @@
 
 ## 实际复跑命令与结果
 
-公共环境：review WT，`PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1`，Python `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`；复用已有 venv，无安装。
+公共环境：review WT，`PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1`，Python `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`；复用已有 venv，无安装。
 
 | 命令（Python 后缀） | 结果 |
 |---|---|
@@ -70,7 +70,7 @@
 
 更广旧失败保持为失败：作者 WT `.var/interrupted-canonical-qa-20261019/regression.log` 实际 **327 PASS/32 FAIL/30.48s**。完整命令为上述四组加 `tests/integration/test_task023_topic_timeline.py tests/integration/test_task025a_saved_intelligence.py tests/integration/test_local_distillation_wire_branches.py -q`（未用 `-p no:cacheprovider`）。22 Topic、3 Save、7 local-wire 在旧latest39初始化/升级断言失败，关键 `AssertionError: assert 40 == 39`，文件 `test_task023_topic_timeline.py:45/254`、`test_task025a_saved_intelligence.py:39`、共享 `test_task022_personalized_distillation.py:671`，尚未检验相关 card 行为。
 
-独立读取 root 非helper基线代表证据 `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/tracked-root-integration-20261019/current-schema-three-red.log`，**3 FAIL/1.17s/exit1**，同样断言：
+独立读取 root 非helper基线代表证据 `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/tracked-root-integration-20261019/current-schema-three-red.log`，**3 FAIL/1.17s/exit1**，同样断言：
 
 ```text
 PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q

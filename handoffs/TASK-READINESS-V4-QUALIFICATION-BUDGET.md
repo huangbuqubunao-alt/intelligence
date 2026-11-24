@@ -4,9 +4,9 @@
 
 - Role `Implementer`, session `/root/readable_summary_v4`
 - Base `469f11a2307c4ed841f533b42e067c0c800ce247`
-- Worktree `/Users/hua/Documents/yia-worktrees/readiness-v4-qualification-budget-fix`
+- Worktree `/Users/developer/Documents/yia-worktrees/readiness-v4-qualification-budget-fix`
 - Branch `codex/readiness-v4-qualification-budget-fix`
-- Task card `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/tasks/TASK-READINESS-V4-QUALIFICATION-BUDGET.md`
+- Task card `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/tasks/TASK-READINESS-V4-QUALIFICATION-BUDGET.md`
 - Reported 2026-11-07. Exact scoped commit SHA is returned to Root.
 
 ## 修改与复用
@@ -33,7 +33,7 @@ Committed tests cover the 1.5M maximum, over-limit/insufficient/zero/missing bud
 
 ## 检查结果
 
-Python is `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`.
+Python is `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`.
 
 - Stable focused group uses `PYTHONPATH=src python -m pytest -q tests/unit/test_synthesis_qualification_entry.py tests/unit/test_synthesis_readable_summary_v4.py tests/unit/test_bounded_synthesis_v4_trial.py`. **93 passed in 1,052.40s (17m32s)**. This single stabilized run completed the seam, v4 core and nested-history controller groups.
 - Cold `PYTHONPATH=src MYPYPATH=src:. python -m mypy --strict --explicit-package-bases --cache-dir=/dev/null src` passed for 132 source files after the product fix.

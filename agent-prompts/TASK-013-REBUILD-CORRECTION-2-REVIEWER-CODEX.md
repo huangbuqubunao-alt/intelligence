@@ -4,10 +4,10 @@
 
 ## 动态授权与唯一谱系
 
-- 先解析 main 授权：`git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-013-REBUILD-CORRECTION-2-REVIEWER-CODEX.md` 必须等于本 Reviewer 授权提交，且 main 的 TASK-013=`IN_REVIEW`。
-- 唯一 source：`/Users/hua/Documents/yia-worktrees/task-013-rebuild`，分支 `codex/task-013-e2e-acceptance-rebuild`，待审 HEAD 精确为 `f6697fa3064c288a7b688d7dd1fdf82f5d3e2c28`，唯一父提交精确为 `4aecab7c3f88f0a108ee815c05436d12dd0dfdd8`。
+- 先解析 main 授权：`git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-013-REBUILD-CORRECTION-2-REVIEWER-CODEX.md` 必须等于本 Reviewer 授权提交，且 main 的 TASK-013=`IN_REVIEW`。
+- 唯一 source：`/Users/developer/Documents/yia-worktrees/task-013-rebuild`，分支 `codex/task-013-e2e-acceptance-rebuild`，待审 HEAD 精确为 `f6697fa3064c288a7b688d7dd1fdf82f5d3e2c28`，唯一父提交精确为 `4aecab7c3f88f0a108ee815c05436d12dd0dfdd8`。
 - 审查证据提交只能以 `f6697fa3064c288a7b688d7dd1fdf82f5d3e2c28` 为唯一父提交，且只追加 `handoffs/TASK-013.md`。开始与结束均检查 source 清洁（交接报告写入前后除外）。
-- 禁止访问、修改、清理或复用历史 `/Users/hua/Documents/yia-worktrees/task-013` worktree/branch。
+- 禁止访问、修改、清理或复用历史 `/Users/developer/Documents/yia-worktrees/task-013` worktree/branch。
 
 ## 冻结范围与资源边界
 

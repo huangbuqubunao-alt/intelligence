@@ -4,8 +4,8 @@
 
 ## 固定对象
 
-- Main authorization：动态读取 `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-010-REVIEWER-CODEX.md`；main 中 TASK-010 必须为 `IN_REVIEW`。
-- Source/base：`/Users/hua/Documents/yia-worktrees/task-010` /
+- Main authorization：动态读取 `git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-010-REVIEWER-CODEX.md`；main 中 TASK-010 必须为 `IN_REVIEW`。
+- Source/base：`/Users/developer/Documents/yia-worktrees/task-010` /
   `codex/task-010-orchestration-recovery@e17d732db4cfb344ddd75ac8bc25990c216afc3f` /
   `227bdeba3a4d9ddd57231b123bfdc4a2038af3d3`。
 - Implementation 唯一父为 fixed base；完整允许范围严格为 `pipeline.py`、`jobs.py`、`retry.py`、

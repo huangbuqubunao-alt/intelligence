@@ -6,7 +6,7 @@
 - Role: Implementer；不是独立 Reviewer。
 - Agent/session: `/root/long_lossless_codec_oct19`
 - Base: `bc306d16289f7cf8938851f05c9b35b9cc4f9781`（已接受89cca38产品）
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-tracked-clock-capture-recovery`
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-tracked-clock-capture-recovery`
 - Branch: `codex/task-readiness-tracked-clock-capture-recovery`
 - Reported: 2026-10-19；产品/测试自 final focused60 启动后固定，后续仅整理文档。
 - 原166ab392 worktree 保持 clean STOP；未覆盖、重置或修改。

@@ -2,7 +2,7 @@
 
 Role: sole Implementer / Codex. Exact base:
 `bdd30cc37dcd9f956c3a9c6185ad12433c08ef8f`.
-Worktree: `/Users/hua/Documents/yia-worktrees/phase12-final-p1-remediation`.
+Worktree: `/Users/developer/Documents/yia-worktrees/phase12-final-p1-remediation`.
 Branch: `codex/phase12-final-p1-remediation`.
 
 Owner scope: the two independent P1 findings, regression/real validation and a

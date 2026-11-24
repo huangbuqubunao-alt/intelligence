@@ -10,7 +10,7 @@ Task: TASK-014B7 — safe subtitle directory origin and fingerprint P1 Correctio
 Role: Independent Reviewer
 Control-plane baseline: main@41dd2e260b7bed3713840f24f91bddaaeb74ed26
 Execution main: dynamic clean main at the single-parent Correction 1 review authorization commit containing this prompt; it must descend from the control-plane baseline and contain no unreviewed product changes
-Reviewed source worktree: /Users/hua/Documents/yia-worktrees/task-014b7-safe-directory-origin-fingerprint
+Reviewed source worktree: /Users/developer/Documents/yia-worktrees/task-014b7-safe-directory-origin-fingerprint
 Reviewed source branch: codex/task-014b7-safe-directory-origin-fingerprint
 Reviewed source HEAD: 069e62ececada5152871fb7c626e64c146a270ad
 Required sole parent of Correction 1: 8d06197557de4ce92c2752f4a8ef74582a0efdca

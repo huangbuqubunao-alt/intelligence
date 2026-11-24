@@ -4,9 +4,9 @@
 
 ## 1. Git 与隔离
 
-- 已验收主候选目录 R=/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness，记录时HEAD d33c5d437fec7b0d9d55271cd5810fd3be19312b，branch codex/task-end-to-end-user-readiness，clean。已接受的新增产品代码为65220b6da74f184116b7beff83d5b92f659ee4af。交接提交只增加本文档。
-- 正式目录 /Users/hua/Documents/yia-worktrees/v1x-local-main，main/tracking/真实origin-main均73ee7e747b4461b9de8a201d6b47669eb3913d1a，clean。本轮只读；原/Users/hua/youtube-intel及所有其他worktree只读保留。
-- Antigravity工作树：/Users/hua/Documents/yia-worktrees/antigravity-user-testable；分支antigravity/user-testable-delivery。已由Codex从本交接提交创建。用户复制提示词会给出确切起始SHA；先核验，不在R或正式目录checkout/编辑。
+- 已验收主候选目录 R=/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness，记录时HEAD d33c5d437fec7b0d9d55271cd5810fd3be19312b，branch codex/task-end-to-end-user-readiness，clean。已接受的新增产品代码为65220b6da74f184116b7beff83d5b92f659ee4af。交接提交只增加本文档。
+- 正式目录 /Users/developer/Documents/yia-worktrees/v1x-local-main，main/tracking/真实origin-main均73ee7e747b4461b9de8a201d6b47669eb3913d1a，clean。本轮只读；原/Users/developer/youtube-intel及所有其他worktree只读保留。
+- Antigravity工作树：/Users/developer/Documents/yia-worktrees/antigravity-user-testable；分支antigravity/user-testable-delivery。已由Codex从本交接提交创建。用户复制提示词会给出确切起始SHA；先核验，不在R或正式目录checkout/编辑。
 - 本轮可以在自己的分支做范围明确的commit；禁止merge main、push、force/reset/clean、删旧分支或工作树、更新正式构建/配置/数据。由Codex读取最终SHA、独立验证后再处理采用。
 
 ## 2. 实际剩余缺口
@@ -42,7 +42,7 @@ F. 新profile尚无真实模型资格。完整最终回归与macOS GUI/恢复/�
 
 ## 5. 中断的44草稿：参考可续，不是已验收代码
 
-原位置 /Users/hua/Documents/yia-worktrees/readiness-synthesis-persistence44（只读，HEAD也是d33c5d4，未提交）。已封存到 R/.var/antigravity-handoff-20261029/persistence44-draft；manifest.json列全部文件/hash，tracked.patch只有原tracked差异，另有未跟踪新文件，不能只套patch漏文件。
+原位置 /Users/developer/Documents/yia-worktrees/readiness-synthesis-persistence44（只读，HEAD也是d33c5d4，未提交）。已封存到 R/.var/antigravity-handoff-20261029/persistence44-draft；manifest.json列全部文件/hash，tracked.patch只有原tracked差异，另有未跟踪新文件，不能只套patch漏文件。
 
 草稿8文件：backup_restore.py、intelligence_read.py、state.py；新增044 migration、system_synthesis_persistence.py、system_synthesis_profile.py、test_system_synthesis_persistence.py和精确迁移提案。Agent额度中断，没有最终类型/测试/审查结论。先读实际内容和提案，选择性移入自己的分支并完成，不覆盖原工作树、不把草稿自述当通过。
 
@@ -69,7 +69,7 @@ F. 新profile尚无真实模型资格。完整最终回归与macOS GUI/恢复/�
 
 ## 8. 验证与交付
 
-使用独立临时DB/DATA/Vault。可复用R/.venv，但所有Python命令明确PYTHONPATH=<你的worktree>/src、MYPYPATH同路径、PYTHONDONTWRITEBYTECODE=1，避免editable指向/Users/hua/youtube-intel跑错代码。依赖版本保持原lock，不修改共享依赖/工具链来掩盖失败。
+使用独立临时DB/DATA/Vault。可复用R/.venv，但所有Python命令明确PYTHONPATH=<你的worktree>/src、MYPYPATH同路径、PYTHONDONTWRITEBYTECODE=1，避免editable指向/Users/developer/youtube-intel跑错代码。依赖版本保持原lock，不修改共享依赖/工具链来掩盖失败。
 
 先相关语法/类型/测试，再在最终产品代码冻结时执行一次后端完整pytest、前端npm test、npm run typecheck、npm run build、Ruff、strict mypy、git diff --check。真实报告基线失败/新失败/跳过和原因，不删测试、改断言或减覆盖让它绿。完整后端约47分钟，不能当卡住随意杀掉后写全绿。相关新改动修后仅复核delta，不反复开旧三方完整审查。
 

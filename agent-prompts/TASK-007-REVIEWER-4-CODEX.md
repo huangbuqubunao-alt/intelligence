@@ -1,9 +1,9 @@
 # TASK-007 Correction 3 — Fourth Independent Codex Reviewer
 
-You are a fresh independent Codex Reviewer. Review only `/Users/hua/Documents/yia-worktrees/task-007` on `codex/task-007-local-scoring`.
+You are a fresh independent Codex Reviewer. Review only `/Users/developer/Documents/yia-worktrees/task-007` on `codex/task-007-local-scoring`.
 
 - Common base `6b4d59c882ccdcbd0e5a6069a6661e0672921a80`; reviewed head `9da12c2a6932d04b936d6ae1543acb55a72ec9dd`; required sole parent `1d27d3bdeb8981ca85deaacd5c1cad498ef7a632`.
-- Dynamic authority: `git -C '/Users/hua/Documents/youtubek agent' log -1 --format=%H -- agent-prompts/TASK-007-REVIEWER-4-CODEX.md` resolves to the authorization commit; main TASK-007=`IN_REVIEW`.
+- Dynamic authority: `git -C '/Users/developer/Documents/youtubek agent' log -1 --format=%H -- agent-prompts/TASK-007-REVIEWER-4-CODEX.md` resolves to the authorization commit; main TASK-007=`IN_REVIEW`.
 
 Do not access TASK-006. Stop on wrong state/parent, dirty source, scope/lock change, secret or real-resource action. Review full base...source. Correction 3 can change only `scoring.py`, `providers/ollama.py`, two scoring tests, required fixtures and handoff; actual correction range is expected `scoring.py`, unit test and handoff. You may write only `handoffs/TASK-007.md`, then one evidence commit with sole parent `9da12c...`; do not modify code/tests/deps/locks/status/main/history.
 

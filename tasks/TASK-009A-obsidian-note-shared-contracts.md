@@ -23,7 +23,7 @@
 ## 2026-07-22 正式分配
 
 - Base：`main@e4271e41910bba54b37b48df709dcf632fe3b0eb`
-- Worktree：`/Users/hua/Documents/yia-worktrees/task-009a`
+- Worktree：`/Users/developer/Documents/yia-worktrees/task-009a`
 - Branch：`codex/task-009a-obsidian-note-shared-contracts`
 - Implementer：Codex；Reviewer：实现提交后启动全新独立 Codex 会话。
 - 允许产品范围严格为 `domain.py`、`test_contracts.py`、`pyproject.toml`、`uv.lock` 和

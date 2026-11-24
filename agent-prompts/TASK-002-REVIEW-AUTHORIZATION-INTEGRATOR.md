@@ -9,8 +9,8 @@
 - Task: `TASK-002 review authorization sync`
 - Role: `Status Integrator`
 - Required base: `main@0fc7c84a786651d3fdf75c0f3007ba569600326c`
-- Main worktree: `/Users/hua/Documents/youtubek agent`
-- TASK-002 worktree: `/Users/hua/Documents/yia-worktrees/task-002`，严格只读
+- Main worktree: `/Users/developer/Documents/youtubek agent`
+- TASK-002 worktree: `/Users/developer/Documents/yia-worktrees/task-002`，严格只读
 - Required branch: `grok/task-002-config-domain-contracts`
 - Required source head: `8f50df2f7e93d778f32947ca471740b6713c9aff`
 - Required code evidence commit: `8492c42b971b01d3aaf4e6cb11e2e5a8210fe46a`
@@ -44,14 +44,14 @@ git rev-parse HEAD
 git status --short
 git diff --check
 git diff --name-only
-git -C "/Users/hua/Documents/yia-worktrees/task-002" branch --show-current
-git -C "/Users/hua/Documents/yia-worktrees/task-002" rev-parse HEAD
-git -C "/Users/hua/Documents/yia-worktrees/task-002" status --short
-git -C "/Users/hua/Documents/yia-worktrees/task-002" rev-list --parents -n 1 4355a59f6f95e409bcf15b3b8004bb112d0033b3
-git -C "/Users/hua/Documents/yia-worktrees/task-002" rev-list --parents -n 1 8492c42b971b01d3aaf4e6cb11e2e5a8210fe46a
-git -C "/Users/hua/Documents/yia-worktrees/task-002" rev-list --parents -n 1 8f50df2f7e93d778f32947ca471740b6713c9aff
-git -C "/Users/hua/Documents/yia-worktrees/task-002" diff --name-status 46f8497e771e1461034942dd7967f19d85f79f81...8f50df2f7e93d778f32947ca471740b6713c9aff
-git -C "/Users/hua/Documents/yia-worktrees/task-002" diff --check 46f8497e771e1461034942dd7967f19d85f79f81...8f50df2f7e93d778f32947ca471740b6713c9aff
+git -C "/Users/developer/Documents/yia-worktrees/task-002" branch --show-current
+git -C "/Users/developer/Documents/yia-worktrees/task-002" rev-parse HEAD
+git -C "/Users/developer/Documents/yia-worktrees/task-002" status --short
+git -C "/Users/developer/Documents/yia-worktrees/task-002" rev-list --parents -n 1 4355a59f6f95e409bcf15b3b8004bb112d0033b3
+git -C "/Users/developer/Documents/yia-worktrees/task-002" rev-list --parents -n 1 8492c42b971b01d3aaf4e6cb11e2e5a8210fe46a
+git -C "/Users/developer/Documents/yia-worktrees/task-002" rev-list --parents -n 1 8f50df2f7e93d778f32947ca471740b6713c9aff
+git -C "/Users/developer/Documents/yia-worktrees/task-002" diff --name-status 46f8497e771e1461034942dd7967f19d85f79f81...8f50df2f7e93d778f32947ca471740b6713c9aff
+git -C "/Users/developer/Documents/yia-worktrees/task-002" diff --check 46f8497e771e1461034942dd7967f19d85f79f81...8f50df2f7e93d778f32947ca471740b6713c9aff
 ```
 
 只暂存上述 6 个文件，运行 `git diff --cached --check` 和 `git diff --cached --name-only`。提交消息：

@@ -7,9 +7,9 @@
   "error": "NOT_FOUND",
   "seconds": 1.907,
   "invocation": {
-    "PYTHONPATH": "/Users/hua/Documents/yia-worktrees/phase13-background-following/src",
+    "PYTHONPATH": "/Users/developer/Documents/yia-worktrees/phase13-background-following/src",
     "PYTHONDONTWRITEBYTECODE": "not overridden",
-    "python": "/Users/hua/youtube-intel/.venv/bin/python",
+    "python": "/Users/developer/youtube-intel/.venv/bin/python",
     "script": "bounded-feed-comparison.py"
   },
   "network_module_sha256": "71373ce7f8fe5dfb5093c1637c3416e3eacce7d3c7b15f4280ce2e8bb102216a"

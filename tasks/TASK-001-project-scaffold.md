@@ -73,7 +73,7 @@
 
 - Assigned at: 2026-07-14
 - Base: `main@82871a2a0fa15c648e9a7d9f5ce7932544852534`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-001`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-001`
 - Branch: `codex/task-001-project-scaffold`
 - Implementer: Codex 独立会话
 - Reviewer: Grok 独立会话，在实现 commit 后启动

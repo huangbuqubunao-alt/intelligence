@@ -4,7 +4,7 @@
 
 - Role: Implementer `/root/cloud_preview_writer`; 2026-10-28.
 - Base: `e46f9a31f967a2a7743a37cdf6609554b6f5fb3b`.
-- WT: `/Users/hua/Documents/yia-worktrees/readiness-cloud-wait-zero-cancel`.
+- WT: `/Users/developer/Documents/yia-worktrees/readiness-cloud-wait-zero-cancel`.
 - Branch: `codex/task-readiness-cloud-wait-zero-cancel`.
 - Suggested status: IN_REVIEW. Fixed commit is the commit containing this report; no integration performed.
 - Original scope: compatible isolated043, proven public BigModel v1/v2 WAIT0 cancellation only. Root explicitly extended this same unpublished043 to include a non-authoritative six-field HTTP429 observation and minimal existing API/UI guidance. Root's synchronized proposal/task remains on Root's branch; no shared documentation cherry-pick.
@@ -29,8 +29,8 @@ All Python runs explicitly used:
 
 ```sh
 PYTHONDONTWRITEBYTECODE=1 \
-PYTHONPATH=/Users/hua/Documents/yia-worktrees/readiness-cloud-wait-zero-cancel/src \
-/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python ...
+PYTHONPATH=/Users/developer/Documents/yia-worktrees/readiness-cloud-wait-zero-cancel/src \
+/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python ...
 ```
 
 Local evidence directory: `.var/cloud-wait-zero-checks/` (ignored, not packaged with product).

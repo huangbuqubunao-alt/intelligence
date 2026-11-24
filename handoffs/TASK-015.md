@@ -42,7 +42,7 @@ composition；只替换 RSS/metadata/subtitle/scoring/cloud 外部边界，不�
 ### 真实隔离 Smoke（2026-08-12）
 
 - Project root：`/tmp/youtube-intel-task015-final`
-- Vault：`/Users/hua/Documents/YouTube-Intel-Test-Vault/YouTube Intel TASK-015 Final`
+- Vault：`/Users/developer/Documents/YouTube-Intel-Test-Vault/YouTube Intel TASK-015 Final`
 - `doctor` 首次 exit 3：明确报告 DATA/SQLite/受管 Vault 尚未初始化；yt-dlp、MLX
   package、Ollama 与固定 `qwen3:8b` digest 通过；Cloud=OFF。
 - `check --channel UCsooa4yRKGN_zEE8iknghZA --limit 1` exit 0，并完成首次 bootstrap。

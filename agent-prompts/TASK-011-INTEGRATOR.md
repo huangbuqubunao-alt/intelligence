@@ -4,14 +4,14 @@
 
 ## 动态授权与固定对象
 
-- Execution base：`git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-011-INTEGRATOR.md` 必须解析为本授权提交，且 main 中 TASK-011=`ACCEPTED`。
-- Source：`/Users/hua/Documents/yia-worktrees/task-011` / `codex/task-011-weekly-report@1ecd4bc8c6138bab6683a011cbbecddf281263c3`，必须干净。
+- Execution base：`git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-011-INTEGRATOR.md` 必须解析为本授权提交，且 main 中 TASK-011=`ACCEPTED`。
+- Source：`/Users/developer/Documents/yia-worktrees/task-011` / `codex/task-011-weekly-report@1ecd4bc8c6138bab6683a011cbbecddf281263c3`，必须干净。
 - Accepted Reviewer evidence 的唯一父为 Correction 2 `0f589aca501ea4559aeb7f4dd7aeab2a41f52b79`；原始 base：`44fc64be2cb4602cb93c1d03f84d6dd2a1677750`。
 - 完整 source Diff 只能为 `reporting.py`、`state.py`、`providers/obsidian.py`、`templates/weekly.md`、两份既定 tests 和 `handoffs/TASK-011.md`；无 fixtures 变更可接受。依赖/锁不得变化。
 
 ## 前置门禁
 
-1. 核验 main/source 分支、HEAD、父链、身份 `Mozhu <huangbuqubunao@gmail.com>`、`user.useConfigOnly=true`、source/main 初始洁净度、accepted verdict、handoff-only review evidence 与全范围。
+1. 核验 main/source 分支、HEAD、父链、身份 `Mozhu <maintainer@example.invalid>`、`user.useConfigOnly=true`、source/main 初始洁净度、accepted verdict、handoff-only review evidence 与全范围。
 2. 重跑：`uv lock --check`、`uv sync --locked`、两个周报 focused pytest、full pytest、mypy、Ruff、CLI help、`uv build --offline`；核验 sdist/wheel 包含 migration SQL、video/weekly templates。
 3. 验证无依赖/锁/Schema/migration/`complete_stage`/CLI/TASK-012 异常，`git diff --check`、敏感字面量扫描和五轴/ADR-010 W-01..W-08/AC 证据。只允许 pytest 临时 SQLite/Vault，不得运行真实 Vault、网络、Provider/云调用、模型、凭据或外部文件操作。
 

@@ -1,7 +1,7 @@
 # V1X Phase 7 acceptance evidence
 
 Baseline: `08d62d8cb459a7d157f9c4a4c87cf23a3209d4b8` (verified clean local main, schema 31).
-Worktree: `/Users/hua/Documents/yia-worktrees/v1x-local-provider`.
+Worktree: `/Users/developer/Documents/yia-worktrees/v1x-local-provider`.
 Branch: `chatgpt/v1x-local-provider`.
 Authority: the owner's continuous Phase 7 goal; one engineering executor.
 Decision: [V1X-PHASE7-DR-001](../decisions/V1X-PHASE7-DR-001-local-provider.md).

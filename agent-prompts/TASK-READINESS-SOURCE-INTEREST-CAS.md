@@ -3,7 +3,7 @@ Task: TASK-READINESS-SOURCE-INTEREST-CAS
 Role: Implementer
 Agent: local_text_repair_resume
 Base: root accepted code 5fd88fc590f0e005db030b293faef0ce6c132a5e plus this docs-only READY commit; exact worktree HEAD must be reported before edits.
-Worktree: /Users/hua/Documents/yia-worktrees/readiness-source-interest-cas
+Worktree: /Users/developer/Documents/yia-worktrees/readiness-source-interest-cas
 Branch: codex/task-readiness-source-interest-cas
 Reviewer: local_text_review_resume, after author commit and clean STOP
 Allowed scope: exact task and SOURCE_INTEREST_CAS_PROPOSAL.md including 2026-10-15 supplement: source_policy.py/state.py/local_api.py, App.tsx/CreatorFollowing.tsx/uiLanguage, necessary focused tests, this task handoff. No schema/dependencies/config/credentials/formal data/model calls.

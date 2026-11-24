@@ -9,8 +9,8 @@
 - Task: `TASK-002 status closure and TASK-003/TASK-004 readiness`
 - Role: `Status Integrator`
 - Required base: `main@823d68a2dffc1745e04cbbe54c817bf0c117a6fa`
-- Main worktree: `/Users/hua/Documents/youtubek agent`
-- TASK-002 source worktree: `/Users/hua/Documents/yia-worktrees/task-002`，严格只读
+- Main worktree: `/Users/developer/Documents/youtubek agent`
+- TASK-002 source worktree: `/Users/developer/Documents/yia-worktrees/task-002`，严格只读
 - Required source head: `d98de3537187ac346e404d7899d0a9d90c228483`
 - Required merge parents: `e2aef7cd88f5c0f0f4e323a79234e71ca6a95845`、`d98de3537187ac346e404d7899d0a9d90c228483`
 
@@ -31,7 +31,7 @@
 - main 当前 HEAD 精确为 merge commit `823d68a...`，其两个父提交顺序与本包一致。
 - `d98de353...` 已是 main 的祖先；第一父到 merge commit 的文件范围精确为 TASK-002 批准的 8 个产品/证据文件。
 - main 和 TASK-002 source worktree 都干净；source 分支仍为 `grok/task-002-config-domain-contracts`，不得删除或清理。
-- Git 身份必须是 `Mozhu <huangbuqubunao@gmail.com>`，且 `user.useConfigOnly=true`。
+- Git 身份必须是 `Mozhu <maintainer@example.invalid>`，且 `user.useConfigOnly=true`。
 - TASK-002 应关闭为 `DONE`，并记录 merge SHA、整合检查和 P3 剩余风险。
 - TASK-003、TASK-004 的唯一依赖 TASK-002 已 `DONE`，任务级审批也已满足，因此两项均应为 `READY`、`UNASSIGNED`。
 - 本轮不得把 TASK-003/TASK-004 设为 `IN_PROGRESS`，不得预先指定 Implementer/Reviewer，也不得创建它们的分支或 worktree。
@@ -48,9 +48,9 @@ git var GIT_AUTHOR_IDENT
 git var GIT_COMMITTER_IDENT
 git merge-base --is-ancestor d98de3537187ac346e404d7899d0a9d90c228483 HEAD
 git diff --name-status HEAD^1..HEAD
-git -C "/Users/hua/Documents/yia-worktrees/task-002" branch --show-current
-git -C "/Users/hua/Documents/yia-worktrees/task-002" rev-parse HEAD
-git -C "/Users/hua/Documents/yia-worktrees/task-002" status --short
+git -C "/Users/developer/Documents/yia-worktrees/task-002" branch --show-current
+git -C "/Users/developer/Documents/yia-worktrees/task-002" rev-parse HEAD
+git -C "/Users/developer/Documents/yia-worktrees/task-002" status --short
 git diff --check
 git diff --name-only
 ```

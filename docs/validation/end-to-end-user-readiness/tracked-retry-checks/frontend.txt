@@ -3,7 +3,7 @@
 > vitest run --reporter=dot
 
 
- RUN  v2.1.9 /Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend
+ RUN  v2.1.9 /Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend
 
  ✓ src/workspace/LocalTranscription.test.tsx (15 tests) 405ms
  ✓ src/workspace/CreatorFollowing.test.tsx (24 tests) 506ms
@@ -24,15 +24,15 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at ExistingSourceForm (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:4442:31)
-    at SourceForm (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:4425:16)
+    at ExistingSourceForm (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:4442:31)
+    at SourceForm (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:4425:16)
     at div
-    at SourceDetail (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:5264:25)
-    at Sources (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:4131:20)
+    at SourceDetail (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:5264:25)
+    at Sources (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:4131:20)
     at main
     at div
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
     at App
 Warning: An update to ExistingSourceForm inside a test was not wrapped in act(...).
 
@@ -44,15 +44,15 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at ExistingSourceForm (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:4442:31)
-    at SourceForm (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:4425:16)
+    at ExistingSourceForm (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:4442:31)
+    at SourceForm (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:4425:16)
     at div
-    at SourceDetail (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:5264:25)
-    at Sources (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:4131:20)
+    at SourceDetail (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:5264:25)
+    at Sources (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:4131:20)
     at main
     at div
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
     at App
 Warning: An update to ExistingSourceForm inside a test was not wrapped in act(...).
 
@@ -64,15 +64,15 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at ExistingSourceForm (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:4442:31)
-    at SourceForm (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:4425:16)
+    at ExistingSourceForm (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:4442:31)
+    at SourceForm (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:4425:16)
     at div
-    at SourceDetail (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:5264:25)
-    at Sources (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:4131:20)
+    at SourceDetail (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:5264:25)
+    at Sources (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:4131:20)
     at main
     at div
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
     at App
 
  ✓ src/workspace/LocalImport.test.tsx (13 tests) 796ms
@@ -98,8 +98,8 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
     at App
 Warning: An update to Workspace inside a test was not wrapped in act(...).
 
@@ -111,8 +111,8 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
     at App
 Warning: An update to Workspace inside a test was not wrapped in act(...).
 
@@ -124,8 +124,8 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
     at App
 
 stderr | src/workspace/ContentStatusLocalization.test.tsx > an untrusted Bilibili source is localized on the Content list and detail in both languages
@@ -139,8 +139,8 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
     at App
 Warning: An update to Workspace inside a test was not wrapped in act(...).
 
@@ -152,8 +152,8 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
     at App
 Warning: An update to Workspace inside a test was not wrapped in act(...).
 
@@ -165,8 +165,8 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
     at App
 Warning: An update to NativeImportActivity inside a test was not wrapped in act(...).
 
@@ -178,11 +178,11 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at NativeImportActivity (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/NativeLocalImport.tsx:274:33)
+    at NativeImportActivity (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/NativeLocalImport.tsx:274:33)
     at main
     at div
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
     at App
 
 stderr | src/workspace/ContentStatusLocalization.test.tsx > an untrusted Local source is localized on the Content list and detail in both languages
@@ -196,8 +196,8 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
     at App
 Warning: An update to Workspace inside a test was not wrapped in act(...).
 
@@ -209,8 +209,8 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
     at App
 Warning: An update to Workspace inside a test was not wrapped in act(...).
 
@@ -222,8 +222,8 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
     at App
 
 stderr | src/workspace/ContentStatusLocalization.test.tsx > an untrusted Local source is localized on the Content list and detail in both languages
@@ -237,8 +237,8 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
     at App
 Warning: An update to Workspace inside a test was not wrapped in act(...).
 
@@ -250,8 +250,8 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
     at App
 Warning: An update to Workspace inside a test was not wrapped in act(...).
 
@@ -263,8 +263,8 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
     at App
 Warning: An update to NativeImportActivity inside a test was not wrapped in act(...).
 
@@ -276,11 +276,11 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at NativeImportActivity (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/NativeLocalImport.tsx:274:33)
+    at NativeImportActivity (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/NativeLocalImport.tsx:274:33)
     at main
     at div
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
     at App
 
  ✓ src/workspace/KnowledgeDelta.test.tsx (7 tests) 193ms
@@ -295,8 +295,8 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
     at App
 Warning: An update to Workspace inside a test was not wrapped in act(...).
 
@@ -308,8 +308,8 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
     at App
 Warning: An update to Workspace inside a test was not wrapped in act(...).
 
@@ -321,8 +321,8 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
     at App
 
 stderr | src/workspace/ContentStatusLocalization.test.tsx > a Bilibili Content without a public caption stays an honest metadata-only record
@@ -336,8 +336,8 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
     at App
 Warning: An update to Workspace inside a test was not wrapped in act(...).
 
@@ -349,8 +349,8 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
     at App
 Warning: An update to Workspace inside a test was not wrapped in act(...).
 
@@ -362,8 +362,8 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
     at App
 Warning: An update to NativeImportActivity inside a test was not wrapped in act(...).
 
@@ -375,11 +375,11 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at NativeImportActivity (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/NativeLocalImport.tsx:274:33)
+    at NativeImportActivity (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/NativeLocalImport.tsx:274:33)
     at main
     at div
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
     at App
 
  ✓ src/workspace/ContentStatusLocalization.test.tsx (3 tests) 429ms
@@ -411,8 +411,8 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
     at App
 
 stderr | src/workspace/App.test.tsx > user hash navigation (browser back/forward or editing the address bar) switches views
@@ -426,8 +426,8 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
     at App
 
 stderr | src/workspace/App.test.tsx > user hash navigation (browser back/forward or editing the address bar) switches views
@@ -441,8 +441,8 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
     at App
 
 stderr | src/workspace/App.test.tsx > user hash navigation (browser back/forward or editing the address bar) switches views
@@ -456,8 +456,8 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
     at App
 
 stderr | src/workspace/App.test.tsx > user hash navigation (browser back/forward or editing the address bar) switches views
@@ -471,8 +471,8 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
     at App
 
 stderr | src/workspace/App.test.tsx > hashchange to a Content deep link still opens that Content detail
@@ -486,8 +486,8 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
     at App
 Warning: An update to Workspace inside a test was not wrapped in act(...).
 
@@ -499,8 +499,8 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
     at App
 Warning: An update to Workspace inside a test was not wrapped in act(...).
 
@@ -512,8 +512,8 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
     at App
 Warning: An update to Workspace inside a test was not wrapped in act(...).
 
@@ -525,49 +525,8 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
-    at App
-
-stderr | src/workspace/App.test.tsx > Content list, detail, and browser history share the canonical deep link
-Warning: An update to Workspace inside a test was not wrapped in act(...).
-
-When testing, code that causes React state updates should be wrapped into act(...):
-
-act(() => {
-  /* fire events that update state */
-});
-/* assert on the output */
-
-This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
-    at App
-Warning: An update to Workspace inside a test was not wrapped in act(...).
-
-When testing, code that causes React state updates should be wrapped into act(...):
-
-act(() => {
-  /* fire events that update state */
-});
-/* assert on the output */
-
-This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
-    at App
-Warning: An update to Workspace inside a test was not wrapped in act(...).
-
-When testing, code that causes React state updates should be wrapped into act(...):
-
-act(() => {
-  /* fire events that update state */
-});
-/* assert on the output */
-
-This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
     at App
 
 stderr | src/workspace/App.test.tsx > Content list, detail, and browser history share the canonical deep link
@@ -581,8 +540,8 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
     at App
 Warning: An update to Workspace inside a test was not wrapped in act(...).
 
@@ -594,8 +553,8 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
     at App
 Warning: An update to Workspace inside a test was not wrapped in act(...).
 
@@ -607,8 +566,49 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at Workspace (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at App
+
+stderr | src/workspace/App.test.tsx > Content list, detail, and browser history share the canonical deep link
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at App
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
+    at App
+Warning: An update to Workspace inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
+    at Workspace (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/App.tsx:1367:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry/frontend/src/workspace/uiLanguage.tsx:1179:31)
     at App
 
  ✓ src/workspace/App.test.tsx (147 tests) 12453ms

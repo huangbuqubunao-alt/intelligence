@@ -6,7 +6,7 @@
 
 - 本授权文件在 main 的最新提交必须是本次 Product Integrator 授权提交，且其唯一父提交必须为
   `4589b1af36ac68e5451cbeed7062ab0c8f212f42`。执行 base 是该授权提交本身；不得从其他基线整合。
-- 唯一 accepted source：`/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-a`，分支
+- 唯一 accepted source：`/Users/developer/Documents/yia-worktrees/task-014-release-readiness-phase-a`，分支
   `codex/task-014-release-readiness-phase-a`，HEAD 固定为 accepted reviewer evidence
   `88f1b36fdef75146315e91f93b71c36463132ffb`。
 - `88f1b36fdef75146315e91f93b71c36463132ffb` 的唯一父提交必须为实现 commit

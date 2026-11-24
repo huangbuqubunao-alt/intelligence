@@ -6,7 +6,7 @@
 - Accepted comparison base: `523bff80d343949f57159b94e10ed1c4328144e5`.
 - Reviewed author: `a7a9d710816c316e5719f9fcf5ed8da0b9b80e57`.
 - Review baseline: `b893762dbc38eafa0f714dc5592c5d2045daa3b1`, only Root task/prompt added to author source.
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-bigmodel-transport-review`.
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-bigmodel-transport-review`.
 - Branch: `codex/task-readiness-bigmodel-transport-review`.
 - Date: 2026-10-27.
 - **Verdict: REJECT fixed a7, one confirmed P2; no confirmed new P0/P1 in the bounded slice.** Root and original writer were notified immediately. Any later repair requires its own fixed-source review; it is not reviewed by this report.
@@ -27,8 +27,8 @@ Use the existing interpreter and explicit review import paths:
 
 ```sh
 PYTHONDONTWRITEBYTECODE=1 \
-PYTHONPATH=/Users/hua/Documents/yia-worktrees/readiness-bigmodel-transport-review/src:/Users/hua/Documents/yia-worktrees/readiness-bigmodel-transport-review/tests/integration \
-/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python - <<'PY'
+PYTHONPATH=/Users/developer/Documents/yia-worktrees/readiness-bigmodel-transport-review/src:/Users/developer/Documents/yia-worktrees/readiness-bigmodel-transport-review/tests/integration \
+/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python - <<'PY'
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
@@ -80,7 +80,7 @@ AST comparison independently verifies42 old adapter/parser/shared-prompt method 
 
 ## Independent checks
 
-All Python checks use `PYTHONDONTWRITEBYTECODE=1`, explicit review `PYTHONPATH=/Users/hua/Documents/yia-worktrees/readiness-bigmodel-transport-review/src` and `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`. Fixtures create their own temporary DB/DATA. Compile was run before tests.
+All Python checks use `PYTHONDONTWRITEBYTECODE=1`, explicit review `PYTHONPATH=/Users/developer/Documents/yia-worktrees/readiness-bigmodel-transport-review/src` and `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`. Fixtures create their own temporary DB/DATA. Compile was run before tests.
 
 | Check | Result |
 |---|---|

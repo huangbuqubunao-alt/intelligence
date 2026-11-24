@@ -6,7 +6,7 @@
 - Original author `a7a9d710816c316e5719f9fcf5ed8da0b9b80e57`, prior independent REJECT report `a4f9d405a813f748e4eeba8205dafedb5d3b67d1` preserved.
 - Fixed repair `00789303e02292450b23461927332ac7c96790dd`.
 - Review baseline `176afbabf67dabf680f2b4adeab6bb79d947a790`, only Root review task/prompt added to fixed source.
-- Worktree `/Users/hua/Documents/yia-worktrees/readiness-bigmodel-transport-review-r2`, branch `codex/task-readiness-bigmodel-transport-review-r2`.
+- Worktree `/Users/developer/Documents/yia-worktrees/readiness-bigmodel-transport-review-r2`, branch `codex/task-readiness-bigmodel-transport-review-r2`.
 - **Cumulative verdict: REJECT a7+007 pending one newly confirmed P2 audit-read snapshot race.** Original input-projection P2 is correctly fixed by007; that specific correction passes independent reproduction and actual isolated Backup/Restore. No confirmed new P0/P1, no observed duplicate model dispatch or data corruption.
 
 Only this report was written. No product/test repairs, SQL/schema/dependency/settings/configuration/credentials/native Keychain/owner/Root QA/main changes or actual HTTP/model calls. All fixtures are synthetic and isolated. Review does not grant qualification, budget or fees.
@@ -91,7 +91,7 @@ Minimal repair: keep the checkpoint and all its associated audit/accounting read
 
 ## Independent verification
 
-Commands use `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`, `PYTHONDONTWRITEBYTECODE=1`, explicit `PYTHONPATH=/Users/hua/Documents/yia-worktrees/readiness-bigmodel-transport-review-r2/src` and temporary SQLite/DATA. Compile preceded pytest.
+Commands use `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`, `PYTHONDONTWRITEBYTECODE=1`, explicit `PYTHONPATH=/Users/developer/Documents/yia-worktrees/readiness-bigmodel-transport-review-r2/src` and temporary SQLite/DATA. Compile preceded pytest.
 
 | Check | Actual independent result |
 |---|---|

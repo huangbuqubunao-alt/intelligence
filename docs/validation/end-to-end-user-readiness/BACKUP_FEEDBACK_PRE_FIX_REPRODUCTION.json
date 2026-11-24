@@ -2,8 +2,8 @@
   "date": "2026-10-15",
   "source_head": "4710bd8",
   "url": "http://127.0.0.1:5908/#Settings",
-  "private_data_root": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness-asr/.var/readiness-asr/product-01",
-  "selection": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/schema38-real-gui-backup.zip",
+  "private_data_root": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness-asr/.var/readiness-asr/product-01",
+  "selection": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/schema38-real-gui-backup.zip",
   "actions": [
     "Settings",
     "choose real local ZIP through existing file input",

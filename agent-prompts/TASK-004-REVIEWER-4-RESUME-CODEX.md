@@ -6,18 +6,18 @@
 
 ## 恢复授权基线
 
-- Main worktree: `/Users/hua/Documents/youtubek agent`
+- Main worktree: `/Users/developer/Documents/youtubek agent`
 - Prior review authorization: `5f8646645bbaad274c094777261deff4636521fc`
 - Resume authorization: 用本文件在 main 的最近添加提交动态解析
-- Source worktree: `/Users/hua/Documents/yia-worktrees/task-004`
+- Source worktree: `/Users/developer/Documents/yia-worktrees/task-004`
 - Source branch: `grok/task-004-discovery-metadata`
 - Reviewed source head: `9750df2503a1aee135fdfbcca9f1706bcc9bd8de`
-- Git identity: `Mozhu <huangbuqubunao@gmail.com>`；`user.useConfigOnly=true`
+- Git identity: `Mozhu <maintainer@example.invalid>`；`user.useConfigOnly=true`
 
 只有提交本包的 Status Integrator 返回 `INTEGRATED` 后才能恢复。先运行：
 
 ```bash
-main_repo='/Users/hua/Documents/youtubek agent'
+main_repo='/Users/developer/Documents/youtubek agent'
 resume_authorization="$(git -C "$main_repo" log -1 --format=%H -- agent-prompts/TASK-004-REVIEWER-4-RESUME-CODEX.md)"
 test -n "$resume_authorization"
 test "$(git -C "$main_repo" rev-parse HEAD)" = "$resume_authorization"
@@ -47,7 +47,7 @@ test "$(git branch --show-current)" = 'grok/task-004-discovery-metadata'
 test "$(git rev-parse HEAD)" = '9750df2503a1aee135fdfbcca9f1706bcc9bd8de'
 test -z "$(git status --short)"
 test "$(git config user.name)" = 'Mozhu'
-test "$(git config user.email)" = 'huangbuqubunao@gmail.com'
+test "$(git config user.email)" = 'maintainer@example.invalid'
 test "$(git config --bool user.useConfigOnly)" = 'true'
 ```
 
@@ -58,7 +58,7 @@ test "$(git config --bool user.useConfigOnly)" = 'true'
 门禁通过后，完整读取并严格执行：
 
 ```text
-/Users/hua/Documents/youtubek agent/agent-prompts/TASK-004-REVIEWER-4-CODEX.md
+/Users/developer/Documents/youtubek agent/agent-prompts/TASK-004-REVIEWER-4-CODEX.md
 ```
 
 执行时采用以下唯一替换：

@@ -4,8 +4,8 @@
 
 ## 固定对象与授权
 
-- Main authorization：`git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-013-REVIEWER-CODEX.md` 必须解析为本审查授权提交，且 main 中 TASK-013=`IN_REVIEW`。
-- Reviewed source：`/Users/hua/Documents/yia-worktrees/task-013` / `codex/task-013-e2e-acceptance` / `fd22c8ced0343a38e4cb8acdde0ef608bc6d8708`；唯一父提交必须为 `9462b6a162a1e9a738b4073fa5e8b2252101f6af`，开始时必须干净。
+- Main authorization：`git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-013-REVIEWER-CODEX.md` 必须解析为本审查授权提交，且 main 中 TASK-013=`IN_REVIEW`。
+- Reviewed source：`/Users/developer/Documents/yia-worktrees/task-013` / `codex/task-013-e2e-acceptance` / `fd22c8ced0343a38e4cb8acdde0ef608bc6d8708`；唯一父提交必须为 `9462b6a162a1e9a738b4073fa5e8b2252101f6af`，开始时必须干净。
 - 被审实现相对 base 只允许：`tests/e2e/test_mvp_flow.py`、`tests/e2e/test_failure_recovery.py`、`tests/e2e/fixtures/**`、`docs/ACCEPTANCE_REPORT.md`、`handoffs/TASK-013.md`。
 - 真实 YouTube、Whisper/ffmpeg、Ollama/模型、OpenAI/API/密钥/付费调用、网络、真实 Vault/用户笔记、媒体、launchd 和测试目录外写入均未授权，不能运行。
 

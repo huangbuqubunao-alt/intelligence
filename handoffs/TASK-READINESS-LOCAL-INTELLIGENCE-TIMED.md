@@ -5,7 +5,7 @@
 - Task: TASK-READINESS-LOCAL-INTELLIGENCE-TIMED
 - Role: Implementer `/root/source_context`; Reviewer `/root/intel_bounded_review`
 - Base: `67d6e9a930fa0289c9d97c4ad3119e493b16ce0e`
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-local-intelligence-timed`
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-local-intelligence-timed`
 - Branch: `codex/task-readiness-local-intelligence-timed`
 - Head: 本分支的限定实现提交，以主控报告 SHA 为准。
 - Reported: 2026-10-13

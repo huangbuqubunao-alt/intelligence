@@ -24,8 +24,8 @@ from youtube_intel.acoustic_scoring import coverage, score, utterance_recalls
 from youtube_intel.source_authority import read_managed, write_managed
 
 REPO = Path(__file__).resolve().parents[2]
-DONOR = Path('/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/asr-requal-20261020')
-MODEL = Path('/Users/hua/Documents/yia-worktrees/v1x-acoustic-qualification/.var/phase9/models/whisper-large-v3-turbo/a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb')
+DONOR = Path('/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/asr-requal-20261020')
+MODEL = Path('/Users/developer/Documents/yia-worktrees/v1x-acoustic-qualification/.var/phase9/models/whisper-large-v3-turbo/a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb')
 CORPUS = REPO / 'docs/validation/readiness-asr/run03/FROZEN_CORPUS.json'
 DONOR_IDENTITY = 'ab0c9eab7749bb2d344bb2db134b8859390e6e5aadcbbe68e6d9391d970cc576'
 AUDIT_SHA256 = '694f9e89b73479d2fec6452f21cd9d90ceb2aff66ebfe5089fcb96e65a66805c'

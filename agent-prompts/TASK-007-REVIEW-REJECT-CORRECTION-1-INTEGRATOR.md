@@ -8,16 +8,16 @@ TASK-007 的第一轮独立审查 `REJECT` 和已批准的 Correction 1 写入 `
 
 ## 固定基线与隔离
 
-- Main：`/Users/hua/Documents/youtubek agent`，分支 `main`，Required base：
+- Main：`/Users/developer/Documents/youtubek agent`，分支 `main`，Required base：
   `8a2d74eb4b9794716149915da9876484e65d9b1f`。
-- TASK-007 source：`/Users/hua/Documents/yia-worktrees/task-007`，分支
+- TASK-007 source：`/Users/developer/Documents/yia-worktrees/task-007`，分支
   `codex/task-007-local-scoring`，当前 review evidence：
   `266c488c17fc82cb648053b5e1066211a7bea9a9`；唯一父提交必须为
   `258358fcd5227e144c9294beafdf7ec6e2feea63`，review evidence 只能改
   `handoffs/TASK-007.md`。
 - 不得读取、检查、修改、等待、清理或报告 TASK-006 source worktree。TASK-006 已在独立
   Correction 1 中，主线文件中的既有状态必须保持不变。
-- 确认身份为 `Mozhu <huangbuqubunao@gmail.com>` 且 `user.useConfigOnly=true`；否则停止。
+- 确认身份为 `Mozhu <maintainer@example.invalid>` 且 `user.useConfigOnly=true`；否则停止。
 
 ## 本包唯一允许的 main 文件
 

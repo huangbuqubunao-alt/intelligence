@@ -6,13 +6,13 @@ You are a **fresh independent Codex Reviewer**. You did not implement TASK-007. 
 
 - Base: `6b4d59c882ccdcbd0e5a6069a6661e0672921a80`
 - Source branch/worktree: `codex/task-007-local-scoring` /
-  `/Users/hua/Documents/yia-worktrees/task-007`
+  `/Users/developer/Documents/yia-worktrees/task-007`
 - Reviewed implementation: `258358fcd5227e144c9294beafdf7ec6e2feea63`
 - Main dynamic authorization: resolve `git log -1 --format=%H -- agent-prompts/TASK-007-REVIEWER-CODEX.md`
-  from `/Users/hua/Documents/youtubek agent`; it must designate this exact source and `IN_REVIEW`.
+  from `/Users/developer/Documents/youtubek agent`; it must designate this exact source and `IN_REVIEW`.
 
 TASK-006 is undergoing a separate review and is outside scope. Do not read, run checks in,
-modify, wait on, clean, or report on `/Users/hua/Documents/yia-worktrees/task-006`.
+modify, wait on, clean, or report on `/Users/developer/Documents/yia-worktrees/task-006`.
 
 ## Review scope and write rule
 

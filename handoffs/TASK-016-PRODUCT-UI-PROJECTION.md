@@ -5,7 +5,7 @@
 - Task: `PRODUCT UI READ PROJECTION — IMPLEMENTATION PACKET 1`
 - Role: `Implementer`
 - Base branch/commit: `main@efa748a0e3c52cc7672c6b819ab67646e03e9e1e`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-016c-main-integration`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-016c-main-integration`
 - Branch: `main`
 
 ## 目标与范围

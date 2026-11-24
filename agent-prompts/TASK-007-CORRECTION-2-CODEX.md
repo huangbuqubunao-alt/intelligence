@@ -5,17 +5,17 @@
 You are the **original Codex Implementer** for this correction only.
 
 - Common base: `6b4d59c882ccdcbd0e5a6069a6661e0672921a80`
-- Source worktree/branch: `/Users/hua/Documents/yia-worktrees/task-007` /
+- Source worktree/branch: `/Users/developer/Documents/yia-worktrees/task-007` /
   `codex/task-007-local-scoring`
 - Start head: `d8eaeabdd2454141eeb646d9254f4a0a24626605`
 - Required sole parent for your correction commit: `d8eaeabdd2454141eeb646d9254f4a0a24626605`
-- Main dynamic authority: from `/Users/hua/Documents/youtubek agent`,
+- Main dynamic authority: from `/Users/developer/Documents/youtubek agent`,
   `git log -1 --format=%H -- agent-prompts/TASK-007-CORRECTION-2-CODEX.md` must resolve to the
   current authorization commit. Main TASK-007 must be `IN_PROGRESS` with Codex as the original
   Implementer. The source task card is a frozen historical snapshot and is not the live status.
 
 Do not read, run checks in, modify, clean, wait on, or report
-`/Users/hua/Documents/yia-worktrees/task-006`. Stop on wrong source/main state, dirty source,
+`/Users/developer/Documents/yia-worktrees/task-006`. Stop on wrong source/main state, dirty source,
 unexpected parent, scope expansion, lockfile change, secret, real-resource action, or an
 unexplained test failure.
 

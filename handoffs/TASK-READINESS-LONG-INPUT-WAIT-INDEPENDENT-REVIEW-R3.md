@@ -5,9 +5,9 @@
 - Role: independent Reviewer `/root/long_wait_independent_review`; reported 2026-10-21 Asia/Shanghai.
 - Overall base: `4f7cc46ed1381782288a2f4915dce027b38c3b94`.
 - Reviewed candidate: `b3546ff14627be51c27ce799e4de800ec1e9336d`.
-- Worktree/branch: `/Users/hua/Documents/yia-worktrees/readiness-long-input-wait-review-r3`, `codex/review-readiness-long-input-wait-r3`; exact HEAD and clean state checked before work.
+- Worktree/branch: `/Users/developer/Documents/yia-worktrees/readiness-long-input-wait-review-r3`, `codex/review-readiness-long-input-wait-r3`; exact HEAD and clean state checked before work.
 - Compared a2861e3→d7849b3 doctor/fixture repair and d7849b3→b3546ff family-closure repair, against the original full vertical already reviewed in R1/R2.
-- Prior reports are preserved unchanged: [R1 REJECT, f9db3e4](/Users/hua/Documents/yia-worktrees/readiness-long-input-wait-review/handoffs/TASK-READINESS-LONG-INPUT-WAIT-INDEPENDENT-REVIEW.md), [R2 REJECT, c9e3ee2](/Users/hua/Documents/yia-worktrees/readiness-long-input-wait-review-r2/handoffs/TASK-READINESS-LONG-INPUT-WAIT-INDEPENDENT-REVIEW-R2.md).
+- Prior reports are preserved unchanged: [R1 REJECT, f9db3e4](/Users/developer/Documents/yia-worktrees/readiness-long-input-wait-review/handoffs/TASK-READINESS-LONG-INPUT-WAIT-INDEPENDENT-REVIEW.md), [R2 REJECT, c9e3ee2](/Users/developer/Documents/yia-worktrees/readiness-long-input-wait-review-r2/handoffs/TASK-READINESS-LONG-INPUT-WAIT-INDEPENDENT-REVIEW-R2.md).
 - Applied code-review-and-quality, current root task/assignment and graph-first discovery after new-worktree fast/persistence=false indexing. Only this report is written. No business/test edits, real model/tokenizer/HTTP/cloud/owner access, integration or task-state changes.
 
 ## Verdict: APPROVE — engineering scope only
@@ -23,7 +23,7 @@ Doctor now accepts exactly schema41. Its regression explicitly refuses40/42. The
 
 ## Independent checks
 
-Interpreter: `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`, R3 review cwd. Tests used `PYTHONPATH=src:tests:.`, mypy used `PYTHONPATH=src`. Import proof resolved R3's `src/youtube_intel/state.py`.
+Interpreter: `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`, R3 review cwd. Tests used `PYTHONPATH=src:tests:.`, mypy used `PYTHONPATH=src`. Import proof resolved R3's `src/youtube_intel/state.py`.
 
 | Check | Actual result |
 |---|---|

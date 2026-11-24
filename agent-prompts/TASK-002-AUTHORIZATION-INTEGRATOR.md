@@ -9,7 +9,7 @@
 - Task: `TASK-002 authorization sync`
 - Role: `Status Integrator`
 - Target branch: `main`
-- Repository: `/Users/hua/Documents/youtubek agent`
+- Repository: `/Users/developer/Documents/youtubek agent`
 - Required base: `main@913020b5dd0b94f93dc3539b23f2a8af2893a53e`
 - Suggested commit message: `docs: authorize task 002 contracts`
 

@@ -2,7 +2,7 @@
 
 - Independent Reviewer `/root/bigmodel_audit_review`, no subagents;2026-10-28.
 - Base `6a55e1c7f711d7aa97db98c85f73a4df65f098a7`; fixed author `86ea0d0668c0bbfaea3f534d277ba177b24873a7`.
-- Worktree `/Users/hua/Documents/yia-worktrees/readiness-grounded-prompt-v2-review`; branch `codex/task-readiness-grounded-prompt-v2-review`.
+- Worktree `/Users/developer/Documents/yia-worktrees/readiness-grounded-prompt-v2-review`; branch `codex/task-readiness-grounded-prompt-v2-review`.
 - **Verdict: REJECT fixed86 for one confirmed P2 backward-compatibility defect with two independently verified manifestations.** No additional confirmed P0/P1. Root was notified and returned repair to the original writer; reviewer does not repair product code or review moving changes.
 
 Only this report is written. No product/test/oracle/actual spent package/source-D edits, real key/native/environment/liveQA/owner access, provider/network/model call, schema/dependency/configuration/main action. All executions below are pure synthetic/offline or test fixtures. The independent unseen oracle was neither used to tune code nor sent to the writer/model.
@@ -47,7 +47,7 @@ Distinct v2 prompt/profile and paragraph SHA bind the new semantic input and res
 
 ## Independent checks
 
-Existing `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`, explicit `PYTHONDONTWRITEBYTECODE=1` and `PYTHONPATH=/Users/hua/Documents/yia-worktrees/readiness-grounded-prompt-v2-review/src`. Compile preceded tests. Synthetic long comparison additionally imports this WT tests/unit. No key/wire/network/actualcase.
+Existing `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`, explicit `PYTHONDONTWRITEBYTECODE=1` and `PYTHONPATH=/Users/developer/Documents/yia-worktrees/readiness-grounded-prompt-v2-review/src`. Compile preceded tests. Synthetic long comparison additionally imports this WT tests/unit. No key/wire/network/actualcase.
 
 | Check | Independent actual result |
 |---|---|

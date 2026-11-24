@@ -1,6 +1,6 @@
 {
   "metadata_only_no_generation": true,
-  "model_blob": "/Users/hua/.ollama/models/blobs/sha256-02d45dc1cf451ba2475ac33b301c2dd8f985abe4c182ce04a1f2f5bf0260278d",
+  "model_blob": "/Users/developer/.ollama/models/blobs/sha256-02d45dc1cf451ba2475ac33b301c2dd8f985abe4c182ce04a1f2f5bf0260278d",
   "blob_bytes": 5629109120,
   "gguf_version": 3,
   "metadata_bytes_read": 10942739,

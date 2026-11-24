@@ -1,6 +1,6 @@
 Initial frontend setup attempt (corrected before validation):
-Workdir: /Users/hua/Documents/yia-worktrees/phase12-final-p1-remediation/frontend
-Command: cp -R /Users/hua/Documents/yia-worktrees/phase12-zero-config-network/frontend/node_modules frontend/node_modules
+Workdir: /Users/developer/Documents/yia-worktrees/phase12-final-p1-remediation/frontend
+Command: cp -R /Users/developer/Documents/yia-worktrees/phase12-zero-config-network/frontend/node_modules frontend/node_modules
 Key error: cp: frontend/node_modules: No such file or directory
 Subsequent npm test/typecheck/build failed with vitest/tsc: command not found.
 Cause: destination was relative to frontend and incorrectly duplicated frontend.

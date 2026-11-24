@@ -7,7 +7,7 @@ Task: TASK-READINESS-Q3KS-DIAGNOSTIC
 Role: Implementer / subsequent independent Reviewer
 Agent: existing model_diagnostic_qa_writer / long_completion_review_r1
 Base: existing QA branch's clean HEAD; record exact SHA in handoff
-Worktree: /Users/hua/Documents/yia-worktrees/readiness-model-diagnostic
+Worktree: /Users/developer/Documents/yia-worktrees/readiness-model-diagnostic
 Allowed scope: new ignored diagnostic/tests/evidence and task handoff only
 Required checks: complete offline fake tests, compile, Ruff, frozen hashes, diff
 Special approvals: user's continuing default approval; isolated fixed artifact

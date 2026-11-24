@@ -2,7 +2,7 @@
 
 ## 范围与状态
 
-Implementer `long_lossless_codec_oct19`，按 root 5184fe8 任务包接替已 terminal/撤销写权的原作者；保留原 WT `/Users/hua/Documents/yia-worktrees/readiness-tracked-content-retry`、branch `codex/task-readiness-tracked-content-retry`，base `b14788c6575ffb9796d62c72be8a6e4bb9ca255a`。没有覆盖旧成果，也不是独立 Reviewer。
+Implementer `long_lossless_codec_oct19`，按 root 5184fe8 任务包接替已 terminal/撤销写权的原作者；保留原 WT `/Users/developer/Documents/yia-worktrees/readiness-tracked-content-retry`、branch `codex/task-readiness-tracked-content-retry`，base `b14788c6575ffb9796d62c72be8a6e4bb9ca255a`。没有覆盖旧成果，也不是独立 Reviewer。
 
 产品/协议测试提交 `f336338`；F3单行提交 `76e042b`。本合同、证据与交接为其后docs-only提交。状态 **IN_REVIEW，作者clean STOP，非APPROVE/DONE**。
 

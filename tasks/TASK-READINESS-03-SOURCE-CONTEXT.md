@@ -2,7 +2,7 @@
 
 - Role: Implementer; assigned by root Orchestrator, not self-selected.
 - Base: `b861de3d96ad14f72ecad2a824f5f7dac07e42e2`.
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-source-context`.
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-source-context`.
 - Branch: `codex/task-readiness-source-context`.
 - Reviewer: independent `intel_bounded_review`, after caption review.
 - Approval: user-approved isolated model remediation in root worktree

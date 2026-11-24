@@ -5,8 +5,8 @@
   "scope": "same9B fixedbase, smaller quantization; prepared Q3 nonthinking request changes only model tag; original semantics/options/deadline unchanged",
   "artifact": {
     "classification": "FIXED_PRIMARY_LFS_ARTIFACT_FULL_SHA256_VERIFIED",
-    "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-udiq2m-20261025/Qwen3.5-9B-UD-IQ2_M.gguf",
-    "cache_path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-udiq2m-20261025/hf-cache/models--unsloth--Qwen3.5-9B-GGUF/snapshots/3885219b6810b007914f3a7950a8d1b469d598a5/Qwen3.5-9B-UD-IQ2_M.gguf",
+    "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-udiq2m-20261025/Qwen3.5-9B-UD-IQ2_M.gguf",
+    "cache_path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-udiq2m-20261025/hf-cache/models--unsloth--Qwen3.5-9B-GGUF/snapshots/3885219b6810b007914f3a7950a8d1b469d598a5/Qwen3.5-9B-UD-IQ2_M.gguf",
     "bytes": 3649365216,
     "sha256": "a31b6b4c603ddd66b5496ee065c9dd13b2b6de77dce9e5d59609aef8d39868e7",
     "transport": "preinstalled official huggingface_hub/hf_xet",
@@ -24,35 +24,35 @@
   "metadata": {
     "classification": "ISOLATED_METADATA_IMPORT_AND_BYTES_VERIFIED_NO_MODEL_EXECUTION",
     "canonical_manifest": {
-      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-udiq2m-20261025/models/blobs/sha256-2bd925165e77bf81c231c7f777503d86900f37ba8c42ae8f2082a699a8327f98",
+      "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-udiq2m-20261025/models/blobs/sha256-2bd925165e77bf81c231c7f777503d86900f37ba8c42ae8f2082a699a8327f98",
       "bytes": 782,
       "sha256": "2bd925165e77bf81c231c7f777503d86900f37ba8c42ae8f2082a699a8327f98"
     },
     "tag_ref": {
-      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-udiq2m-20261025/models/manifests-v2/ollama.com/library/intelligence-qwen35-9b-udiq2m/3885219b",
+      "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-udiq2m-20261025/models/manifests-v2/ollama.com/library/intelligence-qwen35-9b-udiq2m/3885219b",
       "link": "../../../../blobs/sha256-2bd925165e77bf81c231c7f777503d86900f37ba8c42ae8f2082a699a8327f98"
     },
     "payloads": [
       {
-        "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-udiq2m-20261025/models/blobs/sha256-ff6fbef0d964942903aef3247b6a0e933e1505c8e348f40ccd6b66dafbc4b1c3",
+        "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-udiq2m-20261025/models/blobs/sha256-ff6fbef0d964942903aef3247b6a0e933e1505c8e348f40ccd6b66dafbc4b1c3",
         "bytes": 176,
         "sha256": "ff6fbef0d964942903aef3247b6a0e933e1505c8e348f40ccd6b66dafbc4b1c3",
         "media_type": "application/vnd.docker.container.image.v1+json"
       },
       {
-        "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-udiq2m-20261025/models/blobs/sha256-a31b6b4c603ddd66b5496ee065c9dd13b2b6de77dce9e5d59609aef8d39868e7",
+        "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-udiq2m-20261025/models/blobs/sha256-a31b6b4c603ddd66b5496ee065c9dd13b2b6de77dce9e5d59609aef8d39868e7",
         "bytes": 3649365216,
         "sha256": "a31b6b4c603ddd66b5496ee065c9dd13b2b6de77dce9e5d59609aef8d39868e7",
         "media_type": "application/vnd.ollama.image.model"
       },
       {
-        "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-udiq2m-20261025/models/blobs/sha256-b507b9c2f6ca642bffcd06665ea7c91f235fd32daeefdf875a0f938db05fb315",
+        "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-udiq2m-20261025/models/blobs/sha256-b507b9c2f6ca642bffcd06665ea7c91f235fd32daeefdf875a0f938db05fb315",
         "bytes": 13,
         "sha256": "b507b9c2f6ca642bffcd06665ea7c91f235fd32daeefdf875a0f938db05fb315",
         "media_type": "application/vnd.ollama.image.template"
       },
       {
-        "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-udiq2m-20261025/models/blobs/sha256-50cbab8a892c5f2993b8c7351a99182507472def3b1374558308605d99b86b32",
+        "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-udiq2m-20261025/models/blobs/sha256-50cbab8a892c5f2993b8c7351a99182507472def3b1374558308605d99b86b32",
         "bytes": 11343,
         "sha256": "50cbab8a892c5f2993b8c7351a99182507472def3b1374558308605d99b86b32",
         "media_type": "application/vnd.ollama.image.license"
@@ -77,13 +77,13 @@
     "qualification": false
   },
   "private_authority_files": [
-    "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-udiq2m-20261025/artifact-plan.json",
-    "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-udiq2m-20261025/root-artifact-verification.json",
-    "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-udiq2m-20261025/actual-show.json",
-    "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-udiq2m-20261025/actual-tags.json",
-    "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-udiq2m-20261025/daemon-owner.json",
-    "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-udiq2m-20261025/actual-ps-after-create.json",
-    "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-udiq2m-20261025/metadata-helper-independent-review.json"
+    "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-udiq2m-20261025/artifact-plan.json",
+    "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-udiq2m-20261025/root-artifact-verification.json",
+    "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-udiq2m-20261025/actual-show.json",
+    "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-udiq2m-20261025/actual-tags.json",
+    "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-udiq2m-20261025/daemon-owner.json",
+    "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-udiq2m-20261025/actual-ps-after-create.json",
+    "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-udiq2m-20261025/metadata-helper-independent-review.json"
   ],
   "model_loads": 0,
   "model_generations": 0,

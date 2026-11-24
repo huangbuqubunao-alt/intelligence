@@ -10,4 +10,4 @@ Reuse DIRECT现stdlib datetime、pytest monkeypatch及已有fixture/RecordingPro
 
 限定commit与handoff STOP→独立审查。Parallel now local_text在独立tree改Schema39/backend，此任务只测试现Analysis、无文件合同交集，准许并行。不得顺便改state/analysis或BackupUI。SourceInterest state仍等待LOCAL核心接受。若同failure两次停止原方法并给证据。
 
-2026-10-15 开工定位：Base=5cfbad1（root所有已接受产品代码+本卡）；worktree=/Users/hua/Documents/yia-worktrees/readiness-summary-test-clock；branch=codex/task-readiness-summary-test-clock。caption作者只有Backup提交STOP后才领取，intel reviewer先完成Backup复审再独立审此任务；禁止并行改同tree。依赖runtime/node现路径可symlink复用，不安装/改工具链。
+2026-10-15 开工定位：Base=5cfbad1（root所有已接受产品代码+本卡）；worktree=/Users/developer/Documents/yia-worktrees/readiness-summary-test-clock；branch=codex/task-readiness-summary-test-clock。caption作者只有Backup提交STOP后才领取，intel reviewer先完成Backup复审再独立审此任务；禁止并行改同tree。依赖runtime/node现路径可symlink复用，不安装/改工具链。

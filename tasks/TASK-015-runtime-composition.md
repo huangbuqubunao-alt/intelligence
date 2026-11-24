@@ -29,7 +29,7 @@ process、笔记与 weekly，并在缺少真实本地资源时给出明确、安
 - check 真实持久化频道发现；process 使用现有 Job/Pipeline 和真实服务；weekly 使用持久数据。
 - 新增不注入 Fake Operations 的 production composition regression。
 - full pytest、mypy、Ruff、安全扫描、备份恢复、offline build、Diff check 通过。
-- 仅在 `/Users/hua/Documents/YouTube-Intel-Test-Vault` 做真实 smoke；Cloud=false。
+- 仅在 `/Users/developer/Documents/YouTube-Intel-Test-Vault` 做真实 smoke；Cloud=false。
 - 大模型下载、真实用户 Vault、凭据或付费服务须另行授权。
 - 真实 E2E 未跑通时不得设为 `DONE` 或宣称 `LOCAL PRODUCT DEMO READY`。
 

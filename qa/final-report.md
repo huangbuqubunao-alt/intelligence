@@ -2,11 +2,11 @@
 
 ## 1. 测试执行环境与 Git 基线
 
-- **主测试隔离工作树**: `/Users/hua/Documents/yia-worktrees/antigravity-readiness-20261112`
+- **主测试隔离工作树**: `/Users/developer/Documents/yia-worktrees/antigravity-readiness-20261112`
 - **测试与修复分支**: `antigravity/task-user-readiness-20261112`
 - **基线 Commit SHA**: `07a86fe624e82821f594231c78847cd603b00304`
 - **修复 Commit SHA**: `f3f19be57fac9846ed4c2ae009fe39be0c670a3d`
-- **未改动对照工作树**: `/Users/hua/Documents/yia-worktrees/readiness-v4-budget-final-validation`（保持完全干净）
+- **未改动对照工作树**: `/Users/developer/Documents/yia-worktrees/readiness-v4-budget-final-validation`（保持完全干净）
 - **运行环境**: macOS `26.3.1` (`Build 25D2128`) · Python `3.12.11` · Node `v22.22.3` · npm `10.9.8` · SQLite `3.51.0`
 - **隔离运行策略**: 全部后端及浏览器集成测试均运行在隔离目录 `.var/qa-audit/`（端口 `127.0.0.1:6491` 后端 API + `127.0.0.1:6488` `vite preview`），未触碰真实用户目录（`v1x-local-main/.var/owner`）、`.env`、Keychain 凭据、付费云端 API 或真实 Obsidian Vault。
 
@@ -39,7 +39,7 @@
 
 ## 4. 缺陷发现与自主修复台账 (Defect Ledger)
 
-完整细节见 [`qa/defects.md`](file:///Users/hua/Documents/yia-worktrees/antigravity-readiness-20261112/qa/defects.md)：
+完整细节见 [`qa/defects.md`](file:///Users/developer/Documents/yia-worktrees/antigravity-readiness-20261112/qa/defects.md)：
 
 | 编号 | 级别 | 问题摘要 | 修复文件 | 状态与验证结果 |
 |---|---|---|---|---|
@@ -60,10 +60,10 @@
 - **前端构建**: `cd frontend && npm run build` → **Exit 0** (`✓ built in 792ms`)
 - **Python Lint**: `uv run --frozen ruff check src tests` → **Exit 0** (`All checks passed!`)
 - **Python 类型检查**: `uv run --frozen mypy src` → **Exit 0** (`134 source files`)
-- **前端 Vitest 全量**: `cd frontend && npx vitest run` → **Exit 0**，**`53 passed (53)` 文件 / `1227 passed (1227)` 用例**（[`qa/evidence/vitest_post_fix.log`](file:///Users/hua/Documents/yia-worktrees/antigravity-readiness-20261112/qa/evidence/vitest_post_fix.log)）
-- **后端修复针对性集成回归**: `uv run --frozen python -m pytest tests/integration/test_fast_read_api.py tests/integration/test_offline_transcription_jobs.py tests/integration/test_v1x_phase2_obsidian.py --tb=short -q` → **Exit 0**，**`65 passed, 0 failed` (`170.88s`)**（[`qa/evidence/pytest_targeted_post_fix.log`](file:///Users/hua/Documents/yia-worktrees/antigravity-readiness-20261112/qa/evidence/pytest_targeted_post_fix.log)）
-- **真实服务端全栈审计**: `uv run --frozen python qa/scripts/qa_backend_audit.py` → **Exit 0**，**`55/55 PASS`**，只读接口 `p50=5.03ms / p95=78.78ms / max=1888.31ms`，20 线程 80 并发零异常零 5xx，重启数据一致，SQLite `integrity_check=['ok']` / `foreign_key_check=[]`（[`qa/evidence/backend-audit-report.json`](file:///Users/hua/Documents/yia-worktrees/antigravity-readiness-20261112/qa/evidence/backend-audit-report.json)）
-- **真实 Google Chrome Playwright E2E**: `node qa/scripts/qa_playwright_e2e.mjs` → **Exit 0**，**`12/12 PASS`**，`server_5xx=0`，`pageerrors=0`，意外 `console.error=0`（仅损坏备份上传负测产生 1 条预期 4xx 控制台响应）（[`qa/evidence/playwright-e2e-report.json`](file:///Users/hua/Documents/yia-worktrees/antigravity-readiness-20261112/qa/evidence/playwright-e2e-report.json)）
+- **前端 Vitest 全量**: `cd frontend && npx vitest run` → **Exit 0**，**`53 passed (53)` 文件 / `1227 passed (1227)` 用例**（[`qa/evidence/vitest_post_fix.log`](file:///Users/developer/Documents/yia-worktrees/antigravity-readiness-20261112/qa/evidence/vitest_post_fix.log)）
+- **后端修复针对性集成回归**: `uv run --frozen python -m pytest tests/integration/test_fast_read_api.py tests/integration/test_offline_transcription_jobs.py tests/integration/test_v1x_phase2_obsidian.py --tb=short -q` → **Exit 0**，**`65 passed, 0 failed` (`170.88s`)**（[`qa/evidence/pytest_targeted_post_fix.log`](file:///Users/developer/Documents/yia-worktrees/antigravity-readiness-20261112/qa/evidence/pytest_targeted_post_fix.log)）
+- **真实服务端全栈审计**: `uv run --frozen python qa/scripts/qa_backend_audit.py` → **Exit 0**，**`55/55 PASS`**，只读接口 `p50=5.03ms / p95=78.78ms / max=1888.31ms`，20 线程 80 并发零异常零 5xx，重启数据一致，SQLite `integrity_check=['ok']` / `foreign_key_check=[]`（[`qa/evidence/backend-audit-report.json`](file:///Users/developer/Documents/yia-worktrees/antigravity-readiness-20261112/qa/evidence/backend-audit-report.json)）
+- **真实 Google Chrome Playwright E2E**: `node qa/scripts/qa_playwright_e2e.mjs` → **Exit 0**，**`12/12 PASS`**，`server_5xx=0`，`pageerrors=0`，意外 `console.error=0`（仅损坏备份上传负测产生 1 条预期 4xx 控制台响应）（[`qa/evidence/playwright-e2e-report.json`](file:///Users/developer/Documents/yia-worktrees/antigravity-readiness-20261112/qa/evidence/playwright-e2e-report.json)）
 
 ---
 

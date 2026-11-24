@@ -1,12 +1,12 @@
 {
   "states": [
     {
-      "root": "/Users/hua/Documents/yia-worktrees/v1x-local-main",
+      "root": "/Users/developer/Documents/yia-worktrees/v1x-local-main",
       "head": "fad25e6109d02650b25ae777f2f7557dd478309d",
       "status": ""
     },
     {
-      "root": "/Users/hua/Documents/yia-worktrees/opencode-user-pilot",
+      "root": "/Users/developer/Documents/yia-worktrees/opencode-user-pilot",
       "head": "8d63bbfeb5a764a0dc2cee8aa540e102a22ed6f4",
       "status": ""
     }

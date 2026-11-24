@@ -4,7 +4,7 @@
 
 - Implementer: `/root/source_context`; 独立 Reviewer: `/root/intel_bounded_review`（待退休候选审查结束）。
 - Base: `d903c609a90ac055b81a265890297f2b8f427e1b`。
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-source-policy-read`。
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-source-policy-read`。
 - Branch: `codex/task-readiness-source-policy-read`; 日期: 2026-10-13。
 - 本报告与实现同一提交，提交后的完整 SHA 通过主控回传记录。
 

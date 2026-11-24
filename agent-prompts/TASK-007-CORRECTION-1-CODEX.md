@@ -11,7 +11,7 @@
    `TRANSCRIPT_READY -> SCORED` 事务中持久化、CAS 并完成 Job；不能继续只以进程内缓存宣称可恢复。
 
 在开始写入前，从 main
-`/Users/hua/Documents/youtubek agent` 执行：
+`/Users/developer/Documents/youtubek agent` 执行：
 
 ```bash
 git log -1 --format=%H -- agent-prompts/TASK-007-CORRECTION-1-CODEX.md
@@ -23,7 +23,7 @@ git log -1 --format=%H -- agent-prompts/TASK-007-CORRECTION-1-CODEX.md
 
 ## 固定 source
 
-- Worktree：`/Users/hua/Documents/yia-worktrees/task-007`
+- Worktree：`/Users/developer/Documents/yia-worktrees/task-007`
 - Branch：`codex/task-007-local-scoring`
 - 共同 base：`6b4d59c882ccdcbd0e5a6069a6661e0672921a80`
 - Starting review evidence：`266c488c17fc82cb648053b5e1066211a7bea9a9`
@@ -33,7 +33,7 @@ git log -1 --format=%H -- agent-prompts/TASK-007-CORRECTION-1-CODEX.md
   merge、main 写入、任务状态改变或启动 Reviewer。
 
 TASK-006 正由独立 Implementer 修复。不得读取、运行检查、修改、清理、等待或报告
-`/Users/hua/Documents/yia-worktrees/task-006`。
+`/Users/developer/Documents/yia-worktrees/task-006`。
 
 ## 唯一允许范围
 

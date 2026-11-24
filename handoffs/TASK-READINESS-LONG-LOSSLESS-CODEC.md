@@ -4,7 +4,7 @@
 
 - Role: Implementer；恢复中断 WIP 的独立 agent `long_lossless_codec_oct19`。
 - Base：产品 `a073354` + root 任务元数据 `0ae374f`；本 worktree HEAD 起点 `0ae374f`。
-- Worktree：`/Users/hua/Documents/yia-worktrees/readiness-long-lossless-codec`。
+- Worktree：`/Users/developer/Documents/yia-worktrees/readiness-long-lossless-codec`。
 - Branch：`codex/task-readiness-long-lossless-codec`。
 - 实现 commit：`72dd0bd1b2d62a3a63aa5b99fbc9271969dac233`。
 - 本报告与最小 synthetic hash 固定断言为后续交接 commit；最终 HEAD 见 root 回传及 `git log -1`。
@@ -79,7 +79,7 @@ canonical 固定为严格 UTF-8、`ensure_ascii=False`、`sort_keys=True`、`sep
 
 ## 验收与检查结果
 
-使用现有 `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/` 中 Python / pytest / Ruff / mypy，并设置 `PYTHONPATH=src`，没有安装或更改依赖。
+使用现有 `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/` 中 Python / pytest / Ruff / mypy，并设置 `PYTHONPATH=src`，没有安装或更改依赖。
 
 | 命令/检查 | 结果 |
 |---|---|
@@ -119,14 +119,14 @@ canonical 固定为严格 UTF-8、`ensure_ascii=False`、`sort_keys=True`、`sep
 
 ## 独立 Reviewer 复核（2026-10-19）
 
-- Reviewer：`subtitle_recovery_preflight_oct19`，非实现者；指定独立 WT `/Users/hua/Documents/yia-worktrees/readiness-long-codec-review`、branch `codex/review-readiness-long-lossless-codec`。
+- Reviewer：`subtitle_recovery_preflight_oct19`，非实现者；指定独立 WT `/Users/developer/Documents/yia-worktrees/readiness-long-codec-review`、branch `codex/review-readiness-long-lossless-codec`。
 - 精确审查：`0ae374f..f0cf9537ea40e4e3139d0cda300ac7e6f9c17e3c`；起始工作区 clean、作者已 STOP。读 root 最新任务追加决定及 `REVIEW-READINESS-LONG-LOSSLESS-CODEC.md`，按 code-review-and-quality 五轴检查，先读测试再逐行核查539行产品实现。
 - **Verdict: APPROVE（仅纯 codec 工程切片）。P0/P1/P2/P3 actionable findings：无。** 本结论不授 source authority、生产执行准入或任何模型资格，不宣称长内容功能可用。
 - Scope：精确 diff 仅 codec、其新单测、本 handoff 三个新增文件。旧产品、short/Cloud/profile/schema、state/Backup、资格、前端、依赖/lock/config 均零修改；review 自己只追加本节。图检索未覆盖新模块，改读指定 fixed candidate 源码；未改索引。
 
 ### 独立运行的检查
 
-所有 Python 命令使用 `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src` 与 root 既有 `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`；工具目录相同。实际打印确认 codec 模块路径是本 review WT 的 `src/youtube_intel/long_grounding_codec.py`，未借其他 editable 项目。未安装依赖。
+所有 Python 命令使用 `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src` 与 root 既有 `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`；工具目录相同。实际打印确认 codec 模块路径是本 review WT 的 `src/youtube_intel/long_grounding_codec.py`，未借其他 editable 项目。未安装依赖。
 
 | 独立命令（在 review WT） | 结果 |
 |---|---|
@@ -138,7 +138,7 @@ canonical 固定为严格 UTF-8、`ensure_ascii=False`、`sort_keys=True`、`sep
 | `git diff --check 0ae374f..f0cf953`；精确文件范围及旧核心 zero-diff 检查 | PASS |
 | `python .var/codec-independent-review-20261019/adversarial.py` | PASS，全部独立合成边界及对抗检查 |
 
-独立 private QA 脚本与输出绝对路径分别为 `/Users/hua/Documents/yia-worktrees/readiness-long-codec-review/.var/codec-independent-review-20261019/adversarial.py`、同目录 `adversarial.log`。明确只用合成源，无真实 Sasha、blind holdout、thinking 或模型输出；没有 QA 断言失败，也没有修改产品或既有测试以获通过。
+独立 private QA 脚本与输出绝对路径分别为 `/Users/developer/Documents/yia-worktrees/readiness-long-codec-review/.var/codec-independent-review-20261019/adversarial.py`、同目录 `adversarial.log`。明确只用合成源，无真实 Sasha、blind holdout、thinking 或模型输出；没有 QA 断言失败，也没有修改产品或既有测试以获通过。
 
 ### 独立证据与安全边界
 

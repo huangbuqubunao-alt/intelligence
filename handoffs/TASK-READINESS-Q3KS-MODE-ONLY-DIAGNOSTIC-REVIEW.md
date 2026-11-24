@@ -1,8 +1,8 @@
 # Independent review: Q3_K_S mode-only diagnostic
 
 - Reviewer: `/root/long_completion_review_r1`.
-- Review worktree: `/Users/hua/Documents/yia-worktrees/readiness-model-diagnostic`, clean start `eb8240d31c46f65421015a9b405d1e8b5bbef32b`.
-- Author worktree: `/Users/hua/Documents/yia-worktrees/readiness-q3ks-mode-only-diagnostic`, clean STOP `44602585d5556b73361612b5650e6cf20fec7109`, base `3e24f965eb59abbe04a210fa3d5cbadfc3a4bbbc`.
+- Review worktree: `/Users/developer/Documents/yia-worktrees/readiness-model-diagnostic`, clean start `eb8240d31c46f65421015a9b405d1e8b5bbef32b`.
+- Author worktree: `/Users/developer/Documents/yia-worktrees/readiness-q3ks-mode-only-diagnostic`, clean STOP `44602585d5556b73361612b5650e6cf20fec7109`, base `3e24f965eb59abbe04a210fa3d5cbadfc3a4bbbc`.
 - Verdict: **APPROVE_DIAGNOSTIC_ONLY** for exact v2 package, not qualification, case receipt, product acceptance or publication.
 
 ## Scope and independent source review
@@ -19,7 +19,7 @@ The published-mode source is the pinned0409 native renderer; primary official9B 
 
 Initial v1 SHA `58070238bc271bd30d94dc76efbb025b6695f541586f6d0337d3ce30a981ac4c` passed its own binding hashes but the independent old-set assertion found the original old daemon-owner342B binding missing: it covered152 of the prior153. Old file bytes themselves remained unchanged. Reviewer reported this precise evidence omission; root retained v1 unexecuted and added only that old binding in v2. It was not a product/runtime defect, and the initial failed assertion is disclosed in `v1-prior-owner-omission.json` rather than called a pass.
 
-Approved package: `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/q3ks-mode-only-diagnosis-20261025/diagnostic-freeze-mode-only-v2.json`, SHA **`4064fff8605471bbdde87081ef35675806f86d8b29091da7c16d77e0d56dded1`**. Independent exact package() check verifies **335 unique bound files /339 references**, all path/size/hash and posthash file identities; every prior153 binding is now included unchanged. v2 adds only original historical owner SHA `4a6e0d6b6632c5c1280d768afe1a1965a1451bf25cc1bf6989655d5ec42948fe`; other fields/bindings remain v1-identical. No source/options/test update or redundant135 rerun was required for this package-only correction. Original thinking timeout/raw/global marker, earlier4B failures and all original packages remain immutable.
+Approved package: `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/q3ks-mode-only-diagnosis-20261025/diagnostic-freeze-mode-only-v2.json`, SHA **`4064fff8605471bbdde87081ef35675806f86d8b29091da7c16d77e0d56dded1`**. Independent exact package() check verifies **335 unique bound files /339 references**, all path/size/hash and posthash file identities; every prior153 binding is now included unchanged. v2 adds only original historical owner SHA `4a6e0d6b6632c5c1280d768afe1a1965a1451bf25cc1bf6989655d5ec42948fe`; other fields/bindings remain v1-identical. No source/options/test update or redundant135 rerun was required for this package-only correction. Original thinking timeout/raw/global marker, earlier4B failures and all original packages remain immutable.
 
 ## Independent checks and actual host boundary
 
@@ -33,4 +33,4 @@ One read-only resource observation: RAM **6,484,885,504B >=6,464,360,941B**, dis
 
 Root may perform at most the one independently frozen experiment after all fresh gates pass. Any actual outcome ends this mode candidate. Timeout/failure requires retained raw/error and verified cancellation/idle or unknown closed; no silent retry or later cases. Successful JSON only permits independent original semantic review, never automatic qualification or replacement of earlier failed qualification cases. All positive ordinary-user/save/topic/Evidence/restart/Backup/Restore and complete real qualification gates remain separate. No main/push/release authority follows.
 
-Own ignored evidence: `/Users/hua/Documents/yia-worktrees/readiness-model-diagnostic/.var/q3ks-mode-only-review/`; `review-evidence.json` SHA **`adb11ce773db43c4c50913364a7a28362a7ecab27f4b1eff9c9a371d5fcb7f5a`** seals offline/compile/Ruff, v1 omission, actual host/resources, corrected v2 package and594-source checks. Only this new reviewer handoff is tracked. **Clean STOP after scoped handoff-only commit.**
+Own ignored evidence: `/Users/developer/Documents/yia-worktrees/readiness-model-diagnostic/.var/q3ks-mode-only-review/`; `review-evidence.json` SHA **`adb11ce773db43c4c50913364a7a28362a7ecab27f4b1eff9c9a371d5fcb7f5a`** seals offline/compile/Ruff, v1 omission, actual host/resources, corrected v2 package and594-source checks. Only this new reviewer handoff is tracked. **Clean STOP after scoped handoff-only commit.**

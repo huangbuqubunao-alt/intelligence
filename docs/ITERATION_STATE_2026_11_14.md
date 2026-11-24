@@ -1,7 +1,7 @@
 # 自主产品诊断、优化与持续迭代状态记录（2026-11-14 Round 1）
 
-- **迭代分支（开发工作区）**：`antigravity/task-user-readiness-20261112`（`/Users/hua/Documents/yia-worktrees/antigravity-readiness-20261112`，起始基线 `3dc8fbd1f90e346b4c04f6cf2cd1aa6eacc1db80`）
-- **正式交付运行区**：`main`（`/Users/hua/Documents/yia-worktrees/v1x-local-main`，起始基线 `71557160505f03ce2075655bb0dcb7809b9e0fa3`）
+- **迭代分支（开发工作区）**：`antigravity/task-user-readiness-20261112`（`/Users/developer/Documents/yia-worktrees/antigravity-readiness-20261112`，起始基线 `3dc8fbd1f90e346b4c04f6cf2cd1aa6eacc1db80`）
+- **正式交付运行区**：`main`（`/Users/developer/Documents/yia-worktrees/v1x-local-main`，起始基线 `71557160505f03ce2075655bb0dcb7809b9e0fa3`）
 - **只读对照工作区（严禁修改）**：`codex/readiness-v4-budget-final-validation`（`18f366b80e9f184795e44d7716f49d0ac418fb7f`）
 - **当前阶段**：`ROUND_1_COMPLETED`（全部 P0/P1 目标已完成开发、测试、生产库 115/115 回填、独立浏览器真实验收及现场问题闭环修复，可随时无缝衔接 Round 2）
 

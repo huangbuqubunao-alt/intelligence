@@ -4,7 +4,7 @@ node:internal/modules/run_main:123
 
 response.json: Protocol error (Network.getResponseBody): Request content was evicted from inspector cache
 Response body is not available for a response that was navigated away from. Read response.body() before triggering any navigation.
-    at /Users/hua/Documents/yia-worktrees/dogfood-day2-large-import/frontend/dogfood-day2-large-import.e2e.mjs:45:36 {
+    at /Users/developer/Documents/yia-worktrees/dogfood-day2-large-import/frontend/dogfood-day2-large-import.e2e.mjs:45:36 {
   log: [],
   name: 'Error'
 }

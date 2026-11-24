@@ -3,7 +3,7 @@ Role: independent Reviewer
 Agent: inherited default independent context, not author
 Base: 0ae374f
 Candidate: f0cf9537ea40e4e3139d0cda300ac7e6f9c17e3c (implementation72dd0bd, handoff f0cf953)
-Worktree: /Users/hua/Documents/yia-worktrees/readiness-long-codec-review
+Worktree: /Users/developer/Documents/yia-worktrees/readiness-long-codec-review
 Branch: codex/review-readiness-long-lossless-codec
 Allowed scope: read base..candidate source/spec/tests; only append corresponding handoff review and commit report after review. Do not edit products/tests. Author clean STOP.
 Required checks: independent focused/negative/invariant tests, existing short grounding affected regression, strict mypy src/Ruff/diff, exact file scope and zero old product/Cloud/20/profile/Schema/deps changes.

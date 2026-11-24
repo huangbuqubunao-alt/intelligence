@@ -5,7 +5,7 @@
 - Goal：Intelligence Final P1 Remediation and Safe Main Adoption。
 - Role：Implementer / authorized Integrator；独立 read-only Reviewer 为 `/root/bounded_cancellation_review`。
 - Base：`codex/muse-final-audit` / `9f3b03ead107b769b81bf1c77f76d542a424921c`。
-- Worktree：`/Users/hua/Documents/yia-worktrees/waiting-model-final-fix`。
+- Worktree：`/Users/developer/Documents/yia-worktrees/waiting-model-final-fix`。
 - Branch：`codex/waiting-model-final-fix`。
 - 最终代码：`d12553d40802722d47c4ffb13407960f6aa62a6d`。
 - Owner 批准 migration037 的精确追加范围，并授权所有门禁通过后一次 ff-only 采用。

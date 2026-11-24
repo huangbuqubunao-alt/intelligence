@@ -20,7 +20,7 @@
 
 main 初始 HEAD 必须为 `9ec416b...`；初始准备内容精确属于此范围且无预先暂存。只读确认 TASK-004 source 干净且为 `30932e1...`，correction 相对 `f34cbb...` 仅 5 个批准文件、完整范围仍为 17 文件。确认仍为 `IN_PROGRESS`，不得生成/启动 Reviewer 或写 `ACCEPTED`/`DONE`。
 
-Git identity 必须为 `Mozhu <huangbuqubunao@gmail.com>`，`user.useConfigOnly=true`。只运行控制面检查：
+Git identity 必须为 `Mozhu <maintainer@example.invalid>`，`user.useConfigOnly=true`。只运行控制面检查：
 
 ```bash
 git status --short

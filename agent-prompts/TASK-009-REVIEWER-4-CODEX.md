@@ -4,8 +4,8 @@
 
 ## 固定对象
 
-- Main authorization：动态读取 `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-009-REVIEWER-4-CODEX.md`；main 中 TASK-009 必须为 `IN_REVIEW`。
-- Source/base：`/Users/hua/Documents/yia-worktrees/task-009` /
+- Main authorization：动态读取 `git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-009-REVIEWER-4-CODEX.md`；main 中 TASK-009 必须为 `IN_REVIEW`。
+- Source/base：`/Users/developer/Documents/yia-worktrees/task-009` /
   `codex/task-009-obsidian-notes@22147b087157a6bbb0adc7e78f2f5d3eae700f8e` /
   `473119704c7638d7afd4e68d84d00e85064ceabd`。
 - Correction 2 的唯一父为 reviewer-3 evidence `f4a231b503ea6c1a25bf73c7d8aa584147cbdc03`；证据链继续回到 Correction 1 `60ed077...` 和 implementation `956e37...`。

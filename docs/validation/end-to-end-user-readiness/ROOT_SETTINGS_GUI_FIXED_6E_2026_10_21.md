@@ -28,7 +28,7 @@ BackupRestoreError: Content retry is still writing; wait before Backup or Restor
 
 ## 外部证据与本轮完整检查
 
-根私有证据目录 `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/local-settings-r4/`：01–11真实截图、settings-apply.har、two-waiting-tasks.har、cancel-and-readiness.har、restart-and-native-restore-failure.har、ZIP、api-restart.log、long-wait-zero-invocation.json。`09-native-restore-picker.png`是真实系统选择器截图。
+根私有证据目录 `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/local-settings-r4/`：01–11真实截图、settings-apply.har、two-waiting-tasks.har、cancel-and-readiness.har、restart-and-native-restore-failure.har、ZIP、api-restart.log、long-wait-zero-invocation.json。`09-native-restore-picker.png`是真实系统选择器截图。
 
 完整数据快照目录 `.var/end-to-end-user-readiness/long-wait-gui-20261021-v3/`：before-apply/after-apply、after-both-cancel、after-process-restart、before-native-restore、after-native-restore-failure。快照包含每个SQL表所有行和每个物理DATA文件hash，不能仅以页面计数替代。
 

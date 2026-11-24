@@ -7,7 +7,7 @@
 - Agent/session: `Codex Implementer`
 - Architecture lineage base: `main@bdf2bf2adeb337b61747d869fa91619e3163a298`
 - Implementation base: `codex/task-014b4-directory-only-smoke@bbd3fddd3c7fa1b8624dffb39b5fb8b262afba7d`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-014b4-directory-only-smoke`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-014b4-directory-only-smoke`
 - Branch: `codex/task-014b4-directory-only-smoke`
 - Head commit: `single Implementer commit; see handoff delivery report`
 - Started: `2026-07-28`

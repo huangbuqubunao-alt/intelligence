@@ -15,7 +15,7 @@
 ## 固定分配
 
 - 控制面基线：`main@820ff34fbd481e31b50d9d9d54828810d8ab7ca4`。
-- 实施 worktree：`/Users/hua/Documents/yia-worktrees/task-014-phase-b2-console-entry`。
+- 实施 worktree：`/Users/developer/Documents/yia-worktrees/task-014-phase-b2-console-entry`。
 - 分支：`codex/task-014-phase-b2-console-entry`。
 - 正式 Implementer 包：`agent-prompts/TASK-014B2-CONSOLE-ENTRY-IMPLEMENTER-CODEX.md`。
 - Reviewer：全新独立 Codex Reviewer（本包不启动）。
@@ -30,7 +30,7 @@ B-1 source 的 `4a349055…` 是“正式 console entry 缺失”的阻断证据
 ## 独立 Reviewer 授权
 
 - 主线控制面基线：`main@b4d6981e56da8366f0c512a8f0544396d47cd209`。
-- 唯一 source：`/Users/hua/Documents/yia-worktrees/task-014-phase-b2-console-entry`，分支
+- 唯一 source：`/Users/developer/Documents/yia-worktrees/task-014-phase-b2-console-entry`，分支
   `codex/task-014-phase-b2-console-entry`，审查 HEAD `f6e71e027c86f16cc34e062fef0a753c73b42d05`，唯一父提交
   `b4d6981e56da8366f0c512a8f0544396d47cd209`。
 - 正式 Reviewer 包：`agent-prompts/TASK-014B2-CONSOLE-ENTRY-REVIEWER-CODEX.md`。Reviewer 只可向 source

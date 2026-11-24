@@ -4,7 +4,7 @@
 
 - Role: Implementer；Agent: `native_scan_resume`
 - Exact base: `d34b56022f76c134bf6fbbed8186b74d8ef933de`
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-capacity-host-fix`
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-capacity-host-fix`
 - Branch: `codex/task-readiness-capacity-host-fix`
 - Reported: 2026-10-16；Head 随本报告实现 commit，以最终回传 SHA / Git HEAD 为准。
 - Reviewer: `local_text_review_resume`，本报告不自签接受。

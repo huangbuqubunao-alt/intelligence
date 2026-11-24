@@ -3,7 +3,7 @@
 - Role: Implementer `/root/qa_launch_isolation`
 - Date: 2026-11-04
 - Base: `f0e330129ad9243423a0c03feb598992e94517b1`
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-qa-launch-isolation`
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-qa-launch-isolation`
 - Branch: `codex/readiness-qa-launch-isolation`
 - Status: IN_REVIEW; Root reviews this delta once. No merge or deployment.
 
@@ -44,7 +44,7 @@ runtime 增加 trusted-only `allow_cloud_execution`，默认 True 保持原产�
 供 Root 审查后使用的入口：
 
 ```sh
-PYTHONPATH=src /Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python scripts/validation/serve_user_readiness_candidate.py --port 6378
+PYTHONPATH=src /Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python scripts/validation/serve_user_readiness_candidate.py --port 6378
 ```
 
 从本候选 checkout 运行，固定新隔离数据目录，不复用此前不安全命令。此命令会读取专用 QA Keychain，因此本实现任务没有执行它；测试全部使用 fake stores。保持原 Antigravity 工作树及其文档原样，Root 可在最终统一候选中更新启动说明。

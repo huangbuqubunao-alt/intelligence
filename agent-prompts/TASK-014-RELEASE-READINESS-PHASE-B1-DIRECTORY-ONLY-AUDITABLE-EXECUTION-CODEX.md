@@ -9,10 +9,10 @@ Task: TASK-014 Phase B-1 — auditable directory-only final public subtitle vali
 Role: Smoke Executor
 Agent: Codex
 Execution baseline: main@58f0215aa329b99d74429e8616bb5f8f673ef102
-Worktree: /Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-auditable-execution
+Worktree: /Users/developer/Documents/yia-worktrees/task-014-phase-b1-directory-only-auditable-execution
 Branch: codex/task-014-phase-b1-directory-only-auditable-execution
 Required source HEAD: 58f0215aa329b99d74429e8616bb5f8f673ef102
-Only executable: /Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-auditable-execution/.venv/bin/youtube-intel
+Only executable: /Users/developer/Documents/yia-worktrees/task-014-phase-b1-directory-only-auditable-execution/.venv/bin/youtube-intel
 Fixed IDs: --khbXchTeE, JTxsNm9IdYU
 Reuse decision: DIRECT — integrated B4 restricted smoke-public-subtitles --directory-only, B5 fixed safe stdout summary, locked youtube_intel.cli:main, and existing release-evidence documents; no dependency or third-party code change
 ```
@@ -38,7 +38,7 @@ uv lock --check
 2. 仅在以上全部通过后，且仅调用一次以下固定命令；保留数值退出码，不重定向或持久化 stdout/stderr：
 
 ```text
-/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-auditable-execution/.venv/bin/youtube-intel smoke-public-subtitles --directory-only --temporary-root ABSOLUTE_NEW_PARENT/smoke-root --video-id=--khbXchTeE --video-id=JTxsNm9IdYU
+/Users/developer/Documents/yia-worktrees/task-014-phase-b1-directory-only-auditable-execution/.venv/bin/youtube-intel smoke-public-subtitles --directory-only --temporary-root ABSOLUTE_NEW_PARENT/smoke-root --video-id=--khbXchTeE --video-id=JTxsNm9IdYU
 ```
 
 - 两个固定 ID 各至多一次：每个 ID 仅允许 metadata=1、字幕目录 enumerate=1、正文 read=0。禁止增加、替换、重排 ID，循环、并发、第二次 smoke、`retry` 或任何其他产品命令。

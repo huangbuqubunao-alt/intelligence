@@ -11,7 +11,7 @@ Role: Implementer
 Agent: Codex
 Control-plane base: main@e5d91ef1271271e0ba5f33e38a78211a35127431
 Execution main: dynamic clean main at the single-parent Correction 1 authorization commit containing this prompt; it must descend from the control-plane base and contain no unreviewed product changes
-Worktree: /Users/hua/Documents/yia-worktrees/task-014b6-safe-directory-shape-diagnostics
+Worktree: /Users/developer/Documents/yia-worktrees/task-014b6-safe-directory-shape-diagnostics
 Branch: codex/task-014b6-safe-directory-shape-diagnostics
 Required source HEAD / sole parent of Correction 1: 9403e37eedbd2513aea631c7272c6d650d41ef40
 Required sole parent of 9403e37: 7983bf5bfa0ce08529d189a9ac07f41f042bc6a1

@@ -4,7 +4,7 @@
 
 ## 当前 HEAD 与分支
 
-- 工作树：`/Users/hua/Documents/yia-worktrees/opencode-user-pilot`
+- 工作树：`/Users/developer/Documents/yia-worktrees/opencode-user-pilot`
 - 分支：`opencode/user-pilot`
 - 接管时 HEAD：`fad25e6109d02650b25ae777f2f7557dd478309d`（与任务参考 HEAD 一致；未对 main 做任何回退/覆盖/重置）
 - 最终 HEAD：**本次任务全部成果已提交到 `opencode/user-pilot`**（提交信息见 git log；未合并 main、未 push）
@@ -13,7 +13,7 @@
 
 - Frontend：http://127.0.0.1:5588/（OpenCode 遗留进程，沿用中）
 - Backend：http://127.0.0.1:5589/（豆包最终重启 PID 58253，加载全部修复）
-- 数据：`/Users/hua/Documents/yia-worktrees/opencode-user-pilot/.var/user-pilot`
+- 数据：`/Users/developer/Documents/yia-worktrees/opencode-user-pilot/.var/user-pilot`
 - 启动器：`docs/dogfood/opencode-user-pilot/harness/pilot_launcher.py`（--restart-api 依赖 launcher.json 的 pids；若 pid 失真先 kill 端口占用进程）
 - 浏览器 harness：`harness/browser.mjs`（open/shot/BASE/PROFILE）+ `p*.mjs`（p13/p13b/p13c/p14/p15/p16/p17/p17b/p18 为豆包新增验证脚本）
 - Ollama：127.0.0.1:11434，qwen3:8b（digest sha256:500a1f06…，与 settings.yaml 期望一致）

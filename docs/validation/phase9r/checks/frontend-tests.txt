@@ -3,7 +3,7 @@
 > vitest run
 
 
- RUN  v2.1.9 /Users/hua/Documents/yia-worktrees/v1x-acoustic-remediation/frontend
+ RUN  v2.1.9 /Users/developer/Documents/yia-worktrees/v1x-acoustic-remediation/frontend
 
  ✓ src/workspace/KnowledgeDelta.test.tsx (7 tests) 147ms
  ✓ src/workspace/LocalImport.test.tsx (3 tests) 191ms
@@ -20,14 +20,14 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at SourceForm (/Users/hua/Documents/yia-worktrees/v1x-acoustic-remediation/frontend/src/workspace/App.tsx:3663:23)
+    at SourceForm (/Users/developer/Documents/yia-worktrees/v1x-acoustic-remediation/frontend/src/workspace/App.tsx:3663:23)
     at div
-    at SourceDetail (/Users/hua/Documents/yia-worktrees/v1x-acoustic-remediation/frontend/src/workspace/App.tsx:4349:25)
-    at Sources (/Users/hua/Documents/yia-worktrees/v1x-acoustic-remediation/frontend/src/workspace/App.tsx:3456:20)
+    at SourceDetail (/Users/developer/Documents/yia-worktrees/v1x-acoustic-remediation/frontend/src/workspace/App.tsx:4349:25)
+    at Sources (/Users/developer/Documents/yia-worktrees/v1x-acoustic-remediation/frontend/src/workspace/App.tsx:3456:20)
     at main
     at div
-    at Workspace (/Users/hua/Documents/yia-worktrees/v1x-acoustic-remediation/frontend/src/workspace/App.tsx:1101:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/v1x-acoustic-remediation/frontend/src/workspace/uiLanguage.tsx:810:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/v1x-acoustic-remediation/frontend/src/workspace/App.tsx:1101:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/v1x-acoustic-remediation/frontend/src/workspace/uiLanguage.tsx:810:31)
     at App
 
  ✓ src/workspace/Research.test.tsx (18 tests) 580ms

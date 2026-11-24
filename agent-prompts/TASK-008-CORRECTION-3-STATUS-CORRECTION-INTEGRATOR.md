@@ -5,7 +5,7 @@
 ## 固定对象
 
 - Main base：`main@b85c83cfe4fd6e24059dd9644aa1bed2ee90155b`，必须干净且为唯一父基线。
-- Source：`/Users/hua/Documents/yia-worktrees/task-008` / `codex/task-008-deep-analysis@b380a8c87d99a3d2dbf88b28bde3ec5b0de4da0f`，必须干净且未触碰。
+- Source：`/Users/developer/Documents/yia-worktrees/task-008` / `codex/task-008-deep-analysis@b380a8c87d99a3d2dbf88b28bde3ec5b0de4da0f`，必须干净且未触碰。
 - `tasks/README.md` 与已提交的 `TASK-008-CORRECTION-3-CODEX.md` 均已把 TASK-008 定义为 `IN_PROGRESS`；但 main `tasks/TASK-008-deep-analysis.md` 顶部仍错误写为 `IN_REVIEW`。这是唯一需要修正的控制面冲突。
 
 ## 唯一允许提交范围
@@ -17,7 +17,7 @@
 
 ## 必须执行
 
-1. 核验 main/source branch、HEAD、身份 `Mozhu <huangbuqubunao@gmail.com>`、`user.useConfigOnly=true`、empty index/worktree、以及上述唯一状态冲突。
+1. 核验 main/source branch、HEAD、身份 `Mozhu <maintainer@example.invalid>`、`user.useConfigOnly=true`、empty index/worktree、以及上述唯一状态冲突。
 2. 准备文件必须精确为上述两条路径；两轮 SHA-256、LF/EOF、无尾随空白、`git diff --check`、`git diff --cached --check` 与精确暂存范围必须通过；字节漂移立即停止。
 3. 将 main 任务卡顶部状态仅从 `IN_REVIEW` 修为 `IN_PROGRESS`；不改变其他字节或任务语义。
 4. 不运行 uv、pytest、build、import、数据库、网络、Vault、云端、凭据或任何产品文件 I/O 命令。

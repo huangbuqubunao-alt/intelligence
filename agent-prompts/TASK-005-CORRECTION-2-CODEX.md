@@ -12,12 +12,12 @@ RED/GREEN 行为回归。第二次 Reviewer 已结束且不得修代码；本轮
 
 ## 固定恢复状态
 
-- Main repository：`/Users/hua/Documents/youtubek agent`
+- Main repository：`/Users/developer/Documents/youtubek agent`
 - Main correction authorization：动态执行
-  `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-005-CORRECTION-2-CODEX.md`
+  `git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-005-CORRECTION-2-CODEX.md`
 - Correction authorization parent：
   `a3954bf782430678fa5e0040084bf0d907a52d05`
-- Source worktree：`/Users/hua/Documents/yia-worktrees/task-005`
+- Source worktree：`/Users/developer/Documents/yia-worktrees/task-005`
 - Source branch：`codex/task-005-subtitle-pipeline`
 - Original implementation：`98d19700818bcae14efc412aaaaeb6eed97a1535`
 - First review evidence：`515c34894bb138115a4658d962fb5ef0aa7d9d80`
@@ -25,7 +25,7 @@ RED/GREEN 行为回归。第二次 Reviewer 已结束且不得修代码；本轮
 - Second review evidence / starting HEAD：
   `5bb750e8d2f1336b321dbca64e7c409f66853b0f`
 - Starting HEAD parent：`55156f9f53a610ccbf9c8806f19f19f2c16bb1cf`
-- Git identity：`Mozhu <huangbuqubunao@gmail.com>`
+- Git identity：`Mozhu <maintainer@example.invalid>`
 - `user.useConfigOnly=true`
 
 开始时 main 必须位于动态 correction authorization commit 且干净；source 必须位于

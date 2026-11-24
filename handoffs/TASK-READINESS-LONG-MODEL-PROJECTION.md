@@ -4,7 +4,7 @@
 
 - Role：Implementer；agent `long_lossless_codec_oct19`。
 - Base：`fe4cfba56bb981c917c218747f54f1aeffd4ed8e`（已接受 codec `15ccb3f` + task metadata）。
-- Worktree：`/Users/hua/Documents/yia-worktrees/readiness-long-model-projection`。
+- Worktree：`/Users/developer/Documents/yia-worktrees/readiness-long-model-projection`。
 - Branch：`codex/task-readiness-long-model-projection`。
 - 实现 commit：`65670b785cf59fb42dcf489dc8c55ecbf6f91efe`；本独立报告另 commit，最终 HEAD 见回传及 `git log -1`。
 - Reported：2026-10-19。建议 `IN_REVIEW`；作者提交后 clean STOP，不合 main。
@@ -65,7 +65,7 @@ prepare_long_projection(
 
 ## 验收证据与检查
 
-均使用现有 `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/` 工具和 `PYTHONPATH=src`；未安装或更改依赖。
+均使用现有 `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/` 工具和 `PYTHONPATH=src`；未安装或更改依赖。
 
 | 检查 | 结果 |
 |---|---|

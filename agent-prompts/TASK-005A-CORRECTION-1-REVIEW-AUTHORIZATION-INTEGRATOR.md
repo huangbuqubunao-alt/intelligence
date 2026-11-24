@@ -7,14 +7,14 @@ push 或清理。
 
 ## 固定基线
 
-- Main repository：`/Users/hua/Documents/youtubek agent`
+- Main repository：`/Users/developer/Documents/youtubek agent`
 - Main branch/base：`main@bb61921bc93c17e01e9b3f4e2971933b30802b21`
-- Source worktree：`/Users/hua/Documents/yia-worktrees/task-005a`
+- Source worktree：`/Users/developer/Documents/yia-worktrees/task-005a`
 - Source branch：`codex/task-005a-local-model-shared-contracts`
 - First review evidence：`3cec2d6a7b60b11912c10e714dc1473197d7374f`
 - Correction 1 / source head：`3a7df1029a77b7dec84a76c304c10e372f755b77`
 - Original base：`82f45a1c04f9eba3264cd743b28bc339d79b34fc`
-- Required identity：`Mozhu <huangbuqubunao@gmail.com>`；`user.useConfigOnly=true`
+- Required identity：`Mozhu <maintainer@example.invalid>`；`user.useConfigOnly=true`
 
 开始时 main 必须在 Required main base、身份正确、暂存区为空；工作区必须恰有以下 5 个
 准备 Markdown 文件且无其他修改/未跟踪路径。source 必须在 Correction 1 head、分支正确且

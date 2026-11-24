@@ -4,9 +4,9 @@
 
 ## 固定基线
 
-- main repository：`/Users/hua/Documents/youtubek agent`
+- main repository：`/Users/developer/Documents/youtubek agent`
 - main branch / base HEAD：`main@dc3f097ce125bc8390b04d0913b5d00f44eae3e8`
-- TASK-004 source worktree：`/Users/hua/Documents/yia-worktrees/task-004`
+- TASK-004 source worktree：`/Users/developer/Documents/yia-worktrees/task-004`
 - source branch / retained head：`grok/task-004-discovery-metadata@d4d6d01ceba3b9524305bb41ece81b8783f3db4b`
 - 合并证据：`dc3f097...` 的父提交必须依次精确为 `da469f54e05be39ede86648c4b5976c80b0bdec7` 与 `d4d6d01ceba3b9524305bb41ece81b8783f3db4b`
 
@@ -25,7 +25,7 @@
 
 ## 必须校验
 
-1. main 为 `main@dc3f097...`、工作区未提交内容只为上述 6 个准备文件、暂存区为空；`git config user.name` / `user.email` 精确为 `Mozhu` / `huangbuqubunao@gmail.com`，且 `user.useConfigOnly=true`。
+1. main 为 `main@dc3f097...`、工作区未提交内容只为上述 6 个准备文件、暂存区为空；`git config user.name` / `user.email` 精确为 `Mozhu` / `maintainer@example.invalid`，且 `user.useConfigOnly=true`。
 2. `dc3f097...` 是双父 merge：第一父 `da469f54...`、第二父 `d4d6d01...`；第一父差异精确为 TASK-004 的 17 个已批准路径，`git diff --check dc3f097^1..dc3f097` 返回 0。
 3. source 仍在指定 branch/head 且干净；不写入、不合并或清理 source。
 4. `handoffs/TASK-004.md` 的主控验收、整合结果与 Git 证据一致：第五次 Reviewer `APPROVE`、无 P0/P1/P2/P3；整合后 lock/sync、state 30、unit 36、integration 10、全量 132、mypy/wiring、Ruff、CLI、build/migration 都为 PASS。不要重跑产品命令。

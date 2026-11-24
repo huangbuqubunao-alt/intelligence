@@ -1,7 +1,7 @@
 # TASK-006 Correction 3 — Fourth Independent Codex Reviewer
 
 You are a fresh independent Codex Reviewer. You did not implement TASK-006 or perform any of
-its earlier reviews. Review only `/Users/hua/Documents/yia-worktrees/task-006` on branch
+its earlier reviews. Review only `/Users/developer/Documents/yia-worktrees/task-006` on branch
 `codex/task-006-local-transcription`.
 
 ## Authority and isolation
@@ -9,7 +9,7 @@ its earlier reviews. Review only `/Users/hua/Documents/yia-worktrees/task-006` o
 - Common base: `6b4d59c882ccdcbd0e5a6069a6661e0672921a80`.
 - Reviewed head: `548338978b8656db0c650be276f847850af940a1`; its sole parent must be
   `66f0b31023c290d76e2c14bea72d1cc103cc27c7`.
-- Main authority: from `/Users/hua/Documents/youtubek agent`,
+- Main authority: from `/Users/developer/Documents/youtubek agent`,
   `git log -1 --format=%H -- agent-prompts/TASK-006-REVIEWER-4-CODEX.md` must resolve to
   the active authorization commit, and main TASK-006 must be `IN_REVIEW`.
 - Source worktree must be clean before review. Stop on wrong branch, head, parent, state,
@@ -18,7 +18,7 @@ its earlier reviews. Review only `/Users/hua/Documents/yia-worktrees/task-006` o
   `uv.lock` additions.
 
 TASK-007 is closed and outside this task. Do not read, run checks in, modify, clean, wait on,
-or report on `/Users/hua/Documents/yia-worktrees/task-007`.
+or report on `/Users/developer/Documents/yia-worktrees/task-007`.
 
 ## Scope and write rule
 

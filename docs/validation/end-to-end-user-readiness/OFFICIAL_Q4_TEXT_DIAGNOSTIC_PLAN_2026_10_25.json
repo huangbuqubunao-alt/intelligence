@@ -5,7 +5,7 @@
   "source_weight": {
     "classification": "FIXED_PREINSTALLED_OFFICIAL_TEXT_LAYER_FULL_SHA256_VERIFIED_NO_DOWNLOAD",
     "at": "2026-10-25T03:01:19.130483+00:00",
-    "source_path": "/Users/hua/.ollama/models/blobs/sha256-02d45dc1cf451ba2475ac33b301c2dd8f985abe4c182ce04a1f2f5bf0260278d",
+    "source_path": "/Users/developer/.ollama/models/blobs/sha256-02d45dc1cf451ba2475ac33b301c2dd8f985abe4c182ce04a1f2f5bf0260278d",
     "source_identity": [
       16777232,
       133260631,
@@ -13,7 +13,7 @@
       1791867208032934271,
       1791867208049509843
     ],
-    "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q4km-20261025/Qwen3.5-9B-official-Q4_K_M-text.gguf",
+    "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q4km-20261025/Qwen3.5-9B-official-Q4_K_M-text.gguf",
     "sha256": "02d45dc1cf451ba2475ac33b301c2dd8f985abe4c182ce04a1f2f5bf0260278d",
     "bytes": 5629109120,
     "official_full_manifest_sha256": "56671c2ab9385f9cfcb404638e32cd62d88e3501d44822208363c010179a3c90",
@@ -41,7 +41,7 @@
   "no_product_code_or_qualification_changes": true,
   "first_actual_failure": "stop and preserve raw; no latercase or retry",
   "metadata_helper_reuse": {
-    "source": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-udiq2m-20261025/import-verified-metadata.py",
+    "source": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-udiq2m-20261025/import-verified-metadata.py",
     "sha256": "80cbe93b05ec27074395f1e33f4b6533539b6c6ad49c57bbf4a1caf20e87ed51",
     "changes": "only proof path, fixed GGUF filename/hash/size, isolated tag/reference and purpose; all ownership/4payload/NoRedirect guards retained"
   },

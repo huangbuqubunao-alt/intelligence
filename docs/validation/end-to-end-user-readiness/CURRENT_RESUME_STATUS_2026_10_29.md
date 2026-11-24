@@ -1,6 +1,6 @@
 # 当前续作位置：先修真实摘要基线输入（未完成Goal）
 
-- Root WT /Users/hua/Documents/yia-worktrees/end-to-end-user-readiness，分支codex/task-end-to-end-user-readiness。正式WT/main未操作；最近实查main/actualorigin均73ee7e7，采用前需重核。Goal仍未完成，不授模型资格、不合main。
+- Root WT /Users/developer/Documents/yia-worktrees/end-to-end-user-readiness，分支codex/task-end-to-end-user-readiness。正式WT/main未操作；最近实查main/actualorigin均73ee7e7，采用前需重核。Goal仍未完成，不授模型资格、不合main。
 - 产品backend50abfbc完整6438PASS/1SKIP/2warnings/2837.50s，485源测试全程hash不变；唯一词表SKIP随后用现有asset跑完整文件8PASS0SKIP。旧失败349/15中断日志保留。完整frontend在KimiUI fdf40f5后1112PASS/42files19.79s，TS/buildPASS；新增QA脚本最终46fakePASS、strict2/RuffPASS。不要无差别重跑旧整组。
 - schema43/cloud WAIT0安全取消、其它任务仍阻塞、真实重启/BackupRestore83SQL19DATA全等已验；新增真实1305繁忙记录完整GUI恢复也83SQL19DATA全等。统一手册MD/HTML91图，所有图片链接存在。
 - GLM4.7累计5次真实请求/旧语义或格式FAIL均保留，已停止；GLM5.3仅离线包NOT_EXECUTED，用户改选Kimi（包括可付费）并确认有API账号，沿用最多8次生成/每次reserve<=1元/总8元、不自动充值/日常付费。

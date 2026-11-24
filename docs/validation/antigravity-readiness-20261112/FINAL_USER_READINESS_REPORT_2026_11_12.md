@@ -2,7 +2,7 @@
 
 ## 1. Executive Summary & Current Gate Status
 
-- **Isolated Worktree**: `/Users/hua/Documents/yia-worktrees/antigravity-readiness-20261112`
+- **Isolated Worktree**: `/Users/developer/Documents/yia-worktrees/antigravity-readiness-20261112`
 - **Branch**: `antigravity/task-user-readiness-20261112`
 - **Baseline Commit**: `18f366b80e9f184795e44d7716f49d0ac418fb7f` (`codex/readiness-v4-budget-final-validation`, untouched)
 - **Reference Docs Commit**: `fd471e0c92e2404a7ad089ee5e53e136fe3c8c98` (`codex/task-end-to-end-user-readiness`, untouched)
@@ -97,14 +97,14 @@ All prior and current control directories are retained intact; zero `UNKNOWN` ho
 
 1. **Start Isolated Qualified Backend (`127.0.0.1:6378`, isolated data in `.var/user-readiness-candidate`)**:
    ```bash
-   cd /Users/hua/Documents/yia-worktrees/antigravity-readiness-20261112
-   PYTHONPATH=src /Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python \
+   cd /Users/developer/Documents/yia-worktrees/antigravity-readiness-20261112
+   PYTHONPATH=src /Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python \
      scripts/validation/serve_user_readiness_candidate.py \
      --port 6378 --frontend-port 6379 --allow-qualified-cloud-execution
    ```
 2. **Start Isolated Frontend (`http://127.0.0.1:6379`)**:
    ```bash
-   cd /Users/hua/Documents/yia-worktrees/antigravity-readiness-20261112/frontend
+   cd /Users/developer/Documents/yia-worktrees/antigravity-readiness-20261112/frontend
    YIA_API_BASE=http://127.0.0.1:6378 npm run dev -- --host 127.0.0.1 --port 6379 --strictPort
    ```
 3. **Access URL**: `http://127.0.0.1:6379`

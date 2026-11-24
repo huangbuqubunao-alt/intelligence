@@ -15,7 +15,7 @@ Task: TASK-014 Phase A — Release Readiness:发行资料与风险披露
 Role: Implementer
 Agent: Codex
 Base: main@54b5be8c28554b70b1e3f294d6ed6f9f6fee2c21
-Worktree: /Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-a
+Worktree: /Users/developer/Documents/yia-worktrees/task-014-release-readiness-phase-a
 Branch: codex/task-014-release-readiness-phase-a
 Reviewer: 全新独立 Codex Reviewer（本包不启动）
 Reuse decision: DIRECT — 已锁定的项目元数据、现有许可/来源记录与 Python/Git 文本资料；不得新增或复制第三方代码

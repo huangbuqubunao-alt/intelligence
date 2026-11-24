@@ -9,7 +9,7 @@ owner-facing completion report, avoiding a self-referential commit hash here.
 
 | # | Required result | Accepted outcome |
 |---|---|---|
-| 1 | Worktree / branch | `/Users/hua/Documents/yia-worktrees/v1x-research-diff`; `chatgpt/v1x-research-diff`. Independent clean worktree, all writes isolated here. |
+| 1 | Worktree / branch | `/Users/developer/Documents/yia-worktrees/v1x-research-diff`; `chatgpt/v1x-research-diff`. Independent clean worktree, all writes isolated here. |
 | 2 | Starting HEAD | Exactly `15f720377b661164a227ba599281b81b33a1e189`. |
 | 3 | Final HEAD | Completion documentation commit on the branch above; reviewed code HEAD is recorded above and in the validation manifest. |
 | 4 | Phase 5 revision audit | Execution equals immutable revision. Sealed result id, canonical item identity, payload/result seals, stored original Evidence and admitted Intelligence revision dependencies are checked by the accepted historical `verify_row`. History pagination and atomic current pointer remain unchanged. |
@@ -126,7 +126,7 @@ Material intermediate failures were fixed and retested rather than waived:
 ## Validation commands and evidence
 
 Commands run from this worktree using the pre-existing interpreter at
-`/Users/hua/youtube-intel/.venv/bin/python` and current `PYTHONPATH=src`:
+`/Users/developer/youtube-intel/.venv/bin/python` and current `PYTHONPATH=src`:
 
 ```text
 python -m pytest --basetemp=.var/phase6/full-pytest tests -q

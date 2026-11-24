@@ -2,7 +2,7 @@
 
 - Reviewer：`local_budget_evidence_audit`；日期2026-10-20；与实现者 `local_rejection_accounting` 分离。
 - Base：`a989873773c0f4018cc696930789566925e88c7c`；core：`ac2ea9d4585f3215b9f2330da4062f6fed95b1f5`；完整候选：`62ed4307690cab7d2bbecca5b475695f2e922784`。
-- Review WT：`/Users/hua/Documents/yia-worktrees/readiness-local-rejection-review`；branch `codex/review-readiness-local-rejection`；开工及完成检查候选 clean，源码和测试 SHA 在所有验证前后完全相同。
+- Review WT：`/Users/developer/Documents/yia-worktrees/readiness-local-rejection-review`；branch `codex/review-readiness-local-rejection`；开工及完成检查候选 clean，源码和测试 SHA 在所有验证前后完全相同。
 - **APPROVE。本任务范围未发现 P0/P1/P2。** 只接受失败收尾与诊断隔离工程；不代表模型资格、最终Goal、原失败库修复、GUI或正式采用通过。
 
 ## 依据与范围
@@ -23,7 +23,7 @@
 
 ## 独立实际执行
 
-全部命令在review WT运行，使用已装共享工具路径 `V=/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin`，无安装。pytest使用 `PYTHONPATH=src:.`，额外内联探针使用 `src:.:tests`；实际导入的distillation路径已确认在review WT，非正式/作者源码。所有DB/DATA均测试临时目录。日志位于本WT ignored `.var/local-rejection-review/`。
+全部命令在review WT运行，使用已装共享工具路径 `V=/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin`，无安装。pytest使用 `PYTHONPATH=src:.`，额外内联探针使用 `src:.:tests`；实际导入的distillation路径已确认在review WT，非正式/作者源码。所有DB/DATA均测试临时目录。日志位于本WT ignored `.var/local-rejection-review/`。
 
 | 命令/检查 | 本次实际结果 |
 | --- | --- |

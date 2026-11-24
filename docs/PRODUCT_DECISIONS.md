@@ -84,7 +84,7 @@
   TASK-008A 先进入 `READY/UNASSIGNED`，TASK-009A 等待其 `DONE`。
 - 2026-07-20 TASK-008A 正式分配：从
   `main@82d1fd7c7f2f82e77df0518e63755bad0bf240f2` 创建
-  `/Users/hua/Documents/yia-worktrees/task-008a`，分支
+  `/Users/developer/Documents/yia-worktrees/task-008a`，分支
   `codex/task-008a-cloud-analysis-shared-contracts`；Codex 为唯一 Implementer，
   完成后由全新独立 Codex Reviewer 审查。完整产品 Diff 只允许任务卡列出的 7 个
   路径。
@@ -129,7 +129,7 @@
 - `TASK-005A` 不新增 Schema/migration 或依赖；它只冻结共享配置、领域对象与现有
   SQLite 完成/Artifact 索引语义。正式实施的 worktree、角色和命令授权另行记录。
 - 2026-07-17 TASK-005A 实施授权：从 `main@82f45a1c04f9eba3264cd743b28bc339d79b34fc`
-  创建 `/Users/hua/Documents/yia-worktrees/task-005a` 与
+  创建 `/Users/developer/Documents/yia-worktrees/task-005a` 与
   `codex/task-005a-local-model-shared-contracts`；Codex 为唯一 Implementer，完成后由
   全新独立 Codex Reviewer 审查。只允许任务卡列出的 8 个文件；允许既有锁定依赖的
   `uv sync --locked`（仅缓存缺失包下载）及任务卡离线验证/构建命令。
@@ -149,7 +149,7 @@
 - 批准日期：2026-07-15
 - 批准范围：ADR-006 T-01 至 T-15，包括人工/自动全局排序、语言匹配、JSON3/VTT/SRT、具名结果联合、领域对象扩展、规范化/质量阈值、分层幂等键、原子文件恢复、错误映射、yt-dlp/标准库复用和显式 refresh。
 - 明确约束：TASK-005 不新增 Schema/migration，不修改 `state.py` 或 `complete_stage`；使用现有 `SUBTITLE_SOURCE` / `TRANSCRIPT_CANONICAL`、Provider-call、稳定 key/path、文件哈希验证和空 Artifact stage completion。
-- 2026-07-16 TASK-005 实施授权：从 `main@b28f52d0e4950f78dba315d4afe211ea5f75b93c` 创建 `/Users/hua/Documents/yia-worktrees/task-005` 与 `codex/task-005-subtitle-pipeline`；Codex 为 Implementer，完成后由全新独立 Codex 会话 Review。实现只可修改 `domain.py`、`transcripts.py`、`providers/subtitles.py`、三份既定测试、`tests/fixtures/subtitles/**` 与 `handoffs/TASK-005.md`。
+- 2026-07-16 TASK-005 实施授权：从 `main@b28f52d0e4950f78dba315d4afe211ea5f75b93c` 创建 `/Users/developer/Documents/yia-worktrees/task-005` 与 `codex/task-005-subtitle-pipeline`；Codex 为 Implementer，完成后由全新独立 Codex 会话 Review。实现只可修改 `domain.py`、`transcripts.py`、`providers/subtitles.py`、三份既定测试、`tests/fixtures/subtitles/**` 与 `handoffs/TASK-005.md`。
 - 命令/依赖授权：不新增或升级依赖，不修改 `state.py`、migration、`complete_stage`、`pyproject.toml` 或 `uv.lock`；允许已有锁定依赖的 `uv sync --locked`（缓存缺失时仅允许包下载）及任务卡的离线 `uv` 验证/构建命令。
 - 继续未授权：真实 YouTube/字幕、Cookie、登录、remote components、ffmpeg、媒体下载、真实 Vault/密钥。
 - 原始批准文本见 `docs/decisions/ADR-006-subtitle-acquisition-contract.md`。

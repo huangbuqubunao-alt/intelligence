@@ -5,7 +5,7 @@
 ## 固定对象
 
 - Main base：`main@8b2bdc57076769b6d0efe246430ebfda37aa0b6b`，必须干净且为唯一父基线。
-- Source：`/Users/hua/Documents/yia-worktrees/task-008` / `codex/task-008-deep-analysis@78ae101786ada5f04d2b7c734c84a216f8820803`，必须干净且无 `.codebase-memory/` 或其他未跟踪工件。
+- Source：`/Users/developer/Documents/yia-worktrees/task-008` / `codex/task-008-deep-analysis@78ae101786ada5f04d2b7c734c84a216f8820803`，必须干净且无 `.codebase-memory/` 或其他未跟踪工件。
 - Reviewer-5 evidence：`78ae101786ada5f04d2b7c734c84a216f8820803` 唯一父为 Correction 4 `bb195a59ddee25cb804b0078676c504e94c44441`；evidence 只改 `handoffs/TASK-008.md`。
 - Original base：`473119704c7638d7afd4e68d84d00e85064ceabd`；完整 Diff 仅为 TASK-008 七个批准路径组中的六个实际路径。
 - Source 的任务/项目状态为分配前冻结快照；实时状态仅以 main 本提交为准。
@@ -28,7 +28,7 @@
 
 ## 必须执行
 
-1. 核验 main/source branch、HEAD、父链、身份 `Mozhu <huangbuqubunao@gmail.com>`、`user.useConfigOnly=true`、empty index/worktree、evidence 单文件范围和完整 source 范围。
+1. 核验 main/source branch、HEAD、父链、身份 `Mozhu <maintainer@example.invalid>`、`user.useConfigOnly=true`、empty index/worktree、evidence 单文件范围和完整 source 范围。
 2. 准备文件仅限上述五个路径；两轮 SHA-256、LF/EOF、无尾随空白、`git diff --check`、`git diff --cached --check` 与精确暂存范围必须通过；字节漂移立即停止。
 3. 不运行 uv、pytest、build、import、数据库、网络、Vault、云端、凭据或任何产品文件 I/O 命令。
 4. main 将 TASK-008 退回原 Codex Implementer 的 `IN_PROGRESS`，冻结 Correction 5；不得预写 Reviewer verdict、ACCEPTED、merge 或 DONE。TASK-009 必须保持 `IN_PROGRESS` 且未触碰。

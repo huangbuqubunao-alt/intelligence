@@ -1,10 +1,10 @@
 {
   "commands": {
-    "new_regressions": "PYTHONPATH=src /Users/hua/youtube-intel/.venv/bin/python -m pytest -q tests/integration/test_phase12_live_feed.py",
+    "new_regressions": "PYTHONPATH=src /Users/developer/youtube-intel/.venv/bin/python -m pytest -q tests/integration/test_phase12_live_feed.py",
     "phase12_focused": "Same Python -m pytest -q: test_phase12_live_feed, test_youtube_following, test_phase12_resume_acceptance, test_discovery, test_discovery_adapter, test_backup_restore, test_creator_following",
     "phase11r1_authority": "Same Python -m pytest -q: test_phase11r_source_run_quiescence, test_phase12_resume_acceptance, test_bilibili_provider, test_acoustic_remediation, test_acoustic_qualification, test_bilibili_content, test_task019_trusted_intelligence_read, test_task023_topic_timeline",
     "integrated_named": "Same Python -m pytest -q with all 39 paths in docs/validation/phase12-resume/named-regression-files.json",
-    "full_backend": "PYTHONPATH=src /Users/hua/youtube-intel/.venv/bin/python -m pytest -q (one full run)",
+    "full_backend": "PYTHONPATH=src /Users/developer/youtube-intel/.venv/bin/python -m pytest -q (one full run)",
     "frontend": [
       "npm test -- --run",
       "npm run typecheck (tsc -b --pretty false)",

@@ -5,7 +5,7 @@
 - Reviewer: `全新独立 Codex Reviewer 2（APPROVE，P0–P3=0）`
 - 依赖：TASK-014B4/B5/B6/B7/B8 `DONE`、ADR-020 `Accepted`
 - 实施基线：`main@6fd7b5cc3fae6466fb6181151513f4854d196683`
-- Worktree：`/Users/hua/Documents/yia-worktrees/task-014b10-safe-content-availability-diagnostic`
+- Worktree：`/Users/developer/Documents/yia-worktrees/task-014b10-safe-content-availability-diagnostic`
 - Branch：`codex/task-014b10-safe-content-availability-diagnostic`
 - Implementation HEAD：`3cdb4c849efcd1a6f0fe77b03bb6a8998d9b1d20`（唯一父提交
   `6fd7b5cc3fae6466fb6181151513f4854d196683`）

@@ -42,7 +42,7 @@ Call log:
 [2m     - retrying click action[22m
 [2m       - waiting 500ms[22m
 
-    at /Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/gui-youtube.mjs:17:55 {
+    at /Users/developer/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/gui-youtube.mjs:17:55 {
   log: [
     "  - waiting for getByRole('button', { name: '内容', exact: true })",
     '    - locator resolved to <button type="button" class="nav-item ">内容</button>',

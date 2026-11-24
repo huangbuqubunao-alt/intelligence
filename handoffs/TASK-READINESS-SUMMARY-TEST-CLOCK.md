@@ -4,7 +4,7 @@
 
 - Role Implementer / caption_resume；Reviewer intel_bounded_review，提交后 STOP。
 - Base `5cfbad10141ea89d001e8006fe5c30919201cd24`。
-- Worktree `/Users/hua/Documents/yia-worktrees/readiness-summary-test-clock`。
+- Worktree `/Users/developer/Documents/yia-worktrees/readiness-summary-test-clock`。
 - Branch `codex/task-readiness-summary-test-clock`，2026-10-15。
 - 仅 `tests/integration/test_summary_live_cutover.py` 与本 handoff。
 - DIRECT 标准库 datetime/pytest monkeypatch、已有 SQLite/RecordingProvider/ref registry，

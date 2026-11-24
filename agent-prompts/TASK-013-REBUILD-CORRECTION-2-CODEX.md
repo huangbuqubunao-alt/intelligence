@@ -4,8 +4,8 @@
 
 ## 动态授权与唯一谱系
 
-- Main authorization：`git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-013-REBUILD-CORRECTION-2-CODEX.md` 必须解析为本 Correction 2 授权提交，且 main 中 TASK-013=`IN_PROGRESS`。
-- 唯一 source：`/Users/hua/Documents/yia-worktrees/task-013-rebuild` / `codex/task-013-e2e-acceptance-rebuild@4aecab7c3f88f0a108ee815c05436d12dd0dfdd8`；开始时必须干净。review evidence 的唯一父提交为 `ae724990f6f3628a054bfca000e9e28d83f3def7`，且只修改 handoff。
+- Main authorization：`git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-013-REBUILD-CORRECTION-2-CODEX.md` 必须解析为本 Correction 2 授权提交，且 main 中 TASK-013=`IN_PROGRESS`。
+- 唯一 source：`/Users/developer/Documents/yia-worktrees/task-013-rebuild` / `codex/task-013-e2e-acceptance-rebuild@4aecab7c3f88f0a108ee815c05436d12dd0dfdd8`；开始时必须干净。review evidence 的唯一父提交为 `ae724990f6f3628a054bfca000e9e28d83f3def7`，且只修改 handoff。
 - 历史 `task-013` worktree/branch 是已拒绝审计证据，禁止访问、修改或复用。
 
 ## 唯一允许产品范围

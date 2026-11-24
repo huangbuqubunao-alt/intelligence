@@ -4,8 +4,8 @@
 
 ## 固定对象
 
-- Acceptance/execution base：main 最新提交必须由 `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-009-INTEGRATOR.md` 解析为本授权提交。
-- Source：`/Users/hua/Documents/yia-worktrees/task-009` / `codex/task-009-obsidian-notes@e675feef7f12d19561f1ca439e181a47f4a521b8`。
+- Acceptance/execution base：main 最新提交必须由 `git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-009-INTEGRATOR.md` 解析为本授权提交。
+- Source：`/Users/developer/Documents/yia-worktrees/task-009` / `codex/task-009-obsidian-notes@e675feef7f12d19561f1ca439e181a47f4a521b8`。
 - Source review evidence：`e675feef...` 唯一父为 Correction 2 `22147b087157a6bbb0adc7e78f2f5d3eae700f8e`，且只修改 source handoff，Verdict=`APPROVE`、P0–P3=0。
 - Original source base：`473119704c7638d7afd4e68d84d00e85064ceabd`；完整允许范围严格为：
   - `src/youtube_intel/notes.py`
@@ -19,7 +19,7 @@
 
 ## 合并前门禁
 
-1. main/source 均干净；身份为 `Mozhu <huangbuqubunao@gmail.com>` 且 `user.useConfigOnly=true`。
+1. main/source 均干净；身份为 `Mozhu <maintainer@example.invalid>` 且 `user.useConfigOnly=true`。
 2. 核验 source 父链、review handoff-only scope、完整七路径 source Diff、无依赖/锁/公共契约/config/`state.py`/Schema/migration/CLI/TASK-008 变更，并通过 `git diff --check`。
 3. 以 `--no-ff` 合并固定 source。不得 fast-forward、cherry-pick、rebase 或手动改冲突。合并内容必须只包含上述七个允许路径；在创建 merge commit 前运行 `git diff --cached --check` 和范围检查。
 

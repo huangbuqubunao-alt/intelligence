@@ -6,16 +6,16 @@ You are a **fresh, independent Codex Reviewer**. You did not implement TASK-007 
 Correction 1. Review only this fixed source:
 
 - Common base: `6b4d59c882ccdcbd0e5a6069a6661e0672921a80`
-- Source worktree/branch: `/Users/hua/Documents/yia-worktrees/task-007` /
+- Source worktree/branch: `/Users/developer/Documents/yia-worktrees/task-007` /
   `codex/task-007-local-scoring`
 - Reviewed head: `f46881bc4a8ca0fda4d5ef7006b372bc566cff97`
 - Required parent: `266c488c17fc82cb648053b5e1066211a7bea9a9`
-- Main dynamic authority: from `/Users/hua/Documents/youtubek agent`,
+- Main dynamic authority: from `/Users/developer/Documents/youtubek agent`,
   `git log -1 --format=%H -- agent-prompts/TASK-007-REVIEWER-2-CODEX.md` must resolve to the
   current authorization commit and main TASK-007 must be `IN_REVIEW`.
 
 Do not read, run checks in, modify, clean, wait on, or report
-`/Users/hua/Documents/yia-worktrees/task-006`. Stop on wrong main/source state, dirty source,
+`/Users/developer/Documents/yia-worktrees/task-006`. Stop on wrong main/source state, dirty source,
 unexpected parent, scope expansion, lockfile change, secret, real-resource action, or an
 unexplained error.
 

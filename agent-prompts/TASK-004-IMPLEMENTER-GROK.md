@@ -18,7 +18,7 @@
 8. `docs/decisions/ADR-005-reuse-first-delivery-policy.md`
 9. `tasks/TASK-004-discovery-metadata.md`
 10. `handoffs/TEMPLATE.md`
-11. 主线任务包：`/Users/hua/Documents/youtubek agent/agent-prompts/TASK-004-IMPLEMENTER-GROK.md`
+11. 主线任务包：`/Users/developer/Documents/youtubek agent/agent-prompts/TASK-004-IMPLEMENTER-GROK.md`
 
 如任一文件冲突、公共领域字段需要改变，或实现必须扩大范围，立即停止并输出 `DECISION NEEDED`，不得自行选择解释。
 
@@ -28,7 +28,7 @@
 - Role: `Implementer`
 - Agent: `Grok`
 - Base: `main@dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-004`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-004`
 - Branch: `grok/task-004-discovery-metadata`
 - Reviewer: Codex 全新独立会话；仅在实现 commit 后由主控启动
 - Parallel now: TASK-003 Codex Implementer，位于另一个 worktree
@@ -145,7 +145,7 @@ TASK-004 不拥有 SQLite 实现。`discovery.py` 只能定义窄 consumer Proto
    git var GIT_AUTHOR_IDENT
    ```
 
-   必须位于指定 worktree/branch/base，工作树干净，`user.useConfigOnly=true`，身份为 `Mozhu <huangbuqubunao@gmail.com>`；不符立即停止。
+   必须位于指定 worktree/branch/base，工作树干净，`user.useConfigOnly=true`，身份为 `Mozhu <maintainer@example.invalid>`；不符立即停止。
 
 3. 添加唯一批准依赖：
 

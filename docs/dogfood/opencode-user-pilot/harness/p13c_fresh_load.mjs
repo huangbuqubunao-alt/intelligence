@@ -1,5 +1,5 @@
 // Fresh-context test: full page load with each hash (user opens URL directly)
-import { chromium } from "/Users/hua/Documents/yia-worktrees/opencode-user-pilot/frontend/node_modules/playwright-core/index.mjs";
+import { chromium } from "/Users/developer/Documents/yia-worktrees/opencode-user-pilot/frontend/node_modules/playwright-core/index.mjs";
 import { PROFILE, BASE } from "./browser.mjs";
 
 for (const route of ["", "#Following", "#Content", "#Intelligence", "#Topics", "#Settings", "#Home", "#Content/aircAruvnKk"]) {

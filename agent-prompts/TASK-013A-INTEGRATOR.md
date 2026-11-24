@@ -4,8 +4,8 @@
 
 ## 固定对象
 
-- Execution base：动态读取 `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-013A-INTEGRATOR.md`，必须为本授权提交，且 main 中 TASK-013A=`ACCEPTED`。
-- Accepted source：`/Users/hua/Documents/yia-worktrees/task-013a` / `codex/task-013a-local-transcription-continuation@62d87067af84171a2ee7195f3e7d4c4fddcb9980`；必须干净。
+- Execution base：动态读取 `git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-013A-INTEGRATOR.md`，必须为本授权提交，且 main 中 TASK-013A=`ACCEPTED`。
+- Accepted source：`/Users/developer/Documents/yia-worktrees/task-013a` / `codex/task-013a-local-transcription-continuation@62d87067af84171a2ee7195f3e7d4c4fddcb9980`；必须干净。
 - Source review evidence `62d8706...` 的唯一父提交为 `d50c78e...`；完整产品范围相对 `d96862f...` 最多四路径，实际仅：
   1. `src/youtube_intel/transcripts.py`
   2. `tests/integration/test_local_transcription_service.py`
@@ -15,7 +15,7 @@
 
 ## 合并与检查
 
-1. 核验 identity `Mozhu <huangbuqubunao@gmail.com>`、`user.useConfigOnly=true`、main/source 固定 SHA、洁净度、父链、范围、锁文件和 `git diff --check`。
+1. 核验 identity `Mozhu <maintainer@example.invalid>`、`user.useConfigOnly=true`、main/source 固定 SHA、洁净度、父链、范围、锁文件和 `git diff --check`。
 2. 在 main 以 `git merge --no-ff 62d87067af84171a2ee7195f3e7d4c4fddcb9980` 创建双父提交；不得 rebase、cherry-pick、push、清理 source 或改任务状态。若无冲突仍必须保留 merge commit。
 3. 在合并结果执行：
 

@@ -165,82 +165,82 @@
   },
   "proofs": [
     {
-      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q4km-20261025/diagnostic-freeze-q4km-text-terminal-v2.json",
+      "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q4km-20261025/diagnostic-freeze-q4km-text-terminal-v2.json",
       "bytes": 407911,
       "sha256": "4c324a55fae37bac56f54c778e75be9b4492f0d1cf97080a9d6cd5a79dd99a92"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q4km-20261025/candidate-request.json",
+      "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q4km-20261025/candidate-request.json",
       "bytes": 6812,
       "sha256": "5ecc84f927518125ac4e6d3fce926824f089534c20e964b45a32425cf5aaccd8"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-4b-once-20261024/source-case.json",
+      "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-4b-once-20261024/source-case.json",
       "bytes": 3277,
       "sha256": "c751f9a5c04f90ccd486c552a8f332ed386ced341f524115ce8627985dc798a3"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/diagnostic.py",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/diagnostic.py",
       "bytes": 26018,
       "sha256": "d510aef83346bf1706f69a14fc7e9e10148d2e0614591f6b333c24a28f91e1ef"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/generation-start.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/generation-start.json",
       "bytes": 1814,
       "sha256": "8f030fff6d9a4d94aac18e0625347fc418c544c9bf6775931a91b3da1eb030c6"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/real-once-terminal-window-20261025/generation-start.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/real-once-terminal-window-20261025/generation-start.json",
       "bytes": 1814,
       "sha256": "8f030fff6d9a4d94aac18e0625347fc418c544c9bf6775931a91b3da1eb030c6"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/real-once-terminal-window-20261025/precheck.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/real-once-terminal-window-20261025/precheck.json",
       "bytes": 463,
       "sha256": "b6c54a86e0dbe17206f01ccacee98b7b63b3f1abb109eb86d86f9f340d8d5b91"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/real-once-terminal-window-20261025/preload-raw.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/real-once-terminal-window-20261025/preload-raw.json",
       "bytes": 330,
       "sha256": "6f1b996adff7d109049a67503b5eff85f91cef1793cd0b34bf65989ad5c03c71"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/real-once-terminal-window-20261025/capacity.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/real-once-terminal-window-20261025/capacity.json",
       "bytes": 14601,
       "sha256": "3372edcc3f2e8ec082b01a0dda9fd0ee5663f139acd8dcb1a334f99f7a20c328"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/real-once-terminal-window-20261025/generation-raw.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/real-once-terminal-window-20261025/generation-raw.json",
       "bytes": 872,
       "sha256": "0c92f0b2fb500a0195555e6e9fd3cdfe26b4eeb190d5c1fb6b04aa5f8c4ccfb0"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/real-once-terminal-window-20261025/diagnostic-result.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/real-once-terminal-window-20261025/diagnostic-result.json",
       "bytes": 434,
       "sha256": "005dd9db6f21bb21f5849031933abf43fe090c64bfb38799a53a19c145e9cb19"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-q4-standalone-window/.var/q4-standalone-window/launch-start.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-q4-standalone-window/.var/q4-standalone-window/launch-start.json",
       "bytes": 161,
       "sha256": "af39d08fdc4ebc741acc33b07db0b11e9826b29dcdde24cf79e8bcd40e4de614"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-q4-standalone-window/.var/q4-standalone-window/run-20261025/controller-result.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-q4-standalone-window/.var/q4-standalone-window/run-20261025/controller-result.json",
       "bytes": 334,
       "sha256": "3942a553bf6129bf7f609a901d434b071e0cda6da0233823cc5dc3781c8bf50a"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-q4-standalone-window/.var/q4-standalone-window/run-20261025/cleanup-slots.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-q4-standalone-window/.var/q4-standalone-window/run-20261025/cleanup-slots.json",
       "bytes": 1771,
       "sha256": "883c13a529aef47abee5b37774c241513f63395915fe06199aabfd14fdefd9b5"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-q4-standalone-window/.var/q4-standalone-window/run-20261025/wait-observations.jsonl",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-q4-standalone-window/.var/q4-standalone-window/run-20261025/wait-observations.jsonl",
       "bytes": 13034,
       "sha256": "b45b3e387efadb6074f2b17c614bba1a4e1faa954dc44504f92f64f145ce3b77"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q4km-20261025/terminal-window-20261025/pinned-daemon.log",
+      "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q4km-20261025/terminal-window-20261025/pinned-daemon.log",
       "bytes": 24897,
       "sha256": "f45edf72b66bece55f0033b9c3f0bb0d58ef1a985d342ad63349858a342f68e7"
     }

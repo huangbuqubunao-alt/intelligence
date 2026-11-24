@@ -6,7 +6,7 @@
 - Role: Implementer
 - Agent: `native_scan_resume`
 - Base: `e4c693f80ffff388bc494e1c27c6b9269255742e`
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-local-capacity`
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-local-capacity`
 - Branch: `codex/task-readiness-local-capacity`
 - Reported: 2026-10-16
 - Head: 本报告随实现 commit；提交后以 Git HEAD 和实现者最终消息的完整 SHA 为准。

@@ -2,7 +2,7 @@
   {
     "suite": "p1",
     "command": [
-      "/Users/hua/youtube-intel/.venv/bin/python",
+      "/Users/developer/youtube-intel/.venv/bin/python",
       "-m",
       "pytest",
       "-q",
@@ -14,7 +14,7 @@
   {
     "suite": "network",
     "command": [
-      "/Users/hua/youtube-intel/.venv/bin/python",
+      "/Users/developer/youtube-intel/.venv/bin/python",
       "-m",
       "pytest",
       "-q",
@@ -26,7 +26,7 @@
   {
     "suite": "parser",
     "command": [
-      "/Users/hua/youtube-intel/.venv/bin/python",
+      "/Users/developer/youtube-intel/.venv/bin/python",
       "-m",
       "pytest",
       "-q",
@@ -38,7 +38,7 @@
   {
     "suite": "phase12",
     "command": [
-      "/Users/hua/youtube-intel/.venv/bin/python",
+      "/Users/developer/youtube-intel/.venv/bin/python",
       "-m",
       "pytest",
       "-q",
@@ -56,7 +56,7 @@
   {
     "suite": "phase11r1",
     "command": [
-      "/Users/hua/youtube-intel/.venv/bin/python",
+      "/Users/developer/youtube-intel/.venv/bin/python",
       "-m",
       "pytest",
       "-q",
@@ -75,7 +75,7 @@
   {
     "suite": "integrated",
     "command": [
-      "/Users/hua/youtube-intel/.venv/bin/python",
+      "/Users/developer/youtube-intel/.venv/bin/python",
       "-m",
       "pytest",
       "-q",

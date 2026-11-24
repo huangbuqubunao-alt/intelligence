@@ -6,7 +6,7 @@ locator.click: Timeout 30000ms exceeded.
 Call log:
 [2m  - waiting for getByRole('button', { name: 'Research', exact: true })[22m
 
-    at /Users/hua/Documents/yia-worktrees/v1x-bilibili-provider/frontend/offline-transcription.e2e.mjs:62:73 {
+    at /Users/developer/Documents/yia-worktrees/v1x-bilibili-provider/frontend/offline-transcription.e2e.mjs:62:73 {
   log: [
     "  - waiting for getByRole('button', { name: 'Research', exact: true })"
   ],

@@ -10,7 +10,7 @@ The new output is substantially careful about source scope, uncertainty and numb
 
 ## Fixed evidence and execution limits
 
-Root: `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness` (`R` below).
+Root: `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness` (`R` below).
 
 - Actual package: `R/.var/kimi-public-diagnostic/package`.
 - Prepared identity: `03eed52f88e2455607c4b47cd70c3ba8749bf6d74a89729a213f49057ce66f39`; prepared **file-byte** SHA `33c83dffec72afd7af0032bd822da1996241e53d9076d203521149ee80fb45fb` (different hash domains, not a mismatch).

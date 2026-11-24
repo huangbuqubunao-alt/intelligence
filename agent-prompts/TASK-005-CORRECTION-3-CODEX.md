@@ -13,12 +13,12 @@ P2。
 
 ## 固定恢复状态
 
-- Main repository：`/Users/hua/Documents/youtubek agent`
+- Main repository：`/Users/developer/Documents/youtubek agent`
 - Main correction authorization：动态执行
-  `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-005-CORRECTION-3-CODEX.md`
+  `git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-005-CORRECTION-3-CODEX.md`
 - Correction authorization parent：
   `2c8492b54e045547b7b3bad742419d8f6fdf0089`
-- Source worktree：`/Users/hua/Documents/yia-worktrees/task-005`
+- Source worktree：`/Users/developer/Documents/yia-worktrees/task-005`
 - Source branch：`codex/task-005-subtitle-pipeline`
 - Original implementation：`98d19700818bcae14efc412aaaaeb6eed97a1535`
 - First review evidence：`515c34894bb138115a4658d962fb5ef0aa7d9d80`
@@ -28,7 +28,7 @@ P2。
 - Third review evidence / starting HEAD：
   `30c665181db77607648aa1a6fdbb1d5502b71d7d`
 - Starting HEAD parent：`f95bdb1b5ac0fcdc8906b2daa7138f2f6d60138f`
-- Git identity：`Mozhu <huangbuqubunao@gmail.com>`
+- Git identity：`Mozhu <maintainer@example.invalid>`
 - `user.useConfigOnly=true`
 
 开始时 main 必须位于动态 correction authorization commit 且干净；source 必须位于

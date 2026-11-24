@@ -26,7 +26,7 @@
   "model_calls": 0,
   "formal_data_touched": false,
   "gui_page_errors": [],
-  "runtime_root": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/raw-capture-acceptance",
-  "backup": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/raw-capture-real-gui-backup.zip",
+  "runtime_root": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/raw-capture-acceptance",
+  "backup": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/raw-capture-real-gui-backup.zip",
   "remaining_gap": "Failed current-policy request and orphan derived file require separate lifecycle repair; this fresh success does not close that rollback path."
 }

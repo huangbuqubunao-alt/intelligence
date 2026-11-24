@@ -147,7 +147,7 @@ src/youtube_intel/state.py:1465: ValueError
 
 The above exception was the direct cause of the following exception:
 
-tmp_path = PosixPath('/Users/hua/Documents/yia-worktrees/waiting-model-final-fix/.var/waiting-model-final-fix/focused4/test_cancel_api_is_content_bou0')
+tmp_path = PosixPath('/Users/developer/Documents/yia-worktrees/waiting-model-final-fix/.var/waiting-model-final-fix/focused4/test_cancel_api_is_content_bou0')
 
     def test_cancel_api_is_content_bound_idempotent_and_keeps_all_waits_visible(tmp_path: Path) -&gt; None:
         from youtube_intel.local_api import ApiError, LocalApiApplication

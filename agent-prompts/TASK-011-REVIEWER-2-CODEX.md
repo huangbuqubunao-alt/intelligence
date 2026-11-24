@@ -4,8 +4,8 @@
 
 ## 固定对象
 
-- Main authorization：`git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-011-REVIEWER-2-CODEX.md`；main 中 TASK-011 必须为 `IN_REVIEW`。
-- Source/base/head：`/Users/hua/Documents/yia-worktrees/task-011` / `codex/task-011-weekly-report@f4e30a56ddcf7d654bda4e0579f6080af59698f5` / `44fc64be2cb4602cb93c1d03f84d6dd2a1677750`。
+- Main authorization：`git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-011-REVIEWER-2-CODEX.md`；main 中 TASK-011 必须为 `IN_REVIEW`。
+- Source/base/head：`/Users/developer/Documents/yia-worktrees/task-011` / `codex/task-011-weekly-report@f4e30a56ddcf7d654bda4e0579f6080af59698f5` / `44fc64be2cb4602cb93c1d03f84d6dd2a1677750`。
 - Correction 1 唯一父为 `3759d54a74abaa8e6627b8107298d0938fbe3441`；其唯一父为原实现 `0ae7f9366b49395fbe8c4908bbbc19c127bc0a8e`，仅改 source handoff。
 - 完整允许范围严格为 `reporting.py`、`state.py`、`providers/obsidian.py`、`templates/weekly.md`、`test_week_period.py`、`test_weekly_report.py`、`tests/fixtures/weekly/**`、source handoff；Correction 1 只能改 `reporting.py`、两份既定周报 tests 与 handoff。
 - Source 卡/状态为分配 base 快照；不得写回 source。TASK-012 source 不得读取、修改或清理。

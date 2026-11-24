@@ -4,7 +4,7 @@
 
 - Implementer: `/root/grounding_adapter_preflight`, sole writer; prepare-only.
 - Base: `aa12ae1de998fa453b401ffe942a6d155b7eac48`.
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic`.
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-alias-thinking-diagnostic`.
 - Branch: `codex/task-readiness-alias-thinking-diagnostic`.
 - Allowed changes: new ignored `.var/alias-thinking-diagnostic/**` and this handoff only.
 - Done criteria: original 18 cues/two Evidence and prior failures remain bound; exactly Evidence aliases plus `think=True`; deterministic strict codec replay; source/guard/package anti-tamper checks; inherited execution safety retained; meaningful RED→GREEN; scoped syntax/Ruff and relevant unchanged guards pass; all protected source hashes unchanged; concrete-owner finalization remains blocked until independent review.
@@ -27,7 +27,7 @@ No model/HTTP/daemon/Terminal/controller execution, process signals, app closure
 
 **Prepare-only work complete; author STOP after this handoff commit. Independent review pending.** No model/HTTP/daemon/Terminal/controller execution, process signals, app closures, formal configuration, production code or qualifications changed. No owner, metadata-start, launch-start, generation-start, concrete package or actual output directory exists in the new private scope.
 
-Private artifacts: `/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/`.
+Private artifacts: `/Users/developer/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic/`.
 
 - `README.md`: exact source/interpreter paths, review boundaries, metadata → owner finalization → controller → one child → cleanup sequence and STOP rules.
 - `checks/artifact-manifest.json`: full hashes/sizes of all new source, tests, patches, data, command template and README; SHA `52f997c458b52322faf043e09ad117b98376e4391c30843e4560e269b1b9444c` (also recorded in `checks/summary.json`).
@@ -80,15 +80,15 @@ All commands used the existing root `.venv/bin/python`, `PYTHONDONTWRITEBYTECODE
 The final bounded test invocation, run from this worktree, was:
 
 ```sh
-PYTHONPATH=/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/src:/Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic \
+PYTHONPATH=/Users/developer/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/src:/Users/developer/Documents/yia-worktrees/readiness-alias-thinking-diagnostic/.var/alias-thinking-diagnostic \
 PYTHONDONTWRITEBYTECODE=1 \
-/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python -B -m pytest -q \
+/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python -B -m pytest -q \
   -p no:cacheprovider -p old_guard_isolation \
   --basetemp=.var/alias-thinking-diagnostic/pytest-final-fixed-prepend \
   .var/alias-thinking-diagnostic/tests \
-  /Users/hua/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/test_diagnostic.py \
-  /Users/hua/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/test_mode_guards.py \
-  /Users/hua/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/test_quant_guards.py \
+  /Users/developer/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/test_diagnostic.py \
+  /Users/developer/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/test_mode_guards.py \
+  /Users/developer/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/test_quant_guards.py \
   tests/unit/test_long_grounding_codec.py tests/unit/test_long_grounding_projection.py \
   tests/unit/test_long_distillation_profile.py tests/unit/test_current_native_capacity.py \
   tests/unit/test_current_native_session.py

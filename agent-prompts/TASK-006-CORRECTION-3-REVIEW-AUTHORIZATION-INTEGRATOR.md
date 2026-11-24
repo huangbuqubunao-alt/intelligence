@@ -1,6 +1,6 @@
 # TASK-006 Correction 3 — Review Authorization Status Integrator
 
-You are the Status Integrator. Work only in `/Users/hua/Documents/youtubek agent` on `main`.
+You are the Status Integrator. Work only in `/Users/developer/Documents/youtubek agent` on `main`.
 This is a documentation-only control-plane commit. Do not run product commands, install
 packages, run tests/builds, merge, push, clean, start a Worker, or access TASK-007. Read-only
 Git verification of the TASK-006 source is allowed.
@@ -8,7 +8,7 @@ Git verification of the TASK-006 source is allowed.
 ## Fixed facts
 
 - Required main base: `aee73330d864fa0806a999bce8168cd8ec403dc3`.
-- TASK-006 source: `/Users/hua/Documents/yia-worktrees/task-006`, branch
+- TASK-006 source: `/Users/developer/Documents/yia-worktrees/task-006`, branch
   `codex/task-006-local-transcription`, clean at
   `548338978b8656db0c650be276f847850af940a1`; its sole parent is
   `66f0b31023c290d76e2c14bea72d1cc103cc27c7`.
@@ -42,7 +42,7 @@ or restaging.
 
 ## Required gates and commit
 
-1. Confirm `main@aee73330...`, `Mozhu <huangbuqubunao@gmail.com>`, and
+1. Confirm `main@aee73330...`, `Mozhu <maintainer@example.invalid>`, and
    `user.useConfigOnly=true`.
 2. Confirm source branch/head/sole parent/cleanliness, exact five-file Correction 3 range,
    full approved eight-path range, and no dependency/lockfile change after `66f0b310...`.

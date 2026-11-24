@@ -27,7 +27,7 @@ main 初始 HEAD 必须为 `375a5aa...`；准备内容必须精确属于这 6 �
 
 ## 必查事实
 
-1. Git identity 必须为 `Mozhu <huangbuqubunao@gmail.com>`，且 `user.useConfigOnly=true`。
+1. Git identity 必须为 `Mozhu <maintainer@example.invalid>`，且 `user.useConfigOnly=true`。
 2. TASK-003 source worktree 只读且干净，分支为 `codex/task-003-state-store`、HEAD 为 `f07795...`；review evidence 的父提交必须为 `adab4bb...`，review commit 相对父提交仅修改 `handoffs/TASK-003.md`。相对 `dcc7d85...` 的 implementation Diff 仍只为批准的 5 个文件。Review verdict 为 `APPROVE`，AC-1 至 AC-5、ADR-003 S-01 至 S-08 全 PASS，P0/P1/P2 均无；仅记录 P3 与 at-most-once 风险，不得降级或隐去。
 3. TASK-004 source worktree 只读且干净，分支为 `grok/task-004-discovery-metadata`、HEAD 为 `30932e1...`；correction 相对 `f34cbb...` 精确为 5 个文件，完整 Diff 相对 `dcc7d85...` 仍为原批准的 17 个文件。第二个 Reviewer 必须是全新独立 Codex 会话，且尚未启动。
 4. TASK-005 及后续任务继续 `BLOCKED`；真实 YouTube、Cookie、登录、remote components、ffmpeg、媒体/字幕下载仍未授权。
@@ -42,17 +42,17 @@ git var GIT_AUTHOR_IDENT
 git var GIT_COMMITTER_IDENT
 git diff --check
 git diff --name-only
-git -C "/Users/hua/Documents/yia-worktrees/task-003" branch --show-current
-git -C "/Users/hua/Documents/yia-worktrees/task-003" rev-parse HEAD
-git -C "/Users/hua/Documents/yia-worktrees/task-003" status --short
-git -C "/Users/hua/Documents/yia-worktrees/task-003" rev-list --parents -n 1 f07795f854e02b15e8c438622042e360b7c0e8b9
-git -C "/Users/hua/Documents/yia-worktrees/task-003" diff --name-status adab4bb00dd7e917b295c22fd8357a4f11515912..f07795f854e02b15e8c438622042e360b7c0e8b9
-git -C "/Users/hua/Documents/yia-worktrees/task-003" diff --name-status dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176...adab4bb00dd7e917b295c22fd8357a4f11515912
-git -C "/Users/hua/Documents/yia-worktrees/task-004" branch --show-current
-git -C "/Users/hua/Documents/yia-worktrees/task-004" rev-parse HEAD
-git -C "/Users/hua/Documents/yia-worktrees/task-004" status --short
-git -C "/Users/hua/Documents/yia-worktrees/task-004" diff --name-status f34cbb09d628ebb256bf5f2895adfd10dbd61812...30932e1742e948683f9e1c0f63236451b8d731bd
-git -C "/Users/hua/Documents/yia-worktrees/task-004" diff --name-status dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176...30932e1742e948683f9e1c0f63236451b8d731bd
+git -C "/Users/developer/Documents/yia-worktrees/task-003" branch --show-current
+git -C "/Users/developer/Documents/yia-worktrees/task-003" rev-parse HEAD
+git -C "/Users/developer/Documents/yia-worktrees/task-003" status --short
+git -C "/Users/developer/Documents/yia-worktrees/task-003" rev-list --parents -n 1 f07795f854e02b15e8c438622042e360b7c0e8b9
+git -C "/Users/developer/Documents/yia-worktrees/task-003" diff --name-status adab4bb00dd7e917b295c22fd8357a4f11515912..f07795f854e02b15e8c438622042e360b7c0e8b9
+git -C "/Users/developer/Documents/yia-worktrees/task-003" diff --name-status dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176...adab4bb00dd7e917b295c22fd8357a4f11515912
+git -C "/Users/developer/Documents/yia-worktrees/task-004" branch --show-current
+git -C "/Users/developer/Documents/yia-worktrees/task-004" rev-parse HEAD
+git -C "/Users/developer/Documents/yia-worktrees/task-004" status --short
+git -C "/Users/developer/Documents/yia-worktrees/task-004" diff --name-status f34cbb09d628ebb256bf5f2895adfd10dbd61812...30932e1742e948683f9e1c0f63236451b8d731bd
+git -C "/Users/developer/Documents/yia-worktrees/task-004" diff --name-status dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176...30932e1742e948683f9e1c0f63236451b8d731bd
 git diff --cached --check
 git diff --cached --name-only
 ```

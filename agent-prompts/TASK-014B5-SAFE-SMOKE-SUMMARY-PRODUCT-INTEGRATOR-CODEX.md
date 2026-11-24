@@ -9,7 +9,7 @@ Task: TASK-014B5 — safe smoke summary output
 Role: Product Integrator
 Control-plane baseline: main@6ceaca1431205880f6acd0aed466b9a5d28f0e17
 Execution main: dynamic clean main at the single-parent acceptance authorization commit containing this prompt; it must descend from the control-plane baseline and contain no unreviewed product changes
-Accepted source worktree: /Users/hua/Documents/yia-worktrees/task-014b5-safe-smoke-summary
+Accepted source worktree: /Users/developer/Documents/yia-worktrees/task-014b5-safe-smoke-summary
 Accepted source branch: codex/task-014b5-safe-smoke-summary
 Accepted source / Reviewer APPROVE evidence: 72322e213c0aae604b53ec4addae98031885ed0f
 Required sole parent of review evidence: ce4b47226c6ed40d1a0f2852eaaa74f23a1be7e1

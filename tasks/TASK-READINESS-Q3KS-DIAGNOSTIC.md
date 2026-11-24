@@ -13,7 +13,7 @@ No production qualification, receipts, other cases, paid cloud, or owner data.
 ## Assignment
 
 - Implementer: `/root/model_diagnostic_qa_writer`.
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-model-diagnostic`.
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-model-diagnostic`.
 - Base: existing clean QA branch, record its exact HEAD before modification.
 - Reviewer: `/root/long_completion_review_r1`, after implementer clean STOP.
 - Root: freeze exact request/manifest/package, resource and ownership checks,
@@ -40,7 +40,7 @@ directory. Third-party Unsloth standard Q3_K_S, Apache-2.0, fixed source revisio
 `3885219b6810b007914f3a7950a8d1b469d598a5`; not an official Ollama artifact.
 
 Isolated directory:
-`/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q3ks-20261024`.
+`/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q3ks-20261024`.
 Daemon `127.0.0.1:11438`, store `models`, no cloud, one loaded model/parallel slot.
 Tag `intelligence-qwen35-9b-text-q3ks:3885219b`.
 Manifest `4070000a6455cb321fd5f0f07974368573e66650db4ade1e920ee384f3f279f7`.

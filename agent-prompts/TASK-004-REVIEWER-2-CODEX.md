@@ -6,7 +6,7 @@
 
 - Task: `TASK-004`
 - Role: `Reviewer`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-004`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-004`
 - Branch: `grok/task-004-discovery-metadata`
 - Product base: `dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176`
 - Reviewed source head: `30932e1742e948683f9e1c0f63236451b8d731bd`
@@ -15,7 +15,7 @@
 - Implementer 已停止写入；开始审查时 source worktree 必须干净
 - TASK-003 已 `ACCEPTED`，不得读取、写入、检查、清理或等待其 worktree
 
-控制面文档必须从 main `/Users/hua/Documents/youtubek agent` 读取；TASK-004 source worktree 只用于代码、测试和本任务 handoff。完整读取：
+控制面文档必须从 main `/Users/developer/Documents/youtubek agent` 读取；TASK-004 source worktree 只用于代码、测试和本任务 handoff。完整读取：
 
 1. `AGENTS.md`
 2. `docs/COLLABORATION.md`
@@ -50,7 +50,7 @@ git diff --name-status dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176...30932e1742e948
 git diff --name-status f34cbb09d628ebb256bf5f2895adfd10dbd61812...30932e1742e948683f9e1c0f63236451b8d731bd
 ```
 
-必须处于 `grok/task-004-discovery-metadata`，HEAD 精确为 `30932e1...`，worktree 干净，身份为 `Mozhu <huangbuqubunao@gmail.com>`，`user.useConfigOnly=true`。确认链 `392edfb... -> 10f5ffa... -> 9db800f... -> f34cbb... -> 30932e1...` 连续可达；correction 3 相对 `f34cbb...` 精确只改 5 个文件。任何条件不符即停止，不写 handoff。
+必须处于 `grok/task-004-discovery-metadata`，HEAD 精确为 `30932e1...`，worktree 干净，身份为 `Mozhu <maintainer@example.invalid>`，`user.useConfigOnly=true`。确认链 `392edfb... -> 10f5ffa... -> 9db800f... -> f34cbb... -> 30932e1...` 连续可达；correction 3 相对 `f34cbb...` 精确只改 5 个文件。任何条件不符即停止，不写 handoff。
 
 ## 范围、复用和红线
 

@@ -1,10 +1,10 @@
 # TASK-006 Correction 2 — Codex Implementer
 
-You are the original Codex Implementer in `/Users/hua/Documents/yia-worktrees/task-006` on `codex/task-006-local-transcription`.
+You are the original Codex Implementer in `/Users/developer/Documents/yia-worktrees/task-006` on `codex/task-006-local-transcription`.
 
 - Common base: `6b4d59c882ccdcbd0e5a6069a6661e0672921a80`
 - Start/sole-parent evidence: `47599db196b1b9440de3ae57ec3547935f64b1dc`
-- Main authority: `git -C '/Users/hua/Documents/youtubek agent' log -1 --format=%H -- agent-prompts/TASK-006-CORRECTION-2-CODEX.md` resolves to the authorization commit; TASK-006 must be `IN_PROGRESS`.
+- Main authority: `git -C '/Users/developer/Documents/youtubek agent' log -1 --format=%H -- agent-prompts/TASK-006-CORRECTION-2-CODEX.md` resolves to the authorization commit; TASK-006 must be `IN_PROGRESS`.
 
 Do not access TASK-007. Stop on dirty source, wrong state/parent, scope expansion, dependency/lock change, secret or real-resource action.
 

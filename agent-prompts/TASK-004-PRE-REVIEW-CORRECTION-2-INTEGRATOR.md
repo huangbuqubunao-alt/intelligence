@@ -9,7 +9,7 @@
 - Role: `Status Integrator`
 - Main base: `main@290b8a27e21e1c1dcb6022c57205acaf7e17713e`
 - TASK-004 source: `grok/task-004-discovery-metadata@10f5ffaaa3e8651a02e2f94c1736b8417acf3021`
-- TASK-004 source worktree: `/Users/hua/Documents/yia-worktrees/task-004`
+- TASK-004 source worktree: `/Users/developer/Documents/yia-worktrees/task-004`
 - TASK-004 status: `IN_PROGRESS`；Codex Reviewer 未启动
 - TASK-003 worktree 有进行中的未提交实现是预期状态；不得读取、写入、检查、清理、暂存它，也不得用它作为本轮阻塞条件。
 
@@ -41,7 +41,7 @@ main 上仅允许暂存/提交以下 5 个文件：
 2. TASK-004 source 必须干净并正好为 `10f5ffa...`；其相对 `dcc7d85...` 的完整范围必须仍在原 TASK-004 的 17 文件集合内。
 3. 首轮修复未解决 P1 的理由必须一致：非私有 `map_info_dict_to_video_metadata(info: object)` 与公开 `ydl_factory`/`last_opts` 测试注入不能由 `__all__` 或 `object` 包装豁免。
 4. TASK-004 必须保持 `IN_PROGRESS`；不得启动 Reviewer。TASK-003 继续 `IN_PROGRESS` 且不触碰。
-5. Git 身份必须为 `Mozhu <huangbuqubunao@gmail.com>` 且 `user.useConfigOnly=true`。
+5. Git 身份必须为 `Mozhu <maintainer@example.invalid>` 且 `user.useConfigOnly=true`。
 
 ## 检查与提交
 

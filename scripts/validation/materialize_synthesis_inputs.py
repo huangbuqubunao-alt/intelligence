@@ -60,7 +60,7 @@ from youtube_intel.synthesis_runtime import (
 )
 
 REPO = Path(__file__).resolve().parents[2]
-ROOT = Path('/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness')
+ROOT = Path('/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness')
 SEED = ROOT / '.var/antigravity-root-review-20261030/real43-source'
 ORACLE = ROOT / 'docs/validation/end-to-end-user-readiness/SYNTHESIS_INPUT_ORACLE_DRAFT_2026_11_04.md'
 PRICE_RECHECK = ROOT / 'docs/validation/end-to-end-user-readiness/KIMI_OFFICIAL_RECHECK_2026_11_04.md'

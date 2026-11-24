@@ -1,6 +1,6 @@
 # TASK-006 acceptance / final integration authorization sync
 
-Role: Status Integrator. Work only in `/Users/hua/Documents/youtubek agent`.
+Role: Status Integrator. Work only in `/Users/developer/Documents/youtubek agent`.
 
 This is a control-plane-only task. Record the fourth independent Reviewer approval, move
 TASK-006 to `ACCEPTED`, and authorize the separate Product Integrator packet. Do not run
@@ -10,9 +10,9 @@ access the TASK-007 source worktree.
 ## Fixed inputs
 
 - Required main: `main@3a6d0c38b0869622581e4f763371147c6c30d2d9`
-- Git identity: `Mozhu <huangbuqubunao@gmail.com>`
+- Git identity: `Mozhu <maintainer@example.invalid>`
 - `user.useConfigOnly=true`
-- Source worktree: `/Users/hua/Documents/yia-worktrees/task-006`
+- Source worktree: `/Users/developer/Documents/yia-worktrees/task-006`
 - Source branch: `codex/task-006-local-transcription`
 - Accepted review evidence: `f00209c8018a9e728d9f6509f0ae70067fa33676`
 - Reviewed Correction 3: `548338978b8656db0c650be276f847850af940a1`

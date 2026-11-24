@@ -2,7 +2,7 @@ node:internal/modules/esm/resolve:275
     throw new ERR_MODULE_NOT_FOUND(
           ^
 
-Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/Users/hua/Documents/yia-worktrees/frontend/node_modules/playwright-core/index.mjs' imported from /Users/hua/Documents/yia-worktrees/waiting-model-final-fix/docs/validation/waiting-model-final-fix/gui_acceptance.mjs
+Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/Users/developer/Documents/yia-worktrees/frontend/node_modules/playwright-core/index.mjs' imported from /Users/developer/Documents/yia-worktrees/waiting-model-final-fix/docs/validation/waiting-model-final-fix/gui_acceptance.mjs
     at finalizeResolution (node:internal/modules/esm/resolve:275:11)
     at moduleResolve (node:internal/modules/esm/resolve:861:10)
     at defaultResolve (node:internal/modules/esm/resolve:985:11)
@@ -11,7 +11,7 @@ Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/Users/hua/Documents/yia-workt
     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:320:38)
     at ModuleJob._link (node:internal/modules/esm/module_job:182:49) {
   code: 'ERR_MODULE_NOT_FOUND',
-  url: 'file:///Users/hua/Documents/yia-worktrees/frontend/node_modules/playwright-core/index.mjs'
+  url: 'file:///Users/developer/Documents/yia-worktrees/frontend/node_modules/playwright-core/index.mjs'
 }
 
 Node.js v22.22.3

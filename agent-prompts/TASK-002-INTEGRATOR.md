@@ -11,8 +11,8 @@
 - Agent: 原 Integrator 会话
 - Acceptance anchor: `main@1d8d16115173297aecb04a1a2ecfc2dc2927e3ff`
 - Required execution base: main 当前干净 HEAD，且必须是 anchor 的单父后继、相对 anchor 只新增本文件与 `TASK-002-INTEGRATOR-PACKET-SYNC.md`
-- Main worktree: `/Users/hua/Documents/youtubek agent`
-- Source worktree: `/Users/hua/Documents/yia-worktrees/task-002`，只读
+- Main worktree: `/Users/developer/Documents/youtubek agent`
+- Source worktree: `/Users/developer/Documents/yia-worktrees/task-002`，只读
 - Source branch: `grok/task-002-config-domain-contracts`
 - Accepted source/review head: `d98de3537187ac346e404d7899d0a9d90c228483`
 - Reviewed implementation source: `8f50df2f7e93d778f32947ca471740b6713c9aff`
@@ -52,12 +52,12 @@ git diff --name-status 1d8d16115173297aecb04a1a2ecfc2dc2927e3ff..HEAD
 在 source worktree 只读确认：
 
 ```bash
-git -C "/Users/hua/Documents/yia-worktrees/task-002" branch --show-current
-git -C "/Users/hua/Documents/yia-worktrees/task-002" rev-parse HEAD
-git -C "/Users/hua/Documents/yia-worktrees/task-002" status --short
-git -C "/Users/hua/Documents/yia-worktrees/task-002" rev-list --parents -n 1 d98de3537187ac346e404d7899d0a9d90c228483
-git -C "/Users/hua/Documents/yia-worktrees/task-002" diff --name-status 8f50df2f7e93d778f32947ca471740b6713c9aff..d98de3537187ac346e404d7899d0a9d90c228483
-git -C "/Users/hua/Documents/yia-worktrees/task-002" diff --check 46f8497e771e1461034942dd7967f19d85f79f81...d98de3537187ac346e404d7899d0a9d90c228483
+git -C "/Users/developer/Documents/yia-worktrees/task-002" branch --show-current
+git -C "/Users/developer/Documents/yia-worktrees/task-002" rev-parse HEAD
+git -C "/Users/developer/Documents/yia-worktrees/task-002" status --short
+git -C "/Users/developer/Documents/yia-worktrees/task-002" rev-list --parents -n 1 d98de3537187ac346e404d7899d0a9d90c228483
+git -C "/Users/developer/Documents/yia-worktrees/task-002" diff --name-status 8f50df2f7e93d778f32947ca471740b6713c9aff..d98de3537187ac346e404d7899d0a9d90c228483
+git -C "/Users/developer/Documents/yia-worktrees/task-002" diff --check 46f8497e771e1461034942dd7967f19d85f79f81...d98de3537187ac346e404d7899d0a9d90c228483
 ```
 
 source 必须为指定分支与 HEAD、工作树干净；review commit 的父提交为 `8f50df2...` 且只修改 `handoffs/TASK-002.md`。

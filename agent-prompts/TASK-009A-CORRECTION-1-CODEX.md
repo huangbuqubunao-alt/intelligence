@@ -4,12 +4,12 @@
 
 ## 固定上下文
 
-- Worktree/branch：`/Users/hua/Documents/yia-worktrees/task-009a` / `codex/task-009a-obsidian-note-shared-contracts`
+- Worktree/branch：`/Users/developer/Documents/yia-worktrees/task-009a` / `codex/task-009a-obsidian-note-shared-contracts`
 - Starting review evidence：`f73b28756c371d80fb7525bd7e4defb6b82b1a3c`
 - Reviewed implementation：`75158be08d6442a7b18099f459654e9da86ebcee`
 - Original base：`e4271e41910bba54b37b48df709dcf632fe3b0eb`
 - Main dynamic authorization：
-  `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-009A-CORRECTION-1-CODEX.md`
+  `git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-009A-CORRECTION-1-CODEX.md`
   必须解析为含 TASK-009A=`IN_PROGRESS` 的当前 main 提交。
 
 source 中旧任务卡状态是固定快照；main 控制面和本包才是当前授权。若 source HEAD/父链、main 授权、范围或工作树不符，立即 `BLOCKED`。

@@ -1,7 +1,7 @@
 # TASK-006 Correction 3 — Codex Implementer
 
 You are the original Codex Implementer. Work only in
-`/Users/hua/Documents/yia-worktrees/task-006` on branch
+`/Users/developer/Documents/yia-worktrees/task-006` on branch
 `codex/task-006-local-transcription`.
 
 ## Authority and start gate
@@ -9,7 +9,7 @@ You are the original Codex Implementer. Work only in
 - Common base: `6b4d59c882ccdcbd0e5a6069a6661e0672921a80`.
 - Required start/head: `66f0b31023c290d76e2c14bea72d1cc103cc27c7`; its sole parent must be
   `51b308828a6f2c433a9b4e92fb4a24e042f55d77`.
-- Main authority: from `/Users/hua/Documents/youtubek agent`,
+- Main authority: from `/Users/developer/Documents/youtubek agent`,
   `git log -1 --format=%H -- agent-prompts/TASK-006-CORRECTION-3-CODEX.md` must resolve to
   the active authorization commit, and main TASK-006 must be `IN_PROGRESS`.
 

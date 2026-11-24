@@ -4,7 +4,7 @@
 
 - Role: QA Implementer `/root/model_setup_catalog_bound`。
 - Base: `d61752bec647a93e7d255a51c639bbd1d85894a3`。
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-iq2m-diagnostic`。
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-iq2m-diagnostic`。
 - Branch: `codex/task-readiness-iq2m-diagnostic`。
 - Reported: 2026-10-25 Asia/Shanghai；建议 IN_REVIEW，作者 clean STOP。
 - 实际修改仅 own `.var/model-diagnostic-iq2m/` 私有 QA 与本 tracked handoff；Git没有业务代码差异，不合并/发布/改任务状态。
@@ -13,7 +13,7 @@
 
 ## 复用与最小差异
 
-DIRECT 复制原已审 Q3 nonthinking135测试/harness，源 `/Users/hua/Documents/yia-worktrees/readiness-q3ks-mode-only-diagnostic/.var/model-diagnostic-q3ks-nonthinking/diagnostic.py` SHA `3fd9a63a6abdbd050552d2d980a36a2030f732ec415f967284fa23b85d8aa9fe`。原文件、两测试、实际ARM64 header与旧配对owner共5项hash完全保留；仅在本WT复制，不编辑原实验。
+DIRECT 复制原已审 Q3 nonthinking135测试/harness，源 `/Users/developer/Documents/yia-worktrees/readiness-q3ks-mode-only-diagnostic/.var/model-diagnostic-q3ks-nonthinking/diagnostic.py` SHA `3fd9a63a6abdbd050552d2d980a36a2030f732ec415f967284fa23b85d8aa9fe`。原文件、两测试、实际ARM64 header与旧配对owner共5项hash完全保留；仅在本WT复制，不编辑原实验。
 
 沿用标准库和已批准 pytest/Ruff/.venv，未安装依赖或复制新第三方代码。原四权重/blob/manifest/config/relative-reference、文件identity、真实ARM64/main映射、PS日期padding但完整owner、version/source/三binary、runner flags/parent/listener/slot/lease/once/TTL/boundedHTTP/原始失败body/无隐式重试全部保留。原生false common-prefix及精确assistant suffix、完整新tokenize N、N+8192+2<=实际16384保持，不能复用720/722。
 
@@ -21,7 +21,7 @@ DIRECT 复制原已审 Q3 nonthinking135测试/harness，源 `/Users/hua/Documen
 
 ## 实际artifact来源与验证边界
 
-采用root已经完整验证的 `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-udiq2m-20261025/root-artifact-verification.json`、actual-show.json、actual-tags.json、daemon-owner.json、download-verified.json；本作者仅读取并hash绑定小元数据文件，零HTTP/零加载/零生成。原下载部分不作为权威，未用quantizer help猜标签。
+采用root已经完整验证的 `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-udiq2m-20261025/root-artifact-verification.json`、actual-show.json、actual-tags.json、daemon-owner.json、download-verified.json；本作者仅读取并hash绑定小元数据文件，零HTTP/零加载/零生成。原下载部分不作为权威，未用quantizer help猜标签。
 
 - MODEL：`intelligence-qwen35-9b-udiq2m:3885219b`；STORE：同目录 `/models`。
 - Manifest：SHA `2bd925165e77bf81c231c7f777503d86900f37ba8c42ae8f2082a699a8327f98`，**782B**（旧780不可复用）。
@@ -72,12 +72,12 @@ DIRECT 复制原已审 Q3 nonthinking135测试/harness，源 `/Users/hua/Documen
 Root唯一实际命令模板（包路径与完整hash替换为独审冻结的具体值，作者未执行）：
 
 ```sh
-PYTHONPATH=/Users/hua/Documents/yia-worktrees/readiness-iq2m-diagnostic/src \
-/Users/hua/Documents/yia-worktrees/readiness-iq2m-diagnostic/.venv/bin/python \
-/Users/hua/Documents/yia-worktrees/readiness-iq2m-diagnostic/.var/model-diagnostic-iq2m/diagnostic.py \
+PYTHONPATH=/Users/developer/Documents/yia-worktrees/readiness-iq2m-diagnostic/src \
+/Users/developer/Documents/yia-worktrees/readiness-iq2m-diagnostic/.venv/bin/python \
+/Users/developer/Documents/yia-worktrees/readiness-iq2m-diagnostic/.var/model-diagnostic-iq2m/diagnostic.py \
 --package <ROOT_NEW_CONCRETE_PACKAGE_ABSOLUTE_PATH> \
 --package-sha256 <ROOT_NEW_CONCRETE_PACKAGE_FULL_SHA256> \
---output /Users/hua/Documents/yia-worktrees/readiness-iq2m-diagnostic/.var/model-diagnostic-iq2m/real-once-20261025 --execute
+--output /Users/developer/Documents/yia-worktrees/readiness-iq2m-diagnostic/.var/model-diagnostic-iq2m/real-once-20261025 --execute
 ```
 
 ## 风险、审查与停止

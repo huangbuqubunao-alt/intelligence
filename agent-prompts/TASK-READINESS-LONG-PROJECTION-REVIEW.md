@@ -1,7 +1,7 @@
 Task TASK-READINESS-LONG-MODEL-PROJECTION independent review
 Role Reviewer; Agent subtitle_recovery_preflight_oct19; no product author role.
 Base fe4cfba56bb981c917c218747f54f1aeffd4ed8e; candidate 4c455826e0c8063952bf5b5bb3b6018084a95a96.
-Worktree /Users/hua/Documents/yia-worktrees/readiness-long-projection-review
+Worktree /Users/developer/Documents/yia-worktrees/readiness-long-projection-review
 Branch codex/task-readiness-long-projection-review
 Allowed scope: read full diff and authoritative task/spec, run meaningful independent tests/static and adversarial private probes; only new handoffs/TASK-READINESS-LONG-PROJECTION-REVIEW.md may be written/committed. Do not edit candidate product/tests or resolve findings yourself.
 Reuse DIRECT accepted codec, pure typed values, fixed accepted prompt/stdlib; no new dependency. Concurrent tracked40 sole shared-core writer, projection author clean STOP. No real DB/source/holdout/thinking/tokenizer/network/model IO in review.

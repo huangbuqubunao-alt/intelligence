@@ -4,7 +4,7 @@
 
 - Role: Implementer; agent: `native_scan_resume`.
 - Base: `c4a60f42e2a7f9caf6c31f9c02eb72c7792bfa44` (verified before writing).
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-backup-picker-filter`.
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-backup-picker-filter`.
 - Branch: `codex/task-readiness-backup-picker-filter`.
 - Reported: 2026-10-16; implementation commit is the commit containing this report.
 - Suggested state: `IN_REVIEW`; author STOP after commit. No main merge/public status update.

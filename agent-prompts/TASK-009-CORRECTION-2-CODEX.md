@@ -4,8 +4,8 @@
 
 ## 动态授权与固定对象
 
-- Main authorization：`git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-009-CORRECTION-2-CODEX.md` 必须解析为本 Correction 2 控制面提交，且 main 中 TASK-009=`IN_PROGRESS`。
-- Worktree/branch：`/Users/hua/Documents/yia-worktrees/task-009` / `codex/task-009-obsidian-notes`。
+- Main authorization：`git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-009-CORRECTION-2-CODEX.md` 必须解析为本 Correction 2 控制面提交，且 main 中 TASK-009=`IN_PROGRESS`。
+- Worktree/branch：`/Users/developer/Documents/yia-worktrees/task-009` / `codex/task-009-obsidian-notes`。
 - 起始 source HEAD：`f4a231b503ea6c1a25bf73c7d8aa584147cbdc03`，唯一父为 Correction 1 `60ed077452faf5fe41b105b21b4221f89cb6e02c`；worktree 必须干净，不能有 `.codebase-memory/` 或其他工件。
 - 分配前 base：`473119704c7638d7afd4e68d84d00e85064ceabd`。source 任务卡/项目状态的旧 `BLOCKED/UNASSIGNED` 是历史快照；不得修改它们。
 

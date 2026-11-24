@@ -11,7 +11,7 @@ Task: TASK-014B11 — safe subtitle directory contract-state diagnostics
 Role: Product Integrator
 Control-plane baseline: main@95fa9e41d34086434ef10a425bc418a782f43196
 Execution base: dynamic exact clean main HEAD at the new single-parent acceptance authorization commit containing this prompt; it must have 95fa9e41d34086434ef10a425bc418a782f43196 as sole parent and contain only the synchronized acceptance control-plane Markdown change
-Accepted source worktree: /Users/hua/Documents/yia-worktrees/task-014b11-safe-directory-contract-diagnostics
+Accepted source worktree: /Users/developer/Documents/yia-worktrees/task-014b11-safe-directory-contract-diagnostics
 Accepted source branch: codex/task-014b11-safe-directory-contract-diagnostics
 Accepted source / Reviewer 2 evidence HEAD: f57b21ce8a9369e9f11e4dab200f5d3dc9fa162d
 Required sole parent of Reviewer 2 evidence: ed250baf752182adbc4d98f5271d34995865d192

@@ -4,7 +4,7 @@
 
 - Role: Implementer `/root/qa_launch_isolation`; reported 2026-11-05.
 - Base: `893909e304c94abbf10eb955207012b514b1b2c5`.
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-passive-settings-admission`.
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-passive-settings-admission`.
 - Branch: `codex/readiness-passive-settings-admission`.
 - Commit: this scoped commit; exact SHA returned to Root after commit.
 - Goal: a single ordinary settings mutation waits for this instance's known passive readiness inspection instead of returning a false model-configuration 409. True maintenance and unknown execution/lock conditions remain fail-closed.
@@ -35,7 +35,7 @@ Owned evidence directory: `.var/passive-settings-admission/` (ignored, retained 
 | `compileall -q` changed source/test files | PASS | exit 0 |
 | `git diff --check` | PASS | exit 0 |
 
-Commands (venv Python is `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`):
+Commands (venv Python is `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`):
 
 ```sh
 PYTHONPATH=src "$PYTHON" -m pytest tests/integration/test_local_intelligence_settings.py tests/unit/test_backup_restore.py tests/unit/test_qa_launch_isolation.py tests/unit/test_synthesis_runtime.py tests/unit/test_cloud_spending_policy.py tests/unit/test_task016c_phase_h1_admission.py -q

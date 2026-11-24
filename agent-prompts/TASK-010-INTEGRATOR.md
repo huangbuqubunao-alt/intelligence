@@ -4,14 +4,14 @@
 
 ## 固定对象
 
-- Acceptance/execution base：main 最新提交必须由 `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-010-INTEGRATOR.md` 解析为本授权提交。
-- Source：`/Users/hua/Documents/yia-worktrees/task-010` / `codex/task-010-orchestration-recovery@e12af35b903705d782538617469da0c8a71671e9`。
+- Acceptance/execution base：main 最新提交必须由 `git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-010-INTEGRATOR.md` 解析为本授权提交。
+- Source：`/Users/developer/Documents/yia-worktrees/task-010` / `codex/task-010-orchestration-recovery@e12af35b903705d782538617469da0c8a71671e9`。
 - Source review evidence：`e12af35b...` 唯一父为 Correction 1 `b4c97bed...`，且只修改 source handoff，Verdict=`APPROVE`、P0–P3=0。
 - Original source base：`227bdeba3a4d9ddd57231b123bfdc4a2038af3d3`；完整允许范围严格为 `pipeline.py`、`jobs.py`、`retry.py`、两份集成测试与 source handoff。
 
 ## 合并与验证
 
-1. 核验 main/source 均干净、身份为 `Mozhu <huangbuqubunao@gmail.com>` 且 `user.useConfigOnly=true`，父链、review handoff-only scope、完整六路径 Diff 和 `git diff --check` 全部正确；禁止领域/配置、`state.py`、Schema/migration、Provider、CLI、依赖/锁或其他任务变更。
+1. 核验 main/source 均干净、身份为 `Mozhu <maintainer@example.invalid>` 且 `user.useConfigOnly=true`，父链、review handoff-only scope、完整六路径 Diff 和 `git diff --check` 全部正确；禁止领域/配置、`state.py`、Schema/migration、Provider、CLI、依赖/锁或其他任务变更。
 2. 以 `--no-ff` 合并固定 source；不得 fast-forward、cherry-pick、rebase 或手动改冲突。创建 merge commit 前，暂存差异必须只含六个路径并通过 `git diff --cached --check`。
 3. 复跑 `uv lock --check`、`uv sync --locked`、两份 TASK-010 集成测试、全量 pytest、mypy、Ruff、CLI help、`uv build --offline`、sdist/wheel migration/template inclusion。
 4. 验证 first-parent Diff 精确六路径、merge 有正确两个父提交且 source 成为 main 祖先。构建产物如已忽略，只可精确清理本轮产生的 `dist/` 文件，不能清理预存用户文件。

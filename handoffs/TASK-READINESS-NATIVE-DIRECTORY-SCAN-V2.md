@@ -5,7 +5,7 @@
 - Task: `TASK-READINESS-NATIVE-DIRECTORY-SCAN-V2`
 - Role: Implementer，恢复中断实现；独立 Reviewer 由 root 安排。
 - Base: `68fb4468ad4114699debc05741471c9aa47c3f76`
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-native-directory-scan-v2`
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-native-directory-scan-v2`
 - Branch: `codex/task-readiness-native-directory-scan-v2`
 - 报告日期: 2026-10-15；实现和本交接同一提交，精确 SHA 由最终回传的 `git rev-parse HEAD` 记录。
 - 任务/授权: task card、对应 agent-prompts、`NATIVE_DIRECTORY_BOUNDED_SCAN_V2_PLAN.md`、`CONTINUING_AUTHORIZATION_2026_10_15.md`。未修改公共任务状态或自行接受/合并。
@@ -67,7 +67,7 @@ PYTHONPATH=src:. .venv/bin/python -m pytest -q
 
 - 写入前保存原 dirty 二文件完整 binary diff：`interrupted-exact.patch`。复用已有 `.venv` symlink，不安装依赖；无 reset/clean/delete。
 - 原作者证据从 `/tmp` 原样复制到本忽略目录：`native-scan-v2-tdd-red.log` 为旧实现 13 FAIL/46 PASS；`native-scan-v2-green-focused.log` 为 220 PASS/1 FAIL（旧 4,097 拒绝断言），没有把历史失败改写为 PASS。
-- 恢复后的无 `PYTHONPATH` 命令误导入 `/Users/hua/youtube-intel`，221 个 fixture setup errors：`ModuleNotFoundError: No module named 'youtube_intel.model_settings'`，`tests/conftest.py:18`；见 `initial-focused-pytest.log`。明确绑定当前 `src` 后解决，未改 fixture/配置/依赖。
+- 恢复后的无 `PYTHONPATH` 命令误导入 `/Users/developer/youtube-intel`，221 个 fixture setup errors：`ModuleNotFoundError: No module named 'youtube_intel.model_settings'`，`tests/conftest.py:18`；见 `initial-focused-pytest.log`。明确绑定当前 `src` 后解决，未改 fixture/配置/依赖。
 - 绑定当前源码后的首次 220 PASS/1 FAIL：`test_directory_raw_entry_scan_remains_finitely_bounded`、原 line 918、`DID NOT RAISE TranscriptError`，见 `focused-pytest.log`。旧策略断言与批准的 v2 冲突，停止重复同一断言，按方案改为 32,769 负控并保留 4,097 正控。
 - 基于 `git show HEAD:.../subtitles.py` 在独立测试进程加载 base 模块，新增场景确认 14 FAIL/6 PASS：`baseline-red.log`；不覆盖 worktree 文件、不改历史。
 - 本次发现未知 `range(3)` 被继承补丁接受：先红 1 FAIL/5 PASS，收紧未知数组后 6 PASS；日志 `non-json-sequence-red.log`、`non-json-sequence-green.log`。

@@ -20,7 +20,7 @@ from phase9r_profiles import MATRIX, boundaries, decode_chunks
 from youtube_intel.acoustic_scoring import coverage, score, utterance_recalls
 from youtube_intel.offline_transcription import validate_result
 
-MODEL = Path('/Users/hua/Documents/yia-worktrees/v1x-acoustic-qualification/.var/phase9/models/whisper-large-v3-turbo/a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb')
+MODEL = Path('/Users/developer/Documents/yia-worktrees/v1x-acoustic-qualification/.var/phase9/models/whisper-large-v3-turbo/a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb')
 
 
 def nonfinite(value, path='$'):

@@ -1,7 +1,7 @@
 # TASK-READINESS-BOUNDED-SYNTHESIS-TRIAL — Implementer handoff
 
 - Role: Implementer `/root/schema44_guard_resume`; Root owns review, real grants/calls and semantic/adoption decisions.
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-bounded-synthesis-trial`
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-bounded-synthesis-trial`
 - Branch: `codex/readiness-bounded-synthesis-trial`
 - Base: `893909e304c94abbf10eb955207012b514b1b2c5`
 - Status: IN_REVIEW, implementation/checks complete; Root acceptance and all real qualification remain pending.
@@ -24,14 +24,14 @@ Preserved development evidence. Initial RED: missing runner caused FileNotFoundE
 
 ## Scope and test corrections during Root's single delta review
 
-- Preserved full first-run new-test failure: 44 PASS / 1 FAIL, 116.52s (Root independently 44 PASS / 1 FAIL, 120.83s, `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/root-review-20261105/bounded-trial-tests.log`). The new wire test incorrectly expected the entire checkpoints table to contain one row; the public seed actually retained five legitimate prior checkpoints. Product safely made the failed fake-wire assertion AMBIGUOUS/count1. Fixed only the new test to bind exact execution/proof and compare all prior checkpoint/authorization rows unchanged. An intermediate test typo used `proof_sha256` instead of actual authorization column `verified_input_hash`; read-only inspection of the owned test DB identified it, then scoped single test passed in 5.90s. No history/assertion/product rule was deleted or loosened.
+- Preserved full first-run new-test failure: 44 PASS / 1 FAIL, 116.52s (Root independently 44 PASS / 1 FAIL, 120.83s, `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/root-review-20261105/bounded-trial-tests.log`). The new wire test incorrectly expected the entire checkpoints table to contain one row; the public seed actually retained five legitimate prior checkpoints. Product safely made the failed fake-wire assertion AMBIGUOUS/count1. Fixed only the new test to bind exact execution/proof and compare all prior checkpoint/authorization rows unchanged. An intermediate test typo used `proof_sha256` instead of actual authorization column `verified_input_hash`; read-only inspection of the owned test DB identified it, then scoped single test passed in 5.90s. No history/assertion/product rule was deleted or loosened.
 - Positive qualification-entry test initially indexed the existing `(tables,files)` inventory tuple as a dict; corrected to exact file-map equality. Actual positive admission and original receipt had already succeeded. Initial strict errors and new-test construction failures are not represented as product failures or model quality results.
 - Root found the first new unit tests depended on owner's untracked hardcoded r4/seed paths. New module fixture now builds eight owned synthetic stored sources under `tmp_path_factory`, using existing domain/proof/runtime/materializer/BackupRestore APIs. It also seeds three cancelled WAIT0 and two fake-wire NO_NEW histories via the existing lifecycle, preserving a nonempty five-checkpoint/two-authorization regression. Every read/inventory of an original `/.var/` path is forced to raise in these unit tests. Only test package/manifest/seed/order and exact synthetic reserve totals are injected; hash verification, ordinary composition/review, claims, ledger, receipts and admission remain real. No skip/mock of core validation. Fake price documents explicitly say NOT OFFICIAL PRICING EVIDENCE. Product 9-new/11-total/9-CNY limits and real 8513122-microCNY estimate remain separately asserted unchanged.
 - This fixture correction changes tests only; Root's independently verified real r4 replay and official supplementary evidence remain separate local QA evidence. Synthetic technical PASS/semantic test decisions never qualify a real model.
 
 ## Actual checks
 
-Existing Python: `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`; cwd is this worktree and runtime `PYTHONPATH=src` (strict uses `MYPYPATH=src:tests`).
+Existing Python: `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`; cwd is this worktree and runtime `PYTHONPATH=src` (strict uses `MYPYPATH=src:tests`).
 
 - `python -m pytest -q tests/unit/test_synthesis_runtime.py tests/unit/test_system_synthesis_persistence.py tests/unit/test_moonshot_distillation_adapter.py tests/unit/test_system_synthesis.py`: **142 PASS, 68.60s**. No production logic changed after this run.
 - Corrected portable fixture + full prior-history reservation test: **1 PASS, 27.59s**, including generation/restore of all eight owned inputs.

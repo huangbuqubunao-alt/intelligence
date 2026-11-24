@@ -45,14 +45,14 @@ TASK-014 仍不得标为 `DONE` 或发布批准。
 
 TASK-014 Phase B-1 旧的最终真实公开字幕 smoke 已 `FAIL`：`--khbXchTeE`、`JTxsNm9IdYU` 各完成一次元数据和字幕目录读取，
 但均在正文读取前 `INVALID_RESPONSE` 失败，正文读取均为零；没有认证、媒体、用户数据或重试。唯一 B-1 evidence source 为
-`/Users/hua/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry` / `codex/task-014-phase-b1-console-entry-retry@
+`/Users/developer/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry` / `codex/task-014-phase-b1-console-entry-retry@
 9acab5d876b38d64a9aeab7aca3474be2676ce38`（唯一父提交 `365c8fc...`）。该 evidence 不合并、不写成通过；TASK-014 仍为
 `IN_PROGRESS` / `No-Go`。旧 evidence 不重跑、不合并或复用。已授权但尚未启动的只读后续工作是
 `agent-prompts/PREFLIGHT-TASK-014-PHASE-B1-PUBLIC-SUBTITLE-ADAPTER-COMPATIBILITY-SCOUT.md`：只读比较 Adapter 假设、
 错误映射、离线 Fake/fixture 与真实脱敏 evidence，聊天回传最小修复建议及一次后续验证所需的精确授权。
 本阶段不授权登录/Cookie/API key、真实 Vault、用户数据、媒体下载、ffmpeg、模型、Ollama、OpenAI、付费调用或
 高频重试。唯一新的 auditable directory-only 一次性 execution source 为
-`/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-auditable-execution` /
+`/Users/developer/Documents/yia-worktrees/task-014-phase-b1-directory-only-auditable-execution` /
 `codex/task-014-phase-b1-directory-only-auditable-execution@58f0215aa329b99d74429e8616bb5f8f673ef102`；正式包为
 `agent-prompts/TASK-014-RELEASE-READINESS-PHASE-B1-DIRECTORY-ONLY-AUDITABLE-EXECUTION-CODEX.md`，只授权 B4
 `--directory-only` 与 B5 安全摘要，对两个固定 ID 各一次 1/1/0。TASK-014 继续 `IN_PROGRESS` / `No-Go`；即使成功，

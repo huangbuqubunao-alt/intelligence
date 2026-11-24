@@ -6,7 +6,7 @@
 - Role: `Implementer`
 - Agent/session: Grok Build
 - Base branch/commit: `main@46f8497e771e1461034942dd7967f19d85f79f81`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-002`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-002`
 - Branch: `grok/task-002-config-domain-contracts`
 - Code evidence commit (implementation + pre-review fix): `8492c42b971b01d3aaf4e6cb11e2e5a8210fe46a`
 - Branch tip: see `git rev-parse HEAD` after this handoff commit (not hard-coded here)
@@ -150,7 +150,7 @@ assert sentinel not in str(ConfigError)
 - 复现：
 
 ```bash
-cd /Users/hua/Documents/yia-worktrees/task-002
+cd /Users/developer/Documents/yia-worktrees/task-002
 uv sync --locked
 uv run python -m pytest tests/unit/test_contracts.py
 uv run mypy src
@@ -170,7 +170,7 @@ uv run ruff check .
 
 | 检查 | 结果 |
 |---|---|
-| worktree 路径 | PASS `/Users/hua/Documents/yia-worktrees/task-002` |
+| worktree 路径 | PASS `/Users/developer/Documents/yia-worktrees/task-002` |
 | 分支 | PASS `grok/task-002-config-domain-contracts` |
 | HEAD == source head | PASS `8f50df2…` |
 | 工作树（非 ignored） | PASS 干净 |
@@ -269,5 +269,5 @@ uv run ruff check .
 - Merge parents：`e2aef7cd88f5c0f0f4e323a79234e71ca6a95845`、`d98de3537187ac346e404d7899d0a9d90c228483`
 - 整合后检查：locked sync、focused/full pytest（46/47 passed）、mypy、Ruff、CLI help、cached diff、双父提交和祖先关系全部 `PASS`。
 - 范围：第一父差异精确为批准的 8 个文件；无意外文件。
-- 身份与洁净度：`Mozhu <huangbuqubunao@gmail.com>`；main/source worktree 均干净，source 分支/worktree 保留。
+- 身份与洁净度：`Mozhu <maintainer@example.invalid>`；main/source worktree 均干净，source 分支/worktree 保留。
 - 最终状态：`DONE`

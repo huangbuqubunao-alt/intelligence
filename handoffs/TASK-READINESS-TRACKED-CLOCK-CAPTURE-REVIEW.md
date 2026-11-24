@@ -4,7 +4,7 @@
 
 ## 范围与纪律
 
-- Base `bc306d16289f7cf8938851f05c9b35b9cc4f9781` → candidate `c036847484cc437a20d04e300d960fd4c2047119`；test维护 `f4e3b7f`、产品/新test `2d4a338`、末docs `c036847`。独立WT `/Users/hua/Documents/yia-worktrees/readiness-tracked-clock-capture-review`，branch `codex/review-readiness-tracked-clock-capture`；起点clean、作者clean STOP，原166工作不动。
+- Base `bc306d16289f7cf8938851f05c9b35b9cc4f9781` → candidate `c036847484cc437a20d04e300d960fd4c2047119`；test维护 `f4e3b7f`、产品/新test `2d4a338`、末docs `c036847`。独立WT `/Users/developer/Documents/yia-worktrees/readiness-tracked-clock-capture-review`，branch `codex/review-readiness-tracked-clock-capture`；起点clean、作者clean STOP，原166工作不动。
 - 已读root精确包/最新task、当前8KB PROJECT_STATUS、真实GUI失败与4.683ms clock JSON、作者handoff/合同/evidence及完整61文件diff。使用 code-review-and-quality、git-workflow-and-versioning；图未覆盖新helper/当前源码，fallback固定SHA源。DIRECT既有stdlib/SQLite/managed files/父链/Backup/offline fixtures；无新增外部实现/依赖。Jev因0网络/模型约束不调用。
 - 产品仅五个tracked文件（含新helper），维护24旧tests及1新test；Schema/state.register/旧迁移/依赖/配置/frontend/资格零diff。未删除/skip/弱化断言或CI。review只新增本报告及ignored私有证据；无真实HTTP、模型/tokenizer/ASR/Cloud、owner/凭据、holdout/thinking或原frozen写入。
 - 所有运行以既有root venv，`PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src:tests:.`；打印确认新helper来自本reviewWT。未重复root完整backend或作者566/478大组。
@@ -41,10 +41,10 @@
 | 20份gzip压缩/解压原字节hash、所有loaded source/test hash | PASS |
 | 独立AST84/24及同artifact/精确scope/断言数/root传递审计 | PASS |
 
-私有绝对目录 `/Users/hua/Documents/yia-worktrees/readiness-tracked-clock-capture-review/.var/clock-capture-review/`，含所有脚本、实际log、frozen-parent-proof.json和`evidence-sha256.json`。首次60命令重定向与私有目录创建并行，shell未能创建log、pytest未启动；目录存在后原命令只实际启动一次并通过，launch-note保留，不当产品失败或一次受测结果。其余本轮测试无FAIL。
+私有绝对目录 `/Users/developer/Documents/yia-worktrees/readiness-tracked-clock-capture-review/.var/clock-capture-review/`，含所有脚本、实际log、frozen-parent-proof.json和`evidence-sha256.json`。首次60命令重定向与私有目录创建并行，shell未能创建log、pytest未启动；目录存在后原命令只实际启动一次并通过，launch-note保留，不当产品失败或一次受测结果。其余本轮测试无FAIL。
 
 作者原3clock红、helper首4FAIL、22FAIL/次1FAIL harness与genericfallback真缺口、562PASS/4slice FAIL均保留并分类，20份原gzip hash已独立核对。四份diagnostic receipt明示事后只读snapshot，原即时trace没有raw日志，未伪称原执行日志；独立旧run因果对照、实际root因果字段与fixed60足以支持本修复，无需伪造旧trace。
 
-root完整backend由其唯一session49511在QA `ffcb3ed0bb47a771e161df5a3ed675ef007a8821`执行；相对2d4a338的src/tests仅已接受pure `long_card_canonical.py`与对应test两个新文件。报告恢复时已只读核验root终态：**5334 PASS /1既有SKIP /2既有warnings /1727.97s，pytest exit0**。result的407文件source-before/source-after清单逐项相等、module指向该QA源，完整原log SHA256为 `af9e1890e6bd4a1e62b8678020e7715c8dda60e0e04bb008791519cef9c43083`，与result及根控给定值完全一致。SKIP与重复ZIP/Pydantic construct-bypass警告保留。外证目录 `/Users/hua/Documents/yia-worktrees/readiness-clock-full-qa/.var/clock-full-backend-20261019/`。这是**root的独立全量运行**，本Reviewer未重跑；此前草稿的RUNNING记录现按实际终态更新。full与本review已绿，最终ACCEPT/根控整合由root执行；真实原working stock GUI新command/字幕/timed/Summary/Evidence/重启仍由root做，不写原frozen。前端零diff，无额外Chrome/API；不授模型资格，不代表mixed/长协议或Goal完成。
+root完整backend由其唯一session49511在QA `ffcb3ed0bb47a771e161df5a3ed675ef007a8821`执行；相对2d4a338的src/tests仅已接受pure `long_card_canonical.py`与对应test两个新文件。报告恢复时已只读核验root终态：**5334 PASS /1既有SKIP /2既有warnings /1727.97s，pytest exit0**。result的407文件source-before/source-after清单逐项相等、module指向该QA源，完整原log SHA256为 `af9e1890e6bd4a1e62b8678020e7715c8dda60e0e04bb008791519cef9c43083`，与result及根控给定值完全一致。SKIP与重复ZIP/Pydantic construct-bypass警告保留。外证目录 `/Users/developer/Documents/yia-worktrees/readiness-clock-full-qa/.var/clock-full-backend-20261019/`。这是**root的独立全量运行**，本Reviewer未重跑；此前草稿的RUNNING记录现按实际终态更新。full与本review已绿，最终ACCEPT/根控整合由root执行；真实原working stock GUI新command/字幕/timed/Summary/Evidence/重启仍由root做，不写原frozen。前端零diff，无额外Chrome/API；不授模型资格，不代表mixed/长协议或Goal完成。
 
 **APPROVE，report-only提交后clean STOP。** 不main/push/发布，不改任务状态。

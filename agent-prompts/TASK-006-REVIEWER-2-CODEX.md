@@ -2,8 +2,8 @@
 
 You are a fresh independent Codex Reviewer. Start only after TASK-007 Reviewer has ended.
 
-- Main authority: `git -C '/Users/hua/Documents/youtubek agent' log -1 --format=%H -- agent-prompts/TASK-006-REVIEWER-2-CODEX.md` must resolve to the active authorization, and main TASK-006 must be `IN_REVIEW`.
-- Source: `/Users/hua/Documents/yia-worktrees/task-006`, branch `codex/task-006-local-transcription`, reviewed head `17afcd349827b36e5ba18fb0eab443c1ae5fb53f`, sole parent `f1c15ed6eb854a4a8ed2299bbbf89e1cb6266426`, source clean.
+- Main authority: `git -C '/Users/developer/Documents/youtubek agent' log -1 --format=%H -- agent-prompts/TASK-006-REVIEWER-2-CODEX.md` must resolve to the active authorization, and main TASK-006 must be `IN_REVIEW`.
+- Source: `/Users/developer/Documents/yia-worktrees/task-006`, branch `codex/task-006-local-transcription`, reviewed head `17afcd349827b36e5ba18fb0eab443c1ae5fb53f`, sole parent `f1c15ed6eb854a4a8ed2299bbbf89e1cb6266426`, source clean.
 - Common base: `6b4d59c882ccdcbd0e5a6069a6661e0672921a80`.
 
 Do not read, run checks in, modify, clean, wait on or report TASK-007 worktree. Stop on wrong state, dirty source, unexpected parent/scope, lockfile change, secret or any model/network/media/resource action.

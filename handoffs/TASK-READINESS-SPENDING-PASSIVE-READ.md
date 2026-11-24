@@ -1,6 +1,6 @@
 # Spending settings passive-read admission
 
-Implementer `/root/v3_price_label`, task assigned by Root on 2026-11-07. Worktree `/Users/hua/Documents/yia-worktrees/readiness-spending-passive-read`, branch `codex/readiness-spending-passive-read`, base `18a2121c3364899febf9ff6214afd427ee279e80`. Root owns review, integration and actual browser verification.
+Implementer `/root/v3_price_label`, task assigned by Root on 2026-11-07. Worktree `/Users/developer/Documents/yia-worktrees/readiness-spending-passive-read`, branch `codex/readiness-spending-passive-read`, base `18a2121c3364899febf9ff6214afd427ee279e80`. Root owns review, integration and actual browser verification.
 
 ## Goal and diagnosis
 

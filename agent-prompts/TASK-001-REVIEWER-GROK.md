@@ -8,13 +8,13 @@
 
 按顺序完整读取：
 
-1. `/Users/hua/Documents/youtubek agent/AGENTS.md`
-2. `/Users/hua/Documents/youtubek agent/docs/COLLABORATION.md`
-3. `/Users/hua/Documents/youtubek agent/docs/PROJECT_STATUS.md`
-4. `/Users/hua/Documents/youtubek agent/docs/PRD.md` 第 4、10、12、13、14、15 节
-5. `/Users/hua/Documents/youtubek agent/docs/SYSTEM_DESIGN.md` 第 3、14、16、18 节
-6. `/Users/hua/Documents/youtubek agent/docs/PRODUCT_DECISIONS.md` 的 DEC-02
-7. `/Users/hua/Documents/youtubek agent/tasks/TASK-001-project-scaffold.md`
+1. `/Users/developer/Documents/youtubek agent/AGENTS.md`
+2. `/Users/developer/Documents/youtubek agent/docs/COLLABORATION.md`
+3. `/Users/developer/Documents/youtubek agent/docs/PROJECT_STATUS.md`
+4. `/Users/developer/Documents/youtubek agent/docs/PRD.md` 第 4、10、12、13、14、15 节
+5. `/Users/developer/Documents/youtubek agent/docs/SYSTEM_DESIGN.md` 第 3、14、16、18 节
+6. `/Users/developer/Documents/youtubek agent/docs/PRODUCT_DECISIONS.md` 的 DEC-02
+7. `/Users/developer/Documents/youtubek agent/tasks/TASK-001-project-scaffold.md`
 8. 本任务包
 9. Worktree 中的 `handoffs/TASK-001.md`
 
@@ -30,7 +30,7 @@
 - Diff base: `82871a2a0fa15c648e9a7d9f5ce7932544852534`
 - Reviewed implementation commit: `00c7b2fc94ff3aa96a81a5dc5e1a2be4b549430c`
 - Branch: `codex/task-001-project-scaffold`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-001`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-001`
 - Allowed Reviewer write: `handoffs/TASK-001.md` 的 Reviewer 部分
 - Forbidden: 修改其他文件、修复实现、rebase/reset/merge、切换分支、更新公共任务状态、安装白名单外依赖
 

@@ -1,6 +1,6 @@
 # QA 缺陷台账 (Defects Ledger)
 
-- 仓库工作树: `/Users/hua/Documents/yia-worktrees/antigravity-readiness-20261112`
+- 仓库工作树: `/Users/developer/Documents/yia-worktrees/antigravity-readiness-20261112`
 - 分支: `antigravity/task-user-readiness-20261112`
 - 基线 Commit: `07a86fe624e82821f594231c78847cd603b00304`
 - 分级说明:

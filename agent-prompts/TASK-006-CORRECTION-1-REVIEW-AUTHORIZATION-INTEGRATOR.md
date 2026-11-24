@@ -2,7 +2,7 @@
 
 Synchronize Correction 1 evidence and queue (do not start) a fresh independent Codex Reviewer. No product commands, source edits or TASK-007 access.
 
-Preconditions: main `/Users/hua/Documents/youtubek agent` at `57f02d8c1bbbaa3e323aa2fe097a139cda0d464f`, empty index; TASK-006 source `/Users/hua/Documents/yia-worktrees/task-006` clean at `17afcd349827b36e5ba18fb0eab443c1ae5fb53f` with sole parent `f1c15ed6eb854a4a8ed2299bbbf89e1cb6266426`; correction range exactly its four approved paths; full task range allowed; `state.py`, Schema/migrations, dependencies/locks unchanged. Confirm `Mozhu <huangbuqubunao@gmail.com>` and `user.useConfigOnly=true`.
+Preconditions: main `/Users/developer/Documents/youtubek agent` at `57f02d8c1bbbaa3e323aa2fe097a139cda0d464f`, empty index; TASK-006 source `/Users/developer/Documents/yia-worktrees/task-006` clean at `17afcd349827b36e5ba18fb0eab443c1ae5fb53f` with sole parent `f1c15ed6eb854a4a8ed2299bbbf89e1cb6266426`; correction range exactly its four approved paths; full task range allowed; `state.py`, Schema/migrations, dependencies/locks unchanged. Confirm `Mozhu <maintainer@example.invalid>` and `user.useConfigOnly=true`.
 
 Stage/commit exactly these five prepared Markdown files:
 

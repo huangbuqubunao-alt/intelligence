@@ -6,7 +6,7 @@
 - Role: Implementer; Agent/session: `/root/caption_resume`
 - Base: `a18fd2388a9d8a393f5386fa1226aa3ed141dc6c`
 - Branch: `codex/task-readiness-narrow-window`
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-narrow-window`
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-narrow-window`
 - Reported: 2026-10-13
 - Head: 本交接所属实现提交，精确 SHA 提交后回传主控。
 

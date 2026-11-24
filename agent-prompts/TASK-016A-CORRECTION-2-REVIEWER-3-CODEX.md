@@ -1,7 +1,7 @@
 # TASK-016A Correction 2 独立 Reviewer 3
 
 全新独立 Reviewer 3，只审查，不修复。固定 source：
-`/Users/hua/Documents/yia-worktrees/task-016a-intelligence-contract-foundation`，分支
+`/Users/developer/Documents/yia-worktrees/task-016a-intelligence-contract-foundation`，分支
 `codex/task-016a-intelligence-contract-foundation`，HEAD
 `dfe087924d1c99695b2608afbfea96e46e93175f`，唯一父 Review 2 evidence
 `2ea00258ec2b1843e268d4ed1ffef03bd6b0347d`。Review 2 必须 handoff-only。

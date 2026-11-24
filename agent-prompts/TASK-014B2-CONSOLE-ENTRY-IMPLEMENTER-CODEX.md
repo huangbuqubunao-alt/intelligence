@@ -10,7 +10,7 @@ Task: TASK-014B2 — formal console entry
 Role: Implementer
 Agent: Codex
 Control-plane base: main@820ff34fbd481e31b50d9d9d54828810d8ab7ca4
-Worktree: /Users/hua/Documents/yia-worktrees/task-014-phase-b2-console-entry
+Worktree: /Users/developer/Documents/yia-worktrees/task-014-phase-b2-console-entry
 Branch: codex/task-014-phase-b2-console-entry
 Reviewer: 全新独立 Codex Reviewer（本包不启动）
 Reuse decision: DIRECT — youtube_intel.cli:main、现有 uv build backend 与已锁定依赖

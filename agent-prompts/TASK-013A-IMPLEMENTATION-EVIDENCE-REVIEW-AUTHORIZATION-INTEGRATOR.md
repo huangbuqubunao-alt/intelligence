@@ -5,7 +5,7 @@
 ## 固定对象
 
 - Main base：`main@397e693f02e0e2b0375f8246279d57f7e8031bde`，必须干净且为唯一父基线。
-- Source：`/Users/hua/Documents/yia-worktrees/task-013a` / `codex/task-013a-local-transcription-continuation@213c9ff42f9321d443e4e470d74a18a0296ad528`，开始时必须干净。
+- Source：`/Users/developer/Documents/yia-worktrees/task-013a` / `codex/task-013a-local-transcription-continuation@213c9ff42f9321d443e4e470d74a18a0296ad528`，开始时必须干净。
 - Source handoff commit `213c9ff...` 的唯一父提交必须为 implementation `4c3706a969fb85ff4ec344034444d8607894b36f`；implementation 的唯一父提交必须为 `d96862f287d523dd524addf79f86c9b0642a4d31`。
 - 产品负责人已批准 ADR-012 方案 2；本轮只授权全新独立 Codex Reviewer 离线审查，不授权真实模型、媒体、网络、凭据或 Vault。
 

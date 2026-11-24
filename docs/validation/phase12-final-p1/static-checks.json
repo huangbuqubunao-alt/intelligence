@@ -2,7 +2,7 @@
   {
     "check": "ruff",
     "command": [
-      "/Users/hua/youtube-intel/.venv/bin/python",
+      "/Users/developer/youtube-intel/.venv/bin/python",
       "-m",
       "ruff",
       "check",
@@ -15,7 +15,7 @@
   {
     "check": "mypy",
     "command": [
-      "/Users/hua/youtube-intel/.venv/bin/python",
+      "/Users/developer/youtube-intel/.venv/bin/python",
       "-m",
       "mypy",
       "--strict",
@@ -27,7 +27,7 @@
   {
     "check": "compileall",
     "command": [
-      "/Users/hua/youtube-intel/.venv/bin/python",
+      "/Users/developer/youtube-intel/.venv/bin/python",
       "-m",
       "compileall",
       "-q",

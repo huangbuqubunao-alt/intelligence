@@ -3,7 +3,7 @@
 2026-10-14，Implementer `/root/intel_bounded_review`；独立 Reviewer待主控安排
 `caption_resume` 在Schema作者STOP后执行。Base
 `bc110441627c0afd87b364c723c77a392a1c2145`，独立tree
-`/Users/hua/Documents/yia-worktrees/readiness-qwen35-capacity-single`，branch
+`/Users/developer/Documents/yia-worktrees/readiness-qwen35-capacity-single`，branch
 `codex/task-readiness-qwen35-capacity-single`。用户具体批准在
 QWEN35_CAPACITY_SINGLE_CASE_PROPOSAL.md末尾，未授权作者真实推理/资格/正式采用。
 
@@ -151,7 +151,7 @@ Reviewer 仅追加此 handoff，未改代码、测试、freeze、profile、准�
   runtime/exclusive single-case receipt 必须一致。保留原 ledger/parser/budget seam。
 
 Reviewer 最初测试命令遗漏 `PYTHONPATH=src:.`，共享环境误导入旧
-`/Users/hua/youtube-intel/src/youtube_intel/distillation.py`，3 collection errors
+`/Users/developer/youtube-intel/src/youtube_intel/distillation.py`，3 collection errors
 （缺 KnownLocalDistillationResponseError/OllamaLocalDistillationTransport）；原日志
 `/tmp/qwen35-capacity-independent-tests.log` 保留。仅按仓库命令加正确 PYTHONPATH，
 不安装/改环境配置/改测试，即得到上述105 PASS。只读 seal 探针第一次使用不存在的

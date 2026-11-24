@@ -8,7 +8,7 @@
 - Merge：`2ba42c2f55082f5ce74ddc04d8aa18a7ef85fae1`；父提交顺序必须为 execution base
   `3cdc9fc94568a4a836dc187995f98ec5148b6e97`、accepted source
   `1ecd4bc8c6138bab6683a011cbbecddf281263c3`。
-- Retained source：`/Users/hua/Documents/yia-worktrees/task-011` /
+- Retained source：`/Users/developer/Documents/yia-worktrees/task-011` /
   `codex/task-011-weekly-report@1ecd4bc8c6138bab6683a011cbbecddf281263c3`，必须干净并保留。
 - Merge first-parent Diff 必须严格为 `handoffs/TASK-011.md`、`reporting.py`、`state.py`、
   `providers/obsidian.py`、`templates/weekly.md`、两份既定周报 tests；锁文件无变化。
@@ -26,7 +26,7 @@ TASK-012 仅可保留既有 `BLOCKED/UNASSIGNED` 状态；不得修改其文件�
 ## 必须执行
 
 1. 核验 main/source HEAD、merge 双父及顺序、accepted source 为 merge 祖先、身份
-   `Mozhu <huangbuqubunao@gmail.com>`、`user.useConfigOnly=true`、main/source 洁净度、first-parent 精确范围和未变锁文件。
+   `Mozhu <maintainer@example.invalid>`、`user.useConfigOnly=true`、main/source 洁净度、first-parent 精确范围和未变锁文件。
 2. 准备文件仅限上述五个路径；两轮 SHA-256、LF/EOF、无尾随空白、`git diff --check`、`git diff --cached --check` 与精确暂存范围必须通过；字节漂移立即停止。
 3. 记录既有整合证据（focused=`15`、full pytest=`414`、mypy、Ruff、CLI、locked sync、offline build、archive 内容）但不得重新运行产品、数据库、网络、Vault、云端、凭据或任何产品文件 I/O 命令。
 4. 统一将 TASK-011 在任务卡、任务索引、项目状态和 handoff 写为 `DONE`，记录 merge SHA；不得改 TASK-012 或预写后续任务实现授权。

@@ -8,14 +8,14 @@ push 或清理。
 
 ## 固定基线
 
-- Main repository：`/Users/hua/Documents/youtubek agent`
+- Main repository：`/Users/developer/Documents/youtubek agent`
 - Main branch/base：`main@3eac5f9897bdfb59e764afde411e632822dcfb66`
-- Source worktree：`/Users/hua/Documents/yia-worktrees/task-008a`
+- Source worktree：`/Users/developer/Documents/yia-worktrees/task-008a`
 - Source branch：`codex/task-008a-cloud-analysis-shared-contracts`
 - Reviewed implementation：`382251298af7fcbfadba66c1902af6de0a425179`
 - First Reviewer evidence：`0f52c3056379bcfcd9b7bb0805ccdb5dba99a9dd`
 - Original task base：`82d1fd7c7f2f82e77df0518e63755bad0bf240f2`
-- Required identity：`Mozhu <huangbuqubunao@gmail.com>`；
+- Required identity：`Mozhu <maintainer@example.invalid>`；
   `user.useConfigOnly=true`
 
 开始时 main 必须在 Required main base、身份正确且暂存区为空；工作区必须恰有下列

@@ -4,9 +4,9 @@
 
 ## 固定对象
 
-- Main authorization：动态读取 `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-009-IMPLEMENTER-CODEX.md`
+- Main authorization：动态读取 `git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-009-IMPLEMENTER-CODEX.md`
 - Base：`473119704c7638d7afd4e68d84d00e85064ceabd`
-- Worktree/branch：`/Users/hua/Documents/yia-worktrees/task-009` / `codex/task-009-obsidian-notes`
+- Worktree/branch：`/Users/developer/Documents/yia-worktrees/task-009` / `codex/task-009-obsidian-notes`
 - Allowed scope：`src/youtube_intel/notes.py`、`src/youtube_intel/providers/obsidian.py`、`src/youtube_intel/templates/video.md`、`tests/fixtures/notes/**`、`tests/unit/test_note_rendering.py`、`tests/integration/test_obsidian_sink.py`、`handoffs/TASK-009.md`。
 - Reuse：`DIRECT` Jinja2 already locked by TASK-009A, with fixed package template, immutable sandbox and StrictUndefined; existing PyYAML/Artifact/SQLite/Pydantic/stdlib. Registered yt2md candidates are `REFERENCE` only, with no copied code or Obsidian configuration reading.
 

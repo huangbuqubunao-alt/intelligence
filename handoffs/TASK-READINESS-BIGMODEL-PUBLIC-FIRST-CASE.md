@@ -1,6 +1,6 @@
 # TASK-READINESS-BIGMODEL-PUBLIC-FIRST-CASE
 
-Implementer `/root/cloud_preview_writer`, sole writer/no subagents. Base `eaff966251231c08c39f9b44cfccf66d9b0252fd`; WT `/Users/hua/Documents/yia-worktrees/readiness-bigmodel-public-first-case`, branch `codex/task-readiness-bigmodel-public-first-case`. Author fixed commit reported in final chat. Suggested status IN_REVIEW; Root alone accepts/executes/integrates.
+Implementer `/root/cloud_preview_writer`, sole writer/no subagents. Base `eaff966251231c08c39f9b44cfccf66d9b0252fd`; WT `/Users/developer/Documents/yia-worktrees/readiness-bigmodel-public-first-case`, branch `codex/task-readiness-bigmodel-public-first-case`. Author fixed commit reported in final chat. Suggested status IN_REVIEW; Root alone accepts/executes/integrates.
 
 ## Scope and reuse
 
@@ -8,7 +8,7 @@ One354-line, single-case diagnostic script, necessary tests, this handoff. No ap
 
 ## Concrete prepared public package
 
-`/Users/hua/Documents/yia-worktrees/readiness-bigmodel-public-first-case/.var/bigmodel-public-first-case`
+`/Users/developer/Documents/yia-worktrees/readiness-bigmodel-public-first-case/.var/bigmodel-public-first-case`
 
 Preparation actually ran using the CLI `prepare`, then pure validation succeeded. Source is only Root-authorized **public diagnostic copy** `.../end-to-end-user-readiness/.var/end-to-end-user-readiness/bigmodel-public-diagnostic-20261028`; provenance's `source_QA` string is informational, never followed/accessed. Source DB opens mode=ro; preparation only clones into the new owned package, with no new reservation/consent/checkpoint, no policy/input edits, no key, no budget check or wire. Root original81 tables and19 physical DATA match `initial.json` before/after; the clone has identical complete SQL/schema/DATA.
 
@@ -37,8 +37,8 @@ Original oracle remains [REAL_CORPUS_V2](../docs/validation/end-to-end-user-read
 Author already ran prepare only:
 
 ```sh
-cd /Users/hua/Documents/yia-worktrees/readiness-bigmodel-public-first-case
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/hua/Documents/yia-worktrees/readiness-bigmodel-public-first-case/src /Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python scripts/qualify_bigmodel_public_first_case.py prepare
+cd /Users/developer/Documents/yia-worktrees/readiness-bigmodel-public-first-case
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/developer/Documents/yia-worktrees/readiness-bigmodel-public-first-case/src /Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python scripts/qualify_bigmodel_public_first_case.py prepare
 ```
 
 **Do not rerun prepare or execute now.** Independent reviewer must inspect fixed code and this exact package/outgoing body/oracle/public data. Only after Root accepts that specific review, Root writes package `review.json` with exactly these non-secret fields (replace reviewer/report commit with actual independent identities):

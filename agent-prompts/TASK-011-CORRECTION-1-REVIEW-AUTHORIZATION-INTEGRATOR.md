@@ -5,7 +5,7 @@
 ## 固定对象
 
 - Main base：`main@eaf85c91668928ab433ffc8add13945b6018fc91`，必须干净且为唯一父基线。
-- Source：`/Users/hua/Documents/yia-worktrees/task-011` / `codex/task-011-weekly-report@f4e30a56ddcf7d654bda4e0579f6080af59698f5`，必须干净。
+- Source：`/Users/developer/Documents/yia-worktrees/task-011` / `codex/task-011-weekly-report@f4e30a56ddcf7d654bda4e0579f6080af59698f5`，必须干净。
 - Correction 1 唯一父为 Reviewer 1 evidence `3759d54a74abaa8e6627b8107298d0938fbe3441`；Reviewer evidence 的唯一父为 implementation `0ae7f9366b49395fbe8c4908bbbc19c127bc0a8e`，且只修改 source handoff。
 - Original base：`44fc64be2cb4602cb93c1d03f84d6dd2a1677750`；完整 source Diff 仍限七个实际批准路径，锁文件未变。
 
@@ -27,7 +27,7 @@
 
 ## 必须执行
 
-1. 核验 main/source HEAD、父链、身份 `Mozhu <huangbuqubunao@gmail.com>`、`user.useConfigOnly=true`、empty index/worktree、Correction 1 范围、完整 source 范围与未变锁文件。
+1. 核验 main/source HEAD、父链、身份 `Mozhu <maintainer@example.invalid>`、`user.useConfigOnly=true`、empty index/worktree、Correction 1 范围、完整 source 范围与未变锁文件。
 2. 准备文件仅限上述五个路径；两轮 SHA-256、LF/EOF、无尾随空白、`git diff --check`、`git diff --cached --check` 与精确暂存范围必须通过；字节漂移立即停止。
 3. 不运行 uv、pytest、build、import、数据库、网络、Vault、云端、凭据或任何产品文件 I/O 命令。
 4. main 将 TASK-011 设为 `IN_REVIEW`，授权全新独立 Reviewer 2；不得预写 Verdict、ACCEPTED、merge 或 DONE。TASK-012 保持 `BLOCKED/UNASSIGNED`。

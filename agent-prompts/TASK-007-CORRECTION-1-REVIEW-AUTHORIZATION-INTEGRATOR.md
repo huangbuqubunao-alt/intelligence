@@ -9,16 +9,16 @@ worktree, or start the Reviewer.
 
 ## Fixed state
 
-- Main: `/Users/hua/Documents/youtubek agent`, branch `main`, Required base:
+- Main: `/Users/developer/Documents/youtubek agent`, branch `main`, Required base:
   `5667e9b40aa364e6f05c764808c32db99d1c5275`.
-- TASK-007 source: `/Users/hua/Documents/yia-worktrees/task-007`, branch
+- TASK-007 source: `/Users/developer/Documents/yia-worktrees/task-007`, branch
   `codex/task-007-local-scoring`, Correction head:
   `f46881bc4a8ca0fda4d5ef7006b372bc566cff97`.
 - Parent chain is exact: `f46881bc...` → `266c488c17fc82cb648053b5e1066211a7bea9a9` →
   `258358fcd5227e144c9294beafdf7ec6e2feea63` → common base
   `6b4d59c882ccdcbd0e5a6069a6661e0672921a80`. The two evidence commits each modify only
   `handoffs/TASK-007.md`.
-- Verify `Mozhu <huangbuqubunao@gmail.com>` and `user.useConfigOnly=true`.
+- Verify `Mozhu <maintainer@example.invalid>` and `user.useConfigOnly=true`.
 - Do not read, check, write, wait on, clean, or report the TASK-006 source worktree. TASK-006
   text, status, scope, and authorization in main must remain unchanged.
 

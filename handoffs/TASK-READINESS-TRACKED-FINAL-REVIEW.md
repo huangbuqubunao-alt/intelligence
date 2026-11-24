@@ -4,7 +4,7 @@
 
 ## 精确范围与纪律
 
-- Base `c312ee4a544556616c9b102d57ec44cf56a21b90` → candidate `b14788c6575ffb9796d62c72be8a6e4bb9ca255a`；独立WT `/Users/hua/Documents/yia-worktrees/readiness-tracked-final-review`，branch `codex/review-readiness-tracked-final`。起点clean，作者clean STOP。
+- Base `c312ee4a544556616c9b102d57ec44cf56a21b90` → candidate `b14788c6575ffb9796d62c72be8a6e4bb9ca255a`；独立WT `/Users/developer/Documents/yia-worktrees/readiness-tracked-final-review`，branch `codex/review-readiness-tracked-final`。起点clean，作者clean STOP。
 - 读取root最终任务/精确迁移提案/EXECUTION_CONTRACT/本仓库规范/作者handoff及全部累计产品与测试diff。累计包含已接受picker历史，未把它当作新tracked实现需重复整合。
 - 使用 code-review-and-quality、git-workflow-and-versioning。图优先查询未覆盖新tracked符号，fallback固定candidate源码，未改图/工具链。DIRECT既有SQLite/fcntl/managed路径/native字幕/timed/Evidence/extractive Summary/Backup边界，无新依赖或第三方实现。
 - 本review只新增本报告。所有运行使用隔离fixture/temp SQLite/DATA、既有root venv，并设置 `PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src:tests:.`；打印确认模块来自本review WT。没有真实源、owner/config/凭据、holdout、thinking、外部网络、tokenizer、模型或付费IO。
@@ -77,7 +77,7 @@ Chrome优先技能agent-browser CLI不可用（command not found），未安装�
 
 ## 证据、限度与STOP
 
-所有私有probe/实际日志与hash清单：`/Users/hua/Documents/yia-worktrees/readiness-tracked-final-review/.var/tracked-final-review/evidence-sha256.json`。原7probe SHA已核；作者validation列出全部源码/正常输出hash与三份gzip的compressed及解压原始hash均独立一致。原known-window/historical-action红日志保留且未改成成功；作者461先于最终action增强的时点缺口已由本次fresh461/125覆盖。
+所有私有probe/实际日志与hash清单：`/Users/developer/Documents/yia-worktrees/readiness-tracked-final-review/.var/tracked-final-review/evidence-sha256.json`。原7probe SHA已核；作者validation列出全部源码/正常输出hash与三份gzip的compressed及解压原始hash均独立一致。原known-window/historical-action红日志保留且未改成成功；作者461先于最终action增强的时点缺口已由本次fresh461/125覆盖。
 
 未运行全仓最终regression，也未读取/运行真实旧tracked完整副本；后者普通GUI→真正字幕/Summary/Evidence→实际重启→全table/all DATA恢复须root在返修、独立接受和整合后做。无模型资格或长协议结论。Jev因0网络/模型约束未调用，审查未降级。
 

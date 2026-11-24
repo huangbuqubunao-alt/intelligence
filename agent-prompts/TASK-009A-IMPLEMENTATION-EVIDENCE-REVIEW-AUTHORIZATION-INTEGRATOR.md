@@ -5,10 +5,10 @@
 ## 固定事实
 
 - main Required base：`c5a132cfd889e05ee86aad41429e1abacedc4982`
-- Source worktree/branch：`/Users/hua/Documents/yia-worktrees/task-009a` / `codex/task-009a-obsidian-note-shared-contracts`
+- Source worktree/branch：`/Users/developer/Documents/yia-worktrees/task-009a` / `codex/task-009a-obsidian-note-shared-contracts`
 - Source implementation：`75158be08d6442a7b18099f459654e9da86ebcee`
 - Source parent/base：`e4271e41910bba54b37b48df709dcf632fe3b0eb`
-- 身份：`Mozhu <huangbuqubunao@gmail.com>`，`user.useConfigOnly=true`。
+- 身份：`Mozhu <maintainer@example.invalid>`，`user.useConfigOnly=true`。
 
 ## 唯一允许提交范围
 

@@ -1,6 +1,6 @@
 # TASK-READINESS-BIGMODEL-READ-SNAPSHOT
 
-Implementer `/root/cloud_preview_writer`; new worktree `/Users/hua/Documents/yia-worktrees/readiness-bigmodel-read-snapshot`, branch `codex/task-readiness-bigmodel-read-snapshot`, base `17168de63afce55fde5d660a8f02e68e4463dcb8`. No unaccepted transport source or fixture is copied.
+Implementer `/root/cloud_preview_writer`; new worktree `/Users/developer/Documents/yia-worktrees/readiness-bigmodel-read-snapshot`, branch `codex/task-readiness-bigmodel-read-snapshot`, base `17168de63afce55fde5d660a8f02e68e4463dcb8`. No unaccepted transport source or fixture is copied.
 
 ## Pre-edit graph/current-AST inventory
 
@@ -33,7 +33,7 @@ Initial baseline command (with the explicit task Python environment below): `-m 
 
 After repair the original5 passed2.65s; expanded19 focused tests passed7.36s. Coverage: normal claim and ambiguous completion between captured checkpoint and audit; list old normal+failure receipts versus new usage/failure commits, all on one reader connection; active caller IMMEDIATE success/error ownership; owned read cleanup success/error; all five readers still reject a genuinely corrupted BLOB consent hash without row/file changes and close owned connections; local WAIT cancellation returns its old snapshot while fresh read is CANCELLED0. Fresh BigModel terminal stays AMBIGUOUS1, another claim is refused, and repeated reads leave the entire SQL dump and physical DATA unchanged. Scalar-corruption fixtures restore the original schema and use the accepted corruption helper solely for rejection controls, never for the legitimate race.
 
-Runtime for all checks: `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`, explicit `PYTHONDONTWRITEBYTECODE=1` and `PYTHONPATH=/Users/hua/Documents/yia-worktrees/readiness-bigmodel-read-snapshot/src`. Strict mypy122 source files PASS; in-memory compile122 source plus new test PASS; Ruff no-cache changed source/test PASS; whitespace diff PASS. Complete fixed-source affected regression is recorded below. Prior R2 reviewer268PASS1FAIL and one isolated follow-up PASS remain independent historical evidence and were not relabelled or rerun as a transport pass here.
+Runtime for all checks: `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`, explicit `PYTHONDONTWRITEBYTECODE=1` and `PYTHONPATH=/Users/developer/Documents/yia-worktrees/readiness-bigmodel-read-snapshot/src`. Strict mypy122 source files PASS; in-memory compile122 source plus new test PASS; Ruff no-cache changed source/test PASS; whitespace diff PASS. Complete fixed-source affected regression is recorded below. Prior R2 reviewer268PASS1FAIL and one isolated follow-up PASS remain independent historical evidence and were not relabelled or rerun as a transport pass here.
 
 
 ## Final fixed-source checks and limits

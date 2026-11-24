@@ -10,7 +10,7 @@
       "exit_code": 0,
       "seconds": 0.19011708300058672,
       "command": [
-        "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
+        "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
         "-m",
         "compileall",
         "-q",
@@ -24,7 +24,7 @@
       "exit_code": 0,
       "seconds": 0.0740964160004296,
       "command": [
-        "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
+        "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
         "-m",
         "ruff",
         "check",
@@ -38,7 +38,7 @@
       "exit_code": 0,
       "seconds": 1.8635800410002048,
       "command": [
-        "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
+        "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
         "-m",
         "mypy",
         "src"
@@ -49,7 +49,7 @@
       "exit_code": 0,
       "seconds": 69.56056104099935,
       "command": [
-        "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
+        "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
         "-m",
         "pytest",
         "-q",

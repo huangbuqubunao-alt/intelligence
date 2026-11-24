@@ -5,8 +5,8 @@
 ## 固定谱系与预检
 
 - main 必须为 `main@9b5c4b53537ba0dfd2319f849d5269a1a033c568`，且开始时干净。
-- 唯一 source 为 `/Users/hua/Documents/yia-worktrees/task-013-rebuild` / `codex/task-013-e2e-acceptance-rebuild@f6697fa3064c288a7b688d7dd1fdf82f5d3e2c28`；开始及提交后必须干净。
-- source 提交的唯一父提交必须精确为 `4aecab7c3f88f0a108ee815c05436d12dd0dfdd8`。禁止访问、修改或清理历史 `/Users/hua/Documents/yia-worktrees/task-013` worktree。
+- 唯一 source 为 `/Users/developer/Documents/yia-worktrees/task-013-rebuild` / `codex/task-013-e2e-acceptance-rebuild@f6697fa3064c288a7b688d7dd1fdf82f5d3e2c28`；开始及提交后必须干净。
+- source 提交的唯一父提交必须精确为 `4aecab7c3f88f0a108ee815c05436d12dd0dfdd8`。禁止访问、修改或清理历史 `/Users/developer/Documents/yia-worktrees/task-013` worktree。
 - 相对 `2a59dfe3860161a5989f2c08161f03c73aa4ca86`，source 产品 Diff 只能落在：`tests/e2e/test_mvp_flow.py`、`tests/e2e/test_failure_recovery.py`、`tests/e2e/fixtures/**`、`docs/ACCEPTANCE_REPORT.md`、`handoffs/TASK-013.md`；依赖/锁文件不得改变。
 - 核验 Git 身份、`user.useConfigOnly=true`、分支/HEAD/父提交、两个工作区清洁状态、产品范围、锁文件、`git diff --check`。本角色不运行任何产品命令。
 

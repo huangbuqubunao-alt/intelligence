@@ -4,7 +4,7 @@ Task: TASK-READINESS-CONFIGURABLE-MODEL-BINDING
 Role: Implementer
 Agent: /root/model_diagnostic_qa_writer (sequential continuation after initial writer quota stop)
 Base: 8cff49769d9cc648a9c96971b85fc3cbabe80d1a
-Worktree: /Users/hua/Documents/yia-worktrees/readiness-configurable-model-binding
+Worktree: /Users/developer/Documents/yia-worktrees/readiness-configurable-model-binding
 Branch: codex/task-readiness-configurable-model-binding
 Allowed scope / checks: tasks/TASK-READINESS-CONFIGURABLE-MODEL-BINDING.md
 Reviewer: independent fresh review after fixed clean submission; root assigns.

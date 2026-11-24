@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="3" time="1.776" timestamp="2026-10-11T21:16:31.927785+08:00" hostname="192.168.0.101"><testcase classname="tests.integration.test_task022_personalized_distillation" name="test_backup_quiescence_requires_confirmed_user_cloud_success_for_local_wait[USER_CONFIRMATION-200-True]" time="0.323"><failure message="AssertionError: assert {'DISTILLATIO...E_RUN_ACTIVE'} &lt;= {'SOURCE_RUN_ACTIVE'}&#10;  &#10;  Extra items in the left set:&#10;  'DISTILLATION_ACTIVE'">tmp_path = PosixPath('/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/opencode-critical/test_backup_quiescence_require0')
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="3" time="1.776" timestamp="2026-10-11T21:16:31.927785+08:00" hostname="192.168.0.101"><testcase classname="tests.integration.test_task022_personalized_distillation" name="test_backup_quiescence_requires_confirmed_user_cloud_success_for_local_wait[USER_CONFIRMATION-200-True]" time="0.323"><failure message="AssertionError: assert {'DISTILLATIO...E_RUN_ACTIVE'} &lt;= {'SOURCE_RUN_ACTIVE'}&#10;  &#10;  Extra items in the left set:&#10;  'DISTILLATION_ACTIVE'">tmp_path = PosixPath('/Users/developer/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/opencode-critical/test_backup_quiescence_require0')
 consent_kind = 'USER_CONFIRMATION', http_status_code = 200, quiescent = True
 
     @pytest.mark.parametrize(
@@ -81,7 +81,7 @@ E
 E             Extra items in the left set:
 E             'DISTILLATION_ACTIVE'
 
-tests/integration/test_task022_personalized_distillation.py:3692: AssertionError</failure></testcase><testcase classname="tests.integration.test_task022_personalized_distillation" name="test_backup_quiescence_requires_confirmed_user_cloud_success_for_local_wait[OWNER_QUALIFICATION-200-False]" time="0.324"><failure message="AssertionError: assert {'DISTILLATIO...E_RUN_ACTIVE'} &lt;= {'SOURCE_RUN_ACTIVE'}&#10;  &#10;  Extra items in the left set:&#10;  'DISTILLATION_ACTIVE'">tmp_path = PosixPath('/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/opencode-critical/test_backup_quiescence_require1')
+tests/integration/test_task022_personalized_distillation.py:3692: AssertionError</failure></testcase><testcase classname="tests.integration.test_task022_personalized_distillation" name="test_backup_quiescence_requires_confirmed_user_cloud_success_for_local_wait[OWNER_QUALIFICATION-200-False]" time="0.324"><failure message="AssertionError: assert {'DISTILLATIO...E_RUN_ACTIVE'} &lt;= {'SOURCE_RUN_ACTIVE'}&#10;  &#10;  Extra items in the left set:&#10;  'DISTILLATION_ACTIVE'">tmp_path = PosixPath('/Users/developer/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/opencode-critical/test_backup_quiescence_require1')
 consent_kind = 'OWNER_QUALIFICATION', http_status_code = 200, quiescent = False
 
     @pytest.mark.parametrize(
@@ -164,7 +164,7 @@ E
 E             Extra items in the left set:
 E             'DISTILLATION_ACTIVE'
 
-tests/integration/test_task022_personalized_distillation.py:3692: AssertionError</failure></testcase><testcase classname="tests.integration.test_task022_personalized_distillation" name="test_backup_quiescence_requires_confirmed_user_cloud_success_for_local_wait[USER_CONFIRMATION-None-False]" time="0.323"><failure message="AssertionError: assert {'DISTILLATIO...E_RUN_ACTIVE'} &lt;= {'SOURCE_RUN_ACTIVE'}&#10;  &#10;  Extra items in the left set:&#10;  'DISTILLATION_ACTIVE'">tmp_path = PosixPath('/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/opencode-critical/test_backup_quiescence_require2')
+tests/integration/test_task022_personalized_distillation.py:3692: AssertionError</failure></testcase><testcase classname="tests.integration.test_task022_personalized_distillation" name="test_backup_quiescence_requires_confirmed_user_cloud_success_for_local_wait[USER_CONFIRMATION-None-False]" time="0.323"><failure message="AssertionError: assert {'DISTILLATIO...E_RUN_ACTIVE'} &lt;= {'SOURCE_RUN_ACTIVE'}&#10;  &#10;  Extra items in the left set:&#10;  'DISTILLATION_ACTIVE'">tmp_path = PosixPath('/Users/developer/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/opencode-critical/test_backup_quiescence_require2')
 consent_kind = 'USER_CONFIRMATION', http_status_code = None, quiescent = False
 
     @pytest.mark.parametrize(

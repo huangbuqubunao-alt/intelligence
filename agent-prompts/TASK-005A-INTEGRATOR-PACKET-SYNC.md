@@ -5,13 +5,13 @@
 
 ## 固定基线
 
-- Main repository：`/Users/hua/Documents/youtubek agent`
+- Main repository：`/Users/developer/Documents/youtubek agent`
 - Main branch/base：`main@ce8e76c7ba51fd8f53bf63ebcfc6cf53fcc30b9d`
-- Source worktree：`/Users/hua/Documents/yia-worktrees/task-005a`
+- Source worktree：`/Users/developer/Documents/yia-worktrees/task-005a`
 - Source branch：`codex/task-005a-local-model-shared-contracts`
 - Original implementation base：`82f45a1c04f9eba3264cd743b28bc339d79b34fc`
 - Accepted source head：`e726656ffcc96b3c61d12f649c5574dc927add62`
-- Required identity：`Mozhu <huangbuqubunao@gmail.com>`；`user.useConfigOnly=true`
+- Required identity：`Mozhu <maintainer@example.invalid>`；`user.useConfigOnly=true`
 
 开始时 main 必须在 Required main base、身份正确、暂存区为空；工作区必须恰有下列 2 个
 准备 Markdown 文件且无其他修改/未跟踪路径。source 必须在 accepted head、分支正确且

@@ -5,8 +5,8 @@
 ## 固定对象
 
 - Main base：`main@9814a1d98c434ce2fbc3c971bba5641111ca6659`，必须干净且为唯一父基线。
-- Rebuilt source：`/Users/hua/Documents/yia-worktrees/task-013-rebuild` / `codex/task-013-e2e-acceptance-rebuild@0a9e16887e7dc0b287be941a34e2908766e3992e`，开始时必须干净，唯一父提交为 `2a59dfe3860161a5989f2c08161f03c73aa4ca86`。
-- 历史 `/Users/hua/Documents/yia-worktrees/task-013` / `codex/task-013-e2e-acceptance` 为已拒绝审计证据，不得访问、修改或清理。
+- Rebuilt source：`/Users/developer/Documents/yia-worktrees/task-013-rebuild` / `codex/task-013-e2e-acceptance-rebuild@0a9e16887e7dc0b287be941a34e2908766e3992e`，开始时必须干净，唯一父提交为 `2a59dfe3860161a5989f2c08161f03c73aa4ca86`。
+- 历史 `/Users/developer/Documents/yia-worktrees/task-013` / `codex/task-013-e2e-acceptance` 为已拒绝审计证据，不得访问、修改或清理。
 - 相对 `2a59dfe...` 的 rebuilt source 只允许两份 E2E、`tests/e2e/fixtures/**`、验收报告和 handoff；当前实际改动为两份 E2E、验收报告和 handoff。
 
 ## 唯一允许提交范围

@@ -12,14 +12,14 @@
 | 本轮接续起点 | 96ca050ef97183a0a8a3c8180ee00269665d746a |
 | 已完整验收工程源码 | a2076dbd695e1c8f6abae0f41bdc885fff5a6bdf；之后本轮src/tests/scripts/frontend/config差异为空 |
 | 报告生成时候选HEAD | f3b86645b9a0e571a6f7b7af2c392856a202f837；最终归档HEAD见下方最终机器快照及最终回复 |
-| 候选分支/工作树 | codex/task-end-to-end-user-readiness；/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness |
+| 候选分支/工作树 | codex/task-end-to-end-user-readiness；/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness |
 | 正式main HEAD | 73ee7e747b4461b9de8a201d6b47669eb3913d1a |
 | tracking origin/main、实际远端main | 本轮真实只读核验均73ee7e747b4461b9de8a201d6b47669eb3913d1a |
 | 拓扑 | 正式main为候选祖先；正式工作树clean；本轮无merge/push/reset/force或他人代码覆盖 |
 | 正式served revision | 当前无在线served revision；5488/5489均无监听。候选未部署，正式启动验收未执行 |
 | 正式产品访问地址 | http://127.0.0.1:5488/ （当前离线）；API原地址127.0.0.1:5489 |
 
-最终Git机器快照：[final-adoption-state.json](/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-adoption-state-20261025.json)。归档报告提交后写入，包含完整最终候选/main/origin HEAD与端口实测；避免在报告自身内容中伪造循环引用SHA。
+最终Git机器快照：[final-adoption-state.json](/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/final-adoption-state-20261025.json)。归档报告提交后写入，包含完整最终候选/main/origin HEAD与端口实测；避免在报告自身内容中伪造循环引用SHA。
 
 正式owner数据库、配置、凭据均未用于测试或重置。所有验收使用独立数据库、DATA和服务；未调用付费云模型。本轮没有产品代码、Schema迁移或生产依赖变更。此前批准的迁移和历史证据保留，没有新增未经批准的敏感迁移。本轮没有重启OpenCode/Muse/豆包完整审核，独立复核仅覆盖本次有边界的QA包和结果。
 

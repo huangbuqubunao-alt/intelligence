@@ -2,7 +2,7 @@
 
 Control-plane only: return TASK-007 to its original Implementer for the one P1. Do not run product commands or access TASK-006.
 
-Main must be `/Users/hua/Documents/youtubek agent` `main@7fd56716eac58a7878c5e64f99d811f0c5cfdc3e` with empty index. Source must be `/Users/hua/Documents/yia-worktrees/task-007` clean at `1d27d3bdeb8981ca85deaacd5c1cad498ef7a632`, sole parent `567b0f63f9cefc6c8bff43bfea0e9e156ac3a02c`; evidence only modifies handoff. Correction 2 is five allowed paths and full base range 11 approved paths; locks unchanged. Confirm `Mozhu <huangbuqubunao@gmail.com>` and `user.useConfigOnly=true`.
+Main must be `/Users/developer/Documents/youtubek agent` `main@7fd56716eac58a7878c5e64f99d811f0c5cfdc3e` with empty index. Source must be `/Users/developer/Documents/yia-worktrees/task-007` clean at `1d27d3bdeb8981ca85deaacd5c1cad498ef7a632`, sole parent `567b0f63f9cefc6c8bff43bfea0e9e156ac3a02c`; evidence only modifies handoff. Correction 2 is five allowed paths and full base range 11 approved paths; locks unchanged. Confirm `Mozhu <maintainer@example.invalid>` and `user.useConfigOnly=true`.
 
 Stage/commit exactly five prepared Markdown files:
 

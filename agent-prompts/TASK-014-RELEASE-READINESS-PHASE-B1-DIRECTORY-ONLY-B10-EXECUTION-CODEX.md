@@ -10,10 +10,10 @@ Task: TASK-014 Phase B-1 — B10-classified single-video directory-only public s
 Role: Smoke Executor
 Agent: Codex
 Control-plane baseline: main@f00aa9cffa25dcb9b7165edf21a4d476263c1dc5
-Worktree: /Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-b10-execution
+Worktree: /Users/developer/Documents/yia-worktrees/task-014-phase-b1-directory-only-b10-execution
 Branch: codex/task-014-phase-b1-directory-only-b10-execution
 Required source HEAD: f00aa9cffa25dcb9b7165edf21a4d476263c1dc5
-Only executable: /Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-b10-execution/.venv/bin/youtube-intel
+Only executable: /Users/developer/Documents/yia-worktrees/task-014-phase-b1-directory-only-b10-execution/.venv/bin/youtube-intel
 Fixed ID: eIho2S0ZahI
 B9 historical failure evidence: bd770ef9d212ebe75689b8f33145bf2556fe93c2
 Reuse decision: DIRECT — integrated B4 restricted `smoke-public-subtitles --directory-only`, B5 fixed safe summary, B6 ADR-017 fixed diagnostics, B7 ADR-018 fixed origin/fingerprint, B8 ADR-019 restricted keyname evidence, B10 ADR-020 fixed content-availability classification, locked `youtube_intel.cli:main`, and existing release-evidence documents; no dependency or third-party change
@@ -48,7 +48,7 @@ launcher 不符立即停止。预配及静态核验不得访问网络或真实�
 2. 只有以上全部门禁通过后，才可执行且只能执行一次下列固定命令。保留精确数值退出码；不得重定向、复制或持久化原始 stdout/stderr：
 
 ```text
-/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-b10-execution/.venv/bin/youtube-intel smoke-public-subtitles --directory-only --temporary-root ABSOLUTE_NEW_PARENT/smoke-root --video-id=eIho2S0ZahI
+/Users/developer/Documents/yia-worktrees/task-014-phase-b1-directory-only-b10-execution/.venv/bin/youtube-intel smoke-public-subtitles --directory-only --temporary-root ABSOLUTE_NEW_PARENT/smoke-root --video-id=eIho2S0ZahI
 ```
 
 - 此命令是唯一允许访问真实 YouTube 的产品调用。唯一目标的调用上限为 metadata=`1`、enumerate=`1`、read=`0`；绝不读取字幕正文。

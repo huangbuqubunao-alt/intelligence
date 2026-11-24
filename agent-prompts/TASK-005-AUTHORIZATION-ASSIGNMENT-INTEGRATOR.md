@@ -6,9 +6,9 @@
 
 ## 固定授权与基线
 
-- main repository：`/Users/hua/Documents/youtubek agent`
+- main repository：`/Users/developer/Documents/youtubek agent`
 - main branch / worktree base：`main@b28f52d0e4950f78dba315d4afe211ea5f75b93c`
-- 新 worktree：`/Users/hua/Documents/yia-worktrees/task-005`
+- 新 worktree：`/Users/developer/Documents/yia-worktrees/task-005`
 - 新 branch：`codex/task-005-subtitle-pipeline`
 - Implementer：Codex；Reviewer：完成后才启动的全新独立 Codex 会话
 - 用户已授权：仅 TASK-005 的 8 个产品路径、现有锁定依赖的 `uv sync --locked`（缓存缺失时仅包下载）与离线验证/构建；真实 YouTube/字幕、认证、remote components、ffmpeg、媒体下载、真实 Vault/密钥继续未授权
@@ -29,11 +29,11 @@
 
 ## 必须执行的门禁与唯一写入动作
 
-1. 确认 main HEAD 精确为 `b28f52d...`、main 干净（除上述 7 个准备文件）、身份为 `Mozhu <huangbuqubunao@gmail.com>` 且 `user.useConfigOnly=true`。
-2. 确认 `/Users/hua/Documents/yia-worktrees/task-005` 不存在，`codex/task-005-subtitle-pipeline` 不存在；既有 TASK-001 至 TASK-004 worktree 不读取、不修改、不清理。
+1. 确认 main HEAD 精确为 `b28f52d...`、main 干净（除上述 7 个准备文件）、身份为 `Mozhu <maintainer@example.invalid>` 且 `user.useConfigOnly=true`。
+2. 确认 `/Users/developer/Documents/yia-worktrees/task-005` 不存在，`codex/task-005-subtitle-pipeline` 不存在；既有 TASK-001 至 TASK-004 worktree 不读取、不修改、不清理。
 3. 仅在前两项通过后执行：
 
-    git worktree add /Users/hua/Documents/yia-worktrees/task-005 -b codex/task-005-subtitle-pipeline b28f52d0e4950f78dba315d4afe211ea5f75b93c
+    git worktree add /Users/developer/Documents/yia-worktrees/task-005 -b codex/task-005-subtitle-pipeline b28f52d0e4950f78dba315d4afe211ea5f75b93c
 
 4. 核验新 worktree 分支、HEAD 精确为 `b28f52d...`、工作区干净；不得在其中写产品文件或运行 `uv`。
 5. 核验 7 个控制面文件一致：TASK-005 为 `IN_PROGRESS`、Codex 为唯一 Implementer、全新独立 Codex Reviewer 等待 source commit；允许范围精确为 8 个路径；无新依赖/Schema/Repository 或真实网络授权。

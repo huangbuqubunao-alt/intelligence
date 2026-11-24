@@ -8,12 +8,12 @@
 
 ## 固定基线
 
-- Main repository：`/Users/hua/Documents/youtubek agent`
+- Main repository：`/Users/developer/Documents/youtubek agent`
 - Required main base：`99f0512ef9aa6f06c5cfc7daf46a4171a44c44e5`
-- Source worktree：`/Users/hua/Documents/yia-worktrees/task-005a`
+- Source worktree：`/Users/developer/Documents/yia-worktrees/task-005a`
 - Source branch/base：`codex/task-005a-local-model-shared-contracts` /
   `82f45a1c04f9eba3264cd743b28bc339d79b34fc`
-- Required identity：`Mozhu <huangbuqubunao@gmail.com>`；`user.useConfigOnly=true`
+- Required identity：`Mozhu <maintainer@example.invalid>`；`user.useConfigOnly=true`
 
 开始时 main HEAD 必须为 Required main base、身份正确、暂存区为空；工作区必须恰有
 下列 2 个准备文件且无其他修改/未跟踪路径。source 必须仍在固定 base 且干净，历史

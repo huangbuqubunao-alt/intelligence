@@ -25,7 +25,7 @@
     "new own durable spent record outside Restore before key/send"
   ],
   "official_model_doc": "https://docs.bigmodel.cn/cn/guide/models/text/glm-5.3.md",
-  "private_local_package": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/glm53-public-zh-offline-preparation-20261029",
+  "private_local_package": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/glm53-public-zh-offline-preparation-20261029",
   "official_document_snapshots": {
     "intelligence-glm53-model-20261029.txt": "29029ab6b8214b08a7875ff4aa287812754f875c2cacfe99453cdd25078b22ba",
     "intelligence-bigmodel-thinking-20261029.txt": "77ebad75df798e78eb29214c673a359131c47b392f4626917742b5b61d69f27e",

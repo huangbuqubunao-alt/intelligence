@@ -2,7 +2,7 @@ Task: TASK-READINESS-LONG-LOSSLESS-CODEC
 Role: Implementer
 Agent: Codex inherited default
 Base: codex/task-end-to-end-user-readiness@a073354 + root task/prompt metadata only
-Worktree: /Users/hua/Documents/yia-worktrees/readiness-long-lossless-codec
+Worktree: /Users/developer/Documents/yia-worktrees/readiness-long-lossless-codec
 Branch: codex/task-readiness-long-lossless-codec
 Allowed scope: tasks/TASK-READINESS-LONG-LOSSLESS-CODEC.md（仅新增纯codec/unit tests/对应handoff/证据）
 Required checks: focused pytest、Ruff、strict mypy src、git diff --check；独立语义roundtrip/negative

@@ -18,7 +18,7 @@
   "fresh_tuple_identical": true,
   "changed_or_absent_tuple_fail_closed": true,
   "verification_sha256": "8bfb2fc08c3efd3589a8f5b7b2fde8b9c1a03568881b7f31765a89a0ca08002c",
-  "private_verification_path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness-asr/.var/readiness-asr/product-01/product-verification.json",
+  "private_verification_path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness-asr/.var/readiness-asr/product-01/product-verification.json",
   "restart_verified_count": 14,
   "model_absence_verified_count": 14,
   "restored_verified_count": 14,

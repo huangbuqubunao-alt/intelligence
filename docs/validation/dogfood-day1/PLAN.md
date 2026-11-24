@@ -2,7 +2,7 @@
 
 One continuous owner-authorized engineering goal; base main/origin
 `943bc05bbc0c20e5d2f8e92c8358aa6e3e988981`, clean before isolated worktree creation.
-Candidate: `codex/dogfood-day1-fixes`, `/Users/hua/Documents/yia-worktrees/dogfood-day1-fixes`.
+Candidate: `codex/dogfood-day1-fixes`, `/Users/developer/Documents/yia-worktrees/dogfood-day1-fixes`.
 The owner's 2026-10-08 instruction supersedes historical review-only/adoption
 restrictions. Phase 14 remains unstarted. Only this candidate is developed.
 

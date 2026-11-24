@@ -5,7 +5,7 @@
 - Task: `TASK-READINESS-LONG-CARD-CANONICAL`；Role: Implementer。
 - Agent/session: `long_card_canonical_oct19`。
 - Base: `8f8c3d51fc89c06e322ec32c32d2ef5aa2da490e`。
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-long-card-canonical`。
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-long-card-canonical`。
 - Branch: `codex/task-readiness-long-card-canonical`。
 - Reported: 2026-10-19；实现和报告同一提交，准确 SHA 见最终回传及 `git log -1`。
 - 建议 `IN_REVIEW`；提交后 clean STOP。Reviewer 及 root 最终验收待完成。
@@ -69,7 +69,7 @@ canonical 3MB guard 不可在固定 shape 下达到，未伪造 3MB 成功样例
 
 ## 检查结果
 
-公共前缀 `PYTHONPATH=src`，复用 Python：`/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`；无安装或依赖变化。
+公共前缀 `PYTHONPATH=src`，复用 Python：`/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`；无安装或依赖变化。
 
 | 实际命令（Python 后缀） | 结果 |
 |---|---|
@@ -82,7 +82,7 @@ canonical 3MB guard 不可在固定 shape 下达到，未伪造 3MB 成功样例
 root 已执行的完整失败命令（保留而不重复碰原断言）：
 
 ```sh
-PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 /Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python -m pytest -q tests/unit/test_long_card_canonical.py tests/unit/test_long_grounding_codec.py tests/unit/test_long_grounding_projection.py tests/integration/test_task019_trusted_intelligence_read.py tests/integration/test_task023_topic_timeline.py tests/integration/test_task025a_saved_intelligence.py tests/integration/test_local_distillation_wire_branches.py > .var/interrupted-canonical-qa-20261019/regression.log 2>&1
+PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 /Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python -m pytest -q tests/unit/test_long_card_canonical.py tests/unit/test_long_grounding_codec.py tests/unit/test_long_grounding_projection.py tests/integration/test_task019_trusted_intelligence_read.py tests/integration/test_task023_topic_timeline.py tests/integration/test_task025a_saved_intelligence.py tests/integration/test_local_distillation_wire_branches.py > .var/interrupted-canonical-qa-20261019/regression.log 2>&1
 ```
 
 终态 **327 PASS/32 FAIL，30.48s，exit1**。日志原样保留于本WT忽略目录，不混入提交；root持有完整证据。32项均在旧fixture初始化或升级断言中期待Schema39，而实际Schema40，尚未进入相关 card 行为；涉及Topic22、Save3、local wire7。关键行：`AssertionError: assert 40 == 39`，受影响 `test_task023_topic_timeline.py:45/254`、`test_task025a_saved_intelligence.py`、wire共用 `test_task022_personalized_distillation.py:671`。root另在不含新helper的当前候选复现三代表同类FAIL；此模块未被旧产品import，不将此继承失败归因于新helper，也不冒称已有32项行为获得验收。旧测试维护已由root指定原共享core writer修复；本作者不越过三文件范围。最新core整合后的相同专项复验仍待root/独立Reviewer。

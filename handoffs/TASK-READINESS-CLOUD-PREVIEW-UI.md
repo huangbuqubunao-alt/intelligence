@@ -1,7 +1,7 @@
 # TASK-READINESS-CLOUD-PREVIEW-UI — Implementer handoff
 
 - Base: `2e5df5b4afb633464a3480c097b3f7f58b5dec56`; branch `codex/task-readiness-cloud-preview-ui`.
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-cloud-preview-ui`; sole frontend writer. Head is the commit containing this report. Recommendation **IN_REVIEW**, not DONE/accepted/merged.
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-cloud-preview-ui`; sole frontend writer. Head is the commit containing this report. Recommendation **IN_REVIEW**, not DONE/accepted/merged.
 - Scope: `App.tsx`, `uiLanguage.tsx`, existing App tests, new `App.cloud-preview.test.tsx`, existing mocked consent browser fixture. No backend/DTO/Schema/configuration/dependency/lockfile/credential/model/owner-data/main changes. No new provider or provider selector.
 
 ## Behavior
@@ -46,7 +46,7 @@ Independent review/Root acceptance pending. Commit clean and STOP; no integratio
 
 ## Minimal repair after Root real-API finding — 2026-10-27
 
-Root's actual isolated6179 DTO for public `IwglW_hIL_g` has Summary/transcript AVAILABLE, manual eligibility true, Intelligence NOT_PROCESSED, cloud availability false and local NOT_QUALIFIED/CONFIGURATION_REQUIRED. Commit7353's WAITING_MODEL-only entry was unreachable because local extraction was correctly disabled. That is a real product gap; the earlier simulated WAITING_MODEL screenshot did not establish the fresh-user path. Evidence read-only: `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/cloud-preview-real-api-20261026/IwglW_hIL_g-before.json`.
+Root's actual isolated6179 DTO for public `IwglW_hIL_g` has Summary/transcript AVAILABLE, manual eligibility true, Intelligence NOT_PROCESSED, cloud availability false and local NOT_QUALIFIED/CONFIGURATION_REQUIRED. Commit7353's WAITING_MODEL-only entry was unreachable because local extraction was correctly disabled. That is a real product gap; the earlier simulated WAITING_MODEL screenshot did not establish the fresh-user path. Evidence read-only: `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/cloud-preview-real-api-20261026/IwglW_hIL_g-before.json`.
 
 Repair changes only that display condition: retain the existing WAITING_MODEL entry and add NOT_PROCESSED **only with backend manual eligibility true**, retaining explicit YOUTUBE and trusted Summary/transcript checks. Local extraction remains disabled; no artificial wait/qualification, new running/ambiguous/completed entry, automatic preview, backend contract or execution gate was introduced.
 

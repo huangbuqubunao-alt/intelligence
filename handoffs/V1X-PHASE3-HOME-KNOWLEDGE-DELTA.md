@@ -1,6 +1,6 @@
 # V1.x Phase 3 Home Knowledge Delta acceptance
 
-Dedicated worktree: `/Users/hua/Documents/yia-worktrees/v1x-knowledge-delta`.
+Dedicated worktree: `/Users/developer/Documents/yia-worktrees/v1x-knowledge-delta`.
 Branch: `chatgpt/v1x-knowledge-delta`. Exact accepted Phase 1B base:
 `432f085d76824dfa51a447622aa2dba23ff8bfc8`.
 Implementation commit: `eb59e7859693a2478d2b1bd3baf65c99fca2caf4`.
@@ -115,7 +115,7 @@ query failure/transport retry, and concurrent snapshot isolation.
 
 ## Validation and reproduction
 
-Use the existing Python environment `/Users/hua/youtube-intel/.venv/bin/python`
+Use the existing Python environment `/Users/developer/youtube-intel/.venv/bin/python`
 with `PYTHONPATH=src`; frontend uses the existing dependency versions. No package
 installation, lockfile edit or production dependency upgrade was required.
 

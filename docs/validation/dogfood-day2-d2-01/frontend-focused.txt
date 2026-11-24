@@ -3,7 +3,7 @@
 > vitest run src/workspace/LocalImportFlow.test.tsx src/workspace/LocalImport.test.tsx src/workspace/LocalImportStatus.test.tsx src/workspace/AddEntry.test.tsx src/workspace/LocalTranscription.test.tsx src/workspace/App.test.tsx
 
 
- RUN  v2.1.9 /Users/hua/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend
+ RUN  v2.1.9 /Users/developer/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend
 
  ✓ src/workspace/LocalImportStatus.test.tsx (4 tests) 117ms
  ✓ src/workspace/AddEntry.test.tsx (24 tests) 148ms
@@ -21,15 +21,15 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at ExistingSourceForm (/Users/hua/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend/src/workspace/App.tsx:4009:31)
-    at SourceForm (/Users/hua/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend/src/workspace/App.tsx:3999:16)
+    at ExistingSourceForm (/Users/developer/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend/src/workspace/App.tsx:4009:31)
+    at SourceForm (/Users/developer/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend/src/workspace/App.tsx:3999:16)
     at div
-    at SourceDetail (/Users/hua/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend/src/workspace/App.tsx:4742:25)
-    at Sources (/Users/hua/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend/src/workspace/App.tsx:3712:20)
+    at SourceDetail (/Users/developer/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend/src/workspace/App.tsx:4742:25)
+    at Sources (/Users/developer/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend/src/workspace/App.tsx:3712:20)
     at main
     at div
-    at Workspace (/Users/hua/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend/src/workspace/App.tsx:1142:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend/src/workspace/uiLanguage.tsx:1011:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend/src/workspace/App.tsx:1142:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend/src/workspace/uiLanguage.tsx:1011:31)
     at App
 
  ✓ src/workspace/App.test.tsx (108 tests) 4260ms

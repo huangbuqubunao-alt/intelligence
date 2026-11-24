@@ -2,7 +2,7 @@
 
 Implementer `/root/bigmodel_audit_review` (new role for this task),2026-10-29.
 Base `b080d26aa260eb02ca740427630fdb0670959f67`;
-WT `/Users/hua/Documents/yia-worktrees/readiness-kimi-provider-settings`;
+WT `/Users/developer/Documents/yia-worktrees/readiness-kimi-provider-settings`;
 branch `codex/task-readiness-kimi-provider-settings`.
 Suggested IN_REVIEW; Root alone accepts/integrates. Fixed SHA is the commit
 containing this handoff, reported in chat. No subagents.

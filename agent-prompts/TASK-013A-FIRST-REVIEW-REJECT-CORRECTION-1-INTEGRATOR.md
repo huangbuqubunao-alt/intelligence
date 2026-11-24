@@ -5,7 +5,7 @@
 ## 固定对象
 
 - Main base：`main@d47dfdad12b99b001e6d2fc295a905cbd882c868`，必须干净且为唯一父基线。
-- Source evidence：`/Users/hua/Documents/yia-worktrees/task-013a` / `codex/task-013a-local-transcription-continuation@08542b84d550ca225dece520cf748a2fc654ab58`，开始时必须干净。
+- Source evidence：`/Users/developer/Documents/yia-worktrees/task-013a` / `codex/task-013a-local-transcription-continuation@08542b84d550ca225dece520cf748a2fc654ab58`，开始时必须干净。
 - Evidence `08542b...` 的唯一父提交为 `213c9ff42f9321d443e4e470d74a18a0296ad528`，且只修改 `handoffs/TASK-013A.md`；完整产品范围相对 `d96862f...` 不得超过获批四路径。
 - 该 evidence 的 Verdict=`REJECT`，P1：缓存 canonical Artifact 未验证历史 Job/Pipeline provenance，篡改 `artifacts.job_id` 可推进错误的运行 Job。
 

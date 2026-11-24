@@ -9,7 +9,7 @@ Task: TASK-014B6 — safe subtitle directory shape diagnostics
 Role: Implementer
 Agent: Codex
 Implementation baseline: main@7983bf5bfa0ce08529d189a9ac07f41f042bc6a1
-Worktree: /Users/hua/Documents/yia-worktrees/task-014b6-safe-directory-shape-diagnostics
+Worktree: /Users/developer/Documents/yia-worktrees/task-014b6-safe-directory-shape-diagnostics
 Branch: codex/task-014b6-safe-directory-shape-diagnostics
 Required source HEAD: 7983bf5bfa0ce08529d189a9ac07f41f042bc6a1
 Read-only failure evidence: c7a3f403c910ab8e50e74f08b1c5ead057a5e4fa (must not merge, rewrite, or call passing)

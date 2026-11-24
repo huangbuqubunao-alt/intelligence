@@ -13,16 +13,16 @@ T-15、TASK-005 AC-1 至 AC-5、仓库架构、安全、复用和范围门禁。
 
 ## 固定审查对象
 
-- Main repository：`/Users/hua/Documents/youtubek agent`
+- Main repository：`/Users/developer/Documents/youtubek agent`
 - Main review authorization：动态执行
-  `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-005-REVIEWER-CODEX.md`
+  `git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-005-REVIEWER-CODEX.md`
 - Main authorization parent：`38f1caa1c957b4b305afbe0f87c2e082b1ffc929`
-- Source worktree：`/Users/hua/Documents/yia-worktrees/task-005`
+- Source worktree：`/Users/developer/Documents/yia-worktrees/task-005`
 - Source branch：`codex/task-005-subtitle-pipeline`
 - Implementation base：`b28f52d0e4950f78dba315d4afe211ea5f75b93c`
 - Reviewed implementation head：`98d19700818bcae14efc412aaaaeb6eed97a1535`
 - Implementation head parent：`b28f52d0e4950f78dba315d4afe211ea5f75b93c`
-- Git identity：`Mozhu <huangbuqubunao@gmail.com>`
+- Git identity：`Mozhu <maintainer@example.invalid>`
 - `user.useConfigOnly=true`
 
 开始时 main 必须位于 review authorization commit 且干净；source 必须位于固定实现

@@ -5,7 +5,7 @@
 - Task: `TASK-022D — Authorize NVIDIA NIM / Kimi K3 for Normal V1 Production`
 - Role: `Implementer / adversarial reviewer`
 - START_HEAD: `13c45bc4fcb379dbdbf81b667dee00a3ff140c29`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-022d-authorize-nvidia-kimi-production`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-022d-authorize-nvidia-kimi-production`
 - Branch: `codex/task-022d-authorize-nvidia-kimi-production`
 - Date: `2026-09-13`
 - Reuse decision: `ADAPT` the existing TASK-022A NVIDIA adapter,

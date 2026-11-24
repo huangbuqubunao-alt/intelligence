@@ -7,11 +7,11 @@ merge、push 或清理。
 
 ## 固定基线
 
-- Main repository：`/Users/hua/Documents/youtubek agent`
+- Main repository：`/Users/developer/Documents/youtubek agent`
 - Main branch/base：`main@4df3ff13732e98665732e2ba7bfc8b90c4c141aa`
-- Git identity：`Mozhu <huangbuqubunao@gmail.com>`
+- Git identity：`Mozhu <maintainer@example.invalid>`
 - `user.useConfigOnly=true`
-- Source worktree：`/Users/hua/Documents/yia-worktrees/task-005`
+- Source worktree：`/Users/developer/Documents/yia-worktrees/task-005`
 - Source branch：`codex/task-005-subtitle-pipeline`
 - Original implementation：`98d19700818bcae14efc412aaaaeb6eed97a1535`
 - First review evidence：`515c34894bb138115a4658d962fb5ef0aa7d9d80`

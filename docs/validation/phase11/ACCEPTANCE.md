@@ -1,7 +1,7 @@
 # Phase 11 final acceptance
 
 Starting authority: `bda7e3eeeaf7f71ab243a82bd75dc4995825d06b`, schema 33.
-Worktree: `/Users/hua/Documents/yia-worktrees/v1x-bilibili-following`.
+Worktree: `/Users/developer/Documents/yia-worktrees/v1x-bilibili-following`.
 Branch: `chatgpt/v1x-bilibili-following`. Sole engineering executor.
 Reviewed production code: `0153cf8ef0d08e8492683deb2d2287767c061b74`.
 Subsequent changes only improve browser assertion waits and record acceptance.
@@ -32,7 +32,7 @@ See [decision record](../../decisions/V1X-PHASE11-CREATOR-FOLLOWING.md),
 ## External verification
 
 Commands ran inside the dedicated worktree using the existing Python environment
-`/Users/hua/youtube-intel/.venv`, `PYTHONPATH=src`, and existing frontend tools.
+`/Users/developer/youtube-intel/.venv`, `PYTHONPATH=src`, and existing frontend tools.
 No production dependency or toolchain changes were made. Logs are in `checks/`.
 
 | Verification | Result / evidence |

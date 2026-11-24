@@ -5,7 +5,7 @@
 - Reviewer：`/root/backup_reconnect_review`，延续发现R6问题的独立审查会话，无产品写入。
 - Base：`b187e8223de16ab4472455796956ed8d4899364f`。
 - Candidate：`acc0f989f3bb5b4c57f03e24e320705a6d9a52a7`。
-- Worktree：`/Users/hua/Documents/yia-worktrees/readiness-long-input-wait-review-r7`。
+- Worktree：`/Users/developer/Documents/yia-worktrees/readiness-long-input-wait-review-r7`。
 - 实际差异：仅 `frontend/src/workspace/App.tsx`、对应反馈测试及原任务handoff，共3文件。没有重新启动完整三方审核。
 
 ## 独立复核

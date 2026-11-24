@@ -14,7 +14,7 @@
 | 最初 main 历史参考 | `fad25e6109d02650b25ae777f2f7557dd478309d` |
 | 本轮续作起点 | `6ed56192c65c395ba39dffcd423aecacb256856a` |
 | 最终产品代码与构建基线 | `a2076dbd695e1c8f6abae0f41bdc885fff5a6bdf`；随后仅补报告和任务文档 |
-| 独立候选 | `codex/task-end-to-end-user-readiness`，`/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness` |
+| 独立候选 | `codex/task-end-to-end-user-readiness`，`/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness` |
 | 正式 main HEAD | `73ee7e747b4461b9de8a201d6b47669eb3913d1a` |
 | 实际 origin/main HEAD | `73ee7e747b4461b9de8a201d6b47669eb3913d1a`（重新 ls-remote 核验） |
 | Git 拓扑 | 正式 worktree clean，main 为候选祖先；没有 force/reset/覆盖其他 Agent 成果 |

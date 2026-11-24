@@ -1,5 +1,5 @@
 
- RUN  v2.1.9 /Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/opencode-source/frontend
+ RUN  v2.1.9 /Users/developer/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/opencode-source/frontend
 
  ❯ src/workspace/AuditMuseRegression.test.tsx (111 tests | 1 failed | 110 skipped) 132ms
    × import success notice survives the programmatic navigation that follows it 131ms

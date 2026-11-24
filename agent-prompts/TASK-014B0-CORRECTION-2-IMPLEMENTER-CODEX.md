@@ -14,7 +14,7 @@ Task: TASK-014B0 Correction 2 — reject configuration inputs only for the actua
 Role: Original Implementer
 Agent: Codex
 Control-plane base: main@931b872a933709fb696b6495b61e2f37a4a9f9eb
-Only source worktree: /Users/hua/Documents/yia-worktrees/task-014-phase-b0-restricted-public-subtitle-smoke
+Only source worktree: /Users/developer/Documents/yia-worktrees/task-014-phase-b0-restricted-public-subtitle-smoke
 Source branch: codex/task-014-phase-b0-restricted-public-subtitle-smoke
 Correction base/source HEAD: 48df2e2a0afb54d5f6252f197dddf32ff685f0db
 Required sole parent of correction commit: 48df2e2a0afb54d5f6252f197dddf32ff685f0db

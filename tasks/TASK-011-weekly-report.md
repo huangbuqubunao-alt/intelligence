@@ -69,7 +69,7 @@
 ## 2026-07-23 正式实施分配
 
 - Base：`main@44fc64be2cb4602cb93c1d03f84d6dd2a1677750`；worktree：
-  `/Users/hua/Documents/yia-worktrees/task-011`；branch：`codex/task-011-weekly-report`。
+  `/Users/developer/Documents/yia-worktrees/task-011`；branch：`codex/task-011-weekly-report`。
 - Codex 为唯一 Implementer；完成后由全新独立 Codex Reviewer 审查。仅允许 ADR-010 的八个路径组和
   任务卡离线门禁；未授权路径、真实 Vault、用户内容、网络、云调用、凭据、依赖/锁、Schema/migration 与
   `complete_stage` 继续禁止。

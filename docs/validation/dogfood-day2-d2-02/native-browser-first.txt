@@ -1,5 +1,5 @@
 REAL_NATIVE_BROWSER_PICKER_READY {
-  fixture: '/Users/hua/Documents/yia-worktrees/dogfood-day2-large-import/.var/d2-02/ui-native-fixture/two-gib.mp4'
+  fixture: '/Users/developer/Documents/yia-worktrees/dogfood-day2-large-import/.var/d2-02/ui-native-fixture/two-gib.mp4'
 }
 node:internal/modules/run_main:123
     triggerUncaughtException(
@@ -9,7 +9,7 @@ AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
 
   assert.ok(requests.every(request => request.url.startsWith(base) && request.url.includes('/local/native/') && request.body === '{}'))
 
-    at file:///Users/hua/Documents/yia-worktrees/dogfood-day2-large-import/frontend/dogfood-day2-native-import.e2e.mjs:40:10 {
+    at file:///Users/developer/Documents/yia-worktrees/dogfood-day2-large-import/frontend/dogfood-day2-native-import.e2e.mjs:40:10 {
   generatedMessage: true,
   code: 'ERR_ASSERTION',
   actual: false,

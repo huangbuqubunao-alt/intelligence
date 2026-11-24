@@ -1,7 +1,7 @@
 # INTELLIGENCE_PHASE12_FINAL_P1_REMEDIATION_REPORT
 
 1. **Starting HEAD:** `bdd30cc37dcd9f956c3a9c6185ad12433c08ef8f`; exact isolated starting tree.
-2. **Worktree / branch:** `/Users/hua/Documents/yia-worktrees/phase12-final-p1-remediation` / `codex/phase12-final-p1-remediation`.
+2. **Worktree / branch:** `/Users/developer/Documents/yia-worktrees/phase12-final-p1-remediation` / `codex/phase12-final-p1-remediation`.
 3. **Protected fingerprints before:** [Full before fingerprint](protected-before.json): HEAD, index bytes, status and tracked/nonignored-untracked file bytes/modes for nine protected trees; summarized below.
 4. **P1-1 reproduction:** Exact base: progressing-body regressions fail at the original deadline. Real pre-fix NASA: 2/3 success, one NETWORK_UNAVAILABLE at 10.001 s; Google Developers: 3/3 success in this small sample. [Red run](red.txt), [real pre-fix sample](alias-before.json).
 5. **P1-1 root cause:** One ten-second deadline spans transport, headers and the entire up-to-4-MiB HTML body; remaining time repeatedly shrinks socket timeout.
@@ -35,7 +35,7 @@
 33. **Remaining P1:** 0 found in scope; both independent acceptance findings remediated. Independent revalidation of this new candidate remains the next gate.
 34. **Deferred P2/P3:** Accepted deferred capabilities remain: PAC/SOCKS-only and authenticated proxies, other-OS discovery and broader acquisition transport; finer parser taxonomy/provider availability follow-ups. No new in-scope P2/P3 found. Phase 13/14 and M13 untouched.
 35. **Protected fingerprints after:** [Full after](protected-after.json) equals before for all nine protected trees, including frozen WIP/M13 dirt. [Equality proof](protected-equality.json). No protected-tree writes performed.
-36. **Final HEAD:** Final local evidence-seal commit containing this report. Exact post-commit SHA and clean status are recorded in `/Users/hua/Documents/phase12-final-p1-evidence/final-state.json` and the final response; a commit cannot contain its own hash.
+36. **Final HEAD:** Final local evidence-seal commit containing this report. Exact post-commit SHA and clean status are recorded in `/Users/developer/Documents/phase12-final-p1-evidence/final-state.json` and the final response; a commit cannot contain its own hash.
 37. **Commits:** Product remediation `dc9f1969d6344f243010460f875a52798552e2a2`; separate local evidence-seal commit containing this report. No merge, push, PR or history rewrite.
 38. **Final verdict:** Both bounded P1s fixed; deterministic, real socket, real product, repeated alias, regression, frontend and static gates passed. Scope/self-review complete. [Self-review](SELF_REVIEW.md).
 39. **Recommended next action:** Independent revalidation of the sealed local candidate against the same two P1 acceptance criteria. Retain the freeze on main adoption and Phase 13/14.
@@ -44,15 +44,15 @@
 
 | Worktree | SHA-256 of file bytes/modes |
 |---|---|
-| `/Users/hua/youtube-intel` | `95b82ba586d234196a0a2e4091b61684c7d589ebc6951f7af07a33980f60d326` |
+| `/Users/developer/youtube-intel` | `95b82ba586d234196a0a2e4091b61684c7d589ebc6951f7af07a33980f60d326` |
 | `/private/var/folders/yk/wdmys1pn75lcr5pnnkyjv8km0000gn/T/opencode/p12-final-acceptance` | `48ba825e88bd3e067b8c3e420404824396c06e3fae3c227194d3f88487e2657a` |
-| `/Users/hua/Documents/yia-worktrees/phase12-zero-config-network` | `48ba825e88bd3e067b8c3e420404824396c06e3fae3c227194d3f88487e2657a` |
-| `/Users/hua/Documents/yia-worktrees/phase12-live-fix` | `05ea0bcb2935788bca12a19ad719bc1013c9f5e1f9c06db2cdd180ead045650b` |
-| `/Users/hua/Documents/yia-worktrees/phase12-live-validation` | `24cd04d877b16ffe410782a6ac5c6d4029e11c8d9d4e951a61b916b0eb26d8a4` |
-| `/Users/hua/Documents/yia-worktrees/phase12-fixed-candidate-validation` | `05ea0bcb2935788bca12a19ad719bc1013c9f5e1f9c06db2cdd180ead045650b` |
-| `/Users/hua/Documents/yia-worktrees/v1x-youtube-following-resume` | `24cd04d877b16ffe410782a6ac5c6d4029e11c8d9d4e951a61b916b0eb26d8a4` |
-| `/Users/hua/Documents/yia-worktrees/v1x-youtube-following` | `a1259342194d8a6120e5ef90f913945f8f5471f5981c7c87daec6beba0c9de3a` |
-| `/Users/hua/Documents/yia-worktrees/m13-dogfood` | `5dbfeffdd5d0cb4f57a2e71953bcbb7d36a621d36f0723febe76a314afeddcff` |
+| `/Users/developer/Documents/yia-worktrees/phase12-zero-config-network` | `48ba825e88bd3e067b8c3e420404824396c06e3fae3c227194d3f88487e2657a` |
+| `/Users/developer/Documents/yia-worktrees/phase12-live-fix` | `05ea0bcb2935788bca12a19ad719bc1013c9f5e1f9c06db2cdd180ead045650b` |
+| `/Users/developer/Documents/yia-worktrees/phase12-live-validation` | `24cd04d877b16ffe410782a6ac5c6d4029e11c8d9d4e951a61b916b0eb26d8a4` |
+| `/Users/developer/Documents/yia-worktrees/phase12-fixed-candidate-validation` | `05ea0bcb2935788bca12a19ad719bc1013c9f5e1f9c06db2cdd180ead045650b` |
+| `/Users/developer/Documents/yia-worktrees/v1x-youtube-following-resume` | `24cd04d877b16ffe410782a6ac5c6d4029e11c8d9d4e951a61b916b0eb26d8a4` |
+| `/Users/developer/Documents/yia-worktrees/v1x-youtube-following` | `a1259342194d8a6120e5ef90f913945f8f5471f5981c7c87daec6beba0c9de3a` |
+| `/Users/developer/Documents/yia-worktrees/m13-dogfood` | `5dbfeffdd5d0cb4f57a2e71953bcbb7d36a621d36f0723febe76a314afeddcff` |
 
 Fingerprint scope includes tracked and nonignored untracked files/symlink targets/modes, HEAD, status and index bytes. Ignored caches/runtime files are not part of the fingerprint. The work was executed only in the isolated task tree and its external evidence directory.
 

@@ -6,7 +6,7 @@
 - Role: `Implementer`
 - Agent/session: `Codex primary`
 - Base branch/commit: `main@60551f2b8606e50ed8e4bd8d161ac5636a8a9266`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-016b-scoring-output-language`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-016b-scoring-output-language`
 - Branch: `codex/task-016b-scoring-output-language`
 - Head commit: `本实现提交（SHA 见最终 Implementation Report）`
 - Started: `2026-08-13`

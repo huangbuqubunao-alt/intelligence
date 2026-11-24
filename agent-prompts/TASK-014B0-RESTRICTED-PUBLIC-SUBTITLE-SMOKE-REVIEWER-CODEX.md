@@ -13,7 +13,7 @@ Task: TASK-014B0 — Restricted public subtitle smoke entry
 Role: Independent Reviewer
 Agent: Codex Reviewer
 Control-plane base: main@c62310ab79f01f5f311c9f54bb28365905f5a81a
-Only source worktree: /Users/hua/Documents/yia-worktrees/task-014-phase-b0-restricted-public-subtitle-smoke
+Only source worktree: /Users/developer/Documents/yia-worktrees/task-014-phase-b0-restricted-public-subtitle-smoke
 Source branch: codex/task-014-phase-b0-restricted-public-subtitle-smoke
 Source HEAD: 4e506847854f20a43011b0a15db3a1c8e320656d
 Required sole parent: c62310ab79f01f5f311c9f54bb28365905f5a81a

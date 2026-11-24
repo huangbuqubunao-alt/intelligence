@@ -9,7 +9,7 @@ monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x108c3a960>
     def test_no_media_or_unqualified_executor_route(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         from youtube_intel import local_content
 >       from youtube_intel.offline_transcription import LocalTranscriptionJobs
-E       ImportError: cannot import name 'LocalTranscriptionJobs' from 'youtube_intel.offline_transcription' (/Users/hua/Documents/yia-worktrees/v1x-bilibili-provider/src/youtube_intel/offline_transcription.py). Did you mean: 'local_transcription_jobs'?
+E       ImportError: cannot import name 'LocalTranscriptionJobs' from 'youtube_intel.offline_transcription' (/Users/developer/Documents/yia-worktrees/v1x-bilibili-provider/src/youtube_intel/offline_transcription.py). Did you mean: 'local_transcription_jobs'?
 
 tests/integration/test_bilibili_content.py:170: ImportError
 =========================== short test summary info ============================

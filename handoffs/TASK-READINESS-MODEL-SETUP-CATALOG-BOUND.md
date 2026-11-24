@@ -6,7 +6,7 @@
 - Role: Implementer
 - Agent: `/root/model_setup_catalog_bound`
 - Base: `6ed56192c65c395ba39dffcd423aecacb256856a`
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-model-setup-catalog-bound`
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-model-setup-catalog-bound`
 - Branch: `codex/task-readiness-model-setup-catalog-bound`
 - Product commit: `061d20d87da840398eea6d3795419c43d2ed9194`
 - Reported: 2026-10-25 Asia/Shanghai

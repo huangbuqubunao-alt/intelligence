@@ -33,15 +33,15 @@
   },
   "proofs": {
     "main-verified.json": {
-      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/gemma4-e4b-20261025/main-verified.json",
+      "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/gemma4-e4b-20261025/main-verified.json",
       "sha256": "2788763e31ed85454f929ffd7877b50beeba9d65abd8146026ec07c8f5171ee5"
     },
     "actual-gguf-inspection.json": {
-      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/gemma4-e4b-20261025/actual-gguf-inspection.json",
+      "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/gemma4-e4b-20261025/actual-gguf-inspection.json",
       "sha256": "5270292809d5324ab377449d66d1ee02962982d526661f6d3f34786977ce565a"
     },
     "artifact-installed.json": {
-      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/gemma4-e4b-20261025/artifact-installed.json",
+      "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/gemma4-e4b-20261025/artifact-installed.json",
       "sha256": "6fd70370a185ee24d0be78858db4dda8e4cb876731869d7924ad72af319e835e"
     }
   },

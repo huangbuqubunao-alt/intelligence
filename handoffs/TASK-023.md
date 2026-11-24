@@ -5,7 +5,7 @@
 - Task: `TASK-023 — Topic & Timeline Foundation`
 - Role: `Implementer / Reviewer`
 - Base branch/commit: `51c980928553a2161c70c980a8e79afcc61a70c5`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-023-topic-timeline`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-023-topic-timeline`
 - Branch: `codex/task-023-topic-timeline`
 - Start commit: `51c980928553a2161c70c980a8e79afcc61a70c5`
 - Implementation commits:

@@ -7,16 +7,16 @@ cherry-pick、reset、清理 source 或选择其他 SHA。
 
 ## 固定基线与对象
 
-- Main repository：`/Users/hua/Documents/youtubek agent`
+- Main repository：`/Users/developer/Documents/youtubek agent`
 - Acceptance anchor：`aa134f43af57e6f6bdc7455b56c59ac97ee342e7`
 - Execution base：动态运行
-  `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-008A-INTEGRATOR.md`
-- Source worktree：`/Users/hua/Documents/yia-worktrees/task-008a`
+  `git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-008A-INTEGRATOR.md`
+- Source worktree：`/Users/developer/Documents/yia-worktrees/task-008a`
 - Source branch：`codex/task-008a-cloud-analysis-shared-contracts`
 - Accepted source head：`7a8239f3da02fa204b63702677fae5f669fb99c0`
 - Correction implementation：`d95745fd04b115369a9fd70362cd735d1eb70917`
 - Original task base：`82d1fd7c7f2f82e77df0518e63755bad0bf240f2`
-- Required identity：`Mozhu <huangbuqubunao@gmail.com>`；
+- Required identity：`Mozhu <maintainer@example.invalid>`；
   `user.useConfigOnly=true`
 
 开始时 main 必须在动态 execution base，且其唯一父为 Acceptance anchor；main/source

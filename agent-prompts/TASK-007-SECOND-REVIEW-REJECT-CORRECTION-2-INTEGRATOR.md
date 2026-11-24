@@ -8,9 +8,9 @@ run product commands, or access TASK-006.
 
 ## Required main baseline and source proof
 
-- Main worktree: `/Users/hua/Documents/youtubek agent`, branch `main`, required base
+- Main worktree: `/Users/developer/Documents/youtubek agent`, branch `main`, required base
   `1eb3380ea329592a4259b5ead24fde5403f7fa0f`; its index must be empty before staging.
-- Source worktree: `/Users/hua/Documents/yia-worktrees/task-007`, branch
+- Source worktree: `/Users/developer/Documents/yia-worktrees/task-007`, branch
   `codex/task-007-local-scoring`, clean at `d8eaeabdd2454141eeb646d9254f4a0a24626605`.
 - Review evidence must have sole parent `f46881bc4a8ca0fda4d5ef7006b372bc566cff97` and modify only
   `handoffs/TASK-007.md`. Confirm the original base...source product range remains the approved 11
@@ -56,7 +56,7 @@ accessing its worktree.
 ## Git procedure
 
 Run only Git/document checks from main; do not run `uv`, tests, build, database, model, media or network
-commands. Confirm `Mozhu <huangbuqubunao@gmail.com>` and `user.useConfigOnly=true`.
+commands. Confirm `Mozhu <maintainer@example.invalid>` and `user.useConfigOnly=true`.
 
 At minimum run:
 

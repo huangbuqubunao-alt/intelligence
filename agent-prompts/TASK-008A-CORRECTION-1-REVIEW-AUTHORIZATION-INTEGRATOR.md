@@ -7,14 +7,14 @@ source，不得运行 `uv`、pytest、mypy、Ruff、build、import、数据库�
 
 ## 固定基线
 
-- Main repository：`/Users/hua/Documents/youtubek agent`
+- Main repository：`/Users/developer/Documents/youtubek agent`
 - Main branch/base：`main@4eec2e186fce6dedbb105234f624fcb93274c938`
-- Source worktree：`/Users/hua/Documents/yia-worktrees/task-008a`
+- Source worktree：`/Users/developer/Documents/yia-worktrees/task-008a`
 - Source branch：`codex/task-008a-cloud-analysis-shared-contracts`
 - First review evidence：`0f52c3056379bcfcd9b7bb0805ccdb5dba99a9dd`
 - Correction 1 source：`d95745fd04b115369a9fd70362cd735d1eb70917`
 - Original task base：`82d1fd7c7f2f82e77df0518e63755bad0bf240f2`
-- Required identity：`Mozhu <huangbuqubunao@gmail.com>`；
+- Required identity：`Mozhu <maintainer@example.invalid>`；
   `user.useConfigOnly=true`
 
 开始时 main 必须在 Required main base、身份正确且暂存区为空；工作区必须恰有下列

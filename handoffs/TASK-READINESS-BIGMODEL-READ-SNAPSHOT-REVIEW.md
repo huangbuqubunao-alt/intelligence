@@ -6,7 +6,7 @@
 - State base `17168de63afce55fde5d660a8f02e68e4463dcb8`; fixed State author `56ecaffd34d8198926ff795c8bb0e51abfb269b0`.
 - Transport original `a7a9d710816c316e5719f9fcf5ed8da0b9b80e57` plus repair `00789303e02292450b23461927332ac7c96790dd`.
 - Exact composed review baseline `3ca657903eb588c83d848b476dab27e9751e8387`: accepted settings source plus fixed State and fixed transport. State/new snapshot regression match56; entire distillation/new transport tests match007.
-- Worktree `/Users/hua/Documents/yia-worktrees/readiness-bigmodel-read-snapshot-review`, branch `codex/task-readiness-bigmodel-read-snapshot-review`.
+- Worktree `/Users/developer/Documents/yia-worktrees/readiness-bigmodel-read-snapshot-review`, branch `codex/task-readiness-bigmodel-read-snapshot-review`.
 - **State verdict: APPROVE fixed56ecaffd. Cumulative transport verdict: APPROVE a7+007 only with this fixed State and the exact reviewed composition.** Both original input-preflight and snapshot P2 findings are closed; no remaining confirmed P0/P1/P2 in these bounded engineering slices. Earlier standalone a7/007 rejection records remain valid historical evidence. Only this report is written; no business/test fixes or native credentials, actual key/environment, external HTTP/model, owner/Root QA, configuration/schema/dependency/main action.
 
 ## State snapshot correctness
@@ -41,7 +41,7 @@ This is an actual isolated storage/Backup/Restore run with synthetic public cont
 
 ## Independent fixed-source checks
 
-All Python runs use `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`, `PYTHONDONTWRITEBYTECODE=1` and explicit `PYTHONPATH=/Users/hua/Documents/yia-worktrees/readiness-bigmodel-read-snapshot-review/src` (probes additionally import only this review's test helpers). Compile precedes pytest. No package install or UI/native credential operation.
+All Python runs use `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`, `PYTHONDONTWRITEBYTECODE=1` and explicit `PYTHONPATH=/Users/developer/Documents/yia-worktrees/readiness-bigmodel-read-snapshot-review/src` (probes additionally import only this review's test helpers). Compile precedes pytest. No package install or UI/native credential operation.
 
 | Check | Independent result |
 |---|---|

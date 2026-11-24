@@ -3,7 +3,7 @@
 Reviewer `/root/bigmodel_audit_review`, independent, no subagents.
 Base `ee3f82d1a77b066f8ae5956a2efa7f953d025eb9`;
 fixed author `d4f2daf94d7fdcb1d37dd40a5f4908e9c83fbe5d`.
-WT `/Users/hua/Documents/yia-worktrees/readiness-bound-evidence-reference-review`.
+WT `/Users/developer/Documents/yia-worktrees/readiness-bound-evidence-reference-review`.
 
 ## Source verdict
 
@@ -73,7 +73,7 @@ hash scopes, not an implementation discrepancy.
 
 ## Independent verification
 
-Existing interpreter `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`;
+Existing interpreter `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`;
 all runs used PYTHONDONTWRITEBYTECODE=1 and explicit own-WT/src PYTHONPATH. No install.
 
 - Strict mypy `--strict src`: **125 source files PASS**; changed source/tests Ruff
@@ -90,8 +90,8 @@ all runs used PYTHONDONTWRITEBYTECODE=1 and explicit own-WT/src PYTHONPATH. No i
 
 ```sh
 PYTHONDONTWRITEBYTECODE=1 \
-PYTHONPATH=/Users/hua/Documents/yia-worktrees/readiness-bound-evidence-reference-review/src \
-/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python -m pytest -q \
+PYTHONPATH=/Users/developer/Documents/yia-worktrees/readiness-bound-evidence-reference-review/src \
+/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python -m pytest -q \
  tests/unit/test_bound_evidence_reference.py tests/unit/test_grounded_cloud_prompt_v2.py \
  tests/unit/test_local_grounding_harness.py tests/integration/test_local_text_input_proof.py \
  --tb=short -p no:cacheprovider
@@ -123,7 +123,7 @@ remain mandatory; no automatic next case, retry or paid fallback is approved her
 ## Exact capsule: preserved preexecution findings
 
 Root supplied public Chinese capsule
-`/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/bigmodel-reference-v3-public-zh-20261029`.
+`/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/bigmodel-reference-v3-public-zh-20261029`.
 Its initial prepared hash was
 `a6de7493bb7481dd4bbfa19e2a5dd5d86fcbc63032eeeaa7eb8cf58dcd1d3a75`.
 That initial capsule remains **REJECTED**, separately from the approved product code

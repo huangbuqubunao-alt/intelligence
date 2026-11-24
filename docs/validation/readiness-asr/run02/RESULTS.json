@@ -3,7 +3,7 @@
   "passed": 11,
   "required": 17,
   "production_eligible": false,
-  "retained_private_root": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness-asr/.var/readiness-asr/run-02",
+  "retained_private_root": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness-asr/.var/readiness-asr/run-02",
   "samples": [
     {
       "id": "english-clean",

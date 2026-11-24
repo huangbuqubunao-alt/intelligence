@@ -2,7 +2,7 @@
 
 Sole executor, no subagents. Authoritative starting main/origin HEAD:
 `404d0a76ef022647f242e295a87b7ed18c3b0667`.
-Candidate: `/Users/hua/Documents/yia-worktrees/phase13-background-following`,
+Candidate: `/Users/developer/Documents/yia-worktrees/phase13-background-following`,
 `codex/phase13-background-following`. Main remains untouched unless **every**
 acceptance criterion passes and topology is still clean/fast-forward safe.
 

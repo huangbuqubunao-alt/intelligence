@@ -7,11 +7,11 @@ TASK-005 `IN_REVIEW` 状态和第三次独立 Codex Reviewer 授权。不得修�
 
 ## 固定基线
 
-- Main repository：`/Users/hua/Documents/youtubek agent`
+- Main repository：`/Users/developer/Documents/youtubek agent`
 - Main branch/base：`main@e4ab5638d599a5688f75d8e0da03e4a15950da3e`
-- Git identity：`Mozhu <huangbuqubunao@gmail.com>`
+- Git identity：`Mozhu <maintainer@example.invalid>`
 - `user.useConfigOnly=true`
-- Source worktree：`/Users/hua/Documents/yia-worktrees/task-005`
+- Source worktree：`/Users/developer/Documents/yia-worktrees/task-005`
 - Source branch：`codex/task-005-subtitle-pipeline`
 - Second review evidence：`5bb750e8d2f1336b321dbca64e7c409f66853b0f`
 - Correction 2 / source HEAD：

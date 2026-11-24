@@ -4,8 +4,8 @@
 
 ## 动态授权与固定对象
 
-- Main authorization：`git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-011-IMPLEMENTER-CODEX.md` 必须解析为本 assignment 控制面提交，且 main 中 TASK-011=`IN_PROGRESS`、Assignee=`Codex`。
-- Worktree/branch：`/Users/hua/Documents/yia-worktrees/task-011` / `codex/task-011-weekly-report`。
+- Main authorization：`git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-011-IMPLEMENTER-CODEX.md` 必须解析为本 assignment 控制面提交，且 main 中 TASK-011=`IN_PROGRESS`、Assignee=`Codex`。
+- Worktree/branch：`/Users/developer/Documents/yia-worktrees/task-011` / `codex/task-011-weekly-report`。
 - 起始 source base：`44fc64be2cb4602cb93c1d03f84d6dd2a1677750`；worktree 必须干净。source 中的 `READY/UNASSIGNED` 为冻结 base 快照，不得修改。
 
 ## 唯一允许修改

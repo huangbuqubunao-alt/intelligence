@@ -29,7 +29,7 @@ from youtube_intel.local_transcription_jobs import LocalTranscriptionJobs
 from youtube_intel.orchestration_service import ProductOrchestrationService
 from youtube_intel.state import SQLiteStateRepository
 
-MODEL = Path('/Users/hua/Documents/yia-worktrees/v1x-acoustic-qualification/.var/phase9/models/whisper-large-v3-turbo/a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb')
+MODEL = Path('/Users/developer/Documents/yia-worktrees/v1x-acoustic-qualification/.var/phase9/models/whisper-large-v3-turbo/a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb')
 FROZEN = Path('docs/validation/readiness-asr/run03')
 
 

@@ -5,9 +5,9 @@
 ## 固定对象
 
 - Main base：`main@9ce5bf68bf4c0608fc0a198def9c582f3e2a5389`，必须干净且为唯一父基线。
-- Correction 1 source：`/Users/hua/Documents/yia-worktrees/task-013-rebuild` / `codex/task-013-e2e-acceptance-rebuild@ae724990f6f3628a054bfca000e9e28d83f3def7`，开始时必须干净；唯一父提交为 review evidence `3cf8b5fd8e7abec8f8a6595227a8919a7a8804e1`。
+- Correction 1 source：`/Users/developer/Documents/yia-worktrees/task-013-rebuild` / `codex/task-013-e2e-acceptance-rebuild@ae724990f6f3628a054bfca000e9e28d83f3def7`，开始时必须干净；唯一父提交为 review evidence `3cf8b5fd8e7abec8f8a6595227a8919a7a8804e1`。
 - 完整产品范围相对 `2a59dfe3860161a5989f2c08161f03c73aa4ca86` 只允许两份 E2E、`tests/e2e/fixtures/**`、`docs/ACCEPTANCE_REPORT.md` 和 `handoffs/TASK-013.md`；锁文件不变。
-- 历史 `/Users/hua/Documents/yia-worktrees/task-013` / `codex/task-013-e2e-acceptance` 是已拒绝审计证据，禁止访问、修改或清理。
+- 历史 `/Users/developer/Documents/yia-worktrees/task-013` / `codex/task-013-e2e-acceptance` 是已拒绝审计证据，禁止访问、修改或清理。
 
 ## 唯一允许提交范围
 

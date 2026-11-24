@@ -3,7 +3,7 @@
 Task: TASK-READINESS-LONG-COMPLETION-CLOSURE
 Role: Implementer /root/long_completion_regression_finish, sole writer
 Base: codex/task-end-to-end-user-readiness@9c0c1a4a70ee85aa3600950f511a6c64c80fdaa9
-Worktree: /Users/hua/Documents/yia-worktrees/readiness-long-completion-closure
+Worktree: /Users/developer/Documents/yia-worktrees/readiness-long-completion-closure
 Branch: codex/task-readiness-long-completion-closure
 Reviewer: independent fresh reviewer assigned after fixed clean commit, separate review WT.
 Allowed scope / required checks / frozen criteria: exact task card, no other task.

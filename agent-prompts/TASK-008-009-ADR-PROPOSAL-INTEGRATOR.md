@@ -1,6 +1,6 @@
 # TASK-008 / TASK-009 ADR proposal sync
 
-Role: Status Integrator. Work only in `/Users/hua/Documents/youtubek agent`.
+Role: Status Integrator. Work only in `/Users/developer/Documents/youtubek agent`.
 
 This is a control-plane-only task. Commit the prepared ADR-008/ADR-009 proposals,
 TASK-008A/TASK-009A task cards and related planning updates exactly as prepared. Do not
@@ -11,7 +11,7 @@ anything.
 ## Fixed inputs
 
 - Required main: `main@bb9c6b7bb66040b65b091d980f43281c4d9d6ba6`
-- Git identity: `Mozhu <huangbuqubunao@gmail.com>`
+- Git identity: `Mozhu <maintainer@example.invalid>`
 - `user.useConfigOnly=true`
 - TASK-006=`DONE`
 - TASK-007=`DONE`

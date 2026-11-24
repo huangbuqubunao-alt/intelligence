@@ -21,7 +21,7 @@
 ## 2026-07-22 正式分配
 
 - Base：`main@473119704c7638d7afd4e68d84d00e85064ceabd`；Worktree：
-  `/Users/hua/Documents/yia-worktrees/task-009`；Branch：`codex/task-009-obsidian-notes`。
+  `/Users/developer/Documents/yia-worktrees/task-009`；Branch：`codex/task-009-obsidian-notes`。
 - Codex 为唯一 Implementer；完成后由全新独立 Codex Reviewer 审查。允许范围严格为本卡
   七个路径组；不修改领域/配置契约、`state.py`、Schema/migration、依赖、锁文件、CLI、云 Provider 或任务状态。
 - 只授权测试创建的临时目录内的原子写、替换、清理与 symlink 安全探针。真实 Obsidian Vault、

@@ -6,7 +6,7 @@
 - Role: `Implementer / adversarial reviewer`
 - Approved predecessor: `659602c8791a4ede40c69d16012cf8701c34f6eb`
 - Feature commit: `bae1c4477c2c0d1e0df88d313c241df3f62679e1`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-022-personalized-distillation`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-022-personalized-distillation`
 - Branch: `codex/task-022-personalized-distillation`
 - Date: `2026-09-07`
 

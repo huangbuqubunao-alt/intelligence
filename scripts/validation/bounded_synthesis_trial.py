@@ -41,9 +41,9 @@ from youtube_intel.synthesis_runtime import (
 )
 
 REPO = Path(__file__).resolve().parents[2]
-PACKAGE = Path('/Users/hua/Documents/yia-worktrees/readiness-synthesis-input-materialization/.var/synthesis-input-materialization/prepared-20261105-r4')
+PACKAGE = Path('/Users/developer/Documents/yia-worktrees/readiness-synthesis-input-materialization/.var/synthesis-input-materialization/prepared-20261105-r4')
 MANIFEST_SHA = '01d7020ba1fe621a4b59d566e1b4816086463c0365ebffdb79807c5ecac1e621'
-CONTROL = Path('/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/bounded-synthesis-trial-20261105')
+CONTROL = Path('/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/bounded-synthesis-trial-20261105')
 RUNS = REPO / '.var/bounded-synthesis-trial-runs'
 ORDER = ('public-aircAruvnKk-en', 'public-aircAruvnKk-zh-CN', 'public-IwglW_hIL_g-en',
     'public-IwglW_hIL_g-zh-CN', 'no-new-en', 'no-new-zh-CN', 'injection-en', 'injection-zh-CN')
@@ -51,26 +51,26 @@ LIMITS = {'historical_calls': 2, 'historical_held_microcny': 1943326, 'runner_ne
     'optional_gui_calls': 1, 'max_new_calls': 9, 'max_total_calls': 11, 'per_call_microcny': 1000000,
     'total_microcny': 9000000, 'runner_held_microcny': 5599830, 'gui_held_microcny': 969966,
     'prospective_total_microcny': 8513122}
-V2_PACKAGE = Path('/Users/hua/Documents/yia-worktrees/readiness-bounded-synthesis-v2-trial/.var/bounded-synthesis-v2-trial/prepared-20261106-r2')
-V2_CONTROL = Path('/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/bounded-synthesis-v2-trial-20261106-r2')
-PARENT_SUMMARY = Path('/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/fee-parent-v2-20261105.json')
+V2_PACKAGE = Path('/Users/developer/Documents/yia-worktrees/readiness-bounded-synthesis-v2-trial/.var/bounded-synthesis-v2-trial/prepared-20261106-r2')
+V2_CONTROL = Path('/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/bounded-synthesis-v2-trial-20261106-r2')
+PARENT_SUMMARY = Path('/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/fee-parent-v2-20261105.json')
 PARENT_SUMMARY_SHA = '80eac13761caba485618f69ec444f2676a24ed83779522f951d5a33eb8f51fb6'
 PARENT_LOCATION_PROOF = PARENT_SUMMARY.with_name('fee-parent-location-v2-20261105.json')
-PARENT_TERMINAL = Path('/Users/hua/Documents/yia-worktrees/readiness-final-acceptance/.var/bounded-synthesis-trial-runs/public-aircAruvnKk-en')
+PARENT_TERMINAL = Path('/Users/developer/Documents/yia-worktrees/readiness-final-acceptance/.var/bounded-synthesis-trial-runs/public-aircAruvnKk-en')
 V2_LIMITS = {**LIMITS, 'historical_calls': 3, 'historical_held_microcny': 2913136,
     'max_total_calls': 12, 'total_microcny': 10000000, 'runner_held_microcny': 5713190,
     'gui_held_microcny': 984136, 'prospective_total_microcny': 9610462}
-V3_PACKAGE = Path('/Users/hua/Documents/yia-worktrees/readiness-bounded-synthesis-v3-trial/.var/bounded-synthesis-v3-trial/prepared-20261106-r1')
+V3_PACKAGE = Path('/Users/developer/Documents/yia-worktrees/readiness-bounded-synthesis-v3-trial/.var/bounded-synthesis-v3-trial/prepared-20261106-r1')
 V3_CONTROL = CONTROL.with_name('bounded-synthesis-v3-trial-20261106-r1')
 V3_LIMITS = {**V2_LIMITS, 'historical_calls': 5, 'historical_held_microcny': 4881252,
     'max_total_calls': 14, 'total_microcny': 12000000, 'runner_held_microcny': 5735030,
     'gui_held_microcny': 986866, 'prospective_total_microcny': 11603148}
-V4_PACKAGE = Path('/Users/hua/Documents/yia-worktrees/readiness-bounded-synthesis-v4-trial/.var/bounded-synthesis-v4-trial/prepared-20261107-r1')
+V4_PACKAGE = Path('/Users/developer/Documents/yia-worktrees/readiness-bounded-synthesis-v4-trial/.var/bounded-synthesis-v4-trial/prepared-20261107-r1')
 V4_CONTROL = CONTROL.with_name('bounded-synthesis-v4-trial-20261107-r1')
 V4_LIMITS = {**V3_LIMITS, 'historical_calls': 6, 'historical_held_microcny': 5867962,
     'max_total_calls': 15, 'per_call_microcny': 1500000, 'total_microcny': 14000000,
     'runner_held_microcny': 6693390, 'gui_held_microcny': 1370574, 'prospective_total_microcny': 13931926}
-V4_R2_PACKAGE = Path('/Users/hua/Documents/yia-worktrees/readiness-bounded-synthesis-v4-r2-trial/.var/bounded-synthesis-v4-r2-trial/prepared-20261107-r1')
+V4_R2_PACKAGE = Path('/Users/developer/Documents/yia-worktrees/readiness-bounded-synthesis-v4-r2-trial/.var/bounded-synthesis-v4-r2-trial/prepared-20261107-r1')
 V4_R2_CONTROL = CONTROL.with_name('bounded-synthesis-v4-r2-trial-20261107-r1')
 V4_R2_LIMITS = {**V4_LIMITS, 'historical_calls': 7, 'historical_held_microcny': 7238380,
     'max_total_calls': 16, 'total_microcny': 16000000, 'prospective_total_microcny': 15302344}
@@ -126,7 +126,7 @@ def trial_spec(variant: str = 'v1-r4') -> dict[str, Any]:
             'parent_location_transition': {'old_device': 16777234, 'current_device': 16777231, 'inode': 144261833}}
     if variant == 'v2-r1':
         return two
-    frozen = Path('/Users/hua/Documents/yia-worktrees/readiness-release-validation')
+    frozen = Path('/Users/developer/Documents/yia-worktrees/readiness-release-validation')
     three = {**two, 'variant': 'v3-r1', 'package': V3_PACKAGE, 'control': V3_CONTROL,
             'runs': REPO / '.var/bounded-synthesis-v3-trial-runs', 'original': two,
             'profile_id': profile.SOURCE_LEVEL_PROFILE_ID, 'limits': dict(V3_LIMITS),
@@ -142,7 +142,7 @@ def trial_spec(variant: str = 'v1-r4') -> dict[str, Any]:
             'restore_report': frozen / '.var/final-checks/v2-real-20261106/zh-rejected-result-backup-restore.json'}
     if variant == 'v3-r1':
         return three
-    frozen_v3 = Path('/Users/hua/Documents/yia-worktrees/readiness-source-level-final-validation')
+    frozen_v3 = Path('/Users/developer/Documents/yia-worktrees/readiness-source-level-final-validation')
     four = {**three, 'variant': 'v4-r1', 'original': three, 'package': V4_PACKAGE, 'control': V4_CONTROL,
             'runs': REPO / '.var/bounded-synthesis-v4-trial-runs', 'limits': dict(V4_LIMITS),
             'profile_id': profile.READABLE_SUMMARY_PROFILE_ID,
@@ -156,7 +156,7 @@ def trial_spec(variant: str = 'v1-r4') -> dict[str, Any]:
     if variant == 'v4-r1':
         return four
     if variant == 'v4-r2':
-        frozen_r1 = Path('/Users/hua/Documents/yia-worktrees/readiness-readable-summary-final-validation')
+        frozen_r1 = Path('/Users/developer/Documents/yia-worktrees/readiness-readable-summary-final-validation')
         return {**four, 'variant': variant, 'original': four, 'package': V4_R2_PACKAGE, 'control': V4_R2_CONTROL,
             'runs': REPO / '.var/bounded-synthesis-v4-r2-trial-runs', 'limits': dict(V4_R2_LIMITS),
             'purpose': 'ROOT_RECORDED_READABLE_SUMMARY_V4_R2_CONTINUATION',

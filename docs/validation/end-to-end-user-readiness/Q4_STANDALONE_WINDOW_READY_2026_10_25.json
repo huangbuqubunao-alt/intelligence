@@ -5,15 +5,15 @@
   "qualification": false,
   "controller_pid": 37754,
   "owner": {
-    "server": "36223 Sun Oct 25 17:27:46 2026     /Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/pinned-ollama-0409-20261024/runtime/ollama serve",
-    "runtime_root": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/pinned-ollama-0409-20261024/runtime"
+    "server": "36223 Sun Oct 25 17:27:46 2026     /Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/pinned-ollama-0409-20261024/runtime/ollama serve",
+    "runtime_root": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/pinned-ollama-0409-20261024/runtime"
   },
   "terminal_ancestry": {
     "chain": [
       {
         "pid": 37754,
         "ppid": 37718,
-        "comm": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python"
+        "comm": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python"
       },
       {
         "pid": 37718,
@@ -37,11 +37,11 @@
   "launcher": {
     "at": "2026-10-25T09:52:09.234629+00:00",
     "review_commit": "47939cf49616b48bbe4f899f5d38416f0bd33dcf",
-    "launcher": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q4km-20261025/terminal-window-20261025/开始独立验收.command",
+    "launcher": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q4km-20261025/terminal-window-20261025/开始独立验收.command",
     "launcher_sha256": "806bcd7fdcb4f797d653a59738bfda478281c1e2ca8152067ca6e52f2fa09b28",
     "template_sha256": "8a6b3540667d8d716407aeff06238eb5a1c3dda94c846b3d891e05b80852dc42",
     "controller_sha256": "761c603af96a85d0d24edeb2fcdf708bc1c43bfa921dba284b12a66ca739dc8d",
-    "package": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q4km-20261025/diagnostic-freeze-q4km-text-terminal-v2.json",
+    "package": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q4km-20261025/diagnostic-freeze-q4km-text-terminal-v2.json",
     "package_sha256": "4c324a55fae37bac56f54c778e75be9b4492f0d1cf97080a9d6cd5a79dd99a92",
     "mechanical_template_substitution_only": true,
     "zsh_syntax_pass": true,

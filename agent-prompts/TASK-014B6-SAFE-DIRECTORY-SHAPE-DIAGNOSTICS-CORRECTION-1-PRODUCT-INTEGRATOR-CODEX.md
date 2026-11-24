@@ -9,7 +9,7 @@ Task: TASK-014B6 — safe subtitle directory shape diagnostics P1 Correction 1
 Role: Product Integrator
 Control-plane baseline: main@44e7c0c45f59914d58a184ad1d3f0975c67c3c2d
 Execution main: dynamic clean main at the single-parent acceptance authorization commit containing this prompt; it must descend from the control-plane baseline and contain no unreviewed product changes
-Accepted source worktree: /Users/hua/Documents/yia-worktrees/task-014b6-safe-directory-shape-diagnostics
+Accepted source worktree: /Users/developer/Documents/yia-worktrees/task-014b6-safe-directory-shape-diagnostics
 Accepted source branch: codex/task-014b6-safe-directory-shape-diagnostics
 Accepted source / Reviewer APPROVE evidence: f16f94a9304e005390c6958025b0688dba96385c
 Required sole parent of review evidence: b58ba26fcb5dc0985c03fc6f387514fbcd3e2f78

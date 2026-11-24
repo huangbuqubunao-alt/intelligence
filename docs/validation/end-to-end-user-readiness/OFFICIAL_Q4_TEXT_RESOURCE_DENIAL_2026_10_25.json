@@ -34,7 +34,7 @@
   "parent_result": {
     "exit_code": 1,
     "elapsed_seconds": 12.082838707996416,
-    "log": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q4km-20261025/actual-root-run.log",
+    "log": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q4km-20261025/actual-root-run.log",
     "qualification": false
   },
   "cleanup": {
@@ -94,27 +94,27 @@
   "independent_preflight_review_commit": "9363b42d327d67b5069f4af97c53997738702ee8",
   "proofs": [
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/real-once-20261025/precheck.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/real-once-20261025/precheck.json",
       "bytes": 463,
       "sha256": "536c3703cccff44361950738322d772944c5c2d4fd18880577bf8d5333811780"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/real-once-20261025/stopped-error.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/real-once-20261025/stopped-error.json",
       "bytes": 116,
       "sha256": "95654178990d9edc07643000cab0febd1b5943cbac519537451ac9db3155f5bc"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q4km-20261025/actual-root-parent-result.json",
+      "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q4km-20261025/actual-root-parent-result.json",
       "bytes": 240,
       "sha256": "74e53e2bc0d5ba2bc3a28cd34b7f635790859aef580731a18f50ba8d2d0a2395"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q4km-20261025/actual-root-run.log",
+      "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q4km-20261025/actual-root-run.log",
       "bytes": 39,
       "sha256": "0200c0452c9ec367df6d9c1160036e52a6d1a428473f56d3d955d0062453082c"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q4km-20261025/resource-denial-cleanup-proof.json",
+      "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-text-q4km-20261025/resource-denial-cleanup-proof.json",
       "bytes": 619,
       "sha256": "fe02671090536005b12b2653fa78b677912c969d3031e904e4efffd619d0034f"
     }

@@ -2,13 +2,13 @@
   "observed_at": "2026-10-23T13:12:04.335680+00:00",
   "source_url": "https://openaipublic.blob.core.windows.net/encodings/o200k_base.tiktoken",
   "approval_scope": "User persistent default authorization for necessary isolated verification; existing REUSE_REGISTER DIRECT/ADR-028 canonical resource",
-  "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/final-regression-assets/tokenizers/o200k_base.tiktoken",
+  "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/final-regression-assets/tokenizers/o200k_base.tiktoken",
   "bytes": 3613922,
   "sha256": "446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d",
   "scope": "Explicit isolated test provisioning only, not bundled/distributed, no production configuration or dependency changes; no model weights/load/generation",
   "test": "tests/unit/test_o200k_provisioning.py",
   "result": "........                                                                 [100%]\n8 passed in 0.37s",
   "log_sha256": "7675afcbf0656da4d29291a330ffc7200eb716c466b0dd4338f6eecaa12bf6a4",
-  "final_suite_environment": "YOUTUBE_INTEL_O200K_TEST_ASSET=/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/final-regression-assets/tokenizers/o200k_base.tiktoken",
+  "final_suite_environment": "YOUTUBE_INTEL_O200K_TEST_ASSET=/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/final-regression-assets/tokenizers/o200k_base.tiktoken",
   "limits": "Existing o200k analysis resource only; not Qwen native tokenizer or Intelligence capacity/quality proof. Original missing-resource skip and all assertions remain unchanged. Asset is ignored and not distributed."
 }

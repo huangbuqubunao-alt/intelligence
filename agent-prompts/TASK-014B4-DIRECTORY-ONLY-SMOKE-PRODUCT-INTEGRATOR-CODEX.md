@@ -8,7 +8,7 @@
 Task: TASK-014B4 — restricted directory-only public subtitle smoke
 Role: Product Integrator
 Control-plane base: dynamic clean main containing this authorization (must descend from 2dfa4dcec89f7abaa0c32d74334f3d766050da94)
-Accepted source worktree: /Users/hua/Documents/yia-worktrees/task-014b4-directory-only-smoke
+Accepted source worktree: /Users/developer/Documents/yia-worktrees/task-014b4-directory-only-smoke
 Accepted source branch: codex/task-014b4-directory-only-smoke
 Accepted source / Reviewer APPROVE evidence: d211d62b89754683f00ec841c1774574003323a1
 Required sole parent of evidence: 2959275b0f61a1fb3a7e9ac520a56fa89e4e2b14

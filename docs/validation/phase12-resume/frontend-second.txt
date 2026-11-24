@@ -3,7 +3,7 @@
 > vitest run
 
 
- RUN  v2.1.9 /Users/hua/Documents/yia-worktrees/v1x-youtube-following-resume/frontend
+ RUN  v2.1.9 /Users/developer/Documents/yia-worktrees/v1x-youtube-following-resume/frontend
 
  ✓ src/workspace/KnowledgeDelta.test.tsx (7 tests) 154ms
  ✓ src/workspace/LocalImport.test.tsx (3 tests) 194ms
@@ -18,11 +18,11 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at ContentPage (/Users/hua/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/App.tsx:1753:24)
+    at ContentPage (/Users/developer/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/App.tsx:1753:24)
     at main
     at div
-    at Workspace (/Users/hua/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/App.tsx:1120:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/uiLanguage.tsx:913:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/App.tsx:1120:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/uiLanguage.tsx:913:31)
     at App
 
  ✓ src/workspace/LocalTranscription.test.tsx (7 tests) 314ms
@@ -37,11 +37,11 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at ContentPage (/Users/hua/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/App.tsx:1753:24)
+    at ContentPage (/Users/developer/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/App.tsx:1753:24)
     at main
     at div
-    at Workspace (/Users/hua/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/App.tsx:1120:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/uiLanguage.tsx:913:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/App.tsx:1120:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/uiLanguage.tsx:913:31)
     at App
 
  ✓ src/workspace/CreatorFollowing.test.tsx (13 tests) 352ms
@@ -57,11 +57,11 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at ContentPage (/Users/hua/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/App.tsx:1753:24)
+    at ContentPage (/Users/developer/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/App.tsx:1753:24)
     at main
     at div
-    at Workspace (/Users/hua/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/App.tsx:1120:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/uiLanguage.tsx:913:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/App.tsx:1120:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/uiLanguage.tsx:913:31)
     at App
 
 stderr | src/workspace/ContentStatusLocalization.test.tsx > an untrusted Local source is localized on the Content list and detail in both languages
@@ -75,11 +75,11 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at ContentPage (/Users/hua/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/App.tsx:1753:24)
+    at ContentPage (/Users/developer/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/App.tsx:1753:24)
     at main
     at div
-    at Workspace (/Users/hua/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/App.tsx:1120:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/uiLanguage.tsx:913:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/App.tsx:1120:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/uiLanguage.tsx:913:31)
     at App
 
 stderr | src/workspace/ContentStatusLocalization.test.tsx > a Bilibili Content without a public caption stays an honest metadata-only record
@@ -93,11 +93,11 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at ContentPage (/Users/hua/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/App.tsx:1753:24)
+    at ContentPage (/Users/developer/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/App.tsx:1753:24)
     at main
     at div
-    at Workspace (/Users/hua/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/App.tsx:1120:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/uiLanguage.tsx:913:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/App.tsx:1120:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/uiLanguage.tsx:913:31)
     at App
 
 stderr | src/workspace/ContentStatusLocalization.test.tsx > a Bilibili Content without a public caption stays an honest metadata-only record
@@ -111,11 +111,11 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at ContentPage (/Users/hua/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/App.tsx:1753:24)
+    at ContentPage (/Users/developer/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/App.tsx:1753:24)
     at main
     at div
-    at Workspace (/Users/hua/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/App.tsx:1120:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/uiLanguage.tsx:913:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/App.tsx:1120:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/uiLanguage.tsx:913:31)
     at App
 
  ✓ src/workspace/ContentStatusLocalization.test.tsx (3 tests) 472ms
@@ -130,14 +130,14 @@ act(() => {
 /* assert on the output */
 
 This ensures that you're testing the behavior the user would see in the browser. Learn more at https://reactjs.org/link/wrap-tests-with-act
-    at SourceForm (/Users/hua/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/App.tsx:3781:23)
+    at SourceForm (/Users/developer/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/App.tsx:3781:23)
     at div
-    at SourceDetail (/Users/hua/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/App.tsx:4502:25)
-    at Sources (/Users/hua/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/App.tsx:3498:20)
+    at SourceDetail (/Users/developer/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/App.tsx:4502:25)
+    at Sources (/Users/developer/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/App.tsx:3498:20)
     at main
     at div
-    at Workspace (/Users/hua/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/App.tsx:1120:40)
-    at UiLanguageProvider (/Users/hua/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/uiLanguage.tsx:913:31)
+    at Workspace (/Users/developer/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/App.tsx:1120:40)
+    at UiLanguageProvider (/Users/developer/Documents/yia-worktrees/v1x-youtube-following-resume/frontend/src/workspace/uiLanguage.tsx:913:31)
     at App
 
  ✓ src/workspace/Research.test.tsx (18 tests) 697ms

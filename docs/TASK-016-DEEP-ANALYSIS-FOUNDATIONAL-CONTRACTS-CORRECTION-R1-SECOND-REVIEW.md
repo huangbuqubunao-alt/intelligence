@@ -47,15 +47,15 @@ registry entries are ordinary module-level production callables:
 - `_admit_authoritative_input_for_finalizer` registers *any*
   `CanonicalDeepAnalysisInputV1` without verifying an
   `AuthoritativeScoringReader` provenance, at
-  [deep_analysis_contracts.py:970](/Users/hua/Documents/yia-worktrees/task-016c-main-integration/src/youtube_intel/deep_analysis_contracts.py:970).
+  [deep_analysis_contracts.py:970](/Users/developer/Documents/yia-worktrees/task-016c-main-integration/src/youtube_intel/deep_analysis_contracts.py:970).
 - `_mint_trusted_deep_analysis_success_for_finalizer` accepts arbitrary
   `content_identity` and `cache_identity` once that caller-registered input is
-  present, at [deep_analysis_contracts.py:1001](/Users/hua/Documents/yia-worktrees/task-016c-main-integration/src/youtube_intel/deep_analysis_contracts.py:1001).
+  present, at [deep_analysis_contracts.py:1001](/Users/developer/Documents/yia-worktrees/task-016c-main-integration/src/youtube_intel/deep_analysis_contracts.py:1001).
 
 They are not included in `__all__`, but a leading underscore and `__all__` are
 not an execution capability boundary. Normal application code can import the
 module and invoke both functions. The focused test itself imports and calls the
-same production functions ([test file:42](/Users/hua/Documents/yia-worktrees/task-016c-main-integration/tests/unit/test_deep_analysis_contracts.py:42)).
+same production functions ([test file:42](/Users/developer/Documents/yia-worktrees/task-016c-main-integration/tests/unit/test_deep_analysis_contracts.py:42)).
 
 The isolated review executed this exact caller-controlled sequence:
 

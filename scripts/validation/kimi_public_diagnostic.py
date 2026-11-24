@@ -28,7 +28,7 @@ from typing import Any
 
 from youtube_intel.model_settings import MacOSKeychainCredentialStore
 
-ROOT = Path('/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness')
+ROOT = Path('/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness')
 SOURCE = ROOT / '.var/end-to-end-user-readiness/bigmodel-reference-v3-public-zh-20261029'
 PACKAGE = Path(__file__).resolve().parents[2] / '.var/kimi-public-diagnostic/package'
 # Fixed across copied packages/worktrees; never inside a restorable product root.

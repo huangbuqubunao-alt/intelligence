@@ -2,7 +2,7 @@
 
 Assigned Implementer `/root/source_context`, base `fbe0e2b7323384ebb60408a436c4a6b732c61a72`,
 branch `codex/task-readiness-retired-subtitles`, independent worktree
-`/Users/hua/Documents/yia-worktrees/readiness-retired-subtitles`.
+`/Users/developer/Documents/yia-worktrees/readiness-retired-subtitles`.
 Independent Reviewer `intel_bounded_review` starts after commit.
 
 User specifically approved root

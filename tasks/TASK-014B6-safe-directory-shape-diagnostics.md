@@ -5,7 +5,7 @@
 - Reviewer: `范围修正独立 Codex Reviewer — APPROVE（P0--P3=0）`
 - 依赖：TASK-014B3 `DONE`、TASK-014B4 `DONE`、TASK-014B5 `DONE`、ADR-017 `Accepted`
 - 实施基线：`main@7983bf5bfa0ce08529d189a9ac07f41f042bc6a1`
-- Worktree：`/Users/hua/Documents/yia-worktrees/task-014b6-safe-directory-shape-diagnostics`
+- Worktree：`/Users/developer/Documents/yia-worktrees/task-014b6-safe-directory-shape-diagnostics`
 - Branch：`codex/task-014b6-safe-directory-shape-diagnostics`
 - accepted source / Reviewer evidence：`f16f94a9304e005390c6958025b0688dba96385c`（唯一父
   `b58ba26fcb5dc0985c03fc6f387514fbcd3e2f78`；后者唯一父 `9403e37…`，再后者唯一父 `7983bf5…`）
