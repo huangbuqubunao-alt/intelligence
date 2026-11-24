@@ -6,18 +6,18 @@
 
 ## 待审批 L3 请求（PENDING）
 
-- **`FD-009`（`PENDING` — 待 Claude Round 3 最终复核确认无阻断后，审阅并批准将 Iteration #10 / `BL-013` Round 1 + Round 2 + Round 3 全部缺陷修复线性合入 `main` 并触发云端 14 组 CI 验收）**
-  - **背景**：Codex 独立审查对 `main@ca4e17f` 给出结论 A 并列出 15 P1 + 7 P2 缺陷；Iteration #10（`c16f0e8`）完成初轮修复后，Claude Round 1 指出 `N1`–`N11`；提交 `0519284` 修复后，Claude Round 2 确认 **9/11 项已关闭**（`N1`/`N3`/`N4`/`N6`–`N11`）且测试无弱化，仅指出剩余 2 项 P1 问题：`R2-D1`（Demo `#Research` 动态/情景推荐胶囊被误拒答）与 `R2-D2`（恢复拒答会话 `related_excerpts` 未经主库复核可穿透至 Vault）。现已在 `antigravity/task-user-readiness-20261112` 完成 Round 3 修复并扩充回归用例（59 条 Demo 推荐胶囊 + 9 条混淆陷阱 + 拒答片段恢复全链），最新改动后实跑通过：`ruff`/`mypy`（137 文件）0 错、`vite build` `770ms` + Vitest **`57/57` / `1257/1257`（`55.92s`，前端未改）**、14 组 CI + 2 组备份恢复 Python 套件 **`202 passed in 627.10s (0:10:27)`**（`0 failed`, `0 skipped`）。同时明确披露：Round 2 / Round 3 改动后**尚未重跑**隔离 Chromium 实机浏览器（最近实机为 `c16f0e8` 上的 `127.0.0.1:8794`）、WSL2 与真实大模型调用。
-  - **可选项（三选一）**：
-    - **选项 A（当前推荐流程）**：先完成 Claude Round 3 针对 `R2-D1`/`R2-D2` 的独立复核；若结论转为结论 A（无阻断），即线性合入 `main` 并验证 GitHub Actions 14 组后端 + 57 文件前端双作业全绿，严守被动 `PUBLIC`、零外宣、无 GitHub Release、本轮不新增发布标签（保留 4 个历史 tag），`EXP-001` 真人试验继续 **`HOLD`**。
-    - **选项 B**：在 Claude Round 3 之外补充隔离 Chromium 实机走查 Demo 推荐胶囊及 `#Content` 搜索分页后，再呈请终审合流 `main`。
-    - **选项 C**：暂留开发分支继续其他内部微调，保持 `main@ca4e17f` 与 `EXP-001` `HOLD`。
-
-> 注：公开主线基线 `main@ca4e17f`（[`#45219985703`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45219985703)）仍严守被动 `PUBLIC`、零外宣、无 GitHub Release、本轮未新增发布标签（仓库保留 4 个历史 tag）与内部完善边界（`EXP-001` 维持 `HOLD`）。
+- *当前暂无待审批的 L3 决策请求*（`FD-001` ~ `FD-009` 已全部按创始人批复执行完结；`EXP-001` 与 `BL-009` 继续维持 `HOLD`，仓库保持被动 `PUBLIC`、零外宣、无 GitHub Release、保留 4 个历史 tag）。
 
 ---
 
 ## 历史已完结 L3 决策归档（2026-11-23 ~ 11-24）
+
+- **`FD-009`（`COMPLETED` — 完成双端实机浏览器走查后，执行选项 A 将 Iteration #10 / `BL-013` 线性合流 `main` 并获云端 14 组 CI 双绿验收）**：
+  1. **合流前实机浏览器真人模拟走查（Ports `8793` + `8794` PASS）**：在真实 Chromium（`1440×900` 桌面端 + `375×812` 移动端 & Obsidian Dark / Warm Paper Light 双主题）完整验证：
+     - `http://127.0.0.1:8793`（Offline Demo）：全部 3 条默认推荐提问胶囊 + 专题推荐胶囊均稳定返回有据回答与 3 条引用卡片，越域问题「Ollama 本地模型的价格是多少？」明确拒答且 0 引用，历史会话切换、`⌘K` 专题直达及视频/`demo-architecture-notes.md` 详情导出控件全通；
+     - `http://127.0.0.1:8794`（355 条内容库，含 220 条新视频 + 135 条旧匹配视频）：`#Content` 远程搜索首屏返回 `100 / 135`、点击「加载更多搜索结果」扩展至 `135 / 135`、`⌘K` 显示 `库内命中共 135 条` 截断提示；全流程 `0` console error / `0` page error / `0` HTTP `>=400` / `0px` 横向溢出；
+  2. **线性合流 `main` 与云端 CI 全绿验收**：经 Claude Round 3 结论 A 放行与实机通过后，将 `c16f0e8`、`0519284`、`b28ba5d` 线性拣选合入 `main@37bb685` 并推送；首轮云端 [`#45337676192`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45337676192) 仅新接入第 14 组中的 `test_p2_01_p2_02_p2_06` 因未断网隔离本机 Ollama 地址导致 1 项失败（业务代码零缺陷）；补充纯测试隔离提交 `5e7dac3` 合入 `main@4f3fe7084814198fb31fef668aebabf4d05aab91` 后，[`Public Beta CI #45339507823`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45339507823) 双作业全绿通过——`Frontend Build & Vitest` `1m37s`（`vite build` `1.37s` + `57/57` / `1257/1257` tests passed）与 `Python Lint, Typecheck & Public Beta Integration` `5m55s`（`ruff`/`mypy` 137 文件 0 错 + 14 组全量 **`175 passed in 309.20s (0:05:09)`**）；
+  3. **严守被动公开与内部阶段红线**：核验仓库维持 `PUBLIC`（`Stars: 0`、`Forks: 0`、无 GitHub Release、`no releases found`，保留 4 个历史 tag）、零外部推广，真人试点 `EXP-001` 与 `BL-009` 继续维持 `HOLD`。
 
 - **`FD-008`（`COMPLETED` — 创始人批复将 Iteration #9 / `BL-012` 合流 `main` 并留存云端绿标）**：
   1. **线性合流 `main`**：将研发分支 `antigravity/task-user-readiness-20261112` 提交 `3a92efb`（含 Round 19 `⌘K` 深入专题洞察/追问动作、`#Topics` 搜索排序、提问框防遮挡细滚动条、`--check-only` 一行式就绪结论及新增测试）在临时隔离 worktree 线性合入 `main@c54b8184df45b7befb9944d4763d2fa59ed2bd5e` 并推送 `origin/main`（后续台账收口同步至 `main@ca4e17f`）；
