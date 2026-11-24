@@ -339,6 +339,28 @@ export function consumePendingResearchVideoIds(): string[] {
   return next;
 }
 
+export type CuratedOllamaModel = {
+  id: string;
+  label: string;
+  tier: string;
+  size_label: string;
+  ram_label_zh: string;
+  ram_label_en: string;
+  supports_vision: boolean;
+  summary_zh: string;
+  summary_en: string;
+};
+
+export type CuratedWhisperModel = {
+  id: string;
+  slug: string;
+  label: string;
+  tier: string;
+  size_label: string;
+  summary_zh: string;
+  summary_en: string;
+};
+
 export type WorkspaceAiSettings = {
   active_mode: "local_ollama" | "cloud_byok";
   ollama_base_url: string;
@@ -350,6 +372,9 @@ export type WorkspaceAiSettings = {
   cloud_model: string;
   cloud_key_configured: boolean;
   local_mlx_Whisper_ready?: boolean;
+  active_whisper_slug?: string | null;
+  curated_ollama_models?: CuratedOllamaModel[];
+  curated_whisper_models?: CuratedWhisperModel[];
 };
 
 export type WorkspaceAiTranscribeJob = {
@@ -1005,10 +1030,50 @@ export function readVideoVisualAnalysis(raw: unknown): VideoVisualAnalysis | nul
   };
 }
 
+function readCuratedOllamaList(raw: unknown): CuratedOllamaModel[] {
+  if (!Array.isArray(raw)) return [];
+  const out: CuratedOllamaModel[] = [];
+  for (const item of raw) {
+    if (!isRec(item) || typeof item.id !== "string") continue;
+    out.push({
+      id: item.id,
+      label: typeof item.label === "string" ? item.label : item.id,
+      tier: typeof item.tier === "string" ? item.tier : "balanced",
+      size_label: typeof item.size_label === "string" ? item.size_label : "",
+      ram_label_zh: typeof item.ram_label_zh === "string" ? item.ram_label_zh : "",
+      ram_label_en: typeof item.ram_label_en === "string" ? item.ram_label_en : "",
+      supports_vision: Boolean(item.supports_vision),
+      summary_zh: typeof item.summary_zh === "string" ? item.summary_zh : "",
+      summary_en: typeof item.summary_en === "string" ? item.summary_en : "",
+    });
+  }
+  return out;
+}
+
+function readCuratedWhisperList(raw: unknown): CuratedWhisperModel[] {
+  if (!Array.isArray(raw)) return [];
+  const out: CuratedWhisperModel[] = [];
+  for (const item of raw) {
+    if (!isRec(item) || typeof item.id !== "string" || typeof item.slug !== "string") continue;
+    out.push({
+      id: item.id,
+      slug: item.slug,
+      label: typeof item.label === "string" ? item.label : item.id,
+      tier: typeof item.tier === "string" ? item.tier : "balanced",
+      size_label: typeof item.size_label === "string" ? item.size_label : "",
+      summary_zh: typeof item.summary_zh === "string" ? item.summary_zh : "",
+      summary_en: typeof item.summary_en === "string" ? item.summary_en : "",
+    });
+  }
+  return out;
+}
+
 export function readWorkspaceAiSettings(raw: unknown): WorkspaceAiSettings | null {
   if (!isRec(raw) || (raw.active_mode !== "local_ollama" && raw.active_mode !== "cloud_byok")) {
     return null;
   }
+  const curatedOllama = readCuratedOllamaList(raw.curated_ollama_models);
+  const curatedWhisper = readCuratedWhisperList(raw.curated_whisper_models);
   return {
     active_mode: raw.active_mode,
     ollama_base_url:
@@ -1026,6 +1091,11 @@ export function readWorkspaceAiSettings(raw: unknown): WorkspaceAiSettings | nul
     ...(typeof raw.local_mlx_Whisper_ready === "boolean"
       ? { local_mlx_Whisper_ready: raw.local_mlx_Whisper_ready }
       : {}),
+    ...(typeof raw.active_whisper_slug === "string"
+      ? { active_whisper_slug: raw.active_whisper_slug }
+      : {}),
+    ...(curatedOllama.length > 0 ? { curated_ollama_models: curatedOllama } : {}),
+    ...(curatedWhisper.length > 0 ? { curated_whisper_models: curatedWhisper } : {}),
   };
 }
 
@@ -4475,27 +4545,150 @@ export function WorkspaceAiResearchPanel({
   );
 }
 
-const CLOUD_PRESETS: Record<string, { label: string; baseUrl: string; model: string }> = {
+const DEFAULT_CURATED_OLLAMA: CuratedOllamaModel[] = [
+  {
+    id: "qwen3.5:9b",
+    label: "qwen3.5:9b",
+    tier: "recommended",
+    size_label: "~6.6 GB",
+    ram_label_zh: "16GB+ 内存",
+    ram_label_en: "16GB+ RAM",
+    supports_vision: true,
+    summary_zh: "首选：中文摘要与有据问答最稳，支持关键帧画面解读",
+    summary_en: "Recommended: best synthesis, grounded Q&A, and vision",
+  },
+  {
+    id: "qwen3.5:4b",
+    label: "qwen3.5:4b",
+    tier: "lightweight",
+    size_label: "~3.4 GB",
+    ram_label_zh: "8GB 内存",
+    ram_label_en: "8GB RAM",
+    supports_vision: true,
+    summary_zh: "轻量：体积小下载快，8GB 内存流畅运行",
+    summary_en: "Lightweight: fast download for 8GB RAM Macs",
+  },
+  {
+    id: "qwen2.5:7b",
+    label: "qwen2.5:7b",
+    tier: "balanced",
+    size_label: "~4.7 GB",
+    ram_label_zh: "12GB+ 内存",
+    ram_label_en: "12GB+ RAM",
+    supports_vision: false,
+    summary_zh: "均衡：经典纯文本模型",
+    summary_en: "Balanced: steady text-only model",
+  },
+];
+
+const DEFAULT_CURATED_WHISPER: CuratedWhisperModel[] = [
+  {
+    id: "mlx-community/whisper-large-v3-turbo",
+    slug: "whisper-large-v3-turbo",
+    label: "Whisper Large V3 Turbo",
+    tier: "recommended",
+    size_label: "~1.6 GB",
+    summary_zh: "首选：中英双语混合转写准确度最高",
+    summary_en: "Recommended: highest bilingual accuracy",
+  },
+  {
+    id: "mlx-community/whisper-small-mlx",
+    slug: "whisper-small-mlx",
+    label: "Whisper Small (轻量版)",
+    tier: "lightweight",
+    size_label: "~480 MB",
+    summary_zh: "小体积快速下载：适合 8GB 内存或较慢网络",
+    summary_en: "Compact ~480 MB: quick download for lighter setups",
+  },
+];
+
+type CloudPresetSpec = {
+  label: string;
+  labelEn: string;
+  backendProvider: "deepseek" | "zhipu" | "moonshot" | "dashscope" | "openai_compatible";
+  baseUrl: string;
+  model: string;
+  consoleUrl?: string;
+  directCn: boolean;
+};
+
+const CLOUD_PRESETS: Record<string, CloudPresetSpec> = {
   deepseek: {
-    label: "DeepSeek (OpenAI 兼容)",
+    label: "DeepSeek（国内直连 · 首选）",
+    labelEn: "DeepSeek (CN Direct · Recommended)",
+    backendProvider: "deepseek",
     baseUrl: "https://api.deepseek.com/v1",
     model: "deepseek-chat",
-  },
-  moonshot: {
-    label: "Moonshot / Kimi",
-    baseUrl: "https://api.moonshot.cn/v1",
-    model: "kimi-k2-0905-preview",
+    consoleUrl: "https://platform.deepseek.com/api_keys",
+    directCn: true,
   },
   zhipu: {
-    label: "智谱 BigModel",
+    label: "智谱 BigModel（国内直连）",
+    labelEn: "Zhipu BigModel (CN Direct)",
+    backendProvider: "zhipu",
     baseUrl: "https://open.bigmodel.cn/api/paas/v4",
     model: "glm-4-plus",
+    consoleUrl: "https://open.bigmodel.cn/usercenter/apikeys",
+    directCn: true,
+  },
+  moonshot: {
+    label: "Moonshot / Kimi（国内直连）",
+    labelEn: "Moonshot / Kimi (CN Direct)",
+    backendProvider: "moonshot",
+    baseUrl: "https://api.moonshot.cn/v1",
+    model: "kimi-k2-0905-preview",
+    consoleUrl: "https://platform.moonshot.cn/console/api-keys",
+    directCn: true,
+  },
+  dashscope: {
+    label: "阿里云百炼 / 通义千问（国内直连）",
+    labelEn: "Aliyun DashScope / Qwen (CN Direct)",
+    backendProvider: "dashscope",
+    baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    model: "qwen-plus",
+    consoleUrl: "https://bailian.console.aliyun.com/?apiKey=1",
+    directCn: true,
   },
   openai: {
-    label: "OpenAI",
+    label: "OpenAI（海外接口 · 需代理）",
+    labelEn: "OpenAI (Global · Proxy may be needed)",
+    backendProvider: "openai_compatible",
     baseUrl: "https://api.openai.com/v1",
     model: "gpt-4o-mini",
+    consoleUrl: "https://platform.openai.com/api-keys",
+    directCn: false,
   },
+  openai_compatible: {
+    label: "其他 OpenAI 兼容接口（自定义地址）",
+    labelEn: "Other OpenAI-compatible (Custom URL)",
+    backendProvider: "openai_compatible",
+    baseUrl: "",
+    model: "",
+    directCn: false,
+  },
+};
+
+type PullProgress = {
+  state: string;
+  model: string;
+  status_text: string;
+  completed_bytes: number;
+  total_bytes: number;
+  percent: number;
+  error: string | null;
+};
+
+type WhisperDownloadProgress = {
+  state: string;
+  model_id: string;
+  slug: string;
+  mirror: string;
+  mirror_used: string;
+  current_file: string;
+  completed_files: number;
+  total_files: number;
+  percent: number;
+  error: string | null;
 };
 
 export function WorkspaceAiSettingsPanel({
@@ -4514,15 +4707,25 @@ export function WorkspaceAiSettingsPanel({
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [testingCloud, setTestingCloud] = useState(false);
+  const [cloudTestResult, setCloudTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [pullStatus, setPullStatus] = useState<PullProgress | null>(null);
   const [exportingBackup, setExportingBackup] = useState(false);
   const [exportingObsidianZip, setExportingObsidianZip] = useState(false);
   const [restoringBackup, setRestoringBackup] = useState(false);
   const restoreInputRef = useRef<HTMLInputElement | null>(null);
+  const sectionRef = useRef<HTMLElement | null>(null);
+  const dirtyRef = useRef(false);
   const [modeDraft, setModeDraft] = useState<"local_ollama" | "cloud_byok">(
     parsedInitial?.active_mode ?? "local_ollama",
   );
   const [ollamaModelDraft, setOllamaModelDraft] = useState(
     parsedInitial?.ollama_model ?? "qwen3.5:9b",
+  );
+  const [cloudPresetDraft, setCloudPresetDraft] = useState<string>(
+    parsedInitial?.cloud_provider && CLOUD_PRESETS[parsedInitial.cloud_provider]
+      ? parsedInitial.cloud_provider
+      : "deepseek",
   );
   const [cloudProviderDraft, setCloudProviderDraft] = useState(
     parsedInitial?.cloud_provider ?? "deepseek",
@@ -4537,29 +4740,166 @@ export function WorkspaceAiSettingsPanel({
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const syncDrafts = (next: WorkspaceAiSettings) => {
+  const syncDrafts = (next: WorkspaceAiSettings, forceDrafts = true) => {
     setConfig(next);
+    if (!forceDrafts && dirtyRef.current) return;
     setModeDraft(next.active_mode);
     setOllamaModelDraft(next.ollama_model);
+    const matchingPreset = Object.entries(CLOUD_PRESETS).find(
+      ([, spec]) => spec.backendProvider === next.cloud_provider && spec.baseUrl === next.cloud_base_url,
+    )?.[0] ?? (CLOUD_PRESETS[next.cloud_provider] ? next.cloud_provider : "openai_compatible");
+    setCloudPresetDraft(matchingPreset);
     setCloudProviderDraft(next.cloud_provider);
     setCloudBaseUrlDraft(next.cloud_base_url);
     setCloudModelDraft(next.cloud_model);
   };
 
-  const openEditor = async () => {
-    setOpen(true);
-    setFeedback(null);
-    setError(null);
-    if (config) return;
+  const refreshLiveConfig = async () => {
     setLoading(true);
     try {
       const res = await api<unknown>("/workspace-ai/settings");
       const parsed = readWorkspaceAiSettings(res);
-      if (parsed) syncDrafts(parsed);
+      if (parsed) {
+        syncDrafts(parsed, false);
+        onConfigChange?.(parsed);
+      }
     } catch {
       setError(zh ? "未能读取 AI 引擎配置。" : "Could not load AI engine settings.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openEditor = async () => {
+    dirtyRef.current = false;
+    setOpen(true);
+    setFeedback(null);
+    setError(null);
+    setCloudTestResult(null);
+    await refreshLiveConfig();
+  };
+
+  useEffect(() => {
+    const syncModelsHash = () => {
+      if (location.hash.startsWith("#Settings/models")) {
+        void openEditor();
+        setTimeout(() => {
+          sectionRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+        }, 30);
+      }
+    };
+    syncModelsHash();
+    window.addEventListener("hashchange", syncModelsHash);
+    return () => window.removeEventListener("hashchange", syncModelsHash);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!pullStatus || pullStatus.state !== "pulling") return;
+    let active = true;
+    const timer = setTimeout(async () => {
+      try {
+        const next = await api<PullProgress>("/workspace-ai/ollama/pull-status");
+        if (!active) return;
+        setPullStatus(next);
+        if (next.state === "succeeded") {
+          setFeedback(
+            zh
+              ? `已下载并自动启用本地模型：${next.model}`
+              : `Downloaded and enabled local model: ${next.model}`,
+          );
+          await refreshLiveConfig();
+        } else if (next.state === "failed" && next.error) {
+          setError(next.error);
+        }
+      } catch {
+        // retry on next tick
+      }
+    }, 700);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pullStatus]);
+
+  const startOllamaPull = async (modelId: string) => {
+    setFeedback(null);
+    setError(null);
+    try {
+      const res = await post<PullProgress>("/workspace-ai/ollama/pull", { model: modelId });
+      setPullStatus(res);
+    } catch (reason) {
+      setError(
+        reason instanceof ApiRequestError
+          ? reason.message
+          : zh
+            ? "无法启动 Ollama 模型下载，请确认 Ollama 已打开。"
+            : "Could not start Ollama model download.",
+      );
+    }
+  };
+
+  const selectAndSaveOllamaModel = async (modelId: string) => {
+    setOllamaModelDraft(modelId);
+    setModeDraft("local_ollama");
+    setSaving(true);
+    setFeedback(null);
+    setError(null);
+    try {
+      const res = await put<unknown>("/workspace-ai/settings", {
+        active_mode: "local_ollama",
+        ollama_model: modelId,
+      });
+      const parsed = readWorkspaceAiSettings(res);
+      if (parsed) {
+        dirtyRef.current = false;
+        syncDrafts(parsed);
+        onConfigChange?.(parsed);
+      }
+      setFeedback(
+        zh ? `已切换并保存本地模型：${modelId}` : `Switched active local model to ${modelId}.`,
+      );
+    } catch {
+      setError(zh ? "切换模型未能保存。" : "Could not save local model choice.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const testCloud = async () => {
+    if (testingCloud) return;
+    setTestingCloud(true);
+    setCloudTestResult(null);
+    setError(null);
+    try {
+      const payload: Record<string, unknown> = {
+        cloud_base_url: cloudBaseUrlDraft.trim(),
+      };
+      if (apiKeyDraft.trim()) payload.cloud_api_key = apiKeyDraft.trim();
+      const res = await post<{ ok?: boolean; message?: string }>("/workspace-ai/test-cloud", payload);
+      setCloudTestResult({
+        ok: Boolean(res?.ok),
+        message:
+          typeof res?.message === "string" && res.message
+            ? res.message
+            : res?.ok
+              ? zh
+                ? "连接测试通过！"
+                : "Connection verified."
+              : zh
+                ? "连接测试未通过，请检查 Key 或地址。"
+                : "Connection check failed.",
+      });
+    } catch {
+      setCloudTestResult({
+        ok: false,
+        message: zh
+          ? "HTTPS 接口地址格式有误或受安全策略拦截。"
+          : "Invalid HTTPS endpoint URL.",
+      });
+    } finally {
+      setTestingCloud(false);
     }
   };
 
@@ -4581,6 +4921,7 @@ export function WorkspaceAiSettingsPanel({
       const res = await put<unknown>("/workspace-ai/settings", payload);
       const parsed = readWorkspaceAiSettings(res);
       if (parsed) {
+        dirtyRef.current = false;
         syncDrafts(parsed);
         onConfigChange?.(parsed);
       }
@@ -4755,8 +5096,16 @@ export function WorkspaceAiSettingsPanel({
       ? `${config.cloud_provider} · ${config.cloud_model}${config.cloud_key_configured ? (zh ? "（钥匙串已就绪）" : " (Keychain ready)") : zh ? "（未填 Key）" : " (No key)"}`
       : `Ollama · ${config?.ollama_model ?? "qwen3.5:9b"}（${zh ? "本机免费零成本" : "Free local"}）`;
 
+  const curatedOllama =
+    config?.curated_ollama_models && config.curated_ollama_models.length > 0
+      ? config.curated_ollama_models
+      : DEFAULT_CURATED_OLLAMA;
+  const installedModels = config?.installed_ollama_models ?? [];
+  const activePresetSpec = CLOUD_PRESETS[cloudPresetDraft];
+
   return (
     <section
+      ref={sectionRef}
       id={id}
       className="panel"
       aria-label={zh ? "AI 摘要、评分与跨视频问答引擎" : "AI Summary, Scoring & Q&A Engine"}
@@ -4768,13 +5117,8 @@ export function WorkspaceAiSettingsPanel({
         </h2>
       </div>
       <p>
-        {zh ? "当前生效引擎：" : "Active engine: "}
+        {zh ? "当前引擎：" : "Active: "}
         <strong>{currentSummary}</strong>
-      </p>
-      <p className="hint">
-        {zh
-          ? "默认直连本机免费 Ollama 模型完成中文总结、0–10 价值打分、周报与跨视频问答；你也可随时切换自带云端 API Key。"
-          : "Runs free on local Ollama by default, with optional BYOK OpenAI-compatible cloud routing."}
       </p>
 
       <input
@@ -4789,7 +5133,7 @@ export function WorkspaceAiSettingsPanel({
       {!open ? (
         <>
           <div className="button-row">
-            <button type="button" className="button button-secondary" onClick={() => void openEditor()}>
+            <button type="button" className="button button-primary" onClick={() => void openEditor()}>
               {zh ? "配置 AI 摘要与问答引擎" : "Configure AI summary & Q&A engine"}
             </button>
             <button
@@ -4805,7 +5149,7 @@ export function WorkspaceAiSettingsPanel({
                   : "Bundling Obsidian…"
                 : zh
                   ? "导出 Obsidian 知识库包 (.zip)"
-                  : "Export Obsidian Vault (.zip)"}
+                  : "Export Obsidian (.zip)"}
             </button>
             <button
               type="button"
@@ -4816,11 +5160,11 @@ export function WorkspaceAiSettingsPanel({
               <PhosphorIcon name="archive" size={13} />
               {exportingBackup
                 ? zh
-                  ? "正在导出快照…"
+                  ? "正在导出…"
                   : "Exporting…"
                 : zh
                   ? "导出 AI 知识库快照 (.json)"
-                  : "Export AI knowledge snapshot (.json)"}
+                  : "Export snapshot (.json)"}
             </button>
             <button
               type="button"
@@ -4831,11 +5175,11 @@ export function WorkspaceAiSettingsPanel({
               <PhosphorIcon name="folder-open" size={13} />
               {restoringBackup
                 ? zh
-                  ? "正在恢复快照…"
+                  ? "正在恢复…"
                   : "Restoring…"
                 : zh
                   ? "导入并恢复快照 (.json)"
-                  : "Restore AI snapshot (.json)"}
+                  : "Restore (.json)"}
             </button>
           </div>
           {feedback ? <p role="status">{feedback}</p> : null}
@@ -4848,7 +5192,7 @@ export function WorkspaceAiSettingsPanel({
       ) : (
         <div className="ai-settings-form">
           {loading ? (
-            <p role="status">{zh ? "正在读取引擎状态…" : "Loading engine settings…"}</p>
+            <p role="status">{zh ? "正在检测本机模型状态…" : "Checking local model status…"}</p>
           ) : null}
           <label className="field">
             {zh ? "运行模式" : "Execution mode"}
@@ -4856,88 +5200,233 @@ export function WorkspaceAiSettingsPanel({
               aria-label={zh ? "运行模式" : "Execution mode"}
               value={modeDraft}
               disabled={saving}
-              onChange={(e) => setModeDraft(e.target.value as "local_ollama" | "cloud_byok")}
+              onChange={(e) => {
+                dirtyRef.current = true;
+                setModeDraft(e.target.value as "local_ollama" | "cloud_byok");
+              }}
             >
               <option value="local_ollama">
                 {zh ? "本机免费 Ollama（零费用 · 数据不出本机）" : "Local free Ollama"}
               </option>
               <option value="cloud_byok">
-                {zh ? "自带云端 API Key（BYOK · OpenAI 兼容接口）" : "Cloud BYOK (OpenAI-compatible)"}
+                {zh ? "云端 API Key（按量付费 · 免装本地模型）" : "Cloud BYOK (OpenAI-compatible)"}
               </option>
             </select>
           </label>
 
           {modeDraft === "local_ollama" ? (
-            <label className="field">
-              {zh ? "本机 Ollama 模型" : "Local Ollama model"}
-              {config && config.installed_ollama_models.length > 0 ? (
-                <select
-                  aria-label={zh ? "本机 Ollama 模型" : "Local Ollama model"}
-                  value={ollamaModelDraft}
-                  disabled={saving}
-                  onChange={(e) => setOllamaModelDraft(e.target.value)}
-                >
-                  {config.installed_ollama_models.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  type="text"
-                  aria-label={zh ? "本机 Ollama 模型" : "Local Ollama model"}
-                  value={ollamaModelDraft}
-                  disabled={saving}
-                  onChange={(e) => setOllamaModelDraft(e.target.value)}
-                />
-              )}
-            </label>
+            <>
+              <div className="curated-status-bar">
+                <span className="hint">
+                  {config?.ollama_reachable
+                    ? zh
+                      ? `✅ Ollama 运行中 · 已检测到 ${installedModels.length} 个模型`
+                      : `✅ Ollama running · ${installedModels.length} installed`
+                    : zh
+                      ? "⚪ 未检测到本机 Ollama"
+                      : "⚪ Local Ollama offline"}
+                </span>
+                <div className="button-row">
+                  {!config?.ollama_reachable ? (
+                    <a
+                      className="button button-ghost button-small"
+                      href="https://ollama.com/download"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {zh ? "安装 Ollama ↗" : "Install Ollama ↗"}
+                    </a>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="button button-ghost button-small"
+                    disabled={loading}
+                    onClick={() => void refreshLiveConfig()}
+                  >
+                    {zh ? "重新检测" : "Refresh"}
+                  </button>
+                  <button
+                    type="button"
+                    className="button button-ghost button-small"
+                    onClick={() => {
+                      dirtyRef.current = true;
+                      setModeDraft("cloud_byok");
+                    }}
+                  >
+                    {zh ? "改用国内云端 Key ›" : "Use Cloud Key ›"}
+                  </button>
+                </div>
+              </div>
+
+              <label className="field">
+                {zh ? "本机 Ollama 模型" : "Local Ollama model"}
+                {installedModels.length > 0 ? (
+                  <select
+                    aria-label={zh ? "本机 Ollama 模型" : "Local Ollama model"}
+                    value={
+                      installedModels.includes(ollamaModelDraft)
+                        ? ollamaModelDraft
+                        : installedModels[0]
+                    }
+                    disabled={saving}
+                    onChange={(e) => {
+                      dirtyRef.current = true;
+                      setOllamaModelDraft(e.target.value);
+                    }}
+                  >
+                    {installedModels.map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    aria-label={zh ? "本机 Ollama 模型" : "Local Ollama model"}
+                    value={ollamaModelDraft}
+                    disabled={saving}
+                    onChange={(e) => {
+                      dirtyRef.current = true;
+                      setOllamaModelDraft(e.target.value);
+                    }}
+                  />
+                )}
+              </label>
+
+              <div className="curated-model-grid" aria-label={zh ? "精选推荐模型" : "Curated Ollama models"}>
+                <strong className="curated-section-title">
+                  {zh ? "精选本地模型（免挑参数 · 点一下载或选用）" : "Curated models (one-click download)"}
+                </strong>
+                {curatedOllama.map((item) => {
+                  const isInstalled = installedModels.some(
+                    (m) => m === item.id || m.startsWith(`${item.id}-`),
+                  );
+                  const isPullingThis = pullStatus?.state === "pulling" && pullStatus.model === item.id;
+                  const isSelected = ollamaModelDraft === item.id && config?.active_mode === "local_ollama";
+                  return (
+                    <div key={item.id} className="curated-model-row">
+                      <div className="curated-model-info">
+                        <div className="curated-model-head">
+                          <strong>{item.label}</strong>
+                          <span className="curated-pill">
+                            {item.tier === "recommended"
+                              ? zh
+                                ? "推荐"
+                                : "Recommended"
+                              : item.tier === "lightweight"
+                                ? zh
+                                  ? "轻量"
+                                  : "Fast"
+                                : zh
+                                  ? "均衡"
+                                  : "Balanced"}
+                          </span>
+                          <span className="hint tabular-nums">
+                            {item.size_label} · {zh ? item.ram_label_zh : item.ram_label_en}
+                          </span>
+                        </div>
+                        <span className="hint">{zh ? item.summary_zh : item.summary_en}</span>
+                      </div>
+                      <div>
+                        {isInstalled ? (
+                          <button
+                            type="button"
+                            className={`button button-small ${isSelected ? "button-ghost" : "button-secondary"}`}
+                            disabled={saving || isSelected}
+                            onClick={() => void selectAndSaveOllamaModel(item.id)}
+                          >
+                            {isSelected ? (zh ? "当前使用中" : "Active") : zh ? "选用并保存" : "Use model"}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="button button-secondary button-small"
+                            disabled={pullStatus?.state === "pulling"}
+                            onClick={() => void startOllamaPull(item.id)}
+                          >
+                            {isPullingThis
+                              ? zh
+                                ? `下载中 ${pullStatus?.percent ?? 0}%`
+                                : `Pulling ${pullStatus?.percent ?? 0}%`
+                              : zh
+                                ? "一键下载并启用"
+                                : "Download & enable"}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {pullStatus && pullStatus.state === "pulling" ? (
+                <div className="download-progress-wrap" role="status" aria-live="polite">
+                  <div className="download-progress-head">
+                    <span>
+                      {pullStatus.model} · {pullStatus.status_text}
+                    </span>
+                    <span className="tabular-nums">{pullStatus.percent}%</span>
+                  </div>
+                  <div className="download-progress-bar">
+                    <span style={{ width: `${pullStatus.percent}%` }} />
+                  </div>
+                </div>
+              ) : null}
+            </>
           ) : (
             <>
+              <ol className="cloud-guide-steps" aria-label={zh ? "3 步配置云端模型" : "3-step cloud setup"}>
+                <li>{zh ? "1. 打开官网注册" : "1. Sign in provider"}</li>
+                <li>{zh ? "2. 复制 API Key" : "2. Copy API key"}</li>
+                <li>{zh ? "3. 粘贴测试并保存" : "3. Paste, test & save"}</li>
+              </ol>
+
               <label className="field">
                 {zh ? "云端服务商预设" : "Cloud provider"}
                 <select
                   aria-label={zh ? "云端服务商预设" : "Cloud provider"}
-                  value={cloudProviderDraft}
+                  value={cloudPresetDraft}
                   disabled={saving}
                   onChange={(e) => {
-                    const next = e.target.value;
-                    setCloudProviderDraft(next);
-                    const preset = CLOUD_PRESETS[next];
+                    dirtyRef.current = true;
+                    const nextKey = e.target.value;
+                    setCloudPresetDraft(nextKey);
+                    setCloudTestResult(null);
+                    const preset = CLOUD_PRESETS[nextKey];
                     if (preset) {
-                      setCloudBaseUrlDraft(preset.baseUrl);
-                      setCloudModelDraft(preset.model);
+                      setCloudProviderDraft(preset.backendProvider);
+                      if (preset.baseUrl) setCloudBaseUrlDraft(preset.baseUrl);
+                      if (preset.model) setCloudModelDraft(preset.model);
                     }
                   }}
                 >
                   {Object.entries(CLOUD_PRESETS).map(([k, v]) => (
                     <option key={k} value={k}>
-                      {v.label}
+                      {zh ? v.label : v.labelEn}
                     </option>
                   ))}
                 </select>
               </label>
-              <label className="field">
-                {zh ? "HTTPS 接口地址 (Base URL)" : "HTTPS Base URL"}
-                <input
-                  type="url"
-                  aria-label={zh ? "HTTPS 接口地址 (Base URL)" : "HTTPS Base URL"}
-                  value={cloudBaseUrlDraft}
-                  disabled={saving}
-                  onChange={(e) => setCloudBaseUrlDraft(e.target.value)}
-                />
-              </label>
-              <label className="field">
-                {zh ? "云端模型名称" : "Cloud model"}
-                <input
-                  type="text"
-                  aria-label={zh ? "云端模型名称" : "Cloud model"}
-                  value={cloudModelDraft}
-                  disabled={saving}
-                  onChange={(e) => setCloudModelDraft(e.target.value)}
-                />
-              </label>
+
+              {activePresetSpec?.consoleUrl ? (
+                <p className="cloud-console-link-row">
+                  <a
+                    className="button button-ghost button-small"
+                    href={activePresetSpec.consoleUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {zh ? "去官网获取 API Key ↗" : "Open provider console ↗"}
+                  </a>
+                  <span className="hint">
+                    {zh
+                      ? `默认模型：${cloudModelDraft || activePresetSpec.model}`
+                      : `Model: ${cloudModelDraft || activePresetSpec.model}`}
+                  </span>
+                </p>
+              ) : null}
+
               <label className="field">
                 {zh ? "云端 API Key（仅存 macOS 钥匙串）" : "Cloud API key (macOS Keychain only)"}
                 <input
@@ -4955,9 +5444,56 @@ export function WorkspaceAiSettingsPanel({
                   }
                   value={apiKeyDraft}
                   disabled={saving}
-                  onChange={(e) => setApiKeyDraft(e.target.value)}
+                  onChange={(e) => {
+                    dirtyRef.current = true;
+                    setApiKeyDraft(e.target.value);
+                  }}
                 />
               </label>
+
+              <details
+                className="cloud-advanced-details"
+                open={cloudPresetDraft === "openai_compatible"}
+              >
+                <summary>
+                  {zh ? "高级：自定义接口地址与模型名" : "Advanced: Base URL & custom model"}
+                </summary>
+                <label className="field">
+                  {zh ? "HTTPS 接口地址 (Base URL)" : "HTTPS Base URL"}
+                  <input
+                    type="url"
+                    aria-label={zh ? "HTTPS 接口地址 (Base URL)" : "HTTPS Base URL"}
+                    value={cloudBaseUrlDraft}
+                    disabled={saving}
+                    onChange={(e) => {
+                      dirtyRef.current = true;
+                      setCloudBaseUrlDraft(e.target.value);
+                    }}
+                  />
+                </label>
+                <label className="field">
+                  {zh ? "云端模型名称" : "Cloud model"}
+                  <input
+                    type="text"
+                    aria-label={zh ? "云端模型名称" : "Cloud model"}
+                    value={cloudModelDraft}
+                    disabled={saving}
+                    onChange={(e) => {
+                      dirtyRef.current = true;
+                      setCloudModelDraft(e.target.value);
+                    }}
+                  />
+                </label>
+              </details>
+
+              {cloudTestResult ? (
+                <p
+                  role="status"
+                  className={cloudTestResult.ok ? "semantic-state state-neutral" : "form-error"}
+                >
+                  {cloudTestResult.message}
+                </p>
+              ) : null}
             </>
           )}
 
@@ -4970,6 +5506,16 @@ export function WorkspaceAiSettingsPanel({
             >
               {saving ? (zh ? "正在保存…" : "Saving…") : zh ? "保存 AI 引擎配置" : "Save AI engine"}
             </button>
+            {modeDraft === "cloud_byok" ? (
+              <button
+                type="button"
+                className="button button-secondary"
+                disabled={saving || testingCloud}
+                onClick={() => void testCloud()}
+              >
+                {testingCloud ? (zh ? "正在测试…" : "Testing…") : zh ? "测试连接" : "Test connection"}
+              </button>
+            ) : null}
             <button
               type="button"
               className="button button-ghost"
@@ -4987,6 +5533,522 @@ export function WorkspaceAiSettingsPanel({
           ) : null}
         </div>
       )}
+    </section>
+  );
+}
+
+export function WhisperQuickDownloadPanel({
+  ready,
+  activeSlug,
+  catalog,
+  onReady,
+}: {
+  ready?: boolean;
+  activeSlug?: string | null;
+  catalog?: CuratedWhisperModel[];
+  onReady?: () => void;
+}) {
+  const { language } = useUiLanguage();
+  const zh = language === "zh-CN";
+  const panelRef = useRef<HTMLElement | null>(null);
+  const [mirror, setMirror] = useState<"auto" | "cn_mirror" | "official">("auto");
+  const [status, setStatus] = useState<WhisperDownloadProgress | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [doneMsg, setDoneMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    const syncScroll = () => {
+      if (location.hash.startsWith("#Settings/transcription")) {
+        setTimeout(() => {
+          panelRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+        }, 30);
+      }
+    };
+    syncScroll();
+    window.addEventListener("hashchange", syncScroll);
+    return () => window.removeEventListener("hashchange", syncScroll);
+  }, []);
+
+  useEffect(() => {
+    if (!status || !["downloading", "verifying"].includes(status.state)) return;
+    let active = true;
+    const timer = setTimeout(async () => {
+      try {
+        const next = await api<WhisperDownloadProgress>("/workspace-ai/whisper/download-status");
+        if (!active) return;
+        setStatus(next);
+        if (next.state === "succeeded") {
+          setDoneMsg(
+            zh
+              ? `✅ 已下载并自动配置 ${next.slug}，现在可直接转写无字幕本地音视频。`
+              : `✅ Downloaded and configured ${next.slug}. Ready for offline transcription.`,
+          );
+          onReady?.();
+        } else if (next.state === "failed" && next.error) {
+          setError(next.error);
+        }
+      } catch {
+        // retry on next poll
+      }
+    }, 800);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
+
+  const startDownload = async (modelId: string) => {
+    setError(null);
+    setDoneMsg(null);
+    try {
+      const next = await post<WhisperDownloadProgress>("/workspace-ai/whisper/download", {
+        model_id: modelId,
+        mirror,
+      });
+      setStatus(next);
+    } catch (reason) {
+      setError(
+        reason instanceof ApiRequestError
+          ? reason.message
+          : zh
+            ? "无法启动语音模型下载，请检查网络后重试。"
+            : "Could not start Whisper model download.",
+      );
+    }
+  };
+
+  const models = catalog && catalog.length > 0 ? catalog : DEFAULT_CURATED_WHISPER;
+  const isBusy = Boolean(status && ["downloading", "verifying"].includes(status.state));
+
+  return (
+    <section
+      ref={panelRef}
+      id="settings-whisper-download"
+      className="panel"
+      aria-label={zh ? "本地语音转写模型（可选）" : "Local Speech Transcription Model (Optional)"}
+    >
+      <div className="panel-head">
+        <h2>
+          <PhosphorIcon name="lightning" size={16} className="panel-title-icon" />
+          <span>{zh ? "本地语音转写模型（可选）" : "Local Speech Model (Optional)"}</span>
+        </h2>
+        <span className={`curated-state-badge ${ready ? "is-ready" : ""}`}>
+          {ready
+            ? zh
+              ? `✅ 已就绪${activeSlug ? ` · ${activeSlug}` : ""}`
+              : `✅ Ready${activeSlug ? ` · ${activeSlug}` : ""}`
+            : zh
+              ? "未安装（仅无字幕本地音视频需要）"
+              : "Not installed (only for uncaptioned local media)"}
+        </span>
+      </div>
+      <p className="hint">
+        {zh
+          ? "仅导入无字幕的本地音频/视频时需要；有字幕的视频与 TXT/MD 笔记无需安装。模型只存于本机。"
+          : "Only needed to transcribe uncaptioned local audio/video. Captioned videos & text notes work without it."}
+      </p>
+
+      <label className="field">
+        {zh ? "下载线路（国内网络免 VPN 推荐镜像）" : "Download source"}
+        <select
+          aria-label={zh ? "语音模型下载线路" : "Whisper download mirror"}
+          value={mirror}
+          disabled={isBusy}
+          onChange={(e) => setMirror(e.target.value as "auto" | "cn_mirror" | "official")}
+        >
+          <option value="auto">
+            {zh ? "自动（国内镜像优先，无 VPN 推荐）" : "Auto (CN mirror first)"}
+          </option>
+          <option value="cn_mirror">
+            {zh ? "国内高速镜像 (hf-mirror.com)" : "Mainland China Mirror (hf-mirror.com)"}
+          </option>
+          <option value="official">
+            {zh ? "HuggingFace 官方源（需海外网络）" : "HuggingFace Official"}
+          </option>
+        </select>
+      </label>
+
+      <div className="curated-model-grid">
+        {models.map((item) => {
+          const isCurrent = Boolean(ready && activeSlug === item.slug);
+          const isThisDownloading = isBusy && status?.model_id === item.id;
+          return (
+            <div key={item.id} className="curated-model-row">
+              <div className="curated-model-info">
+                <div className="curated-model-head">
+                  <strong>{item.label}</strong>
+                  <span className="curated-pill">
+                    {item.tier === "recommended"
+                      ? zh
+                        ? "推荐"
+                        : "Recommended"
+                      : zh
+                        ? "轻量"
+                        : "Fast"}
+                  </span>
+                  <span className="hint tabular-nums">{item.size_label}</span>
+                </div>
+                <span className="hint">{zh ? item.summary_zh : item.summary_en}</span>
+              </div>
+              <button
+                type="button"
+                className={`button button-small ${isCurrent ? "button-secondary" : "button-primary"}`}
+                disabled={isBusy}
+                onClick={() => void startDownload(item.id)}
+              >
+                {isThisDownloading
+                  ? zh
+                    ? `下载中 ${status?.percent ?? 0}%`
+                    : `Downloading ${status?.percent ?? 0}%`
+                  : isCurrent
+                    ? zh
+                      ? "已就绪 · 重新下载"
+                      : "Ready · Re-download"
+                    : zh
+                      ? "一键下载并自动配置"
+                      : "One-click download & configure"}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+
+      {isBusy && status ? (
+        <div className="download-progress-wrap" role="status" aria-live="polite">
+          <div className="download-progress-head">
+            <span>
+              {status.current_file || (zh ? "正在准备下载…" : "Preparing download…")}
+              {status.total_files > 0
+                ? ` (${status.completed_files}/${status.total_files})`
+                : ""}
+            </span>
+            <span className="tabular-nums">{status.percent}%</span>
+          </div>
+          <div className="download-progress-bar">
+            <span style={{ width: `${status.percent}%` }} />
+          </div>
+        </div>
+      ) : null}
+
+      {doneMsg ? <p role="status">{doneMsg}</p> : null}
+      {error ? (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
+type YouTubeAuthStatus = {
+  enabled: boolean;
+  auth_mode: "disabled" | "browser" | "cookie_file";
+  browser_name: string;
+  supported_browsers: string[];
+  cookie_configured: boolean;
+  daily_limit: number;
+  used_today: number;
+  cooldown_seconds: number;
+  circuit_open: boolean;
+};
+
+const DEFAULT_AUTH_BROWSERS = ["chrome", "firefox", "edge", "brave", "safari", "vivaldi", "chromium"];
+
+export function YouTubeAuthSettingsPanel() {
+  const { language } = useUiLanguage();
+  const zh = language === "zh-CN";
+  const panelRef = useRef<HTMLElement | null>(null);
+  const cookieFileRef = useRef<HTMLInputElement | null>(null);
+  const [status, setStatus] = useState<YouTubeAuthStatus | null>(null);
+  const [mode, setMode] = useState<"disabled" | "browser" | "cookie_file">("disabled");
+  const [browser, setBrowser] = useState("chrome");
+  const [cookiesTxt, setCookiesTxt] = useState("");
+  const [dailyLimit, setDailyLimit] = useState(20);
+  const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const res = await api<Partial<YouTubeAuthStatus>>("/workspace-ai/youtube-auth");
+        if (!active || !res || typeof res.auth_mode !== "string") return;
+        const parsed: YouTubeAuthStatus = {
+          enabled: Boolean(res.enabled),
+          auth_mode:
+            res.auth_mode === "browser" || res.auth_mode === "cookie_file"
+              ? res.auth_mode
+              : "disabled",
+          browser_name: typeof res.browser_name === "string" ? res.browser_name : "",
+          supported_browsers: Array.isArray(res.supported_browsers) && res.supported_browsers.length
+            ? res.supported_browsers
+            : DEFAULT_AUTH_BROWSERS,
+          cookie_configured: Boolean(res.cookie_configured),
+          daily_limit: typeof res.daily_limit === "number" ? res.daily_limit : 20,
+          used_today: typeof res.used_today === "number" ? res.used_today : 0,
+          cooldown_seconds: typeof res.cooldown_seconds === "number" ? res.cooldown_seconds : 15,
+          circuit_open: Boolean(res.circuit_open),
+        };
+        setStatus(parsed);
+        setMode(parsed.auth_mode);
+        if (parsed.browser_name) setBrowser(parsed.browser_name);
+        setDailyLimit(parsed.daily_limit);
+      } catch {
+        // tolerate absent mock endpoint cleanly
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const syncScroll = () => {
+      if (location.hash.startsWith("#Settings/youtube-auth")) {
+        setTimeout(() => {
+          panelRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+        }, 30);
+      }
+    };
+    syncScroll();
+    window.addEventListener("hashchange", syncScroll);
+    return () => window.removeEventListener("hashchange", syncScroll);
+  }, []);
+
+  const saveAuth = async () => {
+    setSaving(true);
+    setFeedback(null);
+    setError(null);
+    try {
+      const payload: Record<string, unknown> = {
+        enabled: mode !== "disabled",
+        auth_mode: mode,
+        daily_limit: dailyLimit,
+      };
+      if (mode === "browser") payload.browser_name = browser;
+      if (mode === "cookie_file" && cookiesTxt.trim()) payload.cookies_txt = cookiesTxt;
+      const res = await put<YouTubeAuthStatus>("/workspace-ai/youtube-auth", payload);
+      setStatus(res);
+      setCookiesTxt("");
+      setFeedback(
+        mode === "disabled"
+          ? zh
+            ? "已切回默认纯免登模式。"
+            : "Switched back to anonymous-only mode."
+          : zh
+            ? "已保存 YouTube 兜底授权（仅在免登失败时按需启用）。"
+            : "YouTube fallback authorization saved (used only when anonymous fetch is blocked).",
+      );
+    } catch (reason) {
+      setError(
+        reason instanceof ApiRequestError
+          ? reason.message
+          : zh
+            ? "保存授权失败，请核对格式后重试。"
+            : "Could not save YouTube fallback authorization.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const disconnect = async () => {
+    setSaving(true);
+    setFeedback(null);
+    setError(null);
+    try {
+      const res = await post<YouTubeAuthStatus>("/workspace-ai/youtube-auth/disconnect", {});
+      setStatus(res);
+      setMode("disabled");
+      setCookiesTxt("");
+      setFeedback(
+        zh ? "已断开 YouTube 登录态并清除保存的凭据。" : "Disconnected and purged stored cookies.",
+      );
+    } catch {
+      setError(zh ? "断开授权失败，请重试。" : "Could not disconnect.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const browsers = status?.supported_browsers ?? DEFAULT_AUTH_BROWSERS;
+  const statusLabel = status?.enabled
+    ? status.auth_mode === "browser"
+      ? zh
+        ? `已授权 · 本机 ${status.browser_name}（今日已用 ${status.used_today}/${status.daily_limit}）`
+        : `Authorized · ${status.browser_name} (${status.used_today}/${status.daily_limit} today)`
+      : zh
+        ? `已授权 · Cookies 凭据（今日已用 ${status.used_today}/${status.daily_limit}）`
+        : `Authorized · Cookies (${status.used_today}/${status.daily_limit} today)`
+    : zh
+      ? "未启用（仅免登录直采 · 默认推荐）"
+      : "Disabled (anonymous-first only · default)";
+
+  return (
+    <section
+      ref={panelRef}
+      id="settings-youtube-auth"
+      className="panel youtube-auth-card"
+      aria-label={zh ? "YouTube 采集登录兜底（按需）" : "YouTube Auth Fallback (On Demand)"}
+    >
+      <div className="panel-head">
+        <h2>
+          <PhosphorIcon name="shield-check" size={16} className="panel-title-icon" />
+          <span>{zh ? "YouTube 采集登录兜底（按需）" : "YouTube Auth Fallback (On Demand)"}</span>
+        </h2>
+        <span className={`curated-state-badge ${status?.enabled ? "is-ready" : ""}`}>
+          {statusLabel}
+        </span>
+      </div>
+      <p className="hint">
+        {zh
+          ? "默认优先免登录直采以保护账号安全；仅当 YouTube 明确要求验证时才动用授权，内置单日限额与 30 分钟熔断保护。"
+          : "Anonymous-first by default to protect your account. Authorized fallback runs only when YouTube demands sign-in, with daily caps and 30-min circuit breaker."}
+      </p>
+
+      {status?.circuit_open ? (
+        <p className="form-error" role="status">
+          {zh
+            ? "⚠️ 触发账号保护熔断（上次请求被限流或要求验证），30 分钟内已自动暂停登录兜底，重新保存设置可立即复位。"
+            : "⚠️ Account protection circuit breaker active (30 min pause after rate-limit/auth rejection)."}
+        </p>
+      ) : null}
+
+      <div className="youtube-auth-controls">
+        <label className="field">
+          {zh ? "兜底方式" : "Fallback mode"}
+          <select
+            aria-label={zh ? "YouTube 兜底方式" : "YouTube fallback mode"}
+            value={mode}
+            disabled={saving}
+            onChange={(e) => setMode(e.target.value as "disabled" | "browser" | "cookie_file")}
+          >
+            <option value="disabled">{zh ? "不启用（仅免登录直采）" : "Disabled (anonymous only)"}</option>
+            <option value="browser">
+              {zh ? "授权读取本机已登录浏览器（如 Chrome）" : "Use signed-in local browser"}
+            </option>
+            <option value="cookie_file">
+              {zh ? "导入 cookies.txt（仅加密存钥匙串）" : "Import cookies.txt (Keychain only)"}
+            </option>
+          </select>
+        </label>
+
+        {mode === "browser" ? (
+          <>
+            <label className="field">
+              {zh ? "选择已登录 YouTube 的浏览器" : "Browser"}
+              <select
+                aria-label={zh ? "选择已登录 YouTube 的浏览器" : "Authorized browser"}
+                value={browser}
+                disabled={saving}
+                onChange={(e) => setBrowser(e.target.value)}
+              >
+                {browsers.map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="hint">
+              {zh
+                ? "首次触发 Chrome 等浏览器兜底时，macOS 可能弹窗询问“允许访问钥匙串以解密 Cookie”，点击“允许”即可。"
+                : "macOS may prompt once for Keychain access to read encrypted browser cookies."}
+            </p>
+          </>
+        ) : null}
+
+        {mode === "cookie_file" ? (
+          <div className="cookie-import-box">
+            <input
+              ref={cookieFileRef}
+              type="file"
+              accept=".txt,text/plain"
+              hidden
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (!file) return;
+                setCookiesTxt(await file.text());
+              }}
+            />
+            <div className="button-row">
+              <button
+                type="button"
+                className="button button-secondary button-small"
+                onClick={() => cookieFileRef.current?.click()}
+              >
+                {zh ? "选择 cookies.txt 文件…" : "Choose cookies.txt…"}
+              </button>
+              <span className="hint">
+                {status?.cookie_configured
+                  ? zh
+                    ? "钥匙串中已有 Cookie（不覆盖可留空）"
+                    : "Cookies already stored in Keychain"
+                  : zh
+                    ? "使用浏览器扩展导出 Netscape 格式 cookies.txt"
+                    : "Netscape format cookies.txt"}
+              </span>
+            </div>
+            <label className="field">
+              {zh ? "或直接粘贴 cookies.txt 内容" : "Or paste Netscape cookies.txt"}
+              <textarea
+                aria-label={zh ? "YouTube cookies.txt 内容" : "YouTube cookies.txt content"}
+                rows={3}
+                value={cookiesTxt}
+                placeholder="# Netscape HTTP Cookie File..."
+                disabled={saving}
+                onChange={(e) => setCookiesTxt(e.target.value)}
+              />
+            </label>
+          </div>
+        ) : null}
+
+        {mode !== "disabled" ? (
+          <label className="field">
+            {zh ? "每日登录兜底上限（保护账号风控）" : "Daily auth fallback cap"}
+            <select
+              aria-label={zh ? "每日登录兜底上限" : "Daily fallback cap"}
+              value={dailyLimit}
+              disabled={saving}
+              onChange={(e) => setDailyLimit(Number(e.target.value))}
+            >
+              <option value={5}>{zh ? "5 次 / 天（保守）" : "5 / day (Conservative)"}</option>
+              <option value={20}>{zh ? "20 次 / 天（推荐）" : "20 / day (Recommended)"}</option>
+              <option value={50}>{zh ? "50 次 / 天（上限）" : "50 / day (Max)"}</option>
+            </select>
+          </label>
+        ) : null}
+      </div>
+
+      <div className="button-row">
+        <button
+          type="button"
+          className="button button-primary"
+          disabled={saving}
+          onClick={() => void saveAuth()}
+        >
+          {saving ? (zh ? "正在保存…" : "Saving…") : zh ? "保存授权设置" : "Save authorization"}
+        </button>
+        {(status?.enabled || status?.cookie_configured) ? (
+          <button
+            type="button"
+            className="button button-ghost"
+            disabled={saving}
+            onClick={() => void disconnect()}
+          >
+            {zh ? "一键断开并清除" : "Disconnect & purge"}
+          </button>
+        ) : null}
+      </div>
+      {feedback ? <p role="status">{feedback}</p> : null}
+      {error ? (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      ) : null}
     </section>
   );
 }

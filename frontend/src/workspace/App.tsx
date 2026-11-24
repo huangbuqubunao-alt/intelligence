@@ -21,7 +21,13 @@ import { ModelSettings } from "./ModelSettings";
 import { formatMicroCny } from "./CloudSpendingSettings";
 import { Logo } from "./Logo";
 import { BookmarkSparkIcon, cancelPendingChromiumHashUpdate, DistillOrbitIcon, NavIcon, prefersReducedMotion, pulseCelebration, readCurrentLogicalHash, runViewTransition, scheduleSafeHashUpdate, VerifiedSealIcon } from "./motion";
-import { FirstRunOnboarding, completeOnboarding, onboardingCompleted } from "./Onboarding";
+import {
+  FirstRunOnboarding,
+  completeOnboarding,
+  getOnboardingReturnStep,
+  onboardingCompleted,
+  setOnboardingReturnStep,
+} from "./Onboarding";
 import { DeltaTarget, KnowledgeDelta } from "./KnowledgeDelta";
 import { Research } from "./Research";
 import type { CommandPaletteAction } from "./ui/CommandPalette";
@@ -62,10 +68,12 @@ import {
   TopicObsidianExportBar,
   VideoAiBrief,
   WeeklyAiBriefPanel,
+  WhisperQuickDownloadPanel,
   WorkspaceAiSettingsPanel,
   WorkspaceVideoAiActions,
   WorkspaceVideoAiBriefCard,
   WorkspaceVisualKeyframePanel,
+  YouTubeAuthSettingsPanel,
   compareContentNewestFirst,
 } from "./WorkspaceAiWidgets";
 
@@ -215,6 +223,8 @@ type ContentItem = {
   source_id?: string;
   retry_allowed?: boolean;
   last_error_code?: string | null;
+  import_error_code?: string | null;
+  import_error_message?: string | null;
   tracked_content_retry?: unknown;
   caption_timing_status?: string;
   summary_preparation_status?: string;
@@ -2403,6 +2413,10 @@ function Dashboard(
   if (isFreshLibrary && !onboardingDone) {
     return (
       <FirstRunOnboarding
+        initialStep={getOnboardingReturnStep() ?? 0}
+        onOpenSetup={(_target, currentStep) => {
+          setOnboardingReturnStep(currentStep);
+        }}
         onSkip={finishOnboarding}
         onAddFollowing={() => {
           finishOnboarding();
@@ -5818,6 +5832,74 @@ function PendingContentDetailView({
     }
   };
 
+  const errCode = (
+    video.import_error_code ??
+    video.last_error_code ??
+    video.processing_job?.error_code ??
+    ""
+  )
+    .trim()
+    .toUpperCase();
+  const isNetworkError = errCode === "YOUTUBE_NETWORK_UNAVAILABLE";
+  const isContentUnavailable = errCode === "YOUTUBE_CONTENT_UNAVAILABLE";
+  const isRateLimited =
+    errCode === "YOUTUBE_RATE_LIMITED" || errCode === "YOUTUBE_AUTH_RATE_LIMITED";
+  const isNoCaptions = errCode === "YOUTUBE_NO_CAPTIONS";
+  const isAuthExpired = errCode === "YOUTUBE_AUTH_EXPIRED";
+  const showAuthLink = !isNetworkError && !isContentUnavailable && !isNoCaptions;
+
+  const causeParagraph = (() => {
+    if (isNetworkError) {
+      return zh
+        ? "当前网络或系统代理未能连接到 YouTube（连接超时或网络不可达，并非账号被拦截）。"
+        : "Network or system proxy could not reach YouTube (connection timed out or unreachable, not an account block).";
+    }
+    if (isContentUnavailable) {
+      return zh
+        ? "该 YouTube 视频当前不可公开访问（可能已被删除、设为私密、地区限制或尚未结束直播）。"
+        : "This YouTube video is not publicly available (deleted, private, geo-restricted, or upcoming/live).";
+    }
+    if (isRateLimited) {
+      return zh
+        ? "触发了 YouTube 请求频率保护，已自动暂停自动重试以保护你的账号与网络环境。"
+        : "YouTube request rate safety limit reached; automatic retries are paused to protect your account.";
+    }
+    if (isNoCaptions) {
+      return zh
+        ? "已连接到该视频，但原视频在 YouTube 上没有提供任何可用字幕轨。"
+        : "Connected to the video, but YouTube provides no usable subtitle tracks for it.";
+    }
+    if (isAuthExpired) {
+      return zh
+        ? "已授权的 YouTube 登录态已过期或被平台拒绝验证。请先在浏览器打开原视频确认可正常播放，再更新授权并重试。"
+        : "Your authorized YouTube session expired or was rejected. Verify playback in your browser and update authorization before retrying.";
+    }
+    return zh
+      ? "YouTube 当前对该链接触发了匿名访问与机器人验证限制（要求登录确认）。为保护账号安全，本应用默认免登录直采，不会在后台静默读取你的浏览器状态。"
+      : "YouTube blocked anonymous access to this video (bot verification / sign-in gate). Intelligence uses anonymous-first fetching and never reads browser cookies behind your back.";
+  })();
+
+  const actionHintParagraph = (() => {
+    if (isNetworkError) {
+      return zh
+        ? "请检查本机网络或系统代理后点击「重新尝试获取」；无 VPN 环境下也可直接导入 B 站公开视频或本地音视频/文稿。"
+        : "Check your network or system proxy and retry; Bilibili videos and local files work without VPN.";
+    }
+    if (isNoCaptions) {
+      return zh
+        ? "你可以导入本地音视频或文稿文件进行离线转写，或从列表中移除此记录。"
+        : "Import a local audio/video or text file for offline analysis, or remove this entry.";
+    }
+    if (isAuthExpired || (!isContentUnavailable && !isRateLimited)) {
+      return zh
+        ? "你可以在下方按需授权本人 YouTube 登录态（仅对免登失败的视频启用，含每日限额保护、随时可断开），授权后直接点「重新尝试获取」；也可改用本地文件导入。"
+        : "You can explicitly authorize your signed-in YouTube session in Settings (used only after anonymous fetch fails, with daily caps), or import a local file instead.";
+    }
+    return zh
+      ? "你可以稍后再试、导出/导入本地副本，或从列表中移除此记录。"
+      : "Try again later, import a local file if you have one, or remove this entry.";
+  })();
+
   return (
     <div className="dashboard-stack">
       <button type="button" className="button button-ghost" onClick={onClose}>
@@ -5841,16 +5923,8 @@ function PendingContentDetailView({
         {needsAttention ? (
           <div className="semantic-state state-neutral">
             <strong>{zh ? "需要处理的原因" : "Why this video needs attention"}</strong>
-            <p>
-              {zh
-                ? "YouTube 当前对该链接触发了匿名访问与机器人验证限制（例如要求登录确认非机器人），或该视频存在访问权限限制。为保护账号安全，本应用不会在后台读取你的浏览器登录状态，因此暂时无法自动拉取标题与字幕。"
-                : "YouTube blocked anonymous access to this video (for example, requiring sign-in bot verification or permission checks). Because Intelligence never reads browser cookies behind your back, metadata and captions could not be fetched automatically."}
-            </p>
-            <p className="hint">
-              {zh
-                ? "你可以将该视频或字幕文件下载到电脑后直接导入离线转写分析，也可以稍后重新尝试获取，或从列表中移除这条未完成记录。"
-                : "You can import a local video or transcript file for offline analysis, retry fetching later, or remove this unfinished entry."}
-            </p>
+            <p>{causeParagraph}</p>
+            <p className="hint">{actionHintParagraph}</p>
           </div>
         ) : (
           <p role="status">
@@ -5860,19 +5934,9 @@ function PendingContentDetailView({
           </p>
         )}
         <div className="button-row">
-          {onAddLocal ? (
-            <button
-              type="button"
-              className="button button-primary"
-              disabled={retryBusy || removeBusy}
-              onClick={onAddLocal}
-            >
-              {zh ? "改用本地文件导入" : "Import local file instead"}
-            </button>
-          ) : null}
           <button
             type="button"
-            className="button button-secondary"
+            className="button button-primary"
             disabled={!video.source_id || retryBusy || removeBusy}
             onClick={() => void handleRetry()}
           >
@@ -5884,6 +5948,21 @@ function PendingContentDetailView({
                 ? "重新尝试获取"
                 : t("Retry")}
           </button>
+          {showAuthLink ? (
+            <a className="button button-secondary" href="#Settings/youtube-auth">
+              {zh ? "授权本人 YouTube 登录态 ›" : "Authorize YouTube login ›"}
+            </a>
+          ) : null}
+          {onAddLocal ? (
+            <button
+              type="button"
+              className="button button-secondary"
+              disabled={retryBusy || removeBusy}
+              onClick={onAddLocal}
+            >
+              {zh ? "改用本地文件导入" : "Import local file instead"}
+            </button>
+          ) : null}
           {video.source_url ? (
             <a
               className="button button-secondary"
@@ -5923,8 +6002,51 @@ function PendingContentDetailView({
 }
 
 function failedContentReasonCopy(video: ContentItem, zh: boolean): string | null {
-  const errCode = (video.last_error_code ?? video.processing_job?.error_code ?? "").trim().toUpperCase();
+  const errCode = (
+    video.import_error_code ??
+    video.last_error_code ??
+    video.processing_job?.error_code ??
+    ""
+  )
+    .trim()
+    .toUpperCase();
   const codeMap: Record<string, { zh: string; en: string }> = {
+    YOUTUBE_NETWORK_UNAVAILABLE: {
+      zh: "当前网络或系统代理未能连接到 YouTube，请检查网络或代理设置后重试。",
+      en: "Network or system proxy could not reach YouTube. Check your connection and retry.",
+    },
+    TRANSIENT_NETWORK: {
+      zh: "当前网络或系统代理未能连接到 YouTube，请检查网络或代理设置后重试。",
+      en: "Network or system proxy could not reach YouTube. Check your connection and retry.",
+    },
+    YOUTUBE_AUTH_REQUIRED: {
+      zh: "YouTube 对该视频触发了匿名访问与登录验证限制；可在设置中按需授权本人 YouTube 登录态后重试，或先生成简介速览。",
+      en: "YouTube blocked anonymous access (sign-in verification). You can enable on-demand YouTube auth fallback in Settings and retry.",
+    },
+    PERMISSION_DENIED: {
+      zh: "YouTube 对该视频触发了访问权限或登录验证限制；可在设置中按需授权本人 YouTube 登录态后重试。",
+      en: "YouTube denied anonymous access. Enable on-demand YouTube auth fallback in Settings and retry.",
+    },
+    YOUTUBE_AUTH_EXPIRED: {
+      zh: "已授权的 YouTube 登录态已过期或需要重新验证，请在设置中更新授权后再重试。",
+      en: "Authorized YouTube login expired or was rejected. Update authorization in Settings before retrying.",
+    },
+    YOUTUBE_AUTH_RATE_LIMITED: {
+      zh: "触发了账号防风控频控或 30 分钟熔断保护，请稍后再试。",
+      en: "Account protection cooldown/daily cap reached. Try again later.",
+    },
+    YOUTUBE_RATE_LIMITED: {
+      zh: "YouTube 请求频率受限，请稍后再试。",
+      en: "YouTube rate-limited requests. Try again shortly.",
+    },
+    YOUTUBE_NO_CAPTIONS: {
+      zh: "该视频未提供可用公开字幕，可导入本地文件或先生成简介速览。",
+      en: "No usable captions found on YouTube. Import a local file or generate a metadata preview.",
+    },
+    YOUTUBE_CONTENT_UNAVAILABLE: {
+      zh: "该 YouTube 视频当前不可公开访问（可能已删、私密或受限）。",
+      en: "This YouTube video is unavailable (deleted, private, or restricted).",
+    },
     CAPABILITY_UNAVAILABLE: {
       zh: "当前来源抓取能力受限（例如平台要求登录验证或未开放公开字幕）。你可以导入本地文件/字幕替代，或直接生成简介速览。",
       en: "Capture capability is restricted on this source (for example sign-in verification or no public captions). You can import a local file/transcript instead or generate a metadata preview.",
@@ -6253,6 +6375,19 @@ function ContentDetailPanel(
         data.video.caption_timing_status === "UNAVAILABLE") && (() => {
         const zh = language === "zh-CN";
         const translatedReason = failedContentReasonCopy(data.video, zh);
+        const rawErrCode = (
+          data.video.import_error_code ??
+          data.video.last_error_code ??
+          data.video.processing_job?.error_code ??
+          ""
+        )
+          .trim()
+          .toUpperCase();
+        const showYouTubeAuthCta =
+          (data.video.provider ?? "YOUTUBE") === "YOUTUBE" &&
+          ["PERMISSION_DENIED", "YOUTUBE_AUTH_REQUIRED", "YOUTUBE_AUTH_EXPIRED"].includes(
+            rawErrCode,
+          );
         const canRetrySource = Boolean(data.video.source_id && data.video.retry_allowed !== false);
         const canMetaFallback =
           (data.video.provider ?? "YOUTUBE") === "YOUTUBE" &&
@@ -6303,6 +6438,11 @@ function ContentDetailPanel(
                 >
                   {t(retryBusy ? "Retrying…" : "Retry")}
                 </button>
+              ) : null}
+              {showYouTubeAuthCta ? (
+                <a className="button button-secondary" href="#Settings/youtube-auth">
+                  {zh ? "授权本人 YouTube 登录态 ›" : "Authorize YouTube login ›"}
+                </a>
               ) : null}
               {onAddLocal ? (
                 <button
@@ -9915,8 +10055,22 @@ function Settings({ refresh }: { refresh: number }) {
       setSavingLanguage(false);
     }
   };
+  const showOnboardingReturn = getOnboardingReturnStep() !== null;
+  const zhBanner = language === "zh-CN";
   return (
     <div className="settings-stack">
+      {showOnboardingReturn ? (
+        <div className="onboarding-return-banner" role="region" aria-label={zhBanner ? "新手引导进度" : "Onboarding progress"}>
+          <span>
+            {zhBanner
+              ? "正在进行新手引导（模型配置后不会丢失进度）"
+              : "Onboarding paused here so you can finish setup"}
+          </span>
+          <a className="button button-primary button-small" href="#Home">
+            {zhBanner ? "返回新手引导继续第 3 步 ›" : "Return to Onboarding ›"}
+          </a>
+        </div>
+      ) : null}
       <div role="toolbar" aria-label={t("Settings sections")} className="reader-jump-bar settings-jump-bar">
         {([
           ["settings-language", "translate", "Jump · Language"],
@@ -10003,9 +10157,12 @@ function Settings({ refresh }: { refresh: number }) {
                 <button
                   type="button"
                   className="button button-secondary button-small"
-                  onClick={() => document.getElementById("settings-models")?.scrollIntoView?.({ behavior: "smooth", block: "start" })}
+                  onClick={() => {
+                    scheduleSafeHashUpdate("Settings/models");
+                    document.getElementById("settings-models")?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+                  }}
                 >
-                  {zh ? (wsAi?.active_mode === "cloud_byok" && !wsAi.cloud_key_configured ? "配置 API Key ›" : "切换或查看 ›") : "Configure ›"}
+                  {zh ? (wsAi?.active_mode === "cloud_byok" && !wsAi.cloud_key_configured ? "配置 API Key ›" : "配置模型 ›") : "Configure ›"}
                 </button>
               </div>
               <div className="ai-overview-row">
@@ -10014,7 +10171,7 @@ function Settings({ refresh }: { refresh: number }) {
                   <span className="hint">{transcriptionStatusCopy}</span>
                 </div>
                 <a className="button button-secondary button-small" href="#Settings/transcription">
-                  {zh ? (transcriberReadyFlag === true ? "查看设置 ›" : "去设置（约 2 分钟） ›") : "Set up ›"}
+                  {zh ? (transcriberReadyFlag === true ? "查看设置 ›" : "一键下载（约 2 分钟） ›") : "Set up ›"}
                 </a>
               </div>
               <div className="ai-overview-row">
@@ -10030,7 +10187,7 @@ function Settings({ refresh }: { refresh: number }) {
                     setTimeout(() => document.getElementById("settings-legacy-diagnostics")?.scrollIntoView?.({ behavior: "smooth", block: "start" }), 20);
                   }}
                 >
-                  {zh ? "了解详情 ›" : "Learn more ›"}
+                  {zh ? "高级详情 ›" : "Details ›"}
                 </button>
               </div>
             </div>
@@ -10056,6 +10213,13 @@ function Settings({ refresh }: { refresh: number }) {
           <>
             {overviewPanel}
             <WorkspaceAiSettingsPanel id="settings-models" initial={settings.data.workspace_ai} onConfigChange={setLiveWorkspaceAi} />
+            <WhisperQuickDownloadPanel
+              ready={transcriberReadyFlag}
+              activeSlug={wsAi?.active_whisper_slug}
+              catalog={wsAi?.curated_whisper_models}
+              onReady={() => setRevision(current => current + 1)}
+            />
+            <YouTubeAuthSettingsPanel />
             <details
               id="settings-legacy-diagnostics"
               className="settings-advanced legacy-model-diagnostics"
@@ -10089,8 +10253,8 @@ function Settings({ refresh }: { refresh: number }) {
         );
       })()}
       <BackupRestorePanel />
-      <Panel title="Data and privacy (read-only)"><p>{t("Local-first means local persistence by default. Credential values are never shown.")}</p></Panel>
       <details className="settings-advanced"><summary>{t("Advanced and diagnostics")}</summary>
+      <Panel title="Data and privacy (read-only)"><p>{t("Local-first means local persistence by default. Credential values are never shown.")}</p></Panel>
       <Panel title="Preference history (read-only)">
         <p className="hint">
           {t("Explicit means you directly chose it. Derived means the app inferred it from feedback. Temporary means it is used only until its expiry.")}

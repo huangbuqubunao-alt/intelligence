@@ -111,6 +111,7 @@ from youtube_intel.topic import TopicApplicationService, TopicRead
 from youtube_intel.tracked_content_retry import TrackedContentRetryService
 from youtube_intel.tracked_retry_context import RetryIntegrity
 from youtube_intel.workspace_intelligence_hub import WorkspaceIntelligenceHub
+from youtube_intel.youtube_auth_fallback import YouTubeAuthFallbackService
 
 try:
     import resource as _resource
@@ -1180,6 +1181,10 @@ class _RequestSnapshotContext:
             retry_sources = self.yt_retry_sources_by_video().get(video.video_id, ())
             if retry_sources:
                 projection["source_id"] = retry_sources[0].source_id
+                if retry_sources[0].last_error_code:
+                    projection["import_error_code"] = retry_sources[0].last_error_code
+                if retry_sources[0].last_error_message:
+                    projection["import_error_message"] = retry_sources[0].last_error_message
             job = self.latest_content_job(video.video_id)
             projection["processing_job"] = (
                 None
@@ -1278,10 +1283,10 @@ class _RequestSnapshotContext:
 
     def pending_content_work(self) -> list[dict[str, object]]:
         rows = self.conn.execute(
-            "SELECT s.source_id,s.video_id,s.canonical_url,s.created_at,NULL AS enrollment "
+            "SELECT s.source_id,s.video_id,s.canonical_url,s.created_at,NULL AS enrollment,s.last_error_code,s.last_error_message "
             "FROM source_subscriptions s LEFT JOIN videos v ON v.video_id=s.video_id "
             "WHERE s.provider='YOUTUBE' AND s.source_type='VIDEO_URL' AND s.enabled=1 AND v.video_id IS NULL "
-            "UNION ALL SELECT o.source_id,o.canonical_identity,'https://www.youtube.com/watch?v='||o.canonical_identity,o.observed_at,o.enrollment "
+            "UNION ALL SELECT o.source_id,o.canonical_identity,'https://www.youtube.com/watch?v='||o.canonical_identity,o.observed_at,o.enrollment,NULL AS last_error_code,NULL AS last_error_message "
             "FROM source_observations o JOIN source_subscriptions s USING(source_id) "
             "LEFT JOIN videos v ON v.video_id=o.canonical_identity "
             "WHERE s.provider='YOUTUBE' AND o.baseline=0 AND v.video_id IS NULL LIMIT 100"
@@ -1304,7 +1309,7 @@ class _RequestSnapshotContext:
                 state = "NEEDS_ATTENTION"
             elif latest and latest.state.value == "RUNNING":
                 state = "FETCHING"
-            items[str(video_id)] = {
+            item: dict[str, object] = {
                 "video_id": video_id,
                 "provider": "YOUTUBE",
                 "title": row["canonical_url"],
@@ -1317,6 +1322,11 @@ class _RequestSnapshotContext:
                 "work_kind": "DURABLE_CONTENT_IDENTITY",
                 "source_id": row["source_id"],
             }
+            if row["last_error_code"]:
+                item["import_error_code"] = str(row["last_error_code"])
+            if row["last_error_message"]:
+                item["import_error_message"] = str(row["last_error_message"])
+            items[str(video_id)] = item
         return list(items.values())
 
     def verified_source(self, content_id: str) -> dict[str, Any] | None:
@@ -1844,6 +1854,10 @@ class FastReadApiApplication:
                 now=inner._now,
             )
         )
+        self._youtube_auth = YouTubeAuthFallbackService(
+            project_root=self._workspace_hub._project_root,
+            now=inner._now,
+        )
         self._cache_lock = threading.Lock()
         self._mutation_epoch = 0
         self._route_cache: dict[str, tuple[tuple[object, ...], str]] = {}
@@ -2225,6 +2239,40 @@ class FastReadApiApplication:
                     data = self._inner._body(body)
                     return HTTPStatus.OK, self._workspace_hub.update_settings(data)
                 raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+            if route == "/api/v1/workspace-ai/ollama/pull" and method == "POST":
+                data = self._inner._body(body)
+                return HTTPStatus.ACCEPTED, self._workspace_hub.start_ollama_pull(
+                    str(data.get("model") or "")
+                )
+            if route == "/api/v1/workspace-ai/ollama/pull-status" and method == "GET":
+                return HTTPStatus.OK, self._workspace_hub.get_ollama_pull_status()
+            if route == "/api/v1/workspace-ai/whisper/download" and method == "POST":
+                data = self._inner._body(body)
+
+                def _sync_local_tx(model_path: str) -> None:
+                    self._inner._require_transcription().configure(model_path)
+
+                return HTTPStatus.ACCEPTED, self._workspace_hub.start_whisper_download(
+                    str(data.get("model_id") or ""),
+                    mirror=str(data.get("mirror") or "auto"),
+                    on_ready=_sync_local_tx,
+                )
+            if route == "/api/v1/workspace-ai/whisper/download-status" and method == "GET":
+                return HTTPStatus.OK, self._workspace_hub.get_whisper_download_status()
+            if route == "/api/v1/workspace-ai/test-cloud" and method == "POST":
+                data = self._inner._body(body) if body.strip() else {}
+                return HTTPStatus.OK, self._workspace_hub.test_cloud_connection(data)
+            if route == "/api/v1/workspace-ai/youtube-auth":
+                if method == "GET":
+                    return HTTPStatus.OK, self._youtube_auth.get_status()
+                if method == "PUT":
+                    data = self._inner._body(body)
+                    return HTTPStatus.OK, self._youtube_auth.update_config(data)
+                raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
+            if route == "/api/v1/workspace-ai/youtube-auth/disconnect" and method == "POST":
+                if body.strip():
+                    self._inner._body(body)
+                return HTTPStatus.OK, self._youtube_auth.disconnect()
             if route == "/api/v1/workspace-ai/research/sessions" and method == "GET":
                 return HTTPStatus.OK, self._cached_or_compute(
                     route,

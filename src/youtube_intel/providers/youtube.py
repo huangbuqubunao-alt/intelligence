@@ -62,6 +62,7 @@ class _SilentYtDlpLogger:
 # Options equivalent to single-video, skip_download, noplaylist, quiet, no media writes.
 _SAFE_YDL_OPTS: Final[dict[str, Any]] = {
     "skip_download": True,
+    "ignore_no_formats_error": True,
     "noplaylist": True,
     "quiet": True,
     "no_warnings": True,
@@ -83,6 +84,45 @@ _SAFE_YDL_OPTS: Final[dict[str, Any]] = {
     # Do not set remote_components / allow_remote / ffmpeg_location / paths that download media.
 }
 
+_AUTH_GATE_MARKERS: Final[tuple[str, ...]] = (
+    "sign in to confirm",
+    "confirm you're not a bot",
+    "confirm you\u2019re not a bot",
+    "not a bot",
+    "login_required",
+)
+
+_NETWORK_ERROR_MARKERS: Final[tuple[str, ...]] = (
+    "unable to download webpage",
+    "failed to establish",
+    "connection refused",
+    "connection reset",
+    "connection aborted",
+    "name or service not known",
+    "nodename nor servname",
+    "network is unreachable",
+    "cannot connect to proxy",
+    "proxy error",
+    "proxyerror",
+    "ssl:",
+    "eof occurred in violation of protocol",
+    "getaddrinfo failed",
+)
+
+
+def _resolve_system_proxy_url() -> str | None:
+    try:
+        from youtube_intel.providers.youtube_network import system_http_proxy_url
+
+        proxy_url = system_http_proxy_url()
+    except Exception:  # noqa: BLE001
+        return None
+    if not isinstance(proxy_url, str) or not proxy_url:
+        return None
+    if proxy_url.startswith("/Users/") or "cookie" in proxy_url.lower():
+        return None
+    return proxy_url
+
 
 class _YdlHandle(Protocol):
     def extract_info(self, url: str, download: bool = True) -> object: ...
@@ -101,6 +141,9 @@ def _build_ydl_opts(*, socket_timeout: float | None = None) -> dict[str, Any]:
     opts = dict(_SAFE_YDL_OPTS)
     if socket_timeout is not None:
         opts["socket_timeout"] = socket_timeout
+    proxy_url = _resolve_system_proxy_url()
+    if proxy_url is not None:
+        opts["proxy"] = proxy_url
     return opts
 
 
@@ -640,7 +683,40 @@ def _map_ytdlp_exception(exc: BaseException, *, video_id: str) -> AdapterError:
             )
         )
 
+    if any(marker in lower for marker in _NETWORK_ERROR_MARKERS):
+        return AdapterError(
+            _app_error(
+                ErrorCode.TRANSIENT_NETWORK,
+                "yt-dlp metadata network request failed",
+                retryable=True,
+                stage=ProcessingStage.METADATA,
+                video_id=video_id,
+            )
+        )
+
     private = "private video" in lower or ("private" in lower and "video" in lower)
+    if private:
+        return AdapterError(
+            _app_error(
+                ErrorCode.CONTENT_UNAVAILABLE,
+                "video content unavailable (private)",
+                retryable=False,
+                stage=ProcessingStage.METADATA,
+                video_id=video_id,
+            )
+        )
+
+    if any(marker in lower for marker in _AUTH_GATE_MARKERS):
+        return AdapterError(
+            _app_error(
+                ErrorCode.PERMISSION_DENIED,
+                "youtube authentication required (anonymous verification gate)",
+                retryable=False,
+                stage=ProcessingStage.METADATA,
+                video_id=video_id,
+            )
+        )
+
     deleted = "removed" in lower or "deleted" in lower or "no longer available" in lower
     restricted = (
         "not available in your country" in lower
@@ -655,22 +731,11 @@ def _map_ytdlp_exception(exc: BaseException, *, video_id: str) -> AdapterError:
         "video unavailable" in lower
         or "is unavailable" in lower
         or "unavailable" in lower
-        or "sign in to confirm" in lower
         or "live event will begin" in lower
         or "premieres in" in lower
         or "live stream recording is not available" in lower
         or "video is not available" in lower
     )
-    if private:
-        return AdapterError(
-            _app_error(
-                ErrorCode.CONTENT_UNAVAILABLE,
-                "video content unavailable (private)",
-                retryable=False,
-                stage=ProcessingStage.METADATA,
-                video_id=video_id,
-            )
-        )
     if deleted:
         return AdapterError(
             _app_error(
