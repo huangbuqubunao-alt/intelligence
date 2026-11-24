@@ -2155,7 +2155,7 @@ Status: `IN_REVIEW — Legacy Migration-06 implementation complete; do not enter
 - Task: `TASK-016C Legacy Migration-05`
 - Role: `Implementer`
 - Base commit: `3bb2c4b82e7ca5a0ba515d0f6f947ce69aa56592`
-- Worktree / branch: `/Users/hua/Documents/yia-worktrees/task-016c-content-quality-layer` / `workbuddy/task-016c-content-quality-layer`
+- Worktree / branch: `/Users/developer/Documents/yia-worktrees/task-016c-content-quality-layer` / `workbuddy/task-016c-content-quality-layer`
 - Reuse decision: `DIRECT` — reuses the accepted Phase F/G runtime-owned
   `RuntimeOperations.run_primary_trusted_scoring()` and
   `RuntimeOperations._trusted_persistence_entry().persist_success()` seams;
@@ -2351,7 +2351,7 @@ Status: `IN_REVIEW — Legacy Migration-06 implementation complete; do not enter
 - Original Phase A implementation commit: `cd9d8b2c41a130aadfc828559d537611f341850a`
 - Correction Round 1 commit: `e9ffe699c52d1c2f4a20f9322df3c5eb445b1cf5`
 - Correction Round 1.1 commit: `e8ccc2d9e3b348d23942450b3f99861cdbc25aa3`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-016c-content-quality-layer`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-016c-content-quality-layer`
 - Branch: `workbuddy/task-016c-content-quality-layer`
 - Started: `2026-08-14`
 - Reported: `2026-08-14`
@@ -2546,7 +2546,7 @@ Correction 开始时新增测试全部 RED：
 - Phase B authorization commit: `0f558f36376f3f113e68d1ab7a2e5969aabd0073`
 - Phase B implementation commit: `7e5e71d02e9d270a69da9f140d2ff7e7c9a92061`
 - Phase B correction round commit: see 实现者结论 below
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-016c-content-quality-layer`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-016c-content-quality-layer`
 - Branch: `workbuddy/task-016c-content-quality-layer`
 
 ## 目标与范围
@@ -2638,7 +2638,7 @@ Correction 开始时新增测试全部 RED：
 - Role: `Implementer (Correction Round 2)`
 - Agent/session: `WorkBuddy`
 - Previous correction commit: `69b508b`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-016c-content-quality-layer`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-016c-content-quality-layer`
 - Branch: `workbuddy/task-016c-content-quality-layer`
 - Started: `2026-08-14`
 - Reported: `2026-08-14`
@@ -2818,7 +2818,7 @@ Judge 请求参数 `reason=None`、`topics=()`  defaults 允许空评估材料�
 - Role: `Implementer (Correction Round 3)`
 - Agent/session: `WorkBuddy`
 - Parent commit: `eba5420f3ab89076f99c527743a55a11c99fa3fd`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-016c-content-quality-layer`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-016c-content-quality-layer`
 - Branch: `workbuddy/task-016c-content-quality-layer`
 - Started: `2026-08-14`
 - Reported: `2026-08-14`
@@ -2943,7 +2943,7 @@ Round 3 先写测试再实现。RED 阶段失败类别：
 - Agent/session: `WorkBuddy`
 - Parent commit: `f2827e2dc8a2a3f58f9e4cfe6c21ced310e86bdb`
 - Correction commit: `913618c2e4cc834fb4152daec2b884c5a4b88b0f`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-016c-content-quality-layer`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-016c-content-quality-layer`
 - Branch: `workbuddy/task-016c-content-quality-layer`
 - Started: `2026-08-14`
 - Reported: `2026-08-14`
@@ -3066,7 +3066,7 @@ Round 4 先写测试再实现。RED 阶段失败数与类别：
 - Agent/session: `WorkBuddy`
 - Parent commit: `dab0ba9d358c4624fb7619e95bfa034dd4dc70d7`
 - Phase D authorization commit: `dab0ba9d358c4624fb7619e95bfa034dd4dc70d7`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-016c-content-quality-layer`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-016c-content-quality-layer`
 - Branch: `workbuddy/task-016c-content-quality-layer`
 - Started: `2026-08-14`
 - Reported: `2026-08-14`
@@ -3854,7 +3854,7 @@ load_app_config(channels_path, settings_path)
 - Role: `Implementer`
 - Agent/session: WorkBuddy
 - Base/authorization commit: `acdaac1dbc0899e2b2b6e9871b1a734c7edb136e`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-016c-content-quality-layer`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-016c-content-quality-layer`
 - Branch: `workbuddy/task-016c-content-quality-layer`
 - Head commit: `c0268a2157d7b9bb99bdc888b2ee493655bbbaa2`
 - Direct parent: `acdaac1dbc0899e2b2b6e9871b1a734c7edb136e`

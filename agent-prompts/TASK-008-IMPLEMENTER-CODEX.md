@@ -4,9 +4,9 @@
 
 ## 固定对象
 
-- Main authorization：动态读取 `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-008-IMPLEMENTER-CODEX.md`
+- Main authorization：动态读取 `git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-008-IMPLEMENTER-CODEX.md`
 - Base：`473119704c7638d7afd4e68d84d00e85064ceabd`
-- Worktree/branch：`/Users/hua/Documents/yia-worktrees/task-008` / `codex/task-008-deep-analysis`
+- Worktree/branch：`/Users/developer/Documents/yia-worktrees/task-008` / `codex/task-008-deep-analysis`
 - Allowed scope：`src/youtube_intel/analysis.py`、`src/youtube_intel/providers/cloud_llm.py`、`src/youtube_intel/prompts/summary.md`、`tests/fixtures/analysis/**`、`tests/unit/test_analysis_policy.py`、`tests/integration/test_summary_provider.py`、`handoffs/TASK-008.md`。
 - Reuse：`DIRECT` official OpenAI SDK/tiktoken already locked by TASK-008A; existing domain/Artifact/Provider-call/SQLite contracts. No handwritten HTTP client, second Provider, SDK retry, format-repair call, token-count endpoint, or real credential/API.
 

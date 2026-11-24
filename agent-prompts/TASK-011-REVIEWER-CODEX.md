@@ -4,8 +4,8 @@
 
 ## 固定对象
 
-- Main authorization：`git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-011-REVIEWER-CODEX.md`；main 中 TASK-011 必须为 `IN_REVIEW`。
-- Source/base：`/Users/hua/Documents/yia-worktrees/task-011` / `codex/task-011-weekly-report@0ae7f9366b49395fbe8c4908bbbc19c127bc0a8e` / `44fc64be2cb4602cb93c1d03f84d6dd2a1677750`。
+- Main authorization：`git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-011-REVIEWER-CODEX.md`；main 中 TASK-011 必须为 `IN_REVIEW`。
+- Source/base：`/Users/developer/Documents/yia-worktrees/task-011` / `codex/task-011-weekly-report@0ae7f9366b49395fbe8c4908bbbc19c127bc0a8e` / `44fc64be2cb4602cb93c1d03f84d6dd2a1677750`。
 - Source 唯一父为 fixed base；完整允许范围严格为 `reporting.py`、`state.py`、`providers/obsidian.py`、`templates/weekly.md`、`test_week_period.py`、`test_weekly_report.py`、`tests/fixtures/weekly/**`、source handoff。
 - Source 卡/状态为分配 base 快照；不得写回 source。TASK-012 source 不得读取、修改或清理。
 

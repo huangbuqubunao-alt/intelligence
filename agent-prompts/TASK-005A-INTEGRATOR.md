@@ -6,16 +6,16 @@
 
 ## 固定对象与启动门禁
 
-- Main repository/worktree：`/Users/hua/Documents/youtubek agent`
+- Main repository/worktree：`/Users/developer/Documents/youtubek agent`
 - Main integration authorization：动态运行
-  `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-005A-INTEGRATOR.md`
+  `git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-005A-INTEGRATOR.md`
 - Required authorization parent / acceptance anchor：`ce8e76c7ba51fd8f53bf63ebcfc6cf53fcc30b9d`
-- Source worktree：`/Users/hua/Documents/yia-worktrees/task-005a`
+- Source worktree：`/Users/developer/Documents/yia-worktrees/task-005a`
 - Source branch：`codex/task-005a-local-model-shared-contracts`
 - Source head：`e726656ffcc96b3c61d12f649c5574dc927add62`
 - Original implementation base：`82f45a1c04f9eba3264cd743b28bc339d79b34fc`
 - Reviewer evidence：`e726656ffcc96b3c61d12f649c5574dc927add62`，Verdict=`APPROVE`
-- Required identity：`Mozhu <huangbuqubunao@gmail.com>`；`user.useConfigOnly=true`
+- Required identity：`Mozhu <maintainer@example.invalid>`；`user.useConfigOnly=true`
 
 开始时 main 必须在动态 authorization commit、它是 Required authorization parent 的
 唯一直接后继、main 干净且 TASK-005A=`ACCEPTED`；source 必须在 fixed head、分支正确且

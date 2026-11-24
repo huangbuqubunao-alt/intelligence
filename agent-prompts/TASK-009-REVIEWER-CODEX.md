@@ -6,8 +6,8 @@ source worktree 固定在分配前 base，因此其中的 `tasks/` 与 `docs/PRO
 
 ## 固定对象
 
-- Main authorization：动态读取 `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-009-REVIEWER-CODEX.md`
-- Source/base：`/Users/hua/Documents/yia-worktrees/task-009` /
+- Main authorization：动态读取 `git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-009-REVIEWER-CODEX.md`
+- Source/base：`/Users/developer/Documents/yia-worktrees/task-009` /
   `codex/task-009-obsidian-notes@956e37a15ab29106f16c45873fccb813cc5a959f` /
   `473119704c7638d7afd4e68d84d00e85064ceabd`
 - Full allowed scope：`notes.py`、`providers/obsidian.py`、`templates/video.md`、`tests/fixtures/notes/**`、

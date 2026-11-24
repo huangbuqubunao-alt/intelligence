@@ -4,9 +4,9 @@
 
 ## 动态授权与唯一谱系
 
-- Main authorization：`git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-013-REBUILD-CORRECTION-1-CODEX.md` 必须解析为本替代 Correction 1 授权提交，且 main 中 TASK-013=`IN_PROGRESS`。
-- 唯一 source：`/Users/hua/Documents/yia-worktrees/task-013-rebuild` / `codex/task-013-e2e-acceptance-rebuild@3cf8b5fd8e7abec8f8a6595227a8919a7a8804e1`；开始时必须干净。该 review evidence 的唯一父提交是 implementation `0a9e16887e7dc0b287be941a34e2908766e3992e`，且 evidence 仅修改 `handoffs/TASK-013.md`。implementation 的 original base 为 `2a59dfe3860161a5989f2c08161f03c73aa4ca86`。
-- 历史 `/Users/hua/Documents/yia-worktrees/task-013` / `codex/task-013-e2e-acceptance` 是已拒绝审计证据，禁止访问、修改或复用。
+- Main authorization：`git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-013-REBUILD-CORRECTION-1-CODEX.md` 必须解析为本替代 Correction 1 授权提交，且 main 中 TASK-013=`IN_PROGRESS`。
+- 唯一 source：`/Users/developer/Documents/yia-worktrees/task-013-rebuild` / `codex/task-013-e2e-acceptance-rebuild@3cf8b5fd8e7abec8f8a6595227a8919a7a8804e1`；开始时必须干净。该 review evidence 的唯一父提交是 implementation `0a9e16887e7dc0b287be941a34e2908766e3992e`，且 evidence 仅修改 `handoffs/TASK-013.md`。implementation 的 original base 为 `2a59dfe3860161a5989f2c08161f03c73aa4ca86`。
+- 历史 `/Users/developer/Documents/yia-worktrees/task-013` / `codex/task-013-e2e-acceptance` 是已拒绝审计证据，禁止访问、修改或复用。
 
 ## 唯一允许产品范围
 

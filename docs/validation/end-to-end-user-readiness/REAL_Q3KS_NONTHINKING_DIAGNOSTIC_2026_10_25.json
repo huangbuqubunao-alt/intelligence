@@ -50,7 +50,7 @@
   "whole_parent": {
     "exit_code": 0,
     "elapsed_seconds": 71.29987908399926,
-    "log": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/q3ks-mode-only-diagnosis-20261025/resource-resume-20261025/actual-root-run.log",
+    "log": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/q3ks-mode-only-diagnosis-20261025/resource-resume-20261025/actual-root-run.log",
     "qualification": false
   },
   "precheck": {
@@ -87,32 +87,32 @@
   "raw_output_unchanged": true,
   "proofs": [
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-q3ks-mode-only-diagnostic/.var/model-diagnostic-q3ks-nonthinking/real-once-resumed-20261025/generation-raw.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-q3ks-mode-only-diagnostic/.var/model-diagnostic-q3ks-nonthinking/real-once-resumed-20261025/generation-raw.json",
       "bytes": 2965,
       "sha256": "8a51a76d52d506be6b16560382c30039e00fb141ebc6872f9e508fe390dd42fd"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-q3ks-mode-only-diagnostic/.var/model-diagnostic-q3ks-nonthinking/real-once-resumed-20261025/diagnostic-result.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-q3ks-mode-only-diagnostic/.var/model-diagnostic-q3ks-nonthinking/real-once-resumed-20261025/diagnostic-result.json",
       "bytes": 2040,
       "sha256": "e9f21717686c02250b7a781faacfdc8188198c97af46d81ef61c3d6873012752"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-q3ks-mode-only-diagnostic/.var/model-diagnostic-q3ks-nonthinking/real-once-resumed-20261025/precheck.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-q3ks-mode-only-diagnostic/.var/model-diagnostic-q3ks-nonthinking/real-once-resumed-20261025/precheck.json",
       "bytes": 468,
       "sha256": "93db07f70b629c145c6227e2b7621337446a1fb66bbbbde8a625bc75367e7d38"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-q3ks-mode-only-diagnostic/.var/model-diagnostic-q3ks-nonthinking/real-once-resumed-20261025/preload-raw.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-q3ks-mode-only-diagnostic/.var/model-diagnostic-q3ks-nonthinking/real-once-resumed-20261025/preload-raw.json",
       "bytes": 330,
       "sha256": "8f7c73c300845546cdc5de25957cac77624a5a6da4b82b589a8bb2e0638f4a15"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-q3ks-mode-only-diagnostic/.var/model-diagnostic-q3ks-nonthinking/real-once-resumed-20261025/capacity.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-q3ks-mode-only-diagnostic/.var/model-diagnostic-q3ks-nonthinking/real-once-resumed-20261025/capacity.json",
       "bytes": 14600,
       "sha256": "e676b4f9d8d8977175d0cbf9c12fa66635335d25181c4387d9040e807ca08472"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-q3ks-mode-only-diagnostic/.var/model-diagnostic-q3ks-nonthinking/real-once-resumed-20261025/generation-start.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-q3ks-mode-only-diagnostic/.var/model-diagnostic-q3ks-nonthinking/real-once-resumed-20261025/generation-start.json",
       "bytes": 1819,
       "sha256": "f1e73aaa5b180a982006a2ac41fef150984cfb418504df81b98cc399f6b318dd"
     }

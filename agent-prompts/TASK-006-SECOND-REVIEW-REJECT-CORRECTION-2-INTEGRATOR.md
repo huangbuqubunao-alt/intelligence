@@ -2,7 +2,7 @@
 
 Control plane only: return TASK-006 to original Codex Implementer for the error-enum P1. Do not run product commands or access TASK-007.
 
-Main `/Users/hua/Documents/youtubek agent` must be `main@c945252bee6513db0704d7280e2b813f74698f37` with empty index. Source `/Users/hua/Documents/yia-worktrees/task-006` must be clean at `47599db196b1b9440de3ae57ec3547935f64b1dc`, sole parent `17afcd349827b36e5ba18fb0eab443c1ae5fb53f`; evidence only changes handoff. Correction 1 is four allowed paths; full task scope and dependencies/locks unchanged. Confirm `Mozhu <huangbuqubunao@gmail.com>` and `user.useConfigOnly=true`.
+Main `/Users/developer/Documents/youtubek agent` must be `main@c945252bee6513db0704d7280e2b813f74698f37` with empty index. Source `/Users/developer/Documents/yia-worktrees/task-006` must be clean at `47599db196b1b9440de3ae57ec3547935f64b1dc`, sole parent `17afcd349827b36e5ba18fb0eab443c1ae5fb53f`; evidence only changes handoff. Correction 1 is four allowed paths; full task scope and dependencies/locks unchanged. Confirm `Mozhu <maintainer@example.invalid>` and `user.useConfigOnly=true`.
 
 Stage/commit exactly five prepared Markdown files:
 

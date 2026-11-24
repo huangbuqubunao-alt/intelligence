@@ -4,12 +4,12 @@
 
 ## 固定审查对象
 
-- Source worktree：`/Users/hua/Documents/yia-worktrees/task-009a`
+- Source worktree：`/Users/developer/Documents/yia-worktrees/task-009a`
 - Branch：`codex/task-009a-obsidian-note-shared-contracts`
 - Reviewed implementation：`75158be08d6442a7b18099f459654e9da86ebcee`
 - Required source base：`e4271e41910bba54b37b48df709dcf632fe3b0eb`
 - Main authorization：
-  `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-009A-REVIEWER-CODEX.md`
+  `git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-009A-REVIEWER-CODEX.md`
   必须解析为包含 TASK-009A=`IN_REVIEW` 的当前 main 提交。
 
 source 任务卡的 `BLOCKED/UNASSIGNED` 是固定 base 快照；main 当前控制面和本包才是审查授权。若 main/source 分支、SHA、父链、干净状态、5 路径完整范围、授权状态任一不符，立即 `BLOCKED`，不得写 handoff。

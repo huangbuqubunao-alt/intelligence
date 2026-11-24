@@ -4,7 +4,7 @@
 
 - Role: Implementer `/root/caption_resume`; reported 2026-10-13.
 - Base: `1a401d7f688162adf5da01e6a30ab69d3e82ce52`.
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-page-recovery`.
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-page-recovery`.
 - Branch: `codex/task-readiness-page-recovery`.
 - Implementation: `1164bf4eaa2bfc26720f710886f908b17e1acc62`.
 - 建议状态: `IN_REVIEW`; 本报告不宣称主控验收、正式采用或全链路完成。

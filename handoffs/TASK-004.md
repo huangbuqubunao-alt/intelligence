@@ -6,7 +6,7 @@
 - Role: `Implementer`
 - Agent/session: Grok Build (unique Implementer session)
 - Base branch/commit: `main@dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-004`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-004`
 - Branch: `grok/task-004-discovery-metadata`
 - Head commit: (branch tip; see `git rev-parse HEAD` on `grok/task-004-discovery-metadata`)
 - Started: 2026-07-15
@@ -412,7 +412,7 @@
 - 复现/验证说明：
 
 ```bash
-cd /Users/hua/Documents/yia-worktrees/task-004
+cd /Users/developer/Documents/yia-worktrees/task-004
 uv lock --check && uv sync --locked
 uv run python -m pytest tests/unit/test_discovery.py
 uv run python -m pytest tests/integration/test_discovery_adapter.py
@@ -434,11 +434,11 @@ uv run python -m youtube_intel --help
 
 ### 开始门禁与范围
 
-- `pwd`：PASS，`/Users/hua/Documents/yia-worktrees/task-004`
+- `pwd`：PASS，`/Users/developer/Documents/yia-worktrees/task-004`
 - branch：PASS，`grok/task-004-discovery-metadata`
 - initial HEAD：PASS，`9db800fc9f4d01a5b6348c5cc8b567f83dc442aa`
 - initial worktree：PASS，干净
-- Git identity：PASS，`Mozhu <huangbuqubunao@gmail.com>`，`user.useConfigOnly=true`
+- Git identity：PASS，`Mozhu <maintainer@example.invalid>`，`user.useConfigOnly=true`
 - 父链：PASS，`dcc7d85... <- 392edfb... <- 10f5ffa... <- 9db800f...` 均为直接父子且可达
 - main authorization：PASS，`main` 精确位于 `372a31eb53eed39faeba9df545c5e665c7a63ba1`
 - 完整 Diff：PASS，恰好 17 个批准路径；无二进制、模式变化或范围外文件
@@ -536,11 +536,11 @@ uv run python -m youtube_intel --help
 
 ### 开始门禁与提交链
 
-- `pwd`：PASS，`/Users/hua/Documents/yia-worktrees/task-004`
+- `pwd`：PASS，`/Users/developer/Documents/yia-worktrees/task-004`
 - branch：PASS，`grok/task-004-discovery-metadata`
 - initial HEAD：PASS，`30932e1742e948683f9e1c0f63236451b8d731bd`
 - initial worktree：PASS，干净
-- Git identity：PASS，author/committer 均为 `Mozhu <huangbuqubunao@gmail.com>`，`user.useConfigOnly=true`
+- Git identity：PASS，author/committer 均为 `Mozhu <maintainer@example.invalid>`，`user.useConfigOnly=true`
 - main authorization：PASS，主 worktree HEAD 精确为 `fb1cdd728081c9c1ae0c0bcb82b7490332090b28`
 - 直接父链：PASS，`dcc7d85... <- 392edfb... <- 10f5ffa... <- 9db800f... <- f34cbb... <- 30932e1...`
 - Correction-3 自身范围：PASS，精确为 `discovery.py`、`providers/youtube.py`、两份 discovery 测试和本 handoff 共 5 个文件
@@ -640,12 +640,12 @@ uv run python -m youtube_intel --help
 
 ### 开始门禁与提交链
 
-- `pwd`：PASS，`/Users/hua/Documents/yia-worktrees/task-004`
+- `pwd`：PASS，`/Users/developer/Documents/yia-worktrees/task-004`
 - branch：PASS，`grok/task-004-discovery-metadata`
 - initial HEAD：PASS，`54c0ab201388cba35e481d7a511f21575946ad14`
 - initial worktree：PASS，干净（`git status --porcelain` 为空）
-- Git identity：PASS，`Mozhu <huangbuqubunao@gmail.com>`，`user.useConfigOnly=true`
-- main authorization：PASS，控制面 `/Users/hua/Documents/youtubek agent` 的 `main` 精确位于 `b966e8aa056e2d922641d75ecdd4824bea5aaeb8`
+- Git identity：PASS，`Mozhu <maintainer@example.invalid>`，`user.useConfigOnly=true`
+- main authorization：PASS，控制面 `/Users/developer/Documents/youtubek agent` 的 `main` 精确位于 `b966e8aa056e2d922641d75ecdd4824bea5aaeb8`
 - 直接父链：PASS，`54c0ab2...` 的唯一父提交为 `5d66c28...`；可达链
   `dcc7d85... <- 392edfb... <- 10f5ffa... <- 9db800f... <- f34cbb... <- 30932e1... <- 5d66c28... <- 54c0ab2...`
 - Correction-4 自身范围：PASS，精确 5 文件：
@@ -755,7 +755,7 @@ uv run python -m youtube_intel --help
 - Main control diff：PASS。`5f864664...6c24f434...` 精确为恢复包列出的 10 个 Markdown 文件；仅接受 ADR-006、同步 System Design V1.3 与 TASK-005 门禁，没有 TASK-004 产品/source、测试、依赖、锁文件或 handoff 变更。
 - TASK-004 控制面：PASS。仍为 `IN_REVIEW`，reviewed source 仍为 `9750df...`，未预写第四位 Reviewer 结论。
 - source branch/HEAD：PASS。`grok/task-004-discovery-metadata@9750df2503a1aee135fdfbcca9f1706bcc9bd8de`，恢复时干净。
-- Git identity：PASS。`Mozhu <huangbuqubunao@gmail.com>`，`user.useConfigOnly=true`。
+- Git identity：PASS。`Mozhu <maintainer@example.invalid>`，`user.useConfigOnly=true`。
 - source 父链：PASS。`9750df...` 唯一父为 `d87253e...`，`d87253e...` 唯一父为 merge `eb9246b...`，merge 两父为 `1883367d...` 与 `58c79af...`。
 - Correction 5A 范围：PASS。`d87253e...9750df...` 仅 `discovery.py`、unit/integration discovery tests 与本 handoff 四个允许文件。
 - 完整产品范围：PASS。`58c79af...9750df...` 精确为原批准 17 路径；无 `domain.py`、`state.py`、migration、CLI、任务状态或范围外文件。
@@ -867,7 +867,7 @@ Reviewer 已逐项读取三份必读测试的实际断言，不仅比对通过�
 - Agent/session: Grok 新会话（接替已关闭旧 Implementer；主控授权继续同一分支/worktree）
 - Starting review evidence: `d510794ffccf54948f967f010685aef1c0a02f3d`（父 `9750df2503a1aee135fdfbcca9f1706bcc9bd8de`，仅 handoff）
 - Control-plane sync (main, not merged into source): `091a591f56c9aec73d4e7d979635b866493326a9`（父 `6c24f4341f98cad961fa3d442d49e5982a0d97cf`），文件 `agent-prompts/TASK-004-CORRECTION-6-GROK.md`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-004`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-004`
 - Branch: `grok/task-004-discovery-metadata`
 - Status: 保持 `IN_PROGRESS`；未合并 main、未设 `ACCEPTED/DONE`
 - Reuse decision: `DIRECT` — 标准库 Protocol/dataclass、stdlib SQLite/RSS、已锁定 yt-dlp；无新增/升级依赖
@@ -978,7 +978,7 @@ def wire(source: SourceProvider, repository: SQLiteStateRepository) -> Discovery
 ### 启动、授权与固定 Diff 门禁
 
 - Main gate：PASS。Reviewer 包动态解析为 `22dd5b5...`，等于 main HEAD；其父为指定 `091a591...`，开始与 evidence 写入前 main 均 Git-clean。
-- Source gate：PASS。分支 `grok/task-004-discovery-metadata`，HEAD/父提交精确为 `7272528...` / `d510794...`；Git identity 为 `Mozhu <huangbuqubunao@gmail.com>` 且 `user.useConfigOnly=true`；开始与 evidence 写入前 source 均 clean。
+- Source gate：PASS。分支 `grok/task-004-discovery-metadata`，HEAD/父提交精确为 `7272528...` / `d510794...`；Git identity 为 `Mozhu <maintainer@example.invalid>` 且 `user.useConfigOnly=true`；开始与 evidence 写入前 source 均 clean。
 - 单父链：PASS。`git rev-list --parents -n 1 7272528...` 仅列出父 `d510794...`；没有 amend/rebase/额外 merge。
 - Correction 6 范围：PASS。`d510794...7272528...` 精确只修改 `discovery.py`、两份 discovery tests 与本 handoff 四个批准文件。
 - 完整产品范围：PASS。`58c79af...7272528...` 精确为原批准 17 路径：`discovery.py`、`providers/youtube.py`、两份 discovery tests、10 个 YouTube fixtures、`pyproject.toml`、`uv.lock` 与本 handoff。

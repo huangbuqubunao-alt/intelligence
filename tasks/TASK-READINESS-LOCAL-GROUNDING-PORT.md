@@ -4,7 +4,7 @@
 
 # TASK-READINESS-LOCAL-GROUNDING-PORT
 2026-10-15 READY，工程实现及负控范围；0真实模型调用，真实验收须生产代码独立接受及统一冻结后root签发。
-Base: 1aef3e0ec18568bb503a1b8663364cd05ca221d1 plus this docs-only commit. Worktree /Users/hua/Documents/yia-worktrees/readiness-local-grounding-port; branch codex/task-readiness-local-grounding-port.
+Base: 1aef3e0ec18568bb503a1b8663364cd05ca221d1 plus this docs-only commit. Worktree /Users/developer/Documents/yia-worktrees/readiness-local-grounding-port; branch codex/task-readiness-local-grounding-port.
 Implementer native_scan_resume; independent Reviewer local_text_review_resume，串行排队不与SourceInterest审查并发。
 目标：生产本地port、同一请求builder harness、严格 reviewed-resource reader先一致；空资格false，旧模型语义失败保留；不得以protocol/fixture/boolean授资格。
 合同依据 LOCAL_MODEL_GROUNDING_PORT_PLAN.md。新可信profile local-grounding-qwen35-9b-thinking-v1，固定9b digest56671c2ab9385f9cfcb404638e32cd62d88e3501d44822208363c010179a3c90/Ollama0.40.1；thinktrue/T1/.95/k20/min0/pres1.5/repeat1/seed20261013/ctx8192/predict6144/300s。通用忠实归因/必要限定/实质判断规则，不写旧样例答案、不补模型输出、不改原语义标准。

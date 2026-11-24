@@ -6,8 +6,8 @@ source worktree 固定在分配前 base，因此其中的 `tasks/` 与 `docs/PRO
 
 ## 固定对象
 
-- Main authorization：动态读取 `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-008-REVIEWER-CODEX.md`
-- Source/base：`/Users/hua/Documents/yia-worktrees/task-008` /
+- Main authorization：动态读取 `git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-008-REVIEWER-CODEX.md`
+- Source/base：`/Users/developer/Documents/yia-worktrees/task-008` /
   `codex/task-008-deep-analysis@10478a9083df4eedae061d99d941c88cb4954179` /
   `473119704c7638d7afd4e68d84d00e85064ceabd`
 - Full allowed scope：`analysis.py`、`providers/cloud_llm.py`、`prompts/summary.md`、`tests/fixtures/analysis/**`、

@@ -6,7 +6,7 @@ locator.waitFor: Timeout 20000ms exceeded.
 Call log:
 [2m  - waiting for getByRole('button', { name: '确认导入', exact: true }) to be visible[22m
 
-    at /Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/gui-media.mjs:23:54 {
+    at /Users/developer/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/gui-media.mjs:23:54 {
   log: [
     "  - waiting for getByRole('button', { name: '确认导入', exact: true }) to be visible"
   ],

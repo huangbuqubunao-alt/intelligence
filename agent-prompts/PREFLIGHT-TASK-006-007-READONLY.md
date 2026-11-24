@@ -4,10 +4,10 @@
 
 ## 固定入口与并行隔离
 
-- Main repository：`/Users/hua/Documents/youtubek agent`
+- Main repository：`/Users/developer/Documents/youtubek agent`
 - 只允许在本包已提交后的干净 main 上运行。
 - 动态观察基线：`git log -1 --format=%H -- agent-prompts/PREFLIGHT-TASK-006-007-READONLY.md`；该提交必须是 `b28f52d0e4950f78dba315d4afe211ea5f75b93c` 的单父直接后继。
-- TASK-005 Implementer 将在 `/Users/hua/Documents/yia-worktrees/task-005` 并行写入。严禁读取、检查、等待、清理或以任何方式访问该 live worktree。
+- TASK-005 Implementer 将在 `/Users/developer/Documents/yia-worktrees/task-005` 并行写入。严禁读取、检查、等待、清理或以任何方式访问该 live worktree。
 - TASK-005 尚未完成的领域变更只能视为未来依赖；不得猜测、复制或围绕未整合代码设计实现。需要参考已冻结字幕契约时只读 ADR-006 与 main 当前 Git 对象。
 
 ## 严格只读边界

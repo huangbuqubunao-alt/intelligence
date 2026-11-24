@@ -2,7 +2,7 @@
 Status: INTEGRATED_ENGINEERING_SCOPE
 Role: Implementer
 Base: 6ed56192c65c395ba39dffcd423aecacb256856a
-Worktree: /Users/hua/Documents/yia-worktrees/readiness-model-setup-catalog-bound
+Worktree: /Users/developer/Documents/yia-worktrees/readiness-model-setup-catalog-bound
 Branch: codex/task-readiness-model-setup-catalog-bound
 Reviewer: /root/long_completion_review_r1, separate review worktree after author clean STOP.
 

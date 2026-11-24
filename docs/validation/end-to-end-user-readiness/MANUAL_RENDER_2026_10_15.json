@@ -6,7 +6,7 @@
   "broken_images": [],
   "viewport_width": 1312,
   "document_scroll_width": 1297,
-  "screenshot_private": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/manual-final-render-20261015.png",
+  "screenshot_private": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/manual-final-render-20261015.png",
   "screenshot_sha256": "24e43fd38f26b38f5840b9672c94fc974863072bc0e48d8de7fbb8629cf8e113",
   "change": "Use existing figure wrapper for two added Schema39 screenshots; no product CSS or code change.",
   "limits": "Desktop manual render only, not model qualification or final journey acceptance.",

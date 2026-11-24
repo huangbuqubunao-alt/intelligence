@@ -4,12 +4,12 @@
 
 ## 固定事实
 
-- 工作目录/分支：`/Users/hua/Documents/youtubek agent` / `main`
+- 工作目录/分支：`/Users/developer/Documents/youtubek agent` / `main`
 - Required base 与 TASK-008A merge：`64a9c41683bb559b27bebb784fcff4fbff644a18`
 - Merge parents（顺序固定）：`d00841802ef375170542e7458ecba0504b6fd182`、`7a8239f3da02fa204b63702677fae5f669fb99c0`
 - Accepted source：`codex/task-008a-cloud-analysis-shared-contracts@7a8239f3da02fa204b63702677fae5f669fb99c0`
-- Source worktree：`/Users/hua/Documents/yia-worktrees/task-008a`
-- 身份必须是 `Mozhu <huangbuqubunao@gmail.com>` 且 `user.useConfigOnly=true`。
+- Source worktree：`/Users/developer/Documents/yia-worktrees/task-008a`
+- 身份必须是 `Mozhu <maintainer@example.invalid>` 且 `user.useConfigOnly=true`。
 
 ## 唯一允许提交范围
 

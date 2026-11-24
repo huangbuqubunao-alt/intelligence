@@ -23,7 +23,7 @@
 
 ## 必须执行
 
-1. 核验 main identity 为 `Mozhu <huangbuqubunao@gmail.com>`、`user.useConfigOnly=true`、分支/HEAD、empty index/worktree 与精确十文件范围。
+1. 核验 main identity 为 `Mozhu <maintainer@example.invalid>`、`user.useConfigOnly=true`、分支/HEAD、empty index/worktree 与精确十文件范围。
 2. 对准备文件做两轮 SHA-256、LF/EOF、无尾随空白、`git diff --check`、`git diff --cached --check` 与精确暂存范围核验；任何字节漂移立即停止，不覆盖并发改动。
 3. 不运行 uv、pytest、mypy、Ruff、build、imports、数据库、网络、Vault、云端、模型、凭据、launchctl 或任何产品文件 I/O 命令。
 4. ADR-012=`Accepted`；TASK-013A=`READY/UNASSIGNED`，仅等待独立 worktree/Implementer/Reviewer 分配；TASK-013=`BLOCKED/UNASSIGNED`，等待 TASK-013A 整合后重新开始离线验收；TASK-014 保持 `BLOCKED/UNASSIGNED`。

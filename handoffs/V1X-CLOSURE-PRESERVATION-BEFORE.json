@@ -38,7 +38,7 @@
       "tests/unit/test_evidence_translation.py": "9b7684f496772c5321f604f3e858b775e8a0a2e442aa9672acc3ca0bee4720c0",
       "frontend/m13-day2-settings.e2e.mjs": "8039d2c63ecd0361472ded8193f39a9bd99645eba8aaf123dec5e172fdb4f9e6",
       "frontend/node_modules": {
-        "symlink": "/Users/hua/Documents/yia-worktrees/m12-golden-ui/frontend/node_modules"
+        "symlink": "/Users/developer/Documents/yia-worktrees/m12-golden-ui/frontend/node_modules"
       },
       "src/youtube_intel/migrations/029_add_v1_model_configuration.sql": "583e5bcaeec9573f6d2ca6cb79fe26a65fa1c83aedc7d656d4cd611b2f6bccf3",
       "src/youtube_intel/model_configuration.py": "68b76516c5988017a7287b24d1d4dab97b06284b4802b4a858296eefc76b395f",

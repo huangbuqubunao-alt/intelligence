@@ -7,7 +7,7 @@
 - 架构谱系基线：`main@bdf2bf2adeb337b61747d869fa91619e3163a298`
 - B4 分配控制提交：`ccc747800b59e2bacc918f1e7b81e065b1520d9a`
 - 当前唯一实施基线：`bbd3fddd3c7fa1b8624dffb39b5fb8b262afba7d`
-- Worktree：`/Users/hua/Documents/yia-worktrees/task-014b4-directory-only-smoke`
+- Worktree：`/Users/developer/Documents/yia-worktrees/task-014b4-directory-only-smoke`
 - Branch：`codex/task-014b4-directory-only-smoke`
 - Reuse decision：`DIRECT` — 既有锁定 yt-dlp Adapter、`PublicSubtitleSmoke`、CLI、
   `ProviderCallMetadata`、`JsonlLogger` 和离线 Fake/integration 基础设施；不新增依赖或复制第三方代码。
@@ -35,7 +35,7 @@
   `--no-ff` merge `133819fe53cd3ade5e5d93635835c8a03649f12a` 整合，双父顺序为 `8637438…`、`d211d62…`；
   accepted source 是 merge 祖先，first-parent Diff 仍严格为五条允许路径。既有整合后离线 `uv sync --locked --offline`、
   Fake/integration `18`、mypy、Ruff、CLI help、离线 build、范围与敏感信息泄漏扫描均通过。source 保留且不得再修改或清理。
-- `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-diagnostic` 仅为未执行的历史诊断
+- `/Users/developer/Documents/yia-worktrees/task-014-phase-b1-directory-diagnostic` 仅为未执行的历史诊断
   worktree；禁止访问、修改、合并、清理或复用。
 - 本任务的 ADR、任务卡、实施包和状态记录由本控制面提交创建；Implementer 不得再改写这些控制面资料。
 

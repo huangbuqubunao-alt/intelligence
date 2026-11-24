@@ -10,7 +10,7 @@
 
 ## 重新分配（2026-07-26）
 
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-013-rebuild`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-013-rebuild`
 - Branch: `codex/task-013-e2e-acceptance-rebuild`
 - Base: `main@2a59dfe3860161a5989f2c08161f03c73aa4ca86`
 - TASK-013A 已整合为 `DONE`。本轮必须通过现有 `SubtitleAcquisitionService`、`LocalTranscriptionService`、评分、分析、笔记和周报服务建立真实离线服务流证据；不得重用已拒绝的历史 `codex/task-013-e2e-acceptance` source 或以通用 handler/直接状态推进替代。

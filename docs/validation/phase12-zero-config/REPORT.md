@@ -5,7 +5,7 @@ Sole engineering executor. No network settings UI, dependencies, schema changes,
 merge, push, PR, Phase 13 or Phase 14.
 
 1. **Starting HEAD:** `ab591a250f818059cb027314b87173e56c097e2a`, preserved as exact ancestor.
-2. **Worktree / branch:** `/Users/hua/Documents/yia-worktrees/phase12-zero-config-network` / `codex/phase12-zero-config-network`.
+2. **Worktree / branch:** `/Users/developer/Documents/yia-worktrees/phase12-zero-config-network` / `codex/phase12-zero-config-network`.
 3. **Protected fingerprints:** six protected trees, including M13; full file-byte hashes, HEADs and original statuses in [before](protected-before.json). Combined fingerprint artifact SHA-256 `da69753499a9640da39e6ccfed07200c61044b9789cc15cb67582ce7c4e21002`.
 4. **Architecture before:** yt-dlp alias resolution explicitly proxy-free; Atom used public-DNS validation and pinned direct TLS. Independent paths bypassed macOS system proxy.
 5. **Zero-config design:** narrow YouTube-owned runtime routing, fixed destination, per-request OS discovery; public channel metadata and Atom share it. [Decision](../../decisions/PHASE12-ZERO-CONFIG-NETWORK.md).

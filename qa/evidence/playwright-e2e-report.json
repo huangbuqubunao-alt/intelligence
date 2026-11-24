@@ -240,8 +240,8 @@
     "failed": 0
   },
   "seed": {
-    "e2e_root": "/Users/hua/Documents/yia-worktrees/antigravity-readiness-20261112/.var/qa-audit/e2e-run",
-    "db_path": "/Users/hua/Documents/yia-worktrees/antigravity-readiness-20261112/.var/qa-audit/e2e-run/state.sqlite3",
+    "e2e_root": "/Users/developer/Documents/yia-worktrees/antigravity-readiness-20261112/.var/qa-audit/e2e-run",
+    "db_path": "/Users/developer/Documents/yia-worktrees/antigravity-readiness-20261112/.var/qa-audit/e2e-run/state.sqlite3",
     "source_id": "54651737-98f6-4165-b173-91e09beff4fb",
     "backup_ready": true,
     "videos_seeded": [

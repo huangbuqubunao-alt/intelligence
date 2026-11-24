@@ -13,15 +13,15 @@ architecture、security、performance、readability 五轴质量。
 
 ## 固定对象与启动门禁
 
-- Main repository：`/Users/hua/Documents/youtubek agent`
+- Main repository：`/Users/developer/Documents/youtubek agent`
 - Main review authorization：动态运行
-  `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-008A-REVIEWER-CODEX.md`
+  `git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-008A-REVIEWER-CODEX.md`
 - Required authorization parent：`112a79a1bed8f02eba6f75ec7247f398b104ac75`
-- Source worktree：`/Users/hua/Documents/yia-worktrees/task-008a`
+- Source worktree：`/Users/developer/Documents/yia-worktrees/task-008a`
 - Source branch：`codex/task-008a-cloud-analysis-shared-contracts`
 - Implementation base：`82d1fd7c7f2f82e77df0518e63755bad0bf240f2`
 - Reviewed implementation head：`382251298af7fcbfadba66c1902af6de0a425179`
-- Required identity：`Mozhu <huangbuqubunao@gmail.com>`；
+- Required identity：`Mozhu <maintainer@example.invalid>`；
   `user.useConfigOnly=true`
 
 开始时 main 必须位于动态 authorization commit；该提交必须是 Required

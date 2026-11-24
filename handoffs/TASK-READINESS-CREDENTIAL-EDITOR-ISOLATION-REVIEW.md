@@ -3,7 +3,7 @@
 - Independent Reviewer `/root/bigmodel_audit_review`;2026-10-28; no subagents.
 - Comparison base `b0fab81268090430e41017bee9ecb647875b63e2`; fixed author `92059a1fcfd5aaf5669bbabe2706a6f055eba5ce`.
 - Review baseline `6c5d85a8750b8ee0bb710db5250e84ce0ad3793c`, author source plus only Root review task/prompt.
-- WT `/Users/hua/Documents/yia-worktrees/readiness-credential-editor-isolation-review`, branch `codex/task-readiness-credential-editor-isolation-review`.
+- WT `/Users/developer/Documents/yia-worktrees/readiness-credential-editor-isolation-review`, branch `codex/task-readiness-credential-editor-isolation-review`.
 - **Verdict: APPROVE, bounded credential-editor UI isolation only. No confirmed remaining P0/P1/P2 in this fixed slice.** Root owns acceptance/integration and actual populated QA. This does not approve model qualification, fees, private uploads, actual autofill guarantees or whole-Goal/main adoption.
 
 Only this review report is written to tracked files. No business/test repairs, native Keychain or real key/environment reads, Root6178/6179/browser/QA/owner access, actual provider requests, schema/dependency/configuration/main changes. An ignored frontend/node_modules symlink only reuses existing Root dependencies as expressly permitted, with no package installation or lockfile change.

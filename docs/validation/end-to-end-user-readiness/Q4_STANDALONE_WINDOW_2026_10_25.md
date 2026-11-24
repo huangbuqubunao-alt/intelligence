@@ -15,9 +15,9 @@
 
 ## 留给接续Agent的固定位置
 
-- 控制器与测试：`/Users/hua/Documents/yia-worktrees/readiness-q4-standalone-window/.var/q4-standalone-window/`，作者提交64065313dcd8e83dd2e40352188f60ae208669fa。
+- 控制器与测试：`/Users/developer/Documents/yia-worktrees/readiness-q4-standalone-window/.var/q4-standalone-window/`，作者提交64065313dcd8e83dd2e40352188f60ae208669fa。
 - 控制器启动记录：同目录`launch-start.json`；结果目录`run-20261025/`（wait-observations.jsonl、child-stdout.log、child-stderr.log、controller-result.json、可选cleanup-slots.json）。
-- 唯一实际模型输出：`/Users/hua/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/real-once-terminal-window-20261025/`；全局`generation-start.json`在其父目录。先查它们，严禁重复生成。
+- 唯一实际模型输出：`/Users/developer/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/real-once-terminal-window-20261025/`；全局`generation-start.json`在其父目录。先查它们，严禁重复生成。
 - 未改动实际执行harness：同父目录`diagnostic.py`，SHAd510aef83346bf1706f69a14fc7e9e10148d2e0614591f6b333c24a28f91e1ef。
 - 新固定包：root`.var/end-to-end-user-readiness/qwen35-9b-text-q4km-20261025/diagnostic-freeze-q4km-text-terminal-v2.json`，SHA4c324a55fae37bac56f54c778e75be9b4492f0d1cf97080a9d6cd5a79dd99a92。
 - Terminal元数据/进程归属：上述Q4root`terminal-window-20261025/`。旧3a107…包、旧资源拒绝、全部旧模型FAIL/raw和marker保留。

@@ -19,13 +19,13 @@
 本 prompt 最近一次控制面提交即为授权提交：
 
 ```bash
-AUTH=$(git -C '/Users/hua/Documents/youtubek agent' log -1 --format=%H -- \
+AUTH=$(git -C '/Users/developer/Documents/youtubek agent' log -1 --format=%H -- \
   agent-prompts/TASK-016A-INTELLIGENCE-CONTRACT-FOUNDATION-IMPLEMENTER-CODEX.md)
 ```
 
 开始时必须确认 source HEAD 等于 `$AUTH`、分支为
 `codex/task-016a-intelligence-contract-foundation`、worktree 为
-`/Users/hua/Documents/yia-worktrees/task-016a-intelligence-contract-foundation`，且除
+`/Users/developer/Documents/yia-worktrees/task-016a-intelligence-contract-foundation`，且除
 明确登记的本地未跟踪项外没有 tracked staged/unstaged 修改。若不一致立即停止。
 
 ## 目标

@@ -1,7 +1,7 @@
 # 自主产品诊断、优化与持续迭代状态记录（2026-11-15 Round 4）
 
-- **迭代分支（开发工作区）**：`antigravity/task-user-readiness-20261112`（`/Users/hua/Documents/yia-worktrees/antigravity-readiness-20261112`，起始基线 `da1684a`）
-- **正式交付运行区**：`main`（`/Users/hua/Documents/yia-worktrees/v1x-local-main`，起始基线 `0d1746f`）
+- **迭代分支（开发工作区）**：`antigravity/task-user-readiness-20261112`（`/Users/developer/Documents/yia-worktrees/antigravity-readiness-20261112`，起始基线 `da1684a`）
+- **正式交付运行区**：`main`（`/Users/developer/Documents/yia-worktrees/v1x-local-main`，起始基线 `0d1746f`）
 - **只读对照工作区（严禁修改）**：`codex/readiness-v4-budget-final-validation`（`18f366b`）
 - **前置轮次状态**：Round 1–3 已全部完成并客观验收（见 `docs/ITERATION_STATE_2026_11_14.md`、`docs/ITERATION_STATE_2026_11_15_ROUND2.md`、`docs/ITERATION_STATE_2026_11_15_ROUND3.md`）。
 - **当前阶段**：`ROUND_4_COMPLETED`（全部 P1/P2 目标项 + 真机视觉复查追加优化已完成 TDD 验证、正式环境同步与独立浏览器 E2E 验收）
@@ -10,7 +10,7 @@
 
 ## 一、第一阶段：Round 4 真实运行态接管与核验基线
 
-直接对 `/Users/hua/Documents/yia-worktrees/v1x-local-main/.var/owner/` 生产库（`state.sqlite3` + `.workspace-ai/hub.sqlite3`）执行内存态只读 API 投射与真机截图逐像素走查，发现 6 处真实影响用户信任与高频阅读效率的问题：
+直接对 `/Users/developer/Documents/yia-worktrees/v1x-local-main/.var/owner/` 生产库（`state.sqlite3` + `.workspace-ai/hub.sqlite3`）执行内存态只读 API 投射与真机截图逐像素走查，发现 6 处真实影响用户信任与高频阅读效率的问题：
 
 | 模块 / 场景 | 修复前状态 | 真实证据与核心缺口 | Round 4 最终状态 |
 | --- | --- | --- | --- |
@@ -56,8 +56,8 @@
    - 会话 ID：`ce9e6d43-1a19-4775-b580-d9fb7e5e5ef9`
    - 宿主核验访问源：`http://127.0.0.1:5488`（`blocked_origins: none`，Console Error `0`，HTTP `>=400` `0`）
    - 宿主核验截图证据：
-     - 初轮复查截图：`/Users/hua/.gemini/antigravity/brain/bc51feca-04fb-408c-81d5-2abe8854d93b/browser_evidence/ce9e6d43-1a19-4775-b580-d9fb7e5e5ef9/final_step_81.png`
-     - 二次精修终态截图：`/Users/hua/.gemini/antigravity/brain/bc51feca-04fb-408c-81d5-2abe8854d93b/browser_evidence/ce9e6d43-1a19-4775-b580-d9fb7e5e5ef9/final_step_94.png`
+     - 初轮复查截图：`/Users/developer/.gemini/antigravity/brain/bc51feca-04fb-408c-81d5-2abe8854d93b/browser_evidence/ce9e6d43-1a19-4775-b580-d9fb7e5e5ef9/final_step_81.png`
+     - 二次精修终态截图：`/Users/developer/.gemini/antigravity/brain/bc51feca-04fb-408c-81d5-2abe8854d93b/browser_evidence/ce9e6d43-1a19-4775-b580-d9fb7e5e5ef9/final_step_94.png`
    - 全部 6 项真机体验指标（顶栏单 `+ 导入`、`#Intelligence` 零陈旧失败横幅 + 搜索/来源筛选、`#Topics` 零“来源仍有分歧”矛盾文案 + 关联专题互跳、`⌘K` 超 40 条本地课与中文关键词秒搜、`#Content` 一键 `标已读并看下一篇 (35)` 并还原测试阅读状态、`#Content` 详情页首屏直出 `9.2 · 必看` 中文总结）均获 **PASS**。
 
 ---

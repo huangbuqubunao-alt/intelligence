@@ -2,7 +2,7 @@
 
 Control-plane only; do not run product commands or access TASK-006.
 
-Main must be `/Users/hua/Documents/youtubek agent` `main@5cb2a0d3ce5bc9f883e83e4861fc528a92a1f884`, empty index. Source must be `/Users/hua/Documents/yia-worktrees/task-007` clean at `9da12c2a6932d04b936d6ae1543acb55a72ec9dd`, sole parent `1d27d3bdeb8981ca85deaacd5c1cad498ef7a632`; Correction 3 three paths, full base range 11 allowed paths, locks unchanged. Confirm identity `Mozhu <huangbuqubunao@gmail.com>` and `user.useConfigOnly=true`.
+Main must be `/Users/developer/Documents/youtubek agent` `main@5cb2a0d3ce5bc9f883e83e4861fc528a92a1f884`, empty index. Source must be `/Users/developer/Documents/yia-worktrees/task-007` clean at `9da12c2a6932d04b936d6ae1543acb55a72ec9dd`, sole parent `1d27d3bdeb8981ca85deaacd5c1cad498ef7a632`; Correction 3 three paths, full base range 11 allowed paths, locks unchanged. Confirm identity `Mozhu <maintainer@example.invalid>` and `user.useConfigOnly=true`.
 
 Stage/commit exactly five prepared Markdown files:
 

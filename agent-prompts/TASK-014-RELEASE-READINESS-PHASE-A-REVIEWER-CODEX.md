@@ -13,7 +13,7 @@ Task: TASK-014 Phase A — Release Readiness: 发行资料与风险披露
 Role: Independent Reviewer
 Agent: Codex Reviewer
 Control-plane base: main@d0d136a4754a97954f64f1ca39b87837e639decc
-Only source worktree: /Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-a
+Only source worktree: /Users/developer/Documents/yia-worktrees/task-014-release-readiness-phase-a
 Source branch: codex/task-014-release-readiness-phase-a
 Source HEAD: 8c35cd0a2c764a6ed9483ea6c8377c8f6ca0ab59
 Required sole parent: d0d136a4754a97954f64f1ca39b87837e639decc

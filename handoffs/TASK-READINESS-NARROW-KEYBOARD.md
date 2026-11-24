@@ -6,7 +6,7 @@
 - Role: Implementer; Agent/session: `/root/caption_resume`
 - Base: `142f16bd26747c8bc3584c4e681620c26d89f4d7`
 - Branch: `codex/task-readiness-narrow-keyboard`
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-narrow-keyboard`
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-narrow-keyboard`
 - Reported: 2026-10-13
 - Head: 此交接所属提交，提交后回传精确 SHA。
 

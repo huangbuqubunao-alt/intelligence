@@ -204,9 +204,9 @@ schema31、生产 Deep Analysis 路线 NONE、确定性资料库 Research；M13 
   不解除 TASK-014 公开分发 No-Go，也不授权网络、Key、付费调用或真实用户 Vault。
 - 规划基线 commit：`c0f1f553db52b1cb4eb354e5c689c2abc5556223`
 - 实现任务基线：分配时取最新已验收的 `main` commit，并写入任务包
-- 活动 worktree：`/Users/hua/Documents/yia-worktrees/task-008` /
+- 活动 worktree：`/Users/developer/Documents/yia-worktrees/task-008` /
   `codex/task-008-deep-analysis@473119704c7638d7afd4e68d84d00e85064ceabd`，以及
-  `/Users/hua/Documents/yia-worktrees/task-009` /
+  `/Users/developer/Documents/yia-worktrees/task-009` /
   `codex/task-009-obsidian-notes@473119704c7638d7afd4e68d84d00e85064ceabd`。
   TASK-009A worktree 与历史 TASK-005/TASK-005A/TASK-006/TASK-007 worktree 只保留为审计证据。
 - 活动任务：TASK-008A 已由 Codex Product Integrator 以 merge commit
@@ -258,7 +258,7 @@ schema31、生产 Deep Analysis 路线 NONE、确定性资料库 Research；M13 
 - TASK-014 Read-only Scout 已在聊天中完成回传：离线验收和包内容证据存在，但发行级许可证/NOTICE、
   固定 BPE 文件归属、真实资源验证、at-most-once 风险披露、README/发行检查表和 `.gitignore` 锚定仍是
   No-Go 输入。产品负责人批准先执行 Phase A：发行资料与风险披露。唯一 Implementer source
-  `/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-a` 的
+  `/Users/developer/Documents/yia-worktrees/task-014-release-readiness-phase-a` 的
   `8c35cd0a2c764a6ed9483ea6c8377c8f6ca0ab59` 是
   `main@d0d136a4754a97954f64f1ca39b87837e639decc` 的唯一非 merge 后继，严格改动 README、SBOM、
   第三方 NOTICE、发布检查表、smoke 矩阵、handoff 与 `.gitignore` 七路径。独立 Reviewer evidence
@@ -279,7 +279,7 @@ schema31、生产 Deep Analysis 路线 NONE、确定性资料库 Research；M13 
   `codex/task-014-phase-b1-directory-only-execution@1f5a110…`）仍只记录可观测性不足与非零退出；不重跑、不修改、
   不合并或复用。其静态定位仅由既有 Observability Scout 包处理。
 - 产品负责人现授权一次新的、可审计且受 B4 `--directory-only` 和 B5 安全 stdout 摘要边界约束的 B-1 最终真实公开字幕验证。
-  唯一 execution source 为 `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-auditable-execution` /
+  唯一 execution source 为 `/Users/developer/Documents/yia-worktrees/task-014-phase-b1-directory-only-auditable-execution` /
   `codex/task-014-phase-b1-directory-only-auditable-execution@58f0215aa329b99d74429e8616bb5f8f673ef102`，必须保持干净；
   唯一执行包为 `agent-prompts/TASK-014-RELEASE-READINESS-PHASE-B1-DIRECTORY-ONLY-AUDITABLE-EXECUTION-CODEX.md`。
   只可在离线 lock/sync/lock 预配、绝对 `.venv/bin/youtube-intel` 静态映射核验和新建 parent/non-existent `smoke-root`
@@ -290,7 +290,7 @@ schema31、生产 Deep Analysis 路线 NONE、确定性资料库 Research；M13 
   禁止 PATH/模块入口/替代命令、重试、认证、媒体、模型、真实 Vault、推送和 source 清理；本控制面不启动 Executor。
   TASK-014 继续 `IN_PROGRESS / No-Go`，即使成功也不构成最终发行批准。
 - 产品负责人现分配 TASK-014B5「安全 smoke 摘要输出」给 Codex Implementer。唯一 source 为
-  `/Users/hua/Documents/yia-worktrees/task-014b5-safe-smoke-summary` /
+  `/Users/developer/Documents/yia-worktrees/task-014b5-safe-smoke-summary` /
   `codex/task-014b5-safe-smoke-summary@b1ea7a66aaf513aa0fa8262780f9c59072cc18b4`，必须保持干净。
   B5 仅为受限 smoke 的每目标输出公开稳定标识、metadata/enumerate/read 整数计数、最终安全错误码及目录
   `INVALID_RESPONSE` 的固定 `directory_diagnostic`；禁止任何敏感内容、JSONL schema/`logging.py`、默认 CLI 或
@@ -302,7 +302,7 @@ schema31、生产 Deep Analysis 路线 NONE、确定性资料库 Research；M13 
   干净并保留。B5 现为 `DONE`，但不构成真实 B-1 成功、真实服务验证、发行批准或 TASK-014 Go；TASK-014 继续
   `IN_PROGRESS / No-Go`。
 - 产品负责人现接受 ADR-017 并分配 TASK-014B6「安全字幕目录结构诊断」给 Codex Implementer。唯一 source 为
-  `/Users/hua/Documents/yia-worktrees/task-014b6-safe-directory-shape-diagnostics` /
+  `/Users/developer/Documents/yia-worktrees/task-014b6-safe-directory-shape-diagnostics` /
   `codex/task-014b6-safe-directory-shape-diagnostics@9403e37eedbd2513aea631c7272c6d650d41ef40`（唯一父 `7983bf5…`），必须保持干净。
   B6 只为目录 `INVALID_RESPONSE` 生成 ADR-017 的固定、无值结构 code（缺失、非对象、非列表、空列表、不支持条目、
   提取器目录错误或未知），仅复用既有安全摘要/JSONL `directory_diagnostic` 出口；不记录字段值、URL、正文、标题、语言、
@@ -324,14 +324,14 @@ schema31、生产 Deep Analysis 路线 NONE、确定性资料库 Research；M13 
   发行批准或 TASK-014 Go；TASK-014 继续 `IN_PROGRESS / No-Go`。
 - 产品负责人现授权唯一 B-1 B6-classified directory-only 一次性真实验证。控制面基线为
   `main@756e7e4f5313b7d077bdca8e1154a13cc4db2e57`；唯一 source worktree/branch/HEAD 为
-  `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-b6-execution` /
+  `/Users/developer/Documents/yia-worktrees/task-014-phase-b1-directory-only-b6-execution` /
   `codex/task-014-phase-b1-directory-only-b6-execution@756e7e4f5313b7d077bdca8e1154a13cc4db2e57`，必须保持干净。唯一正式包为
   `agent-prompts/TASK-014-RELEASE-READINESS-PHASE-B1-DIRECTORY-ONLY-B6-EXECUTION-CODEX.md`；本控制面不启动 Executor。
   它只允许固定两目标各一次的 `smoke-public-subtitles --directory-only`，仅记录 B5 安全 stdout 摘要和 ADR-017 七类固定无值
   `directory_diagnostic`；预配、绝对 launcher、临时根、证据与停止规则以该包为准。任一结果均不改变 TASK-014
   `IN_PROGRESS / No-Go`，不构成真实服务通过、发行批准或最终 Go。
 - 产品负责人现接受 ADR-018 并分配 TASK-014B7「字幕目录安全来源与结构指纹」给 Codex Implementer。唯一 source 为
-  `/Users/hua/Documents/yia-worktrees/task-014b7-safe-directory-origin-fingerprint` /
+  `/Users/developer/Documents/yia-worktrees/task-014b7-safe-directory-origin-fingerprint` /
   `codex/task-014b7-safe-directory-origin-fingerprint@8d06197557de4ce92c2752f4a8ef74582a0efdca`（唯一父 `5b7dcca…`），必须保持干净。B7 仅在目录
   `INVALID_RESPONSE` 的既有安全 stdout/JSONL 出口追加 ADR-018 固定、无值 `directory_origin` 与 `directory_fingerprint`，保留
   ADR-017 `directory_diagnostic` 原语义和固定值，不放宽解析或增加兼容规则。未合并 B-1 B6 evidence
@@ -353,7 +353,7 @@ schema31、生产 Deep Analysis 路线 NONE、确定性资料库 Research；M13 
   真实 B-1 成功、真实服务验证或发行批准。
 - 产品负责人现授权唯一 B-1 B7-classified directory-only 一次性真实公开字幕验证。控制面基线为
   `main@e50597010fcf785bd3cebe5f07f9f366b7eb9736`；唯一 execution source worktree/branch/HEAD 为
-  `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-b7-execution` /
+  `/Users/developer/Documents/yia-worktrees/task-014-phase-b1-directory-only-b7-execution` /
   `codex/task-014-phase-b1-directory-only-b7-execution@e50597010fcf785bd3cebe5f07f9f366b7eb9736`，必须保持干净。唯一正式包为
   `agent-prompts/TASK-014-RELEASE-READINESS-PHASE-B1-DIRECTORY-ONLY-B7-EXECUTION-CODEX.md`；本控制面不启动 Executor。
   它只允许在离线 lock/sync/lock、绝对 launcher 映射和新 parent/non-existent `smoke-root` 均通过后，对两个固定公开视频各一次运行
@@ -361,7 +361,7 @@ schema31、生产 Deep Analysis 路线 NONE、确定性资料库 Research；M13 
   ADR-017 `directory_diagnostic`、ADR-018 `directory_origin`/`directory_fingerprint`；禁止所有字段/值、URL、正文、标题、语言、
   轨道名、路径、原始异常、Cookie、token、payload、用户数据或凭据。任一结果均保持 TASK-014 `IN_PROGRESS / No-Go`，不构成发行批准。
 - TASK-014B8 已提交并进入独立 Reviewer 审查。唯一 source 为
-  `/Users/hua/Documents/yia-worktrees/task-014b8-restricted-directory-keyname-diagnostic` /
+  `/Users/developer/Documents/yia-worktrees/task-014b8-restricted-directory-keyname-diagnostic` /
   `codex/task-014b8-restricted-directory-keyname-diagnostic@2334374f66497546108d12be541ab137b4a8981a`，唯一父提交为
   `43f2c748c43215facb231f76a0c93ac45d350657`，必须保持干净；完整产品 Diff 严格为 ADR-019 的五路径范围。
   这是一项经明确批准的单次字段名例外：仅 directory-only 的目录 `INVALID_RESPONSE`、origin=mapping、fingerprint=unknown 且
@@ -376,7 +376,7 @@ schema31、生产 Deep Analysis 路线 NONE、确定性资料库 Research；M13 
   TASK-014B8 现为 `DONE`；TASK-014 继续 `IN_PROGRESS / No-Go`，B8 不构成真实 B-1 成功、真实服务验证或发行批准。
 - 产品负责人现授权唯一 B-1 B8 keyname-audited 单视频 directory-only 真实公开字幕验证。控制面基线为
   `main@56d6a3e66f7875395a74cac79fcfbeccbdd756ff`；唯一 execution source worktree/branch/HEAD 为
-  `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-b8-keyname-execution` /
+  `/Users/developer/Documents/yia-worktrees/task-014-phase-b1-directory-only-b8-keyname-execution` /
   `codex/task-014-phase-b1-directory-only-b8-keyname-execution@56d6a3e66f7875395a74cac79fcfbeccbdd756ff`，必须保持干净。唯一正式包为
   `agent-prompts/TASK-014-RELEASE-READINESS-PHASE-B1-DIRECTORY-ONLY-B8-KEYNAME-EXECUTION-CODEX.md`；本控制面不启动 Executor。
   它只允许在离线 lock/sync/lock、绝对 launcher 映射和新 parent/non-existent `smoke-root` 均通过后，对唯一固定公开视频
@@ -388,7 +388,7 @@ schema31、生产 Deep Analysis 路线 NONE、确定性资料库 Research；M13 
 - Historical (consumed) TASK-014B9 authorization: the product owner authorized one replacement public-sample directory-only invocation. The candidate `eIho2S0ZahI` public TED
   官方频道线索仅来自 agent-reach/yt-dlp 的只读字幕目录枚举，未下载正文；agent-reach 的工具版本可能不同于项目锁定 yt-dlp，
   因而不构成项目通过证据。控制面基线为 `main@e975ff4f343442e69bb88e09e36bffc7996341cf`；唯一 execution source
-  worktree/branch/HEAD 为 `/Users/hua/Documents/yia-worktrees/task-014-phase-b9-replacement-candidate-directory-only` /
+  worktree/branch/HEAD 为 `/Users/developer/Documents/yia-worktrees/task-014-phase-b9-replacement-candidate-directory-only` /
   `codex/task-014-phase-b9-replacement-candidate-directory-only@e975ff4f343442e69bb88e09e36bffc7996341cf`，必须保持干净。唯一正式包为
   `agent-prompts/TASK-014B9-REPLACEMENT-CANDIDATE-DIRECTORY-ONLY-EXECUTION-CODEX.md`；本控制面不启动 Executor。它只允许在
   离线 lock/sync/lock、绝对 launcher 映射和新 parent/non-existent `smoke-root` 均通过后，对唯一固定公开视频 `eIho2S0ZahI` 一次运行
@@ -429,7 +429,7 @@ schema31、生产 Deep Analysis 路线 NONE、确定性资料库 Research；M13 
   `c65502e3680d14a88ae52a1c27eea47d42b5e8b0` 是该 evidence 的唯一子提交；Reviewer 2 evidence
   `880e796622e393842a8cfe1a365af25868a3e98f` 是 Correction 的 handoff-only 唯一子提交，Verdict=`APPROVE`、P0–P3=`0`。唯一
   accepted source 为
-  `/Users/hua/Documents/yia-worktrees/task-014b10-safe-content-availability-diagnostic` /
+  `/Users/developer/Documents/yia-worktrees/task-014b10-safe-content-availability-diagnostic` /
   `codex/task-014b10-safe-content-availability-diagnostic@880e796622e393842a8cfe1a365af25868a3e98f`，已核验干净。Correction Diff
   严格为 Adapter、Provider integration test 与 handoff 三路径，完整 B10 Diff 仍严格为原五路径，Correction/完整/evidence 三组
   `git diff --check` 通过；B9
@@ -489,14 +489,14 @@ schema31、生产 Deep Analysis 路线 NONE、确定性资料库 Research；M13 
   的静默依赖日志/固定安全错误补强及相应测试；B11 的六字段闭合值域、严格输出门禁、受限键名和两条已更正的合成 Mapping fixture 均未回归。B11 focused/full、mypy、Ruff、Diff 与 scanner regression 通过。当前仓库 security scan 对 11 条新 TASK-016 测试 fixture 命中失败；该问题不属于 B11，且证明没有 tests 全局豁免。TASK-014B11 现为 `INTEGRATED / CLOSED`，历史 branch 保留证据，不得 merge、cherry-pick 或 replay；TASK-014 继续 `IN_PROGRESS / No-Go`。
 - 产品负责人现授权唯一的只读「公开字幕 Adapter 兼容性诊断」Scout。固定控制面基线为
   `main@f73d79b3e2f22632393bd314b9a87433e505f1ba`；唯一 B-1 evidence source worktree/branch/HEAD 为
-  `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry` /
+  `/Users/developer/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry` /
   `codex/task-014-phase-b1-console-entry-retry@9acab5d876b38d64a9aeab7aca3474be2676ce38`。唯一授权包为
   `agent-prompts/PREFLIGHT-TASK-014-PHASE-B1-PUBLIC-SUBTITLE-ADAPTER-COMPATIBILITY-SCOUT.md`：只离线比较 Adapter 字段/
   响应假设、错误映射、现有 Fake/fixture 与脱敏真实 evidence，聊天回传最小修复建议和后续一次验证所需的精确授权。禁止网络、
   YouTube、测试、构建、依赖变更、代码/文档写入、worktree 创建和 `.codebase-memory` 工件。本控制面提交不启动 Scout。
 - 产品负责人现接受 ADR-015 并创建 TASK-014B3：仅离线实现公开字幕目录 `INVALID_RESPONSE` 的有限脱敏结构分类和最小
   smoke 审计出口。唯一固定 base/worktree/branch 为 `main@9c5f08ec829629591b095bd68841ca3ce0b22532` /
-  `/Users/hua/Documents/yia-worktrees/task-014b3-public-subtitle-diagnostics-implementation` /
+  `/Users/developer/Documents/yia-worktrees/task-014b3-public-subtitle-diagnostics-implementation` /
   `codex/task-014b3-public-subtitle-diagnostics-implementation`；worktree 已创建且干净。旧 B3 worktree/branch 已废止，
   禁止访问、修改、合并、清理或复用。正式包为
   `agent-prompts/TASK-014B3-PUBLIC-SUBTITLE-DIAGNOSTICS-IMPLEMENTER-CODEX.md`。唯一 Implementer source
@@ -513,7 +513,7 @@ schema31、生产 Deep Analysis 路线 NONE、确定性资料库 Research；M13 
   `--directory-only` 模式。B4 架构谱系基线为 `main@bdf2bf2adeb337b61747d869fa91619e3163a298`，
   分配控制提交为 `ccc747800b59e2bacc918f1e7b81e065b1520d9a`，当前唯一实施基线为
   `bbd3fddd3c7fa1b8624dffb39b5fb8b262afba7d`。唯一 source worktree/branch 固定为
-  `/Users/hua/Documents/yia-worktrees/task-014b4-directory-only-smoke` /
+  `/Users/developer/Documents/yia-worktrees/task-014b4-directory-only-smoke` /
   `codex/task-014b4-directory-only-smoke@d211d62b89754683f00ec841c1774574003323a1`；source 不得
   对控制面文档进行暂存、提交或改动。Implementer 首个产品提交 `2959275…` 的唯一父提交为 `bbd3fddd…`；
   Reviewer `APPROVE` evidence `d211d62…` 的唯一父为 `2959275…`，且只追加 `handoffs/TASK-014B4.md`。
@@ -526,13 +526,13 @@ schema31、生产 Deep Analysis 路线 NONE、确定性资料库 Research；M13 
   `133819fe53cd3ade5e5d93635835c8a03649f12a` 整合 accepted source：双父顺序为 `8637438…`、`d211d62…`，
   accepted source 是 merge 祖先，first-parent Diff 严格为五条 B4 路径。既有整合后离线 `uv sync --locked --offline`、
   Fake/integration `18`、mypy、Ruff、CLI help、离线 build、范围与敏感信息泄漏扫描均通过；main/source 均干净且
-  source 保留。旧 `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-diagnostic` 严禁访问、
+  source 保留。旧 `/Users/developer/Documents/yia-worktrees/task-014-phase-b1-directory-diagnostic` 严禁访问、
   修改、合并、清理或复用。B4 不新增依赖、Schema、默认配置或通用下载能力，且不构成真实 B-1、发布批准或最终 Go；
   TASK-014 继续 `IN_PROGRESS / No-Go`。
 - TASK-014B4 现额外授权一次独立离线环境预配，唯一包为
   `agent-prompts/PREFLIGHT-TASK-014B4-OFFLINE-VALIDATION-ENVIRONMENT-PROVISIONING.md`。控制面基线为
   `ccc747800b59e2bacc918f1e7b81e065b1520d9a`；唯一 source 是
-  `/Users/hua/Documents/yia-worktrees/task-014b4-directory-only-smoke` /
+  `/Users/developer/Documents/yia-worktrees/task-014b4-directory-only-smoke` /
   `codex/task-014b4-directory-only-smoke`，预配授权控制提交 `bbd3fdd…` 已完成，且 source 固定在该
   实施基线并保持干净。本包只允许按序
   `uv lock --check`、`uv sync --locked --offline`、`uv lock --check`；缓存缺包、网络/下载迹象、锁文件变化
@@ -543,7 +543,7 @@ schema31、生产 Deep Analysis 路线 NONE、确定性资料库 Research；M13 
   废止，不能作为执行 source 或启动依据。
 - 产品负责人已接受 ADR-014 并分配 TASK-014B2：正式 `youtube-intel` console entry 只映射既有
   `youtube_intel.cli:main`。固定基线为 `main@820ff34fbd481e31b50d9d9d54828810d8ab7ca4`，worktree/branch 为
-  `/Users/hua/Documents/yia-worktrees/task-014-phase-b2-console-entry` /
+  `/Users/developer/Documents/yia-worktrees/task-014-phase-b2-console-entry` /
   `codex/task-014-phase-b2-console-entry`。允许最小 `pyproject.toml`、条件性 lock、离线入口测试、README、operations
   与 handoff；不允许依赖、Schema、业务能力、真实资源或发布改动。B-1 source `4a349055…` 是入口缺失阻断 evidence，
   不得合并、当作成功 evidence 或触发真实 smoke；TASK-014 继续 `IN_PROGRESS / No-Go`。
@@ -553,16 +553,16 @@ schema31、生产 Deep Analysis 路线 NONE、确定性资料库 Research；M13 
   `99a22d29922e16c26b86ebe2ecfba9d91e8ac5a2` 整合关闭。双父顺序 `8aa5be6...`、`835f5ff...`、accepted-source
   祖先、first-parent B2 五路径及 lock/依赖图无变化均已核验；既有离线 lock/test/CLI/mypy/Ruff/build/wheel-entry
   门禁通过，source 干净。TASK-014B2 为 `DONE`，但不是真实 YouTube/B-1、发布批准或 TASK-014 Go。
-- 旧 B-1 execution worktree `/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-b1-execution`
+- 旧 B-1 execution worktree `/Users/developer/Documents/yia-worktrees/task-014-release-readiness-phase-b1-execution`
   建立在 Phase A 合并前主线，禁止访问、修改、合并、清理或复用。
-- 旧 B-1 worktree `/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-b1` 建立在 B0 合并前主线，
+- 旧 B-1 worktree `/Users/developer/Documents/yia-worktrees/task-014-release-readiness-phase-b1` 建立在 B0 合并前主线，
   禁止访问、修改、合并或复用其 blocker evidence。B-1 source evidence `be230490a5b5779c7f1eb1e46c0fd717055fc28c`
   仅记录 blocker，未进入 main：默认 CLI 没有
   能同时限制单视频 metadata/字幕目录/一条正文读取及临时根的生产组合。产品负责人据此批准 ADR-013 和
   TASK-014B0 的 `smoke-public-subtitles` 受限 QA 入口：最多 3 个显式视频 ID、固定 30 秒 timeout、每步骤一次、
   无自动重试，仅使用新的临时 SQLite/DATA/测试 Vault/日志根。唯一 source
   `4e506847854f20a43011b0a15db3a1c8e320656d` 位于
-  `/Users/hua/Documents/yia-worktrees/task-014-phase-b0-restricted-public-subtitle-smoke` /
+  `/Users/developer/Documents/yia-worktrees/task-014-phase-b0-restricted-public-subtitle-smoke` /
   `codex/task-014-phase-b0-restricted-public-subtitle-smoke`，唯一父提交为控制面
   `c62310ab79f01f5f311c9f54bb28365905f5a81a`；范围精确为六条授权路径，worktree 清洁，且无依赖/Schema 改动。
   第一轮 Reviewer evidence `f8e336a8c3b09a8c0c0e5857148495f2cb2281aa` 是 `4e506…` 的唯一后继且仅追加 handoff，
@@ -662,9 +662,9 @@ schema31、生产 Deep Analysis 路线 NONE、确定性资料库 Research；M13 
 | 已完成 | TASK-014 Phase B-1：公开字幕 Adapter 兼容性诊断 Scout | 唯一 evidence source：`codex/task-014-phase-b1-console-entry-retry@9acab5d…`（唯一父 `365c8fc…`，worktree 已核验干净）。已只读离线比较 Adapter 假设、错误映射、Fake/fixture 与最终真实 FAIL evidence，并回传最小修复建议；没有网络、YouTube、测试、构建、依赖变更、任何写入/worktree 创建或 `.codebase-memory` 工件 |
 | 已完成待可观测性定位 | TASK-014 Phase B-1：directory-only 真实公开字幕 smoke | evidence source `codex/task-014-phase-b1-directory-only-execution@1f5a110…`（父 `9bffb29…`）仅改 B-1 evidence、release checklist 与 TASK-014 handoff，source 干净；不重跑。结果记录的可观测性不足仅由下列只读 Scout 分析；不构成发行批准或 TASK-014 Go |
 | 已授权未启动 | TASK-014 Phase B-1：directory-only observability Scout | 只读 source `1f5a110…`、B3/B4 静态实现、JSONL `safe_message` 与 CLI 输出路径；解释 exit=1 未有安全固定 directory diagnostic code 或逐目标 1/1/0 计数的可审计原因，区分未提取与未产生信息，提出最小离线后续任务。禁止网络、YouTube、smoke、uv、测试、构建、CLI、数据库、source 写入/暂存/提交及 `.codebase-memory` 工件 |
-| 已授权未启动 | TASK-014 Phase B-1：B6-classified directory-only 真实公开字幕验证 | source `codex/task-014-phase-b1-directory-only-b6-execution@756e7e4…` / `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-b6-execution` 干净；仅按正式包运行固定两目标的一次 B4 directory-only 调用，记录 B5 安全摘要与 ADR-017 七类无值结构 code。缓存缺失、失败、网络/下载迹象或泄漏均立即停止；任一结果不构成 TASK-014 Go 或发行批准 |
-| 已授权未启动 | TASK-014 Phase B-1：B7-classified directory-only 真实公开字幕验证 | source `codex/task-014-phase-b1-directory-only-b7-execution@e505970…` / `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-b7-execution` 干净；仅按正式包运行固定两目标各一次的 B4 directory-only 调用，记录 B5 安全摘要、ADR-017 diagnostic 与 ADR-018 origin/fingerprint。缓存缺失、失败、网络/下载迹象或泄漏均立即停止；任一结果不构成 TASK-014 Go 或发行批准 |
-| 已授权未启动 | TASK-014 Phase B-1：B8 keyname-audited 单视频 directory-only 真实公开字幕验证 | source `codex/task-014-phase-b1-directory-only-b8-keyname-execution@56d6a3e…` / `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-b8-keyname-execution` 干净；仅按正式包对 `--khbXchTeE` 一次调用 B4 directory-only，记录 B5 安全摘要、ADR-017/018 固定分类和仅在 ADR-019 全部条件成立时的最多 16 个规范 ASCII 键名。缓存缺失、失败、网络/下载迹象、计数不符或泄漏均立即停止；任一结果不构成 TASK-014 Go 或发行批准 |
+| 已授权未启动 | TASK-014 Phase B-1：B6-classified directory-only 真实公开字幕验证 | source `codex/task-014-phase-b1-directory-only-b6-execution@756e7e4…` / `/Users/developer/Documents/yia-worktrees/task-014-phase-b1-directory-only-b6-execution` 干净；仅按正式包运行固定两目标的一次 B4 directory-only 调用，记录 B5 安全摘要与 ADR-017 七类无值结构 code。缓存缺失、失败、网络/下载迹象或泄漏均立即停止；任一结果不构成 TASK-014 Go 或发行批准 |
+| 已授权未启动 | TASK-014 Phase B-1：B7-classified directory-only 真实公开字幕验证 | source `codex/task-014-phase-b1-directory-only-b7-execution@e505970…` / `/Users/developer/Documents/yia-worktrees/task-014-phase-b1-directory-only-b7-execution` 干净；仅按正式包运行固定两目标各一次的 B4 directory-only 调用，记录 B5 安全摘要、ADR-017 diagnostic 与 ADR-018 origin/fingerprint。缓存缺失、失败、网络/下载迹象或泄漏均立即停止；任一结果不构成 TASK-014 Go 或发行批准 |
+| 已授权未启动 | TASK-014 Phase B-1：B8 keyname-audited 单视频 directory-only 真实公开字幕验证 | source `codex/task-014-phase-b1-directory-only-b8-keyname-execution@56d6a3e…` / `/Users/developer/Documents/yia-worktrees/task-014-phase-b1-directory-only-b8-keyname-execution` 干净；仅按正式包对 `--khbXchTeE` 一次调用 B4 directory-only，记录 B5 安全摘要、ADR-017/018 固定分类和仅在 ADR-019 全部条件成立时的最多 16 个规范 ASCII 键名。缓存缺失、失败、网络/下载迹象、计数不符或泄漏均立即停止；任一结果不构成 TASK-014 Go 或发行批准 |
 | QUALIFIED / CLOSED — final named sample passed | TASK-014B9：replacement public-sample directory-only qualification | Historical `e975ff4…`/`bd770ef…` (`CONTENT_UNAVAILABLE`, `1/1/0`) and distinct `d75988a..e5642fc` (`INVALID_RESPONSE`, `1/1/0`) remain consumed and preserved. The separately authorized fixed `5MWT_doo68k` call passed at `1/1/0`, exit `0`, safe `OK`; no fallback, retry, substitution, or iteration occurred. It is not release approval. |
 | DONE | TASK-014B10：安全内容可用性诊断 | merge `5b485fa…` 已进入 main，双父 `0f05104…`、`880e796…`；accepted source 是 merge 祖先，first-parent Diff 精确为五路径。lock check、locked offline sync、focused `137`、full pytest `508`、mypy、Ruff、CLI help、offline build、五/三/handoff-only 范围、Diff 与全输出面泄漏扫描通过；失败补充探针未计 PASS，锁/依赖/fixture 等禁止范围未变，source 干净并保留。B9 仍未合并，不构成真实验证、普遍兼容性证明或发行批准 |
 | 已完成未合并 | TASK-014 Phase B-1：B10-classified 单视频 directory-only 真实验证 | evidence `51d974…` 是 `f00aa9c…` 的 evidence-only 唯一子提交，精确三文档且保持未合并；唯一调用结果 exit=`1`、`1/1/0`、`INVALID_RESPONSE`、B6 unknown、B7 mapping/unknown，未产生 B8/B10 分类。不得修改、重跑、合并或写成成功；不构成正文可读、普遍兼容或发行批准 |
@@ -792,7 +792,7 @@ schema31、生产 Deep Analysis 路线 NONE、确定性资料库 Research；M13 
   和各卡离线命令已批准。
 - TASK-008A 已从
   `main@82d1fd7c7f2f82e77df0518e63755bad0bf240f2` 分配到
-  `/Users/hua/Documents/yia-worktrees/task-008a` /
+  `/Users/developer/Documents/yia-worktrees/task-008a` /
   `codex/task-008a-cloud-analysis-shared-contracts`；Codex Implementer 已完成固定
   source commit，第一轮 Reviewer 已结束并退回 Correction 1。原实现范围为任务卡
   7 路径；Correction 1 完整范围扩展为原 7 路径加固定 tokenizer 资源文件，仍不允许
@@ -920,7 +920,7 @@ schema31、生产 Deep Analysis 路线 NONE、确定性资料库 Research；M13 
   `7cdea4b...` 与 `e726656...`，first-parent 差异精确为 8 个批准路径；focused
   `53/10/34`、全量 `251`、mypy、Ruff、CLI、locked sync、offline build 和 migration
   package inclusion 全部通过。`dist/` 仅为 ignored/uncommitted 构建产物，未被删除或提交。
-- 早期 commit 曾使用本机自动推导作者身份 `华 <hua@huadeMacBook-Pro.local>`；仓库现已固定 `Mozhu <huangbuqubunao@gmail.com>` 且 `user.useConfigOnly=true`，后续提交必须保持该已验证身份。
+- 早期 commit 曾使用本机自动推导作者身份 `华 <developer@dev-host.invalid>`；仓库现已固定 `Mozhu <maintainer@example.invalid>` 且 `user.useConfigOnly=true`，后续提交必须保持该已验证身份。
 
 ## Canonical security scanner fixture disposition — 2026-08-31
 

@@ -1,8 +1,8 @@
 {
   "before": {
     "v1x-deep-analysis": {
-      "root": "/Users/hua/Documents/yia-worktrees/v1x-deep-analysis",
-      "common_dir": "/Users/hua/youtube-intel/.git",
+      "root": "/Users/developer/Documents/yia-worktrees/v1x-deep-analysis",
+      "common_dir": "/Users/developer/youtube-intel/.git",
       "branch": "chatgpt/v1x-deep-analysis",
       "head": "72950a559adc153abc9747975668201fe1813afe",
       "status": "",
@@ -12,8 +12,8 @@
       "dirty_file_hashes": {}
     },
     "v1x-obsidian": {
-      "root": "/Users/hua/Documents/yia-worktrees/v1x-obsidian",
-      "common_dir": "/Users/hua/youtube-intel/.git",
+      "root": "/Users/developer/Documents/yia-worktrees/v1x-obsidian",
+      "common_dir": "/Users/developer/youtube-intel/.git",
       "branch": "chatgpt/v1x-obsidian-deep-analysis",
       "head": "b9362fb64d1f87ec8cfd19972f5f2abd64f6bf6a",
       "status": "",
@@ -23,8 +23,8 @@
       "dirty_file_hashes": {}
     },
     "v1x-knowledge-delta": {
-      "root": "/Users/hua/Documents/yia-worktrees/v1x-knowledge-delta",
-      "common_dir": "/Users/hua/youtube-intel/.git",
+      "root": "/Users/developer/Documents/yia-worktrees/v1x-knowledge-delta",
+      "common_dir": "/Users/developer/youtube-intel/.git",
       "branch": "chatgpt/v1x-knowledge-delta",
       "head": "795275c3359a808e6faab80e7e35daeb35568024",
       "status": "",
@@ -34,8 +34,8 @@
       "dirty_file_hashes": {}
     },
     "m13-dogfood": {
-      "root": "/Users/hua/Documents/yia-worktrees/m13-dogfood",
-      "common_dir": "/Users/hua/youtube-intel/.git",
+      "root": "/Users/developer/Documents/yia-worktrees/m13-dogfood",
+      "common_dir": "/Users/developer/youtube-intel/.git",
       "branch": "chatgpt/m13-7day-dogfood",
       "head": "e228294f705401b0200439076c3378b78f9c9d84",
       "status": " M docs/M13_7_DAY_DOGFOOD.md\n M frontend/m13-preday2.e2e.mjs\n M frontend/src/workspace/App.test.tsx\n M frontend/src/workspace/App.tsx\n M frontend/src/workspace/styles.css\n M frontend/src/workspace/uiLanguage.tsx\n M src/youtube_intel/backup_restore.py\n M src/youtube_intel/local_api.py\n M src/youtube_intel/runtime.py\n M src/youtube_intel/runtime_composition.py\n M src/youtube_intel/state.py\n M tests/integration/test_deep_analysis_persistence.py\n M tests/integration/test_provider_dispatch_crash_recovery.py\n M tests/integration/test_state_store.py\n M tests/integration/test_task016c_phase_h2c_lineage_schema.py\n M tests/integration/test_task018_domain_persistence.py\n M tests/integration/test_task018a_claim_classification.py\n M tests/integration/test_task018b_timed_evidence.py\n M tests/integration/test_task020_preference_feedback.py\n M tests/integration/test_task021_source_policy_filtering.py\n M tests/integration/test_task022_personalized_distillation.py\n M tests/integration/test_task022b_verified_outbound_input.py\n M tests/integration/test_task023_topic_timeline.py\n M tests/integration/test_task023a_source_run_persistence.py\n M tests/integration/test_task023b_distillation_reservation.py\n M tests/integration/test_task024_processing_orchestration.py\n M tests/integration/test_task025_weekly_foundation.py\n M tests/integration/test_task025a_saved_intelligence.py\n M tests/unit/test_backup_restore.py\n M tests/unit/test_evidence_translation.py\n?? frontend/m13-day2-settings.e2e.mjs\n?? frontend/node_modules\n?? src/youtube_intel/migrations/029_add_v1_model_configuration.sql\n?? src/youtube_intel/model_configuration.py\n?? tests/unit/test_model_configuration.py\n",
@@ -85,8 +85,8 @@
   },
   "after": {
     "v1x-deep-analysis": {
-      "root": "/Users/hua/Documents/yia-worktrees/v1x-deep-analysis",
-      "common_dir": "/Users/hua/youtube-intel/.git",
+      "root": "/Users/developer/Documents/yia-worktrees/v1x-deep-analysis",
+      "common_dir": "/Users/developer/youtube-intel/.git",
       "branch": "chatgpt/v1x-deep-analysis",
       "head": "72950a559adc153abc9747975668201fe1813afe",
       "status": "",
@@ -96,8 +96,8 @@
       "dirty_file_hashes": {}
     },
     "v1x-obsidian": {
-      "root": "/Users/hua/Documents/yia-worktrees/v1x-obsidian",
-      "common_dir": "/Users/hua/youtube-intel/.git",
+      "root": "/Users/developer/Documents/yia-worktrees/v1x-obsidian",
+      "common_dir": "/Users/developer/youtube-intel/.git",
       "branch": "chatgpt/v1x-obsidian-deep-analysis",
       "head": "b9362fb64d1f87ec8cfd19972f5f2abd64f6bf6a",
       "status": "",
@@ -107,8 +107,8 @@
       "dirty_file_hashes": {}
     },
     "v1x-knowledge-delta": {
-      "root": "/Users/hua/Documents/yia-worktrees/v1x-knowledge-delta",
-      "common_dir": "/Users/hua/youtube-intel/.git",
+      "root": "/Users/developer/Documents/yia-worktrees/v1x-knowledge-delta",
+      "common_dir": "/Users/developer/youtube-intel/.git",
       "branch": "chatgpt/v1x-knowledge-delta",
       "head": "795275c3359a808e6faab80e7e35daeb35568024",
       "status": "",
@@ -118,8 +118,8 @@
       "dirty_file_hashes": {}
     },
     "m13-dogfood": {
-      "root": "/Users/hua/Documents/yia-worktrees/m13-dogfood",
-      "common_dir": "/Users/hua/youtube-intel/.git",
+      "root": "/Users/developer/Documents/yia-worktrees/m13-dogfood",
+      "common_dir": "/Users/developer/youtube-intel/.git",
       "branch": "chatgpt/m13-7day-dogfood",
       "head": "e228294f705401b0200439076c3378b78f9c9d84",
       "status": " M docs/M13_7_DAY_DOGFOOD.md\n M frontend/m13-preday2.e2e.mjs\n M frontend/src/workspace/App.test.tsx\n M frontend/src/workspace/App.tsx\n M frontend/src/workspace/styles.css\n M frontend/src/workspace/uiLanguage.tsx\n M src/youtube_intel/backup_restore.py\n M src/youtube_intel/local_api.py\n M src/youtube_intel/runtime.py\n M src/youtube_intel/runtime_composition.py\n M src/youtube_intel/state.py\n M tests/integration/test_deep_analysis_persistence.py\n M tests/integration/test_provider_dispatch_crash_recovery.py\n M tests/integration/test_state_store.py\n M tests/integration/test_task016c_phase_h2c_lineage_schema.py\n M tests/integration/test_task018_domain_persistence.py\n M tests/integration/test_task018a_claim_classification.py\n M tests/integration/test_task018b_timed_evidence.py\n M tests/integration/test_task020_preference_feedback.py\n M tests/integration/test_task021_source_policy_filtering.py\n M tests/integration/test_task022_personalized_distillation.py\n M tests/integration/test_task022b_verified_outbound_input.py\n M tests/integration/test_task023_topic_timeline.py\n M tests/integration/test_task023a_source_run_persistence.py\n M tests/integration/test_task023b_distillation_reservation.py\n M tests/integration/test_task024_processing_orchestration.py\n M tests/integration/test_task025_weekly_foundation.py\n M tests/integration/test_task025a_saved_intelligence.py\n M tests/unit/test_backup_restore.py\n M tests/unit/test_evidence_translation.py\n?? frontend/m13-day2-settings.e2e.mjs\n?? frontend/node_modules\n?? src/youtube_intel/migrations/029_add_v1_model_configuration.sql\n?? src/youtube_intel/model_configuration.py\n?? tests/unit/test_model_configuration.py\n",

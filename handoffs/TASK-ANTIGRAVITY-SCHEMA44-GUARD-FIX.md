@@ -4,9 +4,9 @@
 
 - Role: Implementer, `schema44_guard_resume`; reported 2026-11-04 Asia/Shanghai.
 - Base: `f0e330129ad9243423a0c03feb598992e94517b1` (Antigravity candidate, not accepted main).
-- Worktree: `/Users/hua/Documents/yia-worktrees/antigravity-validation-fix`.
+- Worktree: `/Users/developer/Documents/yia-worktrees/antigravity-validation-fix`.
 - Branch: `codex/antigravity-validation-fix`.
-- Root task: `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/tasks/TASK-ANTIGRAVITY-SCHEMA44-GUARD-FIX.md` and Root's bounded resume messages.
+- Root task: `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/tasks/TASK-ANTIGRAVITY-SCHEMA44-GUARD-FIX.md` and Root's bounded resume messages.
 - Goal: reject semantic changes to quoted authorization predicates at startup, backup readiness and restore, including empty synthesis sidecars.
 - Reuse: DIRECT existing SQLite `sqlite_master`, existing migration-derived `verify_schema`, standard-library SQLite/ZIP/hash test helpers. No dependency, migration SQL, state policy, model, credential or network changes.
 
@@ -20,7 +20,7 @@
 
 ## Verification
 
-Commands use the existing interpreter `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`; `PYTHONPATH=src` binds imports to this worktree.
+Commands use the existing interpreter `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`; `PYTHONPATH=src` binds imports to this worktree.
 
 | Check | Actual result |
 |---|---|
@@ -36,7 +36,7 @@ Commands use the existing interpreter `/Users/hua/Documents/yia-worktrees/end-to
 ## Preserved failures and corrections
 
 - Prior worker's recorded47 PASS /4 FAIL exposed the empty-sidecar verification omission; no original assertion removed.
-- Initial resumed pytest collection without `PYTHONPATH=src` imported the unrelated existing editable package at `/Users/hua/youtube-intel`; two ImportErrors. Corrected the invocation, without editing environment files or installations.
+- Initial resumed pytest collection without `PYTHONPATH=src` imported the unrelated existing editable package at `/Users/developer/youtube-intel`; two ImportErrors. Corrected the invocation, without editing environment files or installations.
 - First strict-test invocations could not resolve `conftest`; `MYPYPATH=src:tests` supplies its actual location. No missing-import suppression used.
 - After core wiring, first51 run was50 PASS /1 FAIL,41.55s: ZIP test said `DID NOT RAISE BackupRestoreError`. Focused rerun reproduced1 FAIL,2.48s; stopped repeating and inspected actual archive. The live mutation was in WAL, while staged archive's SQL still said `'moonshot'`. Corrected checkpoint/close and added archive-internal assertions.
 - The next construction attempted in-memory `deserialize` on a WAL-header database and failed `sqlite3.OperationalError: unable to open database file` (50 PASS /1 FAIL,40.09s). Replaced only that inspection with an independent temporary file holding actual ZIP bytes, preserving all rejection assertions.

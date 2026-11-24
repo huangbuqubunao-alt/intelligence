@@ -6,15 +6,15 @@ retained TASK-007 source worktree.
 
 ## Fixed inputs
 
-- Main repository: `/Users/hua/Documents/youtubek agent`
+- Main repository: `/Users/developer/Documents/youtubek agent`
 - Required main: `main@fd9a07462a0596e1c5d4c67c200c3a7f2561fea1`
 - Merge parents, in exact order:
   1. `7d18ecffc61fc0def974ce07ee9dc1ceeb4bf305`
   2. `f00209c8018a9e728d9f6509f0ae70067fa33676`
-- Retained source worktree: `/Users/hua/Documents/yia-worktrees/task-006`
+- Retained source worktree: `/Users/developer/Documents/yia-worktrees/task-006`
 - Retained source branch/head:
   `codex/task-006-local-transcription@f00209c8018a9e728d9f6509f0ae70067fa33676`
-- Git identity: `Mozhu <huangbuqubunao@gmail.com>`
+- Git identity: `Mozhu <maintainer@example.invalid>`
 - `user.useConfigOnly=true`
 
 Before staging, verify main is the exact merge commit with an empty index and no paths

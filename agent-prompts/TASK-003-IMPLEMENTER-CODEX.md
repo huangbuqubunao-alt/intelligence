@@ -18,7 +18,7 @@
 8. `docs/decisions/ADR-005-reuse-first-delivery-policy.md`
 9. `tasks/TASK-003-state-store.md`
 10. `handoffs/TEMPLATE.md`
-11. 主线任务包：`/Users/hua/Documents/youtubek agent/agent-prompts/TASK-003-IMPLEMENTER-CODEX.md`
+11. 主线任务包：`/Users/developer/Documents/youtubek agent/agent-prompts/TASK-003-IMPLEMENTER-CODEX.md`
 
 如任一文件冲突、Schema 仍有多种合理解释，或实现必须扩大范围，立即停止并输出 `DECISION NEEDED`，不得自行选择解释。
 
@@ -28,7 +28,7 @@
 - Role: `Implementer`
 - Agent: `Codex`
 - Base: `main@dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-003`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-003`
 - Branch: `codex/task-003-state-store`
 - Reviewer: Grok 全新独立会话；仅在实现 commit 后由主控启动
 - Parallel now: TASK-004 Grok Implementer，位于另一个 worktree
@@ -135,7 +135,7 @@
    git var GIT_AUTHOR_IDENT
    ```
 
-   必须位于指定 worktree/branch/base，工作树干净，`user.useConfigOnly=true`，身份为 `Mozhu <huangbuqubunao@gmail.com>`；不符立即停止。
+   必须位于指定 worktree/branch/base，工作树干净，`user.useConfigOnly=true`，身份为 `Mozhu <maintainer@example.invalid>`；不符立即停止。
 
 3. 使用测试驱动的最小增量实现；每个增量后运行最相关的聚焦测试。
 4. 从 `handoffs/TEMPLATE.md` 创建 `handoffs/TASK-003.md`，加入 S-01 至 S-08 追踪表、Schema/checksum、事务/并发证据、构建归档证据、复用说明、跳过项与风险。

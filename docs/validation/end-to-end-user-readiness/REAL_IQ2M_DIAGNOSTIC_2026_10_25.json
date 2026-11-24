@@ -21,7 +21,7 @@
   "whole_parent": {
     "exit_code": 0,
     "elapsed_seconds": 79.48389829100051,
-    "log": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-udiq2m-20261025/actual-root-run.log",
+    "log": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/qwen35-9b-udiq2m-20261025/actual-root-run.log",
     "qualification": false
   },
   "precheck": {
@@ -67,32 +67,32 @@
   "raw_output_unchanged": true,
   "proofs": [
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-iq2m-diagnostic/.var/model-diagnostic-iq2m/real-once-20261025/generation-raw.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-iq2m-diagnostic/.var/model-diagnostic-iq2m/real-once-20261025/generation-raw.json",
       "bytes": 2924,
       "sha256": "95feff12bd6f9250bbfb58c500234b46e4d5766fc2ea599b6d73301366b8d03c"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-iq2m-diagnostic/.var/model-diagnostic-iq2m/real-once-20261025/diagnostic-result.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-iq2m-diagnostic/.var/model-diagnostic-iq2m/real-once-20261025/diagnostic-result.json",
       "bytes": 2029,
       "sha256": "025f49d30f5aaba595d9c55af35acd88e1f37bd35f3272c25666cc40d42540da"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-iq2m-diagnostic/.var/model-diagnostic-iq2m/real-once-20261025/precheck.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-iq2m-diagnostic/.var/model-diagnostic-iq2m/real-once-20261025/precheck.json",
       "bytes": 458,
       "sha256": "028464895c7598dfb0b84f0a8898cb16e5ccc76f722dfd83829aaef08a1bfd56"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-iq2m-diagnostic/.var/model-diagnostic-iq2m/real-once-20261025/preload-raw.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-iq2m-diagnostic/.var/model-diagnostic-iq2m/real-once-20261025/preload-raw.json",
       "bytes": 325,
       "sha256": "9ba860db8670bad4a38a8d73c0c873bd6d13039879accb8289cf96928990c89e"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-iq2m-diagnostic/.var/model-diagnostic-iq2m/real-once-20261025/capacity.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-iq2m-diagnostic/.var/model-diagnostic-iq2m/real-once-20261025/capacity.json",
       "bytes": 14591,
       "sha256": "efab6fe36a02f2e7931cc13105e30d8feda0018eab74292366a9b32801afbdff"
     },
     {
-      "path": "/Users/hua/Documents/yia-worktrees/readiness-iq2m-diagnostic/.var/model-diagnostic-iq2m/real-once-20261025/generation-start.json",
+      "path": "/Users/developer/Documents/yia-worktrees/readiness-iq2m-diagnostic/.var/model-diagnostic-iq2m/real-once-20261025/generation-start.json",
       "bytes": 1806,
       "sha256": "4b2ce3e4f25df42191323649c3151670e54ae031eebfdadc60df0850267d0ce2"
     }

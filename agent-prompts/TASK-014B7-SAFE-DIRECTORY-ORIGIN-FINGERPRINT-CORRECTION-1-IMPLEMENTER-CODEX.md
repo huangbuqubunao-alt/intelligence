@@ -10,7 +10,7 @@ Task: TASK-014B7 — safe subtitle directory origin and fingerprint P1 Correctio
 Role: Implementer
 Agent: Codex
 Control-plane baseline: main@c25c2cfe0358259f66b36ebd8edb28372b5eab03
-Worktree: /Users/hua/Documents/yia-worktrees/task-014b7-safe-directory-origin-fingerprint
+Worktree: /Users/developer/Documents/yia-worktrees/task-014b7-safe-directory-origin-fingerprint
 Branch: codex/task-014b7-safe-directory-origin-fingerprint
 Required source HEAD: 8d06197557de4ce92c2752f4a8ef74582a0efdca
 Required sole parent of Correction 1: 8d06197557de4ce92c2752f4a8ef74582a0efdca

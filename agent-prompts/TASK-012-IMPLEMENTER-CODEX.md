@@ -4,8 +4,8 @@
 
 ## 动态授权与固定对象
 
-- Main authorization：`git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-012-IMPLEMENTER-CODEX.md` 必须解析为本分配控制面提交，且 main 中 TASK-012=`IN_PROGRESS`、Assignee=`Codex`。
-- Worktree/branch/base：`/Users/hua/Documents/yia-worktrees/task-012` /
+- Main authorization：`git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-012-IMPLEMENTER-CODEX.md` 必须解析为本分配控制面提交，且 main 中 TASK-012=`IN_PROGRESS`、Assignee=`Codex`。
+- Worktree/branch/base：`/Users/developer/Documents/yia-worktrees/task-012` /
   `codex/task-012-cli-operations` / `8e322f362d2ff0972ee987b7c06c8453a9dce73d`；worktree 必须干净。
 - Source 卡/状态为分配 base 冻结快照；不得写回 source 任务卡。TASK-011 已整合，`weekly` 可调用其既有服务。
 

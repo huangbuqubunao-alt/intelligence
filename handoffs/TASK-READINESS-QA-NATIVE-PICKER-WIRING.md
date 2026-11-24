@@ -4,7 +4,7 @@
 
 - Role: Implementer `/root/qa_launch_isolation`, reported 2026-11-05.
 - Base: `1259f81365eb955b21311cc007365f49e767c1c5` (accepted passive-admission and bounded-trial dependencies).
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-qa-native-picker-wiring`.
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-qa-native-picker-wiring`.
 - Branch: `codex/readiness-qa-native-picker-wiring`.
 - Commit: this scoped commit; exact SHA returned to Root after committing.
 - Actual changes: `scripts/validation/serve_user_readiness_candidate.py`, `tests/unit/test_qa_launch_isolation.py`, this handoff only.
@@ -44,7 +44,7 @@ Evidence directory: own ignored `.var/qa-native-picker-wiring/`.
 
 The 22-test file proves fixed QA namespaces, disabled fee gate/direct API and service refusal, environment isolation, symlink/hardlink refusal, both invalid ports rejected before helper/credentials/DB, exact default and custom frontend origins, one owner across two restore rounds, native enable/shutdown each round, failed enable/bind/start cleanup, and a real loopback HTTP composition with fake stores returning native capability true. It never invokes the native chooser or a model.
 
-Commands (Python: `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`):
+Commands (Python: `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`):
 
 ```sh
 PYTHONPATH=src "$PYTHON" -m pytest tests/unit/test_qa_launch_isolation.py -q

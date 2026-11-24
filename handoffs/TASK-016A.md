@@ -6,7 +6,7 @@
 - Role: `Implementer`
 - Agent/session: `Codex primary`
 - Base branch/commit: `codex/task-016a-intelligence-contract-foundation@36969c5c5f7af75a2cf2255b63f742c12cf4fb0c`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-016a-intelligence-contract-foundation`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-016a-intelligence-contract-foundation`
 - Branch: `codex/task-016a-intelligence-contract-foundation`
 - Head commit: recorded by the single implementation commit containing this report
 - Started: `2026-08-12`

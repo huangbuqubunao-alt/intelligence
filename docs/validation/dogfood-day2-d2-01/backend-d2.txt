@@ -1,6 +1,6 @@
 ============================= test session starts ==============================
 platform darwin -- Python 3.12.11, pytest-9.1.1, pluggy-1.6.0
-rootdir: /Users/hua/Documents/yia-worktrees/dogfood-day2-local-import-fix
+rootdir: /Users/developer/Documents/yia-worktrees/dogfood-day2-local-import-fix
 configfile: pyproject.toml
 plugins: anyio-4.14.2
 collected 6 items

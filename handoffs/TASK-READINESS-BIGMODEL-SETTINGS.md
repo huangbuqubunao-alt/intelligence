@@ -5,7 +5,7 @@
 - Task: TASK-READINESS-BIGMODEL-SETTINGS
 - Role: Implementer, sole writer `/root/bigmodel_audit_writer`; no subagents
 - Base: `2065e49777ffd83ef1c36f0085c0b936cc4d7f6e`
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-bigmodel-settings`
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-bigmodel-settings`
 - Branch: `codex/task-readiness-bigmodel-settings`
 - Head: this scoped commit; exact SHA reported to Root after commit (no self-referential hash).
 - Date: 2026-10-27 Asia/Shanghai
@@ -96,9 +96,9 @@ app = LocalApiApplication(repo, product, bigmodel_settings=candidate, ...)
 精确后端命令（当前 WT 为 cwd）：
 
 ```sh
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$PWD/src" /Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python -m pytest tests/unit/test_bigmodel_settings.py tests/unit/test_closure_model_settings.py tests/unit/test_local_api.py tests/integration/test_runtime_composition.py -q
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$PWD/src" /Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python -m mypy --strict src
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$PWD/src" /Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python -m ruff check src tests/unit/test_bigmodel_settings.py tests/integration/test_runtime_composition.py
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$PWD/src" /Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python -m pytest tests/unit/test_bigmodel_settings.py tests/unit/test_closure_model_settings.py tests/unit/test_local_api.py tests/integration/test_runtime_composition.py -q
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$PWD/src" /Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python -m mypy --strict src
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$PWD/src" /Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python -m ruff check src tests/unit/test_bigmodel_settings.py tests/integration/test_runtime_composition.py
 npm --prefix frontend test
 npm --prefix frontend run typecheck
 npm --prefix frontend run build

@@ -16,7 +16,7 @@ Task: TASK-014B11 — pre-merge credential-shape leak triage
 Role: Read-only Leak Triage Scout
 Agent: Codex
 Control-plane parent/base: main@a92e321216f418e0add6f01f7d1f300dcce11ea6
-Accepted source worktree: /Users/hua/Documents/yia-worktrees/task-014b11-safe-directory-contract-diagnostics
+Accepted source worktree: /Users/developer/Documents/yia-worktrees/task-014b11-safe-directory-contract-diagnostics
 Accepted source branch: codex/task-014b11-safe-directory-contract-diagnostics
 Accepted source HEAD: f57b21ce8a9369e9f11e4dab200f5d3dc9fa162d
 Product base: 80aff83fc033a8bd2950108cad2e34feea5d396f

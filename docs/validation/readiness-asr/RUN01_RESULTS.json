@@ -1657,7 +1657,7 @@
       "child_wall_seconds": 11.671579332993133
     }
   ],
-  "retained_private_root": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness-asr/.var/readiness-asr/run-01",
+  "retained_private_root": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness-asr/.var/readiness-asr/run-01",
   "artifact_sha256": {
     "boundary-medium.NONAUTHORITATIVE.json": "52263755b93cfccdc7ddc0e404b51d1c1226f732aa13dd53a5e34fbe87f2a2f4",
     "boundary-medium.json": "482759367735f0baf8d1de882287fa61b2a510921998f3ae16654bd77c983c01",

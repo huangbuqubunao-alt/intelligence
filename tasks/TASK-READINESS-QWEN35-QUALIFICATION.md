@@ -3,7 +3,7 @@
 - Status: READY for isolated harness and pre-output freeze only.
 - Implementer: /root/caption_resume; Reviewer: /root/intel_bounded_review.
 - Base: codex/task-end-to-end-user-readiness@08e02e2.
-- Worktree: /Users/hua/Documents/yia-worktrees/readiness-qwen35-qualification
+- Worktree: /Users/developer/Documents/yia-worktrees/readiness-qwen35-qualification
 - Branch: codex/task-readiness-qwen35-qualification
 
 ## Goal, approval and done criteria

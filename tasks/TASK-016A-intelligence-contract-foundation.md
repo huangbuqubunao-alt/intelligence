@@ -4,7 +4,7 @@
 - Assignee: `Codex`
 - Base: assignment prompt 动态冻结
 - Branch: `codex/task-016a-intelligence-contract-foundation`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-016a-intelligence-contract-foundation`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-016a-intelligence-contract-foundation`
 - Dependencies: ADR-023 `Accepted`、TASK-015 `DONE`
 - Reuse decision: `DIRECT` — Pydantic、现有 Config/Domain 契约和 Provider-neutral
   Protocol；不新增依赖，不修改 Schema。

@@ -15,7 +15,7 @@
 
 - 控制面基线：`main@54b5be8c28554b70b1e3f294d6ed6f9f6fee2c21`。
 - 正式实施包：`agent-prompts/TASK-014-RELEASE-READINESS-PHASE-A-IMPLEMENTER-CODEX.md`。
-- 唯一审查 source：`/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-a`，分支
+- 唯一审查 source：`/Users/developer/Documents/yia-worktrees/task-014-release-readiness-phase-a`，分支
   `codex/task-014-release-readiness-phase-a`，提交
   `8c35cd0a2c764a6ed9483ea6c8377c8f6ca0ab59`；其唯一父提交为本控制面基线。
 - 正式 Reviewer 授权包：`agent-prompts/TASK-014-RELEASE-READINESS-PHASE-A-REVIEWER-CODEX.md`；Reviewer
@@ -40,11 +40,11 @@
 - 历史只读 Scout 已完成；其包
   `agent-prompts/PREFLIGHT-TASK-014-PHASE-B1-PUBLIC-SUBTITLE-ADAPTER-COMPATIBILITY-SCOUT.md` 不构成执行授权。
 - 历史 directory-only execution source
-  `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-execution` /
+  `/Users/developer/Documents/yia-worktrees/task-014-phase-b1-directory-only-execution` /
   `codex/task-014-phase-b1-directory-only-execution@1f5a1109fc306af9f3743da64c7268ca3b8111e0` 仅保留旧的可观测性不足
   evidence；不重跑、不修改、不合并或复用。
 - 历史一次性 auditable execution source 为
-  `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-auditable-execution`；分支
+  `/Users/developer/Documents/yia-worktrees/task-014-phase-b1-directory-only-auditable-execution`；分支
   `codex/task-014-phase-b1-directory-only-auditable-execution`，固定 HEAD
   `58f0215aa329b99d74429e8616bb5f8f673ef102`，必须保持干净。唯一正式执行包为
   `agent-prompts/TASK-014-RELEASE-READINESS-PHASE-B1-DIRECTORY-ONLY-AUDITABLE-EXECUTION-CODEX.md`；本控制面仅授权，
@@ -52,9 +52,9 @@
 - 最终真实 smoke 已完成并 `FAIL`：固定 `--khbXchTeE`、`JTxsNm9IdYU` 各完成一次元数据和字幕目录读取，但均在正文读取前
   `INVALID_RESPONSE` 失败，正文读取均为零；没有认证、媒体、用户数据或重试。该 evidence 不合并、不写成通过。所有历史 Retry
   Executor 包均已废止，不能作为执行 source 或启动依据；上述 source 的一次性调用已结束，不能重跑或复用。
-- 旧 worktree `/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-b1` 建立在 B0 合并前主线；不得访问、修改、
+- 旧 worktree `/Users/developer/Documents/yia-worktrees/task-014-release-readiness-phase-b1` 建立在 B0 合并前主线；不得访问、修改、
   合并、cherry-pick 或复用其 blocker evidence `be230490...`。
-- 旧 worktree `/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-b1-execution` 建立在 Phase A 合并前主线；
+- 旧 worktree `/Users/developer/Documents/yia-worktrees/task-014-release-readiness-phase-b1-execution` 建立在 Phase A 合并前主线；
   不得访问、修改、合并、清理或复用。
 - 新授权只允许已整合的 B4 `youtube-intel smoke-public-subtitles --directory-only` 与 B5 安全 stdout 摘要，对固定
   `--khbXchTeE`、`JTxsNm9IdYU` 各一次执行 metadata=1 / enumerate=1 / read=0；完整离线预配、绝对 launcher、
@@ -76,7 +76,7 @@
   离线实现已完成；该历史授权已结束，后续真实资源动作仅以本任务卡下方的 B6-classified 一次性正式包为准，不放宽任何安全边界。
 - B4/B5/B6 全部整合后，唯一新的 B-1 真实资源动作是 B6-classified directory-only 一次性执行：固定控制面基线为
   `main@756e7e4f5313b7d077bdca8e1154a13cc4db2e57`；唯一 source 为
-  `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-b6-execution`，分支
+  `/Users/developer/Documents/yia-worktrees/task-014-phase-b1-directory-only-b6-execution`，分支
   `codex/task-014-phase-b1-directory-only-b6-execution`，固定 HEAD `756e7e4…`，必须保持干净。正式包为
   `agent-prompts/TASK-014-RELEASE-READINESS-PHASE-B1-DIRECTORY-ONLY-B6-EXECUTION-CODEX.md`；本控制面仅授权，不启动 Executor。
   它只允许已整合的 `smoke-public-subtitles --directory-only` 对 `--khbXchTeE`、`JTxsNm9IdYU` 各一次，并只将 B5 安全摘要与
@@ -86,7 +86,7 @@
   `INVALID_RESPONSE` 的既有安全出口附加有限、无值 `directory_origin`/`directory_fingerprint`，保持 B6
   `directory_diagnostic` 与所有 fail-closed 边界不变。`17bfe906…` 仍仅为未合并的只读失败 evidence，不得合并、重写或称为通过。
 - 产品负责人现授权一次新的 B-1 B7-classified directory-only 真实公开字幕验证。唯一 source 为
-  `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-b7-execution` /
+  `/Users/developer/Documents/yia-worktrees/task-014-phase-b1-directory-only-b7-execution` /
   `codex/task-014-phase-b1-directory-only-b7-execution@e50597010fcf785bd3cebe5f07f9f366b7eb9736`，必须保持干净；正式包为
   `agent-prompts/TASK-014-RELEASE-READINESS-PHASE-B1-DIRECTORY-ONLY-B7-EXECUTION-CODEX.md`，本控制面不启动 Executor。
   只可对 `--khbXchTeE`、`JTxsNm9IdYU` 各一次执行整合后的 `smoke-public-subtitles --directory-only`，每个 ID 为
@@ -97,7 +97,7 @@
   `directory_key_names` 仍只允许在 directory-only、目录 `INVALID_RESPONSE`、mapping、unknown、enumerate=`1`、read=`0` 的全部
   条件同时满足时出现，任一不合格、超限或不可靠候选集一律省略字段。该离线整合不构成真实 B-1 成功、真实服务验证或发行批准。
 - 产品负责人现授权唯一一次 B-1 B8 keyname-audited 单视频 directory-only 真实公开字幕验证。唯一 source 为
-  `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-only-b8-keyname-execution` /
+  `/Users/developer/Documents/yia-worktrees/task-014-phase-b1-directory-only-b8-keyname-execution` /
   `codex/task-014-phase-b1-directory-only-b8-keyname-execution@56d6a3e66f7875395a74cac79fcfbeccbdd756ff`，必须保持干净；正式包为
   `agent-prompts/TASK-014-RELEASE-READINESS-PHASE-B1-DIRECTORY-ONLY-B8-KEYNAME-EXECUTION-CODEX.md`，本控制面不启动 Executor。
   只可对固定 `--khbXchTeE` 一次执行整合后的 `smoke-public-subtitles --directory-only`，必须 metadata=`1`/enumerate=`1`/read=`0`；
@@ -106,7 +106,7 @@
   `IN_PROGRESS / No-Go`，不构成发行批准或最终 Go。
 - Historical (consumed) TASK-014B9 authorization: the product owner authorized one replacement public-sample directory-only invocation. The candidate `eIho2S0ZahI` public TED
   官方频道线索仅来自 agent-reach/yt-dlp 的只读字幕目录枚举，未下载正文；其工具版本可能不同于项目锁定的 yt-dlp，绝不构成项目通过
-  证据。唯一 source 为 `/Users/hua/Documents/yia-worktrees/task-014-phase-b9-replacement-candidate-directory-only` /
+  证据。唯一 source 为 `/Users/developer/Documents/yia-worktrees/task-014-phase-b9-replacement-candidate-directory-only` /
   `codex/task-014-phase-b9-replacement-candidate-directory-only@e975ff4f343442e69bb88e09e36bffc7996341cf`，必须保持干净；正式包为
   `agent-prompts/TASK-014B9-REPLACEMENT-CANDIDATE-DIRECTORY-ONLY-EXECUTION-CODEX.md`，本控制面不启动 Executor。只可对该 ID
   一次执行已整合的 `smoke-public-subtitles --directory-only`，必须 metadata=`1`/enumerate=`1`/read=`0`；离线 lock/sync/lock、绝对
@@ -141,7 +141,7 @@
   `CONTENT_UNAVAILABLE` 停止，计数为 `1/1/0`；不得合并、修改、清理或写成成功。产品负责人因此创建 TASK-014B10「安全内容
   可用性诊断」：只在现有受限 directory-only 的 `CONTENT_UNAVAILABLE`/`read=0` 安全出口增加 ADR-020 固定、无值分类，用于区分
   视频不可用、访问环境受限、提取器兼容性不足或 unknown。唯一 source 为
-  `/Users/hua/Documents/yia-worktrees/task-014b10-safe-content-availability-diagnostic` /
+  `/Users/developer/Documents/yia-worktrees/task-014b10-safe-content-availability-diagnostic` /
   `codex/task-014b10-safe-content-availability-diagnostic@880e796622e393842a8cfe1a365af25868a3e98f`。第一轮独立 Reviewer
   Verdict=`REJECT`、P1=`1`：生产 yt-dlp 会以
   `DownloadError` 包装 `ExtractorError`，现有直接类型分支在生产 Adapter 映射不可达，测试又绕过该边界直接构造私有状态；不可靠来源
@@ -211,7 +211,7 @@
   固定、脱敏 `directory_diagnostic` 分类。
 - 必须拒绝 directory-only 与非 smoke 子命令、smoke 路径全局配置参数、超限/重复 ID 和媒体/认证路径。禁止网络、
   真实 smoke、Cookie/登录/API key、媒体、ffmpeg、模型、OpenAI、Ollama、真实 Vault/用户数据、重试和额外产品命令。
-- `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-directory-diagnostic` 是未执行的历史诊断
+- `/Users/developer/Documents/yia-worktrees/task-014-phase-b1-directory-diagnostic` 是未执行的历史诊断
   worktree；禁止访问、修改、合并、清理或复用。B4 离线实现不等于真实 B-1、发布批准或最终 Go；TASK-014
   继续 `IN_PROGRESS / No-Go`。
 
@@ -220,7 +220,7 @@
 - 产品负责人已接受 ADR-014：只将既有 `youtube_intel.cli:main` 暴露为已安装项目的 `youtube-intel` 命令，
   不新增包装模块、业务命令、配置读取或真实资源权限。
 - 控制面基线：`main@820ff34fbd481e31b50d9d9d54828810d8ab7ca4`；worktree：
-  `/Users/hua/Documents/yia-worktrees/task-014-phase-b2-console-entry`；分支：
+  `/Users/developer/Documents/yia-worktrees/task-014-phase-b2-console-entry`；分支：
   `codex/task-014-phase-b2-console-entry`；正式包：
   `agent-prompts/TASK-014B2-CONSOLE-ENTRY-IMPLEMENTER-CODEX.md`。
 - 唯一实现范围为 `pyproject.toml`、条件性 `uv.lock`、一个离线 console-entry 测试、README、operations 与
@@ -241,7 +241,7 @@
 - ADR-013 已接受，正式任务卡为 `tasks/TASK-014B0-restricted-public-subtitle-smoke-entry.md`；Implementer 包为
   `agent-prompts/TASK-014B0-RESTRICTED-PUBLIC-SUBTITLE-SMOKE-IMPLEMENTER-CODEX.md`。
 - 第一轮 Reviewer evidence `f8e336a8c3b09a8c0c0e5857148495f2cb2281aa` 是唯一 source
-  `/Users/hua/Documents/yia-worktrees/task-014-phase-b0-restricted-public-subtitle-smoke` /
+  `/Users/developer/Documents/yia-worktrees/task-014-phase-b0-restricted-public-subtitle-smoke` /
   `codex/task-014-phase-b0-restricted-public-subtitle-smoke` 的 HEAD，唯一父提交为实现 `4e506847854f20a43011b0a15db3a1c8e320656d`，
   且仅追加 handoff。Verdict=`REJECT`：P1 为 smoke 仍接受全局配置路径参数；P2 为 handoff 基线、提交 SHA 和状态过期。
 - Correction 1 Reviewer evidence `48df2e2a0afb54d5f6252f197dddf32ff685f0db` 是 `cafcde…` 的唯一后继，且仅追加

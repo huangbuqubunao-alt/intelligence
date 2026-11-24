@@ -50,7 +50,7 @@ Owned ignored evidence: `.var/synthesis-reviewed-authority/`. No genuine model o
 | Ruff changed Python source/new test | PASS | `ruff-accepted-source.log` |
 | Compile changed Python files / diff check | PASS / PASS, continuation rerun exit 0 | changed five Python source files plus dedicated test compiled; `git diff --check` clean |
 
-Exact backend command (`PYTHON` is `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`):
+Exact backend command (`PYTHON` is `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`):
 
 ```sh
 PYTHONPATH=src "$PYTHON" -m pytest tests/unit/test_synthesis_reviewed_authority.py tests/unit/test_synthesis_attribution_v2.py tests/unit/test_synthesis_runtime.py tests/unit/test_synthesis_qualification_entry.py tests/unit/test_system_synthesis.py tests/unit/test_system_synthesis_persistence.py tests/unit/test_cloud_spending_policy.py tests/unit/test_backup_restore.py tests/unit/test_qa_launch_isolation.py tests/unit/test_task022d_provider_authorization.py tests/integration/test_v1x_phase1c_governance.py -q

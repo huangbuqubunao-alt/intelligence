@@ -5,11 +5,11 @@
 - Task `TASK-READINESS-READABLE-SUMMARY-V4`
 - Role `Implementer`, session `/root/readable_summary_v4`
 - Base `6fe094912457856fc6dea311f196baf1f64deef8`
-- Worktree `/Users/hua/Documents/yia-worktrees/readiness-readable-summary-v4`
+- Worktree `/Users/developer/Documents/yia-worktrees/readiness-readable-summary-v4`
 - Branch `codex/readiness-readable-summary-v4`
 - Reported 2026-11-07
 - Head is the task-scoped commit containing this handoff. The exact SHA is returned to Root.
-- Authoritative task card is in the controlling worktree at `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/tasks/TASK-READINESS-READABLE-SUMMARY-V4.md`.
+- Authoritative task card is in the controlling worktree at `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/tasks/TASK-READINESS-READABLE-SUMMARY-V4.md`.
 
 ## 目标与实际范围
 
@@ -42,7 +42,7 @@ Minimal Content and spending selectors expose the fourth profile as “Complete 
 
 ## 检查结果
 
-Python executable for all commands is `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`.
+Python executable for all commands is `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`.
 
 - Initial affected backend command used `PYTHONPATH=src` and `python -m pytest -q` with `test_synthesis_readable_summary_v4.py`, `test_synthesis_source_level_v3.py`, `test_synthesis_attribution_v2.py`, `test_synthesis_reviewed_authority.py`, `test_system_synthesis.py`, `test_summary_baseline.py`, `test_system_synthesis_persistence.py`, `test_synthesis_runtime.py` and `test_cloud_spending_policy.py`. Result was **340 passed, 1 failed in 211.29s**.
 - The sole group failure was `test_actual_factory_declares_finite_profiles_and_keeps_synthesis_unqualified` at `tests/unit/test_synthesis_attribution_v2.py:247`, with `Left contains one more item` identifying the new v4 profile. The expected finite list was extended explicitly. Focused rerun passed **1 test in 2.66s**. Root requested this focused rerun rather than repeating the whole group.
@@ -56,7 +56,7 @@ Python executable for all commands is `/Users/hua/Documents/yia-worktrees/end-to
 
 A separate isolated browser rendered the actual `CloudSpendingSettings` component with a temporary local HTML harness and controlled API response containing all four prices. English and Chinese accessible snapshots show all four distinct options. Selecting v4 displays its label and keeps Save disabled until acknowledgement. Browser console error inspection was empty. The harness was removed and the browser/dev server closed.
 
-This browser check uses mock responses. It is distinct from a live normal-factory server and from Root's forthcoming actual-source QA. Screenshots are at `/Users/hua/.agent-browser/tmp/screenshots/screenshot-1794004409154.png` and `/Users/hua/.agent-browser/tmp/screenshots/screenshot-1794004409704.png`.
+This browser check uses mock responses. It is distinct from a live normal-factory server and from Root's forthcoming actual-source QA. Screenshots are at `/Users/developer/.agent-browser/tmp/screenshots/screenshot-1794004409154.png` and `/Users/developer/.agent-browser/tmp/screenshots/screenshot-1794004409704.png`.
 
 ## Diff 复核与失败记录
 

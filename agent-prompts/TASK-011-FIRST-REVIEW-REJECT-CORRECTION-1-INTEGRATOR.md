@@ -5,7 +5,7 @@
 ## 固定对象
 
 - Main base：`main@8d7eaffd5b790b2ffd964793557d1b8f20168978`，必须干净且为唯一父基线。
-- Source：`/Users/hua/Documents/yia-worktrees/task-011` / `codex/task-011-weekly-report@3759d54a74abaa8e6627b8107298d0938fbe3441`，必须干净。
+- Source：`/Users/developer/Documents/yia-worktrees/task-011` / `codex/task-011-weekly-report@3759d54a74abaa8e6627b8107298d0938fbe3441`，必须干净。
 - Reviewer evidence：`3759d54...` 唯一父为 implementation `0ae7f936...`，只修改 source handoff。
 - Original base：`44fc64be2cb4602cb93c1d03f84d6dd2a1677750`；完整 source Diff 仍限七个实际批准路径，锁文件未变。
 
@@ -26,7 +26,7 @@
 
 ## 必须执行
 
-1. 核验 main/source HEAD、父链、身份 `Mozhu <huangbuqubunao@gmail.com>`、`user.useConfigOnly=true`、empty index/worktree、evidence handoff-only scope、完整 source 范围与未变锁文件。
+1. 核验 main/source HEAD、父链、身份 `Mozhu <maintainer@example.invalid>`、`user.useConfigOnly=true`、empty index/worktree、evidence handoff-only scope、完整 source 范围与未变锁文件。
 2. 准备文件仅限上述五个路径；两轮 SHA-256、LF/EOF、无尾随空白、`git diff --check`、`git diff --cached --check` 与精确暂存范围必须通过；字节漂移立即停止。
 3. 不运行 uv、pytest、build、import、数据库、网络、Vault、云端、凭据或任何产品文件 I/O 命令。
 4. main 将 TASK-011 退回原 Codex Implementer 的 `IN_PROGRESS`，冻结 Correction 1；不得预写 Reviewer verdict、ACCEPTED、merge 或 DONE。TASK-012 保持 BLOCKED。

@@ -3,7 +3,7 @@
 Implementer `/root/cloud_preview_writer`; sole writer/no subagents. Base
 `ec17b319331e9de26404bc081921e6cd05297781`, branch
 `codex/task-readiness-grounding-v2-public-capsule`, worktree
-`/Users/hua/Documents/yia-worktrees/readiness-grounding-v2-public-capsule`.
+`/Users/developer/Documents/yia-worktrees/readiness-grounding-v2-public-capsule`.
 Fixed author SHA reported in final chat; suggested IN_REVIEW, Root alone accepts.
 
 ## Scope and reuse
@@ -117,7 +117,7 @@ src, original script, old tests and oracle are unchanged. Strict mypy123PASS (sr
 new script), RuffPASS, in-memory compile124PASS and diff checkPASS.
 
 The actual specific capsule is now prepared at:
-`/Users/hua/Documents/yia-worktrees/readiness-grounding-v2-public-capsule/.var/bigmodel-grounding-v2-public-case`.
+`/Users/developer/Documents/yia-worktrees/readiness-grounding-v2-public-capsule/.var/bigmodel-grounding-v2-public-case`.
 Preparation and pure validation ran under external Python-call/audit guards denying
 credential/wire/reservation/consent/claim/network boundaries and enforcing Source DB
 mode=ro. All six counters0, original81 SQL tables/all19DATA and source database bytes
@@ -144,8 +144,8 @@ that verification invocation. No capsule/code/source was reset or modified to hi
 The supported module entry point from this fixed worktree is:
 
 ```sh
-cd /Users/hua/Documents/yia-worktrees/readiness-grounding-v2-public-capsule
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/hua/Documents/yia-worktrees/readiness-grounding-v2-public-capsule/src /Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python -m scripts.qualify_bigmodel_grounding_v2_public_case prepare
+cd /Users/developer/Documents/yia-worktrees/readiness-grounding-v2-public-capsule
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/developer/Documents/yia-worktrees/readiness-grounding-v2-public-capsule/src /Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python -m scripts.qualify_bigmodel_grounding_v2_public_case prepare
 ```
 
 **Already prepared; do not rerun prepare.** Independent reviewer must approve fixed

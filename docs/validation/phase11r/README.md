@@ -61,7 +61,7 @@ Evidence: `.var/phase11r/out/*.json`, `.var/phase11r/screenshots/`.
 ## Independent revalidation still required
 
 Rerun the OpenCode recon harness
-(`/Users/hua/Documents/yia-worktrees/online-validation-recon/harness/`) and an
+(`/Users/developer/Documents/yia-worktrees/online-validation-recon/harness/`) and an
 owner-led real-world pass against this candidate before any pilot. Creator
 listing may become available again at any time; the withdrawal is a single
 constant (`CREATOR_FOLLOWING_AVAILABLE`) and re-enabling it does not require

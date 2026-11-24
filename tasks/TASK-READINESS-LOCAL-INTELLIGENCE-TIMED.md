@@ -3,7 +3,7 @@
 Status: READY, approved isolated implementation only.
 Role: Implementer /root/source_context; Reviewer /root/intel_bounded_review.
 Base: 67d6e9a930fa0289c9d97c4ad3119e493b16ce0e ( accepted raw d377c42/7ff4ae6 and root188 checks PASS).
-Worktree: /Users/hua/Documents/yia-worktrees/readiness-local-intelligence-timed
+Worktree: /Users/developer/Documents/yia-worktrees/readiness-local-intelligence-timed
 Branch: codex/task-readiness-local-intelligence-timed
 
 ## Goal and exact approval

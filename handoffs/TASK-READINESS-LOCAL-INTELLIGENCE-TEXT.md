@@ -4,14 +4,14 @@
 
 - Role: Implementer `local_text`; independent Reviewer `intel_bounded_review` pending.
 - Base: `2978550aee692c7b24d5707d2eb4ebdfcc1d0e2f`.
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-local-intelligence-text`.
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-local-intelligence-text`.
 - Branch: `codex/task-readiness-local-intelligence-text`.
 - Final full commit SHA is supplied in the delivery message; implementation and
   this report are in that same atomic commit.
 - Approvals: task card, LOCAL_INTELLIGENCE_CHAIN_PROPOSAL,
   LOCAL_TEXT_TRUSTED_READER_ADDENDUM and the subsequently specifically approved
   LOCAL_TEXT_READ_CURRENT_ADDENDUM at root `54a8c20`. The latter was read from
-  `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/docs/validation/end-to-end-user-readiness/LOCAL_TEXT_READ_CURRENT_ADDENDUM.md`;
+  `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/docs/validation/end-to-end-user-readiness/LOCAL_TEXT_READ_CURRENT_ADDENDUM.md`;
   root owns that governance document and task-card amendment.
 
 ## Goal and delivered scope

@@ -1,7 +1,7 @@
 # Phase 10B fresh acceptance
 
 Starting accepted HEAD: `7e3638c0d776dcd66a343f6d2dd9b9a80d046424`.
-Dedicated worktree: `/Users/hua/Documents/yia-worktrees/v1x-bilibili-provider`.
+Dedicated worktree: `/Users/developer/Documents/yia-worktrees/v1x-bilibili-provider`.
 Branch: `chatgpt/v1x-bilibili-provider`. Sole executor; no subagents, merge, push,
 PR, production dependency, credentials or protected-worktree changes.
 

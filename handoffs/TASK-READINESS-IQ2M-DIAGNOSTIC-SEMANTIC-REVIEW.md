@@ -1,6 +1,6 @@
 # IQ2_M 唯一实际例独立语义审查
 
-Reviewer `/root/long_completion_review_r1`，专用review WT `/Users/hua/Documents/yia-worktrees/readiness-model-diagnostic`，起点 `b6662931369852637a7800af75885af9c70309de`。只读原始实际输出、冻结source-case、原18cue/2Evidence请求/schema、once/capacity及安全结束证据；没有重新跑测试、HTTP、模型、信号或后续样例。
+Reviewer `/root/long_completion_review_r1`，专用review WT `/Users/developer/Documents/yia-worktrees/readiness-model-diagnostic`，起点 `b6662931369852637a7800af75885af9c70309de`。只读原始实际输出、冻结source-case、原18cue/2Evidence请求/schema、once/capacity及安全结束证据；没有重新跑测试、HTTP、模型、信号或后续样例。
 
 **结论：REJECT_STOP / FROZEN_SEMANTIC_GATE_FAILED。** 当前IQ2诊断已结束，模型资格继续closed，不授权修补/重试/后续case。正常JSON与INTELLIGENCE分支不足以通过原语义门。本结论只裁决这一次冻结候选，不推断所有模型或整个量化家族的能力。
 
@@ -26,4 +26,4 @@ Reviewer `/root/long_completion_review_r1`，专用review WT `/Users/hua/Documen
 
 actual `after-result-native-slots.json` SHA **`5588c3b71415f28880126bf1477030cf542001d8f2aaaa7df6b5162b8771cbe5`** 单slot is_processing=false；completed log SHA **`b37fe30f73a4b8fb8f14220815284555183bc9440f3885daf587edf4afdb689f`** 有正常完成、release、all slots idle。root `result-stop-cleanup-proof.json` SHA **`10de7370992a877dd21893b96f3559d8c28b182e6ee55d0cbbf38de5a38e639a`** 绑定slot/log并记录随后对自有25107正常SIGTERM、daemon/runner退出与端口关闭、无其他进程被杀。Reviewer核验这些捕获证据，未亲自发送信号。
 
-新证据 `/Users/hua/Documents/yia-worktrees/readiness-model-diagnostic/.var/iq2m-semantic-review/review-evidence.json` SHA **`178d47f370411af68b6dc9365b1d84aef746a51b1e38301683c680646057a978`** 保存逐项比较和所有原始文件hash。只有本新handoff受Git跟踪；未改任何旧package绑定文件、raw、model output或资格。本候选FAIL后STOP；普通用户正向完整链路仍未证明，不能从本次结构成功授资格或采用main。**提交后clean STOP。**
+新证据 `/Users/developer/Documents/yia-worktrees/readiness-model-diagnostic/.var/iq2m-semantic-review/review-evidence.json` SHA **`178d47f370411af68b6dc9365b1d84aef746a51b1e38301683c680646057a978`** 保存逐项比较和所有原始文件hash。只有本新handoff受Git跟踪；未改任何旧package绑定文件、raw、model output或资格。本候选FAIL后STOP；普通用户正向完整链路仍未证明，不能从本次结构成功授资格或采用main。**提交后clean STOP。**

@@ -2,7 +2,7 @@
   "observed_at": "2026-10-23T18:23:14.140100+00:00",
   "classification": "REVIEWED_SOURCE_PREPARATION_ONLY_NO_MODEL_QUALIFICATION",
   "decision_basis": "OPENCODE_LOCAL_HANDOVER_AUDIT_2026_10_20.md decision23, preserve old inadequate positives/failures and freeze substantive newEN/ZH sources",
-  "source_directory": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/local-substantive-inputs-20261024",
+  "source_directory": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/local-substantive-inputs-20261024",
   "source_manifest_sha256": "561cd0f2c5b16bb678a25da81b3ef9f1689395a26758401c9a18f31e5496e255",
   "source_review": {
     "reviewer": "/root/local_case_input_inventory",

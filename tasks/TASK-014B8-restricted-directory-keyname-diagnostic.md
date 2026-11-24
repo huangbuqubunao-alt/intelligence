@@ -5,7 +5,7 @@
 - Reviewer: `独立 Codex Reviewer（APPROVE，P0--P3=0）`
 - 依赖：TASK-014B3/B4/B5/B6/B7 `DONE`、ADR-019 `Accepted`
 - 实施基线：`main@43f2c748c43215facb231f76a0c93ac45d350657`
-- Worktree：`/Users/hua/Documents/yia-worktrees/task-014b8-restricted-directory-keyname-diagnostic`
+- Worktree：`/Users/developer/Documents/yia-worktrees/task-014b8-restricted-directory-keyname-diagnostic`
 - Branch：`codex/task-014b8-restricted-directory-keyname-diagnostic`
 - accepted source / Reviewer evidence: `96dee64ec7ab172d036e8472ffc3f65efa0cb6c4`（唯一父提交
   `2334374f66497546108d12be541ab137b4a8981a`；后者唯一父为

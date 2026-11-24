@@ -7,7 +7,7 @@
 - Reviewer: `/root/bigmodel_audit_review`, independent new conversation.
 - Base: `ea7e74fcab2c5cdc8dfceeef063dd4a4091b1716`.
 - Fixed author: `896a4834a745712be59c0f93a6adc98328b4adc1`.
-- Review worktree: `/Users/hua/Documents/yia-worktrees/readiness-bigmodel-audit-review`; branch `codex/task-readiness-bigmodel-audit-review`.
+- Review worktree: `/Users/developer/Documents/yia-worktrees/readiness-bigmodel-audit-review`; branch `codex/task-readiness-bigmodel-audit-review`.
 - Review source baseline: `b32b0c647ffb944dac85ca0912a1fc38a0f546ab`, whose only additions to the author are Root's review task/prompt. Product/test files remain byte-for-byte equal to the fixed author.
 - Only this report is written by the reviewer. No implementation/test/Schema repair, dependency, configuration, credential, provider/model call, owner data, main or Root GUI service/browser change. Reported 2026-10-27.
 
@@ -48,7 +48,7 @@ The new failure table's nullable-looking `execution_id TEXT PRIMARY KEY` does **
 
 ## Independent checks
 
-Python commands used `PYTHONDONTWRITEBYTECODE=1`, `PYTHONPATH=/Users/hua/Documents/yia-worktrees/readiness-bigmodel-audit-review/src` and `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`. Only isolated pytest/TmpDirectory SQLite/DATA and offline fixture receipts were used.
+Python commands used `PYTHONDONTWRITEBYTECODE=1`, `PYTHONPATH=/Users/developer/Documents/yia-worktrees/readiness-bigmodel-audit-review/src` and `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`. Only isolated pytest/TmpDirectory SQLite/DATA and offline fixture receipts were used.
 
 | Check | Actual result |
 |---|---|

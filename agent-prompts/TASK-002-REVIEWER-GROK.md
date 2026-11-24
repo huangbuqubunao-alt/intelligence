@@ -15,7 +15,7 @@
 - Original implementation commit: `4355a59f6f95e409bcf15b3b8004bb112d0033b3`
 - Correction code commit: `8492c42b971b01d3aaf4e6cb11e2e5a8210fe46a`
 - Source/evidence head to review: `8f50df2f7e93d778f32947ca471740b6713c9aff`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-002`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-002`
 - Branch: `grok/task-002-config-domain-contracts`
 - Implementer: Grok，另一个会话，已停止写入
 - Allowed write scope: `handoffs/TASK-002.md` only
@@ -38,9 +38,9 @@
 
 再从 main 控制面只读以下绝对路径，不修改或合并：
 
-10. `/Users/hua/Documents/youtubek agent/tasks/TASK-002-config-domain-contracts.md` 的预审修复、审查授权与 Reviewer 改派记录
-11. `/Users/hua/Documents/youtubek agent/agent-prompts/TASK-002-CORRECTION-GROK.md`
-12. `/Users/hua/Documents/youtubek agent/docs/decisions/ADR-003-sqlite-state-store-contract.md` 的 `target_stage` 职责
+10. `/Users/developer/Documents/youtubek agent/tasks/TASK-002-config-domain-contracts.md` 的预审修复、审查授权与 Reviewer 改派记录
+11. `/Users/developer/Documents/youtubek agent/agent-prompts/TASK-002-CORRECTION-GROK.md`
+12. `/Users/developer/Documents/youtubek agent/docs/decisions/ADR-003-sqlite-state-store-contract.md` 的 `target_stage` 职责
 
 如冻结契约之间存在必须改变公共接口才能解决的冲突，输出 `DECISION NEEDED`，不得自行选择新设计。
 

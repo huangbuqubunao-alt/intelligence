@@ -22,7 +22,7 @@
 12. `docs/decisions/ADR-006-subtitle-acquisition-contract.md` 全文
 13. `tasks/TASK-005-subtitle-pipeline.md`
 14. `handoffs/TEMPLATE.md`
-15. 主线任务包：`/Users/hua/Documents/youtubek agent/agent-prompts/TASK-005-IMPLEMENTER-CODEX.md`
+15. 主线任务包：`/Users/developer/Documents/youtubek agent/agent-prompts/TASK-005-IMPLEMENTER-CODEX.md`
 
 如任一文档冲突，或实现必须修改 `state.py`、Schema/migration、`complete_stage`、依赖/锁文件、TASK-004 公共接口或任务范围外文件，立即停止并输出 `DECISION NEEDED`。不得在公共接口、跨模块契约或 Repository 兼容性上用 wrapper、monkey patch、`Any`、宽 `object`、自由 `dict`、`cast`/`type: ignore` 或重复 Repository 隐藏不兼容；Adapter 私有边界仍须显式验证 yt-dlp 原始 payload。
 
@@ -32,7 +32,7 @@
 - Role：`Implementer`
 - Agent：`Codex`
 - Base：`main@b28f52d0e4950f78dba315d4afe211ea5f75b93c`
-- Worktree：`/Users/hua/Documents/yia-worktrees/task-005`
+- Worktree：`/Users/developer/Documents/yia-worktrees/task-005`
 - Branch：`codex/task-005-subtitle-pipeline`
 - Reviewer：实现提交后由主控启动一个全新独立 Codex 会话；不得复用本 Implementer 对话
 - Parallel now：TASK-006/007 只读 Scout；它不得读取本 worktree

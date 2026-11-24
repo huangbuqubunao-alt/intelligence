@@ -4,12 +4,12 @@
 
 ## 固定基线
 
-- Repository: `/Users/hua/Documents/youtubek agent`
+- Repository: `/Users/developer/Documents/youtubek agent`
 - Branch: `main`
 - Base HEAD: `091a591f56c9aec73d4e7d979635b866493326a9`
-- Git identity: `Mozhu <huangbuqubunao@gmail.com>`
+- Git identity: `Mozhu <maintainer@example.invalid>`
 - `user.useConfigOnly=true`
-- TASK-004 source worktree: `/Users/hua/Documents/yia-worktrees/task-004`
+- TASK-004 source worktree: `/Users/developer/Documents/yia-worktrees/task-004`
 - Source branch: `grok/task-004-discovery-metadata`
 - Expected source HEAD: `7272528a3c5603087446251ee96ae4766fedeb96`
 - Source HEAD parent: `d510794ffccf54948f967f010685aef1c0a02f3d`

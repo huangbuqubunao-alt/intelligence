@@ -5,7 +5,7 @@
 - Task: TASK-READINESS-LONG-INPUT-WAIT-LIFECYCLE; role: independent Reviewer `/root/long_wait_independent_review`.
 - Fixed base: `4f7cc46ed1381782288a2f4915dce027b38c3b94`.
 - Fixed candidate: `4da67d55d73d3db214825d5b19368bb36caac507`.
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-long-input-wait-review`.
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-long-input-wait-review`.
 - Branch: `codex/review-readiness-long-input-wait`.
 - Reported: `2026-10-20T22:12:35Z` (`2026-10-21` Asia/Shanghai).
 - Candidate HEAD and clean worktree verified before review. Only this report is written by the Reviewer; no product/test changes, integration, main adoption, task-state changes or model/network calls.
@@ -59,7 +59,7 @@ with TemporaryDirectory(prefix='long-review-') as d:
 
 ## Independent checks
 
-All commands used `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python` with review cwd. Tests used `PYTHONPATH=src:tests:.`; strict typecheck used `PYTHONPATH=src`. Import proof printed the review worktree's `src/youtube_intel/long_distillation_persistence.py`.
+All commands used `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python` with review cwd. Tests used `PYTHONPATH=src:tests:.`; strict typecheck used `PYTHONPATH=src`. Import proof printed the review worktree's `src/youtube_intel/long_distillation_persistence.py`.
 
 | Check | Result |
 |---|---|

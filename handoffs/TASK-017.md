@@ -6,7 +6,7 @@
 - Role: `Implementer`
 - Agent/session: `Codex`
 - Base branch/commit: `main@d10c92b218365f2b3ea3c4d23a2c77cad2bd3ca0`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-017-fcc-inspired-ui`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-017-fcc-inspired-ui`
 - Branch: `codex/task-017-fcc-inspired-ui`
 
 ## 目标与范围

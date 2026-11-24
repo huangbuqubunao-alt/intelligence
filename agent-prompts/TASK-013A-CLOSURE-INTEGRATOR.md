@@ -19,7 +19,7 @@
 
 ## 必须执行
 
-1. 核验 main/source identity `Mozhu <huangbuqubunao@gmail.com>`、`user.useConfigOnly=true`、merge 父链/祖先、first-parent 范围、锁文件、main/source 洁净度和所有 Diff 空白检查。
+1. 核验 main/source identity `Mozhu <maintainer@example.invalid>`、`user.useConfigOnly=true`、merge 父链/祖先、first-parent 范围、锁文件、main/source 洁净度和所有 Diff 空白检查。
 2. 对五个准备文件做两轮 SHA-256、LF/EOF、无尾随空白、精确暂存范围、`git diff --cached --check`；任何字节漂移立即停止。
 3. 将 TASK-013A 在任务卡、任务索引、项目状态和 handoff 一致标为 `DONE`，记录 merge `8f70fe34...` 及既有 Integration evidence。不得重跑产品门禁。
 4. TASK-013 继续 `BLOCKED/UNASSIGNED`，直到主控创建新的正式分配包以基于真实服务流重新建立 E2E；TASK-014 保持 BLOCKED。

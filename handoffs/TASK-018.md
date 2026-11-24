@@ -7,7 +7,7 @@
 - Agent/session: `Codex`
 - START_HEAD: `ea77ba0139bf4563b60a8057a40e1b62c430e215`
 - Implementation commits: `254a89e57e1250f4a8f58cdd44247aacc6d25243`, `cd9df15da03af036171d9203ae247a1c7598d465`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-018-domain-persistence-foundation`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-018-domain-persistence-foundation`
 - Branch: `codex/task-018-domain-persistence-foundation`
 - Migration: `006_add_intelligence_domain.sql`; `PRAGMA user_version` `5 → 6`
 

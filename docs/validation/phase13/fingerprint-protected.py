@@ -1,6 +1,6 @@
 import hashlib,json,os,subprocess
 from pathlib import Path
-base=Path('/Users/hua/Documents/yia-worktrees')
+base=Path('/Users/developer/Documents/yia-worktrees')
 evidence=Path('/tmp/intelligence-phase13-evidence')
 before=json.loads((evidence/'protected-before.json').read_text());after={}
 for name,previous in before.items():

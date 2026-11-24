@@ -3,7 +3,7 @@
 - Status: READY (ordinary-user readiness candidate only)
 - Implementer: /root/source_context; Reviewer: /root/intel_bounded_review, after retirement review.
 - Base: codex/task-end-to-end-user-readiness@d903c60
-- Worktree: /Users/hua/Documents/yia-worktrees/readiness-source-policy-read
+- Worktree: /Users/developer/Documents/yia-worktrees/readiness-source-policy-read
 - Branch: codex/task-readiness-source-policy-read
 
 ## Goal and done criteria

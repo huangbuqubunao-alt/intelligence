@@ -1,7 +1,7 @@
 # V1X Phase 8 acceptance evidence
 
 Baseline: `c09a6ae5077867610420e1aed80fe3c7abb10c08`, schema 32.
-Worktree: `/Users/hua/Documents/yia-worktrees/v1x-offline-transcription`.
+Worktree: `/Users/developer/Documents/yia-worktrees/v1x-offline-transcription`.
 Branch: `chatgpt/v1x-offline-transcription`.
 Authority: owner's continuous Phase 8 goal; sole engineering executor.
 Decision: [offline timed transcription](../decisions/V1X-PHASE8-DR-001-offline-timed-transcription.md).

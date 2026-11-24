@@ -9,9 +9,9 @@
 - Task: `TASK-002 assignment sync`
 - Role: `Status Integrator`
 - Target branch: `main`
-- Repository: `/Users/hua/Documents/youtubek agent`
+- Repository: `/Users/developer/Documents/youtubek agent`
 - Required base: `main@46f8497e771e1461034942dd7967f19d85f79f81`
-- Implementer worktree: `/Users/hua/Documents/yia-worktrees/task-002`
+- Implementer worktree: `/Users/developer/Documents/yia-worktrees/task-002`
 - Implementer branch: `grok/task-002-config-domain-contracts`
 - Suggested commit message: `docs: assign task 002 implementation`
 
@@ -33,7 +33,7 @@
 ## 必须确认的内容
 
 1. `main` 精确位于 `46f8497e771e1461034942dd7967f19d85f79f81`，初始范围只有 6 个 Expected files。
-2. `/Users/hua/Documents/yia-worktrees/task-002` 存在、干净，分支为 `grok/task-002-config-domain-contracts`，HEAD 精确为 `46f8497e771e1461034942dd7967f19d85f79f81`。
+2. `/Users/developer/Documents/yia-worktrees/task-002` 存在、干净，分支为 `grok/task-002-config-domain-contracts`，HEAD 精确为 `46f8497e771e1461034942dd7967f19d85f79f81`。
 3. `TASK-002` 为 `IN_PROGRESS`，Grok 是唯一 Implementer；Codex Reviewer 明确等待实现 commit。
 4. Implementer 包无占位符，绑定正确 base/worktree/branch，允许范围精确为任务卡 8 个文件。
 5. 依赖与权限仍精确为已批准范围；没有新增 extras、依赖、真实密钥/Vault、云调用、数据库 Schema 或 launchd 权限。
@@ -49,9 +49,9 @@
    git branch --show-current
    git rev-parse HEAD
    git status --short
-   git -C /Users/hua/Documents/yia-worktrees/task-002 branch --show-current
-   git -C /Users/hua/Documents/yia-worktrees/task-002 rev-parse HEAD
-   git -C /Users/hua/Documents/yia-worktrees/task-002 status --short
+   git -C /Users/developer/Documents/yia-worktrees/task-002 branch --show-current
+   git -C /Users/developer/Documents/yia-worktrees/task-002 rev-parse HEAD
+   git -C /Users/developer/Documents/yia-worktrees/task-002 status --short
    ```
 
 2. 运行：
@@ -92,8 +92,8 @@
    ```bash
    git status --short
    git rev-parse HEAD
-   git -C /Users/hua/Documents/yia-worktrees/task-002 status --short
-   git -C /Users/hua/Documents/yia-worktrees/task-002 rev-parse HEAD
+   git -C /Users/developer/Documents/yia-worktrees/task-002 status --short
+   git -C /Users/developer/Documents/yia-worktrees/task-002 rev-parse HEAD
    ```
 
    `main` 必须干净；TASK-002 worktree 必须仍干净且保持原 base。不要运行 Implementer、安装依赖、改变实现分支或把后续任务设为 `READY`。

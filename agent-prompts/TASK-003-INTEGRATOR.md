@@ -9,8 +9,8 @@
 - Agent: 全新 Codex Integrator 会话
 - Acceptance anchor: `main@fb1cdd728081c9c1ae0c0bcb82b7490332090b28`
 - Required execution base: 主控将在 Status Integrator 提交完成后随启动指令提供；该 main HEAD 必须干净、为 anchor 的单父后继，且相对 anchor 仅为本轮控制面同步新增的 7 个指定文件
-- Main worktree: `/Users/hua/Documents/youtubek agent`
-- Source worktree: `/Users/hua/Documents/yia-worktrees/task-003`，严格只读
+- Main worktree: `/Users/developer/Documents/youtubek agent`
+- Source worktree: `/Users/developer/Documents/yia-worktrees/task-003`，严格只读
 - Source branch: `codex/task-003-state-store`
 - Accepted source/review head: `f07795f854e02b15e8c438622042e360b7c0e8b9`
 - Reviewed implementation source: `adab4bb00dd7e917b295c22fd8357a4f11515912`
@@ -23,7 +23,7 @@
 
 ## 预检
 
-在 main 确认分支为 `main`、HEAD 为主控指定 execution base、工作树无 staged/unstaged/untracked 文件、身份为 `Mozhu <huangbuqubunao@gmail.com>` 且 `user.useConfigOnly=true`。确认任务仍为 `ACCEPTED`，不是 `DONE`。
+在 main 确认分支为 `main`、HEAD 为主控指定 execution base、工作树无 staged/unstaged/untracked 文件、身份为 `Mozhu <maintainer@example.invalid>` 且 `user.useConfigOnly=true`。确认任务仍为 `ACCEPTED`，不是 `DONE`。
 
 在 source worktree 只读确认：分支 `codex/task-003-state-store`、HEAD `f07795...`、工作树干净；review commit 父提交为 `adab4bb...` 且只修改 handoff；实现 Diff 相对 `dcc7d85...` 精确只为下列 5 文件：
 

@@ -4,16 +4,16 @@
 
 ## 固定上下文
 
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-003`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-003`
 - Branch: `codex/task-003-state-store`
 - Product base: `dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176`
 - Reviewed implementation head: `adab4bb00dd7e917b295c22fd8357a4f11515912`
 - Main review authorization: 由主控在 Status Integrator 提交后随启动指令提供，不在本提交内自引用 SHA
 - Parallel work: TASK-004 Grok Implementer 修复；不得读取、写入、检查、清理或等待 TASK-004
 
-控制面文档必须从 main 读取，即 `/Users/hua/Documents/youtubek agent/AGENTS.md`、该目录下的 `docs/`、`tasks/TASK-003-state-store.md` 及 `agent-prompts/`；TASK-003 source worktree 只用于代码、测试和本任务 handoff。完整读取 AGENTS、COLLABORATION、PROJECT_STATUS、PRD、System Design 第 3/5/8/9/12 节、Reuse Register、ADR-002 C-05/C-07/C-08、ADR-003 S-01 至 S-08、TASK-003 任务卡、handoff、TASK-003 Implementer 包及本包。
+控制面文档必须从 main 读取，即 `/Users/developer/Documents/youtubek agent/AGENTS.md`、该目录下的 `docs/`、`tasks/TASK-003-state-store.md` 及 `agent-prompts/`；TASK-003 source worktree 只用于代码、测试和本任务 handoff。完整读取 AGENTS、COLLABORATION、PROJECT_STATUS、PRD、System Design 第 3/5/8/9/12 节、Reuse Register、ADR-002 C-05/C-07/C-08、ADR-003 S-01 至 S-08、TASK-003 任务卡、handoff、TASK-003 Implementer 包及本包。
 
-开始前在 TASK-003 worktree 确认分支 `codex/task-003-state-store`、HEAD 精确为 `adab4bb...`、worktree 干净、身份 `Mozhu <huangbuqubunao@gmail.com>`、`user.useConfigOnly=true`，且完整 Diff 相对 `dcc7d85...` 仅为批准的 5 文件；否则停止，不写交接。
+开始前在 TASK-003 worktree 确认分支 `codex/task-003-state-store`、HEAD 精确为 `adab4bb...`、worktree 干净、身份 `Mozhu <maintainer@example.invalid>`、`user.useConfigOnly=true`，且完整 Diff 相对 `dcc7d85...` 仅为批准的 5 文件；否则停止，不写交接。
 
 ## 范围、复用与红线
 

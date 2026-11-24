@@ -4,7 +4,7 @@
 
 - Role: Implementer; agent `/root/source_context`.
 - Base: `b861de3d96ad14f72ecad2a824f5f7dac07e42e2`.
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-source-context`.
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-source-context`.
 - Branch: `codex/task-readiness-source-context`.
 - Date: 2026-10-13.
 - Reviewer: `/root/intel_bounded_review`, awaiting independent review.

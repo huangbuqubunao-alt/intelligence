@@ -6,7 +6,7 @@
 - Role: `Implementer`
 - Agent/session: `Codex`
 - Base branch/commit: `main@6b4d59c882ccdcbd0e5a6069a6661e0672921a80`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-006`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-006`
 - Branch: `codex/task-006-local-transcription`
 - Head commit: 待本报告与全部离线检查完成后创建
 - Reported: `2026-07-19`
@@ -636,7 +636,7 @@
 - 固定基线为 `6b4d59c882ccdcbd0e5a6069a6661e0672921a80`。审查 source 是
   `codex/task-006-local-transcription@548338978b8656db0c650be276f847850af940a1`；唯一父提交精确为
   `66f0b31023c290d76e2c14bea72d1cc103cc27c7`。审查开始及写入本节前，source worktree 均干净。
-- 主仓动态授权：`git -C '/Users/hua/Documents/youtubek agent' log -1 --format=%H --
+- 主仓动态授权：`git -C '/Users/developer/Documents/youtubek agent' log -1 --format=%H --
   agent-prompts/TASK-006-REVIEWER-4-CODEX.md` 解析为
   `3a6d0c38b0869622581e4f763371147c6c30d2d9`。该提交中的 `docs/PROJECT_STATUS.md` 明确将此精确
   source 列为第四次独立审查，TASK-006 状态为 `IN_REVIEW`。

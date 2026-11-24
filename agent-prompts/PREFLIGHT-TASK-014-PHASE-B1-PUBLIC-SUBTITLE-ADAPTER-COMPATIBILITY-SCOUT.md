@@ -9,7 +9,7 @@ Task: TASK-014 Phase B-1 — public subtitle Adapter compatibility diagnostic
 Role: Read-only Scout
 Agent: Codex
 Control-plane baseline: main@f73d79b3e2f22632393bd314b9a87433e505f1ba
-Evidence source worktree: /Users/hua/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry
+Evidence source worktree: /Users/developer/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry
 Evidence source branch: codex/task-014-phase-b1-console-entry-retry
 Evidence HEAD: 9acab5d876b38d64a9aeab7aca3474be2676ce38
 Required sole parent: 365c8fca966a3fb7608f41b2d3ac530504193c7b

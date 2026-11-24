@@ -4,11 +4,11 @@
 
 ## 固定事实
 
-- Main：`/Users/hua/Documents/youtubek agent` / `main@83bd1f1fcfdef5d4949f59b513033803113c3d8a`
-- Source：`/Users/hua/Documents/yia-worktrees/task-009` /
+- Main：`/Users/developer/Documents/youtubek agent` / `main@83bd1f1fcfdef5d4949f59b513033803113c3d8a`
+- Source：`/Users/developer/Documents/yia-worktrees/task-009` /
   `codex/task-009-obsidian-notes@956e37a15ab29106f16c45873fccb813cc5a959f`
 - Source base：`473119704c7638d7afd4e68d84d00e85064ceabd`；implementation commit 的唯一父必须是该 base。
-- 身份必须是 `Mozhu <huangbuqubunao@gmail.com>` 且 `user.useConfigOnly=true`。
+- 身份必须是 `Mozhu <maintainer@example.invalid>` 且 `user.useConfigOnly=true`。
 - Source worktree 的 `tasks/` 与 `docs/PROJECT_STATUS.md` 是分配前固定快照；实时 TASK-009=`IN_REVIEW` 仅以 main 的本次提交和 Reviewer 包为准，历史状态不得视为冲突或写回 source。
 
 ## 唯一允许提交范围

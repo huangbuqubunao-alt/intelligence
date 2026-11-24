@@ -3,7 +3,7 @@
 > vitest run --run src/workspace/BilibiliImport.test.tsx
 
 
- RUN  v2.1.9 /Users/hua/Documents/yia-worktrees/v1x-bilibili-provider/frontend
+ RUN  v2.1.9 /Users/developer/Documents/yia-worktrees/v1x-bilibili-provider/frontend
 
  ✓ src/workspace/BilibiliImport.test.tsx (2 tests) 151ms
 

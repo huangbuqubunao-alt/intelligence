@@ -34,7 +34,7 @@
   ],
   "input_policy": "Before any real output, sealed per-case prepared.json must bind fresh DB/data/ordinary VerifiedInput with exact frozen real timed cues or unchanged original controls; independent review and root receipt bind this prepared SHA.",
   "installation_receipt": {
-    "path": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/docs/validation/end-to-end-user-readiness/MODEL_REPLACEMENT_INSTALL_RECEIPT.json",
+    "path": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/docs/validation/end-to-end-user-readiness/MODEL_REPLACEMENT_INSTALL_RECEIPT.json",
     "sha256": "4ccdde59f35ae105c2cfc46589d322db612d2a34699dbaca594f994f09b5a7eb",
     "root_and_independent_blob_review": "PASS per parent dispatch, no inference"
   },

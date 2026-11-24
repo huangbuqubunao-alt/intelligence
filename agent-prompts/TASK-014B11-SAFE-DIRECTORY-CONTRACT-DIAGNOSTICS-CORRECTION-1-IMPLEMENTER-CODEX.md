@@ -12,7 +12,7 @@ Task: TASK-014B11 — safe subtitle directory contract-state diagnostics, Correc
 Role: original Codex Implementer
 Control-plane baseline: main@63911ff6c478bf89cb724474c3ab34e518652440
 Execution main: dynamic clean single-parent main commit containing this prompt and synchronized TASK-014B11/TASK-014/status/index documents; its sole parent must be 63911ff6c478bf89cb724474c3ab34e518652440
-Worktree: /Users/hua/Documents/yia-worktrees/task-014b11-safe-directory-contract-diagnostics
+Worktree: /Users/developer/Documents/yia-worktrees/task-014b11-safe-directory-contract-diagnostics
 Branch: codex/task-014b11-safe-directory-contract-diagnostics
 Original implementation: f22e0dbfa8222280d4b97c3cd7f1e7cf37e7cf50
 Original implementation base: 80aff83fc033a8bd2950108cad2e34feea5d396f

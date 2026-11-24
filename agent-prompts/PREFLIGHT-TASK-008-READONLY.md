@@ -1,6 +1,6 @@
 # TASK-008 read-only preflight — cloud analysis contracts and privacy
 
-Role: Read-only Scout. Work only in `/Users/hua/Documents/youtubek agent`.
+Role: Read-only Scout. Work only in `/Users/developer/Documents/youtubek agent`.
 
 This packet authorizes inspection only. Do not modify or create any repository or temporary
 file, stage/commit, create a branch/worktree, run uv/tests/builds or Python imports, install

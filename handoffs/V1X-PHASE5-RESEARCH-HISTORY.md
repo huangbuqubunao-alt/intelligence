@@ -7,7 +7,7 @@ its exact SHA is recorded in the final conversation response. Reviewed code HEAD
 
 | # | Acceptance item | Result |
 | --- | --- | --- |
-| 1 | Worktree / branch | `/Users/hua/Documents/yia-worktrees/v1x-research-history` / `chatgpt/v1x-research-history`; independently created clean. |
+| 1 | Worktree / branch | `/Users/developer/Documents/yia-worktrees/v1x-research-history` / `chatgpt/v1x-research-history`; independently created clean. |
 | 2 | Starting HEAD | Exactly `22ea84a79bba3f27566a221e774c93c3cc797a4f`. |
 | 3 | Final HEAD | Final report-only commit; resolve `git rev-parse chatgpt/v1x-research-history`. Reviewed implementation SHA above. |
 | 4 | Phase 4 persistence audit | `research_items`: semantic input + current pointer. `research_results`: immutable execution, sequence, canonical packet, payload hash, result seal and aware UTC timestamp. Packet includes exact scope/language/contract/Evidence/recorded Intelligence provenance. |

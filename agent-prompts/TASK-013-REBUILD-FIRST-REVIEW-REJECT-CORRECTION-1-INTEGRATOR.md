@@ -5,9 +5,9 @@
 ## 固定对象
 
 - Main base：`main@a7c670c232e3129972138dd45a1a0c21877e35e0`，必须干净且为唯一父基线。
-- Rejected review evidence：`/Users/hua/Documents/yia-worktrees/task-013-rebuild` / `codex/task-013-e2e-acceptance-rebuild@3cf8b5fd8e7abec8f8a6595227a8919a7a8804e1`，开始时必须干净；唯一父提交为实现 `0a9e16887e7dc0b287be941a34e2908766e3992e`，且只修改 `handoffs/TASK-013.md`。
+- Rejected review evidence：`/Users/developer/Documents/yia-worktrees/task-013-rebuild` / `codex/task-013-e2e-acceptance-rebuild@3cf8b5fd8e7abec8f8a6595227a8919a7a8804e1`，开始时必须干净；唯一父提交为实现 `0a9e16887e7dc0b287be941a34e2908766e3992e`，且只修改 `handoffs/TASK-013.md`。
 - Verdict=`REJECT`，P1-1：E2E 在失败、恢复和重跑期间复用同一个 `_OfflineMvpFlow` 的进程内字典，未证明重启后基于持久 SQLite/DATA/Vault 的恢复、幂等和昂贵调用缓存。
-- 历史 `/Users/hua/Documents/yia-worktrees/task-013` / `codex/task-013-e2e-acceptance` 是已拒绝审计证据，必须保留且不得访问、修改或清理。
+- 历史 `/Users/developer/Documents/yia-worktrees/task-013` / `codex/task-013-e2e-acceptance` 是已拒绝审计证据，必须保留且不得访问、修改或清理。
 
 ## 唯一允许提交范围
 

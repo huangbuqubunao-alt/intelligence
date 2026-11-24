@@ -11,17 +11,17 @@
 {"stage": "HTTP stream backup download", "seconds": 3.738, "python_peak_delta_bytes": 4231543, "process_peak_rss_bytes": 71303168}
 {"stage": "HTTP stream restore stage", "seconds": 18.884, "python_peak_delta_bytes": 4221432, "process_peak_rss_bytes": 71303168}
 Traceback (most recent call last):
-  File "/Users/hua/Documents/yia-worktrees/dogfood-day2-large-import/tests/scripts/dogfood_day2_large_media.py", line 176, in <module>
-  File "/Users/hua/Documents/yia-worktrees/dogfood-day2-large-import/tests/scripts/dogfood_day2_large_media.py", line 152, in main
+  File "/Users/developer/Documents/yia-worktrees/dogfood-day2-large-import/tests/scripts/dogfood_day2_large_media.py", line 176, in <module>
+  File "/Users/developer/Documents/yia-worktrees/dogfood-day2-large-import/tests/scripts/dogfood_day2_large_media.py", line 152, in main
     measure("restart-boundary restore activation", recovery.recover_and_apply_pending_restore, evidence)
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/hua/Documents/yia-worktrees/dogfood-day2-large-import/tests/scripts/dogfood_day2_large_media.py", line 93, in measure
+  File "/Users/developer/Documents/yia-worktrees/dogfood-day2-large-import/tests/scripts/dogfood_day2_large_media.py", line 93, in measure
     current, peak = tracemalloc.get_traced_memory()
              ^^^^^^^^
-  File "/Users/hua/Documents/yia-worktrees/dogfood-day2-large-import/tests/scripts/dogfood_day2_large_media.py", line 152, in <lambda>
+  File "/Users/developer/Documents/yia-worktrees/dogfood-day2-large-import/tests/scripts/dogfood_day2_large_media.py", line 152, in <lambda>
     measure("restart-boundary restore activation", recovery.recover_and_apply_pending_restore, evidence)
                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/Users/hua/Documents/yia-worktrees/dogfood-day2-large-import/tests/scripts/dogfood_day2_large_media.py", line 65, in post
+  File "/Users/developer/Documents/yia-worktrees/dogfood-day2-large-import/tests/scripts/dogfood_day2_large_media.py", line 65, in post
     connection.close()
            ^^^^^^^^^^^^
 AssertionError: (202, {'restore': {'pending': True, 'restart_required': True, 'restore_id': '7f7de868f9254b50a86463bf9c819727', 'message': 'Restore is ready and will apply before processing resumes.'}})

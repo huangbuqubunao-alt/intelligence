@@ -4,7 +4,7 @@
 
 - Implementer: `/root/bigmodel_audit_writer`, sole writer, no subagents.
 - Base: `b0fab81268090430e41017bee9ecb647875b63e2` (accepted f9 settings + Root task/docs).
-- WT: `/Users/hua/Documents/yia-worktrees/readiness-credential-editor-isolation`.
+- WT: `/Users/developer/Documents/yia-worktrees/readiness-credential-editor-isolation`.
 - Branch: `codex/task-readiness-credential-editor-isolation`.
 - Date: 2026-10-27 start; resumed 2026-10-28 after interruption, retained all WIP/evidence. Head is this scoped commit, reported after commit; clean STOP / IN_REVIEW only.
 - No backend, SQL, transport, runtime model/provider choice, credentials, production config, dependency, toolchain, owner or main changes. Root active QA6178/6179/tab/real saved key were never accessed.

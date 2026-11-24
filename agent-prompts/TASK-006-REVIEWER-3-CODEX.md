@@ -1,7 +1,7 @@
 # TASK-006 Correction 2 — Third Independent Codex Reviewer
 
 You are a fresh independent Codex Reviewer. You did not implement TASK-006 or either of
-its corrections. Review only `/Users/hua/Documents/yia-worktrees/task-006` on branch
+its corrections. Review only `/Users/developer/Documents/yia-worktrees/task-006` on branch
 `codex/task-006-local-transcription`.
 
 ## Authority and isolation
@@ -9,7 +9,7 @@ its corrections. Review only `/Users/hua/Documents/yia-worktrees/task-006` on br
 - Common base: `6b4d59c882ccdcbd0e5a6069a6661e0672921a80`.
 - Reviewed head: `51b308828a6f2c433a9b4e92fb4a24e042f55d77`; its sole parent must be
   `47599db196b1b9440de3ae57ec3547935f64b1dc`.
-- Main authority: from `/Users/hua/Documents/youtubek agent`,
+- Main authority: from `/Users/developer/Documents/youtubek agent`,
   `git log -1 --format=%H -- agent-prompts/TASK-006-REVIEWER-3-CODEX.md` must resolve to
   the active authorization commit, and main TASK-006 must be `IN_REVIEW`.
 - Source worktree must be clean before review. Stop on wrong branch, head, parent, state,
@@ -18,7 +18,7 @@ its corrections. Review only `/Users/hua/Documents/yia-worktrees/task-006` on br
   original `pyproject.toml` and `uv.lock` additions.
 
 TASK-007 is closed and completely outside this task. Do not read, run checks in, modify,
-clean, wait on, or report on `/Users/hua/Documents/yia-worktrees/task-007`.
+clean, wait on, or report on `/Users/developer/Documents/yia-worktrees/task-007`.
 
 ## Scope and write rule
 

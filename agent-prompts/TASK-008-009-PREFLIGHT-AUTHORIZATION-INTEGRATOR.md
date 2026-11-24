@@ -1,6 +1,6 @@
 # TASK-008 / TASK-009 read-only preflight authorization sync
 
-Role: Status Integrator. Work only in `/Users/hua/Documents/youtubek agent`.
+Role: Status Integrator. Work only in `/Users/developer/Documents/youtubek agent`.
 
 This is a control-plane-only task. Commit two independent read-only Scout packets for
 TASK-008 and TASK-009. Do not create worktrees/branches, change task states, install or
@@ -10,7 +10,7 @@ push, merge, or clean anything.
 ## Fixed inputs
 
 - Required main: `main@37819ec24da6e1a61d635dd36f269aff0e62a005`
-- Git identity: `Mozhu <huangbuqubunao@gmail.com>`
+- Git identity: `Mozhu <maintainer@example.invalid>`
 - `user.useConfigOnly=true`
 - TASK-006=`DONE`
 - TASK-007=`DONE`

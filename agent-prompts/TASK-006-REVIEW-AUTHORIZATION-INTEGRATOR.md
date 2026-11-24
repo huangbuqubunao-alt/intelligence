@@ -7,7 +7,7 @@ TASK-006 Phase A; do not run product commands or access the active TASK-007 work
 
 - Required main base: `78b7e54e32d8b97a148f151b0bf86127121de292`
 - Source branch/worktree: `codex/task-006-local-transcription` /
-  `/Users/hua/Documents/yia-worktrees/task-006`
+  `/Users/developer/Documents/yia-worktrees/task-006`
 - Required source head: `c6ff804569b376c347719296d80fbe1abf99057a`
 - Required source parent/base: `6b4d59c882ccdcbd0e5a6069a6661e0672921a80`
 

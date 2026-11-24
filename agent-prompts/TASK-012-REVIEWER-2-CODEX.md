@@ -4,8 +4,8 @@
 
 ## 固定对象
 
-- Main authorization：`git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-012-REVIEWER-2-CODEX.md`；main 中 TASK-012 必须为 `IN_REVIEW`。
-- Source/base/head：`/Users/hua/Documents/yia-worktrees/task-012` / `codex/task-012-cli-operations@d046c394e3c6bcf47c05231f71dbf50db4c1f5f8` / `8e322f362d2ff0972ee987b7c06c8453a9dce73d`。
+- Main authorization：`git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-012-REVIEWER-2-CODEX.md`；main 中 TASK-012 必须为 `IN_REVIEW`。
+- Source/base/head：`/Users/developer/Documents/yia-worktrees/task-012` / `codex/task-012-cli-operations@d046c394e3c6bcf47c05231f71dbf50db4c1f5f8` / `8e322f362d2ff0972ee987b7c06c8453a9dce73d`。
 - Correction 1 唯一父为 Reviewer 1 evidence `9b5dec5d24e87ab942dff4268f7a95c35947d411`，其唯一父为 original implementation `7c83283eac83b01c88a7625b4a216790d14514b2`。
 - 完整允许范围严格为 12 个 TASK-012 路径；Correction 1 只可改 `cli.py`、`logging.py`、operations integration test 与 handoff。`pyproject.toml` 例外仅为 source-include；依赖、lock、build backend 不得变化。
 

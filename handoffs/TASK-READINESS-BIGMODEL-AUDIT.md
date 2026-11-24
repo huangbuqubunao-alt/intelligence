@@ -6,7 +6,7 @@
 
 - Implementer: `/root/bigmodel_audit_writer`, sole writer; no subagent.
 - Base: `ea7e74fcab2c5cdc8dfceeef063dd4a4091b1716`.
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-bigmodel-audit`.
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-bigmodel-audit`.
 - Branch: `codex/task-readiness-bigmodel-audit`.
 - Status: **IN_REVIEW; implementation checks closed, independent review/Root acceptance pending. No main integration.**
 - Scope: new042 audit migration, finite audit identity descriptor, state/read/cancellation/long-conflict/BackupRestore compatibility and database doctor latest-version check; necessary related tests. No frontend, local API, provider transport, runtime composition, credentials, production configuration, dependency/lockfile, actual HTTP/model, owner data or main change.
@@ -37,7 +37,7 @@ Backup latest version is42 while both allowlists explicitly retain41 and34–40.
 
 ## Verification so far
 
-All Python uses existing root `.venv/bin/python`, `PYTHONDONTWRITEBYTECODE=1`, and explicit `PYTHONPATH=/Users/hua/Documents/yia-worktrees/readiness-bigmodel-audit/src`; no default editable checkout is trusted. All DB/DATA are isolated fixtures, no real provider, keychain or owner state.
+All Python uses existing root `.venv/bin/python`, `PYTHONDONTWRITEBYTECODE=1`, and explicit `PYTHONPATH=/Users/developer/Documents/yia-worktrees/readiness-bigmodel-audit/src`; no default editable checkout is trusted. All DB/DATA are isolated fixtures, no real provider, keychain or owner state.
 
 | Check | Actual result |
 |---|---|

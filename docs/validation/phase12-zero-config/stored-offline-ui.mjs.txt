@@ -25,7 +25,7 @@ try {
   await dialog.getByText(message,{exact:true}).waitFor();
   await dialog.getByText(t('No, no successful check has completed yet','否，尚无成功完成的检查'),{exact:true}).waitFor();
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
-  await page.screenshot({path:'/Users/hua/Documents/phase12-zero-config-evidence/stored-offline-'+language+'-'+width+'.png',fullPage:true});
+  await page.screenshot({path:'/Users/developer/Documents/phase12-zero-config-evidence/stored-offline-'+language+'-'+width+'.png',fullPage:true});
   await post('fixture/failure',{index:i,offline:false});
   await post('fixture/advance',{index:i,publish:false}); // Synthetic clock only; no production cooldown bypass.
   await page.getByRole('button',{name:t('Retry','重试'),exact:true}).waitFor();
@@ -34,5 +34,5 @@ try {
   results.push({language,width,sourceCreatedButBaselineAbsent:true,actionableOffline:true,eligibleRetrySucceeded:true});
   await page.close();
  }
- writeFileSync('/Users/hua/Documents/phase12-zero-config-evidence/browser-stored-offline.json',JSON.stringify({kind:'DETERMINISTIC_REAL_LOCAL_API_SOURCE_RUN',results},null,2));console.log('Four stored-source failed-baseline and eligible Retry UI scenarios passed');
+ writeFileSync('/Users/developer/Documents/phase12-zero-config-evidence/browser-stored-offline.json',JSON.stringify({kind:'DETERMINISTIC_REAL_LOCAL_API_SOURCE_RUN',results},null,2));console.log('Four stored-source failed-baseline and eligible Retry UI scenarios passed');
 }finally{await browser.close();}

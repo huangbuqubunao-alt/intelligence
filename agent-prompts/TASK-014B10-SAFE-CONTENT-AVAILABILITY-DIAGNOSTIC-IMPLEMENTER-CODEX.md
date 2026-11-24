@@ -11,7 +11,7 @@ Role: Implementer
 Agent: Codex
 Implementation baseline: main@6fd7b5cc3fae6466fb6181151513f4854d196683
 Control-plane execution main: dynamic clean main at the single-parent authorization commit containing this prompt; it must descend from the implementation baseline and contain no unreviewed product changes
-Worktree: /Users/hua/Documents/yia-worktrees/task-014b10-safe-content-availability-diagnostic
+Worktree: /Users/developer/Documents/yia-worktrees/task-014b10-safe-content-availability-diagnostic
 Branch: codex/task-014b10-safe-content-availability-diagnostic
 Required source HEAD: 6fd7b5cc3fae6466fb6181151513f4854d196683
 Required sole parent of first product commit: 6fd7b5cc3fae6466fb6181151513f4854d196683

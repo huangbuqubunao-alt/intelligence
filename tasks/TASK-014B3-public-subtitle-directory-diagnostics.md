@@ -5,13 +5,13 @@
 - Reviewer: `全新独立 Codex Reviewer（APPROVE；P0–P3 均无）`
 - 依赖：ADR-013、ADR-015、TASK-014B0 `DONE`、TASK-014B2 `DONE`
 - 基线：`main@9c5f08ec829629591b095bd68841ca3ce0b22532`
-- Worktree：`/Users/hua/Documents/yia-worktrees/task-014b3-public-subtitle-diagnostics-implementation`
+- Worktree：`/Users/developer/Documents/yia-worktrees/task-014b3-public-subtitle-diagnostics-implementation`
 - Branch：`codex/task-014b3-public-subtitle-diagnostics-implementation`
 - Reuse decision：`DIRECT` — 现有锁定 yt-dlp Adapter、ProviderCallMetadata、JsonlLogger、公开字幕 smoke 和离线 fixture/test；不新增第三方代码或依赖
 
 ## 背景与目标
 
-旧 worktree `/Users/hua/Documents/yia-worktrees/task-014b3-public-subtitle-diagnostics` 及其旧分支已废止：禁止访问、
+旧 worktree `/Users/developer/Documents/yia-worktrees/task-014b3-public-subtitle-diagnostics` 及其旧分支已废止：禁止访问、
 修改、合并、清理或复用。上述 worktree/branch 是本任务唯一实现 source。
 
 唯一 B-1 evidence `9acab5d876b38d64a9aeab7aca3474be2676ce38` 是真实 smoke `FAIL`：两个固定公开视频各完成

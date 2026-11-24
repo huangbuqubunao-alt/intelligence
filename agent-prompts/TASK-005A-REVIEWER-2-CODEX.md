@@ -13,16 +13,16 @@ Correction 1 或任何 Status Integrator 写入。你只审查 Correction 1
 
 ## 固定对象与启动门禁
 
-- Main repository：`/Users/hua/Documents/youtubek agent`
+- Main repository：`/Users/developer/Documents/youtubek agent`
 - Main review authorization：动态执行
-  `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-005A-REVIEWER-2-CODEX.md`
+  `git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-005A-REVIEWER-2-CODEX.md`
 - Required authorization parent：`bb61921bc93c17e01e9b3f4e2971933b30802b21`
-- Source worktree：`/Users/hua/Documents/yia-worktrees/task-005a`
+- Source worktree：`/Users/developer/Documents/yia-worktrees/task-005a`
 - Source branch：`codex/task-005a-local-model-shared-contracts`
 - Original base：`82f45a1c04f9eba3264cd743b28bc339d79b34fc`
 - First review evidence：`3cec2d6a7b60b11912c10e714dc1473197d7374f`
 - Reviewed Correction 1 head：`3a7df1029a77b7dec84a76c304c10e372f755b77`
-- Required identity：`Mozhu <huangbuqubunao@gmail.com>`；`user.useConfigOnly=true`
+- Required identity：`Mozhu <maintainer@example.invalid>`；`user.useConfigOnly=true`
 
 开始时 main 必须在动态 authorization commit、它是 Required authorization parent 的
 唯一直接后继、main 干净且 TASK-005A=`IN_REVIEW`；source 必须在 fixed Correction head、

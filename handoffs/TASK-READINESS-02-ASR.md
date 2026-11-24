@@ -4,7 +4,7 @@
 
 - Task: READINESS-02-ASR；Implementer `/root/readiness_asr`。
 - Base: `7302f244e6326616c2b1ec72d0ad5f026d21cecb`。
-- Worktree: `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness-asr`。
+- Worktree: `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness-asr`。
 - Branch: `codex/task-readiness-asr`。
 - Head: scoped commit SHA 由实际 Git 结果返回 root；任务建议 `IN_REVIEW`，不得自行设 DONE/合并。
 - 具体模型实验范围已有用户批准，正式采用仍需 root 独立验收和授权。

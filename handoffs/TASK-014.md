@@ -6,7 +6,7 @@
 - Role: `Implementer`
 - Agent/session: `Codex / TASK-014 Phase A`
 - Base branch/commit: `main@54b5be8c28554b70b1e3f294d6ed6f9f6fee2c21`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-a`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-014-release-readiness-phase-a`
 - Branch: `codex/task-014-release-readiness-phase-a`
 - Head commit: `pending implementation commit; reported to orchestrator after commit`
 - Started: `2026-07-26`
@@ -169,7 +169,7 @@
 ### Fixed review object and cleanliness
 
 - Review role: independent Codex Reviewer; source worktree:
-  `/Users/hua/Documents/yia-worktrees/task-014-release-readiness-phase-a`.
+  `/Users/developer/Documents/yia-worktrees/task-014-release-readiness-phase-a`.
 - Fixed control-plane base: `main@d0d136a4754a97954f64f1ca39b87837e639decc`.
 - Reviewed source HEAD: `8c35cd0a2c764a6ed9483ea6c8377c8f6ca0ab59`; sole parent confirmed as
   `d0d136a4754a97954f64f1ca39b87837e639decc`.
@@ -660,7 +660,7 @@
 ### Fixed review object
 
 - Role: `Independent Reviewer`.
-- Source/branch: `/Users/hua/Documents/yia-worktrees/task-014b7-safe-directory-origin-fingerprint` /
+- Source/branch: `/Users/developer/Documents/yia-worktrees/task-014b7-safe-directory-origin-fingerprint` /
   `codex/task-014b7-safe-directory-origin-fingerprint`.
 - Reviewed correction: `4d4366f6a6403403a0d9bed65fbbf862a362eede`.
 - Parent chain: Correction 2 has sole parent `069e62ececada5152871fb7c626e64c146a270ad`,
@@ -786,7 +786,7 @@
 ### Fixed review object and preflight
 
 - Role: `Independent Reviewer`.
-- Source/branch: `/Users/hua/Documents/yia-worktrees/task-014b8-restricted-directory-keyname-diagnostic` /
+- Source/branch: `/Users/developer/Documents/yia-worktrees/task-014b8-restricted-directory-keyname-diagnostic` /
   `codex/task-014b8-restricted-directory-keyname-diagnostic`.
 - Reviewed implementation: `2334374f66497546108d12be541ab137b4a8981a`; its sole
   parent is `43f2c748c43215facb231f76a0c93ac45d350657`.
@@ -848,7 +848,7 @@
 ### Fixed assignment and scope
 
 - Role: `Codex Implementer`.
-- Source/branch: `/Users/hua/Documents/yia-worktrees/task-014b10-safe-content-availability-diagnostic` /
+- Source/branch: `/Users/developer/Documents/yia-worktrees/task-014b10-safe-content-availability-diagnostic` /
   `codex/task-014b10-safe-content-availability-diagnostic@6fd7b5cc3fae6466fb6181151513f4854d196683`.
 - Required sole parent of the Implementer commit: `6fd7b5cc3fae6466fb6181151513f4854d196683`;
   its source parent is `e975ff4f343442e69bb88e09e36bffc7996341cf`. Source and dynamic control-plane main
@@ -973,7 +973,7 @@
 ### Fixed assignment, preflight, and reuse
 
 - Role: original `Codex Implementer`; task state remains `IN_PROGRESS / Codex`.
-- Source/branch: `/Users/hua/Documents/yia-worktrees/task-014b10-safe-content-availability-diagnostic` /
+- Source/branch: `/Users/developer/Documents/yia-worktrees/task-014b10-safe-content-availability-diagnostic` /
   `codex/task-014b10-safe-content-availability-diagnostic`.
 - Required source HEAD and sole parent of this Correction commit:
   `2ea3455246a596f8304d2b0c00435862f8f3ea9e`; its sole parent is implementation

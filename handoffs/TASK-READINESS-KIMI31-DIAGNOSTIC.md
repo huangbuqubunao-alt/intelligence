@@ -8,7 +8,7 @@ Base `b080d26aa260eb02ca740427630fdb0670959f67`; QA-only, pending Root bounded r
 
 Preparation verifies the three pinned public source files and three official local snapshots, freezes their bytes, all imported production Python source plus the new script, target profile, origin and final wire hash. It writes only `.var/kimi-public-diagnostic/package` in this worktree. No oracle or actual model output is opened. Root prepares the actual package after reviewing the fixed source; therefore no actual prepared SHA is claimed here.
 
-The external ledger is fixed at `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/kimi-public-20261029-ledger`, outside product Restore/package/worktree selection. A flock and O_EXCL record plus file/directory fsync precede credential resolution; identical case identity blocks copied-package replay. Reservation is never released. Restart after an interrupted reservation appends `RESERVED_UNKNOWN_STOP`, without key or send. Up to eight reservations/8,000,000 micro-CNY, each <=1,000,000; any prior failed/unknown/unreviewed case prevents the next case. There is no next-case CLI. A later separately assigned case would require Root's semantic PASS tied to the previous exact public-final hash.
+The external ledger is fixed at `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/kimi-public-20261029-ledger`, outside product Restore/package/worktree selection. A flock and O_EXCL record plus file/directory fsync precede credential resolution; identical case identity blocks copied-package replay. Reservation is never released. Restart after an interrupted reservation appends `RESERVED_UNKNOWN_STOP`, without key or send. Up to eight reservations/8,000,000 micro-CNY, each <=1,000,000; any prior failed/unknown/unreviewed case prevents the next case. There is no next-case CLI. A later separately assigned case would require Root's semantic PASS tied to the previous exact public-final hash.
 
 Only execute can lazily resolve Native service `com.huangbuqubunao.intelligence.qa.kimi-public-20261029`, account `api-key`; no environment/old M12/production/BigModel fallback. Both pre-key and pre-wire validate current code/source/package/review. HTTP uses normal TLS, one POST, no redirect, a 300s absolute watchdog, no implicit reconnect, and <=2MiB response. Late DNS/TLS completion cannot POST. Unknown failures retain the reserve and bill UNKNOWN.
 
@@ -41,8 +41,8 @@ Explicit environment for all Python checks: `PYTHONDONTWRITEBYTECODE=1`, `PYTHON
 These commands do not contain credentials. Keep the `/tmp` official snapshots and original pinned public files available. Do not reuse any other credential namespace. Preparation alone does not authorize execution.
 
 ```sh
-cd /Users/hua/Documents/yia-worktrees/readiness-kimi31-public-diagnostic
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$PWD/src" /Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python scripts/validation/kimi_public_diagnostic.py prepare
+cd /Users/developer/Documents/yia-worktrees/readiness-kimi31-public-diagnostic
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$PWD/src" /Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python scripts/validation/kimi_public_diagnostic.py prepare
 ```
 
 Root inspects the concrete frozen package/hash, then exclusively writes `package/review.json` with exactly these fields: decision APPROVE; prepared_sha256 from prepared.json; review_commit the actual 40-hex review commit; reviewer Root; max_calls 1; total_authorized_microunits 8000000; expires_at a future timezone-aware ISO timestamp. That receipt records Root's bounded review, not a cryptographic token or permission for other cases. Date guard is October 29 UTC; on a later date stop for current pricing/profile review, not a quiet override.
@@ -50,7 +50,7 @@ Root inspects the concrete frozen package/hash, then exclusively writes `package
 Only after source + concrete package acceptance and Root's isolated credential setup:
 
 ```sh
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$PWD/src" /Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python scripts/validation/kimi_public_diagnostic.py execute
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$PWD/src" /Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python scripts/validation/kimi_public_diagnostic.py execute
 ```
 
 At most one send; **any result stops**. Preserve the external reservation/result and exact public final (if safe), then conduct independent semantic review using the unchanged original oracle. No retry, next case, normal eligibility or bill claim follows automatically.

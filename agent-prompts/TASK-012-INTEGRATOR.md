@@ -4,8 +4,8 @@
 
 ## 动态授权与固定对象
 
-- Execution base：`git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-012-INTEGRATOR.md` 必须解析为本授权提交，且 main 中 TASK-012=`ACCEPTED`。
-- Source：`/Users/hua/Documents/yia-worktrees/task-012` / `codex/task-012-cli-operations@4333b1d2bcd0a4b32162ab2d67f112c92fa7d0a3`，必须干净。
+- Execution base：`git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-012-INTEGRATOR.md` 必须解析为本授权提交，且 main 中 TASK-012=`ACCEPTED`。
+- Source：`/Users/developer/Documents/yia-worktrees/task-012` / `codex/task-012-cli-operations@4333b1d2bcd0a4b32162ab2d67f112c92fa7d0a3`，必须干净。
 - Accepted evidence 唯一父为 Correction 1 `d046c394e3c6bcf47c05231f71dbf50db4c1f5f8`；original base 为 `8e322f362d2ff0972ee987b7c06c8453a9dce73d`。
 - 完整 source Diff 只能为 12 个批准路径：三份 CLI/logging/entry、`pyproject.toml` source-include、root plist/docs、三份相同 package resources、operations test 与 handoff；依赖、`uv.lock`、build backend 不得变化。
 

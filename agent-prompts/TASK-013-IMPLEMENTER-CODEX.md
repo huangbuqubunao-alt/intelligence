@@ -4,8 +4,8 @@
 
 ## 动态授权与固定对象
 
-- Main authorization：`git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-013-IMPLEMENTER-CODEX.md` 必须解析为本分配控制面提交，且 main 中 TASK-013=`IN_PROGRESS`、Assignee=`Codex`。
-- Worktree/branch/base：`/Users/hua/Documents/yia-worktrees/task-013` / `codex/task-013-e2e-acceptance` / `9462b6a162a1e9a738b4073fa5e8b2252101f6af`；worktree 必须干净。
+- Main authorization：`git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-013-IMPLEMENTER-CODEX.md` 必须解析为本分配控制面提交，且 main 中 TASK-013=`IN_PROGRESS`、Assignee=`Codex`。
+- Worktree/branch/base：`/Users/developer/Documents/yia-worktrees/task-013` / `codex/task-013-e2e-acceptance` / `9462b6a162a1e9a738b4073fa5e8b2252101f6af`；worktree 必须干净。
 - source 卡/状态为分配 base 的冻结快照；不得写回 source 任务卡。TASK-011 与 TASK-012 已整合，允许在测试内组合其既有服务。
 
 ## 唯一允许修改

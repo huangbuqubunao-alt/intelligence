@@ -4,20 +4,20 @@
 
 ## 固定 source 与动态执行基线
 
-- Main repository: `/Users/hua/Documents/youtubek agent`
+- Main repository: `/Users/developer/Documents/youtubek agent`
 - Main branch: `main`
-- Source worktree: `/Users/hua/Documents/yia-worktrees/task-004`
+- Source worktree: `/Users/developer/Documents/yia-worktrees/task-004`
 - Source branch: `grok/task-004-discovery-metadata`
 - Source head / review evidence: `d4d6d01ceba3b9524305bb41ece81b8783f3db4b`
 - Reviewed implementation head: `7272528a3c5603087446251ee96ae4766fedeb96`
 - Review evidence parent: `7272528a3c5603087446251ee96ae4766fedeb96`
 - Product Diff anchor: `58c79afc8ab9f74d98c8181a6565be5c9246e4a4`
-- Git identity: `Mozhu <huangbuqubunao@gmail.com>`；`user.useConfigOnly=true`
+- Git identity: `Mozhu <maintainer@example.invalid>`；`user.useConfigOnly=true`
 
 本包只有在 acceptance Status Integrator 返回 `INTEGRATED` 后才能执行。动态解析提交本包的执行基线：
 
 ```bash
-main_repo='/Users/hua/Documents/youtubek agent'
+main_repo='/Users/developer/Documents/youtubek agent'
 execution_base="$(git -C "$main_repo" log -1 --format=%H -- agent-prompts/TASK-004-INTEGRATOR.md)"
 test -n "$execution_base"
 test "$(git -C "$main_repo" rev-parse HEAD)" = "$execution_base"

@@ -3,7 +3,7 @@
 > vitest run src/workspace/LocalImportFlow.test.tsx
 
 
- RUN  v2.1.9 /Users/hua/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend
+ RUN  v2.1.9 /Users/developer/Documents/yia-worktrees/dogfood-day2-local-import-fix/frontend
 
  ❯ src/workspace/LocalImportFlow.test.tsx (2 tests | 2 failed) 1132ms
    × D2-01 preserves the selected video when file-chooser focus triggers a Following refresh 1095ms

@@ -4,9 +4,9 @@
 
 ## 固定恢复状态
 
-- Main repository：`/Users/hua/Documents/youtubek agent`
+- Main repository：`/Users/developer/Documents/youtubek agent`
 - Main branch / base HEAD：`main@b28f52d0e4950f78dba315d4afe211ea5f75b93c`
-- Existing worktree：`/Users/hua/Documents/yia-worktrees/task-005`
+- Existing worktree：`/Users/developer/Documents/yia-worktrees/task-005`
 - Existing branch：`codex/task-005-subtitle-pipeline`
 - Required worktree HEAD：`b28f52d0e4950f78dba315d4afe211ea5f75b93c`
 - Implementer：Codex
@@ -30,7 +30,7 @@
 
 ## 必须校验
 
-1. main 为 `main@b28f52d...`，分支 `main`；身份精确为 `Mozhu <huangbuqubunao@gmail.com>` 且 `user.useConfigOnly=true`。
+1. main 为 `main@b28f52d...`，分支 `main`；身份精确为 `Mozhu <maintainer@example.invalid>` 且 `user.useConfigOnly=true`。
 2. 既有 task-005 worktree/branch/HEAD 精确匹配且工作区干净；只读核验，不创建、不写入、不运行 `uv`。
 3. 当前 8 文件全部一致：TASK-005=`IN_PROGRESS`；Codex 为唯一 Implementer；Reviewer 是全新独立 Codex 会话；TASK-006/007 Scout 也是独立 Codex 只读会话。
 4. 当前 TASK-005 分配内容中不得仍有 Grok Reviewer/Scout。`tasks/README.md` 和 `docs/PROJECT_STATUS.md` 的历史 TASK-001 至 TASK-004 Grok 审计记录必须保留，不属于冲突。

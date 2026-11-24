@@ -3,7 +3,7 @@
 Independent reviewer `/root/bigmodel_audit_review`; task
 SEMANTIC-READINESS-BOUND-REFERENCE-ZH-FIRST;2026-10-29.
 Base `78d727aadb1a2283e0225efd622327320b5c5756`.
-Own WT `/Users/hua/Documents/yia-worktrees/readiness-bound-reference-zh-first-semantic-review`.
+Own WT `/Users/developer/Documents/yia-worktrees/readiness-bound-reference-zh-first-semantic-review`.
 
 ## Verdict
 
@@ -23,7 +23,7 @@ tuning, production adoption or main operation is authorized by this report.
 ## Actual receipt and fixed artifacts
 
 H2:
-`/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/bigmodel-reference-v3-public-zh-technical-20261029`.
+`/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/bigmodel-reference-v3-public-zh-technical-20261029`.
 
 | Evidence | Observed value |
 |---|---|

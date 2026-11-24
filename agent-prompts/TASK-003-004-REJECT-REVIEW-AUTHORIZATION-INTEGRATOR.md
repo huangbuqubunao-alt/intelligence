@@ -24,7 +24,7 @@
 
 若准备内容不精确属于此清单，停止并报告；不得修改产品代码、依赖、锁文件、handoff、source worktree 或其他文件。
 
-开始必须确认 main HEAD 为 `1e3f58f...`、无预先暂存、Git identity 为 `Mozhu <huangbuqubunao@gmail.com>`、`user.useConfigOnly=true`。只读确认 TASK-004 worktree 干净且 HEAD `f34cbb...`，review evidence 相对 `9db800f...` 仅 handoff，完整范围仍为 17 文件；TASK-003 worktree 干净且 HEAD `adab4bb...`，相对 `dcc7d85...` 只为 5 个批准文件。
+开始必须确认 main HEAD 为 `1e3f58f...`、无预先暂存、Git identity 为 `Mozhu <maintainer@example.invalid>`、`user.useConfigOnly=true`。只读确认 TASK-004 worktree 干净且 HEAD `f34cbb...`，review evidence 相对 `9db800f...` 仅 handoff，完整范围仍为 17 文件；TASK-003 worktree 干净且 HEAD `adab4bb...`，相对 `dcc7d85...` 只为 5 个批准文件。
 
 确认 TASK-004 P1 四项、P2 两项、P3 一项描述与修复包一致，不得降级或写成已接受；确认 TASK-003 Reviewer 是独立 Grok 会话，尚未启动。同步后，TASK-004 原 Grok 修复与 TASK-003 Grok Reviewer 可并行，范围和 worktree 隔离；不得启动第二个 TASK-004 Reviewer。
 

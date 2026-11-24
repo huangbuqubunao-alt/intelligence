@@ -8,7 +8,7 @@
 
 - Main base: `main@372a31eb53eed39faeba9df545c5e665c7a63ba1`
 - TASK-003 source: `codex/task-003-state-store@adab4bb00dd7e917b295c22fd8357a4f11515912`
-- TASK-003 source worktree: `/Users/hua/Documents/yia-worktrees/task-003`
+- TASK-003 source worktree: `/Users/developer/Documents/yia-worktrees/task-003`
 - TASK-003 status: 保持 `IN_PROGRESS`；Implementer 已停止写入，等待 Reviewer 容量
 - TASK-004: `IN_REVIEW`，独立 Codex Reviewer 已启动；不得读取、写入、检查、清理、暂存或等待 TASK-004 worktree，也不得改变其状态。
 
@@ -37,7 +37,7 @@
 1. main 初始 HEAD 必须为 `372a31e...`；初始准备内容精确为上述 4 文件，无预先暂存和无未暂存范围外内容。
 2. TASK-003 source 必须干净、正好为 `adab4bb...`，相对 `dcc7d85...` 只包含 `state.py`、`001_initial.sql`、`tests/integration/test_state_store.py`、`tests/unit/test_state_transitions.py`、`handoffs/TASK-003.md`。
 3. TASK-003 必须仍为 `IN_PROGRESS`，不能提前设为 `IN_REVIEW`/`ACCEPTED`/`DONE`，也不能启动 Grok Reviewer；原因是 TASK-004 Reviewer 是当前唯一活跃 Reviewer。
-4. Git 身份必须为 `Mozhu <huangbuqubunao@gmail.com>`，`user.useConfigOnly=true`。
+4. Git 身份必须为 `Mozhu <maintainer@example.invalid>`，`user.useConfigOnly=true`。
 5. 不运行 `uv`、pytest、Ruff、mypy、build、数据库或任何网络路径。
 
 提交前后执行：

@@ -5,14 +5,14 @@
 - Task: `READINESS-RETIRED-SUBTITLES`
 - Role: Implementer `/root/source_context`; Reviewer: `intel_bounded_review`（待独立审查）
 - Base: `fbe0e2b7323384ebb60408a436c4a6b732c61a72`
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-retired-subtitles`
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-retired-subtitles`
 - Branch: `codex/task-readiness-retired-subtitles`
 - 日期: 2026-10-13
 - 本报告与实现同一提交；提交 SHA 由提交后主控回传记录，不自指哈希。
 
 ## 目标、授权与范围
 
-用户明确批准原 root `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/docs/validation/end-to-end-user-readiness/RETIRED_SUBTITLE_FAILURE_PROPOSAL.md` 的精确隔离整改与验收范围。本提交不代表正式采用。
+用户明确批准原 root `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/docs/validation/end-to-end-user-readiness/RETIRED_SUBTITLE_FAILURE_PROPOSAL.md` 的精确隔离整改与验收范围。本提交不代表正式采用。
 
 仅新增 `SQLiteStateRepository.retire_known_failed_subtitle_calls` 及正常后台 idle 维护挂接、专用测试与任务/交接文档。对已退休的 `subtitle.fetch/yt-dlp/model=NULL/subtitle-selection-v1/subtitle-format-v1` 已知 RATE_LIMITED 失败，在全局真实 quiescent 时从 FAILED_RETRYABLE 持久化为 FAILED_FINAL。原 error code、原错误文字前缀、request_hash/版本/计数/开始时间等均保留，追加固定 POLICY_RETIRED 原因和结束时间。
 

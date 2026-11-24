@@ -1,6 +1,6 @@
 # TASK-READINESS-LONG-COMPLETION-CLOSURE — bounded implementation plan
 
-Role: final sole Implementer `/root/long_completion_final_resume` (predecessor evidence retained below); base `9c0c1a4a70ee85aa3600950f511a6c64c80fdaa9`; worktree `/Users/hua/Documents/yia-worktrees/readiness-long-completion-closure`; branch `codex/task-readiness-long-completion-closure`. Root's task/package are read by absolute root path (b2e5fc5); previous WAIT task is accepted and not reopened. Final acceptance belongs to root after a fresh independent Reviewer assigned only after this final fixed clean submission.
+Role: final sole Implementer `/root/long_completion_final_resume` (predecessor evidence retained below); base `9c0c1a4a70ee85aa3600950f511a6c64c80fdaa9`; worktree `/Users/developer/Documents/yia-worktrees/readiness-long-completion-closure`; branch `codex/task-readiness-long-completion-closure`. Root's task/package are read by absolute root path (b2e5fc5); previous WAIT task is accepted and not reopened. Final acceptance belongs to root after a fresh independent Reviewer assigned only after this final fixed clean submission.
 
 ## Contract and vertical slices
 
@@ -124,7 +124,7 @@ All40 existing migration files remain byte-identical to the accepted base, histo
 
 **CLEAN STOP for independent review**, not ACCEPTED/DONE and not authorization for registry/release. Root must independently review this fixed commit, integrate accepted code and then complete actual native capacity, frozen original semantic cases/holdouts and long full pair, LOCAL8, genuine positive GUI→Save/Topic/Evidence/restart/full BackupRestore, final whole-Goal checks and conditional adoption.
 
-Evidence directory: `/Users/hua/Documents/yia-worktrees/readiness-long-completion-closure/.var/long-completion/`. SHA256:
+Evidence directory: `/Users/developer/Documents/yia-worktrees/readiness-long-completion-closure/.var/long-completion/`. SHA256:
 
 - `final-task-source-freeze-r3.json`: `d02c4f6cf09d9dece5ac679d1ba18ffd0cd9d25ba6cc3d8b1c59268cc2bad593`
 - `final-task-affected-r3.log`: `91adcf89a07db2a4aa1a3b2470ff63e8ae04e7d7fabd7181ad111380dc3b750f`
@@ -137,7 +137,7 @@ Evidence directory: `/Users/hua/Documents/yia-worktrees/readiness-long-completio
 
 ## Fresh independent whole-task review R1 — 2026-10-24
 
-Reviewer `/root/long_completion_review_r1`; independent worktree `/Users/hua/Documents/yia-worktrees/readiness-long-completion-review-r1`, branch `codex/review-readiness-long-completion-r1`. Reviewed the complete `9c0c1a4a70ee85aa3600950f511a6c64c80fdaa9...b6adac2bb0550bba0498c1373d99ce34062cd0b5` diff: 30 files, 3597 insertions/198 deletions. The author had stopped before this review. Only this handoff review section is written by the reviewer; no product/test/configuration/registry changes.
+Reviewer `/root/long_completion_review_r1`; independent worktree `/Users/developer/Documents/yia-worktrees/readiness-long-completion-review-r1`, branch `codex/review-readiness-long-completion-r1`. Reviewed the complete `9c0c1a4a70ee85aa3600950f511a6c64c80fdaa9...b6adac2bb0550bba0498c1373d99ce34062cd0b5` diff: 30 files, 3597 insertions/198 deletions. The author had stopped before this review. Only this handoff review section is written by the reviewer; no product/test/configuration/registry changes.
 
 **Verdict: APPROVE for this bounded engineering task. No reproducible P0, P1 or P2 finding.** This is not whole-Goal acceptance, real model qualification, production readiness, main adoption or release approval. Root retains those decisions and later gates.
 
@@ -159,7 +159,7 @@ Using the existing root Python environment with this review worktree's `PYTHONPA
 4. All **537** files in the author's final r3 source freeze match this reviewed worktree byte-for-byte. The original r3 freeze/log/result SHA256 values independently match the handoff above. Its actual 1622-PASS affected result is supported by those retained logs; it is not relabelled as the final whole-Goal suite. Earlier 1514-PASS/2-FAIL, root 5725-PASS/4-FAIL and interrupted logs remain historical failures/incomplete runs, not passes.
 5. All **40** existing migration files are byte-identical to the base. Package qualification registry still has `records=[]`. Dependency/lockfile/configuration paths have no change in this task. Zero real model HTTP/load/generation, credential, owner-data, main or release operation was performed by this reviewer.
 
-Review evidence: `/Users/hua/Documents/yia-worktrees/readiness-long-completion-review-r1/.var/independent-review-r1/review-evidence.json`, SHA256 `3d03223da35f2591aa3ae36dce5e7bb16b8497688f86ce1af5854711f3aaf2d5`; exact commands, source comparison, boundaries and log hashes are retained there. Critical log SHA256 `7e88e44b19274453ddef5e66b61aa5a8daecaa3a715354bf90cb074e922d7309`; adapter log `93541e0cbddc958989a6658aaea467076e303f27eea3052b35cb6bfc73d8ddc4`. Both original processes completed with final summaries before the reviewer interruption; neither was inferred from partial progress or rerun to replace a failed result.
+Review evidence: `/Users/developer/Documents/yia-worktrees/readiness-long-completion-review-r1/.var/independent-review-r1/review-evidence.json`, SHA256 `3d03223da35f2591aa3ae36dce5e7bb16b8497688f86ce1af5854711f3aaf2d5`; exact commands, source comparison, boundaries and log hashes are retained there. Critical log SHA256 `7e88e44b19274453ddef5e66b61aa5a8daecaa3a715354bf90cb074e922d7309`; adapter log `93541e0cbddc958989a6658aaea467076e303f27eea3052b35cb6bfc73d8ddc4`. Both original processes completed with final summaries before the reviewer interruption; neither was inferred from partial progress or rerun to replace a failed result.
 
 ### Limits and remaining root gates
 
@@ -192,7 +192,7 @@ Final followup fixed `0f1e19407fa437d7a3a6fdee244ea98db1b13d7e`: **370 PASS /0 F
 
 ## Independent delta review R2 — historical/current consume TTL
 
-Reviewer `/root/long_completion_review_r1`, fresh independent worktree `/Users/hua/Documents/yia-worktrees/readiness-long-completion-review-r2`, branch `codex/review-readiness-long-completion-r2`. Reviewed the entire four-file delta `b6adac2bb0550bba0498c1373d99ce34062cd0b5..7f52d59a8b27d5d171d719fb4ae91d2b4aaf9ab2`, including product fix `0f1e19407fa437d7a3a6fdee244ea98db1b13d7e`. Reuses the independently completed R1 whole-task review (report commit `fcbf953370f45dc2563c52863ad5be6b43ead1fc`); mandatory instructions/specifications are byte-identical to that reviewed base. No broader refactor/model/framework change was included or authorized by this delta review.
+Reviewer `/root/long_completion_review_r1`, fresh independent worktree `/Users/developer/Documents/yia-worktrees/readiness-long-completion-review-r2`, branch `codex/review-readiness-long-completion-r2`. Reviewed the entire four-file delta `b6adac2bb0550bba0498c1373d99ce34062cd0b5..7f52d59a8b27d5d171d719fb4ae91d2b4aaf9ab2`, including product fix `0f1e19407fa437d7a3a6fdee244ea98db1b13d7e`. Reuses the independently completed R1 whole-task review (report commit `fcbf953370f45dc2563c52863ad5be6b43ead1fc`); mandatory instructions/specifications are byte-identical to that reviewed base. No broader refactor/model/framework change was included or authorized by this delta review.
 
 **APPROVE for this isolated regression fix; no reproducible P0/P1/P2 finding.** Tests were read before the one product condition. The finite current descriptor check is correct for both current-short and current-long: the constructor deliberately resolves the long session's underlying descriptor to the current-short runtime, so both still refuse expiry after arm at consume without consuming or sending. Historical v1/v2 retain the prior arm-time TTL plus exact profile/request/wire/execution/thread/held-lease/single-consume guards. Allowing their already armed capacity object to consume once after its old TTL does not register qualification or allow retired v2 generation. No post-claim metadata request or hidden retry was introduced.
 
@@ -204,7 +204,7 @@ Independent checks in this R2 worktree using the existing root Python environmen
 - Targeted Ruff on all three changed code/test files: PASS. Whole-src strict mypy: PASS, 121 files. Complete delta `git diff --check`: PASS.
 - All537 files match the author's final postintegration source freeze. Independently hashed original RED/complete370 run/freeze/result match the handoff hashes; original3-FAIL evidence remains retained. Unchanged paths include migrations, dependencies, configuration, registry, frontend and harness implementation. Zero real model/network load/generation, owner data, credential, root/main or release operation by this review.
 
-Exact commands, final summaries, hash comparisons and the missing-binding negative are retained in `/Users/hua/Documents/yia-worktrees/readiness-long-completion-review-r2/.var/independent-review-r2/review-evidence.json`, SHA256 `49a9eec9051b11cd17302cfdbae14449a8ed2724918f6a9b926c55ad806b3590`; independent99-test log SHA256 `7115ad56d7bbceaf3419efb0a5a0596c049d0d46f9f03ae72c40356b39185618`.
+Exact commands, final summaries, hash comparisons and the missing-binding negative are retained in `/Users/developer/Documents/yia-worktrees/readiness-long-completion-review-r2/.var/independent-review-r2/review-evidence.json`, SHA256 `49a9eec9051b11cd17302cfdbae14449a8ed2724918f6a9b926c55ad806b3590`; independent99-test log SHA256 `7115ad56d7bbceaf3419efb0a5a0596c049d0d46f9f03ae72c40356b39185618`.
 
 Limits: this is a delta review, not a new full suite or real model/GUI acceptance. R1 engineering findings remain unchanged. Root's separately frozen whole-Goal backend run must finish and retain its actual result before source integration; this99 group and the author's370 group do not turn that run's failures into passes. Final combined full checks, actual capacity/quality/ordinary-user chains and adoption gates remain root responsibilities. Only this review handoff section was written.
 

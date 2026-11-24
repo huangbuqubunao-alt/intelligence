@@ -10,17 +10,17 @@
 
 ## 固定审查对象
 
-- Main repository：`/Users/hua/Documents/youtubek agent`
+- Main repository：`/Users/developer/Documents/youtubek agent`
 - Main review authorization：动态执行
-  `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-005-REVIEWER-4-CODEX.md`
+  `git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-005-REVIEWER-4-CODEX.md`
 - Main authorization parent：`d783f705bd749b9e691456fd85f8af1635d9f32f`
-- Source worktree：`/Users/hua/Documents/yia-worktrees/task-005`
+- Source worktree：`/Users/developer/Documents/yia-worktrees/task-005`
 - Source branch：`codex/task-005-subtitle-pipeline`
 - Implementation base：`b28f52d0e4950f78dba315d4afe211ea5f75b93c`
 - Third review evidence：`30c665181db77607648aa1a6fdbb1d5502b71d7d`
 - Reviewed Correction 3 head：`abf2acba25f9732a9511ecd54c4b92ef6c0d68e1`
 - Correction 3 parent：`30c665181db77607648aa1a6fdbb1d5502b71d7d`
-- Git identity：`Mozhu <huangbuqubunao@gmail.com>`；`user.useConfigOnly=true`
+- Git identity：`Mozhu <maintainer@example.invalid>`；`user.useConfigOnly=true`
 
 开始时 main 必须位于动态 review authorization commit 且干净；source 必须位于固定 Correction 3 head、分支正确且干净。任一 SHA、父链、身份、洁净度、范围或授权不符，立即报告 `BLOCKED`。不得 stash、reset、checkout、merge、rebase、cherry-pick、pull、清理或选择其他 SHA。
 

@@ -21,7 +21,7 @@
 ## 2026-07-19 离线实现分配与边界
 
 - Main control-plane base：`6b4d59c882ccdcbd0e5a6069a6661e0672921a80`。worktree：
-  `/Users/hua/Documents/yia-worktrees/task-007`；branch：
+  `/Users/developer/Documents/yia-worktrees/task-007`；branch：
   `codex/task-007-local-scoring`；Implementer：Codex；完成后由全新独立 Codex
   Reviewer 审查。
 - 仅允许本卡“预计触达文件”列出的 `scoring.py`、`providers/ollama.py`、

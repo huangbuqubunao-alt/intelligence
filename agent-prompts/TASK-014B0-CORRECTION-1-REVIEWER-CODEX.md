@@ -13,7 +13,7 @@ Task: TASK-014B0 Correction 1 — reject global configuration inputs for the res
 Role: Independent Reviewer
 Agent: Codex Reviewer
 Control-plane base: main@578a90d52c835f6b58bc58cd14f96ca228f7d64e
-Only source worktree: /Users/hua/Documents/yia-worktrees/task-014-phase-b0-restricted-public-subtitle-smoke
+Only source worktree: /Users/developer/Documents/yia-worktrees/task-014-phase-b0-restricted-public-subtitle-smoke
 Source branch: codex/task-014-phase-b0-restricted-public-subtitle-smoke
 Source HEAD: cafcde82eaa032bfae3bcee8049ef60ebda6d650
 Required sole parent: f8e336a8c3b09a8c0c0e5857148495f2cb2281aa

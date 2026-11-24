@@ -1,7 +1,7 @@
 # 自主产品诊断、优化与持续迭代状态记录（2026-11-16 Round 9）
 
-- **迭代分支（开发工作区）**：`antigravity/task-user-readiness-20261112`（`/Users/hua/Documents/yia-worktrees/antigravity-readiness-20261112`）
-- **正式交付运行区**：`main`（`/Users/hua/Documents/yia-worktrees/v1x-local-main`，运行于 http://127.0.0.1:5488）
+- **迭代分支（开发工作区）**：`antigravity/task-user-readiness-20261112`（`/Users/developer/Documents/yia-worktrees/antigravity-readiness-20261112`）
+- **正式交付运行区**：`main`（`/Users/developer/Documents/yia-worktrees/v1x-local-main`，运行于 http://127.0.0.1:5488）
 - **只读对照工作区（严禁修改）**：`codex/readiness-v4-budget-final-validation`（保持 `18f366b` 完全干净）
 - **前置轮次状态**：Round 1–8 已全部完成并客观验收（见 `docs/ITERATION_STATE_2026_11_14.md` 至 `docs/ITERATION_STATE_2026_11_15_ROUND8.md`）。
 - **当前阶段**：`ROUND_9_COMPLETED`（全部后端/前端 TDD 切片、无环四分块构建治理、正式版构建溯源对齐与独立浏览器端到端真实验收均已 PASS）
@@ -47,7 +47,7 @@
 - **宿主核验事实（`BROWSER_HOST_FACTS`）**：
   - `visited_origins: http://127.0.0.1:5488`
   - `blocked_origins: none`
-  - `latest_screenshot`: `/Users/hua/.gemini/antigravity/brain/bc51feca-04fb-408c-81d5-2abe8854d93b/browser_evidence/7db3c030-1527-4a1f-a845-ef3b07eddaee/final_step_39.png`
+  - `latest_screenshot`: `/Users/developer/.gemini/antigravity/brain/bc51feca-04fb-408c-81d5-2abe8854d93b/browser_evidence/7db3c030-1527-4a1f-a845-ef3b07eddaee/final_step_39.png`
 - **逐项实机核验结果（零数据污染）**：
   1. `#Home` 与 4 分包加载：`vendor-react-ebxS2RN4.js`、`workspace-core-DInJ9k8U.js`、`workspace-ai-hub-BKOlSy1h.js`、`index-Odwy_dv6.js` 全部 `HTTP 200` 加载，0 报错。
   2. `#Research` 可逆置顶与 `⌘K` 联动：`Mozilla 是如何用 GPT-6 Cyber 发现并修复 Firefox 漏洞的？` 点击 `置顶问答` → `POST .../pin` 返回 `200`，按钮变为 `已置顶 · 取消`，历史列表移至 #1 并前缀 `[置顶]`；`⌘K` 搜索 `Mozilla` 显示 `已置顶 · 5 处时间轴引用`；随后点击 `已置顶 · 取消` 恢复未置顶原状。

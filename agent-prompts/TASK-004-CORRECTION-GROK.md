@@ -15,8 +15,8 @@
 5. `docs/decisions/ADR-004-discovery-ytdlp-contract.md` D-05、D-08
 6. `tasks/TASK-004-discovery-metadata.md`
 7. `handoffs/TASK-004.md`
-8. 原 Implementer 包：`/Users/hua/Documents/youtubek agent/agent-prompts/TASK-004-IMPLEMENTER-GROK.md`
-9. 本修复包：`/Users/hua/Documents/youtubek agent/agent-prompts/TASK-004-CORRECTION-GROK.md`
+8. 原 Implementer 包：`/Users/developer/Documents/youtubek agent/agent-prompts/TASK-004-IMPLEMENTER-GROK.md`
+9. 本修复包：`/Users/developer/Documents/youtubek agent/agent-prompts/TASK-004-CORRECTION-GROK.md`
 
 如冻结契约仍无法满足、修复需要增加公共领域类型/错误码、修改范围外文件或改变依赖，立即输出 `DECISION NEEDED`，不得自行扩大设计。
 
@@ -24,7 +24,7 @@
 
 - Task: `TASK-004` pre-review correction
 - Role: original `Grok Implementer`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-004`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-004`
 - Branch: `grok/task-004-discovery-metadata`
 - Product base: `dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176`
 - Required source head before correction: `392edfb897003c1583b538667d10a2a89926a94b`
@@ -72,7 +72,7 @@ git config --get user.useConfigOnly
 git var GIT_AUTHOR_IDENT
 ```
 
-worktree 必须干净，HEAD 必须为 `392edfb...`，身份必须为 `Mozhu <huangbuqubunao@gmail.com>`，`user.useConfigOnly=true`。否则立即停止。
+worktree 必须干净，HEAD 必须为 `392edfb...`，身份必须为 `Mozhu <maintainer@example.invalid>`，`user.useConfigOnly=true`。否则立即停止。
 
 修复后运行：
 

@@ -11,7 +11,7 @@ Task: TASK-014B11 — safe subtitle directory contract-state diagnostics
 Role: Independent Reviewer
 Control-plane baseline: main@6f5336098406f95ad1773d2ea36da24aaa97530f
 Execution main: dynamic clean single-parent main commit containing this prompt and synchronized TASK-014B11/TASK-014/status/index control documents; its sole parent must be 6f5336098406f95ad1773d2ea36da24aaa97530f
-Reviewed source worktree: /Users/hua/Documents/yia-worktrees/task-014b11-safe-directory-contract-diagnostics
+Reviewed source worktree: /Users/developer/Documents/yia-worktrees/task-014b11-safe-directory-contract-diagnostics
 Reviewed source branch: codex/task-014b11-safe-directory-contract-diagnostics
 Reviewed implementation HEAD: f22e0dbfa8222280d4b97c3cd7f1e7cf37e7cf50
 Required sole parent of implementation: 80aff83fc033a8bd2950108cad2e34feea5d396f

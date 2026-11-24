@@ -21,7 +21,7 @@
 ## 2026-07-22 正式分配
 
 - Base：`main@473119704c7638d7afd4e68d84d00e85064ceabd`；Worktree：
-  `/Users/hua/Documents/yia-worktrees/task-008`；Branch：`codex/task-008-deep-analysis`。
+  `/Users/developer/Documents/yia-worktrees/task-008`；Branch：`codex/task-008-deep-analysis`。
 - Codex 为唯一 Implementer；完成后由全新独立 Codex Reviewer 审查。允许范围严格为本卡
   七个路径组；不修改领域/配置契约、`state.py`、Schema/migration、依赖、锁文件、CLI 或任务状态。
 - 只授权离线 Fake/合成哨兵和白名单环境隔离子进程 SDK 实现/测试。真实 OpenAI、密钥、

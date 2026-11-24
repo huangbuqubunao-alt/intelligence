@@ -9,11 +9,11 @@
 - Task: `TASK-004 pre-review correction sync`
 - Role: `Status Integrator`
 - Required main base: `main@12079aee1bdb8d4063ff9ecc429c582714c807f4`
-- Main worktree: `/Users/hua/Documents/youtubek agent`
-- TASK-004 source worktree: `/Users/hua/Documents/yia-worktrees/task-004`，严格只读
+- Main worktree: `/Users/developer/Documents/youtubek agent`
+- TASK-004 source worktree: `/Users/developer/Documents/yia-worktrees/task-004`，严格只读
 - Required source branch: `grok/task-004-discovery-metadata`
 - Required source head: `392edfb897003c1583b538667d10a2a89926a94b`
-- TASK-003 worktree: `/Users/hua/Documents/yia-worktrees/task-003`，严格只读，不得触碰
+- TASK-003 worktree: `/Users/developer/Documents/yia-worktrees/task-003`，严格只读，不得触碰
 
 ## 唯一允许提交的 5 个文件
 
@@ -32,7 +32,7 @@
 - P1 尚未修复；TASK-004 保持 `IN_PROGRESS`，Codex Reviewer 不得启动。
 - Correction 包仅允许原 Grok 在 source worktree 修改 `youtube.py`、`test_discovery.py`、`handoffs/TASK-004.md`，且要求新 commit 不 amend 首个实现。
 - TASK-003 保持 `IN_PROGRESS`，其独立 worktree 的未提交实现属于预期并行状态，不受本轮影响；TASK-005 及后续仍为 `BLOCKED`。
-- Git 身份必须是 `Mozhu <huangbuqubunao@gmail.com>`，`user.useConfigOnly=true`，且不含 `.local`。
+- Git 身份必须是 `Mozhu <maintainer@example.invalid>`，`user.useConfigOnly=true`，且不含 `.local`。
 
 ## 检查与提交
 
@@ -41,8 +41,8 @@
 ```bash
 git diff --check
 git diff --name-status
-git -C "/Users/hua/Documents/yia-worktrees/task-004" diff --name-status dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176...392edfb897003c1583b538667d10a2a89926a94b
-git -C "/Users/hua/Documents/yia-worktrees/task-004" diff --check dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176...392edfb897003c1583b538667d10a2a89926a94b
+git -C "/Users/developer/Documents/yia-worktrees/task-004" diff --name-status dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176...392edfb897003c1583b538667d10a2a89926a94b
+git -C "/Users/developer/Documents/yia-worktrees/task-004" diff --check dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176...392edfb897003c1583b538667d10a2a89926a94b
 ```
 
 仅暂存 5 个 Expected files，运行 `git diff --cached --check`、`git diff --cached --name-status`、`git diff --cached`。提交：

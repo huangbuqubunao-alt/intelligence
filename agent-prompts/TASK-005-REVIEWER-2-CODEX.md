@@ -14,11 +14,11 @@ Verdict 只能为 `APPROVE` 或 `REJECT`，不得自行修复 finding。
 
 ## 固定审查对象
 
-- Main repository：`/Users/hua/Documents/youtubek agent`
+- Main repository：`/Users/developer/Documents/youtubek agent`
 - Main review authorization：动态执行
-  `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-005-REVIEWER-2-CODEX.md`
+  `git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-005-REVIEWER-2-CODEX.md`
 - Main authorization parent：`4df3ff13732e98665732e2ba7bfc8b90c4c141aa`
-- Source worktree：`/Users/hua/Documents/yia-worktrees/task-005`
+- Source worktree：`/Users/developer/Documents/yia-worktrees/task-005`
 - Source branch：`codex/task-005-subtitle-pipeline`
 - Implementation base：`b28f52d0e4950f78dba315d4afe211ea5f75b93c`
 - Original implementation：`98d19700818bcae14efc412aaaaeb6eed97a1535`
@@ -26,7 +26,7 @@ Verdict 只能为 `APPROVE` 或 `REJECT`，不得自行修复 finding。
 - Reviewed Correction 1 head：
   `55156f9f53a610ccbf9c8806f19f19f2c16bb1cf`
 - Correction parent：`515c34894bb138115a4658d962fb5ef0aa7d9d80`
-- Git identity：`Mozhu <huangbuqubunao@gmail.com>`
+- Git identity：`Mozhu <maintainer@example.invalid>`
 - `user.useConfigOnly=true`
 
 开始时 main 必须位于本 review authorization commit 且干净；source 必须位于固定

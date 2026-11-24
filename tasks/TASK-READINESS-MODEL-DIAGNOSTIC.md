@@ -1,7 +1,7 @@
 # TASK-READINESS-MODEL-DIAGNOSTIC
 
 Status: READY — root-assigned QA-only; same ordinary-user Goal, not a new product phase.
-Role: QA Implementer, separate WT /Users/hua/Documents/yia-worktrees/readiness-model-diagnostic @4a47b0a303616d920865a28e963b004a8906f9d6. No production files or core writer.
+Role: QA Implementer, separate WT /Users/developer/Documents/yia-worktrees/readiness-model-diagnostic @4a47b0a303616d920865a28e963b004a8906f9d6. No production files or core writer.
 
 Goal: one fixed official lower-memory4b English-original-case diagnostic before deciding any model-adapter implementation. No production qualification, no duplicate business pipeline, no arbitrary-profile authority. User explicitly permits necessary lower-memory local model adjustment but forbids large redevelopment; model framework/config principle is MODEL_CONFIGURATION_PRINCIPLE_2026_10_24.md in root.
 

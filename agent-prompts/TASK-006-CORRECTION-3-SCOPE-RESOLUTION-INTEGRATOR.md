@@ -1,6 +1,6 @@
 # TASK-006 Correction 3 Scope Resolution — Status Integrator
 
-You are the Status Integrator. Work only in `/Users/hua/Documents/youtubek agent` on `main`.
+You are the Status Integrator. Work only in `/Users/developer/Documents/youtubek agent` on `main`.
 This is a documentation-only control-plane commit. Do not run product commands, install
 packages, run tests/builds, merge, push, clean, start a Worker, or access TASK-007. Read-only
 Git verification of the TASK-006 source is allowed.
@@ -8,7 +8,7 @@ Git verification of the TASK-006 source is allowed.
 ## Fixed facts and decision
 
 - Required main base: `bdd1f432bdcc8da2e49a70c107d19cf65538527f`.
-- TASK-006 source is `/Users/hua/Documents/yia-worktrees/task-006` on
+- TASK-006 source is `/Users/developer/Documents/yia-worktrees/task-006` on
   `codex/task-006-local-transcription`, clean at
   `66f0b31023c290d76e2c14bea72d1cc103cc27c7`; no source edit or product command
   occurred after the scope conflict was reported.
@@ -43,7 +43,7 @@ cleanup, overwrite, or restaging.
 
 ## Required gates and commit
 
-1. Confirm `main@bdd1f432...`, `Mozhu <huangbuqubunao@gmail.com>`, and
+1. Confirm `main@bdd1f432...`, `Mozhu <maintainer@example.invalid>`, and
    `user.useConfigOnly=true`.
 2. Confirm the TASK-006 source branch/head/cleanliness and that no source commit followed
    `66f0b310...`.

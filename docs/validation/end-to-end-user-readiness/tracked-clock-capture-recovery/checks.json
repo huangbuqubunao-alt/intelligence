@@ -6,12 +6,12 @@
     "PYTHONDONTWRITEBYTECODE": "1",
     "PYTHONPATH": "src:tests:."
   },
-  "cwd": "/Users/hua/Documents/yia-worktrees/readiness-tracked-clock-capture-recovery",
+  "cwd": "/Users/developer/Documents/yia-worktrees/readiness-tracked-clock-capture-recovery",
   "load_binding": "All loaded source/test bytes equal2d4a338, verified against loaded-source-hashes.json after commits; no product/test edit during final60/566/478 runs.",
   "commands": [
     {
       "argv": [
-        "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
+        "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
         "-m",
         "pytest",
         "-q",
@@ -23,7 +23,7 @@
     },
     {
       "argv": [
-        "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
+        "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
         "-m",
         "pytest",
         "-q",
@@ -58,7 +58,7 @@
     },
     {
       "argv": [
-        "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
+        "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
         "-m",
         "pytest",
         "-q",
@@ -80,7 +80,7 @@
     },
     {
       "argv": [
-        "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/mypy",
+        "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/mypy",
         "--strict",
         "src"
       ],
@@ -90,7 +90,7 @@
     },
     {
       "argv": [
-        "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/ruff",
+        "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/ruff",
         "check",
         "src",
         "tests/integration/test_tracked_clock_capture_recovery.py"
@@ -101,7 +101,7 @@
     },
     {
       "argv": [
-        "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/ruff",
+        "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/ruff",
         "check",
         "tests/integration/test_bilibili_content.py",
         "tests/integration/test_bilibili_three_provider.py",

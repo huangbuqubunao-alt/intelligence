@@ -1,6 +1,6 @@
 # TASK-READINESS-SYSTEM-SYNTHESIS-CONTRACT — handoff
 
-Implementer `/root/bigmodel_audit_review`; base `c96c4b8777a72e1c0e2fb700a7930ed92df2e8b3`; WT `/Users/hua/Documents/yia-worktrees/readiness-system-synthesis-contract`, branch `codex/task-readiness-system-synthesis-contract`. Root independently reviews this boundary once. Only new `src/youtube_intel/system_synthesis.py`, `tests/unit/test_system_synthesis.py`, this handoff. No real model/key/Native/network, oracle/old real output reading, existing package/receipt edits or actual preparation.
+Implementer `/root/bigmodel_audit_review`; base `c96c4b8777a72e1c0e2fb700a7930ed92df2e8b3`; WT `/Users/developer/Documents/yia-worktrees/readiness-system-synthesis-contract`, branch `codex/task-readiness-system-synthesis-contract`. Root independently reviews this boundary once. Only new `src/youtube_intel/system_synthesis.py`, `tests/unit/test_system_synthesis.py`, this handoff. No real model/key/Native/network, oracle/old real output reading, existing package/receipt edits or actual preparation.
 
 ## Contract and reuse
 

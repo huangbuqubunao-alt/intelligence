@@ -99,7 +99,7 @@
 
 - Assigned at: 2026-07-15
 - Base: `main@dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-003`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-003`
 - Branch: `codex/task-003-state-store`
 - Implementer: Codex 独立会话，独占该 worktree 写入权。
 - Reviewer: Grok 全新独立会话；仅在实现 commit 与交接证据完成后由主控启动。

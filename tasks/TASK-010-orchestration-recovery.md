@@ -10,7 +10,7 @@
 ## 2026-07-23 正式分配
 
 - Base：`main@227bdeba3a4d9ddd57231b123bfdc4a2038af3d3`；Worktree：
-  `/Users/hua/Documents/yia-worktrees/task-010`；Branch：`codex/task-010-orchestration-recovery`。
+  `/Users/developer/Documents/yia-worktrees/task-010`；Branch：`codex/task-010-orchestration-recovery`。
 - Codex 为唯一 Implementer；完成后才分配全新独立 Reviewer。允许范围严格为本卡列出的
   Pipeline/Job/retry、两份集成测试与 handoff；不得修改领域/配置、`state.py`、Schema/migration、Provider、
   CLI、依赖/锁文件或任务状态。

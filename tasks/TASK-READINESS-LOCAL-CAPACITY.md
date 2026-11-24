@@ -14,7 +14,7 @@ harness持久once意图必须在claim前由独占创建完成，明确记录ARME
 
 要求并发测试覆盖同线程嵌套/多线程及进程ASR锁、9b准备与fast评分/判官/摘要/翻译的实际factory可达路径，任何busy/timeout在transport前的已知错误不可伪造成已调用；response close/异常总释放，本地9bunknown仍持久failclosed。DeepAnalysis当前普通组合无本地adapter且未合格，保持关闭；若新增未来entry需同guard，但本任务不新增。作者0真实load/debug/generation。
 
-2026-10-15 READY engineering-only，root容量只读独立复核已完成（local_text_review_resume，聊天STOP；数学/完整词表/88byte及actual slot成立，不授资格）。Base a32a492 plus后续纯docs commits（本次READY commit为精确建树base）；WT /Users/hua/Documents/yia-worktrees/readiness-local-capacity，branch codex/task-readiness-local-capacity。最新root受影响125PASS、strict src104/Ruff PASS，独立modelport470PASS/APPROVE已整合43e7758。未冻结/0真实新proof/0生成/records[]。
+2026-10-15 READY engineering-only，root容量只读独立复核已完成（local_text_review_resume，聊天STOP；数学/完整词表/88byte及actual slot成立，不授资格）。Base a32a492 plus后续纯docs commits（本次READY commit为精确建树base）；WT /Users/developer/Documents/yia-worktrees/readiness-local-capacity，branch codex/task-readiness-local-capacity。最新root受影响125PASS、strict src104/Ruff PASS，独立modelport470PASS/APPROVE已整合43e7758。未冻结/0真实新proof/0生成/records[]。
 
 精确补充：cold-load采用官方`POST /api/chat`的`messages:[]` load-only（不是两个空content、不是num_predict=0），保持keep_alive非0，不发unload。严格响应done=true/done_reason=load、空content/无eval，随后ps验证slot/运行器身份。readiness必须当前manifest/binary/runner进程/slot/请求和execution/有效期；应用重量工作lease持至dispatch，过期或身份变更在claim前关闭。应用锁只协调本应用，不能假称锁住外部Ollama客户端。source/runtime变化竞态使用原claim事务与ledger，不修改Schema。保留原None旧字节；transport `_request` wire为ensure_ascii=False且保序compact，不等同sort_keys canonical身份hash，明确分别计算/比对。fixed source inference与当前slot观察共同形成前提；禁止仅采用old receipt bool。容量代码/reader CODE_FILES必须完整纳入qualification fingerprint。
 

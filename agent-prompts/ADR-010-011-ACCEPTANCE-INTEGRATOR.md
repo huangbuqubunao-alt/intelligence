@@ -24,7 +24,7 @@
 
 ## 必须执行
 
-1. 核验 main identity `Mozhu <huangbuqubunao@gmail.com>`、`user.useConfigOnly=true`、分支/HEAD、empty index/worktree 与精确十一文件范围。
+1. 核验 main identity `Mozhu <maintainer@example.invalid>`、`user.useConfigOnly=true`、分支/HEAD、empty index/worktree 与精确十一文件范围。
 2. 对准备文件做两轮 SHA-256、LF/EOF、无尾随空白、`git diff --check`、`git diff --cached --check` 与精确暂存范围核验；字节漂移立即停止。
 3. 不运行 uv、pytest、build、imports、数据库、网络、Vault、云端、凭据、launchctl 或任何产品文件 I/O 命令。
 4. 将 ADR-010/011 记为 `Accepted`；TASK-011=`READY/UNASSIGNED`，TASK-012=`BLOCKED/UNASSIGNED` 且只依赖 TASK-011 完成后的 CLI 接入。不得预写 TASK-011 的 worktree、角色、Reviewer、merge 或 DONE。

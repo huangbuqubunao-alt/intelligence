@@ -2,7 +2,7 @@
 
 2026-10-18；Reviewer `tracked_foundation_review_oct18`。**阶段结论：REJECT**。
 
-审查对象：`c312ee4a544556616c9b102d57ec44cf56a21b90..43e0c751291b0b42423fb7c3c2f3bf238ba1f4de`。独立快照 WT `/Users/hua/Documents/yia-worktrees/readiness-tracked-foundation-review`，branch `codex/review-readiness-tracked-foundation`；初始 HEAD 精确为作者检查点且 clean。未在作者 WT 执行或写入、未读取其后续产品改动；只查看过其 `.venv` 链接元信息以定位现有共享解释器。未访问正式数据库、owner/Vault/config/credentials、模型 holdout 或私人语义控制集。
+审查对象：`c312ee4a544556616c9b102d57ec44cf56a21b90..43e0c751291b0b42423fb7c3c2f3bf238ba1f4de`。独立快照 WT `/Users/developer/Documents/yia-worktrees/readiness-tracked-foundation-review`，branch `codex/review-readiness-tracked-foundation`；初始 HEAD 精确为作者检查点且 clean。未在作者 WT 执行或写入、未读取其后续产品改动；只查看过其 `.venv` 链接元信息以定位现有共享解释器。未访问正式数据库、owner/Vault/config/credentials、模型 holdout 或私人语义控制集。
 
 本次只评审040三表、冻结 admission/基础 reader、稳定锁、generic 隔离。worker/HTTP/child/file writer/Backup/API/UI 尚未完成是已声明的后续范围，**不以这些尚未完成本身作为本次拒绝理由**。以下三项发生在已经提交的基础合同中。此结论不授 main 采用，不代表完整任务验收或完成。
 
@@ -40,7 +40,7 @@
 
 ## 独立运行的检查
 
-解释器复用已存在的 `/Users/hua/Documents/yia-worktrees/v1x-local-main/.venv/bin/python`，没有安装/更新依赖或写入该环境。以下产品测试均在本 snapshot 的源码和独立 pytest 临时 SQLite/DATA 上运行；CredentialStore autouse 隔离保持。
+解释器复用已存在的 `/Users/developer/Documents/yia-worktrees/v1x-local-main/.venv/bin/python`，没有安装/更新依赖或写入该环境。以下产品测试均在本 snapshot 的源码和独立 pytest 临时 SQLite/DATA 上运行；CredentialStore autouse 隔离保持。
 
 ```text
 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src:. <python> -m pytest -q \

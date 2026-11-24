@@ -1,6 +1,6 @@
 # TASK-006 Correction 2 — Review Authorization Status Integrator
 
-You are the Status Integrator. Work only in `/Users/hua/Documents/youtubek agent` on `main`.
+You are the Status Integrator. Work only in `/Users/developer/Documents/youtubek agent` on `main`.
 This is a documentation-only control-plane commit; do not run product commands, access the
 TASK-006 source worktree except for read-only Git verification, access TASK-007, install
 packages, run tests/builds, merge, push, or clean any worktree.
@@ -8,7 +8,7 @@ packages, run tests/builds, merge, push, or clean any worktree.
 ## Fixed facts
 
 - Required main base: `a33c358c41fd255dc455b9ab57303336f9ff3f83`.
-- TASK-006 source: `/Users/hua/Documents/yia-worktrees/task-006`, branch
+- TASK-006 source: `/Users/developer/Documents/yia-worktrees/task-006`, branch
   `codex/task-006-local-transcription`, head
   `51b308828a6f2c433a9b4e92fb4a24e042f55d77`, clean, sole parent
   `47599db196b1b9440de3ae57ec3547935f64b1dc`.
@@ -39,7 +39,7 @@ stop without cleanup, overwrite, or restaging.
 
 ## Required read-only gates
 
-1. Confirm `main@a33c358...`, Git identity `Mozhu <huangbuqubunao@gmail.com>`, and
+1. Confirm `main@a33c358...`, Git identity `Mozhu <maintainer@example.invalid>`, and
    `user.useConfigOnly=true`.
 2. Confirm source branch, head, sole parent, clean status, Correction 2 four-file range,
    full approved eight-path range, and no `pyproject.toml`/`uv.lock` change in

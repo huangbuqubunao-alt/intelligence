@@ -15,7 +15,7 @@
 ## 固定分配
 
 - 控制面基线：`main@28223cc98f9da18fc877289231a92e240cc711d0`。
-- 实施 worktree：`/Users/hua/Documents/yia-worktrees/task-014-phase-b0-restricted-public-subtitle-smoke`。
+- 实施 worktree：`/Users/developer/Documents/yia-worktrees/task-014-phase-b0-restricted-public-subtitle-smoke`。
 - 分支：`codex/task-014-phase-b0-restricted-public-subtitle-smoke`。
 - 正式包：`agent-prompts/TASK-014B0-RESTRICTED-PUBLIC-SUBTITLE-SMOKE-IMPLEMENTER-CODEX.md`。
 - Reviewer：全新独立 Codex Reviewer（本包不启动）。
@@ -25,7 +25,7 @@
 ## 独立审查授权
 
 - 主线控制面基线：`main@c62310ab79f01f5f311c9f54bb28365905f5a81a`。
-- 唯一 source：`/Users/hua/Documents/yia-worktrees/task-014-phase-b0-restricted-public-subtitle-smoke`，分支
+- 唯一 source：`/Users/developer/Documents/yia-worktrees/task-014-phase-b0-restricted-public-subtitle-smoke`，分支
   `codex/task-014-phase-b0-restricted-public-subtitle-smoke`，待审 HEAD
   `4e506847854f20a43011b0a15db3a1c8e320656d`，唯一父提交
   `c62310ab79f01f5f311c9f54bb28365905f5a81a`。
@@ -116,7 +116,7 @@ Adapter、`state.py`、domain/config、Schema/migration、依赖、锁文件、�
 ## 主控验收与 Product Integrator 授权
 
 - 主线控制面基线：`main@79dabb5ab0595d2146bed186388997c0907da5e1`。
-- 唯一 accepted source：`/Users/hua/Documents/yia-worktrees/task-014-phase-b0-restricted-public-subtitle-smoke`，分支
+- 唯一 accepted source：`/Users/developer/Documents/yia-worktrees/task-014-phase-b0-restricted-public-subtitle-smoke`，分支
   `codex/task-014-phase-b0-restricted-public-subtitle-smoke`，Reviewer evidence
   `010fb7faf6280cd83350315ba66f70b5e785b41f`，唯一父提交为
   `b7cb846e650eb02b64321ef566991123d319f310`，且仅追加 source handoff；Verdict=`APPROVE`，P0–P3 均无。

@@ -1,6 +1,6 @@
 # TASK-READINESS-GEMMA4-PREEXEC-RECOVERY
 
-Sole Implementer `/root/grounding_adapter_preflight`; WT `/Users/hua/Documents/yia-worktrees/readiness-gemma4-preexec-recovery`; branch `codex/task-readiness-gemma4-preexec-recovery`; exact base `fd422fb2d51a6d2a152bfebfc01e5b9acac783a8`. Assigned source/data scope: new ignored `.var/gemma4-preexec-recovery/**` plus this handoff. No subagents or product/Schema/dependency/toolchain/config/credential/main/formal owner edits. Initial Ruff generated its ignored default `.ruff_cache`; final Ruff explicitly disabled cache. No old C/G/product source file changed.
+Sole Implementer `/root/grounding_adapter_preflight`; WT `/Users/developer/Documents/yia-worktrees/readiness-gemma4-preexec-recovery`; branch `codex/task-readiness-gemma4-preexec-recovery`; exact base `fd422fb2d51a6d2a152bfebfc01e5b9acac783a8`. Assigned source/data scope: new ignored `.var/gemma4-preexec-recovery/**` plus this handoff. No subagents or product/Schema/dependency/toolchain/config/credential/main/formal owner edits. Initial Ruff generated its ignored default `.ruff_cache`; final Ruff explicitly disabled cache. No old C/G/product source file changed.
 
 **PREPARED_PENDING_SOURCE_AND_CONCRETE_BINDING_REVIEW; author clean STOP after handoff commit.** No actual HTTP/metadata/daemon/Terminal/controller/model invocation, process signal or app closure occurred. Complete root-verified main SHA and protected bytes were read only; no partial, tensor decode or GPU read. This recovers the zero-call preexecution window, not a semantic/model retry; qualification=false.
 
@@ -10,7 +10,7 @@ Only two small runtime modules: `metadata_recovery.py` and `launch_recovery.py`;
 
 DIRECT original C controller.RealBackend **validate/apps_closed/resources/child/cleanup with zero overrides**, old metadata ancestry/metadata_rpc and original harness/package/source/artifact/lease/native/deadline/raw/public decoder. No old globals mutation in runtime code, no copied/rebuilt harness seams or general profile/path override. Test fixtures replace temporary paths/IO in fresh in-memory modules only; all old files/assertions remain unchanged. Project/stdlib reuse plus existing pinned Ollama MIT / original official model Apache2.0 provenance retained; no new dependency/download.
 
-Original C = `/Users/hua/Documents/yia-worktrees/readiness-gemma4-e4b-ready/.var/gemma4-e4b-ready` remains read-only during authoring. Original candidate36d15b05520ac4864ac6db99857780a79ac717b22fe6d7ba191201c60cd753d2, finala03 template,53/1888, original GLOBAL_START and CHILD_OUTPUT, source18cues/twoEvidence/E1E2/prompt/schema/focus/en/positive expectation, all options8192/16384/batch512/draft0/300s unchanged. Legal complete NO_NEW stays legal; no forced positive/prose/reference repair or private thinking access.
+Original C = `/Users/developer/Documents/yia-worktrees/readiness-gemma4-e4b-ready/.var/gemma4-e4b-ready` remains read-only during authoring. Original candidate36d15b05520ac4864ac6db99857780a79ac717b22fe6d7ba191201c60cd753d2, finala03 template,53/1888, original GLOBAL_START and CHILD_OUTPUT, source18cues/twoEvidence/E1E2/prompt/schema/focus/en/positive expectation, all options8192/16384/batch512/draft0/300s unchanged. Legal complete NO_NEW stays legal; no forced positive/prose/reference repair or private thinking access.
 
 Root alone may later exclusively derive **C/recovery-reviewed-package-20261026.json**, a new file with precisely the originala03 nine fields/1888 bindings and only daemon_owner replaced by Y/daemon-owner.json. Its original fixed-parent backend.validate therefore needs no adaptation. All old metadata/launch/timeout markers and logs remain permanently preserved. Sole generation once is still C/generation-start.json and sole child output C/real-once-gemma4-e4b-20261026; no second generation once exists.
 
@@ -18,17 +18,17 @@ New source outside1888 is independently protected: reviewed command→launcher S
 
 ## Exact artifacts
 
-Y = `/Users/hua/Documents/yia-worktrees/readiness-gemma4-preexec-recovery/.var/gemma4-preexec-recovery`.
+Y = `/Users/developer/Documents/yia-worktrees/readiness-gemma4-preexec-recovery/.var/gemma4-preexec-recovery`.
 
 | Artifact | SHA-256 |
 |---|---|
-| [checks/artifact-manifest.json](/Users/hua/Documents/yia-worktrees/readiness-gemma4-preexec-recovery/.var/gemma4-preexec-recovery/checks/artifact-manifest.json),24 entries | `e7ae5a9d635a7ecc7c857df06a5de02dac3d778722e3ff94d99887a1ac384f54` |
+| [checks/artifact-manifest.json](/Users/developer/Documents/yia-worktrees/readiness-gemma4-preexec-recovery/.var/gemma4-preexec-recovery/checks/artifact-manifest.json),24 entries | `e7ae5a9d635a7ecc7c857df06a5de02dac3d778722e3ff94d99887a1ac384f54` |
 | metadata_recovery.py | `5ebbd5056fcffc3c7b8135c1f0495394a33838903425d35f1579b1dc6758251e` |
 | launch_recovery.py | `6acda63726a6e8b9fa340dce9448bad5e11f3a3e85c9112b4350449495996d0f` |
 | recovery-plan.json | `64d4b424bf4a80b34e4099ed947d7b99a8f52081f3895be3968e8b34e871b709` |
 | launch-template.json,11 fields/owner+package=null | `bdd30d140749ec4b0a12e309e5f3dd80ac180e44e784b3b592e4929da0117e1d` |
 
-[README](/Users/hua/Documents/yia-worktrees/readiness-gemma4-preexec-recovery/.var/gemma4-preexec-recovery/README.md) gives source/commands/reviews/limits; [summary](/Users/hua/Documents/yia-worktrees/readiness-gemma4-preexec-recovery/.var/gemma4-preexec-recovery/checks/summary.json) gives exact checkpoints. Manifest covers all new source/data/templates/check evidence, excluding pytest fixtures and itself.
+[README](/Users/developer/Documents/yia-worktrees/readiness-gemma4-preexec-recovery/.var/gemma4-preexec-recovery/README.md) gives source/commands/reviews/limits; [summary](/Users/developer/Documents/yia-worktrees/readiness-gemma4-preexec-recovery/.var/gemma4-preexec-recovery/checks/summary.json) gives exact checkpoints. Manifest covers all new source/data/templates/check evidence, excluding pytest fixtures and itself.
 
 No actual new metadata-start/owner/reviewed-packet/reviewed-launch/recovery-launch/manual-run/old generation/child-output exists at STOP. `freeze-verification.log` confirms this and the original source/old-window preservation.
 
@@ -49,7 +49,7 @@ Full fake chain actually exercises original backend/harness functions: new cold 
 
 Other negatives cover app-open/lowRAM/disk before claim/cleanup, late resource loss, source/profile/owner/package/descriptor/history mismatch, original GLOBAL/child/log presence, unknown/reused old PID/occupied port or process scope, Terminal ancestry, duplicate metadata/claim races, changed reviewed bindings and exclusive owner-only finalization. Losing claimants never execute or clean a first instance. Original source tests/native/BOS/draft/projector/deadline/public-output protections remain unchanged. No new6003/1026, old531/73 or actual model quality claim; all historical failures and direct old Q4 129/12 remain preserved.
 
-Commands used root `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python -B`, bytecode disabled, exact this-WT/src PYTHONPATH. Final new pytest: `-m pytest -q -p no:cacheprovider .var/gemma4-preexec-recovery/test_recovery.py --basetemp=.var/gemma4-preexec-recovery/pytest-source-final`; original C/tests ran separately with its own Y basetemp. Runtime original backend.child retains original reviewed C WT/src and root interpreter; no injection/override flag exists.
+Commands used root `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python -B`, bytecode disabled, exact this-WT/src PYTHONPATH. Final new pytest: `-m pytest -q -p no:cacheprovider .var/gemma4-preexec-recovery/test_recovery.py --basetemp=.var/gemma4-preexec-recovery/pytest-source-final`; original C/tests ran separately with its own Y basetemp. Runtime original backend.child retains original reviewed C WT/src and root interpreter; no injection/override flag exists.
 
 ## Required next stages, not executed
 
@@ -59,9 +59,9 @@ Exact metadata command for Root after approval:
 
 ```sh
 /usr/bin/env PYTHONDONTWRITEBYTECODE=1 \
- PYTHONPATH=/Users/hua/Documents/yia-worktrees/readiness-gemma4-preexec-recovery/src \
- /Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python \
- /Users/hua/Documents/yia-worktrees/readiness-gemma4-preexec-recovery/.var/gemma4-preexec-recovery/metadata_recovery.py \
+ PYTHONPATH=/Users/developer/Documents/yia-worktrees/readiness-gemma4-preexec-recovery/src \
+ /Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python \
+ /Users/developer/Documents/yia-worktrees/readiness-gemma4-preexec-recovery/.var/gemma4-preexec-recovery/metadata_recovery.py \
  --execute-metadata
 ```
 

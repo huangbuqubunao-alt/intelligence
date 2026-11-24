@@ -6,7 +6,7 @@ Status: DONE_ON_CANDIDATE. Root integrated as91b7f8c/418d7d5/b94f13f; root44PASS
 
 Fix the genuine R13 local rejected-response accounting crash without changing model qualification or generation budgets. A completed but inadmissible response must produce honest durable failure accounting; unknown identity/usage/execution remains unknown and fail-closed. No invented provider/model, zero tokens, success, Evidence, receipt or cost. One claimed invocation is irreversible and never automatically re-dispatched. Restart, repeat request and backup/restore preserve these facts.
 
-Base: a989873773c0f4018cc696930789566925e88c7c. Worktree: /Users/hua/Documents/yia-worktrees/readiness-local-rejection-accounting. Branch: codex/task-readiness-local-rejection-accounting. Implementer assigned by root; independent reviewer after clean submitted commit.
+Base: a989873773c0f4018cc696930789566925e88c7c. Worktree: /Users/developer/Documents/yia-worktrees/readiness-local-rejection-accounting. Branch: codex/task-readiness-local-rejection-accounting. Implementer assigned by root; independent reviewer after clean submitted commit.
 
 ## Scope
 

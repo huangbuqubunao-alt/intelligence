@@ -1,6 +1,6 @@
 # TASK-READINESS-READABLE-V4-BOUNDED-CONTINUATION
 
-The sole implementer `/root/v3_controller_finish` works in `/Users/hua/Documents/yia-worktrees/readiness-bounded-synthesis-v4-trial` from accepted `ea93cc63d2c175ae7e3c13e8ab56ee61192c7de5`. Root owns review, integration, live preparation, fees and semantics.
+The sole implementer `/root/v3_controller_finish` works in `/Users/developer/Documents/yia-worktrees/readiness-bounded-synthesis-v4-trial` from accepted `ea93cc63d2c175ae7e3c13e8ab56ee61192c7de5`. Root owns review, integration, live preparation, fees and semantics.
 
 The pre-change design directly reuses the three existing validation tools, finite trial variants, normal runtime, existing Summary decoder and proof codec, readonly historical verification, external immutable holds and ordered locks. A small shared historical terminal checker will preserve existing return bindings while verifying the additional stopped v3 result. The only scope is the three tools, dedicated v4 tests and this handoff. Existing Python standard library and repository-owned components use the repository LICENSE/NOTICE. No dependency or external code is added.
 

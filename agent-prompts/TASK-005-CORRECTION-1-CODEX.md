@@ -11,18 +11,18 @@ Reviewer 已结束且不得修代码；本轮不得争辩、弱化测试或扩�
 
 ## 固定恢复状态
 
-- Main repository：`/Users/hua/Documents/youtubek agent`
+- Main repository：`/Users/developer/Documents/youtubek agent`
 - Main correction authorization：动态执行
-  `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-005-CORRECTION-1-CODEX.md`
+  `git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-005-CORRECTION-1-CODEX.md`
 - Correction authorization parent：
   `095380b7263aa3d04c7d133c1e17d8f4f2fea082`
-- Source worktree：`/Users/hua/Documents/yia-worktrees/task-005`
+- Source worktree：`/Users/developer/Documents/yia-worktrees/task-005`
 - Source branch：`codex/task-005-subtitle-pipeline`
 - Original implementation：`98d19700818bcae14efc412aaaaeb6eed97a1535`
 - Review evidence / starting HEAD：
   `515c34894bb138115a4658d962fb5ef0aa7d9d80`
 - Starting HEAD parent：`98d19700818bcae14efc412aaaaeb6eed97a1535`
-- Git identity：`Mozhu <huangbuqubunao@gmail.com>`
+- Git identity：`Mozhu <maintainer@example.invalid>`
 - `user.useConfigOnly=true`
 
 开始时 main 必须位于 correction authorization commit 且干净；source 必须位于固定

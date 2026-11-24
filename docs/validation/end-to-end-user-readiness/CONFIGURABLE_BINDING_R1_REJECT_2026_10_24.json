@@ -3,13 +3,13 @@
   "review_commit": "5ca0605c58cbfcb85298c2b5bd151bac4da43147",
   "base": "8cff49769d9cc648a9c96971b85fc3cbabe80d1a",
   "candidate": "81a2d94296c62c2a9aa6ac4bc8fa4068f86f4a8a",
-  "review_worktree": "/Users/hua/Documents/yia-worktrees/readiness-configurable-model-review-r1",
+  "review_worktree": "/Users/developer/Documents/yia-worktrees/readiness-configurable-model-review-r1",
   "finding": {
     "severity": "P1",
     "file": "src/youtube_intel/local_model_capacity.py",
     "lines": "837-840 (candidate)",
     "reason": "Missing actual implementation-library mapping accepted for loaded runner; frozen disk bytes alone do not prove loaded library identity.",
-    "probe": "/Users/hua/Documents/yia-worktrees/readiness-configurable-model-review-r1/.var/model-binding-review-r1/missing-library-mapping-probe.json",
+    "probe": "/Users/developer/Documents/yia-worktrees/readiness-configurable-model-review-r1/.var/model-binding-review-r1/missing-library-mapping-probe.json",
     "probe_sha256": "45fc3d9e8329e621d80f59c700163bb77ed21ad3945f2f39b3ee557358e67ebf"
   },
   "independent_checks": {

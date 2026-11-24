@@ -13,15 +13,15 @@ L-15 中该任务负责的共享契约，以及五轴质量、范围、复用和
 
 ## 固定对象与启动门禁
 
-- Main repository：`/Users/hua/Documents/youtubek agent`
+- Main repository：`/Users/developer/Documents/youtubek agent`
 - Main review authorization：动态运行
-  `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-005A-REVIEWER-CODEX.md`
+  `git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-005A-REVIEWER-CODEX.md`
 - Required authorization parent：`3ee490c19950482ecd014668ce510ba5c742b743`
-- Source worktree：`/Users/hua/Documents/yia-worktrees/task-005a`
+- Source worktree：`/Users/developer/Documents/yia-worktrees/task-005a`
 - Source branch：`codex/task-005a-local-model-shared-contracts`
 - Implementation base：`82f45a1c04f9eba3264cd743b28bc339d79b34fc`
 - Reviewed implementation head：`85cd5362460044773317a48cbaae58e55aa735af`
-- Required identity：`Mozhu <huangbuqubunao@gmail.com>`；`user.useConfigOnly=true`
+- Required identity：`Mozhu <maintainer@example.invalid>`；`user.useConfigOnly=true`
 
 开始时 main 必须位于动态 authorization commit、该 commit 是 Required authorization
 parent 的单一直接后继、main 干净；source 必须处于固定 head、分支正确且干净。main 的

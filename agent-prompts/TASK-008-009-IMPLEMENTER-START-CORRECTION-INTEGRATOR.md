@@ -4,10 +4,10 @@
 
 ## 固定事实
 
-- Main：`/Users/hua/Documents/youtubek agent` / `main@f9aca7c15357695b4a9ca362fd7c58180011d4a5`。
+- Main：`/Users/developer/Documents/youtubek agent` / `main@f9aca7c15357695b4a9ca362fd7c58180011d4a5`。
 - TASK-009 source worktree 刻意固定在 `473119704c7638d7afd4e68d84d00e85064ceabd`；因此其本地 `tasks/` 与 `docs/PROJECT_STATUS.md` 是分配前历史快照，仍显示 `BLOCKED/UNASSIGNED`。
 - 实时状态与授权唯一来自 main 的本次提交及其后的 TASK-009 Implementer 包：TASK-009 为 `IN_PROGRESS` / Codex。历史快照不构成规格冲突，也不得被 source 写入或更新。
-- 身份必须是 `Mozhu <huangbuqubunao@gmail.com>` 且 `user.useConfigOnly=true`。
+- 身份必须是 `Mozhu <maintainer@example.invalid>` 且 `user.useConfigOnly=true`。
 
 ## 唯一允许提交范围
 
@@ -23,7 +23,7 @@
 
 1. main HEAD 为 `f9aca7c...`，TASK-009 source 的分支、HEAD=`473119...` 与洁净度正确。
 2. main 的 `docs/PROJECT_STATUS.md`、`tasks/README.md`、`tasks/TASK-009-obsidian-notes.md` 均明确 TASK-009=`IN_PROGRESS`；source 副本的旧状态仅作为固定 base 历史，不可当作实时事实。
-3. TASK-009 Implementer 包要求以 `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-009-IMPLEMENTER-CODEX.md` 解析本次主线授权，并在执行前从该 main commit 读取实时状态。
+3. TASK-009 Implementer 包要求以 `git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-009-IMPLEMENTER-CODEX.md` 解析本次主线授权，并在执行前从该 main commit 读取实时状态。
 4. `git diff --check`、LF-at-EOF、尾随空白、双轮 SHA-256、暂存范围和 `git diff --cached --check` 均通过。
 
 全通过后只创建一个单父提交：

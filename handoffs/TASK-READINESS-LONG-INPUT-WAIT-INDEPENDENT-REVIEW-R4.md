@@ -5,9 +5,9 @@
 **REJECT** fixed candidate `6e0f59e2f40fb62d371945cac0253346aa1616ce`. Two ordinary failure-path defects and the subsequently confirmed restart/drain P1 below remain. The mandatory affected group is not a passing final gate. Return repairs to the assigned sole Implementer; Reviewer made no business or test changes.
 
 - Reviewer: `/root/long_wait_independent_review`,2026-10-21.
-- Worktree/branch: `/Users/hua/Documents/yia-worktrees/readiness-long-input-wait-review-r4`, `codex/review-readiness-long-input-wait-r4`; exact candidate HEAD and clean state verified before review.
+- Worktree/branch: `/Users/developer/Documents/yia-worktrees/readiness-long-input-wait-review-r4`, `codex/review-readiness-long-input-wait-r4`; exact candidate HEAD and clean state verified before review.
 - Main delta: approved R3 candidate `b3546ff14627be51c27ce799e4de800ec1e9336d`→this candidate,20 files. Overall base remains `4f7cc46ed1381782288a2f4915dce027b38c3b94`.
-- Read current root task/package, settings completion plan including explicit0.40.6 installation-only addition, and [R3 report2f3a8e8](/Users/hua/Documents/yia-worktrees/readiness-long-input-wait-review-r3/handoffs/TASK-READINESS-LONG-INPUT-WAIT-INDEPENDENT-REVIEW-R3.md). Applied code-review-and-quality and new-worktree graph-first discovery (fast/persistence=false).
+- Read current root task/package, settings completion plan including explicit0.40.6 installation-only addition, and [R3 report2f3a8e8](/Users/developer/Documents/yia-worktrees/readiness-long-input-wait-review-r3/handoffs/TASK-READINESS-LONG-INPUT-WAIT-INDEPENDENT-REVIEW-R3.md). Applied code-review-and-quality and new-worktree graph-first discovery (fast/persistence=false).
 - Only this report is written. No production/test edits, dependencies/install, model/tokenizer/network/cloud/owner access, integration, task-state changes or main adoption. Frontend used the provided link to existing dependencies.
 
 ## Required findings
@@ -16,7 +16,7 @@
 
 Locations: `src/youtube_intel/local_api.py:3713`, `cli.py:175`–`:177`, `backup_restore.py:347`–`:353` and `:547`; new machine EX acquisition at `backup_restore.py:262`/`:318`.
 
-After the original R4 report, root's real headed GUI completed installed0.40.6 selection, actual9b route, full114/2406 WAIT0/cancellation and a genuine process restart with79SQL/19DATA equality. It then created/downloaded a real ZIP, selected it with the macOS native file chooser, staged it and confirmed RESTORE. Normal cached-config factory reconstruction terminated the service. Preserved root log `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/local-settings-r4/api-restart.log` shows `runtime_composition.py:510`→`recover_and_apply_pending_restore:547`→`_protect_background:318`→machine `store_lock(anchor):262`→`RetryConflict` at `tracked_retry_context.py:93`, ultimately uncaught `BackupRestoreError`. The first machine lock is contended; this is not staged-pair validation failure or an observed model invocation.
+After the original R4 report, root's real headed GUI completed installed0.40.6 selection, actual9b route, full114/2406 WAIT0/cancellation and a genuine process restart with79SQL/19DATA equality. It then created/downloaded a real ZIP, selected it with the macOS native file chooser, staged it and confirmed RESTORE. Normal cached-config factory reconstruction terminated the service. Preserved root log `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/local-settings-r4/api-restart.log` shows `runtime_composition.py:510`→`recover_and_apply_pending_restore:547`→`_protect_background:318`→machine `store_lock(anchor):262`→`RetryConflict` at `tracked_retry_context.py:93`, ultimately uncaught `BackupRestoreError`. The first machine lock is contended; this is not staged-pair validation failure or an observed model invocation.
 
 Read-only source/stdlib diagnosis establishes a lifecycle hole. `serve_loopback` returns the standard `ThreadingHTTPServer`, whose installed `daemon_threads` is True. Installed `socketserver.ThreadingMixIn.process_request` marks request threads daemon; `_Threads.append` explicitly discards daemon threads; `server_close` joins only that registry. Therefore `server_close()` does not drain in-flight request handlers. `worker.stop()` joins the source worker only. The production CLI and preserved root harness both call server_close then worker.stop before immediately reconstructing the runtime, without draining HTTP request holders.
 
@@ -70,7 +70,7 @@ Actual output: `version_probe_escaped IncompleteRead`. No credential method was 
 
 ## Independent checks
 
-Interpreter: `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`; review cwd. Backend tests used `PYTHONPATH=src:tests:.`, strict mypy used `PYTHONPATH=src`. Import proof resolved R4's `local_intelligence_settings.py`.
+Interpreter: `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`; review cwd. Backend tests used `PYTHONPATH=src:tests:.`, strict mypy used `PYTHONPATH=src`. Import proof resolved R4's `local_intelligence_settings.py`.
 
 | Check | Actual result |
 |---|---|

@@ -9,7 +9,7 @@
 Task: TASK-014B4 — offline validation environment provisioning
 Role: controlled preflight executor
 Control-plane baseline: ccc747800b59e2bacc918f1e7b81e065b1520d9a
-Sole source worktree: /Users/hua/Documents/yia-worktrees/task-014b4-directory-only-smoke
+Sole source worktree: /Users/developer/Documents/yia-worktrees/task-014b4-directory-only-smoke
 Sole source branch: codex/task-014b4-directory-only-smoke
 Required pre-control source HEAD: ccc747800b59e2bacc918f1e7b81e065b1520d9a
 ```

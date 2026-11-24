@@ -15,7 +15,7 @@
 ## 2026-07-20 正式分配
 
 - Base：`main@82d1fd7c7f2f82e77df0518e63755bad0bf240f2`
-- Worktree：`/Users/hua/Documents/yia-worktrees/task-008a`
+- Worktree：`/Users/developer/Documents/yia-worktrees/task-008a`
 - Branch：`codex/task-008a-cloud-analysis-shared-contracts`
 - Implementer：Codex；Reviewer：实现提交后启动全新独立 Codex 会话
 - 完整产品 Diff：原实现只允许本卡“预计触达文件”的 7 个路径；Correction 1 获准

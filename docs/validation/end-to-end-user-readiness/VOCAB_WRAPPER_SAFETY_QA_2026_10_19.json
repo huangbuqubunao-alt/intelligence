@@ -5,7 +5,7 @@
   "exit_code": 0,
   "tests_passed": 16,
   "elapsed_seconds": 0.398,
-  "private_directory": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/vocab-wrapper-v2-20261019",
+  "private_directory": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/vocab-wrapper-v2-20261019",
   "files": {
     "bounded_qa.py": "4da87d76e6a5c7826ddc69c501b69d85e47599edc21aa42757ab316c3a3fbbf0",
     "test_bounded_qa.py": "922762e87d3f5e063df15811ba443ec5641f9401d844ce9a3f4c5a74b5442cbb"
@@ -42,7 +42,7 @@
   "preserved_failure": {
     "independent_P2": "observer delay could hide late completion",
     "first_fix_failure": "macOS exited child group EPERM masked TimeoutError",
-    "log": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/vocab-wrapper-v2-20261019/run-first16-failure.log",
+    "log": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/vocab-wrapper-v2-20261019/run-first16-failure.log",
     "resolution": "deadline rechecked after observation and loop; ignore EPERM only after direct child confirmed exited"
   }
 }

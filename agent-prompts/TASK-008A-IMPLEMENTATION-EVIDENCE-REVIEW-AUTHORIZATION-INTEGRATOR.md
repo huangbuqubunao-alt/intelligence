@@ -7,13 +7,13 @@ pytest、mypy、Ruff、build、Python import、数据库或网络命令，不得
 
 ## 固定基线
 
-- Main repository：`/Users/hua/Documents/youtubek agent`
+- Main repository：`/Users/developer/Documents/youtubek agent`
 - Main branch/base：`main@112a79a1bed8f02eba6f75ec7247f398b104ac75`
-- Source worktree：`/Users/hua/Documents/yia-worktrees/task-008a`
+- Source worktree：`/Users/developer/Documents/yia-worktrees/task-008a`
 - Source branch：`codex/task-008a-cloud-analysis-shared-contracts`
 - Source implementation base：`82d1fd7c7f2f82e77df0518e63755bad0bf240f2`
 - Source implementation head：`382251298af7fcbfadba66c1902af6de0a425179`
-- Required identity：`Mozhu <huangbuqubunao@gmail.com>`；
+- Required identity：`Mozhu <maintainer@example.invalid>`；
   `user.useConfigOnly=true`
 
 开始时 main 必须精确位于 Required main base，身份正确，暂存区为空；工作区必须
@@ -72,12 +72,12 @@ git status --porcelain=v1
 git diff --check
 git diff --name-status
 git diff
-git -C "/Users/hua/Documents/yia-worktrees/task-008a" branch --show-current
-git -C "/Users/hua/Documents/yia-worktrees/task-008a" rev-parse HEAD
-git -C "/Users/hua/Documents/yia-worktrees/task-008a" rev-parse HEAD^
-git -C "/Users/hua/Documents/yia-worktrees/task-008a" status --porcelain=v1
-git -C "/Users/hua/Documents/yia-worktrees/task-008a" diff --check 82d1fd7c7f2f82e77df0518e63755bad0bf240f2...382251298af7fcbfadba66c1902af6de0a425179
-git -C "/Users/hua/Documents/yia-worktrees/task-008a" diff --name-status 82d1fd7c7f2f82e77df0518e63755bad0bf240f2...382251298af7fcbfadba66c1902af6de0a425179
+git -C "/Users/developer/Documents/yia-worktrees/task-008a" branch --show-current
+git -C "/Users/developer/Documents/yia-worktrees/task-008a" rev-parse HEAD
+git -C "/Users/developer/Documents/yia-worktrees/task-008a" rev-parse HEAD^
+git -C "/Users/developer/Documents/yia-worktrees/task-008a" status --porcelain=v1
+git -C "/Users/developer/Documents/yia-worktrees/task-008a" diff --check 82d1fd7c7f2f82e77df0518e63755bad0bf240f2...382251298af7fcbfadba66c1902af6de0a425179
+git -C "/Users/developer/Documents/yia-worktrees/task-008a" diff --name-status 82d1fd7c7f2f82e77df0518e63755bad0bf240f2...382251298af7fcbfadba66c1902af6de0a425179
 ```
 
 全部通过后，只暂存上述 5 个文件，运行 `git diff --cached --check`、完整 cached

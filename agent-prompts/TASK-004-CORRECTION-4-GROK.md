@@ -4,14 +4,14 @@
 
 ## 固定上下文
 
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-004`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-004`
 - Branch: `grok/task-004-discovery-metadata`
 - Product base: `dcc7d85d9d19f067dccdc2cdd12cdd2f5c438176`
 - Required source head before correction: `5d66c28d6bd02a7cf31a27ffe9a31a2479f9da58`
 - Reviewer: 第二个 Codex Reviewer 已结束；修复完成后等待主控范围核验
 - Parallel work: TASK-003 Codex Integrator；不得读取、写入、检查、清理或等待 TASK-003 worktree
 
-控制面文档必须从 main `/Users/hua/Documents/youtubek agent` 读取；TASK-004 source worktree 只用于代码、测试和本任务 handoff。完整读取 `AGENTS.md`、协作/状态/PRD/System Design 第 3、5、5.2、12 节、ADR-002 C-05、ADR-004 D-01 至 D-08、Reuse Register、TASK-004 卡、完整 handoff（特别是 `5d66c28...` Reviewer 结论）、全部前三轮 correction 包和本包。若修复需要新依赖、ErrorCode、公共领域类型、范围外文件或真实网络，立即输出 `DECISION NEEDED`。
+控制面文档必须从 main `/Users/developer/Documents/youtubek agent` 读取；TASK-004 source worktree 只用于代码、测试和本任务 handoff。完整读取 `AGENTS.md`、协作/状态/PRD/System Design 第 3、5、5.2、12 节、ADR-002 C-05、ADR-004 D-01 至 D-08、Reuse Register、TASK-004 卡、完整 handoff（特别是 `5d66c28...` Reviewer 结论）、全部前三轮 correction 包和本包。若修复需要新依赖、ErrorCode、公共领域类型、范围外文件或真实网络，立即输出 `DECISION NEEDED`。
 
 ## 仅允许修改的 5 个文件
 
@@ -29,7 +29,7 @@
 2. **RSS entry channelId 不得回填：** 每个可解析 RSS entry 的 channelId 必须存在、非空且有效；不得用请求 channel ID 回填 entry 缺失值。缺失或无效时整批 discovery 必须安全 `INVALID_RESPONSE`、不可重试，且不保存 candidates、不推进 cursor；随后修复同一较旧 entry 后仍可被发现。补充离线 unit/integration 回归，明确验证 Repository 与 cursor 均未变。
 3. **不得回归 correction 3：** 保持 malformed date/duration、请求/响应 ID mismatch、RSS 缺 videoId/published/title、response finally-close、HTTP 404/403/429/503/5xx 分类与正文脱敏、`needs_auth -> RESTRICTED`、公开 surface 以及无下载/无 Cookie/无 remote components/无 ffmpeg 边界。不得新增依赖或公开自由 dict 接口。
 
-开始前确认 worktree 干净、HEAD 为 `5d66c28...`、身份 `Mozhu <huangbuqubunao@gmail.com>`、`user.useConfigOnly=true`。修复后运行：
+开始前确认 worktree 干净、HEAD 为 `5d66c28...`、身份 `Mozhu <maintainer@example.invalid>`、`user.useConfigOnly=true`。修复后运行：
 
 ```bash
 uv lock --check

@@ -24,7 +24,7 @@
 
 ## 权威入口与持续授权
 
-主控工作树 `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness`，branch `codex/task-end-to-end-user-readiness`。本轮实际HEAD请现场git核验；mixed候选已整合后HEAD在merge df19d70附近。正式工作树 `/Users/hua/Documents/yia-worktrees/v1x-local-main`；最后已核验main/origin/main/served均73ee7e747b4461b9de8a201d6b47669eb3913d1a，正式URL http://127.0.0.1:5488/、API5489。此值须采用前重新核验，不得覆盖并行更新。正式owner/配置/凭据未读写或重置。
+主控工作树 `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness`，branch `codex/task-end-to-end-user-readiness`。本轮实际HEAD请现场git核验；mixed候选已整合后HEAD在merge df19d70附近。正式工作树 `/Users/developer/Documents/yia-worktrees/v1x-local-main`；最后已核验main/origin/main/served均73ee7e747b4461b9de8a201d6b47669eb3913d1a，正式URL http://127.0.0.1:5488/、API5489。此值须采用前重新核验，不得覆盖并行更新。正式owner/配置/凭据未读写或重置。
 
 先读AGENTS.md、docs/COLLABORATION.md、docs/PROJECT_STATUS.md，随后按其引用读PRD/SYSTEM_DESIGN/PRODUCT_DECISIONS/REUSE_REGISTER、活动tasks和agent-prompts/handoffs。用户持续默认批准的准确记录：`CONTINUING_AUTHORIZATION_2026_10_15.md`。必要任务内代码/隔离安全持久化/兼容迁移/本地模型调整记录范围风险后直接实施，不再逐文件/方法申请；全部门禁满足后的安全采用已授权。禁止降低测试/证据/资格、付费Cloud、无关凭据、正式数据删除重置、force push。主控不写产品代码，独立作者/审查/整合按COLLABORATION；共享核心串行，最多2writer+1reviewer。没有Codex专用工具不构成阻塞，使用等价本地工具和文件记录，不能伪造独立审查。
 

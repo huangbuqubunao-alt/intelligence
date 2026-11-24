@@ -97,7 +97,7 @@ preserved, including pre-existing owner changes.
 
 Failure evidence retained:
 
-- `PYTHONPATH=src /Users/hua/youtube-intel/.venv/bin/python -m pytest -q
+- `PYTHONPATH=src /Users/developer/youtube-intel/.venv/bin/python -m pytest -q
   tests/integration/test_youtube_following.py::test_initial_caption_network_retry_remains_durable_and_recovers`
   failed with `assert 'COMPLETE' == 'OFFLINE'`. The affected runtime enrollment
   marked a retry-pending caption acquisition enrolled; preserving PENDING and

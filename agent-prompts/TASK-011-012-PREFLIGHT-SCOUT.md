@@ -4,8 +4,8 @@
 
 ## 动态授权与固定对象
 
-- Main authorization：`git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-011-012-PREFLIGHT-SCOUT.md` 必须解析为本 preflight 控制面提交。
-- 仅在 main `/Users/hua/Documents/youtubek agent` 做只读核验。当前 baseline、identity、工作树和 index 都必须干净。
+- Main authorization：`git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-011-012-PREFLIGHT-SCOUT.md` 必须解析为本 preflight 控制面提交。
+- 仅在 main `/Users/developer/Documents/youtubek agent` 做只读核验。当前 baseline、identity、工作树和 index 都必须干净。
 - TASK-010 已 `DONE`；TASK-011/TASK-012 仍是 `BLOCKED/UNASSIGNED`。不得把它们设为 READY/IN_PROGRESS，也不得创建 source worktree。
 
 ## 必读材料

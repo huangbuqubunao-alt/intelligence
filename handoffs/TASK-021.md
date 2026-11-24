@@ -8,7 +8,7 @@
   (`docs(v1): correct TASK-021 migration authority`)
 - Feature commit: `a0e434de28e647f179fbf9a175a485713cee3caf`
 - Adversarial correction: `e3c145534d3d4424dd06c46a74ace0fb89de00ad`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-021-source-policy-filtering-m009`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-021-source-policy-filtering-m009`
 - Branch: `codex/task-021-source-policy-filtering-m009`
 - Date: `2026-09-07`
 

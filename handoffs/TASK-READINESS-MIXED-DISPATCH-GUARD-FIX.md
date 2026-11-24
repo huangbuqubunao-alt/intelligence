@@ -5,7 +5,7 @@
 - 任务：`TASK-READINESS-MIXED-DISPATCH-GUARD-FIX`（Role Implementer）
 - 日期：2026-10-20，Asia/Shanghai。
 - Base（拒收候选）：`d9226ff607a211f2e7dc196e9f447fdaea31bca1`（UI `9927324`、核心 `19d8107`）。
-- Worktree：`/Users/hua/Documents/yia-worktrees/readiness-mixed-dispatch-guard-fix`；branch `codex/task-readiness-mixed-dispatch-guard-fix`。
+- Worktree：`/Users/developer/Documents/yia-worktrees/readiness-mixed-dispatch-guard-fix`；branch `codex/task-readiness-mixed-dispatch-guard-fix`。
 - 最终 commit：见本文提交记录；commit 后 cleanSTOP。
 
 ## 目标复述与本轮修复

@@ -8,7 +8,7 @@
     "seconds": 2528.563,
     "source_files": 543,
     "source_changes": [],
-    "evidence": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/root-final-whole-20261024/result.json"
+    "evidence": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/root-final-whole-20261024/result.json"
   },
   "accepted_product_fix": "0f1e19407fa437d7a3a6fdee244ea98db1b13d7e",
   "root_product_commit": "d543b1c",
@@ -20,7 +20,7 @@
     "checks": {
       "compile": {
         "command": [
-          "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
+          "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
           "-m",
           "compileall",
           "-q",
@@ -34,7 +34,7 @@
       },
       "ruff": {
         "command": [
-          "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
+          "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
           "-m",
           "ruff",
           "check",
@@ -48,7 +48,7 @@
       },
       "mypy": {
         "command": [
-          "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
+          "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
           "-m",
           "mypy",
           "src"
@@ -59,7 +59,7 @@
       },
       "tests": {
         "command": [
-          "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
+          "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python",
           "-m",
           "pytest",
           "-q",

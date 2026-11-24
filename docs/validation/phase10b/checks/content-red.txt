@@ -1,7 +1,7 @@
 
 ==================================== ERRORS ====================================
 _________ ERROR collecting tests/integration/test_bilibili_content.py __________
-ImportError while importing test module '/Users/hua/Documents/yia-worktrees/v1x-bilibili-provider/tests/integration/test_bilibili_content.py'.
+ImportError while importing test module '/Users/developer/Documents/yia-worktrees/v1x-bilibili-provider/tests/integration/test_bilibili_content.py'.
 Hint: make sure your test modules/packages have valid Python names.
 Traceback:
 ../../../.local/share/uv/python/cpython-3.12-macos-aarch64-none/lib/python3.12/importlib/__init__.py:90: in import_module

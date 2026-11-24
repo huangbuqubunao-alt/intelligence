@@ -52,7 +52,7 @@ from youtube_intel.state import SQLiteStateRepository
 
 PROJECT = Path(__file__).resolve().parents[1]
 SCRIPT = Path(__file__).resolve()
-SOURCE = Path('/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/bigmodel-public-diagnostic-20261028')
+SOURCE = Path('/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/bigmodel-public-diagnostic-20261028')
 PACKAGE = PROJECT / '.var/bigmodel-grounding-v2-public-case'
 ATTEMPT = PROJECT / '.var/bigmodel-grounding-v2-public-case.attempt.json'
 ORACLE = PROJECT / 'docs/validation/end-to-end-user-readiness/UNSEEN_PUBLIC_ORACLE_V1.json'

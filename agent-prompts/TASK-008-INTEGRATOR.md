@@ -4,8 +4,8 @@
 
 ## 固定对象
 
-- Acceptance/execution base：main 最新提交必须由 `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-008-INTEGRATOR.md` 解析为本授权提交。
-- Source：`/Users/hua/Documents/yia-worktrees/task-008` / `codex/task-008-deep-analysis@6914312eaac0e3d65f1d2895ea2e3c0c2c39f4d8`。
+- Acceptance/execution base：main 最新提交必须由 `git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-008-INTEGRATOR.md` 解析为本授权提交。
+- Source：`/Users/developer/Documents/yia-worktrees/task-008` / `codex/task-008-deep-analysis@6914312eaac0e3d65f1d2895ea2e3c0c2c39f4d8`。
 - Source review evidence：`6914312...` 唯一父为 `dcbbd38...`，只修改 handoff，Verdict=`APPROVE`、P0–P3=0。
 - Original source base：`473119704c7638d7afd4e68d84d00e85064ceabd`；完整允许范围严格为：
   - `src/youtube_intel/analysis.py`
@@ -18,7 +18,7 @@
 
 ## 合并前门禁
 
-1. main/source 均干净；身份为 `Mozhu <huangbuqubunao@gmail.com>` 且 `user.useConfigOnly=true`。
+1. main/source 均干净；身份为 `Mozhu <maintainer@example.invalid>` 且 `user.useConfigOnly=true`。
 2. 核验 source 父链、review handoff-only scope、完整六路径 source Diff、无依赖/锁/公共契约/config/`state.py`/Schema/migration/CLI/TASK-009 变更，并通过 `git diff --check`。
 3. 在 main 暂存 source 的精确六路径产品差异，先执行 `git diff --cached --check` 与范围检查；然后以 `--no-ff` 合并固定 source。不得 fast-forward、cherry-pick、rebase 或手动改冲突。
 

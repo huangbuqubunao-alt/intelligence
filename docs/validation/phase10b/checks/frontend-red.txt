@@ -3,7 +3,7 @@
 > vitest run --run src/workspace/BilibiliImport.test.tsx
 
 
- RUN  v2.1.9 /Users/hua/Documents/yia-worktrees/v1x-bilibili-provider/frontend
+ RUN  v2.1.9 /Users/developer/Documents/yia-worktrees/v1x-bilibili-provider/frontend
 
  ❯ src/workspace/BilibiliImport.test.tsx (0 test)
 
@@ -12,7 +12,7 @@
  FAIL  src/workspace/BilibiliImport.test.tsx [ src/workspace/BilibiliImport.test.tsx ]
 Error: Failed to resolve import "./BilibiliImport" from "src/workspace/BilibiliImport.test.tsx". Does the file exist?
   Plugin: vite:import-analysis
-  File: /Users/hua/Documents/yia-worktrees/v1x-bilibili-provider/frontend/src/workspace/BilibiliImport.test.tsx:4:31
+  File: /Users/developer/Documents/yia-worktrees/v1x-bilibili-provider/frontend/src/workspace/BilibiliImport.test.tsx:4:31
   3  |  import userEvent from "@testing-library/user-event";
   4  |  import { afterEach, expect, it, vi } from "vitest";
   5  |  import { BilibiliImport } from "./BilibiliImport";

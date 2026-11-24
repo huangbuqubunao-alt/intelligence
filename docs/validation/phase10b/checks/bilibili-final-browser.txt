@@ -9,7 +9,7 @@ Call log:
 [2m  - attempting click action[22m
 [2m    - waiting for element to be visible, enabled and stable[22m
 
-    at /Users/hua/Documents/yia-worktrees/v1x-bilibili-provider/frontend/bilibili-provider.e2e.mjs:68:83 {
+    at /Users/developer/Documents/yia-worktrees/v1x-bilibili-provider/frontend/bilibili-provider.e2e.mjs:68:83 {
   log: [
     "  - waiting for getByRole('button', { name: 'Research', exact: true })",
     '    - locator resolved to <button type="button" class="button button-secondary">Research</button>',

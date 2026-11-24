@@ -1,7 +1,7 @@
 # LOCAL_TEXT implementer package
 
 Task TASK-READINESS-LOCAL-INTELLIGENCE-TEXT / Role Implementer local_text.
-Base2978550aee692c7b24d5707d2eb4ebdfcc1d0e2f; worktree /Users/hua/Documents/yia-worktrees/readiness-local-intelligence-text; branch codex/task-readiness-local-intelligence-text. Author独立，Reviewer intel_bounded_review仅作者STOP后。
+Base2978550aee692c7b24d5707d2eb4ebdfcc1d0e2f; worktree /Users/developer/Documents/yia-worktrees/readiness-local-intelligence-text; branch codex/task-readiness-local-intelligence-text. Author独立，Reviewer intel_bounded_review仅作者STOP后。
 
 Allowed scope/Required checks/Special approvals精确采用root tasks/TASK-READINESS-LOCAL-INTELLIGENCE-TEXT.md、LOCAL_INTELLIGENCE_CHAIN_PROPOSAL.md及LOCAL_TEXT_TRUSTED_READER_ADDENDUM.md用户具体批准记录；先确认Schema持久版本关联可验证，不够则STOP无新迁移。DIRECT现Evidence/source/ledger/reader/Backup，ADAPT独立文字wire/hash；不新增依赖。
 

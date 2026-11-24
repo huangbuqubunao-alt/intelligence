@@ -4,11 +4,11 @@
 
 ## 固定对象
 
-- Main：`/Users/hua/Documents/youtubek agent` / `main`
-- Dynamic execution base：`git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-009A-INTEGRATOR.md`
+- Main：`/Users/developer/Documents/youtubek agent` / `main`
+- Dynamic execution base：`git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-009A-INTEGRATOR.md`
 - Accepted source：`e30b40c7bfb388748ff1aee0420177f2ee6c2e2e`
 - Correction implementation：`9ef4b2f63df65d09569ba119c6873805dcd9de17`
-- Source worktree/branch：`/Users/hua/Documents/yia-worktrees/task-009a` / `codex/task-009a-obsidian-note-shared-contracts`
+- Source worktree/branch：`/Users/developer/Documents/yia-worktrees/task-009a` / `codex/task-009a-obsidian-note-shared-contracts`
 
 main/source 必须干净，TASK-009A 必须为 ACCEPTED，source 必须为 accepted head。先验证 review evidence 只改 handoff、Correction 三路径、完整 source 相对 `e4271e41910bba54b37b48df709dcf632fe3b0eb` 精确为：`domain.py`、`tests/unit/test_contracts.py`、`pyproject.toml`、`uv.lock`、`handoffs/TASK-009A.md`。
 

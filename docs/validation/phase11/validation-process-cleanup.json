@@ -2,61 +2,61 @@
   {
     "port": 5612,
     "pid": 14659,
-    "command": "/Users/hua/youtube-intel/.venv/bin/python tests/e2e/creator_following_fixture_server.py .var/phase11/browser-verified-fixture --port 5612 --offline",
+    "command": "/Users/developer/youtube-intel/.venv/bin/python tests/e2e/creator_following_fixture_server.py .var/phase11/browser-verified-fixture --port 5612 --offline",
     "action": "SIGINT own validation process"
   },
   {
     "port": 5613,
     "pid": 9074,
-    "command": "node /Users/hua/Documents/yia-worktrees/v1x-bilibili-following/frontend/node_modules/.bin/vite preview --host 127.0.0.1 --port 5613 --strictPort",
+    "command": "node /Users/developer/Documents/yia-worktrees/v1x-bilibili-following/frontend/node_modules/.bin/vite preview --host 127.0.0.1 --port 5613 --strictPort",
     "action": "SIGINT own validation process"
   },
   {
     "port": 5614,
     "pid": 11515,
-    "command": "/Users/hua/youtube-intel/.venv/bin/python tests/e2e/bilibili_fixture_server.py .var/phase10b/phase11-regression --port 5614",
+    "command": "/Users/developer/youtube-intel/.venv/bin/python tests/e2e/bilibili_fixture_server.py .var/phase10b/phase11-regression --port 5614",
     "action": "SIGINT own validation process"
   },
   {
     "port": 5615,
     "pid": 11565,
-    "command": "node /Users/hua/Documents/yia-worktrees/v1x-bilibili-following/frontend/node_modules/.bin/vite preview --host 127.0.0.1 --port 5615 --strictPort",
+    "command": "node /Users/developer/Documents/yia-worktrees/v1x-bilibili-following/frontend/node_modules/.bin/vite preview --host 127.0.0.1 --port 5615 --strictPort",
     "action": "SIGINT own validation process"
   },
   {
     "port": 5616,
     "pid": 11641,
-    "command": "/Users/hua/youtube-intel/.venv/bin/python tests/e2e/local_provider_fixture_server.py .var/phase7/phase11-regression --port 5616",
+    "command": "/Users/developer/youtube-intel/.venv/bin/python tests/e2e/local_provider_fixture_server.py .var/phase7/phase11-regression --port 5616",
     "action": "SIGINT own validation process"
   },
   {
     "port": 5617,
     "pid": 11701,
-    "command": "node /Users/hua/Documents/yia-worktrees/v1x-bilibili-following/frontend/node_modules/.bin/vite preview --host 127.0.0.1 --port 5617 --strictPort",
+    "command": "node /Users/developer/Documents/yia-worktrees/v1x-bilibili-following/frontend/node_modules/.bin/vite preview --host 127.0.0.1 --port 5617 --strictPort",
     "action": "SIGINT own validation process"
   },
   {
     "port": 5618,
     "pid": 12442,
-    "command": "/Users/hua/youtube-intel/.venv/bin/python tests/e2e/offline_transcription_fixture_server.py .var/phase8/phase11-regression --port 5618",
+    "command": "/Users/developer/youtube-intel/.venv/bin/python tests/e2e/offline_transcription_fixture_server.py .var/phase8/phase11-regression --port 5618",
     "action": "SIGINT own validation process"
   },
   {
     "port": 5619,
     "pid": 12497,
-    "command": "node /Users/hua/Documents/yia-worktrees/v1x-bilibili-following/frontend/node_modules/.bin/vite preview --host 127.0.0.1 --port 5619 --strictPort",
+    "command": "node /Users/developer/Documents/yia-worktrees/v1x-bilibili-following/frontend/node_modules/.bin/vite preview --host 127.0.0.1 --port 5619 --strictPort",
     "action": "SIGINT own validation process"
   },
   {
     "port": 5621,
     "pid": 14657,
-    "command": "node /Users/hua/Documents/yia-worktrees/v1x-bilibili-following/frontend/node_modules/.bin/vite --host 127.0.0.1 --port 5621",
+    "command": "node /Users/developer/Documents/yia-worktrees/v1x-bilibili-following/frontend/node_modules/.bin/vite --host 127.0.0.1 --port 5621",
     "action": "SIGINT own validation process"
   },
   {
     "port": 59583,
     "pid": 14106,
-    "command": "/Users/hua/youtube-intel/.venv/bin/python tests/e2e/v1x_integration_fixture_server.py .var/phase6/phase11-integration",
+    "command": "/Users/developer/youtube-intel/.venv/bin/python tests/e2e/v1x_integration_fixture_server.py .var/phase6/phase11-integration",
     "action": "SIGINT own validation process"
   }
 ]

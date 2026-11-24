@@ -15,7 +15,7 @@ execFileSync('/usr/bin/osascript',['-e',`tell application "System Events"
   keystroke "g" using {command down, shift down}
   delay 1
   keystroke "a" using {command down}
-  keystroke "/Users/hua/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/gui/fixtures/audit-media.mp4"
+  keystroke "/Users/developer/Documents/yia-worktrees/muse-final-audit/.var/muse-final-audit/gui/fixtures/audit-media.mp4"
   key code 36
   delay 2
   click button "Open" of splitter group 1 of window 1

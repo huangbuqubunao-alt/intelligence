@@ -3,7 +3,7 @@
   "implementer": "local_rejection_accounting",
   "base": "a989873773c0f4018cc696930789566925e88c7c",
   "status": "IMPLEMENTED_PENDING_INDEPENDENT_REVIEW",
-  "worktree": "/Users/hua/Documents/yia-worktrees/readiness-local-rejection-accounting",
+  "worktree": "/Users/developer/Documents/yia-worktrees/readiness-local-rejection-accounting",
   "branch": "codex/task-readiness-local-rejection-accounting",
   "source_sha256": {
     "src/youtube_intel/distillation.py": "daae02a09c0b17a147ad304c87c32a90068c9152f12436a92bd46c92cce3aef3",

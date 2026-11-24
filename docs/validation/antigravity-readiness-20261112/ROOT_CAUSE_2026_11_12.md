@@ -3,7 +3,7 @@
 状态：根因判断已完成，**未进行任何新的模型调用**。旧的 REJECT 记录、原始输出、收据、费用历史均保持不变；本文只追加复核意见。
 
 基线：`18f366b80e9f184795e44d7716f49d0ac418fb7f`（完整候选，接手时仍冻结且干净；交接后各分支没有新提交）。
-本分支：`antigravity/task-user-readiness-20261112`，工作树 `/Users/hua/Documents/yia-worktrees/antigravity-readiness-20261112`。
+本分支：`antigravity/task-user-readiness-20261112`，工作树 `/Users/developer/Documents/yia-worktrees/antigravity-readiness-20261112`。
 
 ## 1. 直接阅读的材料（全部只读）
 

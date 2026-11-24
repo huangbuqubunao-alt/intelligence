@@ -4,7 +4,7 @@
   "required": 17,
   "research_only": true,
   "production_eligible": false,
-  "retained_private_root": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness-asr/.var/readiness-asr/run-03",
+  "retained_private_root": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness-asr/.var/readiness-asr/run-03",
   "samples": [
     {
       "id": "english-clean",

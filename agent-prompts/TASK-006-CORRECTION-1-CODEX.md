@@ -4,12 +4,12 @@
 
 You are the original TASK-006 Codex Implementer returning to its source worktree.
 
-- Worktree/branch: `/Users/hua/Documents/yia-worktrees/task-006` /
+- Worktree/branch: `/Users/developer/Documents/yia-worktrees/task-006` /
   `codex/task-006-local-transcription`
 - Starting evidence: `f1c15ed6eb854a4a8ed2299bbbf89e1cb6266426`
 - Required parent for your correction commit: exactly that review evidence
 - Main authorization: resolve `git log -1 --format=%H -- agent-prompts/TASK-006-CORRECTION-1-CODEX.md`
-  in `/Users/hua/Documents/youtubek agent`; its task card must be `IN_PROGRESS`/Correction 1.
+  in `/Users/developer/Documents/youtubek agent`; its task card must be `IN_PROGRESS`/Correction 1.
 
 TASK-007 is under independent review. Do not read, run checks in, modify, wait on, clean or report
 on its worktree.

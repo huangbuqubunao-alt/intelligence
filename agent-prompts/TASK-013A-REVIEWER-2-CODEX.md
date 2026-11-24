@@ -4,8 +4,8 @@
 
 ## 固定对象与授权
 
-- Main authorization：`git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-013A-REVIEWER-2-CODEX.md` 必须解析为本审查授权提交，且 main 中 TASK-013A=`IN_REVIEW`。
-- Reviewed source：`/Users/hua/Documents/yia-worktrees/task-013a` / `codex/task-013a-local-transcription-continuation@d50c78e9502e3f65018b6af323823c98b3a882ba`；开始时必须干净，唯一父提交为 `08542b84d550ca225dece520cf748a2fc654ab58`。
+- Main authorization：`git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-013A-REVIEWER-2-CODEX.md` 必须解析为本审查授权提交，且 main 中 TASK-013A=`IN_REVIEW`。
+- Reviewed source：`/Users/developer/Documents/yia-worktrees/task-013a` / `codex/task-013a-local-transcription-continuation@d50c78e9502e3f65018b6af323823c98b3a882ba`；开始时必须干净，唯一父提交为 `08542b84d550ca225dece520cf748a2fc654ab58`。
 - Correction 范围严格为 `src/youtube_intel/transcripts.py`、`tests/integration/test_local_transcription_service.py`、`handoffs/TASK-013A.md`；完整范围相对 `d96862f287d523dd524addf79f86c9b0642a4d31` 不超过获批四路径。
 - 模型下载/加载、ffmpeg、媒体/YouTube、网络、Ollama/OpenAI、真实 Vault/用户笔记、凭据、付费服务和测试目录外写入均未授权。
 

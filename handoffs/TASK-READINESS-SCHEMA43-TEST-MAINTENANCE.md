@@ -1,13 +1,13 @@
 # TASK-READINESS-SCHEMA43-TEST-MAINTENANCE — Implementer
 
 - Date2026-10-29; sole Implementer `/root/cloud_preview_writer`; base `78d727aadb1a2283e0225efd622327320b5c5756`.
-- WT `/Users/hua/Documents/yia-worktrees/readiness-schema43-test-maintenance`; branch `codex/task-readiness-schema43-test-maintenance`.
+- WT `/Users/developer/Documents/yia-worktrees/readiness-schema43-test-maintenance`; branch `codex/task-readiness-schema43-test-maintenance`.
 - Task/prompt read directly from Root's absolute `tasks/` and `agent-prompts/` paths, as assigned; they are intentionally not cherry-picked into this WT. Standing authorization covers these exact test-only corrections. No main integration.
 - DIRECT reuse of existing tests/fixtures/explicit assertions; no new framework, dependency or product behavior.
 
 ## Scope and audit
 
-The original frozen full-backend diagnostic is **349 PASS /15 FAIL /302.09s, interrupted** after repeated43==42 failures. It is not a full pass. Root's original `pytest.log` and `first-run-interrupted-proof.json` are preserved at `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/full-backend-20261029/`. This task does not overwrite either.
+The original frozen full-backend diagnostic is **349 PASS /15 FAIL /302.09s, interrupted** after repeated43==42 failures. It is not a full pass. Root's original `pytest.log` and `first-run-interrupted-proof.json` are preserved at `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/full-backend-20261029/`. This task does not overwrite either.
 
 Reviewed all tests'42/43 literals and their enclosing AST/function purpose. Changed30 necessary test files:
 
@@ -20,7 +20,7 @@ An AST audit across all30 changed files proves **1850 assertions preserved in co
 
 ## Verification
 
-All Python uses `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`, explicit `PYTHONDONTWRITEBYTECODE=1` and `PYTHONPATH=/Users/hua/Documents/yia-worktrees/readiness-schema43-test-maintenance/src`. Own temp SQLite/DATA only; no actual case/model/key/native/network/liveQA access.
+All Python uses `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python`, explicit `PYTHONDONTWRITEBYTECODE=1` and `PYTHONPATH=/Users/developer/Documents/yia-worktrees/readiness-schema43-test-maintenance/src`. Own temp SQLite/DATA only; no actual case/model/key/native/network/liveQA access.
 
 - Changed test files compile in memory; Ruff PASS (`.var/schema43-test-maintenance/ruff.log`); `git diff --check` PASS.
 - Before the doctor repair, the protected-byte check directly hashed working bytes with Git blob headers against base objects: **341 source/script/frontend/config/dependency files, including all42 SQL files001–043, exactly equal**. Manifest digest `8d79281236761290b3bfad7261b3c948866bdbc5cedb246da218d850ede83b76`; evidence `.var/schema43-test-maintenance/production-byte-proof.json`.

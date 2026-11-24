@@ -7,7 +7,7 @@
 - Role: Implementer
 - Agent/session: Codex
 - Base branch/commit: `main@1d8caf39630b1af4fe47212121cf9fc9b9694ab4`
-- Worktree: `/Users/hua/Documents/yia-worktrees/task-016c-main-integration`
+- Worktree: `/Users/developer/Documents/yia-worktrees/task-016c-main-integration`
 - Branch: `main`
 - Head commit: pending provider-neutral contract correction R2 evidence commit
 - Started: 2026-08-28

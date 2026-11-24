@@ -10,7 +10,7 @@ Task: TASK-014B10 — safe content availability diagnostic
 Role: Product Integrator
 Control-plane baseline: main@62c9beed8d5b6430733872eb35d13705a87402d1
 Execution base: dynamic exact clean main HEAD at the new single-parent acceptance authorization commit containing this prompt; it must have 62c9beed8d5b6430733872eb35d13705a87402d1 as sole parent and contain only this acceptance control-plane Markdown change
-Accepted source worktree: /Users/hua/Documents/yia-worktrees/task-014b10-safe-content-availability-diagnostic
+Accepted source worktree: /Users/developer/Documents/yia-worktrees/task-014b10-safe-content-availability-diagnostic
 Accepted source branch: codex/task-014b10-safe-content-availability-diagnostic
 Accepted source / Reviewer 2 evidence HEAD: 880e796622e393842a8cfe1a365af25868a3e98f
 Required sole parent of Reviewer 2 evidence: c65502e3680d14a88ae52a1c27eea47d42b5e8b0

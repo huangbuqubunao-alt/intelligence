@@ -8,7 +8,7 @@
 - Source correction：`9ef4b2f63df65d09569ba119c6873805dcd9de17`
 - Source parent/review evidence：`f73b28756c371d80fb7525bd7e4defb6b82b1a3c`
 - Original implementation/base：`75158be08d6442a7b18099f459654e9da86ebcee` / `e4271e41910bba54b37b48df709dcf632fe3b0eb`
-- Source worktree/branch：`/Users/hua/Documents/yia-worktrees/task-009a` / `codex/task-009a-obsidian-note-shared-contracts`
+- Source worktree/branch：`/Users/developer/Documents/yia-worktrees/task-009a` / `codex/task-009a-obsidian-note-shared-contracts`
 
 ## 唯一允许提交范围
 

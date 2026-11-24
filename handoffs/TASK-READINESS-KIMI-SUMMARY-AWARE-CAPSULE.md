@@ -1,6 +1,6 @@
 # TASK-READINESS-KIMI-SUMMARY-AWARE-CAPSULE — handoff
 
-Implementer `/root/bigmodel_audit_review`; base `20b715550bfb9e76014ec5f4d9780212da878e95`; WT `/Users/hua/Documents/yia-worktrees/readiness-kimi-summary-aware-capsule`; branch `codex/task-readiness-kimi-summary-aware-capsule`. Root is the independent bounded reviewer. This task has **zero actual prepare, model, Native/key or network calls**. No real source/old output/oracle was opened for tuning, and no continuation receipt was created outside synthetic tests.
+Implementer `/root/bigmodel_audit_review`; base `20b715550bfb9e76014ec5f4d9780212da878e95`; WT `/Users/developer/Documents/yia-worktrees/readiness-kimi-summary-aware-capsule`; branch `codex/task-readiness-kimi-summary-aware-capsule`. Root is the independent bounded reviewer. This task has **zero actual prepare, model, Native/key or network calls**. No real source/old output/oracle was opened for tuning, and no continuation receipt was created outside synthetic tests.
 
 ## Changes and reuse
 

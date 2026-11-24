@@ -3,13 +3,13 @@
   "status": "IMPLEMENTER_IN_REVIEW_NOT_DONE",
   "base": "4e20793e08ce7c223e3e5dd03468e1f6424d1c8a",
   "branch": "codex/task-readiness-mixed-subtitle-settlement",
-  "worktree": "/Users/hua/Documents/yia-worktrees/readiness-mixed-subtitle-settlement",
+  "worktree": "/Users/developer/Documents/yia-worktrees/readiness-mixed-subtitle-settlement",
   "code_commits": [
     "9927324",
     "19d8107"
   ],
   "python": "3.14.5 (main, May 10 2026, 10:21:34) [Clang 21.0.0 (clang-2100.0.123.102)]",
-  "module_origin_verified": "/Users/hua/Documents/yia-worktrees/readiness-mixed-subtitle-settlement/src/youtube_intel/state.py",
+  "module_origin_verified": "/Users/developer/Documents/yia-worktrees/readiness-mixed-subtitle-settlement/src/youtube_intel/state.py",
   "source_file_sha256": {
     "src/youtube_intel/state.py": "71b2e3a5b4fc00153ea4ada604676221916517be84938b8fcf4dffc91da9aa63",
     "src/youtube_intel/transcripts.py": "619ff5a7b819e9355898c27c7b79044354a762c2a66817ea979d764f58268ecd",
@@ -53,7 +53,7 @@
     "original_v1_predicate_ast_equal": true
   },
   "true_stock": {
-    "source": "/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/schema38-mixed-failure-frozen-20261018",
+    "source": "/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.var/end-to-end-user-readiness/schema38-mixed-failure-frozen-20261018",
     "original_table_count": 74,
     "migrated_table_count": 77,
     "data_files": 19,
@@ -102,7 +102,7 @@
   "original_full_physical_file_count": 24,
   "original_complete_file_index_sha256": "2f51e62cea7c167653dd1a82d1e39c50175094a1269ee375939ddd1e79c86b7d",
   "original_database_sha256": "332c490d781a5f98c9e1f6f2fbe0bc2fa5c012667209dafe82327b5b99e37caa",
-  "private_evidence_root": "/Users/hua/Documents/yia-worktrees/readiness-mixed-subtitle-settlement/.var/mixed-subtitle-settlement",
+  "private_evidence_root": "/Users/developer/Documents/yia-worktrees/readiness-mixed-subtitle-settlement/.var/mixed-subtitle-settlement",
   "private_evidence_sha256": {
     "backend-final.log": "4a67391e91b50842047cd388ad927511b984f53dfc4c1114db382390c0ad4bcb",
     "zip-proof-corrected.log": "bed8f9aed0b84ae03413e7b99fbeed83d071a34efaf0751616cf00292cffb19b",

@@ -8,7 +8,7 @@
 - Base: `b3410a489f06d17ea8c62d2f27d637d3bbe25cc2`.
 - Complete reviewed candidate: `900332030fb12409a22d0a53c1dd63a97e715f03`.
 - Product/test core: `e021fb5646acfa09caef0819eab52610fa964524`.
-- Worktree: `/Users/hua/Documents/yia-worktrees/readiness-local-fixed-runtime-review`.
+- Worktree: `/Users/developer/Documents/yia-worktrees/readiness-local-fixed-runtime-review`.
 - Branch: `codex/review-readiness-local-fixed-runtime`.
 - Report UTC: `2026-10-20T16:50:32.501226+00:00` (Asia/Shanghai +08:00).
 - Only review output tracked: this handoff. No product, test, public task/status, or author-worktree writes.
@@ -16,7 +16,7 @@
 
 ## Authority and scope
 
-Read repository AGENTS, COLLABORATION, PRD, SYSTEM_DESIGN, REUSE_REGISTER and current root PROJECT_STATUS, plus the newer authoritative task/package at `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/tasks/TASK-READINESS-LOCAL-FIXED-RUNTIME-PROFILE.md` and `agent-prompts/TASK-READINESS-LOCAL-FIXED-RUNTIME-PROFILE.md`. Read the candidate's author handoff and JSON summary, then reviewed actual source, full base-to-candidate diff, tests and independent command output. Read the root fixed-version handover audit as reference; did not infer real runtime success from its official-source argument. Used code-review-and-quality five axes. Indexed this new worktree with graph MCP fast/no persistence before discovery; excluded integration tests were read directly as known diff/test paths. Jev routing returned HTTP 451; retained strong independent review, no downgrade.
+Read repository AGENTS, COLLABORATION, PRD, SYSTEM_DESIGN, REUSE_REGISTER and current root PROJECT_STATUS, plus the newer authoritative task/package at `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/tasks/TASK-READINESS-LOCAL-FIXED-RUNTIME-PROFILE.md` and `agent-prompts/TASK-READINESS-LOCAL-FIXED-RUNTIME-PROFILE.md`. Read the candidate's author handoff and JSON summary, then reviewed actual source, full base-to-candidate diff, tests and independent command output. Read the root fixed-version handover audit as reference; did not infer real runtime success from its official-source argument. Used code-review-and-quality five axes. Indexed this new worktree with graph MCP fast/no persistence before discovery; excluded integration tests were read directly as known diff/test paths. Jev routing returned HTTP 451; retained strong independent review, no downgrade.
 
 The full candidate contains two commits and seven changed files: the allowed three product files, one new profile test, exactly two necessary R13 fake-session additions in one existing test file, author handoff and JSON evidence. All original R13 assert AST nodes are identical. There is no unrelated refactor, dependency/config/Schema change or generated client change.
 

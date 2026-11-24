@@ -1,6 +1,6 @@
 # TASK-READINESS-SOURCELEVEL-V3-BOUNDED-CONTINUATION
 
-Implementer `/root/continuation_finish`, sole writer in `/Users/hua/Documents/yia-worktrees/readiness-bounded-synthesis-v3-trial`, branch `codex/readiness-bounded-synthesis-v3-trial`, base `73669f0fcd53fe3667d08d98a6ecee8684f6c3f7`. Root owns fixed-delta review, integration, actual preparation, fee and semantic decisions.
+Implementer `/root/continuation_finish`, sole writer in `/Users/developer/Documents/yia-worktrees/readiness-bounded-synthesis-v3-trial`, branch `codex/readiness-bounded-synthesis-v3-trial`, base `73669f0fcd53fe3667d08d98a6ecee8684f6c3f7`. Root owns fixed-delta review, integration, actual preparation, fee and semantic decisions.
 
 Before-change design uses DIRECT existing Trial/normal factory/proof/qualification claim/once/fsync/receipt/semantic chain and Python standard library. Existing project code is reused under repository NOTICE/LICENSE, without third-party copies or dependency changes. Scope is the three existing validation scripts, dedicated v3 tests and this handoff.
 

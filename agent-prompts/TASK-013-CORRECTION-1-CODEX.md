@@ -4,8 +4,8 @@
 
 ## 固定对象
 
-- Main authorization：`git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-013-CORRECTION-1-CODEX.md` 必须解析为本 Correction 控制面提交，且 main 中 TASK-013=`IN_PROGRESS`。
-- Worktree/branch：`/Users/hua/Documents/yia-worktrees/task-013` / `codex/task-013-e2e-acceptance`；starting evidence 必须为 `2afd95a8dde9ae2d907480fd190bcb2c54efccb4`，唯一父提交为 `fd22c8ced0343a38e4cb8acdde0ef608bc6d8708`，worktree 必须干净。
+- Main authorization：`git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-013-CORRECTION-1-CODEX.md` 必须解析为本 Correction 控制面提交，且 main 中 TASK-013=`IN_PROGRESS`。
+- Worktree/branch：`/Users/developer/Documents/yia-worktrees/task-013` / `codex/task-013-e2e-acceptance`；starting evidence 必须为 `2afd95a8dde9ae2d907480fd190bcb2c54efccb4`，唯一父提交为 `fd22c8ced0343a38e4cb8acdde0ef608bc6d8708`，worktree 必须干净。
 
 ## 唯一允许修改
 

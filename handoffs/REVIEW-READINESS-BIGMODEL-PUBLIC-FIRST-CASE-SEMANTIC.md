@@ -6,7 +6,7 @@
 
 ## Actual receipt and hashes
 
-Source package `/Users/hua/Documents/yia-worktrees/readiness-bigmodel-public-first-case/.var/bigmodel-public-first-case`, exact originally reviewed prepared SHA`d31ae035ab3f8f7b012e48eb35e8d780a63a7d4455a994f9d64a04960e4dcd14`.
+Source package `/Users/developer/Documents/yia-worktrees/readiness-bigmodel-public-first-case/.var/bigmodel-public-first-case`, exact originally reviewed prepared SHA`d31ae035ab3f8f7b012e48eb35e8d780a63a7d4455a994f9d64a04960e4dcd14`.
 
 | Actual public result field | Value |
 |---|---|

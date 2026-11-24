@@ -1,6 +1,6 @@
 ============================= test session starts ==============================
 platform darwin -- Python 3.12.11, pytest-9.1.1, pluggy-1.6.0
-rootdir: /Users/hua/Documents/yia-worktrees/waiting-model-final-fix
+rootdir: /Users/developer/Documents/yia-worktrees/waiting-model-final-fix
 configfile: pyproject.toml
 plugins: anyio-4.14.2
 collected 4003 items
@@ -274,16 +274,16 @@ E    +    where SchemaVersion(version=36, name='036_expand_local_media_snapshot_
 E    +      where initialize = <youtube_intel.state.SQLiteStateRepository object at 0x11965b5c0>.initialize
 =============================== warnings summary ===============================
 tests/unit/test_backup_restore.py::test_invalid_backup_never_changes_live_data[duplicate-path]
-  /Users/hua/.local/share/uv/python/cpython-3.12-macos-aarch64-none/lib/python3.12/zipfile/__init__.py:1611: UserWarning: Duplicate name: 'data/transcripts/video-1.txt'
+  /Users/developer/.local/share/uv/python/cpython-3.12-macos-aarch64-none/lib/python3.12/zipfile/__init__.py:1611: UserWarning: Duplicate name: 'data/transcripts/video-1.txt'
     return self._open_to_write(zinfo, force_zip64=force_zip64)
 
 tests/unit/test_task016c_domain_contracts.py::test_model_construct_bypass_is_revalidated
-  /Users/hua/Documents/yia-worktrees/waiting-model-final-fix/.venv/lib/python3.12/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:
+  /Users/developer/Documents/yia-worktrees/waiting-model-final-fix/.venv/lib/python3.12/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:
     PydanticSerializationUnexpectedValue(Expected `enum` - serialized value may not be as expected [field_name='status', input_value='REJECT', input_type=str])
     return self.__pydantic_serializer__.to_python(
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-- generated xml file: /Users/hua/Documents/yia-worktrees/waiting-model-final-fix/docs/validation/waiting-model-final-fix/backend-full.xml -
+- generated xml file: /Users/developer/Documents/yia-worktrees/waiting-model-final-fix/docs/validation/waiting-model-final-fix/backend-full.xml -
 =========================== short test summary info ============================
 FAILED tests/integration/test_dogfood_day2_schema36.py::test_upgrade_preserves_all_rows_evidence_and_immutable_triggers
 FAILED tests/integration/test_dogfood_day2_schema36.py::test_failed_migration_rolls_back_schema_rows_and_history

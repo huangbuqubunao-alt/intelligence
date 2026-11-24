@@ -4,11 +4,11 @@
 
 ## 固定对象
 
-- Worktree/branch：`/Users/hua/Documents/yia-worktrees/task-009a` / `codex/task-009a-obsidian-note-shared-contracts`
+- Worktree/branch：`/Users/developer/Documents/yia-worktrees/task-009a` / `codex/task-009a-obsidian-note-shared-contracts`
 - Reviewed correction：`9ef4b2f63df65d09569ba119c6873805dcd9de17`
 - Required parent：`f73b28756c371d80fb7525bd7e4defb6b82b1a3c`
 - Original base：`e4271e41910bba54b37b48df709dcf632fe3b0eb`
-- Main authorization：`git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-009A-REVIEWER-2-CODEX.md` 必须解析为当前 TASK-009A=`IN_REVIEW` 的 main 提交。
+- Main authorization：`git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-009A-REVIEWER-2-CODEX.md` 必须解析为当前 TASK-009A=`IN_REVIEW` 的 main 提交。
 
 source 任务卡的旧状态是固定 base 快照；main 控制面和本包为当前授权。若 SHA、父链、清洁度、Correction 三路径、完整五路径范围或 main 授权不符，立即 `BLOCKED`。
 

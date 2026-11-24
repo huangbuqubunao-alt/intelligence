@@ -3,7 +3,7 @@
 Status: AUTHORIZED by Product Owner. START_ANCHOR:
 `eb002b64649495d9b2567ade13b08117a877118f` (approved TASK-025).
 Branch/worktree: `codex/task-025a-saved-intelligence`,
-`/Users/hua/Documents/yia-worktrees/task-025a-saved-intelligence`.
+`/Users/developer/Documents/yia-worktrees/task-025a-saved-intelligence`.
 Serial predecessor: TASK-025; successor: TASK-026 after separate authorization.
 
 ## Purpose and ownership

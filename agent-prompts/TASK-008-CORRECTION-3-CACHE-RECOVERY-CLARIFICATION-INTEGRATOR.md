@@ -5,7 +5,7 @@
 ## 固定对象
 
 - Main base：`main@cc7bb1670ca4c3efbb411be8c6057371422b3039`，必须干净且为唯一父基线。
-- Source：`/Users/hua/Documents/yia-worktrees/task-008` / `codex/task-008-deep-analysis@b380a8c87d99a3d2dbf88b28bde3ec5b0de4da0f`，必须干净且无未跟踪工件。
+- Source：`/Users/developer/Documents/yia-worktrees/task-008` / `codex/task-008-deep-analysis@b380a8c87d99a3d2dbf88b28bde3ec5b0de4da0f`，必须干净且无未跟踪工件。
 - Source evidence `b380a8c...` 的唯一父为 `71e1c249...`，且 evidence 只修改 `handoffs/TASK-008.md`；完整范围仍为七个批准路径组中的六个实际路径。
 
 ## 已确认的产品决定
@@ -25,7 +25,7 @@ ADR-008 A-12 与既有恢复测试优先：缓存命中绝不读取凭据、调�
 
 ## 必须执行
 
-1. 核验 main/source branch、HEAD、父链、身份 `Mozhu <huangbuqubunao@gmail.com>`、`user.useConfigOnly=true`、empty index/worktree 和上述范围。
+1. 核验 main/source branch、HEAD、父链、身份 `Mozhu <maintainer@example.invalid>`、`user.useConfigOnly=true`、empty index/worktree 和上述范围。
 2. 准备文件仅限上述四个路径；两轮 SHA-256、LF/EOF、无尾随空白、`git diff --check`、`git diff --cached --check` 与精确暂存范围必须通过；字节漂移立即停止。
 3. 不运行 uv、pytest、build、import、数据库、网络、Vault、云端、凭据或任何产品文件 I/O 命令。
 4. TASK-008 必须保持 `IN_PROGRESS`；不预写 Reviewer verdict、ACCEPTED、merge 或 DONE。TASK-009 不得触碰。

@@ -4,8 +4,8 @@
 
 ## 固定对象
 
-- Main authorization：动态读取 `git -C "/Users/hua/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-010-REVIEWER-2-CODEX.md`；main 中 TASK-010 必须为 `IN_REVIEW`。
-- Source/base：`/Users/hua/Documents/yia-worktrees/task-010` /
+- Main authorization：动态读取 `git -C "/Users/developer/Documents/youtubek agent" log -1 --format=%H -- agent-prompts/TASK-010-REVIEWER-2-CODEX.md`；main 中 TASK-010 必须为 `IN_REVIEW`。
+- Source/base：`/Users/developer/Documents/yia-worktrees/task-010` /
   `codex/task-010-orchestration-recovery@b4c97bed2d3f44a24eb2550f9fb43cc381661264` /
   `227bdeba3a4d9ddd57231b123bfdc4a2038af3d3`。
 - Correction 1 唯一父为 reviewer-1 evidence `f929a2f114626f7f714134d0894b188548537e4e`；完整允许范围仍严格为 pipeline/jobs/retry、两份集成测试与 handoff，Correction 1 本身只可改 pipeline、两份测试和 handoff。

@@ -15,11 +15,11 @@ Task: TASK-014 Phase B-1 — final venv console-path smoke retry
 Role: venv Console-path Smoke Retry Executor
 Agent: Codex
 Control-plane baseline: main@0b45d8e9fcf49e6c450279c00b787069fa665520
-Worktree: /Users/hua/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry
+Worktree: /Users/developer/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry
 Branch: codex/task-014-phase-b1-console-entry-retry
 Source HEAD / blocker evidence: 3c3dd4ac45cb6ea66bc927a1542c4612554a56fa
 Required sole parent: 49869c6ff2bbc53673c6a35071c5f1407c269cba
-Only executable: /Users/hua/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry/.venv/bin/youtube-intel
+Only executable: /Users/developer/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry/.venv/bin/youtube-intel
 Reuse decision: DIRECT — 已锁定项目虚拟环境、已整合的 console entry、smoke-public-subtitles 与 yt-dlp Adapter；不新增或复制第三方代码
 ```
 
@@ -32,14 +32,14 @@ Reuse decision: DIRECT — 已锁定项目虚拟环境、已整合的 console en
 ## 唯一允许的核验与执行
 
 1. 只读核验唯一绝对路径
-   `/Users/hua/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry/.venv/bin/youtube-intel` 存在且可执行，
+   `/Users/developer/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry/.venv/bin/youtube-intel` 存在且可执行，
    并通过静态读取该 launcher 的内容确认其映射既有项目 `youtube_intel.cli:main` 入口。不得调用 `--help`、
    `python -m`、裸 `youtube-intel` 或任何其他产品命令作为核验替代。
 2. 不得运行 `uv sync`、任何其他 `uv` 命令、安装、下载、依赖解析、锁文件更新或网络预配。
 3. 只有第 1 步通过后，才可仅调用以下命令一次：
 
 ```text
-/Users/hua/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry/.venv/bin/youtube-intel smoke-public-subtitles \
+/Users/developer/Documents/yia-worktrees/task-014-phase-b1-console-entry-retry/.venv/bin/youtube-intel smoke-public-subtitles \
   --temporary-root ABSOLUTE_NEW_EMPTY_DIR \
   --video-id=--khbXchTeE \
   --video-id=JTxsNm9IdYU

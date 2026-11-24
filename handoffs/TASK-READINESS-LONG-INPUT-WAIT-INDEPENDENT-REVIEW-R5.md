@@ -7,8 +7,8 @@
 - Reviewer: `/root/long_wait_independent_review`,2026-10-21.
 - Fixed candidate: `29228606ea230d1d3ccbe5b1fd2ef1e3111b0da4`.
 - Incremental base: `6e0f59e2f40fb62d371945cac0253346aa1616ce`; overall task base remains `4f7cc46ed1381782288a2f4915dce027b38c3b94`.
-- Worktree/branch: `/Users/hua/Documents/yia-worktrees/readiness-long-input-wait-review-r5`, `codex/review-readiness-long-input-wait-r5`. Exact HEAD and clean state checked before work.
-- Read current root assignment/task/plan, author's recovery handoff, and [R4 report with Restore P1 addendum](/Users/hua/Documents/yia-worktrees/readiness-long-input-wait-review-r4/handoffs/TASK-READINESS-LONG-INPUT-WAIT-INDEPENDENT-REVIEW-R4.md), latest report commit8f8fe01. Applied code-review-and-quality and new-worktree fast/persistence=false graph-first discovery.
+- Worktree/branch: `/Users/developer/Documents/yia-worktrees/readiness-long-input-wait-review-r5`, `codex/review-readiness-long-input-wait-r5`. Exact HEAD and clean state checked before work.
+- Read current root assignment/task/plan, author's recovery handoff, and [R4 report with Restore P1 addendum](/Users/developer/Documents/yia-worktrees/readiness-long-input-wait-review-r4/handoffs/TASK-READINESS-LONG-INPUT-WAIT-INDEPENDENT-REVIEW-R4.md), latest report commit8f8fe01. Applied code-review-and-quality and new-worktree fast/persistence=false graph-first discovery.
 - Reviewed only6e→292 plus necessary preserved contracts. Only this report is written; no business/test edits, dependency install, model/tokenizer/cloud/owner access, root QA-scene changes, broad test restart or main integration.
 
 ## Findings disposition
@@ -27,7 +27,7 @@ Legacy CLI admission no longer constructs BackupRestoreService or LocalIntellige
 
 ## Independent verification
 
-Used `/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python` in the R5 review cwd, `PYTHONPATH=src:tests:.` for tests and `PYTHONPATH=src` for strict mypy. Import proof resolved R5's `src/youtube_intel/local_api.py`.
+Used `/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness/.venv/bin/python` in the R5 review cwd, `PYTHONPATH=src:tests:.` for tests and `PYTHONPATH=src` for strict mypy. Import proof resolved R5's `src/youtube_intel/local_api.py`.
 
 | Check | Actual result |
 |---|---|

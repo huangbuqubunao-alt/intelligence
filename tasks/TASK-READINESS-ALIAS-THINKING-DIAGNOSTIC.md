@@ -3,7 +3,7 @@
 Status: IN_REVIEW (fixed author 9d5f226b69fccfe1b8d67df8bd935ef098645b8b; prepare-only, no actual execution).
 Role: Implementer / private QA. Root orchestrator has authorized this bounded preparation under the user's latest explicit Goal and persistent default approval. No extra per-file approval.
 Business base: 1afb514b0faed1a3ef59e7ddd88918471970f636; worktree must start at the root task-package commit supplied in assignment, preserving all accepted code.
-Worktree: /Users/hua/Documents/yia-worktrees/readiness-alias-thinking-diagnostic
+Worktree: /Users/developer/Documents/yia-worktrees/readiness-alias-thinking-diagnostic
 Branch: codex/task-readiness-alias-thinking-diagnostic
 Allowed files: only new ignored .var/alias-thinking-diagnostic/** and handoffs/TASK-READINESS-ALIAS-THINKING-DIAGNOSTIC.md. No tracked product, old scripts/tests/docs/config/qualification or old private artifacts edits.
 Reviewer: independent fresh review after clean author STOP.
@@ -14,14 +14,14 @@ Waiting: real first case, positive/negative/full model qualification, production
 
 Prepare one fixed private QA experiment using the SAME installed official9B Q4 text-only package and pinned0.40.9; same original public real-deepthink-en18cue/2Evidence source, excerpts, focus, source attribution, semantic expectations, original system prompt/generic output schema, OPTIONS/seed/8192/16384/300seconds. Exactly two intentional changes from the consumed Q4 nonthinking request: (a) replace only model-facing Evidence IDs with E1/E2 using the existing accepted immutable codec mapping; (b) think=True. Explain TWO changes, not a single-variable causal test. No new model, download, runtime, prompt, context, output budget, timeout, threshold, posthoc repair, removed NO_NEW branch or forced positive result.
 
-DIRECT reuse src/youtube_intel/long_grounding_codec.py encode_grounding/decode_output and production native thinking renderer; existing Q4 guarded harness and reviewed controller pattern; source-case raw original freeze; installed pinned runtime/model payloads. Use explicit PYTHONPATH to this WT/src and root existing .venv/bin/python; do not accidentally import /Users/hua/youtube-intel editable package. Original full-model/old profile gates unchanged. Pure alias preparation does NOT grant source seal/admission and does NOT claim the existing overflow-only long route accepts a short source. Production untouched.
+DIRECT reuse src/youtube_intel/long_grounding_codec.py encode_grounding/decode_output and production native thinking renderer; existing Q4 guarded harness and reviewed controller pattern; source-case raw original freeze; installed pinned runtime/model payloads. Use explicit PYTHONPATH to this WT/src and root existing .venv/bin/python; do not accidentally import /Users/developer/youtube-intel editable package. Original full-model/old profile gates unchanged. Pure alias preparation does NOT grant source seal/admission and does NOT claim the existing overflow-only long route accepts a short source. Production untouched.
 
 ## Source and evidence inputs
 
-Root R=/Users/hua/Documents/yia-worktrees/end-to-end-user-readiness.
+Root R=/Users/developer/Documents/yia-worktrees/end-to-end-user-readiness.
 - Originalsource R/.var/end-to-end-user-readiness/qwen35-4b-once-20261024/source-case.json SHA c751f9a5c04f90ccd486c552a8f332ed386ced341f524115ce8627985dc798a3.
 - Consumed actual Q4 request R/.var/end-to-end-user-readiness/qwen35-9b-text-q4km-20261025/candidate-request.json SHA5ecc84f927518125ac4e6d3fce926824f089534c20e964b45a32425cf5aaccd8.
-- Unchanged old Q4 harness /Users/hua/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/diagnostic.py SHAd510aef83346bf1706f69a14fc7e9e10148d2e0614591f6b333c24a28f91e1ef; strict native identity/ARM64/resources/fullpackage/input/once/lease/deadline guards.
+- Unchanged old Q4 harness /Users/developer/Documents/yia-worktrees/readiness-q4km-text-diagnostic/.var/model-diagnostic-q4km-text/diagnostic.py SHAd510aef83346bf1706f69a14fc7e9e10148d2e0614591f6b333c24a28f91e1ef; strict native identity/ARM64/resources/fullpackage/input/once/lease/deadline guards.
 - Current old package R/.var/end-to-end-user-readiness/qwen35-9b-text-q4km-20261025/diagnostic-freeze-q4km-text-terminal-v2.json SHA4c324a55fae37bac56f54c778e75be9b4492f0d1cf97080a9d6cd5a79dd99a92; old owner is stopped, do NOT start/reuse or alter its metadata/globalmarker.
 - Old actualraw/once/cleanup remain .var/model-diagnostic-q4km-text/real-once-terminal-window-20261025 under old WT. Latest rootREAL_Q4KM_TEXT_DIAGNOSTIC_2026_10_25.json contains 16proofs.
 - Old Q3 thinking300s timeout/IQ2/Q3 semantic fails/0401Q4historicalfailure are retained evidence; no quality reset. ROOT model configuration principle and newMODEL_CHAIN_RESOLUTION_GOAL_2026_10_25.md are governing scope.

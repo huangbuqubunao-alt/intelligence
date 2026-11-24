@@ -3,7 +3,7 @@
 > vitest run --run src/workspace/CreatorFollowing.test.tsx
 
 
- RUN  v2.1.9 /Users/hua/Documents/yia-worktrees/phase13-background-following/frontend
+ RUN  v2.1.9 /Users/developer/Documents/yia-worktrees/phase13-background-following/frontend
 
  ❯ src/workspace/CreatorFollowing.test.tsx (22 tests | 1 failed) 1449ms
    × manual network retry is available while automatic retry remains backed off 1020ms
