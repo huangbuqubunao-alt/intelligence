@@ -6833,13 +6833,17 @@ class WorkspaceIntelligenceHub:
                     base = dict(candidates[ref])
                     base["note_zh"] = _clean_text(entry.get("note_zh"), max_len=240)
                     hydrated_citations.append(base)
-        for num in _extract_e_ref_nums(answer_zh):
-            inline_ref = f"E{num}"
-            if inline_ref in candidates and inline_ref not in seen_refs:
-                seen_refs.add(inline_ref)
-                base = dict(candidates[inline_ref])
-                base["note_zh"] = base.get("point_zh", "")
-                hydrated_citations.append(base)
+        inline_sources = (
+            (answer_zh, *takeaways, *actions) if answerable_ok else (answer_zh,)
+        )
+        for inline_text in inline_sources:
+            for num in _extract_e_ref_nums(inline_text):
+                inline_ref = f"E{num}"
+                if inline_ref in candidates and inline_ref not in seen_refs:
+                    seen_refs.add(inline_ref)
+                    base = dict(candidates[inline_ref])
+                    base["note_zh"] = base.get("point_zh", "")
+                    hydrated_citations.append(base)
 
         surviving_inline_valid = {
             f"E{num}"
