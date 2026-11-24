@@ -407,8 +407,11 @@ class MlxTimedExecutor:
             ]
         return command
 
+    def _runtime_package_installed(self) -> bool:
+        return importlib.util.find_spec("mlx_whisper") is not None
+
     def capability(self) -> TranscriptionCapability:
-        detected = importlib.util.find_spec("mlx_whisper") is not None
+        detected = self._runtime_package_installed()
         if not detected:
             return self.qualified_capability(TranscriptionCapability(
                 "RUNTIME_UNAVAILABLE", reason_code="RUNTIME_UNAVAILABLE"

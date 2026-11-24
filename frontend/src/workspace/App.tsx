@@ -4495,6 +4495,32 @@ function ContentPage(
       });
     }
   };
+  const applyLocalCurationPatch = (
+    videoIds: ReadonlySet<string>,
+    patchBody: { starred?: boolean; is_read?: boolean },
+  ) => {
+    const patchItems = (items: ContentItem[]) =>
+      items.map((item) => {
+        if (!videoIds.has(item.video_id)) return item;
+        if (
+          typeof item.ai_brief !== "object" ||
+          item.ai_brief === null ||
+          Array.isArray(item.ai_brief)
+        ) {
+          return item;
+        }
+        return {
+          ...item,
+          ai_brief: {
+            ...(item.ai_brief as Record<string, unknown>),
+            ...(patchBody.starred !== undefined ? { starred: patchBody.starred } : {}),
+            ...(patchBody.is_read !== undefined ? { is_read: patchBody.is_read } : {}),
+          },
+        };
+      });
+    setExtraVideos((prev) => (prev.length ? patchItems(prev) : prev));
+    setRemoteSearchVideos((prev) => (prev ? patchItems(prev) : prev));
+  };
   const toggleRowCuration = async (
     videoId: string,
     patchBody: { starred?: boolean; is_read?: boolean },
@@ -4503,6 +4529,7 @@ function ContentPage(
     setCurationBusyId(videoId);
     try {
       await post(`/workspace-ai/videos/${encodeURIComponent(videoId)}/curation`, patchBody);
+      applyLocalCurationPatch(new Set([videoId]), patchBody);
       setRevision((value) => value + 1);
     } catch {
       /* Preserve existing view on transient network failure */
@@ -4518,6 +4545,7 @@ function ContentPage(
         video_ids: targetIds,
         is_read: true,
       });
+      applyLocalCurationPatch(new Set(targetIds), { is_read: true });
       setLastBatchReadIds(targetIds);
       setRevision((value) => value + 1);
     } catch {
@@ -4535,6 +4563,7 @@ function ContentPage(
         video_ids: idsToRestore,
         is_read: false,
       });
+      applyLocalCurationPatch(new Set(idsToRestore), { is_read: false });
       setLastBatchReadIds([]);
       setRevision((value) => value + 1);
     } catch {

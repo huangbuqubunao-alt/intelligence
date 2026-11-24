@@ -463,6 +463,40 @@ _DEMO_EN_STOPWORDS: Final[frozenset[str]] = frozenset(
         "do",
         "best",
         "love",
+        "useful",
+        "helpful",
+        "important",
+        "valuable",
+        "effective",
+        "necessary",
+        "needed",
+        "matter",
+        "matters",
+        "benefit",
+        "benefits",
+        "advantage",
+        "advantages",
+        "purpose",
+        "role",
+        "work",
+        "works",
+        "good",
+        "avoid",
+        "avoiding",
+        "prevent",
+        "preventing",
+        "ignoring",
+        "ignore",
+        "skipping",
+        "skip",
+        "difference",
+        "differences",
+        "ensure",
+        "ensuring",
+        "keep",
+        "keeping",
+        "maintain",
+        "maintaining",
     }
 )
 _DEMO_ZH_PARTICLES_RE: Final[re.Pattern[str]] = re.compile(
@@ -602,12 +636,26 @@ _DEMO_BILINGUAL_EQUIVALENTS: Final[tuple[tuple[str, ...], ...]] = (
 _DEMO_UNSUPPORTED_ATTR_RE: Final[re.Pattern[str]] = re.compile(
     r"(?:多少钱|价格多少|售价|收费标准|怎么收费|收费|定价|年费|月费|订阅费|成本多少|"
     r"市值|估值|融资(?:额|轮次)?|融了多少|年营收|收入多少|股价|温度多少|气温|海拔|"
-    r"多少(?:亿|万|美元|美金|块钱|人民币|元|度|公里|克|斤)|几(?:美元|美金|块钱|元))",
+    r"多少(?:亿|万|美元|美金|块钱|人民币|元|度|公里|克|斤)|几(?:美元|美金|块钱|元)|"
+    r"\bhow\s+much\s+(?:does|is|are|do|did|will)\b|"
+    r"\b(?:price|cost|pricing|fee|subscription\s+fee|monthly\s+fee|annual\s+fee)\s+(?:of|for)\b|"
+    r"\bwhat(?:'s|\s+is)\s+the\s+(?:price|cost|pricing|fee|valuation|market\s+cap|revenue|funding|stock\s+price|temperature|weather)\b|"
+    r"\bhow\s+expensive\b|\bfunding\s+round\b|\bstock\s+price\b|\bmarket\s+cap\b|\bannual\s+revenue\b|"
+    r"\b\d+(?:\.\d+)?\s*(?:usd|dollars?|cny|rmb)\b)",
+    re.IGNORECASE,
+)
+_DEMO_AVOIDANCE_RE: Final[re.Pattern[str]] = re.compile(
+    r"(?:(?:避免|防止|防范|杜绝|以免|别|不要|不让)\s*(?:直接|盲目|无意)?(?:忽略|跳过|漏掉|遗漏|抛弃|摒弃|取消)|"
+    r"\b(?:avoid|prevent|stop|not\s+to)\s+(?:ignoring|skipping|dropping|omitting|missing|losing)\b)",
     re.IGNORECASE,
 )
 _DEMO_NEGATION_RE: Final[re.Pattern[str]] = re.compile(
-    r"(?:不需要|不用|不必|无需|为什么不|取消|跳过|忽略|摒弃|抛弃|"
-    r"don't\s+need|do\s+not\s+need|no\s+need\s+for|without\s+(?:requiring|any))",
+    r"(?:不需要|不用|不必|无需|为什么不|为什么不用|为什么不要|取消|跳过|忽略|摒弃|抛弃|"
+    r"(?:don't|do\s+not|doesn't|does\s+not|we\s+don't|no)\s+need(?:\s+for)?|"
+    r"without\s+(?:requiring|using|any)|"
+    r"why\s+(?:skip|ignore|drop|abandon|discard|remove)\b|"
+    r"skip(?:ping)?\s+(?:evidence|citations?|state\s+machines?)|"
+    r"ignor(?:e|ing)\s+(?:evidence|citations?))",
     re.IGNORECASE,
 )
 _DEMO_CORE_ANCHOR_RE: Final[re.Pattern[str]] = re.compile(
@@ -624,7 +672,8 @@ def _demo_extract_concepts(question_text: str) -> tuple[list[str], list[str]]:
         if tok not in _DEMO_EN_STOPWORDS and len(tok) >= 2
     ]
     zh_clean = re.sub(
-        r"(?:是什么意思|是什么含义|什么含义|什么意思|的意思|指什么|含义是|解释一下|解释下|请帮我|帮我|概括一下|总结一下|讲了什么|说了什么|谈了什么|介绍一下|为什么|怎么|如何|怎样|哪些|有些|什么|是否|可以|能否|请问|对比|比较|总结|围绕|结合|打造|适合|实测|数值|目前|当前内容库|当前资料库|当前|问题|内容|材料|视频|资料|进行|一下|之间|方面|关于|以及|或者|应该|真的|到底|究竟|这份|这个|这些|那些|这\s*\d*\s*篇(?:指定)?|这篇(?:指定)?|指定|在线|知识库|展示|提到|分别|样例|示例|这里|里面|给出|介绍|共性|主要共识|关键共识|核心共识|共识与关键分歧|共识与分歧|核心观点上|核心观点|观点上|观点|核心方法论|核心判断|核心洞察|核心|方法论|分歧|共识|实践|要点|结论|工作流|方案|原理|作用|好处|原因|需要|基于|不同|跨来源|各来源|各自|来源|主要|关键|已沉淀|沉淀|梳理|高分|提炼|值得|最值得|优先落地|优先|可落地步骤|可落地结论|可落地|落地建议|落地路径|落地|产品化|产品设计|产品切入点|切入机会|产品机会|切入点|机会|方向|工程落地|工程实践|工程|原话|指出|高频主题|高频|避坑指南|避坑警示|避坑建议|避坑点|避坑|边界条件|边界|条件|前置|假设|要用|这两个专题|两个专题|专题下|专题|综合|可执行|建议|指南|关联|反直觉判断|反直觉结论|反直觉|数据指标|警示|代表性|实战案例|实战避坑|实战|案例|横向|演进脉络|脉络|时间轴原话|时间轴|立即执行|实操动作|揭示|容易踩坑|踩坑|误区|商业化前提|商业化|商业验证|商业判断|商业变现|变现动作|前提|判断变化|判断|创作者|最具确定性|最具|路径|近期|主题|变化|可直接复用|直接复用|可复用|复用|设计|动作|重点强调|强调|我收藏|收藏|高价值|洞察|行动清单|清单|技术路线|路线|互补与碰撞|互补|碰撞|论据|步骤|提出|会不会)",
+        r"(?:避免忽略|防止忽略|避免遗漏|防止遗漏|避免跳过|防止跳过|避免|防止|防范|杜绝|以免|有用|重要|价值|意义|优势|必要性|"
+        r"是什么意思|是什么含义|什么含义|什么意思|的意思|指什么|含义是|解释一下|解释下|请帮我|帮我|概括一下|总结一下|讲了什么|说了什么|谈了什么|介绍一下|为什么|怎么|如何|怎样|哪些|有些|什么|是否|可以|能否|请问|对比|比较|总结|围绕|结合|打造|适合|实测|数值|目前|当前内容库|当前资料库|当前|问题|内容|材料|视频|资料|进行|一下|之间|方面|关于|以及|或者|应该|真的|到底|究竟|这份|这个|这些|那些|这\s*\d*\s*篇(?:指定)?|这篇(?:指定)?|指定|在线|知识库|展示|提到|分别|样例|示例|这里|里面|给出|介绍|共性|主要共识|关键共识|核心共识|共识与关键分歧|共识与分歧|核心观点上|核心观点|观点上|观点|核心方法论|核心判断|核心洞察|核心|方法论|分歧|共识|实践|要点|结论|工作流|方案|原理|作用|好处|原因|需要|基于|不同|跨来源|各来源|各自|来源|主要|关键|已沉淀|沉淀|梳理|高分|提炼|值得|最值得|优先落地|优先|可落地步骤|可落地结论|可落地|落地建议|落地路径|落地|产品化|产品设计|产品切入点|切入机会|产品机会|切入点|机会|方向|工程落地|工程实践|工程|原话|指出|高频主题|高频|避坑指南|避坑警示|避坑建议|避坑点|避坑|边界条件|边界|条件|前置|假设|要用|这两个专题|两个专题|专题下|专题|综合|可执行|建议|指南|关联|反直觉判断|反直觉结论|反直觉|数据指标|警示|代表性|实战案例|实战避坑|实战|案例|横向|演进脉络|脉络|时间轴原话|时间轴|立即执行|实操动作|揭示|容易踩坑|踩坑|误区|商业化前提|商业化|商业验证|商业判断|商业变现|变现动作|前提|判断变化|判断|创作者|最具确定性|最具|路径|近期|主题|变化|可直接复用|直接复用|可复用|复用|设计|动作|重点强调|强调|我收藏|收藏|高价值|洞察|行动清单|清单|技术路线|路线|互补与碰撞|互补|碰撞|论据|步骤|提出|会不会)",
         " ",
         unicodedata.normalize("NFKC", question_text),
     )
@@ -687,7 +736,8 @@ def _demo_question_has_evidence_support(question_text: str, user_prompt: str) ->
     q_norm = unicodedata.normalize("NFKC", question_text).strip()
     if _DEMO_UNSUPPORTED_ATTR_RE.search(q_norm):
         return False
-    if _DEMO_NEGATION_RE.search(q_norm) and _DEMO_CORE_ANCHOR_RE.search(q_norm):
+    q_for_negation = _DEMO_AVOIDANCE_RE.sub(" ", q_norm)
+    if _DEMO_NEGATION_RE.search(q_for_negation) and _DEMO_CORE_ANCHOR_RE.search(q_norm):
         return False
 
     cand_match = re.search(
