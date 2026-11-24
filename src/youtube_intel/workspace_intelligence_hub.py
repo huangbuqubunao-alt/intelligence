@@ -115,8 +115,75 @@ DEFAULT_CLOUD_DAILY_CALL_LIMIT = 30
 
 VALID_MODES = frozenset({"local_ollama", "cloud_byok"})
 VALID_CLOUD_PROVIDERS = frozenset(
-    {"deepseek", "moonshot", "zhipu", "openai_compatible"}
+    {"deepseek", "moonshot", "zhipu", "dashscope", "openai_compatible"}
 )
+
+CURATED_OLLAMA_MODELS: tuple[dict[str, object], ...] = (
+    {
+        "id": "qwen3.5:9b",
+        "label": "qwen3.5:9b",
+        "tier": "recommended",
+        "size_label": "~6.6 GB",
+        "ram_label_zh": "16GB+ 内存推荐",
+        "ram_label_en": "16GB+ RAM",
+        "supports_vision": True,
+        "summary_zh": "默认首选：中文摘要与跨视频有据问答最稳，支持关键帧画面解读",
+        "summary_en": "Recommended: best Chinese synthesis, grounded Q&A, and vision",
+    },
+    {
+        "id": "qwen3.5:4b",
+        "label": "qwen3.5:4b",
+        "tier": "lightweight",
+        "size_label": "~3.4 GB",
+        "ram_label_zh": "8GB 内存推荐",
+        "ram_label_en": "8GB RAM",
+        "supports_vision": True,
+        "summary_zh": "轻量高速：体积更小，8GB 内存 Mac 可流畅运行，支持视觉",
+        "summary_en": "Lightweight: faster download for 8GB RAM Macs, vision ready",
+    },
+    {
+        "id": "qwen2.5:7b",
+        "label": "qwen2.5:7b",
+        "tier": "balanced",
+        "size_label": "~4.7 GB",
+        "ram_label_zh": "12GB+ 内存",
+        "ram_label_en": "12GB+ RAM",
+        "supports_vision": False,
+        "summary_zh": "经典均衡：结构化输出稳定（纯文本，不支持图片解读）",
+        "summary_en": "Classic balanced: steady JSON output (text-only)",
+    },
+)
+
+CURATED_WHISPER_MODELS: tuple[dict[str, object], ...] = (
+    {
+        "id": "mlx-community/whisper-large-v3-turbo",
+        "slug": "whisper-large-v3-turbo",
+        "label": "Whisper Large V3 Turbo",
+        "tier": "recommended",
+        "size_label": "~1.6 GB",
+        "summary_zh": "默认首选：中英双语混合语音识别准确度最高",
+        "summary_en": "Recommended: highest bilingual CN/EN accuracy",
+    },
+    {
+        "id": "mlx-community/whisper-small-mlx",
+        "slug": "whisper-small-mlx",
+        "label": "Whisper Small (轻量版)",
+        "tier": "lightweight",
+        "size_label": "~480 MB",
+        "summary_zh": "小体积快速下载：适合 8GB 内存或较慢网络环境",
+        "summary_en": "Compact ~480 MB: faster download for lighter setups",
+    },
+)
+_CURATED_WHISPER_BY_ID: dict[str, dict[str, object]] = {
+    str(item["id"]): item for item in CURATED_WHISPER_MODELS
+}
+_SAFE_OLLAMA_MODEL_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,119}$")
+_SAFE_HF_REPO_FILE_RE = re.compile(r"^(?:[A-Za-z0-9._-]+/)*[A-Za-z0-9._-]+$")
+_WHISPER_MIRROR_ORDER: dict[str, tuple[str, ...]] = {
+    "auto": ("https://hf-mirror.com", "https://huggingface.co"),
+    "cn_mirror": ("https://hf-mirror.com",),
+    "official": ("https://huggingface.co",),
+}
 VALID_TIERS = frozenset({"MUST_WATCH", "WORTH_SKIMMING", "SKIP_NOISE"})
 VALID_BUCKETS = frozenset({"DEEP_DIVE", "TUTORIAL", "SHORTS_PROMO"})
 VALID_FRAME_KINDS = frozenset(
@@ -1266,9 +1333,22 @@ class _FastOfflineMlxLectureTranscriber:
         )
 
 
-def _discover_default_mlx_transcriber(project_root: Path) -> MediaTranscriber | None:
+def _discover_default_mlx_model_dir(project_root: Path) -> Path | None:
+    model_json = project_root / ".local-transcription" / "model.json"
+    if model_json.is_file() and not model_json.is_symlink():
+        try:
+            raw_cfg = json.loads(model_json.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            raw_cfg = None
+        if isinstance(raw_cfg, Mapping) and isinstance(raw_cfg.get("model_path"), str):
+            configured = Path(raw_cfg["model_path"])
+            if configured.is_dir() and (configured / "config.json").is_file():
+                return configured
     candidate_roots = [
-        project_root / ".local-transcription" / "models" / "whisper-large-v3-turbo",
+        *(
+            project_root / ".local-transcription" / "models" / str(item["slug"])
+            for item in CURATED_WHISPER_MODELS
+        ),
         project_root.parent
         / "v1x-acoustic-qualification"
         / ".var"
@@ -1290,6 +1370,11 @@ def _discover_default_mlx_transcriber(project_root: Path) -> MediaTranscriber | 
                     break
         if model_dir is not None:
             break
+    return model_dir
+
+
+def _discover_default_mlx_transcriber(project_root: Path) -> MediaTranscriber | None:
+    model_dir = _discover_default_mlx_model_dir(project_root)
     if model_dir is None:
         return None
     temp_root = project_root / ".local-transcription" / "tmp"
@@ -1314,6 +1399,9 @@ class WorkspaceIntelligenceHub:
         installed_ollama_probe: Callable[[str], tuple[bool, tuple[str, ...]]] | None = None,
         http_opener: urllib.request.OpenerDirector | None = None,
         now: Callable[[], datetime] | None = None,
+        ollama_pull_runner: Callable[[str, str, Callable[[dict[str, object]], None]], None] | None = None,
+        whisper_download_runner: Callable[[str, str, str, Callable[[dict[str, object]], None]], Path] | None = None,
+        cloud_test_runner: Callable[[str, str], dict[str, object]] | None = None,
     ) -> None:
         self._repository = repository
         self._data_root = data_root
@@ -1340,11 +1428,38 @@ class WorkspaceIntelligenceHub:
         )
         self._ollama_probe = installed_ollama_probe or _probe_ollama_models_default
         self._http_opener = http_opener
+        self._now = now or (lambda: datetime.now(UTC))
+        self._ollama_pull_runner = ollama_pull_runner
+        self._whisper_download_runner = whisper_download_runner
+        self._cloud_test_runner = cloud_test_runner
         self._default_no_redirect_opener = urllib.request.build_opener(_NoCloudRedirect)
         self._loopback_direct_opener = urllib.request.build_opener(
             urllib.request.ProxyHandler({}), _NoCloudRedirect
         )
-        self._now = now or (lambda: datetime.now(UTC))
+        self._model_download_lock = threading.Lock()
+        self._ollama_pull_state: dict[str, object] = {
+            "state": "idle",
+            "model": "",
+            "status_text": "",
+            "completed_bytes": 0,
+            "total_bytes": 0,
+            "percent": 0,
+            "error": None,
+        }
+        self._ollama_pull_thread: threading.Thread | None = None
+        self._whisper_download_state: dict[str, object] = {
+            "state": "idle",
+            "model_id": "",
+            "slug": "",
+            "mirror": "auto",
+            "mirror_used": "",
+            "current_file": "",
+            "completed_files": 0,
+            "total_files": 0,
+            "percent": 0,
+            "error": None,
+        }
+        self._whisper_download_thread: threading.Thread | None = None
         self._db_lock = threading.RLock()
         self._visual_locks_guard = threading.Lock()
         self._visual_video_locks: dict[str, threading.Lock] = {}
@@ -1711,6 +1826,15 @@ class WorkspaceIntelligenceHub:
         except CredentialStoreError:
             return False
 
+    def _current_whisper_slug(self) -> str | None:
+        if self._media_transcriber is None:
+            return None
+        model_path = getattr(self._media_transcriber, "model_path", None)
+        if isinstance(model_path, Path):
+            return model_path.name
+        discovered = _discover_default_mlx_model_dir(self._project_root)
+        return discovered.name if discovered is not None else "whisper-large-v3-turbo"
+
     def get_settings(self) -> dict[str, object]:
         cfg = self._raw_engine_config()
         reachable, installed = self._ollama_probe(cfg["ollama_base_url"])
@@ -1730,6 +1854,9 @@ class WorkspaceIntelligenceHub:
             "cloud_model": cfg["cloud_model"],
             "cloud_key_configured": self._has_byok_key(),
             "local_mlx_Whisper_ready": self._media_transcriber is not None,
+            "active_whisper_slug": self._current_whisper_slug(),
+            "curated_ollama_models": [dict(item) for item in CURATED_OLLAMA_MODELS],
+            "curated_whisper_models": [dict(item) for item in CURATED_WHISPER_MODELS],
             "background_auto_sync_cloud_allowed": False,
             "cloud_daily_call_limit": daily_limit,
             "cloud_calls_used_today": self._count_cloud_calls_today(),
@@ -10484,6 +10611,386 @@ class WorkspaceIntelligenceHub:
             "index_markdown": index_markdown,
             "archive_base64": base64.b64encode(zip_bytes).decode("ascii"),
         }
+
+    # ------------------------------------------------------------------
+    # Guided Curated Model Downloads & Cloud Connection Test
+    # ------------------------------------------------------------------
+
+    def get_ollama_pull_status(self) -> dict[str, object]:
+        with self._model_download_lock:
+            return dict(self._ollama_pull_state)
+
+    def start_ollama_pull(self, model: str) -> dict[str, object]:
+        cleaned = (model or "").strip()
+        if not cleaned or _SAFE_OLLAMA_MODEL_NAME_RE.fullmatch(cleaned) is None:
+            raise ValueError("Ollama model name is invalid.")
+        cfg = self._raw_engine_config()
+        base_url = _validate_ollama_url(cfg["ollama_base_url"])
+        with self._model_download_lock:
+            current_state = str(self._ollama_pull_state.get("state") or "")
+            current_model = str(self._ollama_pull_state.get("model") or "")
+            if current_state == "pulling":
+                if current_model == cleaned:
+                    return dict(self._ollama_pull_state)
+                raise ApiError(
+                    HTTPStatus.CONFLICT,
+                    "MODEL_DOWNLOAD_BUSY",
+                    "另一个本地 Ollama 模型正在下载，请稍候完成后再试。",
+                )
+            self._ollama_pull_state = {
+                "state": "pulling",
+                "model": cleaned,
+                "status_text": "正在连接本地 Ollama 服务…",
+                "completed_bytes": 0,
+                "total_bytes": 0,
+                "percent": 0,
+                "error": None,
+            }
+            snapshot = dict(self._ollama_pull_state)
+
+        def report(patch: dict[str, object]) -> None:
+            with self._model_download_lock:
+                self._ollama_pull_state.update(patch)
+
+        def run_job() -> None:
+            try:
+                if self._ollama_pull_runner is not None:
+                    self._ollama_pull_runner(base_url, cleaned, report)
+                else:
+                    self._default_ollama_pull(base_url, cleaned, report)
+                self.update_settings({"active_mode": "local_ollama", "ollama_model": cleaned})
+                report(
+                    {
+                        "state": "succeeded",
+                        "model": cleaned,
+                        "status_text": "已下载并自动启用",
+                        "percent": 100,
+                        "error": None,
+                    }
+                )
+            except Exception as err:  # noqa: BLE001 — surfaced safely via status
+                err_text = str(err).strip() or "Ollama 模型拉取失败，请确认本机已安装并启动 Ollama。"
+                lowered = err_text.lower()
+                if "refused" in lowered or "connect" in lowered or "urlopen error" in lowered:
+                    err_text = "未检测到本机 Ollama 服务，请先安装并打开 Ollama 应用（ollama.com）后重试。"
+                report(
+                    {
+                        "state": "failed",
+                        "model": cleaned,
+                        "status_text": "下载失败",
+                        "error": err_text[:300],
+                    }
+                )
+
+        thread = threading.Thread(
+            target=run_job,
+            name="ws-ai-ollama-pull",
+            daemon=True,
+        )
+        with self._model_download_lock:
+            self._ollama_pull_thread = thread
+        thread.start()
+        return snapshot
+
+    def _default_ollama_pull(
+        self,
+        base_url: str,
+        model: str,
+        report: Callable[[dict[str, object]], None],
+    ) -> None:
+        payload = json.dumps({"name": model, "stream": True}).encode("utf-8")
+        req = urllib.request.Request(
+            f"{base_url}/api/pull",
+            data=payload,
+            method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        with self._open_loopback_url(req, timeout=600.0) as resp:
+            for line_count in range(100_000):
+                del line_count
+                raw_line = resp.readline(64 * 1024)
+                if not raw_line:
+                    break
+                text_line = raw_line.decode("utf-8", errors="replace").strip()
+                if not text_line:
+                    continue
+                try:
+                    event = json.loads(text_line)
+                except ValueError:
+                    continue
+                if not isinstance(event, Mapping):
+                    continue
+                if isinstance(event.get("error"), str) and event["error"].strip():
+                    raise RuntimeError(event["error"].strip())
+                status_text = str(event.get("status") or "正在下载…")
+                completed = event.get("completed")
+                total = event.get("total")
+                if isinstance(completed, int) and isinstance(total, int) and total > 0:
+                    pct = min(99, max(0, round((completed * 100) / total)))
+                    report(
+                        {
+                            "status_text": status_text,
+                            "completed_bytes": completed,
+                            "total_bytes": total,
+                            "percent": pct,
+                        }
+                    )
+                else:
+                    report({"status_text": status_text})
+
+    def get_whisper_download_status(self) -> dict[str, object]:
+        with self._model_download_lock:
+            return dict(self._whisper_download_state)
+
+    def start_whisper_download(
+        self,
+        model_id: str,
+        *,
+        mirror: str = "auto",
+        on_ready: Callable[[str], None] | None = None,
+    ) -> dict[str, object]:
+        cleaned_id = (model_id or "").strip()
+        spec = _CURATED_WHISPER_BY_ID.get(cleaned_id)
+        if spec is None:
+            raise ValueError("Selected Whisper model is not in the curated catalog.")
+        slug = str(spec["slug"])
+        cleaned_mirror = (mirror or "auto").strip().lower()
+        if cleaned_mirror not in _WHISPER_MIRROR_ORDER:
+            raise ValueError("mirror must be 'auto', 'cn_mirror', or 'official'.")
+
+        with self._model_download_lock:
+            if str(self._whisper_download_state.get("state") or "") in {"downloading", "verifying"}:
+                if str(self._whisper_download_state.get("model_id") or "") == cleaned_id:
+                    return dict(self._whisper_download_state)
+                raise ApiError(
+                    HTTPStatus.CONFLICT,
+                    "WHISPER_DOWNLOAD_BUSY",
+                    "另一个语音转写模型正在下载中，请稍候完成后再试。",
+                )
+            self._whisper_download_state = {
+                "state": "downloading",
+                "model_id": cleaned_id,
+                "slug": slug,
+                "mirror": cleaned_mirror,
+                "mirror_used": "",
+                "current_file": "准备文件列表…",
+                "completed_files": 0,
+                "total_files": 0,
+                "percent": 0,
+                "error": None,
+            }
+            snapshot = dict(self._whisper_download_state)
+
+        def report(patch: dict[str, object]) -> None:
+            with self._model_download_lock:
+                self._whisper_download_state.update(patch)
+
+        def run_job() -> None:
+            try:
+                if self._whisper_download_runner is not None:
+                    final_dir = self._whisper_download_runner(
+                        cleaned_id, slug, cleaned_mirror, report
+                    )
+                else:
+                    final_dir = self._default_whisper_download(
+                        cleaned_id, slug, cleaned_mirror, report
+                    )
+                if not (final_dir / "config.json").is_file() or not (
+                    any(final_dir.glob("*.safetensors")) or any(final_dir.glob("*.npz"))
+                ):
+                    raise RuntimeError("下载的语音模型文件不完整，请重试。")
+
+                tx_root = self._project_root / ".local-transcription"
+                tx_root.mkdir(mode=0o700, parents=True, exist_ok=True)
+                cfg_tmp = tx_root / f".model.{uuid.uuid4().hex}.json"
+                cfg_tmp.write_text(
+                    json.dumps({"model_path": str(final_dir)}, ensure_ascii=False),
+                    encoding="utf-8",
+                )
+                os.chmod(cfg_tmp, 0o600)
+                os.replace(cfg_tmp, tx_root / "model.json")
+
+                self._media_transcriber = _FastOfflineMlxLectureTranscriber(
+                    model_path=final_dir,
+                    temporary_root=tx_root / "tmp",
+                )
+                if on_ready is not None:
+                    try:
+                        on_ready(str(final_dir))
+                    except Exception:  # noqa: BLE001
+                        pass
+                report(
+                    {
+                        "state": "succeeded",
+                        "model_id": cleaned_id,
+                        "slug": slug,
+                        "current_file": "已就绪并自动完成配置",
+                        "percent": 100,
+                        "error": None,
+                    }
+                )
+            except Exception as err:  # noqa: BLE001
+                err_msg = str(err).strip() or "语音模型下载失败，建议切换「国内镜像加速」后重试。"
+                report(
+                    {
+                        "state": "failed",
+                        "model_id": cleaned_id,
+                        "slug": slug,
+                        "current_file": "",
+                        "error": err_msg[:300],
+                    }
+                )
+
+        thread = threading.Thread(
+            target=run_job,
+            name="ws-ai-whisper-download",
+            daemon=True,
+        )
+        with self._model_download_lock:
+            self._whisper_download_thread = thread
+        thread.start()
+        return snapshot
+
+    def _default_whisper_download(
+        self,
+        model_id: str,
+        slug: str,
+        mirror: str,
+        report: Callable[[dict[str, object]], None],
+    ) -> Path:
+        from huggingface_hub import HfApi, hf_hub_download
+
+        endpoints = _WHISPER_MIRROR_ORDER[mirror]
+        models_root = self._project_root / ".local-transcription" / "models"
+        models_root.mkdir(mode=0o700, parents=True, exist_ok=True)
+        target_dir = models_root / slug
+        last_error: BaseException | None = None
+
+        for endpoint in endpoints:
+            staging_dir = models_root / f".staging-{slug}-{uuid.uuid4().hex[:12]}"
+            staging_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+            report({"mirror_used": endpoint, "current_file": f"连接 {endpoint}…"})
+            try:
+                api = HfApi(endpoint=endpoint)
+                repo_files = [
+                    str(name)
+                    for name in api.list_repo_files(repo_id=model_id, repo_type="model")
+                    if isinstance(name, str)
+                    and _SAFE_HF_REPO_FILE_RE.fullmatch(name) is not None
+                    and ".." not in name.split("/")
+                ]
+                selected = [
+                    name
+                    for name in repo_files
+                    if name == "config.json"
+                    or name.endswith((".safetensors", ".npz", ".json", ".tiktoken", ".txt"))
+                ]
+                if "config.json" not in selected or not any(
+                    name.endswith((".safetensors", ".npz")) for name in selected
+                ):
+                    raise RuntimeError("模型仓库缺少必要的权重或配置文件。")
+                total_files = len(selected)
+                report({"total_files": total_files, "completed_files": 0, "percent": 2})
+                for idx, filename in enumerate(selected, start=1):
+                    report(
+                        {
+                            "current_file": filename,
+                            "completed_files": idx - 1,
+                            "total_files": total_files,
+                            "percent": min(95, max(2, round(((idx - 1) * 95) / total_files))),
+                        }
+                    )
+                    hf_hub_download(
+                        repo_id=model_id,
+                        filename=filename,
+                        repo_type="model",
+                        local_dir=str(staging_dir),
+                        local_files_only=False,
+                        endpoint=endpoint,
+                    )
+                report({"state": "verifying", "current_file": "校验模型权重…", "percent": 98})
+                if target_dir.exists():
+                    shutil.rmtree(target_dir)
+                os.replace(staging_dir, target_dir)
+                return target_dir
+            except Exception as err:  # noqa: BLE001
+                last_error = err
+                shutil.rmtree(staging_dir, ignore_errors=True)
+                continue
+
+        raise RuntimeError(
+            "模型下载失败（国内镜像与官方源均未能完成下载，请检查网络或稍后重试）。"
+            + (f" [{type(last_error).__name__}]" if last_error is not None else "")
+        )
+
+    def test_cloud_connection(self, payload: Mapping[str, object]) -> dict[str, object]:
+        """Verify cloud API endpoint & Key with zero token consumption."""
+        current = self._raw_engine_config()
+        raw_url = payload.get("cloud_base_url", current["cloud_base_url"])
+        validated_url = _validate_cloud_url(str(raw_url))
+        raw_key = payload.get("cloud_api_key")
+        if raw_key is not None and isinstance(raw_key, str) and raw_key.strip():
+            api_key = raw_key.strip()
+        else:
+            stored = self._byok_store.get()
+            api_key = stored.strip() if stored else ""
+        if not api_key:
+            return {
+                "ok": False,
+                "code": "CLOUD_CREDENTIAL_MISSING",
+                "message": "请先粘贴你的 API Key 再测试连接。",
+            }
+        if len(api_key) > 512 or any(ord(c) < 32 for c in api_key):
+            raise ValueError("cloud_api_key format is invalid")
+
+        _verify_cloud_endpoint_dns(validated_url)
+        if self._cloud_test_runner is not None:
+            res = self._cloud_test_runner(validated_url, api_key)
+            return dict(res)
+
+        t0 = time.perf_counter()
+        req = urllib.request.Request(
+            f"{validated_url}/models",
+            method="GET",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Accept": "application/json",
+                "User-Agent": "YouTube-Intelligence-Agent/1.0",
+            },
+        )
+        try:
+            with self._open_url(req, timeout=10.0) as resp:
+                _ = resp.read(65536)
+            latency_ms = max(1, round((time.perf_counter() - t0) * 1000))
+            return {
+                "ok": True,
+                "latency_ms": latency_ms,
+                "message": f"连接成功，API Key 有效（耗时 {latency_ms} ms，不消耗对话额度）。",
+            }
+        except urllib.error.HTTPError as err:
+            if err.code == 401:
+                return {
+                    "ok": False,
+                    "code": "INVALID_API_KEY",
+                    "message": "API Key 无效或已过期，请核对是否复制完整。",
+                }
+            if err.code == 403:
+                return {
+                    "ok": False,
+                    "code": "FORBIDDEN",
+                    "message": "当前 API Key 无权访问该接口或账户余额不足。",
+                }
+            return {
+                "ok": False,
+                "code": f"HTTP_{err.code}",
+                "message": f"接口返回 HTTP {err.code}，请核对 Base URL 是否填写正确。",
+            }
+        except (urllib.error.URLError, TimeoutError, OSError):
+            return {
+                "ok": False,
+                "code": "NETWORK_ERROR",
+                "message": "无法连接到该云端地址，请检查网络（海外接口需先确认本机网络可访问）。",
+            }
 
 
 def cast_dict(value: object) -> Mapping[str, Any]:

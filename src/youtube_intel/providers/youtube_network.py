@@ -89,6 +89,17 @@ def _current_proxy() -> _SystemProxy | None:
         raise TrackingError("NETWORK_UNAVAILABLE") from None
 
 
+def system_http_proxy_url() -> str | None:
+    """Return validated macOS HTTP proxy URL when configured, else None."""
+    try:
+        proxy = _current_proxy()
+        if proxy is None:
+            return None
+        return f"http://{_proxy_address(proxy)}:{proxy.port}"
+    except Exception:  # noqa: BLE001 — callers fall back safely when system proxy is unavailable
+        return None
+
+
 def _proxy_address(proxy: _SystemProxy) -> str:
     """Bound DNS of a trusted OS endpoint; never resolve the tunnel destination."""
     try:

@@ -2195,8 +2195,8 @@ class LocalApiApplication:
         """Real durable video import/discovery identities; never baseline history."""
         with self._repository._connect() as connection:
             rows = connection.execute(
-                "SELECT s.source_id,s.video_id,s.canonical_url,s.created_at,NULL AS enrollment FROM source_subscriptions s LEFT JOIN videos v ON v.video_id=s.video_id WHERE s.provider='YOUTUBE' AND s.source_type='VIDEO_URL' AND s.enabled=1 AND v.video_id IS NULL "
-                "UNION ALL SELECT o.source_id,o.canonical_identity,'https://www.youtube.com/watch?v='||o.canonical_identity,o.observed_at,o.enrollment FROM source_observations o JOIN source_subscriptions s USING(source_id) LEFT JOIN videos v ON v.video_id=o.canonical_identity WHERE s.provider='YOUTUBE' AND o.baseline=0 AND v.video_id IS NULL LIMIT 100"
+                "SELECT s.source_id,s.video_id,s.canonical_url,s.created_at,NULL AS enrollment,s.last_error_code,s.last_error_message FROM source_subscriptions s LEFT JOIN videos v ON v.video_id=s.video_id WHERE s.provider='YOUTUBE' AND s.source_type='VIDEO_URL' AND s.enabled=1 AND v.video_id IS NULL "
+                "UNION ALL SELECT o.source_id,o.canonical_identity,'https://www.youtube.com/watch?v='||o.canonical_identity,o.observed_at,o.enrollment,NULL AS last_error_code,NULL AS last_error_message FROM source_observations o JOIN source_subscriptions s USING(source_id) LEFT JOIN videos v ON v.video_id=o.canonical_identity WHERE s.provider='YOUTUBE' AND o.baseline=0 AND v.video_id IS NULL LIMIT 100"
             ).fetchall()
         runs = self._repository.list_source_runs()
         items: dict[str, dict[str, object]] = {}
@@ -2211,7 +2211,12 @@ class LocalApiApplication:
                 state = "NEEDS_ATTENTION"
             elif latest and latest.state.value == "RUNNING":
                 state = "FETCHING"
-            items[video_id] = {"video_id": video_id, "provider": "YOUTUBE", "title": row["canonical_url"], "source_url": row["canonical_url"], "channel_id": None, "channel_name": None, "published_at": None, "last_updated": row["created_at"], "processing_status": state, "work_kind": "DURABLE_CONTENT_IDENTITY", "source_id": row["source_id"]}
+            item: dict[str, object] = {"video_id": video_id, "provider": "YOUTUBE", "title": row["canonical_url"], "source_url": row["canonical_url"], "channel_id": None, "channel_name": None, "published_at": None, "last_updated": row["created_at"], "processing_status": state, "work_kind": "DURABLE_CONTENT_IDENTITY", "source_id": row["source_id"]}
+            if row["last_error_code"]:
+                item["import_error_code"] = str(row["last_error_code"])
+            if row["last_error_message"]:
+                item["import_error_message"] = str(row["last_error_message"])
+            items[video_id] = item
         return list(items.values())
 
     def _local_intelligence_status(self) -> dict[str, object]:
@@ -2437,6 +2442,10 @@ class LocalApiApplication:
                                   and source.video_id == video.video_id)
             if retry_sources:
                 projection["source_id"] = retry_sources[0].source_id
+                if retry_sources[0].last_error_code:
+                    projection["import_error_code"] = retry_sources[0].last_error_code
+                if retry_sources[0].last_error_message:
+                    projection["import_error_message"] = retry_sources[0].last_error_message
             job = self._repository.latest_content_job(video.video_id)
             projection["processing_job"] = None if job is None else {"status": job.status.value, "stage": job.target_stage.value if job.target_stage is not None else None, "retry_at": _timestamp(job.available_at), "error_code": job.last_error_code}
             projection["retry_allowed"] = not (job is not None and job.status.value == "FAILED_FINAL" and job.last_error_code in {"CAPABILITY_UNAVAILABLE", "TRUST_INTEGRITY_INVALID"})
