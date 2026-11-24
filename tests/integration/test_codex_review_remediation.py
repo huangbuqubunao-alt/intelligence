@@ -2622,3 +2622,67 @@ def test_round2_p2_05_p2_06_p2_07_p2_08_ssrf_proxy_and_local_decoding(
     long_res = provider.import_bytes(long_name, "长文件名验证文本".encode("utf-8"))
     assert long_res.status == "READY"
     assert len(long_res.filename) <= 240 and long_res.filename.endswith(".txt")
+
+
+def test_exp002_takeaway_and_action_inline_citations_hydrated(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def _completer(
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        mode: str,
+        provider: str,
+        model: str,
+        max_tokens: int = 1800,
+    ) -> tuple[dict[str, Any], str, str]:
+        del user_prompt, mode, max_tokens
+        if "RESEARCH_QA_SCHEMA" in system_prompt:
+            return (
+                {
+                    "answerable": True,
+                    "answer_zh": "正文核心结论仅标注首条证据 [E1]。",
+                    "key_takeaways_zh": ["要点补充引用第二条证据 [E2]"],
+                    "action_items_zh": ["建议补充引用第三条证据 [E3]"],
+                    "citations": [{"ref": "E1", "note_zh": "主句依据"}],
+                },
+                provider,
+                model,
+            )
+        return _StubCompleter()(
+            system_prompt=system_prompt,
+            user_prompt="",
+            mode="local_ollama",
+            provider=provider,
+            model=model,
+        )
+
+    env = _build_env(tmp_path, monkeypatch, name="exp002_bullets", completer=_StubCompleter(_completer))
+    hub: WorkspaceIntelligenceHub = env["hub"]
+    _seed_video_with_cues(
+        env,
+        "vidBullets1",
+        title="多句证据水合验证一",
+        cues=(
+            (0, 5000, "第一段核心机制说明与 WAL 读取隔离。"),
+            (60000, 65000, "第二段补充实测冷读耗时数据。"),
+        ),
+    )
+    _seed_video_with_cues(
+        env,
+        "vidBullets2",
+        title="多句证据水合验证二",
+        cues=(
+            (0, 5000, "第三段给出可落地导出校验证明。"),
+            (60000, 65000, "第四段说明跨源对比边界。"),
+        ),
+    )
+
+    sess = hub.ask_research_question(
+        {"question": "多句证据水合", "video_ids": ["vidBullets1", "vidBullets2"]}
+    )["session"]
+    assert sess["answer_status"] == "GROUNDED"
+    labels = {c["ref_label"] for c in sess["citations"]}
+    assert {"E1", "E2", "E3"}.issubset(labels)
+    md_text = str(sess["obsidian_markdown"])
+    assert "**[E1]**" in md_text and "**[E2]**" in md_text and "**[E3]**" in md_text
