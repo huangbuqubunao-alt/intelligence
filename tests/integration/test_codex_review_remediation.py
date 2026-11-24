@@ -1244,18 +1244,31 @@ def test_p2_01_p2_02_p2_06_vision_gate_cloud_race_and_windows_zip_names(
     assert "visual keyframes ready" not in banner
     assert "[WARN] Vision" in banner
 
+    class _OfflineNoShowOpener:
+        def open(self, req: Any, timeout: float = 2.0) -> Any:
+            del timeout
+            url = req.full_url if hasattr(req, "full_url") else str(req)
+            if url.endswith("/api/show"):
+                raise urllib.error.URLError("offline /api/show probe")
+            raise AssertionError(f"Text-only model must be blocked before chat call: {url}")
+
     dummy_jpg = env_txt["tmp"] / "dummy.jpg"
     dummy_jpg.write_bytes(MINIMAL_JPEG)
+    env_txt["hub"].update_settings({"active_mode": "local_ollama", "ollama_model": "llama3.1:8b"})
     env_txt["hub"]._vision_completer = None
-    with pytest.raises(ApiError) as vis_gate:
-        env_txt["hub"]._complete_vision_json(
-            system_prompt="sys",
-            user_prompt="usr",
-            image_paths=[dummy_jpg],
-            max_tokens=300,
-            allow_cloud=False,
-        )
-    assert vis_gate.value.code == "LOCAL_VISION_MODEL_UNSUPPORTED"
+    env_txt["hub"]._http_opener = _OfflineNoShowOpener()
+    try:
+        with pytest.raises(ApiError) as vis_gate:
+            env_txt["hub"]._complete_vision_json(
+                system_prompt="sys",
+                user_prompt="usr",
+                image_paths=[dummy_jpg],
+                max_tokens=300,
+                allow_cloud=False,
+            )
+        assert vis_gate.value.code == "LOCAL_VISION_MODEL_UNSUPPORTED"
+    finally:
+        env_txt["hub"]._http_opener = None
 
     hub_race: WorkspaceIntelligenceHub = env_txt["hub"]
 
