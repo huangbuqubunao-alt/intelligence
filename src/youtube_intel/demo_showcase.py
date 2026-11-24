@@ -381,7 +381,7 @@ _DEMO_EN_STOPWORDS: Final[frozenset[str]] = frozenset(
     }
 )
 _DEMO_ZH_PARTICLES_RE: Final[re.Pattern[str]] = re.compile(
-    r"[的了是在有和与及于对把被给为用要能会都就也还又很最从向到让使]+"
+    r"[的了是在有和与及于把被给为要能会都就也还又很最从向到让使]+"
 )
 _DEMO_ZH_STOP_BIGRAMS: Final[frozenset[str]] = frozenset(
     {
@@ -446,6 +446,9 @@ _DEMO_CORPUS_META_PHRASES: Final[tuple[str, ...]] = (
     "共识与分歧",
     "落地建议",
     "避坑指南",
+    "高分内容",
+    "高频避坑",
+    "避坑点",
     "切入机会",
     "总结全部",
     "全部来源",
@@ -464,14 +467,14 @@ _DEMO_BILINGUAL_EQUIVALENTS: Final[tuple[tuple[str, ...], ...]] = (
     ("证据", "evidence", "grounded"),
     ("验证", "可验证", "verify", "verified", "validation", "auditable"),
     ("引用", "citation", "citations", "anchor", "anchors"),
-    ("溯源", "citation", "citations", "transcript", "verify", "verified", "auditable"),
+    ("溯源", "追溯", "可追溯", "citation", "citations", "transcript", "verify", "verified", "auditable"),
     ("本地", "local", "local-first"),
     ("模型", "model", "models", "ollama"),
     ("一人公司", "solo", "builder", "builders"),
-    ("留存", "retention"),
+    ("留存", "高留存", "retention"),
     ("高毛利", "high-margin", "margin"),
     ("工作流", "workflow", "workflows"),
-    ("生产", "production"),
+    ("生产", "生产级", "production"),
     ("字幕", "caption", "captions", "transcript"),
     ("双链", "wikilink", "wikilinks", "obsidian"),
     ("短片", "shorts", "3-minute", "teaser"),
@@ -488,18 +491,28 @@ def _demo_extract_concepts(question_text: str) -> tuple[list[str], list[str]]:
         for tok in re.findall(r"[a-z][a-z0-9_-]{1,}", q_lower)
         if tok not in _DEMO_EN_STOPWORDS and len(tok) >= 2
     ]
-    zh_clean = _DEMO_ZH_PARTICLES_RE.sub(" ", question_text)
     zh_clean = re.sub(
-        r"(?:为什么|怎么|如何|怎样|哪些|什么|多少|是否|可以|能否|请问|对比|比较|总结|围绕|结合|打造|适合|实测|数值|目前|当前|问题|内容|材料|视频|资料|进行|一下|之间|方面|关于|以及|或者|应该|真的|到底|究竟|这份|这个|在线|知识库|展示|提到|分别|样例|示例|这里|里面|给出|介绍|共性|共识|实践|要点|结论|工作流|方案|原理|作用|好处|原因|需要)",
+        r"(?:为什么|怎么|如何|怎样|哪些|有些|什么|多少|是否|可以|能否|请问|对比|比较|总结|围绕|结合|打造|适合|实测|数值|目前|当前|问题|内容|材料|视频|资料|进行|一下|之间|方面|关于|以及|或者|应该|真的|到底|究竟|这份|这个|在线|知识库|展示|提到|分别|样例|示例|这里|里面|给出|介绍|共性|主要共识|关键共识|关键分歧|共识与分歧|核心方法论|核心|方法论|分歧|共识|实践|要点|结论|工作流|方案|原理|作用|好处|原因|需要|基于|不同|跨来源|来源|主要|关键|沉淀|高分|提炼|值得|优先|落地|产品化|方向|工程|原话|指出|高频|避坑点|避坑|边界|条件|前置|假设|要用|各来源|各自)",
         " ",
-        zh_clean,
+        question_text,
     )
+    zh_clean = _DEMO_ZH_PARTICLES_RE.sub(" ", zh_clean)
     zh_phrases = [
         run
         for run in re.findall(r"[\u4e00-\u9fff]{2,}", zh_clean)
         if run not in _DEMO_ZH_STOP_BIGRAMS
     ]
     return en_tokens, zh_phrases
+
+
+def _demo_zh_token_supported(token: str, evidence_hay: str) -> bool:
+    if token in evidence_hay:
+        return True
+    for group in _DEMO_BILINGUAL_EQUIVALENTS:
+        if any(token == g or (len(token) >= 2 and token in g and not g.isascii()) for g in group):
+            if any(alt in evidence_hay for alt in group):
+                return True
+    return False
 
 
 def _demo_concept_supported(concept: str, evidence_hay: str, evidence_en_stems: set[str]) -> bool:
@@ -513,20 +526,28 @@ def _demo_concept_supported(concept: str, evidence_hay: str, evidence_en_stems: 
                 return True
         return False
     # Chinese concept phrase
-    if concept in evidence_hay:
+    if _demo_zh_token_supported(concept, evidence_hay):
         return True
-    bigrams = [
-        concept[i : i + 2]
-        for i in range(len(concept) - 1)
-        if concept[i : i + 2] not in _DEMO_ZH_STOP_BIGRAMS
-    ]
-    if any(bg in evidence_hay for bg in bigrams):
-        return True
-    for group in _DEMO_BILINGUAL_EQUIVALENTS:
-        if any(g in concept for g in group if not g.isascii()):
-            if any(alt in evidence_hay for alt in group):
-                return True
-    return False
+    if len(concept) < 3:
+        return False
+    # Exact character-coverage check across 2..4 char spans: every substantive character
+    # must be covered by a term supported in evidence_hay or bilingual equivalents.
+    n = len(concept)
+    covered = [False] * n
+    for i in range(n):
+        for span_len in (4, 3, 2):
+            if i + span_len <= n:
+                span = concept[i : i + span_len]
+                if span not in _DEMO_ZH_STOP_BIGRAMS and _demo_zh_token_supported(
+                    span, evidence_hay
+                ):
+                    for k in range(i, i + span_len):
+                        covered[k] = True
+    harmless_chars = set("可的性级化链型中各及组")
+    for idx, ch in enumerate(concept):
+        if not covered[idx] and ch not in harmless_chars:
+            return False
+    return any(covered)
 
 
 def _demo_question_has_evidence_support(question_text: str, user_prompt: str) -> bool:
@@ -563,17 +584,8 @@ def _demo_question_has_evidence_support(question_text: str, user_prompt: str) ->
     if is_corpus_meta and len(unmatched) == 0:
         return True
 
-    if not matched:
+    if not matched or unmatched:
         return False
-    # Strict mixed-premise guard: "known entity (e.g. Ollama) + unsupported attribute (火星/大气/温度)"
-    if len(unmatched) >= 2:
-        return False
-    if len(unmatched) > len(matched):
-        return False
-    if unmatched:
-        coverage = len(matched) / len(concepts)
-        if coverage < 0.65:
-            return False
     return True
 
 

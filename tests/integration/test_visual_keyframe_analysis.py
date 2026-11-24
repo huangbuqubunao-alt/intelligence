@@ -418,7 +418,27 @@ def test_visual_analysis_enforces_cloud_guards_and_preserves_prior_frames(
 def test_visual_analysis_reports_local_vision_unsupported_cleanly(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    class _UnsupportedOpener:
+        def open(self, req: Any, timeout: float = 2.0) -> Any:
+            del timeout
+            url = req.full_url if hasattr(req, "full_url") else str(req)
+            if url.endswith("/api/show"):
+                return io.BytesIO(json.dumps({"model_info": {"general.architecture": "qwen3"}}).encode("utf-8"))
+            headers = email.message.Message()
+            raise urllib.error.HTTPError(
+                url="http://127.0.0.1:11434/api/chat",
+                code=400,
+                msg="Bad Request",
+                hdrs=headers,
+                fp=io.BytesIO(
+                    json.dumps({"error": "model qwen3:8b does not support vision inputs"}).encode(
+                        "utf-8"
+                    )
+                ),
+            )
+
     env = _build_env(tmp_path, monkeypatch, vision_completer=None)
+    env["hub"]._http_opener = _UnsupportedOpener()
     fast_app: FastReadApiApplication = env["fast_app"]
 
     mp4_path = _create_multiscene_mp4(env["tmp"])
@@ -426,21 +446,6 @@ def test_visual_analysis_reports_local_vision_unsupported_cleanly(
         mp4_path
     )
 
-    def _fake_urlopen(*_args: Any, **_kwargs: Any) -> Any:
-        headers = email.message.Message()
-        raise urllib.error.HTTPError(
-            url="http://127.0.0.1:11434/api/chat",
-            code=400,
-            msg="Bad Request",
-            hdrs=headers,
-            fp=io.BytesIO(
-                json.dumps({"error": "model qwen3:8b does not support vision inputs"}).encode(
-                    "utf-8"
-                )
-            ),
-        )
-
-    monkeypatch.setattr("urllib.request.urlopen", _fake_urlopen)
     code, body = fast_app.handle(
         "POST", f"/api/v1/workspace-ai/videos/{imp.content_id}/visual-analysis", b"{}"
     )

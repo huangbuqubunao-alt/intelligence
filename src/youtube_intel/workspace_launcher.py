@@ -84,6 +84,7 @@ def collect_workspace_preflight(
     web_dir: Path | None = None,
     ollama_url: str = DEFAULT_OLLAMA_BASE_URL,
     ollama_probe: OllamaProbe | None = None,
+    ollama_vision_probe: Callable[[str, str], bool | None] | None = None,
 ) -> WorkspacePreflight:
     """Probe local OS, built frontend bundle, Ollama loopback, yt-dlp, and ffmpeg."""
 
@@ -96,17 +97,19 @@ def collect_workspace_preflight(
     clean_models = tuple(models)
     vision_models: list[str] = []
     if reachable and clean_models:
-        for model_name in clean_models[:8]:
-            name_hint = _infer_ollama_model_vision_by_name(model_name)
-            if name_hint is True:
+        for model_name in clean_models:
+            probed: bool | None = None
+            if ollama_vision_probe is not None:
+                probed = ollama_vision_probe(ollama_url, model_name)
+            elif ollama_probe is None:
+                probed = _probe_ollama_model_vision_http(ollama_url, model_name)
+            if probed is True:
                 vision_models.append(model_name)
                 continue
-            if name_hint is False:
+            if probed is False:
                 continue
-            if ollama_probe is None:
-                probed = _probe_ollama_model_vision_http(ollama_url, model_name)
-                if probed is True:
-                    vision_models.append(model_name)
+            if _infer_ollama_model_vision_by_name(model_name) is True:
+                vision_models.append(model_name)
     return WorkspacePreflight(
         platform_supported=importlib.util.find_spec("fcntl") is not None,
         frontend_ready=(resolved_web / "index.html").is_file(),

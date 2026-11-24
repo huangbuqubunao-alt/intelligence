@@ -6,11 +6,11 @@
 
 ## 待审批 L3 请求（PENDING）
 
-- **`FD-009`（`PENDING` — 审阅并批准将 Iteration #10 / `BL-013` Codex 审查 15 P1 + 7 P2 缺陷修复线性合入 `main` 并触发云端 14 组 CI 验收）**
-  - **背景**：Codex 独立审查对 `main@ca4e17f` 给出结论 A 并列出 15 P1 + 7 P2 缺陷；Iteration #10 已在活跃分支 `antigravity/task-user-readiness-20261112` 完成全部 22 项修复并新增前后端双端回归套件（含接入 `.github/workflows/ci.yml` 的第 14 组 `test_codex_review_remediation.py`）。本地最新改动后已实跑通过：`ruff`/`mypy`（137 文件）0 错、`vite build` `814ms` + Vitest **`57/57` / `1256/1256`**、14 组 CI + 2 组备份恢复 Python 套件 **`193 passed in 422.38s`**、40 篇含摘要冷读中位 `41.393ms`，以及隔离 `127.0.0.1:8794` Chromium 实机全部 6 项流程 PASS。
+- **`FD-009`（`PENDING` — 待 Claude Round 2 复核确认无阻断后，审阅并批准将 Iteration #10 / `BL-013` Round 1 + Round 2 全部缺陷修复线性合入 `main` 并触发云端 14 组 CI 验收）**
+  - **背景**：Codex 独立审查对 `main@ca4e17f` 给出结论 A 并列出 15 P1 + 7 P2 缺陷；Iteration #10（`c16f0e8`）完成初轮修复后，Claude 独立复核给出 **Conclusion B** 并指出 `N1`–`N11` 共 3 项 P1 阻断与 8 项 P2 剩余风险，建议暂缓合流 `main`。现已在 `antigravity/task-user-readiness-20261112` 完成 Round 2 全量修复与回归扩容，本地最新改动后已实跑通过：`ruff`/`mypy`（137 文件）0 错、`vite build` `770ms` + Vitest **`57/57` / `1257/1257`（`55.92s`）**、14 组 CI + 2 组备份恢复 Python 套件 **`200 passed in 595.70s (0:09:55)`**（`0 failed`, `0 skipped`）。同时明确披露：Round 2 改动后**尚未重跑**隔离 Chromium 实机浏览器（最近实机为 `c16f0e8` 上的 `127.0.0.1:8794`）、WSL2 与真实大模型调用。
   - **可选项（三选一）**：
-    - **选项 A（推荐）**：线性合入 `main` 并验证 GitHub Actions 14 组后端 + 57 文件前端双作业全绿，严守被动 `PUBLIC`、零外宣、无 GitHub Release、本轮不新增发布标签（保留 4 个历史 tag），`EXP-001` 真人试验继续 **`HOLD`**。
-    - **选项 B**：先在当前开发分支安排第二轮 Codex 复核，待复核结论转为无阻塞后再合流 `main`。
+    - **选项 A（当前推荐流程）**：先完成 Claude Round 2 独立复核确认 `N1`–`N11` 闭环无回归；若结论转为无阻断，再线性合入 `main` 并验证 GitHub Actions 14 组后端 + 57 文件前端双作业全绿，严守被动 `PUBLIC`、零外宣、无 GitHub Release、本轮不新增发布标签（保留 4 个历史 tag），`EXP-001` 真人试验继续 **`HOLD`**。
+    - **选项 B**：在 Claude Round 2 之外补充隔离 Chromium 实机走查 `#Content` 搜索分页与 `⌘K` 截断提示后，再呈请终审合流 `main`。
     - **选项 C**：暂留开发分支继续其他内部微调，保持 `main@ca4e17f` 与 `EXP-001` `HOLD`。
 
 > 注：公开主线基线 `main@ca4e17f`（[`#45219985703`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45219985703)）仍严守被动 `PUBLIC`、零外宣、无 GitHub Release、本轮未新增发布标签（仓库保留 4 个历史 tag）与内部完善边界（`EXP-001` 维持 `HOLD`）。

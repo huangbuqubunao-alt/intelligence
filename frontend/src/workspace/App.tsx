@@ -3902,6 +3902,9 @@ function ContentPage(
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
   const [remoteSearchVideos, setRemoteSearchVideos] = useState<ContentItem[] | null>(null);
+  const [remoteSearchPagination, setRemoteSearchPagination] = useState<VideosPagination | null>(null);
+  const [loadingMoreSearch, setLoadingMoreSearch] = useState(false);
+  const [loadMoreSearchError, setLoadMoreSearchError] = useState<string | null>(null);
   const list = useRemote<{ videos: ContentItem[]; pagination?: VideosPagination }>(
     "/videos",
     refresh + revision,
@@ -3914,6 +3917,8 @@ function ContentPage(
     setProbedPagination(null);
     setLoadMoreError(null);
     setRemoteSearchVideos(null);
+    setRemoteSearchPagination(null);
+    setLoadMoreSearchError(null);
   }, [refresh, revision]);
   useEffect(() => {
     const initial = list.data;
@@ -3965,16 +3970,20 @@ function ContentPage(
   useEffect(() => {
     if (!trimmedRawSearch || !hasUnloadedLibraryItems) {
       setRemoteSearchVideos(null);
+      setRemoteSearchPagination(null);
+      setLoadMoreSearchError(null);
       return;
     }
     let alive = true;
     const timer = window.setTimeout(() => {
-      api<{ videos?: ContentItem[] }>(
+      api<{ videos?: ContentItem[]; pagination?: VideosPagination }>(
         `/videos?q=${encodeURIComponent(trimmedRawSearch)}&limit=100&offset=0`,
       )
         .then((res) => {
           if (!alive || !Array.isArray(res?.videos)) return;
           setRemoteSearchVideos(res.videos);
+          setRemoteSearchPagination(res.pagination ?? null);
+          setLoadMoreSearchError(null);
         })
         .catch(() => {});
     }, 60);
@@ -3983,6 +3992,45 @@ function ContentPage(
       window.clearTimeout(timer);
     };
   }, [trimmedRawSearch, hasUnloadedLibraryItems]);
+  const loadMoreSearchVideos = async () => {
+    if (loadingMoreSearch || !trimmedRawSearch) return;
+    const loadedSearchPrimary = (remoteSearchVideos ?? []).filter((v) => !v.work_kind).length;
+    const nextOffset = remoteSearchPagination
+      ? Math.max(loadedSearchPrimary, remoteSearchPagination.offset + remoteSearchPagination.returned_count)
+      : loadedSearchPrimary;
+    setLoadingMoreSearch(true);
+    setLoadMoreSearchError(null);
+    try {
+      const res = await api<{
+        videos?: ContentItem[];
+        pagination?: VideosPagination;
+      }>(`/videos?q=${encodeURIComponent(trimmedRawSearch)}&limit=100&offset=${nextOffset}`);
+      const batch = Array.isArray(res?.videos) ? res.videos : [];
+      setRemoteSearchVideos((prev) => {
+        const listPrev = prev ?? [];
+        const seen = new Set(listPrev.map((v) => v.video_id));
+        const merged = [...listPrev];
+        for (const item of batch) {
+          if (!seen.has(item.video_id)) {
+            seen.add(item.video_id);
+            merged.push(item);
+          }
+        }
+        return merged;
+      });
+      if (res?.pagination) {
+        setRemoteSearchPagination(res.pagination);
+      }
+    } catch {
+      setLoadMoreSearchError(
+        language === "zh-CN"
+          ? "未能加载更多搜索结果，请稍后重试。"
+          : "Could not load more search results.",
+      );
+    } finally {
+      setLoadingMoreSearch(false);
+    }
+  };
   const mergedLoadedAndSearchVideos = useMemo(() => {
     if (!trimmedRawSearch || !remoteSearchVideos || remoteSearchVideos.length === 0) {
       return baseVideos;
@@ -5296,6 +5344,33 @@ function ContentPage(
                 {loadMoreError ? (
                   <p className="form-error" role="alert">
                     {loadMoreError}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+            {trimmedSearch &&
+            remoteSearchPagination &&
+            (remoteSearchPagination.has_more ||
+              remoteSearchPagination.total_count >
+                (remoteSearchVideos ?? []).filter((v) => !v.work_kind).length) ? (
+              <div className="content-pagination-footer">
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  disabled={loadingMoreSearch}
+                  onClick={() => void loadMoreSearchVideos()}
+                >
+                  {loadingMoreSearch
+                    ? language === "zh-CN"
+                      ? "正在加载更多搜索结果…"
+                      : "Loading more results…"
+                    : language === "zh-CN"
+                      ? `加载更多搜索结果 (已显示 ${(remoteSearchVideos ?? []).filter((v) => !v.work_kind).length} / 共 ${remoteSearchPagination.total_count})`
+                      : `Load more search results (${(remoteSearchVideos ?? []).filter((v) => !v.work_kind).length} / ${remoteSearchPagination.total_count})`}
+                </button>
+                {loadMoreSearchError ? (
+                  <p className="form-error" role="alert">
+                    {loadMoreSearchError}
                   </p>
                 ) : null}
               </div>
