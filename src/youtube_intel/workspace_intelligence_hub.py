@@ -6688,14 +6688,20 @@ class WorkspaceIntelligenceHub:
                     "## 相关原始片段（仅供参考查阅，未作为支持引用）",
                 ]
             )
+            hidden_unverified_related = 0
             for c in related_excerpts:
                 if not isinstance(c, Mapping):
                     continue
                 if c.get("verified") is False or c.get("verification_status") == "NEEDS_REVERIFICATION":
+                    hidden_unverified_related += 1
                     continue
                 md_lines.append(_format_citation_md_line(c, with_note=False))
                 if c.get("excerpt"):
                     md_lines.append(f"  > {c['excerpt']}")
+            if hidden_unverified_related > 0:
+                md_lines.append(
+                    f"> [!WARNING] 已隐藏 {hidden_unverified_related} 条未通过当前主库核验的相关片段。"
+                )
         else:
             md_lines.extend(
                 [
@@ -6828,7 +6834,16 @@ class WorkspaceIntelligenceHub:
             verification_status = "VERIFIED"
 
         raw_related = parsed_scope.get("related_excerpts")
-        related_excerpts = raw_related if isinstance(raw_related, list) else []
+        related_excerpts: list[dict[str, Any]] = []
+        if isinstance(raw_related, list):
+            for entry in raw_related:
+                if isinstance(entry, Mapping):
+                    related_excerpts.append(self._reverify_serialized_citation(entry))
+        if "related_excerpts" in parsed_scope or related_excerpts:
+            parsed_scope["related_excerpts"] = related_excerpts
+        has_unverified_related = any(
+            not bool(c.get("verified")) for c in related_excerpts
+        )
         raw_covered = parsed_scope.get("covered_sources")
         covered_sources = raw_covered if isinstance(raw_covered, list) else []
         covered_source_count = (
@@ -6844,8 +6859,10 @@ class WorkspaceIntelligenceHub:
         model_str = str(row["model"])
         created_at_str = str(row["created_at"])
         obsidian_md = str(row["obsidian_markdown"])
-        if answer_status == "NEEDS_REVERIFICATION" or bool(
-            parsed_scope.get("restored_from_backup")
+        if (
+            answer_status == "NEEDS_REVERIFICATION"
+            or bool(parsed_scope.get("restored_from_backup"))
+            or has_unverified_related
         ):
             obsidian_md = self._build_research_session_obsidian_markdown(
                 question=question_str,
@@ -6858,9 +6875,7 @@ class WorkspaceIntelligenceHub:
                 takeaways=takeaways_list if isinstance(takeaways_list, list) else [],
                 actions=actions_list if isinstance(actions_list, list) else [],
                 citations=citations,
-                related_excerpts=[
-                    c for c in related_excerpts if isinstance(c, Mapping)
-                ],
+                related_excerpts=related_excerpts,
                 covered_sources=[
                     c for c in covered_sources if isinstance(c, Mapping)
                 ],
@@ -8907,6 +8922,14 @@ class WorkspaceIntelligenceHub:
         for c in cites_obj:
             if isinstance(c, Mapping):
                 reverified_cites.append(self._reverify_serialized_citation(c))
+
+        raw_related = scope_obj.get("related_excerpts")
+        if isinstance(raw_related, list):
+            scope_obj["related_excerpts"] = [
+                self._reverify_serialized_citation(c)
+                for c in raw_related
+                if isinstance(c, Mapping)
+            ]
 
         verified_cnt = sum(1 for c in reverified_cites if bool(c.get("verified")))
         scope_obj["restored_from_backup"] = True

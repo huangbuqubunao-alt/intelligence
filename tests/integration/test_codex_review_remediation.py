@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import email.message
 import hashlib
 import io
@@ -1870,3 +1871,249 @@ def test_n9_p2_02_cross_instance_barrier_cloud_budget_concurrency(
 
     assert len(outcomes) == 3
     assert errors == ["CLOUD_DAILY_BUDGET_EXCEEDED"] * 5
+
+
+def test_r2_d1_demo_showcase_ui_suggested_chips_grounded_and_traps_refused(
+    tmp_path: Path,
+) -> None:
+    from youtube_intel.demo_showcase import prepare_demo_showcase
+
+    runtime = prepare_demo_showcase(REPO_ROOT, demo_root=tmp_path / "demo_r2_d1", reset=True)
+    res_code, sess_body = runtime.fast_app.handle("GET", "/api/v1/workspace-ai/research/sessions")
+    assert res_code == HTTPStatus.OK
+    default_chips = sess_body["suggested_questions"]
+    assert len(default_chips) >= 3
+    scope_opts = sess_body["scope_options"]
+
+    star_code, _ = runtime.fast_app.handle(
+        "POST",
+        "/api/v1/workspace-ai/curation/batch",
+        json.dumps({"video_ids": ["vidDemoAgt1", "vidDemoSol2"], "starred": True}).encode("utf-8"),
+    )
+    assert star_code == HTTPStatus.OK
+
+    grounded_requests: list[tuple[str, dict[str, Any]]] = [
+        (f"default:{i}", {"question": q}) for i, q in enumerate(default_chips)
+    ]
+    for topic in [t["name"] for t in scope_opts["topic_clusters"]]:
+        for q in (
+            f"围绕「{topic}」专题，不同创作者的核心共识与关键分歧是什么？",
+            f"综合「{topic}」专题原话，提炼最具确定性的落地路径与产品机会",
+            f"「{topic}」专题在工程落地或商业验证中有哪些高频避坑点？",
+            f'What are the key consensus and disagreements across creators on "{topic}"?',
+            f'Synthesize the highest-conviction implementation paths and product opportunities in "{topic}"',
+            f'What are the top engineering or business pitfalls highlighted in "{topic}"?',
+        ):
+            grounded_requests.append((f"topic:{topic}", {"question": q, "topic_cluster": topic}))
+
+    grounded_requests.extend(
+        [
+            (
+                "ch_topic_zh",
+                {
+                    "question": "Atlas Agent Lab (Demo) 在「AI Agent 工程架构」专题下有哪些核心判断与代表性实战案例？",
+                    "channel_key": "Atlas Agent Lab (Demo)",
+                    "topic_cluster": "AI Agent 工程架构",
+                },
+            ),
+            (
+                "ch_topic_en",
+                {
+                    "question": 'What are Atlas Agent Lab (Demo)\'s core claims and practical cases in "AI Agent 工程架构"?',
+                    "channel_key": "Atlas Agent Lab (Demo)",
+                    "topic_cluster": "AI Agent 工程架构",
+                },
+            ),
+        ]
+    )
+
+    for ch in scope_opts["channels"]:
+        lbl = ch["label"]
+        key = ch["key"]
+        for q in (
+            f"总结 {lbl} 近期内容的核心方法论、高频主题与关键判断变化",
+            f"{lbl} 提出了哪些可直接复用的产品设计、工程实践或商业变现动作？",
+            f"{lbl} 重点强调了哪些反直觉结论与实战避坑建议？",
+            f"Summarize {lbl}'s core methodology, recurring themes, and key shifts",
+            f"What reusable product, engineering, or monetization actions does {lbl} recommend?",
+            f"What counter-intuitive conclusions and practical pitfalls does {lbl} emphasize?",
+        ):
+            grounded_requests.append((f"channel:{key}", {"question": q, "channel_key": key}))
+
+    first_video = scope_opts["videos"][0]
+    first_title = first_video["title"]
+    for q in (
+        f"围绕《{first_title}》提炼最核心的方法论、关键论据与可落地步骤",
+        f"《{first_title}》提出了哪些反直觉判断、数据指标与避坑警示？",
+        "提炼这篇指定视频最核心的方法论、关键论据与可落地步骤",
+        "这篇指定视频提出了哪些反直觉判断与实战避坑警示？",
+        f'Extract the core methodology, evidence, and actionable steps from "{first_title}"',
+        f'What counter-intuitive claims, metrics, and pitfalls appear in "{first_title}"?',
+        "Extract the core methodology, evidence, and actionable steps from this selected video",
+        "What counter-intuitive claims and practical pitfalls appear in this selected video?",
+    ):
+        grounded_requests.append(("single", {"question": q, "video_ids": [first_video["video_id"]]}))
+
+    for q in (
+        "横向对比这 2 篇指定视频（Atlas Agent Lab (Demo) vs Local-First Foundry (Demo)）的核心共识、观点分歧与演进脉络",
+        "综合这 2 篇视频的时间轴原话，提炼最值得立即执行的 3 个实操动作与产品切入点",
+        "这 2 篇视频揭示了哪些容易踩坑的误区、边界条件或商业化前提？",
+        "Compare core consensus, disagreements, and evolution across these 2 selected videos",
+        "Synthesize the top 3 actionable steps and product opportunities grounded in these 2 videos",
+        "What key pitfalls, boundary conditions, or monetization prerequisites emerge across these 2 videos?",
+    ):
+        grounded_requests.append(
+            ("multi", {"question": q, "video_ids": ["vidDemoAgt1", "vidDemoSol2"]})
+        )
+
+    for q in (
+        "综合我收藏的高价值视频，提炼最值得优先落地的核心洞察与行动清单",
+        "我收藏的这些视频在技术路线与商业判断上有哪些互补与碰撞？",
+        "Synthesize top insights and priority action items across my starred videos",
+        "How do my starred videos complement or challenge each other on tech and business?",
+    ):
+        grounded_requests.append(("starred", {"question": q, "starred_only": True}))
+
+    for tag, payload in grounded_requests:
+        ask_code, ask_body = runtime.fast_app.handle(
+            "POST",
+            "/api/v1/workspace-ai/research/ask",
+            json.dumps(payload).encode("utf-8"),
+        )
+        assert ask_code == HTTPStatus.OK, tag
+        sess = ask_body["session"]
+        assert sess["answer_status"] == "GROUNDED", (tag, payload["question"], sess["answer_zh"])
+        assert len(sess["citations"]) >= 1, (tag, payload["question"])
+
+    for trap_q in (
+        "Ollama 在火星大气层的实测温度是多少？",
+        "Ollama 本地模型的价格是多少？",
+        "Ollama本地模型价格是多少？",
+        "Obsidian 双链的市值是多少？",
+        "基于当前内容库，Ollama 本地模型价格是多少？",
+        "Atlas Agent Lab 的年营收和股价是多少？",
+        "AI Agent 工程架构的融资估值是多少？",
+        "Summarize Ollama's pricing and market cap across these videos",
+        "综合我收藏的视频，Ollama 的股价是多少？",
+    ):
+        t_code, t_body = runtime.fast_app.handle(
+            "POST",
+            "/api/v1/workspace-ai/research/ask",
+            json.dumps({"question": trap_q}).encode("utf-8"),
+        )
+        assert t_code == HTTPStatus.OK, trap_q
+        t_sess = t_body["session"]
+        assert t_sess["answer_status"] == "REFUSED_INSUFFICIENT_EVIDENCE", trap_q
+        assert t_sess["refused"] is True
+        assert t_sess["citations"] == []
+
+
+def test_r2_d2_restored_refused_session_related_excerpts_reverified_and_sanitized(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def _completer(
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        mode: str,
+        provider: str,
+        model: str,
+        max_tokens: int = 1800,
+    ) -> tuple[dict[str, Any], str, str]:
+        del mode, max_tokens
+        if "RESEARCH_QA_SCHEMA" in system_prompt:
+            return (
+                {
+                    "answer_status": "REFUSED_INSUFFICIENT_EVIDENCE",
+                    "answerable": False,
+                    "refusal_reason_zh": "原文未提及火星大气温度。",
+                    "answer_zh": "",
+                    "key_takeaways_zh": [],
+                    "action_items_zh": [],
+                    "citations": [],
+                },
+                provider,
+                model,
+            )
+        return _StubCompleter()(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            mode="local_ollama",
+            provider=provider,
+            model=model,
+        )
+
+    env_src = _build_env(tmp_path, monkeypatch, name="r2d2_src", completer=_StubCompleter(_completer))
+    hub_src: WorkspaceIntelligenceHub = env_src["hub"]
+    imp = LocalContentProvider(env_src["repo"], env_src["data_root"], now=lambda: NOW).import_bytes(
+        "r2d2_note.md",
+        "真实权威主库严格校验每一条原文摘录。\n\n第二段记录隔离恢复策略。".encode("utf-8"),
+    )
+    hub_src.distill_video(imp.content_id)
+
+    refused_sess = hub_src.ask_research_question(
+        {"question": "真实权威主库在火星的温度是多少？", "video_ids": [imp.content_id]}
+    )["session"]
+    assert refused_sess["refused"] is True
+    assert len(refused_sess["related_excerpts"]) >= 1
+
+    clean_backup = hub_src.export_backup_snapshot()
+    # 1) Intact backup restored into the SAME intact core DB keeps genuine related_excerpts verified.
+    hub_src.restore_backup_snapshot(clean_backup)
+    intact_dto = next(
+        s for s in hub_src.list_research_sessions()["sessions"] if s["session_id"] == refused_sess["session_id"]
+    )
+    assert all(c["verified"] is True for c in intact_dto["related_excerpts"])
+
+    # 2) Tamper scope_json.related_excerpts + obsidian_markdown and restore into same DB.
+    tampered_backup = copy.deepcopy(clean_backup)
+    sess_row = tampered_backup["research_qa_sessions"][0]
+    scope_obj = json.loads(str(sess_row["scope_json"]))
+    for rel in scope_obj["related_excerpts"]:
+        rel["excerpt"] = "TAMPERED_RELATED_EXCERPT_IN_VAULT"
+        rel["evidence_id"] = "ev-forged-00000000"
+    sess_row["scope_json"] = json.dumps(scope_obj, ensure_ascii=False)
+    sess_row["obsidian_markdown"] = "# Tampered\n> TAMPERED_RELATED_EXCERPT_IN_VAULT\nev:ev-forged-00\n"
+
+    hub_src.restore_backup_snapshot(tampered_backup)
+    dto_tampered = next(
+        s for s in hub_src.list_research_sessions()["sessions"] if s["session_id"] == refused_sess["session_id"]
+    )
+    for rel in dto_tampered["related_excerpts"]:
+        assert rel["verified"] is False
+        assert rel["verification_status"] == "NEEDS_REVERIFICATION"
+        assert rel["excerpt"] == ""
+        assert rel["evidence_id"] == ""
+    for rel_in_scope in dto_tampered["scope"]["related_excerpts"]:
+        assert rel_in_scope["verified"] is False
+        assert rel_in_scope["excerpt"] == ""
+        assert rel_in_scope["evidence_id"] == ""
+    assert "TAMPERED_RELATED_EXCERPT_IN_VAULT" not in str(dto_tampered["obsidian_markdown"])
+    assert "ev-forged-00" not in str(dto_tampered["obsidian_markdown"])
+    assert "未通过当前主库核验的相关片段" in str(dto_tampered["obsidian_markdown"])
+
+    _, vault_bytes, _, _ = hub_src.build_obsidian_vault_zip(scope="all")
+    with zipfile.ZipFile(io.BytesIO(vault_bytes)) as zf:
+        qa_mds = [n for n in zf.namelist() if n.startswith("04-跨视频深度问答/") and n.endswith(".md")]
+        assert len(qa_mds) >= 1
+        for md_name in qa_mds:
+            md_text = zf.read(md_name).decode("utf-8")
+            assert "TAMPERED_RELATED_EXCERPT_IN_VAULT" not in md_text
+            assert "ev-forged-00" not in md_text
+            assert "未通过当前主库核验的相关片段" in md_text
+
+    # 3) Clean untampered backup restored into an empty DB lacking source text also flags & strips excerpts.
+    env_empty = _build_env(tmp_path, monkeypatch, name="r2d2_missing_core", completer=_StubCompleter(_completer))
+    hub_empty: WorkspaceIntelligenceHub = env_empty["hub"]
+    hub_empty.restore_backup_snapshot(clean_backup)
+    dto_missing = hub_empty.list_research_sessions()["sessions"][0]
+    for rel in dto_missing["related_excerpts"]:
+        assert rel["verified"] is False
+        assert rel["excerpt"] == ""
+        assert rel["evidence_id"] == ""
+    _, empty_vault_bytes, _, _ = hub_empty.build_obsidian_vault_zip(scope="all")
+    with zipfile.ZipFile(io.BytesIO(empty_vault_bytes)) as zf:
+        for md_name in [n for n in zf.namelist() if n.startswith("04-跨视频深度问答/") and n.endswith(".md")]:
+            md_text = zf.read(md_name).decode("utf-8")
+            assert "真实权威主库严格校验" not in md_text
+            assert "未通过当前主库核验的相关片段" in md_text
