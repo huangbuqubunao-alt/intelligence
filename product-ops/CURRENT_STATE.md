@@ -1,26 +1,26 @@
 # 当前运营与恢复状态（CURRENT_STATE）
 
-- **最后更新**：2026-11-24（`Asia/Shanghai` · **`FD-009` 执行完毕：Iteration #10 / `BL-013` 实机浏览器 + 线性合流 `main@4f3fe70` + GitHub Actions [`#45339507823`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45339507823) 14 组全绿收口**）
+- **最后更新**：2026-11-24（`Asia/Shanghai` · **Iteration #11 / `BL-014`：Codex Round 2 全量闭环完成、`995` 份历史文档脚本当前工作树隐私脱敏、CI 扩充至 `7,124` 项 Python 测试与真实 `qwen3.5:9b` `EXP-002` 100% 逐句/要点引用复验完毕，研发分支待创始人审批合流 `main`**）
 - **当前运行阶段**：**内部自主迭代与产品完善阶段**（严禁招募、联系或组织真实外部用户测试）
-- **当前工作分支**：`antigravity/task-user-readiness-20261112`（Iteration #10 / `BL-013` 已线性合入公开主线并同步云端全绿）
-- **最新公开主线基线（`main` & `origin/main`）**：`4f3fe70`（合入 `FD-009` 全部缺陷修复与新增 CI 守卫，[`#45339507823`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45339507823)，仓库保持 `PUBLIC` 被动状态，零外宣、无 GitHub Release、本轮未新增发布标签、保留 4 个历史 tag、`Stars: 0`、`Forks: 0`）
+- **当前工作分支**：`antigravity/task-user-readiness-20261112`（含 Iteration #11 / `BL-014` 全部修复、脱敏、扩展 CI 与实测成果；待创始人审阅并裁决合流 `main`）
+- **最新公开主线基线（`main` & `origin/main`）**：`d1b58f7`（仅文档收口同步提交，对应已通过云端 CI [`#45339507823`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45339507823) 的代码提交为 `main@4f3fe70`；仓库保持 `PUBLIC` 被动状态，零外宣、无 GitHub Release、本轮未新增发布标签、保留 4 个历史 tag、`Stars: 0`、`Forks: 0`）
 
 ---
 
 ## 核心运行状态快照
 
-- **当前产品目标**：`FD-009` 已彻底收口；维持内部高可信单机研究基线与被动公开边界，等待创始人未来针对下一阶段迭代方向或何时开启外部受控试跑（`EXP-001`）的进一步指令。
-- **最近已完成的关键工作**：
-  1. **完成 Iteration #10（`BL-013`）全部审查缺陷清零及实机浏览器双向验收**：历经 Codex 初审（22 项）与 Claude 三轮独立对抗复核（结论 A 收官），并补充实时隔离 Chromium 真实人类操作全流程验证——覆盖 `http://127.0.0.1:8793`（Offline Demo：首页、全部 3 条默认推荐提问与专题动态推荐 `GROUNDED` 含引用、越域陷阱拒答、历史会话切换、`⌘K` 跳转、`#Content` 视频与 Markdown 详情导出控件、Obsidian Dark/Warm Paper Light 双主题及 `375×812` 移动端 `0px` 溢出）及 `http://127.0.0.1:8794`（355 条内容库：`#Content` 远程搜索 `100/135` 续拉至 `135/135`、`⌘K` 截断总命中数 `135` 提示；全程 `0` console error / `0` page error / `0` HTTP `>=400`）。
-  2. **执行创始人 `FD-009` 裁决（选项 A 合流 `main` 与云端 14 组 CI 双绿验收）**：
-     - 将 `c16f0e8`、`0519284`、`b28ba5d` 线性合入 `main@37bb685` 并推送，首轮云端 CI [`#45337676192`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45337676192) 检出新接入用例 `test_p2_01_p2_02_p2_06` 未断网隔离本机 Ollama 地址导致 1 项失败（业务源码零缺陷、其余 174 项后端及前端全绿）；补充纯测试断网隔离修正提交 `5e7dac3` 并合入 `main@4f3fe70` 后，GitHub Actions [`#45339507823`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45339507823) 双作业全绿通过；
-     - 核验仓库严守 `PUBLIC`（`0 Stars / 0 Forks`、`no releases found`、保留 4 个历史 tag）、零外宣、`EXP-001` 与 `BL-009` 继续维持 `HOLD`。
-- **质量验收快照（`main@4f3fe70` 最新收口基线）**：
-  - 云端 CI（[`#45339507823`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45339507823)）：`Frontend Build & Vitest` `1m37s`（`vite build` `1.37s` + Vitest **`57/57` 文件 / `1257/1257` tests passed**）；`Python Lint, Typecheck & Public Beta Integration` `5m55s`（`ruff` / `mypy` 137 文件 0 错 + 14 组全量 **`175 passed in 309.20s (0:05:09)`**）；
-  - 本地 16 组全量（含 2 组备份/恢复）与实机双端口 `8793`/`8794` 全部全绿 PASS；Windows WSL2 与公网免 Cookie YouTube 抓取按已知边界维持 `NOT_TESTED` / `BLOCKED`；
-  - 真实外部用户数据与留存：**`当前不可评估`**（内部阶段严格遵守零真人测试边界）。
+- **当前产品目标**：完成 Codex Round 2 审查提出的全量产品可信度、安全边界、大库性能、当前树隐私脱敏与 CI 全仓覆盖闭环，提交研发分支供创始人裁决是否开展独立复核或合流 `main`。
+- **最近在研发分支已完成的关键工作（`antigravity/task-user-readiness-20261112`）**：
+  1. **防幻觉、Demo 边界与本机模型实测再加固（`P0-1`、`P2-1` + `ce6f8dcc`）**：全角/小写/空格 `[E*]` 变体、布尔伪装 `"answerable": "false"`、内联列表、Markdown 表格行逐句清洗，历史回读/恢复前统一剪枝；Demo 修复「多少钱」与反向否定前提假问答并保留 UI 胶囊可用性；修正要点/行动建议跨句引用自动水合缺口后，本机真实 `ollama/qwen3.5:9b`（`$0` 云花费）重跑 `EXP-002` 达成 **3/3 `GROUNDED` + 2/2 拒答 + 13/13 (100%) 逐句引用 + 18/18 (100%) 要点行动引用**（`out_of_range_refs=0`）。
+  2. **大库稳定性、恢复事务化、SSRF/Proxy 安全与编码兼容（`P1-1`、`P1-2`、`P1-3`、`P2-2`–`P2-10`、`P2-13`）**：`list_research_sessions()` 轻量查询 + 单事务批量核验 + LRU 缓存（600 会话 `<300ms`）；只读 `.as_uri()` 修正特殊路径字符；原子写回与精确 `422 RESTORE_INVALID_PAYLOAD` 错误码；全形式 SSRF（十进制/十六进制/DNS 重绑定/`nip.io`/`CGNAT`）、`4 MiB` 响应封顶与回环直连绕过 `http_proxy`；支持 GB18030/UTF-16 本地笔记且 `verify_source` 同步兼容；前端解除 2s 轮询对第 2 页/搜索状态重置、清除过期 `⌘K` 计数并隔离 Demo 引导状态；`/api/v1/dashboard` 无 Sidecar 一致性修复。
+  3. **当前工作树隐私脱敏与全仓 CI 扩容（`P1-4`、`P2-11`、`P2-12` 选项 B）**：在不重写 Git 历史前提下对 `995` 份历史追踪文档与脚本完成本机目录/邮箱/主机名脱敏（`git grep` 零残留，`security_scan.sh` 对 `src/`/`frontend/`/`scripts/`/`product-ops/` 均 `0` 告警）；`.github/workflows/ci.yml` 保留 14 组核心公开子集并新增 `tsc --noEmit`、4 分片 `python-unit-full`（`3,955` 项）及 8 分片 `python-integration-full`（`3,169` 项），合计 **`7,124` 项 Python CI 覆盖**（并在 `docs/RELEASE_CHECKLIST.md` 明确披露 `GOV-001` 与外部 worktree 夹具）；前端默认并发 Vitest **`57/57` / `1,259/1,259 passed`（`65.21s`）** 及稳定性 10/10 全绿；`product-ops/reports/daily/2026-11-23.md` 与 `8e63e04` 完全一致。
+- **质量验收快照（`antigravity/task-user-readiness-20261112` 分支本地实测）**：
+  - 静态：`ruff check --no-cache src tests scripts` 0 错；`mypy --no-incremental --cache-dir=/dev/null src`（137 文件）0 错；
+  - 后端：`14 组` Public Beta 子集 `181 passed in 686.65s`（`ce6f8dcc` 补充回归复测 `32 passed in 127.76s`）；Unit 4 分片 `3,954 passed, 1 skipped, 2 deselected`；Integration+E2E+Scripts 4 分片 `3,166 passed` + 隔离 `test_fast_read_api.py` `2/2`；
+  - 前端：`tsc --noEmit` + `vite build` `1.38s` + 默认 `npx vitest run` **`57/57` / `1,259/1,259 passed`** + 10/10 连续稳定性通过；
+  - 已公开 `main@d1b58f7` 前置代码（`main@4f3fe70`）保持云端 [`#45339507823`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45339507823) 绿标；真实外部用户数据：**`当前不可评估`**（`EXP-001` 维持 `HOLD`）。
 - **待创始人 L3 决策（PENDING）**：
-  - **暂无待审批 L3 请求**（`FD-001` ~ `FD-009` 已全部完结归档；`EXP-001` 与 `BL-009` 维持 `HOLD`）。
+  - **是否将当前研发分支 `antigravity/task-user-readiness-20261112` 线性合流 `main` 并触发云端全仓（`7,124` Python + `1,259` Vitest）Actions 验收，或先安排独立 Codex/Claude 复核**（`EXP-001` 与 `BL-009` 继续维持 `HOLD`）。
 - **下一步安全可执行动作（中断恢复指引）**：
-  1. 维持公开主线 `main` 云端绿标与研发分支台账同步，严守被动 `PUBLIC`、零外宣、无 GitHub Release 与零真人试验边界；
-  2. 等待创始人下达下一阶段产品优化重点或内部/外测阶段授权。
+  1. 维持分支干净状态与 `main@d1b58f7` 零越权改动，严守被动 `PUBLIC`、零外宣、无 GitHub Release 与零真人试验边界；
+  2. 根据创始人回复执行分支合流 `main` 或配合第三方复核。
