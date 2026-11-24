@@ -22,7 +22,7 @@ jobs:
           uv lock --check
           uv sync --frozen --dev
       - name: Lint with ruff
-        run: uv run --frozen ruff check src tests
+        run: uv run --frozen ruff check src tests scripts
       - name: Type-check with mypy
         run: uv run --frozen mypy src
       - name: Install ffmpeg for media integration tests
@@ -30,8 +30,8 @@ jobs:
       - name: Run Public Beta verification suite
         # Scope note: runs contracts, console entry, offline demo showcase, cloud cost/reauth
         # safety, Workspace AI Hub, Fast-Read API, and PO demo E2E checks on the candidate SHA.
-        # Historical sealed TASK-016 trial fixtures (GOV-001) fail closed on current tree hashes
-        # by design and are tracked separately in qa/defects.md.
+        # Full repository unit & integration coverage runs in parallel in python-unit-full and
+        # python-integration-full below.
         run: |
           uv run --frozen python -m pytest \
             tests/unit/test_contracts.py \
@@ -50,6 +50,120 @@ jobs:
             tests/e2e/test_po_demo.py \
             -q --tb=short
 
+  python-unit-full:
+    name: Python Full Unit Suite (Shard ${{ matrix.shard }}/4, ex-GOV-001)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify lockfile & sync dependencies
+        run: |
+          uv lock --check
+          uv sync --frozen --dev
+      - name: Run full unit test shard ${{ matrix.shard }}
+        # Disclosed exclusions (also documented in docs/RELEASE_CHECKLIST.md):
+        # 1) GOV-001 sealed TASK-016 trial fixtures (6 files + 2 unit tests) intentionally
+        #    fail closed against current tree hashes by design.
+        # 2) 5 CAPACITY_BASELINE_ROOT functions (20 cases) in test_readiness_qwen35_capacity.py
+        #    read untracked developer-local .var artifacts unavailable on clean CI clones; the
+        #    remaining 17 contract tests in that file still run in CI.
+        env:
+          SHARD_INDEX: ${{ matrix.shard }}
+        run: |
+          uv run --frozen python - <<'PY'
+          import glob, os, subprocess, sys
+
+          shard_idx = int(os.environ["SHARD_INDEX"])
+          excluded_gov001 = {
+              "tests/unit/test_bounded_synthesis_trial.py",
+              "tests/unit/test_bounded_synthesis_v2_trial.py",
+              "tests/unit/test_bounded_synthesis_v3_trial.py",
+              "tests/unit/test_bounded_synthesis_v4_trial.py",
+              "tests/unit/test_bounded_synthesis_v4_r2_trial.py",
+              "tests/unit/test_bounded_trial_device_continuity.py",
+          }
+          files = sorted(f for f in glob.glob("tests/unit/test_*.py") if f not in excluded_gov001)
+          shard = files[shard_idx::4]
+          deselect_map = {
+              "tests/unit/test_synthesis_attribution_v2.py": [
+                  "tests/unit/test_synthesis_attribution_v2.py::test_actual_factory_declares_finite_profiles_and_keeps_synthesis_unqualified",
+              ],
+              "tests/unit/test_synthesis_judgment_v5.py": [
+                  "tests/unit/test_synthesis_judgment_v5.py::test_v5_transport_is_distinct_and_sealed_qualification_never_cross_permits",
+              ],
+              "tests/unit/test_readiness_qwen35_capacity.py": [
+                  "tests/unit/test_readiness_qwen35_capacity.py::test_projection_is_exact_old_actual_request_except_predict",
+                  "tests/unit/test_readiness_qwen35_capacity.py::test_capacity_one_attempt_preserves_response_and_stops",
+                  "tests/unit/test_readiness_qwen35_capacity.py::test_capacity_unpaired_counters_remain_unknown_below_limit",
+                  "tests/unit/test_readiness_qwen35_capacity.py::test_capacity_preparation_seals_original_input_data_and_fresh_execution",
+                  "tests/unit/test_readiness_qwen35_capacity.py::test_capacity_external_root_receipt_is_exact",
+              ],
+          }
+          deselect_args = [
+              f"--deselect={nodeid}"
+              for file_path in shard
+              for nodeid in deselect_map.get(file_path, ())
+          ]
+          cmd = [sys.executable, "-m", "pytest", *deselect_args, "-q", "--tb=short", *shard]
+          sys.exit(subprocess.call(cmd))
+          PY
+
+  python-integration-full:
+    name: Python Full Integration & E2E Suite (Shard ${{ matrix.shard }}/8)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify lockfile & sync dependencies
+        run: |
+          uv lock --check
+          uv sync --frozen --dev
+      - name: Install ffmpeg for media integration tests
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      - name: Run full integration & script test shard ${{ matrix.shard }}
+        # Disclosed exclusion: test_all_original_four_inputs_fit_without_truncating_fifteen_evidence
+        # reads CAPACITY_BASELINE_ROOT from an untracked sibling worktree unavailable on clean CI clones.
+        env:
+          SHARD_INDEX: ${{ matrix.shard }}
+        run: |
+          uv run --frozen python - <<'PY'
+          import glob, os, subprocess, sys
+
+          shard_idx = int(os.environ["SHARD_INDEX"])
+          files = sorted(
+              glob.glob("tests/integration/test_*.py")
+              + ["tests/e2e/test_po_demo.py"]
+              + glob.glob("tests/scripts/test_*.py")
+          )
+          shard = files[shard_idx::8]
+          deselect_args = []
+          if "tests/integration/test_local_capacity_composition.py" in shard:
+              deselect_args.append(
+                  "--deselect=tests/integration/test_local_capacity_composition.py::"
+                  "test_all_original_four_inputs_fit_without_truncating_fifteen_evidence"
+              )
+          cmd = [sys.executable, "-m", "pytest", *deselect_args, "-q", "--tb=short", *shard]
+          sys.exit(subprocess.call(cmd))
+          PY
+
   frontend-ci:
     name: Frontend Build & Vitest
     runs-on: ubuntu-latest
@@ -65,6 +179,8 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Install dependencies
         run: npm ci
+      - name: Type-check TypeScript
+        run: npx tsc --noEmit --incremental false
       - name: Build production bundle
         run: npm run build
       - name: Run Vitest suite

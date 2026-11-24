@@ -358,7 +358,7 @@ describe("Codex Review Remediation Frontend Regression Suite", () => {
   });
 
   it("P1-12: #Content paginates >200 items via Load more + ?q= search and Cmd+K searches full library", async () => {
-    const page1 = Array.from({ length: 5 }, (_, i) => makeVideoItem(i + 1));
+    const page1 = Array.from({ length: 200 }, (_, i) => makeVideoItem(i + 1));
     const page2 = Array.from({ length: 5 }, (_, i) => makeVideoItem(i + 201));
     const item501 = makeVideoItem(501, {
       video_id: "vid-501",
@@ -415,7 +415,7 @@ describe("Codex Review Remediation Frontend Regression Suite", () => {
     render(<App />);
 
     const loadMoreBtn = await screen.findByRole("button", {
-      name: /加载更多内容 \(已显示 5 \/ 共 501\)/,
+      name: /加载更多内容 \(已显示 200 \/ 共 501\)/,
     });
     fireEvent.click(loadMoreBtn);
     expect(await screen.findByText("Library Video 201")).toBeTruthy();
@@ -431,7 +431,7 @@ describe("Codex Review Remediation Frontend Regression Suite", () => {
     const cmdInput = within(paletteDialog).getByRole("combobox");
     fireEvent.change(cmdInput, { target: { value: "星云尾项501" } });
     expect(await within(paletteDialog).findByText("星云尾项501")).toBeTruthy();
-  });
+  }, 20_000);
 
   it("P1-15: Cmd+K topic handoff clears locked multi-video comparison and asks under the new topic", async () => {
     const askPayloads: Record<string, unknown>[] = [];
@@ -769,5 +769,130 @@ describe("Codex Review Remediation Frontend Regression Suite", () => {
       await within(dialog).findByText(/库内命中共 85 条/),
     ).toBeTruthy();
     expect(requestedUrls.some((u) => u.includes("limit=100&offset=100"))).toBe(true);
+  }, 20_000);
+
+  it("Round2 P1-2 & P2-13: 2s polling preserves page 2 and remote search, and CommandPalette clears stale counts", async () => {
+    const page1 = [
+      makeVideoItem(1, { processing_status: "FETCHING", title: "Processing Video #1" }),
+      ...Array.from({ length: 199 }, (_, i) => makeVideoItem(i + 2)),
+    ];
+    const page2 = [makeVideoItem(201, { title: "Kept Page 2 Item" })];
+    const searchHits = [makeVideoItem(301, { video_id: "vid-search-301", title: "AlphaHitRemote" })];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string) => {
+        const path = input.toString();
+        return baseHandlers(path, (p) => {
+          if (p.endsWith("/videos")) {
+            return okJson({
+              videos: page1,
+              pagination: {
+                limit: 200,
+                offset: 0,
+                total_count: 350,
+                returned_count: 200,
+                has_more: true,
+              },
+            });
+          }
+          if (p.includes("/videos?limit=200&offset=200")) {
+            return okJson({
+              videos: page2,
+              pagination: {
+                limit: 200,
+                offset: 200,
+                total_count: 350,
+                returned_count: 1,
+                has_more: false,
+              },
+            });
+          }
+          if (p.includes("q=Alpha")) {
+            return okJson({
+              videos: searchHits,
+              pagination: {
+                limit: 100,
+                offset: 0,
+                total_count: 85,
+                returned_count: 1,
+                has_more: true,
+                q: "Alpha",
+              },
+            });
+          }
+          if (p.includes("q=Beta")) {
+            return new Promise<Response>(() => {});
+          }
+          return null;
+        });
+      }),
+    );
+
+    location.hash = "#Content";
+    render(<App />);
+
+    const loadMoreBtn = await screen.findByRole("button", {
+      name: /加载更多内容 \(已显示 200 \/ 共 350\)/,
+    });
+    fireEvent.click(loadMoreBtn);
+    expect(await screen.findByText("Kept Page 2 Item")).toBeTruthy();
+
+    // Wait >2.3s for the 2-second processing poll tick and verify Page 2 stays mounted.
+    await new Promise((r) => setTimeout(r, 2300));
+    expect(screen.getByText("Kept Page 2 Item")).toBeTruthy();
+
+    const searchBox = screen.getByRole("searchbox");
+    fireEvent.change(searchBox, { target: { value: "Alpha" } });
+    expect(await screen.findByText("AlphaHitRemote")).toBeTruthy();
+    await new Promise((r) => setTimeout(r, 2300));
+    expect(screen.getByText("AlphaHitRemote")).toBeTruthy();
+
+    // Open Cmd+K, trigger Alpha remote count (85), then switch to Beta (pending): stale 85 must disappear immediately.
+    fireEvent.change(searchBox, { target: { value: "" } });
+    fireEvent.keyDown(window, { key: "k", metaKey: true });
+    const dialog = await screen.findByRole("dialog");
+    const cmdInput = within(dialog).getByRole("combobox");
+    fireEvent.change(cmdInput, { target: { value: "Alpha" } });
+    expect(await within(dialog).findByText(/库内命中共 85 条/)).toBeTruthy();
+    fireEvent.change(cmdInput, { target: { value: "Beta" } });
+    expect(within(dialog).queryByText(/库内命中共 85 条/)).toBeNull();
+  }, 30_000);
+
+  it("Round2 P2-13: completing onboarding in Demo mode does not skip real empty workspace onboarding", async () => {
+    localStorage.clear();
+    localStorage.setItem("yia.ui-language", "zh-CN");
+    let demoModeFlag = true;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string) =>
+        baseHandlers(input.toString(), (path) => {
+          if (path.endsWith("/dashboard")) {
+            return okJson({
+              intelligence: [],
+              saved_intelligence_ids: [],
+              pinned_topics: [],
+              weekly_v1: [],
+              needs_attention: [],
+              operations: { source_count: 0 },
+              demo_mode: demoModeFlag,
+            });
+          }
+          return null;
+        }),
+      ),
+    );
+
+    location.hash = "#Home";
+    render(<App />);
+    const skipBtn = await screen.findByRole("button", { name: /暂时跳过|Skip for now/ });
+    fireEvent.click(skipBtn);
+    expect(localStorage.getItem("intelligence.onboarding.completed.demo.v1")).toBe("true");
+    expect(localStorage.getItem("intelligence.onboarding.completed.v1")).toBeNull();
+
+    cleanup();
+    demoModeFlag = false;
+    render(<App />);
+    expect(await screen.findByRole("button", { name: /暂时跳过|Skip for now/ })).toBeTruthy();
   });
 });

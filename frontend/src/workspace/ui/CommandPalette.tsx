@@ -258,6 +258,7 @@ export function CommandPalette({
     total_count?: number;
     has_more?: boolean;
   } | null>(null);
+  const [remoteSearchQuery, setRemoteSearchQuery] = useState("");
   const [insights, setInsights] = useState<PaletteIntelligence[]>([]);
   const [topics, setTopics] = useState<PaletteTopic[]>([]);
   const [qaSessions, setQaSessions] = useState<PaletteResearchSession[]>([]);
@@ -272,6 +273,7 @@ export function CommandPalette({
       setActiveIndex(0);
       setRemoteSearchVideos([]);
       setRemoteSearchPagination(null);
+      setRemoteSearchQuery("");
       setVideosPagination(null);
       isComposingRef.current = false;
       return;
@@ -400,21 +402,24 @@ export function CommandPalette({
       videos.length >= 200,
   );
   useEffect(() => {
+    setRemoteSearchVideos([]);
+    setRemoteSearchPagination(null);
+    setRemoteSearchQuery("");
     if (!open || !trimmedPaletteQuery || !hasUnloadedServerVideos) {
-      setRemoteSearchVideos([]);
-      setRemoteSearchPagination(null);
       return;
     }
     let alive = true;
+    const requestedQuery = trimmedPaletteQuery;
     const timer = window.setTimeout(() => {
       api<{
         videos?: PaletteVideo[];
         pagination?: { total_count?: number; has_more?: boolean };
       }>(
-        `/videos?q=${encodeURIComponent(trimmedPaletteQuery)}&limit=50&offset=0`,
+        `/videos?q=${encodeURIComponent(requestedQuery)}&limit=50&offset=0`,
       )
         .then((res) => {
           if (!alive || !Array.isArray(res?.videos)) return;
+          setRemoteSearchQuery(requestedQuery);
           setRemoteSearchVideos(
             res.videos.filter((v) => v.work_kind !== "DURABLE_CONTENT_IDENTITY"),
           );
@@ -940,14 +945,21 @@ export function CommandPalette({
         </div>
 
         {(trimmedPaletteQuery &&
-          ((remoteSearchPagination &&
+          ((remoteSearchQuery === trimmedPaletteQuery &&
+            remoteSearchPagination &&
             (remoteSearchPagination.has_more ||
               (remoteSearchPagination.total_count ?? 0) > remoteSearchVideos.length)) ||
             totalMatchCount > filteredItems.length)) ? (
           <div className="cmdk-truncation-notice" role="status" aria-live="polite" style={{ padding: "6px 14px", fontSize: "12px", opacity: 0.8 }}>
             {zh
-              ? `当前仅展示前 ${filteredItems.length} 条最相关结果（库内命中共 ${Math.max(totalMatchCount, remoteSearchPagination?.total_count ?? 0)} 条，可细化关键词或前往内容库分页查看）`
-              : `Showing top ${filteredItems.length} of ${Math.max(totalMatchCount, remoteSearchPagination?.total_count ?? 0)} matches — refine keywords or paginate in Content.`}
+              ? `当前仅展示前 ${filteredItems.length} 条最相关结果（库内命中共 ${Math.max(
+                  totalMatchCount,
+                  remoteSearchQuery === trimmedPaletteQuery ? (remoteSearchPagination?.total_count ?? 0) : 0,
+                )} 条，可细化关键词或前往内容库分页查看）`
+              : `Showing top ${filteredItems.length} of ${Math.max(
+                  totalMatchCount,
+                  remoteSearchQuery === trimmedPaletteQuery ? (remoteSearchPagination?.total_count ?? 0) : 0,
+                )} matches — refine keywords or paginate in Content.`}
           </div>
         ) : null}
 

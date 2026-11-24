@@ -2377,10 +2377,17 @@ function Dashboard(
       needs_attention?: SourceRun[];
       operations?: { source_count?: number };
       workspace_weekly_brief?: unknown;
+      demo_mode?: boolean;
     }
   >("/dashboard", refresh, undefined, true, true);
-  const [onboardingDone, setOnboardingDone] = useState(onboardingCompleted);
-  const finishOnboarding = () => { completeOnboarding(); setOnboardingDone(true); };
+  const isDemoMode = Boolean(data?.demo_mode);
+  const [onboardingOverride, setOnboardingOverride] = useState<{ mode: boolean; done: boolean } | null>(null);
+  const onboardingDone =
+    onboardingOverride?.mode === isDemoMode ? onboardingOverride.done : onboardingCompleted(isDemoMode);
+  const finishOnboarding = () => {
+    completeOnboarding(isDemoMode);
+    setOnboardingOverride({ mode: isDemoMode, done: true });
+  };
   if (error) return <ErrorState error={error} code={errorCode} onReload={reload} />;
   if (!data) return <Empty>Loading Home…</Empty>;
   const intelligence = sortIntelligenceNewestFirst(
@@ -3905,6 +3912,7 @@ function ContentPage(
   const [remoteSearchPagination, setRemoteSearchPagination] = useState<VideosPagination | null>(null);
   const [loadingMoreSearch, setLoadingMoreSearch] = useState(false);
   const [loadMoreSearchError, setLoadMoreSearchError] = useState<string | null>(null);
+  const remoteSearchSeqRef = useRef(0);
   const list = useRemote<{ videos: ContentItem[]; pagination?: VideosPagination }>(
     "/videos",
     refresh + revision,
@@ -3913,25 +3921,39 @@ function ContentPage(
     true,
   );
   useEffect(() => {
+    remoteSearchSeqRef.current += 1;
     setExtraVideos([]);
     setProbedPagination(null);
     setLoadMoreError(null);
     setRemoteSearchVideos(null);
     setRemoteSearchPagination(null);
+    setLoadingMoreSearch(false);
     setLoadMoreSearchError(null);
-  }, [refresh, revision]);
+  }, [refresh]);
   useEffect(() => {
     const initial = list.data;
     if (!initial || !Array.isArray(initial.videos)) return;
+    const applyPagination = (nextPage: VideosPagination) => {
+      setProbedPagination((prev) => {
+        if (!prev || prev.offset === 0) return nextPage;
+        const nextEnd = Math.max(prev.offset + prev.returned_count, nextPage.offset + nextPage.returned_count);
+        return {
+          ...nextPage,
+          offset: prev.offset,
+          returned_count: prev.returned_count,
+          has_more: nextEnd < nextPage.total_count,
+        };
+      });
+    };
     if (initial.pagination) {
-      setProbedPagination(initial.pagination);
+      applyPagination(initial.pagination);
       return;
     }
     if (initial.videos.length < 200) return;
     let alive = true;
     api<{ videos?: ContentItem[]; pagination?: VideosPagination }>("/videos?limit=200&offset=0")
       .then((res) => {
-        if (alive && res?.pagination) setProbedPagination(res.pagination);
+        if (alive && res?.pagination) applyPagination(res.pagination);
       })
       .catch(() => {});
     return () => {
@@ -3968,19 +3990,23 @@ function ContentPage(
       (list.data?.videos?.length ?? 0) >= 200,
   );
   useEffect(() => {
+    const seq = ++remoteSearchSeqRef.current;
+    setLoadingMoreSearch(false);
     if (!trimmedRawSearch || !hasUnloadedLibraryItems) {
       setRemoteSearchVideos(null);
       setRemoteSearchPagination(null);
       setLoadMoreSearchError(null);
       return;
     }
-    let alive = true;
+    setRemoteSearchVideos(null);
+    setRemoteSearchPagination(null);
+    setLoadMoreSearchError(null);
     const timer = window.setTimeout(() => {
       api<{ videos?: ContentItem[]; pagination?: VideosPagination }>(
         `/videos?q=${encodeURIComponent(trimmedRawSearch)}&limit=100&offset=0`,
       )
         .then((res) => {
-          if (!alive || !Array.isArray(res?.videos)) return;
+          if (seq !== remoteSearchSeqRef.current || !Array.isArray(res?.videos)) return;
           setRemoteSearchVideos(res.videos);
           setRemoteSearchPagination(res.pagination ?? null);
           setLoadMoreSearchError(null);
@@ -3988,12 +4014,12 @@ function ContentPage(
         .catch(() => {});
     }, 60);
     return () => {
-      alive = false;
       window.clearTimeout(timer);
     };
-  }, [trimmedRawSearch, hasUnloadedLibraryItems]);
+  }, [trimmedRawSearch, hasUnloadedLibraryItems, refresh]);
   const loadMoreSearchVideos = async () => {
     if (loadingMoreSearch || !trimmedRawSearch) return;
+    const seq = remoteSearchSeqRef.current;
     const loadedSearchPrimary = (remoteSearchVideos ?? []).filter((v) => !v.work_kind).length;
     const nextOffset = remoteSearchPagination
       ? Math.max(loadedSearchPrimary, remoteSearchPagination.offset + remoteSearchPagination.returned_count)
@@ -4005,6 +4031,7 @@ function ContentPage(
         videos?: ContentItem[];
         pagination?: VideosPagination;
       }>(`/videos?q=${encodeURIComponent(trimmedRawSearch)}&limit=100&offset=${nextOffset}`);
+      if (seq !== remoteSearchSeqRef.current) return;
       const batch = Array.isArray(res?.videos) ? res.videos : [];
       setRemoteSearchVideos((prev) => {
         const listPrev = prev ?? [];
@@ -4022,13 +4049,16 @@ function ContentPage(
         setRemoteSearchPagination(res.pagination);
       }
     } catch {
+      if (seq !== remoteSearchSeqRef.current) return;
       setLoadMoreSearchError(
         language === "zh-CN"
           ? "未能加载更多搜索结果，请稍后重试。"
           : "Could not load more search results.",
       );
     } finally {
-      setLoadingMoreSearch(false);
+      if (seq === remoteSearchSeqRef.current) {
+        setLoadingMoreSearch(false);
+      }
     }
   };
   const mergedLoadedAndSearchVideos = useMemo(() => {
