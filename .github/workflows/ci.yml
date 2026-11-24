@@ -25,6 +25,8 @@ jobs:
         run: uv run --frozen ruff check src tests scripts
       - name: Type-check with mypy
         run: uv run --frozen mypy src
+      - name: Verify full CI test manifest covers 100% of collected pytest IDs
+        run: uv run --frozen python scripts/ci_test_manifest.py verify
       - name: Install ffmpeg for media integration tests
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
       - name: Run Public Beta verification suite
@@ -70,52 +72,15 @@ jobs:
           uv lock --check
           uv sync --frozen --dev
       - name: Run full unit test shard ${{ matrix.shard }}
-        # Disclosed exclusions (also documented in docs/RELEASE_CHECKLIST.md):
-        # 1) GOV-001 sealed TASK-016 trial fixtures (6 files + 2 unit tests) intentionally
-        #    fail closed against current tree hashes by design.
+        # Disclosed exclusions (also enforced by scripts/ci_test_manifest.py verify):
+        # 1) GOV-001 sealed TASK-016 fixture tests fail closed by design against current tree hashes;
+        #    standalone contract tests inside v2/v3/v4/v4_r2/device_continuity still run in CI.
         # 2) 5 CAPACITY_BASELINE_ROOT functions (20 cases) in test_readiness_qwen35_capacity.py
         #    read untracked developer-local .var artifacts unavailable on clean CI clones; the
         #    remaining 17 contract tests in that file still run in CI.
         env:
           SHARD_INDEX: ${{ matrix.shard }}
-        run: |
-          uv run --frozen python - <<'PY'
-          import glob, os, subprocess, sys
-
-          shard_idx = int(os.environ["SHARD_INDEX"])
-          excluded_gov001 = {
-              "tests/unit/test_bounded_synthesis_trial.py",
-              "tests/unit/test_bounded_synthesis_v2_trial.py",
-              "tests/unit/test_bounded_synthesis_v3_trial.py",
-              "tests/unit/test_bounded_synthesis_v4_trial.py",
-              "tests/unit/test_bounded_synthesis_v4_r2_trial.py",
-              "tests/unit/test_bounded_trial_device_continuity.py",
-          }
-          files = sorted(f for f in glob.glob("tests/unit/test_*.py") if f not in excluded_gov001)
-          shard = files[shard_idx::4]
-          deselect_map = {
-              "tests/unit/test_synthesis_attribution_v2.py": [
-                  "tests/unit/test_synthesis_attribution_v2.py::test_actual_factory_declares_finite_profiles_and_keeps_synthesis_unqualified",
-              ],
-              "tests/unit/test_synthesis_judgment_v5.py": [
-                  "tests/unit/test_synthesis_judgment_v5.py::test_v5_transport_is_distinct_and_sealed_qualification_never_cross_permits",
-              ],
-              "tests/unit/test_readiness_qwen35_capacity.py": [
-                  "tests/unit/test_readiness_qwen35_capacity.py::test_projection_is_exact_old_actual_request_except_predict",
-                  "tests/unit/test_readiness_qwen35_capacity.py::test_capacity_one_attempt_preserves_response_and_stops",
-                  "tests/unit/test_readiness_qwen35_capacity.py::test_capacity_unpaired_counters_remain_unknown_below_limit",
-                  "tests/unit/test_readiness_qwen35_capacity.py::test_capacity_preparation_seals_original_input_data_and_fresh_execution",
-                  "tests/unit/test_readiness_qwen35_capacity.py::test_capacity_external_root_receipt_is_exact",
-              ],
-          }
-          deselect_args = [
-              f"--deselect={nodeid}"
-              for file_path in shard
-              for nodeid in deselect_map.get(file_path, ())
-          ]
-          cmd = [sys.executable, "-m", "pytest", *deselect_args, "-q", "--tb=short", *shard]
-          sys.exit(subprocess.call(cmd))
-          PY
+        run: uv run --frozen python scripts/ci_test_manifest.py run-unit --shard "${SHARD_INDEX}"
 
   python-integration-full:
     name: Python Full Integration & E2E Suite (Shard ${{ matrix.shard }}/8)
@@ -138,31 +103,12 @@ jobs:
           uv sync --frozen --dev
       - name: Install ffmpeg for media integration tests
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
-      - name: Run full integration & script test shard ${{ matrix.shard }}
+      - name: Run full integration, e2e & script test shard ${{ matrix.shard }}
         # Disclosed exclusion: test_all_original_four_inputs_fit_without_truncating_fifteen_evidence
         # reads CAPACITY_BASELINE_ROOT from an untracked sibling worktree unavailable on clean CI clones.
         env:
           SHARD_INDEX: ${{ matrix.shard }}
-        run: |
-          uv run --frozen python - <<'PY'
-          import glob, os, subprocess, sys
-
-          shard_idx = int(os.environ["SHARD_INDEX"])
-          files = sorted(
-              glob.glob("tests/integration/test_*.py")
-              + ["tests/e2e/test_po_demo.py"]
-              + glob.glob("tests/scripts/test_*.py")
-          )
-          shard = files[shard_idx::8]
-          deselect_args = []
-          if "tests/integration/test_local_capacity_composition.py" in shard:
-              deselect_args.append(
-                  "--deselect=tests/integration/test_local_capacity_composition.py::"
-                  "test_all_original_four_inputs_fit_without_truncating_fifteen_evidence"
-              )
-          cmd = [sys.executable, "-m", "pytest", *deselect_args, "-q", "--tb=short", *shard]
-          sys.exit(subprocess.call(cmd))
-          PY
+        run: uv run --frozen python scripts/ci_test_manifest.py run-integration --shard "${SHARD_INDEX}"
 
   frontend-ci:
     name: Frontend Build & Vitest

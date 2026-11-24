@@ -563,4 +563,120 @@ describe("Manual UX Remediation (#1-#4)", () => {
     await waitFor(() => expect(disconnected).toBe(true));
     expect(await screen.findByText(/未启用（仅免登录直采/)).toBeTruthy();
   });
+
+  it("P2-1: syncs consecutive star toggles inside Content remote search results", async () => {
+    localStorage.setItem("intelligence.onboarding.completed.v1", "true");
+    location.hash = "#Content";
+
+    const primary200 = Array.from({ length: 200 }, (_, i) => ({
+      video_id: `vid-lib-${String(i + 1).padStart(3, "0")}`,
+      provider: "YOUTUBE",
+      channel_id: "ch-main",
+      channel_name: "Scale Lab",
+      title: `Library Video ${i + 1}`,
+      published_at: "2026-11-23T10:00:00Z",
+      processing_status: "ORGANIZED",
+      last_updated: "2026-11-23T10:00:00Z",
+      duration_seconds: 900,
+      ai_brief: {
+        headline_zh: `核心结论 ${i + 1}`,
+        summary_zh: `详细摘要 ${i + 1}`,
+        score: 8.5,
+        score_reason_zh: "高信息密度",
+        recommendation_tier: "MUST_WATCH",
+        content_bucket: "DEEP_DIVE",
+        is_short_noise: false,
+        starred: false,
+        is_read: false,
+        topics_zh: ["工程实践"],
+        topic_cluster_zh: "工程实践",
+      },
+    }));
+    let persistedStarred = false;
+    const curationPosts: Array<Record<string, unknown>> = [];
+
+    const makeTailItem = () => ({
+      video_id: "vid-tail-201",
+      provider: "YOUTUBE",
+      channel_id: "ch-main",
+      channel_name: "Scale Lab",
+      title: "Target Star Item 201",
+      published_at: "2026-11-23T10:00:00Z",
+      processing_status: "ORGANIZED",
+      last_updated: "2026-11-23T10:00:00Z",
+      duration_seconds: 900,
+      ai_brief: {
+        headline_zh: "远端搜索收藏同步验证条目",
+        summary_zh: "验证大库搜索内连续点击收藏的状态同步",
+        score: 9.0,
+        score_reason_zh: "高信息密度",
+        recommendation_tier: "MUST_WATCH",
+        content_bucket: "DEEP_DIVE",
+        is_short_noise: false,
+        starred: persistedStarred,
+        is_read: false,
+        topics_zh: ["工程实践"],
+        topic_cluster_zh: "工程实践",
+      },
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string, init?: RequestInit) => {
+        if (input.includes("/workspace-ai/videos/vid-tail-201/curation") && init?.method === "POST") {
+          const parsed = JSON.parse(String(init.body ?? "{}"));
+          curationPosts.push(parsed);
+          if (typeof parsed.starred === "boolean") persistedStarred = parsed.starred;
+          return okJson({ starred: persistedStarred, is_read: false });
+        }
+        if (input.includes("/videos?q=Target%20Star")) {
+          return okJson({
+            videos: [makeTailItem()],
+            pagination: {
+              limit: 100,
+              offset: 0,
+              total_count: 1,
+              returned_count: 1,
+              has_more: false,
+              q: "Target Star",
+            },
+          });
+        }
+        if (input.endsWith("/videos") || input.includes("/videos?limit=200&offset=0")) {
+          return okJson({
+            videos: primary200,
+            pagination: {
+              limit: 200,
+              offset: 0,
+              total_count: 201,
+              returned_count: 200,
+              has_more: true,
+            },
+          });
+        }
+        return baseFetch(input, undefined, init);
+      }),
+    );
+
+    render(<App />);
+    const searchBox = await screen.findByRole("searchbox");
+    fireEvent.change(searchBox, { target: { value: "Target Star" } });
+
+    expect(await screen.findByText("Target Star Item 201")).toBeTruthy();
+
+    // First click -> star = true
+    const starBtn1 = await screen.findByRole("button", { name: "收藏待看" });
+    expect(starBtn1.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(starBtn1);
+
+    await waitFor(() => expect(curationPosts).toEqual([{ starred: true }]));
+    const unstarBtn = await screen.findByRole("button", { name: "已收藏 · 取消" });
+    expect(unstarBtn.getAttribute("aria-pressed")).toBe("true");
+
+    // Second consecutive click -> MUST send starred = false and update UI back cleanly
+    fireEvent.click(unstarBtn);
+    await waitFor(() => expect(curationPosts).toEqual([{ starred: true }, { starred: false }]));
+    const starBtnAfter = await screen.findByRole("button", { name: "收藏待看" });
+    expect(starBtnAfter.getAttribute("aria-pressed")).toBe("false");
+  }, 15_000);
 });

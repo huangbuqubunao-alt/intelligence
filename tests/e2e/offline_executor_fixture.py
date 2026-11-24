@@ -61,6 +61,10 @@ class ProcessFixtureExecutor(MlxTimedExecutor):
             ]
         return command
 
+    def _runtime_package_installed(self) -> bool:
+        """Synthesized E2E process executor validates the Python worker, not host mlx_whisper."""
+        return True
+
     def capability(self):
         mode = (
             (self.root / "capability-mode.txt").read_text().strip()

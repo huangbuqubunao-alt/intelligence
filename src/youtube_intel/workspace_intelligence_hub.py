@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import http.client
 import io
 import ipaddress
 import json
@@ -25,6 +26,7 @@ import re
 import shutil
 import socket
 import sqlite3
+import ssl
 import stat
 import sys
 import tempfile
@@ -208,7 +210,10 @@ _E_REF_BRACKET_GROUP_RE = re.compile(
     re.IGNORECASE,
 )
 _INLINE_LIST_SPLIT_RE = re.compile(
-    r"(?<=\S)\s+(?=(?:\d{1,2}[)）]|\d{1,2}\.(?=\s|[^\d])|[（(]\d{1,2}[)）]|[一二三四五六七八九十]+[、.．]|[•●▪◦]\s*))"
+    r"(?<=\S)\s*(?=(?:[（(]\d{1,2}[)）]|[一二三四五六七八九十]+[、．]|[•●▪◦]))"
+    r"|(?<=[\]】)）\s。！？!?；;])\s*(?=\d{1,2}[)）、.．](?=\s|[^\d]))"
+    r"|(?<=\S)\s+(?=\d{1,2}[)）.](?=\s|[^\d]))"
+    r"|(?<=[\]】)）\s])\s*(?=[-*]\s+)"
 )
 _TEXT_ONLY_MODEL_OVERRIDE_RE = re.compile(
     r"(?:^|/|[-:])(?:gemma3n\b|gemma3:(?:270m|1b)(?:$|[-]))",
@@ -425,7 +430,30 @@ def _validate_cloud_url(url: str) -> str:
     return cleaned
 
 
-def _verify_cloud_endpoint_dns(url: str) -> None:
+_REFUSAL_REASON_COPY: dict[str, str] = {
+    "INSUFFICIENT_EVIDENCE": (
+        "当前资料库已检索片段中未找到可直接支撑该问题的有效原文证据，已拒绝无根据作答。"
+    ),
+    "MODEL_DECLINED_UNANSWERABLE": (
+        "模型判定当前已检索原文片段不足以可靠回答该问题，已按 Fail-Closed 策略拒答。"
+    ),
+    "NO_VERIFIED_CITATIONS": (
+        "答案中未包含可核验的有效原文引用，已按 Fail-Closed 策略拒答。"
+    ),
+    "NO_MATCHING_CANDIDATES": (
+        "当前资料库中尚未检索到与该问题直接相关的已核验原文证据，已拒绝无根据作答。"
+    ),
+}
+
+
+def _resolve_refusal_reason(code: object) -> tuple[str, str]:
+    clean = str(code or "").strip().upper()
+    if clean not in _REFUSAL_REASON_COPY:
+        clean = "INSUFFICIENT_EVIDENCE"
+    return clean, _REFUSAL_REASON_COPY[clean]
+
+
+def _verify_cloud_endpoint_dns(url: str) -> tuple[str, int, tuple[str, ...]]:
     parsed = urlparse(url)
     host = (parsed.hostname or "").strip().lower()
     port = parsed.port or 443
@@ -437,8 +465,14 @@ def _verify_cloud_endpoint_dns(url: str) -> None:
         )
     try:
         infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
-    except OSError:
-        return
+    except OSError as err:
+        raise ApiError(
+            HTTPStatus.BAD_GATEWAY,
+            "CLOUD_ENDPOINT_BLOCKED",
+            "无法解析云端 API 域名，已按安全策略拦截。",
+        ) from err
+    pinned: list[str] = []
+    seen: set[str] = set()
     for _fam, _socktype, _proto, _canon, sockaddr in infos:
         ip_raw = str(sockaddr[0]).split("%", 1)[0]
         try:
@@ -451,6 +485,120 @@ def _verify_cloud_endpoint_dns(url: str) -> None:
                 "CLOUD_ENDPOINT_BLOCKED",
                 "云端 API 端点解析到受限内网或环回地址，已按安全策略拦截。",
             )
+        canonical_ip = str(addr)
+        if canonical_ip not in seen:
+            seen.add(canonical_ip)
+            pinned.append(canonical_ip)
+    if not pinned:
+        raise ApiError(
+            HTTPStatus.BAD_GATEWAY,
+            "CLOUD_ENDPOINT_BLOCKED",
+            "无法获取安全的云端 API 公网解析地址，已按安全策略拦截。",
+        )
+    return host, port, tuple(pinned)
+
+
+class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+    """HTTPSConnection dialing pre-validated public IPs directly without DNS re-resolution."""
+
+    def __init__(
+        self,
+        host: str,
+        port: int | None = None,
+        *,
+        pinned_ips: tuple[str, ...],
+        timeout: float | None = None,
+        source_address: tuple[str, int] | None = None,
+        context: ssl.SSLContext | None = None,
+    ) -> None:
+        tls_ctx = context or ssl.create_default_context()
+        tls_ctx.check_hostname = True
+        tls_ctx.verify_mode = ssl.CERT_REQUIRED
+        super().__init__(
+            host,
+            port=port,
+            timeout=timeout,
+            source_address=source_address,
+            context=tls_ctx,
+        )
+        self._pinned_ips = pinned_ips
+        self._pinned_tls_context = tls_ctx
+        self._pinned_source_address = source_address
+
+    def connect(self) -> None:
+        last_err: OSError | None = None
+        for pinned_ip in self._pinned_ips:
+            try:
+                addr = ipaddress.ip_address(pinned_ip)
+            except ValueError:
+                continue
+            if _is_non_public_ip(addr):
+                raise ApiError(
+                    HTTPStatus.BAD_GATEWAY,
+                    "CLOUD_ENDPOINT_BLOCKED",
+                    "云端 API 目标地址不在允许的公网范围，已按安全策略拦截。",
+                )
+            family = (
+                socket.AF_INET6
+                if isinstance(addr, ipaddress.IPv6Address)
+                else socket.AF_INET
+            )
+            raw_sock: socket.socket | None = None
+            try:
+                raw_sock = socket.socket(family, socket.SOCK_STREAM)
+                if self.timeout is not None and isinstance(self.timeout, (int, float)):
+                    raw_sock.settimeout(float(self.timeout))
+                if self._pinned_source_address is not None:
+                    raw_sock.bind(self._pinned_source_address)
+                raw_sock.connect((pinned_ip, int(self.port)))
+                self.sock = self._pinned_tls_context.wrap_socket(
+                    raw_sock, server_hostname=self.host
+                )
+                return
+            except OSError as err:
+                last_err = err
+                if raw_sock is not None:
+                    try:
+                        raw_sock.close()
+                    except OSError:
+                        pass
+                continue
+        if last_err is not None:
+            raise last_err
+        raise OSError("No validated public IP addresses available")
+
+
+class _PinnedHTTPSHandler(urllib.request.HTTPSHandler):
+    """urllib HTTPS handler pinned to a single atomic DNS-to-IP resolution."""
+
+    def https_open(self, req: urllib.request.Request) -> http.client.HTTPResponse:
+        parsed = urlsplit(req.full_url)
+        if parsed.scheme != "https":
+            raise ApiError(
+                HTTPStatus.BAD_GATEWAY,
+                "CLOUD_ENDPOINT_BLOCKED",
+                "云端 API 请求协议不受支持，已按安全策略拦截。",
+            )
+        expected_host, expected_port, pinned_ips = _verify_cloud_endpoint_dns(
+            req.full_url
+        )
+        req_host = (parsed.hostname or "").strip().lower()
+        req_port = parsed.port or 443
+        if req_host != expected_host or req_port != expected_port:
+            raise ApiError(
+                HTTPStatus.BAD_GATEWAY,
+                "CLOUD_ENDPOINT_BLOCKED",
+                "云端 API 请求目标与已验证主机不一致，已按安全策略拦截。",
+            )
+        return self.do_open(
+            lambda host, timeout=None, **kw: _PinnedHTTPSConnection(
+                host,
+                pinned_ips=pinned_ips,
+                timeout=timeout if isinstance(timeout, (int, float)) else None,
+                source_address=kw.get("source_address"),
+            ),
+            req,
+        )
 
 
 def _parse_bounded_index(raw: object, upper_bound: int) -> int | None:
@@ -583,14 +731,18 @@ def _is_answerable_true(parsed: Mapping[str, Any]) -> bool:
 
 
 def _clean_string_list(
-    value: object, *, max_items: int = 8, max_len: int = 600
+    value: object,
+    *,
+    max_items: int = 8,
+    max_len: int = 600,
+    preserve_newlines: bool = False,
 ) -> list[str]:
     if not isinstance(value, list):
         return []
     out: list[str] = []
     seen: set[str] = set()
     for raw in value:
-        item = _clean_text(raw, max_len=max_len)
+        item = _clean_text(raw, max_len=max_len, preserve_newlines=preserve_newlines)
         if item and item not in seen:
             seen.add(item)
             out.append(item)
@@ -621,6 +773,106 @@ _CITATION_STUB_PREFIX_RE = re.compile(
 )
 
 
+_LIST_MARKER_PREFIX_RE = re.compile(
+    r"^\s*(?:[（(]\d{1,2}[)）]|\d{1,2}[)）、.．]|[一二三四五六七八九十]+[、.．]|[-*•●▪◦])\s*"
+)
+_PURE_REF_STOPWORDS = frozenset(
+    {
+        "见",
+        "详",
+        "参见",
+        "详见",
+        "参考",
+        "来源",
+        "依据",
+        "出自",
+        "据",
+        "及",
+        "和",
+        "与",
+        "或",
+        "等",
+        "如",
+        "see",
+        "ref",
+        "refer",
+        "source",
+        "citation",
+        "and",
+        "or",
+        "etc",
+    }
+)
+_LEADING_FRAMING_CLAUSE_RE = re.compile(
+    r"^(?:综合|基于|根据|依据|结合|针对|围绕|对于|关于|相比|相较|总体|简言之|换言之|"
+    r"一方面|另一方面|首先|其次|此外|同时|其中|具体|在.{1,18}[下中时内])"
+)
+_ATTRIBUTION_VERB_RE = re.compile(r"(?:指出|认为|提到|表示|显示|表明|说明|强调|主张|论证|总结|边界)")
+_CONTINUATION_CONNECTOR_RE = re.compile(
+    r"^(?:但|但是|不过|然而|而是|而|因此|所以|从而|进而|以便|以|并|且|同时|使得|导致|才|就|却|则|再)"
+)
+_CITATION_FRAMING_LEADIN_RE = re.compile(
+    r"^(?:根据|依据|基于|结合|综合|对照|从).*(?:原话|原文|片段|证据|材料|来源)"
+)
+
+
+def _split_top_level_comma_clauses(clause: str) -> list[tuple[str, str]]:
+    """Split on Chinese/ASCII commas outside paired quotes and brackets, preserving separator."""
+    parts: list[tuple[str, str]] = []
+    start = 0
+    round_depth = 0
+    square_depth = 0
+    in_single_cn = False
+    in_double_cn = False
+    in_double_ascii = False
+    n = len(clause)
+    i = 0
+    while i < n:
+        ch = clause[i]
+        if ch == "‘":
+            in_single_cn = True
+        elif ch == "’" and in_single_cn:
+            in_single_cn = False
+        elif ch == "“":
+            in_double_cn = True
+        elif ch == "”" and in_double_cn:
+            in_double_cn = False
+        elif ch == '"':
+            in_double_ascii = not in_double_ascii
+        elif not (in_single_cn or in_double_cn or in_double_ascii):
+            if ch in "(（":
+                round_depth += 1
+            elif ch in ")）" and round_depth > 0:
+                round_depth -= 1
+            elif ch in "[【":
+                square_depth += 1
+            elif ch in "]】" and square_depth > 0:
+                square_depth -= 1
+            elif round_depth == 0 and square_depth == 0 and ch in (",", "，"):
+                is_numeric_comma = (
+                    ch == ","
+                    and i > 0
+                    and i + 1 < n
+                    and clause[i - 1].isdigit()
+                    and clause[i + 1].isdigit()
+                )
+                if not is_numeric_comma:
+                    sep = ", " if (ch == "," and i + 1 < n and clause[i + 1] == " ") else ch
+                    sub = clause[start:i].strip()
+                    if sub:
+                        parts.append((sub, sep))
+                    start = i + 1
+                    while start < n and clause[start] in (",", "，", " "):
+                        start += 1
+                    i = start
+                    continue
+        i += 1
+    tail = clause[start:].strip()
+    if tail:
+        parts.append((tail, ""))
+    return parts
+
+
 def _is_substantive_cited_subclause(fragment: str) -> bool:
     """Return True when a sub-clause has genuine claim text besides citation stubs/refs."""
     stripped = unicodedata.normalize("NFKC", str(fragment or ""))
@@ -628,12 +880,18 @@ def _is_substantive_cited_subclause(fragment: str) -> bool:
     stripped = _E_REF_TOKEN_RE.sub(" ", stripped)
     stripped = stripped.strip()
     while stripped:
-        next_stripped = _CITATION_STUB_PREFIX_RE.sub("", stripped).strip()
+        next_stripped = _LIST_MARKER_PREFIX_RE.sub("", stripped).strip()
+        next_stripped = _CITATION_STUB_PREFIX_RE.sub("", next_stripped).strip()
         if next_stripped == stripped:
             break
         stripped = next_stripped
-    alnum_chars = re.findall(r"[\u4e00-\u9fffA-Za-z0-9]", stripped)
-    return len(alnum_chars) >= 3
+    stripped = stripped.strip(".,;:!?，。；：！？、\"'“”‘’()（）[]【】-—~ ")
+    if not stripped or stripped.lower() in _PURE_REF_STOPWORDS:
+        return False
+    cjk_chars = re.findall(r"[\u4e00-\u9fff]", stripped)
+    digits = re.findall(r"\d", stripped)
+    ascii_letters = re.findall(r"[A-Za-z]", stripped)
+    return len(cjk_chars) >= 1 or len(digits) >= 1 or len(ascii_letters) >= 2
 
 
 def _prune_ungrounded_ref_clauses(
@@ -642,11 +900,10 @@ def _prune_ungrounded_ref_clauses(
     *,
     require_valid_ref_per_sentence: bool = True,
 ) -> str:
-    """Enforce per-sentence/list-item/table-row valid E<n> citation grounding.
+    """Enforce per-sentence/list-item/comma-fact/table-row valid E<n> citation grounding.
 
-    Drops any sentence, inline list item, or table row lacking a valid E<n> citation
-    (or contaminated by unissued/invalid refs). When a prose sentence mixes valid and
-    invalid comma sub-clauses, keeps ONLY substantive sub-clauses with valid refs.
+    Drops any sentence, inline list item, uncited comma fact, or table row lacking a
+    valid E<n> citation (or contaminated by unissued/invalid refs).
     """
     cleaned = str(text or "").strip()
     if not cleaned:
@@ -682,35 +939,86 @@ def _prune_ungrounded_ref_clauses(
         clause_nums = _extract_e_ref_nums(clause)
         has_invalid = any(f"E{num}" not in valid_labels for num in clause_nums)
         has_valid_ref = any(f"E{num}" in valid_labels for num in clause_nums)
-        if not has_invalid:
-            if require_valid_ref_per_sentence and (
-                not has_valid_ref or not _is_substantive_cited_subclause(clause)
+        if not has_valid_ref:
+            continue
+        if "|" in nfkc_clause:
+            if has_invalid or not _is_substantive_cited_subclause(clause):
+                continue
+            kept_clauses.append((clause, delim))
+            continue
+
+        top_subs = _split_top_level_comma_clauses(clause)
+        if len(top_subs) <= 1:
+            if has_invalid or (
+                require_valid_ref_per_sentence and not _is_substantive_cited_subclause(clause)
             ):
                 continue
             kept_clauses.append((clause, delim))
             continue
-        if not has_valid_ref or "|" in nfkc_clause:
-            continue
-        # Mixed valid + invalid refs inside one prose sentence: split on commas and retain ONLY
-        # self-contained sub-clauses that carry a valid ref and substantive claim text.
-        sub_clauses = [
-            sub.strip()
-            for sub in re.split(r"[,，]+", clause)
-            if sub.strip()
-        ]
-        kept_subs: list[str] = []
-        for sub in sub_clauses:
+
+        # Multi-subclause sentence: prune every comma sub-clause lacking valid citation
+        # (including valid+uncited mixes as well as valid+invalid mixes).
+        kept_subs: list[tuple[str, str]] = []
+        seen_substantive_cited = False
+        attach_next_as_leadin_claim = False
+        for sub_i, (sub, sub_sep) in enumerate(top_subs):
             sub_nums = _extract_e_ref_nums(sub)
             sub_has_invalid = any(f"E{num}" not in valid_labels for num in sub_nums)
             sub_has_valid = any(f"E{num}" in valid_labels for num in sub_nums)
-            if sub_has_invalid or not sub_has_valid:
+            if sub_has_invalid:
+                attach_next_as_leadin_claim = False
                 continue
-            if not _is_substantive_cited_subclause(sub):
+            if attach_next_as_leadin_claim and not sub_has_valid:
+                attach_next_as_leadin_claim = False
+                if _is_substantive_cited_subclause(sub):
+                    kept_subs.append((sub, sub_sep))
+                    seen_substantive_cited = True
                 continue
-            kept_subs.append(sub)
-        if not kept_subs:
+            attach_next_as_leadin_claim = False
+            if sub_has_valid:
+                if _CITATION_FRAMING_LEADIN_RE.search(sub) and not seen_substantive_cited:
+                    kept_subs.append((sub, sub_sep))
+                    attach_next_as_leadin_claim = True
+                    continue
+                if not _is_substantive_cited_subclause(sub):
+                    continue
+                kept_subs.append((sub, sub_sep))
+                seen_substantive_cited = True
+                continue
+
+            # Uncited comma sub-clause: NEVER keep after a substantive cited clause
+            if seen_substantive_cited or not require_valid_ref_per_sentence:
+                continue
+            next_sub_has_valid_continuation = False
+            if sub_i + 1 < len(top_subs):
+                nxt_text, _ = top_subs[sub_i + 1]
+                nxt_nums = _extract_e_ref_nums(nxt_text)
+                if (
+                    any(f"E{num}" in valid_labels for num in nxt_nums)
+                    and all(f"E{num}" in valid_labels for num in nxt_nums)
+                    and _CONTINUATION_CONNECTOR_RE.search(nxt_text.strip()) is not None
+                ):
+                    next_sub_has_valid_continuation = True
+            if (
+                _LEADING_FRAMING_CLAUSE_RE.search(sub.strip())
+                or _ATTRIBUTION_VERB_RE.search(sub)
+                or next_sub_has_valid_continuation
+            ):
+                kept_subs.append((sub, sub_sep))
+
+        has_any_valid_in_kept = any(
+            any(f"E{num}" in valid_labels for num in _extract_e_ref_nums(s_txt))
+            and _is_substantive_cited_subclause(s_txt)
+            for s_txt, _ in kept_subs
+        )
+        if not kept_subs or not has_any_valid_in_kept:
             continue
-        kept_clauses.append(("，".join(kept_subs), delim))
+        rejoined = ""
+        for k_i, (s_txt, s_sep) in enumerate(kept_subs):
+            rejoined += s_txt
+            if k_i < len(kept_subs) - 1:
+                rejoined += s_sep or "，"
+        kept_clauses.append((rejoined, delim))
 
     if not kept_clauses:
         return ""
@@ -745,16 +1053,30 @@ def _prune_ungrounded_ref_clauses(
 def _filter_ungrounded_items(items: Sequence[str], valid_labels: set[str]) -> list[str]:
     out: list[str] = []
     for item in items:
-        cleaned = str(item or "").strip()
-        if not cleaned:
+        raw_item = str(item or "").strip()
+        if not raw_item:
             continue
-        pruned = _prune_ungrounded_ref_clauses(
-            cleaned,
-            valid_labels,
-            require_valid_ref_per_sentence=True,
-        )
-        if pruned:
-            out.append(pruned)
+        lines = [line.strip() for line in raw_item.splitlines() if line.strip()]
+        if len(lines) > 1:
+            kept_lines: list[str] = []
+            for line in lines:
+                pruned_line = _prune_ungrounded_ref_clauses(
+                    line,
+                    valid_labels,
+                    require_valid_ref_per_sentence=True,
+                )
+                if pruned_line:
+                    kept_lines.append(pruned_line)
+            if kept_lines:
+                out.append("\n".join(kept_lines))
+        else:
+            pruned = _prune_ungrounded_ref_clauses(
+                raw_item,
+                valid_labels,
+                require_valid_ref_per_sentence=True,
+            )
+            if pruned:
+                out.append(pruned)
     return out
 
 
@@ -1432,7 +1754,11 @@ class WorkspaceIntelligenceHub:
         self._ollama_pull_runner = ollama_pull_runner
         self._whisper_download_runner = whisper_download_runner
         self._cloud_test_runner = cloud_test_runner
-        self._default_no_redirect_opener = urllib.request.build_opener(_NoCloudRedirect)
+        self._default_no_redirect_opener = urllib.request.build_opener(
+            urllib.request.ProxyHandler({}),
+            _NoCloudRedirect,
+            _PinnedHTTPSHandler(),
+        )
         self._loopback_direct_opener = urllib.request.build_opener(
             urllib.request.ProxyHandler({}), _NoCloudRedirect
         )
@@ -1484,6 +1810,33 @@ class WorkspaceIntelligenceHub:
             return lock
 
     def _open_url(self, req: urllib.request.Request, *, timeout: float) -> Any:
+        if self._http_opener is not None:
+            return self._http_opener.open(req, timeout=timeout)
+        return self._default_no_redirect_opener.open(req, timeout=timeout)
+
+    def _open_pinned_cloud_url(
+        self,
+        req: urllib.request.Request,
+        *,
+        validated_url: str,
+        timeout: float,
+    ) -> Any:
+        req_parts = urlsplit(req.full_url)
+        val_parts = urlsplit(validated_url)
+        req_host = (req_parts.hostname or "").strip().lower()
+        val_host = (val_parts.hostname or "").strip().lower()
+        if (
+            req_parts.scheme != "https"
+            or val_parts.scheme != "https"
+            or not req_host
+            or req_host != val_host
+            or (req_parts.port or 443) != (val_parts.port or 443)
+        ):
+            raise ApiError(
+                HTTPStatus.BAD_GATEWAY,
+                "CLOUD_ENDPOINT_BLOCKED",
+                "云端 API 请求目标与已验证主机不一致，已按安全策略拦截。",
+            )
         if self._http_opener is not None:
             return self._http_opener.open(req, timeout=timeout)
         return self._default_no_redirect_opener.open(req, timeout=timeout)
@@ -2257,8 +2610,6 @@ class WorkspaceIntelligenceHub:
                     )
                     self._finalize_cloud_call(call_id, status="SUCCEEDED")
                     return result
-                if self._http_opener is None:
-                    _verify_cloud_endpoint_dns(validated_cloud_base)
                 endpoint = f"{validated_cloud_base}/chat/completions"
                 req_body = json.dumps(
                     {
@@ -2281,7 +2632,9 @@ class WorkspaceIntelligenceHub:
                         "Authorization": f"Bearer {secret}",
                     },
                 )
-                with self._open_url(req, timeout=90) as resp:
+                with self._open_pinned_cloud_url(
+                    req, validated_url=validated_cloud_base, timeout=90
+                ) as resp:
                     raw_resp = json.loads(_read_bounded_http_body(resp).decode("utf-8"))
                 content = str(raw_resp["choices"][0]["message"]["content"])
                 parsed_json = _extract_json_object(content)
@@ -2385,11 +2738,7 @@ class WorkspaceIntelligenceHub:
                     )
                     self._finalize_cloud_call(call_id, status="SUCCEEDED")
                     return result
-                if self._http_opener is None:
-                    _verify_cloud_endpoint_dns(validated_cloud_base)
                 b64_images = self._read_bounded_base64_images(image_paths)
-                if self._http_opener is None:
-                    _verify_cloud_endpoint_dns(validated_cloud_base)
                 endpoint = f"{validated_cloud_base}/chat/completions"
                 user_content: list[dict[str, Any]] = [
                     {"type": "text", "text": user_prompt},
@@ -2425,7 +2774,9 @@ class WorkspaceIntelligenceHub:
                         "Authorization": f"Bearer {secret}",
                     },
                 )
-                with self._open_url(req, timeout=120) as resp:
+                with self._open_pinned_cloud_url(
+                    req, validated_url=validated_cloud_base, timeout=120
+                ) as resp:
                     raw_resp = json.loads(_read_bounded_http_body(resp).decode("utf-8"))
                 content = str(raw_resp["choices"][0]["message"]["content"])
                 parsed_json = _extract_json_object(content)
@@ -5961,10 +6312,20 @@ class WorkspaceIntelligenceHub:
 
         if missing:
             unique_eids = list(dict.fromkeys(eid for _, eid in missing))
+            unique_vids = list(dict.fromkeys(vid for vid, _ in missing))
             fetched_by_eid: dict[str, Any] = {}
+            provider_by_vid: dict[str, str] = {}
             conn: sqlite3.Connection | None = None
             try:
                 conn = self._repository._connect()
+                for start in range(0, len(unique_vids), 100):
+                    v_chunk = tuple(unique_vids[start : start + 100])
+                    v_marks = ",".join("?" for _ in v_chunk)
+                    for v_row in conn.execute(
+                        f"SELECT video_id, provider FROM videos WHERE video_id IN ({v_marks})",
+                        v_chunk,
+                    ).fetchall():
+                        provider_by_vid[str(v_row[0])] = str(v_row[1] or "").upper()
                 for start in range(0, len(unique_eids), 24):
                     chunk = tuple(unique_eids[start : start + 24])
                     chunk_map = (
@@ -5986,7 +6347,7 @@ class WorkspaceIntelligenceHub:
                 if conn is not None:
                     conn.close()
 
-            newly_resolved: dict[tuple[str, str], Any] = {}
+            cacheable_resolved: dict[tuple[str, str], Any] = {}
             for vid, eid in missing:
                 candidate = fetched_by_eid.get(eid)
                 if (
@@ -5995,16 +6356,25 @@ class WorkspaceIntelligenceHub:
                     or candidate.evidence_id != eid
                 ):
                     candidate = None
-                newly_resolved[(vid, eid)] = candidate
                 resolved[(vid, eid)] = candidate
+                # Disk-backed sources (LOCAL / BILIBILI) depend on mutable files outside
+                # state.sqlite3/WAL; keep them request-scoped and never cache across calls.
+                prov = provider_by_vid.get(vid, "")
+                is_disk_backed = (
+                    prov in {"LOCAL", "BILIBILI"}
+                    or vid.startswith(("local-", "bili-"))
+                    or not prov
+                )
+                if not is_disk_backed:
+                    cacheable_resolved[(vid, eid)] = candidate
 
-            if fp is not None and self._core_repo_fingerprint() == fp:
+            if fp is not None and cacheable_resolved and self._core_repo_fingerprint() == fp:
                 with self._evidence_verify_cache_lock:
                     if self._core_repo_fingerprint() == fp:
                         if self._evidence_verify_cache_fp != fp:
                             self._evidence_verify_cache.clear()
                             self._evidence_verify_cache_fp = fp
-                        for key, val in newly_resolved.items():
+                        for key, val in cacheable_resolved.items():
                             self._evidence_verify_cache[key] = val
                             self._evidence_verify_cache.move_to_end(key)
                         while len(self._evidence_verify_cache) > 2048:
@@ -6928,10 +7298,16 @@ class WorkspaceIntelligenceHub:
             preserve_newlines=True,
         )
         takeaways = _clean_string_list(
-            parsed.get("key_takeaways_zh"), max_items=6, max_len=400
+            parsed.get("key_takeaways_zh"),
+            max_items=6,
+            max_len=400,
+            preserve_newlines=True,
         )
         actions = _clean_string_list(
-            parsed.get("action_items_zh"), max_items=6, max_len=400
+            parsed.get("action_items_zh"),
+            max_items=6,
+            max_len=400,
+            preserve_newlines=True,
         )
 
         valid_labels = set(candidates.keys())
@@ -6981,14 +7357,19 @@ class WorkspaceIntelligenceHub:
         no_grounded_answer_left = not answer_zh.strip() or not surviving_inline_valid
         refused = model_refused or len(hydrated_citations) == 0 or no_grounded_answer_left
         answer_status = "REFUSED_INSUFFICIENT_EVIDENCE" if refused else "GROUNDED"
+        refusal_reason_code = ""
         if refused:
             hydrated_citations = []
             takeaways = []
             actions = []
-            refusal_reason_zh = _clean_text(
-                parsed.get("refusal_reason_zh"),
-                fallback="当前资料库已检索片段中未找到可直接支撑该问题的有效原文证据，已拒绝无根据作答。",
-                max_len=400,
+            if not candidates:
+                refusal_reason_code = "NO_MATCHING_CANDIDATES"
+            elif model_refused:
+                refusal_reason_code = "MODEL_DECLINED_UNANSWERABLE"
+            elif len(hydrated_citations) == 0 or no_grounded_answer_left:
+                refusal_reason_code = "NO_VERIFIED_CITATIONS"
+            refusal_reason_code, refusal_reason_zh = _resolve_refusal_reason(
+                refusal_reason_code
             )
             answer_zh = f"证据不足，无法基于当前资料库可靠回答：{refusal_reason_zh}"
             related_excerpts: list[dict[str, Any]] = [
@@ -7010,12 +7391,15 @@ class WorkspaceIntelligenceHub:
                 hydrated_citations = []
                 takeaways = []
                 actions = []
-                refusal_reason_zh = "答案中未包含可核验的有效原文引用，已按 Fail-Closed 策略拒答。"
+                refusal_reason_code, refusal_reason_zh = _resolve_refusal_reason(
+                    "NO_VERIFIED_CITATIONS"
+                )
                 answer_zh = f"证据不足，无法基于当前资料库可靠回答：{refusal_reason_zh}"
                 related_excerpts = [dict(item) for item in list(candidates.values())[:3]]
 
         scope_meta["answer_status"] = answer_status
         scope_meta["refused"] = refused
+        scope_meta["refusal_reason_code"] = refusal_reason_code
         scope_meta["refusal_reason_zh"] = refusal_reason_zh
         scope_meta["related_excerpts"] = related_excerpts
         scope_meta["covered_sources"] = covered_sources
@@ -7373,7 +7757,30 @@ class WorkspaceIntelligenceHub:
         takeaways_list = json.loads(str(row["key_takeaways_json"]))
         actions_list = json.loads(str(row["action_items_json"]))
         sanitized_changed = False
-        if not refused and answer_status == "GROUNDED":
+        if refused:
+            orig_answer = answer_str
+            orig_reason = refusal_reason_zh
+            orig_takeaways = list(takeaways_list) if isinstance(takeaways_list, list) else []
+            orig_actions = list(actions_list) if isinstance(actions_list, list) else []
+            orig_cites = list(citations)
+            code, refusal_reason_zh = _resolve_refusal_reason(
+                parsed_scope.get("refusal_reason_code")
+            )
+            parsed_scope["refusal_reason_code"] = code
+            parsed_scope["refusal_reason_zh"] = refusal_reason_zh
+            answer_str = f"证据不足，无法基于当前资料库可靠回答：{refusal_reason_zh}"
+            citations = []
+            verified_citation_count = 0
+            takeaways_list = []
+            actions_list = []
+            sanitized_changed = (
+                answer_str != orig_answer
+                or refusal_reason_zh != orig_reason
+                or bool(orig_takeaways)
+                or bool(orig_actions)
+                or bool(orig_cites)
+            )
+        elif answer_status == "GROUNDED":
             valid_ref_labels = {
                 str(c.get("ref_label") or c.get("ref") or "").strip().upper()
                 for c in citations
@@ -7409,7 +7816,8 @@ class WorkspaceIntelligenceHub:
         created_at_str = str(row["created_at"])
         obsidian_md = str(row["obsidian_markdown"])
         if (
-            answer_status == "NEEDS_REVERIFICATION"
+            refused
+            or answer_status == "NEEDS_REVERIFICATION"
             or bool(parsed_scope.get("restored_from_backup"))
             or has_unverified_related
             or sanitized_changed
@@ -10050,7 +10458,24 @@ class WorkspaceIntelligenceHub:
                                 else "NEEDS_REVERIFICATION"
                             )
                         )
-                        if not s_refused and s_answer_status == "GROUNDED":
+                        if s_refused or s_answer_status == "REFUSED_INSUFFICIENT_EVIDENCE":
+                            s_refused = True
+                            s_answer_status = "REFUSED_INSUFFICIENT_EVIDENCE"
+                            r_code, r_reason_zh = _resolve_refusal_reason(
+                                reverified_scope_obj.get("refusal_reason_code")
+                            )
+                            reverified_scope_obj["refused"] = True
+                            reverified_scope_obj["answer_status"] = s_answer_status
+                            reverified_scope_obj["refusal_reason_code"] = r_code
+                            reverified_scope_obj["refusal_reason_zh"] = r_reason_zh
+                            clean_scope_json = json.dumps(
+                                reverified_scope_obj, ensure_ascii=False
+                            )
+                            s_answer = f"证据不足，无法基于当前资料库可靠回答：{r_reason_zh}"
+                            reverified_cites_list = []
+                            s_takeaways = []
+                            s_actions = []
+                        elif s_answer_status == "GROUNDED":
                             restored_valid_refs = {
                                 str(c.get("ref_label") or c.get("ref") or "")
                                 .strip()
@@ -10943,8 +11368,8 @@ class WorkspaceIntelligenceHub:
         if len(api_key) > 512 or any(ord(c) < 32 for c in api_key):
             raise ValueError("cloud_api_key format is invalid")
 
-        _verify_cloud_endpoint_dns(validated_url)
         if self._cloud_test_runner is not None:
+            _verify_cloud_endpoint_dns(validated_url)
             res = self._cloud_test_runner(validated_url, api_key)
             return dict(res)
 
@@ -10959,7 +11384,9 @@ class WorkspaceIntelligenceHub:
             },
         )
         try:
-            with self._open_url(req, timeout=10.0) as resp:
+            with self._open_pinned_cloud_url(
+                req, validated_url=validated_url, timeout=10.0
+            ) as resp:
                 _ = resp.read(65536)
             latency_ms = max(1, round((time.perf_counter() - t0) * 1000))
             return {
