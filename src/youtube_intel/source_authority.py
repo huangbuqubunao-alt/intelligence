@@ -549,8 +549,10 @@ def verify_source(
             ):
                 return None
             if row["media_kind"] == "TEXT":
+                from youtube_intel.local_content import decode_text
+
                 if (
-                    text != data.decode("utf-8")
+                    text != decode_text(data)
                     or row["transcript_provenance"] != "utf-8-exact-v1"
                 ):
                     return None
@@ -790,8 +792,15 @@ def safe_filename(value: str) -> str:
 
     value = "".join(
         c for c in value if unicodedata.category(c) not in {"Cc", "Cf", "Cs"}
-    )
-    return value.strip()[:240] or "file"
+    ).strip()
+    if not value:
+        return "file"
+    if len(value) <= 240:
+        return value
+    suffix = Path(value).suffix
+    if 1 < len(suffix) <= 16 and len(value) > len(suffix):
+        return value[: 240 - len(suffix)] + suffix
+    return value[:240]
 
 
 @lru_cache(maxsize=3)

@@ -13,6 +13,7 @@ import re
 import shutil
 import signal
 import threading
+import unicodedata
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -478,7 +479,6 @@ _DEMO_ZH_STOP_BIGRAMS: Final[frozenset[str]] = frozenset(
         "有没",
         "没有",
         "请问",
-        "多少",
         "是否",
         "关于",
         "以及",
@@ -552,6 +552,9 @@ _DEMO_CORPUS_META_PHRASES: Final[tuple[str, ...]] = (
     "切入机会",
     "总结全部",
     "全部来源",
+    "帮我总结",
+    "总结一下",
+    "概括一下",
     "summarize",
     "key takeaways",
     "synthesize",
@@ -596,17 +599,34 @@ _DEMO_BILINGUAL_EQUIVALENTS: Final[tuple[tuple[str, ...], ...]] = (
 )
 
 
+_DEMO_UNSUPPORTED_ATTR_RE: Final[re.Pattern[str]] = re.compile(
+    r"(?:多少钱|价格多少|售价|收费标准|怎么收费|收费|定价|年费|月费|订阅费|成本多少|"
+    r"市值|估值|融资(?:额|轮次)?|融了多少|年营收|收入多少|股价|温度多少|气温|海拔|"
+    r"多少(?:亿|万|美元|美金|块钱|人民币|元|度|公里|克|斤)|几(?:美元|美金|块钱|元))",
+    re.IGNORECASE,
+)
+_DEMO_NEGATION_RE: Final[re.Pattern[str]] = re.compile(
+    r"(?:不需要|不用|不必|无需|为什么不|取消|跳过|忽略|摒弃|抛弃|"
+    r"don't\s+need|do\s+not\s+need|no\s+need\s+for|without\s+(?:requiring|any))",
+    re.IGNORECASE,
+)
+_DEMO_CORE_ANCHOR_RE: Final[re.Pattern[str]] = re.compile(
+    r"(?:证据|引用|状态机|哈希|核验|检查点|evidence|citation|citations|state\s+machine)",
+    re.IGNORECASE,
+)
+
+
 def _demo_extract_concepts(question_text: str) -> tuple[list[str], list[str]]:
-    q_lower = question_text.lower()
+    q_lower = unicodedata.normalize("NFKC", question_text).lower()
     en_tokens = [
         tok
         for tok in re.findall(r"[a-z][a-z0-9_-]{1,}", q_lower)
         if tok not in _DEMO_EN_STOPWORDS and len(tok) >= 2
     ]
     zh_clean = re.sub(
-        r"(?:为什么|怎么|如何|怎样|哪些|有些|什么|多少|是否|可以|能否|请问|对比|比较|总结|围绕|结合|打造|适合|实测|数值|目前|当前内容库|当前资料库|当前|问题|内容|材料|视频|资料|进行|一下|之间|方面|关于|以及|或者|应该|真的|到底|究竟|这份|这个|这些|那些|这\s*\d*\s*篇(?:指定)?|这篇(?:指定)?|指定|在线|知识库|展示|提到|分别|样例|示例|这里|里面|给出|介绍|共性|主要共识|关键共识|核心共识|共识与关键分歧|共识与分歧|核心观点上|核心观点|观点上|观点|核心方法论|核心判断|核心洞察|核心|方法论|分歧|共识|实践|要点|结论|工作流|方案|原理|作用|好处|原因|需要|基于|不同|跨来源|各来源|各自|来源|主要|关键|已沉淀|沉淀|梳理|高分|提炼|值得|最值得|优先落地|优先|可落地步骤|可落地结论|可落地|落地建议|落地路径|落地|产品化|产品设计|产品切入点|切入机会|产品机会|切入点|机会|方向|工程落地|工程实践|工程|原话|指出|高频主题|高频|避坑指南|避坑警示|避坑建议|避坑点|避坑|边界条件|边界|条件|前置|假设|要用|这两个专题|两个专题|专题下|专题|综合|可执行|建议|指南|关联|反直觉判断|反直觉结论|反直觉|数据指标|警示|代表性|实战案例|实战避坑|实战|案例|横向|演进脉络|脉络|时间轴原话|时间轴|立即执行|实操动作|揭示|容易踩坑|踩坑|误区|商业化前提|商业化|商业验证|商业判断|商业变现|变现动作|前提|判断变化|判断|创作者|最具确定性|最具|路径|近期|主题|变化|可直接复用|直接复用|可复用|复用|设计|动作|重点强调|强调|我收藏|收藏|高价值|洞察|行动清单|清单|技术路线|路线|互补与碰撞|互补|碰撞|论据|步骤|提出|会不会)",
+        r"(?:是什么意思|是什么含义|什么含义|什么意思|的意思|指什么|含义是|解释一下|解释下|请帮我|帮我|概括一下|总结一下|讲了什么|说了什么|谈了什么|介绍一下|为什么|怎么|如何|怎样|哪些|有些|什么|是否|可以|能否|请问|对比|比较|总结|围绕|结合|打造|适合|实测|数值|目前|当前内容库|当前资料库|当前|问题|内容|材料|视频|资料|进行|一下|之间|方面|关于|以及|或者|应该|真的|到底|究竟|这份|这个|这些|那些|这\s*\d*\s*篇(?:指定)?|这篇(?:指定)?|指定|在线|知识库|展示|提到|分别|样例|示例|这里|里面|给出|介绍|共性|主要共识|关键共识|核心共识|共识与关键分歧|共识与分歧|核心观点上|核心观点|观点上|观点|核心方法论|核心判断|核心洞察|核心|方法论|分歧|共识|实践|要点|结论|工作流|方案|原理|作用|好处|原因|需要|基于|不同|跨来源|各来源|各自|来源|主要|关键|已沉淀|沉淀|梳理|高分|提炼|值得|最值得|优先落地|优先|可落地步骤|可落地结论|可落地|落地建议|落地路径|落地|产品化|产品设计|产品切入点|切入机会|产品机会|切入点|机会|方向|工程落地|工程实践|工程|原话|指出|高频主题|高频|避坑指南|避坑警示|避坑建议|避坑点|避坑|边界条件|边界|条件|前置|假设|要用|这两个专题|两个专题|专题下|专题|综合|可执行|建议|指南|关联|反直觉判断|反直觉结论|反直觉|数据指标|警示|代表性|实战案例|实战避坑|实战|案例|横向|演进脉络|脉络|时间轴原话|时间轴|立即执行|实操动作|揭示|容易踩坑|踩坑|误区|商业化前提|商业化|商业验证|商业判断|商业变现|变现动作|前提|判断变化|判断|创作者|最具确定性|最具|路径|近期|主题|变化|可直接复用|直接复用|可复用|复用|设计|动作|重点强调|强调|我收藏|收藏|高价值|洞察|行动清单|清单|技术路线|路线|互补与碰撞|互补|碰撞|论据|步骤|提出|会不会)",
         " ",
-        question_text,
+        unicodedata.normalize("NFKC", question_text),
     )
     zh_clean = _DEMO_ZH_PARTICLES_RE.sub(" ", zh_clean)
     zh_phrases = [
@@ -663,7 +683,12 @@ def _demo_concept_supported(concept: str, evidence_hay: str, evidence_en_stems: 
 
 
 def _demo_question_has_evidence_support(question_text: str, user_prompt: str) -> bool:
-    """Reject mixed known-entity + unsupported-attribute and off-topic questions."""
+    """Reject unsupported attributes, inverted premises, and off-topic questions."""
+    q_norm = unicodedata.normalize("NFKC", question_text).strip()
+    if _DEMO_UNSUPPORTED_ATTR_RE.search(q_norm):
+        return False
+    if _DEMO_NEGATION_RE.search(q_norm) and _DEMO_CORE_ANCHOR_RE.search(q_norm):
+        return False
 
     cand_match = re.search(
         r"<untrusted_evidence_candidates>(.*?)</untrusted_evidence_candidates>",
@@ -796,17 +821,17 @@ class _DemoShowcaseCompleter:
                         answer_parts.append(
                             f"生产级 AI 工作流应以确定性状态机收敛外部副作用与工具契约 [{ref_id}]"
                         )
-                        takeaways.append("以确定性状态机和 SQLite 断点管理外部工具副作用")
+                        takeaways.append(f"以确定性状态机和 SQLite 断点管理外部工具副作用 [{ref_id}]")
                     elif any(k in low_desc for k in ("ollama", "byok", "solo", "local")):
                         answer_parts.append(
                             f"通过本机免费 Ollama 搭配受控 BYOK 与 Obsidian 双链沉淀提升留存 [{ref_id}]"
                         )
-                        takeaways.append("本机 Ollama 零边际成本搭配 BYOK 隔离与 Obsidian 导出")
+                        takeaways.append(f"本机 Ollama 零边际成本搭配 BYOK 隔离与 Obsidian 导出 [{ref_id}]")
                     elif any(k in low_desc for k in ("citation", "evidence", "transcript", "证据", "字幕")):
                         answer_parts.append(
                             f"将提炼结论与原始字幕哈希、时间轴/偏移证据绑定以防幻觉 [{ref_id}]"
                         )
-                        takeaways.append("先持久化原文哈希与证据边界，再输出带引用结论")
+                        takeaways.append(f"先持久化原文哈希与证据边界，再输出带引用结论 [{ref_id}]")
                     else:
                         snippet_m = re.search(r"原话摘录[：:]\s*(.+)$", desc)
                         clean_snip = (snippet_m.group(1) if snippet_m else desc).strip()[:90]
@@ -814,8 +839,10 @@ class _DemoShowcaseCompleter:
                         takeaways.append(f"依据 [{ref_id}] 原文记录核验关键事实")
 
                 ref_tags = "、".join(f"[{r}]" for r, _ in matched_refs)
+                lead_ref = matched_refs[0][0]
+                topic_ref = re.sub(r"[。！？!?；;\n]+", "、", question_text).strip("、")
                 answer_zh = (
-                    f"【离线合成样例回放】围绕「{question_text}」，结合当前资料库已验证证据（{ref_tags}）："
+                    f"【离线合成样例回放】围绕「{topic_ref}」（{ref_tags}），结合当前资料库已验证证据："
                     + "；".join(answer_parts)
                     + "。"
                 )
@@ -825,8 +852,8 @@ class _DemoShowcaseCompleter:
                 ]
                 dedup_takeaways = list(dict.fromkeys(takeaways))[:4]
                 actions = [
-                    "点击下方证据引用直接跳转到原视频/文档对应片段核验原文",
-                    "点击「导出 Obsidian 双链笔记」将跨视频结论沉淀至个人知识库",
+                    f"点击下方证据引用（[{lead_ref}] 等）直接跳转到原视频/文档对应片段核验原文",
+                    f"基于 [{lead_ref}] 等关联证据点击「导出 Obsidian 双链笔记」将跨视频结论沉淀至个人知识库",
                 ]
                 refusal_reason_zh = ""
                 refs = matched_refs

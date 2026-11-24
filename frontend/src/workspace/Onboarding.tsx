@@ -2,12 +2,16 @@ import { useState } from "react";
 import { useUiLanguage } from "./uiLanguage";
 
 export const onboardingStorageKey = "intelligence.onboarding.completed.v1";
-export function onboardingCompleted() {
-  try { return localStorage.getItem(onboardingStorageKey) === "true"; }
+export const demoOnboardingStorageKey = "intelligence.onboarding.completed.demo.v1";
+function resolveOnboardingKey(demoMode = false) {
+  return demoMode ? demoOnboardingStorageKey : onboardingStorageKey;
+}
+export function onboardingCompleted(demoMode = false) {
+  try { return localStorage.getItem(resolveOnboardingKey(demoMode)) === "true"; }
   catch { return false; }
 }
-export function completeOnboarding() {
-  try { localStorage.setItem(onboardingStorageKey, "true"); } catch { /* In-memory state still works when browser storage is unavailable. */ }
+export function completeOnboarding(demoMode = false) {
+  try { localStorage.setItem(resolveOnboardingKey(demoMode), "true"); } catch { /* In-memory state still works when browser storage is unavailable. */ }
 }
 
 export function FirstRunOnboarding({ onAddFollowing, onSkip }: {

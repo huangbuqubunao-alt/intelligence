@@ -38,6 +38,7 @@ it.each(["en", "zh-CN"])("reads delayed Deep Analysis without inventing a lifecy
   expect(view.queryByText(language === "en" ? "Not run yet" : "尚未运行")).toBeNull();
   expect((view.getByRole("button", { name: language === "en" ? "Run Deep Analysis" : "开始深度分析" }) as HTMLButtonElement).disabled).toBe(true);
   expect(screen.getByText("Original a transcript.")).toBeTruthy();
+  await vi.waitFor(() => expect(typeof finish).toBe("function"));
   await act(async () => finish(response({ deep_analysis: { status, result: null } })));
   expect(view.queryByText(language === "en" ? "Reading Deep Analysis status…" : "正在读取深度分析状态…")).toBeNull();
   expect(fetch.mock.calls.every(([, init]) => !init?.method || init.method === "GET")).toBe(true);
@@ -62,6 +63,7 @@ it("keeps late prior Content Deep Analysis from changing the new route", async (
   await panel("en");
   await act(async () => { location.hash = "#Content/b"; dispatchEvent(new HashChangeEvent("hashchange")); });
   await screen.findByText("Original b transcript.");
+  await vi.waitFor(() => expect(typeof finishOld).toBe("function"));
   await act(async () => finishOld(response({ deep_analysis: { status: { ...status, availability: "NOT_REQUESTED", qualified: true, production_eligible: true }, result: null } })));
   const view = within(await panel("en"));
   expect(view.queryByText("Not run yet")).toBeNull();

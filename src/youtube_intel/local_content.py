@@ -113,12 +113,31 @@ class LocalImportResult:
 
 
 def decode_text(payload: bytes) -> str:
-    try:
-        text = payload.decode("utf-8")
-    except UnicodeError:
-        raise LocalImportError("LOCAL_INVALID_TEXT") from None
-    if not text.strip() or any(
-        (ord(c) < 32 and c not in "\n\r\t") or ord(c) == 127 or c == "\ufffd"
+    text: str | None = None
+    if payload.startswith((b"\xff\xfe", b"\xfe\xff")):
+        try:
+            text = payload.decode("utf-16")
+        except UnicodeError as err:
+            raise LocalImportError("LOCAL_INVALID_TEXT") from err
+    elif payload.startswith(b"\xef\xbb\xbf"):
+        try:
+            text = payload.decode("utf-8-sig")
+        except UnicodeError as err:
+            raise LocalImportError("LOCAL_INVALID_TEXT") from err
+    else:
+        try:
+            text = payload.decode("utf-8")
+        except UnicodeError:
+            if b"\x00" in payload:
+                raise LocalImportError("LOCAL_INVALID_TEXT") from None
+            try:
+                text = payload.decode("gb18030")
+            except UnicodeError as err:
+                raise LocalImportError("LOCAL_INVALID_TEXT") from err
+    if text is None or not text.strip() or any(
+        (ord(c) < 32 and c not in "\n\r\t")
+        or 0x7F <= ord(c) <= 0x9F
+        or c == "\ufffd"
         for c in text
     ):
         raise LocalImportError("LOCAL_INVALID_TEXT")

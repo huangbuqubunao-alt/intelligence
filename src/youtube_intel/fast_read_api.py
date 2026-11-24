@@ -2361,7 +2361,14 @@ class FastReadApiApplication:
                     "message": "System credential store is unavailable.",
                 }
             }
-        except (ValueError, KeyError) as err:
+        except (ValueError, KeyError, TypeError) as err:
+            if route == "/api/v1/workspace-ai/restore":
+                return HTTPStatus.UNPROCESSABLE_ENTITY, {
+                    "error": {
+                        "code": "RESTORE_INVALID_PAYLOAD",
+                        "message": "备份快照格式或字段类型无效，已拒绝恢复。",
+                    }
+                }
             return HTTPStatus.UNPROCESSABLE_ENTITY, {
                 "error": {
                     "code": "VALIDATION_ERROR",
@@ -3018,9 +3025,12 @@ class FastReadApiApplication:
                         "workspace_sync_status": self._workspace_hub.get_sync_status(
                             repo_conn=conn
                         ),
+                        "demo_mode": self._workspace_hub.is_demo_showcase_workspace(),
                     }
                     if wb is not None:
                         resp_payload["workspace_weekly_brief"] = wb
+                elif self._workspace_hub.is_demo_showcase_workspace():
+                    resp_payload["demo_mode"] = True
                 return resp_payload
             finally:
                 conn.rollback()

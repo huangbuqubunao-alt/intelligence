@@ -23,16 +23,19 @@ import os
 import platform
 import re
 import shutil
+import socket
 import sqlite3
 import stat
 import sys
 import tempfile
 import threading
 import time
+import unicodedata
 import urllib.error
 import urllib.request
 import uuid
 import zipfile
+from collections import OrderedDict
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -122,12 +125,23 @@ VALID_FRAME_KINDS = frozenset(
 VISUAL_SECTION_HEADING = "## 5. 关键画面与字幕融合分析"
 MAX_BACKUP_VISUAL_RAW_BYTES = 40 * 1024 * 1024
 MAX_BACKUP_EXPORT_JSON_BYTES = 64 * 1024 * 1024
+MAX_LLM_HTTP_RESPONSE_BYTES = 4 * 1024 * 1024
+_CGNAT_NETWORK = ipaddress.ip_network("100.64.0.0/10")
+_LOOPBACK_ONLY_DOMAINS = ("localtest.me", "lvh.me", "vcap.me")
+_WILDCARD_DNS_REBINDING_SUFFIXES = (".nip.io", ".sslip.io", ".xip.io", ".traefik.me")
 _GENERATION_DIR_PATTERN = re.compile(r"^gen-[a-f0-9]{12,32}$")
 _SAFE_FILE_SEGMENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,180}$")
 _INTERNAL_ALLOWED_DIR_SEGMENTS = frozenset({".workspace-ai"})
-_E_REF_TOKEN_RE = re.compile(r"(?<![A-Za-z0-9_])E(\d{1,4})(?![A-Za-z0-9_])")
+_E_REF_TOKEN_RE = re.compile(
+    r"(?<![A-Za-z0-9_])[Ee][ \t]?(\d{1,4})(?![A-Za-z0-9_])"
+)
 _E_REF_BRACKET_GROUP_RE = re.compile(
-    r"[\[\【\(（]\s*[Ee]\d{1,4}(?:\s*[,，、/;&+]\s*[Ee]?\d{1,4})*\s*[\]\】\)）]"
+    r"[\[\【\(（]\s*(?:(?:具体|详细|详情|请)?(?:参见|详见|请见|见|参考资料|参考来源|参考|依据|来源|出自|据)\s*[:：]?\s*|(?:see|ref|refer(?:\s+to)?|source|citation)\s*[:：]?\s*)?"
+    r"[Ee][ \t]?\d{1,4}(?:\s*[,，、/;&+]\s*[Ee]?[ \t]?\d{1,4})*\s*[\]\】\)）]",
+    re.IGNORECASE,
+)
+_INLINE_LIST_SPLIT_RE = re.compile(
+    r"(?<=\S)\s+(?=(?:\d{1,2}[)）]|\d{1,2}\.(?=\s|[^\d])|[（(]\d{1,2}[)）]|[一二三四五六七八九十]+[、.．]|[•●▪◦]\s*))"
 )
 _TEXT_ONLY_MODEL_OVERRIDE_RE = re.compile(
     r"(?:^|/|[-:])(?:gemma3n\b|gemma3:(?:270m|1b)(?:$|[-]))",
@@ -247,6 +261,32 @@ def _validate_ollama_url(url: str) -> str:
     return cleaned
 
 
+def _is_non_public_ip(addr: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped is not None:
+        addr = addr.ipv4_mapped
+    if (
+        addr.is_loopback
+        or addr.is_private
+        or addr.is_link_local
+        or addr.is_multicast
+        or addr.is_reserved
+        or addr.is_unspecified
+    ):
+        return True
+    if isinstance(addr, ipaddress.IPv4Address) and addr in _CGNAT_NETWORK:
+        return True
+    return not addr.is_global
+
+
+def _read_bounded_http_body(
+    resp: Any, *, max_bytes: int = MAX_LLM_HTTP_RESPONSE_BYTES
+) -> bytes:
+    raw = resp.read(max_bytes + 1)
+    if len(raw) > max_bytes:
+        raise ValueError("HTTP response exceeded maximum allowed size")
+    return bytes(raw)
+
+
 def _validate_cloud_url(url: str) -> str:
     if not isinstance(url, str) or not url.strip():
         raise ValueError("cloud_base_url must be a non-empty HTTPS URL")
@@ -261,23 +301,89 @@ def _validate_cloud_url(url: str) -> str:
         or parsed.fragment
     ):
         raise ValueError("cloud_base_url must be a clean https:// endpoint")
-    host = parsed.hostname.lower()
-    if host in {"localhost", "localhost.localdomain"} or host.endswith(".local"):
+    host = parsed.hostname.lower().rstrip(".")
+    if (
+        host in {"localhost", "localhost.localdomain"}
+        or host.endswith(".localhost")
+        or host.endswith(".local")
+        or host.endswith(".internal")
+    ):
         raise ValueError("cloud_base_url must not target local hosts")
+    for dom in _LOOPBACK_ONLY_DOMAINS:
+        if host == dom or host.endswith(f".{dom}"):
+            raise ValueError("cloud_base_url must not target local alias hosts")
+
     try:
         addr = ipaddress.ip_address(host)
     except ValueError:
         addr = None
-    if addr is not None and (
-        addr.is_loopback
-        or addr.is_private
-        or addr.is_link_local
-        or addr.is_multicast
-        or addr.is_reserved
-        or addr.is_unspecified
-    ):
-        raise ValueError("cloud_base_url must not target private or loopback IPs")
+    if addr is not None:
+        if _is_non_public_ip(addr):
+            raise ValueError("cloud_base_url must not target private or loopback IPs")
+        return cleaned
+
+    if host.isdigit() or re.fullmatch(r"0x[0-9a-f]+", host):
+        raise ValueError("cloud_base_url must not use obfuscated IP literals")
+    try:
+        packed_v4 = socket.inet_aton(host)
+    except OSError:
+        packed_v4 = None
+    if packed_v4 is not None:
+        canonical_v4 = ipaddress.IPv4Address(packed_v4)
+        if _is_non_public_ip(canonical_v4) or host != str(canonical_v4):
+            raise ValueError("cloud_base_url must not target obfuscated or private IPs")
+
+    for suf in _WILDCARD_DNS_REBINDING_SUFFIXES:
+        if host.endswith(suf):
+            prefix = host[: -len(suf)]
+            for candidate_quad in re.findall(r"(?:\d{1,3}\.){3}\d{1,3}", prefix) + [
+                q.replace("-", ".")
+                for q in re.findall(r"(?:\d{1,3}-){3}\d{1,3}", prefix)
+            ]:
+                try:
+                    embedded_v4 = ipaddress.ip_address(candidate_quad)
+                except ValueError:
+                    continue
+                if _is_non_public_ip(embedded_v4):
+                    raise ValueError(
+                        "cloud_base_url must not embed private or loopback IPs"
+                    )
+            for label in prefix.split("."):
+                if re.fullmatch(r"[0-9a-f]{8}", label):
+                    hex_v4 = ipaddress.IPv4Address(int(label, 16))
+                    if _is_non_public_ip(hex_v4):
+                        raise ValueError(
+                            "cloud_base_url must not embed private or loopback IPs"
+                        )
     return cleaned
+
+
+def _verify_cloud_endpoint_dns(url: str) -> None:
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").strip().lower()
+    port = parsed.port or 443
+    if not host:
+        raise ApiError(
+            HTTPStatus.BAD_GATEWAY,
+            "CLOUD_ENDPOINT_BLOCKED",
+            "云端 API 端点无效，已按安全策略拦截。",
+        )
+    try:
+        infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    except OSError:
+        return
+    for _fam, _socktype, _proto, _canon, sockaddr in infos:
+        ip_raw = str(sockaddr[0]).split("%", 1)[0]
+        try:
+            addr = ipaddress.ip_address(ip_raw)
+        except ValueError:
+            continue
+        if _is_non_public_ip(addr):
+            raise ApiError(
+                HTTPStatus.BAD_GATEWAY,
+                "CLOUD_ENDPOINT_BLOCKED",
+                "云端 API 端点解析到受限内网或环回地址，已按安全策略拦截。",
+            )
 
 
 def _parse_bounded_index(raw: object, upper_bound: int) -> int | None:
@@ -379,13 +485,34 @@ def _build_citation_deep_url(
     return None
 
 
-def _clean_text(value: object, *, fallback: str = "", max_len: int = 1800) -> str:
+def _clean_text(
+    value: object,
+    *,
+    fallback: str = "",
+    max_len: int = 1800,
+    preserve_newlines: bool = False,
+) -> str:
     if not isinstance(value, str):
         return fallback
-    collapsed = re.sub(r"\s+", " ", value).strip()
+    if preserve_newlines:
+        lines = [
+            re.sub(r"[ \t]+", " ", line).strip()
+            for line in value.replace("\r\n", "\n").replace("\r", "\n").splitlines()
+        ]
+        collapsed = "\n".join(line for line in lines if line)
+    else:
+        collapsed = re.sub(r"\s+", " ", value).strip()
     if not collapsed:
         return fallback
     return collapsed[:max_len].strip()
+
+
+def _is_answerable_true(parsed: Mapping[str, Any]) -> bool:
+    """Return True only when answerable is omitted or strictly boolean True."""
+    if "answerable" not in parsed:
+        return True
+    raw = parsed.get("answerable")
+    return type(raw) is bool and raw is True
 
 
 def _clean_string_list(
@@ -406,8 +533,8 @@ def _clean_string_list(
 
 
 def _extract_e_ref_nums(text: str) -> list[str]:
-    """Extract numeric citation indices from [E1], 【E1】, [E1, E2], [ E88 ], and bare E88."""
-    cleaned = str(text or "")
+    """Extract numeric citation indices after NFKC + case normalization."""
+    cleaned = unicodedata.normalize("NFKC", str(text or ""))
     if not cleaned:
         return []
     nums: list[str] = []
@@ -429,7 +556,8 @@ _CITATION_STUB_PREFIX_RE = re.compile(
 
 def _is_substantive_cited_subclause(fragment: str) -> bool:
     """Return True when a sub-clause has genuine claim text besides citation stubs/refs."""
-    stripped = _E_REF_BRACKET_GROUP_RE.sub(" ", str(fragment or ""))
+    stripped = unicodedata.normalize("NFKC", str(fragment or ""))
+    stripped = _E_REF_BRACKET_GROUP_RE.sub(" ", stripped)
     stripped = _E_REF_TOKEN_RE.sub(" ", stripped)
     stripped = stripped.strip()
     while stripped:
@@ -445,24 +573,24 @@ def _prune_ungrounded_ref_clauses(
     text: str,
     valid_labels: set[str],
     *,
-    require_valid_ref_per_sentence: bool = False,
+    require_valid_ref_per_sentence: bool = True,
 ) -> str:
-    """Drop whole sentences tied to unissued E<n> refs (or missing refs under mixed output).
+    """Enforce per-sentence/list-item/table-row valid E<n> citation grounding.
 
-    When a single period-delimited sentence mixes grounded and ungrounded comma sub-clauses,
-    only keep sub-clauses that explicitly carry a valid E<n> ref, have zero invalid refs,
-    and contain substantive claim text (never leaving dangling un-cited claims or stubs).
+    Drops any sentence, inline list item, or table row lacking a valid E<n> citation
+    (or contaminated by unissued/invalid refs). When a prose sentence mixes valid and
+    invalid comma sub-clauses, keeps ONLY substantive sub-clauses with valid refs.
     """
     cleaned = str(text or "").strip()
     if not cleaned:
         return ""
     raw_nums = _extract_e_ref_nums(cleaned)
     has_invalid_anywhere = any(f"E{num}" not in valid_labels for num in raw_nums)
-    if not has_invalid_anywhere and not require_valid_ref_per_sentence:
+    if not require_valid_ref_per_sentence and not has_invalid_anywhere:
         return cleaned
 
     tokens = re.split(r"([。！？!?；;\n]+|(?<!\d)\.(?=\s|$))", cleaned)
-    kept_clauses: list[tuple[str, str]] = []
+    expanded_clauses: list[tuple[str, str]] = []
     idx = 0
     while idx < len(tokens):
         clause = tokens[idx].strip()
@@ -470,17 +598,33 @@ def _prune_ungrounded_ref_clauses(
         idx += 2
         if not clause:
             continue
+        sub_items = _INLINE_LIST_SPLIT_RE.split(clause)
+        if len(sub_items) > 1:
+            non_empty = [s.strip() for s in sub_items if s.strip()]
+            for sub_i, sub_clean in enumerate(non_empty):
+                sub_delim = delim if sub_i == len(non_empty) - 1 else " "
+                expanded_clauses.append((sub_clean, sub_delim))
+        else:
+            expanded_clauses.append((clause, delim))
+
+    kept_clauses: list[tuple[str, str]] = []
+    for clause, delim in expanded_clauses:
+        nfkc_clause = unicodedata.normalize("NFKC", clause).strip()
+        if "|" in nfkc_clause and re.fullmatch(r"[\s|:-]+", nfkc_clause):
+            continue
         clause_nums = _extract_e_ref_nums(clause)
         has_invalid = any(f"E{num}" not in valid_labels for num in clause_nums)
         has_valid_ref = any(f"E{num}" in valid_labels for num in clause_nums)
         if not has_invalid:
-            if require_valid_ref_per_sentence and not has_valid_ref:
+            if require_valid_ref_per_sentence and (
+                not has_valid_ref or not _is_substantive_cited_subclause(clause)
+            ):
                 continue
             kept_clauses.append((clause, delim))
             continue
-        if not has_valid_ref:
+        if not has_valid_ref or "|" in nfkc_clause:
             continue
-        # Mixed valid + invalid refs inside one sentence: split on commas and retain ONLY
+        # Mixed valid + invalid refs inside one prose sentence: split on commas and retain ONLY
         # self-contained sub-clauses that carry a valid ref and substantive claim text.
         sub_clauses = [
             sub.strip()
@@ -507,14 +651,22 @@ def _prune_ungrounded_ref_clauses(
     for c_i, (c_text, c_delim) in enumerate(kept_clauses):
         out_parts.append(c_text)
         if c_i < len(kept_clauses) - 1:
-            norm_mid = c_delim.strip()
-            out_parts.append(norm_mid if norm_mid else "。")
+            if "\n" in c_delim:
+                out_parts.append("\n")
+            elif c_delim == " ":
+                out_parts.append(" ")
+            else:
+                norm_mid = c_delim.strip()
+                out_parts.append(norm_mid if norm_mid else "。")
         elif c_delim:
-            norm_end = c_delim.strip()
-            if norm_end in {";", "；"}:
-                out_parts.append("。")
-            elif norm_end:
-                out_parts.append(norm_end)
+            if "\n" in c_delim:
+                pass
+            else:
+                norm_end = c_delim.strip()
+                if norm_end in {";", "；"}:
+                    out_parts.append("。")
+                elif norm_end:
+                    out_parts.append(norm_end)
         elif cleaned[-1] in "。！？!?.":
             out_parts.append(cleaned[-1])
     result = re.sub(r"[ \t]+", " ", "".join(out_parts)).strip()
@@ -529,10 +681,13 @@ def _filter_ungrounded_items(items: Sequence[str], valid_labels: set[str]) -> li
         cleaned = str(item or "").strip()
         if not cleaned:
             continue
-        nums = _extract_e_ref_nums(cleaned)
-        if any(f"E{num}" not in valid_labels for num in nums):
-            continue
-        out.append(cleaned)
+        pruned = _prune_ungrounded_ref_clauses(
+            cleaned,
+            valid_labels,
+            require_valid_ref_per_sentence=True,
+        )
+        if pruned:
+            out.append(pruned)
     return out
 
 
@@ -648,10 +803,12 @@ def _probe_ollama_model_vision_http(
             method="POST",
             headers={"Content-Type": "application/json"},
         )
-        active_opener = opener or urllib.request.build_opener(_NoCloudRedirect)
+        active_opener = opener or urllib.request.build_opener(
+            urllib.request.ProxyHandler({}), _NoCloudRedirect
+        )
         ctx = active_opener.open(req, timeout=2.0)
         with ctx as resp:
-            data = json.loads(resp.read(262_144).decode("utf-8"))
+            data = json.loads(_read_bounded_http_body(resp, max_bytes=262_144).decode("utf-8"))
         if isinstance(data, Mapping):
             caps = data.get("capabilities")
             if isinstance(caps, list):
@@ -675,9 +832,11 @@ def _probe_ollama_models_default(base_url: str) -> tuple[bool, tuple[str, ...]]:
     try:
         validated = _validate_ollama_url(base_url)
         req = urllib.request.Request(f"{validated}/api/tags", method="GET")
-        ctx = urllib.request.build_opener(_NoCloudRedirect).open(req, timeout=2.5)
+        ctx = urllib.request.build_opener(
+            urllib.request.ProxyHandler({}), _NoCloudRedirect
+        ).open(req, timeout=2.5)
         with ctx as resp:
-            data = json.loads(resp.read().decode("utf-8"))
+            data = json.loads(_read_bounded_http_body(resp).decode("utf-8"))
         models = tuple(
             str(m["name"])
             for m in data.get("models", [])
@@ -1182,6 +1341,9 @@ class WorkspaceIntelligenceHub:
         self._ollama_probe = installed_ollama_probe or _probe_ollama_models_default
         self._http_opener = http_opener
         self._default_no_redirect_opener = urllib.request.build_opener(_NoCloudRedirect)
+        self._loopback_direct_opener = urllib.request.build_opener(
+            urllib.request.ProxyHandler({}), _NoCloudRedirect
+        )
         self._now = now or (lambda: datetime.now(UTC))
         self._db_lock = threading.RLock()
         self._visual_locks_guard = threading.Lock()
@@ -1190,6 +1352,13 @@ class WorkspaceIntelligenceHub:
         self._transcribe_jobs: dict[str, dict[str, Any]] = {}
         self._schema_ready_token: tuple[int, int] | None = None
         self._last_snapshot_mono: float = 0.0
+        self._evidence_verify_cache_lock = threading.Lock()
+        self._evidence_verify_cache: OrderedDict[tuple[str, str], Any] = OrderedDict()
+        self._evidence_verify_cache_fp: tuple[int, int, int, int, int, int] | None = None
+
+    def is_demo_showcase_workspace(self) -> bool:
+        """Return True when this hub runs inside an isolated Demo Showcase directory."""
+        return (self._project_root / ".demo-showcase-v1.json").is_file()
 
     def _visual_lock_for(self, video_id: str) -> threading.Lock:
         with self._visual_locks_guard:
@@ -1204,11 +1373,16 @@ class WorkspaceIntelligenceHub:
             return self._http_opener.open(req, timeout=timeout)
         return self._default_no_redirect_opener.open(req, timeout=timeout)
 
+    def _open_loopback_url(self, req: urllib.request.Request, *, timeout: float) -> Any:
+        if self._http_opener is not None:
+            return self._http_opener.open(req, timeout=timeout)
+        return self._loopback_direct_opener.open(req, timeout=timeout)
+
     def _probe_ollama_model_vision(self, base_url: str, model: str) -> bool | None:
         active_opener = (
             self._http_opener
             if self._http_opener is not None
-            else self._default_no_redirect_opener
+            else self._loopback_direct_opener
         )
         return _probe_ollama_model_vision_http(base_url, model, opener=active_opener)
 
@@ -1252,7 +1426,7 @@ class WorkspaceIntelligenceHub:
         conn: sqlite3.Connection | None = None
         try:
             conn = sqlite3.connect(
-                f"file:{self.db_path}?mode=ro", uri=True, timeout=10.0
+                f"{self.db_path.resolve().as_uri()}?mode=ro", uri=True, timeout=10.0
             )
             conn.row_factory = sqlite3.Row
             conn.execute("PRAGMA busy_timeout=5000")
@@ -1562,10 +1736,56 @@ class WorkspaceIntelligenceHub:
             "cloud_reauth_required": reauth_required,
         }
 
-    def update_settings(
-        self, payload: Mapping[str, object], *, from_restore: bool = False
-    ) -> dict[str, object]:
-        current = self._raw_engine_config()
+    @staticmethod
+    def _restore_payload_error(
+        message: str = "备份快照格式或字段类型无效，已拒绝恢复。",
+    ) -> ApiError:
+        return ApiError(HTTPStatus.UNPROCESSABLE_ENTITY, "RESTORE_INVALID_PAYLOAD", message)
+
+    @classmethod
+    def _require_restore_int(
+        cls, value: object, *, default: int | None = None
+    ) -> int:
+        if value is None and default is not None:
+            return default
+        if isinstance(value, bool) or isinstance(value, float):
+            raise cls._restore_payload_error()
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str):
+            token = value.strip()
+            if token and token.lstrip("+-").isdigit():
+                return int(token)
+        raise cls._restore_payload_error()
+
+    @classmethod
+    def _require_restore_float(
+        cls, value: object, *, default: float | None = None
+    ) -> float:
+        if value is None and default is not None:
+            return default
+        if isinstance(value, bool):
+            raise cls._restore_payload_error()
+        if isinstance(value, (int, float)):
+            num = float(value)
+            if math.isfinite(num):
+                return num
+        elif isinstance(value, str):
+            try:
+                num = float(value.strip())
+                if math.isfinite(num):
+                    return num
+            except ValueError:
+                pass
+        raise cls._restore_payload_error()
+
+    def _prepare_engine_config_update(
+        self,
+        payload: Mapping[str, object],
+        current: Mapping[str, str],
+        *,
+        from_restore: bool = False,
+    ) -> tuple[str, str, str, str, str, str, str, int, bool]:
         requested_mode = str(payload.get("active_mode", current["active_mode"])).strip()
         if requested_mode not in VALID_MODES:
             raise ValueError("active_mode must be 'local_ollama' or 'cloud_byok'")
@@ -1608,18 +1828,7 @@ class WorkspaceIntelligenceHub:
                 raise ValueError("cloud_daily_call_limit must be an integer between 1 and 500")
             daily_limit = parsed_limit
 
-        if not from_restore and "cloud_api_key" in payload:
-            raw_key = payload["cloud_api_key"]
-            if raw_key is None or (isinstance(raw_key, str) and not raw_key.strip()):
-                self._byok_store.delete()
-            elif isinstance(raw_key, str):
-                secret = raw_key.strip()
-                if len(secret) > 512 or any(ord(c) < 32 for c in secret):
-                    raise ValueError("cloud_api_key format is invalid")
-                self._byok_store.save(secret)
-            else:
-                raise ValueError("cloud_api_key must be a string or null")
-
+        reauth_required = False
         if from_restore:
             if (
                 requested_mode == "cloud_byok"
@@ -1628,6 +1837,7 @@ class WorkspaceIntelligenceHub:
             ):
                 active_mode = "local_ollama"
                 cloud_authorized_endpoint = ""
+                reauth_required = True
             else:
                 cloud_authorized_endpoint = current.get("cloud_authorized_endpoint", "")
         else:
@@ -1645,41 +1855,92 @@ class WorkspaceIntelligenceHub:
             else:
                 cloud_authorized_endpoint = current.get("cloud_authorized_endpoint", "")
 
+        return (
+            active_mode,
+            ollama_base_url,
+            ollama_model,
+            cloud_provider,
+            cloud_base_url,
+            cloud_model,
+            cloud_authorized_endpoint,
+            daily_limit,
+            reauth_required,
+        )
+
+    @staticmethod
+    def _upsert_engine_config(
+        conn: sqlite3.Connection,
+        prepared: tuple[str, str, str, str, str, str, str, int, bool],
+        ts: str,
+    ) -> None:
+        (
+            active_mode,
+            ollama_base_url,
+            ollama_model,
+            cloud_provider,
+            cloud_base_url,
+            cloud_model,
+            cloud_authorized_endpoint,
+            daily_limit,
+            _reauth,
+        ) = prepared
+        conn.execute(
+            """
+            INSERT INTO engine_config (
+                singleton_id, active_mode, ollama_base_url, ollama_model,
+                cloud_provider, cloud_base_url, cloud_model, updated_at,
+                cloud_authorized_endpoint, cloud_daily_call_limit
+            ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(singleton_id) DO UPDATE SET
+                active_mode = excluded.active_mode,
+                ollama_base_url = excluded.ollama_base_url,
+                ollama_model = excluded.ollama_model,
+                cloud_provider = excluded.cloud_provider,
+                cloud_base_url = excluded.cloud_base_url,
+                cloud_model = excluded.cloud_model,
+                updated_at = excluded.updated_at,
+                cloud_authorized_endpoint = excluded.cloud_authorized_endpoint,
+                cloud_daily_call_limit = excluded.cloud_daily_call_limit
+            """,
+            (
+                active_mode,
+                ollama_base_url,
+                ollama_model,
+                cloud_provider,
+                cloud_base_url,
+                cloud_model,
+                ts,
+                cloud_authorized_endpoint,
+                daily_limit,
+            ),
+        )
+
+    def update_settings(
+        self, payload: Mapping[str, object], *, from_restore: bool = False
+    ) -> dict[str, object]:
+        current = self._raw_engine_config()
+        prepared = self._prepare_engine_config_update(
+            payload, current, from_restore=from_restore
+        )
+
+        if not from_restore and "cloud_api_key" in payload:
+            raw_key = payload["cloud_api_key"]
+            if raw_key is None or (isinstance(raw_key, str) and not raw_key.strip()):
+                self._byok_store.delete()
+            elif isinstance(raw_key, str):
+                secret = raw_key.strip()
+                if len(secret) > 512 or any(ord(c) < 32 for c in secret):
+                    raise ValueError("cloud_api_key format is invalid")
+                self._byok_store.save(secret)
+            else:
+                raise ValueError("cloud_api_key must be a string or null")
+
         ts = format_utc_datetime(self._now())
         with self._db_lock:
             conn = self._connect_write()
             try:
                 with conn:
-                    conn.execute(
-                        """
-                        INSERT INTO engine_config (
-                            singleton_id, active_mode, ollama_base_url, ollama_model,
-                            cloud_provider, cloud_base_url, cloud_model, updated_at,
-                            cloud_authorized_endpoint, cloud_daily_call_limit
-                        ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        ON CONFLICT(singleton_id) DO UPDATE SET
-                            active_mode = excluded.active_mode,
-                            ollama_base_url = excluded.ollama_base_url,
-                            ollama_model = excluded.ollama_model,
-                            cloud_provider = excluded.cloud_provider,
-                            cloud_base_url = excluded.cloud_base_url,
-                            cloud_model = excluded.cloud_model,
-                            updated_at = excluded.updated_at,
-                            cloud_authorized_endpoint = excluded.cloud_authorized_endpoint,
-                            cloud_daily_call_limit = excluded.cloud_daily_call_limit
-                        """,
-                        (
-                            active_mode,
-                            ollama_base_url,
-                            ollama_model,
-                            cloud_provider,
-                            cloud_base_url,
-                            cloud_model,
-                            ts,
-                            cloud_authorized_endpoint,
-                            daily_limit,
-                        ),
-                    )
+                    self._upsert_engine_config(conn, prepared, ts)
             finally:
                 conn.close()
         return self.get_settings()
@@ -1869,6 +2130,8 @@ class WorkspaceIntelligenceHub:
                     )
                     self._finalize_cloud_call(call_id, status="SUCCEEDED")
                     return result
+                if self._http_opener is None:
+                    _verify_cloud_endpoint_dns(validated_cloud_base)
                 endpoint = f"{validated_cloud_base}/chat/completions"
                 req_body = json.dumps(
                     {
@@ -1892,7 +2155,7 @@ class WorkspaceIntelligenceHub:
                     },
                 )
                 with self._open_url(req, timeout=90) as resp:
-                    raw_resp = json.loads(resp.read().decode("utf-8"))
+                    raw_resp = json.loads(_read_bounded_http_body(resp).decode("utf-8"))
                 content = str(raw_resp["choices"][0]["message"]["content"])
                 parsed_json = _extract_json_object(content)
                 self._finalize_cloud_call(call_id, status="SUCCEEDED")
@@ -1956,8 +2219,8 @@ class WorkspaceIntelligenceHub:
             headers={"Content-Type": "application/json"},
         )
         try:
-            with self._open_url(req, timeout=180) as resp:
-                raw_resp = json.loads(resp.read().decode("utf-8"))
+            with self._open_loopback_url(req, timeout=180) as resp:
+                raw_resp = json.loads(_read_bounded_http_body(resp).decode("utf-8"))
             content = str(raw_resp["message"]["content"])
             return _extract_json_object(content), provider, model
         except (urllib.error.URLError, KeyError, ValueError, TimeoutError) as err:
@@ -1995,7 +2258,11 @@ class WorkspaceIntelligenceHub:
                     )
                     self._finalize_cloud_call(call_id, status="SUCCEEDED")
                     return result
+                if self._http_opener is None:
+                    _verify_cloud_endpoint_dns(validated_cloud_base)
                 b64_images = self._read_bounded_base64_images(image_paths)
+                if self._http_opener is None:
+                    _verify_cloud_endpoint_dns(validated_cloud_base)
                 endpoint = f"{validated_cloud_base}/chat/completions"
                 user_content: list[dict[str, Any]] = [
                     {"type": "text", "text": user_prompt},
@@ -2032,7 +2299,7 @@ class WorkspaceIntelligenceHub:
                     },
                 )
                 with self._open_url(req, timeout=120) as resp:
-                    raw_resp = json.loads(resp.read().decode("utf-8"))
+                    raw_resp = json.loads(_read_bounded_http_body(resp).decode("utf-8"))
                 content = str(raw_resp["choices"][0]["message"]["content"])
                 parsed_json = _extract_json_object(content)
                 self._finalize_cloud_call(call_id, status="SUCCEEDED")
@@ -2115,8 +2382,8 @@ class WorkspaceIntelligenceHub:
             headers={"Content-Type": "application/json"},
         )
         try:
-            with self._open_url(req, timeout=240) as resp:
-                raw_resp = json.loads(resp.read().decode("utf-8"))
+            with self._open_loopback_url(req, timeout=240) as resp:
+                raw_resp = json.loads(_read_bounded_http_body(resp).decode("utf-8"))
             content = str(raw_resp["message"]["content"])
             return _extract_json_object(content), provider, model
         except urllib.error.HTTPError as err:
@@ -5497,6 +5764,127 @@ class WorkspaceIntelligenceHub:
                     tokens |= cls._tokenize_query(syn)
         return tokens
 
+    @staticmethod
+    def _excerpt_matches_verified(verified: Any, expected_excerpt: str | None) -> bool:
+        if verified is None:
+            return False
+        if expected_excerpt is None:
+            return True
+        norm_expected = re.sub(r"\s+", " ", str(expected_excerpt)).strip()
+        norm_actual = re.sub(r"\s+", " ", str(verified.excerpt or "")).strip()
+        if not norm_expected:
+            return True
+        if not norm_actual:
+            return False
+        return (
+            norm_actual == norm_expected
+            or (len(norm_expected) >= 12 and norm_actual.startswith(norm_expected))
+            or (len(norm_expected) >= 6 and norm_expected in norm_actual)
+            or (len(norm_actual) >= 6 and norm_actual in norm_expected)
+        )
+
+    def _core_repo_fingerprint(self) -> tuple[int, int, int, int, int, int] | None:
+        raw_path = getattr(self._repository, "_database_path", None)
+        if raw_path is None:
+            return None
+        db_file = Path(str(raw_path))
+        if str(db_file) == ":memory:":
+            return None
+        try:
+            st = os.stat(db_file)
+            db_sig = (st.st_dev, st.st_ino, st.st_mtime_ns, st.st_size)
+        except OSError:
+            return None
+        wal_file = Path(f"{db_file}-wal")
+        try:
+            wal_st = os.stat(wal_file)
+            wal_sig = (wal_st.st_mtime_ns, wal_st.st_size)
+        except OSError:
+            wal_sig = (0, 0)
+        return (*db_sig, *wal_sig)
+
+    def _batch_resolve_authoritative_evidence(
+        self, pairs: Sequence[tuple[str, str]]
+    ) -> dict[tuple[str, str], Any]:
+        """Resolve many (video_id, evidence_id) bindings over 1 core DB connection + cache."""
+        unique_pairs = list(
+            dict.fromkeys(
+                (str(vid or "").strip(), str(eid or "").strip())
+                for vid, eid in pairs
+                if str(vid or "").strip() and str(eid or "").strip()
+            )
+        )
+        if not unique_pairs:
+            return {}
+
+        fp = self._core_repo_fingerprint()
+        resolved: dict[tuple[str, str], Any] = {}
+        missing: list[tuple[str, str]] = []
+        with self._evidence_verify_cache_lock:
+            if fp is None or fp != self._evidence_verify_cache_fp:
+                self._evidence_verify_cache.clear()
+                self._evidence_verify_cache_fp = fp
+            for key in unique_pairs:
+                if fp is not None and key in self._evidence_verify_cache:
+                    val = self._evidence_verify_cache[key]
+                    self._evidence_verify_cache.move_to_end(key)
+                    resolved[key] = val
+                else:
+                    missing.append(key)
+
+        if missing:
+            unique_eids = list(dict.fromkeys(eid for _, eid in missing))
+            fetched_by_eid: dict[str, Any] = {}
+            conn: sqlite3.Connection | None = None
+            try:
+                conn = self._repository._connect()
+                for start in range(0, len(unique_eids), 24):
+                    chunk = tuple(unique_eids[start : start + 24])
+                    chunk_map = (
+                        self._repository.resolve_verified_evidence_text_batch_in_transaction(
+                            conn, chunk
+                        )
+                    )
+                    if not chunk_map:
+                        for eid in chunk:
+                            item = self._repository._resolve_verified_evidence_text_in_transaction(
+                                conn, eid
+                            )
+                            if item is not None:
+                                chunk_map[eid] = item
+                    fetched_by_eid.update(chunk_map)
+            except Exception:
+                fetched_by_eid = {}
+            finally:
+                if conn is not None:
+                    conn.close()
+
+            newly_resolved: dict[tuple[str, str], Any] = {}
+            for vid, eid in missing:
+                candidate = fetched_by_eid.get(eid)
+                if (
+                    candidate is None
+                    or candidate.video_id != vid
+                    or candidate.evidence_id != eid
+                ):
+                    candidate = None
+                newly_resolved[(vid, eid)] = candidate
+                resolved[(vid, eid)] = candidate
+
+            if fp is not None and self._core_repo_fingerprint() == fp:
+                with self._evidence_verify_cache_lock:
+                    if self._core_repo_fingerprint() == fp:
+                        if self._evidence_verify_cache_fp != fp:
+                            self._evidence_verify_cache.clear()
+                            self._evidence_verify_cache_fp = fp
+                        for key, val in newly_resolved.items():
+                            self._evidence_verify_cache[key] = val
+                            self._evidence_verify_cache.move_to_end(key)
+                        while len(self._evidence_verify_cache) > 2048:
+                            self._evidence_verify_cache.popitem(last=False)
+
+        return resolved
+
     def _resolve_authoritative_evidence(
         self,
         video_id: str,
@@ -5522,20 +5910,8 @@ class WorkspaceIntelligenceHub:
             or verified.evidence_id != clean_eid
         ):
             return None
-        if expected_excerpt is not None:
-            norm_expected = re.sub(r"\s+", " ", str(expected_excerpt)).strip()
-            norm_actual = re.sub(r"\s+", " ", str(verified.excerpt or "")).strip()
-            if norm_expected:
-                if not norm_actual:
-                    return None
-                matched = (
-                    norm_actual == norm_expected
-                    or (len(norm_expected) >= 12 and norm_actual.startswith(norm_expected))
-                    or (len(norm_expected) >= 6 and norm_expected in norm_actual)
-                    or (len(norm_actual) >= 6 and norm_actual in norm_expected)
-                )
-                if not matched:
-                    return None
+        if not self._excerpt_matches_verified(verified, expected_excerpt):
+            return None
         return verified
 
     @staticmethod
@@ -6385,16 +6761,18 @@ class WorkspaceIntelligenceHub:
 
         system_prompt = (
             "你是跨视频 AI 产品与商业研究顾问（RESEARCH_QA_SCHEMA）。"
-            "请严格依据候选证据编号 [E1]..[En] 用简体中文深度回答用户问题，并在行文中用 [E1] 等标注出处。"
-            "如果候选证据不足以直接回答问题，或只是字面无关/缺乏核心依据，必须把 answerable 设为 false 并保持 citations 为空数组，严禁硬凑或编造。"
+            "请严格依据候选证据编号 [E1]..[En] 用简体中文深度回答用户问题：answer_zh 中的每一句话/列表项/表格行、"
+            "key_takeaways_zh 中的每一条、action_items_zh 中的每一条都必须附带对应的 [E1]..[En] 引用标记；"
+            "没有有效引用支撑的句子或条目禁止输出。"
+            "如果候选证据不足以直接回答问题，或只是字面无关/缺乏核心依据，必须把 answerable 设为布尔值 false 并保持 citations 为空数组，严禁硬凑或编造。"
             "严禁编造候选列表之外的编号或时间戳。\n"
             "输出 JSON 契约：\n"
             "{\n"
-            '  "answerable": true 或 false,\n'
+            '  "answerable": true 或 false（严格 JSON 布尔值）,\n'
             '  "refusal_reason_zh": "仅当 answerable 为 false 时填写：简明说明当前候选证据缺什么依据",\n'
-            '  "answer_zh": "结构清晰的跨视频综合中文解答（150-450字，内含 [E1] 等引用标记；若 answerable 为 false 则说明证据不足）",\n'
-            '  "key_takeaways_zh": ["2-4条跨视频核心共识或分歧洞察"],\n'
-            '  "action_items_zh": ["2-3条可直接执行的下一步产品/研究动作"],\n'
+            '  "answer_zh": "结构清晰的跨视频综合中文解答（150-450字，每句均含 [E1] 等引用标记；若 answerable 为 false 则说明证据不足）",\n'
+            '  "key_takeaways_zh": ["2-4条跨视频核心共识或分歧洞察（每条末尾标注对应 [E1] 等引用）"],\n'
+            '  "action_items_zh": ["2-3条可直接执行的下一步产品/研究动作（每条末尾标注对应 [E1] 等引用）"],\n'
             '  "citations": [{"ref": "E1", "note_zh": "该证据支撑的核心论据说明"}]\n'
             "}"
         )
@@ -6420,6 +6798,7 @@ class WorkspaceIntelligenceHub:
             parsed.get("answer_zh"),
             fallback="已根据跨视频证据完成综合梳理。",
             max_len=2400,
+            preserve_newlines=True,
         )
         takeaways = _clean_string_list(
             parsed.get("key_takeaways_zh"), max_items=6, max_len=400
@@ -6430,22 +6809,9 @@ class WorkspaceIntelligenceHub:
 
         valid_labels = set(candidates.keys())
         raw_cites = parsed.get("citations")
-        raw_cite_invalid_refs: list[str] = []
-        if isinstance(raw_cites, list):
-            for entry in raw_cites:
-                if isinstance(entry, dict):
-                    ref_raw = str(entry.get("ref", "")).strip().upper()
-                    if ref_raw and ref_raw not in valid_labels:
-                        raw_cite_invalid_refs.append(ref_raw)
-        ungrounded_refs_found = [
-            f"E{num}"
-            for frag in (answer_zh, *takeaways, *actions)
-            for num in _extract_e_ref_nums(frag)
-            if f"E{num}" not in valid_labels
-        ] + raw_cite_invalid_refs
-        has_any_ungrounded = bool(ungrounded_refs_found)
-        # Prune ungrounded sentences/items BEFORE deciding whether grounded content survives.
-        if has_any_ungrounded and parsed.get("answerable") is not False:
+        answerable_ok = _is_answerable_true(parsed)
+        # Unconditionally enforce per-sentence/item citation grounding BEFORE hydrating citations.
+        if answerable_ok:
             answer_zh = _prune_ungrounded_ref_clauses(
                 answer_zh,
                 valid_labels,
@@ -6480,10 +6846,8 @@ class WorkspaceIntelligenceHub:
             for num in _extract_e_ref_nums(answer_zh)
             if f"E{num}" in valid_labels
         }
-        model_refused = parsed.get("answerable") is False
-        no_grounded_answer_left = not answer_zh.strip() or (
-            has_any_ungrounded and not surviving_inline_valid
-        )
+        model_refused = not answerable_ok
+        no_grounded_answer_left = not answer_zh.strip() or not surviving_inline_valid
         refused = model_refused or len(hydrated_citations) == 0 or no_grounded_answer_left
         answer_status = "REFUSED_INSUFFICIENT_EVIDENCE" if refused else "GROUNDED"
         if refused:
@@ -6505,7 +6869,7 @@ class WorkspaceIntelligenceHub:
             answer_zh = _prune_ungrounded_ref_clauses(
                 answer_zh,
                 valid_labels,
-                require_valid_ref_per_sentence=has_any_ungrounded,
+                require_valid_ref_per_sentence=True,
             ).strip()
             takeaways = _filter_ungrounded_items(takeaways, valid_labels)
             actions = _filter_ungrounded_items(actions, valid_labels)
@@ -6745,13 +7109,26 @@ class WorkspaceIntelligenceHub:
                     md_lines.append(f"  > {c['excerpt']}")
         return "\n".join(md_lines) + "\n"
 
-    def _reverify_serialized_citation(self, raw_cite: Mapping[str, Any]) -> dict[str, Any]:
+    def _reverify_serialized_citation(
+        self,
+        raw_cite: Mapping[str, Any],
+        *,
+        pre_resolved: Mapping[tuple[str, str], Any] | None = None,
+    ) -> dict[str, Any]:
         """Re-verify one persisted citation dict against core SQLiteStateRepository."""
         cite = dict(raw_cite)
         vid = str(cite.get("video_id") or "").strip()
         eid = str(cite.get("evidence_id") or "").strip()
         expected = str(cite.get("excerpt") or "").strip() or None
-        verified = self._resolve_authoritative_evidence(vid, eid, expected_excerpt=expected)
+        if pre_resolved is not None and vid and eid:
+            candidate = pre_resolved.get((vid, eid))
+            verified = (
+                candidate
+                if self._excerpt_matches_verified(candidate, expected)
+                else None
+            )
+        else:
+            verified = self._resolve_authoritative_evidence(vid, eid, expected_excerpt=expected)
         if verified is None:
             cite["verified"] = False
             cite["verification_status"] = "NEEDS_REVERIFICATION"
@@ -6784,7 +7161,12 @@ class WorkspaceIntelligenceHub:
         cite["verification_status"] = "VERIFIED"
         return cite
 
-    def _row_to_research_session_dto(self, row: sqlite3.Row) -> dict[str, object]:
+    def _row_to_research_session_dto(
+        self,
+        row: sqlite3.Row,
+        *,
+        pre_resolved: Mapping[tuple[str, str], Any] | None = None,
+    ) -> dict[str, object]:
         row_keys = set(row.keys())
         raw_scope_json = (
             str(row["scope_json"])
@@ -6811,7 +7193,9 @@ class WorkspaceIntelligenceHub:
         if isinstance(raw_citations, list):
             for entry in raw_citations:
                 if isinstance(entry, Mapping):
-                    citations.append(self._reverify_serialized_citation(entry))
+                    citations.append(
+                        self._reverify_serialized_citation(entry, pre_resolved=pre_resolved)
+                    )
 
         verified_citation_count = sum(1 for c in citations if bool(c.get("verified")))
         all_citations_verified = bool(citations) and verified_citation_count == len(citations)
@@ -6838,7 +7222,9 @@ class WorkspaceIntelligenceHub:
         if isinstance(raw_related, list):
             for entry in raw_related:
                 if isinstance(entry, Mapping):
-                    related_excerpts.append(self._reverify_serialized_citation(entry))
+                    related_excerpts.append(
+                        self._reverify_serialized_citation(entry, pre_resolved=pre_resolved)
+                    )
         if "related_excerpts" in parsed_scope or related_excerpts:
             parsed_scope["related_excerpts"] = related_excerpts
         has_unverified_related = any(
@@ -6855,6 +7241,38 @@ class WorkspaceIntelligenceHub:
         answer_str = str(row["answer_zh"])
         takeaways_list = json.loads(str(row["key_takeaways_json"]))
         actions_list = json.loads(str(row["action_items_json"]))
+        sanitized_changed = False
+        if not refused and answer_status == "GROUNDED":
+            valid_ref_labels = {
+                str(c.get("ref_label") or c.get("ref") or "").strip().upper()
+                for c in citations
+                if isinstance(c, Mapping)
+                and bool(c.get("verified"))
+                and str(c.get("ref_label") or c.get("ref") or "").strip()
+            }
+            orig_answer = answer_str
+            orig_takeaways = list(takeaways_list) if isinstance(takeaways_list, list) else []
+            orig_actions = list(actions_list) if isinstance(actions_list, list) else []
+            answer_str = _prune_ungrounded_ref_clauses(
+                answer_str,
+                valid_ref_labels,
+                require_valid_ref_per_sentence=True,
+            )
+            takeaways_list = _filter_ungrounded_items(
+                [str(x) for x in orig_takeaways], valid_ref_labels
+            )
+            actions_list = _filter_ungrounded_items(
+                [str(x) for x in orig_actions], valid_ref_labels
+            )
+            if not answer_str.strip():
+                answer_status = "NEEDS_REVERIFICATION"
+                verification_status = "NEEDS_REVERIFICATION"
+                answer_str = "原历史回答未通过逐句可核验引用检查，已按 Fail-Closed 策略降级为待核验状态。"
+            sanitized_changed = (
+                answer_str != orig_answer
+                or takeaways_list != orig_takeaways
+                or actions_list != orig_actions
+            )
         provider_str = str(row["provider"])
         model_str = str(row["model"])
         created_at_str = str(row["created_at"])
@@ -6863,6 +7281,7 @@ class WorkspaceIntelligenceHub:
             answer_status == "NEEDS_REVERIFICATION"
             or bool(parsed_scope.get("restored_from_backup"))
             or has_unverified_related
+            or sanitized_changed
         ):
             obsidian_md = self._build_research_session_obsidian_markdown(
                 question=question_str,
@@ -6947,21 +7366,72 @@ class WorkspaceIntelligenceHub:
 
     def list_research_sessions(self) -> dict[str, object]:
         conn = self._connect_read()
-        sessions: list[dict[str, object]] = []
+        selected_rows: list[sqlite3.Row] = []
         if conn is not None:
             try:
-                rows = conn.execute(
-                    "SELECT rowid AS _rowid, * FROM research_qa_sessions "
+                meta_rows = conn.execute(
+                    "SELECT rowid AS _rowid, scope_json FROM research_qa_sessions "
                     "ORDER BY created_at DESC, rowid DESC"
                 ).fetchall()
-                for row in rows:
-                    sessions.append(self._row_to_research_session_dto(row))
-                sessions.sort(key=lambda item: not bool(item.get("pinned", False)))
-                sessions = sessions[:30]
+                ranked_meta: list[tuple[int, bool]] = []
+                for mrow in meta_rows:
+                    is_pinned = False
+                    raw_scope = mrow["scope_json"]
+                    if raw_scope:
+                        try:
+                            parsed_meta = json.loads(str(raw_scope))
+                            if isinstance(parsed_meta, Mapping):
+                                is_pinned = bool(parsed_meta.get("pinned", False))
+                        except ValueError:
+                            is_pinned = False
+                    ranked_meta.append((int(mrow["_rowid"]), is_pinned))
+                ranked_meta.sort(key=lambda pair: not pair[1])
+                top_rowids = [rowid for rowid, _ in ranked_meta[:30]]
+                if top_rowids:
+                    marks = ",".join("?" for _ in top_rowids)
+                    fetched = conn.execute(
+                        f"SELECT rowid AS _rowid, * FROM research_qa_sessions WHERE rowid IN ({marks})",
+                        top_rowids,
+                    ).fetchall()
+                    by_rowid = {int(r["_rowid"]): r for r in fetched}
+                    selected_rows = [by_rowid[rid] for rid in top_rowids if rid in by_rowid]
             except sqlite3.Error:
-                sessions = []
+                selected_rows = []
             finally:
                 conn.close()
+
+        pairs_to_verify: list[tuple[str, str]] = []
+        for srow in selected_rows:
+            try:
+                raw_cites = json.loads(str(srow["citations_json"]))
+            except ValueError:
+                raw_cites = []
+            if isinstance(raw_cites, list):
+                for entry in raw_cites:
+                    if isinstance(entry, Mapping):
+                        v = str(entry.get("video_id") or "").strip()
+                        e = str(entry.get("evidence_id") or "").strip()
+                        if v and e:
+                            pairs_to_verify.append((v, e))
+            raw_scope_s = srow["scope_json"]
+            if raw_scope_s:
+                try:
+                    sc = json.loads(str(raw_scope_s))
+                    if isinstance(sc, Mapping) and isinstance(sc.get("related_excerpts"), list):
+                        for entry in sc["related_excerpts"]:
+                            if isinstance(entry, Mapping):
+                                v = str(entry.get("video_id") or "").strip()
+                                e = str(entry.get("evidence_id") or "").strip()
+                                if v and e:
+                                    pairs_to_verify.append((v, e))
+                except ValueError:
+                    pass
+
+        pre_resolved = self._batch_resolve_authoritative_evidence(pairs_to_verify)
+        sessions: list[dict[str, object]] = [
+            self._row_to_research_session_dto(srow, pre_resolved=pre_resolved)
+            for srow in selected_rows
+        ]
         scope_options = self._build_research_scope_options()
         return {
             "sessions": sessions,
@@ -8677,6 +9147,9 @@ class WorkspaceIntelligenceHub:
             "cloud_provider": cfg.get("cloud_provider", DEFAULT_CLOUD_PROVIDER),
             "cloud_base_url": cfg.get("cloud_base_url", DEFAULT_CLOUD_BASE_URL),
             "cloud_model": cfg.get("cloud_model", DEFAULT_CLOUD_MODEL),
+            "cloud_daily_call_limit": self._parse_daily_limit(
+                cfg.get("cloud_daily_call_limit")
+            ),
         }
         briefs: list[dict[str, object]] = []
         sessions: list[dict[str, object]] = []
@@ -8954,11 +9427,17 @@ class WorkspaceIntelligenceHub:
     def restore_backup_snapshot(
         self, payload: Mapping[str, object]
     ) -> dict[str, object]:
-        if payload.get("schema_version") != "workspace-ai-backup-v1":
-            raise ValueError("Unsupported workspace AI backup schema_version.")
+        if (
+            not isinstance(payload, Mapping)
+            or payload.get("schema_version") != "workspace-ai-backup-v1"
+        ):
+            raise self._restore_payload_error("不支持的备份快照版本或格式，已拒绝恢复。")
         cloud_reauth_required = False
+        prepared_cfg: tuple[str, str, str, str, str, str, str, int, bool] | None = None
         raw_cfg = payload.get("engine_config")
-        if isinstance(raw_cfg, Mapping):
+        if raw_cfg is not None:
+            if not isinstance(raw_cfg, Mapping):
+                raise self._restore_payload_error("备份快照中的引擎配置格式无效，已拒绝恢复。")
             current_cfg = self._raw_engine_config()
             cfg_patch: dict[str, object] = {}
             for key in (
@@ -8969,41 +9448,36 @@ class WorkspaceIntelligenceHub:
                 "cloud_base_url",
                 "cloud_model",
             ):
-                if isinstance(raw_cfg.get(key), str):
+                if key in raw_cfg and raw_cfg[key] is not None:
+                    if not isinstance(raw_cfg[key], str):
+                        raise self._restore_payload_error("备份快照中的引擎配置字段类型无效，已拒绝恢复。")
                     cfg_patch[key] = raw_cfg[key]
-            if (
-                isinstance(raw_cfg.get("cloud_daily_call_limit"), (int, str))
-                and not isinstance(raw_cfg.get("cloud_daily_call_limit"), bool)
-            ):
-                cfg_patch["cloud_daily_call_limit"] = raw_cfg["cloud_daily_call_limit"]
+            if "cloud_daily_call_limit" in raw_cfg and raw_cfg["cloud_daily_call_limit"] is not None:
+                raw_limit = raw_cfg["cloud_daily_call_limit"]
+                if isinstance(raw_limit, bool) or not isinstance(raw_limit, (int, str)):
+                    raise self._restore_payload_error("备份快照中的云端日调用上限格式无效，已拒绝恢复。")
+                cfg_patch["cloud_daily_call_limit"] = raw_limit
             if cfg_patch:
-                req_mode = str(
-                    cfg_patch.get("active_mode", current_cfg["active_mode"])
-                ).strip()
-                req_base = str(
-                    cfg_patch.get("cloud_base_url", current_cfg["cloud_base_url"])
-                ).strip().rstrip("/")
-                req_prov = str(
-                    cfg_patch.get("cloud_provider", current_cfg["cloud_provider"])
-                ).strip()
-                if (
-                    req_mode == "cloud_byok"
-                    or req_base != current_cfg["cloud_base_url"]
-                    or req_prov != current_cfg["cloud_provider"]
-                ):
-                    cloud_reauth_required = True
-                self.update_settings(cfg_patch, from_restore=True)
+                try:
+                    prepared_cfg = self._prepare_engine_config_update(
+                        cfg_patch, current_cfg, from_restore=True
+                    )
+                except ValueError as err:
+                    raise self._restore_payload_error(
+                        "备份快照中的引擎配置参数无效，已拒绝恢复。"
+                    ) from err
+                cloud_reauth_required = prepared_cfg[8]
 
         # Decode and SHA-256 verify all bundled visual keyframe JPEGs BEFORE mutating DB or files.
         raw_assets = payload.get("visual_keyframe_assets")
         verified_assets_by_key: dict[tuple[str, str], tuple[str, str, bytes]] = {}
         if raw_assets is not None:
             if not isinstance(raw_assets, list):
-                raise ValueError("visual_keyframe_assets must be a list.")
+                raise self._restore_payload_error("备份快照中的关键帧资源列表格式无效，已拒绝恢复。")
             total_decoded = 0
             for entry in raw_assets:
                 if not isinstance(entry, Mapping):
-                    raise ValueError("Each visual_keyframe_assets entry must be an object.")
+                    raise self._restore_payload_error("备份快照中的关键帧资源条目格式无效，已拒绝恢复。")
                 vid = str(entry.get("video_id") or "").strip()
                 fid = str(entry.get("frame_id") or "").strip()
                 fname = _validate_single_segment(Path(str(entry.get("filename") or "")).name)
@@ -9016,25 +9490,27 @@ class WorkspaceIntelligenceHub:
                     or len(declared_sha) != 64
                     or not isinstance(b64, str)
                 ):
-                    raise ValueError("Invalid visual_keyframe_assets metadata entry.")
+                    raise self._restore_payload_error("备份快照中的关键帧元数据无效，已拒绝恢复。")
                 try:
                     raw_img = base64.b64decode(b64.encode("ascii"), validate=True)
                 except Exception as err:
-                    raise ValueError("Invalid base64 keyframe image in backup.") from err
+                    raise self._restore_payload_error("备份快照中的关键帧图片编码无效，已拒绝恢复。") from err
                 if (
                     len(raw_img) <= 2
                     or len(raw_img) > MAX_SINGLE_FRAME_BYTES
                     or raw_img[:2] != b"\xff\xd8"
                 ):
-                    raise ValueError("Restored keyframe asset is empty, oversized, or not JPEG.")
+                    raise self._restore_payload_error("备份快照中的关键帧图片大小或格式无效，已拒绝恢复。")
                 total_decoded += len(raw_img)
                 if total_decoded > MAX_BACKUP_VISUAL_RAW_BYTES:
-                    raise ValueError("Restored keyframe assets exceed bounded total size.")
-                if entry.get("byte_count") is not None and int(cast(int, entry["byte_count"])) != len(raw_img):
-                    raise ValueError("Restored keyframe byte_count mismatch.")
+                    raise self._restore_payload_error("备份快照中的关键帧总容量超出限制，已拒绝恢复。")
+                if entry.get("byte_count") is not None:
+                    declared_bytes = self._require_restore_int(entry["byte_count"])
+                    if declared_bytes != len(raw_img):
+                        raise self._restore_payload_error("备份快照中的关键帧字节计数不匹配，已拒绝恢复。")
                 actual_sha = hashlib.sha256(raw_img).hexdigest()
                 if actual_sha != declared_sha:
-                    raise ValueError("Restored keyframe SHA-256 integrity mismatch.")
+                    raise self._restore_payload_error("备份快照中的关键帧 SHA-256 校验失败，已拒绝恢复。")
                 verified_assets_by_key[(vid, fid)] = (fname, actual_sha, raw_img)
 
         raw_briefs = payload.get("video_ai_briefs")
@@ -9042,6 +9518,71 @@ class WorkspaceIntelligenceHub:
         raw_weekly = payload.get("weekly_ai_briefs")
         raw_curation = payload.get("video_curation_states")
         raw_visual = payload.get("video_visual_analyses")
+        for section_name, section_val in (
+            ("video_ai_briefs", raw_briefs),
+            ("research_qa_sessions", raw_sessions),
+            ("weekly_ai_briefs", raw_weekly),
+            ("video_curation_states", raw_curation),
+            ("video_visual_analyses", raw_visual),
+        ):
+            if section_val is not None and not isinstance(section_val, list):
+                raise self._restore_payload_error(
+                    f"备份快照字段类型无效（{section_name}），已拒绝恢复。"
+                )
+
+        # Up-front validate scalar/numeric types across ALL sections before touching disk or DB.
+        parsed_brief_nums: dict[int, tuple[float, int | None]] = {}
+        if isinstance(raw_briefs, list):
+            for idx_b, item in enumerate(raw_briefs):
+                if not isinstance(item, Mapping):
+                    raise self._restore_payload_error("备份快照中的视频摘要条目格式无效，已拒绝恢复。")
+                if not item.get("video_id"):
+                    continue
+                b_score = self._require_restore_float(item.get("score"), default=6.0)
+                b_dur = (
+                    None
+                    if item.get("duration_seconds") is None
+                    else self._require_restore_int(item["duration_seconds"])
+                )
+                parsed_brief_nums[idx_b] = (b_score, b_dur)
+        parsed_session_counts: dict[int, int] = {}
+        if isinstance(raw_sessions, list):
+            for idx_s, item in enumerate(raw_sessions):
+                if not isinstance(item, Mapping):
+                    raise self._restore_payload_error("备份快照中的研究问答条目格式无效，已拒绝恢复。")
+                if not item.get("session_id"):
+                    continue
+                parsed_session_counts[idx_s] = self._require_restore_int(
+                    item.get("video_count"), default=0
+                )
+        parsed_visual_counts: dict[int, tuple[int, int]] = {}
+        if isinstance(raw_visual, list):
+            for idx_v, item in enumerate(raw_visual):
+                if not isinstance(item, Mapping):
+                    raise self._restore_payload_error("备份快照中的视觉分析条目格式无效，已拒绝恢复。")
+                if not item.get("video_id"):
+                    continue
+                fc = self._require_restore_int(item.get("frame_count"), default=0)
+                ifc = self._require_restore_int(
+                    item.get("informative_frame_count"), default=0
+                )
+                try:
+                    raw_frames = json.loads(str(item.get("frames_json", "[]")))
+                except ValueError as err:
+                    raise self._restore_payload_error("备份快照中的视觉帧数据损坏，已拒绝恢复。") from err
+                if isinstance(raw_frames, list):
+                    vid_chk = str(item["video_id"])
+                    for frame in raw_frames:
+                        if isinstance(frame, Mapping):
+                            fid_chk = str(frame.get("frame_id") or "")
+                            asset_chk = verified_assets_by_key.get((vid_chk, fid_chk))
+                            if asset_chk is not None:
+                                exp_sha = str(frame.get("sha256") or "").strip().lower()
+                                if exp_sha and exp_sha != asset_chk[1]:
+                                    raise self._restore_payload_error(
+                                        "备份快照中的关键帧校验与元数据不一致，已拒绝恢复。"
+                                    )
+                parsed_visual_counts[idx_v] = (fc, ifc)
 
         restored_briefs = 0
         restored_sessions = 0
@@ -9057,10 +9598,10 @@ class WorkspaceIntelligenceHub:
         conn: sqlite3.Connection | None = None
         try:
             # Stage and materialize verified keyframe JPEG assets before DB commit
-            visual_rows_to_write: list[tuple[dict[str, object], str, str | None]] = []
+            visual_rows_to_write: list[tuple[dict[str, object], str, tuple[int, int]]] = []
             if isinstance(raw_visual, list):
                 kf_root = self._keyframes_root()
-                for item in raw_visual:
+                for idx_v, item in enumerate(raw_visual):
                     if not isinstance(item, Mapping) or not item.get("video_id"):
                         continue
                     vid = str(item["video_id"])
@@ -9132,14 +9673,18 @@ class WorkspaceIntelligenceHub:
                         (
                             dict(item),
                             json.dumps(updated_frames, ensure_ascii=False),
-                            gen_id,
+                            parsed_visual_counts[idx_v],
                         )
                     )
 
             conn = self._connect_write()
             with conn:
+                if prepared_cfg is not None:
+                    self._upsert_engine_config(
+                        conn, prepared_cfg, format_utc_datetime(self._now())
+                    )
                 if isinstance(raw_briefs, list):
-                    for item in raw_briefs:
+                    for idx_b, item in enumerate(raw_briefs):
                         if not isinstance(item, Mapping) or not item.get("video_id"):
                             continue
                         b_vid = str(item["video_id"])
@@ -9213,17 +9758,12 @@ class WorkspaceIntelligenceHub:
                         b_model = str(item.get("model", DEFAULT_OLLAMA_MODEL))
                         b_headline = str(item.get("headline_zh", ""))
                         b_summary = str(item.get("summary_zh", ""))
-                        b_score = float(cast(float, item.get("score", 6.0)))
+                        b_score, b_dur = parsed_brief_nums[idx_b]
                         b_score_reason = str(item.get("score_reason_zh", ""))
                         b_tier = str(item.get("recommendation_tier", "WORTH_SKIMMING"))
                         b_bucket = str(item.get("content_bucket", "DEEP_DIVE"))
                         b_cluster = str(
                             item.get("topic_cluster_zh", CANONICAL_TOPIC_CLUSTERS[0])
-                        )
-                        b_dur = (
-                            None
-                            if item.get("duration_seconds") is None
-                            else int(cast(int, item["duration_seconds"]))
                         )
                         b_source_basis = str(item.get("source_basis") or "TRANSCRIPT")
                         regenerated_brief_md = self._build_video_obsidian_markdown(
@@ -9338,7 +9878,7 @@ class WorkspaceIntelligenceHub:
                         restored_briefs += 1
 
                 if isinstance(raw_sessions, list):
-                    for item in raw_sessions:
+                    for idx_s, item in enumerate(raw_sessions):
                         if not isinstance(item, Mapping) or not item.get("session_id"):
                             continue
                         (
@@ -9379,6 +9919,34 @@ class WorkspaceIntelligenceHub:
                                 else "NEEDS_REVERIFICATION"
                             )
                         )
+                        if not s_refused and s_answer_status == "GROUNDED":
+                            restored_valid_refs = {
+                                str(c.get("ref_label") or c.get("ref") or "")
+                                .strip()
+                                .upper()
+                                for c in reverified_cites_list
+                                if isinstance(c, Mapping)
+                                and bool(c.get("verified"))
+                                and str(c.get("ref_label") or c.get("ref") or "").strip()
+                            }
+                            s_answer = _prune_ungrounded_ref_clauses(
+                                s_answer,
+                                restored_valid_refs,
+                                require_valid_ref_per_sentence=True,
+                            )
+                            s_takeaways = _filter_ungrounded_items(
+                                [str(x) for x in s_takeaways], restored_valid_refs
+                            )
+                            s_actions = _filter_ungrounded_items(
+                                [str(x) for x in s_actions], restored_valid_refs
+                            )
+                            if not s_answer.strip():
+                                s_answer_status = "NEEDS_REVERIFICATION"
+                                reverified_scope_obj["answer_status"] = "NEEDS_REVERIFICATION"
+                                clean_scope_json = json.dumps(
+                                    reverified_scope_obj, ensure_ascii=False
+                                )
+                                s_answer = "原历史回答未通过逐句可核验引用检查，已按 Fail-Closed 策略降级为待核验状态。"
                         raw_s_rel = reverified_scope_obj.get("related_excerpts")
                         raw_s_cov = reverified_scope_obj.get("covered_sources")
                         regenerated_sess_md = (
@@ -9428,10 +9996,10 @@ class WorkspaceIntelligenceHub:
                                 str(item["session_id"]),
                                 s_question,
                                 s_answer,
-                                str(item.get("key_takeaways_json", "[]")),
-                                str(item.get("action_items_json", "[]")),
+                                json.dumps(s_takeaways, ensure_ascii=False),
+                                json.dumps(s_actions, ensure_ascii=False),
                                 clean_cites_json,
-                                int(cast(int, item.get("video_count", 0))),
+                                parsed_session_counts[idx_s],
                                 s_provider,
                                 s_model,
                                 regenerated_sess_md,
@@ -9496,7 +10064,7 @@ class WorkspaceIntelligenceHub:
                         )
                         restored_curation += 1
 
-                for item, updated_frames_json, _ in visual_rows_to_write:
+                for item, updated_frames_json, (fc_val, ifc_val) in visual_rows_to_write:
                     conn.execute(
                         """
                         INSERT OR REPLACE INTO video_visual_analyses (
@@ -9511,8 +10079,8 @@ class WorkspaceIntelligenceHub:
                             str(item.get("visual_summary_zh", "")),
                             str(item.get("visual_takeaways_json", "[]")),
                             updated_frames_json,
-                            int(cast(int, item.get("frame_count", 0))),
-                            int(cast(int, item.get("informative_frame_count", 0))),
+                            fc_val,
+                            ifc_val,
                             str(item.get("provider", "ollama")),
                             str(item.get("model", DEFAULT_OLLAMA_MODEL)),
                             str(
