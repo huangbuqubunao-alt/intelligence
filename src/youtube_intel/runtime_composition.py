@@ -10,7 +10,10 @@ from contextlib import nullcontext
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
+
+if TYPE_CHECKING:
+    from youtube_intel.youtube_auth_fallback import YouTubeAuthFallbackService
 
 from youtube_intel.backup_restore import BackupRestoreService
 from youtube_intel.bilibili_content import BilibiliContentProvider
@@ -91,6 +94,7 @@ _YOUTUBE_ERROR_MESSAGES: dict[str, str] = {
     "YOUTUBE_NO_CAPTIONS": "Video metadata loaded, but no usable YouTube captions are available.",
     "YOUTUBE_AUTH_RATE_LIMITED": "Authenticated YouTube fallback reached its safety rate limit or cooldown.",
     "YOUTUBE_AUTH_EXPIRED": "Authorized YouTube login session expired or was rejected.",
+    "YOUTUBE_AUTH_COOKIE_FILTER_FAILED": "Authenticated YouTube cookie filtering failed safely; no authorized request was sent.",
     "YOUTUBE_IMPORT_FAILED": "YouTube import did not complete.",
 }
 
@@ -147,10 +151,12 @@ class RuntimeSourceRunIngestion:
         runtime: RuntimeOperations,
         source_policy: SourcePolicyApplicationService,
         source_tracking: FollowingTrackingService | None = None,
+        youtube_auth_fallback: YouTubeAuthFallbackService | None = None,
     ) -> None:
         self._runtime = runtime
         self._source_policy = source_policy
         self._source_tracking = source_tracking
+        self._youtube_auth_fallback = youtube_auth_fallback
 
     def caption_repair_is_waiting(self, run: SourceRunRecord) -> bool:
         """On restart, respect both existing leases before resuming this child."""
@@ -300,7 +306,7 @@ class RuntimeSourceRunIngestion:
                     error, self._runtime._repository, source.video_id
                 )
                 if code == "YOUTUBE_AUTH_REQUIRED":
-                    fallback = getattr(self, "_youtube_auth_fallback", None)
+                    fallback = self._youtube_auth_fallback
                     if fallback is None and getattr(self._runtime, "_root", None) is not None:
                         from youtube_intel.youtube_auth_fallback import (
                             YouTubeAuthFallbackService,
@@ -309,7 +315,7 @@ class RuntimeSourceRunIngestion:
                         fallback = YouTubeAuthFallbackService(
                             project_root=self._runtime._root
                         )
-                    if fallback is not None and fallback.get_status().get("enabled") is True:
+                    if fallback is not None:
                         fallback_code = fallback.attempt_authenticated_ingest(
                             self._runtime, source_id, source.video_id
                         )
@@ -531,6 +537,7 @@ class LocalSourceRunRuntime:
     worker: DurableSourceRunWorker
     application: LocalApiApplication
     backup_restore: BackupRestoreService
+    youtube_auth_fallback: YouTubeAuthFallbackService | None = None
 
 
 def _deep_analysis_production_capability() -> DeepAnalysisCapability:
@@ -587,6 +594,7 @@ def build_local_source_run_runtime(
     allow_cloud_execution: bool = True,
     probe_local_runtime: bool = True,
     now: Callable[[], datetime] | None = None,
+    youtube_auth_fallback: YouTubeAuthFallbackService | None = None,
 ) -> LocalSourceRunRuntime:
     """Compose the GUI, scheduler, ingestion, and worker onto one durable authority.
 
@@ -771,13 +779,29 @@ def build_local_source_run_runtime(
         now=now_fn,
     )
     from youtube_intel.providers.youtube_channel import YouTubeFollowingProvider
+    from youtube_intel.youtube_auth_fallback import (
+        YouTubeAuthFallbackService as _YouTubeAuthFallbackService,
+    )
+    resolved_yt_auth = (
+        youtube_auth_fallback
+        if youtube_auth_fallback is not None
+        else _YouTubeAuthFallbackService(project_root=project_root, now=now_fn)
+    )
+    reconcile = getattr(resolved_yt_auth, "reconcile_orphan_credentials", None)
+    if callable(reconcile):
+        reconcile(include_in_use=True)
     source_tracking = FollowingTrackingService(repository, BilibiliContentProvider(repository, data_root, now=now_fn), youtube=YouTubeFollowingProvider(enroll_video=runtime.enroll_followed_youtube_video), now=now_fn)
     orchestrator = DurableProcessingOrchestrator(
         repository,
         source_policy=source_policy,
         distillation=distillation,
         discovery=PersistedSourceRunDiscovery(repository),
-        ingestion=RuntimeSourceRunIngestion(runtime, source_policy, source_tracking),
+        ingestion=RuntimeSourceRunIngestion(
+            runtime,
+            source_policy,
+            source_tracking,
+            youtube_auth_fallback=resolved_yt_auth,
+        ),
         preparation=RuntimeSourceRunPreparation(runtime),
         now=now_fn,
     )
@@ -892,4 +916,5 @@ def build_local_source_run_runtime(
         worker=worker,
         application=application,
         backup_restore=backup_restore,
+        youtube_auth_fallback=resolved_yt_auth,
     )

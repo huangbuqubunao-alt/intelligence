@@ -1858,6 +1858,7 @@ class FastReadApiApplication:
         inner: LocalApiApplication,
         *,
         workspace_hub: WorkspaceIntelligenceHub | None = None,
+        youtube_auth_fallback: YouTubeAuthFallbackService | None = None,
     ) -> None:
         self._inner = inner
         self._workspace_hub = (
@@ -1869,9 +1870,13 @@ class FastReadApiApplication:
                 now=inner._now,
             )
         )
-        self._youtube_auth = YouTubeAuthFallbackService(
-            project_root=self._workspace_hub._project_root,
-            now=inner._now,
+        self._youtube_auth = (
+            youtube_auth_fallback
+            if youtube_auth_fallback is not None
+            else YouTubeAuthFallbackService(
+                project_root=self._workspace_hub._project_root,
+                now=inner._now,
+            )
         )
         self._cache_lock = threading.Lock()
         self._mutation_epoch = 0
@@ -4082,7 +4087,11 @@ def run_fast_read_server_loop(
                 picker_executable=native_picker_executable,
             )
         hub = hub_factory(composition) if hub_factory is not None else None
-        fast_app = FastReadApiApplication(composition.application, workspace_hub=hub)
+        fast_app = FastReadApiApplication(
+            composition.application,
+            workspace_hub=hub,
+            youtube_auth_fallback=composition.youtube_auth_fallback,
+        )
         server = serve_loopback(
             cast(LocalApiApplication, fast_app),
             port=port,

@@ -303,7 +303,11 @@ def prepare_local_workspace(
         installed_ollama_probe=ollama_probe,
     )
     hub.ensure_ready()
-    fast_app = FastReadApiApplication(composition.application, workspace_hub=hub)
+    fast_app = FastReadApiApplication(
+        composition.application,
+        workspace_hub=hub,
+        youtube_auth_fallback=composition.youtube_auth_fallback,
+    )
     active_web_dir = preflight.web_dir if preflight.frontend_ready else None
     return LocalWorkspaceRuntime(
         project_root=resolved_project,

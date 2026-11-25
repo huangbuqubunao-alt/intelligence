@@ -1449,7 +1449,11 @@ def prepare_demo_showcase(
             raise RuntimeError(f"Demo showcase DB not backup-ready: {readiness}")
 
     live_mode = True
-    fast_app = FastReadApiApplication(composition.application, workspace_hub=hub)
+    fast_app = FastReadApiApplication(
+        composition.application,
+        workspace_hub=hub,
+        youtube_auth_fallback=composition.youtube_auth_fallback,
+    )
     video_count = len(composition.repository.list_videos(limit=100))
     return DemoShowcaseRuntime(
         root=resolved_demo,
