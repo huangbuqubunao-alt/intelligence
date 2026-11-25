@@ -6357,8 +6357,11 @@ function ContentDetailPanel(
   const isPlayableLocalVideo = isLocalMedia && data.video.media_kind === "VIDEO";
   const isPlayableLocalAudio = isLocalMedia && data.video.media_kind === "AUDIO";
   const localMediaSrc = `/api/v1/videos/${encodeURIComponent(id)}/media`;
+  const isRedundantWorkspaceAiNote = Boolean(
+    aiBrief && note?.status === "AVAILABLE" && note.note_identity?.startsWith("workspace-ai/"),
+  );
   const showSummaryPanel =
-    note?.status === "AVAILABLE" ||
+    (note?.status === "AVAILABLE" && !isRedundantWorkspaceAiNote) ||
     !aiBrief ||
     (isLocalMedia && wsTranscriberReady && transcript.status !== "AVAILABLE");
   const zhReader = language === "zh-CN";
