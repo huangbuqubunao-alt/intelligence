@@ -1444,6 +1444,8 @@ describe("Manual UX Remediation (#1-#4)", () => {
       await screen.findByText(/当前提问范围：候选资料 1 篇（提问时将实时核验原文）/),
     ).toBeTruthy();
     expect(await screen.findByText(/有效引用 1 条 · 覆盖来源 1 篇/)).toBeTruthy();
+    expect(await screen.findByText("出处已核验")).toBeTruthy();
+    expect(await screen.findByText("结论已受证据支持")).toBeTruthy();
   });
 
   it("P1-05 / Gate E2: ReaderReferenceDrawer excludes collapsed <details> descendants from Tab/Shift+Tab focus trap", () => {

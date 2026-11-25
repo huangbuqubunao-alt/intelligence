@@ -9,6 +9,7 @@ import json
 import sqlite3
 import threading
 import time
+import zipfile
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from http import HTTPStatus
@@ -19,6 +20,7 @@ from typing import Any, cast
 import pytest
 from yt_dlp.utils import DownloadError  # type: ignore[import-untyped]
 
+from tests.integration.test_codex_review_remediation import _build_env, _StubCompleter
 from tests.unit.test_manual_ux_remediation import (
     _build_runtime_env,
     _seed_video_source,
@@ -27,11 +29,16 @@ from tests.unit.test_manual_ux_remediation import (
 from youtube_intel.config import AppConfig, AppSettings, load_settings
 from youtube_intel.fast_read_api import FastReadApiApplication
 from youtube_intel.local_api import LocalApiApplication, serve_loopback
+from youtube_intel.local_content import LocalContentProvider
 from youtube_intel.providers.youtube import YtDlpMetadataProvider
 from youtube_intel.providers.youtube import _bind_test_hooks as bind_metadata_hooks
 from youtube_intel.runtime import _production_dependencies
 from youtube_intel.runtime_composition import build_local_source_run_runtime
-from youtube_intel.workspace_intelligence_hub import WorkspaceIntelligenceHub
+from youtube_intel.workspace_intelligence_hub import (
+    WorkspaceIntelligenceHub,
+    _check_clause_against_cited_evidence,
+    _sanitize_citation_note,
+)
 from youtube_intel.youtube_auth_fallback import (
     CIRCUIT_BREAK_MINUTES,
     GLOBAL_COOKIE_SLOT,
@@ -900,3 +907,215 @@ def test_p2_cookiejar_filter_fail_closed_zero_external_requests(
     assert external_calls == []
     assert "EVIL_SECRET" not in json.dumps(svc.get_status())
     assert svc.get_status()["circuit_open"] is False
+
+
+def test_p1_f03_unified_fact_support_counterexamples_note_zh_and_3state_trust(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Close F1-F5b counterexamples, smuggled note_zh across all exits, 3-state trust & benign bilingual parity."""
+    # 1. Exact adversarial counterexamples (F1-F5b)
+    fail_cases = [
+        ("F1_topic_pct", "营收增长 5% [E1]。", ["环境温度增长 5%"], "CITATION_FACT_CONFLICT"),
+        ("F2_sign_pct", "收入增长 5% [E1]。", ["收入增长 -5%"], "CITATION_FACT_CONFLICT"),
+        ("F2_sign_cur", "净利润为 $100 [E1]。", ["净利润为 -$100"], "CITATION_FACT_CONFLICT"),
+        ("F3_glue_bigram", "产品支持实时多人协作 [E1]。", ["产品支持文档搜索。"], "UNSUPPORTED_CLAIM_UNVERIFIED"),
+        (
+            "F4_cross_lingual",
+            "产品支持实时多人协作 [E1]。",
+            ["This document only discusses local text retrieval and indexing."],
+            "UNSUPPORTED_CLAIM_UNVERIFIED",
+        ),
+        ("F5a_zh_entity", "甲产品性能提升 30% [E1]。", ["乙产品性能提升 30%"], "CITATION_FACT_CONFLICT"),
+        ("F5b_en_entity", "Product B performance improved 30% [E1]。", ["Product A performance improved 30%"], "CITATION_FACT_CONFLICT"),
+    ]
+    for name, claim, exs, exp_code in fail_cases:
+        ok, code = _check_clause_against_cited_evidence(claim, exs)
+        assert not ok and code == exp_code, f"{name}: got ok={ok}, code={code}"
+
+    # 2. Benign synonym & genuine bilingual cross-lingual support STILL pass!
+    benign_cases = [
+        ("benign_synonym", "营收增长 5% [E1]。", ["收入同比增长 5%。"]),
+        ("benign_neg_pct", "收入增长 -5% [E1]。", ["2025 年收入增长 -5%。"]),
+        (
+            "benign_bilingual_retrieval",
+            "该系统支持本地文本检索与索引 [E1]。",
+            ["This document discusses local text retrieval and indexing."],
+        ),
+        ("benign_entity_match", "Product A performance improved 30% [E1]。", ["Product A performance improved 30%"]),
+    ]
+    for name, claim, exs in benign_cases:
+        ok, code = _check_clause_against_cited_evidence(claim, exs)
+        assert ok and code is None, f"{name}: unexpectedly rejected ({code})"
+
+    # 3. note_zh sanitization blocks smuggled claims/conflicts while keeping pure metadata/verified notes
+    assert _sanitize_citation_note("产品支持实时多人协作", "2025年营收增长 5%")[1] is True
+    assert _sanitize_citation_note("营收增长 300%", "2025年营收增长 5%")[1] is True
+    assert _sanitize_citation_note("Product B 提速 30%", "Product A performance improved 30%")[1] is True
+    assert _sanitize_citation_note("营收增长 5%", "2025年营收增长 5%")[0] == "营收增长 5%"
+    assert _sanitize_citation_note("原文来源", "2025年营收增长 5%")[0] == "原文来源"
+
+    # 4. Full pipeline: live Q&A + smuggled note_zh + warm/cold history + backup export/restore + Obsidian MD & ZIP
+    payload_by_tag: dict[str, dict[str, Any]] = {
+        "ADV_F1": {
+            "answerable": True,
+            "answer_zh": "营收增长 5% [E1]。",
+            "key_takeaways_zh": [],
+            "action_items_zh": [],
+            "citations": [{"ref": "E1", "note_zh": "营收增长 5%"}],
+        },
+        "ADV_F2": {
+            "answerable": True,
+            "answer_zh": "收入增长 5% [E1]。",
+            "key_takeaways_zh": [],
+            "action_items_zh": [],
+            "citations": [{"ref": "E1", "note_zh": "收入增长"}],
+        },
+        "ADV_F3": {
+            "answerable": True,
+            "answer_zh": "产品支持实时多人协作 [E1]。",
+            "key_takeaways_zh": [],
+            "action_items_zh": [],
+            "citations": [{"ref": "E1", "note_zh": "多人协作"}],
+        },
+        "ADV_F4": {
+            "answerable": True,
+            "answer_zh": "产品支持实时多人协作 [E1]。",
+            "key_takeaways_zh": [],
+            "action_items_zh": [],
+            "citations": [{"ref": "E1", "note_zh": "原文讨论"}],
+        },
+        "ADV_F5B": {
+            "answerable": True,
+            "answer_zh": "Product B performance improved 30% [E1]。",
+            "key_takeaways_zh": [],
+            "action_items_zh": [],
+            "citations": [{"ref": "E1", "note_zh": "performance"}],
+        },
+        "NOTE_SMUGGLE": {
+            "answerable": True,
+            "answer_zh": "2025年公司营收增长 5% [E1]。",
+            "key_takeaways_zh": ["营收同比增长 5% [E1]"],
+            "action_items_zh": ["基于 5% 营收增长复盘原因 [E1]"],
+            "citations": [{"ref": "E1", "note_zh": "产品支持实时多人协作且营收增长 300%"}],
+        },
+        "GOOD_BILINGUAL": {
+            "answerable": True,
+            "answer_zh": "原文确认支持本地文本检索与索引 [E1]。",
+            "key_takeaways_zh": ["支持本地检索与索引 [E1]"],
+            "action_items_zh": ["基于本地检索能力优化查询流程 [E1]"],
+            "citations": [{"ref": "E1", "note_zh": "本地文本检索与索引"}],
+        },
+    }
+
+    def _completer(
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        mode: str,
+        provider: str,
+        model: str,
+        max_tokens: int = 1800,
+    ) -> tuple[dict[str, Any], str, str]:
+        del mode, max_tokens
+        if "RESEARCH_QA_SCHEMA" in system_prompt:
+            for tag, body in payload_by_tag.items():
+                if tag in user_prompt:
+                    return dict(body), provider, model
+        return _StubCompleter()(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            mode="local_ollama",
+            provider=provider,
+            model=model,
+        )
+
+    env = _build_env(tmp_path, monkeypatch, name="p1_f03", completer=_StubCompleter(_completer))
+    hub = env["hub"]
+    prov = LocalContentProvider(env["repo"], env["data_root"], now=lambda: BASE_NOW)
+    d_temp = prov.import_bytes("temp.md", "环境温度增长 5%。".encode("utf-8"))
+    d_neg = prov.import_bytes("neg_rev.md", "收入增长 -5%。".encode("utf-8"))
+    d_search = prov.import_bytes("search_doc.md", "产品支持文档搜索。".encode("utf-8"))
+    d_en_ret = prov.import_bytes(
+        "en_retrieval.md",
+        "This document only discusses local text retrieval and indexing.".encode("utf-8"),
+    )
+    d_prod_a = prov.import_bytes("prod_a.md", "Product A performance improved 30%.".encode("utf-8"))
+    d_rev = prov.import_bytes("rev_main.md", "2025年公司收入同比增长 5%。".encode("utf-8"))
+
+    for tag, doc_id in (
+        ("ADV_F1", d_temp.content_id),
+        ("ADV_F2", d_neg.content_id),
+        ("ADV_F3", d_search.content_id),
+        ("ADV_F4", d_en_ret.content_id),
+        ("ADV_F5B", d_prod_a.content_id),
+    ):
+        sess = hub.ask_research_question({"question": f"{tag} 核验", "video_ids": [doc_id]})["session"]
+        assert sess["answer_status"] == "REFUSED_INSUFFICIENT_EVIDENCE", tag
+        assert sess["refused"] is True, tag
+        assert sess["source_integrity_status"] == "REFUSED"
+        assert sess["citations"] == []
+
+    # Smuggled note_zh is stripped in live response, 3-state trust & AI advisory marker present
+    s_smuggle = hub.ask_research_question(
+        {"question": "NOTE_SMUGGLE 公司营收多少？", "video_ids": [d_rev.content_id]}
+    )["session"]
+    assert s_smuggle["answer_status"] == "GROUNDED"
+    assert s_smuggle["source_integrity_status"] == "VERIFIED"
+    assert s_smuggle["fact_verification_state"] == "PARTIAL_PRUNED"
+    assert s_smuggle["action_items_advisory"] is True
+    assert s_smuggle["citations"][0]["note_zh"] == ""
+    assert "300%" not in str(s_smuggle["obsidian_markdown"])
+    assert "实时多人协作" not in str(s_smuggle["obsidian_markdown"])
+    assert "AI 推断建议，非原文直接事实" in str(s_smuggle["obsidian_markdown"])
+
+    # Genuine bilingual retrieval claim remains GROUNDED + SUPPORTED
+    s_good = hub.ask_research_question(
+        {"question": "GOOD_BILINGUAL 文档支持什么功能？", "video_ids": [d_en_ret.content_id]}
+    )["session"]
+    assert s_good["answer_status"] == "GROUNDED"
+    assert s_good["source_integrity_status"] == "VERIFIED"
+    assert s_good["fact_verification_state"] == "SUPPORTED"
+
+    # Tampered legacy DB row note_zh smuggling must ALSO be purged in warm/cold history, backup export/restore & ZIP!
+    with sqlite3.connect(hub.db_path) as conn:
+        raw_c = json.dumps(s_good["citations"], ensure_ascii=False)
+        cites_dirty = json.loads(raw_c)
+        cites_dirty[0]["note_zh"] = "私自塞入 Product B 提速 99% 与多人协作"
+        conn.execute(
+            "UPDATE research_qa_sessions SET citations_json = ? WHERE session_id = ?",
+            (json.dumps(cites_dirty, ensure_ascii=False), s_good["session_id"]),
+        )
+        conn.commit()
+
+    # Clear verify cache -> cold history check
+    with hub._evidence_verify_cache_lock:
+        hub._evidence_verify_cache.clear()
+    hist_cold = {s["session_id"]: s for s in hub.list_research_sessions()["sessions"]}
+    s_hist = hist_cold[s_good["session_id"]]
+    assert s_hist["citations"][0]["note_zh"] == ""
+    assert "99%" not in str(s_hist["obsidian_markdown"])
+    assert "多人协作" not in str(s_hist["obsidian_markdown"])
+
+    # Backup export carries archive provenance AND sanitized notes; restore stays clean
+    snap = hub.export_backup_snapshot()
+    snap_sessions = {s["session_id"]: s for s in snap["research_qa_sessions"]}  # type: ignore[index]
+    exported_scope = json.loads(str(snap_sessions[s_good["session_id"]]["scope_json"]))
+    assert exported_scope["archive_status"] == "EXPORTED_SNAPSHOT_UNVERIFIED_UNTIL_RESTORE"
+    assert "99%" not in json.dumps(snap, ensure_ascii=False)
+
+    hub.restore_backup_snapshot(snap)
+    restored = {s["session_id"]: s for s in hub.list_research_sessions()["sessions"]}
+    assert restored[s_good["session_id"]]["citations"][0]["note_zh"] == ""
+    assert "99%" not in str(restored[s_good["session_id"]]["obsidian_markdown"])
+
+    _, zip_bytes, _, _ = hub.build_obsidian_vault_zip(scope="all")
+    with zipfile.ZipFile(io.BytesIO(zip_bytes), "r") as zf:
+        qa_md = "\n".join(
+            zf.read(n).decode("utf-8")
+            for n in zf.namelist()
+            if n.startswith("04-跨视频深度问答/") and n.endswith(".md")
+        )
+    assert "300%" not in qa_md
+    assert "99%" not in qa_md
+    assert "实时多人协作" not in qa_md
+    assert "source_integrity_status: \"VERIFIED\"" in qa_md

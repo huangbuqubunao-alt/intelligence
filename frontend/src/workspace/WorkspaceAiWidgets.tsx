@@ -140,6 +140,9 @@ export type AiResearchSession = {
   session_id: string;
   question: string;
   answer_status?: "GROUNDED" | "REFUSED_INSUFFICIENT_EVIDENCE" | "NEEDS_REVERIFICATION" | string;
+  source_integrity_status?: "VERIFIED" | "NEEDS_REVERIFICATION" | "REFUSED" | string;
+  fact_verification_state?: string;
+  action_items_advisory?: boolean;
   verification_status?: string;
   verified_citation_count?: number;
   refused?: boolean;
@@ -791,6 +794,15 @@ function readAiResearchSession(raw: unknown): AiResearchSession | null {
     session_id: raw.session_id,
     question: typeof raw.question === "string" ? raw.question : "",
     answer_status: answerStatus,
+    ...(typeof raw.source_integrity_status === "string"
+      ? { source_integrity_status: raw.source_integrity_status }
+      : {}),
+    ...(typeof raw.fact_verification_state === "string"
+      ? { fact_verification_state: raw.fact_verification_state }
+      : {}),
+    ...(typeof raw.action_items_advisory === "boolean"
+      ? { action_items_advisory: raw.action_items_advisory }
+      : {}),
     refused,
     refusal_reason_zh: refusalReason,
     scope_label_zh: typeof raw.scope_label_zh === "string" ? raw.scope_label_zh : "",
@@ -4277,9 +4289,30 @@ export function WorkspaceAiResearchPanel({
               </span>
             ) : activeSession.answer_status === "NEEDS_REVERIFICATION" ? (
               <span className="status status-warning">
-                {zh ? "恢复记录 · 待核验" : "Restored · Needs Re-verification"}
+                {zh ? "恢复记录 · 出处待核验" : "Restored · Source Needs Re-verification"}
               </span>
-            ) : null}
+            ) : (
+              <>
+                <span className="ai-basis-pill">
+                  {activeSession.source_integrity_status === "NEEDS_REVERIFICATION"
+                    ? zh
+                      ? "出处待核验"
+                      : "Source needs re-verification"
+                    : zh
+                      ? "出处已核验"
+                      : "Source verified"}
+                </span>
+                <span className="ai-basis-pill">
+                  {activeSession.fact_verification_state === "PARTIAL_PRUNED"
+                    ? zh
+                      ? "部分未支持内容已裁剪"
+                      : "Unsupported parts pruned"
+                    : zh
+                      ? "结论已受证据支持"
+                      : "Claims supported"}
+                </span>
+              </>
+            )}
             {activeSession.scope_label_zh ? (
               <span className="ai-basis-pill">{activeSession.scope_label_zh}</span>
             ) : null}
@@ -4339,7 +4372,12 @@ export function WorkspaceAiResearchPanel({
 
           {activeSession.action_items_zh.length > 0 ? (
             <div className="ai-action-items-block">
-              <h4>{zh ? "下一步可执行动作" : "Next actionable steps"}</h4>
+              <h4>
+                {zh ? "下一步可执行动作" : "Next actionable steps"}
+                <span className="ai-basis-pill is-compact" style={{ marginLeft: "0.5rem" }}>
+                  {zh ? "AI 推断建议（非原文事实）" : "AI advisory (not verbatim source fact)"}
+                </span>
+              </h4>
               <ul>
                 {activeSession.action_items_zh.map((item, idx) => (
                   <li key={idx}>{item}</li>
