@@ -12,8 +12,8 @@
 - [x] Batch 2: Visual Design System, Mobile Responsive Fix (`390x844`) & Sticky Jump Bar Polish
 - [x] Batch 3: Home Hierarchy (`Dashboard` -> `KnowledgeDelta`), Sparse Quick-Start, Accurate Attention Guidance & Calmer Local Drag-Drop Import
 - [x] Batch 4: Content Toolbar, Reader Action Consolidation, Progressive Evidence Disclosure, Topic & Research Polish + Full Vitest + `impeccable detect`
-- [ ] Batch 5: Restart Live Servers (`8792` + temp `8798`) & Multi-Persona Live Browser Acceptance + After Screenshots
-- [ ] Batch 6: Iteration Round 2 Polish, Final Regression Gate, Quantitative Before/After Report & Final 12 Deliverables
+- [x] Batch 5: Restart Live Servers (`8792` + temp `8798`) & Multi-Persona Live Browser Acceptance + After Screenshots
+- [x] Batch 6: Iteration Round 2 Polish, Final Regression Gate, Quantitative Before/After Report & Final 12 Deliverables
 
 ## Resume Instructions (if interrupted)
 1. Check `git status -s` and `git log -5 --oneline` on `antigravity/task-user-readiness-20261112`.
