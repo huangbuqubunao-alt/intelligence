@@ -5164,6 +5164,7 @@ function ContentPage(
             </div>
           </section>
         )}
+        {(videos.length > manualPendingIds.size || hasActiveContentFilter) ? (
         <div className="library-filter-bar">
           <div className="search-field-wrap">
             <PhosphorIcon name="magnifying-glass" size={15} className="search-field-icon" />
@@ -5357,6 +5358,7 @@ function ContentPage(
             </div>
           ) : null}
         </div>
+        ) : null}
         {hasAiBriefs && hasActiveContentFilter && primaryVideos.length > 0 ? (
           <div
             className="content-active-filter-bar tabular-nums"
