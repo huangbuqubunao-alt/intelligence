@@ -8,8 +8,8 @@
 ## Batch Progress
 - [x] Phase 1 Live Audit & Baseline Screenshots (`http://127.0.0.1:8799` Demo + `http://127.0.0.1:8792` Manual, desktop `1440x900` + mobile `390x844`)
 - [x] Phase 2 Market, Competitor & Design Guidelines Research
-- [x] Batch 1: UX Audit, Market Research, IA, Flows, Copy & Design System Docs (this commit)
-- [ ] Batch 2: Visual Design System, Mobile Responsive Fix (`390x844`) & Sticky Jump Bar Polish
+- [x] Batch 1: UX Audit, Market Research, IA, Flows, Copy & Design System Docs
+- [x] Batch 2: Visual Design System, Mobile Responsive Fix (`390x844`) & Sticky Jump Bar Polish
 - [ ] Batch 3: Home Hierarchy (`Dashboard` -> `KnowledgeDelta`), Sparse Quick-Start, Accurate Attention Guidance & Calmer Local Drag-Drop Import
 - [ ] Batch 4: Content Toolbar, Reader Action Consolidation, Progressive Evidence Disclosure, Topic & Research Polish + Full Vitest + `impeccable detect`
 - [ ] Batch 5: Restart Live Servers (`8792` + temp `8798`) & Multi-Persona Live Browser Acceptance + After Screenshots

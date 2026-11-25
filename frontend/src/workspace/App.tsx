@@ -5755,6 +5755,8 @@ const SETTINGS_SECTION_IDS = [
   "settings-language",
   "settings-interests",
   "settings-models",
+  "settings-whisper-download",
+  "settings-youtube-auth",
   "settings-backup",
 ] as const;
 
@@ -8120,13 +8122,16 @@ function Topics({
                     : `Grounded in ${evo.video_count} distilled items.`)}
             </p>
             {evo.top_opportunities_zh.length > 0 ? (
-              <div className="topic-opp-pills">
+              <ul
+                className="topic-opp-callout"
+                aria-label={zh ? "重点切入方向" : "Key opportunity angles"}
+              >
                 {evo.top_opportunities_zh.map((opp, idx) => (
-                  <span key={`top-opp:${idx}`} className="ai-basis-pill">
+                  <li key={`top-opp:${idx}`} className="topic-opp-callout-item">
                     {zh ? `高优切口：${opp}` : opp}
-                  </span>
+                  </li>
                 ))}
-              </div>
+              </ul>
             ) : null}
             {evo.channel_breakdown.length > 0 && onBrowseTopicContent ? (
               <div
@@ -10120,6 +10125,8 @@ function Settings({ refresh }: { refresh: number }) {
           ["settings-language", "translate", "Jump · Language"],
           ["settings-interests", "funnel", "Jump · Interests"],
           ["settings-models", "sparkle", "Jump · Models"],
+          ["settings-whisper-download", "lightning", "Jump · Speech"],
+          ["settings-youtube-auth", "shield-check", "Jump · YouTube"],
           ["settings-backup", "archive", "Jump · Backup"],
         ] as const).map(([secId, iconName, labelKey]) => {
           const isActive = activeSettingSection === secId;
