@@ -86,7 +86,41 @@ export function ReaderReferenceDrawer({
       el.removeAttribute("inert");
     } else {
       el.setAttribute("inert", "");
+      return;
     }
+
+    // Mark background page siblings inert while the modal drawer is open (restored cleanly on close/unmount).
+    const appliedInert: Array<{
+      node: HTMLElement & { inert: boolean };
+      hadAttr: boolean;
+      prevProp: boolean;
+    }> = [];
+    let cur: HTMLElement | null = el;
+    while (cur && cur.parentElement && cur !== document.body) {
+      const parent: HTMLElement = cur.parentElement;
+      if (parent === document.documentElement) break;
+      for (const child of Array.from(parent.children)) {
+        if (child === cur || !(child instanceof HTMLElement)) continue;
+        if (child.classList.contains("reader-ref-scrim")) continue;
+        const bgNode = child as HTMLElement & { inert: boolean };
+        appliedInert.push({
+          node: bgNode,
+          hadAttr: bgNode.hasAttribute("inert"),
+          prevProp: Boolean(bgNode.inert),
+        });
+        bgNode.inert = true;
+        bgNode.setAttribute("inert", "");
+      }
+      cur = parent;
+    }
+    return () => {
+      for (const item of appliedInert) {
+        if (!item.hadAttr) {
+          item.node.removeAttribute("inert");
+          item.node.inert = item.prevProp;
+        }
+      }
+    };
   }, [isOpen]);
 
   useEffect(() => {
@@ -106,7 +140,7 @@ export function ReaderReferenceDrawer({
           targetTab.focus();
         } else {
           const fallback = listFocusableInDrawer(drawerRef.current)[0];
-          fallback?.focus();
+          (fallback ?? drawerRef.current).focus();
         }
       }
     } else if (wasOpen && !isOpen) {
@@ -117,6 +151,55 @@ export function ReaderReferenceDrawer({
       }
     }
   }, [isOpen, activeTab, returnFocusTarget]);
+
+  useEffect(() => {
+    if (!isOpen || !drawerRef.current) return;
+    const recoverFocusIntoDrawer = () => {
+      const container = drawerRef.current;
+      if (!container) return;
+      const focusables = listFocusableInDrawer(container);
+      const selectedTab = activeTab ? tabRefs.current[activeTab] : null;
+      const candidate =
+        (selectedTab && focusables.includes(selectedTab) ? selectedTab : focusables[0]) ??
+        container;
+      candidate.focus();
+    };
+
+    const handleDocumentFocusIn = (event: FocusEvent) => {
+      const container = drawerRef.current;
+      if (!container) return;
+      const target = event.target;
+      if (target instanceof HTMLElement && !container.contains(target)) {
+        recoverFocusIntoDrawer();
+      }
+    };
+
+    const observer = new MutationObserver(() => {
+      const container = drawerRef.current;
+      if (!container) return;
+      const activeEl = document.activeElement;
+      if (
+        !(activeEl instanceof HTMLElement) ||
+        !activeEl.isConnected ||
+        !container.contains(activeEl) ||
+        activeEl.hasAttribute("disabled")
+      ) {
+        recoverFocusIntoDrawer();
+      }
+    });
+
+    document.addEventListener("focusin", handleDocumentFocusIn, true);
+    observer.observe(drawerRef.current, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["disabled", "hidden"],
+    });
+    return () => {
+      document.removeEventListener("focusin", handleDocumentFocusIn, true);
+      observer.disconnect();
+    };
+  }, [isOpen, activeTab]);
 
   const handleDrawerKeyDown = (event: ReactKeyboardEvent<HTMLElement>) => {
     if (!isOpen || !drawerRef.current) return;
@@ -194,6 +277,7 @@ export function ReaderReferenceDrawer({
       ) : null}
       <aside
         ref={drawerRef}
+        tabIndex={isOpen ? -1 : undefined}
         className={`reader-ref-drawer${isOpen ? " is-open" : ""}`}
         role={isOpen ? "dialog" : undefined}
         aria-modal={isOpen ? "true" : undefined}

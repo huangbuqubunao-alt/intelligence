@@ -1581,4 +1581,93 @@ describe("Manual UX Remediation (#1-#4)", () => {
     fireEvent.click(screen.getByRole("button", { name: "页内授权并立即重试" }));
     expect((screen.getByRole("button", { name: "确认授权并立即重试" }) as HTMLButtonElement).disabled).toBe(true);
   });
+
+  it("P2-R05: ReaderReferenceDrawer marks background inert, recaptures stray focus & recovers dynamically removed focus", async () => {
+    const { rerender } = render(
+      <div className="app-shell">
+        <div data-testid="bg-surface">
+          <button type="button">背景操作按钮</button>
+        </div>
+        <ReaderReferenceDrawer
+          activeTab="transcript"
+          zhReader={true}
+          isTextDocument={false}
+          evidenceCount={0}
+          historyCount={0}
+          returnFocusTarget={null}
+          onSelectTab={() => {}}
+          onClose={() => {}}
+          evidencePane={<p>无证据</p>}
+          historyPane={<p>无记录</p>}
+          transcriptPane={
+            <div>
+              <button type="button" data-testid="dynamic-btn">
+                动态字幕操作
+              </button>
+            </div>
+          }
+        />
+      </div>,
+    );
+
+    const bgSurface = screen.getByTestId("bg-surface") as HTMLElement & { inert?: boolean };
+    const outsideBtn = screen.getByRole("button", { name: "背景操作按钮" });
+    expect(bgSurface.hasAttribute("inert")).toBe(true);
+
+    // Programmatic focus attempt outside modal must snap back inside the drawer
+    outsideBtn.focus();
+    const drawerEl = document.querySelector("aside.reader-ref-drawer") as HTMLElement;
+    expect(drawerEl.contains(document.activeElement)).toBe(true);
+
+    // Dynamic removal of the currently focused button inside open drawer recovers focus safely inside drawer
+    const dynBtn = screen.getByTestId("dynamic-btn");
+    dynBtn.focus();
+    expect(document.activeElement).toBe(dynBtn);
+    rerender(
+      <div className="app-shell">
+        <div data-testid="bg-surface">
+          <button type="button">背景操作按钮</button>
+        </div>
+        <ReaderReferenceDrawer
+          activeTab="transcript"
+          zhReader={true}
+          isTextDocument={false}
+          evidenceCount={0}
+          historyCount={0}
+          returnFocusTarget={null}
+          onSelectTab={() => {}}
+          onClose={() => {}}
+          evidencePane={<p>无证据</p>}
+          historyPane={<p>无记录</p>}
+          transcriptPane={<p>操作已完成并移除按钮</p>}
+        />
+      </div>,
+    );
+    await waitFor(() => {
+      expect(drawerEl.contains(document.activeElement)).toBe(true);
+    });
+
+    // Closing drawer restores background interactivity (removes inert)
+    rerender(
+      <div className="app-shell">
+        <div data-testid="bg-surface">
+          <button type="button">背景操作按钮</button>
+        </div>
+        <ReaderReferenceDrawer
+          activeTab={null}
+          zhReader={true}
+          isTextDocument={false}
+          evidenceCount={0}
+          historyCount={0}
+          returnFocusTarget={null}
+          onSelectTab={() => {}}
+          onClose={() => {}}
+          evidencePane={<p>无证据</p>}
+          historyPane={<p>无记录</p>}
+          transcriptPane={<p>已关闭</p>}
+        />
+      </div>,
+    );
+    expect(bgSurface.hasAttribute("inert")).toBe(false);
+  });
 });
