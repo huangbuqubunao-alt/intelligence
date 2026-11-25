@@ -1245,9 +1245,21 @@ export function AiScoreBadge({
         ? "ai-score-mid"
         : "ai-score-noise";
   return (
-    <span className={`ai-score-pill tabular-nums ${toneClass}${compact ? " is-compact" : ""}`}>
+    <span
+      className={`ai-score-pill tabular-nums ${toneClass}${compact ? " is-compact" : ""}`}
+      title={
+        zh
+          ? "AI 优先级排序分，用于决定推荐浏览顺序；不等同于原文事实核验结论"
+          : "AI priority ranking score for triage; not a factual grounding verification"
+      }
+    >
       <strong>{brief.score.toFixed(1)}</strong>
       <span>· {tierLabel}</span>
+      {!compact ? (
+        <small className="ai-score-posture">
+          {zh ? "排序分" : "Priority"}
+        </small>
+      ) : null}
     </span>
   );
 }

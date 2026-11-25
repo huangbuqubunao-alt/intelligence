@@ -5865,3 +5865,71 @@ input[type="radio"] {
   display: none;
 }
 
+.reader-ref-drawer-title-group {
+  display: grid;
+  gap: 8px;
+}
+
+.reader-ref-drawer-title {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 620;
+  color: var(--text-strong);
+}
+
+.reader-media-error {
+  width: 100%;
+  max-width: 720px;
+}
+
+.inline-yt-auth-wrap {
+  display: grid;
+  gap: 10px;
+}
+
+.inline-yt-auth-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-subtle);
+}
+
+.inline-yt-auth-scope {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.inline-yt-auth-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.inline-yt-auth-fields label {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-strong);
+}
+
+.inline-yt-auth-cookies {
+  grid-column: 1 / -1;
+}
+
+.inline-yt-auth-cookies textarea {
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+
+.ai-score-posture {
+  font-size: 10.5px;
+  font-weight: 500;
+  opacity: 0.82;
+  margin-left: 2px;
+}
+

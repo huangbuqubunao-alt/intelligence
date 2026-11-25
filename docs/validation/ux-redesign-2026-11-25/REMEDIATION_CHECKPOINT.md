@@ -3,7 +3,7 @@
 > 主线规格：`docs/validation/ux-redesign-2026-11-25/04_INDEPENDENT_CODE_REVIEW_AND_AGY_REMEDIATION.md`  
 > 当前分支：`antigravity/remediation-20261125`（从 `origin/main@d1b58f73` 线性创建）  
 > 候选基准：`beea3a53`（完整线性重放 `5cc76ab8..9cee10df`，共 16 个提交；`HEAD^{tree} == 9cee10df^{tree}` 已验证）  
-> 检查点状态：Batch C（Gate S3：`P1-03`, `P2-03`）已完成并通过验证，正在进入 Batch D（Gates U1/U2：`P1-05`, `P2-04`, `P2-05`, TOP 1–3）
+> 检查点状态：Batch D（Gates U1/U2：`P1-05`, `P2-04`, `P2-05`, TOP 1–3）已完成并通过验证，正在进入 Phase 3（Gates E1/E2/R1：全量自动化回归 + 实机浏览器验收 + 终审报告与推送）
 
 ## 1. Phase 0 / Gate M1 验证结论
 
@@ -47,5 +47,9 @@
     - `workspace_intelligence_hub.py`：新增 `_check_clause_against_cited_evidence` 确定性数字/百分比/货币/年份/中阿拉伯等价数量词及分句级否定极性一致性校验，统一覆盖实时问答 `ask_research_question`、历史会话重读 `_row_to_research_session_dto`、备份恢复 `restore_research_backup` 与 Obsidian ZIP 导出，发现矛盾时拒绝或降级并暴露 `CITATION_FACT_CONFLICT` 受控拒答码；同时为 `_build_research_scope_options` 补充受管快照 `verify_source` 门禁。
     - `WorkspaceAiWidgets.tsx`：将 Research 范围条文案修正为「候选资料 N 篇（提问时将实时核验原文）」，并在问答头补充「有效引用 / 覆盖来源」事实计数标签。
     - 实测命令：`.venv/bin/python -m pytest -q tests/integration/test_codex_round3_remediation.py tests/integration/test_workspace_intelligence_hub.py` → `30 passed in 78.15s`；`ruff check` → `All checks passed!`；`npx tsc --noEmit && npx vitest run --minWorkers=1 --maxWorkers=1 src/workspace/CodexReviewRemediation.test.tsx src/workspace/ManualUxRemediation.test.tsx` → `23 passed in 13.58s`。
-- 待执行：`Batch D (U1/U2)` -> `Phase 3 (E1/E2/R1)`
-- 下一步动作：实现 Batch D（拆分 `ReaderMediaStage.tsx` / `ReaderReferenceDrawer.tsx` / `ReaderRecoveryPanel.tsx`、修复抽屉关闭态 `inert` 与模态焦点闭环、`MediaError.code` 分类与一键重试、TOP 1–3 原地授权收集与评分解释）。
+  - `Batch D / Gates U1 & U2`（`P1-05`, `P2-04`, `P2-05`, TOP 1–3）：
+    - 模块拆分：`ReaderMediaStage.tsx`（含 `MediaError.code` 1–4 分类诊断与 1-click 重试）、`ReaderReferenceDrawer.tsx`（关闭态 `inert` + `tabIndex=-1`、开启态 `role="dialog" aria-modal="true"` 焦点引入与 `Tab`/`Shift+Tab` 环绕、关闭焦点还原、`role="tablist"`/`tab`/`tabpanel` 与键盘导航）、`ReaderRecoveryPanel.tsx`（`InlineYouTubeAuthRecovery` 明确授权页内同意/取消及立即重试，消除跳设置死循环）。
+    - 产品润色：`AiScoreBadge` 增加「排序分 · 非事实核验」提示语义（TOP 2）。
+    - 实测命令：`cd frontend && npx tsc --noEmit && npm run build && npx vitest run --minWorkers=1 --maxWorkers=1 src/workspace/ManualUxRemediation.test.tsx src/workspace/App.test.tsx src/workspace/GroundingAndRecovery.test.tsx src/workspace/OssUiSystem.test.tsx` → `202 passed in 22.94s`（vite 生产构建 977ms/1.17s 通过）。
+- 待执行：`Phase 3 (E1/E2/R1)`
+- 下一步动作：运行全量 Python `pytest` 与全量串行 Vitest + `ruff` + `git diff --check`（Gate E1），启动双端实例完成实机 Chromium 无障碍与多媒体验收（Gate E2），输出最终验收报告并推送分支。

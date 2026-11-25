@@ -1120,4 +1120,321 @@ describe("Manual UX Remediation (#1-#4)", () => {
     expect(videoEl).toBeTruthy();
     expect(videoEl.getAttribute("src")).toBe("/api/v1/videos/loc-video-play/media");
   });
+
+  it("P1-05: enforces closed drawer inert + focus trap + Escape focus return + ARIA tabpanel keyboard navigation", async () => {
+    localStorage.setItem("intelligence.onboarding.completed.v1", "true");
+    localStorage.setItem("yia.ui-language", "zh-CN");
+    location.hash = "#Content/vid-a11y-1";
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string, init?: RequestInit) => {
+        if (input.endsWith("/videos/vid-a11y-1/evidence")) {
+          return okJson({
+            evidence: [
+              {
+                evidence_id: "ev-a1",
+                artifact_id: "art-1",
+                start_ms: 1000,
+                end_ms: 5000,
+                source_language: "zh",
+                translation_target_language: "zh-CN",
+                translated_excerpt: "第一条原话证据内容。",
+                translated_language: "zh-CN",
+                original_excerpt: "第一条原话证据内容。",
+                lineage_kind: "CAPTIONS",
+                role: "SUPPORTING",
+                created_at: "2026-11-24T12:00:00Z",
+              },
+            ],
+          });
+        }
+        if (input.endsWith("/videos/vid-a11y-1/deep-analysis")) {
+          return okJson({
+            deep_analysis: {
+              status: { availability: "NOT_QUALIFIED", qualified: false, consent_required: false, routes: [] },
+              result: null,
+            },
+          });
+        }
+        if (input.endsWith("/videos/vid-a11y-1")) {
+          return okJson({
+            video: {
+              video_id: "vid-a11y-1",
+              provider: "YOUTUBE",
+              title: "Accessibility Focus Trap Demo",
+              source_url: "https://www.youtube.com/watch?v=vid-a11y-1",
+              duration_seconds: 300,
+              published_at: "2026-11-24T12:00:00Z",
+              processing_status: "READY",
+              last_updated: "2026-11-24T12:00:00Z",
+              ai_brief: {
+                video_id: "vid-a11y-1",
+                headline_zh: "抽屉无障碍焦点闭环验证",
+                summary_zh: "主屏摘要正文。",
+                score: 8.8,
+                score_reason_zh: "高信息密度",
+                recommendation_tier: "MUST_WATCH",
+                content_bucket: "DEEP_DIVE",
+                is_short_noise: false,
+                topics_zh: ["无障碍"],
+                topic_cluster_zh: "工程质量",
+                core_points_json: [],
+                product_opportunities_zh: [],
+                business_opportunities_zh: [],
+                filtered_noise_json: [],
+              },
+            },
+            transcript: {
+              status: "AVAILABLE",
+              text: "Transcript body",
+              timed_segments: [{ start_ms: 1000, end_ms: 5000, text: "Transcript body" }],
+            },
+            note: { v1: { status: "UNAVAILABLE" }, v2: { status: "UNAVAILABLE" } },
+            intelligence_result: { status: "NOT_PROCESSED" },
+            history: [{ timestamp: "2026-11-24T12:01:00Z", status: "READY", summary: "Completed" }],
+          });
+        }
+        return baseFetch(input, undefined, init);
+      }),
+    );
+
+    render(<App />);
+    const transcriptLauncher = await screen.findByRole("button", { name: /查看原始字幕/ });
+    const drawer = document.querySelector("aside.reader-ref-drawer") as HTMLElement & { inert: boolean };
+    expect(drawer).toBeTruthy();
+    expect(drawer.hasAttribute("inert")).toBe(true);
+    expect(drawer.inert).toBe(true);
+    expect(drawer.getAttribute("role")).toBeNull();
+    // All buttons inside closed drawer must be excluded from Tab order
+    for (const btn of Array.from(drawer.querySelectorAll(".reader-ref-drawer-head button"))) {
+      expect(btn.getAttribute("tabindex")).toBe("-1");
+    }
+
+    // Score posture label check (TOP 2)
+    expect(screen.getByText("排序分")).toBeTruthy();
+
+    // Open drawer from launcher -> dialog semantics, active tab focus entry, Tab wrap, Arrow switching
+    transcriptLauncher.focus();
+    fireEvent.click(transcriptLauncher);
+
+    await waitFor(() => expect(drawer.getAttribute("role")).toBe("dialog"));
+    expect(drawer.getAttribute("aria-modal")).toBe("true");
+    expect(drawer.getAttribute("aria-labelledby")).toBe("reader-ref-drawer-title");
+    expect(drawer.hasAttribute("inert")).toBe(false);
+
+    const transcriptTab = screen.getByRole("tab", { name: "原始字幕" });
+    expect(document.activeElement).toBe(transcriptTab);
+    expect(transcriptTab.getAttribute("aria-controls")).toBe("reader-panel-transcript");
+
+    const tablist = screen.getByRole("tablist", { name: "辅助资料分类" });
+    fireEvent.keyDown(tablist, { key: "ArrowRight" });
+    const evidenceTab = screen.getByRole("tab", { name: /原话证据/ });
+    expect(evidenceTab.getAttribute("aria-selected")).toBe("true");
+    expect(document.activeElement).toBe(evidenceTab);
+
+    // Tab wrap inside open dialog: when focus is on close button, Tab wraps to active first control inside drawer
+    const closeBtn = screen.getByRole("button", { name: /关闭 \(Esc\)/ });
+    closeBtn.focus();
+    fireEvent.keyDown(drawer, { key: "Tab" });
+    expect(drawer.contains(document.activeElement)).toBe(true);
+
+    // Shift+Tab from first control wraps back to last focusable control inside drawer
+    evidenceTab.focus();
+    fireEvent.keyDown(drawer, { key: "Tab", shiftKey: true });
+    expect(drawer.contains(document.activeElement)).toBe(true);
+
+    // Escape closes drawer, restores inert, and returns focus to trigger button
+    fireEvent.keyDown(drawer, { key: "Escape" });
+    await waitFor(() => expect(drawer.hasAttribute("inert")).toBe(true));
+    expect(document.activeElement).toBe(transcriptLauncher);
+  });
+
+  it("P2-04: classifies HTML5 MediaError codes cleanly and supports 1-click retry", async () => {
+    localStorage.setItem("intelligence.onboarding.completed.v1", "true");
+    localStorage.setItem("yia.ui-language", "zh-CN");
+    location.hash = "#Content/loc-err-vid";
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string, init?: RequestInit) => {
+        if (input.endsWith("/videos/loc-err-vid/evidence")) return okJson({ evidence: [] });
+        if (input.endsWith("/videos/loc-err-vid/deep-analysis")) {
+          return okJson({
+            deep_analysis: {
+              status: { availability: "NOT_QUALIFIED", qualified: false, consent_required: false, routes: [] },
+              result: null,
+            },
+          });
+        }
+        if (input.endsWith("/videos/loc-err-vid")) {
+          return okJson({
+            video: {
+              video_id: "loc-err-vid",
+              provider: "LOCAL",
+              media_kind: "VIDEO",
+              format: "mp4",
+              title: "codec-edge.mp4",
+              duration_seconds: 95,
+              published_at: "2026-11-24T12:00:00Z",
+              processing_status: "READY",
+              last_updated: "2026-11-24T12:00:00Z",
+            },
+            transcript: { status: "NOT_PROCESSED" },
+            note: { v1: { status: "UNAVAILABLE" }, v2: { status: "UNAVAILABLE" } },
+            intelligence_result: { status: "NOT_PROCESSED" },
+            history: [],
+          });
+        }
+        return baseFetch(input, undefined, init);
+      }),
+    );
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "页内播放原视频" }));
+
+    for (const [code, expectedTitle] of [
+      [1, "媒体加载已中断"],
+      [2, "本机媒体流网络传输中断"],
+      [3, "浏览器解码该媒体流失败"],
+      [4, "当前格式暂不支持浏览器内直接播放（或原文件已失效）"],
+    ] as const) {
+      const videoEl = document.querySelector("video.reader-inline-player") as HTMLVideoElement;
+      expect(videoEl).toBeTruthy();
+      Object.defineProperty(videoEl, "error", { configurable: true, get: () => ({ code }) });
+      fireEvent.error(videoEl);
+      expect(await screen.findByText(expectedTitle)).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: "重试加载" }));
+      await waitFor(() => expect(document.querySelector("video.reader-inline-player")).toBeTruthy());
+    }
+  });
+
+  it("TOP 1 & P2-03: supports explicit in-place YouTube auth consent/cancel and truthful Research candidate copy", async () => {
+    localStorage.setItem("intelligence.onboarding.completed.v1", "true");
+    localStorage.setItem("yia.ui-language", "zh-CN");
+    location.hash = "#Content/yt-auth-inline-1";
+
+    const putPayloads: Array<Record<string, unknown>> = [];
+    let checkCalls = 0;
+
+    const blockedVideo = {
+      video_id: "yt-auth-inline-1",
+      provider: "YOUTUBE",
+      work_kind: "DURABLE_CONTENT_IDENTITY",
+      channel_id: "ch-1",
+      channel_name: "Demo Channel",
+      title: null,
+      source_url: "https://www.youtube.com/watch?v=yt-auth-inline-1",
+      source_id: "src-yt-inline-1",
+      published_at: "2026-11-24T12:00:00Z",
+      processing_status: "NEEDS_ATTENTION",
+      last_error_code: "YOUTUBE_AUTH_REQUIRED",
+      last_updated: "2026-11-24T12:00:00Z",
+    };
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string, init?: RequestInit) => {
+        if (input.endsWith("/workspace-ai/youtube-auth") && init?.method === "PUT") {
+          putPayloads.push(JSON.parse(String(init.body ?? "{}")) as Record<string, unknown>);
+          return okJson({ enabled: true, auth_mode: "browser", browser_name: "chrome" });
+        }
+        if (input.endsWith("/sources/src-yt-inline-1/check") && init?.method === "POST") {
+          checkCalls += 1;
+          return okJson({ accepted: true });
+        }
+        if (input.endsWith("/videos/yt-auth-inline-1")) {
+          return okJson({ video: blockedVideo, captions: [], evidence: [], summary: null });
+        }
+        if (input.endsWith("/research")) {
+          return okJson({ research: [], total: 0 });
+        }
+        if (input.endsWith("/workspace-ai/settings")) {
+          return okJson({ ready: true });
+        }
+        if (input.endsWith("/workspace-ai/research/sessions")) {
+          return okJson({
+            sessions: [
+              {
+                session_id: "qa-1",
+                question: "测试跨视频回答？",
+                answer_status: "GROUNDED",
+                verified_citation_count: 1,
+                refused: false,
+                scope_label_zh: "全部候选资料",
+                covered_source_count: 1,
+                covered_sources: [
+                  {
+                    video_id: "v1",
+                    title: "Video 1",
+                    provider: "LOCAL",
+                    channel_name: "本地",
+                    locator_type: "TEXT_RANGE",
+                  },
+                ],
+                pinned: false,
+                answer_zh: "结论一句 [E1]。",
+                key_takeaways_zh: [],
+                action_items_zh: [],
+                citations: [
+                  {
+                    video_id: "v1",
+                    video_title: "Video 1",
+                    channel_name: "本地",
+                    evidence_id: "e1",
+                    start_ms: null,
+                    end_ms: null,
+                    timestamp_label: "P1",
+                    excerpt: "原文",
+                    verified: true,
+                  },
+                ],
+                obsidian_markdown: "# QA",
+                provider: "ollama",
+                model: "stub",
+                created_at: "2026-11-24T12:00:00Z",
+              },
+            ],
+            scope_options: {
+              starred_count: 0,
+              channels: [],
+              topic_clusters: [],
+              videos: [{ video_id: "v1", title: "Video 1", channel_name: "本地", score: 8.5 }],
+            },
+          });
+        }
+        return baseFetch(input, undefined, init);
+      }),
+    );
+
+    render(<App />);
+    const inlineBtn = await screen.findByRole("button", { name: "页内授权并立即重试" });
+    fireEvent.click(inlineBtn);
+
+    const consentRegion = await screen.findByRole("region", { name: "页内 YouTube 登录态授权确认" });
+    expect(within(consentRegion).getByText(/严格按 YouTube\/Google 白名单过滤/)).toBeTruthy();
+
+    // Cancelling writes ZERO auth requests
+    fireEvent.click(within(consentRegion).getByRole("button", { name: "取消" }));
+    expect(screen.queryByRole("region", { name: "页内 YouTube 登录态授权确认" })).toBeNull();
+    expect(putPayloads.length).toBe(0);
+    expect(checkCalls).toBe(0);
+
+    // Explicit consent submits auth PUT + immediate retry POST on the same page
+    fireEvent.click(inlineBtn);
+    const consentRegion2 = await screen.findByRole("region", { name: "页内 YouTube 登录态授权确认" });
+    fireEvent.click(within(consentRegion2).getByRole("button", { name: "确认授权并立即重试" }));
+    await waitFor(() => expect(putPayloads.length).toBe(1));
+    await waitFor(() => expect(checkCalls).toBe(1));
+    expect(putPayloads[0]).toMatchObject({ enabled: true, auth_mode: "browser", browser_name: "chrome" });
+
+    // Research view shows truthful candidate scope copy and verified citation/coverage pill
+    cleanup();
+    location.hash = "#Research";
+    render(<App />);
+    expect(
+      await screen.findByText(/当前提问范围：候选资料 1 篇（提问时将实时核验原文）/),
+    ).toBeTruthy();
+    expect(await screen.findByText(/有效引用 1 条 · 覆盖来源 1 篇/)).toBeTruthy();
+  });
 });

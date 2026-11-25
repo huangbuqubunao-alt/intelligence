@@ -6,6 +6,9 @@ import { BilibiliImport, BilibiliCaptionStatus, bilibiliStatus } from "./Bilibil
 import { LocalImport, localStatus, localImportErrors } from "./LocalImport";
 import { NativeImportActivity } from "./NativeLocalImport";
 import { LocalTranscription, transcriptionCopy } from "./LocalTranscription";
+import { ReaderMediaStage, formatHumanDuration } from "./ReaderMediaStage";
+import { ReaderReferenceDrawer, type ReaderDrawerTab } from "./ReaderReferenceDrawer";
+import { InlineYouTubeAuthRecovery } from "./ReaderRecoveryPanel";
 import { TranscriptionSetup } from "./TranscriptionSetup";
 import { LocalIntelligenceSetup } from "./LocalIntelligenceSetup";
 import { ChangeEvent, createContext, FormEvent, ReactNode, Suspense, lazy, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
@@ -5855,14 +5858,6 @@ function useActiveSection(sectionIds: readonly string[], resetKey?: string): [st
   return [activeId, jumpTo];
 }
 
-function formatHumanDuration(seconds: number): string {
-  const rounded = Math.ceil(seconds);
-  if (rounded < 60) return `${rounded}s`;
-  const mins = Math.floor(rounded / 60);
-  const secs = rounded % 60;
-  return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
-}
-
 function PendingContentDetailView({
   video,
   onClose,
@@ -6047,12 +6042,16 @@ function PendingContentDetailView({
                 : t("Retry")}
           </button>
           {showAuthLink ? (
-            <a
-              className="button button-secondary"
-              href={`#Settings/youtube-auth?return=${encodeURIComponent(`#Content/${video.video_id}`)}`}
-            >
-              {zh ? "授权本人 YouTube 登录态 ›" : "Authorize YouTube login ›"}
-            </a>
+            <InlineYouTubeAuthRecovery
+              videoId={video.video_id}
+              sourceId={video.source_id}
+              zh={zh}
+              onAuthorizedRetry={(msg) => {
+                setActionError(null);
+                setStatusNote(msg);
+                onRetry();
+              }}
+            />
           ) : null}
           {onAddLocal ? (
             <button
@@ -6232,16 +6231,23 @@ function ContentDetailPanel(
   const [copiedMarkdown, setCopiedMarkdown] = useState(false);
   const [wsTranscribeRunning, setWsTranscribeRunning] = useState<{ running: boolean; stage?: string }>({ running: false });
   const [wsActionRequest, setWsActionRequest] = useState<{ nonce: number; kind: "transcribe" | "distill" } | null>(null);
-  const [refDrawerTab, setRefDrawerTab] = useState<"evidence" | "transcript" | "history" | null>(() =>
+  const [refDrawerTab, setRefDrawerTab] = useState<ReaderDrawerTab | null>(() =>
     highlightedEvidenceId ? "evidence" : null,
   );
+  const drawerReturnFocusRef = useRef<HTMLElement | null>(null);
   const [localMediaPlaying, setLocalMediaPlaying] = useState(false);
-  const [localMediaError, setLocalMediaError] = useState(false);
+  const [localMediaErrorCode, setLocalMediaErrorCode] = useState<number | null>(null);
+  const openRefDrawer = useCallback((tab: ReaderDrawerTab, trigger?: HTMLElement | null) => {
+    drawerReturnFocusRef.current =
+      trigger ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+    setRefDrawerTab(tab);
+  }, []);
   useEffect(() => {
     setWsTranscribeRunning({ running: false });
     setWsActionRequest(null);
     setLocalMediaPlaying(false);
-    setLocalMediaError(false);
+    setLocalMediaErrorCode(null);
+    drawerReturnFocusRef.current = null;
   }, [id]);
   useEffect(() => {
     setRefDrawerTab(highlightedEvidenceId ? "evidence" : null);
@@ -6495,131 +6501,33 @@ function ContentDetailPanel(
               )}
           </div>
           {!isTextDocument ? (
-            <div
-              className={`reader-media-stage${localMediaPlaying ? " is-playing" : ""}`}
-              aria-label={zhReader ? "视频预览与播放入口" : "Video preview and playback"}
-            >
-              {isPlayableLocalVideo && localMediaPlaying ? (
-                <div className="reader-inline-player-wrap">
-                  {!localMediaError ? (
-                    <video
-                      className="reader-inline-player"
-                      controls
-                      autoPlay
-                      preload="metadata"
-                      src={localMediaSrc}
-                      onError={() => setLocalMediaError(true)}
-                    />
-                  ) : (
-                    <p className="hint">
-                      {zhReader
-                        ? "当前无法读取本机视频流，请检查本机存储文件是否存在。"
-                        : "Could not stream this local video file."}
-                    </p>
-                  )}
-                  <button
-                    type="button"
-                    className="button button-ghost button-small"
-                    onClick={() => {
-                      setLocalMediaPlaying(false);
-                      setLocalMediaError(false);
-                    }}
-                  >
-                    {zhReader ? "收起播放器" : "Hide player"}
-                  </button>
-                </div>
-              ) : isPlayableLocalAudio && localMediaPlaying ? (
-                <div className="reader-inline-player-wrap is-audio">
-                  {!localMediaError ? (
-                    <audio
-                      className="reader-inline-audio"
-                      controls
-                      autoPlay
-                      preload="metadata"
-                      src={localMediaSrc}
-                      onError={() => setLocalMediaError(true)}
-                    />
-                  ) : (
-                    <p className="hint">
-                      {zhReader
-                        ? "当前无法读取本机音频流，请检查本机存储文件是否存在。"
-                        : "Could not stream this local audio file."}
-                    </p>
-                  )}
-                  <button
-                    type="button"
-                    className="button button-ghost button-small"
-                    onClick={() => {
-                      setLocalMediaPlaying(false);
-                      setLocalMediaError(false);
-                    }}
-                  >
-                    {zhReader ? "收起音频条" : "Hide audio player"}
-                  </button>
-                </div>
-              ) : (
-                <div className="reader-media-poster">
-                  {heroPosterUrl ? (
-                    <img
-                      className="reader-media-poster-img"
-                      src={heroPosterUrl}
-                      alt={data.video.title ?? (zhReader ? "视频封面预览" : "Video preview frame")}
-                    />
-                  ) : null}
-                  <div className="reader-media-poster-overlay">
-                    <div className="reader-media-poster-top">
-                      <span className={`provider-glyph provider-${(data.video.provider ?? "YOUTUBE").toLowerCase()}`} aria-hidden="true">
-                        <PhosphorIcon
-                          name={isLocalMedia ? "play-circle" : isBilibili ? "television" : "youtube-logo"}
-                          size={18}
-                        />
-                      </span>
-                      {data.video.duration_seconds != null ? (
-                        <span className="reader-media-duration tabular-nums">
-                          {formatHumanDuration(data.video.duration_seconds)}
-                        </span>
-                      ) : null}
-                    </div>
-                    <p className="reader-media-poster-title">
-                      {isLocalMedia
-                        ? zhReader
-                          ? "本机原始媒体已保存 · 点击直接页内播放"
-                          : "Local media stored on device · Play inline"
-                        : data.video.channel_name || (isBilibili ? "Bilibili" : "YouTube")}
-                    </p>
-                    {isPlayableLocalVideo || isPlayableLocalAudio ? (
-                      <button
-                        type="button"
-                        className="button button-primary button-small"
-                        onClick={() => {
-                          setLocalMediaError(false);
-                          setLocalMediaPlaying(true);
-                        }}
-                      >
-                        <PhosphorIcon name="play-circle" weight="fill" size={14} />
-                        {isPlayableLocalAudio
-                          ? zhReader
-                            ? "页内试听原音频"
-                            : "Play audio inline"
-                          : zhReader
-                            ? "页内播放原视频"
-                            : "Play video inline"}
-                      </button>
-                    ) : data.video.source_url ? (
-                      <a
-                        className="button button-primary button-small"
-                        href={data.video.source_url}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        <PhosphorIcon name="play-circle" weight="fill" size={14} />
-                        {zhReader ? "在原站播放原视频 ↗" : "Watch original video ↗"}
-                      </a>
-                    ) : null}
-                  </div>
-                </div>
-              )}
-            </div>
+            <ReaderMediaStage
+              zhReader={zhReader}
+              provider={data.video.provider}
+              channelName={data.video.channel_name}
+              title={data.video.title}
+              sourceUrl={data.video.source_url}
+              durationSeconds={data.video.duration_seconds}
+              heroPosterUrl={heroPosterUrl}
+              isLocalMedia={isLocalMedia}
+              isBilibili={isBilibili}
+              isPlayableLocalVideo={isPlayableLocalVideo}
+              isPlayableLocalAudio={isPlayableLocalAudio}
+              localMediaSrc={localMediaSrc}
+              playing={localMediaPlaying}
+              mediaErrorCode={localMediaErrorCode}
+              onPlayStart={() => {
+                setLocalMediaErrorCode(null);
+                setLocalMediaPlaying(true);
+              }}
+              onHidePlayer={() => {
+                setLocalMediaPlaying(false);
+                setLocalMediaErrorCode(null);
+              }}
+              onMediaError={(code) => setLocalMediaErrorCode(code)}
+              onRetryMedia={() => setLocalMediaErrorCode(null)}
+              onOpenTranscriptDrawer={() => openRefDrawer("transcript")}
+            />
           ) : null}
         </div>
       </Panel>
@@ -6642,9 +6550,9 @@ function ContentDetailPanel(
               type="button"
               aria-current={isActive ? "location" : undefined}
               className={`reader-jump-chip${isActive ? " is-active" : ""}`}
-              onClick={() => {
+              onClick={(event) => {
                 if (drawerTabForSec) {
-                  setRefDrawerTab(drawerTabForSec);
+                  openRefDrawer(drawerTabForSec, event.currentTarget);
                 } else {
                   setRefDrawerTab(null);
                   scrollToSection(secId);
@@ -6727,12 +6635,15 @@ function ContentDetailPanel(
                 </button>
               ) : null}
               {showYouTubeAuthCta ? (
-                <a
-                  className="button button-secondary"
-                  href={`#Settings/youtube-auth?return=${encodeURIComponent(`#Content/${id}`)}`}
-                >
-                  {zh ? "授权本人 YouTube 登录态 ›" : "Authorize YouTube login ›"}
-                </a>
+                <InlineYouTubeAuthRecovery
+                  videoId={id}
+                  sourceId={data.video.source_id}
+                  zh={zh}
+                  onAuthorizedRetry={(msg) => {
+                    setRetryFeedback(msg);
+                    setRefresh((value) => value + 1);
+                  }}
+                />
               ) : null}
               {onAddLocal ? (
                 <button
@@ -7228,7 +7139,7 @@ function ContentDetailPanel(
           <button
             type="button"
             className="reader-drawer-launcher-btn"
-            onClick={() => setRefDrawerTab("transcript")}
+            onClick={(event) => openRefDrawer("transcript", event.currentTarget)}
           >
             <PhosphorIcon name="quotes" size={16} />
             <span className="reader-drawer-launcher-copy">
@@ -7251,7 +7162,7 @@ function ContentDetailPanel(
           <button
             type="button"
             className="reader-drawer-launcher-btn"
-            onClick={() => setRefDrawerTab("evidence")}
+            onClick={(event) => openRefDrawer("evidence", event.currentTarget)}
           >
             <PhosphorIcon name="shield-check" size={16} />
             <span className="reader-drawer-launcher-copy">
@@ -7264,7 +7175,7 @@ function ContentDetailPanel(
           <button
             type="button"
             className="reader-drawer-launcher-btn"
-            onClick={() => setRefDrawerTab("history")}
+            onClick={(event) => openRefDrawer("history", event.currentTarget)}
           >
             <PhosphorIcon name="clock" size={16} />
             <span className="reader-drawer-launcher-copy">
@@ -7276,97 +7187,53 @@ function ContentDetailPanel(
           </button>
         </div>
       </section>
-      {refDrawerTab !== null ? (
-        <div
-          className="reader-ref-scrim"
-          aria-hidden="true"
-          onClick={() => setRefDrawerTab(null)}
-        />
-      ) : null}
-      <aside
-        className={`reader-ref-drawer${refDrawerTab !== null ? " is-open" : ""}`}
-        aria-label={zhReader ? "原文与溯源资料抽屉" : "Source transcript & evidence drawer"}
-      >
-        <div className="reader-ref-drawer-head">
-          <div className="segmented reader-ref-tabs" role="tablist" aria-label={zhReader ? "辅助资料分类" : "Reference sections"}>
-            {([
-              ["transcript", isTextDocument ? (zhReader ? "原始全文" : "Source text") : (zhReader ? "原始字幕" : "Transcript")],
-              ["evidence", zhReader ? `原话证据 (${loadedEvidence.length})` : `Evidence (${loadedEvidence.length})`],
-              ["history", zhReader ? `处理记录 (${visibleHistory.length})` : `History (${visibleHistory.length})`],
-            ] as const).map(([tabKey, tabLabel]) => (
-              <button
-                key={tabKey}
-                type="button"
-                role="tab"
-                aria-selected={refDrawerTab === tabKey}
-                className={refDrawerTab === tabKey ? "active" : ""}
-                onClick={() => setRefDrawerTab(tabKey)}
-              >
-                {tabLabel}
-              </button>
-            ))}
-          </div>
-          <button
-            type="button"
-            className="button button-ghost button-small"
-            onClick={() => setRefDrawerTab(null)}
-          >
-            {zhReader ? "关闭 (Esc)" : "Close (Esc)"}
-          </button>
-        </div>
-        <div className="reader-ref-drawer-body">
-          <div className={refDrawerTab !== null && refDrawerTab !== "evidence" ? "reader-ref-pane-inactive" : "reader-ref-pane"}>
-            <ContentEvidencePanel
-              videoId={data.video.video_id}
-              sourceUrl={data.video.source_url}
-              refresh={evidenceRefresh}
-              highlightedEvidenceId={highlightedEvidenceId}
-              externalTranslations={sharedTranslations}
-              onTranslateSuccess={recordSharedTranslation}
-              onEvidenceLoaded={setLoadedEvidence}
-            />
-          </div>
-          <div className={refDrawerTab !== null && refDrawerTab !== "transcript" ? "reader-ref-pane-inactive" : "reader-ref-pane"}>
-            <Panel id="section-transcript" icon="quotes" title={data.video.provider === "LOCAL" && data.video.media_kind === "TEXT" ? "Source text" : "Transcript"}>
-              {isBilibili && <BilibiliCaptionStatus id={id} status={data.video.processing_status} onCompleted={() => { setRefresh(value => value + 1); setEvidenceRefresh(value => value + 1); }} />}
-              {isLocalMedia && wsTranscriberReady && transcript.status !== "AVAILABLE" ? (
-                <>
-                  <div className="semantic-state state-neutral">
-                    <span className="status status-neutral">
-                      {language === "zh-CN"
-                        ? wsTranscribeJobActive
-                          ? "正在离线听写逐字稿…"
-                          : "本机离线语音模型已就绪"
-                        : wsTranscribeJobActive
-                          ? "Transcribing speech…"
-                          : "Offline speech model ready"}
-                    </span>
-                    <p>
-                      {language === "zh-CN"
-                        ? "已内置 Whisper 离线语音识别模型（全程在本机运行，音视频不会上传云端）。完成语音转写后，完整带时间戳的原始逐字稿会保存在这里。"
-                        : "Built-in offline Whisper speech model is ready on this Mac. Once transcribed, the full timestamped transcript will be saved here."}
-                    </p>
-                  </div>
-                  <details className="legacy-model-diagnostics">
-                    <summary>
-                      {language === "zh-CN"
-                        ? "底层本地转写器高级设置与诊断"
-                        : "Advanced local transcriber settings & diagnostics"}
-                    </summary>
-                    <LocalTranscription
-                      id={id}
-                      onStatusChange={setTranscriptionStatus}
-                      onCompleted={() => {
-                        if (transcriptionRefreshId.current === id) return;
-                        transcriptionRefreshId.current = id;
-                        setRefresh(value => value + 1);
-                        setEvidenceRefresh(value => value + 1);
-                      }}
-                    />
-                  </details>
-                </>
-              ) : (
-                isLocalMedia && (
+      <ReaderReferenceDrawer
+        activeTab={refDrawerTab}
+        zhReader={zhReader}
+        isTextDocument={isTextDocument}
+        evidenceCount={loadedEvidence.length}
+        historyCount={visibleHistory.length}
+        returnFocusTarget={drawerReturnFocusRef.current}
+        onSelectTab={setRefDrawerTab}
+        onClose={() => setRefDrawerTab(null)}
+        evidencePane={
+          <ContentEvidencePanel
+            videoId={data.video.video_id}
+            sourceUrl={data.video.source_url}
+            refresh={evidenceRefresh}
+            highlightedEvidenceId={highlightedEvidenceId}
+            externalTranslations={sharedTranslations}
+            onTranslateSuccess={recordSharedTranslation}
+            onEvidenceLoaded={setLoadedEvidence}
+          />
+        }
+        transcriptPane={
+          <Panel id="section-transcript" icon="quotes" title={data.video.provider === "LOCAL" && data.video.media_kind === "TEXT" ? "Source text" : "Transcript"}>
+            {isBilibili && <BilibiliCaptionStatus id={id} status={data.video.processing_status} onCompleted={() => { setRefresh(value => value + 1); setEvidenceRefresh(value => value + 1); }} />}
+            {isLocalMedia && wsTranscriberReady && transcript.status !== "AVAILABLE" ? (
+              <>
+                <div className="semantic-state state-neutral">
+                  <span className="status status-neutral">
+                    {language === "zh-CN"
+                      ? wsTranscribeJobActive
+                        ? "正在离线听写逐字稿…"
+                        : "本机离线语音模型已就绪"
+                      : wsTranscribeJobActive
+                        ? "Transcribing speech…"
+                        : "Offline speech model ready"}
+                  </span>
+                  <p>
+                    {language === "zh-CN"
+                      ? "已内置 Whisper 离线语音识别模型（全程在本机运行，音视频不会上传云端）。完成语音转写后，完整带时间戳的原始逐字稿会保存在这里。"
+                      : "Built-in offline Whisper speech model is ready on this Mac. Once transcribed, the full timestamped transcript will be saved here."}
+                  </p>
+                </div>
+                <details className="legacy-model-diagnostics">
+                  <summary>
+                    {language === "zh-CN"
+                      ? "底层本地转写器高级设置与诊断"
+                      : "Advanced local transcriber settings & diagnostics"}
+                  </summary>
                   <LocalTranscription
                     id={id}
                     onStatusChange={setTranscriptionStatus}
@@ -7377,44 +7244,59 @@ function ContentDetailPanel(
                       setEvidenceRefresh(value => value + 1);
                     }}
                   />
-                )
+                </details>
+              </>
+            ) : (
+              isLocalMedia && (
+                <LocalTranscription
+                  id={id}
+                  onStatusChange={setTranscriptionStatus}
+                  onCompleted={() => {
+                    if (transcriptionRefreshId.current === id) return;
+                    transcriptionRefreshId.current = id;
+                    setRefresh(value => value + 1);
+                    setEvidenceRefresh(value => value + 1);
+                  }}
+                />
+              )
+            )}
+            {transcript.status === "AVAILABLE" && transcript.text
+              ? (() => {
+                const timedClean = transcript.timed_segments?.length ? cleanTimedSegments(transcript.timed_segments) : null;
+                const plainClean = !timedClean ? cleanCaptionText(transcript.text) : null;
+                const collapsed = timedClean ? timedClean.collapsedCount : (plainClean?.collapsedCount ?? 0);
+                const displaySegments = timedClean ? (transcriptVerbatim ? transcript.timed_segments! : timedClean.segments) : null;
+                return (
+                  <>
+                    <CaptionCleanBar
+                      collapsedCount={collapsed}
+                      showVerbatim={transcriptVerbatim}
+                      onToggle={() => setTranscriptVerbatim(current => !current)}
+                    />
+                    <div className="transcript-scroll-box">
+                      {displaySegments
+                        ? <ol className="timed-transcript">{displaySegments.map((segment, index) => <li key={index}><time className="tabular-nums">{timestampRange(segment.start_ms, segment.end_ms)}</time><span>{segment.text}</span></li>)}</ol>
+                        : <div className="transcript-copy">{transcriptVerbatim ? transcript.text : plainClean!.text}</div>}
+                    </div>
+                  </>
+                );
+              })()
+              : isLocalMedia || isBilibili ? null : (
+                <div className="semantic-state state-neutral">
+                  <Status {...contentStatus(data.video.provider, transcript.status)} />
+                  <p>{t(({
+                    TRANSCRIPTION_UNAVAILABLE: "Media snapshots are saved. A provisioned offline transcription adapter is required for transcript, Summary and Evidence; nothing is sent to a cloud service.",
+                    TRANSCRIPTION_FAILED: "Local transcription failed",
+                    NOT_PROCESSED: "No canonical transcript has been recorded for this video.",
+                    FAILED: "Transcript processing ended without a canonical transcript.",
+                    UNAVAILABLE: "The recorded canonical transcript cannot be safely read.",
+                  } as Record<string, string>)[transcript.status] ?? "A readable transcript is not available yet.")}</p>
+                </div>
               )}
-              {transcript.status === "AVAILABLE" && transcript.text
-                ? (() => {
-                  const timedClean = transcript.timed_segments?.length ? cleanTimedSegments(transcript.timed_segments) : null;
-                  const plainClean = !timedClean ? cleanCaptionText(transcript.text) : null;
-                  const collapsed = timedClean ? timedClean.collapsedCount : (plainClean?.collapsedCount ?? 0);
-                  const displaySegments = timedClean ? (transcriptVerbatim ? transcript.timed_segments! : timedClean.segments) : null;
-                  return (
-                    <>
-                      <CaptionCleanBar
-                        collapsedCount={collapsed}
-                        showVerbatim={transcriptVerbatim}
-                        onToggle={() => setTranscriptVerbatim(current => !current)}
-                      />
-                      <div className="transcript-scroll-box">
-                        {displaySegments
-                          ? <ol className="timed-transcript">{displaySegments.map((segment, index) => <li key={index}><time className="tabular-nums">{timestampRange(segment.start_ms, segment.end_ms)}</time><span>{segment.text}</span></li>)}</ol>
-                          : <div className="transcript-copy">{transcriptVerbatim ? transcript.text : plainClean!.text}</div>}
-                      </div>
-                    </>
-                  );
-                })()
-                : isLocalMedia || isBilibili ? null : (
-                  <div className="semantic-state state-neutral">
-                    <Status {...contentStatus(data.video.provider, transcript.status)} />
-                    <p>{t(({
-                      TRANSCRIPTION_UNAVAILABLE: "Media snapshots are saved. A provisioned offline transcription adapter is required for transcript, Summary and Evidence; nothing is sent to a cloud service.",
-                      TRANSCRIPTION_FAILED: "Local transcription failed",
-                      NOT_PROCESSED: "No canonical transcript has been recorded for this video.",
-                      FAILED: "Transcript processing ended without a canonical transcript.",
-                      UNAVAILABLE: "The recorded canonical transcript cannot be safely read.",
-                    } as Record<string, string>)[transcript.status] ?? "A readable transcript is not available yet.")}</p>
-                  </div>
-                )}
-            </Panel>
-          </div>
-          <div className={refDrawerTab !== null && refDrawerTab !== "history" ? "reader-ref-pane-inactive" : "reader-ref-pane"}>
+          </Panel>
+        }
+        historyPane={
+          <>
             {wsAiReady ? (
               <details className="legacy-model-diagnostics">
                 <summary>
@@ -7449,9 +7331,9 @@ function ContentDetailPanel(
                 ))
                 : <Empty>No processing history yet.</Empty>}
             </Panel>
-          </div>
-        </div>
-      </aside>
+          </>
+        }
+      />
     </div>
   );
 }
