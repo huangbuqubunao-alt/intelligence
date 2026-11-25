@@ -1847,7 +1847,7 @@ def _check_clause_against_cited_evidence(
                 for w in re.findall(r"[a-z]{3,}", _normalize_anchor_text(clause))
                 if w not in _GENERIC_STOPWORDS_EN
             }
-            if claim_concepts:
+            if claim_concepts and ev_concepts:
                 if not ((claim_concepts | claim_en) & (ev_concepts | ev_en)):
                     return False, "UNSUPPORTED_CLAIM_UNVERIFIED"
 
