@@ -138,6 +138,15 @@ _WS_AI_VISUAL_ROUTE = re.compile(
 _WS_AI_KEYFRAME_IMG_ROUTE = re.compile(
     r"^/api/v1/workspace-ai/videos/([^/]+)/keyframes/([^/]+)\.jpg$"
 )
+_LOCAL_MEDIA_ROUTE = re.compile(r"^/api/v1/videos/([^/]+)/media$")
+_LOCAL_MEDIA_MIME: dict[str, str] = {
+    ".mp4": "video/mp4",
+    ".mov": "video/quicktime",
+    ".m4v": "video/x-m4v",
+    ".mp3": "audio/mpeg",
+    ".m4a": "audio/mp4",
+    ".wav": "audio/wav",
+}
 _WS_AI_VISUAL_ZIP_ROUTE = re.compile(
     r"^/api/v1/workspace-ai/videos/([^/]+)/visual-pack\.zip$"
 )
@@ -2032,11 +2041,85 @@ class FastReadApiApplication:
         finally:
             self._bump_mutation_epoch()
 
+    def _resolve_local_media_file(self, video_id: str) -> tuple[Path, str] | None:
+        db_path = getattr(self._inner._repository, "_database_path", None)
+        if not isinstance(db_path, Path) or not db_path.is_file():
+            return None
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        conn.row_factory = sqlite3.Row
+        try:
+            row = conn.execute(
+                """
+                SELECT s.media_kind, a.relative_path, a.storage_root, a.deleted_at
+                FROM content_source_snapshots AS s
+                JOIN artifacts AS a ON a.artifact_id = s.snapshot_artifact_id
+                WHERE s.content_id = ? AND s.provider = 'LOCAL' AND s.media_kind IN ('AUDIO', 'VIDEO')
+                LIMIT 1
+                """,
+                (video_id,),
+            ).fetchone()
+        finally:
+            conn.close()
+        if row is None or row["deleted_at"] is not None:
+            return None
+        storage_root = str(row["storage_root"] or "")
+        base_root = (
+            getattr(self._inner._repository, "_source_data_root", None)
+            if storage_root == "SOURCE_DATA"
+            else self._inner._data_root
+        )
+        if not isinstance(base_root, Path):
+            return None
+        rel_path = str(row["relative_path"] or "")
+        if not rel_path or ".." in PurePosixPath(rel_path).parts:
+            return None
+        candidate = base_root / rel_path
+        try:
+            if candidate.is_symlink():
+                return None
+            resolved_root = base_root.resolve()
+            resolved = candidate.resolve()
+            if not resolved.is_relative_to(resolved_root) or not resolved.is_file():
+                return None
+        except OSError:
+            return None
+        mime = _LOCAL_MEDIA_MIME.get(resolved.suffix.lower())
+        if mime is None:
+            return None
+        return resolved, mime
+
     def backup_download(
         self, path: str
     ) -> tuple[int, dict[str, str], bytes | Path] | None:
         parsed = urlparse(path)
         clean_path = parsed.path.rstrip("/")
+        local_media_m = _LOCAL_MEDIA_ROUTE.fullmatch(clean_path)
+        if local_media_m is not None:
+            vid = unquote(local_media_m[1])
+            resolved_media = self._resolve_local_media_file(vid)
+            if resolved_media is None:
+                err_bytes = json.dumps(
+                    {
+                        "error": {
+                            "code": "LOCAL_MEDIA_NOT_FOUND",
+                            "message": "Playable local media file was not found.",
+                        }
+                    }
+                ).encode("utf-8")
+                return (
+                    int(HTTPStatus.NOT_FOUND),
+                    {"Content-Type": "application/json; charset=utf-8"},
+                    err_bytes,
+                )
+            media_path, mime_type = resolved_media
+            return (
+                int(HTTPStatus.OK),
+                {
+                    "Content-Type": mime_type,
+                    "Accept-Ranges": "bytes",
+                },
+                media_path,
+            )
         if clean_path == "/api/v1/workspace-ai/obsidian-bundle.zip":
             q_params = parse_qs(parsed.query, keep_blank_values=False) if parsed.query else {}
             req_scope = (q_params.get("scope") or ["must_watch"])[0]
