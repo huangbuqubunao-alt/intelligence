@@ -9,6 +9,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { LocalImport } from "./LocalImport";
+import { ReaderReferenceDrawer } from "./ReaderReferenceDrawer";
 import {
   WhisperQuickDownloadPanel,
   WorkspaceAiSettingsPanel,
@@ -1436,5 +1437,55 @@ describe("Manual UX Remediation (#1-#4)", () => {
       await screen.findByText(/当前提问范围：候选资料 1 篇（提问时将实时核验原文）/),
     ).toBeTruthy();
     expect(await screen.findByText(/有效引用 1 条 · 覆盖来源 1 篇/)).toBeTruthy();
+  });
+
+  it("P1-05 / Gate E2: ReaderReferenceDrawer excludes collapsed <details> descendants from Tab/Shift+Tab focus trap", () => {
+    render(
+      <ReaderReferenceDrawer
+        activeTab="transcript"
+        zhReader={true}
+        isTextDocument={false}
+        evidenceCount={0}
+        historyCount={0}
+        returnFocusTarget={null}
+        onSelectTab={() => {}}
+        onClose={() => {}}
+        evidencePane={<p>无证据</p>}
+        historyPane={<p>无记录</p>}
+        transcriptPane={
+          <div>
+            <button type="button">设置本地转写</button>
+            <details data-testid="diag-details">
+              <summary data-testid="diag-summary">转写诊断</summary>
+              <button type="button">检查可用性</button>
+              <input aria-label="本地模型目录" type="text" />
+            </details>
+          </div>
+        }
+      />,
+    );
+
+    const transcriptTab = screen.getByRole("tab", { name: "原始字幕" });
+    const diagSummary = screen.getByTestId("diag-summary");
+    const diagDetails = screen.getByTestId("diag-details");
+
+    // Initial focus enters the active tab; Shift+Tab must wrap to <summary>, NOT hidden controls inside closed <details>
+    expect(document.activeElement).toBe(transcriptTab);
+    fireEvent.keyDown(transcriptTab, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(diagSummary);
+
+    // Forward Tab from <summary> while <details> is collapsed must wrap back to active tab
+    fireEvent.keyDown(diagSummary, { key: "Tab" });
+    expect(document.activeElement).toBe(transcriptTab);
+
+    // Once <details> is opened, <summary> is no longer last focusable so Tab does not wrap back early
+    diagDetails.setAttribute("open", "");
+    diagSummary.focus();
+    const tabNotLast = fireEvent.keyDown(diagSummary, { key: "Tab" });
+    expect(tabNotLast).toBe(true);
+    const hiddenInput = screen.getByLabelText("本地模型目录");
+    hiddenInput.focus();
+    fireEvent.keyDown(hiddenInput, { key: "Tab" });
+    expect(document.activeElement).toBe(transcriptTab);
   });
 });

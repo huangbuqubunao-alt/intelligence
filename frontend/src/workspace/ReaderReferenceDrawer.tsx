@@ -10,6 +10,22 @@ export type ReaderDrawerTab = "evidence" | "transcript" | "history";
 
 const TAB_ORDER: readonly ReaderDrawerTab[] = ["transcript", "evidence", "history"];
 
+function isInsideClosedDetails(el: HTMLElement): boolean {
+  let ancestor: HTMLElement | null = el.parentElement;
+  while (ancestor) {
+    if (ancestor.tagName === "DETAILS" && !ancestor.hasAttribute("open")) {
+      const directSummary = Array.from(ancestor.children).find(
+        (child) => child.tagName === "SUMMARY",
+      );
+      if (!directSummary || !directSummary.contains(el)) {
+        return true;
+      }
+    }
+    ancestor = ancestor.parentElement;
+  }
+  return false;
+}
+
 function listFocusableInDrawer(container: HTMLElement): HTMLElement[] {
   const nodes = container.querySelectorAll<HTMLElement>(
     'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])',
@@ -17,7 +33,11 @@ function listFocusableInDrawer(container: HTMLElement): HTMLElement[] {
   return Array.from(nodes).filter((el) => {
     const tIdx = el.getAttribute("tabindex");
     if (tIdx === "-1") return false;
-    return el.closest(".reader-ref-pane-inactive, [hidden]") === null;
+    if (el.closest(".reader-ref-pane-inactive, [hidden], [inert]") !== null) return false;
+    if (isInsideClosedDetails(el)) return false;
+    const style = typeof window !== "undefined" ? window.getComputedStyle(el) : null;
+    if (style && (style.display === "none" || style.visibility === "hidden")) return false;
+    return true;
   });
 }
 
