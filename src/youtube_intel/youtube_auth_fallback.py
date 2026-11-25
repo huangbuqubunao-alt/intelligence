@@ -321,7 +321,7 @@ class YouTubeAuthFallbackService:
         conn = sqlite3.connect(
             self.db_path,
             timeout=10.0,
-            isolation_level=None if immediate else "",
+            isolation_level=None if immediate else "DEFERRED",
         )
         conn.row_factory = sqlite3.Row
         try:

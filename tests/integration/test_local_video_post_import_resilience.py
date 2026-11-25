@@ -878,6 +878,3 @@ def test_local_media_host_cross_site_range_head_and_managed_root_security(
     finally:
         server.shutdown()
         server.server_close()
-
-
-

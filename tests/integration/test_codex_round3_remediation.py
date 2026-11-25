@@ -815,4 +815,3 @@ def test_p2_03_research_scope_options_exclude_tampered_local_sources(
     code2, body2 = fast_app.handle("GET", "/api/v1/workspace-ai/research/sessions")
     assert code2 == HTTPStatus.OK
     assert not any(v["video_id"] == vid for v in body2["scope_options"]["videos"])
-

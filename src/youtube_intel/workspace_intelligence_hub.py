@@ -11672,7 +11672,10 @@ class WorkspaceIntelligenceHub:
         mirror: str,
         report: Callable[[dict[str, object]], None],
     ) -> Path:
-        from huggingface_hub import HfApi, hf_hub_download
+        from huggingface_hub import (  # type: ignore[import-not-found]
+            HfApi,
+            hf_hub_download,
+        )
 
         endpoints = _WHISPER_MIRROR_ORDER[mirror]
         models_root = self._project_root / ".local-transcription" / "models"

@@ -975,4 +975,3 @@ def test_p1_04_atomic_sqlite_slot_reservation_cross_instance_race_and_recovery(
     # Disconnect cleanly clears config and immediately blocks all instances
     svc_c.disconnect()
     assert svc_a.can_attempt("vidAfterDisconnect") == (False, "YOUTUBE_AUTH_DISABLED")
-

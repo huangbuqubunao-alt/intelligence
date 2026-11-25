@@ -1,8 +1,8 @@
 # 独立整改与集成验收断点检查点（Remediation Checkpoint）
 
-> 主线规格：`docs/validation/ux-redesign-2026-11-25/04_INDEPENDENT_CODE_REVIEW_AND_AGY_REMEDIATION.md`  
-> 当前分支：`antigravity/remediation-20261125`（从 `origin/main@d1b58f73` 线性创建）  
-> 候选基准：`beea3a53`（完整线性重放 `5cc76ab8..9cee10df`，共 16 个提交；`HEAD^{tree} == 9cee10df^{tree}` 已验证）  
+> 主线规格：`docs/validation/ux-redesign-2026-11-25/04_INDEPENDENT_CODE_REVIEW_AND_AGY_REMEDIATION.md`
+> 当前分支：`antigravity/remediation-20261125`（从 `origin/main@d1b58f73` 线性创建）
+> 候选基准：`beea3a53`（完整线性重放 `5cc76ab8..9cee10df`，共 16 个提交；`HEAD^{tree} == 9cee10df^{tree}` 已验证）
 > 检查点状态：Batch D（Gates U1/U2：`P1-05`, `P2-04`, `P2-05`, TOP 1–3）已完成并通过验证，正在进入 Phase 3（Gates E1/E2/R1：全量自动化回归 + 实机浏览器验收 + 终审报告与推送）
 
 ## 1. Phase 0 / Gate M1 验证结论
