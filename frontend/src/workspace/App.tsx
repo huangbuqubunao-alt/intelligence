@@ -547,8 +547,9 @@ function initialDeltaTarget(): DeltaTarget | null {
 
 function initialPage(): Page {
   const raw = location.hash.slice(1);
-  if (/^Settings\/models\/(?:bigmodel|moonshot)(?:\?[^#]+)?$/.test(raw)) return "Settings";
+  if (/^Settings\/models(?:\/(?:bigmodel|moonshot))?(?:\?[^#]+)?$/.test(raw)) return "Settings";
   if (/^Settings\/transcription(?:\/[^/]+)?$/.test(raw)) return "Settings";
+  if (/^Settings\/youtube-auth(?:\?[^#]+)?$/.test(raw)) return "Settings";
   if (raw.startsWith("Content/")) return "Content";
   if (raw.startsWith("Intelligence/")) return "Intelligence";
   if (raw.startsWith("Topics/")) return "Topics";
@@ -4972,6 +4973,14 @@ function ContentPage(
                       >
                         {language === "zh-CN" ? "查看处理方式" : "View options"}
                       </button>
+                      {pendingItem.processing_status === "NEEDS_ATTENTION" ? (
+                        <a
+                          className="button button-secondary button-small"
+                          href={`#Settings/youtube-auth?return=${encodeURIComponent(`#Content/${pendingItem.video_id}`)}`}
+                        >
+                          {language === "zh-CN" ? "授权本人 YouTube 登录态 ›" : "Authorize YouTube ›"}
+                        </a>
+                      ) : null}
                       {pendingItem.source_id ? (
                         <button
                           type="button"
@@ -5978,7 +5987,10 @@ function PendingContentDetailView({
                 : t("Retry")}
           </button>
           {showAuthLink ? (
-            <a className="button button-secondary" href="#Settings/youtube-auth">
+            <a
+              className="button button-secondary"
+              href={`#Settings/youtube-auth?return=${encodeURIComponent(`#Content/${video.video_id}`)}`}
+            >
               {zh ? "授权本人 YouTube 登录态 ›" : "Authorize YouTube login ›"}
             </a>
           ) : null}
@@ -6469,7 +6481,10 @@ function ContentDetailPanel(
                 </button>
               ) : null}
               {showYouTubeAuthCta ? (
-                <a className="button button-secondary" href="#Settings/youtube-auth">
+                <a
+                  className="button button-secondary"
+                  href={`#Settings/youtube-auth?return=${encodeURIComponent(`#Content/${id}`)}`}
+                >
                   {zh ? "授权本人 YouTube 登录态 ›" : "Authorize YouTube login ›"}
                 </a>
               ) : null}
@@ -10276,6 +10291,7 @@ function Settings({ refresh }: { refresh: number }) {
             {overviewPanel}
             {legacyModelsPanel}
             <WorkspaceAiSettingsPanel initial={settings.data.workspace_ai} onConfigChange={setLiveWorkspaceAi} />
+            {location.hash.startsWith("#Settings/youtube-auth") ? <YouTubeAuthSettingsPanel /> : null}
             <LocalIntelligenceSetup />
             <TranscriptionSetup />
           </>
