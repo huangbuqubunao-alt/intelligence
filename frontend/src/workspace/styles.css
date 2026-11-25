@@ -36,7 +36,7 @@
   --selection-fg: #f8fafc;
   --panel-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.045);
   --panel-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.018), rgba(255, 255, 255, 0)) var(--surface);
-  --jump-bar-bg: rgba(16, 22, 32, 0.84);
+  --jump-bar-bg: #161e2b;
   --overlay-scrim: rgba(4, 7, 12, 0.72);
   --radius-sm: 8px;
   --radius: 12px;
@@ -93,7 +93,7 @@
   --selection-fg: #0f172a;
   --panel-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.85);
   --panel-bg: var(--surface);
-  --jump-bar-bg: rgba(255, 255, 255, 0.88);
+  --jump-bar-bg: #ffffff;
   --overlay-scrim: rgba(15, 23, 42, 0.42);
   --shadow-1: 0 1px 2px rgba(15, 23, 42, 0.05);
   --shadow-2: 0 6px 20px -8px rgba(15, 23, 42, 0.09), 0 1px 3px rgba(15, 23, 42, 0.05);
@@ -2160,7 +2160,7 @@ h1, h2 {
 
 [id^="section-"],
 [id^="settings-"] {
-  scroll-margin-top: 88px;
+  scroll-margin-top: 96px;
 }
 
 /* Sidebar Utility Dock: visually anchored inside the desktop sidebar above the footer,
@@ -2316,17 +2316,17 @@ h1, h2 {
   }
   .sidebar-nav {
     justify-content: flex-start;
-    gap: 4px;
+    gap: 2px;
   }
   .nav-item {
-    min-height: 38px;
-    gap: 4px;
-    padding: 7px 8px;
-    font-size: 11.5px;
+    min-height: 36px;
+    gap: 3px;
+    padding: 6px 6px;
+    font-size: 11px;
   }
   .nav-item .nav-svg-icon {
-    width: 14px;
-    height: 14px;
+    width: 13px;
+    height: 13px;
   }
 }
 
@@ -2517,19 +2517,19 @@ h1, h2 {
 /* Sticky Reader & Settings Section Jump Bar */
 .reader-jump-bar {
   position: sticky;
-  top: 10px;
+  top: 0;
   z-index: 26;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  justify-self: start;
-  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
   border: 1px solid var(--border-strong);
-  border-radius: 14px;
+  border-radius: var(--radius);
   background: var(--surface-raised);
-  padding: 6px 8px;
-  box-shadow: 0 10px 28px -8px rgba(0, 0, 0, 0.55), var(--shadow-2);
+  padding: 8px 10px;
+  box-shadow: 0 -14px 0 0 var(--bg), 0 10px 28px -8px rgba(0, 0, 0, 0.48), var(--shadow-2);
 }
 
 .panel-head {
