@@ -975,3 +975,202 @@ def test_p1_04_atomic_sqlite_slot_reservation_cross_instance_race_and_recovery(
     # Disconnect cleanly clears config and immediately blocks all instances
     svc_c.disconnect()
     assert svc_a.can_attempt("vidAfterDisconnect") == (False, "YOUTUBE_AUTH_DISABLED")
+
+
+def test_p1_r02_circuit_breaker_preserved_across_config_saves_and_disconnect(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    env = _build_runtime_env(tmp_path, monkeypatch)
+    runtime: RuntimeOperations = env["runtime"]
+    secret_store = _MemorySecret()
+    secret_store.save(VALID_COOKIES)
+    clock = {"now": BASE_NOW}
+    network_calls: list[str] = []
+
+    monkeypatch.setattr("youtube_intel.providers.youtube._resolve_system_proxy_url", lambda: None)
+    monkeypatch.setattr("youtube_intel.providers.subtitles._resolve_system_proxy_url", lambda: None)
+
+    class _RateLimitYdl:
+        cookiejar = None
+
+        def __enter__(self) -> _RateLimitYdl:
+            return self
+
+        def __exit__(self, *_a: object) -> None:
+            return None
+
+        def extract_info(self, url: str, download: bool = False) -> object:
+            del download
+            network_calls.append(url)
+            raise DownloadError("HTTP Error 429: Too Many Requests")
+
+    svc_a = YouTubeAuthFallbackService(
+        project_root=env["project_root"],
+        cookie_store=secret_store,
+        ydl_factory=lambda _opts: _RateLimitYdl(),
+        now=lambda: clock["now"],
+    )
+    svc_a.update_config(
+        {"enabled": True, "auth_mode": "browser", "browser_name": "chrome", "daily_limit": 10, "cooldown_seconds": 15}
+    )
+    _seed_video_source(env["repo"], source_id="src-cb-1", video_id="vidCbGate01", now=clock["now"])
+    code_fail = svc_a.attempt_authenticated_ingest(runtime, "src-cb-1", "vidCbGate01")
+    assert code_fail == "YOUTUBE_RATE_LIMITED"
+    assert len(network_calls) == 1
+    first_status = svc_a.get_status()
+    assert first_status["circuit_open"] is True
+    first_deadline = str(first_status["circuit_open_until"])
+
+    # Advance past normal cooldown (15s), still well inside 30-min circuit breaker
+    clock["now"] = clock["now"] + timedelta(minutes=2)
+    svc_b = YouTubeAuthFallbackService(
+        project_root=env["project_root"],
+        cookie_store=secret_store,
+        ydl_factory=lambda _opts: _RateLimitYdl(),
+        now=lambda: clock["now"],
+    )
+    # Ordinary re-save (same or modified settings) MUST NOT clear active circuit or cooldown
+    b_status = svc_b.update_config(
+        {"enabled": True, "auth_mode": "browser", "browser_name": "safari", "daily_limit": 20, "cooldown_seconds": 10}
+    )
+    assert b_status["circuit_open"] is True
+    assert b_status["circuit_open_until"] == first_deadline
+
+    # Even disconnect + re-enable cannot bypass active 30-min rate limit breaker
+    svc_b.disconnect()
+    svc_b.update_config({"enabled": True, "auth_mode": "browser", "browser_name": "chrome"})
+
+    svc_c = YouTubeAuthFallbackService(
+        project_root=env["project_root"],
+        cookie_store=secret_store,
+        ydl_factory=lambda _opts: _RateLimitYdl(),
+        now=lambda: clock["now"],
+    )
+    assert svc_c.can_attempt("vidCbGate02") == (False, "YOUTUBE_AUTH_RATE_LIMITED")
+    assert svc_c.attempt_authenticated_ingest(runtime, "src-cb-1", "vidCbGate02") == "YOUTUBE_AUTH_RATE_LIMITED"
+    assert len(network_calls) == 1  # Zero extra external calls
+
+    # Later finalization extends or preserves max deadline, never shortens it
+    svc_c._record_usage(video_id="vidCbExtend", outcome="RATE_LIMITED", open_circuit=True)
+    extended_deadline = str(svc_c.get_status()["circuit_open_until"])
+    assert extended_deadline >= first_deadline
+
+
+def test_p2_r03_legacy_keychain_and_browser_cookiejar_strict_filtering(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import http.cookiejar
+
+    env = _build_runtime_env(tmp_path, monkeypatch)
+    runtime: RuntimeOperations = env["runtime"]
+    monkeypatch.setattr("youtube_intel.providers.youtube._resolve_system_proxy_url", lambda: None)
+    monkeypatch.setattr("youtube_intel.providers.subtitles._resolve_system_proxy_url", lambda: None)
+    monkeypatch.setattr(
+        "urllib.request.OpenerDirector.open",
+        lambda _self, _req, timeout=None: _FakeHttpResponse(VALID_VTT),
+    )
+
+    # 1. Arbitrary comments stripped on validate_netscape_cookies_txt while preserving #HttpOnly_
+    cleaned = validate_netscape_cookies_txt(
+        "# arbitrary sensitive comment\n"
+        ".evil.example\tTRUE\t/\tFALSE\t0\tBAD\tLEAK1\n"
+        "#HttpOnly_.youtube.com\tTRUE\t/\tTRUE\t1893456000\tHSID\tGOOD_YT_HTTPONLY\n"
+    )
+    assert "arbitrary sensitive comment" not in cleaned
+    assert "evil.example" not in cleaned
+    assert "#HttpOnly_.youtube.com" in cleaned
+    assert "GOOD_YT_HTTPONLY" in cleaned
+
+    # 2. Legacy unfiltered Keychain store is re-filtered BEFORE temp file creation
+    class _LegacyDirtyStore:
+        def get(self) -> str:
+            return (
+                "# leaked note\n"
+                "bank.example\tFALSE\t/\tTRUE\t1893456000\tSESS\tDIRTY_BANK_SECRET\n"
+                ".youtube.com\tTRUE\t/\tTRUE\t1893456000\tSID\tCLEAN_YT_SECRET\n"
+            )
+
+        def save(self, value: str) -> None:
+            del value
+
+        def delete(self) -> None:
+            pass
+
+    observed_cookie_files: list[str] = []
+
+    def _inspecting_factory(vid: str) -> Any:
+        base = _success_ydl_factory(vid)
+
+        def _make(opts: dict[str, Any]) -> Any:
+            cf = opts.get("cookiefile")
+            if cf:
+                observed_cookie_files.append(Path(cf).read_text(encoding="utf-8"))
+            return base(opts)
+
+        return _make
+
+    svc_legacy = YouTubeAuthFallbackService(
+        project_root=env["project_root"],
+        cookie_store=_LegacyDirtyStore(),
+        ydl_factory=_inspecting_factory("vidLegacy01"),
+        now=lambda: BASE_NOW,
+    )
+    # Write config enabling cookie_file without re-uploading cookies
+    svc_legacy.update_config({"enabled": True, "auth_mode": "cookie_file"})
+    _seed_video_source(env["repo"], source_id="src-leg-1", video_id="vidLegacy01")
+    assert svc_legacy.attempt_authenticated_ingest(runtime, "src-leg-1", "vidLegacy01") is None
+    assert observed_cookie_files and "CLEAN_YT_SECRET" in observed_cookie_files[0]
+    assert "DIRTY_BANK_SECRET" not in observed_cookie_files[0]
+    assert "bank.example" not in observed_cookie_files[0]
+    assert "leaked note" not in observed_cookie_files[0]
+
+    # 3. Browser mode filters non-YouTube/Google cookies in handle.cookiejar BEFORE extract_info & opener
+    jar = http.cookiejar.CookieJar()
+    for dom, cname, cval in (
+        (".bank.example", "BANK_TOK", "SECRET_BANK_COOKIE"),
+        (".youtube.com.evil.test", "SPOOF", "SECRET_SPOOF"),
+        (".youtube.com", "SAPISID", "VALID_YT_BROWSER_COOKIE"),
+        (".google.com", "NID", "VALID_GOOGLE_BROWSER_COOKIE"),
+    ):
+        jar.set_cookie(
+            http.cookiejar.Cookie(
+                version=0, name=cname, value=cval, port=None, port_specified=False,
+                domain=dom, domain_specified=True, domain_initial_dot=dom.startswith("."),
+                path="/", path_specified=True, secure=True, expires=1893456000,
+                discard=False, comment=None, comment_url=None, rest={},
+            )
+        )
+
+    saw_domains_in_extract: list[set[str]] = []
+
+    def _browser_jar_factory(opts: dict[str, Any]) -> Any:
+        del opts
+        base = _success_ydl_factory("vidJar00001")({})
+
+        class _JarYdl:
+            cookiejar = jar
+
+            def __enter__(self) -> _JarYdl:
+                return self
+
+            def __exit__(self, *_a: object) -> None:
+                return None
+
+            def extract_info(self, url: str, download: bool = False) -> dict[str, Any]:
+                saw_domains_in_extract.append({c.domain for c in jar})
+                return base.extract_info(url, download=download)
+
+        return _JarYdl()
+
+    clock2 = {"now": BASE_NOW + timedelta(seconds=60)}
+    svc_browser = YouTubeAuthFallbackService(
+        project_root=env["project_root"],
+        cookie_store=_LegacyDirtyStore(),
+        ydl_factory=_browser_jar_factory,
+        now=lambda: clock2["now"],
+    )
+    svc_browser.update_config({"enabled": True, "auth_mode": "browser", "browser_name": "chrome"})
+    _seed_video_source(env["repo"], source_id="src-jar-1", video_id="vidJar00001", now=clock2["now"])
+    assert svc_browser.attempt_authenticated_ingest(runtime, "src-jar-1", "vidJar00001") is None
+    assert saw_domains_in_extract
+    assert saw_domains_in_extract[0] == {".youtube.com", ".google.com"}

@@ -161,7 +161,7 @@ def validate_netscape_cookies_txt(raw: str) -> str:
         raise ValueError("cookies.txt exceeds 512 KiB size limit")
 
     lines = text.splitlines()
-    filtered_lines: list[str] = []
+    filtered_lines: list[str] = ["# Netscape HTTP Cookie File"]
     has_youtube_or_google = False
     for line in lines:
         stripped = line.strip()
@@ -169,7 +169,6 @@ def validate_netscape_cookies_txt(raw: str) -> str:
             continue
         is_httponly = stripped.startswith("#HttpOnly_")
         if stripped.startswith("#") and not is_httponly:
-            filtered_lines.append(line)
             continue
         entry = stripped[len("#HttpOnly_") :] if is_httponly else stripped
         parts = entry.split("\t")
@@ -184,6 +183,28 @@ def validate_netscape_cookies_txt(raw: str) -> str:
     if not has_youtube_or_google:
         raise ValueError("cookies.txt must contain at least one youtube.com or google.com cookie")
     return "\n".join(filtered_lines) + "\n"
+
+
+def _filter_cookiejar_domains(jar: Any) -> None:
+    """Drop any cookie outside YouTube/Google allowlist from an in-memory CookieJar."""
+    if jar is None:
+        return
+    try:
+        cookies = list(jar)
+    except Exception:  # noqa: BLE001
+        return
+    for cookie in cookies:
+        domain = str(getattr(cookie, "domain", "") or "")
+        if not _is_allowed_cookie_domain(domain, _ALLOWED_COOKIE_ROOTS):
+            name = getattr(cookie, "name", None)
+            path = getattr(cookie, "path", "/")
+            clear_fn = getattr(jar, "clear", None)
+            if callable(clear_fn) and name is not None:
+                with contextlib.suppress(Exception):
+                    clear_fn(domain, path, name)
+            elif hasattr(jar, "remove") and callable(jar.remove):
+                with contextlib.suppress(Exception):
+                    jar.remove(cookie)
 
 
 def _validate_subtitle_redirect_url(url: str) -> None:
@@ -261,7 +282,10 @@ class YouTubeAuthFallbackService:
             return None
         if not isinstance(secret, str) or not secret.strip():
             return None
-        return secret
+        try:
+            return validate_netscape_cookies_txt(secret)
+        except ValueError:
+            return None
 
     def _connect_read(self) -> sqlite3.Connection | None:
         if not self.db_path.is_file():
@@ -470,85 +494,121 @@ class YouTubeAuthFallbackService:
         if unknown:
             raise ValueError(f"Unsupported fields: {', '.join(sorted(unknown))}")
 
-        current = self._read_config_row()
-        raw_mode = payload.get("auth_mode", current.auth_mode)
-        if not isinstance(raw_mode, str) or raw_mode.strip() not in VALID_AUTH_MODES:
-            raise ValueError("auth_mode must be 'disabled', 'browser', or 'cookie_file'")
-        auth_mode = raw_mode.strip()
+        if "auth_mode" in payload:
+            raw_mode = payload["auth_mode"]
+            if not isinstance(raw_mode, str) or raw_mode.strip() not in VALID_AUTH_MODES:
+                raise ValueError("auth_mode must be 'disabled', 'browser', or 'cookie_file'")
 
-        enabled_raw = payload.get("enabled", auth_mode != "disabled")
-        if not isinstance(enabled_raw, bool):
+        if "enabled" in payload and not isinstance(payload["enabled"], bool):
             raise ValueError("enabled must be a boolean")
-        enabled = enabled_raw and auth_mode != "disabled"
-        if auth_mode == "disabled":
-            enabled = False
 
-        browser_name = current.browser_name
-        if auth_mode == "browser":
-            raw_browser = payload.get("browser_name", current.browser_name)
-            if not isinstance(raw_browser, str) or raw_browser.strip().lower() not in SUPPORTED_AUTH_BROWSERS:
-                raise ValueError(
-                    f"browser_name must be one of: {', '.join(SUPPORTED_AUTH_BROWSERS)}"
-                )
-            browser_name = raw_browser.strip().lower()
-        elif "browser_name" in payload and isinstance(payload["browser_name"], str):
-            candidate = payload["browser_name"].strip().lower()
-            if candidate and candidate not in SUPPORTED_AUTH_BROWSERS:
-                raise ValueError("Unsupported browser_name")
-            browser_name = candidate
+        parsed_limit: int | None = None
+        if "daily_limit" in payload:
+            raw_limit = payload["daily_limit"]
+            if isinstance(raw_limit, bool) or not isinstance(raw_limit, (int, str)):
+                raise ValueError("daily_limit must be an integer between 1 and 50")
+            try:
+                parsed_limit = int(raw_limit)
+            except ValueError as err:
+                raise ValueError("daily_limit must be an integer between 1 and 50") from err
+            if parsed_limit < 1 or parsed_limit > MAX_DAILY_LIMIT:
+                raise ValueError("daily_limit must be an integer between 1 and 50")
 
-        raw_limit = payload.get("daily_limit", current.daily_limit)
-        if isinstance(raw_limit, bool) or not isinstance(raw_limit, (int, str)):
-            raise ValueError("daily_limit must be an integer between 1 and 50")
-        try:
-            daily_limit = int(raw_limit)
-        except ValueError as err:
-            raise ValueError("daily_limit must be an integer between 1 and 50") from err
-        if daily_limit < 1 or daily_limit > MAX_DAILY_LIMIT:
-            raise ValueError("daily_limit must be an integer between 1 and 50")
+        parsed_cooldown: int | None = None
+        if "cooldown_seconds" in payload:
+            raw_cooldown = payload["cooldown_seconds"]
+            if isinstance(raw_cooldown, bool) or not isinstance(raw_cooldown, (int, str)):
+                raise ValueError("cooldown_seconds must be an integer between 10 and 300")
+            try:
+                parsed_cooldown = int(raw_cooldown)
+            except ValueError as err:
+                raise ValueError("cooldown_seconds must be an integer between 10 and 300") from err
+            if parsed_cooldown < MIN_COOLDOWN_SECONDS or parsed_cooldown > MAX_COOLDOWN_SECONDS:
+                raise ValueError("cooldown_seconds must be an integer between 10 and 300")
 
-        raw_cooldown = payload.get("cooldown_seconds", current.cooldown_seconds)
-        if isinstance(raw_cooldown, bool) or not isinstance(raw_cooldown, (int, str)):
-            raise ValueError("cooldown_seconds must be an integer between 10 and 300")
-        try:
-            cooldown_seconds = int(raw_cooldown)
-        except ValueError as err:
-            raise ValueError("cooldown_seconds must be an integer between 10 and 300") from err
-        if cooldown_seconds < MIN_COOLDOWN_SECONDS or cooldown_seconds > MAX_COOLDOWN_SECONDS:
-            raise ValueError("cooldown_seconds must be an integer between 10 and 300")
-
+        validated_cookies: str | None = None
         if "cookies_txt" in payload and payload["cookies_txt"] is not None:
             raw_cookies = payload["cookies_txt"]
             if not isinstance(raw_cookies, str):
                 raise ValueError("cookies_txt must be a string")
             if raw_cookies.strip():
                 validated_cookies = validate_netscape_cookies_txt(raw_cookies)
-                self._cookie_store.save(validated_cookies)
-            elif auth_mode == "cookie_file" and not self._has_cookie_secret():
-                raise ValueError("cookies_txt is required when no cookies are stored")
 
-        if auth_mode == "cookie_file" and enabled and not self._has_cookie_secret():
-            raise ValueError("Please paste or import a valid cookies.txt first")
-
-        ts = format_utc_datetime(self._now())
         with self._db_lock:
             conn = self._connect_write(immediate=True)
             try:
                 self._begin_immediate(conn)
                 try:
+                    current = self._read_config_from_conn(conn)
+                    now_dt = self._now()
+                    ts = format_utc_datetime(now_dt)
+
+                    auth_mode = str(payload.get("auth_mode", current.auth_mode)).strip()
+                    enabled_raw = payload.get("enabled", auth_mode != "disabled")
+                    enabled = bool(enabled_raw) and auth_mode != "disabled"
+                    if auth_mode == "disabled":
+                        enabled = False
+
+                    browser_name = current.browser_name
+                    if auth_mode == "browser":
+                        raw_browser = payload.get("browser_name", current.browser_name)
+                        if (
+                            not isinstance(raw_browser, str)
+                            or raw_browser.strip().lower() not in SUPPORTED_AUTH_BROWSERS
+                        ):
+                            raise ValueError(
+                                f"browser_name must be one of: {', '.join(SUPPORTED_AUTH_BROWSERS)}"
+                            )
+                        browser_name = raw_browser.strip().lower()
+                    elif "browser_name" in payload and isinstance(payload["browser_name"], str):
+                        candidate = payload["browser_name"].strip().lower()
+                        if candidate and candidate not in SUPPORTED_AUTH_BROWSERS:
+                            raise ValueError("Unsupported browser_name")
+                        browser_name = candidate
+
+                    daily_limit = (
+                        parsed_limit
+                        if parsed_limit is not None
+                        else current.daily_limit
+                    )
+                    cooldown_seconds = (
+                        parsed_cooldown
+                        if parsed_cooldown is not None
+                        else current.cooldown_seconds
+                    )
+
+                    if validated_cookies is not None:
+                        self._cookie_store.save(validated_cookies)
+                    elif (
+                        "cookies_txt" in payload
+                        and auth_mode == "cookie_file"
+                        and not self._has_cookie_secret()
+                    ):
+                        raise ValueError("cookies_txt is required when no cookies are stored")
+
+                    if auth_mode == "cookie_file" and enabled and not self._has_cookie_secret():
+                        raise ValueError("Please paste or import a valid cookies.txt first")
+
+                    existing_circuit = _parse_iso_utc(current.circuit_open_until)
+                    preserved_circuit = (
+                        current.circuit_open_until
+                        if (existing_circuit is not None and existing_circuit > now_dt)
+                        else ""
+                    )
+
                     conn.execute(
                         """
                         INSERT INTO youtube_auth_config (
                             singleton_id, enabled, auth_mode, browser_name,
                             daily_limit, cooldown_seconds, circuit_open_until, updated_at
-                        ) VALUES (1, ?, ?, ?, ?, ?, '', ?)
+                        ) VALUES (1, ?, ?, ?, ?, ?, ?, ?)
                         ON CONFLICT(singleton_id) DO UPDATE SET
                             enabled = excluded.enabled,
                             auth_mode = excluded.auth_mode,
                             browser_name = excluded.browser_name,
                             daily_limit = excluded.daily_limit,
                             cooldown_seconds = excluded.cooldown_seconds,
-                            circuit_open_until = '',
+                            circuit_open_until = excluded.circuit_open_until,
                             updated_at = excluded.updated_at
                         """,
                         (
@@ -557,6 +617,7 @@ class YouTubeAuthFallbackService:
                             browser_name,
                             daily_limit,
                             cooldown_seconds,
+                            preserved_circuit,
                             ts,
                         ),
                     )
@@ -570,30 +631,38 @@ class YouTubeAuthFallbackService:
         return self.get_status()
 
     def disconnect(self) -> dict[str, object]:
-        """Disable authenticated fallback, clear circuit state, and purge Keychain cookies."""
+        """Disable authenticated fallback & purge Keychain cookies, keeping active circuit breaker."""
         with contextlib.suppress(Exception):
             self._cookie_store.delete()
         if self.db_path.is_file():
-            ts = format_utc_datetime(self._now())
+            now_dt = self._now()
+            ts = format_utc_datetime(now_dt)
             with self._db_lock:
                 conn = self._connect_write(immediate=True)
                 try:
                     self._begin_immediate(conn)
                     try:
+                        current = self._read_config_from_conn(conn)
+                        existing_circuit = _parse_iso_utc(current.circuit_open_until)
+                        preserved_circuit = (
+                            current.circuit_open_until
+                            if (existing_circuit is not None and existing_circuit > now_dt)
+                            else ""
+                        )
                         conn.execute(
                             """
                             INSERT INTO youtube_auth_config (
                                 singleton_id, enabled, auth_mode, browser_name,
                                 daily_limit, cooldown_seconds, circuit_open_until, updated_at
-                            ) VALUES (1, 0, 'disabled', '', ?, ?, '', ?)
+                            ) VALUES (1, 0, 'disabled', '', ?, ?, ?, ?)
                             ON CONFLICT(singleton_id) DO UPDATE SET
                                 enabled = 0,
                                 auth_mode = 'disabled',
                                 browser_name = '',
-                                circuit_open_until = '',
+                                circuit_open_until = excluded.circuit_open_until,
                                 updated_at = excluded.updated_at
                             """,
-                            (DEFAULT_DAILY_LIMIT, DEFAULT_COOLDOWN_SECONDS, ts),
+                            (DEFAULT_DAILY_LIMIT, DEFAULT_COOLDOWN_SECONDS, preserved_circuit, ts),
                         )
                         conn.execute("COMMIT")
                     except BaseException:
@@ -626,10 +695,7 @@ class YouTubeAuthFallbackService:
             return False, "YOUTUBE_AUTH_RATE_LIMITED"
 
         last_dt = _parse_iso_utc(last_ts)
-        updated_dt = _parse_iso_utc(cfg.updated_at)
-        # Apply inter-attempt cooldown only for attempts after the latest config update,
-        # so re-authorizing fresh cookies lets a user retry immediately.
-        if last_dt is not None and (updated_dt is None or last_dt >= updated_dt):
+        if last_dt is not None:
             elapsed = (now - last_dt).total_seconds()
             if elapsed < cfg.cooldown_seconds:
                 return False, "YOUTUBE_AUTH_RATE_LIMITED"
@@ -713,10 +779,26 @@ class YouTubeAuthFallbackService:
                             (usage_id, day_utc, video_id, outcome, now_iso),
                         )
                     if circuit_iso is not None:
+                        current = self._read_config_from_conn(conn)
+                        existing_dt = _parse_iso_utc(current.circuit_open_until)
+                        new_dt = now + timedelta(minutes=CIRCUIT_BREAK_MINUTES)
+                        chosen_dt = (
+                            existing_dt
+                            if (existing_dt is not None and existing_dt > new_dt)
+                            else new_dt
+                        )
+                        chosen_iso = format_utc_datetime(chosen_dt)
                         conn.execute(
-                            "UPDATE youtube_auth_config SET circuit_open_until = ?, updated_at = ? "
-                            "WHERE singleton_id = 1",
-                            (circuit_iso, now_iso),
+                            """
+                            INSERT INTO youtube_auth_config (
+                                singleton_id, enabled, auth_mode, browser_name,
+                                daily_limit, cooldown_seconds, circuit_open_until, updated_at
+                            ) VALUES (1, 0, 'disabled', '', ?, ?, ?, ?)
+                            ON CONFLICT(singleton_id) DO UPDATE SET
+                                circuit_open_until = excluded.circuit_open_until,
+                                updated_at = excluded.updated_at
+                            """,
+                            (DEFAULT_DAILY_LIMIT, DEFAULT_COOLDOWN_SECONDS, chosen_iso, now_iso),
                         )
                     conn.execute("COMMIT")
                 except BaseException:
@@ -794,6 +876,7 @@ class YouTubeAuthFallbackService:
                     handle = yt_dlp.YoutubeDL(merged)
                 cj = getattr(handle, "cookiejar", None)
                 if cj is not None:
+                    _filter_cookiejar_domains(cj)
                     holder["cookiejar"] = cj
                 return _CachingYdl(handle)
 
@@ -808,6 +891,7 @@ class YouTubeAuthFallbackService:
                         )
                     )
                 if holder["cookiejar"] is not None:
+                    _filter_cookiejar_domains(holder["cookiejar"])
                     handlers.append(urllib.request.HTTPCookieProcessor(holder["cookiejar"]))
                 built = urllib.request.build_opener(*handlers)
                 return built.open(request, timeout=timeout)  # noqa: S310
