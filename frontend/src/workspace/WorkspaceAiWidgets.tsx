@@ -117,6 +117,7 @@ export type AiResearchCitation = {
   source_url?: string | null;
   citation_url?: string | null;
   excerpt: string;
+  verified?: boolean;
 };
 
 export type AiResearchCoveredSource = {
@@ -138,7 +139,9 @@ export type AiResearchSessionScope = {
 export type AiResearchSession = {
   session_id: string;
   question: string;
-  answer_status?: "GROUNDED" | "REFUSED_INSUFFICIENT_EVIDENCE" | string;
+  answer_status?: "GROUNDED" | "REFUSED_INSUFFICIENT_EVIDENCE" | "NEEDS_REVERIFICATION" | string;
+  verification_status?: string;
+  verified_citation_count?: number;
   refused?: boolean;
   refusal_reason_zh?: string;
   scope_label_zh: string;
@@ -175,6 +178,7 @@ export type SourceAiSignal = {
 
 export type ResearchScopeOptions = {
   starred_count: number;
+  candidate_source_count?: number;
   channels: { key: string; label: string; count: number }[];
   topic_clusters: { name: string; count: number }[];
   videos: {
@@ -4033,8 +4037,8 @@ export function WorkspaceAiResearchPanel({
                     .filter(Boolean)
                     .join(" · ")}`
                 : zh
-                  ? `当前提问范围：全库可核验资料 (${scopeOptions?.videos.length ?? 0} 篇)`
-                  : `Active scope: Full library (${scopeOptions?.videos.length ?? 0} items)`}
+                  ? `当前提问范围：候选资料 ${scopeOptions?.videos.length ?? 0} 篇（提问时将实时核验原文）`
+                  : `Active scope: Candidate sources (${scopeOptions?.videos.length ?? 0} items · live verified on ask)`}
           </span>
         </div>
       ) : null}
@@ -4267,6 +4271,11 @@ export function WorkspaceAiResearchPanel({
             {activeSession.scope_label_zh ? (
               <span className="ai-basis-pill">{activeSession.scope_label_zh}</span>
             ) : null}
+            <span className="ai-basis-pill tabular-nums">
+              {zh
+                ? `有效引用 ${activeSession.verified_citation_count ?? activeSession.citations.filter((c) => c.verified !== false).length} 条 · 覆盖来源 ${activeSession.covered_source_count ?? activeSession.covered_sources?.length ?? 0} 篇`
+                : `Verified ${activeSession.verified_citation_count ?? activeSession.citations.filter((c) => c.verified !== false).length} citations · ${activeSession.covered_source_count ?? activeSession.covered_sources?.length ?? 0} sources`}
+            </span>
           </div>
           {(activeSession.covered_sources?.length ?? 0) > 0 ? (
             <div

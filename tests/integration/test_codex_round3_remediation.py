@@ -598,3 +598,221 @@ def test_p2_2_demo_showcase_bilingual_pricing_negation_and_normal_question_parit
         assert sess["answer_status"] == "GROUNDED", f"False refusal on valid question: {valid_q} -> {sess}"
         assert sess["refused"] is False
         assert len(sess["citations"]) >= 1
+
+
+# ---------------------------------------------------------------------------
+# P1-03 & P2-03: Claim-vs-cited-evidence fact consistency & scope truth
+# ---------------------------------------------------------------------------
+
+
+def test_p1_03_deterministic_claim_vs_evidence_fact_and_negation_consistency(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scenarios: dict[str, dict[str, Any]] = {
+        "pct_conflict": {
+            "answerable": True,
+            "answer_zh": "收入同比增长 300% [E1]。",
+            "key_takeaways_zh": ["收入增长 300% [E1]"],
+            "action_items_zh": [],
+            "citations": [{"ref": "E1", "note_zh": "增长数据"}],
+        },
+        "year_conflict": {
+            "answerable": True,
+            "answer_zh": "2028年公司实现营收增长 [E1]。",
+            "key_takeaways_zh": [],
+            "action_items_zh": [],
+            "citations": [{"ref": "E1", "note_zh": "年份"}],
+        },
+        "cur_conflict": {
+            "answerable": True,
+            "answer_zh": "核心客单价为 $500 [E1]。",
+            "key_takeaways_zh": [],
+            "action_items_zh": [],
+            "citations": [{"ref": "E1", "note_zh": "金额"}],
+        },
+        "count_conflict": {
+            "answerable": True,
+            "answer_zh": "已售出九十件样品 [E1]。",
+            "key_takeaways_zh": [],
+            "action_items_zh": [],
+            "citations": [{"ref": "E1", "note_zh": "样品数"}],
+        },
+        "negation_flip": {
+            "answerable": True,
+            "answer_zh": "目前已全面支持多人协作 [E1]。",
+            "key_takeaways_zh": [],
+            "action_items_zh": [],
+            "citations": [{"ref": "E1", "note_zh": "协作能力"}],
+        },
+        "valid_pct": {
+            "answerable": True,
+            "answer_zh": "营收同比上涨 5% [E1]。",
+            "key_takeaways_zh": ["2025年营收增长 5% [E1]"],
+            "action_items_zh": [],
+            "citations": [{"ref": "E1", "note_zh": "一致增长"}],
+        },
+        "valid_cn_to_arabic": {
+            "answerable": True,
+            "answer_zh": "共清点 7件样品 [E1]。",
+            "key_takeaways_zh": [],
+            "action_items_zh": [],
+            "citations": [{"ref": "E1", "note_zh": "中文阿拉伯等价"}],
+        },
+        "valid_negation": {
+            "answerable": True,
+            "answer_zh": "系统目前仍不支持多人协作 [E1]。",
+            "key_takeaways_zh": [],
+            "action_items_zh": [],
+            "citations": [{"ref": "E1", "note_zh": "否定一致"}],
+        },
+    }
+
+    def _completer(
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        mode: str,
+        provider: str,
+        model: str,
+        max_tokens: int = 1800,
+    ) -> tuple[dict[str, Any], str, str]:
+        del mode, max_tokens
+        if "RESEARCH_QA_SCHEMA" in system_prompt:
+            for key, payload in scenarios.items():
+                if key in user_prompt:
+                    return dict(payload), provider, model
+        return _StubCompleter()(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            mode="local_ollama",
+            provider=provider,
+            model=model,
+        )
+
+    env = _build_env(tmp_path, monkeypatch, name="p1_03", completer=_StubCompleter(_completer))
+    hub: WorkspaceIntelligenceHub = env["hub"]
+    imp = LocalContentProvider(env["repo"], env["data_root"], now=lambda: NOW).import_bytes(
+        "q4_report.md",
+        "2025年公司收入同比增长 5%，客单价为 $50，目前尚未支持多人协作，清点七件样品。".encode(
+            "utf-8"
+        ),
+    )
+    vid = imp.content_id
+
+    for bad_key, forbidden_tok in (
+        ("pct_conflict", "300%"),
+        ("year_conflict", "2028"),
+        ("cur_conflict", "500"),
+        ("count_conflict", "九十"),
+        ("negation_flip", "已全面支持多人协作"),
+    ):
+        res = hub.ask_research_question(
+            {"question": f"{bad_key} 公司营收和协作情况如何？", "video_ids": [vid]}
+        )
+        sess = res["session"]
+        assert sess["answer_status"] == "REFUSED_INSUFFICIENT_EVIDENCE", bad_key
+        assert sess["refused"] is True, bad_key
+        assert sess["citations"] == [], bad_key
+        assert forbidden_tok not in str(sess["answer_zh"])
+        assert forbidden_tok not in str(sess["obsidian_markdown"])
+
+    for good_key, expected_tok in (
+        ("valid_pct", "5%"),
+        ("valid_cn_to_arabic", "7件"),
+        ("valid_negation", "不支持多人协作"),
+    ):
+        res = hub.ask_research_question(
+            {"question": f"{good_key} 公司营收、样品与协作情况如何？", "video_ids": [vid]}
+        )
+        sess = res["session"]
+        assert sess["answer_status"] == "GROUNDED", f"{good_key}: {sess}"
+        assert sess["refused"] is False
+        assert expected_tok in str(sess["answer_zh"])
+        assert len(sess["citations"]) == 1
+
+    # Simulate pre-existing persisted GROUNDED row whose claim contradicts cited E1
+    valid_cite_json = json.dumps(res["session"]["citations"], ensure_ascii=False)  # type: ignore[index]
+    with sqlite3.connect(hub.db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO research_qa_sessions (
+                session_id, question, answer_zh, key_takeaways_json,
+                action_items_json, citations_json, video_count,
+                provider, model, obsidian_markdown, created_at, scope_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "qa-legacy-conflict",
+                "历史旧会话收入增长多少？",
+                "收入同比增长 300% [E1]。",
+                json.dumps(["收入同比增长 300% [E1]"], ensure_ascii=False),
+                "[]",
+                valid_cite_json,
+                1,
+                "ollama",
+                "stub",
+                "# 历史收入增长 300%",
+                NOW.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                json.dumps({"answer_status": "GROUNDED", "refused": False}),
+            ),
+        )
+        conn.commit()
+
+    sessions = {s["session_id"]: s for s in hub.list_research_sessions()["sessions"]}
+    legacy = sessions["qa-legacy-conflict"]
+    assert legacy["answer_status"] == "NEEDS_REVERIFICATION"
+    assert legacy["verification_status"] == "NEEDS_REVERIFICATION"
+    assert "300%" not in str(legacy["answer_zh"])
+    assert "300%" not in str(legacy["obsidian_markdown"])
+
+    _, zip_bytes, _, _ = hub.build_obsidian_vault_zip(scope="all")
+    qa_zip_md = _extract_zip_qa_markdown(zip_bytes)
+    assert "300%" not in qa_zip_md
+    assert "5%" in qa_zip_md
+
+
+def test_p2_03_research_scope_options_exclude_tampered_local_sources(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    env = _build_env(tmp_path, monkeypatch, name="p2_03", completer=_StubCompleter())
+    hub: WorkspaceIntelligenceHub = env["hub"]
+    fast_app = env["fast_app"]
+
+    imp = LocalContentProvider(env["repo"], env["data_root"], now=lambda: NOW).import_bytes(
+        "candidate_source.md",
+        "局部缓存测试原文内容。".encode("utf-8"),
+    )
+    vid = imp.content_id
+
+    code1, body1 = fast_app.handle("GET", "/api/v1/workspace-ai/research/sessions")
+    assert code1 == HTTPStatus.OK
+    scope1 = body1["scope_options"]
+    assert any(v["video_id"] == vid for v in scope1["videos"])
+    assert scope1["candidate_source_count"] >= 1
+
+    # Tamper managed source artifact file on disk without changing SQLite DB/WAL
+    db_file = getattr(env["repo"], "_database_path", None)
+    assert isinstance(db_file, Path)
+    with sqlite3.connect(db_file) as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            """
+            SELECT a.storage_root, a.relative_path
+            FROM content_source_snapshots s
+            JOIN artifacts a ON a.artifact_id = s.snapshot_artifact_id
+            WHERE s.content_id = ?
+            """,
+            (vid,),
+        ).fetchone()
+    assert row is not None
+    src_root = getattr(env["repo"], "_source_data_root", env["data_root"])
+    base_root = src_root if row["storage_root"] == "SOURCE_DATA" else env["data_root"]
+    (base_root / str(row["relative_path"])).write_text("TAMPERED", encoding="utf-8")
+
+    # Tampered local source must fail verify_source and disappear from candidate scope
+    scope_after = hub._build_research_scope_options()
+    assert not any(v["video_id"] == vid for v in scope_after["videos"])  # type: ignore[index]
+    code2, body2 = fast_app.handle("GET", "/api/v1/workspace-ai/research/sessions")
+    assert code2 == HTTPStatus.OK
+    assert not any(v["video_id"] == vid for v in body2["scope_options"]["videos"])
+
