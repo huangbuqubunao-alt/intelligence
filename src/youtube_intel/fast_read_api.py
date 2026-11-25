@@ -83,7 +83,13 @@ from youtube_intel.operations import ExitCode
 from youtube_intel.orchestration import ScheduleFrequency, next_scheduled_for
 from youtube_intel.saved_intelligence import SavedIntelligenceService
 from youtube_intel.source_authority import (
+    IO_CHUNK_BYTES,
+    MAX_MEDIA_BYTES,
     MAX_TEXT_BYTES,
+    ManagedMediaError,
+    ManagedMediaFile,
+    managed_open_error,
+    open_managed,
     read_managed,
     resolve_source_range,
     verify_source,
@@ -1874,6 +1880,7 @@ class FastReadApiApplication:
         self._local_av_ids: tuple[str, ...] = ()
         self._verified_source_memo: dict[tuple[object, ...], dict[str, Any] | None] = {}
         self._note_projection_memo: dict[tuple[object, ...], str] = {}
+        self._media_hash_cache: dict[tuple[object, ...], str] = {}
         self._active_tokens = threading.local()
         self._da_route_memo: (
             tuple[int, float, object | None, tuple[str, str | None] | None] | None
@@ -2041,7 +2048,7 @@ class FastReadApiApplication:
         finally:
             self._bump_mutation_epoch()
 
-    def _resolve_local_media_file(self, video_id: str) -> tuple[Path, str] | None:
+    def _resolve_local_media_file(self, video_id: str) -> ManagedMediaFile | None:
         db_path = getattr(self._inner._repository, "_database_path", None)
         if not isinstance(db_path, Path) or not db_path.is_file():
             return None
@@ -2050,7 +2057,8 @@ class FastReadApiApplication:
         try:
             row = conn.execute(
                 """
-                SELECT s.media_kind, a.relative_path, a.storage_root, a.deleted_at
+                SELECT s.media_kind, s.byte_count, s.source_hash,
+                       a.relative_path, a.storage_root, a.content_hash, a.deleted_at
                 FROM content_source_snapshots AS s
                 JOIN artifacts AS a ON a.artifact_id = s.snapshot_artifact_id
                 WHERE s.content_id = ? AND s.provider = 'LOCAL' AND s.media_kind IN ('AUDIO', 'VIDEO')
@@ -2063,40 +2071,139 @@ class FastReadApiApplication:
         if row is None or row["deleted_at"] is not None:
             return None
         storage_root = str(row["storage_root"] or "")
-        base_root = (
-            getattr(self._inner._repository, "_source_data_root", None)
-            if storage_root == "SOURCE_DATA"
-            else self._inner._data_root
-        )
+        if storage_root == "SOURCE_DATA":
+            base_root = getattr(self._inner._repository, "_source_data_root", None)
+        elif storage_root == "DATA":
+            base_root = self._inner._data_root
+        else:
+            raise ManagedMediaError(
+                int(HTTPStatus.CONFLICT),
+                "LOCAL_MEDIA_UNAVAILABLE",
+                "Local media storage root is not trusted.",
+            )
         if not isinstance(base_root, Path):
             return None
         rel_path = str(row["relative_path"] or "")
-        if not rel_path or ".." in PurePosixPath(rel_path).parts:
-            return None
-        candidate = base_root / rel_path
-        try:
-            if candidate.is_symlink():
-                return None
-            resolved_root = base_root.resolve()
-            resolved = candidate.resolve()
-            if not resolved.is_relative_to(resolved_root) or not resolved.is_file():
-                return None
-        except OSError:
-            return None
-        mime = _LOCAL_MEDIA_MIME.get(resolved.suffix.lower())
+        if (
+            not rel_path
+            or rel_path.startswith("/")
+            or "\\" in rel_path
+            or ":" in rel_path
+            or "\x00" in rel_path
+            or any(part in {"", ".", ".."} for part in rel_path.split("/"))
+            or ".." in PurePosixPath(rel_path).parts
+        ):
+            raise ManagedMediaError(
+                int(HTTPStatus.CONFLICT),
+                "LOCAL_MEDIA_UNAVAILABLE",
+                "Local media path is outside managed containment.",
+            )
+        mime = _LOCAL_MEDIA_MIME.get(PurePosixPath(rel_path).suffix.lower())
         if mime is None:
             return None
-        return resolved, mime
+        expected_size = int(row["byte_count"]) if row["byte_count"] is not None else None
+        source_hash = str(row["source_hash"] or "").strip().lower()
+        content_hash = str(row["content_hash"] or "").strip().lower()
+        if source_hash and content_hash and source_hash != content_hash:
+            raise ManagedMediaError(
+                int(HTTPStatus.CONFLICT),
+                "LOCAL_MEDIA_CORRUPTED",
+                "Local media snapshot integrity metadata is inconsistent.",
+            )
+        expected_sha256 = source_hash or content_hash or None
+
+        try:
+            with open_managed(base_root, rel_path, maximum=MAX_MEDIA_BYTES) as stream:
+                before = os.fstat(stream.fileno())
+                if expected_size is not None and before.st_size != expected_size:
+                    raise ManagedMediaError(
+                        int(HTTPStatus.CONFLICT),
+                        "LOCAL_MEDIA_CORRUPTED",
+                        "Local media file size does not match recorded snapshot.",
+                    )
+                stat_identity = (
+                    int(before.st_dev),
+                    int(before.st_ino),
+                    int(before.st_size),
+                    int(before.st_mtime_ns),
+                    int(before.st_ctime_ns),
+                )
+                if expected_sha256 is not None:
+                    cache_key = (video_id, str(base_root), rel_path, stat_identity)
+                    with self._cache_lock:
+                        verified_digest = self._media_hash_cache.get(cache_key)
+                    if verified_digest is None:
+                        hasher = hashlib.sha256()
+                        total_read = 0
+                        while chunk := stream.read(IO_CHUNK_BYTES):
+                            total_read += len(chunk)
+                            if total_read > MAX_MEDIA_BYTES:
+                                raise ManagedMediaError(
+                                    int(HTTPStatus.REQUEST_ENTITY_TOO_LARGE),
+                                    "LOCAL_FILE_TOO_LARGE",
+                                    "Local media exceeds policy size limit.",
+                                )
+                            hasher.update(chunk)
+                        after = os.fstat(stream.fileno())
+                        if (
+                            int(after.st_dev),
+                            int(after.st_ino),
+                            int(after.st_size),
+                            int(after.st_mtime_ns),
+                            int(after.st_ctime_ns),
+                        ) != stat_identity or total_read != before.st_size:
+                            raise ManagedMediaError(
+                                int(HTTPStatus.CONFLICT),
+                                "LOCAL_MEDIA_CHANGED",
+                                "Local media changed during verification.",
+                            )
+                        verified_digest = hasher.hexdigest()
+                        with self._cache_lock:
+                            if len(self._media_hash_cache) >= 256:
+                                self._media_hash_cache.clear()
+                            self._media_hash_cache[cache_key] = verified_digest
+                    if verified_digest != expected_sha256:
+                        raise ManagedMediaError(
+                            int(HTTPStatus.CONFLICT),
+                            "LOCAL_MEDIA_CORRUPTED",
+                            "Local media integrity verification failed.",
+                        )
+        except OSError as exc:
+            raise managed_open_error(exc) from exc
+        return ManagedMediaFile(
+            root=base_root,
+            relative_path=rel_path,
+            mime_type=mime,
+            expected_size=before.st_size,
+            expected_sha256=expected_sha256,
+            expected_stat=stat_identity,
+            content_id=video_id,
+        )
 
     def backup_download(
         self, path: str
-    ) -> tuple[int, dict[str, str], bytes | Path] | None:
+    ) -> tuple[int, dict[str, str], bytes | Path | ManagedMediaFile] | None:
         parsed = urlparse(path)
         clean_path = parsed.path.rstrip("/")
         local_media_m = _LOCAL_MEDIA_ROUTE.fullmatch(clean_path)
         if local_media_m is not None:
             vid = unquote(local_media_m[1])
-            resolved_media = self._resolve_local_media_file(vid)
+            try:
+                resolved_media = self._resolve_local_media_file(vid)
+            except ManagedMediaError as err:
+                logging.getLogger(__name__).warning(
+                    "Local media rejected before streaming (%s): %s",
+                    err.code,
+                    vid,
+                )
+                err_bytes = json.dumps(
+                    {"error": {"code": err.code, "message": err.message}}
+                ).encode("utf-8")
+                return (
+                    int(err.status_code),
+                    {"Content-Type": "application/json; charset=utf-8"},
+                    err_bytes,
+                )
             if resolved_media is None:
                 err_bytes = json.dumps(
                     {
@@ -2111,14 +2218,13 @@ class FastReadApiApplication:
                     {"Content-Type": "application/json; charset=utf-8"},
                     err_bytes,
                 )
-            media_path, mime_type = resolved_media
             return (
                 int(HTTPStatus.OK),
                 {
-                    "Content-Type": mime_type,
+                    "Content-Type": resolved_media.mime_type,
                     "Accept-Ranges": "bytes",
                 },
-                media_path,
+                resolved_media,
             )
         if clean_path == "/api/v1/workspace-ai/obsidian-bundle.zip":
             q_params = parse_qs(parsed.query, keep_blank_values=False) if parsed.query else {}

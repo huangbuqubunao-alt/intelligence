@@ -117,21 +117,76 @@ def managed_directory(root: Path, relative: str = "", *, create: bool = False) -
         os.close(descriptor)
 
 
+class ManagedMediaError(ValueError):
+    """Fail-closed managed artifact error carrying safe HTTP status & error code."""
+
+    def __init__(self, status_code: int, code: str, message: str) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.code = code
+        self.message = message
+
+
+@dataclass(frozen=True)
+class ManagedMediaFile:
+    """Verified managed media reference preserving its authoritative storage root."""
+
+    root: Path
+    relative_path: str
+    mime_type: str
+    expected_size: int | None = None
+    expected_sha256: str | None = None
+    expected_stat: tuple[int, int, int, int, int] | None = None
+    content_id: str = ""
+
+
+def managed_open_error(exc: OSError) -> ManagedMediaError:
+    if isinstance(exc, FileNotFoundError):
+        return ManagedMediaError(
+            404, "LOCAL_MEDIA_NOT_FOUND", "Playable local media file was not found."
+        )
+    if exc.errno == errno.ELOOP:
+        return ManagedMediaError(
+            409, "LOCAL_MEDIA_UNAVAILABLE", "Managed media path violated symlink containment."
+        )
+    return ManagedMediaError(
+        409, "LOCAL_MEDIA_UNAVAILABLE", "Managed media file could not be opened safely."
+    )
+
+
 @contextmanager
 def open_managed(root: Path, relative: str, *, maximum: int) -> Iterator[BinaryIO]:
     parts = relative.split("/")
-    if any(not p or p in {".", ".."} or "\\" in p or ":" in p for p in parts):
-        raise ValueError("invalid source artifact path")
+    if not relative or any(not p or p in {".", ".."} or "\\" in p or ":" in p or "\x00" in p for p in parts):
+        raise ManagedMediaError(
+            409, "LOCAL_MEDIA_UNAVAILABLE", "Managed artifact path is invalid."
+        )
     with managed_directory(root, "/".join(parts[:-1])) as directory:
         fd = os.open(parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
         with os.fdopen(fd, "rb") as stream:
             before = os.fstat(stream.fileno())
-            if not stat.S_ISREG(before.st_mode) or not 0 < before.st_size <= maximum:
-                raise ValueError("source artifact exceeds policy")
+            if not stat.S_ISREG(before.st_mode):
+                raise ManagedMediaError(
+                    409, "LOCAL_MEDIA_UNAVAILABLE", "Managed artifact is not a regular file."
+                )
+            if before.st_size <= 0:
+                raise ManagedMediaError(
+                    409, "LOCAL_MEDIA_CORRUPTED", "Managed artifact is empty or corrupted."
+                )
+            if before.st_size > maximum:
+                raise ManagedMediaError(
+                    413, "LOCAL_FILE_TOO_LARGE", "Managed artifact exceeds policy size limit."
+                )
             yield stream
             after = os.fstat(stream.fileno())
-            if (before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (after.st_size, after.st_mtime_ns, after.st_ctime_ns):
-                raise ValueError("source artifact changed while reading")
+            if (
+                before.st_size,
+                before.st_mtime_ns,
+                before.st_ctime_ns,
+            ) != (after.st_size, after.st_mtime_ns, after.st_ctime_ns):
+                raise ManagedMediaError(
+                    409, "LOCAL_MEDIA_CHANGED", "source artifact changed while reading"
+                )
 
 
 def hash_managed(root: Path, relative: str, *, maximum: int) -> tuple[int, str]:

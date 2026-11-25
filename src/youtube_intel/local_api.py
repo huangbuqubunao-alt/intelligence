@@ -115,6 +115,9 @@ from youtube_intel.source_authority import (
     IO_CHUNK_BYTES,
     MAX_MEDIA_BYTES,
     MAX_TEXT_BYTES,
+    ManagedMediaError,
+    ManagedMediaFile,
+    managed_open_error,
     open_managed,
     safe_filename,
     verify_source,
@@ -2573,7 +2576,9 @@ class LocalApiApplication:
             raise ApiError(HTTPStatus.CONFLICT, "BACKUP_RESTORE_REJECTED", str(error)) from None
         raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Stream route is unavailable.")
 
-    def backup_download(self, path: str) -> tuple[int, dict[str, str], bytes | Path] | None:
+    def backup_download(
+        self, path: str
+    ) -> tuple[int, dict[str, str], bytes | Path | ManagedMediaFile] | None:
         if self._backup_restore_service is None:
             return None
         match = re.fullmatch(
@@ -4041,6 +4046,24 @@ def serve_loopback(
         def log_message(self, format: str, *args: object) -> None:  # noqa: A002
             return
 
+        def _loopback_host_allowed(
+            self, extra_origins: tuple[str, ...] = ()
+        ) -> bool:
+            server_port = cast(ThreadingHTTPServer, self.server).server_port
+            allowed_hosts = {
+                f"127.0.0.1:{server_port}",
+                f"localhost:{server_port}",
+                f"[::1]:{server_port}",
+            }
+            if extra_origins:
+                allowed_hosts |= {
+                    urlparse(value).netloc.lower() for value in extra_origins
+                }
+            host_values = self.headers.get_all("Host", [])
+            if len(host_values) != 1:
+                return False
+            return host_values[0].strip().lower() in allowed_hosts
+
         def _send_static_response(
             self,
             status: HTTPStatus,
@@ -4055,6 +4078,7 @@ def serve_loopback(
             self.send_header("Cache-Control", cache_control)
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("X-Frame-Options", "DENY")
+            self.send_header("Cross-Origin-Resource-Policy", "same-origin")
             self.send_header("Content-Security-Policy", _SPA_CSP)
             self.end_headers()
             if self.command != "HEAD":
@@ -4135,82 +4159,169 @@ def serve_loopback(
             self.send_header("Cache-Control", "no-store")
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("X-Frame-Options", "DENY")
+            self.send_header("Cross-Origin-Resource-Policy", "same-origin")
             self.send_header(
                 "Content-Security-Policy", "default-src 'self'; connect-src 'self'"
             )
             self.end_headers()
-            self.wfile.write(encoded)
+            if self.command != "HEAD":
+                self.wfile.write(encoded)
 
         def _parse_byte_range(self, range_header: str, file_size: int) -> tuple[int, int] | None:
             raw = range_header.strip()
-            if not raw.lower().startswith("bytes=") or file_size <= 0:
+            if file_size <= 0:
                 return None
-            spec = raw[6:].split(",", 1)[0].strip()
-            if "-" not in spec:
+            unit, sep, range_set = raw.partition("=")
+            if sep != "=" or unit.lower() != "bytes":
+                return None
+            spec = range_set.strip()
+            if not spec or "," in spec or "-" not in spec:
                 return None
             start_s, end_s = spec.split("-", 1)
-            start_s, end_s = start_s.strip(), end_s.strip()
-            try:
-                if not start_s:
-                    if not end_s:
-                        return None
-                    suffix_len = int(end_s)
-                    if suffix_len <= 0:
-                        return None
-                    start = max(0, file_size - suffix_len)
+            if not start_s and not end_s:
+                return None
+            if start_s:
+                if not (start_s.isascii() and start_s.isdecimal()):
+                    return None
+                start = int(start_s)
+                if start >= file_size:
+                    return None
+                if not end_s:
                     end = file_size - 1
                 else:
-                    start = int(start_s)
-                    if start < 0 or start >= file_size:
+                    if not (end_s.isascii() and end_s.isdecimal()):
                         return None
-                    end = file_size - 1 if not end_s else min(file_size - 1, int(end_s))
-            except ValueError:
+                    end = int(end_s)
+                    if end < start:
+                        return None
+                    end = min(end, file_size - 1)
+                return start, end
+            if not (end_s.isascii() and end_s.isdecimal()):
                 return None
-            if end < start:
+            suffix_len = int(end_s)
+            if suffix_len <= 0:
                 return None
-            return start, end
+            start = max(0, file_size - suffix_len)
+            return start, file_size - 1
 
-        def _send_file(self, status: int, headers: dict[str, str], path: Path) -> None:
+        def _send_file(
+            self, status: int, headers: dict[str, str], target: Path | ManagedMediaFile
+        ) -> None:
             is_ranged_media = headers.get("Accept-Ranges") == "bytes"
             max_bytes = MAX_MEDIA_BYTES if is_ranged_media else MAX_ARCHIVE_BYTES
-            with open_managed(path.parent, path.name, maximum=max_bytes) as source:
-                file_size = os.fstat(source.fileno()).st_size
-                range_header = self.headers.get("Range") if is_ranged_media else None
-                start = 0
-                end = file_size - 1
-                send_status = status
-                if range_header:
-                    parsed_range = self._parse_byte_range(range_header, file_size)
-                    if parsed_range is None:
-                        self.send_response(HTTPStatus.REQUESTED_RANGE_NOT_SATISFIABLE)
-                        self.send_header("Content-Range", f"bytes */{file_size}")
-                        self.send_header("Content-Length", "0")
-                        self.send_header("Cache-Control", "no-store")
-                        self.send_header("X-Content-Type-Options", "nosniff")
-                        self.end_headers()
+            if isinstance(target, ManagedMediaFile):
+                root = target.root
+                relative = target.relative_path
+                expected_stat = target.expected_stat
+            else:
+                root = target.parent
+                relative = target.name
+                expected_stat = None
+            headers_sent = False
+            route_path = urlparse(self.path).path
+            try:
+                with open_managed(root, relative, maximum=max_bytes) as source:
+                    before = os.fstat(source.fileno())
+                    if expected_stat is not None and (
+                        int(before.st_dev),
+                        int(before.st_ino),
+                        int(before.st_size),
+                        int(before.st_mtime_ns),
+                        int(before.st_ctime_ns),
+                    ) != expected_stat:
+                        raise ManagedMediaError(
+                            int(HTTPStatus.CONFLICT),
+                            "LOCAL_MEDIA_CHANGED",
+                            "Local media file changed before streaming.",
+                        )
+                    file_size = before.st_size
+                    range_header = self.headers.get("Range") if is_ranged_media else None
+                    start = 0
+                    end = file_size - 1
+                    send_status = status
+                    if range_header:
+                        parsed_range = self._parse_byte_range(range_header, file_size)
+                        if parsed_range is None:
+                            self.send_response(HTTPStatus.REQUESTED_RANGE_NOT_SATISFIABLE)
+                            self.send_header("Content-Range", f"bytes */{file_size}")
+                            self.send_header("Content-Length", "0")
+                            self.send_header("Cache-Control", "no-store")
+                            self.send_header("X-Content-Type-Options", "nosniff")
+                            self.send_header("Cross-Origin-Resource-Policy", "same-origin")
+                            self.end_headers()
+                            headers_sent = True
+                            return
+                        start, end = parsed_range
+                        send_status = int(HTTPStatus.PARTIAL_CONTENT)
+                    self.send_response(send_status)
+                    for name, value in headers.items():
+                        self.send_header(name, value)
+                    if range_header:
+                        self.send_header("Content-Range", f"bytes {start}-{end}/{file_size}")
+                    content_length = (end - start + 1) if file_size > 0 else 0
+                    self.send_header("Content-Length", str(content_length))
+                    self.send_header("Cache-Control", "no-store")
+                    self.send_header("X-Content-Type-Options", "nosniff")
+                    self.send_header("Cross-Origin-Resource-Policy", "same-origin")
+                    self.end_headers()
+                    headers_sent = True
+                    if self.command == "HEAD" or content_length == 0:
                         return
-                    start, end = parsed_range
-                    send_status = int(HTTPStatus.PARTIAL_CONTENT)
-                self.send_response(send_status)
-                for name, value in headers.items():
-                    self.send_header(name, value)
-                if range_header:
-                    self.send_header("Content-Range", f"bytes {start}-{end}/{file_size}")
-                content_length = (end - start + 1) if file_size > 0 else 0
-                self.send_header("Content-Length", str(content_length))
-                self.send_header("Cache-Control", "no-store")
-                self.send_header("X-Content-Type-Options", "nosniff")
-                self.end_headers()
-                if self.command == "HEAD" or content_length == 0:
-                    return
-                source.seek(start)
-                remaining = content_length
-                while remaining > 0:
-                    chunk = source.read(min(IO_CHUNK_BYTES, remaining))
-                    if not chunk:
-                        break
-                    self.wfile.write(chunk)
-                    remaining -= len(chunk)
+                    source.seek(start)
+                    remaining = content_length
+                    while remaining > 0:
+                        chunk = source.read(min(IO_CHUNK_BYTES, remaining))
+                        if not chunk:
+                            raise OSError("short read while streaming managed file")
+                        self.wfile.write(chunk)
+                        remaining -= len(chunk)
+            except (BrokenPipeError, ConnectionResetError):
+                self.close_connection = True
+            except ManagedMediaError as exc:
+                if not headers_sent:
+                    logging.getLogger(__name__).warning(
+                        "Managed file rejected before headers on %s (%s)",
+                        route_path,
+                        exc.code,
+                    )
+                    self._send(
+                        exc.status_code,
+                        {"error": {"code": exc.code, "message": exc.message}},
+                    )
+                else:
+                    logging.getLogger(__name__).warning(
+                        "Managed file aborted after headers on %s (%s)",
+                        route_path,
+                        exc.code,
+                    )
+                    self.close_connection = True
+            except (OSError, ValueError) as exc:
+                if not headers_sent:
+                    mapped = (
+                        managed_open_error(exc)
+                        if isinstance(exc, OSError)
+                        else ManagedMediaError(
+                            int(HTTPStatus.CONFLICT),
+                            "LOCAL_MEDIA_UNAVAILABLE",
+                            "Managed file could not be streamed safely.",
+                        )
+                    )
+                    logging.getLogger(__name__).warning(
+                        "Managed file rejected before headers on %s (%s)",
+                        route_path,
+                        mapped.code,
+                    )
+                    self._send(
+                        mapped.status_code,
+                        {"error": {"code": mapped.code, "message": mapped.message}},
+                    )
+                else:
+                    logging.getLogger(__name__).warning(
+                        "Managed file aborted after headers on %s (%s)",
+                        route_path,
+                        type(exc).__name__,
+                    )
+                    self.close_connection = True
 
         def _cancelled(self) -> bool:
             if select.select([self.connection], [], [], 0)[0]:
@@ -4219,6 +4330,37 @@ def serve_loopback(
 
         def _handle(self) -> None:
             parsed_path = urlparse(self.path).path
+            is_mutation = self.command not in {"GET", "HEAD"}
+            origin = self.headers.get("Origin")
+            native_route = parsed_path.rstrip("/")
+            is_native = (
+                native_route.startswith("/api/v1/local/native/")
+                and native_route != "/api/v1/local/native/capability"
+            )
+            if is_native:
+                service = application._native_import
+                if service is None:
+                    self._send(HTTPStatus.NOT_FOUND, {"error": {"code": "LOCAL_NATIVE_PICKER_UNAVAILABLE", "message": "Native selection is unavailable."}})
+                    return
+                if (
+                    origin not in service.origins
+                    or not self._loopback_host_allowed(service.origins)
+                    or self.headers.get("X-YIA-Request") != "local-ui"
+                    or self.headers.get("Sec-Fetch-Site") not in {None, "same-origin"}
+                ):
+                    self._send(HTTPStatus.FORBIDDEN, {"error": {"code": "LOCAL_NATIVE_ACCESS_REJECTED", "message": "Only the current local application can request native selection."}})
+                    return
+            elif not self._loopback_host_allowed():
+                self._send(
+                    HTTPStatus.FORBIDDEN,
+                    {
+                        "error": {
+                            "code": "HOST_REJECTED",
+                            "message": "Untrusted loopback host was rejected.",
+                        }
+                    },
+                )
+                return
             if (
                 static_root is not None
                 and self.command in {"GET", "HEAD"}
@@ -4227,24 +4369,30 @@ def serve_loopback(
             ):
                 self._serve_static(self.path)
                 return
-            is_mutation = self.command not in {"GET", "HEAD"}
-            origin = self.headers.get("Origin")
-            native_route = urlparse(self.path).path.rstrip("/")
-            is_native = native_route.startswith("/api/v1/local/native/") and native_route != "/api/v1/local/native/capability"
-            if is_native:
-                service = application._native_import
-                if service is None:
-                    self._send(HTTPStatus.NOT_FOUND, {"error": {"code": "LOCAL_NATIVE_PICKER_UNAVAILABLE", "message": "Native selection is unavailable."}})
-                    return
-                server_port = cast(ThreadingHTTPServer, self.server).server_port
-                hosts = {urlparse(value).netloc for value in service.origins} | {f"127.0.0.1:{server_port}", f"localhost:{server_port}"}
-                if origin not in service.origins or self.headers.get("Host") not in hosts or self.headers.get("X-YIA-Request") != "local-ui" or self.headers.get("Sec-Fetch-Site") not in {None, "same-origin"}:
-                    self._send(HTTPStatus.FORBIDDEN, {"error": {"code": "LOCAL_NATIVE_ACCESS_REJECTED", "message": "Only the current local application can request native selection."}})
-                    return
-            if is_mutation and (
-                self.headers.get("X-YIA-Request") != "local-ui"
-                or (origin is not None and _LOCAL_ORIGIN.fullmatch(origin) is None)
-            ):
+            sec_fetch_site = self.headers.get("Sec-Fetch-Site")
+            if sec_fetch_site not in {None, "same-origin", "none"}:
+                self._send(
+                    HTTPStatus.FORBIDDEN,
+                    {
+                        "error": {
+                            "code": "ORIGIN_REJECTED",
+                            "message": "Cross-site local API request was rejected.",
+                        }
+                    },
+                )
+                return
+            if origin is not None and _LOCAL_ORIGIN.fullmatch(origin) is None:
+                self._send(
+                    HTTPStatus.FORBIDDEN,
+                    {
+                        "error": {
+                            "code": "ORIGIN_REJECTED",
+                            "message": "Unsafe local origin request was rejected.",
+                        }
+                    },
+                )
+                return
+            if is_mutation and self.headers.get("X-YIA-Request") != "local-ui":
                 self._send(
                     HTTPStatus.FORBIDDEN,
                     {
@@ -4259,14 +4407,11 @@ def serve_loopback(
                 binary = application.backup_download(self.path)
                 if binary is not None:
                     status, headers, binary_payload = binary
-                    try:
-                        if isinstance(binary_payload, Path):
-                            self.connection.settimeout(UPLOAD_IDLE_TIMEOUT_SECONDS)
-                            self._send_file(status, headers, binary_payload)
-                        else:
-                            self._send_bytes(status, headers, binary_payload)
-                    except (OSError, ValueError):
-                        self.close_connection = True
+                    if isinstance(binary_payload, (Path, ManagedMediaFile)):
+                        self.connection.settimeout(UPLOAD_IDLE_TIMEOUT_SECONDS)
+                        self._send_file(status, headers, binary_payload)
+                    else:
+                        self._send_bytes(status, headers, binary_payload)
                     return
             length = 0
             is_local_import = False
@@ -4378,17 +4523,7 @@ def serve_loopback(
                 if acquired:
                     application._local_import_slot.release()
 
-        def do_HEAD(self) -> None:
-            parsed_path = urlparse(self.path).path
-            if (
-                static_root is not None
-                and parsed_path != "/api"
-                and not parsed_path.startswith("/api/")
-            ):
-                self._serve_static(self.path)
-                return
-            self.send_error(HTTPStatus.NOT_IMPLEMENTED, "Unsupported method ('HEAD')")
-
+        do_HEAD = _handle
         do_GET = _handle
         do_POST = _handle
         do_PATCH = _handle
