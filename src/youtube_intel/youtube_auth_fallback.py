@@ -17,6 +17,7 @@ Principle:
 from __future__ import annotations
 
 import contextlib
+import ctypes
 import hashlib
 import os
 import re
@@ -33,13 +34,17 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from http.client import HTTPMessage
 from pathlib import Path
-from typing import IO, TYPE_CHECKING, Any, Final
+from typing import IO, TYPE_CHECKING, Any, Final, Protocol
 from urllib.parse import urlsplit
 
 import yt_dlp  # type: ignore[import-untyped]
 
 from youtube_intel.domain import JobStatus
-from youtube_intel.model_settings import CredentialStore, MacOSKeychainCredentialStore
+from youtube_intel.model_settings import (
+    CredentialStore,
+    CredentialStoreError,
+    MacOSKeychainCredentialStore,
+)
 from youtube_intel.providers.subtitles import (
     YtDlpSubtitleAdapter,
 )
@@ -107,11 +112,185 @@ class _SilentLogger:
         del msg
 
 
+class CookieFilterError(RuntimeError):
+    """Fail-closed error raised when CookieJar filtering or verification fails."""
+
+
+GLOBAL_COOKIE_SLOT: Final[str] = "global"
+GRANT_SLOT_PREFIX: Final[str] = "grant:"
+_GRANT_SLOT_RE: Final[re.Pattern[str]] = re.compile(r"^grant:[0-9a-f]{16,64}$")
+VALID_DISCONNECT_SCOPES: Final[frozenset[str]] = frozenset({"single_video", "global", "all"})
+
+
+class ScopedCookieStore(Protocol):
+    """Credential store supporting isolated per-grant and global cookie slots."""
+
+    def get_slot(self, slot: str) -> str | None: ...
+    def save_slot(self, slot: str, secret: str) -> None: ...
+    def delete_slot(self, slot: str) -> None: ...
+
+
+class ScopedMemoryCookieStore:
+    """Thread-safe in-memory scoped cookie store for isolated tests & dry-run fixtures."""
+
+    def __init__(self, initial_global: str | None = None) -> None:
+        self._lock = threading.RLock()
+        self.slots: dict[str, str] = {}
+        if initial_global is not None:
+            self.slots[GLOBAL_COOKIE_SLOT] = initial_global
+
+    def get(self) -> str | None:
+        return self.get_slot(GLOBAL_COOKIE_SLOT)
+
+    def save(self, secret: str) -> None:
+        self.save_slot(GLOBAL_COOKIE_SLOT, secret)
+
+    def delete(self) -> None:
+        self.delete_slot(GLOBAL_COOKIE_SLOT)
+
+    def get_slot(self, slot: str) -> str | None:
+        with self._lock:
+            return self.slots.get(slot)
+
+    def save_slot(self, slot: str, secret: str) -> None:
+        with self._lock:
+            self.slots[slot] = secret
+
+    def delete_slot(self, slot: str) -> None:
+        with self._lock:
+            self.slots.pop(slot, None)
+
+
+class _LegacySlotStoreAdapter:
+    """Wrap legacy single-slot CredentialStore while isolating grant:* slots."""
+
+    def __init__(self, inner: CredentialStore) -> None:
+        self._inner = inner
+        self._lock = threading.RLock()
+        self._grant_slots: dict[str, str] = {}
+
+    def get(self) -> str | None:
+        return self.get_slot(GLOBAL_COOKIE_SLOT)
+
+    def save(self, secret: str) -> None:
+        self.save_slot(GLOBAL_COOKIE_SLOT, secret)
+
+    def delete(self) -> None:
+        self.delete_slot(GLOBAL_COOKIE_SLOT)
+
+    def get_slot(self, slot: str) -> str | None:
+        if slot == GLOBAL_COOKIE_SLOT:
+            return self._inner.get()
+        with self._lock:
+            return self._grant_slots.get(slot)
+
+    def save_slot(self, slot: str, secret: str) -> None:
+        if slot == GLOBAL_COOKIE_SLOT:
+            self._inner.save(secret)
+            return
+        with self._lock:
+            self._grant_slots[slot] = secret
+
+    def delete_slot(self, slot: str) -> None:
+        if slot == GLOBAL_COOKIE_SLOT:
+            self._inner.delete()
+            return
+        with self._lock:
+            self._grant_slots.pop(slot, None)
+
+
 class WorkspaceYouTubeCookiesKeychainStore(MacOSKeychainCredentialStore):
-    """Dedicated macOS Keychain slot for optional YouTube fallback cookies."""
+    """Dedicated macOS Keychain namespace with isolated global and per-grant accounts."""
 
     _service = b"com.huangbuqubunao.intelligence.workspace-youtube-cookies"
     _account = b"netscape-cookies"
+
+    @staticmethod
+    def _account_for_slot(slot: str) -> bytes:
+        if slot == GLOBAL_COOKIE_SLOT:
+            return b"netscape-cookies"
+        if _GRANT_SLOT_RE.fullmatch(slot):
+            return f"grant-{slot[len(GRANT_SLOT_PREFIX):]}".encode("ascii")
+        raise ValueError("Invalid cookie credential slot")
+
+    def _find_account(self, security: Any, account: bytes) -> tuple[int, Any, Any, Any]:
+        import ctypes
+
+        length, data, item = ctypes.c_uint32(), ctypes.c_void_p(), ctypes.c_void_p()
+        status = security.SecKeychainFindGenericPassword(
+            None,
+            len(self._service),
+            self._service,
+            len(account),
+            account,
+            ctypes.byref(length),
+            ctypes.byref(data),
+            ctypes.byref(item),
+        )
+        if status not in (0, -25300):
+            raise CredentialStoreError()
+        return status, length, data, item
+
+    def get_slot(self, slot: str) -> str | None:
+        account = self._account_for_slot(slot)
+        security, core = self._libraries()
+        status, length, data, item = self._find_account(security, account)
+        if status == -25300:
+            return None
+        try:
+            return ctypes.string_at(data, length.value).decode("utf-8") or None
+        except UnicodeError:
+            raise CredentialStoreError() from None
+        finally:
+            security.SecKeychainItemFreeContent(None, data)
+            core.CFRelease(item)
+
+    def save_slot(self, slot: str, secret: str) -> None:
+        account = self._account_for_slot(slot)
+        security, core = self._libraries()
+        status, _, data, item = self._find_account(security, account)
+        raw = secret.encode("utf-8")
+        if status == -25300:
+            status = security.SecKeychainAddGenericPassword(
+                None,
+                len(self._service),
+                self._service,
+                len(account),
+                account,
+                len(raw),
+                raw,
+                None,
+            )
+        else:
+            try:
+                status = security.SecKeychainItemModifyAttributesAndData(item, None, len(raw), raw)
+            finally:
+                security.SecKeychainItemFreeContent(None, data)
+                core.CFRelease(item)
+        if status != 0:
+            raise CredentialStoreError()
+
+    def delete_slot(self, slot: str) -> None:
+        account = self._account_for_slot(slot)
+        security, core = self._libraries()
+        status, _, data, item = self._find_account(security, account)
+        if status == -25300:
+            return
+        try:
+            if security.SecKeychainItemDelete(item) != 0:
+                raise CredentialStoreError()
+        finally:
+            security.SecKeychainItemFreeContent(None, data)
+            core.CFRelease(item)
+
+    def get(self) -> str | None:
+        return self.get_slot(GLOBAL_COOKIE_SLOT)
+
+    def save(self, secret: str) -> None:
+        self.save_slot(GLOBAL_COOKIE_SLOT, secret)
+
+    def delete(self) -> None:
+        self.delete_slot(GLOBAL_COOKIE_SLOT)
 
 
 def _parse_iso_utc(value: object) -> datetime | None:
@@ -189,25 +368,47 @@ def validate_netscape_cookies_txt(raw: str) -> str:
 
 
 def _filter_cookiejar_domains(jar: Any) -> None:
-    """Drop any cookie outside YouTube/Google allowlist from an in-memory CookieJar."""
+    """Strictly drop non-YouTube/Google cookies from an in-memory CookieJar (Fail-Closed)."""
     if jar is None:
         return
     try:
         cookies = list(jar)
-    except Exception:  # noqa: BLE001
-        return
+    except Exception as err:  # noqa: BLE001
+        raise CookieFilterError("YOUTUBE_AUTH_COOKIE_FILTER_FAILED") from err
+
     for cookie in cookies:
-        domain = str(getattr(cookie, "domain", "") or "")
-        if not _is_allowed_cookie_domain(domain, _ALLOWED_COOKIE_ROOTS):
+        raw_domain = getattr(cookie, "domain", None)
+        allowed = isinstance(raw_domain, str) and _is_allowed_cookie_domain(
+            raw_domain, _ALLOWED_COOKIE_ROOTS
+        )
+        if not allowed:
             name = getattr(cookie, "name", None)
             path = getattr(cookie, "path", "/")
             clear_fn = getattr(jar, "clear", None)
-            if callable(clear_fn) and name is not None:
-                with contextlib.suppress(Exception):
-                    clear_fn(domain, path, name)
-            elif hasattr(jar, "remove") and callable(jar.remove):
-                with contextlib.suppress(Exception):
-                    jar.remove(cookie)
+            remove_fn = getattr(jar, "remove", None)
+            try:
+                if callable(clear_fn) and isinstance(raw_domain, str) and name is not None:
+                    clear_fn(raw_domain, path, name)
+                elif callable(remove_fn):
+                    remove_fn(cookie)
+                else:
+                    raise CookieFilterError("YOUTUBE_AUTH_COOKIE_FILTER_FAILED")
+            except CookieFilterError:
+                raise
+            except Exception as err:  # noqa: BLE001
+                raise CookieFilterError("YOUTUBE_AUTH_COOKIE_FILTER_FAILED") from err
+
+    # Mandatory post-filter verification pass: never trust clear/remove blindly.
+    try:
+        remaining = list(jar)
+    except Exception as err:  # noqa: BLE001
+        raise CookieFilterError("YOUTUBE_AUTH_COOKIE_FILTER_FAILED") from err
+    for cookie in remaining:
+        raw_domain = getattr(cookie, "domain", None)
+        if not isinstance(raw_domain, str) or not _is_allowed_cookie_domain(
+            raw_domain, _ALLOWED_COOKIE_ROOTS
+        ):
+            raise CookieFilterError("YOUTUBE_AUTH_COOKIE_FILTER_FAILED")
 
 
 def _validate_subtitle_redirect_url(url: str) -> None:
@@ -247,6 +448,8 @@ class _AuthConfigRow:
     cooldown_seconds: int
     circuit_open_until: str
     updated_at: str
+    grant_id: str = ""
+    credential_ref: str = GLOBAL_COOKIE_SLOT
 
 
 class YouTubeAuthFallbackService:
@@ -256,31 +459,58 @@ class YouTubeAuthFallbackService:
         self,
         *,
         project_root: Path,
-        cookie_store: CredentialStore | None = None,
+        cookie_store: CredentialStore | ScopedCookieStore | None = None,
         ydl_factory: Callable[[dict[str, Any]], Any] | None = None,
         now: Callable[[], datetime] | None = None,
     ) -> None:
         self._project_root = project_root.resolve()
         self.db_path = self._project_root / ".workspace-ai" / "hub.sqlite3"
-        self._cookie_store: CredentialStore = (
+        raw_store: CredentialStore | ScopedCookieStore = (
             cookie_store
             if cookie_store is not None
             else WorkspaceYouTubeCookiesKeychainStore()
         )
+        if (
+            callable(getattr(raw_store, "get_slot", None))
+            and callable(getattr(raw_store, "save_slot", None))
+            and callable(getattr(raw_store, "delete_slot", None))
+        ):
+            self._slot_store: ScopedCookieStore = raw_store  # type: ignore[assignment]
+        else:
+            self._slot_store = _LegacySlotStoreAdapter(raw_store)  # type: ignore[arg-type]
         self._ydl_factory = ydl_factory
         self._now = now or (lambda: datetime.now(UTC))
         self._db_lock = threading.RLock()
 
-    def _has_cookie_secret(self) -> bool:
+    @property
+    def _cookie_store(self) -> ScopedCookieStore:
+        return self._slot_store
+
+    @_cookie_store.setter
+    def _cookie_store(self, value: CredentialStore | ScopedCookieStore) -> None:
+        if (
+            callable(getattr(value, "get_slot", None))
+            and callable(getattr(value, "save_slot", None))
+            and callable(getattr(value, "delete_slot", None))
+        ):
+            self._slot_store = value  # type: ignore[assignment]
+        else:
+            self._slot_store = _LegacySlotStoreAdapter(value)  # type: ignore[arg-type]
+
+    def _has_cookie_secret(self, slot: str = GLOBAL_COOKIE_SLOT) -> bool:
+        if not slot:
+            return False
         try:
-            secret = self._cookie_store.get()
+            secret = self._slot_store.get_slot(slot)
         except Exception:  # noqa: BLE001
             return False
         return bool(secret and secret.strip())
 
-    def _read_cookie_secret(self) -> str | None:
+    def _read_cookie_secret(self, slot: str = GLOBAL_COOKIE_SLOT) -> str | None:
+        if not slot:
+            return None
         try:
-            secret = self._cookie_store.get()
+            secret = self._slot_store.get_slot(slot)
         except Exception:  # noqa: BLE001
             return None
         if not isinstance(secret, str) or not secret.strip():
@@ -289,6 +519,15 @@ class YouTubeAuthFallbackService:
             return validate_netscape_cookies_txt(secret)
         except ValueError:
             return None
+
+    def _delete_cookie_slot_safe(self, slot: str) -> bool:
+        if not slot or (slot != GLOBAL_COOKIE_SLOT and not _GRANT_SLOT_RE.fullmatch(slot)):
+            return True
+        try:
+            self._slot_store.delete_slot(slot)
+            return True
+        except Exception:  # noqa: BLE001
+            return False
 
     def _connect_read(self) -> sqlite3.Connection | None:
         if not self.db_path.is_file():
@@ -341,17 +580,78 @@ class YouTubeAuthFallbackService:
             )
             """
         )
+        has_grants = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='youtube_auth_video_grants'"
+        ).fetchone()
+        if has_grants is not None:
+            cols = {
+                str(r["name"])
+                for r in conn.execute("PRAGMA table_info(youtube_auth_video_grants)").fetchall()
+            }
+            if "grant_id" not in cols:
+                conn.execute("DROP TABLE IF EXISTS youtube_auth_video_grants_legacy")
+                conn.execute(
+                    "ALTER TABLE youtube_auth_video_grants RENAME TO youtube_auth_video_grants_legacy"
+                )
+                conn.execute(
+                    """
+                    CREATE TABLE youtube_auth_video_grants (
+                        grant_id TEXT PRIMARY KEY,
+                        video_id TEXT NOT NULL,
+                        auth_mode TEXT NOT NULL,
+                        browser_name TEXT NOT NULL DEFAULT '',
+                        credential_ref TEXT NOT NULL DEFAULT '',
+                        status TEXT NOT NULL DEFAULT 'ACTIVE',
+                        cleanup_state TEXT NOT NULL DEFAULT 'NONE',
+                        expires_at TEXT NOT NULL,
+                        consumed_at TEXT NOT NULL DEFAULT '',
+                        revoked_at TEXT NOT NULL DEFAULT '',
+                        created_at TEXT NOT NULL
+                    )
+                    """
+                )
+                conn.execute(
+                    """
+                    INSERT INTO youtube_auth_video_grants (
+                        grant_id, video_id, auth_mode, browser_name, credential_ref,
+                        status, cleanup_state, expires_at, consumed_at, revoked_at, created_at
+                    )
+                    SELECT
+                        lower(hex(randomblob(16))),
+                        video_id,
+                        auth_mode,
+                        browser_name,
+                        CASE WHEN auth_mode = 'cookie_file' THEN 'global' ELSE '' END,
+                        CASE WHEN trim(consumed_at) != '' THEN 'CONSUMED' ELSE 'ACTIVE' END,
+                        CASE WHEN trim(consumed_at) != '' THEN 'CLEANED' ELSE 'NONE' END,
+                        expires_at,
+                        consumed_at,
+                        '',
+                        created_at
+                    FROM youtube_auth_video_grants_legacy
+                    """
+                )
+                conn.execute("DROP TABLE youtube_auth_video_grants_legacy")
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS youtube_auth_video_grants (
-                video_id TEXT PRIMARY KEY,
+                grant_id TEXT PRIMARY KEY,
+                video_id TEXT NOT NULL,
                 auth_mode TEXT NOT NULL,
                 browser_name TEXT NOT NULL DEFAULT '',
+                credential_ref TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'ACTIVE',
+                cleanup_state TEXT NOT NULL DEFAULT 'NONE',
                 expires_at TEXT NOT NULL,
                 consumed_at TEXT NOT NULL DEFAULT '',
+                revoked_at TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL
             )
             """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_yt_auth_grants_video_status "
+            "ON youtube_auth_video_grants (video_id, status, created_at DESC)"
         )
         conn.commit()
 
@@ -487,11 +787,13 @@ class YouTubeAuthFallbackService:
         if has_grants is None:
             return None
         row = conn.execute(
-            "SELECT auth_mode, browser_name, expires_at, consumed_at, created_at "
-            "FROM youtube_auth_video_grants WHERE video_id = ?",
+            "SELECT grant_id, auth_mode, browser_name, credential_ref, expires_at, created_at "
+            "FROM youtube_auth_video_grants "
+            "WHERE video_id = ? AND status = 'ACTIVE' AND consumed_at = '' "
+            "ORDER BY created_at DESC, rowid DESC LIMIT 1",
             (video_id,),
         ).fetchone()
-        if row is None or str(row["consumed_at"] or "").strip():
+        if row is None:
             return None
         expires_dt = _parse_iso_utc(row["expires_at"])
         if expires_dt is None or expires_dt <= now:
@@ -502,6 +804,9 @@ class YouTubeAuthFallbackService:
         browser = str(row["browser_name"] or "").strip().lower()
         if mode == "browser" and browser not in SUPPORTED_AUTH_BROWSERS:
             return None
+        cred_ref = str(row["credential_ref"] or "").strip() if mode == "cookie_file" else ""
+        if mode == "cookie_file" and not cred_ref:
+            return None
         return _AuthConfigRow(
             enabled=True,
             auth_mode=mode,
@@ -510,7 +815,41 @@ class YouTubeAuthFallbackService:
             cooldown_seconds=base_cfg.cooldown_seconds,
             circuit_open_until=base_cfg.circuit_open_until,
             updated_at=str(row["created_at"] or ""),
+            grant_id=str(row["grant_id"] or ""),
+            credential_ref=cred_ref,
         )
+
+    @staticmethod
+    def _read_active_video_grant_summary(
+        conn: sqlite3.Connection, video_id: str, now: datetime
+    ) -> dict[str, object] | None:
+        if not video_id or not _VIDEO_ID_RE.fullmatch(video_id):
+            return None
+        has_grants = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='youtube_auth_video_grants'"
+        ).fetchone()
+        if has_grants is None:
+            return None
+        row = conn.execute(
+            "SELECT grant_id, auth_mode, browser_name, status, expires_at, created_at "
+            "FROM youtube_auth_video_grants "
+            "WHERE video_id = ? AND status = 'ACTIVE' AND consumed_at = '' "
+            "ORDER BY created_at DESC, rowid DESC LIMIT 1",
+            (video_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        expires_dt = _parse_iso_utc(row["expires_at"])
+        if expires_dt is None or expires_dt <= now:
+            return None
+        return {
+            "active": True,
+            "grant_id": str(row["grant_id"]),
+            "auth_mode": str(row["auth_mode"]),
+            "browser_name": str(row["browser_name"] or ""),
+            "expires_at": str(row["expires_at"]),
+            "status": str(row["status"]),
+        }
 
     @staticmethod
     def _count_active_video_grants_from_conn(
@@ -522,7 +861,7 @@ class YouTubeAuthFallbackService:
         if has_grants is None:
             return 0
         rows = conn.execute(
-            "SELECT expires_at FROM youtube_auth_video_grants WHERE consumed_at = ''"
+            "SELECT expires_at FROM youtube_auth_video_grants WHERE status = 'ACTIVE' AND consumed_at = ''"
         ).fetchall()
         count = 0
         for r in rows:
@@ -531,17 +870,115 @@ class YouTubeAuthFallbackService:
                 count += 1
         return count
 
-    def get_status(self) -> dict[str, object]:
+    def _purge_grant_credentials(self, pairs: Sequence[tuple[str, str]]) -> int:
+        """Delete grant-scoped credentials safely outside locks, marking CLEANED when deleted."""
+        if not pairs:
+            return 0
+        cleaned_ids: list[str] = []
+        for grant_id, cred_ref in pairs:
+            if not _GRANT_SLOT_RE.fullmatch(cred_ref):
+                cleaned_ids.append(grant_id)
+                continue
+            if self._delete_cookie_slot_safe(cred_ref):
+                cleaned_ids.append(grant_id)
+        if not cleaned_ids or not self.db_path.is_file():
+            return len(cleaned_ids)
+        with self._db_lock:
+            conn = self._connect_write(immediate=True)
+            try:
+                self._begin_immediate(conn)
+                try:
+                    for gid in cleaned_ids:
+                        conn.execute(
+                            "UPDATE youtube_auth_video_grants SET cleanup_state = 'CLEANED' "
+                            "WHERE grant_id = ? AND cleanup_state = 'PENDING_DELETE'",
+                            (gid,),
+                        )
+                    conn.execute("COMMIT")
+                except BaseException:
+                    with contextlib.suppress(sqlite3.Error):
+                        conn.execute("ROLLBACK")
+                    raise
+            finally:
+                conn.close()
+        return len(cleaned_ids)
+
+    def _sweep_expired_grants_in_conn(
+        self, conn: sqlite3.Connection, now: datetime, now_iso: str
+    ) -> list[tuple[str, str]]:
+        rows = conn.execute(
+            "SELECT grant_id, credential_ref, expires_at FROM youtube_auth_video_grants "
+            "WHERE status = 'ACTIVE'"
+        ).fetchall()
+        pending_pairs: list[tuple[str, str]] = []
+        for r in rows:
+            exp = _parse_iso_utc(r["expires_at"])
+            if exp is None or exp <= now:
+                gid = str(r["grant_id"])
+                cref = str(r["credential_ref"] or "")
+                cstate = "PENDING_DELETE" if _GRANT_SLOT_RE.fullmatch(cref) else "CLEANED"
+                conn.execute(
+                    "UPDATE youtube_auth_video_grants "
+                    "SET status = 'EXPIRED', revoked_at = COALESCE(NULLIF(revoked_at, ''), ?), cleanup_state = ? "
+                    "WHERE grant_id = ? AND status = 'ACTIVE'",
+                    (now_iso, cstate, gid),
+                )
+                if cstate == "PENDING_DELETE":
+                    pending_pairs.append((gid, cref))
+        return pending_pairs
+
+    def reconcile_orphan_credentials(self, *, include_in_use: bool = False) -> int:
+        """Sweep expired, aborted IN_USE (on startup), and PENDING_DELETE grant credentials."""
+        if not self.db_path.is_file():
+            return 0
+        now = self._now()
+        now_iso = format_utc_datetime(now)
+        pending_pairs: list[tuple[str, str]] = []
+        with self._db_lock:
+            conn = self._connect_write(immediate=True)
+            try:
+                self._begin_immediate(conn)
+                try:
+                    self._sweep_expired_grants_in_conn(conn, now, now_iso)
+                    if include_in_use:
+                        conn.execute(
+                            "UPDATE youtube_auth_video_grants "
+                            "SET cleanup_state = CASE WHEN credential_ref LIKE 'grant:%' THEN 'PENDING_DELETE' ELSE 'CLEANED' END "
+                            "WHERE status IN ('CONSUMED', 'REVOKED', 'EXPIRED') AND cleanup_state = 'IN_USE'"
+                        )
+                    for r in conn.execute(
+                        "SELECT grant_id, credential_ref FROM youtube_auth_video_grants "
+                        "WHERE cleanup_state = 'PENDING_DELETE'"
+                    ).fetchall():
+                        pending_pairs.append((str(r["grant_id"]), str(r["credential_ref"] or "")))
+                    conn.execute("COMMIT")
+                except BaseException:
+                    with contextlib.suppress(sqlite3.Error):
+                        conn.execute("ROLLBACK")
+                    raise
+            finally:
+                conn.close()
+        return self._purge_grant_credentials(pending_pairs)
+
+    def get_status(self, *, video_id: str | None = None) -> dict[str, object]:
         """Return safe YouTube fallback authorization status (zero secrets)."""
+        if self.db_path.is_file():
+            with contextlib.suppress(sqlite3.Error):
+                self.reconcile_orphan_credentials(include_in_use=False)
         now = self._now()
         day_utc = now.astimezone(UTC).strftime("%Y-%m-%d")
         cfg = self._read_config_row()
         used_today, _ = self._usage_stats(day_utc)
         active_grants = 0
+        video_grant: dict[str, object] | None = None
         conn = self._connect_read()
         if conn is not None:
             try:
                 active_grants = self._count_active_video_grants_from_conn(conn, now)
+                if isinstance(video_id, str) and video_id.strip():
+                    video_grant = self._read_active_video_grant_summary(
+                        conn, video_id.strip(), now
+                    )
             finally:
                 conn.close()
         circuit_until = _parse_iso_utc(cfg.circuit_open_until)
@@ -551,20 +988,24 @@ class YouTubeAuthFallbackService:
             if cfg.enabled
             else ("single_video" if active_grants > 0 else "disabled")
         )
-        return {
+        result: dict[str, object] = {
             "enabled": cfg.enabled,
+            "global_enabled": cfg.enabled,
             "scope": scope,
             "active_single_video_grants": active_grants,
             "auth_mode": cfg.auth_mode,
             "browser_name": cfg.browser_name,
             "supported_browsers": list(SUPPORTED_AUTH_BROWSERS),
-            "cookie_configured": self._has_cookie_secret(),
+            "cookie_configured": self._has_cookie_secret(GLOBAL_COOKIE_SLOT),
             "daily_limit": cfg.daily_limit,
             "used_today": used_today,
             "cooldown_seconds": cfg.cooldown_seconds,
             "circuit_open_until": cfg.circuit_open_until if circuit_open else "",
             "circuit_open": circuit_open,
         }
+        if isinstance(video_id, str) and video_id.strip():
+            result["video_grant"] = video_grant
+        return result
 
     def update_config(self, payload: Mapping[str, object]) -> dict[str, object]:
         """Update opt-in YouTube auth fallback settings (global or single-video scoped)."""
@@ -638,6 +1079,11 @@ class YouTubeAuthFallbackService:
             if raw_cookies.strip():
                 validated_cookies = validate_netscape_cookies_txt(raw_cookies)
 
+        pending_cleanup: list[tuple[str, str]] = []
+        saved_slot_for_rollback: str | None = None
+        new_grant_id = ""
+        new_cred_ref = ""
+
         with self._db_lock:
             conn = self._connect_write(immediate=True)
             try:
@@ -646,6 +1092,9 @@ class YouTubeAuthFallbackService:
                     current = self._read_config_from_conn(conn)
                     now_dt = self._now()
                     ts = format_utc_datetime(now_dt)
+                    pending_cleanup.extend(
+                        self._sweep_expired_grants_in_conn(conn, now_dt, ts)
+                    )
 
                     auth_mode = str(payload.get("auth_mode", current.auth_mode)).strip()
                     enabled_raw = payload.get("enabled", auth_mode != "disabled")
@@ -681,18 +1130,6 @@ class YouTubeAuthFallbackService:
                         else current.cooldown_seconds
                     )
 
-                    if validated_cookies is not None:
-                        self._cookie_store.save(validated_cookies)
-                    elif (
-                        "cookies_txt" in payload
-                        and auth_mode == "cookie_file"
-                        and not self._has_cookie_secret()
-                    ):
-                        raise ValueError("cookies_txt is required when no cookies are stored")
-
-                    if auth_mode == "cookie_file" and enabled and not self._has_cookie_secret():
-                        raise ValueError("Please paste or import a valid cookies.txt first")
-
                     existing_circuit = _parse_iso_utc(current.circuit_open_until)
                     preserved_circuit = (
                         current.circuit_open_until
@@ -705,22 +1142,62 @@ class YouTubeAuthFallbackService:
                             raise ValueError(
                                 "Single-video grant requires enabled browser or cookie_file auth_mode"
                             )
+                        new_grant_id = secrets.token_hex(16)
+                        if auth_mode == "cookie_file":
+                            if validated_cookies is None:
+                                raise ValueError(
+                                    "Please paste or import a valid cookies.txt for this single-video grant"
+                                )
+                            new_cred_ref = f"{GRANT_SLOT_PREFIX}{new_grant_id}"
+                            try:
+                                self._slot_store.save_slot(new_cred_ref, validated_cookies)
+                            except Exception as err:  # noqa: BLE001
+                                raise ValueError(
+                                    "无法写入本地钥匙串临时凭据，授权未生效（已保持原状态）。"
+                                ) from err
+                            saved_slot_for_rollback = new_cred_ref
+                        # Revoke any prior ACTIVE (never IN_USE!) grants for this same video only.
+                        for old_r in conn.execute(
+                            "SELECT grant_id, credential_ref FROM youtube_auth_video_grants "
+                            "WHERE video_id = ? AND status = 'ACTIVE'",
+                            (target_video_id,),
+                        ).fetchall():
+                            old_gid = str(old_r["grant_id"])
+                            old_ref = str(old_r["credential_ref"] or "")
+                            old_cstate = (
+                                "PENDING_DELETE"
+                                if _GRANT_SLOT_RE.fullmatch(old_ref)
+                                else "CLEANED"
+                            )
+                            conn.execute(
+                                "UPDATE youtube_auth_video_grants "
+                                "SET status = 'REVOKED', revoked_at = ?, cleanup_state = ? "
+                                "WHERE grant_id = ? AND status = 'ACTIVE'",
+                                (ts, old_cstate, old_gid),
+                            )
+                            if old_cstate == "PENDING_DELETE":
+                                pending_cleanup.append((old_gid, old_ref))
+
                         expires_iso = format_utc_datetime(
                             now_dt + timedelta(minutes=SINGLE_VIDEO_GRANT_MINUTES)
                         )
                         conn.execute(
                             """
                             INSERT INTO youtube_auth_video_grants (
-                                video_id, auth_mode, browser_name, expires_at, consumed_at, created_at
-                            ) VALUES (?, ?, ?, ?, '', ?)
-                            ON CONFLICT(video_id) DO UPDATE SET
-                                auth_mode = excluded.auth_mode,
-                                browser_name = excluded.browser_name,
-                                expires_at = excluded.expires_at,
-                                consumed_at = '',
-                                created_at = excluded.created_at
+                                grant_id, video_id, auth_mode, browser_name, credential_ref,
+                                status, cleanup_state, expires_at, consumed_at, revoked_at, created_at
+                            ) VALUES (?, ?, ?, ?, ?, 'ACTIVE', ?, ?, '', '', ?)
                             """,
-                            (target_video_id, auth_mode, browser_name, expires_iso, ts),
+                            (
+                                new_grant_id,
+                                target_video_id,
+                                auth_mode,
+                                browser_name if auth_mode == "browser" else "",
+                                new_cred_ref,
+                                "ACTIVE" if new_cred_ref else "NONE",
+                                expires_iso,
+                                ts,
+                            ),
                         )
                         # Ensure singleton config row exists WITHOUT enabling global fallback!
                         conn.execute(
@@ -734,6 +1211,29 @@ class YouTubeAuthFallbackService:
                             (daily_limit, cooldown_seconds, preserved_circuit, ts),
                         )
                     else:
+                        if validated_cookies is not None:
+                            try:
+                                self._slot_store.save_slot(
+                                    GLOBAL_COOKIE_SLOT, validated_cookies
+                                )
+                            except Exception as err:  # noqa: BLE001
+                                raise ValueError(
+                                    "无法写入本地钥匙串全局凭据，已保留原设置。"
+                                ) from err
+                        elif (
+                            "cookies_txt" in payload
+                            and auth_mode == "cookie_file"
+                            and not self._has_cookie_secret(GLOBAL_COOKIE_SLOT)
+                        ):
+                            raise ValueError("cookies_txt is required when no cookies are stored")
+
+                        if (
+                            auth_mode == "cookie_file"
+                            and enabled
+                            and not self._has_cookie_secret(GLOBAL_COOKIE_SLOT)
+                        ):
+                            raise ValueError("Please paste or import a valid cookies.txt first")
+
                         conn.execute(
                             """
                             INSERT INTO youtube_auth_config (
@@ -763,15 +1263,66 @@ class YouTubeAuthFallbackService:
                 except BaseException:
                     with contextlib.suppress(sqlite3.Error):
                         conn.execute("ROLLBACK")
+                    if saved_slot_for_rollback is not None:
+                        self._delete_cookie_slot_safe(saved_slot_for_rollback)
                     raise
             finally:
                 conn.close()
-        return self.get_status()
+        self._purge_grant_credentials(pending_cleanup)
+        return self.get_status(
+            video_id=target_video_id if grant_scope == "single_video" else None
+        )
 
-    def disconnect(self) -> dict[str, object]:
-        """Disable fallback, revoke single-video grants & purge cookies, keeping active circuit."""
-        with contextlib.suppress(Exception):
-            self._cookie_store.delete()
+    def revoke_video_grant(self, video_id: str) -> dict[str, object]:
+        """Revoke active single-video grant(s) for one video without touching global or other videos."""
+        vid = str(video_id or "").strip()
+        if not _VIDEO_ID_RE.fullmatch(vid):
+            raise ValueError("target_video_id must be a valid video identifier")
+        pending_cleanup: list[tuple[str, str]] = []
+        if self.db_path.is_file():
+            now_dt = self._now()
+            ts = format_utc_datetime(now_dt)
+            with self._db_lock:
+                conn = self._connect_write(immediate=True)
+                try:
+                    self._begin_immediate(conn)
+                    try:
+                        pending_cleanup.extend(
+                            self._sweep_expired_grants_in_conn(conn, now_dt, ts)
+                        )
+                        for row in conn.execute(
+                            "SELECT grant_id, credential_ref FROM youtube_auth_video_grants "
+                            "WHERE video_id = ? AND status = 'ACTIVE'",
+                            (vid,),
+                        ).fetchall():
+                            gid = str(row["grant_id"])
+                            cref = str(row["credential_ref"] or "")
+                            cstate = (
+                                "PENDING_DELETE"
+                                if _GRANT_SLOT_RE.fullmatch(cref)
+                                else "CLEANED"
+                            )
+                            conn.execute(
+                                "UPDATE youtube_auth_video_grants "
+                                "SET status = 'REVOKED', revoked_at = ?, cleanup_state = ? "
+                                "WHERE grant_id = ? AND status = 'ACTIVE'",
+                                (ts, cstate, gid),
+                            )
+                            if cstate == "PENDING_DELETE":
+                                pending_cleanup.append((gid, cref))
+                        conn.execute("COMMIT")
+                    except BaseException:
+                        with contextlib.suppress(sqlite3.Error):
+                            conn.execute("ROLLBACK")
+                        raise
+                finally:
+                    conn.close()
+            self._purge_grant_credentials(pending_cleanup)
+        return self.get_status(video_id=vid)
+
+    def disconnect_global(self) -> dict[str, object]:
+        """Disable global fallback & purge global cookies WITHOUT revoking active single-video grants."""
+        self._delete_cookie_slot_safe(GLOBAL_COOKIE_SLOT)
         if self.db_path.is_file():
             now_dt = self._now()
             ts = format_utc_datetime(now_dt)
@@ -787,7 +1338,6 @@ class YouTubeAuthFallbackService:
                             if (existing_circuit is not None and existing_circuit > now_dt)
                             else ""
                         )
-                        conn.execute("DELETE FROM youtube_auth_video_grants")
                         conn.execute(
                             """
                             INSERT INTO youtube_auth_config (
@@ -812,6 +1362,87 @@ class YouTubeAuthFallbackService:
                     conn.close()
         return self.get_status()
 
+    def revoke_all(self) -> dict[str, object]:
+        """Disable global fallback, revoke all active grants & purge all non-in-use credentials."""
+        self._delete_cookie_slot_safe(GLOBAL_COOKIE_SLOT)
+        pending_cleanup: list[tuple[str, str]] = []
+        if self.db_path.is_file():
+            now_dt = self._now()
+            ts = format_utc_datetime(now_dt)
+            with self._db_lock:
+                conn = self._connect_write(immediate=True)
+                try:
+                    self._begin_immediate(conn)
+                    try:
+                        current = self._read_config_from_conn(conn)
+                        existing_circuit = _parse_iso_utc(current.circuit_open_until)
+                        preserved_circuit = (
+                            current.circuit_open_until
+                            if (existing_circuit is not None and existing_circuit > now_dt)
+                            else ""
+                        )
+                        for row in conn.execute(
+                            "SELECT grant_id, credential_ref FROM youtube_auth_video_grants "
+                            "WHERE status = 'ACTIVE' OR cleanup_state = 'PENDING_DELETE'"
+                        ).fetchall():
+                            gid = str(row["grant_id"])
+                            cref = str(row["credential_ref"] or "")
+                            cstate = (
+                                "PENDING_DELETE"
+                                if _GRANT_SLOT_RE.fullmatch(cref)
+                                else "CLEANED"
+                            )
+                            conn.execute(
+                                "UPDATE youtube_auth_video_grants "
+                                "SET status = CASE WHEN status = 'ACTIVE' THEN 'REVOKED' ELSE status END, "
+                                "revoked_at = COALESCE(NULLIF(revoked_at, ''), ?), "
+                                "cleanup_state = ? "
+                                "WHERE grant_id = ? AND cleanup_state != 'IN_USE'",
+                                (ts, cstate, gid),
+                            )
+                            if cstate == "PENDING_DELETE":
+                                pending_cleanup.append((gid, cref))
+                        conn.execute(
+                            """
+                            INSERT INTO youtube_auth_config (
+                                singleton_id, enabled, auth_mode, browser_name,
+                                daily_limit, cooldown_seconds, circuit_open_until, updated_at
+                            ) VALUES (1, 0, 'disabled', '', ?, ?, ?, ?)
+                            ON CONFLICT(singleton_id) DO UPDATE SET
+                                enabled = 0,
+                                auth_mode = 'disabled',
+                                browser_name = '',
+                                circuit_open_until = excluded.circuit_open_until,
+                                updated_at = excluded.updated_at
+                            """,
+                            (DEFAULT_DAILY_LIMIT, DEFAULT_COOLDOWN_SECONDS, preserved_circuit, ts),
+                        )
+                        conn.execute("COMMIT")
+                    except BaseException:
+                        with contextlib.suppress(sqlite3.Error):
+                            conn.execute("ROLLBACK")
+                        raise
+                finally:
+                    conn.close()
+            self._purge_grant_credentials(pending_cleanup)
+        return self.get_status()
+
+    def disconnect(
+        self,
+        *,
+        scope: str = "all",
+        target_video_id: str | None = None,
+    ) -> dict[str, object]:
+        """Scoped revocation entrypoint ('single_video', 'global', or 'all')."""
+        clean_scope = str(scope or "all").strip()
+        if clean_scope not in VALID_DISCONNECT_SCOPES:
+            raise ValueError("scope must be 'single_video', 'global', or 'all'")
+        if clean_scope == "single_video":
+            return self.revoke_video_grant(str(target_video_id or ""))
+        if clean_scope == "global":
+            return self.disconnect_global()
+        return self.revoke_all()
+
     def _evaluate_eligibility(
         self,
         cfg: _AuthConfigRow,
@@ -823,7 +1454,7 @@ class YouTubeAuthFallbackService:
             return False, "YOUTUBE_AUTH_DISABLED"
         if cfg.auth_mode == "browser" and cfg.browser_name not in SUPPORTED_AUTH_BROWSERS:
             return False, "YOUTUBE_AUTH_DISABLED"
-        if cfg.auth_mode == "cookie_file" and not self._has_cookie_secret():
+        if cfg.auth_mode == "cookie_file" and not self._has_cookie_secret(cfg.credential_ref):
             return False, "YOUTUBE_AUTH_DISABLED"
 
         circuit_until = _parse_iso_utc(cfg.circuit_open_until)
@@ -862,13 +1493,18 @@ class YouTubeAuthFallbackService:
         """Atomically reserve quota, cooldown & optional single-video grant inside BEGIN IMMEDIATE."""
         if not self.db_path.is_file():
             return None, "YOUTUBE_AUTH_DISABLED"
+        expired_cleanup: list[tuple[str, str]] = []
         with self._db_lock:
             conn = self._connect_write(immediate=True)
             try:
                 self._begin_immediate(conn)
                 try:
-                    base_cfg = self._read_config_from_conn(conn)
                     now = self._now()
+                    now_iso = format_utc_datetime(now)
+                    expired_cleanup.extend(
+                        self._sweep_expired_grants_in_conn(conn, now, now_iso)
+                    )
+                    base_cfg = self._read_config_from_conn(conn)
                     grant = self._read_active_video_grant_from_conn(
                         conn, base_cfg, video_id, now
                     )
@@ -879,15 +1515,27 @@ class YouTubeAuthFallbackService:
                         effective_cfg, used_today, last_ts, now
                     )
                     if not allowed:
-                        conn.execute("ROLLBACK")
+                        if expired_cleanup:
+                            conn.execute("COMMIT")
+                        else:
+                            conn.execute("ROLLBACK")
                         return None, deny_code or "YOUTUBE_AUTH_DISABLED"
                     usage_id = f"ytauth-{uuid.uuid4().hex}"
-                    now_iso = format_utc_datetime(now)
-                    if grant is not None:
-                        conn.execute(
-                            "UPDATE youtube_auth_video_grants SET consumed_at = ? WHERE video_id = ?",
-                            (now_iso, video_id),
+                    if grant is not None and grant.grant_id:
+                        in_use_state = (
+                            "IN_USE"
+                            if _GRANT_SLOT_RE.fullmatch(grant.credential_ref)
+                            else "CLEANED"
                         )
+                        cur_g = conn.execute(
+                            "UPDATE youtube_auth_video_grants "
+                            "SET status = 'CONSUMED', consumed_at = ?, cleanup_state = ? "
+                            "WHERE grant_id = ? AND status = 'ACTIVE'",
+                            (now_iso, in_use_state, grant.grant_id),
+                        )
+                        if cur_g.rowcount != 1:
+                            conn.execute("ROLLBACK")
+                            return None, "YOUTUBE_AUTH_DISABLED"
                     conn.execute(
                         "INSERT INTO youtube_auth_usage (usage_id, day_utc, video_id, outcome, created_at) "
                         "VALUES (?, ?, ?, 'RESERVED', ?)",
@@ -901,6 +1549,9 @@ class YouTubeAuthFallbackService:
                     raise
             finally:
                 conn.close()
+                if expired_cleanup:
+                    with contextlib.suppress(Exception):
+                        self._purge_grant_credentials(expired_cleanup)
 
     def _finalize_attempt_slot(
         self,
@@ -909,6 +1560,8 @@ class YouTubeAuthFallbackService:
         video_id: str,
         outcome: str,
         open_circuit: bool = False,
+        grant_id: str = "",
+        credential_ref: str = "",
     ) -> None:
         now = self._now()
         now_iso = format_utc_datetime(now)
@@ -918,6 +1571,7 @@ class YouTubeAuthFallbackService:
             if open_circuit
             else None
         )
+        grant_cleanup: list[tuple[str, str]] = []
         with self._db_lock:
             conn = self._connect_write(immediate=True)
             try:
@@ -955,31 +1609,27 @@ class YouTubeAuthFallbackService:
                             """,
                             (DEFAULT_DAILY_LIMIT, DEFAULT_COOLDOWN_SECONDS, chosen_iso, now_iso),
                         )
-                    should_purge_cookie = False
-                    if not base_cfg.enabled:
-                        has_grants = conn.execute(
-                            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='youtube_auth_video_grants'"
-                        ).fetchone()
-                        if has_grants is not None:
-                            active_cookie_grants = 0
-                            for gr in conn.execute(
-                                "SELECT expires_at FROM youtube_auth_video_grants WHERE consumed_at = '' AND auth_mode = 'cookie_file'"
-                            ).fetchall():
-                                exp = _parse_iso_utc(gr["expires_at"])
-                                if exp is not None and exp > now:
-                                    active_cookie_grants += 1
-                            if active_cookie_grants == 0:
-                                should_purge_cookie = True
+                    if grant_id:
+                        is_grant_ref = bool(
+                            credential_ref and _GRANT_SLOT_RE.fullmatch(credential_ref)
+                        )
+                        next_cstate = "PENDING_DELETE" if is_grant_ref else "CLEANED"
+                        conn.execute(
+                            "UPDATE youtube_auth_video_grants SET cleanup_state = ? "
+                            "WHERE grant_id = ? AND cleanup_state IN ('IN_USE', 'ACTIVE', 'NONE')",
+                            (next_cstate, grant_id),
+                        )
+                        if is_grant_ref:
+                            grant_cleanup.append((grant_id, credential_ref))
                     conn.execute("COMMIT")
-                    if should_purge_cookie:
-                        with contextlib.suppress(Exception):
-                            self._cookie_store.delete()
                 except BaseException:
                     with contextlib.suppress(sqlite3.Error):
                         conn.execute("ROLLBACK")
                     raise
             finally:
                 conn.close()
+        if grant_cleanup:
+            self._purge_grant_credentials(grant_cleanup)
 
     def _record_usage(
         self,
@@ -1009,7 +1659,7 @@ class YouTubeAuthFallbackService:
             if cfg.auth_mode == "browser":
                 auth_opts["cookiesfrombrowser"] = (cfg.browser_name,)
             elif cfg.auth_mode == "cookie_file":
-                secret = self._read_cookie_secret()
+                secret = self._read_cookie_secret(cfg.credential_ref)
                 if not secret:
                     raise ValueError("YOUTUBE_AUTH_DISABLED")
                 cookie_path = Path(tmp_dir) / "cookies.txt"
@@ -1136,7 +1786,12 @@ class YouTubeAuthFallbackService:
                 auth_runtime.ingest_source_to_transcript(source_id, limit=1)
         except Exception as err:  # noqa: BLE001 — mapped via closed classification
             return self._classify_and_record_auth_failure(
-                runtime, video_id, err, usage_id=usage_id
+                runtime,
+                video_id,
+                err,
+                usage_id=usage_id,
+                grant_id=cfg.grant_id,
+                credential_ref=cfg.credential_ref,
             )
 
         timed = runtime._repository.get_verified_timed_transcript(video_id=video_id)
@@ -1150,12 +1805,34 @@ class YouTubeAuthFallbackService:
                     runtime._repository,
                     runtime._data_root,
                 ).create(video_id, now=datetime.now(UTC))
-            self._finalize_attempt_slot(usage_id, video_id=video_id, outcome="SUCCEEDED")
+            self._finalize_attempt_slot(
+                usage_id,
+                video_id=video_id,
+                outcome="SUCCEEDED",
+                grant_id=cfg.grant_id,
+                credential_ref=cfg.credential_ref,
+            )
             return None
 
         return self._classify_and_record_auth_failure(
-            runtime, video_id, None, usage_id=usage_id
+            runtime,
+            video_id,
+            None,
+            usage_id=usage_id,
+            grant_id=cfg.grant_id,
+            credential_ref=cfg.credential_ref,
         )
+
+    @staticmethod
+    def _has_cookie_filter_error(err: BaseException | None) -> bool:
+        seen: set[int] = set()
+        cur = err
+        while cur is not None and id(cur) not in seen:
+            seen.add(id(cur))
+            if isinstance(cur, CookieFilterError):
+                return True
+            cur = cur.__cause__ if cur.__cause__ is not None else cur.__context__
+        return False
 
     def _classify_and_record_auth_failure(
         self,
@@ -1164,7 +1841,28 @@ class YouTubeAuthFallbackService:
         err: BaseException | None,
         *,
         usage_id: str | None = None,
+        grant_id: str = "",
+        credential_ref: str = "",
     ) -> str:
+        def finish(outcome: str, *, open_circuit: bool = False) -> None:
+            if usage_id is not None:
+                self._finalize_attempt_slot(
+                    usage_id,
+                    video_id=video_id,
+                    outcome=outcome,
+                    open_circuit=open_circuit,
+                    grant_id=grant_id,
+                    credential_ref=credential_ref,
+                )
+            else:
+                self._record_usage(
+                    video_id=video_id, outcome=outcome, open_circuit=open_circuit
+                )
+
+        if self._has_cookie_filter_error(err):
+            finish("COOKIE_FILTER_FAILED", open_circuit=False)
+            return "YOUTUBE_AUTH_COOKIE_FILTER_FAILED"
+
         app_err = getattr(err, "error", None) if err is not None else None
         raw_code = getattr(getattr(app_err, "code", None), "value", None)
         raw_msg = str(getattr(app_err, "message", "") or ("" if err is None else str(err))).lower()
@@ -1174,19 +1872,6 @@ class YouTubeAuthFallbackService:
             if job is not None and job.status.value in {"PENDING", "RUNNING", "RETRY_PENDING", "FAILED_FINAL"}:
                 raw_code = job.last_error_code
                 raw_msg = (job.last_error_message or "").lower()
-
-        def finish(outcome: str, *, open_circuit: bool = False) -> None:
-            if usage_id is not None:
-                self._finalize_attempt_slot(
-                    usage_id,
-                    video_id=video_id,
-                    outcome=outcome,
-                    open_circuit=open_circuit,
-                )
-            else:
-                self._record_usage(
-                    video_id=video_id, outcome=outcome, open_circuit=open_circuit
-                )
 
         if raw_code == "RATE_LIMITED":
             finish("RATE_LIMITED", open_circuit=True)
@@ -1220,9 +1905,14 @@ def _source_digest(text: str) -> str:
 
 __all__: Sequence[str] = (
     "CIRCUIT_BREAK_MINUTES",
+    "CookieFilterError",
     "DEFAULT_COOLDOWN_SECONDS",
     "DEFAULT_DAILY_LIMIT",
+    "GLOBAL_COOKIE_SLOT",
+    "GRANT_SLOT_PREFIX",
     "SUPPORTED_AUTH_BROWSERS",
+    "ScopedCookieStore",
+    "ScopedMemoryCookieStore",
     "WorkspaceYouTubeCookiesKeychainStore",
     "YouTubeAuthFallbackService",
     "validate_netscape_cookies_txt",

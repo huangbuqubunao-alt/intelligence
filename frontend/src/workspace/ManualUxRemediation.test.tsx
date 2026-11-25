@@ -564,7 +564,7 @@ describe("Manual UX Remediation (#1-#4)", () => {
     });
     expect(await screen.findByText(/已授权 · 本机 chrome/)).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "一键断开并清除" }));
+    fireEvent.click(screen.getByRole("button", { name: "断开全局备用授权" }));
     await waitFor(() => expect(disconnected).toBe(true));
     expect(await screen.findByText(/未启用（仅免登录直采/)).toBeTruthy();
   });
@@ -1498,6 +1498,7 @@ describe("Manual UX Remediation (#1-#4)", () => {
 
   it("P1-R03 & P2-R04: splits PUT auth success vs retry check failure with revoke, guards missing sourceId & clears secrets", async () => {
     const putBodies: Array<Record<string, unknown>> = [];
+    const disconnectBodies: Array<Record<string, unknown>> = [];
     let checkAttempt = 0;
     let disconnectCalls = 0;
 
@@ -1508,8 +1509,12 @@ describe("Manual UX Remediation (#1-#4)", () => {
           putBodies.push(JSON.parse(String(init.body ?? "{}")) as Record<string, unknown>);
           return okJson({ enabled: false, scope: "single_video" });
         }
+        if (input.includes("/workspace-ai/youtube-auth") && (!init?.method || init.method === "GET")) {
+          return okJson({ enabled: false, global_enabled: false, scope: "disabled", video_grant: null });
+        }
         if (input.endsWith("/workspace-ai/youtube-auth/disconnect") && init?.method === "POST") {
           disconnectCalls += 1;
+          disconnectBodies.push(JSON.parse(String(init.body ?? "{}")) as Record<string, unknown>);
           return okJson({ enabled: false, scope: "disabled" });
         }
         if (input.endsWith("/sources/src-a/check") && init?.method === "POST") {
@@ -1567,6 +1572,7 @@ describe("Manual UX Remediation (#1-#4)", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "撤销本次授权" }));
     await waitFor(() => expect(disconnectCalls).toBe(1));
+    expect(disconnectBodies[0]).toEqual({ scope: "single_video", target_video_id: "vidSplitAuth1" });
     expect(await screen.findByText(/已撤销本页授权并清除临时 Cookie/)).toBeTruthy();
 
     // 3. Missing sourceId prevents confirming & prevents false retry claim
@@ -1669,5 +1675,89 @@ describe("Manual UX Remediation (#1-#4)", () => {
       </div>,
     );
     expect(bgSurface.hasAttribute("inert")).toBe(false);
+  });
+
+  it("P1-F02 UI: YouTubeAuthSettingsPanel fixes stale circuit copy and separates global disconnect from confirmed revoke-all", async () => {
+    localStorage.setItem("yia.ui-language", "zh-CN");
+    const disconnectCalls: Array<Record<string, unknown>> = [];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string, init?: RequestInit) => {
+        if (input.endsWith("/workspace-ai/youtube-auth") && (!init?.method || init.method === "GET")) {
+          return okJson({
+            enabled: true,
+            global_enabled: true,
+            scope: "global",
+            active_single_video_grants: 2,
+            auth_mode: "cookie_file",
+            browser_name: "",
+            supported_browsers: ["chrome", "safari"],
+            cookie_configured: true,
+            daily_limit: 20,
+            used_today: 1,
+            cooldown_seconds: 15,
+            circuit_open: true,
+          });
+        }
+        if (input.endsWith("/workspace-ai/youtube-auth/disconnect") && init?.method === "POST") {
+          const parsed = JSON.parse(String(init.body ?? "{}")) as Record<string, unknown>;
+          disconnectCalls.push(parsed);
+          if (parsed.scope === "global") {
+            return okJson({
+              enabled: false,
+              global_enabled: false,
+              scope: "single_video",
+              active_single_video_grants: 2,
+              auth_mode: "disabled",
+              browser_name: "",
+              supported_browsers: ["chrome", "safari"],
+              cookie_configured: false,
+              daily_limit: 20,
+              used_today: 1,
+              cooldown_seconds: 15,
+              circuit_open: true,
+            });
+          }
+          return okJson({
+            enabled: false,
+            global_enabled: false,
+            scope: "disabled",
+            active_single_video_grants: 0,
+            auth_mode: "disabled",
+            browser_name: "",
+            supported_browsers: ["chrome", "safari"],
+            cookie_configured: false,
+            daily_limit: 20,
+            used_today: 1,
+            cooldown_seconds: 15,
+            circuit_open: true,
+          });
+        }
+        return baseFetch(input, undefined, init);
+      }),
+    );
+
+    render(
+      <UiLanguageProvider>
+        <YouTubeAuthSettingsPanel />
+      </UiLanguageProvider>,
+    );
+
+    expect(await screen.findByText(/触发账号保护熔断/)).toBeTruthy();
+    expect(document.body.textContent).not.toContain("重新保存设置可立即复位");
+    expect(document.body.textContent).toContain("重新保存或断开不会提前解除熔断");
+    expect(document.body.textContent).toContain("当前另有 2 条临时单视频授权生效中");
+
+    // 1. Global disconnect sends scope="global" without wiping single-video grants
+    fireEvent.click(screen.getByRole("button", { name: "断开全局备用授权" }));
+    await waitFor(() => expect(disconnectCalls.length).toBe(1));
+    expect(disconnectCalls[0]).toEqual({ scope: "global" });
+
+    // 2. Revoke all requires explicit confirmation and sends scope="all", confirm_all=true
+    fireEvent.click(screen.getByRole("button", { name: "撤销全部授权（含临时单视频）" }));
+    fireEvent.click(screen.getByRole("button", { name: "确认撤销全部授权" }));
+    await waitFor(() => expect(disconnectCalls.length).toBe(2));
+    expect(disconnectCalls[1]).toEqual({ scope: "all", confirm_all: true });
   });
 });

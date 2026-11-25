@@ -2458,15 +2458,40 @@ class FastReadApiApplication:
                 return HTTPStatus.OK, self._workspace_hub.test_cloud_connection(data)
             if route == "/api/v1/workspace-ai/youtube-auth":
                 if method == "GET":
-                    return HTTPStatus.OK, self._youtube_auth.get_status()
+                    q_params = parse_qs(query, keep_blank_values=False) if query else {}
+                    vals = q_params.get("video_id")
+                    req_video_id = vals[0].strip() if vals else None
+                    return HTTPStatus.OK, self._youtube_auth.get_status(
+                        video_id=req_video_id or None
+                    )
                 if method == "PUT":
                     data = self._inner._body(body)
                     return HTTPStatus.OK, self._youtube_auth.update_config(data)
                 raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
             if route == "/api/v1/workspace-ai/youtube-auth/disconnect" and method == "POST":
-                if body.strip():
-                    self._inner._body(body)
-                return HTTPStatus.OK, self._youtube_auth.disconnect()
+                data = self._inner._body(body) if body.strip() else {}
+                if not data:
+                    return HTTPStatus.OK, self._youtube_auth.disconnect(scope="all")
+                raw_scope = data.get("scope")
+                if raw_scope is None:
+                    return HTTPStatus.OK, self._youtube_auth.disconnect(scope="all")
+                if not isinstance(raw_scope, str) or raw_scope.strip() not in {
+                    "single_video",
+                    "global",
+                    "all",
+                }:
+                    raise ValueError("scope must be 'single_video', 'global', or 'all'")
+                scope = raw_scope.strip()
+                if scope == "all" and data.get("confirm_all") is not True:
+                    raise ValueError("Revoking all authorizations requires confirm_all=true")
+                raw_vid = data.get("target_video_id")
+                if scope == "single_video":
+                    if not isinstance(raw_vid, str) or not raw_vid.strip():
+                        raise ValueError("target_video_id is required when scope is 'single_video'")
+                    return HTTPStatus.OK, self._youtube_auth.disconnect(
+                        scope="single_video", target_video_id=raw_vid.strip()
+                    )
+                return HTTPStatus.OK, self._youtube_auth.disconnect(scope=scope)
             if route == "/api/v1/workspace-ai/research/sessions" and method == "GET":
                 return HTTPStatus.OK, self._cached_or_compute(
                     route,

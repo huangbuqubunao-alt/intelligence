@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ApiRequestError, post, put } from "../api/client";
+import { ApiRequestError, api, post, put } from "../api/client";
 
 const BROWSER_CHOICES = [
   "chrome",
@@ -33,6 +33,8 @@ export function InlineYouTubeAuthRecovery({
   const busyRef = useRef(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [persistedScope, setPersistedScope] = useState<"single_video" | "global" | null>(null);
+  const [activeVideoGrant, setActiveVideoGrant] = useState(false);
+  const [globalAuthEnabled, setGlobalAuthEnabled] = useState(false);
   const [statusNotice, setStatusNotice] = useState<string | null>(null);
 
   const clearTransientSecrets = () => {
@@ -44,7 +46,27 @@ export function InlineYouTubeAuthRecovery({
     setCookiesText("");
     setErrorMsg(null);
     setPersistedScope(null);
+    setActiveVideoGrant(false);
+    setGlobalAuthEnabled(false);
     setStatusNotice(null);
+    let active = true;
+    void (async () => {
+      try {
+        const res = await api<{
+          global_enabled?: boolean;
+          enabled?: boolean;
+          video_grant?: { active?: boolean } | null;
+        }>(`/workspace-ai/youtube-auth?video_id=${encodeURIComponent(videoId)}`);
+        if (!active || !res || typeof res !== "object") return;
+        setActiveVideoGrant(Boolean(res.video_grant?.active));
+        setGlobalAuthEnabled(Boolean(res.global_enabled ?? res.enabled));
+      } catch {
+        // tolerate absent mock endpoint cleanly
+      }
+    })();
+    return () => {
+      active = false;
+    };
   }, [videoId]);
 
   useEffect(() => {
@@ -160,20 +182,35 @@ export function InlineYouTubeAuthRecovery({
     }
   };
 
-  const handleRevoke = async () => {
+  const handleRevoke = async (explicitScope?: "single_video" | "global") => {
     if (busyRef.current || busy) return;
+    const revokeScope = explicitScope ?? (persistedScope === "global" ? "global" : "single_video");
     busyRef.current = true;
     setBusy(true);
     setErrorMsg(null);
     try {
-      await post("/workspace-ai/youtube-auth/disconnect", {});
+      await post(
+        "/workspace-ai/youtube-auth/disconnect",
+        revokeScope === "global"
+          ? { scope: "global" }
+          : { scope: "single_video", target_video_id: videoId },
+      );
       clearTransientSecrets();
       setPersistedScope(null);
+      if (revokeScope === "single_video") {
+        setActiveVideoGrant(false);
+      } else {
+        setGlobalAuthEnabled(false);
+      }
       setExpanded(false);
       setStatusNotice(
-        zh
-          ? "已撤销本页授权并清除临时 Cookie。"
-          : "Authorization revoked and stored cookies cleared.",
+        revokeScope === "global"
+          ? zh
+            ? "已撤销全局备用授权并清除全局 Cookie（未影响其他单视频授权）。"
+            : "Global fallback authorization revoked and global cookies purged."
+          : zh
+            ? "已撤销本页授权并清除临时 Cookie。"
+            : "Authorization revoked and stored cookies cleared.",
       );
     } catch (err) {
       setErrorMsg(
@@ -213,7 +250,28 @@ export function InlineYouTubeAuthRecovery({
         >
           {zh ? "授权本人 YouTube 登录态 ›" : "Authorize YouTube login ›"}
         </a>
+        {activeVideoGrant ? (
+          <button
+            type="button"
+            className="button button-ghost button-small"
+            disabled={busy}
+            onClick={() => void handleRevoke("single_video")}
+          >
+            {zh ? "撤销当前视频授权" : "Revoke this video grant"}
+          </button>
+        ) : null}
       </div>
+      {activeVideoGrant || globalAuthEnabled ? (
+        <p className="hint">
+          {activeVideoGrant
+            ? zh
+              ? "当前视频存在未消费的临时单次授权（仅限本视频使用，可随时单独撤销）。"
+              : "Active single-video grant exists for this video (isolated from other videos)."
+            : zh
+              ? "全局备用授权当前已启用（对所有受阻视频生效）。"
+              : "Global fallback is currently enabled."}
+        </p>
+      ) : null}
       {statusNotice ? (
         <p className="hint" role="status">
           {statusNotice}

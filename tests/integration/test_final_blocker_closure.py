@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import email.message
+import http.cookiejar
 import io
 import json
+import sqlite3
 import threading
 import time
 from dataclasses import replace
@@ -17,6 +19,11 @@ from typing import Any, cast
 import pytest
 from yt_dlp.utils import DownloadError  # type: ignore[import-untyped]
 
+from tests.unit.test_manual_ux_remediation import (
+    _build_runtime_env,
+    _seed_video_source,
+    _success_ydl_factory,
+)
 from youtube_intel.config import AppConfig, AppSettings, load_settings
 from youtube_intel.fast_read_api import FastReadApiApplication
 from youtube_intel.local_api import LocalApiApplication, serve_loopback
@@ -27,8 +34,12 @@ from youtube_intel.runtime_composition import build_local_source_run_runtime
 from youtube_intel.workspace_intelligence_hub import WorkspaceIntelligenceHub
 from youtube_intel.youtube_auth_fallback import (
     CIRCUIT_BREAK_MINUTES,
+    GLOBAL_COOKIE_SLOT,
     SINGLE_VIDEO_GRANT_MINUTES,
+    CookieFilterError,
+    ScopedMemoryCookieStore,
     YouTubeAuthFallbackService,
+    _filter_cookiejar_domains,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -537,3 +548,355 @@ def test_p1_f01_single_video_auth_real_http_to_worker_end_to_end(
         server.server_close()
         composition.worker.stop()
         srv_thread.join(timeout=5)
+
+
+def test_p1_f02_per_grant_credential_isolation_lifecycle_and_recovery(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify per-grant Keychain slot isolation, 3 revocation scopes, legacy migration, crash recovery & concurrency."""
+    monkeypatch.setattr("youtube_intel.providers.youtube._resolve_system_proxy_url", lambda: None)
+    monkeypatch.setattr("youtube_intel.providers.subtitles._resolve_system_proxy_url", lambda: None)
+    monkeypatch.setattr("youtube_intel.youtube_auth_fallback._resolve_system_proxy_url", lambda: None)
+    monkeypatch.setattr(
+        "urllib.request.OpenerDirector.open",
+        lambda _self, _req, timeout=None: _FakeHttpResponse(SYNTHETIC_VTT),
+    )
+
+    env = _build_runtime_env(tmp_path, monkeypatch)
+    runtime = env["runtime"]
+    clock = {"now": BASE_NOW}
+    cookie_a = SYNTHETIC_COOKIE_A
+    cookie_b = "# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t1893456000\tSAPISID\tsynthetic-cookie-beta\n"
+    cookie_c = "# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t1893456000\tSAPISID\tsynthetic-cookie-gamma\n"
+    cookie_global = "# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t1893456000\tSAPISID\tsynthetic-cookie-global\n"
+
+    # Legacy table schema must migrate in-place safely without losing grants
+    db_path = env["project_root"] / ".workspace-ai" / "hub.sqlite3"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            CREATE TABLE youtube_auth_video_grants (
+                video_id TEXT PRIMARY KEY,
+                auth_mode TEXT NOT NULL,
+                browser_name TEXT NOT NULL DEFAULT '',
+                expires_at TEXT NOT NULL,
+                consumed_at TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            "INSERT INTO youtube_auth_video_grants (video_id, auth_mode, browser_name, expires_at, consumed_at, created_at) "
+            "VALUES ('legacyCons01', 'browser', 'chrome', '2026-11-26T02:00:00Z', '2026-11-26T01:05:00Z', '2026-11-26T01:00:00Z')"
+        )
+        conn.commit()
+
+    store = ScopedMemoryCookieStore()
+    seen_cookie_contents: list[tuple[str, str]] = []
+
+    def tracking_ydl_factory(opts: dict[str, Any]) -> Any:
+        cf = opts.get("cookiefile")
+        body = Path(cf).read_text(encoding="utf-8") if cf else ""
+        base = _success_ydl_factory("vidIsoA0001")(opts)
+
+        class _Track:
+            cookiejar = None
+
+            def __enter__(self) -> _Track:
+                return self
+
+            def __exit__(self, *_a: object) -> None:
+                return None
+
+            def extract_info(self, url: str, download: bool = False) -> dict[str, Any]:
+                seen_cookie_contents.append((url, body))
+                return base.extract_info(url, download=download)
+
+        return _Track()
+
+    svc = YouTubeAuthFallbackService(
+        project_root=env["project_root"],
+        cookie_store=store,
+        ydl_factory=tracking_ydl_factory,
+        now=lambda: clock["now"],
+    )
+    fast_app = FastReadApiApplication(
+        env["raw_app"],
+        workspace_hub=env["hub"],
+        youtube_auth_fallback=svc,
+    )
+
+    # 1. Global cookie + A + B simultaneously in 3 distinct slots
+    svc.update_config(
+        {"enabled": True, "grant_scope": "global", "auth_mode": "cookie_file", "cookies_txt": cookie_global, "cooldown_seconds": 10}
+    )
+    st_a = svc.update_config(
+        {"enabled": True, "grant_scope": "single_video", "target_video_id": "vidIsoA0001", "auth_mode": "cookie_file", "cookies_txt": cookie_a}
+    )
+    st_b = svc.update_config(
+        {"enabled": True, "grant_scope": "single_video", "target_video_id": "vidIsoB0002", "auth_mode": "cookie_file", "cookies_txt": cookie_b}
+    )
+    assert st_a["video_grant"] is not None
+    assert st_b["video_grant"] is not None
+    assert len(store.slots) == 3
+    assert "synthetic-cookie-global" in store.slots[GLOBAL_COOKIE_SLOT]
+
+    # 2. Consume A -> ONLY A's grant slot cleaned; B and global preserved!
+    _seed_video_source(env["repo"], source_id="src-iso-a", video_id="vidIsoA0001", now=clock["now"])
+    _seed_video_source(env["repo"], source_id="src-iso-b", video_id="vidIsoB0002", now=clock["now"])
+    _seed_video_source(env["repo"], source_id="src-iso-c", video_id="vidIsoC0003", now=clock["now"])
+    assert svc.attempt_authenticated_ingest(runtime, "src-iso-a", "vidIsoA0001") is None
+    assert any("vidIsoA0001" in u and "synthetic-cookie-alpha" in b for u, b in seen_cookie_contents)
+    assert len(store.slots) == 2  # global + B only
+    assert "synthetic-cookie-global" in store.slots[GLOBAL_COOKIE_SLOT]
+
+    # 3. Revoke ONLY B via HTTP API -> B deleted, global intact
+    c_rev_b, b_rev_b = fast_app.handle(
+        "POST",
+        "/api/v1/workspace-ai/youtube-auth/disconnect",
+        json.dumps({"scope": "single_video", "target_video_id": "vidIsoB0002"}).encode("utf-8"),
+    )
+    assert c_rev_b == HTTPStatus.OK
+    assert b_rev_b.get("video_grant") is None
+    assert list(store.slots.keys()) == [GLOBAL_COOKIE_SLOT]
+
+    # 4. Grant C, then disconnect ONLY global via HTTP API -> C stays active & global cleared!
+    svc.update_config(
+        {"enabled": True, "grant_scope": "single_video", "target_video_id": "vidIsoC0003", "auth_mode": "cookie_file", "cookies_txt": cookie_c}
+    )
+    c_dis_g, b_dis_g = fast_app.handle(
+        "POST",
+        "/api/v1/workspace-ai/youtube-auth/disconnect",
+        json.dumps({"scope": "global"}).encode("utf-8"),
+    )
+    assert c_dis_g == HTTPStatus.OK
+    assert b_dis_g["enabled"] is False
+    assert b_dis_g["cookie_configured"] is False
+    assert b_dis_g["active_single_video_grants"] == 1
+    assert GLOBAL_COOKIE_SLOT not in store.slots
+    assert len(store.slots) == 1
+
+    # 5. Revoke all requires explicit confirm_all=true
+    c_no_confirm, _ = fast_app.handle(
+        "POST",
+        "/api/v1/workspace-ai/youtube-auth/disconnect",
+        json.dumps({"scope": "all"}).encode("utf-8"),
+    )
+    assert c_no_confirm == HTTPStatus.UNPROCESSABLE_ENTITY
+    assert len(store.slots) == 1
+
+    c_rev_all, b_rev_all = fast_app.handle(
+        "POST",
+        "/api/v1/workspace-ai/youtube-auth/disconnect",
+        json.dumps({"scope": "all", "confirm_all": True}).encode("utf-8"),
+    )
+    assert c_rev_all == HTTPStatus.OK
+    assert b_rev_all["active_single_video_grants"] == 0
+    assert store.slots == {}
+
+    # 6. Expiry sweeps grant credential; IN_USE crash orphan cleans on restart; old task does not delete new grant
+    clock["now"] = clock["now"] + timedelta(seconds=20)
+    svc.update_config(
+        {"enabled": True, "grant_scope": "single_video", "target_video_id": "vidIsoC0003", "auth_mode": "cookie_file", "cookies_txt": cookie_c}
+    )
+    clock["now"] = clock["now"] + timedelta(minutes=SINGLE_VIDEO_GRANT_MINUTES + 1)
+    assert svc.get_status(video_id="vidIsoC0003")["active_single_video_grants"] == 0
+    assert store.slots == {}
+
+    # Simulated crash while IN_USE & old task finalizing after newer grant created for same video
+    clock["now"] = clock["now"] + timedelta(seconds=20)
+    st_old = svc.update_config(
+        {"enabled": True, "grant_scope": "single_video", "target_video_id": "vidIsoA0001", "auth_mode": "cookie_file", "cookies_txt": cookie_a}
+    )
+    old_gid = st_old["video_grant"]["grant_id"]  # type: ignore[index]
+    cfg_old, uid_old = svc._reserve_attempt_slot("vidIsoA0001")
+    assert cfg_old is not None and cfg_old.grant_id == old_gid
+    # While old is IN_USE, create a newer grant for vidIsoA0001
+    svc.update_config(
+        {"enabled": True, "grant_scope": "single_video", "target_video_id": "vidIsoA0001", "auth_mode": "cookie_file", "cookies_txt": cookie_b}
+    )
+    assert len(store.slots) == 2
+    svc._finalize_attempt_slot(
+        uid_old,
+        video_id="vidIsoA0001",
+        outcome="SUCCEEDED",
+        grant_id=cfg_old.grant_id,
+        credential_ref=cfg_old.credential_ref,
+    )
+    # Only old slot was deleted; newer grant for vidIsoA0001 stays active & intact!
+    assert len(store.slots) == 1
+    assert svc.get_status(video_id="vidIsoA0001")["video_grant"] is not None
+
+    # Simulate crash on a grant stuck IN_USE and verify startup reconciliation sweeps it
+    clock["now"] = clock["now"] + timedelta(seconds=20)
+    cfg_crash, _ = svc._reserve_attempt_slot("vidIsoA0001")
+    assert cfg_crash is not None
+    assert cfg_crash.credential_ref in store.slots
+    assert svc.reconcile_orphan_credentials(include_in_use=True) == 1
+    assert store.slots == {}
+
+    # Multi-instance race on the same single-video grant: strictly 1 winner
+    clock["now"] = clock["now"] + timedelta(seconds=20)
+    svc_peer = YouTubeAuthFallbackService(
+        project_root=env["project_root"],
+        cookie_store=store,
+        ydl_factory=tracking_ydl_factory,
+        now=lambda: clock["now"],
+    )
+    svc.update_config(
+        {"enabled": True, "grant_scope": "single_video", "target_video_id": "vidIsoB0002", "auth_mode": "cookie_file", "cookies_txt": cookie_b}
+    )
+    barrier = threading.Barrier(2)
+    race_winners: list[str] = []
+    race_lock = threading.Lock()
+
+    def _race(instance: YouTubeAuthFallbackService) -> None:
+        barrier.wait(timeout=3.0)
+        cfg_r, uid_r = instance._reserve_attempt_slot("vidIsoB0002")
+        with race_lock:
+            race_winners.append("WIN:" + uid_r if cfg_r is not None else "DENY:" + uid_r)
+
+    rt1 = threading.Thread(target=_race, args=(svc,))
+    rt2 = threading.Thread(target=_race, args=(svc_peer,))
+    rt1.start()
+    rt2.start()
+    rt1.join(timeout=3.0)
+    rt2.join(timeout=3.0)
+    assert sum(1 for r in race_winners if r.startswith("WIN:")) == 1
+    assert svc.reconcile_orphan_credentials(include_in_use=True) == 1
+    assert store.slots == {}
+
+    # 7. Store failure safety: save failure leaves DB untouched; delete failure retains PENDING_DELETE until retried
+    class _FailingStore(ScopedMemoryCookieStore):
+        def __init__(self) -> None:
+            super().__init__()
+            self.fail_save = False
+            self.fail_delete = False
+
+        def save_slot(self, slot: str, secret: str) -> None:
+            if self.fail_save:
+                raise RuntimeError("keychain unavailable")
+            super().save_slot(slot, secret)
+
+        def delete_slot(self, slot: str) -> None:
+            if self.fail_delete:
+                raise RuntimeError("keychain busy")
+            super().delete_slot(slot)
+
+    fail_store = _FailingStore()
+    fail_svc = YouTubeAuthFallbackService(
+        project_root=env["project_root"],
+        cookie_store=fail_store,
+        ydl_factory=tracking_ydl_factory,
+        now=lambda: clock["now"],
+    )
+    clock["now"] = clock["now"] + timedelta(seconds=20)
+    fail_store.fail_save = True
+    with pytest.raises(ValueError, match="钥匙串"):
+        fail_svc.update_config(
+            {"enabled": True, "grant_scope": "single_video", "target_video_id": "vidIsoC0003", "auth_mode": "cookie_file", "cookies_txt": cookie_c}
+        )
+    assert fail_svc.get_status(video_id="vidIsoC0003")["active_single_video_grants"] == 0
+
+    fail_store.fail_save = False
+    fail_store.fail_delete = True
+    fail_svc.update_config(
+        {"enabled": True, "grant_scope": "single_video", "target_video_id": "vidIsoC0003", "auth_mode": "cookie_file", "cookies_txt": cookie_c}
+    )
+    fail_svc.revoke_video_grant("vidIsoC0003")
+    with sqlite3.connect(fail_svc.db_path) as conn:
+        pending_cnt = conn.execute(
+            "SELECT COUNT(*) FROM youtube_auth_video_grants WHERE cleanup_state = 'PENDING_DELETE'"
+        ).fetchone()[0]
+    assert pending_cnt == 1
+    fail_store.fail_delete = False
+    assert fail_svc.reconcile_orphan_credentials(include_in_use=False) == 1
+    assert fail_store.slots == {}
+
+
+def test_p2_cookiejar_filter_fail_closed_zero_external_requests(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify _filter_cookiejar_domains raises CookieFilterError on any failure and aborts with 0 network calls."""
+    # 1. Helper Fail-Closed edge cases
+    class _BrokenIterJar:
+        def __iter__(self) -> Any:
+            raise RuntimeError("iteration error")
+
+    with pytest.raises(CookieFilterError, match="YOUTUBE_AUTH_COOKIE_FILTER_FAILED"):
+        _filter_cookiejar_domains(_BrokenIterJar())
+
+    class _RaiseClearJar(http.cookiejar.CookieJar):
+        def clear(self, domain: str | None = None, path: str | None = None, name: str | None = None) -> None:
+            del domain, path, name
+            raise RuntimeError("cannot clear")
+
+    bad_cookie = http.cookiejar.Cookie(
+        version=0, name="SID", value="EVIL_SECRET", port=None, port_specified=False,
+        domain=".evil.example", domain_specified=True, domain_initial_dot=True,
+        path="/", path_specified=True, secure=True, expires=1893456000,
+        discard=False, comment=None, comment_url=None, rest={},
+    )
+    jar_raise = _RaiseClearJar()
+    jar_raise.set_cookie(bad_cookie)
+    with pytest.raises(CookieFilterError):
+        _filter_cookiejar_domains(jar_raise)
+
+    # Malformed non-string domain
+    class _MalformedCookie:
+        domain = 12345
+        name = "X"
+        path = "/"
+
+    class _StubbornJar:
+        def __init__(self, items: list[Any]) -> None:
+            self._items = items
+
+        def __iter__(self) -> Any:
+            return iter(self._items)
+
+        def remove(self, _c: Any) -> None:
+            # Silent no-op: caught by mandatory post-filter verification pass!
+            return None
+
+    with pytest.raises(CookieFilterError):
+        _filter_cookiejar_domains(_StubbornJar([_MalformedCookie()]))
+    with pytest.raises(CookieFilterError):
+        _filter_cookiejar_domains(_StubbornJar([bad_cookie]))
+
+    # 2. End-to-end: CookieFilterError aborts BEFORE extract_info or opener with 0 external calls & zero secret leaks
+    env = _build_runtime_env(tmp_path, monkeypatch)
+    runtime = env["runtime"]
+    _seed_video_source(env["repo"], source_id="src-cj-1", video_id="vidCookieFail1")
+    external_calls: list[str] = []
+
+    def bad_jar_ydl_factory(_opts: dict[str, Any]) -> Any:
+        class _Ydl:
+            cookiejar = _StubbornJar([bad_cookie])
+
+            def __enter__(self) -> _Ydl:
+                return self
+
+            def __exit__(self, *_a: object) -> None:
+                return None
+
+            def extract_info(self, url: str, download: bool = False) -> object:
+                del download
+                external_calls.append(url)
+                return {}
+
+        return _Ydl()
+
+    svc = YouTubeAuthFallbackService(
+        project_root=env["project_root"],
+        cookie_store=ScopedMemoryCookieStore(),
+        ydl_factory=bad_jar_ydl_factory,
+        now=lambda: BASE_NOW,
+    )
+    svc.update_config({"enabled": True, "auth_mode": "browser", "browser_name": "chrome"})
+    err_code = svc.attempt_authenticated_ingest(runtime, "src-cj-1", "vidCookieFail1")
+    assert err_code == "YOUTUBE_AUTH_COOKIE_FILTER_FAILED"
+    assert external_calls == []
+    assert "EVIL_SECRET" not in json.dumps(svc.get_status())
+    assert svc.get_status()["circuit_open"] is False

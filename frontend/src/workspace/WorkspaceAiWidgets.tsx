@@ -5810,6 +5810,9 @@ export function WhisperQuickDownloadPanel({
 
 type YouTubeAuthStatus = {
   enabled: boolean;
+  global_enabled?: boolean;
+  scope?: "global" | "single_video" | "disabled";
+  active_single_video_grants?: number;
   auth_mode: "disabled" | "browser" | "cookie_file";
   browser_name: string;
   supported_browsers: string[];
@@ -5842,6 +5845,7 @@ export function YouTubeAuthSettingsPanel() {
   const [cookiesTxt, setCookiesTxt] = useState("");
   const [dailyLimit, setDailyLimit] = useState(20);
   const [saving, setSaving] = useState(false);
+  const [confirmRevokeAll, setConfirmRevokeAll] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [deepLinked, setDeepLinked] = useState(false);
@@ -5855,6 +5859,12 @@ export function YouTubeAuthSettingsPanel() {
         if (!active || !res || typeof res.auth_mode !== "string") return;
         const parsed: YouTubeAuthStatus = {
           enabled: Boolean(res.enabled),
+          global_enabled: Boolean(res.global_enabled ?? res.enabled),
+          scope: res.scope,
+          active_single_video_grants:
+            typeof res.active_single_video_grants === "number"
+              ? res.active_single_video_grants
+              : 0,
           auth_mode:
             res.auth_mode === "browser" || res.auth_mode === "cookie_file"
               ? res.auth_mode
@@ -5950,20 +5960,50 @@ export function YouTubeAuthSettingsPanel() {
     }
   };
 
-  const disconnect = async () => {
+  const disconnectGlobal = async () => {
     setSaving(true);
     setFeedback(null);
     setError(null);
     try {
-      const res = await post<YouTubeAuthStatus>("/workspace-ai/youtube-auth/disconnect", {});
+      const res = await post<YouTubeAuthStatus>("/workspace-ai/youtube-auth/disconnect", {
+        scope: "global",
+      });
       setStatus(res);
       setMode("disabled");
       setCookiesTxt("");
+      setConfirmRevokeAll(false);
       setFeedback(
-        zh ? "已断开 YouTube 登录态并清除保存的凭据。" : "Disconnected and purged stored cookies.",
+        zh
+          ? "已断开全局备用授权并清除全局 Cookie（未影响进行中或未到期的单视频临时授权）。"
+          : "Global fallback disconnected and global cookies purged.",
       );
     } catch {
-      setError(zh ? "断开授权失败，请重试。" : "Could not disconnect.");
+      setError(zh ? "断开全局授权失败，请重试。" : "Could not disconnect global fallback.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const revokeAll = async () => {
+    setSaving(true);
+    setFeedback(null);
+    setError(null);
+    try {
+      const res = await post<YouTubeAuthStatus>("/workspace-ai/youtube-auth/disconnect", {
+        scope: "all",
+        confirm_all: true,
+      });
+      setStatus(res);
+      setMode("disabled");
+      setCookiesTxt("");
+      setConfirmRevokeAll(false);
+      setFeedback(
+        zh
+          ? "已撤销全部授权（含全局备用与所有待使用单视频授权）并清除已存凭据。"
+          : "All global and single-video authorizations revoked and credentials purged.",
+      );
+    } catch {
+      setError(zh ? "撤销全部授权失败，请重试。" : "Could not revoke all authorizations.");
     } finally {
       setSaving(false);
     }
@@ -6008,8 +6048,15 @@ export function YouTubeAuthSettingsPanel() {
       {status?.circuit_open ? (
         <p className="form-error" role="status">
           {zh
-            ? "⚠️ 触发账号保护熔断（上次请求被限流或要求验证），30 分钟内已自动暂停登录兜底，重新保存设置可立即复位。"
-            : "⚠️ Account protection circuit breaker active (30 min pause after rate-limit/auth rejection)."}
+            ? "⚠️ 触发账号保护熔断（上次请求被限流或要求验证），30 分钟内已自动暂停登录兜底，需等待冷却结束后自动恢复（重新保存或断开不会提前解除熔断）。"
+            : "⚠️ Account protection circuit breaker active (30 min pause after rate-limit/auth rejection; auto-recovers after cooldown)."}
+        </p>
+      ) : null}
+      {(status?.active_single_video_grants ?? 0) > 0 ? (
+        <p className="hint" role="status">
+          {zh
+            ? `当前另有 ${status?.active_single_video_grants} 条临时单视频授权生效中（各自独立隔离凭据，不开启全局授权）。`
+            : `${status?.active_single_video_grants} isolated single-video grant(s) currently active (global fallback stays disabled).`}
         </p>
       ) : null}
 
@@ -6142,10 +6189,43 @@ export function YouTubeAuthSettingsPanel() {
             type="button"
             className="button button-ghost"
             disabled={saving}
-            onClick={() => void disconnect()}
+            onClick={() => void disconnectGlobal()}
           >
-            {zh ? "一键断开并清除" : "Disconnect & purge"}
+            {zh ? "断开全局备用授权" : "Disconnect global fallback"}
           </button>
+        ) : null}
+        {((status?.active_single_video_grants ?? 0) > 0 ||
+          status?.enabled ||
+          status?.cookie_configured) ? (
+          confirmRevokeAll ? (
+            <>
+              <button
+                type="button"
+                className="button button-danger button-small"
+                disabled={saving}
+                onClick={() => void revokeAll()}
+              >
+                {zh ? "确认撤销全部授权" : "Confirm revoke all"}
+              </button>
+              <button
+                type="button"
+                className="button button-ghost button-small"
+                disabled={saving}
+                onClick={() => setConfirmRevokeAll(false)}
+              >
+                {zh ? "取消" : "Cancel"}
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="button button-ghost"
+              disabled={saving}
+              onClick={() => setConfirmRevokeAll(true)}
+            >
+              {zh ? "撤销全部授权（含临时单视频）" : "Revoke all authorizations"}
+            </button>
+          )
         ) : null}
       </div>
       {feedback ? <p role="status">{feedback}</p> : null}
