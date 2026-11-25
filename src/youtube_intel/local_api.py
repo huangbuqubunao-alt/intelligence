@@ -10,6 +10,7 @@ import os
 import re
 import select
 import socket
+import socketserver
 import sqlite3
 import threading
 import time
@@ -4035,6 +4036,13 @@ def serve_loopback(
         # opens the same database/DATA. Daemon handlers are not joined by the
         # stdlib, including a status request still verifying Backup under EX.
         daemon_threads = False
+
+        def server_bind(self) -> None:
+            # Loopback-only server: skip HTTPServer's socket.getfqdn() reverse-DNS/mDNS
+            # lookup, which can stall startup by 5-10s+ on isolated macOS hosts.
+            socketserver.TCPServer.server_bind(self)
+            self.server_name = str(self.server_address[0])
+            self.server_port = int(self.server_address[1])
 
     class Handler(BaseHTTPRequestHandler):
         def setup(self) -> None:
