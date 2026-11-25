@@ -819,7 +819,7 @@ _CONTINUATION_CONNECTOR_RE = re.compile(
     r"^(?:但|但是|不过|然而|而是|而|因此|所以|从而|进而|以便|以|并|且|同时|使得|导致|才|就|却|则|再)"
 )
 _CITATION_FRAMING_LEADIN_RE = re.compile(
-    r"^(?:根据|依据|基于|结合|综合|对照|从).*(?:原话|原文|片段|证据|材料|来源)"
+    r"^(?:根据|依据|基于|结合|综合|对照|从).*(?:原话|原文|片段|证据|材料|来源|时间轴|段落|记录)"
 )
 
 
@@ -1531,8 +1531,11 @@ _BILINGUAL_CONCEPT_GROUPS: tuple[tuple[str, str], ...] = (
     ("c:collab", r"(?:协作|协同|多人|\bcollab(?:oration|orate|orative)?\b|\bmultiplayer\b)"),
     ("c:realtime", r"(?:实时|\breal[- ]?time\b)"),
     ("c:document", r"(?:文档|文稿|文本|\bdocuments?\b|\btexts?\b|\blines?\b)"),
-    ("c:invariant", r"(?:不变量|\binvariants?\b)"),
-    ("c:deterministic", r"(?:确定性|\bdeterministic(?:ally)?\b)"),
+    (
+        "c:deterministic",
+        r"(?:确定性|不变量|零丢失|\bdeterministic(?:ally)?\b|\binvariants?\b|\bguarantees?\b|\bcheckpoints?\b|\bzero[- ]?loss\b)",
+    ),
+    ("c:ai_workflow", r"(?:\bai\b|\bllm\b|大模型|智能体|工作流|\bagents?\b|\bworkflows?\b)"),
     ("c:recovery", r"(?:恢复|还原|\brecover(?:y|ies|ed)?\b|\brestor(?:e|ed|ation)\b)"),
     ("c:security", r"(?:安全|隐私|脱敏|\bsecur(?:e|ity)\b|\bprivacy\b)"),
     ("c:auth", r"(?:授权|登录|认证|\bauth(?:oriz(?:e|ation)|enticat(?:e|ion))?\b|\blogin\b|\bcookies?\b)"),
