@@ -815,3 +815,229 @@ def test_p2_03_research_scope_options_exclude_tampered_local_sources(
     code2, body2 = fast_app.handle("GET", "/api/v1/workspace-ai/research/sessions")
     assert code2 == HTTPStatus.OK
     assert not any(v["video_id"] == vid for v in body2["scope_options"]["videos"])
+
+
+def test_p1_r01_atomic_fact_relation_g01_to_g12_and_all_exits(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify G01-G12 adversarial & benign cases at helper level and across live/history/restore/ZIP."""
+    from youtube_intel.workspace_intelligence_hub import (
+        _check_clause_against_cited_evidence,
+        _prune_ungrounded_ref_clauses,
+    )
+
+    # 1. Unit-level G01-G12 helper checks
+    g_fail_cases = [
+        ("G01_metric", "营收增长 30% [E1]。", ["营收增长 5%，利润增长 30%"], "CITATION_FACT_CONFLICT"),
+        ("G02_unit", "销售额为 50 美元 [E1]。", ["共销售 50 件"], "CITATION_FACT_CONFLICT"),
+        ("G03_direction", "收入同比下降 5% [E1]。", ["收入同比增长 5%"], "CITATION_FACT_CONFLICT"),
+        ("G04_currency", "产品售价 €50 [E1]。", ["产品售价 $50（美元）"], "CITATION_FACT_CONFLICT"),
+        ("G05_cn_count_one", "参与人数为一人 [E1]。", ["参与人数为三人"], "CITATION_FACT_CONFLICT"),
+        ("G05_cn_org_one", "落地一家工厂 [E1]。", ["落地三家工厂"], "CITATION_FACT_CONFLICT"),
+        ("G05_cn_school_one", "合作一所高校 [E1]。", ["合作五所高校"], "CITATION_FACT_CONFLICT"),
+        ("G05_cn_times_one", "测试一次即可 [E1]。", ["测试两次即可"], "CITATION_FACT_CONFLICT"),
+        ("G06_entity", "甲公司增长 30% [E1]。", ["甲公司增长 5%，乙公司增长 30%"], "CITATION_FACT_CONFLICT"),
+        ("G07_cross_ref_pool", "甲公司增长 30% [E1][E2]。", ["甲公司增长 5%", "乙公司增长 30%"], "CITATION_FACT_CONFLICT"),
+        ("G08_unrelated", "产品已经支持多人协作 [E1]。", ["原文只讨论检索功能"], "UNSUPPORTED_CLAIM_UNVERIFIED"),
+        ("G09_hash_code", "产品型号 #999 [E1]。", ["产品型号 #102"], "CITATION_FACT_CONFLICT"),
+        ("G10_date_swap", "2025 年 10 月 6 日 [E1]。", ["2025 年 6 月 10 日"], "CITATION_FACT_CONFLICT"),
+    ]
+    for name, claim, exs, expected_code in g_fail_cases:
+        ok, code = _check_clause_against_cited_evidence(claim, exs)
+        assert not ok and code == expected_code, f"{name}: got ok={ok}, code={code}"
+
+    # G11 mixed sentence isolates wrong clause while keeping grounded prefix
+    g11_conflicts: list[str] = []
+    g11_pruned = _prune_ungrounded_ref_clauses(
+        "营收增长 5% [E1]，利润增长 99% [E1]。",
+        {"E1"},
+        cited_excerpts={"E1": "营收增长 5%，利润增长 30%"},
+        conflict_tracker=g11_conflicts,
+    )
+    assert "营收增长 5%" in g11_pruned
+    assert "99%" not in g11_pruned
+    assert g11_conflicts == ["CITATION_FACT_CONFLICT"]
+
+    # G12 benign synonymous/unit/negation claims remain GROUNDED
+    g12_conflicts: list[str] = []
+    g12_pruned = _prune_ungrounded_ref_clauses(
+        "营收上涨 5% [E1]。共 7 件 [E1]。系统目前仍不支持协作 [E1]。",
+        {"E1"},
+        cited_excerpts={"E1": "营收增长 5%。共七件。目前尚未支持协作。"},
+        conflict_tracker=g12_conflicts,
+    )
+    assert "营收上涨 5%" in g12_pruned
+    assert "7 件" in g12_pruned
+    assert "不支持协作" in g12_pruned
+    assert g12_conflicts == []
+
+    # 2. Full-pipeline live Q&A -> history (warm & cold) -> backup restore -> Obsidian ZIP parity
+    payload_by_tag: dict[str, dict[str, Any]] = {
+        "TAG_G01": {"answerable": True, "answer_zh": "营收增长 30% [E1]。", "key_takeaways_zh": [], "action_items_zh": [], "citations": [{"ref": "E1", "note_zh": "g01"}]},
+        "TAG_G02": {"answerable": True, "answer_zh": "销售额为 50 美元 [E1]。", "key_takeaways_zh": [], "action_items_zh": [], "citations": [{"ref": "E1", "note_zh": "g02"}]},
+        "TAG_G03": {"answerable": True, "answer_zh": "营收同比下降 5% [E1]。", "key_takeaways_zh": [], "action_items_zh": [], "citations": [{"ref": "E1", "note_zh": "g03"}]},
+        "TAG_G04": {"answerable": True, "answer_zh": "核心售价 €50（欧元） [E1]。", "key_takeaways_zh": [], "action_items_zh": [], "citations": [{"ref": "E1", "note_zh": "g04"}]},
+        "TAG_G05": {"answerable": True, "answer_zh": "参与人数为一人 [E1]。", "key_takeaways_zh": [], "action_items_zh": [], "citations": [{"ref": "E1", "note_zh": "g05"}]},
+        "TAG_G06": {"answerable": True, "answer_zh": "甲公司增长 30% [E1]。", "key_takeaways_zh": [], "action_items_zh": [], "citations": [{"ref": "E1", "note_zh": "g06"}]},
+        "TAG_G07": {"answerable": True, "answer_zh": "甲公司增长 30% [E1][E2]。", "key_takeaways_zh": [], "action_items_zh": [], "citations": [{"ref": "E1", "note_zh": "e1"}, {"ref": "E2", "note_zh": "e2"}]},
+        "TAG_G08": {"answerable": True, "answer_zh": "产品已经支持多人协作 [E1]。", "key_takeaways_zh": [], "action_items_zh": [], "citations": [{"ref": "E1", "note_zh": "g08"}]},
+        "TAG_G09": {"answerable": True, "answer_zh": "产品型号 #999 [E1]。", "key_takeaways_zh": [], "action_items_zh": [], "citations": [{"ref": "E1", "note_zh": "g09"}]},
+        "TAG_G10": {"answerable": True, "answer_zh": "发布于 2025年10月6日 [E1]。", "key_takeaways_zh": [], "action_items_zh": [], "citations": [{"ref": "E1", "note_zh": "g10"}]},
+        "TAG_G11": {"answerable": True, "answer_zh": "营收增长 5% [E1]，利润增长 99% [E1]。", "key_takeaways_zh": [], "action_items_zh": [], "citations": [{"ref": "E1", "note_zh": "g11"}]},
+        "TAG_G12": {"answerable": True, "answer_zh": "营收上涨 5% [E1]，共清点 7件样品 [E1]，系统仍不支持检索外推 [E1]。", "key_takeaways_zh": [], "action_items_zh": [], "citations": [{"ref": "E1", "note_zh": "g12"}]},
+    }
+
+    def _completer(
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        mode: str,
+        provider: str,
+        model: str,
+        max_tokens: int = 1800,
+    ) -> tuple[dict[str, Any], str, str]:
+        del mode, max_tokens
+        if "RESEARCH_QA_SCHEMA" in system_prompt:
+            for tag, body in payload_by_tag.items():
+                if tag in user_prompt:
+                    return dict(body), provider, model
+        return _StubCompleter()(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            mode="local_ollama",
+            provider=provider,
+            model=model,
+        )
+
+    env = _build_env(tmp_path, monkeypatch, name="p1_r01_g", completer=_StubCompleter(_completer))
+    hub: WorkspaceIntelligenceHub = env["hub"]
+    prov = LocalContentProvider(env["repo"], env["data_root"], now=lambda: NOW)
+    doc_main = prov.import_bytes(
+        "facts_main.md",
+        (
+            "2025年6月10日发布，产品型号 #102，甲公司增长 5%，营收增长 5%，利润增长 30%，"
+            "售价 $50（美元），参与人数为三人，清点七件样品，"
+            "目前原文只讨论检索功能且尚未支持检索外推。"
+        ).encode("utf-8"),
+    )
+    doc_g02 = prov.import_bytes(
+        "facts_g02_units.md",
+        "库存盘点记录：共销售 50 件。".encode("utf-8"),
+    )
+    doc_second = prov.import_bytes(
+        "facts_second.md",
+        "补充财报：乙公司增长 30%。".encode("utf-8"),
+    )
+
+    for tag, bad_text in (
+        ("TAG_G01", "营收增长 30%"),
+        ("TAG_G03", "下降"),
+        ("TAG_G04", "€50"),
+        ("TAG_G05", "一人"),
+        ("TAG_G06", "甲公司增长 30%"),
+        ("TAG_G08", "多人协作"),
+        ("TAG_G09", "#999"),
+        ("TAG_G10", "10月6日"),
+    ):
+        sess = hub.ask_research_question(
+            {"question": f"{tag} 核验", "video_ids": [doc_main.content_id]}
+        )["session"]
+        assert sess["answer_status"] == "REFUSED_INSUFFICIENT_EVIDENCE", tag
+        assert sess["refused"] is True, tag
+        assert sess["citations"] == [], tag
+        assert bad_text not in str(sess["answer_zh"]), tag
+        assert bad_text not in str(sess["obsidian_markdown"]), tag
+        if tag == "TAG_G08":
+            assert sess["scope"]["refusal_reason_code"] == "UNSUPPORTED_CLAIM_UNVERIFIED"
+
+    # G02 unit vs currency mismatch ("共销售 50 件" vs "销售额为 50 美元")
+    s_g02 = hub.ask_research_question(
+        {"question": "TAG_G02 销售总额", "video_ids": [doc_g02.content_id]}
+    )["session"]
+    assert s_g02["answer_status"] == "REFUSED_INSUFFICIENT_EVIDENCE"
+    assert s_g02["refused"] is True
+    assert s_g02["citations"] == []
+    assert "50 美元" not in str(s_g02["answer_zh"])
+    assert "50 美元" not in str(s_g02["obsidian_markdown"])
+
+    # G07 multi-source pool attack
+    s_g07 = hub.ask_research_question(
+        {"question": "TAG_G07 乙公司与甲公司增长对比", "video_ids": [doc_main.content_id, doc_second.content_id]}
+    )["session"]
+    assert s_g07["answer_status"] == "REFUSED_INSUFFICIENT_EVIDENCE"
+    assert s_g07["refused"] is True
+    assert "30%" not in str(s_g07["answer_zh"])
+
+    # G11 mixed sentence stays consistent across live, warm/cold history, and Obsidian ZIP
+    s_g11 = hub.ask_research_question(
+        {"question": "TAG_G11 营收与利润", "video_ids": [doc_main.content_id]}
+    )["session"]
+    assert s_g11["answer_status"] == "GROUNDED"
+    assert "营收增长 5%" in str(s_g11["answer_zh"])
+    assert "99%" not in str(s_g11["answer_zh"])
+    assert "99%" not in str(s_g11["obsidian_markdown"])
+    assert s_g11["scope"].get("fact_verification_state") == "PARTIAL_PRUNED"
+
+    # G12 benign synonyms remain GROUNDED
+    s_g12 = hub.ask_research_question(
+        {"question": "TAG_G12 综合事实", "video_ids": [doc_main.content_id]}
+    )["session"]
+    assert s_g12["answer_status"] == "GROUNDED"
+    assert "营收上涨 5%" in str(s_g12["answer_zh"])
+    assert "7件" in str(s_g12["answer_zh"])
+
+    # Warm & cold history + Obsidian ZIP + backup restore parity for G11
+    warm_sessions = {s["session_id"]: s for s in hub.list_research_sessions()["sessions"]}
+    assert "营收增长 5%" in str(warm_sessions[s_g11["session_id"]]["answer_zh"])
+    assert "99%" not in str(warm_sessions[s_g11["session_id"]]["answer_zh"])
+
+    # Legacy stored GROUNDED row with unrelated G08 claim must degrade to NEEDS_REVERIFICATION in history & ZIP
+    cite_e1_json = json.dumps(s_g12["citations"][:1], ensure_ascii=False)
+    with sqlite3.connect(hub.db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO research_qa_sessions (
+                session_id, question, answer_zh, key_takeaways_json,
+                action_items_json, citations_json, video_count,
+                provider, model, obsidian_markdown, created_at, scope_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "qa-legacy-g08-unverified",
+                "历史旧会话产品功能",
+                "产品已经支持多人协作 [E1]。",
+                json.dumps(["产品已经支持多人协作 [E1]"], ensure_ascii=False),
+                "[]",
+                cite_e1_json,
+                1,
+                "ollama",
+                "stub",
+                "# 产品已经支持多人协作",
+                NOW.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                json.dumps({"answer_status": "GROUNDED", "refused": False}),
+            ),
+        )
+        conn.commit()
+    with hub._evidence_verify_cache_lock:
+        hub._evidence_verify_cache.clear()
+    cold_sessions = {s["session_id"]: s for s in hub.list_research_sessions()["sessions"]}
+    legacy_g08 = cold_sessions["qa-legacy-g08-unverified"]
+    assert legacy_g08["answer_status"] == "NEEDS_REVERIFICATION"
+    assert "多人协作" not in str(legacy_g08["answer_zh"])
+    assert "多人协作" not in str(legacy_g08["obsidian_markdown"])
+
+    backup_snap = hub.export_backup_snapshot()
+    hub.restore_backup_snapshot(backup_snap)
+    restored_sessions = {s["session_id"]: s for s in hub.list_research_sessions()["sessions"]}
+    assert "营收增长 5%" in str(restored_sessions[s_g11["session_id"]]["answer_zh"])
+    assert "99%" not in str(restored_sessions[s_g11["session_id"]]["answer_zh"])
+    assert restored_sessions["qa-legacy-g08-unverified"]["answer_status"] == "NEEDS_REVERIFICATION"
+    assert "多人协作" not in str(restored_sessions["qa-legacy-g08-unverified"]["answer_zh"])
+
+    _, zip_bytes, _, _ = hub.build_obsidian_vault_zip(scope="all")
+    qa_zip_md = _extract_zip_qa_markdown(zip_bytes)
+    assert "营收增长 5%" in qa_zip_md
+    assert "99%" not in qa_zip_md
+    assert "€50" not in qa_zip_md
+    assert "#999" not in qa_zip_md
+    assert "多人协作" not in qa_zip_md
