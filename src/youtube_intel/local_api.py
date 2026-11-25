@@ -4180,10 +4180,16 @@ def serve_loopback(
             start_s, end_s = spec.split("-", 1)
             if not start_s and not end_s:
                 return None
+            # Bound huge ASCII digit strings (e.g. > 4300 digits) before int() conversion:
+            # file_size <= MAX_MEDIA_BYTES (< 10^20), so any normalized >20-digit integer > file_size.
+            max_digits = 20
             if start_s:
                 if not (start_s.isascii() and start_s.isdecimal()):
                     return None
-                start = int(start_s)
+                start_norm = start_s.lstrip("0") or "0"
+                if len(start_norm) > max_digits:
+                    return None
+                start = int(start_norm)
                 if start >= file_size:
                     return None
                 if not end_s:
@@ -4191,14 +4197,23 @@ def serve_loopback(
                 else:
                     if not (end_s.isascii() and end_s.isdecimal()):
                         return None
-                    end = int(end_s)
-                    if end < start:
-                        return None
-                    end = min(end, file_size - 1)
+                    end_norm = end_s.lstrip("0") or "0"
+                    if len(end_norm) > max_digits:
+                        end = file_size - 1
+                    else:
+                        end = int(end_norm)
+                        if end < start:
+                            return None
+                        end = min(end, file_size - 1)
                 return start, end
             if not (end_s.isascii() and end_s.isdecimal()):
                 return None
-            suffix_len = int(end_s)
+            end_norm = end_s.lstrip("0") or "0"
+            if len(end_norm) == 1 and end_norm == "0":
+                return None
+            if len(end_norm) > max_digits:
+                return 0, file_size - 1
+            suffix_len = int(end_norm)
             if suffix_len <= 0:
                 return None
             start = max(0, file_size - suffix_len)
@@ -4235,7 +4250,9 @@ def serve_loopback(
                             "Local media file changed before streaming.",
                         )
                     file_size = before.st_size
-                    range_header = self.headers.get("Range") if is_ranged_media else None
+                    # RFC 9110 §14.2: Range applies only to GET; HEAD ignores Range and returns full GET metadata.
+                    raw_ranges = self.headers.get_all("Range") if (is_ranged_media and self.command == "GET") else []
+                    range_header = ", ".join(raw_ranges) if raw_ranges else None
                     start = 0
                     end = file_size - 1
                     send_status = status

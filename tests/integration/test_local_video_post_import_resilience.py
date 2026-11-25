@@ -686,7 +686,7 @@ def test_local_media_host_cross_site_range_head_and_managed_root_security(
         assert hdrs_ok.get("cross-origin-resource-policy") == "same-origin"
         assert body_ok == mp4_bytes
 
-        # P1-06: HEAD must write 0 bytes on success, 404, and 416
+        # P1-06 & P2-R02 (RFC 9110 §14.2): HEAD ignores Range (200 full metadata) and writes 0 wire bytes
         st_head, hdrs_head, body_head = raw_req("HEAD", media_route)
         assert st_head == 200
         assert body_head == b""
@@ -698,14 +698,36 @@ def test_local_media_host_cross_site_range_head_and_managed_root_security(
         assert st_head_404 == 404
         assert body_head_404 == b""
 
-        st_head_416, hdrs_head_416, body_head_416 = raw_req(
-            "HEAD", media_route, {"Range": "bytes=+4-19"}
-        )
-        assert st_head_416 == 416
-        assert body_head_416 == b""
-        assert hdrs_head_416.get("content-range") == f"bytes */{len(mp4_bytes)}"
+        for head_range in ("bytes=0-3", "bytes=+4-19"):
+            st_hr, hdrs_hr, body_hr = raw_req("HEAD", media_route, {"Range": head_range})
+            assert st_hr == 200
+            assert int(hdrs_hr["content-length"]) == len(mp4_bytes)
+            assert body_hr == b""
 
-        # P2-01: Strict RFC 9110 Range handling (valid single ranges vs 416 rejections)
+        # Raw TCP socket proof: HTTP client does NOT silently drop server-written HEAD body
+        import socket as _sock
+
+        for wire_req in (
+            f"HEAD {media_route} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n",
+            f"HEAD {media_route} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nRange: bytes=0-3\r\nConnection: close\r\n\r\n",
+            f"HEAD {media_route} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nRange: bytes=+4-19\r\nConnection: close\r\n\r\n",
+            f"HEAD /api/v1/videos/missing-vid/media HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n",
+        ):
+            with _sock.create_connection(("127.0.0.1", port), timeout=5) as tcp:
+                tcp.sendall(wire_req.encode("ascii"))
+                chunks: list[bytes] = []
+                while True:
+                    chunk = tcp.recv(4096)
+                    if not chunk:
+                        break
+                    chunks.append(chunk)
+                raw_wire = b"".join(chunks)
+            head_part, sep, wire_body = raw_wire.partition(b"\r\n\r\n")
+            assert sep == b"\r\n\r\n"
+            assert wire_body == b"", f"Server wrote non-empty wire body for HEAD: {wire_body!r}"
+            assert b" 200 OK\r\n" in head_part or b" 404 Not Found\r\n" in head_part
+
+        # P2-01 & P2-R01: Strict bounded RFC 9110 Range handling (including >4300-digit numbers)
         st_suf, hdrs_suf, body_suf = raw_req("GET", media_route, {"Range": "bytes=-16"})
         assert st_suf == 206
         assert hdrs_suf.get("content-range") == f"bytes {len(mp4_bytes) - 16}-{len(mp4_bytes) - 1}/{len(mp4_bytes)}"
@@ -723,6 +745,21 @@ def test_local_media_host_cross_site_range_head_and_managed_root_security(
         assert hdrs_clamp.get("content-range") == f"bytes 10-{len(mp4_bytes) - 1}/{len(mp4_bytes)}"
         assert body_clamp == mp4_bytes[10:]
 
+        huge_5000 = "9" * 5000
+        st_h_end, hdrs_h_end, body_h_end = raw_req(
+            "GET", media_route, {"Range": f"bytes=10-{huge_5000}"}
+        )
+        assert st_h_end == 206
+        assert hdrs_h_end.get("content-range") == f"bytes 10-{len(mp4_bytes) - 1}/{len(mp4_bytes)}"
+        assert body_h_end == mp4_bytes[10:]
+
+        st_h_suf, hdrs_h_suf, body_h_suf = raw_req(
+            "GET", media_route, {"Range": f"bytes=-{huge_5000}"}
+        )
+        assert st_h_suf == 206
+        assert hdrs_h_suf.get("content-range") == f"bytes 0-{len(mp4_bytes) - 1}/{len(mp4_bytes)}"
+        assert body_h_suf == mp4_bytes
+
         for bad_range in (
             "bytes=+4-19",
             "bytes=\u00b2-\u00b3",
@@ -732,6 +769,7 @@ def test_local_media_host_cross_site_range_head_and_managed_root_security(
             "bytes=10-5",
             "bytes=0-5,10-15",
             "bytes=999999-1000005",
+            f"bytes={huge_5000}-",
             "items=0-5",
         ):
             st_bad, hdrs_bad, body_bad = raw_req("GET", media_route, {"Range": bad_range})
