@@ -24,6 +24,7 @@ import secrets
 import sqlite3
 import tempfile
 import threading
+import time
 import urllib.error
 import urllib.request
 import uuid
@@ -75,11 +76,16 @@ MAX_COOLDOWN_SECONDS: Final[int] = 300
 CIRCUIT_BREAK_MINUTES: Final[int] = 30
 MAX_COOKIES_BYTES: Final[int] = 512 * 1024
 
-_ALLOWED_YOUTUBE_DOMAINS: Final[tuple[str, ...]] = (
-    ".youtube.com",
+_ALLOWED_COOKIE_ROOTS: Final[tuple[str, ...]] = (
     "youtube.com",
-    ".google.com",
+    "youtu.be",
     "google.com",
+    "googlevideo.com",
+    "ytimg.com",
+)
+_PRIMARY_COOKIE_ROOTS: Final[tuple[str, ...]] = ("youtube.com", "google.com")
+_HOST_LABEL_RE: Final[re.Pattern[str]] = re.compile(
+    r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
 )
 _SAFE_SUBTITLE_HOST_RE: Final[re.Pattern[str]] = re.compile(
     r"^(?:[A-Za-z0-9-]+\.)*(?:youtube\.com|googlevideo\.com)$",
@@ -117,8 +123,33 @@ def _parse_iso_utc(value: object) -> datetime | None:
     return parsed.astimezone(UTC)
 
 
+def _normalize_cookie_domain(raw_domain: str) -> str | None:
+    cleaned = raw_domain.strip().lower()
+    if not cleaned or cleaned != raw_domain.lower():
+        return None
+    host = cleaned[1:] if cleaned.startswith(".") else cleaned
+    if not host or host.endswith(".") or ".." in host or any(c in host for c in "*:/[]"):
+        return None
+    labels = host.split(".")
+    if len(labels) < 2 or labels[-1].isdigit():
+        return None
+    if any(_HOST_LABEL_RE.fullmatch(label) is None for label in labels):
+        return None
+    return host
+
+
+def _is_allowed_cookie_domain(
+    raw_domain: str,
+    roots: tuple[str, ...] = _ALLOWED_COOKIE_ROOTS,
+) -> bool:
+    host = _normalize_cookie_domain(raw_domain)
+    if host is None:
+        return False
+    return any(host == root or host.endswith(f".{root}") for root in roots)
+
+
 def validate_netscape_cookies_txt(raw: str) -> str:
-    """Validate Netscape HTTP cookie text for YouTube/Google entries."""
+    """Validate and minimally filter Netscape HTTP cookie text to YouTube/Google domains."""
     if not isinstance(raw, str):
         raise ValueError("cookies.txt must be text")
     text = raw.lstrip("\ufeff").strip("\r\n")
@@ -130,28 +161,29 @@ def validate_netscape_cookies_txt(raw: str) -> str:
         raise ValueError("cookies.txt exceeds 512 KiB size limit")
 
     lines = text.splitlines()
+    filtered_lines: list[str] = []
     has_youtube_or_google = False
     for line in lines:
         stripped = line.strip()
         if not stripped:
             continue
-        if stripped.startswith("#"):
-            if stripped.startswith("#HttpOnly_"):
-                stripped = stripped[len("#HttpOnly_") :]
-            else:
-                continue
-        parts = stripped.split("\t")
+        is_httponly = stripped.startswith("#HttpOnly_")
+        if stripped.startswith("#") and not is_httponly:
+            filtered_lines.append(line)
+            continue
+        entry = stripped[len("#HttpOnly_") :] if is_httponly else stripped
+        parts = entry.split("\t")
         if len(parts) != 7:
             raise ValueError("cookies.txt must use valid Netscape 7-column tab format")
-        domain = parts[0].strip().lower()
-        if any(
-            domain == suffix or domain.endswith(suffix)
-            for suffix in _ALLOWED_YOUTUBE_DOMAINS
-        ):
+        domain = parts[0]
+        if not _is_allowed_cookie_domain(domain, _ALLOWED_COOKIE_ROOTS):
+            continue
+        filtered_lines.append(stripped)
+        if _is_allowed_cookie_domain(domain, _PRIMARY_COOKIE_ROOTS):
             has_youtube_or_google = True
     if not has_youtube_or_google:
         raise ValueError("cookies.txt must contain at least one youtube.com or google.com cookie")
-    return "\n".join(lines) + "\n"
+    return "\n".join(filtered_lines) + "\n"
 
 
 def _validate_subtitle_redirect_url(url: str) -> None:
@@ -284,9 +316,13 @@ class YouTubeAuthFallbackService:
         )
         conn.commit()
 
-    def _connect_write(self) -> sqlite3.Connection:
+    def _connect_write(self, *, immediate: bool = False) -> sqlite3.Connection:
         self.db_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-        conn = sqlite3.connect(self.db_path, timeout=10.0)
+        conn = sqlite3.connect(
+            self.db_path,
+            timeout=10.0,
+            isolation_level=None if immediate else "",
+        )
         conn.row_factory = sqlite3.Row
         try:
             conn.execute("PRAGMA busy_timeout=5000")
@@ -296,6 +332,60 @@ class YouTubeAuthFallbackService:
         except BaseException:
             conn.close()
             raise
+
+    @staticmethod
+    def _begin_immediate(conn: sqlite3.Connection) -> None:
+        deadline = time.monotonic() + 5.0
+        while True:
+            try:
+                conn.execute("BEGIN IMMEDIATE")
+                return
+            except sqlite3.OperationalError as exc:
+                msg = str(exc).lower()
+                if ("locked" in msg or "busy" in msg) and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                    continue
+                raise
+
+    @staticmethod
+    def _read_config_from_conn(conn: sqlite3.Connection) -> _AuthConfigRow:
+        default = _AuthConfigRow(
+            enabled=False,
+            auth_mode="disabled",
+            browser_name="",
+            daily_limit=DEFAULT_DAILY_LIMIT,
+            cooldown_seconds=DEFAULT_COOLDOWN_SECONDS,
+            circuit_open_until="",
+            updated_at="",
+        )
+        has_table = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='youtube_auth_config'"
+        ).fetchone()
+        if has_table is None:
+            return default
+        row = conn.execute(
+            "SELECT * FROM youtube_auth_config WHERE singleton_id = 1"
+        ).fetchone()
+        if row is None:
+            return default
+        mode = str(row["auth_mode"] or "disabled")
+        if mode not in VALID_AUTH_MODES:
+            mode = "disabled"
+        browser = str(row["browser_name"] or "").strip().lower()
+        if browser not in SUPPORTED_AUTH_BROWSERS:
+            browser = ""
+        return _AuthConfigRow(
+            enabled=bool(row["enabled"]) and mode != "disabled",
+            auth_mode=mode,
+            browser_name=browser,
+            daily_limit=max(1, min(MAX_DAILY_LIMIT, int(row["daily_limit"] or DEFAULT_DAILY_LIMIT))),
+            cooldown_seconds=max(
+                MIN_COOLDOWN_SECONDS,
+                min(MAX_COOLDOWN_SECONDS, int(row["cooldown_seconds"] or DEFAULT_COOLDOWN_SECONDS)),
+            ),
+            circuit_open_until=str(row["circuit_open_until"] or ""),
+            updated_at=str(row["updated_at"] or ""),
+        )
 
     def _read_config_row(self) -> _AuthConfigRow:
         default = _AuthConfigRow(
@@ -311,52 +401,35 @@ class YouTubeAuthFallbackService:
         if conn is None:
             return default
         try:
-            row = conn.execute(
-                "SELECT * FROM youtube_auth_config WHERE singleton_id = 1"
-            ).fetchone()
-            if row is None:
-                return default
-            mode = str(row["auth_mode"] or "disabled")
-            if mode not in VALID_AUTH_MODES:
-                mode = "disabled"
-            browser = str(row["browser_name"] or "").strip().lower()
-            if browser not in SUPPORTED_AUTH_BROWSERS:
-                browser = ""
-            return _AuthConfigRow(
-                enabled=bool(row["enabled"]) and mode != "disabled",
-                auth_mode=mode,
-                browser_name=browser,
-                daily_limit=max(1, min(MAX_DAILY_LIMIT, int(row["daily_limit"] or DEFAULT_DAILY_LIMIT))),
-                cooldown_seconds=max(
-                    MIN_COOLDOWN_SECONDS,
-                    min(MAX_COOLDOWN_SECONDS, int(row["cooldown_seconds"] or DEFAULT_COOLDOWN_SECONDS)),
-                ),
-                circuit_open_until=str(row["circuit_open_until"] or ""),
-                updated_at=str(row["updated_at"] or ""),
-            )
+            return self._read_config_from_conn(conn)
         finally:
             conn.close()
+
+    @staticmethod
+    def _usage_stats_from_conn(conn: sqlite3.Connection, day_utc: str) -> tuple[int, str | None]:
+        has_usage = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='youtube_auth_usage'"
+        ).fetchone()
+        if has_usage is None:
+            return 0, None
+        cnt_row = conn.execute(
+            "SELECT COUNT(*) FROM youtube_auth_usage WHERE day_utc = ? AND outcome != 'CANCELLED'",
+            (day_utc,),
+        ).fetchone()
+        last_row = conn.execute(
+            "SELECT created_at FROM youtube_auth_usage WHERE outcome != 'CANCELLED' "
+            "ORDER BY created_at DESC LIMIT 1"
+        ).fetchone()
+        used = int(cnt_row[0]) if cnt_row is not None else 0
+        last_ts = str(last_row["created_at"]) if last_row is not None else None
+        return used, last_ts
 
     def _usage_stats(self, day_utc: str) -> tuple[int, str | None]:
         conn = self._connect_read()
         if conn is None:
             return 0, None
         try:
-            has_usage = conn.execute(
-                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='youtube_auth_usage'"
-            ).fetchone()
-            if has_usage is None:
-                return 0, None
-            cnt_row = conn.execute(
-                "SELECT COUNT(*) FROM youtube_auth_usage WHERE day_utc = ?",
-                (day_utc,),
-            ).fetchone()
-            last_row = conn.execute(
-                "SELECT created_at FROM youtube_auth_usage ORDER BY created_at DESC LIMIT 1"
-            ).fetchone()
-            used = int(cnt_row[0]) if cnt_row is not None else 0
-            last_ts = str(last_row["created_at"]) if last_row is not None else None
-            return used, last_ts
+            return self._usage_stats_from_conn(conn, day_utc)
         finally:
             conn.close()
 
@@ -459,9 +532,10 @@ class YouTubeAuthFallbackService:
 
         ts = format_utc_datetime(self._now())
         with self._db_lock:
-            conn = self._connect_write()
+            conn = self._connect_write(immediate=True)
             try:
-                with conn:
+                self._begin_immediate(conn)
+                try:
                     conn.execute(
                         """
                         INSERT INTO youtube_auth_config (
@@ -486,6 +560,11 @@ class YouTubeAuthFallbackService:
                             ts,
                         ),
                     )
+                    conn.execute("COMMIT")
+                except BaseException:
+                    with contextlib.suppress(sqlite3.Error):
+                        conn.execute("ROLLBACK")
+                    raise
             finally:
                 conn.close()
         return self.get_status()
@@ -497,9 +576,10 @@ class YouTubeAuthFallbackService:
         if self.db_path.is_file():
             ts = format_utc_datetime(self._now())
             with self._db_lock:
-                conn = self._connect_write()
+                conn = self._connect_write(immediate=True)
                 try:
-                    with conn:
+                    self._begin_immediate(conn)
+                    try:
                         conn.execute(
                             """
                             INSERT INTO youtube_auth_config (
@@ -515,14 +595,22 @@ class YouTubeAuthFallbackService:
                             """,
                             (DEFAULT_DAILY_LIMIT, DEFAULT_COOLDOWN_SECONDS, ts),
                         )
+                        conn.execute("COMMIT")
+                    except BaseException:
+                        with contextlib.suppress(sqlite3.Error):
+                            conn.execute("ROLLBACK")
+                        raise
                 finally:
                     conn.close()
         return self.get_status()
 
-    def can_attempt(self, video_id: str) -> tuple[bool, str | None]:
-        """Verify fallback is enabled, configured, and within rate limits."""
-        del video_id
-        cfg = self._read_config_row()
+    def _evaluate_eligibility(
+        self,
+        cfg: _AuthConfigRow,
+        used_today: int,
+        last_ts: str | None,
+        now: datetime,
+    ) -> tuple[bool, str | None]:
         if not cfg.enabled or cfg.auth_mode == "disabled":
             return False, "YOUTUBE_AUTH_DISABLED"
         if cfg.auth_mode == "browser" and cfg.browser_name not in SUPPORTED_AUTH_BROWSERS:
@@ -530,13 +618,10 @@ class YouTubeAuthFallbackService:
         if cfg.auth_mode == "cookie_file" and not self._has_cookie_secret():
             return False, "YOUTUBE_AUTH_DISABLED"
 
-        now = self._now()
         circuit_until = _parse_iso_utc(cfg.circuit_open_until)
         if circuit_until is not None and circuit_until > now:
             return False, "YOUTUBE_AUTH_RATE_LIMITED"
 
-        day_utc = now.astimezone(UTC).strftime("%Y-%m-%d")
-        used_today, last_ts = self._usage_stats(day_utc)
         if used_today >= cfg.daily_limit:
             return False, "YOUTUBE_AUTH_RATE_LIMITED"
 
@@ -550,8 +635,55 @@ class YouTubeAuthFallbackService:
                 return False, "YOUTUBE_AUTH_RATE_LIMITED"
         return True, None
 
-    def _record_usage(
+    def can_attempt(self, video_id: str) -> tuple[bool, str | None]:
+        """Verify fallback is enabled, configured, and within rate limits."""
+        del video_id
+        cfg = self._read_config_row()
+        now = self._now()
+        day_utc = now.astimezone(UTC).strftime("%Y-%m-%d")
+        used_today, last_ts = self._usage_stats(day_utc)
+        return self._evaluate_eligibility(cfg, used_today, last_ts, now)
+
+    def _reserve_attempt_slot(
+        self, video_id: str
+    ) -> tuple[_AuthConfigRow, str] | tuple[None, str]:
+        """Atomically reserve quota & cooldown slot inside SQLite BEGIN IMMEDIATE."""
+        if not self.db_path.is_file():
+            return None, "YOUTUBE_AUTH_DISABLED"
+        with self._db_lock:
+            conn = self._connect_write(immediate=True)
+            try:
+                self._begin_immediate(conn)
+                try:
+                    cfg = self._read_config_from_conn(conn)
+                    now = self._now()
+                    day_utc = now.astimezone(UTC).strftime("%Y-%m-%d")
+                    used_today, last_ts = self._usage_stats_from_conn(conn, day_utc)
+                    allowed, deny_code = self._evaluate_eligibility(
+                        cfg, used_today, last_ts, now
+                    )
+                    if not allowed:
+                        conn.execute("ROLLBACK")
+                        return None, deny_code or "YOUTUBE_AUTH_DISABLED"
+                    usage_id = f"ytauth-{uuid.uuid4().hex}"
+                    now_iso = format_utc_datetime(now)
+                    conn.execute(
+                        "INSERT INTO youtube_auth_usage (usage_id, day_utc, video_id, outcome, created_at) "
+                        "VALUES (?, ?, ?, 'RESERVED', ?)",
+                        (usage_id, day_utc, video_id, now_iso),
+                    )
+                    conn.execute("COMMIT")
+                    return cfg, usage_id
+                except BaseException:
+                    with contextlib.suppress(sqlite3.Error):
+                        conn.execute("ROLLBACK")
+                    raise
+            finally:
+                conn.close()
+
+    def _finalize_attempt_slot(
         self,
+        usage_id: str,
         *,
         video_id: str,
         outcome: str,
@@ -560,29 +692,53 @@ class YouTubeAuthFallbackService:
         now = self._now()
         now_iso = format_utc_datetime(now)
         day_utc = now.astimezone(UTC).strftime("%Y-%m-%d")
-        usage_id = f"ytauth-{uuid.uuid4().hex}"
         circuit_iso = (
             format_utc_datetime(now + timedelta(minutes=CIRCUIT_BREAK_MINUTES))
             if open_circuit
             else None
         )
         with self._db_lock:
-            conn = self._connect_write()
+            conn = self._connect_write(immediate=True)
             try:
-                with conn:
-                    conn.execute(
-                        "INSERT INTO youtube_auth_usage (usage_id, day_utc, video_id, outcome, created_at) "
-                        "VALUES (?, ?, ?, ?, ?)",
-                        (usage_id, day_utc, video_id, outcome, now_iso),
+                self._begin_immediate(conn)
+                try:
+                    cur = conn.execute(
+                        "UPDATE youtube_auth_usage SET outcome = ? WHERE usage_id = ?",
+                        (outcome, usage_id),
                     )
+                    if cur.rowcount == 0:
+                        conn.execute(
+                            "INSERT INTO youtube_auth_usage (usage_id, day_utc, video_id, outcome, created_at) "
+                            "VALUES (?, ?, ?, ?, ?)",
+                            (usage_id, day_utc, video_id, outcome, now_iso),
+                        )
                     if circuit_iso is not None:
                         conn.execute(
                             "UPDATE youtube_auth_config SET circuit_open_until = ?, updated_at = ? "
                             "WHERE singleton_id = 1",
                             (circuit_iso, now_iso),
                         )
+                    conn.execute("COMMIT")
+                except BaseException:
+                    with contextlib.suppress(sqlite3.Error):
+                        conn.execute("ROLLBACK")
+                    raise
             finally:
                 conn.close()
+
+    def _record_usage(
+        self,
+        *,
+        video_id: str,
+        outcome: str,
+        open_circuit: bool = False,
+    ) -> None:
+        self._finalize_attempt_slot(
+            f"ytauth-{uuid.uuid4().hex}",
+            video_id=video_id,
+            outcome=outcome,
+            open_circuit=open_circuit,
+        )
 
     @contextlib.contextmanager
     def _auth_execution_context(
@@ -668,11 +824,10 @@ class YouTubeAuthFallbackService:
 
         Returns ``None`` on success, or a closed safe ``YOUTUBE_*`` error code.
         """
-        with self._db_lock:
-            allowed, deny_code = self.can_attempt(video_id)
-            if not allowed:
-                return deny_code or "YOUTUBE_AUTH_DISABLED"
-            cfg = self._read_config_row()
+        cfg, reserved_or_deny = self._reserve_attempt_slot(video_id)
+        if cfg is None:
+            return reserved_or_deny
+        usage_id = reserved_or_deny
 
         from youtube_intel.extractive_summary import ExtractiveSummaryService
         from youtube_intel.runtime import RuntimeOperations as RuntimeOpsCls
@@ -723,7 +878,9 @@ class YouTubeAuthFallbackService:
                 )
                 auth_runtime.ingest_source_to_transcript(source_id, limit=1)
         except Exception as err:  # noqa: BLE001 — mapped via closed classification
-            return self._classify_and_record_auth_failure(runtime, video_id, err)
+            return self._classify_and_record_auth_failure(
+                runtime, video_id, err, usage_id=usage_id
+            )
 
         timed = runtime._repository.get_verified_timed_transcript(video_id=video_id)
         job = runtime._repository.latest_content_job(video_id)
@@ -736,16 +893,20 @@ class YouTubeAuthFallbackService:
                     runtime._repository,
                     runtime._data_root,
                 ).create(video_id, now=datetime.now(UTC))
-            self._record_usage(video_id=video_id, outcome="SUCCEEDED")
+            self._finalize_attempt_slot(usage_id, video_id=video_id, outcome="SUCCEEDED")
             return None
 
-        return self._classify_and_record_auth_failure(runtime, video_id, None)
+        return self._classify_and_record_auth_failure(
+            runtime, video_id, None, usage_id=usage_id
+        )
 
     def _classify_and_record_auth_failure(
         self,
         runtime: RuntimeOperations,
         video_id: str,
         err: BaseException | None,
+        *,
+        usage_id: str | None = None,
     ) -> str:
         app_err = getattr(err, "error", None) if err is not None else None
         raw_code = getattr(getattr(app_err, "code", None), "value", None)
@@ -757,29 +918,42 @@ class YouTubeAuthFallbackService:
                 raw_code = job.last_error_code
                 raw_msg = (job.last_error_message or "").lower()
 
+        def finish(outcome: str, *, open_circuit: bool = False) -> None:
+            if usage_id is not None:
+                self._finalize_attempt_slot(
+                    usage_id,
+                    video_id=video_id,
+                    outcome=outcome,
+                    open_circuit=open_circuit,
+                )
+            else:
+                self._record_usage(
+                    video_id=video_id, outcome=outcome, open_circuit=open_circuit
+                )
+
         if raw_code == "RATE_LIMITED":
-            self._record_usage(video_id=video_id, outcome="RATE_LIMITED", open_circuit=True)
+            finish("RATE_LIMITED", open_circuit=True)
             return "YOUTUBE_RATE_LIMITED"
         if raw_code == "PERMISSION_DENIED" or any(
             m in raw_msg for m in ("sign in", "not a bot", "authentication", "login_required", "401", "403")
         ):
-            self._record_usage(video_id=video_id, outcome="AUTH_EXPIRED", open_circuit=True)
+            finish("AUTH_EXPIRED", open_circuit=True)
             return "YOUTUBE_AUTH_EXPIRED"
         if raw_code in {"TRANSIENT_NETWORK", "PROVIDER_UNAVAILABLE"}:
-            self._record_usage(video_id=video_id, outcome="NETWORK_UNAVAILABLE")
+            finish("NETWORK_UNAVAILABLE")
             return "YOUTUBE_NETWORK_UNAVAILABLE"
         if raw_code == "CONTENT_UNAVAILABLE":
             if runtime._repository.get_video(video_id) is not None and (
                 "no usable subtitle" in raw_msg or "transcription" in raw_msg
             ):
-                self._record_usage(video_id=video_id, outcome="NO_CAPTIONS")
+                finish("NO_CAPTIONS")
                 return "YOUTUBE_NO_CAPTIONS"
-            self._record_usage(video_id=video_id, outcome="CONTENT_UNAVAILABLE")
+            finish("CONTENT_UNAVAILABLE")
             return "YOUTUBE_CONTENT_UNAVAILABLE"
         if runtime._repository.get_video(video_id) is not None and runtime._repository.get_verified_timed_transcript(video_id=video_id) is None:
-            self._record_usage(video_id=video_id, outcome="NO_CAPTIONS")
+            finish("NO_CAPTIONS")
             return "YOUTUBE_NO_CAPTIONS"
-        self._record_usage(video_id=video_id, outcome="IMPORT_FAILED")
+        finish("IMPORT_FAILED")
         return "YOUTUBE_IMPORT_FAILED"
 
 

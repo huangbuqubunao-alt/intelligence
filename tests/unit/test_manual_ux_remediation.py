@@ -778,3 +778,201 @@ def test_workspace_ai_curated_downloads_cloud_test_and_routes(
 
     y_dis, y_dis_body = fast_app.handle("POST", "/api/v1/workspace-ai/youtube-auth/disconnect", b"{}")
     assert y_dis == HTTPStatus.OK and y_dis_body["enabled"] is False
+
+
+def test_p2_02_cookie_domain_filtering_and_secret_non_leakage(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    env = _build_runtime_env(tmp_path, monkeypatch)
+    fast_app: FastReadApiApplication = env["fast_app"]
+    secret_store = _MemorySecret()
+    service = YouTubeAuthFallbackService(
+        project_root=env["project_root"],
+        cookie_store=secret_store,
+        now=lambda: BASE_NOW,
+    )
+
+    # Reject deceptive lookalike / suffix-spoofed / IP / wildcard domains
+    for bad_cookie in (
+        ".evil-youtube.com\tTRUE\t/\tTRUE\t1893456000\tSID\tBAD_TOKEN_1\n",
+        "youtube.com.attacker.test\tTRUE\t/\tTRUE\t1893456000\tSID\tBAD_TOKEN_2\n",
+        ".notgoogle.com\tTRUE\t/\tTRUE\t1893456000\tSID\tBAD_TOKEN_3\n",
+        "127.0.0.1\tFALSE\t/\tFALSE\t1893456000\tSID\tBAD_TOKEN_4\n",
+        "*.youtube.com\tTRUE\t/\tTRUE\t1893456000\tSID\tBAD_TOKEN_5\n",
+    ):
+        with pytest.raises(ValueError, match="youtube.com"):
+            validate_netscape_cookies_txt(bad_cookie)
+
+    # Mixed file: valid YouTube/Google cookies preserved; third-party unrelated site cookies dropped
+    mixed_cookies = (
+        "# Netscape HTTP Cookie File\n"
+        "bank.example\tFALSE\t/\tTRUE\t1893456000\tBANK_SESSION\tFAKE_THIRD_PARTY_SECRET_BANK\n"
+        "#HttpOnly_github.com\tFALSE\t/\tTRUE\t1893456000\tGH_SESS\tFAKE_GITHUB_SECRET\n"
+        ".youtube.com\tTRUE\t/\tTRUE\t1893456000\tSAPISID\tFAKE_YT_SECRET_999\n"
+        "accounts.google.com\tFALSE\t/\tTRUE\t1893456000\tSID\tFAKE_GOOGLE_SECRET_888\n"
+        ".googlevideo.com\tTRUE\t/\tTRUE\t1893456000\tPREF\tFAKE_GV_SECRET_777\n"
+    )
+    filtered = validate_netscape_cookies_txt(mixed_cookies)
+    assert "FAKE_YT_SECRET_999" in filtered
+    assert "FAKE_GOOGLE_SECRET_888" in filtered
+    assert "FAKE_GV_SECRET_777" in filtered
+    assert "bank.example" not in filtered
+    assert "FAKE_THIRD_PARTY_SECRET_BANK" not in filtered
+    assert "github.com" not in filtered
+    assert "FAKE_GITHUB_SECRET" not in filtered
+
+    with caplog.at_level("DEBUG"):
+        status = service.update_config(
+            {
+                "enabled": True,
+                "auth_mode": "cookie_file",
+                "cookies_txt": mixed_cookies,
+            }
+        )
+    assert status["cookie_configured"] is True
+    stored = secret_store.get() or ""
+    assert "bank.example" not in stored
+    assert "FAKE_THIRD_PARTY_SECRET_BANK" not in stored
+    assert "FAKE_YT_SECRET_999" in stored
+
+    # Fake secret never leaks via status, SQLite DB dump, backup JSON, or logs
+    assert "FAKE_YT_SECRET_999" not in json.dumps(service.get_status())
+    assert "FAKE_YT_SECRET_999" not in caplog.text
+    with sqlite3.connect(service.db_path) as conn:
+        db_dump = "\n".join(conn.iterdump())
+    assert "FAKE_YT_SECRET_999" not in db_dump
+    b_code, b_body = fast_app.handle("GET", "/api/v1/workspace-ai/backup")
+    assert b_code == HTTPStatus.OK
+    serialized_backup = json.dumps(b_body)
+    assert "FAKE_YT_SECRET_999" not in serialized_backup
+    assert "FAKE_GOOGLE_SECRET_888" not in serialized_backup
+
+
+def test_p1_04_atomic_sqlite_slot_reservation_cross_instance_race_and_recovery(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import threading
+
+    env = _build_runtime_env(tmp_path, monkeypatch)
+    runtime: RuntimeOperations = env["runtime"]
+    secret_store = _MemorySecret()
+    secret_store.save(VALID_COOKIES)
+
+    monkeypatch.setattr(
+        "youtube_intel.providers.youtube._resolve_system_proxy_url", lambda: None
+    )
+    monkeypatch.setattr(
+        "youtube_intel.providers.subtitles._resolve_system_proxy_url", lambda: None
+    )
+    monkeypatch.setattr(
+        "urllib.request.OpenerDirector.open",
+        lambda _self, _req, timeout=None: _FakeHttpResponse(VALID_VTT),
+    )
+
+    calls: list[str] = []
+    calls_lock = threading.Lock()
+    entered_network = threading.Event()
+    release_network = threading.Event()
+
+    def make_slow_ydl(vid: str) -> Any:
+        base_factory = _success_ydl_factory(vid)
+
+        def factory(opts: dict[str, Any]) -> Any:
+            with calls_lock:
+                calls.append(str(opts.get("cookiefile", "browser")))
+            entered_network.set()
+            assert release_network.wait(timeout=3.0)
+            return base_factory(opts)
+
+        return factory
+
+    # Two independent service instances pointing to same workspace/SQLite
+    svc_a = YouTubeAuthFallbackService(
+        project_root=env["project_root"],
+        cookie_store=secret_store,
+        ydl_factory=make_slow_ydl("vidRace0001"),
+        now=lambda: BASE_NOW,
+    )
+    svc_b = YouTubeAuthFallbackService(
+        project_root=env["project_root"],
+        cookie_store=secret_store,
+        ydl_factory=make_slow_ydl("vidRace0002"),
+        now=lambda: BASE_NOW,
+    )
+    svc_a.update_config(
+        {
+            "enabled": True,
+            "auth_mode": "cookie_file",
+            "cookies_txt": VALID_COOKIES,
+            "daily_limit": 1,
+            "cooldown_seconds": 15,
+        }
+    )
+
+    _seed_video_source(env["repo"], source_id="src-race-1", video_id="vidRace0001")
+    _seed_video_source(env["repo"], source_id="src-race-2", video_id="vidRace0002")
+
+    results: list[str | None] = []
+    res_lock = threading.Lock()
+    barrier = threading.Barrier(2)
+
+    def worker(svc: YouTubeAuthFallbackService, src_id: str, vid_id: str) -> None:
+        barrier.wait(timeout=3.0)
+        res = svc.attempt_authenticated_ingest(runtime, src_id, vid_id)
+        with res_lock:
+            results.append(res)
+
+    t1 = threading.Thread(target=worker, args=(svc_a, "src-race-1", "vidRace0001"))
+    t2 = threading.Thread(target=worker, args=(svc_b, "src-race-2", "vidRace0002"))
+    t1.start()
+    t2.start()
+    assert entered_network.wait(timeout=3.0)
+    # Give second thread ample opportunity to attempt reservation BEFORE thread 1 completes
+    time.sleep(0.08)
+    release_network.set()
+    t1.join(timeout=5.0)
+    t2.join(timeout=5.0)
+
+    # Strictly 1 attempt execution (one temp cookiefile dir) despite 2 independent service instances racing for the last slot
+    assert len(set(calls)) == 1
+    assert sorted(r or "OK" for r in results) == ["OK", "YOUTUBE_AUTH_RATE_LIMITED"]
+
+    # Subsequent cross-instance check sees quota consumed (used_today == 1)
+    assert svc_b.get_status()["used_today"] == 1
+    assert svc_b.can_attempt("vidRace0003") == (False, "YOUTUBE_AUTH_RATE_LIMITED")
+
+    # Crash/BaseException simulation: unfinalized RESERVED slot still conservatively consumes quota & cooldown
+    clock = {"now": BASE_NOW + timedelta(seconds=60)}
+
+    class _AbortCrash(BaseException):
+        pass
+
+    def crash_factory(_opts: dict[str, Any]) -> Any:
+        raise _AbortCrash("simulated abrupt process abort")
+
+    svc_c = YouTubeAuthFallbackService(
+        project_root=env["project_root"],
+        cookie_store=secret_store,
+        ydl_factory=crash_factory,
+        now=lambda: clock["now"],
+    )
+    svc_c.update_config(
+        {
+            "enabled": True,
+            "auth_mode": "cookie_file",
+            "cookies_txt": VALID_COOKIES,
+            "daily_limit": 2,
+            "cooldown_seconds": 15,
+        }
+    )
+    _seed_video_source(env["repo"], source_id="src-crash-1", video_id="vidCrash001", now=clock["now"])
+    with pytest.raises(_AbortCrash):
+        svc_c.attempt_authenticated_ingest(runtime, "src-crash-1", "vidCrash001")
+    # Quota 2/2 is now conservatively exhausted (1 succeeded + 1 RESERVED crash)
+    assert svc_c.get_status()["used_today"] == 2
+    assert svc_c.can_attempt("vidAfterCrash") == (False, "YOUTUBE_AUTH_RATE_LIMITED")
+
+    # Disconnect cleanly clears config and immediately blocks all instances
+    svc_c.disconnect()
+    assert svc_a.can_attempt("vidAfterDisconnect") == (False, "YOUTUBE_AUTH_DISABLED")
+

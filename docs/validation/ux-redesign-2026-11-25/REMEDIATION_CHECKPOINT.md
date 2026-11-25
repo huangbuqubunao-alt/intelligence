@@ -3,7 +3,7 @@
 > 主线规格：`docs/validation/ux-redesign-2026-11-25/04_INDEPENDENT_CODE_REVIEW_AND_AGY_REMEDIATION.md`  
 > 当前分支：`antigravity/remediation-20261125`（从 `origin/main@d1b58f73` 线性创建）  
 > 候选基准：`beea3a53`（完整线性重放 `5cc76ab8..9cee10df`，共 16 个提交；`HEAD^{tree} == 9cee10df^{tree}` 已验证）  
-> 检查点状态：Batch A（Gate S1：`P1-01`, `P1-02`, `P1-06`, `P2-01`）已完成并通过验证，正在进入 Batch B（Gate S2：`P1-04`, `P2-02`）
+> 检查点状态：Batch B（Gate S2：`P1-04`, `P2-02`）已完成并通过验证，正在进入 Batch C（Gate S3：`P1-03`, `P2-03`）
 
 ## 1. Phase 0 / Gate M1 验证结论
 
@@ -39,5 +39,9 @@
     - `local_api.py`：统一全站与 `/api/*` loopback `Host` 允许列表（含 `[::1]`、`localhost`、`127.0.0.1` 动态端口及桌面桥 `origins`）、拦截跨站 `Sec-Fetch-Site` 与非本机 `Origin`、为 `/api/*` 响应统一附加 `Cross-Origin-Resource-Policy: same-origin`、`do_HEAD` 统一接入 `_handle` 且 `_send_bytes` / `416` 对 `HEAD` 严格零正文、严格 RFC 9110 ASCII `Range` 解析（拒绝 `+4`/Unicode 数字/空格/多区间 `416`）、`_send_file` 区分发送前 `404`/`409`/`413` 与发送后安全断流及脱敏 warning 日志。
     - `source_authority.py` + `fast_read_api.py`：新增 `ManagedMediaFile` 保留 `(root, relative_path, expected_size, expected_sha256, expected_stat)` 进入 `open_managed` 逐级 `O_NOFOLLOW` 校验，严格限制 `storage_root in {'SOURCE_DATA', 'DATA'}`，并建立基于不变 `(st_dev, st_ino, st_size, st_mtime_ns, st_ctime_ns)` 的 bounded SHA-256 校验缓存。
     - 实测命令：`.venv/bin/pytest -q tests/integration/test_local_video_post_import_resilience.py tests/integration/test_local_content_adversarial.py tests/integration/test_dogfood_day2_native_import.py tests/unit/test_bigmodel_settings.py tests/unit/test_qa_launch_isolation.py` → `149 passed in 115.81s`；`ruff check` → `All checks passed!`。
-- 待执行：`Batch B (S2)` -> `Batch C (S3)` -> `Batch D (U1/U2)` -> `Phase 3 (E1/E2/R1)`
-- 下一步动作：实现 Batch B（`P1-04` SQLite `BEGIN IMMEDIATE` 原子配额/冷却预留与结算、`P2-02` Cookie 域名严格精确过滤与假凭据不外泄测试）。
+  - `Batch B / Gate S2`（`P1-04`, `P2-02`）：
+    - `youtube_auth_fallback.py`：新增 SQLite `BEGIN IMMEDIATE` 原子预留 `_reserve_attempt_slot`（写入 `'RESERVED'` 并在异常/中断下保守占用当日配额与冷却时间）及 `_finalize_attempt_slot`（按 `usage_id` 结算结果并跨实例持久化 30 分钟熔断），彻底消除跨线程/跨服务实例竞态；收紧 `validate_netscape_cookies_txt` 为严格 DNS 子域边界校验并主动剥离非 `youtube.com`/`youtu.be`/`google.com`/`googlevideo.com`/`ytimg.com` 第三方 Cookie 行。
+    - `tests/unit/test_manual_ux_remediation.py`：新增跨实例并发 Barrier 抢占测试、异常中止保守扣额测试、误导域名/无关站点过滤测试及假凭据（status/SQLite/backup/日志）零泄漏测试。
+    - 实测命令：`.venv/bin/pytest -q tests/unit/test_manual_ux_remediation.py` → `9 passed in 6.41s`；`ruff check` → `All checks passed!`。
+- 待执行：`Batch C (S3)` -> `Batch D (U1/U2)` -> `Phase 3 (E1/E2/R1)`
+- 下一步动作：实现 Batch C（`P1-03` 跨分句/引用确定性事实一致性校验与历史降级、`P2-03` Research 候选范围真实核验与覆盖率展示）。
