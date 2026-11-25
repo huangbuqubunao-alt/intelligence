@@ -8761,7 +8761,14 @@ class WorkspaceIntelligenceHub:
                 f"{loc_md} ({c.get('channel_name') or '未知频道'}){ev_tag}"
             )
             if with_note:
-                note_str = str(c.get("note_zh") or c.get("point_zh") or "").strip()
+                if "note_zh" in c:
+                    note_str = str(c.get("note_zh") or "").strip()
+                else:
+                    fallback_note, _ = _sanitize_citation_note(
+                        str(c.get("point_zh") or ""),
+                        str(c.get("excerpt") or ""),
+                    )
+                    note_str = fallback_note
                 return f"{head}：{note_str}" if note_str else head
             return head
 
