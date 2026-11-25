@@ -1174,3 +1174,100 @@ def test_p2_r03_legacy_keychain_and_browser_cookiejar_strict_filtering(
     assert svc_browser.attempt_authenticated_ingest(runtime, "src-jar-1", "vidJar00001") is None
     assert saw_domains_in_extract
     assert saw_domains_in_extract[0] == {".youtube.com", ".google.com"}
+
+
+def test_p1_r03_scoped_single_video_grant_isolated_from_other_videos(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    env = _build_runtime_env(tmp_path, monkeypatch)
+    runtime: RuntimeOperations = env["runtime"]
+    fast_app: FastReadApiApplication = env["fast_app"]
+    secret_store = _MemorySecret()
+    clock = {"now": BASE_NOW}
+    monkeypatch.setattr("youtube_intel.providers.youtube._resolve_system_proxy_url", lambda: None)
+    monkeypatch.setattr("youtube_intel.providers.subtitles._resolve_system_proxy_url", lambda: None)
+    monkeypatch.setattr(
+        "urllib.request.OpenerDirector.open",
+        lambda _self, _req, timeout=None: _FakeHttpResponse(VALID_VTT),
+    )
+
+    ydl_calls: list[str] = []
+
+    def _tracking_factory(opts: dict[str, Any]) -> Any:
+        del opts
+        base = _success_ydl_factory("vidSingleA01")({})
+
+        class _TrackYdl:
+            cookiejar = None
+
+            def __enter__(self) -> _TrackYdl:
+                return self
+
+            def __exit__(self, *_a: object) -> None:
+                return None
+
+            def extract_info(self, url: str, download: bool = False) -> dict[str, Any]:
+                ydl_calls.append(url)
+                return base.extract_info(url, download=download)
+
+        return _TrackYdl()
+
+    svc = YouTubeAuthFallbackService(
+        project_root=env["project_root"],
+        cookie_store=secret_store,
+        ydl_factory=_tracking_factory,
+        now=lambda: clock["now"],
+    )
+
+    # Grant scoped ONLY to Video A (default inline UI behavior)
+    st_single = svc.update_config(
+        {
+            "enabled": True,
+            "grant_scope": "single_video",
+            "target_video_id": "vidSingleA01",
+            "auth_mode": "cookie_file",
+            "cookies_txt": VALID_COOKIES,
+        }
+    )
+    assert st_single["enabled"] is False
+    assert st_single["scope"] == "single_video"
+    assert st_single["active_single_video_grants"] == 1
+
+    # Video B MUST NOT inherit Video A's single-video grant
+    _seed_video_source(env["repo"], source_id="src-sv-a", video_id="vidSingleA01", now=clock["now"])
+    _seed_video_source(env["repo"], source_id="src-sv-b", video_id="vidSingleB02", now=clock["now"])
+    assert svc.can_attempt("vidSingleB02") == (False, "YOUTUBE_AUTH_DISABLED")
+    assert svc.attempt_authenticated_ingest(runtime, "src-sv-b", "vidSingleB02") == "YOUTUBE_AUTH_DISABLED"
+    assert ydl_calls == []
+
+    # Video A consumes its single-use grant cleanly; second attempt on A is denied
+    assert svc.can_attempt("vidSingleA01") == (True, None)
+    assert svc.attempt_authenticated_ingest(runtime, "src-sv-a", "vidSingleA01") is None
+    assert len(ydl_calls) >= 1 and all("vidSingleA01" in u for u in ydl_calls)
+    assert secret_store.get() is None
+    clock["now"] = clock["now"] + timedelta(seconds=60)
+    assert svc.can_attempt("vidSingleA01") == (False, "YOUTUBE_AUTH_DISABLED")
+    assert svc.get_status()["active_single_video_grants"] == 0
+
+    # Grant with expiration & disconnect revocation
+    svc.update_config(
+        {
+            "enabled": True,
+            "grant_scope": "single_video",
+            "target_video_id": "vidSingleB02",
+            "auth_mode": "browser",
+            "browser_name": "chrome",
+        }
+    )
+    assert svc.can_attempt("vidSingleB02") == (True, None)
+    svc.disconnect()
+    assert svc.can_attempt("vidSingleB02") == (False, "YOUTUBE_AUTH_DISABLED")
+
+    # Explicit global choice allows Video B via FastReadApiApplication HTTP contract too
+    put_code, put_body = fast_app.handle(
+        "PUT",
+        "/api/v1/workspace-ai/youtube-auth",
+        json.dumps({"enabled": True, "grant_scope": "global", "auth_mode": "browser", "browser_name": "chrome"}).encode("utf-8"),
+    )
+    assert put_code == HTTPStatus.OK
+    assert put_body["enabled"] is True and put_body["scope"] == "global"

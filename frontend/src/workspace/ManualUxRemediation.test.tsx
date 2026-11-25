@@ -9,6 +9,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { LocalImport } from "./LocalImport";
+import { InlineYouTubeAuthRecovery } from "./ReaderRecoveryPanel";
 import { ReaderReferenceDrawer } from "./ReaderReferenceDrawer";
 import {
   WhisperQuickDownloadPanel,
@@ -1413,7 +1414,7 @@ describe("Manual UX Remediation (#1-#4)", () => {
     fireEvent.click(inlineBtn);
 
     const consentRegion = await screen.findByRole("region", { name: "页内 YouTube 登录态授权确认" });
-    expect(within(consentRegion).getByText(/严格按 YouTube\/Google 白名单过滤/)).toBeTruthy();
+    expect(within(consentRegion).getByText(/YouTube\/Google 域名白名单过滤/)).toBeTruthy();
 
     // Cancelling writes ZERO auth requests
     fireEvent.click(within(consentRegion).getByRole("button", { name: "取消" }));
@@ -1421,13 +1422,19 @@ describe("Manual UX Remediation (#1-#4)", () => {
     expect(putPayloads.length).toBe(0);
     expect(checkCalls).toBe(0);
 
-    // Explicit consent submits auth PUT + immediate retry POST on the same page
+    // Explicit consent defaults to single_video scoped grant + immediate retry POST
     fireEvent.click(inlineBtn);
     const consentRegion2 = await screen.findByRole("region", { name: "页内 YouTube 登录态授权确认" });
     fireEvent.click(within(consentRegion2).getByRole("button", { name: "确认授权并立即重试" }));
     await waitFor(() => expect(putPayloads.length).toBe(1));
     await waitFor(() => expect(checkCalls).toBe(1));
-    expect(putPayloads[0]).toMatchObject({ enabled: true, auth_mode: "browser", browser_name: "chrome" });
+    expect(putPayloads[0]).toMatchObject({
+      enabled: true,
+      grant_scope: "single_video",
+      target_video_id: "yt-auth-inline-1",
+      auth_mode: "browser",
+      browser_name: "chrome",
+    });
 
     // Research view shows truthful candidate scope copy and verified citation/coverage pill
     cleanup();
@@ -1487,5 +1494,91 @@ describe("Manual UX Remediation (#1-#4)", () => {
     hiddenInput.focus();
     fireEvent.keyDown(hiddenInput, { key: "Tab" });
     expect(document.activeElement).toBe(transcriptTab);
+  });
+
+  it("P1-R03 & P2-R04: splits PUT auth success vs retry check failure with revoke, guards missing sourceId & clears secrets", async () => {
+    const putBodies: Array<Record<string, unknown>> = [];
+    let checkAttempt = 0;
+    let disconnectCalls = 0;
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string, init?: RequestInit) => {
+        if (input.endsWith("/workspace-ai/youtube-auth") && init?.method === "PUT") {
+          putBodies.push(JSON.parse(String(init.body ?? "{}")) as Record<string, unknown>);
+          return okJson({ enabled: false, scope: "single_video" });
+        }
+        if (input.endsWith("/workspace-ai/youtube-auth/disconnect") && init?.method === "POST") {
+          disconnectCalls += 1;
+          return okJson({ enabled: false, scope: "disabled" });
+        }
+        if (input.endsWith("/sources/src-a/check") && init?.method === "POST") {
+          checkAttempt += 1;
+          return okJson({ error: { code: "SOURCE_CHECK_FAILED", message: "retry check failed 500" } }, 500);
+        }
+        return okJson({});
+      }),
+    );
+
+    const onRetry = vi.fn();
+    const { rerender } = render(
+      <InlineYouTubeAuthRecovery
+        videoId="vidSplitAuth1"
+        sourceId="src-a"
+        zh={true}
+        onAuthorizedRetry={onRetry}
+      />,
+    );
+
+    // 1. P2-R04: typing cookie secret and cancelling / switching mode / changing video clears input & sends 0 requests
+    fireEvent.click(screen.getByRole("button", { name: "页内授权并立即重试" }));
+    fireEvent.change(screen.getByLabelText("页内授权方式"), { target: { value: "cookie_file" } });
+    const textarea = screen.getByLabelText("粘贴 YouTube cookies.txt") as HTMLTextAreaElement;
+    fireEvent.change(textarea, { target: { value: ".youtube.com\tTRUE\t/\tTRUE\t0\tSID\tSECRET_TEMP" } });
+    expect(textarea.value).toContain("SECRET_TEMP");
+
+    // Cancel clears temporary cookiesText & emits zero requests
+    fireEvent.click(screen.getByRole("button", { name: "取消" }));
+    expect(putBodies.length).toBe(0);
+    expect(checkAttempt).toBe(0);
+
+    fireEvent.click(screen.getByRole("button", { name: "页内授权并立即重试" }));
+    const textareaReopen = screen.getByLabelText("粘贴 YouTube cookies.txt") as HTMLTextAreaElement;
+    expect(textareaReopen.value).toBe("");
+
+    // Switching scope clears cookiesText too
+    fireEvent.change(textareaReopen, { target: { value: "TEMP_SECRET_2" } });
+    fireEvent.change(screen.getByLabelText("页内授权范围"), { target: { value: "global" } });
+    expect((screen.getByLabelText("粘贴 YouTube cookies.txt") as HTMLTextAreaElement).value).toBe("");
+
+    // 2. PUT succeeds while POST /check fails -> split state + revoke button works + double click guarded
+    fireEvent.change(screen.getByLabelText("页内授权范围"), { target: { value: "single_video" } });
+    fireEvent.change(screen.getByLabelText("页内授权方式"), { target: { value: "browser" } });
+    const confirmBtn = screen.getByRole("button", { name: "确认授权并立即重试" });
+    fireEvent.click(confirmBtn);
+    fireEvent.click(confirmBtn); // double-click ignored by busyRef
+    await waitFor(() => expect(putBodies.length).toBe(1));
+    await waitFor(() => expect(checkAttempt).toBe(1));
+    expect(onRetry).not.toHaveBeenCalled();
+
+    const alertEl = await screen.findByRole("alert");
+    expect(alertEl.textContent).toContain("本次视频单次授权已写入");
+    expect(alertEl.textContent).toContain("重新发起采集");
+
+    fireEvent.click(screen.getByRole("button", { name: "撤销本次授权" }));
+    await waitFor(() => expect(disconnectCalls).toBe(1));
+    expect(await screen.findByText(/已撤销本页授权并清除临时 Cookie/)).toBeTruthy();
+
+    // 3. Missing sourceId prevents confirming & prevents false retry claim
+    rerender(
+      <InlineYouTubeAuthRecovery
+        videoId="vidNoSrc001"
+        sourceId={null}
+        zh={true}
+        onAuthorizedRetry={onRetry}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "页内授权并立即重试" }));
+    expect((screen.getByRole("button", { name: "确认授权并立即重试" }) as HTMLButtonElement).disabled).toBe(true);
   });
 });

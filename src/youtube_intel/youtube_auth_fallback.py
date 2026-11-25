@@ -68,6 +68,8 @@ SUPPORTED_AUTH_BROWSERS: Final[tuple[str, ...]] = (
     "chromium",
 )
 VALID_AUTH_MODES: Final[frozenset[str]] = frozenset({"disabled", "browser", "cookie_file"})
+VALID_GRANT_SCOPES: Final[frozenset[str]] = frozenset({"global", "single_video"})
+SINGLE_VIDEO_GRANT_MINUTES: Final[int] = 10
 DEFAULT_DAILY_LIMIT: Final[int] = 20
 MAX_DAILY_LIMIT: Final[int] = 50
 DEFAULT_COOLDOWN_SECONDS: Final[int] = 15
@@ -75,6 +77,7 @@ MIN_COOLDOWN_SECONDS: Final[int] = 10
 MAX_COOLDOWN_SECONDS: Final[int] = 300
 CIRCUIT_BREAK_MINUTES: Final[int] = 30
 MAX_COOKIES_BYTES: Final[int] = 512 * 1024
+_VIDEO_ID_RE: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9_-]{3,64}$")
 
 _ALLOWED_COOKIE_ROOTS: Final[tuple[str, ...]] = (
     "youtube.com",
@@ -338,6 +341,18 @@ class YouTubeAuthFallbackService:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS youtube_auth_video_grants (
+                video_id TEXT PRIMARY KEY,
+                auth_mode TEXT NOT NULL,
+                browser_name TEXT NOT NULL DEFAULT '',
+                expires_at TEXT NOT NULL,
+                consumed_at TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL
+            )
+            """
+        )
         conn.commit()
 
     def _connect_write(self, *, immediate: bool = False) -> sqlite3.Connection:
@@ -457,16 +472,89 @@ class YouTubeAuthFallbackService:
         finally:
             conn.close()
 
+    @staticmethod
+    def _read_active_video_grant_from_conn(
+        conn: sqlite3.Connection,
+        base_cfg: _AuthConfigRow,
+        video_id: str,
+        now: datetime,
+    ) -> _AuthConfigRow | None:
+        if not video_id or not _VIDEO_ID_RE.fullmatch(video_id):
+            return None
+        has_grants = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='youtube_auth_video_grants'"
+        ).fetchone()
+        if has_grants is None:
+            return None
+        row = conn.execute(
+            "SELECT auth_mode, browser_name, expires_at, consumed_at, created_at "
+            "FROM youtube_auth_video_grants WHERE video_id = ?",
+            (video_id,),
+        ).fetchone()
+        if row is None or str(row["consumed_at"] or "").strip():
+            return None
+        expires_dt = _parse_iso_utc(row["expires_at"])
+        if expires_dt is None or expires_dt <= now:
+            return None
+        mode = str(row["auth_mode"] or "disabled")
+        if mode not in {"browser", "cookie_file"}:
+            return None
+        browser = str(row["browser_name"] or "").strip().lower()
+        if mode == "browser" and browser not in SUPPORTED_AUTH_BROWSERS:
+            return None
+        return _AuthConfigRow(
+            enabled=True,
+            auth_mode=mode,
+            browser_name=browser,
+            daily_limit=base_cfg.daily_limit,
+            cooldown_seconds=base_cfg.cooldown_seconds,
+            circuit_open_until=base_cfg.circuit_open_until,
+            updated_at=str(row["created_at"] or ""),
+        )
+
+    @staticmethod
+    def _count_active_video_grants_from_conn(
+        conn: sqlite3.Connection, now: datetime
+    ) -> int:
+        has_grants = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='youtube_auth_video_grants'"
+        ).fetchone()
+        if has_grants is None:
+            return 0
+        rows = conn.execute(
+            "SELECT expires_at FROM youtube_auth_video_grants WHERE consumed_at = ''"
+        ).fetchall()
+        count = 0
+        for r in rows:
+            exp = _parse_iso_utc(r["expires_at"])
+            if exp is not None and exp > now:
+                count += 1
+        return count
+
     def get_status(self) -> dict[str, object]:
         """Return safe YouTube fallback authorization status (zero secrets)."""
         now = self._now()
         day_utc = now.astimezone(UTC).strftime("%Y-%m-%d")
         cfg = self._read_config_row()
         used_today, _ = self._usage_stats(day_utc)
+        active_grants = 0
+        conn = self._connect_read()
+        if conn is not None:
+            try:
+                active_grants = self._count_active_video_grants_from_conn(conn, now)
+            finally:
+                conn.close()
         circuit_until = _parse_iso_utc(cfg.circuit_open_until)
         circuit_open = bool(circuit_until is not None and circuit_until > now)
+        scope = (
+            "global"
+            if cfg.enabled
+            else ("single_video" if active_grants > 0 else "disabled")
+        )
         return {
             "enabled": cfg.enabled,
+            "scope": scope,
+            "active_single_video_grants": active_grants,
             "auth_mode": cfg.auth_mode,
             "browser_name": cfg.browser_name,
             "supported_browsers": list(SUPPORTED_AUTH_BROWSERS),
@@ -479,7 +567,7 @@ class YouTubeAuthFallbackService:
         }
 
     def update_config(self, payload: Mapping[str, object]) -> dict[str, object]:
-        """Update opt-in YouTube auth fallback settings and validate inputs."""
+        """Update opt-in YouTube auth fallback settings (global or single-video scoped)."""
         if not isinstance(payload, Mapping):
             raise ValueError("Payload must be a JSON object")
         allowed_keys = {
@@ -489,10 +577,26 @@ class YouTubeAuthFallbackService:
             "cookies_txt",
             "daily_limit",
             "cooldown_seconds",
+            "grant_scope",
+            "target_video_id",
         }
         unknown = set(payload.keys()) - allowed_keys
         if unknown:
             raise ValueError(f"Unsupported fields: {', '.join(sorted(unknown))}")
+
+        raw_scope = payload.get("grant_scope", "global")
+        if not isinstance(raw_scope, str) or raw_scope.strip() not in VALID_GRANT_SCOPES:
+            raise ValueError("grant_scope must be 'global' or 'single_video'")
+        grant_scope = raw_scope.strip()
+
+        target_video_id = ""
+        if "target_video_id" in payload and payload["target_video_id"] is not None:
+            raw_vid = payload["target_video_id"]
+            if not isinstance(raw_vid, str) or not _VIDEO_ID_RE.fullmatch(raw_vid.strip()):
+                raise ValueError("target_video_id must be a valid video identifier")
+            target_video_id = raw_vid.strip()
+        if grant_scope == "single_video" and not target_video_id:
+            raise ValueError("target_video_id is required when grant_scope is 'single_video'")
 
         if "auth_mode" in payload:
             raw_mode = payload["auth_mode"]
@@ -596,31 +700,65 @@ class YouTubeAuthFallbackService:
                         else ""
                     )
 
-                    conn.execute(
-                        """
-                        INSERT INTO youtube_auth_config (
-                            singleton_id, enabled, auth_mode, browser_name,
-                            daily_limit, cooldown_seconds, circuit_open_until, updated_at
-                        ) VALUES (1, ?, ?, ?, ?, ?, ?, ?)
-                        ON CONFLICT(singleton_id) DO UPDATE SET
-                            enabled = excluded.enabled,
-                            auth_mode = excluded.auth_mode,
-                            browser_name = excluded.browser_name,
-                            daily_limit = excluded.daily_limit,
-                            cooldown_seconds = excluded.cooldown_seconds,
-                            circuit_open_until = excluded.circuit_open_until,
-                            updated_at = excluded.updated_at
-                        """,
-                        (
-                            1 if enabled else 0,
-                            auth_mode,
-                            browser_name,
-                            daily_limit,
-                            cooldown_seconds,
-                            preserved_circuit,
-                            ts,
-                        ),
-                    )
+                    if grant_scope == "single_video":
+                        if not enabled or auth_mode == "disabled":
+                            raise ValueError(
+                                "Single-video grant requires enabled browser or cookie_file auth_mode"
+                            )
+                        expires_iso = format_utc_datetime(
+                            now_dt + timedelta(minutes=SINGLE_VIDEO_GRANT_MINUTES)
+                        )
+                        conn.execute(
+                            """
+                            INSERT INTO youtube_auth_video_grants (
+                                video_id, auth_mode, browser_name, expires_at, consumed_at, created_at
+                            ) VALUES (?, ?, ?, ?, '', ?)
+                            ON CONFLICT(video_id) DO UPDATE SET
+                                auth_mode = excluded.auth_mode,
+                                browser_name = excluded.browser_name,
+                                expires_at = excluded.expires_at,
+                                consumed_at = '',
+                                created_at = excluded.created_at
+                            """,
+                            (target_video_id, auth_mode, browser_name, expires_iso, ts),
+                        )
+                        # Ensure singleton config row exists WITHOUT enabling global fallback!
+                        conn.execute(
+                            """
+                            INSERT INTO youtube_auth_config (
+                                singleton_id, enabled, auth_mode, browser_name,
+                                daily_limit, cooldown_seconds, circuit_open_until, updated_at
+                            ) VALUES (1, 0, 'disabled', '', ?, ?, ?, ?)
+                            ON CONFLICT(singleton_id) DO NOTHING
+                            """,
+                            (daily_limit, cooldown_seconds, preserved_circuit, ts),
+                        )
+                    else:
+                        conn.execute(
+                            """
+                            INSERT INTO youtube_auth_config (
+                                singleton_id, enabled, auth_mode, browser_name,
+                                daily_limit, cooldown_seconds, circuit_open_until, updated_at
+                            ) VALUES (1, ?, ?, ?, ?, ?, ?, ?)
+                            ON CONFLICT(singleton_id) DO UPDATE SET
+                                enabled = excluded.enabled,
+                                auth_mode = excluded.auth_mode,
+                                browser_name = excluded.browser_name,
+                                daily_limit = excluded.daily_limit,
+                                cooldown_seconds = excluded.cooldown_seconds,
+                                circuit_open_until = excluded.circuit_open_until,
+                                updated_at = excluded.updated_at
+                            """,
+                            (
+                                1 if enabled else 0,
+                                auth_mode,
+                                browser_name,
+                                daily_limit,
+                                cooldown_seconds,
+                                preserved_circuit,
+                                ts,
+                            ),
+                        )
                     conn.execute("COMMIT")
                 except BaseException:
                     with contextlib.suppress(sqlite3.Error):
@@ -631,7 +769,7 @@ class YouTubeAuthFallbackService:
         return self.get_status()
 
     def disconnect(self) -> dict[str, object]:
-        """Disable authenticated fallback & purge Keychain cookies, keeping active circuit breaker."""
+        """Disable fallback, revoke single-video grants & purge cookies, keeping active circuit."""
         with contextlib.suppress(Exception):
             self._cookie_store.delete()
         if self.db_path.is_file():
@@ -649,6 +787,7 @@ class YouTubeAuthFallbackService:
                             if (existing_circuit is not None and existing_circuit > now_dt)
                             else ""
                         )
+                        conn.execute("DELETE FROM youtube_auth_video_grants")
                         conn.execute(
                             """
                             INSERT INTO youtube_auth_config (
@@ -702,18 +841,25 @@ class YouTubeAuthFallbackService:
         return True, None
 
     def can_attempt(self, video_id: str) -> tuple[bool, str | None]:
-        """Verify fallback is enabled, configured, and within rate limits."""
-        del video_id
-        cfg = self._read_config_row()
+        """Verify fallback is enabled (or granted for this video) and within rate limits."""
         now = self._now()
         day_utc = now.astimezone(UTC).strftime("%Y-%m-%d")
-        used_today, last_ts = self._usage_stats(day_utc)
-        return self._evaluate_eligibility(cfg, used_today, last_ts, now)
+        conn = self._connect_read()
+        if conn is None:
+            return False, "YOUTUBE_AUTH_DISABLED"
+        try:
+            base_cfg = self._read_config_from_conn(conn)
+            grant = self._read_active_video_grant_from_conn(conn, base_cfg, video_id, now)
+            effective_cfg = grant if grant is not None else base_cfg
+            used_today, last_ts = self._usage_stats_from_conn(conn, day_utc)
+            return self._evaluate_eligibility(effective_cfg, used_today, last_ts, now)
+        finally:
+            conn.close()
 
     def _reserve_attempt_slot(
         self, video_id: str
     ) -> tuple[_AuthConfigRow, str] | tuple[None, str]:
-        """Atomically reserve quota & cooldown slot inside SQLite BEGIN IMMEDIATE."""
+        """Atomically reserve quota, cooldown & optional single-video grant inside BEGIN IMMEDIATE."""
         if not self.db_path.is_file():
             return None, "YOUTUBE_AUTH_DISABLED"
         with self._db_lock:
@@ -721,25 +867,34 @@ class YouTubeAuthFallbackService:
             try:
                 self._begin_immediate(conn)
                 try:
-                    cfg = self._read_config_from_conn(conn)
+                    base_cfg = self._read_config_from_conn(conn)
                     now = self._now()
+                    grant = self._read_active_video_grant_from_conn(
+                        conn, base_cfg, video_id, now
+                    )
+                    effective_cfg = grant if grant is not None else base_cfg
                     day_utc = now.astimezone(UTC).strftime("%Y-%m-%d")
                     used_today, last_ts = self._usage_stats_from_conn(conn, day_utc)
                     allowed, deny_code = self._evaluate_eligibility(
-                        cfg, used_today, last_ts, now
+                        effective_cfg, used_today, last_ts, now
                     )
                     if not allowed:
                         conn.execute("ROLLBACK")
                         return None, deny_code or "YOUTUBE_AUTH_DISABLED"
                     usage_id = f"ytauth-{uuid.uuid4().hex}"
                     now_iso = format_utc_datetime(now)
+                    if grant is not None:
+                        conn.execute(
+                            "UPDATE youtube_auth_video_grants SET consumed_at = ? WHERE video_id = ?",
+                            (now_iso, video_id),
+                        )
                     conn.execute(
                         "INSERT INTO youtube_auth_usage (usage_id, day_utc, video_id, outcome, created_at) "
                         "VALUES (?, ?, ?, 'RESERVED', ?)",
                         (usage_id, day_utc, video_id, now_iso),
                     )
                     conn.execute("COMMIT")
-                    return cfg, usage_id
+                    return effective_cfg, usage_id
                 except BaseException:
                     with contextlib.suppress(sqlite3.Error):
                         conn.execute("ROLLBACK")
@@ -778,9 +933,9 @@ class YouTubeAuthFallbackService:
                             "VALUES (?, ?, ?, ?, ?)",
                             (usage_id, day_utc, video_id, outcome, now_iso),
                         )
+                    base_cfg = self._read_config_from_conn(conn)
                     if circuit_iso is not None:
-                        current = self._read_config_from_conn(conn)
-                        existing_dt = _parse_iso_utc(current.circuit_open_until)
+                        existing_dt = _parse_iso_utc(base_cfg.circuit_open_until)
                         new_dt = now + timedelta(minutes=CIRCUIT_BREAK_MINUTES)
                         chosen_dt = (
                             existing_dt
@@ -800,7 +955,25 @@ class YouTubeAuthFallbackService:
                             """,
                             (DEFAULT_DAILY_LIMIT, DEFAULT_COOLDOWN_SECONDS, chosen_iso, now_iso),
                         )
+                    should_purge_cookie = False
+                    if not base_cfg.enabled:
+                        has_grants = conn.execute(
+                            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='youtube_auth_video_grants'"
+                        ).fetchone()
+                        if has_grants is not None:
+                            active_cookie_grants = 0
+                            for gr in conn.execute(
+                                "SELECT expires_at FROM youtube_auth_video_grants WHERE consumed_at = '' AND auth_mode = 'cookie_file'"
+                            ).fetchall():
+                                exp = _parse_iso_utc(gr["expires_at"])
+                                if exp is not None and exp > now:
+                                    active_cookie_grants += 1
+                            if active_cookie_grants == 0:
+                                should_purge_cookie = True
                     conn.execute("COMMIT")
+                    if should_purge_cookie:
+                        with contextlib.suppress(Exception):
+                            self._cookie_store.delete()
                 except BaseException:
                     with contextlib.suppress(sqlite3.Error):
                         conn.execute("ROLLBACK")
