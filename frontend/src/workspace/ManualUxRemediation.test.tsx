@@ -955,4 +955,169 @@ describe("Manual UX Remediation (#1-#4)", () => {
     fireEvent.drop(dropzone, { dataTransfer: { files: [noteFile] } });
     expect(await screen.findByText(/session-note\.md/)).toBeTruthy();
   });
+
+  it("focuses Content Detail on Video Preview + Synthesis, opens auxiliary drawer on demand, and auto-opens on targeted evidence", async () => {
+    localStorage.setItem("intelligence.onboarding.completed.v1", "true");
+    localStorage.setItem("yia.ui-language", "zh-CN");
+    const origScrollIntoView = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = vi.fn();
+
+    const ev1 = {
+      evidence_id: "ev-1",
+      artifact_id: "art-1",
+      start_ms: 5000,
+      end_ms: 15000,
+      source_language: "en",
+      translation_target_language: "zh-CN",
+      translated_excerpt: "先做核心结论再按需核对原始字幕。",
+      translated_language: "zh-CN",
+      original_excerpt: "Lead with core synthesis and inspect raw transcript on demand.",
+      lineage_kind: "CAPTIONS",
+      role: "SUPPORTING",
+      created_at: "2026-11-24T12:00:00Z",
+    };
+
+    const ytPayload = {
+      video: {
+        video_id: "vid-struct-1",
+        provider: "YOUTUBE",
+        channel_id: "UC1234567890123456789012",
+        channel_name: "System Craft",
+        title: "Product Structure Over Engineering Dump",
+        source_url: "https://www.youtube.com/watch?v=vid-struct-1",
+        duration_seconds: 920,
+        published_at: "2026-11-24T12:00:00Z",
+        processing_status: "READY",
+        last_updated: "2026-11-24T12:00:00Z",
+        ai_brief: {
+          video_id: "vid-struct-1",
+          headline_zh: "好产品应当突出视频内容与核心归纳",
+          summary_zh: "主屏聚焦观看入口与提炼观点，字幕与处理记录按需抽屉查阅。",
+          score: 9.2,
+          score_reason_zh: "高信息密度",
+          recommendation_tier: "MUST_WATCH",
+          content_bucket: "DEEP_DIVE",
+          is_short_noise: false,
+          topics_zh: ["产品设计"],
+          topic_cluster_zh: "AI 产品设计",
+          core_points_json: [],
+          product_opportunities_zh: ["渐进式抽屉阅读"],
+          business_opportunities_zh: [],
+          filtered_noise_json: [],
+        },
+      },
+      transcript: {
+        status: "AVAILABLE",
+        text: "Full raw captions text.",
+        timed_segments: [{ start_ms: 5000, end_ms: 15000, text: "Full raw captions text." }],
+      },
+      note: { v1: { status: "UNAVAILABLE" }, v2: { status: "UNAVAILABLE" } },
+      intelligence_result: { status: "NOT_PROCESSED" },
+      history: [{ timestamp: "2026-11-24T12:01:00Z", status: "READY", summary: "Completed" }],
+    };
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string, init?: RequestInit) => {
+        if (input.endsWith("/videos/vid-struct-1/evidence")) {
+          return okJson({ evidence: [ev1] });
+        }
+        if (input.endsWith("/videos/vid-struct-1/deep-analysis")) {
+          return okJson({
+            deep_analysis: {
+              status: { availability: "NOT_QUALIFIED", qualified: false, consent_required: false, routes: [] },
+              result: null,
+            },
+          });
+        }
+        if (input.endsWith("/videos/vid-struct-1")) {
+          return okJson(ytPayload);
+        }
+        return baseFetch(input, undefined, init);
+      }),
+    );
+
+    try {
+      location.hash = "#Content/vid-struct-1";
+      render(<App />);
+
+      // Video preview card and on-demand launcher bar are visible; redundant empty summary panel omitted; drawer closed
+      expect(await screen.findByRole("link", { name: /在原站播放原视频/ })).toBeTruthy();
+      expect(document.getElementById("section-summary")).toBeNull();
+      const drawer = document.querySelector("aside.reader-ref-drawer") as HTMLElement;
+      expect(drawer).toBeTruthy();
+      expect(drawer.className).not.toContain("is-open");
+
+      // Open Transcript tab via launcher card -> switch to Evidence -> Escape closes drawer
+      fireEvent.click(screen.getByRole("button", { name: /查看原始字幕/ }));
+      expect(drawer.className).toContain("is-open");
+      expect(screen.getByRole("tab", { name: "原始字幕" }).getAttribute("aria-selected")).toBe("true");
+
+      fireEvent.click(screen.getByRole("tab", { name: /原话证据/ }));
+      expect(screen.getByRole("tab", { name: /原话证据/ }).getAttribute("aria-selected")).toBe("true");
+
+      fireEvent.keyDown(window, { key: "Escape" });
+      await waitFor(() => expect(drawer.className).not.toContain("is-open"));
+
+      // Deep-linking directly to Evidence auto-opens the drawer to the Evidence tab
+      cleanup();
+      location.hash = "#Content/vid-struct-1/Evidence/ev-1";
+      render(<App />);
+      await screen.findByText("当前定位引用");
+      const openDrawer = document.querySelector("aside.reader-ref-drawer") as HTMLElement;
+      expect(openDrawer.className).toContain("is-open");
+      expect(screen.getByRole("tab", { name: /原话证据/ }).getAttribute("aria-selected")).toBe("true");
+    } finally {
+      Element.prototype.scrollIntoView = origScrollIntoView;
+    }
+  });
+
+  it("reveals an inline HTML5 <video> player pointing at /api/v1/videos/<id>/media for local videos", async () => {
+    localStorage.setItem("intelligence.onboarding.completed.v1", "true");
+    localStorage.setItem("yia.ui-language", "zh-CN");
+    location.hash = "#Content/loc-video-play";
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string, init?: RequestInit) => {
+        if (input.endsWith("/videos/loc-video-play/evidence")) return okJson({ evidence: [] });
+        if (input.endsWith("/videos/loc-video-play/deep-analysis")) {
+          return okJson({
+            deep_analysis: {
+              status: { availability: "NOT_QUALIFIED", qualified: false, consent_required: false, routes: [] },
+              result: null,
+            },
+          });
+        }
+        if (input.endsWith("/videos/loc-video-play")) {
+          return okJson({
+            video: {
+              video_id: "loc-video-play",
+              provider: "LOCAL",
+              media_kind: "VIDEO",
+              format: "mp4",
+              title: "local-demo.mp4",
+              duration_seconds: 120,
+              published_at: "2026-11-24T12:00:00Z",
+              processing_status: "READY",
+              last_updated: "2026-11-24T12:00:00Z",
+            },
+            transcript: { status: "NOT_PROCESSED" },
+            note: { v1: { status: "UNAVAILABLE" }, v2: { status: "UNAVAILABLE" } },
+            intelligence_result: { status: "NOT_PROCESSED" },
+            history: [],
+          });
+        }
+        return baseFetch(input, undefined, init);
+      }),
+    );
+
+    render(<App />);
+    const playBtn = await screen.findByRole("button", { name: "页内播放原视频" });
+    fireEvent.click(playBtn);
+
+    const videoEl = document.querySelector("video.reader-inline-player") as HTMLVideoElement;
+    expect(videoEl).toBeTruthy();
+    expect(videoEl.getAttribute("src")).toBe("/api/v1/videos/loc-video-play/media");
+  });
 });

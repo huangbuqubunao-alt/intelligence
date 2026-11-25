@@ -563,3 +563,56 @@ def test_long_duration_video_never_classified_as_short_noise(
     assert read_back["content_bucket"] == "DEEP_DIVE"
 
 
+def test_local_media_endpoint_supports_http_range_and_rejects_non_media(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import urllib.error
+    import urllib.request
+
+    from youtube_intel.local_api import LocalApiApplication, serve_loopback
+
+    env = _build_runtime(tmp_path, monkeypatch, transcriber=_SlowMediaTranscriber())
+    fast_app: FastReadApiApplication = env["fast_app"]
+    provider = LocalContentProvider(env["repo"], env["data_root"], now=lambda: NOW)
+
+    mp4_path = _create_sample_mp4(env["tmp"])
+    imported = provider.import_file(mp4_path)
+    mp4_bytes = mp4_path.read_bytes()
+
+    md_path = env["tmp"] / "notes.md"
+    md_path.write_text("# Hello\nJust markdown text.\n", encoding="utf-8")
+    text_imported = provider.import_file(md_path)
+
+    server = serve_loopback(fast_app, port=0)  # type: ignore[arg-type]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base_url = f"http://127.0.0.1:{server.server_port}"
+        with urllib.request.urlopen(
+            f"{base_url}/api/v1/videos/{imported.content_id}/media"
+        ) as full_resp:
+            assert full_resp.status == 200
+            assert full_resp.headers.get("Content-Type") == "video/mp4"
+            assert full_resp.headers.get("Accept-Ranges") == "bytes"
+            assert full_resp.read() == mp4_bytes
+
+        range_req = urllib.request.Request(
+            f"{base_url}/api/v1/videos/{imported.content_id}/media",
+            headers={"Range": "bytes=4-19"},
+        )
+        with urllib.request.urlopen(range_req) as partial_resp:
+            assert partial_resp.status == 206
+            assert partial_resp.headers.get("Content-Range") == f"bytes 4-19/{len(mp4_bytes)}"
+            assert partial_resp.read() == mp4_bytes[4:20]
+
+        with pytest.raises(urllib.error.HTTPError) as not_found_exc:
+            urllib.request.urlopen(
+                f"{base_url}/api/v1/videos/{text_imported.content_id}/media"
+            )
+        assert not_found_exc.value.code == 404
+        _ = LocalApiApplication
+    finally:
+        server.shutdown()
+        server.server_close()
+
+

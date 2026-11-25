@@ -4010,6 +4010,7 @@ _STATIC_MIME_TYPES: Final[dict[str, str]] = {
 _SPA_CSP: Final[str] = (
     "default-src 'self'; script-src 'self' 'unsafe-inline'; "
     "style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; "
+    "media-src 'self' blob:; "
     "font-src 'self' data:; connect-src 'self'"
 )
 
@@ -4140,17 +4141,76 @@ def serve_loopback(
             self.end_headers()
             self.wfile.write(encoded)
 
+        def _parse_byte_range(self, range_header: str, file_size: int) -> tuple[int, int] | None:
+            raw = range_header.strip()
+            if not raw.lower().startswith("bytes=") or file_size <= 0:
+                return None
+            spec = raw[6:].split(",", 1)[0].strip()
+            if "-" not in spec:
+                return None
+            start_s, end_s = spec.split("-", 1)
+            start_s, end_s = start_s.strip(), end_s.strip()
+            try:
+                if not start_s:
+                    if not end_s:
+                        return None
+                    suffix_len = int(end_s)
+                    if suffix_len <= 0:
+                        return None
+                    start = max(0, file_size - suffix_len)
+                    end = file_size - 1
+                else:
+                    start = int(start_s)
+                    if start < 0 or start >= file_size:
+                        return None
+                    end = file_size - 1 if not end_s else min(file_size - 1, int(end_s))
+            except ValueError:
+                return None
+            if end < start:
+                return None
+            return start, end
+
         def _send_file(self, status: int, headers: dict[str, str], path: Path) -> None:
-            with open_managed(path.parent, path.name, maximum=MAX_ARCHIVE_BYTES) as source:
-                self.send_response(status)
+            is_ranged_media = headers.get("Accept-Ranges") == "bytes"
+            max_bytes = MAX_MEDIA_BYTES if is_ranged_media else MAX_ARCHIVE_BYTES
+            with open_managed(path.parent, path.name, maximum=max_bytes) as source:
+                file_size = os.fstat(source.fileno()).st_size
+                range_header = self.headers.get("Range") if is_ranged_media else None
+                start = 0
+                end = file_size - 1
+                send_status = status
+                if range_header:
+                    parsed_range = self._parse_byte_range(range_header, file_size)
+                    if parsed_range is None:
+                        self.send_response(HTTPStatus.REQUESTED_RANGE_NOT_SATISFIABLE)
+                        self.send_header("Content-Range", f"bytes */{file_size}")
+                        self.send_header("Content-Length", "0")
+                        self.send_header("Cache-Control", "no-store")
+                        self.send_header("X-Content-Type-Options", "nosniff")
+                        self.end_headers()
+                        return
+                    start, end = parsed_range
+                    send_status = int(HTTPStatus.PARTIAL_CONTENT)
+                self.send_response(send_status)
                 for name, value in headers.items():
                     self.send_header(name, value)
-                self.send_header("Content-Length", str(os.fstat(source.fileno()).st_size))
+                if range_header:
+                    self.send_header("Content-Range", f"bytes {start}-{end}/{file_size}")
+                content_length = (end - start + 1) if file_size > 0 else 0
+                self.send_header("Content-Length", str(content_length))
                 self.send_header("Cache-Control", "no-store")
                 self.send_header("X-Content-Type-Options", "nosniff")
                 self.end_headers()
-                while chunk := source.read(IO_CHUNK_BYTES):
+                if self.command == "HEAD" or content_length == 0:
+                    return
+                source.seek(start)
+                remaining = content_length
+                while remaining > 0:
+                    chunk = source.read(min(IO_CHUNK_BYTES, remaining))
+                    if not chunk:
+                        break
                     self.wfile.write(chunk)
+                    remaining -= len(chunk)
 
         def _cancelled(self) -> bool:
             if select.select([self.connection], [], [], 0)[0]:
@@ -4195,7 +4255,7 @@ def serve_loopback(
                     },
                 )
                 return
-            if self.command == "GET":
+            if self.command in {"GET", "HEAD"}:
                 binary = application.backup_download(self.path)
                 if binary is not None:
                     status, headers, binary_payload = binary
