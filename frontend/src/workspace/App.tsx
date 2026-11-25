@@ -2051,7 +2051,6 @@ function Workspace() {
         }} />}
         {page === "Home" && (
           <div className="dashboard-stack">
-            <KnowledgeDelta refresh={refresh} onOpen={openDelta} />
             <Dashboard
               refresh={refresh}
               navigate={navigate}
@@ -2059,6 +2058,7 @@ function Workspace() {
               onOpenTopic={id => openDelta({ kind: "topic", id })}
               onAddContent={() => setAddProvider("YOUTUBE")}
             />
+            <KnowledgeDelta refresh={refresh} onOpen={openDelta} />
           </div>
         )}
         {page === "Following" && (
@@ -2488,24 +2488,64 @@ function Dashboard(
           onOpenResearch={() => navigate("Research")}
         />
         <Panel title="What matters now" icon="sparkle">
-          {intelligence.length
-            ? intelligence.map((item) => (
-              <IntelligenceCard
-                key={item.intelligence_id ?? item.code}
-                item={item}
-                saved={Boolean(item.intelligence_id && savedIdSet.has(item.intelligence_id))}
-                onSaved={reload}
-                onOpenContent={openContent}
-                onOpenTopic={onOpenTopic}
-              />
-            ))
-            : <Empty>No important new intelligence yet.</Empty>}
-          <button
-            className="button button-ghost"
-            onClick={() => navigate("Intelligence")}
-          >
-            {t("See all Intelligence")}
-          </button>
+          {intelligence.length ? (
+            <>
+              {intelligence.map((item) => (
+                <IntelligenceCard
+                  key={item.intelligence_id ?? item.code}
+                  item={item}
+                  saved={Boolean(item.intelligence_id && savedIdSet.has(item.intelligence_id))}
+                  onSaved={reload}
+                  onOpenContent={openContent}
+                  onOpenTopic={onOpenTopic}
+                />
+              ))}
+              <button
+                className="button button-ghost"
+                onClick={() => navigate("Intelligence")}
+              >
+                {t("See all Intelligence")}
+              </button>
+            </>
+          ) : (
+            <div className="home-sparse-quickstart">
+              <Empty>No important new intelligence yet.</Empty>
+              <p className="hint">
+                {zh
+                  ? "先导入 YouTube / B站视频链接或本地文件完成字幕与摘要提炼，周报与重点洞察会自动生成在这里。"
+                  : "Import a YouTube / Bilibili link or local file first; briefs and curated intelligence appear here automatically."}
+              </p>
+              <div className="button-row">
+                {onAddContent ? (
+                  <button
+                    type="button"
+                    className="button button-primary button-small"
+                    onClick={onAddContent}
+                  >
+                    {zh ? "+ 导入视频或本地文件" : "+ Add video or local file"}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="button button-secondary button-small"
+                  onClick={() => navigate("Content")}
+                >
+                  {zh
+                    ? attention.length > 0
+                      ? `查看内容与待处理 (${attention.length})`
+                      : "查看内容库"
+                    : t("Review Content")}
+                </button>
+                <button
+                  type="button"
+                  className="button button-ghost button-small"
+                  onClick={() => navigate("Intelligence")}
+                >
+                  {t("See all Intelligence")}
+                </button>
+              </div>
+            </div>
+          )}
         </Panel>
       </div>
       <div className="home-side-rail">
@@ -2579,12 +2619,18 @@ function Attention({
         </p>
       ) : null}
       <p>{t(safety)}</p>
-      <p>{t(action)}</p>
+      <p>
+        {run.video_id && onOpenContent
+          ? zh
+            ? "请点击下方「查看处理方式」，选择重新尝试获取、按需授权本人登录态，或改用本地文件导入。"
+            : "Click View details below to retry, authorize your signed-in browser on demand, or import a local file."
+          : t(action)}
+      </p>
       {run.video_id && onOpenContent ? (
         <div className="button-row">
           <button
             type="button"
-            className="button button-secondary button-small"
+            className="button button-primary button-small"
             onClick={() => onOpenContent(run.video_id!)}
           >
             {zh ? "查看处理方式" : "View details"}
