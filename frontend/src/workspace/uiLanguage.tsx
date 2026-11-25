@@ -1396,6 +1396,8 @@ const chinese: Record<string, string> = {
   "Jump · Language": "速跳 · 语言",
   "Jump · Interests": "速跳 · 兴趣规则",
   "Jump · Models": "速跳 · 模型与云端",
+  "Jump · Speech": "速跳 · 语音转写",
+  "Jump · YouTube": "速跳 · YouTube 授权",
   "Jump · Backup": "速跳 · 备份恢复",
   Timeline: "时间线",
   "Related Topics": "关联主题",

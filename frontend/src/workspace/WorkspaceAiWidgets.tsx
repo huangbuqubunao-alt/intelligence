@@ -5777,6 +5777,7 @@ export function YouTubeAuthSettingsPanel() {
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [deepLinked, setDeepLinked] = useState(false);
   const [returnHash, setReturnHash] = useState<string | null>(() => readYouTubeAuthReturnHash());
 
   useEffect(() => {
@@ -5818,15 +5819,31 @@ export function YouTubeAuthSettingsPanel() {
     const syncScroll = () => {
       setReturnHash(readYouTubeAuthReturnHash());
       if (location.hash.startsWith("#Settings/youtube-auth")) {
-        setTimeout(() => {
+        setDeepLinked(true);
+        const scrollToPanel = () => {
           panelRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
           panelRef.current?.focus?.({ preventScroll: true });
-        }, 30);
+        };
+        const t1 = setTimeout(scrollToPanel, 40);
+        const t2 = setTimeout(scrollToPanel, 180);
+        return () => {
+          clearTimeout(t1);
+          clearTimeout(t2);
+        };
       }
+      setDeepLinked(false);
+      return undefined;
     };
-    syncScroll();
-    window.addEventListener("hashchange", syncScroll);
-    return () => window.removeEventListener("hashchange", syncScroll);
+    let cleanupScroll = syncScroll();
+    const onHash = () => {
+      cleanupScroll?.();
+      cleanupScroll = syncScroll();
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => {
+      cleanupScroll?.();
+      window.removeEventListener("hashchange", onHash);
+    };
   }, []);
 
   const saveAuth = async () => {
@@ -5903,7 +5920,7 @@ export function YouTubeAuthSettingsPanel() {
       ref={panelRef}
       id="settings-youtube-auth"
       tabIndex={-1}
-      className="panel youtube-auth-card"
+      className={`panel youtube-auth-card${deepLinked ? " is-deep-link-target" : ""}`}
       aria-label={zh ? "YouTube 采集登录兜底（按需）" : "YouTube Auth Fallback (On Demand)"}
     >
       <div className="panel-head">
