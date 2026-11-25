@@ -473,7 +473,9 @@ describe("Manual UX Remediation (#1-#4)", () => {
       await screen.findByText(/YouTube 当前对该链接触发了匿名访问与机器人验证限制/),
     ).toBeTruthy();
     const authCta = screen.getByRole("link", { name: "授权本人 YouTube 登录态 ›" });
-    expect(authCta.getAttribute("href")).toBe("#Settings/youtube-auth");
+    expect(authCta.getAttribute("href")).toBe(
+      `#Settings/youtube-auth?return=${encodeURIComponent("#Content/vidBotGate2")}`,
+    );
     expect(screen.getByRole("button", { name: "重新尝试获取" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "改用本地文件导入" })).toBeTruthy();
   });
@@ -679,4 +681,86 @@ describe("Manual UX Remediation (#1-#4)", () => {
     const starBtnAfter = await screen.findByRole("button", { name: "收藏待看" });
     expect(starBtnAfter.getAttribute("aria-pressed")).toBe("false");
   }, 15_000);
+
+  it("routes blocked YouTube auth CTA to Settings YouTube auth panel without looping to Home and provides a 1-click return link", async () => {
+    localStorage.setItem("intelligence.onboarding.completed.v1", "true");
+    location.hash = "#Content";
+
+    const blockedItem = {
+      video_id: "Y5MuBWwN8IA",
+      provider: "YOUTUBE",
+      work_kind: "DURABLE_CONTENT_IDENTITY",
+      channel_id: "ch-blocked",
+      channel_name: "Blocked Channel",
+      title: null,
+      source_url: "https://www.youtube.com/watch?v=Y5MuBWwN8IA",
+      source_id: "src-yt-blocked",
+      published_at: "2026-11-24T12:00:00Z",
+      processing_status: "NEEDS_ATTENTION",
+      last_error_code: "YOUTUBE_AUTH_REQUIRED",
+      last_updated: "2026-11-24T12:00:00Z",
+    };
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string, init?: RequestInit) => {
+        if (input.endsWith("/videos") || input.includes("/videos?limit=200&offset=0")) {
+          return okJson({
+            videos: [blockedItem],
+            pagination: {
+              limit: 200,
+              offset: 0,
+              total_count: 1,
+              returned_count: 1,
+              has_more: false,
+            },
+          });
+        }
+        if (input.endsWith("/videos/Y5MuBWwN8IA")) {
+          return okJson({
+            video: blockedItem,
+            captions: [],
+            evidence: [],
+            summary: null,
+          });
+        }
+        return baseFetch(input, undefined, init);
+      }),
+    );
+
+    render(<App />);
+
+    // 1. User sees the blocked item in #Content and opens its detail (or clicks auth directly)
+    const viewBtn = await screen.findByRole("button", { name: "查看处理方式" });
+    fireEvent.click(viewBtn);
+
+    const authLink = await screen.findByRole("link", { name: /授权本人 YouTube 登录态/ });
+    expect(authLink.getAttribute("href")).toBe(
+      `#Settings/youtube-auth?return=${encodeURIComponent("#Content/Y5MuBWwN8IA")}`,
+    );
+
+    // 2. Simulating browser hash navigation when user clicks the <a href="#Settings/youtube-auth?return=...">
+    location.hash = authLink.getAttribute("href")!;
+    fireEvent(window, new HashChangeEvent("hashchange", { newURL: location.href }));
+
+    // Must land on Settings -> YouTube Auth Fallback panel (NOT fall back to Home!)
+    expect(
+      await screen.findByRole("region", { name: "YouTube 采集登录兜底（按需）" }),
+    ).toBeTruthy();
+
+    // 3. Return CTA points back to the original blocked video
+    const returnLink = await screen.findByRole("link", { name: /返回原视频继续获取/ });
+    expect(returnLink.getAttribute("href")).toBe("#Content/Y5MuBWwN8IA");
+
+    location.hash = returnLink.getAttribute("href")!;
+    fireEvent(window, new HashChangeEvent("hashchange", { newURL: location.href }));
+    expect(await screen.findByText(/YouTube 视频导入详情 · Y5MuBWwN8IA/)).toBeTruthy();
+
+    // 4. Navigating to #Settings/models must also stay on Settings (never fall back to Home)
+    location.hash = "#Settings/models";
+    fireEvent(window, new HashChangeEvent("hashchange", { newURL: location.href }));
+    expect(
+      await screen.findByRole("region", { name: "YouTube 采集登录兜底（按需）" }),
+    ).toBeTruthy();
+  });
 });

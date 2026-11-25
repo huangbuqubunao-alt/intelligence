@@ -5755,6 +5755,15 @@ type YouTubeAuthStatus = {
 
 const DEFAULT_AUTH_BROWSERS = ["chrome", "firefox", "edge", "brave", "safari", "vivaldi", "chromium"];
 
+function readYouTubeAuthReturnHash(): string | null {
+  const target = new URLSearchParams(location.hash.split("?")[1] ?? "").get("return");
+  return target &&
+    /^#Content\/[^/?#]+(?:\/Evidence\/[^/?#]+)?$/.test(target) &&
+    !/[\p{Cc}\p{Cs}]/u.test(target)
+    ? target
+    : null;
+}
+
 export function YouTubeAuthSettingsPanel() {
   const { language } = useUiLanguage();
   const zh = language === "zh-CN";
@@ -5768,6 +5777,7 @@ export function YouTubeAuthSettingsPanel() {
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [returnHash, setReturnHash] = useState<string | null>(() => readYouTubeAuthReturnHash());
 
   useEffect(() => {
     let active = true;
@@ -5806,9 +5816,11 @@ export function YouTubeAuthSettingsPanel() {
 
   useEffect(() => {
     const syncScroll = () => {
+      setReturnHash(readYouTubeAuthReturnHash());
       if (location.hash.startsWith("#Settings/youtube-auth")) {
         setTimeout(() => {
           panelRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+          panelRef.current?.focus?.({ preventScroll: true });
         }, 30);
       }
     };
@@ -5890,6 +5902,7 @@ export function YouTubeAuthSettingsPanel() {
     <section
       ref={panelRef}
       id="settings-youtube-auth"
+      tabIndex={-1}
       className="panel youtube-auth-card"
       aria-label={zh ? "YouTube 采集登录兜底（按需）" : "YouTube Auth Fallback (On Demand)"}
     >
@@ -6032,6 +6045,14 @@ export function YouTubeAuthSettingsPanel() {
         >
           {saving ? (zh ? "正在保存…" : "Saving…") : zh ? "保存授权设置" : "Save authorization"}
         </button>
+        {returnHash ? (
+          <a
+            className={feedback ? "button button-primary" : "button button-ghost"}
+            href={returnHash}
+          >
+            {zh ? "返回原视频继续获取 ›" : "Back to video & retry ›"}
+          </a>
+        ) : null}
         {(status?.enabled || status?.cookie_configured) ? (
           <button
             type="button"
