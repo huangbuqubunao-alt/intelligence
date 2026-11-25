@@ -1657,9 +1657,10 @@ def _check_clause_against_cited_evidence(
         ev_has_zh = any(re.search(r"[\u4e00-\u9fff]", exc) for exc in pool_excerpts)
         claim_has_en = len(re.findall(r"[A-Za-z]{3,}", clean_clause)) >= 2
         ev_has_en = any(len(re.findall(r"[A-Za-z]{3,}", exc)) >= 2 for exc in pool_excerpts)
-        same_script = (claim_has_zh and ev_has_zh) or (
-            claim_has_en and not claim_has_zh and ev_has_en
-        )
+        ev_has_en_sentence = any(len(re.findall(r"[A-Za-z]{3,}", exc)) >= 4 for exc in pool_excerpts)
+        same_script = (
+            claim_has_zh and ev_has_zh and not (ev_has_en_sentence and not claim_has_en)
+        ) or (claim_has_en and not claim_has_zh and ev_has_en)
         if same_script:
             claim_domain = _extract_domain_terms(
                 clause, include_metric_nouns=True, strip_meta=True
@@ -7607,6 +7608,26 @@ class WorkspaceIntelligenceHub:
         seen_ev_ids: set[str] = set()
 
         def _make_candidate(seg: _TextEvidenceSegment, *, point_zh: str) -> dict[str, Any]:
+            raw_text = str(seg.text or "")
+            snippet = raw_text
+            if len(raw_text) > 280 and expanded_tokens:
+                lowered = raw_text.lower()
+                match_positions = [
+                    lowered.find(tok.lower())
+                    for tok in expanded_tokens
+                    if (len(tok) >= 3 or any("\u4e00" <= ch <= "\u9fff" for ch in tok))
+                    and lowered.find(tok.lower()) >= 200
+                ]
+                if match_positions:
+                    earliest = min(match_positions)
+                    start = max(0, earliest - 40)
+                    snap = max(
+                        raw_text.rfind(" ", max(0, start - 40), earliest + 1),
+                        raw_text.rfind("\n", max(0, start - 40), earliest + 1),
+                    )
+                    if snap > 0:
+                        start = snap + 1
+                    snippet = raw_text[start:]
             return {
                 "video_id": video.video_id,
                 "video_title": video.title or video.video_id,
@@ -7625,7 +7646,7 @@ class WorkspaceIntelligenceHub:
                 "timestamp_label": seg.locator_label,
                 "citation_url": None,
                 "point_zh": point_zh,
-                "excerpt": _clean_text(seg.text, max_len=280),
+                "excerpt": _clean_text(snippet, max_len=280),
             }
 
         if brief is not None and brief.get("core_points"):
@@ -8619,7 +8640,17 @@ class WorkspaceIntelligenceHub:
             cite["evidence_id"] = ""
             return cite
         cite["evidence_id"] = verified.evidence_id
-        cite["excerpt"] = _clean_text(verified.excerpt, max_len=280)
+        norm_actual = re.sub(r"\s+", " ", str(verified.excerpt or "")).strip()
+        norm_expected = re.sub(r"\s+", " ", str(expected or "")).strip()
+        pos = (
+            norm_actual.find(norm_expected)
+            if len(norm_expected) >= 6 and norm_actual
+            else -1
+        )
+        cite["excerpt"] = _clean_text(
+            norm_actual[pos:] if pos > 0 else verified.excerpt,
+            max_len=280,
+        )
         if verified.locator_type == "TEXT_RANGE":
             cite["locator_type"] = "TEXT_RANGE"
             cite["start_seconds"] = None

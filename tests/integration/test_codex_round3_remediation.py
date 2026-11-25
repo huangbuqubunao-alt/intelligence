@@ -885,6 +885,7 @@ def test_p1_r01_atomic_fact_relation_g01_to_g12_and_all_exits(
         "TAG_G10": {"answerable": True, "answer_zh": "发布于 2025年10月6日 [E1]。", "key_takeaways_zh": [], "action_items_zh": [], "citations": [{"ref": "E1", "note_zh": "g10"}]},
         "TAG_G11": {"answerable": True, "answer_zh": "营收增长 5% [E1]，利润增长 99% [E1]。", "key_takeaways_zh": [], "action_items_zh": [], "citations": [{"ref": "E1", "note_zh": "g11"}]},
         "TAG_G12": {"answerable": True, "answer_zh": "营收上涨 5% [E1]，共清点 7件样品 [E1]，系统仍不支持检索外推 [E1]。", "key_takeaways_zh": [], "action_items_zh": [], "citations": [{"ref": "E1", "note_zh": "g12"}]},
+        "TAG_BILINGUAL": {"answerable": True, "answer_zh": "该尾段设计可保障超长文档在超过 2048 行后仍保持确定性恢复 [E1]。", "key_takeaways_zh": [], "action_items_zh": [], "citations": [{"ref": "E1", "note_zh": "bilingual_tail"}]},
     }
 
     def _completer(
@@ -1041,3 +1042,29 @@ def test_p1_r01_atomic_fact_relation_g01_to_g12_and_all_exits(
     assert "€50" not in qa_zip_md
     assert "#999" not in qa_zip_md
     assert "多人协作" not in qa_zip_md
+
+    # Acronym-containing Chinese evidence still rejects unrelated Chinese claim
+    ok_acr, code_acr = _check_clause_against_cited_evidence(
+        "公司已经上线新款硬件产品 [E1]。",
+        ["系统 A 增加了 Markdown 和 API 日志脱敏。"],
+    )
+    assert not ok_acr and code_acr == "UNSUPPORTED_CLAIM_UNVERIFIED"
+
+    # Centered bilingual long-segment excerpt preserves tail English sentence and cold history parity
+    bilingual_tail = ("这是前导中文归档记录内容用于填充长度。" * 24) + (
+        " TailAnchorX guarantees deterministic recovery past 2048 lines."
+    )
+    doc_bilingual = prov.import_bytes("bilingual_tail.md", bilingual_tail.encode("utf-8"))
+    s_bi = hub.ask_research_question(
+        {"question": "TAG_BILINGUAL What does TailAnchorX guarantee?", "video_ids": [doc_bilingual.content_id]}
+    )["session"]
+    assert s_bi["refused"] is False
+    assert s_bi["citations"]
+    assert "TailAnchorX guarantees" in str(s_bi["citations"][0]["excerpt"])
+    with hub._evidence_verify_cache_lock:
+        hub._evidence_verify_cache.clear()
+    cold_bi = {s["session_id"]: s for s in hub.list_research_sessions()["sessions"]}[
+        s_bi["session_id"]
+    ]
+    assert cold_bi["refused"] is False
+    assert cold_bi["answer_status"] == "GROUNDED"

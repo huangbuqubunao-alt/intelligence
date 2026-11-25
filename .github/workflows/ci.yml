@@ -54,7 +54,7 @@ jobs:
 
   python-unit-full:
     name: Python Full Unit Suite (Shard ${{ matrix.shard }}/4, ex-GOV-001)
-    runs-on: ubuntu-latest
+    runs-on: macos-15
     strategy:
       fail-fast: false
       matrix:
@@ -70,7 +70,9 @@ jobs:
       - name: Verify lockfile & sync dependencies
         run: |
           uv lock --check
-          uv sync --frozen --dev
+          uv sync --frozen --dev --extra mac-whisper
+      - name: Install ffmpeg for media unit tests
+        run: HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1 brew install ffmpeg
       - name: Run full unit test shard ${{ matrix.shard }}
         # Disclosed exclusions (also enforced by scripts/ci_test_manifest.py verify):
         # 1) GOV-001 sealed TASK-016 fixture tests fail closed by design against current tree hashes;
@@ -84,7 +86,7 @@ jobs:
 
   python-integration-full:
     name: Python Full Integration & E2E Suite (Shard ${{ matrix.shard }}/8)
-    runs-on: ubuntu-latest
+    runs-on: macos-15
     strategy:
       fail-fast: false
       matrix:
@@ -100,9 +102,9 @@ jobs:
       - name: Verify lockfile & sync dependencies
         run: |
           uv lock --check
-          uv sync --frozen --dev
+          uv sync --frozen --dev --extra mac-whisper
       - name: Install ffmpeg for media integration tests
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+        run: HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1 brew install ffmpeg
       - name: Run full integration, e2e & script test shard ${{ matrix.shard }}
         # Disclosed exclusion: test_all_original_four_inputs_fit_without_truncating_fifteen_evidence
         # reads CAPACITY_BASELINE_ROOT from an untracked sibling worktree unavailable on clean CI clones.
