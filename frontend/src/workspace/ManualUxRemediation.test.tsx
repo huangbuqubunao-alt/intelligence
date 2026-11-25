@@ -8,6 +8,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
+import { LocalImport } from "./LocalImport";
 import {
   WhisperQuickDownloadPanel,
   WorkspaceAiSettingsPanel,
@@ -762,5 +763,196 @@ describe("Manual UX Remediation (#1-#4)", () => {
     expect(
       await screen.findByRole("region", { name: "YouTube 采集登录兜底（按需）" }),
     ).toBeTruthy();
+  });
+
+  it("renders blocked pending video in Content banner without duplicating it in the library list", async () => {
+    localStorage.setItem("intelligence.onboarding.completed.v1", "true");
+    location.hash = "#Content";
+
+    const blockedItem = {
+      video_id: "Y5MuBWwN8IA",
+      provider: "YOUTUBE",
+      work_kind: "DURABLE_CONTENT_IDENTITY",
+      channel_id: "ch-blocked",
+      channel_name: "Blocked Channel",
+      title: null,
+      source_url: "https://www.youtube.com/watch?v=Y5MuBWwN8IA",
+      source_id: "src-yt-blocked",
+      published_at: "2026-11-24T12:00:00Z",
+      processing_status: "NEEDS_ATTENTION",
+      last_error_code: "YOUTUBE_AUTH_REQUIRED",
+      last_updated: "2026-11-24T12:00:00Z",
+    };
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string, init?: RequestInit) => {
+        if (input.endsWith("/videos") || input.includes("/videos?limit=200&offset=0")) {
+          return okJson({
+            videos: [blockedItem],
+            pagination: {
+              limit: 200,
+              offset: 0,
+              total_count: 1,
+              returned_count: 1,
+              has_more: false,
+            },
+          });
+        }
+        return baseFetch(input, undefined, init);
+      }),
+    );
+
+    render(<App />);
+
+    const banner = await screen.findByRole("region", { name: "手动导入视频状态" });
+    expect(within(banner).getByText(/YouTube 视频 · Y5MuBWwN8IA/)).toBeTruthy();
+    expect(document.querySelectorAll(".content-media-list .content-media-row").length).toBe(0);
+  });
+
+  it("collapses Reader evidence items beyond 3 into a progressive drawer and auto-opens when targeted", async () => {
+    localStorage.setItem("intelligence.onboarding.completed.v1", "true");
+    const makeEv = (n: number) => ({
+      evidence_id: `ev-${n}`,
+      artifact_id: `art-${n}`,
+      start_ms: n * 10000,
+      end_ms: n * 10000 + 4000,
+      source_language: "en",
+      translation_target_language: "zh-CN",
+      translated_excerpt: `第 ${n} 条译文摘录`,
+      translated_language: "zh-CN",
+      original_excerpt: `Excerpt number ${n}`,
+      lineage_kind: "CAPTIONS",
+      role: "SUPPORTING",
+      created_at: "2026-11-24T12:00:00Z",
+    });
+
+    const videoPayload = {
+      video: {
+        video_id: "v-overflow",
+        provider: "YOUTUBE",
+        channel_id: "ch-1",
+        channel_name: "Demo Channel",
+        title: "Long Evidence Video",
+        source_url: "https://www.youtube.com/watch?v=v-overflow",
+        published_at: "2026-11-24T12:00:00Z",
+        processing_status: "ORGANIZED",
+        last_updated: "2026-11-24T12:00:00Z",
+      },
+      transcript: { status: "AVAILABLE", text: "Hello world" },
+      note: {
+        v1: { status: "UNAVAILABLE" },
+        v2: { status: "AVAILABLE", summary: "Summary text", core_points: [] },
+      },
+      intelligence_result: { status: "NOT_PROCESSED" },
+      history: [],
+    };
+    const evList = [makeEv(1), makeEv(2), makeEv(3), makeEv(4), makeEv(5)];
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string, init?: RequestInit) => {
+        if (input.endsWith("/videos/v-overflow/evidence")) {
+          return okJson({ evidence: evList });
+        }
+        if (input.endsWith("/videos/v-overflow/deep-analysis")) {
+          return okJson({
+            deep_analysis: {
+              status: {
+                availability: "NOT_QUALIFIED",
+                qualified: false,
+                production_eligible: false,
+                consent_required: false,
+                routes: [],
+              },
+              result: null,
+            },
+          });
+        }
+        if (input.endsWith("/videos/v-overflow")) {
+          return okJson(videoPayload);
+        }
+        return baseFetch(input, undefined, init);
+      }),
+    );
+
+    location.hash = "#Content/v-overflow";
+    render(<App />);
+
+    expect(await screen.findByText(/展开其余 2 条时间轴原话片段/)).toBeTruthy();
+    const drawer = document.querySelector("details.evidence-overflow-drawer") as HTMLDetailsElement;
+    expect(drawer).toBeTruthy();
+    expect(drawer.open).toBe(false);
+
+    const origScrollIntoView = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = vi.fn();
+    try {
+      cleanup();
+      location.hash = "#Content/v-overflow/Evidence/ev-4";
+      render(<App />);
+      await screen.findByText(/展开其余 2 条时间轴原话片段/);
+      const targetedDrawer = document.querySelector(
+        "details.evidence-overflow-drawer",
+      ) as HTMLDetailsElement;
+      expect(targetedDrawer.open).toBe(true);
+    } finally {
+      Element.prototype.scrollIntoView = origScrollIntoView;
+    }
+  });
+
+  it("exposes Speech and YouTube Auth jump links in Settings and keeps vault export visible when AI editor opens", async () => {
+    localStorage.setItem("intelligence.onboarding.completed.v1", "true");
+    location.hash = "#Settings";
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string, init?: RequestInit) => {
+        if (input.endsWith("/settings/preferences")) {
+          return okJson({ active: [], history: [] });
+        }
+        return baseFetch(input, undefined, init);
+      }),
+    );
+
+    render(<App />);
+
+    const jumpBar = await screen.findByRole("toolbar", { name: /设置分区|Settings sections/ });
+    expect(within(jumpBar).getByRole("button", { name: /语音转写/ })).toBeTruthy();
+    expect(within(jumpBar).getByRole("button", { name: /YouTube 授权/ })).toBeTruthy();
+
+    fireEvent.click(await screen.findByRole("button", { name: "配置 AI 摘要与问答引擎" }));
+    expect(await screen.findByRole("button", { name: "保存 AI 引擎配置" })).toBeTruthy();
+    expect(
+      screen.getByRole("group", { name: "知识库导出与快照" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "导出 Obsidian 知识库包 (.zip)" }),
+    ).toBeTruthy();
+  });
+
+  it("accepts dropped local files on the LocalImport drag-and-drop dropzone", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string) => {
+        if (input.endsWith("/local/native/capability")) {
+          return okJson({ capability: { available: false, reason: "CLI launcher" } });
+        }
+        return baseFetch(input);
+      }),
+    );
+
+    render(
+      <UiLanguageProvider>
+        <LocalImport onClose={() => {}} onSaved={() => {}} onYouTube={() => {}} />
+      </UiLanguageProvider>,
+    );
+
+    const dropzone = document.querySelector("label.local-dropzone") as HTMLElement;
+    expect(dropzone).toBeTruthy();
+    const noteFile = new File(["# Note\nHello world"], "session-note.md", { type: "text/markdown" });
+    fireEvent.dragOver(dropzone, { dataTransfer: { files: [noteFile] } });
+    expect(dropzone.className).toContain("is-drag-active");
+    fireEvent.drop(dropzone, { dataTransfer: { files: [noteFile] } });
+    expect(await screen.findByText(/session-note\.md/)).toBeTruthy();
   });
 });

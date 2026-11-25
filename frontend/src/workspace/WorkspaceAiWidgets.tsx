@@ -3996,6 +3996,49 @@ export function WorkspaceAiResearchPanel({
         </div>
       ) : null}
 
+      {!isEmptyLibrary ? (
+        <div className="ai-active-scope-readout tabular-nums" role="status">
+          <PhosphorIcon name="funnel" size={12} />
+          <span>
+            {selectedVideoIds.length > 0
+              ? zh
+                ? `当前提问范围：已勾选 ${selectedVideoIds.length} 篇对比内容`
+                : `Active scope: ${selectedVideoIds.length} selected items`
+              : [
+                  selectedChannel
+                    ? `${zh ? "来源" : "Source"}「${scopeOptions?.channels.find((c) => c.key === selectedChannel)?.label ?? (selectedChannel === "LOCAL" && zh ? "本地实战课" : selectedChannel)}」`
+                    : null,
+                  selectedTopic
+                    ? `${zh ? "专题" : "Topic"}「${selectedTopic}」`
+                    : null,
+                  starredOnly
+                    ? zh
+                      ? "仅限已收藏"
+                      : "Starred only"
+                    : null,
+                ].filter(Boolean).length > 0
+                ? `${zh ? "当前提问范围：" : "Active scope: "}${[
+                    selectedChannel
+                      ? `${zh ? "来源" : "Source"}「${scopeOptions?.channels.find((c) => c.key === selectedChannel)?.label ?? (selectedChannel === "LOCAL" && zh ? "本地实战课" : selectedChannel)}」`
+                      : null,
+                    selectedTopic
+                      ? `${zh ? "专题" : "Topic"}「${selectedTopic}」`
+                      : null,
+                    starredOnly
+                      ? zh
+                        ? "仅限已收藏"
+                        : "Starred only"
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}`
+                : zh
+                  ? `当前提问范围：全库可核验资料 (${scopeOptions?.videos.length ?? 0} 篇)`
+                  : `Active scope: Full library (${scopeOptions?.videos.length ?? 0} items)`}
+          </span>
+        </div>
+      ) : null}
+
       <form className="ai-research-ask-form" onSubmit={handleSubmit}>
         <div className="ai-research-input-wrap">
           <textarea
@@ -5131,64 +5174,11 @@ export function WorkspaceAiSettingsPanel({
       />
 
       {!open ? (
-        <>
-          <div className="button-row">
-            <button type="button" className="button button-primary" onClick={() => void openEditor()}>
-              {zh ? "配置 AI 摘要与问答引擎" : "Configure AI summary & Q&A engine"}
-            </button>
-            <button
-              type="button"
-              className="button button-ghost"
-              disabled={exportingBackup || exportingObsidianZip || restoringBackup}
-              onClick={() => void exportObsidianZipFromSettings()}
-            >
-              <PhosphorIcon name="stack" size={13} />
-              {exportingObsidianZip
-                ? zh
-                  ? "正在打包 Obsidian…"
-                  : "Bundling Obsidian…"
-                : zh
-                  ? "导出 Obsidian 知识库包 (.zip)"
-                  : "Export Obsidian (.zip)"}
-            </button>
-            <button
-              type="button"
-              className="button button-ghost"
-              disabled={exportingBackup || exportingObsidianZip || restoringBackup}
-              onClick={() => void exportBackup()}
-            >
-              <PhosphorIcon name="archive" size={13} />
-              {exportingBackup
-                ? zh
-                  ? "正在导出…"
-                  : "Exporting…"
-                : zh
-                  ? "导出 AI 知识库快照 (.json)"
-                  : "Export snapshot (.json)"}
-            </button>
-            <button
-              type="button"
-              className="button button-ghost"
-              disabled={exportingBackup || restoringBackup}
-              onClick={() => restoreInputRef.current?.click()}
-            >
-              <PhosphorIcon name="folder-open" size={13} />
-              {restoringBackup
-                ? zh
-                  ? "正在恢复…"
-                  : "Restoring…"
-                : zh
-                  ? "导入并恢复快照 (.json)"
-                  : "Restore (.json)"}
-            </button>
-          </div>
-          {feedback ? <p role="status">{feedback}</p> : null}
-          {error ? (
-            <p className="form-error" role="alert">
-              {error}
-            </p>
-          ) : null}
-        </>
+        <div className="button-row">
+          <button type="button" className="button button-primary" onClick={() => void openEditor()}>
+            {zh ? "配置 AI 摘要与问答引擎" : "Configure AI summary & Q&A engine"}
+          </button>
+        </div>
       ) : (
         <div className="ai-settings-form">
           {loading ? (
@@ -5525,14 +5515,70 @@ export function WorkspaceAiSettingsPanel({
               {zh ? "收起" : "Close"}
             </button>
           </div>
-          {feedback ? <p role="status">{feedback}</p> : null}
-          {error ? (
-            <p className="form-error" role="alert">
-              {error}
-            </p>
-          ) : null}
         </div>
       )}
+      {feedback ? <p role="status">{feedback}</p> : null}
+      {error ? (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      ) : null}
+      <div
+        className="settings-vault-backup-strip"
+        role="group"
+        aria-label={zh ? "知识库导出与快照" : "Vault export & snapshots"}
+      >
+        <p className="settings-vault-backup-label">
+          {zh ? "知识库导出与快照" : "Vault export & snapshots"}
+        </p>
+        <div className="button-row">
+          <button
+            type="button"
+            className="button button-secondary button-small"
+            disabled={exportingBackup || exportingObsidianZip || restoringBackup}
+            onClick={() => void exportObsidianZipFromSettings()}
+          >
+            <PhosphorIcon name="stack" size={13} />
+            {exportingObsidianZip
+              ? zh
+                ? "正在打包 Obsidian…"
+                : "Bundling Obsidian…"
+              : zh
+                ? "导出 Obsidian 知识库包 (.zip)"
+                : "Export Obsidian (.zip)"}
+          </button>
+          <button
+            type="button"
+            className="button button-ghost button-small"
+            disabled={exportingBackup || exportingObsidianZip || restoringBackup}
+            onClick={() => void exportBackup()}
+          >
+            <PhosphorIcon name="archive" size={13} />
+            {exportingBackup
+              ? zh
+                ? "正在导出…"
+                : "Exporting…"
+              : zh
+                ? "导出 AI 知识库快照 (.json)"
+                : "Export snapshot (.json)"}
+          </button>
+          <button
+            type="button"
+            className="button button-ghost button-small"
+            disabled={exportingBackup || restoringBackup}
+            onClick={() => restoreInputRef.current?.click()}
+          >
+            <PhosphorIcon name="folder-open" size={13} />
+            {restoringBackup
+              ? zh
+                ? "正在恢复…"
+                : "Restoring…"
+              : zh
+                ? "导入并恢复快照 (.json)"
+                : "Restore (.json)"}
+          </button>
+        </div>
+      </div>
     </section>
   );
 }

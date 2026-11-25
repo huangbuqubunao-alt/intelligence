@@ -3523,7 +3523,8 @@ function IntelligencePage(
                 <button
                   key={src.name}
                   type="button"
-                  className={`ai-question-chip${effectiveIntelSource === src.name ? " is-active" : ""}`}
+                  title={t(src.name)}
+                  className={`ai-question-chip intel-source-chip${effectiveIntelSource === src.name ? " is-active" : ""}`}
                   aria-pressed={effectiveIntelSource === src.name}
                   onClick={() => {
                     setIntelSourceFilter(src.name);
@@ -4760,10 +4761,19 @@ function ContentPage(
       (briefByVideoId.get(a.video_id)?.score ?? -1)
     );
   });
+  const showManualPendingBanner =
+    manualPendingVideos.length > 0 &&
+    bucketFilter === "ALL" &&
+    (providerFilter === "ALL" || providerFilter === "YOUTUBE") &&
+    !trimmedSearch;
+  const manualPendingIds = showManualPendingBanner
+    ? new Set(manualPendingVideos.map((v) => v.video_id))
+    : new Set<string>();
   const shouldFoldShorts = hasAiBriefs && bucketFilter === "ALL" && !trimmedSearch;
-  const primaryVideos = shouldFoldShorts
+  const primaryVideos = (shouldFoldShorts
     ? sortedFilteredVideos.filter((item) => !isAutoFoldedItem(item))
-    : sortedFilteredVideos;
+    : sortedFilteredVideos
+  ).filter((item) => !manualPendingIds.has(item.video_id));
   const primaryIds = primaryVideos.map((v) => v.video_id);
   const unreadInViewIds = primaryVideos
     .filter((item) => {
@@ -4824,7 +4834,9 @@ function ContentPage(
     onOpen,
   };
   const foldedShorts = shouldFoldShorts
-    ? sortedFilteredVideos.filter(isAutoFoldedItem)
+    ? sortedFilteredVideos.filter(
+        (item) => isAutoFoldedItem(item) && !manualPendingIds.has(item.video_id),
+      )
     : [];
   const foldedPlaceholderCount = foldedShorts.filter(
     item => item.work_kind === "DURABLE_CONTENT_IDENTITY",
@@ -4982,9 +4994,7 @@ function ContentPage(
   return videos.length
     ? (
       <div className="content-library-shell">
-        {manualPendingVideos.length > 0 &&
-        bucketFilter === "ALL" &&
-        (providerFilter === "ALL" || providerFilter === "YOUTUBE") ? (
+        {showManualPendingBanner ? (
           <section
             className="caption-recovery-banner"
             role="region"
@@ -5288,13 +5298,6 @@ function ContentPage(
               ))}
             </div>
           )}
-          {hasAiBriefs && primaryVideos.length > 0 && (
-            <span className="kb-shortcut-hint" aria-hidden="true">
-              {language === "zh-CN"
-                ? "快捷键：/ 搜索 · J/K 选行 · Enter 阅读 · S 收藏 · E 已读"
-                : "Keys: / search · J/K move · Enter open · S star · E read"}
-            </span>
-          )}
           {hasAiBriefs &&
           ((onAskFilteredResearch &&
             hasCustomResearchScope &&
@@ -5430,6 +5433,13 @@ function ContentPage(
                 {primaryVideos.map(renderContentRow)}
               </div>
             ) : null}
+            {hasAiBriefs && primaryVideos.length > 0 && (
+              <p className="kb-shortcut-hint content-kb-footer" aria-hidden="true">
+                {language === "zh-CN"
+                  ? "快捷键：/ 搜索 · J/K 选行 · Enter 阅读 · S 收藏 · E 已读"
+                  : "Keys: / search · J/K move · Enter open · S star · E read"}
+              </p>
+            )}
             {foldedShorts.length > 0 ? (
               <details className="shorts-fold-drawer">
                 <summary className="tabular-nums">
@@ -6761,8 +6771,8 @@ function ContentDetailPanel(
               <details className="legacy-model-diagnostics">
                 <summary>
                   {language === "zh-CN"
-                    ? "底层离线模型路由与手动核验诊断"
-                    : "Underlying local model route & manual diagnostics"}
+                    ? "高级选项：离线核验明细与手动重跑"
+                    : "Advanced: offline verification & manual rerun"}
                 </summary>
                 {legacyIntelBody}
               </details>
@@ -7736,124 +7746,147 @@ function ContentEvidencePanel(
         </div>
       ) : null}
       {evidence.length
-        ? (
-          <div className="evidence-trace-list">
-            <CaptionCleanBar
-              collapsedCount={collapsedEvidenceLines}
-              showVerbatim={evidenceVerbatim}
-              onToggle={() => setEvidenceVerbatim(current => !current)}
-            />
-            {evidence.map((item, idx) => {
-              const local = externalTranslations?.[item.evidence_id] ?? createdTranslations[item.evidence_id];
-              const translatedExcerpt = local?.excerpt ?? item.translated_excerpt;
-              const translatedLanguage = local?.language ?? item.translated_language;
-              const target = item.translation_target_language;
-              const sourceMatchesTarget = evidenceSourceMatchesTarget(
-                item.source_language,
-                target,
-              );
-              const translationAvailable = Boolean(
-                translatedExcerpt
-                && translatedLanguage === target
-                && !sourceMatchesTarget,
-              );
-              const showTranslation = mode !== "原文";
-              const showOriginal = mode !== "译文" || !translationAvailable;
-              const isTargeted = highlightedEvidenceId === item.evidence_id;
-              return (
-                <article
-                  className={`evidence-item evidence-trace-item${isTargeted ? " is-targeted-evidence" : ""}`}
-                  id={`content-evidence-${encodeURIComponent(item.evidence_id)}`}
-                  data-content-id={videoId}
-                  key={item.evidence_id}
-                >
-                  <div className="reading-meta">
-                    <span className="tabular-nums">#{idx + 1}</span>
-                    <strong className="tabular-nums">
-                      {item.locator_type === "TEXT_RANGE" ? textLineRange(item.start_line, item.end_line, t) : timestampRange(item.start_ms, item.end_ms)}
-                    </strong>
-                    <span>{t("Source language")}: {item.source_language} · {t(item.locator_type === "TEXT_RANGE" ? "Original source text" : evidenceLineageLabel(item.lineage_kind))}</span>
-                    {isTargeted && <span className="targeted-citation-pill">{t("Targeted citation")}</span>}
-                  </div>
-                  <div className="segmented evidence-display-modes" role="group" aria-label={t("Evidence presentation mode")}>
-                    {(["译文", "双语", "原文"] as const).map((option) => (
-                      <button
-                        key={option}
-                        type="button"
-                        aria-pressed={mode === option}
-                        className={mode === option ? "active" : ""}
-                        onClick={() => setSelectedMode(option)}
+        ? (() => {
+          const renderEvidenceCard = (item: ContentEvidence, idx: number) => {
+            const local = externalTranslations?.[item.evidence_id] ?? createdTranslations[item.evidence_id];
+            const translatedExcerpt = local?.excerpt ?? item.translated_excerpt;
+            const translatedLanguage = local?.language ?? item.translated_language;
+            const target = item.translation_target_language;
+            const sourceMatchesTarget = evidenceSourceMatchesTarget(
+              item.source_language,
+              target,
+            );
+            const translationAvailable = Boolean(
+              translatedExcerpt
+              && translatedLanguage === target
+              && !sourceMatchesTarget,
+            );
+            const showTranslation = mode !== "原文";
+            const showOriginal = mode !== "译文" || !translationAvailable;
+            const isTargeted = highlightedEvidenceId === item.evidence_id;
+            return (
+              <article
+                className={`evidence-item evidence-trace-item${isTargeted ? " is-targeted-evidence" : ""}`}
+                id={`content-evidence-${encodeURIComponent(item.evidence_id)}`}
+                data-content-id={videoId}
+                key={item.evidence_id}
+              >
+                <div className="reading-meta">
+                  <span className="tabular-nums">#{idx + 1}</span>
+                  <strong className="tabular-nums">
+                    {item.locator_type === "TEXT_RANGE" ? textLineRange(item.start_line, item.end_line, t) : timestampRange(item.start_ms, item.end_ms)}
+                  </strong>
+                  <span>{t("Source language")}: {item.source_language} · {t(item.locator_type === "TEXT_RANGE" ? "Original source text" : evidenceLineageLabel(item.lineage_kind))}</span>
+                  {isTargeted && <span className="targeted-citation-pill">{t("Targeted citation")}</span>}
+                </div>
+                <div className="segmented evidence-display-modes" role="group" aria-label={t("Evidence presentation mode")}>
+                  {(["译文", "双语", "原文"] as const).map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      aria-pressed={mode === option}
+                      className={mode === option ? "active" : ""}
+                      onClick={() => setSelectedMode(option)}
+                    >
+                      {language === "en" ? ({ "译文": "Translation", "双语": "Bilingual", "原文": "Original" } as const)[option] : option}
+                    </button>
+                  ))}
+                </div>
+                {showTranslation
+                  ? (
+                    <div>
+                      <strong>{t("Translation")} · {target}</strong>
+                      {translationAvailable
+                        ? <blockquote>{evidenceVerbatim ? translatedExcerpt : cleanTranslatedCaptionText(translatedExcerpt!)}</blockquote>
+                        : sourceMatchesTarget
+                        ? <p className="hint">{t("Original Evidence already matches the requested output language.")}</p>
+                        : (
+                          <>
+                            <p className="hint">{t("Translation unavailable. Original Evidence remains authoritative.")}</p>
+                            {translationBusy === null
+                              ? (
+                                <button
+                                  type="button"
+                                  className="button button-secondary button-small"
+                                  onClick={() => void generateTranslation(item)}
+                                >
+                                  {t("Generate translation")}
+                                </button>
+                              )
+                              : translationBusy === item.evidence_id
+                              ? <p className="hint" role="status">{t("Generating a local translation…")}</p>
+                              : null}
+                          </>
+                        )}
+                    </div>
+                  )
+                  : null}
+                {showOriginal
+                  ? (
+                    <div>
+                      <strong>{t("Original · authoritative source")} · {item.source_language}</strong>
+                      <blockquote>{evidenceVerbatim ? item.original_excerpt : cleanCaptionText(item.original_excerpt).text}</blockquote>
+                    </div>
+                  )
+                  : null}
+                {mode === "原文" && !translationAvailable && !sourceMatchesTarget
+                  ? <p className="hint">{t("Translation unavailable.")}</p>
+                  : null}
+                {translationError ? <p className="hint" role="alert">{t(translationError)}</p> : null}
+                <div className="evidence-card-footer">
+                  {sourceUrl
+                    ? (
+                      <a
+                        className="button button-ghost button-small evidence-source-link"
+                        href={videoAt(sourceUrl, item.start_ms)}
+                        target="_blank"
+                        rel="noreferrer"
                       >
-                        {language === "en" ? ({ "译文": "Translation", "双语": "Bilingual", "原文": "Original" } as const)[option] : option}
-                      </button>
-                    ))}
-                  </div>
-                  {showTranslation
-                    ? (
-                      <div>
-                        <strong>{t("Translation")} · {target}</strong>
-                        {translationAvailable
-                          ? <blockquote>{evidenceVerbatim ? translatedExcerpt : cleanTranslatedCaptionText(translatedExcerpt!)}</blockquote>
-                          : sourceMatchesTarget
-                          ? <p className="hint">{t("Original Evidence already matches the requested output language.")}</p>
-                          : (
-                            <>
-                              <p className="hint">{t("Translation unavailable. Original Evidence remains authoritative.")}</p>
-                              {translationBusy === null
-                                ? (
-                                  <button
-                                    type="button"
-                                    className="button button-secondary button-small"
-                                    onClick={() => void generateTranslation(item)}
-                                  >
-                                    {t("Generate translation")}
-                                  </button>
-                                )
-                                : translationBusy === item.evidence_id
-                                ? <p className="hint" role="status">{t("Generating a local translation…")}</p>
-                                : null}
-                            </>
-                          )}
-                      </div>
+                        {t(item.start_ms === null ? "Open original" : "Open original at timestamp")}
+                      </a>
                     )
-                    : null}
-                  {showOriginal
-                    ? (
-                      <div>
-                        <strong>{t("Original · authoritative source")} · {item.source_language}</strong>
-                        <blockquote>{evidenceVerbatim ? item.original_excerpt : cleanCaptionText(item.original_excerpt).text}</blockquote>
-                      </div>
-                    )
-                    : null}
-                  {mode === "原文" && !translationAvailable && !sourceMatchesTarget
-                    ? <p className="hint">{t("Translation unavailable.")}</p>
-                    : null}
-                  {translationError ? <p className="hint" role="alert">{t(translationError)}</p> : null}
-                  <div className="evidence-card-footer">
-                    {sourceUrl
-                      ? (
-                        <a
-                          className="button button-ghost button-small evidence-source-link"
-                          href={videoAt(sourceUrl, item.start_ms)}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          {t(item.start_ms === null ? "Open original" : "Open original at timestamp")}
-                        </a>
-                      )
-                      : <p className="hint">{t("Source URL unavailable.")}</p>}
-                    <details className="provenance">
-                      <summary>{t("Citation details")}</summary>
-                      <p>{t("Source position")}: {item.locator_type === "TEXT_RANGE" ? textLineRange(item.start_line, item.end_line, t) : timestampRange(item.start_ms, item.end_ms)}</p>
-                      <p>{t("Provenance")}: {t(item.locator_type === "TEXT_RANGE" ? "Original source text" : evidenceLineageLabel(item.lineage_kind))} · {t(evidenceRoleLabel(item.role))}</p>
-                      <small>{item.evidence_id} · {item.artifact_id} · {item.created_at ? humanDate(item.created_at) : "Timestamp unavailable"}</small>
-                    </details>
+                    : <p className="hint">{t("Source URL unavailable.")}</p>}
+                  <details className="provenance">
+                    <summary>{t("Citation details")}</summary>
+                    <p>{t("Source position")}: {item.locator_type === "TEXT_RANGE" ? textLineRange(item.start_line, item.end_line, t) : timestampRange(item.start_ms, item.end_ms)}</p>
+                    <p>{t("Provenance")}: {t(item.locator_type === "TEXT_RANGE" ? "Original source text" : evidenceLineageLabel(item.lineage_kind))} · {t(evidenceRoleLabel(item.role))}</p>
+                    <small>{item.evidence_id} · {item.artifact_id} · {item.created_at ? humanDate(item.created_at) : "Timestamp unavailable"}</small>
+                  </details>
+                </div>
+              </article>
+            );
+          };
+          const overflowItems = evidence.slice(3);
+          const hasTargetedOverflow = Boolean(
+            highlightedEvidenceId &&
+              overflowItems.some((item) => item.evidence_id === highlightedEvidenceId),
+          );
+          return (
+            <div className="evidence-trace-list">
+              <CaptionCleanBar
+                collapsedCount={collapsedEvidenceLines}
+                showVerbatim={evidenceVerbatim}
+                onToggle={() => setEvidenceVerbatim(current => !current)}
+              />
+              {evidence.slice(0, 3).map((item, idx) => renderEvidenceCard(item, idx))}
+              {overflowItems.length > 0 ? (
+                <details
+                  className="evidence-overflow-drawer"
+                  open={hasTargetedOverflow || undefined}
+                >
+                  <summary className="tabular-nums">
+                    {language === "zh-CN"
+                      ? `展开其余 ${overflowItems.length} 条时间轴原话片段`
+                      : `Show ${overflowItems.length} more timeline excerpts`}
+                  </summary>
+                  <div className="evidence-trace-list evidence-overflow-list">
+                    {overflowItems.map((item, idx) => renderEvidenceCard(item, idx + 3))}
                   </div>
-                </article>
-              );
-            })}
-          </div>
-        )
+                </details>
+              ) : null}
+            </div>
+          );
+        })()
         : <Empty>No available, verified canonical transcript Evidence is recorded for this Content.</Empty>}
     </Panel>
   );
@@ -8312,18 +8345,21 @@ function Topics({
                   <p className="summary-copy">{entry.summary_zh}</p>
                 ) : null}
                 {entry.product_opportunities_zh.length > 0 || entry.business_opportunities_zh.length > 0 ? (
-                  <div className="topic-opp-pills">
+                  <ul
+                    className="topic-opp-callout is-compact"
+                    aria-label={zh ? "产品与商业切入方向" : "Product & business angles"}
+                  >
                     {entry.product_opportunities_zh.slice(0, 2).map((opp, idx) => (
-                      <span key={`p:${idx}`} className="ai-basis-pill">
+                      <li key={`p:${idx}`} className="topic-opp-callout-item">
                         {zh ? `产品切口：${opp}` : opp}
-                      </span>
+                      </li>
                     ))}
                     {entry.business_opportunities_zh.slice(0, 2).map((opp, idx) => (
-                      <span key={`b:${idx}`} className="ai-basis-pill">
+                      <li key={`b:${idx}`} className="topic-opp-callout-item">
                         {zh ? `变现模型：${opp}` : opp}
-                      </span>
+                      </li>
                     ))}
-                  </div>
+                  </ul>
                 ) : null}
               </article>
             ))}
@@ -8705,7 +8741,13 @@ function Sources(
                       className="button button-ghost button-small"
                       onClick={() => onAskChannelResearch(sig.channel_key)}
                     >
-                      {language === "zh-CN" ? "问此频道" : "Ask Q&A"}
+                      {source.provider === "LOCAL"
+                        ? language === "zh-CN"
+                          ? "问本地库"
+                          : "Ask Q&A"
+                        : language === "zh-CN"
+                          ? "问此频道"
+                          : "Ask Q&A"}
                     </button>
                   ) : null}
                   {source.tracking &&
