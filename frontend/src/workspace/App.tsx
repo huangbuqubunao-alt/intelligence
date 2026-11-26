@@ -4,6 +4,7 @@ import { validFollowingDetailRead, validFollowingSourceRead } from "./CreatorFol
 import { InterestRulesEditor, interestRuleValues, ruleDrafts, validInterestRule, type InterestRuleDraft, CreatorFollowForm, CreatorFollowingDetail, FollowCreatorFromContent, Tracking, trackingCopy, useCreatorFollowingCapability } from "./CreatorFollowing";
 import { BilibiliImport, BilibiliCaptionStatus, bilibiliStatus } from "./BilibiliImport";
 import { LocalImport, localStatus, localImportErrors } from "./LocalImport";
+import { importStarterSampleNote } from "./starterSample";
 import { NativeImportActivity } from "./NativeLocalImport";
 import { LocalTranscription, transcriptionCopy } from "./LocalTranscription";
 import { ReaderMediaStage, formatHumanDuration } from "./ReaderMediaStage";
@@ -2074,6 +2075,11 @@ function Workspace() {
               openContent={openContent}
               onOpenTopic={id => openDelta({ kind: "topic", id })}
               onAddContent={() => setAddProvider("YOUTUBE")}
+              onSampleImported={(videoId) => {
+                setRefresh((value) => value + 1);
+                setImported(true);
+                openContent(videoId);
+              }}
               onboardingReplayNonce={onboardingReplayNonce}
               onReplayOnboarding={replayOnboarding}
             />
@@ -2394,6 +2400,7 @@ function Dashboard(
     openContent,
     onOpenTopic,
     onAddContent,
+    onSampleImported,
     onboardingReplayNonce = 0,
     onReplayOnboarding,
   }: {
@@ -2402,6 +2409,7 @@ function Dashboard(
     openContent: (videoId: string, evidenceId?: string) => void;
     onOpenTopic: (topicId: string) => void;
     onAddContent?: () => void;
+    onSampleImported?: (videoId: string) => void;
     onboardingReplayNonce?: number;
     onReplayOnboarding?: () => void;
   },
@@ -2429,6 +2437,8 @@ function Dashboard(
   );
   const [markedReadIds, setMarkedReadIds] = useState<string[]>([]);
   const [triageBusyId, setTriageBusyId] = useState<string | null>(null);
+  const [sampleImportBusy, setSampleImportBusy] = useState(false);
+  const [sampleImportError, setSampleImportError] = useState<string | null>(null);
   const isDemoMode = Boolean(data?.demo_mode);
   const [onboardingOverride, setOnboardingOverride] = useState<{ mode: boolean; done: boolean } | null>(null);
   const [replayingOnboarding, setReplayingOnboarding] = useState(false);
@@ -2544,13 +2554,52 @@ function Dashboard(
               <>
                 <button
                   className="button button-primary"
+                  disabled={sampleImportBusy}
                   onClick={() => onAddContent ? onAddContent() : navigate("Following")}
                 >
                   {zh ? "导入第一个内容" : t("Add Source")}
                 </button>
+                {!isDemoMode ? (
+                  <button
+                    type="button"
+                    className="button button-secondary"
+                    disabled={sampleImportBusy}
+                    onClick={async (event) => {
+                      pulseCelebration(event.currentTarget);
+                      setSampleImportBusy(true);
+                      setSampleImportError(null);
+                      try {
+                        const contentId = await importStarterSampleNote(zh ? "zh-CN" : "en");
+                        if (onSampleImported) {
+                          onSampleImported(contentId);
+                        } else {
+                          openContent(contentId);
+                        }
+                      } catch {
+                        setSampleImportError(
+                          zh
+                            ? "示例笔记未能导入，请确认本地工作区服务正在运行后重试。"
+                            : "Could not import the built-in starter note. Please ensure the local workspace service is running.",
+                        );
+                      } finally {
+                        setSampleImportBusy(false);
+                      }
+                    }}
+                  >
+                    <PhosphorIcon name="file-text" size={14} />
+                    {sampleImportBusy
+                      ? zh
+                        ? "正在导入示例笔记…"
+                        : "Importing sample note…"
+                      : zh
+                        ? "一键导入示例笔记体验"
+                        : "Try with built-in sample note"}
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   className="button button-ghost"
+                  disabled={sampleImportBusy}
                   onClick={handleReplayClick}
                 >
                   {zh ? "重新查看新手引导" : "Replay onboarding"}
@@ -2558,6 +2607,11 @@ function Dashboard(
               </>
             )}
           </div>
+          {sampleImportError ? (
+            <p className="form-error" role="alert">
+              {sampleImportError}
+            </p>
+          ) : null}
         </Panel>
       </div>
     );
@@ -4166,6 +4220,8 @@ function ContentPage(
   const [batchCurationBusy, setBatchCurationBusy] = useState(false);
   const [lastBatchReadIds, setLastBatchReadIds] = useState<string[]>([]);
   const [copiedContentDigest, setCopiedContentDigest] = useState(false);
+  const [sampleImportBusy, setSampleImportBusy] = useState(false);
+  const [sampleImportError, setSampleImportError] = useState<string | null>(null);
   useEffect(() => {
     setCopiedContentDigest(false);
   }, [searchQuery, providerFilter, bucketFilter, topicFilter, channelFilter]);
@@ -5766,7 +5822,46 @@ function ContentPage(
     : (
       <Empty>
         <p>{t("No Content yet. Add a video link, follow a YouTube channel, or import a local file.")}</p>
-        <button type="button" className="button button-primary" onClick={onAdd}>{t("Add content")}</button>
+        <div className="button-row">
+          <button type="button" className="button button-primary" disabled={sampleImportBusy} onClick={onAdd}>{t("Add content")}</button>
+          <button
+            type="button"
+            className="button button-secondary"
+            disabled={sampleImportBusy}
+            onClick={async (event) => {
+              pulseCelebration(event.currentTarget);
+              setSampleImportBusy(true);
+              setSampleImportError(null);
+              try {
+                const contentId = await importStarterSampleNote(language === "zh-CN" ? "zh-CN" : "en");
+                setRevision((value) => value + 1);
+                onOpen(contentId);
+              } catch {
+                setSampleImportError(
+                  language === "zh-CN"
+                    ? "示例笔记未能导入，请确认本地工作区服务正在运行后重试。"
+                    : "Could not import the built-in starter note.",
+                );
+              } finally {
+                setSampleImportBusy(false);
+              }
+            }}
+          >
+            <PhosphorIcon name="file-text" size={14} />
+            {sampleImportBusy
+              ? language === "zh-CN"
+                ? "正在导入示例笔记…"
+                : "Importing sample note…"
+              : language === "zh-CN"
+                ? "一键导入示例笔记体验"
+                : "Try with built-in sample note"}
+          </button>
+        </div>
+        {sampleImportError ? (
+          <p className="form-error" role="alert">
+            {sampleImportError}
+          </p>
+        ) : null}
       </Empty>
     );
 }
@@ -9135,10 +9230,10 @@ function Sources(
   return (
     <>
       {!selected && <FollowingReadNotice reading={reading} error={error} errorCode={errorCode} onReload={reload} />}
-      {creatorFollowingWithdrawn && <p className="hint" role="status">{t("Continuous Bilibili creator tracking is currently unavailable. You can still add public Bilibili videos.")}</p>}
+      {creatorFollowingWithdrawn && <p className="hint following-capability-note" role="status">{t("Continuous Bilibili creator tracking is currently unavailable. You can still add public Bilibili videos.")}</p>}
       <div className="page-actions">
         <button
-          className="button button-primary"
+          className={followingSources.length ? "button button-primary" : "button button-secondary"}
           onClick={() => onAdd("YOUTUBE")}
         >
           {t("Add Source")}
