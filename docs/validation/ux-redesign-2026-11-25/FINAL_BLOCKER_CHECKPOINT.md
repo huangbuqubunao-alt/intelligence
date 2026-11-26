@@ -5,7 +5,7 @@
 - **main 基线**：`d1b58f731adc4185fe78cc5538e9e211b8a0e211`
 - **起点 SHA**：代码 `84765be841c889ea3152590874be846ff4592518`｜文档交付 `33ab21de3d9389986f607d307bda9544d2afca15`
 - **Draft PR**：https://github.com/huangbuqubunao-alt/intelligence/pull/50
-- **当前阶段**：**第四轮剩余阻断项全部收口完成（`VERIFIED_CODE_SHA = 00bb495c9367d66c98c3136eb69ef7ab52ce4847` · 远端 CI `45771198334` 14/14 一次全绿 · Gate `R1 = HOLD` 等待第 5 轮终审放行）**
+- **当前阶段**：**第五轮冻结剩余 2 项门禁全部收口完成（`VERIFIED_CODE_SHA = 0ad549b9ea20b0ef3492f576f2010a68e8eddf9a` · 远端 CI `45780647653` `attempt = 1` · 14/14 一次全绿 · Gate `R1 = HOLD` 等待第 6 轮最终放行签收）**
 
 ## Phase 0 独立复核与复现证据
 
@@ -28,4 +28,6 @@
   - GitHub Actions Run [`45677713952`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45677713952)（`headSha = 05d31dce2d934832a55aec8efa5bfdc92e1daf4d`）在重跑排队超时的 `Unit Shard 3/4` 后 **14 / 14 全部 `success`**；诚实披露 `Unit Shard 0/4` 中 `tests/unit/test_o200k_provisioning.py:134` 因无外部 `o200k` 资产按预期 `1 skipped`。
 - **Phase 6（第 3 轮纯文档交付）**：交付 [`08_FINAL_BLOCKER_CLOSURE_REPORT.md`](08_FINAL_BLOCKER_CLOSURE_REPORT.md) 与 `screenshots-final/`，对应纯文档提交 `17f5a3215eec358128f843fa667e54aa6dc9d52c`（远端 CI [`45684482608`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45684482608) 14/14 `success`）。
 - **Phase 7（第 4 轮剩余 2 组 P1 终审收口）**：提交 **`00bb495c9367d66c98c3136eb69ef7ab52ce4847` (`VERIFIED_CODE_SHA`)** 关闭 `P1-F02-A`（旧表活跃 `cookie_file` 授权直接安全撤销 + `grant:` 前缀双校验）、`P1-F02-B`（`disconnect` 严格 422 校验无全撤旁路）、`P1-F03-A/B`（`_evaluate_clause_against_cited_evidence` 区分 `SUPPORTED` 与 `HEURISTIC_ONLY`、拦截第 4 轮 4 个对抗反例、前端白名单取消默认肯定）与 `P1-F03-C`（`obsidian_markdown` 全出口无条件重建）。本地 `ruff`/`mypy`/`ci_test_manifest verify` + `18 passed` 闭包测试 + 前端 `58/58` (`1280/1280`) 通过；远端 CI Run [`45771198334`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45771198334) **14/14 一次全绿**；本地 `8792` 服务运行于 `00bb495c`（HTTP `200`）。
-- **Phase 8（第 4 轮纯文档交付）**：交付 [`09_ROUND4_FINAL_CLOSURE_REPORT.md`](09_ROUND4_FINAL_CLOSURE_REPORT.md) 与本检查点形成纯文档 `DOCS_DELIVERY_SHA`（`git diff --stat 00bb495c..HEAD -- src frontend tests scripts .github` 为空）；严守 `R1 = HOLD`，绝不自动合并 `main`。
+- **Phase 8（第 4 轮纯文档交付）**：交付 [`09_ROUND4_FINAL_CLOSURE_REPORT.md`](09_ROUND4_FINAL_CLOSURE_REPORT.md) 与本检查点形成纯文档 `ad923685d707a5a4c1d5a6dfc686bc0b0501dd04`（远端 CI [`45773991265`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45773991265) `attempt = 1` · 14/14 `success`）。
+- **Phase 9（第 5 轮冻结门禁 `3/6` & `4/6` 精准收口）**：提交 **`0ad549b9ea20b0ef3492f576f2010a68e8eddf9a` (`VERIFIED_CODE_SHA`)** 关闭第 5 轮审查指出的两处精准逻辑缺口——收窄 `EXACT_SUPPORTED` 仅限同语种原子句确定性字面包含（严禁词法/概念重叠或跨语意译晋升 `SUPPORTED`）、`_sanitize_citation_note_with_grade()` 回传 `note_zh` 启发式评级、新增 `PARTIAL_PRUNED_HEURISTIC` 复合态避免裁剪与启发式警示互相覆盖、以及 `export_backup_snapshot()` 无条件对全部历史行（含已拒答与空引用行）重生成衍生 Markdown。本地 `ruff` / `mypy` / `ci_test_manifest verify`（`7399` 收集 / `7188` 可运行）+ 14 组后端核心套件 **`178 passed in 528.60s`** + 前端 **`58/58` 文件 (`1280/1280` 测试)** 一次全部通过；远端 CI Run [`45780647653`](https://github.com/huangbuqubunao-alt/intelligence/actions/runs/45780647653) `attempt = 1` **14/14 全绿**；本地 `8792` 服务已重启至 `0ad549b9`（HTTP `200`）。
+- **Phase 10（第 5 轮纯文档交付）**：交付 [`10_ROUND5_FINAL_CLOSURE_REPORT.md`](10_ROUND5_FINAL_CLOSURE_REPORT.md) 与本检查点形成最新纯文档 `DOCS_DELIVERY_SHA`（`git diff --stat 0ad549b9..HEAD -- src frontend tests scripts .github` 严格为空）；严守 `R1 = HOLD`，绝不自动合并 `main`。
