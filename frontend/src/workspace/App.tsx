@@ -78,6 +78,7 @@ import {
   WorkspaceVisualKeyframePanel,
   YouTubeAuthSettingsPanel,
   compareContentNewestFirst,
+  isEffectiveVideoShortNoise,
 } from "./WorkspaceAiWidgets";
 
 type Page =
@@ -1648,13 +1649,15 @@ function IntelligenceCard(
           <span className="tabular-nums">{humanDate(item.effective_published_at)}</span>
         ) : null}
       </div>
-      <section className="intelligence-section">
-        <h3>{t("Validation posture")}</h3>
+      <details className="validation-posture-disclosure">
+        <summary>
+          {zh ? "验证状态说明" : t("Validation posture")} · {t(intelligenceStateLabel(item.state))}
+        </summary>
         <p>{t(intelligenceValidationCopy(item.state ?? ""))}</p>
         <p className="hint">
           {t("This is a validation posture, not a numeric confidence score.")}
         </p>
-      </section>
+      </details>
       <Evidence item={item} onOpenContent={onOpenContent} />
       <div className="button-row">
         <button
@@ -2397,6 +2400,15 @@ function Dashboard(
       demo_mode?: boolean;
     }
   >("/dashboard", refresh, undefined, true, true);
+  const videosResp = useRemote<{ videos?: ContentItem[] }>(
+    "/videos?limit=24",
+    refresh,
+    undefined,
+    true,
+    true,
+  );
+  const [markedReadIds, setMarkedReadIds] = useState<string[]>([]);
+  const [triageBusyId, setTriageBusyId] = useState<string | null>(null);
   const isDemoMode = Boolean(data?.demo_mode);
   const [onboardingOverride, setOnboardingOverride] = useState<{ mode: boolean; done: boolean } | null>(null);
   const onboardingDone =
@@ -2555,6 +2567,150 @@ function Dashboard(
         </Panel>
       </div>
       <div className="home-side-rail">
+        {(() => {
+          const allVideos = Array.isArray(videosResp.data?.videos) ? videosResp.data.videos : [];
+          if (!allVideos.length) return null;
+          const readableVideos = allVideos.filter((v) => {
+            const brief = readVideoAiBrief(v.ai_brief, v.duration_seconds);
+            return !isEffectiveVideoShortNoise(v, brief);
+          });
+          if (!readableVideos.length) return null;
+          const markedSet = new Set(markedReadIds);
+          const unreadQueue = readableVideos
+            .filter((v) => {
+              if (markedSet.has(v.video_id)) return false;
+              const brief = readVideoAiBrief(v.ai_brief, v.duration_seconds);
+              return !brief?.is_read;
+            })
+            .sort((a, b) => {
+              const scoreA = readVideoAiBrief(a.ai_brief, a.duration_seconds)?.score ?? 0;
+              const scoreB = readVideoAiBrief(b.ai_brief, b.duration_seconds)?.score ?? 0;
+              if (scoreB !== scoreA) return scoreB - scoreA;
+              return compareContentNewestFirst(a, b);
+            });
+          const topQueue = unreadQueue.slice(0, 4);
+          const handleQuickRead = async (videoId: string) => {
+            if (triageBusyId) return;
+            setTriageBusyId(videoId);
+            setMarkedReadIds((prev) => (prev.includes(videoId) ? prev : [...prev, videoId]));
+            try {
+              await post(`/workspace-ai/videos/${encodeURIComponent(videoId)}/curation`, { is_read: true });
+              videosResp.reload();
+              reload();
+            } catch {
+              setMarkedReadIds((prev) => prev.filter((id) => id !== videoId));
+            } finally {
+              setTriageBusyId(null);
+            }
+          };
+          return (
+            <Panel
+              title={zh ? "高优待读队列" : "Priority Reading Queue"}
+              icon="play-circle"
+              className="home-triage-panel"
+            >
+              <div className="home-triage-summary tabular-nums">
+                <span>
+                  {unreadQueue.length > 0
+                    ? zh
+                      ? `已自动过滤短片噪音 · 还有 ${unreadQueue.length} 篇高信号内容待读`
+                      : `Shorts noise filtered · ${unreadQueue.length} high-signal items unread`
+                    : zh
+                      ? "本周高优内容已全部读完"
+                      : "All priority items caught up"}
+                </span>
+              </div>
+              {topQueue.length > 0 ? (
+                <>
+                  <ul className="home-triage-list">
+                    {topQueue.map((item) => {
+                      const brief = readVideoAiBrief(item.ai_brief, item.duration_seconds);
+                      const displayTitle = brief?.headline_zh || item.title || item.video_id;
+                      const sourceLabel =
+                        item.provider === "LOCAL"
+                          ? zh
+                            ? "本地"
+                            : "Local"
+                          : item.provider === "BILIBILI"
+                            ? `B站 · ${item.channel_name}`
+                            : item.channel_name;
+                      return (
+                        <li key={item.video_id} className="home-triage-row">
+                          <button
+                            type="button"
+                            className="home-triage-open"
+                            onClick={() => openContent(item.video_id)}
+                          >
+                            <div className="home-triage-meta">
+                              {brief ? (
+                                <AiScoreBadge brief={brief} compact />
+                              ) : null}
+                              <span className="home-triage-source">{sourceLabel}</span>
+                              {item.duration_seconds != null ? (
+                                <span className="home-triage-dur tabular-nums">
+                                  {formatHumanDuration(item.duration_seconds)}
+                                </span>
+                              ) : null}
+                            </div>
+                            <strong className="home-triage-title">{displayTitle}</strong>
+                          </button>
+                          <button
+                            type="button"
+                            className="button button-ghost button-small home-triage-done"
+                            disabled={triageBusyId === item.video_id}
+                            aria-label={
+                              zh
+                                ? `标已读：${displayTitle}`
+                                : `Mark read: ${displayTitle}`
+                            }
+                            onClick={() => void handleQuickRead(item.video_id)}
+                          >
+                            {zh ? "标已读" : "Done"}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <div className="button-row">
+                    <button
+                      type="button"
+                      className="button button-primary button-small"
+                      onClick={() => openContent(topQueue[0].video_id)}
+                    >
+                      {zh
+                        ? `开始连续速读 (${unreadQueue.length})`
+                        : `Start triage (${unreadQueue.length})`}
+                    </button>
+                    <button
+                      type="button"
+                      className="button button-ghost button-small"
+                      onClick={() => navigate("Content")}
+                    >
+                      {zh ? "全部内容" : "All Content"}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="button-row">
+                  <button
+                    type="button"
+                    className="button button-secondary button-small"
+                    onClick={() => navigate("Research")}
+                  >
+                    {zh ? "围绕已读跨视频提问" : "Ask across library"}
+                  </button>
+                  <button
+                    type="button"
+                    className="button button-ghost button-small"
+                    onClick={() => navigate("Content")}
+                  >
+                    {zh ? "回顾全部内容" : "Review Content"}
+                  </button>
+                </div>
+              )}
+            </Panel>
+          );
+        })()}
         <Panel title="Pinned Topics" icon="stack">
           {topics.length
             ? (

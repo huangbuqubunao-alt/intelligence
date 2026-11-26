@@ -1384,8 +1384,9 @@ def prepare_demo_showcase(
     # Use an advancing clock starting before demo videos during source setup
     # so enrolled observations satisfy published_at > followed_at invariants,
     # then a live UTC clock once interactive queries begin.
+    base_now = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
     live_mode = already_seeded and not reset
-    seed_base = _DEMO_BASE_NOW - timedelta(days=3)
+    seed_base = base_now - timedelta(days=3)
     seed_tick = [0]
 
     def runtime_now() -> datetime:
@@ -1431,9 +1432,10 @@ def prepare_demo_showcase(
             url=f"https://www.youtube.com/channel/{lab_ch}",
             processing_policy=ProcessingPolicy.STANDARD_INTELLIGENCE,
         )
-        observed_iso = (_DEMO_BASE_NOW + timedelta(hours=1)).strftime(
+        observed_iso = (base_now + timedelta(hours=1)).strftime(
             "%Y-%m-%dT%H:%M:%SZ"
         )
+        next_check_iso = (base_now + timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ")
         with repo._connect() as conn:
             conn.execute(
                 "UPDATE source_subscriptions SET display_name = ? WHERE source_id = ?",
@@ -1456,10 +1458,10 @@ def prepare_demo_showcase(
                         followed_iso,
                         observed_iso,
                         observed_iso,
-                        (_DEMO_BASE_NOW - timedelta(hours=6)).strftime(
+                        (base_now - timedelta(hours=6)).strftime(
                             "%Y-%m-%dT%H:%M:%SZ"
                         ),
-                        "2026-11-30T00:00:00Z",
+                        next_check_iso,
                     ),
                 )
             conn.commit()
@@ -1476,9 +1478,9 @@ def prepare_demo_showcase(
                 data_root,
                 source_id=sid,
                 spec=spec,
-                base_now=_DEMO_BASE_NOW,
+                base_now=base_now,
             )
-            pub_str = (_DEMO_BASE_NOW - timedelta(hours=spec.published_offset_hours)).strftime(
+            pub_str = (base_now - timedelta(hours=spec.published_offset_hours)).strftime(
                 "%Y-%m-%dT%H:%M:%SZ"
             )
             obs_rows.append(
@@ -1493,15 +1495,15 @@ def prepare_demo_showcase(
             )
             conn.commit()
 
-        seed_base = _DEMO_BASE_NOW
+        seed_base = base_now
         seed_tick[0] = 0
 
         # Import an authentic Bilibili educational video via BilibiliContentProvider
         bili_provider = BilibiliContentProvider(
             repo,
             data_root,
-            adapter=_DemoBilibiliAdapter(now=_DEMO_BASE_NOW - timedelta(hours=16)),
-            now=lambda: _DEMO_BASE_NOW - timedelta(hours=16),
+            adapter=_DemoBilibiliAdapter(now=base_now - timedelta(hours=16)),
+            now=lambda: base_now - timedelta(hours=16),
         )
         bili_res = bili_provider.import_input("https://www.bilibili.com/video/BV1DemoArch3/")
 

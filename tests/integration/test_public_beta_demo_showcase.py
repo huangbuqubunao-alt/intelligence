@@ -83,6 +83,13 @@ def test_demo_showcase_prepare_is_offline_and_populates_multi_source_hub(
     assert dash_body.get("workspace_weekly_brief") is not None
     assert len(cast(list[object], dash_body["pinned_topics"])) >= 2
 
+    delta_code, delta_body = app.handle("GET", "/api/v1/knowledge-delta")
+    assert delta_code == 200
+    delta = cast(dict[str, object], delta_body["knowledge_delta"])
+    assert delta["status"] == "available"
+    cats = cast(list[dict[str, object]], delta["categories"])
+    assert sum(int(c.get("count") or 0) for c in cats) >= 1
+
     res_code, res_body = app.handle("GET", "/api/v1/workspace-ai/research/sessions")
     assert res_code == 200
     seeded_sessions = cast(list[dict[str, object]], res_body["sessions"])

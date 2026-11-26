@@ -58,3 +58,49 @@
   2. 阅读器头部 10 按钮在移动端仍占满首屏、本地 `.md` 仍带 `YouTube`/`字幕` 文案、B 站作者筛选项误用视频标题（**Iteration 3 · `EVO-04`**）。
   3. 专题细节页的跨源共识/分歧真综合与新手引导重开/示例一键体验入口（**Iteration 4 · `EVO-05`**）。
 - **需要项目所有者决定的事项**：无阻塞决策。
+
+---
+
+## Iteration 2（`EVO-03`）：首页高优待读分诊流、精简验证态展示与动态 7 天知识变化
+
+- **提交分支**：`antigravity/autonomous-product-evolution-20261126`
+- **对应需求**：`EVO-03`（8.60 分，首页 Day-2 高信噪比回访分诊流 + 消除每卡大段验证态样板文字 + 唤醒 7 天动态知识变化窗）
+- **服务人群**：核心人群（AI 行业研究者 / 技术架构师）与次级人群（独立开发者、研究型 PM）
+
+### 1. 本轮获取的新证据与产品决策
+- **实机审计发现的 Day-2 留存断点**：
+  1. 首页 `#Home` 主体卡片底部每条都完整平铺大段「验证状态说明」文字，占满首屏视觉焦点却没有给“今天该先读哪几篇、哪些已读完”的直接行动入口；右侧栏下方留白明显（见基线截屏 `01_home_dark.png`、`02_home_light.png`）。
+  2. Demo 模式使用固定历史基线日期 `_DEMO_BASE_NOW`，导致首页「最近 7 天发生了什么变化？」在跨日期演示时统计退化为旧数据/空窗。
+- **决策依据 (`DEC-003`, `DEC-006`)**：在**完整保留 DOM 诚实声明语义**的前提下，将反复平铺的验证说明折叠为紧凑可展开的 `验证状态说明 · <状态>` 披露条，并在首页右栏 `Pinned Topics` 上方构建「**高优待读队列（Priority Reading Queue）**」（自动过滤 Shorts 噪音、按 AI 评分降序、支持单篇一键 `标已读` 与 `开始连续速读 (N)` 直达高优未读内容）；同时将 Demo 种子基准对齐实时当前整点 UTC 时钟，让 7 天增量动态鲜活。
+
+### 2. 实际改动内容
+1. **首页高优待读队列与紧凑验证披露 (`../../../frontend/src/workspace/App.tsx`, `../../../frontend/src/workspace/styles.css`)**：
+   - 并行拉取 `/videos?limit=24`，通过 `isEffectiveVideoShortNoise` 过滤低信噪比短视频噪音与已读条目，按 AI 评分排序展示 Top 4 高优未读内容（含评分徽章、来源/时长、一键 `标已读` 调用 `POST /workspace-ai/videos/:id/curation` `{ is_read: true }` 并乐观递减未读数）。
+   - 提供主 CTA **`开始连续速读 (N)` / `Start triage (N)`** 一键跳转首篇高优未读进入精读流。
+   - 将 `IntelligenceCard` 中的长段验证免责声明收敛进 `<details className="validation-posture-disclosure">`，保留可审计声明原文在 DOM 中且可按需展开。
+2. **Demo 动态当前 UTC 时钟基准 (`../../../src/youtube_intel/demo_showcase.py`, `../../../tests/integration/test_public_beta_demo_showcase.py`)**：
+   - 将 Demo 种子时间戳基线从固定硬编码日期替换为当前 UTC 整点（`datetime.now(UTC).replace(minute=0, second=0, microsecond=0)`），并新增集成断言验证 `/api/v1/knowledge-delta` 返回 `status == "available"` 且具备真实活跃分类计数。
+3. **新增前端回归单测 (`../../../frontend/src/workspace/EvolutionIter2.test.tsx`)**：
+   - 验证待读队列自动剔除 Shorts 噪音、一键 `标已读` 正确调用 `/workspace-ai/videos/:id/curation` 并更新未读计数、以及紧凑验证披露保留准确 DOM 文本。
+
+### 3. 优化前后真实实机体验对比
+
+| 场景 | 优化前（基线截图） | 优化后（本轮实机截图） | 实际体验提升 |
+|---|---|---|---|
+| **首页桌面端（Dark）** | ![基线 Home Dark](./screenshots/baseline/01_home_dark.png) | ![Iter 2 首页高优待读队列 Dark](./screenshots/iter-2/01_home_triage_dark.png) | 右栏填补留白出现 `高优待读队列 (5)` 与 `开始连续速读 (5)`，左栏卡片不再被大段免责文本撑胖 |
+| **首页桌面端（Warm Paper Light）** | ![基线 Home Light](./screenshots/baseline/02_home_light.png) | ![Iter 2 首页高优待读队列 Light](./screenshots/iter-2/02_home_triage_light.png) | 暖白纸张主题下待读队列评分徽章、分割线与按钮层级清晰和谐 |
+| **7 天变化窗与一键标已读** | 基线固定时间戳易过期 | ![Iter 2 7天变化与折叠说明](./screenshots/iter-2/03_home_delta_and_compact_posture.png) → ![Iter 2 标已读递减](./screenshots/iter-2/04_home_triage_after_mark_read.png) | `最近 7 天发生了什么变化？` 实时显示 `已完成内容: 2 · 新增洞察: 1 · 获得新材料的主题: 1`；点击 `标已读` 返回 `200 OK`，计数即时 `5 → 4` |
+| **390px 移动端首页** | ![基线 Home 390px](./screenshots/baseline/16_mobile_home_390.png) | ![Iter 2 Home 390px](./screenshots/iter-2/05_home_triage_mobile_390.png) | 390px 下单栏顺畅堆叠，待读队列与洞察卡零横向溢出（实测页面宽度 `379px <= 390px`） |
+
+### 4. 已完成自动化检查与实机验证证据
+- **后端全套门禁**：
+  - `.venv/bin/ruff check`、`mypy`（138 files）、`ci_test_manifest.py verify`（`total_collected=7400`）全通过。
+  - `PYTHONPATH=. .venv/bin/pytest tests/integration/test_public_beta_demo_showcase.py -q` → **7 passed in 67.68s**。
+- **前端全套门禁**：
+  - `npm run typecheck` → 通过；`npm run build` → `vite v5.4.19` 1.41s 构建成功。
+  - `npm test -- --run --poolOptions.forks.maxForks=4 --poolOptions.forks.minForks=2` → **60/60 test files, 1283/1283 tests passed**。
+- **真实 Chromium 实机验证**：在 `127.0.0.1:8799` 验证 Dark/Light/390px 视图、折叠说明展开、真实 `POST /api/v1/workspace-ai/videos/:id/curation -> 200 OK`、以及 `开始连续速读 (4)` 跳转 `#Content/vidDemoSol2`：**0 console errors、0 page errors、0 HTTP >=400**。
+
+### 5. 剩余风险与下一轮计划
+- **下一轮重点（Iteration 3 · `EVO-04`）**：解决深度阅读器 390px 首屏 10 按钮堆叠、本地 `.md` 误出 `YouTube`/字幕文案、B 站卡片与作者筛选项错用视频标题、以及英文界面按钮本地化残留。
+- **需要项目所有者决定的事项**：无阻塞决策。

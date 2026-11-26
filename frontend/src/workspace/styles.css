@@ -6001,3 +6001,113 @@ input[type="radio"] {
   flex: 1 1 260px;
 }
 
+.validation-posture-disclosure {
+  margin: 10px 0 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-subtle);
+  padding: 7px 11px;
+}
+
+.validation-posture-disclosure summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  list-style: none;
+}
+
+.validation-posture-disclosure summary::-webkit-details-marker {
+  display: none;
+}
+
+.validation-posture-disclosure summary::before {
+  content: "▸ ";
+  color: var(--accent-ink);
+}
+
+.validation-posture-disclosure[open] summary::before {
+  content: "▾ ";
+}
+
+.validation-posture-disclosure p {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  line-height: 1.48;
+}
+
+.home-triage-summary {
+  margin: -2px 0 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.home-triage-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.home-triage-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-subtle);
+  padding: 8px 10px;
+  transition: border-color var(--ease-out-fast), background-color var(--ease-out-fast);
+}
+
+.home-triage-row:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
+}
+
+.home-triage-open {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+
+.home-triage-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.home-triage-source {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 170px;
+}
+
+.home-triage-title {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--text-strong);
+}
+
+.home-triage-done {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
