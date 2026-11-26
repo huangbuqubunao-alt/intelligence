@@ -43,3 +43,19 @@
   - 验证加载 `assets/index-DIj2APOA.js`（`200 OK`）；**0 console errors、0 page errors、0 HTTP >=400**。
   - 从「一人公司与 AI 产品化」点击「对比共识与分歧 (2) →」跳转 `#Research`，准确锁定 2 篇视频并预填可编辑问题（`0` 次自动发请求）；点击「AI 提问」返回 `200 OK`（`answer_status: GROUNDED`, `refused: false`, **3 条跨源可点击验证引用 `[E1]`/`[E2]`/`[E5]`**）并展现 3 枚深挖胶囊；`390x844` Warm Paper Light 移动端标题自然全宽换行、`mobileOverflow: false`。
   - 实机截图归档：[Topic Compare CTA](./screenshots/iter-7/step_4_shot_1_iter7_topic_compare_cta.png)、[Research Handoff](./screenshots/iter-7/step_6_shot_1_iter7_research_handoff_dark.png)、[Grounded Followups](./screenshots/iter-7/step_10_shot_1_iter7_research_grounded_followups.png)、[Light Mobile 390px](./screenshots/iter-7/step_14_shot_1_iter7_research_light_mobile.png)。
+
+---
+
+## Iteration 8 (`EVO-W2-03`) — `#Content` 两级分诊工具栏与 `390x844` 移动端首屏上提
+
+- **解决的用户问题**：解决基线审计 `AUD-10`（`390x844` 手机端 `#Content` 顶部 6 行筛选器占满 `304.5px` 高度，将第 1 条内容推到 `y=578.59px` 的屏下边缘）。
+- **核心改动**：
+  1. [App.tsx](../../../frontend/src/workspace/App.tsx) (`ContentPage`)：将筛选栏重整为「高频分诊主栏 `.library-filter-primary`（搜索框 + 价值分流胶囊 + 移动端「筛选 (N)」开关按钮）」与「精细筛选次栏 `.library-filter-secondary`（频道 / 专题 / 平台来源 / 排序 / 批量标已读）」，并实时统计已启用的精细筛选项数。
+  2. [styles.css](../../../frontend/src/workspace/styles.css)：桌面端 (`>=769px`) 保持全量筛选器直接展开、隐藏移动端按钮；`<=768px` 移动端将搜索与「筛选」同行排列、价值分流胶囊转为单行横向滚动、次级筛选默认折叠按需展开。
+- **自动化验证**：
+  - 新增 [EvolutionIter8.test.tsx](../../../frontend/src/workspace/EvolutionIter8.test.tsx)（1 passed）。
+  - `npx tsc --noEmit --incremental false` 0 errors；`npm run build` (`1.25s`, `assets/index-BEv7z-hV.js`)；Vitest：**66/66 files, 1296/1296 passed**。
+- **Chromium 实机验证（`127.0.0.1:8799/#Content`）**：
+  - 验证加载 `assets/index-BEv7z-hV.js`（`200 OK`）；**0 console errors、0 page errors、0 HTTP >=400**。
+  - `390x844` Warm Paper Light 首屏筛选栏高度从 `304.5px` 降至 **`87.5px`（-71.3%）**，首条内容顶边从 `578.59px` 上提至 **`361.59px`（-217px，首屏完整可见近 3 条内容）**，`mobileOverflow: false`；展开/选择高分优先/收起正确保留 `筛选 (1)` 角标；桌面端 `1440x900` 保持 `87.5px / 228.40px`。
+  - 实机截图归档：[Content Desktop Dark](./screenshots/iter-8/step_4_shot_1_iter8_content_desktop_dark.png)、[Content Mobile Collapsed Light](./screenshots/iter-8/step_4_shot_2_iter8_content_mobile_collapsed_light.png)、[Content Mobile Expanded Dark](./screenshots/iter-8/step_10_shot_1_iter8_content_mobile_expanded_dark.png)。

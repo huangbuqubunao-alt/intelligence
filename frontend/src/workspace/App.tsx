@@ -4192,6 +4192,7 @@ function ContentPage(
     () => consumePendingContentChannel() || restoredContentRef.current?.channelFilter || "ALL",
   );
   const [contentSortMode, setContentSortMode] = useState<"newest" | "score">("newest");
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   if (latestFilterRef) {
     latestFilterRef.current = {
       searchQuery,
@@ -5458,51 +5459,81 @@ function ContentPage(
             </div>
           </section>
         )}
-        {(videos.length > manualPendingIds.size || hasActiveContentFilter) ? (
+        {(videos.length > manualPendingIds.size || hasActiveContentFilter) ? (() => {
+          const activeSecondaryFilterCount =
+            (channelFilter !== "ALL" ? 1 : 0) +
+            (topicFilter !== "ALL" ? 1 : 0) +
+            (providerFilter !== "ALL" ? 1 : 0) +
+            (contentSortMode !== "newest" ? 1 : 0);
+          const hasSecondaryControls = hasAiBriefs || hasMultiProviders;
+          return (
         <div className="library-filter-bar">
-          <div className="search-field-wrap">
-            <PhosphorIcon name="magnifying-glass" size={15} className="search-field-icon" />
-            <input
-              ref={searchInputRef}
-              type="search"
-              aria-label={t("Search Content library")}
-              placeholder={t("Filter by title or channel…")}
-              value={searchQuery}
-              onChange={event => setSearchQuery(event.target.value)}
-            />
-          </div>
-          {hasAiBriefs && (
-            <div
-              className="segmented library-bucket-chips"
-              role="group"
-              aria-label={language === "zh-CN" ? "内容价值分流" : "Value filter"}
-            >
-              {(
-                [
-                  ["ALL", language === "zh-CN" ? "全部" : "All"],
-                  ["UNREAD", language === "zh-CN" ? "未读干货" : "Unread"],
-                  ["MUST_WATCH", language === "zh-CN" ? "必看长视频" : "Must-watch"],
-                  ["STARRED", language === "zh-CN" ? "已收藏" : "Starred"],
-                  ["TUTORIAL", language === "zh-CN" ? "实操教程" : "Tutorials"],
-                  ["SHORTS", language === "zh-CN" ? "Shorts 短片" : "Shorts"],
-                ] as const
-              ).map(([key, label]) => (
-                <button
-                  key={key}
-                  type="button"
-                  aria-label={label}
-                  aria-pressed={bucketFilter === key}
-                  className={bucketFilter === key ? "active" : ""}
-                  onClick={() => setBucketFilter(key)}
-                >
-                  <span>{label}</span>
-                  <span className="bucket-count-badge tabular-nums" aria-hidden="true">
-                    {bucketCounts[key]}
-                  </span>
-                </button>
-              ))}
+          <div className="library-filter-primary">
+            <div className="search-field-wrap">
+              <PhosphorIcon name="magnifying-glass" size={15} className="search-field-icon" />
+              <input
+                ref={searchInputRef}
+                type="search"
+                aria-label={t("Search Content library")}
+                placeholder={t("Filter by title or channel…")}
+                value={searchQuery}
+                onChange={event => setSearchQuery(event.target.value)}
+              />
             </div>
-          )}
+            {hasSecondaryControls ? (
+              <button
+                type="button"
+                className={`button button-secondary button-small mobile-filter-toggle-btn tabular-nums${mobileFiltersOpen ? " is-open" : ""}`}
+                aria-expanded={mobileFiltersOpen}
+                onClick={() => setMobileFiltersOpen((open) => !open)}
+              >
+                <PhosphorIcon name="funnel" size={13} />
+                <span>
+                  {language === "zh-CN"
+                    ? activeSecondaryFilterCount > 0
+                      ? `筛选 (${activeSecondaryFilterCount})`
+                      : "筛选"
+                    : activeSecondaryFilterCount > 0
+                      ? `Filters (${activeSecondaryFilterCount})`
+                      : "Filters"}
+                </span>
+              </button>
+            ) : null}
+            {hasAiBriefs && (
+              <div
+                className="segmented library-bucket-chips"
+                role="group"
+                aria-label={language === "zh-CN" ? "内容价值分流" : "Value filter"}
+              >
+                {(
+                  [
+                    ["ALL", language === "zh-CN" ? "全部" : "All"],
+                    ["UNREAD", language === "zh-CN" ? "未读干货" : "Unread"],
+                    ["MUST_WATCH", language === "zh-CN" ? "必看长视频" : "Must-watch"],
+                    ["STARRED", language === "zh-CN" ? "已收藏" : "Starred"],
+                    ["TUTORIAL", language === "zh-CN" ? "实操教程" : "Tutorials"],
+                    ["SHORTS", language === "zh-CN" ? "Shorts 短片" : "Shorts"],
+                  ] as const
+                ).map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    aria-label={label}
+                    aria-pressed={bucketFilter === key}
+                    className={bucketFilter === key ? "active" : ""}
+                    onClick={() => setBucketFilter(key)}
+                  >
+                    <span>{label}</span>
+                    <span className="bucket-count-badge tabular-nums" aria-hidden="true">
+                      {bucketCounts[key]}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          {hasSecondaryControls ? (
+            <div className={`library-filter-secondary${mobileFiltersOpen ? " is-mobile-open" : ""}`}>
           {hasAiBriefs && (allChannelKeys.size > 1 || channelFilter !== "ALL") && (
             <select
               className="content-topic-select tabular-nums"
@@ -5651,8 +5682,11 @@ function ContentPage(
               ) : null}
             </div>
           ) : null}
+            </div>
+          ) : null}
         </div>
-        ) : null}
+          );
+        })() : null}
         {hasAiBriefs && hasActiveContentFilter && primaryVideos.length > 0 ? (
           <div
             className="content-active-filter-bar tabular-nums"
