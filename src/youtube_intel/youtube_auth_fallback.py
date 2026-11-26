@@ -610,6 +610,7 @@ class YouTubeAuthFallbackService:
                     )
                     """
                 )
+                migrated_at = format_utc_datetime(self._now())
                 conn.execute(
                     """
                     INSERT INTO youtube_auth_video_grants (
@@ -621,15 +622,27 @@ class YouTubeAuthFallbackService:
                         video_id,
                         auth_mode,
                         browser_name,
-                        CASE WHEN auth_mode = 'cookie_file' THEN 'global' ELSE '' END,
-                        CASE WHEN trim(consumed_at) != '' THEN 'CONSUMED' ELSE 'ACTIVE' END,
-                        CASE WHEN trim(consumed_at) != '' THEN 'CLEANED' ELSE 'NONE' END,
+                        '',
+                        CASE
+                            WHEN trim(consumed_at) != '' THEN 'CONSUMED'
+                            WHEN auth_mode = 'cookie_file' THEN 'REVOKED'
+                            ELSE 'ACTIVE'
+                        END,
+                        CASE
+                            WHEN trim(consumed_at) != '' THEN 'CLEANED'
+                            WHEN auth_mode = 'cookie_file' THEN 'CLEANED'
+                            ELSE 'NONE'
+                        END,
                         expires_at,
                         consumed_at,
-                        '',
+                        CASE
+                            WHEN trim(consumed_at) = '' AND auth_mode = 'cookie_file' THEN ?
+                            ELSE ''
+                        END,
                         created_at
                     FROM youtube_auth_video_grants_legacy
-                    """
+                    """,
+                    (migrated_at,),
                 )
                 conn.execute("DROP TABLE youtube_auth_video_grants_legacy")
         conn.execute(
@@ -805,7 +818,7 @@ class YouTubeAuthFallbackService:
         if mode == "browser" and browser not in SUPPORTED_AUTH_BROWSERS:
             return None
         cred_ref = str(row["credential_ref"] or "").strip() if mode == "cookie_file" else ""
-        if mode == "cookie_file" and not cred_ref:
+        if mode == "cookie_file" and not cred_ref.startswith("grant:"):
             return None
         return _AuthConfigRow(
             enabled=True,
@@ -831,13 +844,17 @@ class YouTubeAuthFallbackService:
         if has_grants is None:
             return None
         row = conn.execute(
-            "SELECT grant_id, auth_mode, browser_name, status, expires_at, created_at "
+            "SELECT grant_id, auth_mode, browser_name, credential_ref, status, expires_at, created_at "
             "FROM youtube_auth_video_grants "
             "WHERE video_id = ? AND status = 'ACTIVE' AND consumed_at = '' "
             "ORDER BY created_at DESC, rowid DESC LIMIT 1",
             (video_id,),
         ).fetchone()
         if row is None:
+            return None
+        if str(row["auth_mode"] or "") == "cookie_file" and not str(
+            row["credential_ref"] or ""
+        ).strip().startswith("grant:"):
             return None
         expires_dt = _parse_iso_utc(row["expires_at"])
         if expires_dt is None or expires_dt <= now:

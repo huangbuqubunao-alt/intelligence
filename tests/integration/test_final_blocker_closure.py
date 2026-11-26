@@ -480,7 +480,12 @@ def test_p1_f01_single_video_auth_real_http_to_worker_end_to_end(
                 "cookies_txt": SYNTHETIC_COOKIE_A,
             },
         )
-        _http_json(port, "POST", "/api/v1/workspace-ai/youtube-auth/disconnect", {})
+        _http_json(
+            port,
+            "POST",
+            "/api/v1/workspace-ai/youtube-auth/disconnect",
+            {"scope": "all", "confirm_all": True},
+        )
         clock["now"] = clock["now"] + timedelta(seconds=1)
         _http_json(
             port,
@@ -1119,3 +1124,248 @@ def test_p1_f03_unified_fact_support_counterexamples_note_zh_and_3state_trust(
     assert "99%" not in qa_md
     assert "实时多人协作" not in qa_md
     assert "source_integrity_status: \"VERIFIED\"" in qa_md
+
+
+def test_p1_f02_legacy_cookie_grant_migration_revoked_and_strict_disconnect_422(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Close P1-F02-A (active legacy cookie_file grant cannot reuse global) & P1-F02-B (no disconnect bypass)."""
+    monkeypatch.setattr("youtube_intel.providers.youtube._resolve_system_proxy_url", lambda: None)
+    monkeypatch.setattr("youtube_intel.providers.subtitles._resolve_system_proxy_url", lambda: None)
+    monkeypatch.setattr("youtube_intel.youtube_auth_fallback._resolve_system_proxy_url", lambda: None)
+    monkeypatch.setattr(
+        "urllib.request.OpenerDirector.open",
+        lambda _self, _req, timeout=None: _FakeHttpResponse(SYNTHETIC_VTT),
+    )
+
+    env = _build_runtime_env(tmp_path / "p1_f02_legacy_strict", monkeypatch)
+    db_path = env["project_root"] / ".workspace-ai" / "hub.sqlite3"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            """
+            CREATE TABLE youtube_auth_video_grants (
+                video_id TEXT PRIMARY KEY,
+                auth_mode TEXT NOT NULL,
+                browser_name TEXT NOT NULL DEFAULT '',
+                expires_at TEXT NOT NULL,
+                consumed_at TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            "INSERT INTO youtube_auth_video_grants (video_id, auth_mode, browser_name, expires_at, consumed_at, created_at) "
+            "VALUES ('vidLegCook1', 'cookie_file', '', '2026-11-26T02:00:00Z', '', '2026-11-26T01:00:00Z')"
+        )
+        conn.commit()
+
+    store = ScopedMemoryCookieStore()
+    external_calls: list[str] = []
+
+    def tracking_ydl(opts: dict[str, Any]) -> Any:
+        class _Track:
+            cookiejar = None
+
+            def __enter__(self) -> _Track:
+                return self
+
+            def __exit__(self, *_a: object) -> None:
+                return None
+
+            def extract_info(self, url: str, download: bool = False) -> dict[str, Any]:
+                del download
+                external_calls.append(url)
+                return {"subtitles": {"en": [{"ext": "vtt", "url": "https://example.invalid/vtt"}]}}
+
+        del opts
+        return _Track()
+
+    clock = {"now": BASE_NOW}
+    svc = YouTubeAuthFallbackService(
+        project_root=env["project_root"],
+        cookie_store=store,
+        ydl_factory=tracking_ydl,
+        now=lambda: clock["now"],
+    )
+
+    assert svc.get_status(video_id="vidLegCook1")["video_grant"] is None
+
+    # Migrated legacy active cookie_file grant is safely revoked with empty credential_ref
+    with sqlite3.connect(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT status, credential_ref, cleanup_state, revoked_at FROM youtube_auth_video_grants WHERE video_id='vidLegCook1'"
+        ).fetchone()
+        assert row is not None
+        assert row["status"] == "REVOKED"
+        assert row["credential_ref"] == ""
+        assert row["cleanup_state"] == "CLEANED"
+        assert str(row["revoked_at"]).strip() != ""
+
+    # Save global cookie B, then disable global fallback, and verify vidLegCook1 cannot borrow cookie B
+    cookie_b = "# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t1893456000\tSAPISID\tsynthetic-global-b\n"
+    svc.update_config({"enabled": True, "auth_mode": "cookie_file", "cookies_txt": cookie_b})
+    _seed_video_source(env["repo"], source_id="src-leg-1", video_id="vidLegCook1", now=clock["now"])
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("UPDATE youtube_auth_config SET enabled = 0 WHERE singleton_id = 1")
+        conn.commit()
+    err = svc.attempt_authenticated_ingest(env["runtime"], "src-leg-1", "vidLegCook1")
+    assert err == "YOUTUBE_AUTH_DISABLED"
+    assert external_calls == []
+    assert "synthetic-global-b" in (store.get_slot(GLOBAL_COOKIE_SLOT) or "")
+    svc.update_config({"enabled": True, "auth_mode": "cookie_file", "cookies_txt": cookie_b})
+
+    # Seed one active single-video grant alongside global auth, then test P1-F02-B disconnect validation
+    svc.update_config(
+        {
+            "enabled": True,
+            "grant_scope": "single_video",
+            "target_video_id": "vidDiscSafe",
+            "auth_mode": "cookie_file",
+            "cookies_txt": SYNTHETIC_COOKIE_A,
+        }
+    )
+    assert len(store.slots) == 2
+
+    fast_app = FastReadApiApplication(
+        env["raw_app"],
+        workspace_hub=env["hub"],
+        youtube_auth_fallback=svc,
+    )
+    for invalid_body in (
+        b"",
+        b"{}",
+        json.dumps({"unexpected": True}).encode("utf-8"),
+        json.dumps({"scope": "all"}).encode("utf-8"),
+        json.dumps({"scope": "all", "confirm_all": False}).encode("utf-8"),
+        json.dumps({"scope": "single_video"}).encode("utf-8"),
+    ):
+        status_code, _ = fast_app.handle(
+            "POST", "/api/v1/workspace-ai/youtube-auth/disconnect", invalid_body
+        )
+        assert status_code == HTTPStatus.UNPROCESSABLE_ENTITY, invalid_body
+    # Neither global nor single-video grant was revoked by invalid requests
+    assert svc.get_status(video_id="vidDiscSafe")["video_grant"] is not None
+    assert svc.get_status()["global_enabled"] is True
+    assert len(store.slots) == 2
+
+
+def test_p1_f03_round4_adversarial_overreach_heuristic_grade_and_markdown_rebuild(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Close P1-F03-A (4 new counterexamples + HEURISTIC_ONLY grading) & P1-F03-C (unconditional MD rebuild)."""
+    # 1. Exact 4 new counterexamples from Round 4 independent review must ALL reject!
+    new_fail_cases = [
+        (
+            "R4_patent_unmapped",
+            "公司已获得专利 [E1]。",
+            ["This document only discusses local text retrieval and indexing."],
+        ),
+        (
+            "R4_extra_realtime_collab",
+            "系统支持本地检索与实时多人协作 [E1]。",
+            ["系统支持本地检索。"],
+        ),
+        (
+            "R4_checkpoint_vs_zero_loss",
+            "系统保证零丢失 [E1]。",
+            ["The service creates checkpoints."],
+        ),
+        (
+            "R4_autonomous_vs_manual",
+            "AI 工作流能够自主执行任务 [E1]。",
+            ["A workflow includes manual steps."],
+        ),
+    ]
+    for name, claim, exs in new_fail_cases:
+        ok, code = _check_clause_against_cited_evidence(claim, exs)
+        assert not ok and code is not None, f"{name} unexpectedly passed!"
+
+    # 2. Genuine unmapped open-world or partial bilingual summary passes WITHOUT claiming SUPPORTED
+    def _completer(
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        mode: str,
+        provider: str,
+        model: str,
+        max_tokens: int = 1800,
+    ) -> tuple[dict[str, Any], str, str]:
+        del mode, max_tokens
+        if "RESEARCH_QA_SCHEMA" in system_prompt:
+            if "OPEN_WORLD" in user_prompt:
+                return (
+                    {
+                        "answerable": True,
+                        "answer_zh": "文中提到 WidgetX 模块机制 [E1]。",
+                        "key_takeaways_zh": [],
+                        "action_items_zh": [],
+                        "citations": [{"ref": "E1", "note_zh": "WidgetX"}],
+                    },
+                    provider,
+                    model,
+                )
+            if "PARTIAL_CROSS" in user_prompt:
+                return (
+                    {
+                        "answerable": True,
+                        "answer_zh": "综合本地文档段落，两者支持确定性状态落盘 [E1]。",
+                        "key_takeaways_zh": [],
+                        "action_items_zh": [],
+                        "citations": [{"ref": "E1", "note_zh": "WidgetX"}],
+                    },
+                    provider,
+                    model,
+                )
+        return _StubCompleter()(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            mode="local_ollama",
+            provider=provider,
+            model=model,
+        )
+
+    env = _build_env(tmp_path, monkeypatch, name="p1_f03_r4", completer=_StubCompleter(_completer))
+    hub: WorkspaceIntelligenceHub = env["hub"]
+    prov = LocalContentProvider(env["repo"], env["data_root"], now=lambda: BASE_NOW)
+    d_open = prov.import_bytes("widgetx.md", "WidgetX architecture description.".encode("utf-8"))
+    d_det = prov.import_bytes("det.md", "System ensures deterministic commits.".encode("utf-8"))
+
+    s_open = hub.ask_research_question({"question": "OPEN_WORLD WidgetX?", "video_ids": [d_open.content_id]})["session"]
+    assert s_open["refused"] is False
+    assert s_open["fact_verification_state"] == "HEURISTIC_ONLY"
+    assert "启发式相关性提示" in str(s_open["obsidian_markdown"])
+
+    s_part = hub.ask_research_question({"question": "PARTIAL_CROSS det?", "video_ids": [d_det.content_id]})["session"]
+    assert s_part["refused"] is False
+    assert s_part["fact_verification_state"] == "HEURISTIC_ONLY"
+
+    # 3. Stale obsidian_markdown in DB (while answer_zh & citations stay untouched) MUST rebuild across all exits!
+    with sqlite3.connect(hub.db_path) as conn:
+        conn.execute(
+            "UPDATE research_qa_sessions SET obsidian_markdown = ? WHERE session_id = ?",
+            (
+                "# Stale\n- **[E1]** [[stale]]：TAMPERED_LEGACY_POINT_ZH_999%\n",
+                s_open["session_id"],
+            ),
+        )
+        conn.commit()
+    with hub._evidence_verify_cache_lock:
+        hub._evidence_verify_cache.clear()
+
+    listed = {s["session_id"]: s for s in hub.list_research_sessions()["sessions"]}
+    assert "TAMPERED_LEGACY_POINT_ZH_999%" not in str(listed[s_open["session_id"]]["obsidian_markdown"])
+    assert "启发式相关性提示" in str(listed[s_open["session_id"]]["obsidian_markdown"])
+
+    snap = hub.export_backup_snapshot()
+    assert "TAMPERED_LEGACY_POINT_ZH_999%" not in json.dumps(snap, ensure_ascii=False)
+    hub.restore_backup_snapshot(snap)
+    _, zip_bytes, _, _ = hub.build_obsidian_vault_zip(scope="all")
+    with zipfile.ZipFile(io.BytesIO(zip_bytes), "r") as zf:
+        qa_md = "\n".join(
+            zf.read(n).decode("utf-8")
+            for n in zf.namelist()
+            if n.startswith("04-跨视频深度问答/") and n.endswith(".md")
+        )
+    assert "TAMPERED_LEGACY_POINT_ZH_999%" not in qa_md

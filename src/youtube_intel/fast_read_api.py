@@ -2470,17 +2470,13 @@ class FastReadApiApplication:
                 raise ApiError(HTTPStatus.NOT_FOUND, "NOT_FOUND", "Route was not found.")
             if route == "/api/v1/workspace-ai/youtube-auth/disconnect" and method == "POST":
                 data = self._inner._body(body) if body.strip() else {}
-                if not data:
-                    return HTTPStatus.OK, self._youtube_auth.disconnect(scope="all")
-                raw_scope = data.get("scope")
-                if raw_scope is None:
-                    return HTTPStatus.OK, self._youtube_auth.disconnect(scope="all")
+                raw_scope = data.get("scope") if isinstance(data, dict) else None
                 if not isinstance(raw_scope, str) or raw_scope.strip() not in {
                     "single_video",
                     "global",
                     "all",
                 }:
-                    raise ValueError("scope must be 'single_video', 'global', or 'all'")
+                    raise ValueError("scope is required and must be 'single_video', 'global', or 'all'")
                 scope = raw_scope.strip()
                 if scope == "all" and data.get("confirm_all") is not True:
                     raise ValueError("Revoking all authorizations requires confirm_all=true")

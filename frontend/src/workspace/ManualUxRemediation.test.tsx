@@ -1361,6 +1361,9 @@ describe("Manual UX Remediation (#1-#4)", () => {
                 session_id: "qa-1",
                 question: "测试跨视频回答？",
                 answer_status: "GROUNDED",
+                source_integrity_status: "VERIFIED",
+                fact_verification_state: "SUPPORTED",
+                action_items_advisory: true,
                 verified_citation_count: 1,
                 refused: false,
                 scope_label_zh: "全部候选资料",
@@ -1761,5 +1764,156 @@ describe("Manual UX Remediation (#1-#4)", () => {
     fireEvent.click(screen.getByRole("button", { name: "确认撤销全部授权" }));
     await waitFor(() => expect(disconnectCalls.length).toBe(2));
     expect(disconnectCalls[1]).toEqual({ scope: "all", confirm_all: true });
+  });
+
+  it("P1-F03-B: Research UI strictly uses explicit trust whitelists and never defaults unknown/heuristic states to supported", async () => {
+    const mkSession = (
+      id: string,
+      question: string,
+      overrides: Record<string, unknown>,
+    ) => ({
+      session_id: id,
+      question,
+      answer_status: "GROUNDED",
+      verified_citation_count: 1,
+      refused: false,
+      scope_label_zh: "全部候选资料",
+      covered_source_count: 1,
+      covered_sources: [
+        {
+          video_id: "v1",
+          title: "Video 1",
+          provider: "LOCAL",
+          channel_name: "本地",
+          locator_type: "TEXT_RANGE",
+        },
+      ],
+      pinned: false,
+      answer_zh: "结论一句 [E1]。",
+      key_takeaways_zh: [],
+      action_items_zh: [],
+      citations: [
+        {
+          video_id: "v1",
+          video_title: "Video 1",
+          channel_name: "本地",
+          evidence_id: "e1",
+          start_ms: null,
+          end_ms: null,
+          timestamp_label: "P1",
+          excerpt: "原文",
+          verified: true,
+        },
+      ],
+      obsidian_markdown: "# QA",
+      provider: "ollama",
+      model: "stub",
+      created_at: "2026-11-24T12:00:00Z",
+      ...overrides,
+    });
+
+    const cases: Array<{
+      label: string;
+      session: Record<string, unknown>;
+      expectIntegrity: string;
+      expectFact: string;
+      allowSupported: boolean;
+    }> = [
+      {
+        label: "SUPPORTED",
+        session: mkSession("s-sup", "支持问题？", {
+          source_integrity_status: "VERIFIED",
+          fact_verification_state: "SUPPORTED",
+        }),
+        expectIntegrity: "出处已核验",
+        expectFact: "结论已受证据支持",
+        allowSupported: true,
+      },
+      {
+        label: "HEURISTIC_ONLY",
+        session: mkSession("s-heu", "启发式问题？", {
+          source_integrity_status: "VERIFIED",
+          fact_verification_state: "HEURISTIC_ONLY",
+        }),
+        expectIntegrity: "出处已核验",
+        expectFact: "启发式相关 · 请核对原文",
+        allowSupported: false,
+      },
+      {
+        label: "UNSUPPORTED_CLAIM_UNVERIFIED",
+        session: mkSession("s-unv", "待核验问题？", {
+          source_integrity_status: "VERIFIED",
+          fact_verification_state: "UNSUPPORTED_CLAIM_UNVERIFIED",
+        }),
+        expectIntegrity: "出处已核验",
+        expectFact: "结论尚待核验",
+        allowSupported: false,
+      },
+      {
+        label: "UNKNOWN_MISSING",
+        session: mkSession("s-unk", "缺失未知状态问题？", {
+          source_integrity_status: "SOMETHING_UNEXPECTED",
+          fact_verification_state: undefined,
+        }),
+        expectIntegrity: "出处状态未知 · 请核对原文",
+        expectFact: "核验状态未知 · 请核对原文",
+        allowSupported: false,
+      },
+    ];
+
+    for (const item of cases) {
+      cleanup();
+      location.hash = "#Research";
+      const baseFetch = globalThis.fetch;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+          const url = String(input);
+          if (url.endsWith("/workspace-ai/research/sessions")) {
+            return okJson({
+              sessions: [item.session],
+              scope_options: {
+                starred_count: 0,
+                channels: [],
+                topic_clusters: [],
+                videos: [{ video_id: "v1", title: "Video 1", channel_name: "本地", score: 8.5 }],
+              },
+            });
+          }
+          if (url.endsWith("/workspace-ai/config") || url.endsWith("/settings")) {
+            return okJson({ ready: true });
+          }
+          if (url.endsWith("/workspace-ai/youtube-auth")) {
+            return okJson({
+              enabled: false,
+              global_enabled: false,
+              scope: "disabled",
+              active_single_video_grants: 0,
+              auth_mode: "disabled",
+              browser_name: "",
+              supported_browsers: ["chrome", "safari"],
+              cookie_configured: false,
+              daily_limit: 20,
+              used_today: 0,
+              cooldown_seconds: 0,
+              circuit_open: false,
+            });
+          }
+          return baseFetch
+            ? baseFetch(input, init)
+            : okJson({});
+        }),
+      );
+
+      render(<App />);
+      expect(await screen.findByText(item.expectIntegrity)).toBeTruthy();
+      expect(await screen.findByText(item.expectFact)).toBeTruthy();
+      if (!item.allowSupported) {
+        expect(screen.queryByText("结论已受证据支持")).toBeNull();
+      }
+      if (item.label === "UNKNOWN_MISSING") {
+        expect(screen.queryByText("出处已核验")).toBeNull();
+      }
+    }
   });
 });

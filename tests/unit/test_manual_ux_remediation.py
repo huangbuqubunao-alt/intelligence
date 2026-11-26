@@ -776,7 +776,11 @@ def test_workspace_ai_curated_downloads_cloud_test_and_routes(
     assert "sk-secret-cloud-key-999" not in serialized_backup
     assert "youtube_auth" not in serialized_backup
 
-    y_dis, y_dis_body = fast_app.handle("POST", "/api/v1/workspace-ai/youtube-auth/disconnect", b"{}")
+    y_dis, y_dis_body = fast_app.handle(
+        "POST",
+        "/api/v1/workspace-ai/youtube-auth/disconnect",
+        json.dumps({"scope": "global"}).encode("utf-8"),
+    )
     assert y_dis == HTTPStatus.OK and y_dis_body["enabled"] is False
 
 

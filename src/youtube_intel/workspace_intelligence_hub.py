@@ -1531,11 +1531,15 @@ _BILINGUAL_CONCEPT_GROUPS: tuple[tuple[str, str], ...] = (
     ("c:collab", r"(?:协作|协同|多人|\bcollab(?:oration|orate|orative)?\b|\bmultiplayer\b)"),
     ("c:realtime", r"(?:实时|\breal[- ]?time\b)"),
     ("c:document", r"(?:文档|文稿|文本|\bdocuments?\b|\btexts?\b|\blines?\b)"),
-    (
-        "c:deterministic",
-        r"(?:确定性|不变量|零丢失|\bdeterministic(?:ally)?\b|\binvariants?\b|\bguarantees?\b|\bcheckpoints?\b|\bzero[- ]?loss\b)",
-    ),
-    ("c:ai_workflow", r"(?:\bai\b|\bllm\b|大模型|智能体|工作流|\bagents?\b|\bworkflows?\b)"),
+    ("c:deterministic", r"(?:确定性|\bdeterministic(?:ally)?\b)"),
+    ("c:invariant", r"(?:不变量|\binvariants?\b|\bguarantees?\b)"),
+    ("c:zero_loss", r"(?:零丢失|\bzero[- ]?loss\b)"),
+    ("c:checkpoint", r"(?:检查点|\bcheckpoints?\b)"),
+    ("c:ai", r"(?:\bai\b|\bllm\b|大模型|人工智能|智能体|\bagents?\b)"),
+    ("c:workflow", r"(?:工作流|\bworkflows?\b)"),
+    ("c:autonomous", r"(?:自主(?:执行|运行|完成)?|全自动|\bautonomous(?:ly)?\b)"),
+    ("c:manual", r"(?:人工|手动|\bmanual(?:ly)?\b)"),
+    ("c:patent", r"(?:专利|\bpatents?\b)"),
     ("c:recovery", r"(?:恢复|还原|\brecover(?:y|ies|ed)?\b|\brestor(?:e|ed|ation)\b)"),
     ("c:security", r"(?:安全|隐私|脱敏|\bsecur(?:e|ity)\b|\bprivacy\b)"),
     ("c:auth", r"(?:授权|登录|认证|\bauth(?:oriz(?:e|ation)|enticat(?:e|ion))?\b|\blogin\b|\bcookies?\b)"),
@@ -1555,6 +1559,27 @@ _BILINGUAL_CONCEPT_GROUPS: tuple[tuple[str, str], ...] = (
 )
 _COMPILED_CONCEPTS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
     (tag, re.compile(pat, re.IGNORECASE)) for tag, pat in _BILINGUAL_CONCEPT_GROUPS
+)
+_OPPOSITE_CONCEPT_PAIRS: tuple[tuple[str, str], ...] = (("c:autonomous", "c:manual"),)
+_RELATED_CONCEPT_FAMILIES: tuple[frozenset[str], ...] = (
+    frozenset({"c:ai", "c:workflow"}),
+)
+_STRICT_SPECIFIC_CONCEPTS: frozenset[str] = frozenset(
+    {
+        "c:realtime",
+        "c:collab",
+        "c:zero_loss",
+        "c:autonomous",
+        "c:patent",
+        "c:revenue",
+        "c:profit",
+        "c:cost",
+        "c:price",
+        "c:temp",
+        "c:perf",
+        "c:security",
+        "c:auth",
+    }
 )
 
 
@@ -1727,17 +1752,21 @@ def _atomic_sentence_supports_claim(
     return True
 
 
-def _check_clause_against_cited_evidence(
+def _evaluate_clause_against_cited_evidence(
     clause: str,
     cited_excerpts: Sequence[str],
     *,
     check_domain_support: bool = True,
     session_excerpts: Sequence[str] | None = None,
-) -> tuple[bool, str | None]:
-    """Verify atomic fact-relation, unit/currency/date, entity, polarity & positive claim support."""
+) -> tuple[bool, str | None, str]:
+    """Verify atomic fact-relation, unit/currency/date, entity, polarity & support grade.
+
+    Returns ``(ok, error_code, grade)`` where ``grade`` is one of
+    ``EXACT_SUPPORTED``, ``HEURISTIC_ONLY``, or ``REJECTED``.
+    """
     excerpts = [str(e or "").strip() for e in cited_excerpts if str(e or "").strip()]
     if not excerpts:
-        return False, "NO_VERIFIED_CITATIONS"
+        return False, "NO_VERIFIED_CITATIONS", "REJECTED"
 
     ev_sentences: list[str] = []
     for exc in excerpts:
@@ -1751,11 +1780,46 @@ def _check_clause_against_cited_evidence(
     claim_concepts = _extract_concept_tags(clause)
     claim_entities = _extract_named_entities(clause)
     all_ev_anchors: set[str] = set()
+    all_ev_concepts: set[str] = set()
     for s in ev_sentences:
         all_ev_anchors.update(_extract_subject_metric_anchors(s))
+        all_ev_concepts.update(_extract_concept_tags(s))
+
+    # 0. Opposite-capability contradiction check (e.g. autonomous vs manual)
+    for tag_a, tag_b in _OPPOSITE_CONCEPT_PAIRS:
+        if (
+            tag_a in claim_concepts
+            and tag_b in all_ev_concepts
+            and tag_a not in all_ev_concepts
+        ) or (
+            tag_b in claim_concepts
+            and tag_a in all_ev_concepts
+            and tag_b not in all_ev_concepts
+        ):
+            return False, "CITATION_FACT_CONFLICT", "REJECTED"
+
+    clean_clause_probe = _E_REF_TOKEN_RE.sub(
+        " ", _E_REF_BRACKET_GROUP_RE.sub(" ", str(clause or ""))
+    )
+    claim_has_zh_probe = bool(re.search(r"[\u4e00-\u9fff]", clean_clause_probe))
+    ev_has_zh_probe = any(re.search(r"[\u4e00-\u9fff]", exc) for exc in excerpts)
+    claim_has_en_probe = len(re.findall(r"[A-Za-z]{3,}", clean_clause_probe)) >= 2
+    ev_has_en_probe = any(len(re.findall(r"[A-Za-z]{3,}", exc)) >= 2 for exc in excerpts)
+    ev_has_en_sentence_probe = any(
+        len(re.findall(r"[A-Za-z]{3,}", exc)) >= 4 for exc in excerpts
+    )
+    same_script_excerpts = (
+        claim_has_zh_probe
+        and ev_has_zh_probe
+        and not (ev_has_en_sentence_probe and not claim_has_en_probe)
+    ) or (claim_has_en_probe and not claim_has_zh_probe and ev_has_en_probe)
 
     # 1. Quantitative / identifier / date claims must be POSITIVELY supported by ONE atomic evidence sentence
     if claim_facts:
+        if check_domain_support and (
+            (claim_concepts & _STRICT_SPECIFIC_CONCEPTS) - all_ev_concepts
+        ):
+            return False, "CITATION_FACT_CONFLICT", "REJECTED"
         for ev_sent in ev_sentences:
             if _atomic_sentence_supports_claim(
                 claim_facts=claim_facts,
@@ -1767,8 +1831,15 @@ def _check_clause_against_cited_evidence(
                 all_ev_anchors=all_ev_anchors,
                 ev_sent=ev_sent,
             ):
-                return True, None
-        return False, "CITATION_FACT_CONFLICT"
+                if not check_domain_support:
+                    return True, None, "HEURISTIC_ONLY"
+                grade = (
+                    "EXACT_SUPPORTED"
+                    if (same_script_excerpts or (claim_concepts and claim_concepts <= all_ev_concepts))
+                    else "HEURISTIC_ONLY"
+                )
+                return True, None, grade
+        return False, "CITATION_FACT_CONFLICT", "REJECTED"
 
     # 2. Named-entity conflict & trend/negation checks on non-numeric claims
     if claim_entities:
@@ -1779,7 +1850,7 @@ def _check_clause_against_cited_evidence(
             if (kind, ident) not in all_ev_entities and any(
                 ek == kind and ei != ident for ek, ei in all_ev_entities
             ):
-                return False, "CITATION_FACT_CONFLICT"
+                return False, "CITATION_FACT_CONFLICT", "REJECTED"
 
     claim_terms = _polarity_content_terms(clause)
     if len(claim_terms) >= 2:
@@ -1792,69 +1863,109 @@ def _check_clause_against_cited_evidence(
                 ev_trends = [_extract_trend_direction(s) for s in matched_sents]
                 concrete_trends = [t for t in ev_trends if t is not None]
                 if concrete_trends and all(t != claim_trend for t in concrete_trends):
-                    return False, "CITATION_FACT_CONFLICT"
+                    return False, "CITATION_FACT_CONFLICT", "REJECTED"
             if all(_has_explicit_negation(s) != claim_neg for s in matched_sents):
-                return False, "CITATION_FACT_CONFLICT"
+                return False, "CITATION_FACT_CONFLICT", "REJECTED"
+
+    if not check_domain_support:
+        return True, None, "HEURISTIC_ONLY"
 
     # 3. Positive domain/concept/entity support guard (same-script AND concept-aligned cross-lingual)
-    if check_domain_support:
-        clean_clause = _E_REF_TOKEN_RE.sub(
-            " ", _E_REF_BRACKET_GROUP_RE.sub(" ", str(clause or ""))
+    pool_excerpts = list(excerpts)
+    if session_excerpts:
+        pool_excerpts.extend(
+            str(e or "").strip() for e in session_excerpts if str(e or "").strip()
         )
-        pool_excerpts = list(excerpts)
-        if session_excerpts:
-            pool_excerpts.extend(
-                str(e or "").strip() for e in session_excerpts if str(e or "").strip()
+    pool_sentences: list[str] = []
+    for exc in pool_excerpts:
+        parts = [s.strip() for s in re.split(r"[。！？!?；;，,\n]+", exc) if s.strip()]
+        pool_sentences.extend(parts if parts else [exc])
+
+    claim_has_zh = bool(re.search(r"[\u4e00-\u9fff]", clean_clause_probe))
+    ev_has_zh = any(re.search(r"[\u4e00-\u9fff]", exc) for exc in pool_excerpts)
+    claim_has_en = len(re.findall(r"[A-Za-z]{3,}", clean_clause_probe)) >= 2
+    ev_has_en = any(len(re.findall(r"[A-Za-z]{3,}", exc)) >= 2 for exc in pool_excerpts)
+    ev_has_en_sentence = any(
+        len(re.findall(r"[A-Za-z]{3,}", exc)) >= 4 for exc in pool_excerpts
+    )
+    same_script = (
+        claim_has_zh and ev_has_zh and not (ev_has_en_sentence and not claim_has_en)
+    ) or (claim_has_en and not claim_has_zh and ev_has_en)
+
+    claim_domain = _extract_domain_terms(
+        clause, include_metric_nouns=True, strip_meta=True, strip_glue=True
+    )
+    claim_support = claim_domain | claim_concepts
+    has_substantive_claim = bool(claim_concepts) or len(claim_domain) >= 2
+    if same_script:
+        pool_concepts: set[str] = set()
+        for s in pool_sentences:
+            pool_concepts.update(_extract_concept_tags(s))
+        if (claim_concepts & _STRICT_SPECIFIC_CONCEPTS) - pool_concepts:
+            return False, "UNSUPPORTED_CLAIM_UNVERIFIED", "REJECTED"
+        if not has_substantive_claim:
+            return True, None, "EXACT_SUPPORTED"
+        supported = False
+        best_domain_hits = 0
+        for s in pool_sentences:
+            ev_dom = _extract_domain_terms(
+                s, include_metric_nouns=True, strip_meta=True, strip_glue=True
             )
-        pool_sentences: list[str] = []
-        for exc in pool_excerpts:
-            parts = [s.strip() for s in re.split(r"[。！？!?；;，,\n]+", exc) if s.strip()]
-            pool_sentences.extend(parts if parts else [exc])
+            ev_support = ev_dom | _extract_concept_tags(s)
+            if claim_support & ev_support:
+                supported = True
+                best_domain_hits = max(best_domain_hits, len(claim_domain & ev_dom))
+        if not supported:
+            return False, "UNSUPPORTED_CLAIM_UNVERIFIED", "REJECTED"
+        if (claim_concepts and claim_concepts <= pool_concepts) or (
+            not claim_concepts and best_domain_hits >= min(2, len(claim_domain))
+        ):
+            return True, None, "EXACT_SUPPORTED"
+        return True, None, "HEURISTIC_ONLY"
 
-        claim_has_zh = bool(re.search(r"[\u4e00-\u9fff]", clean_clause))
-        ev_has_zh = any(re.search(r"[\u4e00-\u9fff]", exc) for exc in pool_excerpts)
-        claim_has_en = len(re.findall(r"[A-Za-z]{3,}", clean_clause)) >= 2
-        ev_has_en = any(len(re.findall(r"[A-Za-z]{3,}", exc)) >= 2 for exc in pool_excerpts)
-        ev_has_en_sentence = any(len(re.findall(r"[A-Za-z]{3,}", exc)) >= 4 for exc in pool_excerpts)
-        same_script = (
-            claim_has_zh and ev_has_zh and not (ev_has_en_sentence and not claim_has_en)
-        ) or (claim_has_en and not claim_has_zh and ev_has_en)
+    ev_concepts: set[str] = set()
+    ev_en: set[str] = set()
+    for s in pool_sentences:
+        ev_concepts.update(_extract_concept_tags(s))
+        for w in re.findall(r"[a-z]{3,}", _normalize_anchor_text(s)):
+            if w not in _GENERIC_STOPWORDS_EN:
+                ev_en.add(w[:5])
+    claim_en = {
+        w[:5]
+        for w in re.findall(r"[a-z]{3,}", _normalize_anchor_text(clause))
+        if w not in _GENERIC_STOPWORDS_EN
+    }
+    if ev_concepts and ((claim_concepts & _STRICT_SPECIFIC_CONCEPTS) - ev_concepts):
+        return False, "UNSUPPORTED_CLAIM_UNVERIFIED", "REJECTED"
+    overlap = (claim_concepts | claim_en) & (ev_concepts | ev_en)
+    family_related = any(
+        bool(claim_concepts & fam) and bool(ev_concepts & fam)
+        for fam in _RELATED_CONCEPT_FAMILIES
+    )
+    if not overlap:
+        if claim_concepts and ev_concepts and not family_related:
+            return False, "UNSUPPORTED_CLAIM_UNVERIFIED", "REJECTED"
+        return True, None, "HEURISTIC_ONLY"
+    if claim_concepts and claim_concepts <= ev_concepts:
+        return True, None, "EXACT_SUPPORTED"
+    return True, None, "HEURISTIC_ONLY"
 
-        claim_domain = _extract_domain_terms(
-            clause, include_metric_nouns=True, strip_meta=True, strip_glue=True
-        )
-        claim_support = claim_domain | claim_concepts
-        has_substantive_claim = bool(claim_concepts) or len(claim_domain) >= 2
-        if same_script:
-            if has_substantive_claim:
-                supported = False
-                for s in pool_sentences:
-                    ev_support = _extract_domain_terms(
-                        s, include_metric_nouns=True, strip_meta=True, strip_glue=True
-                    ) | _extract_concept_tags(s)
-                    if claim_support & ev_support:
-                        supported = True
-                        break
-                if not supported:
-                    return False, "UNSUPPORTED_CLAIM_UNVERIFIED"
-        else:
-            ev_concepts: set[str] = set()
-            ev_en: set[str] = set()
-            for s in pool_sentences:
-                ev_concepts.update(_extract_concept_tags(s))
-                for w in re.findall(r"[a-z]{3,}", _normalize_anchor_text(s)):
-                    if w not in _GENERIC_STOPWORDS_EN:
-                        ev_en.add(w[:5])
-            claim_en = {
-                w[:5]
-                for w in re.findall(r"[a-z]{3,}", _normalize_anchor_text(clause))
-                if w not in _GENERIC_STOPWORDS_EN
-            }
-            if claim_concepts and ev_concepts:
-                if not ((claim_concepts | claim_en) & (ev_concepts | ev_en)):
-                    return False, "UNSUPPORTED_CLAIM_UNVERIFIED"
 
-    return True, None
+def _check_clause_against_cited_evidence(
+    clause: str,
+    cited_excerpts: Sequence[str],
+    *,
+    check_domain_support: bool = True,
+    session_excerpts: Sequence[str] | None = None,
+) -> tuple[bool, str | None]:
+    """Verify atomic fact-relation, unit/currency/date, entity, polarity & positive claim support."""
+    ok, code, _ = _evaluate_clause_against_cited_evidence(
+        clause,
+        cited_excerpts,
+        check_domain_support=check_domain_support,
+        session_excerpts=session_excerpts,
+    )
+    return ok, code
 
 
 def _sanitize_citation_note(note_zh: str, excerpt: str) -> tuple[str, bool]:
@@ -1882,6 +1993,7 @@ def _prune_ungrounded_ref_clauses(
     require_valid_ref_per_sentence: bool = True,
     cited_excerpts: Mapping[str, str] | None = None,
     conflict_tracker: list[str] | None = None,
+    grade_tracker: list[str] | None = None,
     check_domain_support: bool = True,
     session_excerpts: Sequence[str] | None = None,
 ) -> str:
@@ -2022,13 +2134,15 @@ def _prune_ungrounded_ref_clauses(
                     for num in _extract_e_ref_nums(sub_probe)
                     if f"E{num}" in cited_excerpts
                 ]
-                ok_sub, conflict_sub = _check_clause_against_cited_evidence(
+                ok_sub, conflict_sub, grade_sub = _evaluate_clause_against_cited_evidence(
                     sub_probe,
                     clause_ref_texts,
                     check_domain_support=check_domain_support,
                     session_excerpts=session_excerpts,
                 )
                 if ok_sub:
+                    if grade_tracker is not None:
+                        grade_tracker.append(grade_sub)
                     checked_subs.extend(pending_prefix)
                     checked_subs.append((s_txt, s_sep))
                 else:
@@ -2046,13 +2160,15 @@ def _prune_ungrounded_ref_clauses(
                         for num in pending_refs
                         if f"E{num}" in cited_excerpts
                     ]
-                    ok_pend, conflict_pend = _check_clause_against_cited_evidence(
+                    ok_pend, conflict_pend, grade_pend = _evaluate_clause_against_cited_evidence(
                         pending_probe,
                         pending_ref_texts,
                         check_domain_support=check_domain_support,
                         session_excerpts=session_excerpts,
                     )
                     if ok_pend:
+                        if grade_tracker is not None:
+                            grade_tracker.append(grade_pend)
                         checked_subs.extend(pending_prefix)
                     elif conflict_tracker is not None and conflict_pend:
                         conflict_tracker.append(conflict_pend)
@@ -2078,7 +2194,7 @@ def _prune_ungrounded_ref_clauses(
                 for num in _extract_e_ref_nums(c_txt)
                 if f"E{num}" in cited_excerpts
             ]
-            ok_consistent, conflict_code = _check_clause_against_cited_evidence(
+            ok_consistent, conflict_code, grade_consistent = _evaluate_clause_against_cited_evidence(
                 c_txt,
                 clause_ref_texts,
                 check_domain_support=check_domain_support,
@@ -2088,6 +2204,8 @@ def _prune_ungrounded_ref_clauses(
                 if conflict_tracker is not None and conflict_code:
                     conflict_tracker.append(conflict_code)
                 continue
+            if grade_tracker is not None:
+                grade_tracker.append(grade_consistent)
             verified_kept.append((c_txt, c_delim))
         kept_clauses = verified_kept
 
@@ -2127,6 +2245,7 @@ def _filter_ungrounded_items(
     *,
     cited_excerpts: Mapping[str, str] | None = None,
     conflict_tracker: list[str] | None = None,
+    grade_tracker: list[str] | None = None,
     check_domain_support: bool = True,
     session_excerpts: Sequence[str] | None = None,
 ) -> list[str]:
@@ -2145,6 +2264,7 @@ def _filter_ungrounded_items(
                     require_valid_ref_per_sentence=True,
                     cited_excerpts=cited_excerpts,
                     conflict_tracker=conflict_tracker,
+                    grade_tracker=grade_tracker,
                     check_domain_support=check_domain_support,
                     session_excerpts=session_excerpts,
                 )
@@ -2159,6 +2279,7 @@ def _filter_ungrounded_items(
                 require_valid_ref_per_sentence=True,
                 cited_excerpts=cited_excerpts,
                 conflict_tracker=conflict_tracker,
+                grade_tracker=grade_tracker,
                 check_domain_support=check_domain_support,
                 session_excerpts=session_excerpts,
             )
@@ -8546,12 +8667,14 @@ class WorkspaceIntelligenceHub:
             refusal_reason_zh = ""
             related_excerpts = []
             extra_conflicts: list[str] = []
+            fact_grades: list[str] = []
             answer_zh = _prune_ungrounded_ref_clauses(
                 answer_zh,
                 valid_labels,
                 require_valid_ref_per_sentence=True,
                 cited_excerpts=candidate_excerpts,
                 conflict_tracker=extra_conflicts,
+                grade_tracker=fact_grades,
                 session_excerpts=cited_session_excerpts,
             ).strip()
             takeaways = _filter_ungrounded_items(
@@ -8559,6 +8682,7 @@ class WorkspaceIntelligenceHub:
                 valid_labels,
                 cited_excerpts=candidate_excerpts,
                 conflict_tracker=extra_conflicts,
+                grade_tracker=fact_grades,
                 session_excerpts=cited_session_excerpts,
             )
             actions = _filter_ungrounded_items(
@@ -8597,6 +8721,8 @@ class WorkspaceIntelligenceHub:
                 if note_pruned_count > 0:
                     scope_meta["note_pruned_count"] = note_pruned_count
                 scope_meta["fact_verification_state"] = "PARTIAL_PRUNED"
+            elif "HEURISTIC_ONLY" in fact_grades or not fact_grades:
+                scope_meta["fact_verification_state"] = "HEURISTIC_ONLY"
             else:
                 scope_meta["fact_verification_state"] = "SUPPORTED"
 
@@ -8779,6 +8905,13 @@ class WorkspaceIntelligenceHub:
             md_lines.extend(
                 [
                     "> [!WARNING] 待核验（备份恢复问答）：部分或全部引用出处尚未通过当前主库权威核验，未核验原话摘录已隐藏，请重新核对原文或重新发起提问。",
+                    "",
+                ]
+            )
+        elif not refused and resolved_fact_state == "HEURISTIC_ONLY":
+            md_lines.extend(
+                [
+                    "> [!NOTE] 启发式相关性提示：本回答引用的出处已通过主库核验，但部分跨语种或概括性表述仅通过启发式相关性检查，请结合下方原始摘录核对细节。",
                     "",
                 ]
             )
@@ -9001,9 +9134,6 @@ class WorkspaceIntelligenceHub:
                     )
         if "related_excerpts" in parsed_scope or related_excerpts:
             parsed_scope["related_excerpts"] = related_excerpts
-        has_unverified_related = any(
-            not bool(c.get("verified")) for c in related_excerpts
-        )
         raw_covered = parsed_scope.get("covered_sources")
         covered_sources = raw_covered if isinstance(raw_covered, list) else []
         covered_source_count = (
@@ -9015,13 +9145,7 @@ class WorkspaceIntelligenceHub:
         answer_str = str(row["answer_zh"])
         takeaways_list = json.loads(str(row["key_takeaways_json"]))
         actions_list = json.loads(str(row["action_items_json"]))
-        sanitized_changed = False
         if refused:
-            orig_answer = answer_str
-            orig_reason = refusal_reason_zh
-            orig_takeaways = list(takeaways_list) if isinstance(takeaways_list, list) else []
-            orig_actions = list(actions_list) if isinstance(actions_list, list) else []
-            orig_cites = list(citations)
             code, refusal_reason_zh = _resolve_refusal_reason(
                 parsed_scope.get("refusal_reason_code")
             )
@@ -9032,13 +9156,6 @@ class WorkspaceIntelligenceHub:
             verified_citation_count = 0
             takeaways_list = []
             actions_list = []
-            sanitized_changed = (
-                answer_str != orig_answer
-                or refusal_reason_zh != orig_reason
-                or bool(orig_takeaways)
-                or bool(orig_actions)
-                or bool(orig_cites)
-            )
         elif answer_status == "GROUNDED":
             valid_ref_excerpts = {
                 str(c.get("ref_label") or c.get("ref") or "").strip().upper(): str(
@@ -9051,7 +9168,7 @@ class WorkspaceIntelligenceHub:
             }
             valid_ref_labels = set(valid_ref_excerpts.keys())
             hist_conflicts: list[str] = []
-            orig_answer = answer_str
+            hist_grades: list[str] = []
             orig_takeaways = list(takeaways_list) if isinstance(takeaways_list, list) else []
             orig_actions = list(actions_list) if isinstance(actions_list, list) else []
             answer_str = _prune_ungrounded_ref_clauses(
@@ -9060,6 +9177,7 @@ class WorkspaceIntelligenceHub:
                 require_valid_ref_per_sentence=True,
                 cited_excerpts=valid_ref_excerpts,
                 conflict_tracker=hist_conflicts,
+                grade_tracker=hist_grades,
                 session_excerpts=list(valid_ref_excerpts.values()),
             )
             takeaways_list = _filter_ungrounded_items(
@@ -9067,6 +9185,7 @@ class WorkspaceIntelligenceHub:
                 valid_ref_labels,
                 cited_excerpts=valid_ref_excerpts,
                 conflict_tracker=hist_conflicts,
+                grade_tracker=hist_grades,
                 session_excerpts=list(valid_ref_excerpts.values()),
             )
             actions_list = _filter_ungrounded_items(
@@ -9092,15 +9211,10 @@ class WorkspaceIntelligenceHub:
                 if hist_conflicts:
                     parsed_scope["pruned_reasons"] = sorted(set(hist_conflicts))
                 parsed_scope["fact_verification_state"] = "PARTIAL_PRUNED"
-            sanitized_changed = (
-                note_pruned_hist
-                or answer_str != orig_answer
-                or takeaways_list != orig_takeaways
-                or actions_list != orig_actions
-                or answer_status != raw_answer_status
-            )
-        elif note_pruned_hist:
-            sanitized_changed = True
+            elif "HEURISTIC_ONLY" in hist_grades or not hist_grades:
+                parsed_scope["fact_verification_state"] = "HEURISTIC_ONLY"
+            else:
+                parsed_scope["fact_verification_state"] = "SUPPORTED"
         source_integrity_status = (
             "REFUSED"
             if refused
@@ -9111,7 +9225,7 @@ class WorkspaceIntelligenceHub:
             or (
                 parsed_scope.get("refusal_reason_code") or "NO_VERIFIED_CITATIONS"
                 if refused
-                else ("NEEDS_REVERIFICATION" if answer_status == "NEEDS_REVERIFICATION" else "SUPPORTED")
+                else ("NEEDS_REVERIFICATION" if answer_status == "NEEDS_REVERIFICATION" else "HEURISTIC_ONLY")
             )
         )
         parsed_scope["source_integrity_status"] = source_integrity_status
@@ -9120,33 +9234,25 @@ class WorkspaceIntelligenceHub:
         provider_str = str(row["provider"])
         model_str = str(row["model"])
         created_at_str = str(row["created_at"])
-        obsidian_md = str(row["obsidian_markdown"])
-        if (
-            refused
-            or answer_status == "NEEDS_REVERIFICATION"
-            or bool(parsed_scope.get("restored_from_backup"))
-            or has_unverified_related
-            or sanitized_changed
-        ):
-            obsidian_md = self._build_research_session_obsidian_markdown(
-                question=question_str,
-                created_at=created_at_str,
-                provider_label=provider_str,
-                model_label=model_str,
-                answer_status=answer_status,
-                refused=refused,
-                answer_zh=answer_str,
-                takeaways=takeaways_list if isinstance(takeaways_list, list) else [],
-                actions=actions_list if isinstance(actions_list, list) else [],
-                citations=citations,
-                related_excerpts=related_excerpts,
-                covered_sources=[
-                    c for c in covered_sources if isinstance(c, Mapping)
-                ],
-                scope_label_zh=scope_label_zh,
-                source_integrity_status=source_integrity_status,
-                fact_verification_state=fact_verification_state,
-            )
+        obsidian_md = self._build_research_session_obsidian_markdown(
+            question=question_str,
+            created_at=created_at_str,
+            provider_label=provider_str,
+            model_label=model_str,
+            answer_status=answer_status,
+            refused=refused,
+            answer_zh=answer_str,
+            takeaways=takeaways_list if isinstance(takeaways_list, list) else [],
+            actions=actions_list if isinstance(actions_list, list) else [],
+            citations=citations,
+            related_excerpts=related_excerpts,
+            covered_sources=[
+                c for c in covered_sources if isinstance(c, Mapping)
+            ],
+            scope_label_zh=scope_label_zh,
+            source_integrity_status=source_integrity_status,
+            fact_verification_state=fact_verification_state,
+        )
         return {
             "session_id": str(row["session_id"]),
             "question": question_str,
@@ -11024,23 +11130,11 @@ class WorkspaceIntelligenceHub:
                     except ValueError:
                         exp_scope = {}
                     exp_scope["archive_status"] = "EXPORTED_SNAPSHOT_UNVERIFIED_UNTIL_RESTORE"
-                    note_dirty = False
                     try:
                         cites_raw = json.loads(str(s_row.get("citations_json") or "[]"))
                     except ValueError:
                         cites_raw = []
-                    if isinstance(cites_raw, list):
-                        for cite in cites_raw:
-                            if isinstance(cite, dict):
-                                orig_note = str(cite.get("note_zh") or "").strip()
-                                if orig_note:
-                                    safe_note, was_pruned = _sanitize_citation_note(
-                                        orig_note, str(cite.get("excerpt") or "")
-                                    )
-                                    if was_pruned:
-                                        cite["note_zh"] = safe_note
-                                        note_dirty = True
-                    if note_dirty:
+                    if isinstance(cites_raw, list) and cites_raw:
                         verified_dto = self._row_to_research_session_dto(row)
                         s_row["citations_json"] = json.dumps(
                             verified_dto["citations"], ensure_ascii=False
@@ -11050,7 +11144,7 @@ class WorkspaceIntelligenceHub:
                             "source_integrity_status", "VERIFIED"
                         )
                         exp_scope["fact_verification_state"] = verified_dto.get(
-                            "fact_verification_state", "PARTIAL_PRUNED"
+                            "fact_verification_state", "HEURISTIC_ONLY"
                         )
                     s_row["scope_json"] = json.dumps(exp_scope, ensure_ascii=False)
                     sessions.append(s_row)

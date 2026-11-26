@@ -4293,24 +4293,53 @@ export function WorkspaceAiResearchPanel({
               </span>
             ) : (
               <>
-                <span className="ai-basis-pill">
-                  {activeSession.source_integrity_status === "NEEDS_REVERIFICATION"
-                    ? zh
-                      ? "出处待核验"
-                      : "Source needs re-verification"
-                    : zh
-                      ? "出处已核验"
-                      : "Source verified"}
-                </span>
-                <span className="ai-basis-pill">
-                  {activeSession.fact_verification_state === "PARTIAL_PRUNED"
-                    ? zh
-                      ? "部分未支持内容已裁剪"
-                      : "Unsupported parts pruned"
-                    : zh
-                      ? "结论已受证据支持"
-                      : "Claims supported"}
-                </span>
+                {activeSession.source_integrity_status === "VERIFIED" ? (
+                  <span className="ai-basis-pill">
+                    {zh ? "出处已核验" : "Source verified"}
+                  </span>
+                ) : activeSession.source_integrity_status === "NEEDS_REVERIFICATION" ? (
+                  <span className="status status-warning">
+                    {zh ? "出处待核验" : "Source needs re-verification"}
+                  </span>
+                ) : activeSession.source_integrity_status === "REFUSED" ? (
+                  <span className="status status-warning">
+                    {zh ? "已拒答" : "Refused"}
+                  </span>
+                ) : (
+                  <span className="status status-warning">
+                    {zh ? "出处状态未知 · 请核对原文" : "Source status unknown"}
+                  </span>
+                )}
+                {activeSession.fact_verification_state === "SUPPORTED" ? (
+                  <span className="ai-basis-pill">
+                    {zh ? "结论已受证据支持" : "Claims supported"}
+                  </span>
+                ) : activeSession.fact_verification_state === "PARTIAL_PRUNED" ? (
+                  <span className="ai-basis-pill">
+                    {zh ? "部分未支持内容已裁剪" : "Unsupported parts pruned"}
+                  </span>
+                ) : activeSession.fact_verification_state === "HEURISTIC_ONLY" ? (
+                  <span className="status status-warning">
+                    {zh ? "启发式相关 · 请核对原文" : "Heuristic match · Verify source"}
+                  </span>
+                ) : activeSession.fact_verification_state === "UNSUPPORTED_CLAIM_UNVERIFIED" ? (
+                  <span className="status status-warning">
+                    {zh ? "结论尚待核验" : "Claims unverified"}
+                  </span>
+                ) : activeSession.fact_verification_state === "NEEDS_REVERIFICATION" ? (
+                  <span className="status status-warning">
+                    {zh ? "需要重新核验" : "Needs re-verification"}
+                  </span>
+                ) : activeSession.fact_verification_state === "CITATION_FACT_CONFLICT" ||
+                  activeSession.fact_verification_state === "NO_VERIFIED_CITATIONS" ? (
+                  <span className="status status-warning">
+                    {zh ? "事实核验未通过" : "Fact verification failed"}
+                  </span>
+                ) : (
+                  <span className="status status-warning">
+                    {zh ? "核验状态未知 · 请核对原文" : "Verification status unknown"}
+                  </span>
+                )}
               </>
             )}
             {activeSession.scope_label_zh ? (
