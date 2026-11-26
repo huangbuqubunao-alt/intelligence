@@ -1067,7 +1067,8 @@ def test_p1_f03_unified_fact_support_counterexamples_note_zh_and_3state_trust(
     )["session"]
     assert s_smuggle["answer_status"] == "GROUNDED"
     assert s_smuggle["source_integrity_status"] == "VERIFIED"
-    assert s_smuggle["fact_verification_state"] == "PARTIAL_PRUNED"
+    assert s_smuggle["fact_verification_state"] == "PARTIAL_PRUNED_HEURISTIC"
+    assert s_smuggle["contains_heuristic_claims"] is True
     assert s_smuggle["action_items_advisory"] is True
     assert s_smuggle["citations"][0]["note_zh"] == ""
     assert "300%" not in str(s_smuggle["obsidian_markdown"])
@@ -1403,10 +1404,21 @@ def test_round5_strict_heuristic_grading_note_propagation_composite_state_and_ze
     assert ok_exact_zh and code_exact_zh is None and grade_exact_zh == "EXACT_SUPPORTED"
 
     ok_exact_num, code_exact_num, grade_exact_num = _evaluate_clause_against_cited_evidence(
-        "2025年公司营收增长 5% [E1]。",
+        "2025年公司营收同比增长 5% [E1]。",
         ["2025年公司收入同比增长 5%。"],
     )
     assert ok_exact_num and code_exact_num is None and grade_exact_num == "EXACT_SUPPORTED"
+
+    # Qualifier contrasts (YoY vs MoM / dropped qualifier / approx '约') must NEVER reach EXACT_SUPPORTED
+    for claim_q, ev_q in (
+        ("公司收入环比增长 5% [E1]。", "公司收入同比增长 5%。"),
+        ("公司收入同比增长 5% [E1]。", "公司收入环比增长 5%。"),
+        ("2025年公司营收增长 5% [E1]。", "2025年公司收入同比增长 5%。"),
+        ("2025年公司收入同比增长 5% [E1]。", "2025年公司收入增长 5%。"),
+        ("产品售价 50 美元 [E1]。", "产品售价约 50 美元。"),
+    ):
+        ok_q, code_q, grade_q = _evaluate_clause_against_cited_evidence(claim_q, [ev_q])
+        assert ok_q and code_q is None and grade_q == "HEURISTIC_ONLY", (claim_q, ev_q, grade_q)
 
     payload_by_tag: dict[str, dict[str, Any]] = {
         "R5_EXACT_SUPPORTED": {
@@ -1415,6 +1427,20 @@ def test_round5_strict_heuristic_grading_note_propagation_composite_state_and_ze
             "key_takeaways_zh": ["公司正在申请专利 [E1]"],
             "action_items_zh": [],
             "citations": [{"ref": "E1", "note_zh": "公司正在申请专利"}],
+        },
+        "R6_YOY_EXACT": {
+            "answerable": True,
+            "answer_zh": "2025年公司营收同比增长 5% [E1]。",
+            "key_takeaways_zh": [],
+            "action_items_zh": [],
+            "citations": [{"ref": "E1", "note_zh": "2025年公司收入同比增长 5%"}],
+        },
+        "R6_YOY_VS_MOM": {
+            "answerable": True,
+            "answer_zh": "2025年公司收入环比增长 5% [E1]。",
+            "key_takeaways_zh": [],
+            "action_items_zh": [],
+            "citations": [{"ref": "E1", "note_zh": "2025年公司收入环比增长 5%"}],
         },
         "R5_NOTE_HEURISTIC": {
             "answerable": True,
@@ -1466,11 +1492,22 @@ def test_round5_strict_heuristic_grading_note_propagation_composite_state_and_ze
     hub: WorkspaceIntelligenceHub = env["hub"]
     prov = LocalContentProvider(env["repo"], env["data_root"], now=lambda: BASE_NOW)
     d_pat = prov.import_bytes("patent_app.md", "公司正在申请专利。".encode("utf-8"))
+    d_yoy = prov.import_bytes("rev_yoy.md", "2025年公司收入同比增长 5%。".encode("utf-8"))
 
-    # 2. Exact verbatim match -> SUPPORTED
+    # 2. Exact verbatim match -> SUPPORTED (including exact YoY + '营收' <-> '收入')
     s_exact = hub.ask_research_question({"question": "R5_EXACT_SUPPORTED 进展？", "video_ids": [d_pat.content_id]})["session"]
     assert s_exact["fact_verification_state"] == "SUPPORTED"
     assert s_exact["contains_heuristic_claims"] is False
+
+    s_yoy_exact = hub.ask_research_question({"question": "R6_YOY_EXACT 营收同比？", "video_ids": [d_yoy.content_id]})["session"]
+    assert s_yoy_exact["fact_verification_state"] == "SUPPORTED"
+    assert s_yoy_exact["contains_heuristic_claims"] is False
+
+    s_yoy_mom = hub.ask_research_question({"question": "R6_YOY_VS_MOM 营收环比？", "video_ids": [d_yoy.content_id]})["session"]
+    assert s_yoy_mom["answer_status"] == "GROUNDED"
+    assert s_yoy_mom["fact_verification_state"] == "HEURISTIC_ONLY"
+    assert s_yoy_mom["contains_heuristic_claims"] is True
+    assert "启发式相关性提示" in str(s_yoy_mom["obsidian_markdown"])
 
     # 3. Verbatim answer_zh + HEURISTIC_ONLY citation note_zh -> propagates HEURISTIC_ONLY everywhere!
     s_note_heur = hub.ask_research_question({"question": "R5_NOTE_HEURISTIC 进展？", "video_ids": [d_pat.content_id]})["session"]

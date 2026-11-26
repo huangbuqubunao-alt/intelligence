@@ -1759,20 +1759,14 @@ _EXACT_LEADIN_ZH_RE = re.compile(
 )
 _EXACT_CANON_PAIRS: tuple[tuple[str, str], ...] = (
     ("营收", "收入"),
-    ("销售额", "收入"),
-    ("客单价", "售价"),
-    ("价格", "售价"),
     ("上涨", "增长"),
     ("上升", "增长"),
     ("提升", "增长"),
     ("下滑", "下降"),
     ("下跌", "下降"),
     ("减少", "下降"),
-    ("仍不", "尚未"),
-    ("还不", "尚未"),
-    ("不支持", "尚未支持"),
 )
-_EXACT_GLUE_CHARS_RE = re.compile(r"(?:同比|环比|共|约|为|是|的|了)")
+_EXACT_GLUE_CHARS_RE = re.compile(r"(?:为|是|的)")
 
 
 def _normalize_for_exact_match(text: str, *, strip_leadin: bool = False) -> str:
