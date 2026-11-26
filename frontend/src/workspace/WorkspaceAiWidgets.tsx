@@ -2301,14 +2301,14 @@ export function WorkspaceVideoAiActions({
       {busyKind === "distill"
         ? zh
           ? "正在提炼中文结论…"
-          : "Distilling Chinese summary…"
+          : "Distilling AI summary…"
         : aiBrief
           ? zh
             ? "AI 重新提炼中文总结"
-            : "Re-distill AI Chinese brief"
+            : "Re-distill AI brief"
           : zh
             ? "AI 提炼中文总结与洞察"
-            : "Distill AI Chinese brief"}
+            : "Distill AI brief"}
     </button>
   ) : canMetadataPreview ? (
     <button

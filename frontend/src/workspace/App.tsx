@@ -6518,7 +6518,7 @@ function ContentDetailPanel(
               );
   const visualAnalysisData = readVideoVisualAnalysis(data.visual_analysis);
   const heroPosterUrl = visualAnalysisData?.frames?.[0]?.image_url ?? null;
-  const isTextDocument = isLocalMedia && data.video.media_kind === "TEXT";
+  const isTextDocument = data.video.provider === "LOCAL" && data.video.media_kind === "TEXT";
   const isPlayableLocalVideo = isLocalMedia && data.video.media_kind === "VIDEO";
   const isPlayableLocalAudio = isLocalMedia && data.video.media_kind === "AUDIO";
   const localMediaSrc = `/api/v1/videos/${encodeURIComponent(id)}/media`;
@@ -6534,7 +6534,7 @@ function ContentDetailPanel(
     ["section-intelligence", "sparkle", "Jump · Intelligence"],
     ...(showSummaryPanel ? ([["section-summary", "file-text", "Jump · Summary"]] as const) : []),
     ["section-evidence", "shield-check", "Jump · Evidence"],
-    ["section-transcript", "quotes", "Jump · Transcript"],
+    ["section-transcript", "quotes", isTextDocument ? "Jump · Source text" : "Jump · Transcript"],
     ["section-history", "clock", "Jump · History"],
   ] as const);
 
@@ -6561,7 +6561,7 @@ function ContentDetailPanel(
               <Status {...readingStatus} />
               <span>{data.video.provider === "LOCAL" ? t("Local") : isBilibili ? `${t("Bilibili")} · ${data.video.channel_name ?? ""}` : data.video.channel_name} · {humanDate(isBilibili ? data.video.published_at : data.video.imported_at ?? data.video.published_at)}</span>
               {data.video.media_kind && <span>{t(({TEXT:"Text",AUDIO:"Audio",VIDEO:"Video"} as Record<string,string>)[data.video.media_kind])}{isBilibili ? "" : ` · ${data.video.format}`}</span>}
-              {data.video.source_language && <span>{t("Source language")}: {data.video.source_language === "und" ? t("Language unavailable") : data.video.source_language}</span>}
+              {data.video.source_language && !(isTextDocument && data.video.source_language === "und") && <span>{t("Source language")}: {data.video.source_language === "und" ? t("Language unavailable") : data.video.source_language}</span>}
               {data.video.duration_seconds != null && <span>{t("Media duration")}: {formatHumanDuration(data.video.duration_seconds)}</span>}
             </div>
             <div className="reader-action-bar">
@@ -7016,7 +7016,7 @@ function ContentDetailPanel(
                         }}
                       >
                         <PhosphorIcon name="sparkle" size={13} />
-                        {language === "zh-CN" ? "AI 提炼中文总结与洞察" : "Distill AI Chinese brief"}
+                        {language === "zh-CN" ? "AI 提炼中文总结与洞察" : "Distill AI brief"}
                       </button>
                     </div>
                   </>

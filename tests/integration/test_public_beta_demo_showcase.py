@@ -83,6 +83,22 @@ def test_demo_showcase_prepare_is_offline_and_populates_multi_source_hub(
     assert dash_body.get("workspace_weekly_brief") is not None
     assert len(cast(list[object], dash_body["pinned_topics"])) >= 2
 
+    intel_code, intel_body = app.handle("GET", "/api/v1/intelligence")
+    assert intel_code == 200
+    intel_items = cast(list[dict[str, object]], intel_body.get("items") or intel_body.get("intelligence") or [])
+    bili_intel = next(
+        (
+            it
+            for it in intel_items
+            if isinstance(it.get("card"), dict)
+            and cast(dict[str, object], it["card"]).get("video_id") == "bilibili-BV1DemoBili99"
+        ),
+        None,
+    )
+    if bili_intel is not None:
+        bili_card = cast(dict[str, object], bili_intel["card"])
+        assert bili_card["source_display_name"] == "极客架构演示室（Demo）"
+
     delta_code, delta_body = app.handle("GET", "/api/v1/knowledge-delta")
     assert delta_code == 200
     delta = cast(dict[str, object], delta_body["knowledge_delta"])

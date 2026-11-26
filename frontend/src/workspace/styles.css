@@ -5326,6 +5326,55 @@ input[type="radio"] {
   }
 }
 
+@media (max-width: 580px) {
+  .reader-hero-panel {
+    gap: 10px;
+  }
+  .reader-action-bar {
+    gap: 8px;
+  }
+  .reader-action-flow {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: 6px;
+  }
+  .reader-action-flow > .button-primary {
+    grid-column: 1 / -1;
+  }
+  .reader-export-group {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: 6px;
+    padding: 4px;
+  }
+  .reader-export-group > .button:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+  .reader-action-primary .button-small,
+  .reader-action-secondary .button-small {
+    min-height: 36px;
+    padding: 6px 8px;
+    font-size: 0.78rem;
+    justify-content: center;
+    text-align: center;
+  }
+  .reader-action-secondary {
+    gap: 6px;
+    padding-top: 6px;
+  }
+  .reader-media-stage {
+    max-height: 210px;
+    overflow: hidden;
+  }
+  .reader-media-poster-wrap,
+  .reader-media-fallback {
+    min-height: 120px;
+    max-height: 150px;
+  }
+}
+
 .topics-filter-bar {
   align-items: center;
 }

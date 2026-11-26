@@ -104,3 +104,51 @@
 ### 5. 剩余风险与下一轮计划
 - **下一轮重点（Iteration 3 · `EVO-04`）**：解决深度阅读器 390px 首屏 10 按钮堆叠、本地 `.md` 误出 `YouTube`/字幕文案、B 站卡片与作者筛选项错用视频标题、以及英文界面按钮本地化残留。
 - **需要项目所有者决定的事项**：无阻塞决策。
+
+---
+
+## Iteration 3（`EVO-04`）：阅读器多源实态一致性、B 站作者归属、移动端首屏减负与英文文案纠偏
+
+- **提交分支**：`antigravity/autonomous-product-evolution-20261126`
+- **对应需求**：`EVO-04`（8.35 分，深度阅读器减负与多源实态一致性）
+- **服务人群**：核心人群（AI 行业研究者 / 技术架构师）与双语学习者
+
+### 1. 本轮获取的新证据与产品决策
+- **实机基线暴露的 4 项阅读器与多源一致性缺口**：
+  1. `ContentDetailPanel` 中 `isLocalMedia` 将 `TEXT` 排除后又以 `isLocalMedia && media_kind === "TEXT"` 计算 `isTextDocument`，导致 `.md` 本地笔记恒被判定为非文本文档——误渲染 `YouTube` 预览占位区、`来源语言: 语言未知` 噪音与 `原始字幕` 标签（见基线截屏 `10_demo_reader_local_md.png`）。
+  2. B 站单视频在 `source_subscriptions.display_name` 写入视频标题，而读模型优先取 `source.display_name`，导致 `#Intelligence` 的来源筛选项与卡片作者错显示为完整视频标题（`12_demo_intelligence.png`）。
+  3. `390x844` 移动端阅读器 10 个头部动作按钮单列纵向堆叠，严重推低 AI 核心结论卡片首屏可见性（`18_mobile_reader_390.png`）。
+  4. 英文界面下内容详情页重提炼按钮残留 `Re-distill AI Chinese brief`。
+- **决策依据 (`DEC-002`, `DEC-006`)**：在**完全不破坏已冻结同意哈希（Consent Hash）校验契约**的前提下，将单视频读模型作者优先解析为真实的 `video.channel_name`；彻底修复本地文本文档的 `isTextDocument` 判定与文案映射，并以紧凑网格重排移动端阅读器动作组而不隐藏任何可访问功能。
+
+### 2. 实际改动内容
+1. **B 站与单视频 `source_display_name` 读模型修正 (`../../../src/youtube_intel/fast_read_api.py`, `../../../src/youtube_intel/local_api.py`)**：
+   - 在两处投影构造中，当 `source.source_type == "VIDEO_URL"` 且 `video.channel_name` 存在时优先采用 `video.channel_name`，保证历史与新增 B 站卡片及筛选条统一显示真实 UP 主（如 `极客架构演示室（Demo）`），且不改动 `distillation.py` 中已签署的同意投影哈希逻辑。
+2. **本地 Markdown 阅读器真文本文档适配、390px 动作网格与英译文案 (`../../../frontend/src/workspace/App.tsx`, `../../../frontend/src/workspace/uiLanguage.tsx`, `../../../frontend/src/workspace/WorkspaceAiWidgets.tsx`, `../../../frontend/src/workspace/styles.css`)**：
+   - 修复 `isTextDocument = data.video.provider === "LOCAL" && data.video.media_kind === "TEXT"`：自动隐藏本地 `.md` 的视频占位框，折叠无关 `语言未知`，将速跳标签与全文抽屉统一切换为 `速跳 · 文档原文` / `查看原始全文`。
+   - `<=580px` 下 `.reader-action-flow` 与 `.reader-export-group` 改用 2 列等宽紧凑网格，隐藏移动端冗余快捷键提示，压缩视频预览舞台最大高度，让本地 `.md` 的 AI 核心结论首屏直接入画。
+   - 统一英文界面重提炼按钮为 `Distill AI brief` / `Re-distill AI brief` / `Distilling AI summary…`。
+3. **新增前后端回归测试 (`../../../tests/integration/test_public_beta_demo_showcase.py`, `../../../frontend/src/workspace/EvolutionIter3.test.tsx`)**：
+   - 验证 `/api/v1/intelligence` B 站卡片 `source_display_name == "极客架构演示室（Demo）"`，以及本地 `.md` 阅读器、英文重提炼按钮全部正确。
+
+### 3. 优化前后真实实机体验对比
+
+| 场景 | 优化前（基线截图） | 优化后（本轮实机截图） | 实际体验提升 |
+|---|---|---|---|
+| **#Intelligence B 站作者归属** | ![基线 B站作者错标](./screenshots/baseline/12_demo_intelligence.png) | ![Iter 3 B站UP主归属](./screenshots/iter-3/01_intelligence_bilibili_author.png) | 筛选条与卡片作者一致显示 `极客架构演示室（Demo）`，不再误把长视频标题当成作者名 |
+| **本地 `.md` 文档阅读器** | ![基线 .md 误出 YouTube](./screenshots/baseline/10_demo_reader_local_md.png) | ![Iter 3 .md 文档纯净阅读](./screenshots/iter-3/02_reader_local_md_clean.png) | 消除 `YouTube` 预览占位框与 `语言未知`，改用 `速跳 · 文档原文`，AI 核心结论直接处于首屏 |
+| **390px 移动端 YouTube & `.md` 阅读器** | ![基线 390px 阅读器堆叠](./screenshots/baseline/18_mobile_reader_390.png) | ![Iter 3 390px 动作网格](./screenshots/iter-3/03_reader_mobile_390.png) / ![Iter 3 390px .md 首屏即达](./screenshots/iter-3/04_reader_local_md_mobile_390.png) | 头部动作收拢为紧凑 2 列，零横向溢出（`379px <= 390px`）；`.md` 文档核心结论在移动端首屏直接可见 |
+| **英文界面重提炼文案** | 旧版显示 `Re-distill AI Chinese brief` | ![Iter 3 英文按钮纠偏](./screenshots/iter-3/05_reader_en_localization.png) | 统一呈现 `Re-distill AI brief`，语境准确一致 |
+
+### 4. 已完成自动化检查与实机验证证据
+- **后端全套门禁**：
+  - `.venv/bin/ruff check`、`mypy`（138 files 范围修改文件 0 问题）、`ci_test_manifest.py verify`（`total_collected=7400`）全通过。
+  - `PYTHONPATH=. .venv/bin/pytest tests/integration/test_public_beta_demo_showcase.py tests/integration/test_bilibili_content.py tests/integration/test_bilibili_three_provider.py -q` → **27 passed in 73.12s**。
+- **前端全套门禁**：
+  - `npm run typecheck` → 通过；`npm run build` → `vite v5.4.19` 870ms 构建成功。
+  - `npm test -- --run --poolOptions.forks.maxForks=4 --poolOptions.forks.minForks=2` → **61/61 test files, 1285/1285 tests passed**。
+- **真实 Chromium 实机验证**：在 `127.0.0.1:8799` 硬重载拉取最新构建（`assets/index-CVrBFuXk.js` HTTP 200）验证全 5 个场景：**0 console errors、0 page errors、0 HTTP >=400**（验收后已恢复界面语言为 `zh-CN`）。
+
+### 5. 剩余风险与下一轮计划
+- **下一轮重点（Iteration 4 · `EVO-05`）**：升级 `#Topics` 专题详情从分号拼接升级为“跨来源观点对照 + 真综合梳理”并清理重复前缀/双时间线，同时为新用户提供空库首屏 3 步速览与可随时重开的「重新查看新手引导」入口。
+- **需要项目所有者决定的事项**：无阻塞决策。
