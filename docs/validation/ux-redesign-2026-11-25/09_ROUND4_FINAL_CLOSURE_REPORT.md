@@ -24,13 +24,13 @@
 
 ## 2. 本轮变更文件索引（`05d31dce..00bb495c`，精确 7 个文件）
 
-1. [`src/youtube_intel/youtube_auth_fallback.py`](file:///Users/hua/Documents/yia-worktrees/remediation-20261125/src/youtube_intel/youtube_auth_fallback.py) — 旧表 `cookie_file` 迁移安全撤销 + `grant:` 槽位前缀防御校验
-2. [`src/youtube_intel/fast_read_api.py`](file:///Users/hua/Documents/yia-worktrees/remediation-20261125/src/youtube_intel/fast_read_api.py) — `disconnect` 强制要求合法 `scope`（移除空体/`None` 全撤回退）
-3. [`src/youtube_intel/workspace_intelligence_hub.py`](file:///Users/hua/Documents/yia-worktrees/remediation-20261125/src/youtube_intel/workspace_intelligence_hub.py) — `_evaluate_clause_against_cited_evidence` 三态评级、`HEURISTIC_ONLY` 分级、概念拆分/互斥/严格特定概念与 `_row_to_research_session_dto` / `export_backup_snapshot` 全出口重生成
-4. [`frontend/src/workspace/WorkspaceAiWidgets.tsx`](file:///Users/hua/Documents/yia-worktrees/remediation-20261125/frontend/src/workspace/WorkspaceAiWidgets.tsx) — Research 信任徽章严格白名单渲染（零默认肯定）
-5. [`frontend/src/workspace/ManualUxRemediation.test.tsx`](file:///Users/hua/Documents/yia-worktrees/remediation-20261125/frontend/src/workspace/ManualUxRemediation.test.tsx) — 补全测试夹具显式状态字段并新增 `P1-F03-B` 全状态白名单单测
-6. [`tests/integration/test_final_blocker_closure.py`](file:///Users/hua/Documents/yia-worktrees/remediation-20261125/tests/integration/test_final_blocker_closure.py) — 新增 `test_p1_f02_legacy_cookie_grant_migration_revoked_and_strict_disconnect_422`（L1129）与 `test_p1_f03_round4_adversarial_overreach_heuristic_grade_and_markdown_rebuild`（L1254）
-7. [`tests/unit/test_manual_ux_remediation.py`](file:///Users/hua/Documents/yia-worktrees/remediation-20261125/tests/unit/test_manual_ux_remediation.py) — 更新 L779 `disconnect` 显式传入 `{"scope": "global"}`
+1. [`src/youtube_intel/youtube_auth_fallback.py`](../../../src/youtube_intel/youtube_auth_fallback.py) — 旧表 `cookie_file` 迁移安全撤销 + `grant:` 槽位前缀防御校验
+2. [`src/youtube_intel/fast_read_api.py`](../../../src/youtube_intel/fast_read_api.py) — `disconnect` 强制要求合法 `scope`（移除空体/`None` 全撤回退）
+3. [`src/youtube_intel/workspace_intelligence_hub.py`](../../../src/youtube_intel/workspace_intelligence_hub.py) — `_evaluate_clause_against_cited_evidence` 三态评级、`HEURISTIC_ONLY` 分级、概念拆分/互斥/严格特定概念与 `_row_to_research_session_dto` / `export_backup_snapshot` 全出口重生成
+4. [`frontend/src/workspace/WorkspaceAiWidgets.tsx`](../../../frontend/src/workspace/WorkspaceAiWidgets.tsx) — Research 信任徽章严格白名单渲染（零默认肯定）
+5. [`frontend/src/workspace/ManualUxRemediation.test.tsx`](../../../frontend/src/workspace/ManualUxRemediation.test.tsx) — 补全测试夹具显式状态字段并新增 `P1-F03-B` 全状态白名单单测
+6. [`tests/integration/test_final_blocker_closure.py`](../../../tests/integration/test_final_blocker_closure.py) — 新增 `test_p1_f02_legacy_cookie_grant_migration_revoked_and_strict_disconnect_422`（L1129）与 `test_p1_f03_round4_adversarial_overreach_heuristic_grade_and_markdown_rebuild`（L1254）
+7. [`tests/unit/test_manual_ux_remediation.py`](../../../tests/unit/test_manual_ux_remediation.py) — 更新 L779 `disconnect` 显式传入 `{"scope": "global"}`
 
 ---
 
@@ -41,7 +41,7 @@
 - **headSha**：`00bb495c9367d66c98c3136eb69ef7ab52ce4847`
 - **总结论**：**`success`（`run_attempt = 1`，14 / 14 全部一次通过）**
 - **Public Beta 套件（Job `139743982897`）**：`All checks passed!`、`182 passed in 348.21s`
-- **Unit Shard 0/4（Job `139743983312`）**：`947 passed, 1 skipped, 35 deselected in 212.70s`（唯一跳过项仍为既有 [`tests/unit/test_o200k_provisioning.py:134`](file:///Users/hua/Documents/yia-worktrees/remediation-20261125/tests/unit/test_o200k_provisioning.py#L131-L134) 无外部资产跳过；`tests/unit/test_o200k_provisioning.py`、`.github/workflows/ci.yml` 与 `scripts/ci_test_manifest.py` 均未改动；Manifest 覆盖 `total_collected=7398`, `total_runnable=7187`, `gov001_excluded=190`, `capacity_excluded=21`）。
+- **Unit Shard 0/4（Job `139743983312`）**：`947 passed, 1 skipped, 35 deselected in 212.70s`（唯一跳过项仍为既有 [`tests/unit/test_o200k_provisioning.py:134`](../../../tests/unit/test_o200k_provisioning.py#L131-L134) 无外部资产跳过；`tests/unit/test_o200k_provisioning.py`、`.github/workflows/ci.yml` 与 `scripts/ci_test_manifest.py` 均未改动；Manifest 覆盖 `total_collected=7398`, `total_runnable=7187`, `gov001_excluded=190`, `capacity_excluded=21`）。
 
 | # | Job 名称 | Job ID | 结论 | 链接 |
 |---|---|---|---|---|

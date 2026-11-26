@@ -707,6 +707,42 @@ def _build_citation_deep_url(
     return None
 
 
+_UNSAFE_MD_URL_CHARS = frozenset("()<>\"'\\`[]")
+_COLLAPSE_HSPACE_RE = re.compile(r"[ \t]{2,}")
+
+
+def _sanitize_external_citation_url(raw_url: object) -> str:
+    """Allow only clean https:// URLs safe for rendering in Markdown/Obsidian links."""
+    if not isinstance(raw_url, str):
+        return ""
+    trimmed = raw_url.strip()
+    if not trimmed or len(trimmed) > 2048:
+        return ""
+    if any(
+        ch.isspace()
+        or ord(ch) < 32
+        or ord(ch) == 127
+        or ch in _UNSAFE_MD_URL_CHARS
+        for ch in trimmed
+    ):
+        return ""
+    try:
+        parts = urlsplit(trimmed)
+        port = parts.port
+    except ValueError:
+        return ""
+    if (
+        parts.scheme.casefold() != "https"
+        or not parts.netloc
+        or not parts.hostname
+        or parts.username is not None
+        or parts.password is not None
+        or port not in {None, 443}
+    ):
+        return ""
+    return trimmed
+
+
 def _clean_text(
     value: object,
     *,
@@ -1038,13 +1074,13 @@ _CN_COUNTED_RE = re.compile(
     rf"(?=({_CN_UNIT_PAT}))"
 )
 _PCT_RE = re.compile(
-    r"(?<![A-Za-z0-9.])([-+−]|负)?\s*(?:百分之([零〇一二两三四五六七八九十百千点.\d]+)|(\d+(?:,\d{3})*(?:\.\d+)?)\s*%)"
+    r"(?<![A-Za-z0-9.])(?:([-+−]|负)\s*)?(?:百分之([零〇一二两三四五六七八九十百千点.\d]+)|(\d+(?:,\d{3})*(?:\.\d+)?)\s*%)"
 )
 _CUR_SYMBOL_RE = re.compile(
-    r"(?<![A-Za-z0-9.])([-+−]|负)?\s*([$¥€£])\s*([-+−])?\s*(\d+(?:,\d{3})*(?:\.\d+)?)\s*([万亿kKmMbB]?)"
+    r"(?<![A-Za-z0-9.])(?:([-+−]|负)\s*)?([$¥€£])\s*([-+−])?\s*(\d+(?:,\d{3})*(?:\.\d+)?)\s*([万亿kKmMbB]?)"
 )
 _CUR_SUFFIX_RE = re.compile(
-    r"(?<![A-Za-z0-9.])([-+−]|负)?\s*(\d+(?:,\d{3})*(?:\.\d+)?)\s*([万亿kKmMbB]?)\s*(美元|人民币|港币|港元|欧元|英镑|块钱|元|USD|CNY|RMB|EUR|GBP|HKD)\b",
+    r"(?<![A-Za-z0-9.])(?:([-+−]|负)\s*)?(\d+(?:,\d{3})*(?:\.\d+)?)\s*([万亿kKmMbB]?)\s*(美元|人民币|港币|港元|欧元|英镑|块钱|元|USD|CNY|RMB|EUR|GBP|HKD)\b",
     re.IGNORECASE,
 )
 _YEAR_RE = re.compile(r"(?<!\d)((?:19|20)\d{2})(?=年|\b|[^\d])")
@@ -1324,6 +1360,7 @@ def _strip_post_citation_tags(text: str) -> str:
 
 def _extract_typed_facts(text: str, *, is_claim: bool = False) -> list[_TypedFact]:
     cleaned = unicodedata.normalize("NFKC", str(text or ""))
+    cleaned = _COLLAPSE_HSPACE_RE.sub(" ", cleaned)
     if is_claim:
         cleaned = _strip_post_citation_tags(cleaned)
     cleaned = _E_REF_BRACKET_GROUP_RE.sub(" ", cleaned)
@@ -1818,9 +1855,14 @@ def _evaluate_clause_against_cited_evidence(
     Returns ``(ok, error_code, grade)`` where ``grade`` is one of
     ``EXACT_SUPPORTED``, ``HEURISTIC_ONLY``, or ``REJECTED``.
     """
-    excerpts = [str(e or "").strip() for e in cited_excerpts if str(e or "").strip()]
+    excerpts = [
+        _COLLAPSE_HSPACE_RE.sub(" ", str(e or "").strip())
+        for e in cited_excerpts
+        if str(e or "").strip()
+    ]
     if not excerpts:
         return False, "NO_VERIFIED_CITATIONS", "REJECTED"
+    clause = _COLLAPSE_HSPACE_RE.sub(" ", str(clause or ""))
 
     ev_sentences: list[str] = []
     for exc in excerpts:
@@ -2086,7 +2128,7 @@ def _prune_ungrounded_ref_clauses(
     Drops any sentence, inline list item, uncited comma fact, or table row lacking a
     valid E<n> citation (or contaminated by unissued/invalid refs or contradicting cited facts).
     """
-    cleaned = str(text or "").strip()
+    cleaned = _COLLAPSE_HSPACE_RE.sub(" ", str(text or "")).strip()
     if not cleaned:
         return ""
     raw_nums = _extract_e_ref_nums(cleaned)
@@ -8984,7 +9026,7 @@ class WorkspaceIntelligenceHub:
             c: Mapping[str, Any], *, with_note: bool
         ) -> str:
             ts_label = str(c.get("timestamp_label") or "")
-            cit_url = str(c.get("citation_url") or "").strip()
+            cit_url = _sanitize_external_citation_url(c.get("citation_url"))
             loc_md = f"[`{ts_label} ↗`]({cit_url})" if cit_url else f"`{ts_label}`"
             ev_raw = str(c.get("evidence_id") or "").strip()
             ev_tag = f" `ev:{ev_raw[:12]}`" if ev_raw else ""
@@ -9130,7 +9172,19 @@ class WorkspaceIntelligenceHub:
             cite["verification_status"] = "NEEDS_REVERIFICATION"
             cite["excerpt"] = ""
             cite["evidence_id"] = ""
+            cite.pop("citation_url", None)
+            cite.pop("source_url", None)
             return cite
+        safe_cite_url = _sanitize_external_citation_url(cite.get("citation_url"))
+        if safe_cite_url:
+            cite["citation_url"] = safe_cite_url
+        else:
+            cite.pop("citation_url", None)
+        safe_source_url = _sanitize_external_citation_url(cite.get("source_url"))
+        if safe_source_url:
+            cite["source_url"] = safe_source_url
+        else:
+            cite.pop("source_url", None)
         cite["evidence_id"] = verified.evidence_id
         norm_actual = re.sub(r"\s+", " ", str(verified.excerpt or "")).strip()
         norm_expected = re.sub(r"\s+", " ", str(expected or "")).strip()

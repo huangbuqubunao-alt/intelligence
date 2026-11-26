@@ -1,6 +1,6 @@
 # 第三轮独立复审最终阻断整改断点检查点（Final Blocker Checkpoint）
 
-- **工作仓库**：`/Users/hua/Documents/yia-worktrees/remediation-20261125`
+- **工作仓库**：`intelligence` (`antigravity/remediation-20261125`)
 - **工作分支**：`antigravity/remediation-20261125`
 - **main 基线**：`d1b58f731adc4185fe78cc5538e9e211b8a0e211`
 - **起点 SHA**：代码 `84765be841c889ea3152590874be846ff4592518`｜文档交付 `33ab21de3d9389986f607d307bda9544d2afca15`
